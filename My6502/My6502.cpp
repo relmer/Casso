@@ -1,9 +1,15 @@
 #include "Pch.h"
 
+#include "Cpu.h"
+#include "My6502.h"
+
 
 
 int main()
 {
-    std::cout << "Hello World!\n";
+    Cpu cpu;
+
+    //cpu.Reset ();
+    //cpu.Run ();
 }
 
