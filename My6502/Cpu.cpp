@@ -14,14 +14,14 @@ Cpu::Cpu ()
 
 void Cpu::Reset ()
 {
-    pc = 0xFFFC;
-    sp = 0x0100;
+    PC = 0xFFFC;
+    SP = 0x0100;
 
     status.status = 0;
 
-    a = 0;
-    x = 0;
-    y = 0;
+    A = 0;
+    X = 0;
+    Y = 0;
 
     memset (memory, 0, sizeof (memory));
 }
@@ -32,8 +32,8 @@ void Cpu::Run ()
 {
     do
     {
-        byte opcode         = memory[pc];
-        //byte instruction    = Decode (opcode); 
+        Byte opcode         = memory[PC];
+        //Byte instruction    = Decode (opcode); 
     }
     while (0);
 }
@@ -47,82 +47,58 @@ void Cpu::InitializeInstructionSet ()
     PrintInstructionSet ();
 }
 
+
+
 void Cpu::InitializeGroup01 ()
 {
-    Group01 group01;
-    Instruction instruction;
+    struct TableEntry
+    {
+        Group01::Opcode        opcode;
+        Byte                   addressingModeFlags;
+        Microcode::Operation   operation;
+        Byte                 * pRegisterAffected;
+    };
+
+    TableEntry table[] =
+    {
+        { Group01::ORA, Group01::__AMF_AllModes,                             Microcode::Or,                &A      },
+        { Group01::AND, Group01::__AMF_AllModes,                             Microcode::And,               &A      },
+        { Group01::EOR, Group01::__AMF_AllModes,                             Microcode::Xor,               &A      },
+        { Group01::ADC, Group01::__AMF_AllModes,                             Microcode::AddWithCarry,      &A      },
+        { Group01::STA, Group01::__AMF_AllModes & ~(Group01::AMF_Immediate), Microcode::Store,             &A      },
+        { Group01::LDA, Group01::__AMF_AllModes,                             Microcode::Load,              &A      },
+        { Group01::CMP, Group01::__AMF_AllModes,                             Microcode::Compare,           nullptr },
+        { Group01::SBC, Group01::__AMF_AllModes,                             Microcode::SubtractWithCarry, &A      },
+    };
 
 
-    instruction = group01.CreateInstruction (Group01::ORA, Group01::Immediate);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::ORA, Group01::ZeroPage);          instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::ORA, Group01::ZeroPageX);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::ORA, Group01::Absolute);          instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::ORA, Group01::AbsoluteX);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::ORA, Group01::AbsoluteY);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::ORA, Group01::ZeroPageXIndirect); instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::ORA, Group01::ZeroPageIndirectY); instructionSet[instruction.asByte] = Microcode (instruction);
+    for (TableEntry entry : table)
+    { 
+        CreateGroup01Instruction (entry.opcode, entry.addressingModeFlags, entry.operation, entry.pRegisterAffected);
+    }
+}
 
-    instruction = group01.CreateInstruction (Group01::AND, Group01::Immediate);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::AND, Group01::ZeroPage);          instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::AND, Group01::ZeroPageX);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::AND, Group01::Absolute);          instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::AND, Group01::AbsoluteX);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::AND, Group01::AbsoluteY);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::AND, Group01::ZeroPageXIndirect); instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::AND, Group01::ZeroPageIndirectY); instructionSet[instruction.asByte] = Microcode (instruction);
 
-    instruction = group01.CreateInstruction (Group01::EOR, Group01::Immediate);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::EOR, Group01::ZeroPage);          instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::EOR, Group01::ZeroPageX);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::EOR, Group01::Absolute);          instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::EOR, Group01::AbsoluteX);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::EOR, Group01::AbsoluteY);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::EOR, Group01::ZeroPageXIndirect); instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::EOR, Group01::ZeroPageIndirectY); instructionSet[instruction.asByte] = Microcode (instruction);
 
-    instruction = group01.CreateInstruction (Group01::ADC, Group01::Immediate);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::ADC, Group01::ZeroPage);          instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::ADC, Group01::ZeroPageX);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::ADC, Group01::Absolute);          instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::ADC, Group01::AbsoluteX);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::ADC, Group01::AbsoluteY);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::ADC, Group01::ZeroPageXIndirect); instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::ADC, Group01::ZeroPageIndirectY); instructionSet[instruction.asByte] = Microcode (instruction);
+void Cpu::CreateGroup01Instruction (Group01::Opcode        opcode, 
+                                    Byte                   addressingModeFlags, 
+                                    Microcode::Operation   operation, 
+                                    Byte                 * pRegisterAffected)
+{
+    Byte addressingMode            = Group01::__AM_First;
+    Byte currentAddressingModeFlag = 1;
 
-    instruction = group01.CreateInstruction (Group01::STA, Group01::ZeroPage);          instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::STA, Group01::ZeroPageX);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::STA, Group01::Absolute);          instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::STA, Group01::AbsoluteX);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::STA, Group01::AbsoluteY);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::STA, Group01::ZeroPageXIndirect); instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::STA, Group01::ZeroPageIndirectY); instructionSet[instruction.asByte] = Microcode (instruction);
+    while (addressingMode < Group01::__AM_Count)
+    {
+        if (addressingModeFlags & currentAddressingModeFlag)
+        {
+            Instruction instruction = Group01::CreateInstruction (opcode, (Group01::AddressingMode) addressingMode);
+            instructionSet[instruction.asByte] = Microcode (instruction, operation, pRegisterAffected);
+        }
 
-    instruction = group01.CreateInstruction (Group01::LDA, Group01::Immediate);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::LDA, Group01::ZeroPage);          instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::LDA, Group01::ZeroPageX);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::LDA, Group01::Absolute);          instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::LDA, Group01::AbsoluteX);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::LDA, Group01::AbsoluteY);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::LDA, Group01::ZeroPageXIndirect); instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::LDA, Group01::ZeroPageIndirectY); instructionSet[instruction.asByte] = Microcode (instruction);
-
-    instruction = group01.CreateInstruction (Group01::CMP, Group01::Immediate);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::CMP, Group01::ZeroPage);          instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::CMP, Group01::ZeroPageX);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::CMP, Group01::Absolute);          instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::CMP, Group01::AbsoluteX);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::CMP, Group01::AbsoluteY);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::CMP, Group01::ZeroPageXIndirect); instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::CMP, Group01::ZeroPageIndirectY); instructionSet[instruction.asByte] = Microcode (instruction);
-
-    instruction = group01.CreateInstruction (Group01::SBC, Group01::Immediate);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::SBC, Group01::ZeroPage);          instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::SBC, Group01::ZeroPageX);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::SBC, Group01::Absolute);          instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::SBC, Group01::AbsoluteX);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::SBC, Group01::AbsoluteY);         instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::SBC, Group01::ZeroPageXIndirect); instructionSet[instruction.asByte] = Microcode (instruction);
-    instruction = group01.CreateInstruction (Group01::SBC, Group01::ZeroPageIndirectY); instructionSet[instruction.asByte] = Microcode (instruction);
+        ++addressingMode;
+        currentAddressingModeFlag <<= 1;
+    }
 }
 
 
@@ -133,8 +109,8 @@ void Cpu::PrintInstructionSet ()
     {
         if (instructionSet[i].isLegal)
         {
-            byte opcode = instructionSet[i].instruction.asBits.opcode;
-            byte addressingMode = instructionSet[i].instruction.asBits.addressingMode;
+            Byte opcode = instructionSet[i].instruction.asBits.opcode;
+            Byte addressingMode = instructionSet[i].instruction.asBits.addressingMode;
 
             std::printf ("Instruction %02X:  %s ($%02X) %s\n",
                          (unsigned int) i,
@@ -147,15 +123,15 @@ void Cpu::PrintInstructionSet ()
 
 
 
-word Cpu::Decode (byte opcode)
+Word Cpu::Decode (Byte opcode)
 {
-    return word ();
+    return Word ();
 }
 
 
 
-byte Cpu::FetchInstruction ()
+Byte Cpu::FetchInstruction ()
 {
-    return byte ();
+    return Byte ();
 }
 
