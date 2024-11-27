@@ -35,16 +35,36 @@ void Cpu::Reset ()
     PC = 0x8000;
     SP = 0x0100;
 
-    //memory[0x8000] = 0x09;  // ORA
-    //memory[0x8001] = 0x0F;  // Immediate
-    //memory[0x8002] = 0x09;  // ORA
-    //memory[0x8003] = 0xF0;  // Immediate
+    Word addr = PC;
+
+
+    // Immediate
+    //memory[addr++] = 0x09;  // ORA
+    //memory[addr++] = 0x0F;  // Immediate
+    //memory[addr++] = 0x09;  // ORA
+    //memory[addr++] = 0xF0;  // Immediate
     
-    X = 0x11;
-    memory[0x8000] = 0x01;  // ORA
-    memory[0x8001] = 0x42;  // ($0042 + X)
-    memory[memory[0x8001] + X] = 0x99;
-    memory[0x8002] = 0x01;  // ORA
+    // Zero page + X, indirect
+    //X = 0x11;
+    //memory[addr++] = 0x01;  // ORA
+    //memory[addr++] = 0x11;  // ($0011 + X)
+    //memory[memory[addr - 1] + X] = 0x33;
+    //memory[addr++] = 0x01;  // ORA
+
+    // Zero page
+    //memory[addr++] = 0x05;  // ORA
+    //memory[addr++] = 0x55;  // ($0055)
+    //memory[memory[addr - 1]] = 0x44;
+    //memory[addr++] = 0x09;  // ORA
+    //memory[addr++] = 0x10;  // #$10
+
+    // Absolute
+    memory[addr++] = 0x0D;  // ORA
+    memory[addr++] = 0x34;  // NB:  Little endian
+    memory[addr++] = 0x12;  // ($1234)
+    memory[0x1234] = 0x55;
+    memory[addr++] = 0x09;  // ORA
+    memory[addr++] = 0x10;  // #$10
 }
 
 
@@ -53,62 +73,160 @@ void Cpu::Run ()
 {
     do
     {
-        Byte        opcode      = memory[PC++];
-        Instruction instruction = instructionSet[opcode].instruction;
-        Word        operand     = 0;
+        Word        initialPC   = PC;
+        Byte        opcode      = memory[PC];
+        Microcode   microcode   = instructionSet[opcode];
+        OperandInfo operandInfo = { 0 };
 
-        std::printf ("SP: %04x    A: %04X    X: %04X    Y: %04X        [%04X] %02X %02X        ",
-                     SP, A, X, Y, PC - 1, opcode, memory[PC]);
+        FetchOperand        (microcode, operandInfo);
+        PrintSingleStepInfo (initialPC, opcode, operandInfo);
 
         if (!instructionSet[opcode].isLegal)
         {
-            std::printf ("Illegal instruction\n");
             break;
         }
 
-        std::printf ("%s ", instructionSet[opcode].instructionName);
-
-        operand = FetchOperand (instruction);
-        ExecuteInstruction (instructionSet[opcode], operand);
+        ExecuteInstruction  (instructionSet[opcode], operandInfo.operand);
 
         std::printf ("\n");
+
+        ++PC;
     }
     while (1);
 }
 
 
 
-Word Cpu::FetchOperand (Instruction instruction)
+void Cpu::PrintSingleStepInfo (Word initialPC, Byte opcode, OperandInfo & operandInfo)
 {
-    Word operand = 0;
+    // Print the registers and the opcode byte
+    std::printf ("SP: %04x    A: %04X    X: %04X    Y: %04X        [%04X] %02X ",
+                  SP,
+                  A,
+                  X,
+                  Y,
+                  initialPC,
+                  opcode);
 
-    switch (instruction.asBits.addressingMode)
+    PrintOperandBytes (initialPC, opcode);
+
+    // print the instruction name
+    std::printf ("%s ", instructionSet[opcode].instructionName);
+
+    PrintOperandAndComment (opcode, operandInfo);
+}
+
+
+
+void Cpu::PrintOperandBytes (Word initialPC, Byte opcode)
+{
+    // Print the operand bytes
+    switch (instructionSet[opcode].instruction.asBits.addressingMode)
+    {
+    case Group01::AM_ZeroPageXIndirect:
+    case Group01::AM_ZeroPage:
+    case Group01::AM_Immediate:
+    case Group01::AM_ZeroPageIndirectY:
+    case Group01::AM_ZeroPageX:
+        std::printf ("%02X           ", memory[initialPC + 1]);
+        break;
+
+    case Group01::AM_Absolute:
+    case Group01::AM_AbsoluteY:
+    case Group01::AM_AbsoluteX:
+        std::printf ("%02X %02X        ", memory[initialPC + 1], memory[initialPC + 2]);
+        break;
+    }
+}
+
+
+
+void Cpu::PrintOperandAndComment (Byte opcode, Cpu::OperandInfo & operandInfo)
+{
+    if (!instructionSet[opcode].isLegal)
+    {
+        return;
+    }
+
+    // print the operand and comment if applicable
+    switch (instructionSet[opcode].instruction.asBits.addressingMode)
+    {
+    case Group01::AM_ZeroPageXIndirect:
+        printf ("($%02X,X)  ; $%02X", operandInfo.offset, operandInfo.operand);
+        break;
+
+    case Group01::AM_ZeroPage:
+        printf ("$%02X      ; $%02X", operandInfo.offset, operandInfo.operand);
+        break;
+
+    case Group01::AM_Immediate:
+        printf ("#$%02X", operandInfo.operand);
+        break;
+
+    case Group01::AM_Absolute:
+        printf ("$%04X      ; $%02X", operandInfo.offset, operandInfo.operand);
+        break;
+
+        /*
+        case Group01::AM_ZeroPageIndirectY:
+        return memory[(memory[PC] + Y) & 0xFF];
+
+        case Group01::AM_ZeroPageX:
+        return memory[(memory[PC] + Y) & 0xFF];
+
+        case Group01::AM_AbsoluteY:
+        return memory[ReadWord (PC) + Y];
+
+        case Group01::AM_AbsoluteX:
+        return memory[ReadWord (PC) + X];
+        */
+    }
+}
+
+
+
+void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
+{
+    operandInfo.offset  = 0;
+    operandInfo.operand = 0;
+
+    if (microcode.isSingleByte || !microcode.isLegal)
+    {
+        return;
+    }
+
+    // Advance the program counter to the operand byte
+    ++PC;
+
+    switch (microcode.instruction.asBits.addressingMode)
     {
         case Group01::AM_ZeroPageXIndirect:
-            operand = memory[(memory[PC] + X) & 0xFF];
-            printf ("($%02X,X)  ; $%02X", memory[PC], operand);
-            ++PC;
+            operandInfo.offset  = memory[PC];
+            operandInfo.operand = memory[operandInfo.offset + X];
             break;
 
-        /*
-            case Group01::AM_ZeroPage:
-                return memory[memory[PC++]];
-        */
+        case Group01::AM_ZeroPage:
+            operandInfo.offset  = memory[PC];
+            operandInfo.operand = memory[operandInfo.offset];
+            break;
 
         case Group01::AM_Immediate:
-            operand = memory[PC++];
-            printf ("$%02X", operand);
+            operandInfo.operand = memory[PC];
             break;
 
-        /*
-            case Group01::AM_Absolute:
-                return memory[ReadWord (PC)];
+        case Group01::AM_Absolute:
+            operandInfo.offset  = memory[PC];
+            operandInfo.offset |= memory[++PC] << 8;
+            operandInfo.operand = memory[operandInfo.offset];
+            break;
 
+
+        /*
             case Group01::AM_ZeroPageIndirectY:
-                return memory[(memory[PC++] + Y) & 0xFF];
+                return memory[(memory[PC] + Y) & 0xFF];
 
             case Group01::AM_ZeroPageX:
-                return memory[(memory[PC++] + Y) & 0xFF];
+                return memory[(memory[PC] + Y) & 0xFF];
 
             case Group01::AM_AbsoluteY:
                 return memory[ReadWord (PC) + Y];
@@ -119,11 +237,11 @@ Word Cpu::FetchOperand (Instruction instruction)
             }
         */
     default:
-        std::printf ("Unhandled addressing mode %d\n", instruction.asBits.addressingMode);
+        std::printf ("Unhandled addressing mode %d\n", microcode.instruction.asBits.addressingMode);
         break;
     }
 
-    return operand;
+    return;
 }
 
 
@@ -193,7 +311,7 @@ void Cpu::CreateGroup01Instruction (Group01::Opcode        opcode,
         if (addressingModeFlags & currentAddressingModeFlag)
         {
             Instruction instruction = Group01::CreateInstruction (opcode, (Group01::AddressingMode) addressingMode);
-            instructionSet[instruction.asByte] = Microcode (instruction, Group01::instructionName[opcode], operation, pRegisterAffected);
+            instructionSet[instruction.asByte] = Microcode (instruction, Group01::instructionName[opcode], false, operation, pRegisterAffected);
         }
 
         ++addressingMode;

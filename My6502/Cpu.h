@@ -150,14 +150,16 @@ public:
 
 public:
     Microcode () : 
-        isLegal (false)
+        isLegal         (false),
+        instructionName ("Illegal instruction")
     {
     }
 
-    Microcode (Instruction instruction, const char * instructionName, Operation operation, Byte * pRegisterAffected) :
+    Microcode (Instruction instruction, const char * instructionName, bool isSingleByte, Operation operation, Byte * pRegisterAffected) :
         isLegal             (true),
         instruction         (instruction),
         instructionName     (instructionName),
+        isSingleByte        (isSingleByte),
         pRegisterAffected   (pRegisterAffected),
         operation           (operation)
     {
@@ -167,6 +169,7 @@ public:
     bool          isLegal;
     Instruction   instruction;
     const char  * instructionName;
+    bool          isSingleByte;
     Byte        * pRegisterAffected;
     Operation     operation;
 };
@@ -180,16 +183,25 @@ public:
     void Reset ();
     void Run ();
 
-
 protected:
+    struct OperandInfo
+    {
+        Word offset;
+        Word operand;
+    };
+
+    void PrintSingleStepInfo    (Word initialPC, Byte opcode, OperandInfo & operandInfo);
+    void PrintOperandAndComment (Byte opcode, Cpu::OperandInfo & operandInfo);
+    void PrintOperandBytes      (Word initialPC, Byte opcode);
+    void FetchOperand           (Microcode microcode, OperandInfo & operandInfo);
+    void ExecuteInstruction     (Microcode microcode, Word operand);
+
     void InitializeInstructionSet ();
     void InitializeGroup01 ();
     void CreateGroup01Instruction (Group01::Opcode opcode, Byte addressingModeFlags, Microcode::Operation operation, Byte * pRegisterAffected);
     
     void PrintInstructionSet ();
     
-    Word FetchOperand       (Instruction instruction);
-    void ExecuteInstruction (Microcode microcode, Word operand);
 
 
 protected:
