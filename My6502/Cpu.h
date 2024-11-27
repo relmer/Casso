@@ -73,7 +73,7 @@ public:
         SBC     // 111 = Subtract with Carry
     };
 
-    static constexpr const char * opcodeName[] =
+    static constexpr const char * instructionName[] =
     { 
         "ORA", 
         "AND", 
@@ -88,7 +88,7 @@ public:
     enum AddressingMode
     {
         __AM_First           = 0,
-        AM_ZeroPageXIndirect = 0b000,   // 000 (Zero Page, X)
+        AM_ZeroPageXIndirect = 0b000,   // 000 (Zero Page, X) -> ($00LL + X)
         AM_ZeroPage          = 0b001,   // 001 Zero Page
         AM_Immediate         = 0b010,   // 010 #Immediate
         AM_Absolute          = 0b011,   // 011 Absolute
@@ -149,24 +149,26 @@ public:
     };
 
 public:
-    Microcode ()
-        : isLegal (false)
+    Microcode () : 
+        isLegal (false)
     {
     }
 
-    Microcode (Instruction instruction, Operation operation, Byte * pRegisterAffected) :
+    Microcode (Instruction instruction, const char * instructionName, Operation operation, Byte * pRegisterAffected) :
         isLegal             (true),
         instruction         (instruction),
+        instructionName     (instructionName),
         pRegisterAffected   (pRegisterAffected),
         operation           (operation)
     {
     }
 
 public:
-    bool        isLegal;
-    Instruction instruction;
-    Byte *      pRegisterAffected;
-    Operation   operation;
+    bool          isLegal;
+    Instruction   instruction;
+    const char  * instructionName;
+    Byte        * pRegisterAffected;
+    Operation     operation;
 };
 
 
