@@ -111,7 +111,7 @@ void Cpu::Run ()
             break;
         }
 
-        ExecuteInstruction  (instructionSet[opcode], operandInfo.operand);
+        ExecuteInstruction  (instructionSet[opcode], operandInfo);
 
         std::printf ("\n");
 
@@ -122,7 +122,7 @@ void Cpu::Run ()
 
 
 
-void Cpu::PrintSingleStepInfo (Word initialPC, Byte opcode, OperandInfo & operandInfo)
+void Cpu::PrintSingleStepInfo (Word initialPC, Byte opcode, const OperandInfo & operandInfo)
 {
     // Print the registers and the opcode byte
     std::printf ("SP: %04x    A: %04X    X: %04X    Y: %04X        [%04X] %02X ",
@@ -166,7 +166,7 @@ void Cpu::PrintOperandBytes (Word initialPC, Byte opcode)
 
 
 
-void Cpu::PrintOperandAndComment (Byte opcode, Cpu::OperandInfo & operandInfo)
+void Cpu::PrintOperandAndComment (Byte opcode, const OperandInfo & operandInfo)
 {
     if (!instructionSet[opcode].isLegal)
     {
@@ -293,13 +293,30 @@ void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
 
 
 
-void Cpu::ExecuteInstruction (Microcode microcode, Word operand)
+void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandInfo)
 {
     switch (microcode.operation)
     {
     case Microcode::Or:
-        CpuOperations::Or (microcode.pRegisterAffected, (Byte) operand);
+        CpuOperations::Or (*this, *microcode.pRegisterAffected, (Byte) operandInfo.operand);
         break;
+
+    case Microcode::And:
+        CpuOperations::And (*this, *microcode.pRegisterAffected, (Byte) operandInfo.operand);
+        break;
+
+    case Microcode::Xor:
+        CpuOperations::Xor (*this, *microcode.pRegisterAffected, (Byte) operandInfo.operand);
+        break;
+
+    case Microcode::AddWithCarry:
+        CpuOperations::AddWithCarry (*this, *microcode.pRegisterAffected, (Byte) operandInfo.operand);
+        break;
+
+    default:
+        std::printf ("Unimplemented instruction:  %s\n", microcode.instructionName);
+        break;
+
     }
 }
 
@@ -321,7 +338,7 @@ void Cpu::InitializeGroup01 ()
         Group01::Opcode        opcode;
         Byte                   addressingModeFlags;
         Microcode::Operation   operation;
-        Byte * pRegisterAffected;
+        Byte                 * pRegisterAffected;
     };
 
     TableEntry table[] =
@@ -348,7 +365,7 @@ void Cpu::InitializeGroup01 ()
 void Cpu::CreateGroup01Instruction (Group01::Opcode        opcode,
                                     Byte                   addressingModeFlags,
                                     Microcode::Operation   operation,
-                                    Byte * pRegisterAffected)
+                                    Byte                 * pRegisterAffected)
 {
     Byte addressingMode = Group01::__AM_First;
     Byte currentAddressingModeFlag = 1;

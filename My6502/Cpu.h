@@ -1,24 +1,6 @@
 #pragma once
 
-
-
-struct Flags
-{
-    Byte c : 1;
-    Byte z : 1;
-    Byte i : 1;
-    Byte d : 1;
-    Byte b : 1;
-    Byte v : 1;
-    Byte n : 1;
-};
-
-
-union Status
-{
-    Byte    status;
-    Flags   flags;
-};
+#include "CpuStatus.h"
 
 
 
@@ -160,7 +142,7 @@ public:
         instruction         (instruction),
         instructionName     (instructionName),
         isSingleByte        (isSingleByte),
-        pRegisterAffected   (pRegisterAffected),
+        pRegisterAffected    (pRegisterAffected),
         operation           (operation)
     {
     }
@@ -178,6 +160,8 @@ public:
 
 class Cpu
 {
+    friend class CpuOperations;
+
 public:
     Cpu ();
     void Reset ();
@@ -191,11 +175,11 @@ protected:
         Word operand;
     };
 
-    void PrintSingleStepInfo    (Word initialPC, Byte opcode, OperandInfo & operandInfo);
-    void PrintOperandAndComment (Byte opcode, Cpu::OperandInfo & operandInfo);
+    void PrintSingleStepInfo    (Word initialPC, Byte opcode, const OperandInfo & operandInfo);
+    void PrintOperandAndComment (Byte opcode, const OperandInfo & operandInfo);
     void PrintOperandBytes      (Word initialPC, Byte opcode);
     void FetchOperand           (Microcode microcode, OperandInfo & operandInfo);
-    void ExecuteInstruction     (Microcode microcode, Word operand);
+    void ExecuteInstruction     (Microcode microcode, const OperandInfo & operandInfo);
 
     void InitializeInstructionSet ();
     void InitializeGroup01 ();
@@ -215,7 +199,7 @@ protected:
     Byte                    X;
     Byte                    Y;
 
-    Status                  status;
+    CpuStatus               status;
 
 protected:
     Microcode instructionSet[256];

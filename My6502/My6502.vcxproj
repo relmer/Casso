@@ -149,6 +149,7 @@
   <ItemGroup>
     <ClInclude Include="Cpu.h" />
     <ClInclude Include="CpuOperations.h" />
+    <ClInclude Include="CpuStatus.h" />
     <ClInclude Include="My6502.h" />
     <ClInclude Include="Pch.h" />
     <ClInclude Include="Utils.h" />
