@@ -40,10 +40,41 @@ void Cpu::Reset ()
 
     // Immediate
     //memory[addr++] = 0x09;  // ORA
-    //memory[addr++] = 0x0F;  // Immediate
+    //memory[addr++] = 0x80;  // Immediate
+    memory[addr++] = 0xA9;  // LDA 
+    memory[addr++] = 0x80;  // Immediate
+    memory[addr++] = 0x69;  // ADC
+    memory[addr++] = 0x11;  // Immediate
+    memory[addr++] = 0x85;  // STA
+    memory[addr++] = 0x11;  // Zeropage offset
+    memory[addr++] = 0xA9;  // LDA
+    memory[addr++] = 0x00;  // Immediate
+    //memory[addr++] = 0xA5;  // LDA
+    //memory[addr++] = 0x11;  // Zeropage offset
+    memory[addr++] = 0xA9;  // LDA
+    memory[addr++] = 0x40;  // Immediate
+    //memory[addr++] = 0xC9;  // CMP
+    //memory[addr++] = 0x40;  // Immediate
+    //memory[addr++] = 0xC9;  // CMP
+    //memory[addr++] = 0x41;  // Immediate
+    //memory[addr++] = 0xC9;  // CMP
+    //memory[addr++] = 0x3F;  // Immediate
+
+    memory[addr++] = 0xA9;  // LDA 
+    memory[addr++] = 0x80;  // Immediate
+    memory[addr++] = 0xE9;  // SBC
+    memory[addr++] = 0x01;  // Immediate
+
+
+
     //memory[addr++] = 0x09;  // ORA
-    //memory[addr++] = 0xF0;  // Immediate
-    
+    //memory[addr++] = 0x39;  // AND
+    //memory[addr++] = 0x49;  // EOR
+    //memory[addr++] = 0xA5;  // Immediate
+    //memory[addr++] = 0x29;  // AND
+    //memory[addr++] = 0x49;  // EOR
+    //memory[addr++] = 0xFF;  // Immediate
+
     // Zero page + X, indirect
     //X = 0x11;
     //memory[addr++] = 0x01;  // ORA
@@ -78,18 +109,18 @@ void Cpu::Reset ()
     //memory[0x1234] = 0x55;
 
     // Absolute, X
-    X = 0x06;
-    memory[addr++] = 0x1D;  // ORA
-    memory[addr++] = 0x34;  // NB:  Little endian
-    memory[addr++] = 0x12;  // ($1234)
-    memory[0x123A] = 0x99;
+    //X = 0x06;
+    //memory[addr++] = 0x1D;  // ORA
+    //memory[addr++] = 0x34;  // NB:  Little endian
+    //memory[addr++] = 0x12;  // ($1234)
+    //memory[0x123A] = 0x99;
 
     // Absolute, Y
-    Y = 0x0C;
-    memory[addr++] = 0x19;  // ORA
-    memory[addr++] = 0x34;  // NB:  Little endian
-    memory[addr++] = 0x12;  // ($1234)
-    memory[0x1240] = 0xAA;
+    //Y = 0x0C;
+    //memory[addr++] = 0x19;  // ORA
+    //memory[addr++] = 0x34;  // NB:  Little endian
+    //memory[addr++] = 0x12;  // ($1234)
+    //memory[0x1240] = 0xAA;
 }
 
 
@@ -124,14 +155,27 @@ void Cpu::Run ()
 
 void Cpu::PrintSingleStepInfo (Word initialPC, Byte opcode, const OperandInfo & operandInfo)
 {
+    static constexpr char flags[][8] =
+    {
+        ".......",
+        "CZIDBVN"
+    };
+
     // Print the registers and the opcode byte
-    std::printf ("SP: %04x    A: %04X    X: %04X    Y: %04X        [%04X] %02X ",
-                  SP,
-                  A,
-                  X,
-                  Y,
-                  initialPC,
-                  opcode);
+    std::printf ("SP: %04x  A: %04X  X: %04X  Y: %04X  %c%c%c%c%c%c%c    [%04X] %02X ",
+                 SP,
+                 A,
+                 X,
+                 Y,
+                 flags[status.flags.c][0],
+                 flags[status.flags.z][1],
+                 flags[status.flags.i][2],
+                 flags[status.flags.d][3],
+                 flags[status.flags.b][4],
+                 flags[status.flags.v][5],
+                 flags[status.flags.n][6],
+                 initialPC,
+                 opcode);
 
     PrintOperandBytes (initialPC, opcode);
 
@@ -298,19 +342,35 @@ void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandIn
     switch (microcode.operation)
     {
     case Microcode::Or:
-        CpuOperations::Or (*this, *microcode.pRegisterAffected, (Byte) operandInfo.operand);
+        CpuOperations::Or (*this, (Byte) operandInfo.operand);
         break;
 
     case Microcode::And:
-        CpuOperations::And (*this, *microcode.pRegisterAffected, (Byte) operandInfo.operand);
+        CpuOperations::And (*this, (Byte) operandInfo.operand);
         break;
 
     case Microcode::Xor:
-        CpuOperations::Xor (*this, *microcode.pRegisterAffected, (Byte) operandInfo.operand);
+        CpuOperations::Xor (*this, (Byte) operandInfo.operand);
         break;
 
     case Microcode::AddWithCarry:
-        CpuOperations::AddWithCarry (*this, *microcode.pRegisterAffected, (Byte) operandInfo.operand);
+        CpuOperations::AddWithCarry (*this, (Byte) operandInfo.operand);
+        break;
+
+    case Microcode::Store:
+        CpuOperations::Store (*this, *microcode.pRegisterAffected, operandInfo.effectiveAddress);
+        break;
+
+    case Microcode::Load:
+        CpuOperations::Load (*this, *microcode.pRegisterAffected, (Byte) operandInfo.operand);
+        break;
+
+    case Microcode::Compare:
+        CpuOperations::Compare (*this, *microcode.pRegisterAffected, (Byte) operandInfo.operand);
+        break;
+
+    case Microcode::SubtractWithCarry:
+        CpuOperations::SubtractWithCarry (*this, (Byte) operandInfo.operand);
         break;
 
     default:
@@ -343,14 +403,14 @@ void Cpu::InitializeGroup01 ()
 
     TableEntry table[] =
     {
-        { Group01::ORA, Group01::__AMF_AllModes,                             Microcode::Or,                &A      },
-        { Group01::AND, Group01::__AMF_AllModes,                             Microcode::And,               &A      },
-        { Group01::EOR, Group01::__AMF_AllModes,                             Microcode::Xor,               &A      },
-        { Group01::ADC, Group01::__AMF_AllModes,                             Microcode::AddWithCarry,      &A      },
+        { Group01::ORA, Group01::__AMF_AllModes,                             Microcode::Or,                nullptr },
+        { Group01::AND, Group01::__AMF_AllModes,                             Microcode::And,               nullptr },
+        { Group01::EOR, Group01::__AMF_AllModes,                             Microcode::Xor,               nullptr },
+        { Group01::ADC, Group01::__AMF_AllModes,                             Microcode::AddWithCarry,      nullptr },
         { Group01::STA, Group01::__AMF_AllModes & ~(Group01::AMF_Immediate), Microcode::Store,             &A      },
         { Group01::LDA, Group01::__AMF_AllModes,                             Microcode::Load,              &A      },
-        { Group01::CMP, Group01::__AMF_AllModes,                             Microcode::Compare,           nullptr },
-        { Group01::SBC, Group01::__AMF_AllModes,                             Microcode::SubtractWithCarry, &A      },
+        { Group01::CMP, Group01::__AMF_AllModes,                             Microcode::Compare,           &A      },
+        { Group01::SBC, Group01::__AMF_AllModes,                             Microcode::SubtractWithCarry, nullptr },
     };
 
 
