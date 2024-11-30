@@ -26,9 +26,9 @@ public:
         // Bitfields must be in reverse order (low to high)
         struct InstructionBits
         {
-            Byte group : 2;
+            Byte group          : 2;
             Byte addressingMode : 3;
-            Byte opcode : 3;
+            Byte opcode         : 3;
         } asBits;
     };
 };

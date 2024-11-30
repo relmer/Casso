@@ -1,8 +1,6 @@
 #pragma once
 
 #include "CpuStatus.h"
-#include "Group00.h"
-#include "Group01.h"
 #include "Microcode.h"
 
 
@@ -24,18 +22,30 @@ protected:
         Word operand;
     };
 
-    void PrintSingleStepInfo    (Word initialPC, Byte opcode, const OperandInfo & operandInfo);
-    void PrintOperandAndComment (Byte opcode, const OperandInfo & operandInfo);
-    void PrintOperandBytes      (Word initialPC, Byte opcode);
-    void FetchOperand           (Microcode microcode, OperandInfo & operandInfo);
-    void ExecuteInstruction     (Microcode microcode, const OperandInfo & operandInfo);
+    void PrintSingleStepInfo           (Word initialPC, Byte opcode, const OperandInfo & operandInfo);
+    void PrintOperandAndComment        (Byte opcode, const OperandInfo & operandInfo);
+    void PrintOperandBytes             (Word initialPC, Byte opcode);
+    void PrintOperandBytesGroup00      (Byte opcode, Word initialPC);
+    void PrintOperandBytesGroup01      (Byte opcode, Word initialPC);
+    void FetchOperand                  (Microcode microcode, OperandInfo & operandInfo);
+    void FetchOperandAbsoluteX         (Cpu::OperandInfo & operandInfo);
+    void FetchOperandAbsoluteY         (Cpu::OperandInfo & operandInfo);
+    void FetchOperandZeroPageX         (Cpu::OperandInfo & operandInfo);
+    void FetchOperandZeroPageIndirectY (Cpu::OperandInfo & operandInfo);
+    void FetchOperandAbsolute          (Cpu::OperandInfo & operandInfo, Microcode & microcode);
+    void FetchOperandImmediate         (Cpu::OperandInfo & operandInfo);
+    void FetchOperandZeroPage          (Cpu::OperandInfo & operandInfo);
+    void FetchOperandZeroPageXIndirect (Cpu::OperandInfo & operandInfo);
+    void ExecuteInstruction            (Microcode microcode, const OperandInfo & operandInfo);
 
     void InitializeInstructionSet ();
+
     void InitializeGroup00 ();
     void InitializeGroup01 ();
-    void CreateGroup01Instruction (Group01::Opcode opcode, Byte addressingModeFlags, Microcode::Operation operation, Byte * pRegisterAffected);
+
+    void CreateInstruction (uint32_t addressingModeMax, const char * const instructionName[], Byte opcode, Byte addressingModeFlags, Byte group, Microcode::Operation operation, Byte * pRegisterAffected);
     
-    void PrintInstructionSet ();
+    void PrintInstructionSet (int group);
     
 
 
