@@ -151,6 +151,7 @@
     <ClInclude Include="Cpu.h" />
     <ClInclude Include="CpuOperations.h" />
     <ClInclude Include="CpuStatus.h" />
+    <ClInclude Include="Group00.h" />
     <ClInclude Include="Instruction.h" />
     <ClInclude Include="Microcode.h" />
     <ClInclude Include="My6502.h" />
