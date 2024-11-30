@@ -102,47 +102,48 @@ void CpuOperations::Or (Cpu & cpu, Byte operand)
 
 void CpuOperations::RotateLeft (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress)
 {
-    if (pRegisterAffected)
-    {
-        
-    }
-    else
-    {
+    Byte * pByte = pRegisterAffected ? pRegisterAffected : &cpu.memory[effectiveAddress];
+    Byte originalValue = *pByte;
 
-    }
+    *pByte <<= 1;
+    *pByte |= cpu.status.flags.c;
 
-    cpu.status.flags.z = cpu.A == 0;
-    cpu.status.flags.n = (bool) (cpu.A & 0x80);
+    cpu.status.flags.c = originalValue >> 7;
+    cpu.status.flags.z = *pByte == 0;
+    cpu.status.flags.n = (bool) (*pByte & 0x80);
 }
 
 
 
 void CpuOperations::RotateRight (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress)
 {
-    registerAffected = operand;
+    Byte * pByte         = pRegisterAffected ? pRegisterAffected : &cpu.memory[effectiveAddress];
+    Byte   originalValue = *pByte;
 
-    cpu.status.flags.z = cpu.A == 0;
-    cpu.status.flags.n = (bool) (cpu.A & 0x80);
+    *pByte >>= 1;
+    *pByte  |= cpu.status.flags.c << 7;
+
+    cpu.status.flags.c = originalValue & 1;
+    cpu.status.flags.z = *pByte == 0;
+    cpu.status.flags.n = (bool) (*pByte & 0x80);
 }
 
 
 
 void CpuOperations::ShiftLeft (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress)
 {
-    registerAffected = operand;
-
-    cpu.status.flags.z = cpu.A == 0;
-    cpu.status.flags.n = (bool) (cpu.A & 0x80);
+    // Rotate a 0 into bit 0
+    cpu.status.flags.c = 0;
+    RotateLeft (cpu, pRegisterAffected, effectiveAddress);
 }
 
 
 
 void CpuOperations::ShiftRight (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress)
 {
-    registerAffected = operand;
-
-    cpu.status.flags.z = cpu.A == 0;
-    cpu.status.flags.n = (bool) (cpu.A & 0x80);
+    // Rotate a 0 into bit 7
+    cpu.status.flags.c = 0;
+    RotateRight (cpu, pRegisterAffected, effectiveAddress);
 }
 
 

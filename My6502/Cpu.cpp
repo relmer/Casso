@@ -23,7 +23,8 @@ void Cpu::Reset ()
     SP = 0x0100;
     */
 
-    status.status = 0;
+    status.status          = 0;
+    status.flags.alwaysOne = 1;
 
     A = 0;
     X = 0;
@@ -254,35 +255,36 @@ void Cpu::PrintOperandAndComment (Byte opcode, const OperandInfo & operandInfo)
     // print the operand and comment if applicable
     switch (instructionSet[opcode].globalAddressingMode)
     {
-    case GlobalAddressingMode::ZeroPageXIndirect:
-        printf ("($%02X,X) ; ($%04X) = $%02X", operandInfo.location, operandInfo.effectiveAddress, operandInfo.operand);
+    case GlobalAddressingMode::Absolute:
+        printf ("$%04X   ; $%02X", operandInfo.location, operandInfo.operand);
         break;
 
-    case GlobalAddressingMode::ZeroPage:
-        printf ("$%02X     ; $%02X", operandInfo.location, operandInfo.operand);
+    case GlobalAddressingMode::AbsoluteX:
+        printf ("$%04X,X ; $%02X", operandInfo.location, operandInfo.operand);
+        break;
+
+    case GlobalAddressingMode::AbsoluteY:
+        printf ("$%04X,Y ; $%02X", operandInfo.location, operandInfo.operand);
         break;
 
     case GlobalAddressingMode::Immediate:
         printf ("#$%02X", operandInfo.operand);
         break;
 
-    case GlobalAddressingMode::Absolute:
-        switch (opcode)
-        {
-        case 0x4C:
-            // Handle JMP absolute which is encoded like an immediate
-            printf ("$%04X", operandInfo.location);
-            break;
+    case GlobalAddressingMode::JumpAbsolute:
+        printf ("$%04X", operandInfo.location);
+        break;
 
-        case 0x6C:
-            // Handle JMP (indirect) which is encoded as absolute, but is actually indirect
-            printf ("($%04X) ; $%04X", operandInfo.location, operandInfo.operand);
-            break;
+    case GlobalAddressingMode::JumpIndirect:
+        printf ("($%04X) ; $%04X", operandInfo.location, operandInfo.operand);
+        break;
 
-        default:
-            printf ("$%04X   ; $%02X", operandInfo.location, operandInfo.operand);
-            break;
-        }
+    case GlobalAddressingMode::ZeroPage:
+        printf ("$%02X     ; $%02X", operandInfo.location, operandInfo.operand);
+        break;
+
+    case GlobalAddressingMode::ZeroPageXIndirect:
+        printf ("($%02X,X) ; ($%04X) = $%02X", operandInfo.location, operandInfo.effectiveAddress, operandInfo.operand);
         break;
 
     case GlobalAddressingMode::ZeroPageIndirectY:
@@ -293,12 +295,8 @@ void Cpu::PrintOperandAndComment (Byte opcode, const OperandInfo & operandInfo)
         printf ("$%02X,X   ; $%02X", operandInfo.location, operandInfo.operand);
         break;
 
-    case GlobalAddressingMode::AbsoluteY:
-        printf ("$%04X,Y ; $%02X", operandInfo.location, operandInfo.operand);
-        break;
-
-    case GlobalAddressingMode::AbsoluteX:
-        printf ("$%04X,X ; $%02X", operandInfo.location, operandInfo.operand);
+    case GlobalAddressingMode::ZeroPageY:
+        printf ("$%02X,Y   ; $%02X", operandInfo.location, operandInfo.operand);
         break;
     }
 }
@@ -321,14 +319,17 @@ void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
 
     switch (microcode.globalAddressingMode)
     {
-    case GlobalAddressingMode::Immediate:         FetchOperandImmediate         (operandInfo);            break;
-    case GlobalAddressingMode::ZeroPage:          FetchOperandZeroPage          (operandInfo);            break;
-    case GlobalAddressingMode::ZeroPageX:         FetchOperandZeroPageX         (operandInfo);            break;
     case GlobalAddressingMode::Absolute:          FetchOperandAbsolute          (operandInfo, microcode); break;
-    case GlobalAddressingMode::AbsoluteX:         FetchOperandAbsoluteX         (operandInfo);            break;
-    case GlobalAddressingMode::AbsoluteY:         FetchOperandAbsoluteY         (operandInfo);            break;
-    case GlobalAddressingMode::ZeroPageXIndirect: FetchOperandZeroPageXIndirect (operandInfo);            break;
-    case GlobalAddressingMode::ZeroPageIndirectY: FetchOperandZeroPageIndirectY (operandInfo);            break;
+    case GlobalAddressingMode::AbsoluteX:         FetchOperandAbsoluteX         (operandInfo);               break;
+    case GlobalAddressingMode::AbsoluteY:         FetchOperandAbsoluteY         (operandInfo);               break;
+    case GlobalAddressingMode::Immediate:         FetchOperandImmediate         (operandInfo);               break;
+    case GlobalAddressingMode::JumpAbsolute:      FetchOperandJumpAbsolute      (operandInfo);               break;
+    case GlobalAddressingMode::JumpIndirect:      FetchOperandJumpIndirect      (operandInfo);               break;
+    case GlobalAddressingMode::ZeroPage:          FetchOperandZeroPage          (operandInfo);               break;
+    case GlobalAddressingMode::ZeroPageX:         FetchOperandZeroPageX         (operandInfo);               break;
+    case GlobalAddressingMode::ZeroPageY:         FetchOperandZeroPageY         (operandInfo);               break;
+    case GlobalAddressingMode::ZeroPageXIndirect: FetchOperandZeroPageXIndirect (operandInfo);               break;
+    case GlobalAddressingMode::ZeroPageIndirectY: FetchOperandZeroPageIndirectY (operandInfo);               break;
 
     default:
         std::printf ("Unhandled addressing mode %d\n", microcode.instruction.asBits.addressingMode);
@@ -365,30 +366,33 @@ void Cpu::FetchOperandImmediate (Cpu::OperandInfo & operandInfo)
 
 
 
+void Cpu::FetchOperandJumpAbsolute (Cpu::OperandInfo & operandInfo)
+{
+    operandInfo.location          = memory[PC];
+    operandInfo.location         |= memory[++PC] << 8;
+    operandInfo.effectiveAddress  = operandInfo.location;
+    operandInfo.operand           = operandInfo.location;
+}
+
+
+
+void Cpu::FetchOperandJumpIndirect (Cpu::OperandInfo & operandInfo)
+{
+    operandInfo.location          = memory[PC];
+    operandInfo.location         |= memory[++PC] << 8;
+    operandInfo.effectiveAddress  = memory[operandInfo.location]
+                                  | memory[operandInfo.location + 1] << 8;
+    operandInfo.operand           = operandInfo.effectiveAddress;
+}
+
+
+
 void Cpu::FetchOperandAbsolute (Cpu::OperandInfo & operandInfo, Microcode & microcode)
 {
-    operandInfo.location         = memory[PC];
-    operandInfo.location        |= memory[++PC] << 8;
-    operandInfo.effectiveAddress = operandInfo.location;
-
-    switch (microcode.instruction.asByte)
-    {
-    case 0x4C:
-        // Handle JMP absolute which is encoded like an immediate
-        operandInfo.operand = operandInfo.location;
-        break;
-
-    case 0x6C:
-        // Handle JMP (indirect) which is encoded as absolute, but is actually indirect
-        operandInfo.effectiveAddress = memory[operandInfo.location]
-                                     | memory[operandInfo.location + 1] << 8;
-        operandInfo.operand          = operandInfo.effectiveAddress;
-        break;
-
-    default:
-        operandInfo.operand = memory[operandInfo.effectiveAddress];
-        break;
-    }
+    operandInfo.location          = memory[PC];
+    operandInfo.location         |= memory[++PC] << 8;
+    operandInfo.effectiveAddress  = operandInfo.location;
+    operandInfo.operand           = memory[operandInfo.effectiveAddress];
 }
 
 
@@ -408,6 +412,15 @@ void Cpu::FetchOperandZeroPageX (Cpu::OperandInfo & operandInfo)
 {
     operandInfo.location         = memory[PC];
     operandInfo.effectiveAddress = operandInfo.location + X;
+    operandInfo.operand          = memory[operandInfo.effectiveAddress];
+}
+
+
+
+void Cpu::FetchOperandZeroPageY (Cpu::OperandInfo & operandInfo)
+{
+    operandInfo.location         = memory[PC];
+    operandInfo.effectiveAddress = operandInfo.location + Y;
     operandInfo.operand          = memory[operandInfo.effectiveAddress];
 }
 
@@ -587,18 +600,18 @@ void Cpu::CreateInstruction (uint32_t                      addressingModeMax,
                              Microcode::Operation          operation,
                              Byte                 *        pRegisterAffected)
 {
-    Byte globalAddressingMode = 0;
+    Byte addressingMode = 0;
     Byte currentAddressingModeFlag = 1;
 
-    while (globalAddressingMode < addressingModeMax)
+    while (addressingMode < addressingModeMax)
     {
         if (addressingModeFlags & currentAddressingModeFlag)
         {
-            Instruction instruction            = Instruction (opcode, globalAddressingMode, group);
+            Instruction instruction            = Instruction (opcode, addressingMode, group);
             instructionSet[instruction.asByte] = Microcode   (instruction, instructionName[opcode], false, operation, pRegisterAffected);
         }
 
-        ++globalAddressingMode;
+        ++addressingMode;
         currentAddressingModeFlag <<= 1;
     }
 }

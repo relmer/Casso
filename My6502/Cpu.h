@@ -29,11 +29,15 @@ protected:
     void FetchOperandAbsoluteX         (Cpu::OperandInfo & operandInfo);
     void FetchOperandAbsoluteY         (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageX         (Cpu::OperandInfo & operandInfo);
+    void FetchOperandZeroPageY         (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageIndirectY (Cpu::OperandInfo & operandInfo);
     void FetchOperandAbsolute          (Cpu::OperandInfo & operandInfo, Microcode & microcode);
     void FetchOperandImmediate         (Cpu::OperandInfo & operandInfo);
+    void FetchOperandJumpAbsolute      (Cpu::OperandInfo & operandInfo);
+    void FetchOperandJumpIndirect      (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPage          (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageXIndirect (Cpu::OperandInfo & operandInfo);
+    
     void ExecuteInstruction            (Microcode microcode, const OperandInfo & operandInfo);
 
     void InitializeInstructionSet ();

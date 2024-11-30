@@ -14,12 +14,15 @@ public:
         Immediate   = 0,     // #Immediate
         ZeroPage,            // Zero Page
         ZeroPageX,           // Zero Page, X
+        ZeroPageY,           // Zero Page, Y
         Absolute,            // Absolute
         AbsoluteX,           // Absolute, X
         AbsoluteY,           // Absolute, Y
         ZeroPageXIndirect,   // (Zero Page, X) -> ($00LL + X)
         ZeroPageIndirectY,   // (Zero Page), Y
         Accumulator,         // Accumulator
+        JumpAbsolute,        // Jump absolute (2 bytes)
+        JumpIndirect,        // Jump indirect
         __Count
     };
 
@@ -28,11 +31,14 @@ public:
         "#Immediate",
         "Zero Page",
         "Zero Page, X",
+        "Zero Page, Y",
         "Absolute",
         "Absolute, X",
         "Absolute, Y",
         "(Zero Page, X)",
         "(Zero Page), Y",
         "Accumulator",
+        "Jump Absolute",
+        "Jump (Indirect)",
     };
 };

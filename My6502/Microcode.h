@@ -62,6 +62,28 @@ public:
             globalAddressingMode = (GlobalAddressingMode::AddressingMode) Group10::s_addressingModeMap[instruction.asBits.addressingMode];
             break;
         }
+
+        // There are a few instructions that are encoded
+        // as one addressing mode but actually use another.
+        switch (instruction.asByte)
+        {
+        case 0x4C:  // JMP Absolute
+            globalAddressingMode = GlobalAddressingMode::JumpAbsolute;
+            break;
+
+        case 0x6C:  // JMP (Indirect)
+            globalAddressingMode = GlobalAddressingMode::JumpIndirect;
+            break;
+
+        case 0x96:  // STX ZeroPage, X
+        case 0xB6:  // LDX ZeroPage, X
+            globalAddressingMode = GlobalAddressingMode::ZeroPageY;
+            break;
+
+        case 0xBE:  // LDX Absolute, X
+            globalAddressingMode = GlobalAddressingMode::AbsoluteY;
+            break;
+        }
     }
 
 public:
