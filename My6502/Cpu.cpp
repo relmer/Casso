@@ -5,6 +5,7 @@
 #include "Group00.h"
 #include "Group01.h"
 #include "Group10.h"
+#include "GroupMisc.h"
 #include "Utils.h"
 
 
@@ -279,6 +280,10 @@ void Cpu::PrintOperandAndComment (Byte opcode, const OperandInfo & operandInfo)
         printf ("($%04X) ; $%04X", operandInfo.location, operandInfo.operand);
         break;
 
+    case GlobalAddressingMode::Relative:
+        printf ("($%04X) ; $%04X", operandInfo.location, operandInfo.operand);
+        break;
+
     case GlobalAddressingMode::ZeroPage:
         printf ("$%02X     ; $%02X", operandInfo.location, operandInfo.operand);
         break;
@@ -325,6 +330,7 @@ void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
     case GlobalAddressingMode::Immediate:         FetchOperandImmediate         (operandInfo);               break;
     case GlobalAddressingMode::JumpAbsolute:      FetchOperandJumpAbsolute      (operandInfo);               break;
     case GlobalAddressingMode::JumpIndirect:      FetchOperandJumpIndirect      (operandInfo);               break;
+    case GlobalAddressingMode::Relative:          FetchOperandJumpRelative      (operandInfo);               break;
     case GlobalAddressingMode::ZeroPage:          FetchOperandZeroPage          (operandInfo);               break;
     case GlobalAddressingMode::ZeroPageX:         FetchOperandZeroPageX         (operandInfo);               break;
     case GlobalAddressingMode::ZeroPageY:         FetchOperandZeroPageY         (operandInfo);               break;
@@ -377,6 +383,17 @@ void Cpu::FetchOperandJumpAbsolute (Cpu::OperandInfo & operandInfo)
 
 
 void Cpu::FetchOperandJumpIndirect (Cpu::OperandInfo & operandInfo)
+{
+    operandInfo.location          = memory[PC];
+    operandInfo.location         |= memory[++PC] << 8;
+    operandInfo.effectiveAddress  = memory[operandInfo.location]
+                                  | memory[operandInfo.location + 1] << 8;
+    operandInfo.operand           = operandInfo.effectiveAddress;
+}
+
+
+
+void Cpu::FetchOperandRelative (Cpu::OperandInfo & operandInfo)
 {
     operandInfo.location          = memory[PC];
     operandInfo.location         |= memory[++PC] << 8;
@@ -590,6 +607,71 @@ void Cpu::InitializeGroup10 ()
     }
 }
 
+
+
+void Cpu::InitializeMisc ()
+{
+    struct TableEntry
+    {
+        GroupMisc::Opcode                      opcode;
+        GlobalAddressingMode::AddressingMode   addressingMode;
+        Microcode::Operation                   operation;
+        Byte                                 * pRegisterAffected;
+    };
+
+    TableEntry table[] =
+    {
+        { GroupMisc::BPL, },
+        { GroupMisc::BMI, },
+        { GroupMisc::BVC, },
+        { GroupMisc::BVS, },
+        { GroupMisc::BCC, },
+        { GroupMisc::BCS, },
+        { GroupMisc::BNE, },
+        { GroupMisc::BEQ, },
+        
+        { GroupMisc::BRK, },
+        { GroupMisc::JSR, }, // Absolute
+        { GroupMisc::RTI, },
+        { GroupMisc::RTS, },
+         
+        { GroupMisc::PHP, },
+        { GroupMisc::PLP, },
+        { GroupMisc::PHA, },
+        { GroupMisc::PLA, },
+        { GroupMisc::DEY, },
+        { GroupMisc::TAY, },
+        { GroupMisc::INY, },
+        { GroupMisc::INX, },
+         
+        { GroupMisc::CLC, },
+        { GroupMisc::SEC, },
+        { GroupMisc::CLI, },
+        { GroupMisc::SEI, },
+        { GroupMisc::TYA, },
+        { GroupMisc::CLV, },
+        { GroupMisc::CLD, },
+        { GroupMisc::SED, },
+         
+        { GroupMisc::TXA, },
+        { GroupMisc::TXS, },
+        { GroupMisc::TAX, },
+        { GroupMisc::TSX, },
+        { GroupMisc::DEX, },
+        { GroupMisc::NOP, },
+    };
+
+
+    for (int i = 0; i < ARRAYSIZE(table); ++i)
+    {
+        CreateInstruction (_10::__AM_Count, _10::instructionName, entry.opcode, entry.addressingModeFlags, 0b01, entry.operation, entry.pRegisterAffected);
+
+        Instruction instruction = Instruction (opcode, addressingMode, group);
+        instructionSet[instruction.asByte] = Microcode (instruction, instructionName[opcode], false, operation, pRegisterAffected);
+
+    }
+
+}
 
 
 void Cpu::CreateInstruction (uint32_t                      addressingModeMax,

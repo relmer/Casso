@@ -147,6 +147,7 @@
     <ClInclude Include="Group00.h" />
     <ClInclude Include="Group01.h" />
     <ClInclude Include="Group10.h" />
+    <ClInclude Include="GroupMisc.h" />
     <ClInclude Include="Instruction.h" />
     <ClInclude Include="Microcode.h" />
     <ClInclude Include="My6502.h" />

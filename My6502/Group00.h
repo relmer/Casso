@@ -7,9 +7,6 @@
 
 class Group00
 {
-protected:
-    static constexpr Byte group = 0b00;
-
 public:
     enum Opcode
     {

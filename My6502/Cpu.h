@@ -35,6 +35,7 @@ protected:
     void FetchOperandImmediate         (Cpu::OperandInfo & operandInfo);
     void FetchOperandJumpAbsolute      (Cpu::OperandInfo & operandInfo);
     void FetchOperandJumpIndirect      (Cpu::OperandInfo & operandInfo);
+    void FetchOperandRelative          (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPage          (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageXIndirect (Cpu::OperandInfo & operandInfo);
     
@@ -45,6 +46,7 @@ protected:
     void InitializeGroup00 ();
     void InitializeGroup01 ();
     void InitializeGroup10 ();
+    void InitializeMisc ();
 
     void CreateInstruction (uint32_t addressingModeMax, const char * const instructionName[], Byte opcode, Byte addressingModeFlags, Byte group, Microcode::Operation operation, Byte * pRegisterAffected);
     

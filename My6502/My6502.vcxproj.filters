@@ -68,5 +68,8 @@
     <ClInclude Include="Group10.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="GroupMisc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
