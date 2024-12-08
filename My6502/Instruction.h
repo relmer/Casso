@@ -10,12 +10,16 @@ public:
         asByte = 0;
     }
 
+    Instruction (Byte opcode)
+    {
+        asByte = opcode;
+    }
 
     Instruction (Byte opcode, Byte addressingMode, Byte group)
     {
-        asBits.group = group;
+        asBits.group          = group;
         asBits.addressingMode = addressingMode;
-        asBits.opcode = opcode;
+        asBits.opcode         = opcode;
     }
 
 public:

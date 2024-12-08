@@ -18,80 +18,63 @@ public:
         AddWithCarry,
         And,
         BitTest,
+        Branch,
+        Break,
         Compare,
         Decrement,
         Increment,
         Jump,
         Load,
+        NoOperation,
         Or,
+        Pull,
+        Push,
+        ReturnFromInterrupt,
+        ReturnFromSubroutine,
         RotateLeft,
         RotateRight,
+        SetFlag,
         ShiftLeft,
         ShiftRight,
         Store,
         SubtractWithCarry,
+        Transfer,
         Xor,
     };
 
+    enum Group
+    {
+        Group00 = 0x00,
+        Group01 = 0x01,
+        Group10 = 0x10,
+        Misc    = 0x80,
+        Invalid = 0xFF,
+    };
+
 public:
-    Microcode () :
-        isLegal (false),
-        instructionName ("Illegal instruction")
-    {
-    }
+    Microcode ();
 
-    Microcode (Instruction instruction, const char * instructionName, bool isSingleByte, Operation operation, Byte * pRegisterAffected) :
-        isLegal           (true),
-        instruction       (instruction),
-        instructionName   (instructionName),
-        isSingleByte      (isSingleByte),
-        pRegisterAffected (pRegisterAffected),
-        operation         (operation)
-    {
-        switch (instruction.asBits.group)
-        {
-        case 0b00:
-            globalAddressingMode = (GlobalAddressingMode::AddressingMode) Group00::s_addressingModeMap[instruction.asBits.addressingMode];
-            break;
+    Microcode (Instruction    instruction, 
+               const char   * instructionName, 
+               Operation      operation, 
+               Byte         * pSourceRegister, 
+               Byte         * pDestinationRegister);
 
-        case 0b01:
-            globalAddressingMode = (GlobalAddressingMode::AddressingMode) Group01::s_addressingModeMap[instruction.asBits.addressingMode];
-            break;
+    Microcode (Instruction                            instruction, 
+               const char                           * instructionName, 
+               Operation                              operation, 
+               GlobalAddressingMode::AddressingMode   addressingMode, 
+               Byte                                 * pSourceRegister, 
+               Byte                                 * pDestinationRegister);
 
-        case 0b10:
-            globalAddressingMode = (GlobalAddressingMode::AddressingMode) Group10::s_addressingModeMap[instruction.asBits.addressingMode];
-            break;
-        }
-
-        // There are a few instructions that are encoded
-        // as one addressing mode but actually use another.
-        switch (instruction.asByte)
-        {
-        case 0x4C:  // JMP Absolute
-            globalAddressingMode = GlobalAddressingMode::JumpAbsolute;
-            break;
-
-        case 0x6C:  // JMP (Indirect)
-            globalAddressingMode = GlobalAddressingMode::JumpIndirect;
-            break;
-
-        case 0x96:  // STX ZeroPage, X
-        case 0xB6:  // LDX ZeroPage, X
-            globalAddressingMode = GlobalAddressingMode::ZeroPageY;
-            break;
-
-        case 0xBE:  // LDX Absolute, X
-            globalAddressingMode = GlobalAddressingMode::AbsoluteY;
-            break;
-        }
-    }
 
 public:
     bool                                   isLegal;
     Instruction                            instruction;
+    Group                                  group;
     const char                           * instructionName;
-    bool                                   isSingleByte;
-    Byte                                 * pRegisterAffected;
+    Byte                                 * pSourceRegister;
+    Byte                                 * pDestinationRegister;
     Operation                              operation;
     GlobalAddressingMode::AddressingMode   globalAddressingMode;
 };

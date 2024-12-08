@@ -35,6 +35,7 @@ protected:
     void FetchOperandImmediate         (Cpu::OperandInfo & operandInfo);
     void FetchOperandJumpAbsolute      (Cpu::OperandInfo & operandInfo);
     void FetchOperandJumpIndirect      (Cpu::OperandInfo & operandInfo);
+    void FetchOperandRelative          (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPage          (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageXIndirect (Cpu::OperandInfo & operandInfo);
     
@@ -45,18 +46,28 @@ protected:
     void InitializeGroup00 ();
     void InitializeGroup01 ();
     void InitializeGroup10 ();
+    void InitializeMisc ();
 
-    void CreateInstruction (uint32_t addressingModeMax, const char * const instructionName[], Byte opcode, Byte addressingModeFlags, Byte group, Microcode::Operation operation, Byte * pRegisterAffected);
+    void CreateInstruction (uint32_t                        addressingModeMax, 
+                            const char              * const instructionName[], 
+                            Byte                            opcode, 
+                            Byte                            addressingModeFlags, 
+                            Byte                            group, 
+                            Microcode::Operation            operation, 
+                            Byte                    *       pSourceRegister,
+                            Byte                    *       pDestinationRegister);
     
-    void PrintInstructionSet (int group);
+    void PrintInstructionSet (Microcode::Group group);
     
 
 
 protected:
-    static constexpr size_t memSize = 64 * 1024;
+    static constexpr size_t memSize      = 64 * 1024;
+    static constexpr size_t stackAddress = 0x0100;
+
     Byte                    memory[memSize];
 
-    Word                    SP;
+    Byte                    SP;
     Word                    PC;
     Byte                    A;
     Byte                    X;

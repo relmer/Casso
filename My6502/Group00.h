@@ -7,9 +7,6 @@
 
 class Group00
 {
-protected:
-    static constexpr Byte group = 0b00;
-
 public:
     enum Opcode
     {
@@ -73,15 +70,4 @@ public:
         __AMF_AllModes      = 0b11111111 & ~(__AMF_Unused_010 | __AMF_Unused_100 | __AMF_Unused_110)
     };
 
-    static constexpr const char * addressingModeName[] =
-    {
-        "#Immediate",
-        "Zero Page",
-        "Unused_010",
-        "Absolute",
-        "Unused_100",
-        "Zero Page, X",
-        "Unused_110",
-        "Absolute, X"
-    };
 };

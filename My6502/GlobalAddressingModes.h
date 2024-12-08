@@ -23,6 +23,8 @@ public:
         Accumulator,         // Accumulator
         JumpAbsolute,        // Jump absolute (2 bytes)
         JumpIndirect,        // Jump indirect
+        Relative,            // Relative offset (2 bytes)
+        SingleByteNoOperand, // Single byte instruction (no operand)
         __Count
     };
 
@@ -40,5 +42,7 @@ public:
         "Accumulator",
         "Jump Absolute",
         "Jump (Indirect)",
+        "Relative",
+        "[No Operand]",
     };
 };

@@ -132,6 +132,7 @@
   <ItemGroup>
     <ClCompile Include="Cpu.cpp" />
     <ClCompile Include="CpuOperations.cpp" />
+    <ClCompile Include="Microcode.cpp" />
     <ClCompile Include="My6502.cpp" />
     <ClCompile Include="Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -147,6 +148,7 @@
     <ClInclude Include="Group00.h" />
     <ClInclude Include="Group01.h" />
     <ClInclude Include="Group10.h" />
+    <ClInclude Include="GroupMisc.h" />
     <ClInclude Include="Instruction.h" />
     <ClInclude Include="Microcode.h" />
     <ClInclude Include="My6502.h" />
