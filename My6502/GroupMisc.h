@@ -10,84 +10,93 @@ class GroupMisc
 public:
     enum Opcode
     {
-        // Branch $relative (two bytes)
-        BPL = 0x10,
-        BMI = 0x30,
-        BVC = 0x50,
-        BVS = 0x70,
-        BCC = 0x90,
-        BCS = 0xB0,
-        BNE = 0xD0,
-        BEQ = 0xF0,
+        BPL,
+        BMI,
+        BVC,
+        BVS,
+        BCC,
+        BCS,
+        BNE,
+        BEQ,
 
-        BRK = 0x00,
-        JSR = 0x20, // Absolute
-        RTI = 0x40,
-        RTS = 0x60,
+        BRK,
+        JSR,
+        RTI,
+        RTS,
 
-        PHP = 0x08,
-        PLP = 0x28,
-        PHA = 0x48,
-        PLA = 0x68,
-        DEY = 0x88,
-        TAY = 0xA8,
-        INY = 0xC8,
-        INX = 0xE8,
+        PHP,
+        PLP,
+        PHA,
+        DEY,
+        PLA,
+        TAY,
+        INY,
+        INX,
         	
-        CLC = 0x18,
-        SEC = 0x38,
-        CLI = 0x58,
-        SEI = 0x78,
-        TYA = 0x98,
-        CLV = 0xB8,
-        CLD = 0xD8,
-        SED = 0xF8,   	
+        CLC,
+        SEC,
+        CLI,
+        SEI,
+        TYA,
+        CLV,
+        CLD,
+        SED,   	
         
-        TXA = 0x8A,
-        TXS = 0x9A,
-        TAX = 0xAA,
-        TSX = 0xBA,
-        DEX = 0xCA,
-        NOP = 0xEA  	
+        TXA,
+        TXS,
+        TAX,
+        TSX,
+        DEX,
+        NOP  	
     };
         	
         	
-        	
-    static constexpr const char * instructionName[] =
+     
+    struct InstructionMap
     {
-        "BPL",
-        "BMI",
-        "BVC",
-        "BVS",
-        "BCC",
-        "BCS",
-        "BNE",
-        "BEQ",
-        "BRK",
-        "JSR",
-        "RTI",
-        "RTS",
-        "PHP",
-        "PLP",
-        "PHA",
-        "PLA",
-        "DEY",
-        "TAY",
-        "INY",
-        "INX",
-        "CLC",
-        "SEC",
-        "CLI",
-        "SEI",
-        "TYA",
-        "CLV",
-        "CLD",
-        "SED",
-        "TXA",
-        "TXS",
-        "TAX",
-        "TSX",
-        "DEX",
-        "NOP"
+        Byte          instruction;
+        const char  * name;
+    };
+
+    static constexpr InstructionMap instruction[] =
+    {
+        { 0x10, "BPL" },
+        { 0x30, "BMI" },
+        { 0x50, "BVC" },
+        { 0x70, "BVS" },
+        { 0x90, "BCC" },
+        { 0xB0, "BCS" },
+        { 0xD0, "BNE" },
+        { 0xF0, "BEQ" },
+
+        { 0x00, "BRK" },
+        { 0x20, "JSR" },
+        { 0x40, "RTI" },
+        { 0x60, "RTS" },
+
+        { 0x08, "PHP" },
+        { 0x28, "PLP" },
+        { 0x48, "PHA" },
+        { 0x68, "PLA" },
+        { 0x88, "DEY" },
+        { 0xA8, "TAY" },
+        { 0xC8, "INY" },
+        { 0xE8, "INX" },
+
+        { 0x18, "CLC" },
+        { 0x38, "SEC" },
+        { 0x58, "CLI" },
+        { 0x78, "SEI" },
+        { 0x98, "TYA" },
+        { 0xB8, "CLV" },
+        { 0xD8, "CLD" },
+        { 0xF8, "SED" },
+
+        { 0x8A, "TXA" },
+        { 0x9A, "TXS" },
+        { 0xAA, "TAX" },
+        { 0xBA, "TSX" },
+        { 0xCA, "DEX" },
+        { 0xEA, "NOP" },
     };
 };

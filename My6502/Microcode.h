@@ -44,9 +44,10 @@ public:
 
     enum Group
     {
-        Group00 = 0x00,
-        Group01 = 0x01,
-        Group10 = 0x10,
+        Group00 = 0b00,
+        Group01 = 0b01,
+        Group10 = 0b10,
+
         Misc    = 0x80,
         Invalid = 0xFF,
     };

@@ -330,7 +330,7 @@ void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
 
     switch (microcode.globalAddressingMode)
     {
-    case GlobalAddressingMode::Absolute:          FetchOperandAbsolute          (operandInfo, microcode); break;
+    case GlobalAddressingMode::Absolute:          FetchOperandAbsolute          (operandInfo, microcode);    break;
     case GlobalAddressingMode::AbsoluteX:         FetchOperandAbsoluteX         (operandInfo);               break;
     case GlobalAddressingMode::AbsoluteY:         FetchOperandAbsoluteY         (operandInfo);               break;
     case GlobalAddressingMode::Immediate:         FetchOperandImmediate         (operandInfo);               break;
@@ -344,8 +344,8 @@ void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
     case GlobalAddressingMode::ZeroPageIndirectY: FetchOperandZeroPageIndirectY (operandInfo);               break;
 
     default:
-        assert (false);
         std::printf ("Unhandled addressing mode %d\n", microcode.instruction.asBits.addressingMode);
+        assert (false);
         break;
     }
 }
@@ -474,6 +474,13 @@ void Cpu::FetchOperandAbsoluteX (Cpu::OperandInfo & operandInfo)
 
 void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandInfo)
 {
+    Byte * pAccumulator = nullptr;
+
+    if (microcode.globalAddressingMode == GlobalAddressingMode::Accumulator)
+    {
+        pAccumulator = &A;
+    }
+
     switch (microcode.operation)
     {
     case Microcode::AddWithCarry:       CpuOperations::AddWithCarry      (*this, (Byte) operandInfo.operand);                                   break;
@@ -485,17 +492,17 @@ void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandIn
     case Microcode::Jump:               CpuOperations::Jump              (*this, microcode.instruction, operandInfo.operand);                   break;
     case Microcode::Load:               CpuOperations::Load              (*this, *microcode.pDestinationRegister, (Byte) operandInfo.operand);  break;
     case Microcode::Or:                 CpuOperations::Or                (*this, (Byte) operandInfo.operand);                                   break;
-    case Microcode::RotateLeft:         CpuOperations::RotateLeft        (*this, microcode.pSourceRegister, operandInfo.effectiveAddress);      break;
-    case Microcode::RotateRight:        CpuOperations::RotateRight       (*this, microcode.pSourceRegister, operandInfo.effectiveAddress);      break;
-    case Microcode::ShiftLeft:          CpuOperations::RotateLeft        (*this, microcode.pSourceRegister, operandInfo.effectiveAddress);      break;
-    case Microcode::ShiftRight:         CpuOperations::RotateRight       (*this, microcode.pSourceRegister, operandInfo.effectiveAddress);      break;
+    case Microcode::RotateLeft:         CpuOperations::RotateLeft        (*this, pAccumulator, operandInfo.effectiveAddress);                   break;
+    case Microcode::RotateRight:        CpuOperations::RotateRight       (*this, pAccumulator, operandInfo.effectiveAddress);                   break;
+    case Microcode::ShiftLeft:          CpuOperations::RotateLeft        (*this, pAccumulator, operandInfo.effectiveAddress);                   break;
+    case Microcode::ShiftRight:         CpuOperations::RotateRight       (*this, pAccumulator, operandInfo.effectiveAddress);                   break;
     case Microcode::Store:              CpuOperations::Store             (*this, *microcode.pSourceRegister, operandInfo.effectiveAddress);     break;
     case Microcode::SubtractWithCarry:  CpuOperations::SubtractWithCarry (*this, (Byte) operandInfo.operand);                                   break;
     case Microcode::Xor:                CpuOperations::Xor               (*this, (Byte) operandInfo.operand);                                   break;
 
     default:                          
-        assert (false);
         std::printf ("Unimplemented instruction:  %s\n", microcode.instructionName);                                
+        assert (false);
         break;
     }
 }
@@ -505,12 +512,15 @@ void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandIn
 void Cpu::InitializeInstructionSet ()
 {
     InitializeGroup00 ();
-    InitializeGroup01 ();
-    InitializeGroup10 ();
-
     PrintInstructionSet (Microcode::Group00);
+
+    InitializeGroup01 ();
     PrintInstructionSet (Microcode::Group01);
+
+    InitializeGroup10 ();
     PrintInstructionSet (Microcode::Group10);
+
+    InitializeMisc ();
     PrintInstructionSet (Microcode::Misc);
 }
 
@@ -524,24 +534,25 @@ void Cpu::InitializeGroup00 ()
         _00::Opcode            opcode;
         Byte                   addressingModeFlags;
         Microcode::Operation   operation;
-        Byte                 * pRegisterAffected;
+        Byte                 * pSourceRegister;
+        Byte                 * pDestinationRegister;
     };
 
     TableEntry table[] =
     {
-        { _00::BIT,          _00::AMF_ZeroPage  | _00::AMF_Absolute,                      Microcode::BitTest, nullptr },
-        { _00::JMP,          _00::AMF_Absolute,                                           Microcode::Jump,    nullptr },
-        { _00::JMP_indirect, _00::AMF_Absolute,                                           Microcode::Jump,    nullptr },
-        { _00::STY,          _00::AMF_ZeroPage  | _00::AMF_Absolute | _00::AMF_ZeroPageX, Microcode::Store,   nullptr },
-        { _00::LDY,          _00::__AMF_AllModes,                                         Microcode::Load,    &Y      },
-        { _00::CPY,          _00::AMF_Immediate | _00::AMF_ZeroPage | _00::AMF_Absolute,  Microcode::Compare, &Y      },
-        { _00::CPX,          _00::AMF_Immediate | _00::AMF_ZeroPage | _00::AMF_Absolute,  Microcode::Compare, &X      },
+        { _00::BIT,          _00::AMF_ZeroPage  | _00::AMF_Absolute,                      Microcode::BitTest, nullptr, nullptr },
+        { _00::JMP,          _00::AMF_Absolute,                                           Microcode::Jump,    nullptr, nullptr },
+        { _00::JMP_indirect, _00::AMF_Absolute,                                           Microcode::Jump,    nullptr, nullptr },
+        { _00::STY,          _00::AMF_ZeroPage  | _00::AMF_Absolute | _00::AMF_ZeroPageX, Microcode::Store,   nullptr, nullptr },
+        { _00::LDY,          _00::__AMF_AllModes,                                         Microcode::Load,    nullptr, &Y      },
+        { _00::CPY,          _00::AMF_Immediate | _00::AMF_ZeroPage | _00::AMF_Absolute,  Microcode::Compare, &Y,      nullptr },
+        { _00::CPX,          _00::AMF_Immediate | _00::AMF_ZeroPage | _00::AMF_Absolute,  Microcode::Compare, &X,      nullptr },
     };
 
 
     for (TableEntry entry : table)
     {
-        CreateInstruction (_00::__AM_Count, _00::instructionName, entry.opcode, entry.addressingModeFlags, 0b00, entry.operation, entry.pRegisterAffected, nullptr);
+        CreateInstruction (_00::__AM_Count, _00::instructionName, entry.opcode, entry.addressingModeFlags, Microcode::Group00, entry.operation, entry.pSourceRegister, entry.pDestinationRegister);
     }
 }
 
@@ -565,8 +576,8 @@ void Cpu::InitializeGroup01 ()
         { _01::AND, _01::__AMF_AllModes,                         Microcode::And,               nullptr, nullptr },
         { _01::EOR, _01::__AMF_AllModes,                         Microcode::Xor,               nullptr, nullptr },
         { _01::ADC, _01::__AMF_AllModes,                         Microcode::AddWithCarry,      nullptr, nullptr },
-        { _01::STA, _01::__AMF_AllModes & ~(_01::AMF_Immediate), Microcode::Store,             nullptr, &A      },
-        { _01::LDA, _01::__AMF_AllModes,                         Microcode::Load,              &A,      nullptr },
+        { _01::STA, _01::__AMF_AllModes & ~(_01::AMF_Immediate), Microcode::Store,             &A,      nullptr },
+        { _01::LDA, _01::__AMF_AllModes,                         Microcode::Load,              nullptr, &A      },
         { _01::CMP, _01::__AMF_AllModes,                         Microcode::Compare,           &A,      nullptr },
         { _01::SBC, _01::__AMF_AllModes,                         Microcode::SubtractWithCarry, nullptr, nullptr },
     };
@@ -574,7 +585,7 @@ void Cpu::InitializeGroup01 ()
 
     for (TableEntry entry : table)
     {
-        CreateInstruction (_01::__AM_Count, _01::instructionName, entry.opcode, entry.addressingModeFlags, 0b01, entry.operation, entry.pSourceRegister, entry.pDestinationRegister);
+        CreateInstruction (_01::__AM_Count, _01::instructionName, entry.opcode, entry.addressingModeFlags, Microcode::Group01, entry.operation, entry.pSourceRegister, entry.pDestinationRegister);
     }
 }
 
@@ -607,7 +618,7 @@ void Cpu::InitializeGroup10 ()
 
     for (TableEntry entry : table)
     {
-        CreateInstruction (_10::__AM_Count, _10::instructionName, entry.opcode, entry.addressingModeFlags, 0b01, entry.operation, entry.pSourceRegister, entry.pDestinationRegister);
+        CreateInstruction (_10::__AM_Count, _10::instructionName, entry.opcode, entry.addressingModeFlags, Microcode::Group10, entry.operation, entry.pSourceRegister, entry.pDestinationRegister);
     }
 }
 
@@ -669,9 +680,8 @@ void Cpu::InitializeMisc ()
 
     for (TableEntry entry : table)
     {
-        Instruction instruction            = Instruction (entry.opcode);
-        instructionSet[instruction.asByte] = Microcode (instruction, GroupMisc::instructionName[entry.opcode], entry.operation, entry.pSourceRegister, entry.pDestinationRegister);
-
+        Instruction instruction            = Instruction (GroupMisc::instruction[entry.opcode].instruction);
+        instructionSet[instruction.asByte] = Microcode (instruction, GroupMisc::instruction[entry.opcode].name, entry.operation, entry.addressingMode, entry.pSourceRegister, entry.pDestinationRegister);
     }
 
 }
@@ -706,7 +716,7 @@ void Cpu::CreateInstruction (uint32_t                      addressingModeMax,
 
 void Cpu::PrintInstructionSet (Microcode::Group group)
 {
-    for (Microcode instruction : instructionSet)
+    for (const Microcode & instruction : instructionSet)
     {
         const char * pszInstructionName  = nullptr;
 
