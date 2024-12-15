@@ -35,10 +35,9 @@ void Cpu::Reset ()
 
 
 
-
     // Test code
     PC = 0x8000;
-    SP = 0x00;
+    SP = 0xFF;
 
     Word addr = PC;
 
@@ -354,26 +353,25 @@ void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
 
 void Cpu::FetchOperandZeroPageXIndirect (Cpu::OperandInfo & operandInfo)
 {
-    operandInfo.location         = memory[PC];
-    operandInfo.effectiveAddress = memory[(operandInfo.location + X) & 0xFF]
-                                 | memory[(operandInfo.location + X + 1) & 0xFF] << 8;
-    operandInfo.operand          = memory[operandInfo.effectiveAddress];
+    operandInfo.location         = ReadByte (PC);
+    operandInfo.effectiveAddress = ReadWord (operandInfo.location + X);
+    operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
 }
 
 
 
 void Cpu::FetchOperandZeroPage (Cpu::OperandInfo & operandInfo)
 {
-    operandInfo.location         = memory[PC];
+    operandInfo.location         = ReadByte (PC);
     operandInfo.effectiveAddress = operandInfo.location;
-    operandInfo.operand          = memory[operandInfo.effectiveAddress];
+    operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
 }
 
 
 
 void Cpu::FetchOperandImmediate (Cpu::OperandInfo & operandInfo)
 {
-    operandInfo.location = memory[PC];
+    operandInfo.location = ReadByte (PC);
     operandInfo.operand  = operandInfo.location;
 }
 
@@ -381,93 +379,84 @@ void Cpu::FetchOperandImmediate (Cpu::OperandInfo & operandInfo)
 
 void Cpu::FetchOperandJumpAbsolute (Cpu::OperandInfo & operandInfo)
 {
-    operandInfo.location          = memory[PC];
-    operandInfo.location         |= memory[++PC] << 8;
-    operandInfo.effectiveAddress  = operandInfo.location;
-    operandInfo.operand           = operandInfo.location;
+    operandInfo.location         = ReadWord (PC++);
+    operandInfo.effectiveAddress = operandInfo.location;
+    operandInfo.operand          = operandInfo.location;
 }
 
 
 
 void Cpu::FetchOperandJumpIndirect (Cpu::OperandInfo & operandInfo)
 {
-    operandInfo.location          = memory[PC];
-    operandInfo.location         |= memory[++PC] << 8;
-    operandInfo.effectiveAddress  = memory[operandInfo.location]
-                                  | memory[operandInfo.location + 1] << 8;
-    operandInfo.operand           = operandInfo.effectiveAddress;
+    operandInfo.location         = ReadWord (PC++);
+    operandInfo.effectiveAddress = ReadWord (operandInfo.location);
+    operandInfo.operand          = operandInfo.effectiveAddress;
 }
 
 
 
 void Cpu::FetchOperandRelative (Cpu::OperandInfo & operandInfo)
 {
-    operandInfo.location          = memory[PC];
-    operandInfo.location         |= memory[++PC] << 8;
-    operandInfo.effectiveAddress  = memory[operandInfo.location]
-                                  | memory[operandInfo.location + 1] << 8;
-    operandInfo.operand           = operandInfo.effectiveAddress;
+    operandInfo.location         = ReadByte (PC++);
+    operandInfo.effectiveAddress = operandInfo.location;
+    operandInfo.operand          = operandInfo.location;
 }
 
 
 
 void Cpu::FetchOperandAbsolute (Cpu::OperandInfo & operandInfo, Microcode & microcode)
 {
-    operandInfo.location          = memory[PC];
-    operandInfo.location         |= memory[++PC] << 8;
-    operandInfo.effectiveAddress  = operandInfo.location;
-    operandInfo.operand           = memory[operandInfo.effectiveAddress];
+    operandInfo.location         = ReadWord (PC++);
+    operandInfo.effectiveAddress = operandInfo.location;
+    operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
 }
 
 
 
 void Cpu::FetchOperandZeroPageIndirectY (Cpu::OperandInfo & operandInfo)
 {
-    operandInfo.location         = memory[PC];
-    operandInfo.effectiveAddress = memory[operandInfo.location]
-                                 | memory[operandInfo.location + 1] << 8;
+    operandInfo.location          = ReadByte (PC);
+    operandInfo.effectiveAddress  = ReadWord (operandInfo.location);
     operandInfo.effectiveAddress += Y;
-    operandInfo.operand          = memory[operandInfo.effectiveAddress];
+    operandInfo.operand           = ReadByte (operandInfo.effectiveAddress);
 }
 
 
 
 void Cpu::FetchOperandZeroPageX (Cpu::OperandInfo & operandInfo)
 {
-    operandInfo.location         = memory[PC];
+    operandInfo.location         = ReadByte (PC);
     operandInfo.effectiveAddress = operandInfo.location + X;
-    operandInfo.operand          = memory[operandInfo.effectiveAddress];
+    operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
 }
 
 
 
 void Cpu::FetchOperandZeroPageY (Cpu::OperandInfo & operandInfo)
 {
-    operandInfo.location         = memory[PC];
+    operandInfo.location         = ReadByte (PC);
     operandInfo.effectiveAddress = operandInfo.location + Y;
-    operandInfo.operand          = memory[operandInfo.effectiveAddress];
+    operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
 }
 
 
 
 void Cpu::FetchOperandAbsoluteY (Cpu::OperandInfo & operandInfo)
 {
-    operandInfo.location          = memory[PC];
-    operandInfo.location         |= memory[++PC] << 8;
+    operandInfo.location          = ReadWord (PC++);
     operandInfo.effectiveAddress  = operandInfo.location;
     operandInfo.effectiveAddress += Y;
-    operandInfo.operand           = memory[operandInfo.effectiveAddress];
+    operandInfo.operand           = ReadByte (operandInfo.effectiveAddress);
 }
 
 
 
 void Cpu::FetchOperandAbsoluteX (Cpu::OperandInfo & operandInfo)
 {
-    operandInfo.location         = memory[PC];
-    operandInfo.location        |= memory[++PC] << 8;
-    operandInfo.effectiveAddress = operandInfo.location;
+    operandInfo.location          = ReadWord (PC++);
+    operandInfo.effectiveAddress  = operandInfo.location;
     operandInfo.effectiveAddress += X;
-    operandInfo.operand          = memory[operandInfo.effectiveAddress];
+    operandInfo.operand           = ReadByte (operandInfo.effectiveAddress);
 }
 
 
@@ -486,6 +475,7 @@ void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandIn
     case Microcode::AddWithCarry:       CpuOperations::AddWithCarry      (*this, (Byte) operandInfo.operand);                                   break;
     case Microcode::And:                CpuOperations::And               (*this, (Byte) operandInfo.operand);                                   break;
     case Microcode::BitTest:            CpuOperations::BitTest           (*this, (Byte) operandInfo.operand);                                   break;
+    case Microcode::Break:              CpuOperations::Break             (*this);                                                               break;
     case Microcode::Compare:            CpuOperations::Compare           (*this, *microcode.pSourceRegister, (Byte) operandInfo.operand);       break;
     case Microcode::Decrement:          CpuOperations::Decrement         (*this, operandInfo.effectiveAddress);                                 break;
     case Microcode::Increment:          CpuOperations::Increment         (*this, operandInfo.effectiveAddress);                                 break;
@@ -505,6 +495,66 @@ void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandIn
         assert (false);
         break;
     }
+}
+
+
+
+void Cpu::PushByte (Byte value)
+{
+    WriteByte (stackAddress + SP--, value);
+}
+
+
+
+void Cpu::PushWord (Word value)
+{
+    WriteWord (stackAddress + SP, value);
+    SP -= 2;
+}
+
+
+
+Byte Cpu::PopByte ()
+{
+    return ReadByte(stackAddress + ++SP);
+}
+
+
+
+Word Cpu::PopWord ()
+{
+    SP += 2;
+    return ReadWord (stackAddress + SP);
+}
+
+
+
+void Cpu::WriteByte (Word address, Byte value)
+{
+    memory[address] = value;
+}
+
+
+
+void Cpu::WriteWord (Word address, Word value)
+{
+    memory[address]     = value & 0xFF;
+    memory[address + 1] = value >> 8;
+}
+
+
+
+Byte Cpu::ReadByte (Word address)
+{
+    return memory[address];
+}
+
+
+
+Word Cpu::ReadWord (Word address)
+{
+    return memory[address] | 
+           memory[address + 1] << 8;
 }
 
 

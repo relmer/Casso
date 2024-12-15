@@ -41,6 +41,18 @@ protected:
     
     void ExecuteInstruction            (Microcode microcode, const OperandInfo & operandInfo);
 
+    // Stack operations
+    void PushByte (Byte value);
+    void PushWord (Word value);
+    Byte PopByte  ();
+    Word PopWord  ();
+
+    // Memory operations
+    void WriteByte (Word address, Byte value);
+    void WriteWord (Word address, Word value);
+    Byte ReadByte  (Word address);
+    Word ReadWord  (Word address);
+
     void InitializeInstructionSet ();
 
     void InitializeGroup00 ();
@@ -64,6 +76,9 @@ protected:
 protected:
     static constexpr size_t memSize      = 64 * 1024;
     static constexpr size_t stackAddress = 0x0100;
+    static constexpr Word   nmiVector    = 0xFFFA;
+    static constexpr Word   resVector    = 0xFFFC;
+    static constexpr Word   irqVector    = 0xFFFE;
 
     Byte                    memory[memSize];
 

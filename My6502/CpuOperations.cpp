@@ -42,6 +42,18 @@ void CpuOperations::BitTest (Cpu & cpu, Byte operand)
 
 
 
+void CpuOperations::Break (Cpu & cpu)
+{
+    cpu.status.flags.b = 1;
+
+    cpu.PushWord (cpu.PC);
+    cpu.PushByte (cpu.status.status);
+    
+    cpu.status.flags.i = 1;
+    cpu.PC             = cpu.ReadWord (cpu.irqVector);
+}
+
+
 void CpuOperations::Compare (Cpu & cpu, Byte & registerAffected, Byte operand)
 {
     Word cmp = registerAffected - operand;

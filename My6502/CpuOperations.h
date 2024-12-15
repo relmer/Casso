@@ -13,7 +13,7 @@ public:
     static void And                  (Cpu & cpu, Byte operand);
     static void BitTest              (Cpu & cpu, Byte operand);
     static void Branch               (Cpu & cpu, Byte operand);
-    static void Break                (Cpu & cpu, Byte operand);
+    static void Break                (Cpu & cpu);
     static void Compare              (Cpu & cpu, Byte & registerAffected, Byte operand);
     static void Decrement            (Cpu & cpu, Word effectiveAddress);
     static void Increment            (Cpu & cpu, Word effectiveAddress);
