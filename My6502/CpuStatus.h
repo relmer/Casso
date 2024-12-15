@@ -5,14 +5,14 @@
 // NV1B DIZC
 struct CpuFlags
 {
-    Byte c         : 1; // Carry
-    Byte z         : 1; // Zero
-    Byte i         : 1; // Interrupt Disable
-    Byte d         : 1; // BCD Mode
-    Byte b         : 1; // Break
-    Byte alwaysOne : 1; // Always 1
-    Byte v         : 1; // Overflow
-    Byte n         : 1; // Negative
+    Byte carry            : 1; // Carry
+    Byte zero             : 1; // Zero
+    Byte interruptDisable : 1; // Interrupt Disable
+    Byte decimal          : 1; // BCD Mode
+    Byte brk              : 1; // Break
+    Byte alwaysOne        : 1; // Always 1
+    Byte overflow         : 1; // Overflow
+    Byte negative         : 1; // Negative
 };
 
 
