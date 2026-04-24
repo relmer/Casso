@@ -144,6 +144,63 @@ When assembly source contains errors (invalid mnemonics, bad addressing mode syn
 - What happens when `.text` contains an empty string (`""`)? Zero bytes are emitted; this is not an error.
 - What happens when addressing mode syntax is ambiguous (e.g., `STA $10` could be zero-page or absolute)? The assembler prefers the shorter encoding (zero-page) when the address fits in one byte.
 
+---
+
+### User Story 8 - Command-Line Interface (Priority: P1)
+
+A developer uses the My6502 executable from the command line to assemble source files to binary output and/or run programs directly. The CLI uses subcommands modeled after ACME (the popular 6502 assembler).
+
+**Why this priority**: The CLI is the primary non-test entry point for the assembler. Without it, assembly is only available programmatically.
+
+**Independent Test**: Can be verified by running the executable with various argument combinations and checking exit codes, output files, and stderr messages.
+
+**Acceptance Scenarios**:
+
+1. **Given** `My6502 assemble input.asm -o output.bin`, **When** run, **Then** the input file is assembled and the binary output is written to the specified file
+2. **Given** `My6502 assemble input.asm -o output.bin -l labels.txt`, **When** run, **Then** a symbol table file is also written with label names and addresses
+3. **Given** `My6502 run input.asm`, **When** run, **Then** the file is assembled and executed immediately
+4. **Given** `My6502 run output.bin --load $8000`, **When** run, **Then** the binary is loaded at the specified address and executed
+5. **Given** assembly errors in the input file, **When** `My6502 assemble` is run, **Then** errors are printed to stderr with line numbers and the process exits with a non-zero code
+6. **Given** `My6502` with no arguments, **When** run, **Then** a usage summary is displayed
+7. **Given** `My6502 --version`, **When** run, **Then** the version string is displayed
+
+---
+
+### User Story 9 - Listing File Output (Priority: P1)
+
+A developer requests a listing file that shows each source line alongside its assembled address and machine code bytes. This is essential for debugging assembly programs and verifying the assembler's output.
+
+**Why this priority**: Listing files are a critical debugging tool — they show exactly what bytes were generated at what addresses, making it easy to spot encoding errors or incorrect label resolution.
+
+**Independent Test**: Can be tested by assembling a program with listing enabled and verifying the listing contains the correct address, bytes, and source text for each line.
+
+**Acceptance Scenarios**:
+
+1. **Given** the `-a` flag on the CLI (or a listing option in the API), **When** a program is assembled, **Then** a listing is produced showing address, hex bytes, and original source per line
+2. **Given** a line with an instruction, **Then** the listing shows the address (e.g., `$8000`), the hex bytes (e.g., `A9 42`), and the source (`LDA #$42`)
+3. **Given** a comment-only or blank line, **Then** the listing shows the source text with no address or bytes
+4. **Given** a `.byte` directive, **Then** the listing shows the address and the emitted data bytes
+5. **Given** a label-only line, **Then** the listing shows the address the label resolves to
+6. **Given** a `.org` directive, **Then** the listing shows the new origin address
+
+---
+
+### User Story 10 - Verbose Output and Warning Control (Priority: P2)
+
+A developer uses verbose mode to see detailed assembly progress and controls whether warnings are displayed, elevated to errors, or suppressed.
+
+**Why this priority**: Verbose output aids debugging during development. Warning control lets the developer decide how strictly to treat edge cases (e.g., unused labels, redundant `.org`).
+
+**Independent Test**: Can be tested by assembling with different verbosity/warning flags and verifying the expected messages appear or are suppressed.
+
+**Acceptance Scenarios**:
+
+1. **Given** the `-v` (verbose) flag, **When** assembling, **Then** pass progress, symbol resolution details, and byte counts are printed to stderr
+2. **Given** no `-v` flag, **When** assembling, **Then** only errors and warnings are printed (quiet by default)
+3. **Given** `--warn` (default), **When** a warning condition occurs, **Then** the warning is printed to stderr but assembly succeeds
+4. **Given** `--fatal-warnings`, **When** a warning condition occurs, **Then** it is treated as an error and assembly fails
+5. **Given** `--no-warn`, **When** a warning condition occurs, **Then** the warning is suppressed
+
 ## Requirements
 
 ### Functional Requirements
@@ -172,6 +229,16 @@ When assembly source contains errors (invalid mnemonics, bad addressing mode syn
 - **FR-022**: Mnemonics and register names MUST be case-insensitive (e.g., `lda`, `LDA`, and `Lda` are all accepted)
 - **FR-023**: Label names MUST be case-sensitive
 - **FR-024**: Label names MUST NOT collide with reserved mnemonics or register names
+- **FR-025**: The CLI MUST support an `assemble` subcommand that reads an input `.asm` file and writes a flat binary output file (`-o`)
+- **FR-026**: The CLI `assemble` subcommand MUST support a `-l` flag to write a symbol table file listing label names and their resolved addresses
+- **FR-027**: The CLI MUST support a `run` subcommand that assembles a `.asm` file and executes it immediately, or loads a `.bin` file at a specified address (`--load`) and executes it
+- **FR-028**: The CLI MUST print errors to stderr with line numbers and exit with a non-zero code on failure
+- **FR-029**: The CLI MUST display a usage summary when run with no arguments or `--help`
+- **FR-030**: The assembler MUST support generating a listing file showing address, hex bytes, and original source text for each line
+- **FR-031**: The listing MUST be available via a `-a` CLI flag and via an API option for programmatic use
+- **FR-032**: The CLI MUST support a `-v` (verbose) flag that prints pass progress, symbol resolution details, and byte counts to stderr
+- **FR-033**: The CLI MUST support `--warn` (default), `--no-warn`, and `--fatal-warnings` flags to control warning behavior
+- **FR-034**: The CLI MUST support `--version` to display the version string
 
 ### Key Entities
 
@@ -191,6 +258,8 @@ When assembly source contains errors (invalid mnemonics, bad addressing mode syn
 - **SC-004**: Assembly errors include the correct line number in 100% of error cases
 - **SC-005**: Assembled programs execute identically to the same programs loaded as raw bytes via `WriteBytes()`
 - **SC-006**: The assembler handles all edge cases (empty input, boundary branch offsets, mixed number formats) without crashes or undefined behavior
+- **SC-007**: The CLI `assemble` subcommand produces byte-identical output to programmatic `Assembler::Assemble()` for the same input
+- **SC-008**: Listing output correctly shows address, hex bytes, and source text for every line type (instructions, directives, labels, comments)
 
 ## Scope Boundary
 
@@ -199,9 +268,10 @@ When assembly source contains errors (invalid mnemonics, bad addressing mode syn
 - Macros and macro expansion
 - Conditional assembly directives (`#if`, `.ifdef`, `.ifndef`)
 - Relocatable output or linking multiple object files
-- Include files or file I/O — the assembler takes a string, not a filename
-- Binary file loading (separate feature)
+- Include files or file I/O in the assembler core — the assembler takes a string; file reading is done by the CLI layer
 - Illegal/undocumented 6502 opcodes
+- Command-line symbol definition (`-Dlabel=value`) — future enhancement
+- CPU variant selection (`--cpu 65c02`) — future enhancement when 65C02 extensions are added to the emulator
 
 ## Assumptions
 
