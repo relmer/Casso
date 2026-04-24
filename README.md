@@ -122,7 +122,6 @@ My6502.sln
 | [#1](https://github.com/relmer/My6502/issues/1) | ShiftLeft/ShiftRight dispatch calls RotateLeft/RotateRight |
 | [#3](https://github.com/relmer/My6502/issues/3) | BIT instruction V/N flags read from AND result instead of operand |
 | [#4](https://github.com/relmer/My6502/issues/4) | Compare carry flag incorrect for boundary values |
-| [#5](https://github.com/relmer/My6502/issues/5) | PushWord/PopWord read/write outside stack page |
 
 ## Roadmap
 

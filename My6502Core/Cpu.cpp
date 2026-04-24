@@ -558,8 +558,8 @@ void Cpu::PushByte (Byte value)
 
 void Cpu::PushWord (Word value)
 {
-    WriteWord (stackAddress + SP, value);
-    SP -= 2;
+    PushByte (value >> 8);
+    PushByte (value & 0xFF);
 }
 
 
@@ -573,8 +573,9 @@ Byte Cpu::PopByte ()
 
 Word Cpu::PopWord ()
 {
-    SP += 2;
-    return ReadWord (stackAddress + SP);
+    Byte lo = PopByte ();
+    Byte hi = PopByte ();
+    return lo | (hi << 8);
 }
 
 

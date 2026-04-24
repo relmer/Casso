@@ -85,6 +85,10 @@ public:
         }
     }
 
+    // Stack operation wrappers for testing (PushWord/PopWord are protected)
+    void DoPushWord (Word value) { PushWord (value); }
+    Word DoPopWord  ()           { return PopWord (); }
+
     // Access instruction set for verification
     const Microcode & GetMicrocode (Byte opcode) const { return instructionSet[opcode]; }
 
