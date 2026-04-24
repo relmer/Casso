@@ -183,6 +183,59 @@ namespace IntegrationTests
 
 
     // =========================================================================
+    // T025: Stack Page Boundary Tests
+    // =========================================================================
+    TEST_CLASS (StackPageTests)
+    {
+    public:
+
+        TEST_METHOD (PushWord_AtMaxSP_StaysWithinStackPage)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+
+            // SP starts at 0xFF; push should write hi byte to 0x01FF, lo byte to 0x01FE
+            cpu.DoPushWord (0xABCD);
+
+            Assert::AreEqual ((Byte) 0xAB, cpu.Peek (0x01FF), L"High byte at 0x01FF");
+            Assert::AreEqual ((Byte) 0xCD, cpu.Peek (0x01FE), L"Low byte at 0x01FE");
+            Assert::AreEqual ((Byte) 0x00, cpu.Peek (0x0200), L"No write outside stack page");
+            Assert::AreEqual ((Byte) 0xFD, cpu.RegSP ());
+        }
+
+        TEST_METHOD (PopWord_AfterPushWord_ReturnsOriginalValue)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+
+            cpu.DoPushWord (0xABCD);
+            Word value = cpu.DoPopWord ();
+
+            Assert::AreEqual ((Word) 0xABCD, value);
+            Assert::AreEqual ((Byte) 0xFF, cpu.RegSP ());
+        }
+
+        TEST_METHOD (BRK_AtMaxSP_DoesNotWriteOutsideStackPage)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+
+            // Set up IRQ vector
+            cpu.PokeWord (0xFFFE, 0xC000);
+            cpu.Poke     (0xC000, 0xEA);  // NOP at handler
+
+            // BRK with SP=0xFF; PushWord(PC+1) must not touch 0x0200
+            cpu.Assemble ("BRK");
+            cpu.StepN (1);
+
+            Assert::AreEqual ((Byte) 0x00, cpu.Peek (0x0200), L"No write to 0x0200");
+        }
+    };
+
+
+
+
+    // =========================================================================
     // T055: Quickstart Validation
     // =========================================================================
     TEST_CLASS (QuickstartValidationTests)
