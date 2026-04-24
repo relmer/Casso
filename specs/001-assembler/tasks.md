@@ -105,15 +105,15 @@
 
 ### Tests (write first — must FAIL) ⚠️
 
-- [ ] T022 [P] [US6] Write `TestCpu::Assemble()` tests in UnitTest/IntegrationTests.cpp: assemble `"LDA #$42\nSTA $10"` at default address `0x8000`, verify memory at `0x8000` contains `{0xA9, 0x42, 0x85, 0x10}`, verify PC is set to `0x8000`; assemble with explicit `startAddress = 0xC000`, verify bytes at `0xC000`; assemble with errors returns `success == false` and memory is unchanged
-- [ ] T023 [P] [US6] Write `TestCpu::RunUntil()` tests in UnitTest/IntegrationTests.cpp: assemble `"LDA #$42\nSTA $10\ndone: BRK"`, run until `LabelAddress("done")`, verify `RegA() == 0x42` and `Peek(0x10) == 0x42`; test cycle-limit timeout (run with maxCycles=1, verify does not reach target); test illegal opcode stop (jump to uninitialized memory `$FF`)
-- [ ] T024 [P] [US6] Write `TestCpu::LabelAddress()` test in UnitTest/IntegrationTests.cpp: assemble program with labels `"start: NOP\nend: BRK"`, verify `LabelAddress(result, "start")` returns `0x8000` and `LabelAddress(result, "end")` returns `0x8001`
-- [ ] T024a [P] [US6] Write BRK software interrupt test in UnitTest/IntegrationTests.cpp: set up IRQ vector at $FFFE/$FFFF pointing to a handler address, execute BRK, verify PC loaded from IRQ vector, status and PC+2 pushed to stack, B flag set in pushed status (FR-021d)
+- [X] T022 [P] [US6] Write `TestCpu::Assemble()` tests in UnitTest/IntegrationTests.cpp: assemble `"LDA #$42\nSTA $10"` at default address `0x8000`, verify memory at `0x8000` contains `{0xA9, 0x42, 0x85, 0x10}`, verify PC is set to `0x8000`; assemble with explicit `startAddress = 0xC000`, verify bytes at `0xC000`; assemble with errors returns `success == false` and memory is unchanged
+- [X] T023 [P] [US6] Write `TestCpu::RunUntil()` tests in UnitTest/IntegrationTests.cpp: assemble `"LDA #$42\nSTA $10\ndone: BRK"`, run until `LabelAddress("done")`, verify `RegA() == 0x42` and `Peek(0x10) == 0x42`; test cycle-limit timeout (run with maxCycles=1, verify does not reach target); test illegal opcode stop (jump to uninitialized memory `$FF`)
+- [X] T024 [P] [US6] Write `TestCpu::LabelAddress()` test in UnitTest/IntegrationTests.cpp: assemble program with labels `"start: NOP\nend: BRK"`, verify `LabelAddress(result, "start")` returns `0x8000` and `LabelAddress(result, "end")` returns `0x8001`
+- [X] T024a [P] [US6] Write BRK software interrupt test in UnitTest/IntegrationTests.cpp: set up IRQ vector at $FFFE/$FFFF pointing to a handler address, execute BRK, verify PC loaded from IRQ vector, status and PC+2 pushed to stack, B flag set in pushed status (FR-021d)
 
 ### Implementation
 
-- [ ] T025 [US6] Add `Assemble()` and `LabelAddress()` to TestCpu in UnitTest/TestHelpers.h: `Assemble(const char* source, Word startAddress = 0x8000)` creates an `Assembler` with the CPU's instruction set, assembles source, on success writes bytes to `memory[startAddress..]` and sets PC to `startAddress`, returns `AssemblyResult`; `LabelAddress(const AssemblyResult& result, const char* name)` looks up name in `result.symbols`
-- [ ] T026 [US6] Add `RunUntil()` to TestCpu in UnitTest/TestHelpers.h: `RunUntil(Word targetAddress, uint32_t maxCycles = 0)` loops calling `Step()`, stops when `PC == targetAddress`, or illegal opcode encountered, or `cycles >= maxCycles` (if maxCycles > 0); expose stop reason for test assertions
+- [X] T025 [US6] Add `Assemble()` and `LabelAddress()` to TestCpu in UnitTest/TestHelpers.h: `Assemble(const char* source, Word startAddress = 0x8000)` creates an `Assembler` with the CPU's instruction set, assembles source, on success writes bytes to `memory[startAddress..]` and sets PC to `startAddress`, returns `AssemblyResult`; `LabelAddress(const AssemblyResult& result, const char* name)` looks up name in `result.symbols`
+- [X] T026 [US6] Add `RunUntil()` to TestCpu in UnitTest/TestHelpers.h: `RunUntil(Word targetAddress, uint32_t maxCycles = 0)` loops calling `Step()`, stops when `PC == targetAddress`, or illegal opcode encountered, or `cycles >= maxCycles` (if maxCycles > 0); expose stop reason for test assertions
 
 **Checkpoint**: Test developer can write assemble-and-run tests in ~5 lines. All subsequent story tests can use this pattern.
 
