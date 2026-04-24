@@ -321,6 +321,21 @@ namespace CpuOperationTests
             Assert::IsFalse ((bool) cpu.Status ().flags.carry);
             Assert::IsTrue  ((bool) cpu.Status ().flags.negative);
         }
+
+        TEST_METHOD (Compare_BoundaryValue_0x80_vs_0x00_SetsCarry)
+        {
+            // Regression: A=0x80 > operand=0x00, so carry must be set.
+            // cmp = 0x80 - 0x00 = 0x80; old condition (< 0x80) wrongly cleared carry.
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0x80;
+
+            CpuOperations::Compare (cpu, cpu.RegA (), 0x00);
+
+            Assert::IsFalse ((bool) cpu.Status ().flags.zero);
+            Assert::IsTrue  ((bool) cpu.Status ().flags.carry);
+            Assert::IsTrue  ((bool) cpu.Status ().flags.negative);
+        }
     };
 
 
