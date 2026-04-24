@@ -2,6 +2,7 @@
 
 #include "Cpu.h"
 #include "CpuOperations.h"
+#include "Ehm.h"
 #include "Group00.h"
 #include "Group01.h"
 #include "Group10.h"
@@ -206,6 +207,19 @@ void Cpu::Run ()
 
 
 
+void Cpu::StepOne ()
+{
+    Byte        opcode      = memory[PC];
+    Microcode   microcode   = instructionSet[opcode];
+    OperandInfo operandInfo = { 0 };
+
+    FetchOperand (microcode, operandInfo);
+    ++PC;
+    ExecuteInstruction (microcode, operandInfo);
+}
+
+
+
 void Cpu::PrintSingleStepInfo (Word initialPC, Byte opcode, const OperandInfo & operandInfo)
 {
     static constexpr char flags[][8] =
@@ -267,7 +281,7 @@ void Cpu::PrintOperandBytes (Word initialPC, Byte opcode)
             break;
 
         default:
-            assert (false);
+            ASSERT (false);
             break;
     }
 }
@@ -347,11 +361,12 @@ void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
 
     if (!microcode.isLegal)
     {
-        assert (false);
+        ASSERT (false);
         return;
     }
 
-    if (microcode.globalAddressingMode == GlobalAddressingMode::SingleByteNoOperand)
+    if (microcode.globalAddressingMode == GlobalAddressingMode::SingleByteNoOperand ||
+        microcode.globalAddressingMode == GlobalAddressingMode::Accumulator)
     {
         return;
     }
@@ -376,7 +391,7 @@ void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
 
     default:
         std::printf ("Unhandled addressing mode %d\n", microcode.instruction.asBits.addressingMode);
-        assert (false);
+        ASSERT (false);
         break;
     }
 }
@@ -525,7 +540,7 @@ void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandIn
 
     default:                          
         std::printf ("Unimplemented instruction:  %s\n", microcode.instructionName);                                
-        assert (false);
+        ASSERT (false);
         break;
     }
 }
@@ -692,7 +707,7 @@ void Cpu::InitializeGroup10 ()
         { _10::ROL, _10::__AMF_AllModes & ~(_10::AMF_Immediate),                     Microcode::RotateLeft,  &A,      nullptr },
         { _10::LSR, _10::__AMF_AllModes & ~(_10::AMF_Immediate),                     Microcode::ShiftRight,  &A,      nullptr },
         { _10::ROR, _10::__AMF_AllModes & ~(_10::AMF_Immediate),                     Microcode::RotateRight, &A,      nullptr },
-        { _10::STX, _10::AMF_ZeroPage | _10::AMF_Absolute | _10::AM_ZeroPageX,       Microcode::Store,       &X,      nullptr },
+        { _10::STX, _10::AMF_ZeroPage | _10::AMF_Absolute | _10::AMF_ZeroPageX,      Microcode::Store,       &X,      nullptr },
         { _10::LDX, _10::__AMF_AllModes & ~(_10::AMF_Absolute),                      Microcode::Load,        nullptr, &X      },
         { _10::DEC, _10::__AMF_AllModes & ~(_10::AMF_Immediate | _10::AMF_Absolute), Microcode::Decrement,   nullptr, nullptr },
         { _10::INC, _10::__AMF_AllModes & ~(_10::AMF_Immediate | _10::AMF_Absolute), Microcode::Increment,   nullptr, nullptr },

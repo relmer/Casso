@@ -212,10 +212,17 @@
     <ClCompile Include="CpuInitializationTests.cpp" />
     <ClCompile Include="CpuOperationTests.cpp" />
     <ClCompile Include="AddressingModeTests.cpp" />
+    <ClCompile Include="OpcodeTableTests.cpp" />
+    <ClCompile Include="ParserTests.cpp" />
+    <ClCompile Include="AssemblerTests.cpp" />
+    <ClCompile Include="IntegrationTests.cpp" />
+    <ClCompile Include="EhmTestHelper.cpp" />
+    <ClCompile Include="ModuleSetup.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />
     <ClInclude Include="TestHelpers.h" />
+    <ClInclude Include="EhmTestHelper.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\My6502Core\My6502Core.vcxproj">

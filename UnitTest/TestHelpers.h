@@ -2,6 +2,7 @@
 
 #include "Cpu.h"
 #include "CpuOperations.h"
+#include "Assembler.h"
 
 
 
@@ -10,6 +11,13 @@
 class TestCpu : public Cpu
 {
 public:
+    enum class StopReason
+    {
+        ReachedTarget,
+        CycleLimit,
+        IllegalOpcode,
+    };
+
     // Register access
     Byte & RegA  () { return A; }
     Byte & RegX  () { return X; }
@@ -79,4 +87,83 @@ public:
 
     // Access instruction set for verification
     const Microcode & GetMicrocode (Byte opcode) const { return instructionSet[opcode]; }
+
+    // Access full instruction set array (for OpcodeTable construction)
+    const Microcode * GetInstructionSet () const { return instructionSet; }
+
+    // Assemble source text into CPU memory; returns AssemblyResult
+    AssemblyResult Assemble (const char * source, Word startAddress = 0x8000)
+    {
+        Assembler  asm6502 (instructionSet);
+        auto       result = asm6502.Assemble (source);
+
+        if (result.success)
+        {
+            Word addr = startAddress;
+
+            for (Byte b : result.bytes)
+            {
+                memory[addr++] = b;
+            }
+
+            PC = startAddress;
+
+            // Fixup symbol addresses: the assembler uses 0x8000 as default origin,
+            // but we may be loading at a different address
+            if (startAddress != 0x8000)
+            {
+                Word offset = startAddress - 0x8000;
+
+                for (auto & pair : result.symbols)
+                {
+                    pair.second += offset;
+                }
+
+                result.startAddress = startAddress;
+                result.endAddress   = startAddress + (Word) result.bytes.size ();
+            }
+        }
+
+        return result;
+    }
+
+    // Look up a label address from an AssemblyResult
+    static Word LabelAddress (const AssemblyResult & result, const char * name)
+    {
+        auto it = result.symbols.find (name);
+
+        if (it != result.symbols.end ())
+        {
+            return it->second;
+        }
+
+        return 0;
+    }
+
+    // Execute instructions until PC reaches targetAddress, or stop conditions met
+    StopReason RunUntil (Word targetAddress, uint32_t maxCycles = 0)
+    {
+        uint32_t cycles = 0;
+
+        while (PC != targetAddress)
+        {
+            if (maxCycles > 0 && cycles >= maxCycles)
+            {
+                return StopReason::CycleLimit;
+            }
+
+            Byte      opcode    = memory[PC];
+            Microcode microcode = instructionSet[opcode];
+
+            if (!microcode.isLegal)
+            {
+                return StopReason::IllegalOpcode;
+            }
+
+            Step ();
+            cycles++;
+        }
+
+        return StopReason::ReachedTarget;
+    }
 };

@@ -18,7 +18,7 @@ Follow-up TODOs: None
 ================================================================================
 -->
 
-# TCDir Constitution
+# My6502 Constitution
 
 ## Core Principles
 
@@ -28,11 +28,12 @@ All code MUST adhere to established formatting and structural standards:
 
 - **Formatting Preservation**: NEVER delete blank lines between file-level constructs, NEVER break column alignment in declarations
 - **Indentation Exactness**: Preserve exact indentation when modifying code; match existing whitespace precisely
-- **Error Handling Macros (EHM)**: Use project EHM patterns (`CHR`, `CBR`, `CWRA`, etc.) for all HRESULT-returning functions
-- **Single Exit Point**: Functions returning HRESULT MUST have exactly one exit point via the `Error:` label; NEVER use direct `goto Error`
+- **Error Handling Macros (EHM)**: Use project EHM patterns (`CHR`, `CBR`, `CWRA`, `BAIL_OUT_IF`, etc.) for all HRESULT-returning functions; use `BAIL_OUT_IF` for success-path early exits
+- **Single Exit Point**: Functions returning HRESULT MUST have exactly one exit point via the `Error:` label; NEVER use direct `goto Error`; NEVER use early returns — always use EHM macros
+- **Avoid Nesting**: Use EHM macros to flatten deeply nested conditional logic instead of stacking `if`/`else` blocks
 - **Smart Pointers**: Prefer `unique_ptr` for exclusive ownership, `shared_ptr` when shared ownership is required
 
-**Rationale**: Consistent formatting enables efficient code review and reduces merge conflicts. EHM patterns ensure predictable error handling and resource cleanup.
+**Rationale**: Consistent formatting enables efficient code review and reduces merge conflicts. EHM patterns ensure predictable error handling, resource cleanup, and flat readable code.
 
 ### II. Testing Discipline
 
@@ -58,25 +59,22 @@ All production code MUST have corresponding unit tests:
 
 All user-facing output MUST follow established patterns:
 
-- **Colorized Output**: Use the `CConsole` class for all terminal output; respect TCDIR environment variable color configuration
-- **CLI Syntax**: Follow existing switch patterns (`-X`, `/X`, `-X:value`); new switches MUST be documented in `Usage.cpp`
+- **CLI Syntax**: Use standard `--flag` long options and `-f` short options; subcommand style (`My6502 assemble`, `My6502 run`)
 - **Error Messages**: Errors go to stderr; user-facing messages MUST be clear, actionable, and consistent in tone
-- **Help System**: All features MUST be documented in `-?` help output and `--Env`/`--Config` where applicable
+- **Help System**: All features MUST be documented in `--help` output
 - **Backward Compatibility**: Existing command-line behavior MUST NOT change without explicit user notification
 
 **Rationale**: Users rely on consistent behavior; breaking established patterns creates confusion and reduces trust.
 
 ### IV. Performance Requirements
 
-Performance is a core feature, not an afterthought:
+Performance considerations apply where relevant:
 
-- **Console API**: Prefer Windows Console API (`WriteConsoleW`) over C++ streams for console output
-- **Buffering Strategy**: Use large internal buffers to minimize system calls; flush strategically, not per-write
-- **Multi-Threading**: Default to multi-threaded enumeration (`-M`); single-threaded mode available via `-M-`
-- **Measurable**: Use `-P` flag infrastructure to measure and report performance; major features MUST NOT regress timing
-- **Resource Efficiency**: Minimize memory allocations in hot paths; prefer stack allocation and move semantics
+- **Avoid Waste**: Minimize unnecessary memory allocations; prefer stack allocation and move semantics in hot paths
+- **Reasonable Scale**: Assembler and emulator should handle typical 6502 programs (< 10K lines, 64 KB address space) without noticeable delay
+- **Resource Efficiency**: Prefer simple, direct implementations over over-engineered abstractions
 
-**Rationale**: TCDir is a replacement for `dir`; users expect it to be faster and better in every way.
+**Rationale**: My6502 is a development tool; responsiveness matters for developer experience.
 
 ### V. Simplicity & Maintainability
 
@@ -126,7 +124,7 @@ When automation tooling exists, prefer it over raw terminal commands:
 
 - **Commit per phase**: During speckit implementation, commit after each completed phase (Setup, Foundational, each User Story, Polish). Do NOT accumulate all phases into a single commit.
 - **Conventional Commits**: Use `type(scope): description` format with required scope. See CONTRIBUTING.md for type list.
-- **Version.h**: Always include `Version.h` in commits after building — it reflects the actual build number.
+- **Version.h**: If a version header exists, include it in commits after building.
 - **Refs/Closes**: Reference the GitHub issue in commit messages (`Refs #N` or `Closes #N`).
 
 ### Change Process
