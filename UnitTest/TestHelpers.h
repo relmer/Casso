@@ -79,4 +79,7 @@ public:
 
     // Access instruction set for verification
     const Microcode & GetMicrocode (Byte opcode) const { return instructionSet[opcode]; }
+
+    // Access full instruction set array (for OpcodeTable construction)
+    const Microcode * GetInstructionSet () const { return instructionSet; }
 };

@@ -43,13 +43,13 @@
 
 ### Tests (write first — must FAIL)
 
-- [ ] T008 [P] Write OpcodeTable unit tests in UnitTest/OpcodeTableTests.cpp: construction from `instructionSet[256]`, `Lookup("LDA", Immediate)` returns opcode `0xA9` with operandSize 1, `Lookup("STA", ZeroPage)` returns `0x85`, `IsMnemonic("LDA")` returns true, `IsMnemonic("XYZ")` returns false, `HasMode("LDA", Immediate)` returns true, `HasMode("LDA", Implied)` returns false, verify all 56 standard mnemonics have at least one entry
-- [ ] T009 [P] Write basic Parser unit tests in UnitTest/ParserTests.cpp: `SplitLines()` splits on `\n`, `ParseLine()` extracts label from `"loop: LDA #$42"`, extracts mnemonic (case-insensitive: `"lda"` → `"LDA"`), extracts operand string, strips full-line comments (`"; comment"`), strips inline comments (`"LDA #$42 ; load"`), handles blank lines, handles lines with only whitespace
+- [X] T008 [P] Write OpcodeTable unit tests in UnitTest/OpcodeTableTests.cpp: construction from `instructionSet[256]`, `Lookup("LDA", Immediate)` returns opcode `0xA9` with operandSize 1, `Lookup("STA", ZeroPage)` returns `0x85`, `IsMnemonic("LDA")` returns true, `IsMnemonic("XYZ")` returns false, `HasMode("LDA", Immediate)` returns true, `HasMode("LDA", Implied)` returns false, verify all 56 standard mnemonics have at least one entry
+- [X] T009 [P] Write basic Parser unit tests in UnitTest/ParserTests.cpp: `SplitLines()` splits on `\n`, `ParseLine()` extracts label from `"loop: LDA #$42"`, extracts mnemonic (case-insensitive: `"lda"` → `"LDA"`), extracts operand string, strips full-line comments (`"; comment"`), strips inline comments (`"LDA #$42 ; load"`), handles blank lines, handles lines with only whitespace
 
 ### Implementation
 
-- [ ] T010 Implement OpcodeTable class in My6502Core/OpcodeTable.h and My6502Core/OpcodeTable.cpp: constructor iterates `instructionSet[0..255]`, skips illegal entries, builds `unordered_map<string, unordered_map<AddressingMode, OpcodeEntry>>` keyed by uppercase mnemonic; implement `Lookup()`, `IsMnemonic()`, `HasMode()`
-- [ ] T011 Implement basic Parser in My6502Core/Parser.h and My6502Core/Parser.cpp: `SplitLines()` to break source text into lines, `ParseLine()` to extract label (before `:`), mnemonic (uppercase), operand (remainder), strip comments (everything after `;` outside quotes), skip blank/whitespace-only lines
+- [X] T010 Implement OpcodeTable class in My6502Core/OpcodeTable.h and My6502Core/OpcodeTable.cpp: constructor iterates `instructionSet[0..255]`, skips illegal entries, builds `unordered_map<string, unordered_map<AddressingMode, OpcodeEntry>>` keyed by uppercase mnemonic; implement `Lookup()`, `IsMnemonic()`, `HasMode()`
+- [X] T011 Implement basic Parser in My6502Core/Parser.h and My6502Core/Parser.cpp: `SplitLines()` to break source text into lines, `ParseLine()` to extract label (before `:`), mnemonic (uppercase), operand (remainder), strip comments (everything after `;` outside quotes), skip blank/whitespace-only lines
 
 **Checkpoint**: OpcodeTable and Parser basics ready — user story implementation can now begin
 
