@@ -521,24 +521,31 @@ void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandIn
 
     switch (microcode.operation)
     {
-    case Microcode::AddWithCarry:       CpuOperations::AddWithCarry      (*this, (Byte) operandInfo.operand);                                   break;
-    case Microcode::And:                CpuOperations::And               (*this, (Byte) operandInfo.operand);                                   break;
-    case Microcode::BitTest:            CpuOperations::BitTest           (*this, (Byte) operandInfo.operand);                                   break;
-    case Microcode::Branch:             CpuOperations::Branch            (*this, microcode.instruction, operandInfo.operand);                   break;
-    case Microcode::Break:              CpuOperations::Break             (*this);                                                               break;
-    case Microcode::Compare:            CpuOperations::Compare           (*this, *microcode.pSourceRegister, (Byte) operandInfo.operand);       break;
-    case Microcode::Decrement:          CpuOperations::Decrement         (*this, microcode.pSourceRegister, operandInfo.effectiveAddress);      break;
-    case Microcode::Increment:          CpuOperations::Increment         (*this, microcode.pSourceRegister, operandInfo.effectiveAddress);      break;
-    case Microcode::Jump:               CpuOperations::Jump              (*this, microcode.instruction, operandInfo.operand);                   break;
-    case Microcode::Load:               CpuOperations::Load              (*this, *microcode.pDestinationRegister, (Byte) operandInfo.operand);  break;
-    case Microcode::Or:                 CpuOperations::Or                (*this, (Byte) operandInfo.operand);                                   break;
-    case Microcode::RotateLeft:         CpuOperations::RotateLeft        (*this, pAccumulator, operandInfo.effectiveAddress);                   break;
-    case Microcode::RotateRight:        CpuOperations::RotateRight       (*this, pAccumulator, operandInfo.effectiveAddress);                   break;
-    case Microcode::ShiftLeft:          CpuOperations::ShiftLeft         (*this, pAccumulator, operandInfo.effectiveAddress);                   break;
-    case Microcode::ShiftRight:         CpuOperations::ShiftRight        (*this, pAccumulator, operandInfo.effectiveAddress);                   break;
-    case Microcode::Store:              CpuOperations::Store             (*this, *microcode.pSourceRegister, operandInfo.effectiveAddress);     break;
-    case Microcode::SubtractWithCarry:  CpuOperations::SubtractWithCarry (*this, (Byte) operandInfo.operand);                                   break;
-    case Microcode::Xor:                CpuOperations::Xor               (*this, (Byte) operandInfo.operand);                                   break;
+    case Microcode::AddWithCarry:         CpuOperations::AddWithCarry         (*this, (Byte) operandInfo.operand);                                   break;
+    case Microcode::And:                  CpuOperations::And                  (*this, (Byte) operandInfo.operand);                                   break;
+    case Microcode::BitTest:              CpuOperations::BitTest              (*this, (Byte) operandInfo.operand);                                   break;
+    case Microcode::Branch:               CpuOperations::Branch               (*this, microcode.instruction, operandInfo.operand);                   break;
+    case Microcode::Break:                CpuOperations::Break                (*this);                                                               break;
+    case Microcode::Compare:              CpuOperations::Compare              (*this, *microcode.pSourceRegister, (Byte) operandInfo.operand);       break;
+    case Microcode::Decrement:            CpuOperations::Decrement            (*this, microcode.pSourceRegister, operandInfo.effectiveAddress);      break;
+    case Microcode::Increment:            CpuOperations::Increment            (*this, microcode.pSourceRegister, operandInfo.effectiveAddress);      break;
+    case Microcode::Jump:                 CpuOperations::Jump                 (*this, microcode.instruction, operandInfo.operand);                   break;
+    case Microcode::Load:                 CpuOperations::Load                 (*this, *microcode.pDestinationRegister, (Byte) operandInfo.operand);  break;
+    case Microcode::NoOperation:          CpuOperations::NoOperation          (*this);                                                               break;
+    case Microcode::Or:                   CpuOperations::Or                   (*this, (Byte) operandInfo.operand);                                   break;
+    case Microcode::Pull:                 CpuOperations::Pull                 (*this, microcode.pDestinationRegister);                               break;
+    case Microcode::Push:                 CpuOperations::Push                 (*this, microcode.pSourceRegister);                                    break;
+    case Microcode::ReturnFromInterrupt:  CpuOperations::ReturnFromInterrupt  (*this);                                                               break;
+    case Microcode::ReturnFromSubroutine: CpuOperations::ReturnFromSubroutine (*this);                                                               break;
+    case Microcode::RotateLeft:           CpuOperations::RotateLeft           (*this, pAccumulator, operandInfo.effectiveAddress);                   break;
+    case Microcode::RotateRight:          CpuOperations::RotateRight          (*this, pAccumulator, operandInfo.effectiveAddress);                   break;
+    case Microcode::SetFlag:              CpuOperations::SetFlag              (*this, microcode.instruction);                                        break;
+    case Microcode::ShiftLeft:            CpuOperations::ShiftLeft            (*this, pAccumulator, operandInfo.effectiveAddress);                   break;
+    case Microcode::ShiftRight:           CpuOperations::ShiftRight           (*this, pAccumulator, operandInfo.effectiveAddress);                   break;
+    case Microcode::Store:                CpuOperations::Store                (*this, *microcode.pSourceRegister, operandInfo.effectiveAddress);     break;
+    case Microcode::SubtractWithCarry:    CpuOperations::SubtractWithCarry    (*this, (Byte) operandInfo.operand);                                   break;
+    case Microcode::Transfer:             CpuOperations::Transfer             (*this, microcode.pSourceRegister, microcode.pDestinationRegister);    break;
+    case Microcode::Xor:                  CpuOperations::Xor                  (*this, (Byte) operandInfo.operand);                                   break;
 
     default:                          
         std::printf ("Unimplemented instruction:  %s\n", microcode.instructionName);                                
@@ -773,7 +780,7 @@ void Cpu::InitializeMisc ()
         { GroupMisc::TXA, GlobalAddressingMode::SingleByteNoOperand, Microcode::Transfer,             &X,             &A             },
         { GroupMisc::TXS, GlobalAddressingMode::SingleByteNoOperand, Microcode::Transfer,             &X,             &SP            },
         { GroupMisc::TAX, GlobalAddressingMode::SingleByteNoOperand, Microcode::Transfer,             &A,             &X             },
-        { GroupMisc::TSX, GlobalAddressingMode::SingleByteNoOperand, Microcode::Transfer,             &SP,            &A             },
+        { GroupMisc::TSX, GlobalAddressingMode::SingleByteNoOperand, Microcode::Transfer,             &SP,            &X             },
         { GroupMisc::DEX, GlobalAddressingMode::SingleByteNoOperand, Microcode::Decrement,            &X,             nullptr        },
         { GroupMisc::NOP, GlobalAddressingMode::SingleByteNoOperand, Microcode::NoOperation,          nullptr,        nullptr        },
     };

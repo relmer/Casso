@@ -734,4 +734,394 @@ namespace CpuOperationTests
             Assert::AreEqual ((Word) 0x1234, cpu.RegPC ());
         }
     };
+
+
+
+    // =========================================================================
+    // No Operation
+    // =========================================================================
+    TEST_CLASS (NoOperationTests)
+    {
+    public:
+
+        TEST_METHOD (NoOperation_DoesNotChangeRegistersOrFlags)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+
+            cpu.RegA  () = 0x12;
+            cpu.RegX  () = 0x34;
+            cpu.RegY  () = 0x56;
+            cpu.RegSP () = 0x78;
+            cpu.Status ().status = 0xA5;
+
+            CpuOperations::NoOperation (cpu);
+
+            Assert::AreEqual ((Byte) 0x12, cpu.RegA ());
+            Assert::AreEqual ((Byte) 0x34, cpu.RegX ());
+            Assert::AreEqual ((Byte) 0x56, cpu.RegY ());
+            Assert::AreEqual ((Byte) 0x78, cpu.RegSP ());
+            Assert::AreEqual ((Byte) 0xA5, cpu.Status ().status);
+        }
+    };
+
+
+
+    // =========================================================================
+    // Push / Pull (PHA / PLA / PHP / PLP)
+    // =========================================================================
+    TEST_CLASS (PushPullTests)
+    {
+    public:
+
+        TEST_METHOD (Push_A_WritesToStackAndDecrementsSP)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0x42;
+
+            Byte spBefore = cpu.RegSP ();
+            CpuOperations::Push (cpu, &cpu.RegA ());
+
+            Assert::AreEqual ((Byte) (spBefore - 1), cpu.RegSP ());
+            Assert::AreEqual ((Byte) 0x42, cpu.Peek ((Word) (0x0100 + spBefore)));
+        }
+
+        TEST_METHOD (Pull_A_ReadsFromStackAndIncrementsSP)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0x00;
+            cpu.RegSP () = 0xFE;
+            cpu.Poke (0x01FF, 0x77);
+
+            CpuOperations::Pull (cpu, &cpu.RegA ());
+
+            Assert::AreEqual ((Byte) 0x77, cpu.RegA ());
+            Assert::AreEqual ((Byte) 0xFF, cpu.RegSP ());
+            Assert::IsFalse ((bool) cpu.Status ().flags.zero);
+            Assert::IsFalse ((bool) cpu.Status ().flags.negative);
+        }
+
+        TEST_METHOD (Pull_A_Zero_SetsZeroFlag)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0xAA;
+            cpu.RegSP () = 0xFE;
+            cpu.Poke (0x01FF, 0x00);
+
+            CpuOperations::Pull (cpu, &cpu.RegA ());
+
+            Assert::AreEqual ((Byte) 0x00, cpu.RegA ());
+            Assert::IsTrue  ((bool) cpu.Status ().flags.zero);
+            Assert::IsFalse ((bool) cpu.Status ().flags.negative);
+        }
+
+        TEST_METHOD (Pull_A_Negative_SetsNegativeFlag)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegSP () = 0xFE;
+            cpu.Poke (0x01FF, 0x80);
+
+            CpuOperations::Pull (cpu, &cpu.RegA ());
+
+            Assert::AreEqual ((Byte) 0x80, cpu.RegA ());
+            Assert::IsFalse ((bool) cpu.Status ().flags.zero);
+            Assert::IsTrue  ((bool) cpu.Status ().flags.negative);
+        }
+
+        TEST_METHOD (Push_Status_SetsBreakAndAlwaysOneInPushedByte)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.Status ().status = 0x00;
+            cpu.Status ().flags.carry = 1;     // 0x01
+
+            Byte spBefore = cpu.RegSP ();
+            CpuOperations::Push (cpu, &cpu.Status ().status);
+
+            // PHP pushes status with B (0x10) and AlwaysOne (0x20) set.
+            Assert::AreEqual ((Byte) 0x31, cpu.Peek ((Word) (0x0100 + spBefore)));
+        }
+
+        TEST_METHOD (Pull_Status_PreservesBreakAndAlwaysOne)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            // Status currently has alwaysOne=1, brk=0
+            cpu.Status ().status = 0x20;
+            cpu.RegSP () = 0xFE;
+            // Pulled byte has B=1 and U=1 set; PLP must not alter actual B/U bits.
+            cpu.Poke (0x01FF, 0xFF);
+
+            CpuOperations::Pull (cpu, &cpu.Status ().status);
+
+            // B and AlwaysOne preserved from the pre-pull register state.
+            Assert::AreEqual ((Byte) 0x20, (Byte) (cpu.Status ().status & 0x30));
+            // Other bits come from the pulled value (0xFF & ~0x30 = 0xCF).
+            Assert::AreEqual ((Byte) 0xCF, (Byte) (cpu.Status ().status & ~0x30));
+        }
+
+        TEST_METHOD (Push_Then_Pull_RoundTripsAccumulator)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0x5A;
+
+            CpuOperations::Push (cpu, &cpu.RegA ());
+            cpu.RegA () = 0x00;
+            CpuOperations::Pull (cpu, &cpu.RegA ());
+
+            Assert::AreEqual ((Byte) 0x5A, cpu.RegA ());
+        }
+    };
+
+
+
+    // =========================================================================
+    // Transfer (TAX / TXA / TAY / TYA / TXS / TSX)
+    // =========================================================================
+    TEST_CLASS (TransferTests)
+    {
+    public:
+
+        TEST_METHOD (Transfer_A_To_X_CopiesValue)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0x42;
+            cpu.RegX () = 0x00;
+
+            CpuOperations::Transfer (cpu, &cpu.RegA (), &cpu.RegX ());
+
+            Assert::AreEqual ((Byte) 0x42, cpu.RegX ());
+            Assert::AreEqual ((Byte) 0x42, cpu.RegA ());
+        }
+
+        TEST_METHOD (Transfer_Zero_SetsZeroFlag)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0x00;
+            cpu.RegX () = 0xFF;
+
+            CpuOperations::Transfer (cpu, &cpu.RegA (), &cpu.RegX ());
+
+            Assert::IsTrue  ((bool) cpu.Status ().flags.zero);
+            Assert::IsFalse ((bool) cpu.Status ().flags.negative);
+        }
+
+        TEST_METHOD (Transfer_Negative_SetsNegativeFlag)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0x80;
+
+            CpuOperations::Transfer (cpu, &cpu.RegA (), &cpu.RegY ());
+
+            Assert::IsFalse ((bool) cpu.Status ().flags.zero);
+            Assert::IsTrue  ((bool) cpu.Status ().flags.negative);
+        }
+
+        TEST_METHOD (Transfer_X_To_SP_DoesNotAffectFlags)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegX  () = 0x00;
+            cpu.RegSP () = 0xFF;
+            cpu.Status ().flags.zero     = 0;
+            cpu.Status ().flags.negative = 1;
+
+            CpuOperations::Transfer (cpu, &cpu.RegX (), &cpu.RegSP ());
+
+            Assert::AreEqual ((Byte) 0x00, cpu.RegSP ());
+            // TXS must not change Z or N even when transferring zero / negative values.
+            Assert::IsFalse ((bool) cpu.Status ().flags.zero);
+            Assert::IsTrue  ((bool) cpu.Status ().flags.negative);
+        }
+
+        TEST_METHOD (Transfer_SP_To_X_AffectsFlags)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegSP () = 0x00;
+            cpu.RegX  () = 0x55;
+
+            CpuOperations::Transfer (cpu, &cpu.RegSP (), &cpu.RegX ());
+
+            Assert::AreEqual ((Byte) 0x00, cpu.RegX ());
+            Assert::IsTrue  ((bool) cpu.Status ().flags.zero);
+        }
+    };
+
+
+
+    // =========================================================================
+    // SetFlag (CLC / SEC / CLI / SEI / CLV / CLD / SED)
+    // =========================================================================
+    TEST_CLASS (SetFlagTests)
+    {
+    public:
+
+        TEST_METHOD (CLC_ClearsCarryFlag)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.Status ().flags.carry = 1;
+
+            CpuOperations::SetFlag (cpu, Instruction (0x18));
+
+            Assert::IsFalse ((bool) cpu.Status ().flags.carry);
+        }
+
+        TEST_METHOD (SEC_SetsCarryFlag)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+
+            CpuOperations::SetFlag (cpu, Instruction (0x38));
+
+            Assert::IsTrue ((bool) cpu.Status ().flags.carry);
+        }
+
+        TEST_METHOD (CLI_ClearsInterruptDisableFlag)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.Status ().flags.interruptDisable = 1;
+
+            CpuOperations::SetFlag (cpu, Instruction (0x58));
+
+            Assert::IsFalse ((bool) cpu.Status ().flags.interruptDisable);
+        }
+
+        TEST_METHOD (SEI_SetsInterruptDisableFlag)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+
+            CpuOperations::SetFlag (cpu, Instruction (0x78));
+
+            Assert::IsTrue ((bool) cpu.Status ().flags.interruptDisable);
+        }
+
+        TEST_METHOD (CLV_ClearsOverflowFlag)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.Status ().flags.overflow = 1;
+
+            CpuOperations::SetFlag (cpu, Instruction (0xB8));
+
+            Assert::IsFalse ((bool) cpu.Status ().flags.overflow);
+        }
+
+        TEST_METHOD (CLD_ClearsDecimalFlag)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.Status ().flags.decimal = 1;
+
+            CpuOperations::SetFlag (cpu, Instruction (0xD8));
+
+            Assert::IsFalse ((bool) cpu.Status ().flags.decimal);
+        }
+
+        TEST_METHOD (SED_SetsDecimalFlag)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+
+            CpuOperations::SetFlag (cpu, Instruction (0xF8));
+
+            Assert::IsTrue ((bool) cpu.Status ().flags.decimal);
+        }
+
+        TEST_METHOD (SetFlag_DoesNotAffectUnrelatedFlags)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.Status ().flags.zero     = 1;
+            cpu.Status ().flags.negative = 1;
+            cpu.Status ().flags.carry    = 1;
+
+            CpuOperations::SetFlag (cpu, Instruction (0xF8)); // SED
+
+            Assert::IsTrue ((bool) cpu.Status ().flags.decimal);
+            Assert::IsTrue ((bool) cpu.Status ().flags.zero);
+            Assert::IsTrue ((bool) cpu.Status ().flags.negative);
+            Assert::IsTrue ((bool) cpu.Status ().flags.carry);
+        }
+    };
+
+
+
+    // =========================================================================
+    // ReturnFromSubroutine (RTS)
+    // =========================================================================
+    TEST_CLASS (ReturnFromSubroutineTests)
+    {
+    public:
+
+        TEST_METHOD (RTS_PullsReturnAddressAndIncrements)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            // JSR pushes (PC of last byte of JSR) = target-1; RTS pops and adds 1.
+            cpu.DoPushWord (0x1233);
+
+            CpuOperations::ReturnFromSubroutine (cpu);
+
+            Assert::AreEqual ((Word) 0x1234, cpu.RegPC ());
+            Assert::AreEqual ((Byte) 0xFF,   cpu.RegSP ());
+        }
+    };
+
+
+
+    // =========================================================================
+    // ReturnFromInterrupt (RTI)
+    // =========================================================================
+    TEST_CLASS (ReturnFromInterruptTests)
+    {
+    public:
+
+        TEST_METHOD (RTI_PullsStatusAndPC)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            // Stack layout below SP (popped order): status, PCL, PCH.
+            cpu.RegSP () = 0xFC;
+            cpu.Poke (0x01FD, 0x33);  // status: carry+zero set, B+U set
+            cpu.Poke (0x01FE, 0x21);  // PC low
+            cpu.Poke (0x01FF, 0x43);  // PC high
+
+            CpuOperations::ReturnFromInterrupt (cpu);
+
+            Assert::AreEqual ((Word) 0x4321, cpu.RegPC ());
+            Assert::AreEqual ((Byte) 0xFF,   cpu.RegSP ());
+            Assert::IsTrue  ((bool) cpu.Status ().flags.carry);
+            Assert::IsTrue  ((bool) cpu.Status ().flags.zero);
+            // B and AlwaysOne in actual register are preserved from the pre-RTI state
+            // (InitForTest sets alwaysOne=1, brk=0), regardless of the pulled byte.
+            Assert::AreEqual ((Byte) 0x20, (Byte) (cpu.Status ().status & 0x30));
+        }
+
+        TEST_METHOD (RTI_DoesNotIncrementPC)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegSP () = 0xFC;
+            cpu.Poke (0x01FD, 0x00);  // status
+            cpu.Poke (0x01FE, 0x00);  // PC low
+            cpu.Poke (0x01FF, 0x80);  // PC high
+
+            CpuOperations::ReturnFromInterrupt (cpu);
+
+            // Unlike RTS, RTI does not add 1 to the pulled PC.
+            Assert::AreEqual ((Word) 0x8000, cpu.RegPC ());
+        }
+    };
 }

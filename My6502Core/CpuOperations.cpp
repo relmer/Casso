@@ -139,6 +139,98 @@ void CpuOperations::Or (Cpu & cpu, Byte operand)
 
 
 
+void CpuOperations::NoOperation (Cpu & /*cpu*/)
+{
+    // Intentionally empty: NOP has no observable effect.
+}
+
+
+
+void CpuOperations::Push (Cpu & cpu, Byte * pSourceRegister)
+{
+    Byte value = *pSourceRegister;
+
+    // PHP pushes the status register with the Break and AlwaysOne bits set.
+    if (pSourceRegister == &cpu.status.status)
+    {
+        value |= 0x30;
+    }
+
+    cpu.PushByte (value);
+}
+
+
+
+void CpuOperations::Pull (Cpu & cpu, Byte * pDestinationRegister)
+{
+    Byte value = cpu.PopByte ();
+
+    if (pDestinationRegister == &cpu.status.status)
+    {
+        // PLP: pull processor status. Break and AlwaysOne bits are not affected
+        // in the actual status register (per 6502 hardware behavior).
+        Byte preserved = cpu.status.status & 0x30;
+        cpu.status.status = (value & ~0x30) | preserved;
+    }
+    else
+    {
+        *pDestinationRegister     = value;
+        cpu.status.flags.zero     = value == 0;
+        cpu.status.flags.negative = (bool) (value & 0x80);
+    }
+}
+
+
+
+void CpuOperations::ReturnFromInterrupt (Cpu & cpu)
+{
+    Byte pulled      = cpu.PopByte ();
+    Byte preserved   = cpu.status.status & 0x30;
+    cpu.status.status = (pulled & ~0x30) | preserved;
+
+    cpu.PC = cpu.PopWord ();
+}
+
+
+
+void CpuOperations::ReturnFromSubroutine (Cpu & cpu)
+{
+    cpu.PC = cpu.PopWord () + 1;
+}
+
+
+
+void CpuOperations::SetFlag (Cpu & cpu, Instruction instruction)
+{
+    switch (instruction.asByte)
+    {
+    case 0x18: cpu.status.flags.carry            = 0; break;  // CLC
+    case 0x38: cpu.status.flags.carry            = 1; break;  // SEC
+    case 0x58: cpu.status.flags.interruptDisable = 0; break;  // CLI
+    case 0x78: cpu.status.flags.interruptDisable = 1; break;  // SEI
+    case 0xB8: cpu.status.flags.overflow         = 0; break;  // CLV
+    case 0xD8: cpu.status.flags.decimal          = 0; break;  // CLD
+    case 0xF8: cpu.status.flags.decimal          = 1; break;  // SED
+    default:                                          break;
+    }
+}
+
+
+
+void CpuOperations::Transfer (Cpu & cpu, Byte * pSourceRegister, Byte * pDestinationRegister)
+{
+    *pDestinationRegister = *pSourceRegister;
+
+    // TXS (destination is SP) does not affect any flags.
+    if (pDestinationRegister != &cpu.SP)
+    {
+        cpu.status.flags.zero     = *pDestinationRegister == 0;
+        cpu.status.flags.negative = (bool) (*pDestinationRegister & 0x80);
+    }
+}
+
+
+
 void CpuOperations::RotateLeft (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress)
 {
     Byte * pByte = pRegisterAffected ? pRegisterAffected : &cpu.memory[effectiveAddress];
