@@ -150,6 +150,91 @@ namespace CpuOperationTests
             Assert::IsFalse ((bool) cpu.Status ().flags.overflow);
             Assert::IsTrue  ((bool) cpu.Status ().flags.carry);
         }
+
+        TEST_METHOD (ADC_Decimal_BasicAdd)
+        {
+            // BCD: 25 + 48 = 73 (no carry)
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.Status ().flags.decimal = 1;
+            cpu.RegA () = 0x25;
+
+            CpuOperations::AddWithCarry (cpu, 0x48);
+
+            Assert::AreEqual ((Byte) 0x73, cpu.RegA ());
+            Assert::IsFalse ((bool) cpu.Status ().flags.carry);
+        }
+
+        TEST_METHOD (ADC_Decimal_LowNibbleCarry)
+        {
+            // BCD: 09 + 01 = 10 (low-nibble rollover, no carry out)
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.Status ().flags.decimal = 1;
+            cpu.RegA () = 0x09;
+
+            CpuOperations::AddWithCarry (cpu, 0x01);
+
+            Assert::AreEqual ((Byte) 0x10, cpu.RegA ());
+            Assert::IsFalse ((bool) cpu.Status ().flags.carry);
+        }
+
+        TEST_METHOD (ADC_Decimal_ProducesCarryOut)
+        {
+            // BCD: 99 + 01 = 00 with carry
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.Status ().flags.decimal = 1;
+            cpu.RegA () = 0x99;
+
+            CpuOperations::AddWithCarry (cpu, 0x01);
+
+            Assert::AreEqual ((Byte) 0x00, cpu.RegA ());
+            Assert::IsTrue  ((bool) cpu.Status ().flags.carry);
+            Assert::IsTrue  ((bool) cpu.Status ().flags.zero);
+        }
+
+        TEST_METHOD (ADC_Decimal_WithCarryIn)
+        {
+            // BCD: 25 + 48 + 1 = 74
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.Status ().flags.decimal = 1;
+            cpu.Status ().flags.carry   = 1;
+            cpu.RegA () = 0x25;
+
+            CpuOperations::AddWithCarry (cpu, 0x48);
+
+            Assert::AreEqual ((Byte) 0x74, cpu.RegA ());
+            Assert::IsFalse ((bool) cpu.Status ().flags.carry);
+        }
+
+        TEST_METHOD (ADC_Decimal_HighNibbleCarry)
+        {
+            // BCD: 50 + 50 = 00 with carry
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.Status ().flags.decimal = 1;
+            cpu.RegA () = 0x50;
+
+            CpuOperations::AddWithCarry (cpu, 0x50);
+
+            Assert::AreEqual ((Byte) 0x00, cpu.RegA ());
+            Assert::IsTrue  ((bool) cpu.Status ().flags.carry);
+        }
+
+        TEST_METHOD (ADC_BinaryMode_NotAffectedByDecimalFlagWhenClear)
+        {
+            // When D=0, ADC must stay binary even if operands look BCD-ish
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.Status ().flags.decimal = 0;
+            cpu.RegA () = 0x09;
+
+            CpuOperations::AddWithCarry (cpu, 0x01);
+
+            Assert::AreEqual ((Byte) 0x0A, cpu.RegA ()); // binary, not 0x10
+        }
     };
 
 
@@ -215,6 +300,80 @@ namespace CpuOperationTests
             Assert::AreEqual ((Byte) 0x00, cpu.RegA ());
             Assert::IsTrue ((bool) cpu.Status ().flags.zero);
             Assert::IsTrue ((bool) cpu.Status ().flags.carry);
+        }
+
+        TEST_METHOD (SBC_Decimal_BasicSubtract)
+        {
+            // BCD: 46 - 12 = 34 (carry=1 means no borrow in)
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.Status ().flags.decimal = 1;
+            cpu.Status ().flags.carry   = 1;
+            cpu.RegA () = 0x46;
+
+            CpuOperations::SubtractWithCarry (cpu, 0x12);
+
+            Assert::AreEqual ((Byte) 0x34, cpu.RegA ());
+            Assert::IsTrue  ((bool) cpu.Status ().flags.carry);
+        }
+
+        TEST_METHOD (SBC_Decimal_LowNibbleBorrow)
+        {
+            // BCD: 40 - 13 = 27
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.Status ().flags.decimal = 1;
+            cpu.Status ().flags.carry   = 1;
+            cpu.RegA () = 0x40;
+
+            CpuOperations::SubtractWithCarry (cpu, 0x13);
+
+            Assert::AreEqual ((Byte) 0x27, cpu.RegA ());
+            Assert::IsTrue  ((bool) cpu.Status ().flags.carry);
+        }
+
+        TEST_METHOD (SBC_Decimal_WithBorrowIn)
+        {
+            // BCD: 50 - 20 - 1 = 29
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.Status ().flags.decimal = 1;
+            cpu.Status ().flags.carry   = 0;
+            cpu.RegA () = 0x50;
+
+            CpuOperations::SubtractWithCarry (cpu, 0x20);
+
+            Assert::AreEqual ((Byte) 0x29, cpu.RegA ());
+            Assert::IsTrue  ((bool) cpu.Status ().flags.carry);
+        }
+
+        TEST_METHOD (SBC_Decimal_ProducesBorrow)
+        {
+            // BCD: 00 - 01 = 99 with borrow (carry cleared)
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.Status ().flags.decimal = 1;
+            cpu.Status ().flags.carry   = 1;
+            cpu.RegA () = 0x00;
+
+            CpuOperations::SubtractWithCarry (cpu, 0x01);
+
+            Assert::AreEqual ((Byte) 0x99, cpu.RegA ());
+            Assert::IsFalse ((bool) cpu.Status ().flags.carry);
+        }
+
+        TEST_METHOD (SBC_BinaryMode_NotAffectedByDecimalFlagWhenClear)
+        {
+            // Sanity: D=0 still produces binary result
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.Status ().flags.decimal = 0;
+            cpu.Status ().flags.carry   = 1;
+            cpu.RegA () = 0x10;
+
+            CpuOperations::SubtractWithCarry (cpu, 0x01);
+
+            Assert::AreEqual ((Byte) 0x0F, cpu.RegA ()); // binary, not BCD-adjusted
         }
     };
 
