@@ -123,15 +123,275 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
 
 
 
+static bool IsBranchMnemonic (const std::string & mnemonic)
+{
+    return mnemonic == "BPL" || mnemonic == "BMI" ||
+           mnemonic == "BVC" || mnemonic == "BVS" ||
+           mnemonic == "BCC" || mnemonic == "BCS" ||
+           mnemonic == "BNE" || mnemonic == "BEQ";
+}
+
+
+
+static std::string TrimOperand (const std::string & s)
+{
+    size_t start = s.find_first_not_of (" \t");
+
+    if (start == std::string::npos)
+    {
+        return "";
+    }
+
+    size_t end = s.find_last_not_of (" \t");
+    return s.substr (start, end - start + 1);
+}
+
+
+
+static std::string ToUpperStr (const std::string & s)
+{
+    std::string result = s;
+
+    for (char & c : result)
+    {
+        c = (char) toupper ((unsigned char) c);
+    }
+
+    return result;
+}
+
+
+
 ClassifiedOperand Parser::ClassifyOperand (const std::string & operand, const std::string & mnemonic)
 {
-    (void) operand;
-    (void) mnemonic;
-
     ClassifiedOperand result = {};
     result.mode    = GlobalAddressingMode::SingleByteNoOperand;
     result.value   = 0;
     result.isLabel = false;
+
+    std::string op = TrimOperand (operand);
+
+    // No operand — implied / single byte
+    if (op.empty ())
+    {
+        result.mode = GlobalAddressingMode::SingleByteNoOperand;
+        return result;
+    }
+
+    // Immediate: #value
+    if (op[0] == '#')
+    {
+        std::string valueStr = op.substr (1);
+        result.mode = GlobalAddressingMode::Immediate;
+
+        if (!ParseValue (valueStr, result.value))
+        {
+            result.isLabel    = true;
+            result.labelName  = valueStr;
+        }
+
+        return result;
+    }
+
+    // Accumulator: "A"
+    if (ToUpperStr (op) == "A")
+    {
+        result.mode = GlobalAddressingMode::Accumulator;
+        return result;
+    }
+
+    // Indirect modes: (...)
+    if (op[0] == '(')
+    {
+        size_t closeParen = op.find (')');
+
+        if (closeParen == std::string::npos)
+        {
+            return result;
+        }
+
+        std::string inner = op.substr (1, closeParen - 1);
+
+        // ($ZZ,X) — ZeroPageXIndirect
+        size_t commaPos = inner.find (',');
+
+        if (commaPos != std::string::npos)
+        {
+            std::string valueStr = TrimOperand (inner.substr (0, commaPos));
+            std::string reg      = ToUpperStr (TrimOperand (inner.substr (commaPos + 1)));
+
+            if (reg == "X")
+            {
+                result.mode = GlobalAddressingMode::ZeroPageXIndirect;
+                ParseValue (valueStr, result.value);
+                return result;
+            }
+        }
+
+        // ($ZZ),Y — ZeroPageIndirectY
+        // ($HHHH) — JumpIndirect
+        std::string afterParen = TrimOperand (op.substr (closeParen + 1));
+
+        if (!afterParen.empty () && afterParen[0] == ',')
+        {
+            std::string reg = ToUpperStr (TrimOperand (afterParen.substr (1)));
+
+            if (reg == "Y")
+            {
+                result.mode = GlobalAddressingMode::ZeroPageIndirectY;
+                ParseValue (TrimOperand (inner), result.value);
+                return result;
+            }
+        }
+
+        // JMP ($HHHH) — JumpIndirect
+        result.mode = GlobalAddressingMode::JumpIndirect;
+        ParseValue (TrimOperand (inner), result.value);
+        return result;
+    }
+
+    // Check for ,X or ,Y suffix
+    size_t commaPos = op.find (',');
+
+    if (commaPos != std::string::npos)
+    {
+        std::string valueStr = TrimOperand (op.substr (0, commaPos));
+        std::string reg      = ToUpperStr (TrimOperand (op.substr (commaPos + 1)));
+        int         value    = 0;
+        bool        isNumeric = ParseValue (valueStr, value);
+
+        if (reg == "X")
+        {
+            if (isNumeric && value >= 0 && value <= 0xFF)
+            {
+                result.mode  = GlobalAddressingMode::ZeroPageX;
+                result.value = value;
+            }
+            else
+            {
+                result.mode = GlobalAddressingMode::AbsoluteX;
+
+                if (isNumeric)
+                {
+                    result.value = value;
+                }
+                else
+                {
+                    result.isLabel   = true;
+                    result.labelName = valueStr;
+                }
+            }
+
+            return result;
+        }
+
+        if (reg == "Y")
+        {
+            if (isNumeric && value >= 0 && value <= 0xFF)
+            {
+                result.mode  = GlobalAddressingMode::ZeroPageY;
+                result.value = value;
+            }
+            else
+            {
+                result.mode = GlobalAddressingMode::AbsoluteY;
+
+                if (isNumeric)
+                {
+                    result.value = value;
+                }
+                else
+                {
+                    result.isLabel   = true;
+                    result.labelName = valueStr;
+                }
+            }
+
+            return result;
+        }
+
+        return result;
+    }
+
+    // Plain value or label — determine mode from mnemonic and value
+    int  value     = 0;
+    bool isNumeric = ParseValue (op, value);
+
+    // Branch instructions always use Relative mode
+    if (IsBranchMnemonic (mnemonic))
+    {
+        result.mode = GlobalAddressingMode::Relative;
+
+        if (isNumeric)
+        {
+            result.value = value;
+        }
+        else
+        {
+            result.isLabel   = true;
+            result.labelName = op;
+        }
+
+        return result;
+    }
+
+    // JMP uses JumpAbsolute (not Absolute)
+    if (mnemonic == "JMP")
+    {
+        result.mode = GlobalAddressingMode::JumpAbsolute;
+
+        if (isNumeric)
+        {
+            result.value = value;
+        }
+        else
+        {
+            result.isLabel   = true;
+            result.labelName = op;
+        }
+
+        return result;
+    }
+
+    // JSR uses JumpAbsolute
+    if (mnemonic == "JSR")
+    {
+        result.mode = GlobalAddressingMode::JumpAbsolute;
+
+        if (isNumeric)
+        {
+            result.value = value;
+        }
+        else
+        {
+            result.isLabel   = true;
+            result.labelName = op;
+        }
+
+        return result;
+    }
+
+    // Numeric literal — ZeroPage or Absolute based on value size
+    if (isNumeric)
+    {
+        if (value >= 0 && value <= 0xFF)
+        {
+            result.mode  = GlobalAddressingMode::ZeroPage;
+            result.value = value;
+        }
+        else
+        {
+            result.mode  = GlobalAddressingMode::Absolute;
+            result.value = value;
+        }
+
+        return result;
+    }
+
+    // Must be a label — default to Absolute (will be resolved in Pass 2)
+    result.mode      = GlobalAddressingMode::Absolute;
+    result.isLabel   = true;
+    result.labelName = op;
     return result;
 }
 
