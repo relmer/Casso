@@ -25,13 +25,13 @@
 
 **Purpose**: Project initialization — add new files, update PCH, configure project files
 
-- [ ] T001 Update My6502Core/Pch.h to add STL includes needed by assembler (`<vector>`, `<unordered_map>`, `<sstream>`, `<string>`, `<algorithm>`, `<cctype>`)
-- [ ] T002 [P] Create My6502Core/AssemblerTypes.h with data structs: `AssemblyError` (lineNumber, message), `AssemblyLine` (lineNumber, address, bytes, sourceText, hasAddress), `AssemblyResult` (success, bytes, startAddress, endAddress, symbols, errors, warnings, listing), `AssemblerOptions` (fillByte=0xFF, generateListing=false, warningMode), `WarningMode` enum (Warn, NoWarn, FatalWarnings), `OpcodeEntry` (opcode, operandSize)
-- [ ] T003 [P] Create stub header and source files for assembler core: My6502Core/Assembler.h, My6502Core/Assembler.cpp, My6502Core/Parser.h, My6502Core/Parser.cpp, My6502Core/OpcodeTable.h, My6502Core/OpcodeTable.cpp — each `.cpp` must include `"Pch.h"` first
-- [ ] T004 [P] Create stub test files with `"Pch.h"` includes and empty test classes: UnitTest/OpcodeTableTests.cpp, UnitTest/ParserTests.cpp, UnitTest/AssemblerTests.cpp, UnitTest/IntegrationTests.cpp
-- [ ] T005 Update My6502Core.vcxproj to include new source files (AssemblerTypes.h, Assembler.h/cpp, Parser.h/cpp, OpcodeTable.h/cpp)
-- [ ] T006 Update UnitTest.vcxproj to include new test files (OpcodeTableTests.cpp, ParserTests.cpp, AssemblerTests.cpp, IntegrationTests.cpp)
-- [ ] T007 Build all projects (My6502Core, My6502, UnitTest) and verify compilation succeeds with stubs
+- [X] T001 Update My6502Core/Pch.h to add STL includes needed by assembler (`<vector>`, `<unordered_map>`, `<sstream>`, `<string>`, `<algorithm>`, `<cctype>`)
+- [X] T002 [P] Create My6502Core/AssemblerTypes.h with data structs: `AssemblyError` (lineNumber, message), `AssemblyLine` (lineNumber, address, bytes, sourceText, hasAddress), `AssemblyResult` (success, bytes, startAddress, endAddress, symbols, errors, warnings, listing), `AssemblerOptions` (fillByte=0xFF, generateListing=false, warningMode), `WarningMode` enum (Warn, NoWarn, FatalWarnings), `OpcodeEntry` (opcode, operandSize)
+- [X] T003 [P] Create stub header and source files for assembler core: My6502Core/Assembler.h, My6502Core/Assembler.cpp, My6502Core/Parser.h, My6502Core/Parser.cpp, My6502Core/OpcodeTable.h, My6502Core/OpcodeTable.cpp — each `.cpp` must include `"Pch.h"` first
+- [X] T004 [P] Create stub test files with `"Pch.h"` includes and empty test classes: UnitTest/OpcodeTableTests.cpp, UnitTest/ParserTests.cpp, UnitTest/AssemblerTests.cpp, UnitTest/IntegrationTests.cpp
+- [X] T005 Update My6502Core.vcxproj to include new source files (AssemblerTypes.h, Assembler.h/cpp, Parser.h/cpp, OpcodeTable.h/cpp)
+- [X] T006 Update UnitTest.vcxproj to include new test files (OpcodeTableTests.cpp, ParserTests.cpp, AssemblerTests.cpp, IntegrationTests.cpp)
+- [X] T007 Build all projects (My6502Core, My6502, UnitTest) and verify compilation succeeds with stubs
 
 ---
 

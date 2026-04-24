@@ -5,9 +5,13 @@
 
 
 Microcode::Microcode () :
-    isLegal         (false),
-    group           (Group::Invalid), 
-    instructionName ("Illegal instruction")
+    isLegal              (false),
+    group                (Group::Invalid), 
+    instructionName      ("Illegal instruction"),
+    pSourceRegister      (nullptr),
+    pDestinationRegister (nullptr),
+    operation            (Operation::NoOperation),
+    globalAddressingMode (GlobalAddressingMode::SingleByteNoOperand)
 {
 }
 
@@ -25,7 +29,8 @@ Microcode::Microcode (Instruction    instruction,
     instructionName      (instructionName),
     pSourceRegister      (pSourceRegister),
     pDestinationRegister (pDestinationRegister),
-    operation            (operation)
+    operation            (operation),
+    globalAddressingMode (GlobalAddressingMode::SingleByteNoOperand)
 
 {
     switch (instruction.asBits.group)
@@ -81,8 +86,8 @@ Microcode::Microcode (Instruction                            instruction,
     instructionName      (instructionName),
     pSourceRegister      (pSourceRegister),
     pDestinationRegister (pDestinationRegister),
-    operation            (operation)
+    operation            (operation),
+    globalAddressingMode (addressingMode)
 
 {
-    globalAddressingMode = addressingMode;
 }
