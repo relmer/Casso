@@ -191,12 +191,12 @@
 
 ### Tests (write first — must FAIL) ⚠️
 
-- [ ] T043 [P] [US9] Write listing output tests in UnitTest/AssemblerTests.cpp: instruction line `"LDA #$42"` has `hasAddress=true`, `address=0x8000`, `bytes={0xA9,0x42}`, `sourceText="LDA #$42"`; comment-only line has `hasAddress=false`, `sourceText="; comment"`; `.byte` line shows data bytes; label-only line shows address; `.org` line shows new address; listing is empty when `generateListing == false`
+- [X] T043 [P] [US9] Write listing output tests in UnitTest/AssemblerTests.cpp: instruction line `"LDA #$42"` has `hasAddress=true`, `address=0x8000`, `bytes={0xA9,0x42}`, `sourceText="LDA #$42"`; comment-only line has `hasAddress=false`, `sourceText="; comment"`; `.byte` line shows data bytes; label-only line shows address; `.org` line shows new address; listing is empty when `generateListing == false`
 
 ### Implementation
 
-- [ ] T044 [US9] Implement `AssemblyLine` population during Pass 2 in My6502Core/Assembler.cpp: for each source line, record lineNumber, address, emitted bytes, original sourceText, and hasAddress flag; only populate when `options.generateListing == true`
-- [ ] T045 [US9] Implement listing format helper in My6502Core/Assembler.h or My6502Core/Assembler.cpp: format listing lines as `"$XXXX  XX XX XX  source text"` with address column (4-digit hex), bytes column (up to 3 hex bytes), and source column — used by CLI for `-a` output
+- [X] T044 [US9] Implement `AssemblyLine` population during Pass 2 in My6502Core/Assembler.cpp: for each source line, record lineNumber, address, emitted bytes, original sourceText, and hasAddress flag; only populate when `options.generateListing == true`
+- [X] T045 [US9] Implement listing format helper in My6502Core/Assembler.h or My6502Core/Assembler.cpp: format listing lines as `"$XXXX  XX XX XX  source text"` with address column (4-digit hex), bytes column (up to 3 hex bytes), and source column — used by CLI for `-a` output
 
 **Checkpoint**: Listing data correctly represents all line types (instructions, directives, labels, comments).
 

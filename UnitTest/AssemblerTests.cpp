@@ -693,4 +693,159 @@ namespace AssemblerTests
             Assert::AreEqual ((Word) 0x8003, it->second);
         }
     };
+
+
+
+    // =========================================================================
+    // T043: Listing Output Tests
+    // =========================================================================
+    TEST_CLASS (ListingOutputTests)
+    {
+    public:
+
+        TEST_METHOD (Listing_InstructionLine)
+        {
+            AssemblerOptions options = {};
+            options.generateListing = true;
+
+            TestCpu cpu;
+            cpu.InitForTest ();
+            Assembler asm6502 (cpu.GetInstructionSet (), options);
+
+            auto result = asm6502.Assemble ("LDA #$42");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 1, result.listing.size ());
+
+            const auto & line = result.listing[0];
+            Assert::IsTrue (line.hasAddress);
+            Assert::AreEqual ((Word) 0x8000, line.address);
+            Assert::AreEqual ((size_t) 2, line.bytes.size ());
+            Assert::AreEqual ((Byte) 0xA9, line.bytes[0]);
+            Assert::AreEqual ((Byte) 0x42, line.bytes[1]);
+            Assert::AreEqual (std::string ("LDA #$42"), line.sourceText);
+        }
+
+        TEST_METHOD (Listing_CommentOnlyLine)
+        {
+            AssemblerOptions options = {};
+            options.generateListing = true;
+
+            TestCpu cpu;
+            cpu.InitForTest ();
+            Assembler asm6502 (cpu.GetInstructionSet (), options);
+
+            auto result = asm6502.Assemble ("; comment");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 1, result.listing.size ());
+
+            const auto & line = result.listing[0];
+            Assert::IsFalse (line.hasAddress);
+            Assert::AreEqual (std::string ("; comment"), line.sourceText);
+        }
+
+        TEST_METHOD (Listing_ByteDirective)
+        {
+            AssemblerOptions options = {};
+            options.generateListing = true;
+
+            TestCpu cpu;
+            cpu.InitForTest ();
+            Assembler asm6502 (cpu.GetInstructionSet (), options);
+
+            auto result = asm6502.Assemble (".byte $FF,$00,$42");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 1, result.listing.size ());
+
+            const auto & line = result.listing[0];
+            Assert::IsTrue (line.hasAddress);
+            Assert::AreEqual ((size_t) 3, line.bytes.size ());
+            Assert::AreEqual ((Byte) 0xFF, line.bytes[0]);
+        }
+
+        TEST_METHOD (Listing_LabelOnlyLine)
+        {
+            AssemblerOptions options = {};
+            options.generateListing = true;
+
+            TestCpu cpu;
+            cpu.InitForTest ();
+            Assembler asm6502 (cpu.GetInstructionSet (), options);
+
+            auto result = asm6502.Assemble ("start:\nNOP");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 2, result.listing.size ());
+
+            const auto & line = result.listing[0];
+            Assert::IsTrue (line.hasAddress);
+            Assert::AreEqual ((Word) 0x8000, line.address);
+            Assert::AreEqual ((size_t) 0, line.bytes.size ());
+            Assert::AreEqual (std::string ("start:"), line.sourceText);
+        }
+
+        TEST_METHOD (Listing_OrgDirective)
+        {
+            AssemblerOptions options = {};
+            options.generateListing = true;
+
+            TestCpu cpu;
+            cpu.InitForTest ();
+            Assembler asm6502 (cpu.GetInstructionSet (), options);
+
+            auto result = asm6502.Assemble (".org $C000\nNOP");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 2, result.listing.size ());
+
+            const auto & orgLine = result.listing[0];
+            Assert::IsTrue (orgLine.hasAddress);
+            Assert::AreEqual ((Word) 0xC000, orgLine.address);
+        }
+
+        TEST_METHOD (Listing_DisabledByDefault)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("LDA #$42\nNOP");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 0, result.listing.size ());
+        }
+
+        TEST_METHOD (Listing_FormatHelper)
+        {
+            AssemblerOptions options = {};
+            options.generateListing = true;
+
+            TestCpu cpu;
+            cpu.InitForTest ();
+            Assembler asm6502 (cpu.GetInstructionSet (), options);
+
+            auto result = asm6502.Assemble ("LDA #$42");
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 1, result.listing.size ());
+
+            std::string formatted = Assembler::FormatListingLine (result.listing[0]);
+            Assert::AreEqual (std::string ("$8000  A9 42     LDA #$42"), formatted);
+        }
+
+        TEST_METHOD (Listing_FormatHelper_NoAddress)
+        {
+            AssemblerOptions options = {};
+            options.generateListing = true;
+
+            TestCpu cpu;
+            cpu.InitForTest ();
+            Assembler asm6502 (cpu.GetInstructionSet (), options);
+
+            auto result = asm6502.Assemble ("; comment");
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 1, result.listing.size ());
+
+            std::string formatted = Assembler::FormatListingLine (result.listing[0]);
+            Assert::AreEqual (std::string ("                 ; comment"), formatted);
+        }
+    };
 }

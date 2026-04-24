@@ -282,15 +282,17 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
     for (const auto & info : lineInfos)
     {
-        // Skip lines that had errors in Pass 1
+        size_t bytesStart     = output.size ();
+        bool   lineHasAddress = false;
+
         if (info.hasError)
         {
-            continue;
+            // Nothing to emit for error lines
         }
-
-        // Handle data directives
-        if (info.isDirective)
+        else if (info.isDirective)
         {
+            lineHasAddress = true;
+
             if (info.parsed.directive == ".BYTE")
             {
                 auto values = Parser::ParseValueList (info.parsed.directiveArg);
@@ -319,153 +321,172 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                     output.push_back ((Byte) c);
                 }
             }
-
-            continue;
         }
-
-        if (!info.isInstruction)
+        else if (info.isInstruction)
         {
-            continue;
-        }
+            lineHasAddress = true;
 
-        GlobalAddressingMode::AddressingMode mode  = info.classified.mode;
-        int                                  value  = info.classified.value;
-        bool                                 resolved = true;
+            GlobalAddressingMode::AddressingMode mode  = info.classified.mode;
+            int                                  value  = info.classified.value;
+            bool                                 emit   = true;
 
-        // Resolve label references
-        if (info.classified.isLabel)
-        {
-            auto it = symbols.find (info.classified.labelName);
-
-            if (it == symbols.end ())
+            // Resolve label references
+            if (info.classified.isLabel)
             {
-                AssemblyError error = {};
-                error.lineNumber = info.parsed.lineNumber;
-                error.message    = "Undefined label: " + info.classified.labelName;
-                result.errors.push_back (error);
-                result.success = false;
-                resolved = false;
+                auto it = symbols.find (info.classified.labelName);
 
-                // Emit placeholder bytes
-                OpcodeEntry entry = {};
-
-                if (m_opcodeTable.Lookup (info.parsed.mnemonic, mode, entry))
-                {
-                    output.push_back (entry.opcode);
-
-                    for (Byte j = 0; j < entry.operandSize; j++)
-                    {
-                        output.push_back (0x00);
-                    }
-                }
-
-                continue;
-            }
-
-            value = (int) it->second;
-
-            // Apply label offset (label+N expressions)
-            value += info.classified.labelOffset;
-
-            // Apply low/high byte operators (<label, >label)
-            if (info.classified.lowByteOp)
-            {
-                value = value & 0xFF;
-            }
-            else if (info.classified.highByteOp)
-            {
-                value = (value >> 8) & 0xFF;
-            }
-
-            // Compute relative branch offset
-            if (mode == GlobalAddressingMode::Relative)
-            {
-                Word pcAfterInstruction = info.pc + 2; // branch instructions are 2 bytes
-                int  offset = value - (int) pcAfterInstruction;
-
-                if (offset < -128 || offset > 127)
+                if (it == symbols.end ())
                 {
                     AssemblyError error = {};
                     error.lineNumber = info.parsed.lineNumber;
-                    error.message    = "Branch target out of range: " + info.classified.labelName;
+                    error.message    = "Undefined label: " + info.classified.labelName;
+                    result.errors.push_back (error);
+                    result.success = false;
+                    emit = false;
+
+                    // Emit placeholder bytes
+                    OpcodeEntry entry = {};
+
+                    if (m_opcodeTable.Lookup (info.parsed.mnemonic, mode, entry))
+                    {
+                        output.push_back (entry.opcode);
+
+                        for (Byte j = 0; j < entry.operandSize; j++)
+                        {
+                            output.push_back (0x00);
+                        }
+                    }
+                }
+                else
+                {
+                    value = (int) it->second;
+
+                    // Apply label offset (label+N expressions)
+                    value += info.classified.labelOffset;
+
+                    // Apply low/high byte operators (<label, >label)
+                    if (info.classified.lowByteOp)
+                    {
+                        value = value & 0xFF;
+                    }
+                    else if (info.classified.highByteOp)
+                    {
+                        value = (value >> 8) & 0xFF;
+                    }
+
+                    // Compute relative branch offset
+                    if (mode == GlobalAddressingMode::Relative)
+                    {
+                        Word pcAfterInstruction = info.pc + 2; // branch instructions are 2 bytes
+                        int  offset = value - (int) pcAfterInstruction;
+
+                        if (offset < -128 || offset > 127)
+                        {
+                            AssemblyError error = {};
+                            error.lineNumber = info.parsed.lineNumber;
+                            error.message    = "Branch target out of range: " + info.classified.labelName;
+                            result.errors.push_back (error);
+                            result.success = false;
+                        }
+
+                        value = offset & 0xFF;
+                    }
+                }
+            }
+
+            if (emit)
+            {
+                // Zero-page preference for non-label operands
+                if (!info.classified.isLabel)
+                {
+                    if (value >= 0 && value <= 0xFF)
+                    {
+                        GlobalAddressingMode::AddressingMode zpMode = GlobalAddressingMode::__Count;
+
+                        if (mode == GlobalAddressingMode::Absolute)
+                        {
+                            zpMode = GlobalAddressingMode::ZeroPage;
+                        }
+                        else if (mode == GlobalAddressingMode::AbsoluteX)
+                        {
+                            zpMode = GlobalAddressingMode::ZeroPageX;
+                        }
+                        else if (mode == GlobalAddressingMode::AbsoluteY)
+                        {
+                            zpMode = GlobalAddressingMode::ZeroPageY;
+                        }
+
+                        if (zpMode != GlobalAddressingMode::__Count)
+                        {
+                            OpcodeEntry zpEntry = {};
+
+                            if (m_opcodeTable.Lookup (info.parsed.mnemonic, zpMode, zpEntry))
+                            {
+                                mode = zpMode;
+                            }
+                        }
+                    }
+                }
+
+                // Check operand value range
+                if (mode == GlobalAddressingMode::Immediate && (value < -128 || value > 255))
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = info.parsed.lineNumber;
+                    error.message    = "Operand value out of range for immediate mode: " + std::to_string (value);
                     result.errors.push_back (error);
                     result.success = false;
                 }
-
-                value = offset & 0xFF;
-            }
-        }
-
-        if (!resolved)
-        {
-            continue;
-        }
-
-        // Zero-page preference for non-label operands
-        if (!info.classified.isLabel)
-        {
-            if (value >= 0 && value <= 0xFF)
-            {
-                GlobalAddressingMode::AddressingMode zpMode = GlobalAddressingMode::__Count;
-
-                if (mode == GlobalAddressingMode::Absolute)
+                else
                 {
-                    zpMode = GlobalAddressingMode::ZeroPage;
-                }
-                else if (mode == GlobalAddressingMode::AbsoluteX)
-                {
-                    zpMode = GlobalAddressingMode::ZeroPageX;
-                }
-                else if (mode == GlobalAddressingMode::AbsoluteY)
-                {
-                    zpMode = GlobalAddressingMode::ZeroPageY;
-                }
+                    OpcodeEntry entry = {};
 
-                if (zpMode != GlobalAddressingMode::__Count)
-                {
-                    OpcodeEntry zpEntry = {};
-
-                    if (m_opcodeTable.Lookup (info.parsed.mnemonic, zpMode, zpEntry))
+                    if (!m_opcodeTable.Lookup (info.parsed.mnemonic, mode, entry))
                     {
-                        mode = zpMode;
+                        AssemblyError error = {};
+                        error.lineNumber = info.parsed.lineNumber;
+                        error.message    = "Cannot encode: " + info.parsed.mnemonic;
+                        result.errors.push_back (error);
+                        result.success = false;
+                    }
+                    else
+                    {
+                        output.push_back (entry.opcode);
+
+                        if (entry.operandSize == 1)
+                        {
+                            output.push_back ((Byte) (value & 0xFF));
+                        }
+                        else if (entry.operandSize == 2)
+                        {
+                            output.push_back ((Byte) (value & 0xFF));
+                            output.push_back ((Byte) ((value >> 8) & 0xFF));
+                        }
                     }
                 }
             }
         }
-
-        // Check operand value range
-        if (mode == GlobalAddressingMode::Immediate && (value < -128 || value > 255))
+        else if (!info.parsed.label.empty ())
         {
-            AssemblyError error = {};
-            error.lineNumber = info.parsed.lineNumber;
-            error.message    = "Operand value out of range for immediate mode: " + std::to_string (value);
-            result.errors.push_back (error);
-            result.success = false;
-            continue;
+            // Label-only line — show address but no bytes
+            lineHasAddress = true;
         }
 
-        OpcodeEntry entry = {};
-
-        if (!m_opcodeTable.Lookup (info.parsed.mnemonic, mode, entry))
+        // Build listing entry
+        if (m_options.generateListing)
         {
-            AssemblyError error = {};
-            error.lineNumber = info.parsed.lineNumber;
-            error.message    = "Cannot encode: " + info.parsed.mnemonic;
-            result.errors.push_back (error);
-            result.success = false;
-            continue;
-        }
+            AssemblyLine listLine = {};
+            listLine.lineNumber = info.parsed.lineNumber;
+            listLine.sourceText = lines[info.parsed.lineNumber - 1];
+            listLine.hasAddress = lineHasAddress;
+            listLine.address    = info.pc;
 
-        output.push_back (entry.opcode);
+            for (size_t j = bytesStart; j < output.size (); j++)
+            {
+                listLine.bytes.push_back (output[j]);
+            }
 
-        if (entry.operandSize == 1)
-        {
-            output.push_back ((Byte) (value & 0xFF));
-        }
-        else if (entry.operandSize == 2)
-        {
-            output.push_back ((Byte) (value & 0xFF));
-            output.push_back ((Byte) ((value >> 8) & 0xFF));
+            result.listing.push_back (listLine);
         }
     }
 
@@ -474,4 +495,44 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
     result.endAddress = result.startAddress + (Word) output.size ();
 
     return result;
+}
+
+
+
+std::string Assembler::FormatListingLine (const AssemblyLine & line)
+{
+    char addrBuf[8] = {};
+
+    // Address column (5 chars)
+    if (line.hasAddress)
+    {
+        snprintf (addrBuf, sizeof (addrBuf), "$%04X", line.address);
+    }
+    else
+    {
+        snprintf (addrBuf, sizeof (addrBuf), "     ");
+    }
+
+    // Bytes column (up to 3 hex bytes, padded to 10 chars)
+    std::string bytesStr;
+
+    for (size_t i = 0; i < line.bytes.size () && i < 3; i++)
+    {
+        char hexBuf[4];
+
+        if (i > 0)
+        {
+            bytesStr += " ";
+        }
+
+        snprintf (hexBuf, sizeof (hexBuf), "%02X", line.bytes[i]);
+        bytesStr += hexBuf;
+    }
+
+    while (bytesStr.size () < 10)
+    {
+        bytesStr += " ";
+    }
+
+    return std::string (addrBuf) + "  " + bytesStr + line.sourceText;
 }

@@ -14,6 +14,8 @@ public:
 
     AssemblyResult Assemble (const std::string & sourceText);
 
+    static std::string FormatListingLine (const AssemblyLine & line);
+
 private:
     OpcodeTable      m_opcodeTable;
     AssemblerOptions m_options;
