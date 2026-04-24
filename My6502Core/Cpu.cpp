@@ -12,6 +12,7 @@
 
 
 Cpu::Cpu ()
+    : memory (memSize, 0)
 {
     InitializeInstructionSet ();
 }
@@ -32,7 +33,7 @@ void Cpu::Reset ()
     X = 0;
     Y = 0;
 
-    memset (memory, 0, sizeof (memory));
+    std::fill (memory.begin (), memory.end (), Byte (0));
 
 
 

@@ -95,7 +95,10 @@ protected:
     static constexpr Word   resVector    = 0xFFFC;
     static constexpr Word   irqVector    = 0xFFFE;
 
-    Byte                    memory[memSize];
+    // Heap-allocated to keep the 64 KB 6502 address space off the stack
+    // (otherwise every function that stack-allocates a Cpu blows past C6262's
+    // 16 KB frame-size threshold during code analysis).
+    std::vector<Byte>       memory;
 
     Byte                    SP;
     Word                    PC;
