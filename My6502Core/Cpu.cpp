@@ -532,8 +532,8 @@ void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandIn
     case Microcode::Or:                 CpuOperations::Or                (*this, (Byte) operandInfo.operand);                                   break;
     case Microcode::RotateLeft:         CpuOperations::RotateLeft        (*this, pAccumulator, operandInfo.effectiveAddress);                   break;
     case Microcode::RotateRight:        CpuOperations::RotateRight       (*this, pAccumulator, operandInfo.effectiveAddress);                   break;
-    case Microcode::ShiftLeft:          CpuOperations::RotateLeft        (*this, pAccumulator, operandInfo.effectiveAddress);                   break;
-    case Microcode::ShiftRight:         CpuOperations::RotateRight       (*this, pAccumulator, operandInfo.effectiveAddress);                   break;
+    case Microcode::ShiftLeft:          CpuOperations::ShiftLeft         (*this, pAccumulator, operandInfo.effectiveAddress);                   break;
+    case Microcode::ShiftRight:         CpuOperations::ShiftRight        (*this, pAccumulator, operandInfo.effectiveAddress);                   break;
     case Microcode::Store:              CpuOperations::Store             (*this, *microcode.pSourceRegister, operandInfo.effectiveAddress);     break;
     case Microcode::SubtractWithCarry:  CpuOperations::SubtractWithCarry (*this, (Byte) operandInfo.operand);                                   break;
     case Microcode::Xor:                CpuOperations::Xor               (*this, (Byte) operandInfo.operand);                                   break;
