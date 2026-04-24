@@ -460,6 +460,40 @@ namespace CpuOperationTests
             Assert::IsTrue ((bool) cpu.Status ().flags.carry);
         }
 
+        // Dispatch-level regression tests: verify that the ASL/LSR opcodes
+        // dispatch to ShiftLeft/ShiftRight (not RotateLeft/RotateRight).
+        TEST_METHOD (ASL_Opcode_WithCarrySet_ShiftsInZero)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0x02;
+            cpu.Status ().flags.carry = 1;
+            cpu.WriteBytes (0x8000, { 0x0A });     // ASL A
+
+            cpu.Step ();
+
+            // Shift: 0x02 << 1 = 0x04 (carry is discarded, not rotated in).
+            // If dispatch incorrectly called RotateLeft, result would be 0x05.
+            Assert::AreEqual ((Byte) 0x04, cpu.RegA ());
+            Assert::IsFalse ((bool) cpu.Status ().flags.carry);
+        }
+
+        TEST_METHOD (LSR_Opcode_WithCarrySet_ShiftsInZero)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0x02;
+            cpu.Status ().flags.carry = 1;
+            cpu.WriteBytes (0x8000, { 0x4A });     // LSR A
+
+            cpu.Step ();
+
+            // Shift: 0x02 >> 1 = 0x01 (carry is discarded, not rotated in).
+            // If dispatch incorrectly called RotateRight, result would be 0x81.
+            Assert::AreEqual ((Byte) 0x01, cpu.RegA ());
+            Assert::IsFalse ((bool) cpu.Status ().flags.carry);
+        }
+
         TEST_METHOD (RotateLeft_CarryIn)
         {
             TestCpu cpu;
