@@ -2,6 +2,7 @@
 
 #include "Cpu.h"
 #include "CpuOperations.h"
+#include "Ehm.h"
 #include "Group00.h"
 #include "Group01.h"
 #include "Group10.h"
@@ -280,7 +281,7 @@ void Cpu::PrintOperandBytes (Word initialPC, Byte opcode)
             break;
 
         default:
-            assert (false);
+            ASSERT (false);
             break;
     }
 }
@@ -360,11 +361,12 @@ void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
 
     if (!microcode.isLegal)
     {
-        assert (false);
+        ASSERT (false);
         return;
     }
 
-    if (microcode.globalAddressingMode == GlobalAddressingMode::SingleByteNoOperand)
+    if (microcode.globalAddressingMode == GlobalAddressingMode::SingleByteNoOperand ||
+        microcode.globalAddressingMode == GlobalAddressingMode::Accumulator)
     {
         return;
     }
@@ -389,7 +391,7 @@ void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
 
     default:
         std::printf ("Unhandled addressing mode %d\n", microcode.instruction.asBits.addressingMode);
-        assert (false);
+        ASSERT (false);
         break;
     }
 }
@@ -538,7 +540,7 @@ void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandIn
 
     default:                          
         std::printf ("Unimplemented instruction:  %s\n", microcode.instructionName);                                
-        assert (false);
+        ASSERT (false);
         break;
     }
 }
