@@ -212,12 +212,12 @@
 
 ### Implementation
 
-- [ ] T046 [US8] Create My6502/CommandLine.h with `CommandLineOptions` struct (subcommand, inputFile, outputFile, symbolFile, fillByte, loadAddress, stopAddress, entryAddress, maxCycles, useResetVector, verbose, generateListing, warningMode, showVersion, showHelp) and `ParseCommandLine(int argc, char* argv[])` declaration
-- [ ] T047 [US8] Implement CLI argument parsing in My6502/CommandLine.cpp: parse `assemble <input> -o <output> [-l <symbols>] [-a] [--fill <byte>] [-v] [--warn|--no-warn|--fatal-warnings]`, parse `run <input> [--load <addr>] [--entry <addr>] [--reset-vector] [--stop <addr>] [--max-cycles <n>] [-v]`, parse `--help` and `--version`, validate required arguments
-- [ ] T048 [US8] Implement `DoAssemble()` in My6502/CommandLine.cpp: read input `.asm` file, create `Assembler` with options, call `Assemble()`, write binary output to `-o` file, optionally write symbol table to `-l` file, optionally print listing to stdout (`-a`), print errors to stderr, return appropriate exit code (0=success, 1=assembly errors, 2=I/O error)
-- [ ] T049 [US8] Implement `DoRun()` in My6502/CommandLine.cpp: if `.asm` file → assemble then execute; if `.bin` file → load at `--load` address; determine entry point (default=lowest assembled address or `$8000`, `--entry` override, `--reset-vector` for `$FFFC/$FFFD`); execute with stop conditions (`--stop`, illegal opcode, `--max-cycles`); print execution summary; exit code 3 for illegal opcode stop
-- [ ] T050 [US8] Update My6502/My6502.cpp: replace current `main()` with subcommand dispatch — call `ParseCommandLine()`, handle `--help` (print usage summary), `--version` (print version), dispatch to `DoAssemble()` or `DoRun()`, return exit code
-- [ ] T051 [US8] Update My6502.vcxproj to include CommandLine.h and CommandLine.cpp
+- [X] T046 [US8] Create My6502/CommandLine.h with `CommandLineOptions` struct (subcommand, inputFile, outputFile, symbolFile, fillByte, loadAddress, stopAddress, entryAddress, maxCycles, useResetVector, verbose, generateListing, warningMode, showVersion, showHelp) and `ParseCommandLine(int argc, char* argv[])` declaration
+- [X] T047 [US8] Implement CLI argument parsing in My6502/CommandLine.cpp: parse `assemble <input> -o <output> [-l <symbols>] [-a] [--fill <byte>] [-v] [--warn|--no-warn|--fatal-warnings]`, parse `run <input> [--load <addr>] [--entry <addr>] [--reset-vector] [--stop <addr>] [--max-cycles <n>] [-v]`, parse `--help` and `--version`, validate required arguments
+- [X] T048 [US8] Implement `DoAssemble()` in My6502/CommandLine.cpp: read input `.asm` file, create `Assembler` with options, call `Assemble()`, write binary output to `-o` file, optionally write symbol table to `-l` file, optionally print listing to stdout (`-a`), print errors to stderr, return appropriate exit code (0=success, 1=assembly errors, 2=I/O error)
+- [X] T049 [US8] Implement `DoRun()` in My6502/CommandLine.cpp: if `.asm` file → assemble then execute; if `.bin` file → load at `--load` address; determine entry point (default=lowest assembled address or `$8000`, `--entry` override, `--reset-vector` for `$FFFC/$FFFD`); execute with stop conditions (`--stop`, illegal opcode, `--max-cycles`); print execution summary; exit code 3 for illegal opcode stop
+- [X] T050 [US8] Update My6502/My6502.cpp: replace current `main()` with subcommand dispatch — call `ParseCommandLine()`, handle `--help` (print usage summary), `--version` (print version), dispatch to `DoAssemble()` or `DoRun()`, return exit code
+- [X] T051 [US8] Update My6502.vcxproj to include CommandLine.h and CommandLine.cpp
 
 **Checkpoint**: CLI fully functional with `assemble` and `run` subcommands. Exit codes, stderr errors, and all flags working.
 

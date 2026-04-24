@@ -14,6 +14,21 @@ public:
     void Reset ();
     void Run ();
 
+    // Public accessors for CLI and external use
+    Word                GetPC             () const  { return PC; }
+    void                SetPC             (Word pc) { PC = pc; }
+    Byte                GetA              () const  { return A; }
+    Byte                GetX              () const  { return X; }
+    Byte                GetY              () const  { return Y; }
+    Byte                GetSP             () const  { return SP; }
+    const Microcode &   GetMicrocode      (Byte opcode) const { return instructionSet[opcode]; }
+    const Microcode *   GetInstructionSet () const  { return instructionSet; }
+
+    void StepOne ();
+    Byte PeekByte  (Word address) const { return memory[address]; }
+    void PokeByte  (Word address, Byte value) { memory[address] = value; }
+    Word PeekWord  (Word address) const { return memory[address] | (memory[address + 1] << 8); }
+
 protected:
     struct OperandInfo
     {

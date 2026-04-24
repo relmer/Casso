@@ -206,6 +206,19 @@ void Cpu::Run ()
 
 
 
+void Cpu::StepOne ()
+{
+    Byte        opcode      = memory[PC];
+    Microcode   microcode   = instructionSet[opcode];
+    OperandInfo operandInfo = { 0 };
+
+    FetchOperand (microcode, operandInfo);
+    ++PC;
+    ExecuteInstruction (microcode, operandInfo);
+}
+
+
+
 void Cpu::PrintSingleStepInfo (Word initialPC, Byte opcode, const OperandInfo & operandInfo)
 {
     static constexpr char flags[][8] =

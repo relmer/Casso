@@ -5,8 +5,11 @@
 #include <algorithm>
 #include <cassert>
 #include <cctype>
+#include <chrono>
 #include <cstdarg>
+#include <cstdint>
 #include <cstdio>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <sstream>
