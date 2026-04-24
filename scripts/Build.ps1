@@ -111,6 +111,8 @@ if ($Target -eq 'BuildAllRelease' -or $Target -eq 'CleanAll' -or $Target -eq 'Re
                 "-p:Configuration=$config",
                 "-p:Platform=$platformToBuild",
                 "-p:PreferredToolArchitecture=$preferredArch",
+                '-p:EnableCppCoreCheck=true',
+                '-p:RunCodeAnalysis=true',
                 "-t:$msbuildTarget"
             )
 
@@ -134,12 +136,13 @@ else {
         $solutionPath,
         "-p:Configuration=$Configuration",
         "-p:Platform=$Platform",
-        "-p:PreferredToolArchitecture=$preferredArch"
+        "-p:PreferredToolArchitecture=$preferredArch",
+        '-p:EnableCppCoreCheck=true',
+        '-p:RunCodeAnalysis=true'
     )
 
     if ($RunCodeAnalysis) {
-        $msbuildArgs += '-p:EnableCppCoreCheck=true'
-        $msbuildArgs += '-p:RunCodeAnalysis=true'
+        $msbuildArgs += '-p:CodeAnalysisTreatWarningsAsErrors=true'
     }
 
     if ($Target -ne 'Build') {
