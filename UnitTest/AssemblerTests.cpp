@@ -175,6 +175,152 @@ namespace AssemblerTests
 
 
     // =========================================================================
+    // T017: Label Resolution Tests
+    // =========================================================================
+    TEST_CLASS (LabelResolutionTests)
+    {
+    public:
+
+        TEST_METHOD (ForwardReference_BEQ)
+        {
+            // BEQ target (2 bytes) + NOP (1 byte) + target: NOP
+            // Branch offset = +1 (skip NOP, relative to PC after BEQ instruction)
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("BEQ target\nNOP\ntarget: NOP");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 4, result.bytes.size ());
+            Assert::AreEqual ((Byte) 0xF0, result.bytes[0]); // BEQ opcode
+            Assert::AreEqual ((Byte) 0x01, result.bytes[1]); // offset +1 (skip 1-byte NOP)
+            Assert::AreEqual ((Byte) 0xEA, result.bytes[2]); // NOP
+            Assert::AreEqual ((Byte) 0xEA, result.bytes[3]); // NOP (target)
+        }
+
+        TEST_METHOD (BackwardReference_BNE)
+        {
+            // loop: INX (1 byte) + BNE loop (2 bytes)
+            // Branch offset = -3 (back to INX, relative to PC after BNE instruction)
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("loop: INX\nBNE loop");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 3, result.bytes.size ());
+            Assert::AreEqual ((Byte) 0xE8, result.bytes[0]); // INX opcode
+            Assert::AreEqual ((Byte) 0xD0, result.bytes[1]); // BNE opcode
+            Assert::AreEqual ((Byte) 0xFD, result.bytes[2]); // offset -3 (0xFD signed)
+        }
+
+        TEST_METHOD (JMP_Label_Absolute)
+        {
+            // JMP label (3 bytes) + label: NOP
+            // label address = 0x8003
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("JMP label\nlabel: NOP");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 4, result.bytes.size ());
+            Assert::AreEqual ((Byte) 0x4C, result.bytes[0]); // JMP opcode
+            Assert::AreEqual ((Byte) 0x03, result.bytes[1]); // lo byte of 0x8003
+            Assert::AreEqual ((Byte) 0x80, result.bytes[2]); // hi byte of 0x8003
+            Assert::AreEqual ((Byte) 0xEA, result.bytes[3]); // NOP
+        }
+
+        TEST_METHOD (JSR_Label_Absolute)
+        {
+            // JSR sub (3 bytes) + NOP (1 byte) + sub: RTS (1 byte)
+            // sub address = 0x8004
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("JSR sub\nNOP\nsub: RTS");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 5, result.bytes.size ());
+            Assert::AreEqual ((Byte) 0x20, result.bytes[0]); // JSR opcode
+            Assert::AreEqual ((Byte) 0x04, result.bytes[1]); // lo byte of 0x8004
+            Assert::AreEqual ((Byte) 0x80, result.bytes[2]); // hi byte of 0x8004
+            Assert::AreEqual ((Byte) 0xEA, result.bytes[3]); // NOP
+            Assert::AreEqual ((Byte) 0x60, result.bytes[4]); // RTS
+        }
+
+        TEST_METHOD (Label_AppearsInSymbols)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("start: NOP\nend: NOP");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 2, result.symbols.size ());
+            Assert::AreEqual ((Word) 0x8000, result.symbols["start"]);
+            Assert::AreEqual ((Word) 0x8001, result.symbols["end"]);
+        }
+    };
+
+
+
+    // =========================================================================
+    // T018: Label Error Tests
+    // =========================================================================
+    TEST_CLASS (LabelErrorTests)
+    {
+    public:
+
+        TEST_METHOD (DuplicateLabel_ReportsError)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("dup: NOP\ndup: NOP");
+
+            Assert::IsFalse (result.success);
+            Assert::AreEqual ((size_t) 1, result.errors.size ());
+            Assert::AreEqual (2, result.errors[0].lineNumber);
+        }
+
+        TEST_METHOD (UndefinedLabel_ReportsError)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("BEQ nowhere");
+
+            Assert::IsFalse (result.success);
+            Assert::AreEqual ((size_t) 1, result.errors.size ());
+        }
+
+        TEST_METHOD (LabelCollisionWithMnemonic_ReportsError)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("LDA: NOP");
+
+            Assert::IsFalse (result.success);
+            Assert::AreEqual ((size_t) 1, result.errors.size ());
+        }
+
+        TEST_METHOD (LabelCollisionWithRegisterA_ReportsError)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("A: NOP");
+
+            Assert::IsFalse (result.success);
+            Assert::AreEqual ((size_t) 1, result.errors.size ());
+        }
+
+        TEST_METHOD (LabelCollisionWithRegisterX_ReportsError)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("X: NOP");
+
+            Assert::IsFalse (result.success);
+            Assert::AreEqual ((size_t) 1, result.errors.size ());
+        }
+
+        TEST_METHOD (LabelCollisionWithRegisterY_ReportsError)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("Y: NOP");
+
+            Assert::IsFalse (result.success);
+            Assert::AreEqual ((size_t) 1, result.errors.size ());
+        }
+    };
+
+
+
+    // =========================================================================
     // T013: Comment and Whitespace Handling Tests
     // =========================================================================
     TEST_CLASS (CommentAndWhitespaceTests)

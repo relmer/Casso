@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Parser.h"
+#include "OpcodeTable.h"
 
 
 
@@ -436,5 +437,67 @@ bool Parser::ParseValue (const std::string & text, int & value)
     }
 
     value = (int) parsed;
+    return true;
+}
+
+
+
+static std::string ToUpperValidate (const std::string & s)
+{
+    std::string result = s;
+
+    for (char & c : result)
+    {
+        c = (char) toupper ((unsigned char) c);
+    }
+
+    return result;
+}
+
+
+
+bool Parser::ValidateLabel (const std::string & label, const OpcodeTable & opcodeTable, std::string & errorMessage)
+{
+    if (label.empty ())
+    {
+        errorMessage = "Empty label name";
+        return false;
+    }
+
+    // Must start with letter or underscore
+    char first = label[0];
+
+    if (!isalpha ((unsigned char) first) && first != '_')
+    {
+        errorMessage = "Label must start with a letter or underscore: " + label;
+        return false;
+    }
+
+    // Must contain only alphanumeric + underscore
+    for (char c : label)
+    {
+        if (!isalnum ((unsigned char) c) && c != '_')
+        {
+            errorMessage = "Label contains invalid character: " + label;
+            return false;
+        }
+    }
+
+    // Must not be a register name (case-insensitive)
+    std::string upper = ToUpperValidate (label);
+
+    if (upper == "A" || upper == "X" || upper == "Y" || upper == "S")
+    {
+        errorMessage = "Label name conflicts with register name: " + label;
+        return false;
+    }
+
+    // Must not be a mnemonic (case-insensitive)
+    if (opcodeTable.IsMnemonic (upper))
+    {
+        errorMessage = "Label name conflicts with mnemonic: " + label;
+        return false;
+    }
+
     return true;
 }

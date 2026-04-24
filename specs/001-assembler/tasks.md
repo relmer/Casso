@@ -84,14 +84,14 @@
 
 ### Tests (write first — must FAIL) ⚠️
 
-- [ ] T017 [P] [US2] Write label resolution tests in UnitTest/AssemblerTests.cpp: forward reference `"BEQ target\nNOP\ntarget: NOP"` produces correct branch offset, backward reference `"loop: INX\nBNE loop"` produces correct negative offset, `"JMP label"` with `"label: NOP"` produces correct absolute address in little-endian, `"JSR sub"` with `"sub: RTS"` produces correct absolute address, label appears in `result.symbols` map with correct address
-- [ ] T018 [P] [US2] Write label error tests in UnitTest/AssemblerTests.cpp: duplicate label `"dup: NOP\ndup: NOP"` reports error with line number, undefined label `"BEQ nowhere"` reports error, label named `"LDA"` (collides with mnemonic) reports error, label named `"A"` or `"X"` or `"Y"` (collides with register name) reports error
+- [X] T017 [P] [US2] Write label resolution tests in UnitTest/AssemblerTests.cpp: forward reference `"BEQ target\nNOP\ntarget: NOP"` produces correct branch offset, backward reference `"loop: INX\nBNE loop"` produces correct negative offset, `"JMP label"` with `"label: NOP"` produces correct absolute address in little-endian, `"JSR sub"` with `"sub: RTS"` produces correct absolute address, label appears in `result.symbols` map with correct address
+- [X] T018 [P] [US2] Write label error tests in UnitTest/AssemblerTests.cpp: duplicate label `"dup: NOP\ndup: NOP"` reports error with line number, undefined label `"BEQ nowhere"` reports error, label named `"LDA"` (collides with mnemonic) reports error, label named `"A"` or `"X"` or `"Y"` (collides with register name) reports error
 
 ### Implementation
 
-- [ ] T019 [US2] Implement Pass 1 symbol table building in My6502Core/Assembler.cpp: on label definition, record name → current PC in `unordered_map<string, Word>`, detect duplicate labels (error with line number); implement label name validation in My6502Core/Parser.cpp: must start with letter or underscore, alphanumeric + underscore only, not a reserved mnemonic (checked via `OpcodeTable::IsMnemonic()`), not a register name (A, X, Y, S)
-- [ ] T020 [US2] Implement Pass 2 label resolution in My6502Core/Assembler.cpp: when operand is a label name (not a numeric literal), look up address in symbol table; for absolute addressing emit little-endian address; for undefined labels record error and emit placeholder zeros
-- [ ] T021 [US2] Implement relative branch offset calculation in My6502Core/Assembler.cpp: for branch mnemonics (BEQ, BNE, BCC, BCS, BMI, BPL, BVC, BVS), compute signed offset from (PC after branch instruction) to target address, validate range -128 to +127, report error if out of range
+- [X] T019 [US2] Implement Pass 1 symbol table building in My6502Core/Assembler.cpp: on label definition, record name → current PC in `unordered_map<string, Word>`, detect duplicate labels (error with line number); implement label name validation in My6502Core/Parser.cpp: must start with letter or underscore, alphanumeric + underscore only, not a reserved mnemonic (checked via `OpcodeTable::IsMnemonic()`), not a register name (A, X, Y, S)
+- [X] T020 [US2] Implement Pass 2 label resolution in My6502Core/Assembler.cpp: when operand is a label name (not a numeric literal), look up address in symbol table; for absolute addressing emit little-endian address; for undefined labels record error and emit placeholder zeros
+- [X] T021 [US2] Implement relative branch offset calculation in My6502Core/Assembler.cpp: for branch mnemonics (BEQ, BNE, BCC, BCS, BMI, BPL, BVC, BVS), compute signed offset from (PC after branch instruction) to target address, validate range -128 to +127, report error if out of range
 
 **Checkpoint**: Labels, forward/backward references, and branch offsets all resolve correctly. Symbol table populated.
 

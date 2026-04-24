@@ -26,6 +26,10 @@ struct ClassifiedOperand
 
 
 
+class OpcodeTable;
+
+
+
 class Parser
 {
 public:
@@ -34,4 +38,5 @@ public:
 
     static ClassifiedOperand ClassifyOperand (const std::string & operand, const std::string & mnemonic);
     static bool              ParseValue      (const std::string & text, int & value);
+    static bool              ValidateLabel   (const std::string & label, const OpcodeTable & opcodeTable, std::string & errorMessage);
 };
