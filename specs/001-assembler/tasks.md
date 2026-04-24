@@ -127,17 +127,17 @@
 
 ### Tests (write first — must FAIL) ⚠️
 
-- [ ] T027 [P] [US3] Write `.org` directive tests in UnitTest/AssemblerTests.cpp: `.org $C000` followed by `NOP` → NOP at address `$C000` (startAddress == 0xC000), `.org` backward from current PC reports error
-- [ ] T028 [P] [US3] Write `.byte` directive tests in UnitTest/AssemblerTests.cpp: `.byte $FF,$00,$42` emits three bytes `{0xFF, 0x00, 0x42}` in order
-- [ ] T029 [P] [US3] Write `.word` directive tests in UnitTest/AssemblerTests.cpp: `.word $1234,$ABCD` emits four bytes `{0x34, 0x12, 0xCD, 0xAB}` (little-endian)
-- [ ] T030 [P] [US3] Write `.text` directive tests in UnitTest/AssemblerTests.cpp: `.text "Hello"` emits `{0x48, 0x65, 0x6C, 0x6C, 0x6F}`, `.text ""` emits zero bytes
-- [ ] T031 [P] [US3] Write label-before-data test in UnitTest/AssemblerTests.cpp: label before `.byte` data resolves to the address where data begins
+- [X] T027 [P] [US3] Write `.org` directive tests in UnitTest/AssemblerTests.cpp: `.org $C000` followed by `NOP` → NOP at address `$C000` (startAddress == 0xC000), `.org` backward from current PC reports error
+- [X] T028 [P] [US3] Write `.byte` directive tests in UnitTest/AssemblerTests.cpp: `.byte $FF,$00,$42` emits three bytes `{0xFF, 0x00, 0x42}` in order
+- [X] T029 [P] [US3] Write `.word` directive tests in UnitTest/AssemblerTests.cpp: `.word $1234,$ABCD` emits four bytes `{0x34, 0x12, 0xCD, 0xAB}` (little-endian)
+- [X] T030 [P] [US3] Write `.text` directive tests in UnitTest/AssemblerTests.cpp: `.text "Hello"` emits `{0x48, 0x65, 0x6C, 0x6C, 0x6F}`, `.text ""` emits zero bytes
+- [X] T031 [P] [US3] Write label-before-data test in UnitTest/AssemblerTests.cpp: label before `.byte` data resolves to the address where data begins
 
 ### Implementation
 
-- [ ] T032 [US3] Implement directive parsing in My6502Core/Parser.cpp: detect `.org`, `.byte`, `.word`, `.text` as directive keywords, parse comma-separated value lists, parse quoted strings
-- [ ] T033 [US3] Implement `.org` handling in My6502Core/Assembler.cpp: set PC to specified address, validate address is not backward from current output position (error if so), adjust flat image start/end tracking
-- [ ] T034 [US3] Implement `.byte`, `.word`, `.text` data emission in My6502Core/Assembler.cpp: `.byte` emits each value as a single byte, `.word` emits each value as two bytes little-endian, `.text` emits each character as its ASCII byte value
+- [X] T032 [US3] Implement directive parsing in My6502Core/Parser.cpp: detect `.org`, `.byte`, `.word`, `.text` as directive keywords, parse comma-separated value lists, parse quoted strings
+- [X] T033 [US3] Implement `.org` handling in My6502Core/Assembler.cpp: set PC to specified address, validate address is not backward from current output position (error if so), adjust flat image start/end tracking
+- [X] T034 [US3] Implement `.byte`, `.word`, `.text` data emission in My6502Core/Assembler.cpp: `.byte` emits each value as a single byte, `.word` emits each value as two bytes little-endian, `.text` emits each character as its ASCII byte value
 
 **Checkpoint**: All directives work. Can set code origin, embed data tables and strings.
 
