@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
+        platform: [x64]
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Setup VSTest
+        uses: darenm/Setup-VSTest@v1.3
+
+      - name: Build
+        run: msbuild My6502.sln -p:Configuration=${{ matrix.configuration }} -p:Platform=${{ matrix.platform }}
+
+      - name: Run Tests
+        run: vstest.console.exe ${{ matrix.platform }}/${{ matrix.configuration }}/UnitTest.dll
+
+  build-arm64:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Build ARM64
+        run: msbuild My6502.sln -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64
+
+  analyze:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Build with Code Analysis
+        run: msbuild My6502.sln -p:Configuration=Release -p:Platform=x64 -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
