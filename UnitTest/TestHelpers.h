@@ -61,7 +61,7 @@ public:
         SP = 0xFF;
         PC = startPC;
 
-        memset (memory, 0, sizeof (memory));
+        std::fill (memory.begin (), memory.end (), Byte (0));
     }
 
     // Execute one instruction at the current PC
@@ -89,12 +89,12 @@ public:
     const Microcode & GetMicrocode (Byte opcode) const { return instructionSet[opcode]; }
 
     // Access full instruction set array (for OpcodeTable construction)
-    const Microcode * GetInstructionSet () const { return instructionSet; }
+    const Microcode * GetInstructionSet () const { return instructionSet.data (); }
 
     // Assemble source text into CPU memory; returns AssemblyResult
     AssemblyResult Assemble (const char * source, Word startAddress = 0x8000)
     {
-        Assembler  asm6502 (instructionSet);
+        Assembler  asm6502 (instructionSet.data ());
         auto       result = asm6502.Assemble (source);
 
         if (result.success)

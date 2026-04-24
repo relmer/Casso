@@ -22,7 +22,7 @@ public:
     Byte                GetY              () const  { return Y; }
     Byte                GetSP             () const  { return SP; }
     const Microcode &   GetMicrocode      (Byte opcode) const { return instructionSet[opcode]; }
-    const Microcode *   GetInstructionSet () const  { return instructionSet; }
+    const Microcode *   GetInstructionSet () const  { return instructionSet.data (); }
 
     void StepOne ();
     Byte PeekByte  (Word address) const { return memory[address]; }
@@ -95,7 +95,10 @@ protected:
     static constexpr Word   resVector    = 0xFFFC;
     static constexpr Word   irqVector    = 0xFFFE;
 
-    Byte                    memory[memSize];
+    // Heap-allocated to keep the 64 KB 6502 address space off the stack
+    // (otherwise every function that stack-allocates a Cpu blows past C6262's
+    // 16 KB frame-size threshold during code analysis).
+    std::vector<Byte>       memory;
 
     Byte                    SP;
     Word                    PC;
@@ -106,7 +109,9 @@ protected:
     CpuStatus               status;
 
 protected:
-    Microcode instructionSet[256];
+    // Heap-allocated for the same reason as `memory`: keeps the ~10 KB
+    // instruction table off the stack of any function holding a Cpu.
+    std::vector<Microcode> instructionSet;
 };
 
 
