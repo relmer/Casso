@@ -61,7 +61,7 @@ public:
         SP = 0xFF;
         PC = startPC;
 
-        memset (memory, 0, sizeof (memory));
+        std::fill (memory.begin (), memory.end (), Byte (0));
     }
 
     // Execute one instruction at the current PC
