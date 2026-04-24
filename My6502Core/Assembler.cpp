@@ -52,18 +52,56 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         ClassifiedOperand classified;
         Word              pc;
         bool              isInstruction;
+        bool              isDirective;
     };
 
     std::vector<LineInfo>                     lineInfos;
     std::unordered_map<std::string, Word>     symbols;
-    Word                                      pc = result.startAddress;
+    Word                                      pc        = result.startAddress;
+    bool                                      originSet = false;
 
     for (int i = 0; i < (int) lines.size (); i++)
     {
-        LineInfo info  = {};
-        info.parsed    = Parser::ParseLine (lines[i], i + 1);
-        info.pc        = pc;
+        LineInfo info    = {};
+        info.parsed      = Parser::ParseLine (lines[i], i + 1);
+        info.pc          = pc;
         info.isInstruction = false;
+        info.isDirective   = false;
+
+        // Handle .org BEFORE recording label (so label gets the new address)
+        if (info.parsed.isDirective && info.parsed.directive == ".ORG")
+        {
+            int orgAddr = 0;
+
+            if (Parser::ParseValue (info.parsed.directiveArg, orgAddr))
+            {
+                Word newAddr = (Word) orgAddr;
+
+                if (originSet && newAddr < pc)
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = i + 1;
+                    error.message    = ".org address is backward from current position";
+                    result.errors.push_back (error);
+                    result.success = false;
+                }
+                else
+                {
+                    pc = newAddr;
+                    info.pc = pc;
+
+                    if (!originSet)
+                    {
+                        result.startAddress = newAddr;
+                        originSet = true;
+                    }
+                }
+            }
+
+            info.isDirective = true;
+            lineInfos.push_back (info);
+            continue;
+        }
 
         // Record label with validation
         if (!info.parsed.label.empty ())
@@ -90,6 +128,31 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             {
                 symbols[info.parsed.label] = pc;
             }
+        }
+
+        // Handle data directives (.byte, .word, .text)
+        if (info.parsed.isDirective)
+        {
+            info.isDirective = true;
+
+            if (info.parsed.directive == ".BYTE")
+            {
+                auto values = Parser::ParseValueList (info.parsed.directiveArg);
+                pc += (Word) values.size ();
+            }
+            else if (info.parsed.directive == ".WORD")
+            {
+                auto values = Parser::ParseValueList (info.parsed.directiveArg);
+                pc += (Word) (values.size () * 2);
+            }
+            else if (info.parsed.directive == ".TEXT")
+            {
+                std::string text = Parser::ParseQuotedString (info.parsed.directiveArg);
+                pc += (Word) text.size ();
+            }
+
+            lineInfos.push_back (info);
+            continue;
         }
 
         // Skip empty lines (comments, blanks)
@@ -177,6 +240,41 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
     for (const auto & info : lineInfos)
     {
+        // Handle data directives
+        if (info.isDirective)
+        {
+            if (info.parsed.directive == ".BYTE")
+            {
+                auto values = Parser::ParseValueList (info.parsed.directiveArg);
+
+                for (int v : values)
+                {
+                    output.push_back ((Byte) (v & 0xFF));
+                }
+            }
+            else if (info.parsed.directive == ".WORD")
+            {
+                auto values = Parser::ParseValueList (info.parsed.directiveArg);
+
+                for (int v : values)
+                {
+                    output.push_back ((Byte) (v & 0xFF));
+                    output.push_back ((Byte) ((v >> 8) & 0xFF));
+                }
+            }
+            else if (info.parsed.directive == ".TEXT")
+            {
+                std::string text = Parser::ParseQuotedString (info.parsed.directiveArg);
+
+                for (char c : text)
+                {
+                    output.push_back ((Byte) c);
+                }
+            }
+
+            continue;
+        }
+
         if (!info.isInstruction)
         {
             continue;

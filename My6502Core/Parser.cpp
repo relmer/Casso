@@ -77,9 +77,10 @@ static std::string ToUpper (const std::string & s)
 
 ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
 {
-    ParsedLine result = {};
-    result.lineNumber = lineNumber;
-    result.isEmpty    = true;
+    ParsedLine result  = {};
+    result.lineNumber  = lineNumber;
+    result.isEmpty     = true;
+    result.isDirective = false;
 
     // Strip comments first
     std::string stripped = StripComments (line);
@@ -105,6 +106,26 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
         {
             return result;
         }
+    }
+
+    // Check for directive (starts with '.')
+    if (!remainder.empty () && remainder[0] == '.')
+    {
+        result.isDirective = true;
+
+        size_t spacePos = remainder.find_first_of (" \t");
+
+        if (spacePos == std::string::npos)
+        {
+            result.directive = ToUpper (remainder);
+        }
+        else
+        {
+            result.directive    = ToUpper (remainder.substr (0, spacePos));
+            result.directiveArg = Trim (remainder.substr (spacePos + 1));
+        }
+
+        return result;
     }
 
     // Extract mnemonic (first word)
@@ -500,4 +521,52 @@ bool Parser::ValidateLabel (const std::string & label, const OpcodeTable & opcod
     }
 
     return true;
+}
+
+
+
+std::vector<int> Parser::ParseValueList (const std::string & text)
+{
+    std::vector<int> values;
+    std::string      current;
+
+    for (size_t i = 0; i <= text.size (); i++)
+    {
+        if (i == text.size () || text[i] == ',')
+        {
+            std::string trimmed = TrimOperand (current);
+
+            if (!trimmed.empty ())
+            {
+                int value = 0;
+
+                if (ParseValue (trimmed, value))
+                {
+                    values.push_back (value);
+                }
+            }
+
+            current.clear ();
+        }
+        else
+        {
+            current += text[i];
+        }
+    }
+
+    return values;
+}
+
+
+
+std::string Parser::ParseQuotedString (const std::string & text)
+{
+    std::string trimmed = TrimOperand (text);
+
+    if (trimmed.size () < 2 || trimmed.front () != '"' || trimmed.back () != '"')
+    {
+        return "";
+    }
+
+    return trimmed.substr (1, trimmed.size () - 2);
 }

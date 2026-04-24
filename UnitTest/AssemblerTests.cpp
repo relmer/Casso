@@ -321,6 +321,135 @@ namespace AssemblerTests
 
 
     // =========================================================================
+    // T027: .org Directive Tests
+    // =========================================================================
+    TEST_CLASS (OrgDirectiveTests)
+    {
+    public:
+
+        TEST_METHOD (Org_SetsStartAddress)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble (".org $C000\nNOP");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((Word) 0xC000, result.startAddress);
+            Assert::AreEqual ((size_t) 1, result.bytes.size ());
+            Assert::AreEqual ((Byte) 0xEA, result.bytes[0]);
+        }
+
+        TEST_METHOD (Org_BackwardFromCurrentPC_ReportsError)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble (".org $C000\nNOP\n.org $BFFF");
+
+            Assert::IsFalse (result.success);
+            Assert::AreEqual ((size_t) 1, result.errors.size ());
+        }
+    };
+
+
+
+    // =========================================================================
+    // T028: .byte Directive Tests
+    // =========================================================================
+    TEST_CLASS (ByteDirectiveTests)
+    {
+    public:
+
+        TEST_METHOD (Byte_EmitsMultipleBytes)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble (".byte $FF,$00,$42");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 3, result.bytes.size ());
+            Assert::AreEqual ((Byte) 0xFF, result.bytes[0]);
+            Assert::AreEqual ((Byte) 0x00, result.bytes[1]);
+            Assert::AreEqual ((Byte) 0x42, result.bytes[2]);
+        }
+    };
+
+
+
+    // =========================================================================
+    // T029: .word Directive Tests
+    // =========================================================================
+    TEST_CLASS (WordDirectiveTests)
+    {
+    public:
+
+        TEST_METHOD (Word_EmitsLittleEndian)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble (".word $1234,$ABCD");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 4, result.bytes.size ());
+            Assert::AreEqual ((Byte) 0x34, result.bytes[0]);
+            Assert::AreEqual ((Byte) 0x12, result.bytes[1]);
+            Assert::AreEqual ((Byte) 0xCD, result.bytes[2]);
+            Assert::AreEqual ((Byte) 0xAB, result.bytes[3]);
+        }
+    };
+
+
+
+    // =========================================================================
+    // T030: .text Directive Tests
+    // =========================================================================
+    TEST_CLASS (TextDirectiveTests)
+    {
+    public:
+
+        TEST_METHOD (Text_EmitsAsciiBytes)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble (".text \"Hello\"");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 5, result.bytes.size ());
+            Assert::AreEqual ((Byte) 0x48, result.bytes[0]); // H
+            Assert::AreEqual ((Byte) 0x65, result.bytes[1]); // e
+            Assert::AreEqual ((Byte) 0x6C, result.bytes[2]); // l
+            Assert::AreEqual ((Byte) 0x6C, result.bytes[3]); // l
+            Assert::AreEqual ((Byte) 0x6F, result.bytes[4]); // o
+        }
+
+        TEST_METHOD (Text_EmptyString_EmitsZeroBytes)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble (".text \"\"");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 0, result.bytes.size ());
+        }
+    };
+
+
+
+    // =========================================================================
+    // T031: Label Before Data Tests
+    // =========================================================================
+    TEST_CLASS (LabelBeforeDataTests)
+    {
+    public:
+
+        TEST_METHOD (LabelBeforeByte_ResolvesToDataAddress)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("data: .byte $01,$02,$03");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 1, result.symbols.size ());
+            Assert::AreEqual ((Word) 0x8000, result.symbols["data"]);
+            Assert::AreEqual ((size_t) 3, result.bytes.size ());
+        }
+    };
+
+
+
+    // =========================================================================
     // T013: Comment and Whitespace Handling Tests
     // =========================================================================
     TEST_CLASS (CommentAndWhitespaceTests)
