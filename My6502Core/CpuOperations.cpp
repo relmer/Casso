@@ -81,7 +81,7 @@ void CpuOperations::Compare (Cpu & cpu, Byte & registerAffected, Byte operand)
 {
     Word cmp = registerAffected - operand;
 
-    cpu.status.flags.carry    = cmp < 0x80;  // NB:  C functions as C' during subtraction
+    cpu.status.flags.carry    = cmp < 0x100; // NB:  C functions as C' during subtraction (no borrow = carry set)
     cpu.status.flags.zero     = cmp == 0;
     cpu.status.flags.negative = (bool) (cmp & 0x80);
 }
