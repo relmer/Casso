@@ -569,8 +569,8 @@ bool Parser::ValidateLabel (const std::string & label, const OpcodeTable & opcod
         return false;
     }
 
-    // Must not be a mnemonic (case-insensitive)
-    if (opcodeTable.IsMnemonic (upper))
+    // Must not be an exact mnemonic (e.g., "LDA" is rejected, but "lda" is only a warning)
+    if (opcodeTable.IsMnemonic (label))
     {
         errorMessage = "Label name conflicts with mnemonic: " + label;
         return false;

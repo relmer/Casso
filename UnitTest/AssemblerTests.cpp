@@ -848,4 +848,125 @@ namespace AssemblerTests
             Assert::AreEqual (std::string ("                 ; comment"), formatted);
         }
     };
+
+
+
+    // =========================================================================
+    // T052: Warning Mode Tests
+    // =========================================================================
+    TEST_CLASS (WarningModeTests)
+    {
+    public:
+
+        // Helper to build assembler with specific warning mode
+        static Assembler BuildWithWarningMode (WarningMode mode)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+
+            AssemblerOptions options = {};
+            options.warningMode = mode;
+
+            return Assembler (cpu.GetInstructionSet (), options);
+        }
+
+        // --- Unused label warning ---
+
+        TEST_METHOD (UnusedLabel_WarnMode_RecordedAsWarning)
+        {
+            Assembler asm6502 = BuildWithWarningMode (WarningMode::Warn);
+            auto result = asm6502.Assemble ("unused: NOP\nNOP");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 1, result.warnings.size ());
+        }
+
+        TEST_METHOD (UnusedLabel_FatalWarnings_PromotedToError)
+        {
+            Assembler asm6502 = BuildWithWarningMode (WarningMode::FatalWarnings);
+            auto result = asm6502.Assemble ("unused: NOP\nNOP");
+
+            Assert::IsFalse (result.success);
+            Assert::AreEqual ((size_t) 1, result.errors.size ());
+            Assert::AreEqual ((size_t) 0, result.warnings.size ());
+        }
+
+        TEST_METHOD (UnusedLabel_NoWarn_Suppressed)
+        {
+            Assembler asm6502 = BuildWithWarningMode (WarningMode::NoWarn);
+            auto result = asm6502.Assemble ("unused: NOP\nNOP");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 0, result.warnings.size ());
+        }
+
+        // --- Redundant .org warning ---
+
+        TEST_METHOD (RedundantOrg_WarnMode_RecordedAsWarning)
+        {
+            Assembler asm6502 = BuildWithWarningMode (WarningMode::Warn);
+            auto result = asm6502.Assemble (".org $8000\nNOP");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 1, result.warnings.size ());
+        }
+
+        TEST_METHOD (RedundantOrg_FatalWarnings_PromotedToError)
+        {
+            Assembler asm6502 = BuildWithWarningMode (WarningMode::FatalWarnings);
+            auto result = asm6502.Assemble (".org $8000\nNOP");
+
+            Assert::IsFalse (result.success);
+            Assert::AreEqual ((size_t) 1, result.errors.size ());
+        }
+
+        TEST_METHOD (RedundantOrg_NoWarn_Suppressed)
+        {
+            Assembler asm6502 = BuildWithWarningMode (WarningMode::NoWarn);
+            auto result = asm6502.Assemble (".org $8000\nNOP");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 0, result.warnings.size ());
+        }
+
+        // --- Label differing from mnemonic only by case (FR-033a) ---
+
+        TEST_METHOD (LabelSimilarToMnemonic_WarnMode_RecordedAsWarning)
+        {
+            Assembler asm6502 = BuildWithWarningMode (WarningMode::Warn);
+            auto result = asm6502.Assemble ("lda: NOP\nBEQ lda");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 1, result.warnings.size ());
+        }
+
+        TEST_METHOD (LabelSimilarToMnemonic_FatalWarnings_PromotedToError)
+        {
+            Assembler asm6502 = BuildWithWarningMode (WarningMode::FatalWarnings);
+            auto result = asm6502.Assemble ("lda: NOP\nBEQ lda");
+
+            Assert::IsFalse (result.success);
+            Assert::AreEqual ((size_t) 1, result.errors.size ());
+        }
+
+        TEST_METHOD (LabelSimilarToMnemonic_NoWarn_Suppressed)
+        {
+            Assembler asm6502 = BuildWithWarningMode (WarningMode::NoWarn);
+            auto result = asm6502.Assemble ("lda: NOP\nBEQ lda");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 0, result.warnings.size ());
+        }
+
+        // --- Used label should not warn ---
+
+        TEST_METHOD (UsedLabel_NoWarning)
+        {
+            Assembler asm6502 = BuildWithWarningMode (WarningMode::Warn);
+            auto result = asm6502.Assemble ("loop: NOP\nBEQ loop");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 0, result.warnings.size ());
+        }
+    };
 }

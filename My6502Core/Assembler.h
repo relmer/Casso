@@ -17,6 +17,8 @@ public:
     static std::string FormatListingLine (const AssemblyLine & line);
 
 private:
+    void RecordWarning (AssemblyResult & result, int lineNumber, const std::string & message);
+
     OpcodeTable      m_opcodeTable;
     AssemblerOptions m_options;
 };

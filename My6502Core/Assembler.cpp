@@ -13,6 +13,37 @@ Assembler::Assembler (const Microcode instructionSet[256], AssemblerOptions opti
 
 
 
+void Assembler::RecordWarning (AssemblyResult & result, int lineNumber, const std::string & message)
+{
+    switch (m_options.warningMode)
+    {
+    case WarningMode::Warn:
+    {
+        AssemblyError warning = {};
+        warning.lineNumber = lineNumber;
+        warning.message    = message;
+        result.warnings.push_back (warning);
+        break;
+    }
+
+    case WarningMode::FatalWarnings:
+    {
+        AssemblyError error = {};
+        error.lineNumber = lineNumber;
+        error.message    = message;
+        result.errors.push_back (error);
+        result.success = false;
+        break;
+    }
+
+    case WarningMode::NoWarn:
+        // Discard silently
+        break;
+    }
+}
+
+
+
 static Byte GetInstructionSize (const OpcodeTable & table, const ParsedLine & parsed, const ClassifiedOperand & classified)
 {
     OpcodeEntry entry = {};
@@ -119,6 +150,11 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 }
                 else
                 {
+                    if (newAddr == pc)
+                    {
+                        RecordWarning (result, i + 1, "Redundant .org to current address");
+                    }
+
                     pc = newAddr;
                     info.pc = pc;
 
@@ -159,6 +195,19 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             else
             {
                 symbols[info.parsed.label] = pc;
+
+                // Warn if label differs from a mnemonic only by case (FR-033a)
+                std::string upper = info.parsed.label;
+
+                for (auto & c : upper)
+                {
+                    c = (char) toupper ((unsigned char) c);
+                }
+
+                if (upper != info.parsed.label && m_opcodeTable.IsMnemonic (upper))
+                {
+                    RecordWarning (result, i + 1, "Label name resembles mnemonic: " + info.parsed.label);
+                }
             }
         }
 
@@ -278,7 +327,8 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
     }
 
     // ---- Pass 2: Emit bytes with label resolution ----
-    std::vector<Byte> output;
+    std::vector<Byte>                  output;
+    std::unordered_map<std::string, int> referencedLabels;  // label name → line number of first reference
 
     for (const auto & info : lineInfos)
     {
@@ -333,6 +383,8 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             // Resolve label references
             if (info.classified.isLabel)
             {
+                referencedLabels[info.classified.labelName] = info.parsed.lineNumber;
+
                 auto it = symbols.find (info.classified.labelName);
 
                 if (it == symbols.end ())
@@ -493,6 +545,28 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
     result.bytes      = output;
     result.symbols    = symbols;
     result.endAddress = result.startAddress + (Word) output.size ();
+
+    // ---- Post-assembly warnings ----
+    // Warn about unused labels (defined but never referenced)
+    for (const auto & sym : symbols)
+    {
+        if (referencedLabels.find (sym.first) == referencedLabels.end ())
+        {
+            // Find the line number where the label was defined
+            int defLine = 0;
+
+            for (const auto & info : lineInfos)
+            {
+                if (info.parsed.label == sym.first)
+                {
+                    defLine = info.parsed.lineNumber;
+                    break;
+                }
+            }
+
+            RecordWarning (result, defLine, "Unused label: " + sym.first);
+        }
+    }
 
     return result;
 }

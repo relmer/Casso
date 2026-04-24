@@ -231,12 +231,12 @@
 
 ### Tests (write first — must FAIL) ⚠️
 
-- [ ] T052 [P] [US10] Write warning mode tests in UnitTest/AssemblerTests.cpp: with `WarningMode::Warn` — warning is recorded in `result.warnings` but `result.success` remains true; with `WarningMode::FatalWarnings` — warning is promoted to `result.errors` and `result.success` is false; with `WarningMode::NoWarn` — warning is suppressed (not recorded). Warning conditions to test: unused label (defined but never referenced), redundant `.org` to same address, label name differing from mnemonic only by case (e.g., `lda:`) (FR-033a)
+- [X] T052 [P] [US10] Write warning mode tests in UnitTest/AssemblerTests.cpp: with `WarningMode::Warn` — warning is recorded in `result.warnings` but `result.success` remains true; with `WarningMode::FatalWarnings` — warning is promoted to `result.errors` and `result.success` is false; with `WarningMode::NoWarn` — warning is suppressed (not recorded). Warning conditions to test: unused label (defined but never referenced), redundant `.org` to same address, label name differing from mnemonic only by case (e.g., `lda:`) (FR-033a)
 
 ### Implementation
 
-- [ ] T053 [US10] Implement warning mode handling in My6502Core/Assembler.cpp: when recording a warning, check `options.warningMode` — `Warn` adds to `result.warnings`, `FatalWarnings` adds to `result.errors` and sets `success=false`, `NoWarn` discards silently
-- [ ] T054 [US10] Implement verbose output in My6502/CommandLine.cpp: when `-v` flag is set, print to stderr: pass number start/end, symbol resolution details (label → address), byte count summary, timing information
+- [X] T053 [US10] Implement warning mode handling in My6502Core/Assembler.cpp: when recording a warning, check `options.warningMode` — `Warn` adds to `result.warnings`, `FatalWarnings` adds to `result.errors` and sets `success=false`, `NoWarn` discards silently
+- [X] T054 [US10] Implement verbose output in My6502/CommandLine.cpp: when `-v` flag is set, print to stderr: pass number start/end, symbol resolution details (label → address), byte count summary, timing information
 
 **Checkpoint**: Warning modes work correctly in assembler core. Verbose output available in CLI.
 
