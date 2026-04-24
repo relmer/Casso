@@ -692,7 +692,7 @@ void Cpu::InitializeGroup10 ()
         { _10::ROL, _10::__AMF_AllModes & ~(_10::AMF_Immediate),                     Microcode::RotateLeft,  &A,      nullptr },
         { _10::LSR, _10::__AMF_AllModes & ~(_10::AMF_Immediate),                     Microcode::ShiftRight,  &A,      nullptr },
         { _10::ROR, _10::__AMF_AllModes & ~(_10::AMF_Immediate),                     Microcode::RotateRight, &A,      nullptr },
-        { _10::STX, _10::AMF_ZeroPage | _10::AMF_Absolute | _10::AM_ZeroPageX,       Microcode::Store,       &X,      nullptr },
+        { _10::STX, _10::AMF_ZeroPage | _10::AMF_Absolute | _10::AMF_ZeroPageX,      Microcode::Store,       &X,      nullptr },
         { _10::LDX, _10::__AMF_AllModes & ~(_10::AMF_Absolute),                      Microcode::Load,        nullptr, &X      },
         { _10::DEC, _10::__AMF_AllModes & ~(_10::AMF_Immediate | _10::AMF_Absolute), Microcode::Decrement,   nullptr, nullptr },
         { _10::INC, _10::__AMF_AllModes & ~(_10::AMF_Immediate | _10::AMF_Absolute), Microcode::Increment,   nullptr, nullptr },
