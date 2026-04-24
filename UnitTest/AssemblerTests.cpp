@@ -969,4 +969,173 @@ namespace AssemblerTests
             Assert::AreEqual ((size_t) 0, result.warnings.size ());
         }
     };
+
+
+
+    // =========================================================================
+    // T057a: Assembler Instance Reuse Test
+    // =========================================================================
+    TEST_CLASS (InstanceReuseTests)
+    {
+    public:
+
+        TEST_METHOD (AssembleTwice_ResultsAreIndependent)
+        {
+            Assembler asm6502 = BuildAssembler ();
+
+            auto result1 = asm6502.Assemble ("LDA #$42\nSTA $10");
+            auto result2 = asm6502.Assemble ("LDX #$FF\nSTX $20");
+
+            Assert::IsTrue (result1.success);
+            Assert::IsTrue (result2.success);
+
+            // First result: LDA #$42, STA $10
+            Assert::AreEqual ((size_t) 4, result1.bytes.size ());
+            Assert::AreEqual ((Byte) 0xA9, result1.bytes[0]);
+            Assert::AreEqual ((Byte) 0x42, result1.bytes[1]);
+            Assert::AreEqual ((Byte) 0x85, result1.bytes[2]);
+            Assert::AreEqual ((Byte) 0x10, result1.bytes[3]);
+
+            // Second result: LDX #$FF, STX $20
+            Assert::AreEqual ((size_t) 4, result2.bytes.size ());
+            Assert::AreEqual ((Byte) 0xA2, result2.bytes[0]);
+            Assert::AreEqual ((Byte) 0xFF, result2.bytes[1]);
+            Assert::AreEqual ((Byte) 0x86, result2.bytes[2]);
+            Assert::AreEqual ((Byte) 0x20, result2.bytes[3]);
+
+            // Symbol tables are independent
+            Assert::AreEqual ((size_t) 0, result1.symbols.size ());
+            Assert::AreEqual ((size_t) 0, result2.symbols.size ());
+        }
+
+        TEST_METHOD (AssembleTwice_LabelsDoNotLeak)
+        {
+            Assembler asm6502 = BuildAssembler ();
+
+            auto result1 = asm6502.Assemble ("start: NOP\nend: BRK");
+            auto result2 = asm6502.Assemble ("begin: NOP\nfinish: BRK");
+
+            Assert::IsTrue (result1.success);
+            Assert::IsTrue (result2.success);
+
+            // result1 has start/end, result2 has begin/finish
+            Assert::IsTrue (result1.symbols.count ("start")  > 0);
+            Assert::IsTrue (result1.symbols.count ("end")    > 0);
+            Assert::IsTrue (result1.symbols.count ("begin")  == 0);
+            Assert::IsTrue (result2.symbols.count ("begin")  > 0);
+            Assert::IsTrue (result2.symbols.count ("finish") > 0);
+            Assert::IsTrue (result2.symbols.count ("start")  == 0);
+        }
+    };
+
+
+
+    // =========================================================================
+    // T057b: Case-Sensitive Labels Test
+    // =========================================================================
+    TEST_CLASS (CaseSensitiveLabelTests)
+    {
+    public:
+
+        TEST_METHOD (FooAndFOO_ResolveToDifferentAddresses)
+        {
+            AssemblerOptions options = {};
+            options.warningMode = WarningMode::NoWarn; // suppress unused label warnings
+
+            TestCpu cpu;
+            cpu.InitForTest ();
+            Assembler asm6502 (cpu.GetInstructionSet (), options);
+
+            auto result = asm6502.Assemble (
+                "foo: NOP\n"
+                "FOO: NOP\n"
+                "JMP foo\n"
+                "JMP FOO\n"
+            );
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((Word) 0x8000, result.symbols["foo"]);
+            Assert::AreEqual ((Word) 0x8001, result.symbols["FOO"]);
+
+            // JMP foo → bytes at offset 2: 0x4C, 0x00, 0x80
+            Assert::AreEqual ((Byte) 0x4C, result.bytes[2]);
+            Assert::AreEqual ((Byte) 0x00, result.bytes[3]);
+            Assert::AreEqual ((Byte) 0x80, result.bytes[4]);
+
+            // JMP FOO → bytes at offset 5: 0x4C, 0x01, 0x80
+            Assert::AreEqual ((Byte) 0x4C, result.bytes[5]);
+            Assert::AreEqual ((Byte) 0x01, result.bytes[6]);
+            Assert::AreEqual ((Byte) 0x80, result.bytes[7]);
+        }
+    };
+
+
+
+    // =========================================================================
+    // T057c: 100-Label Stress Test
+    // =========================================================================
+    TEST_CLASS (StressTests)
+    {
+    public:
+
+        TEST_METHOD (HundredLabels_AllResolveCorrectly)
+        {
+            AssemblerOptions options = {};
+            options.warningMode = WarningMode::NoWarn; // lots of "unused" labels otherwise
+
+            TestCpu cpu;
+            cpu.InitForTest ();
+            Assembler asm6502 (cpu.GetInstructionSet (), options);
+
+            // Generate a program with 100 labels, each with a NOP
+            std::string source;
+
+            for (int i = 0; i < 100; i++)
+            {
+                source += "label" + std::to_string (i) + ": NOP\n";
+            }
+
+            // Add cross-references: jump to every 10th label
+            for (int i = 0; i < 100; i += 10)
+            {
+                source += "JMP label" + std::to_string (i) + "\n";
+            }
+
+            auto result = asm6502.Assemble (source);
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 100, result.symbols.size ());
+
+            // Verify labels are at expected addresses
+            for (int i = 0; i < 100; i++)
+            {
+                std::string name = "label" + std::to_string (i);
+                Word expectedAddr = 0x8000 + (Word) i;
+
+                Assert::AreEqual (expectedAddr, result.symbols[name],
+                    (std::wstring (L"Label: ") + std::wstring (name.begin (), name.end ())).c_str ());
+            }
+        }
+    };
+
+
+
+    // =========================================================================
+    // T057d: Empty Source Text Test
+    // =========================================================================
+    TEST_CLASS (EmptySourceTests)
+    {
+    public:
+
+        TEST_METHOD (EmptySource_ReturnsSuccessWithZeroBytes)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 0, result.bytes.size ());
+            Assert::AreEqual ((size_t) 0, result.errors.size ());
+            Assert::AreEqual ((size_t) 0, result.symbols.size ());
+        }
+    };
 }

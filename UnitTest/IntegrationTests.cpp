@@ -179,4 +179,88 @@ namespace IntegrationTests
             Assert::IsTrue ((pushedStatus & 0x10) != 0, L"B flag should be set in pushed status");
         }
     };
+
+
+
+    // =========================================================================
+    // T055: Quickstart Validation
+    // =========================================================================
+    TEST_CLASS (QuickstartValidationTests)
+    {
+    public:
+
+        TEST_METHOD (QuickstartExample_AssemblesAndRuns)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+
+            auto result = cpu.Assemble (
+                "; Multiply A by 2 using shifts\n"
+                "    .org $8000\n"
+                "\n"
+                "    LDA #$15\n"
+                "    ASL A\n"
+                "    STA $10\n"
+                "done:\n"
+                "    BRK\n"
+            );
+
+            Assert::IsTrue (result.success, L"Quickstart example should assemble successfully");
+
+            Word doneAddr = cpu.LabelAddress (result, "done");
+            auto stop     = cpu.RunUntil (doneAddr);
+
+            Assert::AreEqual ((int) TestCpu::StopReason::ReachedTarget, (int) stop);
+
+            // LDA #$15 (21), ASL A (shift left = 42 = 0x2A), STA $10
+            Assert::AreEqual ((Byte) 0x2A, cpu.RegA ());
+            Assert::AreEqual ((Byte) 0x2A, cpu.Peek (0x10));
+        }
+    };
+
+
+
+    // =========================================================================
+    // T057: WriteBytes Equivalence Test
+    // =========================================================================
+    TEST_CLASS (WriteBytesEquivalenceTests)
+    {
+    public:
+
+        TEST_METHOD (AssembledAndWriteBytes_ProduceIdenticalResults)
+        {
+            // Assemble a program
+            TestCpu cpuAsm;
+            cpuAsm.InitForTest ();
+
+            auto result = cpuAsm.Assemble (
+                "    LDA #$42\n"
+                "    STA $10\n"
+                "done: BRK\n"
+            );
+
+            Assert::IsTrue (result.success);
+
+            Word doneAddr = cpuAsm.LabelAddress (result, "done");
+            cpuAsm.RunUntil (doneAddr);
+
+            // Write the same raw bytes manually
+            TestCpu cpuRaw;
+            cpuRaw.InitForTest ();
+
+            cpuRaw.WriteBytes (0x8000, {
+                0xA9, 0x42,       // LDA #$42
+                0x85, 0x10,       // STA $10
+                0x00,             // BRK
+            });
+
+            cpuRaw.RunUntil (0x8004); // done = 0x8004
+
+            // Both CPUs should have identical state
+            Assert::AreEqual (cpuAsm.RegA (),    cpuRaw.RegA ());
+            Assert::AreEqual (cpuAsm.Peek (0x10), cpuRaw.Peek (0x10));
+            Assert::AreEqual (cpuAsm.RegX (),    cpuRaw.RegX ());
+            Assert::AreEqual (cpuAsm.RegY (),    cpuRaw.RegY ());
+        }
+    };
 }
