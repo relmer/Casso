@@ -847,3 +847,41 @@ void Cpu::PrintInstructionSet (Microcode::Group group)
 
 
 
+bool Cpu::LoadBinary (const std::string & filename, Word address)
+{
+    HRESULT       hr      = S_OK;
+    std::ifstream file      (filename, std::ios::binary);
+    bool          fLoaded = false;
+
+    CBRA (file.is_open ());
+
+    fLoaded = LoadBinary (file, address);
+    CBR  (fLoaded);
+
+Error:
+    return SUCCEEDED (hr);
+}
+
+
+
+bool Cpu::LoadBinary (std::istream & stream, Word address)
+{
+    HRESULT hr = S_OK;
+
+    // Determine stream size
+    stream.seekg (0, std::ios::end);
+    auto size = stream.tellg ();
+    stream.seekg (0, std::ios::beg);
+
+    CBRA (!stream.bad ());
+    CBR  (size >= 0 && (size_t) size <= memSize - address);
+
+    // Read directly into CPU memory — no intermediate buffer
+    stream.read (reinterpret_cast<char *>(memory.data () + address), size);
+
+    CBRA (!stream.bad ());
+
+Error:
+    return SUCCEEDED (hr);
+}
+

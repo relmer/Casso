@@ -316,4 +316,116 @@ namespace IntegrationTests
             Assert::AreEqual (cpuAsm.RegY (),    cpuRaw.RegY ());
         }
     };
+
+    // =========================================================================
+    // LoadBinary() Tests
+    //
+    // These tests exercise the stream-based LoadBinary overload with
+    // std::stringstream so that no filesystem state is created or required.
+    // =========================================================================
+    TEST_CLASS (LoadBinaryTests)
+    {
+    public:
+
+        // Build an in-memory binary stream from a list of bytes.
+        static std::stringstream MakeStream (std::initializer_list<Byte> bytes)
+        {
+            std::stringstream ss (std::ios::in | std::ios::out | std::ios::binary);
+
+            for (Byte b : bytes)
+            {
+                ss.put ((char) b);
+            }
+
+            return ss;
+        }
+
+        TEST_METHOD (LoadBinary_ValidStream_LoadsBytesAtAddress)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+
+            std::stringstream bin = MakeStream ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
+
+            bool ok = cpu.LoadBinary (bin, (Word) 0x8000);
+
+            Assert::IsTrue (ok);
+            Assert::AreEqual ((Byte) 0xA9, cpu.Peek (0x8000));
+            Assert::AreEqual ((Byte) 0x42, cpu.Peek (0x8001));
+            Assert::AreEqual ((Byte) 0x85, cpu.Peek (0x8002));
+            Assert::AreEqual ((Byte) 0x10, cpu.Peek (0x8003));
+            Assert::AreEqual ((Byte) 0x00, cpu.Peek (0x8004));
+
+            // Bytes outside the loaded range are unchanged.
+            Assert::AreEqual ((Byte) 0x00, cpu.Peek (0x7FFF));
+            Assert::AreEqual ((Byte) 0x00, cpu.Peek (0x8005));
+        }
+
+        TEST_METHOD (LoadBinary_LoadedProgram_Executes)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+
+            // LDA #$42 ; STA $10 ; BRK
+            std::stringstream bin = MakeStream ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
+
+            Assert::IsTrue (cpu.LoadBinary (bin, (Word) 0x8000));
+
+            cpu.RegPC () = 0x8000;
+            cpu.StepN (2); // LDA, STA
+
+            Assert::AreEqual ((Byte) 0x42, cpu.RegA ());
+            Assert::AreEqual ((Byte) 0x42, cpu.Peek (0x10));
+        }
+
+        TEST_METHOD (LoadBinary_TooLargeForAddress_ReturnsFalse)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+
+            // 3-byte stream, but loading at 0xFFFE would need address 0x10000 (overflow).
+            std::stringstream bin = MakeStream ({ 0x11, 0x22, 0x33 });
+
+            cpu.Poke (0xFFFE, 0xAB);
+            cpu.Poke (0xFFFF, 0xCD);
+
+            bool ok = cpu.LoadBinary (bin, (Word) 0xFFFE);
+
+            Assert::IsFalse (ok);
+            // Memory unchanged on failure.
+            Assert::AreEqual ((Byte) 0xAB, cpu.Peek (0xFFFE));
+            Assert::AreEqual ((Byte) 0xCD, cpu.Peek (0xFFFF));
+        }
+
+        TEST_METHOD (LoadBinary_FitsExactlyAtEnd_Succeeds)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+
+            // 2-byte stream loaded at 0xFFFE fills the last two bytes of the address space.
+            std::stringstream bin = MakeStream ({ 0xAA, 0xBB });
+
+            bool ok = cpu.LoadBinary (bin, (Word) 0xFFFE);
+
+            Assert::IsTrue (ok);
+            Assert::AreEqual ((Byte) 0xAA, cpu.Peek (0xFFFE));
+            Assert::AreEqual ((Byte) 0xBB, cpu.Peek (0xFFFF));
+        }
+
+        TEST_METHOD (LoadBinary_EmptyStream_Succeeds)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+
+            std::stringstream bin = MakeStream ({});
+
+            cpu.Poke (0x8000, 0xAB);
+
+            bool ok = cpu.LoadBinary (bin, (Word) 0x8000);
+
+            Assert::IsTrue (ok);
+            // Empty stream means nothing is overwritten.
+            Assert::AreEqual ((Byte) 0xAB, cpu.Peek (0x8000));
+        }
+    };
 }
