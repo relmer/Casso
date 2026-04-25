@@ -15,6 +15,7 @@ namespace CpuInitializationTests
     //  InstructionSetTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (InstructionSetTests)
     {
     public:
@@ -25,6 +26,7 @@ namespace CpuInitializationTests
         //  LDA_Immediate_IsLegal
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDA_Immediate_IsLegal)
         {
             TestCpu cpu;
@@ -44,6 +46,7 @@ namespace CpuInitializationTests
         //  STA_ZeroPage_IsLegal
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (STA_ZeroPage_IsLegal)
         {
             TestCpu cpu;
@@ -63,6 +66,7 @@ namespace CpuInitializationTests
         //  JMP_Absolute_IsLegal
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (JMP_Absolute_IsLegal)
         {
             TestCpu cpu;
@@ -82,6 +86,7 @@ namespace CpuInitializationTests
         //  JMP_Indirect_IsLegal
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (JMP_Indirect_IsLegal)
         {
             TestCpu cpu;
@@ -101,6 +106,7 @@ namespace CpuInitializationTests
         //  IllegalOpcode_IsNotLegal
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (IllegalOpcode_IsNotLegal)
         {
             TestCpu cpu;
@@ -118,6 +124,7 @@ namespace CpuInitializationTests
         //  STA_Immediate_IsNotLegal
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (STA_Immediate_IsNotLegal)
         {
             TestCpu cpu;
@@ -135,6 +142,7 @@ namespace CpuInitializationTests
         //  DEX_IsLegal
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (DEX_IsLegal)
         {
             TestCpu cpu;
@@ -154,6 +162,7 @@ namespace CpuInitializationTests
         //  AllBranches_AreLegal
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (AllBranches_AreLegal)
         {
             TestCpu cpu;
@@ -178,6 +187,7 @@ namespace CpuInitializationTests
         //  Group01_ImmediateOpcodes_AreLegal
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Group01_ImmediateOpcodes_AreLegal)
         {
             // ORA=09, AND=29, EOR=49, ADC=69, LDA=A9, CMP=C9, SBC=E9

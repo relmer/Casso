@@ -17,6 +17,7 @@ namespace AssemblerTests
     //  BuildAssembler
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     static Assembler BuildAssembler ()
     {
         TestCpu cpu;
@@ -33,6 +34,7 @@ namespace AssemblerTests
     //  InstructionEncodingTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (InstructionEncodingTests)
     {
     public:
@@ -43,6 +45,7 @@ namespace AssemblerTests
         //  LDA_Immediate
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDA_Immediate)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -63,6 +66,7 @@ namespace AssemblerTests
         //  STA_ZeroPage
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (STA_ZeroPage)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -83,6 +87,7 @@ namespace AssemblerTests
         //  JMP_Absolute
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (JMP_Absolute)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -104,6 +109,7 @@ namespace AssemblerTests
         //  ROL_Accumulator
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (ROL_Accumulator)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -123,6 +129,7 @@ namespace AssemblerTests
         //  NOP_Implied
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (NOP_Implied)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -142,6 +149,7 @@ namespace AssemblerTests
         //  LDA_ZeroPageX
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDA_ZeroPageX)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -162,6 +170,7 @@ namespace AssemblerTests
         //  LDA_AbsoluteX
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDA_AbsoluteX)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -183,6 +192,7 @@ namespace AssemblerTests
         //  LDA_AbsoluteY
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDA_AbsoluteY)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -204,6 +214,7 @@ namespace AssemblerTests
         //  STA_ZeroPageX
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (STA_ZeroPageX)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -224,6 +235,7 @@ namespace AssemblerTests
         //  STX_ZeroPageY
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (STX_ZeroPageY)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -244,6 +256,7 @@ namespace AssemblerTests
         //  LDA_ZeroPageXIndirect
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDA_ZeroPageXIndirect)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -264,6 +277,7 @@ namespace AssemblerTests
         //  LDA_ZeroPageIndirectY
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDA_ZeroPageIndirectY)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -284,6 +298,7 @@ namespace AssemblerTests
         //  JMP_Indirect
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (JMP_Indirect)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -306,6 +321,7 @@ namespace AssemblerTests
     //  LabelResolutionTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (LabelResolutionTests)
     {
     public:
@@ -316,6 +332,7 @@ namespace AssemblerTests
         //  ForwardReference_BEQ
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (ForwardReference_BEQ)
         {
             // BEQ target (2 bytes) + NOP (1 byte) + target: NOP
@@ -344,6 +361,7 @@ namespace AssemblerTests
         //  BackwardReference_BNE
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (BackwardReference_BNE)
         {
             // loop: INX (1 byte) + BNE loop (2 bytes)
@@ -370,6 +388,7 @@ namespace AssemblerTests
         //  JMP_Label_Absolute
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (JMP_Label_Absolute)
         {
             // JMP label (3 bytes) + label: NOP
@@ -397,6 +416,7 @@ namespace AssemblerTests
         //  JSR_Label_Absolute
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (JSR_Label_Absolute)
         {
             // JSR sub (3 bytes) + NOP (1 byte) + sub: RTS (1 byte)
@@ -426,6 +446,7 @@ namespace AssemblerTests
         //  Label_AppearsInSymbols
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Label_AppearsInSymbols)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -450,6 +471,7 @@ namespace AssemblerTests
     //  LabelErrorTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (LabelErrorTests)
     {
     public:
@@ -460,6 +482,7 @@ namespace AssemblerTests
         //  DuplicateLabel_ReportsError
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (DuplicateLabel_ReportsError)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -482,6 +505,7 @@ namespace AssemblerTests
         //  UndefinedLabel_ReportsError
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (UndefinedLabel_ReportsError)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -500,6 +524,7 @@ namespace AssemblerTests
         //  LabelCollisionWithMnemonic_ReportsError
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LabelCollisionWithMnemonic_ReportsError)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -518,6 +543,7 @@ namespace AssemblerTests
         //  LabelCollisionWithRegisterA_ReportsError
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LabelCollisionWithRegisterA_ReportsError)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -536,6 +562,7 @@ namespace AssemblerTests
         //  LabelCollisionWithRegisterX_ReportsError
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LabelCollisionWithRegisterX_ReportsError)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -554,6 +581,7 @@ namespace AssemblerTests
         //  LabelCollisionWithRegisterY_ReportsError
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LabelCollisionWithRegisterY_ReportsError)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -573,6 +601,7 @@ namespace AssemblerTests
     //  OrgDirectiveTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (OrgDirectiveTests)
     {
     public:
@@ -583,6 +612,7 @@ namespace AssemblerTests
         //  Org_SetsStartAddress
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Org_SetsStartAddress)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -606,6 +636,7 @@ namespace AssemblerTests
         //  Org_BackwardFromCurrentPC_ReportsError
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Org_BackwardFromCurrentPC_ReportsError)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -629,6 +660,7 @@ namespace AssemblerTests
     //  ByteDirectiveTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (ByteDirectiveTests)
     {
     public:
@@ -639,6 +671,7 @@ namespace AssemblerTests
         //  Byte_EmitsMultipleBytes
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Byte_EmitsMultipleBytes)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -661,6 +694,7 @@ namespace AssemblerTests
     //  WordDirectiveTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (WordDirectiveTests)
     {
     public:
@@ -671,6 +705,7 @@ namespace AssemblerTests
         //  Word_EmitsLittleEndian
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Word_EmitsLittleEndian)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -694,6 +729,7 @@ namespace AssemblerTests
     //  TextDirectiveTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (TextDirectiveTests)
     {
     public:
@@ -704,6 +740,7 @@ namespace AssemblerTests
         //  Text_EmitsAsciiBytes
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Text_EmitsAsciiBytes)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -727,6 +764,7 @@ namespace AssemblerTests
         //  Text_EmptyString_EmitsZeroBytes
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Text_EmptyString_EmitsZeroBytes)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -746,6 +784,7 @@ namespace AssemblerTests
     //  LabelBeforeDataTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (LabelBeforeDataTests)
     {
     public:
@@ -756,6 +795,7 @@ namespace AssemblerTests
         //  LabelBeforeByte_ResolvesToDataAddress
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LabelBeforeByte_ResolvesToDataAddress)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -777,6 +817,7 @@ namespace AssemblerTests
     //  CommentAndWhitespaceTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (CommentAndWhitespaceTests)
     {
     public:
@@ -787,6 +828,7 @@ namespace AssemblerTests
         //  FullLineComment_ProducesZeroBytes
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (FullLineComment_ProducesZeroBytes)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -805,6 +847,7 @@ namespace AssemblerTests
         //  InlineComment_AssemblesCorrectly
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (InlineComment_AssemblesCorrectly)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -825,6 +868,7 @@ namespace AssemblerTests
         //  BlankLines_ProduceSameOutput
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (BlankLines_ProduceSameOutput)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -858,6 +902,7 @@ namespace AssemblerTests
         //  VariedIndentation_AssemblesCorrectly
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (VariedIndentation_AssemblesCorrectly)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -879,6 +924,7 @@ namespace AssemblerTests
     //  ExpressionTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (ExpressionTests)
     {
     public:
@@ -889,6 +935,7 @@ namespace AssemblerTests
         //  LowByte_OfLabel
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LowByte_OfLabel)
         {
             // data at $1234, LDA #<data → operand $34 (low byte)
@@ -916,6 +963,7 @@ namespace AssemblerTests
         //  HighByte_OfLabel
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (HighByte_OfLabel)
         {
             // data at $1234, LDA #>data → operand $12 (high byte)
@@ -943,6 +991,7 @@ namespace AssemblerTests
         //  LabelPlusOffset
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LabelPlusOffset)
         {
             // table at $2000, LDA table+3 → address $2003
@@ -971,6 +1020,7 @@ namespace AssemblerTests
         //  LDA_Immediate_Binary
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDA_Immediate_Binary)
         {
             // LDA #%10101010 → $A9, $AA
@@ -992,6 +1042,7 @@ namespace AssemblerTests
         //  LDA_Immediate_Decimal
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDA_Immediate_Decimal)
         {
             // LDA #255 → $A9, $FF
@@ -1014,6 +1065,7 @@ namespace AssemblerTests
     //  ErrorReportingTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (ErrorReportingTests)
     {
     public:
@@ -1024,6 +1076,7 @@ namespace AssemblerTests
         //  InvalidMnemonic_ReportsError
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (InvalidMnemonic_ReportsError)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -1043,6 +1096,7 @@ namespace AssemblerTests
         //  MissingOperand_ReportsError
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (MissingOperand_ReportsError)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -1062,6 +1116,7 @@ namespace AssemblerTests
         //  ValueOutOfRange_ReportsError
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (ValueOutOfRange_ReportsError)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -1081,6 +1136,7 @@ namespace AssemblerTests
         //  BranchOutOfRange_ReportsError
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (BranchOutOfRange_ReportsError)
         {
             // BEQ (2 bytes) + 128 NOPs → offset = 128, out of range
@@ -1120,6 +1176,7 @@ namespace AssemblerTests
         //  MultipleErrors_AllCollected
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (MultipleErrors_AllCollected)
         {
             // Line 1: invalid mnemonic XYZ
@@ -1151,6 +1208,7 @@ namespace AssemblerTests
     //  Pass1ErrorRecoveryTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (Pass1ErrorRecoveryTests)
     {
     public:
@@ -1161,6 +1219,7 @@ namespace AssemblerTests
         //  Pass1ErrorRecovery_LabelAddressCloseToCorrect
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Pass1ErrorRecovery_LabelAddressCloseToCorrect)
         {
             // Line 1: NOP (1 byte)
@@ -1193,6 +1252,7 @@ namespace AssemblerTests
     //  ListingOutputTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (ListingOutputTests)
     {
     public:
@@ -1203,6 +1263,7 @@ namespace AssemblerTests
         //  Listing_InstructionLine
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Listing_InstructionLine)
         {
             AssemblerOptions options = {};
@@ -1235,6 +1296,7 @@ namespace AssemblerTests
         //  Listing_CommentOnlyLine
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Listing_CommentOnlyLine)
         {
             AssemblerOptions options = {};
@@ -1263,6 +1325,7 @@ namespace AssemblerTests
         //  Listing_ByteDirective
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Listing_ByteDirective)
         {
             AssemblerOptions options = {};
@@ -1292,6 +1355,7 @@ namespace AssemblerTests
         //  Listing_LabelOnlyLine
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Listing_LabelOnlyLine)
         {
             AssemblerOptions options = {};
@@ -1325,6 +1389,7 @@ namespace AssemblerTests
         //  Listing_OrgDirective
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Listing_OrgDirective)
         {
             AssemblerOptions options = {};
@@ -1356,6 +1421,7 @@ namespace AssemblerTests
         //  Listing_DisabledByDefault
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Listing_DisabledByDefault)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -1377,6 +1443,7 @@ namespace AssemblerTests
         //  Listing_FormatHelper
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Listing_FormatHelper)
         {
             AssemblerOptions options = {};
@@ -1403,6 +1470,7 @@ namespace AssemblerTests
         //  Listing_FormatHelper_NoAddress
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Listing_FormatHelper_NoAddress)
         {
             AssemblerOptions options = {};
@@ -1430,6 +1498,7 @@ namespace AssemblerTests
     //  WarningModeTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (WarningModeTests)
     {
     public:
@@ -1452,6 +1521,7 @@ namespace AssemblerTests
         //  UnusedLabel_WarnMode_RecordedAsWarning
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (UnusedLabel_WarnMode_RecordedAsWarning)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::Warn);
@@ -1473,6 +1543,7 @@ namespace AssemblerTests
         //  UnusedLabel_FatalWarnings_PromotedToError
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (UnusedLabel_FatalWarnings_PromotedToError)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::FatalWarnings);
@@ -1495,6 +1566,7 @@ namespace AssemblerTests
         //  UnusedLabel_NoWarn_Suppressed
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (UnusedLabel_NoWarn_Suppressed)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::NoWarn);
@@ -1513,6 +1585,7 @@ namespace AssemblerTests
         //  RedundantOrg_WarnMode_RecordedAsWarning
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (RedundantOrg_WarnMode_RecordedAsWarning)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::Warn);
@@ -1534,6 +1607,7 @@ namespace AssemblerTests
         //  RedundantOrg_FatalWarnings_PromotedToError
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (RedundantOrg_FatalWarnings_PromotedToError)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::FatalWarnings);
@@ -1555,6 +1629,7 @@ namespace AssemblerTests
         //  RedundantOrg_NoWarn_Suppressed
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (RedundantOrg_NoWarn_Suppressed)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::NoWarn);
@@ -1573,6 +1648,7 @@ namespace AssemblerTests
         //  LabelSimilarToMnemonic_WarnMode_RecordedAsWarning
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LabelSimilarToMnemonic_WarnMode_RecordedAsWarning)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::Warn);
@@ -1594,6 +1670,7 @@ namespace AssemblerTests
         //  LabelSimilarToMnemonic_FatalWarnings_PromotedToError
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LabelSimilarToMnemonic_FatalWarnings_PromotedToError)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::FatalWarnings);
@@ -1615,6 +1692,7 @@ namespace AssemblerTests
         //  LabelSimilarToMnemonic_NoWarn_Suppressed
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LabelSimilarToMnemonic_NoWarn_Suppressed)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::NoWarn);
@@ -1633,6 +1711,7 @@ namespace AssemblerTests
         //  UsedLabel_NoWarning
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (UsedLabel_NoWarning)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::Warn);
@@ -1655,6 +1734,7 @@ namespace AssemblerTests
     //  InstanceReuseTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (InstanceReuseTests)
     {
     public:
@@ -1665,6 +1745,7 @@ namespace AssemblerTests
         //  AssembleTwice_ResultsAreIndependent
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (AssembleTwice_ResultsAreIndependent)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -1710,6 +1791,7 @@ namespace AssemblerTests
         //  AssembleTwice_LabelsDoNotLeak
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (AssembleTwice_LabelsDoNotLeak)
         {
             Assembler asm6502 = BuildAssembler ();
@@ -1746,6 +1828,7 @@ namespace AssemblerTests
     //  CaseSensitiveLabelTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (CaseSensitiveLabelTests)
     {
     public:
@@ -1756,6 +1839,7 @@ namespace AssemblerTests
         //  FooAndFOO_ResolveToDifferentAddresses
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (FooAndFOO_ResolveToDifferentAddresses)
         {
             AssemblerOptions options = {};
@@ -1797,6 +1881,7 @@ namespace AssemblerTests
     //  StressTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (StressTests)
     {
     public:
@@ -1807,6 +1892,7 @@ namespace AssemblerTests
         //  HundredLabels_AllResolveCorrectly
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (HundredLabels_AllResolveCorrectly)
         {
             AssemblerOptions options = {};
@@ -1856,6 +1942,7 @@ namespace AssemblerTests
     //  EmptySourceTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (EmptySourceTests)
     {
     public:
@@ -1866,6 +1953,7 @@ namespace AssemblerTests
         //  EmptySource_ReturnsSuccessWithZeroBytes
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (EmptySource_ReturnsSuccessWithZeroBytes)
         {
             Assembler asm6502 = BuildAssembler ();

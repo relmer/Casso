@@ -16,6 +16,7 @@ namespace IntegrationTests
     //  AssembleTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (AssembleTests)
     {
     public:
@@ -26,6 +27,7 @@ namespace IntegrationTests
         //  Assemble_DefaultAddress_WritesToMemory
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Assemble_DefaultAddress_WritesToMemory)
         {
             TestCpu cpu;
@@ -53,6 +55,7 @@ namespace IntegrationTests
         //  Assemble_ExplicitAddress_WritesToCorrectLocation
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Assemble_ExplicitAddress_WritesToCorrectLocation)
         {
             TestCpu cpu;
@@ -74,6 +77,7 @@ namespace IntegrationTests
         //  Assemble_WithErrors_MemoryUnchanged
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Assemble_WithErrors_MemoryUnchanged)
         {
             TestCpu cpu;
@@ -100,6 +104,7 @@ namespace IntegrationTests
     //  RunUntilTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (RunUntilTests)
     {
     public:
@@ -110,6 +115,7 @@ namespace IntegrationTests
         //  RunUntil_ExecutesAndStopsAtTarget
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (RunUntil_ExecutesAndStopsAtTarget)
         {
             TestCpu cpu;
@@ -141,6 +147,7 @@ namespace IntegrationTests
         //  RunUntil_CycleLimit_Timeout
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (RunUntil_CycleLimit_Timeout)
         {
             TestCpu cpu;
@@ -171,6 +178,7 @@ namespace IntegrationTests
         //  RunUntil_IllegalOpcode_Stops
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (RunUntil_IllegalOpcode_Stops)
         {
             TestCpu cpu;
@@ -199,6 +207,7 @@ namespace IntegrationTests
     //  LabelAddressTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (LabelAddressTests)
     {
     public:
@@ -209,6 +218,7 @@ namespace IntegrationTests
         //  LabelAddress_ReturnsCorrectAddresses
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LabelAddress_ReturnsCorrectAddresses)
         {
             TestCpu cpu;
@@ -234,6 +244,7 @@ namespace IntegrationTests
     //  BrkInterruptTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (BrkInterruptTests)
     {
     public:
@@ -244,6 +255,7 @@ namespace IntegrationTests
         //  BRK_PushesStatusAndPC_LoadsIRQVector
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (BRK_PushesStatusAndPC_LoadsIRQVector)
         {
             TestCpu cpu;
@@ -288,6 +300,7 @@ namespace IntegrationTests
     //  StackPageTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (StackPageTests)
     {
     public:
@@ -298,6 +311,7 @@ namespace IntegrationTests
         //  PushWord_AtMaxSP_StaysWithinStackPage
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (PushWord_AtMaxSP_StaysWithinStackPage)
         {
             TestCpu cpu;
@@ -321,6 +335,7 @@ namespace IntegrationTests
         //  PopWord_AfterPushWord_ReturnsOriginalValue
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (PopWord_AfterPushWord_ReturnsOriginalValue)
         {
             TestCpu cpu;
@@ -342,6 +357,7 @@ namespace IntegrationTests
         //  BRK_AtMaxSP_DoesNotWriteOutsideStackPage
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (BRK_AtMaxSP_DoesNotWriteOutsideStackPage)
         {
             TestCpu cpu;
@@ -368,6 +384,7 @@ namespace IntegrationTests
     //  QuickstartValidationTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (QuickstartValidationTests)
     {
     public:
@@ -378,6 +395,7 @@ namespace IntegrationTests
         //  QuickstartExample_AssemblesAndRuns
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (QuickstartExample_AssemblesAndRuns)
         {
             TestCpu cpu;
@@ -416,6 +434,7 @@ namespace IntegrationTests
     //  WriteBytesEquivalenceTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (WriteBytesEquivalenceTests)
     {
     public:
@@ -426,6 +445,7 @@ namespace IntegrationTests
         //  AssembledAndWriteBytes_ProduceIdenticalResults
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (AssembledAndWriteBytes_ProduceIdenticalResults)
         {
             // Assemble a program
@@ -473,6 +493,7 @@ namespace IntegrationTests
     //  LoadBinaryTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (LoadBinaryTests)
     {
     public:
@@ -493,6 +514,7 @@ namespace IntegrationTests
         //  LoadBinary_ValidStream_LoadsBytesAtAddress
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LoadBinary_ValidStream_LoadsBytesAtAddress)
         {
             TestCpu cpu;
@@ -523,6 +545,7 @@ namespace IntegrationTests
         //  LoadBinary_LoadedProgram_Executes
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LoadBinary_LoadedProgram_Executes)
         {
             TestCpu cpu;
@@ -549,6 +572,7 @@ namespace IntegrationTests
         //  LoadBinary_TooLargeForAddress_ReturnsFalse
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LoadBinary_TooLargeForAddress_ReturnsFalse)
         {
             TestCpu cpu;
@@ -577,6 +601,7 @@ namespace IntegrationTests
         //  LoadBinary_FitsExactlyAtEnd_Succeeds
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LoadBinary_FitsExactlyAtEnd_Succeeds)
         {
             TestCpu cpu;
@@ -601,6 +626,7 @@ namespace IntegrationTests
         //  LoadBinary_EmptyStream_Succeeds
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LoadBinary_EmptyStream_Succeeds)
         {
             TestCpu cpu;

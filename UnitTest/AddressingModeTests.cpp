@@ -15,6 +15,7 @@ namespace AddressingModeTests
     //  ImmediateModeTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (ImmediateModeTests)
     {
     public:
@@ -25,6 +26,7 @@ namespace AddressingModeTests
         //  LDA_Immediate_LoadsValue
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDA_Immediate_LoadsValue)
         {
             TestCpu cpu;
@@ -45,6 +47,7 @@ namespace AddressingModeTests
         //  LDX_Immediate_LoadsValue
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDX_Immediate_LoadsValue)
         {
             TestCpu cpu;
@@ -65,6 +68,7 @@ namespace AddressingModeTests
         //  LDY_Immediate_LoadsValue
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDY_Immediate_LoadsValue)
         {
             TestCpu cpu;
@@ -86,6 +90,7 @@ namespace AddressingModeTests
     //  ZeroPageModeTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (ZeroPageModeTests)
     {
     public:
@@ -96,6 +101,7 @@ namespace AddressingModeTests
         //  LDA_ZeroPage_LoadsFromZP
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDA_ZeroPage_LoadsFromZP)
         {
             TestCpu cpu;
@@ -117,6 +123,7 @@ namespace AddressingModeTests
         //  STA_ZeroPage_Stores
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (STA_ZeroPage_Stores)
         {
             TestCpu cpu;
@@ -141,6 +148,7 @@ namespace AddressingModeTests
     //  ZeroPageXModeTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (ZeroPageXModeTests)
     {
     public:
@@ -151,6 +159,7 @@ namespace AddressingModeTests
         //  LDA_ZeroPageX_IndexesWithX
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDA_ZeroPageX_IndexesWithX)
         {
             TestCpu cpu;
@@ -174,6 +183,7 @@ namespace AddressingModeTests
     //  AbsoluteModeTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (AbsoluteModeTests)
     {
     public:
@@ -184,6 +194,7 @@ namespace AddressingModeTests
         //  LDA_Absolute_LoadsFromAddress
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDA_Absolute_LoadsFromAddress)
         {
             TestCpu cpu;
@@ -205,6 +216,7 @@ namespace AddressingModeTests
         //  STA_Absolute_Stores
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (STA_Absolute_Stores)
         {
             TestCpu cpu;
@@ -229,6 +241,7 @@ namespace AddressingModeTests
     //  AbsoluteIndexedModeTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (AbsoluteIndexedModeTests)
     {
     public:
@@ -239,6 +252,7 @@ namespace AddressingModeTests
         //  LDA_AbsoluteX_IndexesWithX
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDA_AbsoluteX_IndexesWithX)
         {
             TestCpu cpu;
@@ -261,6 +275,7 @@ namespace AddressingModeTests
         //  LDA_AbsoluteY_IndexesWithY
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDA_AbsoluteY_IndexesWithY)
         {
             TestCpu cpu;
@@ -284,6 +299,7 @@ namespace AddressingModeTests
     //  ZeroPageXIndirectModeTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (ZeroPageXIndirectModeTests)
     {
     public:
@@ -294,6 +310,7 @@ namespace AddressingModeTests
         //  LDA_ZpXIndirect_DoubleIndirection
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDA_ZpXIndirect_DoubleIndirection)
         {
             TestCpu cpu;
@@ -319,6 +336,7 @@ namespace AddressingModeTests
     //  ZeroPageIndirectYModeTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (ZeroPageIndirectYModeTests)
     {
     public:
@@ -329,6 +347,7 @@ namespace AddressingModeTests
         //  LDA_ZpIndirectY_PostIndexed
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (LDA_ZpIndirectY_PostIndexed)
         {
             TestCpu cpu;
@@ -354,6 +373,7 @@ namespace AddressingModeTests
     //  BranchIntegrationTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (BranchIntegrationTests)
     {
     public:
@@ -364,6 +384,7 @@ namespace AddressingModeTests
         //  BNE_Forward_SkipsBytes
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (BNE_Forward_SkipsBytes)
         {
             TestCpu cpu;
@@ -389,6 +410,7 @@ namespace AddressingModeTests
         //  BEQ_NotTaken_FallsThrough
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (BEQ_NotTaken_FallsThrough)
         {
             TestCpu cpu;
@@ -413,6 +435,7 @@ namespace AddressingModeTests
         //  DEX_BMI_Loop
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (DEX_BMI_Loop)
         {
             // LDX #3, then DEX loop until negative

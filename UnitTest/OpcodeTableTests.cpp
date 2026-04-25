@@ -16,6 +16,7 @@ namespace OpcodeTableTests
     //  OpcodeTableBasicTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (OpcodeTableBasicTests)
     {
     private:
@@ -34,6 +35,7 @@ namespace OpcodeTableTests
         //  Lookup_LDA_Immediate_Returns_A9
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Lookup_LDA_Immediate_Returns_A9)
         {
             OpcodeTable table = BuildTable ();
@@ -55,6 +57,7 @@ namespace OpcodeTableTests
         //  Lookup_STA_ZeroPage_Returns_85
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Lookup_STA_ZeroPage_Returns_85)
         {
             OpcodeTable table = BuildTable ();
@@ -75,6 +78,7 @@ namespace OpcodeTableTests
         //  IsMnemonic_LDA_ReturnsTrue
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (IsMnemonic_LDA_ReturnsTrue)
         {
             OpcodeTable table = BuildTable ();
@@ -91,6 +95,7 @@ namespace OpcodeTableTests
         //  IsMnemonic_XYZ_ReturnsFalse
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (IsMnemonic_XYZ_ReturnsFalse)
         {
             OpcodeTable table = BuildTable ();
@@ -107,6 +112,7 @@ namespace OpcodeTableTests
         //  HasMode_LDA_Immediate_ReturnsTrue
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (HasMode_LDA_Immediate_ReturnsTrue)
         {
             OpcodeTable table = BuildTable ();
@@ -123,6 +129,7 @@ namespace OpcodeTableTests
         //  HasMode_LDA_SingleByte_ReturnsFalse
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (HasMode_LDA_SingleByte_ReturnsFalse)
         {
             OpcodeTable table = BuildTable ();
@@ -139,6 +146,7 @@ namespace OpcodeTableTests
         //  AllStandardMnemonics_HaveAtLeastOneEntry
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (AllStandardMnemonics_HaveAtLeastOneEntry)
         {
             OpcodeTable table = BuildTable ();
@@ -171,6 +179,7 @@ namespace OpcodeTableTests
     //  OpcodeTableCoverageTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (OpcodeTableCoverageTests)
     {
     private:
@@ -199,6 +208,7 @@ namespace OpcodeTableTests
         //  AllOpcodes_MatchExpected
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (AllOpcodes_MatchExpected)
         {
             OpcodeTable table = BuildTable ();

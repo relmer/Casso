@@ -9,7 +9,6 @@
 // TestCpu exposes Cpu's protected members for unit testing.
 // No changes to production code required.
 ////////////////////////////////////////////////////////////////////////////////
-
 //
 //  TestCpu
 //

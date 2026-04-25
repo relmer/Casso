@@ -16,6 +16,7 @@ namespace ParserTests
     //  SplitLinesTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (SplitLinesTests)
     {
     public:
@@ -26,6 +27,7 @@ namespace ParserTests
         //  SplitLines_SplitsOnNewline
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (SplitLines_SplitsOnNewline)
         {
             auto lines = Parser::SplitLines ("LDA #$42\nSTA $10\nNOP");
@@ -45,6 +47,7 @@ namespace ParserTests
         //  SplitLines_HandlesEmptyString
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (SplitLines_HandlesEmptyString)
         {
             auto lines = Parser::SplitLines ("");
@@ -61,6 +64,7 @@ namespace ParserTests
         //  SplitLines_HandlesCRLF
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (SplitLines_HandlesCRLF)
         {
             auto lines = Parser::SplitLines ("LDA #$42\r\nSTA $10");
@@ -80,6 +84,7 @@ namespace ParserTests
     //  ParseLineTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (ParseLineTests)
     {
     public:
@@ -90,6 +95,7 @@ namespace ParserTests
         //  ParseLine_ExtractsLabel
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (ParseLine_ExtractsLabel)
         {
             auto parsed = Parser::ParseLine ("loop: LDA #$42", 1);
@@ -109,6 +115,7 @@ namespace ParserTests
         //  ParseLine_MnemonicIsCaseInsensitive
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (ParseLine_MnemonicIsCaseInsensitive)
         {
             auto parsed = Parser::ParseLine ("lda #$42", 1);
@@ -125,6 +132,7 @@ namespace ParserTests
         //  ParseLine_ExtractsOperand
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (ParseLine_ExtractsOperand)
         {
             auto parsed = Parser::ParseLine ("STA $10", 1);
@@ -142,6 +150,7 @@ namespace ParserTests
         //  ParseLine_StripsFullLineComment
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (ParseLine_StripsFullLineComment)
         {
             auto parsed = Parser::ParseLine ("; this is a comment", 1);
@@ -158,6 +167,7 @@ namespace ParserTests
         //  ParseLine_StripsInlineComment
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (ParseLine_StripsInlineComment)
         {
             auto parsed = Parser::ParseLine ("LDA #$42 ; load", 1);
@@ -175,6 +185,7 @@ namespace ParserTests
         //  ParseLine_HandlesBlankLine
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (ParseLine_HandlesBlankLine)
         {
             auto parsed = Parser::ParseLine ("", 1);
@@ -191,6 +202,7 @@ namespace ParserTests
         //  ParseLine_HandlesWhitespaceOnly
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (ParseLine_HandlesWhitespaceOnly)
         {
             auto parsed = Parser::ParseLine ("   \t  ", 1);
@@ -207,6 +219,7 @@ namespace ParserTests
         //  ParseLine_LabelOnly
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (ParseLine_LabelOnly)
         {
             auto parsed = Parser::ParseLine ("start:", 1);
@@ -226,6 +239,7 @@ namespace ParserTests
     //  NumberFormatTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (NumberFormatTests)
     {
     public:
@@ -236,6 +250,7 @@ namespace ParserTests
         //  ParseValue_Hex
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (ParseValue_Hex)
         {
             int value = 0;
@@ -252,6 +267,7 @@ namespace ParserTests
         //  ParseValue_HexLowerCase
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (ParseValue_HexLowerCase)
         {
             int value = 0;
@@ -268,6 +284,7 @@ namespace ParserTests
         //  ParseValue_Binary
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (ParseValue_Binary)
         {
             int value = 0;
@@ -284,6 +301,7 @@ namespace ParserTests
         //  ParseValue_BinaryLowNibble
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (ParseValue_BinaryLowNibble)
         {
             int value = 0;
@@ -300,6 +318,7 @@ namespace ParserTests
         //  ParseValue_Decimal
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (ParseValue_Decimal)
         {
             int value = 0;
@@ -316,6 +335,7 @@ namespace ParserTests
         //  ParseValue_DecimalZero
         //
         ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (ParseValue_DecimalZero)
         {
             int value = 0;

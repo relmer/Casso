@@ -20,6 +20,7 @@ namespace UnitTestHelpers
     //  EhmBreakpointHandler
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     static void EhmBreakpointHandler ()
     {
         Assert::Fail (L"EHM assertion failure detected in unit test");
@@ -34,6 +35,7 @@ namespace UnitTestHelpers
     //  SuppressCrtAssertDialogs
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     static void SuppressCrtAssertDialogs ()
     {
         // Redirect CRT assert/error/warning to stderr instead of showing dialog boxes
@@ -59,6 +61,7 @@ namespace UnitTestHelpers
     //  SetupForUnitTests
     //
     ////////////////////////////////////////////////////////////////////////////////
+
     void SetupForUnitTests ()
     {
         SetBreakpointFunction (EhmBreakpointHandler);
