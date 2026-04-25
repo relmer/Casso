@@ -186,7 +186,11 @@ namespace AssemblerTests
             // BEQ target (2 bytes) + NOP (1 byte) + target: NOP
             // Branch offset = +1 (skip NOP, relative to PC after BEQ instruction)
             Assembler asm6502 = BuildAssembler ();
-            auto result = asm6502.Assemble ("BEQ target\nNOP\ntarget: NOP");
+            auto result = asm6502.Assemble (R"(    BEQ target
+    NOP
+target:
+    NOP
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 4, result.bytes.size ());
@@ -201,7 +205,10 @@ namespace AssemblerTests
             // loop: INX (1 byte) + BNE loop (2 bytes)
             // Branch offset = -3 (back to INX, relative to PC after BNE instruction)
             Assembler asm6502 = BuildAssembler ();
-            auto result = asm6502.Assemble ("loop: INX\nBNE loop");
+            auto result = asm6502.Assemble (R"(loop:
+    INX
+    BNE loop
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 3, result.bytes.size ());
@@ -215,7 +222,10 @@ namespace AssemblerTests
             // JMP label (3 bytes) + label: NOP
             // label address = 0x8003
             Assembler asm6502 = BuildAssembler ();
-            auto result = asm6502.Assemble ("JMP label\nlabel: NOP");
+            auto result = asm6502.Assemble (R"(    JMP label
+label:
+    NOP
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 4, result.bytes.size ());
@@ -230,7 +240,11 @@ namespace AssemblerTests
             // JSR sub (3 bytes) + NOP (1 byte) + sub: RTS (1 byte)
             // sub address = 0x8004
             Assembler asm6502 = BuildAssembler ();
-            auto result = asm6502.Assemble ("JSR sub\nNOP\nsub: RTS");
+            auto result = asm6502.Assemble (R"(    JSR sub
+    NOP
+sub:
+    RTS
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 5, result.bytes.size ());
@@ -244,7 +258,11 @@ namespace AssemblerTests
         TEST_METHOD (Label_AppearsInSymbols)
         {
             Assembler asm6502 = BuildAssembler ();
-            auto result = asm6502.Assemble ("start: NOP\nend: NOP");
+            auto result = asm6502.Assemble (R"(start:
+    NOP
+end:
+    NOP
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 2, result.symbols.size ());
@@ -265,7 +283,9 @@ namespace AssemblerTests
         TEST_METHOD (DuplicateLabel_ReportsError)
         {
             Assembler asm6502 = BuildAssembler ();
-            auto result = asm6502.Assemble ("dup: NOP\ndup: NOP");
+            auto result = asm6502.Assemble (R"(dup: NOP
+dup: NOP
+)");
 
             Assert::IsFalse (result.success);
             Assert::AreEqual ((size_t) 1, result.errors.size ());
@@ -330,7 +350,9 @@ namespace AssemblerTests
         TEST_METHOD (Org_SetsStartAddress)
         {
             Assembler asm6502 = BuildAssembler ();
-            auto result = asm6502.Assemble (".org $C000\nNOP");
+            auto result = asm6502.Assemble (R"(    .org $C000
+    NOP
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((Word) 0xC000, result.startAddress);
@@ -341,7 +363,10 @@ namespace AssemblerTests
         TEST_METHOD (Org_BackwardFromCurrentPC_ReportsError)
         {
             Assembler asm6502 = BuildAssembler ();
-            auto result = asm6502.Assemble (".org $C000\nNOP\n.org $BFFF");
+            auto result = asm6502.Assemble (R"(    .org $C000
+    NOP
+    .org $BFFF
+)");
 
             Assert::IsFalse (result.success);
             Assert::AreEqual ((size_t) 1, result.errors.size ());
@@ -479,8 +504,14 @@ namespace AssemblerTests
         TEST_METHOD (BlankLines_ProduceSameOutput)
         {
             Assembler asm6502 = BuildAssembler ();
-            auto withBlanks    = asm6502.Assemble ("LDA #$42\n\n\nSTA $10");
-            auto withoutBlanks = asm6502.Assemble ("LDA #$42\nSTA $10");
+            auto withBlanks    = asm6502.Assemble (R"(    LDA #$42
+
+
+    STA $10
+)");
+            auto withoutBlanks = asm6502.Assemble (R"(    LDA #$42
+    STA $10
+)");
 
             Assert::IsTrue (withBlanks.success);
             Assert::IsTrue (withoutBlanks.success);
@@ -517,7 +548,11 @@ namespace AssemblerTests
         {
             // data at $1234, LDA #<data → operand $34 (low byte)
             Assembler asm6502 = BuildAssembler ();
-            auto result = asm6502.Assemble (".org $1234\ndata: .byte $FF\nLDA #<data");
+            auto result = asm6502.Assemble (R"(    .org $1234
+data:
+    .byte $FF
+    LDA #<data
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((Word) 0x1234, result.symbols["data"]);
@@ -531,7 +566,11 @@ namespace AssemblerTests
         {
             // data at $1234, LDA #>data → operand $12 (high byte)
             Assembler asm6502 = BuildAssembler ();
-            auto result = asm6502.Assemble (".org $1234\ndata: .byte $FF\nLDA #>data");
+            auto result = asm6502.Assemble (R"(    .org $1234
+data:
+    .byte $FF
+    LDA #>data
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((Word) 0x1234, result.symbols["data"]);
@@ -545,7 +584,11 @@ namespace AssemblerTests
         {
             // table at $2000, LDA table+3 → address $2003
             Assembler asm6502 = BuildAssembler ();
-            auto result = asm6502.Assemble (".org $2000\ntable: .byte $01,$02,$03,$04\nLDA table+3");
+            auto result = asm6502.Assemble (R"(    .org $2000
+table:
+    .byte $01,$02,$03,$04
+    LDA table+3
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((Word) 0x2000, result.symbols["table"]);
@@ -657,7 +700,11 @@ namespace AssemblerTests
             // Line 3: LDA (missing operand)
             // Line 4: BEQ nowhere (undefined label)
             Assembler asm6502 = BuildAssembler ();
-            auto result = asm6502.Assemble ("XYZ\nNOP\nLDA\nBEQ nowhere");
+            auto result = asm6502.Assemble (R"(    XYZ
+    NOP
+    LDA
+    BEQ nowhere
+)");
 
             Assert::IsFalse (result.success);
             Assert::AreEqual ((size_t) 3, result.errors.size ());
@@ -684,7 +731,12 @@ namespace AssemblerTests
             // Line 4: target: NOP (1 byte)
             // target should be at startAddr + 3 (best-effort PC estimation)
             Assembler asm6502 = BuildAssembler ();
-            auto result = asm6502.Assemble ("NOP\nXYZ\nNOP\ntarget: NOP");
+            auto result = asm6502.Assemble (R"(    NOP
+    XYZ
+    NOP
+target:
+    NOP
+)");
 
             Assert::IsFalse (result.success);
 
@@ -774,7 +826,9 @@ namespace AssemblerTests
             cpu.InitForTest ();
             Assembler asm6502 (cpu.GetInstructionSet (), options);
 
-            auto result = asm6502.Assemble ("start:\nNOP");
+            auto result = asm6502.Assemble (R"(start:
+    NOP
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 2, result.listing.size ());
@@ -795,7 +849,9 @@ namespace AssemblerTests
             cpu.InitForTest ();
             Assembler asm6502 (cpu.GetInstructionSet (), options);
 
-            auto result = asm6502.Assemble (".org $C000\nNOP");
+            auto result = asm6502.Assemble (R"(    .org $C000
+    NOP
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 2, result.listing.size ());
@@ -808,7 +864,9 @@ namespace AssemblerTests
         TEST_METHOD (Listing_DisabledByDefault)
         {
             Assembler asm6502 = BuildAssembler ();
-            auto result = asm6502.Assemble ("LDA #$42\nNOP");
+            auto result = asm6502.Assemble (R"(    LDA #$42
+    NOP
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 0, result.listing.size ());
@@ -875,7 +933,10 @@ namespace AssemblerTests
         TEST_METHOD (UnusedLabel_WarnMode_RecordedAsWarning)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::Warn);
-            auto result = asm6502.Assemble ("unused: NOP\nNOP");
+            auto result = asm6502.Assemble (R"(unused:
+    NOP
+    NOP
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 1, result.warnings.size ());
@@ -884,7 +945,10 @@ namespace AssemblerTests
         TEST_METHOD (UnusedLabel_FatalWarnings_PromotedToError)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::FatalWarnings);
-            auto result = asm6502.Assemble ("unused: NOP\nNOP");
+            auto result = asm6502.Assemble (R"(unused:
+    NOP
+    NOP
+)");
 
             Assert::IsFalse (result.success);
             Assert::AreEqual ((size_t) 1, result.errors.size ());
@@ -894,7 +958,10 @@ namespace AssemblerTests
         TEST_METHOD (UnusedLabel_NoWarn_Suppressed)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::NoWarn);
-            auto result = asm6502.Assemble ("unused: NOP\nNOP");
+            auto result = asm6502.Assemble (R"(unused:
+    NOP
+    NOP
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 0, result.warnings.size ());
@@ -905,7 +972,9 @@ namespace AssemblerTests
         TEST_METHOD (RedundantOrg_WarnMode_RecordedAsWarning)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::Warn);
-            auto result = asm6502.Assemble (".org $8000\nNOP");
+            auto result = asm6502.Assemble (R"(    .org $8000
+    NOP
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 1, result.warnings.size ());
@@ -914,7 +983,9 @@ namespace AssemblerTests
         TEST_METHOD (RedundantOrg_FatalWarnings_PromotedToError)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::FatalWarnings);
-            auto result = asm6502.Assemble (".org $8000\nNOP");
+            auto result = asm6502.Assemble (R"(    .org $8000
+    NOP
+)");
 
             Assert::IsFalse (result.success);
             Assert::AreEqual ((size_t) 1, result.errors.size ());
@@ -923,7 +994,9 @@ namespace AssemblerTests
         TEST_METHOD (RedundantOrg_NoWarn_Suppressed)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::NoWarn);
-            auto result = asm6502.Assemble (".org $8000\nNOP");
+            auto result = asm6502.Assemble (R"(    .org $8000
+    NOP
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 0, result.warnings.size ());
@@ -934,7 +1007,10 @@ namespace AssemblerTests
         TEST_METHOD (LabelSimilarToMnemonic_WarnMode_RecordedAsWarning)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::Warn);
-            auto result = asm6502.Assemble ("lda: NOP\nBEQ lda");
+            auto result = asm6502.Assemble (R"(lda:
+    NOP
+    BEQ lda
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 1, result.warnings.size ());
@@ -943,7 +1019,10 @@ namespace AssemblerTests
         TEST_METHOD (LabelSimilarToMnemonic_FatalWarnings_PromotedToError)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::FatalWarnings);
-            auto result = asm6502.Assemble ("lda: NOP\nBEQ lda");
+            auto result = asm6502.Assemble (R"(lda:
+    NOP
+    BEQ lda
+)");
 
             Assert::IsFalse (result.success);
             Assert::AreEqual ((size_t) 1, result.errors.size ());
@@ -952,7 +1031,10 @@ namespace AssemblerTests
         TEST_METHOD (LabelSimilarToMnemonic_NoWarn_Suppressed)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::NoWarn);
-            auto result = asm6502.Assemble ("lda: NOP\nBEQ lda");
+            auto result = asm6502.Assemble (R"(lda:
+    NOP
+    BEQ lda
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 0, result.warnings.size ());
@@ -963,7 +1045,10 @@ namespace AssemblerTests
         TEST_METHOD (UsedLabel_NoWarning)
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::Warn);
-            auto result = asm6502.Assemble ("loop: NOP\nBEQ loop");
+            auto result = asm6502.Assemble (R"(loop:
+    NOP
+    BEQ loop
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 0, result.warnings.size ());
@@ -983,8 +1068,12 @@ namespace AssemblerTests
         {
             Assembler asm6502 = BuildAssembler ();
 
-            auto result1 = asm6502.Assemble ("LDA #$42\nSTA $10");
-            auto result2 = asm6502.Assemble ("LDX #$FF\nSTX $20");
+            auto result1 = asm6502.Assemble (R"(    LDA #$42
+    STA $10
+)");
+            auto result2 = asm6502.Assemble (R"(    LDX #$FF
+    STX $20
+)");
 
             Assert::IsTrue (result1.success);
             Assert::IsTrue (result2.success);
@@ -1012,8 +1101,16 @@ namespace AssemblerTests
         {
             Assembler asm6502 = BuildAssembler ();
 
-            auto result1 = asm6502.Assemble ("start: NOP\nend: BRK");
-            auto result2 = asm6502.Assemble ("begin: NOP\nfinish: BRK");
+            auto result1 = asm6502.Assemble (R"(start:
+    NOP
+end:
+    BRK
+)");
+            auto result2 = asm6502.Assemble (R"(begin:
+    NOP
+finish:
+    BRK
+)");
 
             Assert::IsTrue (result1.success);
             Assert::IsTrue (result2.success);
@@ -1046,12 +1143,13 @@ namespace AssemblerTests
             cpu.InitForTest ();
             Assembler asm6502 (cpu.GetInstructionSet (), options);
 
-            auto result = asm6502.Assemble (
-                "foo: NOP\n"
-                "FOO: NOP\n"
-                "JMP foo\n"
-                "JMP FOO\n"
-            );
+            auto result = asm6502.Assemble (R"(foo:
+    NOP
+FOO:
+    NOP
+    JMP foo
+    JMP FOO
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((Word) 0x8000, result.symbols["foo"]);
