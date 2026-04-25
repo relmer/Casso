@@ -847,3 +847,40 @@ void Cpu::PrintInstructionSet (Microcode::Group group)
 
 
 
+bool Cpu::LoadBinary (const std::string & filename, Word address)
+{
+    std::ifstream file (filename, std::ios::binary | std::ios::ate);
+
+    if (!file.is_open ())
+    {
+        return false;
+    }
+
+    std::streamoff size = file.tellg ();
+
+    if (size < 0)
+    {
+        return false;
+    }
+
+    // Must fit entirely within the 64 KB address space starting at `address`.
+    if ((size_t) size > memSize - address)
+    {
+        return false;
+    }
+
+    file.seekg (0, std::ios::beg);
+
+    if (size > 0)
+    {
+        file.read (reinterpret_cast<char *> (memory.data () + address), size);
+
+        if (!file)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+

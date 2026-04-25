@@ -29,6 +29,12 @@ public:
     void PokeByte  (Word address, Byte value) { memory[address] = value; }
     Word PeekWord  (Word address) const { return memory[address] | (memory[address + 1] << 8); }
 
+    // Load a raw binary file into memory at the specified address.
+    // Returns true on success; false if the file cannot be opened or does not
+    // fit within the 64 KB address space starting at `address`.
+    // On failure, memory contents are left unchanged.
+    bool LoadBinary (const std::string & filename, Word address);
+
 protected:
     struct OperandInfo
     {
