@@ -35,6 +35,11 @@ public:
     // On failure, memory contents are left unchanged.
     bool LoadBinary (const std::string & filename, Word address);
 
+    // Stream-based overload. Reads all remaining bytes from `stream` into
+    // memory starting at `address`. Used directly by unit tests to avoid
+    // touching the filesystem; the filename overload is a thin wrapper.
+    bool LoadBinary (std::istream & stream, Word address);
+
 protected:
     struct OperandInfo
     {
