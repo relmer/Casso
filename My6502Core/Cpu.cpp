@@ -851,31 +851,41 @@ bool Cpu::LoadBinary (const std::string & filename, Word address)
 {
     HRESULT hr = S_OK;
 
-    std::ifstream  file (filename, std::ios::binary | std::ios::ate);
-    bool           fIsOpen    = file.is_open ();
-    std::streamoff size       = 0;
-    bool           fSizeOk    = false;
-    bool           fFitsInMem = false;
-    bool           fReadOk    = false;
+    std::ifstream file (filename, std::ios::binary);
+    bool          fIsOpen = file.is_open ();
+    bool          fLoadOk = false;
 
     CBR (fIsOpen);
 
-    size    = file.tellg ();
-    fSizeOk = (size >= 0);
-    CBR (fSizeOk);
+    fLoadOk = LoadBinary (file, address);
+    CBR (fLoadOk);
 
-    // Must fit entirely within the 64 KB address space starting at `address`.
-    fFitsInMem = ((size_t) size <= memSize - address);
+Error:
+    return SUCCEEDED (hr);
+}
+
+
+
+bool Cpu::LoadBinary (std::istream & stream, Word address)
+{
+    HRESULT hr = S_OK;
+
+    // Read the entire stream into a temporary buffer so we can validate the
+    // size before touching `memory`. This guarantees that on any failure
+    // (read error, oversize) the existing memory contents are unchanged.
+    std::vector<char> buffer ((std::istreambuf_iterator<char> (stream)),
+                               std::istreambuf_iterator<char> ());
+
+    bool fStreamOk  = !stream.bad ();
+    bool fFitsInMem = (buffer.size () <= memSize - address);
+
+    CBR (fStreamOk);
     CBR (fFitsInMem);
 
-    file.seekg (0, std::ios::beg);
-
-    if (size > 0)
+    if (!buffer.empty ())
     {
-        file.read (reinterpret_cast<char *> (memory.data () + address), size);
-
-        fReadOk = file.good ();
-        CBR (fReadOk);
+        std::copy (buffer.begin (), buffer.end (),
+                   reinterpret_cast<char *> (memory.data () + address));
     }
 
 Error:

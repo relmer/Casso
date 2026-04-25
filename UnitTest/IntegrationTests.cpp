@@ -319,57 +319,35 @@ namespace IntegrationTests
 
     // =========================================================================
     // LoadBinary() Tests
+    //
+    // These tests exercise the stream-based LoadBinary overload with
+    // std::stringstream so that no filesystem state is created or required.
     // =========================================================================
     TEST_CLASS (LoadBinaryTests)
     {
     public:
 
-        // RAII helper: writes bytes to a uniquely-named temp file in the
-        // current working directory and deletes the file on destruction
-        // (even if a test assertion fails partway through).
-        class TempFile
+        // Build an in-memory binary stream from a list of bytes.
+        static std::stringstream MakeStream (std::initializer_list<Byte> bytes)
         {
-        public:
-            explicit TempFile (std::initializer_list<Byte> bytes)
+            std::stringstream ss (std::ios::in | std::ios::out | std::ios::binary);
+
+            for (Byte b : bytes)
             {
-                static int counter = 0;
-                char namebuf[64];
-                std::snprintf (namebuf, sizeof (namebuf), "loadbinary_test_%d_%d.bin",
-                              (int) ::GetCurrentProcessId (), ++counter);
-
-                m_path = namebuf;
-
-                std::ofstream file (m_path, std::ios::binary);
-                Assert::IsTrue (file.is_open ());
-
-                for (Byte b : bytes)
-                {
-                    file.put ((char) b);
-                }
+                ss.put ((char) b);
             }
 
-            ~TempFile ()
-            {
-                std::remove (m_path.c_str ());
-            }
+            return ss;
+        }
 
-            TempFile             (const TempFile &) = delete;
-            TempFile & operator= (const TempFile &) = delete;
-
-            const std::string & Path () const { return m_path; }
-
-        private:
-            std::string m_path;
-        };
-
-        TEST_METHOD (LoadBinary_ValidFile_LoadsBytesAtAddress)
+        TEST_METHOD (LoadBinary_ValidStream_LoadsBytesAtAddress)
         {
             TestCpu cpu;
             cpu.InitForTest ();
 
-            TempFile bin ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
+            std::stringstream bin = MakeStream ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
 
-            bool ok = cpu.LoadBinary (bin.Path (), 0x8000);
+            bool ok = cpu.LoadBinary (bin, (Word) 0x8000);
 
             Assert::IsTrue (ok);
             Assert::AreEqual ((Byte) 0xA9, cpu.Peek (0x8000));
@@ -389,9 +367,9 @@ namespace IntegrationTests
             cpu.InitForTest ();
 
             // LDA #$42 ; STA $10 ; BRK
-            TempFile bin ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
+            std::stringstream bin = MakeStream ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
 
-            Assert::IsTrue (cpu.LoadBinary (bin.Path (), 0x8000));
+            Assert::IsTrue (cpu.LoadBinary (bin, (Word) 0x8000));
 
             cpu.RegPC () = 0x8000;
             cpu.StepN (2); // LDA, STA
@@ -400,32 +378,18 @@ namespace IntegrationTests
             Assert::AreEqual ((Byte) 0x42, cpu.Peek (0x10));
         }
 
-        TEST_METHOD (LoadBinary_MissingFile_ReturnsFalse)
-        {
-            TestCpu cpu;
-            cpu.InitForTest ();
-
-            cpu.Poke (0x8000, 0xAB);
-
-            bool ok = cpu.LoadBinary ("this_file_does_not_exist_123456.bin", 0x8000);
-
-            Assert::IsFalse (ok);
-            // Memory unchanged on failure.
-            Assert::AreEqual ((Byte) 0xAB, cpu.Peek (0x8000));
-        }
-
         TEST_METHOD (LoadBinary_TooLargeForAddress_ReturnsFalse)
         {
             TestCpu cpu;
             cpu.InitForTest ();
 
-            // 3-byte file, but loading at 0xFFFE would need address 0x10000 (overflow).
-            TempFile bin ({ 0x11, 0x22, 0x33 });
+            // 3-byte stream, but loading at 0xFFFE would need address 0x10000 (overflow).
+            std::stringstream bin = MakeStream ({ 0x11, 0x22, 0x33 });
 
             cpu.Poke (0xFFFE, 0xAB);
             cpu.Poke (0xFFFF, 0xCD);
 
-            bool ok = cpu.LoadBinary (bin.Path (), 0xFFFE);
+            bool ok = cpu.LoadBinary (bin, (Word) 0xFFFE);
 
             Assert::IsFalse (ok);
             // Memory unchanged on failure.
@@ -438,29 +402,29 @@ namespace IntegrationTests
             TestCpu cpu;
             cpu.InitForTest ();
 
-            // 2-byte file loaded at 0xFFFE fills the last two bytes of the address space.
-            TempFile bin ({ 0xAA, 0xBB });
+            // 2-byte stream loaded at 0xFFFE fills the last two bytes of the address space.
+            std::stringstream bin = MakeStream ({ 0xAA, 0xBB });
 
-            bool ok = cpu.LoadBinary (bin.Path (), 0xFFFE);
+            bool ok = cpu.LoadBinary (bin, (Word) 0xFFFE);
 
             Assert::IsTrue (ok);
             Assert::AreEqual ((Byte) 0xAA, cpu.Peek (0xFFFE));
             Assert::AreEqual ((Byte) 0xBB, cpu.Peek (0xFFFF));
         }
 
-        TEST_METHOD (LoadBinary_EmptyFile_Succeeds)
+        TEST_METHOD (LoadBinary_EmptyStream_Succeeds)
         {
             TestCpu cpu;
             cpu.InitForTest ();
 
-            TempFile bin ({});
+            std::stringstream bin = MakeStream ({});
 
             cpu.Poke (0x8000, 0xAB);
 
-            bool ok = cpu.LoadBinary (bin.Path (), 0x8000);
+            bool ok = cpu.LoadBinary (bin, (Word) 0x8000);
 
             Assert::IsTrue (ok);
-            // Empty file means nothing is overwritten.
+            // Empty stream means nothing is overwritten.
             Assert::AreEqual ((Byte) 0xAB, cpu.Peek (0x8000));
         }
     };
