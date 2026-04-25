@@ -857,16 +857,9 @@ Word Cpu::ReadWord (Word address)
 void Cpu::InitializeInstructionSet ()
 {
     InitializeGroup00 ();
-    PrintInstructionSet (Microcode::Group00);
-
     InitializeGroup01 ();
-    PrintInstructionSet (Microcode::Group01);
-
     InitializeGroup10 ();
-    PrintInstructionSet (Microcode::Group10);
-
     InitializeMisc ();
-    PrintInstructionSet (Microcode::Misc);
 }
 
 
@@ -1096,39 +1089,6 @@ void Cpu::CreateInstruction (uint32_t                      addressingModeMax,
         ++addressingMode;
         currentAddressingModeFlag <<= 1;
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PrintInstructionSet
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Cpu::PrintInstructionSet (Microcode::Group group)
-{
-    for (const Microcode & instruction : instructionSet)
-    {
-        const char * pszInstructionName  = nullptr;
-
-        if ((instruction.group != group) ||
-            !instruction.isLegal)
-        {
-            continue;
-        }
-
-        std::printf ("Instruction %02X:  Group 0x%02X, %s ($%02X) %s\n",
-                     instruction.instruction.asByte,
-                     instruction.group,
-                     instruction.instructionName,
-                     instruction.instruction.asByte,
-                     GlobalAddressingMode::s_addressingModeName[instruction.globalAddressingMode]);
-    }
-
-    std::puts ("");
 }
 
 
