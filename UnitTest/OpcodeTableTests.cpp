@@ -9,6 +9,14 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace OpcodeTableTests
 {
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  OpcodeTableBasicTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (OpcodeTableBasicTests)
     {
     private:
@@ -20,6 +28,13 @@ namespace OpcodeTableTests
         }
 
     public:
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Lookup_LDA_Immediate_Returns_A9
+        //
+        ////////////////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (Lookup_LDA_Immediate_Returns_A9)
         {
@@ -33,6 +48,16 @@ namespace OpcodeTableTests
             Assert::AreEqual ((Byte) 1,    entry.operandSize);
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Lookup_STA_ZeroPage_Returns_85
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (Lookup_STA_ZeroPage_Returns_85)
         {
             OpcodeTable table = BuildTable ();
@@ -44,12 +69,32 @@ namespace OpcodeTableTests
             Assert::AreEqual ((Byte) 0x85, entry.opcode);
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  IsMnemonic_LDA_ReturnsTrue
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (IsMnemonic_LDA_ReturnsTrue)
         {
             OpcodeTable table = BuildTable ();
 
             Assert::IsTrue (table.IsMnemonic ("LDA"));
         }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  IsMnemonic_XYZ_ReturnsFalse
+        //
+        ////////////////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (IsMnemonic_XYZ_ReturnsFalse)
         {
@@ -58,6 +103,16 @@ namespace OpcodeTableTests
             Assert::IsFalse (table.IsMnemonic ("XYZ"));
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  HasMode_LDA_Immediate_ReturnsTrue
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (HasMode_LDA_Immediate_ReturnsTrue)
         {
             OpcodeTable table = BuildTable ();
@@ -65,12 +120,32 @@ namespace OpcodeTableTests
             Assert::IsTrue (table.HasMode ("LDA", GlobalAddressingMode::Immediate));
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  HasMode_LDA_SingleByte_ReturnsFalse
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (HasMode_LDA_SingleByte_ReturnsFalse)
         {
             OpcodeTable table = BuildTable ();
 
             Assert::IsFalse (table.HasMode ("LDA", GlobalAddressingMode::SingleByteNoOperand));
         }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  AllStandardMnemonics_HaveAtLeastOneEntry
+        //
+        ////////////////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (AllStandardMnemonics_HaveAtLeastOneEntry)
         {
@@ -97,9 +172,14 @@ namespace OpcodeTableTests
 
 
 
-    // =========================================================================
-    // T056: Comprehensive Opcode Coverage Test
-    // =========================================================================
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  OpcodeTableCoverageTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (OpcodeTableCoverageTests)
     {
     private:
@@ -121,6 +201,13 @@ namespace OpcodeTableTests
         }
 
     public:
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  AllOpcodes_MatchExpected
+        //
+        ////////////////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (AllOpcodes_MatchExpected)
         {

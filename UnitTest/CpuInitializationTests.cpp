@@ -8,9 +8,24 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace CpuInitializationTests
 {
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  InstructionSetTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
     TEST_CLASS (InstructionSetTests)
     {
     public:
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  LDA_Immediate_IsLegal
+        //
+        ////////////////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (LDA_Immediate_IsLegal)
         {
@@ -22,6 +37,16 @@ namespace CpuInitializationTests
             Assert::AreEqual ((int) GlobalAddressingMode::Immediate, (int) mc.globalAddressingMode);
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  STA_ZeroPage_IsLegal
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (STA_ZeroPage_IsLegal)
         {
             TestCpu cpu;
@@ -31,6 +56,16 @@ namespace CpuInitializationTests
             Assert::AreEqual ((int) Microcode::Store, (int) mc.operation);
             Assert::AreEqual ((int) GlobalAddressingMode::ZeroPage, (int) mc.globalAddressingMode);
         }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  JMP_Absolute_IsLegal
+        //
+        ////////////////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (JMP_Absolute_IsLegal)
         {
@@ -42,6 +77,16 @@ namespace CpuInitializationTests
             Assert::AreEqual ((int) GlobalAddressingMode::JumpAbsolute, (int) mc.globalAddressingMode);
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  JMP_Indirect_IsLegal
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (JMP_Indirect_IsLegal)
         {
             TestCpu cpu;
@@ -52,6 +97,16 @@ namespace CpuInitializationTests
             Assert::AreEqual ((int) GlobalAddressingMode::JumpIndirect, (int) mc.globalAddressingMode);
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  IllegalOpcode_IsNotLegal
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (IllegalOpcode_IsNotLegal)
         {
             TestCpu cpu;
@@ -60,6 +115,16 @@ namespace CpuInitializationTests
             Assert::IsFalse (mc.isLegal);
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  STA_Immediate_IsNotLegal
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
         TEST_METHOD (STA_Immediate_IsNotLegal)
         {
             TestCpu cpu;
@@ -67,6 +132,16 @@ namespace CpuInitializationTests
 
             Assert::IsFalse (mc.isLegal);
         }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  DEX_IsLegal
+        //
+        ////////////////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (DEX_IsLegal)
         {
@@ -77,6 +152,16 @@ namespace CpuInitializationTests
             Assert::AreEqual ((int) Microcode::Decrement, (int) mc.operation);
             Assert::AreEqual ((int) GlobalAddressingMode::SingleByteNoOperand, (int) mc.globalAddressingMode);
         }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  AllBranches_AreLegal
+        //
+        ////////////////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (AllBranches_AreLegal)
         {
@@ -92,6 +177,16 @@ namespace CpuInitializationTests
                 Assert::AreEqual ((int) GlobalAddressingMode::Relative, (int) mc.globalAddressingMode);
             }
         }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Group01_ImmediateOpcodes_AreLegal
+        //
+        ////////////////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (Group01_ImmediateOpcodes_AreLegal)
         {
