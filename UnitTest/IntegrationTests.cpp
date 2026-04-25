@@ -9,13 +9,23 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace IntegrationTests
 {
-    // =========================================================================
-    // T022: TestCpu::Assemble() Tests
-    // =========================================================================
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  AssembleTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
     TEST_CLASS (AssembleTests)
     {
     public:
 
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Assemble_DefaultAddress_WritesToMemory
+        //
+        ////////////////////////////////////////////////////////////////////////////////
         TEST_METHOD (Assemble_DefaultAddress_WritesToMemory)
         {
             TestCpu cpu;
@@ -34,6 +44,15 @@ namespace IntegrationTests
             Assert::AreEqual ((Word) 0x8000, cpu.RegPC ());
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Assemble_ExplicitAddress_WritesToCorrectLocation
+        //
+        ////////////////////////////////////////////////////////////////////////////////
         TEST_METHOD (Assemble_ExplicitAddress_WritesToCorrectLocation)
         {
             TestCpu cpu;
@@ -46,6 +65,15 @@ namespace IntegrationTests
             Assert::AreEqual ((Word) 0xC000, cpu.RegPC ());
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Assemble_WithErrors_MemoryUnchanged
+        //
+        ////////////////////////////////////////////////////////////////////////////////
         TEST_METHOD (Assemble_WithErrors_MemoryUnchanged)
         {
             TestCpu cpu;
@@ -65,13 +93,23 @@ namespace IntegrationTests
 
 
 
-    // =========================================================================
-    // T023: TestCpu::RunUntil() Tests
-    // =========================================================================
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  RunUntilTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
     TEST_CLASS (RunUntilTests)
     {
     public:
 
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  RunUntil_ExecutesAndStopsAtTarget
+        //
+        ////////////////////////////////////////////////////////////////////////////////
         TEST_METHOD (RunUntil_ExecutesAndStopsAtTarget)
         {
             TestCpu cpu;
@@ -94,6 +132,15 @@ namespace IntegrationTests
             Assert::AreEqual ((Byte) 0x42, cpu.Peek (0x10));
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  RunUntil_CycleLimit_Timeout
+        //
+        ////////////////////////////////////////////////////////////////////////////////
         TEST_METHOD (RunUntil_CycleLimit_Timeout)
         {
             TestCpu cpu;
@@ -115,6 +162,15 @@ namespace IntegrationTests
             Assert::AreEqual ((int) TestCpu::StopReason::CycleLimit, (int) stop);
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  RunUntil_IllegalOpcode_Stops
+        //
+        ////////////////////////////////////////////////////////////////////////////////
         TEST_METHOD (RunUntil_IllegalOpcode_Stops)
         {
             TestCpu cpu;
@@ -136,13 +192,23 @@ namespace IntegrationTests
 
 
 
-    // =========================================================================
-    // T024: TestCpu::LabelAddress() Tests
-    // =========================================================================
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  LabelAddressTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
     TEST_CLASS (LabelAddressTests)
     {
     public:
 
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  LabelAddress_ReturnsCorrectAddresses
+        //
+        ////////////////////////////////////////////////////////////////////////////////
         TEST_METHOD (LabelAddress_ReturnsCorrectAddresses)
         {
             TestCpu cpu;
@@ -161,13 +227,23 @@ namespace IntegrationTests
 
 
 
-    // =========================================================================
-    // T024a: BRK Software Interrupt Test
-    // =========================================================================
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  BrkInterruptTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
     TEST_CLASS (BrkInterruptTests)
     {
     public:
 
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  BRK_PushesStatusAndPC_LoadsIRQVector
+        //
+        ////////////////////////////////////////////////////////////////////////////////
         TEST_METHOD (BRK_PushesStatusAndPC_LoadsIRQVector)
         {
             TestCpu cpu;
@@ -205,13 +281,23 @@ namespace IntegrationTests
 
 
 
-    // =========================================================================
-    // T025: Stack Page Boundary Tests
-    // =========================================================================
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  StackPageTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
     TEST_CLASS (StackPageTests)
     {
     public:
 
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  PushWord_AtMaxSP_StaysWithinStackPage
+        //
+        ////////////////////////////////////////////////////////////////////////////////
         TEST_METHOD (PushWord_AtMaxSP_StaysWithinStackPage)
         {
             TestCpu cpu;
@@ -226,6 +312,15 @@ namespace IntegrationTests
             Assert::AreEqual ((Byte) 0xFD, cpu.RegSP ());
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  PopWord_AfterPushWord_ReturnsOriginalValue
+        //
+        ////////////////////////////////////////////////////////////////////////////////
         TEST_METHOD (PopWord_AfterPushWord_ReturnsOriginalValue)
         {
             TestCpu cpu;
@@ -238,6 +333,15 @@ namespace IntegrationTests
             Assert::AreEqual ((Byte) 0xFF, cpu.RegSP ());
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  BRK_AtMaxSP_DoesNotWriteOutsideStackPage
+        //
+        ////////////////////////////////////////////////////////////////////////////////
         TEST_METHOD (BRK_AtMaxSP_DoesNotWriteOutsideStackPage)
         {
             TestCpu cpu;
@@ -258,13 +362,22 @@ namespace IntegrationTests
 
 
 
-    // =========================================================================
-    // T055: Quickstart Validation
-    // =========================================================================
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  QuickstartValidationTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
     TEST_CLASS (QuickstartValidationTests)
     {
     public:
 
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  QuickstartExample_AssemblesAndRuns
+        //
+        ////////////////////////////////////////////////////////////////////////////////
         TEST_METHOD (QuickstartExample_AssemblesAndRuns)
         {
             TestCpu cpu;
@@ -296,13 +409,23 @@ namespace IntegrationTests
 
 
 
-    // =========================================================================
-    // T057: WriteBytes Equivalence Test
-    // =========================================================================
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  WriteBytesEquivalenceTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
     TEST_CLASS (WriteBytesEquivalenceTests)
     {
     public:
 
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  AssembledAndWriteBytes_ProduceIdenticalResults
+        //
+        ////////////////////////////////////////////////////////////////////////////////
         TEST_METHOD (AssembledAndWriteBytes_ProduceIdenticalResults)
         {
             // Assemble a program
@@ -341,12 +464,15 @@ namespace IntegrationTests
         }
     };
 
-    // =========================================================================
-    // LoadBinary() Tests
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
     //
-    // These tests exercise the stream-based LoadBinary overload with
-    // std::stringstream so that no filesystem state is created or required.
-    // =========================================================================
+    //  LoadBinaryTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
     TEST_CLASS (LoadBinaryTests)
     {
     public:
@@ -358,6 +484,15 @@ namespace IntegrationTests
             return std::istringstream (data, std::ios::binary);
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  LoadBinary_ValidStream_LoadsBytesAtAddress
+        //
+        ////////////////////////////////////////////////////////////////////////////////
         TEST_METHOD (LoadBinary_ValidStream_LoadsBytesAtAddress)
         {
             TestCpu cpu;
@@ -379,6 +514,15 @@ namespace IntegrationTests
             Assert::AreEqual ((Byte) 0x00, cpu.Peek (0x8005));
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  LoadBinary_LoadedProgram_Executes
+        //
+        ////////////////////////////////////////////////////////////////////////////////
         TEST_METHOD (LoadBinary_LoadedProgram_Executes)
         {
             TestCpu cpu;
@@ -396,6 +540,15 @@ namespace IntegrationTests
             Assert::AreEqual ((Byte) 0x42, cpu.Peek (0x10));
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  LoadBinary_TooLargeForAddress_ReturnsFalse
+        //
+        ////////////////////////////////////////////////////////////////////////////////
         TEST_METHOD (LoadBinary_TooLargeForAddress_ReturnsFalse)
         {
             TestCpu cpu;
@@ -415,6 +568,15 @@ namespace IntegrationTests
             Assert::AreEqual ((Byte) 0xCD, cpu.Peek (0xFFFF));
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  LoadBinary_FitsExactlyAtEnd_Succeeds
+        //
+        ////////////////////////////////////////////////////////////////////////////////
         TEST_METHOD (LoadBinary_FitsExactlyAtEnd_Succeeds)
         {
             TestCpu cpu;
@@ -430,6 +592,15 @@ namespace IntegrationTests
             Assert::AreEqual ((Byte) 0xBB, cpu.Peek (0xFFFF));
         }
 
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  LoadBinary_EmptyStream_Succeeds
+        //
+        ////////////////////////////////////////////////////////////////////////////////
         TEST_METHOD (LoadBinary_EmptyStream_Succeeds)
         {
             TestCpu cpu;

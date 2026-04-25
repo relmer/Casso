@@ -4,7 +4,11 @@
 #include "My6502.h"
 
 
-
+////////////////////////////////////////////////////////////////////////////////
+//
+//  main
+//
+////////////////////////////////////////////////////////////////////////////////
 int main (int argc, char * argv[])
 {
     CommandLineOptions options = ParseCommandLine (argc, argv);
@@ -35,4 +39,3 @@ int main (int argc, char * argv[])
     PrintUsage ();
     return 0;
 }
-
