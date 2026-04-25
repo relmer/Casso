@@ -23,6 +23,17 @@ My6502 is a 6502 CPU emulator in C++. The solution has three projects:
 - Keep functions focused and short — ideally under ~50 lines
 - Each function should have a single clear purpose
 
+### Comment Blocks
+- Function and class comment blocks use 80 `/` characters as delimiters
+- One empty comment line before and after the actual comment text:
+```cpp
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FunctionName
+//
+////////////////////////////////////////////////////////////////////////////////
+```
+
 ### Type Definitions
 - `Byte` = `unsigned char`, `SByte` = `signed char`, `Word` = `unsigned short`
 - These are defined in `Pch.h`

@@ -21,7 +21,9 @@ namespace IntegrationTests
             TestCpu cpu;
             cpu.InitForTest ();
 
-            auto result = cpu.Assemble ("LDA #$42\nSTA $10");
+            auto result = cpu.Assemble (R"(    LDA #$42
+                                               STA $10
+                                          )");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((Byte) 0xA9, cpu.Peek (0x8000));
@@ -74,7 +76,12 @@ namespace IntegrationTests
             TestCpu cpu;
             cpu.InitForTest ();
 
-            auto result = cpu.Assemble ("LDA #$42\nSTA $10\ndone: BRK");
+            auto result = cpu.Assemble (R"(
+    LDA #$42
+    STA $10
+done:
+    BRK
+)");
             Assert::IsTrue (result.success);
 
             Word doneAddr = cpu.LabelAddress (result, "done");
@@ -90,7 +97,12 @@ namespace IntegrationTests
             TestCpu cpu;
             cpu.InitForTest ();
 
-            auto result = cpu.Assemble ("LDA #$42\nSTA $10\ndone: BRK");
+            auto result = cpu.Assemble (R"(
+    LDA #$42
+    STA $10
+done:
+    BRK
+)");
             Assert::IsTrue (result.success);
 
             Word doneAddr = cpu.LabelAddress (result, "done");
@@ -132,7 +144,12 @@ namespace IntegrationTests
             TestCpu cpu;
             cpu.InitForTest ();
 
-            auto result = cpu.Assemble ("start: NOP\nend: BRK");
+            auto result = cpu.Assemble (R"(
+start:
+    NOP
+end:
+    BRK
+)");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((Word) 0x8000, cpu.LabelAddress (result, "start"));
@@ -161,7 +178,10 @@ namespace IntegrationTests
             cpu.Poke (0xC000, 0xEA); // NOP
 
             // Assemble and run BRK
-            auto result = cpu.Assemble ("LDA #$42\nBRK");
+            auto result = cpu.Assemble (R"(
+    LDA #$42
+    BRK
+)");
             Assert::IsTrue (result.success);
 
             // Execute LDA + BRK
@@ -286,11 +306,12 @@ namespace IntegrationTests
             TestCpu cpuAsm;
             cpuAsm.InitForTest ();
 
-            auto result = cpuAsm.Assemble (
-                "    LDA #$42\n"
-                "    STA $10\n"
-                "done: BRK\n"
-            );
+            auto result = cpuAsm.Assemble (R"(
+    LDA #$42
+    STA $10
+done:
+    BRK
+)");
 
             Assert::IsTrue (result.success);
 
@@ -328,16 +349,10 @@ namespace IntegrationTests
     public:
 
         // Build an in-memory binary stream from a list of bytes.
-        static std::stringstream MakeStream (std::initializer_list<Byte> bytes)
+        static std::istringstream MakeStream (std::initializer_list<Byte> bytes)
         {
-            std::stringstream ss (std::ios::in | std::ios::out | std::ios::binary);
-
-            for (Byte b : bytes)
-            {
-                ss.put ((char) b);
-            }
-
-            return ss;
+            std::string data (reinterpret_cast<const char *>(bytes.begin ()), bytes.size ());
+            return std::istringstream (data, std::ios::binary);
         }
 
         TEST_METHOD (LoadBinary_ValidStream_LoadsBytesAtAddress)
@@ -345,7 +360,7 @@ namespace IntegrationTests
             TestCpu cpu;
             cpu.InitForTest ();
 
-            std::stringstream bin = MakeStream ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
+            auto bin = MakeStream ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
 
             bool ok = cpu.LoadBinary (bin, (Word) 0x8000);
 
@@ -367,7 +382,7 @@ namespace IntegrationTests
             cpu.InitForTest ();
 
             // LDA #$42 ; STA $10 ; BRK
-            std::stringstream bin = MakeStream ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
+            auto bin = MakeStream ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
 
             Assert::IsTrue (cpu.LoadBinary (bin, (Word) 0x8000));
 
@@ -384,7 +399,7 @@ namespace IntegrationTests
             cpu.InitForTest ();
 
             // 3-byte stream, but loading at 0xFFFE would need address 0x10000 (overflow).
-            std::stringstream bin = MakeStream ({ 0x11, 0x22, 0x33 });
+            auto bin = MakeStream ({ 0x11, 0x22, 0x33 });
 
             cpu.Poke (0xFFFE, 0xAB);
             cpu.Poke (0xFFFF, 0xCD);
@@ -403,7 +418,7 @@ namespace IntegrationTests
             cpu.InitForTest ();
 
             // 2-byte stream loaded at 0xFFFE fills the last two bytes of the address space.
-            std::stringstream bin = MakeStream ({ 0xAA, 0xBB });
+            auto bin = MakeStream ({ 0xAA, 0xBB });
 
             bool ok = cpu.LoadBinary (bin, (Word) 0xFFFE);
 
@@ -417,7 +432,7 @@ namespace IntegrationTests
             TestCpu cpu;
             cpu.InitForTest ();
 
-            std::stringstream bin = MakeStream ({});
+            auto bin = MakeStream ({});
 
             cpu.Poke (0x8000, 0xAB);
 
