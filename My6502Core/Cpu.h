@@ -4,7 +4,11 @@
 #include "Microcode.h"
 
 
-
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Cpu
+//
+////////////////////////////////////////////////////////////////////////////////
 class Cpu
 {
     friend class CpuOperations;
@@ -124,6 +128,3 @@ protected:
     // instruction table off the stack of any function holding a Cpu.
     std::vector<Microcode> instructionSet;
 };
-
-
-
