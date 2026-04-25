@@ -21,9 +21,10 @@ namespace IntegrationTests
             TestCpu cpu;
             cpu.InitForTest ();
 
-            auto result = cpu.Assemble (R"(    LDA #$42
-                                               STA $10
-                                          )");
+            auto result = cpu.Assemble (
+                R"(                 LDA #$42
+                                    STA $10
+                )");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((Byte) 0xA9, cpu.Peek (0x8000));
@@ -76,12 +77,13 @@ namespace IntegrationTests
             TestCpu cpu;
             cpu.InitForTest ();
 
-            auto result = cpu.Assemble (R"(
-    LDA #$42
-    STA $10
-done:
-    BRK
-)");
+            auto result = cpu.Assemble 
+                (R"(                LDA #$42
+                                    STA $10
+                            done:
+                                    BRK
+                )");
+
             Assert::IsTrue (result.success);
 
             Word doneAddr = cpu.LabelAddress (result, "done");
@@ -97,12 +99,14 @@ done:
             TestCpu cpu;
             cpu.InitForTest ();
 
-            auto result = cpu.Assemble (R"(
-    LDA #$42
-    STA $10
-done:
-    BRK
-)");
+            auto result = cpu.Assemble (
+                R"(
+                                    LDA #$42
+                                    STA $10
+                            done:
+                                    BRK
+                )");
+
             Assert::IsTrue (result.success);
 
             Word doneAddr = cpu.LabelAddress (result, "done");
@@ -144,12 +148,10 @@ done:
             TestCpu cpu;
             cpu.InitForTest ();
 
-            auto result = cpu.Assemble (R"(
-start:
-    NOP
-end:
-    BRK
-)");
+            auto result = cpu.Assemble (
+                R"(         start:  NOP
+                            end:    BRK
+                )");
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((Word) 0x8000, cpu.LabelAddress (result, "start"));
@@ -178,10 +180,11 @@ end:
             cpu.Poke (0xC000, 0xEA); // NOP
 
             // Assemble and run BRK
-            auto result = cpu.Assemble (R"(
-    LDA #$42
-    BRK
-)");
+            auto result = cpu.Assemble (
+                R"(                 LDA #$42
+                                    BRK
+                )");
+                
             Assert::IsTrue (result.success);
 
             // Execute LDA + BRK
@@ -268,15 +271,15 @@ end:
             cpu.InitForTest ();
 
             auto result = cpu.Assemble (
-                "; Multiply A by 2 using shifts\n"
-                "    .org $8000\n"
-                "\n"
-                "    LDA #$15\n"
-                "    ASL A\n"
-                "    STA $10\n"
-                "done:\n"
-                "    BRK\n"
-            );
+                R"(         ; Multiply A by 2 using shifts
+                                    .org $8000
+                        
+                                    LDA #$15
+                                    ASL A
+                                    STA $10
+                            done:
+                                    BRK
+                )");
 
             Assert::IsTrue (result.success, L"Quickstart example should assemble successfully");
 
@@ -306,12 +309,12 @@ end:
             TestCpu cpuAsm;
             cpuAsm.InitForTest ();
 
-            auto result = cpuAsm.Assemble (R"(
-    LDA #$42
-    STA $10
-done:
-    BRK
-)");
+            auto result = cpuAsm.Assemble (
+                R"(                 LDA #$42
+                                    STA $10
+                            done:
+                                    BRK
+                )");
 
             Assert::IsTrue (result.success);
 
@@ -331,10 +334,10 @@ done:
             cpuRaw.RunUntil (0x8004); // done = 0x8004
 
             // Both CPUs should have identical state
-            Assert::AreEqual (cpuAsm.RegA (),    cpuRaw.RegA ());
+            Assert::AreEqual (cpuAsm.RegA (),     cpuRaw.RegA ());
             Assert::AreEqual (cpuAsm.Peek (0x10), cpuRaw.Peek (0x10));
-            Assert::AreEqual (cpuAsm.RegX (),    cpuRaw.RegX ());
-            Assert::AreEqual (cpuAsm.RegY (),    cpuRaw.RegY ());
+            Assert::AreEqual (cpuAsm.RegX (),     cpuRaw.RegX ());
+            Assert::AreEqual (cpuAsm.RegY (),     cpuRaw.RegY ());
         }
     };
 
