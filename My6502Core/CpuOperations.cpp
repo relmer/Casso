@@ -7,14 +7,39 @@
 
 void CpuOperations::AddWithCarry (Cpu & cpu, Byte operand)
 {
-    Word sum = cpu.A + operand + cpu.status.flags.carry;
+    Byte carryIn = cpu.status.flags.carry;
+    Word sum     = cpu.A + operand + carryIn;
 
+    // Overflow is computed from the binary sum (matches NMOS behaviour).
     cpu.status.flags.overflow =    !((cpu.A & 0x80) ^ (operand & 0x80))    // Both have the same sign
                                 && ((operand & 0x80) != (sum & 0x80));  // But that sign is not the same as the sum
 
-    cpu.A = (Byte) sum;
+    if (cpu.status.flags.decimal)
+    {
+        // BCD add: adjust low nibble then high nibble (NMOS 6502 algorithm).
+        Word lo = (cpu.A & 0x0F) + (operand & 0x0F) + carryIn;
 
-    cpu.status.flags.carry    = sum > 0xFF;
+        if (lo > 0x09)
+        {
+            lo += 0x06;
+        }
+
+        Word hi = (cpu.A & 0xF0) + (operand & 0xF0) + (lo > 0x0F ? 0x10 : 0x00);
+
+        if (hi > 0x90)
+        {
+            hi += 0x60;
+        }
+
+        cpu.A                  = (Byte) ((hi & 0xF0) | (lo & 0x0F));
+        cpu.status.flags.carry = hi > 0xFF;
+    }
+    else
+    {
+        cpu.A                  = (Byte) sum;
+        cpu.status.flags.carry = sum > 0xFF;
+    }
+
     cpu.status.flags.zero     = cpu.A == 0;
     cpu.status.flags.negative = (bool) (cpu.A & 0x80);
 }
@@ -288,15 +313,40 @@ void CpuOperations::Store (Cpu & cpu, Byte & registerAffected, Word effectiveAdd
 
 void CpuOperations::SubtractWithCarry (Cpu & cpu, Byte operand)
 {
-    Word difference = cpu.A - operand - !cpu.status.flags.carry;
+    Byte borrowIn   = !cpu.status.flags.carry;
+    Word difference = cpu.A - operand - borrowIn;
 
+    // Overflow is computed from the binary difference (matches NMOS behaviour).
     cpu.status.flags.overflow =
         !((cpu.A & 0x80) ^ (operand & 0x80))           // Both have the same sign
         && ((operand & 0x80) != (difference & 0x80));  // But that sign is not the same as the difference
 
-    cpu.A = (Byte) difference;
+    if (cpu.status.flags.decimal)
+    {
+        // BCD subtract: adjust low nibble then high nibble (NMOS 6502 algorithm).
+        int lo = (int) (cpu.A & 0x0F) - (int) (operand & 0x0F) - (int) borrowIn;
 
-    cpu.status.flags.carry    = !(difference & 0x8000);  // set to 0 if negative to indicate a borrow
+        if (lo < 0)
+        {
+            lo = ((lo - 0x06) & 0x0F) - 0x10;
+        }
+
+        int hi = (int) (cpu.A & 0xF0) - (int) (operand & 0xF0) + lo;
+
+        if (hi < 0)
+        {
+            hi -= 0x60;
+        }
+
+        cpu.A = (Byte) (hi & 0xFF);
+    }
+    else
+    {
+        cpu.A = (Byte) difference;
+    }
+
+    // Carry reflects "no borrow" from the binary subtraction (same on BCD and binary).
+    cpu.status.flags.carry    = !(difference & 0x8000);
     cpu.status.flags.zero     = cpu.A == 0;
     cpu.status.flags.negative = (bool) (cpu.A & 0x80);
 
