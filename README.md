@@ -94,6 +94,8 @@ My6502.sln
 
 ## CPU Emulation Status
 
+All 56 standard 6502 mnemonics are implemented.
+
 ### Working
 
 - Load/Store (LDA, LDX, LDY, STA, STX, STY)
@@ -106,9 +108,6 @@ My6502.sln
 - Increment/Decrement (INC, DEC, INX, DEX, INY, DEY)
 - BIT test — *see [#3](https://github.com/relmer/My6502/issues/3) for V/N flag bug*
 - BRK (software interrupt)
-
-### Not Yet Implemented ([#6](https://github.com/relmer/My6502/issues/6))
-
 - Stack operations (PHA, PLA, PHP, PLP)
 - Register transfers (TAX, TXA, TAY, TYA, TXS, TSX)
 - Flag manipulation (CLC, SEC, CLI, SEI, CLV, CLD, SED)
@@ -126,7 +125,6 @@ My6502.sln
 ## Roadmap
 
 - [ ] Fix all known CPU bugs ([#1](https://github.com/relmer/My6502/issues/1)–[#5](https://github.com/relmer/My6502/issues/5))
-- [ ] Implement missing operations ([#6](https://github.com/relmer/My6502/issues/6))
 - [ ] Run [Klaus Dormann's 6502 functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) for comprehensive validation
 - [ ] Binary file loader (`LoadBinary(filename, address)`)
 - [ ] 65C02 extended instruction support
