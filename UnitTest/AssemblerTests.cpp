@@ -839,13 +839,13 @@ namespace AssemblerTests
                 )");
 
             Assert::IsTrue (result.success);
-            Assert::AreEqual ((size_t) 2, result.listing.size ());
+            Assert::AreEqual ((size_t) 3, result.listing.size ());
 
             const auto & line = result.listing[0];
             Assert::IsTrue (line.hasAddress);
             Assert::AreEqual ((Word) 0x8000, line.address);
             Assert::AreEqual ((size_t) 0, line.bytes.size ());
-            Assert::AreEqual (std::string ("start:"), line.sourceText);
+            Assert::AreEqual (std::string ("         start:"), line.sourceText);
         }
 
         TEST_METHOD (Listing_OrgDirective)
@@ -863,7 +863,7 @@ namespace AssemblerTests
                 )");
 
             Assert::IsTrue (result.success);
-            Assert::AreEqual ((size_t) 2, result.listing.size ());
+            Assert::AreEqual ((size_t) 3, result.listing.size ());
 
             const auto & orgLine = result.listing[0];
             Assert::IsTrue (orgLine.hasAddress);

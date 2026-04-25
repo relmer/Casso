@@ -95,8 +95,6 @@ protected:
                             Byte                    *       pSourceRegister,
                             Byte                    *       pDestinationRegister);
     
-    void PrintInstructionSet (Microcode::Group group);
-    
 
 
 protected:
