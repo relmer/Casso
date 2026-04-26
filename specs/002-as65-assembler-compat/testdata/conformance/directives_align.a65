@@ -1,0 +1,5 @@
+; Conformance: align directive
+    .org $0000
+    nop             ; $EA at $0000
+    align $08       ; pad to $0008 (7 fill bytes)
+    nop             ; $EA at $0008

@@ -1,0 +1,8 @@
+; Conformance: lo/hi byte operators
+    .org $0000
+    lda #<$1234     ; $A9 $34
+    lda #>$1234     ; $A9 $12
+    lda #<$ABCD     ; $A9 $CD
+    lda #>$ABCD     ; $A9 $AB
+    .byte <$5678    ; $78
+    .byte >$5678    ; $56

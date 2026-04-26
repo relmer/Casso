@@ -1,0 +1,6 @@
+; Conformance: forward label references
+    .org $0000
+    jmp target      ; $4C $03 $00 — forward ref to $0003
+target:
+    nop             ; $EA at $0003
+    jmp target      ; $4C $03 $00 — backward ref

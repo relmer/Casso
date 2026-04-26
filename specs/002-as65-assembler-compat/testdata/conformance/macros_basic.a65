@@ -1,0 +1,7 @@
+; Conformance: basic macro definition and invocation
+    .org $0000
+ldimm macro
+    lda #\1
+    endm
+    ldimm $55       ; expands to LDA #$55 => $A9 $55
+    ldimm $AA       ; expands to LDA #$AA => $A9 $AA

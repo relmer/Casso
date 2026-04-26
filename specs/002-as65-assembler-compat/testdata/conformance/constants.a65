@@ -1,0 +1,9 @@
+; Conformance: constant definitions (=, equ, set)
+    .org $0000
+val1 = $42
+val2 equ $10
+val3 set $20
+    lda #val1       ; $A9 $42
+    ldx #val2       ; $A2 $10
+val3 set $30
+    ldy #val3       ; $A0 $30

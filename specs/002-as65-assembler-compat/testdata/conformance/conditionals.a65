@@ -1,0 +1,11 @@
+; Conformance: if/else/endif conditional assembly
+    .org $0000
+flag = 1
+    if flag
+    nop             ; $EA (assembled)
+    endif
+    if 0
+    brk             ; (skipped)
+    else
+    inx             ; $E8 (assembled)
+    endif

@@ -1,0 +1,11 @@
+; Conformance: basic arithmetic expressions
+    .org $0000
+    lda #1+2        ; $A9 $03
+    lda #$10|$03    ; $A9 $13
+    lda #$FF&$0F    ; $A9 $0F
+    lda #$01<<4     ; $A9 $10
+    lda #$80>>4     ; $A9 $08
+    .byte 5-3       ; $02
+    .byte 2*3       ; $06
+    .byte 7/2       ; $03
+    .byte 7%3       ; $01
