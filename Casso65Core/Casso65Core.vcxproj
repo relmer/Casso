@@ -174,8 +174,10 @@
     <ClCompile Include="Cpu.cpp" />
     <ClCompile Include="CpuOperations.cpp" />
     <ClCompile Include="Ehm.cpp" />
+    <ClCompile Include="ExpressionEvaluator.cpp" />
     <ClCompile Include="Microcode.cpp" />
     <ClCompile Include="OpcodeTable.cpp" />
+    <ClCompile Include="OutputFormats.cpp" />
     <ClCompile Include="Parser.cpp" />
     <ClCompile Include="Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -194,6 +196,7 @@
     <ClInclude Include="CpuOperations.h" />
     <ClInclude Include="CpuStatus.h" />
     <ClInclude Include="Ehm.h" />
+    <ClInclude Include="ExpressionEvaluator.h" />
     <ClInclude Include="GlobalAddressingModes.h" />
     <ClInclude Include="Group00.h" />
     <ClInclude Include="Group01.h" />
@@ -202,6 +205,7 @@
     <ClInclude Include="Instruction.h" />
     <ClInclude Include="Microcode.h" />
     <ClInclude Include="OpcodeTable.h" />
+    <ClInclude Include="OutputFormats.h" />
     <ClInclude Include="Parser.h" />
     <ClInclude Include="Pch.h" />
     <ClInclude Include="Utils.h" />

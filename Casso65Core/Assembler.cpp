@@ -9,6 +9,37 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DefaultFileReader::ReadFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FileReadResult DefaultFileReader::ReadFile (const std::string & filename, const std::string & baseDir)
+{
+    FileReadResult result = {};
+
+    std::string fullPath = baseDir.empty () ? filename : baseDir + "/" + filename;
+    std::ifstream file (fullPath);
+
+    if (!file.is_open ())
+    {
+        result.success = false;
+        result.error   = "Cannot open file: " + fullPath;
+        return result;
+    }
+
+    std::ostringstream ss;
+    ss << file.rdbuf ();
+    result.success  = true;
+    result.contents = ss.str ();
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Assembler
 //
 ////////////////////////////////////////////////////////////////////////////////

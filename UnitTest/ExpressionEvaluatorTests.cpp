@@ -1,0 +1,41 @@
+#include "Pch.h"
+
+#include "ExpressionEvaluator.h"
+#include "TestHelpers.h"
+
+
+
+
+
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+
+
+
+
+namespace ExpressionEvaluatorTests
+{
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  BasicOperatorTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (BasicOperatorTests)
+    {
+    public:
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Placeholder
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Placeholder)
+        {
+            // Phase 2 will populate real tests
+            Assert::IsTrue (true);
+        }
+    };
+}

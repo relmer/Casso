@@ -216,6 +216,17 @@
     <ClCompile Include="ParserTests.cpp" />
     <ClCompile Include="AssemblerTests.cpp" />
     <ClCompile Include="IntegrationTests.cpp" />
+    <ClCompile Include="ExpressionEvaluatorTests.cpp" />
+    <ClCompile Include="ConditionalAssemblyTests.cpp" />
+    <ClCompile Include="MacroTests.cpp" />
+    <ClCompile Include="ConstantTests.cpp" />
+    <ClCompile Include="DirectiveTests.cpp" />
+    <ClCompile Include="IncludeTests.cpp" />
+    <ClCompile Include="StructTests.cpp" />
+    <ClCompile Include="CmapTests.cpp" />
+    <ClCompile Include="OutputFormatTests.cpp" />
+    <ClCompile Include="ConformanceTests.cpp" />
+    <ClCompile Include="DormannIntegrationTests.cpp" />
     <ClCompile Include="EhmTestHelper.cpp" />
     <ClCompile Include="ModuleSetup.cpp" />
   </ItemGroup>
