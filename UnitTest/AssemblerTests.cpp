@@ -1084,7 +1084,7 @@ namespace AssemblerTests
         TEST_METHOD (InvalidMnemonic_ReportsError)
         {
             Assembler asm6502 = BuildAssembler ();
-            auto result = asm6502.Assemble ("XYZ");
+            auto result = asm6502.Assemble ("    XYZ");
 
             Assert::IsFalse (result.success);
             Assert::AreEqual ((size_t) 1, result.errors.size ());

@@ -26,6 +26,7 @@ struct ParsedLine
     std::string                          constantName;
     std::string                          constantExpr; // raw expression for evaluation
     SymbolKind                           constantKind; // Equ or Set
+    bool                                 startsAtColumn0; // true if line had no leading whitespace
 };
 
 

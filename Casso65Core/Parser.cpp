@@ -135,6 +135,9 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
     result.isEmpty = false;
     std::string remainder = trimmed;
 
+    // Check for colon-less label: line starts at column 0 with an identifier
+    bool startsAtColumn0 = !stripped.empty () && !isspace ((unsigned char) stripped[0]);
+
     // Check for label (contains ':')
     size_t colonPos = remainder.find (':');
 
@@ -258,6 +261,7 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
 
     // Segment keywords recognized as no-ops
     else if (firstWordUpper == "CODE" || firstWordUpper == "DATA" || firstWordUpper == "BSS")            { canonicalDirective = ".SEGMENT_NOOP"; }
+    else if (firstWordUpper == "NOOPT" || firstWordUpper == "OPT")                                      { canonicalDirective = ".SEGMENT_NOOP"; }
 
     if (!canonicalDirective.empty ())
     {
@@ -276,11 +280,13 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
     if (spacePos == std::string::npos)
     {
         result.mnemonic = firstWordUpper;
+        result.startsAtColumn0 = startsAtColumn0;
         return result;
     }
 
     result.mnemonic = firstWordUpper;
     result.operand  = Trim (remainder.substr (spacePos + 1));
+    result.startsAtColumn0 = startsAtColumn0;
 
     return result;
 }

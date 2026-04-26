@@ -1050,6 +1050,91 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             continue;
         }
 
+        // ---- Colon-less label detection ----
+        // If line starts at column 0, mnemonic isn't recognized, and isn't a macro,
+        // re-interpret as a colon-less label
+        if (info.parsed.startsAtColumn0 && info.parsed.label.empty () &&
+            !m_opcodeTable.IsMnemonic (info.parsed.mnemonic) &&
+            macros.find (info.parsed.mnemonic) == macros.end ())
+        {
+            // Record the colon-less label
+            std::string labelName = info.parsed.mnemonic;
+            std::string labelError;
+
+            // Validate and record label — use original case from the raw line
+            // The mnemonic was uppercased; get original from the raw text
+            {
+                std::string rawTrimmed = current.text;
+                size_t s = rawTrimmed.find_first_not_of (" \t");
+
+                if (s != std::string::npos)
+                {
+                    rawTrimmed = rawTrimmed.substr (s);
+                }
+
+                size_t e = rawTrimmed.find_first_of (" \t");
+
+                if (e != std::string::npos)
+                {
+                    labelName = rawTrimmed.substr (0, e);
+                }
+                else
+                {
+                    labelName = rawTrimmed;
+                }
+
+                // Strip comment
+                size_t sc = labelName.find (';');
+
+                if (sc != std::string::npos)
+                {
+                    labelName = labelName.substr (0, sc);
+                }
+            }
+
+            if (!Parser::ValidateLabel (labelName, m_opcodeTable, labelError))
+            {
+                AssemblyError error = {};
+                error.lineNumber = current.sourceLineNumber;
+                error.message    = labelError;
+                result.errors.push_back (error);
+                result.success = false;
+            }
+            else if (symbols.count (labelName) > 0)
+            {
+                AssemblyError error = {};
+                error.lineNumber = current.sourceLineNumber;
+                error.message    = "Duplicate label: " + labelName;
+                result.errors.push_back (error);
+                result.success = false;
+            }
+            else
+            {
+                symbols[labelName]     = pc;
+                symbolKinds[labelName]  = SymbolKind::Label;
+                exprSymbols[labelName] = (int32_t) pc;
+            }
+
+            info.parsed.label = labelName;
+
+            // If there's remaining text (operand), push it as a new line
+            if (!info.parsed.operand.empty ())
+            {
+                PendingLine pl = {};
+                pl.text = "    " + info.parsed.operand;  // Indent to prevent re-triggering colon-less
+                pl.sourceLineNumber = current.sourceLineNumber;
+                pl.macroDepth = current.macroDepth;
+                pendingLines.push_front (pl);
+            }
+
+            // Record this as a label-only line
+            info.parsed.mnemonic.clear ();
+            info.parsed.operand.clear ();
+            info.isInstruction = false;
+            lineInfos.push_back (info);
+            continue;
+        }
+
         // Classify operand (syntax only)
         info.classified    = Parser::ClassifyOperand (info.parsed.operand);
         info.isInstruction = true;
