@@ -80,3 +80,8 @@ Casso65 is a 6502 CPU emulator in C++. The solution has three projects:
 
 - **ALL** terminal windows use PowerShell, not CMD
 - **ALWAYS** format commands for PowerShell syntax
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->
