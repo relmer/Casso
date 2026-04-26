@@ -37,7 +37,7 @@ All coding conventions are defined in [/.github/copilot-instructions.md](/.githu
 - Use VS Code build tasks, not direct msbuild
 
 ## Recent Changes
-- 002-assembler-dormann-support: Added C++ (stdcpplatest, MSVC v145 / Visual Studio 2026) + STL only (no third-party libraries)
+- 002-as65-assembler-compat: Added C++ (stdcpplatest, MSVC v145 / Visual Studio 2026) + STL only (no third-party libraries)
 - 001-assembler: Added C++ (stdcpplatest, MSVC v145 / Visual Studio 2026) + STL only (no third-party libraries)
 - 009-variable-width-columns: Added C++ (stdcpplatest, MSVC v145+) + Windows SDK, STL only
 

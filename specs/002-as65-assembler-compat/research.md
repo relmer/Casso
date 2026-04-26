@@ -1,6 +1,6 @@
 # Research: Full AS65 Assembler Clone
 
-**Feature**: 002-assembler-dormann-support  
+**Feature**: 002-as65-assembler-compat  
 **Date**: 2026-04-25
 
 ## 1. Expression Evaluator Architecture

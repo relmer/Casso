@@ -1,6 +1,6 @@
 # Public API Contract: Assembler (Extended)
 
-**Feature**: 002-assembler-dormann-support  
+**Feature**: 002-as65-assembler-compat  
 **Date**: 2026-04-25
 
 ## Library API (Casso65Core)

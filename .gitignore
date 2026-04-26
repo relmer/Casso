@@ -363,5 +363,5 @@ MigrationBackup/
 FodyWeavers.xsd
 # AS65 conformance testing - downloaded on demand
 tools/
-specs/002-assembler-dormann-support/testdata/conformance/expected/
+specs/002-as65-assembler-compat/testdata/conformance/expected/
 *.dormann.tmp

@@ -1,6 +1,6 @@
 # Conformance Test Plan: AS65 Assembler Clone
 
-**Feature**: 002-assembler-dormann-support  
+**Feature**: 002-as65-assembler-compat  
 **Date**: 2026-04-25  
 **Reference**: AS65 v1.42 by Frank A. Kingswood (`as65.man`)
 
@@ -15,7 +15,7 @@ Comparison modes:
 - **Listing**: character-for-character comparison of `.lst` files
 - **Errors**: expected error messages (for negative tests)
 
-Reference files are committed to `specs/002-assembler-dormann-support/testdata/conformance/` and generated once by a PowerShell script that runs AS65 on all test inputs.
+Reference files are committed to `specs/002-as65-assembler-compat/testdata/conformance/` and generated once by a PowerShell script that runs AS65 on all test inputs.
 
 ## Test Categories
 

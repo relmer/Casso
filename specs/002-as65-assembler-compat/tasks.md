@@ -1,6 +1,6 @@
 # Tasks: Full AS65 Assembler Clone
 
-**Input**: Design documents from `/specs/002-assembler-dormann-support/`
+**Input**: Design documents from `/specs/002-as65-assembler-compat/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/api.md, quickstart.md
 
 ## Format: `[ID] [P?] [Story] Description`
@@ -18,8 +18,8 @@
 - [ ] T001 Add ExpressionEvaluator.h/.cpp and OutputFormats.h/.cpp to Casso65Core/Casso65Core.vcxproj
 - [ ] T002 [P] Add new test .cpp files to UnitTest/UnitTest.vcxproj (ExpressionEvaluatorTests, ConditionalAssemblyTests, MacroTests, ConstantTests, DirectiveTests, IncludeTests, StructTests, CmapTests, OutputFormatTests, DormannIntegrationTests, ConformanceTests)
 - [ ] T003 [P] Extend AssemblerTypes.h with new types: MacroDefinition, StructDefinition, StructMember, CharacterMap, SymbolKind enum, ConditionalState, FileReader interface in Casso65Core/AssemblerTypes.h
-- [ ] T004 [P] Download AS65 manual (`as65.man`) and `testcase.a65` from Klaus2m5 repo (text files only — NO executables) to specs/002-assembler-dormann-support/reference/
-- [ ] T004a [P] Create conformance test input files (.a65) with hand-computed expected outputs (.expected.bin) per conformance-test-plan.md categories 1–14 in specs/002-assembler-dormann-support/testdata/conformance/ (our own work, committed)
+- [ ] T004 [P] Download AS65 manual (`as65.man`) and `testcase.a65` from Klaus2m5 repo (text files only — NO executables) to specs/002-as65-assembler-compat/reference/
+- [ ] T004a [P] Create conformance test input files (.a65) with hand-computed expected outputs (.expected.bin) per conformance-test-plan.md categories 1–14 in specs/002-as65-assembler-compat/testdata/conformance/ (our own work, committed)
 - [ ] T004b [P] Create scripts/RunDormannTest.ps1 — downloads 6502_functional_test.a65 and reference binary from Klaus2m5 bin_files/, assembles with Casso65, compares against reference, deletes all downloaded files on completion
 - [ ] T004c [P] Add downloaded temp files to .gitignore
 

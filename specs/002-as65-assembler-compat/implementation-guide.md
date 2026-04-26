@@ -4,7 +4,7 @@
 
 ## Current State
 
-- **Branch**: `002-assembler-dormann-support`
+- **Branch**: `002-as65-assembler-compat`
 - **Phase 1**: COMPLETE (committed cf1d70a) — skeleton files, project structure, types
 - **Phase 2**: COMPLETE (committed 57abaa8) — full expression evaluator with 57 tests
 - **Phase 3**: IN PROGRESS — integrating expression evaluator into assembler

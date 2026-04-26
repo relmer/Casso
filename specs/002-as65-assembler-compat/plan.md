@@ -1,7 +1,7 @@
 # Implementation Plan: Full AS65 Assembler Clone
 
-**Branch**: `002-assembler-dormann-support` | **Date**: 2026-04-25 | **Spec**: [spec.md](spec.md)
-**Input**: Feature specification from `/specs/002-assembler-dormann-support/spec.md`
+**Branch**: `002-as65-assembler-compat` | **Date**: 2026-04-25 | **Spec**: [spec.md](spec.md)
+**Input**: Feature specification from `/specs/002-as65-assembler-compat/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
 
@@ -66,7 +66,7 @@ Extend the existing two-pass `Assembler` class (from spec 001) into a full AS65-
 ### Documentation (this feature)
 
 ```text
-specs/002-assembler-dormann-support/
+specs/002-as65-assembler-compat/
 ├── plan.md              # This file
 ├── research.md          # Phase 0 output
 ├── data-model.md        # Phase 1 output

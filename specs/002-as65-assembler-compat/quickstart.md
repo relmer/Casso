@@ -1,7 +1,7 @@
 # Quickstart: Full AS65 Assembler Clone
 
-**Feature**: 002-assembler-dormann-support  
-**Branch**: `002-assembler-dormann-support`
+**Feature**: 002-as65-assembler-compat  
+**Branch**: `002-as65-assembler-compat`
 
 ## Prerequisites
 

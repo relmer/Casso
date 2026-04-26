@@ -1,6 +1,6 @@
 # Feature Specification: Full AS65 Assembler Clone
 
-**Feature Branch**: `002-assembler-dormann-support`  
+**Feature Branch**: `002-as65-assembler-compat`  
 **Created**: 2026-04-25  
 **Status**: Draft  
 **Input**: User description: "Full, exact clone of AS65 assembler by Frank A. Kingswood (6502 mode). All syntax, macro behaviors, directives, expression operators, output formats, and command-line options."
