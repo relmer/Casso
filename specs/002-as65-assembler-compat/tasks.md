@@ -141,17 +141,16 @@
 
 ---
 
-## Phase 8: User Story 10 — End-to-End Dormann Assembly (Priority: P1) 🎯 EXIT GATE
+## Phase 8: User Story 9 — Colon-less Labels (Priority: P1)
 
-**Goal**: Assemble `6502_functional_test.a65` with zero errors, byte-identical to pre-built reference binary from Klaus2m5 `bin_files/`
+**Goal**: Support AS65-style colon-less labels (column-0 identifier that isn't a mnemonic/directive/macro)
 
-**Independent Test**: Binary comparison of assembled output vs. downloaded reference binary (data file, no executables)
+**Independent Test**: Assemble Dormann-style source with colon-less labels
 
-- [ ] T049 [US10] Attempt assembly of 6502_functional_test.a65 (downloaded on demand) and iteratively fix any remaining issues in Casso65Core/Assembler.cpp
-- [ ] T050 [US10] Create Dormann integration test using scripts/RunDormannTest.ps1: download source + reference binary, assemble, compare, delete in UnitTest/DormannIntegrationTests.cpp (NOTE: gated behind TEST_CATEGORY(\"Integration\") — excluded from normal unit test runs per constitution principle II)
-- [ ] T051 [US10] Verify assembled binary runs in CPU emulator and reaches success trap in UnitTest/DormannIntegrationTests.cpp
+- [ ] T040a [US6] Implement colon-less label detection in Parser: column-0 identifier + not-a-mnemonic/directive/macro → label
+- [ ] T040b [P] Add colon-less label tests to UnitTest
 
-**Checkpoint**: EXIT GATE PASSED — Dormann suite assembles and runs correctly
+**Checkpoint**: Colon-less labels working — Dormann source labels recognized
 
 ---
 
@@ -267,10 +266,16 @@
 
 ---
 
-## Phase 15: User Story 10 (revisited) + Segment Model — Polish & Cross-Cutting
+## Phase 15: Verification & Polish — Dormann EXIT GATE + Cross-Cutting
 
-**Purpose**: Three-segment model, AS65 testcase validation, final polish
+**Purpose**: End-to-end Dormann validation, conformance testing, final polish
 
+- [ ] T004a [P] Create conformance test input files (.a65) with hand-computed expected outputs (.expected.bin) per conformance-test-plan.md categories 1–14 in specs/002-as65-assembler-compat/testdata/conformance/ (our own work, committed)
+- [ ] T004b [P] Create scripts/RunDormannTest.ps1 — downloads 6502_functional_test.a65 and reference binary from Klaus2m5 bin_files/, assembles with Casso65, compares against reference, deletes all downloaded files on completion
+- [ ] T004c [P] Add downloaded temp files to .gitignore
+- [ ] T049 [US10] Attempt assembly of 6502_functional_test.a65 (downloaded on demand) and iteratively fix any remaining issues in Casso65Core/Assembler.cpp
+- [ ] T050 [US10] Create Dormann integration test using scripts/RunDormannTest.ps1: download source + reference binary, assemble, compare, delete in UnitTest/DormannIntegrationTests.cpp (NOTE: gated behind TEST_CATEGORY("Integration") — excluded from normal unit test runs per constitution principle II)
+- [ ] T051 [US10] Verify assembled binary runs in CPU emulator and reaches success trap — informational only, emulator bugs tracked as separate GitHub issues
 - [ ] T089 Verify AS65 testcase.a65 assembles without errors (SC-008) in UnitTest/DormannIntegrationTests.cpp
 - [ ] T089a Verify listing output matches AS65 format per as65.man documentation (SC-011) in UnitTest/DormannIntegrationTests.cpp
 - [ ] T089b [P] Create ConformanceTests.cpp: data-driven test runner that loops over all testdata/conformance/*.a65 files, assembles each, and compares output against *.expected.bin (FR-079, SC-012) in UnitTest/ConformanceTests.cpp
@@ -280,7 +285,7 @@
 - [ ] T092 Run quickstart.md validation steps
 - [ ] T093 Code cleanup: verify all new files follow formatting rules (5 blank lines, 80-char comment blocks, Pch.h first)
 
-**Checkpoint**: All success criteria (SC-001 through SC-012) verified
+**Checkpoint**: EXIT GATE — Dormann binary byte-identical to reference + all success criteria (SC-001 through SC-012) verified
 
 ---
 
@@ -294,15 +299,15 @@
 - **Phase 4 (US2+US3 Constants/PC)**: Depends on Phase 3
 - **Phase 5 (US4 Conditionals)**: Depends on Phase 4
 - **Phase 6 (US5 Macros)**: Depends on Phase 5
-- **Phase 7 (US6+7+8+9 Labels/Directives/Segments)**: Depends on Phase 4 (can parallel with Phase 5+6 for some tasks)
-- **Phase 8 (US10 Dormann)**: Depends on Phases 3–7 — EXIT GATE
+- **Phase 7 (US6+7+8+9 Labels/Directives/Segments)**: Depends on Phase 4
+- **Phase 8 (Colon-less Labels)**: Depends on Phase 7
 - **Phase 9 (US11 Advanced Macros)**: Depends on Phase 6
 - **Phase 10 (US12 Include)**: Depends on Phase 2
 - **Phase 11 (US18 Number Formats)**: Depends on Phase 2
 - **Phase 12 (US15 Output Formats)**: Depends on Phase 2
 - **Phase 13 (US16+17 Listing/CLI)**: Depends on Phase 2
 - **Phase 14 (US13+14+19 Struct/Cmap/Synonyms)**: Depends on Phase 2
-- **Phase 15 (Polish)**: Depends on ALL previous phases
+- **Phase 15 (Verification & Polish)**: Depends on ALL previous phases — EXIT GATE
 
 ### Parallel Opportunities
 
@@ -313,10 +318,10 @@ After Phase 2 is complete:
 
 ### Implementation Strategy
 
-**MVP (Minimum Viable Product)**: Phases 1–8 (Setup through Dormann EXIT GATE)
-- Delivers: Expression evaluator, constants, current-PC, conditionals, macros, labels, directives, Dormann assembly
-- This is the primary deliverable and must pass before any P2/P3 work
+**Core Features**: Phases 1–8 (Setup through Colon-less Labels)
+- Delivers: Expression evaluator, constants, current-PC, conditionals, macros, labels, directives
+- All Dormann-required assembler features
 
-**Full AS65 Parity**: Phases 9–15
+**Full AS65 Parity**: Phases 9–14
 - Adds: Advanced macros, includes, number formats, output formats, listing, CLI, structs, cmap, synonyms
 - Can be delivered incrementally after MVP
