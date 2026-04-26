@@ -325,7 +325,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 {
     AssemblyResult result = {};
     result.success      = true;
-    result.startAddress = 0x8000;
+    result.startAddress = 0;
 
     auto lines = Parser::SplitLines (sourceText);
 
@@ -337,6 +337,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         Word              pc;
         bool              isInstruction;
         bool              isDirective;
+        bool              isConstant;
         bool              hasError;
 
         GlobalAddressingMode::AddressingMode resolvedMode;
@@ -344,12 +345,13 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         bool                                 valueResolved;
     };
 
-    std::vector<LineInfo>                     lineInfos;
-    std::unordered_map<std::string, Word>     symbols;
-    Word                                      pc        = result.startAddress;
-    bool                                      originSet = false;
+    std::vector<LineInfo>                              lineInfos;
+    std::unordered_map<std::string, Word>              symbols;
+    std::unordered_map<std::string, SymbolKind>        symbolKinds;
+    Word                                               pc        = result.startAddress;
+    bool                                               originSet = false;
 
-    // Build a Pass 1 expression context (no symbols yet)
+    // Build a Pass 1 expression context (symbols populated as we go)
     std::unordered_map<std::string, int32_t>  exprSymbols;
     ExprContext                                pass1Ctx = { &exprSymbols, 0 };
 
@@ -361,6 +363,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         info.pc           = pc;
         info.isInstruction = false;
         info.isDirective   = false;
+        info.isConstant    = false;
         info.hasError      = false;
         info.valueResolved = false;
         info.resolvedValue = 0;
@@ -438,7 +441,8 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             }
             else
             {
-                symbols[info.parsed.label] = pc;
+                symbols[info.parsed.label]     = pc;
+                symbolKinds[info.parsed.label]  = SymbolKind::Label;
                 exprSymbols[info.parsed.label] = (int32_t) pc;
 
                 // Warn if label resembles mnemonic by case (FR-033a)
@@ -454,6 +458,90 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                     RecordWarning (result, i + 1, "Label name resembles mnemonic: " + info.parsed.label);
                 }
             }
+        }
+
+        // Handle constant definitions (NAME = EXPR, NAME equ EXPR, NAME set EXPR)
+        if (info.parsed.isConstant)
+        {
+            info.isConstant = true;
+
+            pass1Ctx.currentPC = (int32_t) pc;
+
+            // For Set/= constants: evaluate eagerly in Pass 1
+            // For Equ constants: defer to Pass 2 (can forward-reference labels)
+            if (info.parsed.constantKind == SymbolKind::Set)
+            {
+                ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.constantExpr, pass1Ctx);
+
+                if (!er.success)
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = i + 1;
+                    error.message    = "Cannot evaluate constant expression: " + er.error;
+                    result.errors.push_back (error);
+                    result.success = false;
+                }
+                else
+                {
+                    // Check for cross-kind redefinition
+                    auto kindIt = symbolKinds.find (info.parsed.constantName);
+
+                    if (kindIt != symbolKinds.end () && kindIt->second != SymbolKind::Set)
+                    {
+                        AssemblyError error = {};
+                        error.lineNumber = i + 1;
+                        error.message    = "Cannot redefine " + info.parsed.constantName + " (was defined as immutable)";
+                        result.errors.push_back (error);
+                        result.success = false;
+                    }
+                    else
+                    {
+                        symbols[info.parsed.constantName]     = (Word) er.value;
+                        symbolKinds[info.parsed.constantName]  = SymbolKind::Set;
+                        exprSymbols[info.parsed.constantName] = er.value;
+                    }
+                }
+            }
+            else // Equ
+            {
+                // Check if already defined
+                auto kindIt = symbolKinds.find (info.parsed.constantName);
+
+                if (kindIt != symbolKinds.end ())
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = i + 1;
+
+                    if (kindIt->second == SymbolKind::Equ)
+                    {
+                        error.message = "Duplicate equ definition: " + info.parsed.constantName;
+                    }
+                    else
+                    {
+                        error.message = "Cannot redefine " + info.parsed.constantName + " as equ (already defined as different kind)";
+                    }
+
+                    result.errors.push_back (error);
+                    result.success = false;
+                }
+                else
+                {
+                    // Reserve the name — actual value set in Pass 2
+                    symbolKinds[info.parsed.constantName] = SymbolKind::Equ;
+
+                    // Try to evaluate in Pass 1 (may succeed if no forward refs)
+                    ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.constantExpr, pass1Ctx);
+
+                    if (er.success)
+                    {
+                        symbols[info.parsed.constantName]     = (Word) er.value;
+                        exprSymbols[info.parsed.constantName] = er.value;
+                    }
+                }
+            }
+
+            lineInfos.push_back (info);
+            continue;
         }
 
         // Handle data directives
@@ -610,6 +698,35 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
     }
 
     ExprContext pass2Ctx = { &fullSymbols, 0 };
+
+    // Resolve deferred equ constants (can forward-reference labels)
+    for (const auto & info : lineInfos)
+    {
+        if (!info.isConstant || !info.parsed.isConstant)
+        {
+            continue;
+        }
+
+        if (info.parsed.constantKind == SymbolKind::Equ && fullSymbols.find (info.parsed.constantName) == fullSymbols.end ())
+        {
+            pass2Ctx.currentPC = (int32_t) info.pc;
+            ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.constantExpr, pass2Ctx);
+
+            if (!er.success)
+            {
+                AssemblyError error = {};
+                error.lineNumber = info.parsed.lineNumber;
+                error.message    = "Cannot resolve equ expression: " + info.parsed.constantExpr;
+                result.errors.push_back (error);
+                result.success = false;
+            }
+            else
+            {
+                symbols[info.parsed.constantName]     = (Word) er.value;
+                fullSymbols[info.parsed.constantName] = er.value;
+            }
+        }
+    }
 
     for (const auto & info : lineInfos)
     {

@@ -22,6 +22,10 @@ struct ParsedLine
     bool                                 isDirective;
     std::string                          directive;    // ".org", ".byte", ".word", ".text"
     std::string                          directiveArg; // raw argument string
+    bool                                 isConstant;   // true for "NAME = EXPR", "NAME equ EXPR", "NAME set EXPR"
+    std::string                          constantName;
+    std::string                          constantExpr; // raw expression for evaluation
+    SymbolKind                           constantKind; // Equ or Set
 };
 
 

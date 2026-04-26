@@ -121,6 +121,7 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
     result.lineNumber  = lineNumber;
     result.isEmpty     = true;
     result.isDirective = false;
+    result.isConstant  = false;
 
     // Strip comments first
     std::string stripped = StripComments (line);
@@ -168,9 +169,68 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
         return result;
     }
 
-    // Extract mnemonic (first word)
+    // Check for constant definition: NAME = EXPR, NAME equ EXPR, NAME set EXPR
+    // Extract first word and check what follows
     size_t spacePos = remainder.find_first_of (" \t");
+    size_t eqPos    = remainder.find ('=');
 
+    // NAME = EXPR (= can appear right after name or with spaces)
+    if (eqPos != std::string::npos)
+    {
+        std::string beforeEq = Trim (remainder.substr (0, eqPos));
+        std::string afterEq  = Trim (remainder.substr (eqPos + 1));
+
+        // Ensure beforeEq is a valid identifier (not a mnemonic)
+        if (!beforeEq.empty () && (isalpha ((unsigned char) beforeEq[0]) || beforeEq[0] == '_'))
+        {
+            bool validId = true;
+
+            for (char c : beforeEq)
+            {
+                if (!isalnum ((unsigned char) c) && c != '_')
+                {
+                    validId = false;
+                    break;
+                }
+            }
+
+            if (validId && !afterEq.empty ())
+            {
+                result.isConstant   = true;
+                result.constantName = beforeEq;
+                result.constantExpr = afterEq;
+                result.constantKind = SymbolKind::Set;
+                return result;
+            }
+        }
+    }
+
+    // NAME equ EXPR / NAME set EXPR
+    if (spacePos != std::string::npos)
+    {
+        std::string firstWord  = remainder.substr (0, spacePos);
+        std::string afterFirst = Trim (remainder.substr (spacePos + 1));
+
+        size_t sp2 = afterFirst.find_first_of (" \t");
+        std::string secondWord = (sp2 == std::string::npos) ? afterFirst : afterFirst.substr (0, sp2);
+        std::string secondUpper = ToUpper (secondWord);
+
+        if (secondUpper == "EQU" || secondUpper == "SET")
+        {
+            std::string expr = (sp2 == std::string::npos) ? "" : Trim (afterFirst.substr (sp2 + 1));
+
+            if (!firstWord.empty () && (isalpha ((unsigned char) firstWord[0]) || firstWord[0] == '_'))
+            {
+                result.isConstant   = true;
+                result.constantName = firstWord;
+                result.constantExpr = expr;
+                result.constantKind = (secondUpper == "EQU") ? SymbolKind::Equ : SymbolKind::Set;
+                return result;
+            }
+        }
+    }
+
+    // Extract mnemonic (first word)
     if (spacePos == std::string::npos)
     {
         result.mnemonic = ToUpper (remainder);
