@@ -2,10 +2,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch My6502",
+            "name": "Launch Casso65",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/x64/Debug/My6502.exe",
+            "program": "${workspaceFolder}/x64/Debug/Casso65.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

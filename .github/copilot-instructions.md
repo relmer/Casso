@@ -1,12 +1,12 @@
-# Copilot Instructions for My6502
+# Copilot Instructions for Casso65
 
 ## Project Overview
 
-My6502 is a 6502 CPU emulator in C++. The solution has three projects:
+Casso65 is a 6502 CPU emulator in C++. The solution has three projects:
 
-- **My6502Core** — Static library containing all CPU logic (Cpu, CpuOperations, Microcode, instruction groups)
-- **My6502** — Console application (just `main()`, links My6502Core)
-- **UnitTest** — DynamicLibrary (Microsoft Native CppUnitTest, links My6502Core)
+- **Casso65Core** — Static library containing all CPU logic (Cpu, CpuOperations, Microcode, instruction groups)
+- **Casso65** — Console application (just `main()`, links Casso65Core)
+- **UnitTest** — DynamicLibrary (Microsoft Native CppUnitTest, links Casso65Core)
 
 ## C++ Specific Guidelines
 
@@ -51,7 +51,7 @@ My6502 is a 6502 CPU emulator in C++. The solution has three projects:
 - Use `TestCpu::WriteBytes()` to set up instruction sequences in memory
 - Use `TestCpu::Step()` / `StepN()` to execute instructions
 - Call `CpuOperations` static methods directly for unit-level tests
-- No test may run the real `My6502` binary
+- No test may run the real `Casso65` binary
 
 ## Build System
 

@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.12.35506.116 d17.12
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "My6502", "My6502\My6502.vcxproj", "{ACF6DD9C-AD9A-45B3-B973-E99BA2D9ED78}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Casso65", "Casso65\Casso65.vcxproj", "{ACF6DD9C-AD9A-45B3-B973-E99BA2D9ED78}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "My6502Core", "My6502Core\My6502Core.vcxproj", "{B7E3F1A2-4C8D-4F5E-9A6B-1D2E3F4A5B6C}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Casso65Core", "Casso65Core\Casso65Core.vcxproj", "{B7E3F1A2-4C8D-4F5E-9A6B-1D2E3F4A5B6C}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "UnitTest", "UnitTest\UnitTest.vcxproj", "{E8D7C6B5-A4F3-42E1-8D9C-7B6A5E4F3D2C}"
 EndProject

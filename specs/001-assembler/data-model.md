@@ -102,7 +102,7 @@ Reverse lookup from (mnemonic, addressing mode) to opcode byte.
 
 ### CommandLineOptions
 
-CLI argument parsing result (My6502 project only).
+CLI argument parsing result (Casso65 project only).
 
 | Field | Type | Default | Description |
 |---|---|---|---|

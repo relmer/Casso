@@ -2,6 +2,8 @@
 
 
 
+
+
 //
 // EHM — Error Handling Macros
 //
@@ -11,10 +13,14 @@
 
 
 
+
+
 #define ErrorLabel          Error
 
 #define __EHM_ASSERT        true
 #define __EHM_NO_ASSERT     false
+
+
 
 
 

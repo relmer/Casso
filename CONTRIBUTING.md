@@ -1,4 +1,4 @@
-# Contributing to My6502
+# Contributing to Casso65
 
 ## Commit Messages
 

@@ -2,12 +2,16 @@
 
 
 
+
+
 enum class WarningMode
 {
     Warn,
     NoWarn,
     FatalWarnings,
 };
+
+
 
 
 
@@ -19,6 +23,8 @@ struct AssemblyError
 
 
 
+
+
 struct AssemblyLine
 {
     int               lineNumber;
@@ -27,6 +33,8 @@ struct AssemblyLine
     std::string       sourceText;
     bool              hasAddress;
 };
+
+
 
 
 
@@ -44,12 +52,16 @@ struct AssemblyResult
 
 
 
+
+
 struct AssemblerOptions
 {
     Byte        fillByte        = 0xFF;
     bool        generateListing = false;
     WarningMode warningMode     = WarningMode::Warn;
 };
+
+
 
 
 

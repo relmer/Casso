@@ -71,14 +71,14 @@ The parser first strips comments, splits into label/mnemonic/operand, then class
 
 **Decision**: Simple subcommand dispatch in `main()` using hand-rolled argument parsing. No argument parsing library.
 
-**Rationale**: The CLI has only two subcommands (`assemble`, `run`) with a small number of flags. A hand-rolled parser is simpler than adding a dependency. The My6502 project currently has no CLI infrastructure at all.
+**Rationale**: The CLI has only two subcommands (`assemble`, `run`) with a small number of flags. A hand-rolled parser is simpler than adding a dependency. The Casso65 project currently has no CLI infrastructure at all.
 
 **Alternatives considered**:
 - **Argument parsing library (CLI11, cxxopts)**: Rejected per constitution principle V (no external dependencies).
 - **Windows-style `/flag` syntax**: Rejected — the spec defines Unix-style `--flag` and `-f` syntax, which is more standard for cross-platform tools and matches ACME conventions.
 
 **Architecture**:
-- `CommandLine` class in My6502 project parses `argc/argv` into a typed options struct
+- `CommandLine` class in Casso65 project parses `argc/argv` into a typed options struct
 - `main()` dispatches to `DoAssemble()` or `DoRun()` based on subcommand
 - Assembler core is instantiated with options, fed source text, result examined
 - File I/O (reading `.asm`, writing `.bin`, `.lst`, `.sym`) happens only in the CLI layer
@@ -122,7 +122,7 @@ $8004  EA        NOP
 
 **Decision**: Add `Assemble()`, `RunUntil()`, and `LabelAddress()` methods directly to the `TestCpu` class in `TestHelpers.h`.
 
-**Rationale**: `TestCpu` already extends `Cpu` to expose protected members. Adding assembly integration here keeps test infrastructure in one place and avoids modifying production code. The `Assembler` class is in My6502Core (which UnitTest already links), so `TestCpu` can instantiate it directly.
+**Rationale**: `TestCpu` already extends `Cpu` to expose protected members. Adding assembly integration here keeps test infrastructure in one place and avoids modifying production code. The `Assembler` class is in Casso65Core (which UnitTest already links), so `TestCpu` can instantiate it directly.
 
 **Methods**:
 - `AssemblyResult Assemble(const char* source, Word startAddress = 0x8000)` — assembles source, writes bytes to `memory[]`, returns result

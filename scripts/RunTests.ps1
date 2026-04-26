@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Runs the My6502 unit tests using vstest.console.
+    Runs the Casso65 unit tests using vstest.console.
 
 .PARAMETER Configuration
     The build configuration whose test DLL to run.

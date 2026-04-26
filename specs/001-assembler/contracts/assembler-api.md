@@ -2,7 +2,7 @@
 
 **Feature**: 001-assembler | **Date**: 2026-04-23
 
-## Public API — My6502Core (Assembler)
+## Public API — Casso65Core (Assembler)
 
 ### Construction
 
@@ -126,12 +126,12 @@ Word addr = cpu.LabelAddress (result, "loop");
 
 ---
 
-## CLI Contract — My6502 Executable
+## CLI Contract — Casso65 Executable
 
 ### Subcommand: `assemble`
 
 ```
-My6502 assemble <input.asm> -o <output.bin> [options]
+Casso65 assemble <input.asm> -o <output.bin> [options]
 ```
 
 | Flag | Description |
@@ -150,7 +150,7 @@ My6502 assemble <input.asm> -o <output.bin> [options]
 ### Subcommand: `run`
 
 ```
-My6502 run <input.asm|input.bin> [options]
+Casso65 run <input.asm|input.bin> [options]
 ```
 
 | Flag | Description |

@@ -5,7 +5,7 @@
 
 ## Summary
 
-A two-pass 6502 assembler implemented as an instance-based `Assembler` class in the My6502Core static library. The assembler converts assembly language source text into machine code bytes by performing a reverse lookup on the existing 256-entry `Microcode` instruction table (mnemonic + addressing mode → opcode byte). Pass 1 determines label addresses; Pass 2 emits final bytes with resolved references. The assembler produces a flat memory image, symbol table, error list, warning list, and listing data. A CLI layer in My6502 provides `assemble` and `run` subcommands. Test integration methods on `TestCpu` enable assemble-and-run testing.
+A two-pass 6502 assembler implemented as an instance-based `Assembler` class in the Casso65Core static library. The assembler converts assembly language source text into machine code bytes by performing a reverse lookup on the existing 256-entry `Microcode` instruction table (mnemonic + addressing mode → opcode byte). Pass 1 determines label addresses; Pass 2 emits final bytes with resolved references. The assembler produces a flat memory image, symbol table, error list, warning list, and listing data. A CLI layer in Casso65 provides `assemble` and `run` subcommands. Test integration methods on `TestCpu` enable assemble-and-run testing.
 
 ## Technical Context
 
@@ -14,7 +14,7 @@ A two-pass 6502 assembler implemented as an instance-based `Assembler` class in 
 **Storage**: N/A (in-memory processing; CLI does file I/O for input/output)
 **Testing**: Microsoft Native CppUnitTest (CppUnitTestFramework)
 **Target Platform**: Windows 10/11, x64 and ARM64
-**Project Type**: Library (My6502Core) + CLI (My6502) + Test DLL (UnitTest)
+**Project Type**: Library (Casso65Core) + CLI (Casso65) + Test DLL (UnitTest)
 **Performance Goals**: Assemble typical programs (< 10K lines) in under 100ms
 **Constraints**: Max 64 KB output image (6502 address space), no external dependencies
 **Scale/Scope**: 56 standard mnemonics, 13 addressing modes, ~150 valid opcode combinations
@@ -24,7 +24,7 @@ A two-pass 6502 assembler implemented as an instance-based `Assembler` class in 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
 ### I. Code Quality — PASS
-- Formatting: Will follow existing My6502 style (spaces, column alignment)
+- Formatting: Will follow existing Casso65 style (spaces, column alignment)
 - EHM macros: Use EHM patterns (CHR, CBR, BAIL_OUT_IF, etc.) for HRESULT-returning functions; avoid early returns, explicit gotos, and deeply nested code
 - Smart pointers: Will use where appropriate for owned resources
 - Precompiled headers: All `.cpp` files will include `"Pch.h"` first
@@ -36,7 +36,7 @@ A two-pass 6502 assembler implemented as an instance-based `Assembler` class in 
 - TestCpu integration: extends existing `TestCpu` class with `Assemble()` / `RunUntil()`
 
 ### III. User Experience Consistency — PASS (adapted)
-- My6502 currently has no CLI; the `assemble`/`run` subcommand design is greenfield
+- Casso65 currently has no CLI; the `assemble`/`run` subcommand design is greenfield
 - Errors to stderr, usage on `--help` / no args
 - No backward compatibility concern (no existing CLI behavior)
 
@@ -48,7 +48,7 @@ A two-pass 6502 assembler implemented as an instance-based `Assembler` class in 
 - Single `Assembler` class with clear two-pass architecture
 - Reverse opcode lookup built once from existing `instructionSet[256]`
 - Functions under 50 lines; parsing helpers factored out
-- No new projects added — all code fits in existing My6502Core/My6502/UnitTest
+- No new projects added — all code fits in existing Casso65Core/Casso65/UnitTest
 
 ### Gate Result: **PASS** — No violations. Proceed to Phase 0.
 
@@ -70,7 +70,7 @@ specs/001-assembler/
 ### Source Code (repository root)
 
 ```text
-My6502Core/                    # Static library — all assembler logic here
+Casso65Core/                    # Static library — all assembler logic here
 ├── Assembler.h                # Assembler class declaration
 ├── Assembler.cpp              # Two-pass assembler implementation
 ├── AssemblerTypes.h           # AssemblyResult, AssemblyError, AssemblyLine structs
@@ -83,8 +83,8 @@ My6502Core/                    # Static library — all assembler logic here
 ├── Microcode.h / Microcode.cpp # (existing, unchanged — read-only reference)
 └── ...                        # (existing files unchanged)
 
-My6502/                        # Console application
-├── My6502.cpp                 # (modified) — add CLI argument parsing, subcommands
+Casso65/                        # Console application
+├── Casso65.cpp                 # (modified) — add CLI argument parsing, subcommands
 ├── CommandLine.h              # CLI argument parsing
 ├── CommandLine.cpp            # assemble/run subcommand dispatch
 └── ...
@@ -98,7 +98,7 @@ UnitTest/                      # Test DLL
 └── ...                        # (existing test files unchanged)
 ```
 
-**Structure Decision**: All new code goes into the existing three-project structure. The assembler core (Assembler, Parser, OpcodeTable) lives in My6502Core as a static library. CLI layer lives in My6502. Tests in UnitTest. No new projects needed.
+**Structure Decision**: All new code goes into the existing three-project structure. The assembler core (Assembler, Parser, OpcodeTable) lives in Casso65Core as a static library. CLI layer lives in Casso65. Tests in UnitTest. No new projects needed.
 
 ## Constitution Re-Check (Post Phase 1 Design)
 

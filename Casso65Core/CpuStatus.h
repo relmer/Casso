@@ -2,6 +2,8 @@
 
 
 
+
+
 // NV1B DIZC
 struct CpuFlags
 {
@@ -14,6 +16,8 @@ struct CpuFlags
     Byte overflow         : 1; // Overflow
     Byte negative         : 1; // Negative
 };
+
+
 
 
 

@@ -18,7 +18,7 @@ Follow-up TODOs: None
 ================================================================================
 -->
 
-# My6502 Constitution
+# Casso65 Constitution
 
 ## Core Principles
 
@@ -59,7 +59,7 @@ All production code MUST have corresponding unit tests:
 
 All user-facing output MUST follow established patterns:
 
-- **CLI Syntax**: Use standard `--flag` long options and `-f` short options; subcommand style (`My6502 assemble`, `My6502 run`)
+- **CLI Syntax**: Use standard `--flag` long options and `-f` short options; subcommand style (`Casso65 assemble`, `Casso65 run`)
 - **Error Messages**: Errors go to stderr; user-facing messages MUST be clear, actionable, and consistent in tone
 - **Help System**: All features MUST be documented in `--help` output
 - **Backward Compatibility**: Existing command-line behavior MUST NOT change without explicit user notification
@@ -74,7 +74,7 @@ Performance considerations apply where relevant:
 - **Reasonable Scale**: Assembler and emulator should handle typical 6502 programs (< 10K lines, 64 KB address space) without noticeable delay
 - **Resource Efficiency**: Prefer simple, direct implementations over over-engineered abstractions
 
-**Rationale**: My6502 is a development tool; responsiveness matters for developer experience.
+**Rationale**: Casso65 is a development tool; responsiveness matters for developer experience.
 
 ### V. Simplicity & Maintainability
 

@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Report a problem with My6502
+about: Report a problem with Casso65
 title: ''
 labels: bug
 assignees: ''

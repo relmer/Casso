@@ -151,7 +151,7 @@ When assembly source contains errors (invalid mnemonics, bad addressing mode syn
 
 ### User Story 8 - Command-Line Interface (Priority: P1)
 
-A developer uses the My6502 executable from the command line to assemble source files to binary output and/or run programs directly. The CLI uses subcommands modeled after ACME (the popular 6502 assembler).
+A developer uses the Casso65 executable from the command line to assemble source files to binary output and/or run programs directly. The CLI uses subcommands modeled after ACME (the popular 6502 assembler).
 
 **Why this priority**: The CLI is the primary non-test entry point for the assembler. Without it, assembly is only available programmatically.
 
@@ -159,19 +159,19 @@ A developer uses the My6502 executable from the command line to assemble source 
 
 **Acceptance Scenarios**:
 
-1. **Given** `My6502 assemble input.asm -o output.bin`, **When** run, **Then** the input file is assembled and the binary output is written to the specified file
-2. **Given** `My6502 assemble input.asm -o output.bin -l labels.txt`, **When** run, **Then** a symbol table file is also written with label names and addresses
-3. **Given** `My6502 run input.asm`, **When** run, **Then** the file is assembled and executed immediately
-4. **Given** `My6502 run output.bin --load $8000`, **When** run, **Then** the binary is loaded at the specified address and executed
-5. **Given** assembly errors in the input file, **When** `My6502 assemble` is run, **Then** errors are printed to stderr with line numbers and the process exits with a non-zero code
-6. **Given** `My6502 assemble input.asm -o output.bin --fill $00`, **When** run, **Then** the output binary uses `$00` instead of the default `$FF` as the fill byte for unused addresses
-7. **Given** `My6502` with no arguments, **When** run, **Then** a usage summary is displayed
-8. **Given** `My6502 --version`, **When** run, **Then** the version string is displayed
-9. **Given** `My6502 run input.asm --stop $FFFC`, **When** run, **Then** execution stops when the PC reaches `$FFFC` instead of relying solely on illegal opcode detection
-10. **Given** `My6502 run input.asm --max-cycles 10000`, **When** run, **Then** execution stops after 10000 cycles if no other stop condition is met first
-11. **Given** `My6502 run input.asm` with no entry-point flags, **When** run, **Then** execution begins at the lowest assembled address (or `$8000` if no `.org`)
-12. **Given** `My6502 run input.asm --entry $C000`, **When** run, **Then** execution begins at `$C000` regardless of the assembled origin
-13. **Given** `My6502 run input.asm --reset-vector`, **When** run, **Then** execution begins at the address stored in `$FFFC/$FFFD` (the 6502 reset vector)
+1. **Given** `Casso65 assemble input.asm -o output.bin`, **When** run, **Then** the input file is assembled and the binary output is written to the specified file
+2. **Given** `Casso65 assemble input.asm -o output.bin -l labels.txt`, **When** run, **Then** a symbol table file is also written with label names and addresses
+3. **Given** `Casso65 run input.asm`, **When** run, **Then** the file is assembled and executed immediately
+4. **Given** `Casso65 run output.bin --load $8000`, **When** run, **Then** the binary is loaded at the specified address and executed
+5. **Given** assembly errors in the input file, **When** `Casso65 assemble` is run, **Then** errors are printed to stderr with line numbers and the process exits with a non-zero code
+6. **Given** `Casso65 assemble input.asm -o output.bin --fill $00`, **When** run, **Then** the output binary uses `$00` instead of the default `$FF` as the fill byte for unused addresses
+7. **Given** `Casso65` with no arguments, **When** run, **Then** a usage summary is displayed
+8. **Given** `Casso65 --version`, **When** run, **Then** the version string is displayed
+9. **Given** `Casso65 run input.asm --stop $FFFC`, **When** run, **Then** execution stops when the PC reaches `$FFFC` instead of relying solely on illegal opcode detection
+10. **Given** `Casso65 run input.asm --max-cycles 10000`, **When** run, **Then** execution stops after 10000 cycles if no other stop condition is met first
+11. **Given** `Casso65 run input.asm` with no entry-point flags, **When** run, **Then** execution begins at the lowest assembled address (or `$8000` if no `.org`)
+12. **Given** `Casso65 run input.asm --entry $C000`, **When** run, **Then** execution begins at `$C000` regardless of the assembled origin
+13. **Given** `Casso65 run input.asm --reset-vector`, **When** run, **Then** execution begins at the address stored in `$FFFC/$FFFD` (the 6502 reset vector)
 
 ---
 

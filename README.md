@@ -1,11 +1,11 @@
-# My6502
+# Casso65
 
-[![CI](https://github.com/relmer/My6502/actions/workflows/ci.yml/badge.svg)](https://github.com/relmer/My6502/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/github/license/relmer/My6502)](LICENSE)
+[![CI](https://github.com/relmer/Casso65/actions/workflows/ci.yml/badge.svg)](https://github.com/relmer/Casso65/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/github/license/relmer/Casso65)](LICENSE)
 
 ## About
 
-My6502 is a 6502 CPU emulator and assembler written in C++. It emulates the MOS Technology 6502 microprocessor — the chip behind the Apple II, Commodore 64, NES, and Atari 2600.
+Casso65 is a 6502 CPU emulator and assembler written in C++. It emulates the MOS Technology 6502 microprocessor — the chip behind the Apple II, Commodore 64, NES, and Atari 2600.
 
 The project includes:
 
@@ -17,9 +17,9 @@ The project includes:
 ## Project Structure
 
 ```
-My6502.sln
-├── My6502Core/     Static library — CPU emulator, assembler, parser, opcode table
-├── My6502/         Console application — CLI with assemble/run subcommands
+Casso65.sln
+├── Casso65Core/     Static library — CPU emulator, assembler, parser, opcode table
+├── Casso65/         Console application — CLI with assemble/run subcommands
 └── UnitTest/       Test DLL — Microsoft Native CppUnitTest (170+ tests)
 ```
 
@@ -64,16 +64,16 @@ My6502.sln
 
 ```powershell
 # Assemble a source file to binary
-.\x64\Debug\My6502.exe assemble input.asm -o output.bin
+.\x64\Debug\Casso65.exe assemble input.asm -o output.bin
 
 # Assemble with listing and symbol table
-.\x64\Debug\My6502.exe assemble input.asm -o output.bin -l labels.txt -a
+.\x64\Debug\Casso65.exe assemble input.asm -o output.bin -l labels.txt -a
 
 # Assemble and run directly
-.\x64\Debug\My6502.exe run input.asm
+.\x64\Debug\Casso65.exe run input.asm
 
 # Load and run a pre-assembled binary
-.\x64\Debug\My6502.exe run output.bin --load $8000
+.\x64\Debug\Casso65.exe run output.bin --load $8000
 ```
 
 ## Assembler Features
@@ -101,12 +101,12 @@ All 56 standard 6502 mnemonics are implemented.
 - Load/Store (LDA, LDX, LDY, STA, STX, STY)
 - Arithmetic (ADC, SBC)
 - Logic (AND, ORA, EOR)
-- Shifts/Rotates (ASL, LSR, ROL, ROR) — *see [#1](https://github.com/relmer/My6502/issues/1) for dispatch bug*
-- Compare (CMP, CPX, CPY) — *see [#4](https://github.com/relmer/My6502/issues/4) for carry flag edge case*
+- Shifts/Rotates (ASL, LSR, ROL, ROR) — *see [#1](https://github.com/relmer/Casso65/issues/1) for dispatch bug*
+- Compare (CMP, CPX, CPY) — *see [#4](https://github.com/relmer/Casso65/issues/4) for carry flag edge case*
 - Branch (BEQ, BNE, BCC, BCS, BMI, BPL, BVC, BVS)
 - Jump (JMP, JSR)
 - Increment/Decrement (INC, DEC, INX, DEX, INY, DEY)
-- BIT test — *see [#3](https://github.com/relmer/My6502/issues/3) for V/N flag bug*
+- BIT test — *see [#3](https://github.com/relmer/Casso65/issues/3) for V/N flag bug*
 - BRK (software interrupt)
 - Stack operations (PHA, PLA, PHP, PLP)
 - Register transfers (TAX, TXA, TAY, TYA, TXS, TSX)
@@ -118,13 +118,13 @@ All 56 standard 6502 mnemonics are implemented.
 
 | Issue | Description |
 |-------|-------------|
-| [#1](https://github.com/relmer/My6502/issues/1) | ShiftLeft/ShiftRight dispatch calls RotateLeft/RotateRight |
-| [#3](https://github.com/relmer/My6502/issues/3) | BIT instruction V/N flags read from AND result instead of operand |
-| [#4](https://github.com/relmer/My6502/issues/4) | Compare carry flag incorrect for boundary values |
+| [#1](https://github.com/relmer/Casso65/issues/1) | ShiftLeft/ShiftRight dispatch calls RotateLeft/RotateRight |
+| [#3](https://github.com/relmer/Casso65/issues/3) | BIT instruction V/N flags read from AND result instead of operand |
+| [#4](https://github.com/relmer/Casso65/issues/4) | Compare carry flag incorrect for boundary values |
 
 ## Roadmap
 
-- [ ] Fix all known CPU bugs ([#1](https://github.com/relmer/My6502/issues/1)–[#5](https://github.com/relmer/My6502/issues/5))
+- [ ] Fix all known CPU bugs ([#1](https://github.com/relmer/Casso65/issues/1)–[#5](https://github.com/relmer/Casso65/issues/5))
 - [ ] Run [Klaus Dormann's 6502 functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) for comprehensive validation
 - [ ] Binary file loader (`LoadBinary(filename, address)`)
 - [ ] 65C02 extended instruction support

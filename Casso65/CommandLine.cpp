@@ -392,13 +392,13 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
 
 void PrintUsage ()
 {
-    std::cout << "My6502 — 6502 Assembler and Emulator\n"
+    std::cout << "Casso65 — 6502 Assembler and Emulator\n"
               << "\n"
               << "Usage:\n"
-              << "  My6502 assemble <input.asm> -o <output.bin> [options]\n"
-              << "  My6502 run <input> [options]\n"
-              << "  My6502 --help\n"
-              << "  My6502 --version\n"
+              << "  Casso65 assemble <input.asm> -o <output.bin> [options]\n"
+              << "  Casso65 run <input> [options]\n"
+              << "  Casso65 --help\n"
+              << "  Casso65 --version\n"
               << "\n"
               << "Assemble options:\n"
               << "  -o <file>           Output binary file (required)\n"
@@ -431,7 +431,7 @@ void PrintUsage ()
 
 void PrintVersion ()
 {
-    std::cout << "My6502 version " << s_version << "\n";
+    std::cout << "Casso65 version " << s_version << "\n";
 }
 
 

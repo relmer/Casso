@@ -15,8 +15,8 @@
 
 ## Path Conventions
 
-- **Core library**: `My6502Core/` (static library — all assembler logic)
-- **CLI application**: `My6502/` (console app — subcommand dispatch, file I/O)
+- **Core library**: `Casso65Core/` (static library — all assembler logic)
+- **CLI application**: `Casso65/` (console app — subcommand dispatch, file I/O)
 - **Tests**: `UnitTest/` (CppUnitTestFramework DLL)
 
 ---
@@ -25,13 +25,13 @@
 
 **Purpose**: Project initialization — add new files, update PCH, configure project files
 
-- [X] T001 Update My6502Core/Pch.h to add STL includes needed by assembler (`<vector>`, `<unordered_map>`, `<sstream>`, `<string>`, `<algorithm>`, `<cctype>`)
-- [X] T002 [P] Create My6502Core/AssemblerTypes.h with data structs: `AssemblyError` (lineNumber, message), `AssemblyLine` (lineNumber, address, bytes, sourceText, hasAddress), `AssemblyResult` (success, bytes, startAddress, endAddress, symbols, errors, warnings, listing), `AssemblerOptions` (fillByte=0xFF, generateListing=false, warningMode), `WarningMode` enum (Warn, NoWarn, FatalWarnings), `OpcodeEntry` (opcode, operandSize)
-- [X] T003 [P] Create stub header and source files for assembler core: My6502Core/Assembler.h, My6502Core/Assembler.cpp, My6502Core/Parser.h, My6502Core/Parser.cpp, My6502Core/OpcodeTable.h, My6502Core/OpcodeTable.cpp — each `.cpp` must include `"Pch.h"` first
+- [X] T001 Update Casso65Core/Pch.h to add STL includes needed by assembler (`<vector>`, `<unordered_map>`, `<sstream>`, `<string>`, `<algorithm>`, `<cctype>`)
+- [X] T002 [P] Create Casso65Core/AssemblerTypes.h with data structs: `AssemblyError` (lineNumber, message), `AssemblyLine` (lineNumber, address, bytes, sourceText, hasAddress), `AssemblyResult` (success, bytes, startAddress, endAddress, symbols, errors, warnings, listing), `AssemblerOptions` (fillByte=0xFF, generateListing=false, warningMode), `WarningMode` enum (Warn, NoWarn, FatalWarnings), `OpcodeEntry` (opcode, operandSize)
+- [X] T003 [P] Create stub header and source files for assembler core: Casso65Core/Assembler.h, Casso65Core/Assembler.cpp, Casso65Core/Parser.h, Casso65Core/Parser.cpp, Casso65Core/OpcodeTable.h, Casso65Core/OpcodeTable.cpp — each `.cpp` must include `"Pch.h"` first
 - [X] T004 [P] Create stub test files with `"Pch.h"` includes and empty test classes: UnitTest/OpcodeTableTests.cpp, UnitTest/ParserTests.cpp, UnitTest/AssemblerTests.cpp, UnitTest/IntegrationTests.cpp
-- [X] T005 Update My6502Core.vcxproj to include new source files (AssemblerTypes.h, Assembler.h/cpp, Parser.h/cpp, OpcodeTable.h/cpp)
+- [X] T005 Update Casso65Core.vcxproj to include new source files (AssemblerTypes.h, Assembler.h/cpp, Parser.h/cpp, OpcodeTable.h/cpp)
 - [X] T006 Update UnitTest.vcxproj to include new test files (OpcodeTableTests.cpp, ParserTests.cpp, AssemblerTests.cpp, IntegrationTests.cpp)
-- [X] T007 Build all projects (My6502Core, My6502, UnitTest) and verify compilation succeeds with stubs
+- [X] T007 Build all projects (Casso65Core, Casso65, UnitTest) and verify compilation succeeds with stubs
 
 ---
 
@@ -48,8 +48,8 @@
 
 ### Implementation
 
-- [X] T010 Implement OpcodeTable class in My6502Core/OpcodeTable.h and My6502Core/OpcodeTable.cpp: constructor iterates `instructionSet[0..255]`, skips illegal entries, builds `unordered_map<string, unordered_map<AddressingMode, OpcodeEntry>>` keyed by uppercase mnemonic; implement `Lookup()`, `IsMnemonic()`, `HasMode()`
-- [X] T011 Implement basic Parser in My6502Core/Parser.h and My6502Core/Parser.cpp: `SplitLines()` to break source text into lines, `ParseLine()` to extract label (before `:`), mnemonic (uppercase), operand (remainder), strip comments (everything after `;` outside quotes), skip blank/whitespace-only lines
+- [X] T010 Implement OpcodeTable class in Casso65Core/OpcodeTable.h and Casso65Core/OpcodeTable.cpp: constructor iterates `instructionSet[0..255]`, skips illegal entries, builds `unordered_map<string, unordered_map<AddressingMode, OpcodeEntry>>` keyed by uppercase mnemonic; implement `Lookup()`, `IsMnemonic()`, `HasMode()`
+- [X] T011 Implement basic Parser in Casso65Core/Parser.h and Casso65Core/Parser.cpp: `SplitLines()` to break source text into lines, `ParseLine()` to extract label (before `:`), mnemonic (uppercase), operand (remainder), strip comments (everything after `;` outside quotes), skip blank/whitespace-only lines
 
 **Checkpoint**: OpcodeTable and Parser basics ready — user story implementation can now begin
 
@@ -68,9 +68,9 @@
 
 ### Implementation
 
-- [X] T014 [US1] Implement operand addressing mode classifier in My6502Core/Parser.cpp: detect `#value` (Immediate), `A` (Accumulator), `$ZZ` (ZeroPage), `$HHHH` (Absolute), `$ZZ,X` (ZeroPageX), `$ZZ,Y` (ZeroPageY), `$HHHH,X` (AbsoluteX), `$HHHH,Y` (AbsoluteY), `($ZZ,X)` (ZeroPageXIndirect), `($ZZ),Y` (ZeroPageIndirectY), `($HHHH)` (JumpIndirect), no operand (SingleByteNoOperand) — include hex value parsing (`$FF` → 0xFF). Note: `Relative` and `JumpAbsolute` modes are inferred from the mnemonic, not syntax — branches (BEQ, BNE, etc.) use Relative, JMP absolute uses JumpAbsolute. The parser must perform mnemonic-aware disambiguation: `JMP $1234` → JumpAbsolute (not Absolute), branch targets → Relative (not ZeroPage/Absolute).
-- [X] T015 [US1] Implement two-pass Assembler::Assemble() skeleton in My6502Core/Assembler.h and My6502Core/Assembler.cpp: constructor takes `const Microcode instructionSet[256]` and `AssemblerOptions`, builds `OpcodeTable`; Pass 1 parses lines and advances PC by instruction size; Pass 2 emits opcode + operand bytes into flat `vector<Byte>` image; returns `AssemblyResult` with bytes, startAddress, endAddress
-- [X] T016 [US1] Implement zero-page preference in My6502Core/Assembler.cpp: when operand value fits in one byte (0x00–0xFF) and mnemonic supports both ZeroPage and Absolute modes, emit the shorter ZeroPage encoding (FR-016)
+- [X] T014 [US1] Implement operand addressing mode classifier in Casso65Core/Parser.cpp: detect `#value` (Immediate), `A` (Accumulator), `$ZZ` (ZeroPage), `$HHHH` (Absolute), `$ZZ,X` (ZeroPageX), `$ZZ,Y` (ZeroPageY), `$HHHH,X` (AbsoluteX), `$HHHH,Y` (AbsoluteY), `($ZZ,X)` (ZeroPageXIndirect), `($ZZ),Y` (ZeroPageIndirectY), `($HHHH)` (JumpIndirect), no operand (SingleByteNoOperand) — include hex value parsing (`$FF` → 0xFF). Note: `Relative` and `JumpAbsolute` modes are inferred from the mnemonic, not syntax — branches (BEQ, BNE, etc.) use Relative, JMP absolute uses JumpAbsolute. The parser must perform mnemonic-aware disambiguation: `JMP $1234` → JumpAbsolute (not Absolute), branch targets → Relative (not ZeroPage/Absolute).
+- [X] T015 [US1] Implement two-pass Assembler::Assemble() skeleton in Casso65Core/Assembler.h and Casso65Core/Assembler.cpp: constructor takes `const Microcode instructionSet[256]` and `AssemblerOptions`, builds `OpcodeTable`; Pass 1 parses lines and advances PC by instruction size; Pass 2 emits opcode + operand bytes into flat `vector<Byte>` image; returns `AssemblyResult` with bytes, startAddress, endAddress
+- [X] T016 [US1] Implement zero-page preference in Casso65Core/Assembler.cpp: when operand value fits in one byte (0x00–0xFF) and mnemonic supports both ZeroPage and Absolute modes, emit the shorter ZeroPage encoding (FR-016)
 
 **Checkpoint**: Basic instructions assemble correctly. Comments and whitespace handled. This is a usable MVP — can assemble simple instruction sequences.
 
@@ -89,9 +89,9 @@
 
 ### Implementation
 
-- [X] T019 [US2] Implement Pass 1 symbol table building in My6502Core/Assembler.cpp: on label definition, record name → current PC in `unordered_map<string, Word>`, detect duplicate labels (error with line number); implement label name validation in My6502Core/Parser.cpp: must start with letter or underscore, alphanumeric + underscore only, not a reserved mnemonic (checked via `OpcodeTable::IsMnemonic()`), not a register name (A, X, Y, S)
-- [X] T020 [US2] Implement Pass 2 label resolution in My6502Core/Assembler.cpp: when operand is a label name (not a numeric literal), look up address in symbol table; for absolute addressing emit little-endian address; for undefined labels record error and emit placeholder zeros
-- [X] T021 [US2] Implement relative branch offset calculation in My6502Core/Assembler.cpp: for branch mnemonics (BEQ, BNE, BCC, BCS, BMI, BPL, BVC, BVS), compute signed offset from (PC after branch instruction) to target address, validate range -128 to +127, report error if out of range
+- [X] T019 [US2] Implement Pass 1 symbol table building in Casso65Core/Assembler.cpp: on label definition, record name → current PC in `unordered_map<string, Word>`, detect duplicate labels (error with line number); implement label name validation in Casso65Core/Parser.cpp: must start with letter or underscore, alphanumeric + underscore only, not a reserved mnemonic (checked via `OpcodeTable::IsMnemonic()`), not a register name (A, X, Y, S)
+- [X] T020 [US2] Implement Pass 2 label resolution in Casso65Core/Assembler.cpp: when operand is a label name (not a numeric literal), look up address in symbol table; for absolute addressing emit little-endian address; for undefined labels record error and emit placeholder zeros
+- [X] T021 [US2] Implement relative branch offset calculation in Casso65Core/Assembler.cpp: for branch mnemonics (BEQ, BNE, BCC, BCS, BMI, BPL, BVC, BVS), compute signed offset from (PC after branch instruction) to target address, validate range -128 to +127, report error if out of range
 
 **Checkpoint**: Labels, forward/backward references, and branch offsets all resolve correctly. Symbol table populated.
 
@@ -135,9 +135,9 @@
 
 ### Implementation
 
-- [X] T032 [US3] Implement directive parsing in My6502Core/Parser.cpp: detect `.org`, `.byte`, `.word`, `.text` as directive keywords, parse comma-separated value lists, parse quoted strings
-- [X] T033 [US3] Implement `.org` handling in My6502Core/Assembler.cpp: set PC to specified address, validate address is not backward from current output position (error if so), adjust flat image start/end tracking
-- [X] T034 [US3] Implement `.byte`, `.word`, `.text` data emission in My6502Core/Assembler.cpp: `.byte` emits each value as a single byte, `.word` emits each value as two bytes little-endian, `.text` emits each character as its ASCII byte value
+- [X] T032 [US3] Implement directive parsing in Casso65Core/Parser.cpp: detect `.org`, `.byte`, `.word`, `.text` as directive keywords, parse comma-separated value lists, parse quoted strings
+- [X] T033 [US3] Implement `.org` handling in Casso65Core/Assembler.cpp: set PC to specified address, validate address is not backward from current output position (error if so), adjust flat image start/end tracking
+- [X] T034 [US3] Implement `.byte`, `.word`, `.text` data emission in Casso65Core/Assembler.cpp: `.byte` emits each value as a single byte, `.word` emits each value as two bytes little-endian, `.text` emits each character as its ASCII byte value
 
 **Checkpoint**: All directives work. Can set code origin, embed data tables and strings.
 
@@ -156,8 +156,8 @@
 
 ### Implementation
 
-- [X] T037 [US4] Implement binary (`%10101010`) and decimal (`255`) number parsing in My6502Core/Parser.cpp alongside existing hex parsing
-- [X] T038 [US4] Implement `<label` (low byte) and `>label` (high byte) operators and `label+offset` expression evaluation in My6502Core/Assembler.cpp during Pass 2 operand resolution
+- [X] T037 [US4] Implement binary (`%10101010`) and decimal (`255`) number parsing in Casso65Core/Parser.cpp alongside existing hex parsing
+- [X] T038 [US4] Implement `<label` (low byte) and `>label` (high byte) operators and `label+offset` expression evaluation in Casso65Core/Assembler.cpp during Pass 2 operand resolution
 
 **Checkpoint**: All number formats and label expressions resolve correctly.
 
@@ -176,8 +176,8 @@
 
 ### Implementation
 
-- [X] T041 [US7] Harden error collection in My6502Core/Assembler.cpp: add `AssemblyError` for each error condition (invalid mnemonic, missing operand, undefined label, duplicate label, operand out of range, branch out of range, `.org` backward), continue assembly after each error, set `result.success = false` if any errors
-- [X] T042 [US7] Implement best-effort PC estimation in My6502Core/Assembler.cpp: when a line fails to parse in Pass 1, estimate instruction size (1 byte for unknown implied, 2 bytes for unknown with operand, 3 bytes for unknown with long operand) and advance PC to minimize cascading label offset errors
+- [X] T041 [US7] Harden error collection in Casso65Core/Assembler.cpp: add `AssemblyError` for each error condition (invalid mnemonic, missing operand, undefined label, duplicate label, operand out of range, branch out of range, `.org` backward), continue assembly after each error, set `result.success = false` if any errors
+- [X] T042 [US7] Implement best-effort PC estimation in Casso65Core/Assembler.cpp: when a line fails to parse in Pass 1, estimate instruction size (1 byte for unknown implied, 2 bytes for unknown with operand, 3 bytes for unknown with long operand) and advance PC to minimize cascading label offset errors
 
 **Checkpoint**: All error conditions detected. Multiple errors collected per assembly with correct line numbers.
 
@@ -195,8 +195,8 @@
 
 ### Implementation
 
-- [X] T044 [US9] Implement `AssemblyLine` population during Pass 2 in My6502Core/Assembler.cpp: for each source line, record lineNumber, address, emitted bytes, original sourceText, and hasAddress flag; only populate when `options.generateListing == true`
-- [X] T045 [US9] Implement listing format helper in My6502Core/Assembler.h or My6502Core/Assembler.cpp: format listing lines as `"$XXXX  XX XX XX  source text"` with address column (4-digit hex), bytes column (up to 3 hex bytes), and source column — used by CLI for `-a` output
+- [X] T044 [US9] Implement `AssemblyLine` population during Pass 2 in Casso65Core/Assembler.cpp: for each source line, record lineNumber, address, emitted bytes, original sourceText, and hasAddress flag; only populate when `options.generateListing == true`
+- [X] T045 [US9] Implement listing format helper in Casso65Core/Assembler.h or Casso65Core/Assembler.cpp: format listing lines as `"$XXXX  XX XX XX  source text"` with address column (4-digit hex), bytes column (up to 3 hex bytes), and source column — used by CLI for `-a` output
 
 **Checkpoint**: Listing data correctly represents all line types (instructions, directives, labels, comments).
 
@@ -208,16 +208,16 @@
 
 **Independent Test**: Run executable with various argument combinations, check exit codes, output files, stderr messages.
 
-> **Note**: CommandLine lives in My6502/ project (not My6502Core), so unit tests cannot directly test it. Acceptance is validated through integration testing (running the executable) and the CLI-vs-API equivalence test (T057e). The assembler core is already fully unit-tested in earlier phases.
+> **Note**: CommandLine lives in Casso65/ project (not Casso65Core), so unit tests cannot directly test it. Acceptance is validated through integration testing (running the executable) and the CLI-vs-API equivalence test (T057e). The assembler core is already fully unit-tested in earlier phases.
 
 ### Implementation
 
-- [X] T046 [US8] Create My6502/CommandLine.h with `CommandLineOptions` struct (subcommand, inputFile, outputFile, symbolFile, fillByte, loadAddress, stopAddress, entryAddress, maxCycles, useResetVector, verbose, generateListing, warningMode, showVersion, showHelp) and `ParseCommandLine(int argc, char* argv[])` declaration
-- [X] T047 [US8] Implement CLI argument parsing in My6502/CommandLine.cpp: parse `assemble <input> -o <output> [-l <symbols>] [-a] [--fill <byte>] [-v] [--warn|--no-warn|--fatal-warnings]`, parse `run <input> [--load <addr>] [--entry <addr>] [--reset-vector] [--stop <addr>] [--max-cycles <n>] [-v]`, parse `--help` and `--version`, validate required arguments
-- [X] T048 [US8] Implement `DoAssemble()` in My6502/CommandLine.cpp: read input `.asm` file, create `Assembler` with options, call `Assemble()`, write binary output to `-o` file, optionally write symbol table to `-l` file, optionally print listing to stdout (`-a`), print errors to stderr, return appropriate exit code (0=success, 1=assembly errors, 2=I/O error)
-- [X] T049 [US8] Implement `DoRun()` in My6502/CommandLine.cpp: if `.asm` file → assemble then execute; if `.bin` file → load at `--load` address; determine entry point (default=lowest assembled address or `$8000`, `--entry` override, `--reset-vector` for `$FFFC/$FFFD`); execute with stop conditions (`--stop`, illegal opcode, `--max-cycles`); print execution summary; exit code 3 for illegal opcode stop
-- [X] T050 [US8] Update My6502/My6502.cpp: replace current `main()` with subcommand dispatch — call `ParseCommandLine()`, handle `--help` (print usage summary), `--version` (print version), dispatch to `DoAssemble()` or `DoRun()`, return exit code
-- [X] T051 [US8] Update My6502.vcxproj to include CommandLine.h and CommandLine.cpp
+- [X] T046 [US8] Create Casso65/CommandLine.h with `CommandLineOptions` struct (subcommand, inputFile, outputFile, symbolFile, fillByte, loadAddress, stopAddress, entryAddress, maxCycles, useResetVector, verbose, generateListing, warningMode, showVersion, showHelp) and `ParseCommandLine(int argc, char* argv[])` declaration
+- [X] T047 [US8] Implement CLI argument parsing in Casso65/CommandLine.cpp: parse `assemble <input> -o <output> [-l <symbols>] [-a] [--fill <byte>] [-v] [--warn|--no-warn|--fatal-warnings]`, parse `run <input> [--load <addr>] [--entry <addr>] [--reset-vector] [--stop <addr>] [--max-cycles <n>] [-v]`, parse `--help` and `--version`, validate required arguments
+- [X] T048 [US8] Implement `DoAssemble()` in Casso65/CommandLine.cpp: read input `.asm` file, create `Assembler` with options, call `Assemble()`, write binary output to `-o` file, optionally write symbol table to `-l` file, optionally print listing to stdout (`-a`), print errors to stderr, return appropriate exit code (0=success, 1=assembly errors, 2=I/O error)
+- [X] T049 [US8] Implement `DoRun()` in Casso65/CommandLine.cpp: if `.asm` file → assemble then execute; if `.bin` file → load at `--load` address; determine entry point (default=lowest assembled address or `$8000`, `--entry` override, `--reset-vector` for `$FFFC/$FFFD`); execute with stop conditions (`--stop`, illegal opcode, `--max-cycles`); print execution summary; exit code 3 for illegal opcode stop
+- [X] T050 [US8] Update Casso65/Casso65.cpp: replace current `main()` with subcommand dispatch — call `ParseCommandLine()`, handle `--help` (print usage summary), `--version` (print version), dispatch to `DoAssemble()` or `DoRun()`, return exit code
+- [X] T051 [US8] Update Casso65.vcxproj to include CommandLine.h and CommandLine.cpp
 
 **Checkpoint**: CLI fully functional with `assemble` and `run` subcommands. Exit codes, stderr errors, and all flags working.
 
@@ -235,8 +235,8 @@
 
 ### Implementation
 
-- [X] T053 [US10] Implement warning mode handling in My6502Core/Assembler.cpp: when recording a warning, check `options.warningMode` — `Warn` adds to `result.warnings`, `FatalWarnings` adds to `result.errors` and sets `success=false`, `NoWarn` discards silently
-- [X] T054 [US10] Implement verbose output in My6502/CommandLine.cpp: when `-v` flag is set, print to stderr: pass number start/end, symbol resolution details (label → address), byte count summary, timing information
+- [X] T053 [US10] Implement warning mode handling in Casso65Core/Assembler.cpp: when recording a warning, check `options.warningMode` — `Warn` adds to `result.warnings`, `FatalWarnings` adds to `result.errors` and sets `success=false`, `NoWarn` discards silently
+- [X] T054 [US10] Implement verbose output in Casso65/CommandLine.cpp: when `-v` flag is set, print to stderr: pass number start/end, symbol resolution details (label → address), byte count summary, timing information
 
 **Checkpoint**: Warning modes work correctly in assembler core. Verbose output available in CLI.
 
@@ -327,9 +327,9 @@ T012: instruction encoding tests in UnitTest/AssemblerTests.cpp
 T013: comment/whitespace tests in UnitTest/AssemblerTests.cpp
 
 # Then implement sequentially:
-T014: operand addressing mode classifier in My6502Core/Parser.cpp
-T015: Assembler skeleton in My6502Core/Assembler.h + My6502Core/Assembler.cpp
-T016: zero-page preference in My6502Core/Assembler.cpp
+T014: operand addressing mode classifier in Casso65Core/Parser.cpp
+T015: Assembler skeleton in Casso65Core/Assembler.h + Casso65Core/Assembler.cpp
+T016: zero-page preference in Casso65Core/Assembler.cpp
 ```
 
 ---
