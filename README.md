@@ -137,3 +137,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for commit conventions, build instruction
 ## License
 
 [MIT](LICENSE)
+
+---
+
+![Southern Cassowary](Assets/3a%20Mrs%20Cassowary%20closeup%208167.jpg)
+
+*Cassowary photo by [Mr. Smiley / BunyipCo](https://bunyipco.blogspot.com/2015/04/cassowary-update.html), licensed under [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/) ([license text](Assets/CC-BY-NC-SA-3.0.txt)).*
