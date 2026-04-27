@@ -353,6 +353,407 @@ static std::string StripExtension (const std::string & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsAssemblySource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool IsAssemblySource (const std::string & path)
+{
+    return EndsWith (path, ".asm") || EndsWith (path, ".s") || EndsWith (path, ".a65");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssembleResult
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct AssembleResult
+{
+    AssemblyResult result;
+    bool           ok;
+    std::string    inputFile;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildAssemblerOptions - build AssemblerOptions from CommandLineOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static AssemblerOptions BuildAssemblerOptions (const CommandLineOptions & options)
+{
+    AssemblerOptions asmOptions   = {};
+    asmOptions.fillByte           = options.fillByte;
+    asmOptions.generateListing    = options.generateListing;
+    asmOptions.warningMode        = options.warningMode;
+    asmOptions.cycleCounts        = options.cycleCounts;
+    asmOptions.macroExpansion     = options.macroExpansion;
+    asmOptions.pageHeight         = options.pageHeight;
+    asmOptions.pageWidth          = options.pageWidth;
+    asmOptions.pass1Listing       = options.pass1Listing;
+    asmOptions.symbolTable        = options.symbolTable;
+    asmOptions.debugInfo          = options.debugInfo;
+    asmOptions.verbose            = options.verbose;
+    asmOptions.quiet              = options.quiet;
+    asmOptions.disableOpt         = options.disableOpt;
+    asmOptions.predefinedSymbols  = options.predefinedSymbols;
+
+    return asmOptions;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssembleFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static AssembleResult AssembleFile (const std::string & inputFile,
+                                   const Microcode instructionSet[256],
+                                   const AssemblerOptions & asmOptions)
+{
+    AssembleResult ar = {};
+    ar.inputFile      = inputFile;
+
+
+
+    std::string source;
+
+    if (!ReadFileContents (inputFile, source))
+    {
+        std::cerr << "Error: Cannot read input file: " << inputFile << "\n";
+        ar.ok = false;
+        return ar;
+    }
+
+    Assembler asm6502 (instructionSet, asmOptions);
+    ar.result = asm6502.Assemble (source);
+    ar.ok     = ar.result.success;
+    return ar;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReportAssemblyDiagnostics
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void ReportAssemblyDiagnostics (const AssembleResult & ar)
+{
+    for (const auto & w : ar.result.warnings)
+    {
+        std::cerr << std::format ("{}:{}: warning: {}\n", ar.inputFile, w.lineNumber, w.message);
+    }
+
+    for (const auto & e : ar.result.errors)
+    {
+        std::cerr << std::format ("{}:{}: error: {}\n", ar.inputFile, e.lineNumber, e.message);
+    }
+
+    if (!ar.ok)
+    {
+        std::cerr << std::format ("Assembly failed with {} error(s)\n", ar.result.errors.size ());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteBinaryOutput
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool WriteBinaryOutput (const AssemblyResult & result,
+                               const CommandLineOptions & options)
+{
+    std::string outLower = options.outputFile;
+
+    for (auto & c : outLower)
+    {
+        c = (char) tolower ((unsigned char) c);
+    }
+
+    if (outLower == "nul")
+    {
+        return true;
+    }
+
+
+
+    if (EndsWith (options.outputFile, ".s19"))
+    {
+        std::ofstream outFile (options.outputFile);
+
+        if (!outFile.is_open ())
+        {
+            std::cerr << "Error: Cannot write output file: " << options.outputFile << "\n";
+            return false;
+        }
+
+        OutputFormats::WriteSRecord (result.bytes, result.startAddress, result.endAddress, result.startAddress, outFile);
+        return true;
+    }
+
+    if (EndsWith (options.outputFile, ".hex"))
+    {
+        std::ofstream outFile (options.outputFile);
+
+        if (!outFile.is_open ())
+        {
+            std::cerr << "Error: Cannot write output file: " << options.outputFile << "\n";
+            return false;
+        }
+
+        OutputFormats::WriteIntelHex (result.bytes, result.startAddress, result.endAddress, result.startAddress, outFile);
+        return true;
+    }
+
+    if (!WriteFlatBinaryFile (options.outputFile, result.bytes, result.startAddress, options.fillByte))
+    {
+        std::cerr << "Error: Cannot write output file: " << options.outputFile << "\n";
+        return false;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteListingOutput
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool WriteListingOutput (const AssemblyResult & result,
+                                const CommandLineOptions & options)
+{
+    std::ostream * listOut = &std::cout;
+    std::ofstream  listFile;
+
+
+
+    if (!options.listingFile.empty ())
+    {
+        listFile.open (options.listingFile);
+
+        if (!listFile.is_open ())
+        {
+            std::cerr << "Error: Cannot write listing file: " << options.listingFile << "\n";
+            return false;
+        }
+
+        listOut = &listFile;
+    }
+
+    if (!result.listingTitle.empty ())
+    {
+        *listOut << result.listingTitle << "\n\n";
+    }
+
+    for (const auto & line : result.listing)
+    {
+        if (line.sourceText.find (".page") != std::string::npos ||
+            line.sourceText.find (".PAGE") != std::string::npos ||
+            line.sourceText.find ("page") == 0)
+        {
+            *listOut << "\f";
+
+            if (!result.listingTitle.empty ())
+            {
+                *listOut << result.listingTitle << "\n\n";
+            }
+        }
+
+        *listOut << Assembler::FormatListingLine (line, options.cycleCounts) << "\n";
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteSymbolTableOutput
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void WriteSymbolTableOutput (const AssemblyResult & result)
+{
+    std::cout << "\nSymbol Table:\n";
+    std::cout << Assembler::FormatSymbolTable (result.symbols, result.symbolKinds);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteDebugInfoOutput
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool WriteDebugInfoOutput (const AssemblyResult & result,
+                                  const std::string & debugFile)
+{
+    std::ofstream dbgFile (debugFile);
+
+    if (!dbgFile.is_open ())
+    {
+        std::cerr << "Error: Cannot write debug file: " << debugFile << "\n";
+        return false;
+    }
+
+    dbgFile << Assembler::FormatDebugInfo (result.symbols);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadAssembledIntoMemory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void LoadAssembledIntoMemory (Cpu & cpu, const AssemblyResult & result)
+{
+    Word loadAddr = result.startAddress;
+
+    for (size_t i = 0; i < result.bytes.size (); i++)
+    {
+        cpu.PokeByte (loadAddr + (Word) i, result.bytes[i]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadBinaryFileIntoMemory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool LoadBinaryFileIntoMemory (Cpu & cpu,
+                                      const std::string & inputFile,
+                                      Word loadAddr,
+                                      Word & entryPoint)
+{
+    std::string contents;
+
+    if (!ReadFileContents (inputFile, contents))
+    {
+        std::cerr << "Error: Cannot read input file: " << inputFile << "\n";
+        return false;
+    }
+
+    for (size_t i = 0; i < contents.size (); i++)
+    {
+        cpu.PokeByte (loadAddr + (Word) i, (Byte) contents[i]);
+    }
+
+    entryPoint = loadAddr;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunCpu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static int RunCpu (Cpu & cpu,
+                   const CommandLineOptions & options,
+                   Word entryPoint,
+                   std::vector<std::string> & status)
+{
+    cpu.SetPC (entryPoint);
+    status.push_back (std::format ("Executing from ${:04X}", entryPoint));
+
+    uint32_t cycles   = 0;
+    int      exitCode = 0;
+
+
+
+    for (;;)
+    {
+        if (options.maxCycles > 0 && cycles >= options.maxCycles)
+        {
+            status.push_back (std::format ("Stopped: cycle limit reached ({})", options.maxCycles));
+            break;
+        }
+
+        Byte opcode = cpu.PeekByte (cpu.GetPC ());
+
+        if (!cpu.GetMicrocode (opcode).isLegal)
+        {
+            std::cerr << std::format ("Illegal opcode ${:02X} at ${:04X}\n", opcode, cpu.GetPC ());
+            exitCode = 3;
+            break;
+        }
+
+        if (options.hasStopAddress && cpu.GetPC () == options.stopAddress)
+        {
+            status.push_back (std::format ("Stopped at address ${:04X}", options.stopAddress));
+            break;
+        }
+
+        if (opcode == 0x00)
+        {
+            status.push_back (std::format ("BRK encountered at ${:04X}", cpu.GetPC ()));
+            break;
+        }
+
+        cpu.StepOne ();
+        cycles++;
+    }
+
+    status.push_back (std::format ("Execution complete: {} cycle(s)", cycles));
+    status.push_back (std::format ("  A=${:02X} X=${:02X} Y=${:02X} SP=${:02X} PC=${:04X}",
+        cpu.GetA (), cpu.GetX (), cpu.GetY (), cpu.GetSP (), cpu.GetPC ()));
+
+    return exitCode;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ParseAs65Flags - AS65-compatible flag parsing with concatenation
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -993,96 +1394,46 @@ int DoRun (const CommandLineOptions & options)
         return 2;
     }
 
-    Cpu cpu;
+    Cpu  cpu;
     cpu.Reset ();
 
-    Word entryPoint  = 0x8000;
-    bool isAssembly  = EndsWith (options.inputFile, ".asm") || EndsWith (options.inputFile, ".s");
+    Word                     entryPoint = 0x8000;
+    std::vector<std::string> status;
 
-    if (isAssembly)
+
+
+    if (IsAssemblySource (options.inputFile))
     {
-        // Assemble the source file first
-        std::string source;
-
-        if (!ReadFileContents (options.inputFile, source))
-        {
-            std::cerr << "Error: Cannot read input file: " << options.inputFile << "\n";
-            return 2;
-        }
-
-        if (options.verbose)
-        {
-            std::cerr << "Assembling: " << options.inputFile << "\n";
-        }
-
         AssemblerOptions asmOptions = {};
-        asmOptions.warningMode = options.warningMode;
+        asmOptions.warningMode     = options.warningMode;
 
-        Assembler  asm6502 (cpu.GetInstructionSet (), asmOptions);
-        auto       result = asm6502.Assemble (source);
+        auto ar = AssembleFile (options.inputFile, cpu.GetInstructionSet (), asmOptions);
+        ReportAssemblyDiagnostics (ar);
 
-        // Print warnings and errors
-        for (const auto & warning : result.warnings)
+        if (!ar.ok)
         {
-            std::cerr << options.inputFile << ":" << warning.lineNumber << ": warning: " << warning.message << "\n";
-        }
-
-        for (const auto & error : result.errors)
-        {
-            std::cerr << options.inputFile << ":" << error.lineNumber << ": error: " << error.message << "\n";
-        }
-
-        if (!result.success)
-        {
-            std::cerr << "Assembly failed with " << result.errors.size () << " error(s)\n";
             return 1;
         }
 
-        // Load assembled bytes into CPU memory
-        Word loadAddr = result.startAddress;
+        LoadAssembledIntoMemory (cpu, ar.result);
+        entryPoint = ar.result.startAddress;
 
-        for (size_t i = 0; i < result.bytes.size (); i++)
-        {
-            cpu.PokeByte (loadAddr + (Word) i, result.bytes[i]);
-        }
-
-        entryPoint = result.startAddress;
-
-        if (options.verbose)
-        {
-            std::cerr << "Assembled " << result.bytes.size () << " bytes\n";
-
-            std::cerr << "  Start: " << std::format ("${:04X}", result.startAddress) << "\n";
-        }
+        status.push_back (std::format ("Assembling: {}", options.inputFile));
+        status.push_back (std::format ("Assembled {} bytes", ar.result.bytes.size ()));
+        status.push_back (std::format ("  Start: ${:04X}", ar.result.startAddress));
     }
     else
     {
-        // Load binary file
-        std::string contents;
+        Word loadAddr = options.hasLoadAddress ? options.loadAddress : (Word) 0x8000;
 
-        if (!ReadFileContents (options.inputFile, contents))
+        if (!LoadBinaryFileIntoMemory (cpu, options.inputFile, loadAddr, entryPoint))
         {
-            std::cerr << "Error: Cannot read input file: " << options.inputFile << "\n";
             return 2;
         }
 
-        Word loadAddr = options.hasLoadAddress ? options.loadAddress : (Word) 0x8000;
-
-        for (size_t i = 0; i < contents.size (); i++)
-        {
-            cpu.PokeByte (loadAddr + (Word) i, (Byte) contents[i]);
-        }
-
-        entryPoint = loadAddr;
-
-        if (options.verbose)
-        {
-            std::cerr << "Loaded " << contents.size () << " bytes at $"
-                      << std::hex << loadAddr << std::dec << "\n";
-        }
+        status.push_back (std::format ("Loaded binary at ${:04X}", loadAddr));
     }
 
-    // Determine entry point
     if (options.hasEntryAddress)
     {
         entryPoint = options.entryAddress;
@@ -1092,78 +1443,14 @@ int DoRun (const CommandLineOptions & options)
         entryPoint = cpu.PeekWord (0xFFFC);
     }
 
-    // Set PC and run
-    cpu.SetPC (entryPoint);
+    int exitCode = RunCpu (cpu, options, entryPoint, status);
 
     if (options.verbose)
     {
-        std::cerr << "Executing from " << std::format ("${:04X}", entryPoint) << "\n";
-    }
-
-    uint32_t cycles    = 0;
-    bool     stopped   = false;
-    int      exitCode  = 0;
-
-    while (!stopped)
-    {
-        if (options.maxCycles > 0 && cycles >= options.maxCycles)
+        for (const auto & msg : status)
         {
-            if (options.verbose)
-            {
-                std::cerr << "Stopped: cycle limit reached (" << options.maxCycles << ")\n";
-            }
-
-            stopped = true;
-            break;
+            std::cerr << msg << "\n";
         }
-
-        Byte opcode = cpu.PeekByte (cpu.GetPC ());
-
-        if (!cpu.GetMicrocode (opcode).isLegal)
-        {
-            std::cerr << "Illegal opcode $" << std::hex << (int) opcode << " at "
-                      << std::format ("${:04X}", cpu.GetPC ()) << "\n";
-            exitCode = 3;
-            stopped  = true;
-            break;
-        }
-
-        if (options.hasStopAddress && cpu.GetPC () == options.stopAddress)
-        {
-            if (options.verbose)
-            {
-                std::cerr << "Stopped at address " << std::format ("${:04X}", options.stopAddress) << "\n";
-            }
-
-            stopped = true;
-            break;
-        }
-
-        // BRK instruction (opcode 0x00) also stops
-        if (opcode == 0x00)
-        {
-            if (options.verbose)
-            {
-                std::cerr << "BRK encountered at " << std::format ("${:04X}", cpu.GetPC ()) << "\n";
-            }
-
-            stopped = true;
-            break;
-        }
-
-        cpu.StepOne ();
-        cycles++;
-    }
-
-    if (options.verbose)
-    {
-        std::cerr << "Execution complete: " << cycles << " cycle(s)\n";
-        std::cerr << "  A=$" << std::hex << (int) cpu.GetA ()
-                  << " X=$" << (int) cpu.GetX ()
-                  << " Y=$" << (int) cpu.GetY ()
-                  << " SP=$" << (int) cpu.GetSP ()
-                  << " PC=$" << cpu.GetPC ()
-                  << std::dec << "\n";
     }
 
     return exitCode;
@@ -1181,47 +1468,19 @@ int DoRun (const CommandLineOptions & options)
 
 int DoAs65 (const CommandLineOptions & options)
 {
-    // Validate input
     if (options.inputFile.empty ())
     {
         std::cerr << "Error: No input file specified\n";
         return 2;
     }
 
-    // Read input file
-    std::string source;
+    std::vector<std::string> status;
+    AssemblerOptions         asmOptions = BuildAssemblerOptions (options);
 
-    if (!ReadFileContents (options.inputFile, source))
-    {
-        std::cerr << "Error: Cannot read input file: " << options.inputFile << "\n";
-        return 2;
-    }
-
-    if (options.verbose)
-    {
-        std::cerr << "Pass 1...\n";
-    }
-
-    // Set up assembler options
-    AssemblerOptions asmOptions = {};
-    asmOptions.fillByte        = options.fillByte;
-    asmOptions.generateListing = options.generateListing;
-    asmOptions.warningMode     = options.warningMode;
-    asmOptions.cycleCounts     = options.cycleCounts;
-    asmOptions.macroExpansion  = options.macroExpansion;
-    asmOptions.pageHeight      = options.pageHeight;
-    asmOptions.pageWidth       = options.pageWidth;
-    asmOptions.pass1Listing    = options.pass1Listing;
-    asmOptions.symbolTable     = options.symbolTable;
-    asmOptions.debugInfo       = options.debugInfo;
-    asmOptions.verbose         = options.verbose;
-    asmOptions.quiet           = options.quiet;
-    asmOptions.disableOpt      = options.disableOpt;
-    asmOptions.predefinedSymbols = options.predefinedSymbols;
-
-    // Set up file reader for includes
     DefaultFileReader fileReader;
     asmOptions.fileReader = &fileReader;
+
+
 
     // Extract base directory from input file
     size_t lastSep = options.inputFile.find_last_of ("/\\");
@@ -1231,164 +1490,64 @@ int DoAs65 (const CommandLineOptions & options)
         asmOptions.baseDir = options.inputFile.substr (0, lastSep);
     }
 
-    // Create assembler and assemble
+    if (options.verbose)
+    {
+        std::cerr << "Pass 1...\n";
+    }
+
     Cpu cpu;
     cpu.Reset ();
 
     auto startTime = std::chrono::high_resolution_clock::now ();
-
-    Assembler  asm6502 (cpu.GetInstructionSet (), asmOptions);
-    auto       result = asm6502.Assemble (source);
-
-    auto endTime = std::chrono::high_resolution_clock::now ();
+    auto ar        = AssembleFile (options.inputFile, cpu.GetInstructionSet (), asmOptions);
+    auto endTime   = std::chrono::high_resolution_clock::now ();
 
     if (options.verbose)
     {
         auto elapsed = std::chrono::duration_cast<std::chrono::microseconds> (endTime - startTime);
         std::cerr << "Pass 2...\n";
-        std::cerr << "Assembly time: " << elapsed.count () << " us\n";
+        std::cerr << std::format ("Assembly time: {} us\n", elapsed.count ());
     }
 
-    // Print warnings
-    bool hasWarnings = !result.warnings.empty ();
+    bool hasWarnings = !ar.result.warnings.empty ();
+    ReportAssemblyDiagnostics (ar);
 
-    for (const auto & warning : result.warnings)
+    if (!ar.ok)
     {
-        std::cerr << options.inputFile << ":" << warning.lineNumber << ": warning: " << warning.message << "\n";
-    }
-
-    // Print errors
-    for (const auto & error : result.errors)
-    {
-        std::cerr << options.inputFile << ":" << error.lineNumber << ": error: " << error.message << "\n";
-    }
-
-    if (!result.success)
-    {
-        std::cerr << "Assembly failed with " << result.errors.size () << " error(s)\n";
         return 2;
     }
 
-    // Line counter on stderr unless -q
     if (!options.quiet)
     {
-        std::cerr << result.listing.size () << " lines assembled\n";
+        std::cerr << ar.result.listing.size () << " lines assembled\n";
     }
 
-    // Print listing to stdout or file
-    if (options.generateListing)
+    if (options.generateListing && !WriteListingOutput (ar.result, options))
     {
-        std::ostream * listOut = &std::cout;
-        std::ofstream  listFile;
-
-        if (!options.listingFile.empty ())
-        {
-            listFile.open (options.listingFile);
-
-            if (!listFile.is_open ())
-            {
-                std::cerr << "Error: Cannot write listing file: " << options.listingFile << "\n";
-                return 2;
-            }
-
-            listOut = &listFile;
-        }
-
-        // Print title if set
-        if (!result.listingTitle.empty ())
-        {
-            *listOut << result.listingTitle << "\n\n";
-        }
-
-        for (const auto & line : result.listing)
-        {
-            // Handle .page directive (form feed)
-            if (line.sourceText.find (".page") != std::string::npos ||
-                line.sourceText.find (".PAGE") != std::string::npos ||
-                line.sourceText.find ("page") == 0)
-            {
-                *listOut << "\f";
-
-                if (!result.listingTitle.empty ())
-                {
-                    *listOut << result.listingTitle << "\n\n";
-                }
-            }
-
-            *listOut << Assembler::FormatListingLine (line, options.cycleCounts) << "\n";
-        }
+        return 2;
     }
 
-    // Write output binary (skip if "nul")
-    std::string outLower = options.outputFile;
-
-    for (auto & c : outLower)
+    if (!WriteBinaryOutput (ar.result, options))
     {
-        c = (char) tolower ((unsigned char) c);
+        return 2;
     }
 
-    if (outLower != "nul")
-    {
-        // Determine output format from extension
-        if (EndsWith (options.outputFile, ".s19"))
-        {
-            std::ofstream outFile (options.outputFile);
-
-            if (!outFile.is_open ())
-            {
-                std::cerr << "Error: Cannot write output file: " << options.outputFile << "\n";
-                return 2;
-            }
-
-            OutputFormats::WriteSRecord (result.bytes, result.startAddress, result.endAddress, result.startAddress, outFile);
-        }
-        else if (EndsWith (options.outputFile, ".hex"))
-        {
-            std::ofstream outFile (options.outputFile);
-
-            if (!outFile.is_open ())
-            {
-                std::cerr << "Error: Cannot write output file: " << options.outputFile << "\n";
-                return 2;
-            }
-
-            OutputFormats::WriteIntelHex (result.bytes, result.startAddress, result.endAddress, result.startAddress, outFile);
-        }
-        else
-        {
-            if (!WriteFlatBinaryFile (options.outputFile, result.bytes, result.startAddress, options.fillByte))
-            {
-                std::cerr << "Error: Cannot write output file: " << options.outputFile << "\n";
-                return 2;
-            }
-        }
-    }
-
-    // Write symbol table if -t
     if (options.symbolTable)
     {
-        std::cout << "\nSymbol Table:\n";
-        std::cout << Assembler::FormatSymbolTable (result.symbols, result.symbolKinds);
+        WriteSymbolTableOutput (ar.result);
     }
 
-    // Write debug info file if -g
     if (options.debugInfo && !options.debugFile.empty ())
     {
-        std::ofstream dbgFile (options.debugFile);
-
-        if (!dbgFile.is_open ())
+        if (!WriteDebugInfoOutput (ar.result, options.debugFile))
         {
-            std::cerr << "Error: Cannot write debug file: " << options.debugFile << "\n";
             return 2;
         }
-
-        dbgFile << Assembler::FormatDebugInfo (result.symbols);
     }
 
-    // Write symbol file for Casso65-mode compatibility
     if (!options.symbolFile.empty ())
     {
-        if (!WriteSymbolFile (options.symbolFile, result.symbols))
+        if (!WriteSymbolFile (options.symbolFile, ar.result.symbols))
         {
             std::cerr << "Error: Cannot write symbol file: " << options.symbolFile << "\n";
             return 2;
@@ -1398,16 +1557,12 @@ int DoAs65 (const CommandLineOptions & options)
     if (options.verbose)
     {
         std::cerr << "Assembly successful\n";
-        std::cerr << "  Output:  " << options.outputFile << "\n";
-        std::cerr << "  Bytes:   " << result.bytes.size () << "\n";
-
-        std::cerr << "  Start:   " << std::format ("${:04X}", result.startAddress) << "\n";
-
-        std::cerr << "  End:     " << std::format ("${:04X}", result.endAddress) << "\n";
-
-        std::cerr << "  Symbols: " << result.symbols.size () << "\n";
+        std::cerr << std::format ("  Output:  {}\n", options.outputFile);
+        std::cerr << std::format ("  Bytes:   {}\n", ar.result.bytes.size ());
+        std::cerr << std::format ("  Start:   ${:04X}\n", ar.result.startAddress);
+        std::cerr << std::format ("  End:     ${:04X}\n", ar.result.endAddress);
+        std::cerr << std::format ("  Symbols: {}\n", ar.result.symbols.size ());
     }
 
-    // AS65 exit codes: 0=success, 1=warnings, 2=errors
     return hasWarnings ? 1 : 0;
 }
