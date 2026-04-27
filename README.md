@@ -138,11 +138,13 @@ All 56 standard 6502 mnemonics are implemented.
 
 ## Why "Casso65"?
 
-The 6502 emulator world already has [Emu](https://en.wikipedia.org/wiki/Emu) — so we picked its larger, flightless, slightly-more-dangerous cousin: the [cassowary](https://en.wikipedia.org/wiki/Cassowary). "Casso" + "65" (for 6502) = **Casso65**. We want this to be a great emulator and a great assembler — but we don't take ourselves too seriously.
+The 6502 emulator world already has many projects named [Emu](https://en.wikipedia.org/wiki/Emu).  To stand out a bit, I picked its larger, flightless, slightly-more-dangerous cousin: the [cassowary](https://en.wikipedia.org/wiki/Cassowary). "Casso" + "65" (for 6502) = **Casso65**. I want this to be a great emulator and a great assembler, but I don't take things too seriously.
+
+I present to you our regal namesake—revel in his splendor!
 
 ![Southern Cassowary](Assets/3a%20Mrs%20Cassowary%20closeup%208167.jpg)
 
-*Cassowary photo by [Mr. Smiley / BunyipCo](https://bunyipco.blogspot.com/2015/04/cassowary-update.html), licensed under [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/) ([license text](Assets/CC-BY-NC-SA-3.0.txt)).*
+*Cassowary photo by [Mr. Smiley / BunyipCo](https://bunyipco.blogspot.com/2015/04/cassowary-update.html), licensed under [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/).*
 
 ## Contributing
 
