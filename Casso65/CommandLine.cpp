@@ -802,9 +802,8 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
 
 void PrintUsage ()
 {
-    std::cout << "Casso65 - 6502 Assembler and Emulator  v" VERSION_STRING " (" << arch << ")\n"
+    std::cout << "Casso65 - 6502 Assembler and Emulator  v" VERSION_STRING " (" << arch << ")  " VERSION_BUILD_TIMESTAMP "\n"
               << "Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer\n"
-              << "Built: " VERSION_BUILD_TIMESTAMP "\n"
               << "\n"
               << "Usage:\n"
               << "  Casso65 <input> [flags]               (assemble)\n"
@@ -855,7 +854,7 @@ void PrintUsage ()
 
 void PrintVersion ()
 {
-    std::cout << "Casso65 v" VERSION_STRING " (" << arch << ")\n";
+    std::cout << "Casso65 v" VERSION_STRING " (" << arch << ")  " VERSION_BUILD_TIMESTAMP "\n";
 }
 
 
