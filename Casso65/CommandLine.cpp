@@ -5,10 +5,16 @@
 #include "Cpu.h"
 #include "Microcode.h"
 #include "OutputFormats.h"
+#include "Version.h"
 
 
-
-static const char * const s_version = "1.0.0";
+#if defined(_M_X64) || defined(__x86_64__)
+    static const char * arch = "x64";
+#elif defined(_M_ARM64) || defined(__aarch64__)
+    static const char * arch = "ARM64";
+#else
+    static const char * arch = "Unknown";
+#endif
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -796,7 +802,9 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
 
 void PrintUsage ()
 {
-    std::cout << "Casso65 - 6502 Assembler and Emulator\n"
+    std::cout << "Casso65 - 6502 Assembler and Emulator  v" VERSION_STRING " (" << arch << ")\n"
+              << "Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer\n"
+              << "Built: " VERSION_BUILD_TIMESTAMP "\n"
               << "\n"
               << "Usage:\n"
               << "  Casso65 <input> [flags]               (assemble)\n"
@@ -847,7 +855,7 @@ void PrintUsage ()
 
 void PrintVersion ()
 {
-    std::cout << "Casso65 version " << s_version << "\n";
+    std::cout << "Casso65 v" VERSION_STRING " (" << arch << ")\n";
 }
 
 

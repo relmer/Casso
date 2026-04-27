@@ -199,6 +199,11 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup>
+    <PreBuildEvent>
+      <Command>powershell -ExecutionPolicy Bypass -File "$(SolutionDir)scripts\IncrementVersion.ps1"</Command>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CommandLine.cpp" />
     <ClCompile Include="Casso65.cpp" />
