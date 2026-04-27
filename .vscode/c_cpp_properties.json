@@ -13,8 +13,11 @@
             ],
             "windowsSdkVersion": "10.0",
             "compilerPath": "${env:ProgramFiles}/Microsoft Visual Studio/**/VC/Tools/MSVC/*/bin/Hostx64/x64/cl.exe",
+            "compilerArgs": [
+                "/std:c++latest"
+            ],
             "cStandard": "c17",
-            "cppStandard": "c++20",
+            "cppStandard": "c++latest",
             "intelliSenseMode": "windows-msvc-x64"
         },
         {
@@ -30,8 +33,11 @@
             ],
             "windowsSdkVersion": "10.0",
             "compilerPath": "${env:ProgramFiles}/Microsoft Visual Studio/**/VC/Tools/MSVC/*/bin/Hostx64/arm64/cl.exe",
+            "compilerArgs": [
+                "/std:c++latest"
+            ],
             "cStandard": "c17",
-            "cppStandard": "c++20",
+            "cppStandard": "c++latest",
             "intelliSenseMode": "windows-msvc-arm64"
         }
     ],
