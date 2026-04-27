@@ -1233,7 +1233,7 @@ static void PrintUsageHeader (const char * sp, const char * lp)
               << " (" << arch << ")  " VERSION_BUILD_TIMESTAMP "\n"
               << "Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer\n"
               << "\n"
-              << "Usage: Casso65 <source.a65> [flags] | run <binary.bin> [options] | "
+              << "Usage: Casso65 <source> [flags] | run <binary | source> [options] | "
               << sp << "? | " << lp << "version\n";
 }
 
@@ -1269,7 +1269,10 @@ static void PrintUsageGeneral (const char * lp, const char * sp, const char * pa
 
 static void PrintUsageAssembler (const char * sp, const char * pad)
 {
-    std::cout << "\nAssembler flags:\n";
+    std::cout << "\nAssembler flags:\n"
+              << "  <source>                Assembly source file (.a65, .asm, .s)\n"
+              << "                          Extension is optional; .a65, .asm, .s are tried automatically\n"
+              << "\n";
 
     // Short flags: no extra padding needed (- and / are both 1 char)
     const char * lines[] =
@@ -1279,7 +1282,7 @@ static void PrintUsageAssembler (const char * sp, const char * pad)
         "  {}g                     Generate debug information file",
         "  {}h <lines>             Page height for listing (0 = no pagination)",
         "  {}i                     Case-insensitive (default, no-op)",
-        "  {}l [<file>]            Generate listing ({}l = stdout, {}lfile = to file)",
+        "  {}l [<file>]            Generate listing ({}l = stdout, {}l file = to file)",
         "  {}m                     Show macro expansions in listing",
         "  {}n                     Disable optimizations (no-op)",
         "  {}o <file>              Output file (default: input with .bin extension)",
@@ -1300,8 +1303,7 @@ static void PrintUsageAssembler (const char * sp, const char * pad)
 
     std::cout << "\n"
               << "  Flags can be concatenated: " << sp << "tlfile = "
-              << sp << "t " << sp << "lfile\n"
-              << "  Input file auto-extends: .a65, .asm, .s\n";
+              << sp << "t " << sp << "lfile\n";
 }
 
 
@@ -1316,6 +1318,11 @@ static void PrintUsageAssembler (const char * sp, const char * pad)
 
 static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
 {
+    std::cout << "\nRun options:\n"
+              << "  <binary>                A binary file to load and execute\n"
+              << "  <source>                An assembly source file (.a65, .asm, .s) to assemble and run\n"
+              << "\n";
+
     // Long-prefix flags need padding to align (-- is 2 chars, / is 1)
     const char * lines[] =
     {
@@ -1325,8 +1332,6 @@ static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
         "  {}stop <addr>{}          Stop when PC reaches address",
         "  {}max-cycles <n>{}       Maximum cycles before stopping",
     };
-
-    std::cout << "\nRun options:\n";
 
     for (const char * fmt : lines)
     {
