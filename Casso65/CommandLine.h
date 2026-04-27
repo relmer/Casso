@@ -11,7 +11,7 @@
 
 struct CommandLineOptions
 {
-    enum class Subcommand    { None, Assemble, Run, Help, Version, As65 };
+    enum class Subcommand    { None, Run, Help, Version, As65 };
     enum class OutputFormat  { Binary, SRecord, IntelHex };
 
     Subcommand  subcommand      = Subcommand::None;
@@ -55,7 +55,6 @@ struct CommandLineOptions
 
 
 CommandLineOptions ParseCommandLine (int argc, char * argv[]);
-int  DoAssemble  (const CommandLineOptions & options);
 int  DoRun       (const CommandLineOptions & options);
 int  DoAs65      (const CommandLineOptions & options);
 void PrintUsage  ();

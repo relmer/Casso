@@ -27,11 +27,6 @@ int main (int argc, char * argv[])
         return 0;
     }
 
-    if (options.subcommand == CommandLineOptions::Subcommand::Assemble)
-    {
-        return DoAssemble (options);
-    }
-
     if (options.subcommand == CommandLineOptions::Subcommand::Run)
     {
         return DoRun (options);

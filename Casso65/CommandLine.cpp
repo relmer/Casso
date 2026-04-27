@@ -643,12 +643,7 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
     }
 
     // Parse subcommand
-    if (first == "assemble")
-    {
-        options.subcommand = CommandLineOptions::Subcommand::Assemble;
-        argIndex = 2;
-    }
-    else if (first == "run")
+    if (first == "run")
     {
         options.subcommand = CommandLineOptions::Subcommand::Run;
         argIndex = 2;
@@ -804,21 +799,10 @@ void PrintUsage ()
     std::cout << "Casso65 — 6502 Assembler and Emulator\n"
               << "\n"
               << "Usage:\n"
-              << "  Casso65 assemble <input.asm> -o <output.bin> [options]\n"
-              << "  Casso65 run <input> [options]\n"
-              << "  Casso65 <input.a65> [flags]          (AS65-compatible mode)\n"
+              << "  Casso65 <input> [flags]               (assemble)\n"
+              << "  Casso65 run <input> [options]          (run binary)\n"
               << "  Casso65 --help | -? | /?\n"
               << "  Casso65 --version\n"
-              << "\n"
-              << "Assemble options:\n"
-              << "  -o <file>           Output binary file (required)\n"
-              << "  -l <file>           Write symbol table to file\n"
-              << "  -a                  Print listing to stdout\n"
-              << "  --fill <byte>       Fill byte for unused space (default: $FF)\n"
-              << "  -v                  Verbose output\n"
-              << "  --warn              Show warnings (default)\n"
-              << "  --no-warn           Suppress warnings\n"
-              << "  --fatal-warnings    Treat warnings as errors\n"
               << "\n"
               << "Run options:\n"
               << "  --load <addr>       Load address for binary files (default: $8000)\n"
@@ -828,7 +812,7 @@ void PrintUsage ()
               << "  --max-cycles <n>    Maximum cycles before stopping\n"
               << "  -v                  Verbose output\n"
               << "\n"
-              << "AS65-compatible mode (no subcommand):\n"
+              << "Assembly options (no subcommand):\n"
               << "  -c                  Show cycle counts in listing\n"
               << "  -d <name>[=<value>] Pre-define symbol\n"
               << "  -g                  Generate debug information file\n"
@@ -864,141 +848,6 @@ void PrintUsage ()
 void PrintVersion ()
 {
     std::cout << "Casso65 version " << s_version << "\n";
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DoAssemble
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DoAssemble (const CommandLineOptions & options)
-{
-    // Validate required arguments
-    if (options.inputFile.empty ())
-    {
-        std::cerr << "Error: No input file specified\n";
-        return 2;
-    }
-
-    if (options.outputFile.empty ())
-    {
-        std::cerr << "Error: No output file specified (use -o)\n";
-        return 2;
-    }
-
-    // Read input file
-    std::string source;
-
-    if (!ReadFileContents (options.inputFile, source))
-    {
-        std::cerr << "Error: Cannot read input file: " << options.inputFile << "\n";
-        return 2;
-    }
-
-    if (options.verbose)
-    {
-        std::cerr << "Assembling: " << options.inputFile << "\n";
-    }
-
-    // Set up assembler options
-    AssemblerOptions asmOptions = {};
-    asmOptions.fillByte          = options.fillByte;
-    asmOptions.generateListing   = options.generateListing;
-    asmOptions.warningMode       = options.warningMode;
-    asmOptions.predefinedSymbols = options.predefinedSymbols;
-
-    // Set up file reader for includes
-    DefaultFileReader fileReader;
-    asmOptions.fileReader = &fileReader;
-
-    // Extract base directory from input file
-    size_t lastSep = options.inputFile.find_last_of ("/\\");
-
-    if (lastSep != std::string::npos)
-    {
-        asmOptions.baseDir = options.inputFile.substr (0, lastSep);
-    }
-
-    // Create assembler and assemble
-    Cpu cpu;
-    cpu.Reset ();
-
-    auto startTime = std::chrono::high_resolution_clock::now ();
-
-    Assembler  asm6502 (cpu.GetInstructionSet (), asmOptions);
-    auto       result = asm6502.Assemble (source);
-
-    auto endTime = std::chrono::high_resolution_clock::now ();
-
-    // Print warnings
-    for (const auto & warning : result.warnings)
-    {
-        std::cerr << options.inputFile << ":" << warning.lineNumber << ": warning: " << warning.message << "\n";
-    }
-
-    // Print errors
-    for (const auto & error : result.errors)
-    {
-        std::cerr << options.inputFile << ":" << error.lineNumber << ": error: " << error.message << "\n";
-    }
-
-    if (!result.success)
-    {
-        std::cerr << "Assembly failed with " << result.errors.size () << " error(s)\n";
-        return 1;
-    }
-
-    // Print listing if requested
-    if (options.generateListing)
-    {
-        for (const auto & line : result.listing)
-        {
-            std::cout << Assembler::FormatListingLine (line) << "\n";
-        }
-    }
-
-    // Write output binary
-    if (!WriteBinaryFile (options.outputFile, result.bytes))
-    {
-        std::cerr << "Error: Cannot write output file: " << options.outputFile << "\n";
-        return 2;
-    }
-
-    // Write symbol file if requested
-    if (!options.symbolFile.empty ())
-    {
-        if (!WriteSymbolFile (options.symbolFile, result.symbols))
-        {
-            std::cerr << "Error: Cannot write symbol file: " << options.symbolFile << "\n";
-            return 2;
-        }
-    }
-
-    if (options.verbose)
-    {
-        auto elapsed = std::chrono::duration_cast<std::chrono::microseconds> (endTime - startTime);
-
-        std::cerr << "Assembly successful\n";
-        std::cerr << "  Output:  " << options.outputFile << "\n";
-        std::cerr << "  Bytes:   " << result.bytes.size () << "\n";
-
-        char addrBuf[16];
-        snprintf (addrBuf, sizeof (addrBuf), "$%04X", result.startAddress);
-        std::cerr << "  Start:   " << addrBuf << "\n";
-
-        snprintf (addrBuf, sizeof (addrBuf), "$%04X", result.endAddress);
-        std::cerr << "  End:     " << addrBuf << "\n";
-
-        std::cerr << "  Symbols: " << result.symbols.size () << "\n";
-        std::cerr << "  Time:    " << elapsed.count () << " us\n";
-    }
-
-    return 0;
 }
 
 
