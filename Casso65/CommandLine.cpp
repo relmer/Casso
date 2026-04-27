@@ -373,6 +373,11 @@ static void ParseAs65Flags (int argc, char * argv[], CommandLineOptions & option
         // Check for help requests
         if (arg == "--help" || arg == "-help" || arg == "-?" || arg == "/?" || arg == "/help")
         {
+            if (arg[0] == '/')
+            {
+                options.flagPrefix = '/';
+            }
+
             options.showHelp = true;
             return;
         }
@@ -642,6 +647,7 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
 
     if (first[0] == '/')
     {
+        options.flagPrefix = '/';
         first[0] = '-';
     }
 
@@ -813,50 +819,159 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PrintUsageHeader
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void PrintUsageHeader (const char * sp, const char * lp)
+{
+    std::cout << "Casso65 - 6502 Assembler and Emulator  v" VERSION_STRING
+              << " (" << arch << ")  " VERSION_BUILD_TIMESTAMP "\n"
+              << "Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer\n"
+              << "\n"
+              << "Usage: Casso65 <source.a65> [flags] | run <binary.bin> [options] | "
+              << sp << "? | " << lp << "version\n";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintUsageGeneral
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void PrintUsageGeneral (const char * lp, const char * sp, const char * pad)
+{
+    char line1[128];
+    char line2[128];
+
+    // "--help, -?" = 10 chars, "--version" = 9 chars => +1 space for version
+    // "/help, /?"  =  9 chars, "/version"  = 8 chars => +1 space for version
+    // pad compensates: -- (2 chars) vs / (1 char) in long prefix
+    snprintf (line1, sizeof (line1),
+              "  %shelp, %s?%s             Show this help",
+              lp, sp, pad);
+
+    snprintf (line2, sizeof (line2),
+              "  %sversion%s              Show version information",
+              lp, pad);
+
+    std::cout << "\nGeneral:\n"
+              << line1 << "\n"
+              << line2 << "\n";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintUsageAssemble
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void PrintUsageAssemble (const char * sp, const char * pad)
+{
+    std::cout << "\nAssemble flags:\n";
+
+    // Short flags: no extra padding needed (- and / are both 1 char)
+    const char * lines[] =
+    {
+        "  %sc                     Show cycle counts in listing",
+        "  %sd <name>[=<value>]    Pre-define symbol",
+        "  %sg                     Generate debug information file",
+        "  %sh <lines>             Page height for listing (0 = no pagination)",
+        "  %si                     Case-insensitive (default, no-op)",
+        "  %sl [<file>]            Generate listing (%sl = stdout, %slfile = to file)",
+        "  %sm                     Show macro expansions in listing",
+        "  %sn                     Disable optimizations (no-op)",
+        "  %so <file>              Output file (default: input with .bin extension)",
+        "  %sp                     Generate pass 1 listing",
+        "  %sq                     Quiet mode (suppress progress)",
+        "  %ss                     Output S-record format (.s19)",
+        "  %ss2                    Output Intel HEX format (.hex)",
+        "  %st                     Generate symbol table",
+        "  %sv                     Verbose mode",
+        "  %sw [<width>]           Column width (default: 79, %sw alone = 133)",
+        "  %sz                     Fill unused space with $00 (default: $FF)",
+    };
+
+    char buf[128];
+
+    for (const char * fmt : lines)
+    {
+        snprintf (buf, sizeof (buf), fmt, sp, sp, sp);
+        std::cout << buf << "\n";
+    }
+
+    std::cout << "\n"
+              << "  Flags can be concatenated: " << sp << "tlfile = "
+              << sp << "t " << sp << "lfile\n"
+              << "  Input file auto-extends: .a65, .asm, .s\n";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintUsageRun
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
+{
+    char buf[128];
+
+    // Long-prefix flags need padding to align (-- is 2 chars, / is 1)
+    const char * lines[] =
+    {
+        "  %sload <addr>%s          Load address (default: $8000)",
+        "  %sentry <addr>%s         Entry point address",
+        "  %sreset-vector%s         Use reset vector at $FFFC/$FFFD",
+        "  %sstop <addr>%s          Stop when PC reaches address",
+        "  %smax-cycles <n>%s       Maximum cycles before stopping",
+    };
+
+    std::cout << "\nRun options:\n";
+
+    for (const char * fmt : lines)
+    {
+        snprintf (buf, sizeof (buf), fmt, lp, pad);
+        std::cout << buf << "\n";
+    }
+
+    // -v is short prefix, no padding needed
+    std::cout << "  " << sp << "v                     Verbose output\n";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PrintUsage
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintUsage ()
+void PrintUsage (char prefix)
 {
-    std::cout << "Casso65 - 6502 Assembler and Emulator  v" VERSION_STRING " (" << arch << ")  " VERSION_BUILD_TIMESTAMP "\n"
-              << "Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer\n"
-              << "\n"
-              << "Usage:\n"
-              << "  Casso65 <source.a65> [flags]           (assemble)\n"
-              << "  Casso65 run <binary.bin> [options]      (run in emulator)\n"
-              << "  Casso65 --help | -? | /?\n"
-              << "  Casso65 --version\n"
-              << "\n"
-              << "Run options:\n"
-              << "  --load <addr>       Load address for binary files (default: $8000)\n"
-              << "  --entry <addr>      Entry point address\n"
-              << "  --reset-vector      Use reset vector at $FFFC/$FFFD\n"
-              << "  --stop <addr>       Stop when PC reaches address\n"
-              << "  --max-cycles <n>    Maximum cycles before stopping\n"
-              << "  -v                  Verbose output\n"
-              << "\n"
-              << "Assembly options (no subcommand):\n"
-              << "  -c                  Show cycle counts in listing\n"
-              << "  -d <name>[=<value>] Pre-define symbol\n"
-              << "  -g                  Generate debug information file\n"
-              << "  -h <lines>          Page height for listing (0 = no pagination)\n"
-              << "  -i                  Case-insensitive (default, accepted as no-op)\n"
-              << "  -l [<file>]         Generate listing (-l alone = stdout, -lfile = to file)\n"
-              << "  -m                  Show macro expansions in listing\n"
-              << "  -n                  Disable optimizations (accepted as no-op)\n"
-              << "  -o <file>           Output file (default: input with .bin extension)\n"
-              << "  -p                  Generate pass 1 listing\n"
-              << "  -q                  Quiet mode (suppress progress)\n"
-              << "  -s                  Output S-record format (.s19)\n"
-              << "  -s2                 Output Intel HEX format (.hex)\n"
-              << "  -t                  Generate symbol table\n"
-              << "  -v                  Verbose mode\n"
-              << "  -w [<width>]        Column width (default: 79, -w alone = 133)\n"
-              << "  -z                  Fill unused space with $00 (default: $FF)\n"
-              << "\n"
-              << "  Flags can be concatenated: -tlfile = -t -lfile\n"
-              << "  Input file auto-extends: .a65, .asm, .s\n";
+    const char * sp  = (prefix == '/') ? "/"  : "-";
+    const char * lp  = (prefix == '/') ? "/"  : "--";
+    const char * pad = (prefix == '/') ? " "  : "";
+
+
+
+    PrintUsageHeader   (sp, lp);
+    PrintUsageGeneral  (lp, sp, pad);
+    PrintUsageAssemble (sp, pad);
+    PrintUsageRun      (lp, sp, pad);
 }
 
 

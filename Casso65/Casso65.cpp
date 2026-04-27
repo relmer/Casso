@@ -17,7 +17,7 @@ int main (int argc, char * argv[])
     if (options.showHelp || options.subcommand == CommandLineOptions::Subcommand::None
                         || options.subcommand == CommandLineOptions::Subcommand::Help)
     {
-        PrintUsage ();
+        PrintUsage (options.flagPrefix);
         return (options.showHelp) ? 0 : 1;
     }
 
@@ -37,6 +37,6 @@ int main (int argc, char * argv[])
         return DoAs65 (options);
     }
 
-    PrintUsage ();
+    PrintUsage (options.flagPrefix);
     return 0;
 }

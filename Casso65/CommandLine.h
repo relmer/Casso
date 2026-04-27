@@ -36,6 +36,7 @@ struct CommandLineOptions
     bool        hasLoadAddress  = false;
     bool        hasStopAddress  = false;
     bool        hasEntryAddress = false;
+    char        flagPrefix      = '-';     // '-' for Unix-style, '/' for Windows-style
 
     // AS65-compatible options
     bool        cycleCounts     = false;   // -c
@@ -57,5 +58,5 @@ struct CommandLineOptions
 CommandLineOptions ParseCommandLine (int argc, char * argv[]);
 int  DoRun       (const CommandLineOptions & options);
 int  DoAs65      (const CommandLineOptions & options);
-void PrintUsage  ();
+void PrintUsage  (char prefix);
 void PrintVersion ();
