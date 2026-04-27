@@ -141,12 +141,10 @@ All 56 standard 6502 mnemonics are implemented.
 The 6502 emulator world already has [Emu](https://en.wikipedia.org/wiki/Emu) — so we picked its larger, flightless, slightly-more-dangerous cousin: the [cassowary](https://en.wikipedia.org/wiki/Cassowary). "Casso" + "65" (for 6502) = **Casso65**. We want this to be a great emulator and a great assembler — but we don't take ourselves too seriously.
 
 <p align="center">
-  <a href="https://en.wikipedia.org/wiki/Cassowary">
-    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Cassowary_Diversity.jpg/440px-Cassowary_Diversity.jpg" alt="Cassowaries — the three species of genus Casuarius" width="360" />
-  </a>
-  <br />
-  <em>The three species of <a href="https://en.wikipedia.org/wiki/Cassowary">Casuarius</a>. Image: Wikimedia Commons.</em>
+  <img src="Assets/3a%20Mrs%20Cassowary%20closeup%208167.jpg" alt="Southern Cassowary" width="360" />
 </p>
+
+*Cassowary photo by [Mr. Smiley / BunyipCo](https://bunyipco.blogspot.com/2015/04/cassowary-update.html), licensed under [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/) ([license text](Assets/CC-BY-NC-SA-3.0.txt)).*
 
 ## Contributing
 
