@@ -1,6 +1,6 @@
 # Casso65
 
-[![CI](https://github.com/relmer/Casso65/actions/workflows/ci.yml/badge.svg)](https://github.com/relmer/Casso65/actions/workflows/ci.yml)
+[![CI](https://github.com/relmer/Casso65/actions/workflows/ci.yml/badge.svg?branch=master&event=push)](https://github.com/relmer/Casso65/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/github/license/relmer/Casso65)](LICENSE)
 
 ## About
@@ -9,18 +9,18 @@ Casso65 is a 6502 CPU emulator and assembler written in C++. It emulates the MOS
 
 The project includes:
 
-- **CPU emulator** — fetch-decode-execute cycle with register/flag management, stack operations, and all 14 addressing modes
-- **Two-pass assembler** — converts 6502 assembly source to machine code, with labels, directives, expressions, listing output, and error reporting
-- **CLI tool** — `assemble` and `run` subcommands for standalone use
-- **170+ unit tests** — comprehensive coverage of instruction encoding, addressing modes, arithmetic, branching, and assembler features
+- **A real, full-featured AS65-compatible assembler** — Casso65's assembler is a from-scratch reimplementation of Frank A. Kingswood's AS65, intended to be a drop-in replacement. It supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, …) including flag concatenation (`-tlfile`).
+- **CPU emulator** — fetch-decode-execute cycle with register/flag management, stack operations, decimal mode (BCD) for ADC/SBC, and all 14 addressing modes
+- **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source
+- **400+ unit tests** — comprehensive coverage of instruction encoding, addressing modes, arithmetic, branching, and assembler features
 
 ## Project Structure
 
 ```
 Casso65.sln
 ├── Casso65Core/     Static library — CPU emulator, assembler, parser, opcode table
-├── Casso65/         Console application — CLI with assemble/run subcommands
-└── UnitTest/       Test DLL — Microsoft Native CppUnitTest (170+ tests)
+├── Casso65/         Console application — AS65-compatible assembler CLI with `run` subcommand
+└── UnitTest/       Test DLL — Microsoft Native CppUnitTest (400+ tests)
 ```
 
 ## Requirements
@@ -63,34 +63,50 @@ Casso65.sln
 ### Assemble and Run
 
 ```powershell
-# Assemble a source file to binary
-.\x64\Debug\Casso65.exe assemble input.asm -o output.bin
+# Assemble a source file to a flat binary (AS65 mode — no subcommand)
+.\x64\Debug\Casso65.exe input.a65 -o output.bin
 
-# Assemble with listing and symbol table
-.\x64\Debug\Casso65.exe assemble input.asm -o output.bin -l labels.txt -a
+# Assemble with a listing file and a symbol table
+.\x64\Debug\Casso65.exe input.a65 -o output.bin -l listing.txt -t
 
-# Assemble and run directly
-.\x64\Debug\Casso65.exe run input.asm
+# Output Motorola S-record (.s19) or Intel HEX (.hex)
+.\x64\Debug\Casso65.exe input.a65 -s   -o output.s19
+.\x64\Debug\Casso65.exe input.a65 -s2  -o output.hex
 
-# Load and run a pre-assembled binary
+# Pre-define a symbol on the command line, generate cycle counts in the listing
+.\x64\Debug\Casso65.exe input.a65 -d DEBUG=1 -cl listing.txt
+
+# Assemble and run an assembly source directly
+.\x64\Debug\Casso65.exe run input.a65
+
+# Load and run a pre-assembled binary at a specific address
 .\x64\Debug\Casso65.exe run output.bin --load $8000
 ```
 
 ## Assembler Features
 
-| Feature | Syntax |
-|---------|--------|
+| Feature | Syntax / Flag |
+|---------|---------------|
 | All 56 mnemonics | `LDA`, `STA`, `ADC`, `BNE`, etc. |
 | All addressing modes | `#$42`, `$30`, `$1234,X`, `($20),Y`, `A` |
 | Labels | `loop: DEX` / `BNE loop` |
-| Directives | `.org $8000`, `.byte $FF`, `.word $1234`, `.text "hello"` |
+| Directives | `.org $8000`, `.byte $FF`, `.word $1234`, `.text "hello"`, `code`/`data`/`bss` |
+| Constants | `value = $42`, `carry equ %00000001` (chains and forward refs supported) |
+| Conditionals | `if`/`ifdef`/`ifndef`/`else`/`endif` |
+| Macros | `name macro` … `endm`, with arguments and `\` line continuation |
+| Includes | `include "file.a65"` |
 | Comments | `; full line` / `LDA #$42 ; inline` |
 | Number formats | `$FF` (hex), `%10101010` (binary), `255` (decimal) |
-| Expressions | `label+2`, `<label` (low byte), `>label` (high byte) |
-| Listing output | `-a` flag shows address, bytes, and source per line |
+| Expressions | full operator set: `+ - * / % & \| ^ ~ << >>`, `<label`, `>label`, current-PC `*` |
+| Listing output | `-l [file]` (stdout or file), `-c` for cycle counts, `-m` for macro expansion |
+| Symbol table | `-t` |
+| Output formats | flat binary (default), `-s` (S-record), `-s2` (Intel HEX) |
+| Fill control | `-z` for `$00` fill (default `$FF`) |
+| Pre-defined symbols | `-d NAME` or `-d NAME=VALUE` |
+| Debug info | `-g [file]` |
 | Warning control | `--warn`, `--no-warn`, `--fatal-warnings` |
-| Verbose mode | `-v` for detailed assembly progress |
-| EEPROM output | `--fill $FF` (default) for EEPROM-ready flat binary |
+| Verbose / quiet | `-v` / `-q` |
+| Flag concatenation | `-tlfile` ≡ `-t -l file` (AS65 style) |
 
 ## CPU Emulation Status
 
@@ -99,14 +115,14 @@ All 56 standard 6502 mnemonics are implemented.
 ### Working
 
 - Load/Store (LDA, LDX, LDY, STA, STX, STY)
-- Arithmetic (ADC, SBC)
+- Arithmetic (ADC, SBC), including decimal mode (BCD) when the D flag is set
 - Logic (AND, ORA, EOR)
-- Shifts/Rotates (ASL, LSR, ROL, ROR) — *see [#1](https://github.com/relmer/Casso65/issues/1) for dispatch bug*
-- Compare (CMP, CPX, CPY) — *see [#4](https://github.com/relmer/Casso65/issues/4) for carry flag edge case*
+- Shifts/Rotates (ASL, LSR, ROL, ROR)
+- Compare (CMP, CPX, CPY)
 - Branch (BEQ, BNE, BCC, BCS, BMI, BPL, BVC, BVS)
 - Jump (JMP, JSR)
 - Increment/Decrement (INC, DEC, INX, DEX, INY, DEY)
-- BIT test — *see [#3](https://github.com/relmer/Casso65/issues/3) for V/N flag bug*
+- BIT test
 - BRK (software interrupt)
 - Stack operations (PHA, PLA, PHP, PLP)
 - Register transfers (TAX, TXA, TAY, TYA, TXS, TSX)
@@ -114,21 +130,23 @@ All 56 standard 6502 mnemonics are implemented.
 - Return instructions (RTS, RTI)
 - NOP
 
-## Known Issues
-
-| Issue | Description |
-|-------|-------------|
-| [#1](https://github.com/relmer/Casso65/issues/1) | ShiftLeft/ShiftRight dispatch calls RotateLeft/RotateRight |
-| [#3](https://github.com/relmer/Casso65/issues/3) | BIT instruction V/N flags read from AND result instead of operand |
-| [#4](https://github.com/relmer/Casso65/issues/4) | Compare carry flag incorrect for boundary values |
-
 ## Roadmap
 
-- [ ] Fix all known CPU bugs ([#1](https://github.com/relmer/Casso65/issues/1)–[#5](https://github.com/relmer/Casso65/issues/5))
-- [ ] Run [Klaus Dormann's 6502 functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) for comprehensive validation
-- [ ] Binary file loader (`LoadBinary(filename, address)`)
-- [ ] 65C02 extended instruction support
-- [ ] Decimal mode (BCD) for ADC/SBC
+- [ ] Pass [Klaus Dormann's 6502 functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) (tracked in [#7](https://github.com/relmer/Casso65/issues/7) / [#28](https://github.com/relmer/Casso65/issues/28))
+- [ ] Per-opcode validation against [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) ([#29](https://github.com/relmer/Casso65/issues/29), [#38](https://github.com/relmer/Casso65/issues/38))
+- [ ] 65C02 extended instruction support, with assembler `--cpu` flag ([#9](https://github.com/relmer/Casso65/issues/9))
+
+## Why "Casso65"?
+
+The 6502 emulator world already has [Emu](https://en.wikipedia.org/wiki/Emu) — so we picked its larger, flightless, slightly-more-dangerous cousin: the [cassowary](https://en.wikipedia.org/wiki/Cassowary). "Casso" + "65" (for 6502) = **Casso65**. We want this to be a great emulator and a great assembler — but we don't take ourselves too seriously.
+
+<p align="center">
+  <a href="https://en.wikipedia.org/wiki/Cassowary">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Cassowary_Diversity.jpg/440px-Cassowary_Diversity.jpg" alt="Cassowaries — the three species of genus Casuarius" width="360" />
+  </a>
+  <br />
+  <em>The three species of <a href="https://en.wikipedia.org/wiki/Cassowary">Casuarius</a>. Image: Wikimedia Commons.</em>
+</p>
 
 ## Contributing
 
