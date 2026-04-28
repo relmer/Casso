@@ -205,7 +205,7 @@ namespace CmapTests
         {
             TestCpu cpu;
 
-            // In a two-pass assembler, set constants use the last value in pass 2
+            // Set constants use the value at the time of use (temporal ordering)
             auto result = cpu.Assemble (
                 "    .org $1000\n"
                 "val set $10\n"
@@ -215,8 +215,8 @@ namespace CmapTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            // Both use the last set value ($20) in pass 2
-            Assert::AreEqual ((Byte) 0x20, result.bytes[1]);
+            // lda #val uses $10 (first set), ldx #val uses $20 (second set)
+            Assert::AreEqual ((Byte) 0x10, result.bytes[1]);
             Assert::AreEqual ((Byte) 0x20, result.bytes[3]);
         }
     };

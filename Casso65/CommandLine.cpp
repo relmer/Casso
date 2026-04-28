@@ -126,7 +126,7 @@ static bool ParseFillByte (const char * text, Byte & fillByte)
 
 static bool ReadFileContents (const std::string & path, std::string & contents)
 {
-    std::ifstream file (path);
+    std::ifstream file (path, std::ios::binary);
 
     if (!file.is_open ())
     {
@@ -728,12 +728,6 @@ static int RunCpu (Cpu & cpu,
         if (options.hasStopAddress && cpu.GetPC () == options.stopAddress)
         {
             status.push_back (std::format ("Stopped at address ${:04X}", options.stopAddress));
-            break;
-        }
-
-        if (opcode == 0x00)
-        {
-            status.push_back (std::format ("BRK encountered at ${:04X}", cpu.GetPC ()));
             break;
         }
 

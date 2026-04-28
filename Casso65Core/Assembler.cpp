@@ -2650,7 +2650,26 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             bool    emit  = true;
 
             // Evaluate expression with full symbol table
-            if (info.classified.syntax != OperandSyntax::None &&
+            // But if the expression was already resolved in Pass 1 (e.g., Set
+            // variables that change between expansions), use the Pass 1 value
+            // to preserve temporal ordering of mutable symbols.
+            if (info.valueResolved)
+            {
+                value = info.resolvedValue;
+
+                // Still track symbol references for unused-label warnings
+                if (!info.classified.expression.empty ())
+                {
+                    for (const auto & sym : symbols)
+                    {
+                        if (info.classified.expression.find (sym.first) != std::string::npos)
+                        {
+                            referencedLabels[sym.first] = info.parsed.lineNumber;
+                        }
+                    }
+                }
+            }
+            else if (info.classified.syntax != OperandSyntax::None &&
                 info.classified.syntax != OperandSyntax::Accumulator &&
                 !info.classified.expression.empty ())
             {
