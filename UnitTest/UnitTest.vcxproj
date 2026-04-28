@@ -230,6 +230,7 @@
     <ClCompile Include="EhmTestHelper.cpp" />
     <ClCompile Include="HarteTestRunner.cpp" />
     <ClCompile Include="ModuleSetup.cpp" />
+    <ClCompile Include="RegressionTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />
