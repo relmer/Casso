@@ -35,598 +35,6 @@ FileReadResult DefaultFileReader::ReadFile (const std::string & filename, const 
     result.contents = ss.str ();
     return result;
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetLowerExtension
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static std::string GetLowerExtension (const std::string & filename)
-{
-    size_t dot = filename.rfind ('.');
-
-    if (dot == std::string::npos)
-    {
-        return "";
-    }
-
-    std::string ext = filename.substr (dot);
-
-    for (auto & c : ext)
-    {
-        c = (char) std::tolower ((unsigned char) c);
-    }
-
-    return ext;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HexCharToNibble
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static int HexCharToNibble (char c)
-{
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    return -1;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HexByte
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static int HexByte (const std::string & s, size_t offset)
-{
-    if (offset + 1 >= s.size ())
-    {
-        return -1;
-    }
-
-    int hi = HexCharToNibble (s[offset]);
-    int lo = HexCharToNibble (s[offset + 1]);
-
-    if (hi < 0 || lo < 0)
-    {
-        return -1;
-    }
-
-    return (hi << 4) | lo;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ParseSRecord
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static std::vector<Byte> ParseSRecord (const std::string & content)
-{
-    std::vector<Byte> data;
-    std::istringstream stream (content);
-    std::string line;
-
-
-
-    while (std::getline (stream, line))
-    {
-        // Trim trailing CR
-        if (!line.empty () && line.back () == '\r')
-        {
-            line.pop_back ();
-        }
-
-        if (line.size () < 2 || line[0] != 'S')
-        {
-            continue;
-        }
-
-        char recType = line[1];
-
-        // S1: 2-byte address, S2: 3-byte address, S3: 4-byte address
-        int addrBytes = 0;
-
-        if (recType == '1')      addrBytes = 2;
-        else if (recType == '2') addrBytes = 3;
-        else if (recType == '3') addrBytes = 4;
-        else                     continue;
-
-        if (line.size () < 4)
-        {
-            continue;
-        }
-
-        int byteCount = HexByte (line, 2);
-
-        if (byteCount < 0)
-        {
-            continue;
-        }
-
-        // Data bytes = byteCount - address bytes - 1 checksum byte
-        int dataBytes = byteCount - addrBytes - 1;
-
-        if (dataBytes <= 0)
-        {
-            continue;
-        }
-
-        // Data starts after "Sn" + 2-char count + address hex chars
-        size_t dataOffset = 4 + (size_t) addrBytes * 2;
-
-        for (int i = 0; i < dataBytes; i++)
-        {
-            int b = HexByte (line, dataOffset + (size_t) i * 2);
-
-            if (b >= 0)
-            {
-                data.push_back ((Byte) b);
-            }
-        }
-    }
-
-    return data;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ParseIntelHex
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static std::vector<Byte> ParseIntelHex (const std::string & content)
-{
-    std::vector<Byte> data;
-    std::istringstream stream (content);
-    std::string line;
-
-
-
-    while (std::getline (stream, line))
-    {
-        // Trim trailing CR
-        if (!line.empty () && line.back () == '\r')
-        {
-            line.pop_back ();
-        }
-
-        if (line.empty () || line[0] != ':')
-        {
-            continue;
-        }
-
-        if (line.size () < 11)
-        {
-            continue;
-        }
-
-        int byteCount  = HexByte (line, 1);
-        int recordType = HexByte (line, 7);
-
-        if (byteCount < 0 || recordType < 0)
-        {
-            continue;
-        }
-
-        // Only process data records (type 00)
-        if (recordType != 0x00)
-        {
-            continue;
-        }
-
-        size_t dataOffset = 9;
-
-        for (int i = 0; i < byteCount; i++)
-        {
-            int b = HexByte (line, dataOffset + (size_t) i * 2);
-
-            if (b >= 0)
-            {
-                data.push_back ((Byte) b);
-            }
-        }
-    }
-
-    return data;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GenerateByteDirectives
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static std::vector<std::string> GenerateByteDirectives (const std::vector<Byte> & data)
-{
-    std::vector<std::string> lines;
-
-    static const int kBytesPerLine = 16;
-
-
-
-    for (size_t i = 0; i < data.size (); i += kBytesPerLine)
-    {
-        std::string line = "    .byte ";
-
-        size_t end = std::min (i + kBytesPerLine, data.size ());
-
-        for (size_t j = i; j < end; j++)
-        {
-            if (j > i)
-            {
-                line += ",";
-            }
-
-            line += std::format ("${:02X}", data[j]);
-        }
-
-        lines.push_back (line);
-    }
-
-    return lines;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Assembler
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Assembler::Assembler (const Microcode instructionSet[256], AssemblerOptions options) :
-    m_opcodeTable (instructionSet),
-    m_options     (options)
-{
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RecordWarning
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Assembler::RecordWarning (AssemblyResult & result, int lineNumber, const std::string & message)
-{
-    switch (m_options.warningMode)
-    {
-    case WarningMode::Warn:
-    {
-        AssemblyError warning = {};
-        warning.lineNumber = lineNumber;
-        warning.message    = message;
-        result.warnings.push_back (warning);
-        break;
-    }
-
-    case WarningMode::FatalWarnings:
-    {
-        AssemblyError error = {};
-        error.lineNumber = lineNumber;
-        error.message    = message;
-        result.errors.push_back (error);
-        result.success = false;
-        break;
-    }
-
-    case WarningMode::NoWarn:
-        // Discard silently
-        break;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsBranchMnemonic
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static bool IsBranchMnemonic (const std::string & mnemonic)
-{
-    return mnemonic == "BPL" || mnemonic == "BMI" ||
-           mnemonic == "BVC" || mnemonic == "BVS" ||
-           mnemonic == "BCC" || mnemonic == "BCS" ||
-           mnemonic == "BNE" || mnemonic == "BEQ";
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ResolveAddressingMode — derive final 6502 addressing mode from syntax,
-//  mnemonic, and resolved value
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static GlobalAddressingMode::AddressingMode ResolveAddressingMode (
-    OperandSyntax    syntax,
-    const std::string & mnemonic,
-    int32_t          value,
-    bool             resolved,
-    const OpcodeTable & opcodeTable)
-{
-    using AM = GlobalAddressingMode::AddressingMode;
-
-
-
-    switch (syntax)
-    {
-    case OperandSyntax::None:
-        return AM::SingleByteNoOperand;
-
-    case OperandSyntax::Accumulator:
-        return AM::Accumulator;
-
-    case OperandSyntax::Immediate:
-        return AM::Immediate;
-
-    case OperandSyntax::IndirectX:
-        return AM::ZeroPageXIndirect;
-
-    case OperandSyntax::IndirectY:
-        return AM::ZeroPageIndirectY;
-
-    case OperandSyntax::Indirect:
-        return AM::JumpIndirect;
-
-    case OperandSyntax::IndexedX:
-    {
-        // Try ZeroPageX first if value fits and instruction supports it
-        if (resolved && value >= 0 && value <= 0xFF)
-        {
-            OpcodeEntry entry = {};
-
-            if (opcodeTable.Lookup (mnemonic, AM::ZeroPageX, entry))
-            {
-                return AM::ZeroPageX;
-            }
-        }
-
-        return AM::AbsoluteX;
-    }
-
-    case OperandSyntax::IndexedY:
-    {
-        if (resolved && value >= 0 && value <= 0xFF)
-        {
-            OpcodeEntry entry = {};
-
-            if (opcodeTable.Lookup (mnemonic, AM::ZeroPageY, entry))
-            {
-                return AM::ZeroPageY;
-            }
-        }
-
-        return AM::AbsoluteY;
-    }
-
-    case OperandSyntax::Bare:
-    {
-        // Branch instructions are always relative
-        if (IsBranchMnemonic (mnemonic))
-        {
-            return AM::Relative;
-        }
-
-        // JMP/JSR use JumpAbsolute
-        if (mnemonic == "JMP" || mnemonic == "JSR")
-        {
-            return AM::JumpAbsolute;
-        }
-
-        // Try ZeroPage if value fits and instruction supports it
-        if (resolved && value >= 0 && value <= 0xFF)
-        {
-            OpcodeEntry entry = {};
-
-            if (opcodeTable.Lookup (mnemonic, AM::ZeroPage, entry))
-            {
-                return AM::ZeroPage;
-            }
-        }
-
-        return AM::Absolute;
-    }
-    }
-
-    return AM::SingleByteNoOperand;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EstimateInstructionSize — conservative size for unresolved expressions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static Byte EstimateInstructionSize (OperandSyntax syntax, const std::string & mnemonic)
-{
-    switch (syntax)
-    {
-    case OperandSyntax::None:
-    case OperandSyntax::Accumulator:
-        return 1;
-
-    case OperandSyntax::Immediate:
-    case OperandSyntax::IndirectX:
-    case OperandSyntax::IndirectY:
-        return 2;
-
-    case OperandSyntax::Indirect:
-        return 3;
-
-    case OperandSyntax::IndexedX:
-    case OperandSyntax::IndexedY:
-    case OperandSyntax::Bare:
-    {
-        if (IsBranchMnemonic (mnemonic))
-        {
-            return 2;
-        }
-
-        return 3;  // Conservative: assume absolute
-    }
-    }
-
-    return 1;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EvaluateDirectiveArgs — evaluate comma-separated expression list
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static std::string ProcessEscapeSequences (const std::string & str)
-{
-    std::string result;
-    result.reserve (str.size ());
-
-
-
-    for (size_t i = 0; i < str.size (); i++)
-    {
-        if (str[i] == '\\' && i + 1 < str.size ())
-        {
-            char next = str[i + 1];
-
-            switch (next)
-            {
-            case 'a':  result += '\a'; i++; break;
-            case 'b':  result += '\b'; i++; break;
-            case 'n':  result += '\n'; i++; break;
-            case 'r':  result += '\r'; i++; break;
-            case 't':  result += '\t'; i++; break;
-            case '\\': result += '\\'; i++; break;
-            case '"':  result += '"';  i++; break;
-            default:   result += str[i]; break;
-            }
-        }
-        else
-        {
-            result += str[i];
-        }
-    }
-
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EvaluateDirectiveArgs — evaluate comma-separated expression list
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static bool EvaluateDirectiveArgs (
-    const std::string &                      argText,
-    const ExprContext &                       ctx,
-    std::vector<int32_t> &                   values,
-    int                                      lineNumber,
-    std::vector<AssemblyError> &             errors)
-{
-    auto args = Parser::SplitArgList (argText);
-    bool ok   = true;
-
-
-
-    for (const auto & arg : args)
-    {
-        // Check for quoted string — emit each character as a value
-        if (arg.size () >= 2 && arg.front () == '"' && arg.back () == '"')
-        {
-            std::string raw       = arg.substr (1, arg.size () - 2);
-            std::string processed = ProcessEscapeSequences (raw);
-
-            for (char c : processed)
-            {
-                values.push_back ((int32_t) (unsigned char) c);
-            }
-
-            continue;
-        }
-
-        ExprResult er = ExpressionEvaluator::Evaluate (arg, ctx);
-
-        if (!er.success)
-        {
-            AssemblyError error = {};
-            error.lineNumber = lineNumber;
-            error.message    = "Cannot evaluate expression: " + arg + " (" + er.error + ")";
-            errors.push_back (error);
-            ok = false;
-        }
-        else
-        {
-            values.push_back (er.value);
-        }
-    }
-
-    return ok;
-}
-
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  File-scope types for AssemblySession
-//
-////////////////////////////////////////////////////////////////////////////////
-
 enum class Segment { Code, Data, Bss };
 
 
@@ -747,6 +155,25 @@ private:
     HRESULT ExtractColonlessLabelName (const PendingLine & current, std::string & labelName);
     HRESULT ParseCmapMapping          (const std::string & arg);
 
+    // Helpers moved from file-scope statics
+    static std::string              GetLowerExtension       (const std::string & filename);
+    static int                      HexCharToNibble         (char c);
+    static int                      HexByte                 (const std::string & s, size_t offset);
+    static std::vector<Byte>        ParseSRecord            (const std::string & content);
+    static std::vector<Byte>        ParseIntelHex           (const std::string & content);
+    static std::vector<std::string> GenerateByteDirectives  (const std::vector<Byte> & data);
+    static bool                     IsBranchMnemonic        (const std::string & mnemonic);
+    static Byte                     EstimateInstructionSize (OperandSyntax syntax, const std::string & mnemonic);
+    static std::string              ProcessEscapeSequences  (const std::string & str);
+    static bool                     EvaluateDirectiveArgs   (const std::string & argText,
+                                                             const ExprContext & ctx,
+                                                             std::vector<int32_t> & values,
+                                                             int lineNumber,
+                                                             std::vector<AssemblyError> & errors);
+    GlobalAddressingMode::AddressingMode ResolveAddressingMode (OperandSyntax syntax,
+                                                                 const std::string & mnemonic,
+                                                                 int32_t value, bool resolved);
+
     void RecordError   (int lineNumber, const std::string & message);
     void RecordWarning (int lineNumber, const std::string & message);
     bool IsAssembling  () const;
@@ -755,44 +182,631 @@ private:
 
     const OpcodeTable      & m_opcodeTable;
     const AssemblerOptions & m_options;
-    AssemblyResult           m_result;
+    AssemblyResult           m_result             = {};
 
     std::vector<std::string>                           m_lines;
     std::vector<LineInfo>                               m_lineInfos;
     std::unordered_map<std::string, Word>               m_symbols;
     std::unordered_map<std::string, SymbolKind>         m_symbolKinds;
     std::unordered_map<std::string, int32_t>            m_exprSymbols;
-    ExprContext                                          m_pass1Ctx;
-    Word                                                m_pc;
-    bool                                                m_originSet;
-    bool                                                m_endAssembly;
-    Segment                                             m_currentSegment;
-    Word                                                m_segmentPC[3];
+    ExprContext                                          m_pass1Ctx           = { &m_exprSymbols, 0 };
+    Word                                                m_pc                 = 0;
+    bool                                                m_originSet          = false;
+    bool                                                m_endAssembly        = false;
+    Segment                                             m_currentSegment     = Segment::Code;
+    Word                                                m_segmentPC[3]       = { 0, 0, 0 };
     std::vector<ConditionalState>                       m_condStack;
     std::unordered_map<std::string, MacroDefinition>    m_macros;
-    bool                                                m_collectingMacro;
+    bool                                                m_collectingMacro    = false;
     std::string                                         m_currentMacroName;
-    int                                                 m_currentMacroLine;
+    int                                                 m_currentMacroLine   = 0;
     std::vector<std::string>                            m_currentMacroBody;
     std::vector<std::string>                            m_currentMacroParams;
     std::vector<std::string>                            m_currentMacroLocals;
-    int                                                 m_macroUniqueCounter;
+    int                                                 m_macroUniqueCounter = 0;
     int                                                 m_listingLevel;
     std::unordered_map<std::string, StructDefinition>   m_structs;
-    bool                                                m_collectingStruct;
-    StructDefinition                                    m_currentStruct;
+    bool                                                m_collectingStruct   = false;
+    StructDefinition                                    m_currentStruct      = {};
     CharacterMap                                        m_charMap;
     std::deque<PendingLine>                             m_pendingLines;
     std::vector<Byte>                                   m_image;
-    Word                                                m_lowestAddr;
-    Word                                                m_highestAddr;
+    Word                                                m_lowestAddr         = 0xFFFF;
+    Word                                                m_highestAddr        = 0x0000;
     std::unordered_map<std::string, int>                m_referencedLabels;
     std::unordered_map<std::string, int32_t>            m_fullSymbols;
-    ExprContext                                          m_pass2Ctx;
+    ExprContext                                          m_pass2Ctx           = { &m_fullSymbols, 0 };
 
     static const int kMaxMacroDepth   = 15;
     static const int kMaxIncludeDepth = 16;
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLowerExtension
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::GetLowerExtension (const std::string & filename)
+{
+    size_t dot = filename.rfind ('.');
+
+    if (dot == std::string::npos)
+    {
+        return "";
+    }
+
+    std::string ext = filename.substr (dot);
+
+    for (auto & c : ext)
+    {
+        c = (char) std::tolower ((unsigned char) c);
+    }
+
+    return ext;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HexCharToNibble
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int AssemblySession::HexCharToNibble (char c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HexByte
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int AssemblySession::HexByte (const std::string & s, size_t offset)
+{
+    if (offset + 1 >= s.size ())
+    {
+        return -1;
+    }
+
+    int hi = HexCharToNibble (s[offset]);
+    int lo = HexCharToNibble (s[offset + 1]);
+
+    if (hi < 0 || lo < 0)
+    {
+        return -1;
+    }
+
+    return (hi << 4) | lo;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParseSRecord
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> AssemblySession::ParseSRecord (const std::string & content)
+{
+    std::vector<Byte> data;
+    std::istringstream stream (content);
+    std::string line;
+
+
+
+    while (std::getline (stream, line))
+    {
+        // Trim trailing CR
+        if (!line.empty () && line.back () == '\r')
+        {
+            line.pop_back ();
+        }
+
+        if (line.size () < 2 || line[0] != 'S')
+        {
+            continue;
+        }
+
+        char recType = line[1];
+
+        // S1: 2-byte address, S2: 3-byte address, S3: 4-byte address
+        int addrBytes = 0;
+
+        if (recType == '1')      addrBytes = 2;
+        else if (recType == '2') addrBytes = 3;
+        else if (recType == '3') addrBytes = 4;
+        else                     continue;
+
+        if (line.size () < 4)
+        {
+            continue;
+        }
+
+        int byteCount = HexByte (line, 2);
+
+        if (byteCount < 0)
+        {
+            continue;
+        }
+
+        // Data bytes = byteCount - address bytes - 1 checksum byte
+        int dataBytes = byteCount - addrBytes - 1;
+
+        if (dataBytes <= 0)
+        {
+            continue;
+        }
+
+        // Data starts after "Sn" + 2-char count + address hex chars
+        size_t dataOffset = 4 + (size_t) addrBytes * 2;
+
+        for (int i = 0; i < dataBytes; i++)
+        {
+            int b = HexByte (line, dataOffset + (size_t) i * 2);
+
+            if (b >= 0)
+            {
+                data.push_back ((Byte) b);
+            }
+        }
+    }
+
+    return data;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParseIntelHex
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> AssemblySession::ParseIntelHex (const std::string & content)
+{
+    std::vector<Byte> data;
+    std::istringstream stream (content);
+    std::string line;
+
+
+
+    while (std::getline (stream, line))
+    {
+        // Trim trailing CR
+        if (!line.empty () && line.back () == '\r')
+        {
+            line.pop_back ();
+        }
+
+        if (line.empty () || line[0] != ':')
+        {
+            continue;
+        }
+
+        if (line.size () < 11)
+        {
+            continue;
+        }
+
+        int byteCount  = HexByte (line, 1);
+        int recordType = HexByte (line, 7);
+
+        if (byteCount < 0 || recordType < 0)
+        {
+            continue;
+        }
+
+        // Only process data records (type 00)
+        if (recordType != 0x00)
+        {
+            continue;
+        }
+
+        size_t dataOffset = 9;
+
+        for (int i = 0; i < byteCount; i++)
+        {
+            int b = HexByte (line, dataOffset + (size_t) i * 2);
+
+            if (b >= 0)
+            {
+                data.push_back ((Byte) b);
+            }
+        }
+    }
+
+    return data;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GenerateByteDirectives
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> AssemblySession::GenerateByteDirectives (const std::vector<Byte> & data)
+{
+    std::vector<std::string> lines;
+
+    static const int kBytesPerLine = 16;
+
+
+
+    for (size_t i = 0; i < data.size (); i += kBytesPerLine)
+    {
+        std::string line = "    .byte ";
+
+        size_t end = std::min (i + kBytesPerLine, data.size ());
+
+        for (size_t j = i; j < end; j++)
+        {
+            if (j > i)
+            {
+                line += ",";
+            }
+
+            line += std::format ("${:02X}", data[j]);
+        }
+
+        lines.push_back (line);
+    }
+
+    return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Assembler
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Assembler::Assembler (const Microcode instructionSet[256], AssemblerOptions options) :
+    m_opcodeTable (instructionSet),
+    m_options     (options)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RecordWarning
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Assembler::RecordWarning (AssemblyResult & result, int lineNumber, const std::string & message)
+{
+    switch (m_options.warningMode)
+    {
+        case WarningMode::Warn:
+        {
+            AssemblyError warning = {};
+            warning.lineNumber = lineNumber;
+            warning.message    = message;
+            result.warnings.push_back (warning);
+            break;
+        }
+
+        case WarningMode::FatalWarnings:
+        {
+            AssemblyError error = {};
+            error.lineNumber = lineNumber;
+            error.message    = message;
+            result.errors.push_back (error);
+            result.success = false;
+            break;
+        }
+
+        case WarningMode::NoWarn:
+            // Discard silently
+            break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsBranchMnemonic
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::IsBranchMnemonic (const std::string & mnemonic)
+{
+    return mnemonic == "BPL" || mnemonic == "BMI" ||
+           mnemonic == "BVC" || mnemonic == "BVS" ||
+           mnemonic == "BCC" || mnemonic == "BCS" ||
+           mnemonic == "BNE" || mnemonic == "BEQ";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResolveAddressingMode — derive final 6502 addressing mode from syntax,
+//  mnemonic, and resolved value
+//
+////////////////////////////////////////////////////////////////////////////////
+
+GlobalAddressingMode::AddressingMode AssemblySession::ResolveAddressingMode (
+    OperandSyntax    syntax,
+    const std::string & mnemonic,
+    int32_t          value,
+    bool             resolved)
+{
+    using AM = GlobalAddressingMode::AddressingMode;
+
+
+
+    switch (syntax)
+    {
+        case OperandSyntax::None:
+            return AM::SingleByteNoOperand;
+
+        case OperandSyntax::Accumulator:
+            return AM::Accumulator;
+
+        case OperandSyntax::Immediate:
+            return AM::Immediate;
+
+        case OperandSyntax::IndirectX:
+            return AM::ZeroPageXIndirect;
+
+        case OperandSyntax::IndirectY:
+            return AM::ZeroPageIndirectY;
+
+        case OperandSyntax::Indirect:
+            return AM::JumpIndirect;
+
+        case OperandSyntax::IndexedX:
+        {
+            if (resolved && value >= 0 && value <= 0xFF)
+            {
+                OpcodeEntry entry = {};
+
+                if (m_opcodeTable.Lookup (mnemonic, AM::ZeroPageX, entry))
+                {
+                    return AM::ZeroPageX;
+                }
+            }
+
+            return AM::AbsoluteX;
+        }
+
+        case OperandSyntax::IndexedY:
+        {
+            if (resolved && value >= 0 && value <= 0xFF)
+            {
+                OpcodeEntry entry = {};
+
+                if (m_opcodeTable.Lookup (mnemonic, AM::ZeroPageY, entry))
+                {
+                    return AM::ZeroPageY;
+                }
+            }
+
+            return AM::AbsoluteY;
+        }
+
+        case OperandSyntax::Bare:
+        {
+            if (IsBranchMnemonic (mnemonic))
+            {
+                return AM::Relative;
+            }
+
+            if (mnemonic == "JMP" || mnemonic == "JSR")
+            {
+                return AM::JumpAbsolute;
+            }
+
+            if (resolved && value >= 0 && value <= 0xFF)
+            {
+                OpcodeEntry entry = {};
+
+                if (m_opcodeTable.Lookup (mnemonic, AM::ZeroPage, entry))
+                {
+                    return AM::ZeroPage;
+                }
+            }
+
+            return AM::Absolute;
+        }
+    }
+
+    return AM::SingleByteNoOperand;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EstimateInstructionSize — conservative size for unresolved expressions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte AssemblySession::EstimateInstructionSize (OperandSyntax syntax, const std::string & mnemonic)
+{
+    switch (syntax)
+    {
+        case OperandSyntax::None:
+        case OperandSyntax::Accumulator:
+            return 1;
+
+        case OperandSyntax::Immediate:
+        case OperandSyntax::IndirectX:
+        case OperandSyntax::IndirectY:
+            return 2;
+
+        case OperandSyntax::Indirect:
+            return 3;
+
+        case OperandSyntax::IndexedX:
+        case OperandSyntax::IndexedY:
+        case OperandSyntax::Bare:
+        {
+            if (IsBranchMnemonic (mnemonic))
+            {
+                return 2;
+            }
+
+            return 3;
+        }
+    }
+
+    return 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EvaluateDirectiveArgs — evaluate comma-separated expression list
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::ProcessEscapeSequences (const std::string & str)
+{
+    std::string result;
+    result.reserve (str.size ());
+
+
+
+    for (size_t i = 0; i < str.size (); i++)
+    {
+        if (str[i] == '\\' && i + 1 < str.size ())
+        {
+            char next = str[i + 1];
+
+            switch (next)
+            {
+                case 'a':  result += '\a'; i++; break;
+                case 'b':  result += '\b'; i++; break;
+                case 'n':  result += '\n'; i++; break;
+                case 'r':  result += '\r'; i++; break;
+                case 't':  result += '\t'; i++; break;
+                case '\\': result += '\\'; i++; break;
+                case '"':  result += '"';  i++; break;
+                default:   result += str[i]; break;
+            }
+        }
+        else
+        {
+            result += str[i];
+        }
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EvaluateDirectiveArgs — evaluate comma-separated expression list
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::EvaluateDirectiveArgs (
+    const std::string &                      argText,
+    const ExprContext &                       ctx,
+    std::vector<int32_t> &                   values,
+    int                                      lineNumber,
+    std::vector<AssemblyError> &             errors)
+{
+    auto args = Parser::SplitArgList (argText);
+    bool ok   = true;
+
+
+
+    for (const auto & arg : args)
+    {
+        // Check for quoted string — emit each character as a value
+        if (arg.size () >= 2 && arg.front () == '"' && arg.back () == '"')
+        {
+            std::string raw       = arg.substr (1, arg.size () - 2);
+            std::string processed = ProcessEscapeSequences (raw);
+
+            for (char c : processed)
+            {
+                values.push_back ((int32_t) (unsigned char) c);
+            }
+
+            continue;
+        }
+
+        ExprResult er = ExpressionEvaluator::Evaluate (arg, ctx);
+
+        if (!er.success)
+        {
+            AssemblyError error = {};
+            error.lineNumber = lineNumber;
+            error.message    = "Cannot evaluate expression: " + arg + " (" + er.error + ")";
+            errors.push_back (error);
+            ok = false;
+        }
+        else
+        {
+            values.push_back (er.value);
+        }
+    }
+
+    return ok;
+}
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  File-scope types for AssemblySession
+//
+////////////////////////////////////////////////////////////////////////////////
+
 
 
 
@@ -806,25 +820,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 AssemblySession::AssemblySession (const OpcodeTable & opcodeTable, const AssemblerOptions & options) :
-    m_opcodeTable        (opcodeTable),
-    m_options            (options),
-    m_result             ({}),
-    m_pass1Ctx           ({ &m_exprSymbols, 0 }),
-    m_pc                 (0),
-    m_originSet          (false),
-    m_endAssembly        (false),
-    m_currentSegment     (Segment::Code),
-    m_segmentPC          { 0, 0, 0 },
-    m_collectingMacro    (false),
-    m_currentMacroLine   (0),
-    m_macroUniqueCounter (0),
-    m_listingLevel       (options.generateListing ? 1 : 0),
-    m_collectingStruct   (false),
-    m_currentStruct      ({}),
-    m_charMap            (),
-    m_lowestAddr         (0xFFFF),
-    m_highestAddr        (0x0000),
-    m_pass2Ctx           ({ &m_fullSymbols, 0 })
+    m_opcodeTable  (opcodeTable),
+    m_options      (options),
+    m_listingLevel (options.generateListing ? 1 : 0)
 {
 }
 
@@ -862,27 +860,27 @@ void AssemblySession::RecordWarning (int lineNumber, const std::string & message
 {
     switch (m_options.warningMode)
     {
-    case WarningMode::Warn:
-    {
-        AssemblyError warning = {};
-        warning.lineNumber = lineNumber;
-        warning.message    = message;
-        m_result.warnings.push_back (warning);
-        break;
-    }
+        case WarningMode::Warn:
+        {
+            AssemblyError warning = {};
+            warning.lineNumber = lineNumber;
+            warning.message    = message;
+            m_result.warnings.push_back (warning);
+            break;
+        }
 
-    case WarningMode::FatalWarnings:
-    {
-        AssemblyError error = {};
-        error.lineNumber = lineNumber;
-        error.message    = message;
-        m_result.errors.push_back (error);
-        m_result.success = false;
-        break;
-    }
+        case WarningMode::FatalWarnings:
+        {
+            AssemblyError error = {};
+            error.lineNumber = lineNumber;
+            error.message    = message;
+            m_result.errors.push_back (error);
+            m_result.success = false;
+            break;
+        }
 
-    case WarningMode::NoWarn:
-        break;
+        case WarningMode::NoWarn:
+            break;
     }
 }
 
@@ -3199,7 +3197,7 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
     {
         GlobalAddressingMode::AddressingMode mode = ResolveAddressingMode (
             info.classified.syntax, info.parsed.mnemonic,
-            exprValue, exprResolved, m_opcodeTable);
+            exprValue, exprResolved);
         info.resolvedMode = mode;
 
         OpcodeEntry entry = {};
