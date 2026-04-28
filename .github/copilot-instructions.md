@@ -155,6 +155,15 @@ void Function2()
 - **ALWAYS** update `CHANGELOG.md` for user-visible changes (`feat`, `fix`, `perf`)
 - **ALWAYS** update `README.md` when features, test counts, or roadmap items change
 
+### Validation Suites for Significant Changes
+- Any significant changes to the **assembler** or **CPU emulator** implementation
+  require running both extended validation suites before committing:
+  - **Dormann**: `scripts/RunDormannTest.ps1` — Klaus Dormann 6502 functional test
+  - **Harte**: `scripts/RunHarteTests.ps1 -SkipGenerate` — Tom Harte SingleStepTests
+- These suites validate end-to-end correctness beyond the unit test suite
+- "Significant" includes: refactors, new instructions, addressing mode changes,
+  assembler directive changes, expression evaluation changes, and binary output changes
+
 ## Commit Messages
 
 - Use [Conventional Commits](https://www.conventionalcommits.org/) format: `type(scope): description`
