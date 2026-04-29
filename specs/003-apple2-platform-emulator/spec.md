@@ -126,7 +126,7 @@ A developer creates a new machine configuration JSON file and registers new devi
 - What happens when the user specifies `--machine` with a config name that does not exist? → The emulator displays a helpful error listing available machine configurations and exits
 - What happens when the ROM file referenced in the machine config is missing? → The emulator reports which ROM file is missing, its expected location, and exits with a clear error message
 - What happens when the user provides a .dsk image that is corrupted or an unrecognized format? → The emulator reports the disk error and continues running (the drive is simply empty)
-- What happens when the emulator window is resized? → The display scales proportionally, maintaining the correct aspect ratio, or the window has a fixed size
+- What happens when the emulator window is resized? → The window has a fixed 560×384 client area; resizing is not supported (FR-022). Fullscreen mode (Alt+Enter) uses D3D11 swap chain scaling with correct aspect ratio (FR-031).
 - What happens when the user closes the emulator window while a disk write is in progress? → The emulator completes or discards the pending operation and exits cleanly without corrupting the disk image
 - What happens when two devices are configured with overlapping address ranges? → The emulator detects the conflict at startup and reports which devices and addresses overlap, then exits
 - What happens when the CPU executes an illegal/undefined opcode (NMOS 6502)? → The emulator treats it as a NOP of the appropriate byte/cycle length (non-crashing behavior), consistent with common emulator practice
@@ -222,6 +222,8 @@ Menu items that depend on unimplemented features (e.g., CRT Shader) are grayed o
 - **FR-030**: System MUST support four display color modes selectable via the View menu: Color (NTSC artifact colors), Green Monochrome (green phosphor), Amber Monochrome, and White Monochrome. Monochrome modes convert the RGBA framebuffer to a single-channel luminance tinted to the selected color. Default is Color.
 - **FR-031**: System MUST support fullscreen mode via Alt+Enter. Fullscreen uses the D3D11 swap chain's fullscreen exclusive mode (or borderless fullscreen window). The emulation viewport scales to fill the screen while maintaining correct aspect ratio. Alt+Enter toggles back to windowed mode.
 - **FR-032**: Reset (Ctrl+R) performs a warm reset — the CPU's reset vector is fetched and execution resumes, but RAM contents are preserved (equivalent to pressing Ctrl+Reset on real hardware). Power Cycle (Ctrl+Shift+R) performs a cold boot — all RAM is cleared, all devices are reinitialized, and the CPU starts from the reset vector as if the machine was just powered on.
+- **FR-033**: The MemoryBus MUST support devices registered at multiple non-contiguous address ranges. A single device instance (e.g., `apple2e-softswitches`) may be wired to several disjoint ranges from the config (e.g., $C050–$C05F, $C00C–$C00F, $C07E–$C07F). The device receives reads/writes for all its registered ranges.
+- **FR-034**: System MUST implement a game I/O device (`apple2-gameio`) that provides Open Apple ($C061) and Closed Apple ($C062) button state reads for the Apple IIe configuration. On Apple II/II+ configs where no game I/O device is registered, reads to these addresses return the floating bus default.
 
 ### Key Entities
 
@@ -392,7 +394,7 @@ Adjacent OFF pixels remain black.
 
 ### Lo-Res Color Palette
 
-Each byte encodes two vertically-stacked 4-bit color blocks (top nybble, bottom nybble):
+Each byte encodes two vertically-stacked 4-bit color blocks: low nybble (bits 0–3) = top block, high nybble (bits 4–7) = bottom block:
 
 | Value | Color | Value | Color |
 |-------|-------|-------|-------|
@@ -479,7 +481,10 @@ Machine configs are JSON files stored in `Casso65Emu/machines/`. Each file defin
         { "type": "apple2e-keyboard",     "address": "0xC000" },
         { "type": "apple2-speaker",       "address": "0xC030" },
         { "type": "apple2e-softswitches", "start": "0xC050", "end": "0xC05F" },
-        { "type": "aux-ram-card",         "start": "0xC003", "end": "0xC005" },
+        { "type": "apple2e-softswitches", "start": "0xC00C", "end": "0xC00F" },
+        { "type": "apple2e-softswitches", "start": "0xC07E", "end": "0xC07F" },
+        { "type": "apple2-gameio",        "start": "0xC061", "end": "0xC062" },
+        { "type": "aux-ram-card",         "start": "0xC003", "end": "0xC006" },
         { "type": "language-card",        "start": "0xC080", "end": "0xC08F" },
         { "type": "disk-ii",             "slot": 6 }
     ],
@@ -506,6 +511,7 @@ These components contain state machines, hardware protocols, or rendering algori
 |--------------------|-----------|------------------------|
 | `"apple2-keyboard"` | `AppleKeyboard` | Host-to-Apple key mapping, ASCII encoding, strobe latch at $C000/$C010 |
 | `"apple2e-keyboard"` | `AppleIIeKeyboard` | Adds lowercase, modifier keys (Open/Closed Apple), auto-repeat |
+| `"apple2-gameio"` | `AppleGameIO` | Open Apple ($C061) and Closed Apple ($C062) button state reads; paddle inputs |
 | `"apple2-speaker"` | `AppleSpeaker` | Toggle state on $C030 read, audio sample generation |
 | `"apple2-softswitches"` | `AppleSoftSwitchBank` | Video mode toggles ($C050–$C057), mixed mode, page select — state machine driving video mode selection |
 | `"apple2e-softswitches"` | `AppleIIeSoftSwitchBank` | Extends with 80-col, aux RAM bank select, IIe-specific switches |

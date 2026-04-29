@@ -5,7 +5,7 @@
 
 ## Summary
 
-Add a GUI-based Apple II platform emulator (`Casso65Emu`) as a new Win32 application project to the Casso65 solution. The emulator links against the existing Casso65Core static library and provides data-driven machine configurations (JSON) for Apple II, Apple II+, and Apple IIe. It renders via Direct3D 11, generates audio through WASAPI, and uses a component registry architecture to map named device types to C++ classes. The emulator supports text mode, lo-res graphics, hi-res graphics with NTSC color artifacting, 80-column/double hi-res (IIe), Disk II controller emulation (.dsk format), Language Card bank-switching, and 65C02 instruction set extensions. No third-party libraries are used.
+Add a GUI-based Apple II platform emulator (`Casso65Emu`) as a new Win32 application project to the Casso65 solution. The emulator links against the existing Casso65Core static library and provides data-driven machine configurations (JSON) for Apple II, Apple II+, and Apple IIe. All three target machines use the NMOS 6502 CPU (65C02 support for Enhanced IIe and //c is out of scope). It renders via Direct3D 11, generates audio through WASAPI, and uses a component registry architecture to map named device types to C++ classes. The emulator supports text mode, lo-res graphics, hi-res graphics with NTSC color artifacting, 80-column/double hi-res (IIe), Disk II controller emulation (.dsk format), and Language Card bank-switching. No third-party libraries are used.
 
 ## Technical Context
 

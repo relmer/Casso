@@ -3,7 +3,7 @@
 **Input**: Design documents from `/specs/003-apple2-platform-emulator/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/
 
-**Tests**: Not explicitly requested in the feature specification. Test tasks are omitted.
+**Tests**: Thorough unit test coverage required for all production code (constitution: Testing Discipline). Test tasks are integrated into each phase below and collected in Phase 11.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -332,3 +332,78 @@ With multiple developers after Phase 2:
 - All three target machines use NMOS 6502 — EmuCpu has no `is65C02` flag or opcode patching
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
+
+---
+
+## Phase 11: Unit Tests
+
+Thorough unit test coverage for all new production code. Tests go in `UnitTest/EmuTests/` and link against both Casso65Core and Casso65Emu code.
+
+### MemoryBus Tests (`UnitTest/EmuTests/MemoryBusTests.cpp`)
+
+- [ ] **T076** [P] Write MemoryBus tests: device registration, read/write dispatch to correct device by address, overlapping address detection at startup, unmapped address returns floating bus default ($FF), device at single address vs range, remove device. Cover FR-004, FR-033.
+
+### JSON Parser Tests (`UnitTest/EmuTests/JsonParserTests.cpp`)
+
+- [ ] **T077** [P] Write JSON parser tests: parse strings, numbers (int + hex), booleans, arrays, objects, nested structures, empty objects/arrays, escaped characters in strings, malformed JSON error reporting (missing braces, trailing commas, unterminated strings). Cover FR-002, FR-018.
+
+### MachineConfig Tests (`UnitTest/EmuTests/MachineConfigTests.cpp`)
+
+- [ ] **T078** [P] Write MachineConfig loading tests: valid Apple II+ config loads all devices and memory regions, missing ROM file produces clear error, unknown device type produces clear error, overlapping address ranges detected, missing required fields (name, cpu) produce errors, valid IIe config with aux RAM and multi-range soft switches. Cover FR-002, FR-018, FR-033.
+
+### RAM/ROM Device Tests (`UnitTest/EmuTests/DeviceTests.cpp`)
+
+- [ ] **T079** [P] Write RAM device tests: read/write roundtrip at all addresses in range, writes outside range are rejected, zero-initialization. Write ROM device tests: reads return loaded data, writes are ignored (no-op), load from file, load from embedded data. Cover FR-005.
+
+### Keyboard Tests (`UnitTest/EmuTests/KeyboardTests.cpp`)
+
+- [ ] **T080** [P] Write Apple II keyboard tests: key press sets $C000 with bit 7 high, read $C010 clears strobe (bit 7), no key pressed returns last key with bit 7 low, all printable ASCII characters map correctly. Write Apple IIe keyboard tests: lowercase support, modifier keys (Open/Closed Apple mapped to host keys), auto-repeat timing. Cover FR-011.
+
+### Soft Switch Tests (`UnitTest/EmuTests/SoftSwitchTests.cpp`)
+
+- [ ] **T081** [P] Write soft switch tests: read $C051 sets text mode flag, read $C050 sets graphics mode, read $C052/$C053 toggles mixed mode, read $C054/$C055 toggles page, read $C056/$C057 toggles hi-res. Verify all switches are read-triggered (write has no effect). For IIe: $C00C/$C00D toggle 80-col, $C05E/$C05F toggle double hi-res. Cover FR-006, FR-033.
+
+### Text Mode Renderer Tests (`UnitTest/EmuTests/TextModeTests.cpp`)
+
+- [ ] **T082** [P] Write text mode renderer tests: verify interleaved row address calculation matches the formula `base + 128*(row%8) + 40*(row/8)` for all 24 rows on both pages. Verify character-to-glyph lookup from embedded ROM data. Verify inverse/flash character rendering. Verify cursor blink toggle. For 80-col mode: verify interleaved main/aux memory reading. Cover FR-007, FR-028.
+
+### Lo-Res Renderer Tests (`UnitTest/EmuTests/LoResModeTests.cpp`)
+
+- [ ] **T083** [P] Write lo-res renderer tests: verify nybble decoding (low nybble = top block, high nybble = bottom block), verify all 16 colors produce correct RGBA values against the reference palette, verify row address calculation matches text mode. Cover FR-008.
+
+### Hi-Res Renderer Tests (`UnitTest/EmuTests/HiResModeTests.cpp`)
+
+- [ ] **T084** [P] Write hi-res renderer tests: verify 7-pixels-per-byte decoding (LSB = leftmost), verify palette bit (bit 7) switches color groups (violet/green vs blue/orange), verify adjacent ON pixels merge to white, verify row address calculation for all 192 lines. NTSC artifact coloring: verify known byte patterns produce expected colors against a reference table. Cover FR-009.
+
+### Speaker Tests (`UnitTest/EmuTests/SpeakerTests.cpp`)
+
+- [ ] **T085** [P] Write speaker tests: verify $C030 read toggles speaker state, verify toggle timestamps are accumulated during a frame, verify PCM waveform generation from toggle sequence produces correct square wave shape. Test edge cases: no toggles = silence, single toggle = DC offset, rapid toggles = high-frequency signal. Cover FR-012, FR-024.
+
+### Language Card Tests (`UnitTest/EmuTests/LanguageCardTests.cpp`)
+
+- [ ] **T086** [P] Write Language Card tests: verify initial state (ROM visible at $D000–$FFFF), verify single read of $C080 enables RAM read, verify double read of $C081 enables RAM write, verify all 16 soft switch combinations ($C080–$C08F) produce correct read/write/bank states. Test bank 1 vs bank 2 selection at $D000–$DFFF. Verify write-enable requires two consecutive reads. Cover FR-013.
+
+### Disk II Controller Tests (`UnitTest/EmuTests/DiskIITests.cpp`)
+
+- [ ] **T087** [P] Write Disk II tests: verify .dsk sector read produces correct nibblized data (6-and-2 encoding), verify track seek via stepper motor phases, verify sector interleaving (DOS-order: physical→logical sector mapping), verify read data latch timing. Test write mode enable sequence. Test write-protected disk returns write-protect status. Test buffer-and-flush: verify memory buffer matches .dsk file after flush. Test copy-on-write: verify original .dsk unchanged after writes. Cover FR-014, FR-027.
+
+### Game I/O Tests (`UnitTest/EmuTests/GameIOTests.cpp`)
+
+- [ ] **T088** [P] Write game I/O device tests: verify $C061 returns Open Apple button state (bit 7), verify $C062 returns Closed Apple button state (bit 7). Test button press and release transitions. Cover FR-034.
+
+### EmuCpu Tests (`UnitTest/EmuTests/EmuCpuTests.cpp`)
+
+- [ ] **T089** [P] Write EmuCpu integration tests: verify ReadByte/WriteByte route through MemoryBus (not flat array), verify RAM read/write roundtrip via bus, verify ROM read returns correct data and write is ignored, verify soft switch read triggers side effect, verify CPU reset fetches vector from ROM via bus. Cover FR-020.
+
+### Component Registry Tests (`UnitTest/EmuTests/RegistryTests.cpp`)
+
+- [ ] **T090** [P] Write component registry tests: register a device factory by name, create device by name lookup, unknown name returns null/error, duplicate registration handling, verify all built-in device types are registered at startup. Cover FR-003.
+
+---
+
+## Phase 12: Menu and UI Completeness
+
+- [ ] **T091** [US7] Implement File > Open Machine Config dialog: Win32 `GetOpenFileName` filtered to `.json` files, tear down current machine (stop emulation, release devices, clear bus), load new config, reinitialize and start emulation. (`Casso65Emu/EmulatorShell.cpp`)
+- [ ] **T092** [US7] Implement File > Recent Machines submenu: track last 5 machine configs in a simple `.ini` or registry key, populate submenu dynamically, select to load. (`Casso65Emu/EmulatorShell.cpp`)
+- [ ] **T093** Implement Help > About Casso65 dialog: `DialogBox` with version string from `Version.h`, project URL, copyright. (`Casso65Emu/EmulatorShell.cpp`)
+- [ ] **T094** Fix accelerator table (T018): add `Ctrl+Shift+1` (Drive 1 Eject), `Ctrl+Shift+2` (Drive 2 Eject) to keyboard accelerator table. (`Casso65Emu/main.cpp`)
