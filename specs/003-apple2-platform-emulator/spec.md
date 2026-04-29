@@ -157,7 +157,57 @@ A developer creates a new machine configuration JSON file and registers new devi
 - **FR-019**: System MUST preserve all existing Casso65 project functionality — the existing 577+ unit tests must continue to pass with no changes to Casso65Core's public API
 - **FR-020**: System MUST integrate with the existing Casso65Core `Cpu` class by subclassing it (e.g., `EmuCpu`) and overriding the memory access methods (`ReadByte`, `WriteByte`, `ReadWord`, `WriteWord`) to route through the MemoryBus instead of the flat `memory[]` array. The base `Cpu` methods must be made `virtual` (a non-breaking change to the protected interface — no public API change). The existing `PeekByte`/`PokeByte` public accessors and all unit tests remain unaffected.
 - **FR-021**: System MUST support the 65C02 instruction set (required for Apple IIe) by extending the opcode table with 65C02-specific opcodes (e.g., `PHX`, `PHY`, `PLX`, `PLY`, `STZ`, `BRA`, `TRB`, `TSB`, new addressing modes). This can be an `EmuCpu` initialization option selected by the `"cpu": "65c02"` config field. The NMOS 6502 instruction set used by existing unit tests is unchanged.
-- **FR-022**: System MUST display a Win32 window with a title bar showing the machine name and emulation state (e.g., "Casso65 — Apple II+ [Running]"), a minimal menu bar (File: Open Disk 1/2, Eject Disk 1/2, Exit; Machine: Reset, Pause/Resume), and a fixed-size client area of 560×384 pixels. No window resizing is supported in the initial implementation.
+- **FR-022**: System MUST display a Win32 window with a title bar showing the machine name and emulation state (e.g., "Casso65 — Apple II+ [Running]"), a menu bar (see Menu Hierarchy below), and a fixed-size client area of 560×384 pixels. No window resizing is supported in the initial implementation.
+
+### Menu Hierarchy
+
+```
+File
+├── Open Machine Config...     Ctrl+O
+├── ─────────────────────
+├── Recent Machines           ►
+├── ─────────────────────
+└── Exit                       Alt+F4
+
+Machine
+├── Reset                      Ctrl+R
+├── Power Cycle                Ctrl+Shift+R
+├── ─────────────────────
+├── Pause                      Pause
+├── Step (1 instruction)       F11          (when paused)
+├── ─────────────────────
+├── Speed: 1× (authentic)
+├── Speed: 2×
+├── Speed: Maximum
+├── ─────────────────────
+└── Machine Info...
+
+Disk
+├── Drive 1: Insert...         Ctrl+1
+├── Drive 1: Eject             Ctrl+Shift+1
+├── Drive 1: Write Protect
+├── ─────────────────────
+├── Drive 2: Insert...         Ctrl+2
+├── Drive 2: Eject             Ctrl+Shift+2
+└── Drive 2: Write Protect
+
+View
+├── Fullscreen                 Alt+Enter
+├── ─────────────────────
+├── Filter: Nearest Neighbor   (crisp pixels)
+├── Filter: CRT Shader         (future — scanlines/bloom)
+├── ─────────────────────
+├── Color Mode: Color
+├── Color Mode: Green Mono
+├── Color Mode: Amber Mono
+└── Color Mode: White Mono
+
+Help
+├── Keyboard Map...            F1
+└── About Casso65...
+```
+
+Menu items that depend on unimplemented features (e.g., CRT Shader) are grayed out until the feature is available. Speed and Color Mode items use radio-button check marks to show the current selection.
 - **FR-023**: System MUST run the emulation loop synchronized to real-time speed by executing the correct number of CPU cycles per video frame (1,023,000 Hz ÷ ~60 Hz ≈ 17,050 cycles per frame), rendering the framebuffer, and sleeping for the remainder of the frame period. The loop runs on the main thread integrated with the Win32 message pump.
 - **FR-024**: System MUST generate audio from speaker toggles by accumulating toggle timestamps during each frame's CPU execution, converting them to a PCM waveform, and submitting audio buffers via the Windows `waveOut` API. The audio buffer size should target low-latency output (≤50 ms).
 - **FR-025**: System MUST map slot-based devices to both their I/O range ($C080+slot×16 through $C08F+slot×16 → e.g., slot 6 maps to $C0E0–$C0EF) and their slot ROM range ($Cs00–$CsFF where s is the slot number → e.g., slot 6 maps to $C600–$C6FF). The Disk II controller's slot ROM contains the boot code that the CPU executes when booting from disk.
