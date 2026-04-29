@@ -31,15 +31,6 @@
 #ifdef _WINDOWS_
     // Windows path — full Win32 support
     #include <strsafe.h>
-
-    #define WIDEN2(x)       L ## x
-    #define WIDEN(x)        WIDEN2(x)
-    #define __WFUNCTION__   WIDEN(__FUNCTION__)
-    #define __WFILE__       WIDEN(__FILE__)
-
-    void DEBUGMSG   (LPCWSTR pszFormat, ...);
-    void RELEASEMSG (LPCWSTR pszFormat, ...);
-
 #else
     // Portable C++ path — define HRESULT and friends if not already present
 
@@ -71,9 +62,33 @@
         #define FAILED(hr)        (((HRESULT)(hr)) < 0)
     #endif
 
+#endif
+
+
+
+//
+// Character set detection — UNICODE is set by project CharacterSet=Unicode
+//
+
+#if defined(UNICODE) && defined(_WINDOWS_)
+    #define WIDEN2(x)       L ## x
+    #define WIDEN(x)        WIDEN2(x)
+    #define __WFUNCTION__   WIDEN(__FUNCTION__)
+    #define __WFILE__       WIDEN(__FILE__)
+
+    void DEBUGMSG   (LPCWSTR pszFormat, ...);
+    void RELEASEMSG (LPCWSTR pszFormat, ...);
+#elif defined(UNICODE)
+    #define WIDEN2(x)       L ## x
+    #define WIDEN(x)        WIDEN2(x)
+    #define __WFUNCTION__   WIDEN(__FUNCTION__)
+    #define __WFILE__       WIDEN(__FILE__)
+
+    void DEBUGMSG   (const wchar_t * pszFormat, ...);
+    void RELEASEMSG (const wchar_t * pszFormat, ...);
+#else
     void DEBUGMSG   (const char * pszFormat, ...);
     void RELEASEMSG (const char * pszFormat, ...);
-
 #endif
 
 
@@ -95,7 +110,7 @@ void EhmBreakpoint         (void);
 
 
 
-#ifdef _WINDOWS_
+#ifdef UNICODE
     #define ASSERT(__condition)                                             \
         if (!(__condition))                                                 \
         {                                                                   \
@@ -347,4 +362,59 @@ void EhmBreakpoint         (void);
 #define CPR(__arg_prTest)                                                                   \
 {                                                                                           \
     __CPRAExHelper (__arg_prTest, false, E_OUTOFMEMORY)                                     \
+}
+
+
+
+//
+// User notification — auto-detects GUI vs console at runtime
+//
+
+#ifdef UNICODE
+    typedef void (*EHM_NOTIFY_FUNC)(const wchar_t * message);
+#else
+    typedef void (*EHM_NOTIFY_FUNC)(const char * message);
+#endif
+
+extern EHM_NOTIFY_FUNC g_pfnNotify;
+
+void SetNotifyFunction (EHM_NOTIFY_FUNC func);
+
+#ifdef UNICODE
+    void EhmNotifyUser (const wchar_t * message);
+#else
+    void EhmNotifyUser (const char * message);
+#endif
+
+
+
+//
+// CHRN / CBRN — check result and Notify user on failure
+//
+// These macros check an HRESULT or bool, and on failure show a user-facing
+// notification (MessageBox in GUI apps, stderr in console apps) before
+// jumping to the Error label.  The message expression is only evaluated
+// on the failure path.
+//
+
+#define CHRN(__arg_hrTest, __arg_msg)                                                       \
+{                                                                                           \
+    HRESULT __hr = __arg_hrTest;                                                            \
+                                                                                            \
+    if (FAILED (__hr))                                                                      \
+    {                                                                                       \
+        EhmNotifyUser (__arg_msg);                                                          \
+        hr = __hr;                                                                          \
+        goto ErrorLabel;                                                                    \
+    }                                                                                       \
+}
+
+#define CBRN(__arg_brTest, __arg_msg)                                                       \
+{                                                                                           \
+    if (!(__arg_brTest))                                                                    \
+    {                                                                                       \
+        EhmNotifyUser (__arg_msg);                                                          \
+        hr = E_FAIL;                                                                        \
+        goto ErrorLabel;                                                                    \
+    }                                                                                       \
 }

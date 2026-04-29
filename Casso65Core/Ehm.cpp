@@ -7,6 +7,7 @@
 
 
 EHM_BREAKPOINT_FUNC g_pfnBreakpoint = nullptr;
+EHM_NOTIFY_FUNC     g_pfnNotify     = nullptr;
 
 
 
@@ -49,10 +50,25 @@ void EhmBreakpoint (void)
 
 
 
-#ifdef _WINDOWS_
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetNotifyFunction
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SetNotifyFunction (EHM_NOTIFY_FUNC func)
+{
+    g_pfnNotify = func;
+}
+
+
+
+
+
+#ifdef UNICODE
 
 //
-// Windows path — OutputDebugString + StringCchVPrintf
+// Unicode path — wide string diagnostics and notification
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,21 +77,26 @@ void EhmBreakpoint (void)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DEBUGMSG (LPCWSTR pszFormat, ...)
+void DEBUGMSG (const wchar_t * pszFormat, ...)
 {
 #ifdef _DEBUG
     va_list vlArgs;
-    WCHAR   szMsg[1024];
-
     va_start (vlArgs, pszFormat);
-    HRESULT hr = StringCchVPrintf (szMsg, ARRAYSIZE (szMsg), pszFormat, vlArgs);
+
+#ifdef _WINDOWS_
+    wchar_t szMsg[1024];
+    HRESULT hr = StringCchVPrintfW (szMsg, 1024, pszFormat, vlArgs);
     if (SUCCEEDED (hr))
     {
-        OutputDebugString (szMsg);
+        OutputDebugStringW (szMsg);
     }
+#else
+    std::vfwprintf (stderr, pszFormat, vlArgs);
+#endif
+
     va_end (vlArgs);
 #else
-    UNREFERENCED_PARAMETER (pszFormat);
+    (void) pszFormat;
 #endif
 }
 
@@ -89,24 +110,63 @@ void DEBUGMSG (LPCWSTR pszFormat, ...)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void RELEASEMSG (LPCWSTR pszFormat, ...)
+void RELEASEMSG (const wchar_t * pszFormat, ...)
 {
     va_list vlArgs;
-    WCHAR   szMsg[1024];
-
     va_start (vlArgs, pszFormat);
-    HRESULT hr = StringCchVPrintf (szMsg, ARRAYSIZE (szMsg), pszFormat, vlArgs);
+
+#ifdef _WINDOWS_
+    wchar_t szMsg[1024];
+    HRESULT hr = StringCchVPrintfW (szMsg, 1024, pszFormat, vlArgs);
     if (SUCCEEDED (hr))
     {
-        OutputDebugString (szMsg);
+        OutputDebugStringW (szMsg);
     }
+#else
+    std::vfwprintf (stderr, pszFormat, vlArgs);
+#endif
+
     va_end (vlArgs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EhmNotifyUser
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EhmNotifyUser (const wchar_t * message)
+{
+    if (g_pfnNotify != nullptr)
+    {
+        g_pfnNotify (message);
+        return;
+    }
+
+#ifdef _WINDOWS_
+    HANDLE hConsole = GetStdHandle (STD_ERROR_HANDLE);
+
+    if (hConsole != NULL && hConsole != INVALID_HANDLE_VALUE)
+    {
+        std::fwprintf (stderr, L"Error: %s\n", message);
+    }
+    else
+    {
+        MessageBoxW (NULL, message, L"Casso65", MB_OK | MB_ICONERROR);
+    }
+#else
+    std::fwprintf (stderr, L"Error: %s\n", message);
+#endif
 }
 
 #else
 
 //
-// Portable C++ path — fprintf to stderr
+// Portable ANSI path — fprintf to stderr
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -145,6 +205,27 @@ void RELEASEMSG (const char * pszFormat, ...)
     va_start (vlArgs, pszFormat);
     std::vfprintf (stderr, pszFormat, vlArgs);
     va_end (vlArgs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EhmNotifyUser
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EhmNotifyUser (const char * message)
+{
+    if (g_pfnNotify != nullptr)
+    {
+        g_pfnNotify (message);
+        return;
+    }
+
+    std::fprintf (stderr, "Error: %s\n", message);
 }
 
 #endif

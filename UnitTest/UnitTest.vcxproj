@@ -273,9 +273,6 @@
     <ClCompile Include="..\Casso65Emu\Devices\AppleIIeSoftSwitchBank.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="..\Casso65Emu\Core\EhmBridge.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
     <ClCompile Include="EmuTests\MemoryBusTests.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
