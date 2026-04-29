@@ -156,7 +156,7 @@ A developer creates a new machine configuration JSON file and registers new devi
 - **FR-018**: System MUST validate machine config files at startup and report clear, actionable errors for missing files, unknown device types, overlapping address ranges, and malformed JSON
 - **FR-019**: System MUST preserve all existing Casso65 project functionality — the existing 577+ unit tests must continue to pass with no changes to Casso65Core's public API
 - **FR-020**: System MUST integrate with the existing Casso65Core `Cpu` class by subclassing it (e.g., `EmuCpu`) and overriding the memory access methods (`ReadByte`, `WriteByte`, `ReadWord`, `WriteWord`) to route through the MemoryBus instead of the flat `memory[]` array. The base `Cpu` methods must be made `virtual` (a non-breaking change to the protected interface — no public API change). The existing `PeekByte`/`PokeByte` public accessors and all unit tests remain unaffected.
-- **FR-021**: System MUST support the 65C02 instruction set (required for Apple IIe) by extending the opcode table with 65C02-specific opcodes (e.g., `PHX`, `PHY`, `PLX`, `PLY`, `STZ`, `BRA`, `TRB`, `TSB`, new addressing modes). This can be an `EmuCpu` initialization option selected by the `"cpu": "65c02"` config field. The NMOS 6502 instruction set used by existing unit tests is unchanged.
+- **FR-021**: System MUST use the existing NMOS 6502 CPU emulation for all three target machines (Apple II, II+, IIe). The original Apple IIe (1983) uses the NMOS 6502, not the 65C02. Support for the Enhanced IIe (65C02) and Apple //c is out of scope for this spec and may be added as a future enhancement.
 - **FR-022**: System MUST display a Win32 window with a title bar showing the machine name and emulation state (e.g., "Casso65 — Apple II+ [Running]"), a menu bar (see Menu Hierarchy below), and a fixed-size client area of 560×384 pixels. No window resizing is supported in the initial implementation.
 
 ### Menu Hierarchy
@@ -231,7 +231,7 @@ Menu items that depend on unimplemented features (e.g., CRT Shader) are grayed o
 - **ComponentRegistry**: Factory registry mapping string device type names to C++ class constructors; used by the machine config loader to instantiate devices
 - **VideoOutput**: Interface for video renderers that read video RAM and produce RGBA pixel framebuffers; each video mode (text, lo-res, hi-res, double hi-res) is a separate implementation
 - **DiskImage**: Represents a mounted .dsk file with sector read/write capability; manages file I/O and protects against corruption on unexpected exit
-- **EmuCpu**: Subclass of the existing Casso65Core `Cpu` that overrides `ReadByte`/`WriteByte`/`ReadWord`/`WriteWord` to route through the MemoryBus. Constructed with a reference to the MemoryBus. Supports both NMOS 6502 and 65C02 instruction sets based on the machine config's `cpu` field.
+- **EmuCpu**: Subclass of the existing Casso65Core `Cpu` that overrides `ReadByte`/`WriteByte`/`ReadWord`/`WriteWord` to route through the MemoryBus. Constructed with a reference to the MemoryBus. Uses the NMOS 6502 instruction set for all target machines.
 - **EmulatorShell**: The main application class that owns the Win32 window, MemoryBus, EmuCpu, video renderers, and input/audio subsystems. Runs the emulation loop and coordinates frame timing.
 
 ## Success Criteria *(mandatory)*
@@ -414,7 +414,7 @@ Machine configs are JSON files stored in `Casso65Emu/machines/`. Each file defin
 | Field | Type | Description |
 |-------|------|-------------|
 | `name` | string | Human-readable machine name (e.g., "Apple II+") |
-| `cpu` | string | CPU variant: `"6502"`, `"65c02"`, `"nes2a03"` |
+| `cpu` | string | CPU variant: `"6502"` (all target machines use NMOS 6502) |
 | `clockSpeed` | int | Clock speed in Hz (e.g., 1023000 for Apple II) |
 | `memory` | array | RAM and ROM region definitions |
 | `memory[].type` | string | `"ram"` or `"rom"` |
@@ -467,7 +467,7 @@ Machine configs are JSON files stored in `Casso65Emu/machines/`. Each file defin
 ```json
 {
     "name": "Apple IIe",
-    "cpu": "65c02",
+    "cpu": "6502",
     "clockSpeed": 1023000,
     "memory": [
         { "type": "ram",  "start": "0x0000", "end": "0xBFFF" },
@@ -581,7 +581,7 @@ The Apple IIe is a significant hardware upgrade. These differences require disti
 
 | Aspect | Apple II / II+ | Apple IIe |
 |--------|----------------|-----------|
-| CPU | NMOS 6502 | CMOS 65C02 (additional opcodes) |
+| CPU | NMOS 6502 | NMOS 6502 (Enhanced IIe with 65C02 is out of scope) |
 | Main RAM | 48KB ($0000–$BFFF) | 64KB ($0000–$BFFF + $C100–$FFFF bank area) |
 | Auxiliary RAM | None | 64KB (128KB total) via aux RAM card |
 | Text mode | 40 columns, uppercase only | 40 or 80 columns, full upper/lowercase |
@@ -629,7 +629,7 @@ The existing `Cpu` class in Casso65Core uses a flat 64KB `memory[]` vector and n
 
 2. **Create `EmuCpu` subclass**: A new class in the Casso65Emu project that overrides the four memory access methods to delegate to the `MemoryBus`. The `EmuCpu` constructor takes a `MemoryBus&` reference.
 
-3. **65C02 support**: `EmuCpu` extends the instruction set when the config specifies `"cpu": "65c02"`. The additional opcodes are registered in the existing `instructionSet` table during initialization. This adds approximately 27 new opcodes and several new addressing modes (zero-page indirect, etc.) The base 6502 opcode table is unchanged.
+3. **CPU**: All three target machines (Apple II, II+, IIe) use the NMOS 6502. The existing Casso65Core CPU emulation is used directly via `EmuCpu` — no instruction set changes needed. Support for the Enhanced IIe (65C02) and Apple //c is a future enhancement.
 
 4. **Cycle counting**: The `EmuCpu` tracks cycles executed per `StepOne()` call so the emulation loop can synchronize to real-time speed. The base `Cpu` class does not currently expose cycle counts; `EmuCpu` adds this internally.
 
