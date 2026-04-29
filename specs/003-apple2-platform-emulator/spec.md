@@ -213,12 +213,15 @@ Help
 
 Menu items that depend on unimplemented features (e.g., CRT Shader) are grayed out until the feature is available. Speed and Color Mode items use radio-button check marks to show the current selection. The Debug Console window shows diagnostic log output, machine config summary, device wiring status, and unhandled soft switch accesses.
 - **FR-023**: System MUST run the emulation loop synchronized to real-time speed by executing the correct number of CPU cycles per video frame (1,023,000 Hz ÷ ~60 Hz ≈ 17,050 cycles per frame), rendering the framebuffer, and sleeping for the remainder of the frame period. The loop runs on the main thread integrated with the Win32 message pump.
-- **FR-024**: System MUST generate audio from speaker toggles by accumulating toggle timestamps during each frame's CPU execution, converting them to a PCM waveform, and submitting audio buffers via the Windows `waveOut` API. The audio buffer size should target low-latency output (≤50 ms).
+- **FR-024**: System MUST generate audio from speaker toggles by accumulating toggle timestamps during each frame's CPU execution, converting them to a PCM waveform, and submitting audio buffers via the WASAPI shared-mode audio stream. The audio buffer size should target low-latency output (≤50 ms).
 - **FR-025**: System MUST map slot-based devices to both their I/O range ($C080+slot×16 through $C08F+slot×16 → e.g., slot 6 maps to $C0E0–$C0EF) and their slot ROM range ($Cs00–$CsFF where s is the slot number → e.g., slot 6 maps to $C600–$C6FF). The Disk II controller's slot ROM contains the boot code that the CPU executes when booting from disk.
 - **FR-026**: System MUST support an original Apple II machine configuration that is identical to the Apple II+ except with the Integer BASIC ROM instead of the Applesoft BASIC ROM. The `--machine apple2` argument selects this configuration.
 - **FR-027**: System MUST support two user-selectable disk write modes: (a) buffer-and-flush — changes held in memory, written to the .dsk file on eject or exit; (b) copy-on-write — original .dsk is never modified, changes saved to a sidecar file. The mode is selectable via the Disk menu. Default is buffer-and-flush.
 - **FR-028**: System MUST embed the Apple II/II+ character generator glyphs (2KB, 96 characters) as a compiled-in `const Byte[]` array. The Apple IIe character ROM (which includes MouseText) is loaded from a file as specified in the machine config.
 - **FR-029**: System MUST provide diagnostic logging via EHM `DEBUGMSG` (wrapping `OutputDebugString`). A Debug Console accessible from the Help menu (Ctrl+D) displays log output, machine config summary, device wiring status, and unhandled soft switch accesses in an in-app window.
+- **FR-030**: System MUST support four display color modes selectable via the View menu: Color (NTSC artifact colors), Green Monochrome (green phosphor), Amber Monochrome, and White Monochrome. Monochrome modes convert the RGBA framebuffer to a single-channel luminance tinted to the selected color. Default is Color.
+- **FR-031**: System MUST support fullscreen mode via Alt+Enter. Fullscreen uses the D3D11 swap chain's fullscreen exclusive mode (or borderless fullscreen window). The emulation viewport scales to fill the screen while maintaining correct aspect ratio. Alt+Enter toggles back to windowed mode.
+- **FR-032**: Reset (Ctrl+R) performs a warm reset — the CPU's reset vector is fetched and execution resumes, but RAM contents are preserved (equivalent to pressing Ctrl+Reset on real hardware). Power Cycle (Ctrl+Shift+R) performs a cold boot — all RAM is cleared, all devices are reinitialized, and the CPU starts from the reset vector as if the machine was just powered on.
 
 ### Key Entities
 
@@ -647,7 +650,7 @@ The emulation runs on a single thread, integrated with the Win32 message pump. T
 │     - Soft switch changes update video mode       │
 │  3. Render video framebuffer from current mode    │
 │  4. Upload framebuffer to D3D11 texture, draw textured quad, Present swap chain      │
-│  5. Submit audio buffer (waveOut)                 │
+│  5. Submit audio buffer (WASAPI)                   │
 │  6. Sleep for remaining frame time (~16.6 ms)    │
 │                                                  │
 │  Target: ~60 frames/second (matching Apple II    │
@@ -690,19 +693,11 @@ Casso65.sln
 
 ### Window Specification
 
-- **Window type**: Win32 `HWND` created with `CreateWindowEx`, `WS_OVERLAPPEDWINDOW` style but with resize disabled (`WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX`)
+- **Window type**: Win32 `HWND` created with `CreateWindowEx`, `WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX` (resize disabled in windowed mode)
 - **Client area**: Fixed 560×384 pixels (2× the Apple II 280×192 hi-res resolution)
 - **Title bar**: `"Casso65 — {machine name} [{state}]"` where state is Running, Paused, or Stopped (e.g., `"Casso65 — Apple II+ [Running]"`)
-- **Menu bar**:
-  - **File**: Open Disk 1… | Open Disk 2… | Eject Disk 1 | Eject Disk 2 | — | Exit
-  - **Machine**: Reset | — | Pause / Resume
-  - **Help**: About
-- **Keyboard shortcuts**:
-  - `Ctrl+1` / `Ctrl+2`: Open Disk 1 / Disk 2 dialog
-  - `Ctrl+R`: Reset (simulates Apple II power-on reset)
-  - `Pause` key: Toggle pause/resume
-  - `Scroll Lock`: Toggle full-speed mode (run as fast as possible, no frame sync)
-  - `F12` or `Alt+F4`: Exit
+- **Menu bar**: See the authoritative Menu Hierarchy under FR-022 (File, Machine, Disk, View, Help)
+- **Fullscreen**: Alt+Enter toggles D3D11 swap chain fullscreen with aspect-ratio-correct scaling (FR-031)
 - **Disk insertion**: Uses standard Win32 `GetOpenFileName` dialog filtered to `.dsk` files
 - **No status bar** in the initial implementation (future enhancement)
 
