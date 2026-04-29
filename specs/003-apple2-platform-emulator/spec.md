@@ -189,7 +189,10 @@ Disk
 ├── ─────────────────────
 ├── Drive 2: Insert...         Ctrl+2
 ├── Drive 2: Eject             Ctrl+Shift+2
-└── Drive 2: Write Protect
+├── Drive 2: Write Protect
+├── ─────────────────────
+├── Write Mode: Buffer & Flush  (default — writes to .dsk on eject/exit)
+└── Write Mode: Copy-on-Write   (original .dsk never modified)
 
 View
 ├── Fullscreen                 Alt+Enter
@@ -204,14 +207,18 @@ View
 
 Help
 ├── Keyboard Map...            F1
+├── Debug Console...           Ctrl+D
 └── About Casso65...
 ```
 
-Menu items that depend on unimplemented features (e.g., CRT Shader) are grayed out until the feature is available. Speed and Color Mode items use radio-button check marks to show the current selection.
+Menu items that depend on unimplemented features (e.g., CRT Shader) are grayed out until the feature is available. Speed and Color Mode items use radio-button check marks to show the current selection. The Debug Console window shows diagnostic log output, machine config summary, device wiring status, and unhandled soft switch accesses.
 - **FR-023**: System MUST run the emulation loop synchronized to real-time speed by executing the correct number of CPU cycles per video frame (1,023,000 Hz ÷ ~60 Hz ≈ 17,050 cycles per frame), rendering the framebuffer, and sleeping for the remainder of the frame period. The loop runs on the main thread integrated with the Win32 message pump.
 - **FR-024**: System MUST generate audio from speaker toggles by accumulating toggle timestamps during each frame's CPU execution, converting them to a PCM waveform, and submitting audio buffers via the Windows `waveOut` API. The audio buffer size should target low-latency output (≤50 ms).
 - **FR-025**: System MUST map slot-based devices to both their I/O range ($C080+slot×16 through $C08F+slot×16 → e.g., slot 6 maps to $C0E0–$C0EF) and their slot ROM range ($Cs00–$CsFF where s is the slot number → e.g., slot 6 maps to $C600–$C6FF). The Disk II controller's slot ROM contains the boot code that the CPU executes when booting from disk.
 - **FR-026**: System MUST support an original Apple II machine configuration that is identical to the Apple II+ except with the Integer BASIC ROM instead of the Applesoft BASIC ROM. The `--machine apple2` argument selects this configuration.
+- **FR-027**: System MUST support two user-selectable disk write modes: (a) buffer-and-flush — changes held in memory, written to the .dsk file on eject or exit; (b) copy-on-write — original .dsk is never modified, changes saved to a sidecar file. The mode is selectable via the Disk menu. Default is buffer-and-flush.
+- **FR-028**: System MUST embed the Apple II/II+ character generator glyphs (2KB, 96 characters) as a compiled-in `const Byte[]` array. The Apple IIe character ROM (which includes MouseText) is loaded from a file as specified in the machine config.
+- **FR-029**: System MUST provide diagnostic logging via EHM `DEBUGMSG` (wrapping `OutputDebugString`). A Debug Console accessible from the Help menu (Ctrl+D) displays log output, machine config summary, device wiring status, and unhandled soft switch accesses in an in-app window.
 
 ### Key Entities
 
@@ -247,12 +254,15 @@ These are binding architectural choices made during design. They constrain all d
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| **Rendering API** | Direct3D 11 | Windows SDK built-in (not third-party). Enables future CRT shader effects (scanlines, bloom, curvature) via HLSL pixel shaders. Simpler than GDI for scaled framebuffer output. |
+| **Rendering API** | Direct3D 11 | Windows SDK built-in (not third-party). Enables future CRT shader effects (scanlines, bloom, curvature) via HLSL pixel shaders. Simpler than GDI for scaled framebuffer output. Video renderers write RGBA to a CPU-side framebuffer; the framebuffer is uploaded to a D3D11 texture and drawn as a full-window textured quad. No GDI/DIB involved. |
 | **Window framework** | Raw Win32 (`CreateWindowEx`, message pump, `CreateMenu`) | Zero dependencies. The window is primarily a D3D11 viewport with a menu bar — minimal UI. Can be upgraded to a richer framework later without affecting the rendering or emulation layers. |
-| **Audio API** | Windows `waveOut` (or `WASAPI` if latency requires it) | Built-in, no dependencies. Speaker emulation is a simple square wave toggle. |
+| **Audio API** | WASAPI (Windows Audio Session API) | Modern, low-latency, available on all Windows 10+ targets. Speaker toggle at $C030 generates square-wave samples pushed to a WASAPI shared-mode stream. |
 | **Third-party libraries** | None | Consistent with Casso65 project policy. Only Windows SDK + C++ STL. |
 | **Machine configuration** | Data-driven JSON files + component registry | New machines added via config + device components. No machine-specific subclasses in the emulator shell. |
 | **Threading model** | Single-threaded | CPU execution, video rendering, audio generation, and Win32 message pump all on the main thread. Sufficient for 1 MHz Apple II emulation on modern hardware. |
+| **Disk write strategy** | User-selectable: buffer-and-flush or copy-on-write | Buffer-and-flush: changes held in memory, written to the .dsk file on eject or exit (matches real floppy behavior). Copy-on-write: original .dsk is never modified; changes saved to a sidecar `.delta` file. User selects via Disk menu. Default is buffer-and-flush. |
+| **Character ROM (II/II+)** | Embedded in code as `const Byte[]` | The Apple II/II+ character generator is a 2KB glyph table baked into the hardware. Embedding it avoids requiring a separate ROM file for these models. The IIe character ROM (which includes MouseText) is still loaded as a file since it differs and users may want to swap it. |
+| **Diagnostics / logging** | `DEBUGMSG` (EHM) + debug console window | Diagnostic output via EHM's `DEBUGMSG` wrapper (calls `OutputDebugString`). A "Debug Console" menu item opens an in-app window showing log output, machine config summary, device wiring, and unhandled soft switch accesses. |
 
 ## Assumptions
 
@@ -261,7 +271,7 @@ These are binding architectural choices made during design. They constrain all d
 - Direct3D 11 (part of the Windows SDK, not third-party) is used for rendering. A D3D11 device, swap chain, and single textured quad provide the display pipeline, enabling future CRT shader effects (scanlines, bloom, curvature) via HLSL. This approach is sufficient for the 1 MHz Apple II's display refresh requirements; no GPU acceleration is needed
 - The existing Casso65Core 6502 CPU emulation is cycle-accurate enough to run Apple II software correctly; if timing adjustments are needed they will be addressed as bugs, not as spec changes
 - Disk II emulation supports the standard 140KB .dsk format (DOS-order, 16 sectors × 35 tracks); other formats (e.g., .nib, .woz) are out of scope for the initial implementation
-- Audio output uses the Windows waveOut or similar built-in audio API; low-latency audio is desirable but not a hard requirement for initial delivery
+- Audio output uses the WASAPI (Windows Audio Session API) shared-mode stream for speaker emulation; target latency is under 50ms
 - The Apple II+ and original Apple II differ only in ROM content (Applesoft vs. Integer BASIC); both use the same machine config structure with different ROM file references
 - The focus is on accurate functional emulation, not cycle-exact hardware reproduction; minor timing differences that don't affect software compatibility are acceptable
 - The emulation loop is single-threaded — CPU execution, video rendering, and audio generation all happen on the main thread, interleaved with Win32 message processing. This is sufficient for the 1 MHz Apple II target on modern hardware.
@@ -700,9 +710,9 @@ Casso65.sln
 
 1. A 560×384 RGBA pixel buffer is allocated in system memory
 2. The active `VideoOutput` renderer reads Apple II video RAM and writes pixels into this buffer
-3. Each frame, the buffer is copied to a Win32 DIB section
-4. `BitBlt` (or `StretchDIBits`) transfers the DIB to the window's device context
-5. Direct3D 11 is used for display (Windows SDK built-in). No third-party graphics libraries — (no OpenGL, Vulkan, SDL, etc.)
+3. Each frame, the pixel buffer is uploaded to a D3D11 texture via `Map`/`Unmap`
+4. A full-window textured quad is drawn with the texture, and the swap chain is presented
+5. Future CRT shader effects (scanlines, bloom, curvature) can be added as an HLSL pixel shader on this quad without changing the video renderers
 
 ## Slot-Based Device Mapping
 
