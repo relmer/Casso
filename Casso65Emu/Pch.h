@@ -10,6 +10,8 @@
 #include <audioclient.h>
 #include <commdlg.h>
 
+#include <shellapi.h>
+
 #include <algorithm>
 #include <array>
 #include <cstdint>

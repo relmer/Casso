@@ -1,0 +1,50 @@
+#include "resource.h"
+#include <windows.h>
+
+// Keyboard Accelerator Table
+IDR_ACCELERATOR ACCELERATORS
+BEGIN
+    "O",            IDM_FILE_OPEN,          VIRTKEY, CONTROL
+    "R",            IDM_MACHINE_RESET,      VIRTKEY, CONTROL
+    "R",            IDM_MACHINE_POWERCYCLE, VIRTKEY, CONTROL, SHIFT
+    VK_PAUSE,       IDM_MACHINE_PAUSE,      VIRTKEY
+    VK_F11,         IDM_MACHINE_STEP,       VIRTKEY
+    VK_RETURN,      IDM_VIEW_FULLSCREEN,    VIRTKEY, ALT
+    "D",            IDM_HELP_DEBUG,         VIRTKEY, CONTROL
+    "1",            IDM_DISK_INSERT1,       VIRTKEY, CONTROL
+    "2",            IDM_DISK_INSERT2,       VIRTKEY, CONTROL
+    VK_F1,          IDM_HELP_KEYMAP,        VIRTKEY
+END
+
+// Version Information
+VS_VERSION_INFO VERSIONINFO
+    FILEVERSION     0,9,0,0
+    PRODUCTVERSION  0,9,0,0
+    FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
+#ifdef _DEBUG
+    FILEFLAGS       VS_FF_DEBUG
+#else
+    FILEFLAGS       0
+#endif
+    FILEOS          VOS_NT_WINDOWS32
+    FILETYPE        VFT_APP
+    FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName",      "\0"
+            VALUE "FileDescription",  "Casso65 Apple II Emulator\0"
+            VALUE "FileVersion",      "0.9.0.0\0"
+            VALUE "InternalName",     "Casso65Emu\0"
+            VALUE "OriginalFilename", "Casso65Emu.exe\0"
+            VALUE "ProductName",      "Casso65\0"
+            VALUE "ProductVersion",   "0.9.0.0\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END
