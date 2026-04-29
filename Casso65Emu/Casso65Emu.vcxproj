@@ -226,6 +226,8 @@
     <ClCompile Include="Devices\AppleKeyboard.cpp" />
     <ClCompile Include="Devices\AppleSoftSwitchBank.cpp" />
     <ClCompile Include="Devices\AppleSpeaker.cpp" />
+    <ClCompile Include="Devices\LanguageCard.cpp" />
+    <ClCompile Include="Devices\DiskIIController.cpp" />
     <ClCompile Include="Video\AppleTextMode.cpp" />
     <ClCompile Include="Video\AppleLoResMode.cpp" />
     <ClCompile Include="Video\AppleHiResMode.cpp" />
@@ -247,6 +249,8 @@
     <ClInclude Include="Devices\AppleKeyboard.h" />
     <ClInclude Include="Devices\AppleSoftSwitchBank.h" />
     <ClInclude Include="Devices\AppleSpeaker.h" />
+    <ClInclude Include="Devices\LanguageCard.h" />
+    <ClInclude Include="Devices\DiskIIController.h" />
     <ClInclude Include="Video\VideoOutput.h" />
     <ClInclude Include="Video\AppleTextMode.h" />
     <ClInclude Include="Video\AppleLoResMode.h" />
