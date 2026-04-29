@@ -82,10 +82,10 @@ protected:
     Word PopWord  ();
 
     // Memory operations
-    void WriteByte (Word address, Byte value);
-    void WriteWord (Word address, Word value);
-    Byte ReadByte  (Word address);
-    Word ReadWord  (Word address);
+    virtual void WriteByte (Word address, Byte value);
+    virtual void WriteWord (Word address, Word value);
+    virtual Byte ReadByte  (Word address);
+    virtual Word ReadWord  (Word address);
 
     void InitializeInstructionSet ();
 

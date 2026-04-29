@@ -372,3 +372,6 @@ dormann_temp/
 # Harte SingleStepTests — generated binary test data (regenerated on demand)
 UnitTest/nes6502/
 UnitTest/6502/
+
+# Apple II ROM images — user-supplied, not redistributable
+Casso65Emu/roms/
