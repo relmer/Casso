@@ -1,0 +1,31 @@
+{
+    "name": "Apple II+",
+    "cpu": "6502",
+    "clockSpeed": 1023000,
+    "memory": [
+        {
+            "type": "ram",
+            "start": "0x0000",
+            "end": "0xBFFF"
+        },
+        {
+            "type": "rom",
+            "start": "0xD000",
+            "end": "0xFFFF",
+            "file": "apple2plus.rom"
+        }
+    ],
+    "devices": [
+        { "type": "apple2-keyboard" },
+        { "type": "apple2-speaker" },
+        { "type": "apple2-softswitches" }
+    ],
+    "video": {
+        "modes": ["apple2-text40", "apple2-lores", "apple2-hires"],
+        "width": 560,
+        "height": 384
+    },
+    "keyboard": {
+        "type": "apple2-uppercase"
+    }
+}

@@ -2,6 +2,10 @@
 
 #include "ComponentRegistry.h"
 #include "MachineConfig.h"
+#include "../Devices/RamDevice.h"
+#include "../Devices/RomDevice.h"
+#include "../Devices/AppleKeyboard.h"
+#include "../Devices/AppleSoftSwitchBank.h"
 
 
 
@@ -106,5 +110,6 @@ std::vector<std::string> ComponentRegistry::GetRegisteredTypes () const
 
 void ComponentRegistry::RegisterBuiltinDevices (ComponentRegistry & registry)
 {
-    UNREFERENCED_PARAMETER (registry);
+    registry.Register ("apple2-keyboard",     AppleKeyboard::Create);
+    registry.Register ("apple2-softswitches", AppleSoftSwitchBank::Create);
 }

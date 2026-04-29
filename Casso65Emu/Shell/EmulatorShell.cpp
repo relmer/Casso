@@ -4,6 +4,9 @@
 #include "Resources/resource.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
+#include "Devices/AppleKeyboard.h"
+#include "Devices/AppleSoftSwitchBank.h"
+#include "Video/AppleTextMode.h"
 
 #pragma comment(lib, "ole32.lib")
 
@@ -42,6 +45,8 @@ EmulatorShell::EmulatorShell ()
       m_hiresMode       (false),
       m_col80Mode       (false),
       m_doubleHiRes     (false),
+      m_keyboard        (nullptr),
+      m_softSwitches    (nullptr),
       m_running         (true),
       m_paused          (false),
       m_speedMode       (SpeedMode::Authentic),
@@ -188,6 +193,16 @@ HRESULT EmulatorShell::Initialize (
 
         if (device)
         {
+            // Track specific device pointers for quick access
+            if (devConfig.type == "apple2-keyboard")
+            {
+                m_keyboard = static_cast<AppleKeyboard *> (device.get ());
+            }
+            else if (devConfig.type == "apple2-softswitches")
+            {
+                m_softSwitches = static_cast<AppleSoftSwitchBank *> (device.get ());
+            }
+
             m_memoryBus.AddDevice (device.get ());
             m_ownedDevices.push_back (std::move (device));
         }
@@ -195,6 +210,13 @@ HRESULT EmulatorShell::Initialize (
         {
             DEBUGMSG (L"Warning: Unknown device type '%hs'\n", devConfig.type.c_str ());
         }
+    }
+
+    // Create video modes
+    {
+        auto textMode = std::make_unique<AppleTextMode> (m_memoryBus);
+        m_activeVideoMode = textMode.get ();
+        m_videoModes.push_back (std::move (textMode));
     }
 
     // Create CPU
@@ -577,9 +599,39 @@ void EmulatorShell::HandleCommand (WORD commandId)
 
 void EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 {
-    UNREFERENCED_PARAMETER (vk);
     UNREFERENCED_PARAMETER (lParam);
-    // Keyboard device integration added in Phase 3 (T031)
+
+    if (m_keyboard == nullptr)
+    {
+        return;
+    }
+
+    m_keyboard->SetKeyDown (true);
+
+    // Handle special keys that don't generate WM_CHAR
+    switch (vk)
+    {
+        case VK_LEFT:
+            m_keyboard->KeyPress (0x08);    // Backspace
+            break;
+        case VK_RIGHT:
+            m_keyboard->KeyPress (0x15);    // Forward
+            break;
+        case VK_UP:
+            m_keyboard->KeyPress (0x0B);    // Up
+            break;
+        case VK_DOWN:
+            m_keyboard->KeyPress (0x0A);    // Down
+            break;
+        case VK_ESCAPE:
+            m_keyboard->KeyPress (0x1B);    // Escape
+            break;
+        case VK_DELETE:
+            m_keyboard->KeyPress (0x7F);    // Delete
+            break;
+        default:
+            break;
+    }
 }
 
 
@@ -596,6 +648,11 @@ void EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER (vk);
     UNREFERENCED_PARAMETER (lParam);
+
+    if (m_keyboard)
+    {
+        m_keyboard->SetKeyDown (false);
+    }
 }
 
 
@@ -610,8 +667,16 @@ void EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 
 void EmulatorShell::OnChar (WPARAM ch)
 {
-    UNREFERENCED_PARAMETER (ch);
-    // Keyboard device integration added in Phase 3 (T031)
+    if (m_keyboard == nullptr)
+    {
+        return;
+    }
+
+    // WM_CHAR provides the ASCII character including Ctrl+key combos
+    if (ch >= 1 && ch <= 127)
+    {
+        m_keyboard->KeyPress (static_cast<Byte> (ch));
+    }
 }
 
 
@@ -670,11 +735,25 @@ void EmulatorShell::UpdateWindowTitle ()
 
 void EmulatorShell::SelectVideoMode ()
 {
-    // Default to first mode (text)
-    if (!m_videoModes.empty () && m_activeVideoMode == nullptr)
+    if (m_videoModes.empty ())
     {
-        m_activeVideoMode = m_videoModes[0].get ();
+        return;
     }
 
-    // Video mode selection based on soft switch state — implemented in Phase 3+
+    // Read soft switch state
+    if (m_softSwitches)
+    {
+        m_graphicsMode = m_softSwitches->IsGraphicsMode ();
+        m_mixedMode    = m_softSwitches->IsMixedMode ();
+        m_page2        = m_softSwitches->IsPage2 ();
+        m_hiresMode    = m_softSwitches->IsHiresMode ();
+    }
+
+    // Select video mode based on soft switch state
+    // For now, only text mode is available
+    m_activeVideoMode = m_videoModes[0].get ();
+
+    // Additional modes will be added in subsequent phases
+    // graphicsMode && !hiresMode -> lo-res (Phase 5)
+    // graphicsMode && hiresMode  -> hi-res (Phase 7)
 }

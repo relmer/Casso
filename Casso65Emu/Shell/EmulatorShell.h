@@ -84,6 +84,10 @@ private:
     bool    m_col80Mode;
     bool    m_doubleHiRes;
 
+    // Device pointers (non-owning, for quick access)
+    class AppleKeyboard *         m_keyboard;
+    class AppleSoftSwitchBank *   m_softSwitches;
+
     // Emulation state
     MachineConfig   m_config;
     bool            m_running;
