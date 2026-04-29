@@ -7,6 +7,7 @@
 #include "Devices/AppleKeyboard.h"
 #include "Devices/AppleSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
+#include "Devices/DiskIIController.h"
 #include "Video/AppleTextMode.h"
 #include "Video/AppleLoResMode.h"
 #include "Video/AppleHiResMode.h"
@@ -509,6 +510,27 @@ void EmulatorShell::HandleCommand (WORD commandId)
 {
     switch (commandId)
     {
+        case IDM_FILE_OPEN:
+        {
+            // Open Machine Config dialog
+            WCHAR filePath[MAX_PATH] = {};
+            OPENFILENAMEW ofn = {};
+            ofn.lStructSize = sizeof (ofn);
+            ofn.hwndOwner   = m_hwnd;
+            ofn.lpstrFilter = L"JSON Config Files (*.json)\0*.json\0All Files (*.*)\0*.*\0";
+            ofn.lpstrFile   = filePath;
+            ofn.nMaxFile    = MAX_PATH;
+            ofn.lpstrTitle  = L"Open Machine Config";
+            ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+
+            if (GetOpenFileNameW (&ofn))
+            {
+                // TODO: Tear down current machine and load new config
+                MessageBoxW (m_hwnd, filePath, L"Selected Config", MB_OK);
+            }
+            break;
+        }
+
         case IDM_FILE_EXIT:
         {
             DestroyWindow (m_hwnd);
@@ -607,6 +629,60 @@ void EmulatorShell::HandleCommand (WORD commandId)
         case IDM_VIEW_FULLSCREEN:
         {
             m_d3dRenderer.ToggleFullscreen (m_hwnd);
+            break;
+        }
+
+        case IDM_DISK_INSERT1:
+        case IDM_DISK_INSERT2:
+        {
+            WCHAR filePath[MAX_PATH] = {};
+            OPENFILENAMEW ofn = {};
+            ofn.lStructSize = sizeof (ofn);
+            ofn.hwndOwner   = m_hwnd;
+            ofn.lpstrFilter = L"Disk Images (*.dsk)\0*.dsk\0All Files (*.*)\0*.*\0";
+            ofn.lpstrFile   = filePath;
+            ofn.nMaxFile    = MAX_PATH;
+            ofn.lpstrTitle  = (commandId == IDM_DISK_INSERT1) ?
+                L"Insert Disk in Drive 1" : L"Insert Disk in Drive 2";
+            ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+
+            if (GetOpenFileNameW (&ofn))
+            {
+                // Convert wide path to narrow for DiskIIController
+                std::wstring widePath (filePath);
+                std::string narrowPath (widePath.begin (), widePath.end ());
+                int drive = (commandId == IDM_DISK_INSERT1) ? 0 : 1;
+
+                // Find disk controller and mount
+                for (auto & dev : m_ownedDevices)
+                {
+                    auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get ());
+
+                    if (diskCtrl)
+                    {
+                        diskCtrl->MountDisk (drive, narrowPath);
+                        break;
+                    }
+                }
+            }
+            break;
+        }
+
+        case IDM_DISK_EJECT1:
+        case IDM_DISK_EJECT2:
+        {
+            int drive = (commandId == IDM_DISK_EJECT1) ? 0 : 1;
+
+            for (auto & dev : m_ownedDevices)
+            {
+                auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get ());
+
+                if (diskCtrl)
+                {
+                    diskCtrl->EjectDisk (drive);
+                    break;
+                }
+            }
             break;
         }
 
