@@ -145,7 +145,7 @@ A developer creates a new machine configuration JSON file and registers new devi
 - **FR-007**: System MUST render Apple II text mode (40×24 characters) with the correct interleaved memory layout ($0400–$07FF) including the non-sequential row addressing
 - **FR-008**: System MUST render Apple II lo-res graphics mode (40×48, 16 colors) from the text page memory, correctly decoding each byte as two 4-bit color nybbles
 - **FR-009**: System MUST render Apple II hi-res graphics mode (280×192) from $2000–$3FFF, decoding 7 pixels per byte with palette bit control and simulating NTSC color artifacting
-- **FR-010**: System MUST display the video output in a Win32 window using GDI framebuffer blitting, at a resolution of 560×384 (2× scaling of 280×192)
+- **FR-010**: System MUST display the video output in a Win32 window using Direct3D 11 rendering, at a resolution of 560×384 (2× scaling of 280×192)
 - **FR-011**: System MUST translate PC keyboard input to Apple II keyboard codes and make them available through the keyboard soft switch at $C000, with the strobe cleared on read of $C010
 - **FR-012**: System MUST produce audio output by toggling the speaker state on reads of $C030, generating a square-wave signal through the Windows audio system
 - **FR-013**: System MUST implement Language Card bank-switching (soft switches $C080–$C08F) to support 16KB of switchable RAM in the $D000–$FFFF address range
@@ -191,11 +191,24 @@ A developer creates a new machine configuration JSON file and registers new devi
 - **SC-011**: The emulator window displays a menu bar that allows inserting and ejecting disk images, resetting the machine, and pausing/resuming emulation without using the command line
 - **SC-012**: Apple II (original) boots to the Integer BASIC `>` prompt using the same emulator binary and architecture, differing only in the machine config JSON and ROM file
 
+## Technology Decisions
+
+These are binding architectural choices made during design. They constrain all downstream planning and implementation.
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Rendering API** | Direct3D 11 | Windows SDK built-in (not third-party). Enables future CRT shader effects (scanlines, bloom, curvature) via HLSL pixel shaders. Simpler than GDI for scaled framebuffer output. |
+| **Window framework** | Raw Win32 (`CreateWindowEx`, message pump, `CreateMenu`) | Zero dependencies. The window is primarily a D3D11 viewport with a menu bar — minimal UI. Can be upgraded to a richer framework later without affecting the rendering or emulation layers. |
+| **Audio API** | Windows `waveOut` (or `WASAPI` if latency requires it) | Built-in, no dependencies. Speaker emulation is a simple square wave toggle. |
+| **Third-party libraries** | None | Consistent with Casso65 project policy. Only Windows SDK + C++ STL. |
+| **Machine configuration** | Data-driven JSON files + component registry | New machines added via config + device components. No machine-specific subclasses in the emulator shell. |
+| **Threading model** | Single-threaded | CPU execution, video rendering, audio generation, and Win32 message pump all on the main thread. Sufficient for 1 MHz Apple II emulation on modern hardware. |
+
 ## Assumptions
 
 - Users provide their own Apple II ROM images (these are copyrighted and will not be distributed with the project); ROM files are gitignored
 - The emulator targets Windows 10/11 on x64 and ARM64 architectures, consistent with existing Casso65 platform support
-- The Win32 GDI rendering approach is sufficient for the 1 MHz Apple II's display refresh requirements; no GPU acceleration is needed
+- Direct3D 11 (part of the Windows SDK, not third-party) is used for rendering. A D3D11 device, swap chain, and single textured quad provide the display pipeline, enabling future CRT shader effects (scanlines, bloom, curvature) via HLSL. This approach is sufficient for the 1 MHz Apple II's display refresh requirements; no GPU acceleration is needed
 - The existing Casso65Core 6502 CPU emulation is cycle-accurate enough to run Apple II software correctly; if timing adjustments are needed they will be addressed as bugs, not as spec changes
 - Disk II emulation supports the standard 140KB .dsk format (DOS-order, 16 sectors × 35 tracks); other formats (e.g., .nib, .woz) are out of scope for the initial implementation
 - Audio output uses the Windows waveOut or similar built-in audio API; low-latency audio is desirable but not a hard requirement for initial delivery
@@ -573,7 +586,7 @@ The emulation runs on a single thread, integrated with the Win32 message pump. T
 │     - Speaker toggles accumulate timestamps      │
 │     - Soft switch changes update video mode       │
 │  3. Render video framebuffer from current mode    │
-│  4. Blit framebuffer to window (GDI BitBlt)      │
+│  4. Upload framebuffer to D3D11 texture, draw textured quad, Present swap chain      │
 │  5. Submit audio buffer (waveOut)                 │
 │  6. Sleep for remaining frame time (~16.6 ms)    │
 │                                                  │
@@ -639,7 +652,7 @@ Casso65.sln
 2. The active `VideoOutput` renderer reads Apple II video RAM and writes pixels into this buffer
 3. Each frame, the buffer is copied to a Win32 DIB section
 4. `BitBlt` (or `StretchDIBits`) transfers the DIB to the window's device context
-5. No Direct3D, DirectDraw, OpenGL, or any GPU API is used — pure GDI software rendering
+5. Direct3D 11 is used for display (Windows SDK built-in). No third-party graphics libraries — (no OpenGL, Vulkan, SDL, etc.)
 
 ## Slot-Based Device Mapping
 
