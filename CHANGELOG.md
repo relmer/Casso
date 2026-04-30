@@ -33,6 +33,10 @@ Entries before versioning was introduced use dates only.
 - **EmuCpu memory validation tests** — 6 new tests verifying GetMemory() non-null,
   PokeByte/WriteByte dual-sync to internal memory and bus, STA instruction end-to-end
   visibility to video renderers
+- **AudioGenerator** — extracted PCM generation from `WasapiAudio::SubmitFrame` into a
+  testable `AudioGenerator::GeneratePCM` static method in Casso65EmuCore
+- **AudioTests** — 15 adversarial audio tests covering silence/DC, single toggle, square
+  wave, rapid toggles, edge cases (zero cycles, zero samples), and speaker-to-PCM pipeline
 
 ## [0.9.32] — 2026-04-28
 
