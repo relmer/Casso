@@ -76,4 +76,13 @@ public:
         Assert::AreEqual (static_cast<Word> (0x2000), ram.GetStart ());
         Assert::AreEqual (static_cast<Word> (0x3FFF), ram.GetEnd ());
     }
+
+    TEST_METHOD (RomDevice_CreateFromFile_MissingFile_ReturnsNull)
+    {
+        std::string error;
+        auto rom = RomDevice::CreateFromFile (0xD000, 0xFFFF, "nonexistent_rom.bin", error);
+
+        Assert::IsNull (rom.get ());
+        Assert::IsFalse (error.empty ());
+    }
 };

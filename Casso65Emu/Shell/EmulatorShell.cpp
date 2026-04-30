@@ -180,15 +180,18 @@ HRESULT EmulatorShell::Initialize (
 
             auto device = RomDevice::CreateFromFile (region.start, region.end, romPath, error);
 
-            if (device)
             {
-                m_memoryBus.AddDevice (device.get ());
-                m_ownedDevices.push_back (std::move (device));
+                bool romOk = (device != nullptr);
+
+                if (!romOk)
+                {
+                    std::wstring wideError (error.begin (), error.end ());
+                    CBRN (false, wideError.c_str ());
+                }
             }
-            else
-            {
-                DEBUGMSG (L"Warning: %hs\n", error.c_str ());
-            }
+
+            m_memoryBus.AddDevice (device.get ());
+            m_ownedDevices.push_back (std::move (device));
         }
     }
 
