@@ -53,7 +53,6 @@ void Apple80ColTextMode::Render (
     int fbWidth,
     int fbHeight)
 {
-    UNREFERENCED_PARAMETER (videoRam);
 
     Word pageBase = GetActivePageAddress (m_page2);
 
@@ -73,7 +72,7 @@ void Apple80ColTextMode::Render (
 
         for (int col = 0; col < kTextCols; col++)
         {
-            Byte charCode = m_bus.ReadByte (static_cast<Word> (rowAddr + col));
+            Byte charCode = (videoRam ? videoRam[static_cast<Word> (rowAddr + col)] : m_bus.ReadByte (static_cast<Word> (rowAddr + col)));
 
             Byte glyphIndex;
 

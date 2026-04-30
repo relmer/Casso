@@ -471,11 +471,12 @@ void EmulatorShell::RunOneFrame ()
     // Select video mode based on soft switch state
     SelectVideoMode ();
 
-    // Render video
+    // Render video — pass CPU memory[] for video RAM reads
+    // (CpuOperations::Store writes to memory[] directly, not through the bus)
     if (m_activeVideoMode != nullptr)
     {
         m_activeVideoMode->Render (
-            nullptr,
+            m_cpu->GetMemory (),
             m_framebuffer.data (),
             kFramebufferWidth,
             kFramebufferHeight);
@@ -491,7 +492,7 @@ void EmulatorShell::RunOneFrame ()
         std::vector<uint32_t> textBuf (static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight, 0);
 
         m_videoModes[0]->Render (
-            nullptr,
+            m_cpu->GetMemory (),
             textBuf.data (),
             kFramebufferWidth,
             kFramebufferHeight);

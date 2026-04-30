@@ -36,6 +36,7 @@ public:
     Byte PeekByte  (Word address) const { return memory[address]; }
     void PokeByte  (Word address, Byte value) { memory[address] = value; }
     Word PeekWord  (Word address) const { return memory[address] | (memory[(Word)(address + 1)] << 8); }
+    const Byte * GetMemory () const { return memory.data (); }
 
     // Load a raw binary file into memory at the specified address.
     // Returns true on success; false if the file cannot be opened or does not

@@ -93,7 +93,6 @@ void AppleLoResMode::Render (
     int fbWidth,
     int fbHeight)
 {
-    UNREFERENCED_PARAMETER (videoRam);
 
     Word pageBase = GetActivePageAddress (m_page2);
 
@@ -110,7 +109,7 @@ void AppleLoResMode::Render (
 
         for (int col = 0; col < 40; col++)
         {
-            Byte data = m_bus.ReadByte (static_cast<Word> (rowAddr + col));
+            Byte data = (videoRam ? videoRam[static_cast<Word> (rowAddr + col)] : m_bus.ReadByte (static_cast<Word> (rowAddr + col)));
 
             uint32_t topColor    = kLoResColors[data & 0x0F];
             uint32_t bottomColor = kLoResColors[(data >> 4) & 0x0F];

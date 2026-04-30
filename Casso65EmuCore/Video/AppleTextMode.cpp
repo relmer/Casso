@@ -90,7 +90,6 @@ void AppleTextMode::Render (
     int fbWidth,
     int fbHeight)
 {
-    UNREFERENCED_PARAMETER (videoRam);
     UNREFERENCED_PARAMETER (fbHeight);
 
     m_frameCount++;
@@ -106,7 +105,8 @@ void AppleTextMode::Render (
 
         for (int col = 0; col < kTextCols; col++)
         {
-            Byte charCode = m_bus.ReadByte (static_cast<Word> (rowAddr + col));
+            Word addr = static_cast<Word> (rowAddr + col);
+            Byte charCode = videoRam ? videoRam[addr] : m_bus.ReadByte (addr);
 
             // Decode character mode from high bits
             // $00-$3F: Inverse

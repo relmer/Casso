@@ -73,7 +73,6 @@ void AppleHiResMode::Render (
     int fbWidth,
     int fbHeight)
 {
-    UNREFERENCED_PARAMETER (videoRam);
 
     Word pageBase = GetActivePageAddress (m_page2);
 
@@ -85,7 +84,7 @@ void AppleHiResMode::Render (
 
         for (int byteIdx = 0; byteIdx < 40; byteIdx++)
         {
-            Byte data = m_bus.ReadByte (static_cast<Word> (lineAddr + byteIdx));
+            Byte data = (videoRam ? videoRam[static_cast<Word> (lineAddr + byteIdx)] : m_bus.ReadByte (static_cast<Word> (lineAddr + byteIdx)));
 
             bool paletteBit = (data & 0x80) != 0;
 
