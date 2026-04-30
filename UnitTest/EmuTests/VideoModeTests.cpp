@@ -127,9 +127,11 @@ public:
         Assert::IsTrue (hasGreen, L"Normal 'A' character should have green pixels");
     }
 
-    TEST_METHOD (Render_FlashChar_AlternatesOnRerender)
+    TEST_METHOD (Render_FlashChar_AlternatesAcrossFrames)
     {
-        // Flash 'A' = $41 should alternate between inverse and normal
+        // Flash 'A' = $41 should alternate between inverse and normal.
+        // Render() increments an internal frame counter and toggles flash
+        // every 16 frames, so we render 17 times to capture both states.
         MemoryBus bus;
         RamDevice ram (0x0000, 0x0BFF);
         bus.AddDevice (&ram);
@@ -144,15 +146,16 @@ public:
         std::vector<uint32_t> fb1 (fbW * fbH, 0);
         std::vector<uint32_t> fb2 (fbW * fbH, 0);
 
-        // First render - flash starts on (inverse)
-        textMode.SetFlashState (true);
+        // First render (frame 1, flash on = true -> inverse)
         textMode.Render (nullptr, fb1.data (), fbW, fbH);
 
-        // Force flash state off (normal)
-        textMode.SetFlashState (false);
-        textMode.Render (nullptr, fb2.data (), fbW, fbH);
+        // Render 16 more times to toggle flash state
+        for (int i = 0; i < 16; i++)
+        {
+            textMode.Render (nullptr, fb2.data (), fbW, fbH);
+        }
 
-        // The two renders should differ since flash toggles
+        // The first and last renders should differ since flash toggled
         bool differs = false;
 
         for (int y = 0; y < 16 && !differs; y++)
@@ -166,7 +169,7 @@ public:
             }
         }
 
-        Assert::IsTrue (differs, L"Flash character should differ between flash on/off");
+        Assert::IsTrue (differs, L"Flash character should differ across frame toggle boundary");
     }
 
     TEST_METHOD (Render_Row8_UsesInterleavedAddress)

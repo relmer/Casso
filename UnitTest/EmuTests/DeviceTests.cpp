@@ -8,6 +8,10 @@
 #include "Devices/DiskIIController.h"
 #include "Devices/AuxRamCard.h"
 
+// DiskIIController embeds two DiskImage objects (~143KB each) which exceed
+// the C6262 stack-size threshold when stack-allocated in test methods.
+#pragma warning (disable: 6262)
+
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
