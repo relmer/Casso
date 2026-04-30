@@ -40,18 +40,19 @@ public:
         }
     }
 
-    TEST_METHOD (Silence_NoToggles_DCOutput)
+    TEST_METHOD (Silence_NoToggles_OutputsZero)
     {
         std::vector<uint32_t> toggles;
         float samples[100];
 
 
 
-        AudioGenerator::GeneratePCM (toggles, 17050, 0.3f, samples, 100);
+        AudioGenerator::GeneratePCM (toggles, 17050, 1.0f, samples, 100);
 
         for (int i = 0; i < 100; i++)
         {
-            Assert::AreEqual (0.3f, samples[i]);
+            Assert::AreEqual (0.0f, samples[i],
+                L"No toggles should produce silence (0.0), not DC");
         }
     }
 
@@ -270,19 +271,19 @@ public:
         AudioGenerator::GeneratePCM (toggles, 17050, -0.3f, &dummy, 0);
     }
 
-    TEST_METHOD (EmptyTimestamps_SameAsNoToggles)
+    TEST_METHOD (EmptyTimestamps_OutputsSilence)
     {
         std::vector<uint32_t> toggles;
         float samples[100];
 
 
 
-        AudioGenerator::GeneratePCM (toggles, 17050, 0.3f, samples, 100);
+        AudioGenerator::GeneratePCM (toggles, 17050, 1.0f, samples, 100);
 
-        // DC output at initial state
+        // Silence output (0.0), not DC
         for (int i = 0; i < 100; i++)
         {
-            Assert::AreEqual (0.3f, samples[i]);
+            Assert::AreEqual (0.0f, samples[i]);
         }
     }
 

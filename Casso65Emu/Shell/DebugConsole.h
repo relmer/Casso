@@ -18,8 +18,9 @@ class DebugConsole
 {
 public:
     DebugConsole ();
+    ~DebugConsole ();
 
-    void Show ();
+    void Show (HINSTANCE hInstance);
     void Hide ();
     bool IsVisible () const { return m_visible; }
 
@@ -27,6 +28,9 @@ public:
     void LogConfig (const std::string & summary);
 
 private:
+    static LRESULT CALLBACK WndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
     bool    m_visible;
     HWND    m_hwnd;
+    HWND    m_editCtrl;
 };

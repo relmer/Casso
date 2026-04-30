@@ -30,10 +30,11 @@ void AudioGenerator::GeneratePCM (
 
     if (toggleTimestamps.empty () || totalCyclesThisFrame == 0)
     {
-        // No toggles — fill with current state (silence or DC)
+        // No toggles this frame — output silence (not DC) to avoid
+        // constant buzzing from a non-zero speaker state
         for (uint32_t i = 0; i < numSamples; i++)
         {
-            outSamples[i] = state;
+            outSamples[i] = 0.0f;
         }
     }
     else
