@@ -13,6 +13,7 @@
 #include "Video/AppleTextMode.h"
 #include "Video/AppleLoResMode.h"
 #include "Video/AppleHiResMode.h"
+#include "Video/AppleDoubleHiResMode.h"
 
 #pragma comment(lib, "ole32.lib")
 
@@ -97,10 +98,7 @@ HRESULT EmulatorShell::Initialize (
 {
     HRESULT hr = S_OK;
 
-    UNREFERENCED_PARAMETER (disk1Path);
-    UNREFERENCED_PARAMETER (disk2Path);
-
-    m_hInstance = hInstance;
+    m_hInstance= hInstance;
     m_config    = config;
 
     // Register built-in device factories
@@ -298,6 +296,30 @@ HRESULT EmulatorShell::Initialize (
         }
     }
 
+    // Mount command-line disk images if a Disk II controller was created
+    if (!disk1Path.empty () || !disk2Path.empty ())
+    {
+        for (auto & dev : m_ownedDevices)
+        {
+            auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get ());
+
+            if (diskCtrl)
+            {
+                if (!disk1Path.empty ())
+                {
+                    diskCtrl->MountDisk (0, disk1Path);
+                }
+
+                if (!disk2Path.empty ())
+                {
+                    diskCtrl->MountDisk (1, disk2Path);
+                }
+
+                break;
+            }
+        }
+    }
+
     // Create video modes
     {
         auto textMode = std::make_unique<AppleTextMode> (m_memoryBus);
@@ -309,7 +331,14 @@ HRESULT EmulatorShell::Initialize (
 
         auto hiResMode = std::make_unique<AppleHiResMode> (m_memoryBus);
         m_videoModes.push_back (std::move (hiResMode));
+
+        auto doubleHiResMode = std::make_unique<AppleDoubleHiResMode> (m_memoryBus);
+        m_videoModes.push_back (std::move (doubleHiResMode));
     }
+
+    // Validate memory bus for overlapping device address ranges
+    hr = m_memoryBus.Validate ();
+    CHRN (hr, L"Memory bus validation failed: overlapping device address ranges");
 
     // Create CPU
     m_cpu = std::make_unique<EmuCpu> (m_memoryBus);
@@ -415,13 +444,36 @@ void EmulatorShell::RunOneFrame ()
     // Render video
     if (m_activeVideoMode != nullptr)
     {
-        // Read video RAM through the bus — pass a proxy pointer
-        // For now, render with the framebuffer
         m_activeVideoMode->Render (
-            nullptr,  // Video RAM read via bus
+            nullptr,
             m_framebuffer.data (),
             kFramebufferWidth,
             kFramebufferHeight);
+    }
+
+    // Mixed mode: overlay text on the bottom 4 rows (rows 20-23)
+    if (m_mixedMode && m_graphicsMode && !m_videoModes.empty ())
+    {
+        static constexpr int kMixedCharH  = 8;
+        static constexpr int kMixedScaleY = 2;
+        int mixedFbY = 20 * kMixedCharH * kMixedScaleY;
+
+        std::vector<uint32_t> textBuf (static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight, 0);
+
+        m_videoModes[0]->Render (
+            nullptr,
+            textBuf.data (),
+            kFramebufferWidth,
+            kFramebufferHeight);
+
+        size_t rowBytes = static_cast<size_t> (kFramebufferWidth) * sizeof (uint32_t);
+
+        for (int y = mixedFbY; y < kFramebufferHeight; y++)
+        {
+            memcpy (&m_framebuffer[static_cast<size_t> (y) * kFramebufferWidth],
+                    &textBuf[static_cast<size_t> (y) * kFramebufferWidth],
+                    rowBytes);
+        }
     }
 
     // Apply monochrome tint if needed
@@ -1021,4 +1073,13 @@ void EmulatorShell::SelectVideoMode ()
         // Hi-res graphics
         m_activeVideoMode = m_videoModes[2].get ();
     }
+
+    // Pass page2 state to the active renderer
+    if (m_activeVideoMode != nullptr)
+    {
+        m_activeVideoMode->SetPage2 (m_page2);
+    }
+
+    // Keep text mode page2-aware for mixed-mode overlay rendering
+    m_videoModes[0]->SetPage2 (m_page2);
 }
