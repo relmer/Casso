@@ -207,7 +207,7 @@ void Cpu::Run ()
     do
     {
         Word        initialPC   = PC;
-        Byte        opcode      = memory[PC];
+        Byte        opcode      = ReadByte (PC);
         Microcode   microcode   = instructionSet[opcode];
         OperandInfo operandInfo = { 0 };
 
@@ -240,7 +240,7 @@ void Cpu::Run ()
 
 void Cpu::StepOne ()
 {
-    Byte        opcode      = memory[PC];
+    Byte        opcode      = ReadByte (PC);
     Microcode   microcode   = instructionSet[opcode];
     OperandInfo operandInfo = { 0 };
 
@@ -315,7 +315,7 @@ void Cpu::PrintOperandBytes (Word initialPC, Byte opcode)
         case GlobalAddressingMode::ZeroPageXIndirect:
         case GlobalAddressingMode::ZeroPageX:
         case GlobalAddressingMode::ZeroPageY:
-            std::printf ("%02X           ", memory[initialPC + 1]);
+            std::printf ("%02X           ", ReadByte (static_cast<Word> (initialPC + 1)));
             break;
 
         case GlobalAddressingMode::Absolute:
@@ -324,7 +324,7 @@ void Cpu::PrintOperandBytes (Word initialPC, Byte opcode)
         case GlobalAddressingMode::JumpAbsolute:
         case GlobalAddressingMode::JumpIndirect:
         case GlobalAddressingMode::Relative:
-            std::printf ("%02X %02X        ", memory[initialPC + 1], memory[initialPC + 2]);
+            std::printf ("%02X %02X        ", ReadByte (static_cast<Word> (initialPC + 1)), ReadByte (static_cast<Word> (initialPC + 2)));
             break;
 
         default:

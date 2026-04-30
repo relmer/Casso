@@ -9,6 +9,10 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Fixed
+- **Bright green screen (CPU not executing ROM)** — `Cpu::StepOne` and `Cpu::Run`
+  fetched opcodes via `memory[PC]` directly, bypassing `EmuCpu::ReadByte` override
+  that routes through the MemoryBus; changed to call virtual `ReadByte(PC)` so the
+  CPU correctly reads ROM and I/O through the bus
 - **Debug console close kills emulator** — closing the debug console window (Ctrl+D)
   sent CTRL_CLOSE_EVENT which terminated the entire process; added a console control
   handler that intercepts the event and calls FreeConsole instead
