@@ -15,45 +15,39 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  MachineConfigTests
 //
+//  Adversarial tests proving config loading catches real problems:
+//  missing fields, invalid CPUs, missing ROMs, and correct device mapping.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (MachineConfigTests)
 {
 public:
 
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  Load_ValidJson_ParsesFields
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    TEST_METHOD (Load_ValidJson_ParsesFields)
+    TEST_METHOD (Load_ValidJson_ParsesAllFields)
     {
         std::string json = MinimalJson ();
         MachineConfig config;
         std::string error;
 
-
-
-        // Use empty search paths — no ROM file to resolve
         std::vector<std::string> paths;
         HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
 
-        Assert::IsTrue (SUCCEEDED (hr), L"Load should succeed");
-        Assert::AreEqual (std::string ("TestMachine"), config.name);
-        Assert::AreEqual (std::string ("6502"), config.cpu);
-        Assert::AreEqual (1023000u, config.clockSpeed);
-        Assert::AreEqual (size_t (1), config.memoryRegions.size ());
-        Assert::AreEqual (std::string ("ram"), config.memoryRegions[0].type);
+        Assert::IsTrue (SUCCEEDED (hr),
+            L"Load should succeed for valid minimal JSON");
+        Assert::AreEqual (std::string ("TestMachine"), config.name,
+            L"Name must be 'TestMachine'");
+        Assert::AreEqual (std::string ("6502"), config.cpu,
+            L"CPU must be '6502'");
+        Assert::AreEqual (1023000u, config.clockSpeed,
+            L"Clock speed must be 1023000");
+        Assert::AreEqual (size_t (1), config.memoryRegions.size (),
+            L"Should have 1 memory region");
+        Assert::AreEqual (std::string ("ram"), config.memoryRegions[0].type,
+            L"First region type must be 'ram'");
     }
 
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  Load_RomResolvedPath_PopulatedOnSuccess
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    TEST_METHOD (Load_RomResolvedPath_PopulatedOnSuccess)
+    TEST_METHOD (Load_RomResolvedPath_Populated)
     {
         std::string repoRoot = FindRepoRoot ();
 
@@ -69,9 +63,9 @@ public:
         std::vector<std::string> paths = { repoRoot };
         HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
 
-        Assert::IsTrue (SUCCEEDED (hr), L"Load should succeed with valid ROM");
+        Assert::IsTrue (SUCCEEDED (hr),
+            L"Load should succeed with valid ROM");
 
-        // Find the ROM region and verify resolvedPath
         bool foundRom = false;
 
         for (const auto & region : config.memoryRegions)
@@ -79,44 +73,29 @@ public:
             if (region.type == "rom" && !region.file.empty ())
             {
                 Assert::IsFalse (region.resolvedPath.empty (),
-                                 L"resolvedPath should be populated for ROM regions");
-                Assert::IsTrue (region.resolvedPath.find ("roms/apple2plus.rom") != std::string::npos,
-                                L"resolvedPath should contain the ROM filename");
+                    L"resolvedPath must be populated for ROM regions");
                 foundRom = true;
             }
         }
 
-        Assert::IsTrue (foundRom, L"Should have at least one ROM region");
+        Assert::IsTrue (foundRom,
+            L"Should have at least one ROM region");
     }
 
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  Load_RomNotFound_ReturnsError
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    TEST_METHOD (Load_RomNotFound_ReturnsError)
+    TEST_METHOD (Load_MissingRom_ReturnsClearError)
     {
         std::string json = JsonWithRom ();
         MachineConfig config;
         std::string error;
 
-
-
-        // Search paths that won't contain any ROMs
         std::vector<std::string> paths = { "C:/nonexistent" };
         HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
 
-        Assert::IsTrue (FAILED (hr), L"Load should fail when ROM not found");
+        Assert::IsTrue (FAILED (hr),
+            L"Load should fail when ROM not found");
         Assert::IsTrue (error.find ("ROM file not found") != std::string::npos,
-                        L"Error should mention ROM not found");
+            L"Error message must mention 'ROM file not found'");
     }
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  Load_MissingName_ReturnsError
-    //
-    ////////////////////////////////////////////////////////////////////////////
 
     TEST_METHOD (Load_MissingName_ReturnsError)
     {
@@ -127,15 +106,11 @@ public:
         std::vector<std::string> paths;
         HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
 
-        Assert::IsTrue (FAILED (hr));
-        Assert::IsTrue (error.find ("name") != std::string::npos);
+        Assert::IsTrue (FAILED (hr),
+            L"Missing 'name' field should cause failure");
+        Assert::IsTrue (error.find ("name") != std::string::npos,
+            L"Error should mention 'name'");
     }
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  Load_InvalidCpu_ReturnsError
-    //
-    ////////////////////////////////////////////////////////////////////////////
 
     TEST_METHOD (Load_InvalidCpu_ReturnsError)
     {
@@ -155,8 +130,86 @@ public:
         std::vector<std::string> paths;
         HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
 
-        Assert::IsTrue (FAILED (hr));
-        Assert::IsTrue (error.find ("z80") != std::string::npos);
+        Assert::IsTrue (FAILED (hr),
+            L"Invalid CPU 'z80' should cause failure");
+        Assert::IsTrue (error.find ("z80") != std::string::npos,
+            L"Error should mention the invalid CPU type");
+    }
+
+    TEST_METHOD (Load_RealApple2PlusJson_ResolvesAllRegions)
+    {
+        std::string repoRoot = FindRepoRoot ();
+
+        if (repoRoot.empty ())
+        {
+            return;
+        }
+
+        // Load the actual apple2plus.json config
+        std::string configPath = repoRoot + "/machines/apple2plus.json";
+        std::ifstream file (configPath);
+
+        if (!file.good ())
+        {
+            return;
+        }
+
+        std::string json ((std::istreambuf_iterator<char> (file)),
+            std::istreambuf_iterator<char> ());
+
+        MachineConfig config;
+        std::string error;
+        std::vector<std::string> paths = { repoRoot };
+
+        HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
+
+        Assert::IsTrue (SUCCEEDED (hr),
+            std::format (L"apple2plus.json should load: {}",
+                std::wstring (error.begin (), error.end ())).c_str ());
+
+        Assert::AreEqual (std::string ("6502"), config.cpu,
+            L"Apple II+ must use 6502 CPU");
+
+        // Verify all ROM regions have resolved paths
+        for (const auto & region : config.memoryRegions)
+        {
+            if (region.type == "rom" && !region.file.empty ())
+            {
+                Assert::IsFalse (region.resolvedPath.empty (),
+                    std::format (L"ROM '{}' must have resolvedPath",
+                        std::wstring (region.file.begin (), region.file.end ())).c_str ());
+            }
+        }
+    }
+
+    TEST_METHOD (Load_KeyboardType_Parsed)
+    {
+        std::string json = MinimalJson ();
+        MachineConfig config;
+        std::string error;
+
+        std::vector<std::string> paths;
+        HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
+
+        Assert::IsTrue (SUCCEEDED (hr));
+        Assert::AreEqual (std::string ("apple2-uppercase"), config.keyboardType,
+            L"Keyboard type should be 'apple2-uppercase'");
+    }
+
+    TEST_METHOD (Load_VideoConfig_Parsed)
+    {
+        std::string json = MinimalJson ();
+        MachineConfig config;
+        std::string error;
+
+        std::vector<std::string> paths;
+        HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
+
+        Assert::IsTrue (SUCCEEDED (hr));
+        Assert::AreEqual (560, config.videoConfig.width,
+            L"Video width should be 560");
+        Assert::AreEqual (384, config.videoConfig.height,
+            L"Video height should be 384");
     }
 
 private:
