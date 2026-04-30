@@ -342,6 +342,36 @@ HRESULT EmulatorShell::Initialize (
 
     // Create CPU
     m_cpu = std::make_unique<EmuCpu> (m_memoryBus);
+
+    // The base Cpu class uses an internal memory[] array for opcode fetch
+    // and instruction execution. We must copy ROM data into that array so
+    // the CPU can execute it. The MemoryBus is used for I/O devices and
+    // video RAM reads, but the CPU's execution path reads from memory[].
+    for (const auto & region : config.memoryRegions)
+    {
+        if (region.type == "rom" && !region.resolvedPath.empty ())
+        {
+            std::ifstream romFile (region.resolvedPath, std::ios::binary);
+
+            if (romFile.good ())
+            {
+                Word addr = region.start;
+
+                while (romFile.good () && addr <= region.end)
+                {
+                    char byte;
+                    romFile.read (&byte, 1);
+
+                    if (romFile.gcount () == 1)
+                    {
+                        m_cpu->PokeByte (addr, static_cast<Byte> (byte));
+                        addr++;
+                    }
+                }
+            }
+        }
+    }
+
     m_cpu->InitForEmulation ();
 
     // Connect speaker to CPU cycle counter for audio timestamps

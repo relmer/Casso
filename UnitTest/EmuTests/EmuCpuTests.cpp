@@ -44,6 +44,13 @@ public:
         bus.AddDevice (rom.get ());
 
         EmuCpu cpu (bus);
+
+        // Copy ROM data into CPU internal memory[] for execution
+        for (size_t i = 0; i < romData.size (); i++)
+        {
+            cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
+        }
+
         cpu.InitForEmulation ();
 
         // EmuCpu::WriteByte routes through bus to RAM
@@ -68,6 +75,13 @@ public:
         bus.AddDevice (rom.get ());
 
         EmuCpu cpu (bus);
+
+        // Copy ROM data into CPU internal memory[] for execution
+        for (size_t i = 0; i < romData.size (); i++)
+        {
+            cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
+        }
+
         cpu.InitForEmulation ();
 
         cpu.WriteByte (0x0050, 0x34);
@@ -93,6 +107,13 @@ public:
         bus.AddDevice (rom.get ());
 
         EmuCpu cpu (bus);
+
+        // Copy ROM data into CPU internal memory[] for execution
+        for (size_t i = 0; i < romData.size (); i++)
+        {
+            cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
+        }
+
         cpu.InitForEmulation ();
 
         cpu.WriteWord (0x0060, 0xBEEF);
@@ -237,6 +258,13 @@ public:
         bus.AddDevice (rom.get ());
 
         EmuCpu cpu (bus);
+
+        // Copy ROM data into CPU internal memory[] for execution
+        for (size_t i = 0; i < romData.size (); i++)
+        {
+            cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
+        }
+
         cpu.InitForEmulation ();
 
         // ResetCycles should set counter to zero regardless of prior state
@@ -259,6 +287,13 @@ public:
         bus.AddDevice (rom.get ());
 
         EmuCpu cpu (bus);
+
+        // Copy ROM data into CPU internal memory[] for execution
+        for (size_t i = 0; i < romData.size (); i++)
+        {
+            cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
+        }
+
         cpu.InitForEmulation ();
 
         Assert::AreEqual (static_cast<Byte> (0xFD), cpu.GetSP ());

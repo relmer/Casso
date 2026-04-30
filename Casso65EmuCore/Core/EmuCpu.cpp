@@ -31,7 +31,14 @@ EmuCpu::EmuCpu (MemoryBus & memoryBus)
 
 Byte EmuCpu::ReadByte (Word address)
 {
-    return m_memoryBus.ReadByte (address);
+    // For I/O range ($C000-$CFFF), always read from bus (soft switches, keyboard, etc.)
+    // For everything else, internal memory[] is authoritative (synced by WriteByte)
+    if (address >= 0xC000 && address <= 0xCFFF)
+    {
+        return m_memoryBus.ReadByte (address);
+    }
+
+    return memory[address];
 }
 
 
@@ -46,7 +53,10 @@ Byte EmuCpu::ReadByte (Word address)
 
 void EmuCpu::WriteByte (Word address, Byte value)
 {
+    // Write to both the bus (for devices/video) and internal memory[]
+    // (for CpuOperations which read from memory[] directly)
     m_memoryBus.WriteByte (address, value);
+    memory[address] = value;
 }
 
 
@@ -61,8 +71,8 @@ void EmuCpu::WriteByte (Word address, Byte value)
 
 Word EmuCpu::ReadWord (Word address)
 {
-    Byte lo = m_memoryBus.ReadByte (address);
-    Byte hi = m_memoryBus.ReadByte (static_cast<Word> (address + 1));
+    Byte lo = ReadByte (address);
+    Byte hi = ReadByte (static_cast<Word> (address + 1));
     return static_cast<Word> (lo | (hi << 8));
 }
 
@@ -78,8 +88,8 @@ Word EmuCpu::ReadWord (Word address)
 
 void EmuCpu::WriteWord (Word address, Word value)
 {
-    m_memoryBus.WriteByte (address, static_cast<Byte> (value & 0xFF));
-    m_memoryBus.WriteByte (static_cast<Word> (address + 1), static_cast<Byte> (value >> 8));
+    WriteByte (address, static_cast<Byte> (value & 0xFF));
+    WriteByte (static_cast<Word> (address + 1), static_cast<Byte> (value >> 8));
 }
 
 
