@@ -120,15 +120,15 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
         &m_device,
         &featureLevel,
         &m_context);
-    CHR (hr);
+    CHRA (hr);
 
     // Create render target view
     {
         ID3D11Texture2D * backBuffer = nullptr;
         hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
-        CHR (hr);
+        CHRA (hr);
         hr = m_device->CreateRenderTargetView (backBuffer, nullptr, &m_rtv);
-        CHR (hr);
+        CHRA (hr);
         backBuffer->Release ();
     }
 
@@ -157,9 +157,9 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
         td.CPUAccessFlags   = D3D11_CPU_ACCESS_WRITE;
 
         hr = m_device->CreateTexture2D (&td, nullptr, &m_texture);
-        CHR (hr);
+        CHRA (hr);
         hr = m_device->CreateShaderResourceView (m_texture, nullptr, &m_srv);
-        CHR (hr);
+        CHRA (hr);
     }
 
     // Bilinear sampler for smooth scaling when window is resized
@@ -171,7 +171,7 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
         sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
 
         hr = m_device->CreateSamplerState (&sd, &m_sampler);
-        CHR (hr);
+        CHRA (hr);
     }
 
     // Compile shaders at runtime using D3DCompile
@@ -205,24 +205,24 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
             "VS", nullptr, nullptr,
             "main", "vs_4_0", 0, 0, &vsBlob, &errors);
         if (errors) { errors->Release (); errors = nullptr; }
-        CHR (hr);
+        CHRA (hr);
 
         hr = D3DCompile (
             kPixelShaderSrc, sizeof (kPixelShaderSrc) - 1,
             "PS", nullptr, nullptr,
             "main", "ps_4_0", 0, 0, &psBlob, &errors);
         if (errors) { errors->Release (); errors = nullptr; }
-        CHR (hr);
+        CHRA (hr);
 
         hr = m_device->CreateVertexShader (
             vsBlob->GetBufferPointer (), vsBlob->GetBufferSize (),
             nullptr, &m_vertexShader);
-        CHR (hr);
+        CHRA (hr);
 
         hr = m_device->CreatePixelShader (
             psBlob->GetBufferPointer (), psBlob->GetBufferSize (),
             nullptr, &m_pixelShader);
-        CHR (hr);
+        CHRA (hr);
 
         D3D11_INPUT_ELEMENT_DESC layout[] =
         {
@@ -240,7 +240,7 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
         vsBlob->Release ();
         psBlob->Release ();
 
-        CHR (hr);
+        CHRA (hr);
     }
 
     // Vertex buffer (full-screen quad)
@@ -262,7 +262,7 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
         initData.pSysMem = vertices;
 
         hr = m_device->CreateBuffer (&bd, &initData, &m_vertexBuffer);
-        CHR (hr);
+        CHRA (hr);
     }
 
     // Index buffer
@@ -278,7 +278,7 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
         initData.pSysMem = indices;
 
         hr = m_device->CreateBuffer (&bd, &initData, &m_indexBuffer);
-        CHR (hr);
+        CHRA (hr);
     }
 
 Error:
@@ -309,7 +309,7 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
     {
         D3D11_MAPPED_SUBRESOURCE mapped;
         hr = m_context->Map (m_texture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
-        CHR (hr);
+        CHRA (hr);
 
         const uint32_t * src = framebuffer;
         Byte * dst = static_cast<Byte *> (mapped.pData);
@@ -443,15 +443,15 @@ HRESULT D3DRenderer::Resize (int width, int height)
     hr = m_swapChain->ResizeBuffers (0,
         static_cast<UINT> (width), static_cast<UINT> (height),
         DXGI_FORMAT_UNKNOWN, 0);
-    CHR (hr);
+    CHRA (hr);
 
     // Re-create render target view
     {
         ID3D11Texture2D * backBuffer = nullptr;
         hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
-        CHR (hr);
+        CHRA (hr);
         hr = m_device->CreateRenderTargetView (backBuffer, nullptr, &m_rtv);
-        CHR (hr);
+        CHRA (hr);
         backBuffer->Release ();
     }
 
