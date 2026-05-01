@@ -12,7 +12,7 @@ The project includes:
 - **A real, full-featured AS65-compatible assembler** — Casso65's assembler is a from-scratch reimplementation of Frank A. Kingswood's AS65, intended to be a drop-in replacement. It supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, …) including flag concatenation (`-tlfile`).
 - **CPU emulator** — fetch-decode-execute cycle with register/flag management, stack operations, decimal mode (BCD) for ADC/SBC, and all 14 addressing modes
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source
-- **720+ unit tests** — comprehensive coverage of instruction encoding, addressing modes, arithmetic, branching, assembler features, and audio pipeline
+- **787+ unit tests** — comprehensive coverage of instruction encoding, addressing modes, arithmetic, branching, assembler features, and audio pipeline
 
 ## Project Structure
 
@@ -20,7 +20,7 @@ The project includes:
 Casso65.sln
 ├── Casso65Core/     Static library — CPU emulator, assembler, parser, opcode table
 ├── Casso65/         Console application — AS65-compatible assembler CLI with `run` subcommand
-└── UnitTest/       Test DLL — Microsoft Native CppUnitTest (720+ tests)
+└── UnitTest/       Test DLL — Microsoft Native CppUnitTest (787+ tests)
 ```
 
 ## Requirements
