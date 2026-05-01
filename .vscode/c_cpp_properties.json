@@ -1,44 +1,33 @@
 {
     "configurations": [
         {
-            "name": "x64",
+            "name": "Win32",
             "includePath": [
-                "${workspaceFolder}/**",
+                "${workspaceFolder}/Casso65Core",
+                "${workspaceFolder}/Casso65",
+                "${workspaceFolder}/Casso65Emu",
+                "${workspaceFolder}/Casso65EmuCore",
+                "${workspaceFolder}/UnitTest",
                 "${env:ProgramFiles}/Microsoft Visual Studio/**/VC/Auxiliary/VS/UnitTest/include"
+            ],
+            "forcedInclude": [
+                "${workspaceFolder}/Casso65Emu/Pch.h"
             ],
             "defines": [
                 "_DEBUG",
                 "UNICODE",
-                "_UNICODE"
+                "_UNICODE",
+                "WIN32_LEAN_AND_MEAN",
+                "NOMINMAX"
             ],
             "windowsSdkVersion": "10.0",
-            "compilerPath": "${env:ProgramFiles}/Microsoft Visual Studio/**/VC/Tools/MSVC/*/bin/Hostx64/x64/cl.exe",
+            "compilerPath": "cl.exe",
             "compilerArgs": [
                 "/std:c++latest"
             ],
             "cStandard": "c17",
             "cppStandard": "c++latest",
             "intelliSenseMode": "windows-msvc-x64"
-        },
-        {
-            "name": "ARM64",
-            "includePath": [
-                "${workspaceFolder}/**",
-                "${env:ProgramFiles}/Microsoft Visual Studio/**/VC/Auxiliary/VS/UnitTest/include"
-            ],
-            "defines": [
-                "_DEBUG",
-                "UNICODE",
-                "_UNICODE"
-            ],
-            "windowsSdkVersion": "10.0",
-            "compilerPath": "${env:ProgramFiles}/Microsoft Visual Studio/**/VC/Tools/MSVC/*/bin/Hostx64/arm64/cl.exe",
-            "compilerArgs": [
-                "/std:c++latest"
-            ],
-            "cStandard": "c17",
-            "cppStandard": "c++latest",
-            "intelliSenseMode": "windows-msvc-arm64"
         }
     ],
     "version": 4
