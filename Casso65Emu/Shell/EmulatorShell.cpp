@@ -114,6 +114,9 @@ HRESULT EmulatorShell::Initialize (
     // Create framebuffer
     m_framebuffer.resize (static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight, 0);
 
+    // Enable Per-Monitor V2 DPI awareness
+    SetProcessDpiAwarenessContext (DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
     // Register window class
     {
         WNDCLASSEX wc = {};
@@ -130,9 +133,20 @@ HRESULT EmulatorShell::Initialize (
         CWRA (regResult);
     }
 
-    // Calculate window size for desired client area
+    // Calculate window size for desired client area, scaled for DPI
     {
-        RECT rc = { 0, 0, kFramebufferWidth, kFramebufferHeight };
+        UINT dpi = GetDpiForSystem ();
+        int scale = (dpi + 48) / 96;  // 96=1x, 144=1.5x→2, 192=2x→2, 240=2.5x→3
+
+        if (scale < 1)
+        {
+            scale = 1;
+        }
+
+        int clientW = kFramebufferWidth * scale;
+        int clientH = kFramebufferHeight * scale;
+
+        RECT rc = { 0, 0, clientW, clientH };
         DWORD style = WS_OVERLAPPEDWINDOW;
         AdjustWindowRect (&rc, style, TRUE);  // TRUE = has menu
 
@@ -881,7 +895,15 @@ void EmulatorShell::HandleCommand (WORD commandId)
         {
             if (!m_d3dRenderer.IsFullscreen ())
             {
-                RECT rc = { 0, 0, kFramebufferWidth, kFramebufferHeight };
+                UINT dpi = GetDpiForWindow (m_hwnd);
+                int scale = (dpi + 48) / 96;
+
+                if (scale < 1)
+                {
+                    scale = 1;
+                }
+
+                RECT rc = { 0, 0, kFramebufferWidth * scale, kFramebufferHeight * scale };
                 DWORD style = static_cast<DWORD> (GetWindowLong (m_hwnd, GWL_STYLE));
                 AdjustWindowRect (&rc, style, TRUE);
 
