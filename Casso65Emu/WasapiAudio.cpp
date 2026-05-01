@@ -58,8 +58,7 @@ HRESULT WasapiAudio::Initialize ()
     hr = CoCreateInstance (__uuidof (MMDeviceEnumerator),
                            nullptr,
                            CLSCTX_ALL,
-                           __uuidof (IMMDeviceEnumerator),
-                           reinterpret_cast<void **> (&m_enumerator));
+                           IID_PPV_ARGS (&m_enumerator));
     CHRA (hr);
 
     // Get default audio endpoint
@@ -70,7 +69,7 @@ HRESULT WasapiAudio::Initialize ()
     hr = m_device->Activate (__uuidof (IAudioClient),
                               CLSCTX_ALL,
                               nullptr,
-                              reinterpret_cast<void **> (&m_audioClient));
+                              &m_audioClient);
     CHRA (hr);
 
     // Get mix format and try float32 mono
@@ -116,8 +115,7 @@ HRESULT WasapiAudio::Initialize ()
     hr = m_audioClient->GetBufferSize (&m_bufferFrames);
     CHRA (hr);
 
-    hr = m_audioClient->GetService (__uuidof (IAudioRenderClient),
-                                    reinterpret_cast<void **> (&m_renderClient));
+    hr = m_audioClient->GetService (IID_PPV_ARGS (&m_renderClient));
     CHRA (hr);
 
     // Calculate samples per emulation frame (60 fps)
@@ -162,10 +160,10 @@ void WasapiAudio::Shutdown ()
         m_audioClient->Stop ();
     }
 
-    if (m_renderClient) { m_renderClient->Release (); m_renderClient = nullptr; }
-    if (m_audioClient)  { m_audioClient->Release ();  m_audioClient  = nullptr; }
-    if (m_device)       { m_device->Release ();       m_device       = nullptr; }
-    if (m_enumerator)   { m_enumerator->Release ();   m_enumerator   = nullptr; }
+    m_renderClient.Reset ();
+    m_audioClient.Reset ();
+    m_device.Reset ();
+    m_enumerator.Reset ();
 
     m_initialized = false;
 }

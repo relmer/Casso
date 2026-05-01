@@ -65,16 +65,16 @@ D3DRenderer::~D3DRenderer ()
 
 HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
 {
-    HRESULT                      hr          = S_OK;
-    DXGI_SWAP_CHAIN_DESC         scd         = {};
-    UINT                         createFlags = 0;
-    D3D_FEATURE_LEVEL            featureLevel;
-    ID3D11Texture2D            * backBuffer  = nullptr;
-    D3D11_VIEWPORT               vp          = {};
-    D3D11_TEXTURE2D_DESC         td          = {};
-    D3D11_SAMPLER_DESC           sd          = {};
-    D3D11_BUFFER_DESC            bd          = {};
-    D3D11_SUBRESOURCE_DATA       initData    = {};
+    HRESULT                    hr          = S_OK;
+    DXGI_SWAP_CHAIN_DESC       scd         = {};
+    UINT                       createFlags = 0;
+    D3D_FEATURE_LEVEL          featureLevel;
+    ComPtr<ID3D11Texture2D>    backBuffer;
+    D3D11_VIEWPORT             vp          = {};
+    D3D11_TEXTURE2D_DESC       td          = {};
+    D3D11_SAMPLER_DESC         sd          = {};
+    D3D11_BUFFER_DESC          bd          = {};
+    D3D11_SUBRESOURCE_DATA     initData    = {};
 
     Vertex vertices[] =
     {
@@ -124,11 +124,10 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
     // Create render target view
     hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
     CHRA (hr);
-    hr = m_device->CreateRenderTargetView (backBuffer, nullptr, &m_rtv);
+    hr = m_device->CreateRenderTargetView (backBuffer.Get (), nullptr, &m_rtv);
     CHRA (hr);
-    backBuffer->Release ();
 
-    m_context->OMSetRenderTargets (1, &m_rtv, nullptr);
+    m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf (), nullptr);
 
     // Viewport
     vp.Width    = static_cast<float> (texWidth);
@@ -149,7 +148,7 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
 
     hr = m_device->CreateTexture2D (&td, nullptr, &m_texture);
     CHRA (hr);
-    hr = m_device->CreateShaderResourceView (m_texture, nullptr, &m_srv);
+    hr = m_device->CreateShaderResourceView (m_texture.Get (), nullptr, &m_srv);
     CHRA (hr);
 
     // Bilinear sampler for smooth scaling when window is resized
@@ -203,10 +202,10 @@ Error:
 
 HRESULT D3DRenderer::InitializeShaders ()
 {
-    HRESULT      hr     = S_OK;
-    ID3DBlob   * vsBlob = nullptr;
-    ID3DBlob   * psBlob = nullptr;
-    ID3DBlob   * errors = nullptr;
+    HRESULT            hr     = S_OK;
+    ComPtr<ID3DBlob>   vsBlob;
+    ComPtr<ID3DBlob>   psBlob;
+    ComPtr<ID3DBlob>   errors;
 
     static const char kVertexShaderSrc[] =
         "struct VSInput  { float2 pos : POSITION; float2 uv : TEXCOORD; };\n"
@@ -248,7 +247,7 @@ HRESULT D3DRenderer::InitializeShaders ()
                      0,
                      &vsBlob,
                      &errors);
-    if (errors) { errors->Release (); errors = nullptr; }
+    if (errors) { errors.Reset (); }
     CHRA (hr);
 
     // Compile pixel shader
@@ -263,7 +262,7 @@ HRESULT D3DRenderer::InitializeShaders ()
                      0,
                      &psBlob,
                      &errors);
-    if (errors) { errors->Release (); errors = nullptr; }
+    if (errors) { errors.Reset (); }
     CHRA (hr);
 
     // Create vertex shader
@@ -289,9 +288,6 @@ HRESULT D3DRenderer::InitializeShaders ()
     CHRA (hr);
 
 Error:
-    if (vsBlob) { vsBlob->Release (); }
-    if (psBlob) { psBlob->Release (); }
-
     return hr;
 }
 
@@ -322,7 +318,7 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
     // Upload framebuffer to texture
     if (m_texture != nullptr && framebuffer != nullptr)
     {
-        hr = m_context->Map (m_texture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+        hr = m_context->Map (m_texture.Get (), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
         CHRA (hr);
 
         src = framebuffer;
@@ -335,23 +331,23 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
             dst += mapped.RowPitch;
         }
 
-        m_context->Unmap (m_texture, 0);
+        m_context->Unmap (m_texture.Get (), 0);
     }
 
     // Clear render target
-    m_context->ClearRenderTargetView (m_rtv, clearColor);
+    m_context->ClearRenderTargetView (m_rtv.Get (), clearColor);
 
     // Draw the textured quad
     if (m_vertexShader != nullptr && m_pixelShader != nullptr)
     {
-        m_context->VSSetShader (m_vertexShader, nullptr, 0);
-        m_context->PSSetShader (m_pixelShader, nullptr, 0);
-        m_context->PSSetShaderResources (0, 1, &m_srv);
-        m_context->PSSetSamplers (0, 1, &m_sampler);
+        m_context->VSSetShader (m_vertexShader.Get (), nullptr, 0);
+        m_context->PSSetShader (m_pixelShader.Get (), nullptr, 0);
+        m_context->PSSetShaderResources (0, 1, m_srv.GetAddressOf ());
+        m_context->PSSetSamplers (0, 1, m_sampler.GetAddressOf ());
 
-        m_context->IASetVertexBuffers (0, 1, &m_vertexBuffer, &stride, &offset);
-        m_context->IASetIndexBuffer (m_indexBuffer, DXGI_FORMAT_R16_UINT, 0);
-        m_context->IASetInputLayout (m_inputLayout);
+        m_context->IASetVertexBuffers (0, 1, m_vertexBuffer.GetAddressOf (), &stride, &offset);
+        m_context->IASetIndexBuffer (m_indexBuffer.Get (), DXGI_FORMAT_R16_UINT, 0);
+        m_context->IASetInputLayout (m_inputLayout.Get ());
         m_context->IASetPrimitiveTopology (D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
         m_context->DrawIndexed (6, 0, 0);
@@ -431,9 +427,9 @@ Error:
 
 HRESULT D3DRenderer::Resize (int width, int height)
 {
-    HRESULT             hr         = S_OK;
-    ID3D11Texture2D   * backBuffer = nullptr;
-    D3D11_VIEWPORT      vp         = {};
+    HRESULT                 hr         = S_OK;
+    ComPtr<ID3D11Texture2D> backBuffer;
+    D3D11_VIEWPORT          vp         = {};
 
 
 
@@ -443,10 +439,9 @@ HRESULT D3DRenderer::Resize (int width, int height)
     // Release the old render target view before resizing
     m_context->OMSetRenderTargets (0, nullptr, nullptr);
 
-    if (m_rtv != nullptr)
+    if (m_rtv)
     {
-        m_rtv->Release ();
-        m_rtv = nullptr;
+        m_rtv.Reset ();
     }
 
     // Resize the swap chain buffers
@@ -461,12 +456,10 @@ HRESULT D3DRenderer::Resize (int width, int height)
     hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
     CHRA (hr);
 
-    hr = m_device->CreateRenderTargetView (backBuffer, nullptr, &m_rtv);
+    hr = m_device->CreateRenderTargetView (backBuffer.Get (), nullptr, &m_rtv);
     CHRA (hr);
     
-    backBuffer->Release ();
-
-    m_context->OMSetRenderTargets (1, &m_rtv, nullptr);
+    m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf (), nullptr);
 
     // Update viewport to match new window size
     vp.Width    = static_cast<float> (width);
@@ -491,18 +484,18 @@ Error:
 
 void D3DRenderer::Shutdown ()
 {
-    if (m_inputLayout)   { m_inputLayout->Release ();   m_inputLayout   = nullptr; }
-    if (m_indexBuffer)   { m_indexBuffer->Release ();   m_indexBuffer   = nullptr; }
-    if (m_vertexBuffer)  { m_vertexBuffer->Release ();  m_vertexBuffer  = nullptr; }
-    if (m_pixelShader)   { m_pixelShader->Release ();   m_pixelShader   = nullptr; }
-    if (m_vertexShader)  { m_vertexShader->Release ();  m_vertexShader  = nullptr; }
-    if (m_sampler)       { m_sampler->Release ();       m_sampler       = nullptr; }
-    if (m_srv)           { m_srv->Release ();           m_srv           = nullptr; }
-    if (m_texture)       { m_texture->Release ();       m_texture       = nullptr; }
-    if (m_rtv)           { m_rtv->Release ();           m_rtv           = nullptr; }
-    if (m_swapChain)     { m_swapChain->Release ();     m_swapChain     = nullptr; }
-    if (m_context)       { m_context->Release ();       m_context       = nullptr; }
-    if (m_device)        { m_device->Release ();        m_device        = nullptr; }
+    m_inputLayout.Reset ();
+    m_indexBuffer.Reset ();
+    m_vertexBuffer.Reset ();
+    m_pixelShader.Reset ();
+    m_vertexShader.Reset ();
+    m_sampler.Reset ();
+    m_srv.Reset ();
+    m_texture.Reset ();
+    m_rtv.Reset ();
+    m_swapChain.Reset ();
+    m_context.Reset ();
+    m_device.Reset ();
 }
 
 

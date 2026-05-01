@@ -30,18 +30,18 @@ public:
 private:
     HRESULT InitializeShaders ();
 
-    ID3D11Device *          m_device       = nullptr;
-    ID3D11DeviceContext *   m_context      = nullptr;
-    IDXGISwapChain *        m_swapChain    = nullptr;
-    ID3D11RenderTargetView * m_rtv         = nullptr;
-    ID3D11Texture2D *       m_texture      = nullptr;
-    ID3D11ShaderResourceView * m_srv       = nullptr;
-    ID3D11SamplerState *    m_sampler      = nullptr;
-    ID3D11VertexShader *    m_vertexShader = nullptr;
-    ID3D11PixelShader *     m_pixelShader  = nullptr;
-    ID3D11Buffer *          m_vertexBuffer = nullptr;
-    ID3D11Buffer *          m_indexBuffer  = nullptr;
-    ID3D11InputLayout *     m_inputLayout  = nullptr;
+    ComPtr<ID3D11Device>             m_device;
+    ComPtr<ID3D11DeviceContext>      m_context;
+    ComPtr<IDXGISwapChain>           m_swapChain;
+    ComPtr<ID3D11RenderTargetView>   m_rtv;
+    ComPtr<ID3D11Texture2D>          m_texture;
+    ComPtr<ID3D11ShaderResourceView> m_srv;
+    ComPtr<ID3D11SamplerState>       m_sampler;
+    ComPtr<ID3D11VertexShader>       m_vertexShader;
+    ComPtr<ID3D11PixelShader>        m_pixelShader;
+    ComPtr<ID3D11Buffer>             m_vertexBuffer;
+    ComPtr<ID3D11Buffer>             m_indexBuffer;
+    ComPtr<ID3D11InputLayout>        m_inputLayout;
 
     int     m_texWidth    = 0;
     int     m_texHeight   = 0;

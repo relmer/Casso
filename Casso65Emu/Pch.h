@@ -12,6 +12,7 @@
 #include <commdlg.h>
 
 #include <shellapi.h>
+#include <wrl/client.h>
 
 #include <algorithm>
 #include <array>
@@ -33,6 +34,9 @@
 typedef unsigned char   Byte;
 typedef signed   char   SByte;
 typedef unsigned short  Word;
+
+template <typename T>
+using ComPtr = Microsoft::WRL::ComPtr<T>;
 
 
 

@@ -35,10 +35,10 @@ public:
     UINT32 GetSampleRate () const { return m_sampleRate; }
 
 private:
-    IMMDeviceEnumerator * m_enumerator   = nullptr;
-    IMMDevice *           m_device       = nullptr;
-    IAudioClient *        m_audioClient  = nullptr;
-    IAudioRenderClient *  m_renderClient = nullptr;
+    ComPtr<IMMDeviceEnumerator>  m_enumerator;
+    ComPtr<IMMDevice>            m_device;
+    ComPtr<IAudioClient>         m_audioClient;
+    ComPtr<IAudioRenderClient>   m_renderClient;
 
     UINT32  m_bufferFrames    = 0;
     UINT32  m_sampleRate      = 44100;
