@@ -401,10 +401,10 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
 
         SetWindowLong (hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
         SetWindowPos (hwnd, HWND_TOP,
-            mi.rcMonitor.left, mi.rcMonitor.top,
-            mi.rcMonitor.right - mi.rcMonitor.left,
-            mi.rcMonitor.bottom - mi.rcMonitor.top,
-            SWP_FRAMECHANGED);
+                     mi.rcMonitor.left, mi.rcMonitor.top,
+                     mi.rcMonitor.right - mi.rcMonitor.left,
+                     mi.rcMonitor.bottom - mi.rcMonitor.top,
+                     SWP_FRAMECHANGED);
 
         m_fullscreen = true;
     }
@@ -413,10 +413,10 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
         // Restore windowed
         SetWindowLong (hwnd, GWL_STYLE, m_windowedStyle);
         SetWindowPos (hwnd, HWND_NOTOPMOST,
-            m_windowedRect.left, m_windowedRect.top,
-            m_windowedRect.right - m_windowedRect.left,
-            m_windowedRect.bottom - m_windowedRect.top,
-            SWP_FRAMECHANGED);
+                     m_windowedRect.left, m_windowedRect.top,
+                     m_windowedRect.right - m_windowedRect.left,
+                     m_windowedRect.bottom - m_windowedRect.top,
+                     SWP_FRAMECHANGED);
 
         m_fullscreen = false;
     }
@@ -473,8 +473,10 @@ HRESULT D3DRenderer::Resize (int width, int height)
     // Re-create render target view
     hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
     CHRA (hr);
+
     hr = m_device->CreateRenderTargetView (backBuffer, nullptr, &m_rtv);
     CHRA (hr);
+    
     backBuffer->Release ();
 
     m_context->OMSetRenderTargets (1, &m_rtv, nullptr);
@@ -483,6 +485,7 @@ HRESULT D3DRenderer::Resize (int width, int height)
     vp.Width    = static_cast<float> (width);
     vp.Height   = static_cast<float> (height);
     vp.MaxDepth = 1.0f;
+
     m_context->RSSetViewports (1, &vp);
 
 Error:
@@ -502,7 +505,7 @@ Error:
 void D3DRenderer::Shutdown ()
 {
     if (m_inputLayout)   { m_inputLayout->Release ();   m_inputLayout   = nullptr; }
-    if (m_indexBuffer)   { m_indexBuffer->Release ();    m_indexBuffer   = nullptr; }
+    if (m_indexBuffer)   { m_indexBuffer->Release ();   m_indexBuffer   = nullptr; }
     if (m_vertexBuffer)  { m_vertexBuffer->Release ();  m_vertexBuffer  = nullptr; }
     if (m_pixelShader)   { m_pixelShader->Release ();   m_pixelShader   = nullptr; }
     if (m_vertexShader)  { m_vertexShader->Release ();  m_vertexShader  = nullptr; }
