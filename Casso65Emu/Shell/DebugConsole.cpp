@@ -13,9 +13,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 DebugConsole::DebugConsole ()
-    : m_visible  (false),
-      m_hwnd     (nullptr),
-      m_editCtrl (nullptr)
 {
 }
 

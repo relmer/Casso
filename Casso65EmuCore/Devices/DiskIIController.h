@@ -37,9 +37,9 @@ public:
 private:
     std::string             m_filePath;
     std::array<Byte, 143360> m_data;
-    bool                    m_loaded;
-    bool                    m_dirty;
-    bool                    m_writeProtected;
+    bool                    m_loaded         = false;
+    bool                    m_dirty          = false;
+    bool                    m_writeProtected = false;
 };
 
 
@@ -84,22 +84,22 @@ private:
     Word    m_ioEnd;
 
     // Stepper motor
-    uint8_t m_phases;
-    int     m_quarterTrack;
+    uint8_t m_phases       = 0;
+    int     m_quarterTrack = 0;
 
     // Controller state
-    bool    m_motorOn;
-    int     m_activeDrive;
-    bool    m_q6;
-    bool    m_q7;
+    bool    m_motorOn      = false;
+    int     m_activeDrive  = 0;
+    bool    m_q6           = false;
+    bool    m_q7           = false;
 
     // Data path
-    Byte    m_shiftRegister;
+    Byte    m_shiftRegister = 0;
 
     // Disk images
     DiskImage m_disks[2];
 
     // Pre-nibblized current track
     std::vector<Byte>   m_nibbleBuffer;
-    size_t              m_nibblePos;
+    size_t              m_nibblePos = 0;
 };

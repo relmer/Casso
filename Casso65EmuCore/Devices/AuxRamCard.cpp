@@ -13,9 +13,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 AuxRamCard::AuxRamCard ()
-    : m_auxRam   (65536, 0),
-      m_readAux  (false),
-      m_writeAux (false)
+    : m_auxRam (65536, 0)
 {
 }
 

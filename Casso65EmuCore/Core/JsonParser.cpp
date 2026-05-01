@@ -13,32 +13,24 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 JsonValue::JsonValue ()
-    : m_type   (JsonType::Null),
-      m_bool   (false),
-      m_number (0.0)
 {
 }
 
 
 JsonValue::JsonValue (std::nullptr_t)
-    : m_type   (JsonType::Null),
-      m_bool   (false),
-      m_number (0.0)
 {
 }
 
 
 JsonValue::JsonValue (bool value)
-    : m_type   (JsonType::Bool),
-      m_bool   (value),
-      m_number (0.0)
+    : m_type (JsonType::Bool),
+      m_bool (value)
 {
 }
 
 
 JsonValue::JsonValue (double value)
     : m_type   (JsonType::Number),
-      m_bool   (false),
       m_number (value)
 {
 }
@@ -46,26 +38,20 @@ JsonValue::JsonValue (double value)
 
 JsonValue::JsonValue (const std::string & value)
     : m_type   (JsonType::String),
-      m_bool   (false),
-      m_number (0.0),
       m_string (value)
 {
 }
 
 
 JsonValue::JsonValue (std::vector<JsonValue> && arr)
-    : m_type   (JsonType::Array),
-      m_bool   (false),
-      m_number (0.0),
-      m_array  (std::move (arr))
+    : m_type  (JsonType::Array),
+      m_array (std::move (arr))
 {
 }
 
 
 JsonValue::JsonValue (std::vector<std::pair<std::string, JsonValue>> && obj)
     : m_type   (JsonType::Object),
-      m_bool   (false),
-      m_number (0.0),
       m_object (std::move (obj))
 {
 }

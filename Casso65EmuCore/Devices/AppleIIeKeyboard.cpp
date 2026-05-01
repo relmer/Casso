@@ -13,9 +13,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 AppleIIeKeyboard::AppleIIeKeyboard ()
-    : AppleKeyboard (),
-      m_openApple   (false),
-      m_closedApple (false)
+    : AppleKeyboard ()
 {
 }
 

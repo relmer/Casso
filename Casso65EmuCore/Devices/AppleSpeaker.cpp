@@ -13,10 +13,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 AppleSpeaker::AppleSpeaker ()
-    : m_speakerState    (-0.25f),
-      m_frameInitialState (-0.25f),
-      m_pTotalCycles    (nullptr),
-      m_frameCycleStart (0)
 {
 }
 

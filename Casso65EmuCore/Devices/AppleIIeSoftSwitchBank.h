@@ -32,7 +32,7 @@ public:
     static std::unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
-    bool m_80colMode;
-    bool m_doubleHiRes;
-    bool m_altCharSet;
+    bool m_80colMode   = false;
+    bool m_doubleHiRes = false;
+    bool m_altCharSet  = false;
 };

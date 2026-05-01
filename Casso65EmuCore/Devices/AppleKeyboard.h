@@ -44,6 +44,6 @@ private:
     // m_latchedKey bit 7 = strobe (new key available).  Atomic because
     // KeyPress is called from the UI thread while Read is called from
     // the CPU thread.
-    std::atomic<Byte>   m_latchedKey;
-    std::atomic<bool>   m_anyKeyDown;
+    std::atomic<Byte>   m_latchedKey{0};
+    std::atomic<bool>   m_anyKeyDown{false};
 };

@@ -62,15 +62,15 @@ public:
     ColorMode GetColorMode () const { return m_colorMode; }
 
 private:
-    HMENU       m_menuBar;
-    HMENU       m_fileMenu;
-    HMENU       m_machineMenu;
-    HMENU       m_diskMenu;
-    HMENU       m_viewMenu;
-    HMENU       m_helpMenu;
+    HMENU       m_menuBar     = nullptr;
+    HMENU       m_fileMenu    = nullptr;
+    HMENU       m_machineMenu = nullptr;
+    HMENU       m_diskMenu    = nullptr;
+    HMENU       m_viewMenu    = nullptr;
+    HMENU       m_helpMenu    = nullptr;
 
-    SpeedMode   m_speedMode;
-    ColorMode   m_colorMode;
+    SpeedMode   m_speedMode = SpeedMode::Authentic;
+    ColorMode   m_colorMode = ColorMode::Color;
 
-    HWND        m_hwnd;
+    HWND        m_hwnd = nullptr;
 };

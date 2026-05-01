@@ -52,11 +52,11 @@ private:
     std::vector<Byte>   m_ramMain;      // 8KB at $E000-$FFFF
     std::vector<Byte>   m_romData;      // Original ROM data for fallback reads
 
-    bool    m_readRam;
-    bool    m_writeRam;
-    bool    m_preWrite;
-    bool    m_bank2Select;
-    Byte    m_lastSwitch;
+    bool    m_readRam     = false;
+    bool    m_writeRam    = false;
+    bool    m_preWrite    = false;
+    bool    m_bank2Select = true;
+    Byte    m_lastSwitch  = 0;
 };
 
 

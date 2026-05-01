@@ -35,9 +35,7 @@ static constexpr uint32_t kColorWhite  = 0xFFFFFFFF;   // ARGB white
 ////////////////////////////////////////////////////////////////////////////////
 
 AppleTextMode::AppleTextMode (MemoryBus & bus)
-    : m_bus        (bus),
-      m_flashOn    (true),
-      m_frameCount (0)
+    : m_bus (bus)
 {
 }
 

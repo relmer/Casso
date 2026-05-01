@@ -37,8 +37,8 @@ public:
     static std::unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 protected:
-    bool    m_graphicsMode;
-    bool    m_mixedMode;
-    bool    m_page2;
-    bool    m_hiresMode;
+    bool    m_graphicsMode = false;
+    bool    m_mixedMode    = false;
+    bool    m_page2        = false;
+    bool    m_hiresMode    = false;
 };

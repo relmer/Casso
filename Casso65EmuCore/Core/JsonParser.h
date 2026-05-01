@@ -69,9 +69,9 @@ public:
     const std::vector<std::pair<std::string, JsonValue>> & GetObjectEntries () const;
 
 private:
-    JsonType                                             m_type;
-    bool                                                 m_bool;
-    double                                               m_number;
+    JsonType                                             m_type   = JsonType::Null;
+    bool                                                 m_bool   = false;
+    double                                               m_number = 0.0;
     std::string                                          m_string;
     std::vector<JsonValue>                               m_array;
     std::vector<std::pair<std::string, JsonValue>>       m_object;

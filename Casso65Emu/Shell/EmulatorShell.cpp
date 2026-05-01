@@ -42,26 +42,6 @@ static constexpr LPCWSTR kWindowClass      = L"Casso65EmuWindow";
 ////////////////////////////////////////////////////////////////////////////////
 
 EmulatorShell::EmulatorShell ()
-    : m_hwnd            (nullptr),
-      m_hInstance       (nullptr),
-      m_accelTable      (nullptr),
-      m_activeVideoMode (nullptr),
-      m_graphicsMode    (false),
-      m_mixedMode       (false),
-      m_page2           (false),
-      m_hiresMode       (false),
-      m_col80Mode       (false),
-      m_doubleHiRes     (false),
-      m_keyboard        (nullptr),
-      m_softSwitches    (nullptr),
-      m_speaker         (nullptr),
-      m_running         (true),
-      m_paused          (false),
-      m_speedMode       (SpeedMode::Authentic),
-      m_colorMode       (ColorMode::Color),
-      m_fbReady         (false),
-      m_cyclesPerFrame  (17050),
-      m_sampleRemainder (0.0)
 {
 }
 

@@ -71,9 +71,6 @@ static Byte Encode44Even (Byte val)
 ////////////////////////////////////////////////////////////////////////////////
 
 DiskImage::DiskImage ()
-    : m_loaded        (false),
-      m_dirty         (false),
-      m_writeProtected (false)
 {
     m_data.fill (0);
 }
@@ -175,17 +172,9 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 DiskIIController::DiskIIController (int slot)
-    : m_slot          (slot),
-      m_ioStart       (static_cast<Word> (0xC080 + slot * 16)),
-      m_ioEnd         (static_cast<Word> (0xC08F + slot * 16)),
-      m_phases        (0),
-      m_quarterTrack  (0),
-      m_motorOn       (false),
-      m_activeDrive   (0),
-      m_q6            (false),
-      m_q7            (false),
-      m_shiftRegister (0),
-      m_nibblePos     (0)
+    : m_slot    (slot),
+      m_ioStart (static_cast<Word> (0xC080 + slot * 16)),
+      m_ioEnd   (static_cast<Word> (0xC08F + slot * 16))
 {
 }
 

@@ -14,15 +14,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 MenuSystem::MenuSystem ()
-    : m_menuBar     (nullptr),
-      m_fileMenu    (nullptr),
-      m_machineMenu (nullptr),
-      m_diskMenu    (nullptr),
-      m_viewMenu    (nullptr),
-      m_helpMenu    (nullptr),
-      m_speedMode   (SpeedMode::Authentic),
-      m_colorMode   (ColorMode::Color),
-      m_hwnd        (nullptr)
 {
 }
 

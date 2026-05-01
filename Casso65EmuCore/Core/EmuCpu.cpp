@@ -14,8 +14,7 @@
 
 EmuCpu::EmuCpu (MemoryBus & memoryBus)
     : Cpu (),
-      m_memoryBus   (memoryBus),
-      m_totalCycles (0)
+      m_memoryBus (memoryBus)
 {
 }
 

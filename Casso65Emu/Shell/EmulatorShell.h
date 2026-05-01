@@ -78,9 +78,9 @@ private:
     // Queue a command for the CPU thread
     void PostCommand (WORD id, const std::string & payload = "");
 
-    HWND                m_hwnd;
-    HINSTANCE           m_hInstance;
-    HACCEL              m_accelTable;
+    HWND                m_hwnd       = nullptr;
+    HINSTANCE           m_hInstance  = nullptr;
+    HACCEL              m_accelTable = nullptr;
 
     MemoryBus           m_memoryBus;
     ComponentRegistry   m_registry;
@@ -96,20 +96,20 @@ private:
 
     // Video
     std::vector<std::unique_ptr<VideoOutput>> m_videoModes;
-    VideoOutput *       m_activeVideoMode;
+    VideoOutput *       m_activeVideoMode = nullptr;
 
     // Soft switch state (read by video mode selection)
-    bool    m_graphicsMode;
-    bool    m_mixedMode;
-    bool    m_page2;
-    bool    m_hiresMode;
-    bool    m_col80Mode;
-    bool    m_doubleHiRes;
+    bool    m_graphicsMode = false;
+    bool    m_mixedMode    = false;
+    bool    m_page2        = false;
+    bool    m_hiresMode    = false;
+    bool    m_col80Mode    = false;
+    bool    m_doubleHiRes  = false;
 
     // Device pointers (non-owning, for quick access)
-    class AppleKeyboard *         m_keyboard;
-    class AppleSoftSwitchBank *   m_softSwitches;
-    class AppleSpeaker *          m_speaker;
+    class AppleKeyboard *         m_keyboard     = nullptr;
+    class AppleSoftSwitchBank *   m_softSwitches = nullptr;
+    class AppleSpeaker *          m_speaker      = nullptr;
 
     // Emulation state
     MachineConfig   m_config;
@@ -118,10 +118,10 @@ private:
     std::thread     m_cpuThread;
 
     // Atomic flags (UI writes, CPU reads)
-    std::atomic<bool>       m_running;
-    std::atomic<bool>       m_paused;
-    std::atomic<SpeedMode>  m_speedMode;
-    std::atomic<ColorMode>  m_colorMode;
+    std::atomic<bool>       m_running{true};
+    std::atomic<bool>       m_paused{false};
+    std::atomic<SpeedMode>  m_speedMode{SpeedMode::Authentic};
+    std::atomic<ColorMode>  m_colorMode{ColorMode::Color};
 
     // Command queue (UI → CPU, protected by m_cmdMutex)
     std::mutex                    m_cmdMutex;
@@ -131,8 +131,8 @@ private:
     std::mutex              m_fbMutex;
     std::vector<uint32_t>   m_cpuFramebuffer;
     std::vector<uint32_t>   m_uiFramebuffer;
-    bool                    m_fbReady;
+    bool                    m_fbReady = false;
 
-    uint32_t        m_cyclesPerFrame;
-    double          m_sampleRemainder;
+    uint32_t        m_cyclesPerFrame  = 17050;
+    double          m_sampleRemainder = 0.0;
 };

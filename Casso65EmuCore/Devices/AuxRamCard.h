@@ -39,6 +39,6 @@ public:
 
 private:
     std::vector<Byte>   m_auxRam;
-    bool                m_readAux;
-    bool                m_writeAux;
+    bool                m_readAux  = false;
+    bool                m_writeAux = false;
 };

@@ -35,23 +35,6 @@ struct Vertex
 ////////////////////////////////////////////////////////////////////////////////
 
 D3DRenderer::D3DRenderer ()
-    : m_device        (nullptr),
-      m_context       (nullptr),
-      m_swapChain     (nullptr),
-      m_rtv           (nullptr),
-      m_texture       (nullptr),
-      m_srv           (nullptr),
-      m_sampler       (nullptr),
-      m_vertexShader  (nullptr),
-      m_pixelShader   (nullptr),
-      m_vertexBuffer  (nullptr),
-      m_indexBuffer   (nullptr),
-      m_inputLayout   (nullptr),
-      m_texWidth      (0),
-      m_texHeight     (0),
-      m_fullscreen    (false),
-      m_windowedRect  {},
-      m_windowedStyle (0)
 {
 }
 

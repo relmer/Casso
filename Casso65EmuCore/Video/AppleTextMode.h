@@ -38,6 +38,6 @@ private:
     static Word RowBaseAddress (int row, Word pageBase);
 
     MemoryBus & m_bus;
-    bool        m_flashOn;
-    uint32_t    m_frameCount;
+    bool        m_flashOn    = true;
+    uint32_t    m_frameCount = 0;
 };

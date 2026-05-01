@@ -16,15 +16,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 WasapiAudio::WasapiAudio ()
-    : m_enumerator      (nullptr),
-      m_device          (nullptr),
-      m_audioClient     (nullptr),
-      m_renderClient    (nullptr),
-      m_bufferFrames    (0),
-      m_sampleRate      (44100),
-      m_samplesPerFrame (735),
-      m_channels        (1),
-      m_initialized     (false)
 {
 }
 

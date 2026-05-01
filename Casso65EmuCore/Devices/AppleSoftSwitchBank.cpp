@@ -13,10 +13,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 AppleSoftSwitchBank::AppleSoftSwitchBank ()
-    : m_graphicsMode (false),
-      m_mixedMode    (false),
-      m_page2        (false),
-      m_hiresMode    (false)
 {
 }
 

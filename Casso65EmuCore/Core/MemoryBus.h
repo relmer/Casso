@@ -51,5 +51,5 @@ private:
     MemoryDevice * FindDevice (Word address) const;
 
     std::vector<BusEntry>   m_entries;
-    Byte                    m_floatingBusValue;
+    Byte                    m_floatingBusValue = 0xFF;
 };

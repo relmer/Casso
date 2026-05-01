@@ -38,5 +38,5 @@ public:
 
 private:
     MemoryBus & m_memoryBus;
-    uint64_t    m_totalCycles;
+    uint64_t    m_totalCycles = 0;
 };

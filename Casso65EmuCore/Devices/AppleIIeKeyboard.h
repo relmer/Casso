@@ -33,6 +33,6 @@ public:
     static std::unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
-    std::atomic<bool> m_openApple;
-    std::atomic<bool> m_closedApple;
+    std::atomic<bool> m_openApple{false};
+    std::atomic<bool> m_closedApple{false};
 };

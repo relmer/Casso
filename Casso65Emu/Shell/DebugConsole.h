@@ -30,7 +30,7 @@ public:
 private:
     static LRESULT CALLBACK WndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-    bool    m_visible;
-    HWND    m_hwnd;
-    HWND    m_editCtrl;
+    bool    m_visible  = false;
+    HWND    m_hwnd     = nullptr;
+    HWND    m_editCtrl = nullptr;
 };

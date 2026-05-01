@@ -13,15 +13,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 LanguageCard::LanguageCard (MemoryBus & bus)
-    : m_bus         (bus),
-      m_ramBank1    (0x1000, 0),
-      m_ramBank2    (0x1000, 0),
-      m_ramMain     (0x2000, 0),
-      m_readRam     (false),
-      m_writeRam    (false),
-      m_preWrite    (false),
-      m_bank2Select (true),
-      m_lastSwitch  (0)
+    : m_bus      (bus),
+      m_ramBank1 (0x1000, 0),
+      m_ramBank2 (0x1000, 0),
+      m_ramMain  (0x2000, 0)
 {
 }
 

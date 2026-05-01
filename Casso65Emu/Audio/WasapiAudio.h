@@ -35,16 +35,16 @@ public:
     UINT32 GetSampleRate () const { return m_sampleRate; }
 
 private:
-    IMMDeviceEnumerator * m_enumerator;
-    IMMDevice *           m_device;
-    IAudioClient *        m_audioClient;
-    IAudioRenderClient *  m_renderClient;
+    IMMDeviceEnumerator * m_enumerator   = nullptr;
+    IMMDevice *           m_device       = nullptr;
+    IAudioClient *        m_audioClient  = nullptr;
+    IAudioRenderClient *  m_renderClient = nullptr;
 
-    UINT32  m_bufferFrames;
-    UINT32  m_sampleRate;
-    UINT32  m_samplesPerFrame;
-    UINT32  m_channels;
-    bool    m_initialized;
+    UINT32  m_bufferFrames    = 0;
+    UINT32  m_sampleRate      = 44100;
+    UINT32  m_samplesPerFrame = 735;
+    UINT32  m_channels        = 1;
+    bool    m_initialized     = false;
 
     // Pending mono samples waiting to be drained into WASAPI
     std::vector<float> m_pendingSamples;

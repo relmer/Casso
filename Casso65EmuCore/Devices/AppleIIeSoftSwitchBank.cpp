@@ -13,10 +13,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 AppleIIeSoftSwitchBank::AppleIIeSoftSwitchBank ()
-    : AppleSoftSwitchBank (),
-      m_80colMode    (false),
-      m_doubleHiRes  (false),
-      m_altCharSet   (false)
+    : AppleSoftSwitchBank ()
 {
 }
 
