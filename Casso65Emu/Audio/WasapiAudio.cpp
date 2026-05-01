@@ -23,6 +23,7 @@ WasapiAudio::WasapiAudio ()
       m_bufferFrames    (0),
       m_sampleRate      (44100),
       m_samplesPerFrame (735),
+      m_channels        (1),
       m_initialized     (false)
 {
 }
@@ -96,6 +97,8 @@ HRESULT WasapiAudio::Initialize ()
 
         REFERENCE_TIME bufferDuration = 330000;  // ~33ms
 
+        m_channels = 1;
+
         hr = m_audioClient->Initialize (
             AUDCLNT_SHAREMODE_SHARED,
             0,
@@ -106,7 +109,9 @@ HRESULT WasapiAudio::Initialize ()
 
         if (hr == AUDCLNT_E_UNSUPPORTED_FORMAT)
         {
-            // Fallback: use mix format directly
+            // Fallback: use mix format directly (typically stereo float32)
+            m_channels = mixFormat->nChannels;
+
             hr = m_audioClient->Initialize (
                 AUDCLNT_SHAREMODE_SHARED,
                 0,
@@ -217,11 +222,10 @@ HRESULT WasapiAudio::SubmitFrame (
             return S_OK;
         }
 
-        // Cap submission to one frame's worth of samples to avoid
-        // stretching a single frame's toggle data across the entire buffer
+        // Cap submission to one frame's worth of samples
         UINT32 toWrite = (available < m_samplesPerFrame) ? available : m_samplesPerFrame;
 
-        // Get buffer
+        // Get buffer — WASAPI frames include all channels
         BYTE * buffer = nullptr;
         hr = m_renderClient->GetBuffer (toWrite, &buffer);
         CHRA (hr);
@@ -229,12 +233,37 @@ HRESULT WasapiAudio::SubmitFrame (
         {
             float * samples = reinterpret_cast<float *> (buffer);
 
-            AudioGenerator::GeneratePCM (
-                toggleTimestamps,
-                totalCyclesThisFrame,
-                currentSpeakerState,
-                samples,
-                toWrite);
+            if (m_channels == 1)
+            {
+                // Mono — write directly
+                AudioGenerator::GeneratePCM (
+                    toggleTimestamps,
+                    totalCyclesThisFrame,
+                    currentSpeakerState,
+                    samples,
+                    toWrite);
+            }
+            else
+            {
+                // Stereo (or more) — generate mono into a temp buffer,
+                // then duplicate to all channels
+                std::vector<float> mono (toWrite);
+
+                AudioGenerator::GeneratePCM (
+                    toggleTimestamps,
+                    totalCyclesThisFrame,
+                    currentSpeakerState,
+                    mono.data (),
+                    toWrite);
+
+                for (UINT32 i = 0; i < toWrite; i++)
+                {
+                    for (UINT32 ch = 0; ch < m_channels; ch++)
+                    {
+                        samples[i * m_channels + ch] = mono[i];
+                    }
+                }
+            }
         }
 
         hr = m_renderClient->ReleaseBuffer (toWrite, 0);

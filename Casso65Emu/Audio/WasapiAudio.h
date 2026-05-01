@@ -41,5 +41,6 @@ private:
     UINT32  m_bufferFrames;
     UINT32  m_sampleRate;
     UINT32  m_samplesPerFrame;
+    UINT32  m_channels;
     bool    m_initialized;
 };
