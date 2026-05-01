@@ -9,6 +9,10 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Fixed
+- **Audio buzz during boot** — WASAPI audio was filling the entire available buffer
+  (up to 33 ms) with one frame's worth of speaker toggle data (16.67 ms), stretching
+  timestamps and creating a sustained buzz; capped audio submission to one frame's
+  worth of samples and pre-filled the initial buffer with silence
 - **Bright green screen (CPU not executing ROM)** — `Cpu::StepOne` and `Cpu::Run`
   fetched opcodes via `memory[PC]` directly, bypassing `EmuCpu::ReadByte` override
   that routes through the MemoryBus; changed to call virtual `ReadByte(PC)` so the

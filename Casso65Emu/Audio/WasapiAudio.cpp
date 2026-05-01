@@ -16,13 +16,14 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 WasapiAudio::WasapiAudio ()
-    : m_enumerator   (nullptr),
-      m_device       (nullptr),
-      m_audioClient  (nullptr),
-      m_renderClient (nullptr),
-      m_bufferFrames (0),
-      m_sampleRate   (44100),
-      m_initialized  (false)
+    : m_enumerator      (nullptr),
+      m_device          (nullptr),
+      m_audioClient     (nullptr),
+      m_renderClient    (nullptr),
+      m_bufferFrames    (0),
+      m_sampleRate      (44100),
+      m_samplesPerFrame (735),
+      m_initialized     (false)
 {
 }
 
@@ -128,6 +129,18 @@ HRESULT WasapiAudio::Initialize ()
         reinterpret_cast<void **> (&m_renderClient));
     CHR (hr);
 
+    // Calculate samples per emulation frame (60 fps)
+    m_samplesPerFrame = m_sampleRate / 60;
+
+    // Pre-fill buffer with silence to avoid initial noise
+    {
+        BYTE * buffer = nullptr;
+        hr = m_renderClient->GetBuffer (m_bufferFrames, &buffer);
+        CHR (hr);
+        hr = m_renderClient->ReleaseBuffer (m_bufferFrames, AUDCLNT_BUFFERFLAGS_SILENT);
+        CHR (hr);
+    }
+
     // Start the audio stream
     hr = m_audioClient->Start ();
     CHR (hr);
@@ -204,9 +217,13 @@ HRESULT WasapiAudio::SubmitFrame (
             return S_OK;
         }
 
+        // Cap submission to one frame's worth of samples to avoid
+        // stretching a single frame's toggle data across the entire buffer
+        UINT32 toWrite = (available < m_samplesPerFrame) ? available : m_samplesPerFrame;
+
         // Get buffer
         BYTE * buffer = nullptr;
-        hr = m_renderClient->GetBuffer (available, &buffer);
+        hr = m_renderClient->GetBuffer (toWrite, &buffer);
         CHR (hr);
 
         {
@@ -217,10 +234,10 @@ HRESULT WasapiAudio::SubmitFrame (
                 totalCyclesThisFrame,
                 currentSpeakerState,
                 samples,
-                available);
+                toWrite);
         }
 
-        hr = m_renderClient->ReleaseBuffer (available, 0);
+        hr = m_renderClient->ReleaseBuffer (toWrite, 0);
         CHR (hr);
     }
 
