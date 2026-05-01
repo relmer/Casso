@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "MenuSystem.h"
-#include "Resources/resource.h"
+#include "resource.h"
 
 
 

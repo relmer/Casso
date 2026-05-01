@@ -3,7 +3,7 @@
 #include "Core/MachineConfig.h"
 #include "Core/PathResolver.h"
 #include "Ehm.h"
-#include "Shell/EmulatorShell.h"
+#include "EmulatorShell.h"
 
 #pragma comment(lib, "ole32.lib")
 

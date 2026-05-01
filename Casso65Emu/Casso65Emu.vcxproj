@@ -219,23 +219,23 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Main.cpp" />
-    <ClCompile Include="Audio\WasapiAudio.cpp" />
-    <ClCompile Include="Shell\D3DRenderer.cpp" />
-    <ClCompile Include="Shell\MenuSystem.cpp" />
-    <ClCompile Include="Shell\EmulatorShell.cpp" />
-    <ClCompile Include="Shell\DebugConsole.cpp" />
+    <ClCompile Include="WasapiAudio.cpp" />
+    <ClCompile Include="D3DRenderer.cpp" />
+    <ClCompile Include="MenuSystem.cpp" />
+    <ClCompile Include="EmulatorShell.cpp" />
+    <ClCompile Include="DebugConsole.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />
-    <ClInclude Include="Shell\D3DRenderer.h" />
-    <ClInclude Include="Shell\MenuSystem.h" />
-    <ClInclude Include="Shell\EmulatorShell.h" />
-    <ClInclude Include="Shell\DebugConsole.h" />
-    <ClInclude Include="Audio\WasapiAudio.h" />
-    <ClInclude Include="Resources\resource.h" />
+    <ClInclude Include="D3DRenderer.h" />
+    <ClInclude Include="MenuSystem.h" />
+    <ClInclude Include="EmulatorShell.h" />
+    <ClInclude Include="DebugConsole.h" />
+    <ClInclude Include="WasapiAudio.h" />
+    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="Resources\Casso65Emu.rc" />
+    <ResourceCompile Include="Casso65Emu.rc" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Casso65Core\Casso65Core.vcxproj">

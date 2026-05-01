@@ -5,11 +5,11 @@
 #include "Core/EmuCpu.h"
 #include "Core/MachineConfig.h"
 #include "Core/ComponentRegistry.h"
-#include "Shell/D3DRenderer.h"
-#include "Shell/MenuSystem.h"
-#include "Shell/DebugConsole.h"
+#include "D3DRenderer.h"
+#include "MenuSystem.h"
+#include "DebugConsole.h"
 #include "Video/VideoOutput.h"
-#include "Audio/WasapiAudio.h"
+#include "WasapiAudio.h"
 
 
 

@@ -2,7 +2,7 @@
 
 #include "EmulatorShell.h"
 #include "Core/PathResolver.h"
-#include "Resources/resource.h"
+#include "resource.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
 #include "Devices/AppleKeyboard.h"
