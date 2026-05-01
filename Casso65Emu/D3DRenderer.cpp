@@ -230,10 +230,8 @@ HRESULT D3DRenderer::InitializeShaders ()
 
     D3D11_INPUT_ELEMENT_DESC layout[] =
     {
-        { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0,
-          D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 8,
-          D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
 
 
@@ -309,21 +307,17 @@ Error:
 
 HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
 {
-    HRESULT                    hr     = S_OK;
-    D3D11_MAPPED_SUBRESOURCE   mapped = {};
-    const uint32_t           * src    = nullptr;
-    Byte                     * dst    = nullptr;
-    UINT                       stride = sizeof (Vertex);
-    UINT                       offset = 0;
-
-    float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-
+    HRESULT                    hr            = S_OK;
+    D3D11_MAPPED_SUBRESOURCE   mapped        = {};
+    const uint32_t           * src           = nullptr;
+    Byte                     * dst           = nullptr;
+    UINT                       stride        = sizeof (Vertex);
+    UINT                       offset        = 0;
+    float                      clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 
 
-    if (m_context == nullptr || m_swapChain == nullptr)
-    {
-        return S_OK;
-    }
+
+    BAIL_OUT_IF (m_context == nullptr || m_swapChain == nullptr, S_OK);
 
     // Upload framebuffer to texture
     if (m_texture != nullptr && framebuffer != nullptr)
@@ -443,15 +437,8 @@ HRESULT D3DRenderer::Resize (int width, int height)
 
 
 
-    if (m_swapChain == nullptr || m_device == nullptr || m_context == nullptr)
-    {
-        return S_OK;
-    }
-
-    if (width <= 0 || height <= 0)
-    {
-        return S_OK;
-    }
+    BAIL_OUT_IF (m_swapChain == nullptr || m_device == nullptr || m_context == nullptr, S_OK);
+    BAIL_OUT_IF (width <= 0 || height <= 0, S_OK);
 
     // Release the old render target view before resizing
     m_context->OMSetRenderTargets (0, nullptr, nullptr);
