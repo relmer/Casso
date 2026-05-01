@@ -10,6 +10,7 @@ BEGIN
     VK_PAUSE,       IDM_MACHINE_PAUSE,      VIRTKEY
     VK_F11,         IDM_MACHINE_STEP,       VIRTKEY
     VK_RETURN,      IDM_VIEW_FULLSCREEN,    VIRTKEY, ALT
+    "0",            IDM_VIEW_RESET_SIZE,    VIRTKEY, CONTROL
     "D",            IDM_HELP_DEBUG,         VIRTKEY, CONTROL
     "1",            IDM_DISK_INSERT1,       VIRTKEY, CONTROL
     "2",            IDM_DISK_INSERT2,       VIRTKEY, CONTROL

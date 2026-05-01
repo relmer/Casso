@@ -93,6 +93,7 @@ HRESULT MenuSystem::CreateMenuBar (HWND hwnd)
     AppendMenu (m_viewMenu, MF_STRING, IDM_VIEW_WHITE, L"&White Monochrome");
     AppendMenu (m_viewMenu, MF_SEPARATOR, 0, nullptr);
     AppendMenu (m_viewMenu, MF_STRING, IDM_VIEW_FULLSCREEN, L"&Fullscreen\tAlt+Enter");
+    AppendMenu (m_viewMenu, MF_STRING, IDM_VIEW_RESET_SIZE, L"Reset &Window Size\tCtrl+0");
     AppendMenu (m_viewMenu, MF_STRING | MF_GRAYED, IDM_VIEW_CRT_SHADER, L"C&RT Shader");
     AppendMenu (m_menuBar, MF_POPUP, reinterpret_cast<UINT_PTR> (m_viewMenu), L"&View");
 

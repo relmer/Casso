@@ -162,10 +162,10 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
         CHR (hr);
     }
 
-    // Point sampler
+    // Bilinear sampler for smooth scaling when window is resized
     {
         D3D11_SAMPLER_DESC sd = {};
-        sd.Filter   = D3D11_FILTER_MIN_MAG_MIP_POINT;
+        sd.Filter   = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
         sd.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
         sd.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
         sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -400,6 +400,70 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
             SWP_FRAMECHANGED);
 
         m_fullscreen = false;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Resize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT D3DRenderer::Resize (int width, int height)
+{
+    HRESULT hr = S_OK;
+
+    if (m_swapChain == nullptr || m_device == nullptr || m_context == nullptr)
+    {
+        return S_OK;
+    }
+
+    if (width <= 0 || height <= 0)
+    {
+        return S_OK;
+    }
+
+    // Release the old render target view before resizing
+    m_context->OMSetRenderTargets (0, nullptr, nullptr);
+
+    if (m_rtv != nullptr)
+    {
+        m_rtv->Release ();
+        m_rtv = nullptr;
+    }
+
+    // Resize the swap chain buffers
+    hr = m_swapChain->ResizeBuffers (0,
+        static_cast<UINT> (width), static_cast<UINT> (height),
+        DXGI_FORMAT_UNKNOWN, 0);
+    CHR (hr);
+
+    // Re-create render target view
+    {
+        ID3D11Texture2D * backBuffer = nullptr;
+        hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
+        CHR (hr);
+        hr = m_device->CreateRenderTargetView (backBuffer, nullptr, &m_rtv);
+        CHR (hr);
+        backBuffer->Release ();
+    }
+
+    m_context->OMSetRenderTargets (1, &m_rtv, nullptr);
+
+    // Update viewport to match new window size
+    {
+        D3D11_VIEWPORT vp = {};
+        vp.Width    = static_cast<float> (width);
+        vp.Height   = static_cast<float> (height);
+        vp.MaxDepth = 1.0f;
+        m_context->RSSetViewports (1, &vp);
     }
 
 Error:

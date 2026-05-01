@@ -21,6 +21,7 @@ public:
     HRESULT Initialize (HWND hwnd, int texWidth, int texHeight);
     HRESULT UploadAndPresent (const uint32_t * framebuffer);
     HRESULT ToggleFullscreen (HWND hwnd);
+    HRESULT Resize (int width, int height);
 
     bool IsFullscreen () const { return m_fullscreen; }
 

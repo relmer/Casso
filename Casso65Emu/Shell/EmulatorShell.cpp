@@ -133,7 +133,7 @@ HRESULT EmulatorShell::Initialize (
     // Calculate window size for desired client area
     {
         RECT rc = { 0, 0, kFramebufferWidth, kFramebufferHeight };
-        DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+        DWORD style = WS_OVERLAPPEDWINDOW;
         AdjustWindowRect (&rc, style, TRUE);  // TRUE = has menu
 
         // Create window
@@ -728,6 +728,17 @@ LRESULT EmulatorShell::WndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             return 0;
         }
 
+        case WM_SIZE:
+        {
+            if (wParam != SIZE_MINIMIZED)
+            {
+                int width  = LOWORD (lParam);
+                int height = HIWORD (lParam);
+                m_d3dRenderer.Resize (width, height);
+            }
+            return 0;
+        }
+
         case WM_DESTROY:
         {
             m_running = false;
@@ -866,6 +877,30 @@ void EmulatorShell::HandleCommand (WORD commandId)
             break;
         }
 
+        case IDM_VIEW_RESET_SIZE:
+        {
+            if (!m_d3dRenderer.IsFullscreen ())
+            {
+                RECT rc = { 0, 0, kFramebufferWidth, kFramebufferHeight };
+                DWORD style = static_cast<DWORD> (GetWindowLong (m_hwnd, GWL_STYLE));
+                AdjustWindowRect (&rc, style, TRUE);
+
+                int w = rc.right - rc.left;
+                int h = rc.bottom - rc.top;
+
+                // Center on the current monitor
+                HMONITOR hMon = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
+                MONITORINFO mi = { sizeof (mi) };
+                GetMonitorInfo (hMon, &mi);
+
+                int x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - w) / 2;
+                int y = mi.rcWork.top  + (mi.rcWork.bottom - mi.rcWork.top - h) / 2;
+
+                SetWindowPos (m_hwnd, nullptr, x, y, w, h, SWP_NOZORDER);
+            }
+            break;
+        }
+
         case IDM_DISK_INSERT1:
         case IDM_DISK_INSERT2:
         {
@@ -953,6 +988,7 @@ void EmulatorShell::HandleCommand (WORD commandId)
                 L"Pause -> Pause/Resume\n"
                 L"F11 -> Step (when paused)\n"
                 L"Alt+Enter -> Fullscreen\n"
+                L"Ctrl+0 -> Reset Window Size\n"
                 L"Ctrl+D -> Debug Console",
                 L"Keyboard Map", MB_ICONINFORMATION | MB_OK);
             break;
