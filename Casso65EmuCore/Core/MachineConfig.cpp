@@ -76,49 +76,47 @@ HRESULT MachineConfigLoader::Load (
 
     // Parse JSON
     hr = JsonParser::Parse (jsonText, root, parseError);
-    CBR_SetError (SUCCEEDED (hr),
-                  outError = format ("JSON parse error at line {}, column {}: {}",
-                                     parseError.line, 
-                                     parseError.column,
-                                     parseError.message));
 
-    // Required: name
-    hr = root.GetString ("name", outConfig.name);
-    CBR_SetError (SUCCEEDED (hr), outError = "Missing or invalid field: 'name'");
+    if (FAILED (hr))
+    {
+        outError = format ("JSON parse error at line {}, column {}: {}",
+                           parseError.line, parseError.column, parseError.message);
+    }
 
-    // Required: cpu
-    hr = root.GetString ("cpu", outConfig.cpu);
-    CBR_SetError (SUCCEEDED (hr), outError = "Missing or invalid field: 'cpu'");
+    CHR (hr);
+
+    // Required fields
+    CHR_SetError (root.GetString ("name", outConfig.name),
+                  outError = "Missing or invalid field: 'name'");
+
+    CHR_SetError (root.GetString ("cpu", outConfig.cpu),
+                  outError = "Missing or invalid field: 'cpu'");
 
     CBR_SetError (outConfig.cpu == "6502",
                   outError = format ("Invalid CPU type: '{}' (expected '6502')", outConfig.cpu));
 
-    // Required: clockSpeed
-    hr = root.GetUint32 ("clockSpeed", outConfig.clockSpeed);
-    CBR_SetError (SUCCEEDED (hr), outError = "Missing or invalid field: 'clockSpeed'");
+    CHR_SetError (root.GetUint32 ("clockSpeed", outConfig.clockSpeed),
+                  outError = "Missing or invalid field: 'clockSpeed'");
 
-    // Required: memory array
-    hr = root.GetArray ("memory", pMemArray);
-    CBR_SetError (SUCCEEDED (hr), outError = "Missing required field: 'memory'");
+    // Required sub-structures
+    CHR_SetError (root.GetArray ("memory", pMemArray),
+                  outError = "Missing required field: 'memory'");
 
     hr = LoadMemoryRegions (*pMemArray, searchPaths, outConfig, outError);
     CHR (hr);
 
-    // Required: devices array
-    hr = root.GetArray ("devices", pDevArray);
-    CBR_SetError (SUCCEEDED (hr), outError = "Missing required field: 'devices'");
+    CHR_SetError (root.GetArray ("devices", pDevArray),
+                  outError = "Missing required field: 'devices'");
 
     hr = LoadDevices (*pDevArray, outConfig, outError);
     CHR (hr);
 
-    // Required: video object
-    hr = root.GetObject ("video", pVideo);
-    CBR_SetError (SUCCEEDED (hr), outError = "Missing required field: 'video'");
+    CHR_SetError (root.GetObject ("video", pVideo),
+                  outError = "Missing required field: 'video'");
     LoadVideoConfig (*pVideo, outConfig);
 
-    // Required: keyboard object
-    hr = root.GetObject ("keyboard", pKeyboard);
-    CBR_SetError (SUCCEEDED (hr), outError = "Missing required field: 'keyboard'");
+    CHR_SetError (root.GetObject ("keyboard", pKeyboard),
+                  outError = "Missing required field: 'keyboard'");
     LoadKeyboardConfig (*pKeyboard, outConfig);
 
 Error:

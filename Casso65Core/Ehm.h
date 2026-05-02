@@ -348,6 +348,16 @@ void EhmBreakpoint         (void);
     }                                                                                       \
 }
 
+#define CHR_SetError(__arg_hrTest, __arg_onFailure)                                          \
+{                                                                                           \
+    hr = (__arg_hrTest);                                                                    \
+    if (FAILED (hr))                                                                        \
+    {                                                                                       \
+        __arg_onFailure;                                                                    \
+        goto ErrorLabel;                                                                    \
+    }                                                                                       \
+}
+
 
 
 //
