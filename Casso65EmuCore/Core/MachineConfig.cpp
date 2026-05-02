@@ -82,9 +82,6 @@ HRESULT MachineConfigLoader::Load (
                                      parseError.column,
                                      parseError.message));
 
-    CBR_SetError (root.IsObject (),
-                  outError = "Machine config must be a JSON object");
-
     // Required: name
     hr = root.GetString ("name", outConfig.name);
     CBR_SetError (SUCCEEDED (hr), outError = "Missing or invalid field: 'name'");
