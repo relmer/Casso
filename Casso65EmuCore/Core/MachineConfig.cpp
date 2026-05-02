@@ -153,16 +153,17 @@ HRESULT MachineConfigLoader::LoadMemoryRegions (
 
         CBR (entry.IsObject());
 
-        hr = entry.GetString ("type", region.type);
-        CBRF (SUCCEEDED (hr), outError = format ("memory[{}]: missing 'type' field", i));
+        CHRF (entry.GetString ("type", region.type),
+              outError = format ("memory[{}]: missing 'type' field", i));
 
-        hr = entry.GetString ("start", addrStr);
-        CBRF (SUCCEEDED (hr), outError = format ("memory[{}]: missing 'start' field", i));
+        CHRF (entry.GetString ("start", addrStr),
+              outError = format ("memory[{}]: missing 'start' field", i));
+        
         hr = ParseHexAddress (addrStr, region.start, outError);
         CHR (hr);
 
-        hr = entry.GetString ("end", addrStr);
-        CBRF (SUCCEEDED (hr), outError = format ("memory[{}]: missing 'end' field", i));
+        CHRF (entry.GetString ("end", addrStr),
+              outError = format ("memory[{}]: missing 'end' field", i));
         hr = ParseHexAddress (addrStr, region.end, outError);
         CHR (hr);
 
@@ -224,8 +225,8 @@ HRESULT MachineConfigLoader::LoadDevices (
 
         CBR (entry.IsObject());
 
-        hr = entry.GetString ("type", device.type);
-        CBRF (SUCCEEDED (hr), outError = format ("devices[{}]: missing 'type' field", i));
+        CHRF (entry.GetString ("type", device.type),
+              outError = format ("devices[{}]: missing 'type' field", i));
 
         if (SUCCEEDED (entry.GetString ("address", addrStr)))
         {
@@ -242,8 +243,8 @@ HRESULT MachineConfigLoader::LoadDevices (
             hr = ParseHexAddress (addrStr, device.start, outError);
             CHR (hr);
 
-            hr = entry.GetString ("end", addrStr);
-            CBRF (SUCCEEDED (hr), outError = format ("devices[{}]: missing 'end' field", i));
+            CHRF (entry.GetString ("end", addrStr),
+                  outError = format ("devices[{}]: missing 'end' field", i));
             hr = ParseHexAddress (addrStr, device.end, outError);
             CHR (hr);
 
