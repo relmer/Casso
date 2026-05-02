@@ -2,6 +2,7 @@
 
 #include "WasapiAudio.h"
 #include "Audio/AudioGenerator.h"
+#include "Core/MachineConfig.h"
 
 #pragma comment(lib, "ole32.lib")
 
@@ -118,8 +119,9 @@ HRESULT WasapiAudio::Initialize ()
     hr = m_audioClient->GetService (IID_PPV_ARGS (&m_renderClient));
     CHRA (hr);
 
-    // Calculate samples per emulation frame (60 fps)
-    m_samplesPerFrame = m_sampleRate / 60;
+    // Calculate samples per emulation frame:
+    // sampleRate * cyclesPerFrame / clockSpeed = exact samples per frame
+    m_samplesPerFrame = m_sampleRate * kAppleCyclesPerFrame / kAppleCpuClock;
 
     // Pre-fill buffer with silence to avoid initial noise
     hr = m_renderClient->GetBuffer (m_bufferFrames, &buffer);

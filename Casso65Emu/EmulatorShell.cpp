@@ -35,6 +35,7 @@ static constexpr LPCWSTR kWindowClass      = L"Casso65EmuWindow";
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell
@@ -78,19 +79,18 @@ EmulatorShell::~EmulatorShell()
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT EmulatorShell::Initialize (
-    HINSTANCE hInstance,
+    HINSTANCE             hInstance,
     const MachineConfig & config,
-    const string & disk1Path,
-    const string & disk2Path)
+    const string        & disk1Path,
+    const string        & disk2Path)
 {
-    HRESULT hr = S_OK;
-
+    HRESULT hr     = S_OK;
     size_t  fbSize = 0;
 
 
 
     m_config         = config;
-    m_cyclesPerFrame = config.clockSpeed / 60;
+    m_cyclesPerFrame = config.cyclesPerFrame;
 
     // Register built-in device factories
     ComponentRegistry::RegisterBuiltinDevices (m_registry);

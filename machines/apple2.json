@@ -1,7 +1,7 @@
 {
     "name": "Apple II",
     "cpu": "6502",
-    "clockSpeed": 1023000,
+    "clockSpeed": 1022727,
     "memory": [
         {
             "type": "ram",

@@ -38,24 +38,13 @@ struct MemoryRegion
 struct DeviceConfig
 {
     string type;
-    Word        address;    // For point-mapped devices
-    Word        start;      // For range-mapped devices
-    Word        end;        // For range-mapped devices
-    int         slot;       // 1-7 for slot-based devices
-    bool        hasAddress;
-    bool        hasRange;
-    bool        hasSlot;
-
-    DeviceConfig ()
-        : address    (0),
-          start      (0),
-          end        (0),
-          slot       (0),
-          hasAddress (false),
-          hasRange   (false),
-          hasSlot    (false)
-    {
-    }
+    Word   address    = 0;
+    Word   start      = 0;
+    Word   end        = 0;
+    int    slot       = 0;
+    bool   hasAddress = false;
+    bool   hasRange   = false;
+    bool   hasSlot    = false;
 };
 
 
@@ -71,14 +60,8 @@ struct DeviceConfig
 struct VideoConfig
 {
     vector<string> modes;
-    int width;
-    int height;
-
-    VideoConfig ()
-        : width  (560),
-          height (384)
-    {
-    }
+    int            width  = 560;
+    int            height = 384;
 };
 
 
@@ -91,20 +74,23 @@ struct VideoConfig
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+// Apple II NTSC timing derived from the 14.31818 MHz crystal:
+//   CPU clock  = 14,318,180 / 14        = 1,022,727 Hz
+//   Cycles/frame = 65 cycles/line * 262 lines = 17,030
+//   Frame rate = 1,022,727 / 17,030     = 60.05 Hz
+static constexpr uint32_t kAppleCpuClock      = 1022727;
+static constexpr uint32_t kAppleCyclesPerFrame = 17030;
+
 struct MachineConfig
 {
     string                 name;
     string                 cpu;
-    uint32_t                    clockSpeed;
+    uint32_t               clockSpeed     = kAppleCpuClock;
+    uint32_t               cyclesPerFrame = kAppleCyclesPerFrame;
     vector<MemoryRegion>   memoryRegions;
     vector<DeviceConfig>   devices;
-    VideoConfig                 videoConfig;
+    VideoConfig            videoConfig;
     string                 keyboardType;
-
-    MachineConfig ()
-        : clockSpeed (1023000)
-    {
-    }
 };
 
 
