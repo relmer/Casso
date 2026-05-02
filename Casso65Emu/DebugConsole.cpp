@@ -42,8 +42,10 @@ DebugConsole::~DebugConsole ()
 
 LRESULT DebugConsole::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
 {
-    HRESULT hr    = S_OK;
-    HFONT   hFont = nullptr;
+    HRESULT hr       = S_OK;
+    UINT    dpi      = GetDpiForWindow (hwnd);
+    int     fontSize = MulDiv (16, dpi, 96);
+    HFONT   hFont    = nullptr;
 
 
 
@@ -58,7 +60,7 @@ LRESULT DebugConsole::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
                                  nullptr);
     CWRA (m_editCtrl);
 
-    hFont = CreateFont (14, 0,
+    hFont = CreateFont (fontSize, 0,
                         0, 0,
                         FW_NORMAL,
                         FALSE,
