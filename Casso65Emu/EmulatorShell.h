@@ -73,6 +73,13 @@ private:
     bool    OnKeyUp   (WPARAM vk, LPARAM lParam) override;
     bool    OnSize    (HWND hwnd, UINT width, UINT height) override;
 
+    // Command group handlers
+    void OnFileCommand    (int id);
+    void OnMachineCommand (int id);
+    void OnViewCommand    (int id);
+    void OnDiskCommand    (int id);
+    void OnHelpCommand    (int id);
+
     // CPU thread entry point and helpers
     void CpuThreadProc     ();
     void RunOneFrame       ();

@@ -811,6 +811,11 @@ void EmulatorShell::RunOneFrame ()
 
 
 ////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 //
 //  OnCommand
 //
@@ -820,10 +825,20 @@ bool EmulatorShell::OnCommand (HWND hwnd, int id)
 {
     UNREFERENCED_PARAMETER (hwnd);
 
-    HandleCommand (static_cast<WORD> (id));
+    if (id >= IDM_FILE_OPEN && id <= IDM_FILE_EXIT)          { OnFileCommand (id); }
+    else if (id >= IDM_MACHINE_RESET && id <= IDM_MACHINE_INFO) { OnMachineCommand (id); }
+    else if (id >= IDM_DISK_INSERT1 && id <= IDM_DISK_WRITEPROTECT2) { OnDiskCommand (id); }
+    else if (id >= IDM_VIEW_COLOR && id <= IDM_VIEW_RESET_SIZE) { OnViewCommand (id); }
+    else if (id >= IDM_HELP_KEYMAP && id <= IDM_HELP_ABOUT)  { OnHelpCommand (id); }
+
     return false;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 
 
 
@@ -882,26 +897,25 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
     m_keyboard->SetKeyDown (true);
 
-    // Handle special keys that don't generate WM_CHAR
     switch (vk)
     {
         case VK_LEFT:
-            m_keyboard->KeyPress (0x08);    // Backspace
+            m_keyboard->KeyPress (0x08);
             break;
         case VK_RIGHT:
-            m_keyboard->KeyPress (0x15);    // Forward
+            m_keyboard->KeyPress (0x15);
             break;
         case VK_UP:
-            m_keyboard->KeyPress (0x0B);    // Up
+            m_keyboard->KeyPress (0x0B);
             break;
         case VK_DOWN:
-            m_keyboard->KeyPress (0x0A);    // Down
+            m_keyboard->KeyPress (0x0A);
             break;
         case VK_ESCAPE:
-            m_keyboard->KeyPress (0x1B);    // Escape
+            m_keyboard->KeyPress (0x1B);
             break;
         case VK_DELETE:
-            m_keyboard->KeyPress (0x7F);    // Delete
+            m_keyboard->KeyPress (0x7F);
             break;
         default:
             break;
@@ -952,7 +966,6 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
         return false;
     }
 
-    // WM_CHAR provides the ASCII character including Ctrl+key combos
     if (ch >= 1 && ch <= 127)
     {
         m_keyboard->KeyPress (static_cast<Byte> (ch));
@@ -978,20 +991,14 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
     m_d3dRenderer.Resize (static_cast<int> (width), static_cast<int> (height));
     return false;
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
 //
-//  HandleCommand
+//  OnFileCommand
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::HandleCommand (WORD commandId)
+void EmulatorShell::OnFileCommand (int id)
 {
-    switch (commandId)
+    switch (id)
     {
         case IDM_FILE_OPEN:
         {
@@ -1004,18 +1011,35 @@ void EmulatorShell::HandleCommand (WORD commandId)
             DestroyWindow (m_hwnd);
             break;
         }
+    }
+}
 
-        // CPU-touching commands are deferred to the CPU thread
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMachineCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnMachineCommand (int id)
+{
+    bool paused = false;
+
+    switch (id)
+    {
         case IDM_MACHINE_RESET:
         case IDM_MACHINE_POWERCYCLE:
         {
-            PostCommand (commandId);
+            PostCommand (static_cast<WORD> (id));
             break;
         }
 
         case IDM_MACHINE_PAUSE:
         {
-            bool paused = !m_paused.load (memory_order_acquire);
+            paused = !m_paused.load (memory_order_acquire);
             m_paused.store (paused, memory_order_release);
             m_menuSystem.SetPaused (paused);
             UpdateWindowTitle ();
@@ -1026,7 +1050,7 @@ void EmulatorShell::HandleCommand (WORD commandId)
         {
             if (m_paused.load (memory_order_acquire))
             {
-                PostCommand (commandId);
+                PostCommand (static_cast<WORD> (id));
             }
             break;
         }
@@ -1052,6 +1076,51 @@ void EmulatorShell::HandleCommand (WORD commandId)
             break;
         }
 
+        case IDM_MACHINE_INFO:
+        {
+            wstring info = format (
+                L"Machine: {}\n"
+                L"CPU: {}\n"
+                L"Clock Speed: {} Hz\n"
+                L"Memory Regions: {}\n"
+                L"Devices: {}",
+                wstring (m_config.name.begin (), m_config.name.end ()),
+                wstring (m_config.cpu.begin (), m_config.cpu.end ()),
+                m_config.clockSpeed,
+                m_config.memoryRegions.size (),
+                m_config.devices.size ());
+
+            MessageBoxW (m_hwnd, info.c_str (), L"Machine Info", MB_ICONINFORMATION | MB_OK);
+            break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnViewCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnViewCommand (int id)
+{
+    UINT        dpi   = 0;
+    int         scale = 0;
+    RECT        rc    = {};
+    DWORD       style = 0;
+    HMONITOR    hMon  = nullptr;
+    MONITORINFO mi    = { sizeof (mi) };
+    int         w     = 0;
+    int         h     = 0;
+    int         x     = 0;
+    int         y     = 0;
+
+    switch (id)
+    {
         case IDM_VIEW_COLOR:
         {
             m_colorMode.store (ColorMode::Color, memory_order_release);
@@ -1090,51 +1159,66 @@ void EmulatorShell::HandleCommand (WORD commandId)
         {
             if (!m_d3dRenderer.IsFullscreen ())
             {
-                UINT dpi = GetDpiForWindow (m_hwnd);
-                int scale = (dpi + 48) / 96;
+                dpi   = GetDpiForWindow (m_hwnd);
+                scale = (dpi + 48) / 96;
 
                 if (scale < 1)
                 {
                     scale = 1;
                 }
 
-                RECT rc = { 0, 0, kFramebufferWidth * scale, kFramebufferHeight * scale };
-                DWORD style = static_cast<DWORD> (GetWindowLong (m_hwnd, GWL_STYLE));
+                rc    = { 0, 0, kFramebufferWidth * scale, kFramebufferHeight * scale };
+                style = static_cast<DWORD> (GetWindowLong (m_hwnd, GWL_STYLE));
                 AdjustWindowRect (&rc, style, TRUE);
 
-                int w = rc.right - rc.left;
-                int h = rc.bottom - rc.top;
+                w = rc.right - rc.left;
+                h = rc.bottom - rc.top;
 
-                HMONITOR hMon = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
-                MONITORINFO mi = { sizeof (mi) };
+                hMon = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
                 GetMonitorInfo (hMon, &mi);
 
-                int x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - w) / 2;
-                int y = mi.rcWork.top  + (mi.rcWork.bottom - mi.rcWork.top - h) / 2;
+                x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - w) / 2;
+                y = mi.rcWork.top  + (mi.rcWork.bottom - mi.rcWork.top - h) / 2;
 
                 SetWindowPos (m_hwnd, nullptr, x, y, w, h, SWP_NOZORDER);
             }
             break;
         }
+    }
+}
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDiskCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnDiskCommand (int id)
+{
+    WCHAR           filePath[MAX_PATH] = {};
+    OPENFILENAMEW   ofn                = {};
+
+    switch (id)
+    {
         case IDM_DISK_INSERT1:
         case IDM_DISK_INSERT2:
         {
-            WCHAR filePath[MAX_PATH] = {};
-            OPENFILENAMEW ofn = {};
             ofn.lStructSize = sizeof (ofn);
             ofn.hwndOwner   = m_hwnd;
             ofn.lpstrFilter = L"Disk Images (*.dsk)\0*.dsk\0All Files (*.*)\0*.*\0";
             ofn.lpstrFile   = filePath;
             ofn.nMaxFile    = MAX_PATH;
-            ofn.lpstrTitle  = (commandId == IDM_DISK_INSERT1) ?
+            ofn.lpstrTitle  = (id == IDM_DISK_INSERT1) ?
                 L"Insert Disk in Drive 1" : L"Insert Disk in Drive 2";
             ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
 
             if (GetOpenFileNameW (&ofn))
             {
-                string narrowPath = fs::path (filePath).string ();
-                PostCommand (commandId, narrowPath);
+                PostCommand (static_cast<WORD> (id), fs::path (filePath).string ());
             }
             break;
         }
@@ -1142,10 +1226,26 @@ void EmulatorShell::HandleCommand (WORD commandId)
         case IDM_DISK_EJECT1:
         case IDM_DISK_EJECT2:
         {
-            PostCommand (commandId);
+            PostCommand (static_cast<WORD> (id));
             break;
         }
+    }
+}
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnHelpCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnHelpCommand (int id)
+{
+    switch (id)
+    {
         case IDM_HELP_DEBUG:
         {
             if (m_debugConsole.IsVisible ())
@@ -1199,27 +1299,6 @@ void EmulatorShell::HandleCommand (WORD commandId)
                 L"About Casso65", MB_ICONINFORMATION | MB_OK);
             break;
         }
-
-        case IDM_MACHINE_INFO:
-        {
-            wstring info = format (
-                L"Machine: {}\n"
-                L"CPU: {}\n"
-                L"Clock Speed: {} Hz\n"
-                L"Memory Regions: {}\n"
-                L"Devices: {}",
-                wstring (m_config.name.begin (), m_config.name.end ()),
-                wstring (m_config.cpu.begin (), m_config.cpu.end ()),
-                m_config.clockSpeed,
-                m_config.memoryRegions.size (),
-                m_config.devices.size ());
-
-            MessageBoxW (m_hwnd, info.c_str (), L"Machine Info", MB_ICONINFORMATION | MB_OK);
-            break;
-        }
-
-        default:
-            break;
     }
 }
 ////////////////////////////////////////////////////////////////////////////////
