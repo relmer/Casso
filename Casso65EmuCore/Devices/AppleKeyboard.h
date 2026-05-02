@@ -11,6 +11,25 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Apple II key codes
+//
+//  The Apple II keyboard maps special keys to ASCII control characters.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr Byte kAppleKeyLeft    = 0x08;   // Backspace / cursor left
+static constexpr Byte kAppleKeyRight   = 0x15;   // NAK / cursor right
+static constexpr Byte kAppleKeyUp      = 0x0B;   // VT / cursor up
+static constexpr Byte kAppleKeyDown    = 0x0A;   // LF / cursor down
+static constexpr Byte kAppleKeyEscape  = 0x1B;   // Escape
+static constexpr Byte kAppleKeyDelete  = 0x7F;   // Delete
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleKeyboard
 //
 //  Apple II/II+ uppercase-only keyboard mapped at $C000/$C010.

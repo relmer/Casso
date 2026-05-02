@@ -793,12 +793,15 @@ void EmulatorShell::RunOneFrame ()
                 case ColorMode::GreenMono:
                     pixel = (0xFF << 24) | (0 << 16) | (lum << 8) | 0;
                     break;
+
                 case ColorMode::AmberMono:
                     pixel = (0xFF << 24) | (0 << 16) | (static_cast<Byte> (lum * 0.75f) << 8) | lum;
                     break;
+
                 case ColorMode::WhiteMono:
                     pixel = (0xFF << 24) | (lum << 16) | (lum << 8) | lum;
                     break;
+
                 default:
                     break;
             }
@@ -825,11 +828,11 @@ bool EmulatorShell::OnCommand (HWND hwnd, int id)
 {
     UNREFERENCED_PARAMETER (hwnd);
 
-    if (id >= IDM_FILE_OPEN && id <= IDM_FILE_EXIT)          { OnFileCommand (id); }
-    else if (id >= IDM_MACHINE_RESET && id <= IDM_MACHINE_INFO) { OnMachineCommand (id); }
-    else if (id >= IDM_DISK_INSERT1 && id <= IDM_DISK_WRITEPROTECT2) { OnDiskCommand (id); }
-    else if (id >= IDM_VIEW_COLOR && id <= IDM_VIEW_RESET_SIZE) { OnViewCommand (id); }
-    else if (id >= IDM_HELP_KEYMAP && id <= IDM_HELP_ABOUT)  { OnHelpCommand (id); }
+    if      (id >= IDM_FILE_OPEN     && id <= IDM_FILE_EXIT)          { OnFileCommand (id); }
+    else if (id >= IDM_MACHINE_RESET && id <= IDM_MACHINE_INFO)       { OnMachineCommand (id); }
+    else if (id >= IDM_DISK_INSERT1  && id <= IDM_DISK_WRITEPROTECT2) { OnDiskCommand (id); }
+    else if (id >= IDM_VIEW_COLOR    && id <= IDM_VIEW_RESET_SIZE)    { OnViewCommand (id); }
+    else if (id >= IDM_HELP_KEYMAP   && id <= IDM_HELP_ABOUT)         { OnHelpCommand (id); }
 
     return false;
 }
@@ -900,23 +903,29 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     switch (vk)
     {
         case VK_LEFT:
-            m_keyboard->KeyPress (0x08);
+            m_keyboard->KeyPress (kAppleKeyLeft);
             break;
+            
         case VK_RIGHT:
-            m_keyboard->KeyPress (0x15);
+            m_keyboard->KeyPress (kAppleKeyRight);
             break;
+
         case VK_UP:
-            m_keyboard->KeyPress (0x0B);
+            m_keyboard->KeyPress (kAppleKeyUp);
             break;
+
         case VK_DOWN:
-            m_keyboard->KeyPress (0x0A);
+            m_keyboard->KeyPress (kAppleKeyDown);
             break;
+            
         case VK_ESCAPE:
-            m_keyboard->KeyPress (0x1B);
+            m_keyboard->KeyPress (kAppleKeyEscape);
             break;
+
         case VK_DELETE:
-            m_keyboard->KeyPress (0x7F);
+            m_keyboard->KeyPress (kAppleKeyDelete);
             break;
+
         default:
             break;
     }
