@@ -358,7 +358,7 @@ HRESULT JsonParser::Parse (const string & input, JsonValue & outValue, JsonParse
 
     parser.SkipWhitespace ();
 
-    CBR_SetError (parser.AtEnd (), parser.SetError ("Unexpected content after JSON value"));
+    CBRF (parser.AtEnd (), parser.SetError ("Unexpected content after JSON value"));
 
 Error:
     if (FAILED (hr))
@@ -432,7 +432,7 @@ HRESULT JsonParser::ParseValue (JsonValue & outValue)
         }
         else
         {
-            CBR_SetError (false, SetError (format ("Unexpected character '{}'", ch)));
+            CBRF (false, SetError (format ("Unexpected character '{}'", ch)));
         }
     }
 
@@ -503,7 +503,7 @@ HRESULT JsonParser::ParseString (string & outStr)
                 }
                 default:
                 {
-                    CBR_SetError (false, SetError (format ("Invalid escape sequence '\\{}'", esc)));
+                    CBRF (false, SetError (format ("Invalid escape sequence '\\{}'", esc)));
                 }
             }
         }
@@ -513,7 +513,7 @@ HRESULT JsonParser::ParseString (string & outStr)
         }
     }
 
-    CBR_SetError (false, SetError ("Unterminated string"));
+    CBRF (false, SetError ("Unterminated string"));
 
 Error:
     return hr;
@@ -631,7 +631,7 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
             SkipWhitespace ();
             CBR (!AtEnd ());
 
-            CBR_SetError (Peek () == '"', SetError ("Expected string key in object"));
+            CBRF (Peek () == '"', SetError ("Expected string key in object"));
 
             string key;
             hr = ParseString (key);
@@ -656,7 +656,7 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
                 break;
             }
 
-            CBR_SetError (Peek () == ',', SetError ("Expected ',' or '}' in object"));
+            CBRF (Peek () == ',', SetError ("Expected ',' or '}' in object"));
 
             Advance ();
         }
@@ -714,7 +714,7 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
                 break;
             }
 
-            CBR_SetError (Peek () == ',', SetError ("Expected ',' or ']' in array"));
+            CBRF (Peek () == ',', SetError ("Expected ',' or ']' in array"));
 
             Advance ();
         }
@@ -746,7 +746,7 @@ HRESULT JsonParser::ParseKeyword (const char * keyword, JsonValue & outValue)
 
     for (size_t i = 0; i < len; i++)
     {
-        CBR_SetError (!AtEnd () && Peek () == keyword[i], SetError (format ("Expected '{}'", keyword)));
+        CBRF (!AtEnd () && Peek () == keyword[i], SetError (format ("Expected '{}'", keyword)));
 
         Advance ();
     }

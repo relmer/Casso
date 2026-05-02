@@ -33,13 +33,13 @@ HRESULT MachineConfigLoader::ParseHexAddress (const string & str, Word & outAddr
     }
     else
     {
-        CBR_SetError (false, outError = format ("Invalid address format: '{}' (expected 0xNNNN or $NNNN)", str));
+        CBRF (false, outError = format ("Invalid address format: '{}' (expected 0xNNNN or $NNNN)", str));
     }
 
     val = strtoul (pszHex, &pEnd, 16);
 
-    CBR_SetError (pEnd != pszHex && *pEnd == '\0', outError = format ("Invalid hex digits in address: '{}'",    str));
-    CBR_SetError (val <= 0xFFFF,                   outError = format ("Address out of range: '{}' (max $FFFF)", str));
+    CBRF (pEnd != pszHex && *pEnd == '\0', outError = format ("Invalid hex digits in address: '{}'",    str));
+    CBRF (val <= 0xFFFF,                   outError = format ("Address out of range: '{}' (max $FFFF)", str));
 
     outAddr = static_cast<Word> (val);
 
@@ -86,36 +86,36 @@ HRESULT MachineConfigLoader::Load (
     CHR (hr);
 
     // Required fields
-    CHR_SetError (root.GetString ("name", outConfig.name),
+    CHRF (root.GetString ("name", outConfig.name),
                   outError = "Missing or invalid field: 'name'");
 
-    CHR_SetError (root.GetString ("cpu", outConfig.cpu),
+    CHRF (root.GetString ("cpu", outConfig.cpu),
                   outError = "Missing or invalid field: 'cpu'");
 
-    CBR_SetError (outConfig.cpu == "6502",
+    CBRF (outConfig.cpu == "6502",
                   outError = format ("Invalid CPU type: '{}' (expected '6502')", outConfig.cpu));
 
-    CHR_SetError (root.GetUint32 ("clockSpeed", outConfig.clockSpeed),
+    CHRF (root.GetUint32 ("clockSpeed", outConfig.clockSpeed),
                   outError = "Missing or invalid field: 'clockSpeed'");
 
     // Required sub-structures
-    CHR_SetError (root.GetArray ("memory", pMemArray),
+    CHRF (root.GetArray ("memory", pMemArray),
                   outError = "Missing required field: 'memory'");
 
     hr = LoadMemoryRegions (*pMemArray, searchPaths, outConfig, outError);
     CHR (hr);
 
-    CHR_SetError (root.GetArray ("devices", pDevArray),
+    CHRF (root.GetArray ("devices", pDevArray),
                   outError = "Missing required field: 'devices'");
 
     hr = LoadDevices (*pDevArray, outConfig, outError);
     CHR (hr);
 
-    CHR_SetError (root.GetObject ("video", pVideo),
+    CHRF (root.GetObject ("video", pVideo),
                   outError = "Missing required field: 'video'");
     LoadVideoConfig (*pVideo, outConfig);
 
-    CHR_SetError (root.GetObject ("keyboard", pKeyboard),
+    CHRF (root.GetObject ("keyboard", pKeyboard),
                   outError = "Missing required field: 'keyboard'");
     LoadKeyboardConfig (*pKeyboard, outConfig);
 
@@ -154,19 +154,19 @@ HRESULT MachineConfigLoader::LoadMemoryRegions (
         CBR (entry.IsObject());
 
         hr = entry.GetString ("type", region.type);
-        CBR_SetError (SUCCEEDED (hr), outError = format ("memory[{}]: missing 'type' field", i));
+        CBRF (SUCCEEDED (hr), outError = format ("memory[{}]: missing 'type' field", i));
 
         hr = entry.GetString ("start", addrStr);
-        CBR_SetError (SUCCEEDED (hr), outError = format ("memory[{}]: missing 'start' field", i));
+        CBRF (SUCCEEDED (hr), outError = format ("memory[{}]: missing 'start' field", i));
         hr = ParseHexAddress (addrStr, region.start, outError);
         CHR (hr);
 
         hr = entry.GetString ("end", addrStr);
-        CBR_SetError (SUCCEEDED (hr), outError = format ("memory[{}]: missing 'end' field", i));
+        CBRF (SUCCEEDED (hr), outError = format ("memory[{}]: missing 'end' field", i));
         hr = ParseHexAddress (addrStr, region.end, outError);
         CHR (hr);
 
-        CBR_SetError (region.end >= region.start,
+        CBRF (region.end >= region.start,
                       outError = format ("memory[{}]: end (0x{:04X}) < start (0x{:04X})",
                                          i, region.end, region.start));
 
@@ -174,7 +174,7 @@ HRESULT MachineConfigLoader::LoadMemoryRegions (
         entry.GetString ("bank", region.bank);
         entry.GetString ("target", region.target);
 
-        CBR_SetError (!(region.type == "rom" && region.file.empty() && region.target.empty()),
+        CBRF (!(region.type == "rom" && region.file.empty() && region.target.empty()),
                       outError = format ("memory[{}]: ROM region requires 'file' field", i));
 
         if (!region.file.empty())
@@ -182,7 +182,7 @@ HRESULT MachineConfigLoader::LoadMemoryRegions (
             romRelPath = fs::path ("roms") / region.file;
             found      = PathResolver::FindFile (searchPaths, romRelPath);
 
-            CBR_SetError (!found.empty(),
+            CBRF (!found.empty(),
                           outError = format ("ROM file not found: roms/{}. "
                                             "Run scripts/FetchRoms.ps1 to download ROM images.",
                                             region.file));
@@ -225,7 +225,7 @@ HRESULT MachineConfigLoader::LoadDevices (
         CBR (entry.IsObject());
 
         hr = entry.GetString ("type", device.type);
-        CBR_SetError (SUCCEEDED (hr), outError = format ("devices[{}]: missing 'type' field", i));
+        CBRF (SUCCEEDED (hr), outError = format ("devices[{}]: missing 'type' field", i));
 
         if (SUCCEEDED (entry.GetString ("address", addrStr)))
         {
@@ -243,7 +243,7 @@ HRESULT MachineConfigLoader::LoadDevices (
             CHR (hr);
 
             hr = entry.GetString ("end", addrStr);
-            CBR_SetError (SUCCEEDED (hr), outError = format ("devices[{}]: missing 'end' field", i));
+            CBRF (SUCCEEDED (hr), outError = format ("devices[{}]: missing 'end' field", i));
             hr = ParseHexAddress (addrStr, device.end, outError);
             CHR (hr);
 
@@ -254,7 +254,7 @@ HRESULT MachineConfigLoader::LoadDevices (
         {
             device.hasSlot = true;
 
-            CBR_SetError (device.slot >= 1 && device.slot <= 7,
+            CBRF (device.slot >= 1 && device.slot <= 7,
                           outError = format ("devices[{}]: slot must be 1-7, got {}",
                                             i, device.slot));
 

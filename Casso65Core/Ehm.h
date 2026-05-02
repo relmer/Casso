@@ -131,59 +131,29 @@ void EhmBreakpoint         (void);
 
 
 //
-// Core helper macros
+// Core base implementation — all EHM macros route through this
+//
+// fFailed:    condition already evaluated to true = failure
+// fAssert:    if true, ASSERT on failure (debug builds only)
+// hrDefault:  HRESULT to set if fReplaceHr is false
+// fReplaceHr: if true, use hrReplace instead of hrDefault
+// hrReplace:  replacement HRESULT (only used when fReplaceHr is true)
+// onFailure:  expression to execute on failure (e.g., set error string)
 //
 
-#define __CHRAExHelper(__arg_hrTest, __arg_fAssert, __arg_fReplaceHr, __arg_hrReplaceHr)    \
-{                                                                                           \
-    HRESULT __hr = __arg_hrTest;                                                            \
-                                                                                            \
-    if (FAILED (__hr))                                                                      \
-    {                                                                                       \
-        if (__arg_fAssert)                                                                  \
-        {                                                                                   \
-            ASSERT (false);                                                                 \
-        }                                                                                   \
-                                                                                            \
-        if (__arg_fReplaceHr)                                                               \
-        {                                                                                   \
-            hr = __arg_hrReplaceHr;                                                         \
-        }                                                                                   \
-        else                                                                                \
-        {                                                                                   \
-            hr = __hr;                                                                      \
-        }                                                                                   \
-                                                                                            \
-        goto ErrorLabel;                                                                    \
-    }                                                                                       \
-}
+#define __EHM_NO_ACTION     ((void) 0)
 
-#define __CBRAExHelper(__arg_brTest, __arg_fAssert, __arg_hrReplaceHr)                      \
+#define __EHM_Base(__fFailed, __fAssert, __hrDefault, __fReplaceHr, __hrReplace, __onFailure) \
 {                                                                                           \
-    if (!(__arg_brTest))                                                                    \
+    if (__fFailed)                                                                          \
     {                                                                                       \
-        if (__arg_fAssert)                                                                  \
+        if (__fAssert)                                                                      \
         {                                                                                   \
             ASSERT (false);                                                                 \
         }                                                                                   \
                                                                                             \
-        hr = __arg_hrReplaceHr;                                                             \
-                                                                                            \
-        goto ErrorLabel;                                                                    \
-    }                                                                                       \
-}
-
-#define __CPRAExHelper(__arg_prTest, __arg_fAssert, __arg_hrReplaceHr)                      \
-{                                                                                           \
-    if (__arg_prTest == nullptr)                                                            \
-    {                                                                                       \
-        if (__arg_fAssert)                                                                  \
-        {                                                                                   \
-            ASSERT (false);                                                                 \
-        }                                                                                   \
-                                                                                            \
-        hr = __arg_hrReplaceHr;                                                             \
-                                                                                            \
+        __onFailure;                                                                        \
+        hr = (__fReplaceHr) ? (__hrReplace) : (__hrDefault);                                \
         goto ErrorLabel;                                                                    \
     }                                                                                       \
 }
@@ -191,58 +161,42 @@ void EhmBreakpoint         (void);
 
 
 //
-// CWR variants — Windows APIs that SetLastError
+// Family wrappers — each computes its condition and default hr,
+// then delegates to __EHM_Base
 //
 
+// CHR — check HRESULT.  Captures hrTest in a temp to avoid
+// double evaluation and to preserve the original HRESULT.
+#define __CHR(__hrTest, __fAssert, __fReplaceHr, __hrReplace, __onFailure)                  \
+{                                                                                           \
+    HRESULT __hr = (__hrTest);                                                              \
+    __EHM_Base (FAILED (__hr), __fAssert, __hr, __fReplaceHr, __hrReplace, __onFailure)     \
+}
+
+// CBR — check bool.  Default hr is E_FAIL.
+#define __CBR(__brTest, __fAssert, __fReplaceHr, __hrReplace, __onFailure)                  \
+    __EHM_Base (!(__brTest), __fAssert, E_FAIL, __fReplaceHr, __hrReplace, __onFailure)
+
+// CWR — check Win32 BOOL.  Captures GetLastError() immediately
+// before onFailure can overwrite it.
 #ifdef _WINDOWS_
-
-    #define __CWRAExHelper(__arg_fSuccess, __arg_fAssert, __arg_fReplaceHr, __arg_hrReplaceHr)  \
-    {                                                                                           \
-        if (!(__arg_fSuccess))                                                                  \
-        {                                                                                       \
-            if (__arg_fAssert)                                                                  \
-            {                                                                                   \
-                ASSERT (false);                                                                 \
-            }                                                                                   \
-                                                                                                \
-            if (__arg_fReplaceHr)                                                               \
-            {                                                                                   \
-                hr = __arg_hrReplaceHr;                                                         \
-            }                                                                                   \
-            else                                                                                \
-            {                                                                                   \
-                hr = HRESULT_FROM_WIN32 (::GetLastError());                                     \
-            }                                                                                   \
-                                                                                                \
-            goto ErrorLabel;                                                                    \
-        }                                                                                       \
-    }
-
+    #define __CWR_DEFAULT_HR    HRESULT_FROM_WIN32 (::GetLastError())
 #else
-
-    #define __CWRAExHelper(__arg_fSuccess, __arg_fAssert, __arg_fReplaceHr, __arg_hrReplaceHr)  \
-    {                                                                                           \
-        if (!(__arg_fSuccess))                                                                  \
-        {                                                                                       \
-            if (__arg_fAssert)                                                                  \
-            {                                                                                   \
-                ASSERT (false);                                                                 \
-            }                                                                                   \
-                                                                                                \
-            if (__arg_fReplaceHr)                                                               \
-            {                                                                                   \
-                hr = __arg_hrReplaceHr;                                                         \
-            }                                                                                   \
-            else                                                                                \
-            {                                                                                   \
-                hr = E_FAIL;                                                                    \
-            }                                                                                   \
-                                                                                                \
-            goto ErrorLabel;                                                                    \
-        }                                                                                       \
-    }
-
+    #define __CWR_DEFAULT_HR    E_FAIL
 #endif
+
+#define __CWR(__fSuccess, __fAssert, __fReplaceHr, __hrReplace, __onFailure)                \
+{                                                                                           \
+    if (!(__fSuccess))                                                                      \
+    {                                                                                       \
+        HRESULT __cwrHr = __CWR_DEFAULT_HR;                                                 \
+        __EHM_Base (true, __fAssert, __cwrHr, __fReplaceHr, __hrReplace, __onFailure)       \
+    }                                                                                       \
+}
+
+// CPR — check pointer for null.  Default hr is E_OUTOFMEMORY.
+#define __CPR(__prTest, __fAssert, __fReplaceHr, __hrReplace, __onFailure)                  \
+    __EHM_Base ((__prTest) == nullptr, __fAssert, E_OUTOFMEMORY, __fReplaceHr, __hrReplace, __onFailure)
 
 
 
@@ -260,26 +214,16 @@ void EhmBreakpoint         (void);
 //
 // CHR variants — check HRESULT
 //
+// Suffix key:  A = assert, Ex = replace hr, F = failure action, N = notify user
+//
 
-#define CHRAEx(__arg_hrTest, __arg_hrReplaceHr)                                             \
-{                                                                                           \
-    __CHRAExHelper (__arg_hrTest, __EHM_ASSERT, true, __arg_hrReplaceHr)                    \
-}
-
-#define CHREx(__arg_hrTest, __arg_hrReplaceHr)                                              \
-{                                                                                           \
-    __CHRAExHelper (__arg_hrTest, __EHM_NO_ASSERT, true, __arg_hrReplaceHr)                 \
-}
-
-#define CHRA(__arg_hrTest)                                                                  \
-{                                                                                           \
-    __CHRAExHelper (__arg_hrTest, __EHM_ASSERT, false, 0)                                   \
-}
-
-#define CHR(__arg_hrTest)                                                                   \
-{                                                                                           \
-    __CHRAExHelper (__arg_hrTest, __EHM_NO_ASSERT, false, 0)                                \
-}
+#define CHR(__hrTest)                   __CHR (__hrTest, __EHM_NO_ASSERT, false, 0, __EHM_NO_ACTION)
+#define CHRA(__hrTest)                  __CHR (__hrTest, __EHM_ASSERT,    false, 0, __EHM_NO_ACTION)
+#define CHREx(__hrTest, __hrReplace)    __CHR (__hrTest, __EHM_NO_ASSERT, true,  __hrReplace, __EHM_NO_ACTION)
+#define CHRAEx(__hrTest, __hrReplace)   __CHR (__hrTest, __EHM_ASSERT,    true,  __hrReplace, __EHM_NO_ACTION)
+#define CHRF(__hrTest, __onFailure)     __CHR (__hrTest, __EHM_NO_ASSERT, false, 0, __onFailure)
+#define CHRAF(__hrTest, __onFailure)    __CHR (__hrTest, __EHM_ASSERT,    false, 0, __onFailure)
+#define CHRN(__hrTest, __msg)           __CHR (__hrTest, __EHM_NO_ASSERT, false, 0, EhmNotifyUser (__msg))
 
 
 
@@ -287,25 +231,12 @@ void EhmBreakpoint         (void);
 // CWR variants — check Win32 BOOL (SetLastError-based)
 //
 
-#define CWRAEx(__arg_fSuccess, __arg_hrReplaceHr)                                           \
-{                                                                                           \
-    __CWRAExHelper (__arg_fSuccess, __EHM_ASSERT, true, __arg_hrReplaceHr)                  \
-}
-
-#define CWREx(__arg_fSuccess, __arg_hrReplaceHr)                                            \
-{                                                                                           \
-    __CWRAExHelper (__arg_fSuccess, __EHM_NO_ASSERT, true, __arg_hrReplaceHr)               \
-}
-
-#define CWRA(__arg_fSuccess)                                                                \
-{                                                                                           \
-    __CWRAExHelper (__arg_fSuccess, __EHM_ASSERT, false, 0)                                 \
-}
-
-#define CWR(__arg_fSuccess)                                                                 \
-{                                                                                           \
-    __CWRAExHelper (__arg_fSuccess, __EHM_NO_ASSERT, false, 0)                              \
-}
+#define CWR(__fSuccess)                 __CWR (__fSuccess, __EHM_NO_ASSERT, false, 0, __EHM_NO_ACTION)
+#define CWRA(__fSuccess)                __CWR (__fSuccess, __EHM_ASSERT,    false, 0, __EHM_NO_ACTION)
+#define CWREx(__fSuccess, __hrReplace)  __CWR (__fSuccess, __EHM_NO_ASSERT, true,  __hrReplace, __EHM_NO_ACTION)
+#define CWRAEx(__fSuccess, __hrReplace) __CWR (__fSuccess, __EHM_ASSERT,    true,  __hrReplace, __EHM_NO_ACTION)
+#define CWRF(__fSuccess, __onFailure)   __CWR (__fSuccess, __EHM_NO_ASSERT, false, 0, __onFailure)
+#define CWRAF(__fSuccess, __onFailure)  __CWR (__fSuccess, __EHM_ASSERT,    false, 0, __onFailure)
 
 
 
@@ -313,50 +244,16 @@ void EhmBreakpoint         (void);
 // CBR variants — check bool condition
 //
 
-#define CBRAEx(__arg_brTest, __arg_hrReplaceHr)                                             \
-{                                                                                           \
-    __CBRAExHelper (__arg_brTest, __EHM_ASSERT, __arg_hrReplaceHr)                          \
-}
+#define CBR(__brTest)                   __CBR (__brTest, __EHM_NO_ASSERT, false, 0, __EHM_NO_ACTION)
+#define CBRA(__brTest)                  __CBR (__brTest, __EHM_ASSERT,    false, 0, __EHM_NO_ACTION)
+#define CBREx(__brTest, __hrReplace)    __CBR (__brTest, __EHM_NO_ASSERT, true,  __hrReplace, __EHM_NO_ACTION)
+#define CBRAEx(__brTest, __hrReplace)   __CBR (__brTest, __EHM_ASSERT,    true,  __hrReplace, __EHM_NO_ACTION)
+#define CBRF(__brTest, __onFailure)     __CBR (__brTest, __EHM_NO_ASSERT, false, 0, __onFailure)
+#define CBRAF(__brTest, __onFailure)    __CBR (__brTest, __EHM_ASSERT,    false, 0, __onFailure)
+#define CBRN(__brTest, __msg)           __CBR (__brTest, __EHM_NO_ASSERT, false, 0, EhmNotifyUser (__msg))
 
-#define CBREx(__arg_brTest, __arg_hrReplaceHr)                                              \
-{                                                                                           \
-    __CBRAExHelper (__arg_brTest, __EHM_NO_ASSERT, __arg_hrReplaceHr)                       \
-}
-
-#define CBRA(__arg_brTest)                                                                  \
-{                                                                                           \
-    __CBRAExHelper (__arg_brTest, __EHM_ASSERT, E_FAIL)                                     \
-}
-
-#define CBR(__arg_brTest)                                                                   \
-{                                                                                           \
-    __CBRAExHelper (__arg_brTest, __EHM_NO_ASSERT, E_FAIL)                                  \
-}
-
-#define BAIL_OUT_IF(__arg_boolTest, __arg_hrReplaceHr)                                      \
-{                                                                                           \
-    __CBRAExHelper (!(__arg_boolTest), __EHM_NO_ASSERT, __arg_hrReplaceHr)                  \
-}
-
-#define CBR_SetError(__arg_brTest, __arg_onFailure)                                         \
-{                                                                                           \
-    if (!(__arg_brTest))                                                                    \
-    {                                                                                       \
-        __arg_onFailure;                                                                    \
-        hr = E_FAIL;                                                                        \
-        goto ErrorLabel;                                                                    \
-    }                                                                                       \
-}
-
-#define CHR_SetError(__arg_hrTest, __arg_onFailure)                                          \
-{                                                                                           \
-    hr = (__arg_hrTest);                                                                    \
-    if (FAILED (hr))                                                                        \
-    {                                                                                       \
-        __arg_onFailure;                                                                    \
-        goto ErrorLabel;                                                                    \
-    }                                                                                       \
-}
+#define BAIL_OUT_IF(__boolTest, __hrReplace) \
+    __CBR (!(__boolTest), __EHM_NO_ASSERT, true, __hrReplace, __EHM_NO_ACTION)
 
 
 
@@ -364,25 +261,12 @@ void EhmBreakpoint         (void);
 // CPR variants — check pointer for null
 //
 
-#define CPRAEx(__arg_prTest, __arg_hrReplaceHr)                                             \
-{                                                                                           \
-    __CPRAExHelper (__arg_prTest, true, __arg_hrReplaceHr)                                  \
-}
-
-#define CPREx(__arg_prTest, __arg_hrReplaceHr)                                              \
-{                                                                                           \
-    __CPRAExHelper (__arg_prTest, false, __arg_hrReplaceHr)                                 \
-}
-
-#define CPRA(__arg_prTest)                                                                  \
-{                                                                                           \
-    __CPRAExHelper (__arg_prTest, true, E_OUTOFMEMORY)                                      \
-}
-
-#define CPR(__arg_prTest)                                                                   \
-{                                                                                           \
-    __CPRAExHelper (__arg_prTest, false, E_OUTOFMEMORY)                                     \
-}
+#define CPR(__prTest)                   __CPR (__prTest, __EHM_NO_ASSERT, false, 0, __EHM_NO_ACTION)
+#define CPRA(__prTest)                  __CPR (__prTest, __EHM_ASSERT,    false, 0, __EHM_NO_ACTION)
+#define CPREx(__prTest, __hrReplace)    __CPR (__prTest, __EHM_NO_ASSERT, true,  __hrReplace, __EHM_NO_ACTION)
+#define CPRAEx(__prTest, __hrReplace)   __CPR (__prTest, __EHM_ASSERT,    true,  __hrReplace, __EHM_NO_ACTION)
+#define CPRF(__prTest, __onFailure)     __CPR (__prTest, __EHM_NO_ASSERT, false, 0, __onFailure)
+#define CPRAF(__prTest, __onFailure)    __CPR (__prTest, __EHM_ASSERT,    false, 0, __onFailure)
 
 
 
@@ -409,32 +293,8 @@ void SetNotifyFunction (EHM_NOTIFY_FUNC func);
 
 
 //
-// CHRN / CBRN — check result and Notify user on failure
-//
-// These macros check an HRESULT or bool, and on failure show a user-facing
-// notification (MessageBox in GUI apps, stderr in console apps) before
-// jumping to the Error label.  The message expression is only evaluated
-// on the failure path.
+// Legacy aliases — CBR_SetError/CHR_SetError map to the new F variants
 //
 
-#define CHRN(__arg_hrTest, __arg_msg)                                                       \
-{                                                                                           \
-    HRESULT __hr = __arg_hrTest;                                                            \
-                                                                                            \
-    if (FAILED (__hr))                                                                      \
-    {                                                                                       \
-        EhmNotifyUser (__arg_msg);                                                          \
-        hr = __hr;                                                                          \
-        goto ErrorLabel;                                                                    \
-    }                                                                                       \
-}
-
-#define CBRN(__arg_brTest, __arg_msg)                                                       \
-{                                                                                           \
-    if (!(__arg_brTest))                                                                    \
-    {                                                                                       \
-        EhmNotifyUser (__arg_msg);                                                          \
-        hr = E_FAIL;                                                                        \
-        goto ErrorLabel;                                                                    \
-    }                                                                                       \
-}
+#define CBR_SetError(__brTest, __onFailure)  CBRF (__brTest, __onFailure)
+#define CHR_SetError(__hrTest, __onFailure)  CHRF (__hrTest, __onFailure)
