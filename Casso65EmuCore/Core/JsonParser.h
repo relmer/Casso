@@ -54,10 +54,6 @@ public:
     size_t             ArraySize  () const;
     const JsonValue &  ArrayAt    (size_t index) const;
 
-    // Object access
-    bool               HasKey    (const string & key) const;
-    const JsonValue &  Get       (const string & key) const;
-
     // Convenience
     bool IsNull   () const { return m_type == JsonType::Null; }
     bool IsString () const { return m_type == JsonType::String; }
@@ -66,9 +62,22 @@ public:
     bool IsObject () const { return m_type == JsonType::Object; }
     bool IsBool   () const { return m_type == JsonType::Bool; }
 
+    // Typed object accessors — key lookup + type check + value extraction
+    HRESULT GetString (const string & key, string &              outValue) const;
+    HRESULT GetNumber (const string & key, double &              outValue) const;
+    HRESULT GetInt    (const string & key, int &                 outValue) const;
+    HRESULT GetUint32 (const string & key, uint32_t &            outValue) const;
+    HRESULT GetBool   (const string & key, bool &                outValue) const;
+    HRESULT GetObject (const string & key, const JsonValue *&    outValue) const;
+    HRESULT GetArray  (const string & key, const JsonValue *&    outValue) const;
+
     const vector<pair<string, JsonValue>> & GetObjectEntries () const;
 
 private:
+    // Internal helpers used by typed accessors
+    bool               HasKey    (const string & key) const;
+    const JsonValue &  Get       (const string & key) const;
+
     JsonType                                             m_type   = JsonType::Null;
     bool                                                 m_bool   = false;
     double                                               m_number = 0.0;

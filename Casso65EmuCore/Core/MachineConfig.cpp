@@ -64,63 +64,64 @@ HRESULT MachineConfigLoader::Load (
     MachineConfig          & outConfig,
     string                 & outError)
 {
-    HRESULT        hr         = S_OK;
-    JsonValue      root;
-    JsonParseError parseError;
+    HRESULT              hr         = S_OK;
+    JsonValue            root;
+    JsonParseError       parseError;
+    const JsonValue    * pMemArray  = nullptr;
+    const JsonValue    * pDevArray  = nullptr;
+    const JsonValue    * pVideo     = nullptr;
+    const JsonValue    * pKeyboard  = nullptr;
 
 
 
     // Parse JSON
     hr = JsonParser::Parse (jsonText, root, parseError);
-
     CBR_SetError (SUCCEEDED (hr),
                   outError = format ("JSON parse error at line {}, column {}: {}",
-                                    parseError.line, parseError.column,
+                                    parseError.line, 
+                                    parseError.column,
                                     parseError.message));
 
-    CBR (root.IsObject ());
+    CBR (root.IsObject());
 
     // Required: name
-    CBR_SetError (root.HasKey ("name") && root.Get ("name").IsString (),
-                  outError = "Missing required field: 'name'");
-    outConfig.name = root.Get ("name").GetString ();
+    hr = root.GetString ("name", outConfig.name);
+    CBR_SetError (SUCCEEDED (hr), outError = "Missing or invalid field: 'name'");
 
     // Required: cpu
-    CBR_SetError (root.HasKey ("cpu") && root.Get ("cpu").IsString (),
-                  outError = "Missing required field: 'cpu'");
-    outConfig.cpu = root.Get ("cpu").GetString ();
+    hr = root.GetString ("cpu", outConfig.cpu);
+    CBR_SetError (SUCCEEDED (hr), outError = "Missing or invalid field: 'cpu'");
 
     CBR_SetError (outConfig.cpu == "6502",
                   outError = format ("Invalid CPU type: '{}' (expected '6502')", outConfig.cpu));
 
     // Required: clockSpeed
-    CBR_SetError (root.HasKey ("clockSpeed") && root.Get ("clockSpeed").IsNumber (),
-                  outError = "Missing required field: 'clockSpeed'");
-    outConfig.clockSpeed = static_cast<uint32_t> (root.Get ("clockSpeed").GetNumber ());
+    hr = root.GetUint32 ("clockSpeed", outConfig.clockSpeed);
+    CBR_SetError (SUCCEEDED (hr), outError = "Missing or invalid field: 'clockSpeed'");
 
     // Required: memory array
-    CBR_SetError (root.HasKey ("memory") && root.Get ("memory").IsArray (),
-                  outError = "Missing required field: 'memory'");
+    hr = root.GetArray ("memory", pMemArray);
+    CBR_SetError (SUCCEEDED (hr), outError = "Missing required field: 'memory'");
 
-    hr = LoadMemoryRegions (root.Get ("memory"), searchPaths, outConfig, outError);
+    hr = LoadMemoryRegions (*pMemArray, searchPaths, outConfig, outError);
     CHR (hr);
 
     // Required: devices array
-    CBR_SetError (root.HasKey ("devices") && root.Get ("devices").IsArray (),
-                  outError = "Missing required field: 'devices'");
+    hr = root.GetArray ("devices", pDevArray);
+    CBR_SetError (SUCCEEDED (hr), outError = "Missing required field: 'devices'");
 
-    hr = LoadDevices (root.Get ("devices"), outConfig, outError);
+    hr = LoadDevices (*pDevArray, outConfig, outError);
     CHR (hr);
 
     // Required: video object
-    CBR_SetError (root.HasKey ("video") && root.Get ("video").IsObject (),
-                  outError = "Missing required field: 'video'");
-    LoadVideoConfig (root.Get ("video"), outConfig);
+    hr = root.GetObject ("video", pVideo);
+    CBR_SetError (SUCCEEDED (hr), outError = "Missing required field: 'video'");
+    LoadVideoConfig (*pVideo, outConfig);
 
     // Required: keyboard object
-    CBR_SetError (root.HasKey ("keyboard") && root.Get ("keyboard").IsObject (),
-                  outError = "Missing required field: 'keyboard'");
-    LoadKeyboardConfig (root.Get ("keyboard"), outConfig);
+    hr = root.GetObject ("keyboard", pKeyboard);
+    CBR_SetError (SUCCEEDED (hr), outError = "Missing required field: 'keyboard'");
+    LoadKeyboardConfig (*pKeyboard, outConfig);
 
 Error:
     return hr;
@@ -146,62 +147,51 @@ HRESULT MachineConfigLoader::LoadMemoryRegions (
 
 
 
-    for (size_t i = 0; i < memArray.ArraySize (); i++)
+    for (size_t i = 0; i < memArray.ArraySize(); i++)
     {
         const JsonValue & entry = memArray.ArrayAt (i);
         MemoryRegion      region;
+        string            addrStr;
         fs::path          romRelPath;
         fs::path          found;
 
-        CBR (entry.IsObject ());
+        CBR (entry.IsObject());
 
-        CBR_SetError (entry.HasKey ("type") && entry.Get ("type").IsString (),
-                      outError = format ("memory[{}]: missing 'type' field", i));
-        region.type = entry.Get ("type").GetString ();
+        hr = entry.GetString ("type", region.type);
+        CBR_SetError (SUCCEEDED (hr), outError = format ("memory[{}]: missing 'type' field", i));
 
-        CBR_SetError (entry.HasKey ("start") && entry.Get ("start").IsString (),
-                      outError = format ("memory[{}]: missing 'start' field", i));
-        hr = ParseHexAddress (entry.Get ("start").GetString (), region.start, outError);
+        hr = entry.GetString ("start", addrStr);
+        CBR_SetError (SUCCEEDED (hr), outError = format ("memory[{}]: missing 'start' field", i));
+        hr = ParseHexAddress (addrStr, region.start, outError);
         CHR (hr);
 
-        CBR_SetError (entry.HasKey ("end") && entry.Get ("end").IsString (),
-                      outError = format ("memory[{}]: missing 'end' field", i));
-        hr = ParseHexAddress (entry.Get ("end").GetString (), region.end, outError);
+        hr = entry.GetString ("end", addrStr);
+        CBR_SetError (SUCCEEDED (hr), outError = format ("memory[{}]: missing 'end' field", i));
+        hr = ParseHexAddress (addrStr, region.end, outError);
         CHR (hr);
 
         CBR_SetError (region.end >= region.start,
                       outError = format ("memory[{}]: end (0x{:04X}) < start (0x{:04X})",
                                          i, region.end, region.start));
 
-        if (entry.HasKey ("file") && entry.Get ("file").IsString ())
-        {
-            region.file = entry.Get ("file").GetString ();
-        }
+        entry.GetString ("file", region.file);
+        entry.GetString ("bank", region.bank);
+        entry.GetString ("target", region.target);
 
-        if (entry.HasKey ("bank") && entry.Get ("bank").IsString ())
-        {
-            region.bank = entry.Get ("bank").GetString ();
-        }
-
-        if (entry.HasKey ("target") && entry.Get ("target").IsString ())
-        {
-            region.target = entry.Get ("target").GetString ();
-        }
-
-        CBR_SetError (!(region.type == "rom" && region.file.empty () && region.target.empty ()),
+        CBR_SetError (!(region.type == "rom" && region.file.empty() && region.target.empty()),
                       outError = format ("memory[{}]: ROM region requires 'file' field", i));
 
-        if (!region.file.empty ())
+        if (!region.file.empty())
         {
             romRelPath = fs::path ("roms") / region.file;
             found      = PathResolver::FindFile (searchPaths, romRelPath);
 
-            CBR_SetError (!found.empty (),
+            CBR_SetError (!found.empty(),
                           outError = format ("ROM file not found: roms/{}. "
                                             "Run scripts/FetchRoms.ps1 to download ROM images.",
                                             region.file));
 
-            region.resolvedPath = found.string ();
+            region.resolvedPath = found.string();
         }
 
         outConfig.memoryRegions.push_back (region);
@@ -230,21 +220,20 @@ HRESULT MachineConfigLoader::LoadDevices (
 
 
 
-    for (size_t i = 0; i < devArray.ArraySize (); i++)
+    for (size_t i = 0; i < devArray.ArraySize(); i++)
     {
         const JsonValue & entry = devArray.ArrayAt (i);
         DeviceConfig      device;
+        string            addrStr;
 
-        CBR (entry.IsObject ());
+        CBR (entry.IsObject());
 
-        CBR_SetError (entry.HasKey ("type") && entry.Get ("type").IsString (),
-                      outError = format ("devices[{}]: missing 'type' field", i));
-        device.type = entry.Get ("type").GetString ();
+        hr = entry.GetString ("type", device.type);
+        CBR_SetError (SUCCEEDED (hr), outError = format ("devices[{}]: missing 'type' field", i));
 
-        if (entry.HasKey ("address") && entry.Get ("address").IsString ())
+        if (SUCCEEDED (entry.GetString ("address", addrStr)))
         {
-            hr = ParseHexAddress (entry.Get ("address").GetString (),
-                                  device.address, outError);
+            hr = ParseHexAddress (addrStr, device.address, outError);
             CHR (hr);
 
             device.start      = device.address;
@@ -252,23 +241,21 @@ HRESULT MachineConfigLoader::LoadDevices (
             device.hasAddress = true;
         }
 
-        if (entry.HasKey ("start") && entry.Get ("start").IsString () &&
-            entry.HasKey ("end")   && entry.Get ("end").IsString ())
+        if (SUCCEEDED (entry.GetString ("start", addrStr)))
         {
-            hr = ParseHexAddress (entry.Get ("start").GetString (),
-                                  device.start, outError);
+            hr = ParseHexAddress (addrStr, device.start, outError);
             CHR (hr);
 
-            hr = ParseHexAddress (entry.Get ("end").GetString (),
-                                  device.end, outError);
+            hr = entry.GetString ("end", addrStr);
+            CBR_SetError (SUCCEEDED (hr), outError = format ("devices[{}]: missing 'end' field", i));
+            hr = ParseHexAddress (addrStr, device.end, outError);
             CHR (hr);
 
             device.hasRange = true;
         }
 
-        if (entry.HasKey ("slot") && entry.Get ("slot").IsNumber ())
+        if (SUCCEEDED (entry.GetInt ("slot", device.slot)))
         {
-            device.slot    = entry.Get ("slot").GetInt ();
             device.hasSlot = true;
 
             CBR_SetError (device.slot >= 1 && device.slot <= 7,
@@ -298,28 +285,23 @@ Error:
 
 void MachineConfigLoader::LoadVideoConfig (const JsonValue & video, MachineConfig & outConfig)
 {
-    if (video.HasKey ("modes") && video.Get ("modes").IsArray ())
-    {
-        const JsonValue & modes = video.Get ("modes");
+    const JsonValue * pModes = nullptr;
 
-        for (size_t i = 0; i < modes.ArraySize (); i++)
+
+
+    if (SUCCEEDED (video.GetArray ("modes", pModes)))
+    {
+        for (size_t i = 0; i < pModes->ArraySize (); i++)
         {
-            if (modes.ArrayAt (i).IsString ())
+            if (pModes->ArrayAt (i).IsString ())
             {
-                outConfig.videoConfig.modes.push_back (modes.ArrayAt (i).GetString ());
+                outConfig.videoConfig.modes.push_back (pModes->ArrayAt (i).GetString ());
             }
         }
     }
 
-    if (video.HasKey ("width") && video.Get ("width").IsNumber ())
-    {
-        outConfig.videoConfig.width = video.Get ("width").GetInt ();
-    }
-
-    if (video.HasKey ("height") && video.Get ("height").IsNumber ())
-    {
-        outConfig.videoConfig.height = video.Get ("height").GetInt ();
-    }
+    video.GetInt ("width", outConfig.videoConfig.width);
+    video.GetInt ("height", outConfig.videoConfig.height);
 }
 
 
@@ -334,10 +316,7 @@ void MachineConfigLoader::LoadVideoConfig (const JsonValue & video, MachineConfi
 
 void MachineConfigLoader::LoadKeyboardConfig (const JsonValue & keyboard, MachineConfig & outConfig)
 {
-    if (keyboard.HasKey ("type") && keyboard.Get ("type").IsString ())
-    {
-        outConfig.keyboardType = keyboard.Get ("type").GetString ();
-    }
+    keyboard.GetString ("type", outConfig.keyboardType);
 }
 
 

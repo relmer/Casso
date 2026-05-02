@@ -106,16 +106,31 @@ public:
 
     TEST_METHOD (Parse_NestedObject)
     {
-        JsonValue value;
-        JsonParseError error;
-        HRESULT hr = JsonParser::Parse (
+        JsonValue          value;
+        JsonParseError     error;
+        HRESULT            hr      = S_OK;
+        string             name;
+        int                count   = 0;
+        const JsonValue  * nested  = nullptr;
+        int                a       = 0;
+
+
+
+        hr = JsonParser::Parse (
             "{\"name\": \"test\", \"count\": 5, \"nested\": {\"a\": 1}}", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
         Assert::IsTrue (value.IsObject ());
-        Assert::AreEqual (std::string ("test"), value.Get ("name").GetString ());
-        Assert::AreEqual (5, value.Get ("count").GetInt ());
-        Assert::AreEqual (1, value.Get ("nested").Get ("a").GetInt ());
+
+        Assert::IsTrue (SUCCEEDED (value.GetString ("name", name)));
+        Assert::AreEqual (std::string ("test"), name);
+
+        Assert::IsTrue (SUCCEEDED (value.GetInt ("count", count)));
+        Assert::AreEqual (5, count);
+
+        Assert::IsTrue (SUCCEEDED (value.GetObject ("nested", nested)));
+        Assert::IsTrue (SUCCEEDED (nested->GetInt ("a", a)));
+        Assert::AreEqual (1, a);
     }
 
     TEST_METHOD (Parse_Array_WithValues)

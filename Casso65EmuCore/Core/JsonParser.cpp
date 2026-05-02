@@ -142,6 +142,167 @@ const vector<pair<string, JsonValue>> & JsonValue::GetObjectEntries () const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  JsonValue::GetString (key, outValue)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT JsonValue::GetString (const string & key, string & outValue) const
+{
+    HRESULT hr = S_OK;
+
+
+
+    CBR (m_type == JsonType::Object && HasKey (key) && Get (key).IsString ());
+    outValue = Get (key).GetString ();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  JsonValue::GetNumber (key, outValue)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT JsonValue::GetNumber (const string & key, double & outValue) const
+{
+    HRESULT hr = S_OK;
+
+
+
+    CBR (m_type == JsonType::Object && HasKey (key) && Get (key).IsNumber ());
+    outValue = Get (key).GetNumber ();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  JsonValue::GetInt (key, outValue)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT JsonValue::GetInt (const string & key, int & outValue) const
+{
+    HRESULT hr = S_OK;
+
+
+
+    CBR (m_type == JsonType::Object && HasKey (key) && Get (key).IsNumber ());
+    outValue = Get (key).GetInt ();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  JsonValue::GetUint32 (key, outValue)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT JsonValue::GetUint32 (const string & key, uint32_t & outValue) const
+{
+    HRESULT hr = S_OK;
+
+
+
+    CBR (m_type == JsonType::Object && HasKey (key) && Get (key).IsNumber ());
+    outValue = static_cast<uint32_t> (Get (key).GetNumber ());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  JsonValue::GetBool (key, outValue)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT JsonValue::GetBool (const string & key, bool & outValue) const
+{
+    HRESULT hr = S_OK;
+
+
+
+    CBR (m_type == JsonType::Object && HasKey (key) && Get (key).IsBool ());
+    outValue = Get (key).GetBool ();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  JsonValue::GetObject (key, outValue)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT JsonValue::GetObject (const string & key, const JsonValue *& outValue) const
+{
+    HRESULT hr = S_OK;
+
+
+
+    CBR (m_type == JsonType::Object && HasKey (key) && Get (key).IsObject ());
+    outValue = &Get (key);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  JsonValue::GetArray (key, outValue)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT JsonValue::GetArray (const string & key, const JsonValue *& outValue) const
+{
+    HRESULT hr = S_OK;
+
+
+
+    CBR (m_type == JsonType::Object && HasKey (key) && Get (key).IsArray ());
+    outValue = &Get (key);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  JsonParser — constructor
 //
 ////////////////////////////////////////////////////////////////////////////////
