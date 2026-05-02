@@ -147,7 +147,11 @@ void MemoryBus::RemoveDevice (MemoryDevice * device)
 
 HRESULT MemoryBus::Validate () const
 {
-    HRESULT hr = S_OK;
+    HRESULT hr      = S_OK;
+    bool    overlap = false;
+    wstring msg;
+
+
 
     for (size_t i = 0; i + 1 < m_entries.size (); i++)
     {
@@ -156,12 +160,12 @@ HRESULT MemoryBus::Validate () const
             const BusEntry & a = m_entries[i];
             const BusEntry & b = m_entries[j];
 
-            if (a.start <= b.end && b.start <= a.end)
-            {
-                DEBUGMSG (L"Address conflict: device at $%04X-$%04X overlaps device at $%04X-$%04X\n",
-                    a.start, a.end, b.start, b.end);
-            }
-            CBR (!(a.start <= b.end && b.start <= a.end));
+            overlap = (a.start <= b.end && b.start <= a.end);
+
+            CBRN (!overlap,
+                  format (L"Memory bus conflict: device at ${:04X}-${:04X} "
+                          L"overlaps device at ${:04X}-${:04X}",
+                          a.start, a.end, b.start, b.end).c_str ());
         }
     }
 

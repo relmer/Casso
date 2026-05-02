@@ -112,7 +112,7 @@ HRESULT EmulatorShell::Initialize (
 
     // Validate memory bus for overlapping device address ranges
     hr = m_memoryBus.Validate();
-    CHRN (hr, L"Memory bus validation failed: overlapping device address ranges");
+    CHR (hr);
 
     hr = CreateCpu (config);
     CHR (hr);
