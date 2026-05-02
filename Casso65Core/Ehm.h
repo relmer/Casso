@@ -292,9 +292,5 @@ void SetNotifyFunction (EHM_NOTIFY_FUNC func);
 
 
 
-//
-// Legacy aliases — CBR_SetError/CHR_SetError map to the new F variants
-//
 
-#define CBR_SetError(__brTest, __onFailure)  CBRF (__brTest, __onFailure)
-#define CHR_SetError(__hrTest, __onFailure)  CHRF (__hrTest, __onFailure)
+
