@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Window.h"
 #include "Core/MemoryBus.h"
 #include "Core/EmuCpu.h"
 #include "Core/MachineConfig.h"
@@ -39,7 +40,7 @@ struct EmulatorCommand
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class EmulatorShell
+class EmulatorShell : public Window
 {
 public:
     EmulatorShell ();
@@ -53,16 +54,7 @@ public:
 
     int RunMessageLoop ();
 
-    // Window procedure (static + instance)
-    static LRESULT CALLBACK StaticWndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
-    LRESULT WndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
-
     void HandleCommand (WORD commandId);
-
-    // Keyboard input from WM_KEYDOWN/WM_CHAR
-    void OnKeyDown (WPARAM vk, LPARAM lParam);
-    void OnKeyUp   (WPARAM vk, LPARAM lParam);
-    void OnChar    (WPARAM ch);
 
     // State
     bool IsRunning () const { return m_running.load (memory_order_acquire); }
@@ -72,6 +64,15 @@ public:
     MemoryBus & GetBus () { return m_memoryBus; }
 
 private:
+    // Window message handler overrides
+    bool    OnChar    (WPARAM ch, LPARAM lParam) override;
+    bool    OnCommand (HWND hwnd, int id) override;
+    LRESULT OnCreate  (HWND hwnd, CREATESTRUCT * pcs) override;
+    bool    OnDestroy (HWND hwnd) override;
+    bool    OnKeyDown (WPARAM vk, LPARAM lParam) override;
+    bool    OnKeyUp   (WPARAM vk, LPARAM lParam) override;
+    bool    OnSize    (HWND hwnd, UINT width, UINT height) override;
+
     // CPU thread entry point and helpers
     void CpuThreadProc     ();
     void RunOneFrame       ();
@@ -82,8 +83,6 @@ private:
     // Queue a command for the CPU thread
     void PostCommand (WORD id, const string & payload = "");
 
-    HWND                m_hwnd       = nullptr;
-    HINSTANCE           m_hInstance  = nullptr;
     HACCEL              m_accelTable = nullptr;
 
     MemoryBus           m_memoryBus;

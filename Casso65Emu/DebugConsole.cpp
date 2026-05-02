@@ -28,7 +28,7 @@ DebugConsole::DebugConsole ()
 
 DebugConsole::~DebugConsole ()
 {
-    Hide ();
+    Hide();
 }
 
 
@@ -37,48 +37,77 @@ DebugConsole::~DebugConsole ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WndProc
+//  OnCreate
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT CALLBACK DebugConsole::WndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+LRESULT DebugConsole::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
 {
-    DebugConsole * self = reinterpret_cast<DebugConsole *> (GetWindowLongPtr (hwnd, GWLP_USERDATA));
+    HFONT hFont = nullptr;
 
 
 
-    switch (msg)
+    // Create a read-only multi-line edit control
+    m_editCtrl = CreateWindowEx (
+        WS_EX_CLIENTEDGE, L"EDIT", L"",
+        WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
+        0, 0, 600, 400,
+        hwnd, nullptr, pcs->hInstance, nullptr);
+
+    // Use a monospace font
+    hFont = CreateFont (
+        14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        DEFAULT_QUALITY, FIXED_PITCH | FF_MODERN, L"Consolas");
+
+    if (hFont != nullptr)
     {
-        case WM_CREATE:
-        {
-            CREATESTRUCT * cs = reinterpret_cast<CREATESTRUCT *> (lParam);
-            SetWindowLongPtr (hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR> (cs->lpCreateParams));
-            return 0;
-        }
-
-        case WM_SIZE:
-        {
-            if (self != nullptr && self->m_editCtrl != nullptr)
-            {
-                RECT rc;
-                GetClientRect (hwnd, &rc);
-                MoveWindow (self->m_editCtrl, 0, 0, rc.right, rc.bottom, TRUE);
-            }
-            return 0;
-        }
-
-        case WM_CLOSE:
-        {
-            // Just hide — don't destroy the emulator
-            if (self != nullptr)
-            {
-                self->Hide ();
-            }
-            return 0;
-        }
+        SendMessage (m_editCtrl, WM_SETFONT, (WPARAM) hFont, TRUE);
     }
 
-    return DefWindowProc (hwnd, msg, wParam, lParam);
+    return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnClose
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugConsole::OnClose (HWND hwnd)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+
+    Hide ();
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnSize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugConsole::OnSize (HWND hwnd, UINT width, UINT height)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+
+    if (m_editCtrl != nullptr)
+    {
+        MoveWindow (m_editCtrl, 0, 0,
+                    static_cast<int> (width),
+                    static_cast<int> (height), TRUE);
+    }
+
+    return false;
 }
 
 
@@ -99,48 +128,19 @@ void DebugConsole::Show (HINSTANCE hInstance)
         return;
     }
 
-    // Register window class (once)
-    static bool classRegistered = false;
+    m_kpszWndClass  = L"Casso65DebugConsole";
+    m_hbrBackground = reinterpret_cast<HBRUSH> (COLOR_WINDOW + 1);
 
-    if (!classRegistered)
-    {
-        WNDCLASSEX wc    = {};
-        wc.cbSize        = sizeof (wc);
-        wc.lpfnWndProc   = WndProc;
-        wc.hInstance     = hInstance;
-        wc.hCursor       = LoadCursor (nullptr, IDC_ARROW);
-        wc.hbrBackground = (HBRUSH) (COLOR_WINDOW + 1);
-        wc.lpszClassName = L"Casso65DebugConsole";
-        RegisterClassEx (&wc);
-        classRegistered = true;
-    }
-
-    m_hwnd = CreateWindowEx (
-        0, L"Casso65DebugConsole", L"Casso65 Debug Console",
-        WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT, 600, 400,
-        nullptr, nullptr, hInstance, this);
+    Window::Initialize (hInstance);
+    Window::Create (0,
+                    L"Casso65 Debug Console",
+                    WS_OVERLAPPEDWINDOW,
+                    CW_USEDEFAULT, CW_USEDEFAULT,
+                    600, 400,
+                    nullptr);
 
     if (m_hwnd != nullptr)
     {
-        // Create a read-only multi-line edit control
-        m_editCtrl = CreateWindowEx (
-            WS_EX_CLIENTEDGE, L"EDIT", L"",
-            WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
-            0, 0, 600, 400,
-            m_hwnd, nullptr, hInstance, nullptr);
-
-        // Use a monospace font
-        HFONT hFont = CreateFont (
-            14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-            DEFAULT_QUALITY, FIXED_PITCH | FF_MODERN, L"Consolas");
-
-        if (hFont != nullptr)
-        {
-            SendMessage (m_editCtrl, WM_SETFONT, (WPARAM) hFont, TRUE);
-        }
-
         ShowWindow (m_hwnd, SW_SHOW);
         m_visible = true;
     }
@@ -156,7 +156,7 @@ void DebugConsole::Show (HINSTANCE hInstance)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebugConsole::Hide ()
+void DebugConsole::Hide()
 {
     if (!m_visible)
     {
@@ -199,7 +199,7 @@ void DebugConsole::Log (const wstring & message)
     text = message + L"\r\n";
     len  = GetWindowTextLength (m_editCtrl);
     SendMessage (m_editCtrl, EM_SETSEL, len, len);
-    SendMessage (m_editCtrl, EM_REPLACESEL, FALSE, (LPARAM) text.c_str ());
+    SendMessage (m_editCtrl, EM_REPLACESEL, FALSE, (LPARAM) text.c_str());
 }
 
 
@@ -223,7 +223,7 @@ void DebugConsole::LogConfig (const string & summary)
         return;
     }
 
-    wide.assign (summary.begin (), summary.end ());
+    wide.assign (summary.begin(), summary.end());
     Log (wide);
 }
 

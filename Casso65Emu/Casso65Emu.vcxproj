@@ -222,6 +222,7 @@
     <ClCompile Include="WasapiAudio.cpp" />
     <ClCompile Include="D3DRenderer.cpp" />
     <ClCompile Include="MenuSystem.cpp" />
+    <ClCompile Include="Window.cpp" />
     <ClCompile Include="EmulatorShell.cpp" />
     <ClCompile Include="DebugConsole.cpp" />
   </ItemGroup>
@@ -229,6 +230,7 @@
     <ClInclude Include="Pch.h" />
     <ClInclude Include="D3DRenderer.h" />
     <ClInclude Include="MenuSystem.h" />
+    <ClInclude Include="Window.h" />
     <ClInclude Include="EmulatorShell.h" />
     <ClInclude Include="DebugConsole.h" />
     <ClInclude Include="WasapiAudio.h" />

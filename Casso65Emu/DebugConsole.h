@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Window.h"
 
 
 
@@ -14,7 +15,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DebugConsole
+class DebugConsole : public Window
 {
 public:
     DebugConsole ();
@@ -27,11 +28,14 @@ public:
     void Log (const wstring & message);
     void LogConfig (const string & summary);
 
-private:
-    static LRESULT CALLBACK WndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+protected:
+    // Window message handler overrides
+    LRESULT OnCreate  (HWND hwnd, CREATESTRUCT * pcs) override;
+    bool    OnClose   (HWND hwnd) override;
+    bool    OnSize    (HWND hwnd, UINT width, UINT height) override;
 
+private:
     bool    m_visible  = false;
-    HWND    m_hwnd     = nullptr;
     HWND    m_editCtrl = nullptr;
 };
 

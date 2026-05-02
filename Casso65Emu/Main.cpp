@@ -85,30 +85,30 @@ static HRESULT LoadMachineConfig (
 
 
     // Build search paths and find machine config
-    searchPaths    = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory (),
-                                                     PathResolver::GetWorkingDirectory ());
-    configRelPath  = fs::path ("machines") / (fs::path (machineName).string () + ".json");
+    searchPaths    = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
+                                                     PathResolver::GetWorkingDirectory());
+    configRelPath  = fs::path ("machines") / (fs::path (machineName).string() + ".json");
     configPath     = PathResolver::FindFile (searchPaths, configRelPath);
 
-    CBRN (!configPath.empty (),
+    CBRN (!configPath.empty(),
           format (L"Unknown machine '{}'. Config file not found.\n"
                   L"Searched for '{}' in exe directory, current directory, and parent directories.",
                   machineName,
-                  configRelPath.wstring ()).c_str ());
+                  configRelPath.wstring()).c_str());
 
     // Load config file
     configFile.open (configPath);
-    configGood = configFile.good ();
+    configGood = configFile.good();
     CBRN (configGood,
           format (L"Cannot open machine config:\n{}",
-                  configPath.wstring ()).c_str ());
+                  configPath.wstring()).c_str());
 
-    ss << configFile.rdbuf ();
-    jsonText = ss.str ();
+    ss << configFile.rdbuf();
+    jsonText = ss.str();
 
     // Parse config — prioritize the config's peer roms/ directory,
     // then fall back to other search paths
-    romSearchPaths.push_back (configPath.parent_path ().parent_path ());
+    romSearchPaths.push_back (configPath.parent_path().parent_path());
 
     for (const auto & p : searchPaths)
     {
@@ -120,23 +120,23 @@ static HRESULT LoadMachineConfig (
 
     hr = MachineConfigLoader::Load (jsonText, romSearchPaths, outConfig, error);
     CHRN (hr, format (L"Failed to load machine config:\n{}",
-                      wstring (error.begin (), error.end ())).c_str ());
+                      wstring (error.begin(), error.end())).c_str());
 
     // Validate disk images
-    if (!disk1Path.empty ())
+    if (!disk1Path.empty())
     {
         fs::path    diskPath  = fs::path (disk1Path);
         bool        diskGood  = fs::exists (diskPath);
 
         CBRN (diskGood,
-              format (L"Disk image not found:\n{}", disk1Path).c_str ());
+              format (L"Disk image not found:\n{}", disk1Path).c_str());
 
         auto        diskSize  = fs::file_size (diskPath);
         bool        validSize = (diskSize == 143360);
 
         CBRN (validSize,
               format (L"Disk image '{}' is not a valid .dsk file\n(expected 143360 bytes, got {} bytes)",
-                      disk1Path, static_cast<int64_t> (diskSize)).c_str ());
+                      disk1Path, static_cast<int64_t> (diskSize)).c_str());
     }
 
 Error:
@@ -182,7 +182,7 @@ int WINAPI wWinMain (
     CHR (hr);
 
     // Default machine if not specified
-    if (machineName.empty ())
+    if (machineName.empty())
     {
         machineName = L"apple2plus";
     }
@@ -193,12 +193,12 @@ int WINAPI wWinMain (
 
     // Initialize emulator
     hr = shell.Initialize (hInstance, config,
-                           fs::path (disk1Path).string (),
-                           fs::path (disk2Path).string ());
+                           fs::path (disk1Path).string(),
+                           fs::path (disk2Path).string());
     CHRN (hr, L"Failed to initialize emulator");
 
     // Run message loop
-    return shell.RunMessageLoop ();
+    return shell.RunMessageLoop();
 
 Error:
     return FAILED (hr) ? 1 : 0;

@@ -1,4 +1,4 @@
-#include "Pch.h"
+﻿#include "Pch.h"
 
 #include "EmulatorShell.h"
 #include "Core/PathResolver.h"
@@ -84,8 +84,6 @@ HRESULT EmulatorShell::Initialize (
     const string & disk2Path)
 {
     HRESULT        hr        = S_OK;
-    WNDCLASSEX     wc        = {};
-    ATOM           regResult = 0;
     UINT           dpi       = 0;
     int            scale     = 0;
     int            clientW   = 0;
@@ -99,7 +97,6 @@ HRESULT EmulatorShell::Initialize (
 
 
 
-    m_hInstance = hInstance;
     m_config    = config;
 
     // Register built-in device factories
@@ -116,18 +113,12 @@ HRESULT EmulatorShell::Initialize (
     // Enable Per-Monitor V2 DPI awareness
     SetProcessDpiAwarenessContext (DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
-    // Register window class
-    wc.cbSize        = sizeof (WNDCLASSEX);
-    wc.style         = CS_HREDRAW | CS_VREDRAW;
-    wc.lpfnWndProc   = StaticWndProc;
-    wc.hInstance     = hInstance;
-    wc.hCursor       = LoadCursor (nullptr, IDC_ARROW);
-    wc.hbrBackground = reinterpret_cast<HBRUSH> (COLOR_WINDOW + 1);
-    wc.lpszClassName = kWindowClass;
-    wc.hIcon         = LoadIcon (nullptr, IDI_APPLICATION);
+    // Register and create the window via the base class
+    m_kpszWndClass  = kWindowClass;
+    m_hbrBackground = reinterpret_cast<HBRUSH> (COLOR_WINDOW + 1);
 
-    regResult = RegisterClassEx (&wc);
-    CWRA (regResult);
+    hr = Window::Initialize (hInstance);
+    CHR (hr);
 
     // Calculate window size for desired client area, scaled for DPI
     dpi   = GetDpiForSystem ();
@@ -145,15 +136,13 @@ HRESULT EmulatorShell::Initialize (
     AdjustWindowRect (&rc, style, TRUE);  // TRUE = has menu
 
     // Create window
-    m_hwnd = CreateWindowEx (0,
-                             kWindowClass,
-                             L"Casso65",
-                             style,
-                             CW_USEDEFAULT, CW_USEDEFAULT,
-                             rc.right - rc.left, rc.bottom - rc.top,
-                             nullptr, nullptr, hInstance,
-                             this);
-    CPRA (m_hwnd);
+    hr = Window::Create (0,
+                         L"Casso65",
+                         style,
+                         CW_USEDEFAULT, CW_USEDEFAULT,
+                         rc.right - rc.left, rc.bottom - rc.top,
+                         nullptr);
+    CHR (hr);
 
     // Create menu bar
     hr = m_menuSystem.CreateMenuBar (m_hwnd);
@@ -823,33 +812,16 @@ void EmulatorShell::RunOneFrame ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  StaticWndProc
+//  OnCommand
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT CALLBACK EmulatorShell::StaticWndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+bool EmulatorShell::OnCommand (HWND hwnd, int id)
 {
-    EmulatorShell * self = nullptr;
+    UNREFERENCED_PARAMETER (hwnd);
 
-
-
-    if (msg == WM_CREATE)
-    {
-        CREATESTRUCT * cs = reinterpret_cast<CREATESTRUCT *> (lParam);
-        self = static_cast<EmulatorShell *> (cs->lpCreateParams);
-        SetWindowLongPtr (hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR> (self));
-    }
-    else
-    {
-        self = reinterpret_cast<EmulatorShell *> (GetWindowLongPtr (hwnd, GWLP_USERDATA));
-    }
-
-    if (self != nullptr)
-    {
-        return self->WndProc (hwnd, msg, wParam, lParam);
-    }
-
-    return DefWindowProc (hwnd, msg, wParam, lParam);
+    HandleCommand (static_cast<WORD> (id));
+    return false;
 }
 
 
@@ -858,61 +830,153 @@ LRESULT CALLBACK EmulatorShell::StaticWndProc (HWND hwnd, UINT msg, WPARAM wPara
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WndProc
+//  OnCreate
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT EmulatorShell::WndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+LRESULT EmulatorShell::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
 {
-    switch (msg)
+    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (pcs);
+
+    return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDestroy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnDestroy (HWND hwnd)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+
+    m_running.store (false, memory_order_release);
+    PostQuitMessage (0);
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnKeyDown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER (lParam);
+
+    if (m_keyboard == nullptr)
     {
-        case WM_COMMAND:
-        {
-            HandleCommand (LOWORD (wParam));
-            return 0;
-        }
+        return false;
+    }
 
-        case WM_KEYDOWN:
-        {
-            OnKeyDown (wParam, lParam);
-            return 0;
-        }
+    m_keyboard->SetKeyDown (true);
 
-        case WM_KEYUP:
-        {
-            OnKeyUp (wParam, lParam);
-            return 0;
-        }
-
-        case WM_CHAR:
-        {
-            OnChar (wParam);
-            return 0;
-        }
-
-        case WM_SIZE:
-        {
-            if (wParam != SIZE_MINIMIZED)
-            {
-                int width  = LOWORD (lParam);
-                int height = HIWORD (lParam);
-                m_d3dRenderer.Resize (width, height);
-            }
-            return 0;
-        }
-
-        case WM_DESTROY:
-        {
-            m_running.store (false, memory_order_release);
-            PostQuitMessage (0);
-            return 0;
-        }
-
+    // Handle special keys that don't generate WM_CHAR
+    switch (vk)
+    {
+        case VK_LEFT:
+            m_keyboard->KeyPress (0x08);    // Backspace
+            break;
+        case VK_RIGHT:
+            m_keyboard->KeyPress (0x15);    // Forward
+            break;
+        case VK_UP:
+            m_keyboard->KeyPress (0x0B);    // Up
+            break;
+        case VK_DOWN:
+            m_keyboard->KeyPress (0x0A);    // Down
+            break;
+        case VK_ESCAPE:
+            m_keyboard->KeyPress (0x1B);    // Escape
+            break;
+        case VK_DELETE:
+            m_keyboard->KeyPress (0x7F);    // Delete
+            break;
         default:
             break;
     }
 
-    return DefWindowProc (hwnd, msg, wParam, lParam);
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnKeyUp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER (vk);
+    UNREFERENCED_PARAMETER (lParam);
+
+    if (m_keyboard)
+    {
+        m_keyboard->SetKeyDown (false);
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnChar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER (lParam);
+
+    if (m_keyboard == nullptr)
+    {
+        return false;
+    }
+
+    // WM_CHAR provides the ASCII character including Ctrl+key combos
+    if (ch >= 1 && ch <= 127)
+    {
+        m_keyboard->KeyPress (static_cast<Byte> (ch));
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnSize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+
+    m_d3dRenderer.Resize (static_cast<int> (width), static_cast<int> (height));
+    return false;
 }
 
 
@@ -1156,103 +1220,6 @@ void EmulatorShell::HandleCommand (WORD commandId)
             break;
     }
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnKeyDown
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
-{
-    UNREFERENCED_PARAMETER (lParam);
-
-    if (m_keyboard == nullptr)
-    {
-        return;
-    }
-
-    m_keyboard->SetKeyDown (true);
-
-    // Handle special keys that don't generate WM_CHAR
-    switch (vk)
-    {
-        case VK_LEFT:
-            m_keyboard->KeyPress (0x08);    // Backspace
-            break;
-        case VK_RIGHT:
-            m_keyboard->KeyPress (0x15);    // Forward
-            break;
-        case VK_UP:
-            m_keyboard->KeyPress (0x0B);    // Up
-            break;
-        case VK_DOWN:
-            m_keyboard->KeyPress (0x0A);    // Down
-            break;
-        case VK_ESCAPE:
-            m_keyboard->KeyPress (0x1B);    // Escape
-            break;
-        case VK_DELETE:
-            m_keyboard->KeyPress (0x7F);    // Delete
-            break;
-        default:
-            break;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnKeyUp
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
-{
-    UNREFERENCED_PARAMETER (vk);
-    UNREFERENCED_PARAMETER (lParam);
-
-    if (m_keyboard)
-    {
-        m_keyboard->SetKeyDown (false);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnChar
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::OnChar (WPARAM ch)
-{
-    if (m_keyboard == nullptr)
-    {
-        return;
-    }
-
-    // WM_CHAR provides the ASCII character including Ctrl+key combos
-    if (ch >= 1 && ch <= 127)
-    {
-        m_keyboard->KeyPress (static_cast<Byte> (ch));
-    }
-}
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UpdateWindowTitle
