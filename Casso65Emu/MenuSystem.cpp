@@ -112,8 +112,9 @@ struct MenuDef
 
 static HRESULT BuildPopupMenu (HMENU parent, const MenuDef & def)
 {
-    HRESULT hr   = S_OK;
-    HMENU   menu = nullptr;
+    HRESULT hr       = S_OK;
+    HMENU   menu     = nullptr;
+    BOOL    fSuccess = FALSE;
 
 
 
@@ -124,15 +125,19 @@ static HRESULT BuildPopupMenu (HMENU parent, const MenuDef & def)
     {
         if (def.items[i].id == kSep)
         {
-            AppendMenu (menu, MF_SEPARATOR, 0, nullptr);
+            fSuccess = AppendMenu (menu, MF_SEPARATOR, 0, nullptr);
+            CWRA (fSuccess);
         }
         else
         {
-            AppendMenu (menu, def.items[i].flags, def.items[i].id, def.items[i].label);
+            fSuccess = AppendMenu (menu, def.items[i].flags, def.items[i].id, def.items[i].label);
+            CWRA (fSuccess);
         }
     }
 
-    AppendMenu (parent, MF_POPUP, reinterpret_cast<UINT_PTR> (menu), def.label);
+    fSuccess = AppendMenu (parent, MF_POPUP, reinterpret_cast<UINT_PTR> (menu), def.label);
+    CWRA (fSuccess);
+
     *def.pMenu = menu;
 
 Error:
@@ -195,14 +200,23 @@ Error:
 
 void MenuSystem::SetSpeedMode (SpeedMode mode)
 {
+    HRESULT hr       = S_OK;
+    BOOL    fSuccess = FALSE;
+
+
+
     m_speedMode = mode;
 
-    CheckMenuRadioItem (m_machineMenu,
-                        IDM_MACHINE_SPEED_1X, IDM_MACHINE_SPEED_MAX,
-                        mode == SpeedMode::Authentic ? IDM_MACHINE_SPEED_1X :
-                        mode == SpeedMode::Double    ? IDM_MACHINE_SPEED_2X :
-                                                       IDM_MACHINE_SPEED_MAX,
-                        MF_BYCOMMAND);
+    fSuccess = CheckMenuRadioItem (m_machineMenu,
+                                   IDM_MACHINE_SPEED_1X, IDM_MACHINE_SPEED_MAX,
+                                   mode == SpeedMode::Authentic ? IDM_MACHINE_SPEED_1X :
+                                   mode == SpeedMode::Double    ? IDM_MACHINE_SPEED_2X :
+                                                                   IDM_MACHINE_SPEED_MAX,
+                                   MF_BYCOMMAND);
+    CWRA (fSuccess);
+
+Error:
+    ;
 }
 
 
@@ -217,15 +231,24 @@ void MenuSystem::SetSpeedMode (SpeedMode mode)
 
 void MenuSystem::SetColorMode (ColorMode mode)
 {
+    HRESULT hr       = S_OK;
+    BOOL    fSuccess = FALSE;
+
+
+
     m_colorMode = mode;
 
-    CheckMenuRadioItem (m_viewMenu,
-        IDM_VIEW_COLOR, IDM_VIEW_WHITE,
-        mode == ColorMode::Color      ? IDM_VIEW_COLOR :
-        mode == ColorMode::GreenMono  ? IDM_VIEW_GREEN :
-        mode == ColorMode::AmberMono  ? IDM_VIEW_AMBER :
-                                        IDM_VIEW_WHITE,
-        MF_BYCOMMAND);
+    fSuccess = CheckMenuRadioItem (m_viewMenu,
+                                   IDM_VIEW_COLOR, IDM_VIEW_WHITE,
+                                   mode == ColorMode::Color      ? IDM_VIEW_COLOR :
+                                   mode == ColorMode::GreenMono  ? IDM_VIEW_GREEN :
+                                   mode == ColorMode::AmberMono  ? IDM_VIEW_AMBER :
+                                                                    IDM_VIEW_WHITE,
+                                   MF_BYCOMMAND);
+    CWRA (fSuccess);
+
+Error:
+    ;
 }
 
 

@@ -375,6 +375,8 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
     HMONITOR    hMon;
     MONITORINFO mi        = { sizeof (mi) };
     BOOL        monResult = FALSE;
+    BOOL        posResult = FALSE;
+    BOOL        rectResult = FALSE;
 
 
 
@@ -382,7 +384,8 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
     {
         // Save windowed state
         m_windowedStyle = GetWindowLong (hwnd, GWL_STYLE);
-        GetWindowRect (hwnd, &m_windowedRect);
+        rectResult = GetWindowRect (hwnd, &m_windowedRect);
+        CWRA (rectResult);
 
         // Go borderless fullscreen
         hMon      = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
@@ -390,12 +393,13 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
         CWRA (monResult);
 
         SetWindowLong (hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
-        SetWindowPos (hwnd, 
-                      HWND_TOP,
-                      mi.rcMonitor.left, mi.rcMonitor.top,
-                      mi.rcMonitor.right - mi.rcMonitor.left,
-                      mi.rcMonitor.bottom - mi.rcMonitor.top,
-                      SWP_FRAMECHANGED);
+        posResult = SetWindowPos (hwnd, 
+                                  HWND_TOP,
+                                  mi.rcMonitor.left, mi.rcMonitor.top,
+                                  mi.rcMonitor.right - mi.rcMonitor.left,
+                                  mi.rcMonitor.bottom - mi.rcMonitor.top,
+                                  SWP_FRAMECHANGED);
+        CWRA (posResult);
 
         m_fullscreen = true;
     }
@@ -403,12 +407,13 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
     {
         // Restore windowed
         SetWindowLong (hwnd, GWL_STYLE, m_windowedStyle);
-        SetWindowPos (hwnd, 
-                      HWND_NOTOPMOST,
-                      m_windowedRect.left, m_windowedRect.top,
-                      m_windowedRect.right - m_windowedRect.left,
-                      m_windowedRect.bottom - m_windowedRect.top,
-                      SWP_FRAMECHANGED);
+        posResult = SetWindowPos (hwnd, 
+                                  HWND_NOTOPMOST,
+                                  m_windowedRect.left, m_windowedRect.top,
+                                  m_windowedRect.right - m_windowedRect.left,
+                                  m_windowedRect.bottom - m_windowedRect.top,
+                                  SWP_FRAMECHANGED);
+        CWRA (posResult);
 
         m_fullscreen = false;
     }

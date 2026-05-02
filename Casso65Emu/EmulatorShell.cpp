@@ -1,4 +1,4 @@
-#include "Pch.h"
+﻿#include "Pch.h"
 
 #include "EmulatorShell.h"
 #include "Core/PathResolver.h"
@@ -149,18 +149,20 @@ Error:
 
 HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 {
-    HRESULT hr      = S_OK;
-    UINT    dpi     = 0;
-    int     scale   = 0;
-    int     clientW = 0;
-    int     clientH = 0;
-    RECT    rc      = {};
-    DWORD   style   = 0;
+    HRESULT hr        = S_OK;
+    UINT    dpi       = 0;
+    int     scale     = 0;
+    int     clientW   = 0;
+    int     clientH   = 0;
+    RECT    rc        = {};
+    DWORD   style     = 0;
+    BOOL    fSuccess  = FALSE;
 
 
 
     // Enable Per-Monitor V2 DPI awareness
-    SetProcessDpiAwarenessContext (DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    fSuccess = SetProcessDpiAwarenessContext (DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    CWRA (fSuccess);
 
     // Register and create the window via the base class
     m_kpszWndClass  = kWindowClass;
@@ -182,7 +184,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
     rc    = { 0, 0, clientW, clientH };
     style = WS_OVERLAPPEDWINDOW;
-    AdjustWindowRect (&rc, style, TRUE);  // TRUE = has menu
+    fSuccess = AdjustWindowRect (&rc, style, TRUE);  // TRUE = has menu
+    CWRA (fSuccess);
 
     // Create window
     hr = Window::Create (0,
@@ -198,13 +201,17 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     CHR (hr);
 
     // Recalculate window size after menu added
-    AdjustWindowRect (&rc, style, TRUE);
-    SetWindowPos (m_hwnd, nullptr, 0, 0,
-                  rc.right - rc.left, rc.bottom - rc.top,
-                  SWP_NOMOVE | SWP_NOZORDER);
+    fSuccess = AdjustWindowRect (&rc, style, TRUE);
+    CWRA (fSuccess);
+
+    fSuccess = SetWindowPos (m_hwnd, nullptr, 0, 0,
+                             rc.right - rc.left, rc.bottom - rc.top,
+                             SWP_NOMOVE | SWP_NOZORDER);
+    CWRA (fSuccess);
 
     // Load accelerator table
     m_accelTable = LoadAccelerators (hInstance, MAKEINTRESOURCE (IDR_ACCELERATOR));
+    CWRA (m_accelTable);
 
 Error:
     return hr;
@@ -219,16 +226,19 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::CreateStatusBar ()
+void EmulatorShell::CreateStatusBar()
 {
+    HRESULT              hr       = S_OK;
     INITCOMMONCONTROLSEX icex     = { sizeof (icex), ICC_BAR_CLASSES };
+    BOOL                 fSuccess = FALSE;
     RECT                 rcClient = {};
     int                  sbHeight = 0;
     RECT                 sbRect   = {};
 
 
 
-    InitCommonControlsEx (&icex);
+    fSuccess = InitCommonControlsEx (&icex);
+    CWRA (fSuccess);
 
     m_statusBar = CreateWindowExW (0,
                                    STATUSCLASSNAME,
@@ -239,17 +249,18 @@ void EmulatorShell::CreateStatusBar ()
                                    nullptr,
                                    m_hInstance,
                                    nullptr);
+    CWRA (m_statusBar);
 
-    if (m_statusBar != nullptr)
-    {
-        UpdateStatusBar ();
+    UpdateStatusBar();
 
-        GetWindowRect (m_statusBar, &sbRect);
-        sbHeight = sbRect.bottom - sbRect.top;
-    }
+    fSuccess = GetWindowRect (m_statusBar, &sbRect);
+    CWRA (fSuccess);
+
+    sbHeight = sbRect.bottom - sbRect.top;
 
     // Create a child window for D3D rendering (above the status bar)
-    GetClientRect (m_hwnd, &rcClient);
+    fSuccess = GetClientRect (m_hwnd, &rcClient);
+    CWRA (fSuccess);
 
     m_renderHwnd = CreateWindowExW (0,
                                     L"Static",
@@ -261,6 +272,10 @@ void EmulatorShell::CreateStatusBar ()
                                     nullptr,
                                     m_hInstance,
                                     nullptr);
+    CWRA (m_renderHwnd);
+
+Error:
+    ;
 }
 
 
@@ -273,45 +288,66 @@ void EmulatorShell::CreateStatusBar ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::UpdateStatusBar ()
+void EmulatorShell::UpdateStatusBar()
 {
-    static constexpr int kPartCount = 4;
-    static constexpr int kPadding   = 24;
+    static constexpr int s_kPartCount = 4;
+    static constexpr int s_kPadding   = 24;
 
-    struct StatusPart { int index; wstring text; };
+    HRESULT hr                  = S_OK;
+    BOOL    fSuccess            = FALSE;
+    HDC     hdc                 = NULL;
+    HFONT   sbFont              = NULL;
+    HFONT   oldFont             = nullptr;
+    SIZE    size                = { };
+    int     parts[s_kPartCount] = { };
+    int     edge                = 0;
 
-    StatusPart items[kPartCount] =
+    wstring statusBarItem[] =
     {
-        { 0, format (L"CPU: {}",          fs::path (m_config.cpu).wstring ()) },
-        { 1, format (L"Clock: {:.3f} MHz", m_config.clockSpeed / 1000000.0) },
-        { 2, format (L"Machine: {}",       fs::path (m_config.name).wstring ()) },
-        { 3, format (L"{} devices",        m_config.devices.size ()) },
+        format (L"CPU: {}",           fs::path (m_config.cpu).wstring()),
+        format (L"Clock: {:.3f} MHz", m_config.clockSpeed / 1000000.0),
+        format (L"Machine: {}",       fs::path (m_config.name).wstring()),
+        format (L"{} devices",        m_config.devices.size()),
     };
 
-    HDC     hdc     = GetDC (m_statusBar);
-    HFONT   sbFont  = reinterpret_cast<HFONT> (SendMessage (m_statusBar, WM_GETFONT, 0, 0));
-    HFONT   oldFont = nullptr;
-    SIZE    sz      = {};
-    int     parts[kPartCount] = {};
-    int     edge    = 0;
 
 
+    hdc = GetDC (m_statusBar);
+    CPRA (hdc);
 
-    if (sbFont != nullptr)
+    sbFont = reinterpret_cast<HFONT> (SendMessage (m_statusBar, WM_GETFONT, 0, 0));
+    if (sbFont != NULL)
     {
         oldFont = static_cast<HFONT> (SelectObject (hdc, sbFont));
     }
 
-    for (int i = 0; i < kPartCount - 1; i++)
+    for (int i = 0; i < s_kPartCount - 1; i++)
     {
-        GetTextExtentPoint32W (hdc, items[i].text.c_str (),
-                               static_cast<int> (items[i].text.size ()), &sz);
-        edge    += sz.cx + kPadding;
+        fSuccess = GetTextExtentPoint32W (hdc, 
+                                          statusBarItem[i].c_str(),
+                                          static_cast<int> (statusBarItem[i].size()), 
+                                          &size);
+        CWRA (fSuccess);
+
+        edge    += size.cx + s_kPadding;
         parts[i] = edge;
     }
 
-    parts[kPartCount - 1] = -1;
+    parts[s_kPartCount - 1] = -1;
 
+    SendMessage (m_statusBar, SB_SETPARTS, s_kPartCount, reinterpret_cast<LPARAM> (parts));
+
+    for (int i = 0; i < s_kPartCount; i++)
+    {
+        SendMessageW (m_statusBar, 
+                      SB_SETTEXTW, 
+                      i,
+                      reinterpret_cast<LPARAM> (statusBarItem[i].c_str()));
+    }
+
+
+
+Error:
     if (oldFont != nullptr)
     {
         SelectObject (hdc, oldFont);
@@ -319,13 +355,7 @@ void EmulatorShell::UpdateStatusBar ()
 
     ReleaseDC (m_statusBar, hdc);
 
-    SendMessage (m_statusBar, SB_SETPARTS, kPartCount, reinterpret_cast<LPARAM> (parts));
-
-    for (int i = 0; i < kPartCount; i++)
-    {
-        SendMessageW (m_statusBar, SB_SETTEXTW, items[i].index,
-                      reinterpret_cast<LPARAM> (items[i].text.c_str ()));
-    }
+    return;
 }
 
 
@@ -338,64 +368,64 @@ void EmulatorShell::UpdateStatusBar ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ShowDevicePopup ()
+void EmulatorShell::ShowDevicePopup()
 {
-    HMENU   hMenu  = nullptr;
-    POINT   pt     = {};
-    UINT    itemId = 1;
+    HRESULT hr       = S_OK;
+    BOOL    fSuccess = FALSE;
+    HMENU   hMenu    = nullptr;
+    POINT   pt       = {};
+    UINT    itemId   = 1;
     wstring label;
 
 
 
-    hMenu = CreatePopupMenu ();
-
-    if (hMenu == nullptr)
-    {
-        return;
-    }
+    hMenu = CreatePopupMenu();
+    CPRA (hMenu);
 
     // Memory regions from config
     for (const auto & region : m_config.memoryRegions)
     {
         label = format (L"${:04X}-${:04X}  {}",
                         region.start, region.end,
-                        fs::path (region.type).wstring ());
+                        fs::path (region.type).wstring());
 
-        if (!region.file.empty ())
+        if (!region.file.empty())
         {
-            label += L" (" + fs::path (region.file).wstring () + L")";
+            label += L" (" + fs::path (region.file).wstring() + L")";
         }
 
-        AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str ());
+        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
+        CWRA (fSuccess);
     }
 
-    AppendMenuW (hMenu, MF_SEPARATOR, 0, nullptr);
+    fSuccess = AppendMenuW (hMenu, MF_SEPARATOR, 0, nullptr);
+    CWRA (fSuccess);
 
     // Named devices — look up actual address range from the bus
     for (const auto & devCfg : m_config.devices)
     {
-        wstring name  = fs::path (devCfg.type).wstring ();
+        wstring name  = fs::path (devCfg.type).wstring();
         bool    found = false;
 
         for (const auto & dev : m_ownedDevices)
         {
-            if (dev->GetStart () >= 0xC000 && dev->GetEnd () <= 0xCFFF)
+            if (dev->GetStart() >= 0xC000 && dev->GetEnd() <= 0xCFFF)
             {
                 // Check if this owned device matches the config entry
                 // by comparing pointer identity with tracked device pointers
                 bool match = false;
 
-                if (m_keyboard != nullptr && dev.get () == static_cast<MemoryDevice *> (m_keyboard) &&
+                if (m_keyboard != nullptr && dev.get() == static_cast<MemoryDevice *> (m_keyboard) &&
                     (devCfg.type == "apple2-keyboard" || devCfg.type == "apple2e-keyboard"))
                 {
                     match = true;
                 }
-                else if (m_speaker != nullptr && dev.get () == static_cast<MemoryDevice *> (m_speaker) &&
+                else if (m_speaker != nullptr && dev.get() == static_cast<MemoryDevice *> (m_speaker) &&
                          devCfg.type == "apple2-speaker")
                 {
                     match = true;
                 }
-                else if (m_softSwitches != nullptr && dev.get () == static_cast<MemoryDevice *> (m_softSwitches) &&
+                else if (m_softSwitches != nullptr && dev.get() == static_cast<MemoryDevice *> (m_softSwitches) &&
                          (devCfg.type == "apple2-softswitches" || devCfg.type == "apple2e-softswitches"))
                 {
                     match = true;
@@ -404,7 +434,7 @@ void EmulatorShell::ShowDevicePopup ()
                 if (match)
                 {
                     label = format (L"${:04X}-${:04X}  {}",
-                                    dev->GetStart (), dev->GetEnd (), name);
+                                    dev->GetStart(), dev->GetEnd(), name);
                     found = true;
                     break;
                 }
@@ -416,13 +446,21 @@ void EmulatorShell::ShowDevicePopup ()
             label = name;
         }
 
-        AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str ());
+        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
+        CWRA (fSuccess);
     }
 
-    GetCursorPos (&pt);
+    fSuccess = GetCursorPos (&pt);
+    CWRA (fSuccess);
+
     TrackPopupMenu (hMenu, TPM_LEFTALIGN | TPM_BOTTOMALIGN,
                     pt.x, pt.y, 0, m_hwnd, nullptr);
-    DestroyMenu (hMenu);
+
+Error:
+    if (hMenu != nullptr)
+    {
+        DestroyMenu (hMenu);
+    }
 }
 
 

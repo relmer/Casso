@@ -43,9 +43,16 @@ DebugConsole::~DebugConsole ()
 LRESULT DebugConsole::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
 {
     HRESULT hr       = S_OK;
-    UINT    dpi      = GetDpiForWindow (hwnd);
-    int     fontSize = MulDiv (16, dpi, 96);
+    UINT    dpi      = 0;
+    int     fontSize = 0;
     HFONT   hFont    = nullptr;
+
+
+
+    dpi = GetDpiForWindow (hwnd);
+    CWRA (dpi);
+
+    fontSize = MulDiv (16, dpi, 96);
 
 
 
@@ -166,13 +173,16 @@ Error:
 
 bool DebugConsole::Show (HINSTANCE hInstance)
 {
-    bool created = false;
+    HRESULT hr      = S_OK;
+    bool    created = false;
 
 
 
     if (m_hwnd == nullptr)
     {
-        InitializeConsole (hInstance);
+        hr = InitializeConsole (hInstance);
+        CHR (hr);
+
         created = true;
     }
 
@@ -182,6 +192,7 @@ bool DebugConsole::Show (HINSTANCE hInstance)
         SetForegroundWindow (m_hwnd);
     }
 
+Error:
     return created;
 }
 
