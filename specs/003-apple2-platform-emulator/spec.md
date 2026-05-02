@@ -2,7 +2,8 @@
 
 **Feature Branch**: `003-apple2-platform-emulator`  
 **Created**: 2025-07-22  
-**Status**: Draft  
+**Status**: In Progress  
+**Last Updated**: 2025-07-27  
 **Input**: User description: "Add a GUI-based Apple II platform emulator (Casso65Emu) to the Casso65 6502 emulator project"
 
 ## User Scenarios & Testing *(mandatory)*
@@ -20,7 +21,7 @@ A user launches Casso65Emu with an Apple II+ machine configuration and the appro
 1. **Given** a valid Apple II+ ROM file is present in the configured ROM directory, **When** the user runs `Casso65Emu.exe --machine apple2plus`, **Then** a window opens displaying 40-column green-on-black text with the Applesoft BASIC `]` prompt within 3 seconds
 2. **Given** the emulator is running at the `]` prompt, **When** the user types `PRINT "HELLO WORLD"` and presses Enter, **Then** the text `HELLO WORLD` appears on the next line followed by a new `]` prompt
 3. **Given** the emulator is running, **When** the user presses Ctrl+Reset, **Then** the emulator resets and returns to the `]` prompt
-4. **Given** the machine config specifies a CPU clock speed of 1.023 MHz, **When** the emulator runs, **Then** the emulation speed closely approximates real Apple II timing (cursor blink rate and keystroke responsiveness feel authentic)
+4. **Given** the machine config specifies a CPU clock speed of 1,022,727 Hz (14.31818 MHz / 14), **When** the emulator runs, **Then** the emulation speed closely approximates real Apple II timing (cursor blink rate and keystroke responsiveness feel authentic)
 
 ---
 
@@ -126,7 +127,7 @@ A developer creates a new machine configuration JSON file and registers new devi
 - What happens when the user specifies `--machine` with a config name that does not exist? → The emulator displays a helpful error listing available machine configurations and exits
 - What happens when the ROM file referenced in the machine config is missing? → The emulator reports which ROM file is missing, its expected location, and exits with a clear error message
 - What happens when the user provides a .dsk image that is corrupted or an unrecognized format? → The emulator reports the disk error and continues running (the drive is simply empty)
-- What happens when the emulator window is resized? → The window has a fixed 560×384 client area; resizing is not supported (FR-022). Fullscreen mode (Alt+Enter) uses D3D11 swap chain scaling with correct aspect ratio (FR-031).
+- What happens when the emulator window is resized? → The window is resizable with Per-Monitor V2 DPI awareness. D3D11 swap chain is resized to match the new client area, and the emulation viewport scales to fill the window while maintaining correct aspect ratio. Fullscreen mode (Alt+Enter) uses borderless fullscreen with vsync via D3D11 Present(1).
 - What happens when the user closes the emulator window while a disk write is in progress? → The emulator completes or discards the pending operation and exits cleanly without corrupting the disk image
 - What happens when two devices are configured with overlapping address ranges? → The emulator detects the conflict at startup and reports which devices and addresses overlap, then exits
 - What happens when the CPU executes an illegal/undefined opcode (NMOS 6502)? → The emulator treats it as a NOP of the appropriate byte/cycle length (non-crashing behavior), consistent with common emulator practice
@@ -154,10 +155,10 @@ A developer creates a new machine configuration JSON file and registers new devi
 - **FR-016**: System MUST accept command-line arguments: `--machine <name>` (required), `--disk1 <path>` (optional), `--disk2 <path>` (optional)
 - **FR-017**: System MUST NOT depend on any third-party libraries; only the Windows SDK and C++ Standard Library are permitted
 - **FR-018**: System MUST validate machine config files at startup and report clear, actionable errors for missing files, unknown device types, overlapping address ranges, and malformed JSON
-- **FR-019**: System MUST preserve all existing Casso65 project functionality — the existing 577+ unit tests must continue to pass with no changes to Casso65Core's public API
+- **FR-019**: System MUST preserve all existing Casso65 project functionality — the existing 787+ unit tests must continue to pass with no changes to Casso65Core's public API
 - **FR-020**: System MUST integrate with the existing Casso65Core `Cpu` class by subclassing it (e.g., `EmuCpu`) and overriding the memory access methods (`ReadByte`, `WriteByte`, `ReadWord`, `WriteWord`) to route through the MemoryBus instead of the flat `memory[]` array. The base `Cpu` methods must be made `virtual` (a non-breaking change to the protected interface — no public API change). The existing `PeekByte`/`PokeByte` public accessors and all unit tests remain unaffected.
 - **FR-021**: System MUST use the existing NMOS 6502 CPU emulation for all three target machines (Apple II, II+, IIe). The original Apple IIe (1983) uses the NMOS 6502, not the 65C02. Support for the Enhanced IIe (65C02) and Apple //c is out of scope for this spec and may be added as a future enhancement.
-- **FR-022**: System MUST display a Win32 window with a title bar showing the machine name and emulation state (e.g., "Casso65 — Apple II+ [Running]"), a menu bar (see Menu Hierarchy below), and a fixed-size client area of 560×384 pixels. No window resizing is supported in the initial implementation.
+- **FR-022**: System MUST display a Win32 window with a title bar showing the machine name and emulation state (e.g., "Casso65 — Apple II+ [Running]"), a menu bar (see Menu Hierarchy below), and a resizable client area with Per-Monitor V2 DPI awareness. The default size is 560×384 pixels (2× scaling of 280×192).
 
 ### Menu Hierarchy
 
@@ -212,8 +213,8 @@ Help
 ```
 
 Menu items that depend on unimplemented features (e.g., CRT Shader) are grayed out until the feature is available. Speed and Color Mode items use radio-button check marks to show the current selection. The Debug Console window shows diagnostic log output, machine config summary, device wiring status, and unhandled soft switch accesses.
-- **FR-023**: System MUST run the emulation loop synchronized to real-time speed by executing the correct number of CPU cycles per video frame (1,023,000 Hz ÷ ~60 Hz ≈ 17,050 cycles per frame), rendering the framebuffer, and sleeping for the remainder of the frame period. The loop runs on the main thread integrated with the Win32 message pump.
-- **FR-024**: System MUST generate audio from speaker toggles by accumulating toggle timestamps during each frame's CPU execution, converting them to a PCM waveform, and submitting audio buffers via the WASAPI shared-mode audio stream. The audio buffer size should target low-latency output (≤50 ms).
+- **FR-023**: System MUST run the emulation loop synchronized to real-time speed by executing the correct number of CPU cycles per video frame (1,022,727 Hz ÷ ~60 Hz = 17,030 cycles per frame, derived from 14.31818 MHz / 14 crystal, 65 cycles × 262 scanlines). The CPU runs on a dedicated thread in 1ms execution slices; the UI thread handles the Win32 message pump and D3D11 Present(1) with vsync.
+- **FR-024**: System MUST generate audio from speaker toggles by accumulating toggle timestamps during each 1ms execution slice, converting them to a PCM waveform, and submitting audio buffers via the WASAPI shared-mode audio stream on the CPU thread. The WASAPI buffer is 100ms; a pending sample buffer decouples generation from WASAPI drain. Speaker amplitude is ±0.25f.
 - **FR-025**: System MUST map slot-based devices to both their I/O range ($C080+slot×16 through $C08F+slot×16 → e.g., slot 6 maps to $C0E0–$C0EF) and their slot ROM range ($Cs00–$CsFF where s is the slot number → e.g., slot 6 maps to $C600–$C6FF). The Disk II controller's slot ROM contains the boot code that the CPU executes when booting from disk.
 - **FR-026**: System MUST support an original Apple II machine configuration that is identical to the Apple II+ except with the Integer BASIC ROM instead of the Applesoft BASIC ROM. The `--machine apple2` argument selects this configuration.
 - **FR-027**: System MUST support two user-selectable disk write modes: (a) buffer-and-flush — changes held in memory, written to the .dsk file on eject or exit; (b) copy-on-write — original .dsk is never modified, changes saved to a sidecar file. The mode is selectable via the Disk menu. Default is buffer-and-flush.
@@ -245,8 +246,8 @@ Menu items that depend on unimplemented features (e.g., CRT Shader) are grayed o
 - **SC-003**: Users can boot DOS 3.3 or ProDOS from a .dsk image and run CATALOG, LOAD, and RUN commands successfully
 - **SC-004**: All 16 Apple II lo-res colors display correctly and are visually distinguishable on a modern monitor
 - **SC-005**: Hi-res graphics programs produce color output consistent with NTSC artifacting behavior documented in Apple II technical references
-- **SC-006**: Emulation runs at 100% real-time speed (1.023 MHz effective) on any modern Windows PC without frame drops during normal operation
-- **SC-007**: All existing 577+ Casso65 unit tests continue to pass after adding the new project
+- **SC-006**: Emulation runs at 100% real-time speed (1,022,727 Hz effective) on any modern Windows PC without frame drops during normal operation
+- **SC-007**: All existing 787+ Casso65 unit tests continue to pass after adding the new project
 - **SC-008**: A developer can add support for a new machine type by creating a JSON config file and writing device component classes, without modifying the emulator shell, MemoryBus, or any existing machine configs
 - **SC-009**: Apple IIe emulation supports 80-column text mode and double hi-res graphics, running software that requires these features
 - **SC-010**: The emulator exits cleanly when encountering configuration errors, providing error messages that identify the specific problem (missing ROM, unknown device, invalid JSON) and suggest corrective action
@@ -264,7 +265,7 @@ These are binding architectural choices made during design. They constrain all d
 | **Audio API** | WASAPI (Windows Audio Session API) | Modern, low-latency, available on all Windows 10+ targets. Speaker toggle at $C030 generates square-wave samples pushed to a WASAPI shared-mode stream. |
 | **Third-party libraries** | None | Consistent with Casso65 project policy. Only Windows SDK + C++ STL. |
 | **Machine configuration** | Data-driven JSON files + component registry | New machines added via config + device components. No machine-specific subclasses in the emulator shell. |
-| **Threading model** | Single-threaded | CPU execution, video rendering, audio generation, and Win32 message pump all on the main thread. Sufficient for 1 MHz Apple II emulation on modern hardware. |
+| **Threading model** | CPU thread + UI thread | Dedicated CPU thread for emulation (1ms execution slices, WASAPI audio submission, framebuffer rendering). UI thread handles Win32 message pump, D3D11 Present(1) with vsync, keyboard dispatch. Shared state uses atomic keyboard latch, mutex-protected framebuffer, atomic flags, and a command queue. WASAPI init/submit/shutdown all on CPU thread with its own CoInitializeEx. |
 | **Disk write strategy** | User-selectable: buffer-and-flush or copy-on-write | Buffer-and-flush: changes held in memory, written to the .dsk file on eject or exit (matches real floppy behavior). Copy-on-write: original .dsk is never modified; changes saved to a sidecar `.delta` file. User selects via Disk menu. Default is buffer-and-flush. |
 | **Character ROM (II/II+)** | Embedded in code as `const Byte[]` | The Apple II/II+ character generator is a 2KB glyph table baked into the hardware. Embedding it avoids requiring a separate ROM file for these models. The IIe character ROM (which includes MouseText) is still loaded as a file since it differs and users may want to swap it. |
 | **Diagnostics / logging** | `DEBUGMSG` (EHM) + debug console window | Diagnostic output via EHM's `DEBUGMSG` wrapper (calls `OutputDebugString`). A "Debug Console" menu item opens an in-app window showing log output, machine config summary, device wiring, and unhandled soft switch accesses. |
@@ -276,10 +277,10 @@ These are binding architectural choices made during design. They constrain all d
 - Direct3D 11 (part of the Windows SDK, not third-party) is used for rendering. A D3D11 device, swap chain, and single textured quad provide the display pipeline, enabling future CRT shader effects (scanlines, bloom, curvature) via HLSL. This approach is sufficient for the 1 MHz Apple II's display refresh requirements; no GPU acceleration is needed
 - The existing Casso65Core 6502 CPU emulation is cycle-accurate enough to run Apple II software correctly; if timing adjustments are needed they will be addressed as bugs, not as spec changes
 - Disk II emulation supports the standard 140KB .dsk format (DOS-order, 16 sectors × 35 tracks); other formats (e.g., .nib, .woz) are out of scope for the initial implementation
-- Audio output uses the WASAPI (Windows Audio Session API) shared-mode stream for speaker emulation; target latency is under 50ms
+- Audio output uses the WASAPI (Windows Audio Session API) shared-mode stream for speaker emulation; WASAPI buffer is 100ms with 1ms execution slice granularity and a pending sample buffer to decouple generation from drain
 - The Apple II+ and original Apple II differ only in ROM content (Applesoft vs. Integer BASIC); both use the same machine config structure with different ROM file references
 - The focus is on accurate functional emulation, not cycle-exact hardware reproduction; minor timing differences that don't affect software compatibility are acceptable
-- The emulation loop is single-threaded — CPU execution, video rendering, and audio generation all happen on the main thread, interleaved with Win32 message processing. This is sufficient for the 1 MHz Apple II target on modern hardware.
+- The emulation uses a dedicated CPU thread for 6502 execution (1ms slices), WASAPI audio submission, and framebuffer rendering. The UI thread handles Win32 message pump, D3D11 Present(1) with vsync, and keyboard dispatch. Shared state uses atomic keyboard latch, mutex-protected framebuffer, atomic flags, and a command queue.
 - Making `Cpu::ReadByte`/`WriteByte`/`ReadWord`/`WriteWord` virtual is a safe change to the protected (non-public) interface — it does not affect the existing Casso65 CLI or unit tests, which continue to use the base `Cpu` class with its flat memory array.
 - The original Apple II (Integer BASIC) is a lower-priority configuration — most users will use Apple II+ or IIe. It is included for completeness but shares all components with the Apple II+ except the ROM file.
 

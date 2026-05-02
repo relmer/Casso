@@ -28,22 +28,22 @@
 
 ## R-002: WASAPI Audio Streaming
 
-**Decision**: Pull-mode WASAPI shared-mode with float32 mono at 44.1 kHz, ~33ms buffer.
+**Decision**: Pull-mode WASAPI shared-mode with float32 mono at 44.1 kHz, 100ms buffer, submitted from CPU thread in 1ms slices.
 
-**Rationale**: Pull-mode (polling) integrates cleanly with the 60 fps frame loop — no callbacks or event waits. Shared-mode coexists with other Windows audio. Float32 is the modern WASAPI native format. 33ms buffer + 16.6ms frame period ≈ 50ms total latency, meeting the spec target.
+**Rationale**: Pull-mode (polling) integrates cleanly with the 1ms execution slice architecture — audio samples generated per-slice are submitted to WASAPI immediately on the CPU thread. Shared-mode coexists with other Windows audio. Float32 is the modern WASAPI native format. 100ms WASAPI buffer provides headroom; a pending sample buffer decouples sample generation from WASAPI drain. Speaker amplitude is ±0.25f.
 
 **Alternatives considered**:
-- **Event-driven WASAPI**: More complex (requires separate thread or event wait), no benefit for a fixed-rate emulator loop.
-- **DirectSound**: Legacy API, deprecated. WASAPI is the modern replacement.
+- **Event-driven WASAPI**: More complex (requires separate thread or event wait), no benefit for a 1ms-slice emulator architecture.
+- **DirectSound**: Legacy API, deprecated. WASAPI is the modern replacement. AppleWin uses DirectSound with audio-driven clock feedback — we adopted 1ms slices from AppleWin but with WASAPI instead.
 - **PCM16 format**: Works but float32 is preferred by modern drivers; avoids quantization noise and format conversion overhead.
 
 **Key technical details**:
 - **Headers**: `<mmdeviceapi.h>`, `<audioclient.h>` (via Windows SDK)
 - **Link libraries**: `ole32.lib` (for COM)
 - **Interfaces**: `IMMDeviceEnumerator` → `IMMDevice` → `IAudioClient` → `IAudioRenderClient`
-- **Initialization**: `CoInitializeEx(COINIT_MULTITHREADED)` → `CoCreateInstance(CLSID_MMDeviceEnumerator)` → `GetDefaultAudioEndpoint(eRender, eConsole)` → `Activate(IID_IAudioClient)` → `Initialize(AUDCLNT_SHAREMODE_SHARED, 0, 33ms, 0, format, NULL)` → `GetBufferSize()` → `GetService(IID_IAudioRenderClient)` → `Start()`
-- **Per-frame pattern**: `GetCurrentPadding()` → calculate available frames → `GetBuffer()` → write float32 samples → `ReleaseBuffer()`
-- **Speaker sample generation**: Toggle events accumulated during CPU execution. Each toggle flips speaker state between +0.3f and -0.3f. Samples between toggles hold the current state.
+- **Initialization**: `CoInitializeEx(COINIT_MULTITHREADED)` on CPU thread → `CoCreateInstance(CLSID_MMDeviceEnumerator)` → `GetDefaultAudioEndpoint(eRender, eConsole)` → `Activate(IID_IAudioClient)` → `Initialize(AUDCLNT_SHAREMODE_SHARED, 0, 100ms, 0, format, NULL)` → `GetBufferSize()` → `GetService(IID_IAudioRenderClient)` → `Start()`
+- **Per-slice pattern**: Each 1ms execution slice generates audio samples → accumulated in pending buffer → `GetCurrentPadding()` → calculate available frames → `GetBuffer()` → drain pending samples to WASAPI → `ReleaseBuffer()`
+- **Speaker sample generation**: Toggle events accumulated during CPU execution. Each toggle flips speaker state between +0.25f and -0.25f. Samples between toggles hold the current state. Cycle-accurate timing via `baseCycles` in Microcode.
 - **Fallback**: If `Initialize()` returns `AUDCLNT_E_UNSUPPORTED_FORMAT`, retry with `GetMixFormat()`.
 - **ARM64**: Fully supported, same API, no platform-specific code needed.
 
@@ -218,3 +218,38 @@ Physical: 0  7 14  5 12  3 10  1  8 15  6 13  4 11  2  9
 - **Total estimate**: ~500-700 lines across `JsonParser.h` and `JsonParser.cpp`
 - **Schema validation**: Done in `MachineConfig` loader, not in the parser itself
 - **Dependencies**: Only `<string>`, `<vector>`, `<unordered_map>`, `<sstream>` from STL
+
+---
+
+## R-007: AppleWin Architecture Research
+
+**Decision**: Adopt AppleWin's 1ms execution slice approach with a dedicated CPU thread and WASAPI (replacing AppleWin's DirectSound).
+
+**Rationale**: AppleWin is the most mature open-source Apple II emulator for Windows and provided key architectural insights that influenced our design, particularly around audio timing and NTSC clock derivation.
+
+**Key findings from AppleWin**:
+
+### Execution Granularity
+- AppleWin is single-threaded but uses **1ms execution slices** rather than per-frame (16.6ms) granularity
+- Each 1ms slice executes ~1,023 CPU cycles, then submits audio samples for that slice
+- This fine granularity produces smoother audio with fewer pops/clicks compared to per-frame audio submission
+- We adopted the 1ms slice approach but run it on a **dedicated CPU thread** with WASAPI instead of DirectSound
+
+### Audio-Driven Clock Feedback
+- AppleWin uses DirectSound buffer fill level to adjust the number of CPU cycles per slice
+- When the audio buffer is running low, more cycles are executed; when full, fewer cycles
+- This creates a closed-loop feedback system where audio timing drives CPU speed
+- We opted for a simpler approach: fixed 1ms slices with a pending sample buffer to decouple generation from WASAPI drain, plus a 100ms WASAPI buffer for headroom
+
+### NTSC Timing Derivation
+- The Apple II's master clock is a **14.31818 MHz** NTSC color burst crystal
+- CPU clock = 14.31818 MHz / 14 = **1,022,727 Hz** (not 1,023,000 Hz as often approximated)
+- Each scanline is 65 CPU cycles; each frame is 262 scanlines (including VBL)
+- Cycles per frame = 65 × 262 = **17,030** (not clockSpeed/60 ≈ 17,050)
+- These constants are defined as `kAppleCpuClock` and `kAppleCyclesPerFrame` in `MachineConfig.h`
+
+### Threading Architecture (our divergence)
+- AppleWin runs everything single-threaded including Win32 message pump
+- We split into CPU thread (6502 execution, audio submission, framebuffer rendering) and UI thread (Win32 message pump, D3D11 Present(1) with vsync, keyboard dispatch)
+- Shared state: atomic keyboard latch, mutex-protected framebuffer, atomic flags, command queue
+- WASAPI init/submit/shutdown all on CPU thread with its own `CoInitializeEx`

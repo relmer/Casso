@@ -34,11 +34,12 @@ Ctrl+Shift+B → Build + Test Release  (builds all projects, runs tests)
 msbuild Casso65.sln /p:Configuration=Debug /p:Platform=x64
 ```
 
-The solution builds four projects:
+The solution builds five projects:
 1. **Casso65Core** — static library (existing, unchanged)
-2. **Casso65** — console assembler CLI (existing, unchanged)
-3. **Casso65Emu** — Win32 GUI emulator (NEW)
-4. **UnitTest** — test DLL (existing, with new emulator tests)
+2. **Casso65EmuCore** — static library (NEW — emulator core: devices, video, audio, config)
+3. **Casso65Emu** — Win32 GUI emulator (NEW — links Casso65Core and Casso65EmuCore)
+4. **Casso65** — console assembler CLI (existing, unchanged)
+5. **UnitTest** — test DLL (existing, with new emulator tests — links Casso65Core and Casso65EmuCore)
 
 ## ROM Setup
 
@@ -107,7 +108,7 @@ Ctrl+Shift+B → Build + Test Debug
 vstest.console.exe x64/Debug/UnitTest.dll
 ```
 
-All 577+ existing tests continue to pass. New emulator-specific tests cover:
+All 787+ existing tests continue to pass. New emulator-specific tests cover:
 - MemoryBus address routing and conflict detection
 - JSON parser (valid configs, error cases, edge cases)
 - MachineConfig loading and validation
@@ -142,13 +143,19 @@ All 577+ existing tests continue to pass. New emulator-specific tests cover:
 ## Project Layout
 
 ```
-Casso65Emu/
-├── Core/        # MemoryBus, MemoryDevice, ComponentRegistry, EmuCpu, JsonParser
+Casso65EmuCore/              # Static library (Core, Devices, Video, Audio)
+├── Core/        # MemoryBus, MemoryDevice, ComponentRegistry, EmuCpu, JsonParser, PathResolver, MachineConfig
 ├── Devices/     # RamDevice, RomDevice, AppleKeyboard, AppleSpeaker, LanguageCard, DiskII, etc.
 ├── Video/       # AppleTextMode, AppleLoResMode, AppleHiResMode, CharacterRom, NtscColorTable
-├── Audio/       # WasapiAudio (WASAPI shared-mode)
-├── Shell/       # EmulatorShell, D3DRenderer, MenuSystem, DebugConsole
-├── Resources/   # resource.h, Casso65Emu.rc
+└── Audio/       # AudioGenerator (sample generation, decoupled from WASAPI)
+
+Casso65Emu/                  # Win32 GUI application (flat structure)
+├── Window.h/.cpp            # Base class with virtual On* handlers
+├── EmulatorShell.h/.cpp     # Main app (derives from Window), CPU thread, frame loop
+├── D3DRenderer.h/.cpp       # D3D11 device, swap chain (12 ComPtr members)
+├── WasapiAudio.h/.cpp       # WASAPI shared-mode audio (4 ComPtr members)
+├── MenuSystem.h/.cpp        # Table-driven Win32 menu creation
+├── DebugConsole.h/.cpp      # Debug log (derives from Window, lazy-init, Show/Hide)
 ├── machines/    # apple2.json, apple2plus.json, apple2e.json
 ├── roms/        # (gitignored) user-supplied ROM images
 └── shaders/     # VertexShader.hlsl, PixelShader.hlsl (compiled at build time)
@@ -162,4 +169,4 @@ Casso65Emu/
 | "Unknown machine" | Check spelling. Valid names: `apple2`, `apple2plus`, `apple2e` |
 | No audio | Check Windows audio output device. WASAPI failure is non-fatal (warning in debug console). |
 | Black screen | Verify ROM file is correct size and not corrupted. Check debug console (Ctrl+D). |
-| Existing tests fail | Verify Casso65Core changes are limited to adding `virtual` keyword on 4 protected methods in `Cpu.h`. No public API changes. |
+| Existing tests fail | Verify Casso65Core changes are limited to adding `virtual` keyword on 4 protected methods in `Cpu.h`. No public API changes. Ensure UnitTest links both Casso65Core and Casso65EmuCore. |
