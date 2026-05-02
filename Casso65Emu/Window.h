@@ -49,6 +49,7 @@ protected:
     virtual bool    OnDestroy (HWND hwnd);
     virtual bool    OnKeyDown (WPARAM vk, LPARAM lParam);
     virtual bool    OnKeyUp   (WPARAM vk, LPARAM lParam);
+    virtual bool    OnNotify  (HWND hwnd, WPARAM wParam, LPARAM lParam);
     virtual bool    OnPaint   (HWND hwnd);
     virtual bool    OnSize    (HWND hwnd, UINT width, UINT height);
 

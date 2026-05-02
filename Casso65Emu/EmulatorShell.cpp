@@ -1,4 +1,4 @@
-#include "Pch.h"
+﻿#include "Pch.h"
 
 #include "EmulatorShell.h"
 #include "Core/PathResolver.h"
@@ -16,6 +16,7 @@
 #include "Video/AppleDoubleHiResMode.h"
 
 #pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "comctl32.lib")
 
 
 
@@ -117,6 +118,9 @@ HRESULT EmulatorShell::Initialize (
     hr = CreateCpu (config);
     CHR (hr);
 
+    // Create status bar (after window, before D3D init so Resize accounts for it)
+    CreateStatusBar();
+
     // Initialize D3D11
     hr = m_d3dRenderer.Initialize (m_hwnd, kFramebufferWidth, kFramebufferHeight);
     CHR (hr);
@@ -206,6 +210,164 @@ Error:
     return hr;
 }
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateStatusBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::CreateStatusBar ()
+{
+    INITCOMMONCONTROLSEX icex = { sizeof (icex), ICC_BAR_CLASSES };
+
+
+
+    InitCommonControlsEx (&icex);
+
+    m_statusBar = CreateWindowExW (0,
+                                   STATUSCLASSNAME,
+                                   nullptr,
+                                   WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP,
+                                   0, 0, 0, 0,
+                                   m_hwnd,
+                                   nullptr,
+                                   m_hInstance,
+                                   nullptr);
+
+    if (m_statusBar != nullptr)
+    {
+        UpdateStatusBar();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateStatusBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::UpdateStatusBar ()
+{
+    int     parts[4] = { 150, 220, 320, -1 };
+    wstring machineName;
+    wstring cpuType;
+    wstring clockText;
+    wstring deviceText;
+
+
+
+    SendMessage (m_statusBar, SB_SETPARTS, 4, reinterpret_cast<LPARAM> (parts));
+
+    // Part 0 — Machine name
+    machineName = fs::path (m_config.name).wstring();
+    SendMessageW (m_statusBar, SB_SETTEXTW, 0,
+                  reinterpret_cast<LPARAM> (machineName.c_str()));
+
+    // Part 1 — CPU type
+    cpuType = fs::path (m_config.cpu).wstring();
+    SendMessageW (m_statusBar, SB_SETTEXTW, 1,
+                  reinterpret_cast<LPARAM> (cpuType.c_str()));
+
+    // Part 2 — Clock speed in MHz
+    clockText = format (L"{:.3f} MHz", m_config.clockSpeed / 1000000.0);
+    SendMessageW (m_statusBar, SB_SETTEXTW, 2,
+                  reinterpret_cast<LPARAM> (clockText.c_str()));
+
+    // Part 3 — Device count
+    deviceText = format (L"{} devices", m_config.devices.size());
+    SendMessageW (m_statusBar, SB_SETTEXTW, 3,
+                  reinterpret_cast<LPARAM> (deviceText.c_str()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowDevicePopup
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ShowDevicePopup ()
+{
+    HMENU   hMenu  = nullptr;
+    POINT   pt     = {};
+    UINT    itemId = 1;
+
+
+
+    hMenu = CreatePopupMenu();
+    if (hMenu == nullptr)
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < m_config.devices.size(); ++i)
+    {
+        const DeviceConfig & devCfg = m_config.devices[i];
+        wstring              label;
+
+        if (devCfg.hasRange)
+        {
+            label = format (L"{}  ${:04X}-${:04X}",
+                            fs::path (devCfg.type).wstring(),
+                            devCfg.start,
+                            devCfg.end);
+        }
+        else
+        {
+            label = fs::path (devCfg.type).wstring();
+        }
+
+        AppendMenuW (hMenu, MF_STRING | MF_GRAYED, itemId++, label.c_str());
+    }
+
+    GetCursorPos (&pt);
+    TrackPopupMenu (hMenu, TPM_LEFTALIGN | TPM_BOTTOMALIGN, pt.x, pt.y, 0, m_hwnd, nullptr);
+    DestroyMenu (hMenu);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnNotify
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
+{
+    NMHDR   * pnmh = reinterpret_cast<NMHDR *> (lParam);
+    NMMOUSE * pnmm = nullptr;
+
+    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (wParam);
+
+
+
+    if (pnmh->hwndFrom == m_statusBar && pnmh->code == NM_CLICK)
+    {
+        pnmm = reinterpret_cast<NMMOUSE *> (lParam);
+
+        if (pnmm->dwItemSpec == 3)
+        {
+            ShowDevicePopup();
+            return false;
+        }
+    }
+
+    return true;
+}
 
 
 
@@ -1145,9 +1307,22 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 
 bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
 {
+    int  sbHeight = 0;
+    RECT sbRect   = {};
+
     UNREFERENCED_PARAMETER (hwnd);
 
-    m_d3dRenderer.Resize (static_cast<int> (width), static_cast<int> (height));
+
+
+    if (m_statusBar != nullptr)
+    {
+        SendMessage (m_statusBar, WM_SIZE, 0, 0);
+        GetWindowRect (m_statusBar, &sbRect);
+        sbHeight = sbRect.bottom - sbRect.top;
+    }
+
+    m_d3dRenderer.Resize (static_cast<int> (width),
+                          static_cast<int> (height) - sbHeight);
     return false;
 }
 //

@@ -212,6 +212,10 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
             callDefWndProc = pThis->OnKeyUp (wParam, lParam);
             break;
 
+        case WM_NOTIFY:
+            callDefWndProc = pThis->OnNotify (hwnd, wParam, lParam);
+            break;
+
         case WM_PAINT:
             callDefWndProc = pThis->OnPaint (hwnd);
             break;
@@ -354,6 +358,25 @@ bool Window::OnKeyDown (WPARAM vk, LPARAM lParam)
 bool Window::OnKeyUp (WPARAM vk, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER (vk);
+    UNREFERENCED_PARAMETER (lParam);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnNotify
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (wParam);
     UNREFERENCED_PARAMETER (lParam);
 
     return true;

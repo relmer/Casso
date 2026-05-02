@@ -71,6 +71,7 @@ private:
     bool    OnDestroy (HWND hwnd) override;
     bool    OnKeyDown (WPARAM vk, LPARAM lParam) override;
     bool    OnKeyUp   (WPARAM vk, LPARAM lParam) override;
+    bool    OnNotify  (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
     bool    OnSize    (HWND hwnd, UINT width, UINT height) override;
 
     // Command group handlers
@@ -97,10 +98,16 @@ private:
     void    CreateVideoModes       ();
     HRESULT CreateCpu              (const MachineConfig & config);
 
+    // Status bar
+    void    CreateStatusBar        ();
+    void    UpdateStatusBar        ();
+    void    ShowDevicePopup        ();
+
     // Queue a command for the CPU thread
     void PostCommand (WORD id, const string & payload = "");
 
     HACCEL              m_accelTable = nullptr;
+    HWND                m_statusBar  = nullptr;
 
     MemoryBus           m_memoryBus;
     ComponentRegistry   m_registry;

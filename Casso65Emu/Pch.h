@@ -10,6 +10,7 @@
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 #include <commdlg.h>
+#include <commctrl.h>
 
 #include <shellapi.h>
 #include <wrl/client.h>
