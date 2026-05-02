@@ -164,11 +164,16 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebugConsole::Show (HINSTANCE hInstance)
+bool DebugConsole::Show (HINSTANCE hInstance)
 {
+    bool created = false;
+
+
+
     if (m_hwnd == nullptr)
     {
         InitializeConsole (hInstance);
+        created = true;
     }
 
     if (m_hwnd != nullptr)
@@ -176,6 +181,8 @@ void DebugConsole::Show (HINSTANCE hInstance)
         ShowWindow (m_hwnd, SW_SHOW);
         SetForegroundWindow (m_hwnd);
     }
+
+    return created;
 }
 
 

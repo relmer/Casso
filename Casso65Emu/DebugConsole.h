@@ -21,7 +21,7 @@ public:
     DebugConsole ();
     ~DebugConsole ();
 
-    void Show (HINSTANCE hInstance);
+    bool Show (HINSTANCE hInstance);
     void Hide ();
     bool IsVisible () const;
 

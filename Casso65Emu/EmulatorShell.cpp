@@ -1154,11 +1154,13 @@ void EmulatorShell::HandleCommand (WORD commandId)
             }
             else
             {
-                m_debugConsole.Show (m_hInstance);
-                m_debugConsole.LogConfig (
-                    format ("Machine: {}\nCPU: {}\nClock: {} Hz\nDevices: {}",
-                        m_config.name, m_config.cpu, m_config.clockSpeed,
-                        m_config.devices.size ()));
+                if (m_debugConsole.Show (m_hInstance))
+                {
+                    m_debugConsole.LogConfig (
+                        format ("Machine: {}\nCPU: {}\nClock: {} Hz\nDevices: {}",
+                            m_config.name, m_config.cpu, m_config.clockSpeed,
+                            m_config.devices.size ()));
+                }
             }
             break;
         }
