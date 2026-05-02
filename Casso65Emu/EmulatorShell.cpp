@@ -1,4 +1,4 @@
-﻿#include "Pch.h"
+#include "Pch.h"
 
 #include "EmulatorShell.h"
 #include "Core/PathResolver.h"
@@ -122,7 +122,7 @@ HRESULT EmulatorShell::Initialize (
     CreateStatusBar();
 
     // Initialize D3D11
-    hr = m_d3dRenderer.Initialize (m_hwnd, kFramebufferWidth, kFramebufferHeight);
+    hr = m_d3dRenderer.Initialize (m_renderHwnd, kFramebufferWidth, kFramebufferHeight);
     CHR (hr);
 
     // WASAPI audio is initialized on the CPU thread (COM apartment requirement)
@@ -221,7 +221,10 @@ Error:
 
 void EmulatorShell::CreateStatusBar ()
 {
-    INITCOMMONCONTROLSEX icex = { sizeof (icex), ICC_BAR_CLASSES };
+    INITCOMMONCONTROLSEX icex     = { sizeof (icex), ICC_BAR_CLASSES };
+    RECT                 rcClient = {};
+    int                  sbHeight = 0;
+    RECT                 sbRect   = {};
 
 
 
@@ -239,8 +242,25 @@ void EmulatorShell::CreateStatusBar ()
 
     if (m_statusBar != nullptr)
     {
-        UpdateStatusBar();
+        UpdateStatusBar ();
+
+        GetWindowRect (m_statusBar, &sbRect);
+        sbHeight = sbRect.bottom - sbRect.top;
     }
+
+    // Create a child window for D3D rendering (above the status bar)
+    GetClientRect (m_hwnd, &rcClient);
+
+    m_renderHwnd = CreateWindowExW (0,
+                                    L"Static",
+                                    nullptr,
+                                    WS_CHILD | WS_VISIBLE,
+                                    0, 0,
+                                    rcClient.right, rcClient.bottom - sbHeight,
+                                    m_hwnd,
+                                    nullptr,
+                                    m_hInstance,
+                                    nullptr);
 }
 
 
@@ -267,23 +287,19 @@ void EmulatorShell::UpdateStatusBar ()
 
     // Part 0 — Machine name
     machineName = fs::path (m_config.name).wstring();
-    SendMessageW (m_statusBar, SB_SETTEXTW, 0,
-                  reinterpret_cast<LPARAM> (machineName.c_str()));
+    SendMessageW (m_statusBar, SB_SETTEXTW, 0, reinterpret_cast<LPARAM> (machineName.c_str()));
 
     // Part 1 — CPU type
     cpuType = fs::path (m_config.cpu).wstring();
-    SendMessageW (m_statusBar, SB_SETTEXTW, 1,
-                  reinterpret_cast<LPARAM> (cpuType.c_str()));
+    SendMessageW (m_statusBar, SB_SETTEXTW, 1, reinterpret_cast<LPARAM> (cpuType.c_str()));
 
     // Part 2 — Clock speed in MHz
     clockText = format (L"{:.3f} MHz", m_config.clockSpeed / 1000000.0);
-    SendMessageW (m_statusBar, SB_SETTEXTW, 2,
-                  reinterpret_cast<LPARAM> (clockText.c_str()));
+    SendMessageW (m_statusBar, SB_SETTEXTW, 2, reinterpret_cast<LPARAM> (clockText.c_str()));
 
     // Part 3 — Device count
     deviceText = format (L"{} devices", m_config.devices.size());
-    SendMessageW (m_statusBar, SB_SETTEXTW, 3,
-                  reinterpret_cast<LPARAM> (deviceText.c_str()));
+    SendMessageW (m_statusBar, SB_SETTEXTW, 3, reinterpret_cast<LPARAM> (deviceText.c_str()));
 }
 
 
@@ -1307,8 +1323,9 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 
 bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
 {
-    int  sbHeight = 0;
-    RECT sbRect   = {};
+    int  sbHeight   = 0;
+    RECT sbRect     = {};
+    int  renderH    = static_cast<int> (height);
 
     UNREFERENCED_PARAMETER (hwnd);
 
@@ -1321,11 +1338,17 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
         sbHeight = sbRect.bottom - sbRect.top;
     }
 
-    m_d3dRenderer.Resize (static_cast<int> (width),
-                          static_cast<int> (height) - sbHeight);
+    renderH -= sbHeight;
+
+    if (m_renderHwnd != nullptr)
+    {
+        MoveWindow (m_renderHwnd, 0, 0,
+                    static_cast<int> (width), renderH, TRUE);
+    }
+
+    m_d3dRenderer.Resize (static_cast<int> (width), renderH);
     return false;
 }
-//
 //  OnFileCommand
 //
 ////////////////////////////////////////////////////////////////////////////////

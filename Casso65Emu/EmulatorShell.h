@@ -108,6 +108,7 @@ private:
 
     HACCEL              m_accelTable = nullptr;
     HWND                m_statusBar  = nullptr;
+    HWND                m_renderHwnd = nullptr;
 
     MemoryBus           m_memoryBus;
     ComponentRegistry   m_registry;
