@@ -81,20 +81,33 @@ void MemoryBus::WriteByte (Word address, Byte value)
 void MemoryBus::AddDevice (MemoryDevice * device)
 {
     BusEntry entry;
+    Word     newStart = device->GetStart ();
+    Word     newEnd   = device->GetEnd ();
 
-    entry.start  = device->GetStart ();
-    entry.end    = device->GetEnd ();
+
+
+    entry.start  = newStart;
+    entry.end    = newEnd;
     entry.device = device;
 
-    // Insert sorted by start address
-    auto it = lower_bound (
-        m_entries.begin (),
-        m_entries.end (),
-        entry,
-        [] (const BusEntry & a, const BusEntry & b)
+    // Check for overlaps with existing devices
+    for (const auto & existing : m_entries)
+    {
+        if (newStart <= existing.end && existing.start <= newEnd)
         {
-            return a.start < b.start;
-        });
+            DEBUGMSG (L"Bus conflict: new device $%04X-$%04X overlaps existing $%04X-$%04X\n",
+                      newStart, newEnd, existing.start, existing.end);
+        }
+    }
+
+    // Insert sorted by start address
+    auto it = lower_bound (m_entries.begin (),
+                           m_entries.end (),
+                           entry,
+                           [] (const BusEntry & a, const BusEntry & b)
+                           {
+                               return a.start < b.start;
+                           });
 
     m_entries.insert (it, entry);
 }

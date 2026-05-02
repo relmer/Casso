@@ -474,14 +474,13 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
         }
 
         romFile.open (region.resolvedPath, ios::binary);
-
         if (!romFile.good())
         {
             continue;
         }
 
         addr = region.start;
-
+        
         while (romFile.good() && addr <= region.end)
         {
             romFile.read (&byte, 1);
