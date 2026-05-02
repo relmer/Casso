@@ -305,7 +305,7 @@ public:
             PathResolver::GetExecutableDirectory (),
             PathResolver::GetWorkingDirectory ());
 
-        std::string romPath = PathResolver::FindFile (paths, "roms/apple2plus.rom");
+        std::string romPath = PathResolver::FindFile (paths, "roms/apple2plus.rom").string ();
 
         if (romPath.empty ())
         {
@@ -350,7 +350,7 @@ public:
             PathResolver::GetExecutableDirectory (),
             PathResolver::GetWorkingDirectory ());
 
-        std::string romPath = PathResolver::FindFile (paths, "roms/apple2plus.rom");
+        std::string romPath = PathResolver::FindFile (paths, "roms/apple2plus.rom").string ();
 
         if (romPath.empty ())
         {

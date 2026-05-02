@@ -87,7 +87,7 @@ void MemoryBus::AddDevice (MemoryDevice * device)
     entry.device = device;
 
     // Insert sorted by start address
-    auto it = std::lower_bound (
+    auto it = lower_bound (
         m_entries.begin (),
         m_entries.end (),
         entry,
@@ -111,7 +111,7 @@ void MemoryBus::AddDevice (MemoryDevice * device)
 
 void MemoryBus::RemoveDevice (MemoryDevice * device)
 {
-    auto it = std::remove_if (
+    auto it = remove_if (
         m_entries.begin (),
         m_entries.end (),
         [device] (const BusEntry & entry)

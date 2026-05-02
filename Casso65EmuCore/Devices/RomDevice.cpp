@@ -12,10 +12,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RomDevice::RomDevice (Word start, Word end, std::vector<Byte> && data)
+RomDevice::RomDevice (Word start, Word end, vector<Byte> && data)
     : m_start (start),
       m_end   (end),
-      m_data  (std::move (data))
+      m_data  (move (data))
 {
 }
 
@@ -81,24 +81,24 @@ void RomDevice::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<MemoryDevice> RomDevice::CreateFromFile (
-    Word start, Word end, const std::string & filePath, std::string & outError)
+unique_ptr<MemoryDevice> RomDevice::CreateFromFile (
+    Word start, Word end, const string & filePath, string & outError)
 {
-    std::ifstream file (filePath, std::ios::binary | std::ios::ate);
+    ifstream file (filePath, ios::binary | ios::ate);
 
     if (!file.good ())
     {
-        outError = std::format ("Cannot open ROM file: {}", filePath);
+        outError = format ("Cannot open ROM file: {}", filePath);
         return nullptr;
     }
 
     auto fileSize = file.tellg ();
-    file.seekg (0, std::ios::beg);
+    file.seekg (0, ios::beg);
 
-    std::vector<Byte> data (static_cast<size_t> (fileSize));
+    vector<Byte> data (static_cast<size_t> (fileSize));
     file.read (reinterpret_cast<char *> (data.data ()), fileSize);
 
-    return std::make_unique<RomDevice> (start, end, std::move (data));
+    return make_unique<RomDevice> (start, end, move (data));
 }
 
 
@@ -111,9 +111,9 @@ std::unique_ptr<MemoryDevice> RomDevice::CreateFromFile (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<MemoryDevice> RomDevice::CreateFromData (
+unique_ptr<MemoryDevice> RomDevice::CreateFromData (
     Word start, Word end, const Byte * data, size_t size)
 {
-    std::vector<Byte> romData (data, data + size);
-    return std::make_unique<RomDevice> (start, end, std::move (romData));
+    vector<Byte> romData (data, data + size);
+    return make_unique<RomDevice> (start, end, move (romData));
 }

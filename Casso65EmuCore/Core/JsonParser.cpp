@@ -17,7 +17,7 @@ JsonValue::JsonValue ()
 }
 
 
-JsonValue::JsonValue (std::nullptr_t)
+JsonValue::JsonValue (nullptr_t)
 {
 }
 
@@ -36,23 +36,23 @@ JsonValue::JsonValue (double value)
 }
 
 
-JsonValue::JsonValue (const std::string & value)
+JsonValue::JsonValue (const string & value)
     : m_type   (JsonType::String),
       m_string (value)
 {
 }
 
 
-JsonValue::JsonValue (std::vector<JsonValue> && arr)
+JsonValue::JsonValue (vector<JsonValue> && arr)
     : m_type  (JsonType::Array),
-      m_array (std::move (arr))
+      m_array (move (arr))
 {
 }
 
 
-JsonValue::JsonValue (std::vector<std::pair<std::string, JsonValue>> && obj)
+JsonValue::JsonValue (vector<pair<string, JsonValue>> && obj)
     : m_type   (JsonType::Object),
-      m_object (std::move (obj))
+      m_object (move (obj))
 {
 }
 
@@ -84,7 +84,7 @@ int JsonValue::GetInt () const
 }
 
 
-const std::string & JsonValue::GetString () const
+const string & JsonValue::GetString () const
 {
     return m_string;
 }
@@ -102,7 +102,7 @@ const JsonValue & JsonValue::ArrayAt (size_t index) const
 }
 
 
-bool JsonValue::HasKey (const std::string & key) const
+bool JsonValue::HasKey (const string & key) const
 {
     for (const auto & pair : m_object)
     {
@@ -116,7 +116,7 @@ bool JsonValue::HasKey (const std::string & key) const
 }
 
 
-const JsonValue & JsonValue::Get (const std::string & key) const
+const JsonValue & JsonValue::Get (const string & key) const
 {
     for (const auto & pair : m_object)
     {
@@ -131,7 +131,7 @@ const JsonValue & JsonValue::Get (const std::string & key) const
 }
 
 
-const std::vector<std::pair<std::string, JsonValue>> & JsonValue::GetObjectEntries () const
+const vector<pair<string, JsonValue>> & JsonValue::GetObjectEntries () const
 {
     return m_object;
 }
@@ -146,7 +146,7 @@ const std::vector<std::pair<std::string, JsonValue>> & JsonValue::GetObjectEntri
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-JsonParser::JsonParser (const std::string & input)
+JsonParser::JsonParser (const string & input)
     : m_input  (input),
       m_pos    (0),
       m_line   (1),
@@ -166,7 +166,7 @@ JsonParser::JsonParser (const std::string & input)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT JsonParser::Parse (const std::string & input, JsonValue & outValue, JsonParseError & outError)
+HRESULT JsonParser::Parse (const string & input, JsonValue & outValue, JsonParseError & outError)
 {
     HRESULT    hr     = S_OK;
     JsonParser parser (input);
@@ -210,7 +210,7 @@ HRESULT JsonParser::ParseValue (JsonValue & outValue)
 
         if (ch == '"')
         {
-            std::string str;
+            string str;
             hr = ParseString (str);
             CHR (hr);
             outValue = JsonValue (str);
@@ -250,7 +250,7 @@ HRESULT JsonParser::ParseValue (JsonValue & outValue)
         }
         else
         {
-            CBR_SetError (false, SetError (std::format ("Unexpected character '{}'", ch)));
+            CBR_SetError (false, SetError (format ("Unexpected character '{}'", ch)));
         }
     }
 
@@ -268,7 +268,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT JsonParser::ParseString (std::string & outStr)
+HRESULT JsonParser::ParseString (string & outStr)
 {
     HRESULT hr = S_OK;
 
@@ -305,14 +305,14 @@ HRESULT JsonParser::ParseString (std::string & outStr)
                 case 'u':
                 {
                     // Parse 4 hex digits
-                    std::string hex;
+                    string hex;
                     for (int i = 0; i < 4; i++)
                     {
                         CBR (!AtEnd ());
                         hex += Advance ();
                     }
                     // Basic ASCII Unicode escape
-                    unsigned long code = std::strtoul (hex.c_str (), nullptr, 16);
+                    unsigned long code = strtoul (hex.c_str (), nullptr, 16);
                     if (code < 0x80)
                     {
                         outStr += static_cast<char> (code);
@@ -321,7 +321,7 @@ HRESULT JsonParser::ParseString (std::string & outStr)
                 }
                 default:
                 {
-                    CBR_SetError (false, SetError (std::format ("Invalid escape sequence '\\{}'", esc)));
+                    CBR_SetError (false, SetError (format ("Invalid escape sequence '\\{}'", esc)));
                 }
             }
         }
@@ -361,13 +361,13 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
         Advance ();  // '0'
         Advance ();  // 'x'
 
-        while (!AtEnd () && std::isxdigit (static_cast<unsigned char> (Peek ())))
+        while (!AtEnd () && isxdigit (static_cast<unsigned char> (Peek ())))
         {
             Advance ();
         }
 
-        std::string hexStr = m_input.substr (start + 2, m_pos - start - 2);
-        unsigned long value = std::strtoul (hexStr.c_str (), nullptr, 16);
+        string hexStr = m_input.substr (start + 2, m_pos - start - 2);
+        unsigned long value = strtoul (hexStr.c_str (), nullptr, 16);
         outValue = JsonValue (static_cast<double> (value));
         return S_OK;
     }
@@ -378,7 +378,7 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
         Advance ();
     }
 
-    while (!AtEnd () && std::isdigit (static_cast<unsigned char> (Peek ())))
+    while (!AtEnd () && isdigit (static_cast<unsigned char> (Peek ())))
     {
         Advance ();
     }
@@ -387,7 +387,7 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
     {
         Advance ();
 
-        while (!AtEnd () && std::isdigit (static_cast<unsigned char> (Peek ())))
+        while (!AtEnd () && isdigit (static_cast<unsigned char> (Peek ())))
         {
             Advance ();
         }
@@ -402,14 +402,14 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
             Advance ();
         }
 
-        while (!AtEnd () && std::isdigit (static_cast<unsigned char> (Peek ())))
+        while (!AtEnd () && isdigit (static_cast<unsigned char> (Peek ())))
         {
             Advance ();
         }
     }
 
-    std::string numStr = m_input.substr (start, m_pos - start);
-    double value = std::strtod (numStr.c_str (), nullptr);
+    string numStr = m_input.substr (start, m_pos - start);
+    double value = strtod (numStr.c_str (), nullptr);
     outValue = JsonValue (value);
 
     return hr;
@@ -433,14 +433,14 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
     Advance ();
 
     {
-        std::vector<std::pair<std::string, JsonValue>> entries;
+        vector<pair<string, JsonValue>> entries;
 
         SkipWhitespace ();
 
         if (!AtEnd () && Peek () == '}')
         {
             Advance ();
-            outValue = JsonValue (std::move (entries));
+            outValue = JsonValue (move (entries));
             return S_OK;
         }
 
@@ -451,7 +451,7 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
 
             CBR_SetError (Peek () == '"', SetError ("Expected string key in object"));
 
-            std::string key;
+            string key;
             hr = ParseString (key);
             CHR (hr);
 
@@ -463,7 +463,7 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
             hr = ParseValue (val);
             CHR (hr);
 
-            entries.emplace_back (std::move (key), std::move (val));
+            entries.emplace_back (move (key), move (val));
 
             SkipWhitespace ();
             CBR (!AtEnd ());
@@ -479,7 +479,7 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
             Advance ();
         }
 
-        outValue = JsonValue (std::move (entries));
+        outValue = JsonValue (move (entries));
     }
 
 Error:
@@ -504,14 +504,14 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
     Advance ();
 
     {
-        std::vector<JsonValue> elements;
+        vector<JsonValue> elements;
 
         SkipWhitespace ();
 
         if (!AtEnd () && Peek () == ']')
         {
             Advance ();
-            outValue = JsonValue (std::move (elements));
+            outValue = JsonValue (move (elements));
             return S_OK;
         }
 
@@ -521,7 +521,7 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
             hr = ParseValue (val);
             CHR (hr);
 
-            elements.push_back (std::move (val));
+            elements.push_back (move (val));
 
             SkipWhitespace ();
             CBR (!AtEnd ());
@@ -537,7 +537,7 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
             Advance ();
         }
 
-        outValue = JsonValue (std::move (elements));
+        outValue = JsonValue (move (elements));
     }
 
 Error:
@@ -560,11 +560,11 @@ HRESULT JsonParser::ParseKeyword (const char * keyword, JsonValue & outValue)
 
     UNREFERENCED_PARAMETER (outValue);
 
-    size_t len = std::strlen (keyword);
+    size_t len = strlen (keyword);
 
     for (size_t i = 0; i < len; i++)
     {
-        CBR_SetError (!AtEnd () && Peek () == keyword[i], SetError (std::format ("Expected '{}'", keyword)));
+        CBR_SetError (!AtEnd () && Peek () == keyword[i], SetError (format ("Expected '{}'", keyword)));
 
         Advance ();
     }
@@ -639,7 +639,7 @@ bool JsonParser::AtEnd () const
 }
 
 
-void JsonParser::SetError (const std::string & msg)
+void JsonParser::SetError (const string & msg)
 {
     m_error.line    = m_line;
     m_error.column  = m_column;

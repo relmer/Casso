@@ -28,10 +28,10 @@ public:
 
     Byte * GetData () { return m_data.data (); }
 
-    static std::unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
+    static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
     Word                m_start;
     Word                m_end;
-    std::vector<Byte>   m_data;
+    vector<Byte>   m_data;
 };

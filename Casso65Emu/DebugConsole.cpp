@@ -183,9 +183,9 @@ void DebugConsole::Hide ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebugConsole::Log (const std::wstring & message)
+void DebugConsole::Log (const wstring & message)
 {
-    std::wstring text;
+    wstring text;
     int          len = 0;
 
 
@@ -212,9 +212,9 @@ void DebugConsole::Log (const std::wstring & message)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebugConsole::LogConfig (const std::string & summary)
+void DebugConsole::LogConfig (const string & summary)
 {
-    std::wstring wide;
+    wstring wide;
 
 
 

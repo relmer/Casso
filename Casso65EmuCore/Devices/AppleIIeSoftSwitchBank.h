@@ -29,7 +29,7 @@ public:
     bool IsDoubleHiRes  () const { return m_doubleHiRes; }
     bool IsAltCharSet   () const { return m_altCharSet; }
 
-    static std::unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
+    static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
     bool m_80colMode   = false;

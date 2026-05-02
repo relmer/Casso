@@ -184,9 +184,9 @@ void LanguageCard::WriteRam (Word address, Byte value)
 
 void LanguageCard::Reset ()
 {
-    std::fill (m_ramBank1.begin (), m_ramBank1.end (), Byte (0));
-    std::fill (m_ramBank2.begin (), m_ramBank2.end (), Byte (0));
-    std::fill (m_ramMain.begin (), m_ramMain.end (), Byte (0));
+    fill (m_ramBank1.begin (), m_ramBank1.end (), Byte (0));
+    fill (m_ramBank2.begin (), m_ramBank2.end (), Byte (0));
+    fill (m_ramMain.begin (), m_ramMain.end (), Byte (0));
 
     m_readRam     = false;
     m_writeRam    = false;
@@ -205,11 +205,11 @@ void LanguageCard::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<MemoryDevice> LanguageCard::Create (const DeviceConfig & config, MemoryBus & bus)
+unique_ptr<MemoryDevice> LanguageCard::Create (const DeviceConfig & config, MemoryBus & bus)
 {
     UNREFERENCED_PARAMETER (config);
 
-    return std::make_unique<LanguageCard> (bus);
+    return make_unique<LanguageCard> (bus);
 }
 
 

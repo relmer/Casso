@@ -34,9 +34,9 @@ public:
     void KeyPress (Byte asciiChar);
 
     // Called from EmulatorShell for special keys (UI thread)
-    void SetKeyDown (bool down) { m_anyKeyDown.store (down, std::memory_order_release); }
+    void SetKeyDown (bool down) { m_anyKeyDown.store (down, memory_order_release); }
 
-    static std::unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
+    static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
     Byte TranslateToUppercase (Byte ch) const;
@@ -44,6 +44,6 @@ private:
     // m_latchedKey bit 7 = strobe (new key available).  Atomic because
     // KeyPress is called from the UI thread while Read is called from
     // the CPU thread.
-    std::atomic<Byte>   m_latchedKey{0};
-    std::atomic<bool>   m_anyKeyDown{false};
+    atomic<Byte>   m_latchedKey{0};
+    atomic<bool>   m_anyKeyDown{false};
 };

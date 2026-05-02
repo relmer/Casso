@@ -106,7 +106,7 @@ void AuxRamCard::WriteAuxMem (Word address, Byte value)
 
 void AuxRamCard::Reset ()
 {
-    std::fill (m_auxRam.begin (), m_auxRam.end (), Byte (0));
+    fill (m_auxRam.begin (), m_auxRam.end (), Byte (0));
     m_readAux  = false;
     m_writeAux = false;
 }
@@ -121,10 +121,10 @@ void AuxRamCard::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<MemoryDevice> AuxRamCard::Create (const DeviceConfig & config, MemoryBus & bus)
+unique_ptr<MemoryDevice> AuxRamCard::Create (const DeviceConfig & config, MemoryBus & bus)
 {
     UNREFERENCED_PARAMETER (config);
     UNREFERENCED_PARAMETER (bus);
 
-    return std::make_unique<AuxRamCard> ();
+    return make_unique<AuxRamCard> ();
 }

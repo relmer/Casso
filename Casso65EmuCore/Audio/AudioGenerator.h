@@ -25,7 +25,7 @@ public:
     // outSamples:           output buffer (pre-allocated by caller)
     // numSamples:           number of samples to generate
     static void GeneratePCM (
-        const std::vector<uint32_t> & toggleTimestamps,
+        const vector<uint32_t> & toggleTimestamps,
         uint32_t totalCyclesThisFrame,
         float initialState,
         float * outSamples,

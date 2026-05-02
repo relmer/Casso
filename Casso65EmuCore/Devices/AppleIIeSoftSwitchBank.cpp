@@ -107,10 +107,10 @@ void AppleIIeSoftSwitchBank::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<MemoryDevice> AppleIIeSoftSwitchBank::Create (const DeviceConfig & config, MemoryBus & bus)
+unique_ptr<MemoryDevice> AppleIIeSoftSwitchBank::Create (const DeviceConfig & config, MemoryBus & bus)
 {
     UNREFERENCED_PARAMETER (config);
     UNREFERENCED_PARAMETER (bus);
 
-    return std::make_unique<AppleIIeSoftSwitchBank> ();
+    return make_unique<AppleIIeSoftSwitchBank> ();
 }

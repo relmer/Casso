@@ -23,7 +23,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::unordered_map<std::string, FactoryFunc> s_factories;
+static unordered_map<string, FactoryFunc> s_factories;
 
 
 
@@ -35,9 +35,9 @@ static std::unordered_map<std::string, FactoryFunc> s_factories;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ComponentRegistry::Register (const std::string & typeName, FactoryFunc factory)
+void ComponentRegistry::Register (const string & typeName, FactoryFunc factory)
 {
-    s_factories[typeName] = std::move (factory);
+    s_factories[typeName] = move (factory);
 }
 
 
@@ -50,8 +50,8 @@ void ComponentRegistry::Register (const std::string & typeName, FactoryFunc fact
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<MemoryDevice> ComponentRegistry::Create (
-    const std::string & typeName,
+unique_ptr<MemoryDevice> ComponentRegistry::Create (
+    const string & typeName,
     const DeviceConfig & config,
     MemoryBus & bus) const
 {
@@ -75,7 +75,7 @@ std::unique_ptr<MemoryDevice> ComponentRegistry::Create (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ComponentRegistry::IsRegistered (const std::string & typeName) const
+bool ComponentRegistry::IsRegistered (const string & typeName) const
 {
     return s_factories.find (typeName) != s_factories.end ();
 }
@@ -90,9 +90,9 @@ bool ComponentRegistry::IsRegistered (const std::string & typeName) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::string> ComponentRegistry::GetRegisteredTypes () const
+vector<string> ComponentRegistry::GetRegisteredTypes () const
 {
-    std::vector<std::string> types;
+    vector<string> types;
 
     for (const auto & pair : s_factories)
     {

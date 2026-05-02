@@ -12,29 +12,28 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::string> PathResolver::BuildSearchPaths (
-    const std::string & exeDir,
-    const std::string & cwd)
+vector<fs::path> PathResolver::BuildSearchPaths (
+    const fs::path & exeDir,
+    const fs::path & cwd)
 {
-    std::vector<std::string> searchBases = { exeDir, cwd };
+    vector<fs::path> searchBases = { exeDir, cwd };
 
 
 
     // Also try parent directories (handles running from x64/Debug/)
     for (const auto & base : { exeDir, cwd })
     {
-        size_t pos = base.find_last_of ("\\/");
+        fs::path parent = base.parent_path ();
 
-        if (pos != std::string::npos)
+        if (!parent.empty () && parent != base)
         {
-            std::string parent = base.substr (0, pos);
             searchBases.push_back (parent);
 
-            size_t pos2 = parent.find_last_of ("\\/");
+            fs::path grandparent = parent.parent_path ();
 
-            if (pos2 != std::string::npos)
+            if (!grandparent.empty () && grandparent != parent)
             {
-                searchBases.push_back (parent.substr (0, pos2));
+                searchBases.push_back (grandparent);
             }
         }
     }
@@ -52,22 +51,21 @@ std::vector<std::string> PathResolver::BuildSearchPaths (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string PathResolver::FindFile (
-    const std::vector<std::string> & searchPaths,
-    const std::string & relativePath)
+fs::path PathResolver::FindFile (
+    const vector<fs::path> & searchPaths,
+    const fs::path & relativePath)
 {
     for (const auto & base : searchPaths)
     {
-        std::string candidate = base + "/" + relativePath;
-        std::ifstream test (candidate);
+        fs::path candidate = base / relativePath;
 
-        if (test.good ())
+        if (fs::exists (candidate))
         {
-            return base;
+            return candidate;
         }
     }
 
-    return "";
+    return {};
 }
 
 
@@ -80,20 +78,14 @@ std::string PathResolver::FindFile (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string PathResolver::GetExecutableDirectory ()
+fs::path PathResolver::GetExecutableDirectory ()
 {
-    char path[MAX_PATH] = {};
-    GetModuleFileNameA (nullptr, path, MAX_PATH);
+    wchar_t buf[MAX_PATH] = {};
 
-    std::string dir (path);
-    size_t pos = dir.find_last_of ("\\/");
 
-    if (pos != std::string::npos)
-    {
-        dir = dir.substr (0, pos);
-    }
 
-    return dir;
+    GetModuleFileNameW (nullptr, buf, MAX_PATH);
+    return fs::path (buf).parent_path ();
 }
 
 
@@ -106,55 +98,7 @@ std::string PathResolver::GetExecutableDirectory ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string PathResolver::GetWorkingDirectory ()
+fs::path PathResolver::GetWorkingDirectory ()
 {
-    char path[MAX_PATH] = {};
-    GetCurrentDirectoryA (MAX_PATH, path);
-    return std::string (path);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WideToNarrow
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string PathResolver::WideToNarrow (const std::wstring & wide)
-{
-    if (wide.empty ())
-    {
-        return "";
-    }
-
-    int len = WideCharToMultiByte (CP_UTF8, 0, wide.c_str (), -1, NULL, 0, NULL, NULL);
-    std::string narrow (len - 1, '\0');
-    WideCharToMultiByte (CP_UTF8, 0, wide.c_str (), -1, narrow.data (), len, NULL, NULL);
-    return narrow;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NarrowToWide
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring PathResolver::NarrowToWide (const std::string & narrow)
-{
-    if (narrow.empty ())
-    {
-        return L"";
-    }
-
-    int len = MultiByteToWideChar (CP_UTF8, 0, narrow.c_str (), -1, NULL, 0);
-    std::wstring wide (len - 1, L'\0');
-    MultiByteToWideChar (CP_UTF8, 0, narrow.c_str (), -1, wide.data (), len);
-    return wide;
+    return fs::current_path ();
 }

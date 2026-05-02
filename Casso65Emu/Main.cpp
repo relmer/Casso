@@ -18,23 +18,23 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 static HRESULT ParseCommandLine (
-    LPWSTR           lpCmdLine,
-    std::wstring   & outMachine,
-    std::wstring   & outDisk1,
-    std::wstring   & outDisk2)
+    LPWSTR         lpCmdLine,
+    wstring & outMachine,
+    wstring & outDisk1,
+    wstring & outDisk2)
 {
-    HRESULT    hr   = S_OK;
-    int        argc = 0;
-    LPWSTR   * argv = nullptr;
+    HRESULT   hr   = S_OK;
+    int       argc = 0;
+    LPWSTR  * argv = nullptr;
 
 
 
     argv = CommandLineToArgvW (lpCmdLine, &argc);
-    CPRA (argv);
+    CWRA (argv);
 
     for (int i = 0; i < argc; i++)
     {
-        std::wstring arg (argv[i]);
+        wstring arg (argv[i]);
 
         if (arg == L"--machine" && i + 1 < argc)
         {
@@ -62,6 +62,93 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LoadMachineConfig
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HRESULT LoadMachineConfig (
+    const wstring     & machineName,
+    const wstring     & disk1Path,
+    MachineConfig     & outConfig)
+{
+    HRESULT             hr             = S_OK;
+    vector<fs::path>    searchPaths;
+    fs::path            configRelPath;
+    fs::path            configPath;
+    ifstream            configFile;
+    bool                configGood     = false;
+    stringstream        ss;
+    string              jsonText;
+    vector<fs::path>    romSearchPaths;
+    string              error;
+
+
+
+    // Build search paths and find machine config
+    searchPaths    = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory (),
+                                                     PathResolver::GetWorkingDirectory ());
+    configRelPath  = fs::path ("machines") / (fs::path (machineName).string () + ".json");
+    configPath     = PathResolver::FindFile (searchPaths, configRelPath);
+
+    CBRN (!configPath.empty (),
+          format (L"Unknown machine '{}'. Config file not found.\n"
+                  L"Searched for '{}' in exe directory, current directory, and parent directories.",
+                  machineName,
+                  configRelPath.wstring ()).c_str ());
+
+    // Load config file
+    configFile.open (configPath);
+    configGood = configFile.good ();
+    CBRN (configGood,
+          format (L"Cannot open machine config:\n{}",
+                  configPath.wstring ()).c_str ());
+
+    ss << configFile.rdbuf ();
+    jsonText = ss.str ();
+
+    // Parse config — prioritize the config's peer roms/ directory,
+    // then fall back to other search paths
+    romSearchPaths.push_back (configPath.parent_path ().parent_path ());
+
+    for (const auto & p : searchPaths)
+    {
+        if (p != romSearchPaths[0])
+        {
+            romSearchPaths.push_back (p);
+        }
+    }
+
+    hr = MachineConfigLoader::Load (jsonText, romSearchPaths, outConfig, error);
+    CHRN (hr, format (L"Failed to load machine config:\n{}",
+                      wstring (error.begin (), error.end ())).c_str ());
+
+    // Validate disk images
+    if (!disk1Path.empty ())
+    {
+        fs::path    diskPath  = fs::path (disk1Path);
+        bool        diskGood  = fs::exists (diskPath);
+
+        CBRN (diskGood,
+              format (L"Disk image not found:\n{}", disk1Path).c_str ());
+
+        auto        diskSize  = fs::file_size (diskPath);
+        bool        validSize = (diskSize == 143360);
+
+        CBRN (validSize,
+              format (L"Disk image '{}' is not a valid .dsk file\n(expected 143360 bytes, got {} bytes)",
+                      disk1Path, static_cast<int64_t> (diskSize)).c_str ());
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  wWinMain
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,19 +159,19 @@ int WINAPI wWinMain (
     _In_     LPWSTR    lpCmdLine,
     _In_     int       nCmdShow)
 {
-    HRESULT      hr = S_OK;
-
-    std::wstring machineName;
-    std::wstring disk1Path;
-    std::wstring disk2Path;
-    std::string  error;
+    HRESULT        hr              = S_OK;
+    bool           fComInitialized = false;
+    wstring        machineName;
+    wstring        disk1Path;
+    wstring        disk2Path;
+    MachineConfig  config;
 
 
 
     UNREFERENCED_PARAMETER (hPrevInstance);
     UNREFERENCED_PARAMETER (nCmdShow);
 
-    // Register GUI error notificationso EHM errors show a MessageBox
+    // Register GUI error notification so EHM errors show a MessageBox
     SetNotifyFunction ([] (const wchar_t * message)
     {
         MessageBoxW (NULL, message, L"Casso65 Emulator", MB_OK | MB_ICONERROR);
@@ -93,6 +180,8 @@ int WINAPI wWinMain (
     // Initialize COM for WASAPI
     hr = CoInitializeEx (nullptr, COINIT_MULTITHREADED);
     CHRA (hr);
+
+    fComInitialized = true;
 
     // Parse command line
     hr = ParseCommandLine (lpCmdLine, machineName, disk1Path, disk2Path);
@@ -104,71 +193,15 @@ int WINAPI wWinMain (
         machineName = L"apple2plus";
     }
 
+    // Load machine configuration
+    hr = LoadMachineConfig (machineName, disk1Path, config);
+    CHR (hr);
+
     {
-        // Build search paths and find machine config
-        auto searchPaths = PathResolver::BuildSearchPaths (
-            PathResolver::GetExecutableDirectory (),
-            PathResolver::GetWorkingDirectory ());
-
-        std::string narrowMachine = PathResolver::WideToNarrow (machineName);
-        std::string configRelPath = "machines/" + narrowMachine + ".json";
-        std::string configBase    = PathResolver::FindFile (searchPaths, configRelPath);
-
-        CBRN (!configBase.empty (),
-              std::format (L"Unknown machine '{}'. Config file not found.\n"
-                           L"Searched for '{}' in exe directory, current directory, and parent directories.",
-                           machineName,
-                           std::wstring (configRelPath.begin (), configRelPath.end ())).c_str ());
-
-        std::string configPath = configBase + "/" + configRelPath;
-
-        // Load config file
-        std::ifstream configFile (configPath);
-        bool configGood = configFile.good ();
-        CBRN (configGood,
-              std::format (L"Cannot open machine config:\n{}",
-                           std::wstring (configPath.begin (), configPath.end ())).c_str ());
-
-        std::stringstream ss;
-        ss << configFile.rdbuf ();
-        std::string jsonText = ss.str ();
-
-        // Parse config — prioritize the config's peer roms/ directory,
-        // then fall back to other search paths
-        std::vector<std::string> romSearchPaths = { configBase };
-
-        for (const auto & p : searchPaths)
-        {
-            if (p != configBase)
-            {
-                romSearchPaths.push_back (p);
-            }
-        }
-
-        MachineConfig config;
-        hr = MachineConfigLoader::Load (jsonText, romSearchPaths, config, error);
-        CHRN (hr, std::format (L"Failed to load machine config:\n{}",
-                               std::wstring (error.begin (), error.end ())).c_str ());
-
-        // Validate disk images
-        if (!disk1Path.empty ())
-        {
-            std::ifstream disk (PathResolver::WideToNarrow (disk1Path), std::ios::binary | std::ios::ate);
-            bool diskGood = disk.good ();
-            CBRN (diskGood,
-                  std::format (L"Disk image not found:\n{}", disk1Path).c_str ());
-
-            auto size = disk.tellg ();
-            bool validSize = (size == 143360);
-            CBRN (validSize,
-                  std::format (L"Disk image '{}' is not a valid .dsk file\n(expected 143360 bytes, got {} bytes)",
-                               disk1Path, static_cast<int64_t> (size)).c_str ());
-        }
-
         // Initialize emulator
         EmulatorShell shell;
         hr = shell.Initialize (hInstance, config,
-                               PathResolver::WideToNarrow (disk1Path), PathResolver::WideToNarrow (disk2Path));
+                               fs::path (disk1Path).string (), fs::path (disk2Path).string ());
         CHRN (hr, L"Failed to initialize emulator");
 
         // Run message loop
@@ -176,7 +209,11 @@ int WINAPI wWinMain (
     }
 
 Error:
-    CoUninitialize ();
+    if (fComInitialized)
+    {
+        CoUninitialize ();
+    }
+
     return FAILED (hr) ? 1 : 0;
 }
 

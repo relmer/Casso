@@ -34,7 +34,7 @@ public:
     bool IsPage2        () const { return m_page2; }
     bool IsHiresMode    () const { return m_hiresMode; }
 
-    static std::unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
+    static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 protected:
     bool    m_graphicsMode = false;

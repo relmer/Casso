@@ -28,11 +28,11 @@ public:
 
     TEST_METHOD (BuildSearchPaths_ContainsExeDirAndCwd)
     {
-        auto paths = PathResolver::BuildSearchPaths ("C:/app/bin", "C:/project");
+        auto paths = PathResolver::BuildSearchPaths (fs::path ("C:/app/bin"), fs::path ("C:/project"));
 
         Assert::IsTrue (paths.size () >= 2);
-        Assert::AreEqual (std::string ("C:/app/bin"), paths[0]);
-        Assert::AreEqual (std::string ("C:/project"), paths[1]);
+        Assert::IsTrue (paths[0] == fs::path ("C:/app/bin"));
+        Assert::IsTrue (paths[1] == fs::path ("C:/project"));
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -43,7 +43,8 @@ public:
 
     TEST_METHOD (BuildSearchPaths_IncludesParentDirectories)
     {
-        auto paths = PathResolver::BuildSearchPaths ("C:/app/x64/Debug", "C:/project/build");
+        auto paths = PathResolver::BuildSearchPaths (
+            fs::path ("C:/app/x64/Debug"), fs::path ("C:/project/build"));
 
 
 
@@ -54,9 +55,9 @@ public:
 
         for (const auto & p : paths)
         {
-            if (p == "C:/app/x64")      foundExeParent      = true;
-            if (p == "C:/app")          foundExeGrandparent = true;
-            if (p == "C:/project")      foundCwdParent      = true;
+            if (p == fs::path ("C:/app/x64"))      foundExeParent      = true;
+            if (p == fs::path ("C:/app"))           foundExeGrandparent = true;
+            if (p == fs::path ("C:/project"))       foundCwdParent      = true;
         }
 
         Assert::IsTrue (foundExeParent);
@@ -73,17 +74,18 @@ public:
     TEST_METHOD (FindFile_FoundInFirstPath)
     {
         // Use the repo's own machines/ directory as test data
-        std::string repoRoot = FindRepoRoot ();
+        fs::path repoRoot = FindRepoRoot ();
 
         if (repoRoot.empty ())
         {
             return;  // Skip if repo root not found
         }
 
-        std::vector<std::string> paths = { repoRoot, "C:/nonexistent" };
-        std::string result = PathResolver::FindFile (paths, "machines/apple2plus.json");
+        std::vector<fs::path> paths = { repoRoot, fs::path ("C:/nonexistent") };
+        fs::path result = PathResolver::FindFile (paths, "machines/apple2plus.json");
 
-        Assert::AreEqual (repoRoot, result);
+        Assert::IsFalse (result.empty ());
+        Assert::IsTrue (fs::exists (result));
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -94,17 +96,18 @@ public:
 
     TEST_METHOD (FindFile_FoundInSecondPath)
     {
-        std::string repoRoot = FindRepoRoot ();
+        fs::path repoRoot = FindRepoRoot ();
 
         if (repoRoot.empty ())
         {
             return;
         }
 
-        std::vector<std::string> paths = { "C:/nonexistent", repoRoot };
-        std::string result = PathResolver::FindFile (paths, "machines/apple2plus.json");
+        std::vector<fs::path> paths = { fs::path ("C:/nonexistent"), repoRoot };
+        fs::path result = PathResolver::FindFile (paths, "machines/apple2plus.json");
 
-        Assert::AreEqual (repoRoot, result);
+        Assert::IsFalse (result.empty ());
+        Assert::IsTrue (fs::exists (result));
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -115,8 +118,8 @@ public:
 
     TEST_METHOD (FindFile_NotFound_ReturnsEmpty)
     {
-        std::vector<std::string> paths = { "C:/nonexistent1", "C:/nonexistent2" };
-        std::string result = PathResolver::FindFile (paths, "nosuchfile.xyz");
+        std::vector<fs::path> paths = { fs::path ("C:/nonexistent1"), fs::path ("C:/nonexistent2") };
+        fs::path result = PathResolver::FindFile (paths, "nosuchfile.xyz");
 
         Assert::IsTrue (result.empty ());
     }
@@ -131,17 +134,17 @@ public:
     {
         // Verify that machines/ and roms/ can be searched independently —
         // both should resolve from the same search paths
-        std::string repoRoot = FindRepoRoot ();
+        fs::path repoRoot = FindRepoRoot ();
 
         if (repoRoot.empty ())
         {
             return;
         }
 
-        std::vector<std::string> paths = { repoRoot };
+        std::vector<fs::path> paths = { repoRoot };
 
-        std::string configBase = PathResolver::FindFile (paths, "machines/apple2plus.json");
-        Assert::IsFalse (configBase.empty ());
+        fs::path configFound = PathResolver::FindFile (paths, "machines/apple2plus.json");
+        Assert::IsFalse (configFound.empty ());
 
         // roms/ may or may not exist in the test environment,
         // but the search itself should not crash
@@ -151,12 +154,20 @@ public:
 private:
 
     // Walk up from the test DLL directory to find the repo root (has machines/)
-    static std::string FindRepoRoot ()
+    static fs::path FindRepoRoot ()
     {
         auto paths = PathResolver::BuildSearchPaths (
             PathResolver::GetExecutableDirectory (),
             PathResolver::GetWorkingDirectory ());
 
-        return PathResolver::FindFile (paths, "machines/apple2plus.json");
+        fs::path found = PathResolver::FindFile (paths, "machines/apple2plus.json");
+
+        if (found.empty ())
+        {
+            return {};
+        }
+
+        // Return the repo root (two levels up from machines/apple2plus.json)
+        return found.parent_path ().parent_path ();
     }
 };

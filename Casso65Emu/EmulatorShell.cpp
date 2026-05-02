@@ -57,7 +57,7 @@ EmulatorShell::EmulatorShell ()
 
 EmulatorShell::~EmulatorShell ()
 {
-    m_running.store (false, std::memory_order_release);
+    m_running.store (false, memory_order_release);
 
     if (m_cpuThread.joinable ())
     {
@@ -80,8 +80,8 @@ EmulatorShell::~EmulatorShell ()
 HRESULT EmulatorShell::Initialize (
     HINSTANCE hInstance,
     const MachineConfig & config,
-    const std::string & disk1Path,
-    const std::string & disk2Path)
+    const string & disk1Path,
+    const string & disk2Path)
 {
     HRESULT        hr        = S_OK;
     WNDCLASSEX     wc        = {};
@@ -94,7 +94,7 @@ HRESULT EmulatorShell::Initialize (
     DWORD          style     = 0;
     size_t         fbSize    = 0;
     bool           romOk     = false;
-    std::wstring   wideError;
+    wstring   wideError;
     LanguageCard * lc        = nullptr;
 
 
@@ -173,14 +173,14 @@ HRESULT EmulatorShell::Initialize (
     {
         if (region.type == "ram")
         {
-            auto device = std::make_unique<RamDevice> (region.start, region.end);
+            auto device = make_unique<RamDevice> (region.start, region.end);
             m_memoryBus.AddDevice (device.get ());
-            m_ownedDevices.push_back (std::move (device));
+            m_ownedDevices.push_back (move (device));
         }
         else if (region.type == "rom" && !region.file.empty ())
         {
-            std::string romPath = region.resolvedPath;
-            std::string error;
+            string romPath = region.resolvedPath;
+            string error;
 
             auto device = RomDevice::CreateFromFile (region.start, region.end, romPath, error);
 
@@ -193,7 +193,7 @@ HRESULT EmulatorShell::Initialize (
             }
 
             m_memoryBus.AddDevice (device.get ());
-            m_ownedDevices.push_back (std::move (device));
+            m_ownedDevices.push_back (move (device));
         }
     }
 
@@ -221,7 +221,7 @@ HRESULT EmulatorShell::Initialize (
             }
 
             m_memoryBus.AddDevice (device.get ());
-            m_ownedDevices.push_back (std::move (device));
+            m_ownedDevices.push_back (move (device));
         }
         else
         {
@@ -259,7 +259,7 @@ HRESULT EmulatorShell::Initialize (
             Word romStart = romDevice->GetStart ();
 
             // Copy $D000-$FFFF ROM data to language card
-            std::vector<Byte> lcRomData (0x3000);
+            vector<Byte> lcRomData (0x3000);
 
             for (size_t i = 0; i < 0x3000; i++)
             {
@@ -273,7 +273,7 @@ HRESULT EmulatorShell::Initialize (
             if (romStart < 0xD000)
             {
                 size_t lowerSize = 0xD000 - romStart;
-                std::vector<Byte> lowerData (lowerSize);
+                vector<Byte> lowerData (lowerSize);
 
                 for (size_t i = 0; i < lowerSize; i++)
                 {
@@ -285,14 +285,14 @@ HRESULT EmulatorShell::Initialize (
                     lowerData.data (), lowerData.size ());
 
                 m_memoryBus.AddDevice (lowerRom.get ());
-                m_ownedDevices.push_back (std::move (lowerRom));
+                m_ownedDevices.push_back (move (lowerRom));
             }
         }
 
         // Bank device intercepts $D000-$FFFF, routing to LC RAM or ROM
-        auto lcBank = std::make_unique<LanguageCardBank> (*lc);
+        auto lcBank = make_unique<LanguageCardBank> (*lc);
         m_memoryBus.AddDevice (lcBank.get ());
-        m_ownedDevices.push_back (std::move (lcBank));
+        m_ownedDevices.push_back (move (lcBank));
     }
 
     // Mount command-line disk images if a Disk II controller was created
@@ -321,18 +321,18 @@ HRESULT EmulatorShell::Initialize (
 
     // Create video modes
     {
-        auto textMode = std::make_unique<AppleTextMode> (m_memoryBus);
+        auto textMode = make_unique<AppleTextMode> (m_memoryBus);
         m_activeVideoMode = textMode.get ();
-        m_videoModes.push_back (std::move (textMode));
+        m_videoModes.push_back (move (textMode));
 
-        auto loResMode = std::make_unique<AppleLoResMode> (m_memoryBus);
-        m_videoModes.push_back (std::move (loResMode));
+        auto loResMode = make_unique<AppleLoResMode> (m_memoryBus);
+        m_videoModes.push_back (move (loResMode));
 
-        auto hiResMode = std::make_unique<AppleHiResMode> (m_memoryBus);
-        m_videoModes.push_back (std::move (hiResMode));
+        auto hiResMode = make_unique<AppleHiResMode> (m_memoryBus);
+        m_videoModes.push_back (move (hiResMode));
 
-        auto doubleHiResMode = std::make_unique<AppleDoubleHiResMode> (m_memoryBus);
-        m_videoModes.push_back (std::move (doubleHiResMode));
+        auto doubleHiResMode = make_unique<AppleDoubleHiResMode> (m_memoryBus);
+        m_videoModes.push_back (move (doubleHiResMode));
     }
 
     // Validate memory bus for overlapping device address ranges
@@ -340,7 +340,7 @@ HRESULT EmulatorShell::Initialize (
     CHRN (hr, L"Memory bus validation failed: overlapping device address ranges");
 
     // Create CPU
-    m_cpu = std::make_unique<EmuCpu> (m_memoryBus);
+    m_cpu = make_unique<EmuCpu> (m_memoryBus);
 
     // The base Cpu class uses an internal memory[] array for opcode fetch
     // and instruction execution. We must copy ROM data into that array so
@@ -350,7 +350,7 @@ HRESULT EmulatorShell::Initialize (
     {
         if (region.type == "rom" && !region.resolvedPath.empty ())
         {
-            std::ifstream romFile (region.resolvedPath, std::ios::binary);
+            ifstream romFile (region.resolvedPath, ios::binary);
 
             if (romFile.good ())
             {
@@ -412,17 +412,17 @@ int EmulatorShell::RunMessageLoop ()
 
 
     // Start the CPU thread
-    m_cpuThread = std::thread (&EmulatorShell::CpuThreadProc, this);
+    m_cpuThread = thread (&EmulatorShell::CpuThreadProc, this);
 
     // UI thread loop: process messages, present latest framebuffer with vsync
-    while (m_running.load (std::memory_order_acquire))
+    while (m_running.load (memory_order_acquire))
     {
         // Process all pending messages
         while (PeekMessage (&msg, nullptr, 0, 0, PM_REMOVE))
         {
             if (msg.message == WM_QUIT)
             {
-                m_running.store (false, std::memory_order_release);
+                m_running.store (false, memory_order_release);
 
                 if (m_cpuThread.joinable ())
                 {
@@ -442,7 +442,7 @@ int EmulatorShell::RunMessageLoop ()
 
         // Copy latest framebuffer under lock, then present with vsync
         {
-            std::lock_guard<std::mutex> lock (m_fbMutex);
+            lock_guard<mutex> lock (m_fbMutex);
 
             if (m_fbReady)
             {
@@ -500,9 +500,9 @@ void EmulatorShell::CpuThreadProc ()
         hTimer = CreateWaitableTimer (nullptr, FALSE, nullptr);
     }
 
-    while (m_running.load (std::memory_order_acquire))
+    while (m_running.load (memory_order_acquire))
     {
-        if (m_paused.load (std::memory_order_acquire))
+        if (m_paused.load (memory_order_acquire))
         {
             Sleep (10);
             continue;
@@ -523,12 +523,12 @@ void EmulatorShell::CpuThreadProc ()
 
         // Publish the framebuffer for the UI thread
         {
-            std::lock_guard<std::mutex> lock (m_fbMutex);
+            lock_guard<mutex> lock (m_fbMutex);
             m_fbReady = true;
         }
 
         // Wait for the remainder of the frame period
-        speed = m_speedMode.load (std::memory_order_acquire);
+        speed = m_speedMode.load (memory_order_acquire);
 
         if (speed != SpeedMode::Maximum && hTimer != nullptr)
         {
@@ -560,10 +560,10 @@ void EmulatorShell::CpuThreadProc ()
 
 void EmulatorShell::ProcessCommands ()
 {
-    std::vector<EmulatorCommand> cmds;
+    vector<EmulatorCommand> cmds;
 
     {
-        std::lock_guard<std::mutex> lock (m_cmdMutex);
+        lock_guard<mutex> lock (m_cmdMutex);
         cmds.swap (m_commandQueue);
     }
 
@@ -653,9 +653,9 @@ void EmulatorShell::ProcessCommands ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PostCommand (WORD id, const std::string & payload)
+void EmulatorShell::PostCommand (WORD id, const string & payload)
 {
-    std::lock_guard<std::mutex> lock (m_cmdMutex);
+    lock_guard<mutex> lock (m_cmdMutex);
     m_commandQueue.push_back ({ id, payload });
 }
 
@@ -674,7 +674,7 @@ void EmulatorShell::RunOneFrame ()
     static constexpr uint32_t kSliceCycles = 1023;
 
     uint32_t  targetCycles   = m_cyclesPerFrame;
-    SpeedMode speed          = m_speedMode.load (std::memory_order_acquire);
+    SpeedMode speed          = m_speedMode.load (memory_order_acquire);
     bool      audioActive    = (m_speaker != nullptr && m_wasapiAudio.IsInitialized ());
     double    cyclesPerSample = 0.0;
     uint32_t  sliceTarget    = 0;
@@ -769,7 +769,7 @@ void EmulatorShell::RunOneFrame ()
         static constexpr int kMixedScaleY = 2;
         int mixedFbY = 20 * kMixedCharH * kMixedScaleY;
 
-        std::vector<uint32_t> textBuf (static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight, 0);
+        vector<uint32_t> textBuf (static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight, 0);
 
         m_videoModes[0]->Render (m_cpu->GetMemory (),
                                  textBuf.data (),
@@ -787,7 +787,7 @@ void EmulatorShell::RunOneFrame ()
     }
 
     // Apply monochrome tint if needed
-    color = m_colorMode.load (std::memory_order_acquire);
+    color = m_colorMode.load (memory_order_acquire);
 
     if (color != ColorMode::Color)
     {
@@ -903,7 +903,7 @@ LRESULT EmulatorShell::WndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
         case WM_DESTROY:
         {
-            m_running.store (false, std::memory_order_release);
+            m_running.store (false, memory_order_release);
             PostQuitMessage (0);
             return 0;
         }
@@ -951,8 +951,8 @@ void EmulatorShell::HandleCommand (WORD commandId)
 
         case IDM_MACHINE_PAUSE:
         {
-            bool paused = !m_paused.load (std::memory_order_acquire);
-            m_paused.store (paused, std::memory_order_release);
+            bool paused = !m_paused.load (memory_order_acquire);
+            m_paused.store (paused, memory_order_release);
             m_menuSystem.SetPaused (paused);
             UpdateWindowTitle ();
             break;
@@ -960,7 +960,7 @@ void EmulatorShell::HandleCommand (WORD commandId)
 
         case IDM_MACHINE_STEP:
         {
-            if (m_paused.load (std::memory_order_acquire))
+            if (m_paused.load (memory_order_acquire))
             {
                 PostCommand (commandId);
             }
@@ -969,49 +969,49 @@ void EmulatorShell::HandleCommand (WORD commandId)
 
         case IDM_MACHINE_SPEED_1X:
         {
-            m_speedMode.store (SpeedMode::Authentic, std::memory_order_release);
+            m_speedMode.store (SpeedMode::Authentic, memory_order_release);
             m_menuSystem.SetSpeedMode (SpeedMode::Authentic);
             break;
         }
 
         case IDM_MACHINE_SPEED_2X:
         {
-            m_speedMode.store (SpeedMode::Double, std::memory_order_release);
+            m_speedMode.store (SpeedMode::Double, memory_order_release);
             m_menuSystem.SetSpeedMode (SpeedMode::Double);
             break;
         }
 
         case IDM_MACHINE_SPEED_MAX:
         {
-            m_speedMode.store (SpeedMode::Maximum, std::memory_order_release);
+            m_speedMode.store (SpeedMode::Maximum, memory_order_release);
             m_menuSystem.SetSpeedMode (SpeedMode::Maximum);
             break;
         }
 
         case IDM_VIEW_COLOR:
         {
-            m_colorMode.store (ColorMode::Color, std::memory_order_release);
+            m_colorMode.store (ColorMode::Color, memory_order_release);
             m_menuSystem.SetColorMode (ColorMode::Color);
             break;
         }
 
         case IDM_VIEW_GREEN:
         {
-            m_colorMode.store (ColorMode::GreenMono, std::memory_order_release);
+            m_colorMode.store (ColorMode::GreenMono, memory_order_release);
             m_menuSystem.SetColorMode (ColorMode::GreenMono);
             break;
         }
 
         case IDM_VIEW_AMBER:
         {
-            m_colorMode.store (ColorMode::AmberMono, std::memory_order_release);
+            m_colorMode.store (ColorMode::AmberMono, memory_order_release);
             m_menuSystem.SetColorMode (ColorMode::AmberMono);
             break;
         }
 
         case IDM_VIEW_WHITE:
         {
-            m_colorMode.store (ColorMode::WhiteMono, std::memory_order_release);
+            m_colorMode.store (ColorMode::WhiteMono, memory_order_release);
             m_menuSystem.SetColorMode (ColorMode::WhiteMono);
             break;
         }
@@ -1069,7 +1069,7 @@ void EmulatorShell::HandleCommand (WORD commandId)
 
             if (GetOpenFileNameW (&ofn))
             {
-                std::string narrowPath = PathResolver::WideToNarrow (std::wstring (filePath));
+                string narrowPath = fs::path (filePath).string ();
                 PostCommand (commandId, narrowPath);
             }
             break;
@@ -1092,7 +1092,7 @@ void EmulatorShell::HandleCommand (WORD commandId)
             {
                 m_debugConsole.Show (m_hInstance);
                 m_debugConsole.LogConfig (
-                    std::format ("Machine: {}\nCPU: {}\nClock: {} Hz\nDevices: {}",
+                    format ("Machine: {}\nCPU: {}\nClock: {} Hz\nDevices: {}",
                         m_config.name, m_config.cpu, m_config.clockSpeed,
                         m_config.devices.size ()));
             }
@@ -1136,14 +1136,14 @@ void EmulatorShell::HandleCommand (WORD commandId)
 
         case IDM_MACHINE_INFO:
         {
-            std::wstring info = std::format (
+            wstring info = format (
                 L"Machine: {}\n"
                 L"CPU: {}\n"
                 L"Clock Speed: {} Hz\n"
                 L"Memory Regions: {}\n"
                 L"Devices: {}",
-                std::wstring (m_config.name.begin (), m_config.name.end ()),
-                std::wstring (m_config.cpu.begin (), m_config.cpu.end ()),
+                wstring (m_config.name.begin (), m_config.name.end ()),
+                wstring (m_config.cpu.begin (), m_config.cpu.end ()),
                 m_config.clockSpeed,
                 m_config.memoryRegions.size (),
                 m_config.devices.size ());
@@ -1261,8 +1261,8 @@ void EmulatorShell::OnChar (WPARAM ch)
 
 void EmulatorShell::UpdateWindowTitle ()
 {
-    std::wstring title;
-    std::wstring wideName;
+    wstring title;
+    wstring wideName;
 
 
 

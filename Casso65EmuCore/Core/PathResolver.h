@@ -17,25 +17,15 @@ class PathResolver
 public:
 
     // Build the list of base directories to search (exe dir, cwd, parents)
-    static std::vector<std::string> BuildSearchPaths (
-        const std::string & exeDir,
-        const std::string & cwd);
+    static vector<fs::path> BuildSearchPaths (const fs::path & exeDir, const fs::path & cwd);
 
     // Find a file by searching base paths + relative path.
-    // Returns the base path where the file was found, or "" if not found.
-    static std::string FindFile (
-        const std::vector<std::string> & searchPaths,
-        const std::string & relativePath);
+    // Returns the full resolved path, or empty path if not found.
+    static fs::path FindFile (const vector<fs::path> & searchPaths, const fs::path & relativePath);
 
     // Get the executable's directory
-    static std::string GetExecutableDirectory ();
+    static fs::path GetExecutableDirectory ();
 
     // Get the current working directory
-    static std::string GetWorkingDirectory ();
-
-    // Convert wide string to narrow (UTF-8)
-    static std::string WideToNarrow (const std::wstring & wide);
-
-    // Convert narrow string (UTF-8) to wide
-    static std::wstring NarrowToWide (const std::string & narrow);
+    static fs::path GetWorkingDirectory ();
 };

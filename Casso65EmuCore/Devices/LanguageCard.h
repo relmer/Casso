@@ -37,20 +37,20 @@ public:
     bool IsBank2      () const { return m_bank2Select; }
 
     // Store ROM data so LanguageCardBank can serve ROM reads
-    void SetRomData (const std::vector<Byte> & rom) { m_romData = rom; }
+    void SetRomData (const vector<Byte> & rom) { m_romData = rom; }
     Byte ReadRom    (Word address) const;
 
-    static std::unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
+    static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
     void UpdateState (Byte switchAddr);
 
     MemoryBus &         m_bus;
 
-    std::vector<Byte>   m_ramBank1;     // 4KB bank 1 at $D000-$DFFF
-    std::vector<Byte>   m_ramBank2;     // 4KB bank 2 at $D000-$DFFF
-    std::vector<Byte>   m_ramMain;      // 8KB at $E000-$FFFF
-    std::vector<Byte>   m_romData;      // Original ROM data for fallback reads
+    vector<Byte>   m_ramBank1;     // 4KB bank 1 at $D000-$DFFF
+    vector<Byte>   m_ramBank2;     // 4KB bank 2 at $D000-$DFFF
+    vector<Byte>   m_ramMain;      // 8KB at $E000-$FFFF
+    vector<Byte>   m_romData;      // Original ROM data for fallback reads
 
     bool    m_readRam     = false;
     bool    m_writeRam    = false;

@@ -61,7 +61,7 @@ void RamDevice::Write (Word address, Byte value)
 
 void RamDevice::Reset ()
 {
-    std::fill (m_data.begin (), m_data.end (), Byte (0));
+    fill (m_data.begin (), m_data.end (), Byte (0));
 }
 
 
@@ -74,8 +74,8 @@ void RamDevice::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<MemoryDevice> RamDevice::Create (const DeviceConfig & config, MemoryBus & bus)
+unique_ptr<MemoryDevice> RamDevice::Create (const DeviceConfig & config, MemoryBus & bus)
 {
     UNREFERENCED_PARAMETER (bus);
-    return std::make_unique<RamDevice> (config.start, config.end);
+    return make_unique<RamDevice> (config.start, config.end);
 }

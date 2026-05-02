@@ -36,27 +36,27 @@ class JsonValue
 {
 public:
     JsonValue ();
-    explicit JsonValue (std::nullptr_t);
+    explicit JsonValue (nullptr_t);
     explicit JsonValue (bool value);
     explicit JsonValue (double value);
-    explicit JsonValue (const std::string & value);
-    explicit JsonValue (std::vector<JsonValue> && arr);
-    explicit JsonValue (std::vector<std::pair<std::string, JsonValue>> && obj);
+    explicit JsonValue (const string & value);
+    explicit JsonValue (vector<JsonValue> && arr);
+    explicit JsonValue (vector<pair<string, JsonValue>> && obj);
 
     JsonType GetType () const { return m_type; }
 
     bool               GetBool   () const;
     double             GetNumber () const;
     int                GetInt    () const;
-    const std::string & GetString () const;
+    const string & GetString () const;
 
     // Array access
     size_t             ArraySize  () const;
     const JsonValue &  ArrayAt    (size_t index) const;
 
     // Object access
-    bool               HasKey    (const std::string & key) const;
-    const JsonValue &  Get       (const std::string & key) const;
+    bool               HasKey    (const string & key) const;
+    const JsonValue &  Get       (const string & key) const;
 
     // Convenience
     bool IsNull   () const { return m_type == JsonType::Null; }
@@ -66,15 +66,15 @@ public:
     bool IsObject () const { return m_type == JsonType::Object; }
     bool IsBool   () const { return m_type == JsonType::Bool; }
 
-    const std::vector<std::pair<std::string, JsonValue>> & GetObjectEntries () const;
+    const vector<pair<string, JsonValue>> & GetObjectEntries () const;
 
 private:
     JsonType                                             m_type   = JsonType::Null;
     bool                                                 m_bool   = false;
     double                                               m_number = 0.0;
-    std::string                                          m_string;
-    std::vector<JsonValue>                               m_array;
-    std::vector<std::pair<std::string, JsonValue>>       m_object;
+    string                                          m_string;
+    vector<JsonValue>                               m_array;
+    vector<pair<string, JsonValue>>       m_object;
 };
 
 
@@ -91,7 +91,7 @@ struct JsonParseError
 {
     int         line   = 0;
     int         column = 0;
-    std::string message;
+    string message;
 };
 
 
@@ -107,13 +107,13 @@ struct JsonParseError
 class JsonParser
 {
 public:
-    static HRESULT Parse (const std::string & input, JsonValue & outValue, JsonParseError & outError);
+    static HRESULT Parse (const string & input, JsonValue & outValue, JsonParseError & outError);
 
 private:
-    JsonParser (const std::string & input);
+    JsonParser (const string & input);
 
     HRESULT ParseValue   (JsonValue & outValue);
-    HRESULT ParseString  (std::string & outStr);
+    HRESULT ParseString  (string & outStr);
     HRESULT ParseNumber  (JsonValue & outValue);
     HRESULT ParseObject  (JsonValue & outValue);
     HRESULT ParseArray   (JsonValue & outValue);
@@ -123,9 +123,9 @@ private:
     char Peek            () const;
     char Advance         ();
     bool AtEnd           () const;
-    void SetError        (const std::string & msg);
+    void SetError        (const string & msg);
 
-    const std::string & m_input;
+    const string & m_input;
     size_t              m_pos;
     int                 m_line;
     int                 m_column;

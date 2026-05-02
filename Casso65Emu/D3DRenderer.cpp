@@ -34,7 +34,7 @@ struct Vertex
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-D3DRenderer::D3DRenderer ()
+D3DRenderer::D3DRenderer()
 {
 }
 
@@ -48,9 +48,9 @@ D3DRenderer::D3DRenderer ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-D3DRenderer::~D3DRenderer ()
+D3DRenderer::~D3DRenderer()
 {
-    Shutdown ();
+    Shutdown();
 }
 
 
@@ -124,10 +124,10 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
     // Create render target view
     hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
     CHRA (hr);
-    hr = m_device->CreateRenderTargetView (backBuffer.Get (), nullptr, &m_rtv);
+    hr = m_device->CreateRenderTargetView (backBuffer.Get(), nullptr, &m_rtv);
     CHRA (hr);
 
-    m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf (), nullptr);
+    m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf(), nullptr);
 
     // Viewport
     vp.Width    = static_cast<float> (texWidth);
@@ -148,7 +148,7 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
 
     hr = m_device->CreateTexture2D (&td, nullptr, &m_texture);
     CHRA (hr);
-    hr = m_device->CreateShaderResourceView (m_texture.Get (), nullptr, &m_srv);
+    hr = m_device->CreateShaderResourceView (m_texture.Get(), nullptr, &m_srv);
     CHRA (hr);
 
     // Bilinear sampler for smooth scaling when window is resized
@@ -161,7 +161,7 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
     CHRA (hr);
 
     // Compile and create shaders
-    hr = InitializeShaders ();
+    hr = InitializeShaders();
     CHRA (hr);
 
     // Vertex buffer (full-screen quad)
@@ -200,7 +200,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT D3DRenderer::InitializeShaders ()
+HRESULT D3DRenderer::InitializeShaders()
 {
     HRESULT            hr     = S_OK;
     ComPtr<ID3DBlob>   vsBlob;
@@ -264,15 +264,15 @@ HRESULT D3DRenderer::InitializeShaders ()
     CHRA (hr);
 
     // Create vertex shader
-    hr = m_device->CreateVertexShader (vsBlob->GetBufferPointer (),
-                                       vsBlob->GetBufferSize (),
+    hr = m_device->CreateVertexShader (vsBlob->GetBufferPointer(),
+                                       vsBlob->GetBufferSize(),
                                        nullptr,
                                        &m_vertexShader);
     CHRA (hr);
 
     // Create pixel shader
-    hr = m_device->CreatePixelShader (psBlob->GetBufferPointer (),
-                                      psBlob->GetBufferSize (),
+    hr = m_device->CreatePixelShader (psBlob->GetBufferPointer(),
+                                      psBlob->GetBufferSize(),
                                       nullptr,
                                       &m_pixelShader);
     CHRA (hr);
@@ -280,8 +280,8 @@ HRESULT D3DRenderer::InitializeShaders ()
     // Create input layout
     hr = m_device->CreateInputLayout (layout,
                                       2,
-                                      vsBlob->GetBufferPointer (),
-                                      vsBlob->GetBufferSize (),
+                                      vsBlob->GetBufferPointer(),
+                                      vsBlob->GetBufferSize(),
                                       &m_inputLayout);
     CHRA (hr);
 
@@ -316,7 +316,7 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
     // Upload framebuffer to texture
     if (m_texture != nullptr && framebuffer != nullptr)
     {
-        hr = m_context->Map (m_texture.Get (), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+        hr = m_context->Map (m_texture.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
         CHRA (hr);
 
         src = framebuffer;
@@ -329,29 +329,31 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
             dst += mapped.RowPitch;
         }
 
-        m_context->Unmap (m_texture.Get (), 0);
+        m_context->Unmap (m_texture.Get(), 0);
     }
 
     // Clear render target
-    m_context->ClearRenderTargetView (m_rtv.Get (), clearColor);
+    m_context->ClearRenderTargetView (m_rtv.Get(), clearColor);
 
     // Draw the textured quad
     if (m_vertexShader != nullptr && m_pixelShader != nullptr)
     {
-        m_context->VSSetShader (m_vertexShader.Get (), nullptr, 0);
-        m_context->PSSetShader (m_pixelShader.Get (), nullptr, 0);
-        m_context->PSSetShaderResources (0, 1, m_srv.GetAddressOf ());
-        m_context->PSSetSamplers (0, 1, m_sampler.GetAddressOf ());
+        m_context->VSSetShader            (m_vertexShader.Get(), nullptr, 0);
+        m_context->VSSetShader            (m_vertexShader.Get(), nullptr, 0);
+        m_context->PSSetShader            (m_pixelShader.Get(), nullptr, 0);
+        m_context->PSSetShaderResources   (0, 1, m_srv.GetAddressOf());
+        m_context->PSSetSamplers          (0, 1, m_sampler.GetAddressOf());
 
-        m_context->IASetVertexBuffers (0, 1, m_vertexBuffer.GetAddressOf (), &stride, &offset);
-        m_context->IASetIndexBuffer (m_indexBuffer.Get (), DXGI_FORMAT_R16_UINT, 0);
-        m_context->IASetInputLayout (m_inputLayout.Get ());
+        m_context->IASetVertexBuffers     (0, 1, m_vertexBuffer.GetAddressOf(), &stride, &offset);
+        m_context->IASetIndexBuffer       (m_indexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
+        m_context->IASetInputLayout       (m_inputLayout.Get());
         m_context->IASetPrimitiveTopology (D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
         m_context->DrawIndexed (6, 0, 0);
     }
 
     hr = m_swapChain->Present (1, 0);
+    CHRA (hr);
 
 Error:
     return hr;
@@ -388,11 +390,12 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
         CWRA (monResult);
 
         SetWindowLong (hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
-        SetWindowPos (hwnd, HWND_TOP,
-                     mi.rcMonitor.left, mi.rcMonitor.top,
-                     mi.rcMonitor.right - mi.rcMonitor.left,
-                     mi.rcMonitor.bottom - mi.rcMonitor.top,
-                     SWP_FRAMECHANGED);
+        SetWindowPos (hwnd, 
+                      HWND_TOP,
+                      mi.rcMonitor.left, mi.rcMonitor.top,
+                      mi.rcMonitor.right - mi.rcMonitor.left,
+                      mi.rcMonitor.bottom - mi.rcMonitor.top,
+                      SWP_FRAMECHANGED);
 
         m_fullscreen = true;
     }
@@ -400,11 +403,12 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
     {
         // Restore windowed
         SetWindowLong (hwnd, GWL_STYLE, m_windowedStyle);
-        SetWindowPos (hwnd, HWND_NOTOPMOST,
-                     m_windowedRect.left, m_windowedRect.top,
-                     m_windowedRect.right - m_windowedRect.left,
-                     m_windowedRect.bottom - m_windowedRect.top,
-                     SWP_FRAMECHANGED);
+        SetWindowPos (hwnd, 
+                      HWND_NOTOPMOST,
+                      m_windowedRect.left, m_windowedRect.top,
+                      m_windowedRect.right - m_windowedRect.left,
+                      m_windowedRect.bottom - m_windowedRect.top,
+                      SWP_FRAMECHANGED);
 
         m_fullscreen = false;
     }
@@ -439,7 +443,7 @@ HRESULT D3DRenderer::Resize (int width, int height)
 
     if (m_rtv)
     {
-        m_rtv.Reset ();
+        m_rtv.Reset();
     }
 
     // Resize the swap chain buffers
@@ -454,10 +458,10 @@ HRESULT D3DRenderer::Resize (int width, int height)
     hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
     CHRA (hr);
 
-    hr = m_device->CreateRenderTargetView (backBuffer.Get (), nullptr, &m_rtv);
+    hr = m_device->CreateRenderTargetView (backBuffer.Get(), nullptr, &m_rtv);
     CHRA (hr);
     
-    m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf (), nullptr);
+    m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf(), nullptr);
 
     // Update viewport to match new window size
     vp.Width    = static_cast<float> (width);
@@ -480,20 +484,20 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void D3DRenderer::Shutdown ()
+void D3DRenderer::Shutdown()
 {
-    m_inputLayout.Reset ();
-    m_indexBuffer.Reset ();
-    m_vertexBuffer.Reset ();
-    m_pixelShader.Reset ();
-    m_vertexShader.Reset ();
-    m_sampler.Reset ();
-    m_srv.Reset ();
-    m_texture.Reset ();
-    m_rtv.Reset ();
-    m_swapChain.Reset ();
-    m_context.Reset ();
-    m_device.Reset ();
+    m_inputLayout.Reset();
+    m_indexBuffer.Reset();
+    m_vertexBuffer.Reset();
+    m_pixelShader.Reset();
+    m_vertexShader.Reset();
+    m_sampler.Reset();
+    m_srv.Reset();
+    m_texture.Reset();
+    m_rtv.Reset();
+    m_swapChain.Reset();
+    m_context.Reset();
+    m_device.Reset();
 }
 
 

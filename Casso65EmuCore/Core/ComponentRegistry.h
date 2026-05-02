@@ -27,7 +27,7 @@ struct DeviceConfig;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-using FactoryFunc = std::function<std::unique_ptr<MemoryDevice> (const DeviceConfig &, MemoryBus &)>;
+using FactoryFunc = function<unique_ptr<MemoryDevice> (const DeviceConfig &, MemoryBus &)>;
 
 
 
@@ -42,16 +42,16 @@ using FactoryFunc = std::function<std::unique_ptr<MemoryDevice> (const DeviceCon
 class ComponentRegistry
 {
 public:
-    void Register (const std::string & typeName, FactoryFunc factory);
+    void Register (const string & typeName, FactoryFunc factory);
 
-    std::unique_ptr<MemoryDevice> Create (
-        const std::string & typeName,
+    unique_ptr<MemoryDevice> Create (
+        const string & typeName,
         const DeviceConfig & config,
         MemoryBus & bus) const;
 
-    bool IsRegistered (const std::string & typeName) const;
+    bool IsRegistered (const string & typeName) const;
 
-    std::vector<std::string> GetRegisteredTypes () const;
+    vector<string> GetRegisteredTypes () const;
 
     static void RegisterBuiltinDevices (ComponentRegistry & registry);
 };

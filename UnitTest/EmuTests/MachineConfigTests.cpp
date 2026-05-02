@@ -30,7 +30,7 @@ public:
         MachineConfig config;
         std::string error;
 
-        std::vector<std::string> paths;
+        std::vector<fs::path> paths;
         HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
 
         Assert::IsTrue (SUCCEEDED (hr),
@@ -60,7 +60,7 @@ public:
         MachineConfig config;
         std::string error;
 
-        std::vector<std::string> paths = { repoRoot };
+        std::vector<fs::path> paths = { repoRoot };
         HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
 
         Assert::IsTrue (SUCCEEDED (hr),
@@ -88,7 +88,7 @@ public:
         MachineConfig config;
         std::string error;
 
-        std::vector<std::string> paths = { "C:/nonexistent" };
+        std::vector<fs::path> paths = { "C:/nonexistent" };
         HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
 
         Assert::IsTrue (FAILED (hr),
@@ -103,7 +103,7 @@ public:
         MachineConfig config;
         std::string error;
 
-        std::vector<std::string> paths;
+        std::vector<fs::path> paths;
         HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
 
         Assert::IsTrue (FAILED (hr),
@@ -127,7 +127,7 @@ public:
         MachineConfig config;
         std::string error;
 
-        std::vector<std::string> paths;
+        std::vector<fs::path> paths;
         HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
 
         Assert::IsTrue (FAILED (hr),
@@ -146,7 +146,7 @@ public:
         }
 
         // Load the actual apple2plus.json config
-        std::string configPath = repoRoot + "/machines/apple2plus.json";
+        std::string configPath = (fs::path (repoRoot) / "machines" / "apple2plus.json").string ();
         std::ifstream file (configPath);
 
         if (!file.good ())
@@ -159,7 +159,7 @@ public:
 
         MachineConfig config;
         std::string error;
-        std::vector<std::string> paths = { repoRoot };
+        std::vector<fs::path> paths = { repoRoot };
 
         HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
 
@@ -188,7 +188,7 @@ public:
         MachineConfig config;
         std::string error;
 
-        std::vector<std::string> paths;
+        std::vector<fs::path> paths;
         HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
@@ -202,7 +202,7 @@ public:
         MachineConfig config;
         std::string error;
 
-        std::vector<std::string> paths;
+        std::vector<fs::path> paths;
         HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
@@ -251,6 +251,14 @@ private:
             PathResolver::GetExecutableDirectory (),
             PathResolver::GetWorkingDirectory ());
 
-        return PathResolver::FindFile (paths, "machines/apple2plus.json");
+        fs::path found = PathResolver::FindFile (paths, "machines/apple2plus.json");
+
+        if (found.empty ())
+        {
+            return "";
+        }
+
+        // Return the repo root (two levels up from machines/apple2plus.json)
+        return found.parent_path ().parent_path ().string ();
     }
 };

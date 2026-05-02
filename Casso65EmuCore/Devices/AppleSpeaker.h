@@ -32,7 +32,7 @@ public:
     // Audio interface
     float GetSpeakerState () const { return m_speakerState; }
 
-    const std::vector<uint32_t> & GetToggleTimestamps () const { return m_toggleTimestamps; }
+    const vector<uint32_t> & GetToggleTimestamps () const { return m_toggleTimestamps; }
 
     void ClearTimestamps () { m_toggleTimestamps.clear (); }
 
@@ -51,12 +51,12 @@ public:
 
     float GetFrameInitialState () const { return m_frameInitialState; }
 
-    static std::unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
+    static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
     float                       m_speakerState      = -0.25f;
     float                       m_frameInitialState = -0.25f;
-    std::vector<uint32_t>       m_toggleTimestamps;
+    vector<uint32_t>       m_toggleTimestamps;
     uint64_t *                  m_pTotalCycles      = nullptr;
     uint64_t                    m_frameCycleStart   = 0;
 };

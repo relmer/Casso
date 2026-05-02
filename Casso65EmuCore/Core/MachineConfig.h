@@ -16,13 +16,13 @@
 
 struct MemoryRegion
 {
-    std::string type;           // "ram" or "rom"
+    string type;           // "ram" or "rom"
     Word        start = 0;
     Word        end   = 0;
-    std::string file;           // Required for ROM (from JSON)
-    std::string resolvedPath;   // Fully resolved ROM path after search
-    std::string bank;           // Optional: "aux"
-    std::string target;         // Optional: "chargen"
+    string file;           // Required for ROM (from JSON)
+    string resolvedPath;   // Fully resolved ROM path after search
+    string bank;           // Optional: "aux"
+    string target;         // Optional: "chargen"
 };
 
 
@@ -37,7 +37,7 @@ struct MemoryRegion
 
 struct DeviceConfig
 {
-    std::string type;
+    string type;
     Word        address;    // For point-mapped devices
     Word        start;      // For range-mapped devices
     Word        end;        // For range-mapped devices
@@ -70,7 +70,7 @@ struct DeviceConfig
 
 struct VideoConfig
 {
-    std::vector<std::string> modes;
+    vector<string> modes;
     int width;
     int height;
 
@@ -93,13 +93,13 @@ struct VideoConfig
 
 struct MachineConfig
 {
-    std::string                 name;
-    std::string                 cpu;
+    string                 name;
+    string                 cpu;
     uint32_t                    clockSpeed;
-    std::vector<MemoryRegion>   memoryRegions;
-    std::vector<DeviceConfig>   devices;
+    vector<MemoryRegion>   memoryRegions;
+    vector<DeviceConfig>   devices;
     VideoConfig                 videoConfig;
-    std::string                 keyboardType;
+    string                 keyboardType;
 
     MachineConfig ()
         : clockSpeed (1023000)
@@ -121,11 +121,11 @@ class MachineConfigLoader
 {
 public:
     static HRESULT Load (
-        const std::string & jsonText,
-        const std::vector<std::string> & searchPaths,
+        const string & jsonText,
+        const vector<fs::path> & searchPaths,
         MachineConfig & outConfig,
-        std::string & outError);
+        string & outError);
 
 private:
-    static HRESULT ParseHexAddress (const std::string & str, Word & outAddr, std::string & outError);
+    static HRESULT ParseHexAddress (const string & str, Word & outAddr, string & outError);
 };

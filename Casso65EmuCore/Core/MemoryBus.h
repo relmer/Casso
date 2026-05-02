@@ -45,11 +45,11 @@ public:
 
     void Reset ();
 
-    const std::vector<BusEntry> & GetEntries () const { return m_entries; }
+    const vector<BusEntry> & GetEntries () const { return m_entries; }
 
 private:
     MemoryDevice * FindDevice (Word address) const;
 
-    std::vector<BusEntry>   m_entries;
+    vector<BusEntry>   m_entries;
     Byte                    m_floatingBusValue = 0xFF;
 };

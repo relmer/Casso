@@ -13,7 +13,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 void AudioGenerator::GeneratePCM (
-    const std::vector<uint32_t> & toggleTimestamps,
+    const vector<uint32_t> & toggleTimestamps,
     uint32_t totalCyclesThisFrame,
     float initialState,
     float * outSamples,

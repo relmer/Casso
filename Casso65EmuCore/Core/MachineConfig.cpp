@@ -14,23 +14,23 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT MachineConfigLoader::ParseHexAddress (const std::string & str, Word & outAddr, std::string & outError)
+HRESULT MachineConfigLoader::ParseHexAddress (const string & str, Word & outAddr, string & outError)
 {
     HRESULT hr = S_OK;
 
     if (str.size () >= 2 && str[0] == '0' && (str[1] == 'x' || str[1] == 'X'))
     {
-        unsigned long val = std::strtoul (str.c_str (), nullptr, 16);
+        unsigned long val = strtoul (str.c_str (), nullptr, 16);
         outAddr = static_cast<Word> (val);
     }
     else if (str.size () >= 1 && str[0] == '$')
     {
-        unsigned long val = std::strtoul (str.c_str () + 1, nullptr, 16);
+        unsigned long val = strtoul (str.c_str () + 1, nullptr, 16);
         outAddr = static_cast<Word> (val);
     }
     else
     {
-        CBR_SetError (false, outError = std::format ("Invalid address format: '{}' (expected 0xNNNN or $NNNN)", str));
+        CBR_SetError (false, outError = format ("Invalid address format: '{}' (expected 0xNNNN or $NNNN)", str));
     }
 
 Error:
@@ -48,10 +48,10 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT MachineConfigLoader::Load (
-    const std::string & jsonText,
-    const std::vector<std::string> & searchPaths,
+    const string & jsonText,
+    const vector<fs::path> & searchPaths,
     MachineConfig & outConfig,
-    std::string & outError)
+    string & outError)
 {
     HRESULT        hr = S_OK;
     JsonValue      root;
@@ -65,7 +65,7 @@ HRESULT MachineConfigLoader::Load (
 
         if (!parseOk)
         {
-            outError = std::format ("JSON parse error at line {}, column {}: {}",
+            outError = format ("JSON parse error at line {}, column {}: {}",
                 parseError.line, parseError.column, parseError.message);
         }
         CBR (parseOk);
@@ -89,7 +89,7 @@ HRESULT MachineConfigLoader::Load (
 
     {
         bool validCpu = (outConfig.cpu == "6502");
-        CBR_SetError (validCpu, outError = std::format ("Invalid CPU type: '{}' (expected '6502')", outConfig.cpu));
+        CBR_SetError (validCpu, outError = format ("Invalid CPU type: '{}' (expected '6502')", outConfig.cpu));
     }
 
     // Required: clockSpeed
@@ -117,31 +117,31 @@ HRESULT MachineConfigLoader::Load (
 
             {
                 bool hasType = entry.HasKey ("type") && entry.Get ("type").IsString ();
-                CBR_SetError (hasType, outError = std::format ("memory[{}]: missing 'type' field", i));
+                CBR_SetError (hasType, outError = format ("memory[{}]: missing 'type' field", i));
             }
             region.type = entry.Get ("type").GetString ();
 
             {
                 bool hasStart = entry.HasKey ("start") && entry.Get ("start").IsString ();
-                CBR_SetError (hasStart, outError = std::format ("memory[{}]: missing 'start' field", i));
+                CBR_SetError (hasStart, outError = format ("memory[{}]: missing 'start' field", i));
             }
             {
-                const std::string & startStr = entry.Get ("start").GetString ();
+                const string & startStr = entry.Get ("start").GetString ();
                 hr = ParseHexAddress (startStr, region.start, outError);
                 CHR (hr);
             }
 
             {
                 bool hasEnd = entry.HasKey ("end") && entry.Get ("end").IsString ();
-                CBR_SetError (hasEnd, outError = std::format ("memory[{}]: missing 'end' field", i));
+                CBR_SetError (hasEnd, outError = format ("memory[{}]: missing 'end' field", i));
             }
             {
-                const std::string & endStr = entry.Get ("end").GetString ();
+                const string & endStr = entry.Get ("end").GetString ();
                 hr = ParseHexAddress (endStr, region.end, outError);
                 CHR (hr);
             }
 
-            CBR_SetError (region.end >= region.start, outError = std::format ("memory[{}]: end (0x{:04X}) < start (0x{:04X})", i, region.end, region.start));
+            CBR_SetError (region.end >= region.start, outError = format ("memory[{}]: end (0x{:04X}) < start (0x{:04X})", i, region.end, region.start));
 
             if (entry.HasKey ("file") && entry.Get ("file").IsString ())
             {
@@ -160,20 +160,20 @@ HRESULT MachineConfigLoader::Load (
 
             {
                 bool romHasFile = !(region.type == "rom" && region.file.empty () && region.target.empty ());
-                CBR_SetError (romHasFile, outError = std::format ("memory[{}]: ROM region requires 'file' field", i));
+                CBR_SetError (romHasFile, outError = format ("memory[{}]: ROM region requires 'file' field", i));
             }
 
             // Validate ROM file exists — search all paths independently
             if (!region.file.empty ())
             {
-                std::string romRelPath = "roms/" + region.file;
-                std::string romBase    = PathResolver::FindFile (searchPaths, romRelPath);
+                fs::path romRelPath = fs::path ("roms") / region.file;
+                fs::path found      = PathResolver::FindFile (searchPaths, romRelPath);
 
-                CBR_SetError (!romBase.empty (), outError = std::format (
+                CBR_SetError (!found.empty (), outError = format (
                     "ROM file not found: roms/{}. Run scripts/FetchRoms.ps1 to download ROM images.",
                     region.file));
 
-                region.resolvedPath = romBase + "/" + romRelPath;
+                region.resolvedPath = found.string ();
             }
 
             outConfig.memoryRegions.push_back (region);
@@ -198,14 +198,14 @@ HRESULT MachineConfigLoader::Load (
 
             {
                 bool hasType = entry.HasKey ("type") && entry.Get ("type").IsString ();
-                CBR_SetError (hasType, outError = std::format ("devices[{}]: missing 'type' field", i));
+                CBR_SetError (hasType, outError = format ("devices[{}]: missing 'type' field", i));
             }
             device.type = entry.Get ("type").GetString ();
 
             // Parse address mapping — exactly one of: address, start+end, slot
             if (entry.HasKey ("address") && entry.Get ("address").IsString ())
             {
-                const std::string & addrStr = entry.Get ("address").GetString ();
+                const string & addrStr = entry.Get ("address").GetString ();
                 hr = ParseHexAddress (addrStr, device.address, outError);
                 CHR (hr);
                 device.start      = device.address;
@@ -216,10 +216,10 @@ HRESULT MachineConfigLoader::Load (
             if (entry.HasKey ("start") && entry.Get ("start").IsString () &&
                 entry.HasKey ("end") && entry.Get ("end").IsString ())
             {
-                const std::string & devStartStr = entry.Get ("start").GetString ();
+                const string & devStartStr = entry.Get ("start").GetString ();
                 hr = ParseHexAddress (devStartStr, device.start, outError);
                 CHR (hr);
-                const std::string & devEndStr = entry.Get ("end").GetString ();
+                const string & devEndStr = entry.Get ("end").GetString ();
                 hr = ParseHexAddress (devEndStr, device.end, outError);
                 CHR (hr);
                 device.hasRange = true;
@@ -230,7 +230,7 @@ HRESULT MachineConfigLoader::Load (
                 device.slot    = entry.Get ("slot").GetInt ();
                 device.hasSlot = true;
 
-                CBR_SetError (device.slot >= 1 && device.slot <= 7, outError = std::format ("devices[{}]: slot must be 1-7, got {}", i, device.slot));
+                CBR_SetError (device.slot >= 1 && device.slot <= 7, outError = format ("devices[{}]: slot must be 1-7, got {}", i, device.slot));
 
                 // Auto-map slot addresses
                 device.start = static_cast<Word> (0xC080 + device.slot * 16);

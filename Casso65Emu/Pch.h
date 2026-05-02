@@ -18,6 +18,7 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <filesystem>
 #include <format>
 #include <fstream>
 #include <functional>
@@ -30,6 +31,9 @@
 #include <vector>
 
 #include "../Casso65Core/Ehm.h"
+
+using namespace std;
+namespace fs = std::filesystem;
 
 typedef unsigned char   Byte;
 typedef signed   char   SByte;

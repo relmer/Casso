@@ -35,10 +35,10 @@ public:
     Byte ReadAuxMem  (Word address) const;
     void WriteAuxMem (Word address, Byte value);
 
-    static std::unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
+    static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
-    std::vector<Byte>   m_auxRam;
+    vector<Byte>   m_auxRam;
     bool                m_readAux  = false;
     bool                m_writeAux = false;
 };

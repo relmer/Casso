@@ -88,10 +88,10 @@ void AppleSpeaker::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<MemoryDevice> AppleSpeaker::Create (const DeviceConfig & config, MemoryBus & bus)
+unique_ptr<MemoryDevice> AppleSpeaker::Create (const DeviceConfig & config, MemoryBus & bus)
 {
     UNREFERENCED_PARAMETER (config);
     UNREFERENCED_PARAMETER (bus);
 
-    return std::make_unique<AppleSpeaker> ();
+    return make_unique<AppleSpeaker> ();
 }

@@ -18,7 +18,7 @@
 class RomDevice : public MemoryDevice
 {
 public:
-    RomDevice (Word start, Word end, std::vector<Byte> && data);
+    RomDevice (Word start, Word end, vector<Byte> && data);
 
     Byte Read     (Word address) override;
     void Write    (Word address, Byte value) override;
@@ -28,14 +28,14 @@ public:
 
     const Byte * GetData () const { return m_data.data (); }
 
-    static std::unique_ptr<MemoryDevice> CreateFromFile (
-        Word start, Word end, const std::string & filePath, std::string & outError);
+    static unique_ptr<MemoryDevice> CreateFromFile (
+        Word start, Word end, const string & filePath, string & outError);
 
-    static std::unique_ptr<MemoryDevice> CreateFromData (
+    static unique_ptr<MemoryDevice> CreateFromData (
         Word start, Word end, const Byte * data, size_t size);
 
 private:
     Word                m_start;
     Word                m_end;
-    std::vector<Byte>   m_data;
+    vector<Byte>   m_data;
 };

@@ -26,7 +26,7 @@
 struct EmulatorCommand
 {
     WORD  id;
-    std::string payload;
+    string payload;
 };
 
 
@@ -48,8 +48,8 @@ public:
     HRESULT Initialize (
         HINSTANCE              hInstance,
         const MachineConfig  & config,
-        const std::string    & disk1Path,
-        const std::string    & disk2Path);
+        const string    & disk1Path,
+        const string    & disk2Path);
 
     int RunMessageLoop ();
 
@@ -65,8 +65,8 @@ public:
     void OnChar    (WPARAM ch);
 
     // State
-    bool IsRunning () const { return m_running.load (std::memory_order_acquire); }
-    bool IsPaused  () const { return m_paused.load (std::memory_order_acquire); }
+    bool IsRunning () const { return m_running.load (memory_order_acquire); }
+    bool IsPaused  () const { return m_paused.load (memory_order_acquire); }
 
     // Access bus for test wiring
     MemoryBus & GetBus () { return m_memoryBus; }
@@ -80,7 +80,7 @@ private:
     void SelectVideoMode   ();
 
     // Queue a command for the CPU thread
-    void PostCommand (WORD id, const std::string & payload = "");
+    void PostCommand (WORD id, const string & payload = "");
 
     HWND                m_hwnd       = nullptr;
     HINSTANCE           m_hInstance  = nullptr;
@@ -88,7 +88,7 @@ private:
 
     MemoryBus           m_memoryBus;
     ComponentRegistry   m_registry;
-    std::unique_ptr<EmuCpu> m_cpu;
+    unique_ptr<EmuCpu> m_cpu;
 
     D3DRenderer         m_d3dRenderer;
     MenuSystem          m_menuSystem;
@@ -96,10 +96,10 @@ private:
     DebugConsole        m_debugConsole;
 
     // Owned devices
-    std::vector<std::unique_ptr<MemoryDevice>> m_ownedDevices;
+    vector<unique_ptr<MemoryDevice>> m_ownedDevices;
 
     // Video
-    std::vector<std::unique_ptr<VideoOutput>> m_videoModes;
+    vector<unique_ptr<VideoOutput>> m_videoModes;
     VideoOutput *       m_activeVideoMode = nullptr;
 
     // Soft switch state (read by video mode selection)
@@ -119,22 +119,22 @@ private:
     MachineConfig   m_config;
 
     // -- Threading --
-    std::thread     m_cpuThread;
+    thread     m_cpuThread;
 
     // Atomic flags (UI writes, CPU reads)
-    std::atomic<bool>       m_running{true};
-    std::atomic<bool>       m_paused{false};
-    std::atomic<SpeedMode>  m_speedMode{SpeedMode::Authentic};
-    std::atomic<ColorMode>  m_colorMode{ColorMode::Color};
+    atomic<bool>       m_running{true};
+    atomic<bool>       m_paused{false};
+    atomic<SpeedMode>  m_speedMode{SpeedMode::Authentic};
+    atomic<ColorMode>  m_colorMode{ColorMode::Color};
 
     // Command queue (UI → CPU, protected by m_cmdMutex)
-    std::mutex                    m_cmdMutex;
-    std::vector<EmulatorCommand>  m_commandQueue;
+    mutex                    m_cmdMutex;
+    vector<EmulatorCommand>  m_commandQueue;
 
     // Double framebuffer (CPU renders, UI presents, protected by m_fbMutex)
-    std::mutex              m_fbMutex;
-    std::vector<uint32_t>   m_cpuFramebuffer;
-    std::vector<uint32_t>   m_uiFramebuffer;
+    mutex              m_fbMutex;
+    vector<uint32_t>   m_cpuFramebuffer;
+    vector<uint32_t>   m_uiFramebuffer;
     bool                    m_fbReady = false;
 
     uint32_t        m_cyclesPerFrame  = 17050;

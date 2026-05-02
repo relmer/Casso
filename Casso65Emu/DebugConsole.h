@@ -24,8 +24,8 @@ public:
     void Hide ();
     bool IsVisible () const { return m_visible; }
 
-    void Log (const std::wstring & message);
-    void LogConfig (const std::string & summary);
+    void Log (const wstring & message);
+    void LogConfig (const string & summary);
 
 private:
     static LRESULT CALLBACK WndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);

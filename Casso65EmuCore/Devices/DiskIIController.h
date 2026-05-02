@@ -20,7 +20,7 @@ class DiskImage
 public:
     DiskImage ();
 
-    HRESULT Load (const std::string & filePath);
+    HRESULT Load (const string & filePath);
     void    Eject ();
     bool    IsLoaded () const { return m_loaded; }
 
@@ -32,11 +32,11 @@ public:
 
     HRESULT Flush ();
 
-    const std::string & GetFilePath () const { return m_filePath; }
+    const string & GetFilePath () const { return m_filePath; }
 
 private:
-    std::string             m_filePath;
-    std::array<Byte, 143360> m_data;
+    string             m_filePath;
+    array<Byte, 143360> m_data;
     bool                    m_loaded         = false;
     bool                    m_dirty          = false;
     bool                    m_writeProtected = false;
@@ -68,11 +68,11 @@ public:
     void Reset    () override;
 
     // Disk image management
-    HRESULT MountDisk (int drive, const std::string & path);
+    HRESULT MountDisk (int drive, const string & path);
     void    EjectDisk (int drive);
     DiskImage * GetDisk (int drive);
 
-    static std::unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
+    static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
     void NibblizeTrack (int drive);
@@ -100,6 +100,6 @@ private:
     DiskImage m_disks[2];
 
     // Pre-nibblized current track
-    std::vector<Byte>   m_nibbleBuffer;
+    vector<Byte>   m_nibbleBuffer;
     size_t              m_nibblePos = 0;
 };

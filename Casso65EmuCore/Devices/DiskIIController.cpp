@@ -76,11 +76,11 @@ DiskImage::DiskImage ()
 }
 
 
-HRESULT DiskImage::Load (const std::string & filePath)
+HRESULT DiskImage::Load (const string & filePath)
 {
     HRESULT hr = S_OK;
 
-    std::ifstream file (filePath, std::ios::binary);
+    ifstream file (filePath, ios::binary);
     {
         bool fileOk = file.good ();
         CBREx (fileOk, E_FAIL);
@@ -88,7 +88,7 @@ HRESULT DiskImage::Load (const std::string & filePath)
 
     file.read (reinterpret_cast<char *> (m_data.data ()), 143360);
     {
-        std::streamsize bytesRead = file.gcount ();
+        streamsize bytesRead = file.gcount ();
         CBREx (bytesRead == 143360, E_FAIL);
     }
 
@@ -148,7 +148,7 @@ HRESULT DiskImage::Flush ()
         return S_OK;
     }
 
-    std::ofstream file (m_filePath, std::ios::binary);
+    ofstream file (m_filePath, ios::binary);
     {
         bool fileOk = file.good ();
         CBREx (fileOk, E_FAIL);
@@ -485,7 +485,7 @@ void DiskIIController::NibblizeTrack (int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskIIController::MountDisk (int drive, const std::string & path)
+HRESULT DiskIIController::MountDisk (int drive, const string & path)
 {
     if (drive < 0 || drive > 1)
     {
@@ -566,10 +566,10 @@ void DiskIIController::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<MemoryDevice> DiskIIController::Create (const DeviceConfig & config, MemoryBus & bus)
+unique_ptr<MemoryDevice> DiskIIController::Create (const DeviceConfig & config, MemoryBus & bus)
 {
     UNREFERENCED_PARAMETER (bus);
 
     int slot = config.hasSlot ? config.slot : 6;
-    return std::make_unique<DiskIIController> (slot);
+    return make_unique<DiskIIController> (slot);
 }

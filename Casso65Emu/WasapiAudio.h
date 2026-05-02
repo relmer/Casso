@@ -26,7 +26,7 @@ public:
 
     // Submit one audio slice from speaker toggle timestamps
     HRESULT SubmitFrame (
-        const std::vector<uint32_t>   & toggleTimestamps,
+        const vector<uint32_t>   & toggleTimestamps,
         uint32_t                        totalCyclesThisSlice,
         float                           currentSpeakerState,
         uint32_t                        numSamplesToGenerate);
@@ -47,7 +47,7 @@ private:
     bool    m_initialized     = false;
 
     // Pending mono samples waiting to be drained into WASAPI
-    std::vector<float> m_pendingSamples;
+    vector<float> m_pendingSamples;
 };
 
 
