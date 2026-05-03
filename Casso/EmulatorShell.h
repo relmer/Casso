@@ -98,6 +98,9 @@ private:
     void    CreateVideoModes       ();
     HRESULT CreateCpu              (const MachineConfig & config);
 
+    void PasteFromClipboard ();
+    void DrainPasteBuffer   ();
+
     // Status bar
     void    CreateStatusBar        ();
     void    UpdateStatusBar        ();
@@ -154,6 +157,9 @@ private:
     // Command queue (UI → CPU, protected by m_cmdMutex)
     mutex                    m_cmdMutex;
     vector<EmulatorCommand>  m_commandQueue;
+
+    // Paste queue (UI -> CPU, protected by m_cmdMutex)
+    string             m_pasteBuffer;
 
     // Double framebuffer (CPU renders, UI presents, protected by m_fbMutex)
     mutex              m_fbMutex;

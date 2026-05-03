@@ -1066,6 +1066,97 @@ void EmulatorShell::PostCommand (WORD id, const string & payload)
 
 
 ////////////////////////////////////////////////////////////////////////////////
+//
+//  PasteFromClipboard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PasteFromClipboard ()
+{
+    if (!OpenClipboard (m_hwnd))
+    {
+        return;
+    }
+
+    HANDLE hData = GetClipboardData (CF_UNICODETEXT);
+
+    if (hData != nullptr)
+    {
+        wchar_t * pText = static_cast<wchar_t *> (GlobalLock (hData));
+
+        if (pText != nullptr)
+        {
+            lock_guard<mutex> lock (m_cmdMutex);
+
+            for (size_t i = 0; pText[i] != L'\0'; i++)
+            {
+                wchar_t ch = pText[i];
+
+                // Convert \r\n and \n to \r (Apple II Return key)
+                if (ch == L'\n')
+                {
+                    continue;
+                }
+
+                if (ch == L'\r')
+                {
+                    m_pasteBuffer += static_cast<char> (0x0D);
+                }
+                else if (ch >= 0x20 && ch < 0x7F)
+                {
+                    m_pasteBuffer += static_cast<char> (ch);
+                }
+            }
+
+            GlobalUnlock (hData);
+        }
+    }
+
+    CloseClipboard ();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrainPasteBuffer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DrainPasteBuffer ()
+{
+    Byte ch = 0;
+
+
+
+    if (m_keyboard == nullptr)
+    {
+        return;
+    }
+
+    // Only feed next char if strobe is clear (CPU consumed the previous one)
+    {
+        lock_guard<mutex> lock (m_cmdMutex);
+
+        if (m_pasteBuffer.empty ())
+        {
+            return;
+        }
+
+        ch = static_cast<Byte> (m_pasteBuffer[0]);
+        m_pasteBuffer.erase (m_pasteBuffer.begin ());
+    }
+
+    m_keyboard->KeyPress (ch);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 
 
 
@@ -1122,6 +1213,9 @@ void EmulatorShell::ExecuteCpuSlices()
 
     for (uint32_t executed = 0; executed < targetCycles; )
     {
+        // Feed next paste character if available
+        DrainPasteBuffer();
+
         sliceTarget = targetCycles - executed;
 
         if (sliceTarget > kSliceCycles)
@@ -1336,6 +1430,13 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
     if (m_keyboard == nullptr)
     {
+        return false;
+    }
+
+    // Ctrl+V — paste from clipboard
+    if (vk == 'V' && (GetKeyState (VK_CONTROL) & 0x8000))
+    {
+        PasteFromClipboard ();
         return false;
     }
 
