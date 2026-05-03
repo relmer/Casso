@@ -52,6 +52,9 @@ public:
     // Called from EmulatorShell when a key event arrives (UI thread)
     void KeyPress (Byte asciiChar);
 
+    // Check if the strobe is clear (CPU has consumed the previous key)
+    bool IsStrobeClear () const { return (m_latchedKey.load (memory_order_acquire) & 0x80) == 0; }
+
     // Called from EmulatorShell for special keys (UI thread)
     void SetKeyDown (bool down) { m_anyKeyDown.store (down, memory_order_release); }
 

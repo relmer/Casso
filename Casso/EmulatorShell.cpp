@@ -1138,7 +1138,12 @@ void EmulatorShell::DrainPasteBuffer ()
         return;
     }
 
-    // Only feed next char if strobe is clear (CPU consumed the previous one)
+    // Wait until the CPU has consumed the previous key (strobe clear)
+    if (!m_keyboard->IsStrobeClear ())
+    {
+        return;
+    }
+
     {
         lock_guard<mutex> lock (m_cmdMutex);
 
