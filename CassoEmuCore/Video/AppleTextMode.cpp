@@ -95,15 +95,17 @@ void AppleTextMode::Render (
     // Flash toggles every ~16 frames (approximately 0.5 second at 60fps)
     m_flashOn = ((m_frameCount / 16) & 1) == 0;
 
-    Word pageBase = GetActivePageAddress (m_page2);
+    Word     pageBase = GetActivePageAddress (m_page2);
+    int      charStride = kCharWidth * kScaleX;
 
     for (int row = 0; row < kTextRows; row++)
     {
-        Word rowAddr = RowBaseAddress (row, pageBase);
+        Word rowAddr     = RowBaseAddress (row, pageBase);
+        int  fbRowOrigin = row * kCharHeight * kScaleY * fbWidth;
 
         for (int col = 0; col < kTextCols; col++)
         {
-            Word addr = static_cast<Word> (rowAddr + col);
+            Word addr     = static_cast<Word> (rowAddr + col);
             Byte charCode = videoRam ? videoRam[addr] : m_bus.ReadByte (addr);
 
             // Decode character mode from high bits
@@ -116,19 +118,16 @@ void AppleTextMode::Render (
 
             if (charCode < 0x40)
             {
-                // Inverse: display character (charCode + $40) inverted
                 inverse    = true;
                 glyphIndex = charCode;
             }
             else if (charCode < 0x80)
             {
-                // Flash: display character, alternating normal/inverse
                 flash      = true;
                 glyphIndex = static_cast<Byte> (charCode - 0x40);
             }
             else
             {
-                // Normal
                 glyphIndex = static_cast<Byte> (charCode - 0x80);
             }
 
@@ -138,49 +137,46 @@ void AppleTextMode::Render (
 
             if (glyphIndex >= 0x20 && glyphIndex <= 0x5F)
             {
-                romOffset = (glyphIndex - 0x20) * 8;
+                romOffset = (glyphIndex - 0x20) * kCharHeight;
             }
             else
             {
-                romOffset = 0;  // Default to space
+                romOffset = 0;
             }
 
-            // Determine if we show normal or inverted
             bool showInverse = inverse || (flash && m_flashOn);
+            int  fbColOrigin = fbRowOrigin + col * charStride;
 
-            // Render the 7x8 glyph scaled to 14x16 in the framebuffer
+            // Render the 7x8 glyph scaled 2x to 14x16 in the framebuffer.
+            // Uses pointer arithmetic and unrolled 2x2 writes instead of
+            // per-pixel index calculation.
             for (int py = 0; py < kCharHeight; py++)
             {
-                Byte glyphRow = kApple2CharRom[romOffset + py];
+                Byte      glyphRow = kApple2CharRom[romOffset + py];
+                uint32_t * row0    = framebuffer + fbColOrigin;
+                uint32_t * row1    = row0 + fbWidth;
+
+                if (showInverse)
+                {
+                    glyphRow = static_cast<Byte> (~glyphRow);
+                }
 
                 for (int px = 0; px < kCharWidth; px++)
                 {
-                    bool pixelOn = (glyphRow & (1 << px)) != 0;
+                    uint32_t color = (glyphRow & (1 << px)) ? kColorGreen
+                                                            : kColorBlack;
 
-                    if (showInverse)
-                    {
-                        pixelOn = !pixelOn;
-                    }
+                    // Write 2x2 scaled pixel directly
+                    row0[0] = color;
+                    row0[1] = color;
+                    row1[0] = color;
+                    row1[1] = color;
 
-                    uint32_t color = pixelOn ? kColorGreen : kColorBlack;
-
-                    // Scale 2x in both directions
-                    int fbX = (col * kCharWidth + px) * kScaleX;
-                    int fbY = (row * kCharHeight + py) * kScaleY;
-
-                    for (int sy = 0; sy < kScaleY; sy++)
-                    {
-                        for (int sx = 0; sx < kScaleX; sx++)
-                        {
-                            int idx = (fbY + sy) * fbWidth + (fbX + sx);
-
-                            if (fbX + sx < fbWidth && fbY + sy < fbHeight)
-                            {
-                                framebuffer[idx] = color;
-                            }
-                        }
-                    }
+                    row0 += kScaleX;
+                    row1 += kScaleX;
                 }
+
+                fbColOrigin += fbWidth * kScaleY;
             }
         }
     }

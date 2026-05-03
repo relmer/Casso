@@ -3,7 +3,6 @@
 #include <CppUnitTest.h>
 
 #include "Core/MachineConfig.h"
-#include "Core/PathResolver.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -26,9 +25,9 @@ public:
 
     TEST_METHOD (Load_ValidJson_ParsesAllFields)
     {
-        std::string json = MinimalJson ();
+        std::string   json = MinimalJson ();
         MachineConfig config;
-        std::string error;
+        std::string   error;
 
         std::vector<fs::path> paths;
         HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
@@ -49,19 +48,13 @@ public:
 
     TEST_METHOD (Load_RomResolvedPath_Populated)
     {
-        std::string repoRoot = FindRepoRoot ();
-
-        if (repoRoot.empty ())
-        {
-            return;
-        }
-
-        std::string json = JsonWithRom ();
+        std::string   json = JsonWithRom ();
         MachineConfig config;
-        std::string error;
+        std::string   error;
 
-        std::vector<fs::path> paths = { repoRoot };
-        HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, paths, MockResolveAll,
+                                                config, error);
 
         Assert::IsTrue (SUCCEEDED (hr),
             L"Load should succeed with valid ROM");
@@ -84,12 +77,13 @@ public:
 
     TEST_METHOD (Load_MissingRom_ReturnsClearError)
     {
-        std::string json = JsonWithRom ();
+        std::string   json = JsonWithRom ();
         MachineConfig config;
-        std::string error;
+        std::string   error;
 
-        std::vector<fs::path> paths = { "C:/nonexistent" };
-        HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, paths, MockResolveNone,
+                                                config, error);
 
         Assert::IsTrue (FAILED (hr),
             L"Load should fail when ROM not found");
@@ -101,7 +95,7 @@ public:
     {
         std::string json = R"({ "cpu": "6502", "timing": { "videoStandard": "ntsc", "clockSpeed": 1023000, "cyclesPerScanline": 65 } })";
         MachineConfig config;
-        std::string error;
+        std::string   error;
 
         std::vector<fs::path> paths;
         HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
@@ -129,7 +123,7 @@ public:
         })";
 
         MachineConfig config;
-        std::string error;
+        std::string   error;
 
         std::vector<fs::path> paths;
         HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
@@ -140,35 +134,18 @@ public:
             L"Error should mention the invalid CPU type");
     }
 
-    TEST_METHOD (Load_RealApple2PlusJson_ResolvesAllRegions)
+    TEST_METHOD (Load_Apple2PlusConfig_ResolvesAllRegions)
     {
-        std::string repoRoot = FindRepoRoot ();
-
-        if (repoRoot.empty ())
-        {
-            return;
-        }
-
-        // Load the actual apple2plus.json config
-        std::string configPath = (fs::path (repoRoot) / "Machines" / "apple2plus.json").string ();
-        std::ifstream file (configPath);
-
-        if (!file.good ())
-        {
-            return;
-        }
-
-        std::string json ((std::istreambuf_iterator<char> (file)),
-            std::istreambuf_iterator<char> ());
-
+        std::string   json = Apple2PlusJson ();
         MachineConfig config;
-        std::string error;
-        std::vector<fs::path> paths = { repoRoot };
+        std::string   error;
 
-        HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, paths, MockResolveAll,
+                                                config, error);
 
         Assert::IsTrue (SUCCEEDED (hr),
-            std::format (L"apple2plus.json should load: {}",
+            std::format (L"apple2plus config should load: {}",
                 std::wstring (error.begin (), error.end ())).c_str ());
 
         Assert::AreEqual (std::string ("6502"), config.cpu,
@@ -188,9 +165,9 @@ public:
 
     TEST_METHOD (Load_KeyboardType_Parsed)
     {
-        std::string json = MinimalJson ();
+        std::string   json = MinimalJson ();
         MachineConfig config;
-        std::string error;
+        std::string   error;
 
         std::vector<fs::path> paths;
         HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
@@ -202,9 +179,9 @@ public:
 
     TEST_METHOD (Load_VideoConfig_Parsed)
     {
-        std::string json = MinimalJson ();
+        std::string   json = MinimalJson ();
         MachineConfig config;
-        std::string error;
+        std::string   error;
 
         std::vector<fs::path> paths;
         HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
@@ -217,6 +194,23 @@ public:
     }
 
 private:
+
+    // Mock resolver that always finds the file
+    static fs::path MockResolveAll (
+        const std::vector<fs::path> & searchPaths,
+        const fs::path              & relativePath)
+    {
+        return searchPaths.empty () ? relativePath
+                                   : searchPaths[0] / relativePath;
+    }
+
+    // Mock resolver that never finds the file
+    static fs::path MockResolveNone (
+        const std::vector<fs::path> &,
+        const fs::path              &)
+    {
+        return {};
+    }
 
     static std::string MinimalJson ()
     {
@@ -257,20 +251,34 @@ private:
         })";
     }
 
-    static std::string FindRepoRoot ()
+    // Inline copy of apple2plus.json — no file I/O needed
+    static std::string Apple2PlusJson ()
     {
-        auto paths = PathResolver::BuildSearchPaths (
-            PathResolver::GetExecutableDirectory (),
-            PathResolver::GetWorkingDirectory ());
-
-        fs::path found = PathResolver::FindFile (paths, "machines/apple2plus.json");
-
-        if (found.empty ())
-        {
-            return "";
-        }
-
-        // Return the repo root (two levels up from machines/apple2plus.json)
-        return found.parent_path ().parent_path ().string ();
+        return R"({
+            "name": "Apple II+",
+            "cpu": "6502",
+            "timing": {
+                "videoStandard": "ntsc",
+                "clockSpeed": 1022727,
+                "cyclesPerScanline": 65
+            },
+            "memory": [
+                { "type": "ram", "start": "0x0000", "end": "0xBFFF" },
+                { "type": "rom", "start": "0xD000", "end": "0xFFFF", "file": "apple2plus.rom" }
+            ],
+            "devices": [
+                { "type": "apple2-keyboard" },
+                { "type": "apple2-speaker" },
+                { "type": "apple2-softswitches" }
+            ],
+            "video": {
+                "modes": ["apple2-text40", "apple2-lores", "apple2-hires"],
+                "width": 560,
+                "height": 384
+            },
+            "keyboard": {
+                "type": "apple2-uppercase"
+            }
+        })";
     }
 };

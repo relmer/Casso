@@ -114,6 +114,26 @@ HRESULT MachineConfigLoader::Load (
     MachineConfig          & outConfig,
     string                 & outError)
 {
+    return Load (jsonText, searchPaths, PathResolver::FindFile, outConfig, outError);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Load (with resolver)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineConfigLoader::Load (
+    const string           & jsonText,
+    const vector<fs::path> & searchPaths,
+    const FileResolver     & resolver,
+    MachineConfig          & outConfig,
+    string                 & outError)
+{
     HRESULT              hr         = S_OK;
     JsonValue            root;
     JsonParseError       parseError;
@@ -157,7 +177,7 @@ HRESULT MachineConfigLoader::Load (
     hr = root.GetArray ("memory", pMemArray);
     CHRF (hr, outError = "Missing required field: 'memory'");
 
-    hr = LoadMemoryRegions (*pMemArray, searchPaths, outConfig, outError);
+    hr = LoadMemoryRegions (*pMemArray, searchPaths, resolver, outConfig, outError);
     CHR (hr);
 
     hr = root.GetArray ("devices", pDevArray);
@@ -191,6 +211,7 @@ Error:
 HRESULT MachineConfigLoader::LoadMemoryRegions (
     const JsonValue        & memArray,
     const vector<fs::path> & searchPaths,
+    const FileResolver     & resolver,
     MachineConfig          & outConfig,
     string                 & outError)
 {
@@ -250,7 +271,7 @@ HRESULT MachineConfigLoader::LoadMemoryRegions (
         if (!region.file.empty())
         {
             romRelPath = fs::path ("ROMs") / region.file;
-            found      = PathResolver::FindFile (searchPaths, romRelPath);
+            found      = resolver (searchPaths, romRelPath);
 
             CBRF (!found.empty(),
                   outError = format ("ROM file not found: ROMs/{}. "

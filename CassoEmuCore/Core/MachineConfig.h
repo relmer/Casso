@@ -137,8 +137,19 @@ struct MachineConfig
 class MachineConfigLoader
 {
 public:
+    // Callable that resolves a relative path given search directories.
+    // Returns the resolved path, or empty path if not found.
+    using FileResolver = function<fs::path (const vector<fs::path> &,
+                                            const fs::path &)>;
+
     static HRESULT Load (const string           & jsonText,
                          const vector<fs::path> & searchPaths,
+                         MachineConfig          & outConfig,
+                         string                 & outError);
+
+    static HRESULT Load (const string           & jsonText,
+                         const vector<fs::path> & searchPaths,
+                         const FileResolver     & resolver,
                          MachineConfig          & outConfig,
                          string                 & outError);
 
@@ -169,9 +180,10 @@ private:
                                        string          & outError);
 
     static HRESULT LoadMemoryRegions  (const JsonValue        & memArray,
-                                       const vector<fs::path> & searchPaths,
-                                       MachineConfig          & outConfig,
-                                       string                 & outError);
+                                        const vector<fs::path> & searchPaths,
+                                        const FileResolver     & resolver,
+                                        MachineConfig          & outConfig,
+                                        string                 & outError);
 
     static HRESULT LoadDevices        (const JsonValue & devArray,
                                        MachineConfig   & outConfig,
