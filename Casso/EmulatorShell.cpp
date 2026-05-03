@@ -99,6 +99,7 @@ HRESULT EmulatorShell::Initialize (
     // Create framebuffers (CPU renders to one, UI reads the other)
     fbSize = static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight;
     m_cpuFramebuffer.resize (fbSize, 0);
+    m_textOverlay.resize (fbSize, 0);
     m_uiFramebuffer.resize (fbSize, 0);
 
     hr = CreateEmulatorWindow (hInstance);
@@ -848,8 +849,8 @@ int EmulatorShell::RunMessageLoop()
 
             if (m_fbReady)
             {
-                m_uiFramebuffer = m_cpuFramebuffer;
                 m_fbReady = false;
+
             }
         }
 
@@ -926,6 +927,7 @@ void EmulatorShell::CpuThreadProc()
         // Publish the framebuffer for the UI thread
         {
             lock_guard<mutex> lock (m_fbMutex);
+            m_uiFramebuffer = m_cpuFramebuffer;
             m_fbReady = true;
         }
 
@@ -1292,10 +1294,10 @@ void EmulatorShell::RenderFramebuffer()
         static constexpr int kMixedScaleY = 2;
         int mixedFbY = 20 * kMixedCharH * kMixedScaleY;
 
-        vector<uint32_t> textBuf (static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight, 0);
+        fill (m_textOverlay.begin (), m_textOverlay.end (), 0);
 
         m_videoModes[0]->Render (m_cpu->GetMemory(),
-                                 textBuf.data(),
+                                 m_textOverlay.data(),
                                  kFramebufferWidth,
                                  kFramebufferHeight);
 
@@ -1304,7 +1306,7 @@ void EmulatorShell::RenderFramebuffer()
         for (int y = mixedFbY; y < kFramebufferHeight; y++)
         {
             memcpy (&m_cpuFramebuffer[static_cast<size_t> (y) * kFramebufferWidth],
-                    &textBuf[static_cast<size_t> (y) * kFramebufferWidth],
+                    &m_textOverlay[static_cast<size_t> (y) * kFramebufferWidth],
                     rowBytes);
         }
     }

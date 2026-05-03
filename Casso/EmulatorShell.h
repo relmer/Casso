@@ -167,6 +167,7 @@ private:
     // Double framebuffer (CPU renders, UI presents, protected by m_fbMutex)
     mutex              m_fbMutex;
     vector<uint32_t>   m_cpuFramebuffer;
+    vector<uint32_t>   m_textOverlay;
     vector<uint32_t>   m_uiFramebuffer;
     bool                    m_fbReady = false;
 
