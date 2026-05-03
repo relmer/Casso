@@ -11,10 +11,9 @@ Casso is a 6502 CPU emulator and assembler written in C++. It emulates the MOS T
 
 The project includes:
 
-- **A real, full-featured AS65-compatible assembler** — Casso's assembler is a from-scratch reimplementation of Frank A. Kingswood's AS65, intended to be a drop-in replacement. It supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, …) including flag concatenation (`-tlfile`).
-- **CPU emulator** — fetch-decode-execute cycle with register/flag management, stack operations, decimal mode (BCD) for ADC/SBC, all 14 addressing modes, and cycle-accurate instruction timing
-- **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source
 - **Apple II platform emulator** — GUI-based Apple II, II+, and IIe emulator with D3D11 rendering, WASAPI audio, data-driven machine configs, and keyboard input
+- **A real, full-featured AS65-compatible assembler** — Casso's assembler is a from-scratch reimplementation of Frank A. Kingswood's AS65, intended to be a drop-in replacement. It supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, …) including flag concatenation (`-tlfile`).
+- **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source
 - **787+ unit tests** — comprehensive coverage of instruction encoding, addressing modes, arithmetic, branching, assembler features, and audio pipeline
 
 ## Project Structure
@@ -23,9 +22,9 @@ The project includes:
 Casso.sln
 ├── CassoCore/     Static library — CPU emulator, assembler, parser, opcode table
 ├── CassoEmuCore/  Static library — Apple II devices, video modes, audio generator
-├── Casso/      Win32 application — Apple II platform emulator (D3D11, WASAPI)
-├── CassoCli/        Console application — AS65-compatible assembler CLI with `run` subcommand
-└── UnitTest/       Test DLL — Microsoft Native CppUnitTest (787+ tests)
+├── Casso/         Win32 application — Apple II platform emulator (D3D11, WASAPI)
+├── CassoCli/      Console application — AS65-compatible assembler CLI with `run` subcommand
+└── UnitTest/      Test DLL — Microsoft Native CppUnitTest (787+ tests)
 ```
 
 ## Requirements
@@ -136,24 +135,6 @@ The `ROMs/` directory is gitignored. Available machine configs are in `Machines/
 
 All 56 standard 6502 mnemonics are implemented.
 
-### Working
-
-- Load/Store (LDA, LDX, LDY, STA, STX, STY)
-- Arithmetic (ADC, SBC), including decimal mode (BCD) when the D flag is set
-- Logic (AND, ORA, EOR)
-- Shifts/Rotates (ASL, LSR, ROL, ROR)
-- Compare (CMP, CPX, CPY)
-- Branch (BEQ, BNE, BCC, BCS, BMI, BPL, BVC, BVS)
-- Jump (JMP, JSR)
-- Increment/Decrement (INC, DEC, INX, DEX, INY, DEY)
-- BIT test
-- BRK (software interrupt)
-- Stack operations (PHA, PLA, PHP, PLP)
-- Register transfers (TAX, TXA, TAY, TYA, TXS, TSX)
-- Flag manipulation (CLC, SEC, CLI, SEI, CLV, CLD, SED)
-- Return instructions (RTS, RTI)
-- NOP
-
 ## Roadmap
 
 ### Done
@@ -165,7 +146,6 @@ All 56 standard 6502 mnemonics are implemented.
 
 - [ ] Interactive debugger / monitor — step, breakpoints, register watch, memory dump ([#51](https://github.com/relmer/Casso/issues/51))
 - [ ] Undocumented / illegal opcode support ([#52](https://github.com/relmer/Casso/issues/52))
-- [ ] WebAssembly (WASM) build — run in the browser, publish to GitHub Pages ([#53](https://github.com/relmer/Casso/issues/53))
 
 ### Medium Priority
 
@@ -183,9 +163,9 @@ All 56 standard 6502 mnemonics are implemented.
 
 ## Why "Casso"?
 
-The 6502 emulator world already has many projects named [Emu](https://en.wikipedia.org/wiki/Emu).  To stand out a bit, I picked its larger, flightless, slightly-more-dangerous cousin: the [cassowary](https://en.wikipedia.org/wiki/Cassowary). "Casso" + "65" (for 6502) = **Casso**. I want this to be a great emulator and a great assembler, but I don't take things too seriously.
+The 6502 emulator world already has too many projects named [Emu](https://en.wikipedia.org/wiki/Emu), so I decided to be a little different. I picked its larger, flightless, slightly-more-dangerous cousin: the [cassowary](https://en.wikipedia.org/wiki/Cassowary)—Casso to his friends. I want this to be a great emulator and a great assembler, but don't take things too seriously.
 
-I present to you our regal namesake—revel in his splendor!
+I thus present to you our regal namesake—revel in his splendor!
 
 <p align="center">
   <img src="Assets/3a%20Mrs%20Cassowary%20closeup%208167.jpg" alt="Southern Cassowary" width="240" />
