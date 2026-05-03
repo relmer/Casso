@@ -54,6 +54,56 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LoadTiming
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineConfigLoader::LoadTiming (
+    const JsonValue & timing,
+    MachineConfig   & outConfig,
+    string          & outError)
+{
+    HRESULT  hr            = S_OK;
+    string   videoStandard;
+
+
+
+    hr = timing.GetString ("videoStandard", videoStandard);
+    CHRF (hr, outError = "Missing or invalid field: 'timing.videoStandard'");
+
+    if (videoStandard == "ntsc")
+    {
+        outConfig.videoStandard     = VideoStandard::NTSC;
+        outConfig.scanlinesPerFrame = kNtscScanlines;
+    }
+    else if (videoStandard == "pal")
+    {
+        outConfig.videoStandard     = VideoStandard::PAL;
+        outConfig.scanlinesPerFrame = kPalScanlines;
+    }
+    else
+    {
+        CBRF (false, outError = format ("Invalid videoStandard: '{}' (expected 'ntsc' or 'pal')", videoStandard));
+    }
+
+    hr = timing.GetUint32 ("clockSpeed", outConfig.clockSpeed);
+    CHRF (hr, outError = "Missing or invalid field: 'timing.clockSpeed'");
+
+    hr = timing.GetUint32 ("cyclesPerScanline", outConfig.cyclesPerScanline);
+    CHRF (hr, outError = "Missing or invalid field: 'timing.cyclesPerScanline'");
+
+    outConfig.cyclesPerFrame = outConfig.cyclesPerScanline * outConfig.scanlinesPerFrame;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Load
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,6 +117,7 @@ HRESULT MachineConfigLoader::Load (
     HRESULT              hr         = S_OK;
     JsonValue            root;
     JsonParseError       parseError;
+    const JsonValue    * pTiming    = nullptr;
     const JsonValue    * pMemArray  = nullptr;
     const JsonValue    * pDevArray  = nullptr;
     const JsonValue    * pVideo     = nullptr;
@@ -95,8 +146,12 @@ HRESULT MachineConfigLoader::Load (
     CBRF (outConfig.cpu == "6502",
           outError = format ("Invalid CPU type: '{}' (expected '6502')", outConfig.cpu));
 
-    hr = root.GetUint32 ("clockSpeed", outConfig.clockSpeed);
-    CHRF (hr, outError = "Missing or invalid field: 'clockSpeed'");
+    // Required: timing object
+    hr = root.GetObject ("timing", pTiming);
+    CHRF (hr, outError = "Missing required field: 'timing'");
+
+    hr = LoadTiming (*pTiming, outConfig, outError);
+    CHR (hr);
 
     // Required sub-structures
     hr = root.GetArray ("memory", pMemArray);

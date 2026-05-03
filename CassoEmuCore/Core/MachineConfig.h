@@ -70,6 +70,22 @@ struct VideoConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  VideoStandard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class VideoStandard
+{
+    NTSC,
+    PAL
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineConfig
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,6 +95,9 @@ static constexpr uint32_t kNtscCrystalHz       = 14318180;  // 4x NTSC color bur
 static constexpr uint32_t kCrystalDivisor      = 14;        // 7 pixels/char * 2 phases
 static constexpr uint32_t kCyclesPerScanline   = 65;        // 40 visible + 25 blanking
 static constexpr uint32_t kScanlinesPerFrame   = 262;       // 192 visible + 70 blanking
+
+static constexpr uint32_t kNtscScanlines       = 262;
+static constexpr uint32_t kPalScanlines        = 312;
 
 static constexpr uint32_t kAppleCpuClock       = kNtscCrystalHz / kCrystalDivisor;
 static constexpr uint32_t kAppleCyclesPerFrame = kCyclesPerScanline * kScanlinesPerFrame;
@@ -91,8 +110,14 @@ struct MachineConfig
 {
     string                 name;
     string                 cpu;
-    uint32_t               clockSpeed     = kAppleCpuClock;
-    uint32_t               cyclesPerFrame = kAppleCyclesPerFrame;
+
+    // Timing (parsed from "timing" section)
+    VideoStandard          videoStandard     = VideoStandard::NTSC;
+    uint32_t               clockSpeed        = kAppleCpuClock;
+    uint32_t               cyclesPerScanline = kCyclesPerScanline;
+    uint32_t               scanlinesPerFrame = kNtscScanlines;
+    uint32_t               cyclesPerFrame    = kAppleCyclesPerFrame;
+
     vector<MemoryRegion>   memoryRegions;
     vector<DeviceConfig>   devices;
     VideoConfig            videoConfig;
@@ -138,6 +163,10 @@ private:
 
 
     static HRESULT ParseHexAddress    (const string & str, Word & outAddr, string & outError);
+
+    static HRESULT LoadTiming        (const JsonValue & timing,
+                                       MachineConfig   & outConfig,
+                                       string          & outError);
 
     static HRESULT LoadMemoryRegions  (const JsonValue        & memArray,
                                        const vector<fs::path> & searchPaths,

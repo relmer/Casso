@@ -1,7 +1,11 @@
 {
     "name": "Apple II",
     "cpu": "6502",
-    "clockSpeed": 1022727,
+    "timing": {
+        "videoStandard": "ntsc",
+        "clockSpeed": 1022727,
+        "cyclesPerScanline": 65
+    },
     "memory": [
         {
             "type": "ram",

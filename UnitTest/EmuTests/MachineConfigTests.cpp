@@ -99,7 +99,7 @@ public:
 
     TEST_METHOD (Load_MissingName_ReturnsError)
     {
-        std::string json = R"({ "cpu": "6502", "clockSpeed": 1023000 })";
+        std::string json = R"({ "cpu": "6502", "timing": { "videoStandard": "ntsc", "clockSpeed": 1023000, "cyclesPerScanline": 65 } })";
         MachineConfig config;
         std::string error;
 
@@ -117,7 +117,11 @@ public:
         std::string json = R"({
             "name": "Test",
             "cpu": "z80",
-            "clockSpeed": 1023000,
+            "timing": {
+                "videoStandard": "ntsc",
+                "clockSpeed": 1023000,
+                "cyclesPerScanline": 65
+            },
             "memory": [],
             "devices": [],
             "video": { "modes": [] },
@@ -219,7 +223,11 @@ private:
         return R"({
             "name": "TestMachine",
             "cpu": "6502",
-            "clockSpeed": 1023000,
+            "timing": {
+                "videoStandard": "ntsc",
+                "clockSpeed": 1023000,
+                "cyclesPerScanline": 65
+            },
             "memory": [
                 { "type": "ram", "start": "0x0000", "end": "0xBFFF" }
             ],
@@ -234,7 +242,11 @@ private:
         return R"({
             "name": "TestWithRom",
             "cpu": "6502",
-            "clockSpeed": 1023000,
+            "timing": {
+                "videoStandard": "ntsc",
+                "clockSpeed": 1023000,
+                "cyclesPerScanline": 65
+            },
             "memory": [
                 { "type": "ram", "start": "0x0000", "end": "0xBFFF" },
                 { "type": "rom", "start": "0xD000", "end": "0xFFFF", "file": "apple2plus.rom" }
