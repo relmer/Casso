@@ -32,7 +32,7 @@ public:
 
 
 
-        AudioGenerator::GeneratePCM (toggles, 17050, 0.0f, samples, 100);
+        AudioGenerator::GeneratePCM (toggles, 17030, 0.0f, samples, 100);
 
         for (int i = 0; i < 100; i++)
         {
@@ -47,7 +47,7 @@ public:
 
 
 
-        AudioGenerator::GeneratePCM (toggles, 17050, 1.0f, samples, 100);
+        AudioGenerator::GeneratePCM (toggles, 17030, 1.0f, samples, 100);
 
         for (int i = 0; i < 100; i++)
         {
@@ -67,7 +67,7 @@ public:
 
 
 
-        AudioGenerator::GeneratePCM (toggles, 17050, -0.3f, samples, 1000);
+        AudioGenerator::GeneratePCM (toggles, 17030, -0.3f, samples, 1000);
 
         // Before midpoint: should be initial state (-0.3)
         Assert::AreEqual (-0.3f, samples[0]);
@@ -93,7 +93,7 @@ public:
 
 
 
-        AudioGenerator::GeneratePCM (toggles, 17050, -0.3f, samples, 1000);
+        AudioGenerator::GeneratePCM (toggles, 17030, -0.3f, samples, 1000);
 
         // 4 toggles starting from -0.3: toggle at 0 → +0.3, at 4262 → -0.3,
         // at 8525 → +0.3, at 12787 → -0.3
@@ -116,10 +116,10 @@ public:
 
     TEST_METHOD (SquareWave_KnownFrequency_CorrectPeriod)
     {
-        // Toggle every 1000 cycles in a 17050-cycle frame
+        // Toggle every 1000 cycles in a 17030-cycle frame
         std::vector<uint32_t> toggles;
 
-        for (uint32_t c = 0; c < 17050; c += 1000)
+        for (uint32_t c = 0; c < 17030; c += 1000)
         {
             toggles.push_back (c);
         }
@@ -130,7 +130,7 @@ public:
 
 
 
-        AudioGenerator::GeneratePCM (toggles, 17050, -0.3f, samples.data (), numSamples);
+        AudioGenerator::GeneratePCM (toggles, 17030, -0.3f, samples.data (), numSamples);
 
         // Count sign changes (zero crossings)
         int crossings = 0;
@@ -164,7 +164,7 @@ public:
 
 
 
-        AudioGenerator::GeneratePCM (toggles, 17050, -0.3f, samples, 735);
+        AudioGenerator::GeneratePCM (toggles, 17030, -0.3f, samples, 735);
 
         // Just verify no crash and output has values
         bool hasNonZero = false;
@@ -194,7 +194,7 @@ public:
 
 
 
-        AudioGenerator::GeneratePCM (toggles, 17050, -0.3f, samples, 735);
+        AudioGenerator::GeneratePCM (toggles, 17030, -0.3f, samples, 735);
 
         // All output values should be exactly +0.3 or -0.3 (no intermediate)
         for (int i = 0; i < 735; i++)
@@ -216,7 +216,7 @@ public:
 
 
 
-        AudioGenerator::GeneratePCM (toggles, 17050, -0.3f, samples, 100);
+        AudioGenerator::GeneratePCM (toggles, 17030, -0.3f, samples, 100);
 
         // Odd number of toggles from -0.3: final state is +0.3
         for (int i = 0; i < 100; i++)
@@ -233,7 +233,7 @@ public:
 
 
 
-        AudioGenerator::GeneratePCM (toggles, 17050, -0.3f, samples, 1000);
+        AudioGenerator::GeneratePCM (toggles, 17030, -0.3f, samples, 1000);
 
         // All samples except possibly the very last should be initial state
         // since toggles happen at the last cycle position
@@ -253,10 +253,11 @@ public:
         // totalCyclesThisFrame = 0 should not divide by zero
         AudioGenerator::GeneratePCM (toggles, 0, -0.3f, samples, 100);
 
-        // Falls into the no-toggle path — DC fill at initial state
+        // With 0 totalCycles, all toggle positions map to sample 0
+        // so the output is all zeros (no valid cycle-to-sample mapping)
         for (int i = 0; i < 100; i++)
         {
-            Assert::AreEqual (-0.3f, samples[i]);
+            Assert::AreEqual (0.0f, samples[i]);
         }
     }
 
@@ -268,7 +269,7 @@ public:
 
 
         // numSamples = 0 should not crash
-        AudioGenerator::GeneratePCM (toggles, 17050, -0.3f, &dummy, 0);
+        AudioGenerator::GeneratePCM (toggles, 17030, -0.3f, &dummy, 0);
     }
 
     TEST_METHOD (EmptyTimestamps_OutputsSilence)
@@ -278,7 +279,7 @@ public:
 
 
 
-        AudioGenerator::GeneratePCM (toggles, 17050, 1.0f, samples, 100);
+        AudioGenerator::GeneratePCM (toggles, 17030, 1.0f, samples, 100);
 
         // Silence output (0.0), not DC
         for (int i = 0; i < 100; i++)

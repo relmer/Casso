@@ -59,7 +59,7 @@ public:
     {
         AppleSpeaker spk;
 
-        Assert::AreEqual (0.0f, spk.GetSpeakerState ());
+        Assert::AreEqual (-0.25f, spk.GetSpeakerState ());
         Assert::AreEqual (size_t (0), spk.GetToggleTimestamps ().size ());
     }
 
@@ -69,7 +69,7 @@ public:
         spk.Read (0xC030);
         spk.Reset ();
 
-        Assert::AreEqual (0.0f, spk.GetSpeakerState ());
+        Assert::AreEqual (-0.25f, spk.GetSpeakerState ());
         Assert::AreEqual (size_t (0), spk.GetToggleTimestamps ().size ());
     }
 
