@@ -280,7 +280,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MachineConfigLoader::LoadDevices
@@ -307,7 +306,7 @@ HRESULT MachineConfigLoader::LoadDevices (
 
 
 
-    for (idxDev = 0; idxDev < devArray.ArraySize (); idxDev++)
+    for (idxDev = 0; idxDev < devArray.ArraySize(); idxDev++)
     {
         const JsonValue & entry  = devArray.ArrayAt (idxDev);
         DeviceConfig      device;
@@ -318,8 +317,9 @@ HRESULT MachineConfigLoader::LoadDevices (
         {
             const Field<DeviceConfig> & f = krgFields[idxField];
 
-            hr = GetValue (entry, f, device, outError);
 
+
+            hr = GetValue (entry, f, device, outError);
             if (f.fRequired)
             {
                 CHR (hr);
@@ -349,7 +349,8 @@ HRESULT MachineConfigLoader::LoadDevices (
 
             CBRF (device.slot >= 1 && device.slot <= 7,
                   outError = format ("devices[{}]: slot must be 1-7, got {}",
-                                     idxDev, device.slot));
+                                     idxDev, 
+                                     device.slot));
 
             device.start = static_cast<Word> (0xC080 + device.slot * 16);
             device.end   = static_cast<Word> (0xC08F + device.slot * 16);
@@ -359,16 +360,18 @@ HRESULT MachineConfigLoader::LoadDevices (
     }
 
 Error:
-    if (FAILED (hr) && outError.empty ())
+    if (FAILED (hr) && outError.empty())
     {
         if (idxField < _countof (krgFields))
         {
             outError = format ("devices[{}]: missing or invalid '{}' field",
-                               idxDev, krgFields[idxField].key);
+                               idxDev,
+                               krgFields[idxField].key);
         }
         else
         {
-            outError = format ("devices[{}]: invalid configuration", idxDev);
+            outError = format ("devices[{}]: invalid configuration", 
+                               idxDev);
         }
     }
 
@@ -393,19 +396,18 @@ void MachineConfigLoader::LoadVideoConfig (const JsonValue & video, MachineConfi
 
 
     hr = video.GetArray ("modes", pModes);
-
     if (SUCCEEDED (hr))
     {
         for (size_t i = 0; i < pModes->ArraySize(); i++)
         {
-            if (pModes->ArrayAt (i).GetType () == JsonType::String)
+            if (pModes->ArrayAt (i).GetType() == JsonType::String)
             {
                 outConfig.videoConfig.modes.push_back (pModes->ArrayAt (i).GetString());
             }
         }
     }
 
-    video.GetInt ("width", outConfig.videoConfig.width);
+    video.GetInt ("width",  outConfig.videoConfig.width);
     video.GetInt ("height", outConfig.videoConfig.height);
 }
 

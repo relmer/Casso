@@ -35,7 +35,9 @@ JsonParser::JsonParser (const string & input)
 HRESULT JsonParser::Parse (const string & input, JsonValue & outValue, JsonParseError & outError)
 {
     HRESULT    hr     = S_OK;
-    JsonParser parser (input);
+    JsonParser parser   (input);
+
+
 
     hr = parser.ParseValue (outValue);
     CHR (hr);
@@ -65,59 +67,66 @@ Error:
 
 HRESULT JsonParser::ParseValue (JsonValue & outValue)
 {
-    HRESULT hr = S_OK;
+    HRESULT hr  = S_OK;
+    char    ch  = 0;
+    string  str;
+
+
 
     SkipWhitespace();
 
     CBR (!AtEnd());
 
+    ch = Peek();
+    switch (ch)
     {
-        char ch = Peek();
-
-        if (ch == '"')
-        {
-            string str;
+        case '"':
             hr = ParseString (str);
             CHR (hr);
+
             outValue = JsonValue (str);
-        }
-        else if (ch == '{')
-        {
+            break;
+        
+        case '{':
             hr = ParseObject (outValue);
             CHR (hr);
-        }
-        else if (ch == '[')
-        {
+            break;
+
+        case '[':
             hr = ParseArray (outValue);
             CHR (hr);
-        }
-        else if (ch == 't')
-        {
+            break;
+
+        case 't':
             hr = ParseKeyword ("true", outValue);
             CHR (hr);
             outValue = JsonValue (true);
-        }
-        else if (ch == 'f')
-        {
+            break;
+
+        case 'f':
             hr = ParseKeyword ("false", outValue);
             CHR (hr);
             outValue = JsonValue (false);
-        }
-        else if (ch == 'n')
-        {
+            break;
+
+        case 'n':
             hr = ParseKeyword ("null", outValue);
             CHR (hr);
             outValue = JsonValue (nullptr);
-        }
-        else if (ch == '-' || (ch >= '0' && ch <= '9'))
-        {
-            hr = ParseNumber (outValue);
-            CHR (hr);
-        }
-        else
-        {
-            CBRF (false, SetError (format ("Unexpected character '{}'", ch)));
-        }
+            break;
+        
+        default:
+            if (ch == '-' || (ch >= '0' && ch <= '9'))
+            {
+                hr = ParseNumber (outValue);
+                CHR (hr);
+            }
+            else
+            {
+                SetError (format ("Unexpected character '{}'", ch));
+                CBR (false);
+            }
+            break;
     }
 
 Error:
@@ -136,68 +145,84 @@ Error:
 
 HRESULT JsonParser::ParseString (string & outStr)
 {
-    HRESULT hr = S_OK;
+    HRESULT       hr   = S_OK;
+    char          ch   = 0;
+    char          esc  = 0;
+    string        hex;
+    unsigned long code = 0;
+    bool          done = false;
 
-    CBR (Peek() == '"');
-    Advance();
 
-    outStr.clear();
 
-    while (!AtEnd())
+    CBR (Peek () == '"');
+    Advance ();
+
+    outStr.clear ();
+
+    while (!AtEnd () && !done)
     {
-        char ch = Advance();
+        ch = Advance ();
 
+        // Closing quote — done
         if (ch == '"')
         {
-            return S_OK;
+            done = true;
+            continue;
         }
 
-        if (ch == '\\')
-        {
-            CBR (!AtEnd());
-
-            char esc = Advance();
-
-            switch (esc)
-            {
-                case '"':  outStr += '"';  break;
-                case '\\': outStr += '\\'; break;
-                case '/':  outStr += '/';  break;
-                case 'b':  outStr += '\b'; break;
-                case 'f':  outStr += '\f'; break;
-                case 'n':  outStr += '\n'; break;
-                case 'r':  outStr += '\r'; break;
-                case 't':  outStr += '\t'; break;
-                case 'u':
-                {
-                    // Parse 4 hex digits
-                    string hex;
-                    for (int i = 0; i < 4; i++)
-                    {
-                        CBR (!AtEnd());
-                        hex += Advance();
-                    }
-                    // Basic ASCII Unicode escape
-                    unsigned long code = strtoul (hex.c_str(), nullptr, 16);
-                    if (code < 0x80)
-                    {
-                        outStr += static_cast<char> (code);
-                    }
-                    break;
-                }
-                default:
-                {
-                    CBRF (false, SetError (format ("Invalid escape sequence '\\{}'", esc)));
-                }
-            }
-        }
-        else
+        // Regular character
+        if (ch != '\\')
         {
             outStr += ch;
+            continue;
+        }
+
+        // Escape sequence
+        CBR (!AtEnd ());
+
+        esc = Advance ();
+
+        switch (esc)
+        {
+            case '"':  outStr += '"';  break;
+            case '\\': outStr += '\\'; break;
+            case '/':  outStr += '/';  break;
+            case 'b':  outStr += '\b'; break;
+            case 'f':  outStr += '\f'; break;
+            case 'n':  outStr += '\n'; break;
+            case 'r':  outStr += '\r'; break;
+            case 't':  outStr += '\t'; break;
+            case 'u':
+            {
+                hex.clear ();
+
+                for (int i = 0; i < 4; i++)
+                {
+                    CBR (!AtEnd ());
+                    hex += Advance ();
+                }
+
+                code = strtoul (hex.c_str (), nullptr, 16);
+
+                if (code < 0x80)
+                {
+                    outStr += static_cast<char> (code);
+                }
+                break;
+            }
+            default:
+            {
+                SetError (format ("Invalid escape sequence '\\{}'", esc));
+                CBR (false);
+            }
         }
     }
 
-    CBRF (false, SetError ("Unterminated string"));
+    if (!done)
+    {
+        SetError ("Unterminated string");
+        CBR (false);
+    }
 
 Error:
     return hr;
