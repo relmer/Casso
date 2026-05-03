@@ -8,316 +8,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  JsonValue — constructors
-//
-////////////////////////////////////////////////////////////////////////////////
-
-JsonValue::JsonValue ()
-{
-}
-
-
-JsonValue::JsonValue (nullptr_t)
-{
-}
-
-
-JsonValue::JsonValue (bool value)
-    : m_type (JsonType::Bool),
-      m_bool (value)
-{
-}
-
-
-JsonValue::JsonValue (double value)
-    : m_type   (JsonType::Number),
-      m_number (value)
-{
-}
-
-
-JsonValue::JsonValue (const string & value)
-    : m_type   (JsonType::String),
-      m_string (value)
-{
-}
-
-
-JsonValue::JsonValue (vector<JsonValue> && arr)
-    : m_type  (JsonType::Array),
-      m_array (move (arr))
-{
-}
-
-
-JsonValue::JsonValue (vector<pair<string, JsonValue>> && obj)
-    : m_type   (JsonType::Object),
-      m_object (move (obj))
-{
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  JsonValue — accessors
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool JsonValue::GetBool () const
-{
-    return m_bool;
-}
-
-
-double JsonValue::GetNumber () const
-{
-    return m_number;
-}
-
-
-int JsonValue::GetInt () const
-{
-    return static_cast<int> (m_number);
-}
-
-
-const string & JsonValue::GetString () const
-{
-    return m_string;
-}
-
-
-size_t JsonValue::ArraySize () const
-{
-    return m_array.size ();
-}
-
-
-const JsonValue & JsonValue::ArrayAt (size_t index) const
-{
-    return m_array[index];
-}
-
-
-bool JsonValue::HasKey (const string & key) const
-{
-    for (const auto & pair : m_object)
-    {
-        if (pair.first == key)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-const JsonValue & JsonValue::Get (const string & key) const
-{
-    for (const auto & pair : m_object)
-    {
-        if (pair.first == key)
-        {
-            return pair.second;
-        }
-    }
-
-    static JsonValue s_null;
-    return s_null;
-}
-
-
-const vector<pair<string, JsonValue>> & JsonValue::GetObjectEntries () const
-{
-    return m_object;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  JsonValue::GetString (key, outValue)
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT JsonValue::GetString (const string & key, string & outValue) const
-{
-    HRESULT hr = S_OK;
-
-
-
-    BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
-    BAIL_OUT_IF (!Get (key).IsString (),     JSON_E_TYPE_MISMATCH);
-
-    outValue = Get (key).GetString ();
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  JsonValue::GetNumber (key, outValue)
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT JsonValue::GetNumber (const string & key, double & outValue) const
-{
-    HRESULT hr = S_OK;
-
-
-
-    BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
-    BAIL_OUT_IF (!Get (key).IsNumber (),     JSON_E_TYPE_MISMATCH);
-
-    outValue = Get (key).GetNumber ();
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  JsonValue::GetInt (key, outValue)
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT JsonValue::GetInt (const string & key, int & outValue) const
-{
-    HRESULT hr = S_OK;
-
-
-
-    BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
-    BAIL_OUT_IF (!Get (key).IsNumber (),     JSON_E_TYPE_MISMATCH);
-
-    outValue = Get (key).GetInt ();
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  JsonValue::GetUint32 (key, outValue)
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT JsonValue::GetUint32 (const string & key, uint32_t & outValue) const
-{
-    HRESULT hr = S_OK;
-
-
-
-    BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
-    BAIL_OUT_IF (!Get (key).IsNumber (),     JSON_E_TYPE_MISMATCH);
-
-    outValue = static_cast<uint32_t> (Get (key).GetNumber ());
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  JsonValue::GetBool (key, outValue)
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT JsonValue::GetBool (const string & key, bool & outValue) const
-{
-    HRESULT hr = S_OK;
-
-
-
-    BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
-    BAIL_OUT_IF (!Get (key).IsBool (),       JSON_E_TYPE_MISMATCH);
-
-    outValue = Get (key).GetBool ();
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  JsonValue::GetObject (key, outValue)
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT JsonValue::GetObject (const string & key, const JsonValue *& outValue) const
-{
-    HRESULT hr = S_OK;
-
-
-
-    BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
-    BAIL_OUT_IF (!Get (key).IsObject (),     JSON_E_TYPE_MISMATCH);
-
-    outValue = &Get (key);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  JsonValue::GetArray (key, outValue)
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT JsonValue::GetArray (const string & key, const JsonValue *& outValue) const
-{
-    HRESULT hr = S_OK;
-
-
-
-    BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
-    BAIL_OUT_IF (!Get (key).IsArray (),      JSON_E_TYPE_MISMATCH);
-
-    outValue = &Get (key);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  JsonParser — constructor
+//  JsonParser::JsonParser
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -337,7 +28,7 @@ JsonParser::JsonParser (const string & input)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Parse (static entry point)
+//  JsonParser::Parse
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -349,9 +40,9 @@ HRESULT JsonParser::Parse (const string & input, JsonValue & outValue, JsonParse
     hr = parser.ParseValue (outValue);
     CHR (hr);
 
-    parser.SkipWhitespace ();
+    parser.SkipWhitespace();
 
-    CBRF (parser.AtEnd (), parser.SetError ("Unexpected content after JSON value"));
+    CBRF (parser.AtEnd(), parser.SetError ("Unexpected content after JSON value"));
 
 Error:
     if (FAILED (hr))
@@ -368,7 +59,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ParseValue
+//  JsonParser::ParseValue
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -376,12 +67,12 @@ HRESULT JsonParser::ParseValue (JsonValue & outValue)
 {
     HRESULT hr = S_OK;
 
-    SkipWhitespace ();
+    SkipWhitespace();
 
-    CBR (!AtEnd ());
+    CBR (!AtEnd());
 
     {
-        char ch = Peek ();
+        char ch = Peek();
 
         if (ch == '"')
         {
@@ -439,7 +130,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ParseString
+//  JsonParser::ParseString
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -447,14 +138,14 @@ HRESULT JsonParser::ParseString (string & outStr)
 {
     HRESULT hr = S_OK;
 
-    CBR (Peek () == '"');
-    Advance ();
+    CBR (Peek() == '"');
+    Advance();
 
-    outStr.clear ();
+    outStr.clear();
 
-    while (!AtEnd ())
+    while (!AtEnd())
     {
-        char ch = Advance ();
+        char ch = Advance();
 
         if (ch == '"')
         {
@@ -463,9 +154,9 @@ HRESULT JsonParser::ParseString (string & outStr)
 
         if (ch == '\\')
         {
-            CBR (!AtEnd ());
+            CBR (!AtEnd());
 
-            char esc = Advance ();
+            char esc = Advance();
 
             switch (esc)
             {
@@ -483,11 +174,11 @@ HRESULT JsonParser::ParseString (string & outStr)
                     string hex;
                     for (int i = 0; i < 4; i++)
                     {
-                        CBR (!AtEnd ());
-                        hex += Advance ();
+                        CBR (!AtEnd());
+                        hex += Advance();
                     }
                     // Basic ASCII Unicode escape
-                    unsigned long code = strtoul (hex.c_str (), nullptr, 16);
+                    unsigned long code = strtoul (hex.c_str(), nullptr, 16);
                     if (code < 0x80)
                     {
                         outStr += static_cast<char> (code);
@@ -518,7 +209,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ParseNumber
+//  JsonParser::ParseNumber
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -529,62 +220,62 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
     size_t start = m_pos;
 
     // Check for 0x hex prefix
-    if (m_pos + 2 < m_input.size () &&
+    if (m_pos + 2 < m_input.size() &&
         m_input[m_pos] == '0' &&
         (m_input[m_pos + 1] == 'x' || m_input[m_pos + 1] == 'X'))
     {
-        Advance ();  // '0'
-        Advance ();  // 'x'
+        Advance();  // '0'
+        Advance();  // 'x'
 
-        while (!AtEnd () && isxdigit (static_cast<unsigned char> (Peek ())))
+        while (!AtEnd() && isxdigit (static_cast<unsigned char> (Peek())))
         {
-            Advance ();
+            Advance();
         }
 
         string hexStr = m_input.substr (start + 2, m_pos - start - 2);
-        unsigned long value = strtoul (hexStr.c_str (), nullptr, 16);
+        unsigned long value = strtoul (hexStr.c_str(), nullptr, 16);
         outValue = JsonValue (static_cast<double> (value));
         return S_OK;
     }
 
     // Standard JSON number
-    if (Peek () == '-')
+    if (Peek() == '-')
     {
-        Advance ();
+        Advance();
     }
 
-    while (!AtEnd () && isdigit (static_cast<unsigned char> (Peek ())))
+    while (!AtEnd() && isdigit (static_cast<unsigned char> (Peek())))
     {
-        Advance ();
+        Advance();
     }
 
-    if (!AtEnd () && Peek () == '.')
+    if (!AtEnd() && Peek() == '.')
     {
-        Advance ();
+        Advance();
 
-        while (!AtEnd () && isdigit (static_cast<unsigned char> (Peek ())))
+        while (!AtEnd() && isdigit (static_cast<unsigned char> (Peek())))
         {
-            Advance ();
+            Advance();
         }
     }
 
-    if (!AtEnd () && (Peek () == 'e' || Peek () == 'E'))
+    if (!AtEnd() && (Peek() == 'e' || Peek() == 'E'))
     {
-        Advance ();
+        Advance();
 
-        if (!AtEnd () && (Peek () == '+' || Peek () == '-'))
+        if (!AtEnd() && (Peek() == '+' || Peek() == '-'))
         {
-            Advance ();
+            Advance();
         }
 
-        while (!AtEnd () && isdigit (static_cast<unsigned char> (Peek ())))
+        while (!AtEnd() && isdigit (static_cast<unsigned char> (Peek())))
         {
-            Advance ();
+            Advance();
         }
     }
 
     string numStr = m_input.substr (start, m_pos - start);
-    double value = strtod (numStr.c_str (), nullptr);
+    double value = strtod (numStr.c_str(), nullptr);
     outValue = JsonValue (value);
 
     return hr;
@@ -596,7 +287,7 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ParseObject
+//  JsonParser::ParseObject
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -604,35 +295,35 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
 {
     HRESULT hr = S_OK;
 
-    CBR (Peek () == '{');
-    Advance ();
+    CBR (Peek() == '{');
+    Advance();
 
     {
         vector<pair<string, JsonValue>> entries;
 
-        SkipWhitespace ();
+        SkipWhitespace();
 
-        if (!AtEnd () && Peek () == '}')
+        if (!AtEnd() && Peek() == '}')
         {
-            Advance ();
+            Advance();
             outValue = JsonValue (move (entries));
             return S_OK;
         }
 
         while (true)
         {
-            SkipWhitespace ();
-            CBR (!AtEnd ());
+            SkipWhitespace();
+            CBR (!AtEnd());
 
-            CBRF (Peek () == '"', SetError ("Expected string key in object"));
+            CBRF (Peek() == '"', SetError ("Expected string key in object"));
 
             string key;
             hr = ParseString (key);
             CHR (hr);
 
-            SkipWhitespace ();
-            CBR (!AtEnd () && Peek () == ':');
-            Advance ();
+            SkipWhitespace();
+            CBR (!AtEnd() && Peek() == ':');
+            Advance();
 
             JsonValue val;
             hr = ParseValue (val);
@@ -640,18 +331,18 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
 
             entries.emplace_back (move (key), move (val));
 
-            SkipWhitespace ();
-            CBR (!AtEnd ());
+            SkipWhitespace();
+            CBR (!AtEnd());
 
-            if (Peek () == '}')
+            if (Peek() == '}')
             {
-                Advance ();
+                Advance();
                 break;
             }
 
-            CBRF (Peek () == ',', SetError ("Expected ',' or '}' in object"));
+            CBRF (Peek() == ',', SetError ("Expected ',' or '}' in object"));
 
-            Advance ();
+            Advance();
         }
 
         outValue = JsonValue (move (entries));
@@ -667,7 +358,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ParseArray
+//  JsonParser::ParseArray
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -675,17 +366,17 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
 {
     HRESULT hr = S_OK;
 
-    CBR (Peek () == '[');
-    Advance ();
+    CBR (Peek() == '[');
+    Advance();
 
     {
         vector<JsonValue> elements;
 
-        SkipWhitespace ();
+        SkipWhitespace();
 
-        if (!AtEnd () && Peek () == ']')
+        if (!AtEnd() && Peek() == ']')
         {
-            Advance ();
+            Advance();
             outValue = JsonValue (move (elements));
             return S_OK;
         }
@@ -698,18 +389,18 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
 
             elements.push_back (move (val));
 
-            SkipWhitespace ();
-            CBR (!AtEnd ());
+            SkipWhitespace();
+            CBR (!AtEnd());
 
-            if (Peek () == ']')
+            if (Peek() == ']')
             {
-                Advance ();
+                Advance();
                 break;
             }
 
-            CBRF (Peek () == ',', SetError ("Expected ',' or ']' in array"));
+            CBRF (Peek() == ',', SetError ("Expected ',' or ']' in array"));
 
-            Advance ();
+            Advance();
         }
 
         outValue = JsonValue (move (elements));
@@ -725,7 +416,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ParseKeyword
+//  JsonParser::ParseKeyword
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -739,9 +430,9 @@ HRESULT JsonParser::ParseKeyword (const char * keyword, JsonValue & outValue)
 
     for (size_t i = 0; i < len; i++)
     {
-        CBRF (!AtEnd () && Peek () == keyword[i], SetError (format ("Expected '{}'", keyword)));
+        CBRF (!AtEnd() && Peek() == keyword[i], SetError (format ("Expected '{}'", keyword)));
 
-        Advance ();
+        Advance();
     }
 
 Error:
@@ -754,26 +445,26 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Helper methods
+//  JsonParser::SkipWhitespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void JsonParser::SkipWhitespace ()
+void JsonParser::SkipWhitespace()
 {
-    while (!AtEnd ())
+    while (!AtEnd())
     {
-        char ch = Peek ();
+        char ch = Peek();
 
         if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n')
         {
-            Advance ();
+            Advance();
         }
-        else if (ch == '/' && m_pos + 1 < m_input.size () && m_input[m_pos + 1] == '/')
+        else if (ch == '/' && m_pos + 1 < m_input.size() && m_input[m_pos + 1] == '/')
         {
             // Line comment support for config files
-            while (!AtEnd () && Peek () != '\n')
+            while (!AtEnd() && Peek() != '\n')
             {
-                Advance ();
+                Advance();
             }
         }
         else
@@ -784,13 +475,31 @@ void JsonParser::SkipWhitespace ()
 }
 
 
-char JsonParser::Peek () const
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  JsonParser::Peek
+//
+////////////////////////////////////////////////////////////////////////////////
+
+char JsonParser::Peek() const
 {
     return m_input[m_pos];
 }
 
 
-char JsonParser::Advance ()
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  JsonParser::Advance
+//
+////////////////////////////////////////////////////////////////////////////////
+
+char JsonParser::Advance()
 {
     char ch = m_input[m_pos++];
 
@@ -808,11 +517,29 @@ char JsonParser::Advance ()
 }
 
 
-bool JsonParser::AtEnd () const
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  JsonParser::AtEnd
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool JsonParser::AtEnd() const
 {
-    return m_pos >= m_input.size ();
+    return m_pos >= m_input.size();
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  JsonParser::SetError
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void JsonParser::SetError (const string & msg)
 {

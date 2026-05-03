@@ -141,9 +141,18 @@ HRESULT MachineConfigLoader::LoadMemoryRegions (
 {
     HRESULT hr = S_OK;
 
+    // Required string fields — loaded in order, index identifies which failed
+    struct RequiredField { const char * key; string MemoryRegion::* dest; };
 
+    static const RequiredField kRequiredFields[] =
+    {
+        { "type",  &MemoryRegion::type },
+        { "start", nullptr },
+        { "end",   nullptr },
+    };
 
-    struct OptionalField { const char * key; string MemoryRegion::* member; };
+    // Optional string fields
+    struct OptionalField { const char * key; string MemoryRegion::* dest; };
 
     static const OptionalField kOptionalFields[] =
     {
@@ -152,63 +161,86 @@ HRESULT MachineConfigLoader::LoadMemoryRegions (
         { "target", &MemoryRegion::target },
     };
 
-    for (size_t i = 0; i < memArray.ArraySize(); i++)
+    size_t    regionIdx = 0;
+    size_t    fieldIdx  = 0;
+    string    addrStr;
+    fs::path  romRelPath;
+    fs::path  found;
+
+
+
+    for (regionIdx = 0; regionIdx < memArray.ArraySize (); regionIdx++)
     {
-        const JsonValue & entry = memArray.ArrayAt (i);
+        const JsonValue & entry = memArray.ArrayAt (regionIdx);
         MemoryRegion      region;
-        string            addrStr;
-        fs::path          romRelPath;
-        fs::path          found;
 
-        CBR (entry.IsObject());
-
-        hr = entry.GetString ("type", region.type);
-        CHRF (hr, outError = format ("memory[{}]: missing 'type' field", i));
-
-        hr = entry.GetString ("start", addrStr);
-        CHRF (hr, outError = format ("memory[{}]: missing 'start' field", i));
-
-        hr = ParseHexAddress (addrStr, region.start, outError);
-        CHR (hr);
-
-        hr = entry.GetString ("end", addrStr);
-        CHRF (hr, outError = format ("memory[{}]: missing 'end' field", i));
-
-        hr = ParseHexAddress (addrStr, region.end, outError);
-        CHR (hr);
-
-        CBRF (region.end >= region.start,
-              outError = format ("memory[{}]: end (0x{:04X}) < start (0x{:04X})",
-                                 i, region.end, region.start));
-
-        for (const auto & f : kOptionalFields)
+        // Load required string fields
+        for (fieldIdx = 0; fieldIdx < _countof (kRequiredFields); fieldIdx++)
         {
-            entry.GetString (f.key, region.*(f.member));
+            const RequiredField & f = kRequiredFields[fieldIdx];
+
+            if (f.dest != nullptr)
+            {
+                hr = entry.GetString (f.key, region.*(f.dest));
+            }
+            else
+            {
+                hr = entry.GetString (f.key, addrStr);
+            }
+
+            CHR (hr);
+
+            // Parse hex addresses for start/end
+            if (f.dest == nullptr)
+            {
+                Word * pAddr = (fieldIdx == 1) ? &region.start : &region.end;
+
+                hr = ParseHexAddress (addrStr, *pAddr, outError);
+                CHR (hr);
+            }
         }
 
-        CBRF (!(region.type == "rom" && region.file.empty() && region.target.empty()),
-              outError = format ("memory[{}]: ROM region requires 'file' field", i));
+        CBR (region.end >= region.start);
 
-        if (!region.file.empty())
+        // Load optional string fields
+        for (const auto & f : kOptionalFields)
+        {
+            entry.GetString (f.key, region.*(f.dest));
+        }
+
+        CBR (!(region.type == "rom" && region.file.empty () && region.target.empty ()));
+
+        // Resolve ROM file path
+        if (!region.file.empty ())
         {
             romRelPath = fs::path ("roms") / region.file;
             found      = PathResolver::FindFile (searchPaths, romRelPath);
 
-            CBRF (!found.empty(),
-                  outError = format ("ROM file not found: roms/{}. "
-                                    "Run scripts/FetchRoms.ps1 to download ROM images.",
-                                    region.file));
+            CBR (!found.empty ());
 
-            region.resolvedPath = found.string();
+            region.resolvedPath = found.string ();
         }
 
         outConfig.memoryRegions.push_back (region);
     }
 
 Error:
+    // Populate error message from indices if we bailed out
+    if (FAILED (hr) && outError.empty ())
+    {
+        if (fieldIdx < _countof (kRequiredFields))
+        {
+            outError = format ("memory[{}]: missing or invalid '{}' field",
+                               regionIdx, kRequiredFields[fieldIdx].key);
+        }
+        else
+        {
+            outError = format ("memory[{}]: invalid configuration", regionIdx);
+        }
+    }
+
     return hr;
 }
-
 
 
 

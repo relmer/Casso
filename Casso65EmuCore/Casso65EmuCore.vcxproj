@@ -189,6 +189,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Core\JsonParser.cpp" />
+    <ClCompile Include="Core\JsonValue.cpp" />
     <ClCompile Include="Core\MachineConfig.cpp" />
     <ClCompile Include="Core\PathResolver.cpp" />
     <ClCompile Include="Core\MemoryBus.cpp" />
@@ -216,6 +217,7 @@
     <ClInclude Include="Core\MemoryDevice.h" />
     <ClInclude Include="Core\ComponentRegistry.h" />
     <ClInclude Include="Core\JsonParser.h" />
+    <ClInclude Include="Core\JsonValue.h" />
     <ClInclude Include="Core\MemoryBus.h" />
     <ClInclude Include="Core\EmuCpu.h" />
     <ClInclude Include="Core\MachineConfig.h" />
