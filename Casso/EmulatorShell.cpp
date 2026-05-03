@@ -879,30 +879,31 @@ int EmulatorShell::RunMessageLoop()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::CpuThreadProc()
+void EmulatorShell::CpuThreadProc ()
 {
-    HANDLE        hTimer  = nullptr;
-    LARGE_INTEGER dueTime = {};
-    SpeedMode     speed   = SpeedMode::Authentic;
-    bool          comInited = false;
+    HRESULT       hr              = S_OK;
+    HANDLE        hTimer          = nullptr;
+    LARGE_INTEGER dueTime         = {};
+    SpeedMode     speed           = SpeedMode::Authentic;
+    bool          fComInitialized = false;
+    BOOL          fSuccess        = FALSE;
 
 
 
     // Initialize COM on this thread for WASAPI
-    comInited = SUCCEEDED (CoInitializeEx (nullptr, COINIT_MULTITHREADED));
+    hr = CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+    CHRA (hr);
+
+    fComInitialized = true;
 
     // Initialize WASAPI audio (non-fatal if it fails)
-    m_wasapiAudio.Initialize();
+    m_wasapiAudio.Initialize ();
 
     // Create a high-resolution waitable timer for 60fps frame pacing
     hTimer = CreateWaitableTimerEx (nullptr, nullptr,
                                     CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
                                     TIMER_ALL_ACCESS);
-
-    if (hTimer == nullptr)
-    {
-        hTimer = CreateWaitableTimer (nullptr, FALSE, nullptr);
-    }
+    CWRA (hTimer);
 
     while (m_running.load (memory_order_acquire))
     {
@@ -913,19 +914,17 @@ void EmulatorShell::CpuThreadProc()
         }
 
         // Process deferred commands from the UI thread
-        ProcessCommands();
+        ProcessCommands ();
 
         // Arm the timer for this frame
-        if (hTimer != nullptr)
-        {
-            dueTime.QuadPart = -166667;  // 16.6667ms
-            SetWaitableTimer (hTimer, &dueTime, 0, nullptr, nullptr, FALSE);
-        }
+        dueTime.QuadPart = -166667;  // 16.6667ms
+        fSuccess = SetWaitableTimer (hTimer, &dueTime, 0, nullptr, nullptr, FALSE);
+        CWRA (fSuccess);
 
         // Execute one frame of CPU + audio + video
-        RunOneFrame();
+        RunOneFrame ();
 
-        // Publish the framebuffer for the UI thread
+        // Publish the completed framebuffer for the UI thread
         {
             lock_guard<mutex> lock (m_fbMutex);
             m_uiFramebuffer = m_cpuFramebuffer;
@@ -935,19 +934,21 @@ void EmulatorShell::CpuThreadProc()
         // Wait for the remainder of the frame period
         speed = m_speedMode.load (memory_order_acquire);
 
-        if (speed != SpeedMode::Maximum && hTimer != nullptr)
+        if (speed != SpeedMode::Maximum)
         {
             WaitForSingleObject (hTimer, INFINITE);
         }
     }
 
+Error:
     if (hTimer != nullptr)
     {
         CloseHandle (hTimer);
     }
 
-    m_wasapiAudio.Shutdown();
-    if (comInited)
+    m_wasapiAudio.Shutdown ();
+
+    if (fComInitialized)
     {
         CoUninitialize ();
     }
