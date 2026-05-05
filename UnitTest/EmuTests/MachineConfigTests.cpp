@@ -299,14 +299,30 @@ private:
             expectedSize = 256;  // default
         }
 
-        // Create temp file with the expected size
+        // Create temp file with the expected size if not already present
         fs::path tempPath = fs::temp_directory_path () / ("casso_test_" + filename);
 
-        if (!fs::exists (tempPath) || fs::file_size (tempPath) != expectedSize)
+        bool needCreate = !fs::exists (tempPath);
+
+        if (!needCreate)
         {
-            std::vector<Byte>  buffer (expectedSize, 0);
-            std::ofstream      out (tempPath, std::ios::binary);
+            try
+            {
+                needCreate = fs::file_size (tempPath) != expectedSize;
+            }
+            catch (...)
+            {
+                needCreate = true;
+            }
+        }
+
+        if (needCreate)
+        {
+            std::vector<Byte> buffer (expectedSize, 0);
+            std::ofstream     out (tempPath, std::ios::binary | std::ios::trunc);
             out.write (reinterpret_cast<const char *> (buffer.data ()), expectedSize);
+            out.flush ();
+            out.close ();
         }
 
         return tempPath;

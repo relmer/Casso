@@ -242,8 +242,9 @@ HRESULT MachineConfigLoader::LoadRam (
 
         region.size = static_cast<Word> (size32 == kRamMaxSize ? 0 : size32);
 
-        // Optional bank field
-        IGNORE_RETURN_VALUE (hr, entry.GetString ("bank", region.bank));
+        // Optional bank field (don't pollute hr with the lookup result)
+        HRESULT hrBank = entry.GetString ("bank", region.bank);
+        IGNORE_RETURN_VALUE (hrBank, S_OK);
 
         outConfig.ram.push_back (region);
     }
@@ -411,12 +412,14 @@ HRESULT MachineConfigLoader::LoadSlots (
               outError = format ("slots[{}]: slot must be {}-{}, got {}",
                                  idx, kMinSlot, kMaxSlot, slot.slot));
 
-        // Optional: device
-        IGNORE_RETURN_VALUE (hr, entry.GetString ("device", slot.device));
+        // Optional: device (don't pollute hr with the lookup result)
+        HRESULT hrDev = entry.GetString ("device", slot.device);
+        IGNORE_RETURN_VALUE (hrDev, S_OK);
         hasDev = !slot.device.empty ();
 
-        // Optional: rom
-        IGNORE_RETURN_VALUE (hr, entry.GetString ("rom", slot.rom));
+        // Optional: rom (don't pollute hr with the lookup result)
+        HRESULT hrRom = entry.GetString ("rom", slot.rom);
+        IGNORE_RETURN_VALUE (hrRom, S_OK);
         hasRom = !slot.rom.empty ();
 
         CBRF (hasDev || hasRom,
@@ -486,9 +489,7 @@ HRESULT MachineConfigLoader::Load (
     const JsonValue    * pTiming        = nullptr;
     const JsonValue    * pRamArray      = nullptr;
     const JsonValue    * pSystemRom     = nullptr;
-    const JsonValue    * pCharRom       = nullptr;
     const JsonValue    * pInternalDevs  = nullptr;
-    const JsonValue    * pSlots         = nullptr;
     const JsonValue    * pVideo         = nullptr;
     const JsonValue    * pKeyboard      = nullptr;
 
@@ -537,11 +538,16 @@ HRESULT MachineConfigLoader::Load (
     CHR (hr);
 
     // Optional: characterRom (object)
-    hr = root.GetObject ("characterRom", pCharRom);
-    if (SUCCEEDED (hr))
+    // Optional: characterRom (object)
     {
-        hr = LoadCharacterRom (*pCharRom, searchPaths, resolver, outConfig, outError);
-        CHR (hr);
+        const JsonValue * pOpt = nullptr;
+        HRESULT           hrOpt = root.GetObject ("characterRom", pOpt);
+
+        if (SUCCEEDED (hrOpt))
+        {
+            hr = LoadCharacterRom (*pOpt, searchPaths, resolver, outConfig, outError);
+            CHR (hr);
+        }
     }
 
     // Required: internalDevices (array, may be empty)
@@ -552,11 +558,15 @@ HRESULT MachineConfigLoader::Load (
     CHR (hr);
 
     // Optional: slots (array)
-    hr = root.GetArray ("slots", pSlots);
-    if (SUCCEEDED (hr))
     {
-        hr = LoadSlots (*pSlots, searchPaths, resolver, outConfig, outError);
-        CHR (hr);
+        const JsonValue * pOpt = nullptr;
+        HRESULT           hrOpt = root.GetArray ("slots", pOpt);
+
+        if (SUCCEEDED (hrOpt))
+        {
+            hr = LoadSlots (*pOpt, searchPaths, resolver, outConfig, outError);
+            CHR (hr);
+        }
     }
 
     // Required: video
