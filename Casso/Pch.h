@@ -12,6 +12,7 @@
 #include <commdlg.h>
 #include <commctrl.h>
 
+#include <crtdbg.h>
 #include <shellapi.h>
 #include <wrl/client.h>
 

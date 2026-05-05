@@ -75,16 +75,20 @@ void LanguageCard::Write (Word address, Byte value)
 
 void LanguageCard::UpdateState (Byte switchAddr)
 {
+    Byte addrBits = switchAddr & 0x03;
+
     // Bank selection: bit 3 determines bank
     m_bank2Select = (switchAddr & 0x08) == 0;
 
-    // Read source: bit 0 controls whether we read RAM or ROM
-    // Even addresses ($C080, $C082, $C084, ...) = read RAM
-    // Odd addresses  ($C081, $C083, $C085, ...) = read ROM
-    m_readRam = (switchAddr & 0x01) == 0;
+    // Read source: determined by bits 0 and 1 together
+    //   00 ($C080/$C088): Read RAM
+    //   01 ($C081/$C089): Read ROM
+    //   10 ($C082/$C08A): Read ROM
+    //   11 ($C083/$C08B): Read RAM
+    m_readRam = (addrBits == 0x00 || addrBits == 0x03);
 
-    // Write enable: requires two consecutive reads of same odd switch
-    bool writeEnableSwitch = (switchAddr & 0x01) != 0;
+    // Write enable: requires two consecutive reads of an odd-addressed switch
+    bool writeEnableSwitch = (addrBits == 0x01 || addrBits == 0x03);
 
     if (writeEnableSwitch)
     {

@@ -1,5 +1,5 @@
 {
-    "name": "Apple II",
+    "name": "Apple ][",
     "cpu": "6502",
     "timing": {
         "videoStandard": "ntsc",

@@ -48,9 +48,9 @@ public:
         m_lastValue = value;
     }
 
-    Word GetStart () const override { return m_start; }
-    Word GetEnd   () const override { return m_end; }
-    void Reset    () override       { m_readCount = 0; m_lastRead = 0; m_lastWrite = 0; }
+    Word GetStart() const override { return m_start; }
+    Word GetEnd  () const override { return m_end; }
+    void Reset   () override       { m_readCount = 0; m_lastRead = 0; m_lastWrite = 0; }
 
     Word m_start;
     Word m_end;
@@ -116,8 +116,8 @@ public:
 
         std::vector<Byte> romData (0x3000, 0xEA);
         auto rom = RomDevice::CreateFromData (0xD000, 0xFFFF,
-            romData.data (), romData.size ());
-        bus.AddDevice (rom.get ());
+            romData.data(), romData.size());
+        bus.AddDevice (rom.get());
 
         Byte val = bus.ReadByte (0xC100);
 
@@ -157,8 +157,8 @@ public:
 
         std::vector<Byte> romData (0x3000, 0xEA);
         auto rom = RomDevice::CreateFromData (0xD000, 0xFFFF,
-            romData.data (), romData.size ());
-        bus.AddDevice (rom.get ());
+            romData.data(), romData.size());
+        bus.AddDevice (rom.get());
 
         // Writing to ROM should not crash
         bus.WriteByte (0xD000, 0x42);
@@ -169,7 +169,7 @@ public:
             L"ROM should ignore writes — data must remain $EA");
     }
 
-    TEST_METHOD (Validate_OverlappingDevices_Fails)
+    TEST_METHOD (Validate_OverlappingDevices_WarnsButSucceeds)
     {
         MemoryBus bus;
         MockDevice dev1 (0x1000, 0x1FFF);
@@ -177,10 +177,10 @@ public:
         bus.AddDevice (&dev1);
         bus.AddDevice (&dev2);
 
-        HRESULT hr = bus.Validate ();
+        HRESULT hr = bus.Validate();
 
-        Assert::IsTrue (FAILED (hr),
-            L"Overlapping devices must cause Validate() to fail");
+        Assert::IsTrue (SUCCEEDED (hr),
+            L"Overlapping devices should warn but not fail (first match wins)");
     }
 
     TEST_METHOD (Validate_NonOverlapping_Succeeds)
@@ -191,7 +191,7 @@ public:
         bus.AddDevice (&dev1);
         bus.AddDevice (&dev2);
 
-        HRESULT hr = bus.Validate ();
+        HRESULT hr = bus.Validate();
 
         Assert::IsTrue (SUCCEEDED (hr),
             L"Non-overlapping devices should validate successfully");
@@ -234,7 +234,7 @@ public:
 
         bus.WriteByte (0x0050, 0xAB);
 
-        bus.Reset ();
+        bus.Reset();
 
         Byte val = bus.ReadByte (0x0050);
         Assert::AreEqual (static_cast<Byte> (0x00), val,

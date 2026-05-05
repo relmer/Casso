@@ -28,6 +28,7 @@ public:
     bool Is80ColMode    () const { return m_80colMode; }
     bool IsDoubleHiRes  () const { return m_doubleHiRes; }
     bool IsAltCharSet   () const { return m_altCharSet; }
+    bool Is80Store      () const { return m_80store; }
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
@@ -35,4 +36,5 @@ private:
     bool m_80colMode   = false;
     bool m_doubleHiRes = false;
     bool m_altCharSet  = false;
+    bool m_80store     = false;
 };

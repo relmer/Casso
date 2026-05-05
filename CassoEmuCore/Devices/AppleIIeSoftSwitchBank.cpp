@@ -32,6 +32,12 @@ Byte AppleIIeSoftSwitchBank::Read (Word address)
     // IIe-specific switches
     switch (address)
     {
+        case 0xC000:
+            m_80store = false;
+            return 0;
+        case 0xC001:
+            m_80store = true;
+            return 0;
         case 0xC00C:
             m_80colMode = false;
             return 0;
@@ -52,6 +58,13 @@ Byte AppleIIeSoftSwitchBank::Read (Word address)
             return 0;
         default:
             break;
+    }
+
+    // When 80STORE is active, $C054/$C055 select main/aux for text page
+    // instead of page 1/page 2 — suppress the page2 toggle
+    if (m_80store && (address == 0xC054 || address == 0xC055))
+    {
+        return 0;
     }
 
     // Fall through to base class for $C050-$C057
@@ -95,6 +108,7 @@ void AppleIIeSoftSwitchBank::Reset ()
     m_80colMode   = false;
     m_doubleHiRes = false;
     m_altCharSet  = false;
+    m_80store     = false;
 }
 
 

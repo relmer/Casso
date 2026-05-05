@@ -33,7 +33,7 @@ Byte RomDevice::Read (Word address)
 {
     size_t offset = address - m_start;
 
-    if (offset < m_data.size ())
+    if (offset < m_data.size())
     {
         return m_data[offset];
     }
@@ -67,7 +67,7 @@ void RomDevice::Write (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void RomDevice::Reset ()
+void RomDevice::Reset()
 {
 }
 
@@ -85,18 +85,29 @@ unique_ptr<MemoryDevice> RomDevice::CreateFromFile (
     Word start, Word end, const string & filePath, string & outError)
 {
     ifstream file (filePath, ios::binary | ios::ate);
+    size_t   expectedSize = static_cast<size_t> (end - start + 1);
 
-    if (!file.good ())
+    if (!file.good())
     {
         outError = format ("Cannot open ROM file: {}", filePath);
         return nullptr;
     }
 
-    auto fileSize = file.tellg ();
+    auto fileSize = file.tellg();
     file.seekg (0, ios::beg);
 
+    if (static_cast<size_t> (fileSize) != expectedSize)
+    {
+        outError = format ("ROM file '{}' is {} bytes but address range ${:04X}-${:04X} requires {} bytes",
+                           filePath,
+                           static_cast<size_t> (fileSize),
+                           start, end,
+                           expectedSize);
+        return nullptr;
+    }
+
     vector<Byte> data (static_cast<size_t> (fileSize));
-    file.read (reinterpret_cast<char *> (data.data ()), fileSize);
+    file.read (reinterpret_cast<char *> (data.data()), fileSize);
 
     return make_unique<RomDevice> (start, end, move (data));
 }

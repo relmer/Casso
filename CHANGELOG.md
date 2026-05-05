@@ -6,6 +6,54 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.0.307] — 2026-05-04
+
+### Added
+- **Machine picker dialog** — modal Win32 ListView showing all `Machines/*.json` configs
+  with display names from the JSON `name` field; shown at startup if no last-used
+  machine, when clicking the status bar Machine panel, or via File > Switch Machine
+- **Last-used machine persistence** — stored in registry at `HKCU\Software\relmer\Casso`
+- **Hot-swap machine switching** — pause CPU, tear down devices/bus/cpu/video,
+  reload config, reinitialize, resume — works from menu, status bar, or startup
+- **Random RAM on cold boot** — RAM ($0000-$BFFF) initialized with random values to
+  match real DRAM power-on behavior (Apple II shows random characters at boot)
+- **80STORE soft switch tracking** — IIe keyboard intercepts $C000/$C001 writes to
+  track 80STORE state; video mode selection suppresses page2 when 80STORE is active
+- **ROM size validation** — RomDevice rejects ROM files that don't match the configured
+  address range size, with a clear error message
+- **Illegal opcode handling** — CPU treats illegal opcodes as 1-byte NOPs (2 cycles)
+  with a debug log message instead of crashing
+
+### Fixed
+- **//e boot** — corrected ROM start address from $C100 to $C000 (16KB ROM); slot ROM
+  trimmed to $C100-$CFFF to avoid shadowing I/O space at $C000-$C0FF
+- **Language Card state machine** — corrected read source decoding to use both bits 0
+  and 1 (was using only bit 0); $C083 now correctly enables Read RAM + Write Enable
+- **CpuOperations RMW operations** — Decrement, Increment, RotateLeft, RotateRight now
+  use ReadByte/WriteByte instead of direct memory[] access, so they correctly route
+  through the bus for I/O-mapped addresses
+- **EmuCpu memory routing** — reads and writes for $C000+ now go through the
+  MemoryBus, so the LanguageCardBank is consulted for $D000-$FFFF (was reading stale
+  ROM from memory[] which caused //e BASIC to fail)
+- **CreateMemoryDevices aux RAM handling** — RAM regions with a `bank` field (e.g.
+  "aux") are skipped in main RAM creation; aux memory is handled by AuxRamCard
+- **MemoryBus::Validate** — overlapping I/O devices are now warnings (logged via
+  DEBUGMSG) instead of errors; first-match-wins is the correct hardware behavior
+
+### Changed
+- **Machine display names** — "Apple ][", "Apple ][ plus", "Apple //e"
+- **File menu** — "Open Machine Config" renamed to "Switch Machine..." and ungrayed
+- **Status bar** — clicking the Machine panel opens the picker dialog
+- **Cpu::Reset** — removed all hardcoded test instructions and PC=$8000 setup;
+  now just initializes registers/flags/memory
+- **Cpu member initializers** — moved from constructor initializer list to in-class
+  defaults
+- **VS Code IntelliSense config** — added CassoEmuCore/Pch.h to forcedInclude so
+  `<random>` and other STL headers resolve correctly
+
+### Removed
+- **Cpu::Run()** — dead code (never called); CLI uses its own StepOne loop
+
 ## [1.0.244] — 2026-05-03
 
 ### Added

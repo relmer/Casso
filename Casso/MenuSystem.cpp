@@ -38,7 +38,7 @@ struct MenuItem
 
 static const MenuItem kFileMenuItems[] =
 {
-    { MF_STRING | MF_GRAYED, IDM_FILE_OPEN,   L"&Open Machine Config...\tCtrl+O" },
+    { MF_STRING, IDM_FILE_OPEN,   L"&Switch Machine...\tCtrl+O" },
     { 0,                     kSep,            nullptr },
     { MF_STRING,             IDM_FILE_EXIT,   L"E&xit" },
 };

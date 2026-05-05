@@ -1,5 +1,5 @@
 {
-    "name": "Apple IIe",
+    "name": "Apple //e",
     "cpu": "6502",
     "timing": {
         "videoStandard": "ntsc",
@@ -20,7 +20,7 @@
         },
         {
             "type": "rom",
-            "start": "0xC100",
+            "start": "0xC000",
             "end": "0xFFFF",
             "file": "apple2e.rom"
         }

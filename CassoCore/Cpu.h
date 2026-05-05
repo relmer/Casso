@@ -20,24 +20,23 @@ class Cpu
 public:
     Cpu ();
     void Reset ();
-    void Run ();
 
     // Public accessors for CLI and external use
-    Word                GetPC             () const  { return PC; }
-    void                SetPC             (Word pc) { PC = pc; }
-    Byte                GetA              () const  { return A; }
-    Byte                GetX              () const  { return X; }
-    Byte                GetY              () const  { return Y; }
-    Byte                GetSP             () const  { return SP; }
+    Word                GetPC             () const            { return PC; }
+    void                SetPC             (Word pc)           { PC = pc; }
+    Byte                GetA              () const            { return A; }
+    Byte                GetX              () const            { return X; }
+    Byte                GetY              () const            { return Y; }
+    Byte                GetSP             () const            { return SP; }
     const Microcode &   GetMicrocode      (Byte opcode) const { return instructionSet[opcode]; }
-    const Microcode *   GetInstructionSet () const  { return instructionSet.data (); }
+    const Microcode *   GetInstructionSet () const            { return instructionSet.data (); }
 
-    void StepOne ();
-    Byte GetLastInstructionCycles () const { return m_lastCycles; }
-    Byte PeekByte  (Word address) const { return memory[address]; }
-    void PokeByte  (Word address, Byte value) { memory[address] = value; }
-    Word PeekWord  (Word address) const { return memory[address] | (memory[(Word)(address + 1)] << 8); }
-    const Byte * GetMemory () const { return memory.data (); }
+    void StepOne                  ();
+    Byte GetLastInstructionCycles () const                   { return m_lastCycles; }
+    Byte PeekByte                 (Word address) const       { return memory[address]; }
+    void PokeByte                 (Word address, Byte value) { memory[address] = value; }
+    Word PeekWord                 (Word address) const       { return memory[address] | (memory[(Word)(address + 1)] << 8); }
+    const Byte * GetMemory        () const                   { return memory.data (); }
 
     // Load a raw binary file into memory at the specified address.
     // Returns true on success; false if the file cannot be opened or does not
@@ -117,19 +116,19 @@ protected:
     // Heap-allocated to keep the 64 KB 6502 address space off the stack
     // (otherwise every function that stack-allocates a Cpu blows past C6262's
     // 16 KB frame-size threshold during code analysis).
-    std::vector<Byte>       memory;
+    std::vector<Byte>       memory {std::vector<Byte> (memSize, 0)};
 
-    Byte                    SP;
-    Word                    PC;
-    Byte                    A;
-    Byte                    X;
-    Byte                    Y;
+    Byte                    SP = 0;
+    Word                    PC = 0;
+    Byte                    A  = 0;
+    Byte                    X  = 0;
+    Byte                    Y  = 0;
 
-    CpuStatus               status;
+    CpuStatus               status = {};
 
 protected:
     // Heap-allocated for the same reason as `memory`: keeps the ~10 KB
     // instruction table off the stack of any function holding a Cpu.
-    std::vector<Microcode> instructionSet;
-    Byte                  m_lastCycles;
+    std::vector<Microcode> instructionSet {std::vector<Microcode> (256)};
+    Byte                  m_lastCycles = 0;
 };

@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MemoryBus::MemoryBus ()
+MemoryBus::MemoryBus()
 {
 }
 
@@ -81,8 +81,8 @@ void MemoryBus::WriteByte (Word address, Byte value)
 void MemoryBus::AddDevice (MemoryDevice * device)
 {
     BusEntry entry;
-    Word     newStart = device->GetStart ();
-    Word     newEnd   = device->GetEnd ();
+    Word     newStart = device->GetStart();
+    Word     newEnd   = device->GetEnd();
 
 
 
@@ -101,8 +101,8 @@ void MemoryBus::AddDevice (MemoryDevice * device)
     }
 
     // Insert sorted by start address
-    auto it = lower_bound (m_entries.begin (),
-                           m_entries.end (),
+    auto it = lower_bound (m_entries.begin(),
+                           m_entries.end(),
                            entry,
                            [] (const BusEntry & a, const BusEntry & b)
                            {
@@ -125,14 +125,14 @@ void MemoryBus::AddDevice (MemoryDevice * device)
 void MemoryBus::RemoveDevice (MemoryDevice * device)
 {
     auto it = remove_if (
-        m_entries.begin (),
-        m_entries.end (),
+        m_entries.begin(),
+        m_entries.end(),
         [device] (const BusEntry & entry)
         {
             return entry.device == device;
         });
 
-    m_entries.erase (it, m_entries.end ());
+    m_entries.erase (it, m_entries.end());
 }
 
 
@@ -145,32 +145,24 @@ void MemoryBus::RemoveDevice (MemoryDevice * device)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT MemoryBus::Validate () const
+HRESULT MemoryBus::Validate() const
 {
-    HRESULT hr      = S_OK;
-    bool    overlap = false;
-    wstring msg;
-
-
-
-    for (size_t i = 0; i + 1 < m_entries.size (); i++)
+    for (size_t i = 0; i + 1 < m_entries.size(); i++)
     {
-        for (size_t j = i + 1; j < m_entries.size (); j++)
+        for (size_t j = i + 1; j < m_entries.size(); j++)
         {
             const BusEntry & a = m_entries[i];
             const BusEntry & b = m_entries[j];
 
-            overlap = (a.start <= b.end && b.start <= a.end);
-
-            CBRN (!overlap,
-                  format (L"Memory bus conflict: device at ${:04X}-${:04X} "
-                          L"overlaps device at ${:04X}-${:04X}",
-                          a.start, a.end, b.start, b.end).c_str ());
+            if (a.start <= b.end && b.start <= a.end)
+            {
+                DEBUGMSG (L"Bus overlap (first match wins): $%04X-$%04X and $%04X-$%04X\n",
+                          a.start, a.end, b.start, b.end);
+            }
         }
     }
 
-Error:
-    return hr;
+    return S_OK;
 }
 
 
@@ -183,11 +175,11 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryBus::Reset ()
+void MemoryBus::Reset()
 {
     for (auto & entry : m_entries)
     {
-        entry.device->Reset ();
+        entry.device->Reset();
     }
 
     m_floatingBusValue = 0xFF;

@@ -11,7 +11,8 @@
                 "${env:ProgramFiles}/Microsoft Visual Studio/**/VC/Auxiliary/VS/UnitTest/include"
             ],
             "forcedInclude": [
-                "${workspaceFolder}/Casso/Pch.h"
+                "${workspaceFolder}/Casso/Pch.h",
+                "${workspaceFolder}/CassoEmuCore/Pch.h"
             ],
             "defines": [
                 "_DEBUG",

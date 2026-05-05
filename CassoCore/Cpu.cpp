@@ -10,18 +10,18 @@
 #include "Utils.h"
 
 
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Cpu
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Cpu::Cpu () :
-    memory         (memSize, 0),
-    instructionSet (256),
-    m_lastCycles   (0)
+Cpu::Cpu()
 {
-    InitializeInstructionSet ();
+    InitializeInstructionSet();
 }
 
 
@@ -34,199 +34,18 @@ Cpu::Cpu () :
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::Reset ()
+void Cpu::Reset()
 {
-    /*
-    PC = 0xFFFC;
-    SP = 0x00;
-    */
-
     status.status          = 0;
     status.flags.alwaysOne = 1;
 
-    A = 0;
-    X = 0;
-    Y = 0;
-
-    std::fill (memory.begin (), memory.end (), Byte (0));
-
-
-
-    // Test code
-    PC = 0x8000;
+    A  = 0;
+    X  = 0;
+    Y  = 0;
     SP = 0xFF;
+    PC = 0;
 
-    Word addr = PC;
-
-
-    // Immediate
-    //memory[addr++] = 0x09;  // ORA
-    //memory[addr++] = 0x80;  // Immediate
-    //memory[addr++] = 0xA9;  // LDA 
-    //memory[addr++] = 0x80;  // Immediate
-    //memory[addr++] = 0x69;  // ADC
-    //memory[addr++] = 0x11;  // Immediate
-    //memory[addr++] = 0x85;  // STA
-    //memory[addr++] = 0x11;  // Zeropage offset
-    //memory[addr++] = 0xA9;  // LDA
-    //memory[addr++] = 0x00;  // Immediate
-    //memory[addr++] = 0xA5;  // LDA
-    //memory[addr++] = 0x11;  // Zeropage offset
-    //memory[addr++] = 0xA9;  // LDA
-    //memory[addr++] = 0x40;  // Immediate
-    //memory[addr++] = 0xC9;  // CMP
-    //memory[addr++] = 0x40;  // Immediate
-    //memory[addr++] = 0xC9;  // CMP
-    //memory[addr++] = 0x41;  // Immediate
-    //memory[addr++] = 0xC9;  // CMP
-    //memory[addr++] = 0x3F;  // Immediate
-
-    //memory[addr++] = 0xA9;  // LDA 
-    //memory[addr++] = 0x80;  // Immediate
-    //memory[addr++] = 0xE9;  // SBC
-    //memory[addr++] = 0x01;  // Immediate
-
-    //Word loop = addr + 3;
-    //memory[addr++] = 0x4C;  // JMP 
-    //memory[addr++] = loop; 
-    //memory[addr++] = loop >> 8;
-
-    //Word loop = addr;
-    //memory[addr++] = 0x6C;  // JMP 
-    //memory[addr++] = 0x00;
-    //memory[addr++] = 0x01;
-    //memory[0x0100] = loop;
-    //memory[0x0101] = loop >> 8;
-
-    //memory[addr++] = 0xA9;  // LDA, #immediate
-    //memory[addr++] = 0xF0;  // 
-    //memory[addr++] = 0x24;  // BIT, zp
-    //memory[addr++] = 0x00;  // 
-    //memory[0x0000] = 0xCF;
-
-    //memory[addr++] = 0xA9;  // LDA, #immediate
-    //memory[addr++] = 0xCF;  // 
-    //memory[addr++] = 0x8D;  // STA, $0034
-    //memory[addr++] = 0x34;  // 
-    //memory[addr++] = 0x00;  // 
-    //memory[addr++] = 0xA9;  // LDA, #immediate
-    //memory[addr++] = 0xF0;  // 
-    //memory[addr++] = 0x24;  // BIT, zp
-    //memory[addr++] = 0x34;  // 
-    //memory[addr++] = 0xA4;  // LDY, $34
-    //memory[addr++] = 0x34;  //
-    //memory[addr++] = 0xC0;  // CPY, #CF
-    //memory[addr++] = 0xCF;  //
-
-
-
-
-    //memory[addr++] = 0x09;  // ORA
-    //memory[addr++] = 0x39;  // AND
-    //memory[addr++] = 0x49;  // EOR
-    //memory[addr++] = 0xA5;  // Immediate
-    //memory[addr++] = 0x29;  // AND
-    //memory[addr++] = 0x49;  // EOR
-    //memory[addr++] = 0xFF;  // Immediate
-
-    // Zero page + X, indirect
-    //X = 0x11;
-    //memory[addr++] = 0x01;  // ORA
-    //memory[addr++] = 0x11;  // ($0011,X)
-    //memory[memory[addr - 1] + X]     = 0x45;
-    //memory[memory[addr - 1] + X + 1] = 0x23;
-    //memory[0x2345] = 0x55;
-
-    // Zero page indirect, Y
-    //Y = 0x22;
-    //memory[addr++] = 0x11;  // ORA
-    //memory[addr++] = 0x33;  // (22),Y
-    //memory[memory[addr - 1]] = 0x56;
-    //memory[memory[addr - 1] + 1] = 0x34;
-    //memory[0x3456 + Y] = 0x44;
-
-    // Zero page
-    //memory[addr++] = 0x05;  // ORA
-    //memory[addr++] = 0x55;  // ($0055)
-    //memory[memory[addr - 1]] = 0x44;
-
-    // Zero page, X
-    //X = 0x77;
-    //memory[addr++] = 0x15;  // ORA
-    //memory[addr++] = 0x66;  // ($0055)
-    //memory[(memory[addr - 1] + X) & 0xFF] = 0xEE;
-
-    // Absolute
-    //memory[addr++] = 0x0D;  // ORA
-    //memory[addr++] = 0x34;  // NB:  Little endian
-    //memory[addr++] = 0x12;  // ($1234)
-    //memory[0x1234] = 0x55;
-
-    // Absolute, X
-    //X = 0x06;
-    //memory[addr++] = 0x1D;  // ORA
-    //memory[addr++] = 0x34;  // NB:  Little endian
-    //memory[addr++] = 0x12;  // ($1234)
-    //memory[0x123A] = 0x99;
-
-    // Absolute, Y
-    //Y = 0x0C;
-    //memory[addr++] = 0x19;  // ORA
-    //memory[addr++] = 0x34;  // NB:  Little endian
-    //memory[addr++] = 0x12;  // ($1234)
-    //memory[0x1240] = 0xAA;
-
-    // LDX, DEX, BMI, BPL, INX
-    memory[addr++] = 0xA2;      // LDX, #immediate
-    memory[addr++] = 0x03;      // a non-negative number
-    memory[addr++] = 0xCA;      // DEX
-    memory[addr++] = 0x30;      // BMI
-    memory[addr++] = 0x02;      // Branch offset
-    memory[addr++] = 0x10;      // BPL
-    memory[addr++] = ~0x05 + 1; // Branch offset -5
-    memory[addr++] = 0xA2;      // LDX, #immediate
-    memory[addr++] = ~0x02 + 1; // -2
-    memory[addr++] = 0xE8;      // INX
-    memory[addr++] = 0x30;      // BMI
-    memory[addr++] = ~0x03 + 1; // Branch offset -3
-    memory[addr++] = 0xA9;      // LDA, #immediate
-    memory[addr++] = 0x00;      // a zero number
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Run
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Cpu::Run ()
-{
-    do
-    {
-        Word        initialPC   = PC;
-        Byte        opcode      = ReadByte (PC);
-        Microcode   microcode   = instructionSet[opcode];
-        OperandInfo operandInfo = { 0 };
-
-        FetchOperand        (microcode, operandInfo);
-        PrintSingleStepInfo (initialPC, opcode, operandInfo);
-
-        if (!instructionSet[opcode].isLegal)
-        {
-            break;
-        }
-
-        ++PC;
-
-        ExecuteInstruction  (instructionSet[opcode], operandInfo);
-
-        std::printf ("\n");
-    }
-    while (1);
+    std::fill (memory.begin(), memory.end(), Byte (0));
 }
 
 
@@ -239,13 +58,25 @@ void Cpu::Run ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::StepOne ()
+void Cpu::StepOne()
 {
+
     Byte        opcode      = ReadByte (PC);
     Microcode   microcode   = instructionSet[opcode];
     OperandInfo operandInfo = { 0 };
 
 
+
+    if (!microcode.isLegal)
+    {
+        DEBUGMSG (L"Illegal opcode $%02X at PC=$%04X\n", opcode, PC);
+        ASSERT (false);
+
+        m_lastCycles = 2;
+        ++PC;
+        
+        return;
+    }
 
     m_lastCycles = microcode.baseCycles;
 
@@ -474,7 +305,6 @@ void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
 
     if (!microcode.isLegal)
     {
-        ASSERT (false);
         return;
     }
 
@@ -824,7 +654,7 @@ void Cpu::PushWord (Word value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte Cpu::PopByte ()
+Byte Cpu::PopByte()
 {
     return ReadByte(stackAddress + ++SP);
 }
@@ -839,10 +669,10 @@ Byte Cpu::PopByte ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Word Cpu::PopWord ()
+Word Cpu::PopWord()
 {
-    Byte lo = PopByte ();
-    Byte hi = PopByte ();
+    Byte lo = PopByte();
+    Byte hi = PopByte();
     return lo | (hi << 8);
 }
 
@@ -919,12 +749,12 @@ Word Cpu::ReadWord (Word address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::InitializeInstructionSet ()
+void Cpu::InitializeInstructionSet()
 {
-    InitializeGroup00 ();
-    InitializeGroup01 ();
-    InitializeGroup10 ();
-    InitializeMisc ();
+    InitializeGroup00();
+    InitializeGroup01();
+    InitializeGroup10();
+    InitializeMisc();
 }
 
 
@@ -937,7 +767,7 @@ void Cpu::InitializeInstructionSet ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::InitializeGroup00 ()
+void Cpu::InitializeGroup00()
 {
     using _00 = Group00;
     struct TableEntry
@@ -977,7 +807,7 @@ void Cpu::InitializeGroup00 ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::InitializeGroup01 ()
+void Cpu::InitializeGroup01()
 {
     using _01 = Group01;
     struct TableEntry
@@ -1018,7 +848,7 @@ void Cpu::InitializeGroup01 ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::InitializeGroup10 ()
+void Cpu::InitializeGroup10()
 {
     using _10 = Group10;
     struct TableEntry
@@ -1059,7 +889,7 @@ void Cpu::InitializeGroup10 ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::InitializeMisc ()
+void Cpu::InitializeMisc()
 {
     struct TableEntry
     {
@@ -1204,7 +1034,7 @@ bool Cpu::LoadBinary (const std::string & filename, Word address)
     std::ifstream file      (filename, std::ios::binary);
     bool          fLoaded = false;
 
-    CBRA (file.is_open ());
+    CBRA (file.is_open());
 
     fLoaded = LoadBinary (file, address);
     CBR  (fLoaded);
@@ -1229,16 +1059,16 @@ bool Cpu::LoadBinary (std::istream & stream, Word address)
 
     // Determine stream size
     stream.seekg (0, std::ios::end);
-    auto size = stream.tellg ();
+    auto size = stream.tellg();
     stream.seekg (0, std::ios::beg);
 
-    CBRA (!stream.bad ());
+    CBRA (!stream.bad());
     CBR  (size >= 0 && (size_t) size <= memSize - address);
 
     // Read directly into CPU memory — no intermediate buffer
-    stream.read (reinterpret_cast<char *>(memory.data () + address), size);
+    stream.read (reinterpret_cast<char *>(memory.data() + address), size);
 
-    CBRA (!stream.bad ());
+    CBRA (!stream.bad());
 
 Error:
     return SUCCEEDED (hr);

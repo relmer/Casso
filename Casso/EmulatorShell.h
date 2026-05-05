@@ -99,6 +99,10 @@ private:
     void    CreateVideoModes       ();
     HRESULT CreateCpu              (const MachineConfig & config);
 
+    // Machine switching
+    void    ShowMachinePicker      ();
+    HRESULT SwitchMachine          (const wstring & machineName);
+
     void CopyScreenText     ();
     void CopyScreenshot     ();
     void PasteFromClipboard ();

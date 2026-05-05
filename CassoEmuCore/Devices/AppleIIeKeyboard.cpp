@@ -69,6 +69,34 @@ void AppleIIeKeyboard::KeyPressRaw (Byte asciiChar)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Write
+//
+//  On the //e, writes to $C000/$C001 toggle 80STORE mode.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleIIeKeyboard::Write (Word address, Byte value)
+{
+    if (address == 0xC000)
+    {
+        m_80store = false;
+    }
+    else if (address == 0xC001)
+    {
+        m_80store = true;
+    }
+    else
+    {
+        AppleKeyboard::Write (address, value);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Reset
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,6 +106,7 @@ void AppleIIeKeyboard::Reset ()
     AppleKeyboard::Reset ();
     m_openApple.store (false, memory_order_release);
     m_closedApple.store (false, memory_order_release);
+    m_80store = false;
 }
 
 

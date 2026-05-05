@@ -6,10 +6,15 @@
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
 #include "Devices/AppleKeyboard.h"
+#include "Devices/AppleIIeKeyboard.h"
 #include "Devices/AppleSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
 #include "Devices/DiskIIController.h"
 #include "Devices/LanguageCard.h"
+#include "MachinePickerDialog.h"
+#include "RegistrySettings.h"
+#include "Core/MachineConfig.h"
+#include "Core/JsonParser.h"
 #include "Video/AppleTextMode.h"
 #include "Video/AppleLoResMode.h"
 #include "Video/AppleHiResMode.h"
@@ -17,6 +22,8 @@
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
+
+static constexpr LPCWSTR kLastMachineValue = L"LastMachine";
 
 
 
@@ -381,9 +388,14 @@ void EmulatorShell::ShowDevicePopup()
     hMenu = CreatePopupMenu();
     CPRA (hMenu);
 
-    // Memory regions from config
+    // Memory regions from config (skip aux-bank entries)
     for (const auto & region : m_config.memoryRegions)
     {
+        if (!region.bank.empty())
+        {
+            continue;
+        }
+
         wstring typeName = fs::path (region.type).wstring();
         wstring fileName = fs::path (region.file).wstring();
 
@@ -405,7 +417,7 @@ void EmulatorShell::ShowDevicePopup()
     fSuccess = AppendMenuW (hMenu, MF_SEPARATOR, 0, nullptr);
     CWRA (fSuccess);
 
-    // Named devices — look up actual address range from the bus
+    // Named devices -- show address range from each owned device
     for (const auto & devCfg : m_config.devices)
     {
         wstring name  = fs::path (devCfg.type).wstring();
@@ -413,35 +425,43 @@ void EmulatorShell::ShowDevicePopup()
 
         for (const auto & dev : m_ownedDevices)
         {
-            if (dev->GetStart() >= 0xC000 && dev->GetEnd() <= 0xCFFF)
+            Word devStart = dev->GetStart();
+            Word devEnd   = dev->GetEnd();
+            bool match    = false;
+
+            if ((devCfg.type == "apple2-keyboard" || devCfg.type == "apple2e-keyboard") &&
+                m_keyboard != nullptr && dev.get() == static_cast<MemoryDevice *> (m_keyboard))
             {
-                // Check if this owned device matches the config entry
-                // by comparing pointer identity with tracked device pointers
-                bool match = false;
+                match = true;
+            }
+            else if (devCfg.type == "apple2-speaker" &&
+                     m_speaker != nullptr && dev.get() == static_cast<MemoryDevice *> (m_speaker))
+            {
+                match = true;
+            }
+            else if ((devCfg.type == "apple2-softswitches" || devCfg.type == "apple2e-softswitches") &&
+                     m_softSwitches != nullptr && dev.get() == static_cast<MemoryDevice *> (m_softSwitches))
+            {
+                match = true;
+            }
+            else if (devCfg.type == "aux-ram-card" && devStart == 0xC003 && devEnd == 0xC006)
+            {
+                match = true;
+            }
+            else if (devCfg.type == "language-card" && devStart == 0xC080 && devEnd == 0xC08F)
+            {
+                match = true;
+            }
+            else if (devCfg.type == "disk-ii" && devStart >= 0xC0E0 && devEnd <= 0xC0EF)
+            {
+                match = true;
+            }
 
-                if (m_keyboard != nullptr && dev.get() == static_cast<MemoryDevice *> (m_keyboard) &&
-                    (devCfg.type == "apple2-keyboard" || devCfg.type == "apple2e-keyboard"))
-                {
-                    match = true;
-                }
-                else if (m_speaker != nullptr && dev.get() == static_cast<MemoryDevice *> (m_speaker) &&
-                         devCfg.type == "apple2-speaker")
-                {
-                    match = true;
-                }
-                else if (m_softSwitches != nullptr && dev.get() == static_cast<MemoryDevice *> (m_softSwitches) &&
-                         (devCfg.type == "apple2-softswitches" || devCfg.type == "apple2e-softswitches"))
-                {
-                    match = true;
-                }
-
-                if (match)
-                {
-                    label = format (L"${:04X}-${:04X}  {}",
-                                    dev->GetStart(), dev->GetEnd(), name);
-                    found = true;
-                    break;
-                }
+            if (match)
+            {
+                label = format (L"${:04X}-${:04X}  {}", devStart, devEnd, name);
+                found = true;
+                break;
             }
         }
 
@@ -491,6 +511,12 @@ bool EmulatorShell::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
     {
         pnmm = reinterpret_cast<NMMOUSE *> (lParam);
 
+        if (pnmm->dwItemSpec == 2)
+        {
+            ShowMachinePicker();
+            return false;
+        }
+
         if (pnmm->dwItemSpec == 3)
         {
             ShowDevicePopup();
@@ -522,7 +548,7 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
     // Create memory-mapped regions (RAM and ROM)
     for (const auto & region : config.memoryRegions)
     {
-        if (region.type == "ram")
+        if (region.type == "ram" && region.bank.empty())
         {
             auto device = make_unique<RamDevice> (region.start, region.end);
             m_memoryBus.AddDevice (device.get());
@@ -646,19 +672,23 @@ void EmulatorShell::WireLanguageCard()
     lc->SetRomData (lcRomData);
     m_memoryBus.RemoveDevice (romDevice);
 
-    // Re-add lower ROM ($C100–$CFFF) if original extended below $D000
+    // Re-add slot ROM ($C100-$CFFF) if original extended below $D000.
+    // $C000-$C0FF is I/O space and must not be shadowed by ROM.
     if (romStart < 0xD000)
     {
-        size_t lowerSize = 0xD000 - romStart;
+        Word   slotRomStart = static_cast<Word> (max (static_cast<int> (romStart), 0xC100));
+        size_t dataOffset   = slotRomStart - romStart;
+        size_t lowerSize    = 0xD000 - slotRomStart;
+
         vector<Byte> lowerData (lowerSize);
 
         for (size_t i = 0; i < lowerSize; i++)
         {
-            lowerData[i] = romDevice->Read (static_cast<Word> (romStart + i));
+            lowerData[i] = romDevice->Read (static_cast<Word> (slotRomStart + i));
         }
 
         auto lowerRom = RomDevice::CreateFromData (
-            romStart, static_cast<Word> (0xCFFF),
+            slotRomStart, static_cast<Word> (0xCFFF),
             lowerData.data(), lowerData.size());
 
         m_memoryBus.AddDevice (lowerRom.get());
@@ -797,6 +827,122 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
         m_speaker->SetCycleCounter (m_cpu->GetCycleCounterPtr());
     }
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowMachinePicker
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ShowMachinePicker()
+{
+    wstring currentName = fs::path (m_config.name).wstring();
+    wstring selected    = MachinePickerDialog::Show (m_hwnd, currentName);
+
+
+
+    if (!selected.empty() && selected != currentName)
+    {
+        PostCommand (IDM_FILE_OPEN, fs::path (selected).string());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SwitchMachine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
+{
+    HRESULT             hr             = S_OK;
+    vector<fs::path>    searchPaths;
+    fs::path            configRelPath;
+    fs::path            configPath;
+    ifstream            configFile;
+    bool                configGood     = false;
+    stringstream        ss;
+    string              jsonText;
+    vector<fs::path>    romSearchPaths;
+    string              error;
+    MachineConfig       newConfig;
+
+
+
+    // Find and load the new machine config
+    searchPaths   = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
+                                                     PathResolver::GetWorkingDirectory());
+    configRelPath = fs::path ("Machines") / (fs::path (machineName).string() + ".json");
+    configPath    = PathResolver::FindFile (searchPaths, configRelPath);
+
+    CBRN (!configPath.empty(),
+          format (L"Machine config not found: {}", machineName).c_str());
+
+    configFile.open (configPath);
+    configGood = configFile.good();
+    CBRN (configGood,
+          format (L"Cannot open machine config:\n{}", configPath.wstring()).c_str());
+
+    ss << configFile.rdbuf();
+    jsonText = ss.str();
+
+    romSearchPaths.push_back (configPath.parent_path().parent_path());
+
+    for (const auto & p : searchPaths)
+    {
+        if (p != romSearchPaths[0])
+        {
+            romSearchPaths.push_back (p);
+        }
+    }
+
+    hr = MachineConfigLoader::Load (jsonText, romSearchPaths, newConfig, error);
+    CHRN (hr, format (L"Failed to load machine config:\n{}",
+                      wstring (error.begin(), error.end())).c_str());
+
+    // Tear down current machine
+    m_cpu.reset();
+    m_ownedDevices.clear();
+    m_memoryBus = MemoryBus();
+    m_videoModes.clear();
+    m_activeVideoMode = nullptr;
+    m_keyboard        = nullptr;
+    m_softSwitches    = nullptr;
+    m_speaker         = nullptr;
+
+    // Initialize with new config
+    m_config         = newConfig;
+    m_cyclesPerFrame = newConfig.cyclesPerFrame;
+
+    hr = CreateMemoryDevices (newConfig);
+    CHR (hr);
+
+    WireLanguageCard();
+    CreateVideoModes();
+
+    hr = m_memoryBus.Validate();
+    CHR (hr);
+
+    hr = CreateCpu (newConfig);
+    CHR (hr);
+
+    UpdateStatusBar();
+    UpdateWindowTitle();
+
+    // Save to registry
+    IGNORE_RETURN_VALUE (hr, RegistrySettings::WriteString (kLastMachineValue, machineName));
+
+Error:
     return hr;
 }
 
@@ -987,6 +1133,18 @@ void EmulatorShell::ProcessCommands()
     {
         switch (cmd.id)
         {
+            case IDM_FILE_OPEN:
+            {
+                wstring wideName (cmd.payload.begin(), cmd.payload.end());
+                HRESULT hrSwitch = SwitchMachine (wideName);
+
+                if (FAILED (hrSwitch))
+                {
+                    DEBUGMSG (L"SwitchMachine failed: 0x%08X\n", hrSwitch);
+                }
+                break;
+            }
+
             case IDM_MACHINE_RESET:
             {
                 if (m_cpu)
@@ -999,13 +1157,6 @@ void EmulatorShell::ProcessCommands()
 
             case IDM_MACHINE_POWERCYCLE:
             {
-                // Clear all RAM in the CPU's memory array (cold boot)
-                if (m_cpu)
-                {
-                    Byte * mem = const_cast<Byte *> (m_cpu->GetMemory());
-                    memset (mem, 0, 0xC000);  // Clear - (RAM)
-                }
-
                 m_memoryBus.Reset();
 
                 if (m_cpu)
@@ -1434,7 +1585,7 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
 
 
     m_running.store (false, memory_order_release);
-    m_pauseCV.notify_one ();
+    m_pauseCV.notify_one();
     PostQuitMessage (0);
     
     return false;
@@ -1601,7 +1752,7 @@ void EmulatorShell::OnFileCommand (int id)
     {
         case IDM_FILE_OPEN:
         {
-            // TODO: Implement hot-swap machine config loading.
+            ShowMachinePicker();
             break;
         }
 
@@ -1845,7 +1996,7 @@ void EmulatorShell::OnMachineCommand (int id)
         {
             paused = !m_paused.load (memory_order_acquire);
             m_paused.store (paused, memory_order_release);
-            m_pauseCV.notify_one ();
+            m_pauseCV.notify_one();
             m_menuSystem.SetPaused (paused);
             UpdateWindowTitle();
             break;
@@ -2175,6 +2326,15 @@ void EmulatorShell::SelectVideoMode()
         m_mixedMode    = m_softSwitches->IsMixedMode();
         m_page2        = m_softSwitches->IsPage2();
         m_hiresMode    = m_softSwitches->IsHiresMode();
+    }
+
+    // When 80STORE is active on the //e, $C054/$C055 control aux/main memory
+    // selection — not page 1/page 2. Suppress page2 for video rendering.
+    auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_keyboard);
+
+    if (iieKbd != nullptr && iieKbd->Is80Store())
+    {
+        m_page2 = false;
     }
 
     // Select video mode based on soft switch state

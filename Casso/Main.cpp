@@ -4,8 +4,13 @@
 #include "Core/PathResolver.h"
 #include "Ehm.h"
 #include "EmulatorShell.h"
+#include "MachinePickerDialog.h"
+#include "RegistrySettings.h"
 
 #pragma comment(lib, "ole32.lib")
+
+
+static constexpr LPCWSTR kLastMachineValue = L"LastMachine";
 
 
 
@@ -171,6 +176,11 @@ int WINAPI wWinMain (
     UNREFERENCED_PARAMETER (hPrevInstance);
     UNREFERENCED_PARAMETER (nCmdShow);
 
+#ifdef _DEBUG
+    // Enable frequent heap validation to catch corruption near its source
+    // _CrtSetDbgFlag (_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_ALWAYS_DF);
+#endif
+
     // Register GUI error notification so EHM errors show a MessageBox
     SetNotifyFunction ([] (const wchar_t * message)
     {
@@ -181,15 +191,28 @@ int WINAPI wWinMain (
     hr = ParseCommandLine (lpCmdLine, machineName, disk1Path, disk2Path);
     CHR (hr);
 
-    // Default machine if not specified
+    // Resolve machine name: command line > registry > picker dialog
     if (machineName.empty())
     {
-        machineName = L"apple2plus";
+        RegistrySettings::ReadString (kLastMachineValue, machineName);
+    }
+
+    if (machineName.empty() ||
+        PathResolver::FindFile (
+            PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
+                                            PathResolver::GetWorkingDirectory()),
+            fs::path ("Machines") / (fs::path (machineName).string() + ".json")).empty())
+    {
+        machineName = MachinePickerDialog::Show (nullptr, machineName);
+        CBR (!machineName.empty());
     }
 
     // Load machine configuration
     hr = LoadMachineConfig (machineName, disk1Path, config);
     CHR (hr);
+
+    // Remember last-used machine
+    IGNORE_RETURN_VALUE (hr, RegistrySettings::WriteString (kLastMachineValue, machineName));
 
     // Initialize emulator
     hr = shell.Initialize (hInstance, config,

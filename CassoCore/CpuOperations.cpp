@@ -175,12 +175,21 @@ void CpuOperations::Compare (Cpu & cpu, Byte & registerAffected, Byte operand)
 
 void CpuOperations::Decrement (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress)
 {
-    Byte * pByte = pRegisterAffected ? pRegisterAffected : &cpu.memory[effectiveAddress];
+    Byte value = pRegisterAffected ? *pRegisterAffected : cpu.ReadByte (effectiveAddress);
 
-    (*pByte)--;
+    value--;
 
-    cpu.status.flags.zero     = *pByte == 0;
-    cpu.status.flags.negative = (bool) (*pByte & 0x80);
+    if (pRegisterAffected)
+    {
+        *pRegisterAffected = value;
+    }
+    else
+    {
+        cpu.WriteByte (effectiveAddress, value);
+    }
+
+    cpu.status.flags.zero     = value == 0;
+    cpu.status.flags.negative = (bool) (value & 0x80);
 }
 
 
@@ -195,12 +204,21 @@ void CpuOperations::Decrement (Cpu & cpu, Byte * pRegisterAffected, Word effecti
 
 void CpuOperations::Increment (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress)
 {
-    Byte * pByte = pRegisterAffected ? pRegisterAffected : &cpu.memory[effectiveAddress];
+    Byte value = pRegisterAffected ? *pRegisterAffected : cpu.ReadByte (effectiveAddress);
 
-    (*pByte)++;
+    value++;
 
-    cpu.status.flags.zero = *pByte == 0;
-    cpu.status.flags.negative = (bool) (*pByte & 0x80);
+    if (pRegisterAffected)
+    {
+        *pRegisterAffected = value;
+    }
+    else
+    {
+        cpu.WriteByte (effectiveAddress, value);
+    }
+
+    cpu.status.flags.zero     = value == 0;
+    cpu.status.flags.negative = (bool) (value & 0x80);
 }
 
 
@@ -439,16 +457,24 @@ void CpuOperations::Transfer (Cpu & cpu, Byte * pSourceRegister, Byte * pDestina
 
 void CpuOperations::RotateLeft (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress)
 {
-    Byte * pByte = pRegisterAffected ? pRegisterAffected : &cpu.memory[effectiveAddress];
+    Byte value         = pRegisterAffected ? *pRegisterAffected : cpu.ReadByte (effectiveAddress);
+    Byte originalValue = value;
 
-    Byte originalValue = *pByte;
+    value <<= 1;
+    value  |= cpu.status.flags.carry;
 
-    *pByte <<= 1;
-    *pByte |= cpu.status.flags.carry;
+    if (pRegisterAffected)
+    {
+        *pRegisterAffected = value;
+    }
+    else
+    {
+        cpu.WriteByte (effectiveAddress, value);
+    }
 
     cpu.status.flags.carry    = originalValue >> 7;
-    cpu.status.flags.zero     = *pByte == 0;
-    cpu.status.flags.negative = (bool) (*pByte & 0x80);
+    cpu.status.flags.zero     = value == 0;
+    cpu.status.flags.negative = (bool) (value & 0x80);
 }
 
 
@@ -463,15 +489,24 @@ void CpuOperations::RotateLeft (Cpu & cpu, Byte * pRegisterAffected, Word effect
 
 void CpuOperations::RotateRight (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress)
 {
-    Byte * pByte         = pRegisterAffected ? pRegisterAffected : &cpu.memory[effectiveAddress];
-    Byte   originalValue = *pByte;
+    Byte value         = pRegisterAffected ? *pRegisterAffected : cpu.ReadByte (effectiveAddress);
+    Byte originalValue = value;
 
-    *pByte >>= 1;
-    *pByte  |= cpu.status.flags.carry << 7;
+    value >>= 1;
+    value  |= cpu.status.flags.carry << 7;
+
+    if (pRegisterAffected)
+    {
+        *pRegisterAffected = value;
+    }
+    else
+    {
+        cpu.WriteByte (effectiveAddress, value);
+    }
 
     cpu.status.flags.carry    = originalValue & 1;
-    cpu.status.flags.zero     = *pByte == 0;
-    cpu.status.flags.negative = (bool) (*pByte & 0x80);
+    cpu.status.flags.zero     = value == 0;
+    cpu.status.flags.negative = (bool) (value & 0x80);
 }
 
 

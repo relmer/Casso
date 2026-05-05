@@ -225,6 +225,8 @@
     <ClCompile Include="Window.cpp" />
     <ClCompile Include="EmulatorShell.cpp" />
     <ClCompile Include="DebugConsole.cpp" />
+    <ClCompile Include="RegistrySettings.cpp" />
+    <ClCompile Include="MachinePickerDialog.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />
@@ -233,6 +235,8 @@
     <ClInclude Include="Window.h" />
     <ClInclude Include="EmulatorShell.h" />
     <ClInclude Include="DebugConsole.h" />
+    <ClInclude Include="RegistrySettings.h" />
+    <ClInclude Include="MachinePickerDialog.h" />
     <ClInclude Include="WasapiAudio.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
