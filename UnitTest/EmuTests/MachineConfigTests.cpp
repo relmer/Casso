@@ -262,25 +262,54 @@ public:
 
 private:
 
-    // Mock resolver that always finds the file (returns a fake path with a tiny
-    // backing file so size queries work). For tests, we use the actual ROM
-    // files in the searchPaths.
+    // Mock resolver that creates a temporary file of the expected size for the
+    // requested ROM. This works in CI where actual ROM files are not present.
     static fs::path MockResolveAll (
         const std::vector<fs::path> & searchPaths,
         const fs::path              & relativePath)
     {
-        // Return a deterministic synthetic path. The loader needs a path that
-        // exists on disk to call file_size. Fall back to the actual ROM dir.
-        fs::path actualRoms = fs::path (__FILE__).parent_path ().parent_path ().parent_path () / "ROMs";
-        fs::path candidate  = actualRoms / relativePath.filename ();
+        UNREFERENCED_PARAMETER (searchPaths);
 
-        if (fs::exists (candidate))
+        // Determine expected size from filename
+        std::string filename = relativePath.filename ().string ();
+        size_t      expectedSize = 0;
+
+        if (filename == "apple2plus.rom" || filename == "apple2.rom")
         {
-            return candidate;
+            expectedSize = 12288;
+        }
+        else if (filename == "apple2e.rom" || filename == "apple2e-enhanced.rom")
+        {
+            expectedSize = 16384;
+        }
+        else if (filename == "disk2.rom")
+        {
+            expectedSize = 256;
+        }
+        else if (filename == "apple2-video.rom")
+        {
+            expectedSize = 2048;
+        }
+        else if (filename == "apple2e-enhanced-video.rom")
+        {
+            expectedSize = 4096;
+        }
+        else
+        {
+            expectedSize = 256;  // default
         }
 
-        return searchPaths.empty () ? relativePath
-                                    : searchPaths[0] / relativePath;
+        // Create temp file with the expected size
+        fs::path tempPath = fs::temp_directory_path () / ("casso_test_" + filename);
+
+        if (!fs::exists (tempPath) || fs::file_size (tempPath) != expectedSize)
+        {
+            std::vector<Byte>  buffer (expectedSize, 0);
+            std::ofstream      out (tempPath, std::ios::binary);
+            out.write (reinterpret_cast<const char *> (buffer.data ()), expectedSize);
+        }
+
+        return tempPath;
     }
 
     static fs::path MockResolveNone (
