@@ -206,7 +206,7 @@
     <ClCompile Include="Devices\LanguageCard.cpp" />
     <ClCompile Include="Devices\DiskIIController.cpp" />
     <ClCompile Include="Devices\AppleIIeKeyboard.cpp" />
-    <ClCompile Include="Devices\AuxRamCard.cpp" />
+    <ClCompile Include="Devices\AppleIIeMmu.cpp" />
     <ClCompile Include="Devices\AppleIIeSoftSwitchBank.cpp" />
     <ClCompile Include="Video\AppleTextMode.cpp" />
     <ClCompile Include="Video\CharacterRomData.cpp" />
@@ -245,7 +245,7 @@
     <ClInclude Include="Devices\LanguageCard.h" />
     <ClInclude Include="Devices\DiskIIController.h" />
     <ClInclude Include="Devices\AppleIIeKeyboard.h" />
-    <ClInclude Include="Devices\AuxRamCard.h" />
+    <ClInclude Include="Devices\AppleIIeMmu.h" />
     <ClInclude Include="Devices\AppleIIeSoftSwitchBank.h" />
     <ClInclude Include="Video\VideoOutput.h" />
     <ClInclude Include="Video\AppleTextMode.h" />

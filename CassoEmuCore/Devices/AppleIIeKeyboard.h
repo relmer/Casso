@@ -34,9 +34,9 @@ public:
     // softswitch instead of handling them here.
     void SetSoftSwitchSibling (class AppleIIeSoftSwitchBank * sibling) { m_softSwitchSibling = sibling; }
 
-    // Sibling AuxRamCard that owns RAMRD/RAMWRT state. Used for $C013/$C014
-    // status reads.
-    void SetAuxRamSibling (class AuxRamCard * sibling) { m_auxRamSibling = sibling; }
+    // Sibling MMU that owns RAMRD/RAMWRT/ALTZP/INTCXROM/SLOTC3ROM state.
+    // Used for $C013-$C017 status bit-7 reads.
+    void SetMmu (class AppleIIeMmu * mmu) { m_mmu = mmu; }
 
     // Override key press to allow lowercase
     void KeyPressRaw (Byte asciiChar);
@@ -46,7 +46,7 @@ public:
 private:
     MemoryBus *                    m_bus = nullptr;
     class AppleIIeSoftSwitchBank * m_softSwitchSibling = nullptr;
-    class AuxRamCard *             m_auxRamSibling     = nullptr;
+    class AppleIIeMmu *            m_mmu               = nullptr;
     atomic<bool>                   m_openApple{false};
     atomic<bool>                   m_closedApple{false};
 };

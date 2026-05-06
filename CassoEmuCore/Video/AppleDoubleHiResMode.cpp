@@ -45,7 +45,7 @@ Word AppleDoubleHiResMode::GetActivePageAddress (bool page2) const
 //  Render
 //
 //  Fallback: renders as monochrome hi-res until double hi-res is fully wired
-//  via AuxRamCard. This prevents a black screen.
+//  via AppleIIeMmu. This prevents a black screen.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

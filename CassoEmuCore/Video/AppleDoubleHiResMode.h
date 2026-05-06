@@ -14,7 +14,7 @@
 //
 //  560x192 double hi-res from interleaved main/aux hi-res memory.
 //  NOT YET IMPLEMENTED — renders monochrome hi-res fallback.
-//  Full implementation requires aux memory interleaving via AuxRamCard.
+//  Full implementation requires aux memory interleaving via AppleIIeMmu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2,7 +2,7 @@
 
 #include "AppleIIeKeyboard.h"
 #include "AppleIIeSoftSwitchBank.h"
-#include "AuxRamCard.h"
+#include "AppleIIeMmu.h"
 
 
 
@@ -62,14 +62,23 @@ Byte AppleIIeKeyboard::Read (Word address)
 
         switch (address)
         {
-            case 0xC018: // RD80STORE
-                flag = m_softSwitchSibling != nullptr && m_softSwitchSibling->Is80Store ();
-                break;
             case 0xC013: // RDRAMRD
-                flag = m_auxRamSibling != nullptr && m_auxRamSibling->IsReadAux ();
+                flag = m_mmu != nullptr && m_mmu->GetRamRd ();
                 break;
             case 0xC014: // RDRAMWRT
-                flag = m_auxRamSibling != nullptr && m_auxRamSibling->IsWriteAux ();
+                flag = m_mmu != nullptr && m_mmu->GetRamWrt ();
+                break;
+            case 0xC015: // RDINTCXROM
+                flag = m_mmu != nullptr && m_mmu->GetIntCxRom ();
+                break;
+            case 0xC016: // RDALTZP
+                flag = m_mmu != nullptr && m_mmu->GetAltZp ();
+                break;
+            case 0xC017: // RDSLOTC3ROM
+                flag = m_mmu != nullptr && m_mmu->GetSlotC3Rom ();
+                break;
+            case 0xC018: // RD80STORE
+                flag = m_mmu != nullptr && m_mmu->Get80Store ();
                 break;
             case 0xC01C: // RDPAGE2
                 flag = m_softSwitchSibling != nullptr && m_softSwitchSibling->IsPage2 ();
@@ -89,8 +98,7 @@ Byte AppleIIeKeyboard::Read (Word address)
             case 0xC01B: // RDMIXED
                 flag = m_softSwitchSibling != nullptr && m_softSwitchSibling->IsMixedMode ();
                 break;
-            // Other status bits (BSRBANK2, BSRREADRAM, INTCXROM, ALTZP,
-            // SLOTC3ROM, VBL) not yet tracked - return 0 in bit 7.
+            // BSRBANK2 / BSRREADRAM (LC) is Phase 3; VBL ($C019) is Phase 5.
             default:
                 break;
         }
