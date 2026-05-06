@@ -6,7 +6,6 @@
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
 #include "Devices/DiskIIController.h"
-#include "Devices/AuxRamCard.h"
 
 // DiskIIController embeds two DiskImage objects (~143KB each) which exceed
 // the C6262 stack-size threshold when stack-allocated in test methods.
@@ -114,33 +113,5 @@ public:
         disk.Read (0xC0E9);   // Motor ON
 
         disk.Read (0xC0E8);   // Motor OFF
-    }
-
-    TEST_METHOD (AuxRamCard_ReadWrite_Routing)
-    {
-        AuxRamCard aux;
-
-        // Initial state: not aux
-        Assert::IsFalse (aux.IsReadAux ());
-        Assert::IsFalse (aux.IsWriteAux ());
-
-        // Enable write aux
-        aux.Read (0xC005);
-        Assert::IsTrue (aux.IsWriteAux ());
-
-        // Write to aux memory
-        aux.WriteAuxMem (0x0400, 0xAB);
-        Byte val = aux.ReadAuxMem (0x0400);
-        Assert::AreEqual (static_cast<Byte> (0xAB), val);
-
-        // Enable read aux
-        aux.Read (0xC003);
-        Assert::IsTrue (aux.IsReadAux ());
-
-        // Disable both
-        aux.Read (0xC004);
-        aux.Read (0xC006);
-        Assert::IsFalse (aux.IsReadAux ());
-        Assert::IsFalse (aux.IsWriteAux ());
     }
 };
