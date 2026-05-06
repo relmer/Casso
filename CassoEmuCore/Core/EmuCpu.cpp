@@ -16,6 +16,20 @@ EmuCpu::EmuCpu (MemoryBus & memoryBus)
     : Cpu(),
       m_memoryBus (memoryBus)
 {
+    Byte * pBase = memory.data ();
+    int    page  = 0;
+
+    // Register this CPU's 64 KB memory[] as the default page-table backing
+    // for $0000-$BFFF. The bus's fast-path read/write for RAM pages will
+    // land in memory[], keeping PeekByte/PokeByte/GetMemory() coherent with
+    // bus-routed reads and writes. EmulatorShell may later remap individual
+    // pages (e.g. $0400-$07FF to aux RAM under 80STORE+PAGE2); those calls
+    // override these defaults.
+    for (page = 0x00; page <= 0xBF; page++)
+    {
+        m_memoryBus.SetReadPage  (page, pBase + (page * 0x100));
+        m_memoryBus.SetWritePage (page, pBase + (page * 0x100));
+    }
 }
 
 
