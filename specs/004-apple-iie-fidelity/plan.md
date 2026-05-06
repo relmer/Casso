@@ -3,7 +3,7 @@
 **Branch**: `004-apple-iie-fidelity` | **Date**: 2026-05-05 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification at `specs/004-apple-iie-fidelity/spec.md`
 **Authoritative requirements source**: [`docs/iie-audit.md`](../../docs/iie-audit.md)
-**Constitution**: `.specify/memory/constitution.md` v1.4.0
+**Constitution**: `.specify/memory/constitution.md` Phase 12.4.0
 
 ## Summary
 
@@ -38,10 +38,10 @@ device, no host filesystem outside in-repo `UnitTest/Fixtures/`.
 
 ## Constitution Check
 
-*GATE: re-checked post Phase 1 design (see end of section). v1.4.0 amendments
+*GATE: re-checked post Phase 1 design (see end of section). Phase 12.4.0 amendments
 are explicitly enumerated.*
 
-### Principle I — Code Quality (NON-NEGOTIABLE) — v1.4.0 amendments
+### Principle I — Code Quality (NON-NEGOTIABLE) — Phase 12.4.0 amendments
 
 | Rule | How this plan complies |
 |---|---|
@@ -91,7 +91,7 @@ standard `Build + Test Release` task; failure on it fails CI. See
 
 ### Gates
 
-- **Initial gate (pre Phase 0)**: ✅ PASS. All v1.4.0 rules accounted for; no
+- **Initial gate (pre Phase 0)**: ✅ PASS. All Phase 12.4.0 rules accounted for; no
   exceptions requested.
 - **Post Phase 1 gate**: ✅ PASS (see end of doc).
 
@@ -170,7 +170,7 @@ CassoEmuCore/                              # Apple // platform (existing)
 │   ├── DiskIINibbleEngine.h/.cpp          # NEW: bit-stream engine driving the head
 │   ├── Disk/
 │   │   ├── IDiskImage.h                   # NEW: in-memory nibble track buffer interface
-│   │   ├── WozLoader.h/.cpp               # NEW: WOZ v1/v2 native loader
+│   │   ├── WozLoader.h/.cpp               # NEW: WOZ Phase 12/v2 native loader
 │   │   ├── NibblizationLayer.h/.cpp       # NEW: .dsk/.do/.po → nibble + inverse for save-back
 │   │   ├── DiskImage.h/.cpp               # NEW: concrete IDiskImage holding nibble tracks
 │   │   └── DiskImageStore.h/.cpp          # NEW: load/flush coordinator (auto-flush on eject)
@@ -279,77 +279,77 @@ references this plan.
 > Foundational first; user stories layered. **Each phase commits independently
 > per constitution Commit Discipline.**
 
-### Phase F0 — Setup
+### Phase 0 — Setup
 - Create `UnitTest/Fixtures/` and the `IFixtureProvider` plumbing.
 - Add `Prng` (SplitMix64). Add `MockAudioSink`, `MockIrqAsserter`, `HeadlessHost`.
 - Add `ICpu`, `I6502DebugInfo`, `IInterruptController`, `IHostShell`, `IMmu`, `IDiskImage`,
   `IVideoTiming` headers (declarations only).
 
-### Phase F1 — CPU strategy + IRQ infrastructure (FR-030, FR-031, FR-032)
+### Phase 1 — CPU strategy + IRQ infrastructure (FR-030, FR-031, FR-032)
 - Extract `Cpu6502` from `Cpu` behind `ICpu`. Wire IRQ line + $FFFE dispatch.
 - Implement `InterruptController`. Tests: `InterruptControllerTests`.
 - Gate: existing `CpuOperationTests`, `Dormann`, `Harte` all still green.
 
-### Phase F2 — //e MMU consolidation (FR-001..FR-007, FR-026..FR-029)
+### Phase 2 — //e MMU consolidation (FR-001..FR-007, FR-026..FR-029)
 - Build `AppleIIeMmu`. Move soft-switch ownership from `AuxRamCard` and from
   `AppleIIeSoftSwitchBank`'s incorrect mapping into the MMU. Delete
   `AuxRamCard`. Wire status reads $C013-$C018 + RD80STORE.
 - Implement INTCXROM, SLOTC3ROM, INTC8ROM ROM-mapper rules — unblocks slot 6.
 - Tests: `MmuTests`, expanded `SoftSwitchTests`. ][/][+ tests must stay green.
 
-### Phase F3 — Language Card rewrite (FR-008..FR-012)
+### Phase 3 — Language Card rewrite (FR-008..FR-012)
 - Rewrite pre-write state machine; ALTZP-controlled aux LC bank routing;
   power-on default; reset preservation. Tests: `LanguageCardTests` rewrite.
 
-### Phase F4 — Reset semantics + RAM seeding (FR-034, FR-035)
+### Phase 4 — Reset semantics + RAM seeding (FR-034, FR-035)
 - Split `SoftReset()` / `PowerCycle()` paths. Seed RAM via `Prng` on power.
 - Tests: `ResetSemanticsTests`.
 
-### Phase F5 — Video timing + VBL (FR-033, FR-020)
+### Phase 5 — Video timing + VBL (FR-033, FR-020)
 - Add `VideoTiming` driving `IsInVblank()`. Wire $C019 status read through it.
 - Tests: `VideoTimingTests`.
 
-### Phase F6 — Keyboard completion (FR-013, FR-014)
+### Phase 6 — Keyboard completion (FR-013, FR-014)
 - Extend `AppleIIeKeyboard::GetEnd()` to $C063; ensure $C011-$C01F do NOT
   clear the strobe. Tests: `KeyboardTests` updates.
 
 ### Then layer User Stories:
 
-### US1 (P1) — Cold boot to BASIC prompt + PR#3
-Depends on F0..F6. Adds: integration test scenarios in `EmuIntegrationTests`.
+### Phase 7 (P1) — Cold boot to BASIC prompt + PR#3
+Depends on Phases 0-6. Adds: integration test scenarios in `EmuIntegrationTests`.
 
-### US3 (P1) — //e-specific memory & LC programs
-Depends on F2, F3, F4. Adds: targeted memory + LC scenarios.
+### Phase 8 (P1) — //e-specific memory & LC programs
+Depends on Phase 2, Phase 3, Phase 4. Adds: targeted memory + LC scenarios.
 
-### Phase D1 — Disk II nibble engine (FR-021, FR-022, FR-024)
-Depends on F2 (so slot 6 is reachable). Adds: `DiskIINibbleEngine`,
+### Phase 9 — Disk II nibble engine (FR-021, FR-022, FR-024)
+Depends on Phase 2 (so slot 6 is reachable). Adds: `DiskIINibbleEngine`,
 nibble-level controller rewrite, `WozLoader`. Tests: `DiskIITests` rewrite,
 `WozLoaderTests`.
 
-### Phase D2 — Nibblization layer + auto-flush (FR-023, FR-025)
-Depends on D1. Adds: `NibblizationLayer`, `DiskImageStore`. Tests:
+### Phase 10 — Nibblization layer + auto-flush (FR-023, FR-025)
+Depends on Phase 9. Adds: `NibblizationLayer`, `DiskImageStore`. Tests:
 `NibblizationTests`, `DiskImageStoreTests`.
 
-### US2 (P1) — Disk-based real software incl. CP
-Depends on D1+D2. Adds: DOS 3.3 / ProDOS / WOZ / CP integration scenarios.
+### Phase 11 (P1) — Disk-based real software incl. CP
+Depends on Phase 9+Phase 10. Adds: DOS 3.3 / ProDOS / WOZ / CP integration scenarios.
 
-### Phase V1 — Video correctness (FR-016, FR-017, FR-017a, FR-018, FR-019)
+### Phase 12 — Video correctness (FR-016, FR-017, FR-017a, FR-018, FR-019)
 Adds: 80-col interleave fix, ALTCHARSET, mixed-mode 80-col routing through
 the same composed renderer, NTSC artifact, DHR interleave fix. Tests:
 `VideoModeTests`, `VideoRenderTests` golden-hash assertions.
 
-### US4 (P1) — Headless harness validation suite
-Depends on F0..F6, V1, D1+D2. Adds: complete FR-045 scenario set in
+### Phase 13 (P1) — Headless harness validation suite
+Depends on Phases 0-6, Phase 12, Phase 9+Phase 10. Adds: complete FR-045 scenario set in
 `EmuIntegrationTests`.
 
-### US5 (P1) — Backwards compat
-Continuous gate from F0 onward. Adds: explicit `BackwardsCompatTests`
+### Phase 14 (P1) — Backwards compat
+Continuous gate from Phase 0 onward. Adds: explicit `BackwardsCompatTests`
 re-asserting pre-feature ][/][+ behaviors so regressions are caught precisely.
 
-### US6 (P2) — Performance
+### Phase 15 (P2) — Performance
 Adds: `PerformanceTests` budget assertion (FR-042 / SC-007).
 
-### Phase P1 — Polish
+### Phase 16 — Polish
 - Header-comment audit (constitution §I 1.4.0).
 - Macro-argument grep audit on changed lines.
 - Function-spacing grep audit on changed lines.
@@ -385,7 +385,7 @@ Fixtures are committed as binary blobs in-repo. They are read **only** through
 
 ## Constitution Re-Check (post Phase 1) — ✅ PASS
 
-Re-verified against the v1.4.0 amendments after data-model and contracts were
+Re-verified against the Phase 12.4.0 amendments after data-model and contracts were
 written. No new violations introduced. No entries required in Complexity
 Tracking. The architecture preserves Principle V (Simplicity) by removing one
 device (`AuxRamCard`) for every two added (`AppleIIeMmu`, `InterruptController`)

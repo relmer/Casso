@@ -1,9 +1,9 @@
-# Speaker Coverage Audit (Phase F0 / T015a)
+# Speaker Coverage Audit (Phase 0 / T015a)
 
 **Spec**: 004-apple-iie-fidelity / FR-015 / audit §5
 **Source under audit**: `CassoEmuCore/Devices/AppleSpeaker.h` + `.cpp`
 **Test surface under audit**: `UnitTest/EmuTests/SpeakerTests.cpp`
-**Audit date**: F0 implementation
+**Audit date**: Phase 0 implementation
 
 ## Pre-existing speaker tests (before T015a)
 
@@ -25,8 +25,8 @@
 | A | `$C030` toggle on **read**                                                      | (1), (2), (6), (7)    | covered       |
 | B | `$C030` toggle on **write** (e.g. `STA $C030`)                                  | none                  | **gap → closed in T015a** |
 | C | `$C030-$C03F` 16-byte mirror — every address in range toggles identically       | none                  | **gap → closed in T015a** |
-| D | Headless `MockAudioSink::ToggleCount` correctly reflects CPU writes             | none                  | gap → deferred to F6 (audio path) — see note 1 |
-| E | Soft-vs-power-cycle behavior: toggle-counter zeroed by power cycle but speaker state preserved across soft reset | none | gap → deferred to F4 (reset semantics split) — see note 2 |
+| D | Headless `MockAudioSink::ToggleCount` correctly reflects CPU writes             | none                  | gap → deferred to Phase 6 (audio path) — see note 1 |
+| E | Soft-vs-power-cycle behavior: toggle-counter zeroed by power cycle but speaker state preserved across soft reset | none | gap → deferred to Phase 4 (reset semantics split) — see note 2 |
 | F | Cycle counter timestamp accuracy                                                | (6), (7), (8)         | covered       |
 | G | Power-on silent state                                                           | (4)                   | covered       |
 | H | `Reset()` clears state and timestamps                                           | (5)                   | covered       |
@@ -42,21 +42,21 @@
 
 ### Gaps deferred (with rationale)
 
-1. **D — `MockAudioSink::ToggleCount` reflects CPU writes**: in F0 the
+1. **D — `MockAudioSink::ToggleCount` reflects CPU writes**: in Phase 0 the
    `AppleSpeaker` is *not* wired through the new `IAudioSink` path; the
    audio renderer still walks the timestamp ring directly. Closing this
    gap requires routing speaker activity through the host shell's audio
-   sink, which is a Phase F6 (audio-path consolidation) concern, not an
-   F0 concern. T015a includes a comment in `MockAudioSink.h` noting that
-   F0 ships only the toggle-count *API*; the wiring lands in F6.
+   sink, which is a Phase 6 (audio-path consolidation) concern, not an
+   Phase 0 concern. T015a includes a comment in `MockAudioSink.h` noting that
+   Phase 0 ships only the toggle-count *API*; the wiring lands in Phase 6.
 
-2. **E — soft-vs-power-cycle behavior**: F0 only models `Reset()` as a
-   single power-on path. Phase F4 splits `Reset` into `SoftReset` and
-   `PowerCycle`. Once that split exists, T0xx in F4 will add
+2. **E — soft-vs-power-cycle behavior**: Phase 0 only models `Reset()` as a
+   single power-on path. Phase 4 splits `Reset` into `SoftReset` and
+   `PowerCycle`. Once that split exists, T0xx in Phase 4 will add
    `SpeakerTests::SoftResetPreservesState` and
    `SpeakerTests::PowerCycleZerosToggleCounter`. Adding them now would
    require modifying the speaker production class (gating two reset
-   paths), which violates the F0 constitution rule "no production
+   paths), which violates the Phase 0 constitution rule "no production
    behavior changes yet".
 
 ## Tests added in T015a
@@ -72,5 +72,5 @@
 - All 8 pre-existing tests still pass.
 - The 3 new T015a tests pass.
 - Items D and E are documented in this audit; their tests will be added
-  in F6 and F4 respectively. The test names are pre-committed above so
+  in Phase 6 and Phase 4 respectively. The test names are pre-committed above so
   later phase tasks reference them.

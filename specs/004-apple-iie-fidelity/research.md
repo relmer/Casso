@@ -125,7 +125,7 @@ Rationale / Alternatives considered**.
   one bit per CPU half-cycle into a per-track nibble bit-stream. Per-slot
   soft switches at $C0E0-$C0EF (slot 6) drive motor on/off, drive 1/2 select,
   Q6/Q7 read/write mode, and head step phases. WOZ images load natively
-  (v1 and v2). `.dsk`/`.do`/`.po` images pass through `NibblizationLayer`
+  (Phase 12 and v2). `.dsk`/`.do`/`.po` images pass through `NibblizationLayer`
   on load (and the inverse on save-back). `DiskImageStore` auto-flushes
   modified images on eject, machine switch, and exit.
 - **Rationale**: Closes the entire disk-correctness category in one
@@ -215,7 +215,7 @@ Rationale / Alternatives considered**.
   behavior for `Cpu6502`. A new `BackwardsCompatTests.cpp` re-asserts
   the pre-feature scenarios so any regression surfaces with a precise
   diagnostic.
-- **Rationale**: FR-039, FR-040, US5.
+- **Rationale**: FR-039, FR-040, Phase 14.
 
 ## 18. Out-of-scope architectural seams (kept open, not implemented)
 

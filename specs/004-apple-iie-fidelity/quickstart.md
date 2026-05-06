@@ -41,7 +41,7 @@ not open an audio device, and will not access any host file outside
 .\scripts\RunHarteTests.ps1 -SkipGenerate
 ```
 
-Required when CPU strategy refactor (Phase F1) or any opcode-touching change
+Required when CPU strategy refactor (Phase 1) or any opcode-touching change
 is committed.
 
 ## Authoring a new headless test
