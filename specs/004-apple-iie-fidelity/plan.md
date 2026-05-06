@@ -251,11 +251,8 @@ See [`research.md`](./research.md). Summary of decisions:
    precedent, matches AppleWin's most-common case). Documented in research.
 4. **Disk II**: full nibble-level rewrite folded with WOZ + .dsk/.do/.po +
    auto-flush. Closes issue #61. No sector-level shortcut path retained.
-5. **CPU strategy**: define `ICpu`, move existing `Cpu` into `Cpu6502`
-   implementing it. `EmuCpu` owns `unique_ptr<ICpu>`. Zero behavior change
-   for ][/][+; sets up 65C02 swap.
-6. **IRQ infra**: `InterruptController` aggregates assertions; `ICpu` exposes
-   `AssertIrq() / ClearIrq()`. Vector dispatch via $FFFE in `Cpu6502`.
+5. **CPU strategy**: define `ICpu` as a CPU-family-agnostic interface and `I6502DebugInfo` as the 6502-family debug interface; move existing `Cpu` into `Cpu6502` implementing both. `EmuCpu` owns `unique_ptr<ICpu>`. Zero behavior change for ][/][+; sets up 65C02 swap (and trivially other CPU families).
+6. **IRQ infra**: `InterruptController` aggregates assertions; `ICpu` exposes `SetInterruptLine(CpuInterruptKind, bool)` for both `kMaskable` (level-sensitive) and `kNonMaskable` (edge-detected). Vectored dispatch via `$FFFE` (IRQ) and `$FFFA` (NMI) in `Cpu6502`.
 7. **Reset semantics**: separate `SoftReset()` and `PowerCycle()` paths in
    the machine. Memory init via seeded `Prng`.
 8. **Headless harness**: `IHostShell` interface; `HeadlessHost` test impl;
