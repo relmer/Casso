@@ -1,0 +1,101 @@
+#include "Pch.h"
+
+#include "Prng.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SplitMix64 mixing constants (Sebastiano Vigna)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    constexpr uint64_t   kStateAdvance = 0x9E3779B97F4A7C15ULL;
+    constexpr uint64_t   kMixConstA    = 0xBF58476D1CE4E5B9ULL;
+    constexpr uint64_t   kMixConstB    = 0x94D049BB133111EBULL;
+    constexpr int        kShiftA       = 30;
+    constexpr int        kShiftB       = 27;
+    constexpr int        kShiftC       = 31;
+    constexpr int        kByteShift    = 56;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Prng::Prng
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Prng::Prng (uint64_t seed)
+    : m_state (seed)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Prng::Next64
+//
+//  Canonical SplitMix64 step. Pure — only mutates m_state.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t Prng::Next64 ()
+{
+    uint64_t    z;
+
+    m_state += kStateAdvance;
+    z        = m_state;
+    z        = (z ^ (z >> kShiftA)) * kMixConstA;
+    z        = (z ^ (z >> kShiftB)) * kMixConstB;
+    z        =  z ^ (z >> kShiftC);
+
+    return z;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Prng::NextByte
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint8_t Prng::NextByte ()
+{
+    uint64_t    word = Next64 ();
+
+    return static_cast<uint8_t> (word >> kByteShift);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Prng::Fill
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Prng::Fill (uint8_t * dst, size_t count)
+{
+    size_t      i;
+
+    for (i = 0; i < count; i++)
+    {
+        dst[i] = NextByte ();
+    }
+}
