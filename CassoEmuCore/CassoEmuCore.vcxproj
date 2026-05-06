@@ -194,6 +194,7 @@
     <ClCompile Include="Core\PathResolver.cpp" />
     <ClCompile Include="Core\MemoryBus.cpp" />
     <ClCompile Include="Core\EmuCpu.cpp" />
+    <ClCompile Include="Core\MemoryBusCpu.cpp" />
     <ClCompile Include="Core\InterruptController.cpp" />
     <ClCompile Include="Core\ComponentRegistry.cpp" />
     <ClCompile Include="Core\Prng.cpp" />
@@ -223,6 +224,7 @@
     <ClInclude Include="Core\JsonValue.h" />
     <ClInclude Include="Core\MemoryBus.h" />
     <ClInclude Include="Core\EmuCpu.h" />
+    <ClInclude Include="Core\MemoryBusCpu.h" />
     <ClInclude Include="Core\MachineConfig.h" />
     <ClInclude Include="Core\PathResolver.h" />
     <ClInclude Include="Core\Prng.h" />

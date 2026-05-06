@@ -5,6 +5,7 @@
 #include "Core/MemoryBus.h"
 #include "Core/EmuCpu.h"
 #include "Core/MachineConfig.h"
+#include "Core/InterruptController.h"
 #include "Core/ComponentRegistry.h"
 #include "D3DRenderer.h"
 #include "MenuSystem.h"
@@ -125,6 +126,7 @@ private:
 
     MemoryBus           m_memoryBus;
     ComponentRegistry   m_registry;
+    InterruptController m_interruptController;
     unique_ptr<EmuCpu> m_cpu;
 
     D3DRenderer         m_d3dRenderer;

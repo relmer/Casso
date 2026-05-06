@@ -35,6 +35,12 @@ public:
     void                          SetInterruptLine (CpuInterruptKind kind, bool asserted) override;
     uint64_t                      GetCycleCount    () const override { return m_totalCycles; }
 
+    // Cycle-counter mutators used by host wiring (e.g. EmuCpu, speaker
+    // sample timing). The accumulator is shared with ICpu::GetCycleCount.
+    void                          AddCycles          (Byte n) { m_totalCycles += n; }
+    void                          ResetCycles        ()       { m_totalCycles = 0; }
+    uint64_t *                    GetCycleCounterPtr ()       { return &m_totalCycles; }
+
     // I6502DebugInfo
     Cpu6502Registers              GetRegisters     () const override;
     void                          SetRegisters     (const Cpu6502Registers & regs) override;

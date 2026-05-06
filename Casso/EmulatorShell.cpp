@@ -1061,6 +1061,13 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
 
     m_cpu = make_unique<EmuCpu> (m_memoryBus);
 
+    // Wire the InterruptController to the CPU. Phase 1 wiring registers
+    // zero asserters today — the //e card slots (1/3/4/5/6) will allocate
+    // tokens here in later phases as their devices are added. The
+    // controller exists now so Apple ][ / ][+ / //e all share the same
+    // IRQ aggregation seam.
+    m_interruptController.SetCpu (m_cpu->GetCpu ());
+
     // The base Cpu class uses an internal memory[] array. Copy system ROM
     // and slot ROMs into that array so PeekByte/disassembly can see them.
     {
