@@ -12,7 +12,7 @@
 #include "Devices/AppleSpeaker.h"
 #include "Devices/DiskIIController.h"
 #include "Devices/LanguageCard.h"
-#include "Devices/AuxRamCard.h"
+#include "Devices/AppleIIeMmu.h"
 #include "MachinePickerDialog.h"
 #include "RegistrySettings.h"
 #include "Core/MachineConfig.h"
@@ -593,7 +593,9 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
         m_charRom.LoadEmbeddedFallback ();
     }
 
-    // RAM regions (skip aux-bank entries; AuxRamCard handles aux memory)
+    // RAM regions. Skip aux-bank entries: the AppleIIeMmu owns the
+    // auxiliary 64 KiB internally. Track the main RAM RamDevice for
+    // MMU page-table wiring.
     for (const auto & region : config.ram)
     {
         if (!region.bank.empty ())
@@ -605,6 +607,12 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
         Word end   = static_cast<Word> (region.address + region.size - 1);
 
         auto device = make_unique<RamDevice> (start, end);
+
+        if (m_mainRamDev == nullptr)
+        {
+            m_mainRamDev = device.get ();
+        }
+
         m_memoryBus.AddDevice (device.get ());
         m_ownedDevices.push_back (move (device));
     }
@@ -636,6 +644,16 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
     {
         DeviceConfig devCfg;
         devCfg.type = idev.type;
+
+        // The //e MMU is a coordinator object, not a bus device — it owns
+        // the auxiliary 64 KiB and rebinds the page table on every
+        // banking-changed event. Instantiate it directly here; full wiring
+        // (siblings, Initialize) happens after the device pass.
+        if (devCfg.type == "apple2e-mmu")
+        {
+            m_mmu = make_unique<AppleIIeMmu> ();
+            continue;
+        }
 
         auto device = m_registry.Create (devCfg.type, devCfg, m_memoryBus);
 
@@ -676,17 +694,34 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
             iieKbd->SetSoftSwitchSibling (iieSw);
         }
 
-        if (iieKbd != nullptr)
+        if (iieKbd != nullptr && m_mmu != nullptr)
         {
-            for (auto & dev : m_ownedDevices)
-            {
-                AuxRamCard * aux = dynamic_cast<AuxRamCard *> (dev.get ());
-                if (aux != nullptr)
-                {
-                    iieKbd->SetAuxRamSibling (aux);
-                    break;
-                }
-            }
+            iieKbd->SetMmu (m_mmu.get ());
+        }
+
+        if (iieSw != nullptr && m_mmu != nullptr)
+        {
+            iieSw->SetMmu (m_mmu.get ());
+        }
+    }
+
+    // Initialize the //e MMU once main RAM exists. The MMU rebinds the
+    // page table for $0000-$BFFF based on RAMRD/RAMWRT/ALTZP/80STORE.
+    if (m_mmu != nullptr && m_mainRamDev != nullptr)
+    {
+        auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
+
+        HRESULT hrMmu = m_mmu->Initialize (
+            &m_memoryBus,
+            m_mainRamDev,
+            nullptr,
+            nullptr,
+            nullptr,
+            iieSw);
+
+        if (FAILED (hrMmu))
+        {
+            DEBUGMSG (L"AppleIIeMmu::Initialize failed (hr=0x%08x)\n", hrMmu);
         }
     }
 
@@ -878,16 +913,32 @@ void EmulatorShell::WirePageTable()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetAuxRamBuffer
+//
+//  Returns the //e auxiliary 64 KiB buffer (owned by AppleIIeMmu) or
+//  nullptr when no MMU is wired (Apple ][ / ][+).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte * EmulatorShell::GetAuxRamBuffer ()
+{
+    return m_mmu != nullptr ? m_mmu->GetAuxBuffer () : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RebuildBankingPages
 //
-//  Updates the page table mappings for $0400-$07FF (text page 1) and
-//  $2000-$3FFF (hi-res page 1) based on current 80STORE/PAGE2/HIRES state.
-//
-//  When 80STORE is ON:
-//    - PAGE2 ($C055) routes text page 1 RAM to AUX
-//    - PAGE2 + HIRES routes hi-res page 1 RAM to AUX
-//    - PAGE1 ($C054) routes both back to MAIN
-//  When 80STORE is OFF: pages always point to MAIN.
+//  When the //e MMU is present, it owns all $0000-$BFFF page-table
+//  routing (RAMRD/RAMWRT/ALTZP/80STORE+PAGE2/HIRES) and is invoked
+//  directly by the soft-switch bank on every banking-changed event.
+//  This shim only handles the legacy fallback where no MMU exists
+//  (][/][+) — those machines never set 80STORE so all pages stay
+//  bound to main RAM.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -898,61 +949,22 @@ void EmulatorShell::RebuildBankingPages()
         return;
     }
 
-    auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
-
-    if (iieSw == nullptr || !iieSw->Is80Store ())
+    if (m_mmu != nullptr)
     {
-        // Non-IIe or 80STORE off: always use main RAM
-        Byte * mainRam = const_cast<Byte *> (m_cpu->GetMemory());
-
-        for (int page = 0x04; page <= 0x07; page++)
-        {
-            Byte * p = mainRam + (page * 0x100);
-            m_memoryBus.SetReadPage  (page, p);
-            m_memoryBus.SetWritePage (page, p);
-        }
-        for (int page = 0x20; page <= 0x3F; page++)
-        {
-            Byte * p = mainRam + (page * 0x100);
-            m_memoryBus.SetReadPage  (page, p);
-            m_memoryBus.SetWritePage (page, p);
-        }
         return;
     }
 
-    // 80STORE is ON. PAGE2 selects aux for the display memory regions.
-    bool page2 = m_softSwitches != nullptr && m_softSwitches->IsPage2 ();
-    bool hires = m_softSwitches != nullptr && m_softSwitches->IsHiresMode ();
-
     Byte * mainRam = const_cast<Byte *> (m_cpu->GetMemory());
-    Byte * auxRam  = nullptr;
-
-    // Find AuxRamCard for aux buffer
-    for (auto & dev : m_ownedDevices)
-    {
-        AuxRamCard * aux = dynamic_cast<AuxRamCard *> (dev.get ());
-        if (aux != nullptr)
-        {
-            auxRam = aux->GetAuxBuffer ();
-            break;
-        }
-    }
-
-    Byte * textBank = (page2 && auxRam != nullptr) ? auxRam : mainRam;
 
     for (int page = 0x04; page <= 0x07; page++)
     {
-        Byte * p = textBank + (page * 0x100);
+        Byte * p = mainRam + (page * 0x100);
         m_memoryBus.SetReadPage  (page, p);
         m_memoryBus.SetWritePage (page, p);
     }
-
-    // Hi-res region: only banked when HIRES soft switch is also active
-    Byte * hiresBank = (page2 && hires && auxRam != nullptr) ? auxRam : mainRam;
-
     for (int page = 0x20; page <= 0x3F; page++)
     {
-        Byte * p = hiresBank + (page * 0x100);
+        Byte * p = mainRam + (page * 0x100);
         m_memoryBus.SetReadPage  (page, p);
         m_memoryBus.SetWritePage (page, p);
     }
@@ -1023,18 +1035,15 @@ void EmulatorShell::CreateVideoModes()
     auto doubleHiResMode = make_unique<AppleDoubleHiResMode> (m_memoryBus);
     m_videoModes.push_back (move (doubleHiResMode));
 
-    // Index 4: 80-column text (used on //e). Wired with aux memory after
-    // AuxRamCard exists.
+    // Index 4: 80-column text (used on //e). Wired with aux memory from
+    // the AppleIIeMmu when present.
     auto text80 = make_unique<Apple80ColTextMode> (m_memoryBus, m_charRom);
 
-    for (auto & dev : m_ownedDevices)
+    Byte * auxBuf = GetAuxRamBuffer ();
+
+    if (auxBuf != nullptr)
     {
-        AuxRamCard * aux = dynamic_cast<AuxRamCard *> (dev.get ());
-        if (aux != nullptr)
-        {
-            text80->SetAuxMemory (aux->GetAuxBuffer ());
-            break;
-        }
+        text80->SetAuxMemory (auxBuf);
     }
 
     m_videoModes.push_back (move (text80));

@@ -103,6 +103,8 @@ private:
     void    CreateVideoModes       ();
     HRESULT CreateCpu              (const MachineConfig & config);
 
+    Byte * GetAuxRamBuffer ();
+
     // Machine switching
     void    ShowMachinePicker      ();
     HRESULT SwitchMachine          (const wstring & machineName);
@@ -154,6 +156,9 @@ private:
     class AppleKeyboard *         m_keyboard     = nullptr;
     class AppleSoftSwitchBank *   m_softSwitches = nullptr;
     class AppleSpeaker *          m_speaker      = nullptr;
+    class RamDevice *             m_mainRamDev   = nullptr;
+
+    unique_ptr<class AppleIIeMmu> m_mmu;
 
     // Emulation state
     MachineConfig   m_config;
