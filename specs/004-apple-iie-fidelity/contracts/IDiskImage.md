@@ -1,6 +1,6 @@
 # Contract: IDiskImage
 
-Abstract in-memory nibble track buffer.
+Abstract in-memory bit-stream track buffer.
 
 ## Header
 
