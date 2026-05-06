@@ -283,12 +283,39 @@
     <ClCompile Include="EmuTests\AudioTests.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="EmuTests\PrngTests.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="EmuTests\MockAudioSink.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="EmuTests\MockIrqAsserter.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="EmuTests\MockHostShell.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="EmuTests\FixtureProvider.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="EmuTests\HeadlessHost.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="EmuTests\HeadlessHostTests.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />
     <ClInclude Include="TestHelpers.h" />
     <ClInclude Include="EhmTestHelper.h" />
     <ClInclude Include="HarteTestRunner.h" />
+    <ClInclude Include="EmuTests\IFixtureProvider.h" />
+    <ClInclude Include="EmuTests\FixtureProvider.h" />
+    <ClInclude Include="EmuTests\MockAudioSink.h" />
+    <ClInclude Include="EmuTests\MockIrqAsserter.h" />
+    <ClInclude Include="EmuTests\MockHostShell.h" />
+    <ClInclude Include="EmuTests\HeadlessHost.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CassoCore\CassoCore.vcxproj">
