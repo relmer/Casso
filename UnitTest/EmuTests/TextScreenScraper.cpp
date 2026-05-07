@@ -84,7 +84,7 @@ char TextScreenScraper::Glyph (Byte screenByte)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::string> TextScreenScraper::Scrape40 (const Byte * mainRam, Word pageBase)
+std::vector<std::string> TextScreenScraper::Scrape40 (MemoryBus & bus, Word pageBase)
 {
     std::vector<std::string>   rows;
     int                        row;
@@ -101,7 +101,7 @@ std::vector<std::string> TextScreenScraper::Scrape40 (const Byte * mainRam, Word
 
         for (col = 0; col < kCols40; col++)
         {
-            line[col] = Glyph (mainRam[base + col]);
+            line[col] = Glyph (bus.ReadByte (static_cast<Word> (base + col)));
         }
 
         rows.push_back (std::move (line));
@@ -127,9 +127,9 @@ std::vector<std::string> TextScreenScraper::Scrape40 (const Byte * mainRam, Word
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::string> TextScreenScraper::Scrape80 (
-    const Byte * mainRam,
-    const Byte * auxRam,
-    Word         pageBase)
+    MemoryBus  &  bus,
+    const Byte *  auxRam,
+    Word          pageBase)
 {
     std::vector<std::string>   rows;
     int                        row;
@@ -146,8 +146,8 @@ std::vector<std::string> TextScreenScraper::Scrape80 (
 
         for (cell = 0; cell < kCols40; cell++)
         {
-            line[cell * 2]     = Glyph (auxRam [base + cell]);
-            line[cell * 2 + 1] = Glyph (mainRam[base + cell]);
+            line[cell * 2]     = Glyph (auxRam[base + cell]);
+            line[cell * 2 + 1] = Glyph (bus.ReadByte (static_cast<Word> (base + cell)));
         }
 
         rows.push_back (std::move (line));
@@ -173,13 +173,11 @@ std::vector<std::string> TextScreenScraper::Scrape80 (
 
 std::vector<std::string> TextScreenScraper::Scrape (const EmulatorCore & core)
 {
-    const Byte *   mainRam;
     const Byte *   auxRam;
     Word           pageBase;
     bool           col80;
     bool           page2;
 
-    mainRam = core.cpu->GetMemory ();
     auxRam  = core.mmu->GetAuxBuffer ();
 
     col80    = core.softSwitches->Is80ColMode ();
@@ -188,8 +186,8 @@ std::vector<std::string> TextScreenScraper::Scrape (const EmulatorCore & core)
 
     if (col80)
     {
-        return Scrape80 (mainRam, auxRam, pageBase);
+        return Scrape80 (*core.bus, auxRam, pageBase);
     }
 
-    return Scrape40 (mainRam, pageBase);
+    return Scrape40 (*core.bus, pageBase);
 }

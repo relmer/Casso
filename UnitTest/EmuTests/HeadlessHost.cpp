@@ -288,6 +288,7 @@ void EmulatorCore::RunCycles (uint64_t cycleBudget)
         for (i = 0; i < kCpuStepBatch; i++)
         {
             cpu->StepOne ();
+            cpu->AddCycles (cpu->GetLastInstructionCycles ());
         }
     }
 }

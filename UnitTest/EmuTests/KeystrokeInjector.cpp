@@ -40,6 +40,7 @@ namespace
             for (i = 0; i < kPumpBatchSize; i++)
             {
                 core.cpu->StepOne ();
+                core.cpu->AddCycles (core.cpu->GetLastInstructionCycles ());
             }
         }
 

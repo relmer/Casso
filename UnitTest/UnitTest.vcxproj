@@ -261,6 +261,9 @@
     <ClCompile Include="EmuTests\EmuIntegrationTests.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="EmuTests\Phase7IntegrationTests.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="EmuTests\LanguageCardTests.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
