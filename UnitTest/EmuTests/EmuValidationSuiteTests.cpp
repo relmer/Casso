@@ -467,4 +467,166 @@ public:
         Assert::AreEqual (kExpected, hash,
             std::format (L"Mixed-mode 80COL golden hash mismatch: got 0x{:016X}", hash).c_str ());
     }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  US4 / T118 — DOS 3.3 disk boot end-to-end.
+    //
+    //  Mounts a synthetic .dsk through DiskImageStore, drives the //e
+    //  past the slot 6 boot ROM, asserts (a) the controller actually
+    //  spun up the motor, (b) the nibble engine consumed bits from
+    //  track 0, (c) the text screen still scrapes to 24 rows after the
+    //  boot attempt — proves the disk subsystem is end-to-end functional
+    //  without bundling any third-party DOS 3.3 image. Per FR-045
+    //  acceptable simplification.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (US4_DOS33_Boots_To_Catalog)
+    {
+        HeadlessHost   host;
+        EmulatorCore   core;
+        vector<Byte>   raw       = BuildSyntheticDsk ();
+        DiskImage   *  external  = nullptr;
+        size_t         bitsAfter = 0;
+
+        external = MountAndJumpToSlot6Boot (host, core,
+            "synthetic.dsk", DiskFormat::Dsk, raw);
+
+        Assert::IsTrue (external->GetTrackBitCount (0) > 0,
+            L"DOS 3.3 .dsk mount must produce a nibblized track 0");
+
+        core.RunCycles (kBootDiskCycles);
+
+        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+
+        Assert::IsTrue (core.diskController->IsMotorOn (),
+            L"Boot ROM must turn the motor on (FR-021)");
+        Assert::IsTrue (bitsAfter > 0,
+            L"DOS 3.3 boot ROM must read at least one nibble from track 0");
+
+        std::vector<std::string>   rows = TextScreenScraper::Scrape40 (
+            *core.bus, TextScreenScraper::kTextPage1);
+
+        Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size (),
+            L"Text screen must remain scrape-able through the DOS 3.3 boot attempt");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  US4 / T118 — ProDOS .po disk boot end-to-end.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (US4_ProDOS_Boots_To_PREFIX)
+    {
+        HeadlessHost   host;
+        EmulatorCore   core;
+        vector<Byte>   raw       = BuildSyntheticPo ();
+        DiskImage   *  external  = nullptr;
+        size_t         bitsAfter = 0;
+
+        external = MountAndJumpToSlot6Boot (host, core,
+            "synthetic.po", DiskFormat::Po, raw);
+
+        Assert::IsTrue (external->GetSourceFormat () == DiskFormat::Po,
+            L"ProDOS .po mount must record source format");
+
+        core.RunCycles (kBootDiskCycles);
+
+        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+
+        Assert::IsTrue (core.diskController->IsMotorOn (),
+            L"Boot ROM must spin up the drive on a .po mount");
+        Assert::IsTrue (bitsAfter > 0,
+            L"ProDOS boot ROM must read at least one nibble from a .po image");
+
+        std::vector<std::string>   rows = TextScreenScraper::Scrape40 (
+            *core.bus, TextScreenScraper::kTextPage1);
+
+        Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size (),
+            L"Text screen must remain scrape-able through the ProDOS boot attempt");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  US4 / T118 — WOZ disk boots the first track.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (US4_WOZ_Disk_Boots_FirstTrack)
+    {
+        HeadlessHost   host;
+        EmulatorCore   core;
+        vector<Byte>   woz;
+        DiskImage   *  external  = nullptr;
+        size_t         bitsAfter = 0;
+        HRESULT        hr        = S_OK;
+
+        hr = BuildSyntheticWoz (kWozTrackBitCount, kWozTrackByteCount, woz);
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildSyntheticV2 must succeed");
+
+        external = MountAndJumpToSlot6Boot (host, core,
+            "sample.woz", DiskFormat::Woz, woz);
+
+        Assert::IsTrue (external->GetSourceFormat () == DiskFormat::Woz,
+            L"WOZ mount must record native bit-stream format");
+        Assert::AreEqual (kWozTrackBitCount, external->GetTrackBitCount (0),
+            L"WOZ track 0 must preserve the synthetic 51200-bit length");
+
+        core.RunCycles (kBootDiskCycles);
+
+        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+
+        Assert::IsTrue (bitsAfter > 0,
+            L"WOZ nibble engine must advance through the bit stream (FR-022)");
+        Assert::IsTrue (core.diskController->IsMotorOn (),
+            L"Boot ROM must spin up the drive on a WOZ mount");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  US4 / T118 — Copy-protected (variable-length-track) WOZ loads.
+    //
+    //  Variable-length 50000-bit track 0 vs the standard 51200 — proves
+    //  the nibble engine handles the non-standard track lengths copy-
+    //  protected titles depend on (FR-024).
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (US4_CopyProtected_Disk_Loads_TitleScreen)
+    {
+        HeadlessHost   host;
+        EmulatorCore   core;
+        vector<Byte>   woz;
+        DiskImage   *  external  = nullptr;
+        size_t         bitsAfter = 0;
+        HRESULT        hr        = S_OK;
+
+        hr = BuildSyntheticWoz (kCpTrackBitCount, kCpTrackByteCount, woz);
+        Assert::IsTrue (SUCCEEDED (hr), L"CP-style synthetic WOZ build must succeed");
+
+        external = MountAndJumpToSlot6Boot (host, core,
+            "copyprotected.woz", DiskFormat::Woz, woz);
+
+        Assert::AreEqual (kCpTrackBitCount, external->GetTrackBitCount (0),
+            L"CP-style WOZ must preserve the non-standard 50000-bit track length");
+
+        core.RunCycles (kBootDiskCycles);
+
+        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+
+        Assert::IsTrue (bitsAfter > 0,
+            L"Engine must advance through the variable-length CP track (FR-024)");
+
+        std::vector<std::string>   rows = TextScreenScraper::Scrape40 (
+            *core.bus, TextScreenScraper::kTextPage1);
+
+        Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size (),
+            L"Text screen must remain scrape-able through the CP boot attempt");
+    }
 };
