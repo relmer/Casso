@@ -128,8 +128,8 @@ public:
     {
         HeadlessHost   host;
         EmulatorCore   core;
-        vector<Byte>   raw       = BuildSyntheticDsk ();
-        DiskImage   *  external  = nullptr;
+        vector<Byte>   raw        = BuildSyntheticDsk ();
+        DiskImage   *  external   = nullptr;
         size_t         bitsBefore = 0;
         size_t         bitsAfter  = 0;
 

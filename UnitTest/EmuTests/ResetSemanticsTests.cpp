@@ -282,8 +282,8 @@ public:
         RamDevice    ram (0x0000, 0xBFFF);
         Prng         prng (kPinnedSeed);
         bool         pageHasNonZero = false;
-        Word         page    = 0;
-        Word         offset  = 0;
+        Word         page           = 0;
+        Word         offset         = 0;
 
         ram.Reset ();
         ram.PowerCycle (prng);

@@ -178,7 +178,7 @@ public:
         // when interpreted as DSK vs PO because the sector mapping differs.
         DiskImage      dskImg;
         DiskImage      poImg;
-        vector<Byte>   raw = MakePinnedRandomImage (0xCA550004u);
+        vector<Byte>   raw    = MakePinnedRandomImage (0xCA550004u);
         bool           differ = false;
 
         Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizeDsk (raw, dskImg)));

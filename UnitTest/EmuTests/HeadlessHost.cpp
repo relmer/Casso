@@ -120,7 +120,7 @@ HRESULT HeadlessHost::BuildAppleIIPlus (EmulatorCore & outCore)
 
 HRESULT HeadlessHost::BuildAppleIIe (EmulatorCore & outCore)
 {
-    HRESULT                hr      = S_OK;
+    HRESULT                hr          = S_OK;
     std::vector<uint8_t>   romBytes;
     Byte                 * mainRamBase = nullptr;
     int                    page;

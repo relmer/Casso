@@ -1688,7 +1688,7 @@ void EmulatorShell::ProcessCommands()
             case IDM_DISK_INSERT1:
             case IDM_DISK_INSERT2:
             {
-                int      drive = (cmd.id == IDM_DISK_INSERT1) ? 0 : 1;
+                int      drive   = (cmd.id == IDM_DISK_INSERT1) ? 0 : 1;
                 HRESULT  hrMount = S_OK;
 
                 hrMount = MountDiskInSlot6 (drive, cmd.payload);
@@ -1965,6 +1965,7 @@ void EmulatorShell::RenderFramebuffer()
     {
         static constexpr int kMixedFirstRow = 20;
         static constexpr int kMixedLastRow  = 24;
+
         auto * iieSwitches = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
         bool   use80Col    = iieSwitches != nullptr && iieSwitches->Is80ColMode ();
 

@@ -219,21 +219,21 @@ Error:
 
 HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
 {
-    HRESULT        hr             = S_OK;
-    bool           isV2           = false;
-    bool           sawInfo        = false;
-    bool           sawTmap        = false;
-    bool           sawTrks        = false;
-    bool           writeProtected = false;
-    size_t         pos            = 0;
-    size_t         chunkPos       = 0;
+    HRESULT        hr                   = S_OK;
+    bool           isV2                 = false;
+    bool           sawInfo              = false;
+    bool           sawTmap              = false;
+    bool           sawTrks              = false;
+    bool           writeProtected       = false;
+    size_t         pos                  = 0;
+    size_t         chunkPos             = 0;
     Byte           tmap[kTmapChunkSize] = {};
-    const Byte *   trksData       = nullptr;
-    size_t         trksSize       = 0;
-    int            qt             = 0;
-    int            destTrack      = 0;
-    Byte           trackIndex     = 0;
-    int            trackI         = 0;
+    const Byte *   trksData             = nullptr;
+    size_t         trksSize             = 0;
+    int            qt                   = 0;
+    int            destTrack            = 0;
+    Byte           trackIndex           = 0;
+    int            trackI               = 0;
 
     if (raw.size () < kHeaderSize)
     {

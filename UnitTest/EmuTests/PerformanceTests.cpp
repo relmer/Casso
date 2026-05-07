@@ -27,11 +27,11 @@ namespace
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    static constexpr uint64_t   kPerfMeasureCycles    = 1'000'000ULL;
-    static constexpr uint64_t   kPerfWarmupCycles     =   100'000ULL;
-    static constexpr uint64_t   kColdBootCycles       = 5'000'000ULL;
-    static constexpr double     kPerformanceCeilingMs = 97.75;
-    static constexpr int        kStabilityRunCount    = 5;
+    static constexpr uint64_t   kPerfMeasureCycles          = 1'000'000ULL;
+    static constexpr uint64_t   kPerfWarmupCycles           =   100'000ULL;
+    static constexpr uint64_t   kColdBootCycles             = 5'000'000ULL;
+    static constexpr double     kPerformanceCeilingMs       = 97.75;
+    static constexpr int        kStabilityRunCount          = 5;
     static constexpr double     kStabilityToleranceFraction = 0.30;
 
 

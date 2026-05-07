@@ -64,7 +64,7 @@ HRESULT Cpu6502::Reset ()
 
 HRESULT Cpu6502::Step (uint32_t & outCycles)
 {
-    HRESULT     hr = S_OK;
+    HRESULT     hr         = S_OK;
     bool        dispatched = false;
 
 

@@ -14,21 +14,21 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace
 {
-    static constexpr Word   kSlot6Base   = 0xC0E0;
-    static constexpr Word   kPhase0Off   = 0xC0E0;
-    static constexpr Word   kPhase0On    = 0xC0E1;
-    static constexpr Word   kPhase1On    = 0xC0E3;
-    static constexpr Word   kPhase2On    = 0xC0E5;
-    static constexpr Word   kPhase3On    = 0xC0E7;
-    static constexpr Word   kMotorOff    = 0xC0E8;
-    static constexpr Word   kMotorOn     = 0xC0E9;
-    static constexpr Word   kDrive1      = 0xC0EA;
-    static constexpr Word   kDrive2      = 0xC0EB;
-    static constexpr Word   kQ6Off       = 0xC0EC;
-    static constexpr Word   kQ6On        = 0xC0ED;
-    static constexpr Word   kQ7Off       = 0xC0EE;
-    static constexpr Word   kQ7On        = 0xC0EF;
-    static constexpr int    kBitsPerNibble = 8;
+    static constexpr Word   kSlot6Base           = 0xC0E0;
+    static constexpr Word   kPhase0Off           = 0xC0E0;
+    static constexpr Word   kPhase0On            = 0xC0E1;
+    static constexpr Word   kPhase1On            = 0xC0E3;
+    static constexpr Word   kPhase2On            = 0xC0E5;
+    static constexpr Word   kPhase3On            = 0xC0E7;
+    static constexpr Word   kMotorOff            = 0xC0E8;
+    static constexpr Word   kMotorOn             = 0xC0E9;
+    static constexpr Word   kDrive1              = 0xC0EA;
+    static constexpr Word   kDrive2              = 0xC0EB;
+    static constexpr Word   kQ6Off               = 0xC0EC;
+    static constexpr Word   kQ6On                = 0xC0ED;
+    static constexpr Word   kQ7Off               = 0xC0EE;
+    static constexpr Word   kQ7On                = 0xC0EF;
+    static constexpr int    kBitsPerNibble       = 8;
     static constexpr size_t kSyntheticTrackBytes = 64;
 }
 
@@ -156,7 +156,7 @@ public:
 
     TEST_METHOD (Q7SetQ6SetWritesNibble)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<DiskIIController>   disk      = make_unique<DiskIIController> (6);
         size_t                         bitOffset = 0;
 
         // Provide a writable track so the engine has somewhere to push bits.
@@ -233,11 +233,11 @@ public:
 
     TEST_METHOD (LSS_ReadsKnownNibblePattern)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
-        DiskImage *                    img  = disk->GetDisk (0);
-        size_t                         off  = 0;
+        unique_ptr<DiskIIController>   disk  = make_unique<DiskIIController> (6);
+        DiskImage *                    img   = disk->GetDisk (0);
+        size_t                         off   = 0;
         Byte                           value = 0;
-        int                            i    = 0;
+        int                            i     = 0;
 
         img->ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
 

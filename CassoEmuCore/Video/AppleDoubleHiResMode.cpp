@@ -129,15 +129,15 @@ void AppleDoubleHiResMode::Render (
     static constexpr int kBytesPerScanline     = 40;
     static constexpr int kBitsPerByte          = 7;
 
-    Word     pageBase            = GetActivePageAddress (m_page2);
+    Word     pageBase                    = GetActivePageAddress (m_page2);
     bool     dots[kDhrPixelsPerScanline] = {};
-    Byte     auxByte              = 0;
-    Byte     mainByte             = 0;
-    int      x                    = 0;
-    int      paletteIdx           = 0;
-    uint32_t color                = 0;
-    int      fbX                  = 0;
-    int      fbY                  = 0;
+    Byte     auxByte                     = 0;
+    Byte     mainByte                    = 0;
+    int      x                           = 0;
+    int      paletteIdx                  = 0;
+    uint32_t color                       = 0;
+    int      fbX                         = 0;
+    int      fbY                         = 0;
 
 
 

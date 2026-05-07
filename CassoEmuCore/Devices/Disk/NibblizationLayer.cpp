@@ -194,9 +194,9 @@ static void AppendDataField (
     const Byte     *  sectorData)
 {
     Byte    encoded[kEncodedDataSize] = {};
-    Byte    prev = 0;
-    Byte    enc  = 0;
-    int     i    = 0;
+    Byte    prev                      = 0;
+    Byte    enc                       = 0;
+    int     i                         = 0;
 
     for (i = 0; i < kDataPrologueGap; i++)
     {
@@ -446,26 +446,26 @@ static HRESULT DecodeOneSector (
     Byte              &  outSector,
     Byte              *  outData)
 {
-    HRESULT   hr = S_OK;
-    Byte      n0 = 0;
-    Byte      n1 = 0;
-    Byte      n2 = 0;
-    Byte      vOdd = 0;
-    Byte      vEven = 0;
-    Byte      tOdd = 0;
-    Byte      tEven = 0;
-    Byte      sOdd = 0;
-    Byte      sEven = 0;
-    Byte      cOdd = 0;
-    Byte      cEven = 0;
-    Byte      foundProlog = 0;
+    HRESULT   hr                        = S_OK;
+    Byte      n0                        = 0;
+    Byte      n1                        = 0;
+    Byte      n2                        = 0;
+    Byte      vOdd                      = 0;
+    Byte      vEven                     = 0;
+    Byte      tOdd                      = 0;
+    Byte      tEven                     = 0;
+    Byte      sOdd                      = 0;
+    Byte      sEven                     = 0;
+    Byte      cOdd                      = 0;
+    Byte      cEven                     = 0;
+    Byte      foundProlog               = 0;
     Byte      encoded[kEncodedDataSize] = {};
-    Byte      prev = 0;
-    Byte      raw  = 0;
-    int       i    = 0;
-    size_t    trackBits = img.GetTrackBitCount (track);
-    size_t    startBitPos = bitPos;
-    size_t    bitsConsumed = 0;
+    Byte      prev                      = 0;
+    Byte      raw                       = 0;
+    int       i                         = 0;
+    size_t    trackBits                 = img.GetTrackBitCount (track);
+    size_t    startBitPos               = bitPos;
+    size_t    bitsConsumed              = 0;
 
     if (trackBits == 0)
     {
@@ -552,10 +552,10 @@ static HRESULT DecodeOneSector (
 
     for (i = 0; i < NibblizationLayer::kSectorByteSize; i++)
     {
-        Byte    high = static_cast<Byte> (encoded[kThirdGroupSize + i] << 2);
-        Byte    bit0 = 0;
-        Byte    bit1 = 0;
-        int     idx  = 0;
+        Byte    high  = static_cast<Byte> (encoded[kThirdGroupSize + i] << 2);
+        Byte    bit0  = 0;
+        Byte    bit1  = 0;
+        int     idx   = 0;
         int     shift = 0;
 
         if (i < kThirdGroupSize)
@@ -600,14 +600,14 @@ Error:
 
 HRESULT NibblizationLayer::Denibblize (const DiskImage & img, DiskFormat fmt, vector<Byte> & out)
 {
-    HRESULT       hr         = S_OK;
-    const int *   interleave = nullptr;
-    int           track      = 0;
-    int           sec        = 0;
-    Byte          outSector  = 0;
+    HRESULT       hr                    = S_OK;
+    const int *   interleave            = nullptr;
+    int           track                 = 0;
+    int           sec                   = 0;
+    Byte          outSector             = 0;
     Byte          data[kSectorByteSize] = {};
-    size_t        bitPos     = 0;
-    size_t        offset     = 0;
+    size_t        bitPos                = 0;
+    size_t        offset                = 0;
 
     out.assign (kImageByteSize, 0);
 

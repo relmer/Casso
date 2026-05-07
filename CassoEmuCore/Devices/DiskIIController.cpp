@@ -21,7 +21,7 @@
 
 static int FindHighestPhase (uint8_t phases)
 {
-    int   i = 0;
+    int   i      = 0;
     int   result = -1;
 
     for (i = 0; i < DiskIIController::kPhaseCount; i++)

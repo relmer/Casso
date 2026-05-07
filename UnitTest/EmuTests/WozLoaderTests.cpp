@@ -118,9 +118,9 @@ public:
         DiskImage     img;
         vector<Byte>  bitStream = MakeBitStream ();
         vector<Byte>  woz;
-        size_t        i   = 0;
+        size_t        i         = 0;
         size_t        byteCount = (kTestBitCount + 7) / 8;
-        size_t        diff = 0;
+        size_t        diff      = 0;
 
         Assert::IsTrue (SUCCEEDED (WozLoader::BuildSyntheticV2 (
             1, false, bitStream, kTestBitCount, woz)));

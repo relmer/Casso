@@ -28,7 +28,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace
 {
-    static constexpr int   kSlot = 6;
+    static constexpr int   kSlot  = 6;
     static constexpr int   kDrive = 0;
 
     vector<Byte> MakeDsk (Byte fill)
@@ -107,10 +107,10 @@ public:
     TEST_METHOD (Eject_AutoFlushesDirty)
     {
         DiskImageStore        store;
-        vector<Byte>          raw = MakeDsk (0);
+        vector<Byte>          raw          = MakeDsk (0);
         vector<Byte>          captured;
         string                capturedPath;
-        bool                  invoked = false;
+        bool                  invoked      = false;
 
         store.SetFlushSink ([&](const string & path, const vector<Byte> & bytes)
         {
@@ -154,7 +154,7 @@ public:
     TEST_METHOD (FlushAll_FlushesEveryDirtyMount)
     {
         DiskImageStore   store;
-        vector<Byte>     raw       = MakeDsk (0);
+        vector<Byte>     raw        = MakeDsk (0);
         int              flushCount = 0;
 
         store.SetFlushSink ([&](const string &, const vector<Byte> &)

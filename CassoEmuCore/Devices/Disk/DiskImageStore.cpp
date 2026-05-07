@@ -222,7 +222,7 @@ Error:
 
 HRESULT DiskImageStore::FlushEntry (Entry & entry)
 {
-    HRESULT       hr = S_OK;
+    HRESULT       hr     = S_OK;
     vector<Byte>  bytes;
     bool          fileOk = false;
 
