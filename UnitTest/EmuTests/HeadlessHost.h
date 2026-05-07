@@ -3,6 +3,15 @@
 #include "../../CassoEmuCore/Pch.h"
 
 #include "Core/Prng.h"
+#include "Core/MemoryBus.h"
+#include "Core/EmuCpu.h"
+#include "Devices/RamDevice.h"
+#include "Devices/AppleIIeMmu.h"
+#include "Devices/AppleIIeKeyboard.h"
+#include "Devices/AppleIIeSoftSwitchBank.h"
+#include "Devices/AppleSpeaker.h"
+#include "Devices/LanguageCard.h"
+#include "Video/VideoTiming.h"
 #include "FixtureProvider.h"
 #include "MockAudioSink.h"
 #include "MockHostShell.h"
@@ -48,6 +57,25 @@ struct EmulatorCore
     std::unique_ptr<MockHostShell>     host;
     std::unique_ptr<FixtureProvider>   fixtures;
     IAudioSink *             audioSink = nullptr;
+
+    // Phase 7 (T067/T069): full //e machine wiring is populated by
+    // HeadlessHost::BuildAppleIIe so integration tests can drive a real
+    // cold boot through `apple2e.rom`. ][/][+ kinds leave these unset.
+    std::unique_ptr<MemoryBus>                 bus;
+    std::unique_ptr<RamDevice>                 mainRam;
+    std::unique_ptr<VideoTiming>               videoTiming;
+    std::unique_ptr<AppleIIeMmu>               mmu;
+    std::unique_ptr<AppleIIeKeyboard>          keyboard;
+    std::unique_ptr<AppleIIeSoftSwitchBank>    softSwitches;
+    std::unique_ptr<AppleSpeaker>              speaker;
+    std::unique_ptr<LanguageCard>              languageCard;
+    std::unique_ptr<LanguageCardBank>          lcBank;
+    std::unique_ptr<EmuCpu>                    cpu;
+
+    // Cycle-pumped helpers used by Phase 7 integration tests.
+    void   PowerCycle    ();
+    void   RunCycles     (uint64_t cycleBudget);
+    bool   HasAppleIIe   () const { return cpu != nullptr && mmu != nullptr; }
 };
 
 

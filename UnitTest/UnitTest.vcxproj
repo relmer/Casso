@@ -324,6 +324,12 @@
     <ClCompile Include="EmuTests\VideoTimingTests.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="EmuTests\TextScreenScraper.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="EmuTests\KeystrokeInjector.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />
@@ -336,6 +342,8 @@
     <ClInclude Include="EmuTests\MockIrqAsserter.h" />
     <ClInclude Include="EmuTests\MockHostShell.h" />
     <ClInclude Include="EmuTests\HeadlessHost.h" />
+    <ClInclude Include="EmuTests\TextScreenScraper.h" />
+    <ClInclude Include="EmuTests\KeystrokeInjector.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CassoCore\CassoCore.vcxproj">
