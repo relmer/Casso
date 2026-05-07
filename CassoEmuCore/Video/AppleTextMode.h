@@ -31,6 +31,18 @@ public:
         int fbWidth,
         int fbHeight) override;
 
+    // Render only rows [startRow, endRow). Used by the composed
+    // mixed-mode path to redraw the bottom 4 text rows on top of a
+    // graphics frame (FR-017a / FR-020). The full Render() path calls
+    // the same helper, ensuring a single composed code path.
+    void RenderRowRange (
+        int          startRow,
+        int          endRow,
+        const Byte * videoRam,
+        uint32_t   * framebuffer,
+        int          fbWidth,
+        int          fbHeight);
+
     Word GetActivePageAddress (bool page2) const override;
 
     const char * GetModeName () const override { return "apple2-text40"; }

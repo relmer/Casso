@@ -53,11 +53,32 @@ Word Apple80ColTextMode::GetActivePageAddress (bool page2) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Constants
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr int kTextCols   = 80;
+static constexpr int kTextRows   = 24;
+static constexpr int kCharWidth  = 7;
+static constexpr int kCharHeight = 8;
+
+static constexpr uint32_t kColorGreen = 0xFF00FF00;
+static constexpr uint32_t kColorBlack = 0xFF000000;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Render
 //
 //  80-column text mode renders 80x24 characters. Columns alternate between
-//  aux and main memory (aux = even columns, main = odd columns).
-//  For now, this renders similarly to 40-col but at half width per char.
+//  aux and main memory: aux RAM provides even screen columns (0,2,4,...);
+//  main RAM provides odd screen columns (1,3,5,...). Each character cell is
+//  7 dots wide × 8 lines tall, doubled vertically to fit 384 framebuffer
+//  rows. ALTCHARSET (audit M13) and FLASH (audit M14) are honored via the
+//  same RenderRowRange helper used by the mixed-mode composed path.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,19 +88,39 @@ void Apple80ColTextMode::Render (
     int fbWidth,
     int fbHeight)
 {
-    Word pageBase = static_cast<Word> (0x0400);  // 80-col always uses page 1
+    m_frameCount++;
 
-    static constexpr int kTextCols   = 80;
-    static constexpr int kTextRows   = 24;
-    static constexpr int kCharWidth  = 7;
-    static constexpr int kCharHeight = 8;
+    // Flash toggles every ~16 frames (approximately 0.5 second at 60fps).
+    // ALTCHARSET=1 disables flash on the //e: only ALTCHARSET=0 mode flashes.
+    m_flashOn = ((m_frameCount / 16) & 1) == 0;
 
-    static constexpr uint32_t kColorGreen = 0xFF00FF00;
-    static constexpr uint32_t kColorBlack = 0xFF000000;
+    RenderRowRange (0, kTextRows, videoRam, framebuffer, fbWidth, fbHeight);
+}
 
-    // 80-column mode: even columns come from aux RAM, odd columns from main RAM.
-    // Each "column" in screen memory is one 7-pixel-wide character.
-    for (int row = 0; row < kTextRows; row++)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RenderRowRange
+//
+//  Shared render helper. Honors ALTCHARSET (audit M13) and FLASH (audit M14).
+//  Caller controls flash state (m_flashOn) — only Render() advances it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple80ColTextMode::RenderRowRange (
+    int          startRow,
+    int          endRow,
+    const Byte * videoRam,
+    uint32_t   * framebuffer,
+    int          fbWidth,
+    int          fbHeight)
+{
+    Word pageBase = static_cast<Word> (0x0400);   // 80-col always uses page 1
+
+    for (int row = startRow; row < endRow; row++)
     {
         Word rowAddr = static_cast<Word> (pageBase + 128 * (row % 8) + 40 * (row / 8));
 
@@ -104,9 +145,23 @@ void Apple80ColTextMode::Render (
                 charCode = m_bus.ReadByte (addr);
             }
 
+            // Decode character mode from the top two bits.
+            // ALTCHARSET=0:  $00-$3F inverse, $40-$7F flash, $80-$FF normal.
+            // ALTCHARSET=1:  $00-$3F inverse, $40-$7F MouseText (alt set, no flash),
+            //                $80-$FF normal.
+            bool inverse = charCode < 0x40;
+            bool flash   = !m_altCharSet && (charCode >= 0x40) && (charCode < 0x80);
+
+            bool showInverse = inverse || (flash && m_flashOn);
+
             for (int py = 0; py < kCharHeight; py++)
             {
-                Byte glyphRow = m_charRom.GetGlyphRow (charCode, py);
+                Byte glyphRow = m_charRom.GetGlyphRow (charCode, py, m_altCharSet);
+
+                if (showInverse)
+                {
+                    glyphRow = static_cast<Byte> (~glyphRow);
+                }
 
                 for (int px = 0; px < kCharWidth; px++)
                 {

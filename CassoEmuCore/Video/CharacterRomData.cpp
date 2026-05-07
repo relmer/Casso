@@ -72,6 +72,43 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LoadFromMemory
+//
+//  Decode a 2KB or 4KB raw video ROM image already resident in memory.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CharacterRomData::LoadFromMemory (const Byte * data, size_t size)
+{
+    HRESULT      hr = S_OK;
+    vector<Byte> raw;
+
+
+
+    CBRA (data != nullptr);
+    CBRA (size == k2KBytes || size == k4KBytes);
+
+    raw.assign (data, data + size);
+
+    if (size == k2KBytes)
+    {
+        Decode2K (raw);
+    }
+    else
+    {
+        Decode4K (raw);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LoadEmbeddedFallback
 //
 //  Use the embedded 96-char (chars $20-$5F) glyph table. Other characters

@@ -1952,27 +1952,39 @@ void EmulatorShell::RenderFramebuffer()
                                    kFramebufferHeight);
     }
 
-    // Mixed mode: overlay text on the bottom 4 rows (rows 20-23)
+    // Mixed mode: overlay text on the bottom 4 rows (rows 20-23) via the
+    // composed renderer (FR-017a / FR-020). When 80COL is active on the //e
+    // we route through Apple80ColTextMode::RenderRowRange; otherwise through
+    // AppleTextMode::RenderRowRange. Both share a single composed code path
+    // (no branched duplicated render logic).
     if (m_mixedMode && m_graphicsMode && !m_videoModes.empty())
     {
-        static constexpr int kMixedCharH  = 8;
-        static constexpr int kMixedScaleY = 2;
-        int mixedFbY = 20 * kMixedCharH * kMixedScaleY;
+        static constexpr int kMixedFirstRow = 20;
+        static constexpr int kMixedLastRow  = 24;
+        auto * iieSwitches = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
+        bool   use80Col    = iieSwitches != nullptr && iieSwitches->Is80ColMode ();
 
-        fill (m_textOverlay.begin(), m_textOverlay.end(), 0);
-
-        m_videoModes[0]->Render (m_cpu->GetMemory(),
-                                 m_textOverlay.data(),
-                                 kFramebufferWidth,
-                                 kFramebufferHeight);
-
-        size_t rowBytes = static_cast<size_t> (kFramebufferWidth) * sizeof (uint32_t);
-
-        for (int y = mixedFbY; y < kFramebufferHeight; y++)
+        if (use80Col && m_videoModes.size () > 4)
         {
-            memcpy (&m_cpuFramebuffer[static_cast<size_t> (y) * kFramebufferWidth],
-                    &m_textOverlay[static_cast<size_t> (y) * kFramebufferWidth],
-                    rowBytes);
+            auto * text80 = static_cast<Apple80ColTextMode *> (m_videoModes[4].get ());
+
+            text80->SetPage2 (false);
+            text80->RenderRowRange (kMixedFirstRow, kMixedLastRow,
+                                    m_cpu->GetMemory (),
+                                    m_cpuFramebuffer.data (),
+                                    kFramebufferWidth,
+                                    kFramebufferHeight);
+        }
+        else
+        {
+            auto * text40 = static_cast<AppleTextMode *> (m_videoModes[0].get ());
+
+            text40->SetPage2 (m_page2);
+            text40->RenderRowRange (kMixedFirstRow, kMixedLastRow,
+                                    m_cpu->GetMemory (),
+                                    m_cpuFramebuffer.data (),
+                                    kFramebufferWidth,
+                                    kFramebufferHeight);
         }
     }
 
@@ -2863,7 +2875,8 @@ void EmulatorShell::SelectVideoMode()
         m_page2 = false;
     }
 
-    bool is80ColMode = iieSoftSwitches != nullptr && iieSoftSwitches->Is80ColMode ();
+    bool is80ColMode  = iieSoftSwitches != nullptr && iieSoftSwitches->Is80ColMode ();
+    bool altCharSet   = iieSoftSwitches != nullptr && iieSoftSwitches->IsAltCharSet ();
 
     // Select video mode based on soft switch state
     if (!m_graphicsMode)
@@ -2897,6 +2910,14 @@ void EmulatorShell::SelectVideoMode()
 
     // Keep text mode page2-aware for mixed-mode overlay rendering
     m_videoModes[0]->SetPage2 (m_page2);
+
+    // Propagate ALTCHARSET to both text-mode renderers (audit M13 closure).
+    static_cast<AppleTextMode *> (m_videoModes[0].get ())->SetAltCharSet (altCharSet);
+
+    if (m_videoModes.size () > 4)
+    {
+        static_cast<Apple80ColTextMode *> (m_videoModes[4].get ())->SetAltCharSet (altCharSet);
+    }
 }
 
 
