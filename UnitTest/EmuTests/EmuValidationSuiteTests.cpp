@@ -361,4 +361,110 @@ public:
         Assert::IsFalse (core.softSwitches->IsMixedMode (),
             L"HGR2 must clear MIXED (full-screen graphics)");
     }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  US4 / T117 — Mixed-mode + 80COL golden output (FR-017a / Q1).
+    //
+    //  Stamps a deterministic pattern into hi-res page 1 (rows 0-159)
+    //  and the 80-column aux/main text page (rows 20-23). Renders hi-
+    //  res across the full frame, then overlays the 80-col text
+    //  bottom-4-row range using Apple80ColTextMode::RenderRowRange (the
+    //  same code path the composed mixed-mode dispatcher uses). The
+    //  resulting framebuffer is hashed with FNV-1a-64 and asserted
+    //  against a baked-in golden constant — two consecutive runs of the
+    //  test must reproduce the exact same hash (FR-038, SC-005).
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (US4_MixedMode_80Col_GoldenOutput)
+    {
+        HeadlessHost   host;
+        EmulatorCore   core;
+        uint32_t       seed = 0xCA550001u;
+        int            row;
+        int            col;
+        Word           rowBase;
+        Word           hiresAddr;
+        Byte           a;
+        Byte           m;
+        Byte           h;
+        uint64_t       hash;
+
+        HRESULT   hr = host.BuildAppleIIe (core);
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIe must succeed");
+
+        core.PowerCycle ();
+        core.RunCycles  (kColdBootCycles);
+
+        // Engage HIRES + MIXED + 80COL via the documented soft-switch
+        // surface. Drives the same flag state Applesoft would set after
+        // typing HGR + POKE -16302,0 + PR#3.
+        core.bus->ReadByte  (kSwitchTextOff);
+        core.bus->ReadByte  (kSwitchMixedOn);
+        core.bus->ReadByte  (kSwitchPage1);
+        core.bus->ReadByte  (kSwitchHiresOn);
+        core.bus->WriteByte (kSwitch80StoreOn, 0);
+        core.bus->WriteByte (kSwitch80ColOn,   0);
+
+        Byte * auxBuf = core.mmu->GetAuxBuffer ();
+
+        // Stamp a deterministic 80-col text pattern into the bottom 4
+        // rows (20..23). Aux supplies even columns, main supplies odd.
+        for (row = kMixedTextStartRow; row < TextScreenScraper::kRows; row++)
+        {
+            rowBase = TextScreenScraper::RowBaseAddress (
+                TextScreenScraper::kTextPage1, row);
+
+            for (col = 0; col < TextScreenScraper::kCols40; col++)
+            {
+                a = static_cast<Byte> (0x80 | (PrngNext (seed) & 0x7F));
+                m = static_cast<Byte> (0x80 | (PrngNext (seed) & 0x7F));
+                auxBuf[rowBase + col] = a;
+                core.bus->WriteByte (static_cast<Word> (rowBase + col), m);
+            }
+        }
+
+        // Stamp a deterministic hi-res pattern into page 1 ($2000-$3FFF).
+        for (row = 0; row < kHiresRowsTopRegion; row++)
+        {
+            hiresAddr = AppleHiResMode::ScanlineAddress (row, 0x2000);
+
+            for (col = 0; col < 40; col++)
+            {
+                h = static_cast<Byte> (PrngNext (seed) & 0x7F);
+                core.bus->WriteByte (static_cast<Word> (hiresAddr + col), h);
+            }
+        }
+
+        // Render the composed frame: hi-res baseline, then overlay
+        // 80-col text on rows 20..23 via the shared RenderRowRange.
+        std::vector<uint32_t>   fb (kFbW * kFbH, 0);
+
+        AppleHiResMode   hires (*core.bus);
+        hires.SetPage2 (false);
+        hires.Render (nullptr, fb.data (), kFbW, kFbH);
+
+        Apple80ColTextMode   text80 (*core.bus);
+        text80.SetAuxMemory  (auxBuf);
+        text80.SetAltCharSet (false);
+        text80.SetFlashState (true);
+        text80.RenderRowRange (
+            kMixedTextStartRow,
+            TextScreenScraper::kRows,
+            nullptr,
+            fb.data (),
+            kFbW,
+            kFbH);
+
+        hash = Fnv1a64 (fb.data (), fb.size ());
+
+        // Golden hash captured from the first deterministic render with
+        // PRNG seed 0xCA550001 + HeadlessHost::kPinnedSeed cold boot.
+        constexpr uint64_t   kExpected = 0x2ABA2BA47C35CE05ULL;
+
+        Assert::AreEqual (kExpected, hash,
+            std::format (L"Mixed-mode 80COL golden hash mismatch: got 0x{:016X}", hash).c_str ());
+    }
 };
