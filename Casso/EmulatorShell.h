@@ -13,6 +13,7 @@
 #include "Video/VideoOutput.h"
 #include "Video/CharacterRomData.h"
 #include "Video/VideoTiming.h"
+#include "Devices/Disk/DiskImageStore.h"
 #include "WasapiAudio.h"
 
 
@@ -109,6 +110,9 @@ private:
     void    WirePageTable          ();
     void    RebuildBankingPages    ();
     void    MountCommandLineDisks  (const string & disk1Path, const string & disk2Path);
+    HRESULT MountDiskInSlot6       (int drive, const string & path);
+    void    EjectDiskInSlot6       (int drive);
+    class DiskIIController * FindSlot6Controller ();
     void    CreateVideoModes       ();
     HRESULT CreateCpu              (const MachineConfig & config);
 
@@ -170,6 +174,12 @@ private:
 
     unique_ptr<class AppleIIeMmu> m_mmu;
     unique_ptr<VideoTiming>       m_videoTiming;
+
+    // Phase 11 / T097 / FR-025. The store coordinates auto-flush of dirty
+    // disk images on Eject / SwitchMachine / Shutdown / PowerCycle. Each
+    // mounted disk's DiskImage is owned by the store; the slot 6 disk
+    // controller sees it via DiskIIController::SetExternalDisk.
+    DiskImageStore                m_diskStore;
 
     // Emulation state
     MachineConfig   m_config;

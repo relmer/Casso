@@ -50,8 +50,10 @@ DiskIIController::DiskIIController (int slot)
       m_ioStart (static_cast<Word> (0xC080 + slot * 16)),
       m_ioEnd   (static_cast<Word> (0xC08F + slot * 16))
 {
-    m_engine[0].SetDiskImage (&m_disks[0]);
-    m_engine[1].SetDiskImage (&m_disks[1]);
+    m_activeDisk[0] = &m_disks[0];
+    m_activeDisk[1] = &m_disks[1];
+    m_engine[0].SetDiskImage (m_activeDisk[0]);
+    m_engine[1].SetDiskImage (m_activeDisk[1]);
 }
 
 
@@ -188,7 +190,7 @@ Byte DiskIIController::HandleReadDispatch ()
 
     if (m_q6 && !m_q7)
     {
-        if (m_disks[m_activeDrive].IsWriteProtected ())
+        if (m_activeDisk[m_activeDrive]->IsWriteProtected ())
         {
             return 0x80;
         }
@@ -326,7 +328,8 @@ HRESULT DiskIIController::MountDisk (int drive, const string & path)
     hr = m_disks[drive].Load (path);
     CHR (hr);
 
-    m_engine[drive].SetDiskImage (&m_disks[drive]);
+    m_activeDisk[drive] = &m_disks[drive];
+    m_engine[drive].SetDiskImage (m_activeDisk[drive]);
 
 Error:
     return hr;
@@ -341,6 +344,8 @@ void DiskIIController::EjectDisk (int drive)
     }
 
     m_disks[drive].Eject ();
+    m_activeDisk[drive] = &m_disks[drive];
+    m_engine[drive].SetDiskImage (m_activeDisk[drive]);
 }
 
 
@@ -351,7 +356,44 @@ DiskImage * DiskIIController::GetDisk (int drive)
         return nullptr;
     }
 
-    return &m_disks[drive];
+    return m_activeDisk[drive];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetExternalDisk
+//
+//  Phase 11 / T097. Re-points drive `drive` at an externally-owned
+//  DiskImage (typically owned by EmulatorShell's DiskImageStore so the
+//  store can drive auto-flush on eject / machine switch / power cycle /
+//  shutdown). Pass nullptr to restore the controller's internal disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIController::SetExternalDisk (int drive, DiskImage * external)
+{
+    if (drive < 0 || drive >= kDriveCount)
+    {
+        return;
+    }
+
+    m_activeDisk[drive] = (external != nullptr) ? external : &m_disks[drive];
+    m_engine[drive].SetDiskImage (m_activeDisk[drive]);
+}
+
+
+bool DiskIIController::HasExternalDisk (int drive) const
+{
+    if (drive < 0 || drive >= kDriveCount)
+    {
+        return false;
+    }
+
+    return m_activeDisk[drive] != &m_disks[drive];
 }
 
 
@@ -378,7 +420,7 @@ void DiskIIController::Reset ()
     for (i = 0; i < kDriveCount; i++)
     {
         m_engine[i].Reset ();
-        m_engine[i].SetDiskImage (&m_disks[i]);
+        m_engine[i].SetDiskImage (m_activeDisk[i]);
     }
 }
 
@@ -405,9 +447,9 @@ void DiskIIController::SoftReset ()
 
     for (drive = 0; drive < kDriveCount; drive++)
     {
-        if (m_disks[drive].IsLoaded ())
+        if (m_activeDisk[drive]->IsLoaded ())
         {
-            hrFlush = m_disks[drive].Flush ();
+            hrFlush = m_activeDisk[drive]->Flush ();
             IGNORE_RETURN_VALUE (hrFlush, S_OK);
         }
     }
@@ -437,6 +479,8 @@ void DiskIIController::PowerCycle (Prng & prng)
     for (drive = 0; drive < kDriveCount; drive++)
     {
         m_disks[drive].Eject ();
+        m_activeDisk[drive] = &m_disks[drive];
+        m_engine[drive].SetDiskImage (m_activeDisk[drive]);
     }
 }
 

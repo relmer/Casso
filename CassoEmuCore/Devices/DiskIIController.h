@@ -45,9 +45,11 @@ public:
     void SoftReset  () override;
     void PowerCycle (Prng & prng) override;
 
-    HRESULT       MountDisk    (int drive, const string & path);
-    void          EjectDisk    (int drive);
-    DiskImage *   GetDisk      (int drive);
+    HRESULT       MountDisk        (int drive, const string & path);
+    void          EjectDisk        (int drive);
+    DiskImage *   GetDisk          (int drive);
+    void          SetExternalDisk  (int drive, DiskImage * external);
+    bool          HasExternalDisk  (int drive) const;
 
     // Cycle-driven advance. EmuCpu pumps cycles per Step.
     void   Tick (uint32_t cpuCycles);
@@ -82,5 +84,6 @@ private:
     bool                 m_q7           = false;
 
     DiskImage            m_disks[kDriveCount];
+    DiskImage *          m_activeDisk[kDriveCount] = { nullptr, nullptr };
     DiskIINibbleEngine   m_engine[kDriveCount];
 };

@@ -88,12 +88,20 @@ EmulatorShell::EmulatorShell()
 
 EmulatorShell::~EmulatorShell()
 {
+    HRESULT  hrFlush = S_OK;
+
     m_running.store (false, memory_order_release);
 
     if (m_cpuThread.joinable())
     {
         m_cpuThread.join();
     }
+
+    // Phase 11 / T097 / FR-025. Final auto-flush of any dirty disks on
+    // process shutdown — matches the "graceful exit" requirement from
+    // audit §7 so a crash-free quit never loses user writes.
+    hrFlush = m_diskStore.FlushAll ();
+    IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     m_d3dRenderer.Shutdown();
 }
@@ -1068,29 +1076,114 @@ void EmulatorShell::MountCommandLineDisks (
     const string & disk1Path,
     const string & disk2Path)
 {
+    HRESULT  hr = S_OK;
+
     if (disk1Path.empty() && disk2Path.empty())
     {
         return;
     }
 
+    if (!disk1Path.empty())
+    {
+        hr = MountDiskInSlot6 (0, disk1Path);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (!disk2Path.empty())
+    {
+        hr = MountDiskInSlot6 (1, disk2Path);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindSlot6Controller
+//
+//  Phase 11 / T097. Scans the owned-device list for the Disk II
+//  controller. Returns nullptr if none is wired (e.g., a machine config
+//  without a disk slot).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskIIController * EmulatorShell::FindSlot6Controller ()
+{
+    DiskIIController *  result = nullptr;
+
     for (auto & dev : m_ownedDevices)
     {
-        auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get());
+        result = dynamic_cast<DiskIIController *> (dev.get());
 
-        if (diskCtrl)
+        if (result != nullptr)
         {
-            if (!disk1Path.empty())
-            {
-                diskCtrl->MountDisk (0, disk1Path);
-            }
-
-            if (!disk2Path.empty())
-            {
-                diskCtrl->MountDisk (1, disk2Path);
-            }
-
             break;
         }
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountDiskInSlot6
+//
+//  Phase 11 / T097 / FR-025. Routes the mount through the DiskImageStore
+//  so dirty writes auto-flush back to the host filesystem on Eject,
+//  SwitchMachine, PowerCycle, and Shutdown. The Disk II controller's
+//  nibble engine is then re-pointed at the store-owned DiskImage via
+//  SetExternalDisk so the controller drives the same image bytes the
+//  store will eventually serialize.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::MountDiskInSlot6 (int drive, const string & path)
+{
+    HRESULT              hr         = S_OK;
+    DiskIIController  *  controller = FindSlot6Controller ();
+    DiskImage         *  external   = nullptr;
+
+    CBR (controller != nullptr);
+
+    hr = m_diskStore.Mount (6, drive, path);
+    CHR (hr);
+
+    external = m_diskStore.GetImage (6, drive);
+    controller->SetExternalDisk (drive, external);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EjectDiskInSlot6
+//
+//  Phase 11 / T097 / FR-025. Auto-flushes dirty bits via the store and
+//  detaches the controller's external disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::EjectDiskInSlot6 (int drive)
+{
+    DiskIIController *  controller = FindSlot6Controller ();
+
+    m_diskStore.Eject (6, drive);
+
+    if (controller != nullptr)
+    {
+        controller->SetExternalDisk (drive, nullptr);
     }
 }
 
@@ -1320,6 +1413,14 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     hr = MachineConfigLoader::Load (jsonText, romSearchPaths, newConfig, error);
     CHRN (hr, format (L"Failed to load machine config:\n{}",
                       wstring (error.begin(), error.end())).c_str());
+
+    // Phase 11 / T097 / FR-025. Auto-flush every dirty disk before
+    // tearing down the previous machine so user writes survive the
+    // machine switch.
+    {
+        HRESULT  hrFlush = m_diskStore.FlushAll ();
+        IGNORE_RETURN_VALUE (hrFlush, S_OK);
+    }
 
     // Tear down current machine
     m_cpu.reset();
@@ -1583,36 +1684,20 @@ void EmulatorShell::ProcessCommands()
             case IDM_DISK_INSERT1:
             case IDM_DISK_INSERT2:
             {
-                int drive = (cmd.id == IDM_DISK_INSERT1) ? 0 : 1;
+                int      drive = (cmd.id == IDM_DISK_INSERT1) ? 0 : 1;
+                HRESULT  hrMount = S_OK;
 
-                for (auto & dev : m_ownedDevices)
-                {
-                    auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get());
-
-                    if (diskCtrl)
-                    {
-                        diskCtrl->MountDisk (drive, cmd.payload);
-                        break;
-                    }
-                }
+                hrMount = MountDiskInSlot6 (drive, cmd.payload);
+                IGNORE_RETURN_VALUE (hrMount, S_OK);
                 break;
             }
 
             case IDM_DISK_EJECT1:
             case IDM_DISK_EJECT2:
             {
-                int drive = (cmd.id == IDM_DISK_EJECT1) ? 0 : 1;
+                int   drive = (cmd.id == IDM_DISK_EJECT1) ? 0 : 1;
 
-                for (auto & dev : m_ownedDevices)
-                {
-                    auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get());
-
-                    if (diskCtrl)
-                    {
-                        diskCtrl->EjectDisk (drive);
-                        break;
-                    }
-                }
+                EjectDiskInSlot6 (drive);
                 break;
             }
 
@@ -2871,10 +2956,20 @@ void EmulatorShell::SoftReset ()
 
 void EmulatorShell::PowerCycle ()
 {
+    HRESULT  hrFlush = S_OK;
+
     if (m_prng == nullptr)
     {
         return;
     }
+
+    // Phase 11 / T097 / FR-025 / FR-035. Auto-flush dirty disks before
+    // reseeding device state so writes don't get lost across a power
+    // cycle. Mounts persist (matches DiskImageStore::SoftReset semantics
+    // — see comment block on DiskImageStore::PowerCycle, which is the
+    // unmount-everything variant tests can opt into directly).
+    hrFlush = m_diskStore.FlushAll ();
+    IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     m_memoryBus.PowerCycleAll (*m_prng);
 
