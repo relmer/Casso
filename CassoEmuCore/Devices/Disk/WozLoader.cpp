@@ -260,9 +260,23 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
     while (pos + 8 <= raw.size ())
     {
         const Byte *   id        = raw.data () + pos;
-        uint32_t       chunkSize = Read32LE (raw.data () + pos + 4);
+        uint32_t       chunkSize = 0;
+        bool           known     = false;
 
-        chunkPos = pos + 8;
+        known = MatchMagic (id, kInfoMagic)
+             || MatchMagic (id, kTmapMagic)
+             || MatchMagic (id, kTrksMagic)
+             || MatchMagic (id, kMetaMagic);
+
+        if (!known)
+        {
+            // After TRKS the remainder of a v2 file is the per-track
+            // bit-stream blocks; they aren't chunks. Stop scanning.
+            break;
+        }
+
+        chunkSize = Read32LE (raw.data () + pos + 4);
+        chunkPos  = pos + 8;
 
         if (chunkPos + chunkSize > raw.size ())
         {

@@ -378,8 +378,8 @@ static Byte ReadNibbleAt (const DiskImage & img, int track, size_t & bitPos)
 {
     size_t   trackBits = img.GetTrackBitCount (track);
     Byte     value     = 0;
-    int      i         = 0;
     Byte     bit       = 0;
+    size_t   start     = bitPos;
 
     if (trackBits == 0)
     {
@@ -392,17 +392,10 @@ static Byte ReadNibbleAt (const DiskImage & img, int track, size_t & bitPos)
         bitPos++;
         value  = static_cast<Byte> ((value << 1) | (bit & 1));
 
-        if (bitPos > trackBits * 4)
+        if (bitPos - start > trackBits)
         {
             return 0;
         }
-    }
-
-    for (i = 0; i < 7; i++)
-    {
-        bit    = img.ReadBit (track, bitPos % trackBits);
-        bitPos++;
-        value  = static_cast<Byte> ((value << 1) | (bit & 1));
     }
 
     return value;
