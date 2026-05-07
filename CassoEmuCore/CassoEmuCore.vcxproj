@@ -205,6 +205,8 @@
     <ClCompile Include="Devices\AppleSpeaker.cpp" />
     <ClCompile Include="Devices\LanguageCard.cpp" />
     <ClCompile Include="Devices\DiskIIController.cpp" />
+    <ClCompile Include="Devices\Disk\DiskImage.cpp" />
+    <ClCompile Include="Devices\Disk\DiskIINibbleEngine.cpp" />
     <ClCompile Include="Devices\AppleIIeKeyboard.cpp" />
     <ClCompile Include="Devices\AppleIIeMmu.cpp" />
     <ClCompile Include="Devices\CxxxRomRouter.cpp" />
@@ -238,6 +240,8 @@
     <ClInclude Include="Devices\ISoftSwitchBank.h" />
     <ClInclude Include="Devices\Disk\IDiskImage.h" />
     <ClInclude Include="Devices\Disk\IDiskController.h" />
+    <ClInclude Include="Devices\Disk\DiskImage.h" />
+    <ClInclude Include="Devices\Disk\DiskIINibbleEngine.h" />
     <ClInclude Include="Video\IVideoTiming.h" />
     <ClInclude Include="Video\VideoTiming.h" />
     <ClInclude Include="Devices\RamDevice.h" />
