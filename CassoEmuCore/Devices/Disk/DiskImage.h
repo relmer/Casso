@@ -54,6 +54,13 @@ public:
     void             ClearDirty          ();
     void             ResizeTrack         (int track, size_t bitCount);
 
+    // Direct bit-buffer access for bulk writers (NibblizationLayer, WozLoader).
+    // ResizeTrack must be called first; the returned buffer length matches the
+    // packed-byte size for the track. Bypasses write-protect.
+    vector<Byte> &   GetTrackBitsForWrite (int track) { return m_trackBits[track]; }
+    void             SetTrackBitCount    (int track, size_t bitCount);
+    void             LoadFromBytes       (DiskFormat fmt, const vector<Byte> & raw, const string & sourcePath);
+
     // Test-only injection. Marks the image as loaded/dirty without touching
     // the host filesystem so reset-semantics tests don't need a real disk
     // file. Track bit streams remain whatever the caller has put there.
@@ -61,7 +68,6 @@ public:
 
 private:
     HRESULT  LoadDsk          (const vector<Byte> & raw);
-    void     NibblizeTrackToBits (int track, size_t & bitOffset, Byte sectorIdx, const Byte * sectorData, Byte volume);
 
     string             m_filePath;
     vector<vector<Byte>>     m_trackBits;

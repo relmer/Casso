@@ -123,14 +123,16 @@ public:
         Assert::IsFalse (img.IsLoaded ());
     }
 
-    TEST_METHOD (SerializeReturnsNotImplWithoutSource)
+    TEST_METHOD (SerializeReturnsBytesAfterPhase10NibblizationLayer)
     {
         DiskImage         img;
         vector<Byte>      bytes;
 
         HRESULT   hr = img.Serialize (bytes);
 
-        Assert::IsTrue (FAILED (hr),
-            L"Serialize without cached source must report failure (Phase 10 lands real path)");
+        Assert::IsTrue (SUCCEEDED (hr),
+            L"Phase 10: Serialize routes DSK through NibblizationLayer::Denibblize");
+        Assert::AreEqual (size_t (143360), bytes.size (),
+            L"Phase 10: a default 35-track DSK serializes to 143360 bytes");
     }
 };
