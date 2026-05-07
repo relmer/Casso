@@ -6,6 +6,47 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.416] — 2026-05-06
+
+### Added (Apple //e fidelity — Phase 6: keyboard + soft-switch read surface)
+- **Open Apple / Closed Apple / Shift modifiers** are now reachable at the
+  expected //e addresses:
+  - `$C061` — Open Apple (bit 7 = pressed). Wired to host **Left Alt**.
+  - `$C062` — Closed Apple (bit 7 = pressed). Wired to host **Right Alt**.
+  - `$C063` — Shift key (bit 7 = pressed). Wired to host **Shift**.
+  Previously the modifier-key fields existed on `AppleIIeKeyboard` but the
+  device's bus range stopped at `$C01F`, making them dead code.
+- **Strobe-clear isolation**. Reads of `$C011-$C01F` (BSRBANK2 / BSRREADRAM /
+  RDRAMRD / RDRAMWRT / RDCXROM / RDALTZP / RDC3ROM / RD80STORE / RDVBLBAR /
+  RDTEXT / RDMIXED / RDPAGE2 / RDHIRES / RDALTCHAR / RD80VID) no longer
+  clear the keyboard strobe. Only `$C010` clears it, matching the //e
+  hardware. (Audit §4 C-item closed.)
+- **Consolidated `$C011-$C01F` status read surface** in
+  `AppleIIeSoftSwitchBank::ReadStatusRegister()`. Bit 7 is sourced from the
+  canonical owner of each flag (LanguageCard for BSRBANK2/BSRREADRAM, MMU for
+  RDRAMRD/RDRAMWRT/RDCXROM/RDALTZP/RDC3ROM/RD80STORE, VideoTiming for
+  RDVBLBAR, the bank for the display-mode flags), and bits 0-6 mirror the
+  keyboard latch (floating-bus behaviour).
+- **`AppleIIeKeyboard` is now a `$C000-$C063` facade** that forwards
+  non-owned addresses to its sibling devices (soft-switch bank for
+  `$C00C-$C00F` / `$C011-$C01F` / `$C050-$C05F`; speaker for `$C030-$C03F`).
+  This preserves the unchanged ][/][+ behaviour where `AppleKeyboard` only
+  owns `$C000-$C01F`.
+
+### Tests
+- `+10` keyboard tests in `KeyboardTests.cpp` covering modifier reachability,
+  strobe-clear isolation, and audit-closure assertions.
+- `+15` new tests in `SoftSwitchReadSurfaceTests.cpp` — one per `$C011-$C01F`
+  address — that assert (a) bit 7 reflects the canonical source, (b) bits
+  0-6 mirror the keyboard latch, (c) the read does not clear strobe, and (d)
+  repeat reads do not perturb state.
+- Test count: **906 / 906 passing** (was 881; +25). Confirmed clean across
+  x64 Debug + Release and ARM64 Debug + Release; code analysis 0/0.
+
+### Notes
+- Closes the foundational Apple //e fidelity work (spec 004 Phases 0-6).
+  Phase 7 (User Story 1 MVP cold boot) is the next planned increment.
+
 ## [1.2.315] — 2026-05-04
 
 ### Added

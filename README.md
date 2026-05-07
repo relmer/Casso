@@ -14,7 +14,7 @@ The project includes:
 - **Apple II platform emulator** — GUI-based Apple II, II+, and IIe emulator with D3D11 rendering, WASAPI audio, data-driven machine configs, and keyboard input
 - **A real, full-featured AS65-compatible assembler** — Casso's assembler is a from-scratch reimplementation of Frank A. Kingswood's AS65, intended to be a drop-in replacement. It supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, …) including flag concatenation (`-tlfile`).
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source
-- **787+ unit tests** — comprehensive coverage of instruction encoding, addressing modes, arithmetic, branching, assembler features, and audio pipeline
+- **906 unit tests** — comprehensive coverage of instruction encoding, addressing modes, arithmetic, branching, assembler features, and audio pipeline
 
 ## Project Structure
 
@@ -24,7 +24,7 @@ Casso.sln
 ├── CassoEmuCore/  Static library — Apple II devices, video modes, audio generator
 ├── Casso/         Win32 application — Apple II platform emulator (D3D11, WASAPI)
 ├── CassoCli/      Console application — AS65-compatible assembler CLI with `run` subcommand
-└── UnitTest/      Test DLL — Microsoft Native CppUnitTest (787+ tests)
+└── UnitTest/      Test DLL — Microsoft Native CppUnitTest (906 tests)
 ```
 
 ## Requirements
