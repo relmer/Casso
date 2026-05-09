@@ -1965,7 +1965,12 @@ void EmulatorShell::RenderFramebuffer()
 
     if (m_activeVideoMode != nullptr)
     {
-        m_activeVideoMode->Render (m_cpu->GetMemory(),
+        // Pass nullptr for videoRam so the renderer reads through MemoryBus.
+        // The bus's page table reflects the current MMU banking state
+        // (main vs aux for $0400-$07FF / $2000-$3FFF under 80STORE+PAGE2/HIRES);
+        // CPU memory[] alone does not, since the //e MMU re-points pages at
+        // the RamDevice / aux RAM buffers it owns.
+        m_activeVideoMode->Render (nullptr,
                                    m_cpuFramebuffer.data(),
                                    kFramebufferWidth,
                                    kFramebufferHeight);
@@ -1990,7 +1995,7 @@ void EmulatorShell::RenderFramebuffer()
 
             text80->SetPage2 (false);
             text80->RenderRowRange (kMixedFirstRow, kMixedLastRow,
-                                    m_cpu->GetMemory (),
+                                    nullptr,
                                     m_cpuFramebuffer.data (),
                                     kFramebufferWidth,
                                     kFramebufferHeight);
@@ -2001,7 +2006,7 @@ void EmulatorShell::RenderFramebuffer()
 
             text40->SetPage2 (m_page2);
             text40->RenderRowRange (kMixedFirstRow, kMixedLastRow,
-                                    m_cpu->GetMemory (),
+                                    nullptr,
                                     m_cpuFramebuffer.data (),
                                     kFramebufferWidth,
                                     kFramebufferHeight);
