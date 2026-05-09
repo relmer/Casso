@@ -173,6 +173,13 @@ HRESULT EmulatorShell::Initialize (
 
     UpdateWindowTitle();
 
+    // Phase 4 / FR-034. Cold power-on: seed DRAM via the shared Prng and
+    // run the 6502 /RESET sequence. Without this, the CPU starts at PC=0
+    // and executes uninitialized RAM, leading to garbage on screen and
+    // a beep loop instead of the firmware prompt. Mirrors what the
+    // headless test harness does after BuildAppleII* construction.
+    PowerCycle ();
+
 Error:
     return hr;
 }
@@ -1460,6 +1467,14 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     // Save to registry (don't pollute hr with the result)
     hrReg = RegistrySettings::WriteString (kLastMachineValue, machineName);
     IGNORE_RETURN_VALUE (hrReg, S_OK);
+
+    // Phase 4 / FR-034. Same cold-power-on sequence as Initialize() —
+    // seed DRAM and run the 6502 /RESET sequence. Without this the
+    // newly-built machine starts with a random PC into uninitialized
+    // RAM. Mounts persist across the switch (they were flushed above
+    // and re-mounted by the new config); aux RAM, LC RAM, and CPU
+    // registers are all reseeded.
+    PowerCycle ();
 
 Error:
     return hr;
