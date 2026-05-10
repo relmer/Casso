@@ -11,7 +11,7 @@
 //
 //  Apple //e Double Hi-Res 16-Color Palette (RGBA)
 //
-//  Sather UTAIIe Tab 8.5 / AppleWin DHR palette. 4-bit nibble (LSB first
+//  Sather UTAIIe Tab 8.5 DHR palette. 4-bit nibble (LSB first
 //  per scanline bit order) selects one of 16 colors. Mirrors the lo-res
 //  palette ordering so DHR with all-aux=0 main=0 produces black, and
 //  all-on aux=$7F main=$7F produces white.

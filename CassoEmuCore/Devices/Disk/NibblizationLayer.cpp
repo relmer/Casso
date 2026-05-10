@@ -269,7 +269,7 @@ static void AppendDataField (
 
     for (i = 0; i < kEncodedDataSize; i++)
     {
-        // Apple disk encoding (matches AppleWin's CImageBase::Code62):
+        // Apple disk encoding (standard DOS 3.3 6+2 data field):
         // each on-disk nibble is the encoded payload byte XOR'd with
         // the PREVIOUS raw payload byte (not with a running checksum).
         // The boot ROM's decode loop does
@@ -592,8 +592,8 @@ static HRESULT DecodeOneSector (
 
     for (i = 0; i < kEncodedDataSize; i++)
     {
-        // Inverse of the AppleWin/Apple-spec convention used in the
-        // Code62 writer above: on-disk nibbles encode encoded[i] XOR'd
+        // Inverse of the standard Apple DOS 3.3 6+2 convention used in
+        // the writer above: on-disk nibbles encode encoded[i] XOR'd
         // with the previous raw encoded value, so we recover raw
         // values via XOR with the previous DECODED value.
         raw         = ReadNibbleAt (img, track, bitPos);

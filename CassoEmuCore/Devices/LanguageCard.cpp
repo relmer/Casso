@@ -37,8 +37,8 @@ static constexpr int   kPreWriteArmTarget  = 2;
 //
 //  LanguageCard
 //
-//  The six 4 KiB / 8 KiB buffers below hold all LC RAM. AppleWin uses an
-//  identical four-bank layout (main bank1 / main bank2 / main high; plus
+//  The six 4 KiB / 8 KiB buffers below hold all LC RAM. The four-bank
+//  layout (main bank1 / main bank2 / main high; plus
 //  aux variants for the //e). Buffers are heap-allocated so they survive
 //  Reset() — destroying RAM on reset is audit C7 (CRITICAL) and is the bug
 //  this rewrite fixes.
@@ -112,7 +112,7 @@ void LanguageCard::Write (Word address, Byte value)
 //
 //  ApplySwitch
 //
-//  AppleWin LanguageCard.cpp:113-150 reference state machine, restated:
+//  Reference state machine (per audit §3 / Sather UTAIIe §5-23):
 //
 //    - Bank: bit 3 inverted -> bank2 when bit3==0, bank1 when bit3==1.
 //    - Read source: low 2 bits decide; pattern (b1==b0) -> READRAM else

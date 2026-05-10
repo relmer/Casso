@@ -14,7 +14,7 @@
 //  Real Disk II steppers read the 4-bit phase mask and walk the head one
 //  quarter-track per energized neighbor. Phase 9 keeps the simpler
 //  "highest-set phase chooses direction" model from Phase 8 — sufficient
-//  for the tests; AppleWin-style precise quarter-track stepping arrives
+//  for the tests; precise quarter-track stepping arrives
 //  with Phase 11.
 //
 ////////////////////////////////////////////////////////////////////////////////

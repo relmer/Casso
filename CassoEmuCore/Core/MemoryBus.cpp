@@ -271,7 +271,7 @@ void MemoryBus::SoftResetAll ()
 //
 //  Phase 4 split-reset (FR-035). Fans out PowerCycle so every DRAM-owning
 //  device re-seeds from the shared Prng. Real //e DRAM is undefined at
-//  power-on; the deterministic Prng stand-in matches what AppleWin does
+//  power-on; the deterministic Prng stand-in is common emulator practice
 //  for repeatable test runs (audit §10).
 //
 ////////////////////////////////////////////////////////////////////////////////

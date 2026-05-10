@@ -25,8 +25,8 @@ class IVideoTiming;
 //    - This bank owns $C011-$C01F status reads. Bit 7 is sourced from
 //      the canonical state device (LanguageCard / AppleIIeMmu /
 //      VideoTiming / this bank itself for the display flags). Bits 0-6
-//      are the keyboard latch (floating-bus low 7 bits per AppleWin
-//      convention; FR-001, FR-003, audit §1.2). Status reads MUST NOT
+//      are the keyboard latch (floating-bus low 7 bits per the documented
+//      Apple //e convention; FR-001, FR-003, audit §1.2). Status reads MUST NOT
 //      clear the keyboard strobe — the data is fetched via the
 //      keyboard's read-only GetLatchedKeyDataBits() accessor.
 //    - The AppleIIeKeyboard claims $C000-$C063 on the bus and forwards

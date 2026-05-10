@@ -17,13 +17,13 @@ class IMmu;
 //
 //  Bank-switching state machine for $D000-$FFFF via soft switches $C080-$C08F.
 //
-//  Per audit §3 / Sather UTAIIe §5-23 / AppleWin LanguageCard.cpp:
+//  Per audit §3 / Sather UTAIIe §5-23:
 //    - Pre-write arms on ANY odd-address read in $C080-$C08F (not same
 //      address twice). A second odd-address read while armed enables
 //      WRITERAM. A write to any LC region or any even $C08x clears the
 //      arm.
-//    - Power-on default is BANK2 | WRITERAM (matches AppleWin
-//      kMemModeInitialState; SHIM-WRITE is pre-armed).
+//    - Power-on default is BANK2 | WRITERAM (per Sather; SHIM-WRITE is
+//      pre-armed).
 //    - On //e soft reset, flag state resets to power-on default; all four
 //      RAM banks (main bank1, main bank2, main high, plus aux variants
 //      when ALTZP is set) are PRESERVED.

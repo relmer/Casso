@@ -251,7 +251,7 @@ void DiskIINibbleEngine::AdvanceOneBit ()
 
 void DiskIINibbleEngine::ShiftReadBit (uint8_t bit)
 {
-    // Port of AppleWin's LSS read model (DataLatchReadWOZ).
+    // Port of the canonical Disk II Logic State Sequencer read model.
     //
     // The Disk II's LSS shifts every bit-cell. When the working
     // shift register's MSB becomes 1 (a complete nibble assembled),
@@ -276,9 +276,8 @@ void DiskIINibbleEngine::ShiftReadBit (uint8_t bit)
         }
     }
 
-    // SEPARATE check (matches AppleWin's "if (!m_latchDelay)" after the
-    // decrement block). When the delay reaches zero in this same call,
-    // we update the latch immediately rather than waiting for the next
+    // SEPARATE check (not else): when the delay reaches zero in this
+    // same call, we update the latch immediately rather than waitingfor the next
     // bit-cell -- which would have lost the data.
     if (m_latchDelayBits == 0)
     {

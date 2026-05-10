@@ -85,7 +85,7 @@ public:
 
     TEST_METHOD (PreWriteRequiresAnyTwoConsecutiveOddReads_NotSameAddress)
     {
-        // Audit M6: AppleWin enables WRITERAM after ANY two odd reads,
+        // Audit M6: WRITERAM enables after ANY two odd reads,
         // not necessarily the same address. Casso previously required
         // identical addresses; this test pins the corrected behavior.
         MemoryBus    bus;

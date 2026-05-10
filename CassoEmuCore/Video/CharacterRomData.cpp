@@ -235,7 +235,6 @@ void CharacterRomData::Decode2K (const vector<Byte> & raw)
 //  Apple //e enhanced 4KB video ROM. Two 2KB halves: primary char set + alt.
 //  Source bytes are bit-inverted (XOR 0xFF) to flip lit dots. No bit reversal
 //  needed -- bit 0 is already leftmost (different chip from II/II+).
-//  See AppleWin's userVideoRom4K() for reference.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
