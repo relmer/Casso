@@ -150,9 +150,6 @@ void DiskIINibbleEngine::Tick (uint32_t cpuCycles)
     uint32_t   bitsToAdvance = 0;
     uint32_t   i             = 0;
 
-    m_tickCount++;
-    m_totalCyclesIn += cpuCycles;
-
     if (!m_motorOn)
     {
         return;
@@ -161,8 +158,6 @@ void DiskIINibbleEngine::Tick (uint32_t cpuCycles)
     m_cycleAccum  += cpuCycles;
     bitsToAdvance  = m_cycleAccum / kCyclesPerBit;
     m_cycleAccum  %= kCyclesPerBit;
-
-    m_totalBitsAdv += bitsToAdvance;
 
     for (i = 0; i < bitsToAdvance; i++)
     {
@@ -231,11 +226,17 @@ void DiskIINibbleEngine::AdvanceOneBit ()
 
 void DiskIINibbleEngine::ShiftReadBit (uint8_t bit)
 {
-    if (m_readLatch & 0x80)
-    {
-        return;
-    }
-
+    // Real Disk II LSS: the read latch is an 8-bit shift register that
+    // clocks in a new MFM bit every 4 µs (one bit-cell). The latch
+    // never freezes -- bits shift continuously. The "byte ready" line
+    // goes high when the MSB becomes 1; CPU reads of $C0EC return the
+    // current latch state, and a CPU read of an MSB-set latch causes
+    // the byte-ready line to drop, clearing the latch so the next
+    // 8 bit-cells assemble a fresh nibble.
+    //
+    // Sync nibbles (0xFF + trailing 2 zero gap bits) drift the byte
+    // boundary so the latch eventually re-aligns onto the byte
+    // boundaries that contain $D5 / $AA / $96 prologs.
     m_readLatch = static_cast<uint8_t> ((m_readLatch << 1) | (bit & 1));
 }
 
@@ -285,6 +286,7 @@ uint8_t DiskIINibbleEngine::ReadLatch ()
     if (value & 0x80)
     {
         m_readLatch = 0;
+        m_readNibbles++;
     }
 
     return value;
@@ -303,4 +305,5 @@ uint8_t DiskIINibbleEngine::ReadLatch ()
 void DiskIINibbleEngine::WriteLatch (uint8_t value)
 {
     m_writeLatch = value;
+    m_writeNibbles++;
 }

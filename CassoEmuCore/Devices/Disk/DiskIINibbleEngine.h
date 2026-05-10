@@ -41,10 +41,11 @@ public:
     int        GetCurrentTrack  () const { return m_currentTrack; }
     size_t     GetBitPosition   () const { return m_bitPos; }
 
-    // Diagnostic peeks at internal counters (advance + tick history).
-    uint64_t   GetTickCount       () const { return m_tickCount; }
-    uint64_t   GetTotalCyclesIn   () const { return m_totalCyclesIn; }
-    uint64_t   GetTotalBitsAdv    () const { return m_totalBitsAdv; }
+    // Lifetime nibble I/O counters surfaced to the UI status-bar
+    // tooltip. Increment on each successful CPU latch read (MSB-set)
+    // and each CPU latch write while in write mode.
+    uint64_t   GetReadNibbles     () const { return m_readNibbles; }
+    uint64_t   GetWriteNibbles    () const { return m_writeNibbles; }
 
     // Diagnostic / test peek at the current read latch contents without
     // the read-clears-on-MSB side effect ReadLatch carries.
@@ -69,8 +70,9 @@ private:
     uint8_t      m_readLatch     = 0;
     uint8_t      m_writeLatch    = 0;
 
-    // Diagnostic counters (no functional impact).
-    uint64_t     m_tickCount     = 0;
-    uint64_t     m_totalCyclesIn = 0;
-    uint64_t     m_totalBitsAdv  = 0;
+    // Lifetime nibble I/O counters (increment on CPU read of $C0EC
+    // when MSB-set, and on CPU write of $C0ED in write mode). Surfaced
+    // to the status-bar tooltip via the controller.
+    uint64_t     m_readNibbles   = 0;
+    uint64_t     m_writeNibbles  = 0;
 };

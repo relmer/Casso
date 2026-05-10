@@ -213,11 +213,13 @@ public:
 
         Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizeDsk (raw, img)));
 
-        // After 20 0xFF sync bytes (160 bits), expect $D5 $AA $96 prologue.
+        // After 20 sync nibbles (10 bits each = 200 bits including the
+        // mandatory 2-bit zero gap that real Disk II hardware writes
+        // between sync nibbles), expect $D5 $AA $96 prologue.
         // Pack the next 24 bits MSB-first into three bytes.
         for (int n = 0; n < 24; n++)
         {
-            Byte   bit = img.ReadBit (0, 160 + n);
+            Byte   bit = img.ReadBit (0, 200 + n);
             int    pos = n / 8;
             if (pos == 0) { b0 = static_cast<Byte> ((b0 << 1) | bit); }
             else if (pos == 1) { b1 = static_cast<Byte> ((b1 << 1) | bit); }

@@ -137,6 +137,36 @@ static void PackNibbleBits (vector<Byte> & dst, size_t & bitOffset, Byte nibble)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PackSyncNibbleBits
+//
+//  Real Disk II hardware writes a sync nibble (0xFF) as a 10-bit pattern
+//  on the disk: the 8 nibble bits followed by 2 zero "sync-gap" bits. The
+//  zero gap tail makes the next nibble's MSB-set bit arrive ~2 bit-times
+//  later than a byte boundary would, which intentionally shifts the
+//  Disk II read latch's bit alignment. After enough sync nibbles in a
+//  row the latch is guaranteed to be aligned on real nibble MSBs, which
+//  is how the boot ROM's $C65E loop synchronizes on the D5 prologue.
+//
+//  Without these gap bits, an 8-bit-only sync run is byte-aligned with
+//  the rest of the bit stream so the latch can lock onto a rotation that
+//  *never* contains a 0xD5 nibble -- the boot ROM spins forever.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr int  kSyncTailZeros = 2;
+
+static void PackSyncNibbleBits (vector<Byte> & dst, size_t & bitOffset)
+{
+    PackNibbleBits (dst, bitOffset, kSyncNibble);
+    bitOffset += kSyncTailZeros;          // bits are zero-initialized
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppendAddressField
 //
 //  Emits sync gap + address prologue + 4-and-4 V/T/S/checksum + epilogue
@@ -156,7 +186,7 @@ static void AppendAddressField (
 
     for (i = 0; i < kAddrPrologueGap; i++)
     {
-        PackNibbleBits (dst, bitOffset, kSyncNibble);
+        PackSyncNibbleBits (dst, bitOffset);
     }
 
     PackNibbleBits (dst, bitOffset, kAddrProlog0);
@@ -200,7 +230,7 @@ static void AppendDataField (
 
     for (i = 0; i < kDataPrologueGap; i++)
     {
-        PackNibbleBits (dst, bitOffset, kSyncNibble);
+        PackSyncNibbleBits (dst, bitOffset);
     }
 
     PackNibbleBits (dst, bitOffset, kAddrProlog0);
@@ -296,6 +326,11 @@ static HRESULT NibblizeWithMap (
                                 static_cast<Byte> (logical));
             AppendDataField    (out.GetTrackBitsForWrite (track), bitOffset, &raw[offset]);
         }
+
+        // Trim the track to what we actually wrote so the engine wraps
+        // back to the address-field sync gap (real Disk II behavior),
+        // not into a run of zero bits left over from the resize.
+        out.SetTrackBitCount (track, bitOffset);
     }
 
     out.ClearDirty ();

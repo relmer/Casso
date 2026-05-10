@@ -39,36 +39,6 @@
 
 static constexpr LPCWSTR kLastMachineValue = L"LastMachine";
 
-// TEMP disk-boot diagnostics. Writes %TEMP%\casso-disk.log. Remove once
-// disk boot is verified.
-static void DiskDebugLog (const char * fmt, ...)
-{
-    char    path[MAX_PATH] = {};
-    char    line[1024]     = {};
-    DWORD   pathLen        = 0;
-    FILE *  fp             = nullptr;
-    va_list args;
-
-    pathLen = GetTempPathA (MAX_PATH, path);
-    if (pathLen == 0 || pathLen > MAX_PATH - 32)
-    {
-        return;
-    }
-    strcat_s (path, "casso-disk.log");
-
-    if (fopen_s (&fp, path, "a") != 0 || fp == nullptr)
-    {
-        return;
-    }
-
-    va_start (args, fmt);
-    vsnprintf (line, sizeof (line), fmt, args);
-    va_end (args);
-
-    fprintf (fp, "%s\n", line);
-    fclose (fp);
-}
-
 // Per-machine UI state lives under HKCU\Software\relmer\Casso\Machines\{machine}.
 // Disk paths under that subkey use the simple value names "Disk1" / "Disk2".
 // Future per-machine state (window size, speed mode, write-protect flags)
@@ -672,7 +642,7 @@ void EmulatorShell::RefreshDriveStatus()
 {
     RECT      partRect = { };
     LONG      result   = 0;
-    wchar_t   tooltip[MAX_PATH + 32] = { };
+    wchar_t   tooltip[MAX_PATH + 96] = { };
     TOOLINFOW ti       = { };
 
     if (m_statusBar == nullptr || m_statusBarDriveCount <= 0)
@@ -704,6 +674,18 @@ void EmulatorShell::RefreshDriveStatus()
             if (srcPath.empty ())
             {
                 swprintf_s (tooltip, L"Drive %d: (empty)", d + 1);
+            }
+            else if (m_diskController != nullptr)
+            {
+                auto &  engine = m_diskController->GetEngine (d);
+                int     track  = engine.GetCurrentTrack ();
+
+                swprintf_s (tooltip,
+                            L"Drive %d: %hs  [track %d  R:%llu  W:%llu]",
+                            d + 1, srcPath.c_str (),
+                            track,
+                            (unsigned long long) engine.GetReadNibbles (),
+                            (unsigned long long) engine.GetWriteNibbles ());
             }
             else
             {
@@ -2499,32 +2481,6 @@ void EmulatorShell::ExecuteCpuSlices()
         }
 
         executed += sliceActual;
-
-        // TEMP disk diagnostics: sample once per slice while motor is on.
-        if (m_diskController != nullptr && m_diskController->IsMotorOn ())
-        {
-            static uint64_t s_sliceCounter = 0;
-            s_sliceCounter++;
-            if ((s_sliceCounter % 200) == 0)
-            {
-                Word pc       = m_cpu ? m_cpu->GetPC () : 0;
-                Byte x        = m_cpu ? m_cpu->GetX  () : 0;
-                Byte a        = m_cpu ? m_cpu->GetA  () : 0;
-                int  drv      = m_diskController->GetActiveDrive ();
-                int  track    = m_diskController->GetCurrentTrack ();
-                auto & engine = m_diskController->GetEngine (drv);
-                DiskDebugLog ("slice=%llu PC=$%04X X=$%02X A=$%02X drv=%d track=%d bitPos=%zu latch=$%02X ticks=%llu cyclesIn=%llu bitsAdv=%llu",
-                              (unsigned long long) s_sliceCounter,
-                              pc, x, a,
-                              drv,
-                              track,
-                              engine.GetBitPosition (),
-                              engine.PeekReadLatch (),
-                              (unsigned long long) engine.GetTickCount (),
-                              (unsigned long long) engine.GetTotalCyclesIn (),
-                              (unsigned long long) engine.GetTotalBitsAdv ());
-            }
-        }
 
         if (audioActive)
         {
