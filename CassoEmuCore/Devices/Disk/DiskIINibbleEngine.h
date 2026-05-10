@@ -67,8 +67,10 @@ private:
     bool         m_shiftLoadMode = false;
     size_t       m_bitPos        = 0;
     uint32_t     m_cycleAccum    = 0;
-    uint8_t      m_readLatch     = 0;
-    uint8_t      m_writeLatch    = 0;
+    uint8_t      m_readLatch       = 0;
+    uint8_t      m_workingShift    = 0;
+    int          m_latchDelayBits  = 0;
+    uint8_t      m_writeLatch      = 0;
 
     // Lifetime nibble I/O counters (increment on CPU read of $C0EC
     // when MSB-set, and on CPU write of $C0ED in write mode). Surfaced

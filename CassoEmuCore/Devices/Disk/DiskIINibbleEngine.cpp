@@ -146,13 +146,15 @@ void DiskIINibbleEngine::SetCurrentTrack (int track)
 
 void DiskIINibbleEngine::Reset ()
 {
-    m_motorOn       = false;
-    m_writeMode     = false;
-    m_shiftLoadMode = false;
-    m_bitPos        = 0;
-    m_cycleAccum    = 0;
-    m_readLatch     = 0;
-    m_writeLatch    = 0;
+    m_motorOn         = false;
+    m_writeMode       = false;
+    m_shiftLoadMode   = false;
+    m_bitPos          = 0;
+    m_cycleAccum      = 0;
+    m_readLatch       = 0;
+    m_workingShift    = 0;
+    m_latchDelayBits  = 0;
+    m_writeLatch      = 0;
 }
 
 
@@ -249,24 +251,45 @@ void DiskIINibbleEngine::AdvanceOneBit ()
 
 void DiskIINibbleEngine::ShiftReadBit (uint8_t bit)
 {
-    // Continuous-shift model. The latch clocks in a new bit every 4 µs
-    // bit-cell; CPU reads of $C0EC return the current latch value and
-    // the read of an MSB-set value clears the latch (in ReadLatch) so
-    // the next 8 bits assemble a fresh nibble.
+    // Port of AppleWin's LSS read model (DataLatchReadWOZ).
     //
-    // Earlier we tried a freeze-on-MSB variant (real WD chip behavior)
-    // which works in theory but failed in practice here -- combined
-    // with the 10-bit sync-gap nibbles, freezing kept the latch at the
-    // wrong byte alignment indefinitely. The continuous shift lets the
-    // latch advance through the sync gaps and re-align to whatever
-    // boundary contains the $D5 prolog.
-    //
-    // Sync nibbles (0xFF + trailing 2 zero gap bits, written by
-    // NibblizationLayer::PackSyncNibbleBits) are what create the
-    // alignment drift that lets the latch eventually find the right
-    // byte boundaries containing the address-field $D5 / $AA / $96
-    // prologs.
-    m_readLatch = static_cast<uint8_t> ((m_readLatch << 1) | (bit & 1));
+    // The Disk II's LSS shifts every bit-cell. When the working
+    // shift register's MSB becomes 1 (a complete nibble assembled),
+    // the visible latch is updated and the shift register clears so
+    // the next nibble can start assembling. A latch-delay (~7 µs ≈
+    // 2 bit-cells) holds the visible latch stable for the CPU to
+    // read before the latch resumes tracking the (now-resetting)
+    // shift register.
+    m_workingShift = static_cast<uint8_t> ((m_workingShift << 1) | (bit & 1));
+
+    if (m_latchDelayBits > 0)
+    {
+        m_latchDelayBits--;
+
+        if (m_workingShift == 0)
+        {
+            // No leading 1-bit yet for the next nibble (sync-gap
+            // zero bits). Extend the delay so the CPU keeps seeing
+            // the just-completed nibble until something interesting
+            // arrives.
+            m_latchDelayBits++;
+        }
+    }
+
+    // SEPARATE check (matches AppleWin's "if (!m_latchDelay)" after the
+    // decrement block). When the delay reaches zero in this same call,
+    // we update the latch immediately rather than waiting for the next
+    // bit-cell -- which would have lost the data.
+    if (m_latchDelayBits == 0)
+    {
+        m_readLatch = m_workingShift;
+
+        if ((m_workingShift & 0x80) != 0)
+        {
+            m_latchDelayBits = 2;
+            m_workingShift   = 0;
+        }
+    }
 }
 
 
@@ -310,11 +333,26 @@ void DiskIINibbleEngine::ShiftWriteBit ()
 
 uint8_t DiskIINibbleEngine::ReadLatch ()
 {
+    // Real P5A behavior: reading $C0EC is a pure sample of the shift
+    // register's current state. There is NO side effect on the read --
+    // the shift register keeps shifting bits in regardless of whether
+    // the CPU read it. The "byte ready" signal is just the MSB.
+    //
+    // The CPU is responsible for spinning a tight LDA/BPL loop until
+    // it catches the latch with MSB-set, which it then knows is a
+    // complete nibble. The next read after that will catch the latch
+    // about 32 µs later (8 bit-cells) when the next nibble has
+    // assembled.
+    //
+    // Earlier model "clear on MSB-set read" was wrong: it broke the
+    // boot ROM's address-prolog scan because each read cleared the
+    // latch back to 0, and the CPU's tight loop ran faster than the
+    // engine could produce complete nibbles, so the CPU never saw
+    // MSB-set.
     uint8_t   value = m_readLatch;
 
     if (value & 0x80)
     {
-        m_readLatch = 0;
         m_readNibbles++;
     }
 
