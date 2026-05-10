@@ -263,7 +263,6 @@ HRESULT EmulatorShell::Initialize (
     CHR (hr);
 
     WireLanguageCard();
-    MountCommandLineDisks (disk1Path, disk2Path);
     CreateVideoModes();
 
     // Validate memory bus for overlapping device address ranges
@@ -295,7 +294,15 @@ HRESULT EmulatorShell::Initialize (
     // and executes uninitialized RAM, leading to garbage on screen and
     // a beep loop instead of the firmware prompt. Mirrors what the
     // headless test harness does after BuildAppleII* construction.
+    //
+    // Must run BEFORE MountCommandLineDisks: PowerCycle ejects every
+    // drive and re-binds the engine to the controller's empty internal
+    // disk. Mounting first then power-cycling silently throws away the
+    // user's freshly-mounted image (the engine ticks but AdvanceOneBit
+    // exits early because trackBits[0] == 0).
     PowerCycle ();
+
+    MountCommandLineDisks (disk1Path, disk2Path);
 
 Error:
     return hr;
@@ -1983,12 +1990,6 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     CHR (hr);
 
     WireLanguageCard();
-
-    // Remount per-machine disks if any were saved last time this
-    // machine was active. Empty paths fall through harmlessly so a
-    // never-used machine won't try to mount anything.
-    MountCommandLineDisks (string (), string ());
-
     CreateVideoModes();
 
     hr = m_memoryBus.Validate();
@@ -2024,7 +2025,16 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     // RAM. Mounts persist across the switch (they were flushed above
     // and re-mounted by the new config); aux RAM, LC RAM, and CPU
     // registers are all reseeded.
+    //
+    // Must run BEFORE the per-machine remount: PowerCycle ejects every
+    // drive and rebinds the controller's engine to its empty internal
+    // disk, which would silently throw away whatever we just mounted.
     PowerCycle ();
+
+    // Remount per-machine disks if any were saved last time this
+    // machine was active. Empty paths fall through harmlessly so a
+    // never-used machine won't try to mount anything.
+    MountCommandLineDisks (string (), string ());
 
 Error:
     return hr;
@@ -2503,13 +2513,16 @@ void EmulatorShell::ExecuteCpuSlices()
                 int  drv      = m_diskController->GetActiveDrive ();
                 int  track    = m_diskController->GetCurrentTrack ();
                 auto & engine = m_diskController->GetEngine (drv);
-                DiskDebugLog ("slice=%llu PC=$%04X X=$%02X A=$%02X drv=%d track=%d bitPos=%zu latch=$%02X",
+                DiskDebugLog ("slice=%llu PC=$%04X X=$%02X A=$%02X drv=%d track=%d bitPos=%zu latch=$%02X ticks=%llu cyclesIn=%llu bitsAdv=%llu",
                               (unsigned long long) s_sliceCounter,
                               pc, x, a,
                               drv,
                               track,
                               engine.GetBitPosition (),
-                              engine.PeekReadLatch ());
+                              engine.PeekReadLatch (),
+                              (unsigned long long) engine.GetTickCount (),
+                              (unsigned long long) engine.GetTotalCyclesIn (),
+                              (unsigned long long) engine.GetTotalBitsAdv ());
             }
         }
 

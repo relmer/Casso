@@ -150,6 +150,9 @@ void DiskIINibbleEngine::Tick (uint32_t cpuCycles)
     uint32_t   bitsToAdvance = 0;
     uint32_t   i             = 0;
 
+    m_tickCount++;
+    m_totalCyclesIn += cpuCycles;
+
     if (!m_motorOn)
     {
         return;
@@ -158,6 +161,8 @@ void DiskIINibbleEngine::Tick (uint32_t cpuCycles)
     m_cycleAccum  += cpuCycles;
     bitsToAdvance  = m_cycleAccum / kCyclesPerBit;
     m_cycleAccum  %= kCyclesPerBit;
+
+    m_totalBitsAdv += bitsToAdvance;
 
     for (i = 0; i < bitsToAdvance; i++)
     {

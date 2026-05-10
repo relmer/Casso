@@ -41,6 +41,11 @@ public:
     int        GetCurrentTrack  () const { return m_currentTrack; }
     size_t     GetBitPosition   () const { return m_bitPos; }
 
+    // Diagnostic peeks at internal counters (advance + tick history).
+    uint64_t   GetTickCount       () const { return m_tickCount; }
+    uint64_t   GetTotalCyclesIn   () const { return m_totalCyclesIn; }
+    uint64_t   GetTotalBitsAdv    () const { return m_totalBitsAdv; }
+
     // Diagnostic / test peek at the current read latch contents without
     // the read-clears-on-MSB side effect ReadLatch carries.
     uint8_t    PeekReadLatch    () const { return m_readLatch; }
@@ -63,4 +68,9 @@ private:
     uint32_t     m_cycleAccum    = 0;
     uint8_t      m_readLatch     = 0;
     uint8_t      m_writeLatch    = 0;
+
+    // Diagnostic counters (no functional impact).
+    uint64_t     m_tickCount     = 0;
+    uint64_t     m_totalCyclesIn = 0;
+    uint64_t     m_totalBitsAdv  = 0;
 };
