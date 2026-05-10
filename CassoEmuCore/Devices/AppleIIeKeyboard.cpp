@@ -183,13 +183,21 @@ void AppleIIeKeyboard::Reset ()
 //
 //  SoftReset
 //
-//  Phase 4: clear the latched key plus the Open/Closed Apple/Shift modifiers.
+//  Real //e behavior: a CPU /RESET pulse does NOT lift the user's finger
+//  off Open Apple, Closed Apple, or Shift. The firmware reads $C061 at
+//  reset specifically to decide warm-vs-autoboot, so clearing those
+//  modifiers here would break Ctrl+Open-Apple+Reset autoboot. Only the
+//  latched-character byte at $C000 needs to clear (handled by the base
+//  class) so a stale typeahead doesn't survive the reset.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void AppleIIeKeyboard::SoftReset ()
 {
-    Reset ();
+    // Bypass the virtual chain: AppleKeyboard::SoftReset -> Reset() would
+    // dispatch to AppleIIeKeyboard::Reset and clobber the modifiers we
+    // need to preserve. Just clear the latched-character byte directly.
+    AppleKeyboard::Reset ();
 }
 
 
