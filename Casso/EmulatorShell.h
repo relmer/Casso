@@ -72,8 +72,8 @@ public:
     // future programmatic callers. SoftReset preserves user RAM and
     // re-runs the 6502 /RESET sequence. PowerCycle re-seeds every DRAM-
     // owning device from the shared Prng before SoftReset (audit S10).
-    void SoftReset  ();
-    void PowerCycle ();
+    void SoftReset      ();
+    void PowerCycle     ();
 
 private:
     // Window message handler overrides

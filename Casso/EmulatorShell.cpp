@@ -348,7 +348,7 @@ void EmulatorShell::UpdateStatusBar()
 {
     static constexpr int  s_kLeftPartCount        = 4;
     static constexpr int  s_kPadding              = 24;
-    static constexpr int  s_kDriveIndicatorWidth  = 110;
+    static constexpr int  s_kDriveIndicatorWidth  = 90;
     static constexpr int  s_kMaxDriveCount        = 2;
     static constexpr int  s_kMaxPartCount         = s_kLeftPartCount + s_kMaxDriveCount;
 
@@ -535,7 +535,8 @@ void EmulatorShell::DrawDriveStatusItem (DRAWITEMSTRUCT * pdis, int driveIndex)
 {
     static constexpr int  s_kDotRadius     = 5;
     static constexpr int  s_kLeftMargin    = 6;
-    static constexpr int  s_kLabelDotGap   = 4;
+    static constexpr int  s_kRightMargin   = 22;
+    static constexpr int  s_kLabelDotGap   = 10;
 
     wchar_t   label[16]    = { };
     HBRUSH    bgBrush      = nullptr;
@@ -555,7 +556,7 @@ void EmulatorShell::DrawDriveStatusItem (DRAWITEMSTRUCT * pdis, int driveIndex)
         return;
     }
 
-    swprintf_s (label, L"Drive %d: ", driveIndex + 1);
+    swprintf_s (label, L"Drive %d:", driveIndex + 1);
 
     bgBrush = GetSysColorBrush (COLOR_3DFACE);
     FillRect (pdis->hDC, &pdis->rcItem, bgBrush);
@@ -581,6 +582,18 @@ void EmulatorShell::DrawDriveStatusItem (DRAWITEMSTRUCT * pdis, int driveIndex)
 
     dotCx = labelRect.left + labelSize.cx + s_kLabelDotGap + s_kDotRadius;
     dotCy = (pdis->rcItem.top + pdis->rcItem.bottom) / 2;
+
+    // Only the rightmost drive part shares pixels with the SBARS_SIZEGRIP
+    // corner — clamp its dot position so the ellipse stays inside the
+    // visible area. Other drive parts paint where the gap calculation
+    // says, which keeps the colon-to-dot spacing consistent across drives.
+    if (driveIndex == m_statusBarDriveCount - 1)
+    {
+        if (dotCx + s_kDotRadius > pdis->rcItem.right - s_kRightMargin)
+        {
+            dotCx = pdis->rcItem.right - s_kRightMargin - s_kDotRadius;
+        }
+    }
 
     dotBrush = CreateSolidBrush (dotColor);
     dotPen   = CreatePen        (PS_SOLID, 1, dotColor);
@@ -2362,17 +2375,37 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER (lParam);
 
-
+    bool ctrlHeld = false;
+    bool altHeld  = false;
 
     if (m_keyboard == nullptr)
     {
         return false;
     }
 
-    // Ctrl+V — paste from clipboard
-    if (vk == 'V' && (GetKeyState (VK_CONTROL) & 0x8000))
+    ctrlHeld = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
+    altHeld  = (GetKeyState (VK_MENU)    & 0x8000) != 0;
+
+    // Ctrl+V — paste from clipboard (host-meta convenience, not a //e
+    // hardware key). Consumed before reaching the emulated keyboard.
+    if (vk == 'V' && ctrlHeld && !altHeld)
     {
         PasteFromClipboard();
+        return false;
+    }
+
+    // Ctrl+R — //e Reset key + Ctrl modifier. Drives the CPU /RESET
+    // line via the existing soft-reset path. The emulated keyboard's
+    // Open Apple state (set by the Alt-key handlers below) is what the
+    // firmware reads at $C061 to decide warm vs autoboot, so:
+    //   Ctrl+R         -> warm reset (no Open Apple)         -> ] prompt
+    //   Ctrl+Alt+R     -> Open Apple held during reset       -> autoboot
+    //   Ctrl+Shift+R   -> stays a host-meta IDM_MACHINE_POWERCYCLE
+    //                     accelerator (full DRAM re-seed, no //e equiv).
+    // Consumed; not pumped to the //e keyboard as a Ctrl-R character.
+    if (vk == 'R' && ctrlHeld && !(GetKeyState (VK_SHIFT) & 0x8000))
+    {
+        PostCommand (IDM_MACHINE_RESET);
         return false;
     }
 
@@ -2382,18 +2415,25 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     //   left  Alt   -> Open Apple   ($C061)
     //   right Alt   -> Closed Apple ($C062)
     //   Shift       -> Shift        ($C063)
-    // Ignored on ][/][+ (the dynamic_cast yields nullptr).
+    // Ignored on ][/][+ (the dynamic_cast yields nullptr). Both VK_MENU
+    // (which Windows delivers for plain Alt) and VK_L/RMENU (which it
+    // can deliver for some Alt+key combos) drive the same path —
+    // GetKeyState gives the canonical left/right state.
     {
         auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_keyboard);
 
         if (iieKbd != nullptr)
         {
-            switch (vk)
+            if (vk == VK_LMENU || vk == VK_RMENU || vk == VK_MENU)
             {
-                case VK_LMENU: iieKbd->SetOpenApple   (true); break;
-                case VK_RMENU: iieKbd->SetClosedApple (true); break;
-                case VK_SHIFT: iieKbd->SetShift       (true); break;
-                default: break;
+                bool lAlt = (GetKeyState (VK_LMENU) & 0x8000) != 0;
+                bool rAlt = (GetKeyState (VK_RMENU) & 0x8000) != 0;
+                iieKbd->SetOpenApple   (lAlt);
+                iieKbd->SetClosedApple (rAlt);
+            }
+            else if (vk == VK_SHIFT)
+            {
+                iieKbd->SetShift (true);
             }
         }
     }
@@ -2453,17 +2493,24 @@ bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
     m_keyboard->SetKeyDown (false);
 
     // Phase 6 / T063: release //e modifiers when the host releases the
-    // physical key.
+    // physical key. Both VK_MENU and VK_L/RMENU events drive a re-query
+    // of the canonical left/right state via GetKeyState — the modifier
+    // remains asserted on the //e side as long as either physical Alt
+    // is still down.
     auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_keyboard);
 
     if (iieKbd != nullptr)
     {
-        switch (vk)
+        if (vk == VK_LMENU || vk == VK_RMENU || vk == VK_MENU)
         {
-            case VK_LMENU: iieKbd->SetOpenApple   (false); break;
-            case VK_RMENU: iieKbd->SetClosedApple (false); break;
-            case VK_SHIFT: iieKbd->SetShift       (false); break;
-            default: break;
+            bool lAlt = (GetKeyState (VK_LMENU) & 0x8000) != 0;
+            bool rAlt = (GetKeyState (VK_RMENU) & 0x8000) != 0;
+            iieKbd->SetOpenApple   (lAlt);
+            iieKbd->SetClosedApple (rAlt);
+        }
+        else if (vk == VK_SHIFT)
+        {
+            iieKbd->SetShift (false);
         }
     }
 
@@ -3102,6 +3149,7 @@ void EmulatorShell::OnHelpCommand (int id)
                 L"Right Alt -> Closed Apple (IIe)\n\n"
                 L"Emulator Controls:\n"
                 L"Ctrl+R -> Reset\n"
+                L"Ctrl+Alt+R -> Autoboot Reset (cold boot from disk)\n"
                 L"Ctrl+Shift+R -> Power Cycle\n"
                 L"Pause -> Pause/Resume\n"
                 L"F11 -> Step (when paused)\n"

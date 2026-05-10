@@ -211,10 +211,17 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
             break;
 
         case WM_KEYDOWN:
+        case WM_SYSKEYDOWN:
+            // Route system-key events (Alt, Alt+key, F10) through the same
+            // OnKeyDown handler as plain keys so the emulated keyboard
+            // sees Alt-modifier state. Returns true (call DefWindowProc)
+            // for unconsumed events so Windows still handles Alt+F4,
+            // Alt+Space (system menu), F10, etc.
             callDefWndProc = pThis->OnKeyDown (wParam, lParam);
             break;
 
         case WM_KEYUP:
+        case WM_SYSKEYUP:
             callDefWndProc = pThis->OnKeyUp (wParam, lParam);
             break;
 
