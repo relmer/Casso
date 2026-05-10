@@ -29,16 +29,74 @@
 
 static constexpr LPCWSTR kLastMachineValue = L"LastMachine";
 
-// Per-machine last-mounted disk image. Constructed at runtime as
-// "Disk1.{machine}" / "Disk2.{machine}" so apple2e / apple2plus /
-// apple2 each remember their own slot 6 mounts independently.
-static wstring MakeDiskRegValueName (int drive, const wstring & machineName)
+// Per-machine UI state lives under HKCU\Software\relmer\Casso\Machines\{machine}.
+// Disk paths under that subkey use the simple value names "Disk1" / "Disk2".
+// Future per-machine state (window size, speed mode, write-protect flags)
+// can land alongside without colliding across machines.
+static constexpr LPCWSTR kMachinesRoot       = L"Machines";
+static constexpr LPCWSTR kDiskValueNames[2]  = { L"Disk1", L"Disk2" };
+
+static wstring MakeMachineSubkey (const wstring & machineName)
+{
+    wstring  sub = kMachinesRoot;
+
+    if (!machineName.empty ())
+    {
+        sub += L"\\";
+        sub += machineName;
+    }
+
+    return sub;
+}
+
+// Pre-hierarchy value name (Disk1.apple2e). Kept for one-shot migration
+// of users who already have a saved disk under the flat layout from the
+// previous build -- read from the legacy slot if the new slot is empty,
+// then re-write into the new slot. Old value isn't deleted (harmless).
+static wstring MakeLegacyDiskValueName (int drive, const wstring & machineName)
 {
     wstring  name;
 
     name = (drive == 0) ? L"Disk1." : L"Disk2.";
     name += machineName;
     return name;
+}
+
+static HRESULT ReadSavedDiskPath (int drive, const wstring & machineName, wstring & outPath)
+{
+    HRESULT  hr     = S_OK;
+    wstring  subkey = MakeMachineSubkey (machineName);
+
+    outPath.clear ();
+
+    hr = RegistrySettings::ReadString (subkey.c_str (), kDiskValueNames[drive], outPath);
+
+    if (hr == S_FALSE || (hr == S_OK && outPath.empty ()))
+    {
+        // Fall back to the legacy flat-namespace value from the prior
+        // build. If found, copy it forward to the hierarchical layout
+        // so subsequent reads hit the new location.
+        wstring  legacy;
+        HRESULT  hrLegacy = RegistrySettings::ReadString (
+            MakeLegacyDiskValueName (drive, machineName).c_str (), legacy);
+
+        if (hrLegacy == S_OK && !legacy.empty ())
+        {
+            outPath = legacy;
+            HRESULT hrMigrate = RegistrySettings::WriteString (
+                subkey.c_str (), kDiskValueNames[drive], legacy);
+            IGNORE_RETURN_VALUE (hrMigrate, S_OK);
+            hr = S_OK;
+        }
+    }
+
+    return hr;
+}
+
+static HRESULT WriteSavedDiskPath (int drive, const wstring & machineName, const wstring & path)
+{
+    wstring  subkey = MakeMachineSubkey (machineName);
+    return RegistrySettings::WriteString (subkey.c_str (), kDiskValueNames[drive], path);
 }
 
 
@@ -1337,8 +1395,7 @@ void EmulatorShell::MountCommandLineDisks (
     if (resolvedDisk1.empty () && !m_currentMachineName.empty ())
     {
         wstring  saved;
-        HRESULT  hrRead = RegistrySettings::ReadString (
-            MakeDiskRegValueName (0, m_currentMachineName).c_str (), saved);
+        HRESULT  hrRead = ReadSavedDiskPath (0, m_currentMachineName, saved);
 
         if (hrRead == S_OK && !saved.empty ())
         {
@@ -1349,8 +1406,7 @@ void EmulatorShell::MountCommandLineDisks (
     if (resolvedDisk2.empty () && !m_currentMachineName.empty ())
     {
         wstring  saved;
-        HRESULT  hrRead = RegistrySettings::ReadString (
-            MakeDiskRegValueName (1, m_currentMachineName).c_str (), saved);
+        HRESULT  hrRead = ReadSavedDiskPath (1, m_currentMachineName, saved);
 
         if (hrRead == S_OK && !saved.empty ())
         {
@@ -1444,8 +1500,7 @@ HRESULT EmulatorShell::MountDiskInSlot6 (int drive, const string & path)
     if (!m_currentMachineName.empty ())
     {
         wstring  wPath = fs::path (path).wstring ();
-        HRESULT  hrReg = RegistrySettings::WriteString (
-            MakeDiskRegValueName (drive, m_currentMachineName).c_str (), wPath);
+        HRESULT  hrReg = WriteSavedDiskPath (drive, m_currentMachineName, wPath);
         IGNORE_RETURN_VALUE (hrReg, S_OK);
     }
 
@@ -1481,8 +1536,7 @@ void EmulatorShell::EjectDiskInSlot6 (int drive)
     // empty in this slot.
     if (!m_currentMachineName.empty ())
     {
-        HRESULT  hrReg = RegistrySettings::WriteString (
-            MakeDiskRegValueName (drive, m_currentMachineName).c_str (), L"");
+        HRESULT  hrReg = WriteSavedDiskPath (drive, m_currentMachineName, L"");
         IGNORE_RETURN_VALUE (hrReg, S_OK);
     }
 }
