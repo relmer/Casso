@@ -109,14 +109,7 @@ void DiskIINibbleEngine::SetCurrentTrack (int track)
         // Real Disk II behavior: the head physically moves between
         // tracks while the disk keeps spinning. The bit cursor (the
         // rotational position of the disk under the head) carries
-        // over modulo the new track's bit length. Resetting m_bitPos
-        // to 0 here used to corrupt every track-change read because
-        // the read latch lost its sync alignment and had to spend
-        // an entire revolution finding the next address-field sync
-        // gap before any sector could be located -- which on a tight
-        // RWTS read loop frequently times out and reports a checksum
-        // error. Cap to the new track's bit length so we don't end
-        // up past the wrap.
+        // over modulo the new track's bit length.
         size_t  newBits = (m_disk != nullptr)
                           ? m_disk->GetTrackBitCount (clamped)
                           : 0;
@@ -131,6 +124,16 @@ void DiskIINibbleEngine::SetCurrentTrack (int track)
         {
             m_bitPos = 0;
         }
+
+        // Reset the LSS shift register and latch-delay state when the
+        // head physically moves to a new track. Without this, leftover
+        // bits assembled from the old track's surface contaminate the
+        // first byte the CPU reads on the new track -- which RWTS sees
+        // as a corrupt nibble and either retries (slow) or fails the
+        // checksum (I/O ERROR).
+        m_workingShift   = 0;
+        m_latchDelayBits = 0;
+        m_readLatch      = 0;
     }
 }
 
