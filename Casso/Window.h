@@ -42,16 +42,18 @@ protected:
     static LRESULT CALLBACK s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 
     // Virtual message handlers — return true to call DefWindowProc
-    virtual bool    OnChar    (WPARAM ch, LPARAM lParam);
-    virtual bool    OnCommand (HWND hwnd, int id);
-    virtual bool    OnClose   (HWND hwnd);
-    virtual LRESULT OnCreate  (HWND hwnd, CREATESTRUCT * pcs);
-    virtual bool    OnDestroy (HWND hwnd);
-    virtual bool    OnKeyDown (WPARAM vk, LPARAM lParam);
-    virtual bool    OnKeyUp   (WPARAM vk, LPARAM lParam);
-    virtual bool    OnNotify  (HWND hwnd, WPARAM wParam, LPARAM lParam);
-    virtual bool    OnPaint   (HWND hwnd);
-    virtual bool    OnSize    (HWND hwnd, UINT width, UINT height);
+    virtual bool    OnChar     (WPARAM ch, LPARAM lParam);
+    virtual bool    OnCommand  (HWND hwnd, int id);
+    virtual bool    OnClose    (HWND hwnd);
+    virtual LRESULT OnCreate   (HWND hwnd, CREATESTRUCT * pcs);
+    virtual bool    OnDestroy  (HWND hwnd);
+    virtual bool    OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis);
+    virtual bool    OnKeyDown  (WPARAM vk, LPARAM lParam);
+    virtual bool    OnKeyUp    (WPARAM vk, LPARAM lParam);
+    virtual bool    OnNotify   (HWND hwnd, WPARAM wParam, LPARAM lParam);
+    virtual bool    OnPaint    (HWND hwnd);
+    virtual bool    OnSize     (HWND hwnd, UINT width, UINT height);
+    virtual bool    OnTimer    (HWND hwnd, UINT_PTR timerId);
 
 protected:
     WORD      m_idIcon        = 0;

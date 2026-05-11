@@ -20,6 +20,7 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <ctime>
 #include <filesystem>
 #include <format>
 #include <fstream>

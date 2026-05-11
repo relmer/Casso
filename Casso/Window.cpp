@@ -204,11 +204,24 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
             callDefWndProc = pThis->OnDestroy (hwnd);
             break;
 
+        case WM_DRAWITEM:
+            callDefWndProc = pThis->OnDrawItem (hwnd,
+                                                static_cast<int> (wParam),
+                                                reinterpret_cast<DRAWITEMSTRUCT *> (lParam));
+            break;
+
         case WM_KEYDOWN:
+        case WM_SYSKEYDOWN:
+            // Route system-key events (Alt, Alt+key, F10) through the same
+            // OnKeyDown handler as plain keys so the emulated keyboard
+            // sees Alt-modifier state. Returns true (call DefWindowProc)
+            // for unconsumed events so Windows still handles Alt+F4,
+            // Alt+Space (system menu), F10, etc.
             callDefWndProc = pThis->OnKeyDown (wParam, lParam);
             break;
 
         case WM_KEYUP:
+        case WM_SYSKEYUP:
             callDefWndProc = pThis->OnKeyUp (wParam, lParam);
             break;
 
@@ -222,6 +235,10 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
 
         case WM_SIZE:
             callDefWndProc = pThis->OnSize (hwnd, LOWORD (lParam), HIWORD (lParam));
+            break;
+
+        case WM_TIMER:
+            callDefWndProc = pThis->OnTimer (hwnd, static_cast<UINT_PTR> (wParam));
             break;
 
         default:
@@ -414,6 +431,50 @@ bool Window::OnSize (HWND hwnd, UINT width, UINT height)
     UNREFERENCED_PARAMETER (hwnd);
     UNREFERENCED_PARAMETER (width);
     UNREFERENCED_PARAMETER (height);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDrawItem
+//
+//  Default behavior: tell DefWindowProc to handle the WM_DRAWITEM (which
+//  it processes as a no-op for non-button controls). Override in derived
+//  classes to paint owner-drawn controls.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (idCtl);
+    UNREFERENCED_PARAMETER (pdis);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnTimer
+//
+//  Default behavior: pass through to DefWindowProc. Override in derived
+//  classes that set up timers via SetTimer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::OnTimer (HWND hwnd, UINT_PTR timerId)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (timerId);
 
     return true;
 }

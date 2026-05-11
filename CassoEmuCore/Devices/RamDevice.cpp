@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "RamDevice.h"
+#include "Core/Prng.h"
 
 
 
@@ -62,6 +63,42 @@ void RamDevice::Write (Word address, Byte value)
 void RamDevice::Reset ()
 {
     fill (m_data.begin (), m_data.end (), Byte (0));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoftReset
+//
+//  Phase 4 / FR-034: //e soft reset preserves DRAM contents. No-op so the
+//  ROM reset handler sees the same memory image it left behind.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RamDevice::SoftReset ()
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PowerCycle
+//
+//  Phase 4 / FR-035: re-seed the buffer from the shared Prng. Real DRAM
+//  is undefined at power-on; the Prng-pattern stand-in is deterministic
+//  whenever the caller pinned the seed (audit §10).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RamDevice::PowerCycle (Prng & prng)
+{
+    prng.Fill (m_data.data (), m_data.size ());
 }
 
 

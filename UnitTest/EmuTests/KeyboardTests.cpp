@@ -6,6 +6,8 @@
 #include "Devices/AppleKeyboard.h"
 #include "Devices/AppleIIeKeyboard.h"
 #include "Devices/AppleIIeSoftSwitchBank.h"
+#include "Devices/AppleIIeMmu.h"
+#include "Devices/RamDevice.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -210,8 +212,15 @@ public:
     TEST_METHOD (IIeKeyboard_ForwardsC001WriteToSoftSwitch)
     {
         MemoryBus              bus;
+        RamDevice              mainRam (0x0000, 0xBFFF);
+        AppleIIeMmu            mmu;
         AppleIIeSoftSwitchBank sw  (&bus);
         AppleIIeKeyboard       iieKbd (&bus);
+
+        sw.SetMmu (&mmu);
+        HRESULT hrInit = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, &sw);
+        UNREFERENCED_PARAMETER (hrInit);
+
         iieKbd.SetSoftSwitchSibling (&sw);
 
         iieKbd.Write (0xC001, 0);
@@ -245,5 +254,182 @@ public:
 
         Assert::AreEqual (static_cast<Byte> (0x00), val,
             L"After Reset, $C000 should return $00 (no key, no strobe)");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  Phase 6 / T062 / FR-013, FR-014 / audit §1.2, §4 — modifier keys
+    //  ($C061/$C062/$C063) and strobe-clear isolation. The //e keyboard
+    //  forwards $C011-$C01F status reads to the soft-switch bank (T061
+    //  ownership split); the bank reports bit 7 from the canonical
+    //  source and bits 0-6 from the keyboard latch (read-only).
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (OpenAppleReadable_C061)
+    {
+        AppleIIeKeyboard kbd;
+
+        Byte released = kbd.Read (0xC061);
+        Assert::AreEqual (static_cast<Byte> (0x00), released,
+            L"$C061 with Open Apple released returns 0");
+
+        kbd.SetOpenApple (true);
+
+        Byte pressed = kbd.Read (0xC061);
+        Assert::IsTrue ((pressed & 0x80) != 0,
+            L"$C061 bit 7 must be set when Open Apple is pressed");
+    }
+
+    TEST_METHOD (ClosedAppleReadable_C062)
+    {
+        AppleIIeKeyboard kbd;
+
+        Byte released = kbd.Read (0xC062);
+        Assert::AreEqual (static_cast<Byte> (0x00), released,
+            L"$C062 with Closed Apple released returns 0");
+
+        kbd.SetClosedApple (true);
+
+        Byte pressed = kbd.Read (0xC062);
+        Assert::IsTrue ((pressed & 0x80) != 0,
+            L"$C062 bit 7 must be set when Closed Apple is pressed");
+    }
+
+    TEST_METHOD (ShiftReadable_C063)
+    {
+        AppleIIeKeyboard kbd;
+
+        Byte released = kbd.Read (0xC063);
+        Assert::AreEqual (static_cast<Byte> (0x00), released,
+            L"$C063 with Shift released returns 0");
+
+        kbd.SetShift (true);
+
+        Byte pressed = kbd.Read (0xC063);
+        Assert::IsTrue ((pressed & 0x80) != 0,
+            L"$C063 bit 7 must be set when Shift is pressed");
+    }
+
+    TEST_METHOD (OnlyC010ClearsStrobe)
+    {
+        AppleIIeKeyboard       kbd;
+        AppleIIeSoftSwitchBank bank;
+
+        kbd .SetSoftSwitchSibling (&bank);
+        bank.SetKeyboard          (&kbd);
+
+        kbd.KeyPress ('A');
+        Assert::IsFalse (kbd.IsStrobeClear (), L"Pre-condition: strobe set");
+
+        // Read every status register $C011-$C01F — none should clear strobe.
+        for (Word addr = 0xC011; addr <= 0xC01F; ++addr)
+        {
+            kbd.Read (addr);
+            Assert::IsFalse (kbd.IsStrobeClear (),
+                L"Reading $C011-$C01F must not clear strobe");
+        }
+
+        // Read $C010 — must clear strobe.
+        kbd.Read (0xC010);
+        Assert::IsTrue (kbd.IsStrobeClear (),
+            L"Reading $C010 must clear strobe");
+    }
+
+    TEST_METHOD (C011ReadDoesNotClearStrobe)
+    {
+        AppleIIeKeyboard       kbd;
+        AppleIIeSoftSwitchBank bank;
+
+        kbd .SetSoftSwitchSibling (&bank);
+        bank.SetKeyboard          (&kbd);
+        kbd.KeyPress ('K');
+
+        kbd.Read (0xC011);
+
+        Assert::IsFalse (kbd.IsStrobeClear (),
+            L"Reading $C011 (BSRBANK2 status) must not clear strobe");
+    }
+
+    TEST_METHOD (C012ReadDoesNotClearStrobe)
+    {
+        AppleIIeKeyboard       kbd;
+        AppleIIeSoftSwitchBank bank;
+
+        kbd .SetSoftSwitchSibling (&bank);
+        bank.SetKeyboard          (&kbd);
+        kbd.KeyPress ('M');
+
+        kbd.Read (0xC012);
+
+        Assert::IsFalse (kbd.IsStrobeClear (),
+            L"Reading $C012 (BSRREADRAM status) must not clear strobe");
+    }
+
+    TEST_METHOD (C019ReadDoesNotClearStrobe)
+    {
+        AppleIIeKeyboard       kbd;
+        AppleIIeSoftSwitchBank bank;
+
+        kbd .SetSoftSwitchSibling (&bank);
+        bank.SetKeyboard          (&kbd);
+        kbd.KeyPress ('Q');
+
+        kbd.Read (0xC019);
+
+        Assert::IsFalse (kbd.IsStrobeClear (),
+            L"Reading $C019 (RDVBLBAR) must not clear strobe");
+    }
+
+    TEST_METHOD (C01EReadDoesNotClearStrobe)
+    {
+        AppleIIeKeyboard       kbd;
+        AppleIIeSoftSwitchBank bank;
+
+        kbd .SetSoftSwitchSibling (&bank);
+        bank.SetKeyboard          (&kbd);
+        kbd.KeyPress ('Z');
+
+        kbd.Read (0xC01E);
+
+        Assert::IsFalse (kbd.IsStrobeClear (),
+            L"Reading $C01E (RDALTCHAR) must not clear strobe");
+    }
+
+    TEST_METHOD (Audit_OpenClosedAppleNoLongerDeadCode)
+    {
+        // Pre-Phase-6: AppleIIeKeyboard::GetEnd() was $C01F so reads of
+        // $C061/$C062 never reached the device — the modifier code was
+        // dead. T060 extends GetEnd() to $C063; this test asserts the
+        // bus range now covers the modifier reads.
+        AppleIIeKeyboard kbd;
+
+        Assert::AreEqual (static_cast<Word> (0xC063), kbd.GetEnd (),
+            L"Phase 6 / audit §4 C3: keyboard GetEnd() must reach $C063");
+
+        kbd.SetOpenApple   (true);
+        kbd.SetClosedApple (true);
+
+        Assert::IsTrue ((kbd.Read (0xC061) & 0x80) != 0,
+            L"$C061 read must reach Open Apple state");
+        Assert::IsTrue ((kbd.Read (0xC062) & 0x80) != 0,
+            L"$C062 read must reach Closed Apple state");
+    }
+
+    TEST_METHOD (Audit_ShiftKeyImplemented)
+    {
+        // Phase 6 / FR-013: $C063 (Shift) must be a real read site,
+        // not stub-zero. SetShift(true) must produce bit 7 = 1.
+        AppleIIeKeyboard kbd;
+
+        Assert::AreEqual (static_cast<Byte> (0x00), kbd.Read (0xC063),
+            L"$C063 with Shift released returns 0");
+
+        kbd.SetShift (true);
+
+        Byte val = kbd.Read (0xC063);
+        Assert::IsTrue ((val & 0x80) != 0,
+            L"Phase 6 / FR-013: Shift must be implemented at $C063");
     }
 };

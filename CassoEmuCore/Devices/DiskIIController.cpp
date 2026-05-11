@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskIIController.h"
+#include "Core/Prng.h"
 
 
 
@@ -8,157 +9,30 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DOS 3.3 sector interleave table (logical → physical)
+//  Phase-mask → energized-phase resolution
+//
+//  Real Disk II steppers read the 4-bit phase mask and walk the head one
+//  quarter-track per energized neighbor. Phase 9 keeps the simpler
+//  "highest-set phase chooses direction" model from Phase 8 — sufficient
+//  for the tests; precise quarter-track stepping arrives
+//  with Phase 11.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int kDos33Interleave[16] =
+static int FindHighestPhase (uint8_t phases)
 {
-    0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15
-};
+    int   i      = 0;
+    int   result = -1;
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  6-and-2 write translate table (64 entries)
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static const Byte kWriteTranslate[64] =
-{
-    0x96, 0x97, 0x9A, 0x9B, 0x9D, 0x9E, 0x9F, 0xA6,
-    0xA7, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF, 0xB2, 0xB3,
-    0xB4, 0xB5, 0xB6, 0xB7, 0xB9, 0xBA, 0xBB, 0xBC,
-    0xBD, 0xBE, 0xBF, 0xCB, 0xCD, 0xCE, 0xCF, 0xD3,
-    0xD6, 0xD7, 0xD9, 0xDA, 0xDB, 0xDC, 0xDD, 0xDE,
-    0xDF, 0xE5, 0xE6, 0xE7, 0xE9, 0xEA, 0xEB, 0xEC,
-    0xED, 0xEE, 0xEF, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6,
-    0xF7, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF,
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  4-and-4 encoding helpers
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static Byte Encode44Odd (Byte val)
-{
-    return static_cast<Byte> (((val >> 1) | 0xAA));
-}
-
-
-static Byte Encode44Even (Byte val)
-{
-    return static_cast<Byte> ((val | 0xAA));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskImage
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DiskImage::DiskImage ()
-{
-    m_data.fill (0);
-}
-
-
-HRESULT DiskImage::Load (const string & filePath)
-{
-    HRESULT hr = S_OK;
-
-    ifstream file (filePath, ios::binary);
+    for (i = 0; i < DiskIIController::kPhaseCount; i++)
     {
-        bool fileOk = file.good ();
-        CBREx (fileOk, E_FAIL);
+        if (phases & (1 << i))
+        {
+            result = i;
+        }
     }
 
-    file.read (reinterpret_cast<char *> (m_data.data ()), 143360);
-    {
-        streamsize bytesRead = file.gcount ();
-        CBREx (bytesRead == 143360, E_FAIL);
-    }
-
-    m_filePath = filePath;
-    m_loaded   = true;
-    m_dirty    = false;
-
-Error:
-    return hr;
-}
-
-
-void DiskImage::Eject ()
-{
-    if (m_dirty && !m_writeProtected)
-    {
-        Flush ();
-    }
-
-    m_loaded = false;
-    m_data.fill (0);
-    m_filePath.clear ();
-    m_dirty = false;
-}
-
-
-void DiskImage::ReadSector (int track, int logicalSector, Byte * outData) const
-{
-    int physicalSector = kDos33Interleave[logicalSector];
-    size_t offset = static_cast<size_t> (track * 16 + physicalSector) * 256;
-
-    memcpy (outData, &m_data[offset], 256);
-}
-
-
-void DiskImage::WriteSector (int track, int logicalSector, const Byte * data)
-{
-    if (m_writeProtected)
-    {
-        return;
-    }
-
-    int physicalSector = kDos33Interleave[logicalSector];
-    size_t offset = static_cast<size_t> (track * 16 + physicalSector) * 256;
-
-    memcpy (&m_data[offset], data, 256);
-    m_dirty = true;
-}
-
-
-HRESULT DiskImage::Flush ()
-{
-    HRESULT hr = S_OK;
-
-    if (!m_dirty || m_filePath.empty ())
-    {
-        return S_OK;
-    }
-
-    ofstream file (m_filePath, ios::binary);
-    {
-        bool fileOk = file.good ();
-        CBREx (fileOk, E_FAIL);
-    }
-
-    file.write (reinterpret_cast<const char *> (m_data.data ()), 143360);
-    m_dirty = false;
-
-Error:
-    return hr;
+    return result;
 }
 
 
@@ -176,6 +50,10 @@ DiskIIController::DiskIIController (int slot)
       m_ioStart (static_cast<Word> (0xC080 + slot * 16)),
       m_ioEnd   (static_cast<Word> (0xC08F + slot * 16))
 {
+    m_activeDisk[0] = &m_disks[0];
+    m_activeDisk[1] = &m_disks[1];
+    m_engine[0].SetDiskImage (m_activeDisk[0]);
+    m_engine[1].SetDiskImage (m_activeDisk[1]);
 }
 
 
@@ -186,12 +64,59 @@ DiskIIController::DiskIIController (int slot)
 //
 //  Read
 //
+//  Apply soft-switch side effects then dispatch the data path per Q6/Q7.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte DiskIIController::Read (Word address)
 {
-    int offset = (address - m_ioStart) & 0x0F;
+    int   offset = (address - m_ioStart) & 0x0F;
 
+    HandleSwitch (offset);
+
+    return HandleReadDispatch ();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Write
+//
+//  Soft-switch side effects fire on writes too. When Q7=1 + Q6=1, the
+//  written value loads the engine's write latch (data field write path).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIController::Write (Word address, Byte value)
+{
+    int   offset = (address - m_ioStart) & 0x0F;
+
+    HandleSwitch (offset);
+
+    if (m_q7 && m_q6)
+    {
+        m_engine[m_activeDrive].WriteLatch (value);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleSwitch
+//
+//  Decode the 16-byte slot soft-switch page into the controller's state
+//  machine: phase magnets, motor, drive select, Q6/Q7 latches.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIController::HandleSwitch (int offset)
+{
     switch (offset)
     {
         case 0x0: HandlePhase (0, false); break;
@@ -202,28 +127,81 @@ Byte DiskIIController::Read (Word address)
         case 0x5: HandlePhase (2, true);  break;
         case 0x6: HandlePhase (3, false); break;
         case 0x7: HandlePhase (3, true);  break;
-        case 0x8: m_motorOn = false; break;
-        case 0x9: m_motorOn = true;  break;
-        case 0xA: m_activeDrive = 0; break;
-        case 0xB: m_activeDrive = 1; break;
-        case 0xC: m_q6 = false; break;
-        case 0xD: m_q6 = true;  break;
-        case 0xE: m_q7 = false; break;
-        case 0xF: m_q7 = true;  break;
+        case 0x8:
+            // Motor-off command: real Disk II keeps the disk physically
+            // spinning for ~1 second after this so DOS RWTS retries and
+            // back-to-back command sequences don't lose rotational
+            // sync (UTAIIe ch. 9). Arm a spindown timer rather than
+            // killing the engine immediately; the visible m_motorOn
+            // flag flips once the timer expires in Tick().
+            if (m_motorOn && m_motorSpindownCycles == 0)
+            {
+                m_motorSpindownCycles = kMotorSpindownCycles;
+            }
+            break;
+        case 0x9:
+            // Motor-on command: cancel any pending spindown so the
+            // engine keeps producing nibbles continuously across the
+            // motor-off / motor-on toggle DOS issues between sectors.
+            m_motorSpindownCycles = 0;
+            m_motorOn = true;
+            m_engine[m_activeDrive].SetMotorOn (true);
+            break;
+        case 0xA:
+            m_activeDrive = 0;
+            UpdateEngineSelection ();
+            break;
+        case 0xB:
+            m_activeDrive = 1;
+            UpdateEngineSelection ();
+            break;
+        case 0xC:
+            m_q6 = false;
+            m_engine[m_activeDrive].SetShiftLoadMode (false);
+            break;
+        case 0xD:
+            m_q6 = true;
+            m_engine[m_activeDrive].SetShiftLoadMode (true);
+            break;
+        case 0xE:
+            m_q7 = false;
+            m_engine[m_activeDrive].SetWriteMode (false);
+            break;
+        case 0xF:
+            m_q7 = true;
+            m_engine[m_activeDrive].SetWriteMode (true);
+            break;
+        default:
+            break;
     }
+}
 
-    // Q6=0, Q7=0: Read mode — return next nibble
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleReadDispatch
+//
+//  Q7=0, Q6=0: read data latch (returns next assembled nibble).
+//  Q7=0, Q6=1: sense write protect (bit 7 = WP state).
+//  Q7=1, Q6=0: shift-load (real HW prepares the write latch). Phase 9
+//              returns 0 — the LSS write path uses Q7=1+Q6=1 + Write().
+//  Q7=1, Q6=1: write mode read returns 0 (write-only path).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte DiskIIController::HandleReadDispatch ()
+{
     if (!m_q6 && !m_q7)
     {
-        return ReadDataLatch ();
+        return m_engine[m_activeDrive].ReadLatch ();
     }
 
-    // Q6=1, Q7=0: Sense write protect
     if (m_q6 && !m_q7)
     {
-        DiskImage * disk = GetDisk (m_activeDrive);
-
-        if (disk && disk->IsWriteProtected ())
+        if (m_activeDisk[m_activeDrive]->IsWriteProtected ())
         {
             return 0x80;
         }
@@ -240,29 +218,11 @@ Byte DiskIIController::Read (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Write
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskIIController::Write (Word address, Byte value)
-{
-    // Process the switch
-    Read (address);
-
-    // Q6=1, Q7=1: Load data latch
-    if (m_q6 && m_q7)
-    {
-        m_shiftRegister = value;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  HandlePhase
+//
+//  Update the phase mask, walk the head one quarter-track toward the
+//  newly-energized phase, clamp to legal range, then push the resulting
+//  full-track index into the active drive's engine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -270,54 +230,67 @@ void DiskIIController::HandlePhase (int phase, bool on)
 {
     if (on)
     {
-        m_phases |= (1 << phase);
+        m_phases = static_cast<uint8_t> (m_phases | (1 << phase));
     }
     else
     {
-        m_phases &= ~(1 << phase);
+        m_phases = static_cast<uint8_t> (m_phases & ~(1 << phase));
     }
 
-    // Determine direction based on current phase and energized phases
-    int currentPhase = (m_quarterTrack / 2) & 3;
-    int targetPhase  = -1;
+    // Disk II stepper model (UTAIIe ch. 9; AppleWin ControlStepperDeferred):
+    //   - 4 phase magnets arranged 90 degrees apart around the cog.
+    //   - The head's rotational position (which magnet it's nearest)
+    //     cycles every full track. Casso represents position as a
+    //     quarter-track count (0..kMaxQuarterTrack); two consecutive
+    //     quarter-tracks lie under different magnet positions, so
+    //     `(m_quarterTrack / 2) & 3` is the current "phase index" the
+    //     head is nearest.
+    //   - Movement is determined by which adjacent magnets (rot+/-1)
+    //     are currently energized. A single adjacent magnet pulls the
+    //     head one half-track toward it (= 2 quarter-tracks). Two
+    //     adjacent magnets ($3=0+1, $6=1+2, $C=2+3, $9=3+0) pull the
+    //     head only halfway, i.e. one quarter-track (the cog rests
+    //     between the two magnet positions).
+    //   - Opposing-only magnet pairs ($5=0+2, $A=1+3) cancel out and
+    //     leave the head where it is.
+    //
+    // The previous "highest set bit" model only stepped by one quarter-
+    // track per phase event regardless of the magnet topology, which
+    // walked the head ~1.5x too fast on standard DOS step sequences and
+    // dropped multi-track seeks intermittently.
+    int  rot       = (m_quarterTrack / 2) & 3;
+    int  direction = 0;
 
-    for (int i = 0; i < 4; i++)
+    if (m_phases & (1 << ((rot + 1) & 3)))
     {
-        if (m_phases & (1 << i))
-        {
-            targetPhase = i;
-        }
+        direction += 1;
     }
-
-    if (targetPhase < 0)
+    if (m_phases & (1 << ((rot + 3) & 3)))
     {
-        return;
+        direction -= 1;
     }
 
-    int delta = targetPhase - currentPhase;
+    int  qtDelta = direction * 2;
 
-    if (delta == 1 || delta == -3)
+    if (m_phases == 0x3 || m_phases == 0x6 ||
+        m_phases == 0xC || m_phases == 0x9)
     {
-        m_quarterTrack++;
-    }
-    else if (delta == -1 || delta == 3)
-    {
-        m_quarterTrack--;
+        qtDelta = direction;
     }
 
-    // Clamp to valid range
+    m_quarterTrack += qtDelta;
+
     if (m_quarterTrack < 0)
     {
         m_quarterTrack = 0;
     }
 
-    if (m_quarterTrack > 139)
+    if (m_quarterTrack > kMaxQuarterTrack)
     {
-        m_quarterTrack = 139;
+        m_quarterTrack = kMaxQuarterTrack;
     }
 
-    // Re-nibblize for new track
-    NibblizeTrack (m_activeDrive);
+    m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack / 4);
 }
 
 
@@ -326,26 +299,23 @@ void DiskIIController::HandlePhase (int phase, bool on)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ReadDataLatch
+//  UpdateEngineSelection
+//
+//  Drive select changes which engine sees motor-on. The non-selected
+//  engine freezes; the selected engine inherits the controller's motor
+//  state and the current track.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte DiskIIController::ReadDataLatch ()
+void DiskIIController::UpdateEngineSelection ()
 {
-    if (m_nibbleBuffer.empty ())
-    {
-        NibblizeTrack (m_activeDrive);
-    }
+    int   other = m_activeDrive ^ 1;
 
-    if (m_nibbleBuffer.empty ())
-    {
-        return 0;
-    }
-
-    Byte value = m_nibbleBuffer[m_nibblePos];
-    m_nibblePos = (m_nibblePos + 1) % m_nibbleBuffer.size ();
-
-    return value;
+    m_engine[other].SetMotorOn (false);
+    m_engine[m_activeDrive].SetMotorOn (m_motorOn);
+    m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack / 4);
+    m_engine[m_activeDrive].SetShiftLoadMode (m_q6);
+    m_engine[m_activeDrive].SetWriteMode    (m_q7);
 }
 
 
@@ -354,125 +324,31 @@ Byte DiskIIController::ReadDataLatch ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblizeTrack
+//  Tick
 //
-//  Convert raw sector data from .dsk into nibble stream (~6400 bytes/track).
+//  Pumps the active drive's engine. Inactive drive's engine sits idle
+//  (motor off via SetMotorOn (false)).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIController::NibblizeTrack (int drive)
+void DiskIIController::Tick (uint32_t cpuCycles)
 {
-    m_nibbleBuffer.clear ();
-    m_nibblePos = 0;
-
-    DiskImage * disk = GetDisk (drive);
-
-    if (!disk || !disk->IsLoaded ())
+    if (m_motorSpindownCycles > 0)
     {
-        return;
+        if (cpuCycles >= m_motorSpindownCycles)
+        {
+            m_motorSpindownCycles = 0;
+            m_motorOn             = false;
+            m_engine[0].SetMotorOn (false);
+            m_engine[1].SetMotorOn (false);
+        }
+        else
+        {
+            m_motorSpindownCycles -= cpuCycles;
+        }
     }
 
-    int track = m_quarterTrack / 4;
-    Byte volume = 254;
-
-    m_nibbleBuffer.reserve (6400);
-
-    for (int sector = 0; sector < 16; sector++)
-    {
-        Byte sectorData[256];
-        disk->ReadSector (track, sector, sectorData);
-
-        // Gap 1
-        for (int i = 0; i < 20; i++)
-        {
-            m_nibbleBuffer.push_back (0xFF);
-        }
-
-        // Address field
-        m_nibbleBuffer.push_back (0xD5);
-        m_nibbleBuffer.push_back (0xAA);
-        m_nibbleBuffer.push_back (0x96);
-
-        Byte checksum = static_cast<Byte> (volume ^ track ^ sector);
-        m_nibbleBuffer.push_back (Encode44Odd (volume));
-        m_nibbleBuffer.push_back (Encode44Even (volume));
-        m_nibbleBuffer.push_back (Encode44Odd (static_cast<Byte> (track)));
-        m_nibbleBuffer.push_back (Encode44Even (static_cast<Byte> (track)));
-        m_nibbleBuffer.push_back (Encode44Odd (static_cast<Byte> (sector)));
-        m_nibbleBuffer.push_back (Encode44Even (static_cast<Byte> (sector)));
-        m_nibbleBuffer.push_back (Encode44Odd (checksum));
-        m_nibbleBuffer.push_back (Encode44Even (checksum));
-
-        m_nibbleBuffer.push_back (0xDE);
-        m_nibbleBuffer.push_back (0xAA);
-        m_nibbleBuffer.push_back (0xEB);
-
-        // Gap 2
-        for (int i = 0; i < 6; i++)
-        {
-            m_nibbleBuffer.push_back (0xFF);
-        }
-
-        // Data field
-        m_nibbleBuffer.push_back (0xD5);
-        m_nibbleBuffer.push_back (0xAA);
-        m_nibbleBuffer.push_back (0xAD);
-
-        // 6-and-2 encoding
-        Byte buffer[342];
-
-        // Secondary buffer (86 bytes from low 2 bits of each byte)
-        for (int i = 0; i < 86; i++)
-        {
-            Byte val = 0;
-
-            if (i < 86)
-            {
-                val = static_cast<Byte> (
-                    ((sectorData[i] & 0x01) << 1) |
-                    ((sectorData[i] & 0x02) >> 1));
-            }
-
-            if (i + 86 < 256)
-            {
-                val |= static_cast<Byte> (
-                    ((sectorData[i + 86] & 0x01) << 3) |
-                    ((sectorData[i + 86] & 0x02) << 1));
-            }
-
-            if (i + 172 < 256)
-            {
-                val |= static_cast<Byte> (
-                    ((sectorData[i + 172] & 0x01) << 5) |
-                    ((sectorData[i + 172] & 0x02) << 3));
-            }
-
-            buffer[i] = val;
-        }
-
-        // Primary buffer (256 bytes, shifted right 2)
-        for (int i = 0; i < 256; i++)
-        {
-            buffer[86 + i] = sectorData[i] >> 2;
-        }
-
-        // XOR encode
-        Byte prev = 0;
-
-        for (int i = 0; i < 342; i++)
-        {
-            Byte encoded = buffer[i] ^ prev;
-            m_nibbleBuffer.push_back (kWriteTranslate[encoded & 0x3F]);
-            prev = buffer[i];
-        }
-
-        // Checksum
-        m_nibbleBuffer.push_back (kWriteTranslate[prev & 0x3F]);
-
-        m_nibbleBuffer.push_back (0xDE);
-        m_nibbleBuffer.push_back (0xAA);
-        m_nibbleBuffer.push_back (0xEB);
-    }
+    m_engine[m_activeDrive].Tick (cpuCycles);
 }
 
 
@@ -481,36 +357,52 @@ void DiskIIController::NibblizeTrack (int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MountDisk
+//  MountDisk / EjectDisk / GetDisk
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskIIController::MountDisk (int drive, const string & path)
 {
-    if (drive < 0 || drive > 1)
+    HRESULT   hr = S_OK;
+
+    if (drive < 0 || drive >= kDriveCount)
     {
-        return E_INVALIDARG;
+        hr = E_INVALIDARG;
+        goto Error;
     }
 
-    return m_disks[drive].Load (path);
+    hr = m_disks[drive].Load (path);
+    CHR (hr);
+
+    m_activeDisk[drive] = &m_disks[drive];
+    m_engine[drive].SetDiskImage (m_activeDisk[drive]);
+
+Error:
+    return hr;
 }
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EjectDisk
-//
-////////////////////////////////////////////////////////////////////////////////
 
 void DiskIIController::EjectDisk (int drive)
 {
-    if (drive >= 0 && drive <= 1)
+    if (drive < 0 || drive >= kDriveCount)
     {
-        m_disks[drive].Eject ();
+        return;
     }
+
+    m_disks[drive].Eject ();
+    m_activeDisk[drive] = &m_disks[drive];
+    m_engine[drive].SetDiskImage (m_activeDisk[drive]);
+}
+
+
+DiskImage * DiskIIController::GetDisk (int drive)
+{
+    if (drive < 0 || drive >= kDriveCount)
+    {
+        return nullptr;
+    }
+
+    return m_activeDisk[drive];
 }
 
 
@@ -519,18 +411,35 @@ void DiskIIController::EjectDisk (int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetDisk
+//  SetExternalDisk
+//
+//  Phase 11 / T097. Re-points drive `drive` at an externally-owned
+//  DiskImage (typically owned by EmulatorShell's DiskImageStore so the
+//  store can drive auto-flush on eject / machine switch / power cycle /
+//  shutdown). Pass nullptr to restore the controller's internal disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskImage * DiskIIController::GetDisk (int drive)
+void DiskIIController::SetExternalDisk (int drive, DiskImage * external)
 {
-    if (drive >= 0 && drive <= 1)
+    if (drive < 0 || drive >= kDriveCount)
     {
-        return &m_disks[drive];
+        return;
     }
 
-    return nullptr;
+    m_activeDisk[drive] = (external != nullptr) ? external : &m_disks[drive];
+    m_engine[drive].SetDiskImage (m_activeDisk[drive]);
+}
+
+
+bool DiskIIController::HasExternalDisk (int drive) const
+{
+    if (drive < 0 || drive >= kDriveCount)
+    {
+        return false;
+    }
+
+    return m_activeDisk[drive] != &m_disks[drive];
 }
 
 
@@ -545,15 +454,81 @@ DiskImage * DiskIIController::GetDisk (int drive)
 
 void DiskIIController::Reset ()
 {
-    m_phases        = 0;
-    m_quarterTrack  = 0;
-    m_motorOn       = false;
-    m_activeDrive   = 0;
-    m_q6            = false;
-    m_q7            = false;
-    m_shiftRegister = 0;
-    m_nibbleBuffer.clear ();
-    m_nibblePos     = 0;
+    int   i = 0;
+
+    m_phases       = 0;
+    m_quarterTrack = 0;
+    m_motorOn      = false;
+    m_motorSpindownCycles = 0;
+    m_activeDrive  = 0;
+    m_q6           = false;
+    m_q7           = false;
+
+    for (i = 0; i < kDriveCount; i++)
+    {
+        m_engine[i].Reset ();
+        m_engine[i].SetDiskImage (m_activeDisk[i]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoftReset
+//
+//  Phase 4 / FR-034: //e soft reset clears the controller hardware state
+//  but PRESERVES the disk mounts. Dirty images flush back to host storage
+//  so a reset doesn't lose user writes (audit §10).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIController::SoftReset ()
+{
+    HRESULT   hrFlush = S_OK;
+    int       drive   = 0;
+
+    Reset ();
+
+    for (drive = 0; drive < kDriveCount; drive++)
+    {
+        if (m_activeDisk[drive]->IsLoaded ())
+        {
+            hrFlush = m_activeDisk[drive]->Flush ();
+            IGNORE_RETURN_VALUE (hrFlush, S_OK);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PowerCycle
+//
+//  Phase 4 / FR-035: a full power cycle ejects every drive (which itself
+//  flushes dirty images first) and clears the controller hardware state.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIController::PowerCycle (Prng & prng)
+{
+    int   drive = 0;
+
+    UNREFERENCED_PARAMETER (prng);
+
+    Reset ();
+
+    for (drive = 0; drive < kDriveCount; drive++)
+    {
+        m_disks[drive].Eject ();
+        m_activeDisk[drive] = &m_disks[drive];
+        m_engine[drive].SetDiskImage (m_activeDisk[drive]);
+    }
 }
 
 
@@ -568,8 +543,9 @@ void DiskIIController::Reset ()
 
 unique_ptr<MemoryDevice> DiskIIController::Create (const DeviceConfig & config, MemoryBus & bus)
 {
+    int   slot = config.hasSlot ? config.slot : 6;
+
     UNREFERENCED_PARAMETER (bus);
 
-    int slot = config.hasSlot ? config.slot : 6;
     return make_unique<DiskIIController> (slot);
 }

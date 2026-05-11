@@ -7,8 +7,10 @@
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
 #include "Video/AppleTextMode.h"
+#include "Video/Apple80ColTextMode.h"
 #include "Video/AppleLoResMode.h"
 #include "Video/AppleHiResMode.h"
+#include "Video/AppleDoubleHiResMode.h"
 #include "Video/CharacterRom.h"
 #include "Video/NtscColorTable.h"
 
@@ -501,5 +503,134 @@ public:
         Assert::AreEqual (static_cast<Word> (0x06D0), expected21, L"Row 21 = $06D0");
         Assert::AreEqual (static_cast<Word> (0x0750), expected22, L"Row 22 = $0750");
         Assert::AreEqual (static_cast<Word> (0x07D0), expected23, L"Row 23 = $07D0");
+    }
+};
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Phase 12 Golden Hash Tests (T111)
+//
+//  Deterministic test patterns hashed with FNV-1a-64. The golden constants
+//  are baked into the test; if rendering changes, these tests fail and the
+//  expected hashes must be updated intentionally.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+namespace Phase12GoldenHelpers
+{
+    static uint64_t Fnv1a64 (const uint32_t* data, size_t count)
+    {
+        uint64_t h = 0xcbf29ce484222325ULL;
+
+        for (size_t i = 0; i < count; i++)
+        {
+            uint32_t v = data[i];
+
+            for (int b = 0; b < 4; b++)
+            {
+                uint8_t byte = static_cast<uint8_t> ((v >> (b * 8)) & 0xFF);
+                h ^= byte;
+                h *= 0x100000001b3ULL;
+            }
+        }
+        return h;
+    }
+
+    static uint32_t Prng (uint32_t& state)
+    {
+        state = state * 1664525u + 1013904223u;
+        return state;
+    }
+}
+
+
+TEST_CLASS (Phase12GoldenHashTests)
+{
+public:
+
+    TEST_METHOD (DhrTestPattern_HashMatches_Golden)
+    {
+        // Deterministic DHR pattern from PRNG seed 0xCA550001.
+        uint32_t seed = 0xCA550001u;
+        std::vector<Byte> aux (0x10000, 0x00);
+        std::vector<Byte> main (0x10000, 0x00);
+
+        for (int row = 0; row < 192; row++)
+        {
+            Word base = static_cast<Word> (
+                0x2000 +
+                ((row & 7) << 10) +
+                (((row >> 3) & 7) << 7) +
+                ((row >> 6) * 40));
+
+            for (int col = 0; col < 40; col++)
+            {
+                aux[base + col]  = static_cast<Byte> (Phase12GoldenHelpers::Prng (seed) & 0x7F);
+                main[base + col] = static_cast<Byte> (Phase12GoldenHelpers::Prng (seed) & 0x7F);
+            }
+        }
+
+        MemoryBus bus;
+        RamDevice ram (0x0000, 0x5FFF);
+        bus.AddDevice (&ram);
+
+        AppleDoubleHiResMode dhr (bus);
+        dhr.SetAuxMemory (aux.data ());
+        dhr.SetPage2 (false);
+
+        std::vector<uint32_t> fb (kFbW * kFbH, 0);
+        dhr.Render (main.data (), fb.data (), kFbW, kFbH);
+
+        uint64_t hash = Phase12GoldenHelpers::Fnv1a64 (fb.data (), fb.size ());
+
+        // Golden hash captured from initial deterministic render.
+        constexpr uint64_t kExpected = 0xB7CB79E10850A425ULL;
+
+        Assert::AreEqual (kExpected, hash,
+            std::format (L"DHR golden hash mismatch: got 0x{:016X}", hash).c_str ());
+    }
+
+    TEST_METHOD (Mixed80Col_TestProgram_HashMatches_Golden)
+    {
+        // Deterministic 80-col text pattern: aux + main interleaved bytes
+        // generated from a fixed PRNG seed. Hash the rendered framebuffer.
+        uint32_t seed = 0xCA550001u;
+        std::vector<Byte> auxBuf (0x10000, 0xA0);
+
+        MemoryBus bus;
+        RamDevice ram (0x0000, 0x0BFF);
+        bus.AddDevice (&ram);
+
+        for (int row = 0; row < 24; row++)
+        {
+            Word rowBase = static_cast<Word> (0x0400 + 128 * (row % 8) + 40 * (row / 8));
+
+            for (int col = 0; col < 40; col++)
+            {
+                Byte a = static_cast<Byte> (0x80 | (Phase12GoldenHelpers::Prng (seed) & 0x7F));
+                Byte m = static_cast<Byte> (0x80 | (Phase12GoldenHelpers::Prng (seed) & 0x7F));
+                auxBuf[rowBase + col] = a;
+                bus.WriteByte (rowBase + col, m);
+            }
+        }
+
+        Apple80ColTextMode text80 (bus);
+        text80.SetAuxMemory (auxBuf.data ());
+        text80.SetAltCharSet (false);
+        text80.SetFlashState (true);
+
+        std::vector<uint32_t> fb (kFbW * kFbH, 0);
+        text80.Render (nullptr, fb.data (), kFbW, kFbH);
+
+        uint64_t hash = Phase12GoldenHelpers::Fnv1a64 (fb.data (), fb.size ());
+
+        // Golden hash captured from initial deterministic render.
+        constexpr uint64_t kExpected = 0x67F023CDC3099DA5ULL;
+
+        Assert::AreEqual (kExpected, hash,
+            std::format (L"80-col golden hash mismatch: got 0x{:016X}", hash).c_str ());
     }
 };

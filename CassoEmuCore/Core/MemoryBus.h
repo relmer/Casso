@@ -3,6 +3,8 @@
 #include "Pch.h"
 #include "MemoryDevice.h"
 
+class Prng;
+
 
 
 
@@ -44,6 +46,13 @@ public:
     HRESULT Validate () const;
 
     void Reset ();
+
+    // Phase 4 split-reset fan-out. SoftResetAll calls SoftReset on every
+    // attached device; PowerCycleAll calls PowerCycle, threading the
+    // shared Prng so every DRAM-owning device sees the same deterministic
+    // pattern (FR-034, FR-035, audit §10).
+    void SoftResetAll  ();
+    void PowerCycleAll (Prng & prng);
 
     const vector<BusEntry> & GetEntries () const { return m_entries; }
 

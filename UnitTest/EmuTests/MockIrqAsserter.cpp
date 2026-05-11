@@ -1,0 +1,93 @@
+#include "../CassoEmuCore/Pch.h"
+
+#include "MockIrqAsserter.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MockIrqAsserter::MockIrqAsserter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MockIrqAsserter::MockIrqAsserter (IInterruptController * ic)
+    : m_ic (ic)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MockIrqAsserter::Bind
+//
+//  Registers as a source on the controller. Stores the assigned token.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MockIrqAsserter::Bind ()
+{
+    HRESULT     hr = S_OK;
+
+    if (m_ic == nullptr)
+    {
+        hr = E_INVALIDARG;
+        goto Error;
+    }
+
+    if (m_bound)
+    {
+        goto Error;
+    }
+
+    hr = m_ic->RegisterSource (m_sourceId);
+    if (FAILED (hr))
+    {
+        goto Error;
+    }
+
+    m_bound = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MockIrqAsserter::Assert
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MockIrqAsserter::Assert ()
+{
+    if (m_bound && m_ic != nullptr)
+    {
+        m_ic->Assert (m_sourceId);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MockIrqAsserter::Clear
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MockIrqAsserter::Clear ()
+{
+    if (m_bound && m_ic != nullptr)
+    {
+        m_ic->Clear (m_sourceId);
+    }
+}

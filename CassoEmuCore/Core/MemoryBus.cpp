@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "MemoryBus.h"
+#include "Prng.h"
 
 
 
@@ -231,6 +232,55 @@ void MemoryBus::Reset()
     for (auto & entry : m_entries)
     {
         entry.device->Reset();
+    }
+
+    m_floatingBusValue = 0xFF;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoftResetAll
+//
+//  Phase 4 split-reset (FR-034). Fans out SoftReset to every attached
+//  device. RAM-owning devices are no-ops here so user RAM survives soft
+//  reset on the //e (audit §10 [CRITICAL]).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::SoftResetAll ()
+{
+    for (auto & entry : m_entries)
+    {
+        entry.device->SoftReset ();
+    }
+
+    m_floatingBusValue = 0xFF;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PowerCycleAll
+//
+//  Phase 4 split-reset (FR-035). Fans out PowerCycle so every DRAM-owning
+//  device re-seeds from the shared Prng. Real //e DRAM is undefined at
+//  power-on; the deterministic Prng stand-in is common emulator practice
+//  for repeatable test runs (audit §10).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::PowerCycleAll (Prng & prng)
+{
+    for (auto & entry : m_entries)
+    {
+        entry.device->PowerCycle (prng);
     }
 
     m_floatingBusValue = 0xFF;

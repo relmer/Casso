@@ -218,7 +218,7 @@ int WINAPI wWinMain (
     }
 
     // Initialize emulator
-    hr = shell.Initialize (hInstance, config,
+    hr = shell.Initialize (hInstance, machineName, config,
                            fs::path (disk1Path).string(),
                            fs::path (disk2Path).string());
     CHRN (hr, L"Failed to initialize emulator");

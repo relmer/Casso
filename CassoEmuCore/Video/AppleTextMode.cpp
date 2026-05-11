@@ -102,17 +102,42 @@ void AppleTextMode::Render (
     int fbWidth,
     int fbHeight)
 {
-    UNREFERENCED_PARAMETER (fbHeight);
-
     m_frameCount++;
 
     // Flash toggles every ~16 frames (approximately 0.5 second at 60fps)
     m_flashOn = ((m_frameCount / 16) & 1) == 0;
 
-    Word     pageBase = GetActivePageAddress (m_page2);
-    int      charStride = kCharWidth * kScaleX;
+    RenderRowRange (0, kTextRows, videoRam, framebuffer, fbWidth, fbHeight);
+}
 
-    for (int row = 0; row < kTextRows; row++)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RenderRowRange
+//
+//  Renders rows [startRow, endRow) into framebuffer. Shared between full
+//  Render() and the composed mixed-mode bottom-rows path (FR-017a / FR-020).
+//  Does not advance the flash frame counter — caller controls that.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleTextMode::RenderRowRange (
+    int          startRow,
+    int          endRow,
+    const Byte * videoRam,
+    uint32_t   * framebuffer,
+    int          fbWidth,
+    int          fbHeight)
+{
+    UNREFERENCED_PARAMETER (fbHeight);
+
+    Word pageBase   = GetActivePageAddress (m_page2);
+    int  charStride = kCharWidth * kScaleX;
+
+    for (int row = startRow; row < endRow; row++)
     {
         Word rowAddr     = RowBaseAddress (row, pageBase);
         int  fbRowOrigin = row * kCharHeight * kScaleY * fbWidth;

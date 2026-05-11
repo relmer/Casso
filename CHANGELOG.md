@@ -6,6 +6,284 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.536] — 2026-05-10 — Disk II + //e text fidelity
+
+### Fixed (disk)
+- **DOS 3.3 boots from `.dsk` images.** Disk II nibblization corrected:
+  10-bit sync nibbles (`PackSyncNibbleBits`); standard data-field XOR
+  convention (each on-disk nibble = `encoded[i] XOR encoded[i-1]`,
+  checksum nibble = final raw encoded byte); standard Disk II LSS read
+  latch model with continuous-shift + 7 µs data-ready hold.
+- **CATALOG works on real DOS 3.3 master disk.** Two latent bugs in
+  the Disk II controller surfaced once boot succeeded:
+  - Motor spindown delay added (~1 second per UTAIIe ch. 9 / AppleWin
+    `SPINNING_CYCLES`). DOS RWTS toggles motor off / on between
+    commands and depends on the disk physically continuing to spin
+    during that window.
+  - Phase-stepper now uses the adjacency-pull model (`±2` quarter-tracks
+    per single-magnet pull, `±1` for the four "two-adjacent-magnets-on"
+    states `$3/$6/$C/$9`) instead of the old "highest set bit"
+    approximation, which accumulated drift across multi-track seeks
+    and landed CATALOG's 17-track seek on the wrong sectors.
+- **`DiskIIController::Tick`** now actually runs on the GUI CPU thread
+  (previously was wired only in tests).
+- **Per-machine disk auto-mount** persists in
+  `HKCU\Software\relmer\Casso\Machines\{machine}\Disk1|Disk2` and is
+  restored on machine switch / power cycle.
+- **PowerCycle before MountCommandLineDisks** at startup: PowerCycle
+  ejects every drive, so the previous order silently discarded the
+  freshly-mounted image.
+
+### Fixed (//e video)
+- **PR#3 (80-column mode) renders blank cells, not garbage.** The
+  `Decode4K` path for the //e enhanced video ROM was loading the
+  alternate character set from the wrong half of the 4 KB file. Now
+  matches UTAIIe ch. 8 (Sather) Tables 8.2 / 8.3: alt set's 256 chars
+  all live in the first 2 KB of the file. Bug was latent until Phase
+  12 added ALTCHARSET support to the 80-col renderer (audit M13).
+
+### Fixed (//e UI / keyboard)
+- **Edit > Copy Text** now reads the text page through `MemoryBus`
+  rather than `m_cpu->GetMemory()`. The MMU owns its own RAM device(s)
+  on the //e, so writes from firmware land in the bus-side buffer; the
+  CPU's internal `memory[]` mirror was a stale copy unrelated to what
+  appears on screen.
+- **Alt key** routes through the emulated keyboard so Open / Closed
+  Apple modifiers work; the Win32 layer no longer eats the modifier.
+- **Soft reset** preserves modifier-key latches.
+
+### Added (UI)
+- **Drive 1 / Drive 2 activity LEDs and tooltips** in the status bar.
+  Tooltips show mount path, current track, and read / write nibble
+  counters.
+
+### Added (tests)
+- Real-ROM boot-decoder tests (`BootRomDecoderTests`) — drive the
+  actual `disk2.rom` slot 6 firmware on the emulated 6502 against
+  synthetic disks; gates the on-disk format against the real Apple
+  firmware's checksum routines.
+- Direct-bus readback tests (`DiskReadbackTests`) — all 35 tracks ×
+  16 sectors round-trip bit-perfect through the nibblizer + LSS
+  without a CPU.
+- End-to-end CATALOG repro test (`CatalogReproductionTest`) — boots
+  real `dos33-master.dsk`, types `CATALOG`, asserts directory listing
+  is printed (no I/O ERROR).
+- 80-col PR#3 alt-set decoder gates (`Pr3AuxClearTest`).
+
+### Known follow-ups
+- 80-col cursor invisible after PR#3 (cursor-blink loop never runs;
+  likely VBL-interrupt or similar timer wiring).
+- Tooltip stats stale after PowerCycle.
+- Disk subsystem broken after PowerCycle (counters don't advance).
+- Bursty cosmetic update of nibble counters in the status bar.
+
+
+
+## [1.3.509] — 2026-05-09 — Apple //e fidelity (spec 004, Phases 0-16)
+
+The bulk of this entry completes Apple //e fidelity work begun in
+`[1.3.416]`. After this release the //e cold-boots to BASIC, runs Disk II
+images (`.dsk`/`.do`/`.po`/`.woz`), renders 80-column text and Double
+Hi-Res, honours auxiliary RAM and the Language Card state machine,
+distinguishes soft reset from power cycle, and exposes a cycle-accurate
+IRQ/NMI infrastructure.
+
+### Added (CPU + interrupts — Phase 1)
+- **`Cpu6502`** adapter implementing the new `ICpu` and `I6502DebugInfo`
+  contracts. Lets the emulator core be re-targeted without reaching into
+  legacy `EmuCpu` internals.
+- **`InterruptController`** with up to 32 named sources, edge/level
+  semantics, and per-source assert/clear. Wired into the CPU dispatch so
+  `IRQ` and `NMI` vectors fire on the next instruction boundary.
+- **IRQ / NMI dispatch path** validated against the 6502 hardware spec
+  (7-cycle entry, status-register I-bit set on entry, B-bit clear on
+  vectoring, vector fetch from `$FFFE/$FFFF` and `$FFFA/$FFFB`).
+
+### Added (memory + Language Card — Phase 2 / 3)
+- **`AppleIIeMmu`** owns the //e bank-switching state (`RDRAMRD`,
+  `RDRAMWRT`, `RDCXROM`, `RDC3ROM`, `RDALTZP`, `RD80STORE`, `RDPAGE2`,
+  `RDHIRES`) and replaces the legacy `AuxRamCard`. `apple2.json` and
+  `apple2plus.json` continue using their legacy banks; `apple2e.json` is
+  the only config that wires the MMU.
+- **64 KB auxiliary RAM** mapped through the MMU. Aux Zero Page / Stack
+  toggled via `ALTZP`. 80STORE forces the page-2 / Hi-Res text + graphics
+  windows onto the aux bank when set.
+- **Audit-correct Language Card state machine** with read-source decoded
+  from bits 0 **and** 1 (the old bit-0-only path missed `$C083`),
+  bank-1 / bank-2 selection per `BSRBANK2`, and write-enable latched on
+  the second consecutive read of an `$C08x` write-enable address.
+- **`INTCXROM` physical remap** — `$C100-$CFFF` switches between the
+  internal //e ROM and slot peripheral ROMs.
+
+### Added (reset — Phase 4)
+- **`SoftReset` vs. `PowerCycle`** semantics on every device and on the
+  CPU. Soft reset preserves RAM contents, leaves the Language Card in
+  its current bank state, keeps soft switches that survive Ctrl-Reset on
+  real hardware, and re-vectors via `$FFFC`. Power cycle re-randomises
+  RAM, returns Language Card / MMU / video-mode bits to their cold-boot
+  defaults, and clears the keyboard latch + IRQ controller.
+- **`EmulatorShell` reset dispatch** routed through a single `Reset(IDM)`
+  contract (`IDM_RESET_SOFT` / `IDM_RESET_POWER`) so the menu, debug
+  console, and remote (headless) command paths all funnel through one
+  authoritative path.
+
+### Added (video timing + RDVBLBAR — Phase 5)
+- **`VideoTiming`** model: 65 cycles per scanline × 262 scanlines =
+  17,030 cycles per frame; tracks current scanline, cycle-in-frame, and
+  vertical-blank window. Exposed to soft-switch reads so `RDVBLBAR`
+  ($C019) reflects real hardware polarity (bit 7 = 1 outside vblank).
+- **FR-033** (vblank polarity) covered with dedicated tests.
+
+### Added (keyboard + soft-switch read surface — Phase 6, baseline 1.3.416)
+- **Open Apple / Closed Apple / Shift modifiers** at `$C061-$C063`,
+  wired to host **Left Alt / Right Alt / Shift**.
+- Strobe-clear isolation (`$C010` only) and a consolidated
+  `$C011-$C01F` status-read surface where bit 7 is sourced from the
+  canonical owner.
+
+### Added (cold boot to BASIC — Phase 7, US1 MVP)
+- **//e cold boot reaches the AppleSoft prompt.** `EmulatorShell` now
+  pumps reset → boot wait → `]` prompt detection. Verified via the
+  HOME / `PRINT "HELLO"` / `PR#3` 80-column / Open-Apple modifier
+  scenarios in `Phase7ColdBootTests` and `EmulatorShellColdBootTests`.
+- **Scraper / injector helpers** for headless tests: video-text scraper
+  reads the canonical 40/80-column buffer; keyboard injector queues
+  ASCII strings at the bus level without host-window dependencies.
+
+### Added (US3 //e memory + Language Card scenarios — Phase 8)
+- 24 acceptance scenarios in `EmuValidationSuiteTests` covering aux RAM
+  hot-swap, ALTZP, 80STORE + PAGE2 + HIRES interactions, Language Card
+  bank-1 / bank-2 / write-enable transitions, and `INTCXROM` slot ROM
+  remapping. Validates SC-006 / SC-007.
+
+### Added (Disk II nibble engine + WOZ — Phase 9 / 10)
+- **`DiskIINibbleEngine` rewrite** — cycle-accurate bit-stream model
+  (4 µs / bit at 1.023 MHz), Q3 sample timing, Q6/Q7 latch, write-protect
+  flag, and per-track read/write head. Replaces the previous
+  byte-oriented stub.
+- **`NibblizationLayer`** for `.dsk` / `.do` / `.po` images. 16-sector
+  6&2 group code with valid prologue / epilogue triplets, address-field
+  + data-field checksums, DOS 3.3 vs. ProDOS sector skews, and a
+  reverse `Denibblize` path for write-back.
+- **`WozLoader`** for WOZ v1 and v2 images including TMAP / TRKS chunks,
+  variable-length tracks (`bitCount`, not byte count), large-track
+  support up to ~51,200 bits, and signature validation against the
+  WOZ-spec `kSigV1` / `kSigV2` headers.
+
+### Added (DiskImageStore + headless wiring — Phase 11)
+- **`DiskImageStore`** — uniform handle layer. Open / GetTrackBitCount /
+  ReadBit / WriteBit / IsDirty / Save. Supports both nibblized and WOZ
+  images behind one interface.
+- **Auto-flush on eject** and on shell shutdown, with dirty-tracking so
+  unmodified images are not rewritten.
+- **`HeadlessHost`** test harness — drives the emulator without a host
+  window; lets test fixtures schedule cycles, read framebuffers, inject
+  keystrokes, and mount / eject disks deterministically.
+
+### Added (text + DHR video — Phase 12)
+- **`Apple80ColTextMode`** with `ALTCHARSET`, `FLASH` half-second blink
+  cadence, and composed mixed-mode (top 160 lines graphics, bottom 32
+  lines text) from a single shared character ROM source.
+- **`AppleDoubleHiResMode`** — 560×192 monochrome / 140×192 16-colour
+  Double Hi-Res with proper aux/main interleave (aux byte first, then
+  main, packing 7 pixels per byte pair). DHR mode-select gated on
+  `RDHIRES & RD80VID & RDDHIRES`.
+- **Golden-hash framebuffer tests** that re-execute canonical software
+  patterns and compare exact frame hashes; covers BASIC `]` prompt,
+  GR / HGR / HGR2 mode patterns, and 80-column DOS catalogues.
+
+### Added (disk boot end-to-end — Phase 13)
+- 8 disk-boot integration scenarios: synthetic DOS 3.3 boot, mixed-mode
+  scroll, 80-column ProDOS catalogue, write-protect honoured, save +
+  reload round-trip, WOZ copy-protected sample boot, multi-sided image
+  fallthrough, and motor-off head-park.
+
+### Added (backwards-compat — Phase 14)
+- `BackwardsCompatTests` regression-protect the unchanged Apple ][ and
+  ][+ behaviour: keyboard latch, soft-switch surface, video modes, no
+  MMU activity, no aux RAM, no IRQ controller. Audit log
+  (`audit-backwards-compat.md`) documents the verification.
+
+### Added (perf budget — Phase 15)
+- **Performance gate** — `PerformanceTests` measures emulator throughput
+  on a workload of `kPerfMeasureCycles` and asserts elapsed wall-clock
+  ≤ `kPerformanceCeilingMs`. Stability run (`kStabilityRunCount`)
+  enforces ≤ `kStabilityToleranceFraction` variance. Released-only
+  (skipped in Debug). Documented in `phase15-perf-protocol.md`.
+
+### Added (constitution audits + final gate — Phase 16)
+- 8 constitution audits under `specs/004-apple-iie-fidelity/audit-*.md`
+  covering header comments, macro arguments, function spacing,
+  EHM-on-fallible, scope blocks, function size, declaration alignment,
+  and magic numbers. All audits report PASS.
+- 23 declaration-alignment cleanups (whitespace only, T130) across 16
+  files.
+- Dormann functional test PASS, Harte single-step suite PASS.
+- 0 warnings / 0 errors on all four configurations
+  (Debug/Release × x64/ARM64) with `/W3 /WX /sdl /analyze`.
+
+### Tests
+- Test count: **1013 / 1013 passing** in Release (1012 / 1012 in Debug —
+  the +1 is the `PerformanceTests` sentinel that skips in Debug).
+  Confirmed clean across x64 Debug + Release and ARM64 Debug + Release.
+  Code analysis 0/0 on all four configurations.
+- New test surface (selected): `Cpu6502Tests`, `InterruptControllerTests`,
+  `MmuTests`, `LanguageCardTests`, `ResetSemanticsTests`,
+  `EmulatorShellResetTests`, `VideoTimingTests`, `Phase7ColdBootTests`,
+  `EmuValidationSuiteTests` (US3, US5), `DiskIINibbleEngineTests`,
+  `NibblizationTests`, `WozLoaderTests`, `DiskImageStoreTests`,
+  `DiskIITests`, `Phase11IntegrationTests`, `Apple80ColTextModeTests`,
+  `AppleDoubleHiResModeTests`, `Phase12GoldenHashTests`,
+  `Phase13DiskBootTests`, `BackwardsCompatTests`, `PerformanceTests`,
+  `HeadlessHostTests`, `PrngTests`.
+
+### Notes
+- Closes spec 004 (Apple //e fidelity), Phases 0 through 16. SC-001
+  through SC-009 met. The headless test harness (`HeadlessHost`,
+  `FixtureProvider`, scraper / injector helpers) is now the canonical
+  path for emulator integration tests.
+
+## [1.3.416] — 2026-05-06
+
+### Added (Apple //e fidelity — Phase 6: keyboard + soft-switch read surface)
+- **Open Apple / Closed Apple / Shift modifiers** are now reachable at the
+  expected //e addresses:
+  - `$C061` — Open Apple (bit 7 = pressed). Wired to host **Left Alt**.
+  - `$C062` — Closed Apple (bit 7 = pressed). Wired to host **Right Alt**.
+  - `$C063` — Shift key (bit 7 = pressed). Wired to host **Shift**.
+  Previously the modifier-key fields existed on `AppleIIeKeyboard` but the
+  device's bus range stopped at `$C01F`, making them dead code.
+- **Strobe-clear isolation**. Reads of `$C011-$C01F` (BSRBANK2 / BSRREADRAM /
+  RDRAMRD / RDRAMWRT / RDCXROM / RDALTZP / RDC3ROM / RD80STORE / RDVBLBAR /
+  RDTEXT / RDMIXED / RDPAGE2 / RDHIRES / RDALTCHAR / RD80VID) no longer
+  clear the keyboard strobe. Only `$C010` clears it, matching the //e
+  hardware. (Audit §4 C-item closed.)
+- **Consolidated `$C011-$C01F` status read surface** in
+  `AppleIIeSoftSwitchBank::ReadStatusRegister()`. Bit 7 is sourced from the
+  canonical owner of each flag (LanguageCard for BSRBANK2/BSRREADRAM, MMU for
+  RDRAMRD/RDRAMWRT/RDCXROM/RDALTZP/RDC3ROM/RD80STORE, VideoTiming for
+  RDVBLBAR, the bank for the display-mode flags), and bits 0-6 mirror the
+  keyboard latch (floating-bus behaviour).
+- **`AppleIIeKeyboard` is now a `$C000-$C063` facade** that forwards
+  non-owned addresses to its sibling devices (soft-switch bank for
+  `$C00C-$C00F` / `$C011-$C01F` / `$C050-$C05F`; speaker for `$C030-$C03F`).
+  This preserves the unchanged ][/][+ behaviour where `AppleKeyboard` only
+  owns `$C000-$C01F`.
+
+### Tests
+- `+10` keyboard tests in `KeyboardTests.cpp` covering modifier reachability,
+  strobe-clear isolation, and audit-closure assertions.
+- `+15` new tests in `SoftSwitchReadSurfaceTests.cpp` — one per `$C011-$C01F`
+  address — that assert (a) bit 7 reflects the canonical source, (b) bits
+  0-6 mirror the keyboard latch, (c) the read does not clear strobe, and (d)
+  repeat reads do not perturb state.
+- Test count: **906 / 906 passing** (was 881; +25). Confirmed clean across
+  x64 Debug + Release and ARM64 Debug + Release; code analysis 0/0.
+
+### Notes
+- Closes the foundational Apple //e fidelity work (spec 004 Phases 0-6).
+  Phase 7 (User Story 1 MVP cold boot) is the next planned increment.
+
 ## [1.2.315] — 2026-05-04
 
 ### Added

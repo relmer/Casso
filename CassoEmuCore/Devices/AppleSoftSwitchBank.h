@@ -27,6 +27,7 @@ public:
     Word GetStart () const override { return 0xC050; }
     Word GetEnd   () const override { return 0xC05F; }
     void Reset    () override;
+    void SoftReset () override;
 
     // State accessors for video mode selection
     bool IsGraphicsMode () const { return m_graphicsMode; }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Cpu.h"
+#include "Cpu6502.h"
 #include "CpuOperations.h"
 #include "Assembler.h"
 
@@ -8,7 +8,7 @@
 
 
 
-// TestCpu exposes Cpu's protected members for unit testing.
+// TestCpu exposes Cpu6502's protected members for unit testing.
 // No changes to production code required.
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -16,7 +16,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class TestCpu : public Cpu
+class TestCpu : public Cpu6502
 {
 public:
     enum class StopReason

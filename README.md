@@ -11,10 +11,11 @@ Casso is a 6502 CPU emulator and assembler written in C++. It emulates the MOS T
 
 The project includes:
 
-- **Apple II platform emulator** — GUI-based Apple II, II+, and IIe emulator with D3D11 rendering, WASAPI audio, data-driven machine configs, and keyboard input
+- **Apple II platform emulator** — GUI-based Apple II, II+, and //e emulator with D3D11 rendering, WASAPI audio, data-driven machine configs, keyboard input, Disk II controller (DOS 3.3 / ProDOS / WOZ images), 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure
 - **A real, full-featured AS65-compatible assembler** — Casso's assembler is a from-scratch reimplementation of Frank A. Kingswood's AS65, intended to be a drop-in replacement. It supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, …) including flag concatenation (`-tlfile`).
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source
-- **787+ unit tests** — comprehensive coverage of instruction encoding, addressing modes, arithmetic, branching, assembler features, and audio pipeline
+- **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics
+- **1022 unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHR video, reset semantics, perf budget, and backwards-compat for ][/][+ machines
 
 ## Project Structure
 
@@ -24,7 +25,7 @@ Casso.sln
 ├── CassoEmuCore/  Static library — Apple II devices, video modes, audio generator
 ├── Casso/         Win32 application — Apple II platform emulator (D3D11, WASAPI)
 ├── CassoCli/      Console application — AS65-compatible assembler CLI with `run` subcommand
-└── UnitTest/      Test DLL — Microsoft Native CppUnitTest (787+ tests)
+└── UnitTest/      Test DLL — Microsoft Native CppUnitTest (1022 tests)
 ```
 
 ## Requirements
@@ -141,6 +142,10 @@ All 56 standard 6502 mnemonics are implemented.
 
 - [x] Pass [Klaus Dormann's 6502 functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) ([#7](https://github.com/relmer/Casso/issues/7))
 - [x] Per-opcode validation against [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) ([#29](https://github.com/relmer/Casso/issues/29), [#38](https://github.com/relmer/Casso/issues/38))
+- [x] Apple //e fidelity — cold boot to BASIC, audit-correct Language Card, 64 KB aux RAM, 80-column text + Double Hi-Res, soft reset vs. power cycle, IRQ/NMI dispatch, RDVBLBAR (spec 004)
+- [x] Disk II controller — DOS 3.3 / ProDOS `.dsk` / `.do` / `.po` nibblization + WOZ v1 / v2 with auto-flush on eject (spec 004)
+- [x] Headless test harness for deterministic integration tests (`HeadlessHost`, framebuffer scraper, keyboard injector)
+- [x] Performance gate — emulator throughput budget enforced in CI (Release-only)
 
 ### High Priority
 

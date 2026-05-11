@@ -4,6 +4,8 @@
 
 #include "Core/MemoryBus.h"
 #include "Devices/LanguageCard.h"
+#include "Devices/AppleIIeMmu.h"
+#include "Devices/RamDevice.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -15,8 +17,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  LanguageCardTests
 //
-//  Adversarial tests proving bank switching ACTUALLY redirects memory reads
-//  and writes, not just that flag getters return the right values.
+//  Adversarial coverage of the audit-correct LC state machine
+//  (audit C7/M6/M7/M8) plus aux-LC routing via AppleIIeMmu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,18 +26,21 @@ TEST_CLASS (LanguageCardTests)
 {
 public:
 
-    TEST_METHOD (InitialState_ReadRomNotRam)
+    TEST_METHOD (PowerOnDefaultsToBank2WriteRamPrearmed)
     {
-        MemoryBus bus;
+        MemoryBus    bus;
         LanguageCard lc (bus);
 
-        Assert::IsFalse (lc.IsReadRam (), L"Initial state must read ROM");
-        Assert::IsFalse (lc.IsWriteRam (), L"Initial state must not write RAM");
+        Assert::IsTrue  (lc.IsBank2 (),    L"Power-on must select bank 2");
+        Assert::IsFalse (lc.IsReadRam (),  L"Power-on must read ROM");
+        Assert::IsTrue  (lc.IsWriteRam (), L"Power-on must pre-arm WRITERAM (audit M8)");
+        Assert::AreEqual (0, lc.GetPreWriteCount (),
+            L"Power-on pre-write count must be 0");
     }
 
     TEST_METHOD (ReadC080_EnablesRamRead)
     {
-        MemoryBus bus;
+        MemoryBus    bus;
         LanguageCard lc (bus);
 
         lc.Read (0xC080);
@@ -44,106 +49,127 @@ public:
             L"$C080 must enable reading from LC RAM");
     }
 
-    TEST_METHOD (ReadD000_InitialState_ReturnsRomData)
+    TEST_METHOD (ReadD000_RomVisibleByDefault)
     {
-        // With LC in initial state, reading $D000 through LanguageCardBank
-        // should return ROM data, not LC RAM (which is zero).
-        MemoryBus bus;
+        MemoryBus    bus;
         LanguageCard lc (bus);
 
-        std::vector<Byte> rom (0x3000, 0x00);
-        rom[0x0000] = 0xAA;  // $D000 in ROM = $AA
-        rom[0x1000] = 0xBB;  // $E000 in ROM = $BB
+        vector<Byte> rom (0x3000, 0x00);
+        rom[0x0000] = 0xAA;
+        rom[0x1000] = 0xBB;
         lc.SetRomData (rom);
 
         LanguageCardBank bank (lc);
 
-        Byte val = bank.Read (0xD000);
-        Assert::AreEqual (static_cast<Byte> (0xAA), val,
-            L"Initial state: $D000 should return ROM data $AA");
-
-        Byte val2 = bank.Read (0xE000);
-        Assert::AreEqual (static_cast<Byte> (0xBB), val2,
-            L"Initial state: $E000 should return ROM data $BB");
+        Assert::AreEqual (static_cast<Byte> (0xAA), bank.Read (0xD000),
+            L"Default: $D000 reads ROM data");
+        Assert::AreEqual (static_cast<Byte> (0xBB), bank.Read (0xE000),
+            L"Default: $E000 reads ROM data");
     }
 
     TEST_METHOD (ReadRamEnabled_ReturnsLCRam_NotRom)
     {
-        MemoryBus bus;
+        MemoryBus    bus;
         LanguageCard lc (bus);
 
-        std::vector<Byte> rom (0x3000, 0xEA);
+        vector<Byte> rom (0x3000, 0xEA);
         lc.SetRomData (rom);
 
-        // Enable read RAM
         lc.Read (0xC080);
 
         LanguageCardBank bank (lc);
-        Byte val = bank.Read (0xD000);
 
-        // LC RAM is initialized to zero, ROM is $EA
-        Assert::AreEqual (static_cast<Byte> (0x00), val,
-            L"Read-RAM enabled: $D000 should return LC RAM (0), not ROM ($EA)");
+        Assert::AreEqual (static_cast<Byte> (0x00), bank.Read (0xD000),
+            L"Read-RAM enabled: $D000 returns LC RAM (zero), not ROM");
     }
 
-    TEST_METHOD (WriteRam_PersistsAfterReenabling)
+    TEST_METHOD (PreWriteRequiresAnyTwoConsecutiveOddReads_NotSameAddress)
     {
-        MemoryBus bus;
+        // Audit M6: WRITERAM enables after ANY two odd reads,
+        // not necessarily the same address. Casso previously required
+        // identical addresses; this test pins the corrected behavior.
+        MemoryBus    bus;
         LanguageCard lc (bus);
 
-        // Enable write (double-read odd switch)
-        lc.Read (0xC081);
-        lc.Read (0xC081);
-        Assert::IsTrue (lc.IsWriteRam (), L"Write should be enabled");
+        lc.Read (0xC082);
+        Assert::IsFalse (lc.IsWriteRam (),
+            L"Even read must clear WRITERAM and the pre-write arm");
 
-        // Write to LC RAM
-        lc.WriteRam (0xD000, 0x42);
-
-        // Switch to ROM read
-        lc.Read (0xC082);  // Even switch = read RAM, but also resets write
-        Assert::IsFalse (lc.IsWriteRam (), L"Even switch should disable write");
-
-        // Re-enable read RAM
-        lc.Read (0xC080);
-
-        // Data should persist
-        Byte val = lc.ReadRam (0xD000);
-        Assert::AreEqual (static_cast<Byte> (0x42), val,
-            L"Written LC RAM data must persist after re-enabling read");
-    }
-
-    TEST_METHOD (DoubleRead_OddSwitch_RequiredForWriteEnable)
-    {
-        MemoryBus bus;
-        LanguageCard lc (bus);
-
-        // Single read: write NOT enabled
         lc.Read (0xC081);
         Assert::IsFalse (lc.IsWriteRam (),
-            L"Single read of $C081 must NOT enable write");
+            L"Single odd read does not enable WRITERAM");
 
-        // Second read of SAME switch: write enabled
-        lc.Read (0xC081);
+        lc.Read (0xC083);
         Assert::IsTrue (lc.IsWriteRam (),
-            L"Double read of $C081 must enable write");
+            L"Two odd reads at DIFFERENT addresses must enable WRITERAM");
     }
 
-    TEST_METHOD (DoubleRead_DifferentSwitches_DoesNotEnableWrite)
+    TEST_METHOD (Audit_C81_thenC83_EnablesWrite)
     {
-        MemoryBus bus;
+        // The exact cross-address case the old impl failed.
+        MemoryBus    bus;
         LanguageCard lc (bus);
 
-        // Read $C081 then $C083 — different switch addresses
+        lc.Read (0xC082);
         lc.Read (0xC081);
         lc.Read (0xC083);
 
+        Assert::IsTrue (lc.IsWriteRam (),
+            L"Audit M6: $C081 then $C083 must enable WRITERAM");
+    }
+
+    TEST_METHOD (DoubleRead_OddSwitch_EnablesWrite_SameAddress)
+    {
+        MemoryBus    bus;
+        LanguageCard lc (bus);
+
+        lc.Read (0xC082);
+        lc.Read (0xC081);
         Assert::IsFalse (lc.IsWriteRam (),
-            L"Double read of DIFFERENT odd switches must NOT enable write");
+            L"Single odd read must NOT enable WRITERAM");
+
+        lc.Read (0xC081);
+        Assert::IsTrue (lc.IsWriteRam (),
+            L"Two odd reads of the same address must enable WRITERAM");
+    }
+
+    TEST_METHOD (EvenAccessClearsPreWrite)
+    {
+        MemoryBus    bus;
+        LanguageCard lc (bus);
+
+        lc.Read (0xC082);
+        lc.Read (0xC081);
+
+        lc.Read (0xC082);
+        Assert::AreEqual (0, lc.GetPreWriteCount (),
+            L"Even read must reset pre-write count");
+        Assert::IsFalse (lc.IsWriteRam (),
+            L"Even read must clear WRITERAM");
+    }
+
+    TEST_METHOD (WriteToOddSwitchResetsPreWriteButPreservesWriteRam)
+    {
+        // Audit M7: writes to LC switches reset the pre-write counter
+        // ONLY; they must not clear an already-sticky WRITERAM bit.
+        MemoryBus    bus;
+        LanguageCard lc (bus);
+
+        lc.Read  (0xC082);
+        lc.Read  (0xC081);
+        lc.Read  (0xC081);
+        Assert::IsTrue (lc.IsWriteRam (), L"WRITERAM should be set");
+
+        lc.Write (0xC081, 0x00);
+        Assert::IsTrue (lc.IsWriteRam (),
+            L"Audit M7: write to odd switch must NOT clear sticky WRITERAM");
+        Assert::AreEqual (0, lc.GetPreWriteCount (),
+            L"Write to odd switch must reset pre-write count");
     }
 
     TEST_METHOD (Bank2Selected_ByDefault)
     {
-        MemoryBus bus;
+        MemoryBus    bus;
         LanguageCard lc (bus);
 
         lc.Read (0xC080);
@@ -154,7 +180,7 @@ public:
 
     TEST_METHOD (ReadC088_SelectsBank1)
     {
-        MemoryBus bus;
+        MemoryBus    bus;
         LanguageCard lc (bus);
 
         lc.Read (0xC088);
@@ -165,111 +191,205 @@ public:
 
     TEST_METHOD (Bank1_WritesIsolatedFromBank2)
     {
-        MemoryBus bus;
+        MemoryBus    bus;
         LanguageCard lc (bus);
 
-        // Write $AA to bank 2 at $D000
+        lc.Read (0xC082);
         lc.Read (0xC081);
         lc.Read (0xC081);
         lc.WriteRam (0xD000, 0xAA);
 
-        // Switch to bank 1 and write $BB
         lc.Read (0xC089);
         lc.Read (0xC089);
         lc.WriteRam (0xD000, 0xBB);
 
-        // Read bank 1
         lc.Read (0xC088);
         Byte bank1Val = lc.ReadRam (0xD000);
 
-        // Switch back to bank 2
         lc.Read (0xC080);
         Byte bank2Val = lc.ReadRam (0xD000);
 
         Assert::AreEqual (static_cast<Byte> (0xBB), bank1Val,
             L"Bank 1 $D000 should contain $BB");
         Assert::AreEqual (static_cast<Byte> (0xAA), bank2Val,
-            L"Bank 2 $D000 should still contain $AA (isolated from bank 1)");
+            L"Bank 2 $D000 must remain $AA (banks isolated)");
     }
 
     TEST_METHOD (UpperRam_E000_FFFF_SharedAcrossBanks)
     {
-        MemoryBus bus;
+        MemoryBus    bus;
         LanguageCard lc (bus);
 
-        // Write to $E000 with bank 2 selected
+        lc.Read (0xC082);
         lc.Read (0xC081);
         lc.Read (0xC081);
         lc.WriteRam (0xE000, 0xCC);
 
-        // Switch to bank 1
         lc.Read (0xC089);
         lc.Read (0xC089);
 
-        // $E000-$FFFF is shared, not banked
-        Byte val = lc.ReadRam (0xE000);
-        Assert::AreEqual (static_cast<Byte> (0xCC), val,
-            L"$E000 should be same regardless of bank selection");
+        Assert::AreEqual (static_cast<Byte> (0xCC), lc.ReadRam (0xE000),
+            L"$E000 must be shared across banks");
     }
 
     TEST_METHOD (LanguageCardBank_Write_GoesToLCRam)
     {
-        MemoryBus bus;
+        MemoryBus    bus;
         LanguageCard lc (bus);
 
+        lc.Read (0xC082);
         lc.Read (0xC081);
         lc.Read (0xC081);
 
         LanguageCardBank bank (lc);
         bank.Write (0xE000, 0x42);
 
-        Byte val = lc.ReadRam (0xE000);
-        Assert::AreEqual (static_cast<Byte> (0x42), val,
+        Assert::AreEqual (static_cast<Byte> (0x42), lc.ReadRam (0xE000),
             L"LanguageCardBank::Write must route to LC RAM");
     }
 
     TEST_METHOD (LanguageCardBank_WriteDisabled_Ignores)
     {
-        MemoryBus bus;
+        MemoryBus    bus;
         LanguageCard lc (bus);
-        // Write is NOT enabled (initial state)
+
+        lc.Read (0xC082);
+        Assert::IsFalse (lc.IsWriteRam (),
+            L"Even read must clear WRITERAM");
 
         LanguageCardBank bank (lc);
         bank.Write (0xD000, 0xFF);
 
-        // Enable read RAM to check
         lc.Read (0xC080);
-        Byte val = lc.ReadRam (0xD000);
-
-        Assert::AreEqual (static_cast<Byte> (0x00), val,
-            L"Write should be ignored when write is not enabled");
+        Assert::AreEqual (static_cast<Byte> (0x00), lc.ReadRam (0xD000),
+            L"Write must be ignored when WRITERAM is disabled");
     }
 
-    TEST_METHOD (Reset_ClearsStateAndRAM)
+    TEST_METHOD (SoftResetPreservesAllLcRamBanks)
     {
-        MemoryBus bus;
+        // Audit C7: //e soft reset MUST preserve LC RAM contents.
+        MemoryBus    bus;
         LanguageCard lc (bus);
 
+        lc.Read (0xC082);
+        lc.Read (0xC081);
+        lc.Read (0xC081);
+        lc.WriteRam (0xD000, 0xAA);
+        lc.WriteRam (0xE000, 0xBB);
+
+        lc.Read (0xC089);
+        lc.Read (0xC089);
+        lc.WriteRam (0xD000, 0xCC);
+
+        lc.SoftReset ();
+
+        Assert::IsTrue  (lc.IsBank2 (),
+            L"SoftReset must restore power-on flag state (BANK2)");
+        Assert::IsTrue  (lc.IsWriteRam (),
+            L"SoftReset must restore power-on WRITERAM");
+        Assert::IsFalse (lc.IsReadRam (),
+            L"SoftReset must clear READRAM");
+
+        lc.Read (0xC080);
+        Assert::AreEqual (static_cast<Byte> (0xAA), lc.ReadRam (0xD000),
+            L"Audit C7: soft reset must preserve bank 2 $D000");
+        Assert::AreEqual (static_cast<Byte> (0xBB), lc.ReadRam (0xE000),
+            L"Audit C7: soft reset must preserve high RAM");
+
+        lc.Read (0xC088);
+        Assert::AreEqual (static_cast<Byte> (0xCC), lc.ReadRam (0xD000),
+            L"Audit C7: soft reset must preserve bank 1 $D000");
+    }
+
+    TEST_METHOD (Reset_ForwardsToSoftReset_PreservesRam)
+    {
+        MemoryBus    bus;
+        LanguageCard lc (bus);
+
+        lc.Read (0xC082);
         lc.Read (0xC081);
         lc.Read (0xC081);
         lc.WriteRam (0xD000, 0xFF);
 
         lc.Reset ();
 
-        Assert::IsFalse (lc.IsReadRam (), L"Reset must clear readRam");
-        Assert::IsFalse (lc.IsWriteRam (), L"Reset must clear writeRam");
-        Assert::AreEqual (static_cast<Byte> (0), lc.ReadRam (0xD000),
-            L"Reset must zero LC RAM");
+        lc.Read (0xC080);
+        Assert::AreEqual (static_cast<Byte> (0xFF), lc.ReadRam (0xD000),
+            L"Reset (== SoftReset) must preserve LC RAM");
     }
 
     TEST_METHOD (ReadRom_WithNoRomData_Returns0xFF)
     {
-        MemoryBus bus;
+        MemoryBus    bus;
         LanguageCard lc (bus);
-        // No SetRomData called
 
-        Byte val = lc.ReadRom (0xD000);
-        Assert::AreEqual (static_cast<Byte> (0xFF), val,
+        Assert::AreEqual (static_cast<Byte> (0xFF), lc.ReadRom (0xD000),
             L"ReadRom with no ROM data should return $FF");
+    }
+
+    TEST_METHOD (AltZpRoutesLcWindowToAuxBank)
+    {
+        // Aux LC routing: when MMU's ALTZP is set, LC window must back
+        // to a separate aux RAM bank so writes there are isolated from
+        // main-bank contents.
+        MemoryBus    bus;
+        RamDevice    mainRam (0x0000, 0xBFFF);
+        AppleIIeMmu  mmu;
+        LanguageCard lc (bus);
+
+        HRESULT hr = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, nullptr);
+
+        UNREFERENCED_PARAMETER (hr);
+
+        lc.SetMmu (&mmu);
+
+        lc.Read (0xC082);
+        lc.Read (0xC081);
+        lc.Read (0xC081);
+        Assert::IsTrue (lc.IsWriteRam (), L"WRITERAM enabled");
+
+        mmu.SetAltZp (false);
+        lc.WriteRam (0xD000, 0x11);
+
+        mmu.SetAltZp (true);
+        lc.WriteRam (0xD000, 0x22);
+
+        Assert::AreEqual (static_cast<Byte> (0x22), lc.ReadRam (0xD000),
+            L"With ALTZP=1, LC window must route to aux bank ($22)");
+
+        mmu.SetAltZp (false);
+        Assert::AreEqual (static_cast<Byte> (0x11), lc.ReadRam (0xD000),
+            L"With ALTZP=0, LC window must route to main bank ($11)");
+    }
+
+    TEST_METHOD (AltZpAuxAndMain_HighRam_AlsoIsolated)
+    {
+        MemoryBus    bus;
+        RamDevice    mainRam (0x0000, 0xBFFF);
+        AppleIIeMmu  mmu;
+        LanguageCard lc (bus);
+
+        HRESULT hr = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, nullptr);
+
+        UNREFERENCED_PARAMETER (hr);
+
+        lc.SetMmu (&mmu);
+
+        lc.Read (0xC082);
+        lc.Read (0xC081);
+        lc.Read (0xC081);
+
+        mmu.SetAltZp (false);
+        lc.WriteRam (0xE000, 0x77);
+
+        mmu.SetAltZp (true);
+        lc.WriteRam (0xE000, 0x88);
+
+        Assert::AreEqual (static_cast<Byte> (0x88), lc.ReadRam (0xE000),
+            L"ALTZP=1 high RAM routes to aux");
+
+        mmu.SetAltZp (false);
+        Assert::AreEqual (static_cast<Byte> (0x77), lc.ReadRam (0xE000),
+            L"ALTZP=0 high RAM routes to main");
     }
 };

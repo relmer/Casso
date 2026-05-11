@@ -33,6 +33,9 @@ public:
     // Load from file. Returns S_OK on success.
     HRESULT LoadFromFile (const string & filePath);
 
+    // Load from a 2KB or 4KB in-memory buffer (test/headless path).
+    HRESULT LoadFromMemory (const Byte * data, size_t size);
+
     // Load embedded fallback (96-char Apple II/II+ font for $20-$5F).
     void LoadEmbeddedFallback ();
 

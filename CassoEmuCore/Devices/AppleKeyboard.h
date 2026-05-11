@@ -48,12 +48,22 @@ public:
     Word GetStart () const override { return 0xC000; }
     Word GetEnd   () const override { return 0xC01F; }
     void Reset    () override;
+    void SoftReset () override;
 
     // Called from EmulatorShell when a key event arrives (UI thread)
     void KeyPress (Byte asciiChar);
 
     // Check if the strobe is clear (CPU has consumed the previous key)
     bool IsStrobeClear () const { return (m_latchedKey.load (memory_order_acquire) & 0x80) == 0; }
+
+    // Read-only floating-bus accessor for the //e soft-switch bank
+    // ($C011-$C01F status reads): returns the data bits 0-6 of the
+    // latched key without clearing the strobe. (Phase 6 / FR-001 /
+    // audit §1.2, §4.) Independent of the strobe-bit-7 state.
+    Byte GetLatchedKeyDataBits () const
+    {
+        return static_cast<Byte> (m_latchedKey.load (memory_order_acquire) & 0x7F);
+    }
 
     // Called from EmulatorShell for special keys (UI thread)
     void SetKeyDown (bool down) { m_anyKeyDown.store (down, memory_order_release); }

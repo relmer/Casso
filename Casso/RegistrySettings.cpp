@@ -9,6 +9,33 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BuildKeyPath
+//
+//  Joins the root Casso key path with an optional subkey path. An empty
+//  subkey returns the root path unchanged so legacy callers stay
+//  compatible.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring RegistrySettings::BuildKeyPath (LPCWSTR subkey)
+{
+    wstring  path = kRegistryKeyPath;
+
+    if (subkey != nullptr && *subkey != L'\0')
+    {
+        path += L"\\";
+        path += subkey;
+    }
+
+    return path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReadString
 //
 //  Returns S_OK if the value was read, S_FALSE if the key or value does not
@@ -16,17 +43,18 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT RegistrySettings::ReadString (LPCWSTR valueName, wstring & outValue)
+HRESULT RegistrySettings::ReadString (LPCWSTR subkey, LPCWSTR valueName, wstring & outValue)
 {
     HRESULT hr      = S_OK;
     HKEY    hKey    = nullptr;
     LSTATUS lstat   = ERROR_SUCCESS;
     DWORD   dwType  = 0;
     DWORD   cbValue = 0;
+    wstring keyPath = BuildKeyPath (subkey);
 
 
 
-    lstat = RegOpenKeyExW (HKEY_CURRENT_USER, kRegistryKeyPath, 0, KEY_READ, &hKey);
+    lstat = RegOpenKeyExW (HKEY_CURRENT_USER, keyPath.c_str (), 0, KEY_READ, &hKey);
 
     BAIL_OUT_IF (lstat == ERROR_FILE_NOT_FOUND, S_FALSE);
     CBRA (lstat == ERROR_SUCCESS);
@@ -38,7 +66,7 @@ HRESULT RegistrySettings::ReadString (LPCWSTR valueName, wstring & outValue)
     CBRA (lstat == ERROR_SUCCESS);
     CBRA (dwType == REG_SZ);
     CBRA (cbValue > 0);
-    CBRA (cbValue <= 512);
+    CBRA (cbValue <= 2048);
 
     {
         vector<wchar_t> buffer (cbValue / sizeof (wchar_t));
@@ -72,22 +100,24 @@ Error:
 //
 //  WriteString
 //
-//  Creates the registry key if it does not exist.
+//  Creates the registry key (and any missing parent subkeys) if it does
+//  not exist.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT RegistrySettings::WriteString (LPCWSTR valueName, const wstring & value)
+HRESULT RegistrySettings::WriteString (LPCWSTR subkey, LPCWSTR valueName, const wstring & value)
 {
     HRESULT hr            = S_OK;
     HKEY    hKey          = nullptr;
     LSTATUS lstat         = ERROR_SUCCESS;
     DWORD   dwDisposition = 0;
     DWORD   cbValue       = 0;
+    wstring keyPath       = BuildKeyPath (subkey);
 
 
 
     lstat = RegCreateKeyExW (HKEY_CURRENT_USER,
-                             kRegistryKeyPath,
+                             keyPath.c_str (),
                              0,
                              nullptr,
                              REG_OPTION_NON_VOLATILE,

@@ -177,6 +177,7 @@
     <ClCompile Include="Assembler.cpp" />
     <ClCompile Include="AssemblySession.cpp" />
     <ClCompile Include="Cpu.cpp" />
+    <ClCompile Include="Cpu6502.cpp" />
     <ClCompile Include="CpuOperations.cpp" />
     <ClCompile Include="Ehm.cpp" />
     <ClCompile Include="ExpressionEvaluator.cpp" />
@@ -199,6 +200,9 @@
     <ClInclude Include="AssemblySession.h" />
     <ClInclude Include="AssemblerTypes.h" />
     <ClInclude Include="Cpu.h" />
+    <ClInclude Include="Cpu6502.h" />
+    <ClInclude Include="ICpu.h" />
+    <ClInclude Include="I6502DebugInfo.h" />
     <ClInclude Include="CpuOperations.h" />
     <ClInclude Include="CpuStatus.h" />
     <ClInclude Include="Ehm.h" />

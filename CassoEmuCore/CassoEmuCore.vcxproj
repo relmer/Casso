@@ -194,7 +194,10 @@
     <ClCompile Include="Core\PathResolver.cpp" />
     <ClCompile Include="Core\MemoryBus.cpp" />
     <ClCompile Include="Core\EmuCpu.cpp" />
+    <ClCompile Include="Core\MemoryBusCpu.cpp" />
+    <ClCompile Include="Core\InterruptController.cpp" />
     <ClCompile Include="Core\ComponentRegistry.cpp" />
+    <ClCompile Include="Core\Prng.cpp" />
     <ClCompile Include="Devices\RamDevice.cpp" />
     <ClCompile Include="Devices\RomDevice.cpp" />
     <ClCompile Include="Devices\AppleKeyboard.cpp" />
@@ -202,8 +205,14 @@
     <ClCompile Include="Devices\AppleSpeaker.cpp" />
     <ClCompile Include="Devices\LanguageCard.cpp" />
     <ClCompile Include="Devices\DiskIIController.cpp" />
+    <ClCompile Include="Devices\Disk\DiskImage.cpp" />
+    <ClCompile Include="Devices\Disk\DiskIINibbleEngine.cpp" />
+    <ClCompile Include="Devices\Disk\NibblizationLayer.cpp" />
+    <ClCompile Include="Devices\Disk\WozLoader.cpp" />
+    <ClCompile Include="Devices\Disk\DiskImageStore.cpp" />
     <ClCompile Include="Devices\AppleIIeKeyboard.cpp" />
-    <ClCompile Include="Devices\AuxRamCard.cpp" />
+    <ClCompile Include="Devices\AppleIIeMmu.cpp" />
+    <ClCompile Include="Devices\CxxxRomRouter.cpp" />
     <ClCompile Include="Devices\AppleIIeSoftSwitchBank.cpp" />
     <ClCompile Include="Video\AppleTextMode.cpp" />
     <ClCompile Include="Video\CharacterRomData.cpp" />
@@ -211,6 +220,7 @@
     <ClCompile Include="Video\AppleHiResMode.cpp" />
     <ClCompile Include="Video\Apple80ColTextMode.cpp" />
     <ClCompile Include="Video\AppleDoubleHiResMode.cpp" />
+    <ClCompile Include="Video\VideoTiming.cpp" />
     <ClCompile Include="Audio\AudioGenerator.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -221,8 +231,25 @@
     <ClInclude Include="Core\JsonValue.h" />
     <ClInclude Include="Core\MemoryBus.h" />
     <ClInclude Include="Core\EmuCpu.h" />
+    <ClInclude Include="Core\MemoryBusCpu.h" />
     <ClInclude Include="Core\MachineConfig.h" />
     <ClInclude Include="Core\PathResolver.h" />
+    <ClInclude Include="Core\Prng.h" />
+    <ClInclude Include="Core\IInterruptController.h" />
+    <ClInclude Include="Core\InterruptController.h" />
+    <ClInclude Include="Core\IHostShell.h" />
+    <ClInclude Include="Devices\IMmu.h" />
+    <ClInclude Include="Devices\IVideoMode.h" />
+    <ClInclude Include="Devices\ISoftSwitchBank.h" />
+    <ClInclude Include="Devices\Disk\IDiskImage.h" />
+    <ClInclude Include="Devices\Disk\IDiskController.h" />
+    <ClInclude Include="Devices\Disk\DiskImage.h" />
+    <ClInclude Include="Devices\Disk\DiskIINibbleEngine.h" />
+    <ClInclude Include="Devices\Disk\NibblizationLayer.h" />
+    <ClInclude Include="Devices\Disk\WozLoader.h" />
+    <ClInclude Include="Devices\Disk\DiskImageStore.h" />
+    <ClInclude Include="Video\IVideoTiming.h" />
+    <ClInclude Include="Video\VideoTiming.h" />
     <ClInclude Include="Devices\RamDevice.h" />
     <ClInclude Include="Devices\RomDevice.h" />
     <ClInclude Include="Devices\AppleKeyboard.h" />
@@ -231,7 +258,8 @@
     <ClInclude Include="Devices\LanguageCard.h" />
     <ClInclude Include="Devices\DiskIIController.h" />
     <ClInclude Include="Devices\AppleIIeKeyboard.h" />
-    <ClInclude Include="Devices\AuxRamCard.h" />
+    <ClInclude Include="Devices\AppleIIeMmu.h" />
+    <ClInclude Include="Devices\CxxxRomRouter.h" />
     <ClInclude Include="Devices\AppleIIeSoftSwitchBank.h" />
     <ClInclude Include="Video\VideoOutput.h" />
     <ClInclude Include="Video\AppleTextMode.h" />

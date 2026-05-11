@@ -72,6 +72,43 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LoadFromMemory
+//
+//  Decode a 2KB or 4KB raw video ROM image already resident in memory.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CharacterRomData::LoadFromMemory (const Byte * data, size_t size)
+{
+    HRESULT      hr = S_OK;
+    vector<Byte> raw;
+
+
+
+    CBRA (data != nullptr);
+    CBRA (size == k2KBytes || size == k4KBytes);
+
+    raw.assign (data, data + size);
+
+    if (size == k2KBytes)
+    {
+        Decode2K (raw);
+    }
+    else
+    {
+        Decode4K (raw);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LoadEmbeddedFallback
 //
 //  Use the embedded 96-char (chars $20-$5F) glyph table. Other characters
@@ -198,7 +235,6 @@ void CharacterRomData::Decode2K (const vector<Byte> & raw)
 //  Apple //e enhanced 4KB video ROM. Two 2KB halves: primary char set + alt.
 //  Source bytes are bit-inverted (XOR 0xFF) to flip lit dots. No bit reversal
 //  needed -- bit 0 is already leftmost (different chip from II/II+).
-//  See AppleWin's userVideoRom4K() for reference.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -207,21 +243,39 @@ void CharacterRomData::Decode4K (const vector<Byte> & raw)
     memset (m_glyphs, 0, sizeof (m_glyphs));
     m_hasAltCharSet = true;
 
-    // Primary char set (first 2KB):
+    // //e Enhanced video ROM (4 KB / 2732) decoder. Layout per UTAIIe
+    // ch. 8 (Sather), Tables 8.2 / 8.3:
     //
-    //   chars [0x00..0x3F] inverse / [0x40..0x7F] flash:
-    //     RA = 0..0x1FF (loop i=0..63, RA+=8). Both i and i+64 map to same data.
-    //   chars [0x80..0xFF] normal:
-    //     [0x80..0xBF] from RA = 0x400 + (i-128)*8 = 0x400..0x5FF
-    //     [0xC0..0xFF] from RA = 0x600 + (i-192)*8 = 0x600..0x7FF
+    // ROM addressing: [RA10, RA9, RA8..RA3, RA2..RA0] where RA10/RA9
+    // are derived from the video character byte (VID7/VID6) and the
+    // ALTCHARSET / FLASH state.
     //
+    // Decoded into two flat 256-char tables:
+    //
+    // PRIMARY set (ALTCHARSET=0):
+    //   [00..3F] inverse + [40..7F] flash share offsets 0..0x1FF
+    //     (RA10=0, RA9=0, FLASH overlay chooses inverse vs flash)
+    //   [80..BF] normal lowercase from offsets 0x400..0x5FF
+    //     (RA10=1, RA9=0)
+    //   [C0..FF] normal uppercase from offsets 0x600..0x7FF
+    //     (RA10=1, RA9=1)
+    //
+    // ALT set (ALTCHARSET=1):
+    //   [00..FF] all read linearly from offsets 0..0x7FF
+    //     (RA10=VID7, RA9=VID6 -- so chars $00-$3F are MouseText
+    //     replacing the inverse glyphs, $40-$7F are the unused flash
+    //     positions, $80-$FF are the same normal text glyphs as
+    //     primary)
+    //
+    // Bytes in the ROM file have lit dots stored as 0; the renderer
+    // wants 1=lit, hence the XOR with 0xFF.
     int RA = 0;
 
     for (int i = 0; i < 64; i++, RA += 8)
     {
         for (int y = 0; y < static_cast<int> (kBytesPerChar); y++)
         {
-            Byte d = raw[RA + y] ^ 0xFF;
+            Byte d = static_cast<Byte> (raw[RA + y] ^ 0xFF);
             m_glyphs[0][i]      [y] = d;
             m_glyphs[0][i + 64] [y] = d;
         }
@@ -232,7 +286,7 @@ void CharacterRomData::Decode4K (const vector<Byte> & raw)
     {
         for (int y = 0; y < static_cast<int> (kBytesPerChar); y++)
         {
-            m_glyphs[0][i][y] = raw[RA + y] ^ 0xFF;
+            m_glyphs[0][i][y] = static_cast<Byte> (raw[RA + y] ^ 0xFF);
         }
     }
 
@@ -241,17 +295,17 @@ void CharacterRomData::Decode4K (const vector<Byte> & raw)
     {
         for (int y = 0; y < static_cast<int> (kBytesPerChar); y++)
         {
-            m_glyphs[0][i][y] = raw[RA + y] ^ 0xFF;
+            m_glyphs[0][i][y] = static_cast<Byte> (raw[RA + y] ^ 0xFF);
         }
     }
 
-    // Alternate char set (second 2KB): straightforward 0x800..0xFFF -> chars 0..255
-    RA = 0x800;
+    // Alt set: all 256 chars read linearly from the first 2 KB.
+    RA = 0;
     for (int i = 0; i < static_cast<int> (kCharsPerSet); i++, RA += 8)
     {
         for (int y = 0; y < static_cast<int> (kBytesPerChar); y++)
         {
-            m_glyphs[1][i][y] = raw[RA + y] ^ 0xFF;
+            m_glyphs[1][i][y] = static_cast<Byte> (raw[RA + y] ^ 0xFF);
         }
     }
 }

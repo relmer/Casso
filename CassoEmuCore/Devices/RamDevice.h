@@ -26,6 +26,9 @@ public:
     Word GetEnd   () const override { return m_end; }
     void Reset    () override;
 
+    void SoftReset  () override;
+    void PowerCycle (Prng & prng) override;
+
     Byte * GetData () { return m_data.data (); }
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);

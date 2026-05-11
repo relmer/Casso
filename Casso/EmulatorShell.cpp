@@ -12,7 +12,8 @@
 #include "Devices/AppleSpeaker.h"
 #include "Devices/DiskIIController.h"
 #include "Devices/LanguageCard.h"
-#include "Devices/AuxRamCard.h"
+#include "Devices/AppleIIeMmu.h"
+#include "Core/Prng.h"
 #include "MachinePickerDialog.h"
 #include "RegistrySettings.h"
 #include "Core/MachineConfig.h"
@@ -26,7 +27,87 @@
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
 
+// Embed Common Controls v6 dependency in the binary's activation
+// context. Without this, SetWindowSubclass / TOOLINFO / and a host
+// of other modern comctl32 APIs fall back to no-op v5 behavior --
+// in particular our drive-bay tooltips never appear because
+// SetWindowSubclass returns FALSE silently.
+#pragma comment(linker, "\"/manifestdependency:type='win32' " \
+    "name='Microsoft.Windows.Common-Controls' version='6.0.0.0' " \
+    "processorArchitecture='*' publicKeyToken='6595b64144ccf1df' " \
+    "language='*'\"")
+
 static constexpr LPCWSTR kLastMachineValue = L"LastMachine";
+
+// Per-machine UI state lives under HKCU\Software\relmer\Casso\Machines\{machine}.
+// Disk paths under that subkey use the simple value names "Disk1" / "Disk2".
+// Future per-machine state (window size, speed mode, write-protect flags)
+// can land alongside without colliding across machines.
+static constexpr LPCWSTR kMachinesRoot       = L"Machines";
+static constexpr LPCWSTR kDiskValueNames[2]  = { L"Disk1", L"Disk2" };
+
+static wstring MakeMachineSubkey (const wstring & machineName)
+{
+    wstring  sub = kMachinesRoot;
+
+    if (!machineName.empty ())
+    {
+        sub += L"\\";
+        sub += machineName;
+    }
+
+    return sub;
+}
+
+// Pre-hierarchy value name (Disk1.apple2e). Kept for one-shot migration
+// of users who already have a saved disk under the flat layout from the
+// previous build -- read from the legacy slot if the new slot is empty,
+// then re-write into the new slot. Old value isn't deleted (harmless).
+static wstring MakeLegacyDiskValueName (int drive, const wstring & machineName)
+{
+    wstring  name;
+
+    name = (drive == 0) ? L"Disk1." : L"Disk2.";
+    name += machineName;
+    return name;
+}
+
+static HRESULT ReadSavedDiskPath (int drive, const wstring & machineName, wstring & outPath)
+{
+    HRESULT  hr     = S_OK;
+    wstring  subkey = MakeMachineSubkey (machineName);
+
+    outPath.clear ();
+
+    hr = RegistrySettings::ReadString (subkey.c_str (), kDiskValueNames[drive], outPath);
+
+    if (hr == S_FALSE || (hr == S_OK && outPath.empty ()))
+    {
+        // Fall back to the legacy flat-namespace value from the prior
+        // build. If found, copy it forward to the hierarchical layout
+        // so subsequent reads hit the new location.
+        wstring  legacy;
+        HRESULT  hrLegacy = RegistrySettings::ReadString (
+            MakeLegacyDiskValueName (drive, machineName).c_str (), legacy);
+
+        if (hrLegacy == S_OK && !legacy.empty ())
+        {
+            outPath = legacy;
+            HRESULT hrMigrate = RegistrySettings::WriteString (
+                subkey.c_str (), kDiskValueNames[drive], legacy);
+            IGNORE_RETURN_VALUE (hrMigrate, S_OK);
+            hr = S_OK;
+        }
+    }
+
+    return hr;
+}
+
+static HRESULT WriteSavedDiskPath (int drive, const wstring & machineName, const wstring & path)
+{
+    wstring  subkey = MakeMachineSubkey (machineName);
+    return RegistrySettings::WriteString (subkey.c_str (), kDiskValueNames[drive], path);
+}
 
 
 
@@ -44,6 +125,11 @@ static constexpr int    kFramebufferWidth  = 560;
 static constexpr int    kFramebufferHeight = 384;
 static constexpr LPCWSTR kWindowClass      = L"CassoWindow";
 
+// Drive activity LED refresh timer (~20 Hz). Cheap and responsive enough
+// for the eye to register motor on/off bursts without consuming UI cycles.
+static constexpr UINT_PTR kDriveStatusTimerId    = 0x10D5;
+static constexpr UINT     kDriveStatusTimerMs    = 50;
+
 
 
 
@@ -57,6 +143,22 @@ static constexpr LPCWSTR kWindowClass      = L"CassoWindow";
 
 EmulatorShell::EmulatorShell()
 {
+    // Phase 4 / FR-035. The Prng is the deterministic stand-in for
+    // indeterminate //e DRAM at power-on, shared across every device that
+    // re-seeds in PowerCycle. The seed is derived from a couple of
+    // weakly-correlated host sources so consecutive launches hit
+    // different patterns; tests pin the seed directly via the test
+    // harness instead of going through this path.
+    uint64_t    seed = static_cast<uint64_t> (time (nullptr));
+
+    seed ^= static_cast<uint64_t> (GetCurrentProcessId ()) << 32;
+
+    m_prng = make_unique<Prng> (seed);
+
+    // Phase 5 / FR-033 / T055. //e video timing model — owned at the
+    // shell level so all three machine kinds (][/][+/]e) share the same
+    // 17,030-cycle frame counter for $C019 (RDVBLBAR) reads.
+    m_videoTiming = make_unique<VideoTiming> ();
 }
 
 
@@ -71,12 +173,20 @@ EmulatorShell::EmulatorShell()
 
 EmulatorShell::~EmulatorShell()
 {
+    HRESULT  hrFlush = S_OK;
+
     m_running.store (false, memory_order_release);
 
     if (m_cpuThread.joinable())
     {
         m_cpuThread.join();
     }
+
+    // Phase 11 / T097 / FR-025. Final auto-flush of any dirty disks on
+    // process shutdown — matches the "graceful exit" requirement from
+    // audit §7 so a crash-free quit never loses user writes.
+    hrFlush = m_diskStore.FlushAll ();
+    IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     m_d3dRenderer.Shutdown();
 }
@@ -93,6 +203,7 @@ EmulatorShell::~EmulatorShell()
 
 HRESULT EmulatorShell::Initialize (
     HINSTANCE             hInstance,
+    const wstring       & machineName,
     const MachineConfig & config,
     const string        & disk1Path,
     const string        & disk2Path)
@@ -102,8 +213,9 @@ HRESULT EmulatorShell::Initialize (
 
 
 
-    m_config         = config;
-    m_cyclesPerFrame = config.cyclesPerFrame;
+    m_currentMachineName = machineName;
+    m_config             = config;
+    m_cyclesPerFrame     = config.cyclesPerFrame;
 
     // Register built-in device factories
     ComponentRegistry::RegisterBuiltinDevices (m_registry);
@@ -121,7 +233,6 @@ HRESULT EmulatorShell::Initialize (
     CHR (hr);
 
     WireLanguageCard();
-    MountCommandLineDisks (disk1Path, disk2Path);
     CreateVideoModes();
 
     // Validate memory bus for overlapping device address ranges
@@ -147,6 +258,21 @@ HRESULT EmulatorShell::Initialize (
     UpdateWindow (m_hwnd);
 
     UpdateWindowTitle();
+
+    // Phase 4 / FR-034. Cold power-on: seed DRAM via the shared Prng and
+    // run the 6502 /RESET sequence. Without this, the CPU starts at PC=0
+    // and executes uninitialized RAM, leading to garbage on screen and
+    // a beep loop instead of the firmware prompt. Mirrors what the
+    // headless test harness does after BuildAppleII* construction.
+    //
+    // Must run BEFORE MountCommandLineDisks: PowerCycle ejects every
+    // drive and re-binds the engine to the controller's empty internal
+    // disk. Mounting first then power-cycling silently throws away the
+    // user's freshly-mounted image (the engine ticks but AdvanceOneBit
+    // exits early because trackBits[0] == 0).
+    PowerCycle ();
+
+    MountCommandLineDisks (disk1Path, disk2Path);
 
 Error:
     return hr;
@@ -262,7 +388,75 @@ void EmulatorShell::CreateStatusBar()
                                    nullptr);
     CWRA (m_statusBar);
 
+    // Tooltip control parented to the status bar so the owner-drawn
+    // Drive 1/Drive 2 parts can show "Drive N: <path>" on hover. The
+    // status bar itself doesn't deliver tooltip messages for owner-drawn
+    // parts (SBT_TOOLTIPS / SB_SETTIPTEXT only triggers on truncated
+    // text), and TTF_SUBCLASS doesn't intercept the status bar's mouse
+    // messages reliably -- the canonical workaround is to subclass the
+    // status bar manually and TTM_RELAYEVENT each mouse message into
+    // the tooltip control.
+    m_driveTooltip = CreateWindowExW (WS_EX_TOPMOST,
+                                      TOOLTIPS_CLASS,
+                                      nullptr,
+                                      WS_POPUP | TTS_ALWAYSTIP | TTS_NOPREFIX,
+                                      CW_USEDEFAULT, CW_USEDEFAULT,
+                                      CW_USEDEFAULT, CW_USEDEFAULT,
+                                      m_statusBar,
+                                      nullptr,
+                                      m_hInstance,
+                                      nullptr);
+
+    if (m_driveTooltip != nullptr)
+    {
+        SetWindowPos (m_driveTooltip, HWND_TOPMOST, 0, 0, 0, 0,
+                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+
     UpdateStatusBar();
+
+    // Pre-register the Drive 1/Drive 2 tools now (after parts exist) so
+    // the very first hover works. RefreshDriveStatus then keeps the
+    // rects + text in sync as the user resizes / mounts / ejects.
+    if (m_driveTooltip != nullptr && m_diskController != nullptr)
+    {
+        TOOLINFOW  ti = { };
+
+        for (int d = 0; d < DiskIIController::kDriveCount; d++)
+        {
+            ti.cbSize   = sizeof (ti);
+            ti.uFlags   = 0;
+            ti.hwnd     = m_statusBar;
+            ti.uId      = static_cast<UINT_PTR> (d);
+            ti.rect     = RECT { 0, 0, 1, 1 };
+            ti.lpszText = const_cast<LPWSTR> (L"");
+
+            SendMessage (m_driveTooltip, TTM_ADDTOOLW, 0,
+                         reinterpret_cast<LPARAM> (&ti));
+        }
+
+        SendMessage (m_driveTooltip, TTM_ACTIVATE, TRUE, 0);
+
+        // Snappier hover: 250 ms instead of the default ~half-second.
+        SendMessage (m_driveTooltip, TTM_SETDELAYTIME, TTDT_INITIAL, MAKELPARAM (250, 0));
+        SendMessage (m_driveTooltip, TTM_SETDELAYTIME, TTDT_AUTOPOP, MAKELPARAM (10000, 0));
+
+        // Subclass the status bar so we can forward mouse messages to
+        // the tooltip via TTM_RELAYEVENT. SetWindowSubclass keeps a
+        // per-instance reference data slot for `this`.
+        SetWindowSubclass (m_statusBar, &EmulatorShell::s_StatusBarSubclass,
+                           1, reinterpret_cast<DWORD_PTR> (this));
+
+        RefreshDriveStatus ();
+    }
+
+    // Periodic refresh for owner-drawn drive activity LEDs. Only set when
+    // a Disk II controller is present; otherwise the indicators don't
+    // exist and the timer would just be paint-invalidating empty space.
+    if (m_diskController != nullptr)
+    {
+        SetTimer (m_hwnd, kDriveStatusTimerId, kDriveStatusTimerMs, nullptr);
+    }
 
     fSuccess = GetWindowRect (m_statusBar, &sbRect);
     CWRA (fSuccess);
@@ -301,19 +495,27 @@ Error:
 
 void EmulatorShell::UpdateStatusBar()
 {
-    static constexpr int s_kPartCount = 4;
-    static constexpr int s_kPadding   = 24;
+    static constexpr int  s_kLeftPartCount        = 4;
+    static constexpr int  s_kPadding              = 24;
+    static constexpr int  s_kDriveIndicatorWidth  = 90;
+    static constexpr int  s_kMaxDriveCount        = 2;
+    static constexpr int  s_kMaxPartCount         = s_kLeftPartCount + s_kMaxDriveCount;
 
-    HRESULT hr                  = S_OK;
-    BOOL    fSuccess            = FALSE;
-    HDC     hdc                 = NULL;
-    HFONT   sbFont              = NULL;
-    HFONT   oldFont             = nullptr;
-    SIZE    size                = { };
-    int     parts[s_kPartCount] = { };
-    int     edge                = 0;
+    HRESULT hr                          = S_OK;
+    BOOL    fSuccess                    = FALSE;
+    HDC     hdc                         = NULL;
+    HFONT   sbFont                      = NULL;
+    HFONT   oldFont                     = nullptr;
+    SIZE    size                        = { };
+    int     parts[s_kMaxPartCount]      = { };
+    int     edge                        = 0;
+    int     driveCount                  = 0;
+    int     totalParts                  = 0;
+    int     statusBarWidth              = 0;
+    int     driveTotalWidth             = 0;
+    RECT    sbClientRect                = { };
 
-    wstring statusBarItem[] =
+    wstring statusBarItem[s_kLeftPartCount] =
     {
         format (L"CPU: {}",           fs::path (m_config.cpu).wstring()),
         format (L"Clock: {:.3f} MHz", m_config.clockSpeed / 1000000.0),
@@ -322,6 +524,16 @@ void EmulatorShell::UpdateStatusBar()
     };
 
 
+
+    if (m_diskController != nullptr)
+    {
+        driveCount = DiskIIController::kDriveCount;
+    }
+
+    totalParts                 = s_kLeftPartCount + driveCount;
+    driveTotalWidth            = driveCount * s_kDriveIndicatorWidth;
+    m_statusBarDriveCount      = driveCount;
+    m_statusBarFirstDrivePart  = s_kLeftPartCount;
 
     hdc = GetDC (m_statusBar);
     CPRA (hdc);
@@ -332,11 +544,16 @@ void EmulatorShell::UpdateStatusBar()
         oldFont = static_cast<HFONT> (SelectObject (hdc, sbFont));
     }
 
-    for (int i = 0; i < s_kPartCount - 1; i++)
+    fSuccess = GetClientRect (m_statusBar, &sbClientRect);
+    CWRA (fSuccess);
+    statusBarWidth = sbClientRect.right - sbClientRect.left;
+
+    // Left-aligned parts: width measured from text + padding.
+    for (int i = 0; i < s_kLeftPartCount - 1; i++)
     {
-        fSuccess = GetTextExtentPoint32W (hdc, 
+        fSuccess = GetTextExtentPoint32W (hdc,
                                           statusBarItem[i].c_str(),
-                                          static_cast<int> (statusBarItem[i].size()), 
+                                          static_cast<int> (statusBarItem[i].size()),
                                           &size);
         CWRA (fSuccess);
 
@@ -344,16 +561,54 @@ void EmulatorShell::UpdateStatusBar()
         parts[i] = edge;
     }
 
-    parts[s_kPartCount - 1] = -1;
-
-    SendMessage (m_statusBar, SB_SETPARTS, s_kPartCount, reinterpret_cast<LPARAM> (parts));
-
-    for (int i = 0; i < s_kPartCount; i++)
+    // The "N devices" part fills the gap between the left items and the
+    // right-aligned drive indicators (or to the right edge when no
+    // controller is present).
+    if (driveCount == 0)
     {
-        SendMessageW (m_statusBar, 
-                      SB_SETTEXTW, 
+        parts[s_kLeftPartCount - 1] = -1;
+    }
+    else
+    {
+        parts[s_kLeftPartCount - 1] = statusBarWidth - driveTotalWidth;
+
+        for (int d = 0; d < driveCount; d++)
+        {
+            int idx = s_kLeftPartCount + d;
+
+            if (d == driveCount - 1)
+            {
+                parts[idx] = -1;
+            }
+            else
+            {
+                parts[idx] = statusBarWidth - (driveCount - 1 - d) * s_kDriveIndicatorWidth;
+            }
+        }
+    }
+
+    SendMessage (m_statusBar, SB_SETPARTS, totalParts, reinterpret_cast<LPARAM> (parts));
+
+    for (int i = 0; i < s_kLeftPartCount; i++)
+    {
+        SendMessageW (m_statusBar,
+                      SB_SETTEXTW,
                       i,
                       reinterpret_cast<LPARAM> (statusBarItem[i].c_str()));
+    }
+
+    // Owner-draw drive indicators. The lParam carries the drive index so
+    // OnDrawItem can paint without having to re-derive it from the part
+    // index. SBT_OWNERDRAW + the part index in wParam tells the status bar
+    // to fire WM_DRAWITEM with itemData = our payload.
+    for (int d = 0; d < driveCount; d++)
+    {
+        int idx = s_kLeftPartCount + d;
+
+        SendMessage (m_statusBar,
+                     SB_SETTEXTW,
+                     static_cast<WPARAM> (idx) | SBT_OWNERDRAW,
+                     static_cast<LPARAM> (d));
     }
 
 
@@ -367,6 +622,241 @@ Error:
     ReleaseDC (m_statusBar, hdc);
 
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RefreshDriveStatus
+//
+//  Forces a repaint of just the owner-drawn drive-indicator parts on the
+//  status bar. Called from OnTimer so the LED reflects current motor +
+//  active-drive state without flickering the rest of the bar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RefreshDriveStatus()
+{
+    RECT      partRect = { };
+    LONG      result   = 0;
+    wchar_t   tooltip[MAX_PATH + 96] = { };
+    TOOLINFOW ti       = { };
+
+    if (m_statusBar == nullptr || m_statusBarDriveCount <= 0)
+    {
+        return;
+    }
+
+    for (int d = 0; d < m_statusBarDriveCount; d++)
+    {
+        int  partIndex = m_statusBarFirstDrivePart + d;
+
+        result = static_cast<LONG> (SendMessage (m_statusBar,
+                                                 SB_GETRECT,
+                                                 partIndex,
+                                                 reinterpret_cast<LPARAM> (&partRect)));
+
+        if (result != 0)
+        {
+            InvalidateRect (m_statusBar, &partRect, FALSE);
+        }
+
+        // Refresh the matching tooltip's rect + text. The tools were
+        // pre-registered in CreateStatusBar; here we just keep them in
+        // sync as the user mounts/ejects images and resizes the window.
+        if (m_driveTooltip != nullptr && result != 0)
+        {
+            const string & srcPath = m_diskStore.GetSourcePath (6, d);
+
+            if (srcPath.empty ())
+            {
+                swprintf_s (tooltip, L"Drive %d: (empty)", d + 1);
+            }
+            else if (m_diskController != nullptr)
+            {
+                auto &  engine = m_diskController->GetEngine (d);
+                int     track  = engine.GetCurrentTrack ();
+
+                swprintf_s (tooltip,
+                            L"Drive %d: %hs  [track %d  R:%llu  W:%llu]",
+                            d + 1, srcPath.c_str (),
+                            track,
+                            (unsigned long long) engine.GetReadNibbles (),
+                            (unsigned long long) engine.GetWriteNibbles ());
+            }
+            else
+            {
+                swprintf_s (tooltip, L"Drive %d: %hs", d + 1, srcPath.c_str ());
+            }
+
+            ti.cbSize   = sizeof (ti);
+            ti.hwnd     = m_statusBar;
+            ti.uId      = static_cast<UINT_PTR> (d);
+            ti.rect     = partRect;
+            ti.lpszText = tooltip;
+
+            SendMessage (m_driveTooltip, TTM_NEWTOOLRECT, 0,
+                         reinterpret_cast<LPARAM> (&ti));
+            SendMessage (m_driveTooltip, TTM_UPDATETIPTEXTW, 0,
+                         reinterpret_cast<LPARAM> (&ti));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  s_StatusBarSubclass
+//
+//  Window subclass for the status bar: forwards mouse messages to the
+//  drive tooltip control via TTM_RELAYEVENT so it can decide whether the
+//  cursor is inside a registered tool's rect and show/hide the popup.
+//  This is the canonical pattern for tooltips on owner-drawn parts that
+//  the parent control does not natively expose to TTF_SUBCLASS.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LRESULT CALLBACK EmulatorShell::s_StatusBarSubclass (
+    HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
+    UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
+{
+    UNREFERENCED_PARAMETER (uIdSubclass);
+
+    EmulatorShell * self = reinterpret_cast<EmulatorShell *> (dwRefData);
+
+    if (self != nullptr && self->m_driveTooltip != nullptr)
+    {
+        switch (uMsg)
+        {
+            case WM_MOUSEMOVE:
+            case WM_LBUTTONDOWN:
+            case WM_LBUTTONUP:
+            case WM_RBUTTONDOWN:
+            case WM_RBUTTONUP:
+            case WM_MBUTTONDOWN:
+            case WM_MBUTTONUP:
+            {
+                MSG msg = { };
+                msg.hwnd    = hwnd;
+                msg.message = uMsg;
+                msg.wParam  = wParam;
+                msg.lParam  = lParam;
+                SendMessage (self->m_driveTooltip, TTM_RELAYEVENT, 0,
+                             reinterpret_cast<LPARAM> (&msg));
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    return DefSubclassProc (hwnd, uMsg, wParam, lParam);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawDriveStatusItem
+//
+//  Paints one drive indicator: "Drive N: " followed by a filled circle
+//  that's red when the controller's motor is on AND that drive is the
+//  selected one, grey otherwise. Honors the system-default 3D face
+//  background and window text color so the indicator blends with the rest
+//  of the status bar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DrawDriveStatusItem (DRAWITEMSTRUCT * pdis, int driveIndex)
+{
+    static constexpr int  s_kDotRadius     = 5;
+    static constexpr int  s_kLeftMargin    = 6;
+    static constexpr int  s_kRightMargin   = 22;
+    static constexpr int  s_kLabelDotGap   = 10;
+
+    wchar_t   label[16]    = { };
+    HBRUSH    bgBrush      = nullptr;
+    HBRUSH    dotBrush     = nullptr;
+    HPEN      dotPen       = nullptr;
+    HBRUSH    oldBrush     = nullptr;
+    HPEN      oldPen       = nullptr;
+    SIZE      labelSize    = { };
+    RECT      labelRect    = { };
+    int       dotCx        = 0;
+    int       dotCy        = 0;
+    bool      active       = false;
+    COLORREF  dotColor     = 0;
+
+    if (pdis == nullptr)
+    {
+        return;
+    }
+
+    swprintf_s (label, L"Drive %d:", driveIndex + 1);
+
+    bgBrush = GetSysColorBrush (COLOR_3DFACE);
+    FillRect (pdis->hDC, &pdis->rcItem, bgBrush);
+
+    SetBkMode    (pdis->hDC, TRANSPARENT);
+    SetTextColor (pdis->hDC, GetSysColor (COLOR_WINDOWTEXT));
+
+    labelRect       = pdis->rcItem;
+    labelRect.left += s_kLeftMargin;
+
+    DrawTextW (pdis->hDC, label, -1, &labelRect,
+               DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+    GetTextExtentPoint32W (pdis->hDC, label,
+                           static_cast<int> (wcslen (label)),
+                           &labelSize);
+
+    active = m_diskController != nullptr
+          && m_diskController->IsMotorOn ()
+          && m_diskController->GetActiveDrive () == driveIndex;
+
+    dotColor = active ? RGB (220, 32, 32) : RGB (128, 128, 128);
+
+    dotCx = labelRect.left + labelSize.cx + s_kLabelDotGap + s_kDotRadius;
+    dotCy = (pdis->rcItem.top + pdis->rcItem.bottom) / 2;
+
+    // Only the rightmost drive part shares pixels with the SBARS_SIZEGRIP
+    // corner — clamp its dot position so the ellipse stays inside the
+    // visible area. Other drive parts paint where the gap calculation
+    // says, which keeps the colon-to-dot spacing consistent across drives.
+    if (driveIndex == m_statusBarDriveCount - 1)
+    {
+        if (dotCx + s_kDotRadius > pdis->rcItem.right - s_kRightMargin)
+        {
+            dotCx = pdis->rcItem.right - s_kRightMargin - s_kDotRadius;
+        }
+    }
+
+    dotBrush = CreateSolidBrush (dotColor);
+    dotPen   = CreatePen        (PS_SOLID, 1, dotColor);
+
+    if (dotBrush != nullptr && dotPen != nullptr)
+    {
+        oldBrush = static_cast<HBRUSH> (SelectObject (pdis->hDC, dotBrush));
+        oldPen   = static_cast<HPEN>   (SelectObject (pdis->hDC, dotPen));
+
+        Ellipse (pdis->hDC,
+                 dotCx - s_kDotRadius, dotCy - s_kDotRadius,
+                 dotCx + s_kDotRadius, dotCy + s_kDotRadius);
+
+        if (oldBrush != nullptr) SelectObject (pdis->hDC, oldBrush);
+        if (oldPen   != nullptr) SelectObject (pdis->hDC, oldPen);
+    }
+
+    if (dotBrush != nullptr) DeleteObject (dotBrush);
+    if (dotPen   != nullptr) DeleteObject (dotPen);
 }
 
 
@@ -593,7 +1083,9 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
         m_charRom.LoadEmbeddedFallback ();
     }
 
-    // RAM regions (skip aux-bank entries; AuxRamCard handles aux memory)
+    // RAM regions. Skip aux-bank entries: the AppleIIeMmu owns the
+    // auxiliary 64 KiB internally. Track the main RAM RamDevice for
+    // MMU page-table wiring.
     for (const auto & region : config.ram)
     {
         if (!region.bank.empty ())
@@ -605,6 +1097,12 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
         Word end   = static_cast<Word> (region.address + region.size - 1);
 
         auto device = make_unique<RamDevice> (start, end);
+
+        if (m_mainRamDev == nullptr)
+        {
+            m_mainRamDev = device.get ();
+        }
+
         m_memoryBus.AddDevice (device.get ());
         m_ownedDevices.push_back (move (device));
     }
@@ -637,6 +1135,16 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
         DeviceConfig devCfg;
         devCfg.type = idev.type;
 
+        // The //e MMU is a coordinator object, not a bus device — it owns
+        // the auxiliary 64 KiB and rebinds the page table on every
+        // banking-changed event. Instantiate it directly here; full wiring
+        // (siblings, Initialize) happens after the device pass.
+        if (devCfg.type == "apple2e-mmu")
+        {
+            m_mmu = make_unique<AppleIIeMmu> ();
+            continue;
+        }
+
         auto device = m_registry.Create (devCfg.type, devCfg, m_memoryBus);
 
         if (!device)
@@ -666,7 +1174,7 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
     }
 
     // Wire IIe keyboard <-> softswitch sibling so $C00C-$C00F reaches the
-    // softswitch (the keyboard's range $C000-$C01F would otherwise eat it).
+    // softswitch (the keyboard's range $C000-$C063 would otherwise eat it).
     {
         auto * iieKbd = dynamic_cast<AppleIIeKeyboard *>     (m_keyboard);
         auto * iieSw  = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
@@ -674,19 +1182,52 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
         if (iieKbd != nullptr && iieSw != nullptr)
         {
             iieKbd->SetSoftSwitchSibling (iieSw);
+            iieSw->SetKeyboard           (iieKbd);
         }
 
-        if (iieKbd != nullptr)
+        if (iieKbd != nullptr && m_speaker != nullptr)
         {
-            for (auto & dev : m_ownedDevices)
-            {
-                AuxRamCard * aux = dynamic_cast<AuxRamCard *> (dev.get ());
-                if (aux != nullptr)
-                {
-                    iieKbd->SetAuxRamSibling (aux);
-                    break;
-                }
-            }
+            iieKbd->SetSpeakerSibling (m_speaker);
+        }
+
+        if (iieKbd != nullptr && m_mmu != nullptr)
+        {
+            iieKbd->SetMmu (m_mmu.get ());
+        }
+
+        if (iieKbd != nullptr && m_videoTiming != nullptr)
+        {
+            iieKbd->SetVideoTiming (m_videoTiming.get ());
+        }
+
+        if (iieSw != nullptr && m_videoTiming != nullptr)
+        {
+            iieSw->SetVideoTiming (m_videoTiming.get ());
+        }
+
+        if (iieSw != nullptr && m_mmu != nullptr)
+        {
+            iieSw->SetMmu (m_mmu.get ());
+        }
+    }
+
+    // Initialize the //e MMU once main RAM exists. The MMU rebinds the
+    // page table for $0000-$BFFF based on RAMRD/RAMWRT/ALTZP/80STORE.
+    if (m_mmu != nullptr && m_mainRamDev != nullptr)
+    {
+        auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
+
+        HRESULT hrMmu = m_mmu->Initialize (
+            &m_memoryBus,
+            m_mainRamDev,
+            nullptr,
+            nullptr,
+            nullptr,
+            iieSw);
+
+        if (FAILED (hrMmu))
+        {
+            DEBUGMSG (L"AppleIIeMmu::Initialize failed (hr=0x%08x)\n", hrMmu);
         }
     }
 
@@ -731,8 +1272,41 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
                 CBRN (false, wideError.c_str ());
             }
 
-            m_memoryBus.AddDevice (device.get ());
+            // On //e the AppleIIeMmu owns the $C100-$CFFF router and
+            // dispatches between internal ROM and slot ROMs based on
+            // INTCXROM/SLOTC3ROM/INTC8ROM. On ][/][+, the slot ROM is
+            // bus-resident as before (no INTCXROM concept).
+            if (m_mmu != nullptr)
+            {
+                vector<Byte> bytes (slot.romSize);
+
+                for (size_t i = 0; i < slot.romSize; i++)
+                {
+                    bytes[i] = device->Read (static_cast<Word> (romStart + i));
+                }
+
+                m_mmu->AttachSlotRom (slot.slot, move (bytes));
+            }
+            else
+            {
+                m_memoryBus.AddDevice (device.get ());
+            }
+
             m_ownedDevices.push_back (move (device));
+        }
+    }
+
+    // Cache DiskIIController pointer for the status-bar drive activity
+    // indicator. We pick the first one we find (typically slot 6).
+    m_diskController = nullptr;
+    for (auto & dev : m_ownedDevices)
+    {
+        DiskIIController *  dc = dynamic_cast<DiskIIController *> (dev.get ());
+
+        if (dc != nullptr)
+        {
+            m_diskController = dc;
+            break;
         }
     }
 
@@ -810,6 +1384,8 @@ void EmulatorShell::WireLanguageCard()
         size_t dataOffset   = slotRomStart - romStart;
         size_t lowerSize    = 0xD000 - slotRomStart;
 
+        UNREFERENCED_PARAMETER (dataOffset);
+
         vector<Byte> lowerData (lowerSize);
 
         for (size_t i = 0; i < lowerSize; i++)
@@ -817,18 +1393,48 @@ void EmulatorShell::WireLanguageCard()
             lowerData[i] = romDevice->Read (static_cast<Word> (slotRomStart + i));
         }
 
-        auto lowerRom = RomDevice::CreateFromData (
-            slotRomStart, static_cast<Word> (0xCFFF),
-            lowerData.data(), lowerData.size());
+        // On //e: hand to the MMU's CxxxRomRouter (audit C8 carryover).
+        // On ][/][+: keep the legacy bus-resident ROM device.
+        if (m_mmu != nullptr)
+        {
+            m_mmu->AttachInternalCxxxRom (move (lowerData));
+        }
+        else
+        {
+            auto lowerRom = RomDevice::CreateFromData (
+                slotRomStart, static_cast<Word> (0xCFFF),
+                lowerData.data(), lowerData.size());
 
-        m_memoryBus.AddDevice (lowerRom.get());
-        m_ownedDevices.push_back (move (lowerRom));
+            m_memoryBus.AddDevice (lowerRom.get());
+            m_ownedDevices.push_back (move (lowerRom));
+        }
     }
 
     // Bank device intercepts $D000–$FFFF, routing to LC RAM or ROM
     auto lcBank = make_unique<LanguageCardBank> (*lc);
     m_memoryBus.AddDevice (lcBank.get());
     m_ownedDevices.push_back (move (lcBank));
+
+    // //e wiring: LC needs the MMU (for ALTZP routing) and the keyboard
+    // sibling needs the LC pointer for $C011/$C012 status reads.
+    if (m_mmu != nullptr)
+    {
+        lc->SetMmu (m_mmu.get ());
+    }
+
+    auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_keyboard);
+
+    if (iieKbd != nullptr)
+    {
+        iieKbd->SetLanguageCard (lc);
+    }
+
+    auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
+
+    if (iieSw != nullptr)
+    {
+        iieSw->SetLanguageCard (lc);
+    }
 }
 
 
@@ -878,16 +1484,32 @@ void EmulatorShell::WirePageTable()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetAuxRamBuffer
+//
+//  Returns the //e auxiliary 64 KiB buffer (owned by AppleIIeMmu) or
+//  nullptr when no MMU is wired (Apple ][ / ][+).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte * EmulatorShell::GetAuxRamBuffer ()
+{
+    return m_mmu != nullptr ? m_mmu->GetAuxBuffer () : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RebuildBankingPages
 //
-//  Updates the page table mappings for $0400-$07FF (text page 1) and
-//  $2000-$3FFF (hi-res page 1) based on current 80STORE/PAGE2/HIRES state.
-//
-//  When 80STORE is ON:
-//    - PAGE2 ($C055) routes text page 1 RAM to AUX
-//    - PAGE2 + HIRES routes hi-res page 1 RAM to AUX
-//    - PAGE1 ($C054) routes both back to MAIN
-//  When 80STORE is OFF: pages always point to MAIN.
+//  When the //e MMU is present, it owns all $0000-$BFFF page-table
+//  routing (RAMRD/RAMWRT/ALTZP/80STORE+PAGE2/HIRES) and is invoked
+//  directly by the soft-switch bank on every banking-changed event.
+//  This shim only handles the legacy fallback where no MMU exists
+//  (][/][+) — those machines never set 80STORE so all pages stay
+//  bound to main RAM.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -898,61 +1520,22 @@ void EmulatorShell::RebuildBankingPages()
         return;
     }
 
-    auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
-
-    if (iieSw == nullptr || !iieSw->Is80Store ())
+    if (m_mmu != nullptr)
     {
-        // Non-IIe or 80STORE off: always use main RAM
-        Byte * mainRam = const_cast<Byte *> (m_cpu->GetMemory());
-
-        for (int page = 0x04; page <= 0x07; page++)
-        {
-            Byte * p = mainRam + (page * 0x100);
-            m_memoryBus.SetReadPage  (page, p);
-            m_memoryBus.SetWritePage (page, p);
-        }
-        for (int page = 0x20; page <= 0x3F; page++)
-        {
-            Byte * p = mainRam + (page * 0x100);
-            m_memoryBus.SetReadPage  (page, p);
-            m_memoryBus.SetWritePage (page, p);
-        }
         return;
     }
 
-    // 80STORE is ON. PAGE2 selects aux for the display memory regions.
-    bool page2 = m_softSwitches != nullptr && m_softSwitches->IsPage2 ();
-    bool hires = m_softSwitches != nullptr && m_softSwitches->IsHiresMode ();
-
     Byte * mainRam = const_cast<Byte *> (m_cpu->GetMemory());
-    Byte * auxRam  = nullptr;
-
-    // Find AuxRamCard for aux buffer
-    for (auto & dev : m_ownedDevices)
-    {
-        AuxRamCard * aux = dynamic_cast<AuxRamCard *> (dev.get ());
-        if (aux != nullptr)
-        {
-            auxRam = aux->GetAuxBuffer ();
-            break;
-        }
-    }
-
-    Byte * textBank = (page2 && auxRam != nullptr) ? auxRam : mainRam;
 
     for (int page = 0x04; page <= 0x07; page++)
     {
-        Byte * p = textBank + (page * 0x100);
+        Byte * p = mainRam + (page * 0x100);
         m_memoryBus.SetReadPage  (page, p);
         m_memoryBus.SetWritePage (page, p);
     }
-
-    // Hi-res region: only banked when HIRES soft switch is also active
-    Byte * hiresBank = (page2 && hires && auxRam != nullptr) ? auxRam : mainRam;
-
     for (int page = 0x20; page <= 0x3F; page++)
     {
-        Byte * p = hiresBank + (page * 0x100);
+        Byte * p = mainRam + (page * 0x100);
         m_memoryBus.SetReadPage  (page, p);
         m_memoryBus.SetWritePage (page, p);
     }
@@ -972,29 +1555,161 @@ void EmulatorShell::MountCommandLineDisks (
     const string & disk1Path,
     const string & disk2Path)
 {
-    if (disk1Path.empty() && disk2Path.empty())
+    HRESULT  hr = S_OK;
+    string   resolvedDisk1 = disk1Path;
+    string   resolvedDisk2 = disk2Path;
+
+    // Per-machine remembered disks. Command-line wins; otherwise fall
+    // back to whatever this machine had mounted last session, so the
+    // user doesn't have to re-pick the .dsk every launch (and so the
+    // test harness can flip-test the same image without re-clicking
+    // the file dialog).
+    if (resolvedDisk1.empty () && !m_currentMachineName.empty ())
+    {
+        wstring  saved;
+        HRESULT  hrRead = ReadSavedDiskPath (0, m_currentMachineName, saved);
+
+        if (hrRead == S_OK && !saved.empty ())
+        {
+            resolvedDisk1 = fs::path (saved).string ();
+        }
+    }
+
+    if (resolvedDisk2.empty () && !m_currentMachineName.empty ())
+    {
+        wstring  saved;
+        HRESULT  hrRead = ReadSavedDiskPath (1, m_currentMachineName, saved);
+
+        if (hrRead == S_OK && !saved.empty ())
+        {
+            resolvedDisk2 = fs::path (saved).string ();
+        }
+    }
+
+    if (resolvedDisk1.empty () && resolvedDisk2.empty ())
     {
         return;
     }
 
+    if (!resolvedDisk1.empty ())
+    {
+        hr = MountDiskInSlot6 (0, resolvedDisk1);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (!resolvedDisk2.empty ())
+    {
+        hr = MountDiskInSlot6 (1, resolvedDisk2);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindSlot6Controller
+//
+//  Phase 11 / T097. Scans the owned-device list for the Disk II
+//  controller. Returns nullptr if none is wired (e.g., a machine config
+//  without a disk slot).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskIIController * EmulatorShell::FindSlot6Controller ()
+{
+    DiskIIController *  result = nullptr;
+
     for (auto & dev : m_ownedDevices)
     {
-        auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get());
+        result = dynamic_cast<DiskIIController *> (dev.get());
 
-        if (diskCtrl)
+        if (result != nullptr)
         {
-            if (!disk1Path.empty())
-            {
-                diskCtrl->MountDisk (0, disk1Path);
-            }
-
-            if (!disk2Path.empty())
-            {
-                diskCtrl->MountDisk (1, disk2Path);
-            }
-
             break;
         }
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountDiskInSlot6
+//
+//  Phase 11 / T097 / FR-025. Routes the mount through the DiskImageStore
+//  so dirty writes auto-flush back to the host filesystem on Eject,
+//  SwitchMachine, PowerCycle, and Shutdown. The Disk II controller's
+//  nibble engine is then re-pointed at the store-owned DiskImage via
+//  SetExternalDisk so the controller drives the same image bytes the
+//  store will eventually serialize.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::MountDiskInSlot6 (int drive, const string & path)
+{
+    HRESULT              hr         = S_OK;
+    DiskIIController  *  controller = FindSlot6Controller ();
+    DiskImage         *  external   = nullptr;
+
+    CBR (controller != nullptr);
+
+    hr = m_diskStore.Mount (6, drive, path);
+    CHR (hr);
+
+    external = m_diskStore.GetImage (6, drive);
+    controller->SetExternalDisk (drive, external);
+
+    // Persist this drive's mount path so the next launch / next time
+    // this machine is selected auto-mounts the same disk. Don't pollute
+    // hr with the registry result -- a missing key is non-fatal.
+    if (!m_currentMachineName.empty ())
+    {
+        wstring  wPath = fs::path (path).wstring ();
+        HRESULT  hrReg = WriteSavedDiskPath (drive, m_currentMachineName, wPath);
+        IGNORE_RETURN_VALUE (hrReg, S_OK);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EjectDiskInSlot6
+//
+//  Phase 11 / T097 / FR-025. Auto-flushes dirty bits via the store and
+//  detaches the controller's external disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::EjectDiskInSlot6 (int drive)
+{
+    DiskIIController *  controller = FindSlot6Controller ();
+
+    m_diskStore.Eject (6, drive);
+
+    if (controller != nullptr)
+    {
+        controller->SetExternalDisk (drive, nullptr);
+    }
+
+    // Clear the per-machine remembered path so the next launch comes up
+    // empty in this slot.
+    if (!m_currentMachineName.empty ())
+    {
+        HRESULT  hrReg = WriteSavedDiskPath (drive, m_currentMachineName, L"");
+        IGNORE_RETURN_VALUE (hrReg, S_OK);
     }
 }
 
@@ -1023,18 +1738,19 @@ void EmulatorShell::CreateVideoModes()
     auto doubleHiResMode = make_unique<AppleDoubleHiResMode> (m_memoryBus);
     m_videoModes.push_back (move (doubleHiResMode));
 
-    // Index 4: 80-column text (used on //e). Wired with aux memory after
-    // AuxRamCard exists.
+    // Index 4: 80-column text (used on //e). Wired with aux memory from
+    // the AppleIIeMmu when present.
     auto text80 = make_unique<Apple80ColTextMode> (m_memoryBus, m_charRom);
 
-    for (auto & dev : m_ownedDevices)
+    Byte * auxBuf = GetAuxRamBuffer ();
+
+    if (auxBuf != nullptr)
     {
-        AuxRamCard * aux = dynamic_cast<AuxRamCard *> (dev.get ());
-        if (aux != nullptr)
-        {
-            text80->SetAuxMemory (aux->GetAuxBuffer ());
-            break;
-        }
+        text80->SetAuxMemory (auxBuf);
+
+        // DHR also needs aux memory access (FR-019). Index 3 = AppleDoubleHiResMode.
+        auto * dhr = static_cast<AppleDoubleHiResMode *> (m_videoModes[3].get ());
+        dhr->SetAuxMemory (auxBuf);
     }
 
     m_videoModes.push_back (move (text80));
@@ -1060,6 +1776,22 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
 
 
     m_cpu = make_unique<EmuCpu> (m_memoryBus);
+
+    // Phase 5 / FR-033 / T056. Wire the //e video timing model into the
+    // EmuCpu cycle fan-out. Every AddCycles call now ticks VideoTiming
+    // so $C019 (RDVBLBAR) tracks the 17,030-cycle frame. Null-safe for
+    // tests/builds that haven't constructed a timing model.
+    if (m_videoTiming != nullptr)
+    {
+        m_cpu->SetVideoTiming (m_videoTiming.get ());
+    }
+
+    // Wire the InterruptController to the CPU. Phase 1 wiring registers
+    // zero asserters today — the //e card slots (1/3/4/5/6) will allocate
+    // tokens here in later phases as their devices are added. The
+    // controller exists now so Apple ][ / ][+ / //e all share the same
+    // IRQ aggregation seam.
+    m_interruptController.SetCpu (m_cpu->GetCpu ());
 
     // The base Cpu class uses an internal memory[] array. Copy system ROM
     // and slot ROMs into that array so PeekByte/disassembly can see them.
@@ -1212,6 +1944,14 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     CHRN (hr, format (L"Failed to load machine config:\n{}",
                       wstring (error.begin(), error.end())).c_str());
 
+    // Phase 11 / T097 / FR-025. Auto-flush every dirty disk before
+    // tearing down the previous machine so user writes survive the
+    // machine switch.
+    {
+        HRESULT  hrFlush = m_diskStore.FlushAll ();
+        IGNORE_RETURN_VALUE (hrFlush, S_OK);
+    }
+
     // Tear down current machine
     m_cpu.reset();
     m_ownedDevices.clear();
@@ -1221,10 +1961,12 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     m_keyboard        = nullptr;
     m_softSwitches    = nullptr;
     m_speaker         = nullptr;
+    m_diskController  = nullptr;
 
     // Initialize with new config
-    m_config         = newConfig;
-    m_cyclesPerFrame = newConfig.cyclesPerFrame;
+    m_currentMachineName = machineName;
+    m_config              = newConfig;
+    m_cyclesPerFrame      = newConfig.cyclesPerFrame;
 
     hr = CreateMemoryDevices (newConfig);
     CHR (hr);
@@ -1243,9 +1985,38 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     UpdateStatusBar();
     UpdateWindowTitle();
 
+    // Restart the drive activity timer based on the new machine's
+    // hardware. KillTimer is a no-op if the timer wasn't set; SetTimer
+    // is only needed when a Disk II controller is present.
+    if (m_hwnd != nullptr)
+    {
+        KillTimer (m_hwnd, kDriveStatusTimerId);
+        if (m_diskController != nullptr)
+        {
+            SetTimer (m_hwnd, kDriveStatusTimerId, kDriveStatusTimerMs, nullptr);
+        }
+    }
+
     // Save to registry (don't pollute hr with the result)
     hrReg = RegistrySettings::WriteString (kLastMachineValue, machineName);
     IGNORE_RETURN_VALUE (hrReg, S_OK);
+
+    // Phase 4 / FR-034. Same cold-power-on sequence as Initialize() —
+    // seed DRAM and run the 6502 /RESET sequence. Without this the
+    // newly-built machine starts with a random PC into uninitialized
+    // RAM. Mounts persist across the switch (they were flushed above
+    // and re-mounted by the new config); aux RAM, LC RAM, and CPU
+    // registers are all reseeded.
+    //
+    // Must run BEFORE the per-machine remount: PowerCycle ejects every
+    // drive and rebinds the controller's engine to its empty internal
+    // disk, which would silently throw away whatever we just mounted.
+    PowerCycle ();
+
+    // Remount per-machine disks if any were saved last time this
+    // machine was active. Empty paths fall through harmlessly so a
+    // never-used machine won't try to mount anything.
+    MountCommandLineDisks (string (), string ());
 
 Error:
     return hr;
@@ -1452,22 +2223,13 @@ void EmulatorShell::ProcessCommands()
 
             case IDM_MACHINE_RESET:
             {
-                if (m_cpu)
-                {
-                    Word resetVec = m_cpu->ReadWord (0xFFFC);
-                    m_cpu->SetPC (resetVec);
-                }
+                SoftReset ();
                 break;
             }
 
             case IDM_MACHINE_POWERCYCLE:
             {
-                m_memoryBus.Reset();
-
-                if (m_cpu)
-                {
-                    m_cpu->InitForEmulation();
-                }
+                PowerCycle ();
                 break;
             }
 
@@ -1476,6 +2238,11 @@ void EmulatorShell::ProcessCommands()
                 if (m_cpu)
                 {
                     m_cpu->StepOne();
+
+                    if (m_diskController != nullptr)
+                    {
+                        m_diskController->Tick (m_cpu->GetLastInstructionCycles ());
+                    }
                 }
                 break;
             }
@@ -1483,36 +2250,20 @@ void EmulatorShell::ProcessCommands()
             case IDM_DISK_INSERT1:
             case IDM_DISK_INSERT2:
             {
-                int drive = (cmd.id == IDM_DISK_INSERT1) ? 0 : 1;
+                int      drive   = (cmd.id == IDM_DISK_INSERT1) ? 0 : 1;
+                HRESULT  hrMount = S_OK;
 
-                for (auto & dev : m_ownedDevices)
-                {
-                    auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get());
-
-                    if (diskCtrl)
-                    {
-                        diskCtrl->MountDisk (drive, cmd.payload);
-                        break;
-                    }
-                }
+                hrMount = MountDiskInSlot6 (drive, cmd.payload);
+                IGNORE_RETURN_VALUE (hrMount, S_OK);
                 break;
             }
 
             case IDM_DISK_EJECT1:
             case IDM_DISK_EJECT2:
             {
-                int drive = (cmd.id == IDM_DISK_EJECT1) ? 0 : 1;
+                int   drive = (cmd.id == IDM_DISK_EJECT1) ? 0 : 1;
 
-                for (auto & dev : m_ownedDevices)
-                {
-                    auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get());
-
-                    if (diskCtrl)
-                    {
-                        diskCtrl->EjectDisk (drive);
-                        break;
-                    }
-                }
+                EjectDiskInSlot6 (drive);
                 break;
             }
 
@@ -1715,6 +2466,18 @@ void EmulatorShell::ExecuteCpuSlices()
 
             m_cpu->AddCycles (cycles);
             sliceActual += cycles;
+
+            // Pump the Disk II nibble engine in lockstep with EACH
+            // instruction's cycles, not once per slice. The boot ROM
+            // sits in a tight LDA $C0EC / BPL loop reading the data
+            // latch; if the engine only advances at slice boundaries
+            // the CPU sees one valid nibble per ~1000 cycles instead
+            // of ~32, and the boot ROM never accumulates enough sync
+            // bytes to find a sector header.
+            if (m_diskController != nullptr)
+            {
+                m_diskController->Tick (cycles);
+            }
         }
 
         executed += sliceActual;
@@ -1761,33 +2524,51 @@ void EmulatorShell::RenderFramebuffer()
 
     if (m_activeVideoMode != nullptr)
     {
-        m_activeVideoMode->Render (m_cpu->GetMemory(),
+        // Pass nullptr for videoRam so the renderer reads through MemoryBus.
+        // The bus's page table reflects the current MMU banking state
+        // (main vs aux for $0400-$07FF / $2000-$3FFF under 80STORE+PAGE2/HIRES);
+        // CPU memory[] alone does not, since the //e MMU re-points pages at
+        // the RamDevice / aux RAM buffers it owns.
+        m_activeVideoMode->Render (nullptr,
                                    m_cpuFramebuffer.data(),
                                    kFramebufferWidth,
                                    kFramebufferHeight);
     }
 
-    // Mixed mode: overlay text on the bottom 4 rows (rows 20-23)
+    // Mixed mode: overlay text on the bottom 4 rows (rows 20-23) via the
+    // composed renderer (FR-017a / FR-020). When 80COL is active on the //e
+    // we route through Apple80ColTextMode::RenderRowRange; otherwise through
+    // AppleTextMode::RenderRowRange. Both share a single composed code path
+    // (no branched duplicated render logic).
     if (m_mixedMode && m_graphicsMode && !m_videoModes.empty())
     {
-        static constexpr int kMixedCharH  = 8;
-        static constexpr int kMixedScaleY = 2;
-        int mixedFbY = 20 * kMixedCharH * kMixedScaleY;
+        static constexpr int kMixedFirstRow = 20;
+        static constexpr int kMixedLastRow  = 24;
 
-        fill (m_textOverlay.begin(), m_textOverlay.end(), 0);
+        auto * iieSwitches = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
+        bool   use80Col    = iieSwitches != nullptr && iieSwitches->Is80ColMode ();
 
-        m_videoModes[0]->Render (m_cpu->GetMemory(),
-                                 m_textOverlay.data(),
-                                 kFramebufferWidth,
-                                 kFramebufferHeight);
-
-        size_t rowBytes = static_cast<size_t> (kFramebufferWidth) * sizeof (uint32_t);
-
-        for (int y = mixedFbY; y < kFramebufferHeight; y++)
+        if (use80Col && m_videoModes.size () > 4)
         {
-            memcpy (&m_cpuFramebuffer[static_cast<size_t> (y) * kFramebufferWidth],
-                    &m_textOverlay[static_cast<size_t> (y) * kFramebufferWidth],
-                    rowBytes);
+            auto * text80 = static_cast<Apple80ColTextMode *> (m_videoModes[4].get ());
+
+            text80->SetPage2 (false);
+            text80->RenderRowRange (kMixedFirstRow, kMixedLastRow,
+                                    nullptr,
+                                    m_cpuFramebuffer.data (),
+                                    kFramebufferWidth,
+                                    kFramebufferHeight);
+        }
+        else
+        {
+            auto * text40 = static_cast<AppleTextMode *> (m_videoModes[0].get ());
+
+            text40->SetPage2 (m_page2);
+            text40->RenderRowRange (kMixedFirstRow, kMixedLastRow,
+                                    nullptr,
+                                    m_cpuFramebuffer.data (),
+                                    kFramebufferWidth,
+                                    kFramebufferHeight);
         }
     }
 
@@ -1889,6 +2670,8 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
 
 
 
+    KillTimer (m_hwnd, kDriveStatusTimerId);
+
     m_running.store (false, memory_order_release);
     m_pauseCV.notify_one();
     PostQuitMessage (0);
@@ -1910,21 +2693,68 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER (lParam);
 
-
+    bool ctrlHeld = false;
+    bool altHeld  = false;
 
     if (m_keyboard == nullptr)
     {
         return false;
     }
 
-    // Ctrl+V — paste from clipboard
-    if (vk == 'V' && (GetKeyState (VK_CONTROL) & 0x8000))
+    ctrlHeld = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
+    altHeld  = (GetKeyState (VK_MENU)    & 0x8000) != 0;
+
+    // Ctrl+V — paste from clipboard (host-meta convenience, not a //e
+    // hardware key). Consumed before reaching the emulated keyboard.
+    if (vk == 'V' && ctrlHeld && !altHeld)
     {
         PasteFromClipboard();
         return false;
     }
 
+    // Ctrl+R — //e Reset key + Ctrl modifier. Drives the CPU /RESET
+    // line via the existing soft-reset path. The emulated keyboard's
+    // Open Apple state (set by the Alt-key handlers below) is what the
+    // firmware reads at $C061 to decide warm vs autoboot, so:
+    //   Ctrl+R         -> warm reset (no Open Apple)         -> ] prompt
+    //   Ctrl+Alt+R     -> Open Apple held during reset       -> autoboot
+    //   Ctrl+Shift+R   -> stays a host-meta IDM_MACHINE_POWERCYCLE
+    //                     accelerator (full DRAM re-seed, no //e equiv).
+    // Consumed; not pumped to the //e keyboard as a Ctrl-R character.
+    if (vk == 'R' && ctrlHeld && !(GetKeyState (VK_SHIFT) & 0x8000))
+    {
+        PostCommand (IDM_MACHINE_RESET);
+        return false;
+    }
+
     m_keyboard->SetKeyDown (true);
+
+    // Phase 6 / T063 / FR-013. //e modifier-key wiring (host -> emulator):
+    //   left  Alt   -> Open Apple   ($C061)
+    //   right Alt   -> Closed Apple ($C062)
+    //   Shift       -> Shift        ($C063)
+    // Ignored on ][/][+ (the dynamic_cast yields nullptr). Both VK_MENU
+    // (which Windows delivers for plain Alt) and VK_L/RMENU (which it
+    // can deliver for some Alt+key combos) drive the same path —
+    // GetKeyState gives the canonical left/right state.
+    {
+        auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_keyboard);
+
+        if (iieKbd != nullptr)
+        {
+            if (vk == VK_LMENU || vk == VK_RMENU || vk == VK_MENU)
+            {
+                bool lAlt = (GetKeyState (VK_LMENU) & 0x8000) != 0;
+                bool rAlt = (GetKeyState (VK_RMENU) & 0x8000) != 0;
+                iieKbd->SetOpenApple   (lAlt);
+                iieKbd->SetClosedApple (rAlt);
+            }
+            else if (vk == VK_SHIFT)
+            {
+                iieKbd->SetShift (true);
+            }
+        }
+    }
 
     switch (vk)
     {
@@ -1971,12 +2801,35 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
 bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 {
-    UNREFERENCED_PARAMETER (vk);
     UNREFERENCED_PARAMETER (lParam);
 
-    if (m_keyboard)
+    if (m_keyboard == nullptr)
     {
-        m_keyboard->SetKeyDown (false);
+        return false;
+    }
+
+    m_keyboard->SetKeyDown (false);
+
+    // Phase 6 / T063: release //e modifiers when the host releases the
+    // physical key. Both VK_MENU and VK_L/RMENU events drive a re-query
+    // of the canonical left/right state via GetKeyState — the modifier
+    // remains asserted on the //e side as long as either physical Alt
+    // is still down.
+    auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_keyboard);
+
+    if (iieKbd != nullptr)
+    {
+        if (vk == VK_LMENU || vk == VK_RMENU || vk == VK_MENU)
+        {
+            bool lAlt = (GetKeyState (VK_LMENU) & 0x8000) != 0;
+            bool rAlt = (GetKeyState (VK_RMENU) & 0x8000) != 0;
+            iieKbd->SetOpenApple   (lAlt);
+            iieKbd->SetClosedApple (rAlt);
+        }
+        else if (vk == VK_SHIFT)
+        {
+            iieKbd->SetShift (false);
+        }
     }
 
     return false;
@@ -2034,6 +2887,11 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
         SendMessage (m_statusBar, WM_SIZE, 0, 0);
         GetWindowRect (m_statusBar, &sbRect);
         sbHeight = sbRect.bottom - sbRect.top;
+
+        // Right-aligned drive indicators are anchored to the bar's client
+        // width. Recompute part edges so they stay flush with the right
+        // edge of the resized bar.
+        UpdateStatusBar ();
     }
 
     renderH -= sbHeight;
@@ -2046,6 +2904,76 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
 
     m_d3dRenderer.Resize (static_cast<int> (width), renderH);
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDrawItem
+//
+//  Owner-draw dispatch for status-bar drive indicators. The status bar
+//  forwards WM_DRAWITEM to its parent (this window) for any part marked
+//  SBT_OWNERDRAW. itemID is the part index, itemData is the lParam we
+//  passed to SB_SETTEXT (the drive index).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (idCtl);
+
+    int  driveIndex = 0;
+    int  partIndex  = 0;
+
+    if (pdis == nullptr || pdis->hwndItem != m_statusBar)
+    {
+        return true;
+    }
+
+    partIndex = static_cast<int> (pdis->itemID);
+
+    if (partIndex < m_statusBarFirstDrivePart
+        || partIndex >= m_statusBarFirstDrivePart + m_statusBarDriveCount)
+    {
+        return true;
+    }
+
+    driveIndex = static_cast<int> (pdis->itemData);
+
+    DrawDriveStatusItem (pdis, driveIndex);
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnTimer
+//
+//  Periodic refresh of the drive-activity indicators. Motor on/off and
+//  drive-select events are bursty (millisecond timescales); a 50 ms
+//  refresh is plenty for visible activity feedback without consuming
+//  noticeable UI cycles.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnTimer (HWND hwnd, UINT_PTR timerId)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+
+    if (timerId == kDriveStatusTimerId)
+    {
+        RefreshDriveStatus ();
+        return false;
+    }
+
+    return true;
 }
 //  OnFileCommand
 //
@@ -2117,7 +3045,6 @@ void EmulatorShell::CopyScreenText()
 {
     HGLOBAL hMem    = nullptr;
     wchar_t * pDest = nullptr;
-    const Byte * pMem  = nullptr;
     wstring   text;
 
 
@@ -2127,9 +3054,12 @@ void EmulatorShell::CopyScreenText()
         return;
     }
 
-    // Read the 40x24 text screen from Apple II memory (-)
-    pMem = m_cpu->GetMemory();
-
+    // Read the 40x24 text screen via the memory bus rather than the
+    // CPU's internal memory[] buffer. On the //e the MMU owns its own
+    // RAM device(s), so writes from firmware land in the bus-side
+    // buffer; m_cpu->GetMemory() points at a stale/uninitialized
+    // mirror that has nothing to do with what the user sees on screen.
+    // Same fix that landed for the framebuffer renderer earlier.
     for (int row = 0; row < 24; row++)
     {
         // Apple II text screen uses a non-linear address mapping
@@ -2137,11 +3067,11 @@ void EmulatorShell::CopyScreenText()
 
         for (int col = 0; col < 40; col++)
         {
-            Byte ch = pMem[base + col];
+            Byte ch = m_memoryBus.ReadByte (static_cast<Word> (base + col));
 
             // Convert Apple II screen code to ASCII
-            // Normal: - = ASCII -
-            // Inverse/flash: - = ASCII -
+            // Normal: $20-$3F = '@'..'_' on inverse, etc.
+            // High bit set ($80-$FF): normal ASCII characters.
             if (ch >= 0xA0)
             {
                 ch -= 0x80;
@@ -2539,6 +3469,7 @@ void EmulatorShell::OnHelpCommand (int id)
                 L"Right Alt -> Closed Apple (IIe)\n\n"
                 L"Emulator Controls:\n"
                 L"Ctrl+R -> Reset\n"
+                L"Ctrl+Alt+R -> Autoboot Reset (cold boot from disk)\n"
                 L"Ctrl+Shift+R -> Power Cycle\n"
                 L"Pause -> Pause/Resume\n"
                 L"F11 -> Step (when paused)\n"
@@ -2642,7 +3573,8 @@ void EmulatorShell::SelectVideoMode()
         m_page2 = false;
     }
 
-    bool is80ColMode = iieSoftSwitches != nullptr && iieSoftSwitches->Is80ColMode ();
+    bool is80ColMode  = iieSoftSwitches != nullptr && iieSoftSwitches->Is80ColMode ();
+    bool altCharSet   = iieSoftSwitches != nullptr && iieSoftSwitches->IsAltCharSet ();
 
     // Select video mode based on soft switch state
     if (!m_graphicsMode)
@@ -2664,8 +3596,22 @@ void EmulatorShell::SelectVideoMode()
     }
     else
     {
-        // Hi-res graphics
-        m_activeVideoMode = m_videoModes[2].get();
+        // Hi-res graphics — use DHR (index 3) when DHIRES + 80COL are
+        // both active on the //e (FR-019, audit M8). Otherwise standard
+        // hi-res (index 2).
+        bool useDhr = iieSoftSwitches != nullptr
+                   && iieSoftSwitches->IsDoubleHiRes ()
+                   && is80ColMode
+                   && m_videoModes.size () > 3;
+
+        if (useDhr)
+        {
+            m_activeVideoMode = m_videoModes[3].get();
+        }
+        else
+        {
+            m_activeVideoMode = m_videoModes[2].get();
+        }
     }
 
     // Pass page2 state to the active renderer
@@ -2676,9 +3622,104 @@ void EmulatorShell::SelectVideoMode()
 
     // Keep text mode page2-aware for mixed-mode overlay rendering
     m_videoModes[0]->SetPage2 (m_page2);
+
+    // Propagate ALTCHARSET to both text-mode renderers (audit M13 closure).
+    static_cast<AppleTextMode *> (m_videoModes[0].get ())->SetAltCharSet (altCharSet);
+
+    if (m_videoModes.size () > 4)
+    {
+        static_cast<Apple80ColTextMode *> (m_videoModes[4].get ())->SetAltCharSet (altCharSet);
+    }
 }
 
 
 
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoftReset
+//
+//  Phase 4 / FR-034. Drives the //e /RESET path: every device clears its
+//  reset-sensitive state (audit S10 [CRITICAL] - 80COL/ALTCHARSET no
+//  longer survive), the MMU returns to the post-reset banking flags, and
+//  the CPU re-loads PC from $FFFC. User RAM is preserved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SoftReset ()
+{
+    m_memoryBus.SoftResetAll ();
+
+    if (m_mmu != nullptr)
+    {
+        m_mmu->OnSoftReset ();
+    }
+
+    m_interruptController.SoftReset ();
+
+    if (m_videoTiming != nullptr)
+    {
+        m_videoTiming->SoftReset ();
+    }
+
+    if (m_cpu != nullptr)
+    {
+        m_cpu->SoftReset ();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PowerCycle
+//
+//  Phase 4 / FR-035. Reseeds every DRAM-owning device from m_prng then
+//  runs the SoftReset sequence. The Prng is constructed once (host
+//  process lifetime) so consecutive cycles within a single session
+//  continue producing fresh patterns rather than repeating the seed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PowerCycle ()
+{
+    HRESULT  hrFlush = S_OK;
+
+    if (m_prng == nullptr)
+    {
+        return;
+    }
+
+    // Phase 11 / T097 / FR-025 / FR-035. Auto-flush dirty disks before
+    // reseeding device state so writes don't get lost across a power
+    // cycle. Mounts persist (matches DiskImageStore::SoftReset semantics
+    // — see comment block on DiskImageStore::PowerCycle, which is the
+    // unmount-everything variant tests can opt into directly).
+    hrFlush = m_diskStore.FlushAll ();
+    IGNORE_RETURN_VALUE (hrFlush, S_OK);
+
+    m_memoryBus.PowerCycleAll (*m_prng);
+
+    if (m_mmu != nullptr)
+    {
+        m_mmu->OnPowerCycle (*m_prng);
+    }
+
+    m_interruptController.PowerCycle ();
+
+    if (m_videoTiming != nullptr)
+    {
+        m_videoTiming->PowerCycle (*m_prng);
+    }
+
+    if (m_cpu != nullptr)
+    {
+        m_cpu->PowerCycle (*m_prng);
+    }
+}

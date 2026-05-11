@@ -5,12 +5,15 @@
 #include "Core/MemoryBus.h"
 #include "Core/EmuCpu.h"
 #include "Core/MachineConfig.h"
+#include "Core/InterruptController.h"
 #include "Core/ComponentRegistry.h"
 #include "D3DRenderer.h"
 #include "MenuSystem.h"
 #include "DebugConsole.h"
 #include "Video/VideoOutput.h"
 #include "Video/CharacterRomData.h"
+#include "Video/VideoTiming.h"
+#include "Devices/Disk/DiskImageStore.h"
 #include "WasapiAudio.h"
 
 
@@ -49,6 +52,7 @@ public:
 
     HRESULT Initialize (
         HINSTANCE              hInstance,
+        const wstring        & machineName,
         const MachineConfig  & config,
         const string    & disk1Path,
         const string    & disk2Path);
@@ -64,16 +68,26 @@ public:
     // Access bus for test wiring
     MemoryBus & GetBus () { return m_memoryBus; }
 
+    // Phase 4 / FR-034 / FR-035: split-reset entry points exposed for the
+    // menu commands (IDM_MACHINE_RESET / IDM_MACHINE_POWERCYCLE) and any
+    // future programmatic callers. SoftReset preserves user RAM and
+    // re-runs the 6502 /RESET sequence. PowerCycle re-seeds every DRAM-
+    // owning device from the shared Prng before SoftReset (audit S10).
+    void SoftReset      ();
+    void PowerCycle     ();
+
 private:
     // Window message handler overrides
-    bool    OnChar    (WPARAM ch, LPARAM lParam) override;
-    bool    OnCommand (HWND hwnd, int id) override;
-    LRESULT OnCreate  (HWND hwnd, CREATESTRUCT * pcs) override;
-    bool    OnDestroy (HWND hwnd) override;
-    bool    OnKeyDown (WPARAM vk, LPARAM lParam) override;
-    bool    OnKeyUp   (WPARAM vk, LPARAM lParam) override;
-    bool    OnNotify  (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
-    bool    OnSize    (HWND hwnd, UINT width, UINT height) override;
+    bool    OnChar     (WPARAM ch, LPARAM lParam) override;
+    bool    OnCommand  (HWND hwnd, int id) override;
+    LRESULT OnCreate   (HWND hwnd, CREATESTRUCT * pcs) override;
+    bool    OnDestroy  (HWND hwnd) override;
+    bool    OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis) override;
+    bool    OnKeyDown  (WPARAM vk, LPARAM lParam) override;
+    bool    OnKeyUp    (WPARAM vk, LPARAM lParam) override;
+    bool    OnNotify   (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
+    bool    OnSize     (HWND hwnd, UINT width, UINT height) override;
+    bool    OnTimer    (HWND hwnd, UINT_PTR timerId) override;
 
     // Command group handlers
     void OnFileCommand    (int id);
@@ -99,8 +113,13 @@ private:
     void    WirePageTable          ();
     void    RebuildBankingPages    ();
     void    MountCommandLineDisks  (const string & disk1Path, const string & disk2Path);
+    HRESULT MountDiskInSlot6       (int drive, const string & path);
+    void    EjectDiskInSlot6       (int drive);
+    class DiskIIController * FindSlot6Controller ();
     void    CreateVideoModes       ();
     HRESULT CreateCpu              (const MachineConfig & config);
+
+    Byte * GetAuxRamBuffer ();
 
     // Machine switching
     void    ShowMachinePicker      ();
@@ -114,18 +133,38 @@ private:
     // Status bar
     void    CreateStatusBar        ();
     void    UpdateStatusBar        ();
+    void    RefreshDriveStatus     ();
+    void    DrawDriveStatusItem    (DRAWITEMSTRUCT * pdis, int driveIndex);
     void    ShowDevicePopup        ();
 
     // Queue a command for the CPU thread
     void PostCommand (WORD id, const string & payload = "");
 
-    HACCEL              m_accelTable = nullptr;
-    HWND                m_statusBar  = nullptr;
-    HWND                m_renderHwnd = nullptr;
+    HACCEL              m_accelTable      = nullptr;
+    HWND                m_statusBar       = nullptr;
+    HWND                m_renderHwnd      = nullptr;
+
+    // Tooltip control owned by the status bar so owner-drawn drive
+    // parts can show "Drive N: <path>" on hover. SBT_TOOLTIPS only
+    // fires for truncated text parts, so we maintain our own tool
+    // entries instead.
+    HWND                m_driveTooltip            = nullptr;
+
+    static LRESULT CALLBACK s_StatusBarSubclass (
+        HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
+        UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
+
+    // Cached status-bar layout: counted by UpdateStatusBar so the periodic
+    // RefreshDriveStatus and OnDrawItem handlers can identify which parts
+    // are owner-drawn drive indicators without re-querying the bar.
+    int                 m_statusBarDriveCount = 0;
+    int                 m_statusBarFirstDrivePart = 0;
 
     MemoryBus           m_memoryBus;
     ComponentRegistry   m_registry;
+    InterruptController m_interruptController;
     unique_ptr<EmuCpu> m_cpu;
+    unique_ptr<class Prng> m_prng;
 
     D3DRenderer         m_d3dRenderer;
     MenuSystem          m_menuSystem;
@@ -152,9 +191,31 @@ private:
     class AppleKeyboard *         m_keyboard     = nullptr;
     class AppleSoftSwitchBank *   m_softSwitches = nullptr;
     class AppleSpeaker *          m_speaker      = nullptr;
+    class RamDevice *             m_mainRamDev   = nullptr;
+
+    unique_ptr<class AppleIIeMmu> m_mmu;
+    unique_ptr<VideoTiming>       m_videoTiming;
+
+    // Phase 11 / T097 / FR-025. The store coordinates auto-flush of dirty
+    // disk images on Eject / SwitchMachine / Shutdown / PowerCycle. Each
+    // mounted disk's DiskImage is owned by the store; the slot 6 disk
+    // controller sees it via DiskIIController::SetExternalDisk.
+    DiskImageStore                m_diskStore;
+
+    // Cached pointer to the active DiskIIController (slot 6 typically).
+    // Used by the status bar to show per-drive activity LEDs. Refreshed
+    // by CreateMemoryDevices / SwitchMachine.
+    class DiskIIController *      m_diskController = nullptr;
 
     // Emulation state
     MachineConfig   m_config;
+
+    // Machine config file name (without ".json" extension, e.g.,
+    // "apple2e", "apple2plus", "apple2"). Used as a registry-key
+    // suffix so per-machine UI state (e.g., last-mounted disks) can
+    // round-trip between sessions without one machine's setting
+    // clobbering another's.
+    wstring         m_currentMachineName;
 
     // -- Threading --
     thread     m_cpuThread;

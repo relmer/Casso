@@ -21,7 +21,7 @@
         { "type": "apple2e-keyboard" },
         { "type": "apple2-speaker" },
         { "type": "apple2e-softswitches" },
-        { "type": "aux-ram-card" },
+        { "type": "apple2e-mmu" },
         { "type": "language-card" }
     ],
     "slots": [

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "EmuCpu.h"
+#include "MemoryBusCpu.h"
 
 
 
@@ -13,58 +14,59 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 EmuCpu::EmuCpu (MemoryBus & memoryBus)
-    : Cpu(),
-      m_memoryBus (memoryBus)
+    : m_memoryBus (memoryBus),
+      m_cpu       (std::make_unique<MemoryBusCpu> (memoryBus))
 {
-    Byte * pBase = memory.data ();
-    int    page  = 0;
+    m_cpu6502 = static_cast<Cpu6502 *> (static_cast<MemoryBusCpu *> (m_cpu.get ()));
+}
 
-    // Register this CPU's 64 KB memory[] as the default page-table backing
-    // for $0000-$BFFF. The bus's fast-path read/write for RAM pages will
-    // land in memory[], keeping PeekByte/PokeByte/GetMemory() coherent with
-    // bus-routed reads and writes. EmulatorShell may later remap individual
-    // pages (e.g. $0400-$07FF to aux RAM under 80STORE+PAGE2); those calls
-    // override these defaults.
-    for (page = 0x00; page <= 0xBF; page++)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmuCpu (strategy-injection)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+EmuCpu::EmuCpu (MemoryBus & memoryBus, std::unique_ptr<ICpu> cpu)
+    : m_memoryBus (memoryBus),
+      m_cpu       (std::move (cpu))
+{
+    // The 6502-flavoured pass-through surface (PeekByte/PokeByte/registers)
+    // requires that the strategy is a Cpu6502. If it isn't, the typed
+    // accessors are unavailable; downstream callers must use GetCpu()
+    // instead. dynamic_cast is used so a future non-6502 ICpu surfaces
+    // m_cpu6502 == nullptr rather than an unsafe reinterpretation.
+    m_cpu6502 = dynamic_cast<Cpu6502 *> (m_cpu.get ());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddCycles
+//
+//  Per-instruction cycle fan-out. Forwards the count to the underlying
+//  6502 cycle accumulator and, when wired, ticks the //e video timing
+//  model so $C019 (RDVBLBAR) tracks the 17,030-cycle frame. Null-safe
+//  for ][/][+ and unit tests that leave the video timing unset.
+//
+//  Per FR-033, Phase 5 T056.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmuCpu::AddCycles (Byte n)
+{
+    m_cpu6502->AddCycles (n);
+
+    if (m_videoTiming != nullptr)
     {
-        m_memoryBus.SetReadPage  (page, pBase + (page * 0x100));
-        m_memoryBus.SetWritePage (page, pBase + (page * 0x100));
+        m_videoTiming->Tick (n);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ReadByte
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte EmuCpu::ReadByte (Word address)
-{
-    // All addresses go through MemoryBus. The bus has a fast page table for
-    // $0000-$BFFF that bypasses device dispatch. $C000+ uses device dispatch.
-    return m_memoryBus.ReadByte (address);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WriteByte
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmuCpu::WriteByte (Word address, Byte value)
-{
-    // All addresses go through MemoryBus. The bus's page table handles RAM
-    // writes directly to the correct backing buffer (main, aux, or LC RAM).
-    // I/O writes ($C000+) dispatch to devices.
-    m_memoryBus.WriteByte (address, value);
 }
 
 
@@ -79,8 +81,8 @@ void EmuCpu::WriteByte (Word address, Byte value)
 
 Word EmuCpu::ReadWord (Word address)
 {
-    Byte lo = ReadByte (address);
-    Byte hi = ReadByte (static_cast<Word> (address + 1));
+    Byte lo = m_memoryBus.ReadByte (address);
+    Byte hi = m_memoryBus.ReadByte (static_cast<Word> (address + 1));
     return static_cast<Word> (lo | (hi << 8));
 }
 
@@ -96,8 +98,8 @@ Word EmuCpu::ReadWord (Word address)
 
 void EmuCpu::WriteWord (Word address, Word value)
 {
-    WriteByte (address, static_cast<Byte> (value & 0xFF));
-    WriteByte (static_cast<Word> (address + 1), static_cast<Byte> (value >> 8));
+    m_memoryBus.WriteByte (address, static_cast<Byte> (value & 0xFF));
+    m_memoryBus.WriteByte (static_cast<Word> (address + 1), static_cast<Byte> (value >> 8));
 }
 
 
@@ -110,35 +112,60 @@ void EmuCpu::WriteWord (Word address, Word value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmuCpu::InitForEmulation()
+void EmuCpu::InitForEmulation ()
 {
-    // Randomize RAM ($0000-$BFFF) to simulate real DRAM power-on state.
-    // Note: the //e ROM's 80STORE handling is incomplete (see issue), so
-    // page 2 text memory ($0800-$0BFF) is zeroed to avoid visual artifacts
-    // when 80STORE redirects $C054/$C055 to aux memory bank selection.
-    mt19937                          rng (random_device{}());
-    uniform_int_distribution<int>    dist (0, 255);
+    MemoryBusCpu * pBusCpu = dynamic_cast<MemoryBusCpu *> (m_cpu.get ());
 
-    for (size_t i = 0; i < 0xC000; i++)
+    if (pBusCpu)
     {
-        memory[i] = static_cast<Byte> (dist (rng));
+        pBusCpu->InitForEmulation ();
     }
+}
 
-    fill (memory.begin() + 0x0800, memory.begin() + 0x0C00, Byte (0));
 
-    // Set initial CPU state
-    SP = 0xFD;
 
-    status.status          = 0;
-    status.flags.alwaysOne = 1;
-    status.flags.interruptDisable = 1;
 
-    A = 0;
-    X = 0;
-    Y = 0;
 
-    m_totalCycles = 0;
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoftReset
+//
+//  Phase 4 / FR-034 forwarder. Pass-through to MemoryBusCpu::SoftReset
+//  when present; other ICpu strategies (e.g. fake CPUs in unit tests)
+//  simply receive nothing — they are responsible for their own reset
+//  semantics via ICpu::Reset.
+//
+////////////////////////////////////////////////////////////////////////////////
 
-    // Fetch reset vector from ROM via bus
-    PC = ReadWord (resVector);
+void EmuCpu::SoftReset ()
+{
+    MemoryBusCpu * pBusCpu = dynamic_cast<MemoryBusCpu *> (m_cpu.get ());
+
+    if (pBusCpu)
+    {
+        pBusCpu->SoftReset ();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PowerCycle
+//
+//  Phase 4 / FR-035 forwarder. Re-seeds the CPU's memory[] and runs the
+//  power-on register/PC initialization through MemoryBusCpu::PowerCycle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmuCpu::PowerCycle (Prng & prng)
+{
+    MemoryBusCpu * pBusCpu = dynamic_cast<MemoryBusCpu *> (m_cpu.get ());
+
+    if (pBusCpu)
+    {
+        pBusCpu->PowerCycle (prng);
+    }
 }
