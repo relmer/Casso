@@ -77,7 +77,13 @@ public:
     TEST_METHOD (RealCharRom_Decodes_SpaceAsBlank_AltSet)
     {
         fs::path romPath = FindRomPath ("ROMs/apple2e-enhanced-video.rom");
-        Assert::IsFalse (romPath.empty (), L"Repo root must be findable");
+        if (romPath.empty () || !fs::exists (romPath))
+        {
+            Logger::WriteMessage ("SKIPPED: ROMs/apple2e-enhanced-video.rom "
+                                  "not present (CI runners do not provision "
+                                  "Apple-owned ROMs).\n");
+            return;
+        }
 
         CharacterRomData rom;
         HRESULT hr = rom.LoadFromFile (romPath.string ());
