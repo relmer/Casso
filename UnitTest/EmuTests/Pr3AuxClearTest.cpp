@@ -1,6 +1,7 @@
 #include "../CassoEmuCore/Pch.h"
 
 #include <CppUnitTest.h>
+#include <filesystem>
 
 #include "HeadlessHost.h"
 #include "KeystrokeInjector.h"
@@ -8,11 +9,47 @@
 #include "Video/CharacterRomData.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+namespace fs = std::filesystem;
 
 namespace
 {
     static constexpr uint64_t  kColdBootCycles = 5'000'000ULL;
     static constexpr uint64_t  kAfterCommand   = 2'000'000ULL;
+    static constexpr int       kMaxAncestorWalk = 10;
+
+
+    // Find the directory containing `Machines/` by walking up from CWD.
+    // Mirrors the resolver pattern in BackwardsCompatTests so these
+    // tests stay filesystem-independent across CI vs local builds.
+    fs::path FindRepoRoot ()
+    {
+        std::error_code ec;
+        fs::path        cursor = fs::current_path (ec);
+        if (ec) return fs::path ();
+
+        for (int i = 0; i < kMaxAncestorWalk; i++)
+        {
+            if (fs::exists (cursor / "Machines", ec) &&
+                fs::is_directory (cursor / "Machines", ec))
+            {
+                return cursor;
+            }
+            if (!cursor.has_parent_path () || cursor == cursor.parent_path ())
+            {
+                break;
+            }
+            cursor = cursor.parent_path ();
+        }
+        return fs::path ();
+    }
+
+
+    fs::path FindRomPath (const std::string & relPath)
+    {
+        fs::path root = FindRepoRoot ();
+        if (root.empty ()) return fs::path ();
+        return root / relPath;
+    }
 }
 
 
@@ -39,10 +76,12 @@ public:
 
     TEST_METHOD (RealCharRom_Decodes_SpaceAsBlank_AltSet)
     {
+        fs::path romPath = FindRomPath ("ROMs/apple2e-enhanced-video.rom");
+        Assert::IsFalse (romPath.empty (), L"Repo root must be findable");
+
         CharacterRomData rom;
-        HRESULT hr = rom.LoadFromFile (
-            "C:\\Users\\relmer\\source\\repos\\relmer\\Casso\\ROMs\\apple2e-enhanced-video.rom");
-        Assert::IsTrue (SUCCEEDED (hr), L"Must locate apple2e-enhanced-video.rom");
+        HRESULT hr = rom.LoadFromFile (romPath.string ());
+        Assert::IsTrue (SUCCEEDED (hr), L"Must load apple2e-enhanced-video.rom");
 
         for (int y = 0; y < 8; y++)
         {
