@@ -503,6 +503,57 @@ public:
     }
 
 
+    // Verifies the disk pipeline (nibblization + LSS) round-trips a
+    // FULL byte-range pattern -- where every encoded byte differs by
+    // a controlled amount from the next -- in addition to the simple
+    // sentinel sequence. The complement pattern is chosen because it
+    // breaks the analogous boot-ROM test, which lets us isolate
+    // whether the pipeline produces correct bytes for that data
+    // (then the boot-ROM bug is in the polling-timing interaction)
+    // versus mis-frames the LSS for that data (then the pipeline is
+    // wrong).
+    TEST_METHOD (ReadComplementPatternSector_FromCustomDsk)
+    {
+        HeadlessHost   host;
+        EmulatorCore   core;
+        vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
+
+        for (int i = 0; i < 256; i++)
+        {
+            raw[i] = static_cast<Byte> (~static_cast<Byte> (i));
+        }
+
+        MountAndSpinUp (host, core, raw);
+
+        int           volume = 0;
+        vector<Byte>  decoded;
+
+        Assert::IsTrue (FindAddressField (core, 0, 0, volume),
+                        L"T0S0 address-field not found");
+        Assert::IsTrue (ReadDataFieldAtCursor (core, decoded),
+                        L"T0S0 data-field decode failed");
+
+        wstring  failures;
+        for (int i = 0; i < 256; i++)
+        {
+            Byte expected = static_cast<Byte> (~static_cast<Byte> (i));
+            if (decoded[i] != expected)
+            {
+                wchar_t msg[64] = {};
+                swprintf_s (msg, L"byte[%d] expected $%02X got $%02X. ",
+                            i, expected, decoded[i]);
+                failures += msg;
+                if (failures.size () > 800) { failures += L"...truncated"; break; }
+            }
+        }
+
+        if (!failures.empty ())
+        {
+            Assert::Fail (failures.c_str ());
+        }
+    }
+
+
     ////////////////////////////////////////////////////////////////////////////
     //
     //  Read every (track, sector) including the cross-track seeks RWTS
