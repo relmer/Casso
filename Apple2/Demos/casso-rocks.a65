@@ -1,0 +1,64 @@
+; ============================================================================
+;  casso-rocks.a65 — minimal bootable Apple //e demo disk
+;
+;  Loaded by the //e disk2.rom slot 6 boot firmware: the boot ROM reads
+;  track 0 sector 0 (256 bytes from file offset 0) into RAM at $0800-$08FF
+;  and JMPs to $0801. Our code takes over from there.
+;
+;  Behavior: clear all four pages of the text screen ($0400-$07FF) to
+;  spaces ($A0), write "CASSO ROCKS!" centered on row 12, then halt in an
+;  infinite loop. Tested headlessly by
+;  `BootDiskTests::CassoRocks_DemoDisk_PrintsBanner`, which gates the
+;  full boot path: real disk2.rom reading our nibblized .dsk image,
+;  decoding sector 0 via the LSS, JMPing into our code, our code
+;  clearing screen RAM and writing the banner, the framebuffer scraper
+;  finding "CASSO ROCKS!" on the rendered text page.
+;
+;  Self-contained: doesn't rely on any //e firmware ROM entry points
+;  beyond what's needed for the boot ROM itself, so the demo works
+;  regardless of which exact //e ROM image is mounted.
+;
+;  Apple //e text page row addressing (per UTAIIe ch. 5):
+;    rowBase = $400 + 128 * (row % 8) + 40 * (row / 8)
+;    row 12 -> $400 + 128*4 + 40*1 = $0628
+;    centered (40-12)/2 = column 14 -> $0636
+;
+;  Display character bytes have bit 7 set (normal), bit 7 clear is
+;  inverse / flash. We set bit 7 on every glyph here.
+; ============================================================================
+
+    .org $0801
+
+ROW12   = $0628           ; text page row 12 base address
+START   = ROW12 + 14      ; centered start for 12-char "CASSO ROCKS!"
+MSGLEN  = 12
+
+start
+    ; Clear all of $0400-$07FF (both visible cells and the screen
+    ; holes) to space. 1024 bytes = 4 pages, unrolled for X=0..255.
+    lda #$A0
+    ldx #0
+clear
+    sta $0400,x
+    sta $0500,x
+    sta $0600,x
+    sta $0700,x
+    inx
+    bne clear
+
+    ; Copy "CASSO ROCKS!" into row 12, columns 14..25.
+    ldx #MSGLEN-1
+copy
+    lda msg,x
+    sta START,x
+    dex
+    bpl copy
+
+spin
+    jmp spin              ; halt
+
+msg
+    .byte $C3,$C1,$D3,$D3,$CF,$A0,$D2,$CF,$C3,$CB,$D3,$A1
+    ;     C   A   S   S   O   sp  R   O   C   K   S   !
+
+; --- end ---
