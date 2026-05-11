@@ -6,6 +6,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+### Added
+- **In-house bootable demo disk** under `Apple2/Demos/`. The
+  `casso-rocks.a65` source assembles to a 45-byte sector-0 program
+  that displays "CASSO ROCKS!" centered on the text screen. New
+  `BootDiskTests::CassoRocks_DemoDisk_PrintsBanner` runtime-assembles
+  the demo through Casso's own assembler, builds a synthetic `.dsk`,
+  boots through the real `disk2.rom`, and verifies the banner — and
+  also emits `casso-rocks.dsk` next to the source for direct GUI use.
+  Replaces the project's previous reliance on the copyrighted DOS 3.3
+  master image for end-to-end boot validation.
+
+### Changed (CI)
+- `Disks/` (local disk image cache, may contain copyrighted images)
+  is now `.gitignore`d.
+- `CatalogReproductionTest` and `Pr3AuxClearTest` now resolve repo
+  files via an upward walk (matching `BackwardsCompatTests`) instead
+  of hardcoded `C:\Users\…` paths, and skip cleanly when their input
+  disk image / ROM is absent (CI runners don't have them).
+
 ## [1.3.536] — 2026-05-10 — Disk II + //e text fidelity
 
 ### Fixed (disk)
