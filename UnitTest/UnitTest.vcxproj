@@ -363,6 +363,9 @@
     <ClCompile Include="EmuTests\BootRomDecoderTests.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="EmuTests\BootDiskTests.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="EmuTests\CatalogReproductionTest.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
