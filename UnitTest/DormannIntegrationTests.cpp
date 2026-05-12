@@ -171,15 +171,6 @@ namespace DormannIntegrationTests
             // NMI, RESET, IRQ vectors should be at the end of the output
             uint32_t vectorOffset = 0xFFFA - result.startAddress;
             Assert::IsTrue (vectorOffset < result.bytes.size (), L"Vectors should be within output");
-
-            Logger::WriteMessage ("Dormann assembly succeeded.");
-
-            wchar_t info[256];
-            swprintf (info, 256,
-                      L"  Bytes: %zu, Start: $%04X, End: $%04X, Errors: %zu, Warnings: %zu",
-                      result.bytes.size (), result.startAddress, result.endAddress,
-                      result.errors.size (), result.warnings.size ());
-            Logger::WriteMessage (info);
         }
     };
 
@@ -269,10 +260,7 @@ namespace DormannIntegrationTests
 
                 if (currentPC == successTrap)
                 {
-                    wchar_t msg[128];
-                    swprintf (msg, 128, L"SUCCESS: Dormann test reached success trap at $%04X after %d instructions", successTrap, i);
-                    Logger::WriteMessage (msg);
-                    return;
+                    return;  // Success: silent
                 }
 
                 // Detect infinite loop (same PC twice in a row = trap)
@@ -282,10 +270,15 @@ namespace DormannIntegrationTests
 
                     if (sameCount >= 2)
                     {
-                        wchar_t msg[128];
-                        swprintf (msg, 128, L"INFORMATIONAL: CPU trapped at $%04X after %d instructions (possible emulator bug)", currentPC, i);
-                        Logger::WriteMessage (msg);
-                        return;
+                        wchar_t msg[256];
+                        swprintf (msg, 256,
+                                  L"Dormann CPU trap at $%04X after %d instructions "
+                                  L"(success trap is $%04X). A trap at any other PC "
+                                  L"means a Dormann subtest failed -- the trapping "
+                                  L"address identifies which subtest in the Dormann "
+                                  L"source.",
+                                  currentPC, i, successTrap);
+                        Assert::Fail (msg);
                     }
                 }
                 else
@@ -298,9 +291,14 @@ namespace DormannIntegrationTests
                 executed++;
             }
 
-            wchar_t msg[128];
-            swprintf (msg, 128, L"INFORMATIONAL: Reached instruction limit (%d) without trap or success", maxInstructions);
-            Logger::WriteMessage (msg);
+            wchar_t msg[256];
+            swprintf (msg, 256,
+                      L"Dormann test reached the %d-instruction ceiling without "
+                      L"hitting the success trap at $%04X. CPU is at $%04X. Either "
+                      L"the limit needs raising or the CPU is making progress but "
+                      L"no longer converges.",
+                      maxInstructions, successTrap, cpu.RegPC ());
+            Assert::Fail (msg);
         }
     };
 }

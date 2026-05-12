@@ -142,15 +142,12 @@ void MemoryBus::AddDevice (MemoryDevice * device)
     entry.end    = newEnd;
     entry.device = device;
 
-    // Check for overlaps with existing devices
-    for (const auto & existing : m_entries)
-    {
-        if (newStart <= existing.end && existing.start <= newEnd)
-        {
-            DEBUGMSG (L"Bus conflict: new device $%04X-$%04X overlaps existing $%04X-$%04X\n",
-                      newStart, newEnd, existing.start, existing.end);
-        }
-    }
+    // Check for overlaps with existing devices. Overlap is documented as
+    // a "first match wins" contract in MemoryBus dispatch, and several
+    // unit tests register overlapping ranges intentionally to verify
+    // that contract. Logging the overlap here would just produce noise
+    // during those tests; real-product misregistrations surface via
+    // wrong-dispatch test failures, not via this warning.
 
     // Insert sorted by start address
     auto it = lower_bound (m_entries.begin(),
@@ -199,21 +196,9 @@ void MemoryBus::RemoveDevice (MemoryDevice * device)
 
 HRESULT MemoryBus::Validate() const
 {
-    for (size_t i = 0; i + 1 < m_entries.size(); i++)
-    {
-        for (size_t j = i + 1; j < m_entries.size(); j++)
-        {
-            const BusEntry & a = m_entries[i];
-            const BusEntry & b = m_entries[j];
-
-            if (a.start <= b.end && b.start <= a.end)
-            {
-                DEBUGMSG (L"Bus overlap (first match wins): $%04X-$%04X and $%04X-$%04X\n",
-                          a.start, a.end, b.start, b.end);
-            }
-        }
-    }
-
+    // Overlap is allowed by contract -- "first match wins" -- so this
+    // method intentionally does not flag overlaps. Kept as a hook for
+    // future invariants that don't conflict with the dispatch contract.
     return S_OK;
 }
 
