@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [master]
 
+permissions:
+  contents: write   # required by `release` job to push tags + create releases
+
 jobs:
   build-and-test:
     runs-on: windows-latest
@@ -47,3 +50,111 @@ jobs:
 
       - name: Build ARM64
         run: msbuild Casso.sln -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PlatformToolset=v143 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
+
+  release:
+    # Auto-publish a GitHub release for every passing master push. The release
+    # version is read from CassoCore/Version.h; if a tag for that version
+    # already exists, this job no-ops (so a re-push without a Version.h bump
+    # doesn't overwrite the previous release).
+    needs: [build-and-test, build-arm64]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0   # need full history so `git tag` can see existing tags
+
+      - name: Read version from Version.h
+        id: ver
+        shell: pwsh
+        run: |
+          $verPath = 'CassoCore/Version.h'
+          $content = Get-Content $verPath -Raw
+          if ($content -notmatch '#define VERSION_MAJOR (\d+)') { throw 'VERSION_MAJOR missing' }
+          $major = $matches[1]
+          if ($content -notmatch '#define VERSION_MINOR (\d+)') { throw 'VERSION_MINOR missing' }
+          $minor = $matches[1]
+          if ($content -notmatch '#define VERSION_BUILD (\d+)') { throw 'VERSION_BUILD missing' }
+          $build = $matches[1]
+          $version = "$major.$minor.$build"
+          $tag     = "v$version"
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "tag=$tag"         | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Version: $version  Tag: $tag"
+
+      - name: Skip if release already exists
+        id: check
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = '${{ steps.ver.outputs.tag }}'
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag already exists -- skipping."
+            "exists=true"  | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          } else {
+            Write-Host "Release $tag does not exist -- will publish."
+            "exists=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
+
+      - name: Add MSBuild to PATH
+        if: steps.check.outputs.exists != 'true'
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Build Release x64
+        if: steps.check.outputs.exists != 'true'
+        run: msbuild Casso.sln -p:Configuration=Release -p:Platform=x64 -p:PlatformToolset=v143 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false
+
+      - name: Build Release ARM64
+        if: steps.check.outputs.exists != 'true'
+        run: msbuild Casso.sln -p:Configuration=Release -p:Platform=ARM64 -p:PlatformToolset=v143 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false
+
+      - name: Package release zips
+        if: steps.check.outputs.exists != 'true'
+        shell: pwsh
+        run: |
+          $version = '${{ steps.ver.outputs.version }}'
+          New-Item -ItemType Directory -Path artifacts -Force | Out-Null
+          foreach ($plat in @('x64', 'ARM64')) {
+            $stagingDir = "staging/Casso-$version-$plat"
+            New-Item -ItemType Directory -Path $stagingDir -Force | Out-Null
+            Copy-Item "$plat/Release/Casso.exe"    $stagingDir
+            Copy-Item "$plat/Release/CassoCli.exe" $stagingDir
+            Copy-Item README.md                    $stagingDir
+            Copy-Item CHANGELOG.md                 $stagingDir
+            Copy-Item LICENSE                      $stagingDir
+            $zipName = "Casso-$version-$plat.zip"
+            Compress-Archive -Path $stagingDir -DestinationPath "artifacts/$zipName" -Force
+            Write-Host "Packaged: artifacts/$zipName"
+          }
+
+      - name: Create release
+        if: steps.check.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $tag     = '${{ steps.ver.outputs.tag }}'
+          $version = '${{ steps.ver.outputs.version }}'
+          $title   = "Casso $version"
+          # Pull the matching changelog section if present; fall back to a
+          # short auto-generated body.
+          $body = ''
+          $changelog = Get-Content CHANGELOG.md -Raw
+          $pattern = "(?ms)^## \[$([regex]::Escape($version))\][^\r\n]*\r?\n(.*?)(?=^## \[|\z)"
+          $m = [regex]::Match($changelog, $pattern)
+          if ($m.Success) {
+            $body = $m.Groups[1].Value.Trim()
+          } else {
+            $body = "Automated release of commit $env:GITHUB_SHA. See CHANGELOG.md for details."
+          }
+          $bodyFile = Join-Path $env:RUNNER_TEMP 'release-body.md'
+          Set-Content -Path $bodyFile -Value $body -Encoding utf8
+          gh release create $tag (Get-Item artifacts/*.zip).FullName `
+            --repo $env:GITHUB_REPOSITORY `
+            --title $title `
+            --notes-file $bodyFile `
+            --target $env:GITHUB_SHA
