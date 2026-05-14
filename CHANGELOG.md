@@ -6,6 +6,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.577] — 2026-05-13 — //e 80-col cursor: investigation closed
+
+### Documented (video)
+- **80-col cursor at the BASIC prompt is intentionally a steady
+  solid block, not a blink.** Stack-trace investigation confirmed
+  Casso is now ROM-faithful: the //e enhanced firmware's wrapper
+  at `$C905-$C90E` toggles the cursor ON, blocks in `$CB15` (the
+  no-timeout keyboard poll), then toggles OFF on keypress. There
+  is no outer software-blink loop. Per UTAIIe ch. 8 the //e video
+  circuitry physically disables the FLASH attribute whenever
+  `ALTCHARSET=1` (forced ON in 80-col mode), so the hardware blink
+  used in 40-col mode is gone and the firmware does not replace
+  it. 40-col mode keeps its checkerboard (`$7F`) flashing cursor
+  via the normal video FLASH path. No code change required.
+
+### Removed (test)
+- Removed the temporary `Pr3_DiagnoseCursorBlink` diagnostic test;
+  it served its purpose during investigation and is no longer
+  needed now that the 80-col cursor behavior is understood.
+
 ## [1.3.576] — 2026-05-13 — //e missing 80-col cursor fix
 
 ### Fixed (video)
