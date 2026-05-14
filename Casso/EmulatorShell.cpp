@@ -2182,7 +2182,7 @@ void EmulatorShell::ProcessCommands()
 
                 for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
                 {
-                    if (!savedDisk[drive].empty ())
+                    if (!savedDisk[drive].empty())
                     {
                         hrMount = MountDiskInSlot6 (drive, savedDisk[drive]);
                         IGNORE_RETURN_VALUE (hrMount, S_OK);

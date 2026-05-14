@@ -133,14 +133,14 @@ public:
         eng.WriteLatch (0xAA);
         eng.WriteLatch (0xAA);
 
-        Assert::AreEqual (uint64_t (3), eng.GetWriteNibbles (),
+        Assert::AreEqual (uint64_t (3), eng.GetWriteNibbles(),
             L"Pre-condition: WriteLatch must bump the lifetime write counter");
 
-        eng.Reset ();
+        eng.Reset();
 
-        Assert::AreEqual (uint64_t (0), eng.GetReadNibbles (),
+        Assert::AreEqual (uint64_t (0), eng.GetReadNibbles(),
             L"Reset must zero the lifetime read-nibble counter");
-        Assert::AreEqual (uint64_t (0), eng.GetWriteNibbles (),
+        Assert::AreEqual (uint64_t (0), eng.GetWriteNibbles(),
             L"Reset must zero the lifetime write-nibble counter");
     }
 };

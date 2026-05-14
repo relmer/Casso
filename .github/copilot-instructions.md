@@ -28,6 +28,18 @@ The solution has five projects:
 - Braces always required, even for single-statement `if`/`while`/`for`/`switch`
 - No comma-separated variable declarations
 - Prefer in-class member initialization (`.h`) over constructor initializer lists (`.cpp`)
+- **Function-call/declaration spacing.** Space before non-empty parens
+  (`fn (arg)`, `MyClass::Method (a, b)`); **NO** space before empty
+  parens (`fn()`, `obj.GetThing()`). Never `fn ()`. Applies equally to
+  declarations, definitions, calls, member access, and method calls in
+  test bodies. Run `rg -n '\w \(\)' Casso/ CassoCore/ CassoEmuCore/ CassoCli/ UnitTest/`
+  on any new or merged code before committing — should return zero hits
+  in lines you authored or merged.
+- File-scope statics use Hungarian: `s_<typePrefix><Name>`. Type prefixes:
+  `k` = constant, `psz` = null-terminated string ptr (narrow OR wide),
+  `ch` = char (narrow OR wide), no special wide marker. E.g.
+  `s_kpszHost` (LPCWSTR), `s_kchBullet` (wchar_t),
+  `s_kRomCatalog` (constant array).
 - **No magic numbers** — all numeric literals must be named constants with clear intent.
   Exceptions: 0, 1, -1, nullptr, and sizeof expressions.
 
