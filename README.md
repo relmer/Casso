@@ -6,6 +6,26 @@
 [![Downloads](https://img.shields.io/github/downloads/relmer/Casso/total)](https://github.com/relmer/Casso/releases)
 -->
 
+## What's New in 1.3.573
+
+A friendlier first-run experience. Drop a fresh `Casso.exe` anywhere
+and double-click it — Casso now bootstraps everything else for you:
+
+- **Missing ROMs?** Casso lists what's needed and offers to download
+  them from the AppleWin project in one click.
+- **First time on the Apple //e?** Casso offers to download a stock
+  Apple system master disk (DOS 3.3 or ProDOS) from the Asimov
+  archive so the //e boots straight to a BASIC prompt instead of
+  spinning forever waiting for a disk.
+- **Lost your Machines/ folder?** The three default machine configs
+  (`Apple ][`, `Apple ][+`, `Apple //e`) are now bundled inside
+  `Casso.exe` and extracted on demand.
+- **Moved your install?** Per-machine remembered disks are now
+  stored as paths relative to `Casso.exe`, so the whole `Casso.exe`
+  + `Disks/` tree is portable.
+
+See [CHANGELOG.md](CHANGELOG.md#1.3.573) for the full list.
+
 ## About
 
 Casso is a 6502 CPU emulator and assembler written in C++. It emulates the MOS Technology 6502 microprocessor — the chip behind the Apple II, Commodore 64, NES, and Atari 2600.
