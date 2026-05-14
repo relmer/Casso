@@ -95,7 +95,10 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
     scd.BufferCount                        = 1;
     scd.BufferDesc.Width                   = static_cast<UINT> (texWidth);
     scd.BufferDesc.Height                  = static_cast<UINT> (texHeight);
-    scd.BufferDesc.Format                  = DXGI_FORMAT_R8G8B8A8_UNORM;
+    // BGRA matches Video/PixelFormat.h byte order (B in byte 0); using
+    // R8G8B8A8 instead would force every Windows pixel-export path
+    // (CF_DIB clipboard, BMP, WIC) to swizzle R/B on the way out.
+    scd.BufferDesc.Format                  = DXGI_FORMAT_B8G8R8A8_UNORM;
     scd.BufferDesc.RefreshRate.Numerator   = 60;
     scd.BufferDesc.RefreshRate.Denominator = 1;
     scd.BufferUsage                        = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -140,7 +143,7 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
     td.Height           = static_cast<UINT> (texHeight);
     td.MipLevels        = 1;
     td.ArraySize        = 1;
-    td.Format           = DXGI_FORMAT_R8G8B8A8_UNORM;
+    td.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;  // see Video/PixelFormat.h
     td.SampleDesc.Count = 1;
     td.Usage            = D3D11_USAGE_DYNAMIC;
     td.BindFlags        = D3D11_BIND_SHADER_RESOURCE;

@@ -62,6 +62,7 @@ static constexpr int kTextRows   = 24;
 static constexpr int kCharWidth  = 7;
 static constexpr int kCharHeight = 8;
 
+// BGRA byte layout — see Video/PixelFormat.h.
 static constexpr uint32_t kColorGreen = 0xFF00FF00;
 static constexpr uint32_t kColorBlack = 0xFF000000;
 

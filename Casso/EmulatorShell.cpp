@@ -3178,7 +3178,10 @@ void EmulatorShell::CopyScreenshot()
         memcpy (pDest, &bih, sizeof (bih));
         pDest += sizeof (bih);
 
-        // Copy framebuffer rows bottom-up (DIB is flipped)
+        // Copy framebuffer rows bottom-up (DIB is flipped). The
+        // framebuffer is already in BGRA byte order (matches
+        // CF_DIB / BI_RGB), so no swizzle is required — just an
+        // upside-down memcpy per row.
         for (int y = h - 1; y >= 0; y--)
         {
             memcpy (pDest,

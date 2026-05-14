@@ -269,6 +269,7 @@
     <ClInclude Include="Video\Apple80ColTextMode.h" />
     <ClInclude Include="Video\AppleDoubleHiResMode.h" />
     <ClInclude Include="Video\NtscColorTable.h" />
+    <ClInclude Include="Video\PixelFormat.h" />
     <ClInclude Include="Video\CharacterRom.h" />
     <ClInclude Include="Audio\AudioGenerator.h" />
   </ItemGroup>

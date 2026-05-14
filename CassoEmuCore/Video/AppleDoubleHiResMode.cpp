@@ -18,27 +18,27 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-// Apple //e DHGR 16-color palette in R8G8B8A8 byte layout. Same byte-
-// ordering caveat and same fix as AppleLoResMode::kLoResColors —
-// see that file for the full explanation. The 4 entries previously
-// rendering as red shades are corrected here too.
+// Apple //e DHGR 16-color palette in B8G8R8A8 byte layout (matches the
+// DXGI_FORMAT_B8G8R8A8_UNORM swap chain). Same convention as
+// AppleLoResMode::kLoResColors — see Video/PixelFormat.h for the
+// project-wide byte-order convention.
 static const uint32_t kDhrColors[16] =
 {
     0xFF000000,   //  0: Black
-    0xFF6622DD,   //  1: Magenta   (was 0xFF0000DD; rendered as deep red)
-    0xFF990000,   //  2: Dark Blue (was 0xFF000099; rendered as dark red)
-    0xFF4400DD,   //  3: Purple
+    0xFFDD2266,   //  1: Magenta
+    0xFF000099,   //  2: Dark Blue
+    0xFFDD0044,   //  3: Purple
     0xFF002200,   //  4: Dark Green
     0xFF555555,   //  5: Grey 1
-    0xFFCC2200,   //  6: Medium Blue
-    0xFFFFAA66,   //  7: Light Blue (was 0xFFFF4499; rendered as bluish purple)
-    0xFF005588,   //  8: Brown      (was 0xFF000066; rendered as dark red)
-    0xFF0044FF,   //  9: Orange
+    0xFF0022CC,   //  6: Medium Blue
+    0xFF66AAFF,   //  7: Light Blue
+    0xFF885500,   //  8: Brown
+    0xFFFF4400,   //  9: Orange
     0xFFAAAAAA,   // 10: Grey 2
-    0xFF8888FF,   // 11: Pink
+    0xFFFF8888,   // 11: Pink
     0xFF00DD00,   // 12: Light Green
-    0xFF00FFFF,   // 13: Yellow
-    0xFFDDFF44,   // 14: Aqua
+    0xFFFFFF00,   // 13: Yellow
+    0xFF44FFDD,   // 14: Aqua
     0xFFFFFFFF,   // 15: White
 };
 

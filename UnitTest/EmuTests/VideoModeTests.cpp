@@ -317,10 +317,10 @@ public:
 
         lores.Render (nullptr, fb.data (), fbW, fbH);
 
-        // Lo-res palette color 7 = Light Blue (kLoResColors[7] = 0xFFFFAA66)
-        // Lo-res palette color 13 = Yellow (kLoResColors[13] = 0xFF00FFFF)
-        uint32_t expectedTop    = 0xFFFFAA66u;  // color index 7
-        uint32_t expectedBottom = 0xFF00FFFFu;  // color index 13
+        // Lo-res palette color 7 = Light Blue (kLoResColors[7] = 0xFF66AAFF)
+        // Lo-res palette color 13 = Yellow (kLoResColors[13] = 0xFFFFFF00)
+        uint32_t expectedTop    = 0xFF66AAFFu;  // color index 7
+        uint32_t expectedBottom = 0xFFFFFF00u;  // color index 13
 
         // Block dimensions: 560/40 = 14 wide, 384/48 = 8 tall
         // Top block at lo-res row 0: fbY 0-7
@@ -510,8 +510,8 @@ public:
         hires.Render (nullptr, fb.data (), fbW, fbH);
 
         // Pixel at screen col 0 -> fb[0,0] and fb[0,1] (2x scaled)
-        // Violet = kNtscViolet (0xFFFD44FF in R8G8B8A8 byte layout)
-        Assert::AreEqual (0xFFFD44FFu, fb[0],
+        // Violet = kNtscViolet (0xFFFF44FD in B8G8R8A8 byte layout)
+        Assert::AreEqual (0xFFFF44FDu, fb[0],
             L"Single pixel palette 0 even col should be violet");
     }
 
@@ -539,8 +539,8 @@ public:
 
         hires.Render (nullptr, fb.data (), fbW, fbH);
 
-        // Blue = kNtscBlue (0xFFFFCF14 in R8G8B8A8 byte layout)
-        Assert::AreEqual (0xFFFFCF14u, fb[0],
+        // Blue = kNtscBlue (0xFF14CFFF in B8G8R8A8 byte layout)
+        Assert::AreEqual (0xFF14CFFFu, fb[0],
             L"Single pixel palette 1 even col should be blue");
     }
 
@@ -634,10 +634,10 @@ public:
         {
             if (pixel == 0xFF000000u) { sawBlack  = true; }
             if (pixel == 0xFFFFFFFFu) { sawWhite  = true; }
-            if (pixel == 0xFFFD44FFu) { sawViolet = true; }
-            if (pixel == 0xFF3CF514u) { sawGreen  = true; }
-            if (pixel == 0xFFFFCF14u) { sawBlue   = true; }
-            if (pixel == 0xFF3C6AFFu) { sawOrange = true; }
+            if (pixel == 0xFFFF44FDu) { sawViolet = true; }
+            if (pixel == 0xFF14F53Cu) { sawGreen  = true; }
+            if (pixel == 0xFF14CFFFu) { sawBlue   = true; }
+            if (pixel == 0xFFFF6A3Cu) { sawOrange = true; }
         }
 
         Assert::IsTrue (sawBlack,  L"NTSC palette must include black");

@@ -6,7 +6,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.3.621] — 2026-05-14 — Demo: clear text page on exit + README screenshot
+## [1.3.627] — 2026-05-14 — Framebuffer format swap to BGRA + byte-order tests
+
+### Changed (rendering)
+- **Framebuffer format is now `DXGI_FORMAT_B8G8R8A8_UNORM`** (was
+  `R8G8B8A8_UNORM`). On-screen colors are visually identical;
+  every Windows pixel surface (CF_DIB clipboard, GDI bitmaps, BMP,
+  WIC) natively uses BGRA, so image-export paths no longer need to
+  swizzle R/B on the way out. All palette literals (NTSC HGR, LoRes,
+  DHGR) re-encoded into the human-natural `0xAARRGGBB` form;
+  see new `Video/PixelFormat.h` for the project-wide convention.
+
+### Fixed
+- **Menu → Copy Screenshot now produces correct colors.** The
+  clipboard path used `CF_DIB` (BGRA) but blindly memcpy'd from the
+  RGBA framebuffer, so screenshots had R and B swapped — most
+  visible on the HGR cassowary demo (orange head appeared blue).
+  With the framebuffer format change above, the screenshot copy is
+  now a straight memcpy with no swizzle, so this class of bug can
+  no longer arise.
+
+### Added (tests)
+- **`PaletteByteOrderTests`** (8 new tests). Decomposes every named
+  palette color via `Video/PixelFormat.h` extractors and asserts
+  the bytes match the human-documented R/G/B intent. Catches both
+  hand-typed nibble swaps and any future format flip that isn't
+  propagated to the palette literals. Brings the suite to 1046
+  tests.
 
 ### Fixed (demo)
 - **Exit to BASIC no longer leaves LoRes garbage on the text page.**

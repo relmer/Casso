@@ -20,9 +20,9 @@ static constexpr int kCharHeight     = 8;
 static constexpr int kScaleX         = 2;   // Each pixel doubled horizontally
 static constexpr int kScaleY         = 2;   // Each pixel doubled vertically
 
-static constexpr uint32_t kColorGreen  = 0xFF00FF00;   // ARGB green
-static constexpr uint32_t kColorBlack  = 0xFF000000;   // ARGB black
-static constexpr uint32_t kColorWhite  = 0xFFFFFFFF;   // ARGB white
+static constexpr uint32_t kColorGreen  = 0xFF00FF00;   // BGRA green
+static constexpr uint32_t kColorBlack  = 0xFF000000;   // BGRA black
+static constexpr uint32_t kColorWhite  = 0xFFFFFFFF;   // BGRA white
 
 
 

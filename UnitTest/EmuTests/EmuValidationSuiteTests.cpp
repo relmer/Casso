@@ -475,10 +475,12 @@ public:
         // Golden hash captured from the first deterministic render with
         // PRNG seed 0xCA550001 + HeadlessHost::kPinnedSeed cold boot.
         // Updated 2026-05-13 alongside the NtscColorTable byte-layout
-        // fix (kNtscBlue/Orange/Violet/Green were stored as 0xAARRGGBB
-        // when the framebuffer is R8G8B8A8; the corrected constants
-        // shift the rendered pixel bytes which moves the FNV hash).
-        constexpr uint64_t   kExpected = 0x18245CEC150C7C25ULL;
+        // fix. Updated 2026-05-14 alongside the swap-chain format
+        // change from R8G8B8A8_UNORM to B8G8R8A8_UNORM (see
+        // Video/PixelFormat.h) — pixel bytes are now in BGRA order so
+        // the FNV hash over the framebuffer changes for any frame with
+        // non-grayscale content.
+        constexpr uint64_t   kExpected = 0x2ABA2BA47C35CE05ULL;
 
         Assert::AreEqual (kExpected, hash,
             std::format (L"Mixed-mode 80COL golden hash mismatch: got 0x{:016X}", hash).c_str ());

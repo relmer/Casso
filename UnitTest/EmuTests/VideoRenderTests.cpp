@@ -28,24 +28,24 @@ static constexpr uint32_t kBlack = 0xFF000000u;
 static constexpr uint32_t kWhite = 0xFFFFFFFFu;
 
 // Lo-res color table (must match AppleLoResMode.cpp exactly — both use
-// R8G8B8A8 byte layout matching the swap chain format)
+// B8G8R8A8 byte layout matching the swap chain format)
 static const uint32_t kExpectedLoRes[16] =
 {
     0xFF000000,   //  0: Black
-    0xFF6622DD,   //  1: Magenta
-    0xFF990000,   //  2: Dark Blue
-    0xFF4400DD,   //  3: Purple
+    0xFFDD2266,   //  1: Magenta
+    0xFF000099,   //  2: Dark Blue
+    0xFFDD0044,   //  3: Purple
     0xFF002200,   //  4: Dark Green
     0xFF555555,   //  5: Grey 1
-    0xFFCC2200,   //  6: Medium Blue
-    0xFFFFAA66,   //  7: Light Blue
-    0xFF005588,   //  8: Brown
-    0xFF0044FF,   //  9: Orange
+    0xFF0022CC,   //  6: Medium Blue
+    0xFF66AAFF,   //  7: Light Blue
+    0xFF885500,   //  8: Brown
+    0xFFFF4400,   //  9: Orange
     0xFFAAAAAA,   // 10: Grey 2
-    0xFF8888FF,   // 11: Pink
+    0xFFFF8888,   // 11: Pink
     0xFF00DD00,   // 12: Light Green
-    0xFF00FFFF,   // 13: Yellow
-    0xFFDDFF44,   // 14: Aquamarine
+    0xFFFFFF00,   // 13: Yellow
+    0xFF44FFDD,   // 14: Aquamarine
     0xFFFFFFFF,   // 15: White
 };
 
@@ -594,10 +594,14 @@ public:
         // Updated 2026-05-13 alongside the DHR palette byte-layout fix
         // (4 entries — Magenta, Dark Blue, Light Blue, Brown — were
         // stored with R/B bytes swapped relative to the R8G8B8A8 swap-
-        // chain format and rendered as red shades on screen). Fixing
-        // the palette shifts the rendered pixel bytes for any pattern
-        // that exercises those color indices, which moves the hash.
-        constexpr uint64_t kExpected = 0x10F5139C2F025325ULL;
+        // chain format and rendered as red shades on screen).
+        //
+        // Updated 2026-05-14 alongside the swap-chain format change
+        // from R8G8B8A8_UNORM to B8G8R8A8_UNORM (see
+        // Video/PixelFormat.h). The on-screen colors are identical;
+        // the framebuffer byte sequence differs for any pixel with
+        // R != B, which moves the hash.
+        constexpr uint64_t kExpected = 0x56CE5AB7DF017725ULL;
 
         Assert::AreEqual (kExpected, hash,
             std::format (L"DHR golden hash mismatch: got 0x{:016X}", hash).c_str ());
