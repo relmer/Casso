@@ -155,6 +155,8 @@ void DiskIINibbleEngine::Reset ()
     m_workingShift    = 0;
     m_latchDelayBits  = 0;
     m_writeLatch      = 0;
+    m_readNibbles     = 0;
+    m_writeNibbles    = 0;
 }
 
 

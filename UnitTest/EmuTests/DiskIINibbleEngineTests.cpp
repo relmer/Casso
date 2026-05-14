@@ -118,4 +118,29 @@ public:
         Assert::AreEqual (DiskIINibbleEngine::kMaxTrack, eng.GetCurrentTrack (),
             L"Out-of-range tracks must clamp to kMaxTrack");
     }
+
+    TEST_METHOD (ResetClearsLifetimeNibbleCounters)
+    {
+        // Regression for the Ctrl+Shift+R PowerCycle path: the status-bar
+        // tooltip reads GetReadNibbles / GetWriteNibbles, so a power cycle
+        // that did not zero them left the tooltip showing stale pre-cycle
+        // counts. Reset() is invoked from DiskIIController::PowerCycle
+        // (via DiskIIController::Reset), so clearing the counters here is
+        // what restores the tooltip after a manual cold boot.
+        DiskIINibbleEngine    eng;
+
+        eng.WriteLatch (0xAA);
+        eng.WriteLatch (0xAA);
+        eng.WriteLatch (0xAA);
+
+        Assert::AreEqual (uint64_t (3), eng.GetWriteNibbles (),
+            L"Pre-condition: WriteLatch must bump the lifetime write counter");
+
+        eng.Reset ();
+
+        Assert::AreEqual (uint64_t (0), eng.GetReadNibbles (),
+            L"Reset must zero the lifetime read-nibble counter");
+        Assert::AreEqual (uint64_t (0), eng.GetWriteNibbles (),
+            L"Reset must zero the lifetime write-nibble counter");
+    }
 };

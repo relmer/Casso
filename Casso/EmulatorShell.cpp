@@ -2162,7 +2162,32 @@ void EmulatorShell::ProcessCommands()
 
             case IDM_MACHINE_POWERCYCLE:
             {
+                string   savedDisk[DiskImageStore::kDriveCount];
+                HRESULT  hrMount  = S_OK;
+                int      drive    = 0;
+
+                // Snapshot whichever disks were mounted before the
+                // cycle. EmulatorShell::PowerCycle preserves the
+                // DiskImageStore mounts but DiskIIController::PowerCycle
+                // unbinds the controller's external-disk pointer (it
+                // re-points each engine at its empty internal sentinel),
+                // so without an explicit re-mount the drives come up
+                // empty and the boot ROM has nothing to read.
+                for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+                {
+                    savedDisk[drive] = m_diskStore.GetSourcePath (6, drive);
+                }
+
                 PowerCycle ();
+
+                for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+                {
+                    if (!savedDisk[drive].empty ())
+                    {
+                        hrMount = MountDiskInSlot6 (drive, savedDisk[drive]);
+                        IGNORE_RETURN_VALUE (hrMount, S_OK);
+                    }
+                }
                 break;
             }
 

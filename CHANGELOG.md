@@ -6,7 +6,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [Unreleased]
+## [1.3.574] — 2026-05-13 — PowerCycle drive-state fix
+
+### Fixed (disk)
+- **Ctrl+Shift+R no longer leaves the drives empty.** The
+  `IDM_MACHINE_POWERCYCLE` handler now snapshots the source paths of
+  every disk currently mounted in `DiskImageStore` slot 6 before
+  calling `EmulatorShell::PowerCycle`, then re-mounts them via
+  `MountDiskInSlot6` once the controller has cycled. Previously the
+  controller's `PowerCycle` re-pointed each engine at its empty
+  internal sentinel disk, so a manual cold boot would leave Drive 1
+  / Drive 2 ejected and the boot ROM had no nibbles to read. Test:
+  unchanged controller-level `PowerCycleUnmountsAndFlushesAllDisks`
+  contract continues to pass; the shell-level remount is wired in
+  `EmulatorShell::ProcessCommands`.
+- **Drive tooltip nibble counters reset on PowerCycle.**
+  `DiskIINibbleEngine::Reset` now zeroes `m_readNibbles` and
+  `m_writeNibbles` alongside the rest of the engine state, so the
+  status-bar tooltip's `R:`/`W:` columns restart at 0 after Ctrl+Shift+R
+  instead of carrying the pre-cycle counts. New
+  `DiskIINibbleEngineTests::ResetClearsLifetimeNibbleCounters`
+  pins the contract.
 
 ## [1.3.573] — 2026-05-13 — Friendly first-run bootstrap
 
