@@ -1,64 +1,259 @@
 ; ============================================================================
-;  casso-rocks.a65 — minimal bootable Apple //e demo disk
+;  casso-rocks.a65 — bootable Apple //e demo disk with HGR cassowary mascot
 ;
 ;  Loaded by the //e Disk2.rom slot 6 boot firmware: the boot ROM reads
 ;  track 0 sector 0 (256 bytes from file offset 0) into RAM at $0800-$08FF
-;  and JMPs to $0801. Our code takes over from there.
+;  and JMPs to $0801. Our code takes over from there and:
 ;
-;  Behavior: clear all four pages of the text screen ($0400-$07FF) to
-;  spaces ($A0), write "CASSO ROCKS!" centered on row 12, then halt in an
-;  infinite loop. Tested headlessly by
-;  `BootDiskTests::CassoRocks_DemoDisk_PrintsBanner`, which gates the
-;  full boot path: real Disk2.rom reading our nibblized .dsk image,
-;  decoding sector 0 via the LSS, JMPing into our code, our code
-;  clearing screen RAM and writing the banner, the framebuffer scraper
-;  finding "CASSO ROCKS!" on the rendered text page.
+;    1. Steps the head from track 0 to track 1, then to track 2.
+;    2. Reads all 16 sectors of each track in physical-arrival order
+;       (no DOS-style sector matching), parses each address mark to
+;       know which logical sector arrived, then decodes the data field
+;       directly into the matching $20+sector page (track 1) or
+;       $30+sector page (track 2). After 32 reads HGR page 1
+;       ($2000-$3FFF) holds the cassowary framebuffer.
+;    3. Flips the //e soft switches to enable HGR1 (TEXT off, MIXED
+;       off, PAGE2 off, HIRES on).
+;    4. Spins forever, leaving the cassowary on screen.
 ;
 ;  Self-contained: doesn't rely on any //e firmware ROM entry points
-;  beyond what's needed for the boot ROM itself, so the demo works
-;  regardless of which exact //e ROM image is mounted.
+;  beyond the disk2.rom boot firmware. The only piece of disk2.rom we
+;  re-use is the inverse 6-and-2 nibble decode table the boot PROM
+;  builds at $02D6 (= $0356 - $80) during cold boot.
 ;
-;  Apple //e text page row addressing (per UTAIIe ch. 5):
-;    rowBase = $400 + 128 * (row % 8) + 40 * (row / 8)
-;    row 12 -> $400 + 128*4 + 40*1 = $0628
-;    centered (40-12)/2 = column 14 -> $0636
-;
-;  Display character bytes have bit 7 set for normal (white-on-black);
-;  bit 7 clear means inverse / flash. We OR $80 onto every glyph below.
+;  Tested by BootDiskTests::CassoRocks_DemoDisk_DisplaysHgrCassowary.
 ; ============================================================================
 
     .org $0801
 
-ROW12   = $0628           ; text page row 12 base address
-START   = ROW12 + 14      ; centered start for 12-char "CASSO ROCKS!"
-MSGLEN  = 12
+; -- I/O & soft switches ----------------------------------------------------
+TXTOFF  = $C050
+MIXOFF  = $C052
+PG2OFF  = $C054
+HIRESON = $C057
+DATA    = $C08C            ; Q6L (slot 6 indexed via X=$60)
+NIBL    = $02D6            ; disk2.rom decode table[raw_nibble]
+
+; -- Zero page scratch ------------------------------------------------------
+DLO     = $26              ; ($26),Y dest pointer lo (always 0)
+DHI     = $27              ; ($26),Y dest pointer hi (page)
+SECW    = $3C              ; saved Y across read loops
+DBASE   = $3D              ; per-track DHI base ($20 or $30)
+COUNT   = $40              ; sectors-remaining-on-track counter
+TMP     = $41              ; chk + expand scratch
+
 
 start
-    ; Clear all of $0400-$07FF (both visible cells and the screen
-    ; holes) to space. 1024 bytes = 4 pages, unrolled for X=0..255.
-    lda #$A0
-    ldx #0
-clear
-    sta $0400,x
-    sta $0500,x
-    sta $0600,x
-    sta $0700,x
-    inx
-    bne clear
+    ; The disk2.rom boot PROM hands us X = $60 (slot 6 << 4) via its
+    ; final LDX $2B before JMP $0801, and we never touch $2B, so X
+    ; stays valid for the indexed soft-switch reads below.
+    lda #0
+    sta DLO
 
-    ; Copy "CASSO ROCKS!" into row 12, columns 14..25.
-    ldx #MSGLEN-1
-copy
-    lda msg,x
-    sta START,x
-    dex
-    bpl copy
+    ; --- Step head: track 0 -> track 1 (4 phase ops) -----------------------
+    lda $C083,x            ; phase 1 ON
+    lda $C080,x            ; phase 0 OFF
+    lda $C085,x            ; phase 2 ON
+    lda $C082,x            ; phase 1 OFF
+
+    ; --- Read 16 sectors of track 1 -> $2000-$2FFF -------------------------
+    lda #$20
+    sta DBASE
+    jsr read_track
+
+    ; --- Step head: track 1 -> track 2 (4 phase ops) -----------------------
+    lda $C087,x            ; phase 3 ON
+    lda $C084,x            ; phase 2 OFF
+    lda $C081,x            ; phase 0 ON
+    lda $C086,x            ; phase 3 OFF
+
+    ; --- Read 16 sectors of track 2 -> $3000-$3FFF -------------------------
+    lda #$30
+    sta DBASE
+    jsr read_track
+
+    ; --- Switch the //e to HGR1 mode ---------------------------------------
+    ; PowerCycle leaves the soft switches at TEXT on, MIXED off, PAGE2 off,
+    ; HIRES off; flipping just TXTOFF and HIRESON is enough.
+    bit TXTOFF
+    bit HIRESON
 
 spin
-    jmp spin              ; halt
+    jmp spin
 
-msg
-    .byte 'C'+$80, 'A'+$80, 'S'+$80, 'S'+$80, 'O'+$80, ' '+$80
-    .byte 'R'+$80, 'O'+$80, 'C'+$80, 'K'+$80, 'S'+$80, '!'+$80
+
+; ----------------------------------------------------------------------------
+; chk -- wait for the next valid disk nibble in A and compare it against the
+;        byte already in TMP (which the caller stored). Returns Z=1 on match.
+; ----------------------------------------------------------------------------
+chk
+    sta TMP
+chk_w
+    lda DATA,x
+    bpl chk_w
+    cmp TMP
+    rts
+
+
+; ----------------------------------------------------------------------------
+; read_track -- read 16 sectors in whatever physical order they arrive on
+;               the current track. Each sector's address mark identifies
+;               the logical sector number, which becomes the destination
+;               page offset (DHI = DBASE + sector). Caller sets DBASE.
+; ----------------------------------------------------------------------------
+read_track
+    lda #16
+    sta COUNT
+rt_lp
+    jsr read_sector
+    dec COUNT
+    bne rt_lp
+    rts
+
+
+; ----------------------------------------------------------------------------
+; read_sector -- spin until the next D5 AA 96 address-prologue, parse the
+;                logical sector number out of the 4-and-4 address field,
+;                set DHI = DBASE + sector, then spin until the matching
+;                D5 AA AD data prologue and decode the data field into
+;                256 bytes at ($26),Y for Y=0..255.
+; ----------------------------------------------------------------------------
+read_sector
+sc_d5
+    lda #$D5
+    jsr chk
+    bne sc_d5
+    lda #$AA
+    jsr chk
+    bne sc_d5
+    lda #$96
+    jsr chk
+    bne sc_d5
+
+    ; address field: skip 4 nibbles (volume H, volume L, track H, track L)
+    ldy #4
+sk1
+    lda DATA,x
+    bpl sk1
+    dey
+    bne sk1
+
+    ; read sector H/L (4-and-4 encoded), decode = ((H<<1)|1) & L
+rsh
+    lda DATA,x
+    bpl rsh
+    sec
+    rol a
+    sta TMP
+rsl
+    lda DATA,x
+    bpl rsl
+    and TMP
+
+    ; A = sector number 0..15. DBASE is $20 or $30 (low nibble = 0), so
+    ; OR-merging is equivalent to ADD here and one byte cheaper.
+    ora DBASE
+    sta DHI
+
+    ; skip 2 checksum nibbles
+sk2a
+    lda DATA,x
+    bpl sk2a
+sk2b
+    lda DATA,x
+    bpl sk2b
+
+    ; wait for D5 AA AD data prologue
+dd5
+    lda #$D5
+    jsr chk
+    bne dd5
+    lda #$AA
+    jsr chk
+    bne dd5
+    lda #$AD
+    jsr chk
+    bne dd5
+
+    ; read 86 secondary nibbles into $0300-$0355 in forward order, A =
+    ; running checksum (XOR). Inlined rather than going through a
+    ; subroutine because the round-trip JSR/RTS push us over the ~32-
+    ; cycle disk-nibble window per iteration and the LSS races ahead,
+    ; making us miss every other nibble. The base trick (sta $0256,y,
+    ; Y starting at $AA) lets the loop exit naturally when Y wraps.
+    lda #0
+    ldy #$AA
+sec_lp
+    sty SECW
+sec_w
+    ldy DATA,x
+    bpl sec_w
+    eor NIBL,y
+    ldy SECW
+    sta $0256,y
+    iny
+    bne sec_lp
+
+    ; read 256 primary nibbles into ($26),Y (Y wraps), A = running checksum
+pri_lp
+    sty SECW
+pri_w
+    ldy DATA,x
+    bpl pri_w
+    eor NIBL,y
+    ldy SECW
+    sta ($26),y
+    iny
+    bne pri_lp
+
+    ; read final checksum nibble; we don't verify (best-effort, deterministic
+    ; nibble stream in the test harness)
+chk_w2
+    lda DATA,x
+    bpl chk_w2
+
+    ; --- Expand: combine 86 secondary + 256 primary into 256 8-bit bytes ---
+    ; primary[i] currently holds the 6 high bits in low position (bits 5..0).
+    ; Secondary alias bases let one loop body cover all three groups:
+    ;     i =   0..85   -> lda $0300,y (bits 1..0 of secondary[i])
+    ;     i =  86..171  -> lda $02AA,y (bits 1..0 after >>2)
+    ;     i = 172..255  -> lda $0254,y (bits 1..0 after >>4)
+    ; The final iny/bne wraps Y from $FF -> $00 to terminate.
+    ldy #0
+exp_lp
+    cpy #172
+    bcc exp_l172
+    lda $0254,y
+    lsr a
+    lsr a
+    lsr a
+    lsr a
+    jmp exp_join
+exp_l172
+    cpy #86
+    bcc exp_l86
+    lda $02AA,y
+    lsr a
+    lsr a
+    jmp exp_join
+exp_l86
+    lda $0300,y
+exp_join
+    and #$03               ; A = raw 2-bit pair (b1 b0) for primary[Y]
+    sta TMP                ; reverse the pair inline: output = (b0 b1)
+    asl a
+    and #$02               ; bit 1 of result = original bit 0
+    lsr TMP                ; carry = original bit 0; TMP bit 0 = original bit 1
+    ora TMP                ; A = reversed 2-bit pair in low position
+    sta TMP
+    lda ($26),y
+    asl a
+    asl a
+    ora TMP
+    sta ($26),y
+    iny
+    bne exp_lp
+    rts
+
 
 ; --- end ---
