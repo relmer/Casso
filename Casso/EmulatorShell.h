@@ -115,6 +115,7 @@ private:
     void    MountCommandLineDisks  (const string & disk1Path, const string & disk2Path);
     HRESULT MountDiskInSlot6       (int drive, const string & path);
     void    EjectDiskInSlot6       (int drive);
+    void    RemountSlot6Disks      ();
     class DiskIIController * FindSlot6Controller ();
     void    CreateVideoModes       ();
     HRESULT CreateCpu              (const MachineConfig & config);

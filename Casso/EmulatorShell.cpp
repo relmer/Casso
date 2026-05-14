@@ -1652,6 +1652,48 @@ void EmulatorShell::EjectDiskInSlot6 (int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RemountSlot6Disks
+//
+//  Re-reads every currently mounted slot-6 disk image from the host
+//  filesystem so that an external regeneration of the .dsk file (e.g. a
+//  developer iterating on a demo image) is picked up by the next boot.
+//  Used by the Reset and Power Cycle menu commands; without this, the
+//  controller keeps serving the original byte buffer the disk was
+//  loaded with at mount time, and any external rewrite of the .dsk is
+//  invisible until the user manually ejects and re-inserts the image.
+//
+//  Snapshots paths first because the re-mount path goes through Eject
+//  + Mount internally, which transiently blanks the source-path slot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RemountSlot6Disks ()
+{
+    string   savedDisk[DiskImageStore::kDriveCount];
+    HRESULT  hrMount = S_OK;
+    int      drive   = 0;
+
+    for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+    {
+        savedDisk[drive] = m_diskStore.GetSourcePath (6, drive);
+    }
+
+    for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+    {
+        if (!savedDisk[drive].empty ())
+        {
+            hrMount = MountDiskInSlot6 (drive, savedDisk[drive]);
+            IGNORE_RETURN_VALUE (hrMount, S_OK);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CreateVideoModes
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2156,38 +2198,28 @@ void EmulatorShell::ProcessCommands()
 
             case IDM_MACHINE_RESET:
             {
+                // Re-read disks from the host filesystem first so an
+                // externally-regenerated .dsk (typical dev workflow:
+                // hack on a demo, regenerate the disk image, hit
+                // Reset) is picked up by the post-reset boot.
+                RemountSlot6Disks ();
                 SoftReset ();
                 break;
             }
 
             case IDM_MACHINE_POWERCYCLE:
             {
-                string   savedDisk[DiskImageStore::kDriveCount];
-                HRESULT  hrMount  = S_OK;
-                int      drive    = 0;
-
-                // Snapshot whichever disks were mounted before the
-                // cycle. EmulatorShell::PowerCycle preserves the
-                // DiskImageStore mounts but DiskIIController::PowerCycle
-                // unbinds the controller's external-disk pointer (it
-                // re-points each engine at its empty internal sentinel),
-                // so without an explicit re-mount the drives come up
+                // EmulatorShell::PowerCycle preserves DiskImageStore
+                // mounts but DiskIIController::PowerCycle unbinds the
+                // controller's external-disk pointer (it re-points
+                // each engine at its empty internal sentinel), so
+                // without an explicit re-mount the drives come up
                 // empty and the boot ROM has nothing to read.
-                for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
-                {
-                    savedDisk[drive] = m_diskStore.GetSourcePath (6, drive);
-                }
-
+                // RemountSlot6Disks both re-binds the engines AND
+                // re-reads the host file (so external regenerations
+                // are picked up).
                 PowerCycle ();
-
-                for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
-                {
-                    if (!savedDisk[drive].empty())
-                    {
-                        hrMount = MountDiskInSlot6 (drive, savedDisk[drive]);
-                        IGNORE_RETURN_VALUE (hrMount, S_OK);
-                    }
-                }
+                RemountSlot6Disks ();
                 break;
             }
 

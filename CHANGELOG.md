@@ -6,6 +6,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.582] — 2026-05-13 — Reset/PowerCycle reload disks; lighter title font
+
+### Fixed (shell)
+- **`Reset` and `Power Cycle` menu commands now re-read mounted slot-6
+  disk images from the host filesystem.** Previously a Reset left the
+  in-memory disk byte buffer untouched and a Power Cycle re-mounted
+  using the cached path but didn't pick up external rewrites in a way
+  the user could rely on (the dev workflow "regenerate `.dsk` outside
+  Casso, hit Reset/Power Cycle to see the new image" silently kept
+  showing the old image). Both menu commands now go through a new
+  `RemountSlot6Disks` helper that snapshots the per-drive source
+  paths and re-runs `MountDiskInSlot6` against each one, so the
+  controller picks up whatever the file currently contains. Reset
+  still preserves user RAM (real Apple ][ Ctrl-Reset semantics);
+  Power Cycle still re-seeds DRAM. Auto-flush of dirty in-memory
+  bytes still runs first so live writes aren't lost.
+
+### Changed (demo)
+- **Lighter title font in `scripts/HgrPreprocess.py`.** The previous
+  Segoe UI Semibold 18px was too chunky on the cassowary HGR;
+  defaulted to Segoe UI Regular 18px with no extra stroke. Two new
+  CLI flags expose tuning without editing the script:
+  `--title-size N` (default 18) and `--title-stroke N` (default 0;
+  bump to 1 for a heavier look).
+
 ## [1.3.581] — 2026-05-13 — HGR cassowary: better crop & color fidelity
 
 ### Changed

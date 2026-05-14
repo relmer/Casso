@@ -31,7 +31,7 @@ import sys
 
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 
 HGR_WIDTH      = 280
@@ -186,7 +186,53 @@ def image_to_hgr (img):
     return bytes (out)
 
 
-def crop_and_fit (src_path, crop_box, letterbox):
+def paint_title (canvas, text, top_y=4, font_size=18, stroke_width=0):
+    # Paint a centered title across the top of the 280x192 canvas in
+    # white. We try a few common Windows TrueType fonts at the
+    # requested size; whatever we draw goes through the same colour
+    # pipeline as the rest of the image, so crisp white text relies on
+    # the encoder's WHITE classification (bright + desaturated) and
+    # adjacent-ON artefacting.
+    candidates = [
+        "segoeui.ttf",
+        "tahoma.ttf",
+        "verdana.ttf",
+        "arial.ttf",
+        "calibri.ttf",
+    ]
+    font = None
+    for name in candidates:
+        try:
+            font = ImageFont.truetype (name, font_size)
+            break
+        except OSError:
+            continue
+    if font is None:
+        font = ImageFont.load_default ()
+
+    draw = ImageDraw.Draw (canvas)
+    bbox = draw.textbbox ((0, 0), text, font=font, stroke_width=stroke_width)
+    text_w = bbox[2] - bbox[0]
+    text_x = (HGR_WIDTH - text_w) // 2 - bbox[0]
+
+    # Drop a black "shadow" behind the white text so that, even where
+    # the title overlaps the cassowary's casque or a leaf, the glyphs
+    # have at least one black neighbour each side and the encoder can
+    # render them as solid white instead of WHITE-pixel-next-to-colour
+    # which would just artefact garbage.
+    pad = stroke_width + 1
+    for dx in range (-pad, pad + 1):
+        for dy in range (-pad, pad + 1):
+            draw.text ((text_x + dx, top_y + dy), text,
+                       font=font, fill=HGR_BLACK,
+                       stroke_width=stroke_width, stroke_fill=HGR_BLACK)
+    draw.text ((text_x, top_y), text,
+               font=font, fill=HGR_WHITE,
+               stroke_width=stroke_width, stroke_fill=HGR_WHITE)
+
+
+def crop_and_fit (src_path, crop_box, letterbox, title=None,
+                  title_size=18, title_stroke=0):
     img = Image.open (src_path).convert ("RGB")
 
     if crop_box is not None:
@@ -212,6 +258,8 @@ def crop_and_fit (src_path, crop_box, letterbox):
         off_x  = (HGR_WIDTH  - new_w) // 2
         off_y  = (HGR_HEIGHT - new_h) // 2
         canvas.paste (scaled, (off_x, off_y))
+        if title:
+            paint_title (canvas, title, font_size=title_size, stroke_width=title_stroke)
         return canvas
     else:
         # Center-crop to target aspect, then resize. Loses content on the
@@ -225,7 +273,10 @@ def crop_and_fit (src_path, crop_box, letterbox):
             crop_y  = (src_h - new_h) // 2
             img     = img.crop ((0, crop_y, src_w, crop_y + new_h))
 
-        return img.resize ((HGR_WIDTH, HGR_HEIGHT), Image.LANCZOS)
+        canvas = img.resize ((HGR_WIDTH, HGR_HEIGHT), Image.LANCZOS)
+        if title:
+            paint_title (canvas, title, font_size=title_size, stroke_width=title_stroke)
+        return canvas
 
 
 def parse_crop (s):
@@ -254,6 +305,15 @@ def main ():
                          help="if set, also write a PNG preview of the "
                               "post-fit image at this path (handy for "
                               "iterating on --crop)")
+    parser.add_argument ("--title", default="Casso",
+                         help="centered title text painted across the top "
+                              "of the framebuffer (default: 'Casso'; pass "
+                              "'' to disable)")
+    parser.add_argument ("--title-size", type=int, default=18,
+                         help="title font pixel size (default: 18)")
+    parser.add_argument ("--title-stroke", type=int, default=0,
+                         help="extra stroke pixels around each glyph "
+                              "(default: 0; bump to 1 for a heavier look)")
     args = parser.parse_args ()
 
     src = Path (args.input)
@@ -263,7 +323,11 @@ def main ():
         print (f"error: source image not found: {src}", file=sys.stderr)
         return 1
 
-    img = crop_and_fit (src, args.crop, letterbox=not args.no_letterbox)
+    img = crop_and_fit (src, args.crop,
+                        letterbox=not args.no_letterbox,
+                        title=args.title or None,
+                        title_size=args.title_size,
+                        title_stroke=args.title_stroke)
 
     if args.preview:
         Path (args.preview).parent.mkdir (parents=True, exist_ok=True)
