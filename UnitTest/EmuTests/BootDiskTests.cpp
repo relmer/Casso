@@ -114,8 +114,8 @@ public:
         fs::path  hgrPath       = FindRepoFile ("Apple2/Demos/cassowary.hgr");
         fs::path  bandsPath     = FindRepoFile ("Apple2/Demos/test-bands.hgr");
         fs::path  loresPath     = FindRepoFile ("Apple2/Demos/lores-bars.lores");
-        fs::path  dhgrAuxPath   = FindRepoFile ("Apple2/Demos/dhgr-bars-aux.bin");
-        fs::path  dhgrMainPath  = FindRepoFile ("Apple2/Demos/dhgr-bars-main.bin");
+        fs::path  dhgrAuxPath   = FindRepoFile ("Apple2/Demos/dhgr-cassowary-aux.bin");
+        fs::path  dhgrMainPath  = FindRepoFile ("Apple2/Demos/dhgr-cassowary-main.bin");
 
         if (src.empty () || stage2Src.empty () ||
             hgrPath.empty () || bandsPath.empty () ||
@@ -125,7 +125,7 @@ public:
             Logger::WriteMessage ("SKIPPED: one or more demo-disk source "
                                   "files (casso-rocks*.a65, cassowary.hgr, "
                                   "test-bands.hgr, lores-bars.lores, "
-                                  "dhgr-bars-{aux,main}.bin) not "
+                                  "dhgr-cassowary-{aux,main}.bin) not "
                                   "found in this checkout.\n");
             return;
         }
@@ -148,9 +148,9 @@ public:
         Assert::AreEqual (kLoresPayloadSize, loresPayload.size (),
             L"lores-bars.lores must be exactly 1024 bytes");
         Assert::AreEqual (kHgrPayloadSize, dhgrAuxPayload.size (),
-            L"dhgr-bars-aux.bin must be exactly 8192 bytes");
+            L"dhgr-cassowary-aux.bin must be exactly 8192 bytes");
         Assert::AreEqual (kHgrPayloadSize, dhgrMainPayload.size (),
-            L"dhgr-bars-main.bin must be exactly 8192 bytes");
+            L"dhgr-cassowary-main.bin must be exactly 8192 bytes");
 
         Cpu             cpu;
         Assembler       assembler (cpu.GetInstructionSet ());

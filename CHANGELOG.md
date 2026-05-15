@@ -6,6 +6,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.645] — 2026-05-14 — DHGR cassowary + clean exit from DHGR mode
+
+### Added (demo)
+- **DHGR mode now shows a cassowary**, not just test bars. New
+  generator `scripts/DhgrCassowaryGen.py` quantizes the source
+  photo (`Assets/3a Mrs Cassowary closeup 8167.jpg`) to the //e
+  16-color LoRes/DHGR palette via Floyd-Steinberg dithering and
+  encodes it into the DHGR aux+main interleaved byte stream.
+  Resulting payloads (`Apple2/Demos/dhgr-cassowary-{aux,main}.bin`,
+  8 KB each) replace the test-bars patterns on tracks 6+7 / 8+9
+  of the demo disk. A preview PNG is also emitted alongside so
+  the quantization can be sanity-checked without booting the
+  demo.
+
+### Fixed (demo)
+- **Exit from DHGR mode no longer leaves garbage glyphs on the
+  BASIC screen.** Two issues:
+  1. The reset handler doesn't clear the screen, only the soft
+     switches. With 80COL still on after DHGR, BASIC was showing
+     main+aux text page 1 interleaved — main had the LoRes
+     pattern, aux still held power-on PRNG noise we never
+     touched. `do_exit` now clears AUX text page 1 (under
+     RAMWRT-on) in addition to main before jumping through
+     the reset vector.
+  2. `JMP $E000` (Applesoft cold start) is fragile even after
+     manual soft-switch cleanup — it JMPs through stale work-
+     area pointers and lands in video memory. `JMP ($FFFC)`
+     (the //e reset vector) goes through `RESET.MGR` which
+     does the full power-on cleanup before entering Applesoft
+     and is the canonical way to bail to BASIC from any video
+     state.
+
+### Removed
+- `Apple2/Demos/dhgr-bars-{aux,main}.bin` — superseded by the
+  cassowary payload. The generator (`scripts/DhgrBarsGen.py`)
+  is kept for future test-pattern needs (regenerates the .bin
+  files on demand).
+
 ## [1.3.640] — 2026-05-14 — DHGR mode joins the demo cycle
 
 ### Added (demo)

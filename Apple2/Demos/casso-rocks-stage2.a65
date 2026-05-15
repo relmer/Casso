@@ -128,24 +128,44 @@ poll
 do_exit
     ; Drop to BASIC via the official //e reset vector. Going through
     ; ($FFFC) lets the ROM's reset handler do the full power-on
-    ; cleanup (sets TEXT, PAGE1, HIRESOFF, MIXOFF, 80COL/80STORE/
-    ; DHIRES off, restores zero-page pointers, etc.) before landing
-    ; in Applesoft. That's much more robust than jumping straight
-    ; to $E000, which assumes a vanilla soft-switch state and gets
-    ; very confused if 80STORE / DHIRES are still flipped from a
-    ; preceding DHGR mode.
+    ; cleanup (40-col TEXT, no DHIRES, no 80STORE, etc.) before
+    ; landing in Applesoft. JMP $E000 directly turns out to be
+    ; fragile even after manual soft-switch cleanup — the cold
+    ; start path JMPs through stale work-area pointers and lands
+    ; in video memory.
     ;
-    ; Stamp text page 1 with spaces ($A0) first so the leftover LoRes
-    ; pattern doesn't briefly flash before the reset clears it.
+    ; The reset handler doesn't clear the screen, so we have to
+    ; wipe both text pages first — main holds the LoRes pattern,
+    ; aux still holds power-on PRNG noise we never touched. With
+    ; 80COL on (which the reset handler may keep depending on the
+    ; ROM revision) BASIC would otherwise show main+aux interleaved
+    ; as garbage glyphs.
+    ;
+    ; AUX clear runs under RAMWRT-on so writes route to aux $0400-
+    ; $07FF; copy_block isn't useful here because we're stamping a
+    ; constant, not memcpy'ing.
+    sta RAMWRTON
     ldx #0
     lda #$A0
-clear_text
+clear_aux_text
     sta $0400,x
     sta $0500,x
     sta $0600,x
     sta $0700,x
     inx
-    bne clear_text
+    bne clear_aux_text
+    sta RAMWRTOFF
+
+    ldx #0
+    lda #$A0
+clear_main_text
+    sta $0400,x
+    sta $0500,x
+    sta $0600,x
+    sta $0700,x
+    inx
+    bne clear_main_text
+
     jmp ($FFFC)            ; reset vector -> //e RESET.MGR -> Applesoft
 
 
