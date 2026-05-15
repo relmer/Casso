@@ -1,28 +1,37 @@
 ; ============================================================================
-;  casso-rocks.a65 — bootable Apple //e demo disk with HGR cassowary mascot
+;  casso-rocks.a65 — bootable Apple //e demo disk with DHGR cassowary mascot
 ;
 ;  Loaded by the //e Disk2.rom slot 6 boot firmware: the boot ROM reads
 ;  track 0 sector 0 (256 bytes from file offset 0) into RAM at $0800-$08FF
 ;  and JMPs to $0801. Stage 1 (this file) takes over from there:
 ;
-;    1. Steps the head to track 1 + 2 and reads them into HGR page 1 at
-;       $2000-$3FFF (cassowary framebuffer).
+;    1. Steps the head to track 1 + 2 and reads them into main $6000-$7FFF
+;       (DHGR aux pattern, staged in main RAM because RAMWRT-on conflicts
+;       with the RWTS scratch buffer in pages $02-$03; stage 2 will copy
+;       to aux later via the copy_block routine).
 ;    2. Steps to track 3 and reads all 16 sectors with DBASE=$10 into
 ;       $1000-$1FFF. Track 3 holds 16 identical copies of the stage 2
-;       code, so every sector lands stage 2 at the same place. The
-;       copy at $1000 is the canonical entry point (stage 1's
-;       read_sector merges DHI via DBASE | sector, so DBASE must have
-;       its low nibble = 0; $10 fits and uses otherwise-unused main RAM).
+;       code at sector 0 (lands at $1000) plus the LoRes test pattern
+;       at sectors 1-4 (lands at $1100-$14FF).
 ;    3. JMPs to stage 2 at $1000.
 ;
 ;  Stage 2 (assembled and shipped as a separate sector — see
 ;  casso-rocks-stage2.a65 alongside this file) then:
 ;
-;    4. Steps to tracks 4+5 and reads them into HGR page 2 at
-;       $4000-$5FFF (synthetic 6-color test bands framebuffer).
-;    5. Flips TXTOFF + HIRESON so cassowary is visible.
-;    6. Polls the keyboard. Each keystroke flips PAGE2 between page 1
-;       (cassowary) and page 2 (test bands), and clears the strobe.
+;    4. Loads tracks 4+5 -> main $8000-$9FFF (DHGR main pattern), copies
+;       both halves into the aux+main framebuffer at $2000-$3FFF, and
+;       flips the //e DHGR soft switches so the cassowary appears as
+;       fast as possible (mode 0 of the cycle).
+;    5. With DHGR on screen, lazily loads the remaining demo content
+;       in the background: tracks 6+7 -> $A000-$BFFF (HGR1 cassowary
+;       loaded directly to its stash location), tracks 8+9 -> $4000
+;       (HGR2 bands at their final destination).
+;    6. Polls the keyboard for cycle / exit keystrokes.
+;
+;  Disk layout reorder (tracks 1-9 instead of "cassowary first") puts
+;  the DHGR data physically earliest on disk so it loads first; cuts
+;  first-frame latency from ~9 tracks (~2.25s) down to ~5 tracks
+;  (~1.25s) by deferring HGR1+HGR2 loads until after DHGR is on screen.
 ;
 ;  Stage 2 calls back into stage 1's still-resident subroutines
 ;  (load_a, load_b, read_track, read_sector, chk, wait_d5_aa). The
@@ -60,10 +69,14 @@ start
     lda #0
     sta DLO
 
-    ; Step to track 1 + 2, read cassowary into HGR page 1.
-    lda #$20
+    ; Step to track 1 + 2, read DHGR aux pattern into main $6000-$7FFF.
+    ; This is the FIRST half of the DHGR cassowary; loading it first
+    ; lets stage 2 enter DHGR mode after only 2 more tracks (track 3
+    ; for stage 2 itself + tracks 4+5 for the DHGR main half) instead
+    ; of all 9 — cuts first-frame latency roughly in half.
+    lda #$60
     jsr load_a
-    lda #$30
+    lda #$70
     jsr load_b
 
     ; Step to track 3, read it into $1000-$1FFF. Every sector of track

@@ -6,6 +6,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.660] — 2026-05-14 — Demo first-frame ~2x faster (boot reorder)
+
+### Changed (demo)
+- **Disk layout reordered so DHGR loads first.** Previously the disk
+  was laid out cassowary→stage2→bands→dhgr-aux→dhgr-main, and stage 2
+  init read all 9 tracks before showing the cassowary (~2.25s).
+  Now: dhgr-aux→stage2→dhgr-main→cassowary→bands. Stage 1 reads
+  3 tracks (DHGR aux + stage 2/lores), stage 2 reads 2 more tracks
+  (DHGR main) and immediately enters DHGR mode — visible at ~5
+  tracks (~1.25s, ~45% faster). HGR1 cassowary and HGR2 bands
+  load in the BACKGROUND while the user is looking at the
+  cassowary; both done by the time the user can react with a
+  keystroke.
+- **HGR1 cassowary now loads directly to its `$A000` stash
+  location**, eliminating the boot-time `$2000`→`$A000` memcpy.
+
+### Fixed
+- **`enter_dhgr` was clobbering X.** `copy_block` (called by
+  `enter_dhgr`) used X as its 32-page counter, leaving X=0 on
+  return. With the new background-load phase needing X=$60 (slot 6
+  << 4) for indexed disk-controller soft-switch reads, this caused
+  the next `lda $C087,x` head-step to read the wrong address —
+  head never moved, RWTS spun forever in `chk_w` waiting for a
+  non-existent disk byte. The previous flow happened to call
+  `enter_dhgr` AFTER all disk I/O was done so the bug was latent.
+  Stage 2 now reloads `ldx #$60` after `enter_dhgr` and before
+  resuming disk I/O; documented in a new comment.
+
+### Tests
+- Demo test cycle budget shrunk from 60M to 10M cycles
+  (~9.8 sec emulated vs ~58 sec). Test runtime dropped from
+  ~9s to <1s. Full suite now ~93s instead of ~180s.
+
 ## [1.3.652] — 2026-05-14 — DHGR cassowary matches HGR framing + title
 
 ### Changed (demo)

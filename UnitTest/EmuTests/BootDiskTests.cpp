@@ -61,7 +61,7 @@ namespace
     static constexpr Word    kBootEntry           = 0xC600;
     static constexpr Word    kDemoEntry           = 0x0801;
     static constexpr Word    kStage2Entry         = 0x1000;
-    static constexpr uint64_t  kDemoCycleBudget   = 60'000'000ULL;
+    static constexpr uint64_t  kDemoCycleBudget   = 10'000'000ULL;  // 10M cycles ≈ 9.8 sec emulated; ample for 9 disk tracks (~2 sec real time)
 
 
     fs::path FindRepoFile (const std::string & relPath)
@@ -193,23 +193,28 @@ public:
         // Build a 143360-byte raw .dsk image:
         //   - File offset 1..N (track 0 sector 0 minus the first byte):
         //     stage 1 boot code.
-        //   - Tracks 1+2 (file offsets $1000..$3000): 8 KB cassowary
-        //     framebuffer.
-        //   - Track 3 logical sector 0 (file offset $3000): stage 2
-        //     code (lands at $1000).
-        //     Track 3 logical sectors 1..4 (file offsets via LtoP):
-        //     1 KB LoRes test pattern (lands at $1100-$14FF, then
-        //     gets memcpy'd into text page 1 when stage 2 cycles
-        //     into LoRes mode).
-        //   - Tracks 4+5 (file offsets $4000..$6000): 8 KB HGR test
-        //     bands (mode 1 of the cycle).
-        //   - Tracks 6+7 (file offsets $6000..$8000): 8 KB DHGR aux
-        //     pattern (loaded into aux $2000-$3FFF via RAMWRT during
-        //     stage 2 init).
-        //   - Tracks 8+9 (file offsets $8000..$A000): 8 KB DHGR main
-        //     pattern (loaded into main $2000-$3FFF when stage 2
-        //     cycles into DHGR mode -- overwrites cassowary, which
-        //     is one-way OK for this demo).
+        //   - Tracks 1+2: 8 KB DHGR aux pattern (loaded by stage 1
+        //     into main $6000-$7FFF, then copied to aux $2000 by
+        //     enter_dhgr).
+        //   - Track 3 logical sector 0: stage 2 code (lands at $1000).
+        //     Track 3 logical sectors 1..4: 1 KB LoRes test pattern
+        //     (lands at $1100-$14FF, copied into text page 1 in
+        //     mode_lores).
+        //   - Tracks 4+5: 8 KB DHGR main pattern (loaded by stage 2
+        //     init into main $8000-$9FFF, then copied to main $2000
+        //     by enter_dhgr).
+        //   - Tracks 6+7: 8 KB HGR1 cassowary (loaded by stage 2
+        //     background phase directly into its stash location at
+        //     main $A000-$BFFF; mode_hgr1 memcpys to $2000 on demand).
+        //   - Tracks 8+9: 8 KB HGR2 bands (loaded by stage 2
+        //     background phase to main $4000-$5FFF, the final HGR2
+        //     framebuffer destination).
+        //
+        //   Disk layout reorder vs prior versions: DHGR data lives on
+        //   the FIRST tracks so the demo can show DHGR after only ~5
+        //   disk reads instead of waiting for all 9. HGR1+HGR2 load
+        //   in the background after first frame is up.
+        //
         //   The HGR payloads use the DOS 3.3 logical-to-physical
         //   interleave so that when our RWTS reads logical sector S
         //   of track T it gets exactly payload[((T-startTrack)*16+S)*256..].
@@ -276,10 +281,10 @@ public:
             }
         };
 
-        StitchPayload (1, hgrPayload);            // tracks 1+2 -> cassowary @ $2000
-        StitchPayload (4, bandsPayload);          // tracks 4+5 -> HGR bands @ $4000
-        StitchPayload (6, dhgrAuxPayload);        // tracks 6+7 -> DHGR aux @ $6000 (staged)
-        StitchPayload (8, dhgrMainPayload);       // tracks 8+9 -> DHGR main @ $8000 (staged)
+        StitchPayload (1, dhgrAuxPayload);        // tracks 1+2 -> DHGR aux @ main $6000
+        StitchPayload (4, dhgrMainPayload);       // tracks 4+5 -> DHGR main @ main $8000
+        StitchPayload (6, hgrPayload);            // tracks 6+7 -> HGR1 cassowary @ main $A000
+        StitchPayload (8, bandsPayload);          // tracks 8+9 -> HGR2 bands @ main $4000
 
         HeadlessHost  host;
         EmulatorCore  core;

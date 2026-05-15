@@ -13,24 +13,28 @@
 ;
 ;  Stage 2:
 ;
-;    Init phase:
-;      1. Loads tracks 4+5 into main $4000-$5FFF (HGR test bands for
-;         the HGR2 mode of the cycle).
-;      2. Loads tracks 6+7 into main $6000-$7FFF (DHGR aux pattern,
-;         staged in main RAM because stage 1's RWTS uses pages
-;         $02-$03 as a scratch buffer that conflicts with reading
-;         under RAMWRT-on; see enter_dhgr below for the toggle).
-;      3. Loads tracks 8+9 into main $8000-$9FFF (DHGR main pattern,
-;         staged for the same reason).
-;      4. Stashes the HGR1 cassowary (which stage 1 loaded at main
-;         $2000-$3FFF) to main $A000-$BFFF so that mode_hgr1 can
-;         restore it after DHGR mode clobbers main $2000.
-;      5. Calls enter_dhgr to display the DHGR cassowary as mode 0.
+;    Init phase (fast path to first frame):
+;      1. Loads tracks 4+5 into main $8000-$9FFF (DHGR main pattern,
+;         the second half of the DHGR framebuffer; stage 1 already
+;         loaded the aux half to $6000 before jumping here).
+;      2. Calls enter_dhgr to copy main $8000 -> main $2000 and main
+;         $6000 -> aux $2000 (RAMWRT-toggled), then enables the //e
+;         DHGR display switches. THE CASSOWARY IS NOW VISIBLE — total
+;         time from boot is roughly 5 disk tracks (~1.25s).
+;
+;    Background load (continues after first frame):
+;      3. Loads tracks 6+7 into main $A000-$BFFF (HGR1 cassowary,
+;         loaded directly to its stash location — mode_hgr1 just
+;         memcpys $A000 -> $2000 on demand).
+;      4. Loads tracks 8+9 into main $4000-$5FFF (HGR2 bands, at
+;         their final destination).
 ;
 ;    Polling loop:
 ;      Each keystroke advances the mode by 1. ESC ($9B) exits to
 ;      BASIC at any time. Past the last mode (LoRes), next keystroke
-;      also exits.
+;      also exits. The user can't get a keystroke in fast enough to
+;      beat the background loads — by the time they react to seeing
+;      DHGR, all 9 disk reads have completed.
 ;
 ;      Modes:
 ;        0 = DHGR: 16-color cassowary on aux+main $2000-$3FFF
@@ -82,37 +86,43 @@ DST_PTR   = $4A            ; ($4A),y indirect-indexed dest pointer
 
 
 start
-    ; --- Init: load HGR2 bands into main $4000-$5FFF -----------------------
-    lda #$40
+    ; --- Init: load DHGR main pattern into main $8000-$9FFF (staged) ------
+    ; Stage 1 already loaded the DHGR aux pattern to main $6000 and the
+    ; head is at track 3. Two more disk reads (tracks 4+5) and we have
+    ; everything we need for first-frame DHGR.
+    lda #$80
     jsr S1_LOAD_B          ; tracks 3 -> 4 (odd->even)
-    lda #$50
+    lda #$90
     jsr S1_LOAD_A          ; tracks 4 -> 5 (even->odd)
 
-    ; --- Init: load DHGR aux pattern into main $6000-$7FFF (staged) -------
-    lda #$60
-    jsr S1_LOAD_B          ; tracks 5 -> 6
-    lda #$70
-    jsr S1_LOAD_A          ; tracks 6 -> 7
-
-    ; --- Init: load DHGR main pattern into main $8000-$9FFF (staged) ------
-    lda #$80
-    jsr S1_LOAD_B          ; tracks 7 -> 8
-    lda #$90
-    jsr S1_LOAD_A          ; tracks 8 -> 9
-
-    ; --- Init: stash a copy of the HGR1 cassowary at main $A000-$BFFF ----
-    ; Stage 1 already loaded cassowary to $2000. We need it stowed
-    ; somewhere safe because mode 0 is now DHGR — which copies
-    ; main $8000 -> main $2000, clobbering the original cassowary.
-    ; Mode 1 (HGR1) re-copies $A000 -> $2000 to bring it back.
-    ldx #$20
-    ldy #$A0
-    jsr copy_block
-
-    ; --- Init: enter mode 0 (DHGR cassowary) -------------------------------
+    ; --- Init: enter DHGR (mode 0 — visible NOW) --------------------------
+    ; Total time to first frame: ~5 disk tracks at ~250ms each =
+    ; roughly 1.25s. With the original ordering (load HGR1, HGR2,
+    ; DHGR-aux, DHGR-main, then enter_dhgr) it was ~9 tracks (~2.25s).
     lda #0
     sta MODE
     jsr enter_dhgr
+
+    ; enter_dhgr -> copy_block clobbers X, but stage 1's load_a/load_b
+    ; need X=$60 (slot 6 << 4) for the indexed soft-switch reads
+    ; into the disk controller. Restore it before resuming disk I/O.
+    ldx #$60
+
+    ; --- Background: load HGR1 cassowary directly to its stash location ---
+    ; Mode 1 (HGR1) restores cassowary by copying $A000 -> $2000, so we
+    ; can land the disk read straight there and skip a memcpy. This
+    ; happens AFTER first frame so the user sees the DHGR cassowary
+    ; while we keep loading.
+    lda #$A0
+    jsr S1_LOAD_B          ; tracks 5 -> 6
+    lda #$B0
+    jsr S1_LOAD_A          ; tracks 6 -> 7
+
+    ; --- Background: load HGR2 bands at their final destination $4000 -----
+    lda #$40
+    jsr S1_LOAD_B          ; tracks 7 -> 8
+    lda #$50
+    jsr S1_LOAD_A          ; tracks 8 -> 9
 
 poll
     lda KBD
