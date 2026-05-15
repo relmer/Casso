@@ -84,17 +84,40 @@ jobs:
           "tag=$tag"         | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           Write-Host "Version: $version  Tag: $tag"
 
-      - name: Skip if release already exists
+      - name: Skip if release or tag already exists
         id: check
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $tag = '${{ steps.ver.outputs.tag }}'
+
+          # Two ways the release path can be a no-op:
+          #   (a) the release itself exists -- another run already
+          #       published it.
+          #   (b) the release doesn't exist but the tag does -- a
+          #       previous `gh release create` raced and created the
+          #       tag before failing (e.g. a force-push amend, or two
+          #       simultaneous master pushes with the same Version.h).
+          #       Re-running `gh release create` would just fail with
+          #       "tag already exists" again.
+          # Skip in both cases. If the tag-without-release state is
+          # ever real (someone manually deleted a release), recover
+          # by deleting the orphan tag and re-pushing.
+          $releaseExists = $false
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
-          $rc = $LASTEXITCODE
-          if ($rc -eq 0) {
+          if ($LASTEXITCODE -eq 0) { $releaseExists = $true }
+
+          $tagExists = $false
+          gh api "repos/$env:GITHUB_REPOSITORY/git/refs/tags/$tag" *> $null
+          if ($LASTEXITCODE -eq 0) { $tagExists = $true }
+
+          if ($releaseExists) {
             Write-Host "Release $tag already exists -- skipping."
+            "exists=true"  | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          } elseif ($tagExists) {
+            Write-Host "Tag $tag exists without a matching release " `
+                       "(probably an orphan from a prior race) -- skipping."
             "exists=true"  | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           } else {
             Write-Host "Release $tag does not exist -- will publish."
