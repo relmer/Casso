@@ -6,6 +6,50 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.640] — 2026-05-14 — DHGR mode joins the demo cycle
+
+### Added (demo)
+- **Mode 3: DHGR** — 16-color test bars rendered through the //e
+  Double Hi-Res pipeline (560x192 monochrome / 140x192 in 16
+  colors, aux+main interleaved at $2000-$3FFF). Cycles cleanly
+  from LoRes via any keystroke. Adds 16 KB of new payload to the
+  demo disk: tracks 6+7 hold the DHGR aux pattern (8 KB) staged
+  to main $6000-$7FFF, tracks 8+9 hold the DHGR main pattern
+  (8 KB) staged to main $8000-$9FFF.
+- **Demo exit now goes through the //e reset vector** (`JMP
+  ($FFFC)`) instead of jumping directly to `$E000`. The reset
+  handler does the full power-on cleanup so any mode of the
+  cycle can land on a vanilla BASIC prompt — important now that
+  the cycle includes DHGR (which leaves 80STORE / 80COL / DHIRES
+  on, and Applesoft cold start at `$E000` doesn't tolerate that
+  state and ends up executing video memory).
+
+### How the DHGR-from-disk technique works
+- Stage 1's RWTS uses pages `$02-$03` as a 6-and-2 secondary-nibble
+  scratch buffer. Loading directly to aux RAM via that RWTS
+  doesn't work because RAMWRT-on routes the scratch writes to
+  aux while the readbacks still fetch from main, scrambling
+  the GCR decode.
+- The fix is a **two-step staged load**: read the DHGR aux bytes
+  into a main-RAM scratch area (no soft-switch wrangling, RWTS
+  works normally), then memcpy into aux $2000 with RAMWRT
+  toggled around just the copy loop. The copy uses indirect-
+  indexed `(zp),y` so the page-counter increments live in zero
+  page, which is ALTZP-routed (always main with ALTZP off) and
+  unaffected by RAMWRT. Self-modifying-code variants would
+  break here because `inc`'s writeback would land in aux,
+  corrupting the running code.
+- Stage 2 grew from 125 to 232 bytes (still in one sector); the
+  new `copy_block` subroutine is 29 bytes and is reusable for any
+  future feature that needs to populate aux RAM from disk.
+
+### Added (tooling)
+- **`scripts/DhgrBarsGen.py`** — generates the 16-color DHGR test
+  pattern (8 KB aux + 8 KB main) by walking the 560-dot row,
+  picking each 4-dot group's color from the bar containing the
+  group's center dot, and packing nibbles LSB-first into the
+  aux/main interleaved byte stream.
+
 ## [1.3.632] — 2026-05-14 — Loosen perf-stability tolerance for hosted CI runners
 
 ### Changed (tests)

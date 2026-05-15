@@ -114,14 +114,18 @@ public:
         fs::path  hgrPath       = FindRepoFile ("Apple2/Demos/cassowary.hgr");
         fs::path  bandsPath     = FindRepoFile ("Apple2/Demos/test-bands.hgr");
         fs::path  loresPath     = FindRepoFile ("Apple2/Demos/lores-bars.lores");
+        fs::path  dhgrAuxPath   = FindRepoFile ("Apple2/Demos/dhgr-bars-aux.bin");
+        fs::path  dhgrMainPath  = FindRepoFile ("Apple2/Demos/dhgr-bars-main.bin");
 
         if (src.empty () || stage2Src.empty () ||
             hgrPath.empty () || bandsPath.empty () ||
-            loresPath.empty ())
+            loresPath.empty () ||
+            dhgrAuxPath.empty () || dhgrMainPath.empty ())
         {
             Logger::WriteMessage ("SKIPPED: one or more demo-disk source "
                                   "files (casso-rocks*.a65, cassowary.hgr, "
-                                  "test-bands.hgr, lores-bars.lores) not "
+                                  "test-bands.hgr, lores-bars.lores, "
+                                  "dhgr-bars-{aux,main}.bin) not "
                                   "found in this checkout.\n");
             return;
         }
@@ -132,15 +136,21 @@ public:
         Assert::IsFalse (stage2Source.empty (),
             L"casso-rocks-stage2.a65 must not be empty");
 
-        std::vector<Byte>  hgrPayload   = ReadFileBytes (hgrPath);
-        std::vector<Byte>  bandsPayload = ReadFileBytes (bandsPath);
-        std::vector<Byte>  loresPayload = ReadFileBytes (loresPath);
+        std::vector<Byte>  hgrPayload      = ReadFileBytes (hgrPath);
+        std::vector<Byte>  bandsPayload    = ReadFileBytes (bandsPath);
+        std::vector<Byte>  loresPayload    = ReadFileBytes (loresPath);
+        std::vector<Byte>  dhgrAuxPayload  = ReadFileBytes (dhgrAuxPath);
+        std::vector<Byte>  dhgrMainPayload = ReadFileBytes (dhgrMainPath);
         Assert::AreEqual (kHgrPayloadSize, hgrPayload.size (),
             L"cassowary.hgr must be exactly 8192 bytes");
         Assert::AreEqual (kHgrPayloadSize, bandsPayload.size (),
             L"test-bands.hgr must be exactly 8192 bytes");
         Assert::AreEqual (kLoresPayloadSize, loresPayload.size (),
             L"lores-bars.lores must be exactly 1024 bytes");
+        Assert::AreEqual (kHgrPayloadSize, dhgrAuxPayload.size (),
+            L"dhgr-bars-aux.bin must be exactly 8192 bytes");
+        Assert::AreEqual (kHgrPayloadSize, dhgrMainPayload.size (),
+            L"dhgr-bars-main.bin must be exactly 8192 bytes");
 
         Cpu             cpu;
         Assembler       assembler (cpu.GetInstructionSet ());
@@ -266,8 +276,10 @@ public:
             }
         };
 
-        StitchPayload (1, hgrPayload);       // tracks 1+2 -> cassowary @ $2000
-        StitchPayload (4, bandsPayload);     // tracks 4+5 -> HGR bands @ $4000
+        StitchPayload (1, hgrPayload);            // tracks 1+2 -> cassowary @ $2000
+        StitchPayload (4, bandsPayload);          // tracks 4+5 -> HGR bands @ $4000
+        StitchPayload (6, dhgrAuxPayload);        // tracks 6+7 -> DHGR aux @ $6000 (staged)
+        StitchPayload (8, dhgrMainPayload);       // tracks 8+9 -> DHGR main @ $8000 (staged)
 
         HeadlessHost  host;
         EmulatorCore  core;
@@ -355,7 +367,12 @@ public:
         VerifyPage (0x2000, hgrPayload,   L"HGR page 1 (cassowary)");
         VerifyPage (0x4000, bandsPayload, L"HGR page 2 (test bands)");
 
-        // ----- Cycle through the 3 display modes with keystrokes -----
+        // Verify the staged DHGR scratch tracks landed in main RAM. These
+        // are read by stage 2's init phase before any keystroke.
+        VerifyPage (0x6000, dhgrAuxPayload,  L"DHGR aux scratch (main $6000)");
+        VerifyPage (0x8000, dhgrMainPayload, L"DHGR main scratch (main $8000)");
+
+        // ----- Cycle through the 4 display modes with keystrokes -----
         Assert::IsNotNull (core.keyboard.get (), L"AppleKeyboard must be present");
 
         // Keystroke 1 -> mode 1 (HGR2 bands).
@@ -394,7 +411,64 @@ public:
             }
         }
 
-        // Keystroke 3 -> past last mode -> JMP $E000 (Applesoft cold start).
+        // Keystroke 3 -> mode 3 (DHGR). Copies main $8000 -> main $2000
+        // (clobbers cassowary), and main $6000 -> aux $2000 with
+        // RAMWRT toggled around the second copy. DHGR soft switches:
+        // 80STORE on, DHIRES (AN3) on, 80COL on, TEXT off, HIRES on.
+        core.keyboard->KeyPressRaw (' ');
+        core.RunCycles (300'000ULL);
+        Assert::IsTrue (ss->IsHiresMode (),
+            L"Mode 3 must enable HIRES");
+        Assert::IsTrue (ss->IsGraphicsMode (),
+            L"Mode 3 must keep TEXT off");
+        Assert::IsFalse (ss->IsPage2 (),
+            L"Mode 3 must select PAGE1");
+
+        // The DHGR main half should now be sitting at main $2000 (copied
+        // from main $8000). Verify the copy.
+        VerifyPage (0x2000, dhgrMainPayload, L"DHGR main half (main $2000)");
+
+        // The DHGR aux half should be at aux $2000 (copied from main
+        // $6000 with RAMWRT toggled). Read it back through the MMU's
+        // aux buffer.
+        Byte *  auxBuf = core.mmu->GetAuxBuffer ();
+        Assert::IsNotNull (auxBuf, L"MMU aux buffer must be available");
+
+        size_t  auxMismatch = 0;
+        size_t  firstAuxMismatch = 0;
+        Byte    expectedAtAuxMismatch = 0;
+        Byte    actualAtAuxMismatch = 0;
+        for (size_t i = 0; i < kHgrPayloadSize; i++)
+        {
+            Byte  e = dhgrAuxPayload[i];
+            Byte  a = auxBuf[0x2000 + i];
+            if (a != e)
+            {
+                if (auxMismatch == 0)
+                {
+                    firstAuxMismatch       = i;
+                    expectedAtAuxMismatch  = e;
+                    actualAtAuxMismatch    = a;
+                }
+                auxMismatch++;
+            }
+        }
+
+        if (auxMismatch != 0)
+        {
+            wchar_t  msg[256] = {};
+            swprintf_s (msg, L"DHGR aux half mismatch: %zu of %zu bytes "
+                             L"differ at aux $2000+. First at $%04X: "
+                             L"expected $%02X, got $%02X.",
+                        auxMismatch,
+                        kHgrPayloadSize,
+                        static_cast<unsigned> (0x2000 + firstAuxMismatch),
+                        static_cast<unsigned> (expectedAtAuxMismatch),
+                        static_cast<unsigned> (actualAtAuxMismatch));
+            Assert::Fail (msg);
+        }
+
+        // Keystroke 4 -> past last mode -> JMP $E000 (Applesoft cold start).
         core.keyboard->KeyPressRaw (' ');
         core.RunCycles (50'000ULL);
         // Cold start runs through a bunch of ROM init before reaching the

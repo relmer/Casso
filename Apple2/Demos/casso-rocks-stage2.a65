@@ -16,18 +16,30 @@
 ;    Init phase:
 ;      1. Loads tracks 4+5 into main $4000-$5FFF (HGR test bands for
 ;         the HGR2 mode of the cycle).
-;      2. Flips TXTOFF + HIRESON + PG2OFF so the cassowary becomes
+;      2. Loads tracks 6+7 into main $6000-$7FFF (DHGR aux pattern,
+;         staged in main RAM because stage 1's RWTS uses pages
+;         $02-$03 as a scratch buffer that conflicts with reading
+;         under RAMWRT-on; see mode_dhgr below for the toggle).
+;      3. Loads tracks 8+9 into main $8000-$9FFF (DHGR main pattern,
+;         staged for the same reason — also lets cassowary stay
+;         resident at main $2000 until the user actually cycles
+;         into DHGR).
+;      4. Flips TXTOFF + HIRESON + PG2OFF so the cassowary becomes
 ;         visible. This is mode 0 of the cycle.
 ;
 ;    Polling loop:
 ;      Each keystroke advances the mode by 1. ESC ($9B) exits to
-;      Applesoft cold start at any time. Past the last mode (LoRes),
+;      Applesoft cold start at any time. Past the last mode (DHGR),
 ;      next keystroke also exits.
 ;
 ;      Modes:
 ;        0 = HGR1: cassowary on main page 1 ($2000-$3FFF)
 ;        1 = HGR2: 6-color bands on main page 2 ($4000-$5FFF)
 ;        2 = LoRes (GR): 16-color bars on text page 1 ($0400-$07FF)
+;        3 = DHGR: 16-color bars on aux+main $2000-$3FFF (one-way;
+;            clobbers the cassowary in main $2000 — getting back to
+;            HGR1 would mean another disk read which the demo
+;            doesn't bother with).
 ;
 ;    Exit:
 ;      JMP $E000 lands at the //e Applesoft cold start (gives the
@@ -36,20 +48,19 @@
 ;  Stage 2 calls back into stage 1's still-resident subroutines via
 ;  hard-coded entry-point addresses (stage 1 lives at $0801-$08FF).
 ;  Both files must be edited in lockstep if either is moved.
-;
-;  DHGR is not (yet) part of the cycle: the //e RWTS in stage 1 uses
-;  pages $02-$03 as a secondary-nibble scratch buffer, which conflicts
-;  with running disk reads under RAMWRT-on (so we can't load aux RAM
-;  directly via the RWTS). A future revision could add DHGR by loading
-;  the aux pattern into main $6000-$7FFF and then memcpy'ing it to aux
-;  RAM with RAMWRT toggled around the copy only.
 ; ============================================================================
 
     .org $1000
 
 ; -- I/O & soft switches ----------------------------------------------------
 KBD       = $C000          ; keyboard data + strobe (bit 7)
+STORE80OFF= $C000          ; same address as KBD; 80STORE off (write-only)
 STROBE    = $C010          ; clear keyboard strobe (any access)
+STORE80ON = $C001          ; PAGE2 routes to aux when set
+COL80OFF  = $C00C          ; 40-column text mode
+COL80ON   = $C00D          ; 80-column text mode on
+RAMWRTOFF = $C004          ; writes go to main
+RAMWRTON  = $C005          ; writes go to aux
 TXTOFF    = $C050
 TXTON     = $C051
 MIXOFF    = $C052
@@ -57,13 +68,17 @@ PG2OFF    = $C054
 PG2ON     = $C055
 HIRESOFF  = $C056
 HIRESON   = $C057
+DHIRESON  = $C05E          ; DHIRES on  (with COL80ON+STORE80ON+HIRES)
+DHIRESOFF = $C05F          ; DHIRES off (back to normal HGR)
 
 ; -- Stage 1 entry points (must match casso-rocks.a65 exactly) -------------
 S1_LOAD_A    = $0817       ; sta DBASE / step head a / jmp read_track
 S1_LOAD_B    = $0828       ; sta DBASE / step head b / jmp read_track
 
 ; -- Zero page ---------------------------------------------------
-MODE      = $46            ; current display mode (0..2)
+MODE      = $46            ; current display mode (0..3)
+SRC_PTR   = $48            ; ($48),y indirect-indexed source pointer
+DST_PTR   = $4A            ; ($4A),y indirect-indexed dest pointer
 
 
 start
@@ -72,6 +87,18 @@ start
     jsr S1_LOAD_B          ; tracks 3 -> 4 (odd->even)
     lda #$50
     jsr S1_LOAD_A          ; tracks 4 -> 5 (even->odd)
+
+    ; --- Init: load DHGR aux pattern into main $6000-$7FFF (staged) -------
+    lda #$60
+    jsr S1_LOAD_B          ; tracks 5 -> 6
+    lda #$70
+    jsr S1_LOAD_A          ; tracks 6 -> 7
+
+    ; --- Init: load DHGR main pattern into main $8000-$9FFF (staged) ------
+    lda #$80
+    jsr S1_LOAD_B          ; tracks 7 -> 8
+    lda #$90
+    jsr S1_LOAD_A          ; tracks 8 -> 9
 
     ; --- Init: show HGR1 cassowary (mode 0) --------------------------------
     bit TXTOFF
@@ -94,20 +121,22 @@ poll
     beq mode_hgr2
     cmp #2
     beq mode_lores
-    ; fall through (past mode 2) -> exit
+    cmp #3
+    beq mode_dhgr
+    ; fall through (past mode 3) -> exit
 
 do_exit
-    ; Drop to Applesoft (`]` prompt). $E000 is the Applesoft cold-start
-    ; entry point but doesn't reset the video soft switches OR clear
-    ; the text screen, so:
-    ;   1. Flip back to TEXT (and clear HIRES/PAGE2 for good measure).
-    ;   2. Stamp text page 1 with spaces ($A0) to wipe whatever LoRes
-    ;      pattern is still resident from mode 2 -- otherwise BASIC's
-    ;      cold start cuts a window on top of garbage.
-    ;   3. JMP $E000.
-    bit TXTON
-    bit PG2OFF
-    bit HIRESOFF
+    ; Drop to BASIC via the official //e reset vector. Going through
+    ; ($FFFC) lets the ROM's reset handler do the full power-on
+    ; cleanup (sets TEXT, PAGE1, HIRESOFF, MIXOFF, 80COL/80STORE/
+    ; DHIRES off, restores zero-page pointers, etc.) before landing
+    ; in Applesoft. That's much more robust than jumping straight
+    ; to $E000, which assumes a vanilla soft-switch state and gets
+    ; very confused if 80STORE / DHIRES are still flipped from a
+    ; preceding DHGR mode.
+    ;
+    ; Stamp text page 1 with spaces ($A0) first so the leftover LoRes
+    ; pattern doesn't briefly flash before the reset clears it.
     ldx #0
     lda #$A0
 clear_text
@@ -117,7 +146,7 @@ clear_text
     sta $0700,x
     inx
     bne clear_text
-    jmp $E000              ; Applesoft cold start
+    jmp ($FFFC)            ; reset vector -> //e RESET.MGR -> Applesoft
 
 
 mode_hgr2
@@ -147,3 +176,71 @@ copy_lo
     inx
     bne copy_lo
     jmp poll
+
+
+mode_dhgr
+    ; DHGR: 16-color bars on aux+main $2000-$3FFF.
+    ;
+    ; Copy main $8000-$9FFF -> main $2000-$3FFF (clobbers cassowary).
+    ; This is the "main" half of the DHGR framebuffer.
+    ldx #$80
+    ldy #$20
+    jsr copy_block
+
+    ; Copy main $6000-$7FFF -> aux $2000-$3FFF with RAMWRT on so the
+    ; stores route to aux. copy_block uses (zp),y indirect-indexed
+    ; addressing for both lda and sta, plus inc on zp pointers — all
+    ; of which read/write through the zero page (ALTZP-routed, not
+    ; RAMWRT-routed). With ALTZP off (our default), zp stays in main,
+    ; so RAMWRT-on cleanly affects only the dest writes through
+    ; (DST_PTR),y, exactly what we want.
+    sta RAMWRTON
+    ldx #$60
+    ldy #$20
+    jsr copy_block
+    sta RAMWRTOFF
+
+    ; Enable DHGR display: 80STORE on, AN3/DHIRES on, 80COL on,
+    ; TEXT off, HIRES on, PAGE1. The order matters less than just
+    ; making sure all four required switches are set before HIRES.
+    sta STORE80ON
+    sta DHIRESON
+    sta COL80ON
+    bit TXTOFF
+    bit HIRESON
+    bit PG2OFF             ; PAGE1 (with 80STORE on, this also routes
+                           ; main HGR1 reads to main; aux is fetched
+                           ; via the DHGR scanner regardless)
+    jmp poll
+
+
+; ----------------------------------------------------------------------------
+; copy_block — copy 8 KB (32 pages) from main:src to (main or aux):dst.
+;              Caller sets X = src high byte, Y = dst high byte, and toggles
+;              RAMWRT before/after the call when an aux dest is needed.
+;
+;              Uses (SRC_PTR),y / (DST_PTR),y so all addressing — including
+;              the page-counter increment — flows through zp, which under
+;              ALTZP=off is always main RAM and so unaffected by RAMWRT.
+;              Self-modifying-code variants would break here because RAMWRT
+;              routes the inc's writeback to aux, breaking the running code.
+; ----------------------------------------------------------------------------
+copy_block
+    stx SRC_PTR+1
+    sty DST_PTR+1
+    lda #0
+    sta SRC_PTR
+    sta DST_PTR
+    ldx #32                ; 32 pages = 8 KB
+copy_block_page
+    ldy #0
+copy_block_byte
+    lda (SRC_PTR),y
+    sta (DST_PTR),y
+    iny
+    bne copy_block_byte
+    inc SRC_PTR+1
+    inc DST_PTR+1
+    dex
+    bne copy_block_page
+    rts
