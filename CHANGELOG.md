@@ -6,6 +6,63 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.651] — 2026-05-14 — Demo cycle reorder, DHGR aspect, exit garbage, amber mono
+
+### Changed (demo)
+- **DHGR cassowary is now mode 0** — first thing you see at boot,
+  in glorious 16-color dithered double-hi-res. Cycle order:
+  DHGR → HGR1 → HGR2 → LoRes → exit. Stage 2 init now stashes the
+  HGR1 cassowary at main `$A000` so mode 1 can restore it after
+  DHGR's `$2000` clobber.
+- **DHGR cassowary aspect ratio fixed.** The image was previously
+  squashed horizontally because the source photo (880×1600
+  portrait) was force-resized to 140×192 without aspect
+  correction. Now uses `ImageOps.fit` to centre-crop to the
+  display's 4:3 aspect first (560:384, what the renderer
+  actually shows), then resamples to 140×192.
+
+### Fixed
+- **Amber Monochrome mode now actually shows amber, not blue.**
+  After the framebuffer-format switch from RGBA to BGRA, the
+  monochrome-tint code in `EmulatorShell::RenderFramebuffer`
+  was reading R/G/B from the wrong byte positions AND
+  reconstructing in the wrong order, so amber's `(L, L×0.75,
+  0)` triple landed as `B=L, G=L×0.75, R=0` — a cyan-blue
+  pixel. Refactored into `Video/MonochromeTint.h` (new pure
+  header in CassoEmuCore) so the BGRA arithmetic is now
+  unit-tested.
+- **Demo exit no longer leaves 80-col garbage on screen.** The
+  previous fix attempted to clear AUX text page 1 by toggling
+  RAMWRT, but with 80STORE on (which DHGR mode set) the writes
+  to `$0400-$07FF` were still routed by PAGE2, not RAMWRT —
+  so AUX never got cleared. `do_exit` now turns 80STORE off
+  first, then RAMWRT-toggles its way through both pages via
+  a new shared `clear_text_page1` subroutine.
+
+### Added (tests)
+- **`MonochromeTintTests`** (7 new tests). Pins the green/amber/
+  white tint helpers against the Rec.601 luma weights and BGRA
+  byte order. Suite is now 1053/1053.
+- **Demo test was rewritten for the new mode order** and now
+  also verifies the cassowary stash at main `$A000` and the
+  DHGR boot-landing state (DHGR aux at aux `$2000`, DHGR main
+  at main `$2000`).
+
+### Refactor
+- **`Video/MonochromeTint.h`** — new header in CassoEmuCore.
+  Provides `Luminance()`, `TintGreenMono()`, `TintAmberMono()`,
+  `TintWhiteMono()` as pure inline functions over the BGRA
+  pixel format. EmulatorShell now calls these instead of
+  open-coding the byte-shuffling.
+
+### Known limitations
+- HGR (single hi-res) cassowary still uses per-byte palette
+  classification with no error diffusion — looks blocky next
+  to the dithered DHGR version. A real fix would require
+  rewriting `HgrPreprocess.py` to do bit-on/bit-off Floyd-
+  Steinberg within each byte's palette-pair constraint;
+  deferred.
+
 ## [1.3.645] — 2026-05-14 — DHGR cassowary + clean exit from DHGR mode
 
 ### Added (demo)

@@ -19,31 +19,31 @@
 ;      2. Loads tracks 6+7 into main $6000-$7FFF (DHGR aux pattern,
 ;         staged in main RAM because stage 1's RWTS uses pages
 ;         $02-$03 as a scratch buffer that conflicts with reading
-;         under RAMWRT-on; see mode_dhgr below for the toggle).
+;         under RAMWRT-on; see enter_dhgr below for the toggle).
 ;      3. Loads tracks 8+9 into main $8000-$9FFF (DHGR main pattern,
-;         staged for the same reason — also lets cassowary stay
-;         resident at main $2000 until the user actually cycles
-;         into DHGR).
-;      4. Flips TXTOFF + HIRESON + PG2OFF so the cassowary becomes
-;         visible. This is mode 0 of the cycle.
+;         staged for the same reason).
+;      4. Stashes the HGR1 cassowary (which stage 1 loaded at main
+;         $2000-$3FFF) to main $A000-$BFFF so that mode_hgr1 can
+;         restore it after DHGR mode clobbers main $2000.
+;      5. Calls enter_dhgr to display the DHGR cassowary as mode 0.
 ;
 ;    Polling loop:
 ;      Each keystroke advances the mode by 1. ESC ($9B) exits to
-;      Applesoft cold start at any time. Past the last mode (DHGR),
-;      next keystroke also exits.
+;      BASIC at any time. Past the last mode (LoRes), next keystroke
+;      also exits.
 ;
 ;      Modes:
-;        0 = HGR1: cassowary on main page 1 ($2000-$3FFF)
-;        1 = HGR2: 6-color bands on main page 2 ($4000-$5FFF)
-;        2 = LoRes (GR): 16-color bars on text page 1 ($0400-$07FF)
-;        3 = DHGR: 16-color bars on aux+main $2000-$3FFF (one-way;
-;            clobbers the cassowary in main $2000 — getting back to
-;            HGR1 would mean another disk read which the demo
-;            doesn't bother with).
+;        0 = DHGR: 16-color cassowary on aux+main $2000-$3FFF
+;            (entered automatically at boot).
+;        1 = HGR1: 6-color cassowary, restored from main $A000.
+;        2 = HGR2: 6-color test bands on main page 2 ($4000-$5FFF).
+;        3 = LoRes (GR): 16-color bars on text page 1 ($0400-$07FF).
 ;
 ;    Exit:
-;      JMP $E000 lands at the //e Applesoft cold start (gives the
-;      `]` prompt).
+;      JMP ($FFFC) hands off to the //e RESET.MGR which does the
+;      vanilla power-on cleanup before entering Applesoft. We
+;      pre-clear both text pages (main and aux) ourselves because
+;      the reset handler doesn't.
 ;
 ;  Stage 2 calls back into stage 1's still-resident subroutines via
 ;  hard-coded entry-point addresses (stage 1 lives at $0801-$08FF).
@@ -100,13 +100,19 @@ start
     lda #$90
     jsr S1_LOAD_A          ; tracks 8 -> 9
 
-    ; --- Init: show HGR1 cassowary (mode 0) --------------------------------
-    bit TXTOFF
-    bit HIRESON
-    bit MIXOFF
-    bit PG2OFF
+    ; --- Init: stash a copy of the HGR1 cassowary at main $A000-$BFFF ----
+    ; Stage 1 already loaded cassowary to $2000. We need it stowed
+    ; somewhere safe because mode 0 is now DHGR — which copies
+    ; main $8000 -> main $2000, clobbering the original cassowary.
+    ; Mode 1 (HGR1) re-copies $A000 -> $2000 to bring it back.
+    ldx #$20
+    ldy #$A0
+    jsr copy_block
+
+    ; --- Init: enter mode 0 (DHGR cassowary) -------------------------------
     lda #0
     sta MODE
+    jsr enter_dhgr
 
 poll
     lda KBD
@@ -118,59 +124,80 @@ poll
     inc MODE
     lda MODE
     cmp #1
-    beq mode_hgr2
+    beq mode_hgr1
     cmp #2
-    beq mode_lores
+    beq mode_hgr2
     cmp #3
-    beq mode_dhgr
+    beq mode_lores
     ; fall through (past mode 3) -> exit
+
 
 do_exit
     ; Drop to BASIC via the official //e reset vector. Going through
-    ; ($FFFC) lets the ROM's reset handler do the full power-on
-    ; cleanup (40-col TEXT, no DHIRES, no 80STORE, etc.) before
-    ; landing in Applesoft. JMP $E000 directly turns out to be
-    ; fragile even after manual soft-switch cleanup — the cold
-    ; start path JMPs through stale work-area pointers and lands
-    ; in video memory.
+    ; ($FFFC) hands off to the //e RESET.MGR which does the full
+    ; power-on cleanup (40-col TEXT, no DHIRES, no 80STORE, etc.)
+    ; before entering Applesoft. JMP $E000 directly is fragile —
+    ; even after manual soft-switch cleanup it JMPs through stale
+    ; work-area pointers and lands in video memory.
     ;
-    ; The reset handler doesn't clear the screen, so we have to
-    ; wipe both text pages first — main holds the LoRes pattern,
-    ; aux still holds power-on PRNG noise we never touched. With
-    ; 80COL on (which the reset handler may keep depending on the
-    ; ROM revision) BASIC would otherwise show main+aux interleaved
-    ; as garbage glyphs.
-    ;
-    ; AUX clear runs under RAMWRT-on so writes route to aux $0400-
-    ; $07FF; copy_block isn't useful here because we're stamping a
-    ; constant, not memcpy'ing.
-    sta RAMWRTON
-    ldx #0
-    lda #$A0
-clear_aux_text
-    sta $0400,x
-    sta $0500,x
-    sta $0600,x
-    sta $0700,x
-    inx
-    bne clear_aux_text
-    sta RAMWRTOFF
+    ; The reset handler doesn't clear the screen, so we wipe both
+    ; text pages first. THE GOTCHA: with 80STORE on (which DHGR
+    ; mode set), writes to $0400-$07FF route by PAGE2 status, NOT
+    ; by RAMWRT. So we turn 80STORE off entirely — simpler than
+    ; juggling PAGE2, and the reset handler will sort the rest.
+    sta STORE80OFF         ; 80STORE off — RAMWRT now routes text writes
 
-    ldx #0
-    lda #$A0
-clear_main_text
-    sta $0400,x
-    sta $0500,x
-    sta $0600,x
-    sta $0700,x
-    inx
-    bne clear_main_text
+    sta RAMWRTON
+    jsr clear_text_page1
+    sta RAMWRTOFF
+    jsr clear_text_page1
 
     jmp ($FFFC)            ; reset vector -> //e RESET.MGR -> Applesoft
 
 
+; ----------------------------------------------------------------------------
+; clear_text_page1 — stamp $0400-$07FF with $A0 (space). Routing to
+;                    aux vs main is the caller's responsibility (set
+;                    RAMWRT first; only meaningful with 80STORE off).
+; ----------------------------------------------------------------------------
+clear_text_page1
+    ldx #0
+    lda #$A0
+clear_text_loop
+    sta $0400,x
+    sta $0500,x
+    sta $0600,x
+    sta $0700,x
+    inx
+    bne clear_text_loop
+    rts
+
+
+; ----------------------------------------------------------------------------
+; mode_hgr1 — restore the HGR1 cassowary. Copies the stashed cassowary
+;             from main $A000 back to main $2000 (DHGR may have clobbered
+;             it), turns off DHGR, and selects HGR PAGE1.
+; ----------------------------------------------------------------------------
+mode_hgr1
+    ; Disable DHGR-specific switches before restoring the framebuffer
+    ; so the renderer doesn't briefly try to draw HGR-as-DHGR.
+    sta STORE80OFF
+    sta COL80OFF
+    bit DHIRESOFF
+
+    ldx #$A0
+    ldy #$20
+    jsr copy_block
+
+    bit TXTOFF
+    bit HIRESON
+    bit MIXOFF
+    bit PG2OFF
+    jmp poll
+
+
 mode_hgr2
-    ; HGR + page 2 visible. HIRES is already on from mode 0; just
+    ; HGR + page 2 visible. HIRES is already on from mode 1; just
     ; flip PAGE2.
     bit PG2ON
     jmp poll
@@ -198,22 +225,23 @@ copy_lo
     jmp poll
 
 
-mode_dhgr
-    ; DHGR: 16-color bars on aux+main $2000-$3FFF.
-    ;
-    ; Copy main $8000-$9FFF -> main $2000-$3FFF (clobbers cassowary).
-    ; This is the "main" half of the DHGR framebuffer.
+; ----------------------------------------------------------------------------
+; enter_dhgr — populate aux+main $2000 from the staged DHGR scratch
+;              areas at main $8000 (main half) and main $6000 (aux half),
+;              then enable the //e DHGR display switches. Called from
+;              start (mode 0 init); not part of the cycle dispatch.
+;
+;              See copy_block below for the RAMWRT-vs-zp interaction
+;              that makes the aux copy work.
+; ----------------------------------------------------------------------------
+enter_dhgr
+    ; Copy main $8000-$9FFF -> main $2000-$3FFF (clobbers cassowary,
+    ; which is why we stashed a copy at $A000 during init).
     ldx #$80
     ldy #$20
     jsr copy_block
 
-    ; Copy main $6000-$7FFF -> aux $2000-$3FFF with RAMWRT on so the
-    ; stores route to aux. copy_block uses (zp),y indirect-indexed
-    ; addressing for both lda and sta, plus inc on zp pointers — all
-    ; of which read/write through the zero page (ALTZP-routed, not
-    ; RAMWRT-routed). With ALTZP off (our default), zp stays in main,
-    ; so RAMWRT-on cleanly affects only the dest writes through
-    ; (DST_PTR),y, exactly what we want.
+    ; Copy main $6000-$7FFF -> aux $2000-$3FFF.
     sta RAMWRTON
     ldx #$60
     ldy #$20
@@ -221,17 +249,14 @@ mode_dhgr
     sta RAMWRTOFF
 
     ; Enable DHGR display: 80STORE on, AN3/DHIRES on, 80COL on,
-    ; TEXT off, HIRES on, PAGE1. The order matters less than just
-    ; making sure all four required switches are set before HIRES.
+    ; TEXT off, HIRES on, PAGE1.
     sta STORE80ON
     sta DHIRESON
     sta COL80ON
     bit TXTOFF
     bit HIRESON
-    bit PG2OFF             ; PAGE1 (with 80STORE on, this also routes
-                           ; main HGR1 reads to main; aux is fetched
-                           ; via the DHGR scanner regardless)
-    jmp poll
+    bit PG2OFF
+    rts
 
 
 ; ----------------------------------------------------------------------------

@@ -4,6 +4,7 @@
 
 #include "Video/NtscColorTable.h"
 #include "Video/PixelFormat.h"
+#include "Video/MonochromeTint.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 using namespace Casso::Video;
@@ -157,5 +158,107 @@ public:
     {
         // RGB(255, 106, 60) — odd col, palette 1
         AssertPixelRGB (kNtscOrange, 255, 106, 60, L"kNtscOrange");
+    }
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MonochromeTintTests
+//
+//  Pins the View menu's three monochrome modes. After the framebuffer
+//  format switched from RGBA to BGRA, the tint code in EmulatorShell
+//  was reading R/G/B from the wrong byte positions AND reconstructing
+//  in the wrong order, which made Amber render as a cyan-ish blue.
+//  These tests use the helpers in Video/MonochromeTint.h, which
+//  EmulatorShell now also calls — so anyone who breaks the BGRA
+//  arithmetic again will fail here before the user sees it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (MonochromeTintTests)
+{
+public:
+
+    TEST_METHOD (Luminance_PureRed_IsRec601Weight)
+    {
+        // R=255, G=0, B=0 -> 0.299 * 255 = 76.245 -> 76
+        Assert::AreEqual (uint8_t (76),
+            Casso::Video::Luminance (Casso::Video::MakePixel (255, 0, 0)),
+            L"Pure red should yield Rec.601 luma 76");
+    }
+
+    TEST_METHOD (Luminance_PureGreen_IsRec601Weight)
+    {
+        // R=0, G=255, B=0 -> 0.587 * 255 = 149.685 -> 149
+        Assert::AreEqual (uint8_t (149),
+            Casso::Video::Luminance (Casso::Video::MakePixel (0, 255, 0)),
+            L"Pure green should yield Rec.601 luma 149");
+    }
+
+    TEST_METHOD (Luminance_PureBlue_IsRec601Weight)
+    {
+        // R=0, G=0, B=255 -> 0.114 * 255 = 29.07 -> 29
+        Assert::AreEqual (uint8_t (29),
+            Casso::Video::Luminance (Casso::Video::MakePixel (0, 0, 255)),
+            L"Pure blue should yield Rec.601 luma 29");
+    }
+
+    TEST_METHOD (TintGreenMono_OnWhite_GivesPureGreen)
+    {
+        uint32_t  out = Casso::Video::TintGreenMono (
+            Casso::Video::MakePixel (255, 255, 255));
+
+        Assert::AreEqual (uint8_t (0),   Casso::Video::ExtractR (out),
+            L"Green mono must zero R");
+        Assert::AreEqual (uint8_t (255), Casso::Video::ExtractG (out),
+            L"Green mono of white must put luma in G");
+        Assert::AreEqual (uint8_t (0),   Casso::Video::ExtractB (out),
+            L"Green mono must zero B");
+    }
+
+    TEST_METHOD (TintAmberMono_OnWhite_GivesAmber_NotBlue)
+    {
+        // Amber is R=L, G=L*0.75, B=0. The bug under the old RGBA-in-
+        // BGRA code wrote B=L instead of R=L, producing a cyan-blue
+        // pixel. This assertion would have caught that on day one.
+        uint32_t  out = Casso::Video::TintAmberMono (
+            Casso::Video::MakePixel (255, 255, 255));
+
+        Assert::AreEqual (uint8_t (255), Casso::Video::ExtractR (out),
+            L"Amber mono of white must put full luma in R "
+            L"(not B — that bug renders as blue on screen)");
+        Assert::AreEqual (uint8_t (191), Casso::Video::ExtractG (out),
+            L"Amber mono of white must put 0.75 * luma in G "
+            L"(255 * 0.75 = 191.25 -> 191)");
+        Assert::AreEqual (uint8_t (0),   Casso::Video::ExtractB (out),
+            L"Amber mono must zero B");
+    }
+
+    TEST_METHOD (TintWhiteMono_OnRed_GivesGreyWithR_EqualsLuma)
+    {
+        // Pure red (luma 76) tinted white-mono should be rgb(76,76,76).
+        uint32_t  out = Casso::Video::TintWhiteMono (
+            Casso::Video::MakePixel (255, 0, 0));
+
+        Assert::AreEqual (uint8_t (76), Casso::Video::ExtractR (out),
+            L"White mono of red should produce rgb(76,76,76)");
+        Assert::AreEqual (uint8_t (76), Casso::Video::ExtractG (out));
+        Assert::AreEqual (uint8_t (76), Casso::Video::ExtractB (out));
+    }
+
+    TEST_METHOD (TintAmberMono_OnNtscBlue_PreservesAmberHue)
+    {
+        // The pixel that used to render as a wrong color is the one
+        // that's all-blue going in. Under amber mono it should still
+        // come out amber-tinted, not stay blue.
+        uint32_t  out = Casso::Video::TintAmberMono (kNtscBlue);
+        Assert::IsTrue (Casso::Video::ExtractR (out) > 0,
+            L"Amber tint of any input must have R > 0 (no all-blue output)");
+        Assert::AreEqual (uint8_t (0), Casso::Video::ExtractB (out),
+            L"Amber tint must always produce B = 0");
     }
 };

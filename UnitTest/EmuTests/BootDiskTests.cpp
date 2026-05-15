@@ -303,27 +303,31 @@ public:
 
         core.RunCycles (kDemoCycleBudget);
 
-        // ----- Verify HGR1 soft-switch state -----
+        // ----- Verify boot landing soft-switch state (mode 0 = DHGR) -----
         AppleIIeSoftSwitchBank *  ss = core.softSwitches.get ();
 
         Assert::IsNotNull (ss, L"AppleIIeSoftSwitchBank must be present");
         Assert::IsTrue (ss->IsGraphicsMode (),
             L"Demo must leave the //e in graphics mode (TEXT off)");
         Assert::IsFalse (ss->IsMixedMode (),
-            L"Demo must leave MIXED off (full-screen HGR)");
+            L"Demo must leave MIXED off (full-screen graphics)");
         Assert::IsFalse (ss->IsPage2 (),
-            L"Demo must leave PAGE2 off (HGR page 1 visible) before any keystroke");
+            L"Mode 0 (DHGR) must select PAGE1 before any keystroke");
         Assert::IsTrue (ss->IsHiresMode (),
-            L"Demo must leave HIRES on");
+            L"Mode 0 (DHGR) must enable HIRES");
 
-        // ----- Verify HGR framebuffer contents (page 1 + page 2) -----
-        // The 6502 RWTS reads 256 bytes per sector and stores them via
-        // ($26),Y. Compare every byte against the source payload so any
-        // single-bit error in seek / address-mark scan / 6+2 expansion
-        // surfaces immediately.
-        auto VerifyPage = [&] (Word baseAddr,
-                               const std::vector<Byte> & expected,
-                               const wchar_t * label)
+        // ----- Verify framebuffer contents at boot landing -----
+        // Stage 2 init reads HGR2 bands -> $4000, DHGR aux scratch
+        // -> $6000, DHGR main scratch -> $8000, then memcpys
+        // cassowary $2000 -> $A000 (stash), then enters DHGR mode
+        // (which copies $8000 -> $2000 main and $6000 -> $2000 aux).
+        // So at boot landing: $2000=DHGR main half, $4000=bands,
+        // $6000=DHGR aux scratch (still resident), $8000=DHGR main
+        // scratch (still resident), $A000=stashed cassowary, and
+        // aux $2000 = DHGR aux half.
+        auto VerifyMemRange = [&] (Word baseAddr,
+                                   const std::vector<Byte> & expected,
+                                   const wchar_t * label)
         {
             size_t  mismatchCount      = 0;
             size_t  firstMismatch      = 0;
@@ -351,7 +355,7 @@ public:
             if (mismatchCount != 0)
             {
                 wchar_t  msg[256] = {};
-                swprintf_s (msg, L"%ls framebuffer mismatch: %zu of %zu bytes "
+                swprintf_s (msg, L"%ls memory mismatch: %zu of %zu bytes "
                                  L"differ. First at $%04X: expected $%02X, "
                                  L"got $%02X.",
                             label,
@@ -364,34 +368,62 @@ public:
             }
         };
 
-        VerifyPage (0x2000, hgrPayload,   L"HGR page 1 (cassowary)");
-        VerifyPage (0x4000, bandsPayload, L"HGR page 2 (test bands)");
+        VerifyMemRange (0x2000, dhgrMainPayload,
+            L"DHGR main half at boot landing (main $2000)");
+        VerifyMemRange (0x4000, bandsPayload,
+            L"HGR2 bands (main $4000)");
+        VerifyMemRange (0x6000, dhgrAuxPayload,
+            L"DHGR aux scratch (main $6000)");
+        VerifyMemRange (0x8000, dhgrMainPayload,
+            L"DHGR main scratch (main $8000)");
+        VerifyMemRange (0xA000, hgrPayload,
+            L"Stashed HGR1 cassowary (main $A000)");
 
-        // Verify the staged DHGR scratch tracks landed in main RAM. These
-        // are read by stage 2's init phase before any keystroke.
-        VerifyPage (0x6000, dhgrAuxPayload,  L"DHGR aux scratch (main $6000)");
-        VerifyPage (0x8000, dhgrMainPayload, L"DHGR main scratch (main $8000)");
+        // The DHGR aux half is at aux $2000 — read via MMU aux buffer.
+        Byte *  auxBuf = core.mmu->GetAuxBuffer ();
+        Assert::IsNotNull (auxBuf, L"MMU aux buffer must be available");
+        {
+            size_t  m = 0;
+            for (size_t i = 0; i < kHgrPayloadSize; i++)
+            {
+                if (auxBuf[0x2000 + i] != dhgrAuxPayload[i]) { m++; }
+            }
+            Assert::AreEqual (size_t (0), m,
+                L"DHGR aux half at boot landing must match payload");
+        }
 
         // ----- Cycle through the 4 display modes with keystrokes -----
         Assert::IsNotNull (core.keyboard.get (), L"AppleKeyboard must be present");
 
-        // Keystroke 1 -> mode 1 (HGR2 bands).
+        // Keystroke 1 -> mode 1 (HGR1 cassowary). Restores cassowary
+        // from main $A000 stash to main $2000, disables DHGR-specific
+        // soft switches, returns to vanilla HGR.
+        core.keyboard->KeyPressRaw (' ');
+        core.RunCycles (300'000ULL);
+        Assert::IsTrue (ss->IsHiresMode (),
+            L"Mode 1 (HGR1) must keep HIRES on");
+        Assert::IsFalse (ss->IsPage2 (),
+            L"Mode 1 (HGR1) must select PAGE1");
+        VerifyMemRange (0x2000, hgrPayload,
+            L"HGR1 cassowary restored to main $2000 in mode 1");
+
+        // Keystroke 2 -> mode 2 (HGR2 bands).
         core.keyboard->KeyPressRaw (' ');
         core.RunCycles (200'000ULL);
         Assert::IsTrue (ss->IsPage2 (),
-            L"Mode 1 must enable PAGE2 (HGR test bands visible)");
+            L"Mode 2 (HGR2) must enable PAGE2");
         Assert::IsTrue (ss->IsHiresMode (),
-            L"Mode 1 must keep HIRES on");
+            L"Mode 2 (HGR2) must keep HIRES on");
 
-        // Keystroke 2 -> mode 2 (LoRes test). Copy stamps text page 1.
+        // Keystroke 3 -> mode 3 (LoRes).
         core.keyboard->KeyPressRaw (' ');
         core.RunCycles (200'000ULL);
         Assert::IsFalse (ss->IsHiresMode (),
-            L"Mode 2 must clear HIRES (LoRes is text-page graphics)");
+            L"Mode 3 (LoRes) must clear HIRES");
         Assert::IsTrue (ss->IsGraphicsMode (),
-            L"Mode 2 must keep TEXT off");
+            L"Mode 3 (LoRes) must keep TEXT off");
         Assert::IsFalse (ss->IsPage2 (),
-            L"Mode 2 must clear PAGE2");
+            L"Mode 3 (LoRes) must clear PAGE2");
 
         // Spot-check the LoRes pattern landed in text page 1.
         for (size_t i = 0; i < kLoresPayloadSize; i++)
@@ -411,69 +443,10 @@ public:
             }
         }
 
-        // Keystroke 3 -> mode 3 (DHGR). Copies main $8000 -> main $2000
-        // (clobbers cassowary), and main $6000 -> aux $2000 with
-        // RAMWRT toggled around the second copy. DHGR soft switches:
-        // 80STORE on, DHIRES (AN3) on, 80COL on, TEXT off, HIRES on.
-        core.keyboard->KeyPressRaw (' ');
-        core.RunCycles (300'000ULL);
-        Assert::IsTrue (ss->IsHiresMode (),
-            L"Mode 3 must enable HIRES");
-        Assert::IsTrue (ss->IsGraphicsMode (),
-            L"Mode 3 must keep TEXT off");
-        Assert::IsFalse (ss->IsPage2 (),
-            L"Mode 3 must select PAGE1");
-
-        // The DHGR main half should now be sitting at main $2000 (copied
-        // from main $8000). Verify the copy.
-        VerifyPage (0x2000, dhgrMainPayload, L"DHGR main half (main $2000)");
-
-        // The DHGR aux half should be at aux $2000 (copied from main
-        // $6000 with RAMWRT toggled). Read it back through the MMU's
-        // aux buffer.
-        Byte *  auxBuf = core.mmu->GetAuxBuffer ();
-        Assert::IsNotNull (auxBuf, L"MMU aux buffer must be available");
-
-        size_t  auxMismatch = 0;
-        size_t  firstAuxMismatch = 0;
-        Byte    expectedAtAuxMismatch = 0;
-        Byte    actualAtAuxMismatch = 0;
-        for (size_t i = 0; i < kHgrPayloadSize; i++)
-        {
-            Byte  e = dhgrAuxPayload[i];
-            Byte  a = auxBuf[0x2000 + i];
-            if (a != e)
-            {
-                if (auxMismatch == 0)
-                {
-                    firstAuxMismatch       = i;
-                    expectedAtAuxMismatch  = e;
-                    actualAtAuxMismatch    = a;
-                }
-                auxMismatch++;
-            }
-        }
-
-        if (auxMismatch != 0)
-        {
-            wchar_t  msg[256] = {};
-            swprintf_s (msg, L"DHGR aux half mismatch: %zu of %zu bytes "
-                             L"differ at aux $2000+. First at $%04X: "
-                             L"expected $%02X, got $%02X.",
-                        auxMismatch,
-                        kHgrPayloadSize,
-                        static_cast<unsigned> (0x2000 + firstAuxMismatch),
-                        static_cast<unsigned> (expectedAtAuxMismatch),
-                        static_cast<unsigned> (actualAtAuxMismatch));
-            Assert::Fail (msg);
-        }
-
-        // Keystroke 4 -> past last mode -> JMP $E000 (Applesoft cold start).
+        // Keystroke 4 -> past last mode -> JMP ($FFFC) -> //e RESET.MGR
+        // -> Applesoft. Just assert we're executing in ROM.
         core.keyboard->KeyPressRaw (' ');
         core.RunCycles (50'000ULL);
-        // Cold start runs through a bunch of ROM init before reaching the
-        // BASIC ready prompt; what we really want to assert is that we're
-        // executing somewhere in the Applesoft / monitor ROM ($D000+).
         Assert::IsTrue (core.cpu->GetPC () >= 0xD000,
             L"After cycling past last mode, demo must JMP into ROM "
             L"($D000+, typically the Applesoft cold start at $E000)");

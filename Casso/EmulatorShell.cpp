@@ -26,6 +26,8 @@
 #include "Video/AppleLoResMode.h"
 #include "Video/AppleHiResMode.h"
 #include "Video/AppleDoubleHiResMode.h"
+#include "Video/PixelFormat.h"
+#include "Video/MonochromeTint.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -2503,10 +2505,6 @@ void EmulatorShell::ExecuteCpuSlices()
 void EmulatorShell::RenderFramebuffer()
 {
     ColorMode color = m_colorMode.load (memory_order_acquire);
-    Byte      r     = 0;
-    Byte      g     = 0;
-    Byte      b     = 0;
-    Byte      lum   = 0;
 
 
 
@@ -2562,28 +2560,25 @@ void EmulatorShell::RenderFramebuffer()
         }
     }
 
-    // Apply monochrome tint
+    // Apply monochrome tint via Video/MonochromeTint.h helpers (kept
+    // out-of-line in CassoEmuCore so the BGRA arithmetic is unit-
+    // testable independent of the Win32 shell).
     if (color != ColorMode::Color)
     {
         for (auto & pixel : m_cpuFramebuffer)
         {
-            r   = (pixel >>  0) & 0xFF;
-            g   = (pixel >>  8) & 0xFF;
-            b   = (pixel >> 16) & 0xFF;
-            lum = static_cast<Byte> (0.299f * r + 0.587f * g + 0.114f * b);
-
             switch (color)
             {
                 case ColorMode::GreenMono:
-                    pixel = (0xFF << 24) | (0 << 16) | (lum << 8) | 0;
+                    pixel = Casso::Video::TintGreenMono (pixel);
                     break;
 
                 case ColorMode::AmberMono:
-                    pixel = (0xFF << 24) | (0 << 16) | (static_cast<Byte> (lum * 0.75f) << 8) | lum;
+                    pixel = Casso::Video::TintAmberMono (pixel);
                     break;
 
                 case ColorMode::WhiteMono:
-                    pixel = (0xFF << 24) | (lum << 16) | (lum << 8) | lum;
+                    pixel = Casso::Video::TintWhiteMono (pixel);
                     break;
 
                 default:

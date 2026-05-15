@@ -29,7 +29,7 @@ import sys
 from pathlib import Path
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageOps
 except ImportError:
     sys.stderr.write("PIL/Pillow required: pip install Pillow\n")
     sys.exit(1)
@@ -80,13 +80,29 @@ def build_palette_image() -> Image.Image:
 
 
 def quantize_to_dhgr_palette(src: Image.Image) -> Image.Image:
-    """Resize src to (140, 192) and quantize to the 16 //e colors."""
-    # The DHGR pixel aspect ratio is roughly 1:2 horizontally vs the
-    # 560-dot scan, but the *color* resolution is 140 across by 192 down
-    # — i.e. 4:3 source aspect maps reasonably well to (140, 192) when
-    # we resize directly. Use a high-quality resample.
-    resized = src.convert("RGB").resize(
-        (DHGR_COLOR_W, DHGR_ROWS), Image.LANCZOS)
+    """Crop to the DHGR display aspect, then quantize to the 16 //e
+    colors. Real-//e DHGR pixels are roughly 1:2 (tall/narrow), so on
+    screen the 140-color-wide x 192-row buffer renders at 4:3 — i.e.
+    the rendered display is 560x192 dots squashed into a ~4:3 frame
+    by the NTSC pipe. Casso's renderer doubles vertically to 560x384
+    which is also ~4:3.
+
+    Therefore the source must be cropped to a 4:3 aspect (width:height
+    = 1.46:1, matching the rendered 560:384) before it's resized to
+    140x192 — otherwise a portrait source like the cassowary photo
+    gets squashed horizontally as PIL stretches it to fill the
+    target. Use ImageOps.fit which crops centered to the target
+    aspect, then resamples."""
+    target_aspect = 560.0 / 384.0
+    fitted = ImageOps.fit(
+        src.convert("RGB"),
+        (DHGR_COLOR_W * 4, DHGR_ROWS * 2),  # 4:3 work surface in real pixels
+        method=Image.LANCZOS,
+        bleed=0.0,
+        centering=(0.5, 0.5))
+
+    # Now resample to 140x192 (the DHGR color resolution).
+    resized = fitted.resize((DHGR_COLOR_W, DHGR_ROWS), Image.LANCZOS)
 
     pal_img = build_palette_image()
     quantized = resized.quantize(palette=pal_img, dither=Image.FLOYDSTEINBERG)
