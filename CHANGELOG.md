@@ -6,6 +6,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.661] — 2026-05-14 — Demo exits silently (no reset bell)
+
+### Fixed
+- **Demo no longer beeps when dropping to BASIC.** The //e RESET
+  handler rings the bell on a "cold" reset (when PWREDUP at $03F4
+  doesn't match (SOFTEV+1) EOR $A5). do_exit now sets SOFTEV to
+  $E003 (Applesoft warm restart) and PWREDUP to $45 = $E0 EOR $A5
+  before triggering the reset, so RESET.MGR sees a valid soft-reset
+  setup and just JMPs through SOFTEV — no bell.
+
+### Refactor
+- Dropped the redundant TXT/HIRES/MIX/PG2 soft-switch sets in
+  mode_hgr1. The cycle is linear (DHGR -> HGR1 -> HGR2 -> LoRes
+  -> exit) so those four switches are already in the right state
+  coming out of DHGR. Saves 12 stage-2 bytes — exactly what the
+  bell-suppression code needed. Stage 2: 246 -> 249 bytes
+  (still 7 bytes free in its sector).
+
 ## [1.3.660] — 2026-05-14 — Demo first-frame ~2x faster (boot reorder)
 
 ### Changed (demo)

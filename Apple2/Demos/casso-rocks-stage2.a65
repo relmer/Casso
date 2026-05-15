@@ -143,26 +143,32 @@ poll
 
 
 do_exit
-    ; Drop to BASIC via the official //e reset vector. Going through
-    ; ($FFFC) hands off to the //e RESET.MGR which does the full
-    ; power-on cleanup (40-col TEXT, no DHIRES, no 80STORE, etc.)
-    ; before entering Applesoft. JMP $E000 directly is fragile —
-    ; even after manual soft-switch cleanup it JMPs through stale
-    ; work-area pointers and lands in video memory.
-    ;
-    ; The reset handler doesn't clear the screen, so we wipe both
-    ; text pages first. THE GOTCHA: with 80STORE on (which DHGR
-    ; mode set), writes to $0400-$07FF route by PAGE2 status, NOT
-    ; by RAMWRT. So we turn 80STORE off entirely — simpler than
-    ; juggling PAGE2, and the reset handler will sort the rest.
-    sta STORE80OFF         ; 80STORE off — RAMWRT now routes text writes
+    ; Drop to BASIC via the //e reset vector but WITHOUT the bell.
+    ; The //e RESET handler decides whether to do a "cold" reset
+    ; (full init + bell) or a "soft" reset (just JMP through SOFTEV)
+    ; by checking PWREDUP at $03F4: if PWREDUP equals (SOFTEV+1) EOR
+    ; $A5, it's a soft reset. We set SOFTEV to $E003 (Applesoft warm
+    ; restart) and PWREDUP to $E0 EOR $A5 = $45, so RESET.MGR sees
+    ; valid PWREDUP, skips the bell, and JMPs through SOFTEV to BASIC.
+    lda #$03
+    sta $03F2              ; SOFTEV.LO -> Applesoft warm restart $E003
+    lda #$E0
+    sta $03F3              ; SOFTEV.HI = $E0
+    eor #$A5
+    sta $03F4              ; PWREDUP = $E0 EOR $A5 = $45
+
+    ; The reset handler doesn't clear the screen on a soft reset, so
+    ; we wipe both text pages first. THE GOTCHA: with 80STORE on
+    ; (DHGR set it), writes to $0400-$07FF route by PAGE2, not
+    ; RAMWRT. Turn 80STORE off so RAMWRT controls bank routing.
+    sta STORE80OFF
 
     sta RAMWRTON
     jsr clear_text_page1
     sta RAMWRTOFF
     jsr clear_text_page1
 
-    jmp ($FFFC)            ; reset vector -> //e RESET.MGR -> Applesoft
+    jmp ($FFFC)            ; reset vector -> //e RESET.MGR -> Applesoft (no bell)
 
 
 ; ----------------------------------------------------------------------------
@@ -186,11 +192,16 @@ clear_text_loop
 ; ----------------------------------------------------------------------------
 ; mode_hgr1 — restore the HGR1 cassowary. Copies the stashed cassowary
 ;             from main $A000 back to main $2000 (DHGR may have clobbered
-;             it), turns off DHGR, and selects HGR PAGE1.
+;             it), turns off the //e-specific DHGR display switches.
+;
+;             TEXT/HIRES/MIX/PAGE2 are already in the right state coming
+;             out of DHGR mode (TXTOFF, HIRESON, MIXOFF, PG2OFF) so we
+;             don't re-set them here. This shaves 12 bytes that we need
+;             for the do_exit bell-suppression code below. The cycle is
+;             linear (DHGR -> HGR1 -> HGR2 -> LoRes -> exit) so this
+;             assumption is safe.
 ; ----------------------------------------------------------------------------
 mode_hgr1
-    ; Disable DHGR-specific switches before restoring the framebuffer
-    ; so the renderer doesn't briefly try to draw HGR-as-DHGR.
     sta STORE80OFF
     sta COL80OFF
     bit DHIRESOFF
@@ -198,11 +209,6 @@ mode_hgr1
     ldx #$A0
     ldy #$20
     jsr copy_block
-
-    bit TXTOFF
-    bit HIRESON
-    bit MIXOFF
-    bit PG2OFF
     jmp poll
 
 
