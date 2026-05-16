@@ -25,6 +25,12 @@
 class IDriveAudioSource : public IDriveAudioSink
 {
 public:
+    // Equal-power "centered" pan coefficient (= 1/sqrt(2) = sqrt(0.5)).
+    // When applied to both L and R, a mono source preserves total power
+    // across the stereo image (panL^2 + panR^2 == 1.0). Used as the
+    // default pan for any source until SetPan() places it explicitly.
+    static constexpr float kCenterPan = 1.0f / (float) std::numbers::sqrt2;
+
     ~IDriveAudioSource() override = default;
 
     // Produce `numSamples` of mono float PCM into `outMono`. The mixer

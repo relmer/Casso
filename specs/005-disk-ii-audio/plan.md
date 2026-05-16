@@ -35,13 +35,24 @@ where touch points are required.
 
 **Language/Version**: C++ stdcpplatest, MSVC v145 (VS 2026)
 **Primary Dependencies**: Windows SDK + STL only — Windows MediaFoundation
-(`IMFSourceReader`) for WAV decoding, or in-repo minimal PCM WAV parser.
-No new third-party libraries.
-**Storage**: `Assets/Sounds/DiskII/*.wav` if bundled samples are chosen
-(PascalCase filenames: `MotorLoop.wav`, `HeadStep.wav`, `HeadStop.wav`,
-`DoorOpen.wav`, `DoorClose.wav`); otherwise procedural synthesis at startup.
-Real-hardware recordings under permissive license preferred over synthesis
-(NFR-005).
+(`IMFSourceReader`) for WAV decoding and resampling, WinHTTP for the
+first-run bootstrap fetch (already in use by `AssetBootstrap`), and a
+single in-tree third-party header: **stb_vorbis.c** (public domain / MIT,
+~5500 lines, single file) for in-memory OGG Vorbis decoding of OpenEmulator's
+upstream sample assets.
+**Storage**: Bootstrap-downloaded WAVs land at
+`Devices/DiskII/Shugart/{MotorLoop,HeadStep,HeadStop,DoorOpen,DoorClose}.wav`
+and `Devices/DiskII/Alps/{MotorLoop,HeadStep,HeadStop}.wav`. Optional
+per-file user override at `Devices/DiskII/<filename>.wav` (top-level,
+FR-019). No `.ogg` files retained on disk (NFR-006). This feature also
+performs a one-time directory restructure: top-level `ROMs/` migrates to
+`Machines/<MachineName>/<MachineName>.rom` (each machine config and its
+ROMs share a directory), and `Devices/DiskII/` gains the Disk II
+controller ROMs (`Disk2.rom`, `Disk2_13Sector.rom`) alongside the audio
+subdirs. `Assets/` stays as-is for README screenshots. `.gitignore` flips
+to a whitelist-JSON-only rule under `Machines/**` and `Devices/**`,
+automatically covering every bootstrap-downloaded binary regardless of
+extension.
 **Testing**: Microsoft C++ Unit Test Framework in `UnitTest/`. New
 `DriveAudioMixerTests.cpp`, `DiskIIAudioSourceTests.cpp`, plus extensions
 to existing `DiskIIControllerTests.cpp` to cover the new event firing
@@ -237,37 +248,82 @@ restarting it; the spec (FR-005) requires that the audible result not
 fragment into N discrete clicks.The exact synthesis is an implementer's
 choice within FR-005.
 
-### Sample Sourcing (Implementation Choice, Per Spec)
+### Sample Sourcing (Bootstrap Download from OpenEmulator)
 
-Two implementations satisfy the spec:
+Casso's source repository ships with **zero** Disk II audio assets. On
+first launch with a Disk II-equipped machine profile, `AssetBootstrap`
+detects the absence of `Devices/DiskII/<Mechanism>/*.wav` files and
+surfaces a single consent dialog (FR-017) offering to download both Alps
+and Shugart sample sets from `openemulator/libemulation`'s GitHub
+repository. The dialog discloses GPL-3, the user's recipient obligations,
+and the silent-fallback alternative.
 
-- **Bundled WAVs**: `Assets/Sounds/DiskII/{MotorLoop,HeadStep,HeadStop,DoorOpen,DoorClose}.wav`.
-  Decoded once at startup via `IMFSourceReader` to mono float32 at the
-  WASAPI mix rate, owned by `DiskIIAudioSource`. Real Disk II recordings
-  under permissive license preferred (NFR-005).
-- **Procedural synthesis**: At `DiskIIAudioSource` startup, fill internal
-  buffers with synthesized PCM (motor: low-frequency sawtooth + noise; head
-  click: short attack + Karplus-Strong-style decay; bump: same but
-  longer/lower; door open/close: ratchet/snap synthesis).
+Acquisition pipeline per OGG file (FR-018):
 
-Either way, the downstream contract (`GeneratePCM`, event hooks, source
-state machine) is identical. `LoadSamples` returns `S_OK` if anything
-loaded successfully, and the source simply mutes any sound whose buffer is
-empty (FR-009, graceful degradation).
+1. WinHTTP GET against
+   `raw.githubusercontent.com/openemulator/libemulation/master/res/sounds/<Mechanism>/<Mechanism>%20<SampleName>.ogg`
+   into a `std::vector<uint8_t>` in memory.
+2. `stb_vorbis_decode_memory()` → interleaved int16 PCM + native sample
+   rate.
+3. Convert to mono float32 (downmix if necessary) and resample to the
+   WASAPI device rate. Reuse the existing `IMFSourceReader`-based
+   resampler used for WAV loading (or a simple linear resampler — drive
+   noise is broadband mechanical content and is not pitch-critical).
+4. Write a PCM WAV file (16-bit or float32, whichever the WAV loader
+   already prefers) to `Devices/DiskII/<Mechanism>/<CanonicalName>.wav`.
+5. Discard the OGG bytes. No `.ogg` is written to disk (NFR-006).
+
+Filename mapping from upstream OGG → canonical PascalCase WAV:
+
+| Upstream (Shugart) | Canonical WAV | Upstream (Alps) | Canonical WAV |
+|---|---|---|---|
+| `Shugart SA400 Drive.ogg` | `MotorLoop.wav` | `Alps 2124A Drive.ogg` | `MotorLoop.wav` |
+| `Shugart SA400 Head.ogg`  | `HeadStep.wav`  | `Alps 2124A Head.ogg`  | `HeadStep.wav` |
+| `Shugart SA400 Stop.ogg`  | `HeadStop.wav`  | `Alps 2124A Stop.ogg`  | `HeadStop.wav` |
+| `Shugart SA400 Open.ogg`  | `DoorOpen.wav`  | *(not shipped upstream)* | — |
+| `Shugart SA400 Close.ogg` | `DoorClose.wav` | *(not shipped upstream)* | — |
+
+The Shugart `Align.ogg` (continuous seek-buzz) is not part of v1: FR-005's
+cycle-gap discriminator produces a serviceable buzz by retriggering
+`HeadStep.wav` rapidly, which matches OpenEmulator's Alps approach. A
+future feature MAY add `HeadSeek.wav` support.
+
+### Loader Precedence (FR-019)
+
+`DiskIIAudioSource::LoadSamples` looks for each canonical filename in this
+order:
+
+1. `Devices/DiskII/<filename>.wav` — top-level user override (self-recorded
+   or otherwise permissively-licensed; may be committed if license permits).
+2. `Devices/DiskII/<SelectedMechanism>/<filename>.wav` — bootstrap-downloaded
+   (always gitignored).
+3. *(none)* — leave buffer empty; FR-009 graceful silence at runtime.
+
+The precedence is per-file. A user can override only `MotorLoop.wav` with
+their own recording and leave the rest pulling from the selected mechanism
+subdir.
 
 ### Options Dialog Wire-Up
 
-`Casso/OptionsDialog.{h,cpp}` (new) hosts the "Drive Audio" check toggle.
+`Casso/OptionsDialog.{h,cpp}` (new) hosts two controls:
+
+- **Drive Audio** check toggle (FR-006), initial state `checked`.
+- **Disk II mechanism** dropdown (FR-006), choices: *Shugart SA400*
+  (default), *Alps 2124A*. Default rationale: Shugart's sample set is
+  complete (5 sounds, including door + bump variants); Alps ships only
+  3, leaving eject/insert silent.
+
 `Casso/MenuSystem.{h,cpp}` gains:
 
-- A new menu-item id `IDM_VIEW_OPTIONS`
-- Under the existing `View` popup: a new "Options..." item
-- Handler: opens `OptionsDialog`, which on OK applies settings (e.g.,
-  `m_driveAudioMixer.SetEnabled(checked)`).
+- A new menu-item id `IDM_VIEW_OPTIONS`.
+- Under the existing `View` popup: a new "Options..." item.
+- Handler: opens `OptionsDialog`. On OK, applies the toggle via
+  `m_driveAudioMixer.SetEnabled(checked)` and reloads the active sample
+  set if the mechanism dropdown changed (calls
+  `m_diskAudioSources[i].LoadSamples(...)` with the new mechanism
+  subdir).
 
-Default state on first launch: "Drive Audio" checked (FR-006). No
-persistence required for v1; if a persistence mechanism exists or is
-added, the dialog SHOULD use it.
+No persistence required for v1; defaults reset every launch.
 
 ### Cold-Boot Mount Suppression (FR-013)
 
@@ -367,9 +423,10 @@ into atomic tasks in [`tasks.md`](./tasks.md). Phase summary:
 4. **Phase 3 — Controller wiring**: Add `IDriveAudioSink* m_audioSink` to
    `DiskIIController.h`; add 4 emulation call sites plus mount/eject calls.
    Tests using a recording sink confirm event ordering.
-5. **Phase 4 — Sample loading / synthesis**: Implement `LoadSamples` or
-   `SynthesizeSamples` in `DiskIIAudioSource`. Real-recording preference
-   documented per NFR-005.
+5. **Phase 4 — Sample loading (mechanism-aware)**: Implement
+   `DiskIIAudioSource::LoadSamples(mechanismSubdir, deviceSampleRate)`
+   with per-file precedence (FR-019): user-override top-level → mechanism
+   subdir → silent. Reuse the existing `IMFSourceReader` WAV decoder.
 6. **Phase 5 — Mixer playback**: `MixMotor`, `MixHead`, `MixDoor`. Tests
    verify per-sample output for canonical sequences.
 7. **Phase 6 — Step/seek discrimination**: `m_lastStepCycle`, `m_seekMode`,
@@ -378,22 +435,40 @@ into atomic tasks in [`tasks.md`](./tasks.md). Phase summary:
    extend `SubmitFrame` to produce stereo, additive per-channel mix,
    per-channel clamp, mono device downmix. Speaker regression test (SC-006).
 9. **Phase 8 — Shell wiring**: `EmulatorShell` owns mixer + per-drive
-   sources; sink hookup; mount/eject hookup. Boot-and-listen sanity in
-   DOS 3.3 fixture (manual).
+   sources; sink hookup; mount/eject hookup with cold-boot suppression
+   flag. Boot-and-listen sanity in DOS 3.3 fixture (manual).
 10. **Phase 9 — Options dialog**: Create `OptionsDialog.{h,cpp}`; add
-    View → Options... menu entry; Drive Audio checkbox; runtime toggle test.
-11. **Phase 10 — Asset graceful-degradation**: Verify missing-file path;
-    one non-fatal warning per missing asset; no popup.
-12. **Phase 11 — Polish**: CHANGELOG, README, manual A/B listening, final
+    View → Options... menu entry; Drive Audio checkbox; Disk II mechanism
+    dropdown (Shugart default); runtime toggle test (SC-003, SC-010).
+11. **Phase 10 — Directory restructure + .gitignore**: Migrate top-level
+    `ROMs/` into per-machine `Machines/<Name>/` and per-device
+    `Devices/DiskII/` directories. Move existing screenshots out of
+    `Assets/` is intentionally NOT done (Assets/ stays for screenshots).
+    Update `.gitignore` to whitelist-JSON-only under `Machines/**` and
+    `Devices/**`. Update `AssetBootstrap`'s ROM catalog paths. Verify
+    backward-compat search in `PathResolver` for existing user installs.
+12. **Phase 11 — Bootstrap fetch (stb_vorbis + OGG decode + consent)**:
+    Add `stb_vorbis.c` to `CassoEmuCore`. Add `s_kDiskAudioCatalog` and
+    `AssetBootstrap::CheckAndFetchDiskAudio` mirroring the existing
+    `CheckAndFetchRoms` pattern. Implement the in-memory WinHTTP-to-WAV
+    pipeline (no on-disk OGG, per NFR-006). Consent dialog (FR-017) with
+    explicit GPL-3 disclosure and link to OpenEmulator's `COPYING` file.
+13. **Phase 12 — Asset graceful-degradation verification**: Confirm
+    declined-consent and per-mechanism missing-file paths produce silent
+    audio with at most one log warning per file (FR-009, SC-004).
+14. **Phase 13 — Polish**: CHANGELOG, README, manual A/B listening, final
     constitution sweep.
 
 ## Risks & Mitigations
 
 | Risk                                                                                  | Mitigation                                                                                                                            |
 |---------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
-| Step-vs-seek tuning sounds wrong for non-DOS-3.3 software (ProDOS, copy-protected)    | Threshold is a single named constant (`kSeekThresholdCycles`); tune via listening test against the existing fixture disks in Phase 4. |
+| Step-vs-seek tuning sounds wrong for non-DOS-3.3 software (ProDOS, copy-protected)    | Threshold is a single named constant (`kSeekThresholdCycles`); tune via listening test against the existing fixture disks in Phase 6. |
 | Disk-audio amplitude causes audible clipping when speaker is at full deflection        | Per-source attenuation + post-sum clamp; tune `kMotorVolume`/`kHeadVolume` in Phase 5 with the speaker test suite as regression guard.|
-| Missing or broken WAV files at user installs                                          | FR-009 graceful degradation; the mixer treats any empty buffer as "muted." Verified in Phase 8.                                       |
+| Missing or broken WAV files at user installs                                          | FR-009 graceful degradation; the mixer treats any empty buffer as "muted." Verified in Phase 12.                                      |
 | `IMFSourceReader` initialization failure on locked-down systems                       | WAV-decode path returns HRESULT; on failure, the affected sample buffer stays empty and FR-009 kicks in. No popup, single log line.   |
-| GPL-3 sample contamination from development snapshots                                 | `.gitignore` does **not** silence `Assets/Sounds/DiskII/` (per project hygiene rules); stray files surface in `git status`. PR review responsibility. |
+| GPL-3 sample contamination — accidental commit of bootstrap-downloaded WAVs            | `.gitignore` whitelist-JSON-only rule under `Machines/**` and `Devices/**` covers every `.wav`/`.rom`/`.ogg`/`.txt` automatically; git won't even offer them for staging. |
+| User redistributes their Casso install (zipping the directory) containing GPL-3 WAVs   | User's responsibility per the FR-017 consent dialog disclosure; NFR-006 minimizes the surface by not retaining `.ogg` files. We cannot prevent users from redistributing data they downloaded. |
+| OpenEmulator repository moves or the OGG files are renamed/removed upstream            | Single point of update in `s_kDiskAudioCatalog`; FR-009 keeps Casso functional with silent disk audio in the meantime.                |
+| stb_vorbis bug / decode failure                                                       | Library is widely used and battle-tested (Unity, Unreal, etc.). On failure, FR-009 keeps the affected sound silent.                  |
 | Mixing introduces buffer-underrun (NFR-001)                                           | Disk mix is pure CPU float math inside the same `SubmitFrame` call; no I/O, no syscalls. Measure WASAPI underrun count in soak test.  |

@@ -33,18 +33,23 @@
 class DriveAudioMixer
 {
 public:
-    // Equal-power "center" coefficient (= sqrt(0.5)). When applied to
-    // both L and R, a mono signal preserves total power across the
-    // stereo image (panL^2 + panR^2 == 1.0). Used as the centered-pan
-    // default for a lone drive source and as the //e speaker's pan
-    // (FR-011 / FR-012).
-    static constexpr float kSpeakerCenter  = 0.7071067811865476f;
+    // Equal-power "center" coefficient (= 1/sqrt(2) = sqrt(0.5)). When
+    // applied to both L and R, a mono signal preserves total power
+    // across the stereo image (panL^2 + panR^2 == 1.0). Used as the
+    // centered-pan default for a lone drive source and as the //e
+    // speaker's pan (FR-011 / FR-012).
+    static constexpr float kSpeakerCenter  = 1.0f / (float) std::numbers::sqrt2;
 
     // Per-drive pan offset from center, in radians. Drive 1 sits at
     // theta = pi/4 + offset (left-biased); Drive 2 at pi/4 - offset
     // (right-biased). pi/8 places each drive halfway between its
     // corresponding speaker and the //e's centerline (FR-012).
-    static constexpr float kDrivePanOffset = 0.39269908169872414f;
+    static constexpr float kDrivePanOffset = (float) std::numbers::pi / 8.0f;
+
+    // Center pan angle (pi/4 radians). At this angle, equal-power
+    // panning yields panL = panR = kSpeakerCenter. Used as the base
+    // around which per-drive offsets are applied (FR-012).
+    static constexpr float kCenterAngle    = (float) std::numbers::pi / 4.0f;
 
     DriveAudioMixer();
     ~DriveAudioMixer();

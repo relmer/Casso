@@ -22,7 +22,7 @@
 // FR-012) preserves total acoustic power when the device is stereo
 // and yields the same drained amplitude as the pre-feature mono path
 // after the m_channels==1 downmix at drain time.
-static constexpr float  s_kfSpeakerCenter = 0.7071067811865476f;
+static constexpr float  s_kfSpeakerCenter = 1.0f / (float) std::numbers::sqrt2;
 
 
 

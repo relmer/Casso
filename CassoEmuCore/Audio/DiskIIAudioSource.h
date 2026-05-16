@@ -96,8 +96,8 @@ private:
     void   MixDoor  (float * out, uint32_t n);
 
     // Pan (equal-power, precomputed by SetPan).
-    float                 m_panLeft   = 0.7071067811865476f;
-    float                 m_panRight  = 0.7071067811865476f;
+    float                 m_panLeft   = IDriveAudioSource::kCenterPan;
+    float                 m_panRight  = IDriveAudioSource::kCenterPan;
 
     // Motor loop.
     vector<float>         m_motorBuf;

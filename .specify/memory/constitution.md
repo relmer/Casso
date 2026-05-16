@@ -40,6 +40,7 @@ All code MUST adhere to established formatting and structural standards:
 - **No Unnecessary Scope Blocks**: Do NOT introduce `{ ... }` blocks that are not required by control flow or lifetime semantics. Scope blocks must serve a purpose (loop body, conditional body, RAII lifetime, etc.).
 - **Function Comments in .cpp Only**: Every function MUST have a function-level comment block in the .cpp implementation file. Function-level comments MUST NOT appear in the .h header file. Header files document only declarations and types, not implementation behavior.
 - **Function Spacing**: NEVER insert a space between a function name and an empty argument list — write `func()`, not `func ()`. ALWAYS insert a space (or more, for column alignment) between a function name and a non-empty argument list, and between any keyword that takes parens (`if`, `for`, `while`, `switch`, `return`, `sizeof`, etc.) and the opening paren — write `func (a, b)`, `if (x)`, `return (value)`.
+- **Cast Spacing**: ALWAYS insert a space between a C-style cast and its operand — write `(float) std::numbers::pi`, `(int) value`, `(Word) addr`; NEVER write `(float)value`.
 - **Smart Pointers**: Prefer `unique_ptr` for exclusive ownership, `shared_ptr` when shared ownership is required
 
 **Rationale**: Consistent formatting enables efficient code review and reduces merge conflicts. EHM patterns ensure predictable error handling, resource cleanup, and flat readable code.

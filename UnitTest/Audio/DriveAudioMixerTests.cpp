@@ -24,8 +24,8 @@ class MockDriveAudioSource : public IDriveAudioSource
 {
 public:
     float    m_value = 1.0f;
-    float    m_panL  = 0.7071067811865476f;
-    float    m_panR  = 0.7071067811865476f;
+    float    m_panL  = IDriveAudioSource::kCenterPan;
+    float    m_panR  = IDriveAudioSource::kCenterPan;
 
     void  GeneratePCM   (float * outMono, uint32_t n) override
     {

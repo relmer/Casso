@@ -1276,13 +1276,13 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
             }
             else if (drive == 0)
             {
-                float  theta = 0.7853981633974483f + DriveAudioMixer::kDrivePanOffset;
+                float  theta = DriveAudioMixer::kCenterAngle + DriveAudioMixer::kDrivePanOffset;
 
                 src->SetPan (cosf (theta), sinf (theta));
             }
             else
             {
-                float  theta = 0.7853981633974483f - DriveAudioMixer::kDrivePanOffset;
+                float  theta = DriveAudioMixer::kCenterAngle - DriveAudioMixer::kDrivePanOffset;
 
                 src->SetPan (cosf (theta), sinf (theta));
             }

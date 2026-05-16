@@ -20,6 +20,7 @@
 #include <fstream>
 #include <functional>
 #include <memory>
+#include <numbers>
 #include <random>
 #include <sstream>
 #include <string>
