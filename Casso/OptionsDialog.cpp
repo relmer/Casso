@@ -14,13 +14,16 @@
 
 // IDs are local to the dialog template; no resource.h entries required.
 static constexpr WORD  s_kIdcDriveAudioCheck = 1001;
+static constexpr WORD  s_kIdcMechanismLabel  = 1002;
+static constexpr WORD  s_kIdcMechanismCombo  = 1003;
 static constexpr WORD  s_kIdcOkButton        = IDOK;
 static constexpr WORD  s_kIdcCancelButton    = IDCANCEL;
 
 struct OptionsDialogState
 {
-    bool   driveAudioEnabled;
-    bool   accepted;
+    bool      driveAudioEnabled;
+    wstring   mechanism;
+    bool      accepted;
 };
 
 
@@ -111,6 +114,14 @@ static void AppendItem (
         {
             atom = 0x0080;
         }
+        else if (wcscmp (windowClass, L"STATIC") == 0)
+        {
+            atom = 0x0082;
+        }
+        else if (wcscmp (windowClass, L"COMBOBOX") == 0)
+        {
+            atom = 0x0085;
+        }
         else
         {
             // Unsupported class; emit as a string instead.
@@ -160,11 +171,11 @@ static void BuildTemplate (vector<BYTE> & buf)
     tmpl.style           = WS_POPUP | WS_BORDER | WS_SYSMENU | WS_CAPTION |
                            DS_MODALFRAME | DS_CENTER | DS_SETFONT;
     tmpl.dwExtendedStyle = 0;
-    tmpl.cdit            = 3;
+    tmpl.cdit            = 5;
     tmpl.x               = 0;
     tmpl.y               = 0;
-    tmpl.cx              = 180;
-    tmpl.cy              = 90;
+    tmpl.cx              = 220;
+    tmpl.cy              = 130;
 
     buf.clear();
 
@@ -185,21 +196,35 @@ static void BuildTemplate (vector<BYTE> & buf)
 
     AppendItem (buf,
                 WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX,
-                0, 14, 18, 150, 14,
+                0, 14, 14, 180, 12,
                 s_kIdcDriveAudioCheck,
                 L"BUTTON",
                 L"&Drive Audio");
 
     AppendItem (buf,
+                WS_CHILD | WS_VISIBLE | SS_LEFT,
+                0, 14, 38, 80, 10,
+                s_kIdcMechanismLabel,
+                L"STATIC",
+                L"Disk II &mechanism:");
+
+    AppendItem (buf,
+                WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL,
+                0, 96, 36, 110, 80,
+                s_kIdcMechanismCombo,
+                L"COMBOBOX",
+                nullptr);
+
+    AppendItem (buf,
                 WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
-                0, 36, 64, 50, 16,
+                0, 54, 100, 50, 16,
                 s_kIdcOkButton,
                 L"BUTTON",
                 L"OK");
 
     AppendItem (buf,
                 WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
-                0, 94, 64, 50, 16,
+                0, 114, 100, 50, 16,
                 s_kIdcCancelButton,
                 L"BUTTON",
                 L"Cancel");
@@ -222,6 +247,9 @@ static INT_PTR CALLBACK DialogProc (
     LPARAM lParam)
 {
     OptionsDialogState *  state = nullptr;
+    HWND                  hCombo = nullptr;
+    LRESULT               sel    = 0;
+    wchar_t               buf[32] = {};
 
     switch (uMsg)
     {
@@ -231,6 +259,20 @@ static INT_PTR CALLBACK DialogProc (
 
             CheckDlgButton (hwnd, s_kIdcDriveAudioCheck,
                             state->driveAudioEnabled ? BST_CHECKED : BST_UNCHECKED);
+
+            hCombo = GetDlgItem (hwnd, s_kIdcMechanismCombo);
+            SendMessageW (hCombo, CB_ADDSTRING, 0,
+                          reinterpret_cast<LPARAM> (L"Shugart SA400"));
+            SendMessageW (hCombo, CB_ADDSTRING, 0,
+                          reinterpret_cast<LPARAM> (L"Alps 2124A"));
+
+            // Default to entry 0 (Shugart) unless the caller's
+            // current selection matches entry 1 (Alps). Mapping is
+            // local to this dialog -- callers only see the bare
+            // mechanism token (L"Shugart" / L"Alps").
+            SendMessageW (hCombo, CB_SETCURSEL,
+                          (state->mechanism == L"Alps") ? 1 : 0,
+                          0);
             return TRUE;
 
         case WM_COMMAND:
@@ -246,6 +288,24 @@ static INT_PTR CALLBACK DialogProc (
             {
                 state->driveAudioEnabled =
                     (IsDlgButtonChecked (hwnd, s_kIdcDriveAudioCheck) == BST_CHECKED);
+
+                hCombo = GetDlgItem (hwnd, s_kIdcMechanismCombo);
+                sel    = SendMessageW (hCombo, CB_GETCURSEL, 0, 0);
+
+                // Map combobox row -> mechanism token (the spec /
+                // registry contract uses the unadorned brand name).
+                state->mechanism = (sel == 1) ? L"Alps" : L"Shugart";
+
+                // Defensive: if some future translation broke the
+                // mapping above, read the combo string and fall back
+                // on the first token match.
+                if (state->mechanism != L"Alps" && state->mechanism != L"Shugart")
+                {
+                    SendMessageW (hCombo, CB_GETLBTEXT, sel,
+                                  reinterpret_cast<LPARAM> (buf));
+                    state->mechanism = (wcsncmp (buf, L"Alps", 4) == 0) ? L"Alps" : L"Shugart";
+                }
+
                 state->accepted = true;
                 EndDialog (hwnd, IDOK);
                 return TRUE;
@@ -279,14 +339,16 @@ static INT_PTR CALLBACK DialogProc (
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT OptionsDialog::Show (
-    HWND       hwndParent,
-    HINSTANCE  hInstance,
-    bool       currentDriveAudioEnabled,
-    bool &     outDriveAudioEnabled)
+    HWND            hwndParent,
+    HINSTANCE       hInstance,
+    bool            currentDriveAudioEnabled,
+    const wstring & currentMechanism,
+    bool          & outDriveAudioEnabled,
+    wstring       & outMechanism)
 {
     HRESULT             hr     = S_OK;
     vector<BYTE>        tmpl;
-    OptionsDialogState  state  = { currentDriveAudioEnabled, false };
+    OptionsDialogState  state  = { currentDriveAudioEnabled, currentMechanism, false };
     INT_PTR             result = 0;
 
     BuildTemplate (tmpl);
@@ -307,7 +369,8 @@ HRESULT OptionsDialog::Show (
     if (state.accepted)
     {
         outDriveAudioEnabled = state.driveAudioEnabled;
-        hr = S_OK;
+        outMechanism         = state.mechanism;
+        hr                   = S_OK;
     }
     else
     {

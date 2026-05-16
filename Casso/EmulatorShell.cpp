@@ -210,6 +210,37 @@ HRESULT EmulatorShell::Initialize (
 
     MountCommandLineDisks (disk1Path, disk2Path);
 
+    // Spec 005-disk-ii-audio Phase 14 (Q4): seed the mixer state
+    // from the per-machine registry before the audio thread first
+    // calls SetEnabled / SetMechanism. Default is enabled + Shugart
+    // when nothing has been persisted yet.
+    {
+        wstring  subkey;
+        DWORD    enabledDw = 1;
+        wstring  mechanism;
+        HRESULT  hrReg     = S_OK;
+
+        subkey = wstring (L"Machines\\") + m_currentMachineName;
+
+        hrReg = RegistrySettings::ReadDword (subkey.c_str (),
+                                             L"DriveAudioEnabled",
+                                             enabledDw);
+        IGNORE_RETURN_VALUE (hrReg, S_OK);
+
+        m_driveAudioMixer.SetEnabled (enabledDw != 0);
+
+        hrReg = RegistrySettings::ReadString (subkey.c_str (),
+                                              L"DiskIIMechanism",
+                                              mechanism);
+        IGNORE_RETURN_VALUE (hrReg, S_OK);
+
+        if (!mechanism.empty () && m_driveAudioMixer.IsValidMechanism (mechanism))
+        {
+            HRESULT  hrMech = m_driveAudioMixer.SetMechanism (mechanism);
+            IGNORE_RETURN_VALUE (hrMech, S_OK);
+        }
+    }
+
 Error:
     return hr;
 }
@@ -2188,12 +2219,11 @@ void EmulatorShell::CpuThreadProc()
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     // Drive-audio sample loading (spec 005-disk-ii-audio FR-009,
-    // NFR-005, FR-019). Best-effort: missing or unreadable assets
-    // leave their buffer empty; the source mutes that sound. The
-    // mechanism (default Shugart) selects which sample subdir under
-    // `Devices/DiskII/` to fall back to when no top-level override
-    // is present. Default-only here -- the per-machine Options
-    // dropdown (Phase 14) will swap the active mechanism at runtime.
+    // NFR-005, FR-019, FR-006). The mixer holds the asset-load
+    // context so any later runtime mechanism switch (Options dialog,
+    // Phase 14) can reload every registered source through one
+    // entry point. Default mechanism is Shugart unless the
+    // per-machine registry already overrode it during Initialize.
     if (m_wasapiAudio.IsInitialized () && !m_diskAudioSources.empty ())
     {
         wchar_t  exeDirBuf[MAX_PATH] = {};
@@ -2207,13 +2237,11 @@ void EmulatorShell::CpuThreadProc()
             devicesDir = (exePath.parent_path () / L"Devices" / L"DiskII").wstring ();
         }
 
-        for (auto & src : m_diskAudioSources)
-        {
-            HRESULT  hrLoad = src->LoadSamples (
-                devicesDir.c_str (), L"Shugart", m_wasapiAudio.GetSampleRate ());
+        m_driveAudioMixer.SetSampleLoadContext (devicesDir,
+                                                m_wasapiAudio.GetSampleRate ());
 
-            IGNORE_RETURN_VALUE (hrLoad, S_OK);
-        }
+        HRESULT  hrLoad = m_driveAudioMixer.SetMechanism (m_driveAudioMixer.GetMechanism ());
+        IGNORE_RETURN_VALUE (hrLoad, S_OK);
     }
     
     // Create a high-resolution waitable timer for 60fps frame pacing
@@ -3483,16 +3511,48 @@ void EmulatorShell::OnViewCommand (int id)
 
         case IDM_VIEW_OPTIONS:
         {
-            bool     driveAudio = m_driveAudioMixer.IsEnabled();
-            HRESULT  hrDlg      = OptionsDialog::Show (
+            bool     driveAudio  = m_driveAudioMixer.IsEnabled();
+            wstring  mechanism   = m_driveAudioMixer.GetMechanism();
+            bool     newEnabled  = driveAudio;
+            wstring  newMech     = mechanism;
+            HRESULT  hrDlg       = OptionsDialog::Show (
                 m_hwnd,
                 reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE)),
                 driveAudio,
-                driveAudio);
+                mechanism,
+                newEnabled,
+                newMech);
 
             if (hrDlg == S_OK)
             {
-                m_driveAudioMixer.SetEnabled (driveAudio);
+                wstring  subkey = wstring (L"Machines\\") + m_currentMachineName;
+
+                if (newEnabled != driveAudio)
+                {
+                    m_driveAudioMixer.SetEnabled (newEnabled);
+
+                    HRESULT  hrReg = RegistrySettings::WriteDword (
+                        subkey.c_str (),
+                        L"DriveAudioEnabled",
+                        newEnabled ? 1u : 0u);
+                    IGNORE_RETURN_VALUE (hrReg, S_OK);
+                }
+
+                if (newMech != mechanism && m_driveAudioMixer.IsValidMechanism (newMech))
+                {
+                    // FR-006 / SC-010: runtime swap, no restart and
+                    // no disk remount required. SetMechanism
+                    // re-invokes LoadSamples on every registered
+                    // source through the cached load context.
+                    HRESULT  hrMech = m_driveAudioMixer.SetMechanism (newMech);
+                    IGNORE_RETURN_VALUE (hrMech, S_OK);
+
+                    HRESULT  hrReg  = RegistrySettings::WriteString (
+                        subkey.c_str (),
+                        L"DiskIIMechanism",
+                        newMech);
+                    IGNORE_RETURN_VALUE (hrReg, S_OK);
+                }
             }
             break;
         }

@@ -104,6 +104,86 @@ bool DriveAudioMixer::IsEnabled() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetSampleLoadContext / SetMechanism / IsValidMechanism
+//
+//  Per spec 005-disk-ii-audio Phase 14 (FR-006 / SC-010 / T141):
+//  remember the asset-load context once, then let SetMechanism
+//  iterate the registered Disk II sources and re-invoke LoadSamples
+//  on each. State change MUST take effect within one audio frame --
+//  LoadSamples replaces the per-buffer move targets atomically from
+//  the same thread that drives GeneratePCM (NFR-002 same-thread
+//  state model), so no cross-thread synchronisation is required.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DriveAudioMixer::IsValidMechanism (const wstring & mechanism) const
+{
+    return mechanism == L"Shugart" || mechanism == L"Alps";
+}
+
+
+void DriveAudioMixer::SetSampleLoadContext (
+    const wstring & devicesDir,
+    uint32_t        sampleRate)
+{
+    m_devicesDir     = devicesDir;
+    m_loadSampleRate = sampleRate;
+}
+
+
+HRESULT DriveAudioMixer::SetMechanism (const wstring & mechanism)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (!IsValidMechanism (mechanism))
+    {
+        // SC-010 invariant: bad input does NOT mutate state. The
+        // mixer keeps whatever mechanism was active before the bad
+        // call so the running audio frame is undisturbed.
+        return E_INVALIDARG;
+    }
+
+    m_mechanism = mechanism;
+
+    if (m_devicesDir.empty () || m_loadSampleRate == 0)
+    {
+        // No asset context yet (the host hasn't called
+        // SetSampleLoadContext, typically because WASAPI hasn't
+        // started). Remember the mechanism so the eventual first
+        // load uses the right subdir.
+        return S_OK;
+    }
+
+    for (IDriveAudioSource * src : m_sources)
+    {
+        DiskIIAudioSource *  disk = dynamic_cast<DiskIIAudioSource *> (src);
+
+        if (disk == nullptr)
+        {
+            continue;
+        }
+
+        HRESULT  hrLoad = disk->LoadSamples (m_devicesDir.c_str (),
+                                             m_mechanism.c_str (),
+                                             m_loadSampleRate);
+
+        // FR-009: a per-source load failure mutes that source but
+        // never propagates up; the mechanism switch as a whole has
+        // still succeeded from the caller's perspective.
+        (void) hrLoad;
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Tick
 //
 //  Forwards the cycle count to any source that participates in

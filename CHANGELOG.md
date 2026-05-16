@@ -6,6 +6,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.684] — Disk II mechanism dropdown + per-machine persistence
+
+### Added
+- **Options dialog mechanism dropdown (FR-006 / SC-010)**:
+  *View → Options...* now offers a "Disk II mechanism" combobox
+  with "Shugart SA400" (default) and "Alps 2124A" entries. Flipping
+  the dropdown reloads every registered drive's sample buffers via
+  `DriveAudioMixer::SetMechanism` and takes effect on the next
+  audio frame -- no restart, no disk remount.
+- **`DriveAudioMixer::SetMechanism / SetSampleLoadContext /
+  GetMechanism / IsValidMechanism`**: the mixer now owns the
+  asset-load context (devices dir + sample rate) and a
+  validated-on-set mechanism string. Bad input returns
+  `E_INVALIDARG` without mutating mixer state (SC-010 invariant).
+- **Per-machine persistence (Q4)**: both the Drive Audio toggle
+  and the active mechanism round-trip through
+  `HKCU\Software\relmer\Casso\Machines\<MachineName>\` using new
+  `RegistrySettings::ReadDword / WriteDword` helpers. Defaults are
+  enabled + Shugart when the registry is empty. State is reapplied
+  at `EmulatorShell::Initialize` after the machine config loads,
+  before the CPU thread first touches the mixer.
+
+### Changed
+- `OptionsDialog::Show` signature gains a current/out mechanism
+  pair; the procedurally-built `DLGTEMPLATE` adds STATIC and
+  COMBOBOX entries (atoms 0x0082 / 0x0085).
+- `EmulatorShell` Options OK handler diffs both knobs separately
+  so changing one does not rewrite the other's registry value.
+
+### Tests
+- `UnitTest/Audio/DriveAudioMixerMechanismTests.cpp` adds four
+  tests covering: invalid mechanism (no state change),
+  multi-source reload, Alps→Shugart round trip with distinct
+  amplitudes, and pre-context SetMechanism (defers load).
+
 ## [1.3.682] — Disk II audio bootstrap (consent-gated OGG fetch)
 
 ### Added

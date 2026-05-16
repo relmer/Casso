@@ -65,6 +65,20 @@ public:
     void  SetEnabled       (bool enabled);
     bool  IsEnabled        () const;
 
+    // Disk II mechanism management (spec 005-disk-ii-audio Phase 14 /
+    // FR-006 / SC-010). The mixer holds the asset-load context
+    // (devices dir + sample rate) so SetMechanism can reload every
+    // registered DiskIIAudioSource without the shell having to
+    // re-iterate the source set. `SetSampleLoadContext` must be
+    // called before any `SetMechanism` for the reload to take
+    // effect. `GetMechanism` returns the currently-active mechanism
+    // (default L"Shugart").
+    void          SetSampleLoadContext (const wstring & devicesDir,
+                                        uint32_t        sampleRate);
+    HRESULT       SetMechanism         (const wstring & mechanism);
+    const wstring & GetMechanism       () const { return m_mechanism; }
+    bool          IsValidMechanism     (const wstring & mechanism) const;
+
     // Fill `stereoOut` (length 2 * numSamples) with interleaved L/R
     // float PCM. Always clears the buffer first; emits silence if
     // disabled or if no sources are registered (FR-015).
@@ -93,4 +107,13 @@ private:
     vector<IDriveAudioSource *> m_sources;
     vector<float>               m_scratchMono;
     bool                        m_enabled = true;
+
+    // Phase 14 (FR-006 / SC-010): cached load context so
+    // SetMechanism can reload every Disk II source without the host
+    // having to re-iterate the source set. The mechanism defaults to
+    // "Shugart" (the SA400 was the original Disk II drive shipped
+    // by Apple), matching spec FR-006.
+    wstring                     m_devicesDir;
+    uint32_t                    m_loadSampleRate = 0;
+    wstring                     m_mechanism      = L"Shugart";
 };

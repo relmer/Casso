@@ -25,6 +25,9 @@ public:
     static HRESULT ReadString  (LPCWSTR subkey, LPCWSTR valueName, wstring & outValue);
     static HRESULT WriteString (LPCWSTR subkey, LPCWSTR valueName, const wstring & value);
 
+    static HRESULT ReadDword   (LPCWSTR subkey, LPCWSTR valueName, DWORD & outValue);
+    static HRESULT WriteDword  (LPCWSTR subkey, LPCWSTR valueName, DWORD value);
+
     // Legacy root-level convenience (subkey = empty).
     static HRESULT ReadString  (LPCWSTR valueName, wstring & outValue)
     {
