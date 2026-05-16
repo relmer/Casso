@@ -26,29 +26,44 @@ static constexpr LPCWSTR       s_kpszAsimovHost   = L"www.apple.asimov.net";
 //
 //  RomSpec
 //
-//  Static map: Casso ROM filename -> AppleWin source basename + size.
-//  Mirrors scripts/FetchRoms.ps1.
+//  Static map: (machineName, Casso ROM filename) -> AppleWin source
+//  basename + size + on-disk relative directory. Per spec
+//  005-disk-ii-audio Phase 12 (T122 + Q1), machine-specific ROMs are
+//  keyed by their owning machine so a shared upstream file
+//  (Apple2_Video.rom, Apple2e_Enhanced_Video.rom) downloads once per
+//  machine into Machines/<MachineName>/. The handful of bytes
+//  duplicated on disk is invisible next to the convenience of having
+//  every machine's assets self-contained. Mirrors
+//  scripts/FetchRoms.ps1.
+//
+//  Entries with an empty `machineName` are shared device ROMs that
+//  live under Devices/<Family>/ rather than a specific machine
+//  folder (currently: the Disk II controller boot ROMs).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct RomSpec
 {
+    string_view  machineName;        // "Apple2"/"Apple2Plus"/... or "" for device-shared
     string_view  cassoName;
     string_view  appleWinName;
+    string_view  localRelDir;        // e.g. "Machines/Apple2e" or "Devices/DiskII"
     size_t       expectedSize;
     string_view  description;
 };
 
 static constexpr RomSpec s_kRomCatalog[] =
 {
-    { "Apple2.rom",            "Apple2.rom",                 12288, "Apple ][ ROM (Integer BASIC)"              },
-    { "Apple2Plus.rom",        "Apple2_Plus.rom",            12288, "Apple ][+ ROM (Applesoft BASIC)"           },
-    { "Apple2e.rom",           "Apple2e.rom",                16384, "Apple //e ROM"                             },
-    { "Apple2eEnhanced.rom",   "Apple2e_Enhanced.rom",       16384, "Apple //e Enhanced ROM"                    },
-    { "Apple2_Video.rom",      "Apple2_Video.rom",            2048, "Apple ][/][+ Character Generator"          },
-    { "Apple2e_Video.rom",     "Apple2e_Enhanced_Video.rom",  4096, "Apple //e Character Generator + MouseText" },
-    { "Disk2.rom",             "DISK2.rom",                    256, "Disk ][ Boot ROM (slot 6)"                 },
-    { "Disk2_13Sector.rom",    "DISK2-13sector.rom",           256, "Disk ][ Boot ROM (13-sector)"              },
+    { "Apple2",           "Apple2.rom",            "Apple2.rom",                 "Machines/Apple2",           12288, "Apple ][ ROM (Integer BASIC)"              },
+    { "Apple2",           "Apple2_Video.rom",      "Apple2_Video.rom",           "Machines/Apple2",            2048, "Apple ][/][+ Character Generator"          },
+    { "Apple2Plus",       "Apple2Plus.rom",        "Apple2_Plus.rom",            "Machines/Apple2Plus",       12288, "Apple ][+ ROM (Applesoft BASIC)"           },
+    { "Apple2Plus",       "Apple2_Video.rom",      "Apple2_Video.rom",           "Machines/Apple2Plus",        2048, "Apple ][/][+ Character Generator"          },
+    { "Apple2e",          "Apple2e.rom",           "Apple2e.rom",                "Machines/Apple2e",          16384, "Apple //e ROM"                             },
+    { "Apple2e",          "Apple2e_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2e",           4096, "Apple //e Character Generator + MouseText" },
+    { "Apple2eEnhanced",  "Apple2eEnhanced.rom",   "Apple2e_Enhanced.rom",       "Machines/Apple2eEnhanced",  16384, "Apple //e Enhanced ROM"                    },
+    { "Apple2eEnhanced",  "Apple2e_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2eEnhanced",   4096, "Apple //e Character Generator + MouseText" },
+    { "",                 "Disk2.rom",             "DISK2.rom",                  "Devices/DiskII",              256, "Disk ][ Boot ROM (slot 6)"                 },
+    { "",                 "Disk2_13Sector.rom",    "DISK2-13sector.rom",         "Devices/DiskII",              256, "Disk ][ Boot ROM (13-sector)"              },
 };
 
 
@@ -244,11 +259,19 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
 
     for (const EmbeddedConfig & cfg : s_kEmbeddedConfigs)
     {
-        fs::path          target = machinesDir / cfg.fileName;
+        // Per spec 005-disk-ii-audio Phase 12 (T120/T124): embedded
+        // defaults extract into the per-machine subdir,
+        // Machines/<MachineName>/<MachineName>.json, so each machine's
+        // assets (config + ROMs + future per-machine extras) live
+        // together.
+        fs::path          machineSubdir = machinesDir / cfg.machineName;
+        fs::path          target        = machineSubdir / cfg.fileName;
         span<const Byte>  bytes;
-        HRESULT           hrItem = S_OK;
+        HRESULT           hrItem        = S_OK;
 
 
+
+        fs::create_directories (machineSubdir, ec);
 
         if (fs::exists (target, ec))
         {
@@ -280,21 +303,29 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetRomDirectory
+//  GetAssetBaseDirectory
 //
-//  Returns the directory where ROM downloads should land — either an
-//  existing ROMs/ found via the search paths, or a new one next to
-//  the exe.
+//  Returns the install root that contains (or should contain) the
+//  per-machine `Machines/` and per-device `Devices/` subtrees. We
+//  reuse the existing `Machines/` directory locator -- whichever
+//  search path holds Machines/ is, by construction, the install root.
+//  Falls back to the exe directory when no Machines/ exists yet
+//  (which `EnsureMachineConfigs` will then populate).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-fs::path AssetBootstrap::GetRomDirectory (
+fs::path AssetBootstrap::GetAssetBaseDirectory (
     const vector<fs::path> & searchPaths,
     const fs::path         & exeDir)
 {
-    return PathResolver::FindOrCreateAssetDir (searchPaths,
-                                               fs::path ("ROMs"),
-                                               exeDir);
+    fs::path  machinesDir;
+
+
+
+    machinesDir = PathResolver::FindOrCreateAssetDir (searchPaths,
+                                                      fs::path ("Machines"),
+                                                      exeDir);
+    return machinesDir.parent_path ();
 }
 
 
@@ -306,8 +337,8 @@ fs::path AssetBootstrap::GetRomDirectory (
 //  GetDiskDirectory
 //
 //  Returns the directory where downloaded disk images land. Mirrors
-//  GetRomDirectory: an existing Disks/ found via the search paths
-//  wins, otherwise we create one next to the exe.
+//  GetAssetBaseDirectory: an existing Disks/ found via the search
+//  paths wins, otherwise we create one next to the exe.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -328,9 +359,14 @@ fs::path AssetBootstrap::GetDiskDirectory (
 //
 //  FindRomSpec
 //
+//  Look up a (machineName, cassoName) pair against the catalog. Falls
+//  back to a name-only match (machine-agnostic shared device ROMs
+//  like the Disk II controller boot ROM) when no per-machine entry
+//  exists.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-static const RomSpec * FindRomSpec (string_view cassoName)
+static const RomSpec * FindRomSpec (string_view machineName, string_view cassoName)
 {
     const RomSpec  * result = nullptr;
 
@@ -338,10 +374,22 @@ static const RomSpec * FindRomSpec (string_view cassoName)
 
     for (const RomSpec & spec : s_kRomCatalog)
     {
-        if (spec.cassoName == cassoName)
+        if (spec.cassoName == cassoName && spec.machineName == machineName)
         {
             result = &spec;
             break;
+        }
+    }
+
+    if (result == nullptr)
+    {
+        for (const RomSpec & spec : s_kRomCatalog)
+        {
+            if (spec.cassoName == cassoName && spec.machineName.empty ())
+            {
+                result = &spec;
+                break;
+            }
         }
     }
 
@@ -762,37 +810,47 @@ HRESULT AssetBootstrap::CheckAndFetchRoms (
     const wstring          & machineName,
     HWND                     hwndParent,
     const vector<fs::path> & searchPaths,
-    const fs::path         & romDir,
+    const fs::path         & assetBaseDir,
     string                 & outError)
 {
-    HRESULT                  hr        = S_OK;
+    HRESULT                  hr             = S_OK;
     vector<string>           romFiles;
     vector<const RomSpec *>  missing;
-    HINTERNET                hSession  = nullptr;
+    HINTERNET                hSession       = nullptr;
     error_code               ec;
-    bool                     userOk    = false;
+    bool                     userOk         = false;
+    string                   narrowMachine;
 
+
+
+    narrowMachine.reserve (machineName.size ());
+
+    for (wchar_t wch : machineName)
+    {
+        narrowMachine.push_back (static_cast<char> (wch & 0x7F));
+    }
 
     hr = GetRequiredRoms (hInstance, machineName, romFiles, outError);
     CHR (hr);
 
     for (const string & romFile : romFiles)
     {
-        fs::path        relPath = fs::path ("ROMs") / romFile;
-        fs::path        found   = PathResolver::FindFile (searchPaths, relPath);
-        const RomSpec * spec    = nullptr;
-
-        if (!found.empty())
-        {
-            continue;
-        }
-
-        spec = FindRomSpec (romFile);
+        const RomSpec * spec    = FindRomSpec (narrowMachine, romFile);
+        fs::path        relPath;
+        fs::path        found;
 
         CBRF (spec != nullptr,
               outError = format ("ROM '{}' is missing and Casso has no download "
-                                 "URL for it. Place the file in {} and try again.",
-                                 romFile, romDir.string()));
+                                 "URL for it. Place the file under {} and try again.",
+                                 romFile, assetBaseDir.string ()));
+
+        relPath = fs::path (string (spec->localRelDir)) / spec->cassoName;
+        found   = PathResolver::FindFile (searchPaths, relPath);
+
+        if (!found.empty ())
+        {
+            continue;
+        }
 
         missing.push_back (spec);
     }
@@ -801,8 +859,6 @@ HRESULT AssetBootstrap::CheckAndFetchRoms (
 
     userOk = PromptUser (hwndParent, missing);
     BAIL_OUT_IF (!userOk, S_FALSE);
-
-    fs::create_directories (romDir, ec);
 
     hSession = WinHttpOpen (s_kpszUserAgent,
                             WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
@@ -814,8 +870,11 @@ HRESULT AssetBootstrap::CheckAndFetchRoms (
 
     for (const RomSpec * spec : missing)
     {
-        fs::path      destPath = romDir / spec->cassoName;
+        fs::path      destDir  = assetBaseDir / string (spec->localRelDir);
+        fs::path      destPath = destDir / spec->cassoName;
         vector<Byte>  payload;
+
+        fs::create_directories (destDir, ec);
 
         hr = DownloadOne (hSession, *spec, payload, outError);
         CHR (hr);
@@ -826,7 +885,7 @@ HRESULT AssetBootstrap::CheckAndFetchRoms (
     }
 
 
-    
+
 Error:
     if (hSession != nullptr)
     {

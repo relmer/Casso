@@ -30,7 +30,7 @@ public:
         std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
-        HRESULT hr = MachineConfigLoader::Load (json, paths, MockResolveAll,
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
         Assert::IsTrue (SUCCEEDED (hr),
@@ -57,7 +57,7 @@ public:
         std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
-        HRESULT hr = MachineConfigLoader::Load (json, paths, MockResolveAll,
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
         Assert::IsTrue (SUCCEEDED (hr),
@@ -76,7 +76,7 @@ public:
         std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
-        HRESULT hr = MachineConfigLoader::Load (json, paths, MockResolveNone,
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveNone,
                                                 config, error);
 
         Assert::IsTrue (FAILED (hr),
@@ -92,7 +92,7 @@ public:
         std::string   error;
 
         std::vector<fs::path> paths;
-        HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, config, error);
 
         Assert::IsTrue (FAILED (hr),
             L"Missing 'name' field should cause failure");
@@ -121,7 +121,7 @@ public:
         std::string   error;
 
         std::vector<fs::path> paths;
-        HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, config, error);
 
         Assert::IsTrue (FAILED (hr),
             L"Invalid CPU 'z80' should cause failure");
@@ -136,7 +136,7 @@ public:
         std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
-        HRESULT hr = MachineConfigLoader::Load (json, paths, MockResolveAll,
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
         Assert::IsTrue (SUCCEEDED (hr),
@@ -156,7 +156,7 @@ public:
         std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
-        HRESULT hr = MachineConfigLoader::Load (json, paths, MockResolveAll,
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
@@ -190,7 +190,7 @@ public:
         std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
-        HRESULT hr = MachineConfigLoader::Load (json, paths, MockResolveAll,
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
         Assert::IsTrue (FAILED (hr),
@@ -223,7 +223,7 @@ public:
         std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
-        HRESULT hr = MachineConfigLoader::Load (json, paths, MockResolveAll,
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
         Assert::IsTrue (FAILED (hr),
@@ -237,7 +237,7 @@ public:
         std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
-        HRESULT hr = MachineConfigLoader::Load (json, paths, MockResolveAll,
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
@@ -252,7 +252,7 @@ public:
         std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
-        HRESULT hr = MachineConfigLoader::Load (json, paths, MockResolveAll,
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
         Assert::IsTrue (SUCCEEDED (hr));

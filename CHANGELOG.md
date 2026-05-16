@@ -6,6 +6,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.675] — Per-machine asset directory layout
+
+### Changed
+- **Per-machine ROM directories**: ROM images now live under
+  `Machines/<MachineName>/` (e.g., `Machines/Apple2e/Apple2e.rom`,
+  `Machines/Apple2e/Apple2e_Video.rom`) instead of a single
+  top-level `ROMs/` folder. Shared device boot ROMs (Disk II
+  controller firmware) live under `Devices/<Family>/` (e.g.,
+  `Devices/DiskII/Disk2.rom`). The in-app missing-ROM downloader
+  and `scripts/FetchRoms.ps1` both target the new layout. The
+  Apple II / II+ character generator and the //e character
+  generator are duplicated into each owning machine's folder so
+  every machine's asset set is self-contained (a handful of bytes
+  of redundancy in exchange for portability).
+- **Machine configs moved**: `Machines/Apple2.json` →
+  `Machines/Apple2/Apple2.json` (and the same pattern for
+  `Apple2Plus`, `Apple2e`). `Casso.exe`'s `--machine` flag still
+  takes the bare machine identifier (e.g., `--machine Apple2e`);
+  the loader resolves the new nested path internally. Embedded
+  default-config extraction (`AssetBootstrap::EnsureMachineConfigs`)
+  writes to the per-machine subdir on first run.
+- **`.gitignore` is now a whitelist** for `Machines/**` and
+  `Devices/**`: only `*.json` manifests are tracked, ROMs and
+  future drive-audio WAVs stay out of source control without
+  per-file rules.
+- `Assets/Sounds/DiskII/README.md` moved to
+  `Devices/DiskII/README.md` to co-locate documentation with the
+  device's other assets.
+
+### Migration
+Users with an existing install:
+
+- The old top-level `ROMs/` directory is **no longer searched**.
+- After updating, either delete `ROMs/` and re-run
+  `scripts/FetchRoms.ps1` (which now places files in the new
+  layout), or move each ROM file into the corresponding new
+  location (see the table at the top of `scripts/FetchRoms.ps1`).
+
 ## [1.3.670] — Disk II audio (motor / head / door, stereo, Options dialog)
 
 ### Added

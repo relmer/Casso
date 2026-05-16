@@ -50,14 +50,18 @@ public:
     ~DiskIIAudioSource() override;
 
     // Asset loading. Decodes MotorLoop.wav, HeadStep.wav, HeadStop.wav,
-    // DoorOpen.wav, DoorClose.wav from `dirPath` via IMFSourceReader,
-    // resampling each to `targetSampleRate` mono float32. Any
-    // individual file that fails to open/decode/resample is logged
-    // once and its buffer left empty -- the source mutes that sound
-    // (FR-009 graceful degradation). Returns S_OK whenever the loader
-    // could attempt the load (i.e., MediaFoundation initialized);
-    // missing files alone do NOT propagate failure.
-    HRESULT  LoadSamples (const wchar_t * dirPath, uint32_t targetSampleRate);
+    // DoorOpen.wav, DoorClose.wav at `targetSampleRate` mono float32
+    // via IMFSourceReader. Per-file precedence (FR-019):
+    //
+    //   1. devicesDir/<filename>.wav                 (manual override)
+    //   2. devicesDir/<mechanism>/<filename>.wav      (per-mechanism)
+    //   3. silent                                    (FR-009)
+    //
+    // `devicesDir` is the absolute path to `Devices/DiskII/`,
+    // `mechanism` is L"Shugart" / L"Alps" (no path separators).
+    HRESULT  LoadSamples (const wchar_t * devicesDir,
+                          const wchar_t * mechanism,
+                          uint32_t        targetSampleRate);
 
     // IDriveAudioSource:
     void   GeneratePCM   (float * outMono, uint32_t numSamples) override;

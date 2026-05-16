@@ -99,7 +99,8 @@ static HRESULT LoadMachineConfig (
     // Build search paths and find machine config
     searchPaths    = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
                                                      PathResolver::GetWorkingDirectory());
-    configRelPath  = fs::path ("Machines") / (fs::path (machineName).string() + ".json");
+    configRelPath  = fs::path ("Machines") / fs::path (machineName).string()
+                                           / (fs::path (machineName).string() + ".json");
     configPath     = PathResolver::FindFile (searchPaths, configRelPath);
 
     CBRN (!configPath.empty(),
@@ -108,9 +109,11 @@ static HRESULT LoadMachineConfig (
                   machineName,
                   configRelPath.wstring()).c_str());
 
-    // Build ROM search paths — prioritize the config's peer roms/
-    // directory, then fall back to other search paths
-    romSearchPaths.push_back (configPath.parent_path().parent_path());
+    // Build ROM search paths — prioritize the install root that
+    // contains the per-machine Machines/<Name>/ folder we just
+    // resolved (parent of "Machines"), then fall back to the
+    // generic search paths.
+    romSearchPaths.push_back (configPath.parent_path().parent_path().parent_path());
 
     for (const auto & p : searchPaths)
     {
@@ -125,8 +128,8 @@ static HRESULT LoadMachineConfig (
     // strictly from the embedded default for `machineName`, so if
     // the user has edited their on-disk JSON they're responsible
     // for any extra ROMs they reference.
-    romDir = AssetBootstrap::GetRomDirectory (romSearchPaths,
-                                              PathResolver::GetExecutableDirectory());
+    romDir = AssetBootstrap::GetAssetBaseDirectory (romSearchPaths,
+                                                    PathResolver::GetExecutableDirectory());
 
     hr = AssetBootstrap::CheckAndFetchRoms (hInstance, machineName, hwndParent,
                                             romSearchPaths, romDir, error);
@@ -191,7 +194,11 @@ static HRESULT LoadMachineConfig (
     ss << configFile.rdbuf();
     jsonText = ss.str();
 
-    hr = MachineConfigLoader::Load (jsonText, romSearchPaths, outConfig, error);
+    hr = MachineConfigLoader::Load (jsonText,
+                                    fs::path (machineName).string (),
+                                    romSearchPaths,
+                                    outConfig,
+                                    error);
     CHRN (hr, format (L"Failed to load machine config:\n{}",
                       wstring (error.begin(), error.end())).c_str());
 
@@ -284,7 +291,8 @@ int WINAPI wWinMain (
         PathResolver::FindFile (
             PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
                                             PathResolver::GetWorkingDirectory()),
-            fs::path ("Machines") / (fs::path (machineName).string() + ".json")).empty())
+            fs::path ("Machines") / fs::path (machineName).string()
+                                  / (fs::path (machineName).string() + ".json")).empty())
     {
         machineName = MachinePickerDialog::Show (nullptr, machineName);
         CBR (!machineName.empty());

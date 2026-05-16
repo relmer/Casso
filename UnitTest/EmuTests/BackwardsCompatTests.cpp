@@ -67,8 +67,11 @@ namespace
 
     ////////////////////////////////////////////////////////////////////////////
     //
-    //  ReadMachineJson — read a Machines/*.json file from the resolved
-    //  repo root into a string. Returns "" if not found.
+    //  ReadMachineJson — read a Machines/<MachineName>/<MachineName>.json
+    //  file from the resolved repo root into a string. Returns "" if
+    //  not found. Accepts the same `<MachineName>.json` filename the
+    //  callers used under the legacy flat layout; the per-machine
+    //  subdirectory is derived by stripping the `.json` suffix.
     //
     ////////////////////////////////////////////////////////////////////////////
 
@@ -76,6 +79,7 @@ namespace
     {
         fs::path        repoRoot = WalkUpForRepoRoot ();
         fs::path        full;
+        std::string     stem;
         std::ifstream   stream;
         std::string     content;
 
@@ -84,7 +88,8 @@ namespace
             return std::string ();
         }
 
-        full = repoRoot / "Machines" / filename;
+        stem = fs::path (filename).stem ().string ();
+        full = repoRoot / "Machines" / stem / filename;
 
         stream.open (full, std::ios::binary);
         if (!stream.is_open ())
@@ -264,7 +269,7 @@ public:
 
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
 
         Assert::IsTrue (SUCCEEDED (hr),
@@ -296,7 +301,7 @@ public:
 
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
 
         Assert::IsTrue (SUCCEEDED (hr),
@@ -327,7 +332,7 @@ public:
         json = ReadMachineJson ("Apple2.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
         Assert::IsTrue (SUCCEEDED (hr));
 
@@ -359,7 +364,7 @@ public:
         json = ReadMachineJson ("Apple2Plus.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
         Assert::IsTrue (SUCCEEDED (hr));
 
@@ -395,7 +400,7 @@ public:
         json = ReadMachineJson ("Apple2.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
         Assert::IsTrue (SUCCEEDED (hr));
 
@@ -441,7 +446,7 @@ public:
         json = ReadMachineJson ("Apple2Plus.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
         Assert::IsTrue (SUCCEEDED (hr));
 
@@ -485,7 +490,7 @@ public:
         json = ReadMachineJson ("Apple2.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
         Assert::IsTrue (SUCCEEDED (hr));
 
@@ -523,7 +528,7 @@ public:
         json = ReadMachineJson ("Apple2Plus.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
         Assert::IsTrue (SUCCEEDED (hr));
 

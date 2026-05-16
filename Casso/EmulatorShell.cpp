@@ -1968,7 +1968,8 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     // Find and load the new machine config
     searchPaths   = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
                                                      PathResolver::GetWorkingDirectory());
-    configRelPath = fs::path ("Machines") / (fs::path (machineName).string() + ".json");
+    configRelPath = fs::path ("Machines") / fs::path (machineName).string()
+                                          / (fs::path (machineName).string() + ".json");
     configPath    = PathResolver::FindFile (searchPaths, configRelPath);
 
     CBRN (!configPath.empty(),
@@ -1982,7 +1983,7 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     ss << configFile.rdbuf();
     jsonText = ss.str();
 
-    romSearchPaths.push_back (configPath.parent_path().parent_path());
+    romSearchPaths.push_back (configPath.parent_path().parent_path().parent_path());
 
     for (const auto & p : searchPaths)
     {
@@ -1992,7 +1993,11 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
         }
     }
 
-    hr = MachineConfigLoader::Load (jsonText, romSearchPaths, newConfig, error);
+    hr = MachineConfigLoader::Load (jsonText,
+                                    fs::path (machineName).string (),
+                                    romSearchPaths,
+                                    newConfig,
+                                    error);
     CHRN (hr, format (L"Failed to load machine config:\n{}",
                       wstring (error.begin(), error.end())).c_str());
 
@@ -2183,27 +2188,29 @@ void EmulatorShell::CpuThreadProc()
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     // Drive-audio sample loading (spec 005-disk-ii-audio FR-009,
-    // NFR-005). Best-effort: missing or unreadable assets leave
-    // their buffer empty; the source mutes that sound. We probe the
-    // shell's exe directory + Assets\Sounds\DiskII so a no-asset
-    // build still launches cleanly.
+    // NFR-005, FR-019). Best-effort: missing or unreadable assets
+    // leave their buffer empty; the source mutes that sound. The
+    // mechanism (default Shugart) selects which sample subdir under
+    // `Devices/DiskII/` to fall back to when no top-level override
+    // is present. Default-only here -- the per-machine Options
+    // dropdown (Phase 14) will swap the active mechanism at runtime.
     if (m_wasapiAudio.IsInitialized () && !m_diskAudioSources.empty ())
     {
         wchar_t  exeDirBuf[MAX_PATH] = {};
         DWORD    got                 = GetModuleFileNameW (nullptr, exeDirBuf, MAX_PATH);
-        wstring  assetDir;
+        wstring  devicesDir;
 
         if (got > 0 && got < MAX_PATH)
         {
             fs::path  exePath (exeDirBuf);
 
-            assetDir = (exePath.parent_path () / L"Assets" / L"Sounds" / L"DiskII").wstring ();
+            devicesDir = (exePath.parent_path () / L"Devices" / L"DiskII").wstring ();
         }
 
         for (auto & src : m_diskAudioSources)
         {
             HRESULT  hrLoad = src->LoadSamples (
-                assetDir.c_str (), m_wasapiAudio.GetSampleRate ());
+                devicesDir.c_str (), L"Shugart", m_wasapiAudio.GetSampleRate ());
 
             IGNORE_RETURN_VALUE (hrLoad, S_OK);
         }

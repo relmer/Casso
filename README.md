@@ -124,17 +124,31 @@ distributed with this project. A script is included to download them from the
 [AppleWin](https://github.com/AppleWin/AppleWin) project:
 
 ```powershell
-# Download ROM images to the ROMs/ directory
+# Download ROM images into the per-machine Machines/<Name>/ folders
 .\scripts\FetchRoms.ps1
 
 # Run the emulator (defaults to Apple II+)
 .\ARM64\Debug\Casso.exe
 
 # Run with a specific machine config
-.\ARM64\Debug\Casso.exe --machine Machines\Apple2e.json
+.\ARM64\Debug\Casso.exe --machine Apple2e
 ```
 
-The `ROMs/` directory is gitignored. Available machine configs are in `Machines/`.
+ROM images live under `Machines/<MachineName>/` (e.g.,
+`Machines/Apple2e/Apple2e.rom`) and shared device boot ROMs live
+under `Devices/<Family>/` (e.g., `Devices/DiskII/Disk2.rom`). The
+`.gitignore` whitelists only the per-machine / per-device `.json`
+manifests inside these trees, so ROMs and any later asset blobs
+stay out of source control automatically.
+
+> **Migrating from an older install?** Earlier builds kept all ROMs
+> in a single top-level `ROMs/` directory. After upgrading, either
+> delete your `ROMs/` folder and re-run `scripts/FetchRoms.ps1`, or
+> move each ROM file into the corresponding new location (see the
+> table in `scripts/FetchRoms.ps1`). Casso no longer reads from the
+> old `ROMs/` directory.
+
+Available machine configs are in `Machines/<MachineName>/<MachineName>.json`.
 
 ## Assembler Features
 

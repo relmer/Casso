@@ -190,20 +190,26 @@ DiskIIAudioSource::~DiskIIAudioSource()
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskIIAudioSource::LoadSamples (
-    const wchar_t * dirPath,
+    const wchar_t * devicesDir,
+    const wchar_t * mechanism,
     uint32_t        targetSampleRate)
 {
     HRESULT         hr            = S_OK;
     bool            mfStarted     = false;
     size_t          i             = 0;
-    wstring         fullPath;
+    fs::path        baseDir;
+    fs::path        mechDir;
+    fs::path        fullPath;
     vector<float>   slots[s_kcSampleFiles];
 
-    if (dirPath == nullptr || targetSampleRate == 0)
+    if (devicesDir == nullptr || mechanism == nullptr || targetSampleRate == 0)
     {
         hr = E_INVALIDARG;
         goto Error;
     }
+
+    baseDir = fs::path (devicesDir);
+    mechDir = baseDir / mechanism;
 
     hr = MFStartup (MF_VERSION, MFSTARTUP_LITE);
     CHR (hr);
@@ -211,19 +217,37 @@ HRESULT DiskIIAudioSource::LoadSamples (
 
     for (i = 0; i < s_kcSampleFiles; i++)
     {
-        HRESULT  hrSlot = S_OK;
+        // Per-file precedence (FR-019): explicit override at
+        // Devices/DiskII/<file>.wav wins over the per-mechanism copy
+        // at Devices/DiskII/<Mechanism>/<file>.wav. Both missing ==
+        // silent, FR-009.
+        fs::path        overridePath = baseDir / s_kpszSampleFiles[i];
+        fs::path        mechPath     = mechDir / s_kpszSampleFiles[i];
+        HRESULT         hrSlot       = E_FAIL;
+        error_code      ec;
 
-        fullPath  = dirPath;
-        fullPath += L"\\";
-        fullPath += s_kpszSampleFiles[i];
+        if (fs::exists (overridePath, ec))
+        {
+            fullPath = overridePath;
+        }
+        else if (fs::exists (mechPath, ec))
+        {
+            fullPath = mechPath;
+        }
+        else
+        {
+            slots[i].clear ();
+            continue;
+        }
 
-        hrSlot = DecodeWavToMonoFloat (fullPath.c_str(), targetSampleRate, slots[i]);
+        hrSlot = DecodeWavToMonoFloat (fullPath.wstring ().c_str (),
+                                       targetSampleRate, slots[i]);
 
         if (FAILED (hrSlot))
         {
             DEBUGMSG (
                 L"DiskIIAudioSource: failed to load %s (hr=0x%08X) -- sound muted.\n",
-                s_kpszSampleFiles[i], hrSlot);
+                fullPath.wstring ().c_str (), hrSlot);
             slots[i].clear();
         }
     }

@@ -373,8 +373,21 @@ dormann_temp/
 UnitTest/nes6502/
 UnitTest/6502/
 
-# Apple II ROM images — user-supplied, not redistributable
-ROMs/
+# Per-machine ROM images and per-device asset files — user-supplied
+# (ROMs) or downloaded on first run (Disk II audio WAVs), neither of
+# which is redistributable. The whitelist patterns below keep only the
+# tracked machine / device JSON manifests visible to git while
+# ignoring everything else (ROMs, WAVs, README.md is allowed because
+# it is already tracked and .gitignore does not untrack tracked files).
+Machines/**
+!Machines/
+!Machines/**/
+!Machines/**/*.json
+
+Devices/**
+!Devices/
+!Devices/**/
+!Devices/**/*.json
 
 # Disk images we cannot redistribute (Apple-owned)
 /Disks/Apple/dos33-master.dsk

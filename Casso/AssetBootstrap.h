@@ -29,28 +29,34 @@ public:
     static HRESULT  EnsureMachineConfigs  (HINSTANCE                hInstance,
                                            const vector<fs::path> & searchPaths,
                                            const fs::path         & exeDir);
- 
-    static fs::path GetRomDirectory       (const vector<fs::path> & searchPaths,
+
+    // Returns the install root that contains (or should contain) the
+    // per-machine `Machines/` and per-device `Devices/` subtrees. The
+    // downloader places freshly fetched ROMs at
+    // `<base>/Machines/<MachineName>/<RomName>` for machine-specific
+    // ROMs and `<base>/Devices/DiskII/<RomName>` for shared Disk II
+    // controller ROMs.
+    static fs::path GetAssetBaseDirectory (const vector<fs::path> & searchPaths,
                                            const fs::path         & exeDir);
- 
+
     static fs::path GetDiskDirectory      (const vector<fs::path> & searchPaths,
                                            const fs::path         & exeDir);
- 
+
     static HRESULT  GetRequiredRoms       (HINSTANCE                hInstance,
                                            const wstring          & machineName,
                                            vector<string>         & outRomFiles,
                                            string                 & outError);
-        
+
     static HRESULT  HasDiskController     (HINSTANCE                hInstance,
                                            const wstring          & machineName,
                                            bool                   & outHasDiskController,
                                            string                 & outError);
- 
+
     static HRESULT  CheckAndFetchRoms     (HINSTANCE                hInstance,
                                            const wstring          & machineName,
                                            HWND                     hwndParent,
                                            const vector<fs::path> & searchPaths,
-                                           const fs::path         & romDir,
+                                           const fs::path         & assetBaseDir,
                                            string                 & outError);
 
     static HRESULT  OfferBootDiskDownload (HINSTANCE                hInstance,
