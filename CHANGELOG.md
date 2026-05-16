@@ -6,6 +6,51 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.682] — Disk II audio bootstrap (consent-gated OGG fetch)
+
+### Added
+- **Bootstrap fetch (FR-017, FR-018, NFR-006)**: on first launch with
+  a machine that has a Disk II controller, Casso offers (TaskDialog
+  with three command links: *Download* / *Skip* / *Don't ask again
+  this session*) to download the OpenEmulator drive-noise samples
+  from `raw.githubusercontent.com/openemulator/libemulation`,
+  decode them in memory with `stb_vorbis`, resample to 44.1 kHz
+  via linear interpolation, and write 16-bit mono PCM WAVs to
+  `Devices/DiskII/<Mechanism>/`. The compressed `.ogg` bytes are
+  discarded before the function returns — no `.ogg` files ever
+  touch disk (NFR-006).
+- The consent dialog explicitly discloses GPL-3 licensing and
+  recipient obligations and links to OpenEmulator's COPYING file
+  and the GPL-3 text. *Don't ask again this session* is per-process
+  and resets at next launch (deleting the per-mechanism subfolders
+  re-triggers the prompt).
+- Five Shugart sounds (motor, head step, head stop, door open,
+  door close) and three Alps sounds (motor, head step, head stop;
+  Alps drives have no door) covered by `s_kDiskAudioCatalog` in
+  `AssetBootstrap.cpp`.
+- `CassoEmuCore/External/stb_vorbis.c` vendored from
+  [github.com/nothings/stb](https://github.com/nothings/stb)
+  (public domain / MIT). Included exclusively through
+  `StbVorbisWrapper.cpp` which disables PCH, code analysis, and a
+  documented set of upstream-rejected warnings so the rest of the
+  codebase stays clean. Compiled with
+  `STB_VORBIS_NO_PUSHDATA_API` + `STB_VORBIS_NO_STDIO` to drop the
+  half of the library we don't need.
+
+### Changed
+- `AssetBootstrap::DownloadHttp` now treats `expectedSize == 0` as
+  "no integrity check" (only "non-empty"), enabling the OGG fetch
+  to reuse the existing WinHTTP plumbing.
+
+### Tests
+- `UnitTest/EmuTests/DiskAudioFetchTests.cpp` adds four tests:
+  null / garbage-bytes guards for `StbVorbisWrapper`, a WAV
+  write + `DiskIIAudioSource::LoadSamples` round-trip that asserts
+  a non-silent motor loop after decode, and the FR-019 per-file
+  precedence rule. The network-touching `AssetBootstrap` glue is
+  exercised by the manual integration test in T138 (per
+  constitution §II — automated tests do not hit the network).
+
 ## [1.3.675] — Per-machine asset directory layout
 
 ### Changed

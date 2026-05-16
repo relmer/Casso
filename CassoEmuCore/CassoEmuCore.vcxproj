@@ -224,6 +224,11 @@
     <ClCompile Include="Audio\AudioGenerator.cpp" />
     <ClCompile Include="Audio\DriveAudioMixer.cpp" />
     <ClCompile Include="Audio\DiskIIAudioSource.cpp" />
+    <ClCompile Include="External\StbVorbisWrapper.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <EnableCodeAnalysis>false</EnableCodeAnalysis>
+      <DisableSpecificWarnings>4244;4456;4457;4701;4702;4706;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />
@@ -279,6 +284,8 @@
     <ClInclude Include="Audio\IDriveAudioSource.h" />
     <ClInclude Include="Audio\DriveAudioMixer.h" />
     <ClInclude Include="Audio\DiskIIAudioSource.h" />
+    <ClInclude Include="External\StbVorbisWrapper.h" />
+    <ClInclude Include="External\stb_vorbis.c" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CassoCore\CassoCore.vcxproj">

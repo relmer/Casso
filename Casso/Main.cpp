@@ -137,6 +137,28 @@ static HRESULT LoadMachineConfig (
     CHRN (hr, format (L"ROM download failed:\n{}",
                       wstring (error.begin(), error.end())).c_str());
 
+    // Disk II audio bootstrap (spec 005-disk-ii-audio Phase 13 /
+    // FR-017). Only relevant when the active machine actually has a
+    // Disk II controller wired up. Failures are best-effort: we log
+    // and continue so a missing-internet startup still launches the
+    // emulator (the source mutes any unloaded sample, FR-009).
+    {
+        bool     hasDisk    = false;
+        string   hasDiskErr;
+        HRESULT  hrHasDisk  = AssetBootstrap::HasDiskController (hInstance, machineName,
+                                                                 hasDisk, hasDiskErr);
+        IGNORE_RETURN_VALUE (hrHasDisk, S_OK);
+
+        if (hasDisk)
+        {
+            fs::path  devicesDir = romDir / L"Devices" / L"DiskII";
+            string    diskAudioErr;
+            HRESULT   hrDiskAudio = AssetBootstrap::CheckAndFetchDiskAudio (
+                hInstance, machineName, hwndParent, devicesDir, diskAudioErr);
+            IGNORE_RETURN_VALUE (hrDiskAudio, S_OK);
+        }
+    }
+
     // Boot-disk pre-flight: if the user didn't pass --disk1 and the
     // registry has no remembered disk for this machine (or the
     // remembered path no longer points at a real file), and the
