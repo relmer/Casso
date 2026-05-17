@@ -373,21 +373,14 @@ dormann_temp/
 UnitTest/nes6502/
 UnitTest/6502/
 
-# Per-machine ROM images and per-device asset files — user-supplied
-# (ROMs) or downloaded on first run (Disk II audio WAVs), neither of
-# which is redistributable. The whitelist patterns below keep only the
-# tracked machine / device JSON manifests visible to git while
-# ignoring everything else (ROMs, WAVs, README.md is allowed because
-# it is already tracked and .gitignore does not untrack tracked files).
-Machines/**
-!Machines/
-!Machines/**/
-!Machines/**/*.json
-
-Devices/**
-!Devices/
-!Devices/**/
-!Devices/**/*.json
+# Machines/ and Devices/ are fully runtime-managed: every file
+# inside is either extracted from binary-embedded resources (machine
+# JSONs — sources live under Resources/Machines/) or downloaded by
+# AssetBootstrap on first launch (ROMs, Disk II WAVs). Delete either
+# directory and the next launch rebuilds it. Nothing here should be
+# tracked.
+Machines/
+Devices/
 
 # Disk images we cannot redistribute (Apple-owned)
 /Disks/Apple/dos33-master.dsk

@@ -1,10 +1,14 @@
 #include "resource.h"
 #include <windows.h>
 
-// Embedded default machine configs (extracted to Machines/<name>/ on first run)
-IDR_MACHINE_APPLE2      RCDATA "..\\Machines\\Apple2\\Apple2.json"
-IDR_MACHINE_APPLE2PLUS  RCDATA "..\\Machines\\Apple2Plus\\Apple2Plus.json"
-IDR_MACHINE_APPLE2E     RCDATA "..\\Machines\\Apple2e\\Apple2e.json"
+// Embedded default machine configs (extracted to Machines/<name>/<name>.json
+// on first run by AssetBootstrap::EnsureMachineConfigs). Sources live under
+// Resources/ which is tracked; the runtime Machines/ tree is .gitignored
+// because every file in it is either extracted from these resources or
+// downloaded by AssetBootstrap.
+IDR_MACHINE_APPLE2      RCDATA "..\\Resources\\Machines\\Apple2\\Apple2.json"
+IDR_MACHINE_APPLE2PLUS  RCDATA "..\\Resources\\Machines\\Apple2Plus\\Apple2Plus.json"
+IDR_MACHINE_APPLE2E     RCDATA "..\\Resources\\Machines\\Apple2e\\Apple2e.json"
 
 // Keyboard Accelerator Table
 IDR_ACCELERATOR ACCELERATORS
