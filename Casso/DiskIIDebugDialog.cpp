@@ -529,6 +529,9 @@ HRESULT DiskIIDebugDialog::CreateChildControls (HWND hwnd)
     SendMessageW (m_listView, WM_SETFONT, reinterpret_cast<WPARAM> (font), TRUE);
     ListView_SetExtendedListViewStyle (m_listView, LVS_EX_FULLROWSELECT | LVS_EX_HEADERDRAGDROP);
 
+    hr = InstallListViewSubclass ();
+    CHR (hr);
+
 Error:
     return hr;
 }
@@ -1116,6 +1119,171 @@ void DiskIIDebugDialog::InvalidateListView ()
                              static_cast<int> (m_filteredIndices.size ()),
                              LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
     InvalidateRect (m_listView, nullptr, FALSE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InstallListViewSubclass
+//
+//  Hook the ListView's WndProc so Ctrl+C copies the current selection.
+//  GWLP_USERDATA holds the dialog `this` pointer; the original WndProc
+//  is saved on the dialog so we can chain.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskIIDebugDialog::InstallListViewSubclass ()
+{
+    HRESULT  hr   = S_OK;
+    LONG_PTR prev = 0;
+
+    if (m_listView == nullptr)
+    {
+        return E_UNEXPECTED;
+    }
+
+    SetWindowLongPtrW (m_listView, GWLP_USERDATA, reinterpret_cast<LONG_PTR> (this));
+
+    prev = SetWindowLongPtrW (m_listView,
+                              GWLP_WNDPROC,
+                              reinterpret_cast<LONG_PTR> (s_ListViewSubclassProc));
+    CWRA (prev);
+
+    m_originalListViewProc = reinterpret_cast<WNDPROC> (prev);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  s_ListViewSubclassProc
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LRESULT CALLBACK DiskIIDebugDialog::s_ListViewSubclassProc (
+    HWND    hwnd,
+    UINT    msg,
+    WPARAM  wParam,
+    LPARAM  lParam)
+{
+    DiskIIDebugDialog *  pThis = reinterpret_cast<DiskIIDebugDialog *> (
+                                     GetWindowLongPtrW (hwnd, GWLP_USERDATA));
+
+    if (msg == WM_KEYDOWN
+        && wParam == L'C'
+        && (GetKeyState (VK_CONTROL) & 0x8000))
+    {
+        if (pThis != nullptr)
+        {
+            pThis->CopySelectedRowsToClipboard ();
+        }
+
+        return 0;
+    }
+
+    if (pThis != nullptr && pThis->m_originalListViewProc != nullptr)
+    {
+        return CallWindowProcW (pThis->m_originalListViewProc, hwnd, msg, wParam, lParam);
+    }
+
+    return DefWindowProcW (hwnd, msg, wParam, lParam);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CopySelectedRowsToClipboard
+//
+//  FR-019: enumerate ListView selection, format each row as
+//  tab-separated UTF-16 in visible-column order, and stage on the
+//  clipboard as CF_UNICODETEXT.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::CopySelectedRowsToClipboard ()
+{
+    HRESULT                                       hr        = S_OK;
+    int                                           selIdx    = -1;
+    uint32_t                                      deqIdx    = 0;
+    std::vector<const DiskIIEventDisplay *>       selected;
+    std::wstring                                  payload;
+    HGLOBAL                                       hMem      = nullptr;
+    wchar_t  *                                    pMem      = nullptr;
+    size_t                                        byteCount = 0;
+    bool                                          opened    = false;
+
+    if (m_listView == nullptr || m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    selIdx = ListView_GetNextItem (m_listView, -1, LVNI_SELECTED);
+
+    while (selIdx >= 0)
+    {
+        if (static_cast<size_t> (selIdx) < m_filteredIndices.size ())
+        {
+            deqIdx = m_filteredIndices[selIdx];
+
+            if (deqIdx < m_deque.size ())
+            {
+                selected.push_back (&m_deque[deqIdx]);
+            }
+        }
+
+        selIdx = ListView_GetNextItem (m_listView, selIdx, LVNI_SELECTED);
+    }
+
+    if (selected.empty ())
+    {
+        return;
+    }
+
+    payload = BuildClipboardText (selected, m_columns);
+
+    byteCount = (payload.size () + 1) * sizeof (wchar_t);
+
+    hMem = GlobalAlloc (GMEM_MOVEABLE, byteCount);
+    CPRA (hMem);
+
+    pMem = static_cast<wchar_t *> (GlobalLock (hMem));
+    CPRA (pMem);
+
+    memcpy (pMem, payload.data (), byteCount - sizeof (wchar_t));
+    pMem[payload.size ()] = L'\0';
+    GlobalUnlock (hMem);
+
+    CWRA (OpenClipboard (m_hwnd));
+    opened = true;
+
+    CWRA (EmptyClipboard ());
+    CPRA (SetClipboardData (CF_UNICODETEXT, hMem));
+
+    // SetClipboardData succeeded -> the system now owns hMem.
+    hMem = nullptr;
+
+Error:
+
+    if (opened)
+    {
+        CloseClipboard ();
+    }
+
+    if (hMem != nullptr)
+    {
+        GlobalFree (hMem);
+    }
 }
 
 

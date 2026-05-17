@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskIIDebugDialogState.h"
+#include "DebugDialogProjection.h"
 
 
 
@@ -237,4 +238,92 @@ bool MatchesFilter (const DiskIIEventDisplay & e, const FilterState & f) noexcep
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppendColumnText
+//
+//  Append a single row's value for the logical column id to `out`.
+//  Wall / Uptime / Cycle / Detail come straight off the display
+//  record; Event resolves via DebugDialogProjection::EventLabel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void AppendColumnText (std::wstring & out, const DiskIIEventDisplay & e, int logicalId)
+{
+    std::wstring_view  label;
+
+    switch (logicalId)
+    {
+        case 0: out.append (e.wallStr.data   ()); break;
+        case 1: out.append (e.uptimeStr.data ()); break;
+        case 2: out.append (e.cycleStr.data  ()); break;
+        case 3:
+            label = DebugDialogProjection::EventLabel (e.category, e.type);
+            out.append (label);
+            break;
+        case 4: out.append (e.detail); break;
+        default: break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildClipboardText
+//
+//  Tab-separated rows in visible-column order, CRLF terminator.
+//  Hidden columns are omitted entirely -- no leading tab placeholder,
+//  no spacer string -- per FR-026.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BuildClipboardText (
+    const std::vector<const DiskIIEventDisplay *> &  selected,
+    const std::array<LogicalColumn, 5> &             columns)
+{
+    std::wstring  out;
+    size_t        rowIdx       = 0;
+    int           colIdx       = 0;
+    bool          firstColumn  = true;
+
+    for (rowIdx = 0; rowIdx < selected.size (); rowIdx++)
+    {
+        const DiskIIEventDisplay *  row = selected[rowIdx];
+
+        if (row == nullptr)
+        {
+            continue;
+        }
+
+        firstColumn = true;
+
+        for (colIdx = 0; colIdx < kColumnCount; colIdx++)
+        {
+            if (!columns[colIdx].visible)
+            {
+                continue;
+            }
+
+            if (!firstColumn)
+            {
+                out.push_back (L'\t');
+            }
+
+            AppendColumnText (out, *row, columns[colIdx].id);
+            firstColumn = false;
+        }
+
+        out.append (L"\r\n");
+    }
+
+    return out;
 }

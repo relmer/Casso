@@ -85,3 +85,13 @@ constexpr int  kColumnCount    = 5;
 void   SeedDefaultColumns (std::array<LogicalColumn, 5> & columns) noexcept;
 bool   ComputeWasAtTail   (int topIndex, int countPerPage, int totalCount) noexcept;
 bool   MatchesFilter      (const DiskIIEventDisplay & e, const FilterState & f) noexcept;
+
+// Phase 9: format a clipboard payload from a vector of selected
+// display rows. Tab-separated UTF-16 in visible-column order (hidden
+// columns -- and their leading tabs -- are omitted per FR-026), CRLF
+// row terminator. Pure helper; testable without a real clipboard or
+// HWND.
+std::wstring  BuildClipboardText (
+    const std::vector<const DiskIIEventDisplay *> &  selected,
+    const std::array<LogicalColumn, 5> &             columns);
+

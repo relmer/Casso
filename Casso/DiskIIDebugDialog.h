@@ -103,6 +103,12 @@ private:
     std::wstring ReadEditText           (HWND hEdit) const;
     void    UpdateAudioSubEnableState   ();
 
+    HRESULT InstallListViewSubclass     ();
+    void    CopySelectedRowsToClipboard ();
+    static LRESULT CALLBACK s_ListViewSubclassProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+    WNDPROC                                 m_originalListViewProc  = nullptr;
+
     HWND                                    m_listView           = nullptr;
 
     // Event-type checkboxes (FR-014 categories, fixed order)
