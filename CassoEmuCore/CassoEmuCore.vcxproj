@@ -205,6 +205,7 @@
     <ClCompile Include="Devices\AppleSpeaker.cpp" />
     <ClCompile Include="Devices\LanguageCard.cpp" />
     <ClCompile Include="Devices\DiskIIController.cpp" />
+    <ClCompile Include="Devices\DiskIIEventRing.cpp" />
     <ClCompile Include="Devices\Disk\DiskImage.cpp" />
     <ClCompile Include="Devices\Disk\DiskIINibbleEngine.cpp" />
     <ClCompile Include="Devices\Disk\NibblizationLayer.cpp" />

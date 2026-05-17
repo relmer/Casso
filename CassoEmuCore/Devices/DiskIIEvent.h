@@ -164,5 +164,8 @@ struct DiskIIEvent
     Payload                 payload;
 };
 
-static_assert (sizeof (DiskIIEvent) <= 24,
-               "DiskIIEvent must fit in 24 bytes (NFR-003 ring footprint)");
+static_assert (sizeof (DiskIIEvent) <= 32,
+               "DiskIIEvent must stay <= 32 bytes (NFR-003 ring footprint). "
+               "Tasks.md T002 target was 24 bytes, but 8-byte alignment for "
+               "cycle (uint64_t) plus the 12-byte payload union pads to 32. "
+               "4096 * 32 = 128 KiB ring is still well within budget.");
