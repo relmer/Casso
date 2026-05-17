@@ -792,7 +792,26 @@ bool DiskIIDebugDialog::OnCommandEx (HWND hwnd, int id, int notifyCode, HWND hCt
 
     if (id == kIdBtnPause || id == kIdBtnClear)
     {
-        // Phase 8 wires Pause / Clear.
+        if (notifyCode == BN_CLICKED)
+        {
+            if (id == kIdBtnPause)
+            {
+                m_paused = !m_paused;
+                SetWindowTextW (m_pauseButton, m_paused ? L"Resume" : L"Pause");
+            }
+            else
+            {
+                m_deque.clear ();
+                m_filteredIndices.clear ();
+
+                if (m_listView != nullptr)
+                {
+                    ListView_SetItemCountEx (m_listView, 0, LVSICF_NOSCROLL);
+                    InvalidateRect (m_listView, nullptr, FALSE);
+                }
+            }
+        }
+
         return false;
     }
 

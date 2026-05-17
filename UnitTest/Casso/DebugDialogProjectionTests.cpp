@@ -483,4 +483,95 @@ public:
         Assert::IsTrue  (MatchesFilter (MakeDisplay (DiskIIEventType::AudioLoopStarted, EventCategory::Audio, 1), f));
         Assert::IsTrue  (MatchesFilter (MakeDisplay (DiskIIEventType::AudioLoopStopped, EventCategory::Audio, 1), f));
     }
+
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  Spec-006 T082 -- Pause / Clear behavior at the projection layer.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (PauseInducedOverflow_singleLostMarkerWithCoalescedCount)
+    {
+        DiskIIEventRing                  ring;
+        std::deque<DiskIIEventDisplay>   deque;
+        uint32_t                         dropped       = 0;
+        uint64_t                         totalPushed   = 8192;
+        uint64_t                         pushAttempted = 0;
+        auto                             anchor        = std::chrono::steady_clock::now ();
+
+        // Producer never gets drained -> ring fills, every push past
+        // capacity returns false.
+        for (pushAttempted = 0; pushAttempted < totalPushed; pushAttempted++)
+        {
+            DiskIIEvent  e = MakeStep (1, 2, pushAttempted);
+
+            if (!ring.TryPush (e))
+            {
+                dropped++;
+            }
+        }
+
+        Assert::AreEqual (totalPushed - DiskIIEventRing::kEventRingCapacity,
+                          static_cast<uint64_t> (dropped));
+
+        DebugDialogProjection::DrainAndProject (ring, deque, dropped, anchor);
+
+        // Exactly one EventsLost marker; the rest are the surviving
+        // DrainBatch entries.
+        size_t  lostCount = 0;
+
+        for (size_t i = 0; i < deque.size (); i++)
+        {
+            if (deque[i].type == DiskIIEventType::EventsLost)
+            {
+                lostCount++;
+            }
+        }
+
+        Assert::AreEqual (size_t (1), lostCount);
+        Assert::AreEqual (DiskIIEventRing::kEventRingCapacity + 1, static_cast<uint32_t> (deque.size ()));
+    }
+
+
+
+    TEST_METHOD (ClearWithInFlight_inFlightDrainsIntoEmptyDequeWithNoMarker)
+    {
+        DiskIIEventRing                  ring;
+        std::deque<DiskIIEventDisplay>   deque;
+        uint32_t                         dropped     = 0;
+        int                              i           = 0;
+        auto                             anchor      = std::chrono::steady_clock::now ();
+
+        // Phase 1: 50 events drained into the deque.
+        for (i = 0; i < 50; i++)
+        {
+            Assert::IsTrue (ring.TryPush (MakeStep (i, i + 1, static_cast<uint64_t> (i))));
+        }
+
+        DebugDialogProjection::DrainAndProject (ring, deque, 0, anchor);
+        Assert::AreEqual (size_t (50), deque.size ());
+
+        // Phase 2: 100 more events pushed but NOT drained (simulating
+        // events arriving while the UI is otherwise busy).
+        for (i = 0; i < 100; i++)
+        {
+            Assert::IsTrue (ring.TryPush (MakeStep (i, i + 1, 100 + static_cast<uint64_t> (i))));
+        }
+
+        // Simulate the Clear button: clear deque, leave the ring alone,
+        // leave dropped at 0.
+        deque.clear ();
+        Assert::AreEqual (size_t (0), deque.size ());
+
+        DebugDialogProjection::DrainAndProject (ring, deque, dropped, anchor);
+
+        Assert::AreEqual (size_t (100), deque.size ());
+
+        for (size_t k = 0; k < deque.size (); k++)
+        {
+            Assert::IsFalse (deque[k].type == DiskIIEventType::EventsLost);
+        }
+    }
 };
