@@ -514,7 +514,7 @@ Normative for this feature. Controller-side events (`EventCategory::Controller`)
 | `OnHeadBump`           | `qtDelta != 0` AND post-clamp `m_quarterTrack == 0` (from < 0) OR `== kMaxQuarterTrack` (from > kMaxQuarterTrack) | Same `HandlePhase` site |
 | `OnAddressMark`        | Watcher decoded `D5 AA 96` + 4-and-4 fields + verified XOR checksum      | `DiskIIAddressMarkWatcher::StepAddrMarkState` accept terminal  |
 | `OnDataMarkRead`       | Watcher decoded `D5 AA AD` + counted 342 6-and-2 nibbles + saw `DE AA EB` | `DiskIIAddressMarkWatcher::StepDataMarkState` accept terminal  |
-| `OnDataMarkWrite`      | Equivalent watcher accept on the write path                              | (write watcher mirrors read watcher; v1 minimum: fire on the existing controller-side write completion, deferred to Phase 4 if write-path nibble observation is non-trivial) |
+| `OnDataMarkWrite`      | NEVER FIRES IN v1 — interface method defined for forward compatibility per A-010. A symmetric write watcher lands with issue #67 (bit-level write path through Q6/Q7). | (no v1 fire site) |
 | `OnDriveSelect`        | Active drive index changes via `$C0EA` / `$C0EB`                         | `HandleSwitch` cases `0xA` / `0xB`                             |
 | `OnDiskInserted`       | Disk image newly mounted (every mount fires for the debug log — unlike audio spec-005 FR-013, which suppresses the *sound* on cold-boot; the controller event still fires, and the suppression decision is logged via the audio sink — see FR-025) | `MountImage` (or shell-level mount path) |
 | `OnDiskEjected`        | Disk image unmounted                                                     | `EjectImage` (or shell-level eject path)                       |
@@ -600,9 +600,9 @@ data-mark accept terminal).
 
 ```cpp
 class DiskIIEventRing {
-    static constexpr uint32_t        kCapacity = 4096;  // power of 2
-    static constexpr uint32_t        kMask = kCapacity - 1;
-    DiskIIEvent                      m_slots[kCapacity];
+    static constexpr uint32_t        kEventRingCapacity = 4096;  // power of 2
+    static constexpr uint32_t        kMask = kEventRingCapacity - 1;
+    DiskIIEvent                      m_slots[kEventRingCapacity];
     std::atomic<uint32_t>            m_head{0};         // consumer reads/writes
     std::atomic<uint32_t>            m_tail{0};         // producer reads/writes
 

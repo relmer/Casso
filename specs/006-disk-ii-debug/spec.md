@@ -258,6 +258,8 @@ A developer is investigating why a specific copy-protected disk (e.g., Karateka)
 
 ### Measurable Outcomes
 
+> **Verification note:** The success criteria below describe the observable behavior the v1 feature MUST deliver. SC-002, SC-003, SC-009, and SC-010 are explicitly **best-effort manual observations** in v1 — no dedicated automated benchmark or scripted scroll-stress harness is built (perf microbenches were deliberately scoped out). They are verified during the manual GATE tasks at the end of each relevant phase by spot-checking, not by a green/red automated test. The remaining SCs (SC-001, SC-004..SC-008, SC-011..SC-017) are exercised by automated unit tests, headless integration tests, or a specific manual procedure documented in the corresponding task.
+
 - **SC-001**: A developer opening **View → Disk II Debug...** (Ctrl+Shift+D) before a DOS 3.3 cold boot sees the full motor → head step + bump → address mark → data read event cadence in chronological order, with the view auto-tailing the latest row, within 100 ms of each event firing.
 - **SC-002**: During a sustained DOS 3.3 boot (~150 events/sec peak), the debug window MUST NOT display a `[N events lost]` marker, AND the CPU-thread fire path MUST add < 1 % to total CPU-thread time (measured by sampling profiler against a no-sink baseline).
 - **SC-003**: After scrolling up by ≥ 1 page, the user's scroll position remains stable through ≥ 1,000 subsequent event appends; scrolling back to the bottom re-enables auto-tail on the very next append.

@@ -579,7 +579,12 @@ filter checkboxes, buttons. Render an empty list.
 - [ ] T064 [GATE] Build, manually open the dialog before a DOS 3.3 cold
       boot, observe the event stream tail-following. Verify scrolling
       up freezes the view; verify scrolling back to the bottom re-enables
-      auto-tail on the next event. (SC-001, SC-009)
+      auto-tail on the next event. Best-effort SC-002 / SC-003 / SC-009
+      spot-check during the same run: confirm no `[N events lost]` row
+      appears, scroll stability across many appends feels stable, and
+      opening the dialog mid-session (after the cold-boot completes,
+      with the disk still mounted) starts the list at zero rows.
+      (SC-001, SC-002, SC-003, SC-009)
 
 ---
 
@@ -659,8 +664,7 @@ filter checkboxes, buttons. Render an empty list.
       filter control and verify the displayed events change
       appropriately and restore on re-check. Also pause the emulator,
       then toggle a filter and confirm the display updates immediately
-      (eager rebuild while paused, per FR-014d).
-      (SC-002, SC-003, SC-004, SC-016)
+      (eager rebuild while paused, per FR-014d). (SC-004, SC-016)
 
 ### Phase 7a: Track/Sector Squiggle Helper (FR-014e)
 
@@ -917,7 +921,10 @@ columns to their default state (NFR-006).
       with their actual volume numbers, data reads). Note which
       titles surface non-standard volume numbers or half-track reads,
       and document those observations in the PR description as evidence
-      for SC-008. (SC-001, SC-008, SC-010)
+      for SC-008. Best-effort SC-010 spot-check: with no debug dialog
+      open, confirm the four fixtures still boot to the same point at
+      indistinguishable speed (the controller's fire-site `nullptr`
+      check should be unobservable). (SC-001, SC-008, SC-010)
 - [ ] T113 Final constitution sweep:
       - `rg -n '#include' CassoEmuCore/Devices/ Casso/` to verify
         every new `.cpp` includes `"Pch.h"` first.
