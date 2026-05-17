@@ -231,6 +231,7 @@
     <ClCompile Include="AssetBootstrap.cpp" />
     <ClCompile Include="OptionsDialog.cpp" />
     <ClCompile Include="TrackSectorPredicate.cpp" />
+    <ClCompile Include="DebugDialogProjection.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />
@@ -246,6 +247,7 @@
     <ClInclude Include="AssetBootstrap.h" />
     <ClInclude Include="OptionsDialog.h" />
     <ClInclude Include="TrackSectorPredicate.h" />
+    <ClInclude Include="DebugDialogProjection.h" />
     <ClInclude Include="UnicodeSymbols.h" />
     <ClInclude Include="WasapiAudio.h" />
     <ClInclude Include="resource.h" />
