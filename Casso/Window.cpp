@@ -190,7 +190,10 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
             break;
 
         case WM_COMMAND:
-            callDefWndProc = pThis->OnCommand (hwnd, LOWORD (wParam));
+            callDefWndProc = pThis->OnCommandEx (hwnd,
+                                                 LOWORD (wParam),
+                                                 HIWORD (wParam),
+                                                 reinterpret_cast<HWND> (lParam));
             break;
 
         case WM_CLOSE:
@@ -288,6 +291,28 @@ bool Window::OnCommand (HWND hwnd, int id)
     UNREFERENCED_PARAMETER (id);
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnCommandEx
+//
+//  Default behavior: forward to OnCommand for backwards compatibility
+//  with derived classes that don't care about the notification code or
+//  control handle. Override OnCommandEx instead when you need either.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::OnCommandEx (HWND hwnd, int id, int notifyCode, HWND hCtl)
+{
+    UNREFERENCED_PARAMETER (notifyCode);
+    UNREFERENCED_PARAMETER (hCtl);
+
+    return OnCommand (hwnd, id);
 }
 
 

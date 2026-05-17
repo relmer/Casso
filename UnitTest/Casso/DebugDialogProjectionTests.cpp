@@ -3,6 +3,7 @@
 #include <CppUnitTest.h>
 
 #include "DebugDialogProjection.h"
+#include "DiskIIDebugDialogState.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -309,5 +310,177 @@ public:
         Assert::AreEqual (std::wstring (L"EVENTS LOST"),
             std::wstring (DebugDialogProjection::EventLabel (EventCategory::Controller,
                                                               DiskIIEventType::EventsLost)));
+    }
+
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  Spec-006 T072 -- filter composition tests.
+    //
+    //  Build a small deque of pre-formatted display rows and exercise
+    //  the FR-014 / FR-014a / FR-014b / FR-014c composition surface.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static DiskIIEventDisplay MakeDisplay (
+        DiskIIEventType  type,
+        EventCategory    cat,
+        int              drive  = DiskIIEventDisplay::kFieldNotApplicable,
+        int              track  = DiskIIEventDisplay::kFieldNotApplicable,
+        int              sector = DiskIIEventDisplay::kFieldNotApplicable)
+    {
+        DiskIIEventDisplay  d;
+
+        d.category = cat;
+        d.type     = type;
+        d.drive    = drive;
+        d.track    = track;
+        d.sector   = sector;
+
+        return d;
+    }
+
+
+
+    TEST_METHOD (Filter_allChecked_showsEverything)
+    {
+        FilterState           f;
+        DiskIIEventDisplay    motor    = MakeDisplay (DiskIIEventType::MotorEngaged,  EventCategory::Controller);
+        DiskIIEventDisplay    step     = MakeDisplay (DiskIIEventType::HeadStep,      EventCategory::Controller);
+        DiskIIEventDisplay    addr     = MakeDisplay (DiskIIEventType::AddrMark,      EventCategory::Controller, 1, 17, 5);
+        DiskIIEventDisplay    audio    = MakeDisplay (DiskIIEventType::AudioStarted,  EventCategory::Audio,      1);
+        DiskIIEventDisplay    loop     = MakeDisplay (DiskIIEventType::AudioLoopStarted, EventCategory::Audio,   1);
+
+        Assert::IsTrue (MatchesFilter (motor, f));
+        Assert::IsTrue (MatchesFilter (step,  f));
+        Assert::IsTrue (MatchesFilter (addr,  f));
+        Assert::IsTrue (MatchesFilter (audio, f));
+        Assert::IsTrue (MatchesFilter (loop,  f));
+    }
+
+
+
+    TEST_METHOD (Filter_allUncheckedAndAudioOff_hidesAllNonLost)
+    {
+        FilterState           f;
+        DiskIIEventDisplay    motor = MakeDisplay (DiskIIEventType::MotorEngaged, EventCategory::Controller);
+        DiskIIEventDisplay    audio = MakeDisplay (DiskIIEventType::AudioStarted, EventCategory::Audio, 1);
+        DiskIIEventDisplay    lost  = MakeDisplay (DiskIIEventType::EventsLost,   EventCategory::Controller);
+
+        f.eventTypeMask = 0;
+        f.audioMaster   = false;
+
+        Assert::IsFalse (MatchesFilter (motor, f));
+        Assert::IsFalse (MatchesFilter (audio, f));
+        Assert::IsTrue  (MatchesFilter (lost,  f));    // EventsLost is never filterable
+    }
+
+
+
+    TEST_METHOD (Filter_driveOne_showsOnlyDriveOneTaggedEvents)
+    {
+        FilterState           f;
+        DiskIIEventDisplay    drv1 = MakeDisplay (DiskIIEventType::DriveSelect, EventCategory::Controller, 1);
+        DiskIIEventDisplay    drv2 = MakeDisplay (DiskIIEventType::DriveSelect, EventCategory::Controller, 2);
+        DiskIIEventDisplay    motor = MakeDisplay (DiskIIEventType::MotorEngaged, EventCategory::Controller);
+
+        f.driveFilter = 1;
+
+        Assert::IsTrue  (MatchesFilter (drv1,  f));
+        Assert::IsFalse (MatchesFilter (drv2,  f));
+        // Motor events have no drive field -> rejected (Drive=Drive 1).
+        Assert::IsFalse (MatchesFilter (motor, f));
+
+        f.driveFilter = 0;
+        Assert::IsTrue (MatchesFilter (drv1,  f));
+        Assert::IsTrue (MatchesFilter (drv2,  f));
+        Assert::IsTrue (MatchesFilter (motor, f));
+    }
+
+
+
+    TEST_METHOD (Filter_trackList_showsOnlyMatchingAddrMarks)
+    {
+        FilterState           f;
+        DiskIIEventDisplay    t0  = MakeDisplay (DiskIIEventType::AddrMark, EventCategory::Controller, 1, 0,  0);
+        DiskIIEventDisplay    t1  = MakeDisplay (DiskIIEventType::AddrMark, EventCategory::Controller, 1, 1,  0);
+        DiskIIEventDisplay    t17 = MakeDisplay (DiskIIEventType::AddrMark, EventCategory::Controller, 1, 17, 0);
+        DiskIIEventDisplay    t5  = MakeDisplay (DiskIIEventType::AddrMark, EventCategory::Controller, 1, 5,  0);
+
+        f.trackFilter = TrackSectorPredicate::Parse (L"0-2,17", false);
+
+        Assert::IsTrue  (MatchesFilter (t0,  f));
+        Assert::IsTrue  (MatchesFilter (t1,  f));
+        Assert::IsTrue  (MatchesFilter (t17, f));
+        Assert::IsFalse (MatchesFilter (t5,  f));
+    }
+
+
+
+    TEST_METHOD (Filter_sectorOutOfRangeValue_matchesNothing_doesNotThrow)
+    {
+        FilterState           f;
+        DiskIIEventDisplay    s0  = MakeDisplay (DiskIIEventType::DataRead, EventCategory::Controller, 1, DiskIIEventDisplay::kFieldNotApplicable, 0);
+
+        f.sectorFilter = TrackSectorPredicate::Parse (L"999", false);
+
+        Assert::IsFalse (MatchesFilter (s0, f));
+    }
+
+
+
+    TEST_METHOD (Filter_combined_driveAndTrackAndReadOnlyAndAudioOff)
+    {
+        FilterState           f;
+        DiskIIEventDisplay    matching   = MakeDisplay (DiskIIEventType::DataRead, EventCategory::Controller, 1, DiskIIEventDisplay::kFieldNotApplicable, 0);
+        DiskIIEventDisplay    wrongDrive = MakeDisplay (DiskIIEventType::DataRead, EventCategory::Controller, 2, DiskIIEventDisplay::kFieldNotApplicable, 0);
+        DiskIIEventDisplay    motor      = MakeDisplay (DiskIIEventType::MotorEngaged, EventCategory::Controller);
+        DiskIIEventDisplay    audio      = MakeDisplay (DiskIIEventType::AudioStarted, EventCategory::Audio, 1);
+
+        f.eventTypeMask = FilterState::kEventCatRead;
+        f.driveFilter   = 1;
+        f.audioMaster   = false;
+
+        Assert::IsTrue  (MatchesFilter (matching,   f));
+        Assert::IsFalse (MatchesFilter (wrongDrive, f));
+        Assert::IsFalse (MatchesFilter (motor,      f));
+        Assert::IsFalse (MatchesFilter (audio,      f));
+    }
+
+
+
+    TEST_METHOD (Filter_audioMasterOff_hidesAllSixAudioOutcomes_butLoopsToo)
+    {
+        FilterState           f;
+
+        f.audioMaster = false;
+
+        Assert::IsFalse (MatchesFilter (MakeDisplay (DiskIIEventType::AudioStarted,     EventCategory::Audio, 1), f));
+        Assert::IsFalse (MatchesFilter (MakeDisplay (DiskIIEventType::AudioRestarted,   EventCategory::Audio, 1), f));
+        Assert::IsFalse (MatchesFilter (MakeDisplay (DiskIIEventType::AudioContinued,   EventCategory::Audio, 1), f));
+        Assert::IsFalse (MatchesFilter (MakeDisplay (DiskIIEventType::AudioSilent,      EventCategory::Audio, 1), f));
+        Assert::IsFalse (MatchesFilter (MakeDisplay (DiskIIEventType::AudioLoopStarted, EventCategory::Audio, 1), f));
+        Assert::IsFalse (MatchesFilter (MakeDisplay (DiskIIEventType::AudioLoopStopped, EventCategory::Audio, 1), f));
+    }
+
+
+
+    TEST_METHOD (Filter_audioMasterOnSilentOnly_showsSilentAndLoops_hidesOthers)
+    {
+        FilterState           f;
+
+        f.audioStarted    = false;
+        f.audioRestarted  = false;
+        f.audioContinued  = false;
+        f.audioSilent     = true;
+
+        Assert::IsFalse (MatchesFilter (MakeDisplay (DiskIIEventType::AudioStarted,     EventCategory::Audio, 1), f));
+        Assert::IsFalse (MatchesFilter (MakeDisplay (DiskIIEventType::AudioRestarted,   EventCategory::Audio, 1), f));
+        Assert::IsFalse (MatchesFilter (MakeDisplay (DiskIIEventType::AudioContinued,   EventCategory::Audio, 1), f));
+        Assert::IsTrue  (MatchesFilter (MakeDisplay (DiskIIEventType::AudioSilent,      EventCategory::Audio, 1), f));
+        // Loops are gated only by audioMaster, never by sub-toggles.
+        Assert::IsTrue  (MatchesFilter (MakeDisplay (DiskIIEventType::AudioLoopStarted, EventCategory::Audio, 1), f));
+        Assert::IsTrue  (MatchesFilter (MakeDisplay (DiskIIEventType::AudioLoopStopped, EventCategory::Audio, 1), f));
     }
 };

@@ -67,13 +67,13 @@ public:
     void OnAudioLoopStopped  (SoundKind kind, int drive) override;
 
 protected:
-    LRESULT OnCreate  (HWND hwnd, CREATESTRUCT * pcs)   override;
-    bool    OnClose   (HWND hwnd)                       override;
-    bool    OnDestroy (HWND hwnd)                       override;
-    bool    OnSize    (HWND hwnd, UINT width, UINT height) override;
-    bool    OnCommand (HWND hwnd, int id)               override;
-    bool    OnTimer   (HWND hwnd, UINT_PTR timerId)     override;
-    bool    OnNotify  (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
+    LRESULT OnCreate     (HWND hwnd, CREATESTRUCT * pcs)   override;
+    bool    OnClose      (HWND hwnd)                       override;
+    bool    OnDestroy    (HWND hwnd)                       override;
+    bool    OnSize       (HWND hwnd, UINT width, UINT height) override;
+    bool    OnCommandEx  (HWND hwnd, int id, int notifyCode, HWND hCtl) override;
+    bool    OnTimer      (HWND hwnd, UINT_PTR timerId)     override;
+    bool    OnNotify     (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
 
 private:
     void    PushControllerEvent  (DiskIIEventType type) noexcept;
@@ -93,6 +93,15 @@ private:
     void    HandleDrainTick             ();
     void    HandleGetDispInfo           (NMLVDISPINFOW * pInfo);
     void    AppendFilteredIndicesFor    (size_t startDeqIdx);
+    void    RebuildFilteredIndices      ();
+    void    InvalidateListView          ();
+
+    void    OnFilterControlToggled      (int id, HWND hCtl);
+    void    OnFilterTextChanged         ();
+    void    OnFilterTextKillFocus       ();
+    void    FlushFilterDebounce         ();
+    std::wstring ReadEditText           (HWND hEdit) const;
+    void    UpdateAudioSubEnableState   ();
 
     HWND                                    m_listView           = nullptr;
 

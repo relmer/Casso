@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskIIDebugDialog.h"
+#include "RichEditSquiggle.h"
 #include "Ehm.h"
 
 
@@ -774,13 +775,328 @@ bool DiskIIDebugDialog::OnDestroy (HWND hwnd)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskIIDebugDialog::OnCommand (HWND hwnd, int id)
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnCommandEx
+//
+//  Filter checkboxes / radios fire BN_CLICKED. Track/Sector RichEdits
+//  fire EN_CHANGE on every keystroke and EN_KILLFOCUS when focus
+//  moves; the former arms the debounce timer, the latter flushes
+//  immediately per FR-014d.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskIIDebugDialog::OnCommandEx (HWND hwnd, int id, int notifyCode, HWND hCtl)
 {
     UNREFERENCED_PARAMETER (hwnd);
-    UNREFERENCED_PARAMETER (id);
 
-    // Filter/pause/clear handlers land in Phases 7/8.
+    if (id == kIdBtnPause || id == kIdBtnClear)
+    {
+        // Phase 8 wires Pause / Clear.
+        return false;
+    }
+
+    if (id == kIdEdtTrack || id == kIdEdtSector)
+    {
+        if (notifyCode == EN_CHANGE)
+        {
+            OnFilterTextChanged ();
+        }
+        else if (notifyCode == EN_KILLFOCUS)
+        {
+            OnFilterTextKillFocus ();
+        }
+
+        return false;
+    }
+
+    if (notifyCode == BN_CLICKED)
+    {
+        OnFilterControlToggled (id, hCtl);
+    }
+
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnFilterControlToggled
+//
+//  Read the new check / select state straight off the control handle
+//  rather than tracking a parallel bool per checkbox -- the Win32
+//  control is the source of truth and BST_CHECKED is one IPC.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::OnFilterControlToggled (int id, HWND hCtl)
+{
+    bool      checked   = false;
+    uint32_t  catBit    = 0;
+    int       slot      = 0;
+
+    if (hCtl == nullptr)
+    {
+        return;
+    }
+
+    checked = SendMessageW (hCtl, BM_GETCHECK, 0, 0) == BST_CHECKED;
+
+    if (id >= kIdChkEventTypeFirst && id < kIdChkEventTypeFirst + 8)
+    {
+        slot   = id - kIdChkEventTypeFirst;
+        catBit = 1u << slot;
+
+        if (checked)
+        {
+            m_filter.eventTypeMask |= catBit;
+        }
+        else
+        {
+            m_filter.eventTypeMask &= ~catBit;
+        }
+    }
+    else if (id == kIdChkAudioMaster)
+    {
+        m_filter.audioMaster = checked;
+        UpdateAudioSubEnableState ();
+    }
+    else if (id >= kIdChkAudioSubFirst && id < kIdChkAudioSubFirst + 4)
+    {
+        slot = id - kIdChkAudioSubFirst;
+
+        switch (slot)
+        {
+            case 0: m_filter.audioStarted   = checked; break;
+            case 1: m_filter.audioRestarted = checked; break;
+            case 2: m_filter.audioContinued = checked; break;
+            case 3: m_filter.audioSilent    = checked; break;
+            default: break;
+        }
+    }
+    else if (id >= kIdRdoDriveFirst && id < kIdRdoDriveFirst + 3)
+    {
+        if (checked)
+        {
+            m_filter.driveFilter = id - kIdRdoDriveFirst;
+        }
+    }
+    else if (id == kIdChkTrackRawQt)
+    {
+        m_filter.trackFilterRawQt = checked;
+        // raw-qt re-interprets bare integers as quarter tracks so the
+        // track predicate has to be re-parsed against the new flag.
+        FlushFilterDebounce ();
+        return;
+    }
+    else
+    {
+        return;
+    }
+
+    RebuildFilteredIndices ();
+    InvalidateListView ();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateAudioSubEnableState
+//
+//  FR-014c: when the Audio master is unchecked the four sub-checkboxes
+//  grey out but keep their checked state for restoration.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::UpdateAudioSubEnableState ()
+{
+    int  i = 0;
+
+    for (i = 0; i < 4; i++)
+    {
+        EnableWindow (m_audioSubCheck[i], m_filter.audioMaster ? TRUE : FALSE);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnFilterTextChanged
+//
+//  FR-014d: arm a one-shot 250 ms timer; subsequent keystrokes cancel
+//  and re-arm so we only re-parse / re-project after the user pauses
+//  typing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::OnFilterTextChanged ()
+{
+    if (m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    if (m_filterDebouncePending)
+    {
+        KillTimer (m_hwnd, m_filterDebounceTimerId);
+    }
+
+    SetTimer (m_hwnd, m_filterDebounceTimerId, kFilterTextDebounceMs, nullptr);
+    m_filterDebouncePending = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnFilterTextKillFocus
+//
+//  EN_KILLFOCUS bypasses the debounce wait and flushes immediately.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::OnFilterTextKillFocus ()
+{
+    if (m_hwnd != nullptr && m_filterDebouncePending)
+    {
+        KillTimer (m_hwnd, m_filterDebounceTimerId);
+        m_filterDebouncePending = false;
+    }
+
+    FlushFilterDebounce ();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadEditText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DiskIIDebugDialog::ReadEditText (HWND hEdit) const
+{
+    int           len = 0;
+    std::wstring  out;
+
+    if (hEdit == nullptr)
+    {
+        return out;
+    }
+
+    len = GetWindowTextLengthW (hEdit);
+
+    if (len <= 0)
+    {
+        return out;
+    }
+
+    out.resize (static_cast<size_t> (len));
+    GetWindowTextW (hEdit, out.data (), len + 1);
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FlushFilterDebounce
+//
+//  Re-parse Track and Sector inputs, refresh m_filter, rebuild the
+//  filtered-index vector, repaint the ListView, and update the
+//  FR-014e squiggle + ignored-tokens label on each input.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::FlushFilterDebounce ()
+{
+    std::wstring  trackText;
+    std::wstring  sectorText;
+
+    m_filterDebouncePending = false;
+
+    trackText  = ReadEditText (m_trackRichEdit);
+    sectorText = ReadEditText (m_sectorRichEdit);
+
+    m_filter.trackFilter  = TrackSectorPredicate::Parse (trackText,  m_filter.trackFilterRawQt);
+    m_filter.sectorFilter = TrackSectorPredicate::Parse (sectorText, false);
+
+    RebuildFilteredIndices ();
+    InvalidateListView ();
+
+    ApplyRejectedTokenSquiggles (m_trackRichEdit,   m_filter.trackFilter.RejectedSpans  ());
+    SetIgnoredTokensLabel       (m_trackIgnoredLabel,  trackText,  m_filter.trackFilter.RejectedSpans  ());
+
+    ApplyRejectedTokenSquiggles (m_sectorRichEdit,  m_filter.sectorFilter.RejectedSpans ());
+    SetIgnoredTokensLabel       (m_sectorIgnoredLabel, sectorText, m_filter.sectorFilter.RejectedSpans ());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RebuildFilteredIndices
+//
+//  Full O(deque) rebuild. Cheap relative to the user's typing cadence
+//  and the only correct behavior when the filter state changes mid-
+//  stream (re-checking a filter MUST reveal events from the off
+//  window in chronological order per User Story 3).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::RebuildFilteredIndices ()
+{
+    size_t  i = 0;
+
+    m_filteredIndices.clear ();
+
+    for (i = 0; i < m_deque.size (); i++)
+    {
+        if (MatchesFilter (m_deque[i], m_filter))
+        {
+            m_filteredIndices.push_back (static_cast<uint32_t> (i));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InvalidateListView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::InvalidateListView ()
+{
+    if (m_listView == nullptr)
+    {
+        return;
+    }
+
+    ListView_SetItemCountEx (m_listView,
+                             static_cast<int> (m_filteredIndices.size ()),
+                             LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
+    InvalidateRect (m_listView, nullptr, FALSE);
 }
 
 
@@ -800,9 +1116,21 @@ bool DiskIIDebugDialog::OnTimer (HWND hwnd, UINT_PTR timerId)
     if (timerId == m_drainTimerId)
     {
         HandleDrainTick ();
+        return false;
     }
 
-    // Filter-debounce handler lands in Phase 7a.
+    if (timerId == m_filterDebounceTimerId)
+    {
+        if (m_filterDebouncePending)
+        {
+            KillTimer (m_hwnd, m_filterDebounceTimerId);
+            m_filterDebouncePending = false;
+        }
+
+        FlushFilterDebounce ();
+        return false;
+    }
+
     return false;
 }
 
@@ -831,6 +1159,9 @@ void DiskIIDebugDialog::HandleDrainTick ()
     bool      wasAtTail    = false;
     bool      shouldPaint  = false;
     uint32_t  dropped      = 0;
+    size_t    preDequeSize = 0;
+    size_t    postDequeSize = 0;
+    bool      hitCap       = false;
 
     if (m_listView == nullptr)
     {
@@ -842,14 +1173,28 @@ void DiskIIDebugDialog::HandleDrainTick ()
     countPerPage = ListView_GetCountPerPage (m_listView);
     wasAtTail    = ComputeWasAtTail (topIndex, countPerPage, oldCount);
 
-    dropped = m_droppedSinceLastDrain.exchange (0, std::memory_order_acq_rel);
+    preDequeSize = m_deque.size ();
+    dropped      = m_droppedSinceLastDrain.exchange (0, std::memory_order_acq_rel);
 
     DebugDialogProjection::DrainAndProject (m_ring, m_deque, dropped, m_uptimeAnchor);
 
-    // Phase 7 will run incremental MatchesFilter against newly-appended
-    // entries; for Phase 6 the identity mapping keeps the row count in
-    // step with the deque so LVN_GETDISPINFO finds something to render.
-    AppendFilteredIndicesFor (m_filteredIndices.size ());
+    postDequeSize = m_deque.size ();
+
+    // pop_front happens only when the rolling cap is hit. When either
+    // the pre- or post-drain deque sized at the cap, indices may be
+    // stale by some unknown shift; rebuild from scratch. Otherwise
+    // run the cheap incremental append for slots [pre..post).
+    hitCap = preDequeSize  >= DebugDialogProjection::kDisplayDequeCap
+          || postDequeSize >= DebugDialogProjection::kDisplayDequeCap;
+
+    if (hitCap)
+    {
+        RebuildFilteredIndices ();
+    }
+    else
+    {
+        AppendFilteredIndicesFor (preDequeSize);
+    }
 
     newCount = static_cast<int> (m_filteredIndices.size ());
 
@@ -881,10 +1226,11 @@ void DiskIIDebugDialog::HandleDrainTick ()
 //
 //  AppendFilteredIndicesFor
 //
-//  Phase 6 helper: extend m_filteredIndices with identity entries for
-//  every deque slot from startIdx through deque.size()-1. Phase 7
-//  replaces this with a MatchesFilter-gated incremental append; the
-//  signature stays stable so the drain-tick call site doesn't change.
+//  Phase 7: extend m_filteredIndices with deque slots from startIdx
+//  that pass MatchesFilter. The drain-tick call site hands us the
+//  pre-drain filtered-indices count -- but startIdx here is computed
+//  by callers as "the deque position at which the next match should
+//  begin from", which is the deque size we last fully scanned.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -896,8 +1242,8 @@ void DiskIIDebugDialog::AppendFilteredIndicesFor (size_t startIdx)
     // scratch when that happens so the indices never dangle.
     if (m_filteredIndices.size () > m_deque.size ())
     {
-        m_filteredIndices.clear ();
-        startIdx = 0;
+        RebuildFilteredIndices ();
+        return;
     }
 
     if (startIdx > m_deque.size ())
@@ -907,7 +1253,10 @@ void DiskIIDebugDialog::AppendFilteredIndicesFor (size_t startIdx)
 
     for (i = startIdx; i < m_deque.size (); i++)
     {
-        m_filteredIndices.push_back (static_cast<uint32_t> (i));
+        if (MatchesFilter (m_deque[i], m_filter))
+        {
+            m_filteredIndices.push_back (static_cast<uint32_t> (i));
+        }
     }
 }
 

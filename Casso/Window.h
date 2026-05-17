@@ -44,6 +44,7 @@ protected:
     // Virtual message handlers — return true to call DefWindowProc
     virtual bool    OnChar     (WPARAM ch, LPARAM lParam);
     virtual bool    OnCommand  (HWND hwnd, int id);
+    virtual bool    OnCommandEx (HWND hwnd, int id, int notifyCode, HWND hCtl);
     virtual bool    OnClose    (HWND hwnd);
     virtual LRESULT OnCreate   (HWND hwnd, CREATESTRUCT * pcs);
     virtual bool    OnDestroy  (HWND hwnd);
