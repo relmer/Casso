@@ -189,8 +189,15 @@ used by the dialog's Track and Sector inputs.
       with `static TrackSectorPredicate Parse (std::wstring_view expr,
       bool rawQt)` and `bool Matches (int value) const` and
       `bool MatchesQuarterTrack (int qt) const`. Internal representation:
-      `std::vector<Range>` where `Range = {int lo, int hi, bool isQt}`.
-      An empty parse result MUST match all values. (FR-014a, FR-014b)
+      `std::vector<Range>` where `Range = {int lo, int hi, bool isQt}`,
+      plus `std::vector<RejectedSpan>` where
+      `RejectedSpan = {int beginUtf16, int endUtf16}` recording the
+      half-open UTF-16 code-unit byte range of every token the parser
+      rejected within the original `expr` (used by the dialog's
+      FR-014e squiggle layer; ignored by `Matches`). Expose
+      `const std::vector<RejectedSpan>& RejectedSpans () const noexcept`.
+      An empty parse result MUST match all values. (FR-014a, FR-014b,
+      FR-014e)
 - [ ] T026 Create `Casso/TrackSectorPredicate.cpp`. Implement `Parse`:
       tokenize on commas, then for each token detect range (`a-b`) vs.
       single value vs. decimal quarter-track (`17.25`, `17.5`,
@@ -199,14 +206,18 @@ used by the dialog's Track and Sector inputs.
       integers are interpreted as quarter-tracks rather than whole
       tracks). Tolerate surrounding whitespace; silently skip
       malformed tokens (e.g., `abc`) — they MUST NOT throw or block
-      other valid tokens in the same expression. NO max-value
+      other valid tokens in the same expression — but record their
+      `{begin, end}` UTF-16 offsets within `expr` as a `RejectedSpan`
+      (the span MUST cover only the token text itself, not the
+      surrounding whitespace or comma separators, so the dialog can
+      squiggle just the token). NO max-value
       validation: a token of `999` parses as `{999, 999, false}` and
       simply fails to match in practice (FR-014a NO max-value rule).
-      (FR-014a, FR-014b)
+      (FR-014a, FR-014b, FR-014e)
 - [ ] T027 [P] Create `UnitTest/Casso/TrackSectorPredicateTests.cpp`.
       Tests:
       - Empty expression matches every value (returns true for all
-        inputs).
+        inputs) and `RejectedSpans()` is empty.
       - `17` matches 17 only.
       - `17.5` matches quarter-track 70 only (`MatchesQuarterTrack`).
       - `0-2` matches 0, 1, 2 (and not 3 or -1).
@@ -223,7 +234,20 @@ used by the dialog's Track and Sector inputs.
       - Whitespace tolerated: `  0 - 2 , 17  ` parses correctly.
       - `999` parses successfully and matches only 999 (no max-value
         rejection — FR-014a, FR-014b).
-      (FR-014a, FR-014b)
+      - **Rejected-span recording (FR-014e)**: for input
+        `0-2, abc, 17`, `RejectedSpans()` returns exactly one span
+        whose `[begin, end)` UTF-16 offsets cover the substring
+        `abc` (NOT the surrounding spaces or commas). For input
+        `xx, 5, yy` returns exactly two spans, one covering `xx`
+        and one covering `yy`. For a fully valid input
+        (`0-2, 17, 30-34`) the rejected-span vector is empty. For
+        an all-junk input (`abc, def`) returns two spans covering
+        `abc` and `def` and the predicate matches nothing valid
+        (but does not match everything — it matches nothing
+        because there are no ranges; the "empty = match all" rule
+        applies only when the input is empty/whitespace, not when
+        every token was rejected).
+      (FR-014a, FR-014b, FR-014e)
 - [ ] T028 [GATE] Run parser tests.
 
 ---
@@ -476,13 +500,22 @@ filter checkboxes, buttons. Render an empty list.
         checked.
       - Drive radio group (All / Drive 1 / Drive 2), default = All.
       - Track and Sector text inputs (initially empty = match all),
-        with a "raw qt" checkbox alongside the Track input.
+        created as **RichEdit 4.1 controls** (class `RICHEDIT50W`,
+        named constant `kFilterRichEditClass`; load
+        `kFilterRichEditModule` = `L"msftedit.dll"` once via
+        `LoadLibraryW` in `Create` BEFORE the first
+        `CreateWindowExW` call for these inputs, so the class is
+        registered), NOT standard `EDIT` controls. A read-only
+        `STATIC` label MUST be placed directly beneath each input
+        (initially empty text) to host the FR-014e
+        `Ignored: <token>, <token>` summary. A "raw qt" checkbox
+        sits alongside the Track input.
       - Audio sub-checkboxes (Started, Restarted, Continued, Silent),
         all initially checked, visually disabled when Audio-master is
         unchecked (FR-014c).
       - Pause and Clear buttons.
       (FR-001, FR-003, FR-004, FR-014, FR-014a, FR-014b, FR-014c,
-      FR-026, FR-027)
+      FR-014e, FR-026, FR-027)
 - [ ] T052 Implement window-class registration (lazy, on first `Create`)
       using a file-scope `static const wchar_t g_pszDebugWndClass[] =
       L"CassoDiskIIDebugWindow";`. Hungarian per constitution. Register
@@ -560,10 +593,15 @@ filter checkboxes, buttons. Render an empty list.
       `m_filter` (re-parsing the Track and Sector inputs via
       `TrackSectorPredicate::Parse` from Phase 2a) and rebuild
       `m_filteredIndices` from `m_deque` by running `MatchesFilter` on
-      every entry. When the Audio-master is unchecked, visually disable
+      every entry. After each Track / Sector re-parse, call the
+      FR-014e helpers (T074): `ApplyRejectedTokenSquiggles` on the
+      RichEdit + `SetIgnoredTokensLabel` on the static beneath it,
+      using the predicate's `RejectedSpans()`. When the Audio-master
+      is unchecked, visually disable
       (grey out) the four sub-checkboxes via `EnableWindow(..., FALSE)`
       but preserve their checked state for restoration when Audio-master
-      is re-checked (FR-014c). (FR-014, FR-014a, FR-014b, FR-014c)
+      is re-checked (FR-014c). (FR-014, FR-014a, FR-014b, FR-014c,
+      FR-014e)
 - [ ] T071 Update the `LVN_GETDISPINFO` handler so the virtual row count
       reported by `ListView_SetItemCountEx` equals
       `m_filteredIndices.size()` (not `m_deque.size()`). On drain, after
@@ -600,6 +638,53 @@ filter checkboxes, buttons. Render an empty list.
 - [ ] T073 [GATE] Manual test: during a DOS 3.3 boot, toggle each
       filter control and verify the displayed events change
       appropriately and restore on re-check.
+
+### Phase 7a: Track/Sector Squiggle Helper (FR-014e)
+
+- [ ] T074 [P] Create `Casso/RichEditSquiggle.h` declaring a free
+      helper `void ApplyRejectedTokenSquiggles (HWND hRichEdit,
+      const std::vector<TrackSectorPredicate::RejectedSpan>& spans)`
+      and `void SetIgnoredTokensLabel (HWND hStatic,
+      std::wstring_view originalExpr,
+      const std::vector<TrackSectorPredicate::RejectedSpan>& spans)`.
+      The first helper saves the RichEdit selection
+      (`EM_EXGETSEL`), selects `{0, -1}` and applies a default
+      `CHARFORMAT2W` that clears `CFM_UNDERLINETYPE |
+      CFM_UNDERLINECOLOR`, then for each span selects that
+      range and applies a `CHARFORMAT2W` with
+      `dwMask = CFM_UNDERLINETYPE | CFM_UNDERLINECOLOR`,
+      `bUnderlineType = CFU_UNDERLINEWAVE`,
+      `bUnderlineColor = kFilterSquiggleUnderlineColor`
+      (= `CFU_UNDERLINECOLOR_RED`), then restores the saved
+      selection (`EM_EXSETSEL`). The second helper builds the
+      `Ignored: tok1, tok2` UTF-16 string from `originalExpr` +
+      `spans` and calls `SetWindowTextW (hStatic, ...)` (empty
+      string when `spans` is empty). (FR-014e)
+- [ ] T075 [P] Create `UnitTest/Casso/RichEditSquiggleTests.cpp`.
+      Because the helpers touch real Win32 controls, factor the
+      label-building logic into a pure free function
+      `std::wstring BuildIgnoredTokensLabel (std::wstring_view expr,
+      const std::vector<TrackSectorPredicate::RejectedSpan>& spans)`
+      that the test exercises directly:
+      - Empty `spans` → returns empty string.
+      - One span over `abc` in `0-2, abc, 17` → returns
+        `L"Ignored: abc"`.
+      - Two spans over `xx` and `yy` in `xx, 5, yy` → returns
+        `L"Ignored: xx, yy"`.
+      - Spans MUST be slicing into `expr` via the recorded UTF-16
+        offsets — no re-tokenization, no whitespace inclusion.
+      The Win32-touching squiggle apply is validated manually
+      under T073's GATE plus the new manual check below.
+      (FR-014e)
+- [ ] T076 [GATE] Manual: type `0-2, abc, 17` into the Track
+      RichEdit, wait 250 ms (debounce flush), verify (a) `abc`
+      gains a red wavy underline; the rest of the text is
+      undecorated, (b) the label beneath the input reads
+      `Ignored: abc`, (c) the filter still applies as
+      `{0, 1, 2, 17}` (the squiggle does not block filtering),
+      (d) fixing the typo (`abc` → `5`) and waiting 250 ms
+      removes the squiggle and clears the label. Repeat for the
+      Sector input. (FR-014e)
 
 ---
 
@@ -810,7 +895,10 @@ columns to their default state (NFR-006).
 - T030 (controller field additions) blocks T031, T032, T033.
 - T010 (ring impl) blocks T011, T012, and any later phase that uses the ring.
 - T020 (watcher impl) blocks T021 and T032 (which invokes `ObserveNibble`).
-- T026 (TrackSectorPredicate impl) blocks T027 and Phase 7 (T070).
+- T026 (TrackSectorPredicate impl) blocks T027 and Phase 7 (T070, T074).
+- T074 (RichEditSquiggle helper) blocks T070's Track/Sector handlers
+  invoking the helper; T074 itself depends on T026 (it references
+  `TrackSectorPredicate::RejectedSpan`).
 - T036–T038 (audio source integration) block T039 and Phase 10's
   `SetAudioEventSink` wiring in T103.
 - T041 (projection impl) blocks T042 and Phase 6 (T060).

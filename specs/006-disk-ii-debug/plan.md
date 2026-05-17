@@ -100,7 +100,7 @@ Uptime anchor reseed), ~50–75 new test cases. New modeless dialog
 | Function Spacing — `func()` vs `func (a, b)`      | Verified via `rg -n '\w \(\)' CassoEmuCore/Devices/ Casso/` before commit on every PR phase.                                            |
 | Smart Pointers                                    | `DiskIIDebugDialog` is owned by `EmulatorShell` directly (composition); no smart pointer needed. `DiskIIEventRing` and `DiskIIAddressMarkWatcher` are direct members of `DiskIIController` / the dialog respectively. |
 | PascalCase file names                             | All new source files (`IDiskIIEventSink.h`, `DiskIIEventRing.{h,cpp}`, `DiskIIAddressMarkWatcher.{h,cpp}`, `DiskIIDebugDialog.{h,cpp}`) and test files use PascalCase with no underscores. |
-| No magic numbers                                  | `kEventRingCapacity = 4096`, `kDisplayDequeCap = 100000`, `kDrainTimerHz = 30`, `kDrainTimerMs = 33`, `kAddrMarkPrologue0 = 0xD5`, `kAddrMarkPrologue1 = 0xAA`, `kAddrMarkPrologue2 = 0x96`, `kDataMarkPrologue2 = 0xAD`, `kSectorEpilogue0 = 0xDE`, `kSectorEpilogue1 = 0xAA`, `kSectorEpilogue2 = 0xEB`, `kDataNibbleCount = 342`, `kFilterTextDebounceMs = 250` (Track/Sector text-input debounce per FR-014d), and column-width constants `kColWallWidth = 110`, `kColUptimeWidth = 90`, `kColCycleWidth = 110`, `kColEventWidth = 110`, `kColDetailWidth = 360` (sum ≈ 790 px), are all named constants. |
+| No magic numbers                                  | `kEventRingCapacity = 4096`, `kDisplayDequeCap = 100000`, `kDrainTimerHz = 30`, `kDrainTimerMs = 33`, `kAddrMarkPrologue0 = 0xD5`, `kAddrMarkPrologue1 = 0xAA`, `kAddrMarkPrologue2 = 0x96`, `kDataMarkPrologue2 = 0xAD`, `kSectorEpilogue0 = 0xDE`, `kSectorEpilogue1 = 0xAA`, `kSectorEpilogue2 = 0xEB`, `kDataNibbleCount = 342`, `kFilterTextDebounceMs = 250` (Track/Sector text-input debounce per FR-014d), `kFilterRichEditClass = L"RICHEDIT50W"` and `kFilterRichEditModule = L"msftedit.dll"` (Track/Sector RichEdit class + module per FR-014e), `kFilterSquiggleUnderlineColor = CFU_UNDERLINECOLOR_RED` (per FR-014e), and column-width constants `kColWallWidth = 110`, `kColUptimeWidth = 90`, `kColCycleWidth = 110`, `kColEventWidth = 110`, `kColDetailWidth = 360` (sum ≈ 790 px), are all named constants. |
 | Hungarian for file-scope statics                  | Any file-scope statics in dialog code (e.g., a `static const wchar_t* g_pszWindowClass`) use Hungarian per constitution.                |
 | `std::numbers` for math constants                 | No math constants needed by this feature (ring/deque are integer-indexed; time formatting uses integer ms).                            |
 | American English                                  | Verified (e.g., "behavior", not "behaviour"; "canceled", not "cancelled").                                                              |
@@ -361,8 +361,44 @@ bool MatchesFilter (const DiskIIEventDisplay& e, const FilterState& f);
 expression. The parser handles integers, decimal quarter-tracks
 (`.0`/`.25`/`.5`/`.75`), inclusive ranges (`a-b`), and comma-separated
 lists; malformed tokens are silently dropped (no exception, no UI
-block). The predicate stores a small `std::vector<Range>` and answers
-`Matches (int value)` in O(N) where N is typically 1–4 ranges.
+block) but their **byte ranges within the original expression are
+recorded** on the returned `TrackSectorPredicate` (FR-014e) so the
+dialog can squiggle them in the RichEdit. The predicate stores a small
+`std::vector<Range>` and answers `Matches (int value)` in O(N) where
+N is typically 1–4 ranges, plus a `std::vector<RejectedSpan>` (each
+`{int beginUtf16, int endUtf16}`) used only for the FR-014e visual
+treatment.
+
+### Track / Sector RichEdit + squiggle (FR-014e)
+
+The Track and Sector inputs are **RichEdit 4.1** controls — class
+`RICHEDIT50W`, registered by loading `msftedit.dll` exactly once in
+the dialog's `Create` path (`LoadLibraryW(kFilterRichEditModule)`).
+The handle is leaked intentionally (process-lifetime cost is
+negligible and standard for RichEdit usage).
+
+At every debounce-flush moment (FR-014d) the dialog re-parses the
+input via `TrackSectorPredicate::Parse`, then:
+
+1. Saves the current selection (`EM_EXGETSEL`).
+2. Selects `{0, -1}` and applies a "default formatting" `CHARFORMAT2W`
+   that clears `CFM_UNDERLINETYPE | CFM_UNDERLINECOLOR` (so a token the
+   user just fixed loses its squiggle).
+3. For each `RejectedSpan` returned by the parser, selects that range
+   and applies a `CHARFORMAT2W` with
+   `dwMask = CFM_UNDERLINETYPE | CFM_UNDERLINECOLOR`,
+   `bUnderlineType = CFU_UNDERLINEWAVE`,
+   `bUnderlineColor = kFilterSquiggleUnderlineColor` (=
+   `CFU_UNDERLINECOLOR_RED`).
+4. Restores the saved selection (`EM_EXSETSEL`).
+5. Updates the static label beneath the input. When the rejected list
+   is empty the label text is set to the empty string; otherwise it
+   reads `Ignored: <token>, <token>` (UTF-16, original-cased tokens
+   joined by `, `).
+
+The visual treatment is a polish layer over FR-014a / FR-014b's
+silent-drop semantics: the parser still drops bad tokens and the
+projection rebuild still runs on the valid subset.
 
 The dialog maintains an `std::vector<uint32_t> m_filteredIndices` that
 maps display-row → deque index. The vector is rebuilt:
