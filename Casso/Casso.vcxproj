@@ -232,6 +232,8 @@
     <ClCompile Include="OptionsDialog.cpp" />
     <ClCompile Include="TrackSectorPredicate.cpp" />
     <ClCompile Include="DebugDialogProjection.cpp" />
+    <ClCompile Include="DiskIIDebugDialogState.cpp" />
+    <ClCompile Include="DiskIIDebugDialog.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />
@@ -248,6 +250,8 @@
     <ClInclude Include="OptionsDialog.h" />
     <ClInclude Include="TrackSectorPredicate.h" />
     <ClInclude Include="DebugDialogProjection.h" />
+    <ClInclude Include="DiskIIDebugDialogState.h" />
+    <ClInclude Include="DiskIIDebugDialog.h" />
     <ClInclude Include="UnicodeSymbols.h" />
     <ClInclude Include="WasapiAudio.h" />
     <ClInclude Include="resource.h" />

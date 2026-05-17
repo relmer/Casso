@@ -1,0 +1,136 @@
+#pragma once
+
+#include "Pch.h"
+
+#include "Window.h"
+#include "DiskIIDebugDialogState.h"
+#include "DebugDialogProjection.h"
+#include "../CassoEmuCore/Devices/IDiskIIEventSink.h"
+#include "../CassoEmuCore/Devices/DiskIIEventRing.h"
+#include "../CassoEmuCore/Audio/IDriveAudioEventSink.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskIIDebugDialog
+//
+//  Spec-006 modeless debug window. Implements BOTH IDiskIIEventSink
+//  (the controller-side contract) and IDriveAudioEventSink (the
+//  audio-side contract). Each sink callback packs a DiskIIEvent POD
+//  and tries to push it onto m_ring; ring-full bumps
+//  m_droppedSinceLastDrain (atomic, CPU-thread only) so the next
+//  UI-thread drain can emit a single coalesced [N events lost] marker.
+//
+//  The dialog is owned by EmulatorShell and reused across opens; the
+//  WM_CLOSE handler hides the window rather than destroying it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class DiskIIDebugDialog : public Window,
+                          public IDiskIIEventSink,
+                          public IDriveAudioEventSink
+{
+public:
+    DiskIIDebugDialog ();
+    ~DiskIIDebugDialog () override;
+
+    HRESULT Create  (HINSTANCE hInstance, HWND parentHwnd);
+    void    Show    ();
+    void    Hide    ();
+    void    Destroy ();
+
+    HWND    GetHwnd () const noexcept { return m_hwnd; }
+
+    // IDiskIIEventSink
+    void OnMotorCommandOn   () override;
+    void OnMotorEngaged     () override;
+    void OnMotorCommandOff  () override;
+    void OnMotorDisengaged  () override;
+    void OnHeadStep         (int prevQt, int newQt) override;
+    void OnHeadBump         (int atQt) override;
+    void OnAddressMark      (int track, int sector, int volume) override;
+    void OnDataMarkRead     (int sector, int byteCount) override;
+    void OnDataMarkWrite    (int sector, int byteCount) override;
+    void OnDriveSelect      (int drive) override;
+    void OnDiskInserted     (int drive) override;
+    void OnDiskEjected      (int drive) override;
+
+    // IDriveAudioEventSink
+    void OnAudioStarted      (SoundKind kind, int drive) override;
+    void OnAudioRestarted    (SoundKind kind, int drive) override;
+    void OnAudioContinued    (SoundKind kind, int drive) override;
+    void OnAudioSilent       (SoundKind kind, int drive, SilentReason reason) override;
+    void OnAudioLoopStarted  (SoundKind kind, int drive) override;
+    void OnAudioLoopStopped  (SoundKind kind, int drive) override;
+
+protected:
+    LRESULT OnCreate  (HWND hwnd, CREATESTRUCT * pcs)   override;
+    bool    OnClose   (HWND hwnd)                       override;
+    bool    OnDestroy (HWND hwnd)                       override;
+    bool    OnSize    (HWND hwnd, UINT width, UINT height) override;
+    bool    OnCommand (HWND hwnd, int id)               override;
+    bool    OnTimer   (HWND hwnd, UINT_PTR timerId)     override;
+    bool    OnNotify  (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
+
+private:
+    void    PushControllerEvent  (DiskIIEventType type) noexcept;
+    void    PushHeadStepEvent    (int prevQt, int newQt) noexcept;
+    void    PushHeadBumpEvent    (int atQt) noexcept;
+    void    PushAddrMarkEvent    (int track, int sector, int volume) noexcept;
+    void    PushDataMarkEvent    (DiskIIEventType type, int sector, int byteCount) noexcept;
+    void    PushDriveEvent       (DiskIIEventType type, int drive) noexcept;
+    void    PushAudioEvent       (DiskIIEventType type, SoundKind kind, int drive, SilentReason reason) noexcept;
+    void    PublishToRing        (const DiskIIEvent & e) noexcept;
+
+    HRESULT CreateChildControls         (HWND hwnd);
+    void    LayoutChildControls         (int width, int height);
+    void    RebuildListViewColumns      ();
+    HFONT   AcquireUiFont               ();
+
+    HWND                                    m_listView           = nullptr;
+
+    // Event-type checkboxes (FR-014 categories, fixed order)
+    // 0 Motor / 1 HeadStep / 2 HeadBump / 3 AddrMark
+    // 4 Read  / 5 Write    / 6 Door     / 7 DriveSelect
+    std::array<HWND, 8>                     m_eventTypeChecks    {};
+
+    HWND                                    m_audioMasterCheck   = nullptr;
+
+    // Audio sub-checkboxes: Started / Restarted / Continued / Silent
+    std::array<HWND, 4>                     m_audioSubCheck      {};
+
+    // Drive radio: 0 = All, 1 = Drive 1, 2 = Drive 2
+    std::array<HWND, 3>                     m_driveRadio         {};
+
+    HWND                                    m_trackRichEdit      = nullptr;
+    HWND                                    m_sectorRichEdit     = nullptr;
+    HWND                                    m_trackIgnoredLabel  = nullptr;
+    HWND                                    m_sectorIgnoredLabel = nullptr;
+    HWND                                    m_trackRawQtCheck    = nullptr;
+
+    HWND                                    m_pauseButton        = nullptr;
+    HWND                                    m_clearButton        = nullptr;
+
+    HFONT                                   m_uiFont             = nullptr;
+
+    DiskIIEventRing                         m_ring;
+    std::atomic<uint32_t>                   m_droppedSinceLastDrain { 0 };
+    std::deque<DiskIIEventDisplay>          m_deque;
+    std::vector<uint32_t>                   m_filteredIndices;
+
+    FilterState                             m_filter;
+    bool                                    m_paused             = false;
+
+    std::array<LogicalColumn, 5>            m_columns            {};
+    std::array<int, 5>                      m_visibleOrdinalToLogicalId {};
+
+    UINT_PTR                                m_drainTimerId          = 1;
+    UINT_PTR                                m_filterDebounceTimerId = 2;
+    bool                                    m_drainTimerActive      = false;
+    bool                                    m_filterDebouncePending = false;
+
+    std::chrono::steady_clock::time_point   m_uptimeAnchor;
+};
