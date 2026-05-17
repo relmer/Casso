@@ -7,6 +7,7 @@
 #include "Core/PathResolver.h"
 #include "Ehm.h"
 #include "External/StbVorbisWrapper.h"
+#include "RegistrySettings.h"
 #include "resource.h"
 #include "UnicodeSymbols.h"
 
@@ -1441,56 +1442,52 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int  s_kIdDownload     = 2001;
-static constexpr int  s_kIdSkipOnce     = IDCANCEL;
-static constexpr int  s_kIdSkipSession  = 2003;
+static constexpr int       s_kIdDiskAudioDownload       = 2001;
+static constexpr int       s_kIdDiskAudioSkip           = IDCANCEL;
+static constexpr LPCWSTR   s_kpszPromptForAudioDownload = L"PromptForAudioDownload";
 
-// Module-scope so a Skip-this-session click within `wWinMain`'s
-// lifetime stays sticky across any future `CheckAndFetchDiskAudio`
-// re-entry (e.g., after a SwitchMachine). Reset at process start.
-static bool  s_fDiskAudioSkippedThisSession = false;
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PromptDiskAudioConsent
+//
+//  Two-button TaskDialog: Download or Skip. Caller persists the
+//  user's choice via the per-machine PromptForAudioDownload registry
+//  DWORD so the prompt does not reappear on subsequent launches.
+//
+////////////////////////////////////////////////////////////////////////////////
 
 static int PromptDiskAudioConsent (HWND hwndParent)
 {
-    int                     chosen          = s_kIdSkipOnce;
-    TASKDIALOGCONFIG        tdc             = {};
-    TASKDIALOG_BUTTON       buttons[3]      = {};
-    HRESULT                 hr              = S_OK;
-    int                     result          = 0;
+    int                  chosen     = s_kIdDiskAudioSkip;
+    TASKDIALOGCONFIG     tdc        = {};
+    TASKDIALOG_BUTTON    buttons[2] = {};
+    HRESULT              hr         = S_OK;
+    int                  result     = 0;
 
     LPCWSTR  content =
-        L"Casso can download a set of Disk II drive-noise samples from the "
-        L"OpenEmulator project to power the in-emulator drive-audio feature.\n\n"
-        L"The upstream samples are licensed under the GNU General Public "
-        L"License version 3 (GPL-3). If you redistribute the resulting WAV "
-        L"files (or any application that bundles them), GPL-3 obligations "
-        L"flow with them \x2014 in particular, you must offer the corresponding "
-        L"source code under GPL-3 terms.\n\n"
-        L"For your own private use this is a non-issue. For distribution, "
-        L"see OpenEmulator's COPYING file (https://github.com/openemulator/libemulation/blob/master/COPYING) "
-        L"and the GPL-3 text (https://www.gnu.org/licenses/gpl-3.0.html).\n\n"
-        L"Casso never bundles these files; they exist only on this local "
-        L"machine after you accept.";
+        L"Casso can download a small set of Disk II drive-noise samples "
+        L"(\x2248 100 KB) from the OpenEmulator project to power the in-emulator "
+        L"drive-audio feature. The samples will be cached on this machine.\n\n"
+        L"The samples are licensed under GPL-3; please review their license "
+        L"before redistributing them.";
 
-    buttons[0].nButtonID     = s_kIdDownload;
-    buttons[0].pszButtonText = L"Download\nFetch the OGG samples and decode them to per-mechanism WAV files locally.";
-    buttons[1].nButtonID     = s_kIdSkipOnce;
-    buttons[1].pszButtonText = L"Skip\nLaunch silent. You can re-trigger this dialog by deleting the per-mechanism subfolders.";
-    buttons[2].nButtonID     = s_kIdSkipSession;
-    buttons[2].pszButtonText = L"Don\x2019t ask again this session\nSame as Skip, plus suppress the prompt for the rest of this process lifetime.";
+    buttons[0].nButtonID     = s_kIdDiskAudioDownload;
+    buttons[0].pszButtonText = L"Download\nFetch the samples and cache them locally.";
+    buttons[1].nButtonID     = s_kIdDiskAudioSkip;
+    buttons[1].pszButtonText = L"Skip\nLaunch without drive audio.";
 
     tdc.cbSize             = sizeof (tdc);
     tdc.hwndParent         = hwndParent;
     tdc.hInstance          = nullptr;
     tdc.dwFlags            = TDF_USE_COMMAND_LINKS | TDF_ALLOW_DIALOG_CANCELLATION;
-    tdc.pszWindowTitle     = L"Casso \x2014 Drive Audio Samples (GPL-3)";
+    tdc.pszWindowTitle     = L"Casso \x2014 Drive Audio Samples";
     tdc.pszMainIcon        = TD_INFORMATION_ICON;
-    tdc.pszMainInstruction = L"Download Disk II audio samples from OpenEmulator?";
+    tdc.pszMainInstruction = L"Download Disk II audio samples?";
     tdc.pszContent         = content;
     tdc.cButtons           = ARRAYSIZE (buttons);
     tdc.pButtons           = buttons;
-    tdc.nDefaultButton     = s_kIdDownload;
+    tdc.nDefaultButton     = s_kIdDiskAudioDownload;
 
     hr = TaskDialogIndirect (&tdc, &result, nullptr, nullptr);
 
@@ -1562,14 +1559,27 @@ HRESULT AssetBootstrap::CheckAndFetchDiskAudio (
     HINTERNET    hSession       = nullptr;
     bool         anyMissing     = false;
     int          consent        = 0;
+    DWORD        promptFlag     = 1;
+    wstring      subkey;
+    HRESULT      hrReg          = S_OK;
     error_code   ec;
 
 
 
     UNREFERENCED_PARAMETER (hInstance);
-    UNREFERENCED_PARAMETER (machineName);
 
-    if (s_fDiskAudioSkippedThisSession)
+    // Per-machine "ask me about disk audio?" flag. Absent or non-zero
+    // means "ask"; zero means the user has already answered (either
+    // accepted the download or skipped it) and we never prompt again
+    // for this machine on subsequent launches. Manual reset path:
+    // delete the value (or set it to 1) via regedit.
+    subkey = wstring (L"Machines\\") + machineName;
+    hrReg  = RegistrySettings::ReadDword (subkey.c_str (),
+                                          s_kpszPromptForAudioDownload,
+                                          promptFlag);
+    IGNORE_RETURN_VALUE (hrReg, S_OK);
+
+    if (promptFlag == 0)
     {
         return S_FALSE;
     }
@@ -1589,13 +1599,15 @@ HRESULT AssetBootstrap::CheckAndFetchDiskAudio (
 
     consent = PromptDiskAudioConsent (hwndParent);
 
-    if (consent == s_kIdSkipSession)
-    {
-        s_fDiskAudioSkippedThisSession = true;
-        return S_FALSE;
-    }
+    // The question is resolved either way -- never prompt again for
+    // this machine. Persist the answer before acting on it so a
+    // crash mid-download still suppresses the next launch's prompt.
+    hrReg = RegistrySettings::WriteDword (subkey.c_str (),
+                                          s_kpszPromptForAudioDownload,
+                                          0);
+    IGNORE_RETURN_VALUE (hrReg, S_OK);
 
-    if (consent != s_kIdDownload)
+    if (consent != s_kIdDiskAudioDownload)
     {
         return S_FALSE;
     }
