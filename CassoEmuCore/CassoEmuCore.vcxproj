@@ -264,6 +264,10 @@
     <ClInclude Include="Devices\AppleSpeaker.h" />
     <ClInclude Include="Devices\LanguageCard.h" />
     <ClInclude Include="Devices\DiskIIController.h" />
+    <ClInclude Include="Devices\IDiskIIEventSink.h" />
+    <ClInclude Include="Devices\DiskIIEvent.h" />
+    <ClInclude Include="Devices\DiskIIEventRing.h" />
+    <ClInclude Include="Devices\DiskIIAddressMarkWatcher.h" />
     <ClInclude Include="Devices\AppleIIeKeyboard.h" />
     <ClInclude Include="Devices\AppleIIeMmu.h" />
     <ClInclude Include="Devices\CxxxRomRouter.h" />
@@ -281,6 +285,7 @@
     <ClInclude Include="Video\CharacterRom.h" />
     <ClInclude Include="Audio\AudioGenerator.h" />
     <ClInclude Include="Audio\IDriveAudioSink.h" />
+    <ClInclude Include="Audio\IDriveAudioEventSink.h" />
     <ClInclude Include="Audio\IDriveAudioSource.h" />
     <ClInclude Include="Audio\DriveAudioMixer.h" />
     <ClInclude Include="Audio\DiskIIAudioSource.h" />
