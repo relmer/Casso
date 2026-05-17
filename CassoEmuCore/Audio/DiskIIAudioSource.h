@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Audio/IDriveAudioSource.h"
+#include "Audio/IDriveAudioEventSink.h"
 
 
 
@@ -70,16 +71,28 @@ public:
     void   SetPan        (float panLeft, float panRight) override;
 
     // IDriveAudioSink:
-    void   OnMotorStart   () override;
-    void   OnMotorStop    () override;
-    void   OnHeadStep     (int newQt) override;
-    void   OnHeadBump     () override;
-    void   OnDiskInserted() override;
-    void   OnDiskEjected  () override;
+    void   OnMotorEngaged    () override;
+    void   OnMotorDisengaged () override;
+    void   OnHeadStep        (int newQt) override;
+    void   OnHeadBump        () override;
+    void   OnDiskInserted    () override;
+    void   OnDiskEjected     () override;
 
     // Called once per audio frame by DriveAudioMixer with the current
     // CPU cycle (FR-005 idle timeout).
     void   Tick           (uint64_t currentCycle);
+
+    // Spec-006 (FR-022, FR-025): attach an audio-decision sink so
+    // the debug window can show what the audio path actually did at
+    // each controller-event delivery. A nullptr sink (the default)
+    // leaves audio output byte-identical to the pre-feature path.
+    // The "drive" argument fired on every method is 0 here because
+    // DiskIIAudioSource is per-drive and does not carry an index;
+    // the dialog's projection layer can refine the drive number.
+    void   SetAudioEventSink (IDriveAudioEventSink * sink) noexcept
+    {
+        m_audioEventSink = sink;
+    }
 
     // Test-only seam: inject a sample buffer directly without touching
     // the host filesystem. Slot key matches the WAV filename without
@@ -127,4 +140,7 @@ private:
     uint64_t              m_lastStepCycle = 0;
     uint64_t              m_currentCycle  = 0;
     bool                  m_seekMode      = false;
+
+    // Spec-006 audio-decision sink (FR-022 / FR-025). Optional.
+    IDriveAudioEventSink * m_audioEventSink = nullptr;
 };

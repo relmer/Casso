@@ -24,21 +24,21 @@ TEST_CLASS (DiskIIAudioSourceStateTests)
 {
 public:
 
-    TEST_METHOD (OnMotorStart_setsRunningTrue)
+    TEST_METHOD (OnMotorEngaged_setsRunningTrue)
     {
         DiskIIAudioSource  src;
 
         Assert::IsFalse (src.IsMotorRunning());
-        src.OnMotorStart();
+        src.OnMotorEngaged();
         Assert::IsTrue  (src.IsMotorRunning());
     }
 
-    TEST_METHOD (OnMotorStop_setsRunningFalse)
+    TEST_METHOD (OnMotorDisengaged_setsRunningFalse)
     {
         DiskIIAudioSource  src;
 
-        src.OnMotorStart();
-        src.OnMotorStop  ();
+        src.OnMotorEngaged();
+        src.OnMotorDisengaged  ();
         Assert::IsFalse  (src.IsMotorRunning());
     }
 

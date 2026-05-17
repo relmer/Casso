@@ -156,9 +156,11 @@ void DiskIIController::HandleSwitch (int offset)
             // engine keeps producing nibbles continuously across the
             // motor-off / motor-on toggle DOS issues between sectors.
             //
-            // Audio sink (FR-001): fire OnMotorStart only on the
+            // Audio sink (FR-001): fire OnMotorEngaged only on the
             // off->on edge so brief intra-sector toggles inside the
-            // spindown window don't restart the motor sound.
+            // spindown window don't restart the motor sound. (Renamed
+            // from OnMotorStart in spec-006 to align with the new
+            // four-event motor lifecycle on IDiskIIEventSink.)
             {
                 bool  edge = (!m_motorOn);
 
@@ -168,7 +170,7 @@ void DiskIIController::HandleSwitch (int offset)
 
                 if (edge && m_audioSink != nullptr)
                 {
-                    m_audioSink->OnMotorStart();
+                    m_audioSink->OnMotorEngaged ();
                 }
 
                 // Spec-006 FR-006: OnMotorCommandOn fires on every
@@ -448,9 +450,10 @@ void DiskIIController::Tick (uint32_t cpuCycles)
 
             // FR-002: motor sound fades out only when the spindown
             // timer actually expires -- NOT at the raw $C0E8 access.
+            // (Renamed from OnMotorStop in spec-006.)
             if (m_audioSink != nullptr)
             {
-                m_audioSink->OnMotorStop();
+                m_audioSink->OnMotorDisengaged ();
             }
 
             // Spec-006 FR-006: OnMotorDisengaged fires on the

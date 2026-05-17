@@ -333,19 +333,42 @@ void DiskIIAudioSource::SetPan (float panLeft, float panRight)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnMotorStart / OnMotorStop
+//  OnMotorEngaged / OnMotorDisengaged
+//
+//  Spec-006: also fire OnAudioLoopStarted / OnAudioLoopStopped on the
+//  attached IDriveAudioEventSink so the debug window can show what
+//  the audio path decided. Empty m_motorBuf maps to AudioSilent with
+//  BufferMissing per FR-009 / FR-025.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIAudioSource::OnMotorStart()
+void DiskIIAudioSource::OnMotorEngaged()
 {
     m_motorRunning = true;
+
+    if (m_audioEventSink != nullptr)
+    {
+        if (m_motorBuf.empty())
+        {
+            m_audioEventSink->OnAudioSilent (SoundKind::MotorLoop, 0,
+                                             SilentReason::BufferMissing);
+        }
+        else
+        {
+            m_audioEventSink->OnAudioLoopStarted (SoundKind::MotorLoop, 0);
+        }
+    }
 }
 
 
-void DiskIIAudioSource::OnMotorStop()
+void DiskIIAudioSource::OnMotorDisengaged()
 {
     m_motorRunning = false;
+
+    if (m_audioEventSink != nullptr)
+    {
+        m_audioEventSink->OnAudioLoopStopped (SoundKind::MotorLoop, 0);
+    }
 }
 
 
@@ -371,8 +394,9 @@ void DiskIIAudioSource::OnHeadStep (int newQt)
 {
     (void) newQt;
 
-    bool      withinSeekWindow = false;
+    bool      withinSeekWindow     = false;
     bool      previousStillPlaying = false;
+    bool      wasInSeekMode        = m_seekMode;
     uint64_t  gap                  = 0;
     uint32_t  headLen              = 0;
 
@@ -407,6 +431,32 @@ void DiskIIAudioSource::OnHeadStep (int newQt)
     }
 
     m_lastStepCycle = m_currentCycle;
+
+    // Spec-006 audio-decision sink (FR-022 / FR-025). Mapping:
+    //   * wasInSeekMode == true at entry  -> AudioContinued
+    //   * empty step buffer               -> AudioSilent / BufferMissing
+    //   * previous shot still playing     -> AudioRestarted
+    //   * else                            -> AudioStarted
+    if (m_audioEventSink != nullptr)
+    {
+        if (wasInSeekMode)
+        {
+            m_audioEventSink->OnAudioContinued (SoundKind::HeadStep, 0);
+        }
+        else if (m_stepBuf.empty())
+        {
+            m_audioEventSink->OnAudioSilent (SoundKind::HeadStep, 0,
+                                             SilentReason::BufferMissing);
+        }
+        else if (previousStillPlaying)
+        {
+            m_audioEventSink->OnAudioRestarted (SoundKind::HeadStep, 0);
+        }
+        else
+        {
+            m_audioEventSink->OnAudioStarted (SoundKind::HeadStep, 0);
+        }
+    }
 }
 
 
@@ -425,10 +475,36 @@ void DiskIIAudioSource::OnHeadStep (int newQt)
 
 void DiskIIAudioSource::OnHeadBump()
 {
+    bool      previousStillPlaying = false;
+    uint32_t  headLen              = 0;
+
+    if (m_headBuf != nullptr)
+    {
+        headLen              = static_cast<uint32_t> (m_headBuf->size());
+        previousStillPlaying = (headLen > 0 && m_headPos < headLen);
+    }
+
     m_seekMode      = false;
     m_headBuf       = &m_stopBuf;
     m_headPos       = 0;
     m_lastStepCycle = m_currentCycle;
+
+    if (m_audioEventSink != nullptr)
+    {
+        if (m_stopBuf.empty())
+        {
+            m_audioEventSink->OnAudioSilent (SoundKind::HeadStop, 0,
+                                             SilentReason::BufferMissing);
+        }
+        else if (previousStillPlaying)
+        {
+            m_audioEventSink->OnAudioRestarted (SoundKind::HeadStop, 0);
+        }
+        else
+        {
+            m_audioEventSink->OnAudioStarted (SoundKind::HeadStop, 0);
+        }
+    }
 }
 
 
@@ -445,6 +521,19 @@ void DiskIIAudioSource::OnDiskInserted()
 {
     m_doorBuf = &m_doorCloseBuf;
     m_doorPos = 0;
+
+    if (m_audioEventSink != nullptr)
+    {
+        if (m_doorCloseBuf.empty())
+        {
+            m_audioEventSink->OnAudioSilent (SoundKind::DoorClose, 0,
+                                             SilentReason::BufferMissing);
+        }
+        else
+        {
+            m_audioEventSink->OnAudioStarted (SoundKind::DoorClose, 0);
+        }
+    }
 }
 
 
@@ -452,6 +541,19 @@ void DiskIIAudioSource::OnDiskEjected()
 {
     m_doorBuf = &m_doorOpenBuf;
     m_doorPos = 0;
+
+    if (m_audioEventSink != nullptr)
+    {
+        if (m_doorOpenBuf.empty())
+        {
+            m_audioEventSink->OnAudioSilent (SoundKind::DoorOpen, 0,
+                                             SilentReason::BufferMissing);
+        }
+        else
+        {
+            m_audioEventSink->OnAudioStarted (SoundKind::DoorOpen, 0);
+        }
+    }
 }
 
 

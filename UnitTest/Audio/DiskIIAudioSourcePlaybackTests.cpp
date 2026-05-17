@@ -29,7 +29,7 @@ public:
         float              out[16] = {};
 
         src.SetSampleBufferForTest (L"MotorLoop", vector<float> (32, 1.0f));
-        src.OnMotorStart();
+        src.OnMotorEngaged();
         src.GeneratePCM (out, 16);
 
         for (int i = 0; i < 16; i++)
@@ -50,7 +50,7 @@ public:
         motor[3] = 4.0f;
 
         src.SetSampleBufferForTest (L"MotorLoop", std::move (motor));
-        src.OnMotorStart();
+        src.OnMotorEngaged();
         src.GeneratePCM (out, 16);
 
         // Pattern wraps every 4 samples.
@@ -106,7 +106,7 @@ public:
         src.SetSampleBufferForTest (L"HeadStep",  vector<float> (16, 1.0f));
         src.SetSampleBufferForTest (L"DoorClose", vector<float> (16, 1.0f));
 
-        src.OnMotorStart   ();
+        src.OnMotorEngaged   ();
         src.OnHeadStep     (1);
         src.OnDiskInserted();
 
@@ -128,7 +128,7 @@ public:
         float              out[8] = {};
 
         // No MotorLoop set -> empty buffer; FR-009.
-        src.OnMotorStart();
+        src.OnMotorEngaged();
         src.GeneratePCM (out, 8);
 
         for (int i = 0; i < 8; i++)

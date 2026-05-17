@@ -30,8 +30,8 @@ class RecordingSink : public IDriveAudioSink
 public:
     enum class Event
     {
-        MotorStart,
-        MotorStop,
+        MotorEngaged,
+        MotorDisengaged,
         HeadStep,
         HeadBump,
         DiskInserted,
@@ -46,8 +46,8 @@ public:
 
     vector<LogEntry>  log;
 
-    void OnMotorStart   () override                  { log.push_back ({ Event::MotorStart,   0 }); }
-    void OnMotorStop    () override                  { log.push_back ({ Event::MotorStop,    0 }); }
+    void OnMotorEngaged    () override                  { log.push_back ({ Event::MotorEngaged,    0 }); }
+    void OnMotorDisengaged () override                  { log.push_back ({ Event::MotorDisengaged, 0 }); }
     void OnHeadStep     (int newQt) override         { log.push_back ({ Event::HeadStep,     newQt }); }
     void OnHeadBump     () override                  { log.push_back ({ Event::HeadBump,     0 }); }
     void OnDiskInserted() override                  { log.push_back ({ Event::DiskInserted, 0 }); }
@@ -85,7 +85,7 @@ TEST_CLASS (DiskIIControllerAudioTests)
 {
 public:
 
-    TEST_METHOD (MotorOnSoftSwitch_firesOnMotorStart_exactlyOnce)
+    TEST_METHOD (MotorOnSoftSwitch_firesOnMotorEngaged_exactlyOnce)
     {
         DiskIIController  ctrl (6);
         RecordingSink     sink;
@@ -95,10 +95,10 @@ public:
         ctrl.Write (0xC0E9, 0x00);
         ctrl.Write (0xC0E9, 0x00);
 
-        Assert::AreEqual (1, sink.CountOf (RecordingSink::Event::MotorStart));
+        Assert::AreEqual (1, sink.CountOf (RecordingSink::Event::MotorEngaged));
     }
 
-    TEST_METHOD (MotorOffThenSpindownTick_firesOnMotorStop)
+    TEST_METHOD (MotorOffThenSpindownTick_firesOnMotorDisengaged)
     {
         DiskIIController  ctrl (6);
         RecordingSink     sink;
@@ -111,10 +111,10 @@ public:
         // Spindown is 1,000,000 cycles. Tick past the timer.
         ctrl.Tick (1100000);
 
-        Assert::AreEqual (1, sink.CountOf (RecordingSink::Event::MotorStop));
+        Assert::AreEqual (1, sink.CountOf (RecordingSink::Event::MotorDisengaged));
     }
 
-    TEST_METHOD (MotorOffThenMotorOnWithinSpindown_doesNotFireOnMotorStop)
+    TEST_METHOD (MotorOffThenMotorOnWithinSpindown_doesNotFireOnMotorDisengaged)
     {
         DiskIIController  ctrl (6);
         RecordingSink     sink;
@@ -129,8 +129,8 @@ public:
 
         // Critical FR-001: brief intra-sector toggle did NOT trip a
         // motor-stop event, AND did NOT fire a redundant motor-start.
-        Assert::AreEqual (0, sink.CountOf (RecordingSink::Event::MotorStop));
-        Assert::AreEqual (1, sink.CountOf (RecordingSink::Event::MotorStart));
+        Assert::AreEqual (0, sink.CountOf (RecordingSink::Event::MotorDisengaged));
+        Assert::AreEqual (1, sink.CountOf (RecordingSink::Event::MotorEngaged));
     }
 
     TEST_METHOD (PhaseChange_noMovement_firesNothing)

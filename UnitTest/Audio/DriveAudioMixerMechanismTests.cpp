@@ -98,7 +98,7 @@ namespace
 
     static float SamplePeak (DiskIIAudioSource & src)
     {
-        src.OnMotorStart ();
+        src.OnMotorEngaged ();
 
         std::vector<float>  frame (128);
         src.GeneratePCM (frame.data (), static_cast<uint32_t> (frame.size ()));
@@ -110,7 +110,7 @@ namespace
             if (a > peak) { peak = a; }
         }
 
-        src.OnMotorStop ();
+        src.OnMotorDisengaged ();
         return peak;
     }
 }

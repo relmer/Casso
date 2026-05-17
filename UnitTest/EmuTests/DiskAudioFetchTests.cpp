@@ -198,7 +198,7 @@ public:
         // instead, trigger MotorStart + render a frame and verify the
         // output is non-silent. Empty buffer == silence == failure
         // under FR-009.
-        src1.OnMotorStart ();
+        src1.OnMotorEngaged ();
 
         std::vector<float>  frame (256);
 
@@ -250,7 +250,7 @@ public:
                                        s_kTestSampleRate);
         Assert::IsTrue (SUCCEEDED (hr), L"LoadSamples must succeed");
 
-        src.OnMotorStart ();
+        src.OnMotorEngaged ();
 
         std::vector<float>  frame (64);
         src.GeneratePCM (frame.data (), static_cast<uint32_t> (frame.size ()));

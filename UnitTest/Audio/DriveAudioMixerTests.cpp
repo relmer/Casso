@@ -39,8 +39,8 @@ public:
     float PanRight  () const override { return m_panR; }
     void  SetPan    (float l, float r) override { m_panL = l; m_panR = r; }
 
-    void  OnMotorStart   () override {}
-    void  OnMotorStop    () override {}
+    void  OnMotorEngaged    () override {}
+    void  OnMotorDisengaged () override {}
     void  OnHeadStep     (int)       override {}
     void  OnHeadBump     ()          override {}
     void  OnDiskInserted()          override {}
