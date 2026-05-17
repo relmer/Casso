@@ -330,6 +330,9 @@ LRESULT DiskIIDebugDialog::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
         LayoutChildControls (rc.right - rc.left, rc.bottom - rc.top);
     }
 
+    SetTimer (hwnd, m_drainTimerId, kDrainTimerMs, nullptr);
+    m_drainTimerActive = true;
+
 Error:
     return SUCCEEDED (hr) ? 0 : -1;
 }
@@ -793,10 +796,119 @@ bool DiskIIDebugDialog::OnCommand (HWND hwnd, int id)
 bool DiskIIDebugDialog::OnTimer (HWND hwnd, UINT_PTR timerId)
 {
     UNREFERENCED_PARAMETER (hwnd);
-    UNREFERENCED_PARAMETER (timerId);
 
-    // Drain / filter-debounce handlers land in Phases 6/7a.
+    if (timerId == m_drainTimerId)
+    {
+        HandleDrainTick ();
+    }
+
+    // Filter-debounce handler lands in Phase 7a.
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleDrainTick
+//
+//  Implements plan.md "Auto-Tail Scroll Algorithm". Per FR-011 + Q2,
+//  the drain runs every tick regardless of m_paused and window
+//  visibility -- the deque's 100k cap bounds memory while the dialog
+//  is hidden or paused. Only the visible ListView refresh is skipped
+//  when the window is hidden / minimized / paused.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::HandleDrainTick ()
+{
+    int       topIndex     = 0;
+    int       countPerPage = 0;
+    int       oldCount     = 0;
+    int       newCount     = 0;
+    bool      wasAtTail    = false;
+    bool      shouldPaint  = false;
+    uint32_t  dropped      = 0;
+
+    if (m_listView == nullptr)
+    {
+        return;
+    }
+
+    oldCount     = static_cast<int> (m_filteredIndices.size ());
+    topIndex     = ListView_GetTopIndex     (m_listView);
+    countPerPage = ListView_GetCountPerPage (m_listView);
+    wasAtTail    = ComputeWasAtTail (topIndex, countPerPage, oldCount);
+
+    dropped = m_droppedSinceLastDrain.exchange (0, std::memory_order_acq_rel);
+
+    DebugDialogProjection::DrainAndProject (m_ring, m_deque, dropped, m_uptimeAnchor);
+
+    // Phase 7 will run incremental MatchesFilter against newly-appended
+    // entries; for Phase 6 the identity mapping keeps the row count in
+    // step with the deque so LVN_GETDISPINFO finds something to render.
+    AppendFilteredIndicesFor (m_filteredIndices.size ());
+
+    newCount = static_cast<int> (m_filteredIndices.size ());
+
+    if (newCount == oldCount)
+    {
+        return;
+    }
+
+    shouldPaint = IsWindowVisible (m_hwnd) && !IsIconic (m_hwnd) && !m_paused;
+
+    if (!shouldPaint)
+    {
+        return;
+    }
+
+    ListView_SetItemCountEx (m_listView, newCount, LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
+
+    if (wasAtTail && newCount > 0)
+    {
+        ListView_EnsureVisible (m_listView, newCount - 1, FALSE);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppendFilteredIndicesFor
+//
+//  Phase 6 helper: extend m_filteredIndices with identity entries for
+//  every deque slot from startIdx through deque.size()-1. Phase 7
+//  replaces this with a MatchesFilter-gated incremental append; the
+//  signature stays stable so the drain-tick call site doesn't change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::AppendFilteredIndicesFor (size_t startIdx)
+{
+    size_t  i = 0;
+
+    // m_deque may have shrunk (rolling-cap pop_front). Resync from
+    // scratch when that happens so the indices never dangle.
+    if (m_filteredIndices.size () > m_deque.size ())
+    {
+        m_filteredIndices.clear ();
+        startIdx = 0;
+    }
+
+    if (startIdx > m_deque.size ())
+    {
+        startIdx = m_deque.size ();
+    }
+
+    for (i = startIdx; i < m_deque.size (); i++)
+    {
+        m_filteredIndices.push_back (static_cast<uint32_t> (i));
+    }
 }
 
 
@@ -811,12 +923,120 @@ bool DiskIIDebugDialog::OnTimer (HWND hwnd, UINT_PTR timerId)
 
 bool DiskIIDebugDialog::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
+    NMHDR  *  pHdr  = reinterpret_cast<NMHDR *> (lParam);
+
     UNREFERENCED_PARAMETER (hwnd);
     UNREFERENCED_PARAMETER (wParam);
-    UNREFERENCED_PARAMETER (lParam);
 
-    // LVN_GETDISPINFO lands in Phase 6.
+    if (pHdr == nullptr)
+    {
+        return false;
+    }
+
+    if (pHdr->idFrom == kIdListView && pHdr->code == LVN_GETDISPINFOW)
+    {
+        HandleGetDispInfo (reinterpret_cast<NMLVDISPINFOW *> (lParam));
+        return false;
+    }
+
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleGetDispInfo
+//
+//  Virtual-mode ListView row fetch. The control passes iItem (the
+//  visible-row index into m_filteredIndices) and iSubItem (the
+//  visible-subset ordinal); we translate both back to the source
+//  deque entry and the logical column id before picking a string.
+//
+//  pszText must remain valid only until the next message. Wall /
+//  Uptime / Cycle / Detail strings are stored on the deque entry so
+//  they are stable for the message duration. Event uses a thread-
+//  local scratch buffer copied from the wstring_view returned by
+//  DebugDialogProjection::EventLabel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::HandleGetDispInfo (NMLVDISPINFOW * pInfo)
+{
+    thread_local wchar_t  s_eventLabelBuf[32] = {};
+
+    LVITEMW           &   item            = pInfo->item;
+    uint32_t              deqIdx          = 0;
+    int                   logicalId       = 0;
+    int                   visibleOrdinal  = 0;
+    std::wstring_view     label;
+    size_t                copyLen         = 0;
+
+    if ((item.mask & LVIF_TEXT) == 0)
+    {
+        return;
+    }
+
+    if (item.iItem < 0 || static_cast<size_t> (item.iItem) >= m_filteredIndices.size ())
+    {
+        return;
+    }
+
+    deqIdx = m_filteredIndices[item.iItem];
+
+    if (deqIdx >= m_deque.size ())
+    {
+        return;
+    }
+
+    visibleOrdinal = item.iSubItem;
+
+    if (visibleOrdinal < 0 || visibleOrdinal >= kColumnCount)
+    {
+        return;
+    }
+
+    logicalId = m_visibleOrdinalToLogicalId[visibleOrdinal];
+
+    if (logicalId < 0 || logicalId >= kColumnCount)
+    {
+        return;
+    }
+
+    const DiskIIEventDisplay &  e = m_deque[deqIdx];
+
+    switch (logicalId)
+    {
+        case 0:
+            item.pszText = const_cast<LPWSTR> (e.wallStr.data ());
+            break;
+
+        case 1:
+            item.pszText = const_cast<LPWSTR> (e.uptimeStr.data ());
+            break;
+
+        case 2:
+            item.pszText = const_cast<LPWSTR> (e.cycleStr.data ());
+            break;
+
+        case 3:
+            label   = DebugDialogProjection::EventLabel (e.category, e.type);
+            copyLen = std::min<size_t> (label.size (),
+                                        (sizeof (s_eventLabelBuf) / sizeof (s_eventLabelBuf[0])) - 1);
+            std::copy_n (label.data (), copyLen, s_eventLabelBuf);
+            s_eventLabelBuf[copyLen] = L'\0';
+            item.pszText = s_eventLabelBuf;
+            break;
+
+        case 4:
+            item.pszText = const_cast<LPWSTR> (e.detail.c_str ());
+            break;
+
+        default:
+            break;
+    }
 }
 
 

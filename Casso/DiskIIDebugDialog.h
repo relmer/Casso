@@ -90,6 +90,10 @@ private:
     void    RebuildListViewColumns      ();
     HFONT   AcquireUiFont               ();
 
+    void    HandleDrainTick             ();
+    void    HandleGetDispInfo           (NMLVDISPINFOW * pInfo);
+    void    AppendFilteredIndicesFor    (size_t startDeqIdx);
+
     HWND                                    m_listView           = nullptr;
 
     // Event-type checkboxes (FR-014 categories, fixed order)
