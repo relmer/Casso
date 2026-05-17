@@ -102,8 +102,9 @@ baseline (FR-007, FR-020, SC-007).
       verify with `static_assert` if using fixed buffers. (FR-005,
       FR-014, NFR-003)
 - [ ] T004 [P] Create `CassoEmuCore/Devices/DiskIIEventRing.h` per plan.md
-      §"SPSC Ring Buffer" — class declaration only, with `kCapacity = 4096`
-      named constant, `TryPush`, `TryPop`, `Drain (DiskIIEvent*, uint32_t)`,
+      §"SPSC Ring Buffer" — class declaration only, with `kEventRingCapacity = 4096`
+      named constant (file-scope or class-static; matches plan.md's
+      constants list), `TryPush`, `TryPop`, `Drain (DiskIIEvent*, uint32_t)`,
       `ApproxSize`. Two `alignas(64)` `std::atomic<uint32_t>` index members.
       Header-only; no `.cpp` yet. (FR-009, NFR-003)
 - [ ] T005 [P] Create `CassoEmuCore/Devices/DiskIIAddressMarkWatcher.h`
@@ -578,7 +579,7 @@ filter checkboxes, buttons. Render an empty list.
 - [ ] T064 [GATE] Build, manually open the dialog before a DOS 3.3 cold
       boot, observe the event stream tail-following. Verify scrolling
       up freezes the view; verify scrolling back to the bottom re-enables
-      auto-tail on the next event.
+      auto-tail on the next event. (SC-001, SC-009)
 
 ---
 
@@ -588,20 +589,39 @@ filter checkboxes, buttons. Render an empty list.
 
 - [ ] T070 In `DiskIIDebugDialog.cpp`, handle `WM_COMMAND` for each
       event-type checkbox, each Drive radio button, the Audio-master,
-      each Audio sub-checkbox, and `EN_CHANGE` for the Track/Sector
-      text inputs (and the "raw qt" checkbox). On any change, update
-      `m_filter` (re-parsing the Track and Sector inputs via
-      `TrackSectorPredicate::Parse` from Phase 2a) and rebuild
+      each Audio sub-checkbox, and the "raw qt" checkbox per
+      **FR-014d** (checkboxes + radio rebuild eagerly and immediately).
+      On any such change, update `m_filter` and rebuild
       `m_filteredIndices` from `m_deque` by running `MatchesFilter` on
-      every entry. After each Track / Sector re-parse, call the
-      FR-014e helpers (T074): `ApplyRejectedTokenSquiggles` on the
-      RichEdit + `SetIgnoredTokensLabel` on the static beneath it,
-      using the predicate's `RejectedSpans()`. When the Audio-master
-      is unchecked, visually disable
-      (grey out) the four sub-checkboxes via `EnableWindow(..., FALSE)`
-      but preserve their checked state for restoration when Audio-master
-      is re-checked (FR-014c). (FR-014, FR-014a, FR-014b, FR-014c,
-      FR-014e)
+      every entry, then call `ListView_SetItemCountEx` +
+      `InvalidateRect`. The eager rebuild MUST run regardless of
+      `m_paused` so filter response stays instant while paused.
+      When the Audio-master is unchecked, visually disable (grey out)
+      the four sub-checkboxes via `EnableWindow(..., FALSE)` but
+      preserve their checked state for restoration when Audio-master
+      is re-checked (FR-014c). (FR-014, FR-014c, FR-014d)
+- [ ] T070a In `DiskIIDebugDialog.cpp`, handle the Track and Sector
+      RichEdit inputs per **FR-014d** debounced-rebuild semantics.
+      Allocate a single one-shot debounce timer slot
+      (`m_filterDebounceTimerId` via `SetTimer (m_hwnd, ..., 0, nullptr)`
+      pattern; named constant `kFilterTextDebounceMs = 250`). On
+      `EN_CHANGE` from either input: `KillTimer` (cancel any pending
+      tick) then `SetTimer (m_hwnd, m_filterDebounceTimerId,
+      kFilterTextDebounceMs, nullptr)` to re-arm. On
+      `EN_KILLFOCUS` from either input: `KillTimer` then immediately
+      invoke the debounce-flush handler (no waiting). The flush
+      handler:
+      (1) re-parses both Track and Sector inputs via
+      `TrackSectorPredicate::Parse`,
+      (2) rebuilds `m_filteredIndices` and calls
+      `ListView_SetItemCountEx` + `InvalidateRect`,
+      (3) calls the FR-014e helpers (T074):
+      `ApplyRejectedTokenSquiggles` on each RichEdit +
+      `SetIgnoredTokensLabel` on the static beneath it, using each
+      predicate's `RejectedSpans()`.
+      The debounce flush MUST run regardless of `m_paused` (same
+      eager semantics as T070's checkbox path). (FR-014, FR-014a,
+      FR-014b, FR-014d, FR-014e)
 - [ ] T071 Update the `LVN_GETDISPINFO` handler so the virtual row count
       reported by `ListView_SetItemCountEx` equals
       `m_filteredIndices.size()` (not `m_deque.size()`). On drain, after
@@ -637,7 +657,10 @@ filter checkboxes, buttons. Render an empty list.
       (FR-014, FR-014a, FR-014b, FR-014c, SC-016)
 - [ ] T073 [GATE] Manual test: during a DOS 3.3 boot, toggle each
       filter control and verify the displayed events change
-      appropriately and restore on re-check.
+      appropriately and restore on re-check. Also pause the emulator,
+      then toggle a filter and confirm the display updates immediately
+      (eager rebuild while paused, per FR-014d).
+      (SC-002, SC-003, SC-004, SC-016)
 
 ### Phase 7a: Track/Sector Squiggle Helper (FR-014e)
 
@@ -751,6 +774,26 @@ filter checkboxes, buttons. Render an empty list.
       - In the `ACCELERATORS` table: add
         `"D", IDM_VIEW_DISKII_DEBUG, VIRTKEY, CONTROL, SHIFT`.
       (FR-001, FR-002)
+- [ ] T101a In `Casso/MenuSystem.cpp` (or wherever the main window
+      handles `WM_INITMENUPOPUP` for the View menu), gate the
+      `IDM_VIEW_DISKII_DEBUG` menu item's enabled state on the active
+      `MachineConfig`: walk the configured devices and count Disk II
+      controllers; call
+      `EnableMenuItem(hMenu, IDM_VIEW_DISKII_DEBUG, MF_BYCOMMAND |
+      (diskIICount > 0 ? MF_ENABLED : MF_GRAYED))`. Re-evaluated on
+      every `WM_INITMENUPOPUP` so a runtime machine switch (no
+      Disk II → has Disk II via SwitchMachine) takes effect on the
+      next time the menu opens. The Ctrl+Shift+D accelerator becomes a
+      no-op automatically because Win32 does not dispatch `WM_COMMAND`
+      for disabled menu items. (FR-001a)
+- [ ] T101b [P] Add `MenuSystemTests.cpp` headless test (or extend
+      an existing menu test) for the FR-001a enablement decision.
+      Extract the decision into a pure helper `bool
+      ShouldEnableDiskIIDebugMenuItem(const MachineConfig & config)`
+      that returns true iff the config has at least one Disk II
+      controller. Tests: empty config → false; ][+ with Disk II in
+      slot 6 → true; cassette-only ][ → false; future //e with
+      multiple Disk II controllers → true. (FR-001a)
 - [ ] T102 In `Casso/MenuSystem.cpp`, route `WM_COMMAND` for
       `IDM_VIEW_DISKII_DEBUG` to a new `EmulatorShell::OpenDiskIIDebugDialog()`.
 - [ ] T103 In `Casso/EmulatorShell.{h,cpp}`, add
@@ -845,7 +888,7 @@ columns to their default state (NFR-006).
         `savedWidth` rather than re-flagging for auto-size.
       Also verify `ToggleColumn`'s state-machine semantics (flips the
       bit and calls `RebuildListViewColumns` exactly once per toggle).
-      (FR-026, FR-027, NFR-006)
+      (FR-026, FR-027, NFR-006, SC-017)
 - [ ] T109 [GATE] Manual: right-click the header, verify the popup
       menu lists all five columns with correct checkmarks, toggling
       each fully removes/restores the column (no zero-width sliver),
@@ -853,7 +896,7 @@ columns to their default state (NFR-006).
       preserves the custom width, hiding all five leaves a usable
       (empty) ListView, closing and reopening the dialog restores all
       columns to defaults with first-show auto-sizing re-running (per
-      NFR-006).
+      NFR-006). (SC-017)
 
 ---
 
@@ -874,7 +917,7 @@ columns to their default state (NFR-006).
       with their actual volume numbers, data reads). Note which
       titles surface non-standard volume numbers or half-track reads,
       and document those observations in the PR description as evidence
-      for SC-008.
+      for SC-008. (SC-001, SC-008, SC-010)
 - [ ] T113 Final constitution sweep:
       - `rg -n '#include' CassoEmuCore/Devices/ Casso/` to verify
         every new `.cpp` includes `"Pch.h"` first.

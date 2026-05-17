@@ -776,8 +776,11 @@ then the Win32 wiring, then polish. Phase summary:
     `MachineConfig` reports > 1 Disk II. Wire the Uptime anchor
     reseed into `MachineShell::SoftReset` and `PowerCycle` (FR-004a).
 12. **Phase 10a — Column show/hide**: Header right-click handler
-    (`NM_RCLICK` / `WM_CONTEXTMENU`) builds the popup menu, toggles
-    visibility via the shadow-width array (FR-026, NFR-006).
+    (`NM_RCLICK` / `WM_CONTEXTMENU`) builds the popup menu; toggles
+    rebuild the ListView's column set from the logical column model
+    (`std::array<LogicalColumn, 5>`) via delete-and-recreate per
+    FR-026/FR-027 (no width-to-zero hack). No cross-session persistence
+    (NFR-006).
 13. **Phase 11 — Polish**: CHANGELOG, README, manual DOS 3.3 boot
     sanity, manual Karateka / Choplifter / HardHatMack inspection,
     final constitution sweep (`Pch.h` first, spacing, declarations

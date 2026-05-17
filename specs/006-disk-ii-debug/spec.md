@@ -142,7 +142,7 @@ A developer is investigating why a specific copy-protected disk (e.g., Karateka)
   - `OnHeadBump(int atQt)`
   - `OnAddressMark(int track, int sector, int volume)`
   - `OnDataMarkRead(int sector, int bytesRead)`
-  - `OnDataMarkWrite(int sector, int bytesWritten)`
+  - `OnDataMarkWrite(int sector, int bytesWritten)` — interface method is defined but NEVER fires in v1; see A-010.
   - `OnDriveSelect(int drive)`
   - `OnDiskInserted(int drive)`
   - `OnDiskEjected(int drive)`
@@ -307,6 +307,7 @@ The following items were considered and explicitly deferred. They MAY become fol
 - **A-007 (No machine-config schema change needed)**: The set of `DiskIIController` instances enumerated by the active `MachineConfig` is already accessible to `EmulatorShell` (same access path used by Feature 005's drive-audio source registration). No machine-config XML/JSON schema change is needed for v1.
 - **A-008 (Dialog can be designed in code, no .rc dialog template)**: Mirroring `OptionsDialog`'s approach (programmatic control creation in `WM_INITDIALOG`), the debug window's controls (ListView, filter checkboxes / radio / text inputs, Pause and Clear buttons) may be created in code without a dedicated `.rc` dialog template. The menu and accelerator additions are the only `Casso.rc` touch points.
 - **A-009 (Forward compatibility for OnMotorAtSpeed)**: A future `OnMotorAtSpeed()` event will land with issue #67 (Disk II copy-protection fidelity) when motor spin-up timing is actually modeled. The debug log will then show `MOTOR AT SPEED` as a separate event ~70 ms after `MOTOR ENGAGED`, and reads attempted before AT SPEED will fire a new `READ_DURING_SPINUP` event (a copy-protection diagnostic). Out of scope for v1 — no spin-up window is modeled today — but the four-event motor lifecycle in FR-006 leaves room for the fifth method to be added without re-architecting consumers.
+- **A-010 (OnDataMarkWrite never fires in v1)**: Casso's current Disk II implementation only supports sector-level writes (via `WriteSector`); there is no bit-level write path through the Q6/Q7 state machine yet. That bit-level path is scoped to issue #67. Until #67 lands, the nibble watcher (FR-008) only observes the read path, and `IDiskIIEventSink::OnDataMarkWrite` is defined in the interface for forward compatibility but is never invoked. The `DiskIIEvent::DataWrite` enum value and the corresponding filter checkbox (FR-014) are also present but inert. When #67 adds the nibble write path, a symmetric write watcher will fire `OnDataMarkWrite`; no consumer re-architecture is required.
 
 ## Glossary
 
