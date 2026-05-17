@@ -158,12 +158,16 @@ Error:
 //
 //  ResolveRomFile
 //
-//  Helper: resolve a relative ROM path through the search paths.
+//  Helper: resolve a relative ROM path through the search paths. The
+//  caller supplies the relative directory prefix (e.g.,
+//  "Machines/Apple2e" or "Devices/DiskII") so per-machine and per-
+//  device ROM layouts can coexist under the same set of search bases.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 static HRESULT ResolveRomFile (
     const string                                                                        & file,
+    const fs::path                                                                      & relDirPrefix,
     const vector<fs::path>                                                              & searchPaths,
     const MachineConfigLoader::FileResolver                                             & resolver,
     string                                                                              & outResolvedPath,
@@ -171,20 +175,20 @@ static HRESULT ResolveRomFile (
     string                                                                              & outError)
 {
     HRESULT   hr         = S_OK;
-    fs::path  romRelPath = fs::path ("ROMs") / file;
+    fs::path  romRelPath = relDirPrefix / file;
     fs::path  found      = resolver (searchPaths, romRelPath);
     auto      sz         = std::uintmax_t {0};
 
 
 
     CBRF (!found.empty (),
-          outError = format ("ROM file not found: ROMs/{}. "
-                             "Run scripts/FetchRoms.ps1 to download ROM images.",
-                             file));
+          outError = format ("ROM file not found: {}. "
+                             "Place the file under the appropriate per-machine or per-device folder.",
+                             romRelPath.string ()));
 
     sz = fs::file_size (found);
     CBRF (sz > 0,
-          outError = format ("ROM file is empty: ROMs/{}", file));
+          outError = format ("ROM file is empty: {}", romRelPath.string ()));
 
     outResolvedPath = found.string ();
     outFileSize     = static_cast<size_t> (sz);
@@ -265,6 +269,7 @@ Error:
 
 HRESULT MachineConfigLoader::LoadSystemRom (
     const JsonValue        & sysRomObj,
+    const string           & machineName,
     const vector<fs::path> & searchPaths,
     const FileResolver     & resolver,
     MachineConfig          & outConfig,
@@ -272,6 +277,7 @@ HRESULT MachineConfigLoader::LoadSystemRom (
 {
     HRESULT  hr      = S_OK;
     string   addrStr;
+    fs::path relDir  = fs::path ("Machines") / machineName;
 
 
 
@@ -285,6 +291,7 @@ HRESULT MachineConfigLoader::LoadSystemRom (
     CHRF (hr, outError = "Missing or invalid field: 'systemRom.file'");
 
     hr = ResolveRomFile (outConfig.systemRom.file,
+                         relDir,
                          searchPaths,
                          resolver,
                          outConfig.systemRom.resolvedPath,
@@ -313,12 +320,14 @@ Error:
 
 HRESULT MachineConfigLoader::LoadCharacterRom (
     const JsonValue        & charRomObj,
+    const string           & machineName,
     const vector<fs::path> & searchPaths,
     const FileResolver     & resolver,
     MachineConfig          & outConfig,
     string                 & outError)
 {
-    HRESULT hr = S_OK;
+    HRESULT  hr     = S_OK;
+    fs::path relDir = fs::path ("Machines") / machineName;
 
 
 
@@ -326,6 +335,7 @@ HRESULT MachineConfigLoader::LoadCharacterRom (
     CHRF (hr, outError = "Missing or invalid field: 'characterRom.file'");
 
     hr = ResolveRomFile (outConfig.characterRom.file,
+                         relDir,
                          searchPaths,
                          resolver,
                          outConfig.characterRom.resolvedPath,
@@ -386,15 +396,18 @@ Error:
 
 HRESULT MachineConfigLoader::LoadSlots (
     const JsonValue        & slotsArray,
+    const string           & machineName,
     const vector<fs::path> & searchPaths,
     const FileResolver     & resolver,
     MachineConfig          & outConfig,
     string                 & outError)
 {
-    HRESULT  hr     = S_OK;
-    size_t   idx    = 0;
-    bool     hasDev = false;
-    bool     hasRom = false;
+    HRESULT  hr           = S_OK;
+    size_t   idx          = 0;
+    bool     hasDev       = false;
+    bool     hasRom       = false;
+    fs::path machineRel   = fs::path ("Machines") / machineName;
+    fs::path diskIIRel    = fs::path ("Devices") / "DiskII";
 
 
 
@@ -402,6 +415,7 @@ HRESULT MachineConfigLoader::LoadSlots (
     {
         const JsonValue & entry = slotsArray.ArrayAt (idx);
         SlotConfig        slot;
+        fs::path          slotRomRel;
 
 
 
@@ -427,7 +441,15 @@ HRESULT MachineConfigLoader::LoadSlots (
 
         if (hasRom)
         {
+            // Slot ROMs whose device is a known per-device family live
+            // under the matching `Devices/<Family>/` folder so future
+            // device families (Mockingboard, SSC, ...) can collocate
+            // their resources alongside their boot ROMs. Anything we
+            // don't recognise falls back to the per-machine folder.
+            slotRomRel = (slot.device == "disk-ii") ? diskIIRel : machineRel;
+
             hr = ResolveRomFile (slot.rom,
+                                 slotRomRel,
                                  searchPaths,
                                  resolver,
                                  slot.resolvedRomPath,
@@ -546,11 +568,13 @@ Error:
 
 HRESULT MachineConfigLoader::Load (
     const string           & jsonText,
+    const string           & machineName,
     const vector<fs::path> & searchPaths,
     MachineConfig          & outConfig,
     string                 & outError)
 {
-    return Load (jsonText, searchPaths, PathResolver::FindFile, outConfig, outError);
+    return Load (jsonText, machineName, searchPaths, PathResolver::FindFile,
+                 outConfig, outError);
 }
 
 
@@ -565,6 +589,7 @@ HRESULT MachineConfigLoader::Load (
 
 HRESULT MachineConfigLoader::Load (
     const string           & jsonText,
+    const string           & machineName,
     const vector<fs::path> & searchPaths,
     const FileResolver     & resolver,
     MachineConfig          & outConfig,
@@ -621,10 +646,10 @@ HRESULT MachineConfigLoader::Load (
     hr = root.GetObject ("systemRom", pSystemRom);
     CHRF (hr, outError = "Missing required field: 'systemRom'");
 
-    hr = LoadSystemRom (*pSystemRom, searchPaths, resolver, outConfig, outError);
+    hr = LoadSystemRom (*pSystemRom, machineName, searchPaths, resolver,
+                        outConfig, outError);
     CHR (hr);
 
-    // Optional: characterRom (object)
     // Optional: characterRom (object)
     {
         const JsonValue * pOpt = nullptr;
@@ -632,7 +657,8 @@ HRESULT MachineConfigLoader::Load (
 
         if (SUCCEEDED (hrOpt))
         {
-            hr = LoadCharacterRom (*pOpt, searchPaths, resolver, outConfig, outError);
+            hr = LoadCharacterRom (*pOpt, machineName, searchPaths, resolver,
+                                   outConfig, outError);
             CHR (hr);
         }
     }
@@ -651,7 +677,8 @@ HRESULT MachineConfigLoader::Load (
 
         if (SUCCEEDED (hrOpt))
         {
-            hr = LoadSlots (*pOpt, searchPaths, resolver, outConfig, outError);
+            hr = LoadSlots (*pOpt, machineName, searchPaths, resolver,
+                            outConfig, outError);
             CHR (hr);
         }
     }

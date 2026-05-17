@@ -6,6 +6,180 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.684] — Disk II mechanism dropdown + per-machine persistence
+
+### Added
+- **Options dialog mechanism dropdown (FR-006 / SC-010)**:
+  *View → Options...* now offers a "Disk II mechanism" combobox
+  with "Shugart SA400" (default) and "Alps 2124A" entries. Flipping
+  the dropdown reloads every registered drive's sample buffers via
+  `DriveAudioMixer::SetMechanism` and takes effect on the next
+  audio frame -- no restart, no disk remount.
+- **`DriveAudioMixer::SetMechanism / SetSampleLoadContext /
+  GetMechanism / IsValidMechanism`**: the mixer now owns the
+  asset-load context (devices dir + sample rate) and a
+  validated-on-set mechanism string. Bad input returns
+  `E_INVALIDARG` without mutating mixer state (SC-010 invariant).
+- **Per-machine persistence (Q4)**: both the Drive Audio toggle
+  and the active mechanism round-trip through
+  `HKCU\Software\relmer\Casso\Machines\<MachineName>\` using new
+  `RegistrySettings::ReadDword / WriteDword` helpers. Defaults are
+  enabled + Shugart when the registry is empty. State is reapplied
+  at `EmulatorShell::Initialize` after the machine config loads,
+  before the CPU thread first touches the mixer.
+
+### Changed
+- `OptionsDialog::Show` signature gains a current/out mechanism
+  pair; the procedurally-built `DLGTEMPLATE` adds STATIC and
+  COMBOBOX entries (atoms 0x0082 / 0x0085).
+- `EmulatorShell` Options OK handler diffs both knobs separately
+  so changing one does not rewrite the other's registry value.
+
+### Tests
+- `UnitTest/Audio/DriveAudioMixerMechanismTests.cpp` adds four
+  tests covering: invalid mechanism (no state change),
+  multi-source reload, Alps→Shugart round trip with distinct
+  amplitudes, and pre-context SetMechanism (defers load).
+
+## [1.3.682] — Disk II audio bootstrap (consent-gated OGG fetch)
+
+### Added
+- **Bootstrap fetch (FR-017, FR-018, NFR-006)**: on first launch with
+  a machine that has a Disk II controller, Casso offers (TaskDialog
+  with three command links: *Download* / *Skip* / *Don't ask again
+  this session*) to download the OpenEmulator drive-noise samples
+  from `raw.githubusercontent.com/openemulator/libemulation`,
+  decode them in memory with `stb_vorbis`, resample to 44.1 kHz
+  via linear interpolation, and write 16-bit mono PCM WAVs to
+  `Devices/DiskII/<Mechanism>/`. The compressed `.ogg` bytes are
+  discarded before the function returns — no `.ogg` files ever
+  touch disk (NFR-006).
+- The consent dialog explicitly discloses GPL-3 licensing and
+  recipient obligations and links to OpenEmulator's COPYING file
+  and the GPL-3 text. *Don't ask again this session* is per-process
+  and resets at next launch (deleting the per-mechanism subfolders
+  re-triggers the prompt).
+- Five Shugart sounds (motor, head step, head stop, door open,
+  door close) and three Alps sounds (motor, head step, head stop;
+  Alps drives have no door) covered by `s_kDiskAudioCatalog` in
+  `AssetBootstrap.cpp`.
+- `CassoEmuCore/External/stb_vorbis.c` vendored from
+  [github.com/nothings/stb](https://github.com/nothings/stb)
+  (public domain / MIT). Included exclusively through
+  `StbVorbisWrapper.cpp` which disables PCH, code analysis, and a
+  documented set of upstream-rejected warnings so the rest of the
+  codebase stays clean. Compiled with
+  `STB_VORBIS_NO_PUSHDATA_API` + `STB_VORBIS_NO_STDIO` to drop the
+  half of the library we don't need.
+
+### Changed
+- `AssetBootstrap::DownloadHttp` now treats `expectedSize == 0` as
+  "no integrity check" (only "non-empty"), enabling the OGG fetch
+  to reuse the existing WinHTTP plumbing.
+
+### Tests
+- `UnitTest/EmuTests/DiskAudioFetchTests.cpp` adds four tests:
+  null / garbage-bytes guards for `StbVorbisWrapper`, a WAV
+  write + `DiskIIAudioSource::LoadSamples` round-trip that asserts
+  a non-silent motor loop after decode, and the FR-019 per-file
+  precedence rule. The network-touching `AssetBootstrap` glue is
+  exercised by the manual integration test in T138 (per
+  constitution §II — automated tests do not hit the network).
+
+## [1.3.675] — Per-machine asset directory layout
+
+### Changed
+- **Per-machine ROM directories**: ROM images now live under
+  `Machines/<MachineName>/` (e.g., `Machines/Apple2e/Apple2e.rom`,
+  `Machines/Apple2e/Apple2e_Video.rom`) instead of a single
+  top-level `ROMs/` folder. Shared device boot ROMs (Disk II
+  controller firmware) live under `Devices/<Family>/` (e.g.,
+  `Devices/DiskII/Disk2.rom`). The in-app missing-ROM downloader
+  and `scripts/FetchRoms.ps1` both target the new layout. The
+  Apple II / II+ character generator and the //e character
+  generator are duplicated into each owning machine's folder so
+  every machine's asset set is self-contained (a handful of bytes
+  of redundancy in exchange for portability).
+- **Machine configs moved**: `Machines/Apple2.json` →
+  `Machines/Apple2/Apple2.json` (and the same pattern for
+  `Apple2Plus`, `Apple2e`). `Casso.exe`'s `--machine` flag still
+  takes the bare machine identifier (e.g., `--machine Apple2e`);
+  the loader resolves the new nested path internally. Embedded
+  default-config extraction (`AssetBootstrap::EnsureMachineConfigs`)
+  writes to the per-machine subdir on first run.
+- **`.gitignore` is now a whitelist** for `Machines/**` and
+  `Devices/**`: only `*.json` manifests are tracked, ROMs and
+  future drive-audio WAVs stay out of source control without
+  per-file rules.
+- `Assets/Sounds/DiskII/README.md` moved to
+  `Devices/DiskII/README.md` to co-locate documentation with the
+  device's other assets.
+
+### Migration
+Users with an existing install:
+
+- The old top-level `ROMs/` directory is **no longer searched**.
+- After updating, either delete `ROMs/` and re-run
+  `scripts/FetchRoms.ps1` (which now places files in the new
+  layout), or move each ROM file into the corresponding new
+  location (see the table at the top of `scripts/FetchRoms.ps1`).
+
+## [1.3.670] — Disk II audio (motor / head / door, stereo, Options dialog)
+
+### Added
+- **Disk II mechanical audio**: motor hum (looping while
+  `m_motorOn`), head-step click (per quarter-track movement), track-0
+  / max-track bump (when the stepper energizes against the travel
+  stop), and disk insert / eject door sounds.
+- **Step-vs-seek discrimination** (FR-005): contiguous step bursts
+  fuse into a continuous seek buzz instead of N overlapping clicks.
+  OpenEmulator-style cycle-gap timer; threshold = 16,368 cycles
+  (~16 ms at 1.023 MHz), idle clear = 51,150 cycles (~50 ms).
+- **Stereo mixing into the existing WASAPI pipeline**: speaker is
+  centered (equal-power), drives are panned per-drive using
+  equal-power coefficients. Single-drive profiles play centered;
+  two-drive profiles place Drive 1 left-of-center and Drive 2
+  right-of-center. Per-channel clamp to `[-1, +1]`; downmix to mono
+  when the device is mono.
+- **View → Options... dialog** (new, runtime-built `DLGTEMPLATE`)
+  hosting the "Drive Audio" check toggle; default-on, takes effect
+  within one audio frame.
+- **Cold-boot mount suppression** (FR-013): command-line / restored /
+  autoload mounts do not fire the disk-insert sound. User-initiated
+  mid-session mounts and all eject events fire normally.
+- **Generic drive-audio abstraction**: `IDriveAudioSink`,
+  `IDriveAudioSource`, `DriveAudioMixer`, and `DiskIIAudioSource` are
+  decoupled so future drive types (`//c` internal 5.25, DuoDisk,
+  Apple 5.25 Drive, Apple /// drive, ProFile, …) can plug into the
+  same mixer without modifying it or the sink interface (FR-016).
+- `Assets/Sounds/DiskII/` directory with a `README.md` documenting the
+  expected sample set (PascalCase WAVs decoded at startup via
+  `IMFSourceReader` to mono float32 at the WASAPI device rate). The
+  directory may be absent or empty — the emulator launches and runs
+  normally with the affected sounds silently muted (FR-009).
+
+### Changed
+- `WasapiAudio` now negotiates stereo float32 from WASAPI (falls back
+  to mono if the device demands it). The internal pending-samples
+  buffer is interleaved stereo; mono devices downmix at drain time.
+  `SubmitFrame` gained two optional parameters: a `DriveAudioMixer*`
+  and the current CPU cycle count, both of which preserve
+  pre-feature behavior when omitted (FR-011 / SC-006).
+- `DiskIIController` exposes `SetAudioSink (IDriveAudioSink*)` and
+  fires `OnMotorStart` / `OnMotorStop` / `OnHeadStep(qt)` /
+  `OnHeadBump` at the documented call sites. Mount/eject door events
+  fire from the shell layer (with cold-boot suppression) rather than
+  the controller.
+
+### Tests
+- 34 new unit tests in `UnitTest/Audio/` and
+  `UnitTest/Devices/DiskIIControllerAudioTests.cpp` covering source
+  state machines, mixer panning / clamp, controller event firing,
+  step-vs-seek timing, and graceful-degradation behavior. All
+  tests use in-memory buffers and a recording mock sink — no host
+  filesystem reads, no audio device (constitution §II).
+- All pre-existing speaker tests pass identically (FR-011 / SC-006).
+
 ## [1.3.660] — 2026-05-14 — Demo first-frame ~2x faster (boot reorder)
 
 ### Changed (demo)

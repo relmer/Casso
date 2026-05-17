@@ -229,6 +229,7 @@
     <ClCompile Include="MachinePickerDialog.cpp" />
     <ClCompile Include="DiskSettings.cpp" />
     <ClCompile Include="AssetBootstrap.cpp" />
+    <ClCompile Include="OptionsDialog.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />
@@ -241,6 +242,7 @@
     <ClInclude Include="MachinePickerDialog.h" />
     <ClInclude Include="DiskSettings.h" />
     <ClInclude Include="AssetBootstrap.h" />
+    <ClInclude Include="OptionsDialog.h" />
     <ClInclude Include="UnicodeSymbols.h" />
     <ClInclude Include="WasapiAudio.h" />
     <ClInclude Include="resource.h" />

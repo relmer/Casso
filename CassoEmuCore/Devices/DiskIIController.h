@@ -9,6 +9,9 @@
 #include "Disk/DiskIINibbleEngine.h"
 
 
+class IDriveAudioSink;
+
+
 
 
 
@@ -50,6 +53,13 @@ public:
     DiskImage *   GetDisk          (int drive);
     void          SetExternalDisk  (int drive, DiskImage * external);
     bool          HasExternalDisk  (int drive) const;
+
+    // Audio sink wiring (spec 005-disk-ii-audio FR-001..FR-004).
+    // Caller-owned; controller never deletes it. Single sink covers
+    // both drives (per-drive routing happens at the source-mixer
+    // level via separate IDriveAudioSource instances).
+    void          SetAudioSink     (IDriveAudioSink * sink) { m_audioSink = sink; }
+    IDriveAudioSink * GetAudioSink () const                 { return m_audioSink; }
 
     // Cycle-driven advance. EmuCpu pumps cycles per Step.
     void   Tick (uint32_t cpuCycles);
@@ -97,4 +107,6 @@ private:
     DiskImage            m_disks[kDriveCount];
     DiskImage *          m_activeDisk[kDriveCount] = { nullptr, nullptr };
     DiskIINibbleEngine   m_engine[kDriveCount];
+
+    IDriveAudioSink *    m_audioSink   = nullptr;
 };

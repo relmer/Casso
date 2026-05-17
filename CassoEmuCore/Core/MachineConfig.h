@@ -219,17 +219,24 @@ public:
     using FileResolver = function<fs::path (const vector<fs::path> &,
                                             const fs::path &)>;
 
+    // `machineName` selects the per-machine ROM subdir
+    // (Machines/<machineName>/<file>) used to resolve systemRom and
+    // characterRom files. Slot ROMs whose device is "disk-ii" resolve
+    // under Devices/DiskII/<file>. Pass the bare machine identifier
+    // (e.g., "Apple2e"), not a localized display name.
     static HRESULT Load            (const string           & jsonText,
+                                    const string           & machineName,
                                     const vector<fs::path> & searchPaths,
                                     MachineConfig          & outConfig,
                                     string                 & outError);
-           
+
     static HRESULT Load            (const string           & jsonText,
+                                    const string           & machineName,
                                     const vector<fs::path> & searchPaths,
                                     const FileResolver     & resolver,
                                     MachineConfig          & outConfig,
                                     string                 & outError);
-           
+
     static HRESULT CollectRomFiles (const string           & jsonText,
                                     vector<string>         & outFiles,
                                     string                 & outError);
@@ -266,12 +273,14 @@ private:
                                        string          & outError);
 
     static HRESULT LoadSystemRom      (const JsonValue        & sysRomObj,
+                                       const string           & machineName,
                                        const vector<fs::path> & searchPaths,
                                        const FileResolver     & resolver,
                                        MachineConfig          & outConfig,
                                        string                 & outError);
 
     static HRESULT LoadCharacterRom   (const JsonValue        & charRomObj,
+                                       const string           & machineName,
                                        const vector<fs::path> & searchPaths,
                                        const FileResolver     & resolver,
                                        MachineConfig          & outConfig,
@@ -282,6 +291,7 @@ private:
                                         string          & outError);
 
     static HRESULT LoadSlots          (const JsonValue        & slotsArray,
+                                       const string           & machineName,
                                        const vector<fs::path> & searchPaths,
                                        const FileResolver     & resolver,
                                        MachineConfig          & outConfig,

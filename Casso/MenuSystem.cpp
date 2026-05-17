@@ -90,6 +90,8 @@ static const MenuItem kViewMenuItems[] =
     { MF_STRING,              IDM_VIEW_FULLSCREEN, L"&Fullscreen\tAlt+Enter" },
     { MF_STRING,              IDM_VIEW_RESET_SIZE, L"Reset &Window Size\tCtrl+0" },
     { MF_STRING | MF_GRAYED,  IDM_VIEW_CRT_SHADER, L"C&RT Shader" },
+    { 0,                      kSep,                nullptr },
+    { MF_STRING,              IDM_VIEW_OPTIONS,    L"&Options..." },
 };
 
 static const MenuItem kHelpMenuItems[] =

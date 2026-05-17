@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "EmulatorShell.h"
+#include "AssetBootstrap.h"
 #include "Core/PathResolver.h"
 #include "Version.h"
 #include "resource.h"
@@ -15,6 +16,7 @@
 #include "Devices/LanguageCard.h"
 #include "Devices/AppleIIeMmu.h"
 #include "Core/Prng.h"
+#include "OptionsDialog.h"
 #include "MachinePickerDialog.h"
 #include "RegistrySettings.h"
 #include "DiskSettings.h"
@@ -86,14 +88,14 @@ EmulatorShell::EmulatorShell()
     // harness instead of going through this path.
     uint64_t    seed = static_cast<uint64_t> (time (nullptr));
 
-    seed ^= static_cast<uint64_t> (GetCurrentProcessId ()) << 32;
+    seed ^= static_cast<uint64_t> (GetCurrentProcessId()) << 32;
 
     m_prng = make_unique<Prng> (seed);
 
     // Phase 5 / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
     // 17,030-cycle frame counter for $C019 (RDVBLBAR) reads.
-    m_videoTiming = make_unique<VideoTiming> ();
+    m_videoTiming = make_unique<VideoTiming>();
 }
 
 
@@ -120,7 +122,7 @@ EmulatorShell::~EmulatorShell()
     // Phase 11 / T097 / FR-025. Final auto-flush of any dirty disks on
     // process shutdown — matches the "graceful exit" requirement from
     // audit §7 so a crash-free quit never loses user writes.
-    hrFlush = m_diskStore.FlushAll ();
+    hrFlush = m_diskStore.FlushAll();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     m_d3dRenderer.Shutdown();
@@ -205,9 +207,40 @@ HRESULT EmulatorShell::Initialize (
     // disk. Mounting first then power-cycling silently throws away the
     // user's freshly-mounted image (the engine ticks but AdvanceOneBit
     // exits early because trackBits[0] == 0).
-    PowerCycle ();
+    PowerCycle();
 
     MountCommandLineDisks (disk1Path, disk2Path);
+
+    // Spec 005-disk-ii-audio Phase 14 (Q4): seed the mixer state
+    // from the per-machine registry before the audio thread first
+    // calls SetEnabled / SetMechanism. Default is enabled + Shugart
+    // when nothing has been persisted yet.
+    {
+        wstring  subkey;
+        DWORD    enabledDw = 1;
+        wstring  mechanism;
+        HRESULT  hrReg     = S_OK;
+
+        subkey = wstring (L"Machines\\") + m_currentMachineName;
+
+        hrReg = RegistrySettings::ReadDword (subkey.c_str(),
+                                             L"DriveAudioEnabled",
+                                             enabledDw);
+        IGNORE_RETURN_VALUE (hrReg, S_OK);
+
+        m_driveAudioMixer.SetEnabled (enabledDw != 0);
+
+        hrReg = RegistrySettings::ReadString (subkey.c_str(),
+                                              L"DiskIIMechanism",
+                                              mechanism);
+        IGNORE_RETURN_VALUE (hrReg, S_OK);
+
+        if (!mechanism.empty() && m_driveAudioMixer.IsValidMechanism (mechanism))
+        {
+            HRESULT  hrMech = m_driveAudioMixer.SetMechanism (mechanism);
+            IGNORE_RETURN_VALUE (hrMech, S_OK);
+        }
+    }
 
 Error:
     return hr;
@@ -382,7 +415,7 @@ void EmulatorShell::CreateStatusBar()
         SetWindowSubclass (m_statusBar, &EmulatorShell::s_StatusBarSubclass,
                            1, reinterpret_cast<DWORD_PTR> (this));
 
-        RefreshDriveStatus ();
+        RefreshDriveStatus();
     }
 
     // Periodic refresh for owner-drawn drive activity LEDs. Only set when
@@ -606,25 +639,25 @@ void EmulatorShell::RefreshDriveStatus()
         {
             const string & srcPath = m_diskStore.GetSourcePath (6, d);
 
-            if (srcPath.empty ())
+            if (srcPath.empty())
             {
                 swprintf_s (tooltip, L"Drive %d: (empty)", d + 1);
             }
             else if (m_diskController != nullptr)
             {
                 auto &  engine = m_diskController->GetEngine (d);
-                int     track  = engine.GetCurrentTrack ();
+                int     track  = engine.GetCurrentTrack();
 
                 swprintf_s (tooltip,
                             L"Drive %d: %hs  [track %d  R:%llu  W:%llu]",
-                            d + 1, srcPath.c_str (),
+                            d + 1, srcPath.c_str(),
                             track,
-                            (unsigned long long) engine.GetReadNibbles (),
-                            (unsigned long long) engine.GetWriteNibbles ());
+                            (unsigned long long) engine.GetReadNibbles(),
+                            (unsigned long long) engine.GetWriteNibbles());
             }
             else
             {
-                swprintf_s (tooltip, L"Drive %d: %hs", d + 1, srcPath.c_str ());
+                swprintf_s (tooltip, L"Drive %d: %hs", d + 1, srcPath.c_str());
             }
 
             ti.cbSize   = sizeof (ti);
@@ -754,8 +787,8 @@ void EmulatorShell::DrawDriveStatusItem (DRAWITEMSTRUCT * pdis, int driveIndex)
                            &labelSize);
 
     active = m_diskController != nullptr
-          && m_diskController->IsMotorOn ()
-          && m_diskController->GetActiveDrive () == driveIndex;
+          && m_diskController->IsMotorOn()
+          && m_diskController->GetActiveDrive() == driveIndex;
 
     dotColor = active ? RGB (220, 32, 32) : RGB (128, 128, 128);
 
@@ -821,39 +854,39 @@ void EmulatorShell::ShowDevicePopup()
     // RAM regions (skip aux-bank entries -- shown via aux-ram-card device)
     for (const auto & region : m_config.ram)
     {
-        if (!region.bank.empty ())
+        if (!region.bank.empty())
         {
             continue;
         }
 
         Word ramEnd = static_cast<Word> (region.address + region.size - 1);
         label = format (L"${:04X}-${:04X}  Ram", region.address, ramEnd);
-        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str ());
+        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
         CWRA (fSuccess);
     }
 
     // System ROM
     {
         Word romEnd  = static_cast<Word> (m_config.systemRom.address + m_config.systemRom.fileSize - 1);
-        wstring file = fs::path (m_config.systemRom.file).wstring ();
+        wstring file = fs::path (m_config.systemRom.file).wstring();
         label = format (L"${:04X}-${:04X}  Rom ({})", m_config.systemRom.address, romEnd, file);
-        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str ());
+        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
         CWRA (fSuccess);
     }
 
     // Slot ROMs
     for (const auto & slot : m_config.slots)
     {
-        if (slot.rom.empty ())
+        if (slot.rom.empty())
         {
             continue;
         }
 
         Word    romStart = static_cast<Word> (0xC000 + slot.slot * 0x100);
         Word    romEnd   = static_cast<Word> (romStart + slot.romSize - 1);
-        wstring file     = fs::path (slot.rom).wstring ();
+        wstring file     = fs::path (slot.rom).wstring();
         label = format (L"${:04X}-${:04X}  Slot {} Rom ({})", romStart, romEnd, slot.slot, file);
-        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str ());
+        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
         CWRA (fSuccess);
     }
 
@@ -863,27 +896,27 @@ void EmulatorShell::ShowDevicePopup()
     // Internal devices
     for (const auto & idev : m_config.internalDevices)
     {
-        wstring name  = fs::path (idev.type).wstring ();
+        wstring name  = fs::path (idev.type).wstring();
         bool    found = false;
 
         for (const auto & dev : m_ownedDevices)
         {
-            Word devStart = dev->GetStart ();
-            Word devEnd   = dev->GetEnd ();
+            Word devStart = dev->GetStart();
+            Word devEnd   = dev->GetEnd();
             bool match    = false;
 
             if ((idev.type == "apple2-keyboard" || idev.type == "apple2e-keyboard") &&
-                m_keyboard != nullptr && dev.get () == static_cast<MemoryDevice *> (m_keyboard))
+                m_keyboard != nullptr && dev.get() == static_cast<MemoryDevice *> (m_keyboard))
             {
                 match = true;
             }
             else if (idev.type == "apple2-speaker" &&
-                     m_speaker != nullptr && dev.get () == static_cast<MemoryDevice *> (m_speaker))
+                     m_speaker != nullptr && dev.get() == static_cast<MemoryDevice *> (m_speaker))
             {
                 match = true;
             }
             else if ((idev.type == "apple2-softswitches" || idev.type == "apple2e-softswitches") &&
-                     m_softSwitches != nullptr && dev.get () == static_cast<MemoryDevice *> (m_softSwitches))
+                     m_softSwitches != nullptr && dev.get() == static_cast<MemoryDevice *> (m_softSwitches))
             {
                 match = true;
             }
@@ -909,23 +942,23 @@ void EmulatorShell::ShowDevicePopup()
             label = name;
         }
 
-        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str ());
+        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
         CWRA (fSuccess);
     }
 
     // Slot devices
     for (const auto & slot : m_config.slots)
     {
-        if (slot.device.empty ())
+        if (slot.device.empty())
         {
             continue;
         }
 
-        wstring name = fs::path (slot.device).wstring ();
+        wstring name = fs::path (slot.device).wstring();
         Word    ioStart = static_cast<Word> (0xC080 + slot.slot * 16);
         Word    ioEnd   = static_cast<Word> (ioStart + 15);
         label = format (L"${:04X}-${:04X}  Slot {} ({})", ioStart, ioEnd, slot.slot, name);
-        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str ());
+        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
         CWRA (fSuccess);
     }
 
@@ -1002,20 +1035,20 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
 
 
     // Load character generator ROM (used by video renderers, not on bus)
-    if (!config.characterRom.resolvedPath.empty ())
+    if (!config.characterRom.resolvedPath.empty())
     {
         HRESULT hrChar = m_charRom.LoadFromFile (config.characterRom.resolvedPath);
 
         if (FAILED (hrChar))
         {
             DEBUGMSG (L"Failed to load character ROM '%hs', using fallback\n",
-                      config.characterRom.resolvedPath.c_str ());
-            m_charRom.LoadEmbeddedFallback ();
+                      config.characterRom.resolvedPath.c_str());
+            m_charRom.LoadEmbeddedFallback();
         }
     }
     else
     {
-        m_charRom.LoadEmbeddedFallback ();
+        m_charRom.LoadEmbeddedFallback();
     }
 
     // RAM regions. Skip aux-bank entries: the AppleIIeMmu owns the
@@ -1023,7 +1056,7 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
     // MMU page-table wiring.
     for (const auto & region : config.ram)
     {
-        if (!region.bank.empty ())
+        if (!region.bank.empty())
         {
             continue;
         }
@@ -1035,10 +1068,10 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
 
         if (m_mainRamDev == nullptr)
         {
-            m_mainRamDev = device.get ();
+            m_mainRamDev = device.get();
         }
 
-        m_memoryBus.AddDevice (device.get ());
+        m_memoryBus.AddDevice (device.get());
         m_ownedDevices.push_back (move (device));
     }
 
@@ -1056,11 +1089,11 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
 
         if (!romOk)
         {
-            wideError.assign (error.begin (), error.end ());
-            CBRN (false, wideError.c_str ());
+            wideError.assign (error.begin(), error.end());
+            CBRN (false, wideError.c_str());
         }
 
-        m_memoryBus.AddDevice (device.get ());
+        m_memoryBus.AddDevice (device.get());
         m_ownedDevices.push_back (move (device));
     }
 
@@ -1076,7 +1109,7 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
         // (siblings, Initialize) happens after the device pass.
         if (devCfg.type == "apple2e-mmu")
         {
-            m_mmu = make_unique<AppleIIeMmu> ();
+            m_mmu = make_unique<AppleIIeMmu>();
             continue;
         }
 
@@ -1084,7 +1117,7 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
 
         if (!device)
         {
-            DEBUGMSG (L"Warning: Unknown device type '%hs'\n", devCfg.type.c_str ());
+            DEBUGMSG (L"Warning: Unknown device type '%hs'\n", devCfg.type.c_str());
             continue;
         }
 
@@ -1092,19 +1125,19 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
         if (devCfg.type == "apple2-keyboard" ||
             devCfg.type == "apple2e-keyboard")
         {
-            m_keyboard = static_cast<AppleKeyboard *> (device.get ());
+            m_keyboard = static_cast<AppleKeyboard *> (device.get());
         }
         else if (devCfg.type == "apple2-softswitches" ||
                  devCfg.type == "apple2e-softswitches")
         {
-            m_softSwitches = static_cast<AppleSoftSwitchBank *> (device.get ());
+            m_softSwitches = static_cast<AppleSoftSwitchBank *> (device.get());
         }
         else if (devCfg.type == "apple2-speaker")
         {
-            m_speaker = static_cast<AppleSpeaker *> (device.get ());
+            m_speaker = static_cast<AppleSpeaker *> (device.get());
         }
 
-        m_memoryBus.AddDevice (device.get ());
+        m_memoryBus.AddDevice (device.get());
         m_ownedDevices.push_back (move (device));
     }
 
@@ -1127,22 +1160,22 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
 
         if (iieKbd != nullptr && m_mmu != nullptr)
         {
-            iieKbd->SetMmu (m_mmu.get ());
+            iieKbd->SetMmu (m_mmu.get());
         }
 
         if (iieKbd != nullptr && m_videoTiming != nullptr)
         {
-            iieKbd->SetVideoTiming (m_videoTiming.get ());
+            iieKbd->SetVideoTiming (m_videoTiming.get());
         }
 
         if (iieSw != nullptr && m_videoTiming != nullptr)
         {
-            iieSw->SetVideoTiming (m_videoTiming.get ());
+            iieSw->SetVideoTiming (m_videoTiming.get());
         }
 
         if (iieSw != nullptr && m_mmu != nullptr)
         {
-            iieSw->SetMmu (m_mmu.get ());
+            iieSw->SetMmu (m_mmu.get());
         }
     }
 
@@ -1170,7 +1203,7 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
     for (const auto & slot : config.slots)
     {
         // Slot device (e.g., disk-ii)
-        if (!slot.device.empty ())
+        if (!slot.device.empty())
         {
             DeviceConfig devCfg;
             devCfg.type    = slot.device;
@@ -1181,17 +1214,17 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
 
             if (!device)
             {
-                DEBUGMSG (L"Warning: Unknown slot device type '%hs'\n", devCfg.type.c_str ());
+                DEBUGMSG (L"Warning: Unknown slot device type '%hs'\n", devCfg.type.c_str());
             }
             else
             {
-                m_memoryBus.AddDevice (device.get ());
+                m_memoryBus.AddDevice (device.get());
                 m_ownedDevices.push_back (move (device));
             }
         }
 
         // Slot ROM at $Cs00-$CsFF
-        if (!slot.rom.empty ())
+        if (!slot.rom.empty())
         {
             Word romStart = static_cast<Word> (0xC000 + slot.slot * 0x100);
             Word romEnd   = static_cast<Word> (romStart + slot.romSize - 1);
@@ -1203,8 +1236,8 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
 
             if (device == nullptr)
             {
-                wideError.assign (error.begin (), error.end ());
-                CBRN (false, wideError.c_str ());
+                wideError.assign (error.begin(), error.end());
+                CBRN (false, wideError.c_str());
             }
 
             // On //e the AppleIIeMmu owns the $C100-$CFFF router and
@@ -1224,7 +1257,7 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
             }
             else
             {
-                m_memoryBus.AddDevice (device.get ());
+                m_memoryBus.AddDevice (device.get());
             }
 
             m_ownedDevices.push_back (move (device));
@@ -1236,12 +1269,70 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
     m_diskController = nullptr;
     for (auto & dev : m_ownedDevices)
     {
-        DiskIIController *  dc = dynamic_cast<DiskIIController *> (dev.get ());
+        DiskIIController *  dc = dynamic_cast<DiskIIController *> (dev.get());
 
         if (dc != nullptr)
         {
             m_diskController = dc;
             break;
+        }
+    }
+
+    // Drive-audio wiring (spec 005-disk-ii-audio FR-008 / FR-012 /
+    // FR-015 / FR-016). Allocate one DiskIIAudioSource per drive on
+    // the discovered controller (if any), register each with the
+    // mixer, and route the controller's audio-sink events into
+    // drive 0's source (single sink covers both drives; the head /
+    // motor events themselves are not currently drive-tagged in
+    // DiskIIController -- a follow-up could split per-drive sinks).
+    //
+    // Pan policy: single-drive profiles play centered (equal-power
+    // center). Two-drive profiles place Drive 1 left-of-center and
+    // Drive 2 right-of-center using kDrivePanOffset radians.
+    m_diskAudioSources.clear();
+    m_driveAudioMixer.UnregisterAllSources();
+
+    if (m_diskController != nullptr)
+    {
+        int  driveCount = DiskIIController::kDriveCount;
+        int  drive      = 0;
+
+        for (drive = 0; drive < driveCount; drive++)
+        {
+            auto  src = make_unique<DiskIIAudioSource>();
+
+            if (driveCount <= 1)
+            {
+                src->SetPan (DriveAudioMixer::kSpeakerCenter,
+                             DriveAudioMixer::kSpeakerCenter);
+            }
+            else if (drive == 0)
+            {
+                // Drive 1 (UI numbering; index 0): left bias.
+                // theta measured from the right speaker per FR-012,
+                // so panL = sin(theta), panR = cos(theta). At
+                // theta = pi/4 + pi/8 = 3*pi/8 this is roughly
+                // 0.924 L / 0.383 R -- halfway between the left
+                // speaker and center.
+                float  theta = DriveAudioMixer::kCenterAngle + DriveAudioMixer::kDrivePanOffset;
+
+                src->SetPan (sinf (theta), cosf (theta));
+            }
+            else
+            {
+                // Drive 2 (UI numbering; index 1): mirror, right bias.
+                float  theta = DriveAudioMixer::kCenterAngle - DriveAudioMixer::kDrivePanOffset;
+
+                src->SetPan (sinf (theta), cosf (theta));
+            }
+
+            m_driveAudioMixer.RegisterSource (src.get());
+            m_diskAudioSources.push_back (std::move (src));
+        }
+
+        if (!m_diskAudioSources.empty())
+        {
+            m_diskController->SetAudioSink (m_diskAudioSources[0].get());
         }
     }
 
@@ -1354,7 +1445,7 @@ void EmulatorShell::WireLanguageCard()
     // sibling needs the LC pointer for $C011/$C012 status reads.
     if (m_mmu != nullptr)
     {
-        lc->SetMmu (m_mmu.get ());
+        lc->SetMmu (m_mmu.get());
     }
 
     auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_keyboard);
@@ -1404,13 +1495,13 @@ void EmulatorShell::WirePageTable()
     }
 
     // Register banking-change callback so soft switches can trigger remapping
-    m_memoryBus.SetBankingChangedCallback ([this] ()
+    m_memoryBus.SetBankingChangedCallback ([this]()
     {
-        RebuildBankingPages ();
+        RebuildBankingPages();
     });
 
     // Initial state
-    RebuildBankingPages ();
+    RebuildBankingPages();
 }
 
 
@@ -1426,9 +1517,9 @@ void EmulatorShell::WirePageTable()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte * EmulatorShell::GetAuxRamBuffer ()
+Byte * EmulatorShell::GetAuxRamBuffer()
 {
-    return m_mmu != nullptr ? m_mmu->GetAuxBuffer () : nullptr;
+    return m_mmu != nullptr ? m_mmu->GetAuxBuffer() : nullptr;
 }
 
 
@@ -1499,40 +1590,40 @@ void EmulatorShell::MountCommandLineDisks (
     // user doesn't have to re-pick the .dsk every launch (and so the
     // test harness can flip-test the same image without re-clicking
     // the file dialog).
-    if (resolvedDisk1.empty () && !m_currentMachineName.empty ())
+    if (resolvedDisk1.empty() && !m_currentMachineName.empty())
     {
         wstring  saved;
         HRESULT  hrRead = DiskSettings::ReadSavedDiskPath (0, m_currentMachineName, saved);
 
-        if (hrRead == S_OK && !saved.empty ())
+        if (hrRead == S_OK && !saved.empty())
         {
-            resolvedDisk1 = fs::path (saved).string ();
+            resolvedDisk1 = fs::path (saved).string();
         }
     }
 
-    if (resolvedDisk2.empty () && !m_currentMachineName.empty ())
+    if (resolvedDisk2.empty() && !m_currentMachineName.empty())
     {
         wstring  saved;
         HRESULT  hrRead = DiskSettings::ReadSavedDiskPath (1, m_currentMachineName, saved);
 
-        if (hrRead == S_OK && !saved.empty ())
+        if (hrRead == S_OK && !saved.empty())
         {
-            resolvedDisk2 = fs::path (saved).string ();
+            resolvedDisk2 = fs::path (saved).string();
         }
     }
 
-    if (resolvedDisk1.empty () && resolvedDisk2.empty ())
+    if (resolvedDisk1.empty() && resolvedDisk2.empty())
     {
         return;
     }
 
-    if (!resolvedDisk1.empty ())
+    if (!resolvedDisk1.empty())
     {
         hr = MountDiskInSlot6 (0, resolvedDisk1);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    if (!resolvedDisk2.empty ())
+    if (!resolvedDisk2.empty())
     {
         hr = MountDiskInSlot6 (1, resolvedDisk2);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1553,7 +1644,7 @@ void EmulatorShell::MountCommandLineDisks (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskIIController * EmulatorShell::FindSlot6Controller ()
+DiskIIController * EmulatorShell::FindSlot6Controller()
 {
     DiskIIController *  result = nullptr;
 
@@ -1590,7 +1681,7 @@ DiskIIController * EmulatorShell::FindSlot6Controller ()
 HRESULT EmulatorShell::MountDiskInSlot6 (int drive, const string & path)
 {
     HRESULT              hr         = S_OK;
-    DiskIIController  *  controller = FindSlot6Controller ();
+    DiskIIController  *  controller = FindSlot6Controller();
     DiskImage         *  external   = nullptr;
 
     CBR (controller != nullptr);
@@ -1604,11 +1695,24 @@ HRESULT EmulatorShell::MountDiskInSlot6 (int drive, const string & path)
     // Persist this drive's mount path so the next launch / next time
     // this machine is selected auto-mounts the same disk. Don't pollute
     // hr with the registry result -- a missing key is non-fatal.
-    if (!m_currentMachineName.empty ())
+    if (!m_currentMachineName.empty())
     {
-        wstring  wPath = fs::path (path).wstring ();
+        wstring  wPath = fs::path (path).wstring();
         HRESULT  hrReg = DiskSettings::WriteSavedDiskPath (drive, m_currentMachineName, wPath);
         IGNORE_RETURN_VALUE (hrReg, S_OK);
+    }
+
+    // Drive-audio door-close (FR-013). Cold-boot mounts (command-line,
+    // last-session restoration, autoload) MUST be suppressed -- they
+    // happen before the user has interacted with the running //e and
+    // shouldn't audibly slam the drive door at app launch. Post-startup
+    // mounts (user-initiated mid-session) always fire.
+    if (!m_coldBootMountWindow &&
+        drive >= 0 &&
+        static_cast<size_t> (drive) < m_diskAudioSources.size() &&
+        m_diskAudioSources[drive] != nullptr)
+    {
+        m_diskAudioSources[drive]->OnDiskInserted();
     }
 
 Error:
@@ -1630,7 +1734,7 @@ Error:
 
 void EmulatorShell::EjectDiskInSlot6 (int drive)
 {
-    DiskIIController *  controller = FindSlot6Controller ();
+    DiskIIController *  controller = FindSlot6Controller();
 
     m_diskStore.Eject (6, drive);
 
@@ -1641,10 +1745,20 @@ void EmulatorShell::EjectDiskInSlot6 (int drive)
 
     // Clear the per-machine remembered path so the next launch comes up
     // empty in this slot.
-    if (!m_currentMachineName.empty ())
+    if (!m_currentMachineName.empty())
     {
         HRESULT  hrReg = DiskSettings::WriteSavedDiskPath (drive, m_currentMachineName, L"");
         IGNORE_RETURN_VALUE (hrReg, S_OK);
+    }
+
+    // Drive-audio door-open (FR-014). Eject events always fire (no
+    // cold-boot eject case in practice -- the app launches with the
+    // drive bay closed).
+    if (drive >= 0 &&
+        static_cast<size_t> (drive) < m_diskAudioSources.size() &&
+        m_diskAudioSources[drive] != nullptr)
+    {
+        m_diskAudioSources[drive]->OnDiskEjected();
     }
 }
 
@@ -1669,7 +1783,7 @@ void EmulatorShell::EjectDiskInSlot6 (int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RemountSlot6Disks ()
+void EmulatorShell::RemountSlot6Disks()
 {
     string   savedDisk[DiskImageStore::kDriveCount];
     HRESULT  hrMount = S_OK;
@@ -1682,7 +1796,7 @@ void EmulatorShell::RemountSlot6Disks ()
 
     for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
     {
-        if (!savedDisk[drive].empty ())
+        if (!savedDisk[drive].empty())
         {
             hrMount = MountDiskInSlot6 (drive, savedDisk[drive]);
             IGNORE_RETURN_VALUE (hrMount, S_OK);
@@ -1719,14 +1833,14 @@ void EmulatorShell::CreateVideoModes()
     // the AppleIIeMmu when present.
     auto text80 = make_unique<Apple80ColTextMode> (m_memoryBus, m_charRom);
 
-    Byte * auxBuf = GetAuxRamBuffer ();
+    Byte * auxBuf = GetAuxRamBuffer();
 
     if (auxBuf != nullptr)
     {
         text80->SetAuxMemory (auxBuf);
 
         // DHR also needs aux memory access (FR-019). Index 3 = AppleDoubleHiResMode.
-        auto * dhr = static_cast<AppleDoubleHiResMode *> (m_videoModes[3].get ());
+        auto * dhr = static_cast<AppleDoubleHiResMode *> (m_videoModes[3].get());
         dhr->SetAuxMemory (auxBuf);
     }
 
@@ -1760,7 +1874,7 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
     // tests/builds that haven't constructed a timing model.
     if (m_videoTiming != nullptr)
     {
-        m_cpu->SetVideoTiming (m_videoTiming.get ());
+        m_cpu->SetVideoTiming (m_videoTiming.get());
     }
 
     // Wire the InterruptController to the CPU. Phase 1 wiring registers
@@ -1768,64 +1882,64 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
     // tokens here in later phases as their devices are added. The
     // controller exists now so Apple ][ / ][+ / //e all share the same
     // IRQ aggregation seam.
-    m_interruptController.SetCpu (m_cpu->GetCpu ());
+    m_interruptController.SetCpu (m_cpu->GetCpu());
 
     // The base Cpu class uses an internal memory[] array. Copy system ROM
     // and slot ROMs into that array so PeekByte/disassembly can see them.
     {
         // System ROM
-        if (!config.systemRom.resolvedPath.empty ())
+        if (!config.systemRom.resolvedPath.empty())
         {
             romFile.open (config.systemRom.resolvedPath, ios::binary);
 
-            if (romFile.good ())
+            if (romFile.good())
             {
                 addr = config.systemRom.address;
 
-                while (romFile.good () && addr < config.systemRom.address + config.systemRom.fileSize)
+                while (romFile.good() && addr < config.systemRom.address + config.systemRom.fileSize)
                 {
                     romFile.read (&byte, 1);
 
-                    if (romFile.gcount () == 1)
+                    if (romFile.gcount() == 1)
                     {
                         m_cpu->PokeByte (addr, static_cast<Byte> (byte));
                         addr++;
                     }
                 }
 
-                romFile.close ();
+                romFile.close();
             }
         }
 
         // Slot ROMs
         for (const auto & slot : config.slots)
         {
-            if (slot.rom.empty () || slot.resolvedRomPath.empty ())
+            if (slot.rom.empty() || slot.resolvedRomPath.empty())
             {
                 continue;
             }
 
             romFile.open (slot.resolvedRomPath, ios::binary);
 
-            if (!romFile.good ())
+            if (!romFile.good())
             {
                 continue;
             }
 
             addr = static_cast<Word> (0xC000 + slot.slot * 0x100);
 
-            while (romFile.good () && addr < 0xC000 + slot.slot * 0x100 + slot.romSize)
+            while (romFile.good() && addr < 0xC000 + slot.slot * 0x100 + slot.romSize)
             {
                 romFile.read (&byte, 1);
 
-                if (romFile.gcount () == 1)
+                if (romFile.gcount() == 1)
                 {
                     m_cpu->PokeByte (addr, static_cast<Byte> (byte));
                     addr++;
                 }
             }
 
-            romFile.close ();
+            romFile.close();
         }
     }
 
@@ -1893,7 +2007,8 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     // Find and load the new machine config
     searchPaths   = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
                                                      PathResolver::GetWorkingDirectory());
-    configRelPath = fs::path ("Machines") / (fs::path (machineName).string() + ".json");
+    configRelPath = fs::path ("Machines") / fs::path (machineName).string()
+                                          / (fs::path (machineName).string() + ".json");
     configPath    = PathResolver::FindFile (searchPaths, configRelPath);
 
     CBRN (!configPath.empty(),
@@ -1907,7 +2022,7 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     ss << configFile.rdbuf();
     jsonText = ss.str();
 
-    romSearchPaths.push_back (configPath.parent_path().parent_path());
+    romSearchPaths.push_back (configPath.parent_path().parent_path().parent_path());
 
     for (const auto & p : searchPaths)
     {
@@ -1917,7 +2032,11 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
         }
     }
 
-    hr = MachineConfigLoader::Load (jsonText, romSearchPaths, newConfig, error);
+    hr = MachineConfigLoader::Load (jsonText,
+                                    fs::path (machineName).string(),
+                                    romSearchPaths,
+                                    newConfig,
+                                    error);
     CHRN (hr, format (L"Failed to load machine config:\n{}",
                       wstring (error.begin(), error.end())).c_str());
 
@@ -1925,7 +2044,7 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     // tearing down the previous machine so user writes survive the
     // machine switch.
     {
-        HRESULT  hrFlush = m_diskStore.FlushAll ();
+        HRESULT  hrFlush = m_diskStore.FlushAll();
         IGNORE_RETURN_VALUE (hrFlush, S_OK);
     }
 
@@ -1988,12 +2107,12 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     // Must run BEFORE the per-machine remount: PowerCycle ejects every
     // drive and rebinds the controller's engine to its empty internal
     // disk, which would silently throw away whatever we just mounted.
-    PowerCycle ();
+    PowerCycle();
 
     // Remount per-machine disks if any were saved last time this
     // machine was active. Empty paths fall through harmlessly so a
     // never-used machine won't try to mount anything.
-    MountCommandLineDisks (string (), string ());
+    MountCommandLineDisks (string(), string());
 
 Error:
     return hr;
@@ -2017,6 +2136,12 @@ int EmulatorShell::RunMessageLoop()
 
     // Start the CPU thread
     m_cpuThread = thread (&EmulatorShell::CpuThreadProc, this);
+
+    // Cold-boot mount window is closed once the UI message loop is
+    // ready to deliver user input -- any mount issued from here on
+    // is treated as a real, user-initiated swap and fires the
+    // drive-audio door-close (FR-013).
+    m_coldBootMountWindow = false;
 
     // UI thread loop: process messages, present latest framebuffer with vsync
     while (m_running.load (memory_order_acquire))
@@ -2100,12 +2225,37 @@ void EmulatorShell::CpuThreadProc()
     // Initialize WASAPI audio (non-fatal if it fails)
     hr = m_wasapiAudio.Initialize();
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    // Drive-audio sample loading (spec 005-disk-ii-audio FR-009,
+    // NFR-005, FR-019, FR-006). The mixer holds the asset-load
+    // context so any later runtime mechanism switch (Options dialog,
+    // Phase 14) can reload every registered source through one
+    // entry point. Default mechanism is Shugart unless the
+    // per-machine registry already overrode it during Initialize.
+    if (m_wasapiAudio.IsInitialized() && !m_diskAudioSources.empty())
+    {
+        vector<fs::path>  searchPaths;
+        fs::path          baseDir;
+        wstring           devicesDir;
+
+        // Use the same install-root resolution that Main.cpp /
+        // AssetBootstrap used when writing the WAVs so the read
+        // path agrees with the write path. Re-resolving via the
+        // exe directory alone is wrong in dev builds, where the
+        // exe sits under x64/Debug while the Devices/ tree lives
+        // at the repo root.
+        searchPaths = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(), PathResolver::GetWorkingDirectory());
+        baseDir     = AssetBootstrap::GetAssetBaseDirectory (searchPaths, PathResolver::GetExecutableDirectory());
+        devicesDir  = (baseDir / L"Devices" / L"DiskII").wstring();
+
+        m_driveAudioMixer.SetSampleLoadContext (devicesDir, m_wasapiAudio.GetSampleRate());
+
+        HRESULT  hrLoad = m_driveAudioMixer.SetMechanism (m_driveAudioMixer.GetMechanism());
+        IGNORE_RETURN_VALUE (hrLoad, S_OK);
+    }
     
     // Create a high-resolution waitable timer for 60fps frame pacing
-    hTimer = CreateWaitableTimerEx (nullptr, 
-                                    nullptr,
-                                    CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
-                                    TIMER_ALL_ACCESS);
+    hTimer = CreateWaitableTimerEx (nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
     CWRA (hTimer);
 
     while (m_running.load (memory_order_acquire))
@@ -2204,8 +2354,8 @@ void EmulatorShell::ProcessCommands()
                 // externally-regenerated .dsk (typical dev workflow:
                 // hack on a demo, regenerate the disk image, hit
                 // Reset) is picked up by the post-reset boot.
-                RemountSlot6Disks ();
-                SoftReset ();
+                RemountSlot6Disks();
+                SoftReset();
                 break;
             }
 
@@ -2220,8 +2370,8 @@ void EmulatorShell::ProcessCommands()
                 // RemountSlot6Disks both re-binds the engines AND
                 // re-reads the host file (so external regenerations
                 // are picked up).
-                PowerCycle ();
-                RemountSlot6Disks ();
+                PowerCycle();
+                RemountSlot6Disks();
                 break;
             }
 
@@ -2233,7 +2383,7 @@ void EmulatorShell::ProcessCommands()
 
                     if (m_diskController != nullptr)
                     {
-                        m_diskController->Tick (m_cpu->GetLastInstructionCycles ());
+                        m_diskController->Tick (m_cpu->GetLastInstructionCycles());
                     }
                 }
                 break;
@@ -2484,7 +2634,9 @@ void EmulatorShell::ExecuteCpuSlices()
             m_wasapiAudio.SubmitFrame (m_speaker->GetToggleTimestamps(),
                                        sliceActual,
                                        m_speaker->GetFrameInitialState(),
-                                       numSamples);
+                                       numSamples,
+                                       &m_driveAudioMixer,
+                                       m_cpu->GetTotalCycles());
 
             m_speaker->ClearTimestamps();
             m_speaker->BeginFrame();
@@ -2534,27 +2686,27 @@ void EmulatorShell::RenderFramebuffer()
         static constexpr int kMixedLastRow  = 24;
 
         auto * iieSwitches = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
-        bool   use80Col    = iieSwitches != nullptr && iieSwitches->Is80ColMode ();
+        bool   use80Col    = iieSwitches != nullptr && iieSwitches->Is80ColMode();
 
-        if (use80Col && m_videoModes.size () > 4)
+        if (use80Col && m_videoModes.size() > 4)
         {
-            auto * text80 = static_cast<Apple80ColTextMode *> (m_videoModes[4].get ());
+            auto * text80 = static_cast<Apple80ColTextMode *> (m_videoModes[4].get());
 
             text80->SetPage2 (false);
             text80->RenderRowRange (kMixedFirstRow, kMixedLastRow,
                                     nullptr,
-                                    m_cpuFramebuffer.data (),
+                                    m_cpuFramebuffer.data(),
                                     kFramebufferWidth,
                                     kFramebufferHeight);
         }
         else
         {
-            auto * text40 = static_cast<AppleTextMode *> (m_videoModes[0].get ());
+            auto * text40 = static_cast<AppleTextMode *> (m_videoModes[0].get());
 
             text40->SetPage2 (m_page2);
             text40->RenderRowRange (kMixedFirstRow, kMixedLastRow,
                                     nullptr,
-                                    m_cpuFramebuffer.data (),
+                                    m_cpuFramebuffer.data(),
                                     kFramebufferWidth,
                                     kFramebufferHeight);
         }
@@ -2610,7 +2762,7 @@ bool EmulatorShell::OnCommand (HWND hwnd, int id)
     else if (id >= IDM_FILE_OPEN     && id <= IDM_FILE_EXIT)          { OnFileCommand (id); }
     else if (id >= IDM_MACHINE_RESET && id <= IDM_MACHINE_INFO)       { OnMachineCommand (id); }
     else if (id >= IDM_DISK_INSERT1  && id <= IDM_DISK_WRITEPROTECT2) { OnDiskCommand (id); }
-    else if (id >= IDM_VIEW_COLOR    && id <= IDM_VIEW_RESET_SIZE)    { OnViewCommand (id); }
+    else if (id >= IDM_VIEW_COLOR    && id <= IDM_VIEW_OPTIONS)       { OnViewCommand (id); }
     else if (id >= IDM_HELP_KEYMAP   && id <= IDM_HELP_ABOUT)         { OnHelpCommand (id); }
 
     return false;
@@ -2876,7 +3028,7 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
         // Right-aligned drive indicators are anchored to the bar's client
         // width. Recompute part edges so they stay flush with the right
         // edge of the resized bar.
-        UpdateStatusBar ();
+        UpdateStatusBar();
     }
 
     renderH -= sbHeight;
@@ -2954,7 +3106,7 @@ bool EmulatorShell::OnTimer (HWND hwnd, UINT_PTR timerId)
 
     if (timerId == kDriveStatusTimerId)
     {
-        RefreshDriveStatus ();
+        RefreshDriveStatus();
         return false;
     }
 
@@ -3363,6 +3515,54 @@ void EmulatorShell::OnViewCommand (int id)
             }
             break;
         }
+
+        case IDM_VIEW_OPTIONS:
+        {
+            bool     driveAudio  = m_driveAudioMixer.IsEnabled();
+            wstring  mechanism   = m_driveAudioMixer.GetMechanism();
+            bool     newEnabled  = driveAudio;
+            wstring  newMech     = mechanism;
+            HRESULT  hrDlg       = OptionsDialog::Show (
+                m_hwnd,
+                reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE)),
+                driveAudio,
+                mechanism,
+                newEnabled,
+                newMech);
+
+            if (hrDlg == S_OK)
+            {
+                wstring  subkey = wstring (L"Machines\\") + m_currentMachineName;
+
+                if (newEnabled != driveAudio)
+                {
+                    m_driveAudioMixer.SetEnabled (newEnabled);
+
+                    HRESULT  hrReg = RegistrySettings::WriteDword (
+                        subkey.c_str(),
+                        L"DriveAudioEnabled",
+                        newEnabled ? 1u : 0u);
+                    IGNORE_RETURN_VALUE (hrReg, S_OK);
+                }
+
+                if (newMech != mechanism && m_driveAudioMixer.IsValidMechanism (newMech))
+                {
+                    // FR-006 / SC-010: runtime swap, no restart and
+                    // no disk remount required. SetMechanism
+                    // re-invokes LoadSamples on every registered
+                    // source through the cached load context.
+                    HRESULT  hrMech = m_driveAudioMixer.SetMechanism (newMech);
+                    IGNORE_RETURN_VALUE (hrMech, S_OK);
+
+                    HRESULT  hrReg  = RegistrySettings::WriteString (
+                        subkey.c_str(),
+                        L"DiskIIMechanism",
+                        newMech);
+                    IGNORE_RETURN_VALUE (hrReg, S_OK);
+                }
+            }
+            break;
+        }
     }
 }
 
@@ -3559,19 +3759,19 @@ void EmulatorShell::SelectVideoMode()
     // selection — not page 1/page 2. Suppress page2 for video rendering.
     auto * iieSoftSwitches = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
 
-    if (iieSoftSwitches != nullptr && iieSoftSwitches->Is80Store ())
+    if (iieSoftSwitches != nullptr && iieSoftSwitches->Is80Store())
     {
         m_page2 = false;
     }
 
-    bool is80ColMode  = iieSoftSwitches != nullptr && iieSoftSwitches->Is80ColMode ();
-    bool altCharSet   = iieSoftSwitches != nullptr && iieSoftSwitches->IsAltCharSet ();
+    bool is80ColMode  = iieSoftSwitches != nullptr && iieSoftSwitches->Is80ColMode();
+    bool altCharSet   = iieSoftSwitches != nullptr && iieSoftSwitches->IsAltCharSet();
 
     // Select video mode based on soft switch state
     if (!m_graphicsMode)
     {
         // Text mode: use 80-col on //e if enabled, else 40-col
-        if (is80ColMode && m_videoModes.size () > 4)
+        if (is80ColMode && m_videoModes.size() > 4)
         {
             m_activeVideoMode = m_videoModes[4].get();
         }
@@ -3591,9 +3791,9 @@ void EmulatorShell::SelectVideoMode()
         // both active on the //e (FR-019, audit M8). Otherwise standard
         // hi-res (index 2).
         bool useDhr = iieSoftSwitches != nullptr
-                   && iieSoftSwitches->IsDoubleHiRes ()
+                   && iieSoftSwitches->IsDoubleHiRes()
                    && is80ColMode
-                   && m_videoModes.size () > 3;
+                   && m_videoModes.size() > 3;
 
         if (useDhr)
         {
@@ -3615,11 +3815,11 @@ void EmulatorShell::SelectVideoMode()
     m_videoModes[0]->SetPage2 (m_page2);
 
     // Propagate ALTCHARSET to both text-mode renderers (audit M13 closure).
-    static_cast<AppleTextMode *> (m_videoModes[0].get ())->SetAltCharSet (altCharSet);
+    static_cast<AppleTextMode *> (m_videoModes[0].get())->SetAltCharSet (altCharSet);
 
-    if (m_videoModes.size () > 4)
+    if (m_videoModes.size() > 4)
     {
-        static_cast<Apple80ColTextMode *> (m_videoModes[4].get ())->SetAltCharSet (altCharSet);
+        static_cast<Apple80ColTextMode *> (m_videoModes[4].get())->SetAltCharSet (altCharSet);
     }
 }
 
@@ -3641,25 +3841,25 @@ void EmulatorShell::SelectVideoMode()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SoftReset ()
+void EmulatorShell::SoftReset()
 {
-    m_memoryBus.SoftResetAll ();
+    m_memoryBus.SoftResetAll();
 
     if (m_mmu != nullptr)
     {
-        m_mmu->OnSoftReset ();
+        m_mmu->OnSoftReset();
     }
 
-    m_interruptController.SoftReset ();
+    m_interruptController.SoftReset();
 
     if (m_videoTiming != nullptr)
     {
-        m_videoTiming->SoftReset ();
+        m_videoTiming->SoftReset();
     }
 
     if (m_cpu != nullptr)
     {
-        m_cpu->SoftReset ();
+        m_cpu->SoftReset();
     }
 }
 
@@ -3678,7 +3878,7 @@ void EmulatorShell::SoftReset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PowerCycle ()
+void EmulatorShell::PowerCycle()
 {
     HRESULT  hrFlush = S_OK;
 
@@ -3692,7 +3892,7 @@ void EmulatorShell::PowerCycle ()
     // cycle. Mounts persist (matches DiskImageStore::SoftReset semantics
     // — see comment block on DiskImageStore::PowerCycle, which is the
     // unmount-everything variant tests can opt into directly).
-    hrFlush = m_diskStore.FlushAll ();
+    hrFlush = m_diskStore.FlushAll();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     m_memoryBus.PowerCycleAll (*m_prng);
@@ -3702,7 +3902,7 @@ void EmulatorShell::PowerCycle ()
         m_mmu->OnPowerCycle (*m_prng);
     }
 
-    m_interruptController.PowerCycle ();
+    m_interruptController.PowerCycle();
 
     if (m_videoTiming != nullptr)
     {

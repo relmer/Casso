@@ -35,6 +35,9 @@ The solution has five projects:
   test bodies. Run `rg -n '\w \(\)' Casso/ CassoCore/ CassoEmuCore/ CassoCli/ UnitTest/`
   on any new or merged code before committing — should return zero hits
   in lines you authored or merged.
+- **Cast spacing.** Space after a C-style cast:
+  `(float) std::numbers::pi`, not `(float)std::numbers::pi`. Same for
+  `(int) value`, `(Word) addr`, etc.
 - File-scope statics use Hungarian: `s_<typePrefix><Name>`. Type prefixes:
   `k` = constant, `psz` = null-terminated string ptr (narrow OR wide),
   `ch` = char (narrow OR wide), no special wide marker. E.g.

@@ -146,3 +146,106 @@ Error:
 
     return hr;
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadDword
+//
+//  S_OK on read, S_FALSE if the key or value does not exist (outValue
+//  is left unchanged), or an error HRESULT on a hard failure (e.g.,
+//  the value exists but is the wrong type).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT RegistrySettings::ReadDword (LPCWSTR subkey, LPCWSTR valueName, DWORD & outValue)
+{
+    HRESULT hr      = S_OK;
+    HKEY    hKey    = nullptr;
+    LSTATUS lstat   = ERROR_SUCCESS;
+    DWORD   dwType  = 0;
+    DWORD   dwValue = 0;
+    DWORD   cbValue = sizeof (dwValue);
+    wstring keyPath = BuildKeyPath (subkey);
+
+
+
+    lstat = RegOpenKeyExW (HKEY_CURRENT_USER, keyPath.c_str (), 0, KEY_READ, &hKey);
+
+    BAIL_OUT_IF (lstat == ERROR_FILE_NOT_FOUND, S_FALSE);
+    CBRA (lstat == ERROR_SUCCESS);
+
+    lstat = RegQueryValueExW (hKey,
+                              valueName,
+                              nullptr,
+                              &dwType,
+                              reinterpret_cast<LPBYTE> (&dwValue),
+                              &cbValue);
+
+    BAIL_OUT_IF (lstat == ERROR_FILE_NOT_FOUND, S_FALSE);
+    CBRA (lstat == ERROR_SUCCESS);
+    CBRA (dwType == REG_DWORD);
+    CBRA (cbValue == sizeof (dwValue));
+
+    outValue = dwValue;
+
+
+Error:
+    if (hKey != nullptr)
+    {
+        RegCloseKey (hKey);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteDword
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT RegistrySettings::WriteDword (LPCWSTR subkey, LPCWSTR valueName, DWORD value)
+{
+    HRESULT hr            = S_OK;
+    HKEY    hKey          = nullptr;
+    LSTATUS lstat         = ERROR_SUCCESS;
+    DWORD   dwDisposition = 0;
+    wstring keyPath       = BuildKeyPath (subkey);
+
+
+
+    lstat = RegCreateKeyExW (HKEY_CURRENT_USER,
+                             keyPath.c_str (),
+                             0,
+                             nullptr,
+                             REG_OPTION_NON_VOLATILE,
+                             KEY_WRITE,
+                             nullptr,
+                             &hKey,
+                             &dwDisposition);
+    CBRA (lstat == ERROR_SUCCESS);
+
+    lstat = RegSetValueExW (hKey,
+                            valueName,
+                            0,
+                            REG_DWORD,
+                            reinterpret_cast<const BYTE *> (&value),
+                            sizeof (value));
+    CBRA (lstat == ERROR_SUCCESS);
+
+
+Error:
+    if (hKey != nullptr)
+    {
+        RegCloseKey (hKey);
+    }
+
+    return hr;
+}

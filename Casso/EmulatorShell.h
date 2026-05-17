@@ -14,6 +14,8 @@
 #include "Video/CharacterRomData.h"
 #include "Video/VideoTiming.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Audio/DriveAudioMixer.h"
+#include "Audio/DiskIIAudioSource.h"
 #include "WasapiAudio.h"
 
 
@@ -171,6 +173,16 @@ private:
     MenuSystem          m_menuSystem;
     WasapiAudio         m_wasapiAudio;
     DebugConsole        m_debugConsole;
+
+    // Drive audio (spec 005-disk-ii-audio). Mixer is always
+    // allocated; per-drive sources are populated only when the
+    // active machine config carries a Disk II controller (FR-015).
+    // Cold-boot flag suppresses OnDiskInserted during startup
+    // mounts so command-line / autoload paths don't trigger the
+    // door-close sound at app launch (FR-013).
+    DriveAudioMixer            m_driveAudioMixer;
+    vector<unique_ptr<DiskIIAudioSource>> m_diskAudioSources;
+    bool                       m_coldBootMountWindow = true;
 
     // Owned devices
     vector<unique_ptr<MemoryDevice>> m_ownedDevices;

@@ -373,8 +373,14 @@ dormann_temp/
 UnitTest/nes6502/
 UnitTest/6502/
 
-# Apple II ROM images — user-supplied, not redistributable
-ROMs/
+# Machines/ and Devices/ are fully runtime-managed: every file
+# inside is either extracted from binary-embedded resources (machine
+# JSONs — sources live under Resources/Machines/) or downloaded by
+# AssetBootstrap on first launch (ROMs, Disk II WAVs). Delete either
+# directory and the next launch rebuilds it. Nothing here should be
+# tracked.
+Machines/
+Devices/
 
 # Disk images we cannot redistribute (Apple-owned)
 /Disks/Apple/dos33-master.dsk

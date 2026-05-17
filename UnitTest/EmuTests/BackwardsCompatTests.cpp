@@ -24,10 +24,11 @@ namespace
 
     ////////////////////////////////////////////////////////////////////////////
     //
-    //  WalkUpForRepoRoot — locate the directory containing `Machines/` by
+    //  WalkUpForRepoRoot — locate the directory containing `Resources/` by
     //  walking up the test binary's working directory. Mirrors the
     //  resolver pattern used by FixtureProvider so the tests stay
-    //  filesystem-independent across CI vs local builds.
+    //  filesystem-independent across CI vs local builds. Resources/
+    //  is always tracked in git (unlike runtime-managed Machines/).
     //
     ////////////////////////////////////////////////////////////////////////////
 
@@ -46,7 +47,7 @@ namespace
 
         for (steps = 0; steps < kMaxAncestorWalk; steps++)
         {
-            candidate = cursor / "Machines";
+            candidate = cursor / "Resources";
 
             if (fs::exists (candidate, ec) && fs::is_directory (candidate, ec))
             {
@@ -67,8 +68,11 @@ namespace
 
     ////////////////////////////////////////////////////////////////////////////
     //
-    //  ReadMachineJson — read a Machines/*.json file from the resolved
-    //  repo root into a string. Returns "" if not found.
+    //  ReadMachineJson — read a Resources/Machines/<MachineName>/<MachineName>.json
+    //  file from the resolved repo root into a string. Returns "" if
+    //  not found. Accepts the same `<MachineName>.json` filename the
+    //  callers used under the legacy flat layout; the per-machine
+    //  subdirectory is derived by stripping the `.json` suffix.
     //
     ////////////////////////////////////////////////////////////////////////////
 
@@ -76,6 +80,7 @@ namespace
     {
         fs::path        repoRoot = WalkUpForRepoRoot ();
         fs::path        full;
+        std::string     stem;
         std::ifstream   stream;
         std::string     content;
 
@@ -84,7 +89,8 @@ namespace
             return std::string ();
         }
 
-        full = repoRoot / "Machines" / filename;
+        stem = fs::path (filename).stem ().string ();
+        full = repoRoot / "Resources" / "Machines" / stem / filename;
 
         stream.open (full, std::ios::binary);
         if (!stream.is_open ())
@@ -260,11 +266,11 @@ public:
 
         json = ReadMachineJson ("Apple2.json");
         Assert::IsFalse (json.empty (),
-            L"Machines/Apple2.json must be reachable from the test cwd");
+            L"Resources/Machines/Apple2/Apple2.json must be reachable from the test cwd");
 
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
 
         Assert::IsTrue (SUCCEEDED (hr),
@@ -292,11 +298,11 @@ public:
 
         json = ReadMachineJson ("Apple2Plus.json");
         Assert::IsFalse (json.empty (),
-            L"Machines/Apple2Plus.json must be reachable from the test cwd");
+            L"Resources/Machines/Apple2Plus/Apple2Plus.json must be reachable from the test cwd");
 
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
 
         Assert::IsTrue (SUCCEEDED (hr),
@@ -327,7 +333,7 @@ public:
         json = ReadMachineJson ("Apple2.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
         Assert::IsTrue (SUCCEEDED (hr));
 
@@ -359,7 +365,7 @@ public:
         json = ReadMachineJson ("Apple2Plus.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
         Assert::IsTrue (SUCCEEDED (hr));
 
@@ -395,7 +401,7 @@ public:
         json = ReadMachineJson ("Apple2.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
         Assert::IsTrue (SUCCEEDED (hr));
 
@@ -441,7 +447,7 @@ public:
         json = ReadMachineJson ("Apple2Plus.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
         Assert::IsTrue (SUCCEEDED (hr));
 
@@ -485,7 +491,7 @@ public:
         json = ReadMachineJson ("Apple2.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
         Assert::IsTrue (SUCCEEDED (hr));
 
@@ -523,7 +529,7 @@ public:
         json = ReadMachineJson ("Apple2Plus.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
         Assert::IsTrue (SUCCEEDED (hr));
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskIIController.h"
+#include "Audio/IDriveAudioSink.h"
 #include "Core/Prng.h"
 
 
@@ -143,9 +144,22 @@ void DiskIIController::HandleSwitch (int offset)
             // Motor-on command: cancel any pending spindown so the
             // engine keeps producing nibbles continuously across the
             // motor-off / motor-on toggle DOS issues between sectors.
-            m_motorSpindownCycles = 0;
-            m_motorOn = true;
-            m_engine[m_activeDrive].SetMotorOn (true);
+            //
+            // Audio sink (FR-001): fire OnMotorStart only on the
+            // off->on edge so brief intra-sector toggles inside the
+            // spindown window don't restart the motor sound.
+            {
+                bool  edge = (!m_motorOn);
+
+                m_motorSpindownCycles = 0;
+                m_motorOn = true;
+                m_engine[m_activeDrive].SetMotorOn (true);
+
+                if (edge && m_audioSink != nullptr)
+                {
+                    m_audioSink->OnMotorStart();
+                }
+            }
             break;
         case 0xA:
             m_activeDrive = 0;
@@ -278,6 +292,9 @@ void DiskIIController::HandlePhase (int phase, bool on)
         qtDelta = direction;
     }
 
+    int  prevQt  = m_quarterTrack;
+    int  postRaw = prevQt + qtDelta;
+
     m_quarterTrack += qtDelta;
 
     if (m_quarterTrack < 0)
@@ -291,6 +308,27 @@ void DiskIIController::HandlePhase (int phase, bool on)
     }
 
     m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack / 4);
+
+    // Audio sink (FR-003 / FR-004). Fire only when the head actually
+    // moved (qtDelta != 0). Distinguish a normal step from a track-0 /
+    // max-track bump by checking the *unclamped* target position
+    // against the legal range -- if the raw move would have walked
+    // past a travel stop, the stepper is energized but the head can't
+    // move, producing the audible "thunk." Mutually exclusive: a
+    // single phase event produces either a step or a bump, never both.
+    if (qtDelta != 0 && m_audioSink != nullptr)
+    {
+        bool  bumped = (postRaw < 0) || (postRaw > kMaxQuarterTrack);
+
+        if (bumped)
+        {
+            m_audioSink->OnHeadBump();
+        }
+        else
+        {
+            m_audioSink->OnHeadStep (m_quarterTrack);
+        }
+    }
 }
 
 
@@ -341,6 +379,13 @@ void DiskIIController::Tick (uint32_t cpuCycles)
             m_motorOn             = false;
             m_engine[0].SetMotorOn (false);
             m_engine[1].SetMotorOn (false);
+
+            // FR-002: motor sound fades out only when the spindown
+            // timer actually expires -- NOT at the raw $C0E8 access.
+            if (m_audioSink != nullptr)
+            {
+                m_audioSink->OnMotorStop();
+            }
         }
         else
         {

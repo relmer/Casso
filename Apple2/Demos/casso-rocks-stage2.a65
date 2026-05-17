@@ -75,6 +75,12 @@ HIRESON   = $C057
 DHIRESON  = $C05E          ; DHIRES on  (with COL80ON+STORE80ON+HIRES)
 DHIRESOFF = $C05F          ; DHIRES off (back to normal HGR)
 
+MOTOROFF  = $C0E8          ; slot 6 Disk II motor-off soft switch
+                           ; (writing arms the ~1s spindown timer; the
+                           ; //e RESET.MGR does NOT touch this, so a
+                           ; demo that doesn't issue it explicitly
+                           ; leaves the drive spinning until Ctrl-Reset)
+
 ; -- Stage 1 entry points (must match casso-rocks.a65 exactly) -------------
 S1_LOAD_A    = $0817       ; sta DBASE / step head a / jmp read_track
 S1_LOAD_B    = $0828       ; sta DBASE / step head b / jmp read_track
@@ -161,6 +167,11 @@ do_exit
     jsr clear_text_page1
     sta RAMWRTOFF
     jsr clear_text_page1
+
+    sta MOTOROFF           ; arm Disk II spindown -- without this the
+                           ; drive motor stays latched on across the
+                           ; reset because the //e RESET.MGR never
+                           ; touches $C0E8.
 
     jmp ($FFFC)            ; reset vector -> //e RESET.MGR -> Applesoft
 

@@ -28,6 +28,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <numbers>
 #include <span>
 #include <sstream>
 #include <string>
