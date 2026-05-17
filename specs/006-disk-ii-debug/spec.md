@@ -7,6 +7,12 @@
 
 **Reference research**: [`research.md`](./research.md) — Disk II nibble-format anchors (D5 AA 96 / D5 AA AD), Win32 virtual-mode ListView idioms, SPSC ring patterns, and the Casso-specific touch points fingerprinted in `DiskIIController.{h,cpp}` and the shell.
 
+## Clarifications
+
+### Session 2026-05-17
+
+- Q: When the active machine configuration has no Disk II controller, how should `View → Disk II Debug...` (and the Ctrl+Shift+D accelerator) behave? → A: The menu item is shown in a disabled (greyed-out) state and the accelerator is a no-op; on every machine-config change the enable/disable state is re-evaluated, so loading a config that does have a Disk II re-enables both immediately without restart. The enable/disable evaluation is performed on `WM_INITMENUPOPUP` against the live `MachineConfig`.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Watch a DOS 3.3 cold boot fire address marks in real time (Priority: P1)
@@ -92,7 +98,8 @@ A developer is investigating why a specific copy-protected disk (e.g., Karateka)
 ### Functional Requirements
 
 - **FR-001 (Modeless debug window)**: The emulator MUST expose a modeless debug window opened via **View → Disk II Debug...** (menu item id `IDM_VIEW_DISKII_DEBUG`). The window MUST be non-blocking — it lives alongside the main emulator window and MUST NOT halt CPU emulation while open. It MUST follow the same lifecycle pattern as `OptionsDialog` and `MachinePickerDialog`. Closing the window MUST detach the event sink before the underlying queue is destroyed.
-- **FR-002 (Accelerator)**: The menu item MUST have a keyboard accelerator of **Ctrl+Shift+D**. The accelerator MUST be registered in the application accelerator table and MUST function whether the main window or any modeless dialog has focus, as long as no modal dialog is in front of it.
+- **FR-001a (Menu enablement gated on Disk II presence)**: The `IDM_VIEW_DISKII_DEBUG` menu item MUST be displayed in a disabled (greyed-out) state whenever the active `MachineConfig` contains zero Disk II controllers; it MUST be displayed enabled whenever the active config contains one or more Disk II controllers. The enable/disable state MUST be re-evaluated on every `WM_INITMENUPOPUP` for the View menu against the live `MachineConfig`, so any subsequent machine-config change (e.g., switching profiles via the machine picker) that adds or removes a Disk II takes effect on the next menu open without requiring an application restart. When the menu item is disabled, the Ctrl+Shift+D accelerator (FR-002) MUST be a no-op (the standard Win32 accelerator-to-disabled-menu-item behavior — `WM_COMMAND` is not dispatched). Re-enabling the menu item by machine-config change MUST also re-enable the accelerator on the same `WM_INITMENUPOPUP` evaluation cycle.
+- **FR-002 (Accelerator)**: The menu item MUST have a keyboard accelerator of **Ctrl+Shift+D**. The accelerator MUST be registered in the application accelerator table and MUST function whether the main window or any modeless dialog has focus, as long as no modal dialog is in front of it. The accelerator is subject to the menu-item enablement gate per FR-001a — when the menu item is disabled (no Disk II in the active config), the accelerator MUST NOT open the debug window.
 - **FR-003 (ListView, virtual + report mode)**: The window MUST contain a Win32 ListView control in `LVS_REPORT | LVS_OWNERDATA` mode. The ListView MUST source its row contents via `LVN_GETDISPINFO` against the UI-thread deque (FR-009); it MUST NOT use `InsertItem` per row.
 - **FR-004 (Column set)**: The ListView MUST have exactly five columns in this order:
   1. **Wall** — local wall-clock time as `HH:MM:SS.mmm`. Used to correlate emulator events with external real-world events (other tool logs, video captures, hardware oscilloscope traces).
