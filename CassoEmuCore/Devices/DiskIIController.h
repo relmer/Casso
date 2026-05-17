@@ -7,9 +7,11 @@
 #include "Core/MemoryBus.h"
 #include "Disk/DiskImage.h"
 #include "Disk/DiskIINibbleEngine.h"
+#include "DiskIIAddressMarkWatcher.h"
 
 
 class IDriveAudioSink;
+class IDiskIIEventSink;
 
 
 
@@ -61,6 +63,15 @@ public:
     void          SetAudioSink     (IDriveAudioSink * sink) { m_audioSink = sink; }
     IDriveAudioSink * GetAudioSink () const                 { return m_audioSink; }
 
+    // Spec-006 debug-window event sink wiring. Caller-owned;
+    // controller never deletes it. Pass nullptr to detach (the
+    // controller fast-paths around the per-fire-site guard when
+    // unattached so behavior is byte-identical to the pre-feature
+    // path, FR-007 / FR-020 / SC-007). Propagated to the embedded
+    // DiskIIAddressMarkWatcher so the watcher fires its own
+    // address-mark / data-mark events through the same sink.
+    void          SetEventSink     (IDiskIIEventSink * sink) noexcept;
+
     // Cycle-driven advance. EmuCpu pumps cycles per Step.
     void   Tick (uint32_t cpuCycles);
 
@@ -109,4 +120,7 @@ private:
     DiskIINibbleEngine   m_engine[kDriveCount];
 
     IDriveAudioSink *    m_audioSink   = nullptr;
+
+    IDiskIIEventSink *         m_eventSink       = nullptr;
+    DiskIIAddressMarkWatcher   m_addrMarkWatcher;
 };
