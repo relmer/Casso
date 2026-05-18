@@ -97,6 +97,10 @@ public:
         if (m_diskIIDebugDialog != nullptr)
         {
             m_diskIIDebugDialog->SetUptimeAnchor (m_uptimeAnchor);
+            // Spec-006 bug-fix. Clear stale rows from the pre-reset
+            // boot so the post-reset uptime anchor doesn't end up
+            // formatting events that pre-date its own zero point.
+            m_diskIIDebugDialog->ClearEvents ();
         }
     }
 

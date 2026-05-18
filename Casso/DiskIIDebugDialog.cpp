@@ -1830,6 +1830,44 @@ void DiskIIDebugDialog::PublishToRing (const DiskIIEvent & e) noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ClearEvents
+//
+//  Wipe the dialog's display state and discard any in-flight producer
+//  events. Called by EmulatorShell::ResetUptimeAnchor on every soft
+//  reset / power cycle so the debug log doesn't carry stale rows
+//  from the pre-reset boot into the post-reset uptime anchor.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::ClearEvents () noexcept
+{
+    DiskIIEvent  scratch[64] = {};
+    uint32_t     drained     = 0;
+
+    m_droppedSinceLastDrain.store (0, std::memory_order_release);
+
+    do
+    {
+        drained = m_ring.Drain (scratch, static_cast<uint32_t> (sizeof (scratch) / sizeof (scratch[0])));
+    }
+    while (drained > 0);
+
+    m_deque.clear ();
+    m_filteredIndices.clear ();
+
+    if (m_listView != nullptr)
+    {
+        ListView_SetItemCountEx (m_listView, 0, LVSICF_NOSCROLL);
+        InvalidateRect (m_listView, nullptr, FALSE);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PushControllerEvent
 //
 //  Helper for the simple controller-side events whose only payload is

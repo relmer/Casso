@@ -53,6 +53,17 @@ public:
         m_uptimeAnchor = anchor;
     }
 
+    // Spec-006 bug-fix. SoftReset / PowerCycle wipes the //e back to a
+    // known state; the debug log's still-pending events from the old
+    // boot are no longer useful at that point. Shell calls this from
+    // ResetUptimeAnchor (which already fires on both reset paths).
+    // Clears the UI-thread deque, the filtered-index vector, the
+    // dropped-since-last-drain counter, and drains the SPSC ring to
+    // discard any in-flight producer events. Pause / resume state is
+    // intentionally preserved -- the user may be paused inspecting
+    // pre-reset state and a reset shouldn't yank them out of pause.
+    void    ClearEvents () noexcept;
+
     // Spec-006 / FR-017. When the active machine config has more
     // than one Disk II controller, append " (controller #0 only)" to
     // the window title so the user knows the dialog is wired to the
