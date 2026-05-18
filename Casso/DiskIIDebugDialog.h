@@ -167,6 +167,9 @@ private:
 
     HWND                                    m_trackRichEdit      = nullptr;
     HWND                                    m_sectorRichEdit     = nullptr;
+    HWND                                    m_trackFilterLabel   = nullptr;
+    HWND                                    m_sectorFilterLabel  = nullptr;
+    HWND                                    m_filterTooltip      = nullptr;
     HWND                                    m_trackIgnoredLabel  = nullptr;
     HWND                                    m_sectorIgnoredLabel = nullptr;
     HWND                                    m_trackRawQtCheck    = nullptr;

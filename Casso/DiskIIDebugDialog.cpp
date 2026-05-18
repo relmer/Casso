@@ -35,7 +35,7 @@ static constexpr int  kRawQtCheckWidth      = 150;
 static constexpr int  kAudioCheckWidth      = 86;
 static constexpr int  kRadioWidth           = 60;
 static constexpr int  kEditWidth            = 140;
-static constexpr int  kLabelWidth           = 56;
+static constexpr int  kFilterLabelWidth     = 78;
 static constexpr int  kIgnoredLabelHeight   = 18;
 static constexpr int  kButtonWidth          = 90;
 static constexpr int  kButtonHeight         = 26;
@@ -448,6 +448,18 @@ HRESULT DiskIIDebugDialog::CreateChildControls (HWND hwnd)
     CWRA (m_trackRawQtCheck);
     SendMessageW (m_trackRawQtCheck, WM_SETFONT, reinterpret_cast<WPARAM> (font), TRUE);
 
+    m_trackFilterLabel = CreateWindowExW (0,
+                                          L"STATIC",
+                                          L"Track filter:",
+                                          WS_CHILD | WS_VISIBLE | SS_RIGHT,
+                                          0, 0, 0, 0,
+                                          hwnd,
+                                          nullptr,
+                                          m_hInstance,
+                                          nullptr);
+    CWRA (m_trackFilterLabel);
+    SendMessageW (m_trackFilterLabel, WM_SETFONT, reinterpret_cast<WPARAM> (font), TRUE);
+
     m_trackRichEdit = CreateWindowExW (WS_EX_CLIENTEDGE,
                                        s_kpszFilterRichEditClass,
                                        L"",
@@ -460,6 +472,18 @@ HRESULT DiskIIDebugDialog::CreateChildControls (HWND hwnd)
     CWRA (m_trackRichEdit);
     SendMessageW (m_trackRichEdit, WM_SETFONT, reinterpret_cast<WPARAM> (font), TRUE);
     SendMessageW (m_trackRichEdit, EM_SETEVENTMASK, 0, ENM_CHANGE | ENM_KEYEVENTS);
+
+    m_sectorFilterLabel = CreateWindowExW (0,
+                                           L"STATIC",
+                                           L"Sector filter:",
+                                           WS_CHILD | WS_VISIBLE | SS_RIGHT,
+                                           0, 0, 0, 0,
+                                           hwnd,
+                                           nullptr,
+                                           m_hInstance,
+                                           nullptr);
+    CWRA (m_sectorFilterLabel);
+    SendMessageW (m_sectorFilterLabel, WM_SETFONT, reinterpret_cast<WPARAM> (font), TRUE);
 
     m_sectorRichEdit = CreateWindowExW (WS_EX_CLIENTEDGE,
                                         s_kpszFilterRichEditClass,
@@ -539,6 +563,50 @@ HRESULT DiskIIDebugDialog::CreateChildControls (HWND hwnd)
     hr = InstallListViewSubclass();
     CHR (hr);
 
+    // Spec-006 bug-fix. Inline tooltip control documenting the
+    // Track / Sector filter syntax (comma-separated integers, ranges,
+    // and -- for Track only -- decimals interpreted as quarter-track
+    // positions when "Quarter-track steps" is unchecked).
+    m_filterTooltip = CreateWindowExW (WS_EX_TOPMOST,
+                                       TOOLTIPS_CLASS,
+                                       nullptr,
+                                       WS_POPUP | TTS_ALWAYSTIP | TTS_NOPREFIX,
+                                       CW_USEDEFAULT, CW_USEDEFAULT,
+                                       CW_USEDEFAULT, CW_USEDEFAULT,
+                                       hwnd,
+                                       nullptr,
+                                       m_hInstance,
+                                       nullptr);
+
+    if (m_filterTooltip != nullptr)
+    {
+        TOOLINFOW  ti = {};
+
+        SetWindowPos (m_filterTooltip, HWND_TOPMOST, 0, 0, 0, 0,
+                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+
+        ti.cbSize   = sizeof (ti);
+        ti.uFlags   = TTF_IDISHWND | TTF_SUBCLASS;
+        ti.hwnd     = hwnd;
+        ti.uId      = reinterpret_cast<UINT_PTR> (m_trackRichEdit);
+        ti.lpszText = const_cast<LPWSTR>
+            (L"Comma-separated tracks. Integers, ranges (17-22), and "
+             L"decimals (17.5) are accepted. Decimals map to "
+             L"quarter-tracks when 'Quarter-track steps' is unchecked. "
+             L"Empty matches all. Unparseable tokens get a red squiggle.");
+        SendMessageW (m_filterTooltip, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM> (&ti));
+
+        ti.uId      = reinterpret_cast<UINT_PTR> (m_sectorRichEdit);
+        ti.lpszText = const_cast<LPWSTR>
+            (L"Comma-separated sectors. Integers and ranges (0-15). "
+             L"Stock DOS 3.3 uses 0-15; RWTS18 disks emit 0-17; "
+             L"protected disks emit anything. Empty matches all.");
+        SendMessageW (m_filterTooltip, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM> (&ti));
+
+        SendMessageW (m_filterTooltip, TTM_SETMAXTIPWIDTH, 0, 360);
+        SendMessageW (m_filterTooltip, TTM_ACTIVATE, TRUE, 0);
+    }
+
 Error:
     return hr;
 }
@@ -602,8 +670,14 @@ void DiskIIDebugDialog::LayoutChildControls (int width, int height)
     MoveWindow (m_trackRawQtCheck, x, y, kRawQtCheckWidth, kRowHeight, TRUE);
     x += kRawQtCheckWidth + kRowGap;
 
+    MoveWindow (m_trackFilterLabel, x, y + 3, kFilterLabelWidth, kRowHeight, TRUE);
+    x += kFilterLabelWidth + kRowGap;
+
     MoveWindow (m_trackRichEdit, x, y, kEditWidth, kRowHeight, TRUE);
     x += kEditWidth + kRowGap;
+
+    MoveWindow (m_sectorFilterLabel, x, y + 3, kFilterLabelWidth, kRowHeight, TRUE);
+    x += kFilterLabelWidth + kRowGap;
 
     MoveWindow (m_sectorRichEdit, x, y, kEditWidth, kRowHeight, TRUE);
 
