@@ -120,28 +120,33 @@ EmulatorShell::~EmulatorShell()
         m_cpuThread.join();
     }
 
-    // Spec-006 / FR-024. Revoke BOTH sinks BEFORE the dialog tears
-    // down its ring (and before the controller / audio source itself
-    // is destroyed, which happens via m_ownedDevices / m_diskAudioSources
-    // below). Controller sink first, then audio sink, matching the
-    // attachment order in OpenDiskIIDebugDialog.
+    // Spec-006 / FR-024 + round-4 bug 3. Revoke all sinks BEFORE the
+    // dialog tears down its ring (and before the controller / audio
+    // source itself is destroyed via m_ownedDevices /
+    // m_diskAudioSources below). The shell-side buffer's live sink is
+    // cleared first so any in-flight forward calls stop pointing at
+    // the about-to-be-destroyed dialog; the controller / audio source
+    // sinks are then cleared so the buffer itself becomes safe to
+    // destroy.
+    m_shellEventBuffer.SetLiveSink (nullptr, nullptr);
+
+    controller = FindSlot6Controller ();
+
+    if (controller != nullptr)
+    {
+        controller->SetEventSink (nullptr);
+    }
+
+    for (size_t i = 0; i < m_diskAudioSources.size (); i++)
+    {
+        if (m_diskAudioSources[i] != nullptr)
+        {
+            m_diskAudioSources[i]->SetAudioEventSink (nullptr);
+        }
+    }
+
     if (m_diskIIDebugDialog != nullptr)
     {
-        controller = FindSlot6Controller ();
-
-        if (controller != nullptr)
-        {
-            controller->SetEventSink (nullptr);
-        }
-
-        for (size_t i = 0; i < m_diskAudioSources.size (); i++)
-        {
-            if (m_diskAudioSources[i] != nullptr)
-            {
-                m_diskAudioSources[i]->SetAudioEventSink (nullptr);
-            }
-        }
-
         m_diskIIDebugDialog->Destroy ();
         m_diskIIDebugDialog.reset ();
     }
@@ -1364,6 +1369,22 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
         {
             m_diskController->SetAudioSink (m_diskAudioSources[0].get());
         }
+
+        // Spec-006 round-4 bug 3. Always wire the shell-side debug-
+        // event buffer as the controller's event sink and as every
+        // audio source's audio-event sink, even when the debug
+        // dialog has never been opened. Events that happen before
+        // (or between) dialog opens land in the buffer's ring and
+        // get replayed on the next OpenDiskIIDebugDialog drain.
+        m_diskController->SetEventSink (&m_shellEventBuffer);
+
+        for (size_t i = 0; i < m_diskAudioSources.size (); i++)
+        {
+            if (m_diskAudioSources[i] != nullptr)
+            {
+                m_diskAudioSources[i]->SetAudioEventSink (&m_shellEventBuffer);
+            }
+        }
     }
 
 Error:
@@ -1996,6 +2017,12 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
     {
         m_speaker->SetCycleCounter (m_cpu->GetCycleCounterPtr());
     }
+
+    // Spec-006 round-4 bug 3. Wire the shell-side debug-event buffer
+    // to the new CPU's cycle counter so pre-dialog events carry a
+    // meaningful cycle value (rather than 0) in the eventual back-
+    // fill drain.
+    m_shellEventBuffer.SetCycleCounter (m_cpu->GetCycleCounterPtr ());
 
     return hr;
 }
@@ -4060,18 +4087,21 @@ void EmulatorShell::OpenDiskIIDebugDialog ()
             m_diskIIDebugDialog->SetCycleCounter (m_cpu->GetCycleCounterPtr ());
         }
 
-        // FR-024: both sinks attached together, dialog implements
-        // both interfaces. Audio sink is a no-op if the mixer has no
-        // source registered (e.g., audio subsystem disabled).
-        controller->SetEventSink (m_diskIIDebugDialog.get ());
-
-        for (size_t i = 0; i < m_diskAudioSources.size (); i++)
+        // Spec-006 round-4 bug 3. The shell-side buffer is already
+        // wired as the controller / audio sink and has been
+        // accumulating events since machine boot. Drain everything
+        // it has captured into the dialog's display deque BEFORE
+        // installing the dialog as the live forwarding target so
+        // backfill rows precede live rows in chronological order.
         {
-            if (m_diskAudioSources[i] != nullptr)
-            {
-                m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get ());
-            }
+            std::deque<DiskIIEvent>  backlog;
+
+            m_shellEventBuffer.DrainInto (backlog, DebugDialogProjection::kDisplayDequeCap);
+            m_diskIIDebugDialog->BackfillEvents (backlog);
         }
+
+        m_shellEventBuffer.SetLiveSink (m_diskIIDebugDialog.get (),
+                                        m_diskIIDebugDialog.get ());
     }
     else
     {
@@ -4090,14 +4120,12 @@ void EmulatorShell::OpenDiskIIDebugDialog ()
 //
 //  AttachDebugSinksIfOpen
 //
-//  Spec-006 bug 15. SwitchMachine tears down the old controller and
-//  audio source then constructs new ones via CreateMemoryDevices,
-//  but the dialog's sink wiring only ran inside OpenDiskIIDebugDialog
-//  on first open -- the new controller starts with m_eventSink ==
-//  nullptr and the new audio source with m_audioEventSink == nullptr,
-//  so the debug window goes silent post-switch. Re-attach both
-//  sinks if the dialog is still open. No-op when the dialog has
-//  never been opened.
+//  Spec-006 round-4 bug 3. CreateMemoryDevices now wires the shell-
+//  side debug-event buffer onto every newly-built controller / audio
+//  source, so a machine switch automatically re-establishes the sink
+//  attachment. This entrypoint remains for historical callers and to
+//  defend against config paths that bypass the standard wiring; it
+//  re-applies the buffer attachment if the dialog is open.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4114,14 +4142,14 @@ void EmulatorShell::AttachDebugSinksIfOpen ()
 
     if (controller != nullptr)
     {
-        controller->SetEventSink (m_diskIIDebugDialog.get ());
+        controller->SetEventSink (&m_shellEventBuffer);
     }
 
     for (size_t i = 0; i < m_diskAudioSources.size (); i++)
     {
         if (m_diskAudioSources[i] != nullptr)
         {
-            m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get ());
+            m_diskAudioSources[i]->SetAudioEventSink (&m_shellEventBuffer);
         }
     }
 }

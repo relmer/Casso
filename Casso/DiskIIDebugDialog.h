@@ -80,6 +80,15 @@ public:
         m_cycleCounter = counter;
     }
 
+    // Spec-006 round-4 bug 3. Called by the shell at open time
+    // (before attaching the dialog as the live sink) to seed the
+    // display deque with everything the shell-side buffer has
+    // accumulated since the machine booted. Events are formatted
+    // through the same projection helper that the WM_TIMER drain
+    // uses so column rendering is identical between backfill and
+    // live entries.
+    void    BackfillEvents (std::deque<DiskIIEvent> & raw);
+
     // IDiskIIEventSink
     void OnMotorCommandOn   () override;
     void OnMotorEngaged     () override;

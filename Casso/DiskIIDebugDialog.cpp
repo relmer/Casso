@@ -2273,6 +2273,50 @@ void DiskIIDebugDialog::ClearEvents () noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BackfillEvents
+//
+//  Spec-006 round-4 bug 3. Take a deque of raw DiskIIEvent records
+//  drained from the shell-side buffer (events captured between
+//  machine boot and dialog open), project each through the same
+//  helper the WM_TIMER drain uses, and append the formatted rows to
+//  the display deque. Caller (EmulatorShell::OpenDiskIIDebugDialog)
+//  invokes this BEFORE installing the dialog as the live sink so
+//  subsequent events flow through the regular ring path.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::BackfillEvents (std::deque<DiskIIEvent> & raw)
+{
+    while (!raw.empty ())
+    {
+        DiskIIEventDisplay  entry;
+
+        DebugDialogProjection::FormatEvent (raw.front (), m_uptimeAnchor, entry);
+        m_deque.push_back (std::move (entry));
+        raw.pop_front ();
+    }
+
+    while (m_deque.size () > DebugDialogProjection::kDisplayDequeCap)
+    {
+        m_deque.pop_front ();
+    }
+
+    RebuildFilteredIndices ();
+
+    if (m_listView != nullptr)
+    {
+        ListView_SetItemCountEx (m_listView,
+                                 static_cast<int> (m_filteredIndices.size ()),
+                                 LVSICF_NOSCROLL);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PushControllerEvent
 //
 //  Helper for the simple controller-side events whose only payload is
