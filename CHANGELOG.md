@@ -6,6 +6,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.748] — Disk II Debug Window polish (spec 006 smoke-test fixes, round 2)
+
+### Fixed
+- **Motor audio kept playing after eject** (bug 14a) — the
+  `DiskIIAudioSource` motor loop was keyed only on the controller's
+  motor-on state, so ejecting a disk while the spindle was running
+  left the looping media-noise sample audible despite the empty
+  drive bay. The source now tracks `m_diskPresent` (toggled by
+  `OnDiskInserted` / `OnDiskEjected`) and `MixMotor` gates on
+  `m_motorRunning && m_diskPresent`. Modeled after real Disk II
+  hardware: the motor spins regardless of media presence, but with
+  no disk loaded there is no media noise to hear.
+- **No insert / eject events in the debug window** (bug 14b) —
+  `EmulatorShell::{Mount,Eject}DiskInSlot6` route mounts through
+  `DiskImageStore` + `DiskIIController::SetExternalDisk`, which
+  bypasses the controller's own `MountDisk` / `EjectDisk` paths
+  and therefore never fired `IDiskIIEventSink::OnDiskInserted` /
+  `OnDiskEjected`. New `DiskIIController::NotifyDiskInserted` /
+  `NotifyDiskEjected` notify-only entry points let the shell fire
+  the user-facing events without re-routing the actual image
+  bytes; called explicitly after the store mount / eject completes.
+- **Debug dialog went silent after `SwitchMachine`** (bug 15,
+  incidental) — `OpenDiskIIDebugDialog` wires sinks only on first
+  open, so the brand-new controller + audio source built during
+  a machine switch had `m_eventSink == nullptr`. New
+  `EmulatorShell::AttachDebugSinksIfOpen` re-attaches both sinks
+  if the dialog is still on screen; called from `SwitchMachine`
+  after the new components are wired up.
+
+### Added
+- `SilentReason::NoDiskPresent` — surfaced in the Detail column
+  when the motor is commanded on (or kept on across an eject)
+  with no disk in the drive bay. The audio source emits
+  `OnAudioSilent (MotorLoop, NoDiskPresent)` on motor-on without
+  a disk and the pair `OnAudioLoopStopped` +
+  `OnAudioSilent (MotorLoop, NoDiskPresent)` on eject-while-motor-on,
+  matched by `OnAudioRestarted (MotorLoop)` on re-insert.
+
+
+
 ## [1.3.747] — Disk II Debug Window polish (spec 006 smoke-test fixes)
 
 ### Fixed
