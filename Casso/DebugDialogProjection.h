@@ -73,4 +73,23 @@ public:
         std::deque<DiskIIEventDisplay> &             deque,
         uint32_t                                     droppedCount,
         std::chrono::steady_clock::time_point        uptimeAnchor);
+
+    // Spec-006 round-4 bug 5. Helper for preserving the user's
+    // focused row across a filter rebuild. `priorDequeIdx` is the
+    // deque index of the focused row captured BEFORE the rebuild;
+    // `newFilteredIndices` is the sorted-ascending filtered-index
+    // vector AFTER the rebuild. Returns the LV item index to focus,
+    // or -1 when the new filtered set is empty.
+    //
+    // Rules (FR-005 round-4 bug 5):
+    //   * If priorDequeIdx is still in the filtered set, return its
+    //     new LV item index.
+    //   * Otherwise return the LV item index of the most recent
+    //     filtered entry whose deque index is < priorDequeIdx
+    //     (walk backwards).
+    //   * If no earlier entry qualifies (priorDequeIdx is smaller
+    //     than every surviving filtered index), return 0.
+    static int                PreservedFocusItem (
+        uint32_t                                     priorDequeIdx,
+        const std::vector<uint32_t> &                newFilteredIndices) noexcept;
 };

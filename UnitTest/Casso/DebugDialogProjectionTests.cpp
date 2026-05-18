@@ -526,6 +526,67 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
+    //  Spec-006 round-4 bug 5 -- PreservedFocusItem coverage.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (PreservedFocusItem_focusedDequeIdxStillPresent_returnsItsItemIndex)
+    {
+        // After rebuild: deque indices [0, 2, 5, 7, 10] survived the filter.
+        // priorDequeIdx == 5 should map to item index 2.
+        std::vector<uint32_t>  filtered { 0, 2, 5, 7, 10 };
+
+        Assert::AreEqual (2, DebugDialogProjection::PreservedFocusItem (5,  filtered));
+        Assert::AreEqual (0, DebugDialogProjection::PreservedFocusItem (0,  filtered));
+        Assert::AreEqual (4, DebugDialogProjection::PreservedFocusItem (10, filtered));
+    }
+
+
+    TEST_METHOD (PreservedFocusItem_focusedDequeIdxRemoved_walksBackToPriorMatch)
+    {
+        // priorDequeIdx == 6 (was focused, now filtered out). Largest
+        // surviving deque idx < 6 is 5 (item index 2).
+        std::vector<uint32_t>  filtered { 0, 2, 5, 7, 10 };
+
+        Assert::AreEqual (2, DebugDialogProjection::PreservedFocusItem (6,  filtered));
+        Assert::AreEqual (1, DebugDialogProjection::PreservedFocusItem (3,  filtered));
+        Assert::AreEqual (4, DebugDialogProjection::PreservedFocusItem (20, filtered));   // past end
+    }
+
+
+    TEST_METHOD (PreservedFocusItem_noEarlierEntryQualifies_fallsBackToRowZero)
+    {
+        // priorDequeIdx is smaller than every surviving entry -- spec
+        // says focus row 0.
+        std::vector<uint32_t>  filtered { 5, 7, 10 };
+
+        Assert::AreEqual (0, DebugDialogProjection::PreservedFocusItem (0, filtered));
+        Assert::AreEqual (0, DebugDialogProjection::PreservedFocusItem (3, filtered));
+    }
+
+
+    TEST_METHOD (PreservedFocusItem_emptyFilteredSet_returnsMinusOne)
+    {
+        std::vector<uint32_t>  filtered;
+
+        Assert::AreEqual (-1, DebugDialogProjection::PreservedFocusItem (0, filtered));
+        Assert::AreEqual (-1, DebugDialogProjection::PreservedFocusItem (42, filtered));
+    }
+
+
+    TEST_METHOD (PreservedFocusItem_singletonSet_alwaysReturnsZero)
+    {
+        std::vector<uint32_t>  filtered { 7 };
+
+        Assert::AreEqual (0, DebugDialogProjection::PreservedFocusItem (0,  filtered));
+        Assert::AreEqual (0, DebugDialogProjection::PreservedFocusItem (7,  filtered));   // exact
+        Assert::AreEqual (0, DebugDialogProjection::PreservedFocusItem (99, filtered));   // past end
+    }
+
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
     //  Spec-006 T082 -- Pause / Clear behavior at the projection layer.
     //
     ////////////////////////////////////////////////////////////////////////////

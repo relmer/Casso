@@ -147,6 +147,13 @@ private:
     void    RebuildFilteredIndices      ();
     void    InvalidateListView          ();
 
+    // Spec-006 round-4 bug 5. Capture the focused row's deque
+    // index before a filter rebuild and restore focus to either the
+    // same row (if it survived the filter) or the nearest earlier
+    // surviving row. -1 sentinel means "nothing was focused".
+    int     CapturedFocusedDequeIdx     () const noexcept;
+    void    RestoreFocusedDequeIdx      (int priorDequeIdx) noexcept;
+
     void    OnFilterControlToggled      (int id, HWND hCtl);
     void    OnFilterTextChanged         ();
     void    OnFilterTextKillFocus       ();

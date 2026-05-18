@@ -1340,8 +1340,13 @@ void DiskIIDebugDialog::OnFilterControlToggled (int id, HWND hCtl)
         return;
     }
 
-    RebuildFilteredIndices();
-    InvalidateListView();
+    {
+        int  priorFocusedDequeIdx = CapturedFocusedDequeIdx ();
+
+        RebuildFilteredIndices();
+        InvalidateListView();
+        RestoreFocusedDequeIdx (priorFocusedDequeIdx);
+    }
 }
 
 
@@ -1470,8 +1475,9 @@ void DiskIIDebugDialog::FlushFilterDebounce()
 {
     std::wstring  trackText;
     std::wstring  sectorText;
-    bool          trackTextChanged  = false;
-    bool          sectorTextChanged = false;
+    bool          trackTextChanged       = false;
+    bool          sectorTextChanged      = false;
+    int           priorFocusedDequeIdx   = 0;
 
     m_filterDebouncePending = false;
 
@@ -1484,8 +1490,11 @@ void DiskIIDebugDialog::FlushFilterDebounce()
     m_filter.sectorFilter = TrackSectorPredicate::Parse (sectorText,
                                                          TrackSectorPredicate::Mode::Sector);
 
+    priorFocusedDequeIdx = CapturedFocusedDequeIdx ();
+
     RebuildFilteredIndices();
     InvalidateListView();
+    RestoreFocusedDequeIdx (priorFocusedDequeIdx);
 
     // Spec-006 bug 4. Only re-apply squiggle formats when the text
     // content actually changed. Re-painting the same squiggles on
@@ -1539,6 +1548,86 @@ void DiskIIDebugDialog::RebuildFilteredIndices()
             m_filteredIndices.push_back (static_cast<uint32_t> (i));
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CapturedFocusedDequeIdx
+//
+//  Snapshot helper for PreserveFocusedRowAcrossRebuild. Maps the
+//  currently-focused ListView item index through the pre-rebuild
+//  filtered-indices vector to the underlying deque index. Returns -1
+//  when no row is focused or the ListView isn't realized.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskIIDebugDialog::CapturedFocusedDequeIdx () const noexcept
+{
+    int  focused = -1;
+
+    if (m_listView == nullptr)
+    {
+        return -1;
+    }
+
+    focused = ListView_GetNextItem (m_listView, -1, LVNI_FOCUSED);
+
+    if (focused < 0)
+    {
+        return -1;
+    }
+
+    if (static_cast<size_t> (focused) >= m_filteredIndices.size ())
+    {
+        return -1;
+    }
+
+    return static_cast<int> (m_filteredIndices[static_cast<size_t> (focused)]);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RestoreFocusedDequeIdx
+//
+//  Restore the focused / selected / visible state after a filter
+//  rebuild. Resolves the target LV item index via
+//  DebugDialogProjection::PreservedFocusItem and applies LVIS_FOCUSED
+//  + LVIS_SELECTED + EnsureVisible. priorDequeIdx == -1 (nothing was
+//  focused) is a no-op.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::RestoreFocusedDequeIdx (int priorDequeIdx) noexcept
+{
+    int  newItem = -1;
+
+    if (m_listView == nullptr || priorDequeIdx < 0)
+    {
+        return;
+    }
+
+    newItem = DebugDialogProjection::PreservedFocusItem (
+                  static_cast<uint32_t> (priorDequeIdx),
+                  m_filteredIndices);
+
+    if (newItem < 0)
+    {
+        return;
+    }
+
+    ListView_SetItemState (m_listView,
+                           newItem,
+                           LVIS_FOCUSED | LVIS_SELECTED,
+                           LVIS_FOCUSED | LVIS_SELECTED);
+    ListView_EnsureVisible (m_listView, newItem, FALSE);
 }
 
 

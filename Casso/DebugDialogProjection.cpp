@@ -514,3 +514,52 @@ void DebugDialogProjection::DrainAndProject (
         deque.pop_front();
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugDialogProjection::PreservedFocusItem
+//
+//  Spec-006 round-4 bug 5. Resolve where the user's focused row
+//  should land after a filter rebuild. Implementation walks the
+//  sorted filtered-indices vector with binary search:
+//
+//    * lower_bound (priorDequeIdx) finds the first surviving
+//      filtered entry whose deque index is >= priorDequeIdx.
+//    * If that entry's deque index equals priorDequeIdx, the
+//      focused row is still in the projection -- focus it.
+//    * Otherwise step back one to find the most recent earlier
+//      filtered entry; if there is none (priorDequeIdx is smaller
+//      than every surviving filtered index), fall back to row 0
+//      per the spec.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DebugDialogProjection::PreservedFocusItem (
+    uint32_t                       priorDequeIdx,
+    const std::vector<uint32_t> &  newFilteredIndices) noexcept
+{
+    auto  it = std::lower_bound (newFilteredIndices.begin (),
+                                 newFilteredIndices.end   (),
+                                 priorDequeIdx);
+
+    if (newFilteredIndices.empty ())
+    {
+        return -1;
+    }
+
+    if (it != newFilteredIndices.end () && *it == priorDequeIdx)
+    {
+        return static_cast<int> (it - newFilteredIndices.begin ());
+    }
+
+    if (it != newFilteredIndices.begin ())
+    {
+        return static_cast<int> ((it - 1) - newFilteredIndices.begin ());
+    }
+
+    return 0;
+}
