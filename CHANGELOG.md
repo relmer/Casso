@@ -6,187 +6,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.3.756] — Disk II Debug Window polish (spec 006 smoke-test fixes, round 3)
-
-### Fixed
-- **Drive column empty and "Drive 2" filter showed drive-1 events**
-  (bug 1) — Controller-side events (motor, head step, head bump,
-  address mark, data mark) were never stamped with their controller's
-  active drive, so the Drive column rendered blank and the previous
-  "events without drive bypass the predicate" workaround masked the
-  real problem. `DiskIIEvent` gained a top-level `int8_t drive`
-  field; `DiskIIDebugDialog` caches the active drive via
-  `OnDriveSelect` and stamps it on every push site.
-  `DiskIIAudioSource` gained `SetDriveIndex` and now reports its
-  real drive on every `IDriveAudioEventSink` call. `EmulatorShell`
-  wires every drive's source through the audio event sink (was
-  only `[0]`). `MatchesFilter` is now strict — Drive 2 with no
-  disk in drive 2 produces zero matching rows.
-- **Columns froze on first auto-fit so wider data clipped later**
-  (bug 2) — `HandleDrainTick` now re-measures every visible
-  non-Detail column every 100 rows and grows `savedWidth` (never
-  shrinks) when content overflows. `LogicalColumn::userResized`
-  (set on `HDN_ENDTRACK`) opts a column out of further auto-grow
-  so manual drags persist. Detail keeps flexing into the remainder.
-- **Track / Sector filter accepted nonsense values like 77 / 99**
-  (bug 3) — `TrackSectorPredicate::Parse` now takes an explicit
-  `Mode` (Track / Sector) and caps values at whole-track 40
-  (or quarter-track 160) for Track mode, 16 for Sector mode. Out-
-  of-range values record a `RejectedSpan` so the red squiggle
-  highlights them; ranges with one in-range endpoint clamp to the
-  cap (so `0-77` parses as `0-39` with the whole token squiggled).
-- **Mouse-drag selection in the Track / Sector RichEdit broke**
-  (bug 4) — `ApplyRejectedTokenSquiggles` now wraps its `SetSel`
-  shuttle in `WM_SETREDRAW false/true` with a single
-  `InvalidateRect` so the user never sees intermediate caret hops.
-  `FlushFilterDebounce` short-circuits the squiggle re-application
-  when the RichEdit text content matches what was last formatted
-  (`m_lastFormattedTrackText` / `m_lastFormattedSectorText`).
-- **Drive LED stayed red after eject** (bug 6) —
-  `DrawDriveStatusItem` now paints the red activity dot only when
-  the drive bay actually holds a loaded disk. The controller's
-  motor stays commanded on across an eject (real-hardware behavior),
-  but with no media to read the user expects the LED to go dark.
-
-### Investigated (no fix needed)
-- **Still zero "Data read" events on Choplifter** (bug 5) — the
-  spec-006 `DiskIIAddressMarkWatcher` unit tests already prove the
-  end-to-end wiring fires `OnAddressMark` + `OnDataMarkRead` for
-  a synthetic DOS 3.3 nibble stream (`DataMark_firesOnceOnEpilogue`,
-  `InterleavedSectorCadence_firesInOrder`). The user's symptom is
-  consistent with Choplifter's RWTS18 copy-protection loop never
-  reaching the standard 6-and-2 prologue (D5 AA AD) — it spins on
-  recalibration (motor / head step / head bump oscillation
-  matches that theory exactly). DOS 3.3 disks will show reads.
-
-
-
-## [1.3.748] — Disk II Debug Window polish (spec 006 smoke-test fixes, round 2)
-
-### Fixed
-- **Motor audio kept playing after eject** (bug 14a) — the
-  `DiskIIAudioSource` motor loop was keyed only on the controller's
-  motor-on state, so ejecting a disk while the spindle was running
-  left the looping media-noise sample audible despite the empty
-  drive bay. The source now tracks `m_diskPresent` (toggled by
-  `OnDiskInserted` / `OnDiskEjected`) and `MixMotor` gates on
-  `m_motorRunning && m_diskPresent`. Modeled after real Disk II
-  hardware: the motor spins regardless of media presence, but with
-  no disk loaded there is no media noise to hear.
-- **No insert / eject events in the debug window** (bug 14b) —
-  `EmulatorShell::{Mount,Eject}DiskInSlot6` route mounts through
-  `DiskImageStore` + `DiskIIController::SetExternalDisk`, which
-  bypasses the controller's own `MountDisk` / `EjectDisk` paths
-  and therefore never fired `IDiskIIEventSink::OnDiskInserted` /
-  `OnDiskEjected`. New `DiskIIController::NotifyDiskInserted` /
-  `NotifyDiskEjected` notify-only entry points let the shell fire
-  the user-facing events without re-routing the actual image
-  bytes; called explicitly after the store mount / eject completes.
-- **Debug dialog went silent after `SwitchMachine`** (bug 15,
-  incidental) — `OpenDiskIIDebugDialog` wires sinks only on first
-  open, so the brand-new controller + audio source built during
-  a machine switch had `m_eventSink == nullptr`. New
-  `EmulatorShell::AttachDebugSinksIfOpen` re-attaches both sinks
-  if the dialog is still on screen; called from `SwitchMachine`
-  after the new components are wired up.
+## [1.3.756] — Disk II Debug Window (spec 006)
 
 ### Added
-- `SilentReason::NoDiskPresent` — surfaced in the Detail column
-  when the motor is commanded on (or kept on across an eject)
-  with no disk in the drive bay. The audio source emits
-  `OnAudioSilent (MotorLoop, NoDiskPresent)` on motor-on without
-  a disk and the pair `OnAudioLoopStopped` +
-  `OnAudioSilent (MotorLoop, NoDiskPresent)` on eject-while-motor-on,
-  matched by `OnAudioRestarted (MotorLoop)` on re-insert.
-
-
-
-## [1.3.747] — Disk II Debug Window polish (spec 006 smoke-test fixes)
-
-### Fixed
-- **Cycle count column always read 0** — the `DiskIIEvent.cycle` field
-  was never populated because each Push* helper zeroed it at struct
-  init. The dialog now holds a `const uint64_t *` pointing at the
-  CPU's running cycle accumulator and stamps the value at SPSC-push
-  time. EmulatorShell wires the pointer at dialog-open time and
-  re-points it across `SwitchMachine`.
-- **Drive radio off-by-one** — selecting "Drive 1" hid every event
-  because the predicate compared the 1-based UI value (`1`) to the
-  0-based internal drive index (`0`). Now compares
-  `event.drive == (driveFilter - 1)`. Events without a drive index
-  (motor, head, address-mark, data-read on the shared spindle)
-  bypass the drive predicate so they aren't hidden when filtering
-  by drive — symmetric with the track / sector predicates.
-- **Reset didn't clear the debug view** — `SoftReset` /
-  `PowerCycle` re-zeroed the Uptime anchor but left the deque
-  (and any in-flight ring events) full of pre-reset rows. New
-  `DiskIIDebugDialog::ClearEvents` drains the ring, wipes the
-  deque + filtered indices, and rebuilds the LV count. Pause /
-  resume state is preserved (a paused user can still inspect
-  post-reset events after resuming).
-- **Auto-sized columns only fit header text** — initial sizing used
-  `LVSCW_AUTOSIZE_USEHEADER`. Replaced with a custom
-  `MeasureColumnContentWidth` that walks the deque measuring each
-  cell via `LVM_GETSTRINGWIDTH` and takes max (header, widest cell)
-  + 16 px padding. The Detail column always flexes to fill the LV
-  client remainder (re-flowed on `WM_SIZE` so dialog resize moves
-  free space into Detail rather than leaving it dead at the right
-  edge).
-- **ListView flashed on filter checkbox toggles** —
-  `InvalidateListView` now short-circuits when the projection is
-  unchanged and wraps the SetItemCount + InvalidateRect in
-  `WM_SETREDRAW(FALSE/TRUE)` so the LV repaints once at the end
-  of the rebuild.
-
-### Changed
-- **Event labels** switched from `ALL CAPS` to `Sentence case`
-  (`Motor command on`, `Head step`, `Audio loop started`, …).
-- **Column headers**: `Wall` → `Time`, `Cycle` → `Cycle count`.
-  New `Drive` column between `Cycle count` and `Event` carrying the
-  user-facing 1-based drive number; redundant `drive=N` text was
-  removed from Detail strings for `Drive select` /
-  `Disk inserted` / `Disk ejected` / all `Audio *` events.
-- **Head-step / head-bump detail strings** now spell out
-  `quarter-track <prev> -> <new>` and
-  `at quarter-track <position>` instead of the cryptic `qt=`.
-- **Filter checkbox** `raw qt` renamed to
-  `Quarter-track steps`.
-- **Track / Sector filter inputs** are now labelled (`Track filter:`,
-  `Sector filter:`) and document their syntax in a hover tooltip.
-
-### Tests
-- Existing 417-test suite green after refactor. `FilterState`
-  drive-radio test updated for the off-by-one fix (UI value 1
-  matches internal index 0). `DiskIIDebugDialogColumnTests`
-  expanded to cover the six-column model.
-
-
-
-## [1.3.730] — Disk II Debug Window
-
-### Added
-- **Disk II Debug Window (spec 006)**: modeless live event log of
-  motor / head / address-mark / data-mark / drive-select / insert-
-  eject / audio events from the active Disk II controller. Opens via
+- **Disk II Debug Window**: modeless live event log of motor / head /
+  address-mark / data-mark / drive-select / insert-eject / audio
+  events from the active Disk II controller. Opens via
   **View → Disk II Debug...** or **Ctrl+Shift+D**. Filterable by
-  event type, drive, track, sector, and audio outcome
-  (started / restarted / continued / silent). Auto-tail scrolling
-  when the user is at the bottom; pause / resume / clear controls.
-  Ctrl+C copies the selected rows tab-separated in visible-column
-  order. Right-click the column header to show / hide individual
-  columns (in-session only; defaults restore on dialog re-open per
-  NFR-006). Uptime column re-zeroes on every soft-reset and power-
-  cycle. The menu item is grayed out automatically on machines
-  without a Disk II controller (FR-001a); when more than one Disk II
-  controller is wired, the title becomes "Disk II Debug (controller
-  #0 only)" (FR-017). Events emitted before the dialog opens are
-  not retained -- open it *before* the operation you want to
-  investigate.
+  event type, drive (per-drive or all), track, sector, and audio
+  outcome (started / restarted / continued / silent). Track / Sector
+  filters accept integers, decimals, ranges, and comma lists;
+  out-of-range or unparseable tokens are highlighted with a
+  red wave squiggle (RichEdit) and listed in an "Ignored:" label.
+  Track values clamp to whole-track 40 / quarter-track 160; sector
+  to 16. Six columns — Time (local HH:MM:SS.mmm), Uptime
+  (MM:SS.mmm since most recent //e reset), Cycle count, Drive
+  (1-based), Event (sentence-cased), Detail — content-auto-sized
+  with periodic re-grow as wider data arrives; user-dragged widths
+  are preserved. Detail flex-fills the remaining ListView width
+  and re-flows on dialog resize. Right-click the column header to
+  show / hide individual columns. Auto-tail scrolling while at the
+  bottom; pause / resume / clear; Ctrl+C copies selected rows
+  tab-separated in visible-column order. Machine reset clears the
+  view and re-zeroes Uptime. The menu item is greyed out on
+  machines without a Disk II controller (FR-001a); when more than
+  one Disk II controller is wired, the title becomes
+  "Disk II Debug (controller #0 only)" (FR-017). The dialog
+  survives `SwitchMachine` — sinks reattach to the freshly built
+  controller / audio source. Events emitted before the dialog
+  opens are not retained — open it *before* the operation you
+  want to investigate. Four bundled WOZ fixtures (Apple Stellar
+  Invaders, Choplifter, Hard Hat Mack, Karateka) live in
+  `Apple2/Demos/` for manual A/B observation.
 - **`IDiskIIEventSink` / `IDriveAudioEventSink`**: two new sink
   interfaces (controller side + audio side) the debug dialog
   implements simultaneously; the shell attaches and revokes both
   in the same lifecycle window. Sinks are nullptr-default and
-  controller behavior with no sink attached is byte-identical to
+  controller behaviour with no sink attached is byte-identical to
   pre-feature (SC-007, SC-010).
 - **`DiskIIEventRing`**: lock-free SPSC ring (4096 capacity)
   buffering producer-side events between the CPU thread and the
@@ -197,23 +53,35 @@ Entries before versioning was introduced use dates only.
   address marks (with volume number) and data marks from the
   controller's nibble stream; bad checksums and mid-stream resync
   are tolerated without false positives.
-- **Track / sector filter syntax**: integers, decimals, ranges,
-  lists, and an opt-in raw quarter-track mode. Unparseable tokens
-  are rejected with an inline squiggle (RichEdit) and listed in a
-  hover label rather than crashing the filter.
-- **Apple2/Demos/**: four bundled WOZ fixtures (Apple Stellar
-  Invaders, Choplifter, Hard Hat Mack, Karateka) for manual A/B
-  observation of the debug stream.
+- **`SilentReason::NoDiskPresent`**: surfaced in the Detail column
+  when the motor is commanded on (or kept on across an eject)
+  with no disk in the drive bay.
 
 ### Changed
-- `IDriveAudioSink` audio-event method names normalized so the
+- **Drive LED** now paints the red activity dot only when the
+  drive bay actually holds a loaded disk. The controller's motor
+  stays commanded on across an eject (real-hardware behaviour),
+  but with no media to read the user expects the LED to go dark.
+- **`DiskIIAudioSource`** motor loop is gated on
+  `m_motorRunning && m_diskPresent`. Modelled after real Disk II
+  hardware: the motor spins regardless of media presence, but
+  with no disk loaded there is no media noise to hear. Eject-
+  while-motor-on emits `OnAudioLoopStopped` +
+  `OnAudioSilent (MotorLoop, NoDiskPresent)`; re-insert emits
+  `OnAudioRestarted (MotorLoop)`.
+- **`EmulatorShell::{Mount,Eject}DiskInSlot6`** now routes through
+  new `DiskIIController::NotifyDiskInserted` / `NotifyDiskEjected`
+  entry points so the user-facing insert / eject events fire even
+  when the shell mounts via `DiskImageStore + SetExternalDisk`
+  (which bypasses the controller's own MountDisk path).
+- `IDriveAudioSink` audio-event method names normalised so the
   controller-side and audio-side sinks present a parallel surface
   to `DiskIIDebugDialog`.
 - `EmulatorShell` owns a shell-wide uptime anchor (`steady_clock`)
-  re-zeroed on `SoftReset` / `PowerCycle`; the debug dialog reads it
-  on every drain so the Uptime column tracks the active //e's
+  re-zeroed on `SoftReset` / `PowerCycle`; the debug dialog reads
+  it on every drain so the Uptime column tracks the active //e's
   power-on age, not the host process.
-- `Window` base class grows a virtual `OnInitMenuPopup` hook to
+- `Window` base class gains a virtual `OnInitMenuPopup` hook to
   support FR-001a runtime menu-item gating.
 
 ### Tests
@@ -221,9 +89,11 @@ Entries before versioning was introduced use dates only.
   pop drains, wrap, overflow), address-mark watcher (stock cadence,
   bad checksum, mid-stream resync), projection (FormatEvent column
   shapes, DrainAndProject FIFO + EventsLost ordering, rolling cap),
-  filter state and the track/sector predicate parser, RichEdit
-  squiggle helpers, clipboard payload builder, column-model
-  planner, FR-001a enablement decision, FR-004a uptime-reset path.
+  filter state and the track/sector predicate parser (including
+  out-of-range clamp + RejectedSpan placement), RichEdit squiggle
+  helpers, clipboard payload builder, column-model planner,
+  FR-001a enablement decision, FR-004a uptime-reset path,
+  insert / eject / SwitchMachine regression coverage.
 
 ## [1.3.684] — Disk II mechanism dropdown + per-machine persistence
 
