@@ -42,6 +42,12 @@ struct LogicalColumn
     int        savedWidth;
     bool       visible;
     bool       autoSizedYet;
+
+    // Spec-006 bug fix. Set true the moment HDN_ENDTRACK fires on
+    // this column header so the periodic auto-grow check no longer
+    // tries to widen it past the user's chosen width. Cleared on
+    // ClearEvents() / SoftReset so a fresh boot re-runs the fit.
+    bool       userResized;
 };
 
 

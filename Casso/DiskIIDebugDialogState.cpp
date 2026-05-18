@@ -60,6 +60,7 @@ void SeedDefaultColumns (std::array<LogicalColumn, kColumnCount> & columns) noex
         columns[i].savedWidth    = s_kColumnDefaultWidths[i];
         columns[i].visible       = true;
         columns[i].autoSizedYet  = false;
+        columns[i].userResized   = false;
     }
 }
 

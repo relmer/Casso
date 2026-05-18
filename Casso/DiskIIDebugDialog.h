@@ -204,13 +204,21 @@ private:
     bool                                    m_drainTimerActive      = false;
     bool                                    m_filterDebouncePending = false;
 
-    // Spec-006 bug-fix. The dialog opens with an empty deque so the
+    // Spec-006 bug fix. The dialog opens with an empty deque so the
     // first RebuildListViewColumns pass can only size each non-Detail
     // column to the width of its header text. As soon as the first
     // batch of real events lands in the deque, the drain tick re-fits
     // every still-untouched column to MAX (header, widest cell). Set
     // to false on every ClearEvents() so a soft-reset re-runs the fit.
     bool                                    m_firstAutoFitDone      = false;
+
+    // Spec-006 bug fix. Throttle the periodic auto-grow check to
+    // every kAutoGrowRowThreshold rows so a busy drain (DOS RWTS
+    // sustained reads) doesn't pay the O(deque * columns) string-
+    // width cost on every WM_TIMER. The check still runs on the
+    // first non-empty drain regardless (gated by m_firstAutoFitDone).
+    static constexpr size_t                 kAutoGrowRowThreshold   = 100;
+    size_t                                  m_dequeSizeAtLastGrow   = 0;
 
     // Spec-006 bug-fix. InvalidateListView short-circuits when the
     // (count, first-deque-idx, last-deque-idx) triple matches the

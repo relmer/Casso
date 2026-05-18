@@ -1867,38 +1867,61 @@ void DiskIIDebugDialog::HandleDrainTick()
 
     ListView_SetItemCountEx (m_listView, newCount, LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
 
-    // Spec-006 bug-fix. The dialog opens with an empty deque so the
-    // initial RebuildListViewColumns pass only had header text to
-    // measure against. The first time we actually have rows on
-    // screen, re-fit every non-Detail column to the now-known cell
-    // widths, then re-flex Detail to the new remainder. One-shot
-    // (m_firstAutoFitDone latches) so the user's subsequent drag
-    // edits aren't reverted on every drain.
-    if (!m_firstAutoFitDone && !m_deque.empty ())
+    // Spec-006 bug fix. Auto-grow non-Detail columns periodically so
+    // wider data arriving later (e.g. cycle counts crossing the
+    // 7-digit / 9-digit boundary) expands the column instead of
+    // clipping. Pure grow -- existing widths are never shrunk so any
+    // user drag persists. Once the user explicitly resizes a column
+    // (HDN_ENDTRACK flips userResized), this loop stops touching that
+    // column. Throttled to every kAutoGrowRowThreshold rows so a
+    // sustained drain doesn't pay the string-width cost on every
+    // WM_TIMER tick.
     {
-        int  virtualIdx = 0;
-        int  i          = 0;
-        int  width      = 0;
+        bool   firstFit       = !m_firstAutoFitDone && !m_deque.empty ();
+        size_t rowsSinceCheck = (m_deque.size () >= m_dequeSizeAtLastGrow)
+                                    ? (m_deque.size () - m_dequeSizeAtLastGrow)
+                                    : m_deque.size ();
+        bool   periodicFit    = m_firstAutoFitDone && rowsSinceCheck >= kAutoGrowRowThreshold;
 
-        for (i = 0; i < kColumnCount; i++)
+        if (firstFit || periodicFit)
         {
-            if (!m_columns[i].visible)
+            int  virtualIdx = 0;
+            int  i          = 0;
+            int  width      = 0;
+            bool anyGrew    = false;
+
+            for (i = 0; i < kColumnCount; i++)
             {
-                continue;
+                if (!m_columns[i].visible)
+                {
+                    continue;
+                }
+
+                if (m_columns[i].id != (kColumnCount - 1) && !m_columns[i].userResized)
+                {
+                    width = MeasureColumnContentWidth (m_columns[i].id);
+
+                    if (width > m_columns[i].savedWidth)
+                    {
+                        ListView_SetColumnWidth (m_listView, virtualIdx, width);
+                        m_columns[i].savedWidth = width;
+                        anyGrew                 = true;
+                    }
+
+                    m_columns[i].autoSizedYet = true;
+                }
+
+                virtualIdx++;
             }
 
-            if (m_columns[i].id != (kColumnCount - 1))
+            if (firstFit || anyGrew)
             {
-                width = MeasureColumnContentWidth (m_columns[i].id);
-                ListView_SetColumnWidth (m_listView, virtualIdx, width);
-                m_columns[i].savedWidth = width;
+                SizeDetailColumnToRemainder ();
             }
 
-            virtualIdx++;
+            m_firstAutoFitDone     = true;
+            m_dequeSizeAtLastGrow  = m_deque.size ();
         }
-
-        SizeDetailColumnToRemainder ();
-        m_firstAutoFitDone = true;
     }
 
     if (wasAtTail && newCount > 0)
@@ -2001,7 +2024,24 @@ bool DiskIIDebugDialog::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
 
         if (pHdr->code == HDN_ENDTRACKW || pHdr->code == HDN_ENDTRACKA)
         {
+            NMHEADERW *  hdrN     = reinterpret_cast<NMHEADERW *> (lParam);
+            int          logicalId = -1;
+
             CaptureCurrentWidthsIntoModel();
+
+            // Spec-006 bug fix. Mark the dragged column as "user
+            // resized" so the periodic auto-grow check in the drain
+            // tick stops widening it past the user's chosen width.
+            if (hdrN != nullptr && hdrN->iItem >= 0 && hdrN->iItem < kColumnCount)
+            {
+                logicalId = m_visibleOrdinalToLogicalId[hdrN->iItem];
+
+                if (logicalId >= 0 && logicalId < kColumnCount)
+                {
+                    m_columns[logicalId].userResized = true;
+                }
+            }
+
             return false;
         }
     }
@@ -2175,9 +2215,10 @@ void DiskIIDebugDialog::ClearEvents () noexcept
 
     m_deque.clear ();
     m_filteredIndices.clear ();
-    m_firstAutoFitDone   = false;
-    m_lastPublishedCount = -1;
-    m_currentDrive       = 0;
+    m_firstAutoFitDone     = false;
+    m_dequeSizeAtLastGrow  = 0;
+    m_lastPublishedCount   = -1;
+    m_currentDrive         = 0;
 
     if (m_listView != nullptr)
     {
