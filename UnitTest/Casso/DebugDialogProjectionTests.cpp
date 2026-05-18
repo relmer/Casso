@@ -509,7 +509,7 @@ public:
         uint32_t                         dropped       = 0;
         uint64_t                         totalPushed   = 8192;
         uint64_t                         pushAttempted = 0;
-        auto                             anchor        = std::chrono::steady_clock::now ();
+        auto                             anchor        = std::chrono::steady_clock::now();
 
         // Producer never gets drained -> ring fills, every push past
         // capacity returns false.
@@ -532,7 +532,7 @@ public:
         // DrainBatch entries.
         size_t  lostCount = 0;
 
-        for (size_t i = 0; i < deque.size (); i++)
+        for (size_t i = 0; i < deque.size(); i++)
         {
             if (deque[i].type == DiskIIEventType::EventsLost)
             {
@@ -541,7 +541,7 @@ public:
         }
 
         Assert::AreEqual (size_t (1), lostCount);
-        Assert::AreEqual (DiskIIEventRing::kEventRingCapacity + 1, static_cast<uint32_t> (deque.size ()));
+        Assert::AreEqual (DiskIIEventRing::kEventRingCapacity + 1, static_cast<uint32_t> (deque.size()));
     }
 
 
@@ -552,7 +552,7 @@ public:
         std::deque<DiskIIEventDisplay>   deque;
         uint32_t                         dropped     = 0;
         int                              i           = 0;
-        auto                             anchor      = std::chrono::steady_clock::now ();
+        auto                             anchor      = std::chrono::steady_clock::now();
 
         // Phase 1: 50 events drained into the deque.
         for (i = 0; i < 50; i++)
@@ -561,7 +561,7 @@ public:
         }
 
         DebugDialogProjection::DrainAndProject (ring, deque, 0, anchor);
-        Assert::AreEqual (size_t (50), deque.size ());
+        Assert::AreEqual (size_t (50), deque.size());
 
         // Phase 2: 100 more events pushed but NOT drained (simulating
         // events arriving while the UI is otherwise busy).
@@ -572,14 +572,14 @@ public:
 
         // Simulate the Clear button: clear deque, leave the ring alone,
         // leave dropped at 0.
-        deque.clear ();
-        Assert::AreEqual (size_t (0), deque.size ());
+        deque.clear();
+        Assert::AreEqual (size_t (0), deque.size());
 
         DebugDialogProjection::DrainAndProject (ring, deque, dropped, anchor);
 
-        Assert::AreEqual (size_t (100), deque.size ());
+        Assert::AreEqual (size_t (100), deque.size());
 
-        for (size_t k = 0; k < deque.size (); k++)
+        for (size_t k = 0; k < deque.size(); k++)
         {
             Assert::IsFalse (deque[k].type == DiskIIEventType::EventsLost);
         }
@@ -607,7 +607,7 @@ public:
         d.type     = type;
 
         wcsncpy_s (d.wallStr.data   (), d.wallStr.size   (), wall,   _TRUNCATE);
-        wcsncpy_s (d.uptimeStr.data (), d.uptimeStr.size (), uptime, _TRUNCATE);
+        wcsncpy_s (d.uptimeStr.data(), d.uptimeStr.size(), uptime, _TRUNCATE);
         wcsncpy_s (d.cycleStr.data  (), d.cycleStr.size  (), cycle,  _TRUNCATE);
 
         d.detail = detail;
@@ -705,7 +705,7 @@ public:
         // sliver of wall time elapse, format an event, and assert
         // the Uptime column reads 00:00.xxx (not whatever the
         // pre-reset value was).
-        std::chrono::steady_clock::time_point  anchor      = std::chrono::steady_clock::now ();
+        std::chrono::steady_clock::time_point  anchor      = std::chrono::steady_clock::now();
         DiskIIEvent                            src         = {};
         DiskIIEventDisplay                     out         = {};
         const wchar_t                       *  uptimeText  = nullptr;
@@ -718,7 +718,7 @@ public:
 
         DebugDialogProjection::FormatEvent (src, anchor, out);
 
-        uptimeText = out.uptimeStr.data ();
+        uptimeText = out.uptimeStr.data();
 
         Assert::IsNotNull (uptimeText);
 

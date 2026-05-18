@@ -64,7 +64,7 @@ namespace DiskIIEventRingTests
             DiskIIEvent      out  {};
 
             Assert::IsFalse (ring.TryPop (out));
-            Assert::AreEqual ((uint32_t) 0, ring.ApproxSize ());
+            Assert::AreEqual ((uint32_t) 0, ring.ApproxSize());
         }
 
 
@@ -78,11 +78,11 @@ namespace DiskIIEventRingTests
                 Assert::IsTrue (ring.TryPush (MakeEvent (i)));
             }
 
-            Assert::AreEqual (DiskIIEventRing::kEventRingCapacity, ring.ApproxSize ());
+            Assert::AreEqual (DiskIIEventRing::kEventRingCapacity, ring.ApproxSize());
 
             // One-past-capacity push must fail without corrupting state.
             Assert::IsFalse (ring.TryPush (MakeEvent (0xDEADBEEF)));
-            Assert::AreEqual (DiskIIEventRing::kEventRingCapacity, ring.ApproxSize ());
+            Assert::AreEqual (DiskIIEventRing::kEventRingCapacity, ring.ApproxSize());
         }
 
 
@@ -121,7 +121,7 @@ namespace DiskIIEventRingTests
 
             pulled = ring.Drain (buffer, 32);
             Assert::AreEqual ((uint32_t) 32, pulled);
-            Assert::AreEqual ((uint32_t) 0, ring.ApproxSize ());
+            Assert::AreEqual ((uint32_t) 0, ring.ApproxSize());
 
             for (i = 0; i < 32; i++)
             {
@@ -144,7 +144,7 @@ namespace DiskIIEventRingTests
 
             pulled = ring.Drain (buffer, 10);
             Assert::AreEqual ((uint32_t) 10, pulled);
-            Assert::AreEqual ((uint32_t) 15, ring.ApproxSize ());
+            Assert::AreEqual ((uint32_t) 15, ring.ApproxSize());
 
             for (i = 0; i < 10; i++)
             {
@@ -179,7 +179,7 @@ namespace DiskIIEventRingTests
                 Assert::IsTrue (ring.TryPush (MakeEvent (cycleVal)));
             }
 
-            Assert::AreEqual (DiskIIEventRing::kEventRingCapacity, ring.ApproxSize ());
+            Assert::AreEqual (DiskIIEventRing::kEventRingCapacity, ring.ApproxSize());
 
             for (i = 0; i < DiskIIEventRing::kEventRingCapacity; i++)
             {
@@ -213,7 +213,7 @@ namespace DiskIIEventRingTests
                     while (!ring.TryPush (MakeEvent (i)))
                     {
                         failedPushes.fetch_add (1, std::memory_order_relaxed);
-                        std::this_thread::yield ();
+                        std::this_thread::yield();
                     }
                 }
             });
@@ -239,11 +239,11 @@ namespace DiskIIEventRingTests
                 }
                 else
                 {
-                    std::this_thread::yield ();
+                    std::this_thread::yield();
                 }
             }
 
-            producer.join ();
+            producer.join();
 
             // Every push that ever returned false was retried (the
             // producer loops on TryPush). End-state must be: consumer

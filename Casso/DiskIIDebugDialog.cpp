@@ -112,7 +112,7 @@ static bool   s_classRegistered  = false;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void EnsureMsftEditLoaded ()
+static void EnsureMsftEditLoaded()
 {
     if (s_hMsftEditModule == nullptr)
     {
@@ -130,7 +130,7 @@ static void EnsureMsftEditLoaded ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskIIDebugDialog::DiskIIDebugDialog ()
+DiskIIDebugDialog::DiskIIDebugDialog()
 {
     m_kpszWndClass  = s_kpszDebugWndClass;
     m_hbrBackground = reinterpret_cast<HBRUSH> (COLOR_BTNFACE + 1);
@@ -154,9 +154,9 @@ DiskIIDebugDialog::DiskIIDebugDialog ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskIIDebugDialog::~DiskIIDebugDialog ()
+DiskIIDebugDialog::~DiskIIDebugDialog()
 {
-    Destroy ();
+    Destroy();
 }
 
 
@@ -178,7 +178,7 @@ HRESULT DiskIIDebugDialog::Create (HINSTANCE hInstance, HWND parentHwnd)
         return S_OK;
     }
 
-    EnsureMsftEditLoaded ();
+    EnsureMsftEditLoaded();
 
     if (!s_classRegistered)
     {
@@ -214,7 +214,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::Show ()
+void DiskIIDebugDialog::Show()
 {
     if (m_hwnd == nullptr)
     {
@@ -235,7 +235,7 @@ void DiskIIDebugDialog::Show ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::Hide ()
+void DiskIIDebugDialog::Hide()
 {
     if (m_hwnd == nullptr)
     {
@@ -255,7 +255,7 @@ void DiskIIDebugDialog::Hide ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::Destroy ()
+void DiskIIDebugDialog::Destroy()
 {
     if (m_hwnd != nullptr)
     {
@@ -284,7 +284,7 @@ void DiskIIDebugDialog::Destroy ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HFONT DiskIIDebugDialog::AcquireUiFont ()
+HFONT DiskIIDebugDialog::AcquireUiFont()
 {
     NONCLIENTMETRICSW  ncm = {};
 
@@ -330,7 +330,7 @@ LRESULT DiskIIDebugDialog::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
     hr = CreateChildControls (hwnd);
     CHR (hr);
 
-    RebuildListViewColumns ();
+    RebuildListViewColumns();
 
     if (GetClientRect (hwnd, &rc))
     {
@@ -364,7 +364,7 @@ HRESULT DiskIIDebugDialog::CreateChildControls (HWND hwnd)
     HFONT    font = nullptr;
     int      i    = 0;
 
-    font = AcquireUiFont ();
+    font = AcquireUiFont();
 
     for (i = 0; i < 8; i++)
     {
@@ -535,7 +535,7 @@ HRESULT DiskIIDebugDialog::CreateChildControls (HWND hwnd)
     SendMessageW (m_listView, WM_SETFONT, reinterpret_cast<WPARAM> (font), TRUE);
     ListView_SetExtendedListViewStyle (m_listView, LVS_EX_FULLROWSELECT | LVS_EX_HEADERDRAGDROP);
 
-    hr = InstallListViewSubclass ();
+    hr = InstallListViewSubclass();
     CHR (hr);
 
 Error:
@@ -656,7 +656,7 @@ void DiskIIDebugDialog::LayoutChildControls (int width, int height)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::RebuildListViewColumns ()
+void DiskIIDebugDialog::RebuildListViewColumns()
 {
     int  virtualIdx = 0;
     int  i          = 0;
@@ -727,11 +727,11 @@ void DiskIIDebugDialog::ToggleColumn (int id)
         return;
     }
 
-    CaptureCurrentWidthsIntoModel ();
+    CaptureCurrentWidthsIntoModel();
 
     m_columns[id].visible = !m_columns[id].visible;
 
-    RebuildListViewColumns ();
+    RebuildListViewColumns();
 }
 
 
@@ -750,7 +750,7 @@ void DiskIIDebugDialog::ToggleColumn (int id)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::CaptureCurrentWidthsIntoModel ()
+void DiskIIDebugDialog::CaptureCurrentWidthsIntoModel()
 {
     int  width     = 0;
     int  logicalId = 0;
@@ -810,7 +810,7 @@ void DiskIIDebugDialog::ShowHeaderContextMenu (int x, int y)
         return;
     }
 
-    hMenu = CreatePopupMenu ();
+    hMenu = CreatePopupMenu();
 
     if (hMenu == nullptr)
     {
@@ -912,7 +912,7 @@ bool DiskIIDebugDialog::OnClose (HWND hwnd)
 {
     UNREFERENCED_PARAMETER (hwnd);
 
-    Hide ();
+    Hide();
     return false;
 }
 
@@ -984,8 +984,8 @@ bool DiskIIDebugDialog::OnCommandEx (HWND hwnd, int id, int notifyCode, HWND hCt
             }
             else
             {
-                m_deque.clear ();
-                m_filteredIndices.clear ();
+                m_deque.clear();
+                m_filteredIndices.clear();
 
                 if (m_listView != nullptr)
                 {
@@ -1002,11 +1002,11 @@ bool DiskIIDebugDialog::OnCommandEx (HWND hwnd, int id, int notifyCode, HWND hCt
     {
         if (notifyCode == EN_CHANGE)
         {
-            OnFilterTextChanged ();
+            OnFilterTextChanged();
         }
         else if (notifyCode == EN_KILLFOCUS)
         {
-            OnFilterTextKillFocus ();
+            OnFilterTextKillFocus();
         }
 
         return false;
@@ -1064,7 +1064,7 @@ void DiskIIDebugDialog::OnFilterControlToggled (int id, HWND hCtl)
     else if (id == kIdChkAudioMaster)
     {
         m_filter.audioMaster = checked;
-        UpdateAudioSubEnableState ();
+        UpdateAudioSubEnableState();
     }
     else if (id >= kIdChkAudioSubFirst && id < kIdChkAudioSubFirst + 4)
     {
@@ -1091,7 +1091,7 @@ void DiskIIDebugDialog::OnFilterControlToggled (int id, HWND hCtl)
         m_filter.trackFilterRawQt = checked;
         // raw-qt re-interprets bare integers as quarter tracks so the
         // track predicate has to be re-parsed against the new flag.
-        FlushFilterDebounce ();
+        FlushFilterDebounce();
         return;
     }
     else
@@ -1099,8 +1099,8 @@ void DiskIIDebugDialog::OnFilterControlToggled (int id, HWND hCtl)
         return;
     }
 
-    RebuildFilteredIndices ();
-    InvalidateListView ();
+    RebuildFilteredIndices();
+    InvalidateListView();
 }
 
 
@@ -1116,7 +1116,7 @@ void DiskIIDebugDialog::OnFilterControlToggled (int id, HWND hCtl)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::UpdateAudioSubEnableState ()
+void DiskIIDebugDialog::UpdateAudioSubEnableState()
 {
     int  i = 0;
 
@@ -1140,7 +1140,7 @@ void DiskIIDebugDialog::UpdateAudioSubEnableState ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::OnFilterTextChanged ()
+void DiskIIDebugDialog::OnFilterTextChanged()
 {
     if (m_hwnd == nullptr)
     {
@@ -1168,7 +1168,7 @@ void DiskIIDebugDialog::OnFilterTextChanged ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::OnFilterTextKillFocus ()
+void DiskIIDebugDialog::OnFilterTextKillFocus()
 {
     if (m_hwnd != nullptr && m_filterDebouncePending)
     {
@@ -1176,7 +1176,7 @@ void DiskIIDebugDialog::OnFilterTextKillFocus ()
         m_filterDebouncePending = false;
     }
 
-    FlushFilterDebounce ();
+    FlushFilterDebounce();
 }
 
 
@@ -1207,7 +1207,7 @@ std::wstring DiskIIDebugDialog::ReadEditText (HWND hEdit) const
     }
 
     out.resize (static_cast<size_t> (len));
-    GetWindowTextW (hEdit, out.data (), len + 1);
+    GetWindowTextW (hEdit, out.data(), len + 1);
     return out;
 }
 
@@ -1225,7 +1225,7 @@ std::wstring DiskIIDebugDialog::ReadEditText (HWND hEdit) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::FlushFilterDebounce ()
+void DiskIIDebugDialog::FlushFilterDebounce()
 {
     std::wstring  trackText;
     std::wstring  sectorText;
@@ -1238,14 +1238,14 @@ void DiskIIDebugDialog::FlushFilterDebounce ()
     m_filter.trackFilter  = TrackSectorPredicate::Parse (trackText,  m_filter.trackFilterRawQt);
     m_filter.sectorFilter = TrackSectorPredicate::Parse (sectorText, false);
 
-    RebuildFilteredIndices ();
-    InvalidateListView ();
+    RebuildFilteredIndices();
+    InvalidateListView();
 
     ApplyRejectedTokenSquiggles (m_trackRichEdit,   m_filter.trackFilter.RejectedSpans  ());
     SetIgnoredTokensLabel       (m_trackIgnoredLabel,  trackText,  m_filter.trackFilter.RejectedSpans  ());
 
-    ApplyRejectedTokenSquiggles (m_sectorRichEdit,  m_filter.sectorFilter.RejectedSpans ());
-    SetIgnoredTokensLabel       (m_sectorIgnoredLabel, sectorText, m_filter.sectorFilter.RejectedSpans ());
+    ApplyRejectedTokenSquiggles (m_sectorRichEdit,  m_filter.sectorFilter.RejectedSpans());
+    SetIgnoredTokensLabel       (m_sectorIgnoredLabel, sectorText, m_filter.sectorFilter.RejectedSpans());
 }
 
 
@@ -1263,13 +1263,13 @@ void DiskIIDebugDialog::FlushFilterDebounce ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::RebuildFilteredIndices ()
+void DiskIIDebugDialog::RebuildFilteredIndices()
 {
     size_t  i = 0;
 
-    m_filteredIndices.clear ();
+    m_filteredIndices.clear();
 
-    for (i = 0; i < m_deque.size (); i++)
+    for (i = 0; i < m_deque.size(); i++)
     {
         if (MatchesFilter (m_deque[i], m_filter))
         {
@@ -1288,7 +1288,7 @@ void DiskIIDebugDialog::RebuildFilteredIndices ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::InvalidateListView ()
+void DiskIIDebugDialog::InvalidateListView()
 {
     if (m_listView == nullptr)
     {
@@ -1296,7 +1296,7 @@ void DiskIIDebugDialog::InvalidateListView ()
     }
 
     ListView_SetItemCountEx (m_listView,
-                             static_cast<int> (m_filteredIndices.size ()),
+                             static_cast<int> (m_filteredIndices.size()),
                              LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
     InvalidateRect (m_listView, nullptr, FALSE);
 }
@@ -1315,7 +1315,7 @@ void DiskIIDebugDialog::InvalidateListView ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskIIDebugDialog::InstallListViewSubclass ()
+HRESULT DiskIIDebugDialog::InstallListViewSubclass()
 {
     HRESULT  hr   = S_OK;
     LONG_PTR prev = 0;
@@ -1363,7 +1363,7 @@ LRESULT CALLBACK DiskIIDebugDialog::s_ListViewSubclassProc (
     {
         if (pThis != nullptr)
         {
-            pThis->CopySelectedRowsToClipboard ();
+            pThis->CopySelectedRowsToClipboard();
         }
 
         return 0;
@@ -1391,7 +1391,7 @@ LRESULT CALLBACK DiskIIDebugDialog::s_ListViewSubclassProc (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::CopySelectedRowsToClipboard ()
+void DiskIIDebugDialog::CopySelectedRowsToClipboard()
 {
     HRESULT                                       hr        = S_OK;
     int                                           selIdx    = -1;
@@ -1412,11 +1412,11 @@ void DiskIIDebugDialog::CopySelectedRowsToClipboard ()
 
     while (selIdx >= 0)
     {
-        if (static_cast<size_t> (selIdx) < m_filteredIndices.size ())
+        if (static_cast<size_t> (selIdx) < m_filteredIndices.size())
         {
             deqIdx = m_filteredIndices[selIdx];
 
-            if (deqIdx < m_deque.size ())
+            if (deqIdx < m_deque.size())
             {
                 selected.push_back (&m_deque[deqIdx]);
             }
@@ -1425,14 +1425,14 @@ void DiskIIDebugDialog::CopySelectedRowsToClipboard ()
         selIdx = ListView_GetNextItem (m_listView, selIdx, LVNI_SELECTED);
     }
 
-    if (selected.empty ())
+    if (selected.empty())
     {
         return;
     }
 
     payload = BuildClipboardText (selected, m_columns);
 
-    byteCount = (payload.size () + 1) * sizeof (wchar_t);
+    byteCount = (payload.size() + 1) * sizeof (wchar_t);
 
     hMem = GlobalAlloc (GMEM_MOVEABLE, byteCount);
     CPRA (hMem);
@@ -1440,14 +1440,14 @@ void DiskIIDebugDialog::CopySelectedRowsToClipboard ()
     pMem = static_cast<wchar_t *> (GlobalLock (hMem));
     CPRA (pMem);
 
-    memcpy (pMem, payload.data (), byteCount - sizeof (wchar_t));
-    pMem[payload.size ()] = L'\0';
+    memcpy (pMem, payload.data(), byteCount - sizeof (wchar_t));
+    pMem[payload.size()] = L'\0';
     GlobalUnlock (hMem);
 
     CWRA (OpenClipboard (m_hwnd));
     opened = true;
 
-    CWRA (EmptyClipboard ());
+    CWRA (EmptyClipboard());
     CPRA (SetClipboardData (CF_UNICODETEXT, hMem));
 
     // SetClipboardData succeeded -> the system now owns hMem.
@@ -1457,7 +1457,7 @@ Error:
 
     if (opened)
     {
-        CloseClipboard ();
+        CloseClipboard();
     }
 
     if (hMem != nullptr)
@@ -1482,7 +1482,7 @@ bool DiskIIDebugDialog::OnTimer (HWND hwnd, UINT_PTR timerId)
 
     if (timerId == m_drainTimerId)
     {
-        HandleDrainTick ();
+        HandleDrainTick();
         return false;
     }
 
@@ -1494,7 +1494,7 @@ bool DiskIIDebugDialog::OnTimer (HWND hwnd, UINT_PTR timerId)
             m_filterDebouncePending = false;
         }
 
-        FlushFilterDebounce ();
+        FlushFilterDebounce();
         return false;
     }
 
@@ -1517,7 +1517,7 @@ bool DiskIIDebugDialog::OnTimer (HWND hwnd, UINT_PTR timerId)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::HandleDrainTick ()
+void DiskIIDebugDialog::HandleDrainTick()
 {
     int       topIndex     = 0;
     int       countPerPage = 0;
@@ -1535,17 +1535,17 @@ void DiskIIDebugDialog::HandleDrainTick ()
         return;
     }
 
-    oldCount     = static_cast<int> (m_filteredIndices.size ());
+    oldCount     = static_cast<int> (m_filteredIndices.size());
     topIndex     = ListView_GetTopIndex     (m_listView);
     countPerPage = ListView_GetCountPerPage (m_listView);
     wasAtTail    = ComputeWasAtTail (topIndex, countPerPage, oldCount);
 
-    preDequeSize = m_deque.size ();
+    preDequeSize = m_deque.size();
     dropped      = m_droppedSinceLastDrain.exchange (0, std::memory_order_acq_rel);
 
     DebugDialogProjection::DrainAndProject (m_ring, m_deque, dropped, m_uptimeAnchor);
 
-    postDequeSize = m_deque.size ();
+    postDequeSize = m_deque.size();
 
     // pop_front happens only when the rolling cap is hit. When either
     // the pre- or post-drain deque sized at the cap, indices may be
@@ -1556,14 +1556,14 @@ void DiskIIDebugDialog::HandleDrainTick ()
 
     if (hitCap)
     {
-        RebuildFilteredIndices ();
+        RebuildFilteredIndices();
     }
     else
     {
         AppendFilteredIndicesFor (preDequeSize);
     }
 
-    newCount = static_cast<int> (m_filteredIndices.size ());
+    newCount = static_cast<int> (m_filteredIndices.size());
 
     if (newCount == oldCount)
     {
@@ -1607,18 +1607,18 @@ void DiskIIDebugDialog::AppendFilteredIndicesFor (size_t startIdx)
 
     // m_deque may have shrunk (rolling-cap pop_front). Resync from
     // scratch when that happens so the indices never dangle.
-    if (m_filteredIndices.size () > m_deque.size ())
+    if (m_filteredIndices.size() > m_deque.size())
     {
-        RebuildFilteredIndices ();
+        RebuildFilteredIndices();
         return;
     }
 
-    if (startIdx > m_deque.size ())
+    if (startIdx > m_deque.size())
     {
-        startIdx = m_deque.size ();
+        startIdx = m_deque.size();
     }
 
-    for (i = startIdx; i < m_deque.size (); i++)
+    for (i = startIdx; i < m_deque.size(); i++)
     {
         if (MatchesFilter (m_deque[i], m_filter))
         {
@@ -1670,7 +1670,7 @@ bool DiskIIDebugDialog::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
     {
         if (pHdr->code == NM_RCLICK)
         {
-            msgPos = static_cast<DWORD> (GetMessagePos ());
+            msgPos = static_cast<DWORD> (GetMessagePos());
             pt.x   = static_cast<int> (static_cast<short> (LOWORD (msgPos)));
             pt.y   = static_cast<int> (static_cast<short> (HIWORD (msgPos)));
             ShowHeaderContextMenu (pt.x, pt.y);
@@ -1679,7 +1679,7 @@ bool DiskIIDebugDialog::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
 
         if (pHdr->code == HDN_ENDTRACKW || pHdr->code == HDN_ENDTRACKA)
         {
-            CaptureCurrentWidthsIntoModel ();
+            CaptureCurrentWidthsIntoModel();
             return false;
         }
     }
@@ -1724,14 +1724,14 @@ void DiskIIDebugDialog::HandleGetDispInfo (NMLVDISPINFOW * pInfo)
         return;
     }
 
-    if (item.iItem < 0 || static_cast<size_t> (item.iItem) >= m_filteredIndices.size ())
+    if (item.iItem < 0 || static_cast<size_t> (item.iItem) >= m_filteredIndices.size())
     {
         return;
     }
 
     deqIdx = m_filteredIndices[item.iItem];
 
-    if (deqIdx >= m_deque.size ())
+    if (deqIdx >= m_deque.size())
     {
         return;
     }
@@ -1755,28 +1755,28 @@ void DiskIIDebugDialog::HandleGetDispInfo (NMLVDISPINFOW * pInfo)
     switch (logicalId)
     {
         case 0:
-            item.pszText = const_cast<LPWSTR> (e.wallStr.data ());
+            item.pszText = const_cast<LPWSTR> (e.wallStr.data());
             break;
 
         case 1:
-            item.pszText = const_cast<LPWSTR> (e.uptimeStr.data ());
+            item.pszText = const_cast<LPWSTR> (e.uptimeStr.data());
             break;
 
         case 2:
-            item.pszText = const_cast<LPWSTR> (e.cycleStr.data ());
+            item.pszText = const_cast<LPWSTR> (e.cycleStr.data());
             break;
 
         case 3:
             label   = DebugDialogProjection::EventLabel (e.category, e.type);
-            copyLen = std::min<size_t> (label.size (),
+            copyLen = std::min<size_t> (label.size(),
                                         (sizeof (s_eventLabelBuf) / sizeof (s_eventLabelBuf[0])) - 1);
-            std::copy_n (label.data (), copyLen, s_eventLabelBuf);
+            std::copy_n (label.data(), copyLen, s_eventLabelBuf);
             s_eventLabelBuf[copyLen] = L'\0';
             item.pszText = s_eventLabelBuf;
             break;
 
         case 4:
-            item.pszText = const_cast<LPWSTR> (e.detail.c_str ());
+            item.pszText = const_cast<LPWSTR> (e.detail.c_str());
             break;
 
         default:

@@ -108,7 +108,7 @@ public:
         src.Tick       (100000);
         src.OnHeadStep (1);
 
-        Assert::AreEqual (size_t (1), sink.log.size ());
+        Assert::AreEqual (size_t (1), sink.log.size());
         Assert::IsTrue   (sink.log[0].which == RecordingAudioEventSink::Kind::Started);
         Assert::IsTrue   (sink.log[0].sound == SoundKind::HeadStep);
         Assert::AreEqual (0, sink.log[0].drive);
@@ -132,7 +132,7 @@ public:
         src.Tick       (102000);
         src.OnHeadStep (2);
 
-        Assert::AreEqual (size_t (2),                                     sink.log.size ());
+        Assert::AreEqual (size_t (2),                                     sink.log.size());
         Assert::IsTrue   (sink.log[0].which == RecordingAudioEventSink::Kind::Started);
         Assert::IsTrue   (sink.log[1].which == RecordingAudioEventSink::Kind::Restarted);
     }
@@ -150,13 +150,13 @@ public:
         src.OnHeadStep (1);
         src.Tick       (102000);
         src.OnHeadStep (2);
-        Assert::IsTrue (src.IsSeekMode ());
+        Assert::IsTrue (src.IsSeekMode());
 
         // Third close step: entry m_seekMode == true -> Continued.
         src.Tick       (104000);
         src.OnHeadStep (3);
 
-        Assert::AreEqual (size_t (3),                                       sink.log.size ());
+        Assert::AreEqual (size_t (3),                                       sink.log.size());
         Assert::IsTrue   (sink.log[2].which == RecordingAudioEventSink::Kind::Continued);
         Assert::IsTrue   (sink.log[2].sound == SoundKind::HeadStep);
     }
@@ -172,7 +172,7 @@ public:
         src.Tick       (100000);
         src.OnHeadStep (1);
 
-        Assert::AreEqual (size_t (1),                                       sink.log.size ());
+        Assert::AreEqual (size_t (1),                                       sink.log.size());
         Assert::IsTrue   (sink.log[0].which  == RecordingAudioEventSink::Kind::Silent);
         Assert::IsTrue   (sink.log[0].sound  == SoundKind::HeadStep);
         Assert::IsTrue   (sink.log[0].reason == SilentReason::BufferMissing);
@@ -187,9 +187,9 @@ public:
         src.SetAudioEventSink (&sink);
 
         src.OnMotorEngaged    ();
-        src.OnMotorDisengaged ();
+        src.OnMotorDisengaged();
 
-        Assert::AreEqual (size_t (2),                                        sink.log.size ());
+        Assert::AreEqual (size_t (2),                                        sink.log.size());
         Assert::IsTrue   (sink.log[0].which == RecordingAudioEventSink::Kind::LoopStarted);
         Assert::IsTrue   (sink.log[0].sound == SoundKind::MotorLoop);
         Assert::IsTrue   (sink.log[1].which == RecordingAudioEventSink::Kind::LoopStopped);
@@ -203,9 +203,9 @@ public:
 
         src.SetAudioEventSink (&sink);
 
-        src.OnMotorEngaged ();
+        src.OnMotorEngaged();
 
-        Assert::AreEqual (size_t (1),                                        sink.log.size ());
+        Assert::AreEqual (size_t (1),                                        sink.log.size());
         Assert::IsTrue   (sink.log[0].which  == RecordingAudioEventSink::Kind::Silent);
         Assert::IsTrue   (sink.log[0].sound  == SoundKind::MotorLoop);
         Assert::IsTrue   (sink.log[0].reason == SilentReason::BufferMissing);
@@ -219,10 +219,10 @@ public:
         src.SetSampleBufferForTest (L"HeadStop", vector<float> (1024, 0.9f));
         src.SetAudioEventSink (&sink);
 
-        src.OnHeadBump ();
-        src.OnHeadBump ();
+        src.OnHeadBump();
+        src.OnHeadBump();
 
-        Assert::AreEqual (size_t (2),                                       sink.log.size ());
+        Assert::AreEqual (size_t (2),                                       sink.log.size());
         Assert::IsTrue   (sink.log[0].which == RecordingAudioEventSink::Kind::Started);
         Assert::IsTrue   (sink.log[0].sound == SoundKind::HeadStop);
         Assert::IsTrue   (sink.log[1].which == RecordingAudioEventSink::Kind::Restarted);
@@ -238,10 +238,10 @@ public:
         src.SetSampleBufferForTest (L"DoorClose", vector<float> (16, 0.5f));
         src.SetAudioEventSink (&sink);
 
-        src.OnDiskInserted ();
+        src.OnDiskInserted();
         src.OnDiskEjected  ();
 
-        Assert::AreEqual (size_t (2),                                       sink.log.size ());
+        Assert::AreEqual (size_t (2),                                       sink.log.size());
         Assert::IsTrue   (sink.log[0].which == RecordingAudioEventSink::Kind::Started);
         Assert::IsTrue   (sink.log[0].sound == SoundKind::DoorClose);
         Assert::IsTrue   (sink.log[1].which == RecordingAudioEventSink::Kind::Started);
@@ -255,9 +255,9 @@ public:
 
         src.SetAudioEventSink (&sink);
 
-        src.OnDiskInserted ();
+        src.OnDiskInserted();
 
-        Assert::AreEqual (size_t (1),                                        sink.log.size ());
+        Assert::AreEqual (size_t (1),                                        sink.log.size());
         Assert::IsTrue   (sink.log[0].which  == RecordingAudioEventSink::Kind::Silent);
         Assert::IsTrue   (sink.log[0].sound  == SoundKind::DoorClose);
         Assert::IsTrue   (sink.log[0].reason == SilentReason::BufferMissing);
@@ -275,8 +275,8 @@ public:
         src.OnHeadBump        ();
         src.OnDiskInserted    ();
         src.OnDiskEjected     ();
-        src.OnMotorDisengaged ();
+        src.OnMotorDisengaged();
 
-        Assert::IsFalse (src.IsMotorRunning ());
+        Assert::IsFalse (src.IsMotorRunning());
     }
 };

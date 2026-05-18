@@ -261,7 +261,7 @@ static void AppendColumnText (std::wstring & out, const DiskIIEventDisplay & e, 
     switch (logicalId)
     {
         case 0: out.append (e.wallStr.data   ()); break;
-        case 1: out.append (e.uptimeStr.data ()); break;
+        case 1: out.append (e.uptimeStr.data()); break;
         case 2: out.append (e.cycleStr.data  ()); break;
         case 3:
             label = DebugDialogProjection::EventLabel (e.category, e.type);
@@ -295,7 +295,7 @@ std::wstring BuildClipboardText (
     int           colIdx       = 0;
     bool          firstColumn  = true;
 
-    for (rowIdx = 0; rowIdx < selected.size (); rowIdx++)
+    for (rowIdx = 0; rowIdx < selected.size(); rowIdx++)
     {
         const DiskIIEventDisplay *  row = selected[rowIdx];
 

@@ -92,12 +92,12 @@ namespace
         size_t  i = 0;
         wchar_t c = 0;
 
-        if (tok.empty ())
+        if (tok.empty())
         {
             return false;
         }
 
-        for (i = 0; i < tok.size (); i++)
+        for (i = 0; i < tok.size(); i++)
         {
             c = tok[i];
 
@@ -210,7 +210,7 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, bool r
 {
     TrackSectorPredicate   pred;
     int                    cursor       = 0;
-    int                    exprEnd      = (int) expr.size ();
+    int                    exprEnd      = (int) expr.size();
     int                    tokStart     = 0;
     int                    trimmedBegin = 0;
     int                    trimmedEnd   = 0;
@@ -230,7 +230,7 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, bool r
 
             std::wstring_view trimmed = TrimSpan (expr, trimmedBegin, trimmedEnd);
 
-            if (!trimmed.empty ())
+            if (!trimmed.empty())
             {
                 sawAnyToken = true;
                 dashPos     = trimmed.find (L'-');
@@ -241,8 +241,8 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, bool r
                     std::wstring_view hiStr = trimmed.substr (dashPos + 1);
 
                     // Trim each half individually so "0 - 2" works.
-                    while (!loStr.empty () && IsAsciiSpace (loStr.back ()))  { loStr.remove_suffix (1); }
-                    while (!hiStr.empty () && IsAsciiSpace (hiStr.front ())) { hiStr.remove_prefix (1); }
+                    while (!loStr.empty() && IsAsciiSpace (loStr.back()))  { loStr.remove_suffix (1); }
+                    while (!hiStr.empty() && IsAsciiSpace (hiStr.front())) { hiStr.remove_prefix (1); }
 
                     if (ParseValue (loStr, rawQt, val,   isQt)   &&
                         ParseValue (hiStr, rawQt, hiVal, hiIsQt) &&
@@ -307,7 +307,7 @@ bool TrackSectorPredicate::Matches (int value) const noexcept
         return true;
     }
 
-    for (i = 0; i < m_ranges.size (); i++)
+    for (i = 0; i < m_ranges.size(); i++)
     {
         const Range & r = m_ranges[i];
 
@@ -352,7 +352,7 @@ bool TrackSectorPredicate::MatchesQuarterTrack (int qt) const noexcept
 
     trackIdx = qt / kQuarterTracksPerTrack;
 
-    for (i = 0; i < m_ranges.size (); i++)
+    for (i = 0; i < m_ranges.size(); i++)
     {
         const Range & r = m_ranges[i];
 

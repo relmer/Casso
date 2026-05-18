@@ -58,7 +58,7 @@ public:
 
     // Advisory; either thread may call. Result may be stale by the
     // time the caller observes it. Intended only for diagnostics.
-    uint32_t   ApproxSize () const noexcept;
+    uint32_t   ApproxSize() const noexcept;
 
 private:
     alignas(64) std::atomic<uint32_t>   m_head { 0 };   // consumer-owned

@@ -34,15 +34,15 @@ class DiskIIDebugDialog : public Window,
                           public IDriveAudioEventSink
 {
 public:
-    DiskIIDebugDialog ();
-    ~DiskIIDebugDialog () override;
+    DiskIIDebugDialog();
+    ~DiskIIDebugDialog() override;
 
     HRESULT Create  (HINSTANCE hInstance, HWND parentHwnd);
     void    Show    ();
     void    Hide    ();
-    void    Destroy ();
+    void    Destroy();
 
-    HWND    GetHwnd () const noexcept { return m_hwnd; }
+    HWND    GetHwnd() const noexcept { return m_hwnd; }
 
     // Spec-006 / FR-004a. The shell owns the canonical uptime anchor
     // and pokes it through here on construction, on every Open, and
@@ -104,7 +104,7 @@ private:
     void    LayoutChildControls         (int width, int height);
     void    RebuildListViewColumns      ();
     void    ToggleColumn                (int id);
-    void    CaptureCurrentWidthsIntoModel ();
+    void    CaptureCurrentWidthsIntoModel();
     void    ShowHeaderContextMenu       (int x, int y);
     HFONT   AcquireUiFont               ();
 
@@ -122,7 +122,7 @@ private:
     void    UpdateAudioSubEnableState   ();
 
     HRESULT InstallListViewSubclass     ();
-    void    CopySelectedRowsToClipboard ();
+    void    CopySelectedRowsToClipboard();
     static LRESULT CALLBACK s_ListViewSubclassProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
     WNDPROC                                 m_originalListViewProc  = nullptr;

@@ -61,8 +61,8 @@ namespace
 
         void OnMotorCommandOn  () override                  { log.push_back ({ Event::MotorCommandOn,  0 }); }
         void OnMotorEngaged    () override                  { log.push_back ({ Event::MotorEngaged,    0 }); }
-        void OnMotorCommandOff () override                  { log.push_back ({ Event::MotorCommandOff, 0 }); }
-        void OnMotorDisengaged () override                  { log.push_back ({ Event::MotorDisengaged, 0 }); }
+        void OnMotorCommandOff() override                  { log.push_back ({ Event::MotorCommandOff, 0 }); }
+        void OnMotorDisengaged() override                  { log.push_back ({ Event::MotorDisengaged, 0 }); }
         void OnHeadStep        (int, int newQt) override    { log.push_back ({ Event::HeadStep,        newQt }); }
         void OnHeadBump        (int atQt) override          { log.push_back ({ Event::HeadBump,        atQt }); }
         void OnAddressMark     (int, int sector, int) override { log.push_back ({ Event::AddressMark,  sector }); }
@@ -77,7 +77,7 @@ namespace
             int     n = 0;
             size_t  i = 0;
 
-            for (i = 0; i < log.size (); i++)
+            for (i = 0; i < log.size(); i++)
             {
                 if (log[i].event == ev)
                 {
@@ -219,9 +219,9 @@ namespace DiskIIControllerEventTests
 
             Assert::AreEqual (1, sink.CountOf (RecordingEventSink::Event::HeadStep));
             Assert::AreEqual (0, sink.CountOf (RecordingEventSink::Event::HeadBump));
-            Assert::AreEqual (2, ctrl.GetQuarterTrack ());
+            Assert::AreEqual (2, ctrl.GetQuarterTrack());
 
-            for (i = 0; i < sink.log.size (); i++)
+            for (i = 0; i < sink.log.size(); i++)
             {
                 if (sink.log[i].event == RecordingEventSink::Event::HeadStep)
                 {
@@ -279,7 +279,7 @@ namespace DiskIIControllerEventTests
             ctrl.Tick  (1100000);
             ctrl.EjectDisk (0);
 
-            Assert::AreEqual ((size_t) 0, sink.log.size ());
+            Assert::AreEqual ((size_t) 0, sink.log.size());
         }
 
 
@@ -306,7 +306,7 @@ namespace DiskIIControllerEventTests
             {
                 baseline.Write (phases[i], 0x00);
                 observed.Write (phases[i], 0x00);
-                Assert::AreEqual (baseline.GetQuarterTrack (), observed.GetQuarterTrack ());
+                Assert::AreEqual (baseline.GetQuarterTrack(), observed.GetQuarterTrack());
             }
 
             // And after a motor cycle.
@@ -317,9 +317,9 @@ namespace DiskIIControllerEventTests
             baseline.Tick  (1100000);
             observed.Tick  (1100000);
 
-            Assert::AreEqual (baseline.IsMotorOn (),       observed.IsMotorOn ());
-            Assert::AreEqual (baseline.GetQuarterTrack (), observed.GetQuarterTrack ());
-            Assert::AreEqual (baseline.GetActiveDrive (),  observed.GetActiveDrive ());
+            Assert::AreEqual (baseline.IsMotorOn(),       observed.IsMotorOn());
+            Assert::AreEqual (baseline.GetQuarterTrack(), observed.GetQuarterTrack());
+            Assert::AreEqual (baseline.GetActiveDrive(),  observed.GetActiveDrive());
         }
 
 

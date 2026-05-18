@@ -62,14 +62,14 @@ public:
         int   endUtf16;
     };
 
-    TrackSectorPredicate () = default;
+    TrackSectorPredicate() = default;
 
     static TrackSectorPredicate    Parse           (std::wstring_view expr, bool rawQt);
 
     bool                            Matches             (int value) const noexcept;
     bool                            MatchesQuarterTrack (int qt) const noexcept;
 
-    const std::vector<RejectedSpan> & RejectedSpans () const noexcept   { return m_rejected; }
+    const std::vector<RejectedSpan> & RejectedSpans() const noexcept   { return m_rejected; }
     const std::vector<Range> &        Ranges        () const noexcept   { return m_ranges; }
     bool                              IsMatchAll    () const noexcept   { return m_matchAll; }
 

@@ -120,7 +120,7 @@ uint32_t DiskIIEventRing::Drain (DiskIIEvent * out, uint32_t maxCount) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t DiskIIEventRing::ApproxSize () const noexcept
+uint32_t DiskIIEventRing::ApproxSize() const noexcept
 {
     uint32_t  tail = m_tail.load (std::memory_order_relaxed);
     uint32_t  head = m_head.load (std::memory_order_relaxed);

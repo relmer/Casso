@@ -49,8 +49,8 @@ namespace
 
         void OnMotorCommandOn  () override                                  {}
         void OnMotorEngaged    () override                                  {}
-        void OnMotorCommandOff () override                                  {}
-        void OnMotorDisengaged () override                                  {}
+        void OnMotorCommandOff() override                                  {}
+        void OnMotorDisengaged() override                                  {}
         void OnHeadStep        (int, int) override                          {}
         void OnHeadBump        (int) override                               {}
         void OnAddressMark     (int track, int sector, int volume) override { addrLog.push_back ({ track, sector, volume }); }
@@ -165,7 +165,7 @@ namespace
     {
         size_t   i = 0;
 
-        for (i = 0; i < nibbles.size (); i++)
+        for (i = 0; i < nibbles.size(); i++)
         {
             w.ObserveNibble (nibbles[i]);
         }
@@ -197,11 +197,11 @@ namespace DiskIIAddressMarkWatcherTests
             AppendAddressMark (stream, 254, 17, 5, 0, false);
             FeedAll (watcher, stream);
 
-            Assert::AreEqual ((size_t) 1, sink.addrLog.size ());
+            Assert::AreEqual ((size_t) 1, sink.addrLog.size());
             Assert::AreEqual (17, sink.addrLog[0].track);
             Assert::AreEqual (5,  sink.addrLog[0].sector);
             Assert::AreEqual (254, sink.addrLog[0].volume);
-            Assert::AreEqual (5,  watcher.GetCachedSector ());
+            Assert::AreEqual (5,  watcher.GetCachedSector());
         }
 
 
@@ -217,8 +217,8 @@ namespace DiskIIAddressMarkWatcherTests
             AppendAddressMark (stream, 254, 17, 5, 0x00, true);
             FeedAll (watcher, stream);
 
-            Assert::AreEqual ((size_t) 0, sink.addrLog.size ());
-            Assert::AreEqual (-1, watcher.GetCachedSector ());
+            Assert::AreEqual ((size_t) 0, sink.addrLog.size());
+            Assert::AreEqual (-1, watcher.GetCachedSector());
         }
 
 
@@ -244,7 +244,7 @@ namespace DiskIIAddressMarkWatcherTests
             // checksum gate with probability 1/256 -- so any non-zero
             // count flags a real regression. Fixed seed keeps the
             // assertion deterministic.
-            Assert::AreEqual ((size_t) 0, sink.addrLog.size ());
+            Assert::AreEqual ((size_t) 0, sink.addrLog.size());
         }
 
 
@@ -261,7 +261,7 @@ namespace DiskIIAddressMarkWatcherTests
             AppendDataMark    (stream);
             FeedAll (watcher, stream);
 
-            Assert::AreEqual ((size_t) 1, sink.dataLog.size ());
+            Assert::AreEqual ((size_t) 1, sink.dataLog.size());
             Assert::AreEqual (7,   sink.dataLog[0].sector);
             Assert::AreEqual (256, sink.dataLog[0].byteCount);
         }
@@ -281,7 +281,7 @@ namespace DiskIIAddressMarkWatcherTests
             // address mark still fires; sector falls back to the
             // cached value (-1 == "unknown", formatted as S? at the
             // UI layer).
-            Assert::AreEqual ((size_t) 1, sink.dataLog.size ());
+            Assert::AreEqual ((size_t) 1, sink.dataLog.size());
             Assert::AreEqual (-1,  sink.dataLog[0].sector);
             Assert::AreEqual (256, sink.dataLog[0].byteCount);
         }
@@ -305,8 +305,8 @@ namespace DiskIIAddressMarkWatcherTests
 
             FeedAll (watcher, stream);
 
-            Assert::AreEqual ((size_t) 3, sink.addrLog.size ());
-            Assert::AreEqual ((size_t) 3, sink.dataLog.size ());
+            Assert::AreEqual ((size_t) 3, sink.addrLog.size());
+            Assert::AreEqual ((size_t) 3, sink.dataLog.size());
 
             Assert::AreEqual (0, sink.addrLog[0].sector);
             Assert::AreEqual (1, sink.addrLog[1].sector);

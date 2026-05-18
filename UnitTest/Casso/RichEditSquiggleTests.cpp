@@ -36,7 +36,7 @@ namespace RichEditSquiggleTests
 
             out = BuildIgnoredTokensLabel (L"anything", spans);
 
-            Assert::IsTrue (out.empty ());
+            Assert::IsTrue (out.empty());
         }
 
 

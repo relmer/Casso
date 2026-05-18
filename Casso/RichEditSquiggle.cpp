@@ -47,14 +47,14 @@ std::wstring BuildIgnoredTokensLabel (
     int           begin  = 0;
     int           end    = 0;
 
-    if (spans.empty ())
+    if (spans.empty())
     {
         return out;
     }
 
     out.assign (s_kpszLabelPrefix);
 
-    for (i = 0; i < spans.size (); i++)
+    for (i = 0; i < spans.size(); i++)
     {
         if (i > 0)
         {
@@ -69,9 +69,9 @@ std::wstring BuildIgnoredTokensLabel (
             begin = 0;
         }
 
-        if (end > static_cast<int> (originalExpr.size ()))
+        if (end > static_cast<int> (originalExpr.size()))
         {
-            end = static_cast<int> (originalExpr.size ());
+            end = static_cast<int> (originalExpr.size());
         }
 
         if (end > begin)
@@ -107,7 +107,7 @@ void SetIgnoredTokensLabel (
     }
 
     text = BuildIgnoredTokensLabel (originalExpr, spans);
-    SetWindowTextW (hStatic, text.c_str ());
+    SetWindowTextW (hStatic, text.c_str());
 }
 
 
@@ -156,7 +156,7 @@ void ApplyRejectedTokenSquiggles (
     waveFmt.bUnderlineType  = CFU_UNDERLINEWAVE;
     waveFmt.bUnderlineColor = kSquiggleUnderlineColor;
 
-    for (i = 0; i < spans.size (); i++)
+    for (i = 0; i < spans.size(); i++)
     {
         range.cpMin = spans[i].beginUtf16;
         range.cpMax = spans[i].endUtf16;
