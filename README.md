@@ -8,7 +8,16 @@
 
 ## What's New
 
-A few major capability waves landed between v1.3.509 and v1.3.696. Headlines below; see [CHANGELOG.md](CHANGELOG.md) for the granular history.
+A few major capability waves landed between v1.3.509 and v1.3.730. Headlines below; see [CHANGELOG.md](CHANGELOG.md) for the granular history.
+
+### Disk II Debug Window (v1.3.730)
+
+A modeless live event log of every Disk II controller event the active machine emits. Open with **View → Disk II Debug...** or **Ctrl+Shift+D**:
+
+- Motor on/off, head step / bump (with prev → new quarter-track), address marks (track / sector / volume), data reads, drive selects, insert / eject events, and audio decisions (started / restarted / continued / silent).
+- Filter by event type, drive, track range, sector range, audio sub-category, or any combination; pause / resume / clear; Ctrl+C copies the selected rows tab-separated.
+- Right-click the column header to show / hide the Wall, Uptime, Cycle, Event, or Detail columns.
+- Open the dialog *before* the operation you want to investigate -- events emitted before the dialog opens are not retained.
 
 ### Disk II audio (v1.3.696)
 

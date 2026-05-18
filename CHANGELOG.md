@@ -6,6 +6,69 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.730] — Disk II Debug Window
+
+### Added
+- **Disk II Debug Window (spec 006)**: modeless live event log of
+  motor / head / address-mark / data-mark / drive-select / insert-
+  eject / audio events from the active Disk II controller. Opens via
+  **View → Disk II Debug...** or **Ctrl+Shift+D**. Filterable by
+  event type, drive, track, sector, and audio outcome
+  (started / restarted / continued / silent). Auto-tail scrolling
+  when the user is at the bottom; pause / resume / clear controls.
+  Ctrl+C copies the selected rows tab-separated in visible-column
+  order. Right-click the column header to show / hide individual
+  columns (in-session only; defaults restore on dialog re-open per
+  NFR-006). Uptime column re-zeroes on every soft-reset and power-
+  cycle. The menu item is grayed out automatically on machines
+  without a Disk II controller (FR-001a); when more than one Disk II
+  controller is wired, the title becomes "Disk II Debug (controller
+  #0 only)" (FR-017). Events emitted before the dialog opens are
+  not retained -- open it *before* the operation you want to
+  investigate.
+- **`IDiskIIEventSink` / `IDriveAudioEventSink`**: two new sink
+  interfaces (controller side + audio side) the debug dialog
+  implements simultaneously; the shell attaches and revokes both
+  in the same lifecycle window. Sinks are nullptr-default and
+  controller behavior with no sink attached is byte-identical to
+  pre-feature (SC-007, SC-010).
+- **`DiskIIEventRing`**: lock-free SPSC ring (4096 capacity)
+  buffering producer-side events between the CPU thread and the
+  UI-thread drain timer; overflow returns false without corruption
+  and coalesces into a single `[N events lost]` marker on the next
+  drain (FR-010).
+- **`DiskIIAddressMarkWatcher`**: two state machines that decode
+  address marks (with volume number) and data marks from the
+  controller's nibble stream; bad checksums and mid-stream resync
+  are tolerated without false positives.
+- **Track / sector filter syntax**: integers, decimals, ranges,
+  lists, and an opt-in raw quarter-track mode. Unparseable tokens
+  are rejected with an inline squiggle (RichEdit) and listed in a
+  hover label rather than crashing the filter.
+- **Apple2/Demos/**: four bundled WOZ fixtures (Apple Stellar
+  Invaders, Choplifter, Hard Hat Mack, Karateka) for manual A/B
+  observation of the debug stream.
+
+### Changed
+- `IDriveAudioSink` audio-event method names normalised so the
+  controller-side and audio-side sinks present a parallel surface
+  to `DiskIIDebugDialog`.
+- `EmulatorShell` owns a shell-wide uptime anchor (`steady_clock`)
+  re-zeroed on `SoftReset` / `PowerCycle`; the debug dialog reads it
+  on every drain so the Uptime column tracks the active //e's
+  power-on age, not the host process.
+- `Window` base class grows a virtual `OnInitMenuPopup` hook to
+  support FR-001a runtime menu-item gating.
+
+### Tests
+- 156 new tests across the spec-006 surface: SPSC ring (push fills,
+  pop drains, wrap, overflow), address-mark watcher (stock cadence,
+  bad checksum, mid-stream resync), projection (FormatEvent column
+  shapes, DrainAndProject FIFO + EventsLost ordering, rolling cap),
+  filter state and the track/sector predicate parser, RichEdit
+  squiggle helpers, clipboard payload builder, column-model
+  planner, FR-001a enablement decision, FR-004a uptime-reset path.
+
 ## [1.3.684] — Disk II mechanism dropdown + per-machine persistence
 
 ### Added
