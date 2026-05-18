@@ -4,6 +4,8 @@
 #include <random>
 
 #include "Devices/DiskIIAddressMarkWatcher.h"
+#include "Devices/Disk/DiskIINibbleEngine.h"
+#include "Devices/Disk/DiskImage.h"
 
 
 // Some helpers below allocate large stack buffers (random-nibble
@@ -317,6 +319,108 @@ namespace DiskIIAddressMarkWatcherTests
             Assert::AreEqual (0, sink.dataLog[0].sector);
             Assert::AreEqual (1, sink.dataLog[1].sector);
             Assert::AreEqual (2, sink.dataLog[2].sector);
+        }
+
+
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  EnginePollingLoop_firesExactlyOneAddressAndDataMark
+        //
+        //  Spec-006 regression: the production bug shipped a watcher
+        //  that received every CPU poll of $C0EC -- including the
+        //  many MSB-clear and repeated samples the 6502's BPL spin
+        //  loop generates between assembled nibbles -- so its
+        //  state machine never matched a real D5 AA 96 prologue
+        //  and zero events fired on real DOS 3.3 boot reads. This
+        //  test lays one well-formed sector on a synthetic track,
+        //  pumps the engine bit-by-bit, simulates a tight CPU poll
+        //  loop (many ReadLatch calls per bit), and feeds the
+        //  watcher through the same ConsumeFreshNibble side
+        //  channel the controller uses. The watcher MUST fire
+        //  exactly one OnAddressMark and exactly one
+        //  OnDataMarkRead.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (EnginePollingLoop_firesExactlyOneAddressAndDataMark)
+        {
+            DiskIIAddressMarkWatcher  watcher;
+            RecordingSink             sink;
+            DiskImage                 img;
+            DiskIINibbleEngine        eng;
+            std::vector<uint8_t>      stream;
+            size_t                    bitOffset    = 0;
+            size_t                    i            = 0;
+            int                       bit          = 0;
+            int                       pollIndex    = 0;
+            uint8_t                   fresh        = 0;
+            uint8_t                   sample       = 0;
+
+            watcher.SetEventSink (&sink);
+
+            // Sync gap + one full sector frame. The leading FF
+            // gives the LSS time to align before any prologue
+            // nibble matters.
+            for (i = 0; i < 8; i++)
+            {
+                stream.push_back (0xFF);
+            }
+            AppendAddressMark (stream, 254, 17, 5, 0, false);
+            for (i = 0; i < 8; i++)
+            {
+                stream.push_back (0xFF);
+            }
+            AppendDataMark (stream);
+            for (i = 0; i < 8; i++)
+            {
+                stream.push_back (0xFF);
+            }
+
+            img.ResizeTrack (0, stream.size() * 8 + 64);
+
+            for (i = 0; i < stream.size(); i++)
+            {
+                int   b = 0;
+
+                for (b = 0; b < 8; b++)
+                {
+                    img.WriteBit (0, bitOffset + (size_t) b,
+                                  (uint8_t) ((stream[i] >> (7 - b)) & 1));
+                }
+                bitOffset += 8;
+            }
+
+            eng.SetDiskImage (&img);
+            eng.SetMotorOn   (true);
+
+            // Pump the engine one bit at a time. After each bit
+            // simulate the 6502's "LDA $C0EC / BPL" spin loop with
+            // several ReadLatch calls, then route the watcher
+            // through ConsumeFreshNibble exactly as
+            // DiskIIController::HandleReadDispatch does.
+            for (bit = 0; bit < (int) (stream.size() * 8); bit++)
+            {
+                eng.Tick ((uint32_t) DiskIINibbleEngine::kCyclesPerBit);
+
+                for (pollIndex = 0; pollIndex < 8; pollIndex++)
+                {
+                    sample = eng.ReadLatch ();
+                    (void) sample;
+
+                    if (eng.ConsumeFreshNibble (fresh))
+                    {
+                        watcher.ObserveNibble (fresh);
+                    }
+                }
+            }
+
+            Assert::AreEqual ((size_t) 1, sink.addrLog.size(),
+                L"Polling loop must produce exactly one address-mark event");
+            Assert::AreEqual ((size_t) 1, sink.dataLog.size(),
+                L"Polling loop must produce exactly one data-mark event");
+            Assert::AreEqual (17, sink.addrLog[0].track);
+            Assert::AreEqual (5,  sink.addrLog[0].sector);
+            Assert::AreEqual (5,  sink.dataLog[0].sector);
         }
     };
 }

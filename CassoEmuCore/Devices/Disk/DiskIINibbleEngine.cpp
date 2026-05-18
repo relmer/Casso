@@ -155,6 +155,7 @@ void DiskIINibbleEngine::Reset ()
     m_workingShift    = 0;
     m_latchDelayBits  = 0;
     m_writeLatch      = 0;
+    m_latchIsFresh    = false;
     m_readNibbles     = 0;
     m_writeNibbles    = 0;
 }
@@ -287,8 +288,15 @@ void DiskIINibbleEngine::ShiftReadBit (uint8_t bit)
 
         if ((m_workingShift & 0x80) != 0)
         {
+            // Rising edge of the LSS "byte ready" signal: a full
+            // nibble just assembled and latched. Mark it fresh so
+            // ConsumeFreshNibble (the passive-watcher side channel)
+            // hands this exact byte to the address-mark state
+            // machine exactly once, instead of seeing every CPU
+            // poll's repeated sample.
             m_latchDelayBits = 2;
             m_workingShift   = 0;
+            m_latchIsFresh   = true;
         }
     }
 }
@@ -374,4 +382,46 @@ void DiskIINibbleEngine::WriteLatch (uint8_t value)
 {
     m_writeLatch = value;
     m_writeNibbles++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsumeFreshNibble
+//
+//  Passive-watcher side channel: returns true exactly once per
+//  LSS "byte ready" rising edge. The controller calls this AFTER
+//  ReadLatch so the watcher's address-mark / data-mark state
+//  machines see exactly one nibble per assembly cycle instead of
+//  the CPU-visible repeat stream. Does NOT touch m_readLatch, so
+//  the CPU-visible byte returned by ReadLatch is unchanged.
+//
+//  Returns false unless both the latch is fresh AND its MSB is set.
+//  The MSB guard handles the intermediate partial-assembly latch
+//  updates that ShiftReadBit can produce between two "byte ready"
+//  events (the latch is overwritten with sub-nibble values when
+//  the latch-delay has expired but the working shift register has
+//  not yet hit MSB).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskIINibbleEngine::ConsumeFreshNibble (uint8_t & outNibble)
+{
+    if (!m_latchIsFresh)
+    {
+        return false;
+    }
+
+    if ((m_readLatch & 0x80) == 0)
+    {
+        return false;
+    }
+
+    outNibble      = m_readLatch;
+    m_latchIsFresh = false;
+
+    return true;
 }

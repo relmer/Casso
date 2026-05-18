@@ -55,6 +55,19 @@ public:
     uint8_t    ReadLatch        ();
     void       WriteLatch       (uint8_t value);
 
+    // Passive-watcher hook: returns true exactly once per fully-
+    // assembled MSB-set nibble. ReadLatch is a pure sample with no
+    // consume side effect (the CPU polls $C0EC in a tight BPL loop
+    // and sees the same byte many times); feeding every sampled
+    // ReadLatch return into the DiskIIAddressMarkWatcher fills the
+    // watcher with garbage repeats and partial-assembly bytes, and
+    // its state machines never match a real D5 AA 96 prologue.
+    // ConsumeFreshNibble is the side-channel the controller uses
+    // to feed the watcher exactly one nibble per LSS assembly
+    // rising edge -- byte-identical to the real "byte ready"
+    // signal. Does NOT affect ReadLatch's CPU-visible value.
+    bool       ConsumeFreshNibble (uint8_t & outNibble);
+
 private:
     void       AdvanceOneBit    ();
     void       ShiftReadBit     (uint8_t bit);
@@ -71,6 +84,7 @@ private:
     uint8_t      m_workingShift    = 0;
     int          m_latchDelayBits  = 0;
     uint8_t      m_writeLatch      = 0;
+    bool         m_latchIsFresh    = false;
 
     // Lifetime nibble I/O counters (increment on CPU read of $C0EC
     // when MSB-set, and on CPU write of $C0ED in write mode). Surfaced

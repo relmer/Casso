@@ -248,17 +248,28 @@ void DiskIIController::HandleSwitch (int offset)
 
 Byte DiskIIController::HandleReadDispatch ()
 {
-    Byte  nibble = 0;
+    Byte     nibble = 0;
+    uint8_t  fresh  = 0;
 
     if (!m_q6 && !m_q7)
     {
         nibble = m_engine[m_activeDrive].ReadLatch ();
 
-        // Spec-006 T032 / FR-008: feed every nibble that goes to the
-        // CPU to the passive watcher. The watcher MUST NOT mutate
-        // the returned value -- byte-identical to the pre-feature
-        // path on the no-sink build.
-        m_addrMarkWatcher.ObserveNibble (nibble);
+        // Spec-006 T032 / FR-008: feed the passive watcher exactly
+        // one nibble per LSS "byte ready" rising edge -- NOT every
+        // CPU poll. ReadLatch is a pure sample with no consume
+        // side effect (the 6502 spins LDA $C0EC / BPL until MSB),
+        // so feeding its return value here would flood the
+        // address-mark state machine with repeated bytes and
+        // partial-assembly garbage, and zero real prologues would
+        // ever match. ConsumeFreshNibble gates on the engine's
+        // own rising-edge marker so each assembled nibble reaches
+        // the watcher exactly once, in order. Byte-identical for
+        // the CPU-visible read path.
+        if (m_engine[m_activeDrive].ConsumeFreshNibble (fresh))
+        {
+            m_addrMarkWatcher.ObserveNibble (fresh);
+        }
 
         return nibble;
     }

@@ -16,6 +16,13 @@
 //  notifications synchronously from the per-state helpers when a
 //  terminal-accept condition is met.
 //
+//  PRECONDITION: callers MUST gate on the LSS "byte ready" rising
+//  edge (DiskIINibbleEngine::ConsumeFreshNibble) and pass each
+//  assembled nibble exactly once. Feeding every CPU poll of $C0EC
+//  here floods the state machines with repeated bytes and partial-
+//  assembly garbage, and zero real D5 AA 96 / D5 AA AD prologues
+//  ever match. Spec-006 regression: see DiskIIController::Read.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskIIAddressMarkWatcher::ObserveNibble (uint8_t nibble) noexcept
