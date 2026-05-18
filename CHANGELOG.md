@@ -6,6 +6,61 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.756] — Disk II Debug Window polish (spec 006 smoke-test fixes, round 3)
+
+### Fixed
+- **Drive column empty and "Drive 2" filter showed drive-1 events**
+  (bug 1) — Controller-side events (motor, head step, head bump,
+  address mark, data mark) were never stamped with their controller's
+  active drive, so the Drive column rendered blank and the previous
+  "events without drive bypass the predicate" workaround masked the
+  real problem. `DiskIIEvent` gained a top-level `int8_t drive`
+  field; `DiskIIDebugDialog` caches the active drive via
+  `OnDriveSelect` and stamps it on every push site.
+  `DiskIIAudioSource` gained `SetDriveIndex` and now reports its
+  real drive on every `IDriveAudioEventSink` call. `EmulatorShell`
+  wires every drive's source through the audio event sink (was
+  only `[0]`). `MatchesFilter` is now strict — Drive 2 with no
+  disk in drive 2 produces zero matching rows.
+- **Columns froze on first auto-fit so wider data clipped later**
+  (bug 2) — `HandleDrainTick` now re-measures every visible
+  non-Detail column every 100 rows and grows `savedWidth` (never
+  shrinks) when content overflows. `LogicalColumn::userResized`
+  (set on `HDN_ENDTRACK`) opts a column out of further auto-grow
+  so manual drags persist. Detail keeps flexing into the remainder.
+- **Track / Sector filter accepted nonsense values like 77 / 99**
+  (bug 3) — `TrackSectorPredicate::Parse` now takes an explicit
+  `Mode` (Track / Sector) and caps values at whole-track 40
+  (or quarter-track 160) for Track mode, 16 for Sector mode. Out-
+  of-range values record a `RejectedSpan` so the red squiggle
+  highlights them; ranges with one in-range endpoint clamp to the
+  cap (so `0-77` parses as `0-39` with the whole token squiggled).
+- **Mouse-drag selection in the Track / Sector RichEdit broke**
+  (bug 4) — `ApplyRejectedTokenSquiggles` now wraps its `SetSel`
+  shuttle in `WM_SETREDRAW false/true` with a single
+  `InvalidateRect` so the user never sees intermediate caret hops.
+  `FlushFilterDebounce` short-circuits the squiggle re-application
+  when the RichEdit text content matches what was last formatted
+  (`m_lastFormattedTrackText` / `m_lastFormattedSectorText`).
+- **Drive LED stayed red after eject** (bug 6) —
+  `DrawDriveStatusItem` now paints the red activity dot only when
+  the drive bay actually holds a loaded disk. The controller's
+  motor stays commanded on across an eject (real-hardware behavior),
+  but with no media to read the user expects the LED to go dark.
+
+### Investigated (no fix needed)
+- **Still zero "Data read" events on Choplifter** (bug 5) — the
+  spec-006 `DiskIIAddressMarkWatcher` unit tests already prove the
+  end-to-end wiring fires `OnAddressMark` + `OnDataMarkRead` for
+  a synthetic DOS 3.3 nibble stream (`DataMark_firesOnceOnEpilogue`,
+  `InterleavedSectorCadence_firesInOrder`). The user's symptom is
+  consistent with Choplifter's RWTS18 copy-protection loop never
+  reaching the standard 6-and-2 prologue (D5 AA AD) — it spins on
+  recalibration (motor / head step / head bump oscillation
+  matches that theory exactly). DOS 3.3 disks will show reads.
+
+
+
 ## [1.3.748] — Disk II Debug Window polish (spec 006 smoke-test fixes, round 2)
 
 ### Fixed
