@@ -1716,6 +1716,15 @@ HRESULT EmulatorShell::MountDiskInSlot6 (int drive, const string & path)
     external = m_diskStore.GetImage (6, drive);
     controller->SetExternalDisk (drive, external);
 
+    // Spec-006 bug 14b. The store-based mount path bypasses the
+    // controller's own MountDisk method, so fire the IDiskIIEventSink
+    // hook explicitly here so the debug window sees the insert. Cold
+    // boot mounts still fire on the controller side (the debug window
+    // is rarely open at app launch and the user wants to see the
+    // mount that ran without their click); the cold-boot suppression
+    // below is audio-only (FR-013).
+    controller->NotifyDiskInserted (drive);
+
     // Persist this drive's mount path so the next launch / next time
     // this machine is selected auto-mounts the same disk. Don't pollute
     // hr with the registry result -- a missing key is non-fatal.
@@ -1765,6 +1774,13 @@ void EmulatorShell::EjectDiskInSlot6 (int drive)
     if (controller != nullptr)
     {
         controller->SetExternalDisk (drive, nullptr);
+
+        // Spec-006 bug 14b. Mirror the insert path: fire the
+        // controller-level event sink so the debug window logs the
+        // eject. Fires AFTER the external disk is detached so any
+        // sink that inspects the controller sees the post-eject
+        // state.
+        controller->NotifyDiskEjected (drive);
     }
 
     // Clear the per-machine remembered path so the next launch comes up

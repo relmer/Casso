@@ -585,6 +585,48 @@ bool DiskIIController::HasExternalDisk (int drive) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NotifyDiskInserted / NotifyDiskEjected
+//
+//  Spec-006 bug 14b. Fires the IDiskIIEventSink hooks without touching
+//  controller state. Used by EmulatorShell on the DiskImageStore +
+//  SetExternalDisk hot path so the debug window still sees user-facing
+//  insert / eject events on disks mounted outside MountDisk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIController::NotifyDiskInserted (int drive)
+{
+    if (drive < 0 || drive >= kDriveCount)
+    {
+        return;
+    }
+
+    if (m_eventSink != nullptr)
+    {
+        m_eventSink->OnDiskInserted (drive);
+    }
+}
+
+
+void DiskIIController::NotifyDiskEjected (int drive)
+{
+    if (drive < 0 || drive >= kDriveCount)
+    {
+        return;
+    }
+
+    if (m_eventSink != nullptr)
+    {
+        m_eventSink->OnDiskEjected (drive);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Reset
 //
 ////////////////////////////////////////////////////////////////////////////////

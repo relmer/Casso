@@ -56,6 +56,15 @@ public:
     void          SetExternalDisk  (int drive, DiskImage * external);
     bool          HasExternalDisk  (int drive) const;
 
+    // Spec-006 bug 14b. When EmulatorShell drives mount/eject through
+    // DiskImageStore + SetExternalDisk (bypassing this class's own
+    // MountDisk / EjectDisk), the controller's own load path never
+    // runs and the IDiskIIEventSink never sees the user-facing
+    // insert/eject. These notify-only entrypoints let the shell fire
+    // those events without re-routing the actual image bytes.
+    void          NotifyDiskInserted (int drive);
+    void          NotifyDiskEjected  (int drive);
+
     // Audio sink wiring (spec 005-disk-ii-audio FR-001..FR-004).
     // Caller-owned; controller never deletes it. Single sink covers
     // both drives (per-drive routing happens at the source-mixer

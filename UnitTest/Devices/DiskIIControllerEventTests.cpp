@@ -261,6 +261,66 @@ namespace DiskIIControllerEventTests
         }
 
 
+        ////////////////////////////////////////////////////////////////
+        //
+        //  Spec-006 bug 14b. EmulatorShell drives mount/eject through
+        //  DiskImageStore + SetExternalDisk, bypassing MountDisk and
+        //  EjectDisk. NotifyDiskInserted / NotifyDiskEjected let the
+        //  shell still fire the user-facing controller events.
+        //
+        ////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (NotifyDiskInserted_firesOnceWithDriveIndex)
+        {
+            DiskIIController     ctrl (6);
+            RecordingEventSink   sink;
+
+            ctrl.SetEventSink (&sink);
+            ctrl.NotifyDiskInserted (1);
+
+            Assert::AreEqual (1, sink.CountOf (RecordingEventSink::Event::DiskInserted));
+            Assert::AreEqual (1, sink.log[0].arg);
+        }
+
+
+        TEST_METHOD (NotifyDiskEjected_firesOnceWithDriveIndex)
+        {
+            DiskIIController     ctrl (6);
+            RecordingEventSink   sink;
+
+            ctrl.SetEventSink (&sink);
+            ctrl.NotifyDiskEjected (0);
+
+            Assert::AreEqual (1, sink.CountOf (RecordingEventSink::Event::DiskEjected));
+            Assert::AreEqual (0, sink.log[0].arg);
+        }
+
+
+        TEST_METHOD (NotifyDisk_invalidDrive_isNoop)
+        {
+            DiskIIController     ctrl (6);
+            RecordingEventSink   sink;
+
+            ctrl.SetEventSink (&sink);
+            ctrl.NotifyDiskInserted (-1);
+            ctrl.NotifyDiskInserted (99);
+            ctrl.NotifyDiskEjected  (-1);
+            ctrl.NotifyDiskEjected  (99);
+
+            Assert::AreEqual ((size_t) 0, sink.log.size());
+        }
+
+
+        TEST_METHOD (NotifyDisk_noSinkAttached_doesNotCrash)
+        {
+            DiskIIController  ctrl (6);
+
+            // No SetEventSink call -- m_eventSink == nullptr.
+            ctrl.NotifyDiskInserted (0);
+            ctrl.NotifyDiskEjected  (0);
+        }
+
+
         TEST_METHOD (DetachedSink_firesNothing)
         {
             DiskIIController     ctrl (6);
