@@ -5,6 +5,16 @@
 #include "DebugDialogProjection.h"
 #include "DiskIIDebugDialogState.h"
 
+// Code-analysis: CppUnitTest's TEST_METHOD bodies inline an entire
+// std::deque<DiskIIEventDisplay> (each entry ~ a few hundred bytes,
+// kDisplayDequeCap == 100,000) on the function stack. C6262 fires
+// at ~131 KB per frame; the deque header alone plus a handful of
+// local DiskIIEventDisplay scratch records is well over the
+// /analyze stack-frame budget. Disabling 6262 in this single file
+// matches the established repo pattern for headless-test stacks
+// that intentionally over-allocate for fixture clarity.
+#pragma warning(disable: 6262)
+
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 

@@ -50,7 +50,7 @@ Entries before versioning was introduced use dates only.
   observation of the debug stream.
 
 ### Changed
-- `IDriveAudioSink` audio-event method names normalised so the
+- `IDriveAudioSink` audio-event method names normalized so the
   controller-side and audio-side sinks present a parallel surface
   to `DiskIIDebugDialog`.
 - `EmulatorShell` owns a shell-wide uptime anchor (`steady_clock`)
