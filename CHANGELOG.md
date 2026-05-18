@@ -6,6 +6,67 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.747] — Disk II Debug Window polish (spec 006 smoke-test fixes)
+
+### Fixed
+- **Cycle count column always read 0** — the `DiskIIEvent.cycle` field
+  was never populated because each Push* helper zeroed it at struct
+  init. The dialog now holds a `const uint64_t *` pointing at the
+  CPU's running cycle accumulator and stamps the value at SPSC-push
+  time. EmulatorShell wires the pointer at dialog-open time and
+  re-points it across `SwitchMachine`.
+- **Drive radio off-by-one** — selecting "Drive 1" hid every event
+  because the predicate compared the 1-based UI value (`1`) to the
+  0-based internal drive index (`0`). Now compares
+  `event.drive == (driveFilter - 1)`. Events without a drive index
+  (motor, head, address-mark, data-read on the shared spindle)
+  bypass the drive predicate so they aren't hidden when filtering
+  by drive — symmetric with the track / sector predicates.
+- **Reset didn't clear the debug view** — `SoftReset` /
+  `PowerCycle` re-zeroed the Uptime anchor but left the deque
+  (and any in-flight ring events) full of pre-reset rows. New
+  `DiskIIDebugDialog::ClearEvents` drains the ring, wipes the
+  deque + filtered indices, and rebuilds the LV count. Pause /
+  resume state is preserved (a paused user can still inspect
+  post-reset events after resuming).
+- **Auto-sized columns only fit header text** — initial sizing used
+  `LVSCW_AUTOSIZE_USEHEADER`. Replaced with a custom
+  `MeasureColumnContentWidth` that walks the deque measuring each
+  cell via `LVM_GETSTRINGWIDTH` and takes max (header, widest cell)
+  + 16 px padding. The Detail column always flexes to fill the LV
+  client remainder (re-flowed on `WM_SIZE` so dialog resize moves
+  free space into Detail rather than leaving it dead at the right
+  edge).
+- **ListView flashed on filter checkbox toggles** —
+  `InvalidateListView` now short-circuits when the projection is
+  unchanged and wraps the SetItemCount + InvalidateRect in
+  `WM_SETREDRAW(FALSE/TRUE)` so the LV repaints once at the end
+  of the rebuild.
+
+### Changed
+- **Event labels** switched from `ALL CAPS` to `Sentence case`
+  (`Motor command on`, `Head step`, `Audio loop started`, …).
+- **Column headers**: `Wall` → `Time`, `Cycle` → `Cycle count`.
+  New `Drive` column between `Cycle count` and `Event` carrying the
+  user-facing 1-based drive number; redundant `drive=N` text was
+  removed from Detail strings for `Drive select` /
+  `Disk inserted` / `Disk ejected` / all `Audio *` events.
+- **Head-step / head-bump detail strings** now spell out
+  `quarter-track <prev> -> <new>` and
+  `at quarter-track <position>` instead of the cryptic `qt=`.
+- **Filter checkbox** `raw qt` renamed to
+  `Quarter-track steps`.
+- **Track / Sector filter inputs** are now labelled (`Track filter:`,
+  `Sector filter:`) and document their syntax in a hover tooltip.
+
+### Tests
+- Existing 417-test suite green after refactor. `FilterState`
+  drive-radio test updated for the off-by-one fix (UI value 1
+  matches internal index 0). `DiskIIDebugDialogColumnTests`
+  expanded to cover the six-column model.
+
+
+
 ## [1.3.730] — Disk II Debug Window
 
 ### Added
