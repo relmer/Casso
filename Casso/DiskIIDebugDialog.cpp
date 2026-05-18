@@ -55,8 +55,7 @@ enum DiskIIDebugDialogCtrlId : int
 
     kIdEdtTrack           = 140,
     kIdEdtSector          = 141,
-    kIdLblTrackIgnored    = 142,
-    kIdLblSectorIgnored   = 143,
+    kIdLblInvalid         = 142,
     kIdChkTrackRawQt      = 144,
 
     kIdBtnPause           = 150,
@@ -498,29 +497,17 @@ HRESULT DiskIIDebugDialog::CreateChildControls (HWND hwnd)
     SendMessageW (m_sectorRichEdit, WM_SETFONT, reinterpret_cast<WPARAM> (font), TRUE);
     SendMessageW (m_sectorRichEdit, EM_SETEVENTMASK, 0, ENM_CHANGE | ENM_KEYEVENTS);
 
-    m_trackIgnoredLabel = CreateWindowExW (0,
-                                           L"STATIC",
-                                           L"",
-                                           WS_CHILD | WS_VISIBLE | SS_LEFT,
-                                           0, 0, 0, 0,
-                                           hwnd,
-                                           reinterpret_cast<HMENU> (static_cast<INT_PTR> (kIdLblTrackIgnored)),
-                                           m_hInstance,
-                                           nullptr);
-    CWRA (m_trackIgnoredLabel);
-    SendMessageW (m_trackIgnoredLabel, WM_SETFONT, reinterpret_cast<WPARAM> (font), TRUE);
-
-    m_sectorIgnoredLabel = CreateWindowExW (0,
-                                            L"STATIC",
-                                            L"",
-                                            WS_CHILD | WS_VISIBLE | SS_LEFT,
-                                            0, 0, 0, 0,
-                                            hwnd,
-                                            reinterpret_cast<HMENU> (static_cast<INT_PTR> (kIdLblSectorIgnored)),
-                                            m_hInstance,
-                                            nullptr);
-    CWRA (m_sectorIgnoredLabel);
-    SendMessageW (m_sectorIgnoredLabel, WM_SETFONT, reinterpret_cast<WPARAM> (font), TRUE);
+    m_invalidLabel = CreateWindowExW (0,
+                                      L"STATIC",
+                                      L"",
+                                      WS_CHILD | WS_VISIBLE | SS_LEFT,
+                                      0, 0, 0, 0,
+                                      hwnd,
+                                      reinterpret_cast<HMENU> (static_cast<INT_PTR> (kIdLblInvalid)),
+                                      m_hInstance,
+                                      nullptr);
+    CWRA (m_invalidLabel);
+    SendMessageW (m_invalidLabel, WM_SETFONT, reinterpret_cast<WPARAM> (font), TRUE);
 
     m_pauseButton = CreateWindowExW (0,
                                      L"BUTTON",
@@ -602,7 +589,7 @@ HRESULT DiskIIDebugDialog::CreateChildControls (HWND hwnd)
              L"of whole tracks.\r\n"
              L"\r\n"
              L"Out-of-range or unparseable tokens get a red squiggle and "
-             L"are listed in the 'Ignored:' label.");
+             L"are listed in the red invalid-token label below.");
         SendMessageW (m_filterTooltip, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM> (&ti));
 
         ti.uId      = reinterpret_cast<UINT_PTR> (m_sectorRichEdit);
@@ -615,7 +602,7 @@ HRESULT DiskIIDebugDialog::CreateChildControls (HWND hwnd)
              L"\r\n"
              L"Stock DOS 3.3 uses sectors 0 \u2013 15. Out-of-range or "
              L"unparseable tokens get a red squiggle and are listed in "
-             L"the 'Ignored:' label.");
+             L"the red invalid-token label below.");
         SendMessageW (m_filterTooltip, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM> (&ti));
 
         SendMessageW (m_filterTooltip, TTM_SETMAXTIPWIDTH, 0, 360);
@@ -671,7 +658,7 @@ void DiskIIDebugDialog::LayoutChildControls (int width, int height)
         x += kAudioCheckWidth;
     }
 
-    // Row 3: Drive radio + raw-qt + Track label + Track edit + Sector label + Sector edit
+    // Row 3: Drive radio + Track label + Track edit + Sector label + Sector edit
     x = kMargin;
     y += kRowHeight + kRowGap;
 
@@ -682,37 +669,41 @@ void DiskIIDebugDialog::LayoutChildControls (int width, int height)
     }
 
     x += kRowGap;
-    MoveWindow (m_trackRawQtCheck, x, y, kRawQtCheckWidth, kRowHeight, TRUE);
-    x += kRawQtCheckWidth + kRowGap;
 
     MoveWindow (m_trackFilterLabel, x, y + 3, kFilterLabelWidth, kRowHeight, TRUE);
     x += kFilterLabelWidth + kRowGap;
 
-    MoveWindow (m_trackRichEdit, x, y, kEditWidth, kRowHeight, TRUE);
-    x += kEditWidth + kRowGap;
+    // Spec-006 bug-fix. The Quarter-track steps checkbox modifies how
+    // bare integers in the track edit are interpreted, so it lives in
+    // row 4 directly under the track edit (kEditX is captured here so
+    // row 4 can align to the same x).
+    {
+        int trackEditX = x;
 
-    MoveWindow (m_sectorFilterLabel, x, y + 3, kFilterLabelWidth, kRowHeight, TRUE);
-    x += kFilterLabelWidth + kRowGap;
+        MoveWindow (m_trackRichEdit, x, y, kEditWidth, kRowHeight, TRUE);
+        x += kEditWidth + kRowGap;
 
-    MoveWindow (m_sectorRichEdit, x, y, kEditWidth, kRowHeight, TRUE);
+        MoveWindow (m_sectorFilterLabel, x, y + 3, kFilterLabelWidth, kRowHeight, TRUE);
+        x += kFilterLabelWidth + kRowGap;
 
-    // Row 4: Ignored labels (track + sector side by side)
+        MoveWindow (m_sectorRichEdit, x, y, kEditWidth, kRowHeight, TRUE);
+
+        // Row 4: Quarter-track steps checkbox aligned under the track edit.
+        y += kRowHeight + kRowGap;
+        MoveWindow (m_trackRawQtCheck, trackEditX, y, kRawQtCheckWidth, kRowHeight, TRUE);
+    }
+
+    // Row 5: single combined invalid label (red text, full width).
     y += kRowHeight + kRowGap;
 
-    MoveWindow (m_trackIgnoredLabel,
+    MoveWindow (m_invalidLabel,
                 kMargin,
                 y,
-                width / 2 - kMargin,
-                kIgnoredLabelHeight,
-                TRUE);
-    MoveWindow (m_sectorIgnoredLabel,
-                width / 2,
-                y,
-                width / 2 - kMargin,
+                width - 2 * kMargin,
                 kIgnoredLabelHeight,
                 TRUE);
 
-    // Row 5: Pause + Clear
+    // Row 6: Pause + Clear
     y += kIgnoredLabelHeight + kRowGap;
 
     MoveWindow (m_pauseButton, kMargin, y, kButtonWidth, kButtonHeight, TRUE);
@@ -1336,6 +1327,8 @@ void DiskIIDebugDialog::OnFilterControlToggled (int id, HWND hCtl)
     else if (id == kIdChkTrackRawQt)
     {
         m_filter.trackFilterRawQt = checked;
+        SetWindowTextW (m_trackFilterLabel,
+                        checked ? L"Quarter-track:" : L"Track filter:");
         // raw-qt re-interprets bare integers as quarter tracks so the
         // track predicate has to be re-parsed against the new flag.
         FlushFilterDebounce();
@@ -1505,14 +1498,16 @@ void DiskIIDebugDialog::FlushFilterDebounce()
         ApplyRejectedTokenSquiggles (m_trackRichEdit,   m_filter.trackFilter.RejectedSpans  ());
         m_lastFormattedTrackText = trackText;
     }
-    SetIgnoredTokensLabel       (m_trackIgnoredLabel,  trackText,  m_filter.trackFilter.RejectedSpans  ());
 
     if (sectorTextChanged)
     {
         ApplyRejectedTokenSquiggles (m_sectorRichEdit,  m_filter.sectorFilter.RejectedSpans());
         m_lastFormattedSectorText = sectorText;
     }
-    SetIgnoredTokensLabel       (m_sectorIgnoredLabel, sectorText, m_filter.sectorFilter.RejectedSpans());
+
+    SetCombinedInvalidLabel (m_invalidLabel,
+                             trackText,  m_filter.trackFilter.RejectedSpans  (),
+                             sectorText, m_filter.sectorFilter.RejectedSpans ());
 }
 
 
@@ -1767,6 +1762,35 @@ Error:
     {
         GlobalFree (hMem);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnCtlColorStatic
+//
+//  Spec-006 bug-fix. Paints the single combined invalid label red so
+//  the error message stands out beside the filter inputs. All other
+//  static controls (filter labels, etc.) fall through to the default
+//  system colors.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HBRUSH DiskIIDebugDialog::OnCtlColorStatic (HWND hwndDlg, HDC hdc, HWND hwndStatic)
+{
+    UNREFERENCED_PARAMETER (hwndDlg);
+
+    if (hwndStatic == m_invalidLabel)
+    {
+        SetTextColor (hdc, RGB (200, 0, 0));
+        SetBkMode    (hdc, TRANSPARENT);
+        return GetSysColorBrush (COLOR_BTNFACE);
+    }
+
+    return nullptr;
 }
 
 

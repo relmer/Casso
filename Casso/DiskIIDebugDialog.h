@@ -108,6 +108,7 @@ protected:
     bool    OnDestroy    (HWND hwnd)                       override;
     bool    OnSize       (HWND hwnd, UINT width, UINT height) override;
     bool    OnCommandEx  (HWND hwnd, int id, int notifyCode, HWND hCtl) override;
+    HBRUSH  OnCtlColorStatic (HWND hwndDlg, HDC hdc, HWND hwndStatic) override;
     bool    OnTimer      (HWND hwnd, UINT_PTR timerId)     override;
     bool    OnNotify     (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
 
@@ -170,8 +171,7 @@ private:
     HWND                                    m_trackFilterLabel   = nullptr;
     HWND                                    m_sectorFilterLabel  = nullptr;
     HWND                                    m_filterTooltip      = nullptr;
-    HWND                                    m_trackIgnoredLabel  = nullptr;
-    HWND                                    m_sectorIgnoredLabel = nullptr;
+    HWND                                    m_invalidLabel       = nullptr;
     HWND                                    m_trackRawQtCheck    = nullptr;
 
     // Spec-006 bug 4. The squiggle re-application reaches into the

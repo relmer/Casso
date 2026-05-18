@@ -45,6 +45,7 @@ protected:
     virtual bool    OnChar     (WPARAM ch, LPARAM lParam);
     virtual bool    OnCommand  (HWND hwnd, int id);
     virtual bool    OnCommandEx (HWND hwnd, int id, int notifyCode, HWND hCtl);
+    virtual HBRUSH  OnCtlColorStatic (HWND hwndDlg, HDC hdc, HWND hwndStatic);
     virtual bool    OnClose    (HWND hwnd);
     virtual LRESULT OnCreate   (HWND hwnd, CREATESTRUCT * pcs);
     virtual bool    OnDestroy  (HWND hwnd);

@@ -116,6 +116,127 @@ void SetIgnoredTokensLabel (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BuildCombinedInvalidLabel
+//
+//  Returns "" when neither track nor sector spans contain rejects.
+//  Otherwise builds a single string covering whichever side(s) had
+//  rejects, joined by " | " when both sides do:
+//    "Invalid track: abc"
+//    "Invalid sector: 99"
+//    "Invalid track: abc | Invalid sector: 99"
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BuildCombinedInvalidLabel (
+    std::wstring_view                                       trackExpr,
+    const std::vector<TrackSectorPredicate::RejectedSpan> & trackSpans,
+    std::wstring_view                                       sectorExpr,
+    const std::vector<TrackSectorPredicate::RejectedSpan> & sectorSpans)
+{
+    std::wstring  out;
+    std::wstring  trackJoined;
+    std::wstring  sectorJoined;
+
+    auto Append = [] (std::wstring &                                          dst,
+                      std::wstring_view                                       src,
+                      const std::vector<TrackSectorPredicate::RejectedSpan> & spans)
+    {
+        size_t  i      = 0;
+        int     begin  = 0;
+        int     end    = 0;
+
+        for (i = 0; i < spans.size(); i++)
+        {
+            if (i > 0)
+            {
+                dst.append (L", ");
+            }
+
+            begin = spans[i].beginUtf16;
+            end   = spans[i].endUtf16;
+
+            if (begin < 0)
+            {
+                begin = 0;
+            }
+
+            if (end > static_cast<int> (src.size()))
+            {
+                end = static_cast<int> (src.size());
+            }
+
+            if (end > begin)
+            {
+                dst.append (src.substr (static_cast<size_t> (begin),
+                                        static_cast<size_t> (end - begin)));
+            }
+        }
+    };
+
+    if (!trackSpans.empty())
+    {
+        Append (trackJoined, trackExpr, trackSpans);
+    }
+
+    if (!sectorSpans.empty())
+    {
+        Append (sectorJoined, sectorExpr, sectorSpans);
+    }
+
+    if (!trackJoined.empty())
+    {
+        out.append (L"Invalid track: ");
+        out.append (trackJoined);
+    }
+
+    if (!sectorJoined.empty())
+    {
+        if (!out.empty())
+        {
+            out.append (L"  |  ");
+        }
+
+        out.append (L"Invalid sector: ");
+        out.append (sectorJoined);
+    }
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCombinedInvalidLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SetCombinedInvalidLabel (
+    HWND                                                    hStatic,
+    std::wstring_view                                       trackExpr,
+    const std::vector<TrackSectorPredicate::RejectedSpan> & trackSpans,
+    std::wstring_view                                       sectorExpr,
+    const std::vector<TrackSectorPredicate::RejectedSpan> & sectorSpans)
+{
+    std::wstring  text;
+
+    if (hStatic == nullptr)
+    {
+        return;
+    }
+
+    text = BuildCombinedInvalidLabel (trackExpr, trackSpans, sectorExpr, sectorSpans);
+    SetWindowTextW (hStatic, text.c_str());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ApplyRejectedTokenSquiggles
 //
 //  Save the current selection, clear underline formatting across the
