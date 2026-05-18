@@ -203,6 +203,14 @@ private:
     // to false on every ClearEvents() so a soft-reset re-runs the fit.
     bool                                    m_firstAutoFitDone      = false;
 
+    // Spec-006 bug-fix. InvalidateListView short-circuits when the
+    // (count, first-deque-idx, last-deque-idx) triple matches the
+    // last publish -- prevents flashing on filter-checkbox toggles
+    // that don't actually change the projection.
+    int                                     m_lastPublishedCount    = -1;
+    uint32_t                                m_lastPublishedFirstIdx = 0;
+    uint32_t                                m_lastPublishedLastIdx  = 0;
+
     std::chrono::steady_clock::time_point   m_uptimeAnchor;
     const uint64_t *                        m_cycleCounter       = nullptr;
 };

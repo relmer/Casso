@@ -1217,6 +1217,7 @@ bool DiskIIDebugDialog::OnCommandEx (HWND hwnd, int id, int notifyCode, HWND hCt
             {
                 m_deque.clear();
                 m_filteredIndices.clear();
+                m_lastPublishedCount = -1;
 
                 if (m_listView != nullptr)
                 {
@@ -1517,19 +1518,55 @@ void DiskIIDebugDialog::RebuildFilteredIndices()
 //
 //  InvalidateListView
 //
+//  Spec-006 bug-fix. Filter-toggle / debounce-flush rebuilds used to
+//  flash because the SetItemCount + InvalidateRect combo redrew the
+//  full LV even when the filtered set was unchanged. Now: short-
+//  circuit when the count and head/tail signature match the last
+//  publish, and wrap the count update + invalidate in
+//  WM_SETREDRAW(FALSE)..(TRUE) so the LV repaints once at the end of
+//  the rebuild rather than flickering through intermediate states.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskIIDebugDialog::InvalidateListView()
 {
+    int       newCount = 0;
+    uint32_t  firstIdx = 0;
+    uint32_t  lastIdx  = 0;
+
     if (m_listView == nullptr)
     {
         return;
     }
 
+    newCount = static_cast<int> (m_filteredIndices.size());
+
+    if (newCount > 0)
+    {
+        firstIdx = m_filteredIndices.front();
+        lastIdx  = m_filteredIndices.back();
+    }
+
+    if (newCount == m_lastPublishedCount
+        && firstIdx == m_lastPublishedFirstIdx
+        && lastIdx  == m_lastPublishedLastIdx)
+    {
+        // Same projection as last publish; nothing to redraw.
+        return;
+    }
+
+    SendMessageW (m_listView, WM_SETREDRAW, FALSE, 0);
+
     ListView_SetItemCountEx (m_listView,
-                             static_cast<int> (m_filteredIndices.size()),
+                             newCount,
                              LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
+
+    SendMessageW (m_listView, WM_SETREDRAW, TRUE, 0);
     InvalidateRect (m_listView, nullptr, FALSE);
+
+    m_lastPublishedCount    = newCount;
+    m_lastPublishedFirstIdx = firstIdx;
+    m_lastPublishedLastIdx  = lastIdx;
 }
 
 
@@ -2118,7 +2155,8 @@ void DiskIIDebugDialog::ClearEvents () noexcept
 
     m_deque.clear ();
     m_filteredIndices.clear ();
-    m_firstAutoFitDone = false;
+    m_firstAutoFitDone   = false;
+    m_lastPublishedCount = -1;
 
     if (m_listView != nullptr)
     {
