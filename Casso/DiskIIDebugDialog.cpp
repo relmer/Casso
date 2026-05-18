@@ -1461,6 +1461,8 @@ void DiskIIDebugDialog::FlushFilterDebounce()
 {
     std::wstring  trackText;
     std::wstring  sectorText;
+    bool          trackTextChanged  = false;
+    bool          sectorTextChanged = false;
 
     m_filterDebouncePending = false;
 
@@ -1476,10 +1478,25 @@ void DiskIIDebugDialog::FlushFilterDebounce()
     RebuildFilteredIndices();
     InvalidateListView();
 
-    ApplyRejectedTokenSquiggles (m_trackRichEdit,   m_filter.trackFilter.RejectedSpans  ());
+    // Spec-006 bug 4. Only re-apply squiggle formats when the text
+    // content actually changed. Re-painting the same squiggles on
+    // every EN_CHANGE / debounce tick re-anchors the selection and
+    // breaks right-to-left mouse drags.
+    trackTextChanged  = (trackText  != m_lastFormattedTrackText);
+    sectorTextChanged = (sectorText != m_lastFormattedSectorText);
+
+    if (trackTextChanged)
+    {
+        ApplyRejectedTokenSquiggles (m_trackRichEdit,   m_filter.trackFilter.RejectedSpans  ());
+        m_lastFormattedTrackText = trackText;
+    }
     SetIgnoredTokensLabel       (m_trackIgnoredLabel,  trackText,  m_filter.trackFilter.RejectedSpans  ());
 
-    ApplyRejectedTokenSquiggles (m_sectorRichEdit,  m_filter.sectorFilter.RejectedSpans());
+    if (sectorTextChanged)
+    {
+        ApplyRejectedTokenSquiggles (m_sectorRichEdit,  m_filter.sectorFilter.RejectedSpans());
+        m_lastFormattedSectorText = sectorText;
+    }
     SetIgnoredTokensLabel       (m_sectorIgnoredLabel, sectorText, m_filter.sectorFilter.RejectedSpans());
 }
 

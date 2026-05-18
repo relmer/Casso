@@ -174,6 +174,15 @@ private:
     HWND                                    m_sectorIgnoredLabel = nullptr;
     HWND                                    m_trackRawQtCheck    = nullptr;
 
+    // Spec-006 bug 4. The squiggle re-application reaches into the
+    // RichEdit's selection state via SetSel + SetCharFormat; even
+    // with EM_EXGETSEL/EM_EXSETSEL bracketing, fighting an active
+    // user mouse-drag selection can re-anchor the selection caret
+    // in the middle of a drag. Skip the squiggle pass entirely
+    // when the text content matches what was last formatted.
+    std::wstring                            m_lastFormattedTrackText;
+    std::wstring                            m_lastFormattedSectorText;
+
     HWND                                    m_pauseButton        = nullptr;
     HWND                                    m_clearButton        = nullptr;
 

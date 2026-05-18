@@ -141,6 +141,13 @@ void ApplyRejectedTokenSquiggles (
         return;
     }
 
+    // Spec-006 bug 4. Suppress repaints while we shuttle the
+    // selection through every rejected span so the user never sees
+    // the caret jump. The matching SetRedraw(TRUE) at the end fires
+    // a single InvalidateRect so the final squiggle paint happens in
+    // one frame.
+    SendMessageW (hRichEdit, WM_SETREDRAW, FALSE, 0);
+
     SendMessageW (hRichEdit, EM_EXGETSEL, 0, reinterpret_cast<LPARAM> (&saved));
 
     SendMessageW (hRichEdit, EM_EXSETSEL, 0, reinterpret_cast<LPARAM> (&all));
@@ -166,4 +173,7 @@ void ApplyRejectedTokenSquiggles (
     }
 
     SendMessageW (hRichEdit, EM_EXSETSEL, 0, reinterpret_cast<LPARAM> (&saved));
+
+    SendMessageW (hRichEdit, WM_SETREDRAW, TRUE, 0);
+    InvalidateRect (hRichEdit, nullptr, TRUE);
 }
