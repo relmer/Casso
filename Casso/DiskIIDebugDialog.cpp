@@ -590,17 +590,32 @@ HRESULT DiskIIDebugDialog::CreateChildControls (HWND hwnd)
         ti.hwnd     = hwnd;
         ti.uId      = reinterpret_cast<UINT_PTR> (m_trackRichEdit);
         ti.lpszText = const_cast<LPWSTR>
-            (L"Comma-separated tracks. Integers, ranges (17-22), and "
-             L"decimals (17.5) are accepted. Decimals map to "
-             L"quarter-tracks when 'Quarter-track steps' is unchecked. "
-             L"Empty matches all. Unparseable tokens get a red squiggle.");
+            (L"Track filter syntax:\r\n"
+             L"  \u2022  Whole tracks: 0 \u2013 39\r\n"
+             L"  \u2022  Quarter tracks: 0.0, 0.25, 0.5, 0.75, \u2026 up to 39.75\r\n"
+             L"  \u2022  Ranges: 17-22, 5.0-5.75\r\n"
+             L"  \u2022  Lists: 0, 5, 17-22, 34.5\r\n"
+             L"  \u2022  Empty matches all tracks\r\n"
+             L"\r\n"
+             L"When 'Quarter-track steps' is checked, bare integers are "
+             L"interpreted as quarter-track indices (0 \u2013 159) instead "
+             L"of whole tracks.\r\n"
+             L"\r\n"
+             L"Out-of-range or unparseable tokens get a red squiggle and "
+             L"are listed in the 'Ignored:' label.");
         SendMessageW (m_filterTooltip, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM> (&ti));
 
         ti.uId      = reinterpret_cast<UINT_PTR> (m_sectorRichEdit);
         ti.lpszText = const_cast<LPWSTR>
-            (L"Comma-separated sectors. Integers and ranges (0-15). "
-             L"Stock DOS 3.3 uses 0-15; RWTS18 disks emit 0-17; "
-             L"protected disks emit anything. Empty matches all.");
+            (L"Sector filter syntax:\r\n"
+             L"  \u2022  Sectors: 0 \u2013 15 (whole numbers only)\r\n"
+             L"  \u2022  Ranges: 0-15, 8-12\r\n"
+             L"  \u2022  Lists: 0, 1, 8-15\r\n"
+             L"  \u2022  Empty matches all sectors\r\n"
+             L"\r\n"
+             L"Stock DOS 3.3 uses sectors 0 \u2013 15. Out-of-range or "
+             L"unparseable tokens get a red squiggle and are listed in "
+             L"the 'Ignored:' label.");
         SendMessageW (m_filterTooltip, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM> (&ti));
 
         SendMessageW (m_filterTooltip, TTM_SETMAXTIPWIDTH, 0, 360);
