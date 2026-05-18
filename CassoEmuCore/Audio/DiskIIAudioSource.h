@@ -104,6 +104,7 @@ public:
 
     // Test introspection.
     bool   IsMotorRunning() const { return m_motorRunning; }
+    bool   IsDiskPresent  () const { return m_diskPresent; }
     bool   IsSeekMode     () const { return m_seekMode; }
     uint64_t GetLastStepCycle() const { return m_lastStepCycle; }
 
@@ -120,6 +121,14 @@ private:
     vector<float>         m_motorBuf;
     uint32_t              m_motorPos     = 0;
     bool                  m_motorRunning = false;
+
+    // Disk presence (spec-006). The motor loop sample includes media
+    // noise (read-head whirring against the cookie), so it is only
+    // audible while a disk is mounted. An empty drive with the motor
+    // commanded on is silent on real hardware. EmulatorShell drives
+    // this via OnDiskInserted / OnDiskEjected. Defaults to false so
+    // a fresh source with no insert notification stays silent.
+    bool                  m_diskPresent  = false;
 
     // Head one-shot (points at m_stepBuf during a normal step, at
     // m_stopBuf for a track-0 / max-track bump). nullptr means no

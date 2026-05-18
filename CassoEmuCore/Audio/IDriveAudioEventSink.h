@@ -44,6 +44,7 @@ enum class SilentReason : uint8_t
     BufferMissing         = 1,   // sample WAV not loaded for this kind
     NoSourceRegistered    = 2,   // no DiskIIAudioSource for active drive
     ColdBootSuppression   = 3,   // first-slice insert (spec-005 FR-013)
+    NoDiskPresent         = 4,   // motor on but drive bay empty (spec-006)
 };
 
 

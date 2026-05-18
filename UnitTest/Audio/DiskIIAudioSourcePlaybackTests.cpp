@@ -29,6 +29,7 @@ public:
         float              out[16] = {};
 
         src.SetSampleBufferForTest (L"MotorLoop", vector<float> (32, 1.0f));
+        src.OnDiskInserted();
         src.OnMotorEngaged();
         src.GeneratePCM (out, 16);
 
@@ -50,6 +51,7 @@ public:
         motor[3] = 4.0f;
 
         src.SetSampleBufferForTest (L"MotorLoop", std::move (motor));
+        src.OnDiskInserted();
         src.OnMotorEngaged();
         src.GeneratePCM (out, 16);
 
@@ -112,6 +114,9 @@ public:
 
         src.GeneratePCM (out, 4);
 
+        // OnDiskInserted while motor is running restarts the motor
+        // loop at position 0, so the first 4 motor samples are
+        // contributed here (motor[0..3] = 1.0).
         float  expected = DiskIIAudioSource::kMotorVolume +
                           DiskIIAudioSource::kHeadVolume  +
                           DiskIIAudioSource::kDoorVolume;

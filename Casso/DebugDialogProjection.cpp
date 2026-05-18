@@ -59,6 +59,7 @@ static const wchar_t * SilentReasonLabel (SilentReason r)
         case SilentReason::BufferMissing:        return L"BufferMissing";
         case SilentReason::NoSourceRegistered:   return L"NoSourceRegistered";
         case SilentReason::ColdBootSuppression:  return L"ColdBootSuppression";
+        case SilentReason::NoDiskPresent:        return L"NoDiskPresent";
     }
 
     return L"Unknown";

@@ -98,6 +98,10 @@ namespace
 
     static float SamplePeak (DiskIIAudioSource & src)
     {
+        // Spec-006 bug 14a: motor loop is gated on disk presence, so
+        // tests that just want to measure the loaded motor buffer's
+        // amplitude need to insert a (synthetic) disk first.
+        src.OnDiskInserted ();
         src.OnMotorEngaged ();
 
         std::vector<float>  frame (128);
@@ -111,6 +115,7 @@ namespace
         }
 
         src.OnMotorDisengaged ();
+        src.OnDiskEjected     ();
         return peak;
     }
 }

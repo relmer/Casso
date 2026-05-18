@@ -338,7 +338,10 @@ void DiskIIAudioSource::SetPan (float panLeft, float panRight)
 //  Spec-006: also fire OnAudioLoopStarted / OnAudioLoopStopped on the
 //  attached IDriveAudioEventSink so the debug window can show what
 //  the audio path decided. Empty m_motorBuf maps to AudioSilent with
-//  BufferMissing per FR-009 / FR-025.
+//  BufferMissing per FR-009 / FR-025. An empty drive bay (no disk
+//  mounted) maps to AudioSilent with NoDiskPresent -- real Disk II
+//  hardware spins the motor either way, but the media-noise sample
+//  is only audible while a disk is loaded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -352,6 +355,11 @@ void DiskIIAudioSource::OnMotorEngaged()
         {
             m_audioEventSink->OnAudioSilent (SoundKind::MotorLoop, 0,
                                              SilentReason::BufferMissing);
+        }
+        else if (!m_diskPresent)
+        {
+            m_audioEventSink->OnAudioSilent (SoundKind::MotorLoop, 0,
+                                             SilentReason::NoDiskPresent);
         }
         else
         {
@@ -515,15 +523,33 @@ void DiskIIAudioSource::OnHeadBump()
 //
 //  OnDiskInserted / OnDiskEjected
 //
+//  Spec-006 bug 14: also track m_diskPresent so MixMotor can gate the
+//  media-noise sample on disk presence (an empty drive bay with motor
+//  on is silent on real hardware). When the motor is already running
+//  at the insert/eject moment, fire the matching loop transition on
+//  the audio-event sink so the debug window can show the change:
+//
+//    insert + motor on -> OnAudioRestarted (MotorLoop) -- loop resumes
+//    eject  + motor on -> OnAudioLoopStopped + OnAudioSilent
+//                          (MotorLoop, NoDiskPresent)
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskIIAudioSource::OnDiskInserted()
 {
-    m_doorBuf = &m_doorCloseBuf;
-    m_doorPos = 0;
+    bool  wasPresent = m_diskPresent;
+
+    m_diskPresent = true;
+    m_doorBuf     = &m_doorCloseBuf;
+    m_doorPos     = 0;
 
     if (m_audioEventSink != nullptr)
     {
+        if (!wasPresent && m_motorRunning && !m_motorBuf.empty())
+        {
+            m_audioEventSink->OnAudioRestarted (SoundKind::MotorLoop, 0);
+        }
+
         if (m_doorCloseBuf.empty())
         {
             m_audioEventSink->OnAudioSilent (SoundKind::DoorClose, 0,
@@ -539,11 +565,22 @@ void DiskIIAudioSource::OnDiskInserted()
 
 void DiskIIAudioSource::OnDiskEjected()
 {
-    m_doorBuf = &m_doorOpenBuf;
-    m_doorPos = 0;
+    bool  wasPresent = m_diskPresent;
+
+    m_diskPresent = false;
+    m_doorBuf     = &m_doorOpenBuf;
+    m_doorPos     = 0;
+    m_motorPos    = 0;
 
     if (m_audioEventSink != nullptr)
     {
+        if (wasPresent && m_motorRunning && !m_motorBuf.empty())
+        {
+            m_audioEventSink->OnAudioLoopStopped (SoundKind::MotorLoop, 0);
+            m_audioEventSink->OnAudioSilent      (SoundKind::MotorLoop, 0,
+                                                  SilentReason::NoDiskPresent);
+        }
+
         if (m_doorOpenBuf.empty())
         {
             m_audioEventSink->OnAudioSilent (SoundKind::DoorOpen, 0,
@@ -591,7 +628,9 @@ void DiskIIAudioSource::Tick (uint64_t currentCycle)
 //
 //  MixMotor
 //
-//  Loop the motor buffer additively into `out` while m_motorRunning.
+//  Loop the motor buffer additively into `out` while m_motorRunning
+//  AND a disk is mounted. Empty bay maps to silence per spec-006
+//  bug 14a (real Disk II motor is audibly silent without media).
 //  Wraps at the buffer end. Empty buffer == silent (FR-009).
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -601,7 +640,7 @@ void DiskIIAudioSource::MixMotor (float * out, uint32_t n)
     uint32_t  len = static_cast<uint32_t> (m_motorBuf.size());
     uint32_t  i   = 0;
 
-    if (!m_motorRunning || len == 0)
+    if (!m_motorRunning || !m_diskPresent || len == 0)
     {
         return;
     }

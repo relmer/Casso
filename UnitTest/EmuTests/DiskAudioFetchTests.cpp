@@ -197,7 +197,9 @@ public:
         // post-load (no test accessor for the active motor buffer);
         // instead, trigger MotorStart + render a frame and verify the
         // output is non-silent. Empty buffer == silence == failure
-        // under FR-009.
+        // under FR-009. Spec-006 bug 14a: motor loop gates on disk
+        // presence, so insert a synthetic disk first.
+        src1.OnDiskInserted ();
         src1.OnMotorEngaged ();
 
         std::vector<float>  frame (256);
@@ -250,6 +252,7 @@ public:
                                        s_kTestSampleRate);
         Assert::IsTrue (SUCCEEDED (hr), L"LoadSamples must succeed");
 
+        src.OnDiskInserted ();
         src.OnMotorEngaged ();
 
         std::vector<float>  frame (64);
