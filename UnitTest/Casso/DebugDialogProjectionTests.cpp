@@ -148,7 +148,7 @@ public:
 
         DebugDialogProjection::FormatEvent (src, anchor, out);
 
-        Assert::AreEqual (std::wstring (L"drive=1"), out.detail);
+        Assert::AreEqual (std::wstring (L""), out.detail);
         Assert::AreEqual (1,                          out.drive);
     }
 
@@ -178,7 +178,7 @@ public:
 
         DebugDialogProjection::FormatEvent (src, anchor, out);
 
-        Assert::AreEqual (std::wstring (L"kind=HeadStep drive=0"), out.detail);
+        Assert::AreEqual (std::wstring (L"kind=HeadStep"), out.detail);
     }
 
     TEST_METHOD (FormatEvent_AudioSilent_detailHasKindDriveReason)
@@ -195,7 +195,7 @@ public:
 
         DebugDialogProjection::FormatEvent (src, anchor, out);
 
-        Assert::AreEqual (std::wstring (L"kind=DoorClose drive=1 reason=ColdBootSuppression"),
+        Assert::AreEqual (std::wstring (L"kind=DoorClose reason=ColdBootSuppression"),
                           out.detail);
     }
 
@@ -618,14 +618,14 @@ public:
 
     TEST_METHOD (BuildClipboardText_singleRow_allColumns_tabSeparatedCrlfTerminated)
     {
-        std::array<LogicalColumn, 5>  columns = {};
+        std::array<LogicalColumn, kColumnCount>  columns = {};
         DiskIIEventDisplay            row     = MakeFormattedDisplay (
                                                     DiskIIEventType::HeadStep,
                                                     EventCategory::Controller,
                                                     L"12:34:56.789",
                                                     L"00:01.234",
                                                     L"1,000",
-                                                    L"qt=4 -> 5");
+                                                    L"quarter-track 4 -> 5");
         std::vector<const DiskIIEventDisplay *>  selected;
 
         SeedDefaultColumns (columns);
@@ -633,14 +633,16 @@ public:
 
         std::wstring  out = BuildClipboardText (selected, columns);
 
-        Assert::AreEqual (std::wstring (L"12:34:56.789\t00:01.234\t1,000\tHEAD STEP\tqt=4 -> 5\r\n"), out);
+        Assert::AreEqual (
+            std::wstring (L"12:34:56.789\t00:01.234\t1,000\t\tHead step\tquarter-track 4 -> 5\r\n"),
+            out);
     }
 
 
 
     TEST_METHOD (BuildClipboardText_hiddenColumns_areOmittedIncludingLeadingTab)
     {
-        std::array<LogicalColumn, 5>  columns = {};
+        std::array<LogicalColumn, kColumnCount>  columns = {};
         DiskIIEventDisplay            row     = MakeFormattedDisplay (
                                                     DiskIIEventType::AddrMark,
                                                     EventCategory::Controller,
@@ -652,22 +654,23 @@ public:
 
         SeedDefaultColumns (columns);
 
-        // Hide Wall and Cycle. Expected order: Uptime, Event, Detail.
-        columns[0].visible = false;    // Wall
-        columns[2].visible = false;    // Cycle
+        // Hide Time, Cycle count, and Drive. Expected order: Uptime, Event, Detail.
+        columns[0].visible = false;    // Time
+        columns[2].visible = false;    // Cycle count
+        columns[3].visible = false;    // Drive
 
         selected.push_back (&row);
 
         std::wstring  out = BuildClipboardText (selected, columns);
 
-        Assert::AreEqual (std::wstring (L"UPTIME\tADDR MARK\tT0 S0 V254\r\n"), out);
+        Assert::AreEqual (std::wstring (L"UPTIME\tAddress mark\tT0 S0 V254\r\n"), out);
     }
 
 
 
     TEST_METHOD (BuildClipboardText_multipleRows_eachOnItsOwnCrlfTerminatedLine)
     {
-        std::array<LogicalColumn, 5>  columns = {};
+        std::array<LogicalColumn, kColumnCount>  columns = {};
         DiskIIEventDisplay            r0      = MakeFormattedDisplay (
                                                     DiskIIEventType::MotorEngaged,
                                                     EventCategory::Controller,
@@ -681,7 +684,7 @@ public:
                                                     L"00:00:00.500",
                                                     L"00:00.500",
                                                     L"1,000",
-                                                    L"qt=0");
+                                                    L"at quarter-track 0");
         std::vector<const DiskIIEventDisplay *>  selected;
 
         SeedDefaultColumns (columns);
@@ -691,8 +694,8 @@ public:
         std::wstring  out = BuildClipboardText (selected, columns);
 
         Assert::AreEqual (
-            std::wstring (L"00:00:00.000\t00:00.000\t0\tMOTOR ENGAGED\t\r\n"
-                          L"00:00:00.500\t00:00.500\t1,000\tHEAD BUMP\tqt=0\r\n"),
+            std::wstring (L"00:00:00.000\t00:00.000\t0\t\tMotor engaged\t\r\n"
+                          L"00:00:00.500\t00:00.500\t1,000\t\tHead bump\tat quarter-track 0\r\n"),
             out);
     }
 

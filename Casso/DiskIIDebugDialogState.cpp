@@ -18,6 +18,7 @@ static const wchar_t * const  s_kpszColumnHeaders[kColumnCount] =
     L"Time",
     L"Uptime",
     L"Cycle count",
+    L"Drive",
     L"Event",
     L"Detail",
 };
@@ -27,6 +28,7 @@ static const int              s_kColumnDefaultWidths[kColumnCount] =
     kColWallWidth,
     kColUptimeWidth,
     kColCycleWidth,
+    kColDriveWidth,
     kColEventWidth,
     kColDetailWidth,
 };
@@ -46,7 +48,7 @@ static const int              s_kColumnDefaultWidths[kColumnCount] =
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SeedDefaultColumns (std::array<LogicalColumn, 5> & columns) noexcept
+void SeedDefaultColumns (std::array<LogicalColumn, kColumnCount> & columns) noexcept
 {
     int  i = 0;
 
@@ -257,6 +259,7 @@ bool MatchesFilter (const DiskIIEventDisplay & e, const FilterState & f) noexcep
 static void AppendColumnText (std::wstring & out, const DiskIIEventDisplay & e, int logicalId)
 {
     std::wstring_view  label;
+    wchar_t            driveBuf[4] = {};
 
     switch (logicalId)
     {
@@ -264,10 +267,17 @@ static void AppendColumnText (std::wstring & out, const DiskIIEventDisplay & e, 
         case 1: out.append (e.uptimeStr.data()); break;
         case 2: out.append (e.cycleStr.data  ()); break;
         case 3:
+            if (e.drive != DiskIIEventDisplay::kFieldNotApplicable)
+            {
+                swprintf_s (driveBuf, L"%d", e.drive + 1);
+                out.append (driveBuf);
+            }
+            break;
+        case 4:
             label = DebugDialogProjection::EventLabel (e.category, e.type);
             out.append (label);
             break;
-        case 4: out.append (e.detail); break;
+        case 5: out.append (e.detail); break;
         default: break;
     }
 }
@@ -288,7 +298,7 @@ static void AppendColumnText (std::wstring & out, const DiskIIEventDisplay & e, 
 
 std::wstring BuildClipboardText (
     const std::vector<const DiskIIEventDisplay *> &  selected,
-    const std::array<LogicalColumn, 5> &             columns)
+    const std::array<LogicalColumn, kColumnCount> &  columns)
 {
     std::wstring  out;
     size_t        rowIdx       = 0;
@@ -347,7 +357,7 @@ std::wstring BuildClipboardText (
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<VisibleColumnSpec> PlanVisibleColumns (
-    const std::array<LogicalColumn, 5> & model) noexcept
+    const std::array<LogicalColumn, kColumnCount> & model) noexcept
 {
     std::vector<VisibleColumnSpec>  out;
     int                             i = 0;

@@ -275,7 +275,7 @@ static std::wstring FormatDetail (const DiskIIEvent & src)
         case DiskIIEventType::DriveSelect:
         case DiskIIEventType::DiskInserted:
         case DiskIIEventType::DiskEjected:
-            return std::format (L"drive={}", src.payload.drive.drive);
+            return std::wstring();
 
         case DiskIIEventType::EventsLost:
             return std::format (L"[{} events lost]", src.payload.lost.count);
@@ -285,14 +285,11 @@ static std::wstring FormatDetail (const DiskIIEvent & src)
         case DiskIIEventType::AudioContinued:
         case DiskIIEventType::AudioLoopStarted:
         case DiskIIEventType::AudioLoopStopped:
-            return std::format (L"kind={} drive={}",
-                                SoundKindLabel (src.payload.audio.kind),
-                                src.payload.audio.drive);
+            return std::format (L"kind={}", SoundKindLabel (src.payload.audio.kind));
 
         case DiskIIEventType::AudioSilent:
-            return std::format (L"kind={} drive={} reason={}",
+            return std::format (L"kind={} reason={}",
                                 SoundKindLabel    (src.payload.audio.kind),
-                                src.payload.audio.drive,
                                 SilentReasonLabel (src.payload.audio.reason));
 
         case DiskIIEventType::MotorCommandOn:

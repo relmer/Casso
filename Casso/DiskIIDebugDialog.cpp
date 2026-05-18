@@ -66,7 +66,7 @@ enum DiskIIDebugDialogCtrlId : int
     // maps directly to LogicalColumn id 0..4 (Wall, Uptime, Cycle,
     // Event, Detail) per DiskIIDebugDialogState.
     kIdColumnToggleFirst  = 160,
-    kIdColumnToggleLast   = 164,
+    kIdColumnToggleLast   = 165,
 };
 
 static const wchar_t * const  s_kpszEventTypeLabels[8] =
@@ -1712,6 +1712,7 @@ bool DiskIIDebugDialog::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
 void DiskIIDebugDialog::HandleGetDispInfo (NMLVDISPINFOW * pInfo)
 {
     thread_local wchar_t  s_eventLabelBuf[32] = {};
+    thread_local wchar_t  s_driveBuf[4]       = {};
 
     LVITEMW           &   item            = pInfo->item;
     uint32_t              deqIdx          = 0;
@@ -1768,6 +1769,19 @@ void DiskIIDebugDialog::HandleGetDispInfo (NMLVDISPINFOW * pInfo)
             break;
 
         case 3:
+            if (e.drive != DiskIIEventDisplay::kFieldNotApplicable)
+            {
+                swprintf_s (s_driveBuf, L"%d", e.drive + 1);
+                item.pszText = s_driveBuf;
+            }
+            else
+            {
+                s_driveBuf[0] = L'\0';
+                item.pszText  = s_driveBuf;
+            }
+            break;
+
+        case 4:
             label   = DebugDialogProjection::EventLabel (e.category, e.type);
             copyLen = std::min<size_t> (label.size(),
                                         (sizeof (s_eventLabelBuf) / sizeof (s_eventLabelBuf[0])) - 1);
@@ -1776,7 +1790,7 @@ void DiskIIDebugDialog::HandleGetDispInfo (NMLVDISPINFOW * pInfo)
             item.pszText = s_eventLabelBuf;
             break;
 
-        case 4:
+        case 5:
             item.pszText = const_cast<LPWSTR> (e.detail.c_str());
             break;
 

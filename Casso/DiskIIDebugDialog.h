@@ -171,8 +171,8 @@ private:
     FilterState                             m_filter;
     bool                                    m_paused             = false;
 
-    std::array<LogicalColumn, 5>            m_columns            {};
-    std::array<int, 5>                      m_visibleOrdinalToLogicalId {};
+    std::array<LogicalColumn, kColumnCount>     m_columns            {};
+    std::array<int, kColumnCount>               m_visibleOrdinalToLogicalId {};
 
     UINT_PTR                                m_drainTimerId          = 1;
     UINT_PTR                                m_filterDebounceTimerId = 2;

@@ -72,17 +72,18 @@ struct FilterState
 
 
 
-// FR-004 column widths (sum ~= 790 px).
+// FR-004 column widths (sum ~= 850 px).
 constexpr int  kColWallWidth   = 110;
 constexpr int  kColUptimeWidth = 90;
 constexpr int  kColCycleWidth  = 110;
-constexpr int  kColEventWidth  = 110;
+constexpr int  kColDriveWidth  = 56;
+constexpr int  kColEventWidth  = 130;
 constexpr int  kColDetailWidth = 360;
-constexpr int  kColumnCount    = 5;
+constexpr int  kColumnCount    = 6;
 
 
 
-void   SeedDefaultColumns (std::array<LogicalColumn, 5> & columns) noexcept;
+void   SeedDefaultColumns (std::array<LogicalColumn, kColumnCount> & columns) noexcept;
 bool   ComputeWasAtTail   (int topIndex, int countPerPage, int totalCount) noexcept;
 bool   MatchesFilter      (const DiskIIEventDisplay & e, const FilterState & f) noexcept;
 
@@ -111,7 +112,7 @@ struct VisibleColumnSpec
 };
 
 std::vector<VisibleColumnSpec> PlanVisibleColumns (
-    const std::array<LogicalColumn, 5> & model) noexcept;
+    const std::array<LogicalColumn, kColumnCount> & model) noexcept;
 
 // Phase 9: format a clipboard payload from a vector of selected
 // display rows. Tab-separated UTF-16 in visible-column order (hidden
@@ -120,5 +121,5 @@ std::vector<VisibleColumnSpec> PlanVisibleColumns (
 // HWND.
 std::wstring  BuildClipboardText (
     const std::vector<const DiskIIEventDisplay *> &  selected,
-    const std::array<LogicalColumn, 5> &             columns);
+    const std::array<LogicalColumn, kColumnCount> &  columns);
 

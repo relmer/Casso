@@ -44,13 +44,13 @@ namespace DiskIIDebugDialogTests
 
 
 
-        TEST_METHOD (SeedDefaultColumns_populatesFiveColumns_inIdOrder)
+        TEST_METHOD (SeedDefaultColumns_populatesAllColumns_inIdOrder)
         {
-            std::array<LogicalColumn, 5>  columns = {};
-            const int                     expectedWidths[5] =
+            std::array<LogicalColumn, kColumnCount>  columns = {};
+            const int                                expectedWidths[kColumnCount] =
             {
                 kColWallWidth, kColUptimeWidth, kColCycleWidth,
-                kColEventWidth, kColDetailWidth
+                kColDriveWidth, kColEventWidth, kColDetailWidth
             };
 
             SeedDefaultColumns (columns);
@@ -70,10 +70,10 @@ namespace DiskIIDebugDialogTests
 
         TEST_METHOD (SeedDefaultColumns_headerLabelsMatchSpec)
         {
-            std::array<LogicalColumn, 5>  columns = {};
-            const wchar_t * const         expected[5] =
+            std::array<LogicalColumn, kColumnCount>  columns = {};
+            const wchar_t * const                    expected[kColumnCount] =
             {
-                L"Time", L"Uptime", L"Cycle count", L"Event", L"Detail"
+                L"Time", L"Uptime", L"Cycle count", L"Drive", L"Event", L"Detail"
             };
 
             SeedDefaultColumns (columns);
