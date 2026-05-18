@@ -119,6 +119,15 @@ std::vector<VisibleColumnSpec> PlanVisibleColumns (
 // columns -- and their leading tabs -- are omitted per FR-026), CRLF
 // row terminator. Pure helper; testable without a real clipboard or
 // HWND.
+// Spec-006. Append the text representation of one display cell to
+// `out`. Exposed for the dialog's content-aware column auto-sizer
+// (MeasureColumnContentWidth iterates m_deque calling this to find
+// the widest cell), and reused internally by BuildClipboardText.
+void          AppendColumnText (
+    std::wstring &                                   out,
+    const DiskIIEventDisplay &                       e,
+    int                                              logicalId);
+
 std::wstring  BuildClipboardText (
     const std::vector<const DiskIIEventDisplay *> &  selected,
     const std::array<LogicalColumn, kColumnCount> &  columns);

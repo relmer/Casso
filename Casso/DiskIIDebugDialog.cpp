@@ -659,8 +659,9 @@ void DiskIIDebugDialog::LayoutChildControls (int width, int height)
 
 void DiskIIDebugDialog::RebuildListViewColumns()
 {
-    int  virtualIdx = 0;
-    int  i          = 0;
+    int  virtualIdx   = 0;
+    int  i            = 0;
+    int  contentWidth = 0;
 
     if (m_listView == nullptr)
     {
@@ -692,16 +693,165 @@ void DiskIIDebugDialog::RebuildListViewColumns()
 
         ListView_InsertColumn (m_listView, virtualIdx, &lvc);
 
-        if (!m_columns[i].autoSizedYet)
+        m_visibleOrdinalToLogicalId[virtualIdx] = m_columns[i].id;
+
+        // Spec-006 bug-fix. Auto-size to MAX (header, widest current
+        // cell) on first show; the previous header-only auto-size
+        // truncated multi-digit Cycle / wide Detail strings to the
+        // header's width. The Detail column is special-cased: it
+        // always flexes to fill the LV client remainder so the user
+        // never sees a Detail column that's narrower than its data
+        // AND ends with empty space to its right.
+        if (m_columns[i].id != (kColumnCount - 1) && !m_columns[i].autoSizedYet)
         {
-            ListView_SetColumnWidth (m_listView, virtualIdx, LVSCW_AUTOSIZE_USEHEADER);
-            m_columns[i].savedWidth   = ListView_GetColumnWidth (m_listView, virtualIdx);
+            contentWidth = MeasureColumnContentWidth (m_columns[i].id);
+            ListView_SetColumnWidth (m_listView, virtualIdx, contentWidth);
+            m_columns[i].savedWidth   = contentWidth;
             m_columns[i].autoSizedYet = true;
         }
 
-        m_visibleOrdinalToLogicalId[virtualIdx] = m_columns[i].id;
         virtualIdx++;
     }
+
+    SizeDetailColumnToRemainder ();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasureColumnContentWidth
+//
+//  Walk the dialog's deque, project each row's cell text through
+//  AppendColumnText into a scratch buffer, and ask the ListView for
+//  the pixel width via LVM_GETSTRINGWIDTH (which uses the LV's font).
+//  Returns max (header text width, max cell width) + padding so the
+//  column shows the full content of every currently-formatted row.
+//
+//  O(N) over the deque. Called at most once per visible non-detail
+//  column per RebuildListViewColumns call (which itself only runs at
+//  dialog open and on column show/hide toggles), so the cost is
+//  bounded and amortizes to near-zero in steady state.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskIIDebugDialog::MeasureColumnContentWidth (int logicalId) const
+{
+    constexpr int     kAutoSizePaddingPx = 16;
+    constexpr int     kMinColumnWidth    = 32;
+
+    int               headerWidth        = 0;
+    int               maxCellWidth       = 0;
+    int               cellWidth          = 0;
+    size_t            i                  = 0;
+    std::wstring      scratch;
+
+    if (m_listView == nullptr || logicalId < 0 || logicalId >= kColumnCount)
+    {
+        return kMinColumnWidth;
+    }
+
+    headerWidth = ListView_GetStringWidth (m_listView, m_columns[logicalId].headerText);
+
+    for (i = 0; i < m_deque.size (); i++)
+    {
+        scratch.clear ();
+        AppendColumnText (scratch, m_deque[i], logicalId);
+
+        if (!scratch.empty ())
+        {
+            cellWidth = ListView_GetStringWidth (m_listView, scratch.c_str ());
+
+            if (cellWidth > maxCellWidth)
+            {
+                maxCellWidth = cellWidth;
+            }
+        }
+    }
+
+    return std::max (headerWidth, maxCellWidth) + kAutoSizePaddingPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SizeDetailColumnToRemainder
+//
+//  Spec-006 bug-fix. After every other visible column has its width
+//  set, give the Detail column whatever's left of the LV client area
+//  (clamped to a sensible minimum). Called from
+//  RebuildListViewColumns AND from OnSize so user resize flexes the
+//  Detail column rather than leaving the trailing whitespace dead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::SizeDetailColumnToRemainder ()
+{
+    constexpr int  kDetailMinWidth    = 200;
+    constexpr int  kDetailLogicalId   = kColumnCount - 1;
+
+    RECT           rc                 = {};
+    int            clientWidth        = 0;
+    int            usedWidth          = 0;
+    int            detailVirtualIdx   = -1;
+    int            virtualIdx         = 0;
+    int            i                  = 0;
+
+    if (m_listView == nullptr)
+    {
+        return;
+    }
+
+    if (!m_columns[kDetailLogicalId].visible)
+    {
+        return;
+    }
+
+    if (!GetClientRect (m_listView, &rc))
+    {
+        return;
+    }
+
+    clientWidth = rc.right - rc.left;
+
+    for (i = 0; i < kColumnCount; i++)
+    {
+        if (!m_columns[i].visible)
+        {
+            continue;
+        }
+
+        if (m_columns[i].id == kDetailLogicalId)
+        {
+            detailVirtualIdx = virtualIdx;
+        }
+        else
+        {
+            usedWidth += ListView_GetColumnWidth (m_listView, virtualIdx);
+        }
+
+        virtualIdx++;
+    }
+
+    if (detailVirtualIdx < 0)
+    {
+        return;
+    }
+
+    int  remainder = clientWidth - usedWidth;
+
+    if (remainder < kDetailMinWidth)
+    {
+        remainder = kDetailMinWidth;
+    }
+
+    ListView_SetColumnWidth (m_listView, detailVirtualIdx, remainder);
+    m_columns[kDetailLogicalId].savedWidth = remainder;
 }
 
 
@@ -893,6 +1043,12 @@ bool DiskIIDebugDialog::OnSize (HWND hwnd, UINT width, UINT height)
     UNREFERENCED_PARAMETER (hwnd);
 
     LayoutChildControls (static_cast<int> (width), static_cast<int> (height));
+
+    // Spec-006 bug-fix. The Detail column flexes with the dialog so
+    // user resize moves the trailing free space INTO the Detail
+    // cell rather than leaving it dead at the right edge of the LV.
+    SizeDetailColumnToRemainder ();
+
     return false;
 }
 
@@ -1580,6 +1736,40 @@ void DiskIIDebugDialog::HandleDrainTick()
 
     ListView_SetItemCountEx (m_listView, newCount, LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
 
+    // Spec-006 bug-fix. The dialog opens with an empty deque so the
+    // initial RebuildListViewColumns pass only had header text to
+    // measure against. The first time we actually have rows on
+    // screen, re-fit every non-Detail column to the now-known cell
+    // widths, then re-flex Detail to the new remainder. One-shot
+    // (m_firstAutoFitDone latches) so the user's subsequent drag
+    // edits aren't reverted on every drain.
+    if (!m_firstAutoFitDone && !m_deque.empty ())
+    {
+        int  virtualIdx = 0;
+        int  i          = 0;
+        int  width      = 0;
+
+        for (i = 0; i < kColumnCount; i++)
+        {
+            if (!m_columns[i].visible)
+            {
+                continue;
+            }
+
+            if (m_columns[i].id != (kColumnCount - 1))
+            {
+                width = MeasureColumnContentWidth (m_columns[i].id);
+                ListView_SetColumnWidth (m_listView, virtualIdx, width);
+                m_columns[i].savedWidth = width;
+            }
+
+            virtualIdx++;
+        }
+
+        SizeDetailColumnToRemainder ();
+        m_firstAutoFitDone = true;
+    }
+
     if (wasAtTail && newCount > 0)
     {
         ListView_EnsureVisible (m_listView, newCount - 1, FALSE);
@@ -1854,6 +2044,7 @@ void DiskIIDebugDialog::ClearEvents () noexcept
 
     m_deque.clear ();
     m_filteredIndices.clear ();
+    m_firstAutoFitDone = false;
 
     if (m_listView != nullptr)
     {

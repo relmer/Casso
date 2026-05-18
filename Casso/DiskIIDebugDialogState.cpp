@@ -268,7 +268,7 @@ bool MatchesFilter (const DiskIIEventDisplay & e, const FilterState & f) noexcep
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void AppendColumnText (std::wstring & out, const DiskIIEventDisplay & e, int logicalId)
+void AppendColumnText (std::wstring & out, const DiskIIEventDisplay & e, int logicalId)
 {
     std::wstring_view  label;
     wchar_t            driveBuf[4] = {};

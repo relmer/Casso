@@ -124,6 +124,8 @@ private:
     HRESULT CreateChildControls         (HWND hwnd);
     void    LayoutChildControls         (int width, int height);
     void    RebuildListViewColumns      ();
+    int     MeasureColumnContentWidth   (int logicalId) const;
+    void    SizeDetailColumnToRemainder ();
     void    ToggleColumn                (int id);
     void    CaptureCurrentWidthsIntoModel();
     void    ShowHeaderContextMenu       (int x, int y);
@@ -189,6 +191,14 @@ private:
     UINT_PTR                                m_filterDebounceTimerId = 2;
     bool                                    m_drainTimerActive      = false;
     bool                                    m_filterDebouncePending = false;
+
+    // Spec-006 bug-fix. The dialog opens with an empty deque so the
+    // first RebuildListViewColumns pass can only size each non-Detail
+    // column to the width of its header text. As soon as the first
+    // batch of real events lands in the deque, the drain tick re-fits
+    // every still-untouched column to MAX (header, widest cell). Set
+    // to false on every ClearEvents() so a soft-reset re-runs the fit.
+    bool                                    m_firstAutoFitDone      = false;
 
     std::chrono::steady_clock::time_point   m_uptimeAnchor;
     const uint64_t *                        m_cycleCounter       = nullptr;
