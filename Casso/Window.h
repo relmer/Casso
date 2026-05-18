@@ -49,6 +49,7 @@ protected:
     virtual LRESULT OnCreate   (HWND hwnd, CREATESTRUCT * pcs);
     virtual bool    OnDestroy  (HWND hwnd);
     virtual bool    OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis);
+    virtual bool    OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu);
     virtual bool    OnKeyDown  (WPARAM vk, LPARAM lParam);
     virtual bool    OnKeyUp    (WPARAM vk, LPARAM lParam);
     virtual bool    OnNotify   (HWND hwnd, WPARAM wParam, LPARAM lParam);

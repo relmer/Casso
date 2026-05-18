@@ -327,3 +327,50 @@ std::wstring BuildClipboardText (
 
     return out;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlanVisibleColumns
+//
+//  Spec-006 T108 / FR-026 / FR-027. Pure planner: walks the logical
+//  column model in id order, emits a VisibleColumnSpec for each
+//  visible entry carrying the width the ListView should use and a
+//  needsAutoSize flag set iff this column has never been auto-sized
+//  yet. The caller (RebuildListViewColumns on Win32, the test
+//  fixture in DiskIIDebugDialogColumnTests headless) consumes the
+//  vector to either drive a real LV or assert the plan's contents.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<VisibleColumnSpec> PlanVisibleColumns (
+    const std::array<LogicalColumn, 5> & model) noexcept
+{
+    std::vector<VisibleColumnSpec>  out;
+    int                             i = 0;
+
+    out.reserve (kColumnCount);
+
+    for (i = 0; i < kColumnCount; i++)
+    {
+        VisibleColumnSpec  spec = {};
+
+        if (!model[i].visible)
+        {
+            continue;
+        }
+
+        spec.id            = model[i].id;
+        spec.headerText    = model[i].headerText;
+        spec.width         = model[i].savedWidth;
+        spec.needsAutoSize = !model[i].autoSizedYet;
+
+        out.push_back (spec);
+    }
+
+    return out;
+}
+

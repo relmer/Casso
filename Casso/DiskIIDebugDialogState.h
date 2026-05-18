@@ -86,6 +86,33 @@ void   SeedDefaultColumns (std::array<LogicalColumn, 5> & columns) noexcept;
 bool   ComputeWasAtTail   (int topIndex, int countPerPage, int totalCount) noexcept;
 bool   MatchesFilter      (const DiskIIEventDisplay & e, const FilterState & f) noexcept;
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VisibleColumnSpec / PlanVisibleColumns
+//
+//  Pure helper extracted for spec-006 T108. Given the in-memory
+//  LogicalColumn model, produce the ordered list of columns the
+//  ListView should hold (one entry per visible column, in id order).
+//  Each entry carries the LV-side width to use (savedWidth, with
+//  autoSizedYet flagging "first show -- caller should run the
+//  LVSCW_AUTOSIZE_USEHEADER pass"). Tests assert the planner's
+//  semantics without instantiating a real ListView.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct VisibleColumnSpec
+{
+    int        id;
+    LPCWSTR    headerText;
+    int        width;
+    bool       needsAutoSize;
+};
+
+std::vector<VisibleColumnSpec> PlanVisibleColumns (
+    const std::array<LogicalColumn, 5> & model) noexcept;
+
 // Phase 9: format a clipboard payload from a vector of selected
 // display rows. Tab-separated UTF-16 in visible-column order (hidden
 // columns -- and their leading tabs -- are omitted per FR-026), CRLF

@@ -60,6 +60,12 @@ enum DiskIIDebugDialogCtrlId : int
 
     kIdBtnPause           = 150,
     kIdBtnClear           = 151,
+
+    // Header right-click popup column-toggle items. Range 160..164
+    // maps directly to LogicalColumn id 0..4 (Wall, Uptime, Cycle,
+    // Event, Detail) per DiskIIDebugDialogState.
+    kIdColumnToggleFirst  = 160,
+    kIdColumnToggleLast   = 164,
 };
 
 static const wchar_t * const  s_kpszEventTypeLabels[8] =
@@ -694,6 +700,180 @@ void DiskIIDebugDialog::RebuildListViewColumns ()
 
         m_visibleOrdinalToLogicalId[virtualIdx] = m_columns[i].id;
         virtualIdx++;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ToggleColumn
+//
+//  Flip one LogicalColumn's visible bit and rebuild the LV's column
+//  set. The pre-flip CaptureCurrentWidthsIntoModel() preserves any
+//  user-dragged width that hasn't been written back yet (HDN_ENDTRACK
+//  catches drag-end but Win32 doesn't fire it for programmatic
+//  changes). Hiding all five columns is allowed -- the LV draws a
+//  blank canvas and the user can re-show via the same popup.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::ToggleColumn (int id)
+{
+    if (id < 0 || id >= kColumnCount)
+    {
+        return;
+    }
+
+    CaptureCurrentWidthsIntoModel ();
+
+    m_columns[id].visible = !m_columns[id].visible;
+
+    RebuildListViewColumns ();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CaptureCurrentWidthsIntoModel
+//
+//  Walk the ListView's currently-visible columns and copy each one's
+//  width back into the matching LogicalColumn::savedWidth via the
+//  m_visibleOrdinalToLogicalId map. Called before any rebuild that
+//  could lose user-dragged widths, and from the HDN_ENDTRACK notify
+//  when the user finishes a drag.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::CaptureCurrentWidthsIntoModel ()
+{
+    int  width     = 0;
+    int  logicalId = 0;
+    int  i         = 0;
+
+    if (m_listView == nullptr)
+    {
+        return;
+    }
+
+    for (i = 0; i < kColumnCount; i++)
+    {
+        logicalId = m_visibleOrdinalToLogicalId[i];
+
+        if (logicalId < 0 || logicalId >= kColumnCount)
+        {
+            continue;
+        }
+
+        width = ListView_GetColumnWidth (m_listView, i);
+
+        if (width > 0)
+        {
+            m_columns[logicalId].savedWidth = width;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowHeaderContextMenu
+//
+//  Build and display the FR-026 column-visibility popup. Each item
+//  is keyed by IDM = kIdColumnToggleFirst + LogicalColumn.id, with
+//  MFS_CHECKED tracking m_columns[id].visible. TPM_RETURNCMD lets us
+//  consume the user's selection inline instead of routing through
+//  the dialog's WM_COMMAND -- the popup is owned-this-call only and
+//  doesn't need to coexist with kIdBtnPause / kIdBtnClear dispatch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::ShowHeaderContextMenu (int x, int y)
+{
+    HMENU  hMenu     = nullptr;
+    BOOL   appended  = FALSE;
+    int    cmdResult = 0;
+    int    chosenId  = 0;
+    int    i         = 0;
+    UINT   flags     = 0;
+
+    if (m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    hMenu = CreatePopupMenu ();
+
+    if (hMenu == nullptr)
+    {
+        return;
+    }
+
+    for (i = 0; i < kColumnCount; i++)
+    {
+        flags    = MF_STRING | (m_columns[i].visible ? MF_CHECKED : MF_UNCHECKED);
+        appended = AppendMenuW (hMenu,
+                                flags,
+                                static_cast<UINT_PTR> (kIdColumnToggleFirst + i),
+                                m_columns[i].headerText);
+
+        if (!appended)
+        {
+            DestroyMenu (hMenu);
+            return;
+        }
+    }
+
+    cmdResult = TrackPopupMenu (hMenu,
+                                TPM_RIGHTBUTTON | TPM_RETURNCMD | TPM_NONOTIFY,
+                                x, y, 0,
+                                m_hwnd, nullptr);
+
+    DestroyMenu (hMenu);
+
+    if (cmdResult >= kIdColumnToggleFirst && cmdResult <= kIdColumnToggleLast)
+    {
+        chosenId = cmdResult - kIdColumnToggleFirst;
+        ToggleColumn (chosenId);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetMultiControllerHint
+//
+//  FR-017. Append " (controller #0 only)" when the active machine
+//  config has more than one Disk II controller, otherwise restore the
+//  base title. Safe to call before or after Create().
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::SetMultiControllerHint (bool isMulti) noexcept
+{
+    if (m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    if (isMulti)
+    {
+        SetWindowTextW (m_hwnd, L"Disk II Debug (controller #0 only)");
+    }
+    else
+    {
+        SetWindowTextW (m_hwnd, s_kpszDebugWndTitle);
     }
 }
 
@@ -1459,7 +1639,10 @@ void DiskIIDebugDialog::AppendFilteredIndicesFor (size_t startIdx)
 
 bool DiskIIDebugDialog::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
-    NMHDR  *  pHdr  = reinterpret_cast<NMHDR *> (lParam);
+    NMHDR  *  pHdr      = reinterpret_cast<NMHDR *> (lParam);
+    HWND      header    = nullptr;
+    DWORD     msgPos    = 0;
+    POINT     pt        = {};
 
     UNREFERENCED_PARAMETER (hwnd);
     UNREFERENCED_PARAMETER (wParam);
@@ -1473,6 +1656,32 @@ bool DiskIIDebugDialog::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
     {
         HandleGetDispInfo (reinterpret_cast<NMLVDISPINFOW *> (lParam));
         return false;
+    }
+
+    if (m_listView != nullptr)
+    {
+        header = ListView_GetHeader (m_listView);
+    }
+
+    // FR-026 / FR-027. The ListView's header subcontrol surfaces
+    // right-clicks as NM_RCLICK and user width-drag completion as
+    // HDN_ENDTRACK. Both fire through the parent's WM_NOTIFY.
+    if (header != nullptr && pHdr->hwndFrom == header)
+    {
+        if (pHdr->code == NM_RCLICK)
+        {
+            msgPos = static_cast<DWORD> (GetMessagePos ());
+            pt.x   = static_cast<int> (static_cast<short> (LOWORD (msgPos)));
+            pt.y   = static_cast<int> (static_cast<short> (HIWORD (msgPos)));
+            ShowHeaderContextMenu (pt.x, pt.y);
+            return false;
+        }
+
+        if (pHdr->code == HDN_ENDTRACKW || pHdr->code == HDN_ENDTRACKA)
+        {
+            CaptureCurrentWidthsIntoModel ();
+            return false;
+        }
     }
 
     return false;

@@ -685,4 +685,41 @@ public:
                           L"00:00:00.500\t00:00.500\t1,000\tHEAD BUMP\tqt=0\r\n"),
             out);
     }
+
+
+
+    TEST_METHOD (FormatEvent_uptimeAnchorJustReset_emitsZeroMinutesZeroSeconds)
+    {
+        // Spec-006 T103b / FR-004a / SC-015. Simulate the
+        // ResetUptimeAnchor path: capture the anchor "now", let a
+        // sliver of wall time elapse, format an event, and assert
+        // the Uptime column reads 00:00.xxx (not whatever the
+        // pre-reset value was).
+        std::chrono::steady_clock::time_point  anchor      = std::chrono::steady_clock::now ();
+        DiskIIEvent                            src         = {};
+        DiskIIEventDisplay                     out         = {};
+        const wchar_t                       *  uptimeText  = nullptr;
+
+        std::this_thread::sleep_for (std::chrono::milliseconds (5));
+
+        src.type            = DiskIIEventType::MotorEngaged;
+        src.category        = EventCategory::Controller;
+        src.cycle           = 0;
+
+        DebugDialogProjection::FormatEvent (src, anchor, out);
+
+        uptimeText = out.uptimeStr.data ();
+
+        Assert::IsNotNull (uptimeText);
+
+        // FR-005 uptime shape: MM:SS.mmm. A just-reset anchor must
+        // start with "00:00." regardless of however many ms the
+        // sleep slipped by.
+        Assert::AreEqual (L'0', uptimeText[0]);
+        Assert::AreEqual (L'0', uptimeText[1]);
+        Assert::AreEqual (L':', uptimeText[2]);
+        Assert::AreEqual (L'0', uptimeText[3]);
+        Assert::AreEqual (L'0', uptimeText[4]);
+        Assert::AreEqual (L'.', uptimeText[5]);
+    }
 };

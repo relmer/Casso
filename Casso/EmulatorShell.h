@@ -17,6 +17,7 @@
 #include "Audio/DriveAudioMixer.h"
 #include "Audio/DiskIIAudioSource.h"
 #include "WasapiAudio.h"
+#include "DiskIIDebugDialog.h"
 
 
 
@@ -78,6 +79,32 @@ public:
     void SoftReset      ();
     void PowerCycle     ();
 
+    // Spec-006 / FR-001 / FR-024. View -> Disk II Debug... command
+    // entry point. On first call: lazy-create the modeless dialog,
+    // attach it as the sink on the active Disk II controller
+    // (controller #0 per FR-017) AND on that controller's
+    // DiskIIAudioSource. On subsequent calls: show + bring to front.
+    void OpenDiskIIDebugDialog ();
+
+    // Spec-006 / FR-004a. Re-zero the Uptime column anchor on every
+    // //e SoftReset / PowerCycle. The anchor is shell-owned (lives
+    // across dialog opens) but read by the dialog via
+    // GetUptimeAnchor() on each WM_TIMER drain.
+    void ResetUptimeAnchor () noexcept
+    {
+        m_uptimeAnchor = std::chrono::steady_clock::now ();
+
+        if (m_diskIIDebugDialog != nullptr)
+        {
+            m_diskIIDebugDialog->SetUptimeAnchor (m_uptimeAnchor);
+        }
+    }
+
+    std::chrono::steady_clock::time_point GetUptimeAnchor () const noexcept
+    {
+        return m_uptimeAnchor;
+    }
+
 private:
     // Window message handler overrides
     bool    OnChar     (WPARAM ch, LPARAM lParam) override;
@@ -90,6 +117,7 @@ private:
     bool    OnNotify   (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
     bool    OnSize     (HWND hwnd, UINT width, UINT height) override;
     bool    OnTimer    (HWND hwnd, UINT_PTR timerId) override;
+    bool    OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu) override;
 
     // Command group handlers
     void OnFileCommand    (int id);
@@ -259,6 +287,13 @@ private:
 
     uint32_t        m_cyclesPerFrame  = 17050;
     double          m_sampleRemainder = 0.0;
+
+    // Spec-006 / FR-001 / FR-004a. Owned by the shell so the dialog
+    // can be lazy-created on first Ctrl+Shift+D and reused across
+    // opens. The uptime anchor lives on the shell (not the dialog)
+    // so resets re-zero it even while the dialog is closed.
+    std::unique_ptr<class DiskIIDebugDialog>  m_diskIIDebugDialog;
+    std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now () };
 };
 
 

@@ -213,6 +213,13 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
                                                 reinterpret_cast<DRAWITEMSTRUCT *> (lParam));
             break;
 
+        case WM_INITMENUPOPUP:
+            callDefWndProc = pThis->OnInitMenuPopup (hwnd,
+                                                     reinterpret_cast<HMENU> (wParam),
+                                                     LOWORD (lParam),
+                                                     HIWORD (lParam) != 0);
+            break;
+
         case WM_KEYDOWN:
         case WM_SYSKEYDOWN:
             // Route system-key events (Alt, Alt+key, F10) through the same
@@ -383,6 +390,26 @@ bool Window::OnKeyDown (WPARAM vk, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER (vk);
     UNREFERENCED_PARAMETER (lParam);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnInitMenuPopup
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (hMenu);
+    UNREFERENCED_PARAMETER (itemIndex);
+    UNREFERENCED_PARAMETER (isWindowMenu);
 
     return true;
 }

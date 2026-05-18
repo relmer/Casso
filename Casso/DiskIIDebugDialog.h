@@ -44,6 +44,21 @@ public:
 
     HWND    GetHwnd () const noexcept { return m_hwnd; }
 
+    // Spec-006 / FR-004a. The shell owns the canonical uptime anchor
+    // and pokes it through here on construction, on every Open, and
+    // on every SoftReset / PowerCycle. The dialog reads its private
+    // copy on each WM_TIMER drain when formatting Uptime strings.
+    void    SetUptimeAnchor (std::chrono::steady_clock::time_point anchor) noexcept
+    {
+        m_uptimeAnchor = anchor;
+    }
+
+    // Spec-006 / FR-017. When the active machine config has more
+    // than one Disk II controller, append " (controller #0 only)" to
+    // the window title so the user knows the dialog is wired to the
+    // first controller. Called by the shell at open time.
+    void    SetMultiControllerHint (bool isMulti) noexcept;
+
     // IDiskIIEventSink
     void OnMotorCommandOn   () override;
     void OnMotorEngaged     () override;
@@ -88,6 +103,9 @@ private:
     HRESULT CreateChildControls         (HWND hwnd);
     void    LayoutChildControls         (int width, int height);
     void    RebuildListViewColumns      ();
+    void    ToggleColumn                (int id);
+    void    CaptureCurrentWidthsIntoModel ();
+    void    ShowHeaderContextMenu       (int x, int y);
     HFONT   AcquireUiFont               ();
 
     void    HandleDrainTick             ();

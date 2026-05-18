@@ -2,6 +2,7 @@
 
 #include "MenuSystem.h"
 #include "resource.h"
+#include "Core/MachineConfig.h"
 
 
 
@@ -92,6 +93,8 @@ static const MenuItem kViewMenuItems[] =
     { MF_STRING | MF_GRAYED,  IDM_VIEW_CRT_SHADER, L"C&RT Shader" },
     { 0,                      kSep,                nullptr },
     { MF_STRING,              IDM_VIEW_OPTIONS,    L"&Options..." },
+    { 0,                      kSep,                nullptr },
+    { MF_STRING,              IDM_VIEW_DISKII_DEBUG, L"&Disk II Debug...\tCtrl+Shift+D" },
 };
 
 static const MenuItem kHelpMenuItems[] =
@@ -275,6 +278,35 @@ Error:
 void MenuSystem::SetPaused (bool paused)
 {
     CheckMenuItem (m_machineMenu, IDM_MACHINE_PAUSE, paused ? MF_CHECKED : MF_UNCHECKED);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDynamicMenuItems
+//
+//  WM_INITMENUPOPUP entry point. Re-evaluates the enabled/checked
+//  state of menu items that depend on runtime state (FR-001a). Called
+//  every time the user opens a popup, so a SwitchMachine that swaps
+//  in / out a Disk II controller takes effect on the next menu open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MenuSystem::UpdateDynamicMenuItems (const MachineConfig & config) noexcept
+{
+    UINT  enableFlags = MF_BYCOMMAND | (ShouldEnableDiskIIDebugMenuItem (config)
+                                        ? MF_ENABLED
+                                        : MF_GRAYED);
+
+    if (m_viewMenu == nullptr)
+    {
+        return;
+    }
+
+    EnableMenuItem (m_viewMenu, IDM_VIEW_DISKII_DEBUG, enableFlags);
 }
 
 
