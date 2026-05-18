@@ -391,18 +391,26 @@ public:
     TEST_METHOD (Filter_driveOne_showsOnlyDriveOneTaggedEvents)
     {
         FilterState           f;
-        DiskIIEventDisplay    drv1 = MakeDisplay (DiskIIEventType::DriveSelect, EventCategory::Controller, 1);
-        DiskIIEventDisplay    drv2 = MakeDisplay (DiskIIEventType::DriveSelect, EventCategory::Controller, 2);
+        // Drive radio "Drive 1" = UI value 1 = internal drive index 0.
+        // Drive radio "Drive 2" = UI value 2 = internal drive index 1.
+        DiskIIEventDisplay    drv1  = MakeDisplay (DiskIIEventType::DriveSelect, EventCategory::Controller, 0);
+        DiskIIEventDisplay    drv2  = MakeDisplay (DiskIIEventType::DriveSelect, EventCategory::Controller, 1);
         DiskIIEventDisplay    motor = MakeDisplay (DiskIIEventType::MotorEngaged, EventCategory::Controller);
 
-        f.driveFilter = 1;
+        f.driveFilter = 1;    // "Drive 1" -> internal 0
 
         Assert::IsTrue  (MatchesFilter (drv1,  f));
         Assert::IsFalse (MatchesFilter (drv2,  f));
-        // Motor events have no drive field -> rejected (Drive=Drive 1).
-        Assert::IsFalse (MatchesFilter (motor, f));
+        // Motor events have no drive field -> drive predicate bypasses
+        // (events on the shared spindle aren't drive-tagged; hiding
+        // them when filtering by drive would hide most of the stream).
+        Assert::IsTrue  (MatchesFilter (motor, f));
 
-        f.driveFilter = 0;
+        f.driveFilter = 2;    // "Drive 2" -> internal 1
+        Assert::IsFalse (MatchesFilter (drv1, f));
+        Assert::IsTrue  (MatchesFilter (drv2, f));
+
+        f.driveFilter = 0;    // "All"
         Assert::IsTrue (MatchesFilter (drv1,  f));
         Assert::IsTrue (MatchesFilter (drv2,  f));
         Assert::IsTrue (MatchesFilter (motor, f));
@@ -443,10 +451,13 @@ public:
     TEST_METHOD (Filter_combined_driveAndTrackAndReadOnlyAndAudioOff)
     {
         FilterState           f;
-        DiskIIEventDisplay    matching   = MakeDisplay (DiskIIEventType::DataRead, EventCategory::Controller, 1, DiskIIEventDisplay::kFieldNotApplicable, 0);
-        DiskIIEventDisplay    wrongDrive = MakeDisplay (DiskIIEventType::DataRead, EventCategory::Controller, 2, DiskIIEventDisplay::kFieldNotApplicable, 0);
+        // driveFilter == 1 means "Drive 1" in the UI; the underlying
+        // event index for that selection is 0. Read events from drive 0
+        // must pass the predicate.
+        DiskIIEventDisplay    matching   = MakeDisplay (DiskIIEventType::DataRead, EventCategory::Controller, 0, DiskIIEventDisplay::kFieldNotApplicable, 0);
+        DiskIIEventDisplay    wrongDrive = MakeDisplay (DiskIIEventType::DataRead, EventCategory::Controller, 1, DiskIIEventDisplay::kFieldNotApplicable, 0);
         DiskIIEventDisplay    motor      = MakeDisplay (DiskIIEventType::MotorEngaged, EventCategory::Controller);
-        DiskIIEventDisplay    audio      = MakeDisplay (DiskIIEventType::AudioStarted, EventCategory::Audio, 1);
+        DiskIIEventDisplay    audio      = MakeDisplay (DiskIIEventType::AudioStarted, EventCategory::Audio, 0);
 
         f.eventTypeMask = FilterState::kEventCatRead;
         f.driveFilter   = 1;
@@ -454,6 +465,7 @@ public:
 
         Assert::IsTrue  (MatchesFilter (matching,   f));
         Assert::IsFalse (MatchesFilter (wrongDrive, f));
+        // motor has no drive field; eventTypeMask gates it out (Read only).
         Assert::IsFalse (MatchesFilter (motor,      f));
         Assert::IsFalse (MatchesFilter (audio,      f));
     }
