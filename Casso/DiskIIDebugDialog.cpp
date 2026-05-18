@@ -625,10 +625,11 @@ Error:
 
 void DiskIIDebugDialog::LayoutChildControls (int width, int height)
 {
-    int  x = 0;
-    int  y = 0;
-    int  i = 0;
+    int  x           = 0;
+    int  y           = 0;
+    int  i           = 0;
     int  listViewTop = 0;
+    int  trackEditX  = 0;
 
     if (m_listView == nullptr)
     {
@@ -675,31 +676,31 @@ void DiskIIDebugDialog::LayoutChildControls (int width, int height)
 
     // Spec-006 bug-fix. The Quarter-track steps checkbox modifies how
     // bare integers in the track edit are interpreted, so it lives in
-    // row 4 directly under the track edit (kEditX is captured here so
-    // row 4 can align to the same x).
-    {
-        int trackEditX = x;
+    // row 4 directly under the track edit (trackEditX is captured here
+    // so row 4 and the row-5 invalid label can align to the same x).
+    trackEditX = x;
 
-        MoveWindow (m_trackRichEdit, x, y, kEditWidth, kRowHeight, TRUE);
-        x += kEditWidth + kRowGap;
+    MoveWindow (m_trackRichEdit, x, y, kEditWidth, kRowHeight, TRUE);
+    x += kEditWidth + kRowGap;
 
-        MoveWindow (m_sectorFilterLabel, x, y + 3, kFilterLabelWidth, kRowHeight, TRUE);
-        x += kFilterLabelWidth + kRowGap;
+    MoveWindow (m_sectorFilterLabel, x, y + 3, kFilterLabelWidth, kRowHeight, TRUE);
+    x += kFilterLabelWidth + kRowGap;
 
-        MoveWindow (m_sectorRichEdit, x, y, kEditWidth, kRowHeight, TRUE);
+    MoveWindow (m_sectorRichEdit, x, y, kEditWidth, kRowHeight, TRUE);
 
-        // Row 4: Quarter-track steps checkbox aligned under the track edit.
-        y += kRowHeight + kRowGap;
-        MoveWindow (m_trackRawQtCheck, trackEditX, y, kRawQtCheckWidth, kRowHeight, TRUE);
-    }
+    // Row 4: Quarter-track steps checkbox aligned under the track edit.
+    y += kRowHeight + kRowGap;
+    MoveWindow (m_trackRawQtCheck, trackEditX, y, kRawQtCheckWidth, kRowHeight, TRUE);
 
-    // Row 5: single combined invalid label (red text, full width).
+    // Row 5: single combined invalid label (red text). Left-aligned
+    // with the track edit so the label hangs under the track / sector
+    // inputs rather than spanning the full dialog width.
     y += kRowHeight + kRowGap;
 
     MoveWindow (m_invalidLabel,
-                kMargin,
+                trackEditX,
                 y,
-                width - 2 * kMargin,
+                width - trackEditX - kMargin,
                 kIgnoredLabelHeight,
                 TRUE);
 
