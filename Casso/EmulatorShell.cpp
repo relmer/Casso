@@ -815,7 +815,9 @@ void EmulatorShell::DrawDriveStatusItem (DRAWITEMSTRUCT * pdis, int driveIndex)
 
     active = m_diskController != nullptr
           && m_diskController->IsMotorOn()
-          && m_diskController->GetActiveDrive() == driveIndex;
+          && m_diskController->GetActiveDrive() == driveIndex
+          && m_diskController->GetDisk (driveIndex) != nullptr
+          && m_diskController->GetDisk (driveIndex)->IsLoaded ();
 
     dotColor = active ? RGB (220, 32, 32) : RGB (128, 128, 128);
 
