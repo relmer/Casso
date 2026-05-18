@@ -239,6 +239,31 @@ static void FormatUptime (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FormatTrackSectorVolume
+//
+//  Helper that renders one of the address-mark / data-mark coordinate
+//  fields. A cached value of -1 (no preceding address mark for a data
+//  read) prints as "?" so the dialog row reads "T? S? V? (256 bytes)"
+//  rather than emitting bare -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static std::wstring FormatCoord (wchar_t prefix, int value)
+{
+    if (value < 0)
+    {
+        return std::format (L"{}?", prefix);
+    }
+
+    return std::format (L"{}{}", prefix, value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FormatDetail
 //
 //  Per-event-type Detail column string per FR-005.
@@ -258,19 +283,23 @@ static std::wstring FormatDetail (const DiskIIEvent & src)
             return std::format (L"at quarter-track {}", src.payload.bump.atQt);
 
         case DiskIIEventType::AddrMark:
-            return std::format (L"T{} S{} V{}",
-                                src.payload.addrMark.track,
-                                src.payload.addrMark.sector,
-                                src.payload.addrMark.volume);
+            return std::format (L"{} {} {}",
+                                FormatCoord (L'T', src.payload.addrMark.track),
+                                FormatCoord (L'S', src.payload.addrMark.sector),
+                                FormatCoord (L'V', src.payload.addrMark.volume));
 
         case DiskIIEventType::DataRead:
-            return std::format (L"S{} ({} bytes)",
-                                src.payload.dataMark.sector,
+            return std::format (L"{} {} {} ({} bytes)",
+                                FormatCoord (L'T', src.payload.dataMark.track),
+                                FormatCoord (L'S', src.payload.dataMark.sector),
+                                FormatCoord (L'V', src.payload.dataMark.volume),
                                 src.payload.dataMark.byteCount);
 
         case DiskIIEventType::DataWrite:
-            return std::format (L"S{} ({} bytes)",
-                                src.payload.dataMark.sector,
+            return std::format (L"{} {} {} ({} bytes)",
+                                FormatCoord (L'T', src.payload.dataMark.track),
+                                FormatCoord (L'S', src.payload.dataMark.sector),
+                                FormatCoord (L'V', src.payload.dataMark.volume),
                                 src.payload.dataMark.byteCount);
 
         case DiskIIEventType::DriveSelect:
@@ -410,18 +439,18 @@ void DebugDialogProjection::FormatEvent (
     out.category = src.category;
     out.type     = src.type;
     out.drive    = PayloadDrive (src);
-    out.track    = (src.type == DiskIIEventType::AddrMark)
-                       ? src.payload.addrMark.track
-                       : DiskIIEventDisplay::kFieldNotApplicable;
+    out.track    = DiskIIEventDisplay::kFieldNotApplicable;
     out.sector   = DiskIIEventDisplay::kFieldNotApplicable;
 
     if (src.type == DiskIIEventType::AddrMark)
     {
+        out.track  = src.payload.addrMark.track;
         out.sector = src.payload.addrMark.sector;
     }
     else if (src.type == DiskIIEventType::DataRead
              || src.type == DiskIIEventType::DataWrite)
     {
+        out.track  = src.payload.dataMark.track;
         out.sector = src.payload.dataMark.sector;
     }
 

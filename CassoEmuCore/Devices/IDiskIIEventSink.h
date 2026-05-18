@@ -74,8 +74,8 @@ public:
     virtual void OnHeadBump         (int atQt) = 0;
 
     virtual void OnAddressMark      (int track, int sector, int volume) = 0;
-    virtual void OnDataMarkRead     (int sector, int byteCount) = 0;
-    virtual void OnDataMarkWrite    (int sector, int byteCount) = 0;
+    virtual void OnDataMarkRead     (int track, int sector, int volume, int byteCount) = 0;
+    virtual void OnDataMarkWrite    (int track, int sector, int volume, int byteCount) = 0;
 
     virtual void OnDriveSelect      (int drive) = 0;
     virtual void OnDiskInserted     (int drive) = 0;

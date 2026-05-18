@@ -88,8 +88,8 @@ public:
     void OnHeadStep         (int prevQt, int newQt) override;
     void OnHeadBump         (int atQt) override;
     void OnAddressMark      (int track, int sector, int volume) override;
-    void OnDataMarkRead     (int sector, int byteCount) override;
-    void OnDataMarkWrite    (int sector, int byteCount) override;
+    void OnDataMarkRead     (int track, int sector, int volume, int byteCount) override;
+    void OnDataMarkWrite    (int track, int sector, int volume, int byteCount) override;
     void OnDriveSelect      (int drive) override;
     void OnDiskInserted     (int drive) override;
     void OnDiskEjected      (int drive) override;
@@ -117,7 +117,7 @@ private:
     void    PushHeadStepEvent    (int prevQt, int newQt) noexcept;
     void    PushHeadBumpEvent    (int atQt) noexcept;
     void    PushAddrMarkEvent    (int track, int sector, int volume) noexcept;
-    void    PushDataMarkEvent    (DiskIIEventType type, int sector, int byteCount) noexcept;
+    void    PushDataMarkEvent    (DiskIIEventType type, int track, int sector, int volume, int byteCount) noexcept;
     void    PushDriveEvent       (DiskIIEventType type, int drive) noexcept;
     void    PushAudioEvent       (DiskIIEventType type, SoundKind kind, int drive, SilentReason reason) noexcept;
     void    PublishToRing        (const DiskIIEvent & e) noexcept;

@@ -147,6 +147,8 @@ void DiskIIAddressMarkWatcher::StepAddrMarkState (uint8_t nibble) noexcept
             if (chk == (uint8_t) (vol ^ trk ^ sec))
             {
                 m_cachedSector = (int) sec;
+                m_cachedTrack  = (int) trk;
+                m_cachedVolume = (int) vol;
 
                 if (m_eventSink != nullptr)
                 {
@@ -247,7 +249,7 @@ void DiskIIAddressMarkWatcher::StepDataMarkState (uint8_t nibble) noexcept
             {
                 if (m_eventSink != nullptr)
                 {
-                    m_eventSink->OnDataMarkRead (m_cachedSector, 256);
+                    m_eventSink->OnDataMarkRead (m_cachedTrack, m_cachedSector, m_cachedVolume, 256);
                 }
 
                 m_dataState = DataState::Idle;

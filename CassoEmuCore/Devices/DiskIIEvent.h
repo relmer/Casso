@@ -132,7 +132,9 @@ struct DiskIIEvent
 
     struct DataMarkPayload
     {
+        int                 track;
         int                 sector;
+        int                 volume;
         int                 byteCount;
     };
 

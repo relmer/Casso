@@ -2371,14 +2371,16 @@ void DiskIIDebugDialog::PushAddrMarkEvent (int track, int sector, int volume) no
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::PushDataMarkEvent (DiskIIEventType type, int sector, int byteCount) noexcept
+void DiskIIDebugDialog::PushDataMarkEvent (DiskIIEventType type, int track, int sector, int volume, int byteCount) noexcept
 {
     DiskIIEvent  e = {};
 
     e.category                    = EventCategory::Controller;
     e.type                        = type;
     e.drive                       = static_cast<int8_t> (m_currentDrive);
+    e.payload.dataMark.track      = track;
     e.payload.dataMark.sector     = sector;
+    e.payload.dataMark.volume     = volume;
     e.payload.dataMark.byteCount  = byteCount;
 
     PublishToRing (e);
@@ -2452,8 +2454,8 @@ void DiskIIDebugDialog::OnMotorDisengaged  () { PushControllerEvent (DiskIIEvent
 void DiskIIDebugDialog::OnHeadStep         (int prevQt, int newQt)              { PushHeadStepEvent (prevQt, newQt); }
 void DiskIIDebugDialog::OnHeadBump         (int atQt)                           { PushHeadBumpEvent (atQt); }
 void DiskIIDebugDialog::OnAddressMark      (int track, int sector, int volume)  { PushAddrMarkEvent (track, sector, volume); }
-void DiskIIDebugDialog::OnDataMarkRead     (int sector, int byteCount)          { PushDataMarkEvent (DiskIIEventType::DataRead,  sector, byteCount); }
-void DiskIIDebugDialog::OnDataMarkWrite    (int sector, int byteCount)          { PushDataMarkEvent (DiskIIEventType::DataWrite, sector, byteCount); }
+void DiskIIDebugDialog::OnDataMarkRead     (int track, int sector, int volume, int byteCount) { PushDataMarkEvent (DiskIIEventType::DataRead,  track, sector, volume, byteCount); }
+void DiskIIDebugDialog::OnDataMarkWrite    (int track, int sector, int volume, int byteCount) { PushDataMarkEvent (DiskIIEventType::DataWrite, track, sector, volume, byteCount); }
 void DiskIIDebugDialog::OnDriveSelect      (int drive)                          { m_currentDrive = drive; PushDriveEvent    (DiskIIEventType::DriveSelect,  drive); }
 void DiskIIDebugDialog::OnDiskInserted     (int drive)                          { PushDriveEvent    (DiskIIEventType::DiskInserted, drive); }
 void DiskIIDebugDialog::OnDiskEjected      (int drive)                          { PushDriveEvent    (DiskIIEventType::DiskEjected,  drive); }

@@ -42,7 +42,9 @@ namespace
 
         struct DataEntry
         {
+            int    track;
             int    sector;
+            int    volume;
             int    byteCount;
         };
 
@@ -56,8 +58,8 @@ namespace
         void OnHeadStep        (int, int) override                          {}
         void OnHeadBump        (int) override                               {}
         void OnAddressMark     (int track, int sector, int volume) override { addrLog.push_back ({ track, sector, volume }); }
-        void OnDataMarkRead    (int sector, int byteCount) override         { dataLog.push_back ({ sector, byteCount }); }
-        void OnDataMarkWrite   (int, int) override                          {}
+        void OnDataMarkRead    (int track, int sector, int volume, int byteCount) override { dataLog.push_back ({ track, sector, volume, byteCount }); }
+        void OnDataMarkWrite   (int, int, int, int) override                {}
         void OnDriveSelect     (int) override                               {}
         void OnDiskInserted    (int) override                               {}
         void OnDiskEjected     (int) override                               {}
@@ -264,7 +266,9 @@ namespace DiskIIAddressMarkWatcherTests
             FeedAll (watcher, stream);
 
             Assert::AreEqual ((size_t) 1, sink.dataLog.size());
+            Assert::AreEqual (17,  sink.dataLog[0].track);
             Assert::AreEqual (7,   sink.dataLog[0].sector);
+            Assert::AreEqual (254, sink.dataLog[0].volume);
             Assert::AreEqual (256, sink.dataLog[0].byteCount);
         }
 
@@ -280,11 +284,13 @@ namespace DiskIIAddressMarkWatcherTests
             FeedAll (watcher, stream);
 
             // Per FR-008 / T021: data mark seen without preceding
-            // address mark still fires; sector falls back to the
-            // cached value (-1 == "unknown", formatted as S? at the
-            // UI layer).
+            // address mark still fires; track / sector / volume all
+            // fall back to the cached value (-1 == "unknown",
+            // formatted as T? / S? / V? at the UI layer).
             Assert::AreEqual ((size_t) 1, sink.dataLog.size());
+            Assert::AreEqual (-1,  sink.dataLog[0].track);
             Assert::AreEqual (-1,  sink.dataLog[0].sector);
+            Assert::AreEqual (-1,  sink.dataLog[0].volume);
             Assert::AreEqual (256, sink.dataLog[0].byteCount);
         }
 
@@ -315,10 +321,19 @@ namespace DiskIIAddressMarkWatcherTests
             Assert::AreEqual (2, sink.addrLog[2].sector);
 
             // Each data read picks up the most-recently-decoded
-            // sector number cached by the preceding address mark.
+            // sector / track / volume cached by the preceding
+            // address mark.
             Assert::AreEqual (0, sink.dataLog[0].sector);
             Assert::AreEqual (1, sink.dataLog[1].sector);
             Assert::AreEqual (2, sink.dataLog[2].sector);
+
+            Assert::AreEqual (17, sink.dataLog[0].track);
+            Assert::AreEqual (17, sink.dataLog[1].track);
+            Assert::AreEqual (17, sink.dataLog[2].track);
+
+            Assert::AreEqual (254, sink.dataLog[0].volume);
+            Assert::AreEqual (254, sink.dataLog[1].volume);
+            Assert::AreEqual (254, sink.dataLog[2].volume);
         }
 
 
@@ -420,7 +435,9 @@ namespace DiskIIAddressMarkWatcherTests
                 L"Polling loop must produce exactly one data-mark event");
             Assert::AreEqual (17, sink.addrLog[0].track);
             Assert::AreEqual (5,  sink.addrLog[0].sector);
+            Assert::AreEqual (17, sink.dataLog[0].track);
             Assert::AreEqual (5,  sink.dataLog[0].sector);
+            Assert::AreEqual (254, sink.dataLog[0].volume);
         }
     };
 }

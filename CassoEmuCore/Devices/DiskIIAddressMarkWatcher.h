@@ -63,10 +63,14 @@ public:
     // matching the audio-sink attach pattern from spec-005.
     void   SetEventSink   (IDiskIIEventSink * sink) noexcept   { m_eventSink = sink; }
 
-    // Test seam: most recent fully-decoded sector number (-1 until
-    // the first successful address mark). Read by tests and by the
-    // data-mark accept path.
+    // Test seam: most recent fully-decoded sector / track / volume
+    // numbers from the latest address mark (-1 until the first
+    // successful address mark). Read by tests and by the data-mark
+    // accept path so a data mark seen without a preceding address
+    // mark still fires; the UI formats -1 as "?" (FR-008).
     int    GetCachedSector() const noexcept                    { return m_cachedSector; }
+    int    GetCachedTrack () const noexcept                    { return m_cachedTrack;  }
+    int    GetCachedVolume() const noexcept                    { return m_cachedVolume; }
 
 private:
     enum class AddrState : uint8_t
@@ -118,4 +122,6 @@ private:
     uint8_t             m_peek2         = 0;   // 2 back (oldest in window)
 
     int                 m_cachedSector  = -1;
+    int                 m_cachedTrack   = -1;
+    int                 m_cachedVolume  = -1;
 };

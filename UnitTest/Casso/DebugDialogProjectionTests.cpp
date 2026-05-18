@@ -129,12 +129,27 @@ public:
         auto                 anchor = std::chrono::steady_clock::now();
 
         src.type                   = DiskIIEventType::DataRead;
-        src.payload.dataMark       = { 5, 256 };
+        src.payload.dataMark       = { 17, 5, 254, 256 };
 
         DebugDialogProjection::FormatEvent (src, anchor, out);
 
-        Assert::AreEqual (std::wstring (L"S5 (256 bytes)"), out.detail);
-        Assert::AreEqual (5,                                 out.sector);
+        Assert::AreEqual (std::wstring (L"T17 S5 V254 (256 bytes)"), out.detail);
+        Assert::AreEqual (17, out.track);
+        Assert::AreEqual (5,  out.sector);
+    }
+
+    TEST_METHOD (FormatEvent_DataRead_detailUsesQuestionMarkWhenCachedAddrMarkAbsent)
+    {
+        DiskIIEvent          src = {};
+        DiskIIEventDisplay   out;
+        auto                 anchor = std::chrono::steady_clock::now();
+
+        src.type                   = DiskIIEventType::DataRead;
+        src.payload.dataMark       = { -1, -1, -1, 256 };
+
+        DebugDialogProjection::FormatEvent (src, anchor, out);
+
+        Assert::AreEqual (std::wstring (L"T? S? V? (256 bytes)"), out.detail);
     }
 
     TEST_METHOD (FormatEvent_DriveSelect_detailHasDriveAndDriveField)
