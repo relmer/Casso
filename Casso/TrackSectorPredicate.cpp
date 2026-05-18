@@ -188,6 +188,32 @@ namespace
 
         return expr.substr ((size_t) ioBegin, (size_t) (ioEnd - ioBegin));
     }
+
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  ValueCap
+    //
+    //  Returns the exclusive upper bound for a parsed value given the
+    //  parser mode and whether the value is a quarter-track. Sector
+    //  mode caps at 16 (DOS 3.3); track mode caps at 40 whole or 160
+    //  quarter-tracks. Spec-006 bug fix: any value >= the cap is
+    //  rejected (RejectedSpan recorded) so the dialog can squiggle it.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    int ValueCap (TrackSectorPredicate::Mode mode, bool isQt) noexcept
+    {
+        if (mode == TrackSectorPredicate::Mode::Sector)
+        {
+            return TrackSectorPredicate::kMaxSectorExclusive;
+        }
+
+        return isQt
+                   ? TrackSectorPredicate::kMaxQuarterTrackExclusive
+                   : TrackSectorPredicate::kMaxWholeTrackExclusive;
+    }
 }
 
 
@@ -206,7 +232,7 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, bool rawQt)
+TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, Mode mode, bool rawQt)
 {
     TrackSectorPredicate   pred;
     int                    cursor       = 0;
@@ -220,6 +246,7 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, bool r
     int                    val          = 0;
     int                    hiVal        = 0;
     size_t                 dashPos      = 0;
+    int                    cap          = 0;
 
     while (cursor <= exprEnd)
     {
@@ -248,7 +275,31 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, bool r
                         ParseValue (hiStr, rawQt, hiVal, hiIsQt) &&
                         isQt == hiIsQt)
                     {
-                        pred.m_ranges.push_back ({ val, hiVal, isQt });
+                        cap = ValueCap (mode, isQt);
+
+                        // Both endpoints in range: accept the range.
+                        // One endpoint out of range: clamp the in-
+                        // range endpoint into [0, cap) and record a
+                        // RejectedSpan so the dialog squiggles the
+                        // whole token. Both out of range: drop.
+                        if (val >= 0 && val < cap && hiVal >= 0 && hiVal < cap)
+                        {
+                            pred.m_ranges.push_back ({ val, hiVal, isQt });
+                        }
+                        else if (val >= 0 && val < cap)
+                        {
+                            pred.m_ranges.push_back ({ val, cap - 1, isQt });
+                            pred.m_rejected.push_back ({ trimmedBegin, trimmedEnd });
+                        }
+                        else if (hiVal >= 0 && hiVal < cap)
+                        {
+                            pred.m_ranges.push_back ({ 0, hiVal, isQt });
+                            pred.m_rejected.push_back ({ trimmedBegin, trimmedEnd });
+                        }
+                        else
+                        {
+                            pred.m_rejected.push_back ({ trimmedBegin, trimmedEnd });
+                        }
                     }
                     else
                     {
@@ -259,7 +310,16 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, bool r
                 {
                     if (ParseValue (trimmed, rawQt, val, isQt))
                     {
-                        pred.m_ranges.push_back ({ val, val, isQt });
+                        cap = ValueCap (mode, isQt);
+
+                        if (val >= 0 && val < cap)
+                        {
+                            pred.m_ranges.push_back ({ val, val, isQt });
+                        }
+                        else
+                        {
+                            pred.m_rejected.push_back ({ trimmedBegin, trimmedEnd });
+                        }
                     }
                     else
                     {

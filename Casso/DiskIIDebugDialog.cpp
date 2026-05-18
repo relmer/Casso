@@ -1467,8 +1467,11 @@ void DiskIIDebugDialog::FlushFilterDebounce()
     trackText  = ReadEditText (m_trackRichEdit);
     sectorText = ReadEditText (m_sectorRichEdit);
 
-    m_filter.trackFilter  = TrackSectorPredicate::Parse (trackText,  m_filter.trackFilterRawQt);
-    m_filter.sectorFilter = TrackSectorPredicate::Parse (sectorText, false);
+    m_filter.trackFilter  = TrackSectorPredicate::Parse (trackText,
+                                                         TrackSectorPredicate::Mode::Track,
+                                                         m_filter.trackFilterRawQt);
+    m_filter.sectorFilter = TrackSectorPredicate::Parse (sectorText,
+                                                         TrackSectorPredicate::Mode::Sector);
 
     RebuildFilteredIndices();
     InvalidateListView();

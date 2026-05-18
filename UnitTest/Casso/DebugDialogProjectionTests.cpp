@@ -427,7 +427,7 @@ public:
         DiskIIEventDisplay    t17 = MakeDisplay (DiskIIEventType::AddrMark, EventCategory::Controller, 1, 17, 0);
         DiskIIEventDisplay    t5  = MakeDisplay (DiskIIEventType::AddrMark, EventCategory::Controller, 1, 5,  0);
 
-        f.trackFilter = TrackSectorPredicate::Parse (L"0-2,17", false);
+        f.trackFilter = TrackSectorPredicate::Parse (L"0-2,17", TrackSectorPredicate::Mode::Track, false);
 
         Assert::IsTrue  (MatchesFilter (t0,  f));
         Assert::IsTrue  (MatchesFilter (t1,  f));
@@ -442,7 +442,7 @@ public:
         FilterState           f;
         DiskIIEventDisplay    s0  = MakeDisplay (DiskIIEventType::DataRead, EventCategory::Controller, 1, DiskIIEventDisplay::kFieldNotApplicable, 0);
 
-        f.sectorFilter = TrackSectorPredicate::Parse (L"999", false);
+        f.sectorFilter = TrackSectorPredicate::Parse (L"999", TrackSectorPredicate::Mode::Sector);
 
         Assert::IsFalse (MatchesFilter (s0, f));
     }

@@ -49,6 +49,17 @@ class TrackSectorPredicate
 public:
     static constexpr int  kQuarterTracksPerTrack = 4;
 
+    // Disk II geometry caps for the FR-014a / FR-014b validators.
+    // Standard DOS 3.3: 35 tracks. With quarter-track expansion the
+    // physical head can reach track 39.75 (160 quarter-tracks total
+    // numbered 0..159). The parser rejects any whole-track value >=
+    // kMaxWholeTrackExclusive and any quarter-track value >=
+    // kMaxQuarterTrackExclusive; sectors are capped at
+    // kMaxSectorExclusive (DOS 3.3 = 0..15).
+    static constexpr int  kMaxWholeTrackExclusive   = 40;
+    static constexpr int  kMaxQuarterTrackExclusive = 160;
+    static constexpr int  kMaxSectorExclusive       = 16;
+
     struct Range
     {
         int   lo;
@@ -62,9 +73,18 @@ public:
         int   endUtf16;
     };
 
+    enum class Mode : uint8_t
+    {
+        Sector = 0,    // bare ints capped at kMaxSectorExclusive
+        Track  = 1,    // bare ints capped at kMaxWholeTrackExclusive; qt at kMaxQuarterTrackExclusive
+    };
+
     TrackSectorPredicate() = default;
 
-    static TrackSectorPredicate    Parse           (std::wstring_view expr, bool rawQt);
+    // Spec-006 bug fix. `mode` selects the per-value validator (track
+    // / sector). The third `rawQt` arg is meaningful only when
+    // mode == Track; when mode == Sector the parser ignores it.
+    static TrackSectorPredicate    Parse           (std::wstring_view expr, Mode mode, bool rawQt = false);
 
     bool                            Matches             (int value) const noexcept;
     bool                            MatchesQuarterTrack (int qt) const noexcept;

@@ -28,7 +28,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (EmptyExpression_matchesEverything_noRejectedSpans)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"", false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"", TrackSectorPredicate::Mode::Track, false);
 
             Assert::IsTrue  (p.IsMatchAll());
             Assert::IsTrue  (p.Matches (0));
@@ -40,7 +40,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (SingleValue_matchesOnlyThatValue)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"17", false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"17", TrackSectorPredicate::Mode::Track, false);
 
             Assert::IsFalse (p.IsMatchAll());
             Assert::IsTrue  (p.Matches (17));
@@ -52,7 +52,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (DecimalQuarterTrack_matchesQuarterTrackValue)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"17.5", false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"17.5", TrackSectorPredicate::Mode::Track, false);
 
             // 17 * 4 + 2 == 70.
             Assert::IsTrue  (p.MatchesQuarterTrack (70));
@@ -64,7 +64,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (Range_matchesEveryValueInside)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-2", false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-2", TrackSectorPredicate::Mode::Track, false);
 
             Assert::IsTrue  (p.Matches (0));
             Assert::IsTrue  (p.Matches (1));
@@ -76,7 +76,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (CommaSeparatedList_matchesEachListedValue)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0,17,34", false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0,17,34", TrackSectorPredicate::Mode::Track, false);
 
             Assert::IsTrue  (p.Matches (0));
             Assert::IsTrue  (p.Matches (17));
@@ -88,7 +88,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (MixedRangeAndValues_unionMatches)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-2,17,30-34", false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-2,17,30-34", TrackSectorPredicate::Mode::Track, false);
 
             Assert::IsTrue  (p.Matches (0));
             Assert::IsTrue  (p.Matches (1));
@@ -106,24 +106,21 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (RawQtFlag_interpretsBareIntegersAsQuarterTracks)
         {
-            TrackSectorPredicate  pRaw    = TrackSectorPredicate::Parse (L"68", true);
-            TrackSectorPredicate  pWhole  = TrackSectorPredicate::Parse (L"68", false);
+            TrackSectorPredicate  pRaw    = TrackSectorPredicate::Parse (L"68", TrackSectorPredicate::Mode::Track, true);
 
             // rawQt: bare 68 is quarter-track 68 (== whole-track 17).
+            // Spec-006 bug 3: kMaxQuarterTrackExclusive == 160, so 68
+            // is still in range and accepted.
             Assert::IsTrue  (pRaw.MatchesQuarterTrack (68));
             Assert::IsFalse (pRaw.MatchesQuarterTrack (67));
-
-            // Whole-track mode: 68 is whole-track 68; the parser does NOT
-            // reject it even though no standard Disk II disk reaches that
-            // track (FR-014a "no max-value validation" rule).
-            Assert::IsTrue  (pWhole.Matches (68));
+            Assert::AreEqual ((size_t) 0, pRaw.RejectedSpans().size());
         }
 
 
         TEST_METHOD (MalformedToken_isSilentlyDroppedFromMatching)
         {
-            TrackSectorPredicate  pOnly = TrackSectorPredicate::Parse (L"abc", false);
-            TrackSectorPredicate  pMix  = TrackSectorPredicate::Parse (L"1, abc, 3", false);
+            TrackSectorPredicate  pOnly = TrackSectorPredicate::Parse (L"abc", TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  pMix  = TrackSectorPredicate::Parse (L"1, abc, 3", TrackSectorPredicate::Mode::Track, false);
 
             // Per the explicit T027 clarification: an expression with
             // tokens but in which every token was rejected does NOT
@@ -141,7 +138,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (Whitespace_toleratedAroundTokensAndSeparators)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"  0 - 2 , 17  ", false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"  0 - 2 , 17  ", TrackSectorPredicate::Mode::Track, false);
 
             Assert::IsTrue  (p.Matches (0));
             Assert::IsTrue  (p.Matches (1));
@@ -153,21 +150,81 @@ namespace TrackSectorPredicateTests
         }
 
 
-        TEST_METHOD (LargeValue_parsesWithoutMaxValidation)
+        TEST_METHOD (LargeValue_outsideTrackRange_isRejectedWithSquiggle)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"999", false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"999", TrackSectorPredicate::Mode::Track, false);
 
-            // FR-014a: NO max-value rejection. 999 parses, simply
-            // fails to match any realistic Disk II track / sector.
-            Assert::AreEqual ((size_t) 0, p.RejectedSpans().size());
-            Assert::IsTrue   (p.Matches (999));
-            Assert::IsFalse  (p.Matches (998));
+            // Spec-006 bug 3: kMaxWholeTrackExclusive == 40, so any
+            // whole-track value >= 40 is now rejected and recorded
+            // as a RejectedSpan so the dialog can squiggle it.
+            Assert::AreEqual ((size_t) 1, p.RejectedSpans().size());
+            Assert::IsFalse  (p.IsMatchAll());
+            Assert::IsFalse  (p.Matches (999));
+        }
+
+
+        TEST_METHOD (TrackBoundary_track39Accepted_track40Rejected)
+        {
+            // Spec-006 bug 3: tracks 0..39 are accepted (full
+            // quarter-track expansion); 40 and up rejected.
+            TrackSectorPredicate  ok  = TrackSectorPredicate::Parse (L"39", TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  bad = TrackSectorPredicate::Parse (L"40", TrackSectorPredicate::Mode::Track, false);
+
+            Assert::AreEqual ((size_t) 0, ok.RejectedSpans().size());
+            Assert::IsTrue   (ok.Matches (39));
+
+            Assert::AreEqual ((size_t) 1, bad.RejectedSpans().size());
+            Assert::IsFalse  (bad.Matches (40));
+        }
+
+
+        TEST_METHOD (QuarterTrackBoundary_3975Accepted_4000Rejected)
+        {
+            // 39.75 = quarter-track 159 (< 160) -> accepted.
+            // 40.0  = quarter-track 160         -> rejected.
+            TrackSectorPredicate  ok  = TrackSectorPredicate::Parse (L"39.75", TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  bad = TrackSectorPredicate::Parse (L"40.0",  TrackSectorPredicate::Mode::Track, false);
+
+            Assert::AreEqual ((size_t) 0, ok.RejectedSpans().size());
+            Assert::IsTrue   (ok.MatchesQuarterTrack (159));
+
+            Assert::AreEqual ((size_t) 1, bad.RejectedSpans().size());
+            Assert::IsFalse  (bad.MatchesQuarterTrack (160));
+        }
+
+
+        TEST_METHOD (SectorBoundary_sector15Accepted_sector16Rejected)
+        {
+            TrackSectorPredicate  ok  = TrackSectorPredicate::Parse (L"15", TrackSectorPredicate::Mode::Sector);
+            TrackSectorPredicate  bad = TrackSectorPredicate::Parse (L"16", TrackSectorPredicate::Mode::Sector);
+
+            Assert::AreEqual ((size_t) 0, ok.RejectedSpans().size());
+            Assert::IsTrue   (ok.Matches (15));
+
+            Assert::AreEqual ((size_t) 1, bad.RejectedSpans().size());
+            Assert::IsFalse  (bad.Matches (16));
+        }
+
+
+        TEST_METHOD (RangeWithOutOfRangeHi_clampsToCapAndSquigglesToken)
+        {
+            // "0-77" track -> clamp hi to 39, accept the partial
+            // range, AND squiggle the whole token so the user sees
+            // the explicit reject.
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-77", TrackSectorPredicate::Mode::Track, false);
+
+            Assert::AreEqual ((size_t) 1, p.RejectedSpans().size());
+            Assert::IsTrue   (p.Matches (0));
+            Assert::IsTrue   (p.Matches (20));
+            Assert::IsTrue   (p.Matches (39));
+            Assert::IsFalse  (p.Matches (40));
+            Assert::IsFalse  (p.Matches (77));
         }
 
 
         TEST_METHOD (RejectedSpan_recordsExactBeginEndOfMalformedToken)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-2, abc, 17", false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-2, abc, 17", TrackSectorPredicate::Mode::Track, false);
 
             // "0-2, abc, 17"
             //  0123456789012
@@ -180,7 +237,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (RejectedSpan_recordsMultipleMalformedTokensIndividually)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"xx, 5, yy", false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"xx, 5, yy", TrackSectorPredicate::Mode::Track, false);
 
             // "xx, 5, yy"
             //  012345678
@@ -196,7 +253,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (FullyValidExpression_yieldsEmptyRejectedSpanList)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-2, 17, 30-34", false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-2, 17, 30-34", TrackSectorPredicate::Mode::Track, false);
 
             Assert::AreEqual ((size_t) 0, p.RejectedSpans().size());
         }
@@ -204,7 +261,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (AllJunkExpression_recordsAllSpansAndMatchesNothing)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"abc, def", false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"abc, def", TrackSectorPredicate::Mode::Track, false);
 
             // "abc, def"
             //  01234567
