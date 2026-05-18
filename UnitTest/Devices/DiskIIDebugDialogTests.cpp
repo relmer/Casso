@@ -73,7 +73,7 @@ namespace DiskIIDebugDialogTests
             std::array<LogicalColumn, 5>  columns = {};
             const wchar_t * const         expected[5] =
             {
-                L"Wall", L"Uptime", L"Cycle", L"Event", L"Detail"
+                L"Time", L"Uptime", L"Cycle count", L"Event", L"Detail"
             };
 
             SeedDefaultColumns (columns);

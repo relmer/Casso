@@ -15,9 +15,9 @@
 
 static const wchar_t * const  s_kpszColumnHeaders[kColumnCount] =
 {
-    L"Wall",
+    L"Time",
     L"Uptime",
-    L"Cycle",
+    L"Cycle count",
     L"Event",
     L"Detail",
 };

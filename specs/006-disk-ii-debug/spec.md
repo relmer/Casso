@@ -105,34 +105,34 @@ A developer is investigating why a specific copy-protected disk (e.g., Karateka)
 - **FR-002 (Accelerator)**: The menu item MUST have a keyboard accelerator of **Ctrl+Shift+D**. The accelerator MUST be registered in the application accelerator table and MUST function whether the main window or any modeless dialog has focus, as long as no modal dialog is in front of it. The accelerator is subject to the menu-item enablement gate per FR-001a — when the menu item is disabled (no Disk II in the active config), the accelerator MUST NOT open the debug window.
 - **FR-003 (ListView, virtual + report mode)**: The window MUST contain a Win32 ListView control in `LVS_REPORT | LVS_OWNERDATA` mode. The ListView MUST source its row contents via `LVN_GETDISPINFO` against the UI-thread deque (FR-009); it MUST NOT use `InsertItem` per row.
 - **FR-004 (Column set)**: The ListView MUST have exactly five columns in this order:
-  1. **Wall** — local wall-clock time as `HH:MM:SS.mmm`. Used to correlate emulator events with external real-world events (other tool logs, video captures, hardware oscilloscope traces).
+  1. **Time** — local wall-clock time as `HH:MM:SS.mmm`. Used to correlate emulator events with external real-world events (other tool logs, video captures, hardware oscilloscope traces).
   2. **Uptime** — relative time as `MM:SS.mmm` since the most recent //e reset or power-cycle (see FR-004a). The //e's reset is the natural T=0 for disk debugging — every `RWTS recalibration` sequence begins shortly after T=0 on a cold boot.
-  3. **Cycle** — cumulative CPU cycle counter since the most recent reset (the value already maintained by the CPU emulator and consumed by `DiskIIController::Tick()` for spindown timing), displayed as a decimal integer with thousands separators (e.g., `1,234,567`).
-  4. **Event** — one of: `MOTOR COMMAND ON`, `MOTOR ENGAGED`, `MOTOR COMMAND OFF`, `MOTOR DISENGAGED`, `HEAD STEP`, `HEAD BUMP`, `ADDR MARK`, `DATA READ`, `DATA WRITE`, `DRIVE SELECT`, `DISK INSERTED`, `DISK EJECTED`, `AUDIO STARTED`, `AUDIO RESTARTED`, `AUDIO CONTINUED`, `AUDIO SILENT`, `AUDIO LOOP STARTED`, `AUDIO LOOP STOPPED`, `[N events lost]` (synthetic).
+  3. **Cycle count** — cumulative CPU cycle counter since the most recent reset (the value already maintained by the CPU emulator and consumed by `DiskIIController::Tick()` for spindown timing), displayed as a decimal integer with thousands separators (e.g., `1,234,567`).
+  4. **Event** — sentence-cased event label (e.g., `Motor command on`, `Motor engaged`, `Head step`, `Address mark`, `Data read`, `Drive select`, `Audio loop started`, `Events lost`).
   5. **Detail** — free-form per-event text, formatted per FR-005.
 - **FR-004a (Uptime zero-point)**: The Uptime counter MUST be reset to `00:00.000` on every //e reset (the existing `MachineShell::SoftReset` path) AND on every power-cycle (the existing `MachineShell::PowerCycle` path). Emulator-process startup MUST also seed the anchor so the first event before any reset shows a sensible Uptime. The wiring is a single `m_uptimeAnchor = std::chrono::steady_clock::now()` assignment hooked into each handler; the Uptime column computes `(now - m_uptimeAnchor)` formatted as `MM:SS.mmm`. The Uptime is process-lifetime-scoped; it is NOT relative to emulator-process startup once any reset has occurred.
 - **FR-005 (Per-event detail formatting)**: The detail column MUST be populated as follows:
   | Event | Detail format |
   |---|---|
-  | `MOTOR COMMAND ON` | empty (every `$C0E9` strobe, including no-op re-strobes) |
-  | `MOTOR ENGAGED` | empty (false→true edge of `m_motorOn` — audio-relevant logical engagement) |
-  | `MOTOR COMMAND OFF` | empty (every `$C0E8` strobe; arms the spindown timer when engaged) |
-  | `MOTOR DISENGAGED` | empty (true→false edge after spindown timer expires — audio-stop moment) |
-  | `HEAD STEP` | `qt <prev> -> qt <new> (<direction>)` where direction is `inward` (new > prev) or `outward` (new < prev). |
-  | `HEAD BUMP` | `at qt <position>` where position is `0` or `kMaxQuarterTrack` (typically 139). |
-  | `ADDR MARK` | `T<track> S<sector> V<volume>` (e.g., `T17 S5 V254`). |
-  | `DATA READ` | `S<sector> (<N> bytes)`; if no address mark has been observed, `S?` is used for sector. |
-  | `DATA WRITE` | `S<sector> (<N> bytes)`; same fallback as DATA READ. |
-  | `DRIVE SELECT` | `drive <N>` (1-based). |
-  | `DISK INSERTED` | `drive <N>` (1-based). |
-  | `DISK EJECTED` | `drive <N>` (1-based). |
-  | `AUDIO STARTED` | `kind=<SoundKind> drive=<N>` (new one-shot from sample 0; previous shot was finished/idle) |
-  | `AUDIO RESTARTED` | `kind=<SoundKind> drive=<N>` (new one-shot fired while a previous shot was still playing; previous shot was cut short) |
-  | `AUDIO CONTINUED` | `kind=<SoundKind> drive=<N>` (event acknowledged; previous shot's tail intentionally preserved per spec-005 FR-005 seek-mode case) |
-  | `AUDIO SILENT` | `kind=<SoundKind> drive=<N> reason=<SilentReason>` (one of `DriveAudioDisabled`, `BufferMissing`, `NoSourceRegistered`, `ColdBootSuppression`) |
-  | `AUDIO LOOP STARTED` | `kind=<SoundKind> drive=<N>` (looping sound — motor — began) |
-  | `AUDIO LOOP STOPPED` | `kind=<SoundKind> drive=<N>` (looping sound stopped) |
-  | `[N events lost]` | `<N>` (decimal). |
+  | `Motor command on` | empty (every `$C0E9` strobe, including no-op re-strobes) |
+  | `Motor engaged` | empty (false→true edge of `m_motorOn` — audio-relevant logical engagement) |
+  | `Motor command off` | empty (every `$C0E8` strobe; arms the spindown timer when engaged) |
+  | `Motor disengaged` | empty (true→false edge after spindown timer expires — audio-stop moment) |
+  | `Head step` | `quarter-track <prev> -> <new>` |
+  | `Head bump` | `at quarter-track <position>` where position is `0` or `kMaxQuarterTrack` (typically 139). |
+  | `Address mark` | `T<track> S<sector> V<volume>` (e.g., `T17 S5 V254`). |
+  | `Data read` | `S<sector> (<N> bytes)`; if no address mark has been observed, `S?` is used for sector. |
+  | `Data write` | `S<sector> (<N> bytes)`; same fallback as `Data read`. |
+  | `Drive select` | empty (drive shown in Drive column). |
+  | `Disk inserted` | empty (drive shown in Drive column). |
+  | `Disk ejected` | empty (drive shown in Drive column). |
+  | `Audio started` | `kind=<SoundKind>` (new one-shot from sample 0; previous shot was finished/idle) |
+  | `Audio restarted` | `kind=<SoundKind>` (new one-shot fired while a previous shot was still playing; previous shot was cut short) |
+  | `Audio continued` | `kind=<SoundKind>` (event acknowledged; previous shot's tail intentionally preserved per spec-005 FR-005 seek-mode case) |
+  | `Audio silent` | `kind=<SoundKind> reason=<SilentReason>` (one of `DriveAudioDisabled`, `BufferMissing`, `NoSourceRegistered`, `ColdBootSuppression`) |
+  | `Audio loop started` | `kind=<SoundKind>` (looping sound — motor — began) |
+  | `Audio loop stopped` | `kind=<SoundKind>` (looping sound stopped) |
+  | `Events lost` | `[<N> events lost]` (decimal). |
 - **FR-006 (Event sink interface)**: A new abstract interface `IDiskIIEventSink` MUST be declared in `CassoEmuCore/Devices/IDiskIIEventSink.h`. The interface MUST contain exactly these virtual methods (all `void`, all infallible). The four-event motor lifecycle replaces the single `OnMotorStart`/`OnMotorStop` pair so consumers can distinguish strobes from logical engagement edges:
   - `OnMotorCommandOn()` — every `$C0E9` strobe, including no-op re-strobes when the motor is already engaged (DOS hammers `$C0E9` every sector).
   - `OnMotorEngaged()` — false→true edge of `m_motorOn`; the logical engagement moment at which audio's `MotorLoop` starts.

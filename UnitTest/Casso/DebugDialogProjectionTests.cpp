@@ -99,7 +99,7 @@ public:
         DebugDialogProjection::FormatEvent (src, anchor, out);
 
         Assert::IsTrue   (LooksLikeWallClock (out.wallStr.data()));
-        Assert::AreEqual (std::wstring (L"qt=12 -> 16"), out.detail);
+        Assert::AreEqual (std::wstring (L"quarter-track 12 -> 16"), out.detail);
         Assert::AreEqual (std::wstring (L"1,234,567"),   std::wstring (out.cycleStr.data()));
         Assert::IsTrue   (out.type == DiskIIEventType::HeadStep);
     }
@@ -258,7 +258,7 @@ public:
 
         for (int i = 0; i < 5; i++)
         {
-            std::wstring  expected = std::format (L"qt={} -> {}", i, i + 1);
+            std::wstring  expected = std::format (L"quarter-track {} -> {}", i, i + 1);
 
             Assert::AreEqual (expected, deque[i].detail);
             Assert::IsTrue   (deque[i].type == DiskIIEventType::HeadStep);
@@ -306,18 +306,18 @@ public:
 
         Assert::AreEqual (DebugDialogProjection::kDisplayDequeCap,           deque.size());
         Assert::AreNotEqual (firstBeforeDrain,                                deque.front().detail);
-        Assert::AreEqual (std::wstring (L"qt=7 -> 8"),                        deque.back().detail);
+        Assert::AreEqual (std::wstring (L"quarter-track 7 -> 8"),             deque.back().detail);
     }
 
     TEST_METHOD (EventLabel_returnsStableStringsPerType)
     {
-        Assert::AreEqual (std::wstring (L"MOTOR ENGAGED"),
+        Assert::AreEqual (std::wstring (L"Motor engaged"),
             std::wstring (DebugDialogProjection::EventLabel (EventCategory::Controller,
                                                               DiskIIEventType::MotorEngaged)));
-        Assert::AreEqual (std::wstring (L"AUDIO SILENT"),
+        Assert::AreEqual (std::wstring (L"Audio silent"),
             std::wstring (DebugDialogProjection::EventLabel (EventCategory::Audio,
                                                               DiskIIEventType::AudioSilent)));
-        Assert::AreEqual (std::wstring (L"EVENTS LOST"),
+        Assert::AreEqual (std::wstring (L"Events lost"),
             std::wstring (DebugDialogProjection::EventLabel (EventCategory::Controller,
                                                               DiskIIEventType::EventsLost)));
     }

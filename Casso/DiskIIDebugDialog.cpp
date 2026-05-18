@@ -31,6 +31,7 @@ static constexpr int  kFilterTextDebounceMs = 250;
 static constexpr int  kMargin               = 8;
 static constexpr int  kRowHeight            = 22;
 static constexpr int  kCheckWidth           = 92;
+static constexpr int  kRawQtCheckWidth      = 150;
 static constexpr int  kAudioCheckWidth      = 86;
 static constexpr int  kRadioWidth           = 60;
 static constexpr int  kEditWidth            = 140;
@@ -437,7 +438,7 @@ HRESULT DiskIIDebugDialog::CreateChildControls (HWND hwnd)
 
     m_trackRawQtCheck = CreateWindowExW (0,
                                          L"BUTTON",
-                                         L"raw qt",
+                                         L"Quarter-track steps",
                                          WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_GROUP | BS_AUTOCHECKBOX,
                                          0, 0, 0, 0,
                                          hwnd,
@@ -598,8 +599,8 @@ void DiskIIDebugDialog::LayoutChildControls (int width, int height)
     }
 
     x += kRowGap;
-    MoveWindow (m_trackRawQtCheck, x, y, kCheckWidth, kRowHeight, TRUE);
-    x += kCheckWidth + kRowGap;
+    MoveWindow (m_trackRawQtCheck, x, y, kRawQtCheckWidth, kRowHeight, TRUE);
+    x += kRawQtCheckWidth + kRowGap;
 
     MoveWindow (m_trackRichEdit, x, y, kEditWidth, kRowHeight, TRUE);
     x += kEditWidth + kRowGap;

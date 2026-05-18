@@ -249,10 +249,12 @@ static std::wstring FormatDetail (const DiskIIEvent & src)
     switch (src.type)
     {
         case DiskIIEventType::HeadStep:
-            return std::format (L"qt={} -> {}", src.payload.step.prevQt, src.payload.step.newQt);
+            return std::format (L"quarter-track {} -> {}",
+                                src.payload.step.prevQt,
+                                src.payload.step.newQt);
 
         case DiskIIEventType::HeadBump:
-            return std::format (L"qt={}", src.payload.bump.atQt);
+            return std::format (L"at quarter-track {}", src.payload.bump.atQt);
 
         case DiskIIEventType::AddrMark:
             return std::format (L"T{} S{} V{}",
@@ -355,25 +357,25 @@ std::wstring_view DebugDialogProjection::EventLabel (EventCategory cat, DiskIIEv
 
     switch (type)
     {
-        case DiskIIEventType::MotorCommandOn:    return L"MOTOR COMMAND ON";
-        case DiskIIEventType::MotorEngaged:      return L"MOTOR ENGAGED";
-        case DiskIIEventType::MotorCommandOff:   return L"MOTOR COMMAND OFF";
-        case DiskIIEventType::MotorDisengaged:   return L"MOTOR DISENGAGED";
-        case DiskIIEventType::HeadStep:          return L"HEAD STEP";
-        case DiskIIEventType::HeadBump:          return L"HEAD BUMP";
-        case DiskIIEventType::AddrMark:          return L"ADDR MARK";
-        case DiskIIEventType::DataRead:          return L"DATA READ";
-        case DiskIIEventType::DataWrite:         return L"DATA WRITE";
-        case DiskIIEventType::DriveSelect:       return L"DRIVE SELECT";
-        case DiskIIEventType::DiskInserted:      return L"DISK INSERTED";
-        case DiskIIEventType::DiskEjected:       return L"DISK EJECTED";
-        case DiskIIEventType::EventsLost:        return L"EVENTS LOST";
-        case DiskIIEventType::AudioStarted:      return L"AUDIO STARTED";
-        case DiskIIEventType::AudioRestarted:    return L"AUDIO RESTARTED";
-        case DiskIIEventType::AudioContinued:    return L"AUDIO CONTINUED";
-        case DiskIIEventType::AudioSilent:       return L"AUDIO SILENT";
-        case DiskIIEventType::AudioLoopStarted:  return L"AUDIO LOOP STARTED";
-        case DiskIIEventType::AudioLoopStopped:  return L"AUDIO LOOP STOPPED";
+        case DiskIIEventType::MotorCommandOn:    return L"Motor command on";
+        case DiskIIEventType::MotorEngaged:      return L"Motor engaged";
+        case DiskIIEventType::MotorCommandOff:   return L"Motor command off";
+        case DiskIIEventType::MotorDisengaged:   return L"Motor disengaged";
+        case DiskIIEventType::HeadStep:          return L"Head step";
+        case DiskIIEventType::HeadBump:          return L"Head bump";
+        case DiskIIEventType::AddrMark:          return L"Address mark";
+        case DiskIIEventType::DataRead:          return L"Data read";
+        case DiskIIEventType::DataWrite:         return L"Data write";
+        case DiskIIEventType::DriveSelect:       return L"Drive select";
+        case DiskIIEventType::DiskInserted:      return L"Disk inserted";
+        case DiskIIEventType::DiskEjected:       return L"Disk ejected";
+        case DiskIIEventType::EventsLost:        return L"Events lost";
+        case DiskIIEventType::AudioStarted:      return L"Audio started";
+        case DiskIIEventType::AudioRestarted:    return L"Audio restarted";
+        case DiskIIEventType::AudioContinued:    return L"Audio continued";
+        case DiskIIEventType::AudioSilent:       return L"Audio silent";
+        case DiskIIEventType::AudioLoopStarted:  return L"Audio loop started";
+        case DiskIIEventType::AudioLoopStopped:  return L"Audio loop stopped";
     }
 
     return L"?";
