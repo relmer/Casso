@@ -2133,6 +2133,11 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
         m_diskIIDebugDialog->SetCycleCounter (m_cpu->GetCycleCounterPtr ());
     }
 
+    // Spec-006 bug 15. Re-wire the debug dialog onto the freshly
+    // built controller + audio source. Without this the dialog goes
+    // silent after a machine switch even though it's still on screen.
+    AttachDebugSinksIfOpen ();
+
     UpdateStatusBar();
     UpdateWindowTitle();
 
@@ -4066,6 +4071,47 @@ void EmulatorShell::OpenDiskIIDebugDialog ()
 
     m_diskIIDebugDialog->Show ();
     SetForegroundWindow (m_diskIIDebugDialog->GetHwnd ());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AttachDebugSinksIfOpen
+//
+//  Spec-006 bug 15. SwitchMachine tears down the old controller and
+//  audio source then constructs new ones via CreateMemoryDevices,
+//  but the dialog's sink wiring only ran inside OpenDiskIIDebugDialog
+//  on first open -- the new controller starts with m_eventSink ==
+//  nullptr and the new audio source with m_audioEventSink == nullptr,
+//  so the debug window goes silent post-switch. Re-attach both
+//  sinks if the dialog is still open. No-op when the dialog has
+//  never been opened.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::AttachDebugSinksIfOpen ()
+{
+    DiskIIController *  controller = nullptr;
+
+    if (m_diskIIDebugDialog == nullptr)
+    {
+        return;
+    }
+
+    controller = FindSlot6Controller ();
+
+    if (controller != nullptr)
+    {
+        controller->SetEventSink (m_diskIIDebugDialog.get ());
+    }
+
+    if (!m_diskAudioSources.empty () && m_diskAudioSources[0] != nullptr)
+    {
+        m_diskAudioSources[0]->SetAudioEventSink (m_diskIIDebugDialog.get ());
+    }
 }
 
 

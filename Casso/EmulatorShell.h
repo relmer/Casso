@@ -86,6 +86,15 @@ public:
     // DiskIIAudioSource. On subsequent calls: show + bring to front.
     void OpenDiskIIDebugDialog ();
 
+    // Spec-006 bug 15. SwitchMachine destroys and recreates the
+    // controller + audio source while the modeless debug dialog
+    // (if open) holds raw pointers into the now-defunct old
+    // components. Call this AFTER the new components are wired
+    // up so the dialog re-attaches as the controller event sink
+    // and the active drive's audio-event sink on the new objects.
+    // No-op when the dialog has never been opened.
+    void AttachDebugSinksIfOpen ();
+
     // Spec-006 / FR-004a. Re-zero the Uptime column anchor on every
     // //e SoftReset / PowerCycle. The anchor is shell-owned (lives
     // across dialog opens) but read by the dialog via
