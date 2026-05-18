@@ -2072,7 +2072,15 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
         IGNORE_RETURN_VALUE (hrFlush, S_OK);
     }
 
-    // Tear down current machine
+    // Tear down current machine. The Disk II debug dialog (if open)
+    // holds a raw pointer into the old CPU's cycle counter; revoke it
+    // before the CPU is reset so the dialog can't dereference dangling
+    // memory between here and CreateCpu below.
+    if (m_diskIIDebugDialog != nullptr)
+    {
+        m_diskIIDebugDialog->SetCycleCounter (nullptr);
+    }
+
     m_cpu.reset();
     m_ownedDevices.clear();
     m_memoryBus = MemoryBus();
@@ -2101,6 +2109,13 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     CHR (hr);
 
     WirePageTable();
+
+    // Re-attach the new CPU's cycle counter to the debug dialog (the
+    // pointer was revoked above before the old CPU was destroyed).
+    if (m_diskIIDebugDialog != nullptr && m_cpu != nullptr)
+    {
+        m_diskIIDebugDialog->SetCycleCounter (m_cpu->GetCycleCounterPtr ());
+    }
 
     UpdateStatusBar();
     UpdateWindowTitle();
@@ -4012,6 +4027,11 @@ void EmulatorShell::OpenDiskIIDebugDialog ()
 
         m_diskIIDebugDialog->SetUptimeAnchor (m_uptimeAnchor);
         m_diskIIDebugDialog->SetMultiControllerHint (diskIICount > 1);
+
+        if (m_cpu != nullptr)
+        {
+            m_diskIIDebugDialog->SetCycleCounter (m_cpu->GetCycleCounterPtr ());
+        }
 
         // FR-024: both sinks attached together, dialog implements
         // both interfaces. Audio sink is a no-op if the mixer has no

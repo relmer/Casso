@@ -59,6 +59,16 @@ public:
     // first controller. Called by the shell at open time.
     void    SetMultiControllerHint (bool isMulti) noexcept;
 
+    // Spec-006 / FR-005 / bug-fix. The shell owns the CPU cycle
+    // counter; the dialog dereferences this pointer on every
+    // PublishToRing call so each event carries the cycle at which
+    // the controller / audio source fired it. nullptr default keeps
+    // headless tests (and the pre-Open window) safe.
+    void    SetCycleCounter (const uint64_t * counter) noexcept
+    {
+        m_cycleCounter = counter;
+    }
+
     // IDiskIIEventSink
     void OnMotorCommandOn   () override;
     void OnMotorEngaged     () override;
@@ -170,4 +180,5 @@ private:
     bool                                    m_filterDebouncePending = false;
 
     std::chrono::steady_clock::time_point   m_uptimeAnchor;
+    const uint64_t *                        m_cycleCounter       = nullptr;
 };

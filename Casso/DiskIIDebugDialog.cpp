@@ -1797,7 +1797,14 @@ void DiskIIDebugDialog::HandleGetDispInfo (NMLVDISPINFOW * pInfo)
 
 void DiskIIDebugDialog::PublishToRing (const DiskIIEvent & e) noexcept
 {
-    if (!m_ring.TryPush (e))
+    DiskIIEvent  stamped = e;
+
+    if (m_cycleCounter != nullptr)
+    {
+        stamped.cycle = *m_cycleCounter;
+    }
+
+    if (!m_ring.TryPush (stamped))
     {
         m_droppedSinceLastDrain.fetch_add (1, std::memory_order_relaxed);
     }
