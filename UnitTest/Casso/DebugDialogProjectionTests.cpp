@@ -401,10 +401,11 @@ public:
 
         Assert::IsTrue  (MatchesFilter (drv1,  f));
         Assert::IsFalse (MatchesFilter (drv2,  f));
-        // Motor events have no drive field -> drive predicate bypasses
-        // (events on the shared spindle aren't drive-tagged; hiding
-        // them when filtering by drive would hide most of the stream).
-        Assert::IsTrue  (MatchesFilter (motor, f));
+        // Spec-006 bug 1: motor events now carry their controller's
+        // active drive stamped at fire time. MakeDisplay leaves drive
+        // unset (kFieldNotApplicable), and the strict filter rejects
+        // events without a drive when a specific drive is requested.
+        Assert::IsFalse (MatchesFilter (motor, f));
 
         f.driveFilter = 2;    // "Drive 2" -> internal 1
         Assert::IsFalse (MatchesFilter (drv1, f));

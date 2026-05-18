@@ -134,9 +134,12 @@ EmulatorShell::~EmulatorShell()
             controller->SetEventSink (nullptr);
         }
 
-        if (!m_diskAudioSources.empty () && m_diskAudioSources[0] != nullptr)
+        for (size_t i = 0; i < m_diskAudioSources.size (); i++)
         {
-            m_diskAudioSources[0]->SetAudioEventSink (nullptr);
+            if (m_diskAudioSources[i] != nullptr)
+            {
+                m_diskAudioSources[i]->SetAudioEventSink (nullptr);
+            }
         }
 
         m_diskIIDebugDialog->Destroy ();
@@ -1351,6 +1354,7 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
             }
 
             m_driveAudioMixer.RegisterSource (src.get());
+            src->SetDriveIndex (drive);
             m_diskAudioSources.push_back (std::move (src));
         }
 
@@ -4059,9 +4063,12 @@ void EmulatorShell::OpenDiskIIDebugDialog ()
         // source registered (e.g., audio subsystem disabled).
         controller->SetEventSink (m_diskIIDebugDialog.get ());
 
-        if (!m_diskAudioSources.empty () && m_diskAudioSources[0] != nullptr)
+        for (size_t i = 0; i < m_diskAudioSources.size (); i++)
         {
-            m_diskAudioSources[0]->SetAudioEventSink (m_diskIIDebugDialog.get ());
+            if (m_diskAudioSources[i] != nullptr)
+            {
+                m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get ());
+            }
         }
     }
     else
@@ -4108,9 +4115,12 @@ void EmulatorShell::AttachDebugSinksIfOpen ()
         controller->SetEventSink (m_diskIIDebugDialog.get ());
     }
 
-    if (!m_diskAudioSources.empty () && m_diskAudioSources[0] != nullptr)
+    for (size_t i = 0; i < m_diskAudioSources.size (); i++)
     {
-        m_diskAudioSources[0]->SetAudioEventSink (m_diskIIDebugDialog.get ());
+        if (m_diskAudioSources[i] != nullptr)
+        {
+            m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get ());
+        }
     }
 }
 

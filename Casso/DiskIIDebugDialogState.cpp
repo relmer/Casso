@@ -214,23 +214,23 @@ bool MatchesFilter (const DiskIIEventDisplay & e, const FilterState & f) noexcep
     {
         if (e.drive == DiskIIEventDisplay::kFieldNotApplicable)
         {
-            // Events without a drive index (motor, head, addr-mark,
-            // data-read on the shared spindle) are tagged by the
-            // controller fire-site as "no drive specified". Drive
-            // radio filter bypasses them so selecting "Drive 1"
-            // doesn't hide the read traffic on drive 0 just because
-            // those events aren't carrying a redundant drive tag.
-            // Symmetric with the track / sector predicates below.
+            // Synthetic EventsLost is the only row without a drive
+            // context; treat the always-shown rule (above) as
+            // authoritative for it and reject everything else here.
+            // Spec-006 bug fix: the previous "bypass" rule masked
+            // events that legitimately had no drive_index stamped
+            // because of producer-side oversights. Every real
+            // controller / audio event now stamps its drive at
+            // fire time, so reaching this branch means "no drive at
+            // all" -- which a non-All radio should never match.
+            return false;
         }
-        else if (e.drive != (f.driveFilter - 1))
+
+        if (e.drive != (f.driveFilter - 1))
         {
             // driveFilter is the 1-based UI selection (1 = Drive 1,
-            // 2 = Drive 2); event.drive is the 0-based internal index
-            // (matches DiskIIController::m_activeDrive). The off-by-one
-            // here is the spec-006 bug-fix: previously the filter
-            // compared identical values and "Drive 1" hid every audio
-            // event (drive=0) on the only physical drive that ever
-            // boots.
+            // 2 = Drive 2); event.drive is the 0-based internal
+            // index (matches DiskIIController::m_activeDrive).
             return false;
         }
     }

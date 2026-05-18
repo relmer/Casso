@@ -213,4 +213,12 @@ private:
 
     std::chrono::steady_clock::time_point   m_uptimeAnchor;
     const uint64_t *                        m_cycleCounter       = nullptr;
+
+    // Spec-006 bug fix. Cached active-drive index used to stamp
+    // DiskIIEvent::drive on every controller-side event that doesn't
+    // carry its own drive (motor / head / address mark / data mark).
+    // Initialized to 0 (controller boots with drive 0 active);
+    // updated on OnDriveSelect BEFORE the event is pushed so the
+    // stamped value matches the controller's new active drive.
+    int                                     m_currentDrive       = 0;
 };

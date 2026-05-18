@@ -86,12 +86,16 @@ public:
     // the debug window can show what the audio path actually did at
     // each controller-event delivery. A nullptr sink (the default)
     // leaves audio output byte-identical to the pre-feature path.
-    // The "drive" argument fired on every method is 0 here because
-    // DiskIIAudioSource is per-drive and does not carry an index;
-    // the dialog's projection layer can refine the drive number.
     void   SetAudioEventSink (IDriveAudioEventSink * sink) noexcept
     {
         m_audioEventSink = sink;
+    }
+
+    // Spec-006 bug fix. Stamp the 0-based drive index this source
+    // represents so audio-decision events report the correct drive.
+    void   SetDriveIndex     (int driveIndex) noexcept
+    {
+        m_driveIndex = driveIndex;
     }
 
     // Test-only seam: inject a sample buffer directly without touching
@@ -152,4 +156,10 @@ private:
 
     // Spec-006 audio-decision sink (FR-022 / FR-025). Optional.
     IDriveAudioEventSink * m_audioEventSink = nullptr;
+
+    // Spec-006 bug fix. The owning shell stamps the 0-based drive
+    // index on construction so the audio source can report the
+    // correct drive on every IDriveAudioEventSink fire. Default 0
+    // keeps legacy tests / single-drive configs working.
+    int                    m_driveIndex     = 0;
 };

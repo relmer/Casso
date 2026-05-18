@@ -2157,6 +2157,7 @@ void DiskIIDebugDialog::ClearEvents () noexcept
     m_filteredIndices.clear ();
     m_firstAutoFitDone   = false;
     m_lastPublishedCount = -1;
+    m_currentDrive       = 0;
 
     if (m_listView != nullptr)
     {
@@ -2184,6 +2185,7 @@ void DiskIIDebugDialog::PushControllerEvent (DiskIIEventType type) noexcept
 
     e.category = EventCategory::Controller;
     e.type     = type;
+    e.drive    = static_cast<int8_t> (m_currentDrive);
     e.cycle    = 0;
 
     PublishToRing (e);
@@ -2205,6 +2207,7 @@ void DiskIIDebugDialog::PushHeadStepEvent (int prevQt, int newQt) noexcept
 
     e.category               = EventCategory::Controller;
     e.type                   = DiskIIEventType::HeadStep;
+    e.drive                  = static_cast<int8_t> (m_currentDrive);
     e.payload.step.prevQt    = prevQt;
     e.payload.step.newQt     = newQt;
 
@@ -2227,6 +2230,7 @@ void DiskIIDebugDialog::PushHeadBumpEvent (int atQt) noexcept
 
     e.category           = EventCategory::Controller;
     e.type               = DiskIIEventType::HeadBump;
+    e.drive              = static_cast<int8_t> (m_currentDrive);
     e.payload.bump.atQt  = atQt;
 
     PublishToRing (e);
@@ -2248,6 +2252,7 @@ void DiskIIDebugDialog::PushAddrMarkEvent (int track, int sector, int volume) no
 
     e.category                   = EventCategory::Controller;
     e.type                       = DiskIIEventType::AddrMark;
+    e.drive                      = static_cast<int8_t> (m_currentDrive);
     e.payload.addrMark.track     = track;
     e.payload.addrMark.sector    = sector;
     e.payload.addrMark.volume    = volume;
@@ -2271,6 +2276,7 @@ void DiskIIDebugDialog::PushDataMarkEvent (DiskIIEventType type, int sector, int
 
     e.category                    = EventCategory::Controller;
     e.type                        = type;
+    e.drive                       = static_cast<int8_t> (m_currentDrive);
     e.payload.dataMark.sector     = sector;
     e.payload.dataMark.byteCount  = byteCount;
 
@@ -2293,6 +2299,7 @@ void DiskIIDebugDialog::PushDriveEvent (DiskIIEventType type, int drive) noexcep
 
     e.category             = EventCategory::Controller;
     e.type                 = type;
+    e.drive                = static_cast<int8_t> (drive);
     e.payload.drive.drive  = drive;
 
     PublishToRing (e);
@@ -2318,6 +2325,7 @@ void DiskIIDebugDialog::PushAudioEvent (
 
     e.category              = EventCategory::Audio;
     e.type                  = type;
+    e.drive                 = static_cast<int8_t> (drive);
     e.payload.audio.kind    = kind;
     e.payload.audio.reason  = reason;
     e.payload.audio.drive   = drive;
@@ -2345,7 +2353,7 @@ void DiskIIDebugDialog::OnHeadBump         (int atQt)                           
 void DiskIIDebugDialog::OnAddressMark      (int track, int sector, int volume)  { PushAddrMarkEvent (track, sector, volume); }
 void DiskIIDebugDialog::OnDataMarkRead     (int sector, int byteCount)          { PushDataMarkEvent (DiskIIEventType::DataRead,  sector, byteCount); }
 void DiskIIDebugDialog::OnDataMarkWrite    (int sector, int byteCount)          { PushDataMarkEvent (DiskIIEventType::DataWrite, sector, byteCount); }
-void DiskIIDebugDialog::OnDriveSelect      (int drive)                          { PushDriveEvent    (DiskIIEventType::DriveSelect,  drive); }
+void DiskIIDebugDialog::OnDriveSelect      (int drive)                          { m_currentDrive = drive; PushDriveEvent    (DiskIIEventType::DriveSelect,  drive); }
 void DiskIIDebugDialog::OnDiskInserted     (int drive)                          { PushDriveEvent    (DiskIIEventType::DiskInserted, drive); }
 void DiskIIDebugDialog::OnDiskEjected      (int drive)                          { PushDriveEvent    (DiskIIEventType::DiskEjected,  drive); }
 

@@ -311,9 +311,15 @@ static std::wstring FormatDetail (const DiskIIEvent & src)
 //
 //  PayloadDrive
 //
-//  Drive index for the FR-014 filter projection. Returns
-//  DiskIIEventDisplay::kFieldNotApplicable when the event type does
-//  not carry a drive index.
+//  Drive index for the FR-014 filter projection and the Drive column.
+//  Spec-006 bug fix: every drive-specific event now carries its drive
+//  on the top-level DiskIIEvent.drive field (stamped by the dialog's
+//  IDiskIIEventSink at fire time from the cached active drive). For
+//  event types that already carry an explicit drive in their payload
+//  (DriveSelect / DiskInserted / DiskEjected / audio outcomes), the
+//  payload value is authoritative and matches the top-level stamp.
+//  Returns DiskIIEventDisplay::kFieldNotApplicable only for the
+//  synthetic EventsLost marker (src.drive == -1).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -334,8 +340,15 @@ static int PayloadDrive (const DiskIIEvent & src)
         case DiskIIEventType::AudioLoopStopped:
             return src.payload.audio.drive;
 
-        default:
+        case DiskIIEventType::EventsLost:
             return DiskIIEventDisplay::kFieldNotApplicable;
+
+        default:
+            if (src.drive < 0)
+            {
+                return DiskIIEventDisplay::kFieldNotApplicable;
+            }
+            return src.drive;
     }
 }
 
@@ -445,6 +458,7 @@ void DebugDialogProjection::DrainAndProject (
     {
         syntheticLost.category          = EventCategory::Controller;
         syntheticLost.type              = DiskIIEventType::EventsLost;
+        syntheticLost.drive             = -1;
         syntheticLost.cycle             = 0;
         syntheticLost.payload.lost.count = droppedCount;
 

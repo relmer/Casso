@@ -194,5 +194,64 @@ namespace DiskIIDebugDialogTests
             Assert::IsTrue  (MatchesFilter (loopStart, f));
             Assert::IsFalse (MatchesFilter (started,   f));
         }
+
+
+
+        TEST_METHOD (MatchesFilter_driveRadio_strictMatchOnEventDrive)
+        {
+            // Spec-006 bug fix: every drive-specific event now carries
+            // its 0-based drive index, so the "Drive 1" radio (1-based
+            // UI) must match only drive 0 events and "Drive 2" must
+            // match only drive 1 events. The previous "events without
+            // drive bypass the predicate" rule has been retired; only
+            // synthetic EventsLost still always shows.
+            DiskIIEventDisplay  d0;
+            DiskIIEventDisplay  d1;
+            FilterState         f;
+
+            d0.type     = DiskIIEventType::HeadStep;
+            d0.category = EventCategory::Controller;
+            d0.drive    = 0;
+
+            d1.type     = DiskIIEventType::HeadStep;
+            d1.category = EventCategory::Controller;
+            d1.drive    = 1;
+
+            // All drives: both pass.
+            f.driveFilter = 0;
+            Assert::IsTrue (MatchesFilter (d0, f));
+            Assert::IsTrue (MatchesFilter (d1, f));
+
+            // Drive 1 radio (UI 1-based -> event 0): only drive 0.
+            f.driveFilter = 1;
+            Assert::IsTrue  (MatchesFilter (d0, f));
+            Assert::IsFalse (MatchesFilter (d1, f));
+
+            // Drive 2 radio (UI 2 -> event 1): only drive 1.
+            f.driveFilter = 2;
+            Assert::IsFalse (MatchesFilter (d0, f));
+            Assert::IsTrue  (MatchesFilter (d1, f));
+        }
+
+
+
+        TEST_METHOD (MatchesFilter_driveRadio_eventWithoutDrive_rejected_unlessAll)
+        {
+            DiskIIEventDisplay  noDrive;
+            FilterState         f;
+
+            noDrive.type     = DiskIIEventType::HeadStep;
+            noDrive.category = EventCategory::Controller;
+            noDrive.drive    = DiskIIEventDisplay::kFieldNotApplicable;
+
+            f.driveFilter = 0;
+            Assert::IsTrue (MatchesFilter (noDrive, f));
+
+            f.driveFilter = 1;
+            Assert::IsFalse (MatchesFilter (noDrive, f));
+
+            f.driveFilter = 2;
+            Assert::IsFalse (MatchesFilter (noDrive, f));
+        }
     };
 }

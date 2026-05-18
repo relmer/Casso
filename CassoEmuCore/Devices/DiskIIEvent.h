@@ -84,10 +84,19 @@ enum class DiskIIEventType : uint8_t
 //
 //      offset 0  : EventCategory   category   (uint8_t)
 //      offset 1  : DiskIIEventType type       (uint8_t)
-//      offset 2  : uint16_t        reserved   (alignment padding)
+//      offset 2  : int8_t          drive      (0-based; -1 == n/a)
+//      offset 3  : uint8_t         reserved   (alignment padding)
 //      offset 4  : uint32_t        reserved2  (alignment padding for cycle)
 //      offset 8  : uint64_t        cycle      (CPU cycle snapshot)
 //      offset 16 : payload union              (12 bytes max)
+//
+//  Spec-006 bug fix: `drive` is the controller's active-drive index
+//  at the moment the event fired, stamped by the IDiskIIEventSink
+//  implementation (which tracks DriveSelect transitions). It is the
+//  fall-through source for the Debug dialog's Drive column when the
+//  per-payload variant doesn't already carry one (motor, head step,
+//  head bump, address mark, data mark). -1 means "no drive context"
+//  (only used for the synthetic EventsLost marker).
 //
 //  Payload variants are tagged implicitly by `type`. The consumer
 //  picks the correct union member based on `type` at format time;
@@ -158,7 +167,8 @@ struct DiskIIEvent
 
     EventCategory           category;
     DiskIIEventType         type;
-    uint16_t                reserved;
+    int8_t                  drive;
+    uint8_t                 reserved;
     uint32_t                reserved2;
     uint64_t                cycle;
     Payload                 payload;
