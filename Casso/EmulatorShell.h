@@ -18,7 +18,6 @@
 #include "Audio/DiskIIAudioSource.h"
 #include "WasapiAudio.h"
 #include "DiskIIDebugDialog.h"
-#include "DiskIIShellSinkBuffer.h"
 
 
 
@@ -308,15 +307,6 @@ private:
     // so resets re-zero it even while the dialog is closed.
     std::unique_ptr<class DiskIIDebugDialog>  m_diskIIDebugDialog;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now () };
-
-    // Spec-006 round-4 bug 3. Long-lived shell-side event sink
-    // wired onto the controller + audio source at machine-build
-    // time so events fire from the very first frame -- even before
-    // the debug dialog is opened. On open the dialog drains this
-    // buffer into its display deque so the user sees boot RWTS
-    // history instead of an empty log; after that the buffer
-    // forwards live events to the dialog.
-    DiskIIShellSinkBuffer                     m_shellEventBuffer;
 };
 
 

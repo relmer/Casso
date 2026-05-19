@@ -234,7 +234,6 @@
     <ClCompile Include="DebugDialogProjection.cpp" />
     <ClCompile Include="DiskIIDebugDialogState.cpp" />
     <ClCompile Include="DiskIIDebugDialog.cpp" />
-    <ClCompile Include="DiskIIShellSinkBuffer.cpp" />
     <ClCompile Include="RichEditSquiggle.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -254,7 +253,6 @@
     <ClInclude Include="DebugDialogProjection.h" />
     <ClInclude Include="DiskIIDebugDialogState.h" />
     <ClInclude Include="DiskIIDebugDialog.h" />
-    <ClInclude Include="DiskIIShellSinkBuffer.h" />
     <ClInclude Include="RichEditSquiggle.h" />
     <ClInclude Include="UnicodeSymbols.h" />
     <ClInclude Include="WasapiAudio.h" />
