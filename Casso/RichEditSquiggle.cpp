@@ -116,88 +116,58 @@ void SetIgnoredTokensLabel (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BuildCombinedInvalidLabel
+//  BuildPerSideInvalidLabel
 //
-//  Returns "" when neither track nor sector spans contain rejects.
-//  Otherwise builds a single string covering whichever side(s) had
-//  rejects, joined by " | " when both sides do:
-//    "Invalid track: abc"
-//    "Invalid sector: 99"
-//    "Invalid track: abc | Invalid sector: 99"
+//  Returns "" when spans is empty. Otherwise returns
+//  "<prefix><tok1>, <tok2>" where each <tokN> is the half-open UTF-16
+//  substring expr[beginUtf16, endUtf16). Tokens that fall outside the
+//  source expression are clipped silently. Caller supplies the prefix
+//  (e.g. "Invalid track: ", "Invalid sector: ").
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring BuildCombinedInvalidLabel (
-    std::wstring_view                                       trackExpr,
-    const std::vector<TrackSectorPredicate::RejectedSpan> & trackSpans,
-    std::wstring_view                                       sectorExpr,
-    const std::vector<TrackSectorPredicate::RejectedSpan> & sectorSpans)
+std::wstring BuildPerSideInvalidLabel (
+    std::wstring_view                                       prefix,
+    std::wstring_view                                       originalExpr,
+    const std::vector<TrackSectorPredicate::RejectedSpan> & spans)
 {
     std::wstring  out;
-    std::wstring  trackJoined;
-    std::wstring  sectorJoined;
+    size_t        i      = 0;
+    int           begin  = 0;
+    int           end    = 0;
 
-    auto Append = [] (std::wstring &                                          dst,
-                      std::wstring_view                                       src,
-                      const std::vector<TrackSectorPredicate::RejectedSpan> & spans)
+    if (spans.empty())
     {
-        size_t  i      = 0;
-        int     begin  = 0;
-        int     end    = 0;
+        return out;
+    }
 
-        for (i = 0; i < spans.size(); i++)
+    out.assign (prefix);
+
+    for (i = 0; i < spans.size(); i++)
+    {
+        if (i > 0)
         {
-            if (i > 0)
-            {
-                dst.append (L", ");
-            }
-
-            begin = spans[i].beginUtf16;
-            end   = spans[i].endUtf16;
-
-            if (begin < 0)
-            {
-                begin = 0;
-            }
-
-            if (end > static_cast<int> (src.size()))
-            {
-                end = static_cast<int> (src.size());
-            }
-
-            if (end > begin)
-            {
-                dst.append (src.substr (static_cast<size_t> (begin),
-                                        static_cast<size_t> (end - begin)));
-            }
-        }
-    };
-
-    if (!trackSpans.empty())
-    {
-        Append (trackJoined, trackExpr, trackSpans);
-    }
-
-    if (!sectorSpans.empty())
-    {
-        Append (sectorJoined, sectorExpr, sectorSpans);
-    }
-
-    if (!trackJoined.empty())
-    {
-        out.append (L"Invalid track: ");
-        out.append (trackJoined);
-    }
-
-    if (!sectorJoined.empty())
-    {
-        if (!out.empty())
-        {
-            out.append (L"  |  ");
+            out.append (s_kpszLabelSeparator);
         }
 
-        out.append (L"Invalid sector: ");
-        out.append (sectorJoined);
+        begin = spans[i].beginUtf16;
+        end   = spans[i].endUtf16;
+
+        if (begin < 0)
+        {
+            begin = 0;
+        }
+
+        if (end > static_cast<int> (originalExpr.size()))
+        {
+            end = static_cast<int> (originalExpr.size());
+        }
+
+        if (end > begin)
+        {
+            out.append (originalExpr.substr (static_cast<size_t> (begin),
+                                             static_cast<size_t> (end - begin)));
+        }
     }
 
     return out;
@@ -209,16 +179,15 @@ std::wstring BuildCombinedInvalidLabel (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetCombinedInvalidLabel
+//  SetPerSideInvalidLabel
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetCombinedInvalidLabel (
+void SetPerSideInvalidLabel (
     HWND                                                    hStatic,
-    std::wstring_view                                       trackExpr,
-    const std::vector<TrackSectorPredicate::RejectedSpan> & trackSpans,
-    std::wstring_view                                       sectorExpr,
-    const std::vector<TrackSectorPredicate::RejectedSpan> & sectorSpans)
+    std::wstring_view                                       prefix,
+    std::wstring_view                                       originalExpr,
+    const std::vector<TrackSectorPredicate::RejectedSpan> & spans)
 {
     std::wstring  text;
 
@@ -227,7 +196,7 @@ void SetCombinedInvalidLabel (
         return;
     }
 
-    text = BuildCombinedInvalidLabel (trackExpr, trackSpans, sectorExpr, sectorSpans);
+    text = BuildPerSideInvalidLabel (prefix, originalExpr, spans);
     SetWindowTextW (hStatic, text.c_str());
 }
 

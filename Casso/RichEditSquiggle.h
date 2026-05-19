@@ -38,18 +38,15 @@ std::wstring  BuildIgnoredTokensLabel (
     std::wstring_view                                       originalExpr,
     const std::vector<TrackSectorPredicate::RejectedSpan> & spans);
 
-// Spec-006 bug-fix. Builds a single combined "Invalid track ..." /
-// "Invalid sector ..." string for the merged label below the filter
-// controls. Returns "" when neither input has rejects.
-std::wstring  BuildCombinedInvalidLabel (
-    std::wstring_view                                       trackExpr,
-    const std::vector<TrackSectorPredicate::RejectedSpan> & trackSpans,
-    std::wstring_view                                       sectorExpr,
-    const std::vector<TrackSectorPredicate::RejectedSpan> & sectorSpans);
+// Spec-006 bug-fix. Builds a per-side label like "Invalid track: tok1, tok2"
+// from a parameterized prefix. Returns "" when spans is empty.
+std::wstring  BuildPerSideInvalidLabel (
+    std::wstring_view                                       prefix,
+    std::wstring_view                                       originalExpr,
+    const std::vector<TrackSectorPredicate::RejectedSpan> & spans);
 
-void          SetCombinedInvalidLabel (
+void          SetPerSideInvalidLabel (
     HWND                                                    hStatic,
-    std::wstring_view                                       trackExpr,
-    const std::vector<TrackSectorPredicate::RejectedSpan> & trackSpans,
-    std::wstring_view                                       sectorExpr,
-    const std::vector<TrackSectorPredicate::RejectedSpan> & sectorSpans);
+    std::wstring_view                                       prefix,
+    std::wstring_view                                       originalExpr,
+    const std::vector<TrackSectorPredicate::RejectedSpan> & spans);

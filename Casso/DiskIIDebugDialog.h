@@ -178,7 +178,8 @@ private:
     HWND                                    m_trackFilterLabel   = nullptr;
     HWND                                    m_sectorFilterLabel  = nullptr;
     HWND                                    m_filterTooltip      = nullptr;
-    HWND                                    m_invalidLabel       = nullptr;
+    HWND                                    m_trackInvalidLabel  = nullptr;
+    HWND                                    m_sectorInvalidLabel = nullptr;
     HWND                                    m_trackRawQtCheck    = nullptr;
 
     // Spec-006 bug 4. The squiggle re-application reaches into the

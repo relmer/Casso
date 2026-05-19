@@ -83,70 +83,53 @@ namespace RichEditSquiggleTests
 
 
 
-        TEST_METHOD (BuildCombinedInvalidLabel_bothEmpty_returnsEmpty)
+        TEST_METHOD (BuildPerSideInvalidLabel_emptySpans_returnsEmpty)
         {
-            std::vector<RejectedSpan>  none;
+            std::vector<RejectedSpan>  spans;
 
-            Assert::IsTrue (BuildCombinedInvalidLabel (L"0-5", none, L"0-9", none).empty());
+            Assert::IsTrue (BuildPerSideInvalidLabel (L"Invalid track: ",
+                                                      L"0-5",
+                                                      spans).empty());
         }
 
 
 
-        TEST_METHOD (BuildCombinedInvalidLabel_trackOnly_returnsTrackPrefix)
+        TEST_METHOD (BuildPerSideInvalidLabel_singleToken_returnsPrefixPlusToken)
         {
-            std::wstring               trackExpr = L"abc, 5";
-            std::vector<RejectedSpan>  trackSpans;
-            std::vector<RejectedSpan>  none;
+            std::wstring               expr = L"abc, 5";
+            std::vector<RejectedSpan>  spans;
 
-            trackSpans.push_back ({ 0, 3 });
+            spans.push_back ({ 0, 3 });
 
             Assert::AreEqual (std::wstring (L"Invalid track: abc"),
-                              BuildCombinedInvalidLabel (trackExpr, trackSpans, L"0-9", none));
+                              BuildPerSideInvalidLabel (L"Invalid track: ", expr, spans));
         }
 
 
 
-        TEST_METHOD (BuildCombinedInvalidLabel_sectorOnly_returnsSectorPrefix)
+        TEST_METHOD (BuildPerSideInvalidLabel_multipleTokens_joinedWithCommaSpace)
         {
-            std::wstring               sectorExpr = L"99";
-            std::vector<RejectedSpan>  sectorSpans;
-            std::vector<RejectedSpan>  none;
+            std::wstring               expr = L"xx, 5, yy";
+            std::vector<RejectedSpan>  spans;
 
-            sectorSpans.push_back ({ 0, 2 });
-
-            Assert::AreEqual (std::wstring (L"Invalid sector: 99"),
-                              BuildCombinedInvalidLabel (L"0-5", none, sectorExpr, sectorSpans));
-        }
-
-
-
-        TEST_METHOD (BuildCombinedInvalidLabel_bothSides_joinedWithPipe)
-        {
-            std::wstring               trackExpr  = L"abc, 5";
-            std::wstring               sectorExpr = L"99";
-            std::vector<RejectedSpan>  trackSpans;
-            std::vector<RejectedSpan>  sectorSpans;
-
-            trackSpans.push_back  ({ 0, 3 });
-            sectorSpans.push_back ({ 0, 2 });
-
-            Assert::AreEqual (std::wstring (L"Invalid track: abc  |  Invalid sector: 99"),
-                              BuildCombinedInvalidLabel (trackExpr, trackSpans, sectorExpr, sectorSpans));
-        }
-
-
-
-        TEST_METHOD (BuildCombinedInvalidLabel_multipleTokensPerSide_joinedWithCommaSpace)
-        {
-            std::wstring               trackExpr = L"xx, 5, yy";
-            std::vector<RejectedSpan>  trackSpans;
-            std::vector<RejectedSpan>  none;
-
-            trackSpans.push_back ({ 0, 2 });
-            trackSpans.push_back ({ 7, 9 });
+            spans.push_back ({ 0, 2 });
+            spans.push_back ({ 7, 9 });
 
             Assert::AreEqual (std::wstring (L"Invalid track: xx, yy"),
-                              BuildCombinedInvalidLabel (trackExpr, trackSpans, L"", none));
+                              BuildPerSideInvalidLabel (L"Invalid track: ", expr, spans));
+        }
+
+
+
+        TEST_METHOD (BuildPerSideInvalidLabel_sectorPrefix_emitsSectorWord)
+        {
+            std::wstring               expr = L"99";
+            std::vector<RejectedSpan>  spans;
+
+            spans.push_back ({ 0, 2 });
+
+            Assert::AreEqual (std::wstring (L"Invalid sector: 99"),
+                              BuildPerSideInvalidLabel (L"Invalid sector: ", expr, spans));
         }
     };
 }

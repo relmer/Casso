@@ -55,7 +55,8 @@ enum DiskIIDebugDialogCtrlId : int
 
     kIdEdtTrack           = 140,
     kIdEdtSector          = 141,
-    kIdLblInvalid         = 142,
+    kIdLblTrackInvalid    = 142,
+    kIdLblSectorInvalid   = 143,
     kIdChkTrackRawQt      = 144,
 
     kIdBtnPause           = 150,
@@ -497,17 +498,29 @@ HRESULT DiskIIDebugDialog::CreateChildControls (HWND hwnd)
     SendMessageW (m_sectorRichEdit, WM_SETFONT, reinterpret_cast<WPARAM> (font), TRUE);
     SendMessageW (m_sectorRichEdit, EM_SETEVENTMASK, 0, ENM_CHANGE | ENM_KEYEVENTS);
 
-    m_invalidLabel = CreateWindowExW (0,
-                                      L"STATIC",
-                                      L"",
-                                      WS_CHILD | WS_VISIBLE | SS_LEFT,
-                                      0, 0, 0, 0,
-                                      hwnd,
-                                      reinterpret_cast<HMENU> (static_cast<INT_PTR> (kIdLblInvalid)),
-                                      m_hInstance,
-                                      nullptr);
-    CWRA (m_invalidLabel);
-    SendMessageW (m_invalidLabel, WM_SETFONT, reinterpret_cast<WPARAM> (font), TRUE);
+    m_trackInvalidLabel = CreateWindowExW (0,
+                                           L"STATIC",
+                                           L"",
+                                           WS_CHILD | WS_VISIBLE | SS_LEFT | SS_ENDELLIPSIS,
+                                           0, 0, 0, 0,
+                                           hwnd,
+                                           reinterpret_cast<HMENU> (static_cast<INT_PTR> (kIdLblTrackInvalid)),
+                                           m_hInstance,
+                                           nullptr);
+    CWRA (m_trackInvalidLabel);
+    SendMessageW (m_trackInvalidLabel, WM_SETFONT, reinterpret_cast<WPARAM> (font), TRUE);
+
+    m_sectorInvalidLabel = CreateWindowExW (0,
+                                            L"STATIC",
+                                            L"",
+                                            WS_CHILD | WS_VISIBLE | SS_LEFT | SS_ENDELLIPSIS,
+                                            0, 0, 0, 0,
+                                            hwnd,
+                                            reinterpret_cast<HMENU> (static_cast<INT_PTR> (kIdLblSectorInvalid)),
+                                            m_hInstance,
+                                            nullptr);
+    CWRA (m_sectorInvalidLabel);
+    SendMessageW (m_sectorInvalidLabel, WM_SETFONT, reinterpret_cast<WPARAM> (font), TRUE);
 
     m_pauseButton = CreateWindowExW (0,
                                      L"BUTTON",
@@ -630,6 +643,7 @@ void DiskIIDebugDialog::LayoutChildControls (int width, int height)
     int  i           = 0;
     int  listViewTop = 0;
     int  trackEditX  = 0;
+    int  sectorEditX = 0;
 
     if (m_listView == nullptr)
     {
@@ -686,21 +700,32 @@ void DiskIIDebugDialog::LayoutChildControls (int width, int height)
     MoveWindow (m_sectorFilterLabel, x, y + 3, kFilterLabelWidth, kRowHeight, TRUE);
     x += kFilterLabelWidth + kRowGap;
 
+    sectorEditX = x;
+
     MoveWindow (m_sectorRichEdit, x, y, kEditWidth, kRowHeight, TRUE);
 
     // Row 4: Quarter-track steps checkbox aligned under the track edit.
     y += kRowHeight + kRowGap;
     MoveWindow (m_trackRawQtCheck, trackEditX, y, kRawQtCheckWidth, kRowHeight, TRUE);
 
-    // Row 5: single combined invalid label (red text). Left-aligned
-    // with the track edit so the label hangs under the track / sector
-    // inputs rather than spanning the full dialog width.
+    // Row 5: per-side invalid labels (red text, SS_ENDELLIPSIS so over-
+    // long token lists truncate rather than disappear off-edge). Track
+    // label hangs under the track edit, sector label under the sector
+    // edit. Each consumes the width of its own edit-column extending
+    // out to the right margin / next column boundary.
     y += kRowHeight + kRowGap;
 
-    MoveWindow (m_invalidLabel,
+    MoveWindow (m_trackInvalidLabel,
                 trackEditX,
                 y,
-                width - trackEditX - kMargin,
+                sectorEditX - trackEditX - kRowGap,
+                kIgnoredLabelHeight,
+                TRUE);
+
+    MoveWindow (m_sectorInvalidLabel,
+                sectorEditX,
+                y,
+                width - sectorEditX - kMargin,
                 kIgnoredLabelHeight,
                 TRUE);
 
@@ -1515,9 +1540,12 @@ void DiskIIDebugDialog::FlushFilterDebounce()
         m_lastFormattedSectorText = sectorText;
     }
 
-    SetCombinedInvalidLabel (m_invalidLabel,
-                             trackText,  m_filter.trackFilter.RejectedSpans  (),
-                             sectorText, m_filter.sectorFilter.RejectedSpans ());
+    SetPerSideInvalidLabel (m_trackInvalidLabel,
+                            L"Invalid track: ",
+                            trackText,  m_filter.trackFilter.RejectedSpans  ());
+    SetPerSideInvalidLabel (m_sectorInvalidLabel,
+                            L"Invalid sector: ",
+                            sectorText, m_filter.sectorFilter.RejectedSpans ());
 }
 
 
@@ -1873,7 +1901,7 @@ HBRUSH DiskIIDebugDialog::OnCtlColorStatic (HWND hwndDlg, HDC hdc, HWND hwndStat
 {
     UNREFERENCED_PARAMETER (hwndDlg);
 
-    if (hwndStatic == m_invalidLabel)
+    if (hwndStatic == m_trackInvalidLabel || hwndStatic == m_sectorInvalidLabel)
     {
         SetTextColor (hdc, RGB (200, 0, 0));
         SetBkMode    (hdc, TRANSPARENT);
