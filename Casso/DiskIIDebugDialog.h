@@ -126,7 +126,7 @@ private:
     HRESULT CreateChildControls         (HWND hwnd);
     void    LayoutChildControls         (int width, int height);
     void    RebuildListViewColumns      ();
-    int     MeasureColumnContentWidth   (int logicalId) const;
+    int     MeasureColumnContentWidth   (int logicalId, size_t startIdx) const;
     void    SizeDetailColumnToRemainder();
     void    ToggleColumn                (int id);
     void    CaptureCurrentWidthsIntoModel();

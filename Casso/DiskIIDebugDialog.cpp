@@ -806,7 +806,7 @@ void DiskIIDebugDialog::RebuildListViewColumns()
         // AND ends with empty space to its right.
         if (m_columns[i].id != (kColumnCount - 1) && !m_columns[i].autoSizedYet)
         {
-            contentWidth = MeasureColumnContentWidth (m_columns[i].id);
+            contentWidth = MeasureColumnContentWidth (m_columns[i].id, 0);
             ListView_SetColumnWidth (m_listView, virtualIdx, contentWidth);
             m_columns[i].savedWidth   = contentWidth;
             m_columns[i].autoSizedYet = true;
@@ -826,20 +826,22 @@ void DiskIIDebugDialog::RebuildListViewColumns()
 //
 //  MeasureColumnContentWidth
 //
-//  Walk the dialog's deque, project each row's cell text through
-//  AppendColumnText into a scratch buffer, and ask the ListView for
-//  the pixel width via LVM_GETSTRINGWIDTH (which uses the LV's font).
-//  Returns max (header text width, max cell width) + padding so the
-//  column shows the full content of every currently-formatted row.
+//  Walk the dialog's deque starting at startIdx, project each row's
+//  cell text through AppendColumnText into a scratch buffer, and ask
+//  the ListView for the pixel width via LVM_GETSTRINGWIDTH (which uses
+//  the LV's font). Returns max (header text width, max cell width in
+//  the [startIdx, end) chunk) + padding.
 //
-//  O(N) over the deque. Called at most once per visible non-detail
-//  column per RebuildListViewColumns call (which itself only runs at
-//  dialog open and on column show/hide toggles), so the cost is
-//  bounded and amortizes to near-zero in steady state.
+//  The auto-grow caller in HandleDrainTick passes startIdx =
+//  m_dequeSizeAtLastGrow so each periodic check only measures rows
+//  added since the last grow -- the "never shrink" invariant means we
+//  can compare the new chunk's max width against the current
+//  savedWidth and grow if larger without re-walking history. The first
+//  auto-fit pass passes startIdx = 0 to measure the whole deque.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DiskIIDebugDialog::MeasureColumnContentWidth (int logicalId) const
+int DiskIIDebugDialog::MeasureColumnContentWidth (int logicalId, size_t startIdx) const
 {
     constexpr int     kAutoSizePaddingPx = 16;
     constexpr int     kMinColumnWidth    = 32;
@@ -857,7 +859,7 @@ int DiskIIDebugDialog::MeasureColumnContentWidth (int logicalId) const
 
     headerWidth = ListView_GetStringWidth (m_listView, m_columns[logicalId].headerText);
 
-    for (i = 0; i < m_deque.size(); i++)
+    for (i = startIdx; i < m_deque.size(); i++)
     {
         scratch.clear();
         AppendColumnText (scratch, m_deque[i], logicalId);
@@ -1971,6 +1973,7 @@ void DiskIIDebugDialog::HandleDrainTick()
     bool      firstFit        = false;
     size_t    rowsSinceCheck  = 0;
     bool      periodicFit     = false;
+    size_t    measureStart    = 0;
     int       virtualIdx      = 0;
     int       i               = 0;
     int       width           = 0;
@@ -2042,6 +2045,14 @@ void DiskIIDebugDialog::HandleDrainTick()
 
     if (firstFit || periodicFit)
     {
+        // First-ever fit measures the entire deque; subsequent
+        // periodic fits only measure rows added since the last grow
+        // (the "never shrink" invariant means existing wider columns
+        // already hold their floor, so comparing the new chunk's max
+        // against savedWidth suffices). If the deque shrunk under us
+        // (rolling-cap pop_front), fall back to measuring everything.
+        measureStart = firstFit ? 0 : (m_deque.size() - rowsSinceCheck);
+
         for (i = 0; i < kColumnCount; i++)
         {
             if (!m_columns[i].visible)
@@ -2051,7 +2062,7 @@ void DiskIIDebugDialog::HandleDrainTick()
 
             if (m_columns[i].id != (kColumnCount - 1) && !m_columns[i].userResized)
             {
-                width = MeasureColumnContentWidth (m_columns[i].id);
+                width = MeasureColumnContentWidth (m_columns[i].id, measureStart);
 
                 if (width > m_columns[i].savedWidth)
                 {
