@@ -113,6 +113,7 @@ protected:
     bool    OnNotify     (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
 
 private:
+    DiskIIEvent MakeStampedEvent (EventCategory cat, DiskIIEventType type) const noexcept;
     void    PushControllerEvent  (DiskIIEventType type) noexcept;
     void    PushHeadStepEvent    (int prevQt, int newQt) noexcept;
     void    PushHeadBumpEvent    (int atQt) noexcept;

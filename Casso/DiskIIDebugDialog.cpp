@@ -1296,77 +1296,78 @@ bool DiskIIDebugDialog::OnCommandEx (HWND hwnd, int id, int notifyCode, HWND hCt
 
 void DiskIIDebugDialog::OnFilterControlToggled (int id, HWND hCtl)
 {
-    bool      checked   = false;
-    uint32_t  catBit    = 0;
-    int       slot      = 0;
+    bool      checked              = false;
+    uint32_t  catBit               = 0;
+    int       slot                 = 0;
+    int       priorFocusedDequeIdx = 0;
+    bool      didRefilter          = true;
 
-    if (hCtl == nullptr)
+    if (hCtl != nullptr)
     {
-        return;
-    }
+        checked = SendMessageW (hCtl, BM_GETCHECK, 0, 0) == BST_CHECKED;
 
-    checked = SendMessageW (hCtl, BM_GETCHECK, 0, 0) == BST_CHECKED;
-
-    if (id >= kIdChkEventTypeFirst && id < kIdChkEventTypeFirst + 8)
-    {
-        slot   = id - kIdChkEventTypeFirst;
-        catBit = 1u << slot;
-
-        if (checked)
+        if (id >= kIdChkEventTypeFirst && id < kIdChkEventTypeFirst + 8)
         {
-            m_filter.eventTypeMask |= catBit;
+            slot   = id - kIdChkEventTypeFirst;
+            catBit = 1u << slot;
+
+            if (checked)
+            {
+                m_filter.eventTypeMask |= catBit;
+            }
+            else
+            {
+                m_filter.eventTypeMask &= ~catBit;
+            }
+        }
+        else if (id == kIdChkAudioMaster)
+        {
+            m_filter.audioMaster = checked;
+            UpdateAudioSubEnableState();
+        }
+        else if (id >= kIdChkAudioSubFirst && id < kIdChkAudioSubFirst + 4)
+        {
+            slot = id - kIdChkAudioSubFirst;
+
+            switch (slot)
+            {
+                case 0: m_filter.audioStarted   = checked; break;
+                case 1: m_filter.audioRestarted = checked; break;
+                case 2: m_filter.audioContinued = checked; break;
+                case 3: m_filter.audioSilent    = checked; break;
+                default: break;
+            }
+        }
+        else if (id >= kIdRdoDriveFirst && id < kIdRdoDriveFirst + 3)
+        {
+            if (checked)
+            {
+                m_filter.driveFilter = id - kIdRdoDriveFirst;
+            }
+        }
+        else if (id == kIdChkTrackRawQt)
+        {
+            m_filter.trackFilterRawQt = checked;
+            SetWindowTextW (m_trackFilterLabel,
+                            checked ? L"Quarter-track:" : L"Track filter:");
+            // raw-qt re-interprets bare integers as quarter tracks so the
+            // track predicate has to be re-parsed against the new flag.
+            FlushFilterDebounce();
+            didRefilter = false;
         }
         else
         {
-            m_filter.eventTypeMask &= ~catBit;
+            didRefilter = false;
         }
-    }
-    else if (id == kIdChkAudioMaster)
-    {
-        m_filter.audioMaster = checked;
-        UpdateAudioSubEnableState();
-    }
-    else if (id >= kIdChkAudioSubFirst && id < kIdChkAudioSubFirst + 4)
-    {
-        slot = id - kIdChkAudioSubFirst;
 
-        switch (slot)
+        if (didRefilter)
         {
-            case 0: m_filter.audioStarted   = checked; break;
-            case 1: m_filter.audioRestarted = checked; break;
-            case 2: m_filter.audioContinued = checked; break;
-            case 3: m_filter.audioSilent    = checked; break;
-            default: break;
-        }
-    }
-    else if (id >= kIdRdoDriveFirst && id < kIdRdoDriveFirst + 3)
-    {
-        if (checked)
-        {
-            m_filter.driveFilter = id - kIdRdoDriveFirst;
-        }
-    }
-    else if (id == kIdChkTrackRawQt)
-    {
-        m_filter.trackFilterRawQt = checked;
-        SetWindowTextW (m_trackFilterLabel,
-                        checked ? L"Quarter-track:" : L"Track filter:");
-        // raw-qt re-interprets bare integers as quarter tracks so the
-        // track predicate has to be re-parsed against the new flag.
-        FlushFilterDebounce();
-        return;
-    }
-    else
-    {
-        return;
-    }
+            priorFocusedDequeIdx = CapturedFocusedDequeIdx();
 
-    {
-        int  priorFocusedDequeIdx = CapturedFocusedDequeIdx();
-
-        RebuildFilteredIndices();
-        InvalidateListView();
-        RestoreFocusedDequeIdx (priorFocusedDequeIdx);
+            RebuildFilteredIndices();
+            InvalidateListView();
+            RestoreFocusedDequeIdx (priorFocusedDequeIdx);
+        }
     }
 }
 
@@ -1957,16 +1958,23 @@ bool DiskIIDebugDialog::OnTimer (HWND hwnd, UINT_PTR timerId)
 
 void DiskIIDebugDialog::HandleDrainTick()
 {
-    int       topIndex     = 0;
-    int       countPerPage = 0;
-    int       oldCount     = 0;
-    int       newCount     = 0;
-    bool      wasAtTail    = false;
-    bool      shouldPaint  = false;
-    uint32_t  dropped      = 0;
-    size_t    preDequeSize = 0;
-    size_t    postDequeSize = 0;
-    bool      hitCap       = false;
+    int       topIndex        = 0;
+    int       countPerPage    = 0;
+    int       oldCount        = 0;
+    int       newCount        = 0;
+    bool      wasAtTail       = false;
+    bool      shouldPaint     = false;
+    uint32_t  dropped         = 0;
+    size_t    preDequeSize    = 0;
+    size_t    postDequeSize   = 0;
+    bool      hitCap          = false;
+    bool      firstFit        = false;
+    size_t    rowsSinceCheck  = 0;
+    bool      periodicFit     = false;
+    int       virtualIdx      = 0;
+    int       i               = 0;
+    int       width           = 0;
+    bool      anyGrew         = false;
 
     if (m_listView == nullptr)
     {
@@ -2026,52 +2034,45 @@ void DiskIIDebugDialog::HandleDrainTick()
     // column. Throttled to every kAutoGrowRowThreshold rows so a
     // sustained drain doesn't pay the string-width cost on every
     // WM_TIMER tick.
+    firstFit       = !m_firstAutoFitDone && !m_deque.empty();
+    rowsSinceCheck = (m_deque.size() >= m_dequeSizeAtLastGrow)
+                         ? (m_deque.size() - m_dequeSizeAtLastGrow)
+                         : m_deque.size();
+    periodicFit    = m_firstAutoFitDone && rowsSinceCheck >= kAutoGrowRowThreshold;
+
+    if (firstFit || periodicFit)
     {
-        bool   firstFit       = !m_firstAutoFitDone && !m_deque.empty();
-        size_t rowsSinceCheck = (m_deque.size() >= m_dequeSizeAtLastGrow)
-                                    ? (m_deque.size() - m_dequeSizeAtLastGrow)
-                                    : m_deque.size();
-        bool   periodicFit    = m_firstAutoFitDone && rowsSinceCheck >= kAutoGrowRowThreshold;
-
-        if (firstFit || periodicFit)
+        for (i = 0; i < kColumnCount; i++)
         {
-            int  virtualIdx = 0;
-            int  i          = 0;
-            int  width      = 0;
-            bool anyGrew    = false;
-
-            for (i = 0; i < kColumnCount; i++)
+            if (!m_columns[i].visible)
             {
-                if (!m_columns[i].visible)
-                {
-                    continue;
-                }
-
-                if (m_columns[i].id != (kColumnCount - 1) && !m_columns[i].userResized)
-                {
-                    width = MeasureColumnContentWidth (m_columns[i].id);
-
-                    if (width > m_columns[i].savedWidth)
-                    {
-                        ListView_SetColumnWidth (m_listView, virtualIdx, width);
-                        m_columns[i].savedWidth = width;
-                        anyGrew                 = true;
-                    }
-
-                    m_columns[i].autoSizedYet = true;
-                }
-
-                virtualIdx++;
+                continue;
             }
 
-            if (firstFit || anyGrew)
+            if (m_columns[i].id != (kColumnCount - 1) && !m_columns[i].userResized)
             {
-                SizeDetailColumnToRemainder();
+                width = MeasureColumnContentWidth (m_columns[i].id);
+
+                if (width > m_columns[i].savedWidth)
+                {
+                    ListView_SetColumnWidth (m_listView, virtualIdx, width);
+                    m_columns[i].savedWidth = width;
+                    anyGrew                 = true;
+                }
+
+                m_columns[i].autoSizedYet = true;
             }
 
-            m_firstAutoFitDone     = true;
-            m_dequeSizeAtLastGrow  = m_deque.size();
+            virtualIdx++;
         }
+
+        if (firstFit || anyGrew)
+        {
+            SizeDetailColumnToRemainder();
+        }
+
+        m_firstAutoFitDone     = true;
+        m_dequeSizeAtLastGrow  = m_deque.size();
     }
 
     if (wasAtTail && newCount > 0)
@@ -2383,6 +2384,31 @@ void DiskIIDebugDialog::ClearEvents() noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MakeStampedEvent
+//
+//  Boilerplate factory for the seven Push*Event helpers. Stamps the
+//  category, the event type, and the currently-selected drive (each
+//  per-payload Push* helper then fills in its own payload struct).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskIIEvent DiskIIDebugDialog::MakeStampedEvent (EventCategory cat, DiskIIEventType type) const noexcept
+{
+    DiskIIEvent  e = {};
+
+    e.category = cat;
+    e.type     = type;
+    e.drive    = static_cast<int8_t> (m_currentDrive);
+
+    return e;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PushControllerEvent
 //
 //  Helper for the simple controller-side events whose only payload is
@@ -2392,12 +2418,7 @@ void DiskIIDebugDialog::ClearEvents() noexcept
 
 void DiskIIDebugDialog::PushControllerEvent (DiskIIEventType type) noexcept
 {
-    DiskIIEvent  e = {};
-
-    e.category = EventCategory::Controller;
-    e.type     = type;
-    e.drive    = static_cast<int8_t> (m_currentDrive);
-    e.cycle    = 0;
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, type);
 
     PublishToRing (e);
 }
@@ -2414,13 +2435,10 @@ void DiskIIDebugDialog::PushControllerEvent (DiskIIEventType type) noexcept
 
 void DiskIIDebugDialog::PushHeadStepEvent (int prevQt, int newQt) noexcept
 {
-    DiskIIEvent  e = {};
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, DiskIIEventType::HeadStep);
 
-    e.category               = EventCategory::Controller;
-    e.type                   = DiskIIEventType::HeadStep;
-    e.drive                  = static_cast<int8_t> (m_currentDrive);
-    e.payload.step.prevQt    = prevQt;
-    e.payload.step.newQt     = newQt;
+    e.payload.step.prevQt = prevQt;
+    e.payload.step.newQt  = newQt;
 
     PublishToRing (e);
 }
@@ -2437,12 +2455,9 @@ void DiskIIDebugDialog::PushHeadStepEvent (int prevQt, int newQt) noexcept
 
 void DiskIIDebugDialog::PushHeadBumpEvent (int atQt) noexcept
 {
-    DiskIIEvent  e = {};
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, DiskIIEventType::HeadBump);
 
-    e.category           = EventCategory::Controller;
-    e.type               = DiskIIEventType::HeadBump;
-    e.drive              = static_cast<int8_t> (m_currentDrive);
-    e.payload.bump.atQt  = atQt;
+    e.payload.bump.atQt = atQt;
 
     PublishToRing (e);
 }
@@ -2459,14 +2474,11 @@ void DiskIIDebugDialog::PushHeadBumpEvent (int atQt) noexcept
 
 void DiskIIDebugDialog::PushAddrMarkEvent (int track, int sector, int volume) noexcept
 {
-    DiskIIEvent  e = {};
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, DiskIIEventType::AddrMark);
 
-    e.category                   = EventCategory::Controller;
-    e.type                       = DiskIIEventType::AddrMark;
-    e.drive                      = static_cast<int8_t> (m_currentDrive);
-    e.payload.addrMark.track     = track;
-    e.payload.addrMark.sector    = sector;
-    e.payload.addrMark.volume    = volume;
+    e.payload.addrMark.track  = track;
+    e.payload.addrMark.sector = sector;
+    e.payload.addrMark.volume = volume;
 
     PublishToRing (e);
 }
@@ -2483,15 +2495,12 @@ void DiskIIDebugDialog::PushAddrMarkEvent (int track, int sector, int volume) no
 
 void DiskIIDebugDialog::PushDataMarkEvent (DiskIIEventType type, int track, int sector, int volume, int byteCount) noexcept
 {
-    DiskIIEvent  e = {};
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, type);
 
-    e.category                    = EventCategory::Controller;
-    e.type                        = type;
-    e.drive                       = static_cast<int8_t> (m_currentDrive);
-    e.payload.dataMark.track      = track;
-    e.payload.dataMark.sector     = sector;
-    e.payload.dataMark.volume     = volume;
-    e.payload.dataMark.byteCount  = byteCount;
+    e.payload.dataMark.track     = track;
+    e.payload.dataMark.sector    = sector;
+    e.payload.dataMark.volume    = volume;
+    e.payload.dataMark.byteCount = byteCount;
 
     PublishToRing (e);
 }
@@ -2508,12 +2517,13 @@ void DiskIIDebugDialog::PushDataMarkEvent (DiskIIEventType type, int track, int 
 
 void DiskIIDebugDialog::PushDriveEvent (DiskIIEventType type, int drive) noexcept
 {
-    DiskIIEvent  e = {};
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, type);
 
-    e.category             = EventCategory::Controller;
-    e.type                 = type;
-    e.drive                = static_cast<int8_t> (drive);
-    e.payload.drive.drive  = drive;
+    // Drive events carry their target drive explicitly (eject / insert
+    // routes through whichever bay the user touched, not the currently
+    // selected one).
+    e.drive               = static_cast<int8_t> (drive);
+    e.payload.drive.drive = drive;
 
     PublishToRing (e);
 }
@@ -2534,14 +2544,15 @@ void DiskIIDebugDialog::PushAudioEvent (
     int              drive,
     SilentReason     reason) noexcept
 {
-    DiskIIEvent  e = {};
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Audio, type);
 
-    e.category              = EventCategory::Audio;
-    e.type                  = type;
-    e.drive                 = static_cast<int8_t> (drive);
-    e.payload.audio.kind    = kind;
-    e.payload.audio.reason  = reason;
-    e.payload.audio.drive   = drive;
+    // Audio events carry their target drive explicitly (sourced from
+    // the per-drive DiskIIAudioSource, not the controller's currently
+    // selected drive).
+    e.drive                = static_cast<int8_t> (drive);
+    e.payload.audio.kind   = kind;
+    e.payload.audio.reason = reason;
+    e.payload.audio.drive  = drive;
 
     PublishToRing (e);
 }
