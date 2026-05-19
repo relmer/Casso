@@ -43,37 +43,46 @@ namespace
         int     qtIndex  = -1;
         size_t  i        = 0;
         wchar_t c        = 0;
+        bool    ok       = true;
 
         dot = tok.find (L'.');
 
         if (dot == std::wstring_view::npos || dot == 0)
         {
-            return false;
+            ok = false;
         }
 
-        for (i = 0; i < dot; i++)
+        for (i = 0; ok && i < dot; i++)
         {
             c = tok[i];
 
             if (c < L'0' || c > L'9')
             {
-                return false;
+                ok = false;
             }
-
-            whole = whole * 10 + (int) (c - L'0');
+            else
+            {
+                whole = whole * 10 + (int) (c - L'0');
+            }
         }
 
-        std::wstring_view frac = tok.substr (dot + 1);
+        if (ok)
+        {
+            std::wstring_view frac = tok.substr (dot + 1);
 
-        if      (frac == L"0")  { qtIndex = 0; }
-        else if (frac == L"25") { qtIndex = 1; }
-        else if (frac == L"5")  { qtIndex = 2; }
-        else if (frac == L"75") { qtIndex = 3; }
-        else                    { return false; }
+            if      (frac == L"0")  { qtIndex = 0; }
+            else if (frac == L"25") { qtIndex = 1; }
+            else if (frac == L"5")  { qtIndex = 2; }
+            else if (frac == L"75") { qtIndex = 3; }
+            else                    { ok = false; }
+        }
 
-        outQt = whole * TrackSectorPredicate::kQuarterTracksPerTrack + qtIndex;
+        if (ok)
+        {
+            outQt = whole * TrackSectorPredicate::kQuarterTracksPerTrack + qtIndex;
+        }
 
-        return true;
+        return ok;
     }
 
 
@@ -88,29 +97,36 @@ namespace
 
     bool ParseDecimalInt (std::wstring_view tok, int & outVal) noexcept
     {
-        int     v = 0;
-        size_t  i = 0;
-        wchar_t c = 0;
+        int     v  = 0;
+        size_t  i  = 0;
+        wchar_t c  = 0;
+        bool    ok = true;
 
         if (tok.empty())
         {
-            return false;
+            ok = false;
         }
 
-        for (i = 0; i < tok.size(); i++)
+        for (i = 0; ok && i < tok.size(); i++)
         {
             c = tok[i];
 
             if (c < L'0' || c > L'9')
             {
-                return false;
+                ok = false;
             }
-
-            v = v * 10 + (int) (c - L'0');
+            else
+            {
+                v = v * 10 + (int) (c - L'0');
+            }
         }
 
-        outVal = v;
-        return true;
+        if (ok)
+        {
+            outVal = v;
+        }
+
+        return ok;
     }
 
 
@@ -130,33 +146,24 @@ namespace
                      int &              outVal,
                      bool &             outIsQt) noexcept
     {
-        int  qt    = 0;
-        int  val   = 0;
+        int   qt  = 0;
+        int   val = 0;
+        bool  ok  = false;
 
         if (ParseDecimalQt (tok, qt))
         {
             outVal  = qt;
             outIsQt = true;
-            return true;
+            ok      = true;
         }
-
-        if (ParseDecimalInt (tok, val))
+        else if (ParseDecimalInt (tok, val))
         {
-            if (rawQt)
-            {
-                outVal  = val;
-                outIsQt = true;
-            }
-            else
-            {
-                outVal  = val;
-                outIsQt = false;
-            }
-
-            return true;
+            outVal  = val;
+            outIsQt = rawQt;
+            ok      = true;
         }
 
-        return false;
+        return ok;
     }
 
 
@@ -205,14 +212,20 @@ namespace
 
     int ValueCap (TrackSectorPredicate::Mode mode, bool isQt) noexcept
     {
+        int  cap = 0;
+
         if (mode == TrackSectorPredicate::Mode::Sector)
         {
-            return TrackSectorPredicate::kMaxSectorExclusive;
+            cap = TrackSectorPredicate::kMaxSectorExclusive;
+        }
+        else
+        {
+            cap = isQt
+                      ? TrackSectorPredicate::kMaxQuarterTrackExclusive
+                      : TrackSectorPredicate::kMaxWholeTrackExclusive;
         }
 
-        return isQt
-                   ? TrackSectorPredicate::kMaxQuarterTrackExclusive
-                   : TrackSectorPredicate::kMaxWholeTrackExclusive;
+        return cap;
     }
 }
 
@@ -360,29 +373,25 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, Mode m
 
 bool TrackSectorPredicate::Matches (int value) const noexcept
 {
-    size_t  i = 0;
+    size_t  i       = 0;
+    bool    matched = false;
 
     if (m_matchAll)
     {
-        return true;
+        matched = true;
     }
 
-    for (i = 0; i < m_ranges.size(); i++)
+    for (i = 0; !matched && i < m_ranges.size(); i++)
     {
         const Range & r = m_ranges[i];
 
-        if (r.isQt)
+        if (!r.isQt && value >= r.lo && value <= r.hi)
         {
-            continue;
-        }
-
-        if (value >= r.lo && value <= r.hi)
-        {
-            return true;
+            matched = true;
         }
     }
 
-    return false;
+    return matched;
 }
 
 
@@ -404,15 +413,16 @@ bool TrackSectorPredicate::MatchesQuarterTrack (int qt) const noexcept
 {
     size_t  i        = 0;
     int     trackIdx = 0;
+    bool    matched  = false;
 
     if (m_matchAll)
     {
-        return true;
+        matched = true;
     }
 
     trackIdx = qt / kQuarterTracksPerTrack;
 
-    for (i = 0; i < m_ranges.size(); i++)
+    for (i = 0; !matched && i < m_ranges.size(); i++)
     {
         const Range & r = m_ranges[i];
 
@@ -420,17 +430,17 @@ bool TrackSectorPredicate::MatchesQuarterTrack (int qt) const noexcept
         {
             if (qt >= r.lo && qt <= r.hi)
             {
-                return true;
+                matched = true;
             }
         }
         else
         {
             if (trackIdx >= r.lo && trackIdx <= r.hi)
             {
-                return true;
+                matched = true;
             }
         }
     }
 
-    return false;
+    return matched;
 }

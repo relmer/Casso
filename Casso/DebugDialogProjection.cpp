@@ -542,24 +542,26 @@ int DebugDialogProjection::PreservedFocusItem (
     uint32_t                       priorDequeIdx,
     const std::vector<uint32_t> &  newFilteredIndices) noexcept
 {
-    auto  it = std::lower_bound (newFilteredIndices.begin(),
-                                 newFilteredIndices.end   (),
-                                 priorDequeIdx);
+    int   result = -1;
+    auto  it     = std::lower_bound (newFilteredIndices.begin(),
+                                     newFilteredIndices.end   (),
+                                     priorDequeIdx);
 
-    if (newFilteredIndices.empty())
+    if (!newFilteredIndices.empty())
     {
-        return -1;
+        if (it != newFilteredIndices.end() && *it == priorDequeIdx)
+        {
+            result = static_cast<int> (it - newFilteredIndices.begin());
+        }
+        else if (it != newFilteredIndices.begin())
+        {
+            result = static_cast<int> ((it - 1) - newFilteredIndices.begin());
+        }
+        else
+        {
+            result = 0;
+        }
     }
 
-    if (it != newFilteredIndices.end() && *it == priorDequeIdx)
-    {
-        return static_cast<int> (it - newFilteredIndices.begin());
-    }
-
-    if (it != newFilteredIndices.begin())
-    {
-        return static_cast<int> ((it - 1) - newFilteredIndices.begin());
-    }
-
-    return 0;
+    return result;
 }

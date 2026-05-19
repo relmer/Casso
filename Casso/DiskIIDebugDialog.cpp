@@ -217,13 +217,11 @@ Error:
 
 void DiskIIDebugDialog::Show()
 {
-    if (m_hwnd == nullptr)
+    if (m_hwnd != nullptr)
     {
-        return;
+        ShowWindow (m_hwnd, SW_SHOW);
+        SetForegroundWindow (m_hwnd);
     }
-
-    ShowWindow (m_hwnd, SW_SHOW);
-    SetForegroundWindow (m_hwnd);
 }
 
 
@@ -238,12 +236,10 @@ void DiskIIDebugDialog::Show()
 
 void DiskIIDebugDialog::Hide()
 {
-    if (m_hwnd == nullptr)
+    if (m_hwnd != nullptr)
     {
-        return;
+        ShowWindow (m_hwnd, SW_HIDE);
     }
-
-    ShowWindow (m_hwnd, SW_HIDE);
 }
 
 
@@ -1465,20 +1461,17 @@ std::wstring DiskIIDebugDialog::ReadEditText (HWND hEdit) const
     int           len = 0;
     std::wstring  out;
 
-    if (hEdit == nullptr)
+    if (hEdit != nullptr)
     {
-        return out;
+        len = GetWindowTextLengthW (hEdit);
+
+        if (len > 0)
+        {
+            out.resize (static_cast<size_t> (len));
+            GetWindowTextW (hEdit, out.data(), len + 1);
+        }
     }
 
-    len = GetWindowTextLengthW (hEdit);
-
-    if (len <= 0)
-    {
-        return out;
-    }
-
-    out.resize (static_cast<size_t> (len));
-    GetWindowTextW (hEdit, out.data(), len + 1);
     return out;
 }
 
