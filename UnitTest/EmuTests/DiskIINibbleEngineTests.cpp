@@ -42,15 +42,15 @@ public:
         eng.SetMotorOn   (true);
 
         eng.Tick (3);
-        Assert::AreEqual (size_t (0), eng.GetBitPosition (),
+        Assert::AreEqual (size_t (0), eng.GetBitPosition(),
             L"3 cycles is below the 4-cycle bit boundary");
 
         eng.Tick (1);
-        Assert::AreEqual (size_t (1), eng.GetBitPosition (),
+        Assert::AreEqual (size_t (1), eng.GetBitPosition(),
             L"4 cumulative cycles must produce one bit advance");
 
         eng.Tick (DiskIINibbleEngine::kCyclesPerBit * 5);
-        Assert::AreEqual (size_t (6), eng.GetBitPosition (),
+        Assert::AreEqual (size_t (6), eng.GetBitPosition(),
             L"5 more bits' worth of cycles must advance 5 bits");
     }
 
@@ -66,7 +66,7 @@ public:
 
         eng.Tick (DiskIINibbleEngine::kCyclesPerBit * 16);
 
-        Assert::AreEqual (size_t (16), eng.GetBitPosition (),
+        Assert::AreEqual (size_t (16), eng.GetBitPosition(),
             L"Ticking 16 bit-times must advance 16 bits");
     }
 
@@ -84,9 +84,9 @@ public:
 
         eng.Tick (DiskIINibbleEngine::kCyclesPerBit * 8);
 
-        Assert::IsTrue (img.IsDirty (),
+        Assert::IsTrue (img.IsDirty(),
             L"Write-mode tick must mark the image dirty");
-        Assert::AreEqual (size_t (8), eng.GetBitPosition (),
+        Assert::AreEqual (size_t (8), eng.GetBitPosition(),
             L"Write-mode tick must still advance the bit cursor");
     }
 
@@ -102,7 +102,7 @@ public:
 
         eng.Tick (DiskIINibbleEngine::kCyclesPerBit * 100);
 
-        Assert::AreEqual (size_t (0), eng.GetBitPosition (),
+        Assert::AreEqual (size_t (0), eng.GetBitPosition(),
             L"Motor off must freeze the bit cursor");
     }
 
@@ -111,11 +111,11 @@ public:
         DiskIINibbleEngine    eng;
 
         eng.SetCurrentTrack (-5);
-        Assert::AreEqual (DiskIINibbleEngine::kMinTrack, eng.GetCurrentTrack (),
+        Assert::AreEqual (DiskIINibbleEngine::kMinTrack, eng.GetCurrentTrack(),
             L"Negative tracks must clamp to kMinTrack");
 
         eng.SetCurrentTrack (1000);
-        Assert::AreEqual (DiskIINibbleEngine::kMaxTrack, eng.GetCurrentTrack (),
+        Assert::AreEqual (DiskIINibbleEngine::kMaxTrack, eng.GetCurrentTrack(),
             L"Out-of-range tracks must clamp to kMaxTrack");
     }
 
@@ -265,14 +265,14 @@ public:
         PrepareSingleByteStream (img, eng, 0xFF);
 
         TickBits (eng, 8);
-        Assert::AreEqual ((int) 0xFF, (int) eng.PeekReadLatch (),
+        Assert::AreEqual ((int) 0xFF, (int) eng.PeekReadLatch(),
             L"Pre-condition: latch holds the full assembled nibble");
 
         // Two more bits run the latch-delay out and reload the
         // latch with a partial (MSB-clear) value.
         TickBits (eng, 2);
 
-        Assert::AreEqual (0, (int) (eng.PeekReadLatch () & 0x80),
+        Assert::AreEqual (0, (int) (eng.PeekReadLatch() & 0x80),
             L"Pre-condition: latch MSB has been cleared by partial reassembly");
 
         Assert::IsFalse (eng.ConsumeFreshNibble (out),
@@ -305,8 +305,8 @@ public:
             TickBits (engA, 1);
             TickBits (engB, 1);
 
-            uint8_t  a = engA.ReadLatch ();
-            uint8_t  b = engB.ReadLatch ();
+            uint8_t  a = engA.ReadLatch();
+            uint8_t  b = engB.ReadLatch();
 
             Assert::AreEqual ((int) a, (int) b,
                 L"Interleaved ConsumeFreshNibble must not change the CPU-visible ReadLatch");

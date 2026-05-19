@@ -419,7 +419,7 @@ namespace DiskIIAddressMarkWatcherTests
 
                 for (pollIndex = 0; pollIndex < 8; pollIndex++)
                 {
-                    sample = eng.ReadLatch ();
+                    sample = eng.ReadLatch();
                     (void) sample;
 
                     if (eng.ConsumeFreshNibble (fresh))

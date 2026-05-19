@@ -13,7 +13,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskIINibbleEngine::DiskIINibbleEngine ()
+DiskIINibbleEngine::DiskIINibbleEngine()
 {
 }
 
@@ -144,7 +144,7 @@ void DiskIINibbleEngine::SetCurrentTrack (int track)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIINibbleEngine::Reset ()
+void DiskIINibbleEngine::Reset()
 {
     m_motorOn         = false;
     m_writeMode       = false;
@@ -189,7 +189,7 @@ void DiskIINibbleEngine::Tick (uint32_t cpuCycles)
 
     for (i = 0; i < bitsToAdvance; i++)
     {
-        AdvanceOneBit ();
+        AdvanceOneBit();
     }
 }
 
@@ -208,7 +208,7 @@ void DiskIINibbleEngine::Tick (uint32_t cpuCycles)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIINibbleEngine::AdvanceOneBit ()
+void DiskIINibbleEngine::AdvanceOneBit()
 {
     uint8_t   bit       = 0;
     size_t    trackBits = 0;
@@ -227,7 +227,7 @@ void DiskIINibbleEngine::AdvanceOneBit ()
 
     if (m_writeMode)
     {
-        ShiftWriteBit ();
+        ShiftWriteBit();
     }
     else
     {
@@ -314,14 +314,14 @@ void DiskIINibbleEngine::ShiftReadBit (uint8_t bit)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIINibbleEngine::ShiftWriteBit ()
+void DiskIINibbleEngine::ShiftWriteBit()
 {
     uint8_t   outBit = 0;
 
     outBit       = static_cast<uint8_t> ((m_writeLatch >> 7) & 1);
     m_writeLatch = static_cast<uint8_t> (m_writeLatch << 1);
 
-    if (m_disk != nullptr && !m_disk->IsWriteProtected ())
+    if (m_disk != nullptr && !m_disk->IsWriteProtected())
     {
         m_disk->WriteBit (m_currentTrack, m_bitPos, outBit);
     }
@@ -340,7 +340,7 @@ void DiskIINibbleEngine::ShiftWriteBit ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint8_t DiskIINibbleEngine::ReadLatch ()
+uint8_t DiskIINibbleEngine::ReadLatch()
 {
     // Real P5A behavior: reading $C0EC is a pure sample of the shift
     // register's current state. There is NO side effect on the read --

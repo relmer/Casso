@@ -819,7 +819,7 @@ void DiskIIDebugDialog::RebuildListViewColumns()
         virtualIdx++;
     }
 
-    SizeDetailColumnToRemainder ();
+    SizeDetailColumnToRemainder();
 }
 
 
@@ -861,14 +861,14 @@ int DiskIIDebugDialog::MeasureColumnContentWidth (int logicalId) const
 
     headerWidth = ListView_GetStringWidth (m_listView, m_columns[logicalId].headerText);
 
-    for (i = 0; i < m_deque.size (); i++)
+    for (i = 0; i < m_deque.size(); i++)
     {
-        scratch.clear ();
+        scratch.clear();
         AppendColumnText (scratch, m_deque[i], logicalId);
 
-        if (!scratch.empty ())
+        if (!scratch.empty())
         {
-            cellWidth = ListView_GetStringWidth (m_listView, scratch.c_str ());
+            cellWidth = ListView_GetStringWidth (m_listView, scratch.c_str());
 
             if (cellWidth > maxCellWidth)
             {
@@ -896,7 +896,7 @@ int DiskIIDebugDialog::MeasureColumnContentWidth (int logicalId) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::SizeDetailColumnToRemainder ()
+void DiskIIDebugDialog::SizeDetailColumnToRemainder()
 {
     constexpr int  kDetailMinWidth    = 200;
     constexpr int  kDetailLogicalId   = kColumnCount - 1;
@@ -1153,7 +1153,7 @@ bool DiskIIDebugDialog::OnSize (HWND hwnd, UINT width, UINT height)
     // Spec-006 bug-fix. The Detail column flexes with the dialog so
     // user resize moves the trailing free space INTO the Detail
     // cell rather than leaving it dead at the right edge of the LV.
-    SizeDetailColumnToRemainder ();
+    SizeDetailColumnToRemainder();
 
     return false;
 }
@@ -1366,7 +1366,7 @@ void DiskIIDebugDialog::OnFilterControlToggled (int id, HWND hCtl)
     }
 
     {
-        int  priorFocusedDequeIdx = CapturedFocusedDequeIdx ();
+        int  priorFocusedDequeIdx = CapturedFocusedDequeIdx();
 
         RebuildFilteredIndices();
         InvalidateListView();
@@ -1515,7 +1515,7 @@ void DiskIIDebugDialog::FlushFilterDebounce()
     m_filter.sectorFilter = TrackSectorPredicate::Parse (sectorText,
                                                          TrackSectorPredicate::Mode::Sector);
 
-    priorFocusedDequeIdx = CapturedFocusedDequeIdx ();
+    priorFocusedDequeIdx = CapturedFocusedDequeIdx();
 
     RebuildFilteredIndices();
     InvalidateListView();
@@ -1545,7 +1545,7 @@ void DiskIIDebugDialog::FlushFilterDebounce()
                             trackText,  m_filter.trackFilter.RejectedSpans  ());
     SetPerSideInvalidLabel (m_sectorInvalidLabel,
                             L"Invalid sector: ",
-                            sectorText, m_filter.sectorFilter.RejectedSpans ());
+                            sectorText, m_filter.sectorFilter.RejectedSpans());
 }
 
 
@@ -1593,7 +1593,7 @@ void DiskIIDebugDialog::RebuildFilteredIndices()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DiskIIDebugDialog::CapturedFocusedDequeIdx () const noexcept
+int DiskIIDebugDialog::CapturedFocusedDequeIdx() const noexcept
 {
     int  focused = -1;
 
@@ -1609,7 +1609,7 @@ int DiskIIDebugDialog::CapturedFocusedDequeIdx () const noexcept
         return -1;
     }
 
-    if (static_cast<size_t> (focused) >= m_filteredIndices.size ())
+    if (static_cast<size_t> (focused) >= m_filteredIndices.size())
     {
         return -1;
     }
@@ -2034,10 +2034,10 @@ void DiskIIDebugDialog::HandleDrainTick()
     // sustained drain doesn't pay the string-width cost on every
     // WM_TIMER tick.
     {
-        bool   firstFit       = !m_firstAutoFitDone && !m_deque.empty ();
-        size_t rowsSinceCheck = (m_deque.size () >= m_dequeSizeAtLastGrow)
-                                    ? (m_deque.size () - m_dequeSizeAtLastGrow)
-                                    : m_deque.size ();
+        bool   firstFit       = !m_firstAutoFitDone && !m_deque.empty();
+        size_t rowsSinceCheck = (m_deque.size() >= m_dequeSizeAtLastGrow)
+                                    ? (m_deque.size() - m_dequeSizeAtLastGrow)
+                                    : m_deque.size();
         bool   periodicFit    = m_firstAutoFitDone && rowsSinceCheck >= kAutoGrowRowThreshold;
 
         if (firstFit || periodicFit)
@@ -2073,11 +2073,11 @@ void DiskIIDebugDialog::HandleDrainTick()
 
             if (firstFit || anyGrew)
             {
-                SizeDetailColumnToRemainder ();
+                SizeDetailColumnToRemainder();
             }
 
             m_firstAutoFitDone     = true;
-            m_dequeSizeAtLastGrow  = m_deque.size ();
+            m_dequeSizeAtLastGrow  = m_deque.size();
         }
     }
 
@@ -2357,7 +2357,7 @@ void DiskIIDebugDialog::PublishToRing (const DiskIIEvent & e) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::ClearEvents () noexcept
+void DiskIIDebugDialog::ClearEvents() noexcept
 {
     DiskIIEvent  scratch[64] = {};
     uint32_t     drained     = 0;
@@ -2370,8 +2370,8 @@ void DiskIIDebugDialog::ClearEvents () noexcept
     }
     while (drained > 0);
 
-    m_deque.clear ();
-    m_filteredIndices.clear ();
+    m_deque.clear();
+    m_filteredIndices.clear();
     m_firstAutoFitDone     = false;
     m_dequeSizeAtLastGrow  = 0;
     m_lastPublishedCount   = -1;

@@ -40,7 +40,7 @@ public:
     void  SetPan    (float l, float r) override { m_panL = l; m_panR = r; }
 
     void  OnMotorEngaged    () override {}
-    void  OnMotorDisengaged () override {}
+    void  OnMotorDisengaged() override {}
     void  OnHeadStep     (int)       override {}
     void  OnHeadBump     ()          override {}
     void  OnDiskInserted()          override {}

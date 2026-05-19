@@ -19,8 +19,8 @@
 class Window
 {
 public:
-    Window ();
-    virtual ~Window ();
+    Window();
+    virtual ~Window();
 
     virtual HRESULT Initialize (HINSTANCE hInstance);
     virtual HRESULT Create (
@@ -33,7 +33,7 @@ public:
         int       height,
         HWND      hwndParent);
 
-    HWND GetHwnd () const { return m_hwnd; }
+    HWND GetHwnd() const { return m_hwnd; }
 
 protected:
     ATOM RegisterWindowClass (HINSTANCE hInstance);

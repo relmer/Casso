@@ -44,7 +44,7 @@ public:
 
     Byte Read     (Word address) override;
     void Write    (Word address, Byte value) override;
-    Word GetStart () const override { return m_ioStart; }
+    Word GetStart() const override { return m_ioStart; }
     Word GetEnd   () const override { return m_ioEnd; }
     void Reset    () override;
     void SoftReset  () override;
@@ -70,7 +70,7 @@ public:
     // both drives (per-drive routing happens at the source-mixer
     // level via separate IDriveAudioSource instances).
     void          SetAudioSink     (IDriveAudioSink * sink) { m_audioSink = sink; }
-    IDriveAudioSink * GetAudioSink () const                 { return m_audioSink; }
+    IDriveAudioSink * GetAudioSink() const                 { return m_audioSink; }
 
     // Spec-006 debug-window event sink wiring. Caller-owned;
     // controller never deletes it. Pass nullptr to detach (the
@@ -98,7 +98,7 @@ public:
 private:
     void   HandleSwitch         (int offset);
     void   HandlePhase          (int phase, bool on);
-    void   UpdateEngineSelection ();
+    void   UpdateEngineSelection();
     Byte   HandleReadDispatch  ();
 
     int                  m_slot;

@@ -62,7 +62,7 @@ public:
     // discard any in-flight producer events. Pause / resume state is
     // intentionally preserved -- the user may be paused inspecting
     // pre-reset state and a reset shouldn't yank them out of pause.
-    void    ClearEvents () noexcept;
+    void    ClearEvents() noexcept;
 
     // Spec-006 / FR-017. When the active machine config has more
     // than one Disk II controller, append " (controller #0 only)" to
@@ -126,7 +126,7 @@ private:
     void    LayoutChildControls         (int width, int height);
     void    RebuildListViewColumns      ();
     int     MeasureColumnContentWidth   (int logicalId) const;
-    void    SizeDetailColumnToRemainder ();
+    void    SizeDetailColumnToRemainder();
     void    ToggleColumn                (int id);
     void    CaptureCurrentWidthsIntoModel();
     void    ShowHeaderContextMenu       (int x, int y);

@@ -314,11 +314,11 @@ public:
         src.SetSampleBufferForTest (L"DoorClose", vector<float> (16, 0.5f));
         src.SetSampleBufferForTest (L"DoorOpen",  vector<float> (16, 0.5f));
 
-        src.OnDiskInserted ();
-        src.OnMotorEngaged ();
+        src.OnDiskInserted();
+        src.OnMotorEngaged();
         src.SetAudioEventSink (&sink);
 
-        src.OnDiskEjected ();
+        src.OnDiskEjected();
 
         // Expected ordered log entries:
         //   [0] LoopStopped (MotorLoop)
@@ -345,14 +345,14 @@ public:
 
         // Motor on while drive bay empty -- silent.
         src.SetAudioEventSink (&sink);
-        src.OnMotorEngaged ();
+        src.OnMotorEngaged();
 
         Assert::AreEqual (size_t (1),                                        sink.log.size());
         Assert::IsTrue   (sink.log[0].reason == SilentReason::NoDiskPresent);
 
-        sink.log.clear ();
+        sink.log.clear();
 
-        src.OnDiskInserted ();
+        src.OnDiskInserted();
 
         // Expected:
         //   [0] Restarted (MotorLoop)
@@ -362,7 +362,7 @@ public:
         Assert::IsTrue   (sink.log[0].sound == SoundKind::MotorLoop);
         Assert::IsTrue   (sink.log[1].which == RecordingAudioEventSink::Kind::Started);
         Assert::IsTrue   (sink.log[1].sound == SoundKind::DoorClose);
-        Assert::IsTrue   (src.IsDiskPresent ());
+        Assert::IsTrue   (src.IsDiskPresent());
     }
 
     TEST_METHOD (MotorOnWithDisk_thenEjectThenReinsert_mixOutputGatedCorrectly)
@@ -374,14 +374,14 @@ public:
         src.SetSampleBufferForTest (L"DoorOpen",  vector<float> (1,  0.0f));
         src.SetSampleBufferForTest (L"DoorClose", vector<float> (1,  0.0f));
 
-        src.OnDiskInserted ();
-        src.OnMotorEngaged ();
+        src.OnDiskInserted();
+        src.OnMotorEngaged();
         src.GeneratePCM (out, 8);
 
         Assert::IsTrue (out[0] > 0.0f, L"Motor audible with disk present");
 
         memset (out, 0, sizeof (out));
-        src.OnDiskEjected ();
+        src.OnDiskEjected();
         src.GeneratePCM (out, 8);
 
         for (int i = 0; i < 8; i++)
@@ -390,7 +390,7 @@ public:
         }
 
         memset (out, 0, sizeof (out));
-        src.OnDiskInserted ();
+        src.OnDiskInserted();
         src.GeneratePCM (out, 8);
 
         Assert::IsTrue (out[0] > 0.0f, L"Motor audible again after re-insert");

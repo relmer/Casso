@@ -27,7 +27,7 @@ public:
     static constexpr int   kMinTrack     = 0;
     static constexpr int   kMaxTrack     = 39;
 
-    DiskIINibbleEngine ();
+    DiskIINibbleEngine();
 
     void       SetDiskImage     (DiskImage * disk);
     void       SetMotorOn       (bool on);

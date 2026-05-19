@@ -43,7 +43,7 @@ namespace
         // Test-side mirror of AssetBootstrap::WritePcmAsWav. Kept in
         // sync with the production helper so a regression there shows
         // up as a round-trip failure here.
-        size_t      sampleCount   = pcm.size ();
+        size_t      sampleCount   = pcm.size();
         uint32_t    dataBytes     = static_cast<uint32_t> (sampleCount * sizeof (int16_t));
         uint32_t    fileSize      = 36 + dataBytes;
         uint16_t    numChannels   = 1;
@@ -85,7 +85,7 @@ namespace
 
     static fs::path MakeTempDeviceDir (const wchar_t * suffix)
     {
-        fs::path  base = fs::temp_directory_path () / L"casso_disk_audio_tests";
+        fs::path  base = fs::temp_directory_path() / L"casso_disk_audio_tests";
         fs::path  dir  = base / suffix;
 
         std::error_code  ec;
@@ -117,8 +117,8 @@ public:
 
         Assert::AreEqual (HRESULT (E_INVALIDARG), hr,
             L"Null/empty input must return E_INVALIDARG, not crash");
-        Assert::IsTrue (pcm.empty (), L"PCM buffer must be cleared on failure");
-        Assert::IsFalse (err.empty (), L"Error string must be set on failure");
+        Assert::IsTrue (pcm.empty(), L"PCM buffer must be cleared on failure");
+        Assert::IsFalse (err.empty(), L"Error string must be set on failure");
     }
 
 
@@ -130,7 +130,7 @@ public:
         // upstream OGG must never crash the emulator).
         std::vector<uint8_t> junk (64);
 
-        for (size_t i = 0; i < junk.size (); i++)
+        for (size_t i = 0; i < junk.size(); i++)
         {
             junk[i] = static_cast<uint8_t> (i * 13 + 7);
         }
@@ -141,12 +141,12 @@ public:
         std::string          err;
 
         HRESULT  hr = StbVorbisWrapper::DecodeOggToInterleavedShort (
-            junk.data (), junk.size (), pcm, rate, channels, err);
+            junk.data(), junk.size(), pcm, rate, channels, err);
 
         Assert::IsTrue (FAILED (hr),
             L"Garbage input must return a failure HRESULT");
-        Assert::IsTrue (pcm.empty (), L"PCM buffer must be empty on failure");
-        Assert::IsFalse (err.empty (), L"Error string must be set on failure");
+        Assert::IsTrue (pcm.empty(), L"PCM buffer must be empty on failure");
+        Assert::IsFalse (err.empty(), L"Error string must be set on failure");
     }
 
 
@@ -172,7 +172,7 @@ public:
         const float         amp = 0.5f;
         const float         hz  = 1000.0f;
 
-        for (size_t i = 0; i < src.size (); i++)
+        for (size_t i = 0; i < src.size(); i++)
         {
             float  t = (float) i / (float) s_kTestSampleRate;
 
@@ -186,7 +186,7 @@ public:
 
         DiskIIAudioSource  src1;
 
-        HRESULT  hr = src1.LoadSamples (devicesDir.wstring ().c_str (),
+        HRESULT  hr = src1.LoadSamples (devicesDir.wstring().c_str(),
                                         L"Shugart",
                                         s_kTestSampleRate);
 
@@ -199,12 +199,12 @@ public:
         // output is non-silent. Empty buffer == silence == failure
         // under FR-009. Spec-006 bug 14a: motor loop gates on disk
         // presence, so insert a synthetic disk first.
-        src1.OnDiskInserted ();
-        src1.OnMotorEngaged ();
+        src1.OnDiskInserted();
+        src1.OnMotorEngaged();
 
         std::vector<float>  frame (256);
 
-        src1.GeneratePCM (frame.data (), static_cast<uint32_t> (frame.size ()));
+        src1.GeneratePCM (frame.data(), static_cast<uint32_t> (frame.size()));
 
         float  peak = 0.0f;
 
@@ -218,10 +218,10 @@ public:
         // sine should produce a peak of ~0.125. Allow generous slack
         // because the looped frame may catch a zero crossing.
         Assert::IsTrue (peak > 0.02f,
-            std::format (L"Round-tripped WAV produced silent motor loop (peak={})", peak).c_str ());
+            std::format (L"Round-tripped WAV produced silent motor loop (peak={})", peak).c_str());
 
         std::error_code  ec;
-        fs::remove_all (devicesDir.parent_path (), ec);
+        fs::remove_all (devicesDir.parent_path(), ec);
     }
 
 
@@ -247,16 +247,16 @@ public:
 
         DiskIIAudioSource  src;
 
-        HRESULT  hr = src.LoadSamples (devicesDir.wstring ().c_str (),
+        HRESULT  hr = src.LoadSamples (devicesDir.wstring().c_str(),
                                        L"Shugart",
                                        s_kTestSampleRate);
         Assert::IsTrue (SUCCEEDED (hr), L"LoadSamples must succeed");
 
-        src.OnDiskInserted ();
-        src.OnMotorEngaged ();
+        src.OnDiskInserted();
+        src.OnMotorEngaged();
 
         std::vector<float>  frame (64);
-        src.GeneratePCM (frame.data (), static_cast<uint32_t> (frame.size ()));
+        src.GeneratePCM (frame.data(), static_cast<uint32_t> (frame.size()));
 
         float  peak = 0.0f;
         for (float s : frame)
@@ -268,6 +268,6 @@ public:
         Assert::IsTrue (peak > 0.05f,
             L"Per-mechanism copy must load when no top-level override exists");
 
-        fs::remove_all (devicesDir.parent_path (), ec);
+        fs::remove_all (devicesDir.parent_path(), ec);
     }
 };

@@ -72,7 +72,7 @@ public:
 
     // IDriveAudioSink:
     void   OnMotorEngaged    () override;
-    void   OnMotorDisengaged () override;
+    void   OnMotorDisengaged() override;
     void   OnHeadStep        (int newQt) override;
     void   OnHeadBump        () override;
     void   OnDiskInserted    () override;

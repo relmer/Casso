@@ -236,18 +236,18 @@ HRESULT DiskIIAudioSource::LoadSamples (
         }
         else
         {
-            slots[i].clear ();
+            slots[i].clear();
             continue;
         }
 
-        hrSlot = DecodeWavToMonoFloat (fullPath.wstring ().c_str (),
+        hrSlot = DecodeWavToMonoFloat (fullPath.wstring().c_str(),
                                        targetSampleRate, slots[i]);
 
         if (FAILED (hrSlot))
         {
             DEBUGMSG (
                 L"DiskIIAudioSource: failed to load %s (hr=0x%08X) -- sound muted.\n",
-                fullPath.wstring ().c_str (), hrSlot);
+                fullPath.wstring().c_str(), hrSlot);
             slots[i].clear();
         }
     }

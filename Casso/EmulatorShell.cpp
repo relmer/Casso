@@ -127,14 +127,14 @@ EmulatorShell::~EmulatorShell()
     // attachment order in OpenDiskIIDebugDialog.
     if (m_diskIIDebugDialog != nullptr)
     {
-        controller = FindSlot6Controller ();
+        controller = FindSlot6Controller();
 
         if (controller != nullptr)
         {
             controller->SetEventSink (nullptr);
         }
 
-        for (size_t i = 0; i < m_diskAudioSources.size (); i++)
+        for (size_t i = 0; i < m_diskAudioSources.size(); i++)
         {
             if (m_diskAudioSources[i] != nullptr)
             {
@@ -142,8 +142,8 @@ EmulatorShell::~EmulatorShell()
             }
         }
 
-        m_diskIIDebugDialog->Destroy ();
-        m_diskIIDebugDialog.reset ();
+        m_diskIIDebugDialog->Destroy();
+        m_diskIIDebugDialog.reset();
     }
 
     // Phase 11 / T097 / FR-025. Final auto-flush of any dirty disks on
@@ -817,7 +817,7 @@ void EmulatorShell::DrawDriveStatusItem (DRAWITEMSTRUCT * pdis, int driveIndex)
           && m_diskController->IsMotorOn()
           && m_diskController->GetActiveDrive() == driveIndex
           && m_diskController->GetDisk (driveIndex) != nullptr
-          && m_diskController->GetDisk (driveIndex)->IsLoaded ();
+          && m_diskController->GetDisk (driveIndex)->IsLoaded();
 
     dotColor = active ? RGB (220, 32, 32) : RGB (128, 128, 128);
 
@@ -2136,13 +2136,13 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     // pointer was revoked above before the old CPU was destroyed).
     if (m_diskIIDebugDialog != nullptr && m_cpu != nullptr)
     {
-        m_diskIIDebugDialog->SetCycleCounter (m_cpu->GetCycleCounterPtr ());
+        m_diskIIDebugDialog->SetCycleCounter (m_cpu->GetCycleCounterPtr());
     }
 
     // Spec-006 bug 15. Re-wire the debug dialog onto the freshly
     // built controller + audio source. Without this the dialog goes
     // silent after a machine switch even though it's still on screen.
-    AttachDebugSinksIfOpen ();
+    AttachDebugSinksIfOpen();
 
     UpdateStatusBar();
     UpdateWindowTitle();
@@ -3632,7 +3632,7 @@ void EmulatorShell::OnViewCommand (int id)
 
         case IDM_VIEW_DISKII_DEBUG:
         {
-            OpenDiskIIDebugDialog ();
+            OpenDiskIIDebugDialog();
             break;
         }
     }
@@ -4014,14 +4014,14 @@ void EmulatorShell::PowerCycle()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::OpenDiskIIDebugDialog ()
+void EmulatorShell::OpenDiskIIDebugDialog()
 {
     HRESULT             hr           = S_OK;
     DiskIIController *  controller   = nullptr;
     int                 diskIICount  = 0;
     HINSTANCE           hInstance    = nullptr;
 
-    controller = FindSlot6Controller ();
+    controller = FindSlot6Controller();
 
     if (controller == nullptr)
     {
@@ -4048,7 +4048,7 @@ void EmulatorShell::OpenDiskIIDebugDialog ()
 
         if (FAILED (hr))
         {
-            m_diskIIDebugDialog.reset ();
+            m_diskIIDebugDialog.reset();
             return;
         }
 
@@ -4057,19 +4057,19 @@ void EmulatorShell::OpenDiskIIDebugDialog ()
 
         if (m_cpu != nullptr)
         {
-            m_diskIIDebugDialog->SetCycleCounter (m_cpu->GetCycleCounterPtr ());
+            m_diskIIDebugDialog->SetCycleCounter (m_cpu->GetCycleCounterPtr());
         }
 
         // FR-024: both sinks attached together, dialog implements
         // both interfaces. Audio sink is a no-op if the mixer has no
         // source registered (e.g., audio subsystem disabled).
-        controller->SetEventSink (m_diskIIDebugDialog.get ());
+        controller->SetEventSink (m_diskIIDebugDialog.get());
 
-        for (size_t i = 0; i < m_diskAudioSources.size (); i++)
+        for (size_t i = 0; i < m_diskAudioSources.size(); i++)
         {
             if (m_diskAudioSources[i] != nullptr)
             {
-                m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get ());
+                m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get());
             }
         }
     }
@@ -4078,8 +4078,8 @@ void EmulatorShell::OpenDiskIIDebugDialog ()
         m_diskIIDebugDialog->SetMultiControllerHint (diskIICount > 1);
     }
 
-    m_diskIIDebugDialog->Show ();
-    SetForegroundWindow (m_diskIIDebugDialog->GetHwnd ());
+    m_diskIIDebugDialog->Show();
+    SetForegroundWindow (m_diskIIDebugDialog->GetHwnd());
 }
 
 
@@ -4101,7 +4101,7 @@ void EmulatorShell::OpenDiskIIDebugDialog ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::AttachDebugSinksIfOpen ()
+void EmulatorShell::AttachDebugSinksIfOpen()
 {
     DiskIIController *  controller = nullptr;
 
@@ -4110,18 +4110,18 @@ void EmulatorShell::AttachDebugSinksIfOpen ()
         return;
     }
 
-    controller = FindSlot6Controller ();
+    controller = FindSlot6Controller();
 
     if (controller != nullptr)
     {
-        controller->SetEventSink (m_diskIIDebugDialog.get ());
+        controller->SetEventSink (m_diskIIDebugDialog.get());
     }
 
-    for (size_t i = 0; i < m_diskAudioSources.size (); i++)
+    for (size_t i = 0; i < m_diskAudioSources.size(); i++)
     {
         if (m_diskAudioSources[i] != nullptr)
         {
-            m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get ());
+            m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get());
         }
     }
 }

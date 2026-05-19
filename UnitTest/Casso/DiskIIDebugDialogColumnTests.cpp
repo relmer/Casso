@@ -37,7 +37,7 @@ namespace DiskIIDebugDialogColumnTests
 
             std::vector<VisibleColumnSpec>  plan = PlanVisibleColumns (model);
 
-            Assert::AreEqual (static_cast<size_t> (kColumnCount), plan.size ());
+            Assert::AreEqual (static_cast<size_t> (kColumnCount), plan.size());
 
             for (int i = 0; i < kColumnCount; i++)
             {
@@ -59,7 +59,7 @@ namespace DiskIIDebugDialogColumnTests
 
             std::vector<VisibleColumnSpec>  plan = PlanVisibleColumns (model);
 
-            Assert::AreEqual (static_cast<size_t> (kColumnCount - 1), plan.size ());
+            Assert::AreEqual (static_cast<size_t> (kColumnCount - 1), plan.size());
             Assert::AreEqual (0, plan[0].id);
             Assert::AreEqual (1, plan[1].id);
             Assert::AreEqual (3, plan[2].id);
@@ -83,7 +83,7 @@ namespace DiskIIDebugDialogColumnTests
 
             std::vector<VisibleColumnSpec>  plan = PlanVisibleColumns (model);
 
-            Assert::IsTrue (plan.empty ());
+            Assert::IsTrue (plan.empty());
         }
 
 
@@ -99,7 +99,7 @@ namespace DiskIIDebugDialogColumnTests
 
             std::vector<VisibleColumnSpec>  plan = PlanVisibleColumns (model);
 
-            Assert::AreEqual (static_cast<size_t> (kColumnCount),    plan.size ());
+            Assert::AreEqual (static_cast<size_t> (kColumnCount),    plan.size());
             Assert::AreEqual (kUserDraggedDetailWidth,               plan[kColumnCount - 1].width);
             Assert::IsFalse  (plan[kColumnCount - 1].needsAutoSize);
         }

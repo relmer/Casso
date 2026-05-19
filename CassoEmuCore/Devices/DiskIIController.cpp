@@ -76,7 +76,7 @@ Byte DiskIIController::Read (Word address)
 
     HandleSwitch (offset);
 
-    return HandleReadDispatch ();
+    return HandleReadDispatch();
 }
 
 
@@ -148,7 +148,7 @@ void DiskIIController::HandleSwitch (int offset)
             // the spindown timer actually expires.
             if (m_eventSink != nullptr)
             {
-                m_eventSink->OnMotorCommandOff ();
+                m_eventSink->OnMotorCommandOff();
             }
             break;
         case 0x9:
@@ -170,7 +170,7 @@ void DiskIIController::HandleSwitch (int offset)
 
                 if (edge && m_audioSink != nullptr)
                 {
-                    m_audioSink->OnMotorEngaged ();
+                    m_audioSink->OnMotorEngaged();
                 }
 
                 // Spec-006 FR-006: OnMotorCommandOn fires on every
@@ -180,18 +180,18 @@ void DiskIIController::HandleSwitch (int offset)
                 // edge detector above.
                 if (m_eventSink != nullptr)
                 {
-                    m_eventSink->OnMotorCommandOn ();
+                    m_eventSink->OnMotorCommandOn();
 
                     if (edge)
                     {
-                        m_eventSink->OnMotorEngaged ();
+                        m_eventSink->OnMotorEngaged();
                     }
                 }
             }
             break;
         case 0xA:
             m_activeDrive = 0;
-            UpdateEngineSelection ();
+            UpdateEngineSelection();
 
             // Spec-006 FR-006: drive-select event fires after the
             // engine selection has been propagated.
@@ -202,7 +202,7 @@ void DiskIIController::HandleSwitch (int offset)
             break;
         case 0xB:
             m_activeDrive = 1;
-            UpdateEngineSelection ();
+            UpdateEngineSelection();
 
             if (m_eventSink != nullptr)
             {
@@ -246,14 +246,14 @@ void DiskIIController::HandleSwitch (int offset)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte DiskIIController::HandleReadDispatch ()
+Byte DiskIIController::HandleReadDispatch()
 {
     Byte     nibble = 0;
     uint8_t  fresh  = 0;
 
     if (!m_q6 && !m_q7)
     {
-        nibble = m_engine[m_activeDrive].ReadLatch ();
+        nibble = m_engine[m_activeDrive].ReadLatch();
 
         // Spec-006 T032 / FR-008: feed the passive watcher exactly
         // one nibble per LSS "byte ready" rising edge -- NOT every
@@ -276,7 +276,7 @@ Byte DiskIIController::HandleReadDispatch ()
 
     if (m_q6 && !m_q7)
     {
-        if (m_activeDisk[m_activeDrive]->IsWriteProtected ())
+        if (m_activeDisk[m_activeDrive]->IsWriteProtected())
         {
             return 0x80;
         }
@@ -424,7 +424,7 @@ void DiskIIController::HandlePhase (int phase, bool on)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIController::UpdateEngineSelection ()
+void DiskIIController::UpdateEngineSelection()
 {
     int   other = m_activeDrive ^ 1;
 
@@ -464,7 +464,7 @@ void DiskIIController::Tick (uint32_t cpuCycles)
             // (Renamed from OnMotorStop in spec-006.)
             if (m_audioSink != nullptr)
             {
-                m_audioSink->OnMotorDisengaged ();
+                m_audioSink->OnMotorDisengaged();
             }
 
             // Spec-006 FR-006: OnMotorDisengaged fires on the
@@ -472,7 +472,7 @@ void DiskIIController::Tick (uint32_t cpuCycles)
             // when the spindown counter actually expires.
             if (m_eventSink != nullptr)
             {
-                m_eventSink->OnMotorDisengaged ();
+                m_eventSink->OnMotorDisengaged();
             }
         }
         else
@@ -530,7 +530,7 @@ void DiskIIController::EjectDisk (int drive)
         return;
     }
 
-    m_disks[drive].Eject ();
+    m_disks[drive].Eject();
     m_activeDisk[drive] = &m_disks[drive];
     m_engine[drive].SetDiskImage (m_activeDisk[drive]);
 
@@ -642,7 +642,7 @@ void DiskIIController::NotifyDiskEjected (int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIController::Reset ()
+void DiskIIController::Reset()
 {
     int   i = 0;
 
@@ -656,7 +656,7 @@ void DiskIIController::Reset ()
 
     for (i = 0; i < kDriveCount; i++)
     {
-        m_engine[i].Reset ();
+        m_engine[i].Reset();
         m_engine[i].SetDiskImage (m_activeDisk[i]);
     }
 }
@@ -675,18 +675,18 @@ void DiskIIController::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIController::SoftReset ()
+void DiskIIController::SoftReset()
 {
     HRESULT   hrFlush = S_OK;
     int       drive   = 0;
 
-    Reset ();
+    Reset();
 
     for (drive = 0; drive < kDriveCount; drive++)
     {
-        if (m_activeDisk[drive]->IsLoaded ())
+        if (m_activeDisk[drive]->IsLoaded())
         {
-            hrFlush = m_activeDisk[drive]->Flush ();
+            hrFlush = m_activeDisk[drive]->Flush();
             IGNORE_RETURN_VALUE (hrFlush, S_OK);
         }
     }
@@ -711,11 +711,11 @@ void DiskIIController::PowerCycle (Prng & prng)
 
     UNREFERENCED_PARAMETER (prng);
 
-    Reset ();
+    Reset();
 
     for (drive = 0; drive < kDriveCount; drive++)
     {
-        m_disks[drive].Eject ();
+        m_disks[drive].Eject();
         m_activeDisk[drive] = &m_disks[drive];
         m_engine[drive].SetDiskImage (m_activeDisk[drive]);
     }

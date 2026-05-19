@@ -51,7 +51,7 @@ enum class SpeedMode
 class MenuSystem
 {
 public:
-    MenuSystem ();
+    MenuSystem();
 
     HRESULT CreateMenuBar (HWND hwnd);
 
@@ -66,8 +66,8 @@ public:
     // menu open.
     void UpdateDynamicMenuItems (const MachineConfig & config) noexcept;
 
-    SpeedMode GetSpeedMode () const { return m_speedMode; }
-    ColorMode GetColorMode () const { return m_colorMode; }
+    SpeedMode GetSpeedMode() const { return m_speedMode; }
+    ColorMode GetColorMode() const { return m_colorMode; }
 
 private:
     HMENU       m_menuBar     = nullptr;

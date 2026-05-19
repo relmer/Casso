@@ -50,8 +50,8 @@ struct EmulatorCommand
 class EmulatorShell : public Window
 {
 public:
-    EmulatorShell ();
-    ~EmulatorShell ();
+    EmulatorShell();
+    ~EmulatorShell();
 
     HRESULT Initialize (
         HINSTANCE              hInstance,
@@ -60,16 +60,16 @@ public:
         const string    & disk1Path,
         const string    & disk2Path);
 
-    int RunMessageLoop ();
+    int RunMessageLoop();
 
     void HandleCommand (WORD commandId);
 
     // State
-    bool IsRunning () const { return m_running.load (memory_order_acquire); }
+    bool IsRunning() const { return m_running.load (memory_order_acquire); }
     bool IsPaused  () const { return m_paused.load (memory_order_acquire); }
 
     // Access bus for test wiring
-    MemoryBus & GetBus () { return m_memoryBus; }
+    MemoryBus & GetBus() { return m_memoryBus; }
 
     // Phase 4 / FR-034 / FR-035: split-reset entry points exposed for the
     // menu commands (IDM_MACHINE_RESET / IDM_MACHINE_POWERCYCLE) and any
@@ -84,7 +84,7 @@ public:
     // attach it as the sink on the active Disk II controller
     // (controller #0 per FR-017) AND on that controller's
     // DiskIIAudioSource. On subsequent calls: show + bring to front.
-    void OpenDiskIIDebugDialog ();
+    void OpenDiskIIDebugDialog();
 
     // Spec-006 bug 15. SwitchMachine destroys and recreates the
     // controller + audio source while the modeless debug dialog
@@ -93,15 +93,15 @@ public:
     // up so the dialog re-attaches as the controller event sink
     // and the active drive's audio-event sink on the new objects.
     // No-op when the dialog has never been opened.
-    void AttachDebugSinksIfOpen ();
+    void AttachDebugSinksIfOpen();
 
     // Spec-006 / FR-004a. Re-zero the Uptime column anchor on every
     // //e SoftReset / PowerCycle. The anchor is shell-owned (lives
     // across dialog opens) but read by the dialog via
     // GetUptimeAnchor() on each WM_TIMER drain.
-    void ResetUptimeAnchor () noexcept
+    void ResetUptimeAnchor() noexcept
     {
-        m_uptimeAnchor = std::chrono::steady_clock::now ();
+        m_uptimeAnchor = std::chrono::steady_clock::now();
 
         if (m_diskIIDebugDialog != nullptr)
         {
@@ -109,11 +109,11 @@ public:
             // Spec-006 bug-fix. Clear stale rows from the pre-reset
             // boot so the post-reset uptime anchor doesn't end up
             // formatting events that pre-date its own zero point.
-            m_diskIIDebugDialog->ClearEvents ();
+            m_diskIIDebugDialog->ClearEvents();
         }
     }
 
-    std::chrono::steady_clock::time_point GetUptimeAnchor () const noexcept
+    std::chrono::steady_clock::time_point GetUptimeAnchor() const noexcept
     {
         return m_uptimeAnchor;
     }
@@ -146,7 +146,7 @@ private:
     void ExecuteCpuSlices   ();
     void RenderFramebuffer  ();
     void ProcessCommands   ();
-    void UpdateWindowTitle ();
+    void UpdateWindowTitle();
     void SelectVideoMode   ();
 
     // Initialization helpers
@@ -159,11 +159,11 @@ private:
     HRESULT MountDiskInSlot6       (int drive, const string & path);
     void    EjectDiskInSlot6       (int drive);
     void    RemountSlot6Disks      ();
-    class DiskIIController * FindSlot6Controller ();
+    class DiskIIController * FindSlot6Controller();
     void    CreateVideoModes       ();
     HRESULT CreateCpu              (const MachineConfig & config);
 
-    Byte * GetAuxRamBuffer ();
+    Byte * GetAuxRamBuffer();
 
     // Machine switching
     void    ShowMachinePicker      ();
@@ -171,7 +171,7 @@ private:
 
     void CopyScreenText     ();
     void CopyScreenshot     ();
-    void PasteFromClipboard ();
+    void PasteFromClipboard();
     void DrainPasteBuffer   ();
 
     // Status bar
@@ -306,7 +306,7 @@ private:
     // opens. The uptime anchor lives on the shell (not the dialog)
     // so resets re-zero it even while the dialog is closed.
     std::unique_ptr<class DiskIIDebugDialog>  m_diskIIDebugDialog;
-    std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now () };
+    std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 };
 
 

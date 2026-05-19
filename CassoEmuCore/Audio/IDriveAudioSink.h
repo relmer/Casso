@@ -32,7 +32,7 @@ public:
     // motor lifecycle on IDiskIIEventSink (FR-006); semantics are
     // unchanged from spec-005's OnMotorStart/OnMotorStop.
     virtual void OnMotorEngaged    () = 0;
-    virtual void OnMotorDisengaged () = 0;
+    virtual void OnMotorDisengaged() = 0;
 
     // Head movement. OnHeadStep fires when the head actually moves a
     // quarter-track (qtDelta != 0 AND head not pinned at a stop).

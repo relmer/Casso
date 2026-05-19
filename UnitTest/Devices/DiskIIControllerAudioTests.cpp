@@ -47,7 +47,7 @@ public:
     vector<LogEntry>  log;
 
     void OnMotorEngaged    () override                  { log.push_back ({ Event::MotorEngaged,    0 }); }
-    void OnMotorDisengaged () override                  { log.push_back ({ Event::MotorDisengaged, 0 }); }
+    void OnMotorDisengaged() override                  { log.push_back ({ Event::MotorDisengaged, 0 }); }
     void OnHeadStep     (int newQt) override         { log.push_back ({ Event::HeadStep,     newQt }); }
     void OnHeadBump     () override                  { log.push_back ({ Event::HeadBump,     0 }); }
     void OnDiskInserted() override                  { log.push_back ({ Event::DiskInserted, 0 }); }
