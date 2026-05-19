@@ -804,7 +804,7 @@ void DiskIIDebugDialog::RebuildListViewColumns()
         // always flexes to fill the LV client remainder so the user
         // never sees a Detail column that's narrower than its data
         // AND ends with empty space to its right.
-        if (m_columns[i].id != (kColumnCount - 1) && !m_columns[i].autoSizedYet)
+        if (m_columns[i].id != kDetailColumnId && !m_columns[i].autoSizedYet)
         {
             contentWidth = MeasureColumnContentWidth (m_columns[i].id, 0);
             ListView_SetColumnWidth (m_listView, virtualIdx, contentWidth);
@@ -897,7 +897,6 @@ int DiskIIDebugDialog::MeasureColumnContentWidth (int logicalId, size_t startIdx
 void DiskIIDebugDialog::SizeDetailColumnToRemainder()
 {
     constexpr int  kDetailMinWidth    = 200;
-    constexpr int  kDetailLogicalId   = kColumnCount - 1;
 
     RECT           rc                 = {};
     int            clientWidth        = 0;
@@ -911,7 +910,7 @@ void DiskIIDebugDialog::SizeDetailColumnToRemainder()
         return;
     }
 
-    if (!m_columns[kDetailLogicalId].visible)
+    if (!m_columns[kDetailColumnId].visible)
     {
         return;
     }
@@ -930,7 +929,7 @@ void DiskIIDebugDialog::SizeDetailColumnToRemainder()
             continue;
         }
 
-        if (m_columns[i].id == kDetailLogicalId)
+        if (m_columns[i].id == kDetailColumnId)
         {
             detailVirtualIdx = virtualIdx;
         }
@@ -955,7 +954,7 @@ void DiskIIDebugDialog::SizeDetailColumnToRemainder()
     }
 
     ListView_SetColumnWidth (m_listView, detailVirtualIdx, remainder);
-    m_columns[kDetailLogicalId].savedWidth = remainder;
+    m_columns[kDetailColumnId].savedWidth = remainder;
 }
 
 
@@ -2060,7 +2059,7 @@ void DiskIIDebugDialog::HandleDrainTick()
                 continue;
             }
 
-            if (m_columns[i].id != (kColumnCount - 1) && !m_columns[i].userResized)
+            if (m_columns[i].id != kDetailColumnId && !m_columns[i].userResized)
             {
                 width = MeasureColumnContentWidth (m_columns[i].id, measureStart);
 
@@ -2364,14 +2363,20 @@ void DiskIIDebugDialog::PublishToRing (const DiskIIEvent & e) noexcept
 
 void DiskIIDebugDialog::ClearEvents() noexcept
 {
-    DiskIIEvent  scratch[64] = {};
-    uint32_t     drained     = 0;
+    // Stack scratch buffer for the drain loop. 64 entries x ~32 bytes
+    // per DiskIIEvent = ~2 KB on the stack -- well under any sensible
+    // thread-stack reservation. Larger batch sizes save a few drain
+    // calls on huge backlogs at no behavior cost.
+    constexpr uint32_t  kClearDrainBatchSize = 64;
+
+    DiskIIEvent  scratch[kClearDrainBatchSize] = {};
+    uint32_t     drained                       = 0;
 
     m_droppedSinceLastDrain.store (0, std::memory_order_release);
 
     do
     {
-        drained = m_ring.Drain (scratch, static_cast<uint32_t> (sizeof (scratch) / sizeof (scratch[0])));
+        drained = m_ring.Drain (scratch, kClearDrainBatchSize);
     }
     while (drained > 0);
 

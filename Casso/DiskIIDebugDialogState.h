@@ -87,6 +87,13 @@ constexpr int  kColEventWidth  = 130;
 constexpr int  kColDetailWidth = 360;
 constexpr int  kColumnCount    = 6;
 
+// Logical id of the Detail column. It is the rightmost column and
+// gets special-cased everywhere: it always flex-fills the LV client
+// remainder rather than being content-sized, so the auto-grow path
+// must skip it (otherwise the remainder math fights the per-cell
+// measurement).
+constexpr int  kDetailColumnId = kColumnCount - 1;
+
 
 
 void   SeedDefaultColumns (std::array<LogicalColumn, kColumnCount> & columns) noexcept;
