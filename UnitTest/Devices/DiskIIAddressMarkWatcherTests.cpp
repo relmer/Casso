@@ -18,6 +18,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RecordingSink
@@ -175,6 +176,7 @@ namespace
         }
     }
 }
+
 
 
 

@@ -71,7 +71,6 @@ static constexpr UINT     kDriveStatusTimerMs    = 50;
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell
@@ -348,6 +347,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 Error:
     return hr;
 }
+
 
 
 
@@ -1047,6 +1047,7 @@ bool EmulatorShell::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreateMemoryDevices
@@ -1369,6 +1370,7 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
 Error:
     return hr;
 }
+
 
 
 
@@ -2602,6 +2604,7 @@ void EmulatorShell::DrainPasteBuffer()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RunOneFrame
@@ -2814,6 +2817,7 @@ void EmulatorShell::RenderFramebuffer()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnCommand
@@ -2839,6 +2843,7 @@ bool EmulatorShell::OnCommand (HWND hwnd, int id)
 
 
 ////////////////////////////////////////////////////////////////////////////////
+
 
 
 
@@ -3894,9 +3899,6 @@ void EmulatorShell::SelectVideoMode()
         static_cast<Apple80ColTextMode *> (m_videoModes[4].get())->SetAltCharSet (altCharSet);
     }
 }
-
-
-
 
 
 

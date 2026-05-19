@@ -17,6 +17,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RecordingEventSink
@@ -89,6 +90,7 @@ namespace
         }
     };
 }
+
 
 
 
