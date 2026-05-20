@@ -52,18 +52,18 @@ namespace
         std::vector<AddrEntry>  addrLog;
         std::vector<DataEntry>  dataLog;
 
-        void OnMotorCommandOn  () override                                  {}
-        void OnMotorEngaged    () override                                  {}
-        void OnMotorCommandOff() override                                  {}
-        void OnMotorDisengaged() override                                  {}
-        void OnHeadStep        (int, int) override                          {}
-        void OnHeadBump        (int) override                               {}
-        void OnAddressMark     (int track, int sector, int volume) override { addrLog.push_back ({ track, sector, volume }); }
-        void OnDataMarkRead    (int track, int sector, int volume, int byteCount) override { dataLog.push_back ({ track, sector, volume, byteCount }); }
-        void OnDataMarkWrite   (int, int, int, int) override                {}
-        void OnDriveSelect     (int) override                               {}
-        void OnDiskInserted    (int) override                               {}
-        void OnDiskEjected     (int) override                               {}
+        void OnMotorCommandOn() override                                  {}
+        void OnMotorEngaged() override                                    {}
+        void OnMotorCommandOff() override                                 {}
+        void OnMotorDisengaged() override                                 {}
+        void OnHeadStep (int, int) override                               {}
+        void OnHeadBump (int) override                                    {}
+        void OnAddressMark (int track, int sector, int volume) override   { addrLog.push_back ({ track, sector, volume }); }
+        void OnDataMarkRead (int track, int sector, int volume, int byteCount) override { dataLog.push_back ({ track, sector, volume, byteCount }); }
+        void OnDataMarkWrite (int, int, int, int) override                {}
+        void OnDriveSelect (int) override                                 {}
+        void OnDiskInserted (int) override                                {}
+        void OnDiskEjected (int) override                                 {}
     };
 
 

@@ -217,11 +217,15 @@ Error:
 
 void DiskIIDebugDialog::Show()
 {
-    if (m_hwnd != nullptr)
-    {
-        ShowWindow (m_hwnd, SW_SHOW);
-        SetForegroundWindow (m_hwnd);
-    }
+    HRESULT hr = S_OK;
+
+    CBR (m_hwnd != nullptr);
+
+    ShowWindow (m_hwnd, SW_SHOW);
+    SetForegroundWindow (m_hwnd);
+
+Error:
+    ;
 }
 
 
@@ -236,10 +240,14 @@ void DiskIIDebugDialog::Show()
 
 void DiskIIDebugDialog::Hide()
 {
-    if (m_hwnd != nullptr)
-    {
-        ShowWindow (m_hwnd, SW_HIDE);
-    }
+    HRESULT hr = S_OK;
+
+    CBR (m_hwnd != nullptr);
+
+    ShowWindow (m_hwnd, SW_HIDE);
+
+Error:
+    ;
 }
 
 
@@ -1454,20 +1462,19 @@ void DiskIIDebugDialog::OnFilterTextKillFocus()
 
 std::wstring DiskIIDebugDialog::ReadEditText (HWND hEdit) const
 {
+    HRESULT       hr  = S_OK;
     int           len = 0;
     std::wstring  out;
 
-    if (hEdit != nullptr)
-    {
-        len = GetWindowTextLengthW (hEdit);
+    CBR (hEdit != nullptr);
 
-        if (len > 0)
-        {
-            out.resize (static_cast<size_t> (len));
-            GetWindowTextW (hEdit, out.data(), len + 1);
-        }
-    }
+    len = GetWindowTextLengthW (hEdit);
+    CBR (len > 0);
 
+    out.resize (static_cast<size_t> (len));
+    GetWindowTextW (hEdit, out.data(), len + 1);
+
+Error:
     return out;
 }
 
@@ -1519,19 +1526,19 @@ void DiskIIDebugDialog::FlushFilterDebounce()
 
     if (trackTextChanged)
     {
-        ApplyRejectedTokenSquiggles (m_trackRichEdit,   m_filter.trackFilter.RejectedSpans  ());
+        ApplyRejectedTokenSquiggles (m_trackRichEdit, m_filter.trackFilter.RejectedSpans());
         m_lastFormattedTrackText = trackText;
     }
 
     if (sectorTextChanged)
     {
-        ApplyRejectedTokenSquiggles (m_sectorRichEdit,  m_filter.sectorFilter.RejectedSpans());
+        ApplyRejectedTokenSquiggles (m_sectorRichEdit, m_filter.sectorFilter.RejectedSpans());
         m_lastFormattedSectorText = sectorText;
     }
 
     SetPerSideInvalidLabel (m_trackInvalidLabel,
                             L"Invalid track: ",
-                            trackText,  m_filter.trackFilter.RejectedSpans  ());
+                            trackText, m_filter.trackFilter.RejectedSpans());
     SetPerSideInvalidLabel (m_sectorInvalidLabel,
                             L"Invalid sector: ",
                             sectorText, m_filter.sectorFilter.RejectedSpans());
@@ -2577,10 +2584,10 @@ void DiskIIDebugDialog::PushAudioEvent (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::OnMotorCommandOn   () { PushControllerEvent (DiskIIEventType::MotorCommandOn);   }
-void DiskIIDebugDialog::OnMotorEngaged     () { PushControllerEvent (DiskIIEventType::MotorEngaged);     }
-void DiskIIDebugDialog::OnMotorCommandOff  () { PushControllerEvent (DiskIIEventType::MotorCommandOff);  }
-void DiskIIDebugDialog::OnMotorDisengaged  () { PushControllerEvent (DiskIIEventType::MotorDisengaged);  }
+void DiskIIDebugDialog::OnMotorCommandOn()  { PushControllerEvent (DiskIIEventType::MotorCommandOn);   }
+void DiskIIDebugDialog::OnMotorEngaged()    { PushControllerEvent (DiskIIEventType::MotorEngaged);     }
+void DiskIIDebugDialog::OnMotorCommandOff() { PushControllerEvent (DiskIIEventType::MotorCommandOff);  }
+void DiskIIDebugDialog::OnMotorDisengaged() { PushControllerEvent (DiskIIEventType::MotorDisengaged);  }
 
 void DiskIIDebugDialog::OnHeadStep         (int prevQt, int newQt)              { PushHeadStepEvent (prevQt, newQt); }
 void DiskIIDebugDialog::OnHeadBump         (int atQt)                           { PushHeadBumpEvent (atQt); }

@@ -38,50 +38,38 @@ namespace
 
     bool ParseDecimalQt (std::wstring_view tok, int & outQt) noexcept
     {
-        size_t  dot      = 0;
-        int     whole    = 0;
-        int     qtIndex  = -1;
-        size_t  i        = 0;
-        wchar_t c        = 0;
-        bool    ok       = true;
+        HRESULT            hr      = S_OK;
+        size_t             dot     = 0;
+        int                whole   = 0;
+        int                qtIndex = -1;
+        size_t             i       = 0;
+        wchar_t            c       = 0;
+        std::wstring_view  frac;
+        bool               ok      = false;
 
         dot = tok.find (L'.');
+        CBR (dot != std::wstring_view::npos && dot != 0);
 
-        if (dot == std::wstring_view::npos || dot == 0)
-        {
-            ok = false;
-        }
-
-        for (i = 0; ok && i < dot; i++)
+        for (i = 0; i < dot; i++)
         {
             c = tok[i];
+            CBR (c >= L'0' && c <= L'9');
 
-            if (c < L'0' || c > L'9')
-            {
-                ok = false;
-            }
-            else
-            {
-                whole = whole * 10 + (int) (c - L'0');
-            }
+            whole = whole * 10 + (int) (c - L'0');
         }
 
-        if (ok)
-        {
-            std::wstring_view frac = tok.substr (dot + 1);
+        frac = tok.substr (dot + 1);
 
-            if      (frac == L"0")  { qtIndex = 0; }
-            else if (frac == L"25") { qtIndex = 1; }
-            else if (frac == L"5")  { qtIndex = 2; }
-            else if (frac == L"75") { qtIndex = 3; }
-            else                    { ok = false; }
-        }
+        if      (frac == L"0")  { qtIndex = 0; }
+        else if (frac == L"25") { qtIndex = 1; }
+        else if (frac == L"5")  { qtIndex = 2; }
+        else if (frac == L"75") { qtIndex = 3; }
+        else                    { CBR (false); }
 
-        if (ok)
-        {
-            outQt = whole * TrackSectorPredicate::kQuarterTracksPerTrack + qtIndex;
-        }
+        outQt = whole * TrackSectorPredicate::kQuarterTracksPerTrack + qtIndex;
+        ok    = true;
 
+    Error:
         return ok;
     }
 
@@ -97,35 +85,26 @@ namespace
 
     bool ParseDecimalInt (std::wstring_view tok, int & outVal) noexcept
     {
-        int     v  = 0;
-        size_t  i  = 0;
-        wchar_t c  = 0;
-        bool    ok = true;
+        HRESULT  hr = S_OK;
+        int      v  = 0;
+        size_t   i  = 0;
+        wchar_t  c  = 0;
+        bool     ok = false;
 
-        if (tok.empty())
-        {
-            ok = false;
-        }
+        CBR (!tok.empty());
 
-        for (i = 0; ok && i < tok.size(); i++)
+        for (i = 0; i < tok.size(); i++)
         {
             c = tok[i];
+            CBR (c >= L'0' && c <= L'9');
 
-            if (c < L'0' || c > L'9')
-            {
-                ok = false;
-            }
-            else
-            {
-                v = v * 10 + (int) (c - L'0');
-            }
+            v = v * 10 + (int) (c - L'0');
         }
 
-        if (ok)
-        {
-            outVal = v;
-        }
+        outVal = v;
+        ok     = true;
 
+    Error:
         return ok;
     }
 

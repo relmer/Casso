@@ -65,19 +65,19 @@ class IDiskIIEventSink
 public:
     virtual ~IDiskIIEventSink() = default;
 
-    virtual void OnMotorCommandOn   () = 0;
-    virtual void OnMotorEngaged     () = 0;
-    virtual void OnMotorCommandOff  () = 0;
-    virtual void OnMotorDisengaged  () = 0;
+    virtual void OnMotorCommandOn() = 0;
+    virtual void OnMotorEngaged() = 0;
+    virtual void OnMotorCommandOff() = 0;
+    virtual void OnMotorDisengaged() = 0;
 
-    virtual void OnHeadStep         (int prevQt, int newQt) = 0;
-    virtual void OnHeadBump         (int atQt) = 0;
+    virtual void OnHeadStep (int prevQt, int newQt) = 0;
+    virtual void OnHeadBump (int atQt) = 0;
 
-    virtual void OnAddressMark      (int track, int sector, int volume) = 0;
-    virtual void OnDataMarkRead     (int track, int sector, int volume, int byteCount) = 0;
-    virtual void OnDataMarkWrite    (int track, int sector, int volume, int byteCount) = 0;
+    virtual void OnAddressMark (int track, int sector, int volume) = 0;
+    virtual void OnDataMarkRead (int track, int sector, int volume, int byteCount) = 0;
+    virtual void OnDataMarkWrite (int track, int sector, int volume, int byteCount) = 0;
 
-    virtual void OnDriveSelect      (int drive) = 0;
-    virtual void OnDiskInserted     (int drive) = 0;
-    virtual void OnDiskEjected      (int drive) = 0;
+    virtual void OnDriveSelect (int drive) = 0;
+    virtual void OnDiskInserted (int drive) = 0;
+    virtual void OnDiskEjected (int drive) = 0;
 };

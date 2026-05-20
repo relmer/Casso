@@ -56,12 +56,12 @@ public:
     // Called by DiskIIController::Read whenever the data latch returns
     // a fresh nibble to the CPU. The watcher inspects but does not
     // modify the nibble.
-    void   ObserveNibble  (uint8_t nibble) noexcept;
+    void   ObserveNibble (uint8_t nibble) noexcept;
 
     // Propagates the controller's sink pointer. Pass nullptr to
     // detach. Safe to call from the UI thread between CPU slices,
     // matching the audio-sink attach pattern from spec-005.
-    void   SetEventSink   (IDiskIIEventSink * sink) noexcept   { m_eventSink = sink; }
+    void   SetEventSink (IDiskIIEventSink * sink) noexcept   { m_eventSink = sink; }
 
     // Test seam: most recent fully-decoded sector / track / volume
     // numbers from the latest address mark (-1 until the first

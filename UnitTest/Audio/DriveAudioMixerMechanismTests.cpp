@@ -115,7 +115,7 @@ namespace
         }
 
         src.OnMotorDisengaged();
-        src.OnDiskEjected     ();
+        src.OnDiskEjected();
         return peak;
     }
 }

@@ -695,9 +695,9 @@ public:
         d.category = cat;
         d.type     = type;
 
-        wcsncpy_s (d.wallStr.data   (), d.wallStr.size   (), wall,   _TRUNCATE);
+        wcsncpy_s (d.wallStr.data(),   d.wallStr.size(),   wall,   _TRUNCATE);
         wcsncpy_s (d.uptimeStr.data(), d.uptimeStr.size(), uptime, _TRUNCATE);
-        wcsncpy_s (d.cycleStr.data  (), d.cycleStr.size  (), cycle,  _TRUNCATE);
+        wcsncpy_s (d.cycleStr.data(),  d.cycleStr.size(),  cycle,  _TRUNCATE);
 
         d.detail = detail;
         return d;

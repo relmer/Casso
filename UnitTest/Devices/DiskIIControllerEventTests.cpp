@@ -60,18 +60,18 @@ namespace
 
         std::vector<LogEntry>  log;
 
-        void OnMotorCommandOn  () override                  { log.push_back ({ Event::MotorCommandOn,  0 }); }
-        void OnMotorEngaged    () override                  { log.push_back ({ Event::MotorEngaged,    0 }); }
-        void OnMotorCommandOff() override                  { log.push_back ({ Event::MotorCommandOff, 0 }); }
-        void OnMotorDisengaged() override                  { log.push_back ({ Event::MotorDisengaged, 0 }); }
-        void OnHeadStep        (int, int newQt) override    { log.push_back ({ Event::HeadStep,        newQt }); }
-        void OnHeadBump        (int atQt) override          { log.push_back ({ Event::HeadBump,        atQt }); }
-        void OnAddressMark     (int, int sector, int) override { log.push_back ({ Event::AddressMark,  sector }); }
-        void OnDataMarkRead    (int, int sector, int, int) override   { log.push_back ({ Event::DataMarkRead,    sector }); }
-        void OnDataMarkWrite   (int, int sector, int, int) override   { log.push_back ({ Event::DataMarkWrite,   sector }); }
-        void OnDriveSelect     (int drive) override         { log.push_back ({ Event::DriveSelect,     drive }); }
-        void OnDiskInserted    (int drive) override         { log.push_back ({ Event::DiskInserted,    drive }); }
-        void OnDiskEjected     (int drive) override         { log.push_back ({ Event::DiskEjected,     drive }); }
+        void OnMotorCommandOn() override                    { log.push_back ({ Event::MotorCommandOn,  0 }); }
+        void OnMotorEngaged() override                      { log.push_back ({ Event::MotorEngaged,    0 }); }
+        void OnMotorCommandOff() override                   { log.push_back ({ Event::MotorCommandOff, 0 }); }
+        void OnMotorDisengaged() override                   { log.push_back ({ Event::MotorDisengaged, 0 }); }
+        void OnHeadStep (int, int newQt) override           { log.push_back ({ Event::HeadStep,        newQt }); }
+        void OnHeadBump (int atQt) override                 { log.push_back ({ Event::HeadBump,        atQt }); }
+        void OnAddressMark (int, int sector, int) override  { log.push_back ({ Event::AddressMark,  sector }); }
+        void OnDataMarkRead (int, int sector, int, int) override   { log.push_back ({ Event::DataMarkRead,    sector }); }
+        void OnDataMarkWrite (int, int sector, int, int) override  { log.push_back ({ Event::DataMarkWrite,   sector }); }
+        void OnDriveSelect (int drive) override             { log.push_back ({ Event::DriveSelect,     drive }); }
+        void OnDiskInserted (int drive) override            { log.push_back ({ Event::DiskInserted,    drive }); }
+        void OnDiskEjected (int drive) override             { log.push_back ({ Event::DiskEjected,     drive }); }
 
         int CountOf (Event ev) const
         {

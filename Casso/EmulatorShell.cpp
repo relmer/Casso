@@ -4022,71 +4022,62 @@ void EmulatorShell::OpenDiskIIDebugDialog()
     DiskIIController *  controller   = nullptr;
     int                 diskIICount  = 0;
     HINSTANCE           hInstance    = nullptr;
-    bool                createdOk    = true;
+    size_t              i            = 0;
 
     controller = FindSlot6Controller();
 
     // FR-001a should have grayed the menu item; the accelerator
     // bypasses that gate so we defend in depth.
-    if (controller != nullptr)
+    CBR (controller != nullptr);
+
+    for (const SlotConfig & slot : m_config.slots)
     {
-        for (const SlotConfig & slot : m_config.slots)
+        if (slot.device == "disk-ii")
         {
-            if (slot.device == "disk-ii")
-            {
-                diskIICount++;
-            }
-        }
-
-        if (m_diskIIDebugDialog == nullptr)
-        {
-            m_diskIIDebugDialog = std::make_unique<DiskIIDebugDialog>();
-
-            hInstance = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
-
-            hr = m_diskIIDebugDialog->Create (hInstance, m_hwnd);
-
-            if (FAILED (hr))
-            {
-                m_diskIIDebugDialog.reset();
-                createdOk = false;
-            }
-
-            if (createdOk)
-            {
-                m_diskIIDebugDialog->SetUptimeAnchor (m_uptimeAnchor);
-                m_diskIIDebugDialog->SetMultiControllerHint (diskIICount > 1);
-
-                if (m_cpu != nullptr)
-                {
-                    m_diskIIDebugDialog->SetCycleCounter (m_cpu->GetCycleCounterPtr());
-                }
-
-                // FR-024: both sinks attached together, dialog implements
-                // both interfaces. Audio sink is a no-op if the mixer has no
-                // source registered (e.g., audio subsystem disabled).
-                controller->SetEventSink (m_diskIIDebugDialog.get());
-
-                for (size_t i = 0; i < m_diskAudioSources.size(); i++)
-                {
-                    if (m_diskAudioSources[i] != nullptr)
-                    {
-                        m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get());
-                    }
-                }
-            }
-        }
-        else
-        {
-            m_diskIIDebugDialog->SetMultiControllerHint (diskIICount > 1);
-        }
-
-        if (createdOk && m_diskIIDebugDialog != nullptr)
-        {
-            m_diskIIDebugDialog->Show();
-            SetForegroundWindow (m_diskIIDebugDialog->GetHwnd());
+            diskIICount++;
         }
     }
+
+    if (m_diskIIDebugDialog == nullptr)
+    {
+        m_diskIIDebugDialog = std::make_unique<DiskIIDebugDialog>();
+
+        hInstance = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
+
+        hr = m_diskIIDebugDialog->Create (hInstance, m_hwnd);
+        CHRF (hr, m_diskIIDebugDialog.reset());
+
+        m_diskIIDebugDialog->SetUptimeAnchor (m_uptimeAnchor);
+        m_diskIIDebugDialog->SetMultiControllerHint (diskIICount > 1);
+
+        if (m_cpu != nullptr)
+        {
+            m_diskIIDebugDialog->SetCycleCounter (m_cpu->GetCycleCounterPtr());
+        }
+
+        // FR-024: both sinks attached together, dialog implements
+        // both interfaces. Audio sink is a no-op if the mixer has no
+        // source registered (e.g., audio subsystem disabled).
+        controller->SetEventSink (m_diskIIDebugDialog.get());
+
+        for (i = 0; i < m_diskAudioSources.size(); i++)
+        {
+            if (m_diskAudioSources[i] != nullptr)
+            {
+                m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get());
+            }
+        }
+    }
+    else
+    {
+        m_diskIIDebugDialog->SetMultiControllerHint (diskIICount > 1);
+    }
+
+    m_diskIIDebugDialog->Show();
+    SetForegroundWindow (m_diskIIDebugDialog->GetHwnd());
+
+Error:
+    ;
 }
 
 
@@ -4110,25 +4101,29 @@ void EmulatorShell::OpenDiskIIDebugDialog()
 
 void EmulatorShell::AttachDebugSinksIfOpen()
 {
+    HRESULT             hr         = S_OK;
     DiskIIController *  controller = nullptr;
+    size_t              i          = 0;
 
-    if (m_diskIIDebugDialog != nullptr)
+    CBR (m_diskIIDebugDialog != nullptr);
+
+    controller = FindSlot6Controller();
+
+    if (controller != nullptr)
     {
-        controller = FindSlot6Controller();
+        controller->SetEventSink (m_diskIIDebugDialog.get());
+    }
 
-        if (controller != nullptr)
+    for (i = 0; i < m_diskAudioSources.size(); i++)
+    {
+        if (m_diskAudioSources[i] != nullptr)
         {
-            controller->SetEventSink (m_diskIIDebugDialog.get());
-        }
-
-        for (size_t i = 0; i < m_diskAudioSources.size(); i++)
-        {
-            if (m_diskAudioSources[i] != nullptr)
-            {
-                m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get());
-            }
+            m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get());
         }
     }
+
+Error:
+    ;
 }
 
 

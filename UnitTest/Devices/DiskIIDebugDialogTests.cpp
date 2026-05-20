@@ -38,7 +38,7 @@ namespace DiskIIDebugDialogTests
             Assert::IsTrue   (f.audioContinued);
             Assert::IsTrue   (f.audioSilent);
             Assert::IsFalse  (f.trackFilterRawQt);
-            Assert::IsTrue   (f.trackFilter.IsMatchAll  ());
+            Assert::IsTrue   (f.trackFilter.IsMatchAll());
             Assert::IsTrue   (f.sectorFilter.IsMatchAll());
         }
 

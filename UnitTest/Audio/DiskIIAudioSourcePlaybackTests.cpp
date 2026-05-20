@@ -108,8 +108,8 @@ public:
         src.SetSampleBufferForTest (L"HeadStep",  vector<float> (16, 1.0f));
         src.SetSampleBufferForTest (L"DoorClose", vector<float> (16, 1.0f));
 
-        src.OnMotorEngaged   ();
-        src.OnHeadStep     (1);
+        src.OnMotorEngaged();
+        src.OnHeadStep (1);
         src.OnDiskInserted();
 
         src.GeneratePCM (out, 4);

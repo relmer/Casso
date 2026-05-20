@@ -54,9 +54,9 @@ public:
     // DoorOpen.wav, DoorClose.wav at `targetSampleRate` mono float32
     // via IMFSourceReader. Per-file precedence (FR-019):
     //
-    //   1. devicesDir/<filename>.wav                 (manual override)
-    //   2. devicesDir/<mechanism>/<filename>.wav      (per-mechanism)
-    //   3. silent                                    (FR-009)
+    //   1. devicesDir/<filename>.wav (manual override)
+    //   2. devicesDir/<mechanism>/<filename>.wav (per-mechanism)
+    //   3. silent (FR-009)
     //
     // `devicesDir` is the absolute path to `Devices/DiskII/`,
     // `mechanism` is L"Shugart" / L"Alps" (no path separators).
@@ -65,22 +65,22 @@ public:
                           uint32_t        targetSampleRate);
 
     // IDriveAudioSource:
-    void   GeneratePCM   (float * outMono, uint32_t numSamples) override;
-    float  PanLeft       () const override { return m_panLeft;  }
-    float  PanRight      () const override { return m_panRight; }
-    void   SetPan        (float panLeft, float panRight) override;
+    void   GeneratePCM (float * outMono, uint32_t numSamples) override;
+    float  PanLeft() const override { return m_panLeft;  }
+    float  PanRight() const override { return m_panRight; }
+    void   SetPan (float panLeft, float panRight) override;
 
     // IDriveAudioSink:
-    void   OnMotorEngaged    () override;
+    void   OnMotorEngaged() override;
     void   OnMotorDisengaged() override;
-    void   OnHeadStep        (int newQt) override;
-    void   OnHeadBump        () override;
-    void   OnDiskInserted    () override;
-    void   OnDiskEjected     () override;
+    void   OnHeadStep (int newQt) override;
+    void   OnHeadBump() override;
+    void   OnDiskInserted() override;
+    void   OnDiskEjected() override;
 
     // Called once per audio frame by DriveAudioMixer with the current
     // CPU cycle (FR-005 idle timeout).
-    void   Tick           (uint64_t currentCycle);
+    void   Tick (uint64_t currentCycle);
 
     // Spec-006 (FR-022, FR-025): attach an audio-decision sink so
     // the debug window can show what the audio path actually did at
@@ -93,7 +93,7 @@ public:
 
     // Spec-006 bug fix. Stamp the 0-based drive index this source
     // represents so audio-decision events report the correct drive.
-    void   SetDriveIndex     (int driveIndex) noexcept
+    void   SetDriveIndex (int driveIndex) noexcept
     {
         m_driveIndex = driveIndex;
     }
@@ -108,14 +108,14 @@ public:
 
     // Test introspection.
     bool   IsMotorRunning() const { return m_motorRunning; }
-    bool   IsDiskPresent  () const { return m_diskPresent; }
-    bool   IsSeekMode     () const { return m_seekMode; }
+    bool   IsDiskPresent() const { return m_diskPresent; }
+    bool   IsSeekMode() const { return m_seekMode; }
     uint64_t GetLastStepCycle() const { return m_lastStepCycle; }
 
 private:
     void   MixMotor (float * out, uint32_t n);
-    void   MixHead  (float * out, uint32_t n);
-    void   MixDoor  (float * out, uint32_t n);
+    void   MixHead (float * out, uint32_t n);
+    void   MixDoor (float * out, uint32_t n);
 
     // Pan (equal-power, precomputed by SetPan).
     float                 m_panLeft   = IDriveAudioSource::kCenterPan;

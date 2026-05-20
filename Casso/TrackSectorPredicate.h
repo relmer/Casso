@@ -84,14 +84,14 @@ public:
     // Spec-006 bug fix. `mode` selects the per-value validator (track
     // / sector). The third `rawQt` arg is meaningful only when
     // mode == Track; when mode == Sector the parser ignores it.
-    static TrackSectorPredicate    Parse           (std::wstring_view expr, Mode mode, bool rawQt = false);
+    static TrackSectorPredicate    Parse (std::wstring_view expr, Mode mode, bool rawQt = false);
 
-    bool                            Matches             (int value) const noexcept;
+    bool                            Matches (int value) const noexcept;
     bool                            MatchesQuarterTrack (int qt) const noexcept;
 
     const std::vector<RejectedSpan> & RejectedSpans() const noexcept   { return m_rejected; }
-    const std::vector<Range> &        Ranges        () const noexcept   { return m_ranges; }
-    bool                              IsMatchAll    () const noexcept   { return m_matchAll; }
+    const std::vector<Range> &        Ranges() const noexcept   { return m_ranges; }
+    bool                              IsMatchAll() const noexcept   { return m_matchAll; }
 
 private:
     std::vector<Range>          m_ranges;

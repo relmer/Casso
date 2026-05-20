@@ -66,7 +66,7 @@ public:
 
     // State
     bool IsRunning() const { return m_running.load (memory_order_acquire); }
-    bool IsPaused  () const { return m_paused.load (memory_order_acquire); }
+    bool IsPaused() const { return m_paused.load (memory_order_acquire); }
 
     // Access bus for test wiring
     MemoryBus & GetBus() { return m_memoryBus; }
@@ -76,8 +76,8 @@ public:
     // future programmatic callers. SoftReset preserves user RAM and
     // re-runs the 6502 /RESET sequence. PowerCycle re-seeds every DRAM-
     // owning device from the shared Prng before SoftReset (audit S10).
-    void SoftReset      ();
-    void PowerCycle     ();
+    void SoftReset();
+    void PowerCycle();
 
     // Spec-006 / FR-001 / FR-024. View -> Disk II Debug... command
     // entry point. On first call: lazy-create the modeless dialog,
@@ -120,66 +120,66 @@ public:
 
 private:
     // Window message handler overrides
-    bool    OnChar     (WPARAM ch, LPARAM lParam) override;
-    bool    OnCommand  (HWND hwnd, int id) override;
-    LRESULT OnCreate   (HWND hwnd, CREATESTRUCT * pcs) override;
-    bool    OnDestroy  (HWND hwnd) override;
+    bool    OnChar (WPARAM ch, LPARAM lParam) override;
+    bool    OnCommand (HWND hwnd, int id) override;
+    LRESULT OnCreate (HWND hwnd, CREATESTRUCT * pcs) override;
+    bool    OnDestroy (HWND hwnd) override;
     bool    OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis) override;
-    bool    OnKeyDown  (WPARAM vk, LPARAM lParam) override;
-    bool    OnKeyUp    (WPARAM vk, LPARAM lParam) override;
-    bool    OnNotify   (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
-    bool    OnSize     (HWND hwnd, UINT width, UINT height) override;
-    bool    OnTimer    (HWND hwnd, UINT_PTR timerId) override;
+    bool    OnKeyDown (WPARAM vk, LPARAM lParam) override;
+    bool    OnKeyUp (WPARAM vk, LPARAM lParam) override;
+    bool    OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
+    bool    OnSize (HWND hwnd, UINT width, UINT height) override;
+    bool    OnTimer (HWND hwnd, UINT_PTR timerId) override;
     bool    OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu) override;
 
     // Command group handlers
-    void OnFileCommand    (int id);
-    void OnEditCommand    (int id);
+    void OnFileCommand (int id);
+    void OnEditCommand (int id);
     void OnMachineCommand (int id);
-    void OnViewCommand    (int id);
-    void OnDiskCommand    (int id);
-    void OnHelpCommand    (int id);
+    void OnViewCommand (int id);
+    void OnDiskCommand (int id);
+    void OnHelpCommand (int id);
 
     // CPU thread entry point and helpers
-    void CpuThreadProc     ();
-    void RunOneFrame       ();
-    void ExecuteCpuSlices   ();
-    void RenderFramebuffer  ();
-    void ProcessCommands   ();
+    void CpuThreadProc();
+    void RunOneFrame();
+    void ExecuteCpuSlices();
+    void RenderFramebuffer();
+    void ProcessCommands();
     void UpdateWindowTitle();
-    void SelectVideoMode   ();
+    void SelectVideoMode();
 
     // Initialization helpers
-    HRESULT CreateEmulatorWindow   (HINSTANCE hInstance);
-    HRESULT CreateMemoryDevices    (const MachineConfig & config);
-    void    WireLanguageCard       ();
-    void    WirePageTable          ();
-    void    RebuildBankingPages    ();
-    void    MountCommandLineDisks  (const string & disk1Path, const string & disk2Path);
-    HRESULT MountDiskInSlot6       (int drive, const string & path);
-    void    EjectDiskInSlot6       (int drive);
-    void    RemountSlot6Disks      ();
+    HRESULT CreateEmulatorWindow (HINSTANCE hInstance);
+    HRESULT CreateMemoryDevices (const MachineConfig & config);
+    void    WireLanguageCard();
+    void    WirePageTable();
+    void    RebuildBankingPages();
+    void    MountCommandLineDisks (const string & disk1Path, const string & disk2Path);
+    HRESULT MountDiskInSlot6 (int drive, const string & path);
+    void    EjectDiskInSlot6 (int drive);
+    void    RemountSlot6Disks();
     class DiskIIController * FindSlot6Controller();
-    void    CreateVideoModes       ();
-    HRESULT CreateCpu              (const MachineConfig & config);
+    void    CreateVideoModes();
+    HRESULT CreateCpu (const MachineConfig & config);
 
     Byte * GetAuxRamBuffer();
 
     // Machine switching
-    void    ShowMachinePicker      ();
-    HRESULT SwitchMachine          (const wstring & machineName);
+    void    ShowMachinePicker();
+    HRESULT SwitchMachine (const wstring & machineName);
 
-    void CopyScreenText     ();
-    void CopyScreenshot     ();
+    void CopyScreenText();
+    void CopyScreenshot();
     void PasteFromClipboard();
-    void DrainPasteBuffer   ();
+    void DrainPasteBuffer();
 
     // Status bar
-    void    CreateStatusBar        ();
-    void    UpdateStatusBar        ();
-    void    RefreshDriveStatus     ();
-    void    DrawDriveStatusItem    (DRAWITEMSTRUCT * pdis, int driveIndex);
-    void    ShowDevicePopup        ();
+    void    CreateStatusBar();
+    void    UpdateStatusBar();
+    void    RefreshDriveStatus();
+    void    DrawDriveStatusItem (DRAWITEMSTRUCT * pdis, int driveIndex);
+    void    ShowDevicePopup();
 
     // Queue a command for the CPU thread
     void PostCommand (WORD id, const string & payload = "");

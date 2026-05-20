@@ -37,9 +37,9 @@ public:
     DiskIIDebugDialog();
     ~DiskIIDebugDialog() override;
 
-    HRESULT Create  (HINSTANCE hInstance, HWND parentHwnd);
-    void    Show    ();
-    void    Hide    ();
+    HRESULT Create (HINSTANCE hInstance, HWND parentHwnd);
+    void    Show();
+    void    Hide();
     void    Destroy();
 
     HWND    GetHwnd() const noexcept { return m_hwnd; }
@@ -81,79 +81,79 @@ public:
     }
 
     // IDiskIIEventSink
-    void OnMotorCommandOn   () override;
-    void OnMotorEngaged     () override;
-    void OnMotorCommandOff  () override;
-    void OnMotorDisengaged  () override;
-    void OnHeadStep         (int prevQt, int newQt) override;
-    void OnHeadBump         (int atQt) override;
-    void OnAddressMark      (int track, int sector, int volume) override;
-    void OnDataMarkRead     (int track, int sector, int volume, int byteCount) override;
-    void OnDataMarkWrite    (int track, int sector, int volume, int byteCount) override;
-    void OnDriveSelect      (int drive) override;
-    void OnDiskInserted     (int drive) override;
-    void OnDiskEjected      (int drive) override;
+    void OnMotorCommandOn() override;
+    void OnMotorEngaged() override;
+    void OnMotorCommandOff() override;
+    void OnMotorDisengaged() override;
+    void OnHeadStep (int prevQt, int newQt) override;
+    void OnHeadBump (int atQt) override;
+    void OnAddressMark (int track, int sector, int volume) override;
+    void OnDataMarkRead (int track, int sector, int volume, int byteCount) override;
+    void OnDataMarkWrite (int track, int sector, int volume, int byteCount) override;
+    void OnDriveSelect (int drive) override;
+    void OnDiskInserted (int drive) override;
+    void OnDiskEjected (int drive) override;
 
     // IDriveAudioEventSink
-    void OnAudioStarted      (SoundKind kind, int drive) override;
-    void OnAudioRestarted    (SoundKind kind, int drive) override;
-    void OnAudioContinued    (SoundKind kind, int drive) override;
-    void OnAudioSilent       (SoundKind kind, int drive, SilentReason reason) override;
-    void OnAudioLoopStarted  (SoundKind kind, int drive) override;
-    void OnAudioLoopStopped  (SoundKind kind, int drive) override;
+    void OnAudioStarted (SoundKind kind, int drive) override;
+    void OnAudioRestarted (SoundKind kind, int drive) override;
+    void OnAudioContinued (SoundKind kind, int drive) override;
+    void OnAudioSilent (SoundKind kind, int drive, SilentReason reason) override;
+    void OnAudioLoopStarted (SoundKind kind, int drive) override;
+    void OnAudioLoopStopped (SoundKind kind, int drive) override;
 
 protected:
-    LRESULT OnCreate     (HWND hwnd, CREATESTRUCT * pcs)   override;
-    bool    OnClose      (HWND hwnd)                       override;
-    bool    OnDestroy    (HWND hwnd)                       override;
-    bool    OnSize       (HWND hwnd, UINT width, UINT height) override;
-    bool    OnCommandEx  (HWND hwnd, int id, int notifyCode, HWND hCtl) override;
+    LRESULT OnCreate (HWND hwnd, CREATESTRUCT * pcs)   override;
+    bool    OnClose (HWND hwnd)                       override;
+    bool    OnDestroy (HWND hwnd)                       override;
+    bool    OnSize (HWND hwnd, UINT width, UINT height) override;
+    bool    OnCommandEx (HWND hwnd, int id, int notifyCode, HWND hCtl) override;
     HBRUSH  OnCtlColorStatic (HWND hwndDlg, HDC hdc, HWND hwndStatic) override;
-    bool    OnTimer      (HWND hwnd, UINT_PTR timerId)     override;
-    bool    OnNotify     (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
+    bool    OnTimer (HWND hwnd, UINT_PTR timerId)     override;
+    bool    OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
 
 private:
     DiskIIEvent MakeStampedEvent (EventCategory cat, DiskIIEventType type) const noexcept;
-    void    PushControllerEvent  (DiskIIEventType type) noexcept;
-    void    PushHeadStepEvent    (int prevQt, int newQt) noexcept;
-    void    PushHeadBumpEvent    (int atQt) noexcept;
-    void    PushAddrMarkEvent    (int track, int sector, int volume) noexcept;
-    void    PushDataMarkEvent    (DiskIIEventType type, int track, int sector, int volume, int byteCount) noexcept;
-    void    PushDriveEvent       (DiskIIEventType type, int drive) noexcept;
-    void    PushAudioEvent       (DiskIIEventType type, SoundKind kind, int drive, SilentReason reason) noexcept;
-    void    PublishToRing        (const DiskIIEvent & e) noexcept;
+    void    PushControllerEvent (DiskIIEventType type) noexcept;
+    void    PushHeadStepEvent (int prevQt, int newQt) noexcept;
+    void    PushHeadBumpEvent (int atQt) noexcept;
+    void    PushAddrMarkEvent (int track, int sector, int volume) noexcept;
+    void    PushDataMarkEvent (DiskIIEventType type, int track, int sector, int volume, int byteCount) noexcept;
+    void    PushDriveEvent (DiskIIEventType type, int drive) noexcept;
+    void    PushAudioEvent (DiskIIEventType type, SoundKind kind, int drive, SilentReason reason) noexcept;
+    void    PublishToRing (const DiskIIEvent & e) noexcept;
 
-    HRESULT CreateChildControls         (HWND hwnd);
-    void    LayoutChildControls         (int width, int height);
-    void    RebuildListViewColumns      ();
-    int     MeasureColumnContentWidth   (int logicalId, size_t startIdx) const;
+    HRESULT CreateChildControls (HWND hwnd);
+    void    LayoutChildControls (int width, int height);
+    void    RebuildListViewColumns();
+    int     MeasureColumnContentWidth (int logicalId, size_t startIdx) const;
     void    SizeDetailColumnToRemainder();
-    void    ToggleColumn                (int id);
+    void    ToggleColumn (int id);
     void    CaptureCurrentWidthsIntoModel();
-    void    ShowHeaderContextMenu       (int x, int y);
-    HFONT   AcquireUiFont               ();
+    void    ShowHeaderContextMenu (int x, int y);
+    HFONT   AcquireUiFont();
 
-    void    HandleDrainTick             ();
-    void    HandleGetDispInfo           (NMLVDISPINFOW * pInfo);
-    void    AppendFilteredIndicesFor    (size_t startDeqIdx);
-    void    RebuildFilteredIndices      ();
-    void    InvalidateListView          ();
+    void    HandleDrainTick();
+    void    HandleGetDispInfo (NMLVDISPINFOW * pInfo);
+    void    AppendFilteredIndicesFor (size_t startDeqIdx);
+    void    RebuildFilteredIndices();
+    void    InvalidateListView();
 
     // Spec-006 round-4 bug 5. Capture the focused row's deque
     // index before a filter rebuild and restore focus to either the
     // same row (if it survived the filter) or the nearest earlier
     // surviving row. -1 sentinel means "nothing was focused".
-    int     CapturedFocusedDequeIdx     () const noexcept;
-    void    RestoreFocusedDequeIdx      (int priorDequeIdx) noexcept;
+    int     CapturedFocusedDequeIdx() const noexcept;
+    void    RestoreFocusedDequeIdx (int priorDequeIdx) noexcept;
 
-    void    OnFilterControlToggled      (int id, HWND hCtl);
-    void    OnFilterTextChanged         ();
-    void    OnFilterTextKillFocus       ();
-    void    FlushFilterDebounce         ();
-    std::wstring ReadEditText           (HWND hEdit) const;
-    void    UpdateAudioSubEnableState   ();
+    void    OnFilterControlToggled (int id, HWND hCtl);
+    void    OnFilterTextChanged();
+    void    OnFilterTextKillFocus();
+    void    FlushFilterDebounce();
+    std::wstring ReadEditText (HWND hEdit) const;
+    void    UpdateAudioSubEnableState();
 
-    HRESULT InstallListViewSubclass     ();
+    HRESULT InstallListViewSubclass();
     void    CopySelectedRowsToClipboard();
     static LRESULT CALLBACK s_ListViewSubclassProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 

@@ -276,9 +276,9 @@ void AppendColumnText (std::wstring & out, const DiskIIEventDisplay & e, int log
 
     switch (logicalId)
     {
-        case 0: out.append (e.wallStr.data   ()); break;
+        case 0: out.append (e.wallStr.data()); break;
         case 1: out.append (e.uptimeStr.data()); break;
-        case 2: out.append (e.cycleStr.data  ()); break;
+        case 2: out.append (e.cycleStr.data()); break;
         case 3:
             if (e.drive != DiskIIEventDisplay::kFieldNotApplicable)
             {

@@ -38,7 +38,7 @@ public:
         DiskIIAudioSource  src;
 
         src.OnMotorEngaged();
-        src.OnMotorDisengaged  ();
+        src.OnMotorDisengaged();
         Assert::IsFalse  (src.IsMotorRunning());
     }
 
@@ -120,7 +120,7 @@ public:
         DiskIIAudioSource  src;
 
         src.SetPan (0.25f, 0.75f);
-        Assert::AreEqual (0.25f, src.PanLeft  (), 1e-6f);
+        Assert::AreEqual (0.25f, src.PanLeft(),  1e-6f);
         Assert::AreEqual (0.75f, src.PanRight(), 1e-6f);
     }
 };

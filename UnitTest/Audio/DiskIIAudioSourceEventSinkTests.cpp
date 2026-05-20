@@ -185,10 +185,10 @@ public:
 
         src.SetSampleBufferForTest (L"MotorLoop",  vector<float> (32, 1.0f));
         src.SetSampleBufferForTest (L"DoorClose", vector<float> (16, 0.5f));
-        src.OnDiskInserted    ();
+        src.OnDiskInserted();
         src.SetAudioEventSink (&sink);
 
-        src.OnMotorEngaged    ();
+        src.OnMotorEngaged();
         src.OnMotorDisengaged();
 
         Assert::AreEqual (size_t (2),                                        sink.log.size());
@@ -241,7 +241,7 @@ public:
         src.SetAudioEventSink (&sink);
 
         src.OnDiskInserted();
-        src.OnDiskEjected  ();
+        src.OnDiskEjected();
 
         Assert::AreEqual (size_t (2),                                       sink.log.size());
         Assert::IsTrue   (sink.log[0].which == RecordingAudioEventSink::Kind::Started);
@@ -272,11 +272,11 @@ public:
         src.SetSampleBufferForTest (L"MotorLoop", vector<float> (16, 1.0f));
         src.SetSampleBufferForTest (L"HeadStep",  vector<float> (16, 0.5f));
 
-        src.OnMotorEngaged    ();
-        src.OnHeadStep        (1);
-        src.OnHeadBump        ();
-        src.OnDiskInserted    ();
-        src.OnDiskEjected     ();
+        src.OnMotorEngaged();
+        src.OnHeadStep (1);
+        src.OnHeadBump();
+        src.OnDiskInserted();
+        src.OnDiskEjected();
         src.OnMotorDisengaged();
 
         Assert::IsFalse (src.IsMotorRunning());
