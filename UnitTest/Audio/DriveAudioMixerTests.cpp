@@ -27,7 +27,7 @@ public:
     float    m_panL  = IDriveAudioSource::kCenterPan;
     float    m_panR  = IDriveAudioSource::kCenterPan;
 
-    void  GeneratePCM   (float * outMono, uint32_t n) override
+    void  GeneratePCM (float * outMono, uint32_t n) override
     {
         for (uint32_t i = 0; i < n; i++)
         {
@@ -35,16 +35,16 @@ public:
         }
     }
 
-    float PanLeft   () const override { return m_panL; }
-    float PanRight  () const override { return m_panR; }
-    void  SetPan    (float l, float r) override { m_panL = l; m_panR = r; }
+    float PanLeft() const override { return m_panL; }
+    float PanRight() const override { return m_panR; }
+    void  SetPan (float l, float r) override { m_panL = l; m_panR = r; }
 
-    void  OnMotorStart   () override {}
-    void  OnMotorStop    () override {}
-    void  OnHeadStep     (int)       override {}
-    void  OnHeadBump     ()          override {}
+    void  OnMotorEngaged() override {}
+    void  OnMotorDisengaged() override {}
+    void  OnHeadStep (int)       override {}
+    void  OnHeadBump()          override {}
     void  OnDiskInserted()          override {}
-    void  OnDiskEjected  ()          override {}
+    void  OnDiskEjected()          override {}
 };
 
 
@@ -122,7 +122,7 @@ public:
 
         left.m_value  = 1.0f;
         right.m_value = 1.0f;
-        left.SetPan  (0.9f, 0.1f);
+        left.SetPan (0.9f, 0.1f);
         right.SetPan (0.1f, 0.9f);
 
         mixer.RegisterSource (&left);

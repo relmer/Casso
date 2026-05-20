@@ -19,8 +19,8 @@
 class Window
 {
 public:
-    Window ();
-    virtual ~Window ();
+    Window();
+    virtual ~Window();
 
     virtual HRESULT Initialize (HINSTANCE hInstance);
     virtual HRESULT Create (
@@ -33,7 +33,7 @@ public:
         int       height,
         HWND      hwndParent);
 
-    HWND GetHwnd () const { return m_hwnd; }
+    HWND GetHwnd() const { return m_hwnd; }
 
 protected:
     ATOM RegisterWindowClass (HINSTANCE hInstance);
@@ -44,10 +44,13 @@ protected:
     // Virtual message handlers — return true to call DefWindowProc
     virtual bool    OnChar     (WPARAM ch, LPARAM lParam);
     virtual bool    OnCommand  (HWND hwnd, int id);
+    virtual bool    OnCommandEx (HWND hwnd, int id, int notifyCode, HWND hCtl);
+    virtual HBRUSH  OnCtlColorStatic (HWND hwndDlg, HDC hdc, HWND hwndStatic);
     virtual bool    OnClose    (HWND hwnd);
     virtual LRESULT OnCreate   (HWND hwnd, CREATESTRUCT * pcs);
     virtual bool    OnDestroy  (HWND hwnd);
     virtual bool    OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis);
+    virtual bool    OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu);
     virtual bool    OnKeyDown  (WPARAM vk, LPARAM lParam);
     virtual bool    OnKeyUp    (WPARAM vk, LPARAM lParam);
     virtual bool    OnNotify   (HWND hwnd, WPARAM wParam, LPARAM lParam);

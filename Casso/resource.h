@@ -37,6 +37,7 @@
 #define IDM_VIEW_CRT_SHADER         40035
 #define IDM_VIEW_RESET_SIZE         40036
 #define IDM_VIEW_OPTIONS            40037
+#define IDM_VIEW_DISKII_DEBUG       40038
 
 #define IDM_HELP_KEYMAP             40040
 #define IDM_HELP_DEBUG              40041

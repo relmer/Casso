@@ -27,38 +27,51 @@ public:
     static constexpr int   kMinTrack     = 0;
     static constexpr int   kMaxTrack     = 39;
 
-    DiskIINibbleEngine ();
+    DiskIINibbleEngine();
 
-    void       SetDiskImage     (DiskImage * disk);
-    void       SetMotorOn       (bool on);
-    void       SetWriteMode     (bool q7);
+    void       SetDiskImage (DiskImage * disk);
+    void       SetMotorOn (bool on);
+    void       SetWriteMode (bool q7);
     void       SetShiftLoadMode (bool q6);
-    void       SetCurrentTrack  (int track);
-    void       Reset            ();
+    void       SetCurrentTrack (int track);
+    void       Reset();
 
-    bool       IsMotorOn        () const { return m_motorOn; }
-    bool       IsWriteMode      () const { return m_writeMode; }
-    int        GetCurrentTrack  () const { return m_currentTrack; }
-    size_t     GetBitPosition   () const { return m_bitPos; }
+    bool       IsMotorOn() const { return m_motorOn; }
+    bool       IsWriteMode() const { return m_writeMode; }
+    int        GetCurrentTrack() const { return m_currentTrack; }
+    size_t     GetBitPosition() const { return m_bitPos; }
 
     // Lifetime nibble I/O counters surfaced to the UI status-bar
     // tooltip. Increment on each successful CPU latch read (MSB-set)
     // and each CPU latch write while in write mode.
-    uint64_t   GetReadNibbles     () const { return m_readNibbles; }
-    uint64_t   GetWriteNibbles    () const { return m_writeNibbles; }
+    uint64_t   GetReadNibbles() const { return m_readNibbles; }
+    uint64_t   GetWriteNibbles() const { return m_writeNibbles; }
 
     // Diagnostic / test peek at the current read latch contents without
     // the read-clears-on-MSB side effect ReadLatch carries.
-    uint8_t    PeekReadLatch    () const { return m_readLatch; }
+    uint8_t    PeekReadLatch() const { return m_readLatch; }
 
-    void       Tick             (uint32_t cpuCycles);
-    uint8_t    ReadLatch        ();
-    void       WriteLatch       (uint8_t value);
+    void       Tick (uint32_t cpuCycles);
+    uint8_t    ReadLatch();
+    void       WriteLatch (uint8_t value);
+
+    // Passive-watcher hook: returns true exactly once per fully-
+    // assembled MSB-set nibble. ReadLatch is a pure sample with no
+    // consume side effect (the CPU polls $C0EC in a tight BPL loop
+    // and sees the same byte many times); feeding every sampled
+    // ReadLatch return into the DiskIIAddressMarkWatcher fills the
+    // watcher with garbage repeats and partial-assembly bytes, and
+    // its state machines never match a real D5 AA 96 prologue.
+    // ConsumeFreshNibble is the side-channel the controller uses
+    // to feed the watcher exactly one nibble per LSS assembly
+    // rising edge -- byte-identical to the real "byte ready"
+    // signal. Does NOT affect ReadLatch's CPU-visible value.
+    bool       ConsumeFreshNibble (uint8_t & outNibble);
 
 private:
-    void       AdvanceOneBit    ();
-    void       ShiftReadBit     (uint8_t bit);
-    void       ShiftWriteBit    ();
+    void       AdvanceOneBit();
+    void       ShiftReadBit (uint8_t bit);
+    void       ShiftWriteBit();
 
     DiskImage *  m_disk          = nullptr;
     int          m_currentTrack  = 0;
@@ -71,6 +84,7 @@ private:
     uint8_t      m_workingShift    = 0;
     int          m_latchDelayBits  = 0;
     uint8_t      m_writeLatch      = 0;
+    bool         m_latchIsFresh    = false;
 
     // Lifetime nibble I/O counters (increment on CPU read of $C0EC
     // when MSB-set, and on CPU write of $C0ED in write mode). Surfaced

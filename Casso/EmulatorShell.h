@@ -17,6 +17,7 @@
 #include "Audio/DriveAudioMixer.h"
 #include "Audio/DiskIIAudioSource.h"
 #include "WasapiAudio.h"
+#include "DiskIIDebugDialog.h"
 
 
 
@@ -49,8 +50,8 @@ struct EmulatorCommand
 class EmulatorShell : public Window
 {
 public:
-    EmulatorShell ();
-    ~EmulatorShell ();
+    EmulatorShell();
+    ~EmulatorShell();
 
     HRESULT Initialize (
         HINSTANCE              hInstance,
@@ -59,86 +60,126 @@ public:
         const string    & disk1Path,
         const string    & disk2Path);
 
-    int RunMessageLoop ();
+    int RunMessageLoop();
 
     void HandleCommand (WORD commandId);
 
     // State
-    bool IsRunning () const { return m_running.load (memory_order_acquire); }
-    bool IsPaused  () const { return m_paused.load (memory_order_acquire); }
+    bool IsRunning() const { return m_running.load (memory_order_acquire); }
+    bool IsPaused() const { return m_paused.load (memory_order_acquire); }
 
     // Access bus for test wiring
-    MemoryBus & GetBus () { return m_memoryBus; }
+    MemoryBus & GetBus() { return m_memoryBus; }
 
     // Phase 4 / FR-034 / FR-035: split-reset entry points exposed for the
     // menu commands (IDM_MACHINE_RESET / IDM_MACHINE_POWERCYCLE) and any
     // future programmatic callers. SoftReset preserves user RAM and
     // re-runs the 6502 /RESET sequence. PowerCycle re-seeds every DRAM-
     // owning device from the shared Prng before SoftReset (audit S10).
-    void SoftReset      ();
-    void PowerCycle     ();
+    void SoftReset();
+    void PowerCycle();
+
+    // Spec-006 / FR-001 / FR-024. View -> Disk II Debug... command
+    // entry point. On first call: lazy-create the modeless dialog,
+    // attach it as the sink on the active Disk II controller
+    // (controller #0 per FR-017) AND on that controller's
+    // DiskIIAudioSource. On subsequent calls: show + bring to front.
+    void OpenDiskIIDebugDialog();
+
+    // Spec-006 bug 15. SwitchMachine destroys and recreates the
+    // controller + audio source while the modeless debug dialog
+    // (if open) holds raw pointers into the now-defunct old
+    // components. Call this AFTER the new components are wired
+    // up so the dialog re-attaches as the controller event sink
+    // and the active drive's audio-event sink on the new objects.
+    // No-op when the dialog has never been opened.
+    void AttachDebugSinksIfOpen();
+
+    // Spec-006 / FR-004a. Re-zero the Uptime column anchor on every
+    // //e SoftReset / PowerCycle. The anchor is shell-owned (lives
+    // across dialog opens) but read by the dialog via
+    // GetUptimeAnchor() on each WM_TIMER drain.
+    void ResetUptimeAnchor() noexcept
+    {
+        m_uptimeAnchor = std::chrono::steady_clock::now();
+
+        if (m_diskIIDebugDialog != nullptr)
+        {
+            m_diskIIDebugDialog->SetUptimeAnchor (m_uptimeAnchor);
+            // Spec-006 bug-fix. Clear stale rows from the pre-reset
+            // boot so the post-reset uptime anchor doesn't end up
+            // formatting events that pre-date its own zero point.
+            m_diskIIDebugDialog->ClearEvents();
+        }
+    }
+
+    std::chrono::steady_clock::time_point GetUptimeAnchor() const noexcept
+    {
+        return m_uptimeAnchor;
+    }
 
 private:
     // Window message handler overrides
-    bool    OnChar     (WPARAM ch, LPARAM lParam) override;
-    bool    OnCommand  (HWND hwnd, int id) override;
-    LRESULT OnCreate   (HWND hwnd, CREATESTRUCT * pcs) override;
-    bool    OnDestroy  (HWND hwnd) override;
+    bool    OnChar (WPARAM ch, LPARAM lParam) override;
+    bool    OnCommand (HWND hwnd, int id) override;
+    LRESULT OnCreate (HWND hwnd, CREATESTRUCT * pcs) override;
+    bool    OnDestroy (HWND hwnd) override;
     bool    OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis) override;
-    bool    OnKeyDown  (WPARAM vk, LPARAM lParam) override;
-    bool    OnKeyUp    (WPARAM vk, LPARAM lParam) override;
-    bool    OnNotify   (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
-    bool    OnSize     (HWND hwnd, UINT width, UINT height) override;
-    bool    OnTimer    (HWND hwnd, UINT_PTR timerId) override;
+    bool    OnKeyDown (WPARAM vk, LPARAM lParam) override;
+    bool    OnKeyUp (WPARAM vk, LPARAM lParam) override;
+    bool    OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
+    bool    OnSize (HWND hwnd, UINT width, UINT height) override;
+    bool    OnTimer (HWND hwnd, UINT_PTR timerId) override;
+    bool    OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu) override;
 
     // Command group handlers
-    void OnFileCommand    (int id);
-    void OnEditCommand    (int id);
+    void OnFileCommand (int id);
+    void OnEditCommand (int id);
     void OnMachineCommand (int id);
-    void OnViewCommand    (int id);
-    void OnDiskCommand    (int id);
-    void OnHelpCommand    (int id);
+    void OnViewCommand (int id);
+    void OnDiskCommand (int id);
+    void OnHelpCommand (int id);
 
     // CPU thread entry point and helpers
-    void CpuThreadProc     ();
-    void RunOneFrame       ();
-    void ExecuteCpuSlices   ();
-    void RenderFramebuffer  ();
-    void ProcessCommands   ();
-    void UpdateWindowTitle ();
-    void SelectVideoMode   ();
+    void CpuThreadProc();
+    void RunOneFrame();
+    void ExecuteCpuSlices();
+    void RenderFramebuffer();
+    void ProcessCommands();
+    void UpdateWindowTitle();
+    void SelectVideoMode();
 
     // Initialization helpers
-    HRESULT CreateEmulatorWindow   (HINSTANCE hInstance);
-    HRESULT CreateMemoryDevices    (const MachineConfig & config);
-    void    WireLanguageCard       ();
-    void    WirePageTable          ();
-    void    RebuildBankingPages    ();
-    void    MountCommandLineDisks  (const string & disk1Path, const string & disk2Path);
-    HRESULT MountDiskInSlot6       (int drive, const string & path);
-    void    EjectDiskInSlot6       (int drive);
-    void    RemountSlot6Disks      ();
-    class DiskIIController * FindSlot6Controller ();
-    void    CreateVideoModes       ();
-    HRESULT CreateCpu              (const MachineConfig & config);
+    HRESULT CreateEmulatorWindow (HINSTANCE hInstance);
+    HRESULT CreateMemoryDevices (const MachineConfig & config);
+    void    WireLanguageCard();
+    void    WirePageTable();
+    void    RebuildBankingPages();
+    void    MountCommandLineDisks (const string & disk1Path, const string & disk2Path);
+    HRESULT MountDiskInSlot6 (int drive, const string & path);
+    void    EjectDiskInSlot6 (int drive);
+    void    RemountSlot6Disks();
+    class DiskIIController * FindSlot6Controller();
+    void    CreateVideoModes();
+    HRESULT CreateCpu (const MachineConfig & config);
 
-    Byte * GetAuxRamBuffer ();
+    Byte * GetAuxRamBuffer();
 
     // Machine switching
-    void    ShowMachinePicker      ();
-    HRESULT SwitchMachine          (const wstring & machineName);
+    void    ShowMachinePicker();
+    HRESULT SwitchMachine (const wstring & machineName);
 
-    void CopyScreenText     ();
-    void CopyScreenshot     ();
-    void PasteFromClipboard ();
-    void DrainPasteBuffer   ();
+    void CopyScreenText();
+    void CopyScreenshot();
+    void PasteFromClipboard();
+    void DrainPasteBuffer();
 
     // Status bar
-    void    CreateStatusBar        ();
-    void    UpdateStatusBar        ();
-    void    RefreshDriveStatus     ();
-    void    DrawDriveStatusItem    (DRAWITEMSTRUCT * pdis, int driveIndex);
-    void    ShowDevicePopup        ();
+    void    CreateStatusBar();
+    void    UpdateStatusBar();
+    void    RefreshDriveStatus();
+    void    DrawDriveStatusItem (DRAWITEMSTRUCT * pdis, int driveIndex);
+    void    ShowDevicePopup();
 
     // Queue a command for the CPU thread
     void PostCommand (WORD id, const string & payload = "");
@@ -259,6 +300,13 @@ private:
 
     uint32_t        m_cyclesPerFrame  = 17050;
     double          m_sampleRemainder = 0.0;
+
+    // Spec-006 / FR-001 / FR-004a. Owned by the shell so the dialog
+    // can be lazy-created on first Ctrl+Shift+D and reused across
+    // opens. The uptime anchor lives on the shell (not the dialog)
+    // so resets re-zero it even while the dialog is closed.
+    std::unique_ptr<class DiskIIDebugDialog>  m_diskIIDebugDialog;
+    std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 };
 
 

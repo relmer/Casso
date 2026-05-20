@@ -24,25 +24,28 @@ class IDriveAudioSink
 public:
     virtual ~IDriveAudioSink() = default;
 
-    // Motor transitions. OnMotorStart is fired on the off->on edge
-    // (case 0x9 of the Disk II soft switches). OnMotorStop fires on
-    // the on->off edge, which for the Disk II is the spindown-timer
-    // expiry inside Tick(), NOT the raw $C0E8 access (FR-001/FR-002).
-    virtual void OnMotorStart   () = 0;
-    virtual void OnMotorStop    () = 0;
+    // Motor transitions. OnMotorEngaged fires on the off->on edge
+    // (case 0x9 of the Disk II soft switches). OnMotorDisengaged
+    // fires on the on->off edge, which for the Disk II is the
+    // spindown-timer expiry inside Tick(), NOT the raw $C0E8 access
+    // (FR-001/FR-002). Renamed in spec-006 to match the four-event
+    // motor lifecycle on IDiskIIEventSink (FR-006); semantics are
+    // unchanged from spec-005's OnMotorStart/OnMotorStop.
+    virtual void OnMotorEngaged() = 0;
+    virtual void OnMotorDisengaged() = 0;
 
     // Head movement. OnHeadStep fires when the head actually moves a
     // quarter-track (qtDelta != 0 AND head not pinned at a stop).
     // OnHeadBump fires when the head WOULD have moved but is clamped
     // at the travel stop (track 0 or kMaxQuarterTrack). The two are
     // mutually exclusive for any single phase event (FR-003/FR-004).
-    virtual void OnHeadStep     (int newQt) = 0;
-    virtual void OnHeadBump     () = 0;
+    virtual void OnHeadStep (int newQt) = 0;
+    virtual void OnHeadBump() = 0;
 
     // Disk image mount/unmount. Fired by the shell mount/eject path.
     // Cold-boot mounts (command-line / restored / autoload) MUST be
     // suppressed by the shell (FR-013) -- the sink itself unconditionally
     // plays the close sound when invoked.
     virtual void OnDiskInserted() = 0;
-    virtual void OnDiskEjected  () = 0;
+    virtual void OnDiskEjected() = 0;
 };

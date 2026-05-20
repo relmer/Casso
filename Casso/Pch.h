@@ -11,6 +11,7 @@
 #include <audioclient.h>
 #include <commdlg.h>
 #include <commctrl.h>
+#include <richedit.h>
 #include <winhttp.h>
 
 #include <crtdbg.h>
@@ -20,8 +21,10 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <ctime>
+#include <deque>
 #include <filesystem>
 #include <format>
 #include <fstream>

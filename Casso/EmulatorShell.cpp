@@ -71,7 +71,6 @@ static constexpr UINT     kDriveStatusTimerMs    = 50;
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell
@@ -110,13 +109,40 @@ EmulatorShell::EmulatorShell()
 
 EmulatorShell::~EmulatorShell()
 {
-    HRESULT  hrFlush = S_OK;
+    HRESULT             hrFlush    = S_OK;
+    DiskIIController *  controller = nullptr;
 
     m_running.store (false, memory_order_release);
 
     if (m_cpuThread.joinable())
     {
         m_cpuThread.join();
+    }
+
+    // Spec-006 / FR-024. Revoke BOTH sinks BEFORE the dialog tears
+    // down its ring (and before the controller / audio source itself
+    // is destroyed, which happens via m_ownedDevices / m_diskAudioSources
+    // below). Controller sink first, then audio sink, matching the
+    // attachment order in OpenDiskIIDebugDialog.
+    if (m_diskIIDebugDialog != nullptr)
+    {
+        controller = FindSlot6Controller();
+
+        if (controller != nullptr)
+        {
+            controller->SetEventSink (nullptr);
+        }
+
+        for (size_t i = 0; i < m_diskAudioSources.size(); i++)
+        {
+            if (m_diskAudioSources[i] != nullptr)
+            {
+                m_diskAudioSources[i]->SetAudioEventSink (nullptr);
+            }
+        }
+
+        m_diskIIDebugDialog->Destroy();
+        m_diskIIDebugDialog.reset();
     }
 
     // Phase 11 / T097 / FR-025. Final auto-flush of any dirty disks on
@@ -325,6 +351,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreateStatusBar
@@ -448,7 +475,7 @@ void EmulatorShell::CreateStatusBar()
     CWRA (m_renderHwnd);
 
 Error:
-    ;
+    return;
 }
 
 
@@ -788,7 +815,9 @@ void EmulatorShell::DrawDriveStatusItem (DRAWITEMSTRUCT * pdis, int driveIndex)
 
     active = m_diskController != nullptr
           && m_diskController->IsMotorOn()
-          && m_diskController->GetActiveDrive() == driveIndex;
+          && m_diskController->GetActiveDrive() == driveIndex
+          && m_diskController->GetDisk (driveIndex) != nullptr
+          && m_diskController->GetDisk (driveIndex)->IsLoaded();
 
     dotColor = active ? RGB (220, 32, 32) : RGB (128, 128, 128);
 
@@ -1014,6 +1043,7 @@ bool EmulatorShell::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
 
     return true;
 }
+
 
 
 
@@ -1327,6 +1357,7 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
             }
 
             m_driveAudioMixer.RegisterSource (src.get());
+            src->SetDriveIndex (drive);
             m_diskAudioSources.push_back (std::move (src));
         }
 
@@ -1339,6 +1370,7 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
 Error:
     return hr;
 }
+
 
 
 
@@ -1692,6 +1724,15 @@ HRESULT EmulatorShell::MountDiskInSlot6 (int drive, const string & path)
     external = m_diskStore.GetImage (6, drive);
     controller->SetExternalDisk (drive, external);
 
+    // Spec-006 bug 14b. The store-based mount path bypasses the
+    // controller's own MountDisk method, so fire the IDiskIIEventSink
+    // hook explicitly here so the debug window sees the insert. Cold
+    // boot mounts still fire on the controller side (the debug window
+    // is rarely open at app launch and the user wants to see the
+    // mount that ran without their click); the cold-boot suppression
+    // below is audio-only (FR-013).
+    controller->NotifyDiskInserted (drive);
+
     // Persist this drive's mount path so the next launch / next time
     // this machine is selected auto-mounts the same disk. Don't pollute
     // hr with the registry result -- a missing key is non-fatal.
@@ -1741,6 +1782,13 @@ void EmulatorShell::EjectDiskInSlot6 (int drive)
     if (controller != nullptr)
     {
         controller->SetExternalDisk (drive, nullptr);
+
+        // Spec-006 bug 14b. Mirror the insert path: fire the
+        // controller-level event sink so the debug window logs the
+        // eject. Fires AFTER the external disk is detached so any
+        // sink that inspects the controller sees the post-eject
+        // state.
+        controller->NotifyDiskEjected (drive);
     }
 
     // Clear the per-machine remembered path so the next launch comes up
@@ -2048,7 +2096,15 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
         IGNORE_RETURN_VALUE (hrFlush, S_OK);
     }
 
-    // Tear down current machine
+    // Tear down current machine. The Disk II debug dialog (if open)
+    // holds a raw pointer into the old CPU's cycle counter; revoke it
+    // before the CPU is reset so the dialog can't dereference dangling
+    // memory between here and CreateCpu below.
+    if (m_diskIIDebugDialog != nullptr)
+    {
+        m_diskIIDebugDialog->SetCycleCounter (nullptr);
+    }
+
     m_cpu.reset();
     m_ownedDevices.clear();
     m_memoryBus = MemoryBus();
@@ -2077,6 +2133,18 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     CHR (hr);
 
     WirePageTable();
+
+    // Re-attach the new CPU's cycle counter to the debug dialog (the
+    // pointer was revoked above before the old CPU was destroyed).
+    if (m_diskIIDebugDialog != nullptr && m_cpu != nullptr)
+    {
+        m_diskIIDebugDialog->SetCycleCounter (m_cpu->GetCycleCounterPtr());
+    }
+
+    // Spec-006 bug 15. Re-wire the debug dialog onto the freshly
+    // built controller + audio source. Without this the dialog goes
+    // silent after a machine switch even though it's still on screen.
+    AttachDebugSinksIfOpen();
 
     UpdateStatusBar();
     UpdateWindowTitle();
@@ -2536,6 +2604,7 @@ void EmulatorShell::DrainPasteBuffer()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RunOneFrame
@@ -2748,6 +2817,7 @@ void EmulatorShell::RenderFramebuffer()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnCommand
@@ -2762,7 +2832,7 @@ bool EmulatorShell::OnCommand (HWND hwnd, int id)
     else if (id >= IDM_FILE_OPEN     && id <= IDM_FILE_EXIT)          { OnFileCommand (id); }
     else if (id >= IDM_MACHINE_RESET && id <= IDM_MACHINE_INFO)       { OnMachineCommand (id); }
     else if (id >= IDM_DISK_INSERT1  && id <= IDM_DISK_WRITEPROTECT2) { OnDiskCommand (id); }
-    else if (id >= IDM_VIEW_COLOR    && id <= IDM_VIEW_OPTIONS)       { OnViewCommand (id); }
+    else if (id >= IDM_VIEW_COLOR    && id <= IDM_VIEW_DISKII_DEBUG)  { OnViewCommand (id); }
     else if (id >= IDM_HELP_KEYMAP   && id <= IDM_HELP_ABOUT)         { OnHelpCommand (id); }
 
     return false;
@@ -2773,6 +2843,7 @@ bool EmulatorShell::OnCommand (HWND hwnd, int id)
 
 
 ////////////////////////////////////////////////////////////////////////////////
+
 
 
 
@@ -3563,6 +3634,12 @@ void EmulatorShell::OnViewCommand (int id)
             }
             break;
         }
+
+        case IDM_VIEW_DISKII_DEBUG:
+        {
+            OpenDiskIIDebugDialog();
+            break;
+        }
     }
 }
 
@@ -3827,9 +3904,6 @@ void EmulatorShell::SelectVideoMode()
 
 
 
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SoftReset
@@ -3861,6 +3935,11 @@ void EmulatorShell::SoftReset()
     {
         m_cpu->SoftReset();
     }
+
+    // Spec-006 / FR-004a. Re-zero the Disk II Debug Uptime column on
+    // every reset so the user sees a clean 00:00 anchor after each
+    // Ctrl+R / Ctrl+Shift+R.
+    ResetUptimeAnchor();
 }
 
 
@@ -3913,4 +3992,167 @@ void EmulatorShell::PowerCycle()
     {
         m_cpu->PowerCycle (*m_prng);
     }
+
+    // Spec-006 / FR-004a. Re-zero the Disk II Debug Uptime column on
+    // every power-cycle as well as soft-reset.
+    ResetUptimeAnchor();
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OpenDiskIIDebugDialog
+//
+//  Spec-006 / FR-001 / FR-017 / FR-024. View -> Disk II Debug...
+//  command handler and Ctrl+Shift+D accelerator target. Lazy-creates
+//  the modeless dialog on first open, wires it as the controller's
+//  event sink AND as the active DiskIIAudioSource's audio-event
+//  sink, applies the uptime anchor and the multi-controller title
+//  hint, then shows + foregrounds the window. Subsequent calls
+//  short-circuit to Show + SetForegroundWindow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OpenDiskIIDebugDialog()
+{
+    HRESULT             hr           = S_OK;
+    DiskIIController *  controller   = nullptr;
+    int                 diskIICount  = 0;
+    HINSTANCE           hInstance    = nullptr;
+    size_t              i            = 0;
+
+    controller = FindSlot6Controller();
+
+    // FR-001a should have grayed the menu item; the accelerator
+    // bypasses that gate so we defend in depth.
+    CBR (controller != nullptr);
+
+    for (const SlotConfig & slot : m_config.slots)
+    {
+        if (slot.device == "disk-ii")
+        {
+            diskIICount++;
+        }
+    }
+
+    if (m_diskIIDebugDialog == nullptr)
+    {
+        m_diskIIDebugDialog = std::make_unique<DiskIIDebugDialog>();
+
+        hInstance = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
+
+        hr = m_diskIIDebugDialog->Create (hInstance, m_hwnd);
+        CHRF (hr, m_diskIIDebugDialog.reset());
+
+        m_diskIIDebugDialog->SetUptimeAnchor (m_uptimeAnchor);
+        m_diskIIDebugDialog->SetMultiControllerHint (diskIICount > 1);
+
+        if (m_cpu != nullptr)
+        {
+            m_diskIIDebugDialog->SetCycleCounter (m_cpu->GetCycleCounterPtr());
+        }
+
+        // FR-024: both sinks attached together, dialog implements
+        // both interfaces. Audio sink is a no-op if the mixer has no
+        // source registered (e.g., audio subsystem disabled).
+        controller->SetEventSink (m_diskIIDebugDialog.get());
+
+        for (i = 0; i < m_diskAudioSources.size(); i++)
+        {
+            if (m_diskAudioSources[i] != nullptr)
+            {
+                m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get());
+            }
+        }
+    }
+    else
+    {
+        m_diskIIDebugDialog->SetMultiControllerHint (diskIICount > 1);
+    }
+
+    m_diskIIDebugDialog->Show();
+    SetForegroundWindow (m_diskIIDebugDialog->GetHwnd());
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AttachDebugSinksIfOpen
+//
+//  Spec-006 bug 15. SwitchMachine tears down the old controller and
+//  audio source then constructs new ones via CreateMemoryDevices,
+//  but the dialog's sink wiring only ran inside OpenDiskIIDebugDialog
+//  on first open -- the new controller starts with m_eventSink ==
+//  nullptr and the new audio source with m_audioEventSink == nullptr,
+//  so the debug window goes silent post-switch. Re-attach both
+//  sinks if the dialog is still open. No-op when the dialog has
+//  never been opened.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::AttachDebugSinksIfOpen()
+{
+    HRESULT             hr         = S_OK;
+    DiskIIController *  controller = nullptr;
+    size_t              i          = 0;
+
+    CBR (m_diskIIDebugDialog != nullptr);
+
+    controller = FindSlot6Controller();
+
+    if (controller != nullptr)
+    {
+        controller->SetEventSink (m_diskIIDebugDialog.get());
+    }
+
+    for (i = 0; i < m_diskAudioSources.size(); i++)
+    {
+        if (m_diskAudioSources[i] != nullptr)
+        {
+            m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get());
+        }
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnInitMenuPopup
+//
+//  Spec-006 / FR-001a. Re-evaluate menu items whose enabled state
+//  depends on runtime machine config (currently just
+//  IDM_VIEW_DISKII_DEBUG). Win32 fires this every time the user
+//  opens a popup, so a SwitchMachine between menu opens picks up
+//  the controller delta on the next click.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (hMenu);
+    UNREFERENCED_PARAMETER (itemIndex);
+    UNREFERENCED_PARAMETER (isWindowMenu);
+
+    m_menuSystem.UpdateDynamicMenuItems (m_config);
+
+    return true;
+}
+
+
+

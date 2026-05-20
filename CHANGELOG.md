@@ -6,6 +6,95 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.764] — Disk II Debug Window (spec 006)
+
+### Added
+- **Disk II Debug Window**: modeless live event log of motor / head /
+  address-mark / data-mark / drive-select / insert-eject / audio
+  events from the active Disk II controller. Opens via
+  **View → Disk II Debug...** or **Ctrl+Shift+D**. Filterable by
+  event type, drive (per-drive or all), track, sector, and audio
+  outcome (started / restarted / continued / silent). Track / Sector
+  filters accept integers, decimals, ranges, and comma lists;
+  out-of-range or unparseable tokens are highlighted with a
+  red wave squiggle (RichEdit) and listed in an "Ignored:" label.
+  Track values clamp to whole-track 40 / quarter-track 160; sector
+  to 16. Six columns — Time (local HH:MM:SS.mmm), Uptime
+  (MM:SS.mmm since most recent //e reset), Cycle count, Drive
+  (1-based), Event (sentence-cased), Detail — content-auto-sized
+  with periodic re-grow as wider data arrives; user-dragged widths
+  are preserved. Detail flex-fills the remaining ListView width
+  and re-flows on dialog resize. Right-click the column header to
+  show / hide individual columns. Auto-tail scrolling while at the
+  bottom; pause / resume / clear; Ctrl+C copies selected rows
+  tab-separated in visible-column order. Machine reset clears the
+  view and re-zeroes Uptime. The menu item is greyed out on
+  machines without a Disk II controller (FR-001a); when more than
+  one Disk II controller is wired, the title becomes
+  "Disk II Debug (controller #0 only)" (FR-017). The dialog
+  survives `SwitchMachine` — sinks reattach to the freshly built
+  controller / audio source. Events emitted before the dialog
+  opens are not retained — open it *before* the operation you
+  want to investigate. Four bundled WOZ fixtures (Apple Stellar
+  Invaders, Choplifter, Hard Hat Mack, Karateka) live in
+  `Apple2/Demos/` for manual A/B observation.
+- **`IDiskIIEventSink` / `IDriveAudioEventSink`**: two new sink
+  interfaces (controller side + audio side) the debug dialog
+  implements simultaneously; the shell attaches and revokes both
+  in the same lifecycle window. Sinks are nullptr-default and
+  controller behaviour with no sink attached is byte-identical to
+  pre-feature (SC-007, SC-010).
+- **`DiskIIEventRing`**: lock-free SPSC ring (4096 capacity)
+  buffering producer-side events between the CPU thread and the
+  UI-thread drain timer; overflow returns false without corruption
+  and coalesces into a single `[N events lost]` marker on the next
+  drain (FR-010).
+- **`DiskIIAddressMarkWatcher`**: two state machines that decode
+  address marks (with volume number) and data marks from the
+  controller's nibble stream; bad checksums and mid-stream resync
+  are tolerated without false positives.
+- **`SilentReason::NoDiskPresent`**: surfaced in the Detail column
+  when the motor is commanded on (or kept on across an eject)
+  with no disk in the drive bay.
+
+### Changed
+- **Drive LED** now paints the red activity dot only when the
+  drive bay actually holds a loaded disk. The controller's motor
+  stays commanded on across an eject (real-hardware behaviour),
+  but with no media to read the user expects the LED to go dark.
+- **`DiskIIAudioSource`** motor loop is gated on
+  `m_motorRunning && m_diskPresent`. Modelled after real Disk II
+  hardware: the motor spins regardless of media presence, but
+  with no disk loaded there is no media noise to hear. Eject-
+  while-motor-on emits `OnAudioLoopStopped` +
+  `OnAudioSilent (MotorLoop, NoDiskPresent)`; re-insert emits
+  `OnAudioRestarted (MotorLoop)`.
+- **`EmulatorShell::{Mount,Eject}DiskInSlot6`** now routes through
+  new `DiskIIController::NotifyDiskInserted` / `NotifyDiskEjected`
+  entry points so the user-facing insert / eject events fire even
+  when the shell mounts via `DiskImageStore + SetExternalDisk`
+  (which bypasses the controller's own MountDisk path).
+- `IDriveAudioSink` audio-event method names normalised so the
+  controller-side and audio-side sinks present a parallel surface
+  to `DiskIIDebugDialog`.
+- `EmulatorShell` owns a shell-wide uptime anchor (`steady_clock`)
+  re-zeroed on `SoftReset` / `PowerCycle`; the debug dialog reads
+  it on every drain so the Uptime column tracks the active //e's
+  power-on age, not the host process.
+- `Window` base class gains a virtual `OnInitMenuPopup` hook to
+  support FR-001a runtime menu-item gating.
+
+### Tests
+- 156 new tests across the spec-006 surface: SPSC ring (push fills,
+  pop drains, wrap, overflow), address-mark watcher (stock cadence,
+  bad checksum, mid-stream resync), projection (FormatEvent column
+  shapes, DrainAndProject FIFO + EventsLost ordering, rolling cap),
+  filter state and the track/sector predicate parser (including
+  out-of-range clamp + RejectedSpan placement), RichEdit squiggle
+  helpers, clipboard payload builder, column-model planner,
+  FR-001a enablement decision, FR-004a uptime-reset path,
+  insert / eject / SwitchMachine regression coverage.
+
 ## [1.3.684] — Disk II mechanism dropdown + per-machine persistence
 
 ### Added

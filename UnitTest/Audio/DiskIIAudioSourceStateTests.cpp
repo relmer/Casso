@@ -24,21 +24,21 @@ TEST_CLASS (DiskIIAudioSourceStateTests)
 {
 public:
 
-    TEST_METHOD (OnMotorStart_setsRunningTrue)
+    TEST_METHOD (OnMotorEngaged_setsRunningTrue)
     {
         DiskIIAudioSource  src;
 
         Assert::IsFalse (src.IsMotorRunning());
-        src.OnMotorStart();
+        src.OnMotorEngaged();
         Assert::IsTrue  (src.IsMotorRunning());
     }
 
-    TEST_METHOD (OnMotorStop_setsRunningFalse)
+    TEST_METHOD (OnMotorDisengaged_setsRunningFalse)
     {
         DiskIIAudioSource  src;
 
-        src.OnMotorStart();
-        src.OnMotorStop  ();
+        src.OnMotorEngaged();
+        src.OnMotorDisengaged();
         Assert::IsFalse  (src.IsMotorRunning());
     }
 
@@ -120,7 +120,7 @@ public:
         DiskIIAudioSource  src;
 
         src.SetPan (0.25f, 0.75f);
-        Assert::AreEqual (0.25f, src.PanLeft  (), 1e-6f);
+        Assert::AreEqual (0.25f, src.PanLeft(),  1e-6f);
         Assert::AreEqual (0.75f, src.PanRight(), 1e-6f);
     }
 };

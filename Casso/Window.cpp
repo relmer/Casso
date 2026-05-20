@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Window::Window ()
+Window::Window()
 {
 }
 
@@ -26,7 +26,7 @@ Window::Window ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Window::~Window ()
+Window::~Window()
 {
 }
 
@@ -190,8 +190,26 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
             break;
 
         case WM_COMMAND:
-            callDefWndProc = pThis->OnCommand (hwnd, LOWORD (wParam));
+            callDefWndProc = pThis->OnCommandEx (hwnd,
+                                                 LOWORD (wParam),
+                                                 HIWORD (wParam),
+                                                 reinterpret_cast<HWND> (lParam));
             break;
+
+        case WM_CTLCOLORSTATIC:
+        {
+            HBRUSH  hbr = pThis->OnCtlColorStatic (hwnd,
+                                                   reinterpret_cast<HDC> (wParam),
+                                                   reinterpret_cast<HWND> (lParam));
+
+            if (hbr != nullptr)
+            {
+                return reinterpret_cast<LRESULT> (hbr);
+            }
+
+            callDefWndProc = true;
+            break;
+        }
 
         case WM_CLOSE:
             callDefWndProc = pThis->OnClose (hwnd);
@@ -208,6 +226,13 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
             callDefWndProc = pThis->OnDrawItem (hwnd,
                                                 static_cast<int> (wParam),
                                                 reinterpret_cast<DRAWITEMSTRUCT *> (lParam));
+            break;
+
+        case WM_INITMENUPOPUP:
+            callDefWndProc = pThis->OnInitMenuPopup (hwnd,
+                                                     reinterpret_cast<HMENU> (wParam),
+                                                     LOWORD (lParam),
+                                                     HIWORD (lParam) != 0);
             break;
 
         case WM_KEYDOWN:
@@ -296,6 +321,51 @@ bool Window::OnCommand (HWND hwnd, int id)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnCommandEx
+//
+//  Default behavior: forward to OnCommand for backwards compatibility
+//  with derived classes that don't care about the notification code or
+//  control handle. Override OnCommandEx instead when you need either.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::OnCommandEx (HWND hwnd, int id, int notifyCode, HWND hCtl)
+{
+    UNREFERENCED_PARAMETER (notifyCode);
+    UNREFERENCED_PARAMETER (hCtl);
+
+    return OnCommand (hwnd, id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnCtlColorStatic
+//
+//  Default: return nullptr so the caller falls back to DefWindowProc
+//  (which returns the system default static brush). Override to paint
+//  a specific static control with custom text / background colors.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HBRUSH Window::OnCtlColorStatic (HWND hwndDlg, HDC hdc, HWND hwndStatic)
+{
+    UNREFERENCED_PARAMETER (hwndDlg);
+    UNREFERENCED_PARAMETER (hdc);
+    UNREFERENCED_PARAMETER (hwndStatic);
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnClose
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -358,6 +428,26 @@ bool Window::OnKeyDown (WPARAM vk, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER (vk);
     UNREFERENCED_PARAMETER (lParam);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnInitMenuPopup
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (hMenu);
+    UNREFERENCED_PARAMETER (itemIndex);
+    UNREFERENCED_PARAMETER (isWindowMenu);
 
     return true;
 }

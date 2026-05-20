@@ -13,7 +13,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskIINibbleEngine::DiskIINibbleEngine ()
+DiskIINibbleEngine::DiskIINibbleEngine()
 {
 }
 
@@ -144,7 +144,7 @@ void DiskIINibbleEngine::SetCurrentTrack (int track)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIINibbleEngine::Reset ()
+void DiskIINibbleEngine::Reset()
 {
     m_motorOn         = false;
     m_writeMode       = false;
@@ -155,6 +155,7 @@ void DiskIINibbleEngine::Reset ()
     m_workingShift    = 0;
     m_latchDelayBits  = 0;
     m_writeLatch      = 0;
+    m_latchIsFresh    = false;
     m_readNibbles     = 0;
     m_writeNibbles    = 0;
 }
@@ -188,7 +189,7 @@ void DiskIINibbleEngine::Tick (uint32_t cpuCycles)
 
     for (i = 0; i < bitsToAdvance; i++)
     {
-        AdvanceOneBit ();
+        AdvanceOneBit();
     }
 }
 
@@ -207,7 +208,7 @@ void DiskIINibbleEngine::Tick (uint32_t cpuCycles)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIINibbleEngine::AdvanceOneBit ()
+void DiskIINibbleEngine::AdvanceOneBit()
 {
     uint8_t   bit       = 0;
     size_t    trackBits = 0;
@@ -226,7 +227,7 @@ void DiskIINibbleEngine::AdvanceOneBit ()
 
     if (m_writeMode)
     {
-        ShiftWriteBit ();
+        ShiftWriteBit();
     }
     else
     {
@@ -287,8 +288,15 @@ void DiskIINibbleEngine::ShiftReadBit (uint8_t bit)
 
         if ((m_workingShift & 0x80) != 0)
         {
+            // Rising edge of the LSS "byte ready" signal: a full
+            // nibble just assembled and latched. Mark it fresh so
+            // ConsumeFreshNibble (the passive-watcher side channel)
+            // hands this exact byte to the address-mark state
+            // machine exactly once, instead of seeing every CPU
+            // poll's repeated sample.
             m_latchDelayBits = 2;
             m_workingShift   = 0;
+            m_latchIsFresh   = true;
         }
     }
 }
@@ -306,14 +314,14 @@ void DiskIINibbleEngine::ShiftReadBit (uint8_t bit)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIINibbleEngine::ShiftWriteBit ()
+void DiskIINibbleEngine::ShiftWriteBit()
 {
     uint8_t   outBit = 0;
 
     outBit       = static_cast<uint8_t> ((m_writeLatch >> 7) & 1);
     m_writeLatch = static_cast<uint8_t> (m_writeLatch << 1);
 
-    if (m_disk != nullptr && !m_disk->IsWriteProtected ())
+    if (m_disk != nullptr && !m_disk->IsWriteProtected())
     {
         m_disk->WriteBit (m_currentTrack, m_bitPos, outBit);
     }
@@ -332,7 +340,7 @@ void DiskIINibbleEngine::ShiftWriteBit ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint8_t DiskIINibbleEngine::ReadLatch ()
+uint8_t DiskIINibbleEngine::ReadLatch()
 {
     // Real P5A behavior: reading $C0EC is a pure sample of the shift
     // register's current state. There is NO side effect on the read --
@@ -374,4 +382,46 @@ void DiskIINibbleEngine::WriteLatch (uint8_t value)
 {
     m_writeLatch = value;
     m_writeNibbles++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsumeFreshNibble
+//
+//  Passive-watcher side channel: returns true exactly once per
+//  LSS "byte ready" rising edge. The controller calls this AFTER
+//  ReadLatch so the watcher's address-mark / data-mark state
+//  machines see exactly one nibble per assembly cycle instead of
+//  the CPU-visible repeat stream. Does NOT touch m_readLatch, so
+//  the CPU-visible byte returned by ReadLatch is unchanged.
+//
+//  Returns false unless both the latch is fresh AND its MSB is set.
+//  The MSB guard handles the intermediate partial-assembly latch
+//  updates that ShiftReadBit can produce between two "byte ready"
+//  events (the latch is overwritten with sub-nibble values when
+//  the latch-delay has expired but the working shift register has
+//  not yet hit MSB).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskIINibbleEngine::ConsumeFreshNibble (uint8_t & outNibble)
+{
+    if (!m_latchIsFresh)
+    {
+        return false;
+    }
+
+    if ((m_readLatch & 0x80) == 0)
+    {
+        return false;
+    }
+
+    outNibble      = m_readLatch;
+    m_latchIsFresh = false;
+
+    return true;
 }

@@ -44,7 +44,7 @@ namespace
         }
 
         uint32_t   sampleRate    = s_kTestSampleRate;
-        uint32_t   dataBytes     = static_cast<uint32_t> (pcm.size () * sizeof (int16_t));
+        uint32_t   dataBytes     = static_cast<uint32_t> (pcm.size() * sizeof (int16_t));
         uint32_t   fileSize      = 36 + dataBytes;
         uint16_t   numChannels   = 1;
         uint16_t   bitsPerSample = 16;
@@ -54,7 +54,7 @@ namespace
         uint32_t   fmtSize       = 16;
         std::error_code ec;
 
-        fs::create_directories (path.parent_path (), ec);
+        fs::create_directories (path.parent_path(), ec);
 
         std::ofstream  out (path, std::ios::binary | std::ios::trunc);
 
@@ -85,7 +85,7 @@ namespace
 
     static fs::path MakeDevicesDir (const wchar_t * suffix)
     {
-        fs::path  base = fs::temp_directory_path () / L"casso_mech_tests";
+        fs::path  base = fs::temp_directory_path() / L"casso_mech_tests";
         fs::path  dir  = base / suffix;
         std::error_code  ec;
 
@@ -98,10 +98,14 @@ namespace
 
     static float SamplePeak (DiskIIAudioSource & src)
     {
-        src.OnMotorStart ();
+        // Spec-006 bug 14a: motor loop is gated on disk presence, so
+        // tests that just want to measure the loaded motor buffer's
+        // amplitude need to insert a (synthetic) disk first.
+        src.OnDiskInserted();
+        src.OnMotorEngaged();
 
         std::vector<float>  frame (128);
-        src.GeneratePCM (frame.data (), static_cast<uint32_t> (frame.size ()));
+        src.GeneratePCM (frame.data(), static_cast<uint32_t> (frame.size()));
 
         float  peak = 0.0f;
         for (float s : frame)
@@ -110,7 +114,8 @@ namespace
             if (a > peak) { peak = a; }
         }
 
-        src.OnMotorStop ();
+        src.OnMotorDisengaged();
+        src.OnDiskEjected();
         return peak;
     }
 }
@@ -127,14 +132,14 @@ public:
     {
         DriveAudioMixer  mixer;
 
-        Assert::AreEqual (std::wstring (L"Shugart"), std::wstring (mixer.GetMechanism ()),
+        Assert::AreEqual (std::wstring (L"Shugart"), std::wstring (mixer.GetMechanism()),
             L"Default mechanism must be Shugart (SA400)");
 
         HRESULT  hr = mixer.SetMechanism (L"Sony");
 
         Assert::AreEqual (HRESULT (E_INVALIDARG), hr,
             L"Bogus mechanism name must return E_INVALIDARG");
-        Assert::AreEqual (std::wstring (L"Shugart"), std::wstring (mixer.GetMechanism ()),
+        Assert::AreEqual (std::wstring (L"Shugart"), std::wstring (mixer.GetMechanism()),
             L"Mechanism must not change on invalid input (SC-010)");
     }
 
@@ -155,7 +160,7 @@ public:
         mixer.RegisterSource (&srcA);
         mixer.RegisterSource (&srcB);
 
-        mixer.SetSampleLoadContext (devicesDir.wstring (), s_kTestSampleRate);
+        mixer.SetSampleLoadContext (devicesDir.wstring(), s_kTestSampleRate);
 
         HRESULT  hr = mixer.SetMechanism (L"Alps");
         Assert::IsTrue (SUCCEEDED (hr), L"SetMechanism(Alps) must succeed with valid context");
@@ -166,12 +171,12 @@ public:
         // 0.80 amplitude * kMotorVolume (0.25) = 0.20 nominal; allow
         // generous slack for the float<->int16 round trip.
         Assert::IsTrue (peakA > 0.10f,
-            std::format (L"srcA must be at Alps amplitude post-reload (peak={})", peakA).c_str ());
+            std::format (L"srcA must be at Alps amplitude post-reload (peak={})", peakA).c_str());
         Assert::IsTrue (peakB > 0.10f,
-            std::format (L"srcB must be at Alps amplitude post-reload (peak={})", peakB).c_str ());
+            std::format (L"srcB must be at Alps amplitude post-reload (peak={})", peakB).c_str());
 
         std::error_code  ec;
-        fs::remove_all (devicesDir.parent_path (), ec);
+        fs::remove_all (devicesDir.parent_path(), ec);
     }
 
 
@@ -186,7 +191,7 @@ public:
         DriveAudioMixer    mixer;
 
         mixer.RegisterSource (&src);
-        mixer.SetSampleLoadContext (devicesDir.wstring (), s_kTestSampleRate);
+        mixer.SetSampleLoadContext (devicesDir.wstring(), s_kTestSampleRate);
 
         HRESULT  hr = mixer.SetMechanism (L"Alps");
         Assert::IsTrue (SUCCEEDED (hr), L"Initial SetMechanism(Alps) must succeed");
@@ -204,10 +209,10 @@ public:
         // so the comparison is fair).
         Assert::IsTrue (shugartPeak > alpsPeak * 2.0f,
             std::format (L"Active mechanism's louder buffer must dominate (alps={}, shugart={})",
-                         alpsPeak, shugartPeak).c_str ());
+                         alpsPeak, shugartPeak).c_str());
 
         std::error_code  ec;
-        fs::remove_all (devicesDir.parent_path (), ec);
+        fs::remove_all (devicesDir.parent_path(), ec);
     }
 
 
@@ -223,7 +228,7 @@ public:
 
         Assert::AreEqual (HRESULT (S_OK), hr,
             L"Pre-context SetMechanism must return S_OK without loading");
-        Assert::AreEqual (std::wstring (L"Alps"), std::wstring (mixer.GetMechanism ()),
+        Assert::AreEqual (std::wstring (L"Alps"), std::wstring (mixer.GetMechanism()),
             L"Mechanism state must persist for the eventual first load");
     }
 };

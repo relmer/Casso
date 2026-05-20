@@ -2,6 +2,7 @@
 
 #include "DiskIIController.h"
 #include "Audio/IDriveAudioSink.h"
+#include "IDiskIIEventSink.h"
 #include "Core/Prng.h"
 
 
@@ -75,7 +76,7 @@ Byte DiskIIController::Read (Word address)
 
     HandleSwitch (offset);
 
-    return HandleReadDispatch ();
+    return HandleReadDispatch();
 }
 
 
@@ -139,15 +140,27 @@ void DiskIIController::HandleSwitch (int offset)
             {
                 m_motorSpindownCycles = kMotorSpindownCycles;
             }
+
+            // Spec-006 FR-006: every $C0E8 strobe is a logical
+            // "motor command off" event, including no-op strobes
+            // (when the motor is already off or already spinning
+            // down). OnMotorDisengaged fires later from Tick() when
+            // the spindown timer actually expires.
+            if (m_eventSink != nullptr)
+            {
+                m_eventSink->OnMotorCommandOff();
+            }
             break;
         case 0x9:
             // Motor-on command: cancel any pending spindown so the
             // engine keeps producing nibbles continuously across the
             // motor-off / motor-on toggle DOS issues between sectors.
             //
-            // Audio sink (FR-001): fire OnMotorStart only on the
+            // Audio sink (FR-001): fire OnMotorEngaged only on the
             // off->on edge so brief intra-sector toggles inside the
-            // spindown window don't restart the motor sound.
+            // spindown window don't restart the motor sound. (Renamed
+            // from OnMotorStart in spec-006 to align with the new
+            // four-event motor lifecycle on IDiskIIEventSink.)
             {
                 bool  edge = (!m_motorOn);
 
@@ -157,17 +170,44 @@ void DiskIIController::HandleSwitch (int offset)
 
                 if (edge && m_audioSink != nullptr)
                 {
-                    m_audioSink->OnMotorStart();
+                    m_audioSink->OnMotorEngaged();
+                }
+
+                // Spec-006 FR-006: OnMotorCommandOn fires on every
+                // $C0E9 strobe (including no-op re-strobes on an
+                // already-engaged motor); OnMotorEngaged fires only
+                // on the off->on edge, co-located with the audio
+                // edge detector above.
+                if (m_eventSink != nullptr)
+                {
+                    m_eventSink->OnMotorCommandOn();
+
+                    if (edge)
+                    {
+                        m_eventSink->OnMotorEngaged();
+                    }
                 }
             }
             break;
         case 0xA:
             m_activeDrive = 0;
-            UpdateEngineSelection ();
+            UpdateEngineSelection();
+
+            // Spec-006 FR-006: drive-select event fires after the
+            // engine selection has been propagated.
+            if (m_eventSink != nullptr)
+            {
+                m_eventSink->OnDriveSelect (m_activeDrive);
+            }
             break;
         case 0xB:
             m_activeDrive = 1;
-            UpdateEngineSelection ();
+            UpdateEngineSelection();
+
+            if (m_eventSink != nullptr)
+            {
+                m_eventSink->OnDriveSelect (m_activeDrive);
+            }
             break;
         case 0xC:
             m_q6 = false;
@@ -206,16 +246,37 @@ void DiskIIController::HandleSwitch (int offset)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte DiskIIController::HandleReadDispatch ()
+Byte DiskIIController::HandleReadDispatch()
 {
+    Byte     nibble = 0;
+    uint8_t  fresh  = 0;
+
     if (!m_q6 && !m_q7)
     {
-        return m_engine[m_activeDrive].ReadLatch ();
+        nibble = m_engine[m_activeDrive].ReadLatch();
+
+        // Spec-006 T032 / FR-008: feed the passive watcher exactly
+        // one nibble per LSS "byte ready" rising edge -- NOT every
+        // CPU poll. ReadLatch is a pure sample with no consume
+        // side effect (the 6502 spins LDA $C0EC / BPL until MSB),
+        // so feeding its return value here would flood the
+        // address-mark state machine with repeated bytes and
+        // partial-assembly garbage, and zero real prologues would
+        // ever match. ConsumeFreshNibble gates on the engine's
+        // own rising-edge marker so each assembled nibble reaches
+        // the watcher exactly once, in order. Byte-identical for
+        // the CPU-visible read path.
+        if (m_engine[m_activeDrive].ConsumeFreshNibble (fresh))
+        {
+            m_addrMarkWatcher.ObserveNibble (fresh);
+        }
+
+        return nibble;
     }
 
     if (m_q6 && !m_q7)
     {
-        if (m_activeDisk[m_activeDrive]->IsWriteProtected ())
+        if (m_activeDisk[m_activeDrive]->IsWriteProtected())
         {
             return 0x80;
         }
@@ -329,6 +390,24 @@ void DiskIIController::HandlePhase (int phase, bool on)
             m_audioSink->OnHeadStep (m_quarterTrack);
         }
     }
+
+    // Spec-006 FR-006: head-step / head-bump are mutually exclusive
+    // for any single HandlePhase invocation. Reuses the same bumped
+    // discriminator the audio sink uses above so the two sinks stay
+    // semantically aligned (a real bump is a bump for both).
+    if (qtDelta != 0 && m_eventSink != nullptr)
+    {
+        bool  bumped = (postRaw < 0) || (postRaw > kMaxQuarterTrack);
+
+        if (bumped)
+        {
+            m_eventSink->OnHeadBump (m_quarterTrack);
+        }
+        else
+        {
+            m_eventSink->OnHeadStep (prevQt, m_quarterTrack);
+        }
+    }
 }
 
 
@@ -345,7 +424,7 @@ void DiskIIController::HandlePhase (int phase, bool on)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIController::UpdateEngineSelection ()
+void DiskIIController::UpdateEngineSelection()
 {
     int   other = m_activeDrive ^ 1;
 
@@ -382,9 +461,18 @@ void DiskIIController::Tick (uint32_t cpuCycles)
 
             // FR-002: motor sound fades out only when the spindown
             // timer actually expires -- NOT at the raw $C0E8 access.
+            // (Renamed from OnMotorStop in spec-006.)
             if (m_audioSink != nullptr)
             {
-                m_audioSink->OnMotorStop();
+                m_audioSink->OnMotorDisengaged();
+            }
+
+            // Spec-006 FR-006: OnMotorDisengaged fires on the
+            // true->false motor transition, which happens only here
+            // when the spindown counter actually expires.
+            if (m_eventSink != nullptr)
+            {
+                m_eventSink->OnMotorDisengaged();
             }
         }
         else
@@ -422,6 +510,14 @@ HRESULT DiskIIController::MountDisk (int drive, const string & path)
     m_activeDisk[drive] = &m_disks[drive];
     m_engine[drive].SetDiskImage (m_activeDisk[drive]);
 
+    // Spec-006 FR-006: disk-insert event fires after the mount
+    // succeeds. Place before the Error label so we don't fire on a
+    // failed mount.
+    if (m_eventSink != nullptr)
+    {
+        m_eventSink->OnDiskInserted (drive);
+    }
+
 Error:
     return hr;
 }
@@ -434,9 +530,16 @@ void DiskIIController::EjectDisk (int drive)
         return;
     }
 
-    m_disks[drive].Eject ();
+    m_disks[drive].Eject();
     m_activeDisk[drive] = &m_disks[drive];
     m_engine[drive].SetDiskImage (m_activeDisk[drive]);
+
+    // Spec-006 FR-006: disk-eject event fires after the slot has
+    // been physically detached and the engine repointed.
+    if (m_eventSink != nullptr)
+    {
+        m_eventSink->OnDiskEjected (drive);
+    }
 }
 
 
@@ -493,11 +596,53 @@ bool DiskIIController::HasExternalDisk (int drive) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NotifyDiskInserted / NotifyDiskEjected
+//
+//  Spec-006 bug 14b. Fires the IDiskIIEventSink hooks without touching
+//  controller state. Used by EmulatorShell on the DiskImageStore +
+//  SetExternalDisk hot path so the debug window still sees user-facing
+//  insert / eject events on disks mounted outside MountDisk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIController::NotifyDiskInserted (int drive)
+{
+    if (drive < 0 || drive >= kDriveCount)
+    {
+        return;
+    }
+
+    if (m_eventSink != nullptr)
+    {
+        m_eventSink->OnDiskInserted (drive);
+    }
+}
+
+
+void DiskIIController::NotifyDiskEjected (int drive)
+{
+    if (drive < 0 || drive >= kDriveCount)
+    {
+        return;
+    }
+
+    if (m_eventSink != nullptr)
+    {
+        m_eventSink->OnDiskEjected (drive);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Reset
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIController::Reset ()
+void DiskIIController::Reset()
 {
     int   i = 0;
 
@@ -511,7 +656,7 @@ void DiskIIController::Reset ()
 
     for (i = 0; i < kDriveCount; i++)
     {
-        m_engine[i].Reset ();
+        m_engine[i].Reset();
         m_engine[i].SetDiskImage (m_activeDisk[i]);
     }
 }
@@ -530,18 +675,18 @@ void DiskIIController::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIController::SoftReset ()
+void DiskIIController::SoftReset()
 {
     HRESULT   hrFlush = S_OK;
     int       drive   = 0;
 
-    Reset ();
+    Reset();
 
     for (drive = 0; drive < kDriveCount; drive++)
     {
-        if (m_activeDisk[drive]->IsLoaded ())
+        if (m_activeDisk[drive]->IsLoaded())
         {
-            hrFlush = m_activeDisk[drive]->Flush ();
+            hrFlush = m_activeDisk[drive]->Flush();
             IGNORE_RETURN_VALUE (hrFlush, S_OK);
         }
     }
@@ -566,11 +711,11 @@ void DiskIIController::PowerCycle (Prng & prng)
 
     UNREFERENCED_PARAMETER (prng);
 
-    Reset ();
+    Reset();
 
     for (drive = 0; drive < kDriveCount; drive++)
     {
-        m_disks[drive].Eject ();
+        m_disks[drive].Eject();
         m_activeDisk[drive] = &m_disks[drive];
         m_engine[drive].SetDiskImage (m_activeDisk[drive]);
     }
@@ -594,3 +739,31 @@ unique_ptr<MemoryDevice> DiskIIController::Create (const DeviceConfig & config, 
 
     return make_unique<DiskIIController> (slot);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetEventSink
+//
+//  Spec-006 FR-007: caller-owned IDiskIIEventSink pointer (default
+//  nullptr). The controller never deletes it and never invokes
+//  anything on it from outside its own fire sites. Sink is also
+//  propagated to the embedded DiskIIAddressMarkWatcher so the
+//  watcher fires its OnAddressMark / OnDataMarkRead notifications
+//  through the same sink, keeping the event stream chronologically
+//  interleaved on the dialog's ring.
+//
+//  Safe to call from the UI thread between CPU slices (mirrors the
+//  spec-005 audio-sink attach pattern). Pass nullptr to detach.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIController::SetEventSink (IDiskIIEventSink * sink) noexcept
+{
+    m_eventSink = sink;
+    m_addrMarkWatcher.SetEventSink (sink);
+}
+
