@@ -230,7 +230,7 @@ void MenuSystem::SetSpeedMode (SpeedMode mode)
     CWRA (fSuccess);
 
 Error:
-    ;
+    return;
 }
 
 
@@ -262,7 +262,7 @@ void MenuSystem::SetColorMode (ColorMode mode)
     CWRA (fSuccess);
 
 Error:
-    ;
+    return;
 }
 
 

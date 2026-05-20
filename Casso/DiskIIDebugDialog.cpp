@@ -225,7 +225,7 @@ void DiskIIDebugDialog::Show()
     SetForegroundWindow (m_hwnd);
 
 Error:
-    ;
+    return;
 }
 
 
@@ -247,7 +247,7 @@ void DiskIIDebugDialog::Hide()
     ShowWindow (m_hwnd, SW_HIDE);
 
 Error:
-    ;
+    return;
 }
 
 

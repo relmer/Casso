@@ -475,7 +475,7 @@ void EmulatorShell::CreateStatusBar()
     CWRA (m_renderHwnd);
 
 Error:
-    ;
+    return;
 }
 
 
@@ -4077,7 +4077,7 @@ void EmulatorShell::OpenDiskIIDebugDialog()
     SetForegroundWindow (m_diskIIDebugDialog->GetHwnd());
 
 Error:
-    ;
+    return;
 }
 
 
@@ -4123,7 +4123,7 @@ void EmulatorShell::AttachDebugSinksIfOpen()
     }
 
 Error:
-    ;
+    return;
 }
 
 
