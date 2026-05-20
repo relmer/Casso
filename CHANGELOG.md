@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.3.756] — Disk II Debug Window (spec 006)
+## [1.3.764] — Disk II Debug Window (spec 006)
 
 ### Added
 - **Disk II Debug Window**: modeless live event log of motor / head /
