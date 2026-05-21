@@ -1,8 +1,6 @@
 #include "Pch.h"
 
 #include "MachinePickerDialog.h"
-#include "Core/JsonParser.h"
-#include "Core/JsonValue.h"
 #include "Core/PathResolver.h"
 #include "Ehm.h"
 
@@ -332,81 +330,13 @@ void MachinePickerDialog::OnListDoubleClick (HWND hdlg)
 
 void MachinePickerDialog::ScanMachines()
 {
-    vector<fs::path>   searchPaths;
-    fs::path           machinesDir;
+    vector<fs::path>  searchPaths;
 
 
 
     searchPaths = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
-                                                   PathResolver::GetWorkingDirectory());
-
-    for (const auto & basePath : searchPaths)
-    {
-        machinesDir = basePath / "Machines";
-
-        if (!fs::is_directory (machinesDir))
-        {
-            continue;
-        }
-
-        for (const auto & entry : fs::directory_iterator (machinesDir))
-        {
-            if (!entry.is_regular_file() || entry.path().extension() != ".json")
-            {
-                continue;
-            }
-
-            MachineInfo info;
-            info.fileName = entry.path().stem().wstring();
-
-            // Try to extract the "name" field from the JSON
-            ifstream     file (entry.path());
-            stringstream ss;
-
-            if (file.good())
-            {
-                ss << file.rdbuf();
-
-                JsonValue      root;
-                JsonParseError parseError;
-                HRESULT        hr = JsonParser::Parse (ss.str(), root, parseError);
-
-                if (SUCCEEDED (hr))
-                {
-                    string name;
-                    hr = root.GetString ("name", name);
-
-                    if (SUCCEEDED (hr))
-                    {
-                        info.displayName = wstring (name.begin(), name.end());
-                    }
-                }
-            }
-
-            if (info.displayName.empty())
-            {
-                info.displayName = info.fileName;
-            }
-
-            // Avoid duplicates (first search path wins)
-            bool duplicate = false;
-
-            for (const auto & existing : m_machines)
-            {
-                if (existing.fileName == info.fileName)
-                {
-                    duplicate = true;
-                    break;
-                }
-            }
-
-            if (!duplicate)
-            {
-                m_machines.push_back (move (info));
-            }
-        }
-
-        // Stop after first Machines/ directory found
-        break;
-    }
+                                                  PathResolver::GetWorkingDirectory());
+    m_machines  = MachineScanner::Scan (searchPaths,
+                                        &MachineScanner::ListDirectory,
+                                        &MachineScanner::ReadFile);
 }

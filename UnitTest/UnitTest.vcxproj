@@ -251,6 +251,7 @@
     <ClCompile Include="EmuTests\PathResolverTests.cpp" />
     <ClCompile Include="EmuTests\MachineConfigTests.cpp" />
     <ClCompile Include="EmuTests\MachineConfigUpgradeTests.cpp" />
+    <ClCompile Include="EmuTests\MachineScannerTests.cpp" />
     <ClCompile Include="EmuTests\VideoModeTests.cpp" />
     <ClCompile Include="EmuTests\DiskIITests.cpp" />
     <ClCompile Include="EmuTests\DiskIINibbleEngineTests.cpp" />
