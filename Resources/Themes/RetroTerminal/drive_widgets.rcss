@@ -1,13 +1,133 @@
+/* Retro Terminal drive widgets -- ASCII-flavored mono. LED is bright
+   phosphor green with halo per FR-025. */
+
 body.drives-overlay
 {
-    display: none;
-    width: 240dp;
-    height: 96dp;
+    display: block;
+    width: 540dp;
+    height: 140dp;
     background-color: #000000;
     color: #33ff66;
     font-family: monospace;
     font-size: 13dp;
     border: 1dp #33ff66;
+    padding: 14dp 12dp;
 }
 
-.drives-stub { padding: 12dp; }
+.drives-row { display: block; }
+
+drive-widget
+{
+    display: inline-block;
+    width: 220dp;
+    min-width: 96dp;
+    height: 96dp;
+    min-height: 64dp;
+    margin-right: 16dp;
+    padding: 8dp;
+    background-color: #000000;
+    border: 1dp #33ff66;
+    color: #33ff66;
+    cursor: pointer;
+}
+
+drive-widget:hover
+{
+    background-color: #001a08;
+}
+
+drive-widget.is-mounted
+{
+    background-color: #001a08;
+}
+
+drive-widget.is-empty
+{
+    background-color: #000000;
+}
+
+.door
+{
+    display: block;
+    width: 100%;
+    height: 56dp;
+    background-color: #001a08;
+    border: 1dp #33ff66;
+    margin-bottom: 4dp;
+}
+
+.door.door-open
+{
+    background-color: #003a18;
+}
+
+.disk-graphic
+{
+    display: block;
+    width: 32dp;
+    height: 32dp;
+    margin-top: 12dp;
+    margin-left: 8dp;
+    background-color: #000000;
+    border: 1dp #33ff66;
+}
+
+.disk-graphic.is-spinning
+{
+    background-color: #003a18;
+    border-color: #ffd35a;
+}
+
+.label
+{
+    display: inline-block;
+    font-size: 12dp;
+    color: #33ff66;
+}
+
+.led
+{
+    display: inline-block;
+    width: 12dp;
+    height: 12dp;
+    margin-left: 8dp;
+    background-color: #001a08;
+    border: 1dp #33ff66;
+    box-shadow: 0dp 0dp 0dp #000;
+}
+
+.led.led--idle
+{
+    background-color: #001a08;
+    box-shadow: 0dp 0dp 0dp #000;
+}
+
+.led.led--present
+{
+    background-color: #1a8030;
+    box-shadow: 0dp 0dp 2dp #1a8030;
+}
+
+.led.led--active
+{
+    background-color: #33ff66;
+    box-shadow: 0dp 0dp 8dp #33ff66;
+}
+
+.eject-btn
+{
+    display: inline-block;
+    width: 28dp;
+    height: 18dp;
+    margin-left: 8dp;
+    background-color: #000000;
+    border: 1dp #33ff66;
+    color: #33ff66;
+    cursor: pointer;
+}
+
+.eject-btn:hover
+{
+    background-color: #33ff66;
+    color: #000000;
+}

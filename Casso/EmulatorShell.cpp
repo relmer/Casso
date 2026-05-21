@@ -32,9 +32,12 @@
 #include "Video/MonochromeTint.h"
 #include "Ui/Win11DwmHelpers.h"
 #include "Ui/TitleBarHitTest.h"
+#include "Ui/DriveWidgetController.h"
+#include "Ui/DriveWidgetElement.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "shell32.lib")
 
 // Embed Common Controls v6 dependency in the binary's activation
 // context. Without this, SetWindowSubclass / TOOLINFO / and a host
@@ -158,11 +161,19 @@ EmulatorShell::~EmulatorShell()
     // Also clear the after-blit hook so any in-flight present
     // doesn't try to call into a dead shell.
     m_d3dRenderer.SetAfterBlitHook (nullptr);
+    m_dragDropTarget.Shutdown();
+    m_driveWidgets.UnloadDocument();
     m_navLayer.Hide();
     m_titleBar.Hide();
     m_uiShell.Shutdown();
 
     m_d3dRenderer.Shutdown();
+
+    if (m_fOleInitialized)
+    {
+        OleUninitialize();
+        m_fOleInitialized = false;
+    }
 }
 
 
@@ -188,6 +199,24 @@ HRESULT EmulatorShell::Initialize (
     m_currentMachineName = machineName;
     m_config             = config;
     m_cyclesPerFrame     = config.cyclesPerFrame;
+
+    // P6 -- bring up OLE on the UI thread before any RegisterDragDrop
+    // call lands; IFileDialog (click-to-browse, used by the drive
+    // widgets) also requires the apartment to be live. OleInitialize
+    // implies CoInitializeEx(STA) on this thread. Non-fatal on
+    // failure -- drag-drop and the file dialog will degrade quietly.
+    {
+        HRESULT  hrOle = OleInitialize (nullptr);
+
+        if (SUCCEEDED (hrOle))
+        {
+            m_fOleInitialized = true;
+        }
+        else
+        {
+            OutputDebugStringA ("[EmulatorShell] OleInitialize failed; drag-drop disabled.\n");
+        }
+    }
 
     // Register built-in device factories
     ComponentRegistry::RegisterBuiltinDevices (m_registry);
@@ -247,6 +276,45 @@ HRESULT EmulatorShell::Initialize (
             HRESULT hrNav = m_navLayer.Show (m_uiShell.GetContext(),
                                               [this] (WORD id) { HandleCommand (id); });
             IGNORE_RETURN_VALUE (hrNav, S_OK);
+
+            // P6 -- register the <drive-widget> element factory + load
+            // the active theme's drive_widgets.rml so the widgets exist
+            // in the context. Both are best-effort: the chrome still
+            // renders if the theme's drive panel is missing.
+            m_driveWidgets.RegisterInstancer();
+
+            {
+                fs::path  themeDir  = PathResolver::GetExecutableDirectory()
+                                      / L"Themes" / L"Skeuomorphic";
+                fs::path  driveRml  = themeDir / L"drive_widgets.rml";
+                string    driveRmlS = driveRml.string();
+
+                HRESULT  hrDw = m_driveWidgets.LoadDocument (m_uiShell.GetContext(),
+                                                              driveRmlS,
+                                                              this,
+                                                              m_hwnd);
+                IGNORE_RETURN_VALUE (hrDw, S_OK);
+            }
+
+            // P6 -- single main-window IDropTarget. Hit-tests dropped
+            // files against the cached drive widgets via the controller.
+            if (m_fOleInitialized)
+            {
+                HRESULT  hrDd = m_dragDropTarget.Initialize (
+                    m_hwnd,
+                    [this] (int screenX, int screenY) -> DriveWidgetElement *
+                    {
+                        POINT  pt = { screenX, screenY };
+
+                        if (!ScreenToClient (m_hwnd, &pt))
+                        {
+                            return nullptr;
+                        }
+
+                        return m_driveWidgets.HitTest (pt.x, pt.y);
+                    });
+                IGNORE_RETURN_VALUE (hrDd, S_OK);
+            }
         }
         else
         {
@@ -1682,6 +1750,11 @@ void EmulatorShell::MountCommandLineDisks (
     // user doesn't have to re-pick the .dsk every launch (and so the
     // test harness can flip-test the same image without re-clicking
     // the file dialog).
+    //
+    // P6-T7 / FR-047. If the remembered file no longer exists on disk
+    // (user moved or deleted the image since last session), clear the
+    // stale registry entry on the spot so we don't keep tripping over
+    // it every time this machine is loaded, then leave the slot empty.
     if (resolvedDisk1.empty() && !m_currentMachineName.empty())
     {
         wstring  saved;
@@ -1689,7 +1762,17 @@ void EmulatorShell::MountCommandLineDisks (
 
         if (hrRead == S_OK && !saved.empty())
         {
-            resolvedDisk1 = fs::path (saved).string();
+            if (fs::exists (fs::path (saved)))
+            {
+                resolvedDisk1 = fs::path (saved).string();
+            }
+            else
+            {
+                OutputDebugStringW (L"[EmulatorShell] FR-047: drive 0 last-mounted image missing; clearing.\n");
+                HRESULT  hrClear = DiskSettings::WriteSavedDiskPath (
+                    0, m_currentMachineName, wstring());
+                IGNORE_RETURN_VALUE (hrClear, S_OK);
+            }
         }
     }
 
@@ -1700,7 +1783,17 @@ void EmulatorShell::MountCommandLineDisks (
 
         if (hrRead == S_OK && !saved.empty())
         {
-            resolvedDisk2 = fs::path (saved).string();
+            if (fs::exists (fs::path (saved)))
+            {
+                resolvedDisk2 = fs::path (saved).string();
+            }
+            else
+            {
+                OutputDebugStringW (L"[EmulatorShell] FR-047: drive 1 last-mounted image missing; clearing.\n");
+                HRESULT  hrClear = DiskSettings::WriteSavedDiskPath (
+                    1, m_currentMachineName, wstring());
+                IGNORE_RETURN_VALUE (hrClear, S_OK);
+            }
         }
     }
 
@@ -1910,6 +2003,189 @@ void EmulatorShell::RemountSlot6Disks()
             IGNORE_RETURN_VALUE (hrMount, S_OK);
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Mount  (IDriveCommandSink)
+//
+//  P6-T3. Called from the UI thread by the drive widget's click-to-
+//  browse path and by the drag-drop target. Routes through the existing
+//  IDM_DISK_INSERT* command queue so the actual mount runs on the CPU
+//  thread, mirroring the menu-driven path. Only slot 6 is supported
+//  today (the integrated Disk II).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::Mount (int slot, int drive, const std::wstring & path)
+{
+    HRESULT  hr      = S_OK;
+    WORD     command = 0;
+
+    if (slot != 6)
+    {
+        hr = E_INVALIDARG;
+        goto Error;
+    }
+
+    if (drive == 0)
+    {
+        command = IDM_DISK_INSERT1;
+    }
+    else if (drive == 1)
+    {
+        command = IDM_DISK_INSERT2;
+    }
+    else
+    {
+        hr = E_INVALIDARG;
+        goto Error;
+    }
+
+    PostCommand (command, fs::path (path).string());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Eject  (IDriveCommandSink)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::Eject (int slot, int drive)
+{
+    WORD  command = 0;
+
+    if (slot != 6)
+    {
+        return;
+    }
+
+    if (drive == 0)
+    {
+        command = IDM_DISK_EJECT1;
+    }
+    else if (drive == 1)
+    {
+        command = IDM_DISK_EJECT2;
+    }
+    else
+    {
+        return;
+    }
+
+    PostCommand (command);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NowMs
+//
+//  Steady-clock millisecond timestamp used by the drive-widget door
+//  animation FSM. Monotonic so an NTP step doesn't strand a half-open
+//  door. Window cap is well under 2^31 so int64 is plenty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t EmulatorShell::NowMs() const
+{
+    auto  duration = std::chrono::steady_clock::now().time_since_epoch();
+    return std::chrono::duration_cast<std::chrono::milliseconds> (duration).count();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDriveWidgets
+//
+//  P6-T5. Per-UI-frame sync from the (CPU-thread-owned) Disk II
+//  controller state into the (UI-thread-only) DriveWidgetState. Reads
+//  the engine's lifetime nibble counters and treats any forward
+//  movement since the previous frame as "disk active" (FR-025 active
+//  LED). Motor-on tracks the controller's IsMotorOn() directly --
+//  that bool is sampled by the audio system the same way already
+//  (no new sync primitive introduced; constitution check gate).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::UpdateDriveWidgets()
+{
+    DiskIIController *  controller = m_refs.diskController;
+    int64_t             nowMs      = NowMs();
+    int                 drive      = 0;
+
+    for (drive = 0; drive < static_cast<int> (m_driveWidgetState.size()); drive++)
+    {
+        DriveWidgetState &  st = m_driveWidgetState[drive];
+
+        // mountedImagePath -- single writer (UI thread), source of
+        // truth is the DiskImageStore. Reflect door FSM transitions
+        // when mount state changes.
+        const string &  src    = m_diskStore.GetSourcePath (6, drive);
+        wstring         wPath  (src.begin(), src.end());
+
+        if (wPath != st.mountedImagePath)
+        {
+            if (wPath.empty())
+            {
+                st.BeginEject (nowMs);
+            }
+            else
+            {
+                st.BeginInsert (wPath, nowMs);
+            }
+        }
+
+        st.TickDoorAnimation (nowMs);
+
+        // motorOn + diskActive sampling. The controller's engine is
+        // owned by the device, which the CPU thread mutates; we read
+        // the bool + monotonic counters with relaxed atomics
+        // semantics (existing audio-system pattern).
+        bool      motorOn  = false;
+        bool      active   = false;
+        uint64_t  reads    = 0;
+        uint64_t  writes   = 0;
+
+        if (controller != nullptr)
+        {
+            auto &  engine = controller->GetEngine (drive);
+            motorOn = engine.IsMotorOn();
+            reads   = engine.GetReadNibbles();
+            writes  = engine.GetWriteNibbles();
+
+            if (reads != m_lastReadNibbles[drive] ||
+                writes != m_lastWriteNibbles[drive])
+            {
+                active = true;
+            }
+        }
+
+        m_lastReadNibbles[drive]  = reads;
+        m_lastWriteNibbles[drive] = writes;
+
+        st.motorOn.store    (motorOn, std::memory_order_relaxed);
+        st.diskActive.store (active,  std::memory_order_relaxed);
+    }
+
+    m_driveWidgets.SyncFromStates (m_driveWidgetState);
 }
 
 
@@ -3031,6 +3307,10 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
 
     KillTimer (m_hwnd, kDriveStatusTimerId);
 
+    // P6 -- revoke the IDropTarget before the HWND is destroyed.
+    // RevokeDragDrop requires a valid window handle.
+    m_dragDropTarget.Shutdown();
+
     m_running.store (false, memory_order_release);
     m_pauseCV.notify_one();
     PostQuitMessage (0);
@@ -3341,6 +3621,7 @@ bool EmulatorShell::OnTimer (HWND hwnd, UINT_PTR timerId)
     if (timerId == kDriveStatusTimerId)
     {
         RefreshDriveStatus();
+        UpdateDriveWidgets();
         return false;
     }
 

@@ -220,6 +220,24 @@ aggregate appears in `Casso/Shaders/CRT/LICENSES.md` and the About box.
   does support an embedded scripting layer but we don't want to introduce
   yet another execution environment.
 
+**Implementation (P6, commit `7c35385` + this commit)**:
+- `Casso/Ui/LedElement.{h,cpp}` — pure C++ helper that toggles
+  `.led--idle` / `.led--present` / `.led--active` classes on a target
+  `Rml::Element`. Each built-in theme's `drive_widgets.rcss` renders the
+  three states with `box-shadow` glow per FR-025.
+- `Casso/Ui/DriveWidgetElement.{h,cpp}` — `Rml::Element` subclass
+  registered with `Rml::Factory::RegisterElementInstancer("drive-widget",
+  …)` via `ElementInstancerGeneric<DriveWidgetElement>`. Overrides
+  `OnChildAdd` / `ProcessDefaultAction` to handle clicks (route to the
+  injected `IDriveCommandSink::Mount(slot,drive,path)` after the
+  `IFileDialog` returns) and eject-child clicks (route to
+  `IDriveCommandSink::Eject`). Spinning + door + LED classes pushed by
+  `SyncFromState (const DriveWidgetState&)` once per UI frame.
+- Drag-drop: separate `Casso/Ui/DragDropTarget.{h,cpp}` IDropTarget
+  implementation (not bolted onto `RmlInputBridge`, which stays a pure-
+  logic seam per P3). A single `RegisterDragDrop` call on the main HWND
+  per Open-Question-10.
+
 ---
 
 ## R6 — Per-machine vs. global user preferences split (resolves a schema unknown)

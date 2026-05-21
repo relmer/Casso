@@ -13,6 +13,10 @@
 #include "Ui/UiShell.h"
 #include "Ui/TitleBar.h"
 #include "Ui/NavLayer.h"
+#include "Ui/DriveWidgetState.h"
+#include "Ui/DriveWidgetController.h"
+#include "Ui/DragDropTarget.h"
+#include "Ui/IDriveCommandSink.h"
 #include "Config/Win32FileSystem.h"
 #include "Video/VideoOutput.h"
 #include "Video/CharacterRomData.h"
@@ -51,7 +55,7 @@ struct EmulatorCommand
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class EmulatorShell : public Window
+class EmulatorShell : public Window, public IDriveCommandSink
 {
 public:
     EmulatorShell();
@@ -122,6 +126,16 @@ public:
         return m_uptimeAnchor;
     }
 
+    // ---- IDriveCommandSink (P6-T3) --------------------------------------
+    // UI-thread entry points the drive widgets call into when the user
+    // drops a file, clicks-to-browse, or clicks the eject affordance.
+    // Both forms route through the existing IDM_DISK_* command queue so
+    // the actual mount/eject runs on the CPU thread same as the menu
+    // path. `Mount` accepts only slot 6 (the integrated Disk II);
+    // unknown slots are E_INVALIDARG and the mount is dropped.
+    HRESULT Mount  (int slot, int drive, const std::wstring & path) override;
+    void    Eject  (int slot, int drive) override;
+
 private:
     // Window message handler overrides
     bool    OnChar (WPARAM ch, LPARAM lParam) override;
@@ -173,6 +187,13 @@ private:
     class DiskIIController * FindSlot6Controller();
     void    CreateVideoModes();
     HRESULT CreateCpu (const MachineConfig & config);
+
+    // P6 -- pumps the per-drive widget state from the CPU-side disk
+    // controller (motor + R/W nibble deltas) into m_driveWidgetState
+    // then asks the DriveWidgetController to push the result into the
+    // RmlUi element classes. Cheap; safe to call every frame.
+    void    UpdateDriveWidgets();
+    int64_t NowMs() const;
 
     Byte * GetAuxRamBuffer();
 
@@ -241,6 +262,30 @@ private:
     // alongside the existing Win32 menu bar — P9 retires the latter.
     TitleBar            m_titleBar;
     NavLayer            m_navLayer;
+
+    // P6 drive widgets. The controller owns the <drive-widget> element
+    // instancer + the active theme's drive_widgets.rml document. The
+    // drag-drop target registers a single IDropTarget on the main HWND
+    // and uses the controller's HitTest to find a widget under cursor.
+    // Per-drive UI/CPU bridge state lives in m_driveWidgetState; the
+    // CPU thread's motor + nibble counters are sampled once per UI
+    // frame and pushed into the elements via SyncFromStates.
+    DriveWidgetController                m_driveWidgets;
+    DragDropTarget                       m_dragDropTarget;
+    std::array<DriveWidgetState, 2>      m_driveWidgetState;
+
+    // Per-drive read/write nibble counter snapshots from the previous
+    // UI frame. The CPU thread doesn't publish a "disk active" signal
+    // directly; we derive it by comparing the engine's lifetime nibble
+    // counters between two consecutive UI frames -- if either counter
+    // increased, the LED stays in the Active state for the next frame.
+    std::array<uint64_t, 2>              m_lastReadNibbles  {};
+    std::array<uint64_t, 2>              m_lastWriteNibbles {};
+
+    // Set true once OleInitialize has succeeded on the UI thread so
+    // shutdown can pair the call with OleUninitialize. RegisterDragDrop
+    // requires OLE (STA) on the registering thread.
+    bool                                 m_fOleInitialized = false;
 
     // Drive audio (spec 005-disk-ii-audio). Mixer is always
     // allocated; per-drive sources are populated only when the

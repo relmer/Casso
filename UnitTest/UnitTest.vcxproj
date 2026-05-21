@@ -372,6 +372,10 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="..\Casso\Ui\AutoMountResolver.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="Casso\TrackSectorPredicateTests.cpp" />
     <ClCompile Include="Casso\DebugDialogProjectionTests.cpp" />
     <ClCompile Include="Casso\DiskIIDebugDialogColumnTests.cpp" />
@@ -386,6 +390,8 @@
     <ClCompile Include="UiTests\NavLayerTraceabilityTests.cpp" />
     <ClCompile Include="UiTests\ThemeLoaderTests.cpp" />
     <ClCompile Include="UiTests\ThemeManagerTests.cpp" />
+    <ClCompile Include="UiTests\DriveWidgetStateTests.cpp" />
+    <ClCompile Include="UiTests\AutoMountTests.cpp" />
     <ClCompile Include="Devices\DiskIIDebugDialogTests.cpp" />
   </ItemGroup>
   <ItemGroup>

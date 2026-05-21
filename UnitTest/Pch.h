@@ -25,6 +25,11 @@
 #include <wrl/client.h>
 #include <dwmapi.h>
 #include <uxtheme.h>
+#include <shobjidl.h>
+#include <shlobj.h>
+#include <ole2.h>
+#include <oleidl.h>
+#include <shellapi.h>
 
 template <typename T>
 using ComPtr = Microsoft::WRL::ComPtr<T>;

@@ -18,6 +18,10 @@
 
 #include <crtdbg.h>
 #include <shellapi.h>
+#include <shobjidl.h>
+#include <shlobj.h>
+#include <ole2.h>
+#include <oleidl.h>
 #include <wrl/client.h>
 #include <bcrypt.h>
 
