@@ -59,12 +59,11 @@ HRESULT UiShell::Initialize (
     CPRAEx (dev, E_FAIL);
     CPRAEx (ctx, E_FAIL);
 
-    hr = m_backend.Initialize (
-        dev,
-        ctx,
-        static_cast<UINT> (m_widthPx),
-        static_cast<UINT> (m_heightPx),
-        pFs);
+    hr = m_backend.Initialize (dev,
+                               ctx,
+                               static_cast<UINT> (m_widthPx),
+                               static_cast<UINT> (m_heightPx),
+                               pFs);
     CHRA (hr);
 
     Rml::SetSystemInterface     (&m_system);
@@ -83,9 +82,8 @@ HRESULT UiShell::Initialize (
 
     m_rmlInitialised = true;
 
-    m_context = Rml::CreateContext (
-        "casso-main",
-        Rml::Vector2i (m_widthPx, m_heightPx));
+    m_context = Rml::CreateContext ("casso-main",
+                                    Rml::Vector2i (m_widthPx, m_heightPx));
 
     if (m_context == nullptr)
     {

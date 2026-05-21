@@ -168,10 +168,9 @@ HRESULT RmlFontEngine_DWrite::EnsureDWriteFactory()
         return S_OK;
     }
 
-    HRESULT hr = DWriteCreateFactory (
-        DWRITE_FACTORY_TYPE_SHARED,
-        __uuidof (IDWriteFactory3),
-        reinterpret_cast<IUnknown **> (m_factory.GetAddressOf()));
+    HRESULT hr = DWriteCreateFactory (DWRITE_FACTORY_TYPE_SHARED,
+                                      __uuidof (IDWriteFactory3),
+                                      reinterpret_cast<IUnknown **> (m_factory.GetAddressOf()));
 
     return hr;
 }
@@ -210,8 +209,7 @@ HRESULT RmlFontEngine_DWrite::PopulateFaceFromIDWriteFontFile (
     IDWriteFontFile * files[1] = { file };
 
     ComPtr<IDWriteFontFace>  baseFace;
-    hr = m_factory->CreateFontFace (
-        faceType, 1, files, useIndex, DWRITE_FONT_SIMULATIONS_NONE, &baseFace);
+    hr = m_factory->CreateFontFace (faceType, 1, files, useIndex, DWRITE_FONT_SIMULATIONS_NONE, &baseFace);
     if (FAILED (hr)) { return hr; }
 
     ComPtr<IDWriteFontFace3> face3;
@@ -484,9 +482,8 @@ Rml::FontFaceHandle RmlFontEngine_DWrite::GetFontFaceHandle (
     auto slot = std::make_unique<FaceSlot> ();
     slot->faceData  = fd;
     slot->pixelSize = (size > 0) ? size : 16;
-    slot->atlas.assign (
-        static_cast<size_t> (FaceSlot::kAtlasW) *
-        static_cast<size_t> (FaceSlot::kAtlasH) * 4, 0);
+    slot->atlas.assign (static_cast<size_t> (FaceSlot::kAtlasW) * static_cast<size_t> (FaceSlot::kAtlasH) * 4,
+                        0);
 
     const float upem = static_cast<float> (fd->designMetrics.designUnitsPerEm);
     slot->pixelsPerDesignUnit = (upem > 0.0f)
@@ -655,14 +652,13 @@ HRESULT RmlFontEngine_DWrite::EnsureGlyph (FaceSlot & slot, char32_t codepoint)
     run.bidiLevel     = 0;
 
     ComPtr<IDWriteGlyphRunAnalysis> analysis;
-    hr = m_factory->CreateGlyphRunAnalysis (
-        &run,
-        1.0f,                         // pixelsPerDip
-        nullptr,                       // transform
-        DWRITE_RENDERING_MODE_NATURAL,
-        DWRITE_MEASURING_MODE_NATURAL,
-        0.0f, 0.0f,                    // baseline origin
-        &analysis);
+    hr = m_factory->CreateGlyphRunAnalysis (&run,
+                                            1.0f,                              // pixelsPerDip
+                                            nullptr,                           // transform
+                                            DWRITE_RENDERING_MODE_NATURAL,
+                                            DWRITE_MEASURING_MODE_NATURAL,
+                                            0.0f, 0.0f,                        // baseline origin
+                                            &analysis);
 
     if (FAILED (hr))
     {
@@ -707,8 +703,10 @@ HRESULT RmlFontEngine_DWrite::EnsureGlyph (FaceSlot & slot, char32_t codepoint)
     }
 
     std::vector<Rml::byte> alpha (static_cast<size_t> (gw) * gh, 0);
-    hr = analysis->CreateAlphaTexture (
-        DWRITE_TEXTURE_ALIASED_1x1, &bounds, alpha.data(), static_cast<UINT32> (alpha.size()));
+    hr = analysis->CreateAlphaTexture (DWRITE_TEXTURE_ALIASED_1x1,
+                                       &bounds,
+                                       alpha.data(),
+                                       static_cast<UINT32> (alpha.size()));
 
     if (FAILED (hr))
     {
@@ -882,13 +880,10 @@ int RmlFontEngine_DWrite::GenerateString (
         Rml::byte * atlasBytes = slot->atlas.data();
         size_t      atlasSize  = slot->atlas.size();
 
-        slot->texSource = Rml::CallbackTextureSource (
-            [atlasBytes, atlasSize] (const Rml::CallbackTextureInterface & iface) -> bool
+        slot->texSource = Rml::CallbackTextureSource ([atlasBytes, atlasSize] (const Rml::CallbackTextureInterface & iface) -> bool
             {
                 Rml::Span<const Rml::byte> span (atlasBytes, atlasSize);
-                return iface.GenerateTexture (
-                    span,
-                    Rml::Vector2i (FaceSlot::kAtlasW, FaceSlot::kAtlasH));
+                return iface.GenerateTexture (span, Rml::Vector2i (FaceSlot::kAtlasW, FaceSlot::kAtlasH));
             });
 
         slot->texSourceVersion = slot->version;

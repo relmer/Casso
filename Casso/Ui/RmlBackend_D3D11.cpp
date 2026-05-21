@@ -499,11 +499,10 @@ HRESULT RmlBackend_D3D11::RebuildProjectionMatrix()
     const float h = static_cast<float> (m_viewportH);
 
     // Row-major orthographic projection: pixel (0,0) → clip (-1, +1).
-    m_projection = Rml::Matrix4f::FromRows (
-        Rml::Vector4f ( 2.0f / w,  0.0f,      0.0f, -1.0f),
-        Rml::Vector4f ( 0.0f,     -2.0f / h,  0.0f,  1.0f),
-        Rml::Vector4f ( 0.0f,      0.0f,      1.0f,  0.0f),
-        Rml::Vector4f ( 0.0f,      0.0f,      0.0f,  1.0f));
+    m_projection = Rml::Matrix4f::FromRows (Rml::Vector4f ( 2.0f / w,  0.0f,      0.0f, -1.0f),
+                                            Rml::Vector4f ( 0.0f,     -2.0f / h,  0.0f,  1.0f),
+                                            Rml::Vector4f ( 0.0f,      0.0f,      1.0f,  0.0f),
+                                            Rml::Vector4f ( 0.0f,      0.0f,      0.0f,  1.0f));
 
     return S_OK;
 }
@@ -1009,13 +1008,11 @@ Rml::TextureHandle RmlBackend_D3D11::LoadTexture (
     }
 
     // Re-use the GenerateTexture path now that we have pixels.
-    Rml::Span<const Rml::byte> span (
-        reinterpret_cast<const Rml::byte *> (rgba.data()),
-        rgba.size());
+    Rml::Span<const Rml::byte> span (reinterpret_cast<const Rml::byte *> (rgba.data()),
+                                     rgba.size());
 
-    Rml::TextureHandle h2 = GenerateTexture (
-        span,
-        Rml::Vector2i (static_cast<int> (w), static_cast<int> (h)));
+    Rml::TextureHandle h2 = GenerateTexture (span,
+                                             Rml::Vector2i (static_cast<int> (w), static_cast<int> (h)));
 
     if (h2 != 0)
     {
