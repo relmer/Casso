@@ -308,4 +308,98 @@ public:
         Assert::AreEqual (size_t (64),
                           MachineConfigUpgrade::BytesToHex (in).size());
     }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  ParseStamp — 007 P1-T6: new key + legacy fallback
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (ParseStamp_NewKeyPresent_Returned)
+    {
+        Assert::AreEqual (7, MachineConfigUpgrade::ParseStamp (
+            "{ \"$cassoMachineVersion\": 7, \"name\": \"x\" }"));
+    }
+
+    TEST_METHOD (ParseStamp_NewKeyTakesPrecedenceOverLegacy)
+    {
+        // Forward-compat: if both keys are present (e.g. a partially
+        // migrated user file), the new key wins.
+        Assert::AreEqual (9, MachineConfigUpgrade::ParseStamp (
+            "{ \"$cassoMachineVersion\": 9, \"$cassoDefault\": 4 }"));
+    }
+
+    TEST_METHOD (ParseStamp_NeitherKey_ReturnsZero)
+    {
+        Assert::AreEqual (0, MachineConfigUpgrade::ParseStamp (
+            "{ \"name\": \"x\" }"));
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  MigrateUserConfig — 007 P1-T7: rename legacy key
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (MigrateUserConfig_RenamesLegacyKey)
+    {
+        string   input    = "{ \"$cassoDefault\": 2, \"name\": \"x\" }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == S_OK,
+            L"Migration of legacy key should report S_OK (changes applied).");
+        Assert::IsTrue (migrated.find ("\"$cassoMachineVersion\"") != string::npos,
+            L"Migrated output must contain the new key name.");
+        Assert::IsTrue (migrated.find ("\"$cassoDefault\"") == string::npos,
+            L"Migrated output must no longer contain the legacy key name.");
+        Assert::IsTrue (migrated.find ("\"name\": \"x\"") != string::npos,
+            L"All other fields must be preserved verbatim.");
+    }
+
+    TEST_METHOD (MigrateUserConfig_Idempotent)
+    {
+        string   input    = "{\n    \"$cassoDefault\": 2,\n    \"name\": \"x\"\n}";
+        string   first;
+        string   second;
+        HRESULT  hrFirst  = MachineConfigUpgrade::MigrateUserConfig (input, first);
+        HRESULT  hrSecond = MachineConfigUpgrade::MigrateUserConfig (first, second);
+
+        Assert::IsTrue (hrFirst  == S_OK,
+            L"First pass must report changes applied.");
+        Assert::IsTrue (hrSecond == S_FALSE,
+            L"Second pass must report no-op (S_FALSE).");
+        Assert::AreEqual (first, second,
+            L"Second pass output must be byte-for-byte identical to first.");
+    }
+
+    TEST_METHOD (MigrateUserConfig_AlreadyNewSchema_NoOp)
+    {
+        string   input    = "{ \"$cassoMachineVersion\": 3, \"name\": \"x\" }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == S_FALSE,
+            L"Already-migrated content must report S_FALSE.");
+        Assert::AreEqual (input, migrated,
+            L"Already-migrated content must be returned unchanged.");
+    }
+
+    TEST_METHOD (MigrateUserConfig_LegacyKeyAsStringValue_NotRewritten)
+    {
+        // Edge case: the literal "$cassoDefault" appearing as a string
+        // VALUE (not a key) must not be rewritten. We confirm this by
+        // checking that a content with the token followed by a comma
+        // (rather than a colon) is left alone.
+        string   input    = "{ \"description\": \"$cassoDefault\", \"v\": 1 }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == S_FALSE,
+            L"Token used as a value (not a key) must not trigger migration.");
+        Assert::AreEqual (input, migrated,
+            L"Content must be returned unchanged.");
+    }
 };

@@ -136,15 +136,15 @@ struct EmbeddedConfig
     int          resourceId;
     string_view  machineName;        // "Apple2", "Apple2Plus", "Apple2e"
     string_view  fileName;           // "<machineName>.json"
-    int          currentVersion;     // must match "$cassoDefault" in the embedded JSON
+    int          currentVersion;     // must match "$cassoMachineVersion" in the embedded JSON
 };
 
 
 static constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
 {
-    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     2 },
-    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 2 },
-    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    2 },
+    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     3 },
+    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 3 },
+    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    3 },
 };
 
 

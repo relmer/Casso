@@ -60,6 +60,7 @@ string MachineConfigUpgrade::NormalizeBytes (const string & content)
 int MachineConfigUpgrade::ParseStamp (const string & content)
 {
     HRESULT         hr      = S_OK;
+    HRESULT         hrLegacy = S_OK;
     JsonValue       root;
     JsonParseError  err;
     int             stamp   = 0;
@@ -69,8 +70,15 @@ int MachineConfigUpgrade::ParseStamp (const string & content)
     hr = JsonParser::Parse (content, root, err);
     CHRF (hr, stamp = 0);
 
-    hr = root.GetInt ("$cassoDefault", stamp);
-    CHRF (hr, stamp = 0);
+    // 007-ui-overhaul P1-T6: new key is "$cassoMachineVersion";
+    // legacy key "$cassoDefault" is read for one upgrade cycle.
+    hr = root.GetInt ("$cassoMachineVersion", stamp);
+
+    if (FAILED (hr))
+    {
+        hrLegacy = root.GetInt ("$cassoDefault", stamp);
+        CHRF (hrLegacy, stamp = 0);
+    }
 
 
 Error:
@@ -151,4 +159,96 @@ string MachineConfigUpgrade::BytesToHex (span<const uint8_t> bytes)
     }
 
     return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MigrateUserConfig
+//
+//  Per 007-ui-overhaul P1-T7: rewrites the legacy "$cassoDefault" JSON
+//  key to the new "$cassoMachineVersion" name. The defaulting of
+//  capabilityFlag on internalDevices / slots entries is performed at
+//  load time by MachineConfigLoader (see LoadInternalDevices and
+//  LoadSlots), so the textual migration only has to handle the rename.
+//
+//  Algorithm: a single pass over the source string. We look for the
+//  exact byte sequence "\"$cassoDefault\"" and, if the next
+//  non-whitespace character is ':' (confirming it's used as an object
+//  key, not as a value), substitute "\"$cassoMachineVersion\"". The
+//  pass is idempotent because input that already uses the new key
+//  contains zero occurrences of the legacy token.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineConfigUpgrade::MigrateUserConfig (
+    const string & content,
+    string       & outMigrated)
+{
+    static constexpr string_view  s_kszLegacyKey = "\"$cassoDefault\"";
+    static constexpr string_view  s_kszNewKey    = "\"$cassoMachineVersion\"";
+
+    HRESULT  hr             = S_OK;
+    size_t   readPos        = 0;
+    size_t   matchPos       = 0;
+    size_t   afterMatch     = 0;
+    size_t   peek           = 0;
+    bool     fAnyReplaced   = false;
+
+
+
+    outMigrated.clear ();
+    outMigrated.reserve (content.size () + 16);
+
+    while (readPos < content.size ())
+    {
+        matchPos = content.find (s_kszLegacyKey, readPos);
+
+        if (matchPos == string::npos)
+        {
+            outMigrated.append (content, readPos, string::npos);
+            break;
+        }
+
+        // Look past the legacy key to confirm the next non-whitespace
+        // character is ':' — i.e. the token is being used as an object
+        // key. Bare string values that happen to read "$cassoDefault"
+        // are left alone.
+        afterMatch = matchPos + s_kszLegacyKey.size ();
+        peek       = afterMatch;
+
+        while (peek < content.size ()
+               && (content[peek] == ' '  || content[peek] == '\t'
+               ||  content[peek] == '\r' || content[peek] == '\n'))
+        {
+            peek++;
+        }
+
+        if (peek < content.size () && content[peek] == ':')
+        {
+            outMigrated.append (content, readPos, matchPos - readPos);
+            outMigrated.append (s_kszNewKey);
+            readPos      = afterMatch;
+            fAnyReplaced = true;
+        }
+        else
+        {
+            outMigrated.append (content, readPos, afterMatch - readPos);
+            readPos = afterMatch;
+        }
+    }
+
+    if (!fAnyReplaced)
+    {
+        // Idempotent path: nothing to do. Preserve byte-for-byte
+        // identity by returning the input unchanged and signalling
+        // S_FALSE.
+        outMigrated = content;
+        hr          = S_FALSE;
+    }
+
+    return hr;
 }

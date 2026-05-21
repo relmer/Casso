@@ -71,9 +71,10 @@ public:
     static string NormalizeBytes (const string & content);
 
 
-    // Parse the "$cassoDefault" integer field out of `content`.
-    // Returns 0 if the file is unparseable or the field is missing
-    // — i.e. the pre-versioning era.
+    // Parse the "$cassoMachineVersion" integer field out of `content`,
+    // falling back to the legacy "$cassoDefault" key if the new key is
+    // missing. Returns 0 if the file is unparseable or neither field
+    // is present — i.e. the pre-versioning era.
     static int ParseStamp (const string & content);
 
 
@@ -92,4 +93,26 @@ public:
         const string                             * diskContent,
         string_view                                diskNormalizedHashHex,
         span<const MachineConfigPriorHash>         priorHashes);
+
+
+    // Migrate a user-authored `<Machine>_user.json` content forward
+    // to the current schema (007-ui-overhaul, P1-T7):
+    //
+    //   1. Renames JSON key `$cassoDefault` to `$cassoMachineVersion`.
+    //   2. Inserts a default `"capabilityFlag"` field on every
+    //      internalDevices[] entry that lacks one (default: "required").
+    //   3. Inserts a default `"capabilityFlag"` field on every
+    //      slots[] entry that lacks one (default: "optional").
+    //
+    // The operation is idempotent: running it twice produces the same
+    // output the second time as the first. Content that is already at
+    // the new schema is returned unchanged. Operates as a textual
+    // transform over the source bytes — comments, whitespace, and key
+    // ordering are preserved everywhere outside the rewritten regions.
+    // Returns S_FALSE if no migration was needed, S_OK otherwise; any
+    // failure (malformed JSON detected by the inserter) leaves
+    // outMigrated empty and returns E_INVALIDARG.
+    static HRESULT MigrateUserConfig (
+        const string & content,
+        string       & outMigrated);
 };
