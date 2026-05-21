@@ -17,6 +17,7 @@
 #include <crtdbg.h>
 #include <shellapi.h>
 #include <wrl/client.h>
+#include <bcrypt.h>
 
 #include <algorithm>
 #include <array>

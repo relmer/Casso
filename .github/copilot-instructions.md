@@ -72,6 +72,14 @@ The solution has five projects:
 - Use `CHRN`/`CBRN` for user-facing notification errors (auto-detects GUI/console)
 - Use `CHRF`/`CBRF` for failures with a custom action (e.g., setting an error string)
 - Use `BAIL_OUT_IF` for early-exit guard checks with a specific HRESULT
+- For **non-HRESULT-returning** functions (returning enum/int/struct/void/etc.)
+  that still want flat EHM control flow, declare a vestigial
+  `HRESULT hr = S_OK;` at the top of the function purely to satisfy the
+  macros (`__EHM_Base` writes to `hr` and `goto`s `ErrorLabel`). The
+  `Error:` label simply precedes `return <result>;`. The dead store
+  optimizes away in release. Example: `MachineConfigUpgrade::Plan`
+  in `CassoEmuCore/Core/MachineConfigUpgrade.cpp` uses this to flatten
+  a decision tree returning an enum.
 
 ### Variable Declarations
 - **ALL** local variables declared at the **top** of the function (or top of a necessary local block)

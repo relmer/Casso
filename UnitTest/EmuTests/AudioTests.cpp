@@ -1,7 +1,4 @@
-#include "../CassoEmuCore/Pch.h"
-
-#include <CppUnitTest.h>
-
+#include "Pch.h"
 #include "Audio/AudioGenerator.h"
 #include "Devices/AppleSpeaker.h"
 

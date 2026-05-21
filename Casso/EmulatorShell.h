@@ -230,7 +230,6 @@ private:
 
     // Video
     vector<unique_ptr<VideoOutput>> m_videoModes;
-    VideoOutput *       m_activeVideoMode = nullptr;
     CharacterRomData    m_charRom;
 
     // Soft switch state (read by video mode selection)
@@ -241,11 +240,27 @@ private:
     bool    m_col80Mode    = false;
     bool    m_doubleHiRes  = false;
 
-    // Device pointers (non-owning, for quick access)
-    class AppleKeyboard *         m_keyboard     = nullptr;
-    class AppleSoftSwitchBank *   m_softSwitches = nullptr;
-    class AppleSpeaker *          m_speaker      = nullptr;
-    class RamDevice *             m_mainRamDev   = nullptr;
+    // Per-machine observer pointers. Every entry is a raw pointer
+    // into one of the unique_ptr-owning collections above
+    // (m_ownedDevices, m_videoModes). They are caches for "quick
+    // access" only — never own anything — so they MUST be reset
+    // every time the owning collection is rebuilt, or they'll
+    // dangle into freed memory. Bundling them in one struct makes
+    // that a single assignment (`m_refs = {};`) in SwitchMachine's
+    // teardown block, instead of a checklist of individual
+    // nullptr assignments that the next field to be added will
+    // inevitably miss.
+    struct MachineRefs
+    {
+        class AppleKeyboard *         keyboard         = nullptr;
+        class AppleSoftSwitchBank *   softSwitches     = nullptr;
+        class AppleSpeaker *          speaker          = nullptr;
+        class RamDevice *             mainRamDev       = nullptr;
+        class DiskIIController *      diskController   = nullptr;
+        class VideoOutput *           activeVideoMode  = nullptr;
+    };
+
+    MachineRefs                   m_refs;
 
     unique_ptr<class AppleIIeMmu> m_mmu;
     unique_ptr<VideoTiming>       m_videoTiming;
@@ -255,11 +270,6 @@ private:
     // mounted disk's DiskImage is owned by the store; the slot 6 disk
     // controller sees it via DiskIIController::SetExternalDisk.
     DiskImageStore                m_diskStore;
-
-    // Cached pointer to the active DiskIIController (slot 6 typically).
-    // Used by the status bar to show per-drive activity LEDs. Refreshed
-    // by CreateMemoryDevices / SwitchMachine.
-    class DiskIIController *      m_diskController = nullptr;
 
     // Emulation state
     MachineConfig   m_config;

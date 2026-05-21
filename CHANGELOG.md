@@ -6,6 +6,69 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.772] — Machine Picker Fixes
+
+### Fixed
+- **Machine picker showed empty list.** `MachinePickerDialog::ScanMachines`
+  searched for `Machines/*.json` but configs live at
+  `Machines/<Name>/<Name>.json` — scanner now walks the nested layout.
+- **Switching machines could crash.** `SwitchMachine` runs on the CPU
+  thread (MTA COM); pre-launch ROM/disk-audio bootstrap was happening
+  there and showing modal `TaskDialog`s parented to a window owned by
+  another thread. Bootstrap is now performed on the UI thread inside
+  `ShowMachinePicker` *before* the switch command is enqueued.
+- **Switching to a machine with un-downloaded ROMs failed.** Bootstrap
+  in `ShowMachinePicker` now mirrors `Main.cpp`'s startup flow
+  (`CheckAndFetchRoms` + best-effort `CheckAndFetchDiskAudio`) so any
+  machine the user picks can actually launch.
+- **Apple ][ and ][+ shipped with no Disk II.** Embedded default
+  configs (`Resources/Machines/Apple2/Apple2.json`,
+  `Resources/Machines/Apple2Plus/Apple2Plus.json`) had empty `slots`,
+  so the status bar showed no drives and "Insert Drive 1" was inert.
+  Both now ship with a Disk II in slot 6 (matches //e). Existing
+  installs are refreshed automatically — see the embedded-default
+  versioning change below.
+- **Embedded machine configs are now versioned and auto-refresh.**
+  Each embedded JSON carries a `// DO NOT EDIT` header and a
+  `"$cassoDefault"` version stamp. On launch,
+  `AssetBootstrap::EnsureMachineConfigs`:
+    - Extracts when the file is missing (unchanged behavior).
+    - Overwrites when the on-disk stamp is older than the embedded
+      version.
+    - Overwrites when the on-disk file is unstamped *and* its
+      normalized (BOM-stripped, LF-normalized) SHA-256 matches one of
+      a small list of historical embedded defaults — i.e. it's a
+      verbatim extract from an earlier Casso release, safe to
+      replace.
+    - For anything else (unstamped + unrecognized = presumed
+      user-edited), renames the existing file to
+      `<name>.json.user-backup-<YYYYMMDD-HHMMSS>` and installs the
+      current embedded default in its place. Users always boot a
+      working machine; their edits aren't gone, just moved. The
+      header comment in every embedded default points future
+      customizers at "copy first, then edit the copy."
+- **Drive audio went silent after a machine switch.** `SwitchMachine`
+  unregisters the old per-drive `DiskIIAudioSource`s and builds new
+  ones, but never re-invoked `DriveAudioMixer::SetMechanism`, so
+  `LoadSamples` never ran on the fresh sources and every drive event
+  played nothing. Mixer is now re-poked with the current mechanism
+  immediately after `CreateMemoryDevices`. Drive sounds work on every
+  machine you switch into, not just whichever one was active at
+  launch.
+
+### Changed
+- **`MachineScanner` extracted to `CassoEmuCore/Core`** as a pure
+  module with injectable `DirectoryLister` and `FileReader` functors,
+  letting `MachinePickerDialog`'s scan logic be unit-tested without
+  filesystem access. Production callers use the default overload that
+  wraps `std::filesystem`.
+
+### Tests
+- Added `MachineScannerTests` (8 cases): nested vs flat layout,
+  first-search-path-wins, missing-Machines-dir handling, missing
+  per-machine JSON, unparseable JSON fallback, JSON without `name`
+  field, empty search paths.
+
 ## [1.3.764] — Disk II Debug Window (spec 006)
 
 ### Added

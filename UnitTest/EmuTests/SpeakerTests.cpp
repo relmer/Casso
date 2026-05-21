@@ -1,7 +1,4 @@
-#include "../CassoEmuCore/Pch.h"
-
-#include <CppUnitTest.h>
-
+#include "Pch.h"
 #include "Devices/AppleSpeaker.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

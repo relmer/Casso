@@ -1,7 +1,4 @@
-#include "../CassoEmuCore/Pch.h"
-
-#include <CppUnitTest.h>
-
+#include "Pch.h"
 #include "HeadlessHost.h"
 #include "Core/MachineConfig.h"
 
@@ -507,8 +504,8 @@ public:
 
         Assert::AreEqual (size_t (3), config.internalDevices.size (),
             L"Apple2.json internalDevices count must remain exactly 3");
-        Assert::AreEqual (size_t (0), config.slots.size (),
-            L"Apple2.json must declare zero slot devices by default");
+        Assert::AreEqual (size_t (1), config.slots.size (),
+            L"Apple2.json must declare exactly one slot (Disk II in slot 6)");
     }
 
 
@@ -545,8 +542,8 @@ public:
 
         Assert::AreEqual (size_t (3), config.internalDevices.size (),
             L"Apple2Plus.json internalDevices count must remain exactly 3");
-        Assert::AreEqual (size_t (0), config.slots.size (),
-            L"Apple2Plus.json must declare zero slot devices by default");
+        Assert::AreEqual (size_t (1), config.slots.size (),
+            L"Apple2Plus.json must declare exactly one slot (Disk II in slot 6)");
     }
 
 

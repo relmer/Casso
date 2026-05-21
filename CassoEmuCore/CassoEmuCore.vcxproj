@@ -191,6 +191,8 @@
     <ClCompile Include="Core\JsonParser.cpp" />
     <ClCompile Include="Core\JsonValue.cpp" />
     <ClCompile Include="Core\MachineConfig.cpp" />
+    <ClCompile Include="Core\MachineConfigUpgrade.cpp" />
+    <ClCompile Include="Core\MachineScanner.cpp" />
     <ClCompile Include="Core\PathResolver.cpp" />
     <ClCompile Include="Core\MemoryBus.cpp" />
     <ClCompile Include="Core\EmuCpu.cpp" />
@@ -242,6 +244,8 @@
     <ClInclude Include="Core\EmuCpu.h" />
     <ClInclude Include="Core\MemoryBusCpu.h" />
     <ClInclude Include="Core\MachineConfig.h" />
+    <ClInclude Include="Core\MachineConfigUpgrade.h" />
+    <ClInclude Include="Core\MachineScanner.h" />
     <ClInclude Include="Core\PathResolver.h" />
     <ClInclude Include="Core\Prng.h" />
     <ClInclude Include="Core\IInterruptController.h" />

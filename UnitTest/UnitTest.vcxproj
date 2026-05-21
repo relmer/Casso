@@ -237,192 +237,70 @@
     <ClCompile Include="HarteTestRunner.cpp" />
     <ClCompile Include="ModuleSetup.cpp" />
     <ClCompile Include="RegressionTests.cpp" />
-    <ClCompile Include="EmuTests\MemoryBusTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\JsonParserTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\DeviceTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\KeyboardTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\SoftSwitchTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\SoftSwitchReadSurfaceTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\SpeakerTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\EmuIntegrationTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\Phase7IntegrationTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\LanguageCardTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\RegistryTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\PathResolverTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\MachineConfigTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\VideoModeTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\DiskIITests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\DiskIINibbleEngineTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\DiskImageTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\NibblizationTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\WozLoaderTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\DiskImageStoreTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\EmuCpuTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\VideoRenderTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\PaletteByteOrderTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\AudioTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\PrngTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\MockAudioSink.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\MockIrqAsserter.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\MockHostShell.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\FixtureProvider.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\HeadlessHost.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\HeadlessHostTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\InterruptControllerTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\MmuTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\ResetSemanticsTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\EmulatorShellResetTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\VideoTimingTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\TextScreenScraper.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\KeystrokeInjector.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\MemoryProbeHelpers.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\Phase8IntegrationTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\Phase9IntegrationTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\Phase11IntegrationTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\BootRomDecoderTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\BootDiskTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\CatalogReproductionTest.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\Pr3AuxClearTest.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\DiskReadbackTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\EmuValidationSuiteTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\BackwardsCompatTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\AssetBootstrapTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\DiskAudioFetchTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="EmuTests\PerformanceTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="Audio\DiskIIAudioSourceStateTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="Audio\DiskIIAudioSourcePlaybackTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="Audio\DiskIIAudioSourceSeekTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="Audio\DriveAudioMixerTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="Audio\DriveAudioMixerMechanismTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="Audio\DiskIIAudioSourceEventSinkTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="Devices\DiskIIControllerAudioTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="Devices\DiskIIEventRingTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="Devices\DiskIIAddressMarkWatcherTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="Devices\DiskIIControllerEventTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
+    <ClCompile Include="EmuTests\MemoryBusTests.cpp" />
+    <ClCompile Include="EmuTests\JsonParserTests.cpp" />
+    <ClCompile Include="EmuTests\DeviceTests.cpp" />
+    <ClCompile Include="EmuTests\KeyboardTests.cpp" />
+    <ClCompile Include="EmuTests\SoftSwitchTests.cpp" />
+    <ClCompile Include="EmuTests\SoftSwitchReadSurfaceTests.cpp" />
+    <ClCompile Include="EmuTests\SpeakerTests.cpp" />
+    <ClCompile Include="EmuTests\EmuIntegrationTests.cpp" />
+    <ClCompile Include="EmuTests\Phase7IntegrationTests.cpp" />
+    <ClCompile Include="EmuTests\LanguageCardTests.cpp" />
+    <ClCompile Include="EmuTests\RegistryTests.cpp" />
+    <ClCompile Include="EmuTests\PathResolverTests.cpp" />
+    <ClCompile Include="EmuTests\MachineConfigTests.cpp" />
+    <ClCompile Include="EmuTests\MachineConfigUpgradeTests.cpp" />
+    <ClCompile Include="EmuTests\MachineScannerTests.cpp" />
+    <ClCompile Include="EmuTests\VideoModeTests.cpp" />
+    <ClCompile Include="EmuTests\DiskIITests.cpp" />
+    <ClCompile Include="EmuTests\DiskIINibbleEngineTests.cpp" />
+    <ClCompile Include="EmuTests\DiskImageTests.cpp" />
+    <ClCompile Include="EmuTests\NibblizationTests.cpp" />
+    <ClCompile Include="EmuTests\WozLoaderTests.cpp" />
+    <ClCompile Include="EmuTests\DiskImageStoreTests.cpp" />
+    <ClCompile Include="EmuTests\EmuCpuTests.cpp" />
+    <ClCompile Include="EmuTests\VideoRenderTests.cpp" />
+    <ClCompile Include="EmuTests\PaletteByteOrderTests.cpp" />
+    <ClCompile Include="EmuTests\AudioTests.cpp" />
+    <ClCompile Include="EmuTests\PrngTests.cpp" />
+    <ClCompile Include="EmuTests\MockAudioSink.cpp" />
+    <ClCompile Include="EmuTests\MockIrqAsserter.cpp" />
+    <ClCompile Include="EmuTests\MockHostShell.cpp" />
+    <ClCompile Include="EmuTests\FixtureProvider.cpp" />
+    <ClCompile Include="EmuTests\HeadlessHost.cpp" />
+    <ClCompile Include="EmuTests\HeadlessHostTests.cpp" />
+    <ClCompile Include="EmuTests\InterruptControllerTests.cpp" />
+    <ClCompile Include="EmuTests\MmuTests.cpp" />
+    <ClCompile Include="EmuTests\ResetSemanticsTests.cpp" />
+    <ClCompile Include="EmuTests\EmulatorShellResetTests.cpp" />
+    <ClCompile Include="EmuTests\VideoTimingTests.cpp" />
+    <ClCompile Include="EmuTests\TextScreenScraper.cpp" />
+    <ClCompile Include="EmuTests\KeystrokeInjector.cpp" />
+    <ClCompile Include="EmuTests\MemoryProbeHelpers.cpp" />
+    <ClCompile Include="EmuTests\Phase8IntegrationTests.cpp" />
+    <ClCompile Include="EmuTests\Phase9IntegrationTests.cpp" />
+    <ClCompile Include="EmuTests\Phase11IntegrationTests.cpp" />
+    <ClCompile Include="EmuTests\BootRomDecoderTests.cpp" />
+    <ClCompile Include="EmuTests\BootDiskTests.cpp" />
+    <ClCompile Include="EmuTests\CatalogReproductionTest.cpp" />
+    <ClCompile Include="EmuTests\Pr3AuxClearTest.cpp" />
+    <ClCompile Include="EmuTests\DiskReadbackTests.cpp" />
+    <ClCompile Include="EmuTests\EmuValidationSuiteTests.cpp" />
+    <ClCompile Include="EmuTests\BackwardsCompatTests.cpp" />
+    <ClCompile Include="EmuTests\AssetBootstrapTests.cpp" />
+    <ClCompile Include="EmuTests\DiskAudioFetchTests.cpp" />
+    <ClCompile Include="EmuTests\PerformanceTests.cpp" />
+    <ClCompile Include="Audio\DiskIIAudioSourceStateTests.cpp" />
+    <ClCompile Include="Audio\DiskIIAudioSourcePlaybackTests.cpp" />
+    <ClCompile Include="Audio\DiskIIAudioSourceSeekTests.cpp" />
+    <ClCompile Include="Audio\DriveAudioMixerTests.cpp" />
+    <ClCompile Include="Audio\DriveAudioMixerMechanismTests.cpp" />
+    <ClCompile Include="Audio\DiskIIAudioSourceEventSinkTests.cpp" />
+    <ClCompile Include="Devices\DiskIIControllerAudioTests.cpp" />
+    <ClCompile Include="Devices\DiskIIEventRingTests.cpp" />
+    <ClCompile Include="Devices\DiskIIAddressMarkWatcherTests.cpp" />
+    <ClCompile Include="Devices\DiskIIControllerEventTests.cpp" />
     <ClCompile Include="..\Casso\TrackSectorPredicate.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -435,24 +313,12 @@
     <ClCompile Include="..\Casso\RichEditSquiggle.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="Casso\TrackSectorPredicateTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="Casso\DebugDialogProjectionTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="Casso\DiskIIDebugDialogColumnTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="Casso\MenuSystemTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="Casso\RichEditSquiggleTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="Devices\DiskIIDebugDialogTests.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
+    <ClCompile Include="Casso\TrackSectorPredicateTests.cpp" />
+    <ClCompile Include="Casso\DebugDialogProjectionTests.cpp" />
+    <ClCompile Include="Casso\DiskIIDebugDialogColumnTests.cpp" />
+    <ClCompile Include="Casso\MenuSystemTests.cpp" />
+    <ClCompile Include="Casso\RichEditSquiggleTests.cpp" />
+    <ClCompile Include="Devices\DiskIIDebugDialogTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />

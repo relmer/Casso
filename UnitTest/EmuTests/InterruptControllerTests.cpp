@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "CppUnitTest.h"
 #include "Core/InterruptController.h"
 #include "ICpu.h"
 #include "MockIrqAsserter.h"

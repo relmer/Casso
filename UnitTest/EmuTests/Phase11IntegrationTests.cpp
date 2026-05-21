@@ -1,7 +1,4 @@
-#include "../CassoEmuCore/Pch.h"
-
-#include <CppUnitTest.h>
-
+#include "Pch.h"
 #include "HeadlessHost.h"
 #include "Devices/Disk/NibblizationLayer.h"
 #include "Devices/Disk/WozLoader.h"

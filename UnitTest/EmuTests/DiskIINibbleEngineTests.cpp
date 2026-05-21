@@ -1,7 +1,4 @@
-#include "../CassoEmuCore/Pch.h"
-
-#include <CppUnitTest.h>
-
+#include "Pch.h"
 #include "Devices/Disk/DiskIINibbleEngine.h"
 #include "Devices/Disk/DiskImage.h"
 

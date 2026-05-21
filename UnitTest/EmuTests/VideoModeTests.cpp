@@ -1,7 +1,4 @@
-#include "../CassoEmuCore/Pch.h"
-
-#include <CppUnitTest.h>
-
+#include "Pch.h"
 #include "Core/MemoryBus.h"
 #include "Devices/RamDevice.h"
 #include "Video/AppleTextMode.h"

@@ -1,7 +1,4 @@
-#include "../CassoEmuCore/Pch.h"
-
-#include <CppUnitTest.h>
-
+#include "Pch.h"
 #include "Core/JsonParser.h"
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
@@ -33,32 +30,38 @@ TEST_CLASS (AssetBootstrapTests)
 {
 public:
 
-    TEST_METHOD (Embedded_AppleII_RequiresSystemAndCharacterRom)
+    TEST_METHOD (Embedded_AppleII_RequiresSystemCharacterAndDiskIIRom)
     {
         std::vector<std::string> files;
 
         AssertRomList (IDR_MACHINE_APPLE2, files);
 
-        Assert::AreEqual (size_t (2), files.size(),
-            L"Apple2 must reference exactly 2 ROMs (system + character)");
+        Assert::AreEqual (size_t (3), files.size(),
+            L"Apple2 must reference exactly 3 ROMs "
+            L"(system + character + Disk II slot)");
         Assert::AreEqual (std::string ("Apple2.rom"),       files[0],
             L"Apple2 system ROM must be Apple2.rom");
         Assert::AreEqual (std::string ("Apple2_Video.rom"), files[1],
             L"Apple2 character ROM must be Apple2_Video.rom");
+        Assert::AreEqual (std::string ("Disk2.rom"),        files[2],
+            L"Apple2 slot 6 ROM must be Disk2.rom");
     }
 
-    TEST_METHOD (Embedded_AppleIIPlus_RequiresSystemAndCharacterRom)
+    TEST_METHOD (Embedded_AppleIIPlus_RequiresSystemCharacterAndDiskIIRom)
     {
         std::vector<std::string> files;
 
         AssertRomList (IDR_MACHINE_APPLE2PLUS, files);
 
-        Assert::AreEqual (size_t (2), files.size(),
-            L"Apple2Plus must reference exactly 2 ROMs (system + character)");
+        Assert::AreEqual (size_t (3), files.size(),
+            L"Apple2Plus must reference exactly 3 ROMs "
+            L"(system + character + Disk II slot)");
         Assert::AreEqual (std::string ("Apple2Plus.rom"),   files[0],
             L"Apple2Plus system ROM must be Apple2Plus.rom");
         Assert::AreEqual (std::string ("Apple2_Video.rom"), files[1],
             L"Apple2Plus character ROM must be Apple2_Video.rom");
+        Assert::AreEqual (std::string ("Disk2.rom"),        files[2],
+            L"Apple2Plus slot 6 ROM must be Disk2.rom");
     }
 
     TEST_METHOD (Embedded_AppleIIe_RequiresSystemCharacterAndDiskIIRom)
@@ -90,16 +93,17 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    TEST_METHOD (Embedded_AppleII_HasNoDiskController)
+    TEST_METHOD (Embedded_AppleII_HasDiskController)
     {
-        Assert::IsFalse (EmbeddedHasDiskController (IDR_MACHINE_APPLE2),
-            L"Apple ][ has no Disk ][ slot in its embedded config");
+        Assert::IsTrue (EmbeddedHasDiskController (IDR_MACHINE_APPLE2),
+            L"Apple ][ ships with a slot 6 Disk ][ controller by default "
+            L"so the user gets a working disk drive without manual config");
     }
 
-    TEST_METHOD (Embedded_AppleIIPlus_HasNoDiskController)
+    TEST_METHOD (Embedded_AppleIIPlus_HasDiskController)
     {
-        Assert::IsFalse (EmbeddedHasDiskController (IDR_MACHINE_APPLE2PLUS),
-            L"Apple ][+ has no Disk ][ slot in its embedded config");
+        Assert::IsTrue (EmbeddedHasDiskController (IDR_MACHINE_APPLE2PLUS),
+            L"Apple ][+ ships with a slot 6 Disk ][ controller by default");
     }
 
     TEST_METHOD (Embedded_AppleIIe_HasDiskController)

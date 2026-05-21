@@ -4,6 +4,7 @@
 #include "Core/JsonParser.h"
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
+#include "Core/MachineConfigUpgrade.h"
 #include "Core/PathResolver.h"
 #include "Ehm.h"
 #include "External/StbVorbisWrapper.h"
@@ -13,6 +14,7 @@
 
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "bcrypt.lib")
 
 
 static constexpr LPCWSTR       s_kpszAppleWinHost = L"raw.githubusercontent.com";
@@ -134,14 +136,50 @@ struct EmbeddedConfig
     int          resourceId;
     string_view  machineName;        // "Apple2", "Apple2Plus", "Apple2e"
     string_view  fileName;           // "<machineName>.json"
+    int          currentVersion;     // must match "$cassoDefault" in the embedded JSON
 };
 
 
 static constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
 {
-    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json"     },
-    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json" },
-    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json"    },
+    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     2 },
+    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 2 },
+    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    2 },
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PriorDefaultHashes
+//
+//  Normalized SHA-256 (BOM-stripped, CRLF→LF) of every embedded
+//  machine config we've shipped in the past, keyed by machine name.
+//  Used by EnsureMachineConfigs to detect unmodified on-disk extracts
+//  from prior Casso releases so we can safely refresh them when the
+//  embedded default changes shape (e.g. adding a Disk II to ][ /
+//  ][+). On-disk files matching none of these hashes are presumed
+//  user-edited and renamed aside before the current default is
+//  installed.
+//
+//  When you bump an embedded config's currentVersion, hash the *old*
+//  on-disk content (before the bump) and add an entry here so users
+//  of the previous release get the upgrade automatically.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
+{
+    // v1 Apple2.json (no slots, no $cassoDefault stamp).
+    { "Apple2",     "4045892d3410de8464430a2ce04386e4ca34a98a1a4d6163672fe22231daa942" },
+
+    // v1 Apple2Plus.json (no slots, no $cassoDefault stamp).
+    { "Apple2Plus", "ccb0046a31c57816d58634bdba2ce08f813806d2281fcbe6da94b4bf27242c8b" },
+
+    // v1 Apple2e.json (had slot 6 already, but no $cassoDefault stamp).
+    { "Apple2e",    "965f1f0fa55db9289000ddf9ff1e1416a9d85c0ebb5d35b8b8aa7f5ccf0da680" },
 };
 
 
@@ -260,6 +298,69 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NormalizeConfigBytes — moved to MachineConfigUpgrade::NormalizeBytes.
+//  Kept locally only for the BCrypt wrapper below; ComputeSha256 expects
+//  already-normalized input from the caller.
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeSha256
+//
+//  Thin BCrypt wrapper. Returns all-zeros on any BCrypt failure; the
+//  caller treats that as "no match" since the hash list never
+//  contains all-zeros.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static array<uint8_t, 32> ComputeSha256 (const string & data)
+{
+    HRESULT             hr       = S_OK;
+    array<uint8_t, 32>  result   = {};
+    BCRYPT_ALG_HANDLE   hAlg     = nullptr;
+    BCRYPT_HASH_HANDLE  hHash    = nullptr;
+    NTSTATUS            status   = 0;
+
+
+
+    status = BCryptOpenAlgorithmProvider (&hAlg, BCRYPT_SHA256_ALGORITHM, nullptr, 0);
+    CBR (BCRYPT_SUCCESS (status));
+
+    status = BCryptCreateHash (hAlg, &hHash, nullptr, 0, nullptr, 0, 0);
+    CBR (BCRYPT_SUCCESS (status));
+
+    status = BCryptHashData (hHash,
+                             reinterpret_cast<PUCHAR> (const_cast<char *> (data.data())),
+                             static_cast<ULONG> (data.size()),
+                             0);
+    CBRF (BCRYPT_SUCCESS (status), result = {});
+
+    status = BCryptFinishHash (hHash,
+                               result.data(),
+                               static_cast<ULONG> (result.size()),
+                               0);
+    CBRF (BCRYPT_SUCCESS (status), result = {});
+
+
+Error:
+    if (hHash != nullptr)
+    {
+        BCryptDestroyHash (hHash);
+    }
+
+    if (hAlg != nullptr)
+    {
+        BCryptCloseAlgorithmProvider (hAlg, 0);
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WriteFileBytes
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -287,10 +388,54 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BackupUserEditedConfig
+//
+//  Rename `target` aside with a timestamped suffix so it's preserved
+//  but out of the way before the current embedded default takes its
+//  place. Timestamp is local-time YYYYMMDD-HHMMSS to make the backup
+//  set chronologically obvious in a file listing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HRESULT BackupUserEditedConfig (const fs::path & target)
+{
+    HRESULT          hr          = S_OK;
+    SYSTEMTIME       now         = {};
+    wchar_t          stamp[32]   = {};
+    fs::path         backupPath;
+    error_code       ec;
+
+
+
+    GetLocalTime (&now);
+    swprintf_s (stamp,
+                L".user-backup-%04u%02u%02u-%02u%02u%02u",
+                now.wYear, now.wMonth, now.wDay,
+                now.wHour, now.wMinute, now.wSecond);
+
+    backupPath = target;
+    backupPath += stamp;
+
+    fs::rename (target, backupPath, ec);
+    CBR (!ec);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EnsureMachineConfigs
 //
 //  Make sure at least one Machines/ directory exists with the stock
-//  JSON configs. Existing configs are never overwritten.
+//  JSON configs. Upgrade decision is delegated to the pure planner
+//  in MachineConfigUpgrade::Plan — this wrapper does only the I/O
+//  bits (read on-disk content, compute SHA-256 via BCrypt, perform
+//  the backup rename, write the resource bytes).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -316,18 +461,62 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
         // Machines/<MachineName>/<MachineName>.json, so each machine's
         // assets (config + ROMs + future per-machine extras) live
         // together.
-        fs::path          machineSubdir = machinesDir / cfg.machineName;
-        fs::path          target        = machineSubdir / cfg.fileName;
-        span<const Byte>  bytes;
-        HRESULT           hrItem        = S_OK;
+        fs::path                      machineSubdir   = machinesDir / cfg.machineName;
+        fs::path                      target          = machineSubdir / cfg.fileName;
+        span<const Byte>              bytes;
+        HRESULT                       hrItem          = S_OK;
+        bool                          diskExists      = false;
+        string                        diskContent;
+        string                        diskHashHex;
+        MachineConfigUpgradeAction    action          = MachineConfigUpgradeAction::Skip;
 
 
 
         fs::create_directories (machineSubdir, ec);
 
-        if (fs::exists (target, ec))
+        diskExists = fs::exists (target, ec);
+
+        if (diskExists)
+        {
+            ifstream            diskFile (target);
+            stringstream        ss;
+            array<uint8_t, 32>  diskHash = {};
+
+            if (!diskFile.good())
+            {
+                continue;
+            }
+
+            ss << diskFile.rdbuf();
+            diskContent = ss.str();
+            diskHash    = ComputeSha256 (MachineConfigUpgrade::NormalizeBytes (diskContent));
+            diskHashHex = MachineConfigUpgrade::BytesToHex (diskHash);
+        }
+
+        action = MachineConfigUpgrade::Plan (
+            cfg.machineName,
+            cfg.currentVersion,
+            diskExists ? &diskContent : nullptr,
+            diskHashHex,
+            span<const MachineConfigPriorHash> (s_kPriorDefaultHashes));
+
+        if (action == MachineConfigUpgradeAction::Skip)
         {
             continue;
+        }
+
+        if (action == MachineConfigUpgradeAction::BackupAndReplace)
+        {
+            HRESULT hrBak = BackupUserEditedConfig (target);
+
+            if (FAILED (hrBak))
+            {
+                // If we can't rename the user's file aside, do NOT
+                // clobber it — bail on this machine and let the user
+                // sort it out.
+                hr = hrBak;
+                continue;
+            }
         }
 
         bytes = ExtractResource (hInstance, cfg.resourceId);

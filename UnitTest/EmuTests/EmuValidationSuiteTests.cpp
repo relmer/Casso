@@ -1,7 +1,4 @@
-#include "../CassoEmuCore/Pch.h"
-
-#include <CppUnitTest.h>
-
+#include "Pch.h"
 #include "HeadlessHost.h"
 #include "TextScreenScraper.h"
 #include "KeystrokeInjector.h"

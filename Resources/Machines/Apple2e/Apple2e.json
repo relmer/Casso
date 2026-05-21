@@ -1,4 +1,9 @@
+// DO NOT EDIT. This file is a Casso embedded default and will be
+// overwritten on launch when an out-of-date stamp is detected.
+// To customize, copy it to Machines/<Name>/<Name>.json (any name
+// other than the three embedded defaults) and edit that copy.
 {
+    "$cassoDefault": 2,
     "name": "Apple //e",
     "cpu": "6502",
     "timing": {
