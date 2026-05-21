@@ -1814,6 +1814,8 @@ void DiskIIDebugDialog::CopySelectedRowsToClipboard()
     wchar_t  *                                    pMem      = nullptr;
     size_t                                        byteCount = 0;
     bool                                          opened    = false;
+    BOOL                                          fSuccess  = FALSE;
+    HANDLE                                        hClipData = nullptr;
 
     if (m_listView == nullptr || m_hwnd == nullptr)
     {
@@ -1856,11 +1858,15 @@ void DiskIIDebugDialog::CopySelectedRowsToClipboard()
     pMem[payload.size()] = L'\0';
     GlobalUnlock (hMem);
 
-    CWRA (OpenClipboard (m_hwnd));
+    fSuccess = OpenClipboard (m_hwnd);
+    CWRA (fSuccess);
     opened = true;
 
-    CWRA (EmptyClipboard());
-    CWRA (SetClipboardData (CF_UNICODETEXT, hMem));
+    fSuccess = EmptyClipboard();
+    CWRA (fSuccess);
+
+    hClipData = SetClipboardData (CF_UNICODETEXT, hMem);
+    CWRA (hClipData);
 
     // SetClipboardData succeeded -> the system now owns hMem.
     hMem = nullptr;

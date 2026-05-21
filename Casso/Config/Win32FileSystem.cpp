@@ -39,7 +39,7 @@ HRESULT Win32FileSystem::ReadAllText (
                          FILE_ATTRIBUTE_NORMAL,
                          nullptr);
 
-    CBR (hFile != INVALID_HANDLE_VALUE);
+    CWR (hFile != INVALID_HANDLE_VALUE);
 
     fGotSize = GetFileSizeEx (hFile, &size);
     CWR (fGotSize);

@@ -289,13 +289,13 @@ static span<const Byte> ExtractResource (HINSTANCE hInstance, int resourceId)
 
 
     hRes = FindResourceW (hInstance, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
-    CWR (hRes != nullptr);
+    CWRA (hRes != nullptr);
 
     size = SizeofResource (hInstance, hRes);
-    CBR (size > 0);
+    CBRA (size > 0);
 
     hMem = LoadResource (hInstance, hRes);
-    CWR (hMem != nullptr);
+    CWRA (hMem != nullptr);
 
     data = LockResource (hMem);
     CWRA (data);
