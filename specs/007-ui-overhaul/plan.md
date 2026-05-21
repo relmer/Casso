@@ -445,43 +445,67 @@ suite green; code analysis green; all acceptance scenarios pass.
 
 ## Open Technical Questions (need user input before relevant phase)
 
+> **Status:** All resolved 2026-05-20. Decisions recorded inline.
+
 These are flagged here so they're answered before they block work:
 
 1. **RmlUi vendoring mechanism** — git subtree vs. plain copy under
    `External/RmlUi/`? Subtree preserves upstream history and makes re-vendor
    trivial; plain copy is dead simple but loses provenance. *Recommend: plain
    copy with `README.casso.md` recording tag + SHA. The "never download
-   external binaries" security rule supports keeping it offline.* — **needs
-   confirmation**.
+   external binaries" security rule supports keeping it offline.* — **DECIDED:
+   plain copy with `External/RmlUi/README.casso.md` capturing upstream tag +
+   commit SHA.**
 2. **RmlUi version pin** — latest upstream stable tag at the time of P1-T1.
-   Need user OK on the exact tag.
+   Need user OK on the exact tag. — **DECIDED: pin to the latest stable
+   upstream tag at the moment P1-T1 begins; record exact tag + SHA in
+   `External/RmlUi/README.casso.md`.**
 3. **Custom backend vs. fork RmlUi's DX11 backend** — recommended: write our
    own (smaller, fits our EHM/code-style, shares the existing device). —
-   **needs confirmation**.
+   **DECIDED: write our own backend.**
 4. **Specific shader source authors to port** — recommended set:
    - Scanlines: `crt-pi` (MIT) or the libretro `image-adjustment` chain.
    - Bloom: any of the libretro `bloom` shaders (MIT/PD).
    - Color bleed: libretro `ntsc-adaptive` chroma stage (MIT).
-   *User should confirm or substitute.*
+   *User should confirm or substitute.* — **DECIDED: adopt the recommended
+   set — `crt-pi` (scanlines), libretro `bloom` (bloom), `ntsc-adaptive`
+   chroma stage (color bleed). All MIT. Full attribution in
+   `Casso/Shaders/README.md`.**
 5. **Font** — default theme font. Candidates: Inter (SIL OFL), JetBrains Mono
    (SIL OFL), B612 (SIL OFL). Retro Terminal needs a phosphor/bitmap font
-   (e.g., VT323 — SIL OFL).
+   (e.g., VT323 — SIL OFL). — **DECIDED: Inter (SIL OFL) for default chrome /
+   Skeuomorphic / Dark Modern themes; VT323 (SIL OFL) for Retro Terminal.
+   Both vendored under `Themes/<name>/fonts/` with license files alongside.**
 6. **Mica backdrop on/off by default** — Mica looks great but only renders
    over the desktop wallpaper, which can clash with skeuomorphic themes. Per
    built-in theme? Per `theme.json` flag? *Recommend: `theme.json` field
    `useMicaBackdrop: bool` default false; built-in Dark Modern sets it true.*
+   — **DECIDED: add `useMicaBackdrop` boolean to `theme.json` schema, default
+   false. Built-in Dark Modern sets it true; Skeuomorphic and Retro Terminal
+   leave it false.**
 7. **Settings panel "Reset to defaults" semantics** — does it delete the
    `_user.json` file entirely or write an empty `{ "$cassoMachineVersion": N }`?
-   *Recommend: delete file — minimal storage, clean state.*
+   *Recommend: delete file — minimal storage, clean state.* — **DECIDED:
+   delete the file. `UserConfigStore::Reset` performs the deletion and forces
+   a reload of the read-only default.**
 8. **GPL shader handling** — confirmed excluded. Need decision on whether to
    add a CI guard (e.g., a `scripts/CheckShaderLicenses.ps1`) that fails if
-   GPL identifiers appear under `Casso/Shaders/`.
+   GPL identifiers appear under `Casso/Shaders/`. — **DECIDED: add
+   `scripts/CheckShaderLicenses.ps1` invoked from the existing build pipeline.
+   Fails the build if any file under `Casso/Shaders/` contains
+   case-insensitive "GPL", "GNU General Public", or "copyleft" tokens outside
+   designated attribution-comment markers.**
 9. **ARM64 RmlUi build** — RmlUi upstream should build cleanly with v145 +
-   ARM64 but needs verification before P1-T1 is marked done.
+   ARM64 but needs verification before P1-T1 is marked done. — **DECIDED:
+   ARM64 build verification is a hard done-criterion for P1-T1; the vcxproj
+   must produce a working static lib for x64 Debug, x64 Release, ARM64 Debug,
+   and ARM64 Release.**
 10. **Drag-drop registration** — currently a single `RegisterDragDrop` on the
     main window? Or per–drive-widget element? *Recommend: keep main-window
     registration, route hit-tested drop to the element under cursor via
-    RmlInputBridge.*
+    RmlInputBridge.* — **DECIDED: single main-window `RegisterDragDrop`; the
+    `RmlInputBridge` hit-tests the drop point and routes the event to the
+    drive-widget element under the cursor (or rejects the drop if none).**
 
 ## Complexity Tracking
 
