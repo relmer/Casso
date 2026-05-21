@@ -2,7 +2,6 @@
 
 #include "RmlSystemInterface.h"
 
-#include <RmlUi/Core/Log.h>
 
 
 

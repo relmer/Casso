@@ -3,7 +3,6 @@
 #include "Ui/NavLayer.h"
 #include "resource.h"
 
-#include <unordered_set>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

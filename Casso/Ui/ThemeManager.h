@@ -6,10 +6,7 @@
 
 #include "ThemeLoader.h"
 
-#include <RmlUi/Core/Context.h>
-#include <RmlUi/Core/ElementDocument.h>
 
-#include <functional>
 
 
 

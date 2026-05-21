@@ -5,10 +5,7 @@
 #include "DriveWidgetElement.h"
 #include "DriveWidgetState.h"
 
-#include <shellapi.h>
-#include <shlobj.h>
 
-#include <string>
 
 
 

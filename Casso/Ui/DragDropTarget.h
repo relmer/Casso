@@ -4,10 +4,7 @@
 
 #include "IDriveCommandSink.h"
 
-#include <oleidl.h>
 
-#include <atomic>
-#include <string>
 
 
 

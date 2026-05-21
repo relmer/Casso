@@ -7,7 +7,6 @@
 #include "Core/JsonWriter.h"
 #include "Core/MachineConfigUpgrade.h"
 
-#include <algorithm>
 
 
 

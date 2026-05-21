@@ -4,13 +4,7 @@
 
 #include "DriveWidgetElement.h"
 
-#include <RmlUi/Core/Element.h>
-#include <RmlUi/Core/ElementDocument.h>
-#include <RmlUi/Core/ElementInstancer.h>
-#include <RmlUi/Core/Factory.h>
-#include <RmlUi/Core/Types.h>
 
-#include <vector>
 
 
 

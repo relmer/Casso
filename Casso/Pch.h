@@ -15,6 +15,8 @@
 #include <winhttp.h>
 #include <dwmapi.h>
 #include <uxtheme.h>
+#include <wincodec.h>
+#include <dwrite_3.h>
 
 #include <crtdbg.h>
 #include <shellapi.h>
@@ -29,22 +31,27 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <ctime>
 #include <deque>
 #include <filesystem>
 #include <format>
 #include <fstream>
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <numbers>
+#include <set>
 #include <span>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "../CassoCore/Ehm.h"

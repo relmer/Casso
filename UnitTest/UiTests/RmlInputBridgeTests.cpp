@@ -2,7 +2,6 @@
 
 #include "Ui/RmlInputBridge.h"
 
-#include <RmlUi/Core/Input.h>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

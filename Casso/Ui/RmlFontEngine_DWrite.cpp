@@ -2,9 +2,6 @@
 
 #include "RmlFontEngine_DWrite.h"
 
-#include <RmlUi/Core/CallbackTexture.h>
-#include <RmlUi/Core/RenderManager.h>
-#include <RmlUi/Core/Mesh.h>
 
 #pragma comment (lib, "dwrite.lib")
 

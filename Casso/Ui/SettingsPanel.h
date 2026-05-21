@@ -6,14 +6,7 @@
 
 #include "Core/MachineScanner.h"
 
-#include <RmlUi/Core/Context.h>
-#include <RmlUi/Core/ElementDocument.h>
-#include <RmlUi/Core/EventListener.h>
 
-#include <functional>
-#include <memory>
-#include <string>
-#include <vector>
 
 
 class UiShell;

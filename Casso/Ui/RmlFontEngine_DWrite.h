@@ -2,16 +2,7 @@
 
 #include "Pch.h"
 
-#include <RmlUi/Core/FontEngineInterface.h>
-#include <RmlUi/Core/CallbackTexture.h>
 
-#include <dwrite_3.h>
-#include <wrl/client.h>
-#include <memory>
-#include <string>
-#include <unordered_map>
-#include <vector>
-#include <wrl/client.h>
 
 
 

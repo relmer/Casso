@@ -17,16 +17,7 @@
 #include "ThemeManager.h"
 #include "UiShell.h"
 
-#include <RmlUi/Core.h>
-#include <RmlUi/Core/Element.h>
-#include <RmlUi/Core/ElementDocument.h>
-#include <RmlUi/Core/ElementUtilities.h>
-#include <RmlUi/Core/Event.h>
-#include <RmlUi/Core/Factory.h>
-#include <RmlUi/Core/Types.h>
 
-#include <fstream>
-#include <sstream>
 
 
 

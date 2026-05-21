@@ -4,8 +4,6 @@
 
 #include "../../CassoCore/Ehm.h"
 
-#include <cmath>
-#include <cstdio>
 
 
 

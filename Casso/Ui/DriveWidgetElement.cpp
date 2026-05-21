@@ -4,13 +4,8 @@
 
 #include "LedElement.h"
 
-#include <RmlUi/Core/Event.h>
-#include <RmlUi/Core/Variant.h>
 
-#include <shobjidl.h>
 
-#include <atomic>
-#include <string>
 
 
 

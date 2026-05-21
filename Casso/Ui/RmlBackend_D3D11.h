@@ -2,14 +2,7 @@
 
 #include "Pch.h"
 
-#include <RmlUi/Core/RenderInterface.h>
 
-#include <d3d11.h>
-#include <d3dcompiler.h>
-#include <wrl/client.h>
-#include <unordered_map>
-#include <memory>
-#include <vector>
 
 
 // The Casso PCH publishes this alias at global scope; redeclare it
