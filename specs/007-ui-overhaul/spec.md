@@ -188,14 +188,19 @@ A user who ran Casso v1.x has a `Machines/apple2e/apple2e_user.json` file on dis
 - **FR-038**: The Settings panel MUST include a CRT brightness control (e.g., a knob or slider) that adjusts the luminance of the emulated display output. The brightness value MUST be persisted per-machine in the user JSON and applied in real time as the control is adjusted.
 - **FR-039**: The D3D renderer MUST support optional CRT post-processing effects applied to the emulated screen sub-region: scanlines (horizontal darkening bands matching the Apple II display refresh geometry), phosphor bloom (soft luminance bloom on bright pixels), and color bleed (lateral spread of chroma between adjacent pixels, approximating NTSC phosphor persistence). Each effect MUST be individually toggleable.
 - **FR-040**: CRT effect parameters (scanline intensity, bloom radius/strength, bleed width) MUST be configurable per-theme as defaults in the theme JSON, and MUST also be overridable per-user in the Settings panel. User overrides are persisted in the user JSON (not machine-specific — they are display preferences).
+- **FR-041**: The emulated machine MUST continue running while the Settings panel is open; the panel operates on a transient `SettingsPanelState` snapshot and changes are only applied on explicit user confirmation. No pause/resume API is required.
+- **FR-042**: The application MUST target Windows 11 as the minimum supported version; Windows 11-only DWM APIs (e.g., `DwmSetWindowAttribute` with `DWMWA_WINDOW_CORNER_PREFERENCE`, Mica backdrop) MAY be used in the chrome implementation.
+- **FR-043**: The emulated display viewport MUST maintain the Apple II's native aspect ratio (4:3) at all window sizes; when the window aspect ratio differs from 4:3, the viewport MUST be letterboxed or pillarboxed with the remaining area used by chrome widgets or rendered black.
+- **FR-044**: All interactive elements in the D3D Settings panel MUST be fully operable via keyboard alone (Tab/Shift-Tab to navigate, Space/Enter to activate, Escape to dismiss); keyboard focus MUST be visually indicated in all active themes.
+- **FR-045**: Theme JSON files MUST include a `$cassoThemeVersion` integer field. On load, if the version is lower than the current expected version, a theme upgrade path MUST be applied (analogous to `MachineConfigUpgrade`) before the theme is used. Machine config JSON files MUST use `$cassoMachineVersion` (renaming the existing `$cassoDefault` field).
 
 ---
 
 ### Key Entities
 
-- **MachineUserConfig**: Per-machine user override JSON file (`<MachineName>_user.json`). Contains a `$cassoDefault` version field and only the fields the user has explicitly changed from the default. Merged at load time with the read-only default JSON. Managed by a new `UserConfigStore` or equivalent.
+- **MachineUserConfig**: Per-machine user override JSON file (`<MachineName>_user.json`). Contains a `$cassoMachineVersion` version field and only the fields the user has explicitly changed from the default. Merged at load time with the read-only default JSON. Managed by a new `UserConfigStore` or equivalent.
 - **HardwareComponentEntry**: A node in the hardware configuration tree. Has a `type` (string matching the component registry), a human-readable `displayName`, a `capabilityFlag` (`optional` / `required` / `platform-locked`), an optional `lockReason` string (for platform-locked tooltip), and an `enabled` boolean state.
-- **Theme**: A JSON file plus accompanying assets in a named subdirectory of `Themes/`. Identified by a `name` and `version`. Contains palette tokens, texture refs, geometry descriptors, animation params. Loaded into a `ThemeData` struct at selection time.
+- **Theme**: A JSON file plus accompanying assets in a named subdirectory of `Themes/`. Identified by a `name` and `$cassoThemeVersion`. Contains palette tokens, texture refs, geometry descriptors, animation params, and CRT effect defaults. Loaded into a `ThemeData` struct at selection time.
 - **SettingsPanelState**: Transient in-memory snapshot of the Settings dialog's current selections; not persisted until the user confirms. Allows cancel-without-effect semantics.
 - **DriveWidgetState**: Runtime state for each drive widget: mounted disk path (or empty), motor running flag, write-active flag, animation frame index. Updated by the CPU thread's motor/drive signals and read by the D3D render thread.
 
@@ -219,9 +224,9 @@ A user who ran Casso v1.x has a `Machines/apple2e/apple2e_user.json` file on dis
 ## Assumptions
 
 - The existing `D3DRenderer::UploadAndPresent` pipeline remains the sole path for presenting the emulated framebuffer; the chrome layer is composited as an additional D3D render pass on the same swap chain, not a separate window.
-- `WM_NCHITTEST` customization is sufficient to achieve borderless-window drag/resize behavior compatible with Windows 10 and Windows 11 DWM; no changes to the `HWND` creation flags for the emulator render surface child window are required.
+- `WM_NCHITTEST` customization is sufficient to achieve borderless-window drag/resize behavior on Windows 11; Windows 11-only DWM APIs are permitted and preferred for rounded corners and backdrop effects.
 - The `AssetBootstrap` directory-scanning and embedded-resource-extraction pattern is directly reusable for the `Themes/` bootstrap without architectural changes.
-- The `MachineConfigUpgrade` system already handles versioned config migration; extending it to cover the `capabilityFlag` field and other new schema fields is an incremental change, not a redesign.
+- The `MachineConfigUpgrade` system already handles versioned config migration; extending it to cover the `capabilityFlag` field and other new schema fields is an incremental change, not a redesign. The existing `$cassoDefault` version field in machine JSONs is renamed to `$cassoMachineVersion`; theme JSONs use `$cassoThemeVersion` following the same per-type convention.
 - Per-machine `_user.json` files contain only settings reachable from the Settings panel (speed, video mode, write protect, drive audio, component enable/disable); low-level timing and ROM configuration remain in the default machine JSONs and are not user-overridable from the UI.
 - Theme textures and images are loaded at theme-selection time; they are retained in GPU memory until a different theme is selected or the application exits. Themes do not hot-reload individual assets independently.
 - The three built-in theme names (Skeuomorphic, Dark Modern, Retro Terminal) are final for the initial release; additional built-in themes may be added in subsequent releases without schema changes.
