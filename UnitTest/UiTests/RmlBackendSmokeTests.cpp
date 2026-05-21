@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "../CassoCore/Ehm.h"
 #include "Ui/RmlBackend_D3D11.h"
 #include "InMemoryFileSystem.h"
 
@@ -163,7 +164,10 @@ public:
         Assert::IsTrue (SUCCEEDED (backend.Initialize (device.Get(), context.Get(), 800, 600, &fs)));
 
         // WIC requires COM init on this thread for the PNG decoder.
-        CoInitializeEx (nullptr, COINIT_APARTMENTTHREADED);
+        // RPC_E_CHANGED_MODE / S_FALSE both indicate COM is already up on
+        // this thread which is fine for our purposes -- log + drop.
+        HRESULT  hrCo = CoInitializeEx (nullptr, COINIT_APARTMENTTHREADED);
+        IGNORE_RETURN_VALUE (hrCo, S_OK);
 
         Rml::Vector2i dims (0, 0);
         Rml::TextureHandle h = backend.LoadTexture (dims, "img.png");
@@ -200,7 +204,8 @@ public:
         RmlBackend_D3D11 backend;
         Assert::IsTrue (SUCCEEDED (backend.Initialize (device.Get(), context.Get(), 800, 600, &fs)));
 
-        CoInitializeEx (nullptr, COINIT_APARTMENTTHREADED);
+        HRESULT  hrCo = CoInitializeEx (nullptr, COINIT_APARTMENTTHREADED);
+        IGNORE_RETURN_VALUE (hrCo, S_OK);
 
         Rml::Vector2i dims (0, 0);
         Rml::TextureHandle h = backend.LoadTexture (dims, "bad.png");
