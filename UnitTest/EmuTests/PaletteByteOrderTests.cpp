@@ -1,7 +1,4 @@
-#include "../CassoEmuCore/Pch.h"
-
-#include <CppUnitTest.h>
-
+#include "Pch.h"
 #include "Video/NtscColorTable.h"
 #include "Video/PixelFormat.h"
 #include "Video/MonochromeTint.h"

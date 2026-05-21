@@ -1,7 +1,4 @@
-#include "../CassoEmuCore/Pch.h"
-
-#include <CppUnitTest.h>
-
+#include "Pch.h"
 #include "Core/ComponentRegistry.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"

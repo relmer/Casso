@@ -1,7 +1,4 @@
-#include "../CassoEmuCore/Pch.h"
-
-#include <CppUnitTest.h>
-
+#include "Pch.h"
 #include "Core/MachineConfig.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

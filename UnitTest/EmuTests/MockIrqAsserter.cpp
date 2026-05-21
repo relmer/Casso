@@ -1,5 +1,4 @@
-#include "../CassoEmuCore/Pch.h"
-
+#include "Pch.h"
 #include "MockIrqAsserter.h"
 
 

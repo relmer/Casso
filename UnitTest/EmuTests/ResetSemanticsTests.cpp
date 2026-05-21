@@ -5,10 +5,7 @@
 // pattern used by DiskIITests.cpp.
 #pragma warning(disable:6262)
 
-#include "../CassoEmuCore/Pch.h"
-
-#include <CppUnitTest.h>
-
+#include "Pch.h"
 #include "Core/MemoryBus.h"
 #include "Core/MemoryBusCpu.h"
 #include "Core/InterruptController.h"

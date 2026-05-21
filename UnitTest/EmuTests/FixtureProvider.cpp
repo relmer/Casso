@@ -1,5 +1,4 @@
-#include "../CassoEmuCore/Pch.h"
-
+#include "Pch.h"
 #include "FixtureProvider.h"
 
 #ifndef CASSO_FIXTURES_DIR

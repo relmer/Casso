@@ -1,6 +1,4 @@
-#include "../CassoEmuCore/Pch.h"
-
-#include <CppUnitTest.h>
+#include "Pch.h"
 #include <thread>
 
 #include "Devices/DiskIIEventRing.h"
