@@ -83,7 +83,7 @@ public:
     // Access bus for test wiring
     MemoryBus & GetBus() { return m_memoryBus; }
 
-    // Phase 4 / FR-034 / FR-035: split-reset entry points exposed for the
+    // / FR-034 / FR-035: split-reset entry points exposed for the
     // menu commands (IDM_MACHINE_RESET / IDM_MACHINE_POWERCYCLE) and any
     // future programmatic callers. SoftReset preserves user RAM and
     // re-runs the 6502 /RESET sequence. PowerCycle re-seeds every DRAM-
@@ -130,7 +130,7 @@ public:
         return m_uptimeAnchor;
     }
 
-    // ---- IDriveCommandSink (P6-T3) --------------------------------------
+    // ---- IDriveCommandSink --------------------------------------
     // UI-thread entry points the drive widgets call into when the user
     // drops a file, clicks-to-browse, or clicks the eject affordance.
     // Both forms route through the existing IDM_DISK_* command queue so
@@ -301,7 +301,7 @@ private:
     // requires OLE (STA) on the registering thread.
     bool                                 m_fOleInitialized = false;
 
-    // Drive audio (spec 005-disk-ii-audio). Mixer is always
+    // Drive audio. Mixer is always
     // allocated; per-drive sources are populated only when the
     // active machine config carries a Disk II controller (FR-015).
     // Cold-boot flag suppresses OnDiskInserted during startup
@@ -351,7 +351,7 @@ private:
     unique_ptr<class AppleIIeMmu> m_mmu;
     unique_ptr<VideoTiming>       m_videoTiming;
 
-    // Phase 11 / T097 / FR-025. The store coordinates auto-flush of dirty
+    // / T097 / FR-025. The store coordinates auto-flush of dirty
     // disk images on Eject / SwitchMachine / Shutdown / PowerCycle. Each
     // mounted disk's DiskImage is owned by the store; the slot 6 disk
     // controller sees it via DiskIIController::SetExternalDisk.

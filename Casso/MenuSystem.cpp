@@ -221,7 +221,7 @@ void MenuSystem::SetSpeedMode (SpeedMode mode)
 
     m_speedMode = mode;
 
-    // P9-T2: no Win32 menu bar attached -- state cache above is the
+    // No Win32 menu bar attached -- state cache above is the
     // single source of truth.
     if (m_machineMenu == nullptr)
     {
@@ -259,7 +259,7 @@ void MenuSystem::SetColorMode (ColorMode mode)
 
     m_colorMode = mode;
 
-    // P9-T2: no Win32 menu bar attached -- state cache above is the
+    // No Win32 menu bar attached -- state cache above is the
     // single source of truth.
     if (m_viewMenu == nullptr)
     {
@@ -293,7 +293,7 @@ void MenuSystem::SetPaused (bool paused)
 {
     m_paused = paused;
 
-    // P9-T2: no Win32 menu bar attached -- cached state above is
+    // No Win32 menu bar attached -- cached state above is
     // sufficient.
     if (m_machineMenu == nullptr)
     {

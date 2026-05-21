@@ -12,7 +12,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DriveWidgetStateTests
 //
-//  P6-T6 -- pure-logic state transitions for the per-drive widget
+//  Pure-logic state transitions for the per-drive widget
 //  state. No RmlUi context required.
 //
 ////////////////////////////////////////////////////////////////////////////////

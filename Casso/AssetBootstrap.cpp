@@ -33,7 +33,7 @@ static constexpr LPCWSTR       s_kpszAsimovHost   = L"www.apple.asimov.net";
 //
 //  Static map: (machineName, Casso ROM filename) -> AppleWin source
 //  basename + size + on-disk relative directory. Per spec
-//  005-disk-ii-audio Phase 12 (T122 + Q1), machine-specific ROMs are
+//  005-disk-ii-audio (T122 + Q1), machine-specific ROMs are
 //  keyed by their owning machine so a shared upstream file
 //  (Apple2_Video.rom, Apple2e_Enhanced_Video.rom) downloads once per
 //  machine into Machines/<MachineName>/. The handful of bytes
@@ -190,7 +190,6 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
 //
 //  DiskAudioSpec
 //
-//  Per spec 005-disk-ii-audio Phase 13 (T131 / FR-017 / FR-018):
 //  fully-specified map of OpenEmulator OGG sample basenames to Casso
 //  WAV filenames, keyed by mechanism. Files live under
 //  `raw.githubusercontent.com/openemulator/libemulation/master/res/sounds/<Mechanism>/`.
@@ -456,7 +455,7 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
 
     for (const EmbeddedConfig & cfg : s_kEmbeddedConfigs)
     {
-        // Per spec 005-disk-ii-audio Phase 12 (T120/T124): embedded
+        // Embedded
         // defaults extract into the per-machine subdir,
         // Machines/<MachineName>/<MachineName>.json, so each machine's
         // assets (config + ROMs + future per-machine extras) live

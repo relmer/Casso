@@ -96,7 +96,7 @@ public:
 
 
     // Migrate a user-authored `<Machine>_user.json` content forward
-    // to the current schema (007-ui-overhaul, P1-T7):
+    // To the current schema (007-ui-overhaul, ):
     //
     //   1. Renames JSON key `$cassoDefault` to `$cassoMachineVersion`.
     //   2. Inserts a default `"capabilityFlag"` field on every

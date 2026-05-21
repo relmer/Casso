@@ -16,7 +16,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  CrtParameterMappingTests
 //
-//  P8-T8. Pure-logic round-trip between the prefs / theme JSON model and
+//  Pure-logic round-trip between the prefs / theme JSON model and
 //  the `CrtParams` struct uploaded to the shader constant buffer. No D3D
 //  device is created; the shader stages are mocked by inspecting the
 //  uniforms `MakeCrtParams` produces.

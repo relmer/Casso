@@ -13,7 +13,7 @@
 //
 //  AutoMountResolver
 //
-//  Pure-logic helper for the FR-047 auto-mount path (P6-T7). Given the
+//  Pure-logic helper for the FR-047 auto-mount path. Given the
 //  per-machine `lastMountedImages` list and an `IFileSystem` to stat
 //  each path against, returns a `Decision` per drive saying whether to
 //  mount, leave empty, or clear the stale remembered entry.

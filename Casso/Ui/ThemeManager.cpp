@@ -461,7 +461,7 @@ void ThemeManager::ApplyDwm (const LoadedTheme & theme)
         return;
     }
 
-    // Per P4-T3 deferred wiring: Mica is theme-driven. Pre-Win11 the
+    // Per deferred wiring: Mica is theme-driven. Pre-Win11 the
     // helper is a no-op so this is safe on every supported OS.
     Win11DwmHelpers::ApplyMicaBackdrop (m_hwnd, theme.useMicaBackdrop);
 }

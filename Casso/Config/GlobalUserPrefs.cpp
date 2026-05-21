@@ -339,7 +339,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
             crt.colorBleedWidth   = (float) GetNumberOpt (*colorBleed, "width",   crt.colorBleedWidth);
         }
 
-        // P8-T8: clamp every numeric CRT field to its documented range so a
+        // Clamp every numeric CRT field to its documented range so a
         // hand-edited prefs file with out-of-range values can't drive the
         // shaders into nonsense territory.
         if (crt.brightness         < 0.0f) crt.brightness         = 0.0f;

@@ -8,7 +8,7 @@
 //
 //  PerfStats
 //
-//  P8-T5. Tiny rolling-average timer registry. Scoped RAII helpers stuff
+//  Tiny rolling-average timer registry. Scoped RAII helpers stuff
 //  per-label deltas into a process-wide singleton; debug overlays / log
 //  taps read back the smoothed numbers.
 //

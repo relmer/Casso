@@ -30,7 +30,7 @@ public:
                                            const vector<fs::path> & searchPaths,
                                            const fs::path         & exeDir);
 
-    // Per spec 007-ui-overhaul P5-T6: extract the three built-in
+    // Overhaul : extract the three built-in
     // themes into `<assetBase>/Themes/<Name>/` on first launch
     // (and on subsequent launches whose embedded theme has bumped
     // `$cassoThemeVersion`). User-authored theme directories — i.e.
@@ -70,7 +70,7 @@ public:
                                            const fs::path         & assetBaseDir,
                                            string                 & outError);
 
-    // Per spec 005-disk-ii-audio Phase 13 / FR-017 / FR-018. Inspects
+    // Audio / FR-017 / FR-018. Inspects
     // `devicesDir`'s per-mechanism subdirectories (Alps/, Shugart/);
     // if either is missing any WAVs the user gets a GPL-3 disclosure
     // consent dialog. On accept, fetches the matching OGGs from

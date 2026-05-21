@@ -53,7 +53,7 @@
 #define IDR_MACHINE_APPLE2E         202
 
 // Embedded built-in theme files (RCDATA). Per spec 007-ui-overhaul
-// P5-T6 the three built-in themes are extracted to
+// The three built-in themes are extracted to
 // <assetBase>/Themes/<Name>/ by AssetBootstrap::EnsureThemes on
 // first run + upgrade. Resource IDs are blocked per theme so the
 // asset bootstrap can iterate them via a single table.

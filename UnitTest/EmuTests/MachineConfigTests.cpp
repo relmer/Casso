@@ -333,7 +333,7 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
-    //  007-ui-overhaul P1-T5 / FR-015 — capabilityFlag default inversion
+    //  007-ui-overhaul / FR-015 — capabilityFlag default inversion
     //
     //  Internal devices default to CapabilityFlag::Required; slot entries
     //  default to CapabilityFlag::Optional. The asymmetry is asserted in

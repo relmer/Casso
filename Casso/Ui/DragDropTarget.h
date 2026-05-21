@@ -14,7 +14,7 @@
 //
 //  DragDropTarget
 //
-//  Single main-window IDropTarget (Open Question 10 -- one
+//  Single main-window IDropTarget ( -- one
 //  RegisterDragDrop call for the whole HWND, hit-testing the dropped
 //  point against RmlUi to find a drive widget under cursor).
 //

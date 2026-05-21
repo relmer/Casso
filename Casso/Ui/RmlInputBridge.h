@@ -16,7 +16,7 @@
 //  module is deliberately decoupled from any live context so it can be
 //  unit-tested without spinning up a real RmlUi instance.
 //
-//  Coverage (P3-T8 acceptance):
+//  Coverage ( acceptance):
 //      VK_* -> Rml::Input::KeyIdentifier
 //      modifier-bitmask synthesis (Ctrl/Shift/Alt + lock states)
 //      mouse-button index for WM_LBUTTON/RBUTTON/MBUTTON/X1/X2

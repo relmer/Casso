@@ -191,7 +191,7 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
     hr = m_device->CreateBuffer (&bd, &initData, &m_indexBuffer);
     CHRA (hr);
 
-    // P8-T4: CRT post-process chain (shaders, ping-pong RTs, sampler). The
+    // CRT post-process chain (shaders, ping-pong RTs, sampler). The
     // intermediate RTs are sized lazily on the first Process() call from
     // the back buffer dimensions tracked below.
     hr = m_crtPost.Initialize (m_device.Get(), m_context.Get());
@@ -349,7 +349,7 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
     // Clear render target
     m_context->ClearRenderTargetView (m_rtv.Get(), clearColor);
 
-    // P8-T4. Run the emulator-framebuffer SRV through the CRT post-process
+    // Run the emulator-framebuffer SRV through the CRT post-process
     // chain straight into the swap chain back buffer. The chain handles
     // the 4:3 letterbox viewport internally (FR-043) and applies brightness
     // / scanlines / bloom / color bleed per `m_crtParams`, which the
@@ -374,7 +374,7 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
     (void) stride;
     (void) offset;
 
-    // P3-T6 hook: RmlUi composite pass runs here, between the
+    // Hook: RmlUi composite pass runs here, between the
     // emulator blit and Present. Skipped silently if no shell is
     // installed (e.g. early-init failure path or unit-test harness).
     if (m_afterBlitHook)

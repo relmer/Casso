@@ -19,7 +19,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  We open a WARP D3D11 device (DXGI_FORMAT-agnostic, no window) so
 //  these tests are self-contained.
 //
-//  Coverage (P3-T7 acceptance):
+//  Coverage ( acceptance):
 //      * EnableScissorRegion + SetScissorRegion produce
 //        RSSetScissorRects with matching coordinates (verified via
 //        the backend's diagnostic accessors — the WARP device's

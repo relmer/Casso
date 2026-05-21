@@ -70,7 +70,7 @@ int MachineConfigUpgrade::ParseStamp (const string & content)
     hr = JsonParser::Parse (content, root, err);
     CHRF (hr, stamp = 0);
 
-    // 007-ui-overhaul P1-T6: new key is "$cassoMachineVersion";
+    // 007-ui-overhaul : new key is "$cassoMachineVersion";
     // legacy key "$cassoDefault" is read for one upgrade cycle.
     hr = root.GetInt ("$cassoMachineVersion", stamp);
 
@@ -169,7 +169,7 @@ string MachineConfigUpgrade::BytesToHex (span<const uint8_t> bytes)
 //
 //  MigrateUserConfig
 //
-//  Per 007-ui-overhaul P1-T7: rewrites the legacy "$cassoDefault" JSON
+//  Per 007-ui-overhaul : rewrites the legacy "$cassoDefault" JSON
 //  key to the new "$cassoMachineVersion" name. The defaulting of
 //  capabilityFlag on internalDevices / slots entries is performed at
 //  load time by MachineConfigLoader (see LoadInternalDevices and

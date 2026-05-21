@@ -174,7 +174,7 @@ namespace
 //
 //  MakeCrtParams
 //
-//  P8-T6 / P8-T8. Pure logic. Produces a `CrtParams` constant buffer
+//  Pure logic. Produces a `CrtParams` constant buffer
 //  payload from the user's prefs + (optionally) the active theme's
 //  `crtDefaults`.
 //

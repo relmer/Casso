@@ -11,7 +11,7 @@
 //  IDriveCommandSink
 //
 //  Interface implemented by `EmulatorShell` and consumed by the RmlUi
-//  drive-widget custom element (P6-T3) and the IDropTarget (P6-T4).
+//  Drive-widget custom element and the IDropTarget.
 //  Decoupling the widget from the shell lets the widget unit-test path
 //  inject a mock sink without dragging in the entire emulator window
 //  graph (used in AutoMountTests.cpp).

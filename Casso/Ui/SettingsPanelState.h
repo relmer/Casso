@@ -14,7 +14,7 @@
 //
 //  SettingsPanelState
 //
-//  P7-T1 / P7-T5 — pure-logic transient snapshot backing the
+//  / — pure-logic transient snapshot backing the
 //  consolidated Settings panel. Holds two parallel copies of every
 //  user-mutable setting:
 //

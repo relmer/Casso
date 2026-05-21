@@ -83,7 +83,7 @@ static constexpr UINT     kDriveStatusTimerMs    = 50;
 
 EmulatorShell::EmulatorShell()
 {
-    // Phase 4 / FR-035. The Prng is the deterministic stand-in for
+    // / FR-035. The Prng is the deterministic stand-in for
     // indeterminate //e DRAM at power-on, shared across every device that
     // re-seeds in PowerCycle. The seed is derived from a couple of
     // weakly-correlated host sources so consecutive launches hit
@@ -95,7 +95,7 @@ EmulatorShell::EmulatorShell()
 
     m_prng = make_unique<Prng> (seed);
 
-    // Phase 5 / FR-033 / T055. //e video timing model — owned at the
+    // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
     // 17,030-cycle frame counter for $C019 (RDVBLBAR) reads.
     m_videoTiming = make_unique<VideoTiming>();
@@ -149,13 +149,13 @@ EmulatorShell::~EmulatorShell()
         m_diskIIDebugDialog.reset();
     }
 
-    // Phase 11 / T097 / FR-025. Final auto-flush of any dirty disks on
+    // / T097 / FR-025. Final auto-flush of any dirty disks on
     // process shutdown — matches the "graceful exit" requirement from
     // audit §7 so a crash-free quit never loses user writes.
     hrFlush = m_diskStore.FlushAll();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
-    // P3-T5: tear down the UiShell BEFORE D3DRenderer so the backend
+    // Tear down the UiShell BEFORE D3DRenderer so the backend
     // can release its GPU resources while the device is still alive.
     // Also clear the after-blit hook so any in-flight present
     // doesn't try to call into a dead shell.
@@ -251,7 +251,7 @@ HRESULT EmulatorShell::Initialize (
     hr = m_d3dRenderer.Initialize (m_renderHwnd, kFramebufferWidth, kFramebufferHeight);
     CHR (hr);
 
-    // P3-T5: bring up the RmlUi shell on top of the live D3D11
+    // Bring up the RmlUi shell on top of the live D3D11
     // device. Parallel-mode — Win32 menus / dialogs stay live;
     // the shell only adds an overlay composite pass via the
     // after-blit hook installed below. If shell init fails we log
@@ -264,7 +264,7 @@ HRESULT EmulatorShell::Initialize (
         {
             m_d3dRenderer.SetAfterBlitHook ([this] { m_uiShell.Render(); });
 
-            // P4-T3 / P4-T5: stand up the custom title bar + nav
+            // Stand up the custom title bar + nav
             // layer on the shell's context. Both are best-effort —
             // failing to load the inline RML shouldn't abort the
             // emulator window (it just means the chrome doesn't
@@ -366,7 +366,7 @@ HRESULT EmulatorShell::Initialize (
 
     UpdateWindowTitle();
 
-    // Phase 4 / FR-034. Cold power-on: seed DRAM via the shared Prng and
+    // / FR-034. Cold power-on: seed DRAM via the shared Prng and
     // run the 6502 /RESET sequence. Without this, the CPU starts at PC=0
     // and executes uninitialized RAM, leading to garbage on screen and
     // a beep loop instead of the firmware prompt. Mirrors what the
@@ -381,7 +381,7 @@ HRESULT EmulatorShell::Initialize (
 
     MountCommandLineDisks (disk1Path, disk2Path);
 
-    // Spec 005-disk-ii-audio Phase 14 (Q4): seed the mixer state
+    // Seed the mixer state
     // from the per-machine registry before the audio thread first
     // calls SetEnabled / SetMechanism. Default is enabled + Shugart
     // when nothing has been persisted yet.
@@ -458,7 +458,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     clientH = kFramebufferHeight * scale;
 
     rc    = { 0, 0, clientW, clientH };
-    // P4-T1: borderless custom-chrome recipe. WS_THICKFRAME keeps
+    // Borderless custom-chrome recipe. WS_THICKFRAME keeps
     // Aero Snap + edge resize live; WS_CAPTION stays in the style
     // mask so DWM still grants us a drop shadow + snap-layouts
     // animations even though we draw zero chrome ourselves. Sizing
@@ -467,7 +467,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // preserved.
     style    = WS_POPUP | WS_CAPTION | WS_THICKFRAME |
                WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU;
-    // P9-T2: no menu bar -> bMenu = FALSE in window-rect math.
+    // No menu bar -> bMenu = FALSE in window-rect math.
     fSuccess = AdjustWindowRectExForDpi (&rc, style, FALSE, 0, dpi);
     CWRA (fSuccess);
 
@@ -480,7 +480,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
                          nullptr);
     CHR (hr);
 
-    // P4-T2/T3: DWM gating. Rounded corners + dark immersive caption
+    // DWM gating. Rounded corners + dark immersive caption
     // are best-effort and runtime-gated to the right Win10/11 build.
     // Mica stays opt-in: it'll be toggled per-theme in P5 via
     // theme.json `useMicaBackdrop`.
@@ -488,7 +488,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     Win11DwmHelpers::ApplyRoundedCorners       (m_hwnd, true);
     Win11DwmHelpers::ApplyImmersiveDarkMode    (m_hwnd, true);
 
-    // P9-T2: legacy Win32 menu bar is retired (FR-026). All menu
+    // Legacy Win32 menu bar is retired (FR-026). All menu
     // commands now route through `NavLayer` + the RmlUi nav strip;
     // keyboard accelerators (loaded below) keep working independently
     // of the menu bar. `m_menuSystem` is intentionally left in place
@@ -1782,7 +1782,7 @@ void EmulatorShell::MountCommandLineDisks (
     // test harness can flip-test the same image without re-clicking
     // the file dialog).
     //
-    // P6-T7 / FR-047. If the remembered file no longer exists on disk
+    // / FR-047. If the remembered file no longer exists on disk
     // (user moved or deleted the image since last session), clear the
     // stale registry entry on the spot so we don't keep tripping over
     // it every time this machine is loaded, then leave the slot empty.
@@ -1854,7 +1854,7 @@ void EmulatorShell::MountCommandLineDisks (
 //
 //  FindSlot6Controller
 //
-//  Phase 11 / T097. Scans the owned-device list for the Disk II
+//  / T097. Scans the owned-device list for the Disk II
 //  controller. Returns nullptr if none is wired (e.g., a machine config
 //  without a disk slot).
 //
@@ -1885,7 +1885,7 @@ DiskIIController * EmulatorShell::FindSlot6Controller()
 //
 //  MountDiskInSlot6
 //
-//  Phase 11 / T097 / FR-025. Routes the mount through the DiskImageStore
+//  / T097 / FR-025. Routes the mount through the DiskImageStore
 //  so dirty writes auto-flush back to the host filesystem on Eject,
 //  SwitchMachine, PowerCycle, and Shutdown. The Disk II controller's
 //  nibble engine is then re-pointed at the store-owned DiskImage via
@@ -1952,7 +1952,7 @@ Error:
 //
 //  EjectDiskInSlot6
 //
-//  Phase 11 / T097 / FR-025. Auto-flushes dirty bits via the store and
+//  / T097 / FR-025. Auto-flushes dirty bits via the store and
 //  detaches the controller's external disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2044,7 +2044,7 @@ void EmulatorShell::RemountSlot6Disks()
 //
 //  Mount  (IDriveCommandSink)
 //
-//  P6-T3. Called from the UI thread by the drive widget's click-to-
+//  Called from the UI thread by the drive widget's click-to-
 //  browse path and by the drag-drop target. Routes through the existing
 //  IDM_DISK_INSERT* command queue so the actual mount runs on the CPU
 //  thread, mirroring the menu-driven path. Only slot 6 is supported
@@ -2146,7 +2146,7 @@ int64_t EmulatorShell::NowMs() const
 //
 //  UpdateDriveWidgets
 //
-//  P6-T5. Per-UI-frame sync from the (CPU-thread-owned) Disk II
+//  Per-UI-frame sync from the (CPU-thread-owned) Disk II
 //  controller state into the (UI-thread-only) DriveWidgetState. Reads
 //  the engine's lifetime nibble counters and treats any forward
 //  movement since the previous frame as "disk active" (FR-025 active
@@ -2283,7 +2283,7 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
 
     m_cpu = make_unique<EmuCpu> (m_memoryBus);
 
-    // Phase 5 / FR-033 / T056. Wire the //e video timing model into the
+    // / FR-033 / T056. Wire the //e video timing model into the
     // EmuCpu cycle fan-out. Every AddCycles call now ticks VideoTiming
     // so $C019 (RDVBLBAR) tracks the 17,030-cycle frame. Null-safe for
     // tests/builds that haven't constructed a timing model.
@@ -2292,7 +2292,7 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
         m_cpu->SetVideoTiming (m_videoTiming.get());
     }
 
-    // Wire the InterruptController to the CPU. Phase 1 wiring registers
+    // Wire the InterruptController to the CPU. wiring registers
     // zero asserters today — the //e card slots (1/3/4/5/6) will allocate
     // tokens here in later phases as their devices are added. The
     // controller exists now so Apple ][ / ][+ / //e all share the same
@@ -2381,7 +2381,7 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
 
 void EmulatorShell::ShowMachinePicker()
 {
-    // P9-T1: legacy `MachinePickerDialog` is retired (FR-027). The
+    // Legacy `MachinePickerDialog` is retired (FR-027). The
     // consolidated RmlUi Settings panel hosts the machine selector
     // and routes the actual switch through `SwitchMachine` /
     // `SettingsPanelState::Apply` on commit. Old entry points
@@ -2458,7 +2458,7 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     CHRN (hr, format (L"Failed to load machine config:\n{}",
                       wstring (error.begin(), error.end())).c_str());
 
-    // Phase 11 / T097 / FR-025. Auto-flush every dirty disk before
+    // / T097 / FR-025. Auto-flush every dirty disk before
     // tearing down the previous machine so user writes survive the
     // machine switch.
     {
@@ -2552,7 +2552,7 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     hrReg = RegistrySettings::WriteString (kLastMachineValue, machineName);
     IGNORE_RETURN_VALUE (hrReg, S_OK);
 
-    // Phase 4 / FR-034. Same cold-power-on sequence as Initialize() —
+    // / FR-034. Same cold-power-on sequence as Initialize() —
     // seed DRAM and run the 6502 /RESET sequence. Without this the
     // newly-built machine starts with a random PC into uninitialized
     // RAM. Mounts persist across the switch (they were flushed above
@@ -2635,7 +2635,7 @@ int EmulatorShell::RunMessageLoop()
             }
         }
 
-        // P8-T6 / FR-038. Push the latest CRT params (brightness slider,
+        // / FR-038. Push the latest CRT params (brightness slider,
         // scanlines/bloom/color-bleed toggles + magnitudes) to the
         // renderer every UI frame so user edits land on the very next
         // present. The active theme's `crtDefaults` only apply when the
@@ -2706,7 +2706,7 @@ void EmulatorShell::CpuThreadProc()
     // Drive-audio sample loading (spec 005-disk-ii-audio FR-009,
     // NFR-005, FR-019, FR-006). The mixer holds the asset-load
     // context so any later runtime mechanism switch (Options dialog,
-    // Phase 14) can reload every registered source through one
+    // ) can reload every registered source through one
     // entry point. Default mechanism is Shugart unless the
     // per-machine registry already overrode it during Initialize.
     if (m_wasapiAudio.IsInitialized() && !m_diskAudioSources.empty())
@@ -3231,7 +3231,7 @@ void EmulatorShell::RenderFramebuffer()
 //
 //  HandleCommand
 //
-//  Public command-pump entry point. Used by the NavLayer (P4-T5) so
+//  Public command-pump entry point. Used by the NavLayer so
 //  click routing from the RML chrome funnels through the same
 //  dispatch path as a Win32 menu pick. Intentionally a thin wrapper —
 //  OnCommand owns the real id-range demux.
@@ -3370,7 +3370,7 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
     m_refs.keyboard->SetKeyDown (true);
 
-    // Phase 6 / T063 / FR-013. //e modifier-key wiring (host -> emulator):
+    // / T063 / FR-013. //e modifier-key wiring (host -> emulator):
     //   left  Alt   -> Open Apple   ($C061)
     //   right Alt   -> Closed Apple ($C062)
     //   Shift       -> Shift        ($C063)
@@ -3451,7 +3451,7 @@ bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 
     m_refs.keyboard->SetKeyDown (false);
 
-    // Phase 6 / T063: release //e modifiers when the host releases the
+    // / T063: release //e modifiers when the host releases the
     // physical key. Both VK_MENU and VK_L/RMENU events drive a re-query
     // of the canonical left/right state via GetKeyState — the modifier
     // remains asserted on the //e side as long as either physical Alt
@@ -4317,7 +4317,7 @@ void EmulatorShell::SelectVideoMode()
 //
 //  SoftReset
 //
-//  Phase 4 / FR-034. Drives the //e /RESET path: every device clears its
+//  / FR-034. Drives the //e /RESET path: every device clears its
 //  reset-sensitive state (audit S10 [CRITICAL] - 80COL/ALTCHARSET no
 //  longer survive), the MMU returns to the post-reset banking flags, and
 //  the CPU re-loads PC from $FFFC. User RAM is preserved.
@@ -4359,7 +4359,7 @@ void EmulatorShell::SoftReset()
 //
 //  PowerCycle
 //
-//  Phase 4 / FR-035. Reseeds every DRAM-owning device from m_prng then
+//  / FR-035. Reseeds every DRAM-owning device from m_prng then
 //  runs the SoftReset sequence. The Prng is constructed once (host
 //  process lifetime) so consecutive cycles within a single session
 //  continue producing fresh patterns rather than repeating the seed.
@@ -4375,7 +4375,7 @@ void EmulatorShell::PowerCycle()
         return;
     }
 
-    // Phase 11 / T097 / FR-025 / FR-035. Auto-flush dirty disks before
+    // / T097 / FR-025 / FR-035. Auto-flush dirty disks before
     // reseeding device state so writes don't get lost across a power
     // cycle. Mounts persist (matches DiskImageStore::SoftReset semantics
     // — see comment block on DiskImageStore::PowerCycle, which is the
@@ -4571,7 +4571,7 @@ bool EmulatorShell::OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, boo
 //
 //  OnNcCalcSize
 //
-//  P4-T2: collapse the entire non-client area into the client rect so
+//  Collapse the entire non-client area into the client rect so
 //  the chrome we draw owns every pixel. When wParam is TRUE we return
 //  0 with NCCALCSIZE_PARAMS.rgrc[0] untouched, telling Windows that
 //  the proposed window rect IS the new client rect.
@@ -4662,7 +4662,7 @@ LRESULT EmulatorShell::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
 //
 //  OnNcLButtonUp
 //
-//  P4-T4: dispatch system-button clicks. HTCLOSE → WM_CLOSE,
+//  Dispatch system-button clicks. HTCLOSE → WM_CLOSE,
 //  HTMINBUTTON → minimize, HTMAXBUTTON → toggle maximize. Everything
 //  else falls through to DefWindowProc so caption double-clicks,
 //  system-menu, snap layouts, etc. all keep working.

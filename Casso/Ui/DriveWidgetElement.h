@@ -15,7 +15,7 @@
 //
 //  DriveWidgetElement
 //
-//  Custom `Rml::Element` subclass (P6-T3) that backs the `<drive-widget>`
+//  Custom `Rml::Element` subclass that backs the `<drive-widget>`
 //  RML tag. One element instance per physical drive (slot 6 + drive 0/1
 //  in the integrated Disk II).
 //

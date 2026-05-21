@@ -29,7 +29,7 @@
 //  observe motor state from a second thread; no new sync primitives are
 //  introduced (P6 constitution check gate).
 //
-//  Door animation FSM (P6-T6)
+//  Door animation FSM
 //  --------------------------
 //      Closed   -> Opening   on  BeginEject  (mounted == false set later)
 //      Opening  -> Open      after kDoorAnimationMs elapsed

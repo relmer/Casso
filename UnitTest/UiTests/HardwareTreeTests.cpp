@@ -14,7 +14,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  HardwareTreeTests
 //
-//  P7-T8 -- the pure-data shaping of the hardware tree. We exercise
+//  The pure-data shaping of the hardware tree. We exercise
 //  `SettingsPanelState::ExtractHardware` against fixture JSONs and
 //  assert that the produced rows carry the right (kind, slot,
 //  capability, lockReason, enabled) for the SettingsPanel renderer

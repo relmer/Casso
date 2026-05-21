@@ -136,7 +136,7 @@ static HRESULT LoadMachineConfig (
     CHRN (hr, format (L"ROM download failed:\n{}",
                       wstring (error.begin(), error.end())).c_str());
 
-    // Disk II audio bootstrap (spec 005-disk-ii-audio Phase 13 /
+    // Disk II audio bootstrap (spec 005-disk-ii-audio /
     // FR-017). Only relevant when the active machine actually has a
     // Disk II controller wired up. Failures are best-effort: we log
     // and continue so a missing-internet startup still launches the
@@ -300,7 +300,7 @@ int WINAPI wWinMain (
             PathResolver::GetExecutableDirectory());
         IGNORE_RETURN_VALUE (hrBoot, S_OK);
 
-        // P5-T6: extract the three built-in UI themes alongside the
+        // Extract the three built-in UI themes alongside the
         // machine configs so the very first launch has chrome to
         // render. User-authored Themes/<MyTheme>/ entries are
         // preserved — the planner only ever touches built-in dirs.
@@ -324,7 +324,7 @@ int WINAPI wWinMain (
             fs::path ("Machines") / fs::path (machineName).string()
                                   / (fs::path (machineName).string() + ".json")).empty())
     {
-        // P9-T1: legacy Win32 `MachinePickerDialog` is retired
+        // Legacy Win32 `MachinePickerDialog` is retired
         // (FR-027). At startup we deterministically pick the first
         // available machine from `MachineScanner::Scan`; the user
         // can switch later via the RmlUi Settings panel. If nothing

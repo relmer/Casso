@@ -24,7 +24,7 @@ class IFileSystem;
 //
 //  SettingsPanel
 //
-//  P7-T2..T5 -- RmlUi front end for `SettingsPanelState`. Loads the
+//  RmlUi front end for `SettingsPanelState`. Loads the
 //  active theme's `settings.rml`, populates the machine selector
 //  from `MachineScanner`, binds every control to a transient
 //  `SettingsPanelState` snapshot, and dispatches Apply / Cancel to

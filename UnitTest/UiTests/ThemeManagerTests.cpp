@@ -15,7 +15,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  ThemeManagerTests
 //
 //  Exercises the ThemeManager + ThemeBootstrapPlanner without an
-//  active RmlUi context. Per the P5-T8 deferred timing note,
+//  Active RmlUi context. Per the deferred timing note,
 //  hot-swap latency is validated against a live context in P9.
 //
 //  All file I/O routes through `InMemoryFileSystem`. A null

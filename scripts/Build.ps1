@@ -69,7 +69,7 @@ if (-not (Test-Path $solutionPath)) {
     throw "Solution not found: $solutionPath"
 }
 
-# P8-T7. GPL/copyleft guard for vendored shader ports. Runs before the
+# GPL/copyleft guard for vendored shader ports. Runs before the
 # msbuild invocation so a license drift fails the build with a clear
 # error before any compile output is produced. Skipped for Clean/CleanAll
 # targets (no source compile -> nothing to taint).

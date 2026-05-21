@@ -12,12 +12,12 @@
 //
 //  Test-friendly abstraction over the small subset of file-system
 //  operations Casso needs for its JSON config / preferences plumbing.
-//  Per spec 007-ui-overhaul P2-T1: the interface speaks only in
+//  Overhaul : the interface speaks only in
 //  std::wstring paths and primitive byte payloads. Win32 types
 //  (HANDLE, DWORD, GetLastError state) MUST NOT appear on the
 //  interface surface — the production implementation hides them in
 //  Win32FileSystem.cpp; unit tests substitute InMemoryFileSystem
-//  (UnitTest/UiTests/InMemoryFileSystem.h, introduced in P2-T6).
+//  (UnitTest/UiTests/InMemoryFileSystem.h, introduced in ).
 //
 //  All operations follow Casso's EHM pattern: HRESULT return, no
 //  thrown exceptions. WriteAllText is atomic on success — the

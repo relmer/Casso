@@ -35,7 +35,7 @@
 //          -> destroys the context, calls Rml::Shutdown, releases the
 //             interfaces in reverse order.
 //
-//  Parallel-mode invariant (P3-T5): existing Win32 menus, dialogs,
+//  Parallel-mode invariant: existing Win32 menus, dialogs,
 //  and the framebuffer-blit path are NOT touched. The UiShell renders
 //  *after* the emulator blit so any RmlUi content composites on top.
 //

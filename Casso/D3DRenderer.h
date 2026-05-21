@@ -25,7 +25,7 @@ public:
     HRESULT ToggleFullscreen (HWND hwnd);
     HRESULT Resize (int width, int height);
 
-    // P8-T6 live-wire path for CRT params (brightness, scanlines, bloom,
+    // Live-wire path for CRT params (brightness, scanlines, bloom,
     // color-bleed). EmulatorShell pushes a fresh `CrtParams` once per UI
     // frame (right before UploadAndPresent) so slider edits from the
     // Settings panel land on the next-rendered frame without ever
@@ -36,7 +36,7 @@ public:
 
     bool IsFullscreen() const { return m_fullscreen; }
 
-    // P8-T6 -- accessors for the current swap chain dimensions so the
+    // Accessors for the current swap chain dimensions so the
     // EmulatorShell can populate `CrtParams::outputW/H` for the shader
     // constant buffer without piping the window size through a side
     // channel.
@@ -45,7 +45,7 @@ public:
 
     void Shutdown();
 
-    // Accessors used by the RmlUi backend (Phase 7 P3-T6). Both
+    // Accessors used by the RmlUi backend. Both
     // return non-owning pointers whose lifetime is bounded by
     // Initialize -> Shutdown on this renderer.
     ID3D11Device        * GetDevice  () const { return m_device.Get  (); }
@@ -75,7 +75,7 @@ private:
     ComPtr<ID3D11Buffer>             m_indexBuffer;
     ComPtr<ID3D11InputLayout>        m_inputLayout;
 
-    // P8-T4 CRT post-process pass. Owns the intermediate ping-pong RTs +
+    // CRT post-process pass. Owns the intermediate ping-pong RTs +
     // the per-effect HLSL pixel shaders. Initialized in Initialize once
     // the device is up; torn down in Shutdown. `Process` is invoked
     // unconditionally from UploadAndPresent -- a disabled effect maps
@@ -94,7 +94,7 @@ private:
     RECT    m_windowedRect  = {};
     LONG    m_windowedStyle = 0;
 
-    // P3-T6 hook point. Invoked from UploadAndPresent after the
+    // Hook point. Invoked from UploadAndPresent after the
     // emulator blit DrawIndexed and before swapChain->Present so
     // RmlUi (or any other overlay) can draw onto the back buffer.
     std::function<void()>  m_afterBlitHook;

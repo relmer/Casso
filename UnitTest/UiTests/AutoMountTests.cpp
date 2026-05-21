@@ -64,7 +64,7 @@ namespace
 //
 //  AutoMountTests
 //
-//  P6-T7 -- exercises the pure-logic auto-mount resolver + the sink
+//  Exercises the pure-logic auto-mount resolver + the sink
 //  routing path. Avoids touching real disk via IFileSystem injection.
 //
 ////////////////////////////////////////////////////////////////////////////////
