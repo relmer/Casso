@@ -109,6 +109,8 @@ std::wstring UserConfigStore::UserFilePath (const std::string & machineName) con
 {
     std::wstring  result = m_userDir;
 
+
+
     if (!result.empty() &&
         result.back() != L'\\' &&
         result.back() != L'/')
@@ -152,6 +154,7 @@ HRESULT UserConfigStore::Load (
     int              defaultVer    = 0;
     int              userVer       = 0;
     bool             fNeedMigrate  = false;
+
 
 
     if (!fs.Exists (path))
@@ -226,6 +229,7 @@ HRESULT UserConfigStore::SaveDelta (
     std::wstring         path    = UserFilePath (machineName);
     std::string          text;
     JsonWriter::Options  opts;
+
 
 
     delta = DiffJson (currentJson, defaultJson);
@@ -445,6 +449,8 @@ bool UserConfigStore::JsonEqual (
     const JsonValue & b)
 {
     int  idx = 0;
+
+
 
     if (a.GetType() != b.GetType())
     {

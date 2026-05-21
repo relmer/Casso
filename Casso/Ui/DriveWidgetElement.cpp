@@ -145,6 +145,8 @@ void DriveWidgetElement::OpenAndMount()
     int           slot  = 0;
     int           drive = 0;
 
+
+
     if (m_pSink == nullptr)
     {
         return;
@@ -283,6 +285,8 @@ HRESULT DriveWidgetElement::HandleDroppedFile (const std::wstring & path)
     HRESULT  hr    = S_OK;
     int      slot  = 0;
     int      drive = 0;
+
+
 
     if (m_pSink == nullptr)
     {

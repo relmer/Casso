@@ -694,6 +694,7 @@ HRESULT AssetBootstrap::EnsureThemes (
     error_code  ec;
 
 
+
     themesDir = PathResolver::FindOrCreateAssetDir (searchPaths,
                                                     fs::path ("Themes"),
                                                     exeDir);
@@ -892,6 +893,7 @@ static HRESULT DownloadHttp (
     string       narrowHost;
 
 
+
     outBytes.clear();
     outBytes.reserve (expectedSize);
 
@@ -1017,6 +1019,7 @@ static HRESULT DownloadOne (
     wstring  wPath = wstring (s_kpszUrlPrefix) + AsciiToWide (spec.appleWinName);
 
 
+
     return DownloadHttp (hSession,
                          s_kpszAppleWinHost,
                          wPath.c_str(),
@@ -1041,6 +1044,7 @@ static bool PromptUser (HWND hwndParent, const vector<const RomSpec *> & missing
     wstring  message;
     wstring  title;
     int      response = 0;
+
 
 
     message = L"Casso needs the following Apple ROM image(s):\n\n";
@@ -1095,6 +1099,7 @@ static const EmbeddedConfig * FindEmbeddedConfig (const wstring & machineName)
     wstring                 wide;
 
 
+
     for (const EmbeddedConfig & cfg : s_kEmbeddedConfigs)
     {
         wide = AsciiToWide (cfg.machineName);
@@ -1133,6 +1138,7 @@ static HRESULT LoadEmbeddedJson (
     HRESULT                 hr    = S_OK;
     const EmbeddedConfig  * cfg   = nullptr;
     span<const Byte>        bytes;
+
 
 
     outJsonText.clear();
@@ -1188,6 +1194,7 @@ HRESULT AssetBootstrap::GetRequiredRoms (
     string   narrowName;
 
 
+
     outRomFiles.clear();
 
     hr = LoadEmbeddedJson (hInstance, machineName, jsonText, narrowName, outError);
@@ -1230,6 +1237,7 @@ HRESULT AssetBootstrap::HasDiskController (
     HRESULT             hrOpt        = S_OK;
     size_t              idx          = 0;
     string              device;
+
 
 
     outHasDiskController = false;
@@ -1396,6 +1404,7 @@ static wstring GetEmbeddedDisplayName (HINSTANCE hInstance, const wstring & mach
     wstring         result    = machineName;
 
 
+
     hr = LoadEmbeddedJson (hInstance, machineName, jsonText, narrowName, dummyError);
 
     if (SUCCEEDED (hr))
@@ -1446,6 +1455,7 @@ static const BootDiskSpec * PromptBootDisk (HWND hwndParent, const wstring & dis
     TASKDIALOGCONFIG      cfg           = { sizeof (TASKDIALOGCONFIG) };
     TASKDIALOG_BUTTON     buttons[2]    = {};
     const BootDiskSpec  * result        = nullptr;
+
 
 
     body  = L"The ";
@@ -1548,6 +1558,7 @@ HRESULT AssetBootstrap::OfferBootDiskDownload (
     fs::path              destPath;
     vector<Byte>          payload;
     error_code            ec;
+
 
 
     outDiskPath.clear();

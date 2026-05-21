@@ -588,6 +588,8 @@ HRESULT MachineConfigLoader::CollectRomFiles (
     HRESULT             hrOpt          = S_OK;
     size_t              idx            = 0;
 
+
+
     outFiles.clear();
 
     hr = JsonParser::Parse (jsonText, root, parseError);

@@ -21,6 +21,8 @@ AutoMountResolver::Decision AutoMountResolver::Resolve (
 {
     Decision  decision = { Action::LeaveEmpty, std::wstring() };
 
+
+
     if (rememberedPath.empty())
     {
         return decision;
@@ -58,6 +60,8 @@ std::array<std::wstring, 2> AutoMountResolver::SnapshotForPersistence (
     const std::wstring & drive1Path)
 {
     std::array<std::wstring, 2>  out;
+
+
 
     out[0] = drive0Path;
     out[1] = drive1Path;

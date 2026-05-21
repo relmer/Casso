@@ -266,6 +266,7 @@ HRESULT NavLayer::Show (Rml::Context * context, DispatchFn dispatch)
     HRESULT  hr = S_OK;
 
 
+
     CPR (context);
 
     if (m_doc != nullptr)

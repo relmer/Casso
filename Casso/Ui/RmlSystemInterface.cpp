@@ -47,6 +47,8 @@ double RmlSystemInterface::GetElapsedTime()
 {
     LARGE_INTEGER now = {};
 
+
+
     QueryPerformanceCounter (&now);
 
     LONGLONG ticks = now.QuadPart - m_qpcStart.QuadPart;
@@ -89,6 +91,8 @@ bool RmlSystemInterface::LogMessage (Rml::Log::Type type, const Rml::String & me
 {
     const char * label = "INFO";
 
+
+
     switch (type)
     {
         case Rml::Log::LT_ERROR:   label = "ERROR";   break;
@@ -128,6 +132,8 @@ bool RmlSystemInterface::LogMessage (Rml::Log::Type type, const Rml::String & me
 void RmlSystemInterface::SetMouseCursor (const Rml::String & cursor_name)
 {
     LPCWSTR id = IDC_ARROW;
+
+
 
     if (cursor_name == "pointer")            { id = IDC_HAND;     }
     else if (cursor_name == "text")          { id = IDC_IBEAM;    }

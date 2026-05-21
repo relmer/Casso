@@ -183,6 +183,8 @@ bool Win32FileSystem::Exists (const std::wstring & path)
 {
     DWORD  attrs = GetFileAttributesW (path.c_str());
 
+
+
     if (attrs == INVALID_FILE_ATTRIBUTES)
     {
         return false;

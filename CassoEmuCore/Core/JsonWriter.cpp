@@ -23,6 +23,8 @@ string JsonWriter::Write (const JsonValue & value)
     Options  opts    = {};
     string   text;
 
+
+
     opts.fPretty = false;
 
     IGNORE_RETURN_VALUE (hr, Write (value, opts, text));
@@ -50,6 +52,8 @@ HRESULT JsonWriter::Write (
 {
     HRESULT hr = S_OK;
 
+
+
     outText.clear();
     hr = WriteValue (value, 0, opts, outText);
     CHR (hr);
@@ -75,6 +79,8 @@ HRESULT JsonWriter::WriteValue (
     string            & out)
 {
     HRESULT hr = S_OK;
+
+
 
     switch (v.GetType())
     {
@@ -214,6 +220,8 @@ void JsonWriter::WriteString (const string & s, string & out)
     char    buf[8];
     size_t  i = 0;
 
+
+
     out += '"';
 
     for (i = 0; i < s.size(); ++i)
@@ -264,6 +272,8 @@ HRESULT JsonWriter::WriteNumber (double n, string & out)
     int      written   = 0;
     double   truncated = 0.0;
 
+
+
     if (!std::isfinite (n))
     {
         hr = HRESULT_FROM_WIN32 (ERROR_DATATYPE_MISMATCH);
@@ -308,6 +318,8 @@ void JsonWriter::WriteIndent (int depth, const Options & opts, string & out)
 {
     int     count = depth * opts.indentSize;
     int     i     = 0;
+
+
 
     for (i = 0; i < count; ++i)
     {

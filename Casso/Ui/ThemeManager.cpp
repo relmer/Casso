@@ -160,6 +160,7 @@ HRESULT ThemeManager::Discover ()
     HRESULT                    hr     = S_OK;
 
 
+
     m_available.clear();
 
     hr = ThemeLoader::EnumerateCandidateDirs (m_fs, m_themesBaseDir, dirNames);
@@ -210,6 +211,8 @@ const LoadedTheme * ThemeManager::GetActiveTheme () const
 {
     size_t  i = 0;
 
+
+
     if (m_activeName.empty())
     {
         return nullptr;
@@ -247,6 +250,7 @@ HRESULT ThemeManager::Activate (const std::string & themeName)
     size_t               i        = 0;
     HRESULT              hr       = S_OK;
     std::string          previous = m_activeName;
+
 
 
     for (i = 0; i < m_available.size(); ++i)
@@ -300,6 +304,7 @@ HRESULT ThemeManager::ReloadCurrent ()
 {
     std::string  name = m_activeName;
     HRESULT      hr   = S_OK;
+
 
 
     if (name.empty())
@@ -427,6 +432,8 @@ void ThemeManager::UnloadActiveDocuments ()
 {
     size_t  i = 0;
 
+
+
     if (m_context == nullptr)
     {
         m_activeDocs.clear();
@@ -479,6 +486,8 @@ void ThemeManager::ApplyDwm (const LoadedTheme & theme)
 void ThemeManager::NotifyListeners (const LoadedTheme & theme)
 {
     size_t  i = 0;
+
+
 
     for (i = 0; i < m_listeners.size(); ++i)
     {

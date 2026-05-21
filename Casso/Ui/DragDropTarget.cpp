@@ -53,6 +53,8 @@ HRESULT DragDropTarget::Initialize (HWND hwnd, HitTestFn hitTest)
 {
     HRESULT  hr = S_OK;
 
+
+
     CPR (hwnd);
 
     m_hwnd    = hwnd;
@@ -172,6 +174,8 @@ HRESULT DragDropTarget::ExtractFirstHDropPath (IDataObject * pData, std::wstring
     bool      fGotMedium = false;
     wchar_t   buffer[MAX_PATH] = { };
 
+
+
     outPath.clear();
 
     if (pData == nullptr)
@@ -248,6 +252,8 @@ STDMETHODIMP DragDropTarget::DragEnter (
     std::wstring  path;
     HRESULT       hr  = S_OK;
 
+
+
     m_fDragHasSupportedFile = false;
     m_dragPath.clear();
 
@@ -278,6 +284,8 @@ STDMETHODIMP DragDropTarget::DragOver (
     DWORD   * pdwEffect)
 {
     DriveWidgetElement *  pWidget = nullptr;
+
+
 
     if (pdwEffect == nullptr)
     {
@@ -335,6 +343,8 @@ STDMETHODIMP DragDropTarget::Drop (
     std::wstring          path;
     DriveWidgetElement *  pWidget = nullptr;
     HRESULT               hr      = S_OK;
+
+
 
     if (pdwEffect != nullptr)
     {

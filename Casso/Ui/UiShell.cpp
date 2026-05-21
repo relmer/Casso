@@ -54,6 +54,8 @@ HRESULT UiShell::Initialize (
     ID3D11Device        * dev    = nullptr;
     ID3D11DeviceContext * ctx    = nullptr;
 
+
+
     CWRA (GetClientRect (hwnd, &client));
 
     m_hwnd     = hwnd;

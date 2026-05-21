@@ -20,6 +20,8 @@ wstring RegistrySettings::BuildKeyPath (LPCWSTR subkey)
 {
     wstring  path = kRegistryKeyPath;
 
+
+
     if (subkey != nullptr && *subkey != L'\0')
     {
         path += L"\\";

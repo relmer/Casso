@@ -162,6 +162,8 @@ HRESULT RmlBackend_D3D11::Initialize (
 {
     HRESULT hr = S_OK;
 
+
+
     CPRAEx (pDevice,  E_INVALIDARG);
     CPRAEx (pContext, E_INVALIDARG);
 
@@ -246,6 +248,8 @@ HRESULT RmlBackend_D3D11::CompileHlsl (
 {
     HRESULT             hr     = S_OK;
     ComPtr<ID3DBlob>    errors;
+
+
 
     hr = D3DCompile (src,
                      srcLen,
@@ -414,6 +418,8 @@ HRESULT RmlBackend_D3D11::InitializeConstantBuffer()
     HRESULT            hr  = S_OK;
     D3D11_BUFFER_DESC  bd  = {};
 
+
+
     bd.ByteWidth      = sizeof (ConstantBufferData);
     bd.Usage          = D3D11_USAGE_DYNAMIC;
     bd.BindFlags      = D3D11_BIND_CONSTANT_BUFFER;
@@ -485,6 +491,8 @@ Error:
 HRESULT RmlBackend_D3D11::Resize (UINT widthPx, UINT heightPx)
 {
     HRESULT hr = S_OK;
+
+
 
     if (widthPx == 0)  { widthPx  = 1; }
     if (heightPx == 0) { heightPx = 1; }
@@ -891,6 +899,8 @@ HRESULT RmlBackend_D3D11::LoadImageBytesViaWic (
     ComPtr<IWICFormatConverter>        converter;
     size_t                             stride    = 0;
     size_t                             total     = 0;
+
+
 
     outRgbaPremultiplied.clear();
     outWidth  = 0;

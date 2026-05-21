@@ -91,6 +91,8 @@ HRESULT DriveWidgetController::LoadDocument (
 {
     HRESULT  hr = S_OK;
 
+
+
     CPR (pContext);
 
     UnloadDocument();

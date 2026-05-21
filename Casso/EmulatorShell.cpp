@@ -116,6 +116,8 @@ EmulatorShell::~EmulatorShell()
     HRESULT             hrFlush    = S_OK;
     DiskIIController *  controller = nullptr;
 
+
+
     m_running.store (false, memory_order_release);
 
     if (m_cpuThread.joinable())
@@ -801,6 +803,8 @@ void EmulatorShell::RefreshDriveStatus()
     wchar_t   tooltip[MAX_PATH + 96] = { };
     TOOLINFOW ti       = { };
 
+
+
     if (m_statusBar == nullptr || m_statusBarDriveCount <= 0)
     {
         return;
@@ -1179,6 +1183,8 @@ bool EmulatorShell::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
     NMHDR   * pnmh = reinterpret_cast<NMHDR *> (lParam);
     NMMOUSE * pnmm = nullptr;
+
+
 
     UNREFERENCED_PARAMETER (hwnd);
     UNREFERENCED_PARAMETER (wParam);
@@ -1866,6 +1872,8 @@ DiskIIController * EmulatorShell::FindSlot6Controller()
 {
     DiskIIController *  result = nullptr;
 
+
+
     for (auto & dev : m_ownedDevices)
     {
         result = dynamic_cast<DiskIIController *> (dev.get());
@@ -1963,6 +1971,8 @@ void EmulatorShell::EjectDiskInSlot6 (int drive)
 {
     DiskIIController *  controller = FindSlot6Controller();
 
+
+
     m_diskStore.Eject (6, drive);
 
     if (controller != nullptr)
@@ -2023,6 +2033,8 @@ void EmulatorShell::RemountSlot6Disks()
     HRESULT  hrMount = S_OK;
     int      drive   = 0;
 
+
+
     for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
     {
         savedDisk[drive] = m_diskStore.GetSourcePath (6, drive);
@@ -2058,6 +2070,8 @@ HRESULT EmulatorShell::Mount (int slot, int drive, const std::wstring & path)
 {
     HRESULT  hr      = S_OK;
     WORD     command = 0;
+
+
 
     if (slot != 6)
     {
@@ -2098,6 +2112,8 @@ Error:
 void EmulatorShell::Eject (int slot, int drive)
 {
     WORD  command = 0;
+
+
 
     if (slot != 6)
     {
@@ -2163,6 +2179,8 @@ void EmulatorShell::UpdateDriveWidgets()
     DiskIIController *  controller = m_refs.diskController;
     int64_t             nowMs      = NowMs();
     int                 drive      = 0;
+
+
 
     for (drive = 0; drive < static_cast<int> (m_driveWidgetState.size()); drive++)
     {
@@ -3522,6 +3540,8 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
     RECT sbRect     = {};
     int  renderH    = static_cast<int> (height);
 
+
+
     UNREFERENCED_PARAMETER (hwnd);
 
 
@@ -3878,6 +3898,8 @@ void EmulatorShell::OnMachineCommand (int id)
 {
     bool paused = false;
 
+
+
     switch (id)
     {
         case IDM_MACHINE_RESET:
@@ -3969,6 +3991,8 @@ void EmulatorShell::OnViewCommand (int id)
     int         h     = 0;
     int         x     = 0;
     int         y     = 0;
+
+
 
     switch (id)
     {
@@ -4069,6 +4093,8 @@ void EmulatorShell::OnDiskCommand (int id)
 {
     WCHAR           filePath[MAX_PATH] = {};
     OPENFILENAMEW   ofn                = {};
+
+
 
     switch (id)
     {
@@ -4378,6 +4404,8 @@ void EmulatorShell::PowerCycle()
 {
     HRESULT  hrFlush = S_OK;
 
+
+
     if (m_prng == nullptr)
     {
         return;
@@ -4440,6 +4468,8 @@ void EmulatorShell::OpenDiskIIDebugDialog()
     int                 diskIICount  = 0;
     HINSTANCE           hInstance    = nullptr;
     size_t              i            = 0;
+
+
 
     controller = FindSlot6Controller();
 
@@ -4626,6 +4656,7 @@ LRESULT EmulatorShell::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
     RECT                  rcMax    = {};
     RECT                  rcClose  = {};
     TitleBarHitTestInput  in       = {};
+
 
 
     if (!ScreenToClient (hwnd, &pt))

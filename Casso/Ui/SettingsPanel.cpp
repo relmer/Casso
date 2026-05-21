@@ -198,6 +198,7 @@ HRESULT SettingsPanel::Show()
     HRESULT  hr = S_OK;
 
 
+
     CPR (m_uiShell);
     CPR (m_themes);
 
@@ -261,6 +262,7 @@ HRESULT SettingsPanel::ReloadDocument()
     Rml::Context      * ctx     = nullptr;
     const LoadedTheme * theme   = nullptr;
     std::string         rmlPath;
+
 
 
     CPR (m_uiShell);
@@ -327,6 +329,7 @@ void SettingsPanel::PopulateMachineSelector (Rml::ElementDocument * doc)
     fs::path        cwd;
 
 
+
     if (doc == nullptr)
     {
         return;
@@ -374,6 +377,7 @@ void SettingsPanel::PopulateMachineSelector (Rml::ElementDocument * doc)
 void SettingsPanel::PopulateThemeSelector (Rml::ElementDocument * doc)
 {
     Rml::Element *  sel = nullptr;
+
 
 
     if (doc == nullptr || m_themes == nullptr)
@@ -424,6 +428,7 @@ HRESULT SettingsPanel::LoadMergedForMachine (
     JsonParseError   perr;
 
 
+
     CPR (m_fs);
     CPR (m_ucs);
 
@@ -467,6 +472,7 @@ HRESULT SettingsPanel::RebindToMachine (const std::string & machineName)
     JsonValue  merged;
 
 
+
     hr = LoadMergedForMachine (machineName, defJson, merged);
     CHR (hr);
 
@@ -498,6 +504,7 @@ void SettingsPanel::RebuildHardwareTree (Rml::ElementDocument * doc)
     Rml::Element *  tree = nullptr;
     std::string     html;
     size_t          i    = 0;
+
 
 
     if (doc == nullptr)
@@ -580,6 +587,7 @@ void SettingsPanel::ReflectStateToDom (Rml::ElementDocument * doc)
     Rml::Element *  wp1     = nullptr;
 
 
+
     if (doc == nullptr)
     {
         return;
@@ -651,6 +659,7 @@ void SettingsPanel::ReflectStateToDom (Rml::ElementDocument * doc)
 void SettingsPanel::ApplyGlobalPrefsToDom (Rml::ElementDocument * doc)
 {
     Rml::Element *  sel = nullptr;
+
 
 
     if (doc == nullptr || m_prefs == nullptr)
@@ -897,6 +906,8 @@ void SettingsPanel::ProcessEvent (Rml::Event & event)
 void SettingsPanel::ShowResetConfirm (bool show)
 {
     Rml::Element * modal = nullptr;
+
+
 
     if (m_doc == nullptr)
     {

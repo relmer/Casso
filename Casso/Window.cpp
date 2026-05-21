@@ -141,6 +141,8 @@ Window * Window::s_GetSetThisPointer (HWND hwnd, UINT message, WPARAM wParam, LP
 {
     Window * pThis = nullptr;
 
+
+
     UNREFERENCED_PARAMETER (wParam);
 
 

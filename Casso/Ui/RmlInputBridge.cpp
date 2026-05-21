@@ -107,6 +107,8 @@ int RmlInputBridge::SynthesizeModifiers (
 {
     int  mods = 0;
 
+
+
     if (fCtrl)        mods |= Mod::Ctrl;
     if (fShift)       mods |= Mod::Shift;
     if (fAlt)         mods |= Mod::Alt;
@@ -224,6 +226,8 @@ bool RmlInputBridge::CoalesceUtf16Char (
     constexpr wchar_t  kHighEnd    = 0xDBFF;
     constexpr wchar_t  kLowStart   = 0xDC00;
     constexpr wchar_t  kLowEnd     = 0xDFFF;
+
+
 
     if (ch >= kHighStart && ch <= kHighEnd)
     {

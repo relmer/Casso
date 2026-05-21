@@ -98,6 +98,7 @@ int  TitleBarLayout::DefaultTitleHeight (UINT dpi)
     int  padd = 0;
 
 
+
     cy   = GetSystemMetricsForDpi (SM_CYCAPTION,      dpi);
     padd = GetSystemMetricsForDpi (SM_CXPADDEDBORDER, dpi);
 
@@ -125,6 +126,8 @@ int  TitleBarLayout::DefaultButtonWidth (UINT dpi)
 {
     UINT  effectiveDpi = (dpi == 0) ? 96 : dpi;
 
+
+
     return MulDiv (46, (int) effectiveDpi, 96);
 }
 
@@ -147,6 +150,7 @@ TitleBarLayoutOutput TitleBarLayout::Compute (const TitleBarLayoutInput & in)
     int                   maxLeft      = 0;
     int                   closeLeft    = 0;
     int                   buttonWidth  = 0;
+
 
 
     buttonWidth = in.buttonWidth > 0 ? in.buttonWidth : 46;
@@ -242,6 +246,7 @@ HRESULT TitleBar::Show (Rml::Context * context)
     HRESULT  hr = S_OK;
 
 
+
     CPR (context);
 
     if (m_doc != nullptr)
@@ -300,6 +305,7 @@ void TitleBar::Hide()
 void TitleBar::UpdateGeometry (int clientWidth, UINT dpi)
 {
     TitleBarLayoutInput  in = {};
+
 
 
     in.clientWidth = clientWidth;

@@ -249,6 +249,7 @@ RECT ComputeLetterboxRect (int backBufferW, int backBufferH)
     RECT  r = {};
 
 
+
     if (backBufferW <= 0 || backBufferH <= 0)
     {
         return r;
@@ -324,6 +325,7 @@ HRESULT CrtPostProcess::CompilePixelShader (const char * src, ID3D11PixelShader 
     HRESULT             hr     = S_OK;
     ComPtr<ID3DBlob>    blob;
     ComPtr<ID3DBlob>    errors;
+
 
 
     CPRA (out);
@@ -552,6 +554,7 @@ HRESULT CrtPostProcess::UploadConstants (const CrtParams & params)
     D3D11_MAPPED_SUBRESOURCE  mapped = {};
 
 
+
     hr = m_context->Map (m_constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
     CHRA (hr);
 
@@ -657,6 +660,7 @@ HRESULT CrtPostProcess::Process (
     HRESULT  hr   = S_OK;
 
 
+
     CPRA (srcSrv);
     CPRA (dstRtv);
     CPRA (m_device);
@@ -736,6 +740,7 @@ Error:
 void CrtPostProcess::Shutdown()
 {
     int  i = 0;
+
 
 
     for (i = 0; i < 2; ++i)

@@ -298,6 +298,8 @@ bool SettingsPanelState::RequiresReset() const
 {
     size_t  i = 0;
 
+
+
     if (m_original.hardware.size() != m_current.hardware.size())
     {
         return true;
@@ -404,6 +406,7 @@ void SettingsPanelState::SetWriteProtect (int drive, bool wp)
 HRESULT SettingsPanelState::SetHardwareEnabled (size_t index, bool enabled)
 {
     HRESULT  hr = S_OK;
+
 
 
     CBR (index < m_current.hardware.size());
@@ -818,6 +821,8 @@ bool SettingsPanelState::HardwareEqual (
     const std::vector<HardwareEntry> & b)
 {
     size_t  i = 0;
+
+
 
     if (a.size() != b.size())
     {

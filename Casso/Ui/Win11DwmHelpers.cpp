@@ -104,6 +104,7 @@ bool Win11DwmHelpers::IsWindows11OrGreater()
     DWORD  build = 0;
 
 
+
     if (!GetOsBuild (major, build))
     {
         return false;
@@ -132,6 +133,7 @@ bool Win11DwmHelpers::IsWindows10_1809OrGreater()
     DWORD  build = 0;
 
 
+
     if (!GetOsBuild (major, build))
     {
         return false;
@@ -155,6 +157,7 @@ bool Win11DwmHelpers::IsWindows10_1809OrGreater()
 void Win11DwmHelpers::ApplyRoundedCorners (HWND hwnd, bool round)
 {
     DWORD  pref = round ? kDwmwcpRound : kDwmwcpDoNotRound;
+
 
 
     if (hwnd == nullptr || !IsWindows11OrGreater())
@@ -191,6 +194,7 @@ void Win11DwmHelpers::ApplyMicaBackdrop (HWND hwnd, bool mica)
     DWORD  type = mica ? kDwmsbtMainWindow : kDwmsbtNone;
 
 
+
     if (hwnd == nullptr || !IsWindows11OrGreater())
     {
         return;
@@ -218,6 +222,7 @@ void Win11DwmHelpers::ApplyMicaBackdrop (HWND hwnd, bool mica)
 void Win11DwmHelpers::ApplyImmersiveDarkMode (HWND hwnd, bool dark)
 {
     BOOL  flag = dark ? TRUE : FALSE;
+
 
 
     if (hwnd == nullptr || !IsWindows10_1809OrGreater())
@@ -248,6 +253,7 @@ void Win11DwmHelpers::ApplyImmersiveDarkMode (HWND hwnd, bool dark)
 void Win11DwmHelpers::ExtendFrameIntoClientArea (HWND hwnd, int inset)
 {
     MARGINS  m = { inset, inset, inset, inset };
+
 
 
     if (hwnd == nullptr)

@@ -106,6 +106,8 @@ std::wstring ThemeLoader::JoinPath (
 {
     std::wstring  result = StripTrailingSep (dir);
 
+
+
     if (!result.empty() && !leaf.empty())
     {
         result += L'\\';
@@ -138,6 +140,7 @@ HRESULT ThemeLoader::EnumerateCandidateDirs (
     HRESULT                     hr     = S_OK;
     std::vector<std::wstring>   dirs;
     size_t                      i      = 0;
+
 
 
     outNames.clear();
@@ -192,6 +195,7 @@ HRESULT ThemeLoader::ParseMetadata (
     const JsonValue *   bloomObj      = nullptr;
     const JsonValue *   bleedObj      = nullptr;
     int                 themeVersion  = 0;
+
 
 
     outTheme = LoadedTheme {};
@@ -336,6 +340,7 @@ static HRESULT ResolveOne (
     std::wstring  fallback;
 
 
+
     if (!ioPath.empty())
     {
         // Theme declared an entry — must exist in theme dir.
@@ -387,6 +392,7 @@ HRESULT ThemeLoader::ResolveEntryDocs (
     ThemeLoadError      & outError)
 {
     HRESULT  hr = S_OK;
+
 
 
     hr = ResolveOne (fs, themeDir, sharedDir, L"title_bar.rml",
@@ -443,6 +449,7 @@ HRESULT ThemeLoader::Load (
     HRESULT       hr        = S_OK;
     std::wstring  themePath = JoinPath (themeDir, L"theme.json");
     std::string   text;
+
 
 
     outError = ThemeLoadError {};

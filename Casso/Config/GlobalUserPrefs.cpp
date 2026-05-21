@@ -124,6 +124,8 @@ std::wstring GlobalUserPrefs::FilePath (const std::wstring & baseDir)
 {
     std::wstring  result = baseDir;
 
+
+
     if (!result.empty() &&
         result.back() != L'\\' &&
         result.back() != L'/')
@@ -158,6 +160,7 @@ HRESULT GlobalUserPrefs::Load (
     std::string      text;
     JsonValue        root;
     JsonParseError   err;
+
 
 
     if (!fs.Exists (path))
@@ -200,6 +203,7 @@ HRESULT GlobalUserPrefs::Save (
     std::string          text;
     JsonWriter::Options  opts;
     JsonValue            root    = ToJson();
+
 
 
     opts.fPretty = true;
@@ -302,6 +306,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     const JsonValue *   bounds        = nullptr;
     const auto *        rootEntries   = (const std::vector<std::pair<std::string, JsonValue>> *) nullptr;
     size_t              i             = 0;
+
 
 
     if (v.GetType() != JsonType::Object)
