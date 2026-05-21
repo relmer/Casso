@@ -1,0 +1,10 @@
+<rml>
+    <head>
+        <title>Settings — Retro Terminal</title>
+        <link type="text/rcss" href="theme.rcss"/>
+        <link type="text/rcss" href="settings.rcss"/>
+    </head>
+    <body class="settings-panel">
+        <div class="settings-stub">SETTINGS // [P7]</div>
+    </body>
+</rml>

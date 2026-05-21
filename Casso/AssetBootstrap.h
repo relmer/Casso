@@ -30,6 +30,17 @@ public:
                                            const vector<fs::path> & searchPaths,
                                            const fs::path         & exeDir);
 
+    // Per spec 007-ui-overhaul P5-T6: extract the three built-in
+    // themes into `<assetBase>/Themes/<Name>/` on first launch
+    // (and on subsequent launches whose embedded theme has bumped
+    // `$cassoThemeVersion`). User-authored theme directories — i.e.
+    // any whose `theme.json` does NOT carry `$cassoBuiltIn: true` —
+    // are NEVER overwritten. The per-theme decision is delegated
+    // to `ThemeBootstrapPlanner::Plan`.
+    static HRESULT  EnsureThemes          (HINSTANCE                hInstance,
+                                           const vector<fs::path> & searchPaths,
+                                           const fs::path         & exeDir);
+
     // Returns the install root that contains (or should contain) the
     // per-machine `Machines/` and per-device `Devices/` subtrees. The
     // downloader places freshly fetched ROMs at

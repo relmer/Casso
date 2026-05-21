@@ -1,0 +1,11 @@
+<rml>
+    <head>
+        <title>Drive Widgets — Skeuomorphic</title>
+        <link type="text/rcss" href="theme.rcss"/>
+        <link type="text/rcss" href="drive_widgets.rcss"/>
+    </head>
+    <body class="drives-overlay">
+        <!-- P5 stub. P6 fleshes out the actual drive widgets + LEDs. -->
+        <div class="drives-stub">Drives (P6).</div>
+    </body>
+</rml>

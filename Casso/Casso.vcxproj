@@ -241,6 +241,8 @@
     <ClCompile Include="Ui\TitleBar.cpp" />
     <ClCompile Include="Ui\NavLayer.cpp" />
     <ClCompile Include="Ui\Win11DwmHelpers.cpp" />
+    <ClCompile Include="Ui\ThemeLoader.cpp" />
+    <ClCompile Include="Ui\ThemeManager.cpp" />
     <ClCompile Include="OptionsDialog.cpp" />
     <ClCompile Include="TrackSectorPredicate.cpp" />
     <ClCompile Include="DebugDialogProjection.cpp" />
@@ -273,6 +275,8 @@
     <ClInclude Include="Ui\TitleBar.h" />
     <ClInclude Include="Ui\NavLayer.h" />
     <ClInclude Include="Ui\Win11DwmHelpers.h" />
+    <ClInclude Include="Ui\ThemeLoader.h" />
+    <ClInclude Include="Ui\ThemeManager.h" />
     <ClInclude Include="OptionsDialog.h" />
     <ClInclude Include="TrackSectorPredicate.h" />
     <ClInclude Include="DebugDialogProjection.h" />

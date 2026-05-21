@@ -1,0 +1,20 @@
+{
+    "$cassoThemeVersion": 1,
+    "$cassoBuiltIn":      true,
+    "name":               "Skeuomorphic",
+    "author":             "Casso",
+    "description":        "Beige/cream Apple ][ hardware aesthetic with subtle bevels.",
+    "entryDocuments": {
+        "titleBar":     "title_bar.rml",
+        "navLayer":     "nav_layer.rml",
+        "settings":     "settings.rml",
+        "driveWidgets": "drive_widgets.rml"
+    },
+    "crtDefaults": {
+        "brightness": 1.0,
+        "scanlines":  { "enabled": false, "intensity": 0.0 },
+        "bloom":      { "enabled": true,  "radius": 1.0, "strength": 0.3 },
+        "colorBleed": { "enabled": false, "width":  0.0 }
+    },
+    "useMicaBackdrop": false
+}

@@ -300,6 +300,16 @@ int WINAPI wWinMain (
             bootstrapPaths,
             PathResolver::GetExecutableDirectory());
         IGNORE_RETURN_VALUE (hrBoot, S_OK);
+
+        // P5-T6: extract the three built-in UI themes alongside the
+        // machine configs so the very first launch has chrome to
+        // render. User-authored Themes/<MyTheme>/ entries are
+        // preserved — the planner only ever touches built-in dirs.
+        HRESULT hrThemes = AssetBootstrap::EnsureThemes (
+            hInstance,
+            bootstrapPaths,
+            PathResolver::GetExecutableDirectory());
+        IGNORE_RETURN_VALUE (hrThemes, S_OK);
     }
 
     // Resolve machine name: command line > registry > picker dialog

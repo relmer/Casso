@@ -1,0 +1,13 @@
+body.settings-panel
+{
+    display: none;
+    width: 480dp;
+    height: 360dp;
+    background-color: #000000;
+    color: #33ff66;
+    font-family: monospace;
+    font-size: 14dp;
+    border: 1dp #33ff66;
+}
+
+.settings-stub { padding: 24dp; }

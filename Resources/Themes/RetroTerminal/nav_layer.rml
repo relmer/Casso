@@ -1,0 +1,17 @@
+<rml>
+    <head>
+        <title>Casso Nav Layer — Retro Terminal</title>
+        <link type="text/rcss" href="theme.rcss"/>
+        <link type="text/rcss" href="nav_layer.rcss"/>
+    </head>
+    <body class="navlayer">
+        <div class="nav-strip">
+            <span class="nav-item">[F]ILE</span>
+            <span class="nav-item">[E]DIT</span>
+            <span class="nav-item">[M]ACH</span>
+            <span class="nav-item">[D]ISK</span>
+            <span class="nav-item">[V]IEW</span>
+            <span class="nav-item">[H]ELP</span>
+        </div>
+    </body>
+</rml>

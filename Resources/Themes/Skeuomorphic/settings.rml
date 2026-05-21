@@ -1,0 +1,11 @@
+<rml>
+    <head>
+        <title>Settings — Skeuomorphic</title>
+        <link type="text/rcss" href="theme.rcss"/>
+        <link type="text/rcss" href="settings.rcss"/>
+    </head>
+    <body class="settings-panel">
+        <!-- P5 stub. P7 fills in the six-section settings panel. -->
+        <div class="settings-stub">Settings (P7).</div>
+    </body>
+</rml>

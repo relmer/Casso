@@ -10,6 +10,7 @@
 #include "External/StbVorbisWrapper.h"
 #include "RegistrySettings.h"
 #include "resource.h"
+#include "Ui/ThemeManager.h"
 #include "UnicodeSymbols.h"
 
 #pragma comment(lib, "winhttp.lib")
@@ -532,6 +533,196 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
         if (FAILED (hrItem))
         {
             hr = hrItem;
+        }
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmbeddedThemeFile / EmbeddedTheme
+//
+//  Static catalog of every file (per built-in theme) that ships
+//  embedded in Casso.exe. Each theme lists its files via a leaf
+//  relative to the theme directory; `EnsureThemes` extracts them
+//  into `<assetBase>/Themes/<dirName>/<relPath>` after the per-theme
+//  install/skip decision (`ThemeBootstrapPlanner::Plan`).
+//
+//  Bump `currentVersion` in lockstep with the `$cassoThemeVersion`
+//  field of the on-disk `theme.json` for that theme. Older built-in
+//  copies on disk (same `dirName` + `$cassoBuiltIn: true` + lower
+//  version) are upgraded in place; user themes (no built-in marker)
+//  are never touched.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct EmbeddedThemeFile
+{
+    int          resourceId;
+    const char * relativePath;       // POSIX-style; ASCII only
+};
+
+
+struct EmbeddedTheme
+{
+    const char *                       dirName;        // matches "name" in theme.json
+    int                                currentVersion; // mirrors theme.json $cassoThemeVersion
+    span<const EmbeddedThemeFile>      files;
+};
+
+
+static constexpr EmbeddedThemeFile s_kSkeuomorphicFiles[] =
+{
+    { IDR_THEME_SKEUO_THEME_JSON,         "theme.json"          },
+    { IDR_THEME_SKEUO_THEME_RCSS,         "theme.rcss"          },
+    { IDR_THEME_SKEUO_TITLE_BAR_RML,      "title_bar.rml"       },
+    { IDR_THEME_SKEUO_TITLE_BAR_RCSS,     "title_bar.rcss"      },
+    { IDR_THEME_SKEUO_NAV_LAYER_RML,      "nav_layer.rml"       },
+    { IDR_THEME_SKEUO_NAV_LAYER_RCSS,     "nav_layer.rcss"      },
+    { IDR_THEME_SKEUO_SETTINGS_RML,       "settings.rml"        },
+    { IDR_THEME_SKEUO_SETTINGS_RCSS,      "settings.rcss"       },
+    { IDR_THEME_SKEUO_DRIVE_WIDGETS_RML,  "drive_widgets.rml"   },
+    { IDR_THEME_SKEUO_DRIVE_WIDGETS_RCSS, "drive_widgets.rcss"  },
+    { IDR_THEME_SKEUO_FONT_TTF,           "fonts/Inter-Regular.ttf" },
+    { IDR_THEME_SKEUO_FONT_OFL,           "fonts/OFL.txt"       },
+    { IDR_THEME_SKEUO_FONT_TODO,          "fonts/TODO_FONTS.md" },
+};
+
+static constexpr EmbeddedThemeFile s_kDarkModernFiles[] =
+{
+    { IDR_THEME_DARK_THEME_JSON,         "theme.json"          },
+    { IDR_THEME_DARK_THEME_RCSS,         "theme.rcss"          },
+    { IDR_THEME_DARK_TITLE_BAR_RML,      "title_bar.rml"       },
+    { IDR_THEME_DARK_TITLE_BAR_RCSS,     "title_bar.rcss"      },
+    { IDR_THEME_DARK_NAV_LAYER_RML,      "nav_layer.rml"       },
+    { IDR_THEME_DARK_NAV_LAYER_RCSS,     "nav_layer.rcss"      },
+    { IDR_THEME_DARK_SETTINGS_RML,       "settings.rml"        },
+    { IDR_THEME_DARK_SETTINGS_RCSS,      "settings.rcss"       },
+    { IDR_THEME_DARK_DRIVE_WIDGETS_RML,  "drive_widgets.rml"   },
+    { IDR_THEME_DARK_DRIVE_WIDGETS_RCSS, "drive_widgets.rcss"  },
+    { IDR_THEME_DARK_FONT_TTF,           "fonts/Inter-Regular.ttf" },
+    { IDR_THEME_DARK_FONT_OFL,           "fonts/OFL.txt"       },
+    { IDR_THEME_DARK_FONT_TODO,          "fonts/TODO_FONTS.md" },
+};
+
+static constexpr EmbeddedThemeFile s_kRetroTerminalFiles[] =
+{
+    { IDR_THEME_RETRO_THEME_JSON,         "theme.json"          },
+    { IDR_THEME_RETRO_THEME_RCSS,         "theme.rcss"          },
+    { IDR_THEME_RETRO_TITLE_BAR_RML,      "title_bar.rml"       },
+    { IDR_THEME_RETRO_TITLE_BAR_RCSS,     "title_bar.rcss"      },
+    { IDR_THEME_RETRO_NAV_LAYER_RML,      "nav_layer.rml"       },
+    { IDR_THEME_RETRO_NAV_LAYER_RCSS,     "nav_layer.rcss"      },
+    { IDR_THEME_RETRO_SETTINGS_RML,       "settings.rml"        },
+    { IDR_THEME_RETRO_SETTINGS_RCSS,      "settings.rcss"       },
+    { IDR_THEME_RETRO_DRIVE_WIDGETS_RML,  "drive_widgets.rml"   },
+    { IDR_THEME_RETRO_DRIVE_WIDGETS_RCSS, "drive_widgets.rcss"  },
+    { IDR_THEME_RETRO_FONT_TTF,           "fonts/VT323-Regular.ttf" },
+    { IDR_THEME_RETRO_FONT_OFL,           "fonts/OFL.txt"       },
+    { IDR_THEME_RETRO_FONT_TODO,          "fonts/TODO_FONTS.md" },
+};
+
+
+static const EmbeddedTheme s_kEmbeddedThemes[] =
+{
+    { "Skeuomorphic",  1, span<const EmbeddedThemeFile> (s_kSkeuomorphicFiles)  },
+    { "DarkModern",    1, span<const EmbeddedThemeFile> (s_kDarkModernFiles)    },
+    { "RetroTerminal", 1, span<const EmbeddedThemeFile> (s_kRetroTerminalFiles) },
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureThemes
+//
+//  For each built-in theme, consult `ThemeBootstrapPlanner::Plan`
+//  with the on-disk theme.json (if any) and either skip the
+//  directory (user theme or up-to-date built-in) or re-extract
+//  every embedded file. User-authored sibling themes are untouched
+//  because their `theme.json` lacks the `$cassoBuiltIn: true`
+//  marker — the planner only ever returns `InstallBuiltIn` for an
+//  already-built-in directory whose version is stale, or for an
+//  empty / corrupt directory belonging to one of *our* names.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::EnsureThemes (
+    HINSTANCE                hInstance,
+    const vector<fs::path> & searchPaths,
+    const fs::path         & exeDir)
+{
+    HRESULT     hr        = S_OK;
+    fs::path    themesDir;
+    error_code  ec;
+
+
+    themesDir = PathResolver::FindOrCreateAssetDir (searchPaths,
+                                                    fs::path ("Themes"),
+                                                    exeDir);
+
+    for (const EmbeddedTheme & theme : s_kEmbeddedThemes)
+    {
+        fs::path              themeSubdir   = themesDir / theme.dirName;
+        fs::path              themeJsonPath = themeSubdir / "theme.json";
+        bool                  diskExists    = false;
+        string                diskJsonText;
+        ThemeBootstrapAction  action        = ThemeBootstrapAction::Skip;
+
+
+        diskExists = fs::exists (themeJsonPath, ec);
+
+        if (diskExists)
+        {
+            ifstream      file (themeJsonPath);
+            stringstream  ss;
+
+            if (file.good())
+            {
+                ss << file.rdbuf();
+                diskJsonText = ss.str();
+            }
+        }
+
+        action = ThemeBootstrapPlanner::Plan (diskExists ? &diskJsonText : nullptr,
+                                              theme.currentVersion);
+
+        if (action == ThemeBootstrapAction::Skip)
+        {
+            continue;
+        }
+
+        // InstallBuiltIn: (re)extract every file. Create the theme
+        // directory + any sub-dirs (e.g. fonts/) as we go.
+        fs::create_directories (themeSubdir, ec);
+
+        for (const EmbeddedThemeFile & f : theme.files)
+        {
+            fs::path          target = themeSubdir / f.relativePath;
+            span<const Byte>  bytes;
+            HRESULT           hrItem;
+
+            fs::create_directories (target.parent_path(), ec);
+
+            bytes = ExtractResource (hInstance, f.resourceId);
+
+            // 0-byte resources are legal (the font placeholders).
+            // bytes.data() can still be non-null because RC always
+            // produces a tracked allocation. WriteFileBytes happily
+            // writes a 0-byte file.
+            hrItem = WriteFileBytes (target, bytes);
+
+            if (FAILED (hrItem))
+            {
+                hr = hrItem;
+            }
         }
     }
 

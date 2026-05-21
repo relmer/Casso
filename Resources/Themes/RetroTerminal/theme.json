@@ -1,0 +1,20 @@
+{
+    "$cassoThemeVersion": 1,
+    "$cassoBuiltIn":      true,
+    "name":               "RetroTerminal",
+    "author":             "Casso",
+    "description":        "Phosphor green CRT terminal aesthetic. Monospaced + scanlines.",
+    "entryDocuments": {
+        "titleBar":     "title_bar.rml",
+        "navLayer":     "nav_layer.rml",
+        "settings":     "settings.rml",
+        "driveWidgets": "drive_widgets.rml"
+    },
+    "crtDefaults": {
+        "brightness": 1.1,
+        "scanlines":  { "enabled": true, "intensity": 0.85 },
+        "bloom":      { "enabled": true, "radius": 2.0, "strength": 0.7 },
+        "colorBleed": { "enabled": true, "width":  1.5 }
+    },
+    "useMicaBackdrop": false
+}

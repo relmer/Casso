@@ -1,0 +1,10 @@
+<rml>
+    <head>
+        <title>Drive Widgets — Retro Terminal</title>
+        <link type="text/rcss" href="theme.rcss"/>
+        <link type="text/rcss" href="drive_widgets.rcss"/>
+    </head>
+    <body class="drives-overlay">
+        <div class="drives-stub">DRIVES // [P6]</div>
+    </body>
+</rml>

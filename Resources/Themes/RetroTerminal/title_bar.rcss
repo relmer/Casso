@@ -1,0 +1,31 @@
+body.titlebar
+{
+    width: 100%;
+    height: 32dp;
+    background-color: #000000;
+    color: #33ff66;
+    font-family: monospace;
+    font-size: 14dp;
+    border-bottom: 1dp #33ff66;
+}
+
+.titlebar-strip { display: block; height: 32dp; padding: 6dp 0 0 12dp; }
+
+.titlebar-title { display: inline-block; color: #33ff66; }
+
+.titlebar-buttons { display: inline-block; float: right; padding-right: 4dp; }
+
+.sysbtn
+{
+    display: inline-block;
+    width: 44dp;
+    height: 28dp;
+    text-align: center;
+    color: #33ff66;
+    background-color: #001a00;
+    border: 1dp #1d8a33;
+    margin-left: 4dp;
+}
+
+.sysbtn:hover       { color: #ffbf00; border-color: #ffbf00; }
+.sysbtn.close:hover { color: #ff3344; border-color: #ff3344; }

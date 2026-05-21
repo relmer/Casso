@@ -1,0 +1,15 @@
+/* Skeuomorphic — shared design tokens. P5 stub; P6/P7 flesh out. */
+@spritesheet skeuo-icons
+{
+    /* no sprite atlas yet — P6 introduces drive bezel images */
+    src: "";
+}
+
+/* Palette tokens. Themes reference these via the cascade in the
+   element-specific .rcss files. */
+.theme-token-bg-base       { background-color: #d9cdb6; }
+.theme-token-bg-panel      { background-color: #efe6d2; }
+.theme-token-fg-default    { color: #2a2418; }
+.theme-token-fg-muted      { color: #6a624e; }
+.theme-token-accent        { color: #8c5a2b; }
+.theme-token-border        { border-color: #b09a76; }

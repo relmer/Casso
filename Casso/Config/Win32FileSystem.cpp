@@ -290,3 +290,76 @@ Error:
 
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnumerateDirectories
+//
+//  Non-recursive listing of sub-directories under `directory`. Skips
+//  "." / ".." and regular files. Mirrors EnumerateFiles' error
+//  convention: empty (S_OK) when the directory exists but holds no
+//  sub-dirs; ERROR_PATH_NOT_FOUND (wrapped) when the directory
+//  itself is missing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32FileSystem::EnumerateDirectories (
+    const std::wstring         & directory,
+    std::vector<std::wstring>  & outDirNames)
+{
+    HRESULT          hr           = S_OK;
+    HANDLE           hFind        = INVALID_HANDLE_VALUE;
+    WIN32_FIND_DATAW findData     = {};
+    std::wstring     pattern;
+    DWORD            err          = 0;
+
+
+
+    outDirNames.clear();
+
+    pattern = directory + L"\\*";
+
+    hFind = FindFirstFileW (pattern.c_str(), &findData);
+
+    if (hFind == INVALID_HANDLE_VALUE)
+    {
+        err = GetLastError();
+
+        CBRF (err == ERROR_FILE_NOT_FOUND,
+              hr = HRESULT_FROM_WIN32 (err));
+
+        goto Error;
+    }
+
+    do
+    {
+        if ((findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0)
+        {
+            continue;
+        }
+
+        // Skip "." and ".."
+        if (findData.cFileName[0] == L'.' &&
+            (findData.cFileName[1] == L'\0' ||
+             (findData.cFileName[1] == L'.' && findData.cFileName[2] == L'\0')))
+        {
+            continue;
+        }
+
+        outDirNames.push_back (findData.cFileName);
+    }
+    while (FindNextFileW (hFind, &findData));
+
+
+Error:
+    if (hFind != INVALID_HANDLE_VALUE)
+    {
+        FindClose (hFind);
+    }
+
+    return hr;
+}

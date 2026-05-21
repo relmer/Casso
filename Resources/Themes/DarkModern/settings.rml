@@ -1,0 +1,10 @@
+<rml>
+    <head>
+        <title>Settings — Dark Modern</title>
+        <link type="text/rcss" href="theme.rcss"/>
+        <link type="text/rcss" href="settings.rcss"/>
+    </head>
+    <body class="settings-panel">
+        <div class="settings-stub">Settings (P7).</div>
+    </body>
+</rml>

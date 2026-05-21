@@ -1,0 +1,13 @@
+body.settings-panel
+{
+    display: none;
+    width: 480dp;
+    height: 360dp;
+    background-color: #efe6d2;
+    color: #2a2418;
+    font-family: sans-serif;
+    font-size: 13dp;
+    border: 1dp #b09a76;
+}
+
+.settings-stub { padding: 24dp; }

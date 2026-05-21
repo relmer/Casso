@@ -65,4 +65,15 @@ public:
     virtual HRESULT EnumerateFiles (
         const std::wstring         & directory,
         std::vector<std::wstring>  & outFilenames) = 0;
+
+    // Non-recursive sub-directory listing. Returns bare directory
+    // names (no path prefix). "." and ".." are skipped. Returns an
+    // empty list and S_OK if `directory` has no sub-directories;
+    // returns HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND) when
+    // `directory` does not exist. Required by ThemeManager::Discover
+    // which walks `<assetBase>/Themes/` looking for candidate theme
+    // sub-directories (each containing `theme.json`).
+    virtual HRESULT EnumerateDirectories (
+        const std::wstring         & directory,
+        std::vector<std::wstring>  & outDirNames) = 0;
 };

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <map>
 #include <mutex>
+#include <set>
 
 
 
@@ -104,6 +105,43 @@ public:
             }
         }
 
+        return S_OK;
+    }
+
+
+    HRESULT EnumerateDirectories (
+        const std::wstring         & directory,
+        std::vector<std::wstring>  & outDirNames) override
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+        std::wstring                 prefix = Normalize (directory);
+        std::set<std::wstring>       unique;
+
+        outDirNames.clear();
+
+        if (!prefix.empty() && prefix.back() != L'/')
+        {
+            prefix += L'/';
+        }
+
+        // A "directory" exists implicitly if any file lives under it.
+        // Derive sub-directory names from the path segment immediately
+        // following `prefix`.
+        for (const auto & kv : m_files)
+        {
+            if (kv.first.compare (0, prefix.size(), prefix) == 0)
+            {
+                std::wstring  remainder = kv.first.substr (prefix.size());
+                size_t        slashPos  = remainder.find (L'/');
+
+                if (slashPos != std::wstring::npos && slashPos > 0)
+                {
+                    unique.insert (remainder.substr (0, slashPos));
+                }
+            }
+        }
+
+        outDirNames.assign (unique.begin(), unique.end());
         return S_OK;
     }
 

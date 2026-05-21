@@ -40,4 +40,8 @@ public:
     HRESULT EnumerateFiles (
         const std::wstring         & directory,
         std::vector<std::wstring>  & outFilenames) override;
+
+    HRESULT EnumerateDirectories (
+        const std::wstring         & directory,
+        std::vector<std::wstring>  & outDirNames) override;
 };

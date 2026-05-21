@@ -1,0 +1,17 @@
+<rml>
+    <head>
+        <title>Casso Title Bar — Dark Modern</title>
+        <link type="text/rcss" href="theme.rcss"/>
+        <link type="text/rcss" href="title_bar.rcss"/>
+    </head>
+    <body class="titlebar">
+        <div class="titlebar-strip">
+            <span class="titlebar-title">Casso</span>
+            <div class="titlebar-buttons">
+                <span class="sysbtn min"   id="sysbtn-min">_</span>
+                <span class="sysbtn max"   id="sysbtn-max">▢</span>
+                <span class="sysbtn close" id="sysbtn-close">×</span>
+            </div>
+        </div>
+    </body>
+</rml>

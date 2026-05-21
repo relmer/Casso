@@ -51,3 +51,54 @@
 #define IDR_MACHINE_APPLE2          200
 #define IDR_MACHINE_APPLE2PLUS      201
 #define IDR_MACHINE_APPLE2E         202
+
+// Embedded built-in theme files (RCDATA). Per spec 007-ui-overhaul
+// P5-T6 the three built-in themes are extracted to
+// <assetBase>/Themes/<Name>/ by AssetBootstrap::EnsureThemes on
+// first run + upgrade. Resource IDs are blocked per theme so the
+// asset bootstrap can iterate them via a single table.
+//
+//   Skeuomorphic:   300..319
+//   DarkModern:     320..339
+//   RetroTerminal:  340..359
+#define IDR_THEME_SKEUO_THEME_JSON          300
+#define IDR_THEME_SKEUO_THEME_RCSS          301
+#define IDR_THEME_SKEUO_TITLE_BAR_RML       302
+#define IDR_THEME_SKEUO_TITLE_BAR_RCSS      303
+#define IDR_THEME_SKEUO_NAV_LAYER_RML       304
+#define IDR_THEME_SKEUO_NAV_LAYER_RCSS      305
+#define IDR_THEME_SKEUO_SETTINGS_RML        306
+#define IDR_THEME_SKEUO_SETTINGS_RCSS       307
+#define IDR_THEME_SKEUO_DRIVE_WIDGETS_RML   308
+#define IDR_THEME_SKEUO_DRIVE_WIDGETS_RCSS  309
+#define IDR_THEME_SKEUO_FONT_TTF            310
+#define IDR_THEME_SKEUO_FONT_OFL            311
+#define IDR_THEME_SKEUO_FONT_TODO           312
+
+#define IDR_THEME_DARK_THEME_JSON           320
+#define IDR_THEME_DARK_THEME_RCSS           321
+#define IDR_THEME_DARK_TITLE_BAR_RML        322
+#define IDR_THEME_DARK_TITLE_BAR_RCSS       323
+#define IDR_THEME_DARK_NAV_LAYER_RML        324
+#define IDR_THEME_DARK_NAV_LAYER_RCSS       325
+#define IDR_THEME_DARK_SETTINGS_RML         326
+#define IDR_THEME_DARK_SETTINGS_RCSS        327
+#define IDR_THEME_DARK_DRIVE_WIDGETS_RML    328
+#define IDR_THEME_DARK_DRIVE_WIDGETS_RCSS   329
+#define IDR_THEME_DARK_FONT_TTF             330
+#define IDR_THEME_DARK_FONT_OFL             331
+#define IDR_THEME_DARK_FONT_TODO            332
+
+#define IDR_THEME_RETRO_THEME_JSON          340
+#define IDR_THEME_RETRO_THEME_RCSS          341
+#define IDR_THEME_RETRO_TITLE_BAR_RML       342
+#define IDR_THEME_RETRO_TITLE_BAR_RCSS      343
+#define IDR_THEME_RETRO_NAV_LAYER_RML       344
+#define IDR_THEME_RETRO_NAV_LAYER_RCSS      345
+#define IDR_THEME_RETRO_SETTINGS_RML        346
+#define IDR_THEME_RETRO_SETTINGS_RCSS       347
+#define IDR_THEME_RETRO_DRIVE_WIDGETS_RML   348
+#define IDR_THEME_RETRO_DRIVE_WIDGETS_RCSS  349
+#define IDR_THEME_RETRO_FONT_TTF            350
+#define IDR_THEME_RETRO_FONT_OFL            351
+#define IDR_THEME_RETRO_FONT_TODO           352

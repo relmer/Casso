@@ -1,0 +1,13 @@
+body.drives-overlay
+{
+    display: none;
+    width: 240dp;
+    height: 96dp;
+    background-color: #000000;
+    color: #33ff66;
+    font-family: monospace;
+    font-size: 13dp;
+    border: 1dp #33ff66;
+}
+
+.drives-stub { padding: 12dp; }
