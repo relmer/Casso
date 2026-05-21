@@ -160,7 +160,7 @@ static HRESULT BuildPopupMenu (HMENU parent, const MenuDef & def)
 
 
     menu = CreatePopupMenu();
-    CPRA (menu);
+    CWRA (menu);
 
     for (size_t i = 0; i < def.count; i++)
     {
@@ -215,7 +215,7 @@ HRESULT MenuSystem::CreateMenuBar (HWND hwnd)
     m_hwnd = hwnd;
 
     m_menuBar = CreateMenu();
-    CPRA (m_menuBar);
+    CWRA (m_menuBar);
 
     for (size_t i = 0; i < _countof (menus); i++)
     {

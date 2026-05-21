@@ -1847,7 +1847,7 @@ void DiskIIDebugDialog::CopySelectedRowsToClipboard()
     byteCount = (payload.size() + 1) * sizeof (wchar_t);
 
     hMem = GlobalAlloc (GMEM_MOVEABLE, byteCount);
-    CPRA (hMem);
+    CWRA (hMem);
 
     pMem = static_cast<wchar_t *> (GlobalLock (hMem));
     CWRA (pMem);

@@ -1043,7 +1043,7 @@ void EmulatorShell::ShowDevicePopup()
 
 
     hMenu = CreatePopupMenu();
-    CPRA (hMenu);
+    CWRA (hMenu);
 
     // RAM regions (skip aux-bank entries -- shown via aux-ram-card device)
     for (const auto & region : m_config.ram)

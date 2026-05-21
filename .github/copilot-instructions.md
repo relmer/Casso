@@ -77,15 +77,18 @@ The solution has five projects:
   possible due to user input or external state (e.g., user-provided file
   path, network). Failure of internal API calls indicates a Casso bug and
   SHOULD assert.
-- **CPR/CPRA test ALLOCATION results only** (sets `hr = E_OUTOFMEMORY`).
+- **CPR/CPRA test C++ allocation results only** (sets `hr = E_OUTOFMEMORY`).
+  Use only for `new`/`malloc` — APIs that don't call `SetLastError`.
   For other pointer checks:
   - **Parameter pointer validation**: `CBRAEx (ptr, E_INVALIDARG)` —
     null param passed by caller is an argument error, not OOM.
   - **Member-state precondition** (`m_foo` must have been initialized):
     `CBRA (m_foo)` — null member = Casso bug, default `E_FAIL`.
   - **Win32 API that returns a handle/pointer** (HWND from
-    `CreateWindowEx`, HDC from `GetDC`, etc.): `CWRA (ptr)` —
-    the API will have called `SetLastError` internally.
+    `CreateWindowEx`, HDC from `GetDC`, HGLOBAL from `GlobalAlloc`,
+    HMENU from `CreatePopupMenu`, etc.): `CWRA (ptr)` —
+    these APIs document `GetLastError` on failure, so CWRA captures
+    the real error code rather than blindly reporting `E_OUTOFMEMORY`.
 - For **non-HRESULT-returning** functions (returning enum/int/struct/void/etc.)
   that still want flat EHM control flow, declare a vestigial
   `HRESULT hr = S_OK;` at the top of the function purely to satisfy the
