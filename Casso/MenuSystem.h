@@ -81,6 +81,8 @@ private:
     SpeedMode   m_speedMode = SpeedMode::Authentic;
     ColorMode   m_colorMode = ColorMode::Color;
 
+    bool        m_paused    = false;
+
     HWND        m_hwnd = nullptr;
 };
 

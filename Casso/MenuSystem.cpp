@@ -221,6 +221,13 @@ void MenuSystem::SetSpeedMode (SpeedMode mode)
 
     m_speedMode = mode;
 
+    // P9-T2: no Win32 menu bar attached -- state cache above is the
+    // single source of truth.
+    if (m_machineMenu == nullptr)
+    {
+        return;
+    }
+
     fSuccess = CheckMenuRadioItem (m_machineMenu,
                                    IDM_MACHINE_SPEED_1X, IDM_MACHINE_SPEED_MAX,
                                    mode == SpeedMode::Authentic ? IDM_MACHINE_SPEED_1X :
@@ -252,6 +259,13 @@ void MenuSystem::SetColorMode (ColorMode mode)
 
     m_colorMode = mode;
 
+    // P9-T2: no Win32 menu bar attached -- state cache above is the
+    // single source of truth.
+    if (m_viewMenu == nullptr)
+    {
+        return;
+    }
+
     fSuccess = CheckMenuRadioItem (m_viewMenu,
                                    IDM_VIEW_COLOR, IDM_VIEW_WHITE,
                                    mode == ColorMode::Color      ? IDM_VIEW_COLOR :
@@ -277,6 +291,15 @@ Error:
 
 void MenuSystem::SetPaused (bool paused)
 {
+    m_paused = paused;
+
+    // P9-T2: no Win32 menu bar attached -- cached state above is
+    // sufficient.
+    if (m_machineMenu == nullptr)
+    {
+        return;
+    }
+
     CheckMenuItem (m_machineMenu, IDM_MACHINE_PAUSE, paused ? MF_CHECKED : MF_UNCHECKED);
 }
 

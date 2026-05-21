@@ -467,7 +467,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // preserved.
     style    = WS_POPUP | WS_CAPTION | WS_THICKFRAME |
                WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU;
-    fSuccess = AdjustWindowRectExForDpi (&rc, style, TRUE, 0, dpi);
+    // P9-T2: no menu bar -> bMenu = FALSE in window-rect math.
+    fSuccess = AdjustWindowRectExForDpi (&rc, style, FALSE, 0, dpi);
     CWRA (fSuccess);
 
     // Create window
@@ -487,18 +488,12 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     Win11DwmHelpers::ApplyRoundedCorners       (m_hwnd, true);
     Win11DwmHelpers::ApplyImmersiveDarkMode    (m_hwnd, true);
 
-    // Create menu bar
-    hr = m_menuSystem.CreateMenuBar (m_hwnd);
-    CHR (hr);
-
-    // Recalculate window size after menu added
-    fSuccess = AdjustWindowRectExForDpi (&rc, style, TRUE, 0, dpi);
-    CWRA (fSuccess);
-
-    fSuccess = SetWindowPos (m_hwnd, nullptr, 0, 0,
-                             rc.right - rc.left, rc.bottom - rc.top,
-                             SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED);
-    CWRA (fSuccess);
+    // P9-T2: legacy Win32 menu bar is retired (FR-026). All menu
+    // commands now route through `NavLayer` + the RmlUi nav strip;
+    // keyboard accelerators (loaded below) keep working independently
+    // of the menu bar. `m_menuSystem` is intentionally left in place
+    // to cache `SpeedMode` / `ColorMode` for any downstream reader,
+    // but no `HMENU` is ever created or attached to the window.
 
     // Prime the title-bar layout cache so the WM_NCHITTEST helper has
     // valid button rects even before the first WM_SIZE arrives.
