@@ -121,7 +121,7 @@ HRESULT Window::Create (
                               nullptr,
                               m_hInstance,
                               this);
-    CPRA (m_hwnd);
+    CWRA (m_hwnd);
 
 Error:
     return hr;

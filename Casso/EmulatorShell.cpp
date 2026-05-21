@@ -694,7 +694,7 @@ void EmulatorShell::UpdateStatusBar()
     m_statusBarFirstDrivePart  = s_kLeftPartCount;
 
     hdc = GetDC (m_statusBar);
-    CPRA (hdc);
+    CWRA (hdc);
 
     sbFont = reinterpret_cast<HFONT> (SendMessage (m_statusBar, WM_GETFONT, 0, 0));
     if (sbFont != NULL)

@@ -1850,7 +1850,7 @@ void DiskIIDebugDialog::CopySelectedRowsToClipboard()
     CPRA (hMem);
 
     pMem = static_cast<wchar_t *> (GlobalLock (hMem));
-    CPRA (pMem);
+    CWRA (pMem);
 
     memcpy (pMem, payload.data(), byteCount - sizeof (wchar_t));
     pMem[payload.size()] = L'\0';
@@ -1860,7 +1860,7 @@ void DiskIIDebugDialog::CopySelectedRowsToClipboard()
     opened = true;
 
     CWRA (EmptyClipboard());
-    CPRA (SetClipboardData (CF_UNICODETEXT, hMem));
+    CWRA (SetClipboardData (CF_UNICODETEXT, hMem));
 
     // SetClipboardData succeeded -> the system now owns hMem.
     hMem = nullptr;
