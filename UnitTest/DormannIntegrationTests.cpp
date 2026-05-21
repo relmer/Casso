@@ -40,8 +40,13 @@ namespace DormannIntegrationTests
 
     static bool DownloadFile (const std::string & url, const std::string & destPath)
     {
-        std::string cmd = "powershell -NoProfile -Command \"Invoke-WebRequest -Uri '"
-                          + url + "' -OutFile '" + destPath + "' -UseBasicParsing\"";
+        // Use curl.exe directly rather than `powershell Invoke-WebRequest`.
+        // Windows Defender heuristically flags the
+        //   cmd.exe -> powershell -NoProfile -Command Invoke-WebRequest -Uri ... -OutFile ...
+        // pattern as Trojan:Win32/ClickFix.R!ml (the same false-positive
+        // worked around in scripts/RunDormannTest.ps1). curl.exe ships with
+        // Win10 1803+ / Win11 and avoids the heuristic.
+        std::string cmd = "curl.exe -sSL -o \"" + destPath + "\" \"" + url + "\"";
 
         return system (cmd.c_str ()) == 0;
     }

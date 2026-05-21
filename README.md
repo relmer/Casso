@@ -8,7 +8,23 @@
 
 ## What's New
 
-A few major capability waves landed between v1.3.509 and v1.3.730. Headlines below; see [CHANGELOG.md](CHANGELOG.md) for the granular history.
+A few major capability waves landed between v1.3.509 and v1.3.853. Headlines below; see [CHANGELOG.md](CHANGELOG.md) for the granular history.
+
+### UI Overhaul (v1.3.853)
+
+Casso's entire chrome moved from the legacy Win32 menu bar / Win32 dialogs to a borderless, themed, in-process RmlUi shell — rendered straight onto the same D3D11 framebuffer that draws the emulator video:
+
+- **Three built-in themes** — Skeuomorphic, Dark Modern, Retro Terminal — hot-swappable from **Settings → Theme** with no restart and no machine reset.
+- **Custom themes are first-class.** Drop a directory under `Themes/<YourTheme>/` containing a `theme.json` plus the entry documents (`title_bar.rml`, `nav_layer.rml`, `settings.rml`, `drive_widgets.rml`) and matching `.rcss` — Casso picks it up on the next launch and the theme appears in the Settings dropdown. See [docs/themes/AUTHORING.md](docs/themes/AUTHORING.md) for a step-by-step guide.
+- **Consolidated Settings panel** replaces the old `OptionsDialog` and `MachinePickerDialog`. Machine selection, emulation speed, video color mode, floppy sound + mechanism, write-protect, theme picker, and the new CRT controls live in one non-modal in-window panel.
+- **Drag-and-drop disk mounting** — drop a `.dsk` / `.do` / `.po` / `.nib` onto either drive widget to insert it; click-to-browse on the same widget opens a file picker.
+- **CRT post-processing** — scanlines, phosphor bloom, color bleed. Each effect toggles independently; a single brightness slider gates the master mix.
+- **Auto-remount** of the last-inserted disks on machine load, so the typical "boot Apple ][+" flow is one click.
+- **Per-machine settings** persist as a delta against the embedded default in `<machineName>_user.json`, replacing the registry-based prefs path.
+
+<!-- TODO: capture screenshot -- caption: "Skeuomorphic theme: warm wood/brass title bar, drive widgets with idle/spin LEDs, Settings panel open over Apple //e DOS 3.3 boot." -->
+<!-- TODO: capture screenshot -- caption: "Dark Modern theme: flat dark chrome, blue accent LEDs, Settings panel showing the Theme dropdown." -->
+<!-- TODO: capture screenshot -- caption: "Retro Terminal theme: green-on-black VT323 font, scanlines + bloom enabled, NTSC color mode." -->
 
 ### Disk II Debug Window (v1.3.730)
 
@@ -239,6 +255,23 @@ I thus present to you our regal namesake—revel in his splendor!
 </p>
 
 *Cassowary photo by [Mr. Smiley / BunyipCo](https://bunyipco.blogspot.com/2015/04/cassowary-update.html), licensed under [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/).*
+
+## Approved Third-Party Dependencies
+
+Per the [Casso Constitution v1.5.0](.specify/memory/constitution.md), every vendored
+third-party source must be MIT or public-domain and listed in the Approved Dependencies
+allowlist. The current allowlist:
+
+| Component                                  | Upstream                                                        | Version / SHA                                  | License  | Used by                            |
+|--------------------------------------------|------------------------------------------------------------------|------------------------------------------------|----------|------------------------------------|
+| **RmlUi**                                  | https://github.com/mikke89/RmlUi                                 | `6.2` / `2230d1a6e8e0848ed87a5761e2a5160b2a175ba4` | MIT      | UI shell — title bar, nav layer, Settings panel, drive widgets |
+| **libretro `crt-pi`** (scanlines)          | https://github.com/libretro/glsl-shaders (`crt/shaders/crt-pi.glsl`) | collection `42fa8a98ab19bdaffb53280746a30819eb21f807` | MIT — Davide Berra        | `Casso/Shaders/CRT/scanlines.hlsl` |
+| **libretro `bloom`** (Gaussian bloom pass) | https://github.com/libretro/glsl-shaders (`bloom/shaders/bloom.glsl`) | collection `42fa8a98ab19bdaffb53280746a30819eb21f807` | CC0 / PD — Hyllian, hunterk | `Casso/Shaders/CRT/bloom_*.hlsl`   |
+| **libretro `ntsc-adaptive`** (color bleed) | https://github.com/libretro/glsl-shaders (`ntsc/shaders/ntsc-adaptive/ntsc-pass1.glsl`) | collection `42fa8a98ab19bdaffb53280746a30819eb21f807` | MIT — Themaister, hunterk  | `Casso/Shaders/CRT/color_bleed.hlsl` |
+| **stb_vorbis**                             | https://github.com/nothings/stb                                  | vendored single-header                         | MIT / PD | OGG decode for Disk II audio samples |
+
+`scripts/CheckShaderLicenses.ps1` runs pre-build to enforce that no GPL / copyleft strings
+leak into `Casso/Shaders/` outside of designated `// ATTRIBUTION:` comment blocks.
 
 ## Acknowledgments
 
