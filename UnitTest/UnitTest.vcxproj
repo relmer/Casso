@@ -344,6 +344,10 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="..\Casso\Ui\TitleBarHitTest.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="Casso\TrackSectorPredicateTests.cpp" />
     <ClCompile Include="Casso\DebugDialogProjectionTests.cpp" />
     <ClCompile Include="Casso\DiskIIDebugDialogColumnTests.cpp" />
@@ -352,6 +356,7 @@
     <ClCompile Include="UiTests\UserConfigStoreTests.cpp" />
     <ClCompile Include="UiTests\GlobalUserPrefsTests.cpp" />
     <ClCompile Include="UiTests\RmlInputBridgeTests.cpp" />
+    <ClCompile Include="UiTests\TitleBarHitTestTests.cpp" />
     <ClCompile Include="Devices\DiskIIDebugDialogTests.cpp" />
   </ItemGroup>
   <ItemGroup>
