@@ -232,6 +232,7 @@
     <ClCompile Include="Config\Win32FileSystem.cpp" />
     <ClCompile Include="Config\UserConfigStore.cpp" />
     <ClCompile Include="Config\GlobalUserPrefs.cpp" />
+    <ClCompile Include="Ui\RmlInputBridge.cpp" />
     <ClCompile Include="OptionsDialog.cpp" />
     <ClCompile Include="TrackSectorPredicate.cpp" />
     <ClCompile Include="DebugDialogProjection.cpp" />
@@ -255,6 +256,7 @@
     <ClInclude Include="Config\Win32FileSystem.h" />
     <ClInclude Include="Config\UserConfigStore.h" />
     <ClInclude Include="Config\GlobalUserPrefs.h" />
+    <ClInclude Include="Ui\RmlInputBridge.h" />
     <ClInclude Include="OptionsDialog.h" />
     <ClInclude Include="TrackSectorPredicate.h" />
     <ClInclude Include="DebugDialogProjection.h" />
