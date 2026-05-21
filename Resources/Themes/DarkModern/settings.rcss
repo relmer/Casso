@@ -1,13 +1,64 @@
+/*  DarkModern settings panel -- P7 */
+
 body.settings-panel
 {
-    display: none;
-    width: 480dp;
-    height: 360dp;
+    display: block;
+    position: absolute;
+    top: 32dp;
+    left: 32dp;
+    width: 560dp;
+    height: 520dp;
     background-color: #1c2027;
     color: #d8dde6;
     font-family: sans-serif;
     font-size: 13dp;
     border: 1dp #2a323e;
+    padding: 12dp;
 }
 
-.settings-stub { padding: 24dp; }
+.settings-pane    { padding: 6dp 0dp; border-bottom: 1dp #2a323e; }
+.settings-header  { padding-bottom: 8dp; }
+.settings-row     { padding: 4dp 0dp; }
+.settings-footer  { padding-top: 8dp; text-align: right; }
+
+h2 { font-size: 14dp; color: #9fd2ff; margin: 4dp 0dp; }
+
+label   { color: #d8dde6; padding: 0dp 6dp; }
+button  { background-color: #2a3340; color: #d8dde6; padding: 4dp 12dp; border: 1dp #3c4a5c; margin: 0dp 4dp; }
+select  { background-color: #2a3340; color: #d8dde6; padding: 2dp 6dp; border: 1dp #3c4a5c; }
+
+button:hover, select:hover, input:hover { background-color: #36404e; }
+
+/* FR-044 -- focus rings present + visible in all built-in themes */
+button:focus, input:focus, select:focus
+{
+    border: 2dp #9fd2ff;
+    background-color: #2c3a50;
+}
+
+.hw-tree    { display: block; padding: 4dp; }
+.hw-row     { display: block; padding: 2dp 0dp; }
+.hw-label   { padding-left: 4dp; }
+
+.cap-required        .hw-label { color: #8893a5; }
+.cap-platform-locked .hw-label { color: #ffba7a; }
+
+.hw-lock-reason { color: #ffba7a; padding-left: 8dp; font-size: 11dp; }
+
+.modal
+{
+    display: none;
+    position: absolute;
+    top: 0dp; left: 0dp; right: 0dp; bottom: 0dp;
+    background-color: #00000080;
+}
+.modal.visible { display: block; }
+.modal-body
+{
+    position: absolute;
+    top: 40%; left: 20%; right: 20%;
+    background-color: #1c2027;
+    color: #d8dde6;
+    padding: 16dp;
+    border: 1dp #9fd2ff;
+}

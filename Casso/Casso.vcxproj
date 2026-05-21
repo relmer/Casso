@@ -248,6 +248,8 @@
     <ClCompile Include="Ui\DriveWidgetController.cpp" />
     <ClCompile Include="Ui\DragDropTarget.cpp" />
     <ClCompile Include="Ui\AutoMountResolver.cpp" />
+    <ClCompile Include="Ui\SettingsPanelState.cpp" />
+    <ClCompile Include="Ui\SettingsPanel.cpp" />
     <ClCompile Include="OptionsDialog.cpp" />
     <ClCompile Include="TrackSectorPredicate.cpp" />
     <ClCompile Include="DebugDialogProjection.cpp" />
@@ -289,6 +291,8 @@
     <ClInclude Include="Ui\DragDropTarget.h" />
     <ClInclude Include="Ui\IDriveCommandSink.h" />
     <ClInclude Include="Ui\AutoMountResolver.h" />
+    <ClInclude Include="Ui\SettingsPanelState.h" />
+    <ClInclude Include="Ui\SettingsPanel.h" />
     <ClInclude Include="OptionsDialog.h" />
     <ClInclude Include="TrackSectorPredicate.h" />
     <ClInclude Include="DebugDialogProjection.h" />

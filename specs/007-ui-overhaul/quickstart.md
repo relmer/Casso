@@ -112,3 +112,52 @@ scripts/RunHarteTests.ps1 -SkipGenerate
   UI thread is fine; never write to those flags from the UI thread.
 - Drag-drop registration stays on the main window; the per-element route
   is just a hit-test dispatch step inside our drop handler.
+
+## P7 verification (Settings panel)
+
+### Open-while-running (FR-041)
+
+The Settings panel is a pure view over `SettingsPanelState` -- the CPU
+thread loop in `EmulatorShell::CpuThreadProc` runs independently of
+the UI thread and is NEVER blocked by the panel being visible. To
+verify manually:
+
+1. Boot Apple //e and let it sit at the BASIC prompt.
+2. Open **View > Settings...** (or `Ctrl+,`).
+3. Observe the cursor blink continues at the authentic ~1Hz rate.
+4. Toggle a Disk II write-protect switch in the panel; the BASIC
+   prompt keeps blinking with no glitch.
+5. While the panel is open, type into the emulator -- keystrokes
+   land in BASIC.
+
+### Keyboard navigation (FR-044)
+
+With the Settings panel open:
+
+* `Tab` walks every interactive control in visual order: machine
+  selector -> speed radios -> color radios -> floppy sound checkbox
+  -> mechanism dropdown -> WP checkboxes -> hardware-tree
+  checkboxes -> theme selector -> CRT controls -> footer buttons.
+* `Shift+Tab` reverses.
+* `Space` / `Enter` toggle checkboxes and activate buttons.
+* `Escape` closes the panel (= Cancel; discards staged changes).
+* The focused control receives the visible focus ring defined in
+  each theme's `settings.rcss` `:focus` rule.
+
+### FR -> task traceability
+
+| FR | Verified by |
+|----|-------------|
+| FR-001 | `SettingsPanel::Initialize` constructs single-window panel |
+| FR-002 | `SettingsPanelStateTests::MachineSwitch_RebindsToNewMachine` |
+| FR-003 | `SettingsUiPrefs::writeProtect[2]` + Apply path |
+| FR-004 | `HardwareTreeTests::Extract_PreservesInternalThenSlotOrdering` |
+| FR-005 | `HardwareTreeTests::Extract_DefaultCapabilities_PerFR015` |
+| FR-006 | `HardwareTreeTests` -- optional rendered interactive |
+| FR-007 | `SettingsPanelStateTests::SetHardwareEnabled_RequiredEntryRejected` |
+| FR-008 | `SettingsPanelStateTests::SetHardwareEnabled_PlatformLockedRejected` |
+| FR-009 | `SettingsPanel::CommitApply` Apply button |
+| FR-010 | `SettingsPanelStateTests::Apply_HardwareChangeQueuesReset` |
+| FR-011 | `SettingsPanelStateTests::Apply_PushesLiveFieldsThroughSink` |
+| FR-041 | Manual verification above |
+| FR-044 | Manual verification above + `tabindex` attrs in `settings.rml` |

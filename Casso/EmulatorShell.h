@@ -17,7 +17,11 @@
 #include "Ui/DriveWidgetController.h"
 #include "Ui/DragDropTarget.h"
 #include "Ui/IDriveCommandSink.h"
+#include "Ui/SettingsPanel.h"
+#include "Ui/ThemeManager.h"
 #include "Config/Win32FileSystem.h"
+#include "Config/UserConfigStore.h"
+#include "Config/GlobalUserPrefs.h"
 #include "Video/VideoOutput.h"
 #include "Video/CharacterRomData.h"
 #include "Video/VideoTiming.h"
@@ -272,6 +276,16 @@ private:
     // frame and pushed into the elements via SyncFromStates.
     DriveWidgetController                m_driveWidgets;
     DragDropTarget                       m_dragDropTarget;
+
+    // P7 -- consolidated RmlUi Settings panel. Lazily constructed
+    // pieces so we can defer their I/O until first Show() on the
+    // panel. ThemeManager + UserConfigStore + GlobalUserPrefs are
+    // owned here so SettingsPanel can be a pure view layer.
+    std::unique_ptr<ThemeManager>        m_themeManager;
+    std::unique_ptr<UserConfigStore>     m_userConfigStore;
+    GlobalUserPrefs                      m_globalPrefs;
+    SettingsPanel                        m_settingsPanel;
+
     std::array<DriveWidgetState, 2>      m_driveWidgetState;
 
     // Per-drive read/write nibble counter snapshots from the previous

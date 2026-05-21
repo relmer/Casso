@@ -202,8 +202,8 @@ User-story key (from `spec.md`):
 
 **Gate to exit**: every requirement FR-001 .. FR-011 satisfied; SC-001 (≤60s task completion) and SC-008 (≥90% findability) achievable in UX dry-run; emulation runs uninterrupted while panel is open (FR-041).
 
-- [ ] **P7-T1** [US1] [US2] `Casso/Ui/SettingsPanelState.{h,cpp}` — in-memory transient snapshot. `LoadFromMachine(name, UserConfigStore&)`, `Apply(UserConfigStore&, EmulatorShell&)`, `Cancel()`, `IsDirty()`. **Never touches disk directly** (delegates to `UserConfigStore`). Acceptance: state cleanly cancellable with no side effects. Files: `Casso/Ui/SettingsPanelState.{h,cpp}` (new). Depends: P2-T2.
-- [ ] **P7-T2** [US1] [US2] RML layout `Resources/Themes/_shared/settings_panel.rml` (overridable per theme) — sections:
+- [x] **P7-T1** [US1] [US2] `Casso/Ui/SettingsPanelState.{h,cpp}` — in-memory transient snapshot. `LoadFromMachine(name, UserConfigStore&)`, `Apply(UserConfigStore&, EmulatorShell&)`, `Cancel()`, `IsDirty()`. **Never touches disk directly** (delegates to `UserConfigStore`). Acceptance: state cleanly cancellable with no side effects. Files: `Casso/Ui/SettingsPanelState.{h,cpp}` (new). Depends: P2-T2.
+- [x] **P7-T2** [US1] [US2] RML layout `Resources/Themes/_shared/settings_panel.rml` (overridable per theme) — sections:
   1. **Machine** selector at top (FR-002).
   2. **Emulation** (speed, write protect, floppy sound + mechanism).
   3. **Video** (color mode, CRT effects: brightness, scanlines, bloom, color bleed).
@@ -211,20 +211,20 @@ User-story key (from `spec.md`):
   5. **Hardware** (tree view bound to selected machine's component list, checkbox states from `capabilityFlag`).
   6. Footer: Apply / Cancel / Reset-to-defaults (`UserConfigStore::Reset`).
   Acceptance: all six sections render in all three built-in themes. Files: `Resources/Themes/_shared/settings_panel.rml` (new), `Resources/Themes/_shared/settings_panel.rcss` (new — base styles overridable per theme). Depends: P5-T2, P7-T1.
-- [ ] **P7-T3** [US2] [US6] Machine-selector change reloads `SettingsPanelState` from that machine's merged config **without closing the dialog** (FR-002 acceptance). Acceptance: switching between Apple //e and Apple //c re-populates the Hardware tree without reopening. Files: `Casso/Ui/SettingsPanel.{h,cpp}` (new — binds RML doc to state). Depends: P7-T1, P7-T2.
-- [ ] **P7-T4** [US2] Hardware tree behavior (FR-004 .. FR-008):
+- [x] **P7-T3** [US2] [US6] Machine-selector change reloads `SettingsPanelState` from that machine's merged config **without closing the dialog** (FR-002 acceptance). Acceptance: switching between Apple //e and Apple //c re-populates the Hardware tree without reopening. Files: `Casso/Ui/SettingsPanel.{h,cpp}` (new — binds RML doc to state). Depends: P7-T1, P7-T2.
+- [x] **P7-T4** [US2] Hardware tree behavior (FR-004 .. FR-008):
   - `optional` → interactive checkbox.
   - `required` → checked + disabled.
   - `platform-locked` → checked + disabled + tooltip showing `lockReason`.
   Acceptance: Apple //c integrated 80-column card is rendered as platform-locked with the tooltip from P1-T8. Files: `Casso/Ui/SettingsPanel.cpp` (modified). Depends: P7-T3.
-- [ ] **P7-T5** [US1] [US2] Apply path:
+- [x] **P7-T5** [US1] [US2] Apply path:
   - Immediate-effect fields (speed, video mode, floppy sound) push through existing `EmulatorShell` atomics + command queue (FR-011 — no reset).
   - Reset-required fields (hardware tree changes) show a confirmation dialog (RML modal), then schedule a machine reset via existing `EmulatorShell::QueueMachineReset` (FR-010).
   - All applied changes flush through `UserConfigStore::SaveDelta`.
   Acceptance: changing speed reflects within one frame; toggling a hardware checkbox prompts for confirmation then resets. Files: `Casso/Ui/SettingsPanel.cpp` (modified). Depends: P7-T4.
-- [ ] **P7-T6** [US1] [US5] Keyboard navigation (FR-044): Tab cycles all controls in visual order; Space/Enter activate; Escape cancels; RCSS `:focus` styles present in all three built-in themes. Acceptance: full keyboard-only traversal of the panel proven in `quickstart.md` UX dry-run. Files: `Resources/Themes/{Skeuomorphic,DarkModern,RetroTerminal}/*.rcss` (modified — add `:focus` rules), `Resources/Themes/_shared/settings_panel.rcss` (modified — Tab order via `tabindex` attributes). Depends: P7-T2, P5-T3, P5-T4, P5-T5.
-- [ ] **P7-T7** [US1] Open-while-running (FR-041): panel is purely a view over `SettingsPanelState`; emulation thread is not paused. Acceptance: opening the panel during a disk read does not cause audible glitches; verified via existing audio underrun counter not incrementing. Files: none (architectural; verified by manual test in quickstart.md). Depends: P7-T5.
-- [ ] **P7-T8 [P]** Tests in `UnitTest/UiTests/SettingsPanelStateTests.cpp` — IsDirty after edit; Cancel restores; Apply pushes immediate fields through a mock `EmulatorShell`; switching machines reloads state. Acceptance: ≥5 TEST_METHODs; no RML doc instantiated (state is the pure-logic seam). Files: `UnitTest/UiTests/SettingsPanelStateTests.cpp` (new). Depends: P7-T1.
+- [x] **P7-T6** [US1] [US5] Keyboard navigation (FR-044): Tab cycles all controls in visual order; Space/Enter activate; Escape cancels; RCSS `:focus` styles present in all three built-in themes. Acceptance: full keyboard-only traversal of the panel proven in `quickstart.md` UX dry-run. Files: `Resources/Themes/{Skeuomorphic,DarkModern,RetroTerminal}/*.rcss` (modified — add `:focus` rules), `Resources/Themes/_shared/settings_panel.rcss` (modified — Tab order via `tabindex` attributes). Depends: P7-T2, P5-T3, P5-T4, P5-T5.
+- [x] **P7-T7** [US1] Open-while-running (FR-041): panel is purely a view over `SettingsPanelState`; emulation thread is not paused. Acceptance: opening the panel during a disk read does not cause audible glitches; verified via existing audio underrun counter not incrementing. Files: none (architectural; verified by manual test in quickstart.md). Depends: P7-T5.
+- [x] **P7-T8 [P]** Tests in `UnitTest/UiTests/SettingsPanelStateTests.cpp` — IsDirty after edit; Cancel restores; Apply pushes immediate fields through a mock `EmulatorShell`; switching machines reloads state. Acceptance: ≥5 TEST_METHODs; no RML doc instantiated (state is the pure-logic seam). Files: `UnitTest/UiTests/SettingsPanelStateTests.cpp` (new). Depends: P7-T1.
 
 **Phase P7 dependency graph**: P7-T1 → P7-T2 → P7-T3 → P7-T4 → P7-T5 → P7-T7. P7-T6 needs P7-T2 + all built-in themes. P7-T8 parallel after P7-T1.
 **Constitution check gate**: All FR-001..FR-011 traced to a specific task — append the traceability table to `quickstart.md`. Panel-state tests inject `EmulatorShell` mock and `UserConfigStore` mock (no real I/O).

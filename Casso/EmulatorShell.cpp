@@ -315,6 +315,43 @@ HRESULT EmulatorShell::Initialize (
                     });
                 IGNORE_RETURN_VALUE (hrDd, S_OK);
             }
+
+            // P7 -- ThemeManager + UserConfigStore + GlobalUserPrefs
+            // backing the consolidated Settings panel. All
+            // best-effort: failing to discover themes or load prefs
+            // leaves the panel inoperative but doesn't abort window
+            // bring-up.
+            {
+                fs::path       exeDir     = PathResolver::GetExecutableDirectory();
+                std::wstring   themesDir  = (exeDir / L"Themes").wstring();
+                std::wstring   userDir    = exeDir.wstring();
+
+                m_themeManager    = std::make_unique<ThemeManager>    (m_uiFs, themesDir);
+                m_userConfigStore = std::make_unique<UserConfigStore> (userDir);
+
+                HRESULT  hrDisc = m_themeManager->Discover();
+                IGNORE_RETURN_VALUE (hrDisc, S_OK);
+
+                m_themeManager->BindRml (m_uiShell.GetContext(), m_hwnd);
+
+                HRESULT  hrPrefs = m_globalPrefs.Load (exeDir.wstring(), m_uiFs);
+                IGNORE_RETURN_VALUE (hrPrefs, S_FALSE);
+
+                if (! m_globalPrefs.activeTheme.empty())
+                {
+                    HRESULT  hrAct = m_themeManager->Activate (m_globalPrefs.activeTheme);
+                    IGNORE_RETURN_VALUE (hrAct, S_FALSE);
+                }
+
+                HRESULT  hrSp = m_settingsPanel.Initialize (
+                    m_uiShell,
+                    *m_userConfigStore,
+                    m_globalPrefs,
+                    *m_themeManager,
+                    *this,
+                    m_uiFs);
+                IGNORE_RETURN_VALUE (hrSp, S_OK);
+            }
         }
         else
         {
@@ -4082,6 +4119,17 @@ void EmulatorShell::OnViewCommand (int id)
         case IDM_VIEW_DISKII_DEBUG:
         {
             OpenDiskIIDebugDialog();
+            break;
+        }
+
+        case IDM_VIEW_SETTINGS:
+        {
+            // P7 -- consolidated RmlUi Settings panel. Non-modal;
+            // emulator continues running while open (FR-041). The
+            // panel reuses our existing UiShell context + the active
+            // theme's settings.rml + RCSS.
+            HRESULT  hrShow = m_settingsPanel.Show();
+            IGNORE_RETURN_VALUE (hrShow, S_OK);
             break;
         }
     }

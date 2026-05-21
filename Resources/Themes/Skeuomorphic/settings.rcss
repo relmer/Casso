@@ -1,13 +1,63 @@
+/*  Skeuomorphic settings panel -- P7 */
+
 body.settings-panel
 {
-    display: none;
-    width: 480dp;
-    height: 360dp;
+    display: block;
+    position: absolute;
+    top: 32dp;
+    left: 32dp;
+    width: 560dp;
+    height: 520dp;
     background-color: #efe6d2;
     color: #2a2418;
     font-family: sans-serif;
     font-size: 13dp;
     border: 1dp #b09a76;
+    padding: 12dp;
 }
 
-.settings-stub { padding: 24dp; }
+.settings-pane    { padding: 6dp 0dp; border-bottom: 1dp #c8b896; }
+.settings-header  { padding-bottom: 8dp; }
+.settings-row     { padding: 4dp 0dp; }
+.settings-footer  { padding-top: 8dp; text-align: right; }
+
+h2 { font-size: 14dp; color: #5a3d0e; margin: 4dp 0dp; }
+
+label   { color: #2a2418; padding: 0dp 6dp; }
+button  { background-color: #d8c79f; color: #2a2418; padding: 4dp 12dp; border: 1dp #b09a76; margin: 0dp 4dp; }
+select  { background-color: #f5ecd8; color: #2a2418; padding: 2dp 6dp; border: 1dp #b09a76; }
+
+button:hover, select:hover, input:hover { background-color: #ead9b3; }
+
+button:focus, input:focus, select:focus
+{
+    border: 2dp #5a3d0e;
+    background-color: #ead9b3;
+}
+
+.hw-tree    { display: block; padding: 4dp; }
+.hw-row     { display: block; padding: 2dp 0dp; }
+.hw-label   { padding-left: 4dp; }
+
+.cap-required        .hw-label { color: #7a6a4a; }
+.cap-platform-locked .hw-label { color: #8a3a0e; }
+
+.hw-lock-reason { color: #8a3a0e; padding-left: 8dp; font-size: 11dp; }
+
+.modal
+{
+    display: none;
+    position: absolute;
+    top: 0dp; left: 0dp; right: 0dp; bottom: 0dp;
+    background-color: #00000060;
+}
+.modal.visible { display: block; }
+.modal-body
+{
+    position: absolute;
+    top: 40%; left: 20%; right: 20%;
+    background-color: #efe6d2;
+    color: #2a2418;
+    padding: 16dp;
+    border: 2dp #5a3d0e;
+}

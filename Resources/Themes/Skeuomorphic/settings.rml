@@ -1,11 +1,115 @@
 <rml>
     <head>
-        <title>Settings — Skeuomorphic</title>
+        <title>Casso Settings</title>
         <link type="text/rcss" href="theme.rcss"/>
         <link type="text/rcss" href="settings.rcss"/>
     </head>
     <body class="settings-panel">
-        <!-- P5 stub. P7 fills in the six-section settings panel. -->
-        <div class="settings-stub">Settings (P7).</div>
+        <!-- P7 -- structure shared across all built-in themes. Theme
+             RCSS restyles appearance; element IDs and DOM shape are
+             fixed (SettingsPanel.cpp depends on them). -->
+
+        <div class="settings-row settings-header">
+            <label for="machine-selector">Machine:</label>
+            <select id="machine-selector" tabindex="0"/>
+        </div>
+
+        <div class="settings-pane" id="pane-emulation">
+            <h2>Emulation</h2>
+            <div class="settings-row">
+                <label>Speed:</label>
+                <input type="radio" id="speed-authentic" name="speed" value="authentic" tabindex="0"/>
+                <label for="speed-authentic">Authentic (1x)</label>
+                <input type="radio" id="speed-double"    name="speed" value="double"    tabindex="0"/>
+                <label for="speed-double">Double (2x)</label>
+                <input type="radio" id="speed-maximum"   name="speed" value="maximum"   tabindex="0"/>
+                <label for="speed-maximum">Maximum</label>
+            </div>
+        </div>
+
+        <div class="settings-pane" id="pane-video">
+            <h2>Video</h2>
+            <div class="settings-row">
+                <label>Color mode:</label>
+                <input type="radio" id="color-color" name="color" value="color" tabindex="0"/>
+                <label for="color-color">Color</label>
+                <input type="radio" id="color-green" name="color" value="green" tabindex="0"/>
+                <label for="color-green">Green</label>
+                <input type="radio" id="color-amber" name="color" value="amber" tabindex="0"/>
+                <label for="color-amber">Amber</label>
+                <input type="radio" id="color-white" name="color" value="white" tabindex="0"/>
+                <label for="color-white">White</label>
+            </div>
+        </div>
+
+        <div class="settings-pane" id="pane-audio">
+            <h2>Audio</h2>
+            <div class="settings-row">
+                <input type="checkbox" id="floppy-sound" tabindex="0"/>
+                <label for="floppy-sound">Floppy mechanism sound</label>
+            </div>
+            <div class="settings-row">
+                <label for="floppy-mechanism">Mechanism:</label>
+                <select id="floppy-mechanism" tabindex="0">
+                    <option value="shugart">Shugart SA-400</option>
+                    <option value="alps">ALPS DFB-111M</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="settings-pane" id="pane-disk">
+            <h2>Disk</h2>
+            <div class="settings-row">
+                <input type="checkbox" id="wp-drive-0" tabindex="0"/>
+                <label for="wp-drive-0">Write protect drive 1</label>
+            </div>
+            <div class="settings-row">
+                <input type="checkbox" id="wp-drive-1" tabindex="0"/>
+                <label for="wp-drive-1">Write protect drive 2</label>
+            </div>
+        </div>
+
+        <div class="settings-pane" id="pane-hardware">
+            <h2>Hardware</h2>
+            <div id="hardware-tree" class="hw-tree"/>
+        </div>
+
+        <div class="settings-pane" id="pane-theme">
+            <h2>Theme</h2>
+            <div class="settings-row">
+                <label for="theme-selector">Active theme:</label>
+                <select id="theme-selector" tabindex="0"/>
+            </div>
+        </div>
+
+        <div class="settings-pane" id="pane-crt">
+            <h2>CRT</h2>
+            <div class="settings-row">
+                <label for="crt-brightness">Brightness:</label>
+                <input type="range" id="crt-brightness" min="0.0" max="2.0" step="0.05" value="1.0" tabindex="0"/>
+            </div>
+            <div class="settings-row">
+                <input type="checkbox" id="crt-scanlines" tabindex="0"/>
+                <label for="crt-scanlines">Scanlines</label>
+                <input type="checkbox" id="crt-bloom" tabindex="0"/>
+                <label for="crt-bloom">Bloom</label>
+                <input type="checkbox" id="crt-color-bleed" tabindex="0"/>
+                <label for="crt-color-bleed">Color bleed</label>
+            </div>
+        </div>
+
+        <div class="settings-footer">
+            <button id="btn-apply"  tabindex="0">Apply</button>
+            <button id="btn-cancel" tabindex="0">Cancel</button>
+        </div>
+
+        <!-- Modal confirm for hardware-change reset (FR-010). -->
+        <div id="modal-confirm-reset" class="modal">
+            <div class="modal-body">
+                <p>Resetting the machine is required to apply these hardware changes. Reset now?</p>
+                <button id="confirm-reset"   tabindex="0">Reset</button>
+                <button id="confirm-discard" tabindex="0">Don't apply</button>
+            </div>
+        </div>
     </body>
 </rml>
