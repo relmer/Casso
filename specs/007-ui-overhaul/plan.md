@@ -1,7 +1,7 @@
 # Implementation Plan: Full UI Overhaul (RmlUi + CSS Themes + Custom D3D Chrome)
 
 **Branch**: `007-ui-overhaul` | **Date**: 2026-05-20 | **Spec**: [spec.md](./spec.md)
-**Input**: `specs/007-ui-overhaul/spec.md` (46 functional requirements)
+**Input**: `specs/007-ui-overhaul/spec.md` (47 functional requirements: FR-001..FR-046 plus FR-022b)
 
 ## Summary
 
@@ -41,9 +41,10 @@ lines of hand-rolled focus management, layout, text shaping, and shader work.
 **Testing**: Microsoft C++ Unit Test Framework (`UnitTest/` project). New test
   groups: `UserConfigStoreTests`, `GlobalUserPrefsTests`, `ThemeLoaderTests`,
   `SettingsPanelStateTests`, `RmlBackendSmokeTests` (logic only; no real GPU).
-**Target Platform**: Windows 11 x64 / ARM64 (FR-042 raises the floor from
-  Win10 to Win11 to unlock Mica + `DWMWA_WINDOW_CORNER_PREFERENCE` + rounded
-  corners + modern WM_NCHITTEST behavior).
+**Target Platform**: Windows 10/11, x64 / ARM64. FR-042-style Win11-only
+  effects (Mica, `DWMWA_WINDOW_CORNER_PREFERENCE`, modern WM_NCHITTEST
+  niceties) are gated at runtime via `IsWindows11OrGreater()`; the chrome
+  must remain functional on Win10 (sharp corners + solid backgrounds).
 **Project Type**: Desktop GUI application (Casso) plus two static-library
   dependencies (CassoCore, CassoEmuCore) — no new project shape, but a new
   `External/RmlUi` static lib project is added to the solution.
@@ -62,7 +63,7 @@ lines of hand-rolled focus management, layout, text shaping, and shader work.
     function-spacing rules, no Pch-bypass for system headers — RmlUi headers
     go through `Pch.h` like everything else.
 **Scale/Scope**:
-  - ~46 functional requirements across 3 areas.
+  - ~47 functional requirements across 3 areas.
   - 3 built-in themes + open extensibility for user themes.
   - 5–7 new modules in `Casso/`; 1 schema extension in `CassoEmuCore`;
     1 vendored third-party lib; 3–5 HLSL files in `Casso/Shaders/CRT/`.
@@ -288,8 +289,9 @@ No theme yet; no chrome content yet.
 
 - **P3-T1** `RmlBackend_D3D11`:
   - Implements `Rml::RenderInterface`: `RenderGeometry`, `CompileGeometry`,
-    `ReleaseCompiledGeometry`, `EnableScissorRegion`, `SetScissorRegion`,
-    `LoadTexture`, `GenerateTexture`, `ReleaseTexture`, `SetTransform`.
+    `RenderCompiledGeometry`, `ReleaseCompiledGeometry`, `EnableScissorRegion`,
+    `SetScissorRegion`, `LoadTexture`, `GenerateTexture`, `ReleaseTexture`,
+    `SetTransform`.
   - Uses **shared** ID3D11Device/Context from `D3DRenderer` (no second device).
   - Two HLSL shaders: textured + untextured triangle list, premultiplied alpha.
   - Pre-multiplied alpha blend state cached; scissor rect via RSSetScissorRects.
@@ -523,5 +525,6 @@ These are flagged here so they're answered before they block work:
 - [x] Constitution Check evaluated (PASS w/ documented justified violation)
 - [x] Agent context updated (`.github/copilot-instructions.md` already references
       `specs/007-ui-overhaul/plan.md`)
-- [ ] Constitution amendment v1.5.0 merged (blocks Phase 1 implementation work)
-- [ ] Phase 2 task generation (`/speckit.tasks`) — not part of this command
+- [x] Constitution amendment v1.5.0 merged (Approved Third-Party Dependencies
+      allowlist added 2026-05-20; RmlUi + 3 shaders listed)
+- [x] Phase 2 task generation (`/speckit.tasks`) — tasks.md committed
