@@ -239,6 +239,7 @@
     <ClCompile Include="RegressionTests.cpp" />
     <ClCompile Include="EmuTests\MemoryBusTests.cpp" />
     <ClCompile Include="EmuTests\JsonParserTests.cpp" />
+    <ClCompile Include="EmuTests\JsonWriterTests.cpp" />
     <ClCompile Include="EmuTests\DeviceTests.cpp" />
     <ClCompile Include="EmuTests\KeyboardTests.cpp" />
     <ClCompile Include="EmuTests\SoftSwitchTests.cpp" />
@@ -331,11 +332,21 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="..\Casso\Config\UserConfigStore.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Config\GlobalUserPrefs.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="Casso\TrackSectorPredicateTests.cpp" />
     <ClCompile Include="Casso\DebugDialogProjectionTests.cpp" />
     <ClCompile Include="Casso\DiskIIDebugDialogColumnTests.cpp" />
     <ClCompile Include="Casso\MenuSystemTests.cpp" />
     <ClCompile Include="Casso\RichEditSquiggleTests.cpp" />
+    <ClCompile Include="UiTests\UserConfigStoreTests.cpp" />
+    <ClCompile Include="UiTests\GlobalUserPrefsTests.cpp" />
     <ClCompile Include="Devices\DiskIIDebugDialogTests.cpp" />
   </ItemGroup>
   <ItemGroup>
