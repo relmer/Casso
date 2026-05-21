@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch CassoCli",
+            "name": "Launch CassoCli (ARM64)",
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/ARM64/Debug/CassoCli.exe",
@@ -11,10 +11,10 @@
             "cwd": "${workspaceFolder}",
             "environment": [],
             "console": "integratedTerminal",
-            "preLaunchTask": "Build Debug (current arch)"
+            "preLaunchTask": "Build Debug ARM64 (no test)"
         },
         {
-            "name": "Launch Casso",
+            "name": "Launch Casso (ARM64)",
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/ARM64/Debug/Casso.exe",
@@ -22,7 +22,30 @@
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "preLaunchTask": "Build Debug (current arch)"
+            "preLaunchTask": "Build Debug ARM64 (no test)"
+        },
+        {
+            "name": "Launch CassoCli (x64)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/x64/Debug/CassoCli.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "console": "integratedTerminal",
+            "preLaunchTask": "Build Debug x64 (no test)"
+        },
+        {
+            "name": "Launch Casso (x64)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/x64/Debug/Casso.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "preLaunchTask": "Build Debug x64 (no test)"
         }
     ]
 }
