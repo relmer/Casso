@@ -9,13 +9,15 @@
 
 ## Overview
 
-This feature replaces Casso's current Win32-native chrome (title bar, menu bar, status bar, option dialogs) with a fully custom Direct3D 11–rendered user interface, while simultaneously consolidating scattered per-feature settings dialogs into a single machine-aware settings panel and introducing a hot-swappable JSON theme system. The result is an application whose every visible pixel — save the core emulated video output — is rendered by the existing D3D11 pipeline, delivering a cohesive, skeuomorphic-ready aesthetic without any third-party UI toolkit dependency.
+This feature replaces Casso's current Win32-native chrome (title bar, menu bar, status bar, option dialogs) with a fully custom Direct3D 11–rendered user interface, while simultaneously consolidating scattered per-feature settings dialogs into a single machine-aware settings panel and introducing a hot-swappable CSS-based theme system. The result is an application whose every visible pixel — save the core emulated video output — is rendered through the existing D3D11 pipeline, delivering a cohesive, skeuomorphic-ready aesthetic.
+
+The UI layer is built on **RmlUi** (MIT-licensed HTML/CSS-style UI library with a custom D3D11 backend). The emulated viewport's CRT post-processing uses **MIT/public-domain shader sources** (e.g., CRT-Lottes, CRT-Geom-Mod) shipped in-tree as HLSL ports. These two dependencies are the only third-party libraries introduced and are documented in the project root.
 
 The overhaul spans three interlocked deliverables:
 
 1. **Uber Settings Dialog** — one consolidated settings panel whose top-level control is machine selection; all other settings (speed, video mode, write protect, drive audio, hardware component tree) immediately reflect the selected machine's saved configuration when the machine selection changes.
 2. **Full Custom D3D Chrome** — borderless window with custom D3D-rendered title bar, drive widgets (physical disk drive look with spinning animation and eject slot), realistic LED indicators, and a D3D-rendered navigation/menu layer.
-3. **JSON Theme System** — themes expressed as JSON files living in a `Themes/` directory (bootstrapped on first launch like `Machines/`), hot-swappable at runtime, with several built-in themes shipped with the application.
+3. **CSS-Based Theme System** — themes expressed as RML (layout) + RCSS (styles) + asset files living in a `Themes/` directory (bootstrapped on first launch like `Machines/`), hot-swappable at runtime, with several built-in themes shipped with the application.
 
 ---
 
@@ -85,7 +87,7 @@ A user navigates to the Theme section of the Settings dialog and selects "Retro 
 1. **Given** the Settings dialog is open on the Theme page, **When** the user selects a different theme from the list, **Then** all custom-chrome visual elements update to that theme's colors, textures, and layout geometry within one rendered frame (no restart required).
 2. **Given** a theme change is applied, **When** the emulated video output frame is rendered, **Then** the emulated screen content is pixel-identical to what it would have been with any other theme active (themes affect only chrome, not emulation).
 3. **Given** the user selects "Dark Modern", closes the application, and relaunches, **When** the application fully initializes, **Then** the chrome renders with the "Dark Modern" theme without requiring the user to re-select it.
-4. **Given** a user has authored a custom theme JSON and placed it in the `Themes/` directory while the application is running, **When** the user opens the Settings Theme page, **Then** the new theme appears in the list and can be selected immediately.
+4. **Given** a user has authored a custom theme directory (RML + RCSS + `theme.json`) and placed it in the `Themes/` directory while the application is running, **When** the user opens the Settings Theme page, **Then** the new theme appears in the list and can be selected immediately.
 
 ---
 
@@ -125,7 +127,7 @@ A user who ran Casso v1.x has a `Machines/apple2e/apple2e_user.json` file on dis
 ### Edge Cases
 
 - What happens when the `Themes/` directory is missing or empty on first launch? → Bootstrap must extract built-in theme files from embedded resources, mirroring the `Machines/` bootstrap pattern in `AssetBootstrap`.
-- What happens when a user-authored theme JSON is malformed or references a missing texture file? → The theme is excluded from the selection list, a warning is logged, and the previously active theme remains active. Application does not crash.
+- What happens when a user-authored theme is malformed (invalid RCSS, missing `theme.json`, missing asset file)? → The theme is excluded from the selection list, a warning is logged, and the previously active theme remains active. Application does not crash.
 - What happens when the Settings dialog is open and the user triggers a machine reset? → If the dialog has unapplied changes, present a brief confirmation; if confirmed, dismiss the dialog without applying and proceed with the reset.
 - What happens when the user JSON for a machine references a component `type` that no longer exists in the current codebase? → The unknown component is skipped (logged as a warning) and the machine loads with the remaining valid components.
 - What happens when the user drags an image file onto a drive widget while the emulator is running at Maximum speed? → The disk insert must be safe regardless of emulation speed; the command is posted to the CPU thread command queue (same as current behavior) and the UI widget updates optimistically.
@@ -174,25 +176,26 @@ A user who ran Casso v1.x has a `Machines/apple2e/apple2e_user.json` file on dis
 - **FR-027**: The Settings dialog (FR-001 through FR-017) MUST be rendered in D3D within the application window rather than as a Win32 dialog (`DialogBoxIndirectParam`). The existing `OptionsDialog` and `MachinePickerDialog` Win32 dialogs MUST be retired by this feature.
 - **FR-028**: The D3D chrome layer MUST correctly handle WM_NCHITTEST returns for borderless window behavior, ensuring OS-level window management (snap, Aero Shake, Task View) continues to function correctly.
 
-### Functional Requirements — Area 3: JSON Theme System
+### Functional Requirements — Area 3: CSS-Based Theme System
 
-- **FR-029**: Themes MUST be defined as JSON files in a `Themes/` directory under the asset base directory (same base as `Machines/` and `Devices/`).
+- **FR-029**: Themes MUST be defined as a directory under the asset base directory (same base as `Machines/` and `Devices/`) containing RML layout files, RCSS stylesheets, image/font assets, and a small `theme.json` metadata file (name, version, author, description).
 - **FR-030**: On first launch (or when `Themes/` is absent), `AssetBootstrap` MUST extract the built-in themes from embedded resources to the `Themes/` directory, following the same pattern as `EnsureMachineConfigs`.
 - **FR-031**: The application MUST ship at least three built-in themes: **Skeuomorphic** (beige/cream palette, physical Apple II hardware appearance), **Dark Modern** (dark palette with glowing LED accents and neon highlights), and **Retro Terminal** (phosphor green/amber, scanlines overlay, CRT aesthetic).
-- **FR-032**: A theme JSON MUST define at minimum: color palette tokens, texture/image file references (relative paths within the theme directory), widget geometry and layout parameters, animation parameters (timing curves, durations), and LED glow parameters.
-- **FR-033**: Themes MUST be hot-swappable: switching the active theme in the Settings panel MUST cause all D3D chrome to re-render with the new theme's parameters within the current or immediately following rendered frame, without restarting the application or resetting the emulator.
-- **FR-034**: The active theme selection MUST persist across application restarts, stored in the per-machine or global user settings (not machine-specific, as theme is a UI preference not a machine property).
-- **FR-035**: User-authored theme files placed in the `Themes/` directory while the application is running MUST appear in the theme list the next time the Theme section of the Settings panel is opened (no restart required to discover new themes).
-- **FR-036**: A malformed theme JSON or one referencing a missing asset MUST be excluded from the theme list with a warning logged; it MUST NOT crash the application or corrupt the active theme.
+- **FR-032**: A theme's RML/RCSS MUST define: color palette tokens (RCSS custom properties), widget visual treatment (drive widgets, LED indicators, title bar, nav layer, Settings panel), layout geometry, animation parameters (RCSS transitions/keyframes), and CRT effect defaults (in the `theme.json` metadata).
+- **FR-033**: Themes MUST be hot-swappable: switching the active theme in the Settings panel MUST cause all RmlUi-rendered chrome to re-render with the new theme's styles within the current or immediately following rendered frame, without restarting the application or resetting the emulator.
+- **FR-034**: The active theme selection MUST persist across application restarts, stored in global user settings (not machine-specific, as theme is a UI preference not a machine property).
+- **FR-035**: User-authored theme directories placed in `Themes/` while the application is running MUST appear in the theme list the next time the Theme section of the Settings panel is opened (no restart required to discover new themes).
+- **FR-036**: A malformed theme (missing `theme.json`, invalid RCSS that fails RmlUi parsing, or referencing missing assets) MUST be excluded from the theme list with a warning logged; it MUST NOT crash the application or corrupt the active theme.
 - **FR-037**: Built-in theme files in `Themes/` that have been overwritten or deleted by the user MUST be re-extracted from embedded resources on next launch (same behavior as machine config defaults).
 - **FR-038**: The Settings panel MUST include a CRT brightness control (e.g., a knob or slider) that adjusts the luminance of the emulated display output. The brightness value MUST be persisted globally (display preference, not machine-specific) and applied in real time as the control is adjusted.
-- **FR-039**: The D3D renderer MUST support optional CRT post-processing effects applied to the emulated screen sub-region: scanlines (horizontal darkening bands matching the Apple II display refresh geometry), phosphor bloom (soft luminance bloom on bright pixels), and color bleed (lateral spread of chroma between adjacent pixels, approximating NTSC phosphor persistence). Each effect MUST be individually toggleable.
-- **FR-040**: CRT effect parameters (scanline intensity, bloom radius/strength, bleed width) MUST be configurable per-theme as defaults in the theme JSON, and MUST also be overridable per-user in the Settings panel. User overrides are persisted in the user JSON (not machine-specific — they are display preferences).
+- **FR-039**: The D3D renderer MUST support optional CRT post-processing effects applied to the emulated screen sub-region: scanlines (horizontal darkening bands matching the Apple II display refresh geometry), phosphor bloom (soft luminance bloom on bright pixels), and color bleed (lateral spread of chroma between adjacent pixels, approximating NTSC phosphor persistence). Each effect MUST be individually toggleable. Implementation MAY adapt MIT/public-domain HLSL ports of community CRT shaders (e.g., CRT-Lottes, CRT-Geom-Mod) shipped in-tree; GPL-licensed shaders MUST NOT be used.
+- **FR-040**: CRT effect parameters (scanline intensity, bloom radius/strength, bleed width) MUST be configurable per-theme as defaults in `theme.json`, and MUST also be overridable per-user in the Settings panel. User overrides are persisted globally (display preference, not machine-specific).
 - **FR-041**: The emulated machine MUST continue running while the Settings panel is open; the panel operates on a transient `SettingsPanelState` snapshot and changes are only applied on explicit user confirmation. No pause/resume API is required.
 - **FR-042**: The application MUST target Windows 11 as the minimum supported version; Windows 11-only DWM APIs (e.g., `DwmSetWindowAttribute` with `DWMWA_WINDOW_CORNER_PREFERENCE`, Mica backdrop) MAY be used in the chrome implementation.
 - **FR-043**: The emulated display viewport MUST maintain the Apple II's native aspect ratio (4:3) at all window sizes; when the window aspect ratio differs from 4:3, the viewport MUST be letterboxed or pillarboxed with the remaining area used by chrome widgets or rendered black.
-- **FR-044**: All interactive elements in the D3D Settings panel MUST be fully operable via keyboard alone (Tab/Shift-Tab to navigate, Space/Enter to activate, Escape to dismiss); keyboard focus MUST be visually indicated in all active themes.
-- **FR-045**: Theme JSON files MUST include a `$cassoThemeVersion` integer field. On load, if the version is lower than the current expected version, a theme upgrade path MUST be applied (analogous to `MachineConfigUpgrade`) before the theme is used. Machine config JSON files MUST use `$cassoMachineVersion` (renaming the existing `$cassoDefault` field).
+- **FR-044**: All interactive elements in the RmlUi-rendered Settings panel MUST be fully operable via keyboard alone (Tab/Shift-Tab to navigate, Space/Enter to activate, Escape to dismiss); keyboard focus MUST be visually indicated in all active themes (via RCSS `:focus` styles).
+- **FR-045**: The `theme.json` metadata file MUST include a `$cassoThemeVersion` integer field. On load, if the version is lower than the current expected version, a theme upgrade path MUST be applied (analogous to `MachineConfigUpgrade`) before the theme is used. Machine config JSON files MUST use `$cassoMachineVersion` (renaming the existing `$cassoDefault` field).
+- **FR-046**: The application MUST use **RmlUi** (MIT-licensed) as the UI framework for all custom chrome and the Settings panel, integrated via a custom D3D11 render backend that composites RmlUi output onto the existing swap chain. Direct D3D drawing (outside RmlUi) is reserved for the emulated viewport and CRT post-processing pass.
 
 ---
 
@@ -200,7 +203,7 @@ A user who ran Casso v1.x has a `Machines/apple2e/apple2e_user.json` file on dis
 
 - **MachineUserConfig**: Per-machine user override JSON file (`<MachineName>_user.json`). Contains a `$cassoMachineVersion` version field and only the fields the user has explicitly changed from the default. Merged at load time with the read-only default JSON. Managed by a new `UserConfigStore` or equivalent.
 - **HardwareComponentEntry**: A node in the hardware configuration tree. Has a `type` (string matching the component registry), a human-readable `displayName`, a `capabilityFlag` (`optional` / `required` / `platform-locked`), an optional `lockReason` string (for platform-locked tooltip), and an `enabled` boolean state.
-- **Theme**: A JSON file plus accompanying assets in a named subdirectory of `Themes/`. Identified by a `name` and `$cassoThemeVersion`. Contains palette tokens, texture refs, geometry descriptors, animation params, and CRT effect defaults. Loaded into a `ThemeData` struct at selection time.
+- **Theme**: A subdirectory of `Themes/` containing `theme.json` metadata (name, `$cassoThemeVersion`, CRT effect defaults), one or more `.rml` layout files, one or more `.rcss` stylesheet files, and asset files (fonts, images, sounds). Loaded by `ThemeManager` and applied to RmlUi at selection time.
 - **SettingsPanelState**: Transient in-memory snapshot of the Settings dialog's current selections; not persisted until the user confirms. Allows cancel-without-effect semantics.
 - **DriveWidgetState**: Runtime state for each drive widget: mounted disk path (or empty), motor running flag, write-active flag, animation frame index. Updated by the CPU thread's motor/drive signals and read by the D3D render thread.
 
@@ -226,7 +229,9 @@ A user who ran Casso v1.x has a `Machines/apple2e/apple2e_user.json` file on dis
 - The existing `D3DRenderer::UploadAndPresent` pipeline remains the sole path for presenting the emulated framebuffer; the chrome layer is composited as an additional D3D render pass on the same swap chain, not a separate window.
 - `WM_NCHITTEST` customization is sufficient to achieve borderless-window drag/resize behavior on Windows 11; Windows 11-only DWM APIs are permitted and preferred for rounded corners and backdrop effects.
 - The `AssetBootstrap` directory-scanning and embedded-resource-extraction pattern is directly reusable for the `Themes/` bootstrap without architectural changes.
-- The `MachineConfigUpgrade` system already handles versioned config migration; extending it to cover the `capabilityFlag` field and other new schema fields is an incremental change, not a redesign. The existing `$cassoDefault` version field in machine JSONs is renamed to `$cassoMachineVersion`; theme JSONs use `$cassoThemeVersion` following the same per-type convention.
+- The `MachineConfigUpgrade` system already handles versioned config migration; extending it to cover the `capabilityFlag` field and other new schema fields is an incremental change, not a redesign. The existing `$cassoDefault` version field in machine JSONs is renamed to `$cassoMachineVersion`; theme `theme.json` files use `$cassoThemeVersion` following the same per-type convention.
+- **RmlUi** (MIT) is the chosen UI framework; integrated via a custom D3D11 render backend that draws into the existing swap chain. Source is vendored in-tree under `External/RmlUi/` or built as a static library project. No package manager or vcpkg integration.
+- The CRT post-processing shaders are HLSL ports of MIT/public-domain community shaders (e.g., CRT-Lottes, CRT-Geom-Mod, libretro common shader collection). GPL-licensed shaders (e.g., CRT-Royale) are explicitly excluded to keep Casso MIT-licensed.
 - Per-machine `_user.json` files contain only settings reachable from the Settings panel (speed, video mode, write protect, drive audio, component enable/disable); low-level timing and ROM configuration remain in the default machine JSONs and are not user-overridable from the UI.
 - Theme textures and images are loaded at theme-selection time; they are retained in GPU memory until a different theme is selected or the application exits. Themes do not hot-reload individual assets independently.
 - The three built-in theme names (Skeuomorphic, Dark Modern, Retro Terminal) are final for the initial release; additional built-in themes may be added in subsequent releases without schema changes.
