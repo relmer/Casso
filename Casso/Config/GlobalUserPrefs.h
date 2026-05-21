@@ -34,11 +34,7 @@ struct GlobalUserPrefs
     std::string  activeTheme         = "Skeuomorphic"; // FR-030 default
     std::string  lastSelectedMachine;                  // empty == none
 
-    // Named so the CRT post-process pipeline (Casso/CrtPostProcess.h) can
-    // accept a Crt-shaped struct in unit tests without depending on the
-    // surrounding prefs. `userOverride` is set true by FromJson whenever
-    // the loaded document contained a "crt" object — false on a missing
-    // section so per-theme `crtDefaults` can win on first-run (P8-T8).
+    // `userOverride` gates whether theme CRT defaults still apply.
     struct Crt
     {
         float    brightness          = 1.0f;           // 0.0 .. 2.0
@@ -56,35 +52,27 @@ struct GlobalUserPrefs
 
     struct
     {
-        bool     fHaveLastBounds     = false;
-        int      x                   = 0;
-        int      y                   = 0;
-        int      w                   = 1024;
-        int      h                   = 768;
-        bool     fullscreen          = false;
+        bool     fHaveLastBounds = false;
+        int      x               = 0;
+        int      y               = 0;
+        int      w               = 1024;
+        int      h               = 768;
+        bool     fullscreen      = false;
     } window;
 
-    // Unknown JSON keys we should round-trip back to disk untouched.
-    // Stored as a parsed JsonValue per key.
+    // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;
 
     // ---- Persistence ---------------------------------------------------
 
-    // Read GlobalUserPrefs.json under `baseDir`. If absent, leaves
-    // `*this` at struct defaults and returns S_FALSE (caller may
-    // treat as "first run").
-    HRESULT Load (
-        const std::wstring  & baseDir,
-        IFileSystem         & fs);
-
-    // Atomically write GlobalUserPrefs.json under `baseDir`.
-    HRESULT Save (
-        const std::wstring  & baseDir,
-        IFileSystem         & fs) const;
+    HRESULT     Load     (const std::wstring & baseDir,
+                          IFileSystem        & fs);
+    HRESULT     Save     (const std::wstring & baseDir,
+                          IFileSystem        & fs) const;
 
     // ---- Serialization (exposed for tests) -----------------------------
 
-    JsonValue   ToJson() const;
+    JsonValue   ToJson   () const;
     HRESULT     FromJson (const JsonValue & v);
 
     static std::wstring  FilePath (const std::wstring & baseDir);

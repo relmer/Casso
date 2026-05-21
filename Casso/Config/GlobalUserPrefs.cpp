@@ -143,6 +143,10 @@ std::wstring GlobalUserPrefs::FilePath (const std::wstring & baseDir)
 //
 //  GlobalUserPrefs::Load
 //
+//  Read GlobalUserPrefs.json under `baseDir`. If absent, leaves `*this`
+//  at struct defaults and returns S_FALSE so the caller can treat it as
+//  first run.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT GlobalUserPrefs::Load (
@@ -182,6 +186,8 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GlobalUserPrefs::Save
+//
+//  Atomically write GlobalUserPrefs.json under `baseDir`.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

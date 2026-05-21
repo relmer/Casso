@@ -13,6 +13,8 @@
 //
 //  JsonWriter::Write (compact)
 //
+//  Compact write (no whitespace). Always succeeds for well-formed JsonValue.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 string JsonWriter::Write (const JsonValue & value)
@@ -34,6 +36,10 @@ string JsonWriter::Write (const JsonValue & value)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  JsonWriter::Write (with options)
+//
+//  Pretty/compact write per `opts`. Returns S_OK on success;
+//  HRESULT_FROM_WIN32 (ERROR_DATATYPE_MISMATCH) if `value` (or any nested
+//  value) is a Number that is not finite (NaN or +/-Inf).
 //
 ////////////////////////////////////////////////////////////////////////////////
 

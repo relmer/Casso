@@ -33,6 +33,11 @@ namespace
 //
 //  TitleBarHitTest::Test
 //
+//  Returns an HT* constant (defined in <winuser.h>):
+//      HTCAPTION, HTCLIENT, HTMINBUTTON, HTMAXBUTTON, HTCLOSE,
+//      HTLEFT, HTRIGHT, HTTOP, HTBOTTOM,
+//      HTTOPLEFT, HTTOPRIGHT, HTBOTTOMLEFT, HTBOTTOMRIGHT.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 LRESULT TitleBarHitTest::Test (const TitleBarHitTestInput & in)

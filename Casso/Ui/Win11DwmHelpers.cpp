@@ -94,6 +94,8 @@ namespace
 //
 //  IsWindows11OrGreater
 //
+//  True iff the running OS is Windows 11 (build >= 22000) or newer.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool Win11DwmHelpers::IsWindows11OrGreater()
@@ -119,6 +121,9 @@ bool Win11DwmHelpers::IsWindows11OrGreater()
 //
 //  IsWindows10_1809OrGreater
 //
+//  True iff the running OS is Windows 10 1809 (build >= 17763) or
+//  newer. DWMWA_USE_IMMERSIVE_DARK_MODE works from this build up.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool Win11DwmHelpers::IsWindows10_1809OrGreater()
@@ -142,6 +147,8 @@ bool Win11DwmHelpers::IsWindows10_1809OrGreater()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ApplyRoundedCorners
+//
+//  Sets DWMWA_WINDOW_CORNER_PREFERENCE. No-op on pre-Win11.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -172,6 +179,11 @@ void Win11DwmHelpers::ApplyRoundedCorners (HWND hwnd, bool round)
 //
 //  ApplyMicaBackdrop
 //
+//  Sets DWMWA_SYSTEMBACKDROP_TYPE = DWMSBT_MAINWINDOW (Mica). No-op
+//  on pre-Win11. Caller is responsible for extending the frame into
+//  the client area first (DwmExtendFrameIntoClientArea) — without
+//  that, the backdrop is invisible.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Win11DwmHelpers::ApplyMicaBackdrop (HWND hwnd, bool mica)
@@ -198,6 +210,9 @@ void Win11DwmHelpers::ApplyMicaBackdrop (HWND hwnd, bool mica)
 //
 //  ApplyImmersiveDarkMode
 //
+//  Sets DWMWA_USE_IMMERSIVE_DARK_MODE. No-op on builds older than
+//  1809.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Win11DwmHelpers::ApplyImmersiveDarkMode (HWND hwnd, bool dark)
@@ -223,6 +238,10 @@ void Win11DwmHelpers::ApplyImmersiveDarkMode (HWND hwnd, bool dark)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExtendFrameIntoClientArea
+//
+//  Extends the DWM frame into the client area by `inset` pixels on
+//  every edge. Required to keep the OS drop-shadow visible on a
+//  borderless window. Safe on every Win10+ build.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

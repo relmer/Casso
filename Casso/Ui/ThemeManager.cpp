@@ -16,6 +16,11 @@
 //
 //  ThemeBootstrapPlanner::Plan
 //
+//  `themeJsonOnDisk` is the verbatim contents of the on-disk
+//  theme.json, or nullptr if no such file exists. `currentVersion`
+//  is the embedded built-in's `$cassoThemeVersion`. The planner
+//  never reads from `fs`; it only consults the inputs.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 ThemeBootstrapAction ThemeBootstrapPlanner::Plan (
@@ -101,6 +106,10 @@ ThemeManager::ThemeManager (
 //
 //  BindRml
 //
+//  Bind the manager to a live RmlUi context + main HWND. May be
+//  called more than once (re-binding to a new context tears down
+//  any currently-loaded docs on the old context).
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ThemeManager::BindRml (Rml::Context * pContext, HWND hwnd)
@@ -136,6 +145,11 @@ void ThemeManager::BindRml (Rml::Context * pContext, HWND hwnd)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Discover
+//
+//  Walk `themesBaseDir` and rebuild the available-themes list.
+//  Cheap; safe to call from the Settings panel's Refresh button
+//  (FR-035). Returns S_OK with an empty list when the base
+//  directory is missing or empty.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -220,6 +234,11 @@ const LoadedTheme * ThemeManager::GetActiveTheme () const
 //
 //  Activate
 //
+//  Switch to `themeName`. On success notifies all registered
+//  listeners. Returns S_FALSE when `themeName` doesn't match any
+//  discovered theme; returns a failure HRESULT (with the previous
+//  theme left active) on any RmlUi load failure.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ThemeManager::Activate (const std::string & themeName)
@@ -272,6 +291,9 @@ HRESULT ThemeManager::Activate (const std::string & themeName)
 //
 //  ReloadCurrent
 //
+//  Re-runs Discover() then Activate (current name). No-op if no
+//  theme is currently active.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ThemeManager::ReloadCurrent ()
@@ -321,8 +343,10 @@ void ThemeManager::AddChangeListener (ChangeListener listener)
 //
 //  ReattachDocuments
 //
-//  Internal: load every entry document of `theme` into m_context.
-//  No-op when m_context is null (BindRml will retry later).
+//  Reload all entry documents into m_context using `theme`'s
+//  resolved paths. Unloads anything currently in m_activeDocs.
+//  No-op (returns S_OK) when m_context is null — Activate() may
+//  legitimately be called before BindRml().
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -22,6 +22,9 @@ PerfStats & PerfStats::Instance()
 //
 //  PerfStats::Record
 //
+//  Records one sample for `label`. Updates an exponential moving average
+//  (alpha = 0.1) and the rolling maximum.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void PerfStats::Record (const char * label, double ms)
@@ -50,6 +53,9 @@ void PerfStats::Record (const char * label, double ms)
 //
 //  PerfStats::Get
 //
+//  Snapshot a single label. Returns a zero-initialized Stat if the label
+//  hasn't been recorded yet.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 PerfStats::Stat PerfStats::Get (const char * label) const
@@ -74,6 +80,8 @@ PerfStats::Stat PerfStats::Get (const char * label) const
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PerfStats::GetAll
+//
+//  Snapshot every label. The map is copied under the lock.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

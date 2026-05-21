@@ -47,13 +47,8 @@ enum class ThemeBootstrapAction
 class ThemeBootstrapPlanner
 {
 public:
-    // `themeJsonOnDisk` is the verbatim contents of the on-disk
-    // theme.json, or nullptr if no such file exists. `currentVersion`
-    // is the embedded built-in's `$cassoThemeVersion`. The planner
-    // never reads from `fs`; it only consults the inputs.
-    static ThemeBootstrapAction Plan (
-        const std::string  * themeJsonOnDisk,
-        int                  currentVersion);
+    static ThemeBootstrapAction Plan (const std::string * themeJsonOnDisk,
+                                      int                 currentVersion);
 };
 
 
@@ -102,65 +97,38 @@ public:
     using ChangeListener = std::function<void (const LoadedTheme &)>;
 
 
-    ThemeManager (
-        IFileSystem        & fs,
-        const std::wstring & themesBaseDir);
+    ThemeManager (IFileSystem        & fs,
+                  const std::wstring & themesBaseDir);
 
-    // Bind the manager to a live RmlUi context + main HWND. May be
-    // called more than once (re-binding to a new context tears down
-    // any currently-loaded docs on the old context).
-    void  BindRml (Rml::Context * pContext, HWND hwnd);
-
-    // Walk `themesBaseDir` and rebuild the available-themes list.
-    // Cheap; safe to call from the Settings panel's Refresh button
-    // (FR-035). Returns S_OK with an empty list when the base
-    // directory is missing or empty.
-    HRESULT  Discover ();
-
+    void                           BindRml            (Rml::Context * pContext, HWND hwnd);
+    HRESULT                        Discover           ();
     const std::vector<LoadedTheme> & GetAvailableThemes () const { return m_available; }
-
-    // Switch to `themeName`. On success notifies all registered
-    // listeners. Returns S_FALSE when `themeName` doesn't match any
-    // discovered theme; returns a failure HRESULT (with the previous
-    // theme left active) on any RmlUi load failure.
-    HRESULT  Activate (const std::string & themeName);
-
-    // Re-runs Discover() then Activate (current name). No-op if no
-    // theme is currently active.
-    HRESULT  ReloadCurrent ();
-
-    const std::string & GetActiveThemeName () const { return m_activeName; }
-    const LoadedTheme * GetActiveTheme     () const;
-
-    void  AddChangeListener (ChangeListener listener);
+    HRESULT                        Activate           (const std::string & themeName);
+    HRESULT                        ReloadCurrent      ();
+    const std::string            & GetActiveThemeName () const { return m_activeName; }
+    const LoadedTheme            * GetActiveTheme     () const;
+    void                           AddChangeListener  (ChangeListener listener);
 
 private:
-    // Reload all entry documents into m_context using `theme`'s
-    // resolved paths. Unloads anything currently in m_activeDocs.
-    // No-op (returns S_OK) when m_context is null — Activate() may
-    // legitimately be called before BindRml().
-    HRESULT  ReattachDocuments (const LoadedTheme & theme);
-
-    void     UnloadActiveDocuments ();
-
-    void     ApplyDwm (const LoadedTheme & theme);
-
-    void     NotifyListeners (const LoadedTheme & theme);
+    HRESULT ReattachDocuments  (const LoadedTheme & theme);
+    void    UnloadActiveDocuments ();
+    void    ApplyDwm           (const LoadedTheme & theme);
+    void    NotifyListeners    (const LoadedTheme & theme);
 
 
-    IFileSystem                       & m_fs;
-    std::wstring                        m_themesBaseDir;
-    std::wstring                        m_sharedDir;
+    IFileSystem                        & m_fs;
+    std::wstring                         m_themesBaseDir;
+    std::wstring                         m_sharedDir;
 
-    std::vector<LoadedTheme>            m_available;
-    std::string                         m_activeName;
+    std::vector<LoadedTheme>             m_available;
+    std::string                          m_activeName;
 
-    Rml::Context                      * m_context  = nullptr;
-    HWND                                m_hwnd     = nullptr;
+    Rml::Context                       * m_context    = nullptr;
+    HWND                                 m_hwnd       = nullptr;
 
     // Documents currently loaded into m_context for the active theme.
     // Tracked so Activate() can unload them deterministically.
-    std::vector<Rml::ElementDocument *> m_activeDocs;
+    std::vector<Rml::ElementDocument *>  m_activeDocs;
 
-    std::vector<ChangeListener>         m_listeners;
+    std::vector<ChangeListener>          m_listeners;
 };

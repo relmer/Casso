@@ -11,9 +11,8 @@
 //
 //  SetState
 //
-//  Removes the two unused state classes and adds the active one. Done in
-//  that order so the final visual state never momentarily shows zero
-//  state classes between SetClass (false) + SetClass (true) calls.
+//  Set the state on an `Rml::Element` already tagged with class "led".
+//  No-op when `pLed` is null.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

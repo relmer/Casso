@@ -50,45 +50,43 @@ public:
     using HitTestFn = std::function<DriveWidgetElement * (int screenX, int screenY)>;
 
 
-    DragDropTarget();
-    virtual ~DragDropTarget();
+    DragDropTarget  ();
+    virtual ~DragDropTarget ();
 
-    // Registers as the HWND's drop target. Caller must have already
-    // initialized OLE (OleInitialize) on this thread.
-    HRESULT  Initialize (HWND hwnd, HitTestFn hitTest);
-
-    // Revokes registration. Safe to call multiple times.
-    void     Shutdown();
+    HRESULT              Initialize           (HWND hwnd, HitTestFn hitTest);
+    void                 Shutdown             ();
 
     // --- IUnknown ---
-    STDMETHODIMP         QueryInterface (REFIID riid, void ** ppv) override;
-    STDMETHODIMP_(ULONG) AddRef() override;
-    STDMETHODIMP_(ULONG) Release() override;
+    STDMETHODIMP         QueryInterface       (REFIID riid, void ** ppv) override;
+    STDMETHODIMP_(ULONG) AddRef               () override;
+    STDMETHODIMP_(ULONG) Release              () override;
 
     // --- IDropTarget ---
-    STDMETHODIMP DragEnter (IDataObject * pData, DWORD grfKeyState,
-                            POINTL pt, DWORD * pdwEffect) override;
-    STDMETHODIMP DragOver  (DWORD grfKeyState, POINTL pt,
-                            DWORD * pdwEffect) override;
-    STDMETHODIMP DragLeave() override;
-    STDMETHODIMP Drop      (IDataObject * pData, DWORD grfKeyState,
-                            POINTL pt, DWORD * pdwEffect) override;
+    STDMETHODIMP         DragEnter            (IDataObject * pData,
+                                               DWORD         grfKeyState,
+                                               POINTL        pt,
+                                               DWORD       * pdwEffect) override;
+    STDMETHODIMP         DragOver             (DWORD   grfKeyState,
+                                               POINTL  pt,
+                                               DWORD * pdwEffect) override;
+    STDMETHODIMP         DragLeave            () override;
+    STDMETHODIMP         Drop                 (IDataObject * pData,
+                                               DWORD         grfKeyState,
+                                               POINTL        pt,
+                                               DWORD       * pdwEffect) override;
 
     // ---- Pure-logic helpers (exposed for tests) ----
 
-    // Extracts the first file path from a CF_HDROP data object. Returns
-    // S_OK + the path on success, S_FALSE if the data object doesn't
-    // carry CF_HDROP.
-    static HRESULT ExtractFirstHDropPath (IDataObject * pData, std::wstring & outPath);
+    static HRESULT       ExtractFirstHDropPath (IDataObject   * pData,
+                                                std::wstring  & outPath);
 
 private:
-    std::atomic<ULONG>  m_refCount    { 1 };
-    HWND                m_hwnd        = nullptr;
-    bool                m_fRegistered = false;
+    std::atomic<ULONG>  m_refCount             { 1 };
+    HWND                m_hwnd                 = nullptr;
+    bool                m_fRegistered          = false;
     HitTestFn           m_hitTest;
 
-    // Cached during DragEnter so DragOver can answer accept/reject
-    // without re-querying the data object every mouse-move.
+    // Cached during DragEnter so DragOver can answer accept/reject cheaply.
     bool                m_fDragHasSupportedFile = false;
     std::wstring        m_dragPath;
 };

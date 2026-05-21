@@ -27,10 +27,9 @@ class IDriveCommandSink
 public:
     virtual ~IDriveCommandSink() = default;
 
-    // Mount `path` into (slot, drive). Returns S_OK on success.
-    // Caller is responsible for any UI notification on failure.
-    virtual HRESULT Mount  (int slot, int drive, const std::wstring & path) = 0;
+    // Mount `path` into (slot, drive).
+    virtual HRESULT Mount (int slot, int drive, const std::wstring & path) = 0;
 
-    // Eject the disk (if any) currently in (slot, drive).
-    virtual void    Eject  (int slot, int drive) = 0;
+    // Eject the disk currently in (slot, drive).
+    virtual void    Eject (int slot, int drive) = 0;
 };

@@ -100,6 +100,9 @@ UserConfigStore::UserConfigStore (const std::wstring & userDir)
 //
 //  UserConfigStore::UserFilePath
 //
+//  Resolve the absolute on-disk path of the user file for a machine.
+//  Exposed so callers and tests can stat the file directly.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring UserConfigStore::UserFilePath (const std::string & machineName) const
@@ -126,6 +129,11 @@ std::wstring UserConfigStore::UserFilePath (const std::string & machineName) con
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UserConfigStore::Load
+//
+//  Load + merge. `defaultJson` is the parsed embedded default for the
+//  machine. On return, `outMerged` contains the merged JsonValue ready to
+//  feed to MachineConfigLoader. If a user file exists with an older
+//  `$cassoMachineVersion`, this method migrates and writes it back first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -202,6 +210,9 @@ Error:
 //
 //  UserConfigStore::SaveDelta
 //
+//  Diff `currentJson` vs `defaultJson` and write only the differences
+//  (plus `$cassoMachineVersion`) to <userDir>/<machineName>_user.json.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT UserConfigStore::SaveDelta (
@@ -238,6 +249,9 @@ Error:
 //
 //  UserConfigStore::Reset
 //
+//  Delete the per-machine user file. Succeeds even if the file did not
+//  exist.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT UserConfigStore::Reset (
@@ -255,8 +269,9 @@ HRESULT UserConfigStore::Reset (
 //
 //  UserConfigStore::MergeJson
 //
-//  Deep merge: when both `defaultV` and `userV` are objects, recurse
-//  per-key. Otherwise `userV` wins (including arrays).
+//  Returns a new JsonValue equal to `defaultV` with every leaf that
+//  appears in `userV` replaced. Object keys deep-merge; arrays in `userV`
+//  replace the corresponding default array wholesale.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -328,9 +343,9 @@ JsonValue UserConfigStore::MergeJson (
 //
 //  UserConfigStore::DiffJson
 //
-//  Produces an Object containing only the differences between
-//  `currentV` and `defaultV`. Always preserves `$cassoMachineVersion`
-//  from `currentV` if present (even when equal).
+//  Returns a JsonValue containing only keys/values from `currentV` that
+//  differ from `defaultV`. Always returns an object. `$cassoMachineVersion`
+//  is preserved from `currentV` even when equal.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -420,6 +435,8 @@ JsonValue UserConfigStore::DiffJson (
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UserConfigStore::JsonEqual
+//
+//  Structural equality. Object key order is ignored.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

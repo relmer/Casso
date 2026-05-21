@@ -48,39 +48,32 @@ class IFileSystem;
 class UiShell
 {
 public:
-    UiShell();
-    ~UiShell();
+    UiShell  ();
+    ~UiShell ();
 
-    HRESULT Initialize (
-        D3DRenderer  & renderer,
-        HWND           hwnd,
-        IFileSystem  * pFs);
+    HRESULT Initialize (D3DRenderer & renderer,
+                        HWND          hwnd,
+                        IFileSystem * pFs);
+    void    Shutdown   ();
+    HRESULT OnResize   (int widthPx, int heightPx);
+    void    Render     ();
 
-    void    Shutdown();
-
-    HRESULT OnResize (int widthPx, int heightPx);
-
-    // Per-frame entry point. Safe to call after Shutdown — becomes a
-    // no-op so D3DRenderer's hook can fire harmlessly during the
-    // teardown window.
-    void    Render();
-
-    Rml::Context * GetContext() const { return m_context; }
+    Rml::Context * GetContext () const { return m_context; }
 
 private:
-    RmlSystemInterface       m_system;
-    RmlFontEngine_DWrite     m_fonts;
-    RmlBackend_D3D11         m_backend;
+    RmlSystemInterface    m_system;
+    RmlFontEngine_DWrite  m_fonts;
+    RmlBackend_D3D11      m_backend;
 
-    Rml::Context           * m_context        = nullptr;
+    Rml::Context        * m_context        = nullptr;
 
-    HWND                     m_hwnd           = nullptr;
-    int                      m_widthPx        = 0;
-    int                      m_heightPx       = 0;
+    HWND                  m_hwnd           = nullptr;
+    int                   m_widthPx        = 0;
+    int                   m_heightPx       = 0;
 
-    bool                     m_rmlInitialised = false;
+    bool                  m_rmlInitialised = false;
 
     // Diagnostic — counts Render() invocations so callers can sanity
     // check the per-frame hook is wired.
-    UINT                     m_frameCount     = 0;
+    UINT                  m_frameCount     = 0;
 };

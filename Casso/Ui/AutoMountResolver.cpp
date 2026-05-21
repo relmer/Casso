@@ -48,9 +48,8 @@ AutoMountResolver::Decision AutoMountResolver::Resolve (
 //
 //  SnapshotForPersistence
 //
-//  Pass-through helper that exists so the test can verify the round-
-//  trip shape of the persistence payload independently of how the
-//  shell happens to read its current mount state.
+//  Pass-through helper that exists so tests can verify the round-trip
+//  persistence payload shape independently of shell plumbing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

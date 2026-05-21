@@ -73,26 +73,22 @@ class SettingsPanel : public Rml::EventListener
 {
 public:
 
-    SettingsPanel();
-    ~SettingsPanel() override;
+    SettingsPanel  ();
+    ~SettingsPanel () override;
 
-    HRESULT Initialize (
-        UiShell          & uiShell,
-        UserConfigStore  & ucs,
-        GlobalUserPrefs  & prefs,
-        ThemeManager     & themes,
-        EmulatorShell    & emuShell,
-        IFileSystem      & fs);
+    HRESULT Initialize (UiShell         & uiShell,
+                        UserConfigStore & ucs,
+                        GlobalUserPrefs & prefs,
+                        ThemeManager    & themes,
+                        EmulatorShell   & emuShell,
+                        IFileSystem     & fs);
 
-    HRESULT Show ();
-    void    Hide ();
+    HRESULT                  Show      ();
+    void                     Hide      ();
+    bool                     IsVisible () const { return m_doc != nullptr; }
 
-    bool IsVisible () const { return m_doc != nullptr; }
-
-    // Pure-data side. Exposed so the EmulatorShell command path
-    // (Settings menu item) can directly inspect what is currently
-    // staged.
-    const SettingsPanelState & State () const { return m_state; }
+    // Exposed so the EmulatorShell command path can inspect staged state.
+    const SettingsPanelState & State     () const { return m_state; }
 
     // ---- Rml::EventListener --------------------------------------------
     void ProcessEvent (Rml::Event & event) override;
@@ -105,32 +101,32 @@ public:
 
 private:
 
-    HRESULT  ReloadDocument           ();
-    void     PopulateMachineSelector  (Rml::ElementDocument * doc);
-    void     PopulateThemeSelector    (Rml::ElementDocument * doc);
-    HRESULT  RebindToMachine          (const std::string & machineName);
-    void     RebuildHardwareTree      (Rml::ElementDocument * doc);
-    void     ReflectStateToDom        (Rml::ElementDocument * doc);
-    void     AttachListeners          (Rml::ElementDocument * doc);
-    void     DetachListeners          ();
-    void     ShowResetConfirm         (bool show);
-    void     CommitApply              ();
-    HRESULT  LoadMergedForMachine     (const std::string & machineName,
-                                       JsonValue         & outDefault,
-                                       JsonValue         & outMerged);
-    void     ApplyGlobalPrefsToDom    (Rml::ElementDocument * doc);
+    HRESULT ReloadDocument        ();
+    void    PopulateMachineSelector (Rml::ElementDocument * doc);
+    void    PopulateThemeSelector (Rml::ElementDocument * doc);
+    HRESULT RebindToMachine       (const std::string & machineName);
+    void    RebuildHardwareTree   (Rml::ElementDocument * doc);
+    void    ReflectStateToDom     (Rml::ElementDocument * doc);
+    void    AttachListeners       (Rml::ElementDocument * doc);
+    void    DetachListeners       ();
+    void    ShowResetConfirm      (bool show);
+    void    CommitApply           ();
+    HRESULT LoadMergedForMachine  (const std::string & machineName,
+                                   JsonValue         & outDefault,
+                                   JsonValue         & outMerged);
+    void    ApplyGlobalPrefsToDom (Rml::ElementDocument * doc);
 
-    UiShell          * m_uiShell   = nullptr;
-    UserConfigStore  * m_ucs       = nullptr;
-    GlobalUserPrefs  * m_prefs     = nullptr;
-    ThemeManager     * m_themes    = nullptr;
-    EmulatorShell    * m_emuShell  = nullptr;
-    IFileSystem      * m_fs        = nullptr;
+    UiShell         * m_uiShell   = nullptr;
+    UserConfigStore * m_ucs       = nullptr;
+    GlobalUserPrefs * m_prefs     = nullptr;
+    ThemeManager    * m_themes    = nullptr;
+    EmulatorShell   * m_emuShell  = nullptr;
+    IFileSystem     * m_fs        = nullptr;
 
-    Rml::ElementDocument * m_doc   = nullptr;
+    Rml::ElementDocument * m_doc  = nullptr;
 
-    SettingsPanelState     m_state;
-    std::vector<MachineInfo>  m_machines;
+    SettingsPanelState       m_state;
+    std::vector<MachineInfo> m_machines;
 
     // Elements we attached as event listeners to -- so we can detach
     // before unloading the doc.
@@ -139,5 +135,5 @@ private:
     // True between user clicking Apply on a hardware-changing edit
     // and the modal "Reset?" confirm resolving. Blocks further
     // Apply while modal is up.
-    bool                   m_resetConfirmPending = false;
+    bool                       m_resetConfirmPending = false;
 };

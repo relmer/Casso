@@ -37,24 +37,18 @@ class JsonWriter
 public:
     struct Options
     {
-        bool    fPretty    = true;   // emit newlines + indentation
-        int     indentSize = 2;      // spaces per indent level (pretty only)
+        bool  fPretty    = true;   // emit newlines + indentation
+        int   indentSize = 2;      // spaces per indent level (pretty only)
     };
 
-    // Compact write (no whitespace). Always succeeds for well-formed JsonValue.
-    static string Write (const JsonValue & value);
-
-    // Pretty/compact write per `opts`. Returns S_OK on success;
-    // HRESULT_FROM_WIN32 (ERROR_DATATYPE_MISMATCH) if `value` (or any nested
-    // value) is a Number that is not finite (NaN or +/-Inf).
-    static HRESULT Write (
-        const JsonValue   & value,
-        const Options     & opts,
-        string            & outText);
+    static string  Write (const JsonValue & value);
+    static HRESULT Write (const JsonValue & value,
+                          const Options   & opts,
+                          string          & outText);
 
 private:
-    static HRESULT  WriteValue   (const JsonValue & v, int depth, const Options & opts, string & out);
-    static void     WriteString  (const string    & s, string & out);
-    static HRESULT  WriteNumber  (double            n, string & out);
-    static void     WriteIndent  (int               depth, const Options & opts, string & out);
+    static HRESULT WriteValue  (const JsonValue & v, int depth, const Options & opts, string & out);
+    static void    WriteString (const string    & s, string & out);
+    static HRESULT WriteNumber (double            n, string & out);
+    static void    WriteIndent (int               depth, const Options & opts, string & out);
 };

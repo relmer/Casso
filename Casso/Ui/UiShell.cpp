@@ -136,6 +136,10 @@ HRESULT UiShell::OnResize (int widthPx, int heightPx)
 //
 //  Render
 //
+//  Per-frame entry point. Safe to call after Shutdown — becomes a
+//  no-op so D3DRenderer's hook can fire harmlessly during the
+//  teardown window.
+//
 //  Called from the D3DRenderer per-frame hook. Order is:
 //      1. emulator framebuffer DrawIndexed (already done by caller)
 //      2. UiShell::Render -> Context::Update + Context::Render

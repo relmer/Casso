@@ -25,23 +25,14 @@ class Win32FileSystem : public IFileSystem
 public:
     Win32FileSystem() = default;
 
-    HRESULT ReadAllText (
-        const std::wstring  & path,
-        std::string         & outContent) override;
-
-    HRESULT WriteAllText (
-        const std::wstring  & path,
-        const std::string   & content) override;
-
-    bool    Exists (const std::wstring & path) override;
-
-    HRESULT Delete (const std::wstring & path) override;
-
-    HRESULT EnumerateFiles (
-        const std::wstring         & directory,
-        std::vector<std::wstring>  & outFilenames) override;
-
-    HRESULT EnumerateDirectories (
-        const std::wstring         & directory,
-        std::vector<std::wstring>  & outDirNames) override;
+    HRESULT ReadAllText          (const std::wstring & path,
+                                  std::string        & outContent) override;
+    HRESULT WriteAllText         (const std::wstring & path,
+                                  const std::string  & content) override;
+    bool    Exists               (const std::wstring & path) override;
+    HRESULT Delete               (const std::wstring & path) override;
+    HRESULT EnumerateFiles       (const std::wstring        & directory,
+                                  std::vector<std::wstring> & outFilenames) override;
+    HRESULT EnumerateDirectories (const std::wstring        & directory,
+                                  std::vector<std::wstring> & outDirNames) override;
 };

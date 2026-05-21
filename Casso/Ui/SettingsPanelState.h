@@ -129,82 +129,48 @@ public:
 
     SettingsPanelState ();
 
-    // Reload the snapshot from a freshly-merged machine config.
-    // `mergedJson` is the result of `UserConfigStore::Load` (or
-    // equivalently `MergeJson (defaultJson, userJson)`). `defaultJson`
-    // is the unmerged embedded default for the machine; it is kept so
-    // `Apply` can diff against it for `SaveDelta`. Both must be JSON
-    // objects -- anything else returns E_INVALIDARG.
-    HRESULT LoadFromMachine (
-        const std::string  & machineName,
-        const JsonValue    & defaultJson,
-        const JsonValue    & mergedJson);
-
-    // Reset `current` to match `original` (used by the Cancel button
-    // and implicitly by `LoadFromMachine`).
-    void Cancel ();
+    HRESULT LoadFromMachine (const std::string & machineName,
+                             const JsonValue   & defaultJson,
+                             const JsonValue   & mergedJson);
+    void    Cancel          ();
 
     bool IsDirty       () const;
     bool RequiresReset () const;          // true iff any hardware enable changed
 
     // ---- Live (current) accessors / mutators ---------------------------
 
-    const std::string         & MachineName () const { return m_machineName; }
-    const SettingsUiPrefs     & Prefs       () const { return m_current.prefs; }
-    const std::vector<HardwareEntry> & Hardware () const { return m_current.hardware; }
+    const std::string              & MachineName   () const { return m_machineName; }
+    const SettingsUiPrefs          & Prefs         () const { return m_current.prefs; }
+    const std::vector<HardwareEntry> & Hardware    () const { return m_current.hardware; }
 
-    void SetSpeedMode    (SettingsSpeedMode mode);
-    void SetColorMode    (SettingsColorMode mode);
-    void SetFloppySound  (bool enabled);
-    void SetMechanism    (const std::string & mechanism);
-    void SetWriteProtect (int drive, bool wp);
-
-    // Returns E_INVALIDARG when:
-    //      * `index` is out of range
-    //      * `enabled == false` and the entry's capability is
-    //        Required or PlatformLocked (FR-007 / FR-008)
+    void    SetSpeedMode       (SettingsSpeedMode mode);
+    void    SetColorMode       (SettingsColorMode mode);
+    void    SetFloppySound     (bool enabled);
+    void    SetMechanism       (const std::string & mechanism);
+    void    SetWriteProtect    (int drive, bool wp);
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
 
     // ---- Apply ---------------------------------------------------------
 
-    // Pushes the live-applicable diffs through `sink` and emits the
-    // updated machine JSON ready for `UserConfigStore::SaveDelta`.
-    // Always emits `outCurrentJson` (even when nothing changed) so
-    // callers can drop the result straight into SaveDelta.
-    HRESULT Apply (
-        ISettingsApplySink & sink,
-        JsonValue          & outCurrentJson) const;
+    HRESULT Apply (ISettingsApplySink & sink,
+                   JsonValue          & outCurrentJson) const;
 
     // ---- Pure helpers (exposed for tests) ------------------------------
 
-    // Walks a merged machine JSON object and pulls out the typed
-    // hardware-tree representation. Slot/internal-device order is
-    // preserved. Default capability per FR-015: internal devices ->
-    // Required, slot entries -> Optional. JSON-level overrides
-    // (`capabilityFlag` + `lockReason`) win where present.
-    static HRESULT ExtractHardware (
-        const JsonValue                & mergedJson,
-        std::vector<HardwareEntry>     & outEntries);
-
-    static HRESULT ExtractUiPrefs (
-        const JsonValue   & mergedJson,
-        SettingsUiPrefs   & outPrefs);
-
-    // Builds a new JSON object from `mergedJson` with hardware
-    // enable flags overlaid from `hw` and a `$cassoUiPrefs` block
-    // built from `prefs`. The `$cassoMachineVersion` key (if any)
-    // is preserved verbatim.
-    static JsonValue BuildJson (
-        const JsonValue                       & mergedJson,
-        const std::vector<HardwareEntry>      & hw,
-        const SettingsUiPrefs                 & prefs);
+    static HRESULT ExtractHardware (const JsonValue            & mergedJson,
+                                    std::vector<HardwareEntry> & outEntries);
+    static HRESULT ExtractUiPrefs  (const JsonValue            & mergedJson,
+                                    SettingsUiPrefs            & outPrefs);
+    static JsonValue BuildJson     (const JsonValue                 & mergedJson,
+                                    const std::vector<HardwareEntry> & hw,
+                                    const SettingsUiPrefs          & prefs);
 
 private:
 
     struct Snapshot
     {
-        SettingsUiPrefs              prefs;
-        std::vector<HardwareEntry>   hardware;
+        SettingsUiPrefs            prefs;
+        std::vector<HardwareEntry> hardware;
     };
 
     static bool PrefsEqual    (const SettingsUiPrefs & a, const SettingsUiPrefs & b);

@@ -145,6 +145,9 @@ NavLayer::~NavLayer()
 //
 //  GetCommandEntries
 //
+//  Pure-data parity table — visible to the test suite via
+//  GetCommandEntries().
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::span<const NavCommandEntry> NavLayer::GetCommandEntries()
@@ -184,6 +187,10 @@ const wchar_t * NavLayer::GetMenuName (NavMenu menu)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmitParityMarkdown
+//
+//  Translates the parity table into a markdown table writeable to
+//  specs/007-ui-overhaul/menu-command-parity.md. Returns the string;
+//  caller decides what to do with it. Pure function — no I/O.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -307,6 +314,10 @@ void NavLayer::Hide()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Dispatch
+//
+//  Dispatch a command through the registered callback. No-op if
+//  dispatch was never installed. Public so tests / future RML
+//  event listeners can exercise routing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

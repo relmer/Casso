@@ -48,9 +48,9 @@ enum class SystemButton
 
 struct TitleBarLayoutInput
 {
-    int  clientWidth   = 0;
-    int  titleHeight   = 0;
-    int  buttonWidth   = 0;
+    int  clientWidth  = 0;
+    int  titleHeight  = 0;
+    int  buttonWidth  = 0;
 };
 
 
@@ -59,28 +59,24 @@ struct TitleBarLayoutOutput
     // All rects are in client coordinates. Title-bar rect is the full
     // strip across the top; buttons stack right-to-left as
     // close|max|min.
-    RECT  titleBar    = {};
-    RECT  minButton   = {};
-    RECT  maxButton   = {};
-    RECT  closeButton = {};
+    RECT  titleBar     = {};
+    RECT  minButton    = {};
+    RECT  maxButton    = {};
+    RECT  closeButton  = {};
 
     // Drag region = title-bar rect minus the three button rects on
     // the right. Single rect; the chrome doesn't put anything on the
     // left edge yet.
-    RECT  dragRegion  = {};
+    RECT  dragRegion   = {};
 };
 
 
 class TitleBarLayout
 {
 public:
-    static TitleBarLayoutOutput Compute (const TitleBarLayoutInput & in);
-
-    // DPI-aware default height: SM_CYCAPTION + SM_CXPADDEDBORDER.
-    // Falls back to 32 when GetSystemMetricsForDpi yields 0 (e.g.
-    // unit-test environment).
-    static int  DefaultTitleHeight (UINT dpi);
-    static int  DefaultButtonWidth (UINT dpi);
+    static TitleBarLayoutOutput Compute            (const TitleBarLayoutInput & in);
+    static int                  DefaultTitleHeight (UINT dpi);
+    static int                  DefaultButtonWidth (UINT dpi);
 };
 
 
@@ -90,30 +86,21 @@ public:
 class TitleBar
 {
 public:
-    TitleBar();
-    ~TitleBar();
+    TitleBar  ();
+    ~TitleBar ();
 
-    // Loads the inline RML+RCSS document into the given context.
-    // Re-entrant: a second Show() with a different context will
-    // first Hide() any previously-loaded doc.
-    HRESULT  Show (Rml::Context * context);
-    void     Hide();
+    HRESULT Show           (Rml::Context * context);
+    void    Hide           ();
+    void    UpdateGeometry (int clientWidth, UINT dpi);
 
-    // Drives the cached geometry that GetButtonRect/GetTitleBarRect
-    // expose. Call from WM_SIZE so the geometry tracks the live
-    // window. The geometry is also recomputed on construction with
-    // sensible 96-DPI defaults so a tester can call GetButtonRect
-    // before Update is ever invoked.
-    void     UpdateGeometry (int clientWidth, UINT dpi);
-
-    int      GetTitleHeight() const { return m_layout.titleBar.bottom - m_layout.titleBar.top; }
-    RECT     GetTitleBarRect() const { return m_layout.titleBar; }
-    RECT     GetDragRegionRect() const { return m_layout.dragRegion; }
-    RECT     GetButtonRect (SystemButton which) const;
+    int     GetTitleHeight    () const { return m_layout.titleBar.bottom - m_layout.titleBar.top; }
+    RECT    GetTitleBarRect   () const { return m_layout.titleBar; }
+    RECT    GetDragRegionRect () const { return m_layout.dragRegion; }
+    RECT    GetButtonRect     (SystemButton which) const;
 
 private:
-    Rml::Context        * m_context  = nullptr;
+    Rml::Context         * m_context  = nullptr;
     Rml::ElementDocument * m_doc      = nullptr;
 
-    TitleBarLayoutOutput   m_layout  = {};
+    TitleBarLayoutOutput   m_layout   = {};
 };

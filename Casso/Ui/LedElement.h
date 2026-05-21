@@ -36,8 +36,5 @@ public:
         Active,
     };
 
-    // Set the state on an `Rml::Element` already tagged with class
-    // "led". No-op when `pLed` is null (callers in the drive widget
-    // sometimes haven't created the child yet).
     static void SetState (Rml::Element * pLed, State state);
 };

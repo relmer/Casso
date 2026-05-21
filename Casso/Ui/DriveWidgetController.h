@@ -55,41 +55,27 @@ public:
     static constexpr int  kMaxWidgets = 4;  // headroom for >2-drive future configs
 
 
-    DriveWidgetController();
-    ~DriveWidgetController();
+    DriveWidgetController  ();
+    ~DriveWidgetController ();
 
-    // Idempotent. Registers `<drive-widget>` with the Rml::Factory.
-    // Must be called after `Rml::Initialise()` and before any document
-    // containing the tag is loaded.
-    void  RegisterInstancer();
-
-    HRESULT  LoadDocument (
-        Rml::Context        * pContext,
-        const std::string   & rmlPath,
-        IDriveCommandSink   * pSink,
-        HWND                  ownerHwnd);
-
-    void     UnloadDocument();
-
-    // Push state[d] into the widget that declares (slot=6, drive=d).
-    // Widgets without a state entry (e.g. slot/drive out of range) are
-    // left alone.
-    void     SyncFromStates (const std::array<DriveWidgetState, 2> & states);
-
-    // Geometric hit-test in document (client) coordinates. Walks the
-    // cached widgets; returns the first one whose `IsPointWithinElement`
-    // accepts the point, or nullptr.
-    DriveWidgetElement *  HitTest (int clientX, int clientY) const;
+    void                 RegisterInstancer ();
+    HRESULT              LoadDocument      (Rml::Context      * pContext,
+                                            const std::string & rmlPath,
+                                            IDriveCommandSink * pSink,
+                                            HWND                ownerHwnd);
+    void                 UnloadDocument    ();
+    void                 SyncFromStates    (const std::array<DriveWidgetState, 2> & states);
+    DriveWidgetElement * HitTest           (int clientX, int clientY) const;
 
     // Diagnostic accessors -- exposed for tests + sanity logging.
-    size_t  GetWidgetCount() const { return m_widgets.size(); }
+    size_t               GetWidgetCount    () const { return m_widgets.size(); }
 
 private:
-    void     CollectWidgets();
+    void                 CollectWidgets    ();
 
-    Rml::ElementInstancer        * m_pInstancer = nullptr;   // owned static singleton
-    Rml::Context                 * m_pContext   = nullptr;
-    Rml::ElementDocument         * m_pDoc       = nullptr;
+    Rml::ElementInstancer * m_pInstancer = nullptr;   // owned static singleton
+    Rml::Context          * m_pContext   = nullptr;
+    Rml::ElementDocument  * m_pDoc       = nullptr;
 
     std::vector<DriveWidgetElement *>  m_widgets;
 };

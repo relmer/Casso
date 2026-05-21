@@ -96,6 +96,8 @@ namespace
 //
 //  ThemeLoader::JoinPath
 //
+//  Join `dir` + L'/' + leaf, normalising trailing separators.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring ThemeLoader::JoinPath (
@@ -119,6 +121,12 @@ std::wstring ThemeLoader::JoinPath (
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ThemeLoader::EnumerateCandidateDirs
+//
+//  Walks `<themesBaseDir>` and returns the subset of sub-directory
+//  names that look like candidate themes (theme.json exists). The
+//  returned names are bare directory names — caller composes the
+//  absolute path. Returns S_FALSE (with empty list) if
+//  `themesBaseDir` itself doesn't exist.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -162,6 +170,11 @@ HRESULT ThemeLoader::EnumerateCandidateDirs (
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ThemeLoader::ParseMetadata
+//
+//  Parses + validates raw theme.json text. Doesn't touch the
+//  filesystem; entryDocument paths in `outTheme.entryDocs` are
+//  left relative to the theme directory (caller resolves to
+//  absolute via ResolveEntryDocs).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -304,6 +317,11 @@ HRESULT ThemeLoader::ParseMetadata (
 //
 //  ThemeLoader::ResolveEntryDocs
 //
+//  Resolves each entryDocument path against `themeDir` first and,
+//  if the file doesn't exist there, falls back to `sharedDir`.
+//  Any entry that resolves to a missing file produces a
+//  DocumentMissing error.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static HRESULT ResolveOne (
@@ -388,6 +406,21 @@ HRESULT ThemeLoader::ResolveEntryDocs (
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ThemeLoader::Load
+//
+//  Loads `<themeDir>/theme.json` and validates it.
+//
+//  * `sharedDir` is the absolute path to `Themes/_shared/`; if
+//    `entryDocuments.<entry>` is absent from theme.json the
+//    corresponding `<sharedDir>/<entry>.rml` is checked. If
+//    `sharedDir` is empty no fallback is attempted.
+//
+//  * On success returns S_OK and fills `outTheme`. `outError`
+//    is left untouched.
+//
+//  * On any validation failure returns a failure HRESULT, fills
+//    `outError`, and leaves `outTheme` in a default-constructed
+//    state. The caller logs the structured error and excludes
+//    the theme from the available list (FR-036).
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -34,36 +34,41 @@
 struct TitleBarHitTestInput
 {
     // Client-area dimensions (i.e. GetClientRect output).
-    int   clientWidth   = 0;
-    int   clientHeight  = 0;
+    int  clientWidth   = 0;
+    int  clientHeight  = 0;
 
     // Mouse position in client coordinates.
-    int   mouseX        = 0;
-    int   mouseY        = 0;
+    int  mouseX        = 0;
+    int  mouseY        = 0;
 
     // Title-bar rect (in client coords). If empty (height == 0), only
     // the resize edges + client rule apply.
-    int   titleLeft     = 0;
-    int   titleTop      = 0;
-    int   titleRight    = 0;
-    int   titleBottom   = 0;
+    int  titleLeft     = 0;
+    int  titleTop      = 0;
+    int  titleRight    = 0;
+    int  titleBottom   = 0;
 
     // System-button rects (zero-sized means absent).
-    int   minLeft   = 0, minTop   = 0, minRight   = 0, minBottom   = 0;
-    int   maxLeft   = 0, maxTop   = 0, maxRight   = 0, maxBottom   = 0;
-    int   closeLeft = 0, closeTop = 0, closeRight = 0, closeBottom = 0;
+    int  minLeft       = 0;
+    int  minTop        = 0;
+    int  minRight      = 0;
+    int  minBottom     = 0;
+    int  maxLeft       = 0;
+    int  maxTop        = 0;
+    int  maxRight      = 0;
+    int  maxBottom     = 0;
+    int  closeLeft     = 0;
+    int  closeTop      = 0;
+    int  closeRight    = 0;
+    int  closeBottom   = 0;
 
     // Pixel inset for the eight resize edges.
-    int   resizeBorderPx = 8;
+    int  resizeBorderPx = 8;
 };
 
 
 class TitleBarHitTest
 {
 public:
-    // Returns an HT* constant (defined in <winuser.h>):
-    //   HTCAPTION, HTCLIENT, HTMINBUTTON, HTMAXBUTTON, HTCLOSE,
-    //   HTLEFT, HTRIGHT, HTTOP, HTBOTTOM,
-    //   HTTOPLEFT, HTTOPRIGHT, HTBOTTOMLEFT, HTBOTTOMRIGHT.
     static LRESULT Test (const TitleBarHitTestInput & in);
 };

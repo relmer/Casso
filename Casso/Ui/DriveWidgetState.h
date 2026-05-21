@@ -52,22 +52,19 @@ struct DriveWidgetState
         Closing,
     };
 
-    // FR-021 / FR-025 -- typical door animation duration in ms. Held as
-    // a public constant so the unit tests can sample it deterministically.
+    // FR-021 / FR-025 door animation duration in ms.
     static constexpr int64_t  kDoorAnimationMs = 200;
 
-    std::wstring         mountedImagePath;
-    std::atomic<bool>    motorOn               { false };
-    std::atomic<bool>    diskActive            { false };
-    Door                 doorState             = Door::Closed;
-    int64_t              animationStartTimeMs  = 0;
+    std::wstring      mountedImagePath;
+    std::atomic<bool> motorOn              { false };
+    std::atomic<bool> diskActive           { false };
+    Door              doorState            = Door::Closed;
+    int64_t           animationStartTimeMs = 0;
 
     // ---- UI-thread mutators (pure logic) ----------------------------
 
-    // Records a new mount: assigns the path and begins the close-door
-    // animation if the door isn't already shut. Idempotent if the same
-    // path is re-inserted.
-    void BeginInsert (const std::wstring & path, int64_t nowMs)
+    // Records a new mount and starts close-door animation if needed.
+    void BeginInsert       (const std::wstring & path, int64_t nowMs)
     {
         mountedImagePath = path;
 
@@ -83,9 +80,8 @@ struct DriveWidgetState
         }
     }
 
-    // Records an eject: clears the path and begins the open-door
-    // animation if the door isn't already open.
-    void BeginEject (int64_t nowMs)
+    // Records an eject and starts open-door animation if needed.
+    void BeginEject        (int64_t nowMs)
     {
         mountedImagePath.clear();
 
@@ -96,9 +92,7 @@ struct DriveWidgetState
         }
     }
 
-    // Per-frame tick: advances Opening->Open and Closing->Closed after
-    // kDoorAnimationMs has elapsed since `animationStartTimeMs`. No-op
-    // for terminal states (Open / Closed).
+    // Advances Opening->Open and Closing->Closed after the delay.
     void TickDoorAnimation (int64_t nowMs)
     {
         int64_t  elapsed = nowMs - animationStartTimeMs;
@@ -118,7 +112,7 @@ struct DriveWidgetState
         }
     }
 
-    bool IsMounted() const
+    bool IsMounted         () const
     {
         return !mountedImagePath.empty();
     }
@@ -132,10 +126,7 @@ struct DriveWidgetState
 //
 //  IsSupportedDiskImageExtension
 //
-//  FR-022b: drag-drop + click-to-browse accept exactly these four disk
-//  image extensions. Case-insensitive. Exposed at file scope so both the
-//  drop target and the click-to-browse filter can reuse it (and the
-//  unit tests can exercise the rejection path).
+//  Case-insensitive check for the four supported disk image extensions.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

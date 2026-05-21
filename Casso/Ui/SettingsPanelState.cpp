@@ -201,6 +201,13 @@ SettingsPanelState::SettingsPanelState()
 //
 //  LoadFromMachine
 //
+//  Reload the snapshot from a freshly-merged machine config.
+//  `mergedJson` is the result of `UserConfigStore::Load` (or
+//  equivalently `MergeJson (defaultJson, userJson)`). `defaultJson`
+//  is the unmerged embedded default for the machine; it is kept so
+//  `Apply` can diff against it for `SaveDelta`. Both must be JSON
+//  objects -- anything else returns E_INVALIDARG.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT SettingsPanelState::LoadFromMachine (
@@ -239,6 +246,9 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Cancel
+//
+//  Reset `current` to match `original` (used by the Cancel button
+//  and implicitly by `LoadFromMachine`).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -374,6 +384,11 @@ Error:
 //
 //  Apply
 //
+//  Pushes the live-applicable diffs through `sink` and emits the
+//  updated machine JSON ready for `UserConfigStore::SaveDelta`.
+//  Always emits `outCurrentJson` (even when nothing changed) so
+//  callers can drop the result straight into SaveDelta.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT SettingsPanelState::Apply (
@@ -471,6 +486,12 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExtractHardware
+//
+//  Walks a merged machine JSON object and pulls out the typed
+//  hardware-tree representation. Slot/internal-device order is
+//  preserved. Default capability per FR-015: internal devices ->
+//  Required, slot entries -> Optional. JSON-level overrides
+//  (`capabilityFlag` + `lockReason`) win where present.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

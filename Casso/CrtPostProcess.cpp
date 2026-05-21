@@ -174,6 +174,15 @@ namespace
 //
 //  MakeCrtParams
 //
+//  P8-T6 / P8-T8. Pure logic. Produces a `CrtParams` constant buffer
+//  payload from the user's prefs + (optionally) the active theme's
+//  `crtDefaults`.
+//
+//  Resolution rule:
+//      * If `prefsCrt.userOverride == true` -> use prefs values verbatim.
+//      * Otherwise, if `themeDefaults != nullptr` -> use theme values.
+//      * Otherwise -> use the in-struct defaults of `GlobalUserPrefs::Crt`.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 CrtParams MakeCrtParams (
@@ -225,6 +234,9 @@ CrtParams MakeCrtParams (
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ComputeLetterboxRect
+//
+//  Returns the largest centered 4:3 sub-rectangle that fits inside the
+//  back buffer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

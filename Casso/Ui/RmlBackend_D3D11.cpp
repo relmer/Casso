@@ -130,6 +130,12 @@ RmlBackend_D3D11::~RmlBackend_D3D11()
 //
 //  Initialize
 //
+//  Non-owning. pDevice/pContext lifetimes belong to D3DRenderer. pFs is
+//  used for LoadTexture() so unit tests can substitute an
+//  InMemoryFileSystem. May be null in which case LoadTexture returns 0
+//  (which causes RmlUi to render the document without that image, but
+//  everything else still works).
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT RmlBackend_D3D11::Initialize (

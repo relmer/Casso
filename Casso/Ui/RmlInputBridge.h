@@ -56,27 +56,19 @@ public:
         static constexpr int X2      = 4;
     };
 
-    static int  TranslateVirtualKey (unsigned int vk);
-
-    static int  SynthesizeModifiers (
-        bool fCtrl,
-        bool fShift,
-        bool fAlt,
-        bool fCapsLock,
-        bool fNumLock,
-        bool fScrollLock);
-
-    static int  TranslateMouseButtonMessage (
-        unsigned int     msg,
-        unsigned short   xbutton);
-
-    static bool IsMouseDownMessage (unsigned int msg);
-    static bool IsMouseUpMessage   (unsigned int msg);
-
-    static float NormalizeWheelDelta (short rawDelta);
-
-    static bool CoalesceUtf16Char (
-        wchar_t      ch,
-        wchar_t    & ioPendingHighSurrogate,
-        char32_t   & outCodePoint);
+    static int   TranslateVirtualKey        (unsigned int vk);
+    static int   SynthesizeModifiers        (bool  fCtrl,
+                                             bool  fShift,
+                                             bool  fAlt,
+                                             bool  fCapsLock,
+                                             bool  fNumLock,
+                                             bool  fScrollLock);
+    static int   TranslateMouseButtonMessage (unsigned int   msg,
+                                              unsigned short xbutton);
+    static bool  IsMouseDownMessage         (unsigned int msg);
+    static bool  IsMouseUpMessage           (unsigned int msg);
+    static float NormalizeWheelDelta        (short rawDelta);
+    static bool  CoalesceUtf16Char          (wchar_t    ch,
+                                             wchar_t  & ioPendingHighSurrogate,
+                                             char32_t & outCodePoint);
 };

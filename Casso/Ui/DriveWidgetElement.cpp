@@ -36,6 +36,9 @@ DriveWidgetElement::~DriveWidgetElement()
 //
 //  GetSlotAttr
 //
+//  Read the slot attribute from the RML tag. Returns -1 if it is missing
+//  or invalid.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int DriveWidgetElement::GetSlotAttr() const
@@ -48,6 +51,9 @@ int DriveWidgetElement::GetSlotAttr() const
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetDriveAttr
+//
+//  Read the drive attribute from the RML tag. Returns -1 if it is missing
+//  or invalid.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,9 +70,8 @@ int DriveWidgetElement::GetDriveAttr() const
 //
 //  ProcessDefaultAction
 //
-//  Click routing. Eject-btn child is matched by walking from
-//  `event.GetTargetElement()` up to `this`, stopping if any ancestor
-//  has the "eject-btn" class. Body clicks open the file dialog.
+//  Click routing: body clicks open the file dialog; eject-btn child clicks
+//  dispatch `IDriveCommandSink::Eject`.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -258,9 +263,8 @@ Cleanup:
 //
 //  HandleDroppedFile
 //
-//  Entry point used by DragDropTarget after it hit-tests this widget.
-//  Returns S_OK if the mount call dispatched (sink may still report a
-//  per-file failure asynchronously); S_FALSE if no sink is configured.
+//  Drag-drop entry point after DragDropTarget confirms a supported file.
+//  Returns S_OK on successful dispatch to the sink.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -331,9 +335,9 @@ void DriveWidgetElement::ApplyDoorClasses (DriveWidgetState::Door door)
 //
 //  SyncFromState
 //
-//  Pushed once per UI frame from EmulatorShell. Compares each visible
-//  field against the last-applied snapshot to avoid touching the Rml
-//  style cache when nothing changed.
+//  Push the current state into the element. Reads the atomic motor/active
+//  flags and the UI-only door / mounted fields, then skips redundant Rml
+//  mutations when nothing changed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

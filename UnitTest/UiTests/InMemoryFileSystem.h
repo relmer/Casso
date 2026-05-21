@@ -29,13 +29,12 @@
 class InMemoryFileSystem : public IFileSystem
 {
 public:
-    HRESULT ReadAllText (
-        const std::wstring  & path,
-        std::string         & outContent) override
+    HRESULT ReadAllText          (const std::wstring & path,
+                                  std::string        & outContent) override
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
-        std::wstring                 key   = Normalize (path);
-        auto                         it    = m_files.find (key);
+        std::wstring                 key  = Normalize (path);
+        auto                         it   = m_files.find (key);
 
         outContent.clear();
 
@@ -49,9 +48,8 @@ public:
     }
 
 
-    HRESULT WriteAllText (
-        const std::wstring  & path,
-        const std::string   & content) override
+    HRESULT WriteAllText         (const std::wstring & path,
+                                  const std::string  & content) override
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
         m_files[Normalize (path)] = content;
@@ -59,14 +57,14 @@ public:
     }
 
 
-    bool Exists (const std::wstring & path) override
+    bool    Exists               (const std::wstring & path) override
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
         return m_files.find (Normalize (path)) != m_files.end();
     }
 
 
-    HRESULT Delete (const std::wstring & path) override
+    HRESULT Delete               (const std::wstring & path) override
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
         m_files.erase (Normalize (path));
@@ -74,11 +72,10 @@ public:
     }
 
 
-    HRESULT EnumerateFiles (
-        const std::wstring         & directory,
-        std::vector<std::wstring>  & outFilenames) override
+    HRESULT EnumerateFiles       (const std::wstring        & directory,
+                                  std::vector<std::wstring> & outFilenames) override
     {
-        std::lock_guard<std::mutex>  lock (m_mutex);
+        std::lock_guard<std::mutex>  lock   (m_mutex);
         std::wstring                 prefix = Normalize (directory);
 
         outFilenames.clear();
@@ -105,11 +102,10 @@ public:
     }
 
 
-    HRESULT EnumerateDirectories (
-        const std::wstring         & directory,
-        std::vector<std::wstring>  & outDirNames) override
+    HRESULT EnumerateDirectories (const std::wstring        & directory,
+                                  std::vector<std::wstring> & outDirNames) override
     {
-        std::lock_guard<std::mutex>  lock (m_mutex);
+        std::lock_guard<std::mutex>  lock   (m_mutex);
         std::wstring                 prefix = Normalize (directory);
         std::set<std::wstring>       unique;
 
@@ -120,9 +116,6 @@ public:
             prefix += L'/';
         }
 
-        // A "directory" exists implicitly if any file lives under it.
-        // Derive sub-directory names from the path segment immediately
-        // following `prefix`.
         for (const auto & kv : m_files)
         {
             if (kv.first.compare (0, prefix.size(), prefix) == 0)
@@ -144,7 +137,7 @@ public:
 
     // ---- Test-only helpers --------------------------------------------
 
-    size_t FileCount()
+    size_t      FileCount   ()
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
         return m_files.size();
@@ -154,7 +147,7 @@ public:
     std::string PeekContent (const std::wstring & path)
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
-        auto                         it = m_files.find (Normalize (path));
+        auto                         it   = m_files.find (Normalize (path));
         if (it == m_files.end())
         {
             return std::string();
@@ -163,7 +156,7 @@ public:
     }
 
 
-    void Clear()
+    void        Clear       ()
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
         m_files.clear();
@@ -191,6 +184,6 @@ private:
     }
 
 
-    std::mutex                              m_mutex;
-    std::map<std::wstring, std::string>     m_files;
+    std::mutex                           m_mutex;
+    std::map<std::wstring, std::string>  m_files;
 };

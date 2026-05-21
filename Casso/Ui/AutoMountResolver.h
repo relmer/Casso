@@ -41,16 +41,8 @@ public:
     };
 
     // Resolve one drive. `rememberedPath` may be empty.
-    static Decision Resolve (
-        const std::wstring & rememberedPath,
-        IFileSystem        & fs);
-
-    // Round-trip: take the list of "currently mounted" paths
-    // (UI-thread view of m_diskStore source paths) and emit the
-    // `lastMountedImages` entries that should be persisted. Empty
-    // paths are emitted as empty so the persistence layer can clear
-    // them in one pass.
-    static std::array<std::wstring, 2> SnapshotForPersistence (
-        const std::wstring & drive0Path,
-        const std::wstring & drive1Path);
+    static Decision                    Resolve                (const std::wstring & rememberedPath,
+                                                              IFileSystem        & fs);
+    static std::array<std::wstring, 2> SnapshotForPersistence (const std::wstring & drive0Path,
+                                                              const std::wstring & drive1Path);
 };

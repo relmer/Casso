@@ -86,6 +86,10 @@ namespace
 //
 //  TitleBarLayout::DefaultTitleHeight
 //
+//  DPI-aware default height: SM_CYCAPTION + SM_CXPADDEDBORDER.
+//  Falls back to 32 when GetSystemMetricsForDpi yields 0 (e.g.
+//  unit-test environment).
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int  TitleBarLayout::DefaultTitleHeight (UINT dpi)
@@ -227,6 +231,10 @@ TitleBar::~TitleBar()
 //
 //  TitleBar::Show
 //
+//  Loads the inline RML+RCSS document into the given context.
+//  Re-entrant: a second Show() with a different context will
+//  first Hide() any previously-loaded doc.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT TitleBar::Show (Rml::Context * context)
@@ -280,6 +288,12 @@ void TitleBar::Hide()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  TitleBar::UpdateGeometry
+//
+//  Drives the cached geometry that GetButtonRect/GetTitleBarRect
+//  expose. Call from WM_SIZE so the geometry tracks the live
+//  window. The geometry is also recomputed on construction with
+//  sensible 96-DPI defaults so a tester can call GetButtonRect
+//  before Update is ever invoked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

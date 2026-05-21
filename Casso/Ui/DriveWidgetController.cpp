@@ -48,6 +48,9 @@ DriveWidgetController::~DriveWidgetController()
 //
 //  RegisterInstancer
 //
+//  Idempotent. Registers `<drive-widget>` with the Rml::Factory before any
+//  document containing the tag is loaded.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DriveWidgetController::RegisterInstancer()
@@ -201,6 +204,9 @@ void DriveWidgetController::CollectWidgets()
 //
 //  SyncFromStates
 //
+//  Push state[d] into the widget that declares (slot = 6, drive = d).
+//  Widgets without a matching state entry are left alone.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DriveWidgetController::SyncFromStates (const std::array<DriveWidgetState, 2> & states)
@@ -225,6 +231,9 @@ void DriveWidgetController::SyncFromStates (const std::array<DriveWidgetState, 2
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HitTest
+//
+//  Geometric hit-test in document coordinates. Returns the first cached
+//  widget whose `IsPointWithinElement` accepts the point.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -30,25 +30,18 @@ public:
         double  maxMs   = 0.0;
     };
 
-    static PerfStats &  Instance();
+    static PerfStats &                     Instance ();
 
-    // Records one sample for `label`. Updates an exponential moving
-    // average (alpha=0.1) and the rolling maximum.
-    void   Record (const char * label, double ms);
-
-    // Snapshot a single label. Returns a zero-initialized Stat if the
-    // label hasn't been recorded yet.
-    Stat   Get (const char * label) const;
-
-    // Snapshot every label. The map is copied under the lock.
-    std::unordered_map<std::string, Stat>  GetAll () const;
+    void                                   Record   (const char * label, double ms);
+    Stat                                   Get      (const char * label) const;
+    std::unordered_map<std::string, Stat>  GetAll   () const;
 
 private:
 
     PerfStats() = default;
 
-    mutable std::mutex                       m_mutex;
-    std::unordered_map<std::string, Stat>    m_stats;
+    mutable std::mutex                      m_mutex;
+    std::unordered_map<std::string, Stat>   m_stats;
 };
 
 

@@ -60,26 +60,16 @@ public:
     using DispatchFn = std::function<void (WORD commandId)>;
 
 
-    NavLayer();
-    ~NavLayer();
+    NavLayer  ();
+    ~NavLayer ();
 
-    HRESULT  Show (Rml::Context * context, DispatchFn dispatch);
-    void     Hide();
+    HRESULT Show (Rml::Context * context, DispatchFn dispatch);
+    void    Hide ();
 
-    // Pure-data parity table — visible to the test suite via
-    // GetCommandEntries().
-    static std::span<const NavCommandEntry> GetCommandEntries();
+    static std::span<const NavCommandEntry> GetCommandEntries ();
+    static const wchar_t                  * GetMenuName       (NavMenu menu);
+    static std::string                      EmitParityMarkdown ();
 
-    static const wchar_t * GetMenuName (NavMenu menu);
-
-    // Translates the parity table into a markdown table writeable to
-    // specs/007-ui-overhaul/menu-command-parity.md. Returns the string;
-    // caller decides what to do with it. Pure function — no I/O.
-    static std::string EmitParityMarkdown();
-
-    // Dispatch a command through the registered callback. No-op if
-    // dispatch was never installed. Public so tests / future RML
-    // event listeners can exercise routing.
     void Dispatch (WORD commandId) const;
 
 private:

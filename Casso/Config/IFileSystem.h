@@ -34,46 +34,25 @@ class IFileSystem
 public:
     virtual ~IFileSystem() = default;
 
-    // Reads the entire file content as bytes (no encoding conversion).
-    // Returns HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND) if `path`
-    // does not exist; other failures surface their underlying Win32
-    // error wrapped via HRESULT_FROM_WIN32.
-    virtual HRESULT ReadAllText (
-        const std::wstring  & path,
-        std::string         & outContent) = 0;
+    // Reads the entire file as raw bytes.
+    virtual HRESULT ReadAllText          (const std::wstring & path,
+                                          std::string        & outContent) = 0;
 
-    // Atomically replaces `path` with `content`. Creates any missing
-    // parent directories. Implementation must ensure that an
-    // observer reading `path` at any instant sees either the prior
-    // content or the new content in full — never a partial write.
-    virtual HRESULT WriteAllText (
-        const std::wstring  & path,
-        const std::string   & content) = 0;
+    // Atomically replaces `path` with `content`.
+    virtual HRESULT WriteAllText         (const std::wstring & path,
+                                          const std::string  & content) = 0;
 
     // True iff `path` exists and is a regular file.
-    virtual bool    Exists (const std::wstring & path) = 0;
+    virtual bool    Exists               (const std::wstring & path) = 0;
 
-    // Deletes `path` if it exists. Succeeds (S_OK) if the file did
-    // not exist to begin with — i.e. delete is idempotent.
-    virtual HRESULT Delete (const std::wstring & path) = 0;
+    // Deletes `path` if it exists.
+    virtual HRESULT Delete               (const std::wstring & path) = 0;
 
-    // Non-recursive directory listing. Returns the bare filenames
-    // (no directory prefix). Subdirectories are skipped. Returns an
-    // empty list and S_OK if `directory` exists but is empty;
-    // returns HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND) if the
-    // directory itself does not exist.
-    virtual HRESULT EnumerateFiles (
-        const std::wstring         & directory,
-        std::vector<std::wstring>  & outFilenames) = 0;
+    // Non-recursive listing of bare filenames.
+    virtual HRESULT EnumerateFiles       (const std::wstring        & directory,
+                                          std::vector<std::wstring> & outFilenames) = 0;
 
-    // Non-recursive sub-directory listing. Returns bare directory
-    // names (no path prefix). "." and ".." are skipped. Returns an
-    // empty list and S_OK if `directory` has no sub-directories;
-    // returns HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND) when
-    // `directory` does not exist. Required by ThemeManager::Discover
-    // which walks `<assetBase>/Themes/` looking for candidate theme
-    // sub-directories (each containing `theme.json`).
-    virtual HRESULT EnumerateDirectories (
-        const std::wstring         & directory,
-        std::vector<std::wstring>  & outDirNames) = 0;
+    // Non-recursive listing of bare sub-directory names.
+    virtual HRESULT EnumerateDirectories (const std::wstring        & directory,
+                                          std::vector<std::wstring> & outDirNames) = 0;
 };
