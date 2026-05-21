@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://casso/schemas/global-user-prefs.schema.json",
+  "title": "GlobalUserPrefs",
+  "description": "Global (non-machine-specific) user preferences. Single file at <assetBaseDir>/GlobalUserPrefs.json. See specs/007-ui-overhaul/data-model.md.",
+  "type": "object",
+  "required": ["$cassoGlobalPrefsVersion"],
+  "additionalProperties": false,
+  "properties": {
+    "$cassoGlobalPrefsVersion": { "type": "integer", "minimum": 1 },
+    "activeTheme":              { "type": "string", "minLength": 1 },
+    "lastSelectedMachine":      { "type": "string" },
+    "crt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "brightness": { "type": "number", "minimum": 0.0, "maximum": 2.0 },
+        "scanlines": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled":   { "type": "boolean" },
+            "intensity": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+          }
+        },
+        "bloom": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled":  { "type": "boolean" },
+            "radius":   { "type": "number", "minimum": 0.0, "maximum": 4.0 },
+            "strength": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+          }
+        },
+        "colorBleed": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "width":   { "type": "number", "minimum": 0.0, "maximum": 4.0 }
+          }
+        }
+      }
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "lastBounds": {
+          "type": "object",
+          "required": ["x", "y", "w", "h"],
+          "additionalProperties": false,
+          "properties": {
+            "x": { "type": "integer" },
+            "y": { "type": "integer" },
+            "w": { "type": "integer", "minimum": 320 },
+            "h": { "type": "integer", "minimum": 240 }
+          }
+        },
+        "fullscreen": { "type": "boolean" }
+      }
+    }
+  }
+}

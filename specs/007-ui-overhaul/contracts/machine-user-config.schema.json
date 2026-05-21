@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://casso/schemas/machine-user-config.schema.json",
+  "title": "MachineUserConfig",
+  "description": "Per-machine user-override JSON. Shadows the read-only default MachineConfig at load time; only fields the user has explicitly changed are present. See specs/007-ui-overhaul/data-model.md for merge semantics.",
+  "type": "object",
+  "required": ["$cassoMachineVersion"],
+  "additionalProperties": true,
+  "properties": {
+    "$cassoMachineVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Schema version of the user file. MachineConfigUpgrade runs if lower than the default JSON's version."
+    },
+    "speedMode": {
+      "type": "string",
+      "enum": ["Authentic", "Double", "Maximum"]
+    },
+    "videoColorMode": {
+      "type": "string",
+      "enum": ["Color", "Green", "Amber", "White"]
+    },
+    "writeProtect": {
+      "oneOf": [
+        { "type": "boolean", "description": "Global write-protect for all drives" },
+        {
+          "type": "object",
+          "patternProperties": {
+            "^drive[0-9]+$": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "floppySound": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled":   { "type": "boolean" },
+        "mechanism": { "type": "string" }
+      }
+    },
+    "internalDevices": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "enabled"],
+        "additionalProperties": false,
+        "properties": {
+          "type":    { "type": "string" },
+          "enabled": { "type": "boolean" }
+        }
+      }
+    },
+    "slots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["slot", "enabled"],
+        "additionalProperties": false,
+        "properties": {
+          "slot":    { "type": "integer", "minimum": 0, "maximum": 7 },
+          "enabled": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}
