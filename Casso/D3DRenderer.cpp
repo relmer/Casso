@@ -2,6 +2,8 @@
 
 #include "D3DRenderer.h"
 
+#include "PerfStats.h"
+
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -189,6 +191,15 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
     hr = m_device->CreateBuffer (&bd, &initData, &m_indexBuffer);
     CHRA (hr);
 
+    // P8-T4: CRT post-process chain (shaders, ping-pong RTs, sampler). The
+    // intermediate RTs are sized lazily on the first Process() call from
+    // the back buffer dimensions tracked below.
+    hr = m_crtPost.Initialize (m_device.Get(), m_context.Get());
+    CHRA (hr);
+
+    m_backBufferW = texWidth;
+    m_backBufferH = texHeight;
+
 Error:
     return hr;
 }
@@ -338,28 +349,37 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
     // Clear render target
     m_context->ClearRenderTargetView (m_rtv.Get(), clearColor);
 
-    // Draw the textured quad
-    if (m_vertexShader != nullptr && m_pixelShader != nullptr)
+    // P8-T4. Run the emulator-framebuffer SRV through the CRT post-process
+    // chain straight into the swap chain back buffer. The chain handles
+    // the 4:3 letterbox viewport internally (FR-043) and applies brightness
+    // / scanlines / bloom / color bleed per `m_crtParams`, which the
+    // EmulatorShell refreshes once per UI frame from `GlobalUserPrefs`.
     {
-        m_context->VSSetShader            (m_vertexShader.Get(), nullptr, 0);
-        m_context->VSSetShader            (m_vertexShader.Get(), nullptr, 0);
-        m_context->PSSetShader            (m_pixelShader.Get(), nullptr, 0);
-        m_context->PSSetShaderResources   (0, 1, m_srv.GetAddressOf());
-        m_context->PSSetSamplers          (0, 1, m_sampler.GetAddressOf());
-
-        m_context->IASetVertexBuffers     (0, 1, m_vertexBuffer.GetAddressOf(), &stride, &offset);
-        m_context->IASetIndexBuffer       (m_indexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
-        m_context->IASetInputLayout       (m_inputLayout.Get());
-        m_context->IASetPrimitiveTopology (D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-        m_context->DrawIndexed (6, 0, 0);
+        ScopedPerfTimer  timer ("D3DRenderer.CrtPostProcess");
+        RECT  letterbox = ComputeLetterboxRect (m_backBufferW, m_backBufferH);
+        hr = m_crtPost.Process (m_srv.Get(),
+                                m_rtv.Get(),
+                                m_crtParams,
+                                letterbox,
+                                m_backBufferW,
+                                m_backBufferH);
+        CHRA (hr);
     }
+
+    (void) m_vertexShader;
+    (void) m_pixelShader;
+    (void) m_vertexBuffer;
+    (void) m_indexBuffer;
+    (void) m_inputLayout;
+    (void) stride;
+    (void) offset;
 
     // P3-T6 hook: RmlUi composite pass runs here, between the
     // emulator blit and Present. Skipped silently if no shell is
     // installed (e.g. early-init failure path or unit-test harness).
     if (m_afterBlitHook)
     {
+        ScopedPerfTimer  timer ("D3DRenderer.RmlUiComposite");
         m_afterBlitHook();
     }
 
@@ -484,6 +504,9 @@ HRESULT D3DRenderer::Resize (int width, int height)
 
     m_context->RSSetViewports (1, &vp);
 
+    m_backBufferW = width;
+    m_backBufferH = height;
+
 Error:
     return hr;
 }
@@ -500,6 +523,8 @@ Error:
 
 void D3DRenderer::Shutdown()
 {
+    m_crtPost.Shutdown();
+
     m_inputLayout.Reset();
     m_indexBuffer.Reset();
     m_vertexBuffer.Reset();

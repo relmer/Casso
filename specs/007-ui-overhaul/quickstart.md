@@ -161,3 +161,40 @@ With the Settings panel open:
 | FR-011 | `SettingsPanelStateTests::Apply_PushesLiveFieldsThroughSink` |
 | FR-041 | Manual verification above |
 | FR-044 | Manual verification above + `tabindex` attrs in `settings.rml` |
+
+
+## P8 -- CRT post-process perf measurement protocol
+
+The CRT pipeline (brightness + scanlines + bloom-h/v/composite + color
+bleed + final copy = 7 fullscreen passes) and the RmlUi composite hook are
+both wrapped in `ScopedPerfTimer` (`Casso/PerfStats.{h,cpp}`) so SC-005
+(`<=1ms` chrome budget) can be verified at runtime without a separate
+benchmark harness.
+
+**Labels recorded each frame:**
+
+| Label                              | Source                              |
+|------------------------------------|-------------------------------------|
+| `D3DRenderer.CrtPostProcess`     | `CrtPostProcess::Process`         |
+| `D3DRenderer.RmlUiComposite`     | RmlUi `Context::Render` hook      |
+
+**To measure:**
+
+1. Run a Debug build (`Casso.exe`) and boot an Apple //e disk.
+2. Open the Settings panel, enable every CRT effect (scanlines + bloom +
+   color bleed) at non-trivial magnitudes (intensity 0.6, bloom radius 3.0
+   strength 0.5, color-bleed width 2.0).
+3. Let the emulator run for ~10 seconds so the EMA in `PerfStats::Record`
+   stabilises.
+4. Read back via `PerfStats::Instance().Get("D3DRenderer.RmlUiComposite")`
+   (e.g., from a debugger watch window or a debug-only overlay tap). The
+   rolling average `avgMs` is the chrome budget; `maxMs` is the worst
+   single-frame spike since process start.
+
+Acceptance for SC-005: `D3DRenderer.RmlUiComposite.avgMs <= 1.0`. The
+CRT post-process is measured separately; it's expected to dominate the
+chrome budget on integrated GPUs at 4K, which is fine -- it's emulator
+output, not chrome.
+
+The same `PerfStats` singleton is reused by future passes so adding new
+`ScopedPerfTimer` scopes only requires a new label string.

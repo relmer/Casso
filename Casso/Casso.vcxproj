@@ -221,6 +221,8 @@
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="WasapiAudio.cpp" />
     <ClCompile Include="D3DRenderer.cpp" />
+    <ClCompile Include="CrtPostProcess.cpp" />
+    <ClCompile Include="PerfStats.cpp" />
     <ClCompile Include="MenuSystem.cpp" />
     <ClCompile Include="Window.cpp" />
     <ClCompile Include="EmulatorShell.cpp" />
@@ -260,6 +262,8 @@
   <ItemGroup>
     <ClInclude Include="Pch.h" />
     <ClInclude Include="D3DRenderer.h" />
+    <ClInclude Include="CrtPostProcess.h" />
+    <ClInclude Include="PerfStats.h" />
     <ClInclude Include="MenuSystem.h" />
     <ClInclude Include="Window.h" />
     <ClInclude Include="EmulatorShell.h" />
@@ -309,6 +313,14 @@
   <ItemGroup>
     <None Include="Shaders\Ui\rml_textured.hlsl" />
     <None Include="Shaders\Ui\rml_untextured.hlsl" />
+    <None Include="Shaders\CRT\scanlines.hlsl" />
+    <None Include="Shaders\CRT\bloom_h.hlsl" />
+    <None Include="Shaders\CRT\bloom_v.hlsl" />
+    <None Include="Shaders\CRT\bloom_composite.hlsl" />
+    <None Include="Shaders\CRT\color_bleed.hlsl" />
+    <None Include="Shaders\CRT\brightness.hlsl" />
+    <None Include="Shaders\CRT\copy.hlsl" />
+    <None Include="Shaders\CRT\LICENSES.md" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CassoCore\CassoCore.vcxproj">

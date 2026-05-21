@@ -34,7 +34,12 @@ struct GlobalUserPrefs
     std::string  activeTheme         = "Skeuomorphic"; // FR-030 default
     std::string  lastSelectedMachine;                  // empty == none
 
-    struct
+    // Named so the CRT post-process pipeline (Casso/CrtPostProcess.h) can
+    // accept a Crt-shaped struct in unit tests without depending on the
+    // surrounding prefs. `userOverride` is set true by FromJson whenever
+    // the loaded document contained a "crt" object — false on a missing
+    // section so per-theme `crtDefaults` can win on first-run (P8-T8).
+    struct Crt
     {
         float    brightness          = 1.0f;           // 0.0 .. 2.0
         bool     scanlinesEnabled    = false;
@@ -44,7 +49,10 @@ struct GlobalUserPrefs
         float    bloomStrength       = 0.5f;           // 0.0 .. 1.0
         bool     colorBleedEnabled   = false;
         float    colorBleedWidth     = 1.0f;           // 0.0 .. 4.0
-    } crt;
+        bool     userOverride        = false;
+    };
+
+    Crt          crt;
 
     struct
     {

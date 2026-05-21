@@ -2692,6 +2692,28 @@ int EmulatorShell::RunMessageLoop()
             }
         }
 
+        // P8-T6 / FR-038. Push the latest CRT params (brightness slider,
+        // scanlines/bloom/color-bleed toggles + magnitudes) to the
+        // renderer every UI frame so user edits land on the very next
+        // present. The active theme's `crtDefaults` only apply when the
+        // user hasn't customised anything yet (see MakeCrtParams).
+        {
+            const ThemeCrtDefaults *  themeDefaults = nullptr;
+            if (m_themeManager != nullptr)
+            {
+                const LoadedTheme *  active = m_themeManager->GetActiveTheme();
+                if (active != nullptr)
+                {
+                    themeDefaults = &active->crtDefaults;
+                }
+            }
+            CrtParams  params = MakeCrtParams (m_globalPrefs.crt,
+                                               themeDefaults,
+                                               (float) m_d3dRenderer.GetBackBufferWidth(),
+                                               (float) m_d3dRenderer.GetBackBufferHeight());
+            m_d3dRenderer.SetCrtParams (params);
+        }
+
         m_d3dRenderer.UploadAndPresent (m_uiFramebuffer.data());
     }
 

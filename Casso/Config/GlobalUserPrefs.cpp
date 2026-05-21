@@ -315,6 +315,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
     if (SUCCEEDED (v.GetObject ("crt", crtSub)) && crtSub != nullptr)
     {
+        crt.userOverride = true;
         crt.brightness = (float) GetNumberOpt (*crtSub, "brightness", crt.brightness);
 
         if (SUCCEEDED (crtSub->GetObject ("scanlines", scanlines)) && scanlines != nullptr)
@@ -333,6 +334,20 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
             crt.colorBleedEnabled = GetBoolOpt (*colorBleed, "enabled", crt.colorBleedEnabled);
             crt.colorBleedWidth   = (float) GetNumberOpt (*colorBleed, "width",   crt.colorBleedWidth);
         }
+
+        // P8-T8: clamp every numeric CRT field to its documented range so a
+        // hand-edited prefs file with out-of-range values can't drive the
+        // shaders into nonsense territory.
+        if (crt.brightness         < 0.0f) crt.brightness         = 0.0f;
+        if (crt.brightness         > 2.0f) crt.brightness         = 2.0f;
+        if (crt.scanlinesIntensity < 0.0f) crt.scanlinesIntensity = 0.0f;
+        if (crt.scanlinesIntensity > 1.0f) crt.scanlinesIntensity = 1.0f;
+        if (crt.bloomRadius        < 0.0f) crt.bloomRadius        = 0.0f;
+        if (crt.bloomRadius        > 4.0f) crt.bloomRadius        = 4.0f;
+        if (crt.bloomStrength      < 0.0f) crt.bloomStrength      = 0.0f;
+        if (crt.bloomStrength      > 1.0f) crt.bloomStrength      = 1.0f;
+        if (crt.colorBleedWidth    < 0.0f) crt.colorBleedWidth    = 0.0f;
+        if (crt.colorBleedWidth    > 4.0f) crt.colorBleedWidth    = 4.0f;
     }
 
     if (SUCCEEDED (v.GetObject ("window", windowSub)) && windowSub != nullptr)

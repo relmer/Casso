@@ -1,0 +1,171 @@
+#pragma once
+
+#include "Pch.h"
+
+#include "Config/GlobalUserPrefs.h"
+#include "Ui/ThemeLoader.h"  // ThemeCrtDefaults
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CrtParams
+//
+//  Plain-data view of the CRT post-process uniforms uploaded to the shader
+//  constant buffer every frame. The shape mirrors the `CrtCb` cbuffer in
+//  `Casso/Shaders/CRT/*.hlsl` so a layout mismatch is a localised diff.
+//
+//  `Enabled` booleans on `GlobalUserPrefs::Crt` are folded down into the
+//  numeric field: a disabled effect produces a zero magnitude, which the
+//  shaders treat as a pass-through. This keeps the GPU pipeline static
+//  (always the full chain) and avoids per-frame pipeline reconfiguration
+//  in `CrtPostProcess::Process`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct CrtParams
+{
+    float    brightness         = 1.0f;
+    float    scanlineIntensity  = 0.0f;
+    float    bloomRadius        = 0.0f;
+    float    bloomStrength      = 0.0f;
+    float    colorBleedWidth    = 0.0f;
+    float    outputW            = 1.0f;
+    float    outputH            = 1.0f;
+    float    pad                = 0.0f;
+};
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeCrtParams
+//
+//  P8-T6 / P8-T8. Pure logic. Produces a `CrtParams` constant buffer payload
+//  from the user's prefs + (optionally) the active theme's `crtDefaults`.
+//
+//  Resolution rule (FR-038 + P8-T8 acceptance):
+//
+//      * If `prefsCrt.userOverride == true` -> use prefs values verbatim.
+//      * Otherwise, if `themeDefaults != nullptr` -> use theme values.
+//      * Otherwise -> use the in-struct defaults of `GlobalUserPrefs::Crt`.
+//
+//  This means a fresh install (no `crt` section in GlobalUserPrefs.json yet)
+//  follows the theme look; the moment the user tweaks any slider the
+//  prefs path takes ownership for that field set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CrtParams  MakeCrtParams (
+    const GlobalUserPrefs::Crt  & prefsCrt,
+    const ThemeCrtDefaults      * themeDefaults,
+    float                         outputW,
+    float                         outputH);
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeLetterboxRect
+//
+//  Returns the largest 4:3 sub-rectangle that fits inside a window of
+//  `(backBufferW, backBufferH)` pixels, centered. Pillar-boxes when the
+//  window is wider than 4:3; letter-boxes when narrower. Used to project
+//  the emulator framebuffer into the back buffer; the bars are cleared
+//  to black by the post-process.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT  ComputeLetterboxRect (int backBufferW, int backBufferH);
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CrtPostProcess
+//
+//  Owns the GPU resources for the CRT shader chain:
+//
+//      input  : ID3D11ShaderResourceView* over the emulator framebuffer
+//      output : ID3D11RenderTargetView*   over the swap chain back buffer
+//
+//  Pipeline (each step is a fullscreen triangle):
+//
+//      1. brightness pass   srv -> ppMain[0]   (viewport = letterbox rect)
+//      2. scanlines pass    ppMain[0] -> ppMain[1]
+//      3. bloom horizontal  ppMain[1] -> ppBloom[0]
+//      4. bloom vertical    ppBloom[0] -> ppBloom[1]
+//      5. bloom composite   (ppMain[1] + bloom*ppBloom[1]) -> ppMain[0]
+//      6. color bleed pass  ppMain[0] -> ppMain[1]
+//      7. final copy        ppMain[1] -> back buffer
+//
+//  All ping-pong RTs are sized to the back buffer. `Process` reallocates
+//  them when the back buffer size changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class CrtPostProcess
+{
+public:
+    CrtPostProcess();
+    ~CrtPostProcess();
+
+    HRESULT  Initialize (
+        ID3D11Device         * device,
+        ID3D11DeviceContext  * context);
+
+    HRESULT  Process (
+        ID3D11ShaderResourceView  * srcSrv,
+        ID3D11RenderTargetView    * dstRtv,
+        const CrtParams           & params,
+        const RECT                & viewportRect,
+        int                         backBufferW,
+        int                         backBufferH);
+
+    void     Shutdown ();
+
+private:
+
+    HRESULT  EnsureSize        (int width, int height);
+    HRESULT  CompilePixelShader (const char * src, ID3D11PixelShader ** out);
+    HRESULT  UploadConstants    (const CrtParams & params);
+    void     DrawFullscreen     (
+        ID3D11RenderTargetView   * rt,
+        ID3D11ShaderResourceView * srv0,
+        ID3D11ShaderResourceView * srv1,
+        ID3D11PixelShader        * ps,
+        int                        viewportW,
+        int                        viewportH,
+        const RECT               * subViewport);
+
+    ID3D11Device         * m_device  = nullptr;
+    ID3D11DeviceContext  * m_context = nullptr;
+
+    ComPtr<ID3D11VertexShader>  m_vs;
+    ComPtr<ID3D11InputLayout>   m_inputLayout;
+    ComPtr<ID3D11Buffer>        m_vertexBuffer;
+    ComPtr<ID3D11Buffer>        m_indexBuffer;
+    ComPtr<ID3D11Buffer>        m_constantBuffer;
+    ComPtr<ID3D11SamplerState>  m_sampler;
+    ComPtr<ID3D11BlendState>    m_blendOpaque;
+
+    ComPtr<ID3D11PixelShader>   m_psBrightness;
+    ComPtr<ID3D11PixelShader>   m_psScanlines;
+    ComPtr<ID3D11PixelShader>   m_psBloomH;
+    ComPtr<ID3D11PixelShader>   m_psBloomV;
+    ComPtr<ID3D11PixelShader>   m_psBloomComp;
+    ComPtr<ID3D11PixelShader>   m_psColorBleed;
+    ComPtr<ID3D11PixelShader>   m_psCopy;
+
+    // Ping-pong RTs sized to back buffer. ppMain carries the "current" pixel
+    // state through the chain; ppBloom holds the two separable-blur
+    // intermediates. All recreated by EnsureSize when the swap chain resizes.
+    int                                 m_width  = 0;
+    int                                 m_height = 0;
+    ComPtr<ID3D11Texture2D>             m_ppMainTex[2];
+    ComPtr<ID3D11RenderTargetView>      m_ppMainRtv[2];
+    ComPtr<ID3D11ShaderResourceView>    m_ppMainSrv[2];
+    ComPtr<ID3D11Texture2D>             m_ppBloomTex[2];
+    ComPtr<ID3D11RenderTargetView>      m_ppBloomRtv[2];
+    ComPtr<ID3D11ShaderResourceView>    m_ppBloomSrv[2];
+};

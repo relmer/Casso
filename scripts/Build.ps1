@@ -69,6 +69,24 @@ if (-not (Test-Path $solutionPath)) {
     throw "Solution not found: $solutionPath"
 }
 
+# P8-T7. GPL/copyleft guard for vendored shader ports. Runs before the
+# msbuild invocation so a license drift fails the build with a clear
+# error before any compile output is produced. Skipped for Clean/CleanAll
+# targets (no source compile -> nothing to taint).
+if ($Target -ne 'Clean' -and $Target -ne 'CleanAll')
+{
+    $shaderCheckScript = Join-Path $PSScriptRoot 'CheckShaderLicenses.ps1'
+    if (Test-Path $shaderCheckScript)
+    {
+        & $shaderCheckScript
+        if ($LASTEXITCODE -ne 0)
+        {
+            Write-Host "CheckShaderLicenses pre-build step failed (see errors above)." -ForegroundColor Red
+            exit $LASTEXITCODE
+        }
+    }
+}
+
 $msbuildPath = Get-VS2026MSBuildPath
 if (-not $msbuildPath) {
     $msbuildPath = Get-VS2026MSBuildPath -IncludePrerelease

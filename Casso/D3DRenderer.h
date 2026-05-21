@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "CrtPostProcess.h"
+
 
 
 
@@ -23,7 +25,23 @@ public:
     HRESULT ToggleFullscreen (HWND hwnd);
     HRESULT Resize (int width, int height);
 
+    // P8-T6 live-wire path for CRT params (brightness, scanlines, bloom,
+    // color-bleed). EmulatorShell pushes a fresh `CrtParams` once per UI
+    // frame (right before UploadAndPresent) so slider edits from the
+    // Settings panel land on the next-rendered frame without ever
+    // pausing the emulator (FR-041). Outside the live emulator path
+    // (e.g., tests, headless boot) the field stays at its in-struct
+    // defaults so the renderer behaves like a passthrough.
+    void SetCrtParams (const CrtParams & params) { m_crtParams = params; }
+
     bool IsFullscreen() const { return m_fullscreen; }
+
+    // P8-T6 -- accessors for the current swap chain dimensions so the
+    // EmulatorShell can populate `CrtParams::outputW/H` for the shader
+    // constant buffer without piping the window size through a side
+    // channel.
+    int  GetBackBufferWidth  () const { return m_backBufferW; }
+    int  GetBackBufferHeight () const { return m_backBufferH; }
 
     void Shutdown();
 
@@ -56,6 +74,18 @@ private:
     ComPtr<ID3D11Buffer>             m_vertexBuffer;
     ComPtr<ID3D11Buffer>             m_indexBuffer;
     ComPtr<ID3D11InputLayout>        m_inputLayout;
+
+    // P8-T4 CRT post-process pass. Owns the intermediate ping-pong RTs +
+    // the per-effect HLSL pixel shaders. Initialized in Initialize once
+    // the device is up; torn down in Shutdown. `Process` is invoked
+    // unconditionally from UploadAndPresent -- a disabled effect maps
+    // to a zero magnitude in CrtParams, which the shaders treat as a
+    // pass-through (see CrtPostProcess.cpp). The intermediate RTs are
+    // resized lazily inside Process() when the back buffer size changes.
+    CrtPostProcess                   m_crtPost;
+    CrtParams                        m_crtParams;
+    int                              m_backBufferW = 0;
+    int                              m_backBufferH = 0;
 
     int     m_texWidth    = 0;
     int     m_texHeight   = 0;
