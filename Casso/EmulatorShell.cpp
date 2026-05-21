@@ -16,8 +16,7 @@
 #include "Devices/LanguageCard.h"
 #include "Devices/AppleIIeMmu.h"
 #include "Core/Prng.h"
-#include "OptionsDialog.h"
-#include "MachinePickerDialog.h"
+
 #include "RegistrySettings.h"
 #include "DiskSettings.h"
 #include "UnicodeSymbols.h"
@@ -2387,65 +2386,14 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
 
 void EmulatorShell::ShowMachinePicker()
 {
-    HRESULT           hr             = S_OK;
-    wstring           currentName    = fs::path (m_config.name).wstring();
-    wstring           selected       = MachinePickerDialog::Show (m_hwnd, currentName);
-    vector<fs::path>  searchPaths;
-    fs::path          romDir;
-    string            error;
-    bool              hasDisk        = false;
-    string            hasDiskErr;
-    HRESULT           hrHasDisk      = S_OK;
-
-
-
-    if (selected.empty() || selected == currentName)
-    {
-        return;
-    }
-
-    // Bootstrap target-machine assets on the UI thread before posting
-    // the switch command. CheckAndFetchRoms shows a modal TaskDialog
-    // that requires STA + a same-thread parent HWND; SwitchMachine
-    // runs on the CPU thread (MULTITHREADED COM) via ProcessCommands,
-    // so doing this here keeps modal UI on the thread that owns the
-    // main window.
-    searchPaths = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
-                                                  PathResolver::GetWorkingDirectory());
-    romDir      = AssetBootstrap::GetAssetBaseDirectory (searchPaths,
-                                                         PathResolver::GetExecutableDirectory());
-
-    hr = AssetBootstrap::CheckAndFetchRoms (m_hInstance, selected, m_hwnd,
-                                            searchPaths, romDir, error);
-
-    if (hr == S_FALSE)
-    {
-        return;
-    }
-
-    if (FAILED (hr))
-    {
-        wstring msg = format (L"ROM download failed:\n{}",
-                              wstring (error.begin(), error.end()));
-        MessageBoxW (m_hwnd, msg.c_str(), L"Casso Emulator", MB_OK | MB_ICONERROR);
-        return;
-    }
-
-    // Disk II audio bootstrap is best-effort, same as Main.cpp.
-    hrHasDisk = AssetBootstrap::HasDiskController (m_hInstance, selected,
-                                                   hasDisk, hasDiskErr);
-    IGNORE_RETURN_VALUE (hrHasDisk, S_OK);
-
-    if (hasDisk)
-    {
-        fs::path  devicesDir   = romDir / L"Devices" / L"DiskII";
-        string    diskAudioErr;
-        HRESULT   hrDiskAudio  = AssetBootstrap::CheckAndFetchDiskAudio (
-            m_hInstance, selected, m_hwnd, devicesDir, diskAudioErr);
-        IGNORE_RETURN_VALUE (hrDiskAudio, S_OK);
-    }
-
-    PostCommand (IDM_FILE_OPEN, fs::path (selected).string());
+    // P9-T1: legacy `MachinePickerDialog` is retired (FR-027). The
+    // consolidated RmlUi Settings panel hosts the machine selector
+    // and routes the actual switch through `SwitchMachine` /
+    // `SettingsPanelState::Apply` on commit. Old entry points
+    // (`IDM_FILE_OPEN`, status-bar machine cell) funnel here so they
+    // keep working with no behavioural surprise to the user.
+    HRESULT  hrShow = m_settingsPanel.Show();
+    IGNORE_RETURN_VALUE (hrShow, S_OK);
 }
 
 
@@ -4086,54 +4034,6 @@ void EmulatorShell::OnViewCommand (int id)
                 y = mi.rcWork.top  + (mi.rcWork.bottom - mi.rcWork.top - h) / 2;
 
                 SetWindowPos (m_hwnd, nullptr, x, y, w, h, SWP_NOZORDER);
-            }
-            break;
-        }
-
-        case IDM_VIEW_OPTIONS:
-        {
-            bool     driveAudio  = m_driveAudioMixer.IsEnabled();
-            wstring  mechanism   = m_driveAudioMixer.GetMechanism();
-            bool     newEnabled  = driveAudio;
-            wstring  newMech     = mechanism;
-            HRESULT  hrDlg       = OptionsDialog::Show (
-                m_hwnd,
-                reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE)),
-                driveAudio,
-                mechanism,
-                newEnabled,
-                newMech);
-
-            if (hrDlg == S_OK)
-            {
-                wstring  subkey = wstring (L"Machines\\") + m_currentMachineName;
-
-                if (newEnabled != driveAudio)
-                {
-                    m_driveAudioMixer.SetEnabled (newEnabled);
-
-                    HRESULT  hrReg = RegistrySettings::WriteDword (
-                        subkey.c_str(),
-                        L"DriveAudioEnabled",
-                        newEnabled ? 1u : 0u);
-                    IGNORE_RETURN_VALUE (hrReg, S_OK);
-                }
-
-                if (newMech != mechanism && m_driveAudioMixer.IsValidMechanism (newMech))
-                {
-                    // FR-006 / SC-010: runtime swap, no restart and
-                    // no disk remount required. SetMechanism
-                    // re-invokes LoadSamples on every registered
-                    // source through the cached load context.
-                    HRESULT  hrMech = m_driveAudioMixer.SetMechanism (newMech);
-                    IGNORE_RETURN_VALUE (hrMech, S_OK);
-
-                    HRESULT  hrReg  = RegistrySettings::WriteString (
-                        subkey.c_str(),
-                        L"DiskIIMechanism",
-                        newMech);
-                    IGNORE_RETURN_VALUE (hrReg, S_OK);
-                }
             }
             break;
         }

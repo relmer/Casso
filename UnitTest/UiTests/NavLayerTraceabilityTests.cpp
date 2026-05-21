@@ -67,7 +67,6 @@ namespace
         IDM_VIEW_FULLSCREEN,
         IDM_VIEW_RESET_SIZE,
         IDM_VIEW_CRT_SHADER,
-        IDM_VIEW_OPTIONS,
         IDM_VIEW_DISKII_DEBUG,
 
         IDM_HELP_KEYMAP,

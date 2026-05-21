@@ -61,7 +61,6 @@ namespace
         { IDM_VIEW_FULLSCREEN,          NavMenu::View,    L"Fullscreen",             L"Alt+Enter"     },
         { IDM_VIEW_RESET_SIZE,          NavMenu::View,    L"Reset Window Size",      L"Ctrl+0"        },
         { IDM_VIEW_CRT_SHADER,          NavMenu::View,    L"CRT Shader",             nullptr          },
-        { IDM_VIEW_OPTIONS,             NavMenu::View,    L"Options...",             nullptr          },
         { IDM_VIEW_SETTINGS,            NavMenu::View,    L"Settings...",            L"Ctrl+,"        },
         { IDM_VIEW_DISKII_DEBUG,        NavMenu::View,    L"Disk II Debug...",       L"Ctrl+Shift+D"  },
 

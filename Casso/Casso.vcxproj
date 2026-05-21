@@ -228,7 +228,6 @@
     <ClCompile Include="EmulatorShell.cpp" />
     <ClCompile Include="DebugConsole.cpp" />
     <ClCompile Include="RegistrySettings.cpp" />
-    <ClCompile Include="MachinePickerDialog.cpp" />
     <ClCompile Include="DiskSettings.cpp" />
     <ClCompile Include="AssetBootstrap.cpp" />
     <ClCompile Include="Config\Win32FileSystem.cpp" />
@@ -252,7 +251,6 @@
     <ClCompile Include="Ui\AutoMountResolver.cpp" />
     <ClCompile Include="Ui\SettingsPanelState.cpp" />
     <ClCompile Include="Ui\SettingsPanel.cpp" />
-    <ClCompile Include="OptionsDialog.cpp" />
     <ClCompile Include="TrackSectorPredicate.cpp" />
     <ClCompile Include="DebugDialogProjection.cpp" />
     <ClCompile Include="DiskIIDebugDialogState.cpp" />
@@ -270,7 +268,6 @@
     <ClInclude Include="DiskIIEventDisplay.h" />
     <ClInclude Include="DebugConsole.h" />
     <ClInclude Include="RegistrySettings.h" />
-    <ClInclude Include="MachinePickerDialog.h" />
     <ClInclude Include="DiskSettings.h" />
     <ClInclude Include="AssetBootstrap.h" />
     <ClInclude Include="Config\IFileSystem.h" />
@@ -297,7 +294,6 @@
     <ClInclude Include="Ui\AutoMountResolver.h" />
     <ClInclude Include="Ui\SettingsPanelState.h" />
     <ClInclude Include="Ui\SettingsPanel.h" />
-    <ClInclude Include="OptionsDialog.h" />
     <ClInclude Include="TrackSectorPredicate.h" />
     <ClInclude Include="DebugDialogProjection.h" />
     <ClInclude Include="DiskIIDebugDialogState.h" />

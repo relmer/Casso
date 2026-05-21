@@ -40,7 +40,6 @@ them.
 | 40034 | 0x9C62 | View | Fullscreen | Alt+Enter |
 | 40036 | 0x9C64 | View | Reset Window Size | Ctrl+0 |
 | 40035 | 0x9C63 | View | CRT Shader | — |
-| 40037 | 0x9C65 | View | Options... | — |
 | 40038 | 0x9C66 | View | Disk II Debug... | Ctrl+Shift+D |
 | 40040 | 0x9C68 | Help | Keyboard Map | F1 |
 | 40041 | 0x9C69 | Help | Debug Console | Ctrl+D |

@@ -6,7 +6,7 @@
 #include "DiskSettings.h"
 #include "Ehm.h"
 #include "EmulatorShell.h"
-#include "MachinePickerDialog.h"
+#include "Core/MachineScanner.h"
 #include "RegistrySettings.h"
 
 #pragma comment(lib, "ole32.lib")
@@ -325,8 +325,33 @@ int WINAPI wWinMain (
             fs::path ("Machines") / fs::path (machineName).string()
                                   / (fs::path (machineName).string() + ".json")).empty())
     {
-        machineName = MachinePickerDialog::Show (nullptr, machineName);
-        CBR (!machineName.empty());
+        // P9-T1: legacy Win32 `MachinePickerDialog` is retired
+        // (FR-027). At startup we deterministically pick the first
+        // available machine from `MachineScanner::Scan`; the user
+        // can switch later via the RmlUi Settings panel. If nothing
+        // was discovered (no Machines/ folder, asset bootstrap
+        // failed) we surface a single error and exit.
+        vector<fs::path> scanPaths = PathResolver::BuildSearchPaths (
+            PathResolver::GetExecutableDirectory(),
+            PathResolver::GetWorkingDirectory());
+
+        vector<MachineInfo> discovered = MachineScanner::Scan (
+            scanPaths,
+            &MachineScanner::ListDirectory,
+            &MachineScanner::ReadFile);
+
+        if (discovered.empty())
+        {
+            MessageBoxW (
+                nullptr,
+                L"Casso could not find any machine configurations.\n"
+                L"Reinstall or restore the Machines/ directory.",
+                L"Casso Emulator",
+                MB_OK | MB_ICONERROR);
+            return 1;
+        }
+
+        machineName = discovered.front().fileName;
     }
 
     // Load machine configuration. S_FALSE here means the user
