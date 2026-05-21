@@ -1,4 +1,9 @@
+// DO NOT EDIT. This file is a Casso embedded default and will be
+// overwritten on launch when an out-of-date stamp is detected.
+// To customize, copy it to Machines/<Name>/<Name>.json (any name
+// other than the three embedded defaults) and edit that copy.
 {
+    "$cassoDefault": 2,
     "name": "Apple ][",
     "cpu": "6502",
     "timing": {
@@ -21,7 +26,9 @@
         { "type": "apple2-speaker" },
         { "type": "apple2-softswitches" }
     ],
-    "slots": [],
+    "slots": [
+        { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
+    ],
     "video": {
         "modes": ["apple2-text40", "apple2-lores", "apple2-hires"]
     },
