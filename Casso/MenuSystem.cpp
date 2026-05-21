@@ -37,12 +37,20 @@ struct MenuItem
     const wchar_t * label;
 };
 
+
+
+
+
 static const MenuItem kFileMenuItems[] =
 {
     { MF_STRING, IDM_FILE_OPEN,   L"&Switch Machine...\tCtrl+O" },
     { 0,                     kSep,            nullptr },
     { MF_STRING,             IDM_FILE_EXIT,   L"E&xit" },
 };
+
+
+
+
 
 static const MenuItem kEditMenuItems[] =
 {
@@ -51,6 +59,10 @@ static const MenuItem kEditMenuItems[] =
     { 0,         kSep,                     nullptr },
     { MF_STRING, IDM_EDIT_PASTE,           L"&Paste\tCtrl+V" },
 };
+
+
+
+
 
 static const MenuItem kMachineMenuItems[] =
 {
@@ -67,6 +79,10 @@ static const MenuItem kMachineMenuItems[] =
     { MF_STRING,              IDM_MACHINE_INFO,      L"Machine &Info..." },
 };
 
+
+
+
+
 static const MenuItem kDiskMenuItems[] =
 {
     { MF_STRING,              IDM_DISK_INSERT1,         L"Insert Drive &1...\tCtrl+1" },
@@ -80,6 +96,10 @@ static const MenuItem kDiskMenuItems[] =
     { MF_STRING | MF_CHECKED, IDM_DISK_WRITEMODE_BUFFER, L"Write Mode: &Buffer and Flush" },
     { MF_STRING,              IDM_DISK_WRITEMODE_COW,   L"Write Mode: &Copy on Write" },
 };
+
+
+
+
 
 static const MenuItem kViewMenuItems[] =
 {
@@ -97,6 +117,10 @@ static const MenuItem kViewMenuItems[] =
     { MF_STRING,              IDM_VIEW_DISKII_DEBUG, L"&Disk II Debug...\tCtrl+Shift+D" },
 };
 
+
+
+
+
 static const MenuItem kHelpMenuItems[] =
 {
     { MF_STRING, IDM_HELP_KEYMAP, L"&Keyboard Map\tF1" },
@@ -104,6 +128,10 @@ static const MenuItem kHelpMenuItems[] =
     { 0,         kSep,            nullptr },
     { MF_STRING, IDM_HELP_ABOUT,  L"&About Casso..." },
 };
+
+
+
+
 
 struct MenuDef
 {

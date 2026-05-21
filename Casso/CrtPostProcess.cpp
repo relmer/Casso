@@ -170,6 +170,8 @@ namespace
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MakeCrtParams
@@ -231,6 +233,8 @@ CrtParams MakeCrtParams (
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ComputeLetterboxRect
@@ -278,6 +282,8 @@ RECT ComputeLetterboxRect (int backBufferW, int backBufferH)
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CrtPostProcess
@@ -290,10 +296,20 @@ CrtPostProcess::CrtPostProcess()
 
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ~CrtPostProcess
+//
+////////////////////////////////////////////////////////////////////////////////
+
 CrtPostProcess::~CrtPostProcess()
 {
     Shutdown();
 }
+
+
 
 
 
@@ -338,6 +354,8 @@ Error:
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Initialize
@@ -348,13 +366,13 @@ HRESULT CrtPostProcess::Initialize (
     ID3D11Device         * device,
     ID3D11DeviceContext  * context)
 {
-    HRESULT                hr      = S_OK;
+    HRESULT                hr       = S_OK;
     ComPtr<ID3DBlob>       vsBlob;
     ComPtr<ID3DBlob>       errors;
-    D3D11_BUFFER_DESC      bd      = {};
+    D3D11_BUFFER_DESC      bd       = {};
     D3D11_SUBRESOURCE_DATA initData = {};
-    D3D11_SAMPLER_DESC     sd      = {};
-    D3D11_BLEND_DESC       bld     = {};
+    D3D11_SAMPLER_DESC     sd       = {};
+    D3D11_BLEND_DESC       bld      = {};
 
     CrtVertex vertices[] =
     {
@@ -453,6 +471,8 @@ Error:
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EnsureSize
@@ -518,6 +538,8 @@ Error:
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UploadConstants
@@ -540,6 +562,8 @@ HRESULT CrtPostProcess::UploadConstants (const CrtParams & params)
 Error:
     return hr;
 }
+
+
 
 
 
@@ -611,6 +635,8 @@ void CrtPostProcess::DrawFullscreen (
     // next pass without a D3D11 hazard warning.
     m_context->PSSetShaderResources (0, 2, nullSrvs);
 }
+
+
 
 
 
@@ -696,6 +722,8 @@ HRESULT CrtPostProcess::Process (
 Error:
     return hr;
 }
+
+
 
 
 

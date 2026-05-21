@@ -24,6 +24,14 @@ DriveWidgetElement::DriveWidgetElement (const Rml::String & tag)
 
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ~DriveWidgetElement
+//
+////////////////////////////////////////////////////////////////////////////////
+
 DriveWidgetElement::~DriveWidgetElement()
 {
 }
@@ -45,6 +53,8 @@ int DriveWidgetElement::GetSlotAttr() const
 {
     return GetAttribute<int> ("slot", -1);
 }
+
+
 
 
 

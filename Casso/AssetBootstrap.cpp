@@ -57,6 +57,10 @@ struct RomSpec
     string_view  description;
 };
 
+
+
+
+
 static constexpr RomSpec s_kRomCatalog[] =
 {
     { "Apple2",           "Apple2.rom",            "Apple2.rom",                 "Machines/Apple2",           12288, "Apple ][ ROM (Integer BASIC)"              },
@@ -140,6 +144,9 @@ struct EmbeddedConfig
 };
 
 
+
+
+
 static constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
 {
     { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     3 },
@@ -213,6 +220,10 @@ struct DiskAudioSpec
     string_view  wavBasename;        // Casso target filename (matches DiskIIAudioSource s_kpszSampleFiles)
 };
 
+
+
+
+
 static constexpr LPCWSTR  s_kpszOpenEmulatorHost      = L"raw.githubusercontent.com";
 static constexpr LPCWSTR  s_kpszOpenEmulatorPathFmt   = L"/openemulator/libemulation/master/res/sounds/";
 
@@ -227,6 +238,10 @@ static constexpr DiskAudioSpec s_kDiskAudioCatalog[] =
     { "Alps",    "Alps 2124A Head.ogg",     "HeadStep.wav"  },
     { "Alps",    "Alps 2124A Stop.ogg",     "HeadStop.wav"  },
 };
+
+
+
+
 
 static constexpr string_view s_kDiskAudioMechanisms[] = { "Shugart", "Alps" };
 
@@ -566,12 +581,18 @@ struct EmbeddedThemeFile
 };
 
 
+
+
+
 struct EmbeddedTheme
 {
     const char *                       dirName;        // matches "name" in theme.json
     int                                currentVersion; // mirrors theme.json $cassoThemeVersion
     span<const EmbeddedThemeFile>      files;
 };
+
+
+
 
 
 static constexpr EmbeddedThemeFile s_kSkeuomorphicFiles[] =
@@ -591,6 +612,10 @@ static constexpr EmbeddedThemeFile s_kSkeuomorphicFiles[] =
     { IDR_THEME_SKEUO_FONT_TODO,          "fonts/TODO_FONTS.md" },
 };
 
+
+
+
+
 static constexpr EmbeddedThemeFile s_kDarkModernFiles[] =
 {
     { IDR_THEME_DARK_THEME_JSON,         "theme.json"          },
@@ -608,6 +633,10 @@ static constexpr EmbeddedThemeFile s_kDarkModernFiles[] =
     { IDR_THEME_DARK_FONT_TODO,          "fonts/TODO_FONTS.md" },
 };
 
+
+
+
+
 static constexpr EmbeddedThemeFile s_kRetroTerminalFiles[] =
 {
     { IDR_THEME_RETRO_THEME_JSON,         "theme.json"          },
@@ -624,6 +653,9 @@ static constexpr EmbeddedThemeFile s_kRetroTerminalFiles[] =
     { IDR_THEME_RETRO_FONT_OFL,           "fonts/OFL.txt"       },
     { IDR_THEME_RETRO_FONT_TODO,          "fonts/TODO_FONTS.md" },
 };
+
+
+
 
 
 static const EmbeddedTheme s_kEmbeddedThemes[] =
@@ -1399,6 +1431,12 @@ static constexpr int  s_kIdProDOS = 1002;
 static constexpr int  s_kIdSkip   = IDCANCEL;
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PromptBootDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static const BootDiskSpec * PromptBootDisk (HWND hwndParent, const wstring & displayName)
 {
     HRESULT               hr            = S_OK;
@@ -1564,6 +1602,7 @@ Error:
 
     return hr;
 }
+
 
 
 

@@ -92,11 +92,18 @@ static const D3D11_INPUT_ELEMENT_DESC kInputLayout[] =
 };
 
 
+
+
+
 struct ConstantBufferData
 {
     float mvp[16];     // 64 bytes, row-major
     float trans[4];    // xy = translation, zw = pad — 16 bytes
 };
+
+
+
+
 
 static_assert (sizeof (ConstantBufferData) == 80,
                "ConstantBufferData must stay 80 bytes (must be a multiple of 16 for D3D11)");
@@ -116,6 +123,14 @@ RmlBackend_D3D11::RmlBackend_D3D11()
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ~RmlBackend_D3D11
+//
+////////////////////////////////////////////////////////////////////////////////
 
 RmlBackend_D3D11::~RmlBackend_D3D11()
 {
@@ -792,6 +807,14 @@ void RmlBackend_D3D11::EnableScissorRegion (bool enable)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetScissorRegion
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void RmlBackend_D3D11::SetScissorRegion (Rml::Rectanglei region)
 {

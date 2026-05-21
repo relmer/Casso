@@ -80,6 +80,7 @@ namespace
 
 
 
+
 TEST_CLASS (RmlBackendSmokeTests)
 {
 public:

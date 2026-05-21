@@ -18,6 +18,8 @@ PerfStats & PerfStats::Instance()
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PerfStats::Record
@@ -49,6 +51,8 @@ void PerfStats::Record (const char * label, double ms)
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PerfStats::Get
@@ -74,6 +78,8 @@ PerfStats::Stat PerfStats::Get (const char * label) const
     }
     return it->second;
 }
+
+
 
 
 

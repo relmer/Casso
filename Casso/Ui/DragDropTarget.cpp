@@ -23,6 +23,14 @@ DragDropTarget::DragDropTarget()
 
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ~DragDropTarget
+//
+////////////////////////////////////////////////////////////////////////////////
+
 DragDropTarget::~DragDropTarget()
 {
     Shutdown();
@@ -119,10 +127,14 @@ STDMETHODIMP DragDropTarget::QueryInterface (REFIID riid, void ** ppv)
 
 
 
+
+
 STDMETHODIMP_(ULONG) DragDropTarget::AddRef()
 {
     return m_refCount.fetch_add (1, std::memory_order_acq_rel) + 1;
 }
+
+
 
 
 
