@@ -8,6 +8,7 @@
                 "${workspaceFolder}/Casso",
                 "${workspaceFolder}/CassoEmuCore",
                 "${workspaceFolder}/UnitTest",
+                "${workspaceFolder}/External/RmlUi/Include",
                 "${env:ProgramFiles}/Microsoft Visual Studio/**/VC/Auxiliary/VS/UnitTest/include"
             ],
             "forcedInclude": [
@@ -19,7 +20,9 @@
                 "UNICODE",
                 "_UNICODE",
                 "WIN32_LEAN_AND_MEAN",
-                "NOMINMAX"
+                "NOMINMAX",
+                "RMLUI_STATIC_LIB",
+                "RMLUI_NO_THIRDPARTY_CONTAINERS"
             ],
             "windowsSdkVersion": "10.0",
             "compilerPath": "cl.exe",
