@@ -413,7 +413,7 @@ void EmulatorShell::CreateStatusBar()
     // Pre-register the Drive 1/Drive 2 tools now (after parts exist) so
     // the very first hover works. RefreshDriveStatus then keeps the
     // rects + text in sync as the user resizes / mounts / ejects.
-    if (m_driveTooltip != nullptr && m_diskController != nullptr)
+    if (m_driveTooltip != nullptr && m_refs.diskController != nullptr)
     {
         TOOLINFOW  ti = { };
 
@@ -448,7 +448,7 @@ void EmulatorShell::CreateStatusBar()
     // Periodic refresh for owner-drawn drive activity LEDs. Only set when
     // a Disk II controller is present; otherwise the indicators don't
     // exist and the timer would just be paint-invalidating empty space.
-    if (m_diskController != nullptr)
+    if (m_refs.diskController != nullptr)
     {
         SetTimer (m_hwnd, kDriveStatusTimerId, kDriveStatusTimerMs, nullptr);
     }
@@ -520,7 +520,7 @@ void EmulatorShell::UpdateStatusBar()
 
 
 
-    if (m_diskController != nullptr)
+    if (m_refs.diskController != nullptr)
     {
         driveCount = DiskIIController::kDriveCount;
     }
@@ -670,9 +670,9 @@ void EmulatorShell::RefreshDriveStatus()
             {
                 swprintf_s (tooltip, L"Drive %d: (empty)", d + 1);
             }
-            else if (m_diskController != nullptr)
+            else if (m_refs.diskController != nullptr)
             {
-                auto &  engine = m_diskController->GetEngine (d);
+                auto &  engine = m_refs.diskController->GetEngine (d);
                 int     track  = engine.GetCurrentTrack();
 
                 swprintf_s (tooltip,
@@ -813,11 +813,11 @@ void EmulatorShell::DrawDriveStatusItem (DRAWITEMSTRUCT * pdis, int driveIndex)
                            static_cast<int> (wcslen (label)),
                            &labelSize);
 
-    active = m_diskController != nullptr
-          && m_diskController->IsMotorOn()
-          && m_diskController->GetActiveDrive() == driveIndex
-          && m_diskController->GetDisk (driveIndex) != nullptr
-          && m_diskController->GetDisk (driveIndex)->IsLoaded();
+    active = m_refs.diskController != nullptr
+          && m_refs.diskController->IsMotorOn()
+          && m_refs.diskController->GetActiveDrive() == driveIndex
+          && m_refs.diskController->GetDisk (driveIndex) != nullptr
+          && m_refs.diskController->GetDisk (driveIndex)->IsLoaded();
 
     dotColor = active ? RGB (220, 32, 32) : RGB (128, 128, 128);
 
@@ -935,17 +935,17 @@ void EmulatorShell::ShowDevicePopup()
             bool match    = false;
 
             if ((idev.type == "apple2-keyboard" || idev.type == "apple2e-keyboard") &&
-                m_keyboard != nullptr && dev.get() == static_cast<MemoryDevice *> (m_keyboard))
+                m_refs.keyboard != nullptr && dev.get() == static_cast<MemoryDevice *> (m_refs.keyboard))
             {
                 match = true;
             }
             else if (idev.type == "apple2-speaker" &&
-                     m_speaker != nullptr && dev.get() == static_cast<MemoryDevice *> (m_speaker))
+                     m_refs.speaker != nullptr && dev.get() == static_cast<MemoryDevice *> (m_refs.speaker))
             {
                 match = true;
             }
             else if ((idev.type == "apple2-softswitches" || idev.type == "apple2e-softswitches") &&
-                     m_softSwitches != nullptr && dev.get() == static_cast<MemoryDevice *> (m_softSwitches))
+                     m_refs.softSwitches != nullptr && dev.get() == static_cast<MemoryDevice *> (m_refs.softSwitches))
             {
                 match = true;
             }
@@ -1096,9 +1096,9 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
 
         auto device = make_unique<RamDevice> (start, end);
 
-        if (m_mainRamDev == nullptr)
+        if (m_refs.mainRamDev == nullptr)
         {
-            m_mainRamDev = device.get();
+            m_refs.mainRamDev = device.get();
         }
 
         m_memoryBus.AddDevice (device.get());
@@ -1155,16 +1155,16 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
         if (devCfg.type == "apple2-keyboard" ||
             devCfg.type == "apple2e-keyboard")
         {
-            m_keyboard = static_cast<AppleKeyboard *> (device.get());
+            m_refs.keyboard = static_cast<AppleKeyboard *> (device.get());
         }
         else if (devCfg.type == "apple2-softswitches" ||
                  devCfg.type == "apple2e-softswitches")
         {
-            m_softSwitches = static_cast<AppleSoftSwitchBank *> (device.get());
+            m_refs.softSwitches = static_cast<AppleSoftSwitchBank *> (device.get());
         }
         else if (devCfg.type == "apple2-speaker")
         {
-            m_speaker = static_cast<AppleSpeaker *> (device.get());
+            m_refs.speaker = static_cast<AppleSpeaker *> (device.get());
         }
 
         m_memoryBus.AddDevice (device.get());
@@ -1174,8 +1174,8 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
     // Wire IIe keyboard <-> softswitch sibling so $C00C-$C00F reaches the
     // softswitch (the keyboard's range $C000-$C063 would otherwise eat it).
     {
-        auto * iieKbd = dynamic_cast<AppleIIeKeyboard *>     (m_keyboard);
-        auto * iieSw  = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
+        auto * iieKbd = dynamic_cast<AppleIIeKeyboard *>     (m_refs.keyboard);
+        auto * iieSw  = dynamic_cast<AppleIIeSoftSwitchBank *> (m_refs.softSwitches);
 
         if (iieKbd != nullptr && iieSw != nullptr)
         {
@@ -1183,9 +1183,9 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
             iieSw->SetKeyboard           (iieKbd);
         }
 
-        if (iieKbd != nullptr && m_speaker != nullptr)
+        if (iieKbd != nullptr && m_refs.speaker != nullptr)
         {
-            iieKbd->SetSpeakerSibling (m_speaker);
+            iieKbd->SetSpeakerSibling (m_refs.speaker);
         }
 
         if (iieKbd != nullptr && m_mmu != nullptr)
@@ -1211,13 +1211,13 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
 
     // Initialize the //e MMU once main RAM exists. The MMU rebinds the
     // page table for $0000-$BFFF based on RAMRD/RAMWRT/ALTZP/80STORE.
-    if (m_mmu != nullptr && m_mainRamDev != nullptr)
+    if (m_mmu != nullptr && m_refs.mainRamDev != nullptr)
     {
-        auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
+        auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_refs.softSwitches);
 
         HRESULT hrMmu = m_mmu->Initialize (
             &m_memoryBus,
-            m_mainRamDev,
+            m_refs.mainRamDev,
             nullptr,
             nullptr,
             nullptr,
@@ -1296,14 +1296,14 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
 
     // Cache DiskIIController pointer for the status-bar drive activity
     // indicator. We pick the first one we find (typically slot 6).
-    m_diskController = nullptr;
+    m_refs.diskController = nullptr;
     for (auto & dev : m_ownedDevices)
     {
         DiskIIController *  dc = dynamic_cast<DiskIIController *> (dev.get());
 
         if (dc != nullptr)
         {
-            m_diskController = dc;
+            m_refs.diskController = dc;
             break;
         }
     }
@@ -1322,7 +1322,7 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
     m_diskAudioSources.clear();
     m_driveAudioMixer.UnregisterAllSources();
 
-    if (m_diskController != nullptr)
+    if (m_refs.diskController != nullptr)
     {
         int  driveCount = DiskIIController::kDriveCount;
         int  drive      = 0;
@@ -1363,7 +1363,7 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
 
         if (!m_diskAudioSources.empty())
         {
-            m_diskController->SetAudioSink (m_diskAudioSources[0].get());
+            m_refs.diskController->SetAudioSink (m_diskAudioSources[0].get());
         }
     }
 
@@ -1480,14 +1480,14 @@ void EmulatorShell::WireLanguageCard()
         lc->SetMmu (m_mmu.get());
     }
 
-    auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_keyboard);
+    auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_refs.keyboard);
 
     if (iieKbd != nullptr)
     {
         iieKbd->SetLanguageCard (lc);
     }
 
-    auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
+    auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_refs.softSwitches);
 
     if (iieSw != nullptr)
     {
@@ -1865,7 +1865,7 @@ void EmulatorShell::RemountSlot6Disks()
 void EmulatorShell::CreateVideoModes()
 {
     auto textMode = make_unique<AppleTextMode> (m_memoryBus, m_charRom);
-    m_activeVideoMode = textMode.get();
+    m_refs.activeVideoMode = textMode.get();
     m_videoModes.push_back (move (textMode));
 
     auto loResMode = make_unique<AppleLoResMode> (m_memoryBus);
@@ -1994,9 +1994,9 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
     m_cpu->InitForEmulation();
 
     // Connect speaker to CPU cycle counter for audio timestamps
-    if (m_speaker != nullptr)
+    if (m_refs.speaker != nullptr)
     {
-        m_speaker->SetCycleCounter (m_cpu->GetCycleCounterPtr());
+        m_refs.speaker->SetCycleCounter (m_cpu->GetCycleCounterPtr());
     }
 
     return hr;
@@ -2014,15 +2014,65 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
 
 void EmulatorShell::ShowMachinePicker()
 {
-    wstring currentName = fs::path (m_config.name).wstring();
-    wstring selected    = MachinePickerDialog::Show (m_hwnd, currentName);
+    HRESULT           hr             = S_OK;
+    wstring           currentName    = fs::path (m_config.name).wstring();
+    wstring           selected       = MachinePickerDialog::Show (m_hwnd, currentName);
+    vector<fs::path>  searchPaths;
+    fs::path          romDir;
+    string            error;
+    bool              hasDisk        = false;
+    string            hasDiskErr;
+    HRESULT           hrHasDisk      = S_OK;
 
 
 
-    if (!selected.empty() && selected != currentName)
+    if (selected.empty() || selected == currentName)
     {
-        PostCommand (IDM_FILE_OPEN, fs::path (selected).string());
+        return;
     }
+
+    // Bootstrap target-machine assets on the UI thread before posting
+    // the switch command. CheckAndFetchRoms shows a modal TaskDialog
+    // that requires STA + a same-thread parent HWND; SwitchMachine
+    // runs on the CPU thread (MULTITHREADED COM) via ProcessCommands,
+    // so doing this here keeps modal UI on the thread that owns the
+    // main window.
+    searchPaths = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
+                                                  PathResolver::GetWorkingDirectory());
+    romDir      = AssetBootstrap::GetAssetBaseDirectory (searchPaths,
+                                                         PathResolver::GetExecutableDirectory());
+
+    hr = AssetBootstrap::CheckAndFetchRoms (m_hInstance, selected, m_hwnd,
+                                            searchPaths, romDir, error);
+
+    if (hr == S_FALSE)
+    {
+        return;
+    }
+
+    if (FAILED (hr))
+    {
+        wstring msg = format (L"ROM download failed:\n{}",
+                              wstring (error.begin(), error.end()));
+        MessageBoxW (m_hwnd, msg.c_str(), L"Casso Emulator", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    // Disk II audio bootstrap is best-effort, same as Main.cpp.
+    hrHasDisk = AssetBootstrap::HasDiskController (m_hInstance, selected,
+                                                   hasDisk, hasDiskErr);
+    IGNORE_RETURN_VALUE (hrHasDisk, S_OK);
+
+    if (hasDisk)
+    {
+        fs::path  devicesDir   = romDir / L"Devices" / L"DiskII";
+        string    diskAudioErr;
+        HRESULT   hrDiskAudio  = AssetBootstrap::CheckAndFetchDiskAudio (
+            m_hInstance, selected, m_hwnd, devicesDir, diskAudioErr);
+        IGNORE_RETURN_VALUE (hrDiskAudio, S_OK);
+    }
+
+    PostCommand (IDM_FILE_OPEN, fs::path (selected).string());
 }
 
 
@@ -2049,14 +2099,18 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     vector<fs::path>    romSearchPaths;
     string              error;
     MachineConfig       newConfig;
+    string              machineNameNarrow = fs::path (machineName).string();
 
 
 
-    // Find and load the new machine config
+    // Find and load the new machine config. ROM/disk-audio asset
+    // bootstrap happens on the UI thread in ShowMachinePicker before
+    // the switch command is enqueued; by the time we're here, every
+    // asset the new machine needs is already on disk.
     searchPaths   = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
                                                      PathResolver::GetWorkingDirectory());
-    configRelPath = fs::path ("Machines") / fs::path (machineName).string()
-                                          / (fs::path (machineName).string() + ".json");
+    configRelPath = fs::path ("Machines") / machineNameNarrow
+                                          / (machineNameNarrow + ".json");
     configPath    = PathResolver::FindFile (searchPaths, configRelPath);
 
     CBRN (!configPath.empty(),
@@ -2081,7 +2135,7 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     }
 
     hr = MachineConfigLoader::Load (jsonText,
-                                    fs::path (machineName).string(),
+                                    machineNameNarrow,
                                     romSearchPaths,
                                     newConfig,
                                     error);
@@ -2105,15 +2159,21 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
         m_diskIIDebugDialog->SetCycleCounter (nullptr);
     }
 
+    // Tear down ALL per-machine state in one atomic move. m_refs is
+    // a struct of observer pointers into the owning collections
+    // (m_ownedDevices, m_videoModes); resetting it as a whole keeps
+    // the "every observer must be invalidated when its owner goes
+    // away" invariant from rotting as new observers are added. m_mmu
+    // is a unique_ptr that survives across switches and is only
+    // reassigned when the new config carries an apple2e-mmu device;
+    // it must be explicitly reset here or it'll keep its stale
+    // RamDevice pointer alive across a //e → ][ switch.
     m_cpu.reset();
     m_ownedDevices.clear();
-    m_memoryBus = MemoryBus();
     m_videoModes.clear();
-    m_activeVideoMode = nullptr;
-    m_keyboard        = nullptr;
-    m_softSwitches    = nullptr;
-    m_speaker         = nullptr;
-    m_diskController  = nullptr;
+    m_memoryBus = MemoryBus();
+    m_refs      = {};
+    m_mmu.reset();
 
     // Initialize with new config
     m_currentMachineName = machineName;
@@ -2166,7 +2226,7 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     if (m_hwnd != nullptr)
     {
         KillTimer (m_hwnd, kDriveStatusTimerId);
-        if (m_diskController != nullptr)
+        if (m_refs.diskController != nullptr)
         {
             SetTimer (m_hwnd, kDriveStatusTimerId, kDriveStatusTimerMs, nullptr);
         }
@@ -2460,9 +2520,9 @@ void EmulatorShell::ProcessCommands()
                 {
                     m_cpu->StepOne();
 
-                    if (m_diskController != nullptr)
+                    if (m_refs.diskController != nullptr)
                     {
-                        m_diskController->Tick (m_cpu->GetLastInstructionCycles());
+                        m_refs.diskController->Tick (m_cpu->GetLastInstructionCycles());
                     }
                 }
                 break;
@@ -2580,13 +2640,13 @@ void EmulatorShell::DrainPasteBuffer()
 
 
 
-    if (m_keyboard == nullptr)
+    if (m_refs.keyboard == nullptr)
     {
         return;
     }
 
     // Wait until the CPU has consumed the previous key (strobe clear)
-    if (!m_keyboard->IsStrobeClear())
+    if (!m_refs.keyboard->IsStrobeClear())
     {
         return;
     }
@@ -2603,7 +2663,7 @@ void EmulatorShell::DrainPasteBuffer()
         m_pasteBuffer.erase (m_pasteBuffer.begin());
     }
 
-    m_keyboard->KeyPress (ch);
+    m_refs.keyboard->KeyPress (ch);
 }
 
 
@@ -2644,7 +2704,7 @@ void EmulatorShell::ExecuteCpuSlices()
 
     uint32_t  targetCycles    = m_cyclesPerFrame;
     SpeedMode speed           = m_speedMode.load (memory_order_acquire);
-    bool      audioActive     = (m_speaker != nullptr && m_wasapiAudio.IsInitialized());
+    bool      audioActive     = (m_refs.speaker != nullptr && m_wasapiAudio.IsInitialized());
     double    cyclesPerSample = 0.0;
     uint32_t  sliceTarget     = 0;
     uint32_t  sliceActual     = 0;
@@ -2663,7 +2723,7 @@ void EmulatorShell::ExecuteCpuSlices()
     {
         cyclesPerSample = static_cast<double> (m_config.clockSpeed) /
                           static_cast<double> (m_wasapiAudio.GetSampleRate());
-        m_speaker->BeginFrame();
+        m_refs.speaker->BeginFrame();
     }
 
     for (uint32_t executed = 0; executed < targetCycles; )
@@ -2696,9 +2756,9 @@ void EmulatorShell::ExecuteCpuSlices()
             // the CPU sees one valid nibble per ~1000 cycles instead
             // of ~32, and the boot ROM never accumulates enough sync
             // bytes to find a sector header.
-            if (m_diskController != nullptr)
+            if (m_refs.diskController != nullptr)
             {
-                m_diskController->Tick (cycles);
+                m_refs.diskController->Tick (cycles);
             }
         }
 
@@ -2711,15 +2771,15 @@ void EmulatorShell::ExecuteCpuSlices()
 
             m_sampleRemainder = exactSamples - static_cast<double> (numSamples);
 
-            m_wasapiAudio.SubmitFrame (m_speaker->GetToggleTimestamps(),
+            m_wasapiAudio.SubmitFrame (m_refs.speaker->GetToggleTimestamps(),
                                        sliceActual,
-                                       m_speaker->GetFrameInitialState(),
+                                       m_refs.speaker->GetFrameInitialState(),
                                        numSamples,
                                        &m_driveAudioMixer,
                                        m_cpu->GetTotalCycles());
 
-            m_speaker->ClearTimestamps();
-            m_speaker->BeginFrame();
+            m_refs.speaker->ClearTimestamps();
+            m_refs.speaker->BeginFrame();
         }
     }
 }
@@ -2742,14 +2802,14 @@ void EmulatorShell::RenderFramebuffer()
 
     SelectVideoMode();
 
-    if (m_activeVideoMode != nullptr)
+    if (m_refs.activeVideoMode != nullptr)
     {
         // Pass nullptr for videoRam so the renderer reads through MemoryBus.
         // The bus's page table reflects the current MMU banking state
         // (main vs aux for $0400-$07FF / $2000-$3FFF under 80STORE+PAGE2/HIRES);
         // CPU memory[] alone does not, since the //e MMU re-points pages at
         // the RamDevice / aux RAM buffers it owns.
-        m_activeVideoMode->Render (nullptr,
+        m_refs.activeVideoMode->Render (nullptr,
                                    m_cpuFramebuffer.data(),
                                    kFramebufferWidth,
                                    kFramebufferHeight);
@@ -2765,7 +2825,7 @@ void EmulatorShell::RenderFramebuffer()
         static constexpr int kMixedFirstRow = 20;
         static constexpr int kMixedLastRow  = 24;
 
-        auto * iieSwitches = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
+        auto * iieSwitches = dynamic_cast<AppleIIeSoftSwitchBank *> (m_refs.softSwitches);
         bool   use80Col    = iieSwitches != nullptr && iieSwitches->Is80ColMode();
 
         if (use80Col && m_videoModes.size() > 4)
@@ -2915,7 +2975,7 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     bool ctrlHeld = false;
     bool altHeld  = false;
 
-    if (m_keyboard == nullptr)
+    if (m_refs.keyboard == nullptr)
     {
         return false;
     }
@@ -2946,7 +3006,7 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
         return false;
     }
 
-    m_keyboard->SetKeyDown (true);
+    m_refs.keyboard->SetKeyDown (true);
 
     // Phase 6 / T063 / FR-013. //e modifier-key wiring (host -> emulator):
     //   left  Alt   -> Open Apple   ($C061)
@@ -2957,7 +3017,7 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     // can deliver for some Alt+key combos) drive the same path —
     // GetKeyState gives the canonical left/right state.
     {
-        auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_keyboard);
+        auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_refs.keyboard);
 
         if (iieKbd != nullptr)
         {
@@ -2978,27 +3038,27 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     switch (vk)
     {
         case VK_LEFT:
-            m_keyboard->KeyPress (kAppleKeyLeft);
+            m_refs.keyboard->KeyPress (kAppleKeyLeft);
             break;
             
         case VK_RIGHT:
-            m_keyboard->KeyPress (kAppleKeyRight);
+            m_refs.keyboard->KeyPress (kAppleKeyRight);
             break;
 
         case VK_UP:
-            m_keyboard->KeyPress (kAppleKeyUp);
+            m_refs.keyboard->KeyPress (kAppleKeyUp);
             break;
 
         case VK_DOWN:
-            m_keyboard->KeyPress (kAppleKeyDown);
+            m_refs.keyboard->KeyPress (kAppleKeyDown);
             break;
             
         case VK_ESCAPE:
-            m_keyboard->KeyPress (kAppleKeyEscape);
+            m_refs.keyboard->KeyPress (kAppleKeyEscape);
             break;
 
         case VK_DELETE:
-            m_keyboard->KeyPress (kAppleKeyDelete);
+            m_refs.keyboard->KeyPress (kAppleKeyDelete);
             break;
 
         default:
@@ -3022,19 +3082,19 @@ bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER (lParam);
 
-    if (m_keyboard == nullptr)
+    if (m_refs.keyboard == nullptr)
     {
         return false;
     }
 
-    m_keyboard->SetKeyDown (false);
+    m_refs.keyboard->SetKeyDown (false);
 
     // Phase 6 / T063: release //e modifiers when the host releases the
     // physical key. Both VK_MENU and VK_L/RMENU events drive a re-query
     // of the canonical left/right state via GetKeyState — the modifier
     // remains asserted on the //e side as long as either physical Alt
     // is still down.
-    auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_keyboard);
+    auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_refs.keyboard);
 
     if (iieKbd != nullptr)
     {
@@ -3068,14 +3128,14 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER (lParam);
 
-    if (m_keyboard == nullptr)
+    if (m_refs.keyboard == nullptr)
     {
         return false;
     }
 
     if (ch >= 1 && ch <= 127)
     {
-        m_keyboard->KeyPress (static_cast<Byte> (ch));
+        m_refs.keyboard->KeyPress (static_cast<Byte> (ch));
     }
 
     return false;
@@ -3835,17 +3895,17 @@ void EmulatorShell::SelectVideoMode()
     }
 
     // Read soft switch state
-    if (m_softSwitches)
+    if (m_refs.softSwitches)
     {
-        m_graphicsMode = m_softSwitches->IsGraphicsMode();
-        m_mixedMode    = m_softSwitches->IsMixedMode();
-        m_page2        = m_softSwitches->IsPage2();
-        m_hiresMode    = m_softSwitches->IsHiresMode();
+        m_graphicsMode = m_refs.softSwitches->IsGraphicsMode();
+        m_mixedMode    = m_refs.softSwitches->IsMixedMode();
+        m_page2        = m_refs.softSwitches->IsPage2();
+        m_hiresMode    = m_refs.softSwitches->IsHiresMode();
     }
 
     // When 80STORE is active on the //e, $C054/$C055 control aux/main memory
     // selection — not page 1/page 2. Suppress page2 for video rendering.
-    auto * iieSoftSwitches = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
+    auto * iieSoftSwitches = dynamic_cast<AppleIIeSoftSwitchBank *> (m_refs.softSwitches);
 
     if (iieSoftSwitches != nullptr && iieSoftSwitches->Is80Store())
     {
@@ -3861,17 +3921,17 @@ void EmulatorShell::SelectVideoMode()
         // Text mode: use 80-col on //e if enabled, else 40-col
         if (is80ColMode && m_videoModes.size() > 4)
         {
-            m_activeVideoMode = m_videoModes[4].get();
+            m_refs.activeVideoMode = m_videoModes[4].get();
         }
         else
         {
-            m_activeVideoMode = m_videoModes[0].get();
+            m_refs.activeVideoMode = m_videoModes[0].get();
         }
     }
     else if (!m_hiresMode)
     {
         // Lo-res graphics
-        m_activeVideoMode = m_videoModes[1].get();
+        m_refs.activeVideoMode = m_videoModes[1].get();
     }
     else
     {
@@ -3885,18 +3945,18 @@ void EmulatorShell::SelectVideoMode()
 
         if (useDhr)
         {
-            m_activeVideoMode = m_videoModes[3].get();
+            m_refs.activeVideoMode = m_videoModes[3].get();
         }
         else
         {
-            m_activeVideoMode = m_videoModes[2].get();
+            m_refs.activeVideoMode = m_videoModes[2].get();
         }
     }
 
     // Pass page2 state to the active renderer
-    if (m_activeVideoMode != nullptr)
+    if (m_refs.activeVideoMode != nullptr)
     {
-        m_activeVideoMode->SetPage2 (m_page2);
+        m_refs.activeVideoMode->SetPage2 (m_page2);
     }
 
     // Keep text mode page2-aware for mixed-mode overlay rendering
