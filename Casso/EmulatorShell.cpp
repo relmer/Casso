@@ -2123,6 +2123,17 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     hr = CreateMemoryDevices (newConfig);
     CHR (hr);
 
+    // CreateMemoryDevices unregistered the old disk-audio sources and
+    // built new ones. They've been registered with the mixer but no
+    // sample data is loaded yet — SetMechanism is what triggers
+    // LoadSamples on each registered source. Without this re-poke,
+    // the new machine's drive plays in eerie silence (FR-009).
+    {
+        wstring   currentMechanism = m_driveAudioMixer.GetMechanism();
+        HRESULT   hrMech           = m_driveAudioMixer.SetMechanism (currentMechanism);
+        IGNORE_RETURN_VALUE (hrMech, S_OK);
+    }
+
     WireLanguageCard();
     CreateVideoModes();
 
