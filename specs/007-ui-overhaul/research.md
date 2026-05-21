@@ -8,6 +8,69 @@ implementation of the specific task that depends on each one.
 
 ---
 
+## Phase 0 confirmation records
+
+The decisions in this document were finalized as of 2026-05-20. The list below
+records the explicit Phase 0 bookkeeping (per `tasks.md` P0-T2..P0-T6) so that
+the values consumed by Phases 1, 4, 5, and 8 are pinned and auditable.
+
+**RmlUi pinning (P0-T2).** Upstream tag **`6.2`** at commit SHA
+`2230d1a6e8e0848ed87a5761e2a5160b2a175ba4` (lightweight tag — the SHA is the
+tip commit on the release branch). License: **MIT**, file
+`LICENSE.txt` at the repo root. Vendoring lives at `External/RmlUi/` and is
+documented at `External/RmlUi/README.casso.md` (created in P1-T1).
+
+**CRT shader attribution (P0-T3).** Pinned against the libretro
+`glsl-shaders` collection at HEAD commit
+`42fa8a98ab19bdaffb53280746a30819eb21f807` (captured 2026-05-20) and against
+crt-pi upstream at the same date.
+
+| Effect | Upstream repo | Upstream file path | Author | License |
+|--------|---------------|--------------------|--------|---------|
+| Scanlines | `libretro/glsl-shaders` | `crt/shaders/crt-pi.glsl` | Davide Berra ("davidgiven") | MIT |
+| Bloom | `libretro/glsl-shaders` | `bloom/shaders/bloom.glsl` | Hyllian / hunterk | Public Domain |
+| Color bleed | `libretro/glsl-shaders` | `ntsc/shaders/ntsc-adaptive/ntsc-pass1.glsl` (chroma stage) | Themaister / hunterk | MIT |
+
+Per-shader pinned upstream SHAs are recorded in the per-file
+`// ATTRIBUTION:` header captured at port time in P8-T1..P8-T3; the
+collection-level SHA above bounds them.
+
+**RmlUi D3D11 backend (P0-T4).** Confirmed: `contracts/rml-backend.h`
+describes a from-scratch `RmlBackend_D3D11` that consumes the existing
+`ID3D11Device` / `ID3D11DeviceContext` owned by `D3DRenderer`. No upstream
+backend fork is referenced or implied. R2 above stands as the rationale.
+
+**Borderless window recipe (P0-T5).** The recipe in R3 was reviewed against
+Microsoft's current public Win11 chrome guidance and the Windows Terminal /
+Visual Studio Code source patterns. Runtime gating uses
+`IsWindows11OrGreater()` (versionhelpers.h, no manifest required) around:
+- `DwmSetWindowAttribute (DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND)`
+- `DwmSetWindowAttribute (DWMWA_SYSTEMBACKDROP_TYPE, DWMSBT_MAINWINDOW)` (Mica)
+
+On Windows 10 the same window style remains valid; corners are sharp and Mica
+silently no-ops. No ARM64-specific code paths are required — DWM, Win32
+hit-testing, and per-monitor v2 DPI are identical between x64 and ARM64 builds
+under v145. A throwaway hands-on probe was not run; the recipe is a direct
+copy of the documented Microsoft pattern and is validated end-to-end in P4-T1
+.. P4-T4 against the actual build.
+
+**Font decisions (P0-T6).**
+- Skeuomorphic + Dark Modern: **Inter** (SIL Open Font License 1.1).
+  Source: <https://github.com/rsms/inter> release v4.x; vendored as
+  `Inter-Regular.ttf`, `Inter-Bold.ttf` under each theme's
+  `fonts/` directory alongside `fonts/OFL.txt`.
+- Retro Terminal: **VT323** (SIL Open Font License 1.1). Source:
+  <https://fonts.google.com/specimen/VT323>; vendored as
+  `VT323-Regular.ttf` under `Resources/Themes/RetroTerminal/fonts/`
+  alongside `fonts/OFL.txt`.
+
+Both font families are SIL OFL 1.1, redistributable, and require only the
+license text to ship beside the font file. No attribution in the About box
+is required by OFL 1.1, but Casso will list both in the About box as a
+courtesy.
+
+---
+
 ## R1 — UI framework choice (resolves the "Primary Dependencies" unknown)
 
 **Decision**: Use **RmlUi** (https://github.com/mikke89/RmlUi), MIT-licensed,
