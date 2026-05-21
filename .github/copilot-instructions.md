@@ -72,6 +72,20 @@ The solution has five projects:
 - Use `CHRN`/`CBRN` for user-facing notification errors (auto-detects GUI/console)
 - Use `CHRF`/`CBRF` for failures with a custom action (e.g., setting an error string)
 - Use `BAIL_OUT_IF` for early-exit guard checks with a specific HRESULT
+- **Default to asserting variants** (`CHRA`/`CWRA`/`CBRA`/`CPRA`). Only use
+  non-asserting (`CHR`/`CWR`/`CBR`/`CPR`) when failure is legitimately
+  possible due to user input or external state (e.g., user-provided file
+  path, network). Failure of internal API calls indicates a Casso bug and
+  SHOULD assert.
+- **CPR/CPRA test ALLOCATION results only** (sets `hr = E_OUTOFMEMORY`).
+  For other pointer checks:
+  - **Parameter pointer validation**: `CBRAEx (ptr, E_INVALIDARG)` —
+    null param passed by caller is an argument error, not OOM.
+  - **Member-state precondition** (`m_foo` must have been initialized):
+    `CBRA (m_foo)` — null member = Casso bug, default `E_FAIL`.
+  - **Win32 API that returns a handle/pointer** (HWND from
+    `CreateWindowEx`, HDC from `GetDC`, etc.): `CWRA (ptr)` —
+    the API will have called `SetLastError` internally.
 - For **non-HRESULT-returning** functions (returning enum/int/struct/void/etc.)
   that still want flat EHM control flow, declare a vestigial
   `HRESULT hr = S_OK;` at the top of the function purely to satisfy the
@@ -80,6 +94,16 @@ The solution has five projects:
   optimizes away in release. Example: `MachineConfigUpgrade::Plan`
   in `CassoEmuCore/Core/MachineConfigUpgrade.cpp` uses this to flatten
   a decision tree returning an enum.
+- For **`void` functions** using EHM, the `Error:` label must be followed
+  by explicit `return;`, not a lonely `;`. The dangling semicolon reads
+  like a typo.
+- **Prefer EHM bail-out over body-wrapping.** Use `CBR`/`CHR`/`CHRF` at
+  the top with a jump to `Error:` rather than wrapping the function body
+  in `if (precondition) { … }`. EHM flattens indentation; body-wrap
+  increases it.
+- When multiple EHM macro calls (`CBR`/`CBRF`/`CHR`/`CHRF`/etc.) appear
+  on **consecutive lines** (no blank lines or comments between them),
+  column-align their arguments — same rule as variable declarations.
 
 ### Variable Declarations
 - **ALL** local variables declared at the **top** of the function (or top of a necessary local block)
@@ -98,14 +122,29 @@ BYTE           * buffer         = nullptr;
 ```
 
 ### Wrapped Function Parameters
-- When a function call is too long for one line, wrap and align parameters to the opening `(`
+- **Function calls** and **declarations in `.h` files**: wrap and align
+  parameters to the opening `(`. The first argument stays on the same
+  line as the opening paren; continuation lines align under it.
 ```cpp
 hr = D3D11CreateDeviceAndSwapChain (nullptr,
                                     D3D_DRIVER_TYPE_HARDWARE,
                                     nullptr,
                                     createFlags);
 ```
-- When a function **definition** wraps its parameter list, the **first** parameter must wrap to the next line (indented one level), with one parameter per line, column-aligned like variable declarations (type, pointer/ref column, name)
+- **In `.h` header declarations**, the opening-paren columns of
+  successive declarations (without interceding comments) must align.
+  Pad return-type + name with spaces so the `(` columns line up:
+```cpp
+    HRESULT Initialize (ID3D11Device         * pDevice,
+                        ID3D11DeviceContext  * pContext,
+                        UINT                   viewportWidthPx,
+                        UINT                   viewportHeightPx);
+    void    Shutdown   ();
+    HRESULT Resize     (UINT widthPx, UINT heightPx);
+```
+- **Function definitions in `.cpp` files**: the first parameter wraps
+  to the next line (indented one level), with one parameter per line,
+  column-aligned like variable declarations (type, pointer/ref column, name):
 ```cpp
 HRESULT EmulatorShell::Initialize (
     HINSTANCE              hInstance,
@@ -211,6 +250,13 @@ void Function2()
 //
 ////////////////////////////////////////////////////////////////////////////////
 ```
+- **Function documentation comments belong in the `.cpp` file** inside
+  the `////` header block — NOT in the `.h` declaration. Headers should
+  have only terse one-liner comments (or none) on member functions.
+- **No phase/task/spec references in comments.** Never include spec
+  numbers, phase IDs, task numbers, or "Per spec …" / "Open Question N"
+  in code comments. These have no context without the spec and become
+  meaningless noise. Write comments that stand alone.
 
 ### Type Definitions
 - `Byte` = `unsigned char`, `SByte` = `signed char`, `Word` = `unsigned short`

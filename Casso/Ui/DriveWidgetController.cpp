@@ -93,7 +93,7 @@ HRESULT DriveWidgetController::LoadDocument (
 
 
 
-    CPR (pContext);
+    CBRAEx (pContext, E_INVALIDARG);
 
     UnloadDocument();
 

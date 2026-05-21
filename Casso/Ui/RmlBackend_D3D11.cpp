@@ -164,8 +164,8 @@ HRESULT RmlBackend_D3D11::Initialize (
 
 
 
-    CPRAEx (pDevice,  E_INVALIDARG);
-    CPRAEx (pContext, E_INVALIDARG);
+    CBRAEx (pDevice,  E_INVALIDARG);
+    CBRAEx (pContext, E_INVALIDARG);
 
     m_device     = pDevice;
     m_context    = pContext;

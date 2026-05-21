@@ -65,8 +65,8 @@ HRESULT UiShell::Initialize (
     dev = renderer.GetDevice();
     ctx = renderer.GetContext();
 
-    CPRAEx (dev, E_FAIL);
-    CPRAEx (ctx, E_FAIL);
+    CBRA (dev);
+    CBRA (ctx);
 
     hr = m_backend.Initialize (dev,
                                ctx,

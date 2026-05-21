@@ -55,7 +55,7 @@ HRESULT DragDropTarget::Initialize (HWND hwnd, HitTestFn hitTest)
 
 
 
-    CPR (hwnd);
+    CBRAEx (hwnd, E_INVALIDARG);
 
     m_hwnd    = hwnd;
     m_hitTest = std::move (hitTest);

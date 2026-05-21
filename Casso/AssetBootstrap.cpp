@@ -298,7 +298,7 @@ static span<const Byte> ExtractResource (HINSTANCE hInstance, int resourceId)
     CWR (hMem != nullptr);
 
     data = LockResource (hMem);
-    CPR (data);
+    CWRA (data);
 
     result = span<const Byte> (static_cast<const Byte *> (data), static_cast<size_t> (size));
 

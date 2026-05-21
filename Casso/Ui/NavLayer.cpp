@@ -267,7 +267,7 @@ HRESULT NavLayer::Show (Rml::Context * context, DispatchFn dispatch)
 
 
 
-    CPR (context);
+    CBRAEx (context, E_INVALIDARG);
 
     if (m_doc != nullptr)
     {
@@ -278,7 +278,7 @@ HRESULT NavLayer::Show (Rml::Context * context, DispatchFn dispatch)
     m_dispatch = std::move (dispatch);
     m_doc      = m_context->LoadDocumentFromMemory (kNavLayerRml,
                                                      "nav_layer.rml");
-    CPR (m_doc);
+    CBRA (m_doc);
 
     m_doc->Show();
 

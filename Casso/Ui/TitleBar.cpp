@@ -247,7 +247,7 @@ HRESULT TitleBar::Show (Rml::Context * context)
 
 
 
-    CPR (context);
+    CBRAEx (context, E_INVALIDARG);
 
     if (m_doc != nullptr)
     {
@@ -257,7 +257,7 @@ HRESULT TitleBar::Show (Rml::Context * context)
     m_context = context;
     m_doc     = m_context->LoadDocumentFromMemory (kTitleBarRml,
                                                     "title_bar.rml");
-    CPR (m_doc);
+    CBRA (m_doc);
 
     m_doc->Show();
 

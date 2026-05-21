@@ -328,7 +328,7 @@ HRESULT CrtPostProcess::CompilePixelShader (const char * src, ID3D11PixelShader 
 
 
 
-    CPRA (out);
+    CBRAEx (out, E_INVALIDARG);
     *out = nullptr;
 
     hr = D3DCompile (src,
@@ -393,8 +393,8 @@ HRESULT CrtPostProcess::Initialize (
     };
 
 
-    CPRA (device);
-    CPRA (context);
+    CBRAEx (device, E_INVALIDARG);
+    CBRAEx (context, E_INVALIDARG);
 
     m_device  = device;
     m_context = context;
@@ -661,10 +661,10 @@ HRESULT CrtPostProcess::Process (
 
 
 
-    CPRA (srcSrv);
-    CPRA (dstRtv);
-    CPRA (m_device);
-    CPRA (m_context);
+    CBRAEx (srcSrv, E_INVALIDARG);
+    CBRAEx (dstRtv, E_INVALIDARG);
+    CBRA (m_device);
+    CBRA (m_context);
 
     hr = EnsureSize (backBufferW, backBufferH);
     CHRA (hr);

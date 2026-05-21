@@ -199,8 +199,8 @@ HRESULT SettingsPanel::Show()
 
 
 
-    CPR (m_uiShell);
-    CPR (m_themes);
+    CBRA (m_uiShell);
+    CBRA (m_themes);
 
     if (m_doc != nullptr)
     {
@@ -265,14 +265,14 @@ HRESULT SettingsPanel::ReloadDocument()
 
 
 
-    CPR (m_uiShell);
-    CPR (m_themes);
+    CBRA (m_uiShell);
+    CBRA (m_themes);
 
     ctx = m_uiShell->GetContext();
-    CPR (ctx);
+    CBRA (ctx);
 
     theme = m_themes->GetActiveTheme();
-    CPR (theme);
+    CBRA (theme);
 
     CBR (! theme->entryDocs.settings.empty());
 
@@ -280,7 +280,7 @@ HRESULT SettingsPanel::ReloadDocument()
     rmlPath = Narrow (theme->entryDocs.settings);
 
     m_doc = ctx->LoadDocument (rmlPath);
-    CPR (m_doc);
+    CBRA (m_doc);
 
     // Populate selectors from the live state.
     PopulateMachineSelector (m_doc);
@@ -429,8 +429,8 @@ HRESULT SettingsPanel::LoadMergedForMachine (
 
 
 
-    CPR (m_fs);
-    CPR (m_ucs);
+    CBRA (m_fs);
+    CBRA (m_ucs);
 
     exeDir     = PathResolver::GetExecutableDirectory();
     cwd        = PathResolver::GetWorkingDirectory();
