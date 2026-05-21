@@ -165,7 +165,7 @@ aggregate appears in `Casso/Shaders/CRT/LICENSES.md` and the About box.
 - `Machines/<Name>/<Name>_user.json` — settings that are intrinsically
   about that machine: speed mode, video color mode, write protect, floppy
   sound, hardware component enable/disable, drive image last-mounted
-  paths (if we choose to persist those — TBD by user).
+  paths (per FR-047 — auto-remounted on machine load).
 - `GlobalUserPrefs.json` — single file at the asset base directory.
   Settings that are about the application or the user, not a specific
   machine: active theme name, CRT brightness, CRT effect enable + params,

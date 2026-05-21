@@ -67,11 +67,11 @@ User-story key (from `spec.md`):
 
 - [ ] **P1-T9** [P] [US6] Test cases in `UnitTest/EmuTests/MachineConfigUpgradeTests.cpp`:
   - Loading a legacy JSON with `$cassoDefault` produces a config whose serialized form uses `$cassoMachineVersion` and preserves all other fields.
-  - Loading a JSON with no `capabilityFlag` on internal devices fills `"required"`; slot entries fill `"optional"`.
+  - **Default inversion (explicit)**: loading a JSON with no `capabilityFlag` on internal devices fills `"required"`; the SAME JSON with no `capabilityFlag` on slot entries fills `"optional"`. The asymmetry MUST be asserted in both directions in one TEST_METHOD to guard against an accidental swap.
   - Running the upgrade step twice in a row is a no-op on the second run.
   - A JSON already at the new schema is not modified by the upgrade.
   - **No disk I/O**: all inputs are in-memory JSON strings; FS abstraction (introduced in P2-T1) is **not** required for these tests because `MachineConfigUpgrade` operates on parsed JSON, not files.
-  Acceptance: 4 new TEST_METHODs pass on all four configurations. Files: `UnitTest/EmuTests/MachineConfigUpgradeTests.cpp` (modified). Depends: P1-T7 (impl); independent of P1-T8.
+  Acceptance: ≥4 new TEST_METHODs pass on all four configurations, including the explicit default-inversion case. Files: `UnitTest/EmuTests/MachineConfigUpgradeTests.cpp` (modified). Depends: P1-T7 (impl); independent of P1-T8.
 
 **Phase P1 dependency graph**: P1-T1 → P1-T2 → P1-T3 → P1-T4. P1-T5 → P1-T6 → P1-T7 → P1-T8. P1-T9 runs after P1-T7 in parallel with P1-T8.
 **Constitution check gate**: Principle II (no I/O in unit tests) satisfied — P1-T9 is pure JSON-string-in/JSON-string-out. EHM, single-exit, top-of-scope-vars rules apply to all new code in P1-T5..P1-T7 (review checklist in PR).
@@ -88,12 +88,13 @@ User-story key (from `spec.md`):
 
 ### UserConfigStore (per-machine `_user.json` shadow)
 
-- [ ] **P2-T2** [US1] [US2] [US6] `UserConfigStore` in `Casso/Config/UserConfigStore.{h,cpp}`:
+- [ ] **P2-T2** [US1] [US2] [US6] [US3] `UserConfigStore` in `Casso/Config/UserConfigStore.{h,cpp}`:
   - `Load(machineName, defaultConfig, IFileSystem&) → MachineConfig` performing shadow/fallthrough merge per FR-014/FR-017 (only keys present in `_user.json` override defaults; deep-merge for objects; arrays replace wholesale).
   - On version mismatch, invoke `MachineConfigUpgrade` and write the migrated `_user.json` back via `IFileSystem::WriteAllText`.
   - `SaveDelta(machineName, current, default, IFileSystem&)` — diff `current` vs `default` and persist only changed leaf keys (no full snapshot).
   - `Reset(machineName, IFileSystem&)` — **deletes** `<MachineName>_user.json` (per the resolved Open Question 7) and returns the read-only default unchanged.
-  Acceptance: contract defined in header; deltas of a no-op (current == default) write nothing or write `{ "$cassoMachineVersion": N }` only. Files: `Casso/Config/UserConfigStore.{h,cpp}` (new). Depends: P2-T1, P1-T7.
+  - **Last-mounted disk persistence** (FR-047): a `lastMountedImages` map (`slot → drive → string path`) is included in the merged user config; `SaveDelta` writes only entries that differ from default (which is "absent"). On `Load`, the caller is expected to attempt auto-mount of each entry; missing files log a warning and clear the entry on the next `SaveDelta`.
+  Acceptance: contract defined in header; deltas of a no-op (current == default) write nothing or write `{ "$cassoMachineVersion": N }` only; insert/eject calls round-trip through `lastMountedImages`. Files: `Casso/Config/UserConfigStore.{h,cpp}` (new). Depends: P2-T1, P1-T7.
 
 ### GlobalUserPrefs (one file at asset base dir)
 
@@ -195,7 +196,9 @@ User-story key (from `spec.md`):
 - [ ] **P6-T5** [US3] `Casso/Ui/DriveWidgetState.h` adds `DriveWidgetState` (per-drive struct matching `data-model.md`: `mountedImagePath` (string), `motorOn` (`atomic<bool>`, written by CPU thread), `diskActive` (`atomic<bool>`, written by CPU thread), `doorState` (enum {Closed, Opening, Open, Closing}, UI-thread only), `animationStartTimeMs` (int64, UI-thread only)). Owned per-drive by `EmulatorShell`; populated from disk insert/eject (UI thread) + motor-on/disk-active signals (CPU thread). Read by `RmlInputBridge` each frame to update element classes. Acceptance: state mirrors the CPU thread within one UI frame; field set matches data-model.md exactly. Files: `Casso/Ui/DriveWidgetState.h` (new), `Casso/EmulatorShell.{h,cpp}` (modified — adds per-drive `DriveWidgetState` members). Depends: P6-T3.
 - [ ] **P6-T6 [P]** [US3] Tests in `UnitTest/UiTests/DriveWidgetStateTests.cpp` — pure-logic transitions (insert → present; motorOn → spinning class; eject → door-open then no-present; reject-drop when no widget under cursor). Acceptance: ≥5 TEST_METHODs. Files: `UnitTest/UiTests/DriveWidgetStateTests.cpp` (new). Depends: P6-T5.
 
-**Phase P6 dependency graph**: P6-T1 → {P6-T2, P6-T3} → {P6-T4, P6-T5} → P6-T6.
+- [ ] **P6-T7 [P]** [US3] [US6] Auto-mount last-inserted disks on machine load (FR-047). `EmulatorShell` consumes `lastMountedImages` from the merged `MachineUserConfig`; for each entry, attempt mount via the existing disk-mount path. Missing files: log a warning, clear the entry via `UserConfigStore::SaveDelta`. Acceptance: insert two disks, switch to a different machine, switch back — both disks remount; delete one image file off disk, switch and switch back — that drive starts empty with a warning, the other still remounts. Files: `Casso/EmulatorShell.{h,cpp}` (modified). Depends: P6-T5, P2-T2.
+
+**Phase P6 dependency graph**: P6-T1 → {P6-T2, P6-T3} → {P6-T4, P6-T5} → P6-T6; P6-T7 parallel after P6-T5.
 **Constitution check gate**: No new sync primitives — re-use existing `std::atomic<bool>` motor signal (Principle I — simplicity).
 
 ---
@@ -257,12 +260,13 @@ User-story key (from `spec.md`):
 
 - [ ] **P9-T1** [US1] [US2] Delete `Casso/OptionsDialog.{h,cpp}`, `Casso/MachinePickerDialog.{h,cpp}`, and their entries in `Casso/Casso.rc` + `Casso/Resource.h` (FR-027). Acceptance: `git grep -i "OptionsDialog\|MachinePickerDialog"` returns no production-code hits. Files: deletions listed above; `Casso/Casso.rc` (modified), `Casso/Resource.h` (modified), `Casso/Casso.vcxproj` (modified — remove from item group). Depends: P7-T5.
 - [ ] **P9-T2** [US5] Remove menu-bar registration in `Casso/Main.cpp`; verify every legacy menu command ID is still served by `NavLayerController`. Acceptance: traceability table from P4-T5 stays at 100%. Files: `Casso/Main.cpp` (modified), `Casso/Casso.rc` (modified — remove menu resource). Depends: P4-T5, P9-T1.
-- [ ] **P9-T3 [P]** `CHANGELOG.md` entry: `feat(ui): full RmlUi-based chrome + theme system` — list the 46 FRs addressed, the constitution amendment (v1.4.0 → v1.5.0), and the legacy deletions. Files: `CHANGELOG.md` (modified). Depends: P9-T2.
+- [ ] **P9-T3 [P]** `CHANGELOG.md` entry: `feat(ui): full RmlUi-based chrome + theme system` — list the 48 FRs addressed, the constitution amendment (v1.4.0 → v1.5.0), and the legacy deletions. Files: `CHANGELOG.md` (modified). Depends: P9-T2.
 - [ ] **P9-T4 [P]** `README.md` updates: Approved Dependencies table (RmlUi tag + SHA, three shader sources), screenshots of all three built-in themes, user-theme authoring quickstart pointing at `Themes/<your-theme>/theme.json` and the schema in `specs/007-ui-overhaul/contracts/theme-metadata.schema.json`. Files: `README.md` (modified), `docs/themes/AUTHORING.md` (new). Depends: P5-T6.
 - [ ] **P9-T5** Final pass: `scripts\Build.ps1 -RunCodeAnalysis` on Debug + Release × x64 + ARM64; full UnitTest run on all four. Acceptance: all four green; code-analysis report clean. Files: none (CI report attached to PR). Depends: P9-T1..P9-T4.
 - [ ] **P9-T6** Run every acceptance scenario in `spec.md` § User Scenarios (US1..US6) against the built artifact; record pass/fail in a quickstart-style table in `specs/007-ui-overhaul/quickstart.md` § Acceptance Run. Acceptance: all 6 user stories pass. Files: `specs/007-ui-overhaul/quickstart.md` (modified). Depends: P9-T5.
+- [ ] **P9-T7** **Success-criteria measurement run** (SC-001 + SC-008). Document the measurement protocol in `specs/007-ui-overhaul/quickstart.md` § SC Measurement: (a) **SC-001**: launch app cold, time how long from "Settings opened" to "machine switched + speed changed + confirmed", target ≤ 60 s; record the value (must be reproducible). (b) **SC-008**: instead of a formal user study (out of scope for a hobby project), execute a self-administered "first-time user" dry run — fresh git checkout, no prior knowledge bias — and document each step to find/change emulation speed and the elapsed time. Treat ≤ 30 s as a green proxy for 90 % findability. Acceptance: both numbers recorded with timestamp and Git SHA; SC-001 ≤ 60 s; SC-008 proxy ≤ 30 s. Files: `specs/007-ui-overhaul/quickstart.md` (modified). Depends: P9-T6.
 
-**Phase P9 dependency graph**: P9-T1 → P9-T2 → {P9-T3, P9-T4} → P9-T5 → P9-T6.
+**Phase P9 dependency graph**: P9-T1 → P9-T2 → {P9-T3, P9-T4} → P9-T5 → P9-T6 → P9-T7.
 **Constitution check gate**: Final gate — every principle re-evaluated; deletions don't introduce regressions; Approved Dependencies table in constitution still matches what's actually vendored.
 
 ---

@@ -66,6 +66,8 @@ has explicitly changed. Always includes `$cassoMachineVersion`.
 - `internalDevices[i].enabled` (bool) — only for entries whose
   `capabilityFlag == "optional"`
 - `slots[i].enabled` (bool) — same constraint
+- `lastMountedImages[<slot>][<drive>]` (string path) — per FR-047,
+  auto-remounted on machine load; missing files clear the entry.
 
 Fields **not** persistable from this file (per the "Assumptions" section of
 the spec): low-level timing, ROM paths, CPU type. Those remain default-only.
@@ -121,11 +123,16 @@ Themes/<ThemeName>/
 ├── theme.json           # metadata (see contracts/theme-metadata.schema.json)
 ├── *.rml                # one or more RmlUi layout documents
 ├── *.rcss               # one or more RmlUi stylesheets
-└── assets/
-    ├── fonts/
-    ├── images/
-    └── sounds/
+├── fonts/               # *.ttf, *.otf + accompanying license files (e.g. OFL.txt)
+├── images/              # *.png, *.jpg, *.dds
+└── sounds/              # *.wav, *.ogg (optional UI chrome SFX)
 ```
+
+Themes MAY omit asset subdirectories that they don't use. Themes MAY also
+omit any `entryDocuments` entry; missing entries fall back to the
+corresponding `.rml` in `Themes/_shared/`, which ships built-in defaults
+for elements not customized by the theme. Themes MUST NOT reference paths
+outside their own directory or `Themes/_shared/`.
 
 **theme.json shape**:
 
@@ -154,7 +161,9 @@ Themes/<ThemeName>/
 **Validation rules**:
 - `$cassoThemeVersion` MUST be a positive integer; if lower than current,
   a theme upgrade path runs analogous to `MachineConfigUpgrade` (FR-045).
-- `entryDocuments.*` files MUST exist relative to the theme directory.
+- Any `entryDocuments.*` entry present MUST refer to a `.rml` file that
+  exists relative to the theme directory; entries omitted from
+  `entryDocuments` fall back to `Themes/_shared/<entry>.rml`.
 - `crtDefaults` follows the same numeric bounds as `GlobalUserPrefs.crt`.
 - A theme failing any rule is excluded from the list (FR-036) with a logged
   warning; it MUST NOT crash the app.

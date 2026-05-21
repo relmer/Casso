@@ -4,7 +4,7 @@
   "title": "ThemeMetadata",
   "description": "theme.json metadata file shipped with every theme. See specs/007-ui-overhaul/data-model.md § Theme.",
   "type": "object",
-  "required": ["$cassoThemeVersion", "name", "entryDocuments"],
+  "required": ["$cassoThemeVersion", "name"],
   "additionalProperties": false,
   "properties": {
     "$cassoThemeVersion": { "type": "integer", "minimum": 1 },
@@ -13,7 +13,7 @@
     "description":        { "type": "string", "maxLength": 512 },
     "entryDocuments": {
       "type": "object",
-      "required": ["titleBar", "navLayer", "settings", "driveWidgets"],
+      "description": "Per-element RML overrides. Any entry omitted falls back to Themes/_shared/<entry>.rml.",
       "additionalProperties": false,
       "properties": {
         "titleBar":     { "type": "string", "pattern": "\\.rml$" },

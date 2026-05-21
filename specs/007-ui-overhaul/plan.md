@@ -1,7 +1,7 @@
 # Implementation Plan: Full UI Overhaul (RmlUi + CSS Themes + Custom D3D Chrome)
 
 **Branch**: `007-ui-overhaul` | **Date**: 2026-05-20 | **Spec**: [spec.md](./spec.md)
-**Input**: `specs/007-ui-overhaul/spec.md` (47 functional requirements: FR-001..FR-046 plus FR-022b)
+**Input**: `specs/007-ui-overhaul/spec.md` (48 functional requirements: FR-001..FR-047 plus FR-022b)
 
 ## Summary
 
@@ -63,7 +63,7 @@ lines of hand-rolled focus management, layout, text shaping, and shader work.
     function-spacing rules, no Pch-bypass for system headers — RmlUi headers
     go through `Pch.h` like everything else.
 **Scale/Scope**:
-  - ~47 functional requirements across 3 areas.
+  - ~48 functional requirements across 3 areas.
   - 3 built-in themes + open extensibility for user themes.
   - 5–7 new modules in `Casso/`; 1 schema extension in `CassoEmuCore`;
     1 vendored third-party lib; 3–5 HLSL files in `Casso/Shaders/CRT/`.
@@ -139,7 +139,7 @@ Casso/                            # GUI app (existing project)
 ├── EmulatorShell.{h,cpp}         # owns UiShell + ThemeManager + UserConfigStore
 ├── D3DRenderer.{h,cpp}           # MODIFIED — exposes shared device + per-frame
 │                                 #   hook for RmlUi backend + CRT post-pass
-├── AssetBootstrap.{h,cpp}        # MODIFIED — adds EnsureThemes(), EnsureGlobalPrefs()
+├── AssetBootstrap.{h,cpp}        # MODIFIED — adds EnsureThemes(), EnsureGlobalUserPrefs()
 ├── RegistrySettings.{h,cpp}      # MODIFIED — one-shot migration source only
 ├── OptionsDialog.{h,cpp}         # DELETED in final commit
 ├── MachinePickerDialog.{h,cpp}   # DELETED in final commit
@@ -256,8 +256,9 @@ fields round-trip through MachineConfigUpgrade.
 Gate to exit: per-machine `_user.json` round-trips; `GlobalUserPrefs.json`
 round-trips; both go through an injectable FS for tests.
 
-- **P2-T1** `IFileSystem` abstraction in `Casso/Config/IFileSystem.h` (Read,
-  Write, Exists, Enumerate). Default impl wraps Win32; tests use in-memory.
+- **P2-T1** `IFileSystem` abstraction in `Casso/Config/IFileSystem.h`
+  (`ReadAllText`, `WriteAllText` (atomic), `Exists`, `Delete`, `EnumerateFiles`).
+  Default impl wraps Win32; tests use in-memory.
 - **P2-T2** `UserConfigStore`:
   - `Load (machineName, defaultConfig) → MachineConfig` performing the
     shadow/fallthrough merge (FR-014, FR-017).
@@ -515,7 +516,7 @@ These are flagged here so they're answered before they block work:
 |-----------|------------|--------------------------------------|
 | Third-party dependency: **RmlUi** (vendored) | FR-018, FR-026, FR-027, FR-029, FR-032, FR-033, FR-044, FR-046 collectively require a real layout engine, RCSS parser, focus/tab manager, text shaping, animation system, custom-element framework, and hot-reload. Hand-rolling this in D3D primitives would be many thousands of LOC of high-risk UI code outside this project's competence and unrelated to its emulator domain. | "Build it ourselves with D3D11 + DWrite" was the prior plan; the explicit binding directive in the planning input rejects it. |
 | Third-party source: **MIT/PD CRT shader ports** | FR-039, FR-040 require scanlines, phosphor bloom, and color bleed with credible visual fidelity. CRT shader authoring is its own specialty. | Hand-writing these from scratch was the prior plan; rejected by the same binding directive. We adopt only MIT/PD sources, with full attribution, to preserve Casso's MIT license. |
-| **Two separate user-config files** (per-machine `_user.json` + one `GlobalUserPrefs.json`) | Theme selection and CRT effect parameters are UI preferences, not machine properties (FR-034, FR-040 say so explicitly). Putting them in `_user.json` would either duplicate them across every machine or be silently picked from one arbitrary machine. | "Single config file for everything" — rejected because per-machine settings (speed, video mode, hardware tree) must follow the machine on import/export. |
+| **Two separate user-config files** (per-machine `_user.json` + one `GlobalUserPrefs.json`) | See `research.md` R6 for the canonical rationale: machine-specific settings (speed, video mode, hardware tree, last-mounted disks) must follow the machine on import/export; UI preferences (theme, CRT params, window) span machines. | "Single config file for everything" — rejected because per-machine settings must follow the machine on import/export. |
 | **Constitution amendment** (Tech Constraints) | Required to legalize the two dependencies above. | "Just do it without amending" — rejected because the constitution is binding and silently violating it sets a corrosive precedent. |
 
 ## Progress Tracking

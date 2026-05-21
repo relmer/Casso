@@ -63,6 +63,20 @@
           "enabled": { "type": "boolean" }
         }
       }
+    },
+    "lastMountedImages": {
+      "type": "object",
+      "description": "Per-FR-047. Slot -> drive -> absolute image path. On machine load, each entry is auto-mounted; missing files are cleared on next SaveDelta.",
+      "patternProperties": {
+        "^[0-7]$": {
+          "type": "object",
+          "patternProperties": {
+            "^[0-9]+$": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   }
 }
