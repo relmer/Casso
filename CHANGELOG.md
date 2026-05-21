@@ -6,7 +6,60 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.3.772] — Machine Picker Fixes
+## [1.3.853] — UI Overhaul (spec 007)
+
+### Added
+- **feat(ui): full UI overhaul — RmlUi chrome, themes, Settings panel,
+  CRT post-processing.**
+  - Borderless main window with custom chrome — title bar, drive
+    widgets, and nav layer all rendered by RmlUi on top of the D3D11
+    framebuffer.
+  - Three built-in themes — **Skeuomorphic**, **Dark Modern**, and
+    **Retro Terminal** — hot-swappable from `Settings → Theme` with
+    no restart and no machine reset.
+  - Consolidated **Settings** panel replaces the old `OptionsDialog`
+    and `MachinePickerDialog`. Machine selection, emulation speed,
+    video color mode, floppy sound + mechanism, write-protect, theme
+    picker, and CRT controls all live in one non-modal in-window
+    panel (FR-001..FR-017, FR-041).
+  - Drag-and-drop disk mounting — drop a `.dsk` / `.do` / `.po` /
+    `.nib` onto a drive widget to insert it; click-to-browse on the
+    same widget opens a file picker.
+  - **CRT post-processing**: scanlines, phosphor bloom, color bleed.
+    Each effect is independently toggleable; a single brightness
+    slider gates the master mix.
+  - Auto-remount of the last-inserted disks on machine load so a
+    typical "boot Apple ][+" workflow is one click.
+  - **Per-machine settings persistence** in `<machineName>_user.json`
+    (delta against the embedded default) replaces the registry-based
+    `RegistrySettings` path for everything the Settings panel owns.
+  - **Constitution amendment v1.4.0 → v1.5.0** — Approved Dependencies
+    allowlist now permits RmlUi 6.2 + three MIT/PD CRT shader sources.
+    The license-guard build step (`scripts/CheckShaderLicenses.ps1`)
+    enforces the allowlist on every build.
+
+### Removed
+- **Legacy Win32 menu bar** (FR-026). All commands previously served
+  by the File/Edit/Machine/Disk/View/Help menu bar now route through
+  the RmlUi `NavLayer`; the parity table at
+  `specs/007-ui-overhaul/menu-command-parity.md` is the source of
+  truth and `NavLayerTraceabilityTests` enforces it in CI.
+- **`OptionsDialog` and `MachinePickerDialog`** (FR-027). Both Win32
+  dialogs are deleted; the Settings panel hosts the same controls.
+
+### Tech notes
+- Vendored **RmlUi 6.2** and three community CRT shader ports under
+  `External/` (all MIT or public-domain — see
+  `External/RmlUi/LICENSE` and `Casso/Shaders/*.license.txt`).
+- Custom **DirectWrite-backed** `Rml::FontEngineInterface` — no
+  FreeType dependency, native ClearType + emoji on Win10+.
+- Win11 effects (**Mica backdrop**, rounded corners, immersive dark
+  caption) are runtime-gated via `Win11DwmHelpers`; the app falls
+  back gracefully on Win10.
+- **48 functional requirements delivered** — FR-001..FR-047 + FR-022b.
+  See `specs/007-ui-overhaul/spec.md` for the full traceability.
+
+
 
 ### Fixed
 - **Machine picker showed empty list.** `MachinePickerDialog::ScanMachines`
