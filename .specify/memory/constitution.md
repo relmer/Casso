@@ -2,20 +2,21 @@
 ================================================================================
 SYNC IMPACT REPORT
 ================================================================================
-Version change: 1.3.0 → 1.4.0 (MINOR — materially expanded code-style guidance)
-Modified principles:
-  - I. Code Quality: expanded EHM rule (now applies to any function with
-    fallible internals, not only HRESULT returners); added rules for
-    "No Calls Inside Macro Arguments", "Variable Declarations at Top of
-    Scope", "No Unnecessary Scope Blocks", "Function Comments in .cpp
-    Only", and "Function Spacing"; tightened "Avoid Nesting" with the
-    explicit 1-2 / 3-max indentation cap (previously phrased only in
-    Principle V).
-Added sections: N/A (additions are within Principle I)
+Version change: 1.4.0 -> 1.5.0 (MINOR -- materially expanded Tech Constraints
+  with an Approved Third-Party Dependencies allowlist)
+Modified principles: N/A
+Modified sections:
+  - Technology Constraints: replaced "Dependencies: Windows SDK, STL only;
+    no third-party libraries" with a baseline + explicit allowlist of
+    approved third-party dependencies. Each entry is MIT/BSD/Apache/PD,
+    source-vendored, with provenance tracking required.
+Added sections: Approved Third-Party Dependencies table (under Tech
+  Constraints). Initial entries: stb_vorbis.c (already in tree),
+  RmlUi, crt-pi, libretro bloom, libretro ntsc-adaptive chroma stage
+  (the last four for spec 007-ui-overhaul).
 Removed sections: N/A
 Templates requiring updates:
-  ✅ plan-template.md - Constitution Check still aligned (rules are
-     enforced at implementation time)
+  ✅ plan-template.md - Constitution Check still aligned
   ✅ spec-template.md - No template change required
   ✅ tasks-template.md - No template change required
 Follow-up TODOs: None
@@ -105,7 +106,19 @@ Complexity MUST be justified:
 **Build System**: Visual Studio 2026 / MSBuild; VS Code tasks wrap PowerShell scripts
 **Target Platforms**: Windows 10/11, x64 and ARM64 architectures
 **Testing Framework**: Microsoft C++ Unit Test Framework
-**Dependencies**: Windows SDK, STL only; no third-party libraries
+**Dependencies**: Windows SDK and C++ STL form the baseline. Additional third-party dependencies are permitted ONLY when explicitly listed in the **Approved Third-Party Dependencies** allowlist below. Each entry MUST be MIT/BSD/Apache/PD-licensed (no copyleft), source-vendored in-tree under `External/` (no package manager, no binary downloads), and accompanied by upstream attribution (tag/SHA, license file, `README.casso.md` recording provenance).
+
+**Approved Third-Party Dependencies**:
+
+| Dependency           | License           | Used By        | Location                          | Purpose                                   |
+|----------------------|-------------------|----------------|-----------------------------------|-------------------------------------------|
+| `stb_vorbis.c`       | MIT / Public Dom. | CassoCore      | `CassoCore/External/`             | Ogg Vorbis decoding for Disk II audio     |
+| RmlUi                | MIT               | Casso          | `External/RmlUi/`                 | HTML/CSS-style UI framework (spec 007)    |
+| `crt-pi`             | MIT               | Casso          | `Casso/Shaders/`                  | CRT scanline post-process (spec 007)      |
+| libretro `bloom`     | MIT / Public Dom. | Casso          | `Casso/Shaders/`                  | Phosphor bloom post-process (spec 007)    |
+| libretro `ntsc-adaptive` chroma stage | MIT | Casso | `Casso/Shaders/`              | NTSC color bleed post-process (spec 007)  |
+
+Adding a new entry to the allowlist is a constitution amendment (MINOR version bump).
 **Build Configurations**: Debug and Release for both x64 and ARM64
 **Scripts**: PowerShell 7 (`pwsh`) for build/test automation (`scripts/`)
 
@@ -162,4 +175,4 @@ This constitution supersedes all ad-hoc practices. All code changes MUST verify 
 
 **Guidance Reference**: See `.github/copilot-instructions.md` for detailed runtime development guidance and code style rules.
 
-**Version**: 1.4.0 | **Ratified**: 2026-01-24 | **Last Amended**: 2026-05-05
+**Version**: 1.5.0 | **Ratified**: 2026-01-24 | **Last Amended**: 2026-05-20
