@@ -229,6 +229,7 @@
     <ClCompile Include="MachinePickerDialog.cpp" />
     <ClCompile Include="DiskSettings.cpp" />
     <ClCompile Include="AssetBootstrap.cpp" />
+    <ClCompile Include="Config\Win32FileSystem.cpp" />
     <ClCompile Include="OptionsDialog.cpp" />
     <ClCompile Include="TrackSectorPredicate.cpp" />
     <ClCompile Include="DebugDialogProjection.cpp" />
@@ -248,6 +249,8 @@
     <ClInclude Include="MachinePickerDialog.h" />
     <ClInclude Include="DiskSettings.h" />
     <ClInclude Include="AssetBootstrap.h" />
+    <ClInclude Include="Config\IFileSystem.h" />
+    <ClInclude Include="Config\Win32FileSystem.h" />
     <ClInclude Include="OptionsDialog.h" />
     <ClInclude Include="TrackSectorPredicate.h" />
     <ClInclude Include="DebugDialogProjection.h" />

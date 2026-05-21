@@ -81,7 +81,7 @@ User-story key (from `spec.md`):
 
 ### Foundational
 
-- [ ] **P2-T1** Define `IFileSystem` abstraction in `Casso/Config/IFileSystem.h`: ReadAllText, WriteAllText (atomic via temp+rename), Exists, Delete, EnumerateFiles. Provide `Win32FileSystem` impl in `Casso/Config/Win32FileSystem.{h,cpp}`. Acceptance: header has only PIO operations on `std::wstring` paths; no Win32 types in the interface. Files: `Casso/Config/IFileSystem.h` (new), `Casso/Config/Win32FileSystem.{h,cpp}` (new). Depends: P1-T4.
+- [x] **P2-T1** Define `IFileSystem` abstraction in `Casso/Config/IFileSystem.h`: ReadAllText, WriteAllText (atomic via temp+rename), Exists, Delete, EnumerateFiles. Provide `Win32FileSystem` impl in `Casso/Config/Win32FileSystem.{h,cpp}`. Acceptance: header has only PIO operations on `std::wstring` paths; no Win32 types in the interface. Files: `Casso/Config/IFileSystem.h` (new), `Casso/Config/Win32FileSystem.{h,cpp}` (new). Depends: P1-T4.
 
 ### UserConfigStore (per-machine `_user.json` shadow)
 
