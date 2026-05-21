@@ -13,6 +13,8 @@
 #include <commctrl.h>
 #include <richedit.h>
 #include <winhttp.h>
+#include <dwmapi.h>
+#include <uxtheme.h>
 
 #include <crtdbg.h>
 #include <shellapi.h>

@@ -23,6 +23,8 @@
 // project; we mirror the subset the UI types need.
 #include <d3d11.h>
 #include <wrl/client.h>
+#include <dwmapi.h>
+#include <uxtheme.h>
 
 template <typename T>
 using ComPtr = Microsoft::WRL::ComPtr<T>;

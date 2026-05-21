@@ -238,6 +238,9 @@
     <ClCompile Include="Ui\RmlFontEngine_DWrite.cpp" />
     <ClCompile Include="Ui\UiShell.cpp" />
     <ClCompile Include="Ui\TitleBarHitTest.cpp" />
+    <ClCompile Include="Ui\TitleBar.cpp" />
+    <ClCompile Include="Ui\NavLayer.cpp" />
+    <ClCompile Include="Ui\Win11DwmHelpers.cpp" />
     <ClCompile Include="OptionsDialog.cpp" />
     <ClCompile Include="TrackSectorPredicate.cpp" />
     <ClCompile Include="DebugDialogProjection.cpp" />
@@ -267,6 +270,9 @@
     <ClInclude Include="Ui\RmlFontEngine_DWrite.h" />
     <ClInclude Include="Ui\UiShell.h" />
     <ClInclude Include="Ui\TitleBarHitTest.h" />
+    <ClInclude Include="Ui\TitleBar.h" />
+    <ClInclude Include="Ui\NavLayer.h" />
+    <ClInclude Include="Ui\Win11DwmHelpers.h" />
     <ClInclude Include="OptionsDialog.h" />
     <ClInclude Include="TrackSectorPredicate.h" />
     <ClInclude Include="DebugDialogProjection.h" />

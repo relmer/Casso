@@ -58,6 +58,14 @@ protected:
     virtual bool    OnSize     (HWND hwnd, UINT width, UINT height);
     virtual bool    OnTimer    (HWND hwnd, UINT_PTR timerId);
 
+    // Custom-chrome dispatchers (P4). Return true to fall through to
+    // DefWindowProc with the original message; return false to short-
+    // circuit. Sub-classes that want to short-circuit must also call
+    // SetCustomLResult to publish the LRESULT.
+    virtual bool    OnNcCalcSize  (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult);
+    virtual LRESULT OnNcHitTest   (HWND hwnd, int xScreen, int yScreen);
+    virtual bool    OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen);
+
 protected:
     WORD      m_idIcon        = 0;
     WORD      m_idIconSmall   = 0;

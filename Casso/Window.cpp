@@ -250,6 +250,48 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
             callDefWndProc = pThis->OnKeyUp (wParam, lParam);
             break;
 
+        case WM_NCCALCSIZE:
+        {
+            LRESULT  ncRes  = 0;
+            bool     callDef = pThis->OnNcCalcSize (hwnd, wParam, lParam, ncRes);
+
+            if (!callDef)
+            {
+                return ncRes;
+            }
+            callDefWndProc = true;
+            break;
+        }
+
+        case WM_NCHITTEST:
+        {
+            LRESULT  ncRes = pThis->OnNcHitTest (hwnd,
+                                                 (int) (short) LOWORD (lParam),
+                                                 (int) (short) HIWORD (lParam));
+
+            if (ncRes != HTNOWHERE)
+            {
+                return ncRes;
+            }
+            callDefWndProc = true;
+            break;
+        }
+
+        case WM_NCLBUTTONUP:
+        {
+            bool consumed = pThis->OnNcLButtonUp (hwnd,
+                                                   (LRESULT) wParam,
+                                                   (int) (short) LOWORD (lParam),
+                                                   (int) (short) HIWORD (lParam));
+
+            if (consumed)
+            {
+                return 0;
+            }
+            callDefWndProc = true;
+            break;
+        }
+
         case WM_NOTIFY:
             callDefWndProc = pThis->OnNotify (hwnd, wParam, lParam);
             break;
@@ -567,6 +609,51 @@ bool Window::OnTimer (HWND hwnd, UINT_PTR timerId)
     UNREFERENCED_PARAMETER (timerId);
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnNcCalcSize / OnNcHitTest / OnNcLButtonUp
+//
+//  Default behavior: pass through to DefWindowProc (legacy chromed
+//  window). Derived classes that opt into a borderless / custom-chrome
+//  layout override to return their own NC math.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::OnNcCalcSize (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (wParam);
+    UNREFERENCED_PARAMETER (lParam);
+
+    outResult = 0;
+    return true;
+}
+
+
+LRESULT Window::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (xScreen);
+    UNREFERENCED_PARAMETER (yScreen);
+
+    return HTNOWHERE;
+}
+
+
+bool Window::OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (hitTest);
+    UNREFERENCED_PARAMETER (xScreen);
+    UNREFERENCED_PARAMETER (yScreen);
+
+    return false;
 }
 
 

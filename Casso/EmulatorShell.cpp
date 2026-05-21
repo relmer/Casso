@@ -30,6 +30,8 @@
 #include "Video/AppleDoubleHiResMode.h"
 #include "Video/PixelFormat.h"
 #include "Video/MonochromeTint.h"
+#include "Ui/Win11DwmHelpers.h"
+#include "Ui/TitleBarHitTest.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -156,6 +158,8 @@ EmulatorShell::~EmulatorShell()
     // Also clear the after-blit hook so any in-flight present
     // doesn't try to call into a dead shell.
     m_d3dRenderer.SetAfterBlitHook (nullptr);
+    m_navLayer.Hide();
+    m_titleBar.Hide();
     m_uiShell.Shutdown();
 
     m_d3dRenderer.Shutdown();
@@ -231,6 +235,18 @@ HRESULT EmulatorShell::Initialize (
         if (SUCCEEDED (hrUi))
         {
             m_d3dRenderer.SetAfterBlitHook ([this] { m_uiShell.Render(); });
+
+            // P4-T3 / P4-T5: stand up the custom title bar + nav
+            // layer on the shell's context. Both are best-effort —
+            // failing to load the inline RML shouldn't abort the
+            // emulator window (it just means the chrome doesn't
+            // render until P5 themes land).
+            HRESULT hrTb = m_titleBar.Show (m_uiShell.GetContext());
+            IGNORE_RETURN_VALUE (hrTb, S_OK);
+
+            HRESULT hrNav = m_navLayer.Show (m_uiShell.GetContext(),
+                                              [this] (WORD id) { HandleCommand (id); });
+            IGNORE_RETURN_VALUE (hrNav, S_OK);
         }
         else
         {
@@ -338,8 +354,16 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     clientH = kFramebufferHeight * scale;
 
     rc    = { 0, 0, clientW, clientH };
-    style = WS_OVERLAPPEDWINDOW;
-    fSuccess = AdjustWindowRect (&rc, style, TRUE);  // TRUE = has menu
+    // P4-T1: borderless custom-chrome recipe. WS_THICKFRAME keeps
+    // Aero Snap + edge resize live; WS_CAPTION stays in the style
+    // mask so DWM still grants us a drop shadow + snap-layouts
+    // animations even though we draw zero chrome ourselves. Sizing
+    // math through AdjustWindowRectExForDpi accounts for the
+    // (invisible) non-client frame so the requested client area is
+    // preserved.
+    style    = WS_POPUP | WS_CAPTION | WS_THICKFRAME |
+               WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU;
+    fSuccess = AdjustWindowRectExForDpi (&rc, style, TRUE, 0, dpi);
     CWRA (fSuccess);
 
     // Create window
@@ -351,18 +375,30 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
                          nullptr);
     CHR (hr);
 
+    // P4-T2/T3: DWM gating. Rounded corners + dark immersive caption
+    // are best-effort and runtime-gated to the right Win10/11 build.
+    // Mica stays opt-in: it'll be toggled per-theme in P5 via
+    // theme.json `useMicaBackdrop`.
+    Win11DwmHelpers::ExtendFrameIntoClientArea (m_hwnd, 1);
+    Win11DwmHelpers::ApplyRoundedCorners       (m_hwnd, true);
+    Win11DwmHelpers::ApplyImmersiveDarkMode    (m_hwnd, true);
+
     // Create menu bar
     hr = m_menuSystem.CreateMenuBar (m_hwnd);
     CHR (hr);
 
     // Recalculate window size after menu added
-    fSuccess = AdjustWindowRect (&rc, style, TRUE);
+    fSuccess = AdjustWindowRectExForDpi (&rc, style, TRUE, 0, dpi);
     CWRA (fSuccess);
 
     fSuccess = SetWindowPos (m_hwnd, nullptr, 0, 0,
                              rc.right - rc.left, rc.bottom - rc.top,
-                             SWP_NOMOVE | SWP_NOZORDER);
+                             SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED);
     CWRA (fSuccess);
+
+    // Prime the title-bar layout cache so the WM_NCHITTEST helper has
+    // valid button rects even before the first WM_SIZE arrives.
+    m_titleBar.UpdateGeometry (clientW, dpi);
 
     // Load accelerator table
     m_accelTable = LoadAccelerators (hInstance, MAKEINTRESOURCE (IDR_ACCELERATOR));
@@ -2915,6 +2951,26 @@ void EmulatorShell::RenderFramebuffer()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HandleCommand
+//
+//  Public command-pump entry point. Used by the NavLayer (P4-T5) so
+//  click routing from the RML chrome funnels through the same
+//  dispatch path as a Win32 menu pick. Intentionally a thin wrapper —
+//  OnCommand owns the real id-range demux.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::HandleCommand (WORD commandId)
+{
+    OnCommand (m_hwnd, (int) commandId);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnCommand
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3211,6 +3267,12 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
     // so the projection matrix and Rml::Context::Render fit the
     // new viewport.
     m_uiShell.OnResize (static_cast<int> (width), renderH);
+
+    // P4: keep the borderless title-bar geometry cache in sync so the
+    // WM_NCHITTEST helper hands the OS the right button rects after a
+    // resize / DPI change.
+    m_titleBar.UpdateGeometry (static_cast<int> (width),
+                                GetDpiForWindow (m_hwnd));
 
     return false;
 }
@@ -4253,6 +4315,142 @@ bool EmulatorShell::OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, boo
     m_menuSystem.UpdateDynamicMenuItems (m_config);
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnNcCalcSize
+//
+//  P4-T2: collapse the entire non-client area into the client rect so
+//  the chrome we draw owns every pixel. When wParam is TRUE we return
+//  0 with NCCALCSIZE_PARAMS.rgrc[0] untouched, telling Windows that
+//  the proposed window rect IS the new client rect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnNcCalcSize (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (lParam);
+
+    if (wParam == FALSE)
+    {
+        outResult = 0;
+        return false;
+    }
+
+    // Keep rgrc[0] as-is: client area == full window rect. Windows
+    // still respects WS_THICKFRAME for the resize cursor.
+    outResult = 0;
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnNcHitTest
+//
+//  Routes through the unit-tested pure-logic helper. Pull the current
+//  title-bar geometry from the cached layout (kept in sync by
+//  TitleBar::UpdateGeometry in OnSize).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LRESULT EmulatorShell::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
+{
+    POINT                 pt   = { xScreen, yScreen };
+    RECT                  rcClient = {};
+    RECT                  rcTitle  = {};
+    RECT                  rcMin    = {};
+    RECT                  rcMax    = {};
+    RECT                  rcClose  = {};
+    TitleBarHitTestInput  in       = {};
+
+
+    if (!ScreenToClient (hwnd, &pt))
+    {
+        return HTNOWHERE;
+    }
+
+    if (!GetClientRect (hwnd, &rcClient))
+    {
+        return HTNOWHERE;
+    }
+
+    rcTitle = m_titleBar.GetTitleBarRect();
+    rcMin   = m_titleBar.GetButtonRect (SystemButton::Minimize);
+    rcMax   = m_titleBar.GetButtonRect (SystemButton::Maximize);
+    rcClose = m_titleBar.GetButtonRect (SystemButton::Close);
+
+    in.clientWidth   = rcClient.right - rcClient.left;
+    in.clientHeight  = rcClient.bottom - rcClient.top;
+    in.mouseX        = pt.x;
+    in.mouseY        = pt.y;
+    in.titleLeft     = rcTitle.left;
+    in.titleTop      = rcTitle.top;
+    in.titleRight    = rcTitle.right;
+    in.titleBottom   = rcTitle.bottom;
+    in.minLeft       = rcMin.left;     in.minTop    = rcMin.top;
+    in.minRight      = rcMin.right;    in.minBottom = rcMin.bottom;
+    in.maxLeft       = rcMax.left;     in.maxTop    = rcMax.top;
+    in.maxRight      = rcMax.right;    in.maxBottom = rcMax.bottom;
+    in.closeLeft     = rcClose.left;   in.closeTop  = rcClose.top;
+    in.closeRight    = rcClose.right;  in.closeBottom = rcClose.bottom;
+    in.resizeBorderPx = 8;
+
+    return TitleBarHitTest::Test (in);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnNcLButtonUp
+//
+//  P4-T4: dispatch system-button clicks. HTCLOSE → WM_CLOSE,
+//  HTMINBUTTON → minimize, HTMAXBUTTON → toggle maximize. Everything
+//  else falls through to DefWindowProc so caption double-clicks,
+//  system-menu, snap layouts, etc. all keep working.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen)
+{
+    UNREFERENCED_PARAMETER (xScreen);
+    UNREFERENCED_PARAMETER (yScreen);
+
+    WINDOWPLACEMENT  wp = { sizeof (wp) };
+
+
+    switch (hitTest)
+    {
+        case HTCLOSE:
+            PostMessage (hwnd, WM_CLOSE, 0, 0);
+            return true;
+
+        case HTMINBUTTON:
+            ShowWindow (hwnd, SW_MINIMIZE);
+            return true;
+
+        case HTMAXBUTTON:
+            if (GetWindowPlacement (hwnd, &wp))
+            {
+                ShowWindow (hwnd,
+                            (wp.showCmd == SW_MAXIMIZE) ? SW_RESTORE : SW_MAXIMIZE);
+            }
+            return true;
+    }
+
+    return false;
 }
 
 

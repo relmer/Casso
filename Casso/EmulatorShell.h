@@ -11,6 +11,8 @@
 #include "MenuSystem.h"
 #include "DebugConsole.h"
 #include "Ui/UiShell.h"
+#include "Ui/TitleBar.h"
+#include "Ui/NavLayer.h"
 #include "Config/Win32FileSystem.h"
 #include "Video/VideoOutput.h"
 #include "Video/CharacterRomData.h"
@@ -134,6 +136,13 @@ private:
     bool    OnTimer (HWND hwnd, UINT_PTR timerId) override;
     bool    OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu) override;
 
+    // P4 custom-chrome overrides — borderless window + WM_NCHITTEST
+    // delegated to TitleBarHitTest, system-button click routing on
+    // WM_NCLBUTTONUP.
+    bool    OnNcCalcSize  (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult) override;
+    LRESULT OnNcHitTest   (HWND hwnd, int xScreen, int yScreen) override;
+    bool    OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen) override;
+
     // Command group handlers
     void OnFileCommand (int id);
     void OnEditCommand (int id);
@@ -224,6 +233,14 @@ private:
     // composites on top of the framebuffer via the after-blit hook.
     Win32FileSystem     m_uiFs;
     UiShell             m_uiShell;
+
+    // P4 chrome. TitleBar owns the inline RML title-bar doc + the
+    // per-button rect cache that the WM_NCHITTEST helper queries.
+    // NavLayer owns the parity table for legacy IDM_* commands and
+    // (eventually) the drop-down menu RML. Both run in parallel mode
+    // alongside the existing Win32 menu bar — P9 retires the latter.
+    TitleBar            m_titleBar;
+    NavLayer            m_navLayer;
 
     // Drive audio (spec 005-disk-ii-audio). Mixer is always
     // allocated; per-drive sources are populated only when the
