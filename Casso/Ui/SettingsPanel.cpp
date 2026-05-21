@@ -2,11 +2,10 @@
 
 #include "SettingsPanel.h"
 
-#include "../../CassoCore/Ehm.h"
 
-#include "../../CassoEmuCore/Core/JsonParser.h"
-#include "../../CassoEmuCore/Core/MachineConfig.h"
-#include "../../CassoEmuCore/Core/PathResolver.h"
+#include "Core/JsonParser.h"
+#include "Core/MachineConfig.h"
+#include "Core/PathResolver.h"
 
 #include "../Config/IFileSystem.h"
 #include "../Config/UserConfigStore.h"

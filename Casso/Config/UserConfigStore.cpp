@@ -2,11 +2,10 @@
 
 #include "UserConfigStore.h"
 
-#include "../../CassoCore/Ehm.h"
 
-#include "../../CassoEmuCore/Core/JsonParser.h"
-#include "../../CassoEmuCore/Core/JsonWriter.h"
-#include "../../CassoEmuCore/Core/MachineConfigUpgrade.h"
+#include "Core/JsonParser.h"
+#include "Core/JsonWriter.h"
+#include "Core/MachineConfigUpgrade.h"
 
 #include <algorithm>
 

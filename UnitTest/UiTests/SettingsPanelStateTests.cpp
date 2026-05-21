@@ -2,8 +2,8 @@
 
 #include "Ui/SettingsPanelState.h"
 
-#include "../CassoEmuCore/Core/JsonParser.h"
-#include "../CassoEmuCore/Core/JsonWriter.h"
+#include "Core/JsonParser.h"
+#include "Core/JsonWriter.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

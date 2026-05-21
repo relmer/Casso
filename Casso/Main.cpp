@@ -4,7 +4,6 @@
 #include "Core/MachineConfig.h"
 #include "Core/PathResolver.h"
 #include "DiskSettings.h"
-#include "Ehm.h"
 #include "EmulatorShell.h"
 #include "Core/MachineScanner.h"
 #include "RegistrySettings.h"

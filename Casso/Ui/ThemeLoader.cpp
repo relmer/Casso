@@ -2,9 +2,8 @@
 
 #include "ThemeLoader.h"
 
-#include "../../CassoCore/Ehm.h"
 
-#include "../../CassoEmuCore/Core/JsonParser.h"
+#include "Core/JsonParser.h"
 
 #include <sstream>
 

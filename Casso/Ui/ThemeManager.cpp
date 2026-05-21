@@ -4,9 +4,8 @@
 
 #include "Win11DwmHelpers.h"
 
-#include "../../CassoCore/Ehm.h"
 
-#include "../../CassoEmuCore/Core/JsonParser.h"
+#include "Core/JsonParser.h"
 
 #include <RmlUi/Core.h>
 #include <RmlUi/Core/Factory.h>

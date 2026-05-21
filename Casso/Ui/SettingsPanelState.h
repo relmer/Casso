@@ -2,8 +2,8 @@
 
 #include "Pch.h"
 
-#include "../../CassoEmuCore/Core/JsonValue.h"
-#include "../../CassoEmuCore/Core/MachineConfig.h"
+#include "Core/JsonValue.h"
+#include "Core/MachineConfig.h"
 
 #include <string>
 #include <vector>

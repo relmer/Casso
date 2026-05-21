@@ -6,7 +6,6 @@
 #include "Core/MachineConfig.h"
 #include "Core/MachineConfigUpgrade.h"
 #include "Core/PathResolver.h"
-#include "Ehm.h"
 #include "External/StbVorbisWrapper.h"
 #include "RegistrySettings.h"
 #include "resource.h"

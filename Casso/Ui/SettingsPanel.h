@@ -4,7 +4,7 @@
 
 #include "SettingsPanelState.h"
 
-#include "../../CassoEmuCore/Core/MachineScanner.h"
+#include "Core/MachineScanner.h"
 
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>

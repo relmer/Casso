@@ -2,10 +2,9 @@
 
 #include "GlobalUserPrefs.h"
 
-#include "../../CassoCore/Ehm.h"
 
-#include "../../CassoEmuCore/Core/JsonParser.h"
-#include "../../CassoEmuCore/Core/JsonWriter.h"
+#include "Core/JsonParser.h"
+#include "Core/JsonWriter.h"
 
 #include <set>
 
