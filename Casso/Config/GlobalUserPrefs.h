@@ -76,7 +76,7 @@ struct GlobalUserPrefs
 
     // ---- Serialization (exposed for tests) -----------------------------
 
-    JsonValue   ToJson () const;
+    JsonValue   ToJson() const;
     HRESULT     FromJson (const JsonValue & v);
 
     static std::wstring  FilePath (const std::wstring & baseDir);

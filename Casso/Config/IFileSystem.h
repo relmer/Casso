@@ -32,7 +32,7 @@
 class IFileSystem
 {
 public:
-    virtual ~IFileSystem () = default;
+    virtual ~IFileSystem() = default;
 
     // Reads the entire file content as bytes (no encoding conversion).
     // Returns HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND) if `path`

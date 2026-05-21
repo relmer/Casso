@@ -28,7 +28,7 @@ namespace
     std::wstring Widen (const std::string & narrow)
     {
         std::wstring  out;
-        out.reserve (narrow.size ());
+        out.reserve (narrow.size());
         for (char c : narrow)
         {
             out.push_back ((wchar_t) (unsigned char) c);
@@ -42,7 +42,7 @@ namespace
         const std::string                                    & key)
     {
         int  i = 0;
-        for (i = 0; i < (int) entries.size (); ++i)
+        for (i = 0; i < (int) entries.size(); ++i)
         {
             if (entries[(size_t) i].first == key)
             {
@@ -58,24 +58,24 @@ namespace
         const std::vector<std::pair<std::string, JsonValue>> * entries = nullptr;
         int                                                    found   = -1;
 
-        if (v.GetType () != JsonType::Object)
+        if (v.GetType() != JsonType::Object)
         {
             return 0;
         }
 
-        entries = &v.GetObjectEntries ();
+        entries = &v.GetObjectEntries();
         found   = FindObjectKey (*entries, s_kpszVersionKey);
         if (found < 0)
         {
             return 0;
         }
 
-        if ((*entries)[(size_t) found].second.GetType () != JsonType::Number)
+        if ((*entries)[(size_t) found].second.GetType() != JsonType::Number)
         {
             return 0;
         }
 
-        return (int) (*entries)[(size_t) found].second.GetNumber ();
+        return (int) (*entries)[(size_t) found].second.GetNumber();
     }
 }
 
@@ -108,9 +108,9 @@ std::wstring UserConfigStore::UserFilePath (const std::string & machineName) con
 {
     std::wstring  result = m_userDir;
 
-    if (!result.empty () &&
-        result.back () != L'\\' &&
-        result.back () != L'/')
+    if (!result.empty() &&
+        result.back() != L'\\' &&
+        result.back() != L'/')
     {
         result += L'\\';
     }
@@ -169,7 +169,7 @@ HRESULT UserConfigStore::Load (
     if (fNeedMigrate)
     {
         hr = MachineConfigUpgrade::MigrateUserConfig (userContent, migrated);
-        if (SUCCEEDED (hr) && !migrated.empty ())
+        if (SUCCEEDED (hr) && !migrated.empty())
         {
             hr = JsonParser::Parse (migrated, userJson, parseErr);
             CHR (hr);
@@ -273,21 +273,21 @@ JsonValue UserConfigStore::MergeJson (
     size_t                                                  i              = 0;
 
 
-    if (defaultV.GetType () != JsonType::Object ||
-        userV.GetType ()    != JsonType::Object)
+    if (defaultV.GetType() != JsonType::Object ||
+        userV.GetType()    != JsonType::Object)
     {
         // Scalar / array / type mismatch: user value wins (copy).
         return userV;
     }
 
-    defaultEntries = &defaultV.GetObjectEntries ();
-    userEntries    = &userV.GetObjectEntries ();
+    defaultEntries = &defaultV.GetObjectEntries();
+    userEntries    = &userV.GetObjectEntries();
 
-    merged.reserve (defaultEntries->size () + userEntries->size ());
+    merged.reserve (defaultEntries->size() + userEntries->size());
 
     // Walk defaults in original order, replacing with merged-user value
     // when a corresponding user key exists.
-    for (i = 0; i < defaultEntries->size (); ++i)
+    for (i = 0; i < defaultEntries->size(); ++i)
     {
         const std::string & key = (*defaultEntries)[i].first;
 
@@ -308,7 +308,7 @@ JsonValue UserConfigStore::MergeJson (
 
     // Append user-only keys (preserves user-introduced fields like
     // `lastMountedImages` per FR-047).
-    for (i = 0; i < userEntries->size (); ++i)
+    for (i = 0; i < userEntries->size(); ++i)
     {
         const std::string & key = (*userEntries)[i].first;
 
@@ -349,20 +349,20 @@ JsonValue UserConfigStore::DiffJson (
     bool                                                    fSameType      = false;
 
 
-    if (currentV.GetType () != JsonType::Object)
+    if (currentV.GetType() != JsonType::Object)
     {
         // Not an object: return an empty object (callers expect Object).
         return JsonValue (std::move (diff));
     }
 
-    curEntries = &currentV.GetObjectEntries ();
+    curEntries = &currentV.GetObjectEntries();
 
-    if (defaultV.GetType () == JsonType::Object)
+    if (defaultV.GetType() == JsonType::Object)
     {
-        defEntries = &defaultV.GetObjectEntries ();
+        defEntries = &defaultV.GetObjectEntries();
     }
 
-    for (i = 0; i < curEntries->size (); ++i)
+    for (i = 0; i < curEntries->size(); ++i)
     {
         const std::string & key = (*curEntries)[i].first;
         const JsonValue   & cv  = (*curEntries)[i].second;
@@ -387,7 +387,7 @@ JsonValue UserConfigStore::DiffJson (
 
         const JsonValue & dv = (*defEntries)[(size_t) idx].second;
 
-        fSameType = (cv.GetType () == dv.GetType ());
+        fSameType = (cv.GetType() == dv.GetType());
 
         if (fIsVersionKey)
         {
@@ -396,10 +396,10 @@ JsonValue UserConfigStore::DiffJson (
             continue;
         }
 
-        if (fSameType && cv.GetType () == JsonType::Object)
+        if (fSameType && cv.GetType() == JsonType::Object)
         {
             JsonValue  nested = DiffJson (cv, dv);
-            if (!nested.GetObjectEntries ().empty ())
+            if (!nested.GetObjectEntries().empty())
             {
                 diff.emplace_back (key, std::move (nested));
             }
@@ -431,32 +431,32 @@ bool UserConfigStore::JsonEqual (
 {
     int  idx = 0;
 
-    if (a.GetType () != b.GetType ())
+    if (a.GetType() != b.GetType())
     {
         return false;
     }
 
-    switch (a.GetType ())
+    switch (a.GetType())
     {
         case JsonType::Null:
             return true;
 
         case JsonType::Bool:
-            return a.GetBool () == b.GetBool ();
+            return a.GetBool() == b.GetBool();
 
         case JsonType::Number:
-            return a.GetNumber () == b.GetNumber ();
+            return a.GetNumber() == b.GetNumber();
 
         case JsonType::String:
-            return a.GetString () == b.GetString ();
+            return a.GetString() == b.GetString();
 
         case JsonType::Array:
         {
-            if (a.ArraySize () != b.ArraySize ())
+            if (a.ArraySize() != b.ArraySize())
             {
                 return false;
             }
-            for (size_t i = 0; i < a.ArraySize (); ++i)
+            for (size_t i = 0; i < a.ArraySize(); ++i)
             {
                 if (!JsonEqual (a.ArrayAt (i), b.ArrayAt (i)))
                 {
@@ -468,15 +468,15 @@ bool UserConfigStore::JsonEqual (
 
         case JsonType::Object:
         {
-            const auto & ae = a.GetObjectEntries ();
-            const auto & be = b.GetObjectEntries ();
+            const auto & ae = a.GetObjectEntries();
+            const auto & be = b.GetObjectEntries();
 
-            if (ae.size () != be.size ())
+            if (ae.size() != be.size())
             {
                 return false;
             }
 
-            for (size_t i = 0; i < ae.size (); ++i)
+            for (size_t i = 0; i < ae.size(); ++i)
             {
                 idx = FindObjectKey (be, ae[i].first);
                 if (idx < 0)

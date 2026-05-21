@@ -46,7 +46,7 @@ HRESULT JsonWriter::Write (
 {
     HRESULT hr = S_OK;
 
-    outText.clear ();
+    outText.clear();
     hr = WriteValue (value, 0, opts, outText);
     CHR (hr);
 
@@ -72,7 +72,7 @@ HRESULT JsonWriter::WriteValue (
 {
     HRESULT hr = S_OK;
 
-    switch (v.GetType ())
+    switch (v.GetType())
     {
         case JsonType::Null:
         {
@@ -82,26 +82,26 @@ HRESULT JsonWriter::WriteValue (
 
         case JsonType::Bool:
         {
-            out += v.GetBool () ? "true" : "false";
+            out += v.GetBool() ? "true" : "false";
             break;
         }
 
         case JsonType::Number:
         {
-            hr = WriteNumber (v.GetNumber (), out);
+            hr = WriteNumber (v.GetNumber(), out);
             CHR (hr);
             break;
         }
 
         case JsonType::String:
         {
-            WriteString (v.GetString (), out);
+            WriteString (v.GetString(), out);
             break;
         }
 
         case JsonType::Array:
         {
-            size_t  count = v.ArraySize ();
+            size_t  count = v.ArraySize();
 
             if (count == 0)
             {
@@ -144,9 +144,9 @@ HRESULT JsonWriter::WriteValue (
 
         case JsonType::Object:
         {
-            const auto  & entries = v.GetObjectEntries ();
+            const auto  & entries = v.GetObjectEntries();
 
-            if (entries.empty ())
+            if (entries.empty())
             {
                 out += "{}";
                 break;
@@ -154,7 +154,7 @@ HRESULT JsonWriter::WriteValue (
 
             out += '{';
 
-            for (size_t i = 0; i < entries.size (); ++i)
+            for (size_t i = 0; i < entries.size(); ++i)
             {
                 if (opts.fPretty)
                 {
@@ -172,7 +172,7 @@ HRESULT JsonWriter::WriteValue (
                 hr = WriteValue (entries[i].second, depth + 1, opts, out);
                 CHR (hr);
 
-                if (i + 1 < entries.size ())
+                if (i + 1 < entries.size())
                 {
                     out += ',';
                 }
@@ -212,7 +212,7 @@ void JsonWriter::WriteString (const string & s, string & out)
 
     out += '"';
 
-    for (i = 0; i < s.size (); ++i)
+    for (i = 0; i < s.size(); ++i)
     {
         unsigned char c = (unsigned char) s[i];
 

@@ -41,7 +41,7 @@ namespace
         const std::string                                    & key)
     {
         int  i = 0;
-        for (i = 0; i < (int) entries.size (); ++i)
+        for (i = 0; i < (int) entries.size(); ++i)
         {
             if (entries[(size_t) i].first == key)
             {
@@ -126,9 +126,9 @@ std::wstring GlobalUserPrefs::FilePath (const std::wstring & baseDir)
 {
     std::wstring  result = baseDir;
 
-    if (!result.empty () &&
-        result.back () != L'\\' &&
-        result.back () != L'/')
+    if (!result.empty() &&
+        result.back() != L'\\' &&
+        result.back() != L'/')
     {
         result += L'\\';
     }
@@ -195,7 +195,7 @@ HRESULT GlobalUserPrefs::Save (
     std::wstring         path    = FilePath (baseDir);
     std::string          text;
     JsonWriter::Options  opts;
-    JsonValue            root    = ToJson ();
+    JsonValue            root    = ToJson();
 
 
     opts.fPretty = true;
@@ -220,7 +220,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-JsonValue GlobalUserPrefs::ToJson () const
+JsonValue GlobalUserPrefs::ToJson() const
 {
     std::vector<std::pair<std::string, JsonValue>>  root;
     std::vector<std::pair<std::string, JsonValue>>  scanlines;
@@ -300,7 +300,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     size_t              i             = 0;
 
 
-    if (v.GetType () != JsonType::Object)
+    if (v.GetType() != JsonType::Object)
     {
         hr = E_INVALIDARG;
         CHR (hr);
@@ -349,11 +349,11 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     }
 
     // Capture unknown top-level keys for round-tripping.
-    rootEntries = &v.GetObjectEntries ();
-    for (i = 0; i < rootEntries->size (); ++i)
+    rootEntries = &v.GetObjectEntries();
+    for (i = 0; i < rootEntries->size(); ++i)
     {
         const std::string & key = (*rootEntries)[i].first;
-        if (s_knownTopLevel.find (key) == s_knownTopLevel.end ())
+        if (s_knownTopLevel.find (key) == s_knownTopLevel.end())
         {
             unknownPassthrough.emplace_back (key, (*rootEntries)[i].second);
         }

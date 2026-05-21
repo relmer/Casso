@@ -40,9 +40,9 @@ public:
         std::wstring                 key   = Normalize (path);
         auto                         it    = m_files.find (key);
 
-        outContent.clear ();
+        outContent.clear();
 
-        if (it == m_files.end ())
+        if (it == m_files.end())
         {
             return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
         }
@@ -65,7 +65,7 @@ public:
     bool Exists (const std::wstring & path) override
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
-        return m_files.find (Normalize (path)) != m_files.end ();
+        return m_files.find (Normalize (path)) != m_files.end();
     }
 
 
@@ -84,20 +84,20 @@ public:
         std::lock_guard<std::mutex>  lock (m_mutex);
         std::wstring                 prefix = Normalize (directory);
 
-        outFilenames.clear ();
+        outFilenames.clear();
 
-        if (!prefix.empty () && prefix.back () != L'/')
+        if (!prefix.empty() && prefix.back() != L'/')
         {
             prefix += L'/';
         }
 
         for (const auto & kv : m_files)
         {
-            if (kv.first.compare (0, prefix.size (), prefix) == 0)
+            if (kv.first.compare (0, prefix.size(), prefix) == 0)
             {
-                std::wstring  remainder = kv.first.substr (prefix.size ());
+                std::wstring  remainder = kv.first.substr (prefix.size());
                 if (remainder.find (L'/') == std::wstring::npos &&
-                    !remainder.empty ())
+                    !remainder.empty())
                 {
                     outFilenames.push_back (remainder);
                 }
@@ -110,10 +110,10 @@ public:
 
     // ---- Test-only helpers --------------------------------------------
 
-    size_t FileCount ()
+    size_t FileCount()
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
-        return m_files.size ();
+        return m_files.size();
     }
 
 
@@ -121,18 +121,18 @@ public:
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
         auto                         it = m_files.find (Normalize (path));
-        if (it == m_files.end ())
+        if (it == m_files.end())
         {
-            return std::string ();
+            return std::string();
         }
         return it->second;
     }
 
 
-    void Clear ()
+    void Clear()
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
-        m_files.clear ();
+        m_files.clear();
     }
 
 
@@ -142,7 +142,7 @@ private:
         std::wstring  result = path;
         size_t        i      = 0;
 
-        for (i = 0; i < result.size (); ++i)
+        for (i = 0; i < result.size(); ++i)
         {
             if (result[i] == L'\\')
             {

@@ -23,7 +23,7 @@
 class Win32FileSystem : public IFileSystem
 {
 public:
-    Win32FileSystem () = default;
+    Win32FileSystem() = default;
 
     HRESULT ReadAllText (
         const std::wstring  & path,

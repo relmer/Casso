@@ -36,7 +36,7 @@ public:
         hr = JsonParser::Parse (rewritten, parsed2, err);
         Assert::IsTrue (SUCCEEDED (hr), L"second parse failed");
 
-        Assert::IsTrue (parsed1.GetType () == parsed2.GetType (), L"type mismatch");
+        Assert::IsTrue (parsed1.GetType() == parsed2.GetType(), L"type mismatch");
     }
 
 
@@ -82,7 +82,7 @@ public:
         JsonParseError   err;
         HRESULT          hr = JsonParser::Parse (out, parsed, err);
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::AreEqual (3.14, parsed.GetNumber (), 1e-12);
+        Assert::AreEqual (3.14, parsed.GetNumber(), 1e-12);
     }
 
     TEST_METHOD (Write_String_Simple)

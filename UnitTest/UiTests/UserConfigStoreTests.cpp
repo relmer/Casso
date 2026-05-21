@@ -96,9 +96,9 @@ public:
         JsonValue   c = d;  // identical
         JsonValue   diff = UserConfigStore::DiffJson (c, d);
 
-        Assert::IsTrue (diff.GetType () == JsonType::Object);
-        Assert::AreEqual (size_t (1), diff.GetObjectEntries ().size ());
-        Assert::AreEqual (string ("$cassoMachineVersion"), diff.GetObjectEntries ()[0].first);
+        Assert::IsTrue (diff.GetType() == JsonType::Object);
+        Assert::AreEqual (size_t (1), diff.GetObjectEntries().size());
+        Assert::AreEqual (string ("$cassoMachineVersion"), diff.GetObjectEntries()[0].first);
     }
 
 
@@ -109,7 +109,7 @@ public:
         JsonValue   diff = UserConfigStore::DiffJson (c, d);
 
         // Expect $cassoMachineVersion + b only.
-        Assert::AreEqual (size_t (2), diff.GetObjectEntries ().size ());
+        Assert::AreEqual (size_t (2), diff.GetObjectEntries().size());
     }
 
 
@@ -120,13 +120,13 @@ public:
         JsonValue   diff = UserConfigStore::DiffJson (c, d);
 
         // The crt sub-object should appear with only bloomEnabled inside.
-        Assert::AreEqual (size_t (1), diff.GetObjectEntries ().size ());
-        Assert::AreEqual (string ("crt"), diff.GetObjectEntries ()[0].first);
+        Assert::AreEqual (size_t (1), diff.GetObjectEntries().size());
+        Assert::AreEqual (string ("crt"), diff.GetObjectEntries()[0].first);
 
-        const JsonValue & crtDiff = diff.GetObjectEntries ()[0].second;
-        Assert::IsTrue (crtDiff.GetType () == JsonType::Object);
-        Assert::AreEqual (size_t (1), crtDiff.GetObjectEntries ().size ());
-        Assert::AreEqual (string ("bloomEnabled"), crtDiff.GetObjectEntries ()[0].first);
+        const JsonValue & crtDiff = diff.GetObjectEntries()[0].second;
+        Assert::IsTrue (crtDiff.GetType() == JsonType::Object);
+        Assert::AreEqual (size_t (1), crtDiff.GetObjectEntries().size());
+        Assert::AreEqual (string ("bloomEnabled"), crtDiff.GetObjectEntries()[0].first);
     }
 
 
@@ -186,13 +186,13 @@ public:
         Assert::IsTrue (SUCCEEDED (hr));
 
         text = fs.PeekContent (store.UserFilePath ("Apple2e"));
-        Assert::IsFalse (text.empty ());
+        Assert::IsFalse (text.empty());
 
         hr = JsonParser::Parse (text, parsed, err);
         Assert::IsTrue (SUCCEEDED (hr));
 
         // Should contain exactly $cassoMachineVersion + speedMode.
-        Assert::AreEqual (size_t (2), parsed.GetObjectEntries ().size ());
+        Assert::AreEqual (size_t (2), parsed.GetObjectEntries().size());
     }
 
 
@@ -212,8 +212,8 @@ public:
         text = fs.PeekContent (store.UserFilePath ("Apple2e"));
         hr   = JsonParser::Parse (text, parsed, err);
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::AreEqual (size_t (1), parsed.GetObjectEntries ().size ());
-        Assert::AreEqual (string ("$cassoMachineVersion"), parsed.GetObjectEntries ()[0].first);
+        Assert::AreEqual (size_t (1), parsed.GetObjectEntries().size());
+        Assert::AreEqual (string ("$cassoMachineVersion"), parsed.GetObjectEntries()[0].first);
     }
 
 

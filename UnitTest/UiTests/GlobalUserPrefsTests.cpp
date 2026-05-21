@@ -28,7 +28,7 @@ public:
 
         Assert::AreEqual (1, prefs.version);
         Assert::AreEqual (string ("Skeuomorphic"), prefs.activeTheme);
-        Assert::AreEqual (true,  prefs.activeTheme.size () > 0);
+        Assert::AreEqual (true,  prefs.activeTheme.size() > 0);
         Assert::AreEqual (false, prefs.crt.scanlinesEnabled);
         Assert::AreEqual (false, prefs.window.fHaveLastBounds);
     }

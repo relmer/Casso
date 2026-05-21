@@ -29,9 +29,9 @@ HRESULT Win32FileSystem::ReadAllText (
 
 
 
-    outContent.clear ();
+    outContent.clear();
 
-    hFile = CreateFileW (path.c_str (),
+    hFile = CreateFileW (path.c_str(),
                          GENERIC_READ,
                          FILE_SHARE_READ,
                          nullptr,
@@ -39,28 +39,27 @@ HRESULT Win32FileSystem::ReadAllText (
                          FILE_ATTRIBUTE_NORMAL,
                          nullptr);
 
-    CBRF (hFile != INVALID_HANDLE_VALUE,
-          hr = HRESULT_FROM_WIN32 (GetLastError ()));
+    CBR (hFile != INVALID_HANDLE_VALUE);
 
     fGotSize = GetFileSizeEx (hFile, &size);
-    CBRF (fGotSize, hr = HRESULT_FROM_WIN32 (GetLastError ()));
+    CWR (fGotSize);
 
     // We don't support files >2GB through this path — they're never
     // going to be configs.
-    CBRF (size.QuadPart <= 0x7FFFFFFF, hr = E_BOUNDS);
+    CBREx (size.QuadPart <= 0x7FFFFFFF, E_BOUNDS);
 
     if (size.QuadPart > 0)
     {
         outContent.resize (static_cast<size_t> (size.QuadPart));
 
         fGotBytes = ReadFile (hFile,
-                              outContent.data (),
+                              outContent.data(),
                               static_cast<DWORD> (size.QuadPart),
                               &bytesRead,
                               nullptr);
 
-        CBRF (fGotBytes,                  hr = HRESULT_FROM_WIN32 (GetLastError ()));
-        CBRF (bytesRead == size.QuadPart, hr = E_FAIL);
+        CWR (fGotBytes);
+        CBR (bytesRead == size.QuadPart);
     }
 
 
@@ -72,7 +71,7 @@ Error:
 
     if (FAILED (hr))
     {
-        outContent.clear ();
+        outContent.clear();
     }
 
     return hr;
@@ -123,7 +122,7 @@ HRESULT Win32FileSystem::WriteAllText (
 
     tempPath = path + L".casso-tmp";
 
-    hTemp = CreateFileW (tempPath.c_str (),
+    hTemp = CreateFileW (tempPath.c_str(),
                          GENERIC_WRITE,
                          0,
                          nullptr,
@@ -131,29 +130,28 @@ HRESULT Win32FileSystem::WriteAllText (
                          FILE_ATTRIBUTE_NORMAL,
                          nullptr);
 
-    CBRF (hTemp != INVALID_HANDLE_VALUE,
-          hr = HRESULT_FROM_WIN32 (GetLastError ()));
+    CWR (hTemp != INVALID_HANDLE_VALUE);
 
-    if (!content.empty ())
+    if (!content.empty())
     {
         fWrote = WriteFile (hTemp,
-                            content.data (),
-                            static_cast<DWORD> (content.size ()),
+                            content.data(),
+                            static_cast<DWORD> (content.size()),
                             &bytesWritten,
                             nullptr);
 
-        CBRF (fWrote,                          hr = HRESULT_FROM_WIN32 (GetLastError ()));
-        CBRF (bytesWritten == content.size (), hr = E_FAIL);
+        CWR (fWrote);
+        CBR (bytesWritten == content.size());
     }
 
     CloseHandle (hTemp);
     hTemp = INVALID_HANDLE_VALUE;
 
-    fMoved = MoveFileExW (tempPath.c_str (),
-                          path.c_str (),
+    fMoved = MoveFileExW (tempPath.c_str(),
+                          path.c_str(),
                           MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
 
-    CBRF (fMoved, hr = HRESULT_FROM_WIN32 (GetLastError ()));
+    CWR (fMoved);
 
 
 Error:
@@ -165,7 +163,7 @@ Error:
     if (FAILED (hr))
     {
         // Best-effort temp cleanup; don't override hr.
-        DeleteFileW (tempPath.c_str ());
+        DeleteFileW (tempPath.c_str());
     }
 
     return hr;
@@ -183,7 +181,7 @@ Error:
 
 bool Win32FileSystem::Exists (const std::wstring & path)
 {
-    DWORD  attrs = GetFileAttributesW (path.c_str ());
+    DWORD  attrs = GetFileAttributesW (path.c_str());
 
     if (attrs == INVALID_FILE_ATTRIBUTES)
     {
@@ -213,11 +211,11 @@ HRESULT Win32FileSystem::Delete (const std::wstring & path)
 
 
 
-    fDel = DeleteFileW (path.c_str ());
+    fDel = DeleteFileW (path.c_str());
 
     if (!fDel)
     {
-        err = GetLastError ();
+        err = GetLastError();
 
         // Already gone — treated as success.
         if (err != ERROR_FILE_NOT_FOUND && err != ERROR_PATH_NOT_FOUND)
@@ -254,15 +252,15 @@ HRESULT Win32FileSystem::EnumerateFiles (
 
 
 
-    outFilenames.clear ();
+    outFilenames.clear();
 
     pattern = directory + L"\\*";
 
-    hFind = FindFirstFileW (pattern.c_str (), &findData);
+    hFind = FindFirstFileW (pattern.c_str(), &findData);
 
     if (hFind == INVALID_HANDLE_VALUE)
     {
-        err = GetLastError ();
+        err = GetLastError();
 
         // ERROR_FILE_NOT_FOUND == directory exists but is empty.
         CBRF (err == ERROR_FILE_NOT_FOUND,
