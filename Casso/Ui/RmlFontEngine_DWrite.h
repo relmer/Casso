@@ -116,9 +116,6 @@ public:
     void ReleaseFontResources() override;
 
 private:
-    template <typename T>
-    using ComPtr = Microsoft::WRL::ComPtr<T>;
-
     // Per registered face (a single weight/style/family combination
     // loaded from disk or memory). Owns the IDWriteFontFace3.
     struct FaceData

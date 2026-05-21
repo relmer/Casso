@@ -5,15 +5,8 @@
 
 
 
-// The Casso PCH publishes this alias at global scope; redeclare it
-// here so consumers compiled against a leaner PCH (the UnitTest
-// project) still see it. C++ permits redeclaration of an identical
-// alias template at the same scope.
-#ifndef CASSO_COMPTR_ALIAS_DECLARED
-#define CASSO_COMPTR_ALIAS_DECLARED
-template <typename T>
-using ComPtr = Microsoft::WRL::ComPtr<T>;
-#endif
+// The Casso PCH publishes the ComPtr alias at global scope; UnitTest/Pch.h
+// pulls in Casso/Pch.h so this header sees the same alias everywhere.
 
 
 
