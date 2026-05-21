@@ -88,8 +88,7 @@ public:
 
     TEST_METHOD (Modifiers_None)
     {
-        Assert::AreEqual (0, RmlInputBridge::SynthesizeModifiers (
-            false, false, false, false, false, false));
+        Assert::AreEqual (0, RmlInputBridge::SynthesizeModifiers (false, false, false, false, false, false));
     }
 
 
@@ -105,9 +104,8 @@ public:
     TEST_METHOD (Modifiers_AllLocks)
     {
         int  m = RmlInputBridge::SynthesizeModifiers (false, false, false, true, true, true);
-        Assert::AreEqual (
-            RmlInputBridge::Mod::CapsLock | RmlInputBridge::Mod::NumLock | RmlInputBridge::Mod::ScrollLock,
-            m);
+        Assert::AreEqual (RmlInputBridge::Mod::CapsLock | RmlInputBridge::Mod::NumLock | RmlInputBridge::Mod::ScrollLock,
+                          m);
     }
 
 

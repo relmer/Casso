@@ -355,6 +355,14 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
         m_context->DrawIndexed (6, 0, 0);
     }
 
+    // P3-T6 hook: RmlUi composite pass runs here, between the
+    // emulator blit and Present. Skipped silently if no shell is
+    // installed (e.g. early-init failure path or unit-test harness).
+    if (m_afterBlitHook)
+    {
+        m_afterBlitHook();
+    }
+
     hr = m_swapChain->Present (1, 0);
     CHRA (hr);
 

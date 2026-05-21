@@ -17,4 +17,14 @@
 #include <crtdbg.h>
 #include <cstdlib>
 
+// Tests that exercise Casso/Ui/* (which depend on D3D11 + WRL)
+// resolve `#include "Pch.h"` to THIS file, so the system headers
+// must be reachable here. Casso/Pch.h pulls these in for the GUI
+// project; we mirror the subset the UI types need.
+#include <d3d11.h>
+#include <wrl/client.h>
+
+template <typename T>
+using ComPtr = Microsoft::WRL::ComPtr<T>;
+
 #include <CppUnitTest.h>

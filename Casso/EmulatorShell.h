@@ -10,6 +10,8 @@
 #include "D3DRenderer.h"
 #include "MenuSystem.h"
 #include "DebugConsole.h"
+#include "Ui/UiShell.h"
+#include "Config/Win32FileSystem.h"
 #include "Video/VideoOutput.h"
 #include "Video/CharacterRomData.h"
 #include "Video/VideoTiming.h"
@@ -214,6 +216,14 @@ private:
     MenuSystem          m_menuSystem;
     WasapiAudio         m_wasapiAudio;
     DebugConsole        m_debugConsole;
+
+    // P3 RmlUi shell. Owned here so its lifetime matches the
+    // emulator window's. Initialised after m_d3dRenderer is up and
+    // shut down before D3DRenderer is torn down. Parallel-mode in
+    // P3: existing Win32 menus / dialogs are untouched; the shell
+    // composites on top of the framebuffer via the after-blit hook.
+    Win32FileSystem     m_uiFs;
+    UiShell             m_uiShell;
 
     // Drive audio (spec 005-disk-ii-audio). Mixer is always
     // allocated; per-drive sources are populated only when the

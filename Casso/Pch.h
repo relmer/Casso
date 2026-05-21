@@ -55,6 +55,7 @@ typedef unsigned short  Word;
 
 template <typename T>
 using ComPtr = Microsoft::WRL::ComPtr<T>;
+#define CASSO_COMPTR_ALIAS_DECLARED 1
 
 
 

@@ -52,8 +52,7 @@ public:
         JsonValue   u = ParseOrFail ("{\"a\":99}");
         JsonValue   m = UserConfigStore::MergeJson (d, u);
 
-        Assert::IsTrue (UserConfigStore::JsonEqual (
-            ParseOrFail ("{\"a\":99,\"b\":2}"), m));
+        Assert::IsTrue (UserConfigStore::JsonEqual (ParseOrFail ("{\"a\":99,\"b\":2}"), m));
     }
 
 
@@ -63,8 +62,7 @@ public:
         JsonValue   u = ParseOrFail ("{\"crt\":{\"bloom\":{\"enabled\":true}}}");
         JsonValue   m = UserConfigStore::MergeJson (d, u);
 
-        Assert::IsTrue (UserConfigStore::JsonEqual (
-            ParseOrFail ("{\"crt\":{\"brightness\":1.0,\"bloom\":{\"enabled\":true}}}"), m));
+        Assert::IsTrue (UserConfigStore::JsonEqual (ParseOrFail ("{\"crt\":{\"brightness\":1.0,\"bloom\":{\"enabled\":true}}}"), m));
     }
 
 
@@ -74,8 +72,7 @@ public:
         JsonValue   u = ParseOrFail ("{\"slots\":[9]}");
         JsonValue   m = UserConfigStore::MergeJson (d, u);
 
-        Assert::IsTrue (UserConfigStore::JsonEqual (
-            ParseOrFail ("{\"slots\":[9]}"), m));
+        Assert::IsTrue (UserConfigStore::JsonEqual (ParseOrFail ("{\"slots\":[9]}"), m));
     }
 
 
@@ -85,8 +82,7 @@ public:
         JsonValue   u = ParseOrFail ("{\"lastMountedImages\":{\"6\":{\"0\":\"/img.dsk\"}}}");
         JsonValue   m = UserConfigStore::MergeJson (d, u);
 
-        Assert::IsTrue (UserConfigStore::JsonEqual (
-            ParseOrFail ("{\"a\":1,\"lastMountedImages\":{\"6\":{\"0\":\"/img.dsk\"}}}"), m));
+        Assert::IsTrue (UserConfigStore::JsonEqual (ParseOrFail ("{\"a\":1,\"lastMountedImages\":{\"6\":{\"0\":\"/img.dsk\"}}}"), m));
     }
 
 
@@ -150,21 +146,18 @@ public:
     {
         InMemoryFileSystem  fs;
         UserConfigStore     store (L"C:\\Casso\\User");
-        JsonValue           defaultJson = ParseOrFail (
-            "{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\",\"a\":1}");
+        JsonValue           defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\",\"a\":1}");
         JsonValue           merged;
         HRESULT             hr;
 
-        hr = fs.WriteAllText (
-            store.UserFilePath ("Apple2e"),
-            "{\"$cassoMachineVersion\":1,\"speedMode\":\"Maximum\"}");
+        hr = fs.WriteAllText (store.UserFilePath ("Apple2e"),
+                              "{\"$cassoMachineVersion\":1,\"speedMode\":\"Maximum\"}");
         Assert::IsTrue (SUCCEEDED (hr));
 
         hr = store.Load ("Apple2e", defaultJson, fs, merged);
         Assert::IsTrue (SUCCEEDED (hr));
 
-        JsonValue  expected = ParseOrFail (
-            "{\"$cassoMachineVersion\":1,\"speedMode\":\"Maximum\",\"a\":1}");
+        JsonValue  expected = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Maximum\",\"a\":1}");
         Assert::IsTrue (UserConfigStore::JsonEqual (expected, merged));
     }
 
@@ -173,10 +166,8 @@ public:
     {
         InMemoryFileSystem    fs;
         UserConfigStore       store (L"C:\\Casso\\User");
-        JsonValue             defaultJson = ParseOrFail (
-            "{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\",\"a\":1}");
-        JsonValue             current = ParseOrFail (
-            "{\"$cassoMachineVersion\":1,\"speedMode\":\"Double\",\"a\":1}");
+        JsonValue             defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\",\"a\":1}");
+        JsonValue             current     = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Double\",\"a\":1}");
         HRESULT               hr;
         std::string           text;
         JsonValue             parsed;

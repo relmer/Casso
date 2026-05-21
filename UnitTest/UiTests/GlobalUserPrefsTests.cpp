@@ -96,9 +96,8 @@ public:
         GlobalUserPrefs     prefs;
         HRESULT             hr;
 
-        hr = fs.WriteAllText (
-            GlobalUserPrefs::FilePath (L"C:\\Casso"),
-            "{\"$cassoGlobalPrefsVersion\":1,\"activeTheme\":\"DarkModern\"}");
+        hr = fs.WriteAllText (GlobalUserPrefs::FilePath (L"C:\\Casso"),
+                              "{\"$cassoGlobalPrefsVersion\":1,\"activeTheme\":\"DarkModern\"}");
         Assert::IsTrue (SUCCEEDED (hr));
 
         hr = prefs.Load (L"C:\\Casso", fs);
@@ -116,9 +115,8 @@ public:
         HRESULT             hr;
         std::string         text;
 
-        hr = fs.WriteAllText (
-            GlobalUserPrefs::FilePath (L"C:\\Casso"),
-            "{\"$cassoGlobalPrefsVersion\":1,\"activeTheme\":\"X\",\"futureKey\":\"keep me\"}");
+        hr = fs.WriteAllText (GlobalUserPrefs::FilePath (L"C:\\Casso"),
+                              "{\"$cassoGlobalPrefsVersion\":1,\"activeTheme\":\"X\",\"futureKey\":\"keep me\"}");
         Assert::IsTrue (SUCCEEDED (hr));
 
         hr = prefs.Load (L"C:\\Casso", fs);

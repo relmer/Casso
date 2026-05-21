@@ -151,10 +151,15 @@ EmulatorShell::~EmulatorShell()
     hrFlush = m_diskStore.FlushAll();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
+    // P3-T5: tear down the UiShell BEFORE D3DRenderer so the backend
+    // can release its GPU resources while the device is still alive.
+    // Also clear the after-blit hook so any in-flight present
+    // doesn't try to call into a dead shell.
+    m_d3dRenderer.SetAfterBlitHook (nullptr);
+    m_uiShell.Shutdown();
+
     m_d3dRenderer.Shutdown();
 }
-
-
 
 
 
@@ -213,6 +218,25 @@ HRESULT EmulatorShell::Initialize (
     // Initialize D3D11
     hr = m_d3dRenderer.Initialize (m_renderHwnd, kFramebufferWidth, kFramebufferHeight);
     CHR (hr);
+
+    // P3-T5: bring up the RmlUi shell on top of the live D3D11
+    // device. Parallel-mode — Win32 menus / dialogs stay live;
+    // the shell only adds an overlay composite pass via the
+    // after-blit hook installed below. If shell init fails we log
+    // and continue rather than aborting the whole emulator window —
+    // RmlUi-driven chrome is non-essential for emulation itself.
+    {
+        HRESULT hrUi = m_uiShell.Initialize (m_d3dRenderer, m_renderHwnd, &m_uiFs);
+
+        if (SUCCEEDED (hrUi))
+        {
+            m_d3dRenderer.SetAfterBlitHook ([this] { m_uiShell.Render(); });
+        }
+        else
+        {
+            OutputDebugStringA ("[EmulatorShell] UiShell::Initialize failed; continuing without RmlUi overlay.\n");
+        }
+    }
 
     // WASAPI audio is initialized on the CPU thread (COM apartment requirement)
 
@@ -3182,6 +3206,12 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
     }
 
     m_d3dRenderer.Resize (static_cast<int> (width), renderH);
+
+    // Propagate the new client size to the RmlUi context + backend
+    // so the projection matrix and Rml::Context::Render fit the
+    // new viewport.
+    m_uiShell.OnResize (static_cast<int> (width), renderH);
+
     return false;
 }
 
