@@ -770,7 +770,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
     // Register and create the window via the base class
     m_kpszWndClass  = kWindowClass;
-    m_hbrBackground = reinterpret_cast<HBRUSH> (COLOR_WINDOW + 1);
+    m_hbrBackground = reinterpret_cast<HBRUSH> (GetStockObject (BLACK_BRUSH));
 
     hr = Window::Initialize (hInstance);
     CHR (hr);
@@ -1358,15 +1358,69 @@ LRESULT CALLBACK EmulatorShell::s_RenderSurfaceWndProc (
         case WM_PRINTCLIENT:
             return 0;
 
-        // Suppress cursor shape changes within the client area (render surface).
-        // The parent will set the resize cursor for frame edges; within the
-        // client area, show the normal arrow cursor.
+        // Keep resize cursors in sync with the parent NC hit-test math.
         case WM_SETCURSOR:
+            parent = GetParent (hwnd);
+            if (parent != nullptr)
+            {
+                POINT    pt     = {};
+                LRESULT  hit    = HTCLIENT;
+                LPCWSTR  cursor = IDC_ARROW;
+
+
+
+                if (GetCursorPos (&pt))
+                {
+                    hit = SendMessage (parent, WM_NCHITTEST, 0, MAKELPARAM (pt.x, pt.y));
+
+                    switch (hit)
+                    {
+                        case HTTOPLEFT:
+                        case HTBOTTOMRIGHT:
+                            cursor = IDC_SIZENWSE;
+                            break;
+
+                        case HTTOPRIGHT:
+                        case HTBOTTOMLEFT:
+                            cursor = IDC_SIZENESW;
+                            break;
+
+                        case HTTOP:
+                        case HTBOTTOM:
+                            cursor = IDC_SIZENS;
+                            break;
+
+                        case HTLEFT:
+                        case HTRIGHT:
+                            cursor = IDC_SIZEWE;
+                            break;
+                    }
+                }
+
+                SetCursor (LoadCursorW (nullptr, cursor));
+                return TRUE;
+            }
+
             SetCursor (LoadCursorW (nullptr, IDC_ARROW));
             return TRUE;
 
-        // Forward all non-client messages to parent so custom chrome hit-testing works
+        // For NC regions returned by the parent hit-test, return HTTRANSPARENT
+        // so the parent receives the follow-up NC mouse messages.
         case WM_NCHITTEST:
+            parent = GetParent (hwnd);
+            if (parent != nullptr)
+            {
+                LRESULT  hit = SendMessage (parent, uMsg, wParam, lParam);
+
+                if (hit != HTCLIENT && hit != HTNOWHERE)
+                {
+                    return HTTRANSPARENT;
+                }
+
+                return hit;
+            }
+            return DefWindowProc (hwnd, uMsg, wParam, lParam);
+
         case WM_NCLBUTTONDOWN:
         case WM_NCLBUTTONUP:
         case WM_NCDESTROY:
@@ -4089,11 +4143,11 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 
 bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
 {
-    int       sbHeight    = 0;
-    int       chromePx    = 0;
-    RECT      sbRect      = {};
-    int       renderH     = static_cast<int> (height);
-    HRESULT   hrPresent   = S_OK;
+    int       sbHeight         = 0;
+    int       chromePx         = 0;
+    RECT      sbRect           = {};
+    int       renderH          = static_cast<int> (height);
+    HRESULT   hrPresent        = S_OK;
 
 
 
@@ -5240,6 +5294,8 @@ bool EmulatorShell::OnNcCalcSize (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESU
 
 LRESULT EmulatorShell::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
 {
+    static constexpr int  s_kMinResizeBorderPx = 8;
+
     POINT                 pt   = { xScreen, yScreen };
     RECT                  rcClient = {};
     RECT                  rcTitle  = {};
@@ -5247,6 +5303,11 @@ LRESULT EmulatorShell::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
     RECT                  rcMax    = {};
     RECT                  rcClose  = {};
     TitleBarHitTestInput  in       = {};
+    LRESULT               result   = HTNOWHERE;
+    UINT                  dpi      = 0;
+    int                   framePx  = 0;
+    int                   padPx    = 0;
+    int                   borderPx = 0;
 
 
 
@@ -5265,6 +5326,15 @@ LRESULT EmulatorShell::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
     rcMax   = m_titleBar.GetButtonRect (SystemButton::Maximize);
     rcClose = m_titleBar.GetButtonRect (SystemButton::Close);
 
+    dpi      = GetDpiForWindow (hwnd);
+    framePx  = GetSystemMetricsForDpi (SM_CXSIZEFRAME, dpi);
+    padPx    = GetSystemMetricsForDpi (SM_CXPADDEDBORDER, dpi);
+    borderPx = framePx + padPx;
+    if (borderPx < s_kMinResizeBorderPx)
+    {
+        borderPx = s_kMinResizeBorderPx;
+    }
+
     in.clientWidth   = rcClient.right - rcClient.left;
     in.clientHeight  = rcClient.bottom - rcClient.top;
     in.mouseX        = pt.x;
@@ -5279,9 +5349,11 @@ LRESULT EmulatorShell::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
     in.maxRight      = rcMax.right;    in.maxBottom = rcMax.bottom;
     in.closeLeft     = rcClose.left;   in.closeTop  = rcClose.top;
     in.closeRight    = rcClose.right;  in.closeBottom = rcClose.bottom;
-    in.resizeBorderPx = 8;
+    in.resizeBorderPx = borderPx;
 
-    return TitleBarHitTest::Test (in);
+    result = TitleBarHitTest::Test (in);
+
+    return result;
 }
 
 
