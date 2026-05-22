@@ -1,6 +1,7 @@
 # Implementation Plan: Full UI Overhaul (RmlUi + CSS Themes + Custom D3D Chrome)
 
-**Branch**: `007-ui-overhaul` | **Date**: 2026-05-20 | **Spec**: [spec.md](./spec.md)
+**Branch**: `007-ui-overhaul` | **Date**: 2026-05-20 | **Spec**: [spec.md](./spec.md)  
+**Architecture**: [WindowArchitecture.md](./WindowArchitecture.md) — Detailed window component breakdown, responsibilities, message routing, and design decisions  
 **Input**: `specs/007-ui-overhaul/spec.md` (49 functional requirements: FR-001..FR-048 plus FR-022b)
 
 ## Summary
