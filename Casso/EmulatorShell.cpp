@@ -980,14 +980,12 @@ void EmulatorShell::CreateStatusBar()
     fSuccess = RegisterRenderSurfaceClass (m_hInstance);
     CWRA (fSuccess);
 
-    chromePx = ComputeChromeTopInsetPx (GetDpiForWindow (m_hwnd));
-
     m_renderHwnd = CreateWindowExW (0,
                                     L"CassoRenderSurface",
                                     nullptr,
                                     WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
-                                    0, chromePx,
-                                    rcClient.right, rcClient.bottom - sbHeight - chromePx,
+                                    0, 0,
+                                    rcClient.right, rcClient.bottom - sbHeight,
                                     m_hwnd,
                                     nullptr,
                                     m_hInstance,
@@ -4116,11 +4114,11 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
     }
 
     chromePx = ComputeChromeTopInsetPx (GetDpiForWindow (m_hwnd));
-    renderH -= sbHeight + chromePx;
+    renderH -= sbHeight;
 
     if (m_renderHwnd != nullptr)
     {
-        MoveWindow (m_renderHwnd, 0, chromePx,
+        MoveWindow (m_renderHwnd, 0, 0,
                     static_cast<int> (width), renderH, FALSE);
     }
 
