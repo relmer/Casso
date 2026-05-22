@@ -140,6 +140,10 @@ public:
     HRESULT Mount  (int slot, int drive, const std::wstring & path) override;
     void    Eject  (int slot, int drive) override;
 
+    // Static window procs for child windows
+    static LRESULT CALLBACK s_RenderSurfaceWndProc (
+        HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
 private:
     // Window message handler overrides
     bool    OnChar (WPARAM ch, LPARAM lParam) override;

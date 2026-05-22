@@ -96,6 +96,33 @@ namespace
     }
 
 
+    BOOL RegisterRenderSurfaceClass (HINSTANCE hInstance)
+    {
+        WNDCLASSEXW wcex = { sizeof (wcex) };
+
+
+
+        if (GetClassInfoExW (hInstance, L"CassoRenderSurface", &wcex))
+        {
+            return TRUE;
+        }
+
+        wcex.style         = 0;
+        wcex.lpfnWndProc   = EmulatorShell::s_RenderSurfaceWndProc;
+        wcex.cbClsExtra    = 0;
+        wcex.cbWndExtra    = 0;
+        wcex.hInstance     = hInstance;
+        wcex.hIcon         = nullptr;
+        wcex.hCursor       = nullptr;
+        wcex.hbrBackground = nullptr;
+        wcex.lpszMenuName  = nullptr;
+        wcex.lpszClassName = L"CassoRenderSurface";
+        wcex.hIconSm       = nullptr;
+
+        return RegisterClassExW (&wcex) != 0;
+    }
+
+
     struct MonitorSnapshot
     {
         std::wstring  device;
@@ -949,8 +976,11 @@ void EmulatorShell::CreateStatusBar()
     fSuccess = GetClientRect (m_hwnd, &rcClient);
     CWRA (fSuccess);
 
+    fSuccess = RegisterRenderSurfaceClass (m_hInstance);
+    CWRA (fSuccess);
+
     m_renderHwnd = CreateWindowExW (0,
-                                    L"Static",
+                                    L"CassoRenderSurface",
                                     nullptr,
                                     WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
                                     0, 0,
@@ -960,10 +990,6 @@ void EmulatorShell::CreateStatusBar()
                                     m_hInstance,
                                     nullptr);
     CWRA (m_renderHwnd);
-
-    fSuccess = SetWindowSubclass (m_renderHwnd, &EmulatorShell::s_RenderSurfaceSubclass,
-                                  1, reinterpret_cast<DWORD_PTR> (this));
-    CWRA (fSuccess);
 
 Error:
     return;
@@ -1289,6 +1315,46 @@ LRESULT CALLBACK EmulatorShell::s_RenderSurfaceSubclass (
             return DefSubclassProc (hwnd, uMsg, wParam, lParam);
     }
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  s_RenderSurfaceWndProc
+//
+//  Window proc for the custom render surface child window class. Suppresses
+//  background erase and paint paths at the class level to prevent white
+//  flash during resize. Chains all other messages to DefWindowProc to
+//  preserve normal child window behavior and parent message routing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LRESULT CALLBACK EmulatorShell::s_RenderSurfaceWndProc (
+    HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    PAINTSTRUCT ps = {};
+
+
+
+    switch (uMsg)
+    {
+        case WM_ERASEBKGND:
+            return 1;
+
+        case WM_PAINT:
+            BeginPaint (hwnd, &ps);
+            EndPaint (hwnd, &ps);
+            return 0;
+
+        case WM_PRINTCLIENT:
+            return 0;
+
+        default:
+            return DefWindowProc (hwnd, uMsg, wParam, lParam);
+    }
+}
+
 
 
 
