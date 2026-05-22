@@ -235,6 +235,9 @@ private:
     static LRESULT CALLBACK s_StatusBarSubclass (
         HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
         UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
+    static LRESULT CALLBACK s_RenderSurfaceSubclass (
+        HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
+        UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
 
     // Cached status-bar layout: counted by UpdateStatusBar so the periodic
     // RefreshDriveStatus and OnDrawItem handlers can identify which parts
@@ -406,7 +409,6 @@ private:
     std::unique_ptr<class DiskIIDebugDialog>  m_diskIIDebugDialog;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 };
-
 
 
 

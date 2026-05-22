@@ -768,7 +768,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // (invisible) non-client frame so the requested client area is
     // preserved.
     style    = WS_POPUP | WS_CAPTION | WS_THICKFRAME |
-               WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU;
+               WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU |
+               WS_CLIPCHILDREN;
     // No menu bar -> bMenu = FALSE in window-rect math.
     fSuccess = AdjustWindowRectExForDpi (&rc, style, FALSE, 0, dpi);
     CWRA (fSuccess);
@@ -951,7 +952,7 @@ void EmulatorShell::CreateStatusBar()
     m_renderHwnd = CreateWindowExW (0,
                                     L"Static",
                                     nullptr,
-                                    WS_CHILD | WS_VISIBLE,
+                                    WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
                                     0, 0,
                                     rcClient.right, rcClient.bottom - sbHeight,
                                     m_hwnd,
@@ -959,6 +960,10 @@ void EmulatorShell::CreateStatusBar()
                                     m_hInstance,
                                     nullptr);
     CWRA (m_renderHwnd);
+
+    fSuccess = SetWindowSubclass (m_renderHwnd, &EmulatorShell::s_RenderSurfaceSubclass,
+                                  1, reinterpret_cast<DWORD_PTR> (this));
+    CWRA (fSuccess);
 
 Error:
     return;
@@ -1240,9 +1245,50 @@ LRESULT CALLBACK EmulatorShell::s_StatusBarSubclass (
     }
 
     return DefSubclassProc (hwnd, uMsg, wParam, lParam);
+    return DefSubclassProc (hwnd, uMsg, wParam, lParam);
 }
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  s_RenderSurfaceSubclass
+//
+//  Render-surface subclass for the child D3D host window. Suppresses the
+//  default white erase/paint path so resize shows the last presented frame
+//  instead of the stock Static control background.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LRESULT CALLBACK EmulatorShell::s_RenderSurfaceSubclass (
+    HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
+    UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
+{
+    PAINTSTRUCT         ps  = {};
+
+
+
+    UNREFERENCED_PARAMETER (uIdSubclass);
+    UNREFERENCED_PARAMETER (dwRefData);
+
+    switch (uMsg)
+    {
+        case WM_ERASEBKGND:
+            return 1;
+
+        case WM_PAINT:
+            BeginPaint (hwnd, &ps);
+            EndPaint (hwnd, &ps);
+            return 0;
+
+        case WM_PRINTCLIENT:
+            return 0;
+
+        default:
+            return DefSubclassProc (hwnd, uMsg, wParam, lParam);
+    }
+}
 
 
 
@@ -3949,9 +3995,10 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 
 bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
 {
-    int  sbHeight   = 0;
-    RECT sbRect     = {};
-    int  renderH    = static_cast<int> (height);
+    int       sbHeight    = 0;
+    RECT      sbRect      = {};
+    int       renderH     = static_cast<int> (height);
+    HRESULT   hrPresent   = S_OK;
 
 
 
@@ -3976,7 +4023,7 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
     if (m_renderHwnd != nullptr)
     {
         MoveWindow (m_renderHwnd, 0, 0,
-                    static_cast<int> (width), renderH, TRUE);
+                    static_cast<int> (width), renderH, FALSE);
     }
 
     m_d3dRenderer.Resize (static_cast<int> (width), renderH);
@@ -3992,6 +4039,34 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
     m_titleBar.UpdateGeometry (static_cast<int> (width),
                                 GetDpiForWindow (m_hwnd));
     m_d3dRenderer.SetTopInsetPx (ComputeChromeTopInsetPx (GetDpiForWindow (m_hwnd)));
+
+    {
+        lock_guard<mutex> lock (m_fbMutex);
+
+        if (!m_uiFramebuffer.empty())
+        {
+            const ThemeCrtDefaults *  themeDefaults = nullptr;
+            const LoadedTheme       *  active       = nullptr;
+            CrtParams                  params       = {};
+
+            if (m_themeManager != nullptr)
+            {
+                active = m_themeManager->GetActiveTheme();
+                if (active != nullptr)
+                {
+                    themeDefaults = &active->crtDefaults;
+                }
+            }
+
+            params = MakeCrtParams (m_globalPrefs.crt,
+                                    themeDefaults,
+                                    (float) m_d3dRenderer.GetBackBufferWidth(),
+                                    (float) m_d3dRenderer.GetBackBufferHeight());
+            m_d3dRenderer.SetCrtParams (params);
+
+            IGNORE_RETURN_VALUE (hrPresent, m_d3dRenderer.UploadAndPresent (m_uiFramebuffer.data()));
+        }
+    }
 
     SaveWindowPlacement();
 
