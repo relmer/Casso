@@ -1255,9 +1255,15 @@ LRESULT CALLBACK EmulatorShell::s_StatusBarSubclass (
 //
 //  s_RenderSurfaceSubclass
 //
-//  Render-surface subclass for the child D3D host window. Suppresses the
-//  default white erase/paint path so resize shows the last presented frame
-//  instead of the stock Static control background.
+//  Render-surface subclass for the child D3D host window (a stock Static
+//  control). Suppresses the default white erase/paint path so resize shows
+//  the last presented frame instead of the Static control's default background.
+//
+//  The Static control provides critical infrastructure (focus, hit testing,
+//  message routing, parent notification) that's easy to break when
+//  implementing a custom class. Using SetWindowSubclass preserves the Static
+//  control's behavior while only intercepting the three messages that cause
+//  visual artifacts during resize: WM_ERASEBKGND, WM_PAINT, WM_PRINTCLIENT.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
