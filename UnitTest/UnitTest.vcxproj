@@ -403,6 +403,7 @@
     <ClCompile Include="UiTests\SettingsPanelStateTests.cpp" />
     <ClCompile Include="UiTests\HardwareTreeTests.cpp" />
     <ClCompile Include="UiTests\CrtParameterMappingTests.cpp" />
+    <ClCompile Include="UiTests\CrtLetterboxLayoutTests.cpp" />
     <ClCompile Include="Devices\DiskIIDebugDialogTests.cpp" />
   </ItemGroup>
   <ItemGroup>

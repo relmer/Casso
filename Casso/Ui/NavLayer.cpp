@@ -78,13 +78,21 @@ namespace
             body
             {
                 width: 100%;
+                height: 100%;
+            }
+            .nav-strip
+            {
+                position: absolute;
+                top: 32px;
+                left: 0px;
+                right: 0px;
                 height: 28dp;
-                background-color: #2a2a2a;
+                background-color: #2a2a2add;
                 color: #e8e8e8;
                 font-family: sans-serif;
                 font-size: 12dp;
+                display: block;
             }
-            .nav-strip { display: block; height: 28dp; }
             .nav-item
             {
                 display: inline-block;

@@ -25,17 +25,19 @@ namespace
             body
             {
                 width: 100%;
-                height: 32px;
-                background-color: #1f1f1f;
-                color: #f0f0f0;
-                font-family: sans-serif;
-                font-size: 13dp;
-                display: block;
+                height: 100%;
             }
             .titlebar
             {
-                width: 100%;
+                position: absolute;
+                top: 0px;
+                left: 0px;
+                right: 0px;
                 height: 32px;
+                background-color: #1f1f1fdd;
+                color: #f0f0f0;
+                font-family: sans-serif;
+                font-size: 13dp;
                 display: block;
             }
             .app-title

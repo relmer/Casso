@@ -402,7 +402,9 @@ HRESULT ThemeManager::ReattachDocuments (const LoadedTheme & theme)
 
         if (doc != nullptr)
         {
-            doc->Show();
+            // ThemeManager validates and tracks entry docs for unload /
+            // hot-reload boundaries, but concrete UI controllers own
+            // visibility (TitleBar/NavLayer/SettingsPanel/DriveWidgets).
             m_activeDocs.push_back (doc);
         }
         else

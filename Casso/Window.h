@@ -55,6 +55,7 @@ protected:
     virtual bool    OnKeyUp    (WPARAM vk, LPARAM lParam);
     virtual bool    OnNotify   (HWND hwnd, WPARAM wParam, LPARAM lParam);
     virtual bool    OnPaint    (HWND hwnd);
+    virtual bool    OnMove     (HWND hwnd, int x, int y);
     virtual bool    OnSize     (HWND hwnd, UINT width, UINT height);
     virtual bool    OnTimer    (HWND hwnd, UINT_PTR timerId);
 
@@ -75,7 +76,6 @@ protected:
     HINSTANCE m_hInstance      = nullptr;
     HWND      m_hwnd           = nullptr;
 };
-
 
 
 

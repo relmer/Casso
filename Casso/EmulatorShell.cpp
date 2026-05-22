@@ -70,6 +70,287 @@ static constexpr LPCWSTR kWindowClass      = L"CassoWindow";
 // for the eye to register motor on/off bursts without consuming UI cycles.
 static constexpr UINT_PTR kDriveStatusTimerId    = 0x10D5;
 static constexpr UINT     kDriveStatusTimerMs    = 50;
+static constexpr bool     s_kEnableDriveWidgets  = false;
+static constexpr int      s_kTitleBarHeightPx    = 32;
+static constexpr int      s_kNavStripHeightDp    = 28;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Window placement helpers
+//
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    int ComputeChromeTopInsetPx (UINT dpi)
+    {
+        int   navStrip = MulDiv (s_kNavStripHeightDp, static_cast<int> (dpi), 96);
+
+
+
+        return s_kTitleBarHeightPx + navStrip;
+    }
+
+
+    struct MonitorSnapshot
+    {
+        std::wstring  device;
+        RECT          rcMonitor  = {};
+        RECT          rcWork     = {};
+        DWORD         flags      = 0;
+    };
+
+
+    uint64_t HashFNV1a64 (const std::wstring & text)
+    {
+        uint64_t  hash = 1469598103934665603ull;
+        size_t    i    = 0;
+
+
+
+        for (i = 0; i < text.size(); ++i)
+        {
+            uint64_t code = static_cast<uint64_t> (text[i]);
+
+            hash ^= (code & 0xFFu);
+            hash *= 1099511628211ull;
+            hash ^= ((code >> 8) & 0xFFu);
+            hash *= 1099511628211ull;
+        }
+
+        return hash;
+    }
+
+
+    bool TryParseLong (const std::wstring & text, LONG & outValue)
+    {
+        wchar_t * end    = nullptr;
+        long      parsed = 0;
+
+
+
+        if (text.empty())
+        {
+            return false;
+        }
+
+        parsed = wcstol (text.c_str(), &end, 10);
+        if (end == nullptr || *end != L'\0')
+        {
+            return false;
+        }
+
+        outValue = static_cast<LONG> (parsed);
+        return true;
+    }
+
+
+    BOOL CALLBACK CollectMonitorsProc (HMONITOR hMon, HDC hdc, LPRECT prc, LPARAM lParam)
+    {
+        std::vector<MonitorSnapshot> * list = reinterpret_cast<std::vector<MonitorSnapshot> *> (lParam);
+        MONITORINFOEXW                mi    = { sizeof (mi) };
+        MonitorSnapshot               snap;
+
+
+
+        UNREFERENCED_PARAMETER (hdc);
+        UNREFERENCED_PARAMETER (prc);
+
+
+
+        if (list == nullptr)
+        {
+            return FALSE;
+        }
+
+        if (!GetMonitorInfoW (hMon, &mi))
+        {
+            return TRUE;
+        }
+
+        snap.device    = mi.szDevice;
+        snap.rcMonitor = mi.rcMonitor;
+        snap.rcWork    = mi.rcWork;
+        snap.flags     = mi.dwFlags;
+
+        list->push_back (snap);
+        return TRUE;
+    }
+
+
+    std::wstring BuildPlacementSubkeyForMonitor (HMONITOR activeMonitor)
+    {
+        std::vector<MonitorSnapshot>  monitors;
+        std::wstring                  activeDevice;
+        MONITORINFOEXW                activeInfo = { sizeof (activeInfo) };
+        std::wstring                  canonical;
+        uint64_t                      hash       = 0;
+        wchar_t                       hashHex[17] = {};
+        size_t                        i          = 0;
+
+
+
+        EnumDisplayMonitors (nullptr, nullptr, CollectMonitorsProc, reinterpret_cast<LPARAM> (&monitors));
+
+        std::sort (monitors.begin(), monitors.end(),
+                   [] (const MonitorSnapshot & a, const MonitorSnapshot & b)
+                   {
+                       if (a.device != b.device) { return a.device < b.device; }
+                       if (a.rcMonitor.left != b.rcMonitor.left) { return a.rcMonitor.left < b.rcMonitor.left; }
+                       if (a.rcMonitor.top != b.rcMonitor.top) { return a.rcMonitor.top < b.rcMonitor.top; }
+                       if (a.rcMonitor.right != b.rcMonitor.right) { return a.rcMonitor.right < b.rcMonitor.right; }
+                       return a.rcMonitor.bottom < b.rcMonitor.bottom;
+                   });
+
+        if (activeMonitor != nullptr && GetMonitorInfoW (activeMonitor, &activeInfo))
+        {
+            activeDevice = activeInfo.szDevice;
+        }
+
+        for (i = 0; i < monitors.size(); ++i)
+        {
+            const MonitorSnapshot & m = monitors[i];
+
+            canonical += m.device;
+            canonical += L"|";
+            canonical += std::to_wstring (m.rcMonitor.left);
+            canonical += L",";
+            canonical += std::to_wstring (m.rcMonitor.top);
+            canonical += L",";
+            canonical += std::to_wstring (m.rcMonitor.right);
+            canonical += L",";
+            canonical += std::to_wstring (m.rcMonitor.bottom);
+            canonical += L"|";
+            canonical += std::to_wstring (m.rcWork.left);
+            canonical += L",";
+            canonical += std::to_wstring (m.rcWork.top);
+            canonical += L",";
+            canonical += std::to_wstring (m.rcWork.right);
+            canonical += L",";
+            canonical += std::to_wstring (m.rcWork.bottom);
+            canonical += L"|";
+            canonical += std::to_wstring (m.flags);
+            canonical += L";";
+        }
+
+        canonical += L"active=";
+        canonical += activeDevice;
+
+        hash = HashFNV1a64 (canonical);
+        swprintf_s (hashHex, _countof (hashHex), L"%016llX", hash);
+
+        return std::wstring (L"WindowPlacement\\v1\\") + hashHex;
+    }
+
+
+    bool TryLoadSavedWindowPlacement (
+        HMONITOR  activeMonitor,
+        LONG    & outX,
+        LONG    & outY,
+        int     & outW,
+        int     & outH)
+    {
+        HRESULT       hr       = S_OK;
+        std::wstring  subkey;
+        std::wstring  sx;
+        std::wstring  sy;
+        std::wstring  sw;
+        std::wstring  sh;
+        LONG          x        = 0;
+        LONG          y        = 0;
+        LONG          w        = 0;
+        LONG          h        = 0;
+        RECT          wr       = {};
+        HMONITOR      hMon     = nullptr;
+
+
+
+        subkey = BuildPlacementSubkeyForMonitor (activeMonitor);
+
+        hr = RegistrySettings::ReadString (subkey.c_str(), L"x", sx);
+        if (hr != S_OK) { return false; }
+        hr = RegistrySettings::ReadString (subkey.c_str(), L"y", sy);
+        if (hr != S_OK) { return false; }
+        hr = RegistrySettings::ReadString (subkey.c_str(), L"w", sw);
+        if (hr != S_OK) { return false; }
+        hr = RegistrySettings::ReadString (subkey.c_str(), L"h", sh);
+        if (hr != S_OK) { return false; }
+
+        if (!TryParseLong (sx, x) || !TryParseLong (sy, y) || !TryParseLong (sw, w) || !TryParseLong (sh, h))
+        {
+            return false;
+        }
+
+        if (w <= 0 || h <= 0)
+        {
+            return false;
+        }
+
+        wr.left   = x;
+        wr.top    = y;
+        wr.right  = x + w;
+        wr.bottom = y + h;
+
+        hMon = MonitorFromRect (&wr, MONITOR_DEFAULTTONULL);
+        if (hMon == nullptr)
+        {
+            return false;
+        }
+
+        outX = x;
+        outY = y;
+        outW = static_cast<int> (w);
+        outH = static_cast<int> (h);
+        return true;
+    }
+
+
+    bool GetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outMonitor)
+    {
+        POINT          pt       = {};
+        HMONITOR       hMon     = nullptr;
+        MONITORINFOEXW mi       = { sizeof (mi) };
+
+
+
+        if (!GetCursorPos (&pt))
+        {
+            pt.x = 0;
+            pt.y = 0;
+        }
+
+        hMon = MonitorFromPoint (pt, MONITOR_DEFAULTTONEAREST);
+        if (hMon == nullptr)
+        {
+            return false;
+        }
+
+        if (!GetMonitorInfoW (hMon, &mi))
+        {
+            return false;
+        }
+
+        outWork    = mi.rcWork;
+        outMonitor = hMon;
+        return true;
+    }
+
+
+    void CenterInWorkArea (
+        const RECT & work,
+        int          windowW,
+        int          windowH,
+        LONG       & outX,
+        LONG       & outY)
+    {
+        outX = work.left + (work.right - work.left - windowW) / 2;
+        outY = work.top  + (work.bottom - work.top - windowH) / 2;
+    }
+}
 
 
 
@@ -268,6 +549,11 @@ HRESULT EmulatorShell::Initialize (
         {
             m_d3dRenderer.SetAfterBlitHook ([this] { m_uiShell.Render(); });
 
+            if (m_statusBar != nullptr)
+            {
+                ShowWindow (m_statusBar, SW_HIDE);
+            }
+
             // Stand up the custom title bar + nav
             // layer on the shell's context. Both are best-effort —
             // failing to load the inline RML shouldn't abort the
@@ -280,43 +566,49 @@ HRESULT EmulatorShell::Initialize (
                                               [this] (WORD id) { HandleCommand (id); });
             IGNORE_RETURN_VALUE (hrNav, S_OK);
 
-            // P6 -- register the <drive-widget> element factory + load
-            // the active theme's drive_widgets.rml so the widgets exist
-            // in the context. Both are best-effort: the chrome still
-            // renders if the theme's drive panel is missing.
-            m_driveWidgets.RegisterInstancer();
-
+            // Temporary simplification while chrome layout is stabilized:
+            // keep drive widgets disabled so title/nav overlap issues can
+            // be debugged in isolation.
+            if (s_kEnableDriveWidgets)
             {
-                fs::path  themeDir  = PathResolver::GetExecutableDirectory()
-                                      / L"Themes" / L"Skeuomorphic";
-                fs::path  driveRml  = themeDir / L"drive_widgets.rml";
-                string    driveRmlS = driveRml.string();
+                // P6 -- register the <drive-widget> element factory + load
+                // the active theme's drive_widgets.rml so the widgets exist
+                // in the context. Both are best-effort: the chrome still
+                // renders if the theme's drive panel is missing.
+                m_driveWidgets.RegisterInstancer();
 
-                HRESULT  hrDw = m_driveWidgets.LoadDocument (m_uiShell.GetContext(),
-                                                              driveRmlS,
-                                                              this,
-                                                              m_hwnd);
-                IGNORE_RETURN_VALUE (hrDw, S_OK);
-            }
+                {
+                    fs::path  themeDir  = PathResolver::GetExecutableDirectory()
+                                          / L"Themes" / L"Skeuomorphic";
+                    fs::path  driveRml  = themeDir / L"drive_widgets.rml";
+                    string    driveRmlS = driveRml.string();
 
-            // P6 -- single main-window IDropTarget. Hit-tests dropped
-            // files against the cached drive widgets via the controller.
-            if (m_fOleInitialized)
-            {
-                HRESULT  hrDd = m_dragDropTarget.Initialize (
-                    m_hwnd,
-                    [this] (int screenX, int screenY) -> DriveWidgetElement *
-                    {
-                        POINT  pt = { screenX, screenY };
+                    HRESULT  hrDw = m_driveWidgets.LoadDocument (m_uiShell.GetContext(),
+                                                                  driveRmlS,
+                                                                  this,
+                                                                  m_hwnd);
+                    IGNORE_RETURN_VALUE (hrDw, S_OK);
+                }
 
-                        if (!ScreenToClient (m_hwnd, &pt))
+                // P6 -- single main-window IDropTarget. Hit-tests dropped
+                // files against the cached drive widgets via the controller.
+                if (m_fOleInitialized)
+                {
+                    HRESULT  hrDd = m_dragDropTarget.Initialize (
+                        m_hwnd,
+                        [this] (int screenX, int screenY) -> DriveWidgetElement *
                         {
-                            return nullptr;
-                        }
+                            POINT  pt = { screenX, screenY };
 
-                        return m_driveWidgets.HitTest (pt.x, pt.y);
-                    });
-                IGNORE_RETURN_VALUE (hrDd, S_OK);
+                            if (!ScreenToClient (m_hwnd, &pt))
+                            {
+                                return nullptr;
+                            }
+
+                            return m_driveWidgets.HitTest (pt.x, pt.y);
+                        });
+                    IGNORE_RETURN_VALUE (hrDd, S_OK);
+                }
             }
 
             // P7 -- ThemeManager + UserConfigStore + GlobalUserPrefs
@@ -432,14 +724,20 @@ Error:
 
 HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 {
-    HRESULT hr        = S_OK;
-    UINT    dpi       = 0;
-    int     scale     = 0;
-    int     clientW   = 0;
-    int     clientH   = 0;
-    RECT    rc        = {};
-    DWORD   style     = 0;
-    BOOL    fSuccess  = FALSE;
+    HRESULT   hr          = S_OK;
+    UINT      dpi         = 0;
+    int       scale       = 0;
+    int       clientW     = 0;
+    int       clientH     = 0;
+    RECT      rc          = {};
+    DWORD     style       = 0;
+    BOOL      fSuccess    = FALSE;
+    RECT      work        = {};
+    HMONITOR  activeMon   = nullptr;
+    LONG      windowX     = CW_USEDEFAULT;
+    LONG      windowY     = CW_USEDEFAULT;
+    int       windowW     = 0;
+    int       windowH     = 0;
 
 
 
@@ -459,7 +757,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     }
 
     clientW = kFramebufferWidth * scale;
-    clientH = kFramebufferHeight * scale;
+    clientH = kFramebufferHeight * scale + ComputeChromeTopInsetPx (dpi);
 
     rc    = { 0, 0, clientW, clientH };
     // Borderless custom-chrome recipe. WS_THICKFRAME keeps
@@ -475,12 +773,22 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     fSuccess = AdjustWindowRectExForDpi (&rc, style, FALSE, 0, dpi);
     CWRA (fSuccess);
 
+    windowW = rc.right - rc.left;
+    windowH = rc.bottom - rc.top;
+
+    if (GetCursorMonitorWorkArea (work, activeMon))
+    {
+        CenterInWorkArea (work, windowW, windowH, windowX, windowY);
+    }
+
+    TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH);
+
     // Create window
     hr = Window::Create (0,
                          L"Casso",
                          style,
-                         CW_USEDEFAULT, CW_USEDEFAULT,
-                         rc.right - rc.left, rc.bottom - rc.top,
+                         windowX, windowY,
+                         windowW, windowH,
                          nullptr);
     CHR (hr);
 
@@ -502,6 +810,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // Prime the title-bar layout cache so the WM_NCHITTEST helper has
     // valid button rects even before the first WM_SIZE arrives.
     m_titleBar.UpdateGeometry (clientW, dpi);
+    m_d3dRenderer.SetTopInsetPx (ComputeChromeTopInsetPx (dpi));
 
     // Load accelerator table
     m_accelTable = LoadAccelerators (hInstance, MAKEINTRESOURCE (IDR_ACCELERATOR));
@@ -529,16 +838,23 @@ void EmulatorShell::CreateStatusBar()
     RECT                 rcClient = {};
     int                  sbHeight = 0;
     RECT                 sbRect   = {};
+    DWORD                sbStyle  = 0;
 
 
 
     fSuccess = InitCommonControlsEx (&icex);
     CWRA (fSuccess);
 
+    sbStyle = WS_CHILD | SBARS_SIZEGRIP;
+    if (s_kEnableDriveWidgets)
+    {
+        sbStyle |= WS_VISIBLE;
+    }
+
     m_statusBar = CreateWindowExW (0,
                                    STATUSCLASSNAME,
                                    nullptr,
-                                   WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP,
+                                   sbStyle,
                                    0, 0, 0, 0,
                                    m_hwnd,
                                    nullptr,
@@ -546,80 +862,87 @@ void EmulatorShell::CreateStatusBar()
                                    nullptr);
     CWRA (m_statusBar);
 
-    // Tooltip control parented to the status bar so the owner-drawn
-    // Drive 1/Drive 2 parts can show "Drive N: <path>" on hover. The
-    // status bar itself doesn't deliver tooltip messages for owner-drawn
-    // parts (SBT_TOOLTIPS / SB_SETTIPTEXT only triggers on truncated
-    // text), and TTF_SUBCLASS doesn't intercept the status bar's mouse
-    // messages reliably -- the canonical workaround is to subclass the
-    // status bar manually and TTM_RELAYEVENT each mouse message into
-    // the tooltip control.
-    m_driveTooltip = CreateWindowExW (WS_EX_TOPMOST,
-                                      TOOLTIPS_CLASS,
-                                      nullptr,
-                                      WS_POPUP | TTS_ALWAYSTIP | TTS_NOPREFIX,
-                                      CW_USEDEFAULT, CW_USEDEFAULT,
-                                      CW_USEDEFAULT, CW_USEDEFAULT,
-                                      m_statusBar,
-                                      nullptr,
-                                      m_hInstance,
-                                      nullptr);
-
-    if (m_driveTooltip != nullptr)
+    if (s_kEnableDriveWidgets)
     {
-        SetWindowPos (m_driveTooltip, HWND_TOPMOST, 0, 0, 0, 0,
-                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-    }
+        // Tooltip control parented to the status bar so the owner-drawn
+        // Drive 1/Drive 2 parts can show "Drive N: <path>" on hover. The
+        // status bar itself doesn't deliver tooltip messages for owner-drawn
+        // parts (SBT_TOOLTIPS / SB_SETTIPTEXT only triggers on truncated
+        // text), and TTF_SUBCLASS doesn't intercept the status bar's mouse
+        // messages reliably -- the canonical workaround is to subclass the
+        // status bar manually and TTM_RELAYEVENT each mouse message into
+        // the tooltip control.
+        m_driveTooltip = CreateWindowExW (WS_EX_TOPMOST,
+                                          TOOLTIPS_CLASS,
+                                          nullptr,
+                                          WS_POPUP | TTS_ALWAYSTIP | TTS_NOPREFIX,
+                                          CW_USEDEFAULT, CW_USEDEFAULT,
+                                          CW_USEDEFAULT, CW_USEDEFAULT,
+                                          m_statusBar,
+                                          nullptr,
+                                          m_hInstance,
+                                          nullptr);
 
-    UpdateStatusBar();
-
-    // Pre-register the Drive 1/Drive 2 tools now (after parts exist) so
-    // the very first hover works. RefreshDriveStatus then keeps the
-    // rects + text in sync as the user resizes / mounts / ejects.
-    if (m_driveTooltip != nullptr && m_refs.diskController != nullptr)
-    {
-        TOOLINFOW  ti = { };
-
-        for (int d = 0; d < DiskIIController::kDriveCount; d++)
+        if (m_driveTooltip != nullptr)
         {
-            ti.cbSize   = sizeof (ti);
-            ti.uFlags   = 0;
-            ti.hwnd     = m_statusBar;
-            ti.uId      = static_cast<UINT_PTR> (d);
-            ti.rect     = RECT { 0, 0, 1, 1 };
-            ti.lpszText = const_cast<LPWSTR> (L"");
-
-            SendMessage (m_driveTooltip, TTM_ADDTOOLW, 0,
-                         reinterpret_cast<LPARAM> (&ti));
+            SetWindowPos (m_driveTooltip, HWND_TOPMOST, 0, 0, 0, 0,
+                          SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         }
 
-        SendMessage (m_driveTooltip, TTM_ACTIVATE, TRUE, 0);
+        UpdateStatusBar();
 
-        // Snappier hover: 250 ms instead of the default ~half-second.
-        SendMessage (m_driveTooltip, TTM_SETDELAYTIME, TTDT_INITIAL, MAKELPARAM (250, 0));
-        SendMessage (m_driveTooltip, TTM_SETDELAYTIME, TTDT_AUTOPOP, MAKELPARAM (10000, 0));
+        // Pre-register the Drive 1/Drive 2 tools now (after parts exist) so
+        // the very first hover works. RefreshDriveStatus then keeps the
+        // rects + text in sync as the user resizes / mounts / ejects.
+        if (m_driveTooltip != nullptr && m_refs.diskController != nullptr)
+        {
+            TOOLINFOW  ti = { };
 
-        // Subclass the status bar so we can forward mouse messages to
-        // the tooltip via TTM_RELAYEVENT. SetWindowSubclass keeps a
-        // per-instance reference data slot for `this`.
-        SetWindowSubclass (m_statusBar, &EmulatorShell::s_StatusBarSubclass,
-                           1, reinterpret_cast<DWORD_PTR> (this));
+            for (int d = 0; d < DiskIIController::kDriveCount; d++)
+            {
+                ti.cbSize   = sizeof (ti);
+                ti.uFlags   = 0;
+                ti.hwnd     = m_statusBar;
+                ti.uId      = static_cast<UINT_PTR> (d);
+                ti.rect     = RECT { 0, 0, 1, 1 };
+                ti.lpszText = const_cast<LPWSTR> (L"");
 
-        RefreshDriveStatus();
+                SendMessage (m_driveTooltip, TTM_ADDTOOLW, 0,
+                             reinterpret_cast<LPARAM> (&ti));
+            }
+
+            SendMessage (m_driveTooltip, TTM_ACTIVATE, TRUE, 0);
+
+            // Snappier hover: 250 ms instead of the default ~half-second.
+            SendMessage (m_driveTooltip, TTM_SETDELAYTIME, TTDT_INITIAL, MAKELPARAM (250, 0));
+            SendMessage (m_driveTooltip, TTM_SETDELAYTIME, TTDT_AUTOPOP, MAKELPARAM (10000, 0));
+
+            // Subclass the status bar so we can forward mouse messages to
+            // the tooltip via TTM_RELAYEVENT. SetWindowSubclass keeps a
+            // per-instance reference data slot for `this`.
+            SetWindowSubclass (m_statusBar, &EmulatorShell::s_StatusBarSubclass,
+                               1, reinterpret_cast<DWORD_PTR> (this));
+
+            RefreshDriveStatus();
+        }
+
+        // Periodic refresh for owner-drawn drive activity LEDs. Only set when
+        // a Disk II controller is present; otherwise the indicators don't
+        // exist and the timer would just be paint-invalidating empty space.
+        if (m_refs.diskController != nullptr)
+        {
+            SetTimer (m_hwnd, kDriveStatusTimerId, kDriveStatusTimerMs, nullptr);
+        }
+
+        fSuccess = GetWindowRect (m_statusBar, &sbRect);
+        CWRA (fSuccess);
+
+        sbHeight = sbRect.bottom - sbRect.top;
     }
-
-    // Periodic refresh for owner-drawn drive activity LEDs. Only set when
-    // a Disk II controller is present; otherwise the indicators don't
-    // exist and the timer would just be paint-invalidating empty space.
-    if (m_refs.diskController != nullptr)
+    else
     {
-        SetTimer (m_hwnd, kDriveStatusTimerId, kDriveStatusTimerMs, nullptr);
+        ShowWindow (m_statusBar, SW_HIDE);
     }
-
-    fSuccess = GetWindowRect (m_statusBar, &sbRect);
-    CWRA (fSuccess);
-
-    sbHeight = sbRect.bottom - sbRect.top;
 
     // Create a child window for D3D rendering (above the status bar)
     fSuccess = GetClientRect (m_hwnd, &rcClient);
@@ -1167,6 +1490,26 @@ Error:
     {
         DestroyMenu (hMenu);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnMove (HWND hwnd, int x, int y)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (x);
+    UNREFERENCED_PARAMETER (y);
+
+    SaveWindowPlacement();
+    return false;
 }
 
 
@@ -3321,6 +3664,69 @@ LRESULT EmulatorShell::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveWindowPlacement
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SaveWindowPlacement()
+{
+    HMONITOR      hMon    = nullptr;
+    std::wstring  subkey;
+    RECT          wr      = {};
+    int           width   = 0;
+    int           height  = 0;
+    HRESULT       hr      = S_OK;
+
+
+
+    if (m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    if (IsIconic (m_hwnd) || IsZoomed (m_hwnd) || m_d3dRenderer.IsFullscreen())
+    {
+        return;
+    }
+
+    if (!GetWindowRect (m_hwnd, &wr))
+    {
+        return;
+    }
+
+    width  = wr.right - wr.left;
+    height = wr.bottom - wr.top;
+
+    if (width <= 0 || height <= 0)
+    {
+        return;
+    }
+
+    hMon = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
+    if (hMon == nullptr)
+    {
+        return;
+    }
+
+    subkey = BuildPlacementSubkeyForMonitor (hMon);
+
+    hr = RegistrySettings::WriteString (subkey.c_str(), L"x", std::to_wstring (wr.left));
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    hr = RegistrySettings::WriteString (subkey.c_str(), L"y", std::to_wstring (wr.top));
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    hr = RegistrySettings::WriteString (subkey.c_str(), L"w", std::to_wstring (width));
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    hr = RegistrySettings::WriteString (subkey.c_str(), L"h", std::to_wstring (height));
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnDestroy
@@ -3332,6 +3738,8 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
     UNREFERENCED_PARAMETER (hwnd);
 
 
+
+    SaveWindowPlacement();
 
     KillTimer (m_hwnd, kDriveStatusTimerId);
 
@@ -3551,7 +3959,7 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
 
 
 
-    if (m_statusBar != nullptr)
+    if (m_statusBar != nullptr && IsWindowVisible (m_statusBar))
     {
         SendMessage (m_statusBar, WM_SIZE, 0, 0);
         GetWindowRect (m_statusBar, &sbRect);
@@ -3583,6 +3991,9 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
     // resize / DPI change.
     m_titleBar.UpdateGeometry (static_cast<int> (width),
                                 GetDpiForWindow (m_hwnd));
+    m_d3dRenderer.SetTopInsetPx (ComputeChromeTopInsetPx (GetDpiForWindow (m_hwnd)));
+
+    SaveWindowPlacement();
 
     return false;
 }
@@ -3651,7 +4062,10 @@ bool EmulatorShell::OnTimer (HWND hwnd, UINT_PTR timerId)
     if (timerId == kDriveStatusTimerId)
     {
         RefreshDriveStatus();
-        UpdateDriveWidgets();
+        if (s_kEnableDriveWidgets)
+        {
+            UpdateDriveWidgets();
+        }
         return false;
     }
 
@@ -4047,9 +4461,11 @@ void EmulatorShell::OnViewCommand (int id)
                     scale = 1;
                 }
 
-                rc    = { 0, 0, kFramebufferWidth * scale, kFramebufferHeight * scale };
+                rc    = { 0, 0,
+                          kFramebufferWidth * scale,
+                          kFramebufferHeight * scale + ComputeChromeTopInsetPx (dpi) };
                 style = static_cast<DWORD> (GetWindowLong (m_hwnd, GWL_STYLE));
-                AdjustWindowRect (&rc, style, TRUE);
+                AdjustWindowRectExForDpi (&rc, style, FALSE, 0, dpi);
 
                 w = rc.right - rc.left;
                 h = rc.bottom - rc.top;
@@ -4742,6 +5158,3 @@ bool EmulatorShell::OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int 
 
     return false;
 }
-
-
-

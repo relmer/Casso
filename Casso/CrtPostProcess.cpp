@@ -246,36 +246,57 @@ CrtParams MakeCrtParams (
 
 RECT ComputeLetterboxRect (int backBufferW, int backBufferH)
 {
-    RECT  r = {};
+    RECT  contentRect = { 0, 0, backBufferW, backBufferH };
 
 
 
-    if (backBufferW <= 0 || backBufferH <= 0)
+    return ComputeLetterboxRectInRect (contentRect);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeLetterboxRectInRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT ComputeLetterboxRectInRect (const RECT & contentRect)
+{
+    RECT  r        = {};
+    int   contentW = contentRect.right  - contentRect.left;
+    int   contentH = contentRect.bottom - contentRect.top;
+
+
+
+    if (contentW <= 0 || contentH <= 0)
     {
         return r;
     }
 
-    // Target 4:3 aspect. If window is wider, pillarbox; if narrower, letterbox.
-    // Integer arithmetic to keep the bars pixel-aligned.
-    int  w43 = (backBufferH * 4) / 3;
-    if (w43 <= backBufferW)
+    // Target 4:3 aspect. If area is wider, pillarbox; if narrower, letterbox.
+    // Integer arithmetic keeps bars pixel-aligned.
+    int  w43 = (contentH * 4) / 3;
+    if (w43 <= contentW)
     {
-        // Pillarbox.
-        int barX = (backBufferW - w43) / 2;
-        r.left   = barX;
-        r.top    = 0;
-        r.right  = barX + w43;
-        r.bottom = backBufferH;
+        int  barX = (contentW - w43) / 2;
+
+        r.left   = contentRect.left + barX;
+        r.top    = contentRect.top;
+        r.right  = r.left + w43;
+        r.bottom = contentRect.bottom;
     }
     else
     {
-        // Letterbox.
-        int h34 = (backBufferW * 3) / 4;
-        int barY = (backBufferH - h34) / 2;
-        r.left   = 0;
-        r.top    = barY;
-        r.right  = backBufferW;
-        r.bottom = barY + h34;
+        int  h34  = (contentW * 3) / 4;
+        int  barY = (contentH - h34) / 2;
+
+        r.left   = contentRect.left;
+        r.top    = contentRect.top + barY;
+        r.right  = contentRect.right;
+        r.bottom = r.top + h34;
     }
 
     return r;

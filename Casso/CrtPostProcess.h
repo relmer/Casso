@@ -57,6 +57,7 @@ CrtParams  MakeCrtParams      (const GlobalUserPrefs::Crt & prefsCrt,
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT       ComputeLetterboxRect (int backBufferW, int backBufferH);
+RECT       ComputeLetterboxRectInRect (const RECT & contentRect);
 
 
 

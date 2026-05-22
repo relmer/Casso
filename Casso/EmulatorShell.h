@@ -149,6 +149,7 @@ private:
     bool    OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis) override;
     bool    OnKeyDown (WPARAM vk, LPARAM lParam) override;
     bool    OnKeyUp (WPARAM vk, LPARAM lParam) override;
+    bool    OnMove (HWND hwnd, int x, int y) override;
     bool    OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
     bool    OnSize (HWND hwnd, UINT width, UINT height) override;
     bool    OnTimer (HWND hwnd, UINT_PTR timerId) override;
@@ -209,6 +210,7 @@ private:
     void CopyScreenshot();
     void PasteFromClipboard();
     void DrainPasteBuffer();
+    void SaveWindowPlacement();
 
     // Status bar
     void    CreateStatusBar();
@@ -404,7 +406,6 @@ private:
     std::unique_ptr<class DiskIIDebugDialog>  m_diskIIDebugDialog;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 };
-
 
 
 

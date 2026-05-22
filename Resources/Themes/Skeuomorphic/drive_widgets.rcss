@@ -1,12 +1,14 @@
 /* Skeuomorphic drive widgets -- beige drive bay over a wood-grain
    overlay. LED uses radial gradient + box-shadow glow per FR-025. */
 
-body.drives-overlay
+.drives-overlay
 {
-    display: block;
+    position: absolute;
+    bottom: 0px;
+    left: 0px;
     width: 540dp;
     height: 140dp;
-    background-color: #d9cdb6;
+    background-color: #d9cdb6dd;
     color: #2a2418;
     font-family: sans-serif;
     font-size: 12dp;

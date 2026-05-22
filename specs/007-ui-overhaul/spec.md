@@ -197,6 +197,7 @@ A user who ran Casso v1.x has a `Machines/apple2e/apple2e_user.json` file on dis
 - **FR-045**: The `theme.json` metadata file MUST include a `$cassoThemeVersion` integer field. On load, if the version is lower than the current expected version, a theme upgrade path MUST be applied (analogous to `MachineConfigUpgrade`) before the theme is used. Machine config JSON files MUST use `$cassoMachineVersion` (renaming the existing `$cassoDefault` field).
 - **FR-046**: The application MUST use **RmlUi** (MIT-licensed) as the UI framework for all custom chrome and the Settings panel, integrated via a custom D3D11 render backend that composites RmlUi output onto the existing swap chain. Direct D3D drawing (outside RmlUi) is reserved for the emulated viewport and CRT post-processing pass.
 - **FR-047**: The mounted disk image path for each drive MUST be persisted per-machine in the user JSON (`lastMountedImages[<slot>][<drive>]`). On machine selection or application launch, the persisted image MUST be auto-mounted. Ejecting clears the persisted entry; mounting overwrites it. If the persisted path no longer exists on disk, the drive starts empty with a warning logged.
+- **FR-048**: Window position/size MUST persist **per monitor configuration**. On startup, Casso MUST restore bounds for the current monitor configuration if present. If absent, Casso MUST open at default 100% size centered on the active monitor.
 
 ---
 
@@ -207,6 +208,7 @@ A user who ran Casso v1.x has a `Machines/apple2e/apple2e_user.json` file on dis
 - **Theme**: A subdirectory of `Themes/` containing `theme.json` metadata (name, `$cassoThemeVersion`, CRT effect defaults), one or more `.rml` layout files, one or more `.rcss` stylesheet files, and asset files (fonts, images, sounds). Loaded by `ThemeManager` and applied to RmlUi at selection time.
 - **SettingsPanelState**: Transient in-memory snapshot of the Settings dialog's current selections; not persisted until the user confirms. Allows cancel-without-effect semantics.
 - **DriveWidgetState**: Runtime state for each drive widget: mounted disk path (or empty), motor running flag, write-active flag, animation frame index. Updated by the CPU thread's motor/drive signals and read by the D3D render thread.
+- **WindowPlacementProfile**: Per-monitor-configuration window bounds record (`x,y,w,h`) keyed by a hash of current monitor topology + active monitor. Stored under `HKCU\Software\relmer\Casso\WindowPlacement\v1\<hash>`.
 
 ---
 

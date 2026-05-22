@@ -99,6 +99,15 @@ schema):
 }
 ```
 
+**Note (FR-048 implementation):**
+- `window.lastBounds` remains in `GlobalUserPrefs.json` for backward
+  compatibility, but runtime placement persistence is keyed by monitor
+  configuration and stored in registry profiles under
+  `HKCU\Software\relmer\Casso\WindowPlacement\v1\<hash>`.
+- The hash input is the current monitor topology plus active monitor id.
+- On startup: restore matching profile if found; otherwise center at default
+  100% size on the active monitor.
+
 **Validation rules**:
 - `brightness ∈ [0, 2]` (1.0 = identity; >1 = boosted).
 - `scanlines.intensity ∈ [0, 1]`.
@@ -110,7 +119,8 @@ schema):
 **Persistence triggers**:
 - Theme change (FR-034) → write file immediately.
 - CRT param change in Settings panel → write on Apply.
-- Window bounds → write on `WM_CLOSE`.
+- Window bounds → write on `WM_MOVE`, `WM_SIZE`, and `WM_CLOSE` to the
+  monitor-configuration profile key.
 
 ---
 

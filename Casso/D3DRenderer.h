@@ -33,6 +33,7 @@ public:
     // (e.g., tests, headless boot) the field stays at its in-struct
     // defaults so the renderer behaves like a passthrough.
     void SetCrtParams (const CrtParams & params) { m_crtParams = params; }
+    void SetTopInsetPx (int insetPx)             { m_topInsetPx = std::max (0, insetPx); }
 
     bool IsFullscreen() const { return m_fullscreen; }
 
@@ -86,6 +87,7 @@ private:
     CrtParams                        m_crtParams;
     int                              m_backBufferW = 0;
     int                              m_backBufferH = 0;
+    int                              m_topInsetPx  = 0;
 
     int     m_texWidth    = 0;
     int     m_texHeight   = 0;
@@ -99,7 +101,6 @@ private:
     // RmlUi (or any other overlay) can draw onto the back buffer.
     std::function<void()>  m_afterBlitHook;
 };
-
 
 
 

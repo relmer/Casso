@@ -4,24 +4,26 @@
         <link type="text/rcss" href="theme.rcss"/>
         <link type="text/rcss" href="drive_widgets.rcss"/>
     </head>
-    <body class="drives-overlay">
-        <div class="drives-row">
-            <drive-widget slot="6" drive="0" class="is-empty door-closed">
-                <div class="door door-closed">
-                    <div class="disk-graphic"/>
-                </div>
-                <div class="label">Drive 1</div>
-                <div class="led led--idle"/>
-                <div class="eject-btn">⏏</div>
-            </drive-widget>
-            <drive-widget slot="6" drive="1" class="is-empty door-closed">
-                <div class="door door-closed">
-                    <div class="disk-graphic"/>
-                </div>
-                <div class="label">Drive 2</div>
-                <div class="led led--idle"/>
-                <div class="eject-btn">⏏</div>
-            </drive-widget>
+    <body>
+        <div class="drives-overlay">
+            <div class="drives-row">
+                <drive-widget slot="6" drive="0" class="is-empty door-closed">
+                    <div class="door door-closed">
+                        <div class="disk-graphic"/>
+                    </div>
+                    <div class="label">Drive 1</div>
+                    <div class="led led--idle"/>
+                    <div class="eject-btn">⏏</div>
+                </drive-widget>
+                <drive-widget slot="6" drive="1" class="is-empty door-closed">
+                    <div class="door door-closed">
+                        <div class="disk-graphic"/>
+                    </div>
+                    <div class="label">Drive 2</div>
+                    <div class="led led--idle"/>
+                    <div class="eject-btn">⏏</div>
+                </drive-widget>
+            </div>
         </div>
     </body>
 </rml>

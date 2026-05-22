@@ -302,6 +302,12 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
             callDefWndProc = pThis->OnPaint (hwnd);
             break;
 
+        case WM_MOVE:
+            callDefWndProc = pThis->OnMove (hwnd,
+                                            (int) (short) LOWORD (lParam),
+                                            (int) (short) HIWORD (lParam));
+            break;
+
         case WM_SIZE:
             callDefWndProc = pThis->OnSize (hwnd, LOWORD (lParam), HIWORD (lParam));
             break;
@@ -554,6 +560,26 @@ bool Window::OnPaint (HWND hwnd)
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::OnMove (HWND hwnd, int x, int y)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (x);
+    UNREFERENCED_PARAMETER (y);
+
+    return true;
+}
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnSize
@@ -675,7 +701,6 @@ bool Window::OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen
 
     return false;
 }
-
 
 
 

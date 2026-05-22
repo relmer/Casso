@@ -44,6 +44,7 @@
     },
     "window": {
       "type": "object",
+      "description": "Legacy/global window fields. FR-048 monitor-topology-specific runtime placement is stored in registry profiles.",
       "additionalProperties": false,
       "properties": {
         "lastBounds": {
