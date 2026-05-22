@@ -2407,6 +2407,11 @@ void EmulatorShell::ShowMachinePicker()
     // `SettingsPanelState::Apply` on commit. Old entry points
     // (`IDM_FILE_OPEN`, status-bar machine cell) funnel here so they
     // keep working with no behavioural surprise to the user.
+    if (!m_settingsPanel.IsVisible() && m_uiShell.GetContext() == nullptr)
+    {
+        return;
+    }
+
     HRESULT  hrShow = m_settingsPanel.Show();
     IGNORE_RETURN_VALUE (hrShow, S_OK);
 }

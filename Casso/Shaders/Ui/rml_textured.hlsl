@@ -42,7 +42,7 @@ PSIn VSMain (VSIn input)
 
     float2 p = input.pos + g_translation_pad.xy;
 
-    output.sv_pos = mul (float4 (p, 0.0f, 1.0f), g_mvp);
+    output.sv_pos = mul (g_mvp, float4 (p, 0.0f, 1.0f));
     output.color  = input.color;
     output.uv     = input.uv;
 
