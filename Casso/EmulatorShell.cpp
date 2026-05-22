@@ -865,6 +865,7 @@ void EmulatorShell::CreateStatusBar()
     BOOL                 fSuccess = FALSE;
     RECT                 rcClient = {};
     int                  sbHeight = 0;
+    int                  chromePx = 0;
     RECT                 sbRect   = {};
     DWORD                sbStyle  = 0;
 
@@ -979,12 +980,14 @@ void EmulatorShell::CreateStatusBar()
     fSuccess = RegisterRenderSurfaceClass (m_hInstance);
     CWRA (fSuccess);
 
+    chromePx = ComputeChromeTopInsetPx (GetDpiForWindow (m_hwnd));
+
     m_renderHwnd = CreateWindowExW (0,
                                     L"CassoRenderSurface",
                                     nullptr,
                                     WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
-                                    0, 0,
-                                    rcClient.right, rcClient.bottom - sbHeight,
+                                    0, chromePx,
+                                    rcClient.right, rcClient.bottom - sbHeight - chromePx,
                                     m_hwnd,
                                     nullptr,
                                     m_hInstance,
@@ -1333,7 +1336,8 @@ LRESULT CALLBACK EmulatorShell::s_RenderSurfaceSubclass (
 LRESULT CALLBACK EmulatorShell::s_RenderSurfaceWndProc (
     HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    PAINTSTRUCT ps = {};
+    HWND        parent = nullptr;
+    PAINTSTRUCT ps     = {};
 
 
 
@@ -1349,6 +1353,26 @@ LRESULT CALLBACK EmulatorShell::s_RenderSurfaceWndProc (
 
         case WM_PRINTCLIENT:
             return 0;
+
+        // Suppress cursor shape changes within the client area (render surface).
+        // The parent will set the resize cursor for frame edges; within the
+        // client area, show the normal arrow cursor.
+        case WM_SETCURSOR:
+            SetCursor (LoadCursorW (nullptr, IDC_ARROW));
+            return TRUE;
+
+        // Forward all non-client messages to parent so custom chrome hit-testing works
+        case WM_NCHITTEST:
+        case WM_NCLBUTTONDOWN:
+        case WM_NCLBUTTONUP:
+        case WM_NCDESTROY:
+        case WM_NCMOUSEMOVE:
+            parent = GetParent (hwnd);
+            if (parent != nullptr)
+            {
+                return SendMessage (parent, uMsg, wParam, lParam);
+            }
+            return DefWindowProc (hwnd, uMsg, wParam, lParam);
 
         default:
             return DefWindowProc (hwnd, uMsg, wParam, lParam);
@@ -4062,6 +4086,7 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
 {
     int       sbHeight    = 0;
+    int       chromePx    = 0;
     RECT      sbRect      = {};
     int       renderH     = static_cast<int> (height);
     HRESULT   hrPresent   = S_OK;
@@ -4084,11 +4109,12 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
         UpdateStatusBar();
     }
 
-    renderH -= sbHeight;
+    chromePx = ComputeChromeTopInsetPx (GetDpiForWindow (m_hwnd));
+    renderH -= sbHeight + chromePx;
 
     if (m_renderHwnd != nullptr)
     {
-        MoveWindow (m_renderHwnd, 0, 0,
+        MoveWindow (m_renderHwnd, 0, chromePx,
                     static_cast<int> (width), renderH, FALSE);
     }
 
