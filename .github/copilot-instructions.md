@@ -49,6 +49,12 @@ The solution has five projects:
 ### EHM (Error Handling Macros)
 - Every function that calls a failable API must use the EHM pattern:
   `HRESULT hr = S_OK;` at top, `Error:` label before cleanup, single exit via `return hr;`
+- EHM is for **all functions with failable operations**, regardless of return
+  type (HRESULT/enum/int/struct/void). For non-HRESULT returns, keep a local
+  vestigial `HRESULT hr = S_OK;` for macros and return the normal result at
+  `Error:`; for `void`, `Error:` must end with explicit `return;`.
+- Functions returning `HRESULT` MUST have exactly one exit point (`Error:` -> `return hr;`).
+  Do not use early `return` statements in those functions.
 - **NEVER** use bare `goto Error` — always use EHM macros (CHR, CBR, CWRA, CHRF, etc.)
 - EHM macros must only contain **trivial expressions** — no function calls with side effects
   or out params. Store the result first, then pass it to the macro:
@@ -61,7 +67,8 @@ The solution has five projects:
   CHRF (hr, outError = "...");
   ```
 - The same rule applies to **all** macros (not just EHM): never call non-trivial functions
-  inside macro arguments. Trivial: `.size()`, `.empty()`, `.load()`, member access.
+  inside macro arguments. Trivial: `.size()`, `.count()`, `.bad()`, `.empty()`, `.load()`,
+  and member access.
   Non-trivial: anything with side effects, allocations, or out params.
 - When intentionally ignoring an HRESULT return value, use the `IGNORE_RETURN_VALUE` macro:
   ```cpp
@@ -104,9 +111,18 @@ The solution has five projects:
   the top with a jump to `Error:` rather than wrapping the function body
   in `if (precondition) { … }`. EHM flattens indentation; body-wrap
   increases it.
+- Use EHM bail-outs aggressively to reduce indentation; inside loops prefer
+  guard-style `continue`/`break` patterns rather than adding nested `if` blocks.
 - When multiple EHM macro calls (`CBR`/`CBRF`/`CHR`/`CHRF`/etc.) appear
   on **consecutive lines** (no blank lines or comments between them),
   column-align their arguments — same rule as variable declarations.
+- Macro-selection guidance:
+  - `*A` variants (`CHRA`/`CWRA`/`CBRA`/`CPRA`) for bug-indicating/internal failures.
+  - Non-`*A` variants (`CHR`/`CWR`/`CBR`/`CPR`) for expected user/external failures.
+  - `*F` variants (`CHRF`/`CBRF`) when you must run custom failure action.
+  - `*N` variants (`CHRN`/`CBRN`) for user-facing notification failures.
+  - `CWR/CWRA` for Win32 APIs that set `GetLastError`; `CBR/CBRA` for boolean checks.
+  - `CPR/CPRA` only for allocation results (`new`/`malloc`-style OOM checks).
 
 ### Variable Declarations
 - **ALL** local variables declared at the **top** of the function (or top of a necessary local block)
@@ -279,6 +295,17 @@ void Function2()
 - Use `TestCpu::Step()` / `StepN()` to execute instructions
 - Call `CpuOperations` static methods directly for unit-level tests
 - No test may run the real `CassoCli` binary
+- Unit tests **MUST NEVER** rely on or alter real system state
+- **ALL** system services **MUST** be mocked or abstracted behind interfaces:
+  - **File system**: no reading/writing real files on disk in unit tests
+  - **Registry**: no access to the real Windows registry
+  - **Network**: no real HTTP/socket calls
+  - **Process/environment**: no inspection of real processes, env vars, or console handles
+  - **System APIs**: no direct calls to APIs like `SHGetKnownFolderPath`, `CreateFileW`,
+    `CreateToolhelp32Snapshot`, `OpenProcessToken`, `DeviceIoControl`, etc.
+- If a module uses system APIs, inject dependencies via interfaces and test
+  pure/data-driven logic with mocks or synthetic inputs.
+- Temp files are acceptable only in integration tests, never in unit tests.
 
 ## Build System
 

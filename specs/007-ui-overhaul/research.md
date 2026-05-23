@@ -1,335 +1,138 @@
-# Phase 0 — Research: Full UI Overhaul
+# Phase 0 - Research: 007 Native Chrome/Nav Pivot
 
-All NEEDS CLARIFICATION items in the planning Technical Context have been
-resolved into explicit decisions below. Items still requiring user
-confirmation are listed at the end of `plan.md` under *Open Technical
-Questions*; they are not blockers for design completion but are blockers for
-implementation of the specific task that depends on each one.
+## Metadata
 
----
+- Date: 2026-05-22
+- Branch: 007-ui-overhaul
 
-## Phase 0 confirmation records
+## Scope
 
-The decisions in this document were finalized as of 2026-05-20. The list below
-records the explicit Phase 0 bookkeeping (per `tasks.md` P0-T2..P0-T6) so that
-the values consumed by Phases 1, 4, 5, and 8 are pinned and auditable.
+This research document covers only the chrome/nav pivot.
 
-**RmlUi pinning (P0-T2).** Upstream tag **`6.2`** at commit SHA
-`2230d1a6e8e0848ed87a5761e2a5160b2a175ba4` (lightweight tag — the SHA is the
-tip commit on the release branch). License: **MIT**, file
-`LICENSE.txt` at the repo root. Vendoring lives at `External/RmlUi/` and is
-documented at `External/RmlUi/README.casso.md` (created in P1-T1).
+- Title bar rendering
+- System button visuals (min/max/close)
+- Nav strip and dropdown rendering
+- Chrome input/hit-routing
 
-**CRT shader attribution (P0-T3).** Pinned against the libretro
-`glsl-shaders` collection at HEAD commit
-`42fa8a98ab19bdaffb53280746a30819eb21f807` (captured 2026-05-20) and against
-crt-pi upstream at the same date.
+It does not redefine non-chrome panel work.
 
-| Effect | Upstream repo | Upstream file path | Author | License |
-|--------|---------------|--------------------|--------|---------|
-| Scanlines | `libretro/glsl-shaders` | `crt/shaders/crt-pi.glsl` | Davide Berra ("davidgiven") | MIT |
-| Bloom | `libretro/glsl-shaders` | `bloom/shaders/bloom.glsl` | Hyllian / hunterk | Public Domain |
-| Color bleed | `libretro/glsl-shaders` | `ntsc/shaders/ntsc-adaptive/ntsc-pass1.glsl` (chroma stage) | Themaister / hunterk | MIT |
+## Decisions
 
-Per-shader pinned upstream SHAs are recorded in the per-file
-`// ATTRIBUTION:` header captured at port time in P8-T1..P8-T3; the
-collection-level SHA above bounds them.
+### R1 - Rendering split
 
-**RmlUi D3D11 backend (P0-T4).** Confirmed: `contracts/rml-backend.h`
-describes a from-scratch `RmlBackend_D3D11` that consumes the existing
-`ID3D11Device` / `ID3D11DeviceContext` owned by `D3DRenderer`. No upstream
-backend fork is referenced or implied. R2 above stands as the rationale.
+Decision:
 
-**Borderless window recipe (P0-T5).** The recipe in R3 was reviewed against
-Microsoft's current public Win11 chrome guidance and the Windows Terminal /
-Visual Studio Code source patterns. Runtime gating uses
-`IsWindows11OrGreater()` (versionhelpers.h, no manifest required) around:
-- `DwmSetWindowAttribute (DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND)`
-- `DwmSetWindowAttribute (DWMWA_SYSTEMBACKDROP_TYPE, DWMSBT_MAINWINDOW)` (Mica)
+- Use DirectWrite for title/nav text.
+- Use D3D11 for rectangles, borders, fills, hover and active states.
 
-On Windows 10 the same window style remains valid; corners are sharp and Mica
-silently no-ops. No ARM64-specific code paths are required — DWM, Win32
-hit-testing, and per-monitor v2 DPI are identical between x64 and ARM64 builds
-under v145. A throwaway hands-on probe was not run; the recipe is a direct
-copy of the documented Microsoft pattern and is validated end-to-end in P4-T1
-.. P4-T4 against the actual build.
+Rationale:
 
-**Font decisions (P0-T6).**
-- Skeuomorphic + Dark Modern: **Inter** (SIL Open Font License 1.1).
-  Source: <https://github.com/rsms/inter> release v4.x; vendored as
-  `Inter-Regular.ttf`, `Inter-Bold.ttf` under each theme's
-  `fonts/` directory alongside `fonts/OFL.txt`.
-- Retro Terminal: **VT323** (SIL Open Font License 1.1). Source:
-  <https://fonts.google.com/specimen/VT323>; vendored as
-  `VT323-Regular.ttf` under `Resources/Themes/RetroTerminal/fonts/`
-  alongside `fonts/OFL.txt`.
+- Text quality and baseline control must be deterministic.
+- Geometry is straightforward and cheap in the existing render path.
 
-Both font families are SIL OFL 1.1, redistributable, and require only the
-license text to ship beside the font file. No attribution in the About box
-is required by OFL 1.1, but Casso will list both in the About box as a
-courtesy.
+### R2 - Single ownership
 
----
+Decision:
 
-## R1 — UI framework choice (resolves the "Primary Dependencies" unknown)
+- Use one native owner for title/nav rendering and input routing.
+- Do not keep a parallel ownership path for chrome surfaces.
 
-**Decision**: Use **RmlUi** (https://github.com/mikke89/RmlUi), MIT-licensed,
-vendored in-tree under `External/RmlUi/`, built as a static-library project
-(`RmlUi.vcxproj`) added to `Casso.sln`. No vcpkg, no NuGet, no submodule
-fetch at build time.
+Rationale:
 
-**Rationale**:
-- HTML/CSS-like authoring model (`.rml` + `.rcss`) maps directly to the
-  theming requirement (FR-029 .. FR-037). Hot-reload of stylesheets is a
-  first-class supported scenario.
-- Pluggable render backend — Casso supplies a `Rml::RenderInterface`
-  implementation that draws through the existing `D3DRenderer` device, so
-  there is exactly one swap chain and one device.
-- Custom element support is exactly what drive widgets and LED indicators
-  need.
-- Focus management, tab order, IME, clipboard, and animation are built in,
-  satisfying FR-044 keyboard nav without re-inventing focus logic.
-- MIT license — compatible with Casso's MIT license without any attribution
-  burden on end users (we still attribute in `External/RmlUi/README.casso.md`
-  and the About box).
+- Removes overlap/clipping conflicts.
+- Eliminates "which layer is authoritative" bugs.
 
-**Alternatives considered**:
-- **Dear ImGui** — immediate-mode; not theme-friendly (CSS-style separation
-  of skin from logic is foreign to it); custom-skinning the title bar and
-  drive widgets to look skeuomorphic would be a hostile use of the library.
-- **Ultralight** — feature-perfect (real Blink under the hood) but: (a)
-  proprietary commercial license for closed-source / paid use; (b) huge
-  binary footprint; (c) GPU-pipeline assumes its own ANGLE-backed driver,
-  hard to share our D3D device.
-- **Servo embedding** / **CEF** — both enormous; CEF in particular is a
-  ~150 MB redistributable; absurd overhead for an emulator UI.
-- **Hand-rolled D3D11 primitives + custom focus/tab/layout** — prior plan;
-  explicitly rejected by the binding directive in the planning input.
+### R3 - Window behavior contract
 
----
+Decision:
 
-## R2 — RmlUi D3D11 render backend (resolves P0-T4)
+- Keep existing NC behavior contract:
 
-**Decision**: Write **our own** `RmlBackend_D3D11` from scratch
-(`Casso/Ui/RmlBackend_D3D11.{h,cpp}`) implementing `Rml::RenderInterface`
-against the shared `ID3D11Device` / `ID3D11DeviceContext` owned by
-`D3DRenderer`. Estimated ~600 LOC including the two HLSL shaders.
+  - caption drag
+  - min/max/close hit zones
+  - resize edges
+  - snap behavior
 
-**Rationale**:
-- Fits Casso's EHM / single-exit / top-of-scope-vars style; upstream RmlUi
-  backends use C++ exceptions and modern C++ idioms that would be jarring
-  beside the rest of `Casso/`.
-- Shares the existing device (no second `D3D11CreateDevice` call, no extra
-  swap chain).
-- Total surface is small: render geometry, scissor, load/release textures,
-  optional `SetTransform` for 3D. RmlUi provides reference implementations
-  of each in its `Backends/` directory we can read but not copy.
-- Lets us hook device-lost recovery into the existing `D3DRenderer` path
-  rather than running a parallel recovery state machine.
+- Change only how chrome rects are computed and rendered.
 
-**Alternatives considered**:
-- Fork upstream `RmlUi_Renderer_DX11` — workable but requires patching it
-  every time we re-vendor; ongoing maintenance debt.
+Rationale:
 
----
+- Preserves expected UX while reducing migration risk.
 
-## R3 — Windows 11 borderless window recipe (resolves P0-T5)
+### R4 - Command routing contract
 
-**Decision**: Borderless window via
-- `WS_POPUP | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX`
-- `WM_NCCALCSIZE` returning a zeroed-out non-client rect (extending the
-  client area into the title-bar region).
-- `WM_NCHITTEST` returning `HTCAPTION`, `HTMINBUTTON`, `HTMAXBUTTON`,
-  `HTCLOSE`, and the 8 resize-edge codes based on RmlUi element rects
-  computed for the title-bar document.
-- `DwmExtendFrameIntoClientArea` with margins of `(1, 1, 1, 1)` so DWM
-  still composes the drop-shadow / Mica border.
-- `DwmSetWindowAttribute(DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND)`
-  for Win11 rounded corners.
-- Optional Mica via
-  `DwmSetWindowAttribute(DWMWA_SYSTEMBACKDROP_TYPE, DWMSBT_MAINWINDOW)`.
+Decision:
 
-**Rationale**:
-- This is the now-canonical Win11 recipe (used by Terminal, VS, Edge). It
-  gives Snap Layouts on the maximize button automatically when the
-  `HTMAXBUTTON` hit-test code is returned correctly.
-- All APIs used are documented Win11 public DWM APIs — no undocumented
-  hacks, no DLL probes.
+- Preserve current IDM command routing and dispatch entry points.
+- Native nav uses the existing command registry/parity model.
 
-**Alternatives considered**:
-- Pure `WS_POPUP` with no `WS_THICKFRAME` — disables Aero Snap on the
-  resize edges. Rejected.
-- DPI virtualization tricks for ARM64 — unnecessary; v145 + Win11 ARM64
-  handles per-monitor v2 DPI correctly.
+Rationale:
 
----
+- Avoids behavior drift and limits rewrite scope.
 
-## R4 — CRT shader source selection (resolves P0-T3)
+### R5 - DPI/layout policy
 
-**Decision**: Initial port set, all MIT or public domain:
+Decision:
 
-| Effect | Source | License | Notes |
-|--------|--------|---------|-------|
-| Scanlines | `crt-pi-vertical.glsl` (Davide Berra) | MIT | Vertical scanlines parameterized by intensity; port to HLSL. |
-| Bloom | libretro `bloom.glsl` (hunterk) | PD | Separable Gaussian; cheap. |
-| Color bleed | libretro `ntsc-adaptive` chroma-only pass | MIT | Lateral chroma spread approximating NTSC phosphor. |
-| Composite | original | n/a (Casso) | Glue pass. |
+- Compute all chrome metrics from per-window DPI.
+- Validate at 100/125/150/200 percent scaling.
 
-**Rationale**:
-- All three are well-tested, visually credible, and minimal LOC.
-- All MIT/PD — no GPL contamination.
-- The libretro shader collection has been ported to D3D many times; no
-  unsolved math problems.
+Rationale:
 
-**Alternatives considered**:
-- **CRT-Royale** — best visual quality available but **GPL**. Excluded.
-- **CRT-Lottes** — MIT, but heavy; would not hit the 1 ms frame budget on
-  mid-range GPUs at 4× upscale. Keep as a future opt-in if performance
-  budget allows.
-- Hand-rolled effects — explicitly rejected by binding directive.
+- Current failures are mostly placement quality problems.
+- DPI invariants need to be explicit and testable.
 
-**Attribution mechanics**: Each `.hlsl` file carries a top-of-file comment
-block: original author, upstream URL, original license SPDX identifier,
-SHA of the upstream file we ported from, and the date of the port. The
-aggregate appears in `Casso/Shaders/CRT/LICENSES.md` and the About box.
+### R6 - Migration strategy
 
----
+Decision:
 
-## R5 — Drive widget element model (resolves P6-T1)
+- Stage cutover in four phases:
 
-**Decision**:
-- **LED indicators**: RCSS-only. Three CSS classes (`.led--idle`,
-  `.led--present`, `.led--active`); glow rendered via `box-shadow` and a
-  radial-gradient background; state toggled from C++ by adding/removing
-  classes on the parent drive `<div>`.
-- **Drive widget body**: Custom `Rml::Element` subclass
-  (`DriveWidgetElement`) — required for drag-drop hit handling, animation
-  state machine (door open/close, spinning disk), and the eject-button
-  child hit region.
+  1. Native scaffold behind gate
+  2. Title ownership cutover
+  3. Nav ownership cutover
+  4. Dead-path cleanup
 
-**Rationale**:
-- LEDs have no behavior of their own — they are pure visual reflections of
-  drive state. RCSS-only minimizes code.
-- The drive widget has real behavior (drag-drop, click-to-browse, eject)
-  that doesn't map cleanly onto generic RML elements; a custom element
-  centralizes the behavior in one C++ class.
+Rationale:
 
-**Alternatives considered**:
-- LEDs as custom elements — overkill; no behavior to host.
-- Drive widget as plain `<div>` with JS-style event handlers in RCSS — RmlUi
-  does support an embedded scripting layer but we don't want to introduce
-  yet another execution environment.
+- Keeps rollback points.
+- Prevents another large, opaque integration jump.
 
-**Implementation (P6, commit `7c35385` + this commit)**:
-- `Casso/Ui/LedElement.{h,cpp}` — pure C++ helper that toggles
-  `.led--idle` / `.led--present` / `.led--active` classes on a target
-  `Rml::Element`. Each built-in theme's `drive_widgets.rcss` renders the
-  three states with `box-shadow` glow per FR-025.
-- `Casso/Ui/DriveWidgetElement.{h,cpp}` — `Rml::Element` subclass
-  registered with `Rml::Factory::RegisterElementInstancer("drive-widget",
-  …)` via `ElementInstancerGeneric<DriveWidgetElement>`. Overrides
-  `OnChildAdd` / `ProcessDefaultAction` to handle clicks (route to the
-  injected `IDriveCommandSink::Mount(slot,drive,path)` after the
-  `IFileDialog` returns) and eject-child clicks (route to
-  `IDriveCommandSink::Eject`). Spinning + door + LED classes pushed by
-  `SyncFromState (const DriveWidgetState&)` once per UI frame.
-- Drag-drop: separate `Casso/Ui/DragDropTarget.{h,cpp}` IDropTarget
-  implementation (not bolted onto `RmlInputBridge`, which stays a pure-
-  logic seam per P3). A single `RegisterDragDrop` call on the main HWND
-  per Open-Question-10.
+### R7 - Chrome/nav font policy
 
----
+Decision:
 
-## R6 — Per-machine vs. global user preferences split (resolves a schema unknown)
+- Use the same font family/weight/stretch as standard Windows 11 UI text
+  for title bar and nav/menu text.
+- Do not use theme-specific chrome font substitutions (e.g., Inter, VT323)
+  for native title/nav surfaces.
+- Differentiate themes via color, gradient, shading, depth, and geometry;
+  not via chrome font family changes.
 
-**Decision**: Two distinct on-disk files.
-- `Machines/<Name>/<Name>_user.json` — settings that are intrinsically
-  about that machine: speed mode, video color mode, write protect, floppy
-  sound, hardware component enable/disable, drive image last-mounted
-  paths (per FR-047 — auto-remounted on machine load).
-- `GlobalUserPrefs.json` — single file at the asset base directory.
-  Settings that are about the application or the user, not a specific
-  machine: active theme name, CRT brightness, CRT effect enable + params,
-  window bounds, last-selected machine.
+Rationale:
 
-**Rationale**:
-- FR-034 (theme persistence) and FR-040 (CRT params persistence) explicitly
-  say "global, not machine-specific."
-- Keeps `_user.json` files small, copyable, and shareable between users
-  who want to swap machine configs without dragging UI preferences along.
-- One global file is operationally simpler than scattering globals into
-  the registry or into one arbitrarily-chosen machine's `_user.json`.
+- Visual consistency with the OS is a hard product requirement.
+- Removes font-style variability as a source of perceived text quality issues.
 
-**Alternatives considered**:
-- Single combined file — rejected per FR-034/040.
-- Registry for globals — rejected per FR-016 (registry is being retired).
+## Risks and mitigations
 
----
+1. Risk: text still looks poor at specific DPI/font combinations.
 
-## R7 — Constitution amendment requirement (resolves P0-T1)
+   - Mitigation: direct DWrite path for chrome text and multi-DPI visual checks.
 
-**Decision**: Amend `.specify/memory/constitution.md` to v1.5.0 **before**
-any third-party source lands in the repo. Replace the absolute
-"Windows SDK + STL only" clause with an explicit allowlist mechanism, and
-list RmlUi + the in-tree CRT shader ports as the first two approved entries.
-See `plan.md` § *Constitution Check* for the exact wording.
+2. Risk: NC/client routing regressions.
 
-**Rationale**:
-- The constitution is binding (§ Governance: "supersedes all ad-hoc
-  practices"). Silently violating it would set a corrosive precedent and
-  invalidate the gate-check in this very plan.
-- The amendment is narrow: it does not invite arbitrary dependencies; it
-  imposes specific criteria (MIT/BSD/Apache/PD only, source-vendored,
-  buildable in-solution, explicitly listed).
+   - Mitigation: retain existing hit-test semantics and unit coverage.
 
-**Alternatives considered**:
-- Treat the existing clause as advisory — rejected; the constitution
-  itself rejects this.
-- Per-feature exception note instead of a constitution edit — rejected;
-  the constitution's own amendment process is the documented mechanism.
+3. Risk: nav command regressions.
 
----
+   - Mitigation: reuse existing command registry and parity tests.
 
-## R8 — Font choices (resolves P0-T6, pending user confirmation)
+## Exit criteria for research
 
-**Decision (default; user may substitute)**:
-- Skeuomorphic theme: **Inter** (SIL OFL 1.1) for UI text.
-- Dark Modern theme: **Inter** (SIL OFL 1.1) for UI text.
-- Retro Terminal theme: **VT323** (SIL OFL 1.1) for chrome text; falls
-  back to a system monospace.
+Research is complete when:
 
-**Rationale**: All three fonts are SIL OFL, redistributable, widely tested,
-and look right for their themed contexts. Files live under each theme's
-`assets/fonts/` directory and are loaded by RmlUi's font interface.
-
----
-
-## R9 — Cross-thread state for drive widgets
-
-**Decision**: Mirror the existing audio-system pattern. The CPU thread
-sets `atomic<bool> motorOn` and `atomic<bool> diskActive` on each
-`DriveWidgetState`; the UI thread reads these once per frame in
-`UiShell::Render` and toggles RCSS classes accordingly. No locks; no
-queues for the visual reflection (only for the disk-insert/eject commands,
-which already use the existing command queue).
-
-**Rationale**: Already proven in the audio path; lock-free; bounded latency
-of one frame which is well below human perception threshold.
-
----
-
-## R10 — Test isolation for RmlUi-dependent code
-
-**Decision**: Unit tests cover the **logic** layer only:
-- `UserConfigStore`, `GlobalUserPrefs` — full coverage via `IFileSystem` mock.
-- `ThemeLoader` — parses `theme.json` from in-memory strings; validates
-  schema; returns structured errors. RmlUi is not invoked in tests.
-- `SettingsPanelState` — pure value object; full coverage.
-- `MachineConfigUpgrade` — extended for the rename + capabilityFlag default.
-- Title-bar hit-test math — pure function tested with synthetic rects.
-- `RmlBackend_D3D11` — exercised only via a *smoke* test that constructs
-  the class with a mock device interface and verifies it doesn't allocate
-  on construction. No real GPU work in tests (per constitution §II).
-
-**Rationale**: Matches constitution §II (no real I/O, no real system APIs).
-RmlUi's own behavior is the responsibility of RmlUi's test suite, not ours.
+- Architecture clearly defines a single title/nav owner.
+- Render split (DWrite text, D3D geometry) is fixed.
+- Migration phases and rollback points are documented.
+- Acceptance metrics are measurable and tied to tests/visual checks.

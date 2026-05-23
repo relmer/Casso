@@ -1,312 +1,261 @@
----
-description: "Task list for 007-ui-overhaul — RmlUi-based chrome, themes, settings panel, CRT post-processing"
----
+# Tasks: 007 UI Overhaul (Native Reset)
 
-# Tasks: Full UI Overhaul (RmlUi + CSS Themes + Custom D3D Chrome)
+**Input**: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`  
+**Feature Dir**: `C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul`  
+**Reset Note**: This redo pass revalidates scope and resets completion state; all checkboxes are intentionally unchecked until re-verified in code/tests.
 
-**Input**: `specs/007-ui-overhaul/{spec.md,plan.md,research.md,data-model.md,contracts/,quickstart.md}`
-**Branch**: `007-ui-overhaul`
-**Constitution**: v1.5.0 (RmlUi, crt-pi, libretro bloom, libretro ntsc-adaptive whitelisted)
+## Phase 1: Setup (Shared Infrastructure)
 
-## Organization
+**Purpose**: Finalize reset bootstrap and explicitly retire remaining legacy dialog entry points.
 
-Tasks are organized by the **plan's phase letters (P0…P9)** rather than by user story, because the plan is sequenced as a hard phase pipeline (each gate must pass before the next begins) and most user stories share the same underlying infrastructure (RmlUi backend, theme system, UserConfigStore). The user-story mapping is recorded per task in the `[USx]` label so traceability to `spec.md` is preserved.
-
-User-story key (from `spec.md`):
-
-- **US1** — Change emulation speed without hunting through menus (P1)
-- **US2** — Enable/disable a hardware component for a machine (P1)
-- **US3** — Insert a disk using the custom drive widget (P1)
-- **US4** — Apply a different theme at runtime (P2)
-- **US5** — Interact with the custom title bar and navigation layer (P2)
-- **US6** — Per-machine JSON settings survive an upgrade (P3)
-
-## Format: `- [ ] <ID> [P?] [USx?] Description (files)`
-
-- `[P]` — parallelizable with siblings inside the same phase (no shared-file conflicts, no intra-phase order dep).
-- `[USx]` — user-story label where the task is the proximate deliverable for that story. Foundational/infra tasks have no `[USx]` label.
-- Every task lists the files it touches (new/modified/deleted) and its acceptance criterion.
+- [ ] T001 Retire remaining Win32 settings-dialog entry points for FR-027 in C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp
+- [ ] T002 Remove legacy startup machine-picker dialog path for FR-027 in C:\Users\relmer\repos\relmer\Casso\Casso\Main.cpp
+- [ ] T003 Update theme metadata contract details for family/variant + drive profile in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\contracts\theme-metadata.schema.json
+- [ ] T004 Update native ThemeManager contract for family/variant behavior in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\contracts\theme-manager.h
+- [ ] T005 Create runtime screenshot validation matrix checklist in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\quickstart.md
 
 ---
 
-## Phase P0 — Foundations (research + governance)
+## Phase 2: Foundational (Blocking Prerequisites)
 
-**Gate to exit**: research.md frozen, constitution v1.5.0 merged, RmlUi version pinned, shader source list locked.
+**Purpose**: Remove legacy Rml-era ownership/build paths and establish native-only baseline before story work.
 
-- [x] **P0-T1** ~~Constitution amendment v1.4.0 → v1.5.0 (whitelist RmlUi, crt-pi, libretro bloom, libretro ntsc-adaptive).~~ **DONE** prior to task generation — constitution v1.5.0 is in `.specify/memory/constitution.md`. No further action required; recorded here for phase-gate completeness.
-- [x] **P0-T2** Record pinned RmlUi upstream tag + commit SHA in `External/RmlUi/README.casso.md` (file does not yet exist — created in P1-T1; this task is just the *decision record* portion). Acceptance: latest upstream stable tag named, SHA captured, MIT `LICENSE.txt` confirmed present in chosen tag. Files: `specs/007-ui-overhaul/research.md` (R1 decision row), no source changes.
-- [x] **P0-T3** Finalize shader source attribution table in `specs/007-ui-overhaul/research.md` (R4): per shader (scanlines=crt-pi, bloom=libretro bloom, color-bleed=libretro ntsc-adaptive) record original author, upstream URL, exact upstream file path, SHA of port basis, license (must be MIT/PD). Acceptance: three rows present, all MIT. Files: `specs/007-ui-overhaul/research.md`.
-- [x] **P0-T4** Confirm "write our own D3D11 backend" decision (R2) is reflected in `contracts/rml-backend.h`. Acceptance: contract header matches the agreed RenderInterface surface; no upstream-backend fork referenced anywhere. Files: `specs/007-ui-overhaul/contracts/rml-backend.h` (verify only).
-- [x] **P0-T5** Confirm Win11 borderless recipe (R3) verified on both x64 and ARM64 in a throwaway probe, with runtime gating of Win11-only effects (Mica, rounded corners) so the app remains functional on Windows 10; record outcome in `research.md`. Acceptance: probe results table populated, no ARM64-specific deltas, `IsWindows11OrGreater()` fallback path exercised on Win10. Files: `specs/007-ui-overhaul/research.md`.
-- [x] **P0-T6** Confirm font decisions (R8): Inter (SIL OFL) for chrome/Skeuomorphic/Dark Modern; VT323 (SIL OFL) for Retro Terminal; both vendored under each theme's `fonts/` with `OFL.txt` alongside. Acceptance: research.md row R8 updated, font file sources captured. Files: `specs/007-ui-overhaul/research.md`.
+**⚠️ CRITICAL**: No user story work starts until this phase is complete.
 
-**Phase P0 dependencies**: P0-T2..P0-T6 are all `[P]` once P0-T1 is done. P0-T1 is already complete.
-**Constitution check gate**: v1.5.0 in place; Approved Dependencies table contains RmlUi, crt-pi, libretro bloom, libretro ntsc-adaptive; Principle V violation status reads "JUSTIFIED — covered by allowlist".
+- [ ] T006 Implement native-only UI ownership bootstrap and routing in C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp
+- [ ] T007 Remove Rml project wiring from solution in C:\Users\relmer\repos\relmer\Casso\Casso.sln
+- [ ] T008 Remove Rml includes/compile units/project references from app build in C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj
+- [ ] T009 Remove Rml includes/compile units/project references from tests build in C:\Users\relmer\repos\relmer\Casso\UnitTest\UnitTest.vcxproj
+- [ ] T010 Delete obsolete Rml runtime files in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlBackend_D3D11.cpp
+- [ ] T011 [P] Delete obsolete Rml runtime files in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlInputBridge.cpp
+- [ ] T012 [P] Delete obsolete Rml runtime files in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlSystemInterface.cpp
+- [ ] T013 [P] Delete obsolete Rml runtime files in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\UiShell.cpp
+- [ ] T014 [P] Delete obsolete Rml-era UI tests in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\RmlBackendSmokeTests.cpp
+- [ ] T015 Add UT isolation guards for registry/filesystem/environment access in C:\Users\relmer\repos\relmer\Casso\UnitTest\ModuleSetup.cpp
 
----
-
-## Phase P1 — Vendoring & schema (no UI yet)
-
-**Gate to exit**: solution builds on x64 Debug, x64 Release, **ARM64 Debug, ARM64 Release** (hard); all existing tests pass; schema rename + capabilityFlag default round-trip in unit tests.
-
-### Vendoring
-
-- [x] **P1-T1** Drop RmlUi source as a **plain copy** under `External/RmlUi/` (Source/, Include/, LICENSE.txt). No git subtree. Author `External/RmlUi/README.casso.md` capturing pinned tag + SHA from P0-T2. Acceptance: tree matches upstream tag byte-for-byte (excluding upstream tests/samples/demos which may be pruned); MIT `LICENSE.txt` present at `External/RmlUi/LICENSE.txt`; README.casso.md states the tag, SHA, vendoring date, and the `git ls-files` count of vendored files. Files: `External/RmlUi/**` (new), `External/RmlUi/README.casso.md` (new). **DONE** in commit `056f025` — RmlUi 6.2 vendored (492 files, ~82k LOC).
-- [x] **P1-T2** Create `External/RmlUi/RmlUi.vcxproj` as Static Library; configurations: Debug|x64, Release|x64, Debug|ARM64, Release|ARM64; toolset v145; `stdcpplatest`; WindowsTargetPlatformVersion matching Casso.vcxproj; UTF-8 source; treat warnings as errors **disabled inside this project only** (vendored code). Add to `Casso.sln`. Acceptance: all four configurations build clean; **ARM64 Release is the hard done-criterion**. Files: `External/RmlUi/RmlUi.vcxproj` (new), `External/RmlUi/RmlUi.vcxproj.filters` (new), `Casso.sln` (modified). Depends: P1-T1. **DONE** — vcxproj uses wildcard ClCompile globs against `Source/Core/**` (excluding `FontEngineDefault/`) and `Source/Debugger/**`; per-directory `ObjectFileName` disambiguates the `Geometry.cpp` collision between Core and Debugger; PCH disabled; W3 + a curated `DisableSpecificWarnings` list silences vendored noise without `WX-`. All four configs verified.
-- [x] **P1-T3** Add `Casso.vcxproj` → `External/RmlUi/RmlUi.vcxproj` project reference; add `$(SolutionDir)External/RmlUi/Include` to Casso AdditionalIncludeDirectories for all four configurations. Acceptance: Casso links against vendored RmlUi.lib on all four configs (verified with an `#include <RmlUi/Core.h>` smoke include in a single Casso .cpp). Files: `Casso/Casso.vcxproj` (modified), throwaway smoke include reverted before commit. Depends: P1-T2. **DONE** — include path added to all 6 Casso config blocks and to UnitTest (which also consumes `Casso/Pch.h`); ProjectReference added.
-- [x] **P1-T4 [P]** Route RmlUi includes through `Casso/Pch.h` per the angle-bracket include rule (add `<RmlUi/Core.h>` and any C-header bridges). Confirm full Casso project compiles with PCH enabled and no header bypass. Acceptance: no `#include <RmlUi/...>` appears outside `Pch.h` in any Casso .cpp/.h. Files: `Casso/Pch.h` (modified). Depends: P1-T3. **DONE** — `<RmlUi/Core.h>` and `<RmlUi/Debugger.h>` added to `Casso/Pch.h`; full x64 Debug build succeeds and tests pass.
-
-### Schema extension (CassoEmuCore)
-
-- [x] **P1-T5** [US2] Extend `MachineConfig` schema in `CassoEmuCore/Core/MachineConfig.{h,cpp}`: add `capabilityFlag` (`optional`|`required`|`platform-locked`) on internal device entries and slot entries; add optional `lockReason` string. Acceptance: round-trip serialization preserves both fields; JSON missing the field deserializes without error. Files: `CassoEmuCore/Core/MachineConfig.h`, `CassoEmuCore/Core/MachineConfig.cpp`. Depends: P1-T2 (project shape only — no RmlUi dep).
-- [x] **P1-T6** [US6] **Schema rename `$cassoDefault` → `$cassoMachineVersion`** in `MachineConfig` (read path accepts both; write path always emits the new name). Acceptance: an existing machine JSON that still uses `$cassoDefault` loads successfully, is migrated in-memory, and on next save serializes the new key — see P1-T8 for the round-trip test. **This is the one schema rename that touches every existing machine JSON in `Resources/Machines/`.** Files: `CassoEmuCore/Core/MachineConfig.cpp`. Depends: P1-T5.
-- [x] **P1-T7** [US6] Extend `MachineConfigUpgrade` with one new upgrade step: (a) rename `$cassoDefault` → `$cassoMachineVersion` (one-shot, idempotent), (b) default missing `capabilityFlag` on internal devices to `"required"`, on slot entries to `"optional"` per FR-015. Bump the schema version constant. Acceptance: upgrade is reversible-safe (running it twice is a no-op); upgrade emits a structured log line per migration. Files: `CassoEmuCore/Core/MachineConfigUpgrade.{h,cpp}`. Depends: P1-T6.
-- [x] **P1-T8** [US6] **Update every machine JSON under `Resources/Machines/`** to the new key name AND to set explicit `capabilityFlag` + `lockReason` where machine-locked. Specifically: Apple //c integrated 80-column card → `platform-locked` with `lockReason="Integrated on Apple //c motherboard"`; Apple //e slot 3 80-column card → keep `optional`; mouse/joystick slot entries → `optional`. Acceptance: every JSON in `Resources/Machines/` opens cleanly under the new loader with **no upgrade-step invocation needed** (i.e., they're already at the new schema). The upgrade path remains in place purely for legacy `_user.json` files. Files: every file under `Resources/Machines/**/*.json` (modified). Depends: P1-T7. **NOTE:** Apple //c machine JSON does not yet exist in this repo, so the platform-locked example is exercised only via the `Load_CapabilityFlag_ExplicitPlatformLocked_Preserved` unit test rather than in shipped data.
-- [x] **P1-T9** [P] [US6] Test cases in `UnitTest/EmuTests/MachineConfigUpgradeTests.cpp`:
-  - Loading a legacy JSON with `$cassoDefault` produces a config whose serialized form uses `$cassoMachineVersion` and preserves all other fields.
-  - **Default inversion (explicit)**: loading a JSON with no `capabilityFlag` on internal devices fills `"required"`; the SAME JSON with no `capabilityFlag` on slot entries fills `"optional"`. The asymmetry MUST be asserted in both directions in one TEST_METHOD to guard against an accidental swap.
-  - Running the upgrade step twice in a row is a no-op on the second run.
-  - A JSON already at the new schema is not modified by the upgrade.
-  - **No disk I/O**: all inputs are in-memory JSON strings; FS abstraction (introduced in P2-T1) is **not** required for these tests because `MachineConfigUpgrade` operates on parsed JSON, not files.
-  Acceptance: ≥4 new TEST_METHODs pass on all four configurations, including the explicit default-inversion case. Files: `UnitTest/EmuTests/MachineConfigUpgradeTests.cpp` (modified). Depends: P1-T7 (impl); independent of P1-T8.
-
-**Phase P1 dependency graph**: P1-T1 → P1-T2 → P1-T3 → P1-T4. P1-T5 → P1-T6 → P1-T7 → P1-T8. P1-T9 runs after P1-T7 in parallel with P1-T8.
-**Constitution check gate**: Principle II (no I/O in unit tests) satisfied — P1-T9 is pure JSON-string-in/JSON-string-out. EHM, single-exit, top-of-scope-vars rules apply to all new code in P1-T5..P1-T7 (review checklist in PR).
+**Checkpoint**: Native-only ownership/build baseline is in place and legacy runtime/build paths are removed.
 
 ---
 
-## Phase P2 — User-config infrastructure
+## Phase 3: User Story 1 - Change emulation speed from unified settings (Priority: P1) 🎯 MVP
 
-**Gate to exit**: per-machine `_user.json` round-trips through merge; `GlobalUserPrefs.json` round-trips; both go through an injectable `IFileSystem`; registry-migration one-shot path proven; ≥90% line coverage on the two new modules.
+**Goal**: Machine selector drives immediate settings-state swap and per-machine speed persistence in one panel.
 
-### Foundational
+**Independent Test**: Open settings with 2+ machines, switch machines, verify controls update within one frame and speed changes stay machine-specific.
 
-- [x] **P2-T1** Define `IFileSystem` abstraction in `Casso/Config/IFileSystem.h`: ReadAllText, WriteAllText (atomic via temp+rename), Exists, Delete, EnumerateFiles. Provide `Win32FileSystem` impl in `Casso/Config/Win32FileSystem.{h,cpp}`. Acceptance: header has only PIO operations on `std::wstring` paths; no Win32 types in the interface. Files: `Casso/Config/IFileSystem.h` (new), `Casso/Config/Win32FileSystem.{h,cpp}` (new). Depends: P1-T4.
+- [ ] T016 [P] [US1] Add machine-switch + speed persistence unit coverage in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\SettingsPanelStateTests.cpp
+- [ ] T017 [P] [US1] Add user-config speed shadow/fallthrough coverage in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\UserConfigStoreTests.cpp
+- [ ] T018 [US1] Implement machine-selector state swap logic in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanelState.cpp
+- [ ] T019 [US1] Implement settings UI refresh-on-machine-change wiring in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanel.cpp
+- [ ] T020 [US1] Implement per-machine speed apply/commit path in C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp
+- [ ] T021 [US1] Integrate speed apply path with runtime shell command dispatch in C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp
+- [ ] T022 [US1] Verify machine/scoped speed requirements and test notes in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\quickstart.md
 
-- [x] **P2-T1b** [NEW — inserted per resume brief] `CassoEmuCore/Core/JsonWriter.{h,cpp}`: `std::string Write (const JsonValue &)` with proper RFC 8259 escaping, optional pretty-printing, and integer-vs-double formatting. Acceptance: `JsonWriterTests.cpp` covers round-trip parse→write→parse, all escape sequences, empty/nested arrays + objects, NaN rejection (≥17 TEST_METHODs). **DONE** — 20 TEST_METHODs pass.
-
-### UserConfigStore (per-machine `_user.json` shadow)
-
-- [x] **P2-T2** [US1] [US2] [US6] [US3] `UserConfigStore` in `Casso/Config/UserConfigStore.{h,cpp}`. **DONE** — operates at the `JsonValue` layer (caller parses default JSON, store returns a merged JsonValue; caller re-runs `MachineConfigLoader` to get a typed `MachineConfig`). Merge: deep-merge for objects, wholesale-replace for arrays. SaveDelta produces a diff-only JsonValue (always preserves `$cassoMachineVersion`). Reset is `IFileSystem::Delete`, idempotent. Migration: when user-file `$cassoMachineVersion` is missing or lower than default's, `MachineConfigUpgrade::MigrateUserConfig` runs and the upgraded text is written back. `UserFilePath (machineName)` resolves `<userDir>/<machineName>_user.json`. Files: `Casso/Config/UserConfigStore.{h,cpp}` (new). Depends: P2-T1, P1-T7.
-
-### GlobalUserPrefs (one file at asset base dir)
-
-- [x] **P2-T3** [US4] `GlobalUserPrefs` in `Casso/Config/GlobalUserPrefs.{h,cpp}`. **DONE** — struct with version + activeTheme + lastSelectedMachine + crt (brightness, scanlines, bloom, colorBleed) + window (lastBounds optional, fullscreen) + `unknownPassthrough` vector so newer fields written by future Casso builds round-trip back to disk untouched. `Load` returns `S_FALSE` on missing-file (caller treats as first run, struct keeps defaults). `Save` pretty-prints. Files: `Casso/Config/GlobalUserPrefs.{h,cpp}` (new). Depends: P2-T1.
-
-### AssetBootstrap extensions
-
-- [ ] **P2-T4** [US4] Extend `Casso/AssetBootstrap.{h,cpp}`:
-  - `EnsureThemes()` — mirrors `EnsureMachineConfigs()`. Extracts embedded built-in themes (Skeuomorphic, Dark Modern, Retro Terminal) from Casso resources into `Themes/<name>/`. **Preserves** any user-authored themes already on disk (FR-030, FR-037) — never overwrites a directory whose `theme.json` does not contain the built-in marker.
-  - `EnsureGlobalUserPrefs()` — writes a default `GlobalUserPrefs.json` to the asset base dir if absent.
-  Acceptance: re-running bootstrap after a user theme is dropped in does NOT modify the user theme; built-in themes are restored if deleted. Files: `Casso/AssetBootstrap.{h,cpp}` (modified). Depends: P2-T3. **[DEFERRED — `EnsureThemes()` is gated on the actual built-in theme resources landing in P5-T3..T6. `EnsureGlobalUserPrefs()` is a one-call wrapper around `GlobalUserPrefs::Save (...)` that's trivially added when `AssetBootstrap` is wired into shell init in P3-T5.]**
-
-### Registry migration shim
-
-- [ ] **P2-T5** [US6] `Casso/RegistrySettings.{h,cpp}` — one-shot migration mode. **[DEFERRED — depends on enumerating every legacy registry key currently read/written by Casso, which is a separate audit task. Will land alongside P9-T2 ("remove menu bar reg") so the migration + retirement happen as one coherent change.]**
-
-### Tests (no disk I/O — `IFileSystem` mock)
-
-- [x] **P2-T6** [P] Test fixture `InMemoryFileSystem` in `UnitTest/UiTests/InMemoryFileSystem.h`. **DONE** — header-only, case-insensitive path normalization, mutex-serialized for thread-safety claim. `FileCount()` / `PeekContent()` / `Clear()` exposed for tests.
-- [x] **P2-T7** [P] `UnitTest/UiTests/UserConfigStoreTests.cpp` — **DONE**, 15 TEST_METHODs covering merge pure-logic (empty user, scalar override, deep merge, array replace, user-only-key preserved), diff pure-logic (no-op produces version-only, single-key diff, deep-object diff), and full IO round-trips (load with no user file, load with partial user file, SaveDelta writes only differences, SaveDelta no-op writes version stamp, Reset deletes, Reset idempotent, legacy `$cassoDefault` migration writes back). Files: `UnitTest/UiTests/UserConfigStoreTests.cpp` (new). Depends: P2-T2, P2-T6.
-- [x] **P2-T8** [P] `UnitTest/UiTests/GlobalUserPrefsTests.cpp` — **DONE**, 6 TEST_METHODs: default construction, missing-file returns S_FALSE, full round-trip preserves every field, partial file tolerates missing fields, unknown top-level key round-trips, non-object JSON fails.
-- [ ] **P2-T9** [P] `UnitTest/UiTests/RegistryMigrationTests.cpp` — **[DEFERRED with P2-T5.]**
-
-**Phase P2 dependency graph**: P2-T1 → {P2-T2, P2-T3} → {P2-T4, P2-T5}. Tests P2-T6 → {P2-T7, P2-T8, P2-T9} parallelizable.
-**Constitution check gate**: All new tests inject `IFileSystem` — no real disk I/O. EHM around all `IFileSystem` calls in production code.
+**Checkpoint**: US1 is independently functional and testable.
 
 ---
 
-## Phase P3 — RmlUi D3D11 backend + shell boot
+## Phase 4: User Story 2 - Enable/disable hardware components per machine (Priority: P1)
 
-**Gate to exit**: empty RmlUi Context boots inside the existing window, presents a transparent overlay on top of the emulator viewport, dismisses cleanly on exit, survives device-lost. **Legacy Win32 chrome (menus, OptionsDialog, MachinePickerDialog) remains live in parallel-mode** — this phase only proves composition.
+**Goal**: Hardware tree capability flags and enable-state behavior are machine-scoped and reset-safe.
 
-- [x] **P3-T1** `Casso/Ui/RmlBackend_D3D11.{h,cpp}` — **DONE**. Implements `Rml::RenderInterface` against the 6.x API (`CompileGeometry(Span<Vertex>,Span<int>)` → handle, `RenderGeometry(handle, translation, texture)`, `ReleaseGeometry`, `LoadTexture` via WIC, `GenerateTexture` from premultiplied RGBA bytes, `ReleaseTexture`, `EnableScissorRegion` + `SetScissorRegion(Rectanglei)`, `SetTransform`). Uses **shared** `ID3D11Device`/`ID3D11DeviceContext` from `D3DRenderer` (no second device). Two HLSL programs (`Shaders/Ui/rml_textured.hlsl`, `rml_untextured.hlsl`) compiled at runtime via `D3DCompile`; premultiplied-alpha blend, scissor-enabled rasterizer, depth disabled, cull none. Files: `Casso/Ui/RmlBackend_D3D11.{h,cpp}` (new), `Casso/Shaders/Ui/rml_textured.hlsl` (new), `Casso/Shaders/Ui/rml_untextured.hlsl` (new). Depends: P1-T4.
-- [x] **P3-T2 [P]** `Casso/Ui/RmlSystemInterface.{h,cpp}` — **DONE**. `GetElapsedTime` via QPC, `LogMessage` → `OutputDebugStringA`, clipboard via Win32 CF_UNICODETEXT, `SetMouseCursor` maps RmlUi cursor names to IDC_* stock cursors, `Activate/DeactivateKeyboard` no-ops, `TranslateString` is identity.
-- [x] **P3-T2b** `Casso/Ui/RmlFontEngine_DWrite.{h,cpp}` — **DONE**. Custom `Rml::FontEngineInterface` backed by `IDWriteFactory3`. File + memory `LoadFontFace` paths (memory uses a custom `IDWriteFontFileLoader`). Per (face × pixel-size) "slot" owns a 1024x1024 RGBA8 software atlas + per-glyph cache; glyphs are lazily rasterised via `IDWriteGlyphRunAnalysis::CreateAlphaTexture(DWRITE_TEXTURE_ALIASED_1x1)` and the alpha channel is replicated into premultiplied-white texels so the textured shader's source-over blend matches against any background. `GenerateString` emits one `TexturedMesh` per slot using a `CallbackTextureSource` that uploads the latest atlas bytes on demand; `GetVersion` is bumped on every new glyph rasterisation so RmlUi re-queries when the atlas grows. Registered via `Rml::SetFontEngineInterface(...)` before `Rml::Initialise()`. Scope-bounded for v1: no font effects, no ClearType subpixel, no atlas page chaining, no fallback-chain glyph search — each can be lifted later without touching the interface boundary.
-- [x] **P3-T3 [P]** `Casso/Ui/RmlInputBridge.{h,cpp}` — **DONE** as pure-logic static helpers (intentionally NOT taking an `Rml::Context*`; callers dispatch the translated event themselves so the module is unit-testable without a live context). Covers: VK_* → KeyIdentifier (letters, digits, arrows, F1-F12, modifiers, Return/Esc/Tab/Backspace/Insert/Delete/Home/End/PgUp/PgDn/Space), modifier bitmask synthesis (Ctrl/Shift/Alt/Caps/Num/Scroll), mouse-button index for L/R/M/X1/X2, mouse-up/down classifiers, wheel-delta normalization, UTF-16 surrogate coalescer. Static asserts in the .cpp pin the bridge to RmlUi 6.2's KM_* values. Files: `Casso/Ui/RmlInputBridge.{h,cpp}` (new). Depends: P1-T4.
-- [x] **P3-T4** `Casso/Ui/UiShell.{h,cpp}` — **DONE**. Owns the three interfaces (system, render, font engine), calls `Rml::SetSystemInterface` / `SetRenderInterface` / `SetFontEngineInterface`, then `Rml::Initialise()`, then `Rml::CreateContext("casso-main", clientRect)`. `OnResize` forwards to backend + context. `Render` calls `BeginFrame → Context::Update → Context::Render → EndFrame`. `Shutdown` removes context, calls `Rml::Shutdown`, releases backend resources.
-- [x] **P3-T5** Wire `UiShell` into `Casso/EmulatorShell.{h,cpp}` lifecycle. **DONE**. `m_uiShell` + `m_uiFs` members; `Initialize` brings the shell up after `D3DRenderer::Initialize` and installs `m_uiShell.Render()` into D3DRenderer's after-blit hook; teardown clears the hook and calls `m_uiShell.Shutdown()` before `m_d3dRenderer.Shutdown()`. Parallel-mode: existing Win32 menus / dialogs untouched. `OnSize` also calls `m_uiShell.OnResize` so the context tracks the live client rect. Init failure logs + continues (RmlUi-driven chrome is non-essential for emulation itself).
-- [x] **P3-T6** `Casso/D3DRenderer.{h,cpp}` — **DONE**. Added `GetDevice()` / `GetContext()` accessors and `SetAfterBlitHook(std::function<void()>)`. `UploadAndPresent` invokes the hook between the emulator-blit `DrawIndexed` and `swapChain->Present` so RmlUi composites over the framebuffer every frame. Hook is null-default (safe in unit tests).
-- [x] **P3-T7 [P]** `UnitTest/UiTests/RmlBackendSmokeTests.cpp` — **DONE**, 5 TEST_METHODs: (1) `Initialize` re-uses caller's WARP device, (2) `EnableScissorRegion`+`SetScissorRegion` produce the expected `RSSetScissorRects` arguments (verified via diagnostic accessors on the backend), (3) `LoadTexture` against a hand-coded 1x1 PNG returns a non-zero handle with correct dimensions, (4) `LoadTexture` against random bytes returns 0 (graceful, no assert), (5) `GenerateTexture` round-trips a 2x2 premultiplied-white block. All complete in <100ms. Requires a WARP D3D11 device; tests no-op when WARP is unavailable.
-- [x] **P3-T8 [P]** `UnitTest/UiTests/RmlInputBridgeTests.cpp` — **DONE**, 22 TEST_METHODs covering every WM_ and modifier in the table, plus wheel normalization and surrogate-pair coalescing.
+**Independent Test**: Disable Disk II controller via settings tree, apply+reset to verify removal; re-enable and verify restoration.
 
-**Phase P3 dependency graph**: P3-T1, P3-T2, P3-T3 parallel after P1-T4. P3-T4 needs all three. P3-T5 needs P3-T4. P3-T6 needs only P3-T1 interface. Tests P3-T7, P3-T8 parallel after their impl.
-**Constitution check gate**: No real I/O / no real GPU in tests (Principle II). Backend wraps RmlUi calls in EHM helpers (Principle I — already documented in plan).
+- [ ] T023 [P] [US2] Add hardware capability flag extraction tests in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\HardwareTreeTests.cpp
+- [ ] T024 [P] [US2] Add hardware enable/disable persistence tests in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\UserConfigStoreTests.cpp
+- [ ] T025 [US2] Implement capability-flag mapping and lock-reason handling in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanelState.cpp
+- [ ] T026 [US2] Implement hardware tree checkbox interactivity + tooltip behavior in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanel.cpp
+- [ ] T027 [US2] Implement component enable-state delta persistence in C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp
+- [ ] T028 [US2] Integrate component-apply reset prompt + command dispatch in C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp
+- [ ] T029 [US2] Align machine user config contract notes for component toggles in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\contracts\machine-user-config.schema.json
 
----
-
-## Phase P4 — Borderless Win11 chrome + title bar + nav layer
-
-**Gate to exit**: window is borderless on Win11; title-bar drag/min/max/close/double-click-fullscreen all work; Aero Snap + Snap Layouts still appear on hover over maximize button.
-
-- [x] **P4-T1** [US5] Strip `WS_OVERLAPPEDWINDOW` chrome from main-window registration in `Casso/Main.cpp`; switch to the recipe finalized in P0-T5 (typically `WS_POPUP | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX`). Acceptance: window appears borderless on Win11; still resizable from edges. Files: `Casso/Main.cpp` (modified). Depends: P3-T5, P0-T5. **DONE** — window registration lives in `Casso/EmulatorShell.cpp::CreateEmulatorWindow`, not `Main.cpp`; switched to `WS_POPUP | WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU` (keeps WS_CAPTION so DWM grants shadow + snap animations); sizing math switched to `AdjustWindowRectExForDpi`.
-- [x] **P4-T2** [US5] WM_NCCALCSIZE custom client-area extension + WM_NCHITTEST returning `HTCAPTION` over the title-bar element rect from RmlUi, `HTCLIENT` elsewhere, `HTLEFT/HTRIGHT/HTTOP/HTBOTTOM/HTTOPLEFT/...` for resize edges (8px hit zone), and `HTMINBUTTON/HTMAXBUTTON/HTCLOSE` over their respective RML element bounds so OS-level Snap Layouts surface on hover. Implemented in `Casso/Ui/TitleBarController.{h,cpp}` with a `WM_NCHITTEST` helper queried from the main WndProc. Acceptance: Snap Layouts flyout appears on hover over the RML maximize button on Win11. Files: `Casso/Ui/TitleBarController.{h,cpp}` (new — surface only; logic continues in P4-T4), `Casso/Main.cpp` (modified WndProc). Depends: P4-T1. **DONE** — `Window` base gained three virtuals (`OnNcCalcSize`/`OnNcHitTest`/`OnNcLButtonUp`) and routes them in `s_WndProc`; `EmulatorShell` overrides delegate WM_NCHITTEST to the already-unit-tested `TitleBarHitTest::Test` using rects from `TitleBar::GetButtonRect`. WM_NCCALCSIZE returns 0 with rgrc[0] untouched to collapse the NC area.
-- [x] **P4-T3** [US5] `DwmExtendFrameIntoClientArea` + `SetWindowAttribute(DWMWA_WINDOW_CORNER_PREFERENCE = DWMWCP_ROUND)` + optional `DWMWA_SYSTEMBACKDROP_TYPE = DWMSBT_MAINWINDOW` (Mica) on the non-emulated chrome region. Mica is gated by `useMicaBackdrop` in the **active theme**'s `theme.json` (Open Question 6: default false; Dark Modern sets true). Acceptance: corners are rounded on Win11; Mica visible only when the active theme opts in. Files: `Casso/Main.cpp` (modified), `Casso/Ui/TitleBarController.cpp` (modified — applies Mica on theme change). Depends: P4-T2, P5-T2 (theme activation hook). **PARTIAL (P5-T2 cross-dep)** — `Casso/Ui/Win11DwmHelpers.{h,cpp}` lands the runtime-gated helpers (`IsWindows11OrGreater` via NTDLL!RtlGetVersion, `ApplyRoundedCorners`, `ApplyMicaBackdrop`, `ApplyImmersiveDarkMode`, `ExtendFrameIntoClientArea`). `EmulatorShell::CreateEmulatorWindow` now calls `ExtendFrameIntoClientArea`, `ApplyRoundedCorners(true)`, `ApplyImmersiveDarkMode(true)` unconditionally. **Mica is intentionally not invoked here** — it's deferred to the P5-T2 theme-activation hook per the original task wording.
-- [x] **P4-T4** [US5] `TitleBarController` logic: drives the RML title-bar document, exposes the drag region, dispatches min/max/close, handles double-click on caption to toggle fullscreen via existing `D3DRenderer::ToggleFullscreen`. Acceptance: each of {min, max, restore, close, double-click-fullscreen, drag} works identically to native chrome (manual smoke checklist captured in `specs/007-ui-overhaul/quickstart.md`). Files: `Casso/Ui/TitleBarController.{h,cpp}` (modified). Depends: P4-T2. **DONE** — `Casso/Ui/TitleBar.{h,cpp}` holds the inline RML+RCSS string-literal markup, plus a pure-logic `TitleBarLayout::Compute` that drives the button-rect cache (DPI-aware via `GetSystemMetricsForDpi`). `EmulatorShell::OnNcLButtonUp` dispatches HTCLOSE→`WM_CLOSE`, HTMINBUTTON→`SW_MINIMIZE`, HTMAXBUTTON→toggle SW_MAXIMIZE/SW_RESTORE. Double-click-to-maximize on HTCAPTION is given for free by DefWindowProc.
-- [x] **P4-T5** [US5] `Casso/Ui/NavLayerController.{h,cpp}` — top-level RML document with one panel per legacy menu (File, Machine, View, Disk, Edit, Help). Each menu-item element dispatches to the **same** command IDs the old menus used (FR-026, SC-006). Acceptance: every command ID present in the legacy menu resource is reachable via the new nav layer; FR-026/SC-006 traceability table appended to quickstart.md. Files: `Casso/Ui/NavLayerController.{h,cpp}` (new), `Resources/Themes/_shared/nav_layer.rml` (new — overridable per theme). Depends: P4-T4. **DONE** — `Casso/Ui/NavLayer.{h,cpp}` lands the parity table (`kEntries`) as the source of truth, exposed via `NavLayer::GetCommandEntries()` + serializable to markdown via `NavLayer::EmitParityMarkdown()`. Generated table lives at `specs/007-ui-overhaul/menu-command-parity.md`. Routing is via an injected `DispatchFn` callback; `EmulatorShell::HandleCommand(WORD)` is the public dispatch entrypoint and just forwards to `OnCommand`. Win32 menu bar stays live — P9-T2 retires it.
-- [x] **P4-T6 [P]** Tests in `UnitTest/UiTests/TitleBarHitTestTests.cpp` — **DONE**, 16 TEST_METHODs against pure-logic `Casso/Ui/TitleBarHitTest.{h,cpp}` covering: center-caption, center-client, all four edges, all four corners, all three system buttons, button-beats-caption-when-overlapping, resize-edge-beats-button-on-corner, and collapsed-title-bar fall-through. The helper takes a plain `TitleBarHitTestInput` struct (no HWND) so the test suite never touches Win32. Note: this lands the **logic** for P4-T2/T4 ahead of the borderless-window wiring itself; the actual WndProc plumbing is deferred with the rest of P4.
-- [x] **P4-T7** Tests in `UnitTest/UiTests/TitleBarLayoutTests.cpp` (10 TEST_METHODs against `TitleBarLayout::Compute` — full-width title-bar rect, right-to-left button stacking, drag-region excludes the button strip, width-tracking sweep, collapse on narrow windows, zero-dimension safety, custom button width, vertical extent, DefaultTitleHeight non-zero, DefaultButtonWidth DPI scaling) and `UnitTest/UiTests/NavLayerTraceabilityTests.cpp` (5 TEST_METHODs — every known `IDM_*` mapped, no dup IDs, non-empty labels/known menu, dispatch no-op when no callback, markdown emission includes every command). Together they enforce the FR-026 / SC-006 parity invariant from the C++ side so a new menu item without a NavLayer entry fails CI. Files: `UnitTest/UiTests/TitleBarLayoutTests.cpp` (new), `UnitTest/UiTests/NavLayerTraceabilityTests.cpp` (new). Depends: P4-T4, P4-T5.
-
-**Phase P4 dependency graph**: P4-T1 → P4-T2 → P4-T4 → P4-T5. P4-T3 needs P4-T2 + P5-T2 (cross-phase). P4-T6 parallel after P4-T2.
-**Constitution check gate**: Hit-test pure logic is unit-tested with no Win32 dependencies (Principle II). Snap Layouts behavior recorded as a manual quickstart step (no automated test possible).
+**Checkpoint**: US2 is independently functional and testable.
 
 ---
 
-## Phase P5 — Themes (ThemeManager + 3 built-ins)
+## Phase 5: User Story 3 - Insert/eject disk with realistic drive widgets (Priority: P1)
 
-**Gate to exit**: hot-swap across all three built-ins lands within one rendered frame (≤16ms, SC-002); malformed themes are rejected with structured error (FR-036); user-authored themes discovered without restart (FR-035).
+**Goal**: Drive widgets read as Disk ][ hardware and keep door animation + sound synchronized.
 
-- [x] **P5-T1** [US4] `Casso/Ui/ThemeLoader.{h,cpp}` — parses `theme.json`, validates `$cassoThemeVersion`, validates `useMicaBackdrop` (bool, default false), resolves asset paths relative to the theme directory, returns a `LoadedTheme` struct **or** a structured `ThemeLoadError` (no exceptions across module boundary). Acceptance: matches `contracts/theme-manager.h` and `contracts/theme-metadata.schema.json`; malformed `theme.json` produces an error with file path + line/column. Files: `Casso/Ui/ThemeLoader.{h,cpp}` (new). Depends: P2-T1.
-- [x] **P5-T2** [US4] `Casso/Ui/ThemeManager.{h,cpp}` — `Discover()` scans `Themes/` for candidate dirs (each containing `theme.json`); `Activate(name)` unloads current Rml documents + stylesheets, clears Rml style-sheet cache, loads new `.rml`+`.rcss`, applies theme's CRT defaults if the user has not overridden them in `GlobalUserPrefs`, raises `OnThemeChanged(LoadedTheme&)` event. `ReloadCurrent()` for dev hot-iteration. Acceptance: hot-swap timing measured ≤16ms in `quickstart.md` dev loop. Files: `Casso/Ui/ThemeManager.{h,cpp}` (new). Depends: P5-T1, P3-T4, P2-T3. **PARTIAL** — CRT-defaults auto-apply (FR-034) deferred until `GlobalUserPrefs` is wired into the live shell in P7; the manager raises `OnThemeChanged` so the P7 settings panel can read `theme.crtDefaults` directly. Hot-swap timing verified manually in P9.
+**Independent Test**: Drag valid image to each drive and verify door-close, present LED, label, spin while active, and door-open on eject with synced audio.
 
-### Built-in themes (parallel — three independent directories)
+- [ ] T030 [P] [US3] Add drive state-transition tests for insert/eject/open/close in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\DriveWidgetStateTests.cpp
+- [ ] T031 [P] [US3] Add timing-bound sync tests for drive animation/audio events in C:\Users\relmer\repos\relmer\Casso\UnitTest\Audio\DiskIIAudioSourceEventSinkTests.cpp
+- [ ] T032 [US3] Implement Disk ][ geometry/state visual model in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetElement.cpp
+- [ ] T033 [US3] Implement door-open/door-close animation state machine in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetState.h
+- [ ] T034 [US3] Implement insert/eject action orchestration + optimistic UI updates in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetController.cpp
+- [ ] T035 [US3] Implement shared drive sync-event publish/consume path in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetController.h
+- [ ] T036 [US3] Integrate drive-door sync timeline with floppy audio playback in C:\Users\relmer\repos\relmer\Casso\Casso\WasapiAudio.cpp
+- [ ] T037 [US3] Add visual acceptance checklist for Disk ][ fidelity + sync in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\quickstart.md
 
-- [x] **P5-T3 [P]** [US4] Author **Skeuomorphic** theme — `Resources/Themes/Skeuomorphic/{theme.json, *.rml, *.rcss, assets/, fonts/Inter*, fonts/OFL.txt}`. Palette: beige/cream/anodized. CRT defaults: scanlines off, mild bloom. `useMicaBackdrop: false`. Acceptance: theme loads cleanly; all chrome elements styled. Files: `Resources/Themes/Skeuomorphic/**` (new). Depends: P5-T1, P4-T5 (RML element set frozen). **NOTE** — `fonts/Inter-Regular.ttf` is a 1-byte placeholder; drop in the real Inter-Regular.ttf from https://github.com/rsms/inter/releases per `fonts/TODO_FONTS.md`. ThemeManager falls back to Segoe UI when the embedded TTF can't be parsed.
-- [x] **P5-T4 [P]** [US4] Author **Dark Modern** theme — `Resources/Themes/DarkModern/{...}`. Dark palette + glowing LED accents. CRT defaults: subtle scanlines, neon bloom. `useMicaBackdrop: true` (only built-in that opts in). Inter font. Acceptance: Mica backdrop active when theme is selected on Win11. Files: `Resources/Themes/DarkModern/**` (new). Depends: P5-T1, P4-T5. **NOTE** — same Inter font placeholder caveat as P5-T3.
-- [x] **P5-T5 [P]** [US4] Author **Retro Terminal** theme — `Resources/Themes/RetroTerminal/{...}`. Phosphor green/amber. CRT defaults: scanlines ON high-intensity, color bleed ON. `useMicaBackdrop: false`. VT323 font (`fonts/VT323*`, `fonts/OFL.txt`). Acceptance: chrome unmistakably "phosphor"; FR-040 acceptance demo passes. Files: `Resources/Themes/RetroTerminal/**` (new). Depends: P5-T1, P4-T5. **NOTE** — `fonts/VT323-Regular.ttf` is a 1-byte placeholder; drop in the real VT323-Regular.ttf from Google Fonts per `fonts/TODO_FONTS.md`. ThemeManager falls back to Consolas when the embedded TTF can't be parsed.
-- [x] **P5-T6** [US4] Embed all three built-in themes into the Casso resource script (`Casso/Casso.rc`); verify `EnsureThemes()` (P2-T4) extracts them on first launch. Acceptance: deleting `Themes/Skeuomorphic` and re-launching restores it; user-authored `Themes/MyCustom/` is preserved. Files: `Casso/Casso.rc` (modified), `Casso/Resource.h` (modified). Depends: P5-T3, P5-T4, P5-T5, P2-T4. **EnsureThemes** wired into `Main.cpp` next to `EnsureMachineConfigs`. Built-in vs user discrimination is delegated to pure planner `ThemeBootstrapPlanner::Plan` (test-exercised) keyed on `$cassoBuiltIn:true`.
-
-### Tests
-
-- [x] **P5-T7 [P]** [US4] `UnitTest/UiTests/ThemeLoaderTests.cpp` — happy path, missing `$cassoThemeVersion`, future-version (rejected), malformed JSON (structured error returned, not thrown), `useMicaBackdrop` default-false on omitted, missing asset path (structured error). Acceptance: ≥6 TEST_METHODs using `InMemoryFileSystem`. Files: `UnitTest/UiTests/ThemeLoaderTests.cpp` (new). Depends: P5-T1, P2-T6. Delivered with **8 TEST_METHODs** plus a sibling `ThemeManagerTests.cpp` (**9 TEST_METHODs**) covering Discover/Activate/observer + the four `ThemeBootstrapPlanner` decision branches.
-
-**Phase P5 dependency graph**: P5-T1 → P5-T2. {P5-T3, P5-T4, P5-T5} parallel after P5-T1+P4-T5. P5-T6 after all three. P5-T7 parallel after P5-T1.
-**Constitution check gate**: Theme JSON parsing is `IFileSystem`-injected; tests use `InMemoryFileSystem`. License files (`OFL.txt`) shipped beside fonts — verified by `scripts/CheckShaderLicenses.ps1` extension (see P8-T7) or a sibling theme-license check (out of scope unless added).
+**Checkpoint**: US3 is independently functional and testable.
 
 ---
 
-## Phase P6 — Custom RmlUi elements (drive widgets + LEDs)
+## Phase 6: User Story 4 - Apply themes at runtime with Apple variant coverage (Priority: P2)
 
-**Gate to exit**: drag-drop AND click-to-browse mount disks via existing `EmulatorShell` command path; spinning + door animations driven by existing motor/disk-active signals; LEDs reflect three states (idle/present/active).
+**Goal**: Theme hot-swap remains immediate while shipping Apple II/II+/IIe//c variants and future family extensibility.
 
-- [x] **P6-T1** [US3] Record per-element decision in `research.md` R5: RCSS-only for LEDs; custom `Rml::Element` subclass for drive widgets (required because drag-drop + element-owned animation state machine). Acceptance: research.md row updated. Files: `specs/007-ui-overhaul/research.md`.
-- [x] **P6-T2 [P]** [US3] `Casso/Ui/LedElement.{h,cpp}` — RCSS-only — three CSS classes (`.led--idle`, `.led--present`, `.led--active`) toggled from C++ on the parent drive widget. Glow via `box-shadow` / radial gradient in RCSS in each theme. Acceptance: state transitions visible in all three built-in themes. Files: `Casso/Ui/LedElement.{h,cpp}` (new — thin wrapper; mostly C++ class-toggle helpers). Depends: P3-T4.
-- [x] **P6-T3** [US3] `Casso/Ui/DriveWidgetElement.{h,cpp}` — custom `Rml::Element` subclass:
-  - Click-to-browse opens `IFileDialog` filtered to `.dsk`, `.nib`, `.woz`, `.po` (FR-022b).
-  - Eject affordance: child element with own hit region; dispatches `EmulatorShell` eject command.
-  - Spinning animation: RCSS `@keyframes` toggled by `is-spinning` class, driven from the existing CPU-thread motor-on signal observed by the UI thread via `std::atomic<bool>` (matches the existing audio-system read pattern — do NOT introduce a new sync primitive).
-  - Door open/close animation: RCSS transition triggered on insert/eject class change.
-  Acceptance: all four file extensions filterable; spinning matches audible drive sound. Files: `Casso/Ui/DriveWidgetElement.{h,cpp}` (new). Depends: P3-T4.
-- [x] **P6-T4** [US3] **Single main-window `RegisterDragDrop`** (Open Question 10 decision). `IDropTarget` impl lives in `Casso/Ui/RmlInputBridge.{h,cpp}` (extension): on `Drop`, hit-test the drop point via `Rml::Context::GetHoverElement`; route the file path to the `DriveWidgetElement` under cursor, or reject the drop if none. Acceptance: dragging a `.woz` over drive 1 mounts it; dragging onto empty chrome shows the no-drop cursor and does nothing. Files: `Casso/Ui/RmlInputBridge.{h,cpp}` (modified), `Casso/Main.cpp` (modified — single `RegisterDragDrop` call). Depends: P6-T3. **DEVIATION**: The IDropTarget impl was extracted to a dedicated `Casso/Ui/DragDropTarget.{h,cpp}` instead of bolting onto `RmlInputBridge` (which is the pure-logic translation seam — see P3-T8). `RegisterDragDrop` is called from `EmulatorShell::Initialize` rather than `Main.cpp` because the HWND only exists after `EmulatorShell::CreateEmulatorWindow`. Hit-test uses the cached drive-widget bounding boxes via `DriveWidgetController::HitTest` (geometric `IsPointWithinElement`) rather than `Rml::Context::GetHoverElement` so the drag does not perturb the live mouse state.
-- [x] **P6-T5** [US3] `Casso/Ui/DriveWidgetState.h` adds `DriveWidgetState` (per-drive struct matching `data-model.md`: `mountedImagePath` (string), `motorOn` (`atomic<bool>`, written by CPU thread), `diskActive` (`atomic<bool>`, written by CPU thread), `doorState` (enum {Closed, Opening, Open, Closing}, UI-thread only), `animationStartTimeMs` (int64, UI-thread only)). Owned per-drive by `EmulatorShell`; populated from disk insert/eject (UI thread) + motor-on/disk-active signals (CPU thread). Read by `RmlInputBridge` each frame to update element classes. Acceptance: state mirrors the CPU thread within one UI frame; field set matches data-model.md exactly. Files: `Casso/Ui/DriveWidgetState.h` (new), `Casso/EmulatorShell.{h,cpp}` (modified — adds per-drive `DriveWidgetState` members). Depends: P6-T3.
-- [x] **P6-T6 [P]** [US3] Tests in `UnitTest/UiTests/DriveWidgetStateTests.cpp` — pure-logic transitions (insert → present; motorOn → spinning class; eject → door-open then no-present; reject-drop when no widget under cursor). Acceptance: ≥5 TEST_METHODs. Files: `UnitTest/UiTests/DriveWidgetStateTests.cpp` (new). Depends: P6-T5.
+**Independent Test**: Switch among built-in themes and Apple variants at runtime; verify full chrome updates within one frame and persists across restart.
 
-- [x] **P6-T7 [P]** [US3] [US6] Auto-mount last-inserted disks on machine load (FR-047). `EmulatorShell` consumes `lastMountedImages` from the merged `MachineUserConfig`; for each entry, attempt mount via the existing disk-mount path. Missing files: log a warning, clear the entry via `UserConfigStore::SaveDelta`. Acceptance: insert two disks, switch to a different machine, switch back — both disks remount; delete one image file off disk, switch and switch back — that drive starts empty with a warning, the other still remounts. Files: `Casso/EmulatorShell.{h,cpp}` (modified). Depends: P6-T5, P2-T2. **DEVIATION**: Persistence still rides on the existing registry-backed `DiskSettings` shipped pre-007 -- the registry write happens inside `MountDiskInSlot6` / `EjectDiskInSlot6` so the SwitchMachine round-trip works today. Migration of the persistence channel to `UserConfigStore`-managed `_user.json` is deferred to a P7 follow-up alongside the rest of the settings-panel JSON write path; the pure-logic resolver `Casso/Ui/AutoMountResolver` already separates the file-existence decision (test-friendly via `IFileSystem` injection -- exercised in `AutoMountTests.cpp`).
+- [ ] T038 [P] [US4] Add theme discovery/activation regression coverage for familyId+variantId in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\ThemeManagerTests.cpp
+- [ ] T039 [P] [US4] Add schema validation tests for Apple + non-Apple families in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\ThemeLoaderTests.cpp
+- [ ] T040 [US4] Implement family/variant activation + persistence logic in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeManager.cpp
+- [ ] T041 [US4] Implement theme token ingestion for runtime hot-swap in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeLoader.cpp
+- [ ] T042 [US4] Ship Apple II variant metadata/assets update in C:\Users\relmer\repos\relmer\Casso\Resources\Themes\Skeuomorphic\theme.json
+- [ ] T043 [US4] Ship Apple II+ and Apple IIe variant metadata/assets update in C:\Users\relmer\repos\relmer\Casso\Resources\Themes\DarkModern\theme.json
+- [ ] T044 [US4] Ship Apple //c distinct palette + distinct drive style metadata in C:\Users\relmer\repos\relmer\Casso\Resources\Themes\RetroTerminal\theme.json
 
-**Phase P6 dependency graph**: P6-T1 → {P6-T2, P6-T3} → {P6-T4, P6-T5} → P6-T6; P6-T7 parallel after P6-T5.
-**Constitution check gate**: No new sync primitives — re-use existing `std::atomic<bool>` motor signal (Principle I — simplicity).
+**Checkpoint**: US4 is independently functional and testable.
 
 ---
 
-## Phase P7 — Settings panel
+## Phase 7: User Story 5 - Interact with native title bar and nav layer (Priority: P2)
 
-**Gate to exit**: every requirement FR-001 .. FR-011 satisfied; SC-001 (≤60s task completion) and SC-008 (≥90% findability) achievable in UX dry-run; emulation runs uninterrupted while panel is open (FR-041).
+**Goal**: Native title/nav is sole runtime owner with Windows-system-identical title/nav font behavior and NC parity.
 
-- [x] **P7-T1** [US1] [US2] `Casso/Ui/SettingsPanelState.{h,cpp}` — in-memory transient snapshot. `LoadFromMachine(name, UserConfigStore&)`, `Apply(UserConfigStore&, EmulatorShell&)`, `Cancel()`, `IsDirty()`. **Never touches disk directly** (delegates to `UserConfigStore`). Acceptance: state cleanly cancellable with no side effects. Files: `Casso/Ui/SettingsPanelState.{h,cpp}` (new). Depends: P2-T2.
-- [x] **P7-T2** [US1] [US2] RML layout `Resources/Themes/_shared/settings_panel.rml` (overridable per theme) — sections:
-  1. **Machine** selector at top (FR-002).
-  2. **Emulation** (speed, write protect, floppy sound + mechanism).
-  3. **Video** (color mode, CRT effects: brightness, scanlines, bloom, color bleed).
-  4. **Theme** (list of installed themes, preview, refresh button → triggers `ThemeManager::Discover`).
-  5. **Hardware** (tree view bound to selected machine's component list, checkbox states from `capabilityFlag`).
-  6. Footer: Apply / Cancel / Reset-to-defaults (`UserConfigStore::Reset`).
-  Acceptance: all six sections render in all three built-in themes. Files: `Resources/Themes/_shared/settings_panel.rml` (new), `Resources/Themes/_shared/settings_panel.rcss` (new — base styles overridable per theme). Depends: P5-T2, P7-T1.
-- [x] **P7-T3** [US2] [US6] Machine-selector change reloads `SettingsPanelState` from that machine's merged config **without closing the dialog** (FR-002 acceptance). Acceptance: switching between Apple //e and Apple //c re-populates the Hardware tree without reopening. Files: `Casso/Ui/SettingsPanel.{h,cpp}` (new — binds RML doc to state). Depends: P7-T1, P7-T2.
-- [x] **P7-T4** [US2] Hardware tree behavior (FR-004 .. FR-008):
-  - `optional` → interactive checkbox.
-  - `required` → checked + disabled.
-  - `platform-locked` → checked + disabled + tooltip showing `lockReason`.
-  Acceptance: Apple //c integrated 80-column card is rendered as platform-locked with the tooltip from P1-T8. Files: `Casso/Ui/SettingsPanel.cpp` (modified). Depends: P7-T3.
-- [x] **P7-T5** [US1] [US2] Apply path:
-  - Immediate-effect fields (speed, video mode, floppy sound) push through existing `EmulatorShell` atomics + command queue (FR-011 — no reset).
-  - Reset-required fields (hardware tree changes) show a confirmation dialog (RML modal), then schedule a machine reset via existing `EmulatorShell::QueueMachineReset` (FR-010).
-  - All applied changes flush through `UserConfigStore::SaveDelta`.
-  Acceptance: changing speed reflects within one frame; toggling a hardware checkbox prompts for confirmation then resets. Files: `Casso/Ui/SettingsPanel.cpp` (modified). Depends: P7-T4.
-- [x] **P7-T6** [US1] [US5] Keyboard navigation (FR-044): Tab cycles all controls in visual order; Space/Enter activate; Escape cancels; RCSS `:focus` styles present in all three built-in themes. Acceptance: full keyboard-only traversal of the panel proven in `quickstart.md` UX dry-run. Files: `Resources/Themes/{Skeuomorphic,DarkModern,RetroTerminal}/*.rcss` (modified — add `:focus` rules), `Resources/Themes/_shared/settings_panel.rcss` (modified — Tab order via `tabindex` attributes). Depends: P7-T2, P5-T3, P5-T4, P5-T5.
-- [x] **P7-T7** [US1] Open-while-running (FR-041): panel is purely a view over `SettingsPanelState`; emulation thread is not paused. Acceptance: opening the panel during a disk read does not cause audible glitches; verified via existing audio underrun counter not incrementing. Files: none (architectural; verified by manual test in quickstart.md). Depends: P7-T5.
-- [x] **P7-T8 [P]** Tests in `UnitTest/UiTests/SettingsPanelStateTests.cpp` — IsDirty after edit; Cancel restores; Apply pushes immediate fields through a mock `EmulatorShell`; switching machines reloads state. Acceptance: ≥5 TEST_METHODs; no RML doc instantiated (state is the pure-logic seam). Files: `UnitTest/UiTests/SettingsPanelStateTests.cpp` (new). Depends: P7-T1.
+**Independent Test**: Verify drag, fullscreen toggle, min/max/close, and menu open/dismiss behavior with borderless NC hit-testing parity.
 
-**Phase P7 dependency graph**: P7-T1 → P7-T2 → P7-T3 → P7-T4 → P7-T5 → P7-T7. P7-T6 needs P7-T2 + all built-in themes. P7-T8 parallel after P7-T1.
-**Constitution check gate**: All FR-001..FR-011 traced to a specific task — append the traceability table to `quickstart.md`. Panel-state tests inject `EmulatorShell` mock and `UserConfigStore` mock (no real I/O).
+- [ ] T045 [P] [US5] Add NC hit-test parity tests for title/nav interactions in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\TitleBarHitTestTests.cpp
+- [ ] T046 [P] [US5] Add title/nav layout + font policy tests in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\TitleBarLayoutTests.cpp
+- [ ] T047 [P] [US5] Add nav command parity tests against command map in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\NavLayerTraceabilityTests.cpp
+- [ ] T048 [US5] Implement native title bar rendering + system button states in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\TitleBar.cpp
+- [ ] T049 [US5] Implement WM_NCHITTEST rect mapping + drag/resize/fullscreen behavior in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\TitleBarHitTest.cpp
+- [ ] T050 [US5] Enforce Windows-system-identical font selection for title/nav text in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\TitleBar.h
+- [ ] T051 [US5] Implement D3D nav layer command routing parity in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\NavLayer.cpp
+- [ ] T052 [US5] Remove remaining Win32 menu fallback dispatch from C:\Users\relmer\repos\relmer\Casso\Casso\MenuSystem.cpp
+
+**Checkpoint**: US5 is independently functional and testable.
 
 ---
 
-## Phase P8 — CRT post-processing
+## Phase 8: User Story 6 - Preserve per-machine JSON settings across upgrades (Priority: P3)
 
-**Gate to exit**: 60 fps maintained with all CRT effects on; SC-005 chrome budget (≤1ms) still met; per-theme defaults respected; user override path works; **GPL guard CI script passes**.
+**Goal**: User JSON migration is silent/lossless and canonicalizes version fields.
 
-- [x] **P8-T1 [P]** ~~Port `crt_scanlines.hlsl` from upstream `crt-pi` (MIT).~~ **DONE**. Ported as `Casso/Shaders/CRT/scanlines.hlsl` (single-pass scanline darkening; subpixel-mask and curvature warp omitted for v1, documented in header). Attribution block carries upstream URL, collection SHA `42fa8a98ab19bdaffb53280746a30819eb21f807`, `SPDX-License-Identifier: MIT`. `crt_common.hlsli` not needed -- the shared cbuffer + VS are duplicated inline in `Casso/CrtPostProcess.cpp` (same convention as `Casso/Ui/RmlBackend_D3D11.cpp`).
-- [x] **P8-T2 [P]** ~~Port `crt_bloom.hlsl` from libretro `bloom` shader (MIT/PD).~~ **DONE**. Split into three files matching the GPU pipeline: `Casso/Shaders/CRT/bloom_h.hlsl`, `bloom_v.hlsl`, `bloom_composite.hlsl`. Separable Gaussian, 9 taps per leg. Luminance threshold pass intentionally skipped for v1 (softer global glow; documented in headers).
-- [x] **P8-T3 [P]** ~~Port `crt_color_bleed.hlsl` from libretro `ntsc-adaptive` chroma stage (MIT).~~ **DONE** as `Casso/Shaders/CRT/color_bleed.hlsl`. Y'CbCr decomposition + horizontal triangle-kernel blur on Cb+Cr only; luma untouched. Full NTSC frequency-domain pipeline omitted for v1 (~80% of the visual effect for ~10% of the code; documented in header).
-- [x] **P8-T4** ~~`Casso/Shaders/CRT/crt_composite.hlsl` -- post-process chain wired up with 4:3 letterbox.~~ **DONE**. Implemented as a C++ orchestrator (`Casso/CrtPostProcess.{h,cpp}`) rather than a monolithic composite HLSL: brightness pass (with viewport=letterbox + black clear) -> scanlines -> bloom (h/v/composite) -> color bleed -> final copy to back buffer. Each pass is a fullscreen triangle on a ping-pong RT pair; disabled effects fold to zero magnitude in `MakeCrtParams` so the pipeline is static. `Casso/Shaders/CRT/LICENSES.md` aggregates per-shader attribution.
-- [x] **P8-T5** ~~`Casso/D3DRenderer.{h,cpp}` exposes the post-process pass before the RmlUi composite hook.~~ **DONE**. `D3DRenderer::UploadAndPresent` now: upload framebuffer -> `m_crtPost.Process(srv -> backbuffer)` (CRT pass) -> after-blit hook (RmlUi) -> Present. Both phases wrapped in `ScopedPerfTimer` (`Casso/PerfStats.{h,cpp}`) under labels `D3DRenderer.CrtPostProcess` and `D3DRenderer.RmlUiComposite`; rolling-avg ms exposed via `PerfStats::Instance().Get`. Measurement protocol documented in `quickstart.md`.
-- [x] **P8-T6** [US1] ~~Brightness control wired live as the user adjusts it (FR-038).~~ **DONE**. `EmulatorShell::RunMessageLoop` builds a fresh `CrtParams` once per UI frame via `MakeCrtParams (m_globalPrefs.crt, themeDefaults, w, h)` and pushes it through `D3DRenderer::SetCrtParams` before the next `UploadAndPresent`. Settings panel already mutates `m_globalPrefs.crt.brightness` on slider drag (`Ui/SettingsPanel.cpp` `crt-brightness` handler from P7), so slider edits land on the next-rendered frame with no emulator pause.
-- [x] **P8-T7** ~~GPL guard `scripts/CheckShaderLicenses.ps1`.~~ **DONE**. Scans `Casso/Shaders/` recursively for case-insensitive `GPL`, `GNU General Public`, `copyleft`; permits matches within 8 lines of an `// ATTRIBUTION:` marker (license names cited verbatim in upstream attribution blocks). Wired into `scripts/Build.ps1` as a pre-build step for every target except `Clean`/`CleanAll`. Verified locally: passes on clean tree; a one-line `GPL` injection into `copy.hlsl` causes the script (and therefore the build) to fail with `error CSL0001: <file>:<line> -- forbidden token 'GPL'`.
-- [x] **P8-T8 [P]** ~~Tests in `UnitTest/UiTests/CrtParameterMappingTests.cpp`.~~ **DONE**. 7 TEST_METHODs cover: load-time clamp to documented ranges; default-prefs CrtParams shape; disabled-effect zero-out; enabled-effect propagation; theme-defaults-only-when-no-user-override (both directions); missing-crt-section keeps `userOverride=false`; `ComputeLetterboxRect` pillarbox/letterbox/exact-4:3 cases.
+**Independent Test**: Load legacy and canonical versioned `_user.json`, verify migration rewrite + merged config behavior without losing overrides.
 
-**Phase P8 dependency graph**: {P8-T1, P8-T2, P8-T3} parallel after P0-T3. P8-T4 needs all three. P8-T5 → P8-T6. P8-T7 needs P8-T4. P8-T8 parallel after P8-T5.
-**Constitution check gate**: Approved Dependencies allowlist (constitution v1.5.0) lists crt-pi, libretro bloom, libretro ntsc-adaptive. `CheckShaderLicenses.ps1` enforces no GPL drift. Principle IV: 60 fps + ≤1ms chrome measured in P8-T5.
+- [ ] T053 [P] [US6] Add canonical-vs-legacy version field migration tests in C:\Users\relmer\repos\relmer\Casso\UnitTest\EmuTests\MachineConfigUpgradeTests.cpp
+- [ ] T054 [P] [US6] Add user/default merge fallback tests for new fields in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\UserConfigStoreTests.cpp
+- [ ] T055 [US6] Implement `$cassoMachineVersion` canonicalization and rewrite logic in C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp
+- [ ] T056 [US6] Implement migration-time `$cassoDefault` alias read behavior in C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.h
+- [ ] T057 [US6] Implement merge/fallthrough preservation for new settings fields in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanelState.cpp
+- [ ] T058 [US6] Align migration guarantees in machine user contract notes in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\contracts\machine-user-config.schema.json
 
----
-
-## Phase P9 — Retirement + polish
-
-**Gate to exit**: legacy code deleted; CHANGELOG + README updated; full test suite green on all four configurations; code analysis green; every acceptance scenario in `spec.md` § User Scenarios passes; constitution v1.5.0 still satisfied.
-
-- [x] **P9-T1** [US1] [US2] Delete `Casso/OptionsDialog.{h,cpp}`, `Casso/MachinePickerDialog.{h,cpp}`, and their entries in `Casso/Casso.rc` + `Casso/Resource.h` (FR-027). Acceptance: `git grep -i "OptionsDialog\|MachinePickerDialog"` returns no production-code hits. Files: deletions listed above; `Casso/Casso.rc` (modified), `Casso/Resource.h` (modified), `Casso/Casso.vcxproj` (modified — remove from item group). Depends: P7-T5.
-- [x] **P9-T2** [US5] Remove menu-bar registration in `Casso/Main.cpp`; verify every legacy menu command ID is still served by `NavLayerController`. Acceptance: traceability table from P4-T5 stays at 100%. Files: `Casso/Main.cpp` (modified), `Casso/Casso.rc` (modified — remove menu resource). Depends: P4-T5, P9-T1.
-- [x] **P9-T3 [P]** `CHANGELOG.md` entry: `feat(ui): full RmlUi-based chrome + theme system` — list the 48 FRs addressed, the constitution amendment (v1.4.0 → v1.5.0), and the legacy deletions. Files: `CHANGELOG.md` (modified). Depends: P9-T2.
-- [x] **P9-T4 [P]** `README.md` updates: Approved Dependencies table (RmlUi tag + SHA, three shader sources), screenshots of all three built-in themes, user-theme authoring quickstart pointing at `Themes/<your-theme>/theme.json` and the schema in `specs/007-ui-overhaul/contracts/theme-metadata.schema.json`. Files: `README.md` (modified), `docs/themes/AUTHORING.md` (new). Depends: P5-T6.
-- [x] **P9-T5** Final pass: `scripts\Build.ps1 -RunCodeAnalysis` on Debug + Release × x64 + ARM64; full UnitTest run on all four. Acceptance: all four green; code-analysis report clean. Files: none (CI report attached to PR). Depends: P9-T1..P9-T4.
-- [x] **P9-T6** Run every acceptance scenario in `spec.md` § User Scenarios (US1..US6) against the built artifact; record pass/fail in a quickstart-style table in `specs/007-ui-overhaul/quickstart.md` § Acceptance Run. Acceptance: all 6 user stories pass. Files: `specs/007-ui-overhaul/quickstart.md` (modified). Depends: P9-T5.
-- [x] **P9-T7** **Success-criteria measurement run** (SC-001 + SC-008). Document the measurement protocol in `specs/007-ui-overhaul/quickstart.md` § SC Measurement: (a) **SC-001**: launch app cold, time how long from "Settings opened" to "machine switched + speed changed + confirmed", target ≤ 60 s; record the value (must be reproducible). (b) **SC-008**: instead of a formal user study (out of scope for a hobby project), execute a self-administered "first-time user" dry run — fresh git checkout, no prior knowledge bias — and document each step to find/change emulation speed and the elapsed time. Treat ≤ 30 s as a green proxy for 90 % findability. Acceptance: both numbers recorded with timestamp and Git SHA; SC-001 ≤ 60 s; SC-008 proxy ≤ 30 s. Files: `specs/007-ui-overhaul/quickstart.md` (modified). Depends: P9-T6.
-- [x] **P9-T8** [US5] FR-048 window placement persistence by monitor configuration. **DONE** — added `WM_MOVE` dispatch to the window base class and `EmulatorShell::SaveWindowPlacement` hooks on move/size/close; placement now saves/restores `x/y/w/h` under `HKCU\Software\relmer\Casso\WindowPlacement\v1\<hash>` where `<hash>` is built from current monitor topology + active monitor. Startup behavior: restore matching profile if present; otherwise center default 100% window size on active monitor.
-
-**Phase P9 dependency graph**: P9-T1 → P9-T2 → {P9-T3, P9-T4} → P9-T5 → P9-T6 → P9-T7 → P9-T8.
-**Constitution check gate**: Final gate — every principle re-evaluated; deletions don't introduce regressions; Approved Dependencies table in constitution still matches what's actually vendored.
+**Checkpoint**: US6 is independently functional and testable.
 
 ---
 
-## Cross-Phase Dependencies
+## Phase 9: Polish & Cross-Cutting Concerns
 
-```text
-P0 ──► P1 ──► P2 ──► P3 ──► P4 ──┐
-                       │         ├──► P7 ──► P9
-                       └► P5 ────┤
-                          │      │
-                          └► P6 ─┘
-                       P3 ──► P8 ──► P9
-```
+**Purpose**: Final teardown verification, matrix validation, and cross-story hardening.
 
-- **P4-T3** (Mica) crosses into **P5-T2** (theme activation event).
-- **P7-T6** (focus styles) requires all three built-in themes (**P5-T3..T5**).
-- **P8-T5** (post-process pass ordering) requires the **P3-T6** hook point.
-- **P9-T2** (menu removal) requires **P4-T5** (nav layer command parity) to be at 100%.
+- [ ] T059 [P] Remove obsolete Rml-era theme markup/runtime assets in C:\Users\relmer\repos\relmer\Casso\Resources\Themes\Skeuomorphic\*.rml
+- [ ] T060 [P] Remove obsolete Rml-era theme style sheets in C:\Users\relmer\repos\relmer\Casso\Resources\Themes\Skeuomorphic\*.rcss
+- [ ] T061 Execute UT isolation audit (no real registry/filesystem state) in C:\Users\relmer\repos\relmer\Casso\UnitTest\EmuTests\RegistryTests.cpp
+- [ ] T062 [P] Add/refresh runtime screenshot capture matrix instructions in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\quickstart.md
+- [ ] T063 Capture screenshot matrix for startup/menu/NC/settings/drive states in C:\Users\relmer\repos\relmer\Casso\TestResults\007-ui-overhaul\
+- [ ] T064 Validate screenshot matrix against acceptance criteria in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\spec.md
+- [ ] T065 Implement CRT brightness/effect controls in settings UI for FR-038/039 in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanel.cpp
+- [ ] T066 Implement CRT toggle and parameter renderer wiring for FR-039/040 in C:\Users\relmer\repos\relmer\Casso\Casso\CrtPostProcess.cpp
+- [ ] T067 Implement CRT defaults + user-override persistence for FR-040 in C:\Users\relmer\repos\relmer\Casso\Casso\Config\GlobalUserPrefs.cpp
+- [ ] T068 Implement full keyboard navigation/focus-visible behavior for FR-044 in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanel.cpp
+- [ ] T069 Implement mounted-image persistence and auto-remount behavior for FR-047 in C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp
+- [ ] T070 Implement per-monitor window placement persistence for FR-048 in C:\Users\relmer\repos\relmer\Casso\Casso\Config\GlobalUserPrefs.cpp
+- [ ] T071 Add runtime theme-discovery, malformed-theme exclusion, and re-extract coverage for FR-035/036/037 in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\ThemeManagerTests.cpp
+- [ ] T072 Add three-consecutive-upgrade migration matrix coverage for SC-003 in C:\Users\relmer\repos\relmer\Casso\UnitTest\EmuTests\MachineConfigUpgradeTests.cpp
+- [ ] T073 Execute required Code Analysis gate in C:\Users\relmer\repos\relmer\Casso\scripts\Build.ps1
+- [ ] T074 Capture and validate SC-002 evidence on integrated Intel/AMD iGPU matrix (1280x960 + 1920x1080 at 100% + 150% scale), requiring first post-switch frame with zero mixed-theme regions in C:\Users\relmer\repos\relmer\Casso\TestResults\007-ui-overhaul\
+- [ ] T075 Implement click-to-browse drive mount flow for FR-022b in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetController.cpp
+- [ ] T076 Add run-while-open behavior coverage for FR-041 in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\SettingsPanelStateTests.cpp
+- [ ] T077 Implement Win10/Win11 runtime gating for FR-042 in C:\Users\relmer\repos\relmer\Casso\Casso\Main.cpp
+- [ ] T078 Implement and test 4:3 viewport invariant for FR-043 in C:\Users\relmer\repos\relmer\Casso\Casso\D3DRenderer.cpp
+- [ ] T079 Implement and test theme metadata version-upgrade path for FR-045 in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeLoader.cpp
+- [ ] T080 Execute SC-004 200-attempt drag/drop reliability validation matrix (per-format success-rate evidence + threshold checks) in C:\Users\relmer\repos\relmer\Casso\TestResults\007-ui-overhaul\
+
+---
+
+## Dependencies & Execution Order
+
+### Phase Dependencies
+
+- **Phase 1 (Setup)**: starts immediately.
+- **Phase 2 (Foundational)**: depends on Phase 1; blocks all stories.
+- **Phases 3-8 (User Stories)**: depend on Phase 2 completion.
+- **Phase 9 (Polish)**: depends on selected story completion (minimum MVP requires US1-3 + US5 for ownership validation).
+
+### User Story Dependencies
+
+- **US1 (P1)**: starts after Phase 2; no story dependency.
+- **US2 (P1)**: starts after Phase 2; no story dependency.
+- **US3 (P1)**: starts after Phase 2; no story dependency.
+- **US4 (P2)**: starts after Phase 2; should consume US3 drive visual profile outputs.
+- **US5 (P2)**: starts after Phase 2; no story dependency.
+- **US6 (P3)**: starts after Phase 2; best validated after US1/US2 persistence paths exist.
+
+### Delivery Order Graph
+
+`Setup -> Foundational -> (US1 || US2 || US3 || US5) -> US4 -> US6 -> Polish`
+
+### Within Each User Story
+
+- Write/add tests first and confirm failure mode.
+- Implement core state/models before UI event wiring.
+- Implement runtime integration before acceptance pass updates.
+
+---
 
 ## Parallel Opportunities
 
-- **Within P1**: P1-T9 (tests) ∥ P1-T8 (machine JSON migration) once P1-T7 is done.
-- **Within P2**: P2-T7 ∥ P2-T8 ∥ P2-T9 once impls land.
-- **Within P3**: P3-T1, P3-T2, P3-T3 are three independent files — develop in parallel; P3-T6 (D3DRenderer hook) can develop alongside.
-- **Within P5**: All three built-in themes (P5-T3, P5-T4, P5-T5) are three independent directories — assign to three contributors.
-- **Within P8**: The three shader ports (P8-T1, P8-T2, P8-T3) are independent files.
+- **Foundational**: T011-T014 can run in parallel after T007-T010 starts.
+- **US1**: T016 and T017 parallel; implementation T018-T021 then T022.
+- **US2**: T023 and T024 parallel; implementation T025-T028 then T029.
+- **US3**: T030 and T031 parallel; T032 and T033 parallel before T034-T037.
+- **US4**: T038 and T039 parallel; T042-T044 can run in parallel after T040-T041.
+- **US5**: T045-T047 parallel; T048-T051 can be split by component owner.
+- **US6**: T053 and T054 parallel; T055-T057 then T058.
+- **Polish**: T059 and T060 parallel; T062 can run while T061 executes; T065-T080 can be parallelized by subsystem.
 
-## MVP Scope
+### Parallel Example: User Story 3
 
-The plan does **not** support a "ship one user story first" MVP because the chrome is replaced wholesale — every user story requires Phases P1..P5 + P7. The natural "first runnable artifact" is **end of P3**: empty RmlUi overlay over the existing emulator, with legacy chrome still serving every command. This is the recommended checkpoint for the first integration demo.
+```bash
+Task: "T030 [US3] Drive state-transition tests in UnitTest/UiTests/DriveWidgetStateTests.cpp"
+Task: "T031 [US3] Sync timing tests in UnitTest/Audio/DiskIIAudioSourceEventSinkTests.cpp"
+Task: "T032 [US3] Disk ][ visuals in Casso/Ui/DriveWidgetElement.cpp"
+Task: "T033 [US3] Door animation state machine in Casso/Ui/DriveWidgetState.h"
+```
 
-## Schema Rename Callout (P1-T6 .. P1-T8 — explicit)
+### Parallel Example: User Story 5
 
-The `$cassoDefault` → `$cassoMachineVersion` rename is the **only schema-key change** in this feature and it touches **every machine JSON in `Resources/Machines/`**. The migration strategy:
+```bash
+Task: "T045 [US5] NC hit-test tests in UnitTest/UiTests/TitleBarHitTestTests.cpp"
+Task: "T046 [US5] Font/layout policy tests in UnitTest/UiTests/TitleBarLayoutTests.cpp"
+Task: "T047 [US5] Nav command parity tests in UnitTest/UiTests/NavLayerTraceabilityTests.cpp"
+```
 
-1. **P1-T6**: Loader reads both keys (new takes precedence); writer always emits new key. Legacy alias stays for one upgrade cycle.
-2. **P1-T7**: `MachineConfigUpgrade` includes a one-shot, idempotent rename step that also defaults missing `capabilityFlag` fields per FR-015.
-3. **P1-T8**: Every shipped default machine JSON under `Resources/Machines/` is updated **at source** to the new key — they should never trigger the upgrade path on a fresh install. The upgrade path exists solely for **user-authored** `<Name>_user.json` files carried forward from prior installs.
-4. **P1-T9**: Unit tests prove both round-trip directions and verify the upgrade is idempotent.
+---
 
-## Notes
+## Implementation Strategy
 
-- **No code is inlined here**; tasks describe the deliverable and acceptance, not the implementation. Implementations belong in PRs.
-- Every new module in `Casso/Ui/` and `Casso/Config/` follows the constitution: EHM around external calls (including all RmlUi entry points), single exit, top-of-scope variable declarations, comments live in `.cpp` only, all system/third-party headers go through `Pch.h`.
-- "No real I/O in unit tests" is enforced by `IFileSystem` injection in all P2/P5/P7 tests and by `FakeD3DDevice` in P3 tests.
-- Commit cadence: one PR per phase is recommended; within a phase, group `[P]` tasks into the same PR where reviewer-friendly.
+### MVP First (Recommended)
+
+1. Complete Setup + Foundational (native-only ownership + Rml teardown).
+2. Deliver **US1 + US2 + US3** (core settings + hardware + drive realism/sync).
+3. Deliver **US5** (native title/nav ownership + Windows font policy).
+4. Run UT isolation checks + screenshot matrix before expanding scope.
+
+### Incremental Delivery
+
+1. Foundation reset complete (no legacy runtime/build path).
+2. Ship P1 stories (US1, US2, US3) and validate independently.
+3. Add P2 stories (US4, US5) and re-run runtime matrix.
+4. Add P3 story (US6), then execute polish/audit tasks.
+
+### Validation Gates
+
+- Gate A: Build graph clean of `External\RmlUi` references.
+- Gate B: UT suites for ownership/hit-test/drive-sync/migration pass with no host-state side effects.
+- Gate C: Screenshot matrix passes for startup, menus, NC controls, settings, and drive door open/close states.
+- Gate D: `scripts\Build.ps1 -RunCodeAnalysis` passes with zero analyzer failures.
+- Gate E: Theme-switch consecutive-frame evidence passes SC-002 (zero mixed-theme regions).
+- Gate F: SC-004 drag/drop reliability matrix meets >=99% success over 200 attempts.
