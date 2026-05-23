@@ -27,15 +27,27 @@ namespace WindowsThemeColorsTests
     {
     public:
 
-        TEST_METHOD (CloseButton_Hover_Is_Documented_Red_Pressed_Is_Darker)
+        TEST_METHOD (CloseButton_Background_Same_For_Hover_And_Pressed)
         {
             WindowsThemeColors &  sys = WindowsThemeColors::Instance();
 
 
             Assert::AreEqual ((unsigned long) 0xFFC42B1Cu,
                               (unsigned long) sys.CloseButtonHoverArgb());
-            Assert::AreNotEqual ((unsigned long) sys.CloseButtonHoverArgb(),
-                                 (unsigned long) sys.CloseButtonPressedArgb());
+            Assert::AreEqual ((unsigned long) sys.CloseButtonHoverArgb(),
+                              (unsigned long) sys.CloseButtonPressedArgb());
+        }
+
+
+        TEST_METHOD (CloseButton_Glyph_Hover_Opaque_Pressed_Slightly_Faded)
+        {
+            WindowsThemeColors &  sys = WindowsThemeColors::Instance();
+            uint32_t              hoverAlpha   = (sys.CloseButtonGlyphHoverArgb()   >> 24) & 0xFFu;
+            uint32_t              pressedAlpha = (sys.CloseButtonGlyphPressedArgb() >> 24) & 0xFFu;
+
+
+            Assert::AreEqual ((unsigned long) 0xFFu, (unsigned long) hoverAlpha);
+            Assert::IsTrue   (pressedAlpha < hoverAlpha);
         }
 
 
@@ -45,7 +57,7 @@ namespace WindowsThemeColorsTests
 
 
             Assert::AreEqual ((unsigned long) 0xFFFFFFFFu,
-                              (unsigned long) sys.CloseButtonForegroundOverArgb());
+                              (unsigned long) sys.CloseButtonGlyphHoverArgb());
         }
 
 

@@ -40,9 +40,10 @@ public:
     uint32_t  CaptionButtonHoverArgb        () const;
     uint32_t  CaptionButtonPressedArgb      () const;
     uint32_t  CaptionButtonForegroundArgb   () const;
-    uint32_t  CloseButtonHoverArgb          () const;
-    uint32_t  CloseButtonPressedArgb        () const;
-    uint32_t  CloseButtonForegroundOverArgb () const;
+    uint32_t  CloseButtonHoverArgb           () const;
+    uint32_t  CloseButtonPressedArgb         () const;
+    uint32_t  CloseButtonGlyphHoverArgb      () const;
+    uint32_t  CloseButtonGlyphPressedArgb    () const;
 
 private:
     WindowsThemeColors ();

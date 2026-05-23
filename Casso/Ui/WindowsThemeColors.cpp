@@ -23,17 +23,19 @@ namespace
     static constexpr uint32_t   s_kSubtleFillColorSecondaryLight = 0x09000000u;
     static constexpr uint32_t   s_kSubtleFillColorTertiaryLight  = 0x06000000u;
 
-    // Close-button hover and pressed colors. The WinUI XAML resource
-    // dictionary (microsoft/terminal MinMaxCloseControl.xaml) sets
-    // both states to the same CloseButtonColor token, but the
-    // generic Button visual-state template applies an opacity tweak
-    // on Pressed that produces a visibly distinct darker shade in
-    // real Windows shell apps (File Explorer, Edge, Terminal). We
-    // mirror that observed behavior with discrete ARGB values rather
-    // than animating opacity at paint time.
-    static constexpr uint32_t   s_kCloseButtonHoverColor         = 0xFFC42B1Cu;
-    static constexpr uint32_t   s_kCloseButtonPressedColor       = 0xFFAA1F11u;
-    static constexpr uint32_t   s_kCloseButtonGlyphOverColor     = 0xFFFFFFFFu;
+    // Close-button hover and pressed share the same background red
+    // (microsoft/terminal MinMaxCloseControl.xaml binds both
+    // CloseButtonBackgroundPointerOver and CloseButtonBackgroundPressed
+    // to the same CloseButtonColor token), but the WinUI button
+    // visual-state template applies a press-state opacity tweak to
+    // the glyph, producing a perceptibly darker X on click. We mirror
+    // that visible behavior by dropping the glyph from opaque white
+    // to a partially-transparent white on press; the alpha goes
+    // through the painter's premultiplied-alpha blend over the red
+    // background so the glyph reads as a slightly desaturated white.
+    static constexpr uint32_t   s_kCloseButtonColor              = 0xFFC42B1Cu;
+    static constexpr uint32_t   s_kCloseButtonGlyphHoverColor    = 0xFFFFFFFFu;
+    static constexpr uint32_t   s_kCloseButtonGlyphPressedColor  = 0xCCFFFFFFu;
     static constexpr uint32_t   s_kCaptionForegroundDark         = 0xFFFFFFFFu;
     static constexpr uint32_t   s_kCaptionForegroundLight        = 0xFF1A1A1Au;
 
@@ -199,7 +201,7 @@ uint32_t WindowsThemeColors::CaptionButtonForegroundArgb () const
 
 uint32_t WindowsThemeColors::CloseButtonHoverArgb () const
 {
-    return s_kCloseButtonHoverColor;
+    return s_kCloseButtonColor;
 }
 
 
@@ -214,7 +216,7 @@ uint32_t WindowsThemeColors::CloseButtonHoverArgb () const
 
 uint32_t WindowsThemeColors::CloseButtonPressedArgb () const
 {
-    return s_kCloseButtonPressedColor;
+    return s_kCloseButtonColor;
 }
 
 
@@ -223,11 +225,26 @@ uint32_t WindowsThemeColors::CloseButtonPressedArgb () const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WindowsThemeColors::CloseButtonForegroundOverArgb
+//  WindowsThemeColors::CloseButtonGlyphHoverArgb
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t WindowsThemeColors::CloseButtonForegroundOverArgb () const
+uint32_t WindowsThemeColors::CloseButtonGlyphHoverArgb () const
 {
-    return s_kCloseButtonGlyphOverColor;
+    return s_kCloseButtonGlyphHoverColor;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WindowsThemeColors::CloseButtonGlyphPressedArgb
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t WindowsThemeColors::CloseButtonGlyphPressedArgb () const
+{
+    return s_kCloseButtonGlyphPressedColor;
 }

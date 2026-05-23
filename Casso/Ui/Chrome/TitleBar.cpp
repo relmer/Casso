@@ -341,12 +341,12 @@ void TitleBar::Paint (
     if (closeVis == ChromeButtonVisual::Pressed)
     {
         closeColor = sys.CloseButtonPressedArgb();
-        closeGlyph = sys.CloseButtonForegroundOverArgb();
+        closeGlyph = sys.CloseButtonGlyphPressedArgb();
     }
     else if (closeVis == ChromeButtonVisual::Hover)
     {
         closeColor = sys.CloseButtonHoverArgb();
-        closeGlyph = sys.CloseButtonForegroundOverArgb();
+        closeGlyph = sys.CloseButtonGlyphHoverArgb();
     }
 
     painter.FillGradientRect ((float) m_layout.titleBar.left,
