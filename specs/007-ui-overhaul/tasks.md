@@ -79,14 +79,14 @@
 
 **Independent Test**: Drag valid image to each drive and verify door-close, present LED, label, spin while active, and door-open on eject with synced audio.
 
-- [ ] T030 [P] [US3] Add drive state-transition tests for insert/eject/open/close in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\DriveWidgetStateTests.cpp
-- [ ] T031 [P] [US3] Add timing-bound sync tests for drive animation/audio events in C:\Users\relmer\repos\relmer\Casso\UnitTest\Audio\DiskIIAudioSourceEventSinkTests.cpp
-- [ ] T032 [US3] Implement Disk ][ geometry/state visual model in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetElement.cpp
-- [ ] T033 [US3] Implement door-open/door-close animation state machine in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetState.h
-- [ ] T034 [US3] Implement insert/eject action orchestration + optimistic UI updates in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetController.cpp
-- [ ] T035 [US3] Implement shared drive sync-event publish/consume path in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetController.h
-- [ ] T036 [US3] Integrate drive-door sync timeline with floppy audio playback in C:\Users\relmer\repos\relmer\Casso\Casso\WasapiAudio.cpp
-- [ ] T037 [US3] Add visual acceptance checklist for Disk ][ fidelity + sync in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\quickstart.md
+- [X] T030 [P] [US3] Add drive state-transition tests for insert/eject/open/close in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\DriveWidgetStateTests.cpp
+- [X] T031 [P] [US3] Add timing-bound sync tests for drive animation/audio events in C:\Users\relmer\repos\relmer\Casso\UnitTest\Audio\DiskIIAudioSourceEventSinkTests.cpp
+- [X] T032 [US3] Implement Disk ][ geometry/state visual model in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetElement.cpp
+- [X] T033 [US3] Implement door-open/door-close animation state machine in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetState.h
+- [X] T034 [US3] Implement insert/eject action orchestration + optimistic UI updates in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetController.cpp
+- [X] T035 [US3] Implement shared drive sync-event publish/consume path in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetController.h
+- [X] T036 [US3] Integrate drive-door sync timeline with floppy audio playback in C:\Users\relmer\repos\relmer\Casso\Casso\WasapiAudio.cpp
+- [X] T037 [US3] Add visual acceptance checklist for Disk ][ fidelity + sync in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\quickstart.md
 
 **Checkpoint**: US3 is independently functional and testable.
 
@@ -98,13 +98,13 @@
 
 **Independent Test**: Switch among built-in themes and Apple variants at runtime; verify full chrome updates within one frame and persists across restart.
 
-- [ ] T038 [P] [US4] Add theme discovery/activation regression coverage for familyId+variantId in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\ThemeManagerTests.cpp
-- [ ] T039 [P] [US4] Add schema validation tests for Apple + non-Apple families in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\ThemeLoaderTests.cpp
-- [ ] T040 [US4] Implement family/variant activation + persistence logic in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeManager.cpp
-- [ ] T041 [US4] Implement theme token ingestion for runtime hot-swap in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeLoader.cpp
-- [ ] T042 [US4] Ship Apple II variant metadata/assets update in C:\Users\relmer\repos\relmer\Casso\Resources\Themes\Skeuomorphic\theme.json
-- [ ] T043 [US4] Ship Apple II+ and Apple IIe variant metadata/assets update in C:\Users\relmer\repos\relmer\Casso\Resources\Themes\DarkModern\theme.json
-- [ ] T044 [US4] Ship Apple //c distinct palette + distinct drive style metadata in C:\Users\relmer\repos\relmer\Casso\Resources\Themes\RetroTerminal\theme.json
+- [X] T038 [P] [US4] Add theme discovery/activation regression coverage for familyId+variantId in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\ThemeManagerTests.cpp
+- [X] T039 [P] [US4] Add schema validation tests for Apple + non-Apple families in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\ThemeLoaderTests.cpp
+- [X] T040 [US4] Implement family/variant activation + persistence logic in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeManager.cpp
+- [X] T041 [US4] Implement theme token ingestion for runtime hot-swap in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeLoader.cpp
+- [X] T042 [US4] Ship Apple II variant metadata/assets update in C:\Users\relmer\repos\relmer\Casso\Resources\Themes\Skeuomorphic\theme.json
+- [X] T043 [US4] Ship Apple II+ and Apple IIe variant metadata/assets update in C:\Users\relmer\repos\relmer\Casso\Resources\Themes\DarkModern\theme.json
+- [X] T044 [US4] Ship Apple //c distinct palette + distinct drive style metadata in C:\Users\relmer\repos\relmer\Casso\Resources\Themes\RetroTerminal\theme.json
 
 **Checkpoint**: US4 is independently functional and testable.
 
@@ -116,14 +116,14 @@
 
 **Independent Test**: Verify drag, fullscreen toggle, min/max/close, and menu open/dismiss behavior with borderless NC hit-testing parity.
 
-- [ ] T045 [P] [US5] Add NC hit-test parity tests for title/nav interactions in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\TitleBarHitTestTests.cpp
-- [ ] T046 [P] [US5] Add title/nav layout + font policy tests in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\TitleBarLayoutTests.cpp
-- [ ] T047 [P] [US5] Add nav command parity tests against command map in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\NavLayerTraceabilityTests.cpp
-- [ ] T048 [US5] Implement native title bar rendering + system button states in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\TitleBar.cpp
-- [ ] T049 [US5] Implement WM_NCHITTEST rect mapping + drag/resize/fullscreen behavior in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\TitleBarHitTest.cpp
-- [ ] T050 [US5] Enforce Windows-system-identical font selection for title/nav text in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\TitleBar.h
-- [ ] T051 [US5] Implement D3D nav layer command routing parity in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\NavLayer.cpp
-- [ ] T052 [US5] Remove remaining Win32 menu fallback dispatch from C:\Users\relmer\repos\relmer\Casso\Casso\MenuSystem.cpp
+- [X] T045 [P] [US5] Add NC hit-test parity tests for title/nav interactions in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\TitleBarHitTestTests.cpp
+- [X] T046 [P] [US5] Add title/nav layout + font policy tests in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\TitleBarLayoutTests.cpp
+- [X] T047 [P] [US5] Add nav command parity tests against command map in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\NavLayerTraceabilityTests.cpp
+- [X] T048 [US5] Implement native title bar rendering + system button states in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\TitleBar.cpp
+- [X] T049 [US5] Implement WM_NCHITTEST rect mapping + drag/resize/fullscreen behavior in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\TitleBarHitTest.cpp
+- [X] T050 [US5] Enforce Windows-system-identical font selection for title/nav text in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\TitleBar.h
+- [X] T051 [US5] Implement D3D nav layer command routing parity in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\NavLayer.cpp
+- [X] T052 [US5] Remove remaining Win32 menu fallback dispatch from C:\Users\relmer\repos\relmer\Casso\Casso\MenuSystem.cpp
 
 **Checkpoint**: US5 is independently functional and testable.
 
