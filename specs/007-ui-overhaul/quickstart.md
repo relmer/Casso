@@ -57,6 +57,14 @@ Capture and review screenshots for each scenario below during validation:
 | M6 | Drive open state | Ejected disk state with door-open visual |
 | M7 | Apple II variants | Screenshots for Apple II, II+, IIe, and //c theme variants |
 
+Capture guidance:
+
+- Store captures under `TestResults/007-ui-overhaul/`.
+- Name files with matrix id + platform tuple, for example:
+  - `M1-startup-win11-intel-1920x1080-100.png`
+  - `M2-menu-win11-amd-1280x960-150.png`
+- For SC-002 evidence, capture at least two consecutive frames around each theme switch and retain the **first post-switch frame**.
+
 ## Disk ][ fidelity + sync acceptance checklist
 
 Use this focused checklist while validating US3:

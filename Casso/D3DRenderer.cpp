@@ -356,40 +356,15 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
     // is applied to positioning, not to the aspect-fit calculation.
     {
         ScopedPerfTimer  timer ("D3DRenderer.CrtPostProcess");
-        RECT  fittedRect     = { 0, 0, m_backBufferW, m_backBufferH };
-        int   fitWFromH      = 0;
-        int   fitHFromW      = 0;
-        int   barX           = 0;
-        int   barY           = 0;
+        RECT  contentRect    = { 0, 0, m_backBufferW, m_backBufferH };
+        RECT  fittedRect     = {};
 
 
 
         if (m_texWidth > 0 && m_texHeight > 0 && m_backBufferW > 0 && m_backBufferH > 0)
         {
-            fitWFromH = (m_backBufferH * m_texWidth) / m_texHeight;
-
-            if (fitWFromH <= m_backBufferW)
-            {
-                barX = (m_backBufferW - fitWFromH) / 2;
-
-                fittedRect.left   = barX;
-                fittedRect.top    = 0;
-                fittedRect.right  = barX + fitWFromH;
-                fittedRect.bottom = m_backBufferH;
-            }
-            else
-            {
-                fitHFromW = (m_backBufferW * m_texHeight) / m_texWidth;
-                barY      = (m_backBufferH - fitHFromW) / 2;
-
-                fittedRect.left   = 0;
-                fittedRect.top    = barY;
-                fittedRect.right  = m_backBufferW;
-                fittedRect.bottom = barY + fitHFromW;
-            }
-
-            fittedRect.top += m_topInsetPx;
-            fittedRect.bottom += m_topInsetPx;
+            contentRect.top = std::min (std::max (0, m_topInsetPx), m_backBufferH);
+            fittedRect = ComputeLetterboxRectInRect (contentRect);
         }
 
         hr = m_crtPost.Process (m_srv.Get(),
@@ -573,6 +548,5 @@ void D3DRenderer::Shutdown()
     m_context.Reset();
     m_device.Reset();
 }
-
 
 

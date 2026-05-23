@@ -135,12 +135,12 @@
 
 **Independent Test**: Load legacy and canonical versioned `_user.json`, verify migration rewrite + merged config behavior without losing overrides.
 
-- [ ] T053 [P] [US6] Add canonical-vs-legacy version field migration tests in C:\Users\relmer\repos\relmer\Casso\UnitTest\EmuTests\MachineConfigUpgradeTests.cpp
-- [ ] T054 [P] [US6] Add user/default merge fallback tests for new fields in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\UserConfigStoreTests.cpp
-- [ ] T055 [US6] Implement `$cassoMachineVersion` canonicalization and rewrite logic in C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp
-- [ ] T056 [US6] Implement migration-time `$cassoDefault` alias read behavior in C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.h
-- [ ] T057 [US6] Implement merge/fallthrough preservation for new settings fields in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanelState.cpp
-- [ ] T058 [US6] Align migration guarantees in machine user contract notes in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\contracts\machine-user-config.schema.json
+- [X] T053 [P] [US6] Add canonical-vs-legacy version field migration tests in C:\Users\relmer\repos\relmer\Casso\UnitTest\EmuTests\MachineConfigUpgradeTests.cpp
+- [X] T054 [P] [US6] Add user/default merge fallback tests for new fields in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\UserConfigStoreTests.cpp
+- [X] T055 [US6] Implement `$cassoMachineVersion` canonicalization and rewrite logic in C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp
+- [X] T056 [US6] Implement migration-time `$cassoDefault` alias read behavior in C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.h
+- [X] T057 [US6] Implement merge/fallthrough preservation for new settings fields in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanelState.cpp
+- [X] T058 [US6] Align migration guarantees in machine user contract notes in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\contracts\machine-user-config.schema.json
 
 **Checkpoint**: US6 is independently functional and testable.
 
@@ -152,24 +152,24 @@
 
 - [ ] T059 [P] Remove obsolete Rml-era theme markup/runtime assets in C:\Users\relmer\repos\relmer\Casso\Resources\Themes\Skeuomorphic\*.rml
 - [ ] T060 [P] Remove obsolete Rml-era theme style sheets in C:\Users\relmer\repos\relmer\Casso\Resources\Themes\Skeuomorphic\*.rcss
-- [ ] T061 Execute UT isolation audit (no real registry/filesystem state) in C:\Users\relmer\repos\relmer\Casso\UnitTest\EmuTests\RegistryTests.cpp
-- [ ] T062 [P] Add/refresh runtime screenshot capture matrix instructions in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\quickstart.md
+- [X] T061 Execute UT isolation audit (no real registry/filesystem state) in C:\Users\relmer\repos\relmer\Casso\UnitTest\EmuTests\RegistryTests.cpp
+- [X] T062 [P] Add/refresh runtime screenshot capture matrix instructions in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\quickstart.md
 - [ ] T063 Capture screenshot matrix for startup/menu/NC/settings/drive states in C:\Users\relmer\repos\relmer\Casso\TestResults\007-ui-overhaul\
 - [ ] T064 Validate screenshot matrix against acceptance criteria in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\spec.md
-- [ ] T065 Implement CRT brightness/effect controls in settings UI for FR-038/039 in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanel.cpp
-- [ ] T066 Implement CRT toggle and parameter renderer wiring for FR-039/040 in C:\Users\relmer\repos\relmer\Casso\Casso\CrtPostProcess.cpp
-- [ ] T067 Implement CRT defaults + user-override persistence for FR-040 in C:\Users\relmer\repos\relmer\Casso\Casso\Config\GlobalUserPrefs.cpp
+- [X] T065 Implement CRT brightness/effect controls in settings UI for FR-038/039 in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanel.cpp
+- [X] T066 Implement CRT toggle and parameter renderer wiring for FR-039/040 in C:\Users\relmer\repos\relmer\Casso\Casso\CrtPostProcess.cpp
+- [X] T067 Implement CRT defaults + user-override persistence for FR-040 in C:\Users\relmer\repos\relmer\Casso\Casso\Config\GlobalUserPrefs.cpp
 - [ ] T068 Implement full keyboard navigation/focus-visible behavior for FR-044 in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanel.cpp
-- [ ] T069 Implement mounted-image persistence and auto-remount behavior for FR-047 in C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp
-- [ ] T070 Implement per-monitor window placement persistence for FR-048 in C:\Users\relmer\repos\relmer\Casso\Casso\Config\GlobalUserPrefs.cpp
-- [ ] T071 Add runtime theme-discovery, malformed-theme exclusion, and re-extract coverage for FR-035/036/037 in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\ThemeManagerTests.cpp
-- [ ] T072 Add three-consecutive-upgrade migration matrix coverage for SC-003 in C:\Users\relmer\repos\relmer\Casso\UnitTest\EmuTests\MachineConfigUpgradeTests.cpp
+- [X] T069 Implement mounted-image persistence and auto-remount behavior for FR-047 in C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp
+- [X] T070 Implement per-monitor window placement persistence for FR-048 in C:\Users\relmer\repos\relmer\Casso\Casso\Config\GlobalUserPrefs.cpp
+- [X] T071 Add runtime theme-discovery, malformed-theme exclusion, and re-extract coverage for FR-035/036/037 in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\ThemeManagerTests.cpp
+- [X] T072 Add three-consecutive-upgrade migration matrix coverage for SC-003 in C:\Users\relmer\repos\relmer\Casso\UnitTest\EmuTests\MachineConfigUpgradeTests.cpp
 - [X] T073 Execute required Code Analysis gate in C:\Users\relmer\repos\relmer\Casso\scripts\Build.ps1
 - [ ] T074 Capture and validate SC-002 evidence on integrated Intel/AMD iGPU matrix (1280x960 + 1920x1080 at 100% + 150% scale), requiring first post-switch frame with zero mixed-theme regions in C:\Users\relmer\repos\relmer\Casso\TestResults\007-ui-overhaul\
-- [ ] T075 Implement click-to-browse drive mount flow for FR-022b in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetController.cpp
-- [ ] T076 Add run-while-open behavior coverage for FR-041 in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\SettingsPanelStateTests.cpp
-- [ ] T077 Implement Win10/Win11 runtime gating for FR-042 in C:\Users\relmer\repos\relmer\Casso\Casso\Main.cpp
-- [ ] T078 Implement and test 4:3 viewport invariant for FR-043 in C:\Users\relmer\repos\relmer\Casso\Casso\D3DRenderer.cpp
+- [X] T075 Implement click-to-browse drive mount flow for FR-022b in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetController.cpp
+- [X] T076 Add run-while-open behavior coverage for FR-041 in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\SettingsPanelStateTests.cpp
+- [X] T077 Implement Win10/Win11 runtime gating for FR-042 in C:\Users\relmer\repos\relmer\Casso\Casso\Main.cpp
+- [X] T078 Implement and test 4:3 viewport invariant for FR-043 in C:\Users\relmer\repos\relmer\Casso\Casso\D3DRenderer.cpp
 - [ ] T079 Implement and test theme metadata version-upgrade path for FR-045 in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeLoader.cpp
 - [ ] T080 Execute SC-004 200-attempt drag/drop reliability validation matrix (per-format success-rate evidence + threshold checks) in C:\Users\relmer\repos\relmer\Casso\TestResults\007-ui-overhaul\
 

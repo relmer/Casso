@@ -281,6 +281,27 @@ public:
     }
 
 
+    TEST_METHOD (Apply_LiveEditsRemainNonBlockingAcrossRepeatedApplies)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+        st.LoadFromMachine ("X", v, v);
+
+        RecordingSink  sink;
+        JsonValue      outJson;
+
+        st.SetSpeedMode (SettingsSpeedMode::Double);
+        Assert::IsTrue (SUCCEEDED (st.Apply (sink, outJson)));
+        Assert::AreEqual (0, sink.queuedResetCount,
+                          L"Live edits must not require reset/pause semantics.");
+
+        st.SetSpeedMode (SettingsSpeedMode::Maximum);
+        Assert::IsTrue (SUCCEEDED (st.Apply (sink, outJson)));
+        Assert::AreEqual (0, sink.queuedResetCount,
+                          L"Repeated applies while panel remains open must stay non-blocking.");
+    }
+
+
     TEST_METHOD (Apply_HardwareChangeQueuesReset)
     {
         SettingsPanelState  st;
