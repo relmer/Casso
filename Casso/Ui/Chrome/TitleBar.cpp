@@ -44,12 +44,14 @@ namespace
                           fillArgb);
         IGNORE_RETURN_VALUE (hr, text.DrawString (glyph,
                                                   (float) rect.left,
-                                                  (float) rect.top + 2.0f,
+                                                  (float) rect.top,
                                                   (float) (rect.right - rect.left),
                                                   (float) (rect.bottom - rect.top),
                                                   textArgb,
                                                   11.0f,
-                                                  s_kMdl2Family));
+                                                  s_kMdl2Family,
+                                                  DwriteTextRenderer::HAlign::Center,
+                                                  DwriteTextRenderer::VAlign::Center));
     }
 }
 
@@ -332,13 +334,15 @@ void TitleBar::Paint (
                               theme.titleBarTopArgb,
                               theme.titleBarBottomArgb);
     IGNORE_RETURN_VALUE (hr, text.DrawString (s_kTitle,
-                                              s_kTitlePadDip,
-                                              7.0f,
+                                              (float) m_layout.titleBar.left + s_kTitlePadDip,
+                                              (float) m_layout.titleBar.top,
                                               160.0f,
-                                              24.0f,
+                                              (float) (m_layout.titleBar.bottom - m_layout.titleBar.top),
                                               theme.titleTextArgb,
                                               s_kTitleFontDip,
-                                              TitleBarLayout::WindowsUiFontFamily()));
+                                              TitleBarLayout::WindowsUiFontFamily(),
+                                              DwriteTextRenderer::HAlign::Left,
+                                              DwriteTextRenderer::VAlign::Center));
     PaintButton (painter, text, m_layout.minButton,   s_kMinGlyph,   minColor,   theme.titleTextArgb);
     PaintButton (painter, text, m_layout.maxButton,   s_kMaxGlyph,   maxColor,   theme.titleTextArgb);
     PaintButton (painter, text, m_layout.closeButton, s_kCloseGlyph, closeColor, theme.titleTextArgb);

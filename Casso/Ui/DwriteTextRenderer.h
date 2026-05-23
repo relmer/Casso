@@ -43,6 +43,20 @@ public:
     HRESULT  BeginDraw        ();
     HRESULT  EndDraw          ();
 
+    enum class HAlign
+    {
+        Left   = 0,
+        Center = 1,
+        Right  = 2,
+    };
+
+    enum class VAlign
+    {
+        Top    = 0,
+        Center = 1,
+        Bottom = 2,
+    };
+
     HRESULT  DrawString       (const wchar_t * text,
                                float           xDip,
                                float           yDip,
@@ -50,7 +64,9 @@ public:
                                float           heightDip,
                                uint32_t        argbColor,
                                float           fontSizeDip,
-                               const wchar_t * fontFamily);
+                               const wchar_t * fontFamily,
+                               HAlign          hAlign = HAlign::Left,
+                               VAlign          vAlign = VAlign::Top);
 
     HRESULT  OnDeviceLost     ();
     HRESULT  OnDeviceRestored (ID3D11Device * pDevice);

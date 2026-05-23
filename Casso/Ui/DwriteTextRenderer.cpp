@@ -334,7 +334,9 @@ HRESULT DwriteTextRenderer::DrawString (
     float            heightDip,
     uint32_t         argbColor,
     float            fontSizeDip,
-    const wchar_t  * fontFamily)
+    const wchar_t  * fontFamily,
+    HAlign           hAlign,
+    VAlign           vAlign)
 {
     HRESULT                            hr      = S_OK;
     ComPtr<IDWriteTextFormat>          format;
@@ -342,6 +344,8 @@ HRESULT DwriteTextRenderer::DrawString (
     ComPtr<ID2D1SolidColorBrush>       brush;
     D2D1_RECT_F                        layoutRect;
     UINT32                             textLen = 0;
+    DWRITE_TEXT_ALIGNMENT              dwH     = DWRITE_TEXT_ALIGNMENT_LEADING;
+    DWRITE_PARAGRAPH_ALIGNMENT         dwV     = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;
 
 
 
@@ -353,6 +357,23 @@ HRESULT DwriteTextRenderer::DrawString (
     CHRA (hr);
 
     format.Attach (rawFmt);
+
+    switch (hAlign)
+    {
+        case HAlign::Left:   dwH = DWRITE_TEXT_ALIGNMENT_LEADING;  break;
+        case HAlign::Center: dwH = DWRITE_TEXT_ALIGNMENT_CENTER;   break;
+        case HAlign::Right:  dwH = DWRITE_TEXT_ALIGNMENT_TRAILING; break;
+    }
+
+    switch (vAlign)
+    {
+        case VAlign::Top:    dwV = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;   break;
+        case VAlign::Center: dwV = DWRITE_PARAGRAPH_ALIGNMENT_CENTER; break;
+        case VAlign::Bottom: dwV = DWRITE_PARAGRAPH_ALIGNMENT_FAR;    break;
+    }
+
+    format->SetTextAlignment      (dwH);
+    format->SetParagraphAlignment (dwV);
 
     hr = m_d2dContext->CreateSolidColorBrush (ColorFromArgb (argbColor), &brush);
     CHRA (hr);
