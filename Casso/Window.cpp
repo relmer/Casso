@@ -185,6 +185,33 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
         return DefWindowProc (hwnd, message, wParam, lParam);
     }
 
+    // Custom-chrome cooperation with DWM. On Win11 with WS_CAPTION,
+    // DWM will draw its own min/max/close caption buttons over the
+    // OS-default rect unless we route the caption-button hover/click
+    // messages through DwmDefWindowProc so it understands the window
+    // owns its own chrome. WM_NCHITTEST is intentionally NOT routed
+    // here -- the derived Window::OnNcHitTest math is authoritative.
+    switch (message)
+    {
+        case WM_NCMOUSEMOVE:
+        case WM_NCMOUSELEAVE:
+        case WM_NCLBUTTONDOWN:
+        case WM_NCLBUTTONUP:
+        {
+            LRESULT  dwmResult = 0;
+
+
+            if (DwmDefWindowProc (hwnd, message, wParam, lParam, &dwmResult))
+            {
+                return dwmResult;
+            }
+            break;
+        }
+
+        default:
+            break;
+    }
+
     switch (message)
     {
         case WM_CHAR:
