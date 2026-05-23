@@ -32,6 +32,8 @@
 #include "Audio/DiskIIAudioSource.h"
 #include "WasapiAudio.h"
 #include "DiskIIDebugDialog.h"
+#include "Shell/ClipboardManager.h"
+#include "Shell/WindowManager.h"
 
 
 
@@ -215,12 +217,6 @@ private:
     void    ShowMachinePicker();
     HRESULT SwitchMachine (const wstring & machineName);
 
-    void CopyScreenText();
-    void CopyScreenshot();
-    void PasteFromClipboard();
-    void DrainPasteBuffer();
-    void SaveWindowPlacement();
-
     HRESULT CreateRenderSurface ();
     HRESULT PromptForDiskImage (int drive);
 
@@ -398,6 +394,14 @@ private:
     // so resets re-zero it even while the dialog is closed.
     std::unique_ptr<class DiskIIDebugDialog>  m_diskIIDebugDialog;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
+
+    // Extracted shell-side managers. WindowManager is stateless today
+    // (per-monitor placement persistence still lives in the registry);
+    // ClipboardManager holds references back to the shared CPU/UI
+    // state it operates on plus a pointer-to-pointer for the active
+    // keyboard so machine switches do not require re-wiring.
+    WindowManager                             m_windowManager;
+    std::unique_ptr<ClipboardManager>         m_clipboardManager;
 };
 
 

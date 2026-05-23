@@ -146,219 +146,6 @@ namespace
     }
 
 
-    struct MonitorSnapshot
-    {
-        std::wstring  device;
-        RECT          rcMonitor  = {};
-        RECT          rcWork     = {};
-        DWORD         flags      = 0;
-    };
-
-
-    uint64_t HashFNV1a64 (const std::wstring & text)
-    {
-        uint64_t  hash = 1469598103934665603ull;
-        size_t    i    = 0;
-
-
-
-        for (i = 0; i < text.size(); ++i)
-        {
-            uint64_t code = static_cast<uint64_t> (text[i]);
-
-            hash ^= (code & 0xFFu);
-            hash *= 1099511628211ull;
-            hash ^= ((code >> 8) & 0xFFu);
-            hash *= 1099511628211ull;
-        }
-
-        return hash;
-    }
-
-
-    bool TryParseLong (const std::wstring & text, LONG & outValue)
-    {
-        wchar_t * end    = nullptr;
-        long      parsed = 0;
-
-
-
-        if (text.empty())
-        {
-            return false;
-        }
-
-        parsed = wcstol (text.c_str(), &end, 10);
-        if (end == nullptr || *end != L'\0')
-        {
-            return false;
-        }
-
-        outValue = static_cast<LONG> (parsed);
-        return true;
-    }
-
-
-    BOOL CALLBACK CollectMonitorsProc (HMONITOR hMon, HDC hdc, LPRECT prc, LPARAM lParam)
-    {
-        std::vector<MonitorSnapshot> * list = reinterpret_cast<std::vector<MonitorSnapshot> *> (lParam);
-        MONITORINFOEXW                mi    = { sizeof (mi) };
-        MonitorSnapshot               snap;
-
-
-
-        UNREFERENCED_PARAMETER (hdc);
-        UNREFERENCED_PARAMETER (prc);
-
-
-
-        if (list == nullptr)
-        {
-            return FALSE;
-        }
-
-        if (!GetMonitorInfoW (hMon, &mi))
-        {
-            return TRUE;
-        }
-
-        snap.device    = mi.szDevice;
-        snap.rcMonitor = mi.rcMonitor;
-        snap.rcWork    = mi.rcWork;
-        snap.flags     = mi.dwFlags;
-
-        list->push_back (snap);
-        return TRUE;
-    }
-
-
-    std::wstring BuildPlacementSubkeyForMonitor (HMONITOR activeMonitor)
-    {
-        std::vector<MonitorSnapshot>  monitors;
-        std::wstring                  activeDevice;
-        MONITORINFOEXW                activeInfo = { sizeof (activeInfo) };
-        std::wstring                  canonical;
-        uint64_t                      hash       = 0;
-        wchar_t                       hashHex[17] = {};
-        size_t                        i          = 0;
-
-
-
-        EnumDisplayMonitors (nullptr, nullptr, CollectMonitorsProc, reinterpret_cast<LPARAM> (&monitors));
-
-        std::sort (monitors.begin(), monitors.end(),
-                   [] (const MonitorSnapshot & a, const MonitorSnapshot & b)
-                   {
-                       if (a.device != b.device) { return a.device < b.device; }
-                       if (a.rcMonitor.left != b.rcMonitor.left) { return a.rcMonitor.left < b.rcMonitor.left; }
-                       if (a.rcMonitor.top != b.rcMonitor.top) { return a.rcMonitor.top < b.rcMonitor.top; }
-                       if (a.rcMonitor.right != b.rcMonitor.right) { return a.rcMonitor.right < b.rcMonitor.right; }
-                       return a.rcMonitor.bottom < b.rcMonitor.bottom;
-                   });
-
-        if (activeMonitor != nullptr && GetMonitorInfoW (activeMonitor, &activeInfo))
-        {
-            activeDevice = activeInfo.szDevice;
-        }
-
-        for (i = 0; i < monitors.size(); ++i)
-        {
-            const MonitorSnapshot & m = monitors[i];
-
-            canonical += m.device;
-            canonical += L"|";
-            canonical += std::to_wstring (m.rcMonitor.left);
-            canonical += L",";
-            canonical += std::to_wstring (m.rcMonitor.top);
-            canonical += L",";
-            canonical += std::to_wstring (m.rcMonitor.right);
-            canonical += L",";
-            canonical += std::to_wstring (m.rcMonitor.bottom);
-            canonical += L"|";
-            canonical += std::to_wstring (m.rcWork.left);
-            canonical += L",";
-            canonical += std::to_wstring (m.rcWork.top);
-            canonical += L",";
-            canonical += std::to_wstring (m.rcWork.right);
-            canonical += L",";
-            canonical += std::to_wstring (m.rcWork.bottom);
-            canonical += L"|";
-            canonical += std::to_wstring (m.flags);
-            canonical += L";";
-        }
-
-        canonical += L"active=";
-        canonical += activeDevice;
-
-        hash = HashFNV1a64 (canonical);
-        swprintf_s (hashHex, _countof (hashHex), L"%016llX", hash);
-
-        return std::wstring (L"WindowPlacement\\v1\\") + hashHex;
-    }
-
-
-    bool TryLoadSavedWindowPlacement (
-        HMONITOR  activeMonitor,
-        LONG    & outX,
-        LONG    & outY,
-        int     & outW,
-        int     & outH)
-    {
-        HRESULT       hr       = S_OK;
-        std::wstring  subkey;
-        std::wstring  sx;
-        std::wstring  sy;
-        std::wstring  sw;
-        std::wstring  sh;
-        LONG          x        = 0;
-        LONG          y        = 0;
-        LONG          w        = 0;
-        LONG          h        = 0;
-        RECT          wr       = {};
-        HMONITOR      hMon     = nullptr;
-
-
-
-        subkey = BuildPlacementSubkeyForMonitor (activeMonitor);
-
-        hr = RegistrySettings::ReadString (subkey.c_str(), L"x", sx);
-        if (hr != S_OK) { return false; }
-        hr = RegistrySettings::ReadString (subkey.c_str(), L"y", sy);
-        if (hr != S_OK) { return false; }
-        hr = RegistrySettings::ReadString (subkey.c_str(), L"w", sw);
-        if (hr != S_OK) { return false; }
-        hr = RegistrySettings::ReadString (subkey.c_str(), L"h", sh);
-        if (hr != S_OK) { return false; }
-
-        if (!TryParseLong (sx, x) || !TryParseLong (sy, y) || !TryParseLong (sw, w) || !TryParseLong (sh, h))
-        {
-            return false;
-        }
-
-        if (w <= 0 || h <= 0)
-        {
-            return false;
-        }
-
-        wr.left   = x;
-        wr.top    = y;
-        wr.right  = x + w;
-        wr.bottom = y + h;
-
-        hMon = MonitorFromRect (&wr, MONITOR_DEFAULTTONULL);
-        if (hMon == nullptr)
-        {
-            return false;
-        }
-
-        outX = x;
-        outY = y;
-        outW = static_cast<int> (w);
-        outH = static_cast<int> (h);
-        return true;
-    }
-
-
     bool GetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outMonitor)
     {
         POINT          pt       = {};
@@ -430,6 +217,15 @@ EmulatorShell::EmulatorShell()
     // shell level so all three machine kinds (][/][+/]e) share the same
     // 17,030-cycle frame counter for $C019 (RDVBLBAR) reads.
     m_videoTiming = make_unique<VideoTiming>();
+
+    m_clipboardManager = std::make_unique<ClipboardManager> (m_memoryBus,
+                                                              m_cmdMutex,
+                                                              m_pasteBuffer,
+                                                              m_fbMutex,
+                                                              m_uiFramebuffer,
+                                                              kFramebufferWidth,
+                                                              kFramebufferHeight,
+                                                              &m_refs.keyboard);
 }
 
 
@@ -737,9 +533,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         CenterInWorkArea (work, windowW, windowH, windowX, windowY);
     }
 
-    TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH);
-
-    // Create window
+    m_windowManager.TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH);
     hr = Window::Create (0,
                          L"Casso",
                          style,
@@ -963,7 +757,7 @@ bool EmulatorShell::OnMove (HWND hwnd, int x, int y)
     UNREFERENCED_PARAMETER (x);
     UNREFERENCED_PARAMETER (y);
 
-    SaveWindowPlacement();
+    m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
     return false;
 }
 
@@ -2733,102 +2527,6 @@ void EmulatorShell::PostCommand (WORD id, const string & payload)
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//
-//  PasteFromClipboard
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::PasteFromClipboard()
-{
-    if (!OpenClipboard (m_hwnd))
-    {
-        return;
-    }
-
-    HANDLE hData = GetClipboardData (CF_UNICODETEXT);
-
-    if (hData != nullptr)
-    {
-        wchar_t * pText = static_cast<wchar_t *> (GlobalLock (hData));
-
-        if (pText != nullptr)
-        {
-            lock_guard<mutex> lock (m_cmdMutex);
-
-            for (size_t i = 0; pText[i] != L'\0'; i++)
-            {
-                wchar_t ch = pText[i];
-
-                // Convert \r\n and \n to \r (Apple II Return key)
-                if (ch == L'\n')
-                {
-                    continue;
-                }
-
-                if (ch == L'\r')
-                {
-                    m_pasteBuffer += static_cast<char> (0x0D);
-                }
-                else if (ch >= 0x20 && ch < 0x7F)
-                {
-                    m_pasteBuffer += static_cast<char> (ch);
-                }
-            }
-
-            GlobalUnlock (hData);
-        }
-    }
-
-    CloseClipboard();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DrainPasteBuffer
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::DrainPasteBuffer()
-{
-    Byte ch = 0;
-
-
-
-    if (m_refs.keyboard == nullptr)
-    {
-        return;
-    }
-
-    // Wait until the CPU has consumed the previous key (strobe clear)
-    if (!m_refs.keyboard->IsStrobeClear())
-    {
-        return;
-    }
-
-    {
-        lock_guard<mutex> lock (m_cmdMutex);
-
-        if (m_pasteBuffer.empty())
-        {
-            return;
-        }
-
-        ch = static_cast<Byte> (m_pasteBuffer[0]);
-        m_pasteBuffer.erase (m_pasteBuffer.begin());
-    }
-
-    m_refs.keyboard->KeyPress (ch);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
 
 
 
@@ -2887,7 +2585,7 @@ void EmulatorShell::ExecuteCpuSlices()
     for (uint32_t executed = 0; executed < targetCycles; )
     {
         // Feed next paste character if available
-        DrainPasteBuffer();
+        m_clipboardManager->DrainPasteBuffer();
 
         sliceTarget = targetCycles - executed;
 
@@ -3119,68 +2817,6 @@ LRESULT EmulatorShell::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SaveWindowPlacement
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SaveWindowPlacement()
-{
-    HMONITOR      hMon    = nullptr;
-    std::wstring  subkey;
-    RECT          wr      = {};
-    int           width   = 0;
-    int           height  = 0;
-    HRESULT       hr      = S_OK;
-
-
-
-    if (m_hwnd == nullptr)
-    {
-        return;
-    }
-
-    if (IsIconic (m_hwnd) || IsZoomed (m_hwnd) || m_d3dRenderer.IsFullscreen())
-    {
-        return;
-    }
-
-    if (!GetWindowRect (m_hwnd, &wr))
-    {
-        return;
-    }
-
-    width  = wr.right - wr.left;
-    height = wr.bottom - wr.top;
-
-    if (width <= 0 || height <= 0)
-    {
-        return;
-    }
-
-    hMon = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
-    if (hMon == nullptr)
-    {
-        return;
-    }
-
-    subkey = BuildPlacementSubkeyForMonitor (hMon);
-
-    hr = RegistrySettings::WriteString (subkey.c_str(), L"x", std::to_wstring (wr.left));
-    IGNORE_RETURN_VALUE (hr, S_OK);
-    hr = RegistrySettings::WriteString (subkey.c_str(), L"y", std::to_wstring (wr.top));
-    IGNORE_RETURN_VALUE (hr, S_OK);
-    hr = RegistrySettings::WriteString (subkey.c_str(), L"w", std::to_wstring (width));
-    IGNORE_RETURN_VALUE (hr, S_OK);
-    hr = RegistrySettings::WriteString (subkey.c_str(), L"h", std::to_wstring (height));
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OnDestroy
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3191,7 +2827,7 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
 
 
 
-    SaveWindowPlacement();
+    m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
 
     // P6 -- revoke the IDropTarget before the HWND is destroyed.
     // RevokeDragDrop requires a valid window handle.
@@ -3328,7 +2964,7 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     // hardware key). Consumed before reaching the emulated keyboard.
     if (vk == 'V' && ctrlHeld && !altHeld)
     {
-        PasteFromClipboard();
+        m_clipboardManager->PasteFromClipboard (m_hwnd);
         return false;
     }
 
@@ -3553,7 +3189,7 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
         }
     }
 
-    SaveWindowPlacement();
+    m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
     return false;
 }
 
@@ -3637,198 +3273,22 @@ void EmulatorShell::OnEditCommand (int id)
     {
         case IDM_EDIT_COPY_TEXT:
         {
-            CopyScreenText();
+            m_clipboardManager->CopyScreenText (m_hwnd);
             break;
         }
 
         case IDM_EDIT_COPY_SCREENSHOT:
         {
-            CopyScreenshot();
+            m_clipboardManager->CopyScreenshot (m_hwnd);
             break;
         }
 
         case IDM_EDIT_PASTE:
         {
-            PasteFromClipboard();
+            m_clipboardManager->PasteFromClipboard (m_hwnd);
             break;
         }
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CopyScreenText
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::CopyScreenText()
-{
-    HGLOBAL hMem    = nullptr;
-    wchar_t * pDest = nullptr;
-    wstring   text;
-
-
-
-    if (m_cpu == nullptr)
-    {
-        return;
-    }
-
-    // Read the 40x24 text screen via the memory bus rather than the
-    // CPU's internal memory[] buffer. On the //e the MMU owns its own
-    // RAM device(s), so writes from firmware land in the bus-side
-    // buffer; m_cpu->GetMemory() points at a stale/uninitialized
-    // mirror that has nothing to do with what the user sees on screen.
-    // Same fix that landed for the framebuffer renderer earlier.
-    for (int row = 0; row < 24; row++)
-    {
-        // Apple II text screen uses a non-linear address mapping
-        Word base = static_cast<Word> (0x0400 + (row / 8) * 0x28 + (row % 8) * 0x80);
-
-        for (int col = 0; col < 40; col++)
-        {
-            Byte ch = m_memoryBus.ReadByte (static_cast<Word> (base + col));
-
-            // Convert Apple II screen code to ASCII
-            // Normal: $20-$3F = '@'..'_' on inverse, etc.
-            // High bit set ($80-$FF): normal ASCII characters.
-            if (ch >= 0xA0)
-            {
-                ch -= 0x80;
-            }
-            else if (ch >= 0x80)
-            {
-                ch -= 0x80;
-            }
-
-            // Clamp to printable ASCII
-            if (ch < 0x20 || ch > 0x7E)
-            {
-                ch = ' ';
-            }
-
-            text += static_cast<wchar_t> (ch);
-        }
-
-        // Trim trailing spaces on each row
-        while (!text.empty() && text.back() == L' ')
-        {
-            text.pop_back();
-        }
-
-        text += L"\r\n";
-    }
-
-    // Copy to clipboard
-    if (!OpenClipboard (m_hwnd))
-    {
-        return;
-    }
-
-    EmptyClipboard();
-
-    hMem = GlobalAlloc (GMEM_MOVEABLE, (text.size() + 1) * sizeof (wchar_t));
-
-    if (hMem != nullptr)
-    {
-        pDest = static_cast<wchar_t *> (GlobalLock (hMem));
-
-        if (pDest != nullptr)
-        {
-            memcpy (pDest, text.c_str(), (text.size() + 1) * sizeof (wchar_t));
-            GlobalUnlock (hMem);
-            SetClipboardData (CF_UNICODETEXT, hMem);
-        }
-    }
-
-    CloseClipboard();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CopyScreenshot
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::CopyScreenshot()
-{
-    HGLOBAL         hMem    = nullptr;
-    BITMAPINFOHEADER bih     = {};
-    size_t          dataSize = 0;
-    size_t          totalSize= 0;
-    Byte          * pDest    = nullptr;
-    int             w        = kFramebufferWidth;
-    int             h        = kFramebufferHeight;
-
-
-
-    // Copy the UI framebuffer as a DIB to the clipboard
-    {
-        lock_guard<mutex> lock (m_fbMutex);
-
-        dataSize  = static_cast<size_t> (w) * h * 4;
-        totalSize = sizeof (BITMAPINFOHEADER) + dataSize;
-
-        if (!OpenClipboard (m_hwnd))
-        {
-            return;
-        }
-
-        EmptyClipboard();
-
-        hMem = GlobalAlloc (GMEM_MOVEABLE, totalSize);
-
-        if (hMem == nullptr)
-        {
-            CloseClipboard();
-            return;
-        }
-
-        pDest = static_cast<Byte *> (GlobalLock (hMem));
-
-        if (pDest == nullptr)
-        {
-            CloseClipboard();
-            return;
-        }
-
-        // Fill BITMAPINFOHEADER (bottom-up DIB)
-        bih.biSize        = sizeof (bih);
-        bih.biWidth       = w;
-        bih.biHeight      = h;      // positive = bottom-up
-        bih.biPlanes      = 1;
-        bih.biBitCount    = 32;
-        bih.biCompression = BI_RGB;
-        bih.biSizeImage   = static_cast<DWORD> (dataSize);
-
-        memcpy (pDest, &bih, sizeof (bih));
-        pDest += sizeof (bih);
-
-        // Copy framebuffer rows bottom-up (DIB is flipped). The
-        // framebuffer is already in BGRA byte order (matches
-        // CF_DIB / BI_RGB), so no swizzle is required — just an
-        // upside-down memcpy per row.
-        for (int y = h - 1; y >= 0; y--)
-        {
-            memcpy (pDest,
-                    &m_uiFramebuffer[static_cast<size_t> (y) * w],
-                    static_cast<size_t> (w) * 4);
-            pDest += static_cast<size_t> (w) * 4;
-        }
-
-        GlobalUnlock (hMem);
-        SetClipboardData (CF_DIB, hMem);
-    }
-
-    CloseClipboard();
 }
 
 

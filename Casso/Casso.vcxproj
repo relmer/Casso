@@ -248,6 +248,8 @@
     <ClCompile Include="Ui\AutoMountResolver.cpp" />
     <ClCompile Include="Ui\SettingsPanelState.cpp" />
     <ClCompile Include="Ui\SettingsPanel.cpp" />
+    <ClCompile Include="Shell\ClipboardManager.cpp" />
+    <ClCompile Include="Shell\WindowManager.cpp" />
     <ClCompile Include="Ui\UiShell.cpp" />
     <ClCompile Include="Ui\DxUiPainter.cpp" />
     <ClCompile Include="Ui\DwriteTextRenderer.cpp" />
@@ -297,6 +299,8 @@
     <ClInclude Include="Ui\AutoMountResolver.h" />
     <ClInclude Include="Ui\SettingsPanelState.h" />
     <ClInclude Include="Ui\SettingsPanel.h" />
+    <ClInclude Include="Shell\ClipboardManager.h" />
+    <ClInclude Include="Shell\WindowManager.h" />
     <ClInclude Include="Ui\UiShell.h" />
     <ClInclude Include="Ui\DxUiPainter.h" />
     <ClInclude Include="Ui\DwriteTextRenderer.h" />
