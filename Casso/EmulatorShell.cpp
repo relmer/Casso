@@ -563,14 +563,16 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     clientH = kFramebufferHeight * scale + ComputeChromeTopInsetPx (dpi) + ComputeChromeBottomInsetPx (dpi);
 
     rc    = { 0, 0, clientW, clientH };
-    // Borderless custom-chrome recipe. WS_THICKFRAME keeps
-    // Aero Snap + edge resize live; WS_CAPTION stays in the style
-    // mask so DWM still grants us a drop shadow + snap-layouts
-    // animations even though we draw zero chrome ourselves. Sizing
-    // math through AdjustWindowRectExForDpi accounts for the
-    // (invisible) non-client frame so the requested client area is
-    // preserved.
-    style    = WS_POPUP | WS_CAPTION | WS_THICKFRAME |
+    // Borderless custom-chrome recipe. WS_THICKFRAME keeps Aero Snap
+    // and edge resize live. WS_CAPTION is intentionally OMITTED:
+    // on Win11 the OS unconditionally draws its own caption buttons
+    // for any window that declares WS_CAPTION, which produced ghost
+    // min/max/close glyphs alongside our DX-rendered ones. The DWM
+    // drop-shadow and snap-layout animations are preserved via
+    // ExtendFrameIntoClientArea below. Sizing math through
+    // AdjustWindowRectExForDpi accounts for the (invisible) non-client
+    // frame so the requested client area is preserved.
+    style    = WS_POPUP | WS_THICKFRAME |
                WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU |
                WS_CLIPCHILDREN;
     // No menu bar -> bMenu = FALSE in window-rect math.

@@ -22,7 +22,9 @@ struct ChromeTheme
     uint32_t  sysButtonIdleArgb      = 0;
     uint32_t  sysButtonHoverArgb     = 0;
     uint32_t  sysButtonPressedArgb   = 0;
-    uint32_t  sysButtonCloseHoverArgb = 0;
+    uint32_t  sysButtonCloseHoverArgb   = 0;
+    uint32_t  sysButtonCloseHoverGlyphArgb = 0;
+    uint32_t  sysButtonClosePressedArgb = 0;
     uint32_t  navStripArgb           = 0;
     uint32_t  navHoverArgb           = 0;
     uint32_t  navItemTextArgb        = 0;
@@ -47,10 +49,20 @@ struct ChromeTheme
         theme.titleBarTopArgb         = 0xFF102A44;
         theme.titleBarBottomArgb      = 0xFF071827;
         theme.titleTextArgb           = 0xFFE8EEF4;
-        theme.sysButtonIdleArgb       = 0x00101824;
-        theme.sysButtonHoverArgb      = 0x334D6A86;
-        theme.sysButtonPressedArgb    = 0x665E7C99;
-        theme.sysButtonCloseHoverArgb = 0xFFD83B3B;
+        // Caption-button overlays match the Fluent/Win11 specification:
+        // - idle is fully transparent so the title-bar gradient shows
+        //   through; hover/pressed are theme-neutral white overlays
+        //   at ~10% / ~16% alpha; close hover/pressed are the
+        //   documented Windows red (#C42B1C) with a slightly darker
+        //   pressed shade. Close hover also flips the glyph color
+        //   to white per Windows convention so the X reads clearly
+        //   against the red fill.
+        theme.sysButtonIdleArgb          = 0x00000000;
+        theme.sysButtonHoverArgb         = 0x1AFFFFFF;
+        theme.sysButtonPressedArgb       = 0x29FFFFFF;
+        theme.sysButtonCloseHoverArgb       = 0xFFC42B1C;
+        theme.sysButtonCloseHoverGlyphArgb  = 0xFFFFFFFF;
+        theme.sysButtonClosePressedArgb     = 0xFFB12414;
         theme.navStripArgb            = 0xFF182536;
         theme.navHoverArgb            = 0xFF2D4058;
         theme.navItemTextArgb         = 0xFFE8EEF4;

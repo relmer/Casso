@@ -185,32 +185,12 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
         return DefWindowProc (hwnd, message, wParam, lParam);
     }
 
-    // Custom-chrome cooperation with DWM. On Win11 with WS_CAPTION,
-    // DWM will draw its own min/max/close caption buttons over the
-    // OS-default rect unless we route the caption-button hover/click
-    // messages through DwmDefWindowProc so it understands the window
-    // owns its own chrome. WM_NCHITTEST is intentionally NOT routed
-    // here -- the derived Window::OnNcHitTest math is authoritative.
-    switch (message)
-    {
-        case WM_NCMOUSEMOVE:
-        case WM_NCMOUSELEAVE:
-        case WM_NCLBUTTONDOWN:
-        case WM_NCLBUTTONUP:
-        {
-            LRESULT  dwmResult = 0;
-
-
-            if (DwmDefWindowProc (hwnd, message, wParam, lParam, &dwmResult))
-            {
-                return dwmResult;
-            }
-            break;
-        }
-
-        default:
-            break;
-    }
+    // Custom-chrome NC mouse handling lives in the per-message switch
+    // below. WS_CAPTION is intentionally dropped from the window
+    // style so DWM does not draw a second set of system caption
+    // buttons over our DX-rendered ones; with WS_CAPTION gone there
+    // is nothing for DwmDefWindowProc to coordinate, so the
+    // forwarding shim that used to live here has been retired.
 
     switch (message)
     {
@@ -306,17 +286,78 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
             break;
         }
 
+        case WM_NCLBUTTONDOWN:
+        {
+            POINT  ptScreen  = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+            POINT  ptClient  = ptScreen;
+
+
+            ScreenToClient (hwnd, &ptClient);
+
+            // Drive caption-button pressed state through the same
+            // OnLButtonDown path the client area uses. The buttons
+            // live in the non-client area when the chrome returns
+            // HTMINBUTTON/HTMAXBUTTON/HTCLOSE, but their visual
+            // hover/press cycle is owned by the chrome painter, so
+            // we forward the event with client-relative coordinates.
+            (void) pThis->OnLButtonDown (MK_LBUTTON,
+                                         MAKELPARAM (ptClient.x, ptClient.y));
+            callDefWndProc = true;
+            break;
+        }
+
         case WM_NCLBUTTONUP:
         {
-            bool consumed = pThis->OnNcLButtonUp (hwnd,
-                                                   (LRESULT) wParam,
-                                                   (int) (short) LOWORD (lParam),
-                                                   (int) (short) HIWORD (lParam));
+            POINT  ptScreen   = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+            POINT  ptClient   = ptScreen;
+            bool   consumed   = false;
+
+
+            ScreenToClient (hwnd, &ptClient);
+
+            // Update the released visual state before the click is
+            // dispatched so a successful close/min/max paint flips
+            // the button back to idle on the next frame.
+            (void) pThis->OnLButtonUp (0,
+                                       MAKELPARAM (ptClient.x, ptClient.y));
+
+            consumed = pThis->OnNcLButtonUp (hwnd,
+                                              (LRESULT) wParam,
+                                              ptScreen.x,
+                                              ptScreen.y);
 
             if (consumed)
             {
                 return 0;
             }
+            callDefWndProc = true;
+            break;
+        }
+
+        case WM_NCMOUSEMOVE:
+        {
+            POINT  ptScreen = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+            POINT  ptClient = ptScreen;
+
+
+            ScreenToClient (hwnd, &ptClient);
+
+            // Hover tracking for the custom caption buttons. Without
+            // this the chrome only ever sees client-area mouse moves
+            // (WM_MOUSEMOVE), so caption-button hover never lights up.
+            (void) pThis->OnMouseMove (0, MAKELPARAM (ptClient.x, ptClient.y));
+            callDefWndProc = true;
+            break;
+        }
+
+        case WM_NCMOUSELEAVE:
+        {
+            POINT  ptOff = { -1, -1 };
+
+
+            // Force the chrome to drop its hot-button state when the
+            // cursor leaves the non-client area entirely.
+            (void) pThis->OnMouseMove (0, MAKELPARAM ((WORD) ptOff.x, (WORD) ptOff.y));
             callDefWndProc = true;
             break;
         }
