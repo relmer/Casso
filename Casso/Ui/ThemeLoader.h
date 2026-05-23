@@ -69,10 +69,20 @@ struct ThemeEntryDocuments
     std::wstring  driveWidgets;
 };
 
+struct ThemeDriveVisualProfile
+{
+    std::string style;
+    std::string colorway;
+    std::string doorAnimation;
+    std::string syncChannel;
+};
+
 
 struct LoadedTheme
 {
     std::string         name;
+    std::string         familyId;
+    std::string         variantId;
     std::string         author;
     std::string         description;
     int                 version              = 0;   // $cassoThemeVersion
@@ -82,6 +92,8 @@ struct LoadedTheme
     std::wstring        directoryPath;               // absolute, no trailing sep
     ThemeEntryDocuments entryDocs;
     ThemeCrtDefaults    crtDefaults;
+    JsonValue           uiTokens;
+    ThemeDriveVisualProfile driveVisualProfile;
 };
 
 

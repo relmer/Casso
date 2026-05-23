@@ -190,6 +190,8 @@ HRESULT ThemeLoader::ParseMetadata (
     JsonValue           root;
     JsonParseError      perr;
     const JsonValue *   entryObj      = nullptr;
+    const JsonValue *   uiTokensObj   = nullptr;
+    const JsonValue *   driveProfile  = nullptr;
     const JsonValue *   crtObj        = nullptr;
     const JsonValue *   scanObj       = nullptr;
     const JsonValue *   bloomObj      = nullptr;
@@ -218,7 +220,7 @@ HRESULT ThemeLoader::ParseMetadata (
         return E_INVALIDARG;
     }
 
-    // ---- required: $cassoThemeVersion + name ------------------------------
+    // ---- required: $cassoThemeVersion + name + family/variant ids ---------
 
     hr = root.GetInt (s_kpszVersionKey, themeVersion);
 
@@ -247,12 +249,75 @@ HRESULT ThemeLoader::ParseMetadata (
         return FAILED (hr) ? hr : E_INVALIDARG;
     }
 
+    hr = root.GetString ("familyId", outTheme.familyId);
+
+    if (FAILED (hr) || outTheme.familyId.empty())
+    {
+        outError.code    = ThemeLoadResult::MetadataInvalid;
+        outError.message = "theme.json missing or empty `familyId`";
+        return FAILED (hr) ? hr : E_INVALIDARG;
+    }
+
+    hr = root.GetString ("variantId", outTheme.variantId);
+
+    if (FAILED (hr) || outTheme.variantId.empty())
+    {
+        outError.code    = ThemeLoadResult::MetadataInvalid;
+        outError.message = "theme.json missing or empty `variantId`";
+        return FAILED (hr) ? hr : E_INVALIDARG;
+    }
+
     // ---- optional scalars --------------------------------------------------
 
     outTheme.author          = GetStringOpt (root, "author",      "");
     outTheme.description     = GetStringOpt (root, "description", "");
     outTheme.useMicaBackdrop = GetBoolOpt   (root, "useMicaBackdrop", false);
     outTheme.isBuiltIn       = GetBoolOpt   (root, s_kpszBuiltInKey,  false);
+
+    // ---- required: uiTokens + driveVisualProfile --------------------------
+
+    if (FAILED (root.GetObject ("uiTokens", uiTokensObj)) || uiTokensObj == nullptr)
+    {
+        outError.code    = ThemeLoadResult::MetadataInvalid;
+        outError.message = "theme.json missing required `uiTokens` object";
+        return E_INVALIDARG;
+    }
+    outTheme.uiTokens = *uiTokensObj;
+
+    if (FAILED (root.GetObject ("driveVisualProfile", driveProfile)) || driveProfile == nullptr)
+    {
+        outError.code    = ThemeLoadResult::MetadataInvalid;
+        outError.message = "theme.json missing required `driveVisualProfile` object";
+        return E_INVALIDARG;
+    }
+    if (FAILED (driveProfile->GetString ("style", outTheme.driveVisualProfile.style)) ||
+        outTheme.driveVisualProfile.style.empty())
+    {
+        outError.code    = ThemeLoadResult::MetadataInvalid;
+        outError.message = "driveVisualProfile.style is required";
+        return E_INVALIDARG;
+    }
+    if (FAILED (driveProfile->GetString ("colorway", outTheme.driveVisualProfile.colorway)) ||
+        outTheme.driveVisualProfile.colorway.empty())
+    {
+        outError.code    = ThemeLoadResult::MetadataInvalid;
+        outError.message = "driveVisualProfile.colorway is required";
+        return E_INVALIDARG;
+    }
+    if (FAILED (driveProfile->GetString ("doorAnimation", outTheme.driveVisualProfile.doorAnimation)) ||
+        outTheme.driveVisualProfile.doorAnimation.empty())
+    {
+        outError.code    = ThemeLoadResult::MetadataInvalid;
+        outError.message = "driveVisualProfile.doorAnimation is required";
+        return E_INVALIDARG;
+    }
+    if (FAILED (driveProfile->GetString ("syncChannel", outTheme.driveVisualProfile.syncChannel)) ||
+        outTheme.driveVisualProfile.syncChannel.empty())
+    {
+        outError.code    = ThemeLoadResult::MetadataInvalid;
+        outError.message = "driveVisualProfile.syncChannel is required";
+        return E_INVALIDARG;
+    }
 
     // ---- entryDocuments (all optional; resolved later) --------------------
 

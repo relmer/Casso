@@ -26,8 +26,17 @@ namespace
     constexpr const char * kHappyJson = R"({
         "$cassoThemeVersion": 1,
         "name": "Skeuomorphic",
+        "familyId": "apple2",
+        "variantId": "ii",
         "author": "Casso",
         "description": "test",
+        "uiTokens": { "chrome": { "titleTextColor": "#fff" } },
+        "driveVisualProfile": {
+            "style": "disk2",
+            "colorway": "beige",
+            "doorAnimation": "mechanicalSwing",
+            "syncChannel": "drive-door"
+        },
         "entryDocuments": {
             "titleBar":     "title_bar.rml",
             "navLayer":     "nav_layer.rml",
@@ -70,6 +79,8 @@ public:
 
         Assert::IsTrue (SUCCEEDED (hr), L"Load failed");
         Assert::AreEqual (string ("Skeuomorphic"), theme.name);
+        Assert::AreEqual (string ("apple2"), theme.familyId);
+        Assert::AreEqual (string ("ii"), theme.variantId);
         Assert::AreEqual (1, theme.version);
         Assert::IsFalse (theme.isBuiltIn);
         Assert::IsFalse (theme.useMicaBackdrop);
@@ -87,7 +98,7 @@ public:
         HRESULT             hr;
 
         std::wstring  dir = std::wstring (kThemesBase) + L"\\NoVersion";
-        fs.WriteAllText (dir + L"\\theme.json", R"({ "name": "x" })");
+        fs.WriteAllText (dir + L"\\theme.json", R"({ "name": "x", "familyId": "apple2", "variantId": "ii", "uiTokens": {}, "driveVisualProfile": {"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"} })");
 
         hr = ThemeLoader::Load (fs, dir, L"", theme, err);
 
@@ -105,7 +116,7 @@ public:
 
         std::wstring  dir = std::wstring (kThemesBase) + L"\\Future";
         fs.WriteAllText (dir + L"\\theme.json",
-                         R"({"$cassoThemeVersion": 999, "name": "x"})");
+                         R"({"$cassoThemeVersion": 999, "name": "x", "familyId": "apple2", "variantId": "ii", "uiTokens": {}, "driveVisualProfile": {"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"}})");
 
         hr = ThemeLoader::Load (fs, dir, L"", theme, err);
 
@@ -161,7 +172,7 @@ public:
         std::wstring        sharedDir = std::wstring (kThemesBase) + L"\\_shared";
 
         fs.WriteAllText (dir + L"\\theme.json",
-                         R"({"$cassoThemeVersion": 1, "name": "Minimal"})");
+                         R"({"$cassoThemeVersion": 1, "name": "Minimal", "familyId": "apple2", "variantId": "ii", "uiTokens": {}, "driveVisualProfile": {"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"}})");
         fs.WriteAllText (sharedDir + L"\\title_bar.rml",     "<rml/>");
         fs.WriteAllText (sharedDir + L"\\nav_layer.rml",     "<rml/>");
         fs.WriteAllText (sharedDir + L"\\settings.rml",      "<rml/>");
@@ -212,5 +223,47 @@ public:
         // segment it derived. Order is alphabetic per the set.
         Assert::AreEqual (std::wstring (L"a"), found[0]);
         Assert::AreEqual (std::wstring (L"c"), found[1]);
+    }
+
+
+    TEST_METHOD (MissingFamilyOrVariant_Rejected)
+    {
+        InMemoryFileSystem  fs;
+        LoadedTheme         theme;
+        ThemeLoadError      err;
+        HRESULT             hr;
+        std::wstring        dir = std::wstring (kThemesBase) + L"\\BrokenIds";
+
+        fs.WriteAllText (dir + L"\\theme.json",
+                         R"({"$cassoThemeVersion":1,"name":"Broken","familyId":"apple2","uiTokens":{},"driveVisualProfile":{"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"}})");
+
+        hr = ThemeLoader::Load (fs, dir, L"", theme, err);
+
+        Assert::IsTrue (FAILED (hr));
+        Assert::IsTrue (err.code == ThemeLoadResult::MetadataInvalid);
+    }
+
+
+    TEST_METHOD (NonAppleFamily_IsAccepted)
+    {
+        InMemoryFileSystem  fs;
+        LoadedTheme         theme;
+        ThemeLoadError      err;
+        HRESULT             hr;
+        std::wstring        dir = std::wstring (kThemesBase) + L"\\Commodore";
+        std::wstring        sharedDir = std::wstring (kThemesBase) + L"\\_shared";
+
+        fs.WriteAllText (dir + L"\\theme.json",
+                         R"({"$cassoThemeVersion":1,"name":"Commodore","familyId":"commodore64","variantId":"c64c","uiTokens":{},"driveVisualProfile":{"style":"disk2","colorway":"ivory","doorAnimation":"x","syncChannel":"drive-door"}})");
+        fs.WriteAllText (sharedDir + L"\\title_bar.rml", "<rml/>");
+        fs.WriteAllText (sharedDir + L"\\nav_layer.rml", "<rml/>");
+        fs.WriteAllText (sharedDir + L"\\settings.rml", "<rml/>");
+        fs.WriteAllText (sharedDir + L"\\drive_widgets.rml", "<rml/>");
+
+        hr = ThemeLoader::Load (fs, dir, sharedDir, theme, err);
+
+        Assert::IsTrue (SUCCEEDED (hr));
+        Assert::AreEqual (string ("commodore64"), theme.familyId);
+        Assert::AreEqual (string ("c64c"), theme.variantId);
     }
 };

@@ -2,6 +2,8 @@
     "$cassoThemeVersion": 1,
     "$cassoBuiltIn":      true,
     "name":               "Skeuomorphic",
+    "familyId":           "apple2",
+    "variantId":          "ii",
     "author":             "Casso",
     "description":        "Beige/cream Apple ][ hardware aesthetic with subtle bevels.",
     "entryDocuments": {
@@ -15,6 +17,19 @@
         "scanlines":  { "enabled": false, "intensity": 0.0 },
         "bloom":      { "enabled": true,  "radius": 1.0, "strength": 0.3 },
         "colorBleed": { "enabled": false, "width":  0.0 }
+    },
+    "uiTokens": {
+        "chrome": {
+            "titleTextColor": "#1f1f1f",
+            "backgroundGradient": ["#efe7d6", "#d8ccb7"]
+        },
+        "timingsMs": { "driveDoor": 120 }
+    },
+    "driveVisualProfile": {
+        "style": "disk2",
+        "colorway": "beige",
+        "doorAnimation": "mechanicalSwing",
+        "syncChannel": "drive-door"
     },
     "useMicaBackdrop": false
 }

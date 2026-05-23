@@ -250,6 +250,8 @@ HRESULT ThemeManager::Activate (const std::string & themeName)
     size_t               i        = 0;
     HRESULT              hr       = S_OK;
     std::string          previous = m_activeName;
+    std::string          previousFamily = m_activeFamilyId;
+    std::string          previousVariant = m_activeVariantId;
 
 
 
@@ -271,13 +273,17 @@ HRESULT ThemeManager::Activate (const std::string & themeName)
     // ReattachDocuments reports the new one. Roll back on failure
     // to preserve the FR-036 "previous theme remains active"
     // invariant.
-    m_activeName = themeName;
+    m_activeName      = themeName;
+    m_activeFamilyId  = theme->familyId;
+    m_activeVariantId = theme->variantId;
 
     hr = ReattachDocuments (*theme);
 
     if (FAILED (hr))
     {
-        m_activeName = previous;
+        m_activeName      = previous;
+        m_activeFamilyId  = previousFamily;
+        m_activeVariantId = previousVariant;
         return hr;
     }
 
@@ -285,6 +291,30 @@ HRESULT ThemeManager::Activate (const std::string & themeName)
     NotifyListeners (*theme);
 
     return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActivateByFamilyVariant
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ThemeManager::ActivateByFamilyVariant (const std::string & familyId,
+                                               const std::string & variantId)
+{
+    for (const LoadedTheme & theme : m_available)
+    {
+        if (theme.familyId == familyId && theme.variantId == variantId)
+        {
+            return Activate (theme.name);
+        }
+    }
+
+    return S_FALSE;
 }
 
 

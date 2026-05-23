@@ -104,8 +104,12 @@ public:
     HRESULT                        Discover           ();
     const std::vector<LoadedTheme> & GetAvailableThemes () const { return m_available; }
     HRESULT                        Activate           (const std::string & themeName);
+    HRESULT                        ActivateByFamilyVariant (const std::string & familyId,
+                                                            const std::string & variantId);
     HRESULT                        ReloadCurrent      ();
     const std::string            & GetActiveThemeName () const { return m_activeName; }
+    const std::string            & GetActiveFamilyId  () const { return m_activeFamilyId; }
+    const std::string            & GetActiveVariantId () const { return m_activeVariantId; }
     const LoadedTheme            * GetActiveTheme     () const;
     void                           AddChangeListener  (ChangeListener listener);
 
@@ -122,6 +126,8 @@ private:
 
     std::vector<LoadedTheme>             m_available;
     std::string                          m_activeName;
+    std::string                          m_activeFamilyId;
+    std::string                          m_activeVariantId;
 
     Rml::Context                       * m_context    = nullptr;
     HWND                                 m_hwnd       = nullptr;

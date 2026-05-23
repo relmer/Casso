@@ -34,6 +34,10 @@ namespace
         "$cassoThemeVersion": 1,
         "$cassoBuiltIn":      true,
         "name":               "Skeuomorphic",
+        "familyId":           "apple2",
+        "variantId":          "ii",
+        "uiTokens":           {},
+        "driveVisualProfile": { "style":"disk2", "colorway":"beige", "doorAnimation":"x", "syncChannel":"drive-door" },
         "author":             "Casso",
         "useMicaBackdrop":    false
     })";
@@ -42,11 +46,15 @@ namespace
         "$cassoThemeVersion": 1,
         "$cassoBuiltIn":      true,
         "name":               "DarkModern",
+        "familyId":           "apple2",
+        "variantId":          "iie",
+        "uiTokens":           {},
+        "driveVisualProfile": { "style":"disk2", "colorway":"graphite", "doorAnimation":"x", "syncChannel":"drive-door" },
         "author":             "Casso",
         "useMicaBackdrop":    true
     })";
 
-    constexpr const char * kBadJson  = R"({ "name": "no version" })";
+    constexpr const char * kBadJson  = R"({ "name": "no version", "familyId":"apple2", "variantId":"ii", "uiTokens":{}, "driveVisualProfile":{"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"} })";
 
 
     // Write a complete minimal theme that ThemeLoader will accept
@@ -150,6 +158,24 @@ public:
         Assert::AreEqual (string ("DarkModern"), mgr.GetActiveThemeName());
         Assert::AreEqual (string ("DarkModern"), observed);
         Assert::AreEqual (1, hits);
+        Assert::AreEqual (string ("apple2"), mgr.GetActiveFamilyId());
+        Assert::AreEqual (string ("iie"), mgr.GetActiveVariantId());
+    }
+
+
+    TEST_METHOD (ActivateByFamilyVariant_FindsAndActivatesTheme)
+    {
+        InMemoryFileSystem  fs;
+        ThemeManager        mgr (fs, kThemesBase);
+
+        WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\Skeuomorphic", kSkeuoJson);
+        WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\DarkModern",   kDarkJson);
+        mgr.Discover();
+
+        HRESULT hr = mgr.ActivateByFamilyVariant ("apple2", "ii");
+
+        Assert::IsTrue (SUCCEEDED (hr));
+        Assert::AreEqual (string ("Skeuomorphic"), mgr.GetActiveThemeName());
     }
 
 
