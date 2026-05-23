@@ -610,8 +610,23 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // but no `HMENU` is ever created or attached to the window.
 
     // Prime the title-bar layout cache so the WM_NCHITTEST helper has
-    // valid button rects even before the first WM_SIZE arrives.
+    // valid button rects even before the first WM_SIZE arrives. Read
+    // the actual client size from the HWND rather than the requested
+    // clientW, since TryLoadSavedWindowPlacement above may have
+    // restored a different size for this monitor topology -- using
+    // the stale request would leave the chrome painted only to the
+    // default width until the user resized the window.
     m_chromeTheme = ChromeTheme::Skeuomorphic();
+    {
+        RECT  rcActual = {};
+
+
+        if (GetClientRect (m_hwnd, &rcActual))
+        {
+            clientW = rcActual.right  - rcActual.left;
+            clientH = rcActual.bottom - rcActual.top;
+        }
+    }
     m_titleBar.UpdateGeometry (clientW, dpi);
     m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), clientW, dpi);
     m_navLayer.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
