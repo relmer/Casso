@@ -12,13 +12,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NavLayerTraceabilityTests
+//  ChromeCommandRoutingTests
 //
 //  Enforces the FR-026 / SC-006 menu-command parity guarantee: every
-//  Win32 IDM_* command exposed in Casso/resource.h must have a
-//  corresponding entry in NavLayer::GetCommandEntries(). The test
-//  iterates the published id set so a future PR that adds a new menu
-//  item without registering it in NavLayer fails CI loudly.
+//  IDM_* command exposed in Casso/resource.h must have a corresponding
+//  entry in NavLayer::GetCommandEntries(). The test iterates the
+//  published id set so a future PR that adds a new menu item without
+//  registering it in NavLayer fails CI loudly.
 //
 //  See specs/007-ui-overhaul/menu-command-parity.md for the rendered
 //  table (generated from `NavLayer::EmitParityMarkdown`).
@@ -28,7 +28,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace
 {
     // The authoritative menu-command id set. Mirrors the IDM_*
-    // identifiers in Casso/resource.h that MenuSystem.cpp wires up.
+    // identifiers in Casso/resource.h that the nav layer wires up.
     // When you add a new menu item, add it here AND to NavLayer's
     // kEntries table — this test will fail until both are in sync,
     // which is exactly the point.
@@ -78,7 +78,7 @@ namespace
 
 
 
-TEST_CLASS (NavLayerTraceabilityTests)
+TEST_CLASS (ChromeCommandRoutingTests)
 {
 public:
 

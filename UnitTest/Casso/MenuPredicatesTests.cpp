@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "MenuSystem.h"
+#include "UiCommandTypes.h"
 #include "Core/MachineConfig.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -10,17 +10,17 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MenuSystemTests
+//  MenuPredicatesTests
 //
-//  Spec-006 T101b. Headless coverage of ShouldEnableDiskIIDebugMenuItem
-//  (FR-001a) -- the View -> Disk II Debug... menu item is enabled iff
-//  the active machine config wires at least one Disk II controller.
+//  Headless coverage of ShouldEnableDiskIIDebugMenuItem (FR-001a):
+//  the View -> Disk II Debug item is enabled iff the active machine
+//  config wires at least one Disk II controller.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace MenuSystemTests
+namespace MenuPredicatesTests
 {
-    TEST_CLASS (MenuSystemTests)
+    TEST_CLASS (MenuPredicatesTests)
     {
     public:
 

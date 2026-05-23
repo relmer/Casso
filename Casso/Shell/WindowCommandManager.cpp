@@ -185,7 +185,7 @@ void WindowCommandManager::OnMachineCommand (int id)
         case IDM_MACHINE_PAUSE:
         {
             paused = m_shell.m_cpuManager.TogglePaused();
-            m_shell.m_menuSystem.SetPaused (paused);
+            (void) paused;
             m_shell.UpdateWindowTitle();
             break;
         }
@@ -202,21 +202,18 @@ void WindowCommandManager::OnMachineCommand (int id)
         case IDM_MACHINE_SPEED_1X:
         {
             m_shell.m_cpuManager.SetSpeedMode (SpeedMode::Authentic);
-            m_shell.m_menuSystem.SetSpeedMode (SpeedMode::Authentic);
             break;
         }
 
         case IDM_MACHINE_SPEED_2X:
         {
             m_shell.m_cpuManager.SetSpeedMode (SpeedMode::Double);
-            m_shell.m_menuSystem.SetSpeedMode (SpeedMode::Double);
             break;
         }
 
         case IDM_MACHINE_SPEED_MAX:
         {
             m_shell.m_cpuManager.SetSpeedMode (SpeedMode::Maximum);
-            m_shell.m_menuSystem.SetSpeedMode (SpeedMode::Maximum);
             break;
         }
 
@@ -270,28 +267,24 @@ void WindowCommandManager::OnViewCommand (int id)
         case IDM_VIEW_COLOR:
         {
             m_shell.m_colorMode.store (ColorMode::Color, std::memory_order_release);
-            m_shell.m_menuSystem.SetColorMode (ColorMode::Color);
             break;
         }
 
         case IDM_VIEW_GREEN:
         {
             m_shell.m_colorMode.store (ColorMode::GreenMono, std::memory_order_release);
-            m_shell.m_menuSystem.SetColorMode (ColorMode::GreenMono);
             break;
         }
 
         case IDM_VIEW_AMBER:
         {
             m_shell.m_colorMode.store (ColorMode::AmberMono, std::memory_order_release);
-            m_shell.m_menuSystem.SetColorMode (ColorMode::AmberMono);
             break;
         }
 
         case IDM_VIEW_WHITE:
         {
             m_shell.m_colorMode.store (ColorMode::WhiteMono, std::memory_order_release);
-            m_shell.m_menuSystem.SetColorMode (ColorMode::WhiteMono);
             break;
         }
 
@@ -543,8 +536,6 @@ bool WindowCommandManager::OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemInd
     UNREFERENCED_PARAMETER (hMenu);
     UNREFERENCED_PARAMETER (itemIndex);
     UNREFERENCED_PARAMETER (isWindowMenu);
-
-    m_shell.m_menuSystem.UpdateDynamicMenuItems (m_shell.m_config);
 
     return true;
 }

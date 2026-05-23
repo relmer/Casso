@@ -223,7 +223,6 @@
     <ClCompile Include="D3DRenderer.cpp" />
     <ClCompile Include="CrtPostProcess.cpp" />
     <ClCompile Include="PerfStats.cpp" />
-    <ClCompile Include="MenuSystem.cpp" />
     <ClCompile Include="Window.cpp" />
     <ClCompile Include="EmulatorShell.cpp" />
     <ClCompile Include="DebugConsole.cpp" />
@@ -286,7 +285,7 @@
     <ClInclude Include="D3DRenderer.h" />
     <ClInclude Include="CrtPostProcess.h" />
     <ClInclude Include="PerfStats.h" />
-    <ClInclude Include="MenuSystem.h" />
+    <ClInclude Include="UiCommandTypes.h" />
     <ClInclude Include="Window.h" />
     <ClInclude Include="EmulatorShell.h" />
     <ClInclude Include="DiskIIEventDisplay.h" />

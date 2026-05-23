@@ -8,7 +8,7 @@
 #include "Core/InterruptController.h"
 #include "Core/ComponentRegistry.h"
 #include "D3DRenderer.h"
-#include "MenuSystem.h"
+#include "UiCommandTypes.h"
 #include "DebugConsole.h"
 #include "Ui/Chrome/TitleBar.h"
 #include "Ui/Chrome/NavLayer.h"
@@ -203,7 +203,6 @@ private:
     unique_ptr<class Prng> m_prng;
 
     D3DRenderer         m_d3dRenderer;
-    MenuSystem          m_menuSystem;
     WasapiAudio         m_wasapiAudio;
     DebugConsole        m_debugConsole;
 
