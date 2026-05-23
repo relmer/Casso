@@ -67,16 +67,18 @@ D3DRenderer::~D3DRenderer()
 
 HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
 {
-    HRESULT                    hr          = S_OK;
-    DXGI_SWAP_CHAIN_DESC       scd         = {};
-    UINT                       createFlags = 0;
+    HRESULT                    hr                  = S_OK;
+    DXGI_SWAP_CHAIN_DESC       scd                 = {};
+    UINT                       createFlags         = 0;
     D3D_FEATURE_LEVEL          featureLevel;
     ComPtr<ID3D11Texture2D>    backBuffer;
-    D3D11_VIEWPORT             vp          = {};
-    D3D11_TEXTURE2D_DESC       td          = {};
-    D3D11_SAMPLER_DESC         sd          = {};
-    D3D11_BUFFER_DESC          bd          = {};
-    D3D11_SUBRESOURCE_DATA     initData    = {};
+    D3D11_VIEWPORT             vp                  = {};
+    D3D11_TEXTURE2D_DESC       td                  = {};
+    D3D11_SAMPLER_DESC         sd                  = {};
+    D3D11_BUFFER_DESC          bd                  = {};
+    D3D11_SUBRESOURCE_DATA     initData            = {};
+    int                        initialBackBufferW  = texWidth;
+    int                        initialBackBufferH  = texHeight;
 
     Vertex vertices[] =
     {
@@ -93,10 +95,25 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
     m_texWidth  = texWidth;
     m_texHeight = texHeight;
 
+    // The swap chain back buffer is sized to the host window's client area
+    // rather than the emulator framebuffer dimensions. This gives the native
+    // UI overlay a back buffer large enough to host chrome around the
+    // letterboxed emulator output without DXGI rescaling at present time.
+    {
+        RECT  rcClient = {};
+
+
+        if (GetClientRect (hwnd, &rcClient))
+        {
+            initialBackBufferW = std::max<int> (texWidth,  rcClient.right  - rcClient.left);
+            initialBackBufferH = std::max<int> (texHeight, rcClient.bottom - rcClient.top);
+        }
+    }
+
     // Create device and swap chain
     scd.BufferCount                        = 1;
-    scd.BufferDesc.Width                   = static_cast<UINT> (texWidth);
-    scd.BufferDesc.Height                  = static_cast<UINT> (texHeight);
+    scd.BufferDesc.Width                   = static_cast<UINT> (initialBackBufferW);
+    scd.BufferDesc.Height                  = static_cast<UINT> (initialBackBufferH);
     // BGRA matches Video/PixelFormat.h byte order (B in byte 0); using
     // R8G8B8A8 instead would force every Windows pixel-export path
     // (CF_DIB clipboard, BMP, WIC) to swizzle R/B on the way out.
@@ -141,8 +158,8 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
     m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf(), nullptr);
 
     // Viewport
-    vp.Width    = static_cast<float> (texWidth);
-    vp.Height   = static_cast<float> (texHeight);
+    vp.Width    = static_cast<float> (initialBackBufferW);
+    vp.Height   = static_cast<float> (initialBackBufferH);
     vp.MaxDepth = 1.0f;
     m_context->RSSetViewports (1, &vp);
 
@@ -203,8 +220,8 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
     hr = m_crtPost.Initialize (m_device.Get(), m_context.Get());
     CHRA (hr);
 
-    m_backBufferW = texWidth;
-    m_backBufferH = texHeight;
+    m_backBufferW = initialBackBufferW;
+    m_backBufferH = initialBackBufferH;
 
 Error:
     return hr;

@@ -298,33 +298,46 @@ void UiShell::Render ()
         return;
     }
 
-    if (m_titleBar != nullptr)
     {
-        m_titleBar->Paint (m_painter, m_text, visual, localTheme);
-    }
+        bool  settingsVisible = (m_settingsPanel != nullptr) && m_settingsPanel->IsVisible();
 
-    if (m_navLayer != nullptr)
-    {
-        m_navLayer->PaintStrip (m_painter, m_text, visual, localTheme);
-    }
 
-    if (m_driveWidgets != nullptr)
-    {
-        for (DriveWidget & drive : *m_driveWidgets)
+        if (!settingsVisible)
         {
-            drive.Paint (m_painter, m_text, visual, localTheme);
+            if (m_titleBar != nullptr)
+            {
+                m_titleBar->Paint (m_painter, m_text, visual, localTheme);
+            }
+
+            if (m_navLayer != nullptr)
+            {
+                m_navLayer->PaintStrip (m_painter, m_text, visual, localTheme);
+            }
+
+            if (m_driveWidgets != nullptr)
+            {
+                for (DriveWidget & drive : *m_driveWidgets)
+                {
+                    drive.Paint (m_painter, m_text, visual, localTheme);
+                }
+            }
+
+            if (m_navLayer != nullptr)
+            {
+                m_navLayer->PaintDropdown (m_painter, m_text, visual, localTheme);
+            }
         }
-    }
 
-    if (m_navLayer != nullptr)
-    {
-        m_navLayer->PaintDropdown (m_painter, m_text, visual, localTheme);
-    }
-
-    if (m_settingsPanel != nullptr && m_settingsPanel->IsVisible())
-    {
-        m_settingsPanel->Layout (m_viewportWidthPx, m_viewportHeightPx);
-        m_settingsPanel->Paint (m_painter, m_text);
+        if (settingsVisible)
+        {
+            m_painter.FillRect (0.0f,
+                                0.0f,
+                                (float) m_viewportWidthPx,
+                                (float) m_viewportHeightPx,
+                                0xFF101418u);
+            m_settingsPanel->Layout (m_viewportWidthPx, m_viewportHeightPx);
+            m_settingsPanel->Paint (m_painter, m_text);
+        }
     }
 
     IGNORE_RETURN_VALUE (hr, m_painter.End (rtv));

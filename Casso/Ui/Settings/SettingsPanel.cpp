@@ -284,24 +284,29 @@ void SettingsPanel::LoadCurrentMachineIntoState ()
 
 void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx)
 {
-    int     left      = (viewportWidthPx  - s_kPanelWidthPx)  / 2;
-    int     top       = (viewportHeightPx - s_kPanelHeightPx) / 2;
-    RECT    pageRect  = {};
-    RECT    bottomRow = {};
-    int     applyX    = 0;
-    int     cancelX   = 0;
-    int     buttonY   = 0;
+    static constexpr int  s_kMinPanelMarginPx = 16;
+
+    int     panelWidth  = std::min<int> (s_kPanelWidthPx,  std::max<int> (0, viewportWidthPx  - s_kMinPanelMarginPx * 2));
+    int     panelHeight = std::min<int> (s_kPanelHeightPx, std::max<int> (0, viewportHeightPx - s_kMinPanelMarginPx * 2));
+    int     left        = (viewportWidthPx  - panelWidth)  / 2;
+    int     top         = (viewportHeightPx - panelHeight) / 2;
+    int     tabWidth    = std::max<int> (40, panelWidth / 4);
+    RECT    pageRect    = {};
+    RECT    bottomRow   = {};
+    int     applyX      = 0;
+    int     cancelX     = 0;
+    int     buttonY     = 0;
     std::vector<TabStrip::Tab>  tabs;
 
 
 
     m_viewport  = { 0, 0, viewportWidthPx, viewportHeightPx };
-    m_panelRect = MakeRect (left, top, s_kPanelWidthPx, s_kPanelHeightPx);
+    m_panelRect = MakeRect (left, top, panelWidth, panelHeight);
 
-    tabs.push_back ({ MakeRect (left,                            top, 120, s_kTabHeightPx), L"Machine"  });
-    tabs.push_back ({ MakeRect (left + 120,                      top, 120, s_kTabHeightPx), L"Hardware" });
-    tabs.push_back ({ MakeRect (left + 240,                      top, 120, s_kTabHeightPx), L"Theme"    });
-    tabs.push_back ({ MakeRect (left + 360,                      top, 120, s_kTabHeightPx), L"Display"  });
+    tabs.push_back ({ MakeRect (left,                  top, tabWidth, s_kTabHeightPx), L"Machine"  });
+    tabs.push_back ({ MakeRect (left + tabWidth,       top, tabWidth, s_kTabHeightPx), L"Hardware" });
+    tabs.push_back ({ MakeRect (left + tabWidth * 2,   top, tabWidth, s_kTabHeightPx), L"Theme"    });
+    tabs.push_back ({ MakeRect (left + tabWidth * 3,   top, tabWidth, s_kTabHeightPx), L"Display"  });
     m_tabs.SetTabs (std::move (tabs));
     m_tabs.SetSelected (m_activeTab);
     m_tabs.SetOnChange ([this] (int idx) { m_activeTab = idx; });
