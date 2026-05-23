@@ -295,14 +295,25 @@ HRESULT EmulatorShell::Initialize (
     const string        & disk1Path,
     const string        & disk2Path)
 {
-    HRESULT hr     = S_OK;
-    size_t  fbSize = 0;
+    HRESULT          hr           = S_OK;
+    size_t           fbSize       = 0;
+    vector<fs::path> searchPaths;
+    fs::path         assetBaseDir;
+    fs::path         machinesDir;
+    fs::path         themesDir;
 
 
 
     m_currentMachineName = machineName;
     m_config             = config;
     m_cyclesPerFrame     = config.cyclesPerFrame;
+
+    searchPaths  = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
+                                                   PathResolver::GetWorkingDirectory());
+    assetBaseDir = AssetBootstrap::GetAssetBaseDirectory (searchPaths,
+                                                          PathResolver::GetExecutableDirectory());
+    machinesDir  = assetBaseDir / fs::path ("Machines") / fs::path (m_currentMachineName);
+    themesDir    = assetBaseDir / fs::path ("Themes");
 
     // P6 -- bring up OLE on the UI thread before any RegisterDragDrop
     // call lands; IFileDialog (click-to-browse, used by the drive
@@ -361,9 +372,31 @@ HRESULT EmulatorShell::Initialize (
     // wiring it onto the after-blit hook lets it composite chrome on
     // top of the emulator frame without ever pausing the render loop.
     {
-        HRESULT  hrUi = m_uiShell.Initialize (&m_d3dRenderer);
+        HRESULT  hrUi       = m_uiShell.Initialize (&m_d3dRenderer);
+        HRESULT  hrSettings = S_OK;
+        HRESULT  hrTheme    = S_OK;
+        HRESULT  hrPrefs    = S_OK;
+
+
+
         IGNORE_RETURN_VALUE (hrUi, S_OK);
         m_uiShell.SetChrome (&m_titleBar, &m_navLayer, &m_driveChrome, &m_chromeTheme);
+
+        m_userConfigStore = std::make_unique<UserConfigStore> (machinesDir.wstring());
+        m_themeManager    = std::make_unique<ThemeManager> (m_uiFs, themesDir.wstring());
+        hrTheme           = m_themeManager->Discover();
+        IGNORE_RETURN_VALUE (hrTheme, S_OK);
+        hrPrefs = m_globalPrefs.Load (assetBaseDir.wstring(), m_uiFs);
+        IGNORE_RETURN_VALUE (hrPrefs, S_OK);
+
+        hrSettings = m_settingsPanel.Initialize (m_uiShell,
+                                                 *m_userConfigStore,
+                                                 m_globalPrefs,
+                                                 *m_themeManager,
+                                                 *this,
+                                                 m_uiFs);
+        IGNORE_RETURN_VALUE (hrSettings, S_OK);
+        m_uiShell.SetSettingsPanel (&m_settingsPanel);
 
         if (SUCCEEDED (hrUi))
         {
@@ -862,7 +895,8 @@ int EmulatorShell::RunMessageLoop()
                 return static_cast<int> (msg.wParam);
             }
 
-            if (m_accelTable == nullptr ||
+            if (m_settingsPanel.IsVisible() ||
+                m_accelTable == nullptr ||
                 !TranslateAccelerator (m_hwnd, m_accelTable, &msg))
             {
                 TranslateMessage (&msg);
@@ -1431,7 +1465,11 @@ bool EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
 
 
-    m_uiShell.OnMouseMove (x, y, leftDown);
+    if (m_uiShell.OnMouseMove (x, y, leftDown))
+    {
+        return false;
+    }
+
     return false;
 }
 
@@ -1454,7 +1492,11 @@ bool EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     UNREFERENCED_PARAMETER (wParam);
 
     SetCapture (m_hwnd);
-    m_uiShell.OnLButtonDown (x, y);
+    if (m_uiShell.OnLButtonDown (x, y))
+    {
+        return false;
+    }
+
     return false;
 }
 
@@ -1478,7 +1520,10 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     UNREFERENCED_PARAMETER (wParam);
 
     ReleaseCapture();
-    m_uiShell.OnLButtonUp (x, y);
+    if (m_uiShell.OnLButtonUp (x, y))
+    {
+        return false;
+    }
 
     for (DriveWidget & drive : m_driveChrome)
     {
@@ -1511,6 +1556,11 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     bool ctrlHeld = false;
     bool altHeld  = false;
 
+    if (m_uiShell.HandleKey (vk))
+    {
+        return false;
+    }
+
     if (m_refs.keyboard == nullptr)
     {
         return false;
@@ -1518,11 +1568,6 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
     ctrlHeld = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
     altHeld  = (GetKeyState (VK_MENU)    & 0x8000) != 0;
-
-    if (m_uiShell.HandleKey (vk))
-    {
-        return false;
-    }
 
     if (altHeld && vk >= 0x20 && vk <= 0x7E && m_navLayer.HandleAltKey ((wchar_t) vk))
     {

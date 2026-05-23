@@ -21,7 +21,8 @@ Entries before versioning was introduced use dates only.
     and `MachinePickerDialog`. Machine selection, emulation speed,
     video color mode, floppy sound + mechanism, write-protect, theme
     picker, and CRT controls all live in one non-modal in-window
-    panel (FR-001..FR-017, FR-041).
+    panel (FR-001..FR-017, FR-041). The panel now opens from
+    View → Settings... and Ctrl+, in the live runtime.
   - Drag-and-drop disk mounting — drop a `.dsk` / `.do` / `.po` /
     `.nib` onto a drive widget to insert it; click-to-browse on the
     same widget opens a file picker.

@@ -15,6 +15,7 @@
 
 
 class D3DRenderer;
+class SettingsPanel;
 
 
 
@@ -49,9 +50,10 @@ public:
                                   NavLayer                        * navLayer,
                                   std::array<DriveWidget, 2>      * driveWidgets,
                                   const ChromeTheme               * theme);
-    void     OnMouseMove        (int x, int y, bool leftDown);
-    void     OnLButtonDown      (int x, int y);
-    void     OnLButtonUp        (int x, int y);
+    void     SetSettingsPanel   (SettingsPanel                   * settingsPanel);
+    bool     OnMouseMove        (int x, int y, bool leftDown);
+    bool     OnLButtonDown      (int x, int y);
+    bool     OnLButtonUp        (int x, int y);
     bool     HandleKey          (WPARAM vk);
 
     DxUiPainter         & Painter   ()       { return m_painter; }
@@ -76,10 +78,11 @@ private:
     FocusManager                  m_focus;
     Animation                     m_anim;
 
-    TitleBar                    * m_titleBar     = nullptr;
-    NavLayer                    * m_navLayer     = nullptr;
-    std::array<DriveWidget, 2>  * m_driveWidgets = nullptr;
-    const ChromeTheme           * m_theme        = nullptr;
+    TitleBar                    * m_titleBar      = nullptr;
+    NavLayer                    * m_navLayer      = nullptr;
+    std::array<DriveWidget, 2>  * m_driveWidgets  = nullptr;
+    const ChromeTheme           * m_theme         = nullptr;
+    SettingsPanel               * m_settingsPanel = nullptr;
 
     int                           m_viewportWidthPx  = 0;
     int                           m_viewportHeightPx = 0;

@@ -2,6 +2,7 @@
 
 #include "UiShell.h"
 #include "D3DRenderer.h"
+#include "Settings/SettingsPanel.h"
 
 
 
@@ -111,6 +112,20 @@ void UiShell::SetChrome (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetSettingsPanel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UiShell::SetSettingsPanel (SettingsPanel * settingsPanel)
+{
+    m_settingsPanel = settingsPanel;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnResize
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,6 +138,11 @@ HRESULT UiShell::OnResize (int viewportWidthPx, int viewportHeightPx, UINT dpi)
     m_targetDirty      = true;
 
     m_text.UnbindBackBuffer();
+
+    if (m_settingsPanel != nullptr && m_settingsPanel->IsVisible())
+    {
+        m_settingsPanel->Layout (m_viewportWidthPx, m_viewportHeightPx);
+    }
 
     return S_OK;
 }
@@ -301,6 +321,12 @@ void UiShell::Render ()
         m_navLayer->PaintDropdown (m_painter, m_text, visual, localTheme);
     }
 
+    if (m_settingsPanel != nullptr && m_settingsPanel->IsVisible())
+    {
+        m_settingsPanel->Layout (m_viewportWidthPx, m_viewportHeightPx);
+        m_settingsPanel->Paint (m_painter, m_text);
+    }
+
     IGNORE_RETURN_VALUE (hr, m_painter.End (rtv));
     IGNORE_RETURN_VALUE (hr, m_text.EndDraw());
 }
@@ -314,11 +340,17 @@ void UiShell::Render ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void UiShell::OnMouseMove (int x, int y, bool leftDown)
+bool UiShell::OnMouseMove (int x, int y, bool leftDown)
 {
     m_leftDown = leftDown;
 
 
+
+    if (m_settingsPanel != nullptr && m_settingsPanel->IsVisible())
+    {
+        m_settingsPanel->OnMouseMove (x, y);
+        return true;
+    }
 
     if (m_titleBar != nullptr)
     {
@@ -329,6 +361,8 @@ void UiShell::OnMouseMove (int x, int y, bool leftDown)
     {
         m_navLayer->HandleMouseMove (x, y);
     }
+
+    return false;
 }
 
 
@@ -340,15 +374,26 @@ void UiShell::OnMouseMove (int x, int y, bool leftDown)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void UiShell::OnLButtonDown (int x, int y)
+bool UiShell::OnLButtonDown (int x, int y)
 {
     m_leftDown = true;
+
+
+
+    if (m_settingsPanel != nullptr && m_settingsPanel->IsVisible())
+    {
+        m_settingsPanel->OnLButtonDown (x, y);
+        return true;
+    }
+
     OnMouseMove (x, y, true);
 
     if (m_navLayer != nullptr)
     {
         m_navLayer->HandleMouseDown (x, y);
     }
+
+    return false;
 }
 
 
@@ -360,15 +405,26 @@ void UiShell::OnLButtonDown (int x, int y)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void UiShell::OnLButtonUp (int x, int y)
+bool UiShell::OnLButtonUp (int x, int y)
 {
     m_leftDown = false;
+
+
+
+    if (m_settingsPanel != nullptr && m_settingsPanel->IsVisible())
+    {
+        m_settingsPanel->OnLButtonUp (x, y);
+        return true;
+    }
+
     OnMouseMove (x, y, false);
 
     if (m_navLayer != nullptr)
     {
         m_navLayer->HandleMouseUp (x, y);
     }
+
+    return false;
 }
 
 
@@ -382,6 +438,12 @@ void UiShell::OnLButtonUp (int x, int y)
 
 bool UiShell::HandleKey (WPARAM vk)
 {
+    if (m_settingsPanel != nullptr && m_settingsPanel->IsVisible())
+    {
+        (void) m_settingsPanel->OnKey (vk);
+        return true;
+    }
+
     if (m_navLayer != nullptr)
     {
         return m_navLayer->HandleKey (vk);
