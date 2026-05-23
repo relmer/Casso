@@ -224,6 +224,16 @@ EmulatorShell::EmulatorShell()
                                                               kFramebufferWidth,
                                                               kFramebufferHeight,
                                                               &m_refs.keyboard);
+
+    m_diskManager = std::make_unique<DiskManager> (m_ownedDevices,
+                                                    m_diskStore,
+                                                    m_diskAudioSources,
+                                                    m_wasapiAudio,
+                                                    m_driveWidgets,
+                                                    m_driveWidgetState,
+                                                    m_driveChrome,
+                                                    m_cpuManager,
+                                                    m_currentMachineName);
 }
 
 
@@ -252,7 +262,7 @@ EmulatorShell::~EmulatorShell()
     // attachment order in OpenDiskIIDebugDialog.
     if (m_diskIIDebugDialog != nullptr)
     {
-        controller = FindSlot6Controller();
+        controller = m_diskManager->FindSlot6Controller();
 
         if (controller != nullptr)
         {
@@ -383,7 +393,7 @@ HRESULT EmulatorShell::Initialize (
 
         if (SUCCEEDED (hrUi))
         {
-            m_d3dRenderer.SetAfterBlitHook ([this] () { UpdateDriveWidgets(); m_uiShell.Render(); });
+            m_d3dRenderer.SetAfterBlitHook ([this] () { m_diskManager->UpdateDriveWidgets(); m_uiShell.Render(); });
             m_uiShell.HitTest().Clear();
             m_uiShell.HitTest().Register (HitRect { m_driveChrome[0].BodyRect(), HitSlot::Custom, 0 });
             m_uiShell.HitTest().Register (HitRect { m_driveChrome[1].BodyRect(), HitSlot::Custom, 1 });
@@ -419,7 +429,7 @@ HRESULT EmulatorShell::Initialize (
     // exits early because trackBits[0] == 0).
     PowerCycle();
 
-    MountCommandLineDisks (disk1Path, disk2Path);
+    m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
 
     // Seed the mixer state
     // from the per-machine registry before the audio thread first
@@ -1333,339 +1343,17 @@ void EmulatorShell::RebuildBankingPages()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MountCommandLineDisks
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::MountCommandLineDisks (
-    const string & disk1Path,
-    const string & disk2Path)
-{
-    HRESULT  hr = S_OK;
-    string   resolvedDisk1 = disk1Path;
-    string   resolvedDisk2 = disk2Path;
-
-    // Per-machine remembered disks. Command-line wins; otherwise fall
-    // back to whatever this machine had mounted last session, so the
-    // user doesn't have to re-pick the .dsk every launch (and so the
-    // test harness can flip-test the same image without re-clicking
-    // the file dialog).
-    //
-    // / FR-047. If the remembered file no longer exists on disk
-    // (user moved or deleted the image since last session), clear the
-    // stale registry entry on the spot so we don't keep tripping over
-    // it every time this machine is loaded, then leave the slot empty.
-    if (resolvedDisk1.empty() && !m_currentMachineName.empty())
-    {
-        wstring  saved;
-        HRESULT  hrRead = DiskSettings::ReadSavedDiskPath (0, m_currentMachineName, saved);
-
-        if (hrRead == S_OK && !saved.empty())
-        {
-            if (fs::exists (fs::path (saved)))
-            {
-                resolvedDisk1 = fs::path (saved).string();
-            }
-            else
-            {
-                OutputDebugStringW (L"[EmulatorShell] FR-047: drive 0 last-mounted image missing; clearing.\n");
-                HRESULT  hrClear = DiskSettings::WriteSavedDiskPath (
-                    0, m_currentMachineName, wstring());
-                IGNORE_RETURN_VALUE (hrClear, S_OK);
-            }
-        }
-    }
-
-    if (resolvedDisk2.empty() && !m_currentMachineName.empty())
-    {
-        wstring  saved;
-        HRESULT  hrRead = DiskSettings::ReadSavedDiskPath (1, m_currentMachineName, saved);
-
-        if (hrRead == S_OK && !saved.empty())
-        {
-            if (fs::exists (fs::path (saved)))
-            {
-                resolvedDisk2 = fs::path (saved).string();
-            }
-            else
-            {
-                OutputDebugStringW (L"[EmulatorShell] FR-047: drive 1 last-mounted image missing; clearing.\n");
-                HRESULT  hrClear = DiskSettings::WriteSavedDiskPath (
-                    1, m_currentMachineName, wstring());
-                IGNORE_RETURN_VALUE (hrClear, S_OK);
-            }
-        }
-    }
-
-    if (resolvedDisk1.empty() && resolvedDisk2.empty())
-    {
-        return;
-    }
-
-    if (!resolvedDisk1.empty())
-    {
-        hr = MountDiskInSlot6 (0, resolvedDisk1);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-
-    if (!resolvedDisk2.empty())
-    {
-        hr = MountDiskInSlot6 (1, resolvedDisk2);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FindSlot6Controller
-//
-//  / T097. Scans the owned-device list for the Disk II
-//  controller. Returns nullptr if none is wired (e.g., a machine config
-//  without a disk slot).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DiskIIController * EmulatorShell::FindSlot6Controller()
-{
-    DiskIIController *  result = nullptr;
-
-
-
-    for (auto & dev : m_ownedDevices)
-    {
-        result = dynamic_cast<DiskIIController *> (dev.get());
-
-        if (result != nullptr)
-        {
-            break;
-        }
-    }
-
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MountDiskInSlot6
-//
-//  / T097 / FR-025. Routes the mount through the DiskImageStore
-//  so dirty writes auto-flush back to the host filesystem on Eject,
-//  SwitchMachine, PowerCycle, and Shutdown. The Disk II controller's
-//  nibble engine is then re-pointed at the store-owned DiskImage via
-//  SetExternalDisk so the controller drives the same image bytes the
-//  store will eventually serialize.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT EmulatorShell::MountDiskInSlot6 (int drive, const string & path)
-{
-    HRESULT              hr         = S_OK;
-    DiskIIController  *  controller = FindSlot6Controller();
-    DiskImage         *  external   = nullptr;
-
-    CBR (controller != nullptr);
-
-    hr = m_diskStore.Mount (6, drive, path);
-    CHR (hr);
-
-    external = m_diskStore.GetImage (6, drive);
-    controller->SetExternalDisk (drive, external);
-
-    // Spec-006 bug 14b. The store-based mount path bypasses the
-    // controller's own MountDisk method, so fire the IDiskIIEventSink
-    // hook explicitly here so the debug window sees the insert. Cold
-    // boot mounts still fire on the controller side (the debug window
-    // is rarely open at app launch and the user wants to see the
-    // mount that ran without their click); the cold-boot suppression
-    // below is audio-only (FR-013).
-    controller->NotifyDiskInserted (drive);
-
-    // Persist this drive's mount path so the next launch / next time
-    // this machine is selected auto-mounts the same disk. Don't pollute
-    // hr with the registry result -- a missing key is non-fatal.
-    if (!m_currentMachineName.empty())
-    {
-        wstring  wPath = fs::path (path).wstring();
-        HRESULT  hrReg = DiskSettings::WriteSavedDiskPath (drive, m_currentMachineName, wPath);
-        IGNORE_RETURN_VALUE (hrReg, S_OK);
-    }
-
-    // Drive-audio door-close (FR-013). Cold-boot mounts (command-line,
-    // last-session restoration, autoload) MUST be suppressed -- they
-    // happen before the user has interacted with the running //e and
-    // shouldn't audibly slam the drive door at app launch. Post-startup
-    // mounts (user-initiated mid-session) always fire.
-    if (!m_coldBootMountWindow &&
-        drive >= 0 &&
-        static_cast<size_t> (drive) < m_diskAudioSources.size() &&
-        m_diskAudioSources[drive] != nullptr)
-    {
-        m_wasapiAudio.RecordDriveDoorSyncEvent (drive, NowMs());
-        m_driveWidgets.PublishSyncEvent (drive,
-                                         DriveWidgetController::SyncAction::DoorClose,
-                                         NowMs());
-        m_diskAudioSources[drive]->OnDiskInserted();
-    }
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EjectDiskInSlot6
-//
-//  / T097 / FR-025. Auto-flushes dirty bits via the store and
-//  detaches the controller's external disk.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::EjectDiskInSlot6 (int drive)
-{
-    DiskIIController *  controller = FindSlot6Controller();
-
-
-
-    m_diskStore.Eject (6, drive);
-
-    if (controller != nullptr)
-    {
-        controller->SetExternalDisk (drive, nullptr);
-
-        // Spec-006 bug 14b. Mirror the insert path: fire the
-        // controller-level event sink so the debug window logs the
-        // eject. Fires AFTER the external disk is detached so any
-        // sink that inspects the controller sees the post-eject
-        // state.
-        controller->NotifyDiskEjected (drive);
-    }
-
-    // Clear the per-machine remembered path so the next launch comes up
-    // empty in this slot.
-    if (!m_currentMachineName.empty())
-    {
-        HRESULT  hrReg = DiskSettings::WriteSavedDiskPath (drive, m_currentMachineName, L"");
-        IGNORE_RETURN_VALUE (hrReg, S_OK);
-    }
-
-    // Drive-audio door-open (FR-014). Eject events always fire (no
-    // cold-boot eject case in practice -- the app launches with the
-    // drive bay closed).
-    if (drive >= 0 &&
-        static_cast<size_t> (drive) < m_diskAudioSources.size() &&
-        m_diskAudioSources[drive] != nullptr)
-    {
-        m_wasapiAudio.RecordDriveDoorSyncEvent (drive, NowMs());
-        m_driveWidgets.PublishSyncEvent (drive,
-                                         DriveWidgetController::SyncAction::DoorOpen,
-                                         NowMs());
-        m_diskAudioSources[drive]->OnDiskEjected();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RemountSlot6Disks
-//
-//  Re-reads every currently mounted slot-6 disk image from the host
-//  filesystem so that an external regeneration of the .dsk file (e.g. a
-//  developer iterating on a demo image) is picked up by the next boot.
-//  Used by the Reset and Power Cycle menu commands; without this, the
-//  controller keeps serving the original byte buffer the disk was
-//  loaded with at mount time, and any external rewrite of the .dsk is
-//  invisible until the user manually ejects and re-inserts the image.
-//
-//  Snapshots paths first because the re-mount path goes through Eject
-//  + Mount internally, which transiently blanks the source-path slot.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::RemountSlot6Disks()
-{
-    string   savedDisk[DiskImageStore::kDriveCount];
-    HRESULT  hrMount = S_OK;
-    int      drive   = 0;
-
-
-
-    for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
-    {
-        savedDisk[drive] = m_diskStore.GetSourcePath (6, drive);
-    }
-
-    for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
-    {
-        if (!savedDisk[drive].empty())
-        {
-            hrMount = MountDiskInSlot6 (drive, savedDisk[drive]);
-            IGNORE_RETURN_VALUE (hrMount, S_OK);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  Mount  (IDriveCommandSink)
 //
-//  Called from the UI thread by the drive widget's click-to-
-//  browse path and by the drag-drop target. Routes through the existing
-//  IDM_DISK_INSERT* command queue so the actual mount runs on the CPU
-//  thread, mirroring the menu-driven path. Only slot 6 is supported
-//  today (the integrated Disk II).
+//  IDriveCommandSink override delegates straight through to the
+//  DiskManager so the chrome / drag-drop entry points and the manager
+//  share a single mount path.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT EmulatorShell::Mount (int slot, int drive, const std::wstring & path)
 {
-    HRESULT  hr      = S_OK;
-    WORD     command = 0;
-
-
-
-    if (slot != 6)
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
-
-    if (drive == 0)
-    {
-        command = IDM_DISK_INSERT1;
-    }
-    else if (drive == 1)
-    {
-        command = IDM_DISK_INSERT2;
-    }
-    else
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
-
-    PostCommand (command, fs::path (path).string());
-
-Error:
-    return hr;
+    return m_diskManager->Mount (slot, drive, path);
 }
 
 
@@ -1680,143 +1368,7 @@ Error:
 
 void EmulatorShell::Eject (int slot, int drive)
 {
-    WORD  command = 0;
-
-
-
-    if (slot != 6)
-    {
-        return;
-    }
-
-    if (drive == 0)
-    {
-        command = IDM_DISK_EJECT1;
-    }
-    else if (drive == 1)
-    {
-        command = IDM_DISK_EJECT2;
-    }
-    else
-    {
-        return;
-    }
-
-    PostCommand (command);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NowMs
-//
-//  Steady-clock millisecond timestamp used by the drive-widget door
-//  animation FSM. Monotonic so an NTP step doesn't strand a half-open
-//  door. Window cap is well under 2^31 so int64 is plenty.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int64_t EmulatorShell::NowMs() const
-{
-    auto  duration = std::chrono::steady_clock::now().time_since_epoch();
-    return std::chrono::duration_cast<std::chrono::milliseconds> (duration).count();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  UpdateDriveWidgets
-//
-//  Per-UI-frame sync from the (CPU-thread-owned) Disk II
-//  controller state into the (UI-thread-only) DriveWidgetState. Reads
-//  the engine's lifetime nibble counters and treats any forward
-//  movement since the previous frame as "disk active" (FR-025 active
-//  LED). Motor-on tracks the controller's IsMotorOn() directly --
-//  that bool is sampled by the audio system the same way already
-//  (no new sync primitive introduced; constitution check gate).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::UpdateDriveWidgets()
-{
-    DiskIIController *  controller = m_refs.diskController;
-    int64_t             nowMs      = NowMs();
-    std::vector<DriveWidgetController::DriveSyncEvent> syncEvents = m_driveWidgets.ConsumeSyncEvents();
-    int                 drive      = 0;
-
-
-
-    for (drive = 0; drive < static_cast<int> (m_driveWidgetState.size()); drive++)
-    {
-        DriveWidgetState &  st = m_driveWidgetState[drive];
-
-        for (const auto & evt : syncEvents)
-        {
-            if (evt.driveId == drive)
-            {
-                st.lastSyncEventId = evt.eventId;
-            }
-        }
-
-        // mountedImagePath -- single writer (UI thread), source of
-        // truth is the DiskImageStore. Reflect door FSM transitions
-        // when mount state changes.
-        const string &  src    = m_diskStore.GetSourcePath (6, drive);
-        wstring         wPath  (src.begin(), src.end());
-
-        if (wPath != st.mountedImagePath)
-        {
-            if (wPath.empty())
-            {
-                st.BeginEject (nowMs);
-            }
-            else
-            {
-                st.BeginInsert (wPath, nowMs);
-            }
-        }
-
-        st.TickDoorAnimation (nowMs);
-
-        // motorOn + diskActive sampling. The controller's engine is
-        // owned by the device, which the CPU thread mutates; we read
-        // the bool + monotonic counters with relaxed atomics
-        // semantics (existing audio-system pattern).
-        bool      motorOn  = false;
-        bool      active   = false;
-        uint64_t  reads    = 0;
-        uint64_t  writes   = 0;
-
-        if (controller != nullptr)
-        {
-            auto &  engine = controller->GetEngine (drive);
-            motorOn = engine.IsMotorOn();
-            reads   = engine.GetReadNibbles();
-            writes  = engine.GetWriteNibbles();
-
-            if (reads != m_lastReadNibbles[drive] ||
-                writes != m_lastWriteNibbles[drive])
-            {
-                active = true;
-            }
-        }
-
-        m_lastReadNibbles[drive]  = reads;
-        m_lastWriteNibbles[drive] = writes;
-
-        st.motorOn.store    (motorOn, std::memory_order_relaxed);
-        st.diskActive.store (active,  std::memory_order_relaxed);
-    }
-
-    m_driveWidgets.SyncFromStates (m_driveWidgetState);
-    m_driveChrome[0].SyncFromState (m_driveWidgetState[0]);
-    m_driveChrome[1].SyncFromState (m_driveWidgetState[1]);
+    m_diskManager->Eject (slot, drive);
 }
 
 
@@ -2169,7 +1721,7 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     // Remount per-machine disks if any were saved last time this
     // machine was active. Empty paths fall through harmlessly so a
     // never-used machine won't try to mount anything.
-    MountCommandLineDisks (string(), string());
+    m_diskManager->MountCommandLineDisks (string(), string());
 
     if (speedCmd != 0)
     {
@@ -2208,7 +1760,7 @@ int EmulatorShell::RunMessageLoop()
     // ready to deliver user input -- any mount issued from here on
     // is treated as a real, user-initiated swap and fires the
     // drive-audio door-close (FR-013).
-    m_coldBootMountWindow = false;
+    m_diskManager->SetColdBootMountWindow (false);
 
     // UI thread loop: process messages, present latest framebuffer with vsync
     while (m_cpuManager.IsRunning())
@@ -2376,7 +1928,7 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
             // externally-regenerated .dsk (typical dev workflow:
             // hack on a demo, regenerate the disk image, hit
             // Reset) is picked up by the post-reset boot.
-            RemountSlot6Disks();
+            m_diskManager->RemountSlot6Disks();
             SoftReset();
             break;
         }
@@ -2393,7 +1945,7 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
             // re-reads the host file (so external regenerations
             // are picked up).
             PowerCycle();
-            RemountSlot6Disks();
+            m_diskManager->RemountSlot6Disks();
             break;
         }
 
@@ -2417,7 +1969,7 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
             int      drive   = (cmd.id == IDM_DISK_INSERT1) ? 0 : 1;
             HRESULT  hrMount = S_OK;
 
-            hrMount = MountDiskInSlot6 (drive, cmd.payload);
+            hrMount = m_diskManager->MountDiskInSlot6 (drive, cmd.payload);
             IGNORE_RETURN_VALUE (hrMount, S_OK);
             break;
         }
@@ -2427,7 +1979,7 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
         {
             int   drive = (cmd.id == IDM_DISK_EJECT1) ? 0 : 1;
 
-            EjectDiskInSlot6 (drive);
+            m_diskManager->EjectDiskInSlot6 (drive);
             break;
         }
 
@@ -3874,7 +3426,7 @@ void EmulatorShell::OpenDiskIIDebugDialog()
 
 
 
-    controller = FindSlot6Controller();
+    controller = m_diskManager->FindSlot6Controller();
 
     // FR-001a should have grayed the menu item; the accelerator
     // bypasses that gate so we defend in depth.
@@ -3957,7 +3509,7 @@ void EmulatorShell::AttachDebugSinksIfOpen()
 
     CBR (m_diskIIDebugDialog != nullptr);
 
-    controller = FindSlot6Controller();
+    controller = m_diskManager->FindSlot6Controller();
 
     if (controller != nullptr)
     {

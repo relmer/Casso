@@ -34,6 +34,7 @@
 #include "DiskIIDebugDialog.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuManager.h"
+#include "Shell/DiskManager.h"
 #include "Shell/WindowManager.h"
 
 
@@ -181,20 +182,8 @@ private:
     void    WireLanguageCard();
     void    WirePageTable();
     void    RebuildBankingPages();
-    void    MountCommandLineDisks (const string & disk1Path, const string & disk2Path);
-    HRESULT MountDiskInSlot6 (int drive, const string & path);
-    void    EjectDiskInSlot6 (int drive);
-    void    RemountSlot6Disks();
-    class DiskIIController * FindSlot6Controller();
     void    CreateVideoModes();
     HRESULT CreateCpu (const MachineConfig & config);
-
-    // Pumps the per-drive widget state from the CPU-side disk
-    // controller (motor + R/W nibble deltas) into m_driveWidgetState
-    // then asks the DriveWidgetController to push the result into the
-    // chrome drive-widget classes. Cheap; safe to call every frame.
-    void    UpdateDriveWidgets();
-    int64_t NowMs() const;
 
     Byte * GetAuxRamBuffer();
 
@@ -264,28 +253,16 @@ private:
 
     std::array<DriveWidgetState, 2>      m_driveWidgetState;
 
-    // Per-drive read/write nibble counter snapshots from the previous
-    // UI frame. The CPU thread doesn't publish a "disk active" signal
-    // directly; we derive it by comparing the engine's lifetime nibble
-    // counters between two consecutive UI frames -- if either counter
-    // increased, the LED stays in the Active state for the next frame.
-    std::array<uint64_t, 2>              m_lastReadNibbles  {};
-    std::array<uint64_t, 2>              m_lastWriteNibbles {};
-
     // Set true once OleInitialize has succeeded on the UI thread so
     // shutdown can pair the call with OleUninitialize. RegisterDragDrop
     // requires OLE (STA) on the registering thread.
     bool                                 m_fOleInitialized = false;
 
-    // Drive audio. Mixer is always
-    // allocated; per-drive sources are populated only when the
-    // active machine config carries a Disk II controller (FR-015).
-    // Cold-boot flag suppresses OnDiskInserted during startup
-    // mounts so command-line / autoload paths don't trigger the
-    // door-close sound at app launch (FR-013).
+    // Drive audio. Mixer is always allocated; per-drive sources are
+    // populated only when the active machine config carries a
+    // Disk II controller (FR-015).
     DriveAudioMixer            m_driveAudioMixer;
     vector<unique_ptr<DiskIIAudioSource>> m_diskAudioSources;
-    bool                       m_coldBootMountWindow = true;
 
     // Owned devices
     vector<unique_ptr<MemoryDevice>> m_ownedDevices;
@@ -377,6 +354,7 @@ private:
     // keyboard so machine switches do not require re-wiring.
     WindowManager                             m_windowManager;
     std::unique_ptr<ClipboardManager>         m_clipboardManager;
+    std::unique_ptr<DiskManager>              m_diskManager;
 };
 
 
