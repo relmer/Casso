@@ -1846,6 +1846,9 @@ Error:
 static constexpr int       s_kIdDiskAudioDownload       = 2001;
 static constexpr int       s_kIdDiskAudioSkip           = IDCANCEL;
 static constexpr LPCWSTR   s_kpszPromptForAudioDownload = L"PromptForAudioDownload";
+static constexpr DWORD     s_kAudioConsentUnasked       = 1;
+static constexpr DWORD     s_kAudioConsentAccepted      = 2;
+static constexpr DWORD     s_kAudioConsentDeclined      = 3;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1960,7 +1963,7 @@ HRESULT AssetBootstrap::CheckAndFetchDiskAudio (
     HINTERNET    hSession       = nullptr;
     bool         anyMissing     = false;
     int          consent        = 0;
-    DWORD        promptFlag     = 1;
+    DWORD        consentState   = s_kAudioConsentUnasked;
     wstring      subkey;
     HRESULT      hrReg          = S_OK;
     error_code   ec;
@@ -1969,22 +1972,13 @@ HRESULT AssetBootstrap::CheckAndFetchDiskAudio (
 
     UNREFERENCED_PARAMETER (hInstance);
 
-    // Per-machine "ask me about disk audio?" flag. Absent or non-zero
-    // means "ask"; zero means the user has already answered (either
-    // accepted the download or skipped it) and we never prompt again
-    // for this machine on subsequent launches. Manual reset path:
-    // delete the value (or set it to 1) via regedit.
-    subkey = wstring (L"Machines\\") + machineName;
-    hrReg  = RegistrySettings::ReadDword (subkey.c_str (),
-                                          s_kpszPromptForAudioDownload,
-                                          promptFlag);
-    IGNORE_RETURN_VALUE (hrReg, S_OK);
-
-    if (promptFlag == 0)
-    {
-        return S_FALSE;
-    }
-
+    // Self-healing semantics: always check what's missing on disk
+    // before consulting the saved consent state. If everything is
+    // already present we have nothing to do regardless of prior
+    // answer. If anything is missing and the user previously
+    // accepted, silently re-fetch (the consent stands); if they
+    // previously declined, respect that with no prompt; if they
+    // have never been asked, prompt now.
     for (string_view mech : s_kDiskAudioMechanisms)
     {
         fs::path  mechDir = devicesDir / string (mech);
@@ -1998,15 +1992,43 @@ HRESULT AssetBootstrap::CheckAndFetchDiskAudio (
 
     BAIL_OUT_IF (!anyMissing, S_OK);
 
-    consent = PromptDiskAudioConsent (hwndParent);
-
-    // The question is resolved either way -- never prompt again for
-    // this machine. Persist the answer before acting on it so a
-    // crash mid-download still suppresses the next launch's prompt.
-    hrReg = RegistrySettings::WriteDword (subkey.c_str (),
-                                          s_kpszPromptForAudioDownload,
-                                          0);
+    subkey       = wstring (L"Machines\\") + machineName;
+    hrReg        = RegistrySettings::ReadDword (subkey.c_str (),
+                                                s_kpszPromptForAudioDownload,
+                                                consentState);
     IGNORE_RETURN_VALUE (hrReg, S_OK);
+
+    if (consentState == s_kAudioConsentDeclined)
+    {
+        return S_FALSE;
+    }
+
+    // Legacy values from earlier builds: the prompt flag was a
+    // boolean ("0 = already asked, ignore"; anything else = "prompt").
+    // A persisted 0 from a prior accept-and-download is now
+    // indistinguishable from an old decline. Treat the legacy 0 as
+    // a fresh ask so the user can re-affirm and we can restore the
+    // missing WAVs.
+    if (consentState != s_kAudioConsentAccepted && consentState != s_kAudioConsentUnasked)
+    {
+        consentState = s_kAudioConsentUnasked;
+    }
+
+    if (consentState == s_kAudioConsentAccepted)
+    {
+        consent = s_kIdDiskAudioDownload;
+    }
+    else
+    {
+        consent = PromptDiskAudioConsent (hwndParent);
+        consentState = (consent == s_kIdDiskAudioDownload)
+                        ? s_kAudioConsentAccepted
+                        : s_kAudioConsentDeclined;
+        hrReg = RegistrySettings::WriteDword (subkey.c_str (),
+                                              s_kpszPromptForAudioDownload,
+                                              consentState);
+        IGNORE_RETURN_VALUE (hrReg, S_OK);
+    }
 
     if (consent != s_kIdDiskAudioDownload)
     {
