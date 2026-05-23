@@ -10,7 +10,7 @@
     "$cassoMachineVersion": {
       "type": "integer",
       "minimum": 1,
-      "description": "Schema version of the user file. MachineConfigUpgrade runs if lower than the default JSON's version."
+      "description": "Canonical schema version of the user file. Legacy `$cassoDefault` is accepted only during migration reads and is rewritten to `$cassoMachineVersion` on load."
     },
     "$cassoUiPrefs": {
       "type": "object",

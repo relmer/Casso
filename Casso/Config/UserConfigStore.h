@@ -40,6 +40,9 @@
 //      * On Load, if the user file's `$cassoMachineVersion` is less than
 //        the default's, MachineConfigUpgrade::MigrateUserConfig runs
 //        and the upgraded result is written back via WriteAllText.
+//      * Legacy `$cassoDefault` is accepted as an alias during migration
+//        reads only. Any alias usage is rewritten to canonical
+//        `$cassoMachineVersion` before merge/persist.
 //
 //  All I/O is funnelled through `IFileSystem` — no direct file APIs.
 //

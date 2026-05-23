@@ -259,6 +259,64 @@ public:
     }
 
 
+    TEST_METHOD (Load_BothVersionKeys_CanonicalizesToMachineVersionOnly)
+    {
+        InMemoryFileSystem  fs;
+        UserConfigStore     store (L"C:\\Casso\\User");
+        JsonValue           defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":9,\"a\":1}");
+        JsonValue           merged;
+        HRESULT             hr;
+        std::string         original = "{\"$cassoMachineVersion\":9,\"$cassoDefault\":4,\"a\":1}";
+        std::string         afterLoad;
+
+        hr = fs.WriteAllText (store.UserFilePath ("Apple2e"), original);
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        hr = store.Load ("Apple2e", defaultJson, fs, merged);
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        afterLoad = fs.PeekContent (store.UserFilePath ("Apple2e"));
+        Assert::IsTrue (afterLoad.find ("$cassoDefault") == std::string::npos);
+        Assert::IsTrue (afterLoad.find ("\"$cassoMachineVersion\": 9") != std::string::npos);
+    }
+
+
+    TEST_METHOD (Load_ThreeConsecutiveUpgrades_PreservesOverridesAndAdvancesStamp)
+    {
+        InMemoryFileSystem  fs;
+        UserConfigStore     store (L"C:\\Casso\\User");
+        JsonValue           merged;
+        JsonValue           d2 = ParseOrFail ("{\"$cassoMachineVersion\":2,\"newV2\":true,\"$cassoUiPrefs\":{\"speedMode\":\"authentic\"}}");
+        JsonValue           d3 = ParseOrFail ("{\"$cassoMachineVersion\":3,\"newV2\":true,\"newV3\":true,\"$cassoUiPrefs\":{\"speedMode\":\"authentic\"}}");
+        JsonValue           d4 = ParseOrFail ("{\"$cassoMachineVersion\":4,\"newV2\":true,\"newV3\":true,\"newV4\":true,\"$cassoUiPrefs\":{\"speedMode\":\"authentic\"}}");
+        HRESULT             hr;
+        std::string         text;
+
+        hr = fs.WriteAllText (store.UserFilePath ("Apple2e"),
+                              "{\"$cassoDefault\":1,\"$cassoUiPrefs\":{\"speedMode\":\"maximum\"}}");
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        hr = store.Load ("Apple2e", d2, fs, merged);
+        Assert::IsTrue (SUCCEEDED (hr));
+        text = fs.PeekContent (store.UserFilePath ("Apple2e"));
+        Assert::IsTrue (text.find ("\"$cassoMachineVersion\": 2") != std::string::npos);
+        Assert::IsTrue (text.find ("$cassoDefault") == std::string::npos);
+        Assert::IsTrue (text.find ("\"speedMode\": \"maximum\"") != std::string::npos);
+
+        hr = store.Load ("Apple2e", d3, fs, merged);
+        Assert::IsTrue (SUCCEEDED (hr));
+        text = fs.PeekContent (store.UserFilePath ("Apple2e"));
+        Assert::IsTrue (text.find ("\"$cassoMachineVersion\": 3") != std::string::npos);
+        Assert::IsTrue (text.find ("\"speedMode\": \"maximum\"") != std::string::npos);
+
+        hr = store.Load ("Apple2e", d4, fs, merged);
+        Assert::IsTrue (SUCCEEDED (hr));
+        text = fs.PeekContent (store.UserFilePath ("Apple2e"));
+        Assert::IsTrue (text.find ("\"$cassoMachineVersion\": 4") != std::string::npos);
+        Assert::IsTrue (text.find ("\"speedMode\": \"maximum\"") != std::string::npos);
+    }
+
+
     TEST_METHOD (Merge_HardwareEnableDelta_OverlaysDefaultArrays)
     {
         JsonValue d = ParseOrFail (R"JSON({
@@ -357,6 +415,7 @@ public:
 
         Assert::IsTrue (SUCCEEDED (diff.GetObject ("$cassoUiPrefs", ui)));
         Assert::IsTrue (ui != nullptr);
+        if (ui == nullptr) { return; }
         Assert::AreEqual<size_t> (1u, ui->GetObjectEntries().size());
         Assert::AreEqual (string ("speedMode"), ui->GetObjectEntries()[0].first);
     }

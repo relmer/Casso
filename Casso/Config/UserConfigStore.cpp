@@ -21,6 +21,7 @@
 namespace
 {
     constexpr const char * s_kpszVersionKey = "$cassoMachineVersion";
+    constexpr const char * s_kpszLegacyVersionKey = "$cassoDefault";
     constexpr const char * s_kpszUiPrefsKey = "$cassoUiPrefs";
 
 
@@ -75,6 +76,103 @@ namespace
         }
 
         return (int) (*entries)[(size_t) found].second.GetNumber();
+    }
+
+
+    int  ExtractVersionForKey (
+        const JsonValue   & v,
+        const std::string & key)
+    {
+        const std::vector<std::pair<std::string, JsonValue>> * entries = nullptr;
+        int                                                    found   = -1;
+
+
+        if (v.GetType() != JsonType::Object)
+        {
+            return 0;
+        }
+
+        entries = &v.GetObjectEntries();
+        found   = FindObjectKey (*entries, key);
+        if (found < 0)
+        {
+            return 0;
+        }
+
+        if ((*entries)[(size_t) found].second.GetType() != JsonType::Number)
+        {
+            return 0;
+        }
+
+        return (int) (*entries)[(size_t) found].second.GetNumber();
+    }
+
+
+    bool HasLegacyVersionAlias (const JsonValue & v)
+    {
+        if (v.GetType() != JsonType::Object)
+        {
+            return false;
+        }
+
+        return FindObjectKey (v.GetObjectEntries(), s_kpszLegacyVersionKey) >= 0;
+    }
+
+
+    JsonValue CanonicalizeVersionStamp (
+        const JsonValue & userJson,
+        int               fallbackVersion)
+    {
+        std::vector<std::pair<std::string, JsonValue>>  out;
+        int                                              canonicalVersion = 0;
+        bool                                             fWroteVersion    = false;
+
+
+        if (userJson.GetType() != JsonType::Object)
+        {
+            return userJson;
+        }
+
+        canonicalVersion = ExtractVersionForKey (userJson, s_kpszVersionKey);
+        if (canonicalVersion <= 0)
+        {
+            canonicalVersion = ExtractVersionForKey (userJson, s_kpszLegacyVersionKey);
+        }
+        if (fallbackVersion > 0 && canonicalVersion < fallbackVersion)
+        {
+            canonicalVersion = fallbackVersion;
+        }
+
+        out.reserve (userJson.GetObjectEntries().size() + 1);
+
+        for (const auto & kv : userJson.GetObjectEntries())
+        {
+            if (kv.first == s_kpszVersionKey)
+            {
+                if (!fWroteVersion && canonicalVersion > 0)
+                {
+                    out.emplace_back (s_kpszVersionKey, JsonValue ((double) canonicalVersion));
+                    fWroteVersion = true;
+                }
+                continue;
+            }
+
+            if (kv.first == s_kpszLegacyVersionKey)
+            {
+                continue;
+            }
+
+            out.emplace_back (kv.first, kv.second);
+        }
+
+        if (!fWroteVersion && canonicalVersion > 0)
+        {
+            out.insert (out.begin(),
+                        std::make_pair (std::string (s_kpszVersionKey),
+                                        JsonValue ((double) canonicalVersion)));
+        }
+
+        return JsonValue (std::move (out));
     }
 
 
@@ -517,9 +615,11 @@ HRESULT UserConfigStore::Load (
     std::string      migrated;
     JsonValue        userJson;
     JsonParseError   parseErr;
+    JsonWriter::Options opts;
     int              defaultVer    = 0;
     int              userVer       = 0;
     bool             fNeedMigrate  = false;
+    bool             fHasLegacyKey = false;
 
 
 
@@ -538,31 +638,38 @@ HRESULT UserConfigStore::Load (
 
     defaultVer = ExtractVersion (defaultJson);
     userVer    = ExtractVersion (userJson);
+    fHasLegacyKey = HasLegacyVersionAlias (userJson);
     fNeedMigrate = (defaultVer > 0 && userVer > 0 && userVer < defaultVer)
-                || (userVer == 0);  // pre-versioned $cassoDefault path
+                || (userVer == 0)   // pre-versioned $cassoDefault path
+                || fHasLegacyKey;   // canonical rewrite when both keys are present
 
     if (fNeedMigrate)
     {
-        hr = MachineConfigUpgrade::MigrateUserConfig (userContent, migrated);
-        if (SUCCEEDED (hr) && !migrated.empty())
-        {
-            hr = JsonParser::Parse (migrated, userJson, parseErr);
-            CHR (hr);
+        HRESULT   hrMigrate  = S_OK;
+        std::string migratedRaw = userContent;
+        JsonValue canonicalJson;
 
-            // Write the upgraded text back to disk.
-            hr = fs.WriteAllText (path, migrated);
-            CHR (hr);
-        }
-        else if (hr == S_FALSE)
+
+        hrMigrate = MachineConfigUpgrade::MigrateUserConfig (userContent, migratedRaw);
+        if (FAILED (hrMigrate))
         {
-            // Already at current schema per migrator — keep userJson as parsed.
-            hr = S_OK;
+            migratedRaw = userContent;
         }
-        else
-        {
-            // Migration failure is non-fatal here; fall through and merge as-is.
-            hr = S_OK;
-        }
+
+        hr = JsonParser::Parse (migratedRaw, userJson, parseErr);
+        CHR (hr);
+
+        canonicalJson = CanonicalizeVersionStamp (userJson, defaultVer);
+        opts.fPretty = true;
+        hr = JsonWriter::Write (canonicalJson, opts, migrated);
+        CHR (hr);
+
+        hr = JsonParser::Parse (migrated, userJson, parseErr);
+        CHR (hr);
+
+        // Write the canonicalized (and possibly migrated) text back to disk.
+        hr = fs.WriteAllText (path, migrated);
+        CHR (hr);
     }
 
     outMerged = MergeJson (defaultJson, userJson);

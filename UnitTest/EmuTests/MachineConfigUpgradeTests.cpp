@@ -387,6 +387,20 @@ public:
             L"Already-migrated content must be returned unchanged.");
     }
 
+    TEST_METHOD (MigrateUserConfig_BothVersionFields_RenamesLegacyAlias)
+    {
+        string   input    = "{ \"$cassoMachineVersion\": 9, \"$cassoDefault\": 4, \"name\": \"x\" }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == S_OK,
+            L"Presence of legacy alias should trigger rewrite.");
+        Assert::IsTrue (migrated.find ("\"$cassoDefault\"") == string::npos,
+            L"Legacy alias must be removed from migrated output.");
+        Assert::IsTrue (migrated.find ("\"$cassoMachineVersion\"") != string::npos,
+            L"Migrated output must keep canonical key.");
+    }
+
     TEST_METHOD (MigrateUserConfig_LegacyKeyAsStringValue_NotRewritten)
     {
         // Edge case: the literal "$cassoDefault" appearing as a string
