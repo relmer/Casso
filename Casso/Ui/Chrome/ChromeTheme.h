@@ -49,20 +49,26 @@ struct ChromeTheme
         theme.titleBarTopArgb         = 0xFF102A44;
         theme.titleBarBottomArgb      = 0xFF071827;
         theme.titleTextArgb           = 0xFFE8EEF4;
-        // Caption-button overlays match the Fluent/Win11 specification:
-        // - idle is fully transparent so the title-bar gradient shows
-        //   through; hover/pressed are theme-neutral white overlays
-        //   at ~10% / ~16% alpha; close hover/pressed are the
-        //   documented Windows red (#C42B1C) with a slightly darker
-        //   pressed shade. Close hover also flips the glyph color
-        //   to white per Windows convention so the X reads clearly
-        //   against the red fill.
+        // Caption-button overlays match the authoritative Fluent
+        // dark-mode spec from microsoft/microsoft-ui-xaml
+        // (Common_themeresources_any.xaml -> SubtleFillColor*) and
+        // microsoft/terminal (MinMaxCloseControl.xaml -> CloseButtonColor):
+        //   * idle is fully transparent so the title-bar gradient
+        //     reads through
+        //   * hover uses SubtleFillColorSecondary (0x0FFFFFFF) and
+        //     pressed uses SubtleFillColorTertiary (0x0AFFFFFF) for
+        //     min and max
+        //   * close hover and close pressed both use the documented
+        //     Windows red (0xFFC42B1C) -- Microsoft's WinUI close
+        //     button does NOT darken on press, the same red is
+        //     reused; the glyph flips to opaque white in both states
+        //     so the X reads against the red fill
         theme.sysButtonIdleArgb          = 0x00000000;
-        theme.sysButtonHoverArgb         = 0x1AFFFFFF;
-        theme.sysButtonPressedArgb       = 0x29FFFFFF;
+        theme.sysButtonHoverArgb         = 0x0FFFFFFF;
+        theme.sysButtonPressedArgb       = 0x0AFFFFFF;
         theme.sysButtonCloseHoverArgb       = 0xFFC42B1C;
         theme.sysButtonCloseHoverGlyphArgb  = 0xFFFFFFFF;
-        theme.sysButtonClosePressedArgb     = 0xFFB12414;
+        theme.sysButtonClosePressedArgb     = 0xFFC42B1C;
         theme.navStripArgb            = 0xFF182536;
         theme.navHoverArgb            = 0xFF2D4058;
         theme.navItemTextArgb         = 0xFFE8EEF4;
