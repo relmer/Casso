@@ -47,8 +47,6 @@
     "processorArchitecture='*' publicKeyToken='6595b64144ccf1df' " \
     "language='*'\"")
 
-static constexpr LPCWSTR kLastMachineValue = L"LastMachine";
-
 
 
 
@@ -66,34 +64,6 @@ static constexpr LPCWSTR kWindowClass      = L"CassoWindow";
 // Drive activity LED refresh timer (~20 Hz). Cheap and responsive enough
 // for the eye to register motor on/off bursts without consuming UI cycles.
 static constexpr int      s_kNavStripHeightDp    = 28;
-
-static WORD ResolveMachineSpeedCommand (const JsonValue & mergedJson)
-{
-    const JsonValue * uiPrefs = nullptr;
-    std::string       speed;
-
-
-    if (mergedJson.GetType() != JsonType::Object)
-    {
-        return 0;
-    }
-
-    if (FAILED (mergedJson.GetObject ("$cassoUiPrefs", uiPrefs)) || uiPrefs == nullptr)
-    {
-        return 0;
-    }
-
-    if (FAILED (uiPrefs->GetString ("speedMode", speed)))
-    {
-        return 0;
-    }
-
-    if (speed == "authentic") return IDM_MACHINE_SPEED_1X;
-    if (speed == "double")    return IDM_MACHINE_SPEED_2X;
-    if (speed == "maximum")   return IDM_MACHINE_SPEED_MAX;
-
-    return 0;
-}
 
 
 
@@ -234,6 +204,8 @@ EmulatorShell::EmulatorShell()
                                                     m_driveChrome,
                                                     m_cpuManager,
                                                     m_currentMachineName);
+
+    m_machineManager = std::make_unique<MachineManager> (*this);
 }
 
 
@@ -360,20 +332,20 @@ HRESULT EmulatorShell::Initialize (
     hr = CreateEmulatorWindow (hInstance);
     CHR (hr);
 
-    hr = CreateMemoryDevices (config);
+    hr = m_machineManager->CreateMemoryDevices (config);
     CHR (hr);
 
-    WireLanguageCard();
-    CreateVideoModes();
+    m_machineManager->WireLanguageCard();
+    m_machineManager->CreateVideoModes();
 
     // Validate memory bus for overlapping device address ranges
     hr = m_memoryBus.Validate();
     CHR (hr);
 
-    hr = CreateCpu (config);
+    hr = m_machineManager->CreateCpu (config);
     CHR (hr);
 
-    WirePageTable();
+    m_machineManager->WirePageTable();
 
     hr = CreateRenderSurface();
     CHR (hr);
@@ -788,561 +760,6 @@ bool EmulatorShell::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CreateMemoryDevices
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
-{
-    HRESULT  hr      = S_OK;
-    bool     romOk   = false;
-
-    wstring  wideError;
-    string   error;
-
-
-
-    // Load character generator ROM (used by video renderers, not on bus)
-    if (!config.characterRom.resolvedPath.empty())
-    {
-        HRESULT hrChar = m_charRom.LoadFromFile (config.characterRom.resolvedPath);
-
-        if (FAILED (hrChar))
-        {
-            DEBUGMSG (L"Failed to load character ROM '%hs', using fallback\n",
-                      config.characterRom.resolvedPath.c_str());
-            m_charRom.LoadEmbeddedFallback();
-        }
-    }
-    else
-    {
-        m_charRom.LoadEmbeddedFallback();
-    }
-
-    // RAM regions. Skip aux-bank entries: the AppleIIeMmu owns the
-    // auxiliary 64 KiB internally. Track the main RAM RamDevice for
-    // MMU page-table wiring.
-    for (const auto & region : config.ram)
-    {
-        if (!region.bank.empty())
-        {
-            continue;
-        }
-
-        Word start = region.address;
-        Word end   = static_cast<Word> (region.address + region.size - 1);
-
-        auto device = make_unique<RamDevice> (start, end);
-
-        if (m_refs.mainRamDev == nullptr)
-        {
-            m_refs.mainRamDev = device.get();
-        }
-
-        m_memoryBus.AddDevice (device.get());
-        m_ownedDevices.push_back (move (device));
-    }
-
-    // System ROM (single, file size determines end address)
-    {
-        Word romStart = config.systemRom.address;
-        Word romEnd   = static_cast<Word> (config.systemRom.address + config.systemRom.fileSize - 1);
-
-        auto device = RomDevice::CreateFromFile (romStart,
-                                                 romEnd,
-                                                 config.systemRom.resolvedPath,
-                                                 error);
-
-        romOk = (device != nullptr);
-
-        if (!romOk)
-        {
-            wideError.assign (error.begin(), error.end());
-            CBRN (false, wideError.c_str());
-        }
-
-        m_memoryBus.AddDevice (device.get());
-        m_ownedDevices.push_back (move (device));
-    }
-
-    // Internal motherboard devices
-    for (const auto & idev : config.internalDevices)
-    {
-        DeviceConfig devCfg;
-        devCfg.type = idev.type;
-
-        // The //e MMU is a coordinator object, not a bus device — it owns
-        // the auxiliary 64 KiB and rebinds the page table on every
-        // banking-changed event. Instantiate it directly here; full wiring
-        // (siblings, Initialize) happens after the device pass.
-        if (devCfg.type == "apple2e-mmu")
-        {
-            m_mmu = make_unique<AppleIIeMmu>();
-            continue;
-        }
-
-        auto device = m_registry.Create (devCfg.type, devCfg, m_memoryBus);
-
-        if (!device)
-        {
-            DEBUGMSG (L"Warning: Unknown device type '%hs'\n", devCfg.type.c_str());
-            continue;
-        }
-
-        // Track specific device pointers for quick access
-        if (devCfg.type == "apple2-keyboard" ||
-            devCfg.type == "apple2e-keyboard")
-        {
-            m_refs.keyboard = static_cast<AppleKeyboard *> (device.get());
-        }
-        else if (devCfg.type == "apple2-softswitches" ||
-                 devCfg.type == "apple2e-softswitches")
-        {
-            m_refs.softSwitches = static_cast<AppleSoftSwitchBank *> (device.get());
-        }
-        else if (devCfg.type == "apple2-speaker")
-        {
-            m_refs.speaker = static_cast<AppleSpeaker *> (device.get());
-        }
-
-        m_memoryBus.AddDevice (device.get());
-        m_ownedDevices.push_back (move (device));
-    }
-
-    // Wire IIe keyboard <-> softswitch sibling so $C00C-$C00F reaches the
-    // softswitch (the keyboard's range $C000-$C063 would otherwise eat it).
-    {
-        auto * iieKbd = dynamic_cast<AppleIIeKeyboard *>     (m_refs.keyboard);
-        auto * iieSw  = dynamic_cast<AppleIIeSoftSwitchBank *> (m_refs.softSwitches);
-
-        if (iieKbd != nullptr && iieSw != nullptr)
-        {
-            iieKbd->SetSoftSwitchSibling (iieSw);
-            iieSw->SetKeyboard           (iieKbd);
-        }
-
-        if (iieKbd != nullptr && m_refs.speaker != nullptr)
-        {
-            iieKbd->SetSpeakerSibling (m_refs.speaker);
-        }
-
-        if (iieKbd != nullptr && m_mmu != nullptr)
-        {
-            iieKbd->SetMmu (m_mmu.get());
-        }
-
-        if (iieKbd != nullptr && m_videoTiming != nullptr)
-        {
-            iieKbd->SetVideoTiming (m_videoTiming.get());
-        }
-
-        if (iieSw != nullptr && m_videoTiming != nullptr)
-        {
-            iieSw->SetVideoTiming (m_videoTiming.get());
-        }
-
-        if (iieSw != nullptr && m_mmu != nullptr)
-        {
-            iieSw->SetMmu (m_mmu.get());
-        }
-    }
-
-    // Initialize the //e MMU once main RAM exists. The MMU rebinds the
-    // page table for $0000-$BFFF based on RAMRD/RAMWRT/ALTZP/80STORE.
-    if (m_mmu != nullptr && m_refs.mainRamDev != nullptr)
-    {
-        auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_refs.softSwitches);
-
-        HRESULT hrMmu = m_mmu->Initialize (
-            &m_memoryBus,
-            m_refs.mainRamDev,
-            nullptr,
-            nullptr,
-            nullptr,
-            iieSw);
-
-        if (FAILED (hrMmu))
-        {
-            DEBUGMSG (L"AppleIIeMmu::Initialize failed (hr=0x%08x)\n", hrMmu);
-        }
-    }
-
-    // Slot devices and slot ROMs
-    for (const auto & slot : config.slots)
-    {
-        // Slot device (e.g., disk-ii)
-        if (!slot.device.empty())
-        {
-            DeviceConfig devCfg;
-            devCfg.type    = slot.device;
-            devCfg.slot    = slot.slot;
-            devCfg.hasSlot = true;
-
-            auto device = m_registry.Create (devCfg.type, devCfg, m_memoryBus);
-
-            if (!device)
-            {
-                DEBUGMSG (L"Warning: Unknown slot device type '%hs'\n", devCfg.type.c_str());
-            }
-            else
-            {
-                m_memoryBus.AddDevice (device.get());
-                m_ownedDevices.push_back (move (device));
-            }
-        }
-
-        // Slot ROM at $Cs00-$CsFF
-        if (!slot.rom.empty())
-        {
-            Word romStart = static_cast<Word> (0xC000 + slot.slot * 0x100);
-            Word romEnd   = static_cast<Word> (romStart + slot.romSize - 1);
-
-            auto device = RomDevice::CreateFromFile (romStart,
-                                                     romEnd,
-                                                     slot.resolvedRomPath,
-                                                     error);
-
-            if (device == nullptr)
-            {
-                wideError.assign (error.begin(), error.end());
-                CBRN (false, wideError.c_str());
-            }
-
-            // On //e the AppleIIeMmu owns the $C100-$CFFF router and
-            // dispatches between internal ROM and slot ROMs based on
-            // INTCXROM/SLOTC3ROM/INTC8ROM. On ][/][+, the slot ROM is
-            // bus-resident as before (no INTCXROM concept).
-            if (m_mmu != nullptr)
-            {
-                vector<Byte> bytes (slot.romSize);
-
-                for (size_t i = 0; i < slot.romSize; i++)
-                {
-                    bytes[i] = device->Read (static_cast<Word> (romStart + i));
-                }
-
-                m_mmu->AttachSlotRom (slot.slot, move (bytes));
-            }
-            else
-            {
-                m_memoryBus.AddDevice (device.get());
-            }
-
-            m_ownedDevices.push_back (move (device));
-        }
-    }
-
-    // Cache DiskIIController pointer for the status-bar drive activity
-    // indicator. We pick the first one we find (typically slot 6).
-    m_refs.diskController = nullptr;
-    for (auto & dev : m_ownedDevices)
-    {
-        DiskIIController *  dc = dynamic_cast<DiskIIController *> (dev.get());
-
-        if (dc != nullptr)
-        {
-            m_refs.diskController = dc;
-            break;
-        }
-    }
-
-    // Drive-audio wiring (spec 005-disk-ii-audio FR-008 / FR-012 /
-    // FR-015 / FR-016). Allocate one DiskIIAudioSource per drive on
-    // the discovered controller (if any), register each with the
-    // mixer, and route the controller's audio-sink events into
-    // drive 0's source (single sink covers both drives; the head /
-    // motor events themselves are not currently drive-tagged in
-    // DiskIIController -- a follow-up could split per-drive sinks).
-    //
-    // Pan policy: single-drive profiles play centered (equal-power
-    // center). Two-drive profiles place Drive 1 left-of-center and
-    // Drive 2 right-of-center using kDrivePanOffset radians.
-    m_diskAudioSources.clear();
-    m_driveAudioMixer.UnregisterAllSources();
-
-    if (m_refs.diskController != nullptr)
-    {
-        int  driveCount = DiskIIController::kDriveCount;
-        int  drive      = 0;
-
-        for (drive = 0; drive < driveCount; drive++)
-        {
-            auto  src = make_unique<DiskIIAudioSource>();
-
-            if (driveCount <= 1)
-            {
-                src->SetPan (DriveAudioMixer::kSpeakerCenter,
-                             DriveAudioMixer::kSpeakerCenter);
-            }
-            else if (drive == 0)
-            {
-                // Drive 1 (UI numbering; index 0): left bias.
-                // theta measured from the right speaker per FR-012,
-                // so panL = sin(theta), panR = cos(theta). At
-                // theta = pi/4 + pi/8 = 3*pi/8 this is roughly
-                // 0.924 L / 0.383 R -- halfway between the left
-                // speaker and center.
-                float  theta = DriveAudioMixer::kCenterAngle + DriveAudioMixer::kDrivePanOffset;
-
-                src->SetPan (sinf (theta), cosf (theta));
-            }
-            else
-            {
-                // Drive 2 (UI numbering; index 1): mirror, right bias.
-                float  theta = DriveAudioMixer::kCenterAngle - DriveAudioMixer::kDrivePanOffset;
-
-                src->SetPan (sinf (theta), cosf (theta));
-            }
-
-            m_driveAudioMixer.RegisterSource (src.get());
-            src->SetDriveIndex (drive);
-            m_diskAudioSources.push_back (std::move (src));
-        }
-
-        if (!m_diskAudioSources.empty())
-        {
-            m_refs.diskController->SetAudioSink (m_diskAudioSources[0].get());
-        }
-    }
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WireLanguageCard
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::WireLanguageCard()
-{
-    LanguageCard * lc        = nullptr;
-    RomDevice    * romDevice = nullptr;
-
-
-
-    // Find the LanguageCard device
-    for (auto & dev : m_ownedDevices)
-    {
-        lc = dynamic_cast<LanguageCard *> (dev.get());
-
-        if (lc != nullptr)
-        {
-            break;
-        }
-    }
-
-    if (lc == nullptr)
-    {
-        return;
-    }
-
-    // Find a ROM device covering $D000–$FFFF
-    for (const auto & entry : m_memoryBus.GetEntries())
-    {
-        auto * rom = dynamic_cast<RomDevice *> (entry.device);
-
-        if (rom != nullptr && entry.start <= 0xD000 && entry.end >= 0xFFFF)
-        {
-            romDevice = rom;
-            break;
-        }
-    }
-
-    if (romDevice == nullptr)
-    {
-        return;
-    }
-
-    Word romStart = romDevice->GetStart();
-
-    // Copy $D000–$FFFF ROM data to language card
-    vector<Byte> lcRomData (0x3000);
-
-    for (size_t i = 0; i < 0x3000; i++)
-    {
-        lcRomData[i] = romDevice->Read (static_cast<Word> (0xD000 + i));
-    }
-
-    lc->SetRomData (lcRomData);
-    m_memoryBus.RemoveDevice (romDevice);
-
-    // Re-add slot ROM ($C100-$CFFF) if original extended below $D000.
-    // $C000-$C0FF is I/O space and must not be shadowed by ROM.
-    if (romStart < 0xD000)
-    {
-        Word   slotRomStart = static_cast<Word> (max (static_cast<int> (romStart), 0xC100));
-        size_t dataOffset   = slotRomStart - romStart;
-        size_t lowerSize    = 0xD000 - slotRomStart;
-
-        UNREFERENCED_PARAMETER (dataOffset);
-
-        vector<Byte> lowerData (lowerSize);
-
-        for (size_t i = 0; i < lowerSize; i++)
-        {
-            lowerData[i] = romDevice->Read (static_cast<Word> (slotRomStart + i));
-        }
-
-        // On //e: hand to the MMU's CxxxRomRouter (audit C8 carryover).
-        // On ][/][+: keep the legacy bus-resident ROM device.
-        if (m_mmu != nullptr)
-        {
-            m_mmu->AttachInternalCxxxRom (move (lowerData));
-        }
-        else
-        {
-            auto lowerRom = RomDevice::CreateFromData (
-                slotRomStart, static_cast<Word> (0xCFFF),
-                lowerData.data(), lowerData.size());
-
-            m_memoryBus.AddDevice (lowerRom.get());
-            m_ownedDevices.push_back (move (lowerRom));
-        }
-    }
-
-    // Bank device intercepts $D000–$FFFF, routing to LC RAM or ROM
-    auto lcBank = make_unique<LanguageCardBank> (*lc);
-    m_memoryBus.AddDevice (lcBank.get());
-    m_ownedDevices.push_back (move (lcBank));
-
-    // //e wiring: LC needs the MMU (for ALTZP routing) and the keyboard
-    // sibling needs the LC pointer for $C011/$C012 status reads.
-    if (m_mmu != nullptr)
-    {
-        lc->SetMmu (m_mmu.get());
-    }
-
-    auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_refs.keyboard);
-
-    if (iieKbd != nullptr)
-    {
-        iieKbd->SetLanguageCard (lc);
-    }
-
-    auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_refs.softSwitches);
-
-    if (iieSw != nullptr)
-    {
-        iieSw->SetLanguageCard (lc);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WirePageTable
-//
-//  Sets up the MemoryBus page table to point each $0000-$BFFF page at the
-//  CPU's main RAM buffer (memory[]). This is the baseline mapping; the IIe
-//  may later swap pages to aux RAM via 80STORE/PAGE2 banking.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::WirePageTable()
-{
-    if (!m_cpu)
-    {
-        return;
-    }
-
-    Byte * mainRam = const_cast<Byte *> (m_cpu->GetMemory());
-
-    // Map all RAM pages ($0000-$BFFF) to main memory
-    for (int page = 0x00; page < 0xC0; page++)
-    {
-        Byte * pagePtr = mainRam + (page * 0x100);
-        m_memoryBus.SetReadPage  (page, pagePtr);
-        m_memoryBus.SetWritePage (page, pagePtr);
-    }
-
-    // Register banking-change callback so soft switches can trigger remapping
-    m_memoryBus.SetBankingChangedCallback ([this]()
-    {
-        RebuildBankingPages();
-    });
-
-    // Initial state
-    RebuildBankingPages();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetAuxRamBuffer
-//
-//  Returns the //e auxiliary 64 KiB buffer (owned by AppleIIeMmu) or
-//  nullptr when no MMU is wired (Apple ][ / ][+).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte * EmulatorShell::GetAuxRamBuffer()
-{
-    return m_mmu != nullptr ? m_mmu->GetAuxBuffer() : nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RebuildBankingPages
-//
-//  When the //e MMU is present, it owns all $0000-$BFFF page-table
-//  routing (RAMRD/RAMWRT/ALTZP/80STORE+PAGE2/HIRES) and is invoked
-//  directly by the soft-switch bank on every banking-changed event.
-//  This shim only handles the legacy fallback where no MMU exists
-//  (][/][+) — those machines never set 80STORE so all pages stay
-//  bound to main RAM.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::RebuildBankingPages()
-{
-    if (!m_cpu)
-    {
-        return;
-    }
-
-    if (m_mmu != nullptr)
-    {
-        return;
-    }
-
-    Byte * mainRam = const_cast<Byte *> (m_cpu->GetMemory());
-
-    for (int page = 0x04; page <= 0x07; page++)
-    {
-        Byte * p = mainRam + (page * 0x100);
-        m_memoryBus.SetReadPage  (page, p);
-        m_memoryBus.SetWritePage (page, p);
-    }
-    for (int page = 0x20; page <= 0x3F; page++)
-    {
-        Byte * p = mainRam + (page * 0x100);
-        m_memoryBus.SetReadPage  (page, p);
-        m_memoryBus.SetWritePage (page, p);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  Mount  (IDriveCommandSink)
 //
 //  IDriveCommandSink override delegates straight through to the
@@ -1377,169 +794,13 @@ void EmulatorShell::Eject (int slot, int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CreateVideoModes
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::CreateVideoModes()
-{
-    auto textMode = make_unique<AppleTextMode> (m_memoryBus, m_charRom);
-    m_refs.activeVideoMode = textMode.get();
-    m_videoModes.push_back (move (textMode));
-
-    auto loResMode = make_unique<AppleLoResMode> (m_memoryBus);
-    m_videoModes.push_back (move (loResMode));
-
-    auto hiResMode = make_unique<AppleHiResMode> (m_memoryBus);
-    m_videoModes.push_back (move (hiResMode));
-
-    auto doubleHiResMode = make_unique<AppleDoubleHiResMode> (m_memoryBus);
-    m_videoModes.push_back (move (doubleHiResMode));
-
-    // Index 4: 80-column text (used on //e). Wired with aux memory from
-    // the AppleIIeMmu when present.
-    auto text80 = make_unique<Apple80ColTextMode> (m_memoryBus, m_charRom);
-
-    Byte * auxBuf = GetAuxRamBuffer();
-
-    if (auxBuf != nullptr)
-    {
-        text80->SetAuxMemory (auxBuf);
-
-        // DHR also needs aux memory access (FR-019). Index 3 = AppleDoubleHiResMode.
-        auto * dhr = static_cast<AppleDoubleHiResMode *> (m_videoModes[3].get());
-        dhr->SetAuxMemory (auxBuf);
-    }
-
-    m_videoModes.push_back (move (text80));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CreateCpu
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
-{
-    HRESULT  hr      = S_OK;
-    ifstream romFile;
-    Word     addr    = 0;
-    char     byte    = 0;
-
-
-
-    m_cpu = make_unique<EmuCpu> (m_memoryBus);
-
-    // / FR-033 / T056. Wire the //e video timing model into the
-    // EmuCpu cycle fan-out. Every AddCycles call now ticks VideoTiming
-    // so $C019 (RDVBLBAR) tracks the 17,030-cycle frame. Null-safe for
-    // tests/builds that haven't constructed a timing model.
-    if (m_videoTiming != nullptr)
-    {
-        m_cpu->SetVideoTiming (m_videoTiming.get());
-    }
-
-    // Wire the InterruptController to the CPU. wiring registers
-    // zero asserters today — the //e card slots (1/3/4/5/6) will allocate
-    // tokens here in later phases as their devices are added. The
-    // controller exists now so Apple ][ / ][+ / //e all share the same
-    // IRQ aggregation seam.
-    m_interruptController.SetCpu (m_cpu->GetCpu());
-
-    // The base Cpu class uses an internal memory[] array. Copy system ROM
-    // and slot ROMs into that array so PeekByte/disassembly can see them.
-    {
-        // System ROM
-        if (!config.systemRom.resolvedPath.empty())
-        {
-            romFile.open (config.systemRom.resolvedPath, ios::binary);
-
-            if (romFile.good())
-            {
-                addr = config.systemRom.address;
-
-                while (romFile.good() && addr < config.systemRom.address + config.systemRom.fileSize)
-                {
-                    romFile.read (&byte, 1);
-
-                    if (romFile.gcount() == 1)
-                    {
-                        m_cpu->PokeByte (addr, static_cast<Byte> (byte));
-                        addr++;
-                    }
-                }
-
-                romFile.close();
-            }
-        }
-
-        // Slot ROMs
-        for (const auto & slot : config.slots)
-        {
-            if (slot.rom.empty() || slot.resolvedRomPath.empty())
-            {
-                continue;
-            }
-
-            romFile.open (slot.resolvedRomPath, ios::binary);
-
-            if (!romFile.good())
-            {
-                continue;
-            }
-
-            addr = static_cast<Word> (0xC000 + slot.slot * 0x100);
-
-            while (romFile.good() && addr < 0xC000 + slot.slot * 0x100 + slot.romSize)
-            {
-                romFile.read (&byte, 1);
-
-                if (romFile.gcount() == 1)
-                {
-                    m_cpu->PokeByte (addr, static_cast<Byte> (byte));
-                    addr++;
-                }
-            }
-
-            romFile.close();
-        }
-    }
-
-    m_cpu->InitForEmulation();
-
-    // Connect speaker to CPU cycle counter for audio timestamps
-    if (m_refs.speaker != nullptr)
-    {
-        m_refs.speaker->SetCycleCounter (m_cpu->GetCycleCounterPtr());
-    }
-
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ShowMachinePicker
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::ShowMachinePicker()
 {
-    // Legacy `MachinePickerDialog` is retired (FR-027). The
-    // consolidated Settings panel hosts the machine selector
-    // and routes the actual switch through `SwitchMachine` /
-    // `SettingsPanelState::Apply` on commit. Old entry points
-    // (`IDM_FILE_OPEN`, status-bar machine cell) funnel here so they
-    // keep working with no behavioural surprise to the user.
-    OutputDebugStringA ("[EmulatorShell] ShowMachinePicker unavailable in native-only baseline.\n");
+    m_machineManager->ShowMachinePicker();
 }
 
 
@@ -1552,184 +813,9 @@ void EmulatorShell::ShowMachinePicker()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
+HRESULT EmulatorShell::SwitchMachine(const wstring & machineName)
 {
-    HRESULT             hr             = S_OK;
-    HRESULT             hrReg          = S_OK;
-    vector<fs::path>    searchPaths;
-    fs::path            configRelPath;
-    fs::path            configPath;
-    ifstream            configFile;
-    bool                configGood     = false;
-    stringstream        ss;
-    string              jsonText;
-    vector<fs::path>    romSearchPaths;
-    string              error;
-    MachineConfig       newConfig;
-    string              machineNameNarrow = fs::path (machineName).string();
-    JsonValue           defaultJson;
-    JsonValue           mergedJson;
-    JsonParseError      parseErr;
-    WORD                speedCmd = 0;
-
-
-
-    // Find and load the new machine config. ROM/disk-audio asset
-    // bootstrap happens on the UI thread in ShowMachinePicker before
-    // the switch command is enqueued; by the time we're here, every
-    // asset the new machine needs is already on disk.
-    searchPaths   = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
-                                                     PathResolver::GetWorkingDirectory());
-    configRelPath = fs::path ("Machines") / machineNameNarrow
-                                          / (machineNameNarrow + ".json");
-    configPath    = PathResolver::FindFile (searchPaths, configRelPath);
-
-    CBRN (!configPath.empty(),
-          format (L"Machine config not found: {}", machineName).c_str());
-
-    configFile.open (configPath);
-    configGood = configFile.good();
-    CBRN (configGood,
-          format (L"Cannot open machine config:\n{}", configPath.wstring()).c_str());
-
-    ss << configFile.rdbuf();
-    jsonText = ss.str();
-
-    if (SUCCEEDED (JsonParser::Parse (jsonText, defaultJson, parseErr)) &&
-        m_userConfigStore != nullptr)
-    {
-        if (SUCCEEDED (m_userConfigStore->Load (machineNameNarrow,
-                                                defaultJson,
-                                                m_uiFs,
-                                                mergedJson)))
-        {
-            speedCmd = ResolveMachineSpeedCommand (mergedJson);
-        }
-    }
-
-    romSearchPaths.push_back (configPath.parent_path().parent_path().parent_path());
-
-    for (const auto & p : searchPaths)
-    {
-        if (p != romSearchPaths[0])
-        {
-            romSearchPaths.push_back (p);
-        }
-    }
-
-    hr = MachineConfigLoader::Load (jsonText,
-                                    machineNameNarrow,
-                                    romSearchPaths,
-                                    newConfig,
-                                    error);
-    CHRN (hr, format (L"Failed to load machine config:\n{}",
-                      wstring (error.begin(), error.end())).c_str());
-
-    // / T097 / FR-025. Auto-flush every dirty disk before
-    // tearing down the previous machine so user writes survive the
-    // machine switch.
-    {
-        HRESULT  hrFlush = m_diskStore.FlushAll();
-        IGNORE_RETURN_VALUE (hrFlush, S_OK);
-    }
-
-    // Tear down current machine. The Disk II debug dialog (if open)
-    // holds a raw pointer into the old CPU's cycle counter; revoke it
-    // before the CPU is reset so the dialog can't dereference dangling
-    // memory between here and CreateCpu below.
-    if (m_diskIIDebugDialog != nullptr)
-    {
-        m_diskIIDebugDialog->SetCycleCounter (nullptr);
-    }
-
-    // Tear down ALL per-machine state in one atomic move. m_refs is
-    // a struct of observer pointers into the owning collections
-    // (m_ownedDevices, m_videoModes); resetting it as a whole keeps
-    // the "every observer must be invalidated when its owner goes
-    // away" invariant from rotting as new observers are added. m_mmu
-    // is a unique_ptr that survives across switches and is only
-    // reassigned when the new config carries an apple2e-mmu device;
-    // it must be explicitly reset here or it'll keep its stale
-    // RamDevice pointer alive across a //e → ][ switch.
-    m_cpu.reset();
-    m_ownedDevices.clear();
-    m_videoModes.clear();
-    m_memoryBus = MemoryBus();
-    m_refs      = {};
-    m_mmu.reset();
-
-    // Initialize with new config
-    m_currentMachineName = machineName;
-    m_config              = newConfig;
-    m_cyclesPerFrame      = newConfig.cyclesPerFrame;
-
-    hr = CreateMemoryDevices (newConfig);
-    CHR (hr);
-
-    // CreateMemoryDevices unregistered the old disk-audio sources and
-    // built new ones. They've been registered with the mixer but no
-    // sample data is loaded yet — SetMechanism is what triggers
-    // LoadSamples on each registered source. Without this re-poke,
-    // the new machine's drive plays in eerie silence (FR-009).
-    {
-        wstring   currentMechanism = m_driveAudioMixer.GetMechanism();
-        HRESULT   hrMech           = m_driveAudioMixer.SetMechanism (currentMechanism);
-        IGNORE_RETURN_VALUE (hrMech, S_OK);
-    }
-
-    WireLanguageCard();
-    CreateVideoModes();
-
-    hr = m_memoryBus.Validate();
-    CHR (hr);
-
-    hr = CreateCpu (newConfig);
-    CHR (hr);
-
-    WirePageTable();
-
-    // Re-attach the new CPU's cycle counter to the debug dialog (the
-    // pointer was revoked above before the old CPU was destroyed).
-    if (m_diskIIDebugDialog != nullptr && m_cpu != nullptr)
-    {
-        m_diskIIDebugDialog->SetCycleCounter (m_cpu->GetCycleCounterPtr());
-    }
-
-    // Spec-006 bug 15. Re-wire the debug dialog onto the freshly
-    // built controller + audio source. Without this the dialog goes
-    // silent after a machine switch even though it's still on screen.
-    AttachDebugSinksIfOpen();
-
-    UpdateWindowTitle();
-
-    // Save to registry (don't pollute hr with the result)
-    hrReg = RegistrySettings::WriteString (kLastMachineValue, machineName);
-    IGNORE_RETURN_VALUE (hrReg, S_OK);
-
-    // / FR-034. Same cold-power-on sequence as Initialize() —
-    // seed DRAM and run the 6502 /RESET sequence. Without this the
-    // newly-built machine starts with a random PC into uninitialized
-    // RAM. Mounts persist across the switch (they were flushed above
-    // and re-mounted by the new config); aux RAM, LC RAM, and CPU
-    // registers are all reseeded.
-    //
-    // Must run BEFORE the per-machine remount: PowerCycle ejects every
-    // drive and rebinds the controller's engine to its empty internal
-    // disk, which would silently throw away whatever we just mounted.
-    PowerCycle();
-
-    // Remount per-machine disks if any were saved last time this
-    // machine was active. Empty paths fall through harmlessly so a
-    // never-used machine won't try to mount anything.
-    m_diskManager->MountCommandLineDisks (string(), string());
-
-    if (speedCmd != 0)
-    {
-        HandleCommand (speedCmd);
-    }
-
-Error:
-    return hr;
+    return m_machineManager->SwitchMachine(machineName);
 }
 
 
@@ -2157,7 +1243,7 @@ void EmulatorShell::RenderFramebuffer()
 
 
 
-    SelectVideoMode();
+    m_machineManager->SelectVideoMode();
 
     if (m_refs.activeVideoMode != nullptr)
     {
@@ -2315,7 +1401,6 @@ LRESULT EmulatorShell::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnDestroy
@@ -2339,10 +1424,6 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
     
     return false;
 }
-
-
-
-
 
 
 
@@ -2985,10 +2066,6 @@ void EmulatorShell::OnViewCommand (int id)
 
 
 
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PromptForDiskImage
@@ -3210,134 +2287,13 @@ void EmulatorShell::UpdateWindowTitle()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SelectVideoMode
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SelectVideoMode()
-{
-    if (m_videoModes.size() < 3)
-    {
-        return;
-    }
-
-    // Read soft switch state
-    if (m_refs.softSwitches)
-    {
-        m_graphicsMode = m_refs.softSwitches->IsGraphicsMode();
-        m_mixedMode    = m_refs.softSwitches->IsMixedMode();
-        m_page2        = m_refs.softSwitches->IsPage2();
-        m_hiresMode    = m_refs.softSwitches->IsHiresMode();
-    }
-
-    // When 80STORE is active on the //e, $C054/$C055 control aux/main memory
-    // selection — not page 1/page 2. Suppress page2 for video rendering.
-    auto * iieSoftSwitches = dynamic_cast<AppleIIeSoftSwitchBank *> (m_refs.softSwitches);
-
-    if (iieSoftSwitches != nullptr && iieSoftSwitches->Is80Store())
-    {
-        m_page2 = false;
-    }
-
-    bool is80ColMode  = iieSoftSwitches != nullptr && iieSoftSwitches->Is80ColMode();
-    bool altCharSet   = iieSoftSwitches != nullptr && iieSoftSwitches->IsAltCharSet();
-
-    // Select video mode based on soft switch state
-    if (!m_graphicsMode)
-    {
-        // Text mode: use 80-col on //e if enabled, else 40-col
-        if (is80ColMode && m_videoModes.size() > 4)
-        {
-            m_refs.activeVideoMode = m_videoModes[4].get();
-        }
-        else
-        {
-            m_refs.activeVideoMode = m_videoModes[0].get();
-        }
-    }
-    else if (!m_hiresMode)
-    {
-        // Lo-res graphics
-        m_refs.activeVideoMode = m_videoModes[1].get();
-    }
-    else
-    {
-        // Hi-res graphics — use DHR (index 3) when DHIRES + 80COL are
-        // both active on the //e (FR-019, audit M8). Otherwise standard
-        // hi-res (index 2).
-        bool useDhr = iieSoftSwitches != nullptr
-                   && iieSoftSwitches->IsDoubleHiRes()
-                   && is80ColMode
-                   && m_videoModes.size() > 3;
-
-        if (useDhr)
-        {
-            m_refs.activeVideoMode = m_videoModes[3].get();
-        }
-        else
-        {
-            m_refs.activeVideoMode = m_videoModes[2].get();
-        }
-    }
-
-    // Pass page2 state to the active renderer
-    if (m_refs.activeVideoMode != nullptr)
-    {
-        m_refs.activeVideoMode->SetPage2 (m_page2);
-    }
-
-    // Keep text mode page2-aware for mixed-mode overlay rendering
-    m_videoModes[0]->SetPage2 (m_page2);
-
-    // Propagate ALTCHARSET to both text-mode renderers (audit M13 closure).
-    static_cast<AppleTextMode *> (m_videoModes[0].get())->SetAltCharSet (altCharSet);
-
-    if (m_videoModes.size() > 4)
-    {
-        static_cast<Apple80ColTextMode *> (m_videoModes[4].get())->SetAltCharSet (altCharSet);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  SoftReset
-//
-//  / FR-034. Drives the //e /RESET path: every device clears its
-//  reset-sensitive state (audit S10 [CRITICAL] - 80COL/ALTCHARSET no
-//  longer survive), the MMU returns to the post-reset banking flags, and
-//  the CPU re-loads PC from $FFFC. User RAM is preserved.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SoftReset()
 {
-    m_memoryBus.SoftResetAll();
-
-    if (m_mmu != nullptr)
-    {
-        m_mmu->OnSoftReset();
-    }
-
-    m_interruptController.SoftReset();
-
-    if (m_videoTiming != nullptr)
-    {
-        m_videoTiming->SoftReset();
-    }
-
-    if (m_cpu != nullptr)
-    {
-        m_cpu->SoftReset();
-    }
-
-    // Spec-006 / FR-004a. Re-zero the Disk II Debug Uptime column on
-    // every reset so the user sees a clean 00:00 anchor after each
-    // Ctrl+R / Ctrl+Shift+R.
-    ResetUptimeAnchor();
+    m_machineManager->SoftReset();
 }
 
 
@@ -3348,54 +2304,11 @@ void EmulatorShell::SoftReset()
 //
 //  PowerCycle
 //
-//  / FR-035. Reseeds every DRAM-owning device from m_prng then
-//  runs the SoftReset sequence. The Prng is constructed once (host
-//  process lifetime) so consecutive cycles within a single session
-//  continue producing fresh patterns rather than repeating the seed.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::PowerCycle()
 {
-    HRESULT  hrFlush = S_OK;
-
-
-
-    if (m_prng == nullptr)
-    {
-        return;
-    }
-
-    // / T097 / FR-025 / FR-035. Auto-flush dirty disks before
-    // reseeding device state so writes don't get lost across a power
-    // cycle. Mounts persist (matches DiskImageStore::SoftReset semantics
-    // — see comment block on DiskImageStore::PowerCycle, which is the
-    // unmount-everything variant tests can opt into directly).
-    hrFlush = m_diskStore.FlushAll();
-    IGNORE_RETURN_VALUE (hrFlush, S_OK);
-
-    m_memoryBus.PowerCycleAll (*m_prng);
-
-    if (m_mmu != nullptr)
-    {
-        m_mmu->OnPowerCycle (*m_prng);
-    }
-
-    m_interruptController.PowerCycle();
-
-    if (m_videoTiming != nullptr)
-    {
-        m_videoTiming->PowerCycle (*m_prng);
-    }
-
-    if (m_cpu != nullptr)
-    {
-        m_cpu->PowerCycle (*m_prng);
-    }
-
-    // Spec-006 / FR-004a. Re-zero the Disk II Debug Uptime column on
-    // every power-cycle as well as soft-reset.
-    ResetUptimeAnchor();
+    m_machineManager->PowerCycle();
 }
 
 
@@ -3710,7 +2623,6 @@ bool EmulatorShell::OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int 
 
     return false;
 }
-
 
 
 

@@ -35,6 +35,7 @@
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
+#include "Shell/MachineManager.h"
 #include "Shell/WindowManager.h"
 
 
@@ -174,28 +175,26 @@ private:
     void OnCpuThreadStop();
     void PublishFramebuffer();
     void UpdateWindowTitle();
-    void SelectVideoMode();
 
     // Initialization helpers
     HRESULT CreateEmulatorWindow (HINSTANCE hInstance);
-    HRESULT CreateMemoryDevices (const MachineConfig & config);
-    void    WireLanguageCard();
-    void    WirePageTable();
-    void    RebuildBankingPages();
-    void    CreateVideoModes();
-    HRESULT CreateCpu (const MachineConfig & config);
-
-    Byte * GetAuxRamBuffer();
-
-    // Machine switching
-    void    ShowMachinePicker();
-    HRESULT SwitchMachine (const wstring & machineName);
 
     HRESULT CreateRenderSurface ();
     HRESULT PromptForDiskImage (int drive);
 
     // Queue a command for the CPU thread
     void PostCommand (WORD id, const string & payload = "");
+
+    // Machine switching delegated to MachineManager. Kept as a
+    // public delegator so the existing IDM_FILE_OPEN command-queue
+    // path can call the shell without learning the manager.
+    HRESULT SwitchMachine (const std::wstring & machineName);
+    void    ShowMachinePicker();
+
+    // MachineManager touches enough shell state during construction
+    // and machine-switch teardown that a friend declaration is the
+    // pragmatic seam; no new global state is introduced.
+    friend class MachineManager;
 
     HACCEL              m_accelTable      = nullptr;
     HWND                m_renderHwnd      = nullptr;
@@ -355,6 +354,7 @@ private:
     WindowManager                             m_windowManager;
     std::unique_ptr<ClipboardManager>         m_clipboardManager;
     std::unique_ptr<DiskManager>              m_diskManager;
+    std::unique_ptr<MachineManager>           m_machineManager;
 };
 
 
