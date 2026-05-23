@@ -1799,6 +1799,13 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
                     static_cast<int> (width), renderH, FALSE);
     }
 
+    // Release the D2D target bitmap before resizing the swap chain.
+    // ResizeBuffers fails with DXGI_ERROR_INVALID_CALL (0x887a0001) while
+    // any outside reference (D2D bitmap, IDXGISurface, RTV) still holds
+    // the back buffer. UiShell rebinds on the next Render() because
+    // OnResize below marks the text target dirty.
+    m_uiShell.Text().UnbindBackBuffer();
+
     m_d3dRenderer.Resize (static_cast<int> (width), renderH);
 
     {
