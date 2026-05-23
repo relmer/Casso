@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Ui/SettingsPanelState.h"
+#include "Ui/Settings/SettingsPanelState.h"
 
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
@@ -422,5 +422,37 @@ public:
 
         Assert::IsTrue (text.find ("\"customExtension\"") != std::string::npos);
         Assert::IsTrue (text.find ("\"preserved\":true") != std::string::npos);
+    }
+
+
+    // FR-041: opening / closing the panel must not pause emulation.
+    // The applied-sink interface deliberately lacks any pause hook so
+    // the only way to reach the emulator from the panel is through the
+    // existing per-field setters in Apply(). The state lifecycle calls
+    // (LoadFromMachine, Cancel) never reach the sink at all -- this
+    // test pins that contract by asserting zero sink invocations
+    // around the load/cancel round-trip.
+    TEST_METHOD (LoadAndCancel_DoNotDispatchAnythingToTheSink)
+    {
+        SettingsPanelState  st;
+        RecordingSink       sink;
+        JsonValue           v   = ParseOrFail (kFixtureJson);
+        HRESULT             hr  = st.LoadFromMachine ("TestMachine", v, v);
+
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        // No mutations applied: the sink should remain untouched
+        // because nothing has called Apply().
+        Assert::AreEqual (0, sink.applyCount,
+            L"Load must never reach the apply sink (FR-041 -- no pause).");
+        Assert::AreEqual (0, sink.queuedResetCount);
+
+        st.SetSpeedMode (SettingsSpeedMode::Maximum);
+        st.Cancel();
+
+        // Cancel discards the dirty state without firing the sink.
+        Assert::AreEqual (0, sink.applyCount,
+            L"Cancel must never reach the apply sink.");
+        Assert::AreEqual (0, sink.queuedResetCount);
     }
 };

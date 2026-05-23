@@ -44,6 +44,7 @@ BEGIN
     "2",            IDM_DISK_INSERT2,       VIRTKEY, CONTROL
     VK_F1,          IDM_HELP_KEYMAP,        VIRTKEY
     "D",            IDM_VIEW_DISKII_DEBUG,  VIRTKEY, CONTROL, SHIFT
+    VK_OEM_COMMA,   IDM_VIEW_SETTINGS,      VIRTKEY, CONTROL
 END
 
 // Version Information

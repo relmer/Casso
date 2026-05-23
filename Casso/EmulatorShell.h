@@ -18,7 +18,7 @@
 #include "Ui/DriveWidgetController.h"
 #include "Ui/DragDropTarget.h"
 #include "Ui/IDriveCommandSink.h"
-#include "Ui/SettingsPanel.h"
+#include "Ui/Settings/SettingsPanel.h"
 #include "Ui/ThemeManager.h"
 #include "Ui/UiShell.h"
 #include "Config/Win32FileSystem.h"
@@ -183,6 +183,7 @@ private:
     // path can call the shell without learning the manager.
     HRESULT SwitchMachine (const std::wstring & machineName);
     void    ShowMachinePicker();
+    const std::wstring &  CurrentMachineName () const { return m_currentMachineName; }
 
     // MachineManager and WindowCommandManager touch enough shell
     // state during construction and command dispatch that friend
@@ -190,6 +191,7 @@ private:
     // introduced.
     friend class MachineManager;
     friend class WindowCommandManager;
+    friend class SettingsPanel;
 
     HACCEL              m_accelTable      = nullptr;
     HWND                m_renderHwnd      = nullptr;

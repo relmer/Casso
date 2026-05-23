@@ -354,18 +354,18 @@ with unapplied changes — nothing persisted.
 - [X] T120c [US1] Extend `C:\Users\relmer\repos\relmer\Casso\Casso\Config\GlobalUserPrefs.cpp` and `.h` with `WindowPlacementProfile` read/write keyed by monitor topology + active monitor under `HKCU\Software\relmer\Casso\WindowPlacement\v1\<hash>` (FR-048)
 - [X] T120d [US1] Wire `C:\Users\relmer\repos\relmer\Casso\Casso\Window.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp` to apply saved window bounds on startup and save profile updates on `WM_MOVE` / `WM_SIZE` (FR-048)
 - [X] T121 [US1] Extend `C:\Users\relmer\repos\relmer\Casso\CassoEmuCore\Core\MachineConfigUpgrade.cpp` and `.h` to add a `capabilityFlag` upgrade step and the canonical-field rewrite rule: accept legacy `$cassoDefault` as a read-alias **only** when `$cassoMachineVersion` is absent; when both are present, treat `$cassoMachineVersion` as authoritative and immediately rewrite the file to canonical form containing only `$cassoMachineVersion` (FR-013, FR-015)
-- [ ] T122 [US1] Wire `EmulatorShell` apply path so reset-required changes prompt via `ModalScrim` confirm and immediate changes commit without reset (FR-010, FR-011) in `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp`
-- [ ] T123 Verify the legacy Win32 dialogs remain absent: confirm no `C:\Users\relmer\repos\relmer\Casso\Casso\OptionsDialog.*`, no `C:\Users\relmer\repos\relmer\Casso\Casso\MachinePickerDialog.*`, and zero `DialogBox*` / `DialogBoxIndirectParam*` calls under `C:\Users\relmer\repos\relmer\Casso\Casso\`; update `MenuSystem.cpp` / `EmulatorShell.cpp` command entry points to open the native Settings panel instead (FR-027, SC-005)
+- [X] T122 [US1] Wire `EmulatorShell` apply path so reset-required changes prompt via `ModalScrim` confirm and immediate changes commit without reset (FR-010, FR-011) in `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp`
+- [X] T123 Verify the legacy Win32 dialogs remain absent: confirm no `C:\Users\relmer\repos\relmer\Casso\Casso\OptionsDialog.*`, no `C:\Users\relmer\repos\relmer\Casso\Casso\MachinePickerDialog.*`, and zero `DialogBox*` / `DialogBoxIndirectParam*` calls under `C:\Users\relmer\repos\relmer\Casso\Casso\`; update `MenuSystem.cpp` / `EmulatorShell.cpp` command entry points to open the native Settings panel instead (FR-027, SC-005)
 
 ### P3c — Tests
 
-- [ ] T124 [P] [US1] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\SettingsPanelStateTests.cpp` (machine-switch reload, Cancel discard, Apply commit semantics, and open/close does not call a pause API per FR-041; mocked filesystem per FR-057)
+- [X] T124 [P] [US1] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\SettingsPanelStateTests.cpp` (machine-switch reload, Cancel discard, Apply commit semantics, and open/close does not call a pause API per FR-041; mocked filesystem per FR-057)
 - [X] T125 [P] [US1] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\UserConfigStoreTests.cpp` (shadow/fallthrough merge, write-back round-trip, one-shot registry-to-user-JSON migration, and `lastMountedImages` auto-mount persistence; mocked filesystem/registry per FR-016, FR-047, FR-057)
-- [ ] T125a [P] [US2] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\HardwareTreeTests.cpp` for FR-004 through FR-008 hardware tree coverage
+- [X] T125a [P] [US2] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\HardwareTreeTests.cpp` for FR-004 through FR-008 hardware tree coverage
 - [X] T126 [P] [US1] Extend `C:\Users\relmer\repos\relmer\Casso\UnitTest\EmuTests\MachineConfigUpgradeTests.cpp` (create if absent) with `capabilityFlag` upgrade + `$cassoMachineVersion` canonical-rewrite cases (FR-013, FR-015)
 - [X] T126a [P] [US1] Create `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\WindowPlacementProfileTests.cpp` with mocked registry coverage for per-monitor restore, default-centered fallback, and `WM_MOVE` / `WM_SIZE` save triggers (FR-048, FR-057)
-- [ ] T127 [US2] Add `HardwarePage` rendering-rule coverage (optional / required / platform-locked checkbox + lockReason tooltip) inside `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\SettingsPanelStateTests.cpp`
-- [ ] T128 Update `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj` and `C:\Users\relmer\repos\relmer\Casso\UnitTest\UnitTest.vcxproj` to reference every new Settings/config file from T110–T127, T120a–T120d, and T126a
+- [X] T127 [US2] Add `HardwarePage` rendering-rule coverage (optional / required / platform-locked checkbox + lockReason tooltip) inside `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\SettingsPanelStateTests.cpp`
+- [X] T128 Update `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj` and `C:\Users\relmer\repos\relmer\Casso\UnitTest\UnitTest.vcxproj` to reference every new Settings/config file from T110–T127, T120a–T120d, and T126a
 
 ### P3d — Runtime validation
 

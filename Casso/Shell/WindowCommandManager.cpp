@@ -341,7 +341,8 @@ void WindowCommandManager::OnViewCommand (int id)
 
         case IDM_VIEW_SETTINGS:
         {
-            m_shell.ShowMachinePicker();
+            HRESULT  hrShow = m_shell.m_settingsPanel.Show();
+            IGNORE_RETURN_VALUE (hrShow, S_OK);
             break;
         }
     }
