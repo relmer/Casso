@@ -244,6 +244,14 @@
     <ClCompile Include="Ui\AutoMountResolver.cpp" />
     <ClCompile Include="Ui\SettingsPanelState.cpp" />
     <ClCompile Include="Ui\SettingsPanel.cpp" />
+    <ClCompile Include="Ui\UiShell.cpp" />
+    <ClCompile Include="Ui\DxUiPainter.cpp" />
+    <ClCompile Include="Ui\DwriteTextRenderer.cpp" />
+    <ClCompile Include="Ui\UiInput.cpp" />
+    <ClCompile Include="Ui\HitTester.cpp" />
+    <ClCompile Include="Ui\FocusManager.cpp" />
+    <ClCompile Include="Ui\Layout.cpp" />
+    <ClCompile Include="Ui\Animation.cpp" />
     <ClCompile Include="TrackSectorPredicate.cpp" />
     <ClCompile Include="DebugDialogProjection.cpp" />
     <ClCompile Include="DiskIIDebugDialogState.cpp" />
@@ -280,6 +288,14 @@
     <ClInclude Include="Ui\AutoMountResolver.h" />
     <ClInclude Include="Ui\SettingsPanelState.h" />
     <ClInclude Include="Ui\SettingsPanel.h" />
+    <ClInclude Include="Ui\UiShell.h" />
+    <ClInclude Include="Ui\DxUiPainter.h" />
+    <ClInclude Include="Ui\DwriteTextRenderer.h" />
+    <ClInclude Include="Ui\UiInput.h" />
+    <ClInclude Include="Ui\HitTester.h" />
+    <ClInclude Include="Ui\FocusManager.h" />
+    <ClInclude Include="Ui\Layout.h" />
+    <ClInclude Include="Ui\Animation.h" />
     <ClInclude Include="TrackSectorPredicate.h" />
     <ClInclude Include="DebugDialogProjection.h" />
     <ClInclude Include="DiskIIDebugDialogState.h" />
@@ -301,6 +317,10 @@
     <None Include="Shaders\CRT\brightness.hlsl" />
     <None Include="Shaders\CRT\copy.hlsl" />
     <None Include="Shaders\CRT\LICENSES.md" />
+    <None Include="Shaders\Ui\ui_solid.hlsl" />
+    <None Include="Shaders\Ui\ui_textured.hlsl" />
+    <None Include="Shaders\Ui\ui_glyph.hlsl" />
+    <None Include="Shaders\Ui\ui_glow.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CassoCore\CassoCore.vcxproj">

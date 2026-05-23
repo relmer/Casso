@@ -494,6 +494,7 @@ EmulatorShell::~EmulatorShell()
 
     // Native-only ownership teardown.
     m_d3dRenderer.SetAfterBlitHook (nullptr);
+    m_uiShell.Shutdown();
     m_dragDropTarget.Shutdown();
     m_driveWidgets.UnloadDocument();
     m_navLayer.Hide();
@@ -585,6 +586,20 @@ HRESULT EmulatorShell::Initialize (
     // Initialize D3D11
     hr = m_d3dRenderer.Initialize (m_renderHwnd, kFramebufferWidth, kFramebufferHeight);
     CHR (hr);
+
+    // Native UI runtime bootstrap. UiShell owns the painter, text
+    // renderer, hit-tester, focus manager, and input translator;
+    // wiring it onto the after-blit hook lets it composite chrome on
+    // top of the emulator frame without ever pausing the render loop.
+    {
+        HRESULT  hrUi = m_uiShell.Initialize (&m_d3dRenderer);
+        IGNORE_RETURN_VALUE (hrUi, S_OK);
+
+        if (SUCCEEDED (hrUi))
+        {
+            m_d3dRenderer.SetAfterBlitHook ([this] () { m_uiShell.Render(); });
+        }
+    }
 
     // Native-only bootstrap baseline: legacy chrome overlay retired
     // ahead of the native painter. Keep existing command/menu path active.
@@ -4117,6 +4132,14 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
     }
 
     m_d3dRenderer.Resize (static_cast<int> (width), renderH);
+
+    {
+        UINT     dpi    = GetDpiForWindow (m_hwnd);
+        HRESULT  hrUiR  = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
+                                              m_d3dRenderer.GetBackBufferHeight(),
+                                              dpi);
+        IGNORE_RETURN_VALUE (hrUiR, S_OK);
+    }
 
     // P4: keep the borderless title-bar geometry cache in sync so the
     // WM_NCHITTEST helper hands the OS the right button rects after a

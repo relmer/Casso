@@ -122,63 +122,63 @@ prerequisites for US3 + US5.
 
 ### P1a — Documentation refresh (in-place, single small commit)
 
-- [ ] T038a Replace `research.md` R6 with the RmlUi excision strategy: delete/stub decisions for non-Rml-prefixed files, remove vendored/build/PCH references, and keep P0 compiling without the old runtime
-- [ ] T038b Replace `research.md` R7 with the D2D-on-D3D11 text pipeline decision: shared DXGI device, `ID2D1Bitmap1` over the swap-chain back buffer, DirectWrite layout cache, render after geometry before `Present`
-- [ ] T038c Append `research.md` R8 for hit-test architecture: shared DPI rect tree for client input, `WM_NCHITTEST`, drag/drop, and chrome routing
-- [ ] T038d Append `research.md` R9 and R10 for focus/keyboard policy plus modal/popup layer ownership (Tab/Shift-Tab, activation keys, Escape, focus cues, `ModalScrim`, dropdown/tooltips)
-- [ ] T038e Append `research.md` R11 and R12 for drag-drop/file-open carve-out and debug-tool carve-out (`IDropTarget`, `IFileOpenDialog`, `DiskIIDebugDialog`, `DebugConsole`)
-- [ ] T038f Append `research.md` R13 for theme-token broadcast so validated tokens, drive profile, CRT defaults, and backdrop flags update all surfaces before the first post-switch frame
-- [ ] T039 Append `HardwareComponentEntry`, `SettingsPanelState`, `WindowPlacementProfile`, and transient `UiDrawList` entities to `C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\data-model.md`
+- [X] T038a Replace `research.md` R6 with the RmlUi excision strategy: delete/stub decisions for non-Rml-prefixed files, remove vendored/build/PCH references, and keep P0 compiling without the old runtime
+- [X] T038b Replace `research.md` R7 with the D2D-on-D3D11 text pipeline decision: shared DXGI device, `ID2D1Bitmap1` over the swap-chain back buffer, DirectWrite layout cache, render after geometry before `Present`
+- [X] T038c Append `research.md` R8 for hit-test architecture: shared DPI rect tree for client input, `WM_NCHITTEST`, drag/drop, and chrome routing
+- [X] T038d Append `research.md` R9 and R10 for focus/keyboard policy plus modal/popup layer ownership (Tab/Shift-Tab, activation keys, Escape, focus cues, `ModalScrim`, dropdown/tooltips)
+- [X] T038e Append `research.md` R11 and R12 for drag-drop/file-open carve-out and debug-tool carve-out (`IDropTarget`, `IFileOpenDialog`, `DiskIIDebugDialog`, `DebugConsole`)
+- [X] T038f Append `research.md` R13 for theme-token broadcast so validated tokens, drive profile, CRT defaults, and backdrop flags update all surfaces before the first post-switch frame
+- [X] T039 Append `HardwareComponentEntry`, `SettingsPanelState`, `WindowPlacementProfile`, and transient `UiDrawList` entities to `C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\data-model.md`
 
 ### P1b — New shaders
 
-- [ ] T040 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Shaders\Ui\ui_solid.hlsl` (solid + linear-gradient rect with corner radius, alpha)
-- [ ] T041 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Shaders\Ui\ui_textured.hlsl` (textured quad with 9-slice insets and uv transform)
-- [ ] T042 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Shaders\Ui\ui_glyph.hlsl` (cleartype-friendly glyph sampling path used by D2D handoff debug + LED labels; doc the D2D-on-D3D11 dependency)
-- [ ] T043 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Shaders\Ui\ui_glow.hlsl` (additive radial soft-glow sample for LED active state per FR-025)
-- [ ] T044 In `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj`, add `<None Include="Shaders\Ui\ui_solid.hlsl" />`, `<None Include="Shaders\Ui\ui_textured.hlsl" />`, `<None Include="Shaders\Ui\ui_glyph.hlsl" />`, `<None Include="Shaders\Ui\ui_glow.hlsl" />` and the matching HLSL build steps to embed bytecode (mirror the existing CRT shader pattern)
+- [X] T040 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Shaders\Ui\ui_solid.hlsl` (solid + linear-gradient rect with corner radius, alpha)
+- [X] T041 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Shaders\Ui\ui_textured.hlsl` (textured quad with 9-slice insets and uv transform)
+- [X] T042 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Shaders\Ui\ui_glyph.hlsl` (cleartype-friendly glyph sampling path used by D2D handoff debug + LED labels; doc the D2D-on-D3D11 dependency)
+- [X] T043 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Shaders\Ui\ui_glow.hlsl` (additive radial soft-glow sample for LED active state per FR-025)
+- [X] T044 In `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj`, add `<None Include="Shaders\Ui\ui_solid.hlsl" />`, `<None Include="Shaders\Ui\ui_textured.hlsl" />`, `<None Include="Shaders\Ui\ui_glyph.hlsl" />`, `<None Include="Shaders\Ui\ui_glow.hlsl" />` and the matching HLSL build steps to embed bytecode (mirror the existing CRT shader pattern)
 
 ### P1c — New native UI runtime files
 
-- [ ] T045 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DxUiPainter.h` (painter API: rects, 9-slice, gradients, textured quads, soft-glow draw commands; UiDrawList consumer)
-- [ ] T046 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DxUiPainter.cpp` (D3D11 geometry batching, single dynamic vertex buffer, per-draw constants, device-lost rebuild hook) for the native geometry pipeline
-- [ ] T047 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DwriteTextRenderer.h` (text/layout API + glyph-run cache key `(family,weight,size,dpi,text)`)
-- [ ] T048 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DwriteTextRenderer.cpp` (D2D-on-D3D11 via `IDXGISurface` + `ID2D1Bitmap1` over the swap chain back buffer; renders after geometry pass, before `Present`; cache + device-lost rebuild) per R7
-- [ ] T049 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\UiInput.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\UiInput.cpp` (translate `WM_MOUSE*`, `WM_KEY*`, `WM_CHAR`, `WM_*BUTTON*`, `WM_MOUSEWHEEL`, `WM_SETFOCUS`/`WM_KILLFOCUS` into a typed `UiEvent` stream with modifier state)
-- [ ] T050 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\HitTester.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\HitTester.cpp` (rect tree + `WM_NCHITTEST` → `HTCAPTION`/`HTMINBUTTON`/`HTMAXBUTTON`/`HTCLOSE`/`HTCLIENT` + fixed DPI-scaled resize-edge margin) per R8
-- [ ] T051 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\FocusManager.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\FocusManager.cpp` (Tab / Shift-Tab / Enter / Space / Escape per FR-044, focus cue rendering callback)
-- [ ] T052 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Layout.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Layout.cpp` (stack/grid primitives, per-window DPI helpers per R5)
-- [ ] T053 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Animation.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Animation.cpp` (tween + `DriveSyncEvent` broker satisfying FR-050 / SC-010 one-frame skew)
-- [ ] T054 [P] Rewrite `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeManager.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeManager.cpp` as the native, non-Rml form (owns `Theme*` selection, per-asset GPU texture cache, glyph fonts via `IDWriteFontSetBuilder1`, hot-swap entry point) per R13
-- [ ] T055 [P] Rewrite `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeLoader.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeLoader.cpp` as the native JSON loader honoring `contracts/theme-metadata.schema.json` + `$cassoThemeVersion` migration (FR-045) and malformed-theme exclusion (FR-036)
-- [ ] T056 Rewrite `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\UiShell.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\UiShell.cpp` from scratch as the top-level UI owner, message router, focus manager owner, and frame composer (consumes `UiInput` → routes through `HitTester` → dispatches to widgets → emits `UiDrawList` → flushes `DxUiPainter` then `DwriteTextRenderer`)
+- [X] T045 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DxUiPainter.h` (painter API: rects, 9-slice, gradients, textured quads, soft-glow draw commands; UiDrawList consumer)
+- [X] T046 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DxUiPainter.cpp` (D3D11 geometry batching, single dynamic vertex buffer, per-draw constants, device-lost rebuild hook) for the native geometry pipeline
+- [X] T047 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DwriteTextRenderer.h` (text/layout API + glyph-run cache key `(family,weight,size,dpi,text)`)
+- [X] T048 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DwriteTextRenderer.cpp` (D2D-on-D3D11 via `IDXGISurface` + `ID2D1Bitmap1` over the swap chain back buffer; renders after geometry pass, before `Present`; cache + device-lost rebuild) per R7
+- [X] T049 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\UiInput.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\UiInput.cpp` (translate `WM_MOUSE*`, `WM_KEY*`, `WM_CHAR`, `WM_*BUTTON*`, `WM_MOUSEWHEEL`, `WM_SETFOCUS`/`WM_KILLFOCUS` into a typed `UiEvent` stream with modifier state)
+- [X] T050 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\HitTester.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\HitTester.cpp` (rect tree + `WM_NCHITTEST` → `HTCAPTION`/`HTMINBUTTON`/`HTMAXBUTTON`/`HTCLOSE`/`HTCLIENT` + fixed DPI-scaled resize-edge margin) per R8
+- [X] T051 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\FocusManager.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\FocusManager.cpp` (Tab / Shift-Tab / Enter / Space / Escape per FR-044, focus cue rendering callback)
+- [X] T052 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Layout.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Layout.cpp` (stack/grid primitives, per-window DPI helpers per R5)
+- [X] T053 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Animation.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Animation.cpp` (tween + `DriveSyncEvent` broker satisfying FR-050 / SC-010 one-frame skew)
+- [X] T054 [P] Rewrite `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeManager.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeManager.cpp` as the native, non-Rml form (owns `Theme*` selection, per-asset GPU texture cache, glyph fonts via `IDWriteFontSetBuilder1`, hot-swap entry point) per R13
+- [X] T055 [P] Rewrite `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeLoader.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeLoader.cpp` as the native JSON loader honoring `contracts/theme-metadata.schema.json` + `$cassoThemeVersion` migration (FR-045) and malformed-theme exclusion (FR-036)
+- [X] T056 Rewrite `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\UiShell.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\UiShell.cpp` from scratch as the top-level UI owner, message router, focus manager owner, and frame composer (consumes `UiInput` → routes through `HitTester` → dispatches to widgets → emits `UiDrawList` → flushes `DxUiPainter` then `DwriteTextRenderer`)
 
 ### P1d — Integration with existing renderer / window / shell / bootstrap
 
-- [ ] T057 Extend `C:\Users\relmer\repos\relmer\Casso\Casso\D3DRenderer.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\D3DRenderer.h` to create a shared `ID2D1Device` / `ID2D1DeviceContext` from the existing DXGI device, expose the back-buffer `IDXGISurface` to `DwriteTextRenderer`, and call `UiShell::OnDeviceLost` / `OnDeviceRestored` on the existing device-lost recovery path (spec Edge Case)
-- [ ] T058 Wire `WM_NCHITTEST` in `C:\Users\relmer\repos\relmer\Casso\Casso\Window.cpp` to consult `HitTester` (replacing the P0 stub) per R8 / FR-028
-- [ ] T059 Replace the P0 init/shutdown TODO stubs in `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.h` with `UiShell` construction, teardown, per-frame composition tick, and input event routing
-- [ ] T060 Wire the `UiInput` pump into `C:\Users\relmer\repos\relmer\Casso\Casso\Main.cpp`'s message loop (replacing the P0 stub)
-- [ ] T061 Rework `C:\Users\relmer\repos\relmer\Casso\Casso\AssetBootstrap.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\AssetBootstrap.h` to extract built-in **native** theme bundles (plain image + json, no Rml documents) per FR-030 / FR-037
+- [X] T057 Extend `C:\Users\relmer\repos\relmer\Casso\Casso\D3DRenderer.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\D3DRenderer.h` to create a shared `ID2D1Device` / `ID2D1DeviceContext` from the existing DXGI device, expose the back-buffer `IDXGISurface` to `DwriteTextRenderer`, and call `UiShell::OnDeviceLost` / `OnDeviceRestored` on the existing device-lost recovery path (spec Edge Case)
+- [X] T058 Wire `WM_NCHITTEST` in `C:\Users\relmer\repos\relmer\Casso\Casso\Window.cpp` to consult `HitTester` (replacing the P0 stub) per R8 / FR-028
+- [X] T059 Replace the P0 init/shutdown TODO stubs in `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.h` with `UiShell` construction, teardown, per-frame composition tick, and input event routing
+- [X] T060 Wire the `UiInput` pump into `C:\Users\relmer\repos\relmer\Casso\Casso\Main.cpp`'s message loop (replacing the P0 stub)
+- [X] T061 Rework `C:\Users\relmer\repos\relmer\Casso\Casso\AssetBootstrap.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\AssetBootstrap.h` to extract built-in **native** theme bundles (plain image + json, no Rml documents) per FR-030 / FR-037
 
 ### P1e — Foundational tests (all isolated; mocked filesystem per FR-057 / SC-013)
 
-- [ ] T062 [P] Create `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\DxUiPainterTests.cpp` (geometry batching invariants, 9-slice math, vertex-buffer growth)
-- [ ] T063 [P] Create `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\LayoutTests.cpp` (stack/grid measure + arrange, DPI scaling)
-- [ ] T064 [P] Create `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\HitTesterTests.cpp` (rect-tree routing + NC mapping coverage)
-- [ ] T065 [P] Create `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\FocusManagerTests.cpp` (Tab order, Esc dismiss, focus cue trigger)
-- [ ] T066 [P] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\ThemeLoaderTests.cpp` against the native loader (JSON parse, `$cassoThemeVersion` migration, malformed-theme exclusion FR-036)
-- [ ] T067 [P] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\ThemeManagerTests.cpp` against the native ThemeManager (hot-swap, GPU asset retention semantics — no real GPU calls, mocked device)
-- [ ] T068 [P] Create `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\AnimationSyncTests.cpp` (FR-050 / SC-010 within-one-frame skew)
-- [ ] T069 [P] Create `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\NcHitTestTests.cpp` (borderless WM_NCHITTEST classification per FR-028)
-- [ ] T070a In `C:\Users\relmer\repos\relmer\Casso\UnitTest\UnitTest.vcxproj`, add `<ClCompile Include="…">` entries for T062–T069's new/rewritten test files and any production `.cpp` files linked into the test project for direct unit coverage
-- [ ] T070b In `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj`, add production entries for `DxUiPainter.cpp`, `DwriteTextRenderer.cpp`, `UiInput.cpp`, `HitTester.cpp`, `FocusManager.cpp`, `Layout.cpp`, `Animation.cpp`, `UiShell.cpp`, `ThemeManager.cpp`, and `ThemeLoader.cpp` plus matching headers
+- [X] T062 [P] Create `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\DxUiPainterTests.cpp` (geometry batching invariants, 9-slice math, vertex-buffer growth)
+- [X] T063 [P] Create `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\LayoutTests.cpp` (stack/grid measure + arrange, DPI scaling)
+- [X] T064 [P] Create `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\HitTesterTests.cpp` (rect-tree routing + NC mapping coverage)
+- [X] T065 [P] Create `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\FocusManagerTests.cpp` (Tab order, Esc dismiss, focus cue trigger)
+- [X] T066 [P] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\ThemeLoaderTests.cpp` against the native loader (JSON parse, `$cassoThemeVersion` migration, malformed-theme exclusion FR-036)
+- [X] T067 [P] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\ThemeManagerTests.cpp` against the native ThemeManager (hot-swap, GPU asset retention semantics — no real GPU calls, mocked device)
+- [X] T068 [P] Create `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\AnimationSyncTests.cpp` (FR-050 / SC-010 within-one-frame skew)
+- [X] T069 [P] Create `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\NcHitTestTests.cpp` (borderless WM_NCHITTEST classification per FR-028)
+- [X] T070a In `C:\Users\relmer\repos\relmer\Casso\UnitTest\UnitTest.vcxproj`, add `<ClCompile Include="…">` entries for T062–T069's new/rewritten test files and any production `.cpp` files linked into the test project for direct unit coverage
+- [X] T070b In `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj`, add production entries for `DxUiPainter.cpp`, `DwriteTextRenderer.cpp`, `UiInput.cpp`, `HitTester.cpp`, `FocusManager.cpp`, `Layout.cpp`, `Animation.cpp`, `UiShell.cpp`, `ThemeManager.cpp`, and `ThemeLoader.cpp` plus matching headers
 
 ### P1f — Phase gate
 
-- [ ] T071 Run `scripts\Build.ps1` clean across all four configurations
+- [X] T071 Run `scripts\Build.ps1` clean across all four configurations
 - [ ] T072 Run `scripts\Build.ps1 -RunCodeAnalysis` clean
-- [ ] T073 Run `scripts\RunTests.ps1` — all P1 tests pass, no regressions in surviving Phase-2/CPU/Emu tests
+- [X] T073 Run `scripts\RunTests.ps1` — all P1 tests pass, no regressions in surviving Phase-2/CPU/Emu tests
 
 **Checkpoint**: Native runtime primitives exist and are independently tested.
 User-story phases (P2/P3 in parallel, then P4) may start.

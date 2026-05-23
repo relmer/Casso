@@ -112,6 +112,12 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
     createFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
+    // BGRA support lets Direct2D bind a target bitmap directly over
+    // our DXGI back buffer for the DirectWrite text pass. The flag is
+    // free when present and required for the D2D-on-D3D11 path used
+    // by the native UI overlay.
+    createFlags |= D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+
     hr = D3D11CreateDeviceAndSwapChain (nullptr,
                                         D3D_DRIVER_TYPE_HARDWARE,
                                         nullptr,
@@ -394,6 +400,42 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
     }
 
     hr = m_swapChain->Present (1, 0);
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetBackBufferDxgiSurface
+//
+//  Re-acquires the swap chain back buffer and surfaces it as an
+//  IDXGISurface for D2D-bitmap binding. Resolved on every call so a
+//  stale handle never survives a `ResizeBuffers`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT D3DRenderer::GetBackBufferDxgiSurface (IDXGISurface ** ppOutSurface) const
+{
+    HRESULT                  hr      = S_OK;
+    ComPtr<ID3D11Texture2D>  backBuffer;
+
+
+
+    CBRAEx (ppOutSurface, E_INVALIDARG);
+    *ppOutSurface = nullptr;
+    CBRA (m_swapChain);
+
+    hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
+    CHRA (hr);
+
+    hr = backBuffer->QueryInterface (__uuidof (IDXGISurface),
+                                     reinterpret_cast<void **> (ppOutSurface));
     CHRA (hr);
 
 Error:

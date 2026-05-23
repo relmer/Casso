@@ -52,6 +52,15 @@ public:
     ID3D11Device        * GetDevice  () const { return m_device.Get  (); }
     ID3D11DeviceContext * GetContext() const { return m_context.Get(); }
 
+    // Back-buffer accessors used by the native UI overlay. The RTV is
+    // the same one the renderer composites the emulator frame into,
+    // shared so the UI painter can stack on top without juggling its
+    // own render target. The DXGI surface accessor calls
+    // IDXGISwapChain::GetBuffer + QueryInterface every call so the
+    // caller never holds a stale reference across a Resize.
+    ID3D11RenderTargetView * GetBackBufferRtv         () const { return m_rtv.Get(); }
+    HRESULT                  GetBackBufferDxgiSurface (IDXGISurface ** ppOutSurface) const;
+
     // Hook point invoked by UploadAndPresent between the emulator
     // blit DrawIndexed and swapChain->Present. The native UI painter
     // installs its Render() bound to this hook so chrome content

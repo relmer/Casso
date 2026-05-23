@@ -18,6 +18,7 @@
 #include "Ui/IDriveCommandSink.h"
 #include "Ui/SettingsPanel.h"
 #include "Ui/ThemeManager.h"
+#include "Ui/UiShell.h"
 #include "Config/Win32FileSystem.h"
 #include "Config/UserConfigStore.h"
 #include "Config/GlobalUserPrefs.h"
@@ -281,6 +282,12 @@ private:
     // controller.
     DriveWidgetController                m_driveWidgets;
     DragDropTarget                       m_dragDropTarget;
+
+    // Native UI shell. Owns the painter, text renderer, hit-tester,
+    // focus manager, animation broker, and input translator. Wired
+    // onto D3DRenderer's after-blit hook so chrome composites every
+    // frame between the emulator blit and Present.
+    UiShell             m_uiShell;
 
     // Consolidated settings panel. Lazily constructed pieces so we
     // can defer their I/O until first Show() on the panel.
