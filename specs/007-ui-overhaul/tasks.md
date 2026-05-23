@@ -38,75 +38,75 @@ a single commit. Covers **FR-053**, **FR-054**, **SC-011**.
 
 ### P0a — Source file deletions (Rml-prefixed UI sources)
 
-- [ ] T001 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlBackend_D3D11.cpp`
-- [ ] T002 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlBackend_D3D11.h`
-- [ ] T003 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlFontEngine_DWrite.cpp`
-- [ ] T004 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlFontEngine_DWrite.h`
-- [ ] T005 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlInputBridge.cpp`
-- [ ] T006 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlInputBridge.h`
-- [ ] T007 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlSystemInterface.cpp`
-- [ ] T008 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlSystemInterface.h`
+- [X] T001 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlBackend_D3D11.cpp`
+- [X] T002 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlBackend_D3D11.h`
+- [X] T003 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlFontEngine_DWrite.cpp`
+- [X] T004 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlFontEngine_DWrite.h`
+- [X] T005 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlInputBridge.cpp`
+- [X] T006 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlInputBridge.h`
+- [X] T007 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlSystemInterface.cpp`
+- [X] T008 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlSystemInterface.h`
 
 ### P0b — Shader and resource deletions
 
-- [ ] T009 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Shaders\Ui\rml_textured.hlsl`
-- [ ] T010 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Shaders\Ui\rml_untextured.hlsl`
-- [ ] T011 [P] Sweep `C:\Users\relmer\repos\relmer\Casso\Casso\Resources\` for any `*.rml`, `*.rcss`, and Rml-bundled fonts/images and delete them; record removed files in the commit body
-- [ ] T012 [P] Sweep `C:\Users\relmer\repos\relmer\Casso\Assets\` for any `*.rml`, `*.rcss`, and Rml-bundled fonts/images and delete them; record removed files in the commit body
+- [X] T009 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Shaders\Ui\rml_textured.hlsl`
+- [X] T010 [P] Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Shaders\Ui\rml_untextured.hlsl`
+- [X] T011 [P] Sweep `C:\Users\relmer\repos\relmer\Casso\Casso\Resources\` for any `*.rml`, `*.rcss`, and Rml-bundled fonts/images and delete them; record removed files in the commit body
+- [X] T012 [P] Sweep `C:\Users\relmer\repos\relmer\Casso\Assets\` for any `*.rml`, `*.rcss`, and Rml-bundled fonts/images and delete them; record removed files in the commit body
 
 ### P0c — Vendored dependency tree
 
-- [ ] T013 Recursively delete the entire `C:\Users\relmer\repos\relmer\Casso\External\RmlUi\` directory (project, source, headers, samples, license — everything)
+- [X] T013 Recursively delete the entire `C:\Users\relmer\repos\relmer\Casso\External\RmlUi\` directory (project, source, headers, samples, license — everything)
 
 ### P0d — Build wiring scrub
 
-- [ ] T014 Remove the RmlUi project entry and **ALL** of its associated `{GUID}` configuration rows from `C:\Users\relmer\repos\relmer\Casso\Casso.sln` (look up the actual GUID in `Casso.sln`)
-- [ ] T015 In `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj`, strip `RMLUI_STATIC_LIB` and `RMLUI_NO_THIRDPARTY_CONTAINERS` from every `<PreprocessorDefinitions>` element across all six configuration blocks (Debug/Release × x64/ARM64, plus the two Analyze rows)
-- [ ] T016 In `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj`, strip `..\External\RmlUi\Include` from every `<AdditionalIncludeDirectories>` element across all six configuration blocks
-- [ ] T017 In `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj`, remove the four `<ClCompile Include="Ui\Rml*.cpp" />` entries and the four `<ClInclude Include="Ui\Rml*.h" />` entries
-- [ ] T018 In `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj`, remove the two `<None Include="Shaders\Ui\rml_*.hlsl" />` entries
-- [ ] T019 In `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj`, remove the `<ProjectReference Include="..\External\RmlUi\RmlUi.vcxproj"> … </ProjectReference>` block in its entirety
-- [ ] T020 In `C:\Users\relmer\repos\relmer\Casso\UnitTest\UnitTest.vcxproj`, remove every Rml-related `<ClCompile>` entry (`RmlBackendSmokeTests.cpp`, `RmlInputBridgeTests.cpp`) and any Rml include-path / preprocessor-define inherited from the Casso project
+- [X] T014 Remove the RmlUi project entry and **ALL** of its associated `{GUID}` configuration rows from `C:\Users\relmer\repos\relmer\Casso\Casso.sln` (look up the actual GUID in `Casso.sln`)
+- [X] T015 In `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj`, strip `RMLUI_STATIC_LIB` and `RMLUI_NO_THIRDPARTY_CONTAINERS` from every `<PreprocessorDefinitions>` element across all six configuration blocks (Debug/Release × x64/ARM64, plus the two Analyze rows)
+- [X] T016 In `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj`, strip `..\External\RmlUi\Include` from every `<AdditionalIncludeDirectories>` element across all six configuration blocks
+- [X] T017 In `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj`, remove the four `<ClCompile Include="Ui\Rml*.cpp" />` entries and the four `<ClInclude Include="Ui\Rml*.h" />` entries
+- [X] T018 In `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj`, remove the two `<None Include="Shaders\Ui\rml_*.hlsl" />` entries
+- [X] T019 In `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj`, remove the `<ProjectReference Include="..\External\RmlUi\RmlUi.vcxproj"> … </ProjectReference>` block in its entirety
+- [X] T020 In `C:\Users\relmer\repos\relmer\Casso\UnitTest\UnitTest.vcxproj`, remove every Rml-related `<ClCompile>` entry (`RmlBackendSmokeTests.cpp`, `RmlInputBridgeTests.cpp`) and any Rml include-path / preprocessor-define inherited from the Casso project
 
 ### P0e — PCH and call-site scrub
 
-- [ ] T021 Remove `#include <RmlUi/Core.h>` and `#include <RmlUi/Debugger.h>` (and any other `<RmlUi/...>` lines) from `C:\Users\relmer\repos\relmer\Casso\Casso\Pch.h`
-- [ ] T022 Strip every `#include "Rml*.h"` and `#include <RmlUi/...>` reference, plus all `Rml::*` symbol uses, from `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.h`; replace removed init/shutdown calls with `// UiShell takes over in P1` TODO stubs that do nothing
-- [ ] T022a Drop `EmulatorShell` wiring calls to `UiShell`, after-blit hooks, settings panel listeners, drive widget instancers, and related Rml UI callbacks behind clean no-op compile paths so the app still launches after P0 (black/bare window OK)
-- [ ] T023 Strip Rml render bindings, includes, and per-frame Rml render/update hooks from `C:\Users\relmer\repos\relmer\Casso\Casso\D3DRenderer.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\D3DRenderer.h`; leave a TODO stub for the new painter integration in P1
-- [ ] T024 Strip Rml input-pump hooks and includes from `C:\Users\relmer\repos\relmer\Casso\Casso\Main.cpp`
-- [ ] T025 Strip Rml hit-test / chrome-routing references from `C:\Users\relmer\repos\relmer\Casso\Casso\Window.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Window.h`
-- [ ] T026 Strip the Rml-document/font bootstrap (but **keep** the `Themes/` directory bootstrap) from `C:\Users\relmer\repos\relmer\Casso\Casso\AssetBootstrap.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\AssetBootstrap.h`
-- [ ] T027 Strip any `IDR_RML_*` / Rml-asset resource IDs from `C:\Users\relmer\repos\relmer\Casso\Casso\resource.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.rc`
-- [ ] T027a Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\UiShell.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\UiShell.h` outright; P1 rewrites them from native contracts
-- [ ] T027b Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\LedElement.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\LedElement.h` outright; P2 rewrites as `Chrome\LedIndicator`
-- [ ] T027c Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetElement.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetElement.h` outright; P2 rewrites as `Chrome\DriveWidget`
-- [ ] T027d Stub `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanel.cpp` and `.h`: empty class skeleton in `.h` that compiles standalone; `.cpp` returns `S_OK` from every method (P3 rewrites)
-- [ ] T027e Verify `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanelState.cpp` and `.h` are Rml-free; if any Rml header is included, remove it while keeping the state logic (P3 keeps/extends)
-- [ ] T027f Stub `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeManager.cpp` and `.h`: drop `Rml::Context*` / `Rml::ElementDocument*`; keep `Discover()` returning `S_OK` and an in-memory active-theme name (P1/P5 fleshes out)
-- [ ] T027g Remove any Rml references from `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeLoader.cpp` and `.h` while keeping JSON parsing
-- [ ] T027h Stub `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\TitleBar.cpp` and `.h`: `Show`/`Hide` no-op; keep `TitleBarLayout` pure logic untouched (P2 rewrites)
-- [ ] T027i Stub `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\NavLayer.cpp` and `.h`: `Show`/`Hide` no-op; keep parity table + `EmitParityMarkdown()` (P2 rewrites)
-- [ ] T027j Stub UI-facing methods in `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetController.cpp` and `.h` (`LoadDocument` / `UnloadDocument` no-op; `HitTest` returns `nullptr`); keep state-pump path (P2 rewrites)
-- [ ] T028 Sweep the rest of `C:\Users\relmer\repos\relmer\Casso\Casso\` for any remaining `Rml`/`RMLUI` references (`rg -n "Rml|RMLUI" C:\Users\relmer\repos\relmer\Casso\Casso`) and strip each; record the swept file list in the commit body
+- [X] T021 Remove `#include <RmlUi/Core.h>` and `#include <RmlUi/Debugger.h>` (and any other `<RmlUi/...>` lines) from `C:\Users\relmer\repos\relmer\Casso\Casso\Pch.h`
+- [X] T022 Strip every `#include "Rml*.h"` and `#include <RmlUi/...>` reference, plus all `Rml::*` symbol uses, from `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.h`; replace removed init/shutdown calls with `// UiShell takes over in P1` TODO stubs that do nothing
+- [X] T022a Drop `EmulatorShell` wiring calls to `UiShell`, after-blit hooks, settings panel listeners, drive widget instancers, and related Rml UI callbacks behind clean no-op compile paths so the app still launches after P0 (black/bare window OK)
+- [X] T023 Strip Rml render bindings, includes, and per-frame Rml render/update hooks from `C:\Users\relmer\repos\relmer\Casso\Casso\D3DRenderer.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\D3DRenderer.h`; leave a TODO stub for the new painter integration in P1
+- [X] T024 Strip Rml input-pump hooks and includes from `C:\Users\relmer\repos\relmer\Casso\Casso\Main.cpp`
+- [X] T025 Strip Rml hit-test / chrome-routing references from `C:\Users\relmer\repos\relmer\Casso\Casso\Window.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Window.h`
+- [X] T026 Strip the Rml-document/font bootstrap (but **keep** the `Themes/` directory bootstrap) from `C:\Users\relmer\repos\relmer\Casso\Casso\AssetBootstrap.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\AssetBootstrap.h`
+- [X] T027 Strip any `IDR_RML_*` / Rml-asset resource IDs from `C:\Users\relmer\repos\relmer\Casso\Casso\resource.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.rc`
+- [X] T027a Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\UiShell.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\UiShell.h` outright; P1 rewrites them from native contracts
+- [X] T027b Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\LedElement.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\LedElement.h` outright; P2 rewrites as `Chrome\LedIndicator`
+- [X] T027c Delete `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetElement.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetElement.h` outright; P2 rewrites as `Chrome\DriveWidget`
+- [X] T027d Stub `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanel.cpp` and `.h`: empty class skeleton in `.h` that compiles standalone; `.cpp` returns `S_OK` from every method (P3 rewrites)
+- [X] T027e Verify `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanelState.cpp` and `.h` are Rml-free; if any Rml header is included, remove it while keeping the state logic (P3 keeps/extends)
+- [X] T027f Stub `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeManager.cpp` and `.h`: drop `Rml::Context*` / `Rml::ElementDocument*`; keep `Discover()` returning `S_OK` and an in-memory active-theme name (P1/P5 fleshes out)
+- [X] T027g Remove any Rml references from `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\ThemeLoader.cpp` and `.h` while keeping JSON parsing
+- [X] T027h Stub `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\TitleBar.cpp` and `.h`: `Show`/`Hide` no-op; keep `TitleBarLayout` pure logic untouched (P2 rewrites)
+- [X] T027i Stub `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\NavLayer.cpp` and `.h`: `Show`/`Hide` no-op; keep parity table + `EmitParityMarkdown()` (P2 rewrites)
+- [X] T027j Stub UI-facing methods in `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetController.cpp` and `.h` (`LoadDocument` / `UnloadDocument` no-op; `HitTest` returns `nullptr`); keep state-pump path (P2 rewrites)
+- [X] T028 Sweep the rest of `C:\Users\relmer\repos\relmer\Casso\Casso\` for any remaining `Rml`/`RMLUI` references (`rg -n "Rml|RMLUI" C:\Users\relmer\repos\relmer\Casso\Casso`) and strip each; record the swept file list in the commit body
 
 ### P0f — Test deletions tied to the retired pipeline
 
-- [ ] T029 [P] Delete `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\RmlBackendSmokeTests.cpp`
-- [ ] T030 [P] Delete `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\RmlInputBridgeTests.cpp`
-- [ ] T031 Sweep `C:\Users\relmer\repos\relmer\Casso\UnitTest\` for any other `Rml`/`RMLUI` references (`rg -n "Rml|RMLUI" C:\Users\relmer\repos\relmer\Casso\UnitTest`) and strip each; record the swept file list in the commit body
+- [X] T029 [P] Delete `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\RmlBackendSmokeTests.cpp`
+- [X] T030 [P] Delete `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\RmlInputBridgeTests.cpp`
+- [X] T031 Sweep `C:\Users\relmer\repos\relmer\Casso\UnitTest\` for any other `Rml`/`RMLUI` references (`rg -n "Rml|RMLUI" C:\Users\relmer\repos\relmer\Casso\UnitTest`) and strip each; record the swept file list in the commit body
 
 ### P0g — Constitution amendment
 
-- [ ] T032 Amend `C:\Users\relmer\repos\relmer\Casso\.specify\memory\constitution.md`: delete the `RmlUi | MIT | Casso | External/RmlUi/ | HTML/CSS-style UI framework (spec 007)` row from the **Approved Third-Party Dependencies** table; add a sync-impact note at the top of the file recording the reversal of spec 007's prior allowlist addition; bump the version footer from `1.5.0` to `1.6.0` (MINOR — materially changed Tech Constraints by removing an approved dependency); update the `Last Amended` date
+- [X] T032 Amend `C:\Users\relmer\repos\relmer\Casso\.specify\memory\constitution.md`: delete the `RmlUi | MIT | Casso | External/RmlUi/ | HTML/CSS-style UI framework (spec 007)` row from the **Approved Third-Party Dependencies** table; add a sync-impact note at the top of the file recording the reversal of spec 007's prior allowlist addition; bump the version footer from `1.5.0` to `1.6.0` (MINOR — materially changed Tech Constraints by removing an approved dependency); update the `Last Amended` date
 
 ### P0h — Gate verification
 
 - [ ] T033 Run `scripts\Build.ps1` and confirm all four configurations (Debug/Release × x64/ARM64) build clean with zero errors and zero new warnings; capture output in the commit body
 - [ ] T034 Run `scripts\Build.ps1 -RunCodeAnalysis` and confirm zero analysis findings on the Casso, CassoCore, CassoEmuCore, CassoCli, and UnitTest projects
-- [ ] T035 Run `scripts\RunTests.ps1` and confirm all surviving tests pass
-- [ ] T036 Run `rg -n "Rml|RMLUI" C:\Users\relmer\repos\relmer\Casso\Casso C:\Users\relmer\repos\relmer\Casso\CassoCore C:\Users\relmer\repos\relmer\Casso\CassoEmuCore C:\Users\relmer\repos\relmer\Casso\CassoCli C:\Users\relmer\repos\relmer\Casso\UnitTest C:\Users\relmer\repos\relmer\Casso\External` and confirm zero hits (SC-011 audit)
-- [ ] T037 Launch `Casso.exe` and confirm the borderless window + emulated viewport still come up (no chrome, no settings, no nav — intentional regression; P1 reintroduces them)
+- [X] T035 Run `scripts\RunTests.ps1` and confirm all surviving tests pass
+- [X] T036 Run `rg -n "Rml|RMLUI" C:\Users\relmer\repos\relmer\Casso\Casso C:\Users\relmer\repos\relmer\Casso\CassoCore C:\Users\relmer\repos\relmer\Casso\CassoEmuCore C:\Users\relmer\repos\relmer\Casso\CassoCli C:\Users\relmer\repos\relmer\Casso\UnitTest C:\Users\relmer\repos\relmer\Casso\External` and confirm zero hits (SC-011 audit)
+- [X] T037 Launch `Casso.exe` and confirm the borderless window + emulated viewport still come up (no chrome, no settings, no nav — intentional regression; P1 reintroduces them)
 
 **🛑 HARD GATE (P0 → P1)**: SC-011 must be provable by T036's zero-hit `rg` sweep
 **and** T033/T034/T035/T037 must all pass before any P1 task begins.
@@ -200,24 +200,24 @@ minima.
 
 - [X] T074 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Button.h`
 - [X] T075 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Button.cpp`
-- [ ] T076 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Checkbox.h`
-- [ ] T077 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Checkbox.cpp`
-- [ ] T078 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Slider.h`
-- [ ] T079 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Slider.cpp`
+- [X] T076 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Checkbox.h`
+- [X] T077 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Checkbox.cpp`
+- [X] T078 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Slider.h`
+- [X] T079 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Slider.cpp`
 - [X] T080 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Dropdown.h`
 - [X] T081 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Dropdown.cpp`
 - [ ] T082 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\ListView.h`
 - [ ] T083 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\ListView.cpp`
-- [ ] T084 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\TreeView.h`
-- [ ] T085 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\TreeView.cpp`
+- [X] T084 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\TreeView.h`
+- [X] T085 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\TreeView.cpp`
 - [ ] T086 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\TextField.h` (read-only labels + numeric editor)
 - [ ] T087 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\TextField.cpp`
-- [ ] T088 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\TabStrip.h`
-- [ ] T089 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\TabStrip.cpp`
-- [ ] T090 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\ModalScrim.h` (in-canvas modal overlay per R10)
-- [ ] T091 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\ModalScrim.cpp`
-- [ ] T092 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Tooltip.h` (FR-008 platform-lock tooltip target)
-- [ ] T093 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Tooltip.cpp`
+- [X] T088 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\TabStrip.h`
+- [X] T089 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\TabStrip.cpp`
+- [X] T090 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\ModalScrim.h` (in-canvas modal overlay per R10)
+- [X] T091 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\ModalScrim.cpp`
+- [X] T092 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Tooltip.h` (FR-008 platform-lock tooltip target)
+- [X] T093 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Tooltip.cpp`
 
 ### P2b — Chrome surfaces (move existing files into `Chrome/` subdir + new files)
 
@@ -236,12 +236,12 @@ minima.
 ### P2d — Tests + vcxproj updates
 
 - [ ] T102 [P] [US5] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\NavLayerTraceabilityTests.cpp` as `ChromeCommandRoutingTests.cpp` (rename file) — Nav → IDM dispatch parity across the full menu map (SC-006)
-- [ ] T103 [P] [US5] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\TitleBarHitTestTests.cpp` against the native chrome (drag band, system buttons, resize edges)
-- [ ] T104 [P] [US5] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\TitleBarLayoutTests.cpp` against the native title bar layout (DPI-scaled bands, min/max/close positions)
-- [ ] T105 [P] [US3] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\DriveWidgetStateTests.cpp` against the rewritten drive widget (door state machine + sync events FR-050)
-- [ ] T106 [P] [US3] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\CrtLetterboxLayoutTests.cpp` against the native chrome viewport calculation (4:3 letterbox/pillarbox FR-043)
+- [X] T103 [P] [US5] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\TitleBarHitTestTests.cpp` against the native chrome (drag band, system buttons, resize edges)
+- [X] T104 [P] [US5] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\TitleBarLayoutTests.cpp` against the native title bar layout (DPI-scaled bands, min/max/close positions)
+- [X] T105 [P] [US3] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\DriveWidgetStateTests.cpp` against the rewritten drive widget (door state machine + sync events FR-050)
+- [X] T106 [P] [US3] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\CrtLetterboxLayoutTests.cpp` against the native chrome viewport calculation (4:3 letterbox/pillarbox FR-043)
 - [ ] T106a [P] [US5] Create or extend `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\Win11DwmHelpersTests.cpp` to verify every DWM call site is gated by `IsWindows11OrGreater()` (FR-042)
-- [ ] T106b [P] [US3] Verify `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\AutoMountTests.cpp` still compiles after `Chrome\DriveWidget` moves; rewrite includes/namespaces if not
+- [X] T106b [P] [US3] Verify `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\AutoMountTests.cpp` still compiles after `Chrome\DriveWidget` moves; rewrite includes/namespaces if not
 - [X] T107 [US5] Update `C:\Users\relmer\repos\relmer\Casso\UnitTest\UnitTest.vcxproj` to reflect renamed/relocated test files and add new chrome-bound tests
 - [X] T108 [US5] Update `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj` to add every new widget + chrome `.cpp`/`.h` from T074–T100 under the appropriate `<ClCompile>` / `<ClInclude>` `<ItemGroup>`
 
@@ -335,20 +335,20 @@ with unapplied changes — nothing persisted.
 
 ### P3a — Settings panel surfaces (move + new)
 
-- [ ] T110 [US1] Move and rewrite `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanel.cpp` / `.h` into `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\SettingsPanel.cpp` / `.h` as a native `ModalScrim`-hosted panel (FR-027 retires Win32 dialog)
-- [ ] T111 [US1] Move and rewrite `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanelState.cpp` / `.h` into `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\SettingsPanelState.cpp` / `.h` (transient unapplied state, FR-009 Cancel discard, FR-010 Apply commit + reset prompt)
-- [ ] T112 [P] [US1] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\MachinePage.h`
-- [ ] T113 [P] [US1] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\MachinePage.cpp` (machine selector outermost; speed; video; write-protect; drive-audio toggle + mechanism per FR-002, FR-003, FR-011)
-- [ ] T114 [P] [US2] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\HardwarePage.h`
-- [ ] T115 [P] [US2] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\HardwarePage.cpp` (TreeView of `HardwareComponentEntry` rendering optional/required/platform-locked checkbox states + lock tooltip per FR-004 through FR-008)
-- [ ] T116 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\ThemePage.h` (used by P4; stub in P3 so SettingsPanel can wire the tab)
-- [ ] T117 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\ThemePage.cpp` (stub body in P3; filled in P4)
-- [ ] T118 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\DisplayPage.h` (used by P4; stub in P3)
-- [ ] T119 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\DisplayPage.cpp` (stub body in P3; filled in P4)
+- [X] T110 [US1] Move and rewrite `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanel.cpp` / `.h` into `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\SettingsPanel.cpp` / `.h` as a native `ModalScrim`-hosted panel (FR-027 retires Win32 dialog)
+- [X] T111 [US1] Move and rewrite `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanelState.cpp` / `.h` into `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\SettingsPanelState.cpp` / `.h` (transient unapplied state, FR-009 Cancel discard, FR-010 Apply commit + reset prompt)
+- [X] T112 [P] [US1] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\MachinePage.h`
+- [X] T113 [P] [US1] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\MachinePage.cpp` (machine selector outermost; speed; video; write-protect; drive-audio toggle + mechanism per FR-002, FR-003, FR-011)
+- [X] T114 [P] [US2] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\HardwarePage.h`
+- [X] T115 [P] [US2] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\HardwarePage.cpp` (TreeView of `HardwareComponentEntry` rendering optional/required/platform-locked checkbox states + lock tooltip per FR-004 through FR-008)
+- [X] T116 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\ThemePage.h` (used by P4; stub in P3 so SettingsPanel can wire the tab)
+- [X] T117 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\ThemePage.cpp` (stub body in P3; filled in P4)
+- [X] T118 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\DisplayPage.h` (used by P4; stub in P3)
+- [X] T119 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\DisplayPage.cpp` (stub body in P3; filled in P4)
 
 ### P3b — Persistence + migration
 
-- [ ] T120 [US1] Extend `C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp` to read/write per-machine `_user.json` with shadow/fallthrough merge (FR-012, FR-014, FR-017)
+- [X] T120 [US1] Extend `C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp` to read/write per-machine `_user.json` with shadow/fallthrough merge (FR-012, FR-014, FR-017)
 - [X] T120a [US1] Extend `C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp` to run a one-shot migration that reads `RegistrySettings` machine-specific keys and writes them to `<Machine>_user.json` on first load when the user JSON is absent (FR-016)
 - [X] T120b [US1] Apply persisted `lastMountedImages` from `_user.json` on machine load / application launch; missing paths start empty with a warning, eject clears the entry, and mount overwrites it (FR-047)
 - [X] T120c [US1] Extend `C:\Users\relmer\repos\relmer\Casso\Casso\Config\GlobalUserPrefs.cpp` and `.h` with `WindowPlacementProfile` read/write keyed by monitor topology + active monitor under `HKCU\Software\relmer\Casso\WindowPlacement\v1\<hash>` (FR-048)
@@ -397,17 +397,17 @@ pre-selected.
 
 ### P3.1a — Bottom command bar + drive-widget relocation
 
-- [ ] T109a [P3.1] Add a bottom command bar to the host window: reserve a new bottom-inset region in `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp` (mirror of the existing top chrome inset), draw a chrome strip via `UiShell` at the bottom of the back buffer, and expand the default startup window size so 100% emulator UI + top chrome (title + nav) + bottom command bar all fit without scaling the emulator. **Acceptance**: emulator viewport renders at 100% (560×384) with no overlap, top chrome visible above it, command bar visible below it, at the default startup window size.
-- [ ] T109b [P3.1] Relocate the drive widgets from their current floating-on-top-of-emulator position into the new bottom command bar. Drive widgets render in `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\DriveWidget.cpp` and are positioned by `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp`; reroute their layout into bottom-command-bar coordinates and update the `HitTest` registry so drag-drop and click-to-browse hit-test against the new location. **Acceptance**: drive widgets visually live in the bottom command bar, never overlap the emulator content area, and drag-drop + click-to-browse still mount disks correctly.
+- [X] T109a [P3.1] Add a bottom command bar to the host window: reserve a new bottom-inset region in `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp` (mirror of the existing top chrome inset), draw a chrome strip via `UiShell` at the bottom of the back buffer, and expand the default startup window size so 100% emulator UI + top chrome (title + nav) + bottom command bar all fit without scaling the emulator. **Acceptance**: emulator viewport renders at 100% (560×384) with no overlap, top chrome visible above it, command bar visible below it, at the default startup window size.
+- [X] T109b [P3.1] Relocate the drive widgets from their current floating-on-top-of-emulator position into the new bottom command bar. Drive widgets render in `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\DriveWidget.cpp` and are positioned by `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp`; reroute their layout into bottom-command-bar coordinates and update the `HitTest` registry so drag-drop and click-to-browse hit-test against the new location. **Acceptance**: drive widgets visually live in the bottom command bar, never overlap the emulator content area, and drag-drop + click-to-browse still mount disks correctly.
 
 ### P3.1b — State + selector fixes
 
-- [ ] T109c [P3.1] Fix the `DriveWidget` LED state pump in `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\DiskManager.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\DriveWidget.cpp`. The LED currently displays the Idle/Present orange even while the disk controller has its motor on during boot. Confirm the motor-on signal is read from the disk controller into `DriveWidgetState` every UI frame and that `DriveWidget::Paint` maps `DriveWidgetState::motorOn` / `diskActive` to the Active glow color. **Acceptance**: booting from a mounted disk drives the LED into the Active state (matching the FR-025 glow contract) while the motor is on, and back to Present when the motor stops.
-- [ ] T109d [P3.1] Fix the Machine selector population in `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\MachinePage.cpp` (and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\SettingsPanel.cpp` if needed). The selector currently displays an empty value when the panel opens. Walk `MachineScanner` / `UserConfigStore` to populate the dropdown with installed machines and select the currently active one. **Acceptance**: opening the settings panel shows the dropdown populated with installed machines, the active machine pre-selected, and changing the selection refreshes the other controls within one frame per FR-002.
+- [X] T109c [P3.1] Fix the `DriveWidget` LED state pump in `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\DiskManager.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\DriveWidget.cpp`. The LED currently displays the Idle/Present orange even while the disk controller has its motor on during boot. Confirm the motor-on signal is read from the disk controller into `DriveWidgetState` every UI frame and that `DriveWidget::Paint` maps `DriveWidgetState::motorOn` / `diskActive` to the Active glow color. **Acceptance**: booting from a mounted disk drives the LED into the Active state (matching the FR-025 glow contract) while the motor is on, and back to Present when the motor stops.
+- [X] T109d [P3.1] Fix the Machine selector population in `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\MachinePage.cpp` (and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\SettingsPanel.cpp` if needed). The selector currently displays an empty value when the panel opens. Walk `MachineScanner` / `UserConfigStore` to populate the dropdown with installed machines and select the currently active one. **Acceptance**: opening the settings panel shows the dropdown populated with installed machines, the active machine pre-selected, and changing the selection refreshes the other controls within one frame per FR-002.
 
 ### P3.1c — Acceptance gate
 
-- [ ] T109e [P3.1] P3.1 acceptance gate: full smoke-test pass. `Casso.exe` launches at default window size; chrome bar visible at top with min/max/close working; nav strip visible with dropdowns; emulator viewport renders at 100% (560×384) with NO overlap from any chrome element; bottom command bar visible with two Disk II drive widgets (no overlap with emulator); LEDs respond to motor on/off during boot; `Ctrl+,` opens the native settings panel with machine selector populated and all controls interactive; `rg "Rml|RMLUI" Casso CassoCore CassoEmuCore CassoCli UnitTest External` returns zero hits; full test suite passes. Gate-only — no separate commit.
+- [X] T109e [P3.1] P3.1 acceptance gate: full smoke-test pass. `Casso.exe` launches at default window size; chrome bar visible at top with min/max/close working; nav strip visible with dropdowns; emulator viewport renders at 100% (560×384) with NO overlap from any chrome element; bottom command bar visible with two Disk II drive widgets (no overlap with emulator); LEDs respond to motor on/off during boot; `Ctrl+,` opens the native settings panel with machine selector populated and all controls interactive; `rg "Rml|RMLUI" Casso CassoCore CassoEmuCore CassoCli UnitTest External` returns zero hits; full test suite passes. Gate-only — no separate commit.
 
 **Checkpoint**: P3.1 acceptance gate (T109e) is green. P4 may now begin.
 
