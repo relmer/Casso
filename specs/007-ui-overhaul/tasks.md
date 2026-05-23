@@ -18,8 +18,8 @@ done until re-verified in code, tests, and a clean `rg` sweep.
 
 ```text
 P0 (RmlUi excision)   ── HARD GATE ──▶ P1 (foundational runtime) ──▶ P2 (chrome)
-                                                                  └─▶ P3 (settings)
-                                                                            └─▶ P4 (themes/CRT) ──▶ P5 (polish/validation)
+                                                                  └─▶ P3.0 (EmulatorShell decomposition) ──▶ P3 (settings)
+                                                                                                                  └─▶ P4 (themes/CRT) ──▶ P5 (polish/validation)
 ```
 
 No P1+ task may begin until **every** P0 task is complete, the build is green
@@ -253,7 +253,75 @@ minima.
 
 ---
 
+## Phase P3.0: EmulatorShell decomposition (refactor; safety prerequisite for settings panel + machine-switch wiring)
+
+**Purpose**: `EmulatorShell.cpp` started P3 as a ~142 KB / 4726-line god-class
+that owned clipboard, window lifecycle, CPU thread, disk controllers, machine
+switching, and command dispatch in a single translation unit. The P3 settings
+panel apply path (T122) and the machine-switch wiring (FR-001, FR-002) cannot
+land safely on top of that shape — too many overlapping responsibilities, too
+much hidden state, no clean seam to plug a typed apply path into. P3.0 cuts
+the shell into focused managers under `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\`
+so the P3 work has a sane surface to hook into.
+
+**Scope constraints (apply uniformly to every extraction T108b..T108e)**:
+
+- New files live under `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\<ManagerName>.cpp` / `.h`.
+- Each `.cpp` includes `"Pch.h"` first; quoted includes only for project headers.
+- Repo conventions on EHM, function-call/declaration spacing, 5-blank-line
+  top-level separation, 3-blank-line declaration/statement separation, column
+  alignment, and header-style comment blocks apply.
+- Managers hold back-references to shared state by reference or pointer; **no
+  new global state, no new singletons** are introduced.
+- `EmulatorShell.cpp` shrinks on every extraction; the constructor wires the
+  manager via `std::make_unique` or a direct member; observable behavior is
+  identical before and after.
+- Per-extraction audit: `rg "Rml|RMLUI" Casso CassoCore CassoEmuCore CassoCli UnitTest External`
+  returns zero hits; **no new** `BUTTON` / `COMBOBOX` / `EDIT` / `STATUSBAR` /
+  `LISTVIEW` / `TREEVIEW` / `TOOLTIPS` window-class creations; **no new**
+  `DialogBox*` / `DialogBoxIndirectParam*` calls.
+- Build green Debug|x64 after each extraction; existing test suite (1447+
+  tests) stays green with zero new failures.
+
+**Commit discipline**:
+
+- Each extraction (T108b..T108e) is its own commit titled
+  `refactor(shell): extract <Manager> (007 P3.0X)` where `X` matches the task
+  letter (b/c/d/e).
+- T108a is already shipped (commit `33537b4`).
+- T108f is a verification gate (tests + build + audit), **not** a separate
+  commit — it gates entry to P3.
+
+**Independent Test**: After each extraction the full test suite passes, the
+build is green Debug|x64, the audit `rg` calls return zero hits, and
+`EmulatorShell.cpp` shrinks measurably. After T108f the file is well under
+100 KB and every responsibility listed above lives in its dedicated manager.
+
+### P3.0a — Extractions (one commit per task, in order)
+
+- [X] T108a [P3.0] **DONE** — extract `ClipboardManager` and `WindowManager` into `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\ClipboardManager.cpp` / `.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\WindowManager.cpp` / `.h`; reduced `EmulatorShell.cpp` from 4726 lines to ~3250 lines; 1447 tests still pass; build green (commit `33537b4`)
+- [ ] T108b [P3.0] Extract `CpuManager` into `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\CpuManager.cpp` / `.h`: own CPU thread lifecycle (create/join), run/pause/step transitions, and command-queue plumbing currently inlined in `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp`
+- [ ] T108c [P3.0] Extract `DiskManager` into `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\DiskManager.cpp` / `.h`: own disk controller wiring, mount/eject paths, slot-6 helpers, and `DriveWidget` sync currently inlined in `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp`
+- [ ] T108d [P3.0] Extract `MachineManager` into `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\MachineManager.cpp` / `.h`: own `SwitchMachine`, `CreateMemoryDevices`, machine-config rebuild, `softReset`, and `powerCycle` paths currently inlined in `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp`
+- [ ] T108e [P3.0] Extract `WindowCommandManager` into `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\WindowCommandManager.cpp` / `.h`: own command dispatch, menu state caching, `HandleCommand`, and `OnFileCommand` / `OnEditCommand` / sibling `On*Command` handlers currently inlined in `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp`
+
+### P3.0b — Acceptance gate
+
+- [ ] T108f [P3.0] P3.0 acceptance: build green Debug|x64; full test suite (1447+ tests) passes with zero new failures; `rg "Rml|RMLUI" Casso CassoCore CassoEmuCore CassoCli UnitTest External` returns zero hits; no new `BUTTON` / `COMBOBOX` / `EDIT` / `STATUSBAR` / `LISTVIEW` / `TREEVIEW` / `TOOLTIPS` window-class creations introduced anywhere under `C:\Users\relmer\repos\relmer\Casso\Casso\`; no new `DialogBox*` calls; `EmulatorShell.cpp` is well under 100 KB. Gate-only — no commit.
+
+**Checkpoint**: `EmulatorShell` is a thin coordinator over five focused
+managers (`ClipboardManager`, `WindowManager`, `CpuManager`, `DiskManager`,
+`MachineManager`, `WindowCommandManager`). P3 may now wire its apply path,
+reset prompt, and machine-switch flow into the clean seams these managers
+expose.
+
+---
+
 ## Phase P3: Settings panel (Priority: P1 user stories US1, US2)
+
+**Begins after P3.0 acceptance (T108f).** All T110–T129 work executes against
+the decomposed shell so the apply path, machine-switch wiring, and command
+dispatch land on focused managers rather than the original god-class.
 
 **Goal**: Replace the current Win32 menu-command settings and machine-switch entry points with the native
 in-canvas Settings panel: machine selector outermost, hardware tree, transient
@@ -387,7 +455,8 @@ analysis sweep, full screenshot matrix capture, residue audit, documentation.
 - **P0** has no dependencies — start immediately. P0 is a HARD GATE.
 - **P1** depends on P0 completion (constitution amended, RmlUi gone, build green, `rg` clean).
 - **P2** depends on P1 completion.
-- **P3** depends on P1 completion and may run in parallel with P2 if the team can staff both.
+- **P3.0** depends on P1 completion and may run in parallel with P2. It is the safety prerequisite for P3 — the settings panel apply path, reset prompt, and machine-switch wiring all hook into the managers extracted here.
+- **P3** depends on P3.0 acceptance (T108f). It may run in parallel with the tail of P2 once the shell decomposition is in.
 - **P4** depends on P3 completion (ThemePage / DisplayPage stubs from P3c filled in P4a).
 - **P5** depends on P2 + P3 + P4 completion.
 
@@ -422,8 +491,15 @@ analysis sweep, full screenshot matrix capture, residue audit, documentation.
 - T107–T108 (vcxproj updates) depend on T074–T106b.
 - T109 (screenshots) depends on T094–T108.
 
+### Within P3.0
+
+- T108a is already shipped (commit `33537b4`) — no further action.
+- T108b → T108c → T108d → T108e run **serially**, each its own commit. They all edit `EmulatorShell.cpp` (and its header) and add new files under `Casso\Shell\`, so they cannot parallelize without merge churn on the shell.
+- T108f is a gate after T108e: build + full test suite + `rg` audit + size check on `EmulatorShell.cpp`. No commit. Failure blocks entry to P3.
+
 ### Within P3
 
+- **P3.0 (T108a–T108f) must be complete and T108f green before any P3 task starts.**
 - T110–T111 (panel move+rewrite) must precede T112–T119 because the page files compose into `SettingsPanel`.
 - T112–T119 (pages) are `[P]` across distinct files (the P4 stubs T116–T119 are intentionally light to keep `SettingsPanel` compilable).
 - T120–T120b (UserConfigStore) and T121 (MachineConfigUpgrade) are `[P]` across distinct files; T120c–T120d (window placement) are serialized with `GlobalUserPrefs` / shell wiring.
@@ -484,23 +560,26 @@ Once widgets land, run T094–T097 in parallel (4 chrome surfaces, distinct file
 1. Land P0 in a tight commit series. Verify the HARD GATE.
 2. Land P1 to restore a paintable, hit-testable, focusable runtime.
 3. Skip most of P2 — implement only `Chrome/NavLayer` minimal entry for "open Settings", `Chrome/TitleBar`, and `Widgets/Button`/`Checkbox`/`Dropdown`/`Slider`/`TextField`/`ModalScrim` (the subset US1 needs).
-4. Land P3 in full.
-5. Validate US1 acceptance scenarios; ship the MVP.
+4. Land P3.0 (EmulatorShell decomposition) — the apply path needs clean seams.
+5. Land P3 in full.
+6. Validate US1 acceptance scenarios; ship the MVP.
 
 ### Incremental delivery (recommended)
 
 1. P0 → green gate.
 2. P1 → restore foundational runtime.
 3. P2 → full chrome surface (US3, US5 ship).
-4. P3 → settings panel (US1, US2 ship).
-5. P4 → themes + CRT (US4 ships).
-6. P5 → polish + validation (US6 + SC-* satisfied).
+4. P3.0 → EmulatorShell decomposition (refactor; no user-visible change, gates P3).
+5. P3 → settings panel (US1, US2 ship).
+6. P4 → themes + CRT (US4 ships).
+7. P5 → polish + validation (US6 + SC-* satisfied).
 
 ### Parallel team strategy
 
 - **Phase P0**: one engineer, single commit series, no parallelism (the scrub is the work).
 - **Phase P1**: 2–3 engineers — one owns painter/text/device-lost, one owns input/hit-test/focus/layout, one owns animation/theme + integration.
-- **Phase P2 + P3**: can run in parallel once P1 lands. P4 waits on P3's page stubs.
+- **Phase P2 + P3.0**: can run in parallel once P1 lands. P3.0 is one engineer working serially on `EmulatorShell.cpp` (the extractions cannot parallelize without merge churn).
+- **Phase P3**: starts after P3.0 acceptance (T108f). May run in parallel with the tail of P2. P4 waits on P3's page stubs.
 - **Phase P5**: single engineer per validation thread; T140, T141, T146, T147 can run in parallel; T142–T145 run last on a frozen merge.
 
 ---
