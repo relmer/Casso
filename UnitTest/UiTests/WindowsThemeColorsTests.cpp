@@ -27,15 +27,15 @@ namespace WindowsThemeColorsTests
     {
     public:
 
-        TEST_METHOD (CloseButton_Hover_And_Pressed_Match)
+        TEST_METHOD (CloseButton_Hover_Is_Documented_Red_Pressed_Is_Darker)
         {
             WindowsThemeColors &  sys = WindowsThemeColors::Instance();
 
 
-            Assert::AreEqual ((unsigned long) sys.CloseButtonHoverArgb(),
-                              (unsigned long) sys.CloseButtonPressedArgb());
             Assert::AreEqual ((unsigned long) 0xFFC42B1Cu,
                               (unsigned long) sys.CloseButtonHoverArgb());
+            Assert::AreNotEqual ((unsigned long) sys.CloseButtonHoverArgb(),
+                                 (unsigned long) sys.CloseButtonPressedArgb());
         }
 
 

@@ -22,7 +22,17 @@ namespace
     static constexpr uint32_t   s_kSubtleFillColorTertiaryDark   = 0x0AFFFFFFu;
     static constexpr uint32_t   s_kSubtleFillColorSecondaryLight = 0x09000000u;
     static constexpr uint32_t   s_kSubtleFillColorTertiaryLight  = 0x06000000u;
-    static constexpr uint32_t   s_kCloseButtonColor              = 0xFFC42B1Cu;
+
+    // Close-button hover and pressed colors. The WinUI XAML resource
+    // dictionary (microsoft/terminal MinMaxCloseControl.xaml) sets
+    // both states to the same CloseButtonColor token, but the
+    // generic Button visual-state template applies an opacity tweak
+    // on Pressed that produces a visibly distinct darker shade in
+    // real Windows shell apps (File Explorer, Edge, Terminal). We
+    // mirror that observed behavior with discrete ARGB values rather
+    // than animating opacity at paint time.
+    static constexpr uint32_t   s_kCloseButtonHoverColor         = 0xFFC42B1Cu;
+    static constexpr uint32_t   s_kCloseButtonPressedColor       = 0xFFAA1F11u;
     static constexpr uint32_t   s_kCloseButtonGlyphOverColor     = 0xFFFFFFFFu;
     static constexpr uint32_t   s_kCaptionForegroundDark         = 0xFFFFFFFFu;
     static constexpr uint32_t   s_kCaptionForegroundLight        = 0xFF1A1A1Au;
@@ -189,7 +199,7 @@ uint32_t WindowsThemeColors::CaptionButtonForegroundArgb () const
 
 uint32_t WindowsThemeColors::CloseButtonHoverArgb () const
 {
-    return s_kCloseButtonColor;
+    return s_kCloseButtonHoverColor;
 }
 
 
@@ -204,7 +214,7 @@ uint32_t WindowsThemeColors::CloseButtonHoverArgb () const
 
 uint32_t WindowsThemeColors::CloseButtonPressedArgb () const
 {
-    return s_kCloseButtonColor;
+    return s_kCloseButtonPressedColor;
 }
 
 
