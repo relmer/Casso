@@ -8,11 +8,11 @@
 
 **Purpose**: Finalize reset bootstrap and explicitly retire remaining legacy dialog entry points.
 
-- [ ] T001 Retire remaining Win32 settings-dialog entry points for FR-027 in C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp
-- [ ] T002 Remove legacy startup machine-picker dialog path for FR-027 in C:\Users\relmer\repos\relmer\Casso\Casso\Main.cpp
-- [ ] T003 Update theme metadata contract details for family/variant + drive profile in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\contracts\theme-metadata.schema.json
-- [ ] T004 Update native ThemeManager contract for family/variant behavior in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\contracts\theme-manager.h
-- [ ] T005 Create runtime screenshot validation matrix checklist in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\quickstart.md
+- [X] T001 Retire remaining Win32 settings-dialog entry points for FR-027 in C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp
+- [X] T002 Remove legacy startup machine-picker dialog path for FR-027 in C:\Users\relmer\repos\relmer\Casso\Casso\Main.cpp
+- [X] T003 Update theme metadata contract details for family/variant + drive profile in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\contracts\theme-metadata.schema.json
+- [X] T004 Update native ThemeManager contract for family/variant behavior in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\contracts\theme-manager.h
+- [X] T005 Create runtime screenshot validation matrix checklist in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\quickstart.md
 
 ---
 

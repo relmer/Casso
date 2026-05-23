@@ -38,9 +38,13 @@ namespace Casso::Ui
 
         HRESULT Discover ();
         const std::vector<ThemeInfo> & GetAvailableThemes () const;
-        HRESULT Activate (const std::string & themeName);
+        HRESULT ActivateByName (const std::string & themeName);
+        HRESULT ActivateByFamilyVariant (const std::string & familyId,
+                                         const std::string & variantId);
         HRESULT ReloadCurrent ();
         const std::string & GetActiveThemeName () const;
+        const std::string & GetActiveFamilyId () const;
+        const std::string & GetActiveVariantId () const;
 
         using ChangeListener = std::function<void (const ThemeInfo &)>;
         void  AddChangeListener (ChangeListener listener);

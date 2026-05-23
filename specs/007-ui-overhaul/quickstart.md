@@ -42,3 +42,17 @@ Themes hot-reload at runtime.
 4. Insert/eject triggers visible door close/open animation.
 5. Door animation and drive sounds remain synchronized.
 6. Variant switching works for Apple II, II+, IIe, and //c.
+
+## Runtime screenshot validation matrix
+
+Capture and review screenshots for each scenario below during validation:
+
+| ID | Scenario | Required evidence |
+|----|----------|-------------------|
+| M1 | Startup chrome | Title bar, nav strip, and drive widgets visible |
+| M2 | Menu/dropdown open | At least one top-level nav menu expanded |
+| M3 | NC controls | Minimize, maximize, and close controls rendered and interactive state visible |
+| M4 | Settings open | Settings panel visible with machine selector and keyboard focus cue |
+| M5 | Drive closed state | Mounted disk state with door-closed visual |
+| M6 | Drive open state | Ejected disk state with door-open visual |
+| M7 | Apple II variants | Screenshots for Apple II, II+, IIe, and //c theme variants |

@@ -26,12 +26,14 @@
     "familyId": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 32
+      "maxLength": 32,
+      "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
     },
     "variantId": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 32
+      "maxLength": 32,
+      "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
     },
     "author": {
       "type": "string",
@@ -50,7 +52,10 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "style"
+        "style",
+        "colorway",
+        "doorAnimation",
+        "syncChannel"
       ],
       "properties": {
         "style": {
@@ -136,5 +141,27 @@
     "useMicaBackdrop": {
       "type": "boolean"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "familyId": {
+            "const": "apple2"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "driveVisualProfile": {
+            "properties": {
+              "style": {
+                "const": "disk2"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
