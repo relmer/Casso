@@ -164,7 +164,7 @@
 - [ ] T070 Implement per-monitor window placement persistence for FR-048 in C:\Users\relmer\repos\relmer\Casso\Casso\Config\GlobalUserPrefs.cpp
 - [ ] T071 Add runtime theme-discovery, malformed-theme exclusion, and re-extract coverage for FR-035/036/037 in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\ThemeManagerTests.cpp
 - [ ] T072 Add three-consecutive-upgrade migration matrix coverage for SC-003 in C:\Users\relmer\repos\relmer\Casso\UnitTest\EmuTests\MachineConfigUpgradeTests.cpp
-- [ ] T073 Execute required Code Analysis gate in C:\Users\relmer\repos\relmer\Casso\scripts\Build.ps1
+- [X] T073 Execute required Code Analysis gate in C:\Users\relmer\repos\relmer\Casso\scripts\Build.ps1
 - [ ] T074 Capture and validate SC-002 evidence on integrated Intel/AMD iGPU matrix (1280x960 + 1920x1080 at 100% + 150% scale), requiring first post-switch frame with zero mixed-theme regions in C:\Users\relmer\repos\relmer\Casso\TestResults\007-ui-overhaul\
 - [ ] T075 Implement click-to-browse drive mount flow for FR-022b in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetController.cpp
 - [ ] T076 Add run-while-open behavior coverage for FR-041 in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\SettingsPanelStateTests.cpp

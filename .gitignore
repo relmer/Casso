@@ -384,3 +384,11 @@ Devices/
 
 # Disk images we cannot redistribute (Apple-owned)
 /Disks/Apple/dos33-master.dsk
+
+# Cross-platform/editor artifacts
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+.env*
+*.swp
