@@ -10,6 +10,7 @@
 #include "D3DRenderer.h"
 #include "MenuSystem.h"
 #include "DebugConsole.h"
+#include "Ui/UiShell.h"
 #include "Ui/TitleBar.h"
 #include "Ui/NavLayer.h"
 #include "Ui/DriveWidgetState.h"
@@ -265,6 +266,7 @@ private:
     // P3: existing Win32 menus / dialogs are untouched; the shell
     // composites on top of the framebuffer via the after-blit hook.
     Win32FileSystem     m_uiFs;
+    UiShell             m_uiShell;
 
     // P4 chrome. TitleBar owns the inline RML title-bar doc + the
     // per-button rect cache that the WM_NCHITTEST helper queries.
@@ -411,5 +413,6 @@ private:
     std::unique_ptr<class DiskIIDebugDialog>  m_diskIIDebugDialog;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 };
+
 
 

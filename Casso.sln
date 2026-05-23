@@ -13,6 +13,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Casso", "Casso\Casso.vcxpro
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CassoEmuCore", "CassoEmuCore\CassoEmuCore.vcxproj", "{A1B2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RmlUi", "External\RmlUi\RmlUi.vcxproj", "{F1E2D3C4-B5A6-4798-9C0D-1E2F3A4B5C6D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM64 = Debug|ARM64
@@ -83,6 +85,16 @@ Global
 		{A1B2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D}.Release|x64.Build.0 = Release|x64
 		{A1B2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D}.Release|x86.ActiveCfg = Release|Win32
 		{A1B2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D}.Release|x86.Build.0 = Release|Win32
+		{F1E2D3C4-B5A6-4798-9C0D-1E2F3A4B5C6D}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{F1E2D3C4-B5A6-4798-9C0D-1E2F3A4B5C6D}.Debug|ARM64.Build.0 = Debug|ARM64
+		{F1E2D3C4-B5A6-4798-9C0D-1E2F3A4B5C6D}.Debug|x64.ActiveCfg = Debug|x64
+		{F1E2D3C4-B5A6-4798-9C0D-1E2F3A4B5C6D}.Debug|x64.Build.0 = Debug|x64
+		{F1E2D3C4-B5A6-4798-9C0D-1E2F3A4B5C6D}.Debug|x86.ActiveCfg = Debug|x64
+		{F1E2D3C4-B5A6-4798-9C0D-1E2F3A4B5C6D}.Release|ARM64.ActiveCfg = Release|ARM64
+		{F1E2D3C4-B5A6-4798-9C0D-1E2F3A4B5C6D}.Release|ARM64.Build.0 = Release|ARM64
+		{F1E2D3C4-B5A6-4798-9C0D-1E2F3A4B5C6D}.Release|x64.ActiveCfg = Release|x64
+		{F1E2D3C4-B5A6-4798-9C0D-1E2F3A4B5C6D}.Release|x64.Build.0 = Release|x64
+		{F1E2D3C4-B5A6-4798-9C0D-1E2F3A4B5C6D}.Release|x86.ActiveCfg = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
