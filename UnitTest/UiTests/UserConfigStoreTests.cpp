@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "InMemoryFileSystem.h"
+#include "InMemoryRegistry.h"
 
 #include "Config/UserConfigStore.h"
 
@@ -439,5 +440,132 @@ public:
         Assert::IsTrue (SUCCEEDED (m.GetObject ("newField", nf)));
         Assert::IsTrue (SUCCEEDED (m.GetObject ("$cassoUiPrefs", ui)));
         Assert::AreEqual (std::string ("maximum"), ui->GetObjectEntries()[0].second.GetString());
+    }
+
+
+    // ---- One-shot registry → user JSON migration -----------------------
+
+    TEST_METHOD (MigrateFromRegistry_NoLegacyValues_NoOp)
+    {
+        InMemoryFileSystem  fs;
+        InMemoryRegistry    reg;
+        UserConfigStore     store (L"C:\\users\\test");
+        HRESULT             hr  = S_OK;
+
+        hr = store.MigrateFromRegistry ("Apple2", reg, fs);
+
+        Assert::AreEqual (HRESULT (S_FALSE), hr,
+            L"with an empty registry, migration must report no-op");
+        Assert::IsFalse (fs.Exists (store.UserFilePath ("Apple2")),
+            L"no user file should be created when nothing to migrate");
+    }
+
+
+    TEST_METHOD (MigrateFromRegistry_AudioAndMechanism_WritesUiPrefs)
+    {
+        InMemoryFileSystem  fs;
+        InMemoryRegistry    reg;
+        UserConfigStore     store (L"C:\\users\\test");
+        HRESULT             hr      = S_OK;
+        std::string         payload;
+        JsonValue           root;
+        JsonParseError      err;
+        const JsonValue   * ui      = nullptr;
+
+        IGNORE_RETURN_VALUE (hr, reg.WriteDword  (L"Machines\\Apple2", L"DriveAudioEnabled", 0));
+        IGNORE_RETURN_VALUE (hr, reg.WriteString (L"Machines\\Apple2", L"DiskIIMechanism", std::wstring (L"alps")));
+
+        hr = store.MigrateFromRegistry ("Apple2", reg, fs);
+
+        Assert::AreEqual (HRESULT (S_OK), hr,
+            L"present registry values must produce a written user JSON file");
+        Assert::IsTrue (fs.Exists (store.UserFilePath ("Apple2")));
+
+        Assert::IsTrue (SUCCEEDED (fs.ReadAllText (store.UserFilePath ("Apple2"), payload)));
+        Assert::IsTrue (SUCCEEDED (JsonParser::Parse (payload, root, err)));
+        Assert::IsTrue (SUCCEEDED (root.GetObject ("$cassoUiPrefs", ui)));
+
+        {
+            bool         enabled = true;
+            std::string  mech;
+
+            Assert::IsTrue (SUCCEEDED (ui->GetBool   ("floppySoundEnabled", enabled)));
+            Assert::IsTrue (SUCCEEDED (ui->GetString ("floppyMechanism",    mech)));
+            Assert::IsFalse (enabled);
+            Assert::AreEqual (std::string ("alps"), mech);
+        }
+    }
+
+
+    TEST_METHOD (MigrateFromRegistry_LastMountedImages_PersistsBothSlots)
+    {
+        InMemoryFileSystem  fs;
+        InMemoryRegistry    reg;
+        UserConfigStore     store (L"C:\\users\\test");
+        HRESULT             hr      = S_OK;
+        std::string         payload;
+        JsonValue           root;
+        JsonParseError      err;
+        const JsonValue   * arr     = nullptr;
+
+        IGNORE_RETURN_VALUE (hr, reg.WriteString (L"Machines\\Apple2", L"DiskImage0", std::wstring (L"C:\\boot.dsk")));
+        IGNORE_RETURN_VALUE (hr, reg.WriteString (L"Machines\\Apple2", L"DiskImage1", std::wstring (L"")));
+
+        hr = store.MigrateFromRegistry ("Apple2", reg, fs);
+
+        Assert::AreEqual (HRESULT (S_OK), hr);
+        Assert::IsTrue (SUCCEEDED (fs.ReadAllText (store.UserFilePath ("Apple2"), payload)));
+        Assert::IsTrue (SUCCEEDED (JsonParser::Parse (payload, root, err)));
+        Assert::IsTrue (SUCCEEDED (root.GetArray ("lastMountedImages", arr)));
+        Assert::AreEqual (size_t (2), arr->ArraySize());
+        Assert::AreEqual (std::string ("C:\\boot.dsk"), arr->ArrayAt (0).GetString());
+        Assert::IsTrue (arr->ArrayAt (1).GetString().empty());
+    }
+
+
+    TEST_METHOD (MigrateFromRegistry_UserFileAlreadyExists_NoOp)
+    {
+        InMemoryFileSystem  fs;
+        InMemoryRegistry    reg;
+        UserConfigStore     store (L"C:\\users\\test");
+        HRESULT             hr      = S_OK;
+        std::string         before  = "{\"$cassoMachineVersion\":3}";
+
+        IGNORE_RETURN_VALUE (hr, fs.WriteAllText (store.UserFilePath ("Apple2"), before));
+        IGNORE_RETURN_VALUE (hr, reg.WriteDword (L"Machines\\Apple2", L"DriveAudioEnabled", 1));
+
+        hr = store.MigrateFromRegistry ("Apple2", reg, fs);
+
+        Assert::AreEqual (HRESULT (S_FALSE), hr,
+            L"existing user JSON file must short-circuit the one-shot migration");
+
+        {
+            std::string  after;
+
+            Assert::IsTrue (SUCCEEDED (fs.ReadAllText (store.UserFilePath ("Apple2"), after)));
+            Assert::AreEqual (before, after,
+                L"existing user file content must not be touched by migration");
+        }
+    }
+
+
+    // ---- lastMountedImages round-trip through Merge --------------------
+
+    TEST_METHOD (Merge_LastMountedImages_UserOnly_Preserved)
+    {
+        JsonValue  d = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3
+        })JSON");
+        JsonValue  u = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "lastMountedImages": ["C:\\disk0.dsk", ""]
+        })JSON");
+
+        JsonValue          m       = UserConfigStore::MergeJson (d, u);
+        const JsonValue *  arr     = nullptr;
+
+        Assert::IsTrue (SUCCEEDED (m.GetArray ("lastMountedImages", arr)));
+        Assert::AreEqual (size_t (2), arr->ArraySize());
+        Assert::AreEqual (std::string ("C:\\disk0.dsk"), arr->ArrayAt (0).GetString());
     }
 };

@@ -1042,3 +1042,132 @@ bool UserConfigStore::JsonEqual (
 
     return false;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::MigrateFromRegistry
+//
+//  One-shot legacy-registry → per-machine user JSON migration. Reads
+//  the small set of `Machines\<name>` REG_SZ / REG_DWORD values that
+//  the pre-007 build wrote to HKCU and folds them into the canonical
+//  `$cassoUiPrefs` / `lastMountedImages` shape expected by the new
+//  loader.
+//
+//  Skipped (returns S_FALSE) when:
+//      * a `<machineName>_user.json` already exists on disk, or
+//      * no recognized legacy values are present in the registry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UserConfigStore::MigrateFromRegistry (
+    const std::string  & machineName,
+    IRegistrySettings  & reg,
+    IFileSystem        & fs) const
+{
+    HRESULT              hr             = S_OK;
+    std::wstring         subkey;
+    std::wstring         path           = UserFilePath (machineName);
+    DWORD                dwAudio        = 0;
+    std::wstring         mechanism;
+    std::wstring         diskImage0;
+    std::wstring         diskImage1;
+    bool                 fHaveAnything  = false;
+    JsonWriter::Options  opts;
+    std::string          text;
+
+    std::vector<std::pair<std::string, JsonValue>>  uiPrefs;
+    std::vector<std::pair<std::string, JsonValue>>  root;
+    std::vector<JsonValue>                          lastMounted;
+
+
+
+    if (fs.Exists (path))
+    {
+        // User JSON already present — migration is one-shot and has
+        // already happened (or the user authored a file by hand).
+        return S_FALSE;
+    }
+
+    subkey = std::wstring (L"Machines\\") + Widen (machineName);
+
+    hr = reg.ReadDword (subkey.c_str(), L"DriveAudioEnabled", dwAudio);
+    if (hr == S_OK)
+    {
+        uiPrefs.emplace_back ("floppySoundEnabled", JsonValue (dwAudio != 0));
+        fHaveAnything = true;
+    }
+
+    hr = reg.ReadString (subkey.c_str(), L"DiskIIMechanism", mechanism);
+    if (hr == S_OK && !mechanism.empty())
+    {
+        // ASCII subset only; the registry stores values like "shugart"
+        // or "alps". Narrow conversion is byte-cast safe for these.
+        std::string  narrow;
+        narrow.reserve (mechanism.size());
+        for (wchar_t c : mechanism)
+        {
+            narrow.push_back ((char) (unsigned char) c);
+        }
+        uiPrefs.emplace_back ("floppyMechanism", JsonValue (narrow));
+        fHaveAnything = true;
+    }
+
+    hr = reg.ReadString (subkey.c_str(), L"DiskImage0", diskImage0);
+    if (hr != S_OK)
+    {
+        diskImage0.clear();
+    }
+    hr = reg.ReadString (subkey.c_str(), L"DiskImage1", diskImage1);
+    if (hr != S_OK)
+    {
+        diskImage1.clear();
+    }
+
+    if (!diskImage0.empty() || !diskImage1.empty())
+    {
+        std::string  narrow0;
+        std::string  narrow1;
+
+        narrow0.reserve (diskImage0.size());
+        for (wchar_t c : diskImage0)
+        {
+            narrow0.push_back ((char) (unsigned char) c);
+        }
+        narrow1.reserve (diskImage1.size());
+        for (wchar_t c : diskImage1)
+        {
+            narrow1.push_back ((char) (unsigned char) c);
+        }
+
+        lastMounted.emplace_back (JsonValue (narrow0));
+        lastMounted.emplace_back (JsonValue (narrow1));
+        root.emplace_back ("lastMountedImages", JsonValue (std::move (lastMounted)));
+        fHaveAnything = true;
+    }
+
+    if (!fHaveAnything)
+    {
+        // Clean registry — nothing to migrate.
+        return S_FALSE;
+    }
+
+    if (!uiPrefs.empty())
+    {
+        root.emplace_back ("$cassoUiPrefs", JsonValue (std::move (uiPrefs)));
+    }
+
+    opts.fPretty = true;
+    hr = JsonWriter::Write (JsonValue (std::move (root)), opts, text);
+    CHR (hr);
+
+    hr = fs.WriteAllText (path, text);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+

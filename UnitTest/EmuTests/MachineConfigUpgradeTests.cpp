@@ -416,4 +416,96 @@ public:
         Assert::AreEqual (input, migrated,
             L"Content must be returned unchanged.");
     }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  MigrateUserConfig — capabilityFlag default injection
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (MigrateUserConfig_InternalDevicesDefaultRequired)
+    {
+        string   input    = "{ \"$cassoMachineVersion\": 3,"
+                            "  \"internalDevices\": ["
+                            "    { \"type\": \"keyboard\" },"
+                            "    { \"type\": \"speaker\", \"capabilityFlag\": \"optional\" }"
+                            "  ] }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == S_OK,
+            L"Missing capabilityFlag in internalDevices must trigger migration.");
+        Assert::IsTrue (migrated.find ("\"capabilityFlag\": \"required\"") != string::npos,
+            L"Entry without an explicit flag must default to 'required'.");
+        Assert::IsTrue (migrated.find ("\"capabilityFlag\": \"optional\"") != string::npos,
+            L"Pre-existing 'optional' flag must be preserved.");
+    }
+
+
+    TEST_METHOD (MigrateUserConfig_SlotsDefaultOptional)
+    {
+        string   input    = "{ \"$cassoMachineVersion\": 3,"
+                            "  \"slots\": ["
+                            "    { \"slot\": 1 },"
+                            "    { \"slot\": 6, \"capabilityFlag\": \"platform-locked\" }"
+                            "  ] }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == S_OK);
+        Assert::IsTrue (migrated.find ("\"capabilityFlag\": \"optional\"") != string::npos,
+            L"slots[] entries without a flag must default to 'optional'.");
+        Assert::IsTrue (migrated.find ("\"capabilityFlag\": \"platform-locked\"") != string::npos,
+            L"Pre-existing slot lock-reason must be preserved.");
+    }
+
+
+    TEST_METHOD (MigrateUserConfig_BothKeysAndMissingFlags_AppliesAllChanges)
+    {
+        string   input    = "{ \"$cassoMachineVersion\": 3,"
+                            "  \"$cassoDefault\": 2,"
+                            "  \"internalDevices\": [ { \"type\": \"k\" } ],"
+                            "  \"slots\": [ { \"slot\": 1 } ] }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == S_OK);
+        Assert::IsTrue (migrated.find ("\"$cassoDefault\"")        == string::npos,
+            L"Legacy alias must be dropped when canonical is present.");
+        Assert::IsTrue (migrated.find ("\"$cassoMachineVersion\"") != string::npos);
+        Assert::IsTrue (migrated.find ("\"capabilityFlag\": \"required\"") != string::npos);
+        Assert::IsTrue (migrated.find ("\"capabilityFlag\": \"optional\"") != string::npos);
+    }
+
+
+    TEST_METHOD (MigrateUserConfig_CapabilityFlag_Idempotent)
+    {
+        string   input    = "{ \"$cassoMachineVersion\": 3,"
+                            "  \"internalDevices\": [ { \"type\": \"k\" } ] }";
+        string   first;
+        string   second;
+        HRESULT  hr1      = MachineConfigUpgrade::MigrateUserConfig (input, first);
+        HRESULT  hr2      = MachineConfigUpgrade::MigrateUserConfig (first, second);
+
+        Assert::IsTrue (hr1 == S_OK,
+            L"First pass injects the missing flag.");
+        Assert::IsTrue (hr2 == S_FALSE,
+            L"Second pass must report no-op once flag is present.");
+        Assert::AreEqual (first, second,
+            L"Second-pass output must be byte-for-byte identical to first.");
+    }
+
+
+    TEST_METHOD (MigrateUserConfig_UnparseableInput_E_INVALIDARG)
+    {
+        string   input    = "{\"unterminated\":";
+        string   migrated = "leftover sentinel";
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == E_INVALIDARG,
+            L"Unparseable input must be reported as E_INVALIDARG.");
+        Assert::IsTrue (migrated.empty(),
+            L"On failure outMigrated must be cleared.");
+    }
 };

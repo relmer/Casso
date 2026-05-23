@@ -3,6 +3,7 @@
 #include "MachineConfigUpgrade.h"
 #include "JsonParser.h"
 #include "JsonValue.h"
+#include "JsonWriter.h"
 
 
 
@@ -169,86 +170,243 @@ string MachineConfigUpgrade::BytesToHex (span<const uint8_t> bytes)
 //
 //  MigrateUserConfig
 //
-//  Per 007-ui-overhaul : rewrites the legacy "$cassoDefault" JSON
-//  key to the new "$cassoMachineVersion" name. The defaulting of
-//  capabilityFlag on internalDevices / slots entries is performed at
-//  load time by MachineConfigLoader (see LoadInternalDevices and
-//  LoadSlots), so the textual migration only has to handle the rename.
+//  JSON-aware single-pass migration of a per-machine `<Machine>_user.json`
+//  document. Handles two distinct schema concerns:
 //
-//  Algorithm: a single pass over the source string. We look for the
-//  exact byte sequence "\"$cassoDefault\"" and, if the next
-//  non-whitespace character is ':' (confirming it's used as an object
-//  key, not as a value), substitute "\"$cassoMachineVersion\"". The
-//  pass is idempotent because input that already uses the new key
-//  contains zero occurrences of the legacy token.
+//      1.  Version-stamp rename / canonicalization. The legacy key name
+//          was `$cassoDefault`. The canonical key is now
+//          `$cassoMachineVersion`. If only the legacy key is present, it
+//          is renamed. If both are present (a partially-migrated file),
+//          the canonical key wins and the legacy key is dropped — the
+//          authoritative source of truth is `$cassoMachineVersion`.
+//
+//      2.  `capabilityFlag` default injection on every object entry of
+//          `internalDevices[]` (default `"required"`) and `slots[]`
+//          (default `"optional"`). Existing flags are preserved.
+//
+//  The operation is idempotent: running it on an already-canonical
+//  document returns S_FALSE with `outMigrated` set to the input bytes
+//  verbatim. Returns S_OK when at least one change was applied (output
+//  is freshly serialized JSON, key order otherwise preserved). Returns
+//  E_INVALIDARG when the input fails to parse as JSON; `outMigrated`
+//  is left empty.
 //
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    constexpr const char *  s_kpszVersionKey         = "$cassoMachineVersion";
+    constexpr const char *  s_kpszLegacyVersionKey   = "$cassoDefault";
+    constexpr const char *  s_kpszCapabilityFlagKey  = "capabilityFlag";
+    constexpr const char *  s_kpszInternalDevicesKey = "internalDevices";
+    constexpr const char *  s_kpszSlotsKey           = "slots";
+    constexpr const char *  s_kpszInternalDefault    = "required";
+    constexpr const char *  s_kpszSlotDefault        = "optional";
+
+
+    int  FindKey (
+        const vector<pair<string, JsonValue>> & entries,
+        const string                          & key)
+    {
+        int  i = 0;
+
+        for (i = 0; i < (int) entries.size(); ++i)
+        {
+            if (entries[(size_t) i].first == key)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+
+    bool  EntryHasKey (
+        const JsonValue & entry,
+        const string    & key)
+    {
+        if (entry.GetType() != JsonType::Object)
+        {
+            return false;
+        }
+        return FindKey (entry.GetObjectEntries(), key) >= 0;
+    }
+
+
+    // Insert `capabilityFlag` on every object element of `arr` that
+    // lacks one. Returns true if any element was changed.
+    bool  InjectCapabilityFlag (
+        JsonValue   & arr,
+        const char  * defaultFlag)
+    {
+        vector<JsonValue>  rebuiltArr;
+        bool               fChanged = false;
+        size_t             i        = 0;
+
+
+
+        if (arr.GetType() != JsonType::Array)
+        {
+            return false;
+        }
+
+        rebuiltArr.reserve (arr.ArraySize());
+
+        for (i = 0; i < arr.ArraySize(); ++i)
+        {
+            const JsonValue & elem = arr.ArrayAt (i);
+
+            if (elem.GetType() != JsonType::Object ||
+                EntryHasKey (elem, s_kpszCapabilityFlagKey))
+            {
+                rebuiltArr.push_back (elem);
+                continue;
+            }
+
+            vector<pair<string, JsonValue>>  rebuilt = elem.GetObjectEntries();
+            rebuilt.emplace_back (s_kpszCapabilityFlagKey,
+                                  JsonValue (string (defaultFlag)));
+            rebuiltArr.emplace_back (JsonValue (std::move (rebuilt)));
+            fChanged = true;
+        }
+
+        if (fChanged)
+        {
+            arr = JsonValue (std::move (rebuiltArr));
+        }
+        return fChanged;
+    }
+
+
+    // Build a new top-level object, applying the version canonicalization
+    // rule in place. `outChanged` is set to true if anything moved.
+    JsonValue  RewriteTopLevel (
+        const JsonValue & root,
+        bool            & outChanged)
+    {
+        vector<pair<string, JsonValue>>  rebuilt;
+        const auto                     * entries        = &root.GetObjectEntries();
+        int                              idxCanonical   = -1;
+        int                              idxLegacy      = -1;
+        bool                             fHaveCanonical = false;
+        size_t                           i              = 0;
+
+
+
+        idxCanonical = FindKey (*entries, s_kpszVersionKey);
+        idxLegacy    = FindKey (*entries, s_kpszLegacyVersionKey);
+
+        // Canonicalization: drop legacy when canonical already present,
+        // rename legacy to canonical when only legacy is present.
+        fHaveCanonical = (idxCanonical >= 0);
+
+        rebuilt.reserve (entries->size());
+
+        for (i = 0; i < entries->size(); ++i)
+        {
+            const string    & key = (*entries)[i].first;
+            const JsonValue & val = (*entries)[i].second;
+
+            if (key == s_kpszVersionKey)
+            {
+                rebuilt.emplace_back (key, val);
+                continue;
+            }
+
+            if (key == s_kpszLegacyVersionKey)
+            {
+                if (fHaveCanonical)
+                {
+                    // Canonical already wrote — drop the legacy entry.
+                    outChanged = true;
+                    continue;
+                }
+
+                // Promote the legacy entry to the canonical key in place.
+                rebuilt.emplace_back (s_kpszVersionKey, val);
+                outChanged = true;
+                continue;
+            }
+
+            rebuilt.emplace_back (key, val);
+        }
+
+        return JsonValue (std::move (rebuilt));
+    }
+}
+
 
 HRESULT MachineConfigUpgrade::MigrateUserConfig (
     const string & content,
     string       & outMigrated)
 {
-    static constexpr string_view  s_kszLegacyKey = "\"$cassoDefault\"";
-    static constexpr string_view  s_kszNewKey    = "\"$cassoMachineVersion\"";
+    HRESULT              hr           = S_OK;
+    JsonValue            root;
+    JsonParseError       err;
+    JsonValue            rewritten;
+    bool                 fChanged     = false;
+    JsonWriter::Options  opts;
+    string               serialized;
+    int                  idxInternal  = -1;
+    int                  idxSlots     = -1;
 
-    HRESULT  hr             = S_OK;
-    size_t   readPos        = 0;
-    size_t   matchPos       = 0;
-    size_t   afterMatch     = 0;
-    size_t   peek           = 0;
-    bool     fAnyReplaced   = false;
 
 
+    outMigrated.clear();
 
-    outMigrated.clear ();
-    outMigrated.reserve (content.size () + 16);
+    hr = JsonParser::Parse (content, root, err);
+    BAIL_OUT_IF (FAILED (hr), E_INVALIDARG);
 
-    while (readPos < content.size ())
+    if (root.GetType() != JsonType::Object)
     {
-        matchPos = content.find (s_kszLegacyKey, readPos);
-
-        if (matchPos == string::npos)
-        {
-            outMigrated.append (content, readPos, string::npos);
-            break;
-        }
-
-        // Look past the legacy key to confirm the next non-whitespace
-        // character is ':' — i.e. the token is being used as an object
-        // key. Bare string values that happen to read "$cassoDefault"
-        // are left alone.
-        afterMatch = matchPos + s_kszLegacyKey.size ();
-        peek       = afterMatch;
-
-        while (peek < content.size ()
-               && (content[peek] == ' '  || content[peek] == '\t'
-               ||  content[peek] == '\r' || content[peek] == '\n'))
-        {
-            peek++;
-        }
-
-        if (peek < content.size () && content[peek] == ':')
-        {
-            outMigrated.append (content, readPos, matchPos - readPos);
-            outMigrated.append (s_kszNewKey);
-            readPos      = afterMatch;
-            fAnyReplaced = true;
-        }
-        else
-        {
-            outMigrated.append (content, readPos, afterMatch - readPos);
-            readPos = afterMatch;
-        }
+        hr = E_INVALIDARG;
+        CHR (hr);
     }
 
-    if (!fAnyReplaced)
+    rewritten = RewriteTopLevel (root, fChanged);
+
     {
-        // Idempotent path: nothing to do. Preserve byte-for-byte
-        // identity by returning the input unchanged and signalling
-        // S_FALSE.
+        vector<pair<string, JsonValue>>  rebuilt = rewritten.GetObjectEntries();
+
+        idxInternal = FindKey (rebuilt, s_kpszInternalDevicesKey);
+        if (idxInternal >= 0)
+        {
+            if (InjectCapabilityFlag (rebuilt[(size_t) idxInternal].second,
+                                      s_kpszInternalDefault))
+            {
+                fChanged = true;
+            }
+        }
+
+        idxSlots = FindKey (rebuilt, s_kpszSlotsKey);
+        if (idxSlots >= 0)
+        {
+            if (InjectCapabilityFlag (rebuilt[(size_t) idxSlots].second,
+                                      s_kpszSlotDefault))
+            {
+                fChanged = true;
+            }
+        }
+
+        rewritten = JsonValue (std::move (rebuilt));
+    }
+
+    if (!fChanged)
+    {
+        // No-op: hand the input bytes back verbatim so callers can
+        // detect "unchanged" via byte equality.
         outMigrated = content;
         hr          = S_FALSE;
+        goto Error;
     }
 
+    opts.fPretty = true;
+    hr = JsonWriter::Write (rewritten, opts, serialized);
+    CHR (hr);
+
+    outMigrated = std::move (serialized);
+    hr          = S_OK;
+
+Error:
     return hr;
 }

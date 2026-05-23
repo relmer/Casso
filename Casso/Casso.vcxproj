@@ -231,6 +231,8 @@
     <ClCompile Include="DiskSettings.cpp" />
     <ClCompile Include="AssetBootstrap.cpp" />
     <ClCompile Include="Config\Win32FileSystem.cpp" />
+    <ClCompile Include="Config\Win32RegistrySettings.cpp" />
+    <ClCompile Include="Config\WindowPlacementProfile.cpp" />
     <ClCompile Include="Config\UserConfigStore.cpp" />
     <ClCompile Include="Config\GlobalUserPrefs.cpp" />
     <ClCompile Include="Ui\TitleBarHitTest.cpp" />
@@ -282,7 +284,10 @@
     <ClInclude Include="DiskSettings.h" />
     <ClInclude Include="AssetBootstrap.h" />
     <ClInclude Include="Config\IFileSystem.h" />
+    <ClInclude Include="Config\IRegistrySettings.h" />
     <ClInclude Include="Config\Win32FileSystem.h" />
+    <ClInclude Include="Config\Win32RegistrySettings.h" />
+    <ClInclude Include="Config\WindowPlacementProfile.h" />
     <ClInclude Include="Config\UserConfigStore.h" />
     <ClInclude Include="Config\GlobalUserPrefs.h" />
     <ClInclude Include="Ui\TitleBarHitTest.h" />

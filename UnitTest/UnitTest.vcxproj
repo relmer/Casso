@@ -336,6 +336,18 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="..\Casso\Config\Win32RegistrySettings.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\RegistrySettings.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Config\WindowPlacementProfile.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="..\Casso\Config\GlobalUserPrefs.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
@@ -417,6 +429,7 @@
     <ClCompile Include="Casso\RichEditSquiggleTests.cpp" />
     <ClCompile Include="UiTests\UserConfigStoreTests.cpp" />
     <ClCompile Include="UiTests\GlobalUserPrefsTests.cpp" />
+    <ClCompile Include="UiTests\WindowPlacementProfileTests.cpp" />
     <ClCompile Include="UiTests\TitleBarHitTestTests.cpp" />
     <ClCompile Include="UiTests\TitleBarLayoutTests.cpp" />
     <ClCompile Include="UiTests\NavLayerTraceabilityTests.cpp" />
