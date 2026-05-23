@@ -57,6 +57,16 @@ Capture and review screenshots for each scenario below during validation:
 | M6 | Drive open state | Ejected disk state with door-open visual |
 | M7 | Apple II variants | Screenshots for Apple II, II+, IIe, and //c theme variants |
 
+## Disk ][ fidelity + sync acceptance checklist
+
+Use this focused checklist while validating US3:
+
+1. Insert a valid `.dsk/.nib/.woz/.po` image in Drive 1 and Drive 2.
+2. Confirm each insert animates **door closing** and transitions to mounted/present state.
+3. Start drive activity and verify spinning class + active LED while motor is running.
+4. Eject each drive and confirm **door opening** animation and empty-state classes.
+5. Verify door-open/door-close visuals and corresponding floppy audio cues begin within one frame.
+
 ## US1/US2 machine-scoped persistence notes
 
 Use this focused loop before full matrix capture:

@@ -60,6 +60,7 @@ struct DriveWidgetState
     std::atomic<bool> diskActive           { false };
     Door              doorState            = Door::Closed;
     int64_t           animationStartTimeMs = 0;
+    uint64_t          lastSyncEventId      = 0;
 
     // ---- UI-thread mutators (pure logic) ----------------------------
 

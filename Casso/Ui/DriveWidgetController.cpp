@@ -135,6 +135,7 @@ Error:
 void DriveWidgetController::UnloadDocument()
 {
     m_widgets.clear();
+    m_syncEvents.clear();
 
     if (m_pDoc != nullptr && m_pContext != nullptr)
     {
@@ -268,4 +269,35 @@ DriveWidgetElement *  DriveWidgetController::HitTest (int clientX, int clientY) 
     }
 
     return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PublishSyncEvent / ConsumeSyncEvents
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DriveWidgetController::PublishSyncEvent (int driveId,
+                                                  SyncAction action,
+                                                  int64_t timestampMs)
+{
+    DriveSyncEvent evt = {};
+    evt.eventId     = m_nextSyncEventId++;
+    evt.driveId     = driveId;
+    evt.action      = action;
+    evt.timestampMs = timestampMs;
+    m_syncEvents.push_back (evt);
+    return evt.eventId;
+}
+
+
+std::vector<DriveWidgetController::DriveSyncEvent> DriveWidgetController::ConsumeSyncEvents ()
+{
+    std::vector<DriveSyncEvent> out;
+    out.swap (m_syncEvents);
+    return out;
 }

@@ -2393,6 +2393,10 @@ HRESULT EmulatorShell::MountDiskInSlot6 (int drive, const string & path)
         static_cast<size_t> (drive) < m_diskAudioSources.size() &&
         m_diskAudioSources[drive] != nullptr)
     {
+        m_wasapiAudio.RecordDriveDoorSyncEvent (drive, NowMs());
+        m_driveWidgets.PublishSyncEvent (drive,
+                                         DriveWidgetController::SyncAction::DoorClose,
+                                         NowMs());
         m_diskAudioSources[drive]->OnDiskInserted();
     }
 
@@ -2448,6 +2452,10 @@ void EmulatorShell::EjectDiskInSlot6 (int drive)
         static_cast<size_t> (drive) < m_diskAudioSources.size() &&
         m_diskAudioSources[drive] != nullptr)
     {
+        m_wasapiAudio.RecordDriveDoorSyncEvent (drive, NowMs());
+        m_driveWidgets.PublishSyncEvent (drive,
+                                         DriveWidgetController::SyncAction::DoorOpen,
+                                         NowMs());
         m_diskAudioSources[drive]->OnDiskEjected();
     }
 }
@@ -2624,6 +2632,7 @@ void EmulatorShell::UpdateDriveWidgets()
 {
     DiskIIController *  controller = m_refs.diskController;
     int64_t             nowMs      = NowMs();
+    std::vector<DriveWidgetController::DriveSyncEvent> syncEvents = m_driveWidgets.ConsumeSyncEvents();
     int                 drive      = 0;
 
 
@@ -2631,6 +2640,14 @@ void EmulatorShell::UpdateDriveWidgets()
     for (drive = 0; drive < static_cast<int> (m_driveWidgetState.size()); drive++)
     {
         DriveWidgetState &  st = m_driveWidgetState[drive];
+
+        for (const auto & evt : syncEvents)
+        {
+            if (evt.driveId == drive)
+            {
+                st.lastSyncEventId = evt.eventId;
+            }
+        }
 
         // mountedImagePath -- single writer (UI thread), source of
         // truth is the DiskImageStore. Reflect door FSM transitions

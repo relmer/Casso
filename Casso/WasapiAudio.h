@@ -41,6 +41,8 @@ public:
         uint32_t                        numSamplesToGenerate,
         DriveAudioMixer *               driveMixer        = nullptr,
         uint64_t                        currentCycleCount = 0);
+    void    RecordDriveDoorSyncEvent (int drive, int64_t timestampMs);
+    int64_t GetLastDriveDoorSyncEventMs (int drive) const;
 
     bool IsInitialized() const { return m_initialized; }
     UINT32 GetSampleRate() const { return m_sampleRate; }
@@ -68,8 +70,8 @@ private:
     // to avoid per-frame allocation.
     vector<float> m_speakerScratch;
     vector<float> m_driveScratch;
+    std::array<int64_t, 2> m_lastDriveDoorSyncMs { 0, 0 };
 };
-
 
 
 

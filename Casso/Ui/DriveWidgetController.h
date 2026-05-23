@@ -52,6 +52,22 @@
 class DriveWidgetController
 {
 public:
+    enum class SyncAction
+    {
+        DoorOpen,
+        DoorClose,
+        SpinStart,
+        SpinStop,
+    };
+
+    struct DriveSyncEvent
+    {
+        uint64_t   eventId     = 0;
+        int        driveId     = 0;
+        SyncAction action      = SyncAction::DoorOpen;
+        int64_t    timestampMs = 0;
+    };
+
     static constexpr int  kMaxWidgets = 4;  // headroom for >2-drive future configs
 
 
@@ -66,6 +82,8 @@ public:
     void                 UnloadDocument    ();
     void                 SyncFromStates    (const std::array<DriveWidgetState, 2> & states);
     DriveWidgetElement * HitTest           (int clientX, int clientY) const;
+    uint64_t             PublishSyncEvent  (int driveId, SyncAction action, int64_t timestampMs);
+    std::vector<DriveSyncEvent> ConsumeSyncEvents ();
 
     // Diagnostic accessors -- exposed for tests + sanity logging.
     size_t               GetWidgetCount    () const { return m_widgets.size(); }
@@ -78,4 +96,6 @@ private:
     Rml::ElementDocument  * m_pDoc       = nullptr;
 
     std::vector<DriveWidgetElement *>  m_widgets;
+    std::vector<DriveSyncEvent>        m_syncEvents;
+    uint64_t                           m_nextSyncEventId = 1;
 };
