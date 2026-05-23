@@ -74,6 +74,34 @@ static constexpr bool     s_kEnableDriveWidgets  = false;
 static constexpr int      s_kTitleBarHeightPx    = 32;
 static constexpr int      s_kNavStripHeightDp    = 28;
 
+static WORD ResolveMachineSpeedCommand (const JsonValue & mergedJson)
+{
+    const JsonValue * uiPrefs = nullptr;
+    std::string       speed;
+
+
+    if (mergedJson.GetType() != JsonType::Object)
+    {
+        return 0;
+    }
+
+    if (FAILED (mergedJson.GetObject ("$cassoUiPrefs", uiPrefs)) || uiPrefs == nullptr)
+    {
+        return 0;
+    }
+
+    if (FAILED (uiPrefs->GetString ("speedMode", speed)))
+    {
+        return 0;
+    }
+
+    if (speed == "authentic") return IDM_MACHINE_SPEED_1X;
+    if (speed == "double")    return IDM_MACHINE_SPEED_2X;
+    if (speed == "maximum")   return IDM_MACHINE_SPEED_MAX;
+
+    return 0;
+}
+
 
 
 
@@ -465,16 +493,12 @@ EmulatorShell::~EmulatorShell()
     hrFlush = m_diskStore.FlushAll();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
-    // Tear down the UiShell BEFORE D3DRenderer so the backend
-    // can release its GPU resources while the device is still alive.
-    // Also clear the after-blit hook so any in-flight present
-    // doesn't try to call into a dead shell.
+    // Native-only ownership teardown.
     m_d3dRenderer.SetAfterBlitHook (nullptr);
     m_dragDropTarget.Shutdown();
     m_driveWidgets.UnloadDocument();
     m_navLayer.Hide();
     m_titleBar.Hide();
-    m_uiShell.Shutdown();
 
     m_d3dRenderer.Shutdown();
 
@@ -563,123 +587,8 @@ HRESULT EmulatorShell::Initialize (
     hr = m_d3dRenderer.Initialize (m_renderHwnd, kFramebufferWidth, kFramebufferHeight);
     CHR (hr);
 
-    // Bring up the RmlUi shell on top of the live D3D11
-    // device. Parallel-mode — Win32 menus / dialogs stay live;
-    // the shell only adds an overlay composite pass via the
-    // after-blit hook installed below. If shell init fails we log
-    // and continue rather than aborting the whole emulator window —
-    // RmlUi-driven chrome is non-essential for emulation itself.
-    {
-        HRESULT hrUi = m_uiShell.Initialize (m_d3dRenderer, m_renderHwnd, &m_uiFs);
-
-        if (SUCCEEDED (hrUi))
-        {
-            m_d3dRenderer.SetAfterBlitHook ([this] { m_uiShell.Render(); });
-
-            if (m_statusBar != nullptr)
-            {
-                ShowWindow (m_statusBar, SW_HIDE);
-            }
-
-            // Stand up the custom title bar + nav
-            // layer on the shell's context. Both are best-effort —
-            // failing to load the inline RML shouldn't abort the
-            // emulator window (it just means the chrome doesn't
-            // render until P5 themes land).
-            HRESULT hrTb = m_titleBar.Show (m_uiShell.GetContext());
-            IGNORE_RETURN_VALUE (hrTb, S_OK);
-
-            HRESULT hrNav = m_navLayer.Show (m_uiShell.GetContext(),
-                                              [this] (WORD id) { HandleCommand (id); });
-            IGNORE_RETURN_VALUE (hrNav, S_OK);
-
-            // Temporary simplification while chrome layout is stabilized:
-            // keep drive widgets disabled so title/nav overlap issues can
-            // be debugged in isolation.
-            if (s_kEnableDriveWidgets)
-            {
-                // P6 -- register the <drive-widget> element factory + load
-                // the active theme's drive_widgets.rml so the widgets exist
-                // in the context. Both are best-effort: the chrome still
-                // renders if the theme's drive panel is missing.
-                m_driveWidgets.RegisterInstancer();
-
-                {
-                    fs::path  themeDir  = PathResolver::GetExecutableDirectory()
-                                          / L"Themes" / L"Skeuomorphic";
-                    fs::path  driveRml  = themeDir / L"drive_widgets.rml";
-                    string    driveRmlS = driveRml.string();
-
-                    HRESULT  hrDw = m_driveWidgets.LoadDocument (m_uiShell.GetContext(),
-                                                                  driveRmlS,
-                                                                  this,
-                                                                  m_hwnd);
-                    IGNORE_RETURN_VALUE (hrDw, S_OK);
-                }
-
-                // P6 -- single main-window IDropTarget. Hit-tests dropped
-                // files against the cached drive widgets via the controller.
-                if (m_fOleInitialized)
-                {
-                    HRESULT  hrDd = m_dragDropTarget.Initialize (
-                        m_hwnd,
-                        [this] (int screenX, int screenY) -> DriveWidgetElement *
-                        {
-                            POINT  pt = { screenX, screenY };
-
-                            if (!ScreenToClient (m_hwnd, &pt))
-                            {
-                                return nullptr;
-                            }
-
-                            return m_driveWidgets.HitTest (pt.x, pt.y);
-                        });
-                    IGNORE_RETURN_VALUE (hrDd, S_OK);
-                }
-            }
-
-            // P7 -- ThemeManager + UserConfigStore + GlobalUserPrefs
-            // backing the consolidated Settings panel. All
-            // best-effort: failing to discover themes or load prefs
-            // leaves the panel inoperative but doesn't abort window
-            // bring-up.
-            {
-                fs::path       exeDir     = PathResolver::GetExecutableDirectory();
-                std::wstring   themesDir  = (exeDir / L"Themes").wstring();
-                std::wstring   userDir    = exeDir.wstring();
-
-                m_themeManager    = std::make_unique<ThemeManager>    (m_uiFs, themesDir);
-                m_userConfigStore = std::make_unique<UserConfigStore> (userDir);
-
-                HRESULT  hrDisc = m_themeManager->Discover();
-                IGNORE_RETURN_VALUE (hrDisc, S_OK);
-
-                m_themeManager->BindRml (m_uiShell.GetContext(), m_hwnd);
-
-                HRESULT  hrPrefs = m_globalPrefs.Load (exeDir.wstring(), m_uiFs);
-                IGNORE_RETURN_VALUE (hrPrefs, S_FALSE);
-
-                if (! m_globalPrefs.activeTheme.empty())
-                {
-                    HRESULT  hrAct = m_themeManager->Activate (m_globalPrefs.activeTheme);
-                    IGNORE_RETURN_VALUE (hrAct, S_FALSE);
-                }
-
-                HRESULT  hrSp = m_settingsPanel.Initialize (
-                    m_uiShell,
-                    *m_userConfigStore,
-                    m_globalPrefs,
-                    *m_themeManager,
-                    *this,
-                    m_uiFs);
-                IGNORE_RETURN_VALUE (hrSp, S_OK);
-            }
-        }
-        else
-        {
-            OutputDebugStringA ("[EmulatorShell] UiShell::Initialize failed; continuing without RmlUi overlay.\n");
-        }
-    }
+    // Native-only bootstrap baseline (T006): retire legacy Rml overlay
+    // ownership from startup. Keep existing command/menu path active.
 
     // WASAPI audio is initialized on the CPU thread (COM apartment requirement)
 
@@ -2944,13 +2853,7 @@ void EmulatorShell::ShowMachinePicker()
     // `SettingsPanelState::Apply` on commit. Old entry points
     // (`IDM_FILE_OPEN`, status-bar machine cell) funnel here so they
     // keep working with no behavioural surprise to the user.
-    if (!m_settingsPanel.IsVisible() && m_uiShell.GetContext() == nullptr)
-    {
-        return;
-    }
-
-    HRESULT  hrShow = m_settingsPanel.Show();
-    IGNORE_RETURN_VALUE (hrShow, S_OK);
+    OutputDebugStringA ("[EmulatorShell] ShowMachinePicker unavailable in native-only baseline.\n");
 }
 
 
@@ -2978,6 +2881,10 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     string              error;
     MachineConfig       newConfig;
     string              machineNameNarrow = fs::path (machineName).string();
+    JsonValue           defaultJson;
+    JsonValue           mergedJson;
+    JsonParseError      parseErr;
+    WORD                speedCmd = 0;
 
 
 
@@ -3001,6 +2908,18 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
 
     ss << configFile.rdbuf();
     jsonText = ss.str();
+
+    if (SUCCEEDED (JsonParser::Parse (jsonText, defaultJson, parseErr)) &&
+        m_userConfigStore != nullptr)
+    {
+        if (SUCCEEDED (m_userConfigStore->Load (machineNameNarrow,
+                                                defaultJson,
+                                                m_uiFs,
+                                                mergedJson)))
+        {
+            speedCmd = ResolveMachineSpeedCommand (mergedJson);
+        }
+    }
 
     romSearchPaths.push_back (configPath.parent_path().parent_path().parent_path());
 
@@ -3130,6 +3049,11 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     // machine was active. Empty paths fall through harmlessly so a
     // never-used machine won't try to mount anything.
     MountCommandLineDisks (string(), string());
+
+    if (speedCmd != 0)
+    {
+        HandleCommand (speedCmd);
+    }
 
 Error:
     return hr;
@@ -4178,11 +4102,6 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
 
     m_d3dRenderer.Resize (static_cast<int> (width), renderH);
 
-    // Propagate the new client size to the RmlUi context + backend
-    // so the projection matrix and Rml::Context::Render fit the
-    // new viewport.
-    m_uiShell.OnResize (static_cast<int> (width), renderH);
-
     // P4: keep the borderless title-bar geometry cache in sync so the
     // WM_NCHITTEST helper hands the OS the right button rects after a
     // resize / DPI change.
@@ -4713,12 +4632,7 @@ void EmulatorShell::OnViewCommand (int id)
 
         case IDM_VIEW_SETTINGS:
         {
-            // P7 -- consolidated RmlUi Settings panel. Non-modal;
-            // emulator continues running while open (FR-041). The
-            // panel reuses our existing UiShell context + the active
-            // theme's settings.rml + RCSS.
-            HRESULT  hrShow = m_settingsPanel.Show();
-            IGNORE_RETURN_VALUE (hrShow, S_OK);
+            ShowMachinePicker();
             break;
         }
     }

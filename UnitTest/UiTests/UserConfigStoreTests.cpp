@@ -68,11 +68,11 @@ public:
 
     TEST_METHOD (Merge_Array_Replaces_Wholesale)
     {
-        JsonValue   d = ParseOrFail ("{\"slots\":[1,2,3]}");
-        JsonValue   u = ParseOrFail ("{\"slots\":[9]}");
+        JsonValue   d = ParseOrFail ("{\"arr\":[1,2,3]}");
+        JsonValue   u = ParseOrFail ("{\"arr\":[9]}");
         JsonValue   m = UserConfigStore::MergeJson (d, u);
 
-        Assert::IsTrue (UserConfigStore::JsonEqual (ParseOrFail ("{\"slots\":[9]}"), m));
+        Assert::IsTrue (UserConfigStore::JsonEqual (ParseOrFail ("{\"arr\":[9]}"), m));
     }
 
 
@@ -256,5 +256,129 @@ public:
         // After migration the legacy key should be gone.
         Assert::IsTrue (afterLoad.find ("$cassoDefault") == std::string::npos);
         Assert::IsTrue (afterLoad.find ("$cassoMachineVersion") != std::string::npos);
+    }
+
+
+    TEST_METHOD (Merge_HardwareEnableDelta_OverlaysDefaultArrays)
+    {
+        JsonValue d = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "internalDevices": [
+                { "type": "keyboard", "capabilityFlag": "required", "enabled": true }
+            ],
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "enabled": true }
+            ]
+        })JSON");
+
+        JsonValue u = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "internalDevices": [
+                { "type": "keyboard", "enabled": false }
+            ],
+            "slots": [
+                { "slot": 6, "enabled": false }
+            ]
+        })JSON");
+
+        JsonValue m = UserConfigStore::MergeJson (d, u);
+        JsonValue expected = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "internalDevices": [
+                { "type": "keyboard", "capabilityFlag": "required", "enabled": false }
+            ],
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "enabled": false }
+            ]
+        })JSON");
+
+        Assert::IsTrue (UserConfigStore::JsonEqual (expected, m));
+    }
+
+
+    TEST_METHOD (Diff_HardwareEnableDelta_EmitsMinimalComponentShape)
+    {
+        JsonValue d = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "internalDevices": [
+                { "type": "keyboard", "capabilityFlag": "required", "enabled": true }
+            ],
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "enabled": true }
+            ]
+        })JSON");
+
+        JsonValue c = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "internalDevices": [
+                { "type": "keyboard", "capabilityFlag": "required", "enabled": false }
+            ],
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "enabled": false }
+            ]
+        })JSON");
+
+        JsonValue diff = UserConfigStore::DiffJson (c, d);
+        const JsonValue * internal = nullptr;
+        const JsonValue * slots    = nullptr;
+
+        Assert::IsTrue (SUCCEEDED (diff.GetArray ("internalDevices", internal)));
+        Assert::IsTrue (SUCCEEDED (diff.GetArray ("slots", slots)));
+        Assert::AreEqual<size_t> (1u, internal->ArraySize());
+        Assert::AreEqual<size_t> (1u, slots->ArraySize());
+        const JsonValue & int0  = internal->ArrayAt (0);
+        const JsonValue & slot0 = slots->ArrayAt (0);
+        Assert::AreEqual<size_t> (2u, int0.GetObjectEntries().size());
+        Assert::AreEqual<size_t> (2u, slot0.GetObjectEntries().size());
+    }
+
+
+    TEST_METHOD (Diff_UiPrefs_UsesImplicitDefaultsForSpeedShadowing)
+    {
+        JsonValue d = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "name": "Apple2e"
+        })JSON");
+
+        JsonValue c = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "name": "Apple2e",
+            "$cassoUiPrefs": {
+                "speedMode": "double",
+                "colorMode": "color",
+                "floppySoundEnabled": true,
+                "floppyMechanism": "shugart",
+                "writeProtect": [ false, false ]
+            }
+        })JSON");
+
+        JsonValue diff = UserConfigStore::DiffJson (c, d);
+        const JsonValue * ui = nullptr;
+
+        Assert::IsTrue (SUCCEEDED (diff.GetObject ("$cassoUiPrefs", ui)));
+        Assert::IsTrue (ui != nullptr);
+        Assert::AreEqual<size_t> (1u, ui->GetObjectEntries().size());
+        Assert::AreEqual (string ("speedMode"), ui->GetObjectEntries()[0].first);
+    }
+
+
+    TEST_METHOD (Merge_SpeedShadow_PreservesDefaultFallthroughFields)
+    {
+        JsonValue d = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "newField": { "fromDefault": true }
+        })JSON");
+        JsonValue u = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "$cassoUiPrefs": { "speedMode": "maximum" }
+        })JSON");
+
+        JsonValue m = UserConfigStore::MergeJson (d, u);
+        const JsonValue * nf = nullptr;
+        const JsonValue * ui = nullptr;
+
+        Assert::IsTrue (SUCCEEDED (m.GetObject ("newField", nf)));
+        Assert::IsTrue (SUCCEEDED (m.GetObject ("$cassoUiPrefs", ui)));
+        Assert::AreEqual (std::string ("maximum"), ui->GetObjectEntries()[0].second.GetString());
     }
 };

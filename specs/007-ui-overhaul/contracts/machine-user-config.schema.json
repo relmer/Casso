@@ -12,36 +12,35 @@
       "minimum": 1,
       "description": "Schema version of the user file. MachineConfigUpgrade runs if lower than the default JSON's version."
     },
-    "speedMode": {
-      "type": "string",
-      "enum": ["Authentic", "Double", "Maximum"]
-    },
-    "videoColorMode": {
-      "type": "string",
-      "enum": ["Color", "Green", "Amber", "White"]
-    },
-    "writeProtect": {
-      "oneOf": [
-        { "type": "boolean", "description": "Global write-protect for all drives" },
-        {
-          "type": "object",
-          "patternProperties": {
-            "^drive[0-9]+$": { "type": "boolean" }
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
-    "floppySound": {
+    "$cassoUiPrefs": {
       "type": "object",
+      "description": "Machine-scoped UI preferences persisted from SettingsPanelState. Fields omitted here fall through to implicit defaults in code (authentic/color/shugart/writeProtect=false).",
       "additionalProperties": false,
       "properties": {
-        "enabled":   { "type": "boolean" },
-        "mechanism": { "type": "string" }
+        "speedMode": {
+          "type": "string",
+          "enum": ["authentic", "double", "maximum"]
+        },
+        "colorMode": {
+          "type": "string",
+          "enum": ["color", "green", "amber", "white"]
+        },
+        "floppySoundEnabled": { "type": "boolean" },
+        "floppyMechanism": {
+          "type": "string",
+          "enum": ["shugart", "alps"]
+        },
+        "writeProtect": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "boolean" }
+        }
       }
     },
     "internalDevices": {
       "type": "array",
+      "description": "Enable-state delta only. Entries identify component by `type` and override only `enabled`; other component fields fall through to default machine JSON.",
       "items": {
         "type": "object",
         "required": ["type", "enabled"],
@@ -54,6 +53,7 @@
     },
     "slots": {
       "type": "array",
+      "description": "Enable-state delta only. Entries identify slot by `slot` and override only `enabled`; device/rom/capability metadata remain in default machine JSON.",
       "items": {
         "type": "object",
         "required": ["slot", "enabled"],

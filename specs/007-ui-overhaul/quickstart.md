@@ -56,3 +56,18 @@ Capture and review screenshots for each scenario below during validation:
 | M5 | Drive closed state | Mounted disk state with door-closed visual |
 | M6 | Drive open state | Ejected disk state with door-open visual |
 | M7 | Apple II variants | Screenshots for Apple II, II+, IIe, and //c theme variants |
+
+## US1/US2 machine-scoped persistence notes
+
+Use this focused loop before full matrix capture:
+
+1. Open Settings with at least two machines in the selector.
+2. For machine A, set speed to **Maximum**, apply.
+3. Switch to machine B and confirm speed immediately reflects machine B's prior value (not machine A's).
+4. Toggle one optional hardware component on machine B, apply, confirm reset prompt appears, and reset is dispatched.
+5. Switch back to machine A and confirm machine A speed/component states are unchanged.
+
+Expected persistence artifacts:
+
+- `<MachineName>_user.json` stores speed under `$cassoUiPrefs.speedMode`.
+- Hardware toggles persist as enable-state deltas in `internalDevices[]` / `slots[]` (`type|slot` + `enabled` only).

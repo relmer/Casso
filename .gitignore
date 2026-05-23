@@ -392,3 +392,11 @@ Devices/
 Thumbs.db
 .env*
 *.swp
+
+# Native C/C++ build artifacts (explicit cross-tooling patterns)
+build/
+*.o
+*.so
+*.a
+*.exe
+*.dll

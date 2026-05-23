@@ -479,6 +479,11 @@ HRESULT SettingsPanel::RebindToMachine (const std::string & machineName)
     hr = m_state.LoadFromMachine (machineName, defJson, merged);
     CHR (hr);
 
+    if (m_prefs != nullptr)
+    {
+        m_prefs->lastSelectedMachine = machineName;
+    }
+
     if (m_doc != nullptr)
     {
         RebuildHardwareTree (m_doc);
@@ -529,6 +534,12 @@ void SettingsPanel::RebuildHardwareTree (Rml::ElementDocument * doc)
         std::string  rowClass = "hw-row " + CapabilityCss (e.capability);
         std::string  rowId    = "hw-row-" + std::to_string (i);
         std::string  cbId     = "hw-cb-"  + std::to_string (i);
+        std::string  lockTip;
+
+        if (e.capability == CapabilityFlag::PlatformLocked && ! e.lockReason.empty())
+        {
+            lockTip = e.lockReason;
+        }
 
         html += "<div class=\"" + rowClass + "\" id=\"" + rowId + "\">";
 
@@ -536,10 +547,13 @@ void SettingsPanel::RebuildHardwareTree (Rml::ElementDocument * doc)
         html += " data-hw-index=\"" + std::to_string (i) + "\"";
         if (checked)     html += " checked=\"checked\"";
         if (!interactive) html += " disabled=\"disabled\"";
+        if (!lockTip.empty()) html += " title=\"" + lockTip + "\"";
         html += " tabindex=\"0\"/>";
 
         html += "<label for=\"" + cbId + "\" class=\"hw-label\">";
+        if (!lockTip.empty()) html += "<span title=\"" + lockTip + "\">";
         html += e.displayName;
+        if (!lockTip.empty()) html += "</span>";
         html += "</label>";
 
         if (e.capability == CapabilityFlag::PlatformLocked && ! e.lockReason.empty())
@@ -799,7 +813,10 @@ void SettingsPanel::ProcessEvent (Rml::Event & event)
         Rml::String value = target->GetAttribute<Rml::String> ("value", "");
         if (! value.empty())
         {
-            (void) RebindToMachine (std::string (value.c_str()));
+            if (FAILED (RebindToMachine (std::string (value.c_str()))))
+            {
+                target->SetAttribute ("value", m_state.MachineName());
+            }
         }
         return;
     }

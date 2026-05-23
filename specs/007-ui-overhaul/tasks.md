@@ -22,16 +22,16 @@
 
 **⚠️ CRITICAL**: No user story work starts until this phase is complete.
 
-- [ ] T006 Implement native-only UI ownership bootstrap and routing in C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp
-- [ ] T007 Remove Rml project wiring from solution in C:\Users\relmer\repos\relmer\Casso\Casso.sln
-- [ ] T008 Remove Rml includes/compile units/project references from app build in C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj
-- [ ] T009 Remove Rml includes/compile units/project references from tests build in C:\Users\relmer\repos\relmer\Casso\UnitTest\UnitTest.vcxproj
-- [ ] T010 Delete obsolete Rml runtime files in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlBackend_D3D11.cpp
-- [ ] T011 [P] Delete obsolete Rml runtime files in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlInputBridge.cpp
-- [ ] T012 [P] Delete obsolete Rml runtime files in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlSystemInterface.cpp
-- [ ] T013 [P] Delete obsolete Rml runtime files in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\UiShell.cpp
-- [ ] T014 [P] Delete obsolete Rml-era UI tests in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\RmlBackendSmokeTests.cpp
-- [ ] T015 Add UT isolation guards for registry/filesystem/environment access in C:\Users\relmer\repos\relmer\Casso\UnitTest\ModuleSetup.cpp
+- [X] T006 Implement native-only UI ownership bootstrap and routing in C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp
+- [X] T007 Remove Rml project wiring from solution in C:\Users\relmer\repos\relmer\Casso\Casso.sln
+- [X] T008 Remove Rml includes/compile units/project references from app build in C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj
+- [X] T009 Remove Rml includes/compile units/project references from tests build in C:\Users\relmer\repos\relmer\Casso\UnitTest\UnitTest.vcxproj
+- [X] T010 Delete obsolete Rml runtime files in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlBackend_D3D11.cpp
+- [X] T011 [P] Delete obsolete Rml runtime files in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlInputBridge.cpp
+- [X] T012 [P] Delete obsolete Rml runtime files in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\RmlSystemInterface.cpp
+- [X] T013 [P] Delete obsolete Rml runtime files in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\UiShell.cpp
+- [X] T014 [P] Delete obsolete Rml-era UI tests in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\RmlBackendSmokeTests.cpp
+- [X] T015 Add UT isolation guards for registry/filesystem/environment access in C:\Users\relmer\repos\relmer\Casso\UnitTest\ModuleSetup.cpp
 
 **Checkpoint**: Native-only ownership/build baseline is in place and legacy runtime/build paths are removed.
 
@@ -43,13 +43,13 @@
 
 **Independent Test**: Open settings with 2+ machines, switch machines, verify controls update within one frame and speed changes stay machine-specific.
 
-- [ ] T016 [P] [US1] Add machine-switch + speed persistence unit coverage in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\SettingsPanelStateTests.cpp
-- [ ] T017 [P] [US1] Add user-config speed shadow/fallthrough coverage in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\UserConfigStoreTests.cpp
-- [ ] T018 [US1] Implement machine-selector state swap logic in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanelState.cpp
-- [ ] T019 [US1] Implement settings UI refresh-on-machine-change wiring in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanel.cpp
-- [ ] T020 [US1] Implement per-machine speed apply/commit path in C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp
-- [ ] T021 [US1] Integrate speed apply path with runtime shell command dispatch in C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp
-- [ ] T022 [US1] Verify machine/scoped speed requirements and test notes in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\quickstart.md
+- [X] T016 [P] [US1] Add machine-switch + speed persistence unit coverage in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\SettingsPanelStateTests.cpp
+- [X] T017 [P] [US1] Add user-config speed shadow/fallthrough coverage in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\UserConfigStoreTests.cpp
+- [X] T018 [US1] Implement machine-selector state swap logic in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanelState.cpp
+- [X] T019 [US1] Implement settings UI refresh-on-machine-change wiring in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanel.cpp
+- [X] T020 [US1] Implement per-machine speed apply/commit path in C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp
+- [X] T021 [US1] Integrate speed apply path with runtime shell command dispatch in C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp
+- [X] T022 [US1] Verify machine/scoped speed requirements and test notes in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\quickstart.md
 
 **Checkpoint**: US1 is independently functional and testable.
 
@@ -61,13 +61,13 @@
 
 **Independent Test**: Disable Disk II controller via settings tree, apply+reset to verify removal; re-enable and verify restoration.
 
-- [ ] T023 [P] [US2] Add hardware capability flag extraction tests in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\HardwareTreeTests.cpp
-- [ ] T024 [P] [US2] Add hardware enable/disable persistence tests in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\UserConfigStoreTests.cpp
-- [ ] T025 [US2] Implement capability-flag mapping and lock-reason handling in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanelState.cpp
-- [ ] T026 [US2] Implement hardware tree checkbox interactivity + tooltip behavior in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanel.cpp
-- [ ] T027 [US2] Implement component enable-state delta persistence in C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp
-- [ ] T028 [US2] Integrate component-apply reset prompt + command dispatch in C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp
-- [ ] T029 [US2] Align machine user config contract notes for component toggles in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\contracts\machine-user-config.schema.json
+- [X] T023 [P] [US2] Add hardware capability flag extraction tests in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\HardwareTreeTests.cpp
+- [X] T024 [P] [US2] Add hardware enable/disable persistence tests in C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\UserConfigStoreTests.cpp
+- [X] T025 [US2] Implement capability-flag mapping and lock-reason handling in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanelState.cpp
+- [X] T026 [US2] Implement hardware tree checkbox interactivity + tooltip behavior in C:\Users\relmer\repos\relmer\Casso\Casso\Ui\SettingsPanel.cpp
+- [X] T027 [US2] Implement component enable-state delta persistence in C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp
+- [X] T028 [US2] Integrate component-apply reset prompt + command dispatch in C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp
+- [X] T029 [US2] Align machine user config contract notes for component toggles in C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\contracts\machine-user-config.schema.json
 
 **Checkpoint**: US2 is independently functional and testable.
 

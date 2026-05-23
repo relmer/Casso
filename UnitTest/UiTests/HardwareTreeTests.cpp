@@ -115,6 +115,26 @@ public:
     }
 
 
+    TEST_METHOD (Extract_UnknownCapability_FallsBackToKindDefault)
+    {
+        const char * j = R"JSON({
+            "internalDevices": [
+                { "type": "keyboard", "capabilityFlag": "bogus" }
+            ],
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "capabilityFlag": "bogus" }
+            ]
+        })JSON";
+
+        std::vector<HardwareEntry> out;
+        SettingsPanelState::ExtractHardware (ParseOrFail (j), out);
+
+        Assert::AreEqual<size_t> (2u, out.size());
+        Assert::IsTrue (out[0].capability == CapabilityFlag::Required);
+        Assert::IsTrue (out[1].capability == CapabilityFlag::Optional);
+    }
+
+
     TEST_METHOD (Extract_PreservesInternalThenSlotOrdering)
     {
         // Verifies the renderer's traversal order -- internal devices

@@ -350,6 +350,29 @@ public:
     }
 
 
+    TEST_METHOD (MachineSwitch_SpeedEditsStayMachineScoped)
+    {
+        SettingsPanelState  st;
+        JsonValue           machineA = ParseOrFail (kFixtureJson);
+        JsonValue           machineB = ParseOrFail (kFixtureJsonWithFlags);
+        RecordingSink       sink;
+        JsonValue           outA;
+
+        st.LoadFromMachine ("machineA", machineA, machineA);
+        st.SetSpeedMode (SettingsSpeedMode::Maximum);
+        Assert::IsTrue (SUCCEEDED (st.Apply (sink, outA)));
+
+        // Rebind to machineB merged data that still carries "double".
+        st.LoadFromMachine ("machineB", machineB, machineB);
+        Assert::IsTrue (st.Prefs().speedMode == SettingsSpeedMode::Double);
+
+        // Rebind back to machineA using the applied JSON snapshot and
+        // verify it restores machineA's saved speed only.
+        st.LoadFromMachine ("machineA", machineA, outA);
+        Assert::IsTrue (st.Prefs().speedMode == SettingsSpeedMode::Maximum);
+    }
+
+
     TEST_METHOD (BuildJson_PreservesUnrelatedKeys)
     {
         // Build a JSON with a custom unknown field; ensure it survives.
