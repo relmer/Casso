@@ -119,10 +119,56 @@ Single synchronization event payload used by both animation and audio:
 Contract: animation and sound consumers must start from the same event id and
 remain within one rendered frame of each other.
 
+## Entity: HardwareComponentEntry (new persisted/view state)
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `type` | `string` | Component registry type key |
+| `displayName` | `string` | Human-readable tree label |
+| `capabilityFlag` | enum | `optional`, `required`, or `platform-locked` |
+| `lockReason` | `string` | Optional tooltip text for platform-locked entries |
+| `enabled` | bool | Current staged enable-state |
+
+## Entity: SettingsPanelState (new transient state)
+
+Transient in-memory snapshot of unapplied Settings selections. It is discarded
+on Cancel and persisted only on Apply.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `selectedMachine` | `string` | Machine currently staged in the selector |
+| `speedMode` | enum | Emulation speed selection |
+| `colorMode` | enum | Video color mode selection |
+| `writeProtect[2]` | bool array | Per-drive write-protect toggles |
+| `floppySoundEnabled` | bool | Disk audio enable-state |
+| `floppyMechanism` | enum/string | Selected drive mechanism sound profile |
+| `hardwareTreeState` | collection | `HardwareComponentEntry` nodes and expansion/selection state |
+| `activeThemeName` | `string` | Staged theme selection |
+| `crtParams` | object | Brightness and CRT effect toggle/parameter values |
+
+## Entity: WindowPlacementProfile (existing registry-backed profile)
+
+Per-monitor-configuration window bounds record keyed by a hash of current
+monitor topology plus active monitor. Stored under
+`HKCU\Software\relmer\Casso\WindowPlacement\v1\<hash>`.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `profileHash` | `string` | Monitor topology + active monitor key |
+| `x` / `y` | int | Restored top-left window position |
+| `w` / `h` | int | Restored window size |
+
 ## Entity: GlobalUserPrefs (existing, extended semantics)
 
 - `activeTheme` now resolves via `(familyId, variantId)` + theme name.
 - `window.lastBounds` behavior remains monitor-profile aware as already defined.
+
+## Entity: UiDrawList (new transient command stream)
+
+Per-frame batched geometry, texture, and text command stream consumed by
+`DxUiPainter` and `DwriteTextRenderer`. It contains resolved theme tokens,
+DPI-scaled rects, texture handles, text runs, clipping, z-order, and blend mode
+for the current frame only.
 
 ## Entity: MachineConfig / MachineUserConfig (unchanged core + persisted settings)
 

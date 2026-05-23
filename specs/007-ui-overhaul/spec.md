@@ -199,7 +199,7 @@ A user who ran Casso v1.x has a `Machines/apple2e/apple2e_user.json` file on dis
 - **FR-024**: Drive widgets MUST display an eject affordance; clicking it MUST invoke the existing disk-eject logic.
 - **FR-025**: LED indicators for each drive MUST be rendered in D3D with a soft-glow appearance (not a flat colored circle); LED states MUST include at minimum: idle (disk absent), disk present, and active (motor running). Every active theme MUST render each LED at no less than 12 logical pixels in diameter with a perceptible glow halo extending at least 4 logical pixels beyond the lit core in the active state. Exact colors and glow parameters beyond these minima are defined by the active theme.
 - **FR-026**: A D3D-rendered navigation/menu layer MUST replace the Win32 menu bar; it MUST provide access to all commands currently in the Win32 menus (File, Machine, View, Disk, Edit, Help groups).
-- **FR-027**: The Settings dialog (FR-001 through FR-017) MUST be rendered in D3D within the application window rather than as a Win32 dialog (`DialogBoxIndirectParam`). The existing `OptionsDialog` and `MachinePickerDialog` Win32 dialogs MUST be retired by this feature.
+- **FR-027**: The Settings dialog (FR-001 through FR-017) MUST be rendered in D3D within the application window rather than as a Win32 dialog (`DialogBoxIndirectParam`). Source audit confirms the historical `OptionsDialog` and `MachinePickerDialog` implementations and `DialogBox*` call sites are already absent; this feature MUST keep those Win32 dialogs retired while moving the current `MenuSystem.cpp` / `EmulatorShell.cpp` settings and machine-switch command entry points to the native Settings panel.
 - **FR-028**: The D3D chrome layer MUST correctly handle WM_NCHITTEST returns for borderless window behavior, ensuring OS-level window management (snap, Aero Shake, Task View) continues to function correctly.
 
 ### Functional Requirements — Area 3: CSS-Based Theme System
@@ -293,9 +293,10 @@ A user who ran Casso v1.x has a `Machines/apple2e/apple2e_user.json` file on dis
 ### Measurable Outcomes
 
 - **SC-001**: A user can change machine, adjust all settings, and confirm in under 60 seconds — half the time currently required by navigating three separate menus and dialogs.
-- **SC-002**: Switching the active theme causes all chrome to fully update within a single displayed frame on integrated laptop GPUs (Intel/AMD iGPU class) at 1280x960 and 1920x1080 window sizes, at both 100% and 150% display scale. Validation captures consecutive frames during theme switch and requires the first post-switch frame to contain zero mixed-theme chrome regions (no partial redraw).
+- **SC-002**: Switching the active theme causes all chrome to fully update within a single displayed frame on an integrated laptop GPU (Intel **or** AMD iGPU) at 1280x960 and 1920x1080 window sizes, at both 100% and 150% display scale. Validation captures consecutive frames during theme switch and requires the first post-switch frame to contain zero mixed-theme chrome regions (no partial redraw).
 - **SC-003**: Per-machine user settings survive at least three consecutive application upgrades (each introducing at least one new config field) without data loss or user-visible error.
 - **SC-004**: Drive widget drag-and-drop succeeds for all supported image formats (`.dsk`, `.nib`, `.woz`, `.po`) with at least 99% success across a 200-attempt validation run, with no format-specific failure rate exceeding 2%.
+- **SC-005**: No Win32 UI dialog (`DialogBox*`, `DialogBoxIndirectParam*`) ships in the application binary — the source/build audit confirms zero such calls.
 - **SC-006**: All commands reachable via the current Win32 menu bar remain reachable through the D3D navigation layer; no command is lost in the migration.
 - **SC-007**: A user with a pre-existing `_user.json` from an earlier version experiences no settings loss or application error after upgrading; the migration is silent.
 - **SC-008**: At least 90% of user-study participants can locate and change the
@@ -327,4 +328,4 @@ A user who ran Casso v1.x has a `Machines/apple2e/apple2e_user.json` file on dis
 - Theme textures and images are loaded at theme-selection time; they are retained in GPU memory until a different theme is selected or the application exits. Themes do not hot-reload individual assets independently.
 - The three built-in theme names (Skeuomorphic, Dark Modern, Retro Terminal) are final for the initial release; additional built-in themes may be added in subsequent releases without schema changes.
 - The `Casso` project's existing `atomic<ColorMode>` and `atomic<SpeedMode>` fields in `EmulatorShell` are the authoritative runtime state; the Settings panel reads from and writes to these atomics (through the existing command-queue mechanism where a reset is needed).
-- The Win32 `OptionsDialog` and `MachinePickerDialog` are fully retired (no "legacy mode" fallback) once the D3D Settings panel ships; backward compatibility is achieved via the user JSON migration path (FR-013), not by keeping old dialogs alive.
+- The historical Win32 `OptionsDialog` and `MachinePickerDialog` are already absent and MUST NOT be reintroduced; backward compatibility is achieved via the user JSON migration path (FR-013), not by keeping old dialogs alive.

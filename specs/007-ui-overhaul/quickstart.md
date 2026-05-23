@@ -83,7 +83,8 @@ Use this focused loop before full matrix capture:
 2. For machine A, set speed to **Maximum**, apply.
 3. Switch to machine B and confirm speed immediately reflects machine B's prior value (not machine A's).
 4. Toggle one optional hardware component on machine B, apply, confirm reset prompt appears, and reset is dispatched.
-5. Switch back to machine A and confirm machine A speed/component states are unchanged.
+5. Move/resize the window on one monitor arrangement, restart, and confirm FR-048 restores the per-monitor placement; then change monitor arrangement and confirm default centered placement is used when no profile exists.
+6. Switch back to machine A and confirm machine A speed/component states are unchanged.
 
 Expected persistence artifacts:
 
