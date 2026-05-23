@@ -77,6 +77,8 @@ public:
     static TitleBarLayoutOutput Compute            (const TitleBarLayoutInput & in);
     static int                  DefaultTitleHeight (UINT dpi);
     static int                  DefaultButtonWidth (UINT dpi);
+    static const wchar_t      * WindowsUiFontFamily ();
+    static int                  WindowsUiFontWeight ();
 };
 
 

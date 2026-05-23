@@ -197,37 +197,11 @@ Error:
 
 HRESULT MenuSystem::CreateMenuBar (HWND hwnd)
 {
-    HRESULT hr       = S_OK;
-    BOOL    fSuccess = FALSE;
-
-    const MenuDef menus[] =
-    {
-        { &m_fileMenu,    L"&File",    kFileMenuItems,    _countof (kFileMenuItems) },
-        { &m_editMenu,    L"&Edit",    kEditMenuItems,    _countof (kEditMenuItems) },
-        { &m_machineMenu, L"&Machine", kMachineMenuItems, _countof (kMachineMenuItems) },
-        { &m_diskMenu,    L"&Disk",    kDiskMenuItems,    _countof (kDiskMenuItems) },
-        { &m_viewMenu,    L"&View",    kViewMenuItems,    _countof (kViewMenuItems) },
-        { &m_helpMenu,    L"&Help",    kHelpMenuItems,    _countof (kHelpMenuItems) },
-    };
-
-
-
     m_hwnd = hwnd;
-
-    m_menuBar = CreateMenu();
-    CWRA (m_menuBar);
-
-    for (size_t i = 0; i < _countof (menus); i++)
-    {
-        hr = BuildPopupMenu (m_menuBar, menus[i]);
-        CHR (hr);
-    }
-
-    fSuccess = SetMenu (hwnd, m_menuBar);
-    CWRA (fSuccess);
-
-Error:
-    return hr;
+    UNREFERENCED_PARAMETER (m_hwnd);
+    // FR-026: native nav layer is the sole command owner; legacy Win32
+    // menu creation remains intentionally disabled.
+    return S_FALSE;
 }
 
 
@@ -348,18 +322,8 @@ void MenuSystem::SetPaused (bool paused)
 
 void MenuSystem::UpdateDynamicMenuItems (const MachineConfig & config) noexcept
 {
-    UINT  enableFlags = MF_BYCOMMAND | (ShouldEnableDiskIIDebugMenuItem (config)
-                                        ? MF_ENABLED
-                                        : MF_GRAYED);
-
-    if (m_viewMenu == nullptr)
-    {
-        return;
-    }
-
-    EnableMenuItem (m_viewMenu, IDM_VIEW_DISKII_DEBUG, enableFlags);
+    UNREFERENCED_PARAMETER (config);
 }
-
 
 
 

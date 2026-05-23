@@ -165,4 +165,12 @@ public:
         Assert::AreEqual (46, w96);
         Assert::AreEqual (92, w192);
     }
+
+
+    TEST_METHOD (TitleBar_FontPolicy_UsesWindowsSystemUiFont)
+    {
+        Assert::AreEqual (std::wstring (L"Segoe UI"),
+                          std::wstring (TitleBarLayout::WindowsUiFontFamily()));
+        Assert::AreEqual (400, TitleBarLayout::WindowsUiFontWeight());
+    }
 };

@@ -36,7 +36,7 @@ namespace
                 height: 32px;
                 background-color: #1f1f1fdd;
                 color: #f0f0f0;
-                font-family: sans-serif;
+                font-family: Segoe UI;
                 font-size: 13dp;
                 display: block;
             }
@@ -131,6 +131,27 @@ int  TitleBarLayout::DefaultButtonWidth (UINT dpi)
 
 
     return MulDiv (46, (int) effectiveDpi, 96);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TitleBarLayout::WindowsUiFontFamily / WindowsUiFontWeight
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * TitleBarLayout::WindowsUiFontFamily ()
+{
+    return L"Segoe UI";
+}
+
+int TitleBarLayout::WindowsUiFontWeight ()
+{
+    // Windows standard UI text weight.
+    return 400;
 }
 
 
