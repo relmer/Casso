@@ -231,11 +231,11 @@ minima.
 - [X] T098 [US3] Rework `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DragDropTarget.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DragDropTarget.h` so drop coordinates route through the new `HitTester` for per-widget acceptance (FR-022) per R11
 - [X] T099 [US3] Wire click-to-browse on the drive-widget body (not the eject affordance) to `IFileOpenDialog` with the supported-extension filter list in `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\DriveWidget.cpp` (FR-022b)
 - [ ] T100 [US3] Implement Apple II / II+ / IIe / IIc variant treatment driven by `Theme::driveVisualProfile` + `variantId` in `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\DriveWidget.cpp` (FR-051, SC-009)
-- [ ] T101 Retire `C:\Users\relmer\repos\relmer\Casso\Casso\MenuSystem.cpp` (and `.h` if present): delete the file(s) and remove their `<ClCompile>`/`<ClInclude>` entries from `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj`; nav layer now owns command surfaces
+- [X] T101 Retire `C:\Users\relmer\repos\relmer\Casso\Casso\MenuSystem.cpp` (and `.h` if present): delete the file(s) and remove their `<ClCompile>`/`<ClInclude>` entries from `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj`; nav layer now owns command surfaces
 
 ### P2d — Tests + vcxproj updates
 
-- [ ] T102 [P] [US5] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\NavLayerTraceabilityTests.cpp` as `ChromeCommandRoutingTests.cpp` (rename file) — Nav → IDM dispatch parity across the full menu map (SC-006)
+- [X] T102 [P] [US5] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\NavLayerTraceabilityTests.cpp` as `ChromeCommandRoutingTests.cpp` (rename file) — Nav → IDM dispatch parity across the full menu map (SC-006)
 - [X] T103 [P] [US5] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\TitleBarHitTestTests.cpp` against the native chrome (drag band, system buttons, resize edges)
 - [X] T104 [P] [US5] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\TitleBarLayoutTests.cpp` against the native title bar layout (DPI-scaled bands, min/max/close positions)
 - [X] T105 [P] [US3] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\DriveWidgetStateTests.cpp` against the rewritten drive widget (door state machine + sync events FR-050)
