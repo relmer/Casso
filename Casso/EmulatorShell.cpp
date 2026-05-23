@@ -57,13 +57,14 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int    kFramebufferWidth  = 560;
-static constexpr int    kFramebufferHeight = 384;
-static constexpr LPCWSTR kWindowClass      = L"CassoWindow";
-
-// Drive activity LED refresh timer (~20 Hz). Cheap and responsive enough
-// for the eye to register motor on/off bursts without consuming UI cycles.
-static constexpr int      s_kNavStripHeightDp    = 28;
+static constexpr int     kFramebufferWidth       = 560;
+static constexpr int     kFramebufferHeight      = 384;
+static constexpr LPCWSTR kWindowClass           = L"CassoWindow";
+static constexpr int     s_kBaseDpi             = 96;
+static constexpr int     s_kScaleRoundHalfDpi   = 48;
+static constexpr int     s_kNavStripHeightDp    = 28;
+static constexpr int     s_kCommandBarHeightDp  = 56;
+static constexpr int     s_kDriveWidgetGapDp    = 16;
 
 
 
@@ -79,11 +80,52 @@ namespace
 {
     int ComputeChromeTopInsetPx (UINT dpi)
     {
-        int   navStrip = MulDiv (s_kNavStripHeightDp, static_cast<int> (dpi), 96);
+        int   navStrip = MulDiv (s_kNavStripHeightDp, static_cast<int> (dpi), s_kBaseDpi);
 
 
 
         return TitleBarLayout::DefaultTitleHeight ((UINT) dpi) + navStrip;
+    }
+
+
+    int ComputeChromeBottomInsetPx (UINT dpi)
+    {
+        return MulDiv (s_kCommandBarHeightDp, static_cast<int> (dpi), s_kBaseDpi);
+    }
+
+
+    void LayoutDriveWidgetsInCommandBar (
+        std::array<DriveWidget, 2> & driveChrome,
+        int                         clientW,
+        int                         clientH,
+        UINT                        dpi)
+    {
+        int     bottomInset   = ComputeChromeBottomInsetPx (dpi);
+        int     commandBarTop = std::max (0, clientH - bottomInset);
+        int     commandBarH   = std::max (0, clientH - commandBarTop);
+        int     gap           = MulDiv (s_kDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
+        RECT    probe         = {};
+        int     widgetW       = 0;
+        int     widgetH       = 0;
+        int     totalW        = 0;
+        int     x             = 0;
+        int     y             = 0;
+        size_t  i             = 0;
+
+
+
+        driveChrome[0].Layout (0, 0, dpi);
+        probe   = driveChrome[0].BodyRect();
+        widgetW = probe.right  - probe.left;
+        widgetH = probe.bottom - probe.top;
+        totalW  = widgetW * static_cast<int> (driveChrome.size()) + gap * (static_cast<int> (driveChrome.size()) - 1);
+        x       = std::max (0, (clientW - totalW) / 2);
+        y       = commandBarTop + (commandBarH - widgetH) / 2;
+
+        for (i = 0; i < driveChrome.size(); i++)
+        {
+            driveChrome[i].Layout (x + static_cast<int> (i) * (widgetW + gap), y, dpi);
+        }
     }
 
 
@@ -511,14 +553,14 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
     // Calculate window size for desired client area, scaled for DPI
     dpi   = GetDpiForSystem();
-    scale = (dpi + 48) / 96;  // 96=1x, 144=1.5x→2, 192=2x→2, 240=2.5x→3
+    scale = (dpi + s_kScaleRoundHalfDpi) / s_kBaseDpi;
     if (scale < 1)
     {
         scale = 1;
     }
 
     clientW = kFramebufferWidth * scale;
-    clientH = kFramebufferHeight * scale + ComputeChromeTopInsetPx (dpi);
+    clientH = kFramebufferHeight * scale + ComputeChromeTopInsetPx (dpi) + ComputeChromeBottomInsetPx (dpi);
 
     rc    = { 0, 0, clientW, clientH };
     // Borderless custom-chrome recipe. WS_THICKFRAME keeps
@@ -575,9 +617,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_navLayer.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
     m_driveChrome[0].Initialize (6, 0, this);
     m_driveChrome[1].Initialize (6, 1, this);
-    m_driveChrome[0].Layout (24, ComputeChromeTopInsetPx (dpi) + 18, dpi);
-    m_driveChrome[1].Layout (230, ComputeChromeTopInsetPx (dpi) + 18, dpi);
-    m_d3dRenderer.SetTopInsetPx (ComputeChromeTopInsetPx (dpi));
+    LayoutDriveWidgetsInCommandBar (m_driveChrome, clientW, clientH, dpi);
+    m_d3dRenderer.SetTopInsetPx    (ComputeChromeTopInsetPx (dpi));
+    m_d3dRenderer.SetBottomInsetPx (ComputeChromeBottomInsetPx (dpi));
 
     // Load accelerator table
     m_accelTable = LoadAccelerators (hInstance, MAKEINTRESOURCE (IDR_ACCELERATOR));
@@ -1767,12 +1809,12 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
         IGNORE_RETURN_VALUE (hrUiR, S_OK);
         m_titleBar.UpdateGeometry (static_cast<int> (width), dpi);
         m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), static_cast<int> (width), dpi);
-        m_driveChrome[0].Layout (24, ComputeChromeTopInsetPx (dpi) + 18, dpi);
-        m_driveChrome[1].Layout (230, ComputeChromeTopInsetPx (dpi) + 18, dpi);
+        LayoutDriveWidgetsInCommandBar (m_driveChrome, static_cast<int> (width), renderH, dpi);
         m_uiShell.HitTest().Clear();
         m_uiShell.HitTest().Register (HitRect { m_driveChrome[0].BodyRect(), HitSlot::Custom, 0 });
         m_uiShell.HitTest().Register (HitRect { m_driveChrome[1].BodyRect(), HitSlot::Custom, 1 });
-        m_d3dRenderer.SetTopInsetPx (ComputeChromeTopInsetPx (dpi));
+        m_d3dRenderer.SetTopInsetPx    (ComputeChromeTopInsetPx (dpi));
+        m_d3dRenderer.SetBottomInsetPx (ComputeChromeBottomInsetPx (dpi));
     }
 
     {

@@ -72,6 +72,21 @@ namespace
         RECT  rc = { l, t, l + w, t + h };
         return rc;
     }
+
+
+    std::string NarrowMachineName (const std::wstring & wideName)
+    {
+        std::string  narrowName;
+
+
+
+        narrowName.reserve (wideName.size());
+        for (wchar_t c : wideName)
+        {
+            narrowName.push_back ((char) (unsigned char) c);
+        }
+        return narrowName;
+    }
 }
 
 
@@ -128,6 +143,7 @@ HRESULT SettingsPanel::Initialize (
     m_fs       = &fs;
 
     m_machinePage.SetState  (&m_state);
+    m_machinePage.SetOnMachineSelected ([this] (const std::string & machineName) { OnMachineSelected (machineName); });
     m_hardwarePage.SetState (&m_state);
 
     m_applyButton.SetLabel  (L"Apply");
@@ -159,6 +175,7 @@ HRESULT SettingsPanel::Show ()
 
 
     LoadCurrentMachineIntoState();
+    PopulateMachineList();
 
     m_machinePage.Rebuild();
     m_hardwarePage.Rebuild();
@@ -267,6 +284,93 @@ void SettingsPanel::LoadCurrentMachineIntoState ()
 
     hr = m_state.LoadFromMachine (machineName, defaultJson, mergedJson);
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PopulateMachineList
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::PopulateMachineList ()
+{
+    std::vector<std::filesystem::path>  searchPaths;
+    std::vector<MachineInfo>            machinesInfo;
+    std::vector<std::string>            machines;
+    std::string                         activeMachine;
+    int                                 activeIndex = -1;
+    int                                 i           = 0;
+
+
+
+    if (m_emuShell == nullptr)
+    {
+        return;
+    }
+
+    activeMachine = NarrowMachineName (m_emuShell->CurrentMachineName());
+    searchPaths  = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
+                                                   PathResolver::GetWorkingDirectory());
+    machinesInfo = MachineScanner::Scan (searchPaths,
+                                         MachineScanner::ListDirectory,
+                                         MachineScanner::ReadFile);
+
+    for (const MachineInfo & info : machinesInfo)
+    {
+        std::string  machine = NarrowMachineName (info.fileName);
+
+        if (machine == activeMachine)
+        {
+            activeIndex = i;
+        }
+
+        machines.push_back (machine);
+        i++;
+    }
+
+    if (machines.empty() && !activeMachine.empty())
+    {
+        machines.push_back (activeMachine);
+        activeIndex = 0;
+    }
+
+    m_machinePage.SetMachineList (std::move (machines), activeIndex);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMachineSelected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::OnMachineSelected (const std::string & machineName)
+{
+    HRESULT       hr       = S_OK;
+    std::wstring  wideName (machineName.begin(), machineName.end());
+
+
+
+    if (m_emuShell == nullptr || machineName.empty())
+    {
+        return;
+    }
+
+    hr = m_emuShell->SwitchMachine (wideName);
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    LoadCurrentMachineIntoState();
+    PopulateMachineList();
+    m_machinePage.Rebuild();
+    m_hardwarePage.Rebuild();
 }
 
 

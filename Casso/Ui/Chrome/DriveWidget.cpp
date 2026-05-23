@@ -12,14 +12,14 @@ namespace
 {
     constexpr int    s_kBaseDpi          = 96;
     constexpr int    s_kBodyWidthPx      = 190;
-    constexpr int    s_kBodyHeightPx     = 112;
-    constexpr int    s_kSlotInsetPx      = 18;
-    constexpr int    s_kSlotHeightPx     = 30;
-    constexpr int    s_kEjectSizePx      = 20;
-    constexpr int    s_kLabelPadPx       = 12;
-    constexpr float  s_kLabelFontDip     = 14.0f;
+    constexpr int    s_kBodyHeightPx     = 44;
+    constexpr int    s_kSlotInsetPx      = 8;
+    constexpr int    s_kSlotHeightPx     = 12;
+    constexpr int    s_kEjectSizePx      = 14;
+    constexpr int    s_kLabelPadPx       = 8;
+    constexpr float  s_kLabelFontDip     = 12.0f;
     constexpr int    s_kSpinDotCount     = 10;
-    constexpr int    s_kSpinRadiusPx     = 22;
+    constexpr int    s_kSpinRadiusPx     = 10;
     constexpr wchar_t s_kFontFamily[]    = L"Segoe UI";
 
 
@@ -107,7 +107,8 @@ void DriveWidget::Layout (int x, int y, UINT dpi)
 void DriveWidget::SyncFromState (const DriveWidgetState & state)
 {
     bool  mounted = state.IsMounted();
-    bool  active  = state.diskActive.load (std::memory_order_relaxed);
+    bool  motorOn = state.motorOn.load (std::memory_order_relaxed);
+    bool  active  = motorOn || state.diskActive.load (std::memory_order_relaxed);
 
 
 
@@ -115,7 +116,7 @@ void DriveWidget::SyncFromState (const DriveWidgetState & state)
     m_state.doorState             = state.doorState;
     m_state.animationStartTimeMs  = state.animationStartTimeMs;
     m_state.lastSyncEventId       = state.lastSyncEventId;
-    m_state.motorOn.store (state.motorOn.load (std::memory_order_relaxed), std::memory_order_relaxed);
+    m_state.motorOn.store (motorOn, std::memory_order_relaxed);
     m_state.diskActive.store (active, std::memory_order_relaxed);
 
     if (active)

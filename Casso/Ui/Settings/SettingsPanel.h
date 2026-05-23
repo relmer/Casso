@@ -94,6 +94,8 @@ private:
 
 
     void  LoadCurrentMachineIntoState ();
+    void  PopulateMachineList         ();
+    void  OnMachineSelected           (const std::string & machineName);
     void  OnApplyClicked              ();
     void  OnCancelClicked             ();
     void  CommitApply                 ();

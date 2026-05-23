@@ -2,6 +2,9 @@
 
 #include "Pch.h"
 
+#include "../DwriteTextRenderer.h"
+#include "../DxUiPainter.h"
+
 
 
 
@@ -11,17 +14,33 @@ class Dropdown
 public:
     using SelectFn = std::function<void (int index)>;
 
-    void  SetItems       (const std::vector<std::wstring> & items) { m_items = items; }
+    void  SetRect        (const RECT & rect) { m_rect = rect; }
+    void  SetItems       (const std::vector<std::wstring> & items);
+    void  SetSelected    (int index);
     void  SetSelect      (SelectFn select) { m_select = std::move (select); }
-    void  Open           () { m_open = true; m_highlight = m_items.empty() ? -1 : 0; }
-    void  Close          () { m_open = false; }
-    bool  IsOpen         () const { return m_open; }
+    void  Open           ();
+    void  Close()        { m_open = false; }
+    bool  IsOpen()       const { return m_open; }
     int   HighlightIndex () const { return m_highlight; }
+    int   SelectedIndex  () const { return m_selected; }
+    const std::vector<std::wstring> & Items () const { return m_items; }
+    bool  HitTest        (int x, int y) const;
+    int   ItemHitTest    (int x, int y) const;
+    void  SetMouseHover  (int x, int y);
+    bool  OnLButtonDown  (int x, int y);
+    bool  OnLButtonUp    (int x, int y);
     bool  HandleKey      (WPARAM vk);
+    void  Paint          (DxUiPainter & painter, DwriteTextRenderer & text) const;
 
 private:
+    void  Commit         (int index);
+
     std::vector<std::wstring>  m_items;
     SelectFn                  m_select;
+    RECT                      m_rect      = {};
     bool                      m_open      = false;
+    bool                      m_pressed   = false;
+    bool                      m_hover     = false;
     int                       m_highlight = -1;
+    int                       m_selected  = -1;
 };

@@ -6,6 +6,237 @@
 
 
 
+namespace
+{
+    constexpr int       s_kRowHeightPx     = 28;
+    constexpr int       s_kTextInsetPx     = 8;
+    constexpr uint32_t  s_kBoxIdleArgb     = 0xFF263241;
+    constexpr uint32_t  s_kBoxHoverArgb    = 0xFF33475C;
+    constexpr uint32_t  s_kBoxPressedArgb  = 0xFF1E2733;
+    constexpr uint32_t  s_kMenuArgb        = 0xFF202A35;
+    constexpr uint32_t  s_kMenuHoverArgb   = 0xFF34475F;
+    constexpr uint32_t  s_kTextArgb        = 0xFFE8EEF4;
+    constexpr uint32_t  s_kEdgeArgb        = 0xFF5C7088;
+    constexpr float     s_kEdgePx          = 1.0f;
+    constexpr float     s_kFontDip         = 13.0f;
+    constexpr wchar_t   s_kFontFamily[]    = L"Segoe UI";
+
+
+    bool RectContains (const RECT & rect, int x, int y)
+    {
+        return x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dropdown::SetItems (const std::vector<std::wstring> & items)
+{
+    m_items = items;
+
+    if (m_selected >= (int) m_items.size())
+    {
+        m_selected = m_items.empty() ? -1 : 0;
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSelected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dropdown::SetSelected (int index)
+{
+    if (index < 0 || index >= (int) m_items.size())
+    {
+        m_selected = m_items.empty() ? -1 : 0;
+        return;
+    }
+
+    m_selected = index;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Open
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dropdown::Open()
+{
+    m_open      = true;
+    m_highlight = (m_selected >= 0) ? m_selected : (m_items.empty() ? -1 : 0);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HitTest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Dropdown::HitTest (int x, int y) const
+{
+    return RectContains (m_rect, x, y);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ItemHitTest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int Dropdown::ItemHitTest (int x, int y) const
+{
+    RECT  menuRect = m_rect;
+    int   index    = -1;
+
+
+
+    menuRect.top    = m_rect.bottom;
+    menuRect.bottom = m_rect.bottom + (int) m_items.size() * s_kRowHeightPx;
+
+    if (!m_open || !RectContains (menuRect, x, y))
+    {
+        return -1;
+    }
+
+    index = (y - menuRect.top) / s_kRowHeightPx;
+    if (index < 0 || index >= (int) m_items.size())
+    {
+        return -1;
+    }
+
+    return index;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetMouseHover
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dropdown::SetMouseHover (int x, int y)
+{
+    int  item = ItemHitTest (x, y);
+
+
+
+    m_hover = HitTest (x, y);
+
+    if (item >= 0)
+    {
+        m_highlight = item;
+    }
+
+    if (!m_hover && item < 0)
+    {
+        m_pressed = false;
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnLButtonDown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Dropdown::OnLButtonDown (int x, int y)
+{
+    if (HitTest (x, y))
+    {
+        m_pressed = true;
+        return true;
+    }
+
+    if (ItemHitTest (x, y) >= 0)
+    {
+        return true;
+    }
+
+    if (m_open)
+    {
+        Close();
+    }
+
+    return false;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnLButtonUp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Dropdown::OnLButtonUp (int x, int y)
+{
+    int   item       = ItemHitTest (x, y);
+    bool  wasPressed = m_pressed;
+
+
+
+    m_pressed = false;
+
+    if (item >= 0)
+    {
+        Commit (item);
+        Close();
+        return true;
+    }
+
+    if (wasPressed && HitTest (x, y))
+    {
+        if (m_open)
+        {
+            Close();
+        }
+        else
+        {
+            Open();
+        }
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool Dropdown::HandleKey (WPARAM vk)
 {
     int  count = (int) m_items.size();
@@ -29,12 +260,115 @@ bool Dropdown::HandleKey (WPARAM vk)
         return true;
     }
 
-    if (vk == VK_RETURN && m_select)
+    if (vk == VK_RETURN)
     {
-        m_select (m_highlight);
+        Commit (m_highlight);
+        Close();
+        return true;
+    }
+
+    if (vk == VK_ESCAPE)
+    {
         Close();
         return true;
     }
 
     return false;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Commit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dropdown::Commit (int index)
+{
+    bool  changed = index != m_selected;
+
+
+
+    if (index < 0 || index >= (int) m_items.size())
+    {
+        return;
+    }
+
+    m_selected = index;
+
+    if (changed && m_select)
+    {
+        m_select (index);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Paint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dropdown::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
+{
+    HRESULT      hr       = S_OK;
+    uint32_t     boxColor = m_pressed ? s_kBoxPressedArgb : (m_hover ? s_kBoxHoverArgb : s_kBoxIdleArgb);
+    std::wstring label;
+    int          i        = 0;
+
+
+
+    if (m_selected >= 0 && m_selected < (int) m_items.size())
+    {
+        label = m_items[(size_t) m_selected];
+    }
+
+    painter.FillRect    ((float) m_rect.left,
+                         (float) m_rect.top,
+                         (float) (m_rect.right - m_rect.left),
+                         (float) (m_rect.bottom - m_rect.top),
+                         boxColor);
+    painter.OutlineRect ((float) m_rect.left,
+                         (float) m_rect.top,
+                         (float) (m_rect.right - m_rect.left),
+                         (float) (m_rect.bottom - m_rect.top),
+                         s_kEdgePx,
+                         s_kEdgeArgb);
+    IGNORE_RETURN_VALUE (hr, text.DrawString (label.c_str(),
+                                              (float) (m_rect.left + s_kTextInsetPx),
+                                              (float) m_rect.top,
+                                              (float) (m_rect.right - m_rect.left - s_kTextInsetPx),
+                                              (float) (m_rect.bottom - m_rect.top),
+                                              s_kTextArgb,
+                                              s_kFontDip,
+                                              s_kFontFamily));
+
+    if (!m_open)
+    {
+        return;
+    }
+
+    for (i = 0; i < (int) m_items.size(); i++)
+    {
+        RECT      row   = { m_rect.left, m_rect.bottom + i * s_kRowHeightPx, m_rect.right, m_rect.bottom + (i + 1) * s_kRowHeightPx };
+        uint32_t  color = (i == m_highlight) ? s_kMenuHoverArgb : s_kMenuArgb;
+
+        painter.FillRect ((float) row.left,
+                          (float) row.top,
+                          (float) (row.right - row.left),
+                          (float) (row.bottom - row.top),
+                          color);
+        IGNORE_RETURN_VALUE (hr, text.DrawString (m_items[(size_t) i].c_str(),
+                                                  (float) (row.left + s_kTextInsetPx),
+                                                  (float) row.top,
+                                                  (float) (row.right - row.left - s_kTextInsetPx),
+                                                  (float) (row.bottom - row.top),
+                                                  s_kTextArgb,
+                                                  s_kFontDip,
+                                                  s_kFontFamily));
+    }
 }

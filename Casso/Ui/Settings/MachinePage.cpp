@@ -18,6 +18,7 @@ namespace
     constexpr int    s_kLabelWidth   = 140;
     constexpr int    s_kRadioWidth   = 110;
     constexpr int    s_kCheckWidth   = 140;
+    constexpr int    s_kDropdownWidth = 260;
     constexpr int    s_kSectionGap   = 14;
 
 
@@ -75,8 +76,20 @@ void MachinePage::SetState (SettingsPanelState * state)
 
 void MachinePage::SetMachineList (std::vector<std::string> machines, int activeIndex)
 {
+    std::vector<std::wstring>  labels;
+
+
+
     m_machines           = std::move (machines);
     m_activeMachineIndex = activeIndex;
+
+    for (const std::string & machine : m_machines)
+    {
+        labels.emplace_back (machine.begin(), machine.end());
+    }
+
+    m_machineDropdown.SetItems    (labels);
+    m_machineDropdown.SetSelected (m_activeMachineIndex);
 }
 
 
@@ -99,6 +112,7 @@ void MachinePage::Layout (const RECT & rect)
 
     m_machineLabel.SetRect (MakeRect (x, y, s_kLabelWidth, s_kRowHeight));
     m_machineLabel.SetText (L"Machine:");
+    m_machineDropdown.SetRect (MakeRect (controlsX, y, s_kDropdownWidth, s_kRowHeight));
     y += s_kRowHeight + s_kSectionGap;
 
     m_speedLabel.SetRect (MakeRect (x, y, s_kLabelWidth, s_kRowHeight));
@@ -163,7 +177,19 @@ void MachinePage::Rebuild ()
     m_driveAudio.SetChecked (state->Prefs().floppySoundEnabled);
     m_writeProtect[0].SetChecked (state->Prefs().writeProtect[0]);
     m_writeProtect[1].SetChecked (state->Prefs().writeProtect[1]);
+    m_machineDropdown.SetSelected (m_activeMachineIndex);
 
+    m_machineDropdown.SetSelect ([this] (int idx)
+    {
+        if (idx >= 0 && idx < (int) m_machines.size())
+        {
+            m_activeMachineIndex = idx;
+            if (m_onMachineSelected)
+            {
+                m_onMachineSelected (m_machines[(size_t) idx]);
+            }
+        }
+    });
     m_speed.SetOnChange      ([state] (int idx) { state->SetSpeedMode ((SettingsSpeedMode) idx); });
     m_color.SetOnChange      ([state] (int idx) { state->SetColorMode ((SettingsColorMode) idx); });
     m_mechanism.SetOnChange  ([state] (int idx) { state->SetMechanism (idx == 1 ? "alps" : "shugart"); });
@@ -186,6 +212,7 @@ void MachinePage::OnLButtonDown (int x, int y)
 {
     int   i = 0;
 
+    if (m_machineDropdown.OnLButtonDown (x, y)) { return; }
     if (m_speed.OnLButtonDown     (x, y)) { return; }
     if (m_color.OnLButtonDown     (x, y)) { return; }
     if (m_mechanism.OnLButtonDown (x, y)) { return; }
@@ -210,6 +237,7 @@ void MachinePage::OnLButtonUp (int x, int y)
 {
     int  i = 0;
 
+    (void) m_machineDropdown.OnLButtonUp (x, y);
     (void) m_speed.OnLButtonUp     (x, y);
     (void) m_color.OnLButtonUp     (x, y);
     (void) m_mechanism.OnLButtonUp (x, y);
@@ -234,6 +262,7 @@ void MachinePage::OnMouseHover (int x, int y)
 {
     int  i = 0;
 
+    m_machineDropdown.SetMouseHover (x, y);
     m_speed.SetMouseHover     (x, y);
     m_color.SetMouseHover     (x, y);
     m_mechanism.SetMouseHover (x, y);
@@ -258,6 +287,7 @@ bool MachinePage::OnKey (WPARAM vk)
 {
     int  i = 0;
 
+    if (m_machineDropdown.HandleKey (vk)) { return true; }
     if (m_speed.OnKey      (vk)) { return true; }
     if (m_color.OnKey      (vk)) { return true; }
     if (m_mechanism.OnKey  (vk)) { return true; }
@@ -290,6 +320,7 @@ void MachinePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     m_audioLabel.Paint   (painter, text);
     m_mechLabel.Paint    (painter, text);
 
+    m_machineDropdown.Paint (painter, text);
     m_speed.Paint        (painter, text);
     m_color.Paint        (painter, text);
     m_mechanism.Paint    (painter, text);

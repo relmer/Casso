@@ -40,6 +40,7 @@ public:
     HRESULT            OnDrop          (const std::wstring & path);
     RECT               BodyRect        () const { return m_bodyRect; }
     RECT               EjectRect       () const { return m_ejectRect; }
+    LedState           Led             () const { return m_led.GetState(); }
     int                Drive           () const { return m_drive; }
 
 private:

@@ -253,8 +253,10 @@ void UiShell::Render ()
 {
     HRESULT                  hr     = S_OK;
     ID3D11RenderTargetView * rtv    = nullptr;
-    ChromeVisualState        visual = {};
+    ChromeVisualState        visual      = {};
     ChromeTheme              localTheme;
+    int                      bottomInset = 0;
+    int                      barTop      = 0;
 
 
 
@@ -277,6 +279,8 @@ void UiShell::Render ()
     m_viewportHeightPx = m_renderer->GetBackBufferHeight();
     rtv                = m_renderer->GetBackBufferRtv();
     localTheme         = (m_theme != nullptr) ? *m_theme : ChromeTheme::Skeuomorphic();
+    bottomInset        = m_renderer->GetBottomInsetPx();
+    barTop             = std::max (0, m_viewportHeightPx - bottomInset);
     visual.dpi         = m_dpi;
     visual.frameIndex  = m_frameIndex++;
 
@@ -312,6 +316,15 @@ void UiShell::Render ()
             if (m_navLayer != nullptr)
             {
                 m_navLayer->PaintStrip (m_painter, m_text, visual, localTheme);
+            }
+
+            if (bottomInset > 0)
+            {
+                m_painter.FillRect (0.0f,
+                                    (float) barTop,
+                                    (float) m_viewportWidthPx,
+                                    (float) (m_viewportHeightPx - barTop),
+                                    localTheme.navStripArgb);
             }
 
             if (m_driveWidgets != nullptr)

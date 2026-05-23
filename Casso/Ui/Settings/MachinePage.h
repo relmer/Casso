@@ -60,6 +60,7 @@ public:
     const RadioGroup  & MechanismRadios      () const { return m_mechanism; }
     const std::vector<std::string> & Machines () const { return m_machines; }
     int               ActiveMachineIndex     () const { return m_activeMachineIndex; }
+    const Dropdown  & MachineDropdown() const { return m_machineDropdown; }
 
 private:
     SettingsPanelState         * m_state              = nullptr;
@@ -74,6 +75,7 @@ private:
     Label                        m_audioLabel;
     Label                        m_mechLabel;
 
+    Dropdown                     m_machineDropdown;
     RadioGroup                   m_speed;
     RadioGroup                   m_color;
     RadioGroup                   m_mechanism;

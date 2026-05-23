@@ -32,6 +32,104 @@ struct Vertex
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Smoke-test back-buffer dump helpers
+//
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    static constexpr wchar_t  s_kpszSmokeDumpEnv[]   = L"CASSO_SMOKE_DUMP_DIR";
+    static constexpr UINT64   s_kSmokeFrameStartup   = 60;
+    static constexpr UINT64   s_kSmokeFrameSettings  = 240;
+    static constexpr DWORD    s_kBmpHeaderSize       = sizeof (BITMAPFILEHEADER) + sizeof (BITMAPINFOHEADER);
+    static constexpr WORD     s_kBmpMagic            = 0x4D42;
+    static constexpr WORD     s_kBmpPlanes           = 1;
+    static constexpr WORD     s_kBmpBitsPerPixel     = 32;
+
+
+    HRESULT DumpBackBufferBmp (
+        ID3D11Device        * device,
+        ID3D11DeviceContext * context,
+        IDXGISwapChain      * swapChain,
+        UINT64                frameIndex)
+    {
+        HRESULT                   hr          = S_OK;
+        wchar_t                   dumpDir[MAX_PATH] = {};
+        DWORD                     chars       = 0;
+        ComPtr<ID3D11Texture2D>   backBuffer;
+        ComPtr<ID3D11Texture2D>   staging;
+        D3D11_TEXTURE2D_DESC      desc        = {};
+        D3D11_MAPPED_SUBRESOURCE  mapped      = {};
+        std::filesystem::path     outPath;
+        std::ofstream             out;
+        BITMAPFILEHEADER          fileHeader  = {};
+        BITMAPINFOHEADER          infoHeader  = {};
+        LONG                      y           = 0;
+
+
+
+        chars = GetEnvironmentVariableW (s_kpszSmokeDumpEnv, dumpDir, ARRAYSIZE (dumpDir));
+        BAIL_OUT_IF (chars == 0, S_OK);
+        CBRA (device);
+        CBRA (context);
+        CBRA (swapChain);
+
+        hr = swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
+        CHRA (hr);
+
+        backBuffer->GetDesc (&desc);
+        desc.Usage          = D3D11_USAGE_STAGING;
+        desc.BindFlags      = 0;
+        desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+        desc.MiscFlags      = 0;
+
+        hr = device->CreateTexture2D (&desc, nullptr, &staging);
+        CHRA (hr);
+
+        context->CopyResource (staging.Get(), backBuffer.Get());
+
+        hr = context->Map (staging.Get(), 0, D3D11_MAP_READ, 0, &mapped);
+        CHRA (hr);
+
+        outPath = std::filesystem::path (dumpDir) / (frameIndex == s_kSmokeFrameSettings ? L"p3_1_frame240_backbuffer.bmp" : L"p3_1_frame60_backbuffer.bmp");
+        out.open (outPath, std::ios::binary | std::ios::trunc);
+        CBR (out.good());
+
+        fileHeader.bfType    = s_kBmpMagic;
+        fileHeader.bfOffBits = s_kBmpHeaderSize;
+        fileHeader.bfSize    = s_kBmpHeaderSize + desc.Width * desc.Height * sizeof (uint32_t);
+
+        infoHeader.biSize        = sizeof (BITMAPINFOHEADER);
+        infoHeader.biWidth       = static_cast<LONG> (desc.Width);
+        infoHeader.biHeight      = -static_cast<LONG> (desc.Height);
+        infoHeader.biPlanes      = s_kBmpPlanes;
+        infoHeader.biBitCount    = s_kBmpBitsPerPixel;
+        infoHeader.biCompression = BI_RGB;
+        infoHeader.biSizeImage   = desc.Width * desc.Height * sizeof (uint32_t);
+
+        out.write (reinterpret_cast<const char *> (&fileHeader), sizeof (fileHeader));
+        out.write (reinterpret_cast<const char *> (&infoHeader), sizeof (infoHeader));
+        for (y = 0; y < static_cast<LONG> (desc.Height); y++)
+        {
+            const char * row = reinterpret_cast<const char *> (static_cast<const Byte *> (mapped.pData) + mapped.RowPitch * y);
+            out.write (row, desc.Width * sizeof (uint32_t));
+        }
+
+    Error:
+        if (mapped.pData != nullptr)
+        {
+            context->Unmap (staging.Get(), 0);
+        }
+        return hr;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  D3DRenderer
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -386,8 +484,9 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
 
         if (m_texWidth > 0 && m_texHeight > 0 && m_backBufferW > 0 && m_backBufferH > 0)
         {
-            contentRect.top = std::min (std::max (0, m_topInsetPx), m_backBufferH);
-            fittedRect = ComputeLetterboxRectInRect (contentRect);
+            contentRect.top    = std::min (std::max (0, m_topInsetPx), m_backBufferH);
+            contentRect.bottom = std::max<LONG> (contentRect.top, m_backBufferH - std::max (0, m_bottomInsetPx));
+            fittedRect         = ComputeLetterboxRectInRect (contentRect);
         }
 
         hr = m_crtPost.Process (m_srv.Get(),
@@ -414,6 +513,19 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
     {
         ScopedPerfTimer  timer ("D3DRenderer.UiComposite");
         m_afterBlitHook();
+    }
+
+    {
+        static UINT64  s_frameIndex = 0;
+
+
+
+        s_frameIndex++;
+        if (s_frameIndex == s_kSmokeFrameStartup || s_frameIndex == s_kSmokeFrameSettings)
+        {
+            HRESULT  hrDump = DumpBackBufferBmp (m_device.Get(), m_context.Get(), m_swapChain.Get(), s_frameIndex);
+            IGNORE_RETURN_VALUE (hrDump, S_OK);
+        }
     }
 
     hr = m_swapChain->Present (1, 0);

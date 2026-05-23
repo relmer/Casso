@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Settings/SettingsPanelState.h"
+#include "Ui/Settings/MachinePage.h"
 
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
@@ -394,6 +395,42 @@ public:
     }
 
 
+    TEST_METHOD (MachinePage_List_Selection_Rebuilds_Downstream_State)
+    {
+        SettingsPanelState       st;
+        MachinePage              page;
+        JsonValue                machineA = ParseOrFail (kFixtureJson);
+        JsonValue                machineB = ParseOrFail (kFixtureJsonWithFlags);
+        RECT                     rect     = { 0, 0, 640, 480 };
+        std::vector<std::string> machines = { "machineA", "machineB" };
+
+
+
+        st.LoadFromMachine ("machineA", machineA, machineA);
+        page.SetState (&st);
+        page.SetMachineList (machines, 0);
+        page.SetOnMachineSelected ([&st, &machineB] (const std::string & machineName)
+        {
+            st.LoadFromMachine (machineName, machineB, machineB);
+        });
+        page.Layout (rect);
+        page.Rebuild();
+
+        Assert::AreEqual ((size_t) 2, page.Machines().size());
+        Assert::AreEqual (0, page.ActiveMachineIndex());
+        Assert::AreEqual (0, page.MachineDropdown().SelectedIndex());
+
+        page.OnLButtonDown (180, 20);
+        page.OnLButtonUp   (180, 20);
+        page.OnLButtonDown (180, 80);
+        page.OnLButtonUp   (180, 80);
+
+        Assert::AreEqual (std::string ("machineB"), st.MachineName());
+        Assert::AreEqual (1, page.ActiveMachineIndex());
+        Assert::IsTrue   (st.Prefs().speedMode == SettingsSpeedMode::Double);
+    }
+
+
     TEST_METHOD (BuildJson_PreservesUnrelatedKeys)
     {
         // Build a JSON with a custom unknown field; ensure it survives.
@@ -456,3 +493,4 @@ public:
         Assert::AreEqual (0, sink.queuedResetCount);
     }
 };
+

@@ -32,8 +32,9 @@ public:
     // pausing the emulator (FR-041). Outside the live emulator path
     // (e.g., tests, headless boot) the field stays at its in-struct
     // defaults so the renderer behaves like a passthrough.
-    void SetCrtParams (const CrtParams & params) { m_crtParams = params; }
-    void SetTopInsetPx (int insetPx)             { m_topInsetPx = std::max (0, insetPx); }
+    void SetCrtParams    (const CrtParams & params) { m_crtParams     = params; }
+    void SetTopInsetPx    (int insetPx)             { m_topInsetPx    = std::max (0, insetPx); }
+    void SetBottomInsetPx (int insetPx)             { m_bottomInsetPx = std::max (0, insetPx); }
 
     bool IsFullscreen() const { return m_fullscreen; }
 
@@ -43,6 +44,7 @@ public:
     // channel.
     int  GetBackBufferWidth  () const { return m_backBufferW; }
     int  GetBackBufferHeight () const { return m_backBufferH; }
+    int  GetBottomInsetPx    () const { return m_bottomInsetPx; }
 
     void Shutdown();
 
@@ -94,9 +96,10 @@ private:
     // resized lazily inside Process() when the back buffer size changes.
     CrtPostProcess                   m_crtPost;
     CrtParams                        m_crtParams;
-    int                              m_backBufferW = 0;
-    int                              m_backBufferH = 0;
-    int                              m_topInsetPx  = 0;
+    int                              m_backBufferW    = 0;
+    int                              m_backBufferH    = 0;
+    int                              m_topInsetPx     = 0;
+    int                              m_bottomInsetPx  = 0;
 
     int     m_texWidth    = 0;
     int     m_texHeight   = 0;
