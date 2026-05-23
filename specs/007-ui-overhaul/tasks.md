@@ -19,7 +19,7 @@ done until re-verified in code, tests, and a clean `rg` sweep.
 ```text
 P0 (RmlUi excision)   ── HARD GATE ──▶ P1 (foundational runtime) ──▶ P2 (chrome)
                                                                   └─▶ P3.0 (EmulatorShell decomposition) ──▶ P3 (settings)
-                                                                                                                  └─▶ P4 (themes/CRT) ──▶ P5 (polish/validation)
+                                                                                                                  └─▶ P3.1 (smoke-test polish) ──▶ P4 (themes/CRT) ──▶ P5 (polish/validation)
 ```
 
 No P1+ task may begin until **every** P0 task is complete, the build is green
@@ -375,7 +375,47 @@ with unapplied changes — nothing persisted.
 
 ---
 
+## Phase P3.1: Smoke-test polish (UX corrections)
+
+**Goal**: Fix the four issues uncovered by the post-P3 visual smoke test
+(back-buffer capture of commit `c8faa57` + predecessors) before P4 begins.
+This sub-phase also lands the agreed architectural change of moving the drive
+widgets off the emulator surface into a new bottom command bar.
+
+**Out of scope**: The Disk II visual treatment (FR-049 / SC-009 — drive widgets
+that read as Disk II hardware rather than generic boxes) is intentionally NOT
+a P3.1 task. It remains in P4 as part of theme variant work. P3.1 only
+relocates the widgets and fixes their state pump; their look stays generic.
+
+**Independent Test**: Launch `Casso.exe` at the default startup window size.
+Top chrome, the emulator viewport at 100% (560×384) with no overlap, and a
+bottom command bar containing both Disk II drive widgets must all be visible
+simultaneously. Booting from a mounted disk drives the active drive's LED into
+the Active glow state while the motor is on. Opening the settings panel
+(Ctrl+,) shows a populated machine selector with the active machine
+pre-selected.
+
+### P3.1a — Bottom command bar + drive-widget relocation
+
+- [ ] T109a [P3.1] Add a bottom command bar to the host window: reserve a new bottom-inset region in `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp` (mirror of the existing top chrome inset), draw a chrome strip via `UiShell` at the bottom of the back buffer, and expand the default startup window size so 100% emulator UI + top chrome (title + nav) + bottom command bar all fit without scaling the emulator. **Acceptance**: emulator viewport renders at 100% (560×384) with no overlap, top chrome visible above it, command bar visible below it, at the default startup window size.
+- [ ] T109b [P3.1] Relocate the drive widgets from their current floating-on-top-of-emulator position into the new bottom command bar. Drive widgets render in `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\DriveWidget.cpp` and are positioned by `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp`; reroute their layout into bottom-command-bar coordinates and update the `HitTest` registry so drag-drop and click-to-browse hit-test against the new location. **Acceptance**: drive widgets visually live in the bottom command bar, never overlap the emulator content area, and drag-drop + click-to-browse still mount disks correctly.
+
+### P3.1b — State + selector fixes
+
+- [ ] T109c [P3.1] Fix the `DriveWidget` LED state pump in `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\DiskManager.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\DriveWidget.cpp`. The LED currently displays the Idle/Present orange even while the disk controller has its motor on during boot. Confirm the motor-on signal is read from the disk controller into `DriveWidgetState` every UI frame and that `DriveWidget::Paint` maps `DriveWidgetState::motorOn` / `diskActive` to the Active glow color. **Acceptance**: booting from a mounted disk drives the LED into the Active state (matching the FR-025 glow contract) while the motor is on, and back to Present when the motor stops.
+- [ ] T109d [P3.1] Fix the Machine selector population in `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\MachinePage.cpp` (and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\SettingsPanel.cpp` if needed). The selector currently displays an empty value when the panel opens. Walk `MachineScanner` / `UserConfigStore` to populate the dropdown with installed machines and select the currently active one. **Acceptance**: opening the settings panel shows the dropdown populated with installed machines, the active machine pre-selected, and changing the selection refreshes the other controls within one frame per FR-002.
+
+### P3.1c — Acceptance gate
+
+- [ ] T109e [P3.1] P3.1 acceptance gate: full smoke-test pass. `Casso.exe` launches at default window size; chrome bar visible at top with min/max/close working; nav strip visible with dropdowns; emulator viewport renders at 100% (560×384) with NO overlap from any chrome element; bottom command bar visible with two Disk II drive widgets (no overlap with emulator); LEDs respond to motor on/off during boot; `Ctrl+,` opens the native settings panel with machine selector populated and all controls interactive; `rg "Rml|RMLUI" Casso CassoCore CassoEmuCore CassoCli UnitTest External` returns zero hits; full test suite passes. Gate-only — no separate commit.
+
+**Checkpoint**: P3.1 acceptance gate (T109e) is green. P4 may now begin.
+
+---
+
 ## Phase P4: Themes + CRT controls (Priority: P2 user story US4)
+
+> **Dependency note**: P3.1 acceptance (T109e) must pass before any P4 task starts.
 
 **Goal**: Theme picker hot-swap, CRT brightness + per-effect toggles + per-effect
 parameters, three shipped built-in themes with full II / II+ / IIe / IIc variant
@@ -457,8 +497,9 @@ analysis sweep, full screenshot matrix capture, residue audit, documentation.
 - **P2** depends on P1 completion.
 - **P3.0** depends on P1 completion and may run in parallel with P2. It is the safety prerequisite for P3 — the settings panel apply path, reset prompt, and machine-switch wiring all hook into the managers extracted here.
 - **P3** depends on P3.0 acceptance (T108f). It may run in parallel with the tail of P2 once the shell decomposition is in.
-- **P4** depends on P3 completion (ThemePage / DisplayPage stubs from P3c filled in P4a).
-- **P5** depends on P2 + P3 + P4 completion.
+- **P3.1** depends on P3 completion (post-`c8faa57` smoke test surfaced the four issues this sub-phase fixes). T109e is its acceptance gate.
+- **P4** depends on P3.1 acceptance (T109e). ThemePage / DisplayPage stubs from P3c are filled in P4a.
+- **P5** depends on P2 + P3 + P3.1 + P4 completion.
 
 ### Within P0
 
@@ -509,8 +550,16 @@ analysis sweep, full screenshot matrix capture, residue audit, documentation.
 - T128 (vcxproj) depends on T110–T127, T120a–T120d, and T126a.
 - T129 (M4 screenshot) depends on T110–T128.
 
+### Within P3.1
+
+- T109a (bottom command bar + window resize) must land before T109b — the relocation target has to exist before drive widgets can move into it.
+- T109b (drive-widget relocation + hit-test rewire) follows T109a.
+- T109c (LED state pump) and T109d (machine selector population) are `[P]` across distinct files and independent of T109a/T109b, but in practice should land after T109b so the smoke-test acceptance gate sees the final layout.
+- T109e is the acceptance gate and must run last. No separate commit; gate-only.
+
 ### Within P4
 
+- **P3.1 (T109a–T109e) must be complete and T109e green before any P4 task starts.**
 - T130 depends on T117 (ThemePage stub) and T132 (GlobalUserPrefs).
 - T131 depends on T119 (DisplayPage stub) and T132.
 - T132 is independent within P4.
@@ -571,15 +620,17 @@ Once widgets land, run T094–T097 in parallel (4 chrome surfaces, distinct file
 3. P2 → full chrome surface (US3, US5 ship).
 4. P3.0 → EmulatorShell decomposition (refactor; no user-visible change, gates P3).
 5. P3 → settings panel (US1, US2 ship).
-6. P4 → themes + CRT (US4 ships).
-7. P5 → polish + validation (US6 + SC-* satisfied).
+6. P3.1 → smoke-test polish (bottom command bar, drive-widget relocation, LED pump, machine selector).
+7. P4 → themes + CRT (US4 ships).
+8. P5 → polish + validation (US6 + SC-* satisfied).
 
 ### Parallel team strategy
 
 - **Phase P0**: one engineer, single commit series, no parallelism (the scrub is the work).
 - **Phase P1**: 2–3 engineers — one owns painter/text/device-lost, one owns input/hit-test/focus/layout, one owns animation/theme + integration.
 - **Phase P2 + P3.0**: can run in parallel once P1 lands. P3.0 is one engineer working serially on `EmulatorShell.cpp` (the extractions cannot parallelize without merge churn).
-- **Phase P3**: starts after P3.0 acceptance (T108f). May run in parallel with the tail of P2. P4 waits on P3's page stubs.
+- **Phase P3**: starts after P3.0 acceptance (T108f). May run in parallel with the tail of P2.
+- **Phase P3.1**: serial after P3 — one engineer, smoke-test driven. T109a → T109b serialize on `EmulatorShell.cpp`; T109c and T109d can fan out in parallel; T109e is the gate. P4 waits on T109e.
 - **Phase P5**: single engineer per validation thread; T140, T141, T146, T147 can run in parallel; T142–T145 run last on a frozen merge.
 
 ---
