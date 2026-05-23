@@ -33,25 +33,8 @@
 #include "WasapiAudio.h"
 #include "DiskIIDebugDialog.h"
 #include "Shell/ClipboardManager.h"
+#include "Shell/CpuManager.h"
 #include "Shell/WindowManager.h"
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorCommand
-//
-//  Commands queued from the UI thread for the CPU thread to execute.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct EmulatorCommand
-{
-    WORD  id;
-    string payload;
-};
 
 
 
@@ -81,8 +64,8 @@ public:
     void HandleCommand (WORD commandId);
 
     // State
-    bool IsRunning() const { return m_running.load (memory_order_acquire); }
-    bool IsPaused() const { return m_paused.load (memory_order_acquire); }
+    bool IsRunning() const { return m_cpuManager.IsRunning(); }
+    bool IsPaused() const { return m_cpuManager.IsPaused(); }
 
     // Access bus for test wiring
     MemoryBus & GetBus() { return m_memoryBus; }
@@ -182,11 +165,13 @@ private:
     void OnHelpCommand (int id);
 
     // CPU thread entry point and helpers
-    void CpuThreadProc();
     void RunOneFrame();
     void ExecuteCpuSlices();
     void RenderFramebuffer();
-    void ProcessCommands();
+    void DispatchCpuCommand (const EmulatorCommand & cmd);
+    void OnCpuThreadStart();
+    void OnCpuThreadStop();
+    void PublishFramebuffer();
     void UpdateWindowTitle();
     void SelectVideoMode();
 
@@ -358,25 +343,15 @@ private:
     // clobbering another's.
     wstring         m_currentMachineName;
 
-    // -- Threading --
-    thread     m_cpuThread;
-
-    // Pause synchronization
-    mutex              m_pauseMutex;
-    condition_variable m_pauseCV;
+    // CPU-thread lifecycle, run/pause/step transitions, the UI -> CPU
+    // command queue, and the paste buffer all live on CpuManager. The
+    // shell wires its per-frame and per-command callbacks at startup
+    // and otherwise reads the manager's transition state through the
+    // IsRunning() / IsPaused() / GetSpeedMode() accessors.
+    CpuManager         m_cpuManager;
 
     // Atomic flags (UI writes, CPU reads)
-    atomic<bool>       m_running{true};
-    atomic<bool>       m_paused{false};
-    atomic<SpeedMode>  m_speedMode{SpeedMode::Authentic};
     atomic<ColorMode>  m_colorMode{ColorMode::Color};
-
-    // Command queue (UI → CPU, protected by m_cmdMutex)
-    mutex                    m_cmdMutex;
-    vector<EmulatorCommand>  m_commandQueue;
-
-    // Paste queue (UI -> CPU, protected by m_cmdMutex)
-    string             m_pasteBuffer;
 
     // Double framebuffer (CPU renders, UI presents, protected by m_fbMutex)
     mutex              m_fbMutex;

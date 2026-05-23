@@ -59,8 +59,6 @@ static constexpr LPCWSTR kLastMachineValue = L"LastMachine";
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr LONGLONG kHundredNsPerSecond = 10000000LL;
-
 static constexpr int    kFramebufferWidth  = 560;
 static constexpr int    kFramebufferHeight = 384;
 static constexpr LPCWSTR kWindowClass      = L"CassoWindow";
@@ -219,8 +217,8 @@ EmulatorShell::EmulatorShell()
     m_videoTiming = make_unique<VideoTiming>();
 
     m_clipboardManager = std::make_unique<ClipboardManager> (m_memoryBus,
-                                                              m_cmdMutex,
-                                                              m_pasteBuffer,
+                                                              m_cpuManager.GetCommandMutex(),
+                                                              m_cpuManager.GetPasteBuffer(),
                                                               m_fbMutex,
                                                               m_uiFramebuffer,
                                                               kFramebufferWidth,
@@ -245,12 +243,7 @@ EmulatorShell::~EmulatorShell()
 
 
 
-    m_running.store (false, memory_order_release);
-
-    if (m_cpuThread.joinable())
-    {
-        m_cpuThread.join();
-    }
+    m_cpuManager.Stop();
 
     // Spec-006 / FR-024. Revoke BOTH sinks BEFORE the dialog tears
     // down its ring (and before the controller / audio source itself
@@ -2199,12 +2192,17 @@ Error:
 
 int EmulatorShell::RunMessageLoop()
 {
-    MSG msg = {};
+    MSG      msg = {};
+    HRESULT  hr  = S_OK;
 
 
 
-    // Start the CPU thread
-    m_cpuThread = thread (&EmulatorShell::CpuThreadProc, this);
+    hr = m_cpuManager.Start (
+        [this] { OnCpuThreadStart(); },
+        [this] (const EmulatorCommand & cmd) { DispatchCpuCommand (cmd); },
+        [this] { RunOneFrame(); PublishFramebuffer(); },
+        [this] { OnCpuThreadStop(); });
+    CHRA (hr);
 
     // Cold-boot mount window is closed once the UI message loop is
     // ready to deliver user input -- any mount issued from here on
@@ -2213,20 +2211,14 @@ int EmulatorShell::RunMessageLoop()
     m_coldBootMountWindow = false;
 
     // UI thread loop: process messages, present latest framebuffer with vsync
-    while (m_running.load (memory_order_acquire))
+    while (m_cpuManager.IsRunning())
     {
         // Process all pending messages
         while (PeekMessage (&msg, nullptr, 0, 0, PM_REMOVE))
         {
             if (msg.message == WM_QUIT)
             {
-                m_running.store (false, memory_order_release);
-
-                if (m_cpuThread.joinable())
-                {
-                    m_cpuThread.join();
-                }
-
+                m_cpuManager.Stop();
                 return static_cast<int> (msg.wParam);
             }
 
@@ -2274,11 +2266,9 @@ int EmulatorShell::RunMessageLoop()
         m_d3dRenderer.UploadAndPresent (m_uiFramebuffer.data());
     }
 
-    if (m_cpuThread.joinable())
-    {
-        m_cpuThread.join();
-    }
+    m_cpuManager.Stop();
 
+Error:
     return 0;
 }
 
@@ -2288,30 +2278,19 @@ int EmulatorShell::RunMessageLoop()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CpuThreadProc
+//  OnCpuThreadStart
 //
-//  Runs on a dedicated thread.  Owns the 6502 execution loop, audio
-//  generation/submission (WASAPI), and software framebuffer rendering.
-//  Communicates with the UI thread via atomics and mutex-protected buffers.
+//  CPU-thread-side initialization callback invoked by CpuManager once
+//  the worker thread is alive and COM is initialized. Brings up the
+//  WASAPI client and seeds the drive-audio mixer with the per-machine
+//  sample set so subsequent SetMechanism() switches reload from disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::CpuThreadProc()
+void EmulatorShell::OnCpuThreadStart()
 {
-    HRESULT       hr              = S_OK;
-    HANDLE        hTimer          = nullptr;
-    LARGE_INTEGER dueTime         = {};
-    SpeedMode     speed           = SpeedMode::Authentic;
-    bool          fComInitialized = false;
-    BOOL          fSuccess        = FALSE;
+    HRESULT  hr = S_OK;
 
-
-
-    // Initialize COM on this thread for WASAPI
-    hr = CoInitializeEx (nullptr, COINIT_MULTITHREADED);
-    CHRA (hr);
-
-    fComInitialized = true;
 
     // Initialize WASAPI audio (non-fatal if it fails)
     hr = m_wasapiAudio.Initialize();
@@ -2344,61 +2323,6 @@ void EmulatorShell::CpuThreadProc()
         HRESULT  hrLoad = m_driveAudioMixer.SetMechanism (m_driveAudioMixer.GetMechanism());
         IGNORE_RETURN_VALUE (hrLoad, S_OK);
     }
-    
-    // Create a high-resolution waitable timer for 60fps frame pacing
-    hTimer = CreateWaitableTimerEx (nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
-    CWRA (hTimer);
-
-    while (m_running.load (memory_order_acquire))
-    {
-        {
-            unique_lock<mutex> lock (m_pauseMutex);
-            m_pauseCV.wait (lock, 
-                [&] 
-                { 
-                    return !m_paused.load (memory_order_acquire) || !m_running.load (memory_order_acquire); 
-                });
-        }
-
-        // Process deferred commands from the UI thread
-        ProcessCommands();
-
-        // Arm the timer for this frame
-        dueTime.QuadPart = -(kHundredNsPerSecond * kAppleCyclesPerFrame / kAppleCpuClock);
-        fSuccess = SetWaitableTimer (hTimer, &dueTime, 0, nullptr, nullptr, FALSE);
-        CWRA (fSuccess);
-
-        // Execute one frame of CPU + audio + video
-        RunOneFrame();
-
-        // Publish the completed framebuffer for the UI thread
-        {
-            lock_guard<mutex> lock (m_fbMutex);
-            m_uiFramebuffer = m_cpuFramebuffer;
-            m_fbReady = true;
-        }
-
-        // Wait for the remainder of the frame period
-        speed = m_speedMode.load (memory_order_acquire);
-
-        if (speed != SpeedMode::Maximum)
-        {
-            WaitForSingleObject (hTimer, INFINITE);
-        }
-    }
-
-Error:
-    if (hTimer != nullptr)
-    {
-        CloseHandle (hTimer);
-    }
-
-    m_wasapiAudio.Shutdown();
-
-    if (fComInitialized)
-    {
-        CoUninitialize();
-    }
 }
 
 
@@ -2407,102 +2331,108 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProcessCommands
-//
-//  Drains the command queue and executes each command on the CPU thread,
-//  where it is safe to touch CPU, bus, and device state.
+//  OnCpuThreadStop
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ProcessCommands()
+void EmulatorShell::OnCpuThreadStop()
 {
-    vector<EmulatorCommand> cmds;
+    m_wasapiAudio.Shutdown();
+}
 
-    {
-        lock_guard<mutex> lock (m_cmdMutex);
-        cmds.swap (m_commandQueue);
-    }
 
-    for (const auto & cmd : cmds)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchCpuCommand
+//
+//  Single-command dispatcher invoked by CpuManager once per drained
+//  EmulatorCommand. All branches run on the CPU thread, where it is
+//  safe to touch CPU, bus, and device state.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
+{
+    switch (cmd.id)
     {
-        switch (cmd.id)
+        case IDM_FILE_OPEN:
         {
-            case IDM_FILE_OPEN:
+            wstring wideName (cmd.payload.begin(), cmd.payload.end());
+            HRESULT hrSwitch = SwitchMachine (wideName);
+
+            if (FAILED (hrSwitch))
             {
-                wstring wideName (cmd.payload.begin(), cmd.payload.end());
-                HRESULT hrSwitch = SwitchMachine (wideName);
-
-                if (FAILED (hrSwitch))
-                {
-                    DEBUGMSG (L"SwitchMachine failed: 0x%08X\n", hrSwitch);
-                }
-                break;
+                DEBUGMSG (L"SwitchMachine failed: 0x%08X\n", hrSwitch);
             }
-
-            case IDM_MACHINE_RESET:
-            {
-                // Re-read disks from the host filesystem first so an
-                // externally-regenerated .dsk (typical dev workflow:
-                // hack on a demo, regenerate the disk image, hit
-                // Reset) is picked up by the post-reset boot.
-                RemountSlot6Disks();
-                SoftReset();
-                break;
-            }
-
-            case IDM_MACHINE_POWERCYCLE:
-            {
-                // EmulatorShell::PowerCycle preserves DiskImageStore
-                // mounts but DiskIIController::PowerCycle unbinds the
-                // controller's external-disk pointer (it re-points
-                // each engine at its empty internal sentinel), so
-                // without an explicit re-mount the drives come up
-                // empty and the boot ROM has nothing to read.
-                // RemountSlot6Disks both re-binds the engines AND
-                // re-reads the host file (so external regenerations
-                // are picked up).
-                PowerCycle();
-                RemountSlot6Disks();
-                break;
-            }
-
-            case IDM_MACHINE_STEP:
-            {
-                if (m_cpu)
-                {
-                    m_cpu->StepOne();
-
-                    if (m_refs.diskController != nullptr)
-                    {
-                        m_refs.diskController->Tick (m_cpu->GetLastInstructionCycles());
-                    }
-                }
-                break;
-            }
-
-            case IDM_DISK_INSERT1:
-            case IDM_DISK_INSERT2:
-            {
-                int      drive   = (cmd.id == IDM_DISK_INSERT1) ? 0 : 1;
-                HRESULT  hrMount = S_OK;
-
-                hrMount = MountDiskInSlot6 (drive, cmd.payload);
-                IGNORE_RETURN_VALUE (hrMount, S_OK);
-                break;
-            }
-
-            case IDM_DISK_EJECT1:
-            case IDM_DISK_EJECT2:
-            {
-                int   drive = (cmd.id == IDM_DISK_EJECT1) ? 0 : 1;
-
-                EjectDiskInSlot6 (drive);
-                break;
-            }
-
-            default:
-                break;
+            break;
         }
+
+        case IDM_MACHINE_RESET:
+        {
+            // Re-read disks from the host filesystem first so an
+            // externally-regenerated .dsk (typical dev workflow:
+            // hack on a demo, regenerate the disk image, hit
+            // Reset) is picked up by the post-reset boot.
+            RemountSlot6Disks();
+            SoftReset();
+            break;
+        }
+
+        case IDM_MACHINE_POWERCYCLE:
+        {
+            // EmulatorShell::PowerCycle preserves DiskImageStore
+            // mounts but DiskIIController::PowerCycle unbinds the
+            // controller's external-disk pointer (it re-points
+            // each engine at its empty internal sentinel), so
+            // without an explicit re-mount the drives come up
+            // empty and the boot ROM has nothing to read.
+            // RemountSlot6Disks both re-binds the engines AND
+            // re-reads the host file (so external regenerations
+            // are picked up).
+            PowerCycle();
+            RemountSlot6Disks();
+            break;
+        }
+
+        case IDM_MACHINE_STEP:
+        {
+            if (m_cpu)
+            {
+                m_cpu->StepOne();
+
+                if (m_refs.diskController != nullptr)
+                {
+                    m_refs.diskController->Tick (m_cpu->GetLastInstructionCycles());
+                }
+            }
+            break;
+        }
+
+        case IDM_DISK_INSERT1:
+        case IDM_DISK_INSERT2:
+        {
+            int      drive   = (cmd.id == IDM_DISK_INSERT1) ? 0 : 1;
+            HRESULT  hrMount = S_OK;
+
+            hrMount = MountDiskInSlot6 (drive, cmd.payload);
+            IGNORE_RETURN_VALUE (hrMount, S_OK);
+            break;
+        }
+
+        case IDM_DISK_EJECT1:
+        case IDM_DISK_EJECT2:
+        {
+            int   drive = (cmd.id == IDM_DISK_EJECT1) ? 0 : 1;
+
+            EjectDiskInSlot6 (drive);
+            break;
+        }
+
+        default:
+            break;
     }
 }
 
@@ -2514,12 +2444,15 @@ void EmulatorShell::ProcessCommands()
 //
 //  PostCommand
 //
+//  Thin wrapper that hands the command id and payload to the CpuManager
+//  queue. Retained on EmulatorShell so call sites that already speak
+//  the "post a menu id" idiom do not need to know the manager exists.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::PostCommand (WORD id, const string & payload)
 {
-    lock_guard<mutex> lock (m_cmdMutex);
-    m_commandQueue.push_back ({ id, payload });
+    m_cpuManager.PostCommand (id, payload);
 }
 
 
@@ -2527,6 +2460,22 @@ void EmulatorShell::PostCommand (WORD id, const string & payload)
 
 
 ////////////////////////////////////////////////////////////////////////////////
+//
+//  PublishFramebuffer
+//
+//  Copies the freshly-rendered CPU framebuffer into the UI-visible
+//  framebuffer under m_fbMutex so the next UI message-loop iteration
+//  can pick it up and present.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PublishFramebuffer()
+{
+    lock_guard<mutex>  lock (m_fbMutex);
+
+    m_uiFramebuffer = m_cpuFramebuffer;
+    m_fbReady       = true;
+}
 
 
 
@@ -2559,7 +2508,7 @@ void EmulatorShell::ExecuteCpuSlices()
     static constexpr uint32_t kSliceCycles = 1023;
 
     uint32_t  targetCycles    = m_cyclesPerFrame;
-    SpeedMode speed           = m_speedMode.load (memory_order_acquire);
+    SpeedMode speed           = m_cpuManager.GetSpeedMode();
     bool      audioActive     = (m_refs.speaker != nullptr && m_wasapiAudio.IsInitialized());
     double    cyclesPerSample = 0.0;
     uint32_t  sliceTarget     = 0;
@@ -2833,8 +2782,7 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
     // RevokeDragDrop requires a valid window handle.
     m_dragDropTarget.Shutdown();
 
-    m_running.store (false, memory_order_release);
-    m_pauseCV.notify_one();
+    m_cpuManager.Stop();
     PostQuitMessage (0);
     
     return false;
@@ -3318,9 +3266,7 @@ void EmulatorShell::OnMachineCommand (int id)
 
         case IDM_MACHINE_PAUSE:
         {
-            paused = !m_paused.load (memory_order_acquire);
-            m_paused.store (paused, memory_order_release);
-            m_pauseCV.notify_one();
+            paused = m_cpuManager.TogglePaused();
             m_menuSystem.SetPaused (paused);
             UpdateWindowTitle();
             break;
@@ -3328,7 +3274,7 @@ void EmulatorShell::OnMachineCommand (int id)
 
         case IDM_MACHINE_STEP:
         {
-            if (m_paused.load (memory_order_acquire))
+            if (m_cpuManager.IsPaused())
             {
                 PostCommand (static_cast<WORD> (id));
             }
@@ -3337,21 +3283,21 @@ void EmulatorShell::OnMachineCommand (int id)
 
         case IDM_MACHINE_SPEED_1X:
         {
-            m_speedMode.store (SpeedMode::Authentic, memory_order_release);
+            m_cpuManager.SetSpeedMode (SpeedMode::Authentic);
             m_menuSystem.SetSpeedMode (SpeedMode::Authentic);
             break;
         }
 
         case IDM_MACHINE_SPEED_2X:
         {
-            m_speedMode.store (SpeedMode::Double, memory_order_release);
+            m_cpuManager.SetSpeedMode (SpeedMode::Double);
             m_menuSystem.SetSpeedMode (SpeedMode::Double);
             break;
         }
 
         case IDM_MACHINE_SPEED_MAX:
         {
-            m_speedMode.store (SpeedMode::Maximum, memory_order_release);
+            m_cpuManager.SetSpeedMode (SpeedMode::Maximum);
             m_menuSystem.SetSpeedMode (SpeedMode::Maximum);
             break;
         }
@@ -3690,11 +3636,11 @@ void EmulatorShell::UpdateWindowTitle()
         title += wideName;
     }
 
-    if (m_paused.load (memory_order_acquire))
+    if (m_cpuManager.IsPaused())
     {
         title += L" [Paused]";
     }
-    else if (m_running.load (memory_order_acquire))
+    else if (m_cpuManager.IsRunning())
     {
         title += L" [Running]";
     }
