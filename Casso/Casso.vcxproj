@@ -252,6 +252,7 @@
     <ClCompile Include="Shell\CpuManager.cpp" />
     <ClCompile Include="Shell\DiskManager.cpp" />
     <ClCompile Include="Shell\MachineManager.cpp" />
+    <ClCompile Include="Shell\WindowCommandManager.cpp" />
     <ClCompile Include="Shell\WindowManager.cpp" />
     <ClCompile Include="Ui\UiShell.cpp" />
     <ClCompile Include="Ui\DxUiPainter.cpp" />
@@ -306,6 +307,7 @@
     <ClInclude Include="Shell\CpuManager.h" />
     <ClInclude Include="Shell\DiskManager.h" />
     <ClInclude Include="Shell\MachineManager.h" />
+    <ClInclude Include="Shell\WindowCommandManager.h" />
     <ClInclude Include="Shell\WindowManager.h" />
     <ClInclude Include="Ui\UiShell.h" />
     <ClInclude Include="Ui\DxUiPainter.h" />

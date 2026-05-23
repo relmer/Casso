@@ -36,6 +36,7 @@
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "Shell/MachineManager.h"
+#include "Shell/WindowCommandManager.h"
 #include "Shell/WindowManager.h"
 
 
@@ -158,14 +159,6 @@ private:
     LRESULT OnNcHitTest   (HWND hwnd, int xScreen, int yScreen) override;
     bool    OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen) override;
 
-    // Command group handlers
-    void OnFileCommand (int id);
-    void OnEditCommand (int id);
-    void OnMachineCommand (int id);
-    void OnViewCommand (int id);
-    void OnDiskCommand (int id);
-    void OnHelpCommand (int id);
-
     // CPU thread entry point and helpers
     void RunOneFrame();
     void ExecuteCpuSlices();
@@ -180,7 +173,6 @@ private:
     HRESULT CreateEmulatorWindow (HINSTANCE hInstance);
 
     HRESULT CreateRenderSurface ();
-    HRESULT PromptForDiskImage (int drive);
 
     // Queue a command for the CPU thread
     void PostCommand (WORD id, const string & payload = "");
@@ -191,10 +183,12 @@ private:
     HRESULT SwitchMachine (const std::wstring & machineName);
     void    ShowMachinePicker();
 
-    // MachineManager touches enough shell state during construction
-    // and machine-switch teardown that a friend declaration is the
-    // pragmatic seam; no new global state is introduced.
+    // MachineManager and WindowCommandManager touch enough shell
+    // state during construction and command dispatch that friend
+    // declarations are the pragmatic seam; no new global state is
+    // introduced.
     friend class MachineManager;
+    friend class WindowCommandManager;
 
     HACCEL              m_accelTable      = nullptr;
     HWND                m_renderHwnd      = nullptr;
@@ -355,6 +349,7 @@ private:
     std::unique_ptr<ClipboardManager>         m_clipboardManager;
     std::unique_ptr<DiskManager>              m_diskManager;
     std::unique_ptr<MachineManager>           m_machineManager;
+    std::unique_ptr<WindowCommandManager>     m_windowCommandManager;
 };
 
 

@@ -206,6 +206,8 @@ EmulatorShell::EmulatorShell()
                                                     m_currentMachineName);
 
     m_machineManager = std::make_unique<MachineManager> (*this);
+
+    m_windowCommandManager = std::make_unique<WindowCommandManager> (*this);
 }
 
 
@@ -1337,16 +1339,11 @@ void EmulatorShell::RenderFramebuffer()
 //
 //  HandleCommand
 //
-//  Public command-pump entry point. Used by the NavLayer so
-//  click routing from the chrome funnels through the same
-//  dispatch path as a Win32 menu pick. Intentionally a thin wrapper —
-//  OnCommand owns the real id-range demux.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::HandleCommand (WORD commandId)
 {
-    OnCommand (m_hwnd, (int) commandId);
+    m_windowCommandManager->HandleCommand (commandId);
 }
 
 
@@ -1361,16 +1358,7 @@ void EmulatorShell::HandleCommand (WORD commandId)
 
 bool EmulatorShell::OnCommand (HWND hwnd, int id)
 {
-    UNREFERENCED_PARAMETER (hwnd);
-
-    if      (id >= IDM_EDIT_COPY_TEXT && id <= IDM_EDIT_PASTE)       { OnEditCommand (id); }
-    else if (id >= IDM_FILE_OPEN     && id <= IDM_FILE_EXIT)          { OnFileCommand (id); }
-    else if (id >= IDM_MACHINE_RESET && id <= IDM_MACHINE_INFO)       { OnMachineCommand (id); }
-    else if (id >= IDM_DISK_INSERT1  && id <= IDM_DISK_WRITEPROTECT2) { OnDiskCommand (id); }
-    else if (id >= IDM_VIEW_COLOR    && id <= IDM_VIEW_DISKII_DEBUG)  { OnViewCommand (id); }
-    else if (id >= IDM_HELP_KEYMAP   && id <= IDM_HELP_ABOUT)         { OnHelpCommand (id); }
-
-    return false;
+    return m_windowCommandManager->OnCommand (hwnd, id);
 }
 
 
@@ -1497,7 +1485,7 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         region = drive.HitTest (x, y);
         if (region == DriveWidgetRegion::Body)
         {
-            HRESULT  hrBrowse = PromptForDiskImage (drive.Drive());
+            HRESULT  hrBrowse = m_windowCommandManager->PromptForDiskImage (drive.Drive());
             IGNORE_RETURN_VALUE (hrBrowse, S_OK);
             return false;
         }
@@ -1820,416 +1808,6 @@ bool EmulatorShell::OnTimer (HWND hwnd, UINT_PTR timerId)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::OnFileCommand (int id)
-{
-    switch (id)
-    {
-        case IDM_FILE_OPEN:
-        {
-            ShowMachinePicker();
-            break;
-        }
-
-        case IDM_FILE_EXIT:
-        {
-            DestroyWindow (m_hwnd);
-            break;
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnEditCommand
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::OnEditCommand (int id)
-{
-    switch (id)
-    {
-        case IDM_EDIT_COPY_TEXT:
-        {
-            m_clipboardManager->CopyScreenText (m_hwnd);
-            break;
-        }
-
-        case IDM_EDIT_COPY_SCREENSHOT:
-        {
-            m_clipboardManager->CopyScreenshot (m_hwnd);
-            break;
-        }
-
-        case IDM_EDIT_PASTE:
-        {
-            m_clipboardManager->PasteFromClipboard (m_hwnd);
-            break;
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnMachineCommand
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::OnMachineCommand (int id)
-{
-    bool paused = false;
-
-
-
-    switch (id)
-    {
-        case IDM_MACHINE_RESET:
-        case IDM_MACHINE_POWERCYCLE:
-        {
-            PostCommand (static_cast<WORD> (id));
-            break;
-        }
-
-        case IDM_MACHINE_PAUSE:
-        {
-            paused = m_cpuManager.TogglePaused();
-            m_menuSystem.SetPaused (paused);
-            UpdateWindowTitle();
-            break;
-        }
-
-        case IDM_MACHINE_STEP:
-        {
-            if (m_cpuManager.IsPaused())
-            {
-                PostCommand (static_cast<WORD> (id));
-            }
-            break;
-        }
-
-        case IDM_MACHINE_SPEED_1X:
-        {
-            m_cpuManager.SetSpeedMode (SpeedMode::Authentic);
-            m_menuSystem.SetSpeedMode (SpeedMode::Authentic);
-            break;
-        }
-
-        case IDM_MACHINE_SPEED_2X:
-        {
-            m_cpuManager.SetSpeedMode (SpeedMode::Double);
-            m_menuSystem.SetSpeedMode (SpeedMode::Double);
-            break;
-        }
-
-        case IDM_MACHINE_SPEED_MAX:
-        {
-            m_cpuManager.SetSpeedMode (SpeedMode::Maximum);
-            m_menuSystem.SetSpeedMode (SpeedMode::Maximum);
-            break;
-        }
-
-        case IDM_MACHINE_INFO:
-        {
-            wstring info = format (
-                L"Machine: {}\n"
-                L"CPU: {}\n"
-                L"Clock Speed: {} Hz\n"
-                L"Memory Regions: {}\n"
-                L"Devices: {}",
-                wstring (m_config.name.begin(), m_config.name.end()),
-                wstring (m_config.cpu.begin(), m_config.cpu.end()),
-                m_config.clockSpeed,
-                (m_config.ram.size() + 1 + m_config.slots.size()),
-                (m_config.internalDevices.size() + m_config.slots.size()));
-
-            MessageBoxW (m_hwnd, info.c_str(), L"Machine Info", MB_ICONINFORMATION | MB_OK);
-            break;
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnViewCommand
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::OnViewCommand (int id)
-{
-    UINT        dpi   = 0;
-    int         scale = 0;
-    RECT        rc    = {};
-    DWORD       style = 0;
-    HMONITOR    hMon  = nullptr;
-    MONITORINFO mi    = { sizeof (mi) };
-    int         w     = 0;
-    int         h     = 0;
-    int         x     = 0;
-    int         y     = 0;
-
-
-
-    switch (id)
-    {
-        case IDM_VIEW_COLOR:
-        {
-            m_colorMode.store (ColorMode::Color, memory_order_release);
-            m_menuSystem.SetColorMode (ColorMode::Color);
-            break;
-        }
-
-        case IDM_VIEW_GREEN:
-        {
-            m_colorMode.store (ColorMode::GreenMono, memory_order_release);
-            m_menuSystem.SetColorMode (ColorMode::GreenMono);
-            break;
-        }
-
-        case IDM_VIEW_AMBER:
-        {
-            m_colorMode.store (ColorMode::AmberMono, memory_order_release);
-            m_menuSystem.SetColorMode (ColorMode::AmberMono);
-            break;
-        }
-
-        case IDM_VIEW_WHITE:
-        {
-            m_colorMode.store (ColorMode::WhiteMono, memory_order_release);
-            m_menuSystem.SetColorMode (ColorMode::WhiteMono);
-            break;
-        }
-
-        case IDM_VIEW_FULLSCREEN:
-        {
-            m_d3dRenderer.ToggleFullscreen (m_hwnd);
-            break;
-        }
-
-        case IDM_VIEW_RESET_SIZE:
-        {
-            if (!m_d3dRenderer.IsFullscreen())
-            {
-                dpi   = GetDpiForWindow (m_hwnd);
-                scale = (dpi + 48) / 96;
-
-                if (scale < 1)
-                {
-                    scale = 1;
-                }
-
-                rc    = { 0, 0,
-                          kFramebufferWidth * scale,
-                          kFramebufferHeight * scale + ComputeChromeTopInsetPx (dpi) };
-                style = static_cast<DWORD> (GetWindowLong (m_hwnd, GWL_STYLE));
-                AdjustWindowRectExForDpi (&rc, style, FALSE, 0, dpi);
-
-                w = rc.right - rc.left;
-                h = rc.bottom - rc.top;
-
-                hMon = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
-                GetMonitorInfo (hMon, &mi);
-
-                x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - w) / 2;
-                y = mi.rcWork.top  + (mi.rcWork.bottom - mi.rcWork.top - h) / 2;
-
-                SetWindowPos (m_hwnd, nullptr, x, y, w, h, SWP_NOZORDER);
-            }
-            break;
-        }
-
-        case IDM_VIEW_DISKII_DEBUG:
-        {
-            OpenDiskIIDebugDialog();
-            break;
-        }
-
-        case IDM_VIEW_SETTINGS:
-        {
-            ShowMachinePicker();
-            break;
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PromptForDiskImage
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT EmulatorShell::PromptForDiskImage (int drive)
-{
-    HRESULT                         hr         = S_OK;
-    ComPtr<IFileOpenDialog>         dialog;
-    ComPtr<IShellItem>              item;
-    PWSTR                           pszPath    = nullptr;
-    COMDLG_FILTERSPEC               filters[1] = { { L"Disk Images", L"*.dsk;*.nib;*.woz;*.po" } };
-
-
-
-    hr = CoCreateInstance (CLSID_FileOpenDialog,
-                           nullptr,
-                           CLSCTX_INPROC_SERVER,
-                           IID_PPV_ARGS (&dialog));
-    CHR (hr);
-
-    hr = dialog->SetFileTypes (1, filters);
-    CHR (hr);
-
-    hr = dialog->Show (m_hwnd);
-    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
-    {
-        hr = S_FALSE;
-        goto Error;
-    }
-    CHR (hr);
-
-    hr = dialog->GetResult (&item);
-    CHR (hr);
-
-    hr = item->GetDisplayName (SIGDN_FILESYSPATH, &pszPath);
-    CHR (hr);
-
-    hr = Mount (6, drive, pszPath);
-    CHR (hr);
-
-Error:
-    if (pszPath != nullptr)
-    {
-        CoTaskMemFree (pszPath);
-    }
-
-    return hr;
-}////////////////////////////////////////////////////////////////////////////////
-//
-//  OnDiskCommand
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::OnDiskCommand (int id)
-{
-    WCHAR           filePath[MAX_PATH] = {};
-    OPENFILENAMEW   ofn                = {};
-
-
-
-    switch (id)
-    {
-        case IDM_DISK_INSERT1:
-        case IDM_DISK_INSERT2:
-        {
-            ofn.lStructSize = sizeof (ofn);
-            ofn.hwndOwner   = m_hwnd;
-            ofn.lpstrFilter = L"Disk Images (*.dsk)\0*.dsk\0All Files (*.*)\0*.*\0";
-            ofn.lpstrFile   = filePath;
-            ofn.nMaxFile    = MAX_PATH;
-            ofn.lpstrTitle  = (id == IDM_DISK_INSERT1) ?
-                L"Insert Disk in Drive 1" : L"Insert Disk in Drive 2";
-            ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
-
-            if (GetOpenFileNameW (&ofn))
-            {
-                PostCommand (static_cast<WORD> (id), fs::path (filePath).string());
-            }
-            break;
-        }
-
-        case IDM_DISK_EJECT1:
-        case IDM_DISK_EJECT2:
-        {
-            PostCommand (static_cast<WORD> (id));
-            break;
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnHelpCommand
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::OnHelpCommand (int id)
-{
-    switch (id)
-    {
-        case IDM_HELP_DEBUG:
-        {
-            if (m_debugConsole.IsVisible())
-            {
-                m_debugConsole.Hide();
-            }
-            else
-            {
-                if (m_debugConsole.Show (m_hInstance))
-                {
-                    m_debugConsole.LogConfig (
-                        format ("Machine: {}\nCPU: {}\nClock: {} Hz\nDevices: {}",
-                            m_config.name, m_config.cpu, m_config.clockSpeed,
-                            (m_config.internalDevices.size() + m_config.slots.size())));
-                }
-            }
-            break;
-        }
-
-        case IDM_HELP_KEYMAP:
-        {
-            MessageBoxW (m_hwnd,
-                L"PC Key Mapping:\n\n"
-                L"Arrow Keys -> Apple ][ cursor movement\n"
-                L"Enter -> Return\n"
-                L"Escape -> Escape\n"
-                L"Delete -> Delete\n"
-                L"Ctrl+Reset -> Warm Reset\n"
-                L"Left Alt -> Open Apple (//e)\n"
-                L"Right Alt -> Closed Apple (//e)\n\n"
-                L"Emulator Controls:\n"
-                L"Ctrl+R -> Reset\n"
-                L"Ctrl+Alt+R -> Autoboot Reset (cold boot from disk)\n"
-                L"Ctrl+Shift+R -> Power Cycle\n"
-                L"Pause -> Pause/Resume\n"
-                L"F11 -> Step (when paused)\n"
-                L"Alt+Enter -> Fullscreen\n"
-                L"Ctrl+0 -> Reset Window Size\n"
-                L"Ctrl+D -> Debug Console",
-                L"Keyboard Map", MB_ICONINFORMATION | MB_OK);
-            break;
-        }
-
-        case IDM_HELP_ABOUT:
-        {
-            MessageBoxW (m_hwnd,
-                L"Casso Apple ][ Emulator\n"
-                L"Version " _CRT_WIDE (VERSION_STRING) L"\n"
-                L"Built " _CRT_WIDE (VERSION_BUILD_TIMESTAMP) L"\n\n"
-                L"An Apple ][ / ][+ / //e platform emulator built on\n"
-                L"the Casso 6502 assembler/emulator project.\n\n"
-                L"https://github.com/relmer/Casso",
-                L"About Casso", MB_ICONINFORMATION | MB_OK);
-            break;
-        }
-    }
-}
-
 
 
 
@@ -2449,24 +2027,11 @@ Error:
 //
 //  OnInitMenuPopup
 //
-//  Spec-006 / FR-001a. Re-evaluate menu items whose enabled state
-//  depends on runtime machine config (currently just
-//  IDM_VIEW_DISKII_DEBUG). Win32 fires this every time the user
-//  opens a popup, so a SwitchMachine between menu opens picks up
-//  the controller delta on the next click.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool EmulatorShell::OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu)
 {
-    UNREFERENCED_PARAMETER (hwnd);
-    UNREFERENCED_PARAMETER (hMenu);
-    UNREFERENCED_PARAMETER (itemIndex);
-    UNREFERENCED_PARAMETER (isWindowMenu);
-
-    m_menuSystem.UpdateDynamicMenuItems (m_config);
-
-    return true;
+    return m_windowCommandManager->OnInitMenuPopup (hwnd, hMenu, itemIndex, isWindowMenu);
 }
 
 
