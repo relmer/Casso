@@ -8,6 +8,10 @@
 #include "FocusManager.h"
 #include "HitTester.h"
 #include "UiInput.h"
+#include "Chrome/ChromeTheme.h"
+#include "Chrome/DriveWidget.h"
+#include "Chrome/NavLayer.h"
+#include "Chrome/TitleBar.h"
 
 
 class D3DRenderer;
@@ -15,23 +19,9 @@ class D3DRenderer;
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UiShell
-//
-//  Top-level owner of the native UI runtime. Constructs and wires the
-//  painter, text renderer, input translator, hit-tester, focus manager,
-//  and animation broker against the active `D3DRenderer`. Provides a
-//  single per-frame `Render()` entry point that the renderer's
-//  after-blit hook invokes between the emulator blit and `Present`.
-//
-//  The shell does not own the swap chain; it borrows the device,
-//  context, and back-buffer surface from the renderer for the duration
-//  of a frame. On window resize or device-lost the consumer must call
-//  the corresponding `OnResize` / `OnDeviceLost` / `OnDeviceRestored`
-//  hooks so the text renderer's bitmap target is rebuilt against the
-//  new surface.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,20 +31,28 @@ public:
     UiShell  () = default;
     ~UiShell ();
 
-    HRESULT  Initialize        (D3DRenderer * pRenderer);
-    void     Shutdown          ();
+    HRESULT  Initialize         (D3DRenderer * pRenderer);
+    void     Shutdown           ();
 
-    HRESULT  OnResize          (int viewportWidthPx,
-                                int viewportHeightPx,
-                                UINT dpi);
+    HRESULT  OnResize           (int viewportWidthPx,
+                                  int viewportHeightPx,
+                                  UINT dpi);
 
-    HRESULT  OnDeviceLost      ();
-    HRESULT  OnDeviceRestored  ();
+    HRESULT  OnDeviceLost       ();
+    HRESULT  OnDeviceRestored   ();
 
-    void     Render            ();
+    void     Render             ();
 
     void     SetDebugBannerText (const std::wstring & text) { m_debugBanner = text; }
     void     SetShowDebugBanner (bool showBanner)           { m_showBanner  = showBanner; }
+    void     SetChrome          (TitleBar                        * titleBar,
+                                  NavLayer                        * navLayer,
+                                  std::array<DriveWidget, 2>      * driveWidgets,
+                                  const ChromeTheme               * theme);
+    void     OnMouseMove        (int x, int y, bool leftDown);
+    void     OnLButtonDown      (int x, int y);
+    void     OnLButtonUp        (int x, int y);
+    bool     HandleKey          (WPARAM vk);
 
     DxUiPainter         & Painter   ()       { return m_painter; }
     DwriteTextRenderer  & Text      ()       { return m_text; }
@@ -69,22 +67,28 @@ public:
 private:
     HRESULT  RefreshTextTarget ();
 
+    D3DRenderer                 * m_renderer     = nullptr;
 
-    D3DRenderer        * m_renderer = nullptr;     // non-owning
+    DxUiPainter                   m_painter;
+    DwriteTextRenderer            m_text;
+    UiInput                       m_input;
+    HitTester                     m_hitTest;
+    FocusManager                  m_focus;
+    Animation                     m_anim;
 
-    DxUiPainter          m_painter;
-    DwriteTextRenderer   m_text;
-    UiInput              m_input;
-    HitTester            m_hitTest;
-    FocusManager         m_focus;
-    Animation            m_anim;
+    TitleBar                    * m_titleBar     = nullptr;
+    NavLayer                    * m_navLayer     = nullptr;
+    std::array<DriveWidget, 2>  * m_driveWidgets = nullptr;
+    const ChromeTheme           * m_theme        = nullptr;
 
-    int                  m_viewportWidthPx  = 0;
-    int                  m_viewportHeightPx = 0;
-    UINT                 m_dpi              = 96;
-    bool                 m_initialized      = false;
-    bool                 m_targetDirty      = true;
+    int                           m_viewportWidthPx  = 0;
+    int                           m_viewportHeightPx = 0;
+    UINT                          m_dpi              = 96;
+    bool                          m_initialized      = false;
+    bool                          m_targetDirty      = true;
+    bool                          m_leftDown         = false;
+    int                           m_frameIndex       = 0;
 
-    std::wstring         m_debugBanner;
-    bool                 m_showBanner       = true;
+    std::wstring                  m_debugBanner;
+    bool                          m_showBanner       = false;
 };

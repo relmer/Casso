@@ -198,14 +198,14 @@ minima.
 
 ### P2a — Widget primitives (T074–T093: 10 widgets × {.h, .cpp})
 
-- [ ] T074 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Button.h`
-- [ ] T075 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Button.cpp`
+- [X] T074 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Button.h`
+- [X] T075 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Button.cpp`
 - [ ] T076 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Checkbox.h`
 - [ ] T077 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Checkbox.cpp`
 - [ ] T078 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Slider.h`
 - [ ] T079 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Slider.cpp`
-- [ ] T080 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Dropdown.h`
-- [ ] T081 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Dropdown.cpp`
+- [X] T080 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Dropdown.h`
+- [X] T081 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\Dropdown.cpp`
 - [ ] T082 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\ListView.h`
 - [ ] T083 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\ListView.cpp`
 - [ ] T084 [P] Create `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Widgets\TreeView.h`
@@ -221,15 +221,15 @@ minima.
 
 ### P2b — Chrome surfaces (move existing files into `Chrome/` subdir + new files)
 
-- [ ] T094 [US5] Move `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\TitleBar.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\TitleBar.h` to `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\TitleBar.cpp` / `.h`, rewrite contents against the native runtime (no Rml), implement drag, double-click toggle fullscreen, min/max/close, right-click system menu (FR-018, FR-019, FR-020, FR-028); update `Casso.vcxproj` paths
-- [ ] T095 [US5] Move `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\NavLayer.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\NavLayer.h` to `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\NavLayer.cpp` / `.h`, rewrite as native dropdown panels covering every former Win32 menu command via the existing IDM map (FR-026, SC-006); update `Casso.vcxproj` paths
-- [ ] T096 [US3] Move `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetElement.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetElement.h` to `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\DriveWidget.cpp` / `.h`, rewrite as a native 9-slice drive face with door, eject affordance, spinning disk during motor-on, ≥96×64 logical px (FR-021, FR-023, FR-024, FR-049, FR-050); update `Casso.vcxproj` paths
-- [ ] T097 [US3] Move `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\LedElement.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\LedElement.h` to `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\LedIndicator.cpp` / `.h`, rewrite as a native soft-glow LED honoring FR-025 dimensional minima (≥12 px lit core + ≥4 px halo in active); update `Casso.vcxproj` paths
+- [X] T094 [US5] Move `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\TitleBar.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\TitleBar.h` to `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\TitleBar.cpp` / `.h`, rewrite contents against the native runtime (no Rml), implement drag, double-click toggle fullscreen, min/max/close, right-click system menu (FR-018, FR-019, FR-020, FR-028); update `Casso.vcxproj` paths
+- [X] T095 [US5] Move `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\NavLayer.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\NavLayer.h` to `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\NavLayer.cpp` / `.h`, rewrite as native dropdown panels covering every former Win32 menu command via the existing IDM map (FR-026, SC-006); update `Casso.vcxproj` paths
+- [X] T096 [US3] Move `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetElement.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DriveWidgetElement.h` to `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\DriveWidget.cpp` / `.h`, rewrite as a native 9-slice drive face with door, eject affordance, spinning disk during motor-on, ≥96×64 logical px (FR-021, FR-023, FR-024, FR-049, FR-050); update `Casso.vcxproj` paths
+- [X] T097 [US3] Move `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\LedElement.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\LedElement.h` to `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\LedIndicator.cpp` / `.h`, rewrite as a native soft-glow LED honoring FR-025 dimensional minima (≥12 px lit core + ≥4 px halo in active); update `Casso.vcxproj` paths
 
 ### P2c — Drag-drop, file-open, variant treatment
 
-- [ ] T098 [US3] Rework `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DragDropTarget.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DragDropTarget.h` so drop coordinates route through the new `HitTester` for per-widget acceptance (FR-022) per R11
-- [ ] T099 [US3] Wire click-to-browse on the drive-widget body (not the eject affordance) to `IFileOpenDialog` with the supported-extension filter list in `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\DriveWidget.cpp` (FR-022b)
+- [X] T098 [US3] Rework `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DragDropTarget.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\DragDropTarget.h` so drop coordinates route through the new `HitTester` for per-widget acceptance (FR-022) per R11
+- [X] T099 [US3] Wire click-to-browse on the drive-widget body (not the eject affordance) to `IFileOpenDialog` with the supported-extension filter list in `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\DriveWidget.cpp` (FR-022b)
 - [ ] T100 [US3] Implement Apple II / II+ / IIe / IIc variant treatment driven by `Theme::driveVisualProfile` + `variantId` in `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Chrome\DriveWidget.cpp` (FR-051, SC-009)
 - [ ] T101 Retire `C:\Users\relmer\repos\relmer\Casso\Casso\MenuSystem.cpp` (and `.h` if present): delete the file(s) and remove their `<ClCompile>`/`<ClInclude>` entries from `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj`; nav layer now owns command surfaces
 
@@ -242,8 +242,8 @@ minima.
 - [ ] T106 [P] [US3] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\CrtLetterboxLayoutTests.cpp` against the native chrome viewport calculation (4:3 letterbox/pillarbox FR-043)
 - [ ] T106a [P] [US5] Create or extend `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\Win11DwmHelpersTests.cpp` to verify every DWM call site is gated by `IsWindows11OrGreater()` (FR-042)
 - [ ] T106b [P] [US3] Verify `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\AutoMountTests.cpp` still compiles after `Chrome\DriveWidget` moves; rewrite includes/namespaces if not
-- [ ] T107 [US5] Update `C:\Users\relmer\repos\relmer\Casso\UnitTest\UnitTest.vcxproj` to reflect renamed/relocated test files and add new chrome-bound tests
-- [ ] T108 [US5] Update `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj` to add every new widget + chrome `.cpp`/`.h` from T074–T100 under the appropriate `<ClCompile>` / `<ClInclude>` `<ItemGroup>`
+- [X] T107 [US5] Update `C:\Users\relmer\repos\relmer\Casso\UnitTest\UnitTest.vcxproj` to reflect renamed/relocated test files and add new chrome-bound tests
+- [X] T108 [US5] Update `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj` to add every new widget + chrome `.cpp`/`.h` from T074–T100 under the appropriate `<ClCompile>` / `<ClInclude>` `<ItemGroup>`
 
 ### P2e — Runtime validation
 
@@ -512,3 +512,4 @@ Once widgets land, run T094–T097 in parallel (4 chrome surfaces, distinct file
 - All tests must mock filesystem, registry, environment, and Win32 system APIs per FR-057 / SC-013. No test introduced by this spec may read or write real user-state paths.
 - Commit per task or per logically-coherent group; do not bundle P0 deletions with P1 introductions in a single commit — the two pipelines must never appear together in history.
 - All new `.cpp` files follow the project conventions (Pch.h first, EHM, single-exit on HRESULT functions, top-of-scope variable declarations, column alignment, 5 blank lines between top-level constructs, 3 blank lines after variable declaration blocks).
+

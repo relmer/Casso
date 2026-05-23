@@ -234,13 +234,17 @@
     <ClCompile Include="Config\UserConfigStore.cpp" />
     <ClCompile Include="Config\GlobalUserPrefs.cpp" />
     <ClCompile Include="Ui\TitleBarHitTest.cpp" />
-    <ClCompile Include="Ui\TitleBar.cpp" />
-    <ClCompile Include="Ui\NavLayer.cpp" />
+    <ClCompile Include="Ui\Chrome\TitleBar.cpp" />
+    <ClCompile Include="Ui\Chrome\NavLayer.cpp" />
     <ClCompile Include="Ui\Win11DwmHelpers.cpp" />
     <ClCompile Include="Ui\ThemeLoader.cpp" />
     <ClCompile Include="Ui\ThemeManager.cpp" />
+    <ClCompile Include="Ui\Chrome\DriveWidget.cpp" />
+    <ClCompile Include="Ui\Chrome\LedIndicator.cpp" />
     <ClCompile Include="Ui\DriveWidgetController.cpp" />
     <ClCompile Include="Ui\DragDropTarget.cpp" />
+    <ClCompile Include="Ui\Widgets\Button.cpp" />
+    <ClCompile Include="Ui\Widgets\Dropdown.cpp" />
     <ClCompile Include="Ui\AutoMountResolver.cpp" />
     <ClCompile Include="Ui\SettingsPanelState.cpp" />
     <ClCompile Include="Ui\SettingsPanel.cpp" />
@@ -276,14 +280,19 @@
     <ClInclude Include="Config\UserConfigStore.h" />
     <ClInclude Include="Config\GlobalUserPrefs.h" />
     <ClInclude Include="Ui\TitleBarHitTest.h" />
-    <ClInclude Include="Ui\TitleBar.h" />
-    <ClInclude Include="Ui\NavLayer.h" />
+    <ClInclude Include="Ui\Chrome\TitleBar.h" />
+    <ClInclude Include="Ui\Chrome\NavLayer.h" />
     <ClInclude Include="Ui\Win11DwmHelpers.h" />
     <ClInclude Include="Ui\ThemeLoader.h" />
     <ClInclude Include="Ui\ThemeManager.h" />
+    <ClInclude Include="Ui\Chrome\ChromeTheme.h" />
+    <ClInclude Include="Ui\Chrome\DriveWidget.h" />
+    <ClInclude Include="Ui\Chrome\LedIndicator.h" />
     <ClInclude Include="Ui\DriveWidgetState.h" />
     <ClInclude Include="Ui\DriveWidgetController.h" />
     <ClInclude Include="Ui\DragDropTarget.h" />
+    <ClInclude Include="Ui\Widgets\Button.h" />
+    <ClInclude Include="Ui\Widgets\Dropdown.h" />
     <ClInclude Include="Ui\IDriveCommandSink.h" />
     <ClInclude Include="Ui\AutoMountResolver.h" />
     <ClInclude Include="Ui\SettingsPanelState.h" />
@@ -334,3 +343,6 @@
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
+
+
+

@@ -2,89 +2,59 @@
 
 #include "Pch.h"
 
+#include "HitTester.h"
 #include "IDriveCommandSink.h"
 
 
 
 
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DragDropTarget
-//
-//  Single main-window IDropTarget — one
-//  RegisterDragDrop call for the whole HWND, hit-testing the dropped
-//  point against the native chrome to find a drive widget under cursor.
-//
-//  Ownership
-//  ---------
-//  Allocated by `EmulatorShell` as a stack member; `Initialize(hwnd)` is
-//  called once after OleInitialize succeeds, `Shutdown()` is called
-//  before window destruction. Implements COM IUnknown by hand (no ATL,
-//  no WRL ComPtr<> wrapping); ref count is initialized to 1 by
-//  construction and incremented from RegisterDragDrop.
-//
-//  Hit-test
-//  --------
-//  On DragOver, calls back through a host-supplied lambda that takes
-//  the (screenX, screenY) pair and returns true when the point lands
-//  on an accepting drive widget. The host owns the chrome tree; this
-//  class only needs the yes/no answer.
-//
-//  Drop
-//  ----
-//  Extracts the first CF_HDROP file path. If the extension is not one
-//  of the four supported disk image types (FR-022b), the drop is
-//  rejected with DROPEFFECT_NONE.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-
 class DragDropTarget : public IDropTarget
 {
 public:
     using HitTestFn = std::function<bool (int screenX, int screenY)>;
-
+    using DropFn    = std::function<void (int tag, const std::wstring & path)>;
 
     DragDropTarget  ();
     virtual ~DragDropTarget ();
 
-    HRESULT              Initialize           (HWND hwnd, HitTestFn hitTest);
-    void                 Shutdown             ();
+    HRESULT              Initialize            (HWND hwnd, HitTestFn hitTest);
+    HRESULT              Initialize            (HWND hwnd, HitTester * pHitTester, DropFn drop);
+    void                 Shutdown              ();
 
-    // --- IUnknown ---
-    STDMETHODIMP         QueryInterface       (REFIID riid, void ** ppv) override;
-    STDMETHODIMP_(ULONG) AddRef               () override;
-    STDMETHODIMP_(ULONG) Release              () override;
+    STDMETHODIMP         QueryInterface        (REFIID riid, void ** ppv) override;
+    STDMETHODIMP_(ULONG) AddRef                () override;
+    STDMETHODIMP_(ULONG) Release               () override;
 
-    // --- IDropTarget ---
-    STDMETHODIMP         DragEnter            (IDataObject * pData,
-                                               DWORD         grfKeyState,
-                                               POINTL        pt,
-                                               DWORD       * pdwEffect) override;
-    STDMETHODIMP         DragOver             (DWORD   grfKeyState,
-                                               POINTL  pt,
-                                               DWORD * pdwEffect) override;
-    STDMETHODIMP         DragLeave            () override;
-    STDMETHODIMP         Drop                 (IDataObject * pData,
-                                               DWORD         grfKeyState,
-                                               POINTL        pt,
-                                               DWORD       * pdwEffect) override;
-
-    // ---- Pure-logic helpers (exposed for tests) ----
+    STDMETHODIMP         DragEnter             (IDataObject * pData,
+                                                DWORD         grfKeyState,
+                                                POINTL        pt,
+                                                DWORD       * pdwEffect) override;
+    STDMETHODIMP         DragOver              (DWORD   grfKeyState,
+                                                POINTL  pt,
+                                                DWORD * pdwEffect) override;
+    STDMETHODIMP         DragLeave             () override;
+    STDMETHODIMP         Drop                  (IDataObject * pData,
+                                                DWORD         grfKeyState,
+                                                POINTL        pt,
+                                                DWORD       * pdwEffect) override;
 
     static HRESULT       ExtractFirstHDropPath (IDataObject   * pData,
-                                                std::wstring  & outPath);
+                                                 std::wstring  & outPath);
+    static int           PickAtClient          (const HitTester & hitTester,
+                                                 int               xClient,
+                                                 int               yClient);
 
 private:
-    std::atomic<ULONG>  m_refCount             { 1 };
-    HWND                m_hwnd                 = nullptr;
-    bool                m_fRegistered          = false;
-    HitTestFn           m_hitTest;
+    int                  PickAtScreen          (POINTL pt) const;
 
-    // Cached during DragEnter so DragOver can answer accept/reject cheaply.
-    bool                m_fDragHasSupportedFile = false;
-    std::wstring        m_dragPath;
+    std::atomic<ULONG>   m_refCount             { 1 };
+    HWND                 m_hwnd                 = nullptr;
+    bool                 m_fRegistered          = false;
+    HitTestFn            m_hitTest;
+    HitTester          * m_hitTester            = nullptr;
+    DropFn               m_drop;
+    int                  m_lastHitTag           = -1;
+    bool                 m_fDragHasSupportedFile = false;
+    std::wstring         m_dragPath;
 };

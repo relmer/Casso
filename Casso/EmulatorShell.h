@@ -10,8 +10,10 @@
 #include "D3DRenderer.h"
 #include "MenuSystem.h"
 #include "DebugConsole.h"
-#include "Ui/TitleBar.h"
-#include "Ui/NavLayer.h"
+#include "Ui/Chrome/TitleBar.h"
+#include "Ui/Chrome/NavLayer.h"
+#include "Ui/Chrome/ChromeTheme.h"
+#include "Ui/Chrome/DriveWidget.h"
 #include "Ui/DriveWidgetState.h"
 #include "Ui/DriveWidgetController.h"
 #include "Ui/DragDropTarget.h"
@@ -153,6 +155,9 @@ private:
     bool    OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis) override;
     bool    OnKeyDown (WPARAM vk, LPARAM lParam) override;
     bool    OnKeyUp (WPARAM vk, LPARAM lParam) override;
+    bool    OnMouseMove (WPARAM wParam, LPARAM lParam) override;
+    bool    OnLButtonDown (WPARAM wParam, LPARAM lParam) override;
+    bool    OnLButtonUp (WPARAM wParam, LPARAM lParam) override;
     bool    OnMove (HWND hwnd, int x, int y) override;
     bool    OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
     bool    OnSize (HWND hwnd, UINT width, UINT height) override;
@@ -216,38 +221,14 @@ private:
     void DrainPasteBuffer();
     void SaveWindowPlacement();
 
-    // Status bar
-    void    CreateStatusBar();
-    void    UpdateStatusBar();
-    void    RefreshDriveStatus();
-    void    DrawDriveStatusItem (DRAWITEMSTRUCT * pdis, int driveIndex);
-    void    ShowDevicePopup();
+    HRESULT CreateRenderSurface ();
+    HRESULT PromptForDiskImage (int drive);
 
     // Queue a command for the CPU thread
     void PostCommand (WORD id, const string & payload = "");
 
     HACCEL              m_accelTable      = nullptr;
-    HWND                m_statusBar       = nullptr;
     HWND                m_renderHwnd      = nullptr;
-
-    // Tooltip control owned by the status bar so owner-drawn drive
-    // parts can show "Drive N: <path>" on hover. SBT_TOOLTIPS only
-    // fires for truncated text parts, so we maintain our own tool
-    // entries instead.
-    HWND                m_driveTooltip            = nullptr;
-
-    static LRESULT CALLBACK s_StatusBarSubclass (
-        HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
-        UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
-    static LRESULT CALLBACK s_RenderSurfaceSubclass (
-        HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
-        UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
-
-    // Cached status-bar layout: counted by UpdateStatusBar so the periodic
-    // RefreshDriveStatus and OnDrawItem handlers can identify which parts
-    // are owner-drawn drive indicators without re-querying the bar.
-    int                 m_statusBarDriveCount = 0;
-    int                 m_statusBarFirstDrivePart = 0;
 
     MemoryBus           m_memoryBus;
     ComponentRegistry   m_registry;
@@ -272,6 +253,8 @@ private:
     // existing Win32 menu bar until the painter retires the latter.
     TitleBar            m_titleBar;
     NavLayer            m_navLayer;
+    ChromeTheme         m_chromeTheme;
+    std::array<DriveWidget, 2> m_driveChrome;
 
     // Drive widget state pump. The controller channel publishes
     // per-drive door/spin sync events the chrome painter will consume
@@ -416,6 +399,8 @@ private:
     std::unique_ptr<class DiskIIDebugDialog>  m_diskIIDebugDialog;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 };
+
+
 
 
 

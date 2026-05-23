@@ -7,9 +7,6 @@
 
 
 
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DragDropTarget
@@ -19,7 +16,6 @@
 DragDropTarget::DragDropTarget()
 {
 }
-
 
 
 
@@ -38,13 +34,9 @@ DragDropTarget::~DragDropTarget()
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Initialize
-//
-//  Registers as the HWND's drop target. Caller must already have
-//  initialized OLE on this thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,13 +48,12 @@ HRESULT DragDropTarget::Initialize (HWND hwnd, HitTestFn hitTest)
 
     CBRAEx (hwnd, E_INVALIDARG);
 
-    m_hwnd    = hwnd;
-    m_hitTest = std::move (hitTest);
+    m_hwnd      = hwnd;
+    m_hitTest   = std::move (hitTest);
+    m_hitTester = nullptr;
+    m_drop      = {};
 
-    // Non-asserting: RegisterDragDrop fails legitimately if OLE wasn't
-    // initialized on this thread yet. Callers handle the warning.
     hr = RegisterDragDrop (hwnd, this);
-
     if (SUCCEEDED (hr))
     {
         m_fRegistered = true;
@@ -75,12 +66,42 @@ Error:
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Initialize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DragDropTarget::Initialize (HWND hwnd, HitTester * pHitTester, DropFn drop)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    CBRAEx (hwnd, E_INVALIDARG);
+    CBRAEx (pHitTester, E_INVALIDARG);
+
+    m_hwnd      = hwnd;
+    m_hitTester = pHitTester;
+    m_drop      = std::move (drop);
+    m_hitTest   = {};
+
+    hr = RegisterDragDrop (hwnd, this);
+    if (SUCCEEDED (hr))
+    {
+        m_fRegistered = true;
+    }
+
+Error:
+    return hr;
+}
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Shutdown
-//
-//  Revokes registration. Safe to call multiple times.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,10 +115,12 @@ void DragDropTarget::Shutdown()
         m_fRegistered = false;
     }
 
-    m_hwnd    = nullptr;
-    m_hitTest = {};
+    m_hwnd       = nullptr;
+    m_hitTest    = {};
+    m_hitTester  = nullptr;
+    m_drop       = {};
+    m_lastHitTag = -1;
 }
-
 
 
 
@@ -127,28 +150,20 @@ STDMETHODIMP DragDropTarget::QueryInterface (REFIID riid, void ** ppv)
 }
 
 
-
-
-
 STDMETHODIMP_(ULONG) DragDropTarget::AddRef()
 {
     return m_refCount.fetch_add (1, std::memory_order_acq_rel) + 1;
 }
 
 
-
-
-
 STDMETHODIMP_(ULONG) DragDropTarget::Release()
 {
     ULONG  result = m_refCount.fetch_sub (1, std::memory_order_acq_rel) - 1;
 
-    // We don't delete here -- this object lives as a member of
-    // EmulatorShell. OLE's RegisterDragDrop should release its
-    // reference when RevokeDragDrop runs in Shutdown.
+
+
     return result;
 }
-
 
 
 
@@ -157,19 +172,16 @@ STDMETHODIMP_(ULONG) DragDropTarget::Release()
 //
 //  ExtractFirstHDropPath
 //
-//  Extracts the first file path from a CF_HDROP data object. Returns S_OK
-//  + the path on success, S_FALSE if the data object doesn't carry CF_HDROP.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DragDropTarget::ExtractFirstHDropPath (IDataObject * pData, std::wstring & outPath)
 {
-    HRESULT   hr        = S_OK;
-    FORMATETC fmt       = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
-    STGMEDIUM medium    = { };
-    HDROP     hDrop     = nullptr;
-    UINT      cFiles    = 0;
-    bool      fLocked   = false;
+    HRESULT   hr         = S_OK;
+    FORMATETC fmt        = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM medium     = { };
+    HDROP     hDrop      = nullptr;
+    UINT      cFiles     = 0;
+    bool      fLocked    = false;
     bool      fGotMedium = false;
     wchar_t   buffer[MAX_PATH] = { };
 
@@ -184,7 +196,6 @@ HRESULT DragDropTarget::ExtractFirstHDropPath (IDataObject * pData, std::wstring
     }
 
     hr = pData->GetData (&fmt, &medium);
-
     if (FAILED (hr))
     {
         hr = S_FALSE;
@@ -193,7 +204,6 @@ HRESULT DragDropTarget::ExtractFirstHDropPath (IDataObject * pData, std::wstring
 
     fGotMedium = true;
     hDrop      = static_cast<HDROP> (GlobalLock (medium.hGlobal));
-
     if (hDrop == nullptr)
     {
         hr = S_FALSE;
@@ -202,7 +212,6 @@ HRESULT DragDropTarget::ExtractFirstHDropPath (IDataObject * pData, std::wstring
 
     fLocked = true;
     cFiles  = DragQueryFileW (hDrop, 0xFFFFFFFF, nullptr, 0);
-
     if (cFiles == 0)
     {
         hr = S_FALSE;
@@ -235,7 +244,6 @@ Cleanup:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DragEnter
@@ -249,7 +257,7 @@ STDMETHODIMP DragDropTarget::DragEnter (
     DWORD       * pdwEffect)
 {
     std::wstring  path;
-    HRESULT       hr  = S_OK;
+    HRESULT       hr = S_OK;
 
 
 
@@ -257,7 +265,6 @@ STDMETHODIMP DragDropTarget::DragEnter (
     m_dragPath.clear();
 
     hr = ExtractFirstHDropPath (pData, path);
-
     if (hr == S_OK && IsSupportedDiskImageExtension (path))
     {
         m_fDragHasSupportedFile = true;
@@ -270,7 +277,6 @@ STDMETHODIMP DragDropTarget::DragEnter (
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DragOver
@@ -279,18 +285,23 @@ STDMETHODIMP DragDropTarget::DragEnter (
 
 STDMETHODIMP DragDropTarget::DragOver (
     DWORD     /*grfKeyState*/,
-    POINTL    /*pt*/,
+    POINTL    pt,
     DWORD   * pdwEffect)
 {
+    int  tag = -1;
+
+
+
     if (pdwEffect == nullptr)
     {
         return E_POINTER;
     }
 
-    *pdwEffect = DROPEFFECT_NONE;
+    tag = PickAtScreen (pt);
+    m_lastHitTag = tag;
+    *pdwEffect = (m_fDragHasSupportedFile && tag >= 0) ? DROPEFFECT_COPY : DROPEFFECT_NONE;
     return S_OK;
 }
-
 
 
 
@@ -305,9 +316,9 @@ STDMETHODIMP DragDropTarget::DragLeave()
 {
     m_fDragHasSupportedFile = false;
     m_dragPath.clear();
+    m_lastHitTag = -1;
     return S_OK;
 }
-
 
 
 
@@ -321,16 +332,82 @@ STDMETHODIMP DragDropTarget::DragLeave()
 STDMETHODIMP DragDropTarget::Drop (
     IDataObject * /*pData*/,
     DWORD         /*grfKeyState*/,
-    POINTL        /*pt*/,
+    POINTL        pt,
     DWORD       * pdwEffect)
 {
+    int  tag = PickAtScreen (pt);
+
+
+
     if (pdwEffect != nullptr)
     {
-        *pdwEffect = DROPEFFECT_NONE;
+        *pdwEffect = (m_fDragHasSupportedFile && tag >= 0) ? DROPEFFECT_COPY : DROPEFFECT_NONE;
+    }
+
+    if (m_fDragHasSupportedFile && tag >= 0 && m_drop)
+    {
+        m_drop (tag, m_dragPath);
     }
 
     m_fDragHasSupportedFile = false;
     m_dragPath.clear();
+    m_lastHitTag = -1;
 
     return S_OK;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PickAtClient
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DragDropTarget::PickAtClient (const HitTester & hitTester, int xClient, int yClient)
+{
+    const HitRect * hit = hitTester.Pick (xClient, yClient);
+
+
+
+    if (hit == nullptr || hit->slot != HitSlot::Custom)
+    {
+        return -1;
+    }
+
+    return hit->tag;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PickAtScreen
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DragDropTarget::PickAtScreen (POINTL pt) const
+{
+    POINT  client = { pt.x, pt.y };
+
+
+
+    if (m_hitTester != nullptr && m_hwnd != nullptr)
+    {
+        if (!ScreenToClient (m_hwnd, &client))
+        {
+            return -1;
+        }
+
+        return PickAtClient (*m_hitTester, client.x, client.y);
+    }
+
+    if (m_hitTest)
+    {
+        return m_hitTest (pt.x, pt.y) ? 0 : -1;
+    }
+
+    return -1;
 }

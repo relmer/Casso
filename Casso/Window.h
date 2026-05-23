@@ -53,6 +53,9 @@ protected:
     virtual bool    OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu);
     virtual bool    OnKeyDown  (WPARAM vk, LPARAM lParam);
     virtual bool    OnKeyUp    (WPARAM vk, LPARAM lParam);
+    virtual bool    OnMouseMove (WPARAM wParam, LPARAM lParam);
+    virtual bool    OnLButtonDown (WPARAM wParam, LPARAM lParam);
+    virtual bool    OnLButtonUp (WPARAM wParam, LPARAM lParam);
     virtual bool    OnNotify   (HWND hwnd, WPARAM wParam, LPARAM lParam);
     virtual bool    OnPaint    (HWND hwnd);
     virtual bool    OnMove     (HWND hwnd, int x, int y);
@@ -76,6 +79,7 @@ protected:
     HINSTANCE m_hInstance      = nullptr;
     HWND      m_hwnd           = nullptr;
 };
+
 
 
 

@@ -302,6 +302,18 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
             callDefWndProc = pThis->OnPaint (hwnd);
             break;
 
+        case WM_MOUSEMOVE:
+            callDefWndProc = pThis->OnMouseMove (wParam, lParam);
+            break;
+
+        case WM_LBUTTONDOWN:
+            callDefWndProc = pThis->OnLButtonDown (wParam, lParam);
+            break;
+
+        case WM_LBUTTONUP:
+            callDefWndProc = pThis->OnLButtonUp (wParam, lParam);
+            break;
+
         case WM_MOVE:
             callDefWndProc = pThis->OnMove (hwnd,
                                             (int) (short) LOWORD (lParam),
@@ -523,6 +535,56 @@ bool Window::OnKeyUp (WPARAM vk, LPARAM lParam)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMouseMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::OnMouseMove (WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER (wParam);
+    UNREFERENCED_PARAMETER (lParam);
+
+    return true;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnLButtonDown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::OnLButtonDown (WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER (wParam);
+    UNREFERENCED_PARAMETER (lParam);
+
+    return true;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnLButtonUp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::OnLButtonUp (WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER (wParam);
+    UNREFERENCED_PARAMETER (lParam);
+
+    return true;
+}
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -700,6 +762,7 @@ bool Window::OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen
 
     return false;
 }
+
 
 
 

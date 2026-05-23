@@ -67,10 +67,6 @@ static constexpr LPCWSTR kWindowClass      = L"CassoWindow";
 
 // Drive activity LED refresh timer (~20 Hz). Cheap and responsive enough
 // for the eye to register motor on/off bursts without consuming UI cycles.
-static constexpr UINT_PTR kDriveStatusTimerId    = 0x10D5;
-static constexpr UINT     kDriveStatusTimerMs    = 50;
-static constexpr bool     s_kEnableDriveWidgets  = false;
-static constexpr int      s_kTitleBarHeightPx    = 32;
 static constexpr int      s_kNavStripHeightDp    = 28;
 
 static WORD ResolveMachineSpeedCommand (const JsonValue & mergedJson)
@@ -119,7 +115,7 @@ namespace
 
 
 
-        return s_kTitleBarHeightPx + navStrip;
+        return TitleBarLayout::DefaultTitleHeight ((UINT) dpi) + navStrip;
     }
 
 
@@ -580,8 +576,8 @@ HRESULT EmulatorShell::Initialize (
 
     WirePageTable();
 
-    // Create status bar (after window, before D3D init so Resize accounts for it)
-    CreateStatusBar();
+    hr = CreateRenderSurface();
+    CHR (hr);
 
     // Initialize D3D11
     hr = m_d3dRenderer.Initialize (m_renderHwnd, kFramebufferWidth, kFramebufferHeight);
@@ -594,10 +590,19 @@ HRESULT EmulatorShell::Initialize (
     {
         HRESULT  hrUi = m_uiShell.Initialize (&m_d3dRenderer);
         IGNORE_RETURN_VALUE (hrUi, S_OK);
+        m_uiShell.SetChrome (&m_titleBar, &m_navLayer, &m_driveChrome, &m_chromeTheme);
 
         if (SUCCEEDED (hrUi))
         {
-            m_d3dRenderer.SetAfterBlitHook ([this] () { m_uiShell.Render(); });
+            m_d3dRenderer.SetAfterBlitHook ([this] () { UpdateDriveWidgets(); m_uiShell.Render(); });
+            m_uiShell.HitTest().Clear();
+            m_uiShell.HitTest().Register (HitRect { m_driveChrome[0].BodyRect(), HitSlot::Custom, 0 });
+            m_uiShell.HitTest().Register (HitRect { m_driveChrome[1].BodyRect(), HitSlot::Custom, 1 });
+            if (m_fOleInitialized)
+            {
+                HRESULT hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.HitTest(), [this] (int tag, const std::wstring & path) { Mount (6, tag, path); });
+                IGNORE_RETURN_VALUE (hrDrop, S_OK);
+            }
         }
     }
 
@@ -760,7 +765,14 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
     // Prime the title-bar layout cache so the WM_NCHITTEST helper has
     // valid button rects even before the first WM_SIZE arrives.
+    m_chromeTheme = ChromeTheme::Skeuomorphic();
     m_titleBar.UpdateGeometry (clientW, dpi);
+    m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), clientW, dpi);
+    m_navLayer.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
+    m_driveChrome[0].Initialize (6, 0, this);
+    m_driveChrome[1].Initialize (6, 1, this);
+    m_driveChrome[0].Layout (24, ComputeChromeTopInsetPx (dpi) + 18, dpi);
+    m_driveChrome[1].Layout (230, ComputeChromeTopInsetPx (dpi) + 18, dpi);
     m_d3dRenderer.SetTopInsetPx (ComputeChromeTopInsetPx (dpi));
 
     // Load accelerator table
@@ -777,126 +789,18 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CreateStatusBar
+//  CreateRenderSurface
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::CreateStatusBar()
+HRESULT EmulatorShell::CreateRenderSurface ()
 {
-    HRESULT              hr       = S_OK;
-    INITCOMMONCONTROLSEX icex     = { sizeof (icex), ICC_BAR_CLASSES };
-    BOOL                 fSuccess = FALSE;
-    RECT                 rcClient = {};
-    int                  sbHeight = 0;
-    int                  chromePx = 0;
-    RECT                 sbRect   = {};
-    DWORD                sbStyle  = 0;
+    HRESULT  hr       = S_OK;
+    BOOL     fSuccess = FALSE;
+    RECT     rcClient = {};
 
 
 
-    fSuccess = InitCommonControlsEx (&icex);
-    CWRA (fSuccess);
-
-    sbStyle = WS_CHILD | SBARS_SIZEGRIP;
-    if (s_kEnableDriveWidgets)
-    {
-        sbStyle |= WS_VISIBLE;
-    }
-
-    m_statusBar = CreateWindowExW (0,
-                                   STATUSCLASSNAME,
-                                   nullptr,
-                                   sbStyle,
-                                   0, 0, 0, 0,
-                                   m_hwnd,
-                                   nullptr,
-                                   m_hInstance,
-                                   nullptr);
-    CWRA (m_statusBar);
-
-    if (s_kEnableDriveWidgets)
-    {
-        // Tooltip control parented to the status bar so the owner-drawn
-        // Drive 1/Drive 2 parts can show "Drive N: <path>" on hover. The
-        // status bar itself doesn't deliver tooltip messages for owner-drawn
-        // parts (SBT_TOOLTIPS / SB_SETTIPTEXT only triggers on truncated
-        // text), and TTF_SUBCLASS doesn't intercept the status bar's mouse
-        // messages reliably -- the canonical workaround is to subclass the
-        // status bar manually and TTM_RELAYEVENT each mouse message into
-        // the tooltip control.
-        m_driveTooltip = CreateWindowExW (WS_EX_TOPMOST,
-                                          TOOLTIPS_CLASS,
-                                          nullptr,
-                                          WS_POPUP | TTS_ALWAYSTIP | TTS_NOPREFIX,
-                                          CW_USEDEFAULT, CW_USEDEFAULT,
-                                          CW_USEDEFAULT, CW_USEDEFAULT,
-                                          m_statusBar,
-                                          nullptr,
-                                          m_hInstance,
-                                          nullptr);
-
-        if (m_driveTooltip != nullptr)
-        {
-            SetWindowPos (m_driveTooltip, HWND_TOPMOST, 0, 0, 0, 0,
-                          SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-        }
-
-        UpdateStatusBar();
-
-        // Pre-register the Drive 1/Drive 2 tools now (after parts exist) so
-        // the very first hover works. RefreshDriveStatus then keeps the
-        // rects + text in sync as the user resizes / mounts / ejects.
-        if (m_driveTooltip != nullptr && m_refs.diskController != nullptr)
-        {
-            TOOLINFOW  ti = { };
-
-            for (int d = 0; d < DiskIIController::kDriveCount; d++)
-            {
-                ti.cbSize   = sizeof (ti);
-                ti.uFlags   = 0;
-                ti.hwnd     = m_statusBar;
-                ti.uId      = static_cast<UINT_PTR> (d);
-                ti.rect     = RECT { 0, 0, 1, 1 };
-                ti.lpszText = const_cast<LPWSTR> (L"");
-
-                SendMessage (m_driveTooltip, TTM_ADDTOOLW, 0,
-                             reinterpret_cast<LPARAM> (&ti));
-            }
-
-            SendMessage (m_driveTooltip, TTM_ACTIVATE, TRUE, 0);
-
-            // Snappier hover: 250 ms instead of the default ~half-second.
-            SendMessage (m_driveTooltip, TTM_SETDELAYTIME, TTDT_INITIAL, MAKELPARAM (250, 0));
-            SendMessage (m_driveTooltip, TTM_SETDELAYTIME, TTDT_AUTOPOP, MAKELPARAM (10000, 0));
-
-            // Subclass the status bar so we can forward mouse messages to
-            // the tooltip via TTM_RELAYEVENT. SetWindowSubclass keeps a
-            // per-instance reference data slot for `this`.
-            SetWindowSubclass (m_statusBar, &EmulatorShell::s_StatusBarSubclass,
-                               1, reinterpret_cast<DWORD_PTR> (this));
-
-            RefreshDriveStatus();
-        }
-
-        // Periodic refresh for owner-drawn drive activity LEDs. Only set when
-        // a Disk II controller is present; otherwise the indicators don't
-        // exist and the timer would just be paint-invalidating empty space.
-        if (m_refs.diskController != nullptr)
-        {
-            SetTimer (m_hwnd, kDriveStatusTimerId, kDriveStatusTimerMs, nullptr);
-        }
-
-        fSuccess = GetWindowRect (m_statusBar, &sbRect);
-        CWRA (fSuccess);
-
-        sbHeight = sbRect.bottom - sbRect.top;
-    }
-    else
-    {
-        ShowWindow (m_statusBar, SW_HIDE);
-    }
-
-    // Create a child window for D3D rendering (above the status bar)
     fSuccess = GetClientRect (m_hwnd, &rcClient);
     CWRA (fSuccess);
 
@@ -908,7 +812,7 @@ void EmulatorShell::CreateStatusBar()
                                     nullptr,
                                     WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
                                     0, 0,
-                                    rcClient.right, rcClient.bottom - sbHeight,
+                                    rcClient.right, rcClient.bottom,
                                     m_hwnd,
                                     nullptr,
                                     m_hInstance,
@@ -916,335 +820,9 @@ void EmulatorShell::CreateStatusBar()
     CWRA (m_renderHwnd);
 
 Error:
-    return;
+    return hr;
 }
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  UpdateStatusBar
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::UpdateStatusBar()
-{
-    static constexpr int  s_kLeftPartCount        = 4;
-    static constexpr int  s_kPadding              = 24;
-    static constexpr int  s_kDriveIndicatorWidth  = 90;
-    static constexpr int  s_kMaxDriveCount        = 2;
-    static constexpr int  s_kMaxPartCount         = s_kLeftPartCount + s_kMaxDriveCount;
-
-    HRESULT hr                          = S_OK;
-    BOOL    fSuccess                    = FALSE;
-    HDC     hdc                         = NULL;
-    HFONT   sbFont                      = NULL;
-    HFONT   oldFont                     = nullptr;
-    SIZE    size                        = { };
-    int     parts[s_kMaxPartCount]      = { };
-    int     edge                        = 0;
-    int     driveCount                  = 0;
-    int     totalParts                  = 0;
-    int     statusBarWidth              = 0;
-    int     driveTotalWidth             = 0;
-    RECT    sbClientRect                = { };
-
-    wstring statusBarItem[s_kLeftPartCount] =
-    {
-        format (L"CPU: {}",           fs::path (m_config.cpu).wstring()),
-        format (L"Clock: {:.3f} MHz", m_config.clockSpeed / 1000000.0),
-        format (L"Machine: {}",       fs::path (m_config.name).wstring()),
-        format (L"{} devices",        (m_config.internalDevices.size() + m_config.slots.size())),
-    };
-
-
-
-    if (m_refs.diskController != nullptr)
-    {
-        driveCount = DiskIIController::kDriveCount;
-    }
-
-    totalParts                 = s_kLeftPartCount + driveCount;
-    driveTotalWidth            = driveCount * s_kDriveIndicatorWidth;
-    m_statusBarDriveCount      = driveCount;
-    m_statusBarFirstDrivePart  = s_kLeftPartCount;
-
-    hdc = GetDC (m_statusBar);
-    CWRA (hdc);
-
-    sbFont = reinterpret_cast<HFONT> (SendMessage (m_statusBar, WM_GETFONT, 0, 0));
-    if (sbFont != NULL)
-    {
-        oldFont = static_cast<HFONT> (SelectObject (hdc, sbFont));
-    }
-
-    fSuccess = GetClientRect (m_statusBar, &sbClientRect);
-    CWRA (fSuccess);
-    statusBarWidth = sbClientRect.right - sbClientRect.left;
-
-    // Left-aligned parts: width measured from text + padding.
-    for (int i = 0; i < s_kLeftPartCount - 1; i++)
-    {
-        fSuccess = GetTextExtentPoint32W (hdc,
-                                          statusBarItem[i].c_str(),
-                                          static_cast<int> (statusBarItem[i].size()),
-                                          &size);
-        CWRA (fSuccess);
-
-        edge    += size.cx + s_kPadding;
-        parts[i] = edge;
-    }
-
-    // The "N devices" part fills the gap between the left items and the
-    // right-aligned drive indicators (or to the right edge when no
-    // controller is present).
-    if (driveCount == 0)
-    {
-        parts[s_kLeftPartCount - 1] = -1;
-    }
-    else
-    {
-        parts[s_kLeftPartCount - 1] = statusBarWidth - driveTotalWidth;
-
-        for (int d = 0; d < driveCount; d++)
-        {
-            int idx = s_kLeftPartCount + d;
-
-            if (d == driveCount - 1)
-            {
-                parts[idx] = -1;
-            }
-            else
-            {
-                parts[idx] = statusBarWidth - (driveCount - 1 - d) * s_kDriveIndicatorWidth;
-            }
-        }
-    }
-
-    SendMessage (m_statusBar, SB_SETPARTS, totalParts, reinterpret_cast<LPARAM> (parts));
-
-    for (int i = 0; i < s_kLeftPartCount; i++)
-    {
-        SendMessageW (m_statusBar,
-                      SB_SETTEXTW,
-                      i,
-                      reinterpret_cast<LPARAM> (statusBarItem[i].c_str()));
-    }
-
-    // Owner-draw drive indicators. The lParam carries the drive index so
-    // OnDrawItem can paint without having to re-derive it from the part
-    // index. SBT_OWNERDRAW + the part index in wParam tells the status bar
-    // to fire WM_DRAWITEM with itemData = our payload.
-    for (int d = 0; d < driveCount; d++)
-    {
-        int idx = s_kLeftPartCount + d;
-
-        SendMessage (m_statusBar,
-                     SB_SETTEXTW,
-                     static_cast<WPARAM> (idx) | SBT_OWNERDRAW,
-                     static_cast<LPARAM> (d));
-    }
-
-
-
-Error:
-    if (oldFont != nullptr)
-    {
-        SelectObject (hdc, oldFont);
-    }
-
-    ReleaseDC (m_statusBar, hdc);
-
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RefreshDriveStatus
-//
-//  Forces a repaint of just the owner-drawn drive-indicator parts on the
-//  status bar. Called from OnTimer so the LED reflects current motor +
-//  active-drive state without flickering the rest of the bar.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::RefreshDriveStatus()
-{
-    RECT      partRect = { };
-    LONG      result   = 0;
-    wchar_t   tooltip[MAX_PATH + 96] = { };
-    TOOLINFOW ti       = { };
-
-
-
-    if (m_statusBar == nullptr || m_statusBarDriveCount <= 0)
-    {
-        return;
-    }
-
-    for (int d = 0; d < m_statusBarDriveCount; d++)
-    {
-        int  partIndex = m_statusBarFirstDrivePart + d;
-
-        result = static_cast<LONG> (SendMessage (m_statusBar,
-                                                 SB_GETRECT,
-                                                 partIndex,
-                                                 reinterpret_cast<LPARAM> (&partRect)));
-
-        if (result != 0)
-        {
-            InvalidateRect (m_statusBar, &partRect, FALSE);
-        }
-
-        // Refresh the matching tooltip's rect + text. The tools were
-        // pre-registered in CreateStatusBar; here we just keep them in
-        // sync as the user mounts/ejects images and resizes the window.
-        if (m_driveTooltip != nullptr && result != 0)
-        {
-            const string & srcPath = m_diskStore.GetSourcePath (6, d);
-
-            if (srcPath.empty())
-            {
-                swprintf_s (tooltip, L"Drive %d: (empty)", d + 1);
-            }
-            else if (m_refs.diskController != nullptr)
-            {
-                auto &  engine = m_refs.diskController->GetEngine (d);
-                int     track  = engine.GetCurrentTrack();
-
-                swprintf_s (tooltip,
-                            L"Drive %d: %hs  [track %d  R:%llu  W:%llu]",
-                            d + 1, srcPath.c_str(),
-                            track,
-                            (unsigned long long) engine.GetReadNibbles(),
-                            (unsigned long long) engine.GetWriteNibbles());
-            }
-            else
-            {
-                swprintf_s (tooltip, L"Drive %d: %hs", d + 1, srcPath.c_str());
-            }
-
-            ti.cbSize   = sizeof (ti);
-            ti.hwnd     = m_statusBar;
-            ti.uId      = static_cast<UINT_PTR> (d);
-            ti.rect     = partRect;
-            ti.lpszText = tooltip;
-
-            SendMessage (m_driveTooltip, TTM_NEWTOOLRECT, 0,
-                         reinterpret_cast<LPARAM> (&ti));
-            SendMessage (m_driveTooltip, TTM_UPDATETIPTEXTW, 0,
-                         reinterpret_cast<LPARAM> (&ti));
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  s_StatusBarSubclass
-//
-//  Window subclass for the status bar: forwards mouse messages to the
-//  drive tooltip control via TTM_RELAYEVENT so it can decide whether the
-//  cursor is inside a registered tool's rect and show/hide the popup.
-//  This is the canonical pattern for tooltips on owner-drawn parts that
-//  the parent control does not natively expose to TTF_SUBCLASS.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LRESULT CALLBACK EmulatorShell::s_StatusBarSubclass (
-    HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
-    UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
-{
-    UNREFERENCED_PARAMETER (uIdSubclass);
-
-    EmulatorShell * self = reinterpret_cast<EmulatorShell *> (dwRefData);
-
-    if (self != nullptr && self->m_driveTooltip != nullptr)
-    {
-        switch (uMsg)
-        {
-            case WM_MOUSEMOVE:
-            case WM_LBUTTONDOWN:
-            case WM_LBUTTONUP:
-            case WM_RBUTTONDOWN:
-            case WM_RBUTTONUP:
-            case WM_MBUTTONDOWN:
-            case WM_MBUTTONUP:
-            {
-                MSG msg = { };
-                msg.hwnd    = hwnd;
-                msg.message = uMsg;
-                msg.wParam  = wParam;
-                msg.lParam  = lParam;
-                SendMessage (self->m_driveTooltip, TTM_RELAYEVENT, 0,
-                             reinterpret_cast<LPARAM> (&msg));
-                break;
-            }
-            default:
-                break;
-        }
-    }
-
-    return DefSubclassProc (hwnd, uMsg, wParam, lParam);
-    return DefSubclassProc (hwnd, uMsg, wParam, lParam);
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  s_RenderSurfaceSubclass
-//
-//  Render-surface subclass for the child D3D host window (a stock Static
-//  control). Suppresses the default white erase/paint path so resize shows
-//  the last presented frame instead of the Static control's default background.
-//
-//  The Static control provides critical infrastructure (focus, hit testing,
-//  message routing, parent notification) that's easy to break when
-//  implementing a custom class. Using SetWindowSubclass preserves the Static
-//  control's behavior while only intercepting the three messages that cause
-//  visual artifacts during resize: WM_ERASEBKGND, WM_PAINT, WM_PRINTCLIENT.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LRESULT CALLBACK EmulatorShell::s_RenderSurfaceSubclass (
-    HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
-    UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
-{
-    PAINTSTRUCT         ps  = {};
-
-
-
-    UNREFERENCED_PARAMETER (uIdSubclass);
-    UNREFERENCED_PARAMETER (dwRefData);
-
-    switch (uMsg)
-    {
-        case WM_ERASEBKGND:
-            return 1;
-
-        case WM_PAINT:
-            BeginPaint (hwnd, &ps);
-            EndPaint (hwnd, &ps);
-            return 0;
-
-        case WM_PRINTCLIENT:
-            return 0;
-
-        default:
-            return DefSubclassProc (hwnd, uMsg, wParam, lParam);
-    }
-}
 
 
 
@@ -1280,6 +858,16 @@ LRESULT CALLBACK EmulatorShell::s_RenderSurfaceWndProc (
 
         case WM_PRINTCLIENT:
             return 0;
+
+        case WM_MOUSEMOVE:
+        case WM_LBUTTONDOWN:
+        case WM_LBUTTONUP:
+            parent = GetParent (hwnd);
+            if (parent != nullptr)
+            {
+                return SendMessage (parent, uMsg, wParam, lParam);
+            }
+            return DefWindowProc (hwnd, uMsg, wParam, lParam);
 
         // Keep resize cursors in sync with the parent NC hit-test math.
         case WM_SETCURSOR:
@@ -1365,256 +953,6 @@ LRESULT CALLBACK EmulatorShell::s_RenderSurfaceWndProc (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DrawDriveStatusItem
-//
-//  Paints one drive indicator: "Drive N: " followed by a filled circle
-//  that's red when the controller's motor is on AND that drive is the
-//  selected one, grey otherwise. Honors the system-default 3D face
-//  background and window text color so the indicator blends with the rest
-//  of the status bar.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::DrawDriveStatusItem (DRAWITEMSTRUCT * pdis, int driveIndex)
-{
-    static constexpr int  s_kDotRadius     = 5;
-    static constexpr int  s_kLeftMargin    = 6;
-    static constexpr int  s_kRightMargin   = 22;
-    static constexpr int  s_kLabelDotGap   = 10;
-
-    wchar_t   label[16]    = { };
-    HBRUSH    bgBrush      = nullptr;
-    HBRUSH    dotBrush     = nullptr;
-    HPEN      dotPen       = nullptr;
-    HBRUSH    oldBrush     = nullptr;
-    HPEN      oldPen       = nullptr;
-    SIZE      labelSize    = { };
-    RECT      labelRect    = { };
-    int       dotCx        = 0;
-    int       dotCy        = 0;
-    bool      active       = false;
-    COLORREF  dotColor     = 0;
-
-    if (pdis == nullptr)
-    {
-        return;
-    }
-
-    swprintf_s (label, L"Drive %d:", driveIndex + 1);
-
-    bgBrush = GetSysColorBrush (COLOR_3DFACE);
-    FillRect (pdis->hDC, &pdis->rcItem, bgBrush);
-
-    SetBkMode    (pdis->hDC, TRANSPARENT);
-    SetTextColor (pdis->hDC, GetSysColor (COLOR_WINDOWTEXT));
-
-    labelRect       = pdis->rcItem;
-    labelRect.left += s_kLeftMargin;
-
-    DrawTextW (pdis->hDC, label, -1, &labelRect,
-               DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-
-    GetTextExtentPoint32W (pdis->hDC, label,
-                           static_cast<int> (wcslen (label)),
-                           &labelSize);
-
-    active = m_refs.diskController != nullptr
-          && m_refs.diskController->IsMotorOn()
-          && m_refs.diskController->GetActiveDrive() == driveIndex
-          && m_refs.diskController->GetDisk (driveIndex) != nullptr
-          && m_refs.diskController->GetDisk (driveIndex)->IsLoaded();
-
-    dotColor = active ? RGB (220, 32, 32) : RGB (128, 128, 128);
-
-    dotCx = labelRect.left + labelSize.cx + s_kLabelDotGap + s_kDotRadius;
-    dotCy = (pdis->rcItem.top + pdis->rcItem.bottom) / 2;
-
-    // Only the rightmost drive part shares pixels with the SBARS_SIZEGRIP
-    // corner — clamp its dot position so the ellipse stays inside the
-    // visible area. Other drive parts paint where the gap calculation
-    // says, which keeps the colon-to-dot spacing consistent across drives.
-    if (driveIndex == m_statusBarDriveCount - 1)
-    {
-        if (dotCx + s_kDotRadius > pdis->rcItem.right - s_kRightMargin)
-        {
-            dotCx = pdis->rcItem.right - s_kRightMargin - s_kDotRadius;
-        }
-    }
-
-    dotBrush = CreateSolidBrush (dotColor);
-    dotPen   = CreatePen        (PS_SOLID, 1, dotColor);
-
-    if (dotBrush != nullptr && dotPen != nullptr)
-    {
-        oldBrush = static_cast<HBRUSH> (SelectObject (pdis->hDC, dotBrush));
-        oldPen   = static_cast<HPEN>   (SelectObject (pdis->hDC, dotPen));
-
-        Ellipse (pdis->hDC,
-                 dotCx - s_kDotRadius, dotCy - s_kDotRadius,
-                 dotCx + s_kDotRadius, dotCy + s_kDotRadius);
-
-        if (oldBrush != nullptr) SelectObject (pdis->hDC, oldBrush);
-        if (oldPen   != nullptr) SelectObject (pdis->hDC, oldPen);
-    }
-
-    if (dotBrush != nullptr) DeleteObject (dotBrush);
-    if (dotPen   != nullptr) DeleteObject (dotPen);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShowDevicePopup
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ShowDevicePopup()
-{
-    HRESULT hr       = S_OK;
-    BOOL    fSuccess = FALSE;
-    HMENU   hMenu    = nullptr;
-    POINT   pt       = {};
-    UINT    itemId   = 1;
-    wstring label;
-
-
-
-    hMenu = CreatePopupMenu();
-    CWRA (hMenu);
-
-    // RAM regions (skip aux-bank entries -- shown via aux-ram-card device)
-    for (const auto & region : m_config.ram)
-    {
-        if (!region.bank.empty())
-        {
-            continue;
-        }
-
-        Word ramEnd = static_cast<Word> (region.address + region.size - 1);
-        label = format (L"${:04X}-${:04X}  Ram", region.address, ramEnd);
-        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
-        CWRA (fSuccess);
-    }
-
-    // System ROM
-    {
-        Word romEnd  = static_cast<Word> (m_config.systemRom.address + m_config.systemRom.fileSize - 1);
-        wstring file = fs::path (m_config.systemRom.file).wstring();
-        label = format (L"${:04X}-${:04X}  Rom ({})", m_config.systemRom.address, romEnd, file);
-        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
-        CWRA (fSuccess);
-    }
-
-    // Slot ROMs
-    for (const auto & slot : m_config.slots)
-    {
-        if (slot.rom.empty())
-        {
-            continue;
-        }
-
-        Word    romStart = static_cast<Word> (0xC000 + slot.slot * 0x100);
-        Word    romEnd   = static_cast<Word> (romStart + slot.romSize - 1);
-        wstring file     = fs::path (slot.rom).wstring();
-        label = format (L"${:04X}-${:04X}  Slot {} Rom ({})", romStart, romEnd, slot.slot, file);
-        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
-        CWRA (fSuccess);
-    }
-
-    fSuccess = AppendMenuW (hMenu, MF_SEPARATOR, 0, nullptr);
-    CWRA (fSuccess);
-
-    // Internal devices
-    for (const auto & idev : m_config.internalDevices)
-    {
-        wstring name  = fs::path (idev.type).wstring();
-        bool    found = false;
-
-        for (const auto & dev : m_ownedDevices)
-        {
-            Word devStart = dev->GetStart();
-            Word devEnd   = dev->GetEnd();
-            bool match    = false;
-
-            if ((idev.type == "apple2-keyboard" || idev.type == "apple2e-keyboard") &&
-                m_refs.keyboard != nullptr && dev.get() == static_cast<MemoryDevice *> (m_refs.keyboard))
-            {
-                match = true;
-            }
-            else if (idev.type == "apple2-speaker" &&
-                     m_refs.speaker != nullptr && dev.get() == static_cast<MemoryDevice *> (m_refs.speaker))
-            {
-                match = true;
-            }
-            else if ((idev.type == "apple2-softswitches" || idev.type == "apple2e-softswitches") &&
-                     m_refs.softSwitches != nullptr && dev.get() == static_cast<MemoryDevice *> (m_refs.softSwitches))
-            {
-                match = true;
-            }
-            else if (idev.type == "aux-ram-card" && devStart == 0xC003 && devEnd == 0xC006)
-            {
-                match = true;
-            }
-            else if (idev.type == "language-card" && devStart == 0xC080 && devEnd == 0xC08F)
-            {
-                match = true;
-            }
-
-            if (match)
-            {
-                label = format (L"${:04X}-${:04X}  {}", devStart, devEnd, name);
-                found = true;
-                break;
-            }
-        }
-
-        if (!found)
-        {
-            label = name;
-        }
-
-        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
-        CWRA (fSuccess);
-    }
-
-    // Slot devices
-    for (const auto & slot : m_config.slots)
-    {
-        if (slot.device.empty())
-        {
-            continue;
-        }
-
-        wstring name = fs::path (slot.device).wstring();
-        Word    ioStart = static_cast<Word> (0xC080 + slot.slot * 16);
-        Word    ioEnd   = static_cast<Word> (ioStart + 15);
-        label = format (L"${:04X}-${:04X}  Slot {} ({})", ioStart, ioEnd, slot.slot, name);
-        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
-        CWRA (fSuccess);
-    }
-
-    fSuccess = GetCursorPos (&pt);
-    CWRA (fSuccess);
-
-    TrackPopupMenu (hMenu, TPM_LEFTALIGN | TPM_BOTTOMALIGN,
-                    pt.x, pt.y, 0, m_hwnd, nullptr);
-
-Error:
-    if (hMenu != nullptr)
-    {
-        DestroyMenu (hMenu);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OnMove
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1641,36 +979,12 @@ bool EmulatorShell::OnMove (HWND hwnd, int x, int y)
 
 bool EmulatorShell::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
-    NMHDR   * pnmh = reinterpret_cast<NMHDR *> (lParam);
-    NMMOUSE * pnmm = nullptr;
-
-
-
     UNREFERENCED_PARAMETER (hwnd);
     UNREFERENCED_PARAMETER (wParam);
-
-
-
-    if (pnmh->hwndFrom == m_statusBar && pnmh->code == NM_CLICK)
-    {
-        pnmm = reinterpret_cast<NMMOUSE *> (lParam);
-
-        if (pnmm->dwItemSpec == 2)
-        {
-            ShowMachinePicker();
-            return false;
-        }
-
-        if (pnmm->dwItemSpec == 3)
-        {
-            ShowDevicePopup();
-            return false;
-        }
-    }
+    UNREFERENCED_PARAMETER (lParam);
 
     return true;
 }
-
 
 
 
@@ -2714,6 +2028,8 @@ void EmulatorShell::UpdateDriveWidgets()
     }
 
     m_driveWidgets.SyncFromStates (m_driveWidgetState);
+    m_driveChrome[0].SyncFromState (m_driveWidgetState[0]);
+    m_driveChrome[1].SyncFromState (m_driveWidgetState[1]);
 }
 
 
@@ -3045,20 +2361,7 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     // silent after a machine switch even though it's still on screen.
     AttachDebugSinksIfOpen();
 
-    UpdateStatusBar();
     UpdateWindowTitle();
-
-    // Restart the drive activity timer based on the new machine's
-    // hardware. KillTimer is a no-op if the timer wasn't set; SetTimer
-    // is only needed when a Disk II controller is present.
-    if (m_hwnd != nullptr)
-    {
-        KillTimer (m_hwnd, kDriveStatusTimerId);
-        if (m_refs.diskController != nullptr)
-        {
-            SetTimer (m_hwnd, kDriveStatusTimerId, kDriveStatusTimerMs, nullptr);
-        }
-    }
 
     // Save to registry (don't pollute hr with the result)
     hrReg = RegistrySettings::WriteString (kLastMachineValue, machineName);
@@ -3890,8 +3193,6 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
 
     SaveWindowPlacement();
 
-    KillTimer (m_hwnd, kDriveStatusTimerId);
-
     // P6 -- revoke the IDropTarget before the HWND is destroyed.
     // RevokeDragDrop requires a valid window handle.
     m_dragDropTarget.Shutdown();
@@ -3907,7 +3208,92 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
 
 
 
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMouseMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
+{
+    int   x        = ((int) (short) LOWORD (lParam));
+    int   y        = ((int) (short) HIWORD (lParam));
+    bool  leftDown = (wParam & MK_LBUTTON) != 0;
+
+
+
+    m_uiShell.OnMouseMove (x, y, leftDown);
+    return false;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnLButtonDown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
+{
+    int  x = ((int) (short) LOWORD (lParam));
+    int  y = ((int) (short) HIWORD (lParam));
+
+
+
+    UNREFERENCED_PARAMETER (wParam);
+
+    SetCapture (m_hwnd);
+    m_uiShell.OnLButtonDown (x, y);
+    return false;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnLButtonUp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
+{
+    int                x      = ((int) (short) LOWORD (lParam));
+    int                y      = ((int) (short) HIWORD (lParam));
+    DriveWidgetRegion  region = DriveWidgetRegion::None;
+
+
+
+    UNREFERENCED_PARAMETER (wParam);
+
+    ReleaseCapture();
+    m_uiShell.OnLButtonUp (x, y);
+
+    for (DriveWidget & drive : m_driveChrome)
+    {
+        region = drive.HitTest (x, y);
+        if (region == DriveWidgetRegion::Body)
+        {
+            HRESULT  hrBrowse = PromptForDiskImage (drive.Drive());
+            IGNORE_RETURN_VALUE (hrBrowse, S_OK);
+            return false;
+        }
+
+        if (region == DriveWidgetRegion::Eject)
+        {
+            Eject (6, drive.Drive());
+            return false;
+        }
+    }
+
+    return false;
+}////////////////////////////////////////////////////////////////////////////////
 //
 //  OnKeyDown
 //
@@ -3927,6 +3313,16 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
     ctrlHeld = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
     altHeld  = (GetKeyState (VK_MENU)    & 0x8000) != 0;
+
+    if (m_uiShell.HandleKey (vk))
+    {
+        return false;
+    }
+
+    if (altHeld && vk >= 0x20 && vk <= 0x7E && m_navLayer.HandleAltKey ((wchar_t) vk))
+    {
+        return false;
+    }
 
     // Ctrl+V — paste from clipboard (host-meta convenience, not a //e
     // hardware key). Consumed before reaching the emulated keyboard.
@@ -4098,32 +3494,12 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 
 bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
 {
-    int       sbHeight         = 0;
-    int       chromePx         = 0;
-    RECT      sbRect           = {};
-    int       renderH          = static_cast<int> (height);
-    HRESULT   hrPresent        = S_OK;
+    int       renderH   = static_cast<int> (height);
+    HRESULT   hrPresent = S_OK;
 
 
 
     UNREFERENCED_PARAMETER (hwnd);
-
-
-
-    if (m_statusBar != nullptr && IsWindowVisible (m_statusBar))
-    {
-        SendMessage (m_statusBar, WM_SIZE, 0, 0);
-        GetWindowRect (m_statusBar, &sbRect);
-        sbHeight = sbRect.bottom - sbRect.top;
-
-        // Right-aligned drive indicators are anchored to the bar's client
-        // width. Recompute part edges so they stay flush with the right
-        // edge of the resized bar.
-        UpdateStatusBar();
-    }
-
-    chromePx = ComputeChromeTopInsetPx (GetDpiForWindow (m_hwnd));
-    renderH -= sbHeight;
 
     if (m_renderHwnd != nullptr)
     {
@@ -4134,19 +3510,20 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
     m_d3dRenderer.Resize (static_cast<int> (width), renderH);
 
     {
-        UINT     dpi    = GetDpiForWindow (m_hwnd);
-        HRESULT  hrUiR  = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
-                                              m_d3dRenderer.GetBackBufferHeight(),
-                                              dpi);
+        UINT     dpi   = GetDpiForWindow (m_hwnd);
+        HRESULT  hrUiR = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
+                                             m_d3dRenderer.GetBackBufferHeight(),
+                                             dpi);
         IGNORE_RETURN_VALUE (hrUiR, S_OK);
+        m_titleBar.UpdateGeometry (static_cast<int> (width), dpi);
+        m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), static_cast<int> (width), dpi);
+        m_driveChrome[0].Layout (24, ComputeChromeTopInsetPx (dpi) + 18, dpi);
+        m_driveChrome[1].Layout (230, ComputeChromeTopInsetPx (dpi) + 18, dpi);
+        m_uiShell.HitTest().Clear();
+        m_uiShell.HitTest().Register (HitRect { m_driveChrome[0].BodyRect(), HitSlot::Custom, 0 });
+        m_uiShell.HitTest().Register (HitRect { m_driveChrome[1].BodyRect(), HitSlot::Custom, 1 });
+        m_d3dRenderer.SetTopInsetPx (ComputeChromeTopInsetPx (dpi));
     }
-
-    // P4: keep the borderless title-bar geometry cache in sync so the
-    // WM_NCHITTEST helper hands the OS the right button rects after a
-    // resize / DPI change.
-    m_titleBar.UpdateGeometry (static_cast<int> (width),
-                                GetDpiForWindow (m_hwnd));
-    m_d3dRenderer.SetTopInsetPx (ComputeChromeTopInsetPx (GetDpiForWindow (m_hwnd)));
 
     {
         lock_guard<mutex> lock (m_fbMutex);
@@ -4177,10 +3554,8 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
     }
 
     SaveWindowPlacement();
-
     return false;
 }
-
 
 
 
@@ -4199,29 +3574,10 @@ bool EmulatorShell::OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis)
 {
     UNREFERENCED_PARAMETER (hwnd);
     UNREFERENCED_PARAMETER (idCtl);
+    UNREFERENCED_PARAMETER (pdis);
 
-    int  driveIndex = 0;
-    int  partIndex  = 0;
-
-    if (pdis == nullptr || pdis->hwndItem != m_statusBar)
-    {
-        return true;
-    }
-
-    partIndex = static_cast<int> (pdis->itemID);
-
-    if (partIndex < m_statusBarFirstDrivePart
-        || partIndex >= m_statusBarFirstDrivePart + m_statusBarDriveCount)
-    {
-        return true;
-    }
-
-    driveIndex = static_cast<int> (pdis->itemData);
-
-    DrawDriveStatusItem (pdis, driveIndex);
-    return false;
+    return true;
 }
-
 
 
 
@@ -4240,20 +3596,10 @@ bool EmulatorShell::OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis)
 bool EmulatorShell::OnTimer (HWND hwnd, UINT_PTR timerId)
 {
     UNREFERENCED_PARAMETER (hwnd);
-
-    if (timerId == kDriveStatusTimerId)
-    {
-        RefreshDriveStatus();
-        if (s_kEnableDriveWidgets)
-        {
-            UpdateDriveWidgets();
-        }
-        return false;
-    }
+    UNREFERENCED_PARAMETER (timerId);
 
     return true;
-}
-//  OnFileCommand
+}//  OnFileCommand
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4681,7 +4027,60 @@ void EmulatorShell::OnViewCommand (int id)
 
 
 
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
+//
+//  PromptForDiskImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::PromptForDiskImage (int drive)
+{
+    HRESULT                         hr         = S_OK;
+    ComPtr<IFileOpenDialog>         dialog;
+    ComPtr<IShellItem>              item;
+    PWSTR                           pszPath    = nullptr;
+    COMDLG_FILTERSPEC               filters[1] = { { L"Disk Images", L"*.dsk;*.nib;*.woz;*.po" } };
+
+
+
+    hr = CoCreateInstance (CLSID_FileOpenDialog,
+                           nullptr,
+                           CLSCTX_INPROC_SERVER,
+                           IID_PPV_ARGS (&dialog));
+    CHR (hr);
+
+    hr = dialog->SetFileTypes (1, filters);
+    CHR (hr);
+
+    hr = dialog->Show (m_hwnd);
+    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
+    {
+        hr = S_FALSE;
+        goto Error;
+    }
+    CHR (hr);
+
+    hr = dialog->GetResult (&item);
+    CHR (hr);
+
+    hr = item->GetDisplayName (SIGDN_FILESYSPATH, &pszPath);
+    CHR (hr);
+
+    hr = Mount (6, drive, pszPath);
+    CHR (hr);
+
+Error:
+    if (pszPath != nullptr)
+    {
+        CoTaskMemFree (pszPath);
+    }
+
+    return hr;
+}////////////////////////////////////////////////////////////////////////////////
 //
 //  OnDiskCommand
 //
@@ -5353,3 +4752,9 @@ bool EmulatorShell::OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int 
 
     return false;
 }
+
+
+
+
+
+

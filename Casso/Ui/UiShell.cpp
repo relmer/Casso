@@ -1,22 +1,7 @@
 #include "Pch.h"
 
 #include "UiShell.h"
-
 #include "D3DRenderer.h"
-
-
-
-
-
-namespace
-{
-    constexpr uint32_t  s_kBannerArgb     = 0xFFE0E0E0;
-    constexpr uint32_t  s_kAccentBarArgb  = 0x80003366;
-    constexpr float     s_kBannerFontDip  = 14.0f;
-    constexpr float     s_kAccentBarHigh  = 4.0f;
-    constexpr float     s_kBannerPadDip   = 8.0f;
-    constexpr wchar_t   s_kBannerFamily[] = L"Segoe UI";
-}
 
 
 
@@ -36,14 +21,9 @@ UiShell::~UiShell ()
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Initialize
-//
-//  Wires the painter + text renderer onto the live `D3DRenderer`
-//  device. Must run after the renderer has come up so the device,
-//  context, and back-buffer surface are available.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,11 +55,6 @@ HRESULT UiShell::Initialize (D3DRenderer * pRenderer)
     m_targetDirty      = true;
     m_initialized      = true;
 
-    if (m_debugBanner.empty())
-    {
-        m_debugBanner = L"Casso UI";
-    }
-
 Error:
     if (FAILED (hr))
     {
@@ -87,7 +62,6 @@ Error:
     }
     return hr;
 }
-
 
 
 
@@ -114,6 +88,26 @@ void UiShell::Shutdown ()
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetChrome
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UiShell::SetChrome (
+    TitleBar                    * titleBar,
+    NavLayer                    * navLayer,
+    std::array<DriveWidget, 2>  * driveWidgets,
+    const ChromeTheme           * theme)
+{
+    m_titleBar     = titleBar;
+    m_navLayer     = navLayer;
+    m_driveWidgets = driveWidgets;
+    m_theme        = theme;
+}
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -136,7 +130,6 @@ HRESULT UiShell::OnResize (int viewportWidthPx, int viewportHeightPx, UINT dpi)
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnDeviceLost
@@ -148,13 +141,17 @@ HRESULT UiShell::OnDeviceLost ()
     HRESULT  hrPainter = m_painter.OnDeviceLost();
     HRESULT  hrText    = m_text.OnDeviceLost();
 
+
+
     m_initialized = false;
     m_targetDirty = true;
 
-    if (FAILED (hrPainter)) { return hrPainter; }
+    if (FAILED (hrPainter))
+    {
+        return hrPainter;
+    }
     return hrText;
 }
-
 
 
 
@@ -196,14 +193,9 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RefreshTextTarget
-//
-//  Re-acquires the swap-chain back-buffer surface and binds it to the
-//  text renderer. Invoked once after init and again any time the
-//  swap-chain back buffer changes (resize, device restore).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -231,24 +223,18 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Render
-//
-//  Composites the native chrome on top of the emulator framebuffer.
-//  This baseline paints a thin top accent bar (proof-of-life for the
-//  painter) and draws a "Casso UI" banner in the upper-left via the
-//  D2D / DirectWrite text renderer (proof-of-life for the text pass).
-//  Subsequent phases stack additional chrome surfaces on top of this
-//  hook.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void UiShell::Render ()
 {
-    HRESULT                  hr   = S_OK;
-    ID3D11RenderTargetView * rtv  = nullptr;
+    HRESULT                  hr     = S_OK;
+    ID3D11RenderTargetView * rtv    = nullptr;
+    ChromeVisualState        visual = {};
+    ChromeTheme              localTheme;
 
 
 
@@ -263,52 +249,143 @@ void UiShell::Render ()
 
         if (FAILED (hrRefresh))
         {
-            // Defer rebind to next frame; a transient bind failure
-            // shouldn't drop the entire UI composite.
             return;
         }
     }
 
     m_viewportWidthPx  = m_renderer->GetBackBufferWidth();
     m_viewportHeightPx = m_renderer->GetBackBufferHeight();
+    rtv                = m_renderer->GetBackBufferRtv();
+    localTheme         = (m_theme != nullptr) ? *m_theme : ChromeTheme::Skeuomorphic();
+    visual.dpi         = m_dpi;
+    visual.frameIndex  = m_frameIndex++;
 
-    rtv = m_renderer->GetBackBufferRtv();
-
-    if (rtv != nullptr)
+    if (rtv == nullptr)
     {
-        hr = m_painter.Begin (m_viewportWidthPx, m_viewportHeightPx);
+        return;
+    }
 
-        if (SUCCEEDED (hr))
+    hr = m_painter.Begin (m_viewportWidthPx, m_viewportHeightPx);
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    hr = m_text.BeginDraw();
+    if (FAILED (hr))
+    {
+        IGNORE_RETURN_VALUE (hr, m_painter.End (rtv));
+        return;
+    }
+
+    if (m_titleBar != nullptr)
+    {
+        m_titleBar->Paint (m_painter, m_text, visual, localTheme);
+    }
+
+    if (m_navLayer != nullptr)
+    {
+        m_navLayer->PaintStrip (m_painter, m_text, visual, localTheme);
+    }
+
+    if (m_driveWidgets != nullptr)
+    {
+        for (DriveWidget & drive : *m_driveWidgets)
         {
-            m_painter.FillRect (0.0f,
-                                0.0f,
-                                (float) m_viewportWidthPx,
-                                s_kAccentBarHigh,
-                                s_kAccentBarArgb);
-
-            hr = m_painter.End (rtv);
-            IGNORE_RETURN_VALUE (hr, S_OK);
+            drive.Paint (m_painter, m_text, visual, localTheme);
         }
     }
 
-    if (m_showBanner && !m_debugBanner.empty())
+    if (m_navLayer != nullptr)
     {
-        hr = m_text.BeginDraw();
-
-        if (SUCCEEDED (hr))
-        {
-            HRESULT  hrDraw = m_text.DrawString (m_debugBanner.c_str(),
-                                                 s_kBannerPadDip,
-                                                 s_kBannerPadDip,
-                                                 (float) m_viewportWidthPx  - s_kBannerPadDip,
-                                                 (float) m_viewportHeightPx - s_kBannerPadDip,
-                                                 s_kBannerArgb,
-                                                 s_kBannerFontDip,
-                                                 s_kBannerFamily);
-            IGNORE_RETURN_VALUE (hrDraw, S_OK);
-
-            hr = m_text.EndDraw();
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
+        m_navLayer->PaintDropdown (m_painter, m_text, visual, localTheme);
     }
+
+    IGNORE_RETURN_VALUE (hr, m_painter.End (rtv));
+    IGNORE_RETURN_VALUE (hr, m_text.EndDraw());
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMouseMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UiShell::OnMouseMove (int x, int y, bool leftDown)
+{
+    m_leftDown = leftDown;
+
+
+
+    if (m_titleBar != nullptr)
+    {
+        m_titleBar->SetMousePosition (x, y, leftDown);
+    }
+
+    if (m_navLayer != nullptr)
+    {
+        m_navLayer->HandleMouseMove (x, y);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnLButtonDown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UiShell::OnLButtonDown (int x, int y)
+{
+    m_leftDown = true;
+    OnMouseMove (x, y, true);
+
+    if (m_navLayer != nullptr)
+    {
+        m_navLayer->HandleMouseDown (x, y);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnLButtonUp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UiShell::OnLButtonUp (int x, int y)
+{
+    m_leftDown = false;
+    OnMouseMove (x, y, false);
+
+    if (m_navLayer != nullptr)
+    {
+        m_navLayer->HandleMouseUp (x, y);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool UiShell::HandleKey (WPARAM vk)
+{
+    if (m_navLayer != nullptr)
+    {
+        return m_navLayer->HandleKey (vk);
+    }
+
+    return false;
 }

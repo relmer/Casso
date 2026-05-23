@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Ui/TitleBar.h"
+#include "Ui/Chrome/TitleBar.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -174,3 +174,4 @@ public:
         Assert::AreEqual (400, TitleBarLayout::WindowsUiFontWeight());
     }
 };
+
