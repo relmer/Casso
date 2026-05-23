@@ -300,14 +300,14 @@ build is green Debug|x64, the audit `rg` calls return zero hits, and
 ### P3.0a — Extractions (one commit per task, in order)
 
 - [X] T108a [P3.0] **DONE** — extract `ClipboardManager` and `WindowManager` into `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\ClipboardManager.cpp` / `.h` and `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\WindowManager.cpp` / `.h`; reduced `EmulatorShell.cpp` from 4726 lines to ~3250 lines; 1447 tests still pass; build green (commit `33537b4`)
-- [ ] T108b [P3.0] Extract `CpuManager` into `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\CpuManager.cpp` / `.h`: own CPU thread lifecycle (create/join), run/pause/step transitions, and command-queue plumbing currently inlined in `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp`
-- [ ] T108c [P3.0] Extract `DiskManager` into `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\DiskManager.cpp` / `.h`: own disk controller wiring, mount/eject paths, slot-6 helpers, and `DriveWidget` sync currently inlined in `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp`
-- [ ] T108d [P3.0] Extract `MachineManager` into `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\MachineManager.cpp` / `.h`: own `SwitchMachine`, `CreateMemoryDevices`, machine-config rebuild, `softReset`, and `powerCycle` paths currently inlined in `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp`
-- [ ] T108e [P3.0] Extract `WindowCommandManager` into `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\WindowCommandManager.cpp` / `.h`: own command dispatch, menu state caching, `HandleCommand`, and `OnFileCommand` / `OnEditCommand` / sibling `On*Command` handlers currently inlined in `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp`
+- [X] T108b [P3.0] **DONE** — extract `CpuManager` into `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\CpuManager.cpp` / `.h` (commit `2330211`; 128305 → 126504 B)
+- [X] T108c [P3.0] **DONE** — extract `DiskManager` into `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\DiskManager.cpp` / `.h` (commit `d439366`; 126504 → 112944 B)
+- [X] T108d [P3.0] **DONE** — extract `MachineManager` into `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\MachineManager.cpp` / `.h` (commit `be02bb6`; 112944 → 78919 B)
+- [X] T108e [P3.0] **DONE** — extract `WindowCommandManager` into `C:\Users\relmer\repos\relmer\Casso\Casso\Shell\WindowCommandManager.cpp` / `.h` (commit `e20722f`; 78919 → 66649 B; total P3.0 shrinkage 128305 → 66649 B, −1609 lines)
 
 ### P3.0b — Acceptance gate
 
-- [ ] T108f [P3.0] P3.0 acceptance: build green Debug|x64; full test suite (1447+ tests) passes with zero new failures; `rg "Rml|RMLUI" Casso CassoCore CassoEmuCore CassoCli UnitTest External` returns zero hits; no new `BUTTON` / `COMBOBOX` / `EDIT` / `STATUSBAR` / `LISTVIEW` / `TREEVIEW` / `TOOLTIPS` window-class creations introduced anywhere under `C:\Users\relmer\repos\relmer\Casso\Casso\`; no new `DialogBox*` calls; `EmulatorShell.cpp` is well under 100 KB. Gate-only — no commit.
+- [X] T108f [P3.0] **VERIFIED** — build green Debug|x64 (0/0); 1447/1447 tests pass; `rg "Rml|RMLUI"` zero hits; no new Win32 UI control creations; no new `DialogBox*`; `EmulatorShell.cpp` at 66649 B (well under 100 KB).
 
 **Checkpoint**: `EmulatorShell` is a thin coordinator over five focused
 managers (`ClipboardManager`, `WindowManager`, `CpuManager`, `DiskManager`,
