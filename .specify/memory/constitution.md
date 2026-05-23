@@ -2,6 +2,28 @@
 ================================================================================
 SYNC IMPACT REPORT
 ================================================================================
+Version change: 1.5.0 -> 1.6.0 (MINOR -- materially changed Tech Constraints
+  by removing an approved third-party dependency)
+Modified principles: N/A
+Modified sections:
+  - Technology Constraints / Approved Third-Party Dependencies: removed the
+    HTML/CSS-style UI framework row that was added in 1.5.0. The chrome
+    surface is being rebuilt against the native Direct3D 11 / Direct2D +
+    DirectWrite stack, so the framework is no longer needed and its
+    vendored copy under `External/` has been deleted. Reverses the
+    spec-007 allowlist addition recorded in the 1.5.0 sync impact report.
+Added sections: N/A
+Removed sections: N/A
+Templates requiring updates:
+  ✅ plan-template.md - Constitution Check still aligned
+  ✅ spec-template.md - No template change required
+  ✅ tasks-template.md - No template change required
+Follow-up TODOs: None
+================================================================================
+
+================================================================================
+SYNC IMPACT REPORT (PRIOR)
+================================================================================
 Version change: 1.4.0 -> 1.5.0 (MINOR -- materially expanded Tech Constraints
   with an Approved Third-Party Dependencies allowlist)
 Modified principles: N/A
@@ -12,8 +34,8 @@ Modified sections:
     source-vendored, with provenance tracking required.
 Added sections: Approved Third-Party Dependencies table (under Tech
   Constraints). Initial entries: stb_vorbis.c (already in tree),
-  RmlUi, crt-pi, libretro bloom, libretro ntsc-adaptive chroma stage
-  (the last four for spec 007-ui-overhaul).
+  an HTML/CSS-style UI framework, crt-pi, libretro bloom, libretro
+  ntsc-adaptive chroma stage (the last four for spec 007-ui-overhaul).
 Removed sections: N/A
 Templates requiring updates:
   ✅ plan-template.md - Constitution Check still aligned
@@ -113,7 +135,6 @@ Complexity MUST be justified:
 | Dependency           | License           | Used By        | Location                          | Purpose                                   |
 |----------------------|-------------------|----------------|-----------------------------------|-------------------------------------------|
 | `stb_vorbis.c`       | MIT / Public Dom. | CassoCore      | `CassoCore/External/`             | Ogg Vorbis decoding for Disk II audio     |
-| RmlUi                | MIT               | Casso          | `External/RmlUi/`                 | HTML/CSS-style UI framework (spec 007)    |
 | `crt-pi`             | MIT               | Casso          | `Casso/Shaders/`                  | CRT scanline post-process (spec 007)      |
 | libretro `bloom`     | MIT / Public Dom. | Casso          | `Casso/Shaders/`                  | Phosphor bloom post-process (spec 007)    |
 | libretro `ntsc-adaptive` chroma stage | MIT | Casso | `Casso/Shaders/`              | NTSC color bleed post-process (spec 007)  |
@@ -175,4 +196,4 @@ This constitution supersedes all ad-hoc practices. All code changes MUST verify 
 
 **Guidance Reference**: See `.github/copilot-instructions.md` for detailed runtime development guidance and code style rules.
 
-**Version**: 1.5.0 | **Ratified**: 2026-01-24 | **Last Amended**: 2026-05-20
+**Version**: 1.6.0 | **Ratified**: 2026-01-24 | **Last Amended**: 2026-05-23

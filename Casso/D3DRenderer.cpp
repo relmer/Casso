@@ -384,12 +384,12 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
     (void) stride;
     (void) offset;
 
-    // Hook: RmlUi composite pass runs here, between the
+    // Hook: native chrome composite pass runs here, between the
     // emulator blit and Present. Skipped silently if no shell is
     // installed (e.g. early-init failure path or unit-test harness).
     if (m_afterBlitHook)
     {
-        ScopedPerfTimer  timer ("D3DRenderer.RmlUiComposite");
+        ScopedPerfTimer  timer ("D3DRenderer.UiComposite");
         m_afterBlitHook();
     }
 

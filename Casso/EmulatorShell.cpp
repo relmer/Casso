@@ -32,7 +32,6 @@
 #include "Ui/Win11DwmHelpers.h"
 #include "Ui/TitleBarHitTest.h"
 #include "Ui/DriveWidgetController.h"
-#include "Ui/DriveWidgetElement.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -587,8 +586,8 @@ HRESULT EmulatorShell::Initialize (
     hr = m_d3dRenderer.Initialize (m_renderHwnd, kFramebufferWidth, kFramebufferHeight);
     CHR (hr);
 
-    // Native-only bootstrap baseline (T006): retire legacy Rml overlay
-    // ownership from startup. Keep existing command/menu path active.
+    // Native-only bootstrap baseline: legacy chrome overlay retired
+    // ahead of the native painter. Keep existing command/menu path active.
 
     // WASAPI audio is initialized on the CPU thread (COM apartment requirement)
 
@@ -738,7 +737,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     Win11DwmHelpers::ApplyImmersiveDarkMode    (m_hwnd, true);
 
     // Legacy Win32 menu bar is retired (FR-026). All menu
-    // commands now route through `NavLayer` + the RmlUi nav strip;
+    // commands now route through `NavLayer` + the native nav strip;
     // keyboard accelerators (loaded below) keep working independently
     // of the menu bar. `m_menuSystem` is intentionally left in place
     // to cache `SpeedMode` / `ColorMode` for any downstream reader,
@@ -2865,7 +2864,7 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
 void EmulatorShell::ShowMachinePicker()
 {
     // Legacy `MachinePickerDialog` is retired (FR-027). The
-    // consolidated RmlUi Settings panel hosts the machine selector
+    // consolidated Settings panel hosts the machine selector
     // and routes the actual switch through `SwitchMachine` /
     // `SettingsPanelState::Apply` on commit. Old entry points
     // (`IDM_FILE_OPEN`, status-bar machine cell) funnel here so they
@@ -3736,7 +3735,7 @@ void EmulatorShell::RenderFramebuffer()
 //  HandleCommand
 //
 //  Public command-pump entry point. Used by the NavLayer so
-//  click routing from the RML chrome funnels through the same
+//  click routing from the chrome funnels through the same
 //  dispatch path as a Win32 menu pick. Intentionally a thin wrapper —
 //  OnCommand owns the real id-range demux.
 //

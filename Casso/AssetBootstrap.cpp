@@ -598,15 +598,6 @@ struct EmbeddedTheme
 static constexpr EmbeddedThemeFile s_kSkeuomorphicFiles[] =
 {
     { IDR_THEME_SKEUO_THEME_JSON,         "theme.json"          },
-    { IDR_THEME_SKEUO_THEME_RCSS,         "theme.rcss"          },
-    { IDR_THEME_SKEUO_TITLE_BAR_RML,      "title_bar.rml"       },
-    { IDR_THEME_SKEUO_TITLE_BAR_RCSS,     "title_bar.rcss"      },
-    { IDR_THEME_SKEUO_NAV_LAYER_RML,      "nav_layer.rml"       },
-    { IDR_THEME_SKEUO_NAV_LAYER_RCSS,     "nav_layer.rcss"      },
-    { IDR_THEME_SKEUO_SETTINGS_RML,       "settings.rml"        },
-    { IDR_THEME_SKEUO_SETTINGS_RCSS,      "settings.rcss"       },
-    { IDR_THEME_SKEUO_DRIVE_WIDGETS_RML,  "drive_widgets.rml"   },
-    { IDR_THEME_SKEUO_DRIVE_WIDGETS_RCSS, "drive_widgets.rcss"  },
     { IDR_THEME_SKEUO_FONT_TTF,           "fonts/Inter-Regular.ttf" },
     { IDR_THEME_SKEUO_FONT_OFL,           "fonts/OFL.txt"       },
     { IDR_THEME_SKEUO_FONT_TODO,          "fonts/TODO_FONTS.md" },
@@ -619,15 +610,6 @@ static constexpr EmbeddedThemeFile s_kSkeuomorphicFiles[] =
 static constexpr EmbeddedThemeFile s_kDarkModernFiles[] =
 {
     { IDR_THEME_DARK_THEME_JSON,         "theme.json"          },
-    { IDR_THEME_DARK_THEME_RCSS,         "theme.rcss"          },
-    { IDR_THEME_DARK_TITLE_BAR_RML,      "title_bar.rml"       },
-    { IDR_THEME_DARK_TITLE_BAR_RCSS,     "title_bar.rcss"      },
-    { IDR_THEME_DARK_NAV_LAYER_RML,      "nav_layer.rml"       },
-    { IDR_THEME_DARK_NAV_LAYER_RCSS,     "nav_layer.rcss"      },
-    { IDR_THEME_DARK_SETTINGS_RML,       "settings.rml"        },
-    { IDR_THEME_DARK_SETTINGS_RCSS,      "settings.rcss"       },
-    { IDR_THEME_DARK_DRIVE_WIDGETS_RML,  "drive_widgets.rml"   },
-    { IDR_THEME_DARK_DRIVE_WIDGETS_RCSS, "drive_widgets.rcss"  },
     { IDR_THEME_DARK_FONT_TTF,           "fonts/Inter-Regular.ttf" },
     { IDR_THEME_DARK_FONT_OFL,           "fonts/OFL.txt"       },
     { IDR_THEME_DARK_FONT_TODO,          "fonts/TODO_FONTS.md" },
@@ -640,15 +622,6 @@ static constexpr EmbeddedThemeFile s_kDarkModernFiles[] =
 static constexpr EmbeddedThemeFile s_kRetroTerminalFiles[] =
 {
     { IDR_THEME_RETRO_THEME_JSON,         "theme.json"          },
-    { IDR_THEME_RETRO_THEME_RCSS,         "theme.rcss"          },
-    { IDR_THEME_RETRO_TITLE_BAR_RML,      "title_bar.rml"       },
-    { IDR_THEME_RETRO_TITLE_BAR_RCSS,     "title_bar.rcss"      },
-    { IDR_THEME_RETRO_NAV_LAYER_RML,      "nav_layer.rml"       },
-    { IDR_THEME_RETRO_NAV_LAYER_RCSS,     "nav_layer.rcss"      },
-    { IDR_THEME_RETRO_SETTINGS_RML,       "settings.rml"        },
-    { IDR_THEME_RETRO_SETTINGS_RCSS,      "settings.rcss"       },
-    { IDR_THEME_RETRO_DRIVE_WIDGETS_RML,  "drive_widgets.rml"   },
-    { IDR_THEME_RETRO_DRIVE_WIDGETS_RCSS, "drive_widgets.rcss"  },
     { IDR_THEME_RETRO_FONT_TTF,           "fonts/VT323-Regular.ttf" },
     { IDR_THEME_RETRO_FONT_OFL,           "fonts/OFL.txt"       },
     { IDR_THEME_RETRO_FONT_TODO,          "fonts/TODO_FONTS.md" },

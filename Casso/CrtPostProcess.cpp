@@ -2,6 +2,8 @@
 
 #include "CrtPostProcess.h"
 
+#pragma comment(lib, "d3dcompiler.lib")
+
 
 
 

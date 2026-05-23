@@ -549,13 +549,10 @@ HRESULT ThemeLoader::Load (
 
     outTheme.directoryPath = StripTrailingSep (themeDir);
 
-    hr = ResolveEntryDocs (fs, themeDir, sharedDir, outTheme, outError);
-
-    if (FAILED (hr))
-    {
-        outTheme = LoadedTheme {};
-        return hr;
-    }
+    // Entry-document resolution is deferred until the native painter
+    // owns chrome rendering. Skip ResolveEntryDocs in this baseline
+    // so metadata-only themes load cleanly.
+    (void) sharedDir;
 
     return S_OK;
 }

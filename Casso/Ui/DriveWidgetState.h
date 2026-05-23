@@ -14,7 +14,7 @@
 //  Per-drive runtime state shared between the CPU thread (motor + track
 //  read/write signals) and the UI thread (door animation, mounted path).
 //  Owned per-drive by `EmulatorShell`; read each UI frame and pushed into
-//  the corresponding `DriveWidgetElement` via `SyncFromState`.
+//  the corresponding chrome drive widget via `SyncFromState`.
 //
 //  Concurrency
 //  -----------
@@ -38,7 +38,7 @@
 //
 //  The pure-logic helpers `BeginEject`, `BeginInsert`, and
 //  `TickDoorAnimation` make the state machine unit-testable without an
-//  RmlUi context (UnitTest/UiTests/DriveWidgetStateTests.cpp).
+//  context (UnitTest/UiTests/DriveWidgetStateTests.cpp).
 //
 ////////////////////////////////////////////////////////////////////////////////
 

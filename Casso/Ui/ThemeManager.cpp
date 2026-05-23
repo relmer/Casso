@@ -2,9 +2,7 @@
 
 #include "ThemeManager.h"
 
-#include "Win11DwmHelpers.h"
-
-
+#include "Core/JsonValue.h"
 #include "Core/JsonParser.h"
 
 
@@ -16,57 +14,44 @@
 //
 //  ThemeBootstrapPlanner::Plan
 //
-//  `themeJsonOnDisk` is the verbatim contents of the on-disk
-//  theme.json, or nullptr if no such file exists. `currentVersion`
-//  is the embedded built-in's `$cassoThemeVersion`. The planner
-//  never reads from `fs`; it only consults the inputs.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 ThemeBootstrapAction ThemeBootstrapPlanner::Plan (
-    const std::string  * themeJsonOnDisk,
-    int                  currentVersion)
+    const std::string * themeJsonOnDisk,
+    int                 currentVersion)
 {
-    HRESULT          hr            = S_OK;
-    JsonValue        root;
-    JsonParseError   perr;
-    bool             isBuiltIn     = false;
-    int              diskVersion   = 0;
+    HRESULT         hr        = S_OK;
+    JsonValue       parsed;
+    JsonParseError  err;
+    bool            isBuiltIn = false;
+    int             version   = 0;
 
 
-    // Rule 1: nothing on disk -> install.
-    if (themeJsonOnDisk == nullptr || themeJsonOnDisk->empty())
+
+    if (themeJsonOnDisk == nullptr)
     {
         return ThemeBootstrapAction::InstallBuiltIn;
     }
 
-    // Rule 2: unparseable on-disk theme.json -> install (treated as
-    // a half-baked previous extraction).
-    hr = JsonParser::Parse (*themeJsonOnDisk, root, perr);
+    hr = JsonParser::Parse (*themeJsonOnDisk, parsed, err);
 
-    if (FAILED (hr) || root.GetType() != JsonType::Object)
+    if (FAILED (hr) || parsed.GetType() != JsonType::Object)
     {
         return ThemeBootstrapAction::InstallBuiltIn;
     }
 
-    // Rule 3: user-authored theme (no built-in marker) -> never touch.
-    hr = root.GetBool ("$cassoBuiltIn", isBuiltIn);
+    hr = parsed.GetBool ("$cassoBuiltIn", isBuiltIn);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
-    if (FAILED (hr) || !isBuiltIn)
+    if (!isBuiltIn)
     {
         return ThemeBootstrapAction::Skip;
     }
 
-    // Rule 4 / 5: built-in theme; upgrade if older.
-    hr = root.GetInt ("$cassoThemeVersion", diskVersion);
+    hr = parsed.GetInt ("$cassoThemeVersion", version);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
-    if (FAILED (hr))
-    {
-        // Built-in marker present but version missing — install to fix.
-        return ThemeBootstrapAction::InstallBuiltIn;
-    }
-
-    if (diskVersion < currentVersion)
+    if (version < currentVersion)
     {
         return ThemeBootstrapAction::InstallBuiltIn;
     }
@@ -87,55 +72,10 @@ ThemeBootstrapAction ThemeBootstrapPlanner::Plan (
 ThemeManager::ThemeManager (
     IFileSystem        & fs,
     const std::wstring & themesBaseDir)
-    : m_fs              (fs)
-    , m_themesBaseDir   (themesBaseDir)
+    : m_fs (fs)
+    , m_themesBaseDir (themesBaseDir)
+    , m_sharedDir (themesBaseDir + L"\\_shared")
 {
-    // The shared fallback directory lives next to the theme dirs as
-    // `Themes/_shared/`. Per data-model.md §Theme an absent
-    // `entryDocuments.<entry>` falls back to
-    // `Themes/_shared/<entry>.rml`. The directory itself may legally
-    // be empty (no shared overrides yet) — ResolveOne handles that.
-    m_sharedDir = ThemeLoader::JoinPath (m_themesBaseDir, L"_shared");
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BindRml
-//
-//  Bind the manager to a live RmlUi context + main HWND. May be
-//  called more than once (re-binding to a new context tears down
-//  any currently-loaded docs on the old context).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ThemeManager::BindRml (Rml::Context * pContext, HWND hwnd)
-{
-    // Re-binding: tear down anything attached to the old context
-    // first so we don't leak ElementDocuments.
-    if (m_context != nullptr && pContext != m_context)
-    {
-        UnloadActiveDocuments();
-    }
-
-    m_context = pContext;
-    m_hwnd    = hwnd;
-
-    // If a theme was activated before the binding fired, attach its
-    // documents now. Ignore failure here — bringing up the binding
-    // shouldn't crash the shell if a theme's RML happens to be
-    // malformed (UiShell stays usable with no chrome).
-    const LoadedTheme * theme = GetActiveTheme();
-
-    if (theme != nullptr && m_context != nullptr)
-    {
-        HRESULT hr = ReattachDocuments (*theme);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-        ApplyDwm (*theme);
-    }
 }
 
 
@@ -146,87 +86,46 @@ void ThemeManager::BindRml (Rml::Context * pContext, HWND hwnd)
 //
 //  Discover
 //
-//  Walk `themesBaseDir` and rebuild the available-themes list.
-//  Cheap; safe to call from the Settings panel's Refresh button
-//  (FR-035). Returns S_OK with an empty list when the base
-//  directory is missing or empty.
+//  Enumerates every theme directory beneath `m_themesBaseDir` and
+//  parses each `theme.json` via `ThemeLoader::Load`. Themes whose
+//  metadata fails to validate are silently excluded; the remainder
+//  populate `m_available`.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ThemeManager::Discover ()
 {
-    std::vector<std::wstring>  dirNames;
-    size_t                     i      = 0;
-    HRESULT                    hr     = S_OK;
+    HRESULT                    hr      = S_OK;
+    std::vector<std::wstring>  candidates;
 
 
 
     m_available.clear();
 
-    hr = ThemeLoader::EnumerateCandidateDirs (m_fs, m_themesBaseDir, dirNames);
+    hr = ThemeLoader::EnumerateCandidateDirs (m_fs, m_themesBaseDir, candidates);
 
-    // S_FALSE (themesBaseDir missing) is acceptable — list stays empty.
-    if (FAILED (hr))
+    if (hr == S_FALSE)
     {
-        return hr;
+        return S_OK;
     }
 
-    for (i = 0; i < dirNames.size(); ++i)
+    CHRA (hr);
+
+    for (const std::wstring & name : candidates)
     {
-        std::wstring     dir     = ThemeLoader::JoinPath (m_themesBaseDir, dirNames[i]);
-        LoadedTheme      theme;
-        ThemeLoadError   err;
-        HRESULT          hrLoad  = ThemeLoader::Load (m_fs, dir, m_sharedDir, theme, err);
+        LoadedTheme     theme;
+        ThemeLoadError  err;
+        std::wstring    dir    = ThemeLoader::JoinPath (m_themesBaseDir, name);
+        HRESULT         hrLoad = ThemeLoader::Load (m_fs, dir, m_sharedDir, theme, err);
 
         if (SUCCEEDED (hrLoad))
         {
             m_available.push_back (std::move (theme));
         }
-        else
-        {
-            // FR-036: invalid themes are logged and excluded.
-            char  buf[512] = {};
-            snprintf (buf, sizeof (buf),
-                      "[ThemeManager] excluded theme dir '%ls': %s\n",
-                      dir.c_str(),
-                      err.message.c_str());
-            OutputDebugStringA (buf);
-        }
     }
 
-    return S_OK;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetActiveTheme
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const LoadedTheme * ThemeManager::GetActiveTheme () const
-{
-    size_t  i = 0;
-
-
-
-    if (m_activeName.empty())
-    {
-        return nullptr;
-    }
-
-    for (i = 0; i < m_available.size(); ++i)
-    {
-        if (m_available[i].name == m_activeName)
-        {
-            return &m_available[i];
-        }
-    }
-
-    return nullptr;
+Error:
+    return hr;
 }
 
 
@@ -237,60 +136,23 @@ const LoadedTheme * ThemeManager::GetActiveTheme () const
 //
 //  Activate
 //
-//  Switch to `themeName`. On success notifies all registered
-//  listeners. Returns S_FALSE when `themeName` doesn't match any
-//  discovered theme; returns a failure HRESULT (with the previous
-//  theme left active) on any RmlUi load failure.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ThemeManager::Activate (const std::string & themeName)
 {
-    const LoadedTheme  * theme    = nullptr;
-    size_t               i        = 0;
-    HRESULT              hr       = S_OK;
-    std::string          previous = m_activeName;
-    std::string          previousFamily = m_activeFamilyId;
-    std::string          previousVariant = m_activeVariantId;
-
-
-
-    for (i = 0; i < m_available.size(); ++i)
+    for (const LoadedTheme & t : m_available)
     {
-        if (m_available[i].name == themeName)
+        if (t.name == themeName)
         {
-            theme = &m_available[i];
-            break;
+            m_activeName      = t.name;
+            m_activeFamilyId  = t.familyId;
+            m_activeVariantId = t.variantId;
+            NotifyListeners (t);
+            return S_OK;
         }
     }
 
-    if (theme == nullptr)
-    {
-        return S_FALSE;
-    }
-
-    // Tentatively flip the active name so GetActiveTheme() inside
-    // ReattachDocuments reports the new one. Roll back on failure
-    // to preserve the FR-036 "previous theme remains active"
-    // invariant.
-    m_activeName      = themeName;
-    m_activeFamilyId  = theme->familyId;
-    m_activeVariantId = theme->variantId;
-
-    hr = ReattachDocuments (*theme);
-
-    if (FAILED (hr))
-    {
-        m_activeName      = previous;
-        m_activeFamilyId  = previousFamily;
-        m_activeVariantId = previousVariant;
-        return hr;
-    }
-
-    ApplyDwm (*theme);
-    NotifyListeners (*theme);
-
-    return S_OK;
+    return S_FALSE;
 }
 
 
@@ -303,14 +165,15 @@ HRESULT ThemeManager::Activate (const std::string & themeName)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ThemeManager::ActivateByFamilyVariant (const std::string & familyId,
-                                               const std::string & variantId)
+HRESULT ThemeManager::ActivateByFamilyVariant (
+    const std::string & familyId,
+    const std::string & variantId)
 {
-    for (const LoadedTheme & theme : m_available)
+    for (const LoadedTheme & t : m_available)
     {
-        if (theme.familyId == familyId && theme.variantId == variantId)
+        if (t.familyId == familyId && t.variantId == variantId)
         {
-            return Activate (theme.name);
+            return Activate (t.name);
         }
     }
 
@@ -325,31 +188,53 @@ HRESULT ThemeManager::ActivateByFamilyVariant (const std::string & familyId,
 //
 //  ReloadCurrent
 //
-//  Re-runs Discover() then Activate (current name). No-op if no
-//  theme is currently active.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ThemeManager::ReloadCurrent ()
 {
-    std::string  name = m_activeName;
-    HRESULT      hr   = S_OK;
+    HRESULT      hr             = S_OK;
+    std::string  previousActive = m_activeName;
 
 
-
-    if (name.empty())
-    {
-        return S_FALSE;
-    }
 
     hr = Discover();
-    CHRA (hr);
+    CHR (hr);
 
-    hr = Activate (name);
-    CHRA (hr);
+    if (!previousActive.empty())
+    {
+        hr = Activate (previousActive);
+    }
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetActiveTheme
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const LoadedTheme * ThemeManager::GetActiveTheme () const
+{
+    if (m_activeName.empty())
+    {
+        return nullptr;
+    }
+
+    for (const LoadedTheme & t : m_available)
+    {
+        if (t.name == m_activeName)
+        {
+            return &t;
+        }
+    }
+
+    return nullptr;
 }
 
 
@@ -364,145 +249,7 @@ Error:
 
 void ThemeManager::AddChangeListener (ChangeListener listener)
 {
-    if (listener)
-    {
-        m_listeners.push_back (std::move (listener));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ReattachDocuments
-//
-//  Reload all entry documents into m_context using `theme`'s
-//  resolved paths. Unloads anything currently in m_activeDocs.
-//  No-op (returns S_OK) when m_context is null — Activate() may
-//  legitimately be called before BindRml().
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT ThemeManager::ReattachDocuments (const LoadedTheme & theme)
-{
-    const std::wstring * paths[] = {
-        &theme.entryDocs.titleBar,
-        &theme.entryDocs.navLayer,
-        &theme.entryDocs.settings,
-        &theme.entryDocs.driveWidgets,
-    };
-    size_t  i = 0;
-
-
-    if (m_context == nullptr)
-    {
-        return S_OK;
-    }
-
-    UnloadActiveDocuments();
-
-    // Per FR-033 hot-swap must complete within one frame. Clearing
-    // RmlUi's stylesheet cache here makes sure the new theme's
-    // .rcss is parsed against fresh state rather than the previous
-    // theme's interned rules.
-    Rml::Factory::ClearStyleSheetCache();
-
-    for (i = 0; i < std::size (paths); ++i)
-    {
-        if (paths[i]->empty())
-        {
-            continue;
-        }
-
-        // RmlUi takes UTF-8; theme entry paths are ASCII by spec so
-        // a narrow widen-back is sufficient. Cast each wchar_t to
-        // char explicitly to silence C4244 — anything non-ASCII in
-        // a theme path is a theme-author bug and will surface as
-        // LoadDocument failure below.
-        std::string  utf8;
-        utf8.reserve (paths[i]->size());
-        for (wchar_t wc : *paths[i])
-        {
-            utf8.push_back (static_cast<char> (wc));
-        }
-
-        Rml::ElementDocument * doc = m_context->LoadDocument (utf8);
-
-        if (doc != nullptr)
-        {
-            // ThemeManager validates and tracks entry docs for unload /
-            // hot-reload boundaries, but concrete UI controllers own
-            // visibility (TitleBar/NavLayer/SettingsPanel/DriveWidgets).
-            m_activeDocs.push_back (doc);
-        }
-        else
-        {
-            char  buf[512] = {};
-            snprintf (buf, sizeof (buf),
-                      "[ThemeManager] LoadDocument failed for '%s'\n",
-                      utf8.c_str());
-            OutputDebugStringA (buf);
-        }
-    }
-
-    return S_OK;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  UnloadActiveDocuments
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ThemeManager::UnloadActiveDocuments ()
-{
-    size_t  i = 0;
-
-
-
-    if (m_context == nullptr)
-    {
-        m_activeDocs.clear();
-        return;
-    }
-
-    for (i = 0; i < m_activeDocs.size(); ++i)
-    {
-        if (m_activeDocs[i] != nullptr)
-        {
-            m_context->UnloadDocument (m_activeDocs[i]);
-        }
-    }
-
-    m_activeDocs.clear();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ApplyDwm
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ThemeManager::ApplyDwm (const LoadedTheme & theme)
-{
-    if (m_hwnd == nullptr)
-    {
-        return;
-    }
-
-    // Per deferred wiring: Mica is theme-driven. Pre-Win11 the
-    // helper is a no-op so this is safe on every supported OS.
-    Win11DwmHelpers::ApplyMicaBackdrop (m_hwnd, theme.useMicaBackdrop);
+    m_listeners.push_back (std::move (listener));
 }
 
 
@@ -517,15 +264,11 @@ void ThemeManager::ApplyDwm (const LoadedTheme & theme)
 
 void ThemeManager::NotifyListeners (const LoadedTheme & theme)
 {
-    size_t  i = 0;
-
-
-
-    for (i = 0; i < m_listeners.size(); ++i)
+    for (const ChangeListener & listener : m_listeners)
     {
-        if (m_listeners[i])
+        if (listener)
         {
-            m_listeners[i] (theme);
+            listener (theme);
         }
     }
 }

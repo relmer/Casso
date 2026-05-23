@@ -2,10 +2,8 @@
 
 #include "Pch.h"
 
-#include "DriveWidgetElement.h"
 #include "DriveWidgetState.h"
 #include "IDriveCommandSink.h"
-
 
 
 
@@ -16,36 +14,12 @@
 //
 //  DriveWidgetController
 //
-//  Owns the lifetime of the `<drive-widget>` element instancer + the
-//  active drive_widgets.rml document. Acts as the host-side adapter
-//  between `EmulatorShell` (which owns the per-drive `DriveWidgetState`
-//  and implements `IDriveCommandSink`) and the RmlUi document tree
-//  (where the actual element instances live).
-//
-//  Lifecycle
-//  ---------
-//      RegisterInstancer()
-//          -- exactly once before any drive_widgets.rml document is
-//             loaded. Idempotent; safe to call across theme reloads.
-//      LoadDocument(context, rmlPath, sink, ownerHwnd)
-//          -- unloads any prior document, loads `rmlPath`, walks the
-//             tree for every <drive-widget> element, installs the
-//             command sink + owner HWND, and caches the pointers.
-//      UnloadDocument()
-//          -- detaches the cached pointers + unloads the document.
-//      SyncFromStates(states)
-//          -- pushes per-drive state into each cached widget. Called
-//             once per UI frame.
-//      HitTest(clientX, clientY)
-//          -- returns the topmost cached drive widget whose absolute
-//             box contains the point, or nullptr.
-//
-//  Slot/drive identification
-//  -------------------------
-//  Each <drive-widget> RML tag carries `slot` + `drive` integer
-//  attributes. The controller only cares about slot 6 + drive 0/1; any
-//  widget that doesn't identify itself with valid slot/drive ints is
-//  still tracked for hit-test purposes but is excluded from state sync.
+//  Host-side adapter between `EmulatorShell` (which owns the per-drive
+//  `DriveWidgetState` and implements `IDriveCommandSink`) and the
+//  native chrome drive-widget tree. The widget tree itself is
+//  reintroduced in a later phase; in this baseline only the state-pump
+//  + sync-event channel is live so the existing mount/eject paths
+//  continue to publish events the future chrome will consume.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,34 +42,22 @@ public:
         int64_t    timestampMs = 0;
     };
 
-    static constexpr int  kMaxWidgets = 4;  // headroom for >2-drive future configs
-
 
     DriveWidgetController  ();
     ~DriveWidgetController ();
 
-    void                 RegisterInstancer ();
-    HRESULT              LoadDocument      (Rml::Context      * pContext,
-                                            const std::string & rmlPath,
-                                            IDriveCommandSink * pSink,
-                                            HWND                ownerHwnd);
-    void                 UnloadDocument    ();
-    void                 SyncFromStates    (const std::array<DriveWidgetState, 2> & states);
-    DriveWidgetElement * HitTest           (int clientX, int clientY) const;
-    uint64_t             PublishSyncEvent  (int driveId, SyncAction action, int64_t timestampMs);
+    void                        RegisterInstancer ();
+    HRESULT                     LoadDocument      (IDriveCommandSink * pSink,
+                                                   HWND                ownerHwnd);
+    void                        UnloadDocument    ();
+    void                        SyncFromStates    (const std::array<DriveWidgetState, 2> & states);
+    void                      * HitTest           (int clientX, int clientY) const;
+    uint64_t                    PublishSyncEvent  (int driveId, SyncAction action, int64_t timestampMs);
     std::vector<DriveSyncEvent> ConsumeSyncEvents ();
 
-    // Diagnostic accessors -- exposed for tests + sanity logging.
-    size_t               GetWidgetCount    () const { return m_widgets.size(); }
+    size_t                      GetWidgetCount    () const { return 0; }
 
 private:
-    void                 CollectWidgets    ();
-
-    Rml::ElementInstancer * m_pInstancer = nullptr;   // owned static singleton
-    Rml::Context          * m_pContext   = nullptr;
-    Rml::ElementDocument  * m_pDoc       = nullptr;
-
-    std::vector<DriveWidgetElement *>  m_widgets;
-    std::vector<DriveSyncEvent>        m_syncEvents;
-    uint64_t                           m_nextSyncEventId = 1;
+    std::vector<DriveSyncEvent>  m_syncEvents;
+    uint64_t                     m_nextSyncEventId = 1;
 };

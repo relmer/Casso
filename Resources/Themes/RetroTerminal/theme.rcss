@@ -1,7 +1,0 @@
-/* Retro Terminal — phosphor green on black tokens. */
-.theme-token-bg-base    { background-color: #000000; }
-.theme-token-bg-panel   { background-color: #001a00; }
-.theme-token-fg-default { color: #33ff66; }
-.theme-token-fg-muted   { color: #1d8a33; }
-.theme-token-accent     { color: #ffbf00; }
-.theme-token-border     { border-color: #1d8a33; }

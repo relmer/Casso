@@ -11,7 +11,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ThemeBootstrapPlanner
@@ -21,8 +20,7 @@
 //  the unit-test harness. Decides per-theme whether the on-disk copy
 //  should be replaced by the embedded default, left alone, or backed
 //  up. Mirrors the role of `MachineConfigUpgrade::Plan` for the
-//  themes domain (FR-045 + the built-in-marker contract documented
-//  in data-model.md § Theme).
+//  themes domain.
 //
 //  Rules (in order):
 //      1. theme directory does not exist                   -> InstallBuiltIn
@@ -59,33 +57,12 @@ public:
 //
 //  ThemeManager
 //
-//  Single owner of the currently-active theme. Wraps `ThemeLoader`
-//  for discovery + parsing and `Rml::Context` for live document
-//  swapping. Win11 Mica backdrop activation is performed via
-//  `Win11DwmHelpers::ApplyMicaBackdrop` on the bound HWND when a
-//  theme opts in.
-//
-//  Lifecycle
-//  ---------
-//      ctor (fs, themesBaseDir)
-//          -> records dependencies; no I/O.
-//      Discover()
-//          -> walks `themesBaseDir`, parses + validates every
-//             candidate theme.json, populates the available list.
-//             Pure logic (no Rml or Win32 calls).
-//      BindRml (ctx, hwnd)
-//          -> attaches the manager to a live RmlUi context + window.
-//             Called once from EmulatorShell after the UiShell is up.
-//             Activate() before BindRml is legal — it just defers
-//             document loading until BindRml fires.
-//      Activate (name)
-//          -> unloads previously loaded entry docs, loads the new
-//             theme's docs, applies Mica, notifies listeners. If
-//             the load fails the previous theme remains active
-//             (FR-036). Returns S_FALSE for unknown names.
-//      ReloadCurrent()
-//          -> calls Discover() then Activate (current name). Used
-//             by the dev hot-iteration path.
+//  Single owner of the currently-active theme. Wraps `ThemeLoader` for
+//  discovery + parsing and tracks active theme metadata so the rest of
+//  the shell can observe changes. The painter pipeline that actually
+//  applies the theme to a live UI surface is reintroduced in a later
+//  phase; in this baseline `Activate` validates the requested theme,
+//  records it, and notifies listeners.
 //
 //  Thread-safety: UI thread only. No locks.
 //
@@ -100,41 +77,30 @@ public:
     ThemeManager (IFileSystem        & fs,
                   const std::wstring & themesBaseDir);
 
-    void                           BindRml            (Rml::Context * pContext, HWND hwnd);
-    HRESULT                        Discover           ();
-    const std::vector<LoadedTheme> & GetAvailableThemes () const { return m_available; }
-    HRESULT                        Activate           (const std::string & themeName);
-    HRESULT                        ActivateByFamilyVariant (const std::string & familyId,
-                                                            const std::string & variantId);
-    HRESULT                        ReloadCurrent      ();
-    const std::string            & GetActiveThemeName () const { return m_activeName; }
-    const std::string            & GetActiveFamilyId  () const { return m_activeFamilyId; }
-    const std::string            & GetActiveVariantId () const { return m_activeVariantId; }
-    const LoadedTheme            * GetActiveTheme     () const;
-    void                           AddChangeListener  (ChangeListener listener);
+    HRESULT                          Discover                  ();
+    const std::vector<LoadedTheme> & GetAvailableThemes        () const { return m_available; }
+    HRESULT                          Activate                  (const std::string & themeName);
+    HRESULT                          ActivateByFamilyVariant   (const std::string & familyId,
+                                                                const std::string & variantId);
+    HRESULT                          ReloadCurrent             ();
+    const std::string              & GetActiveThemeName        () const { return m_activeName; }
+    const std::string              & GetActiveFamilyId         () const { return m_activeFamilyId; }
+    const std::string              & GetActiveVariantId        () const { return m_activeVariantId; }
+    const LoadedTheme              * GetActiveTheme            () const;
+    void                             AddChangeListener         (ChangeListener listener);
 
 private:
-    HRESULT ReattachDocuments  (const LoadedTheme & theme);
-    void    UnloadActiveDocuments ();
-    void    ApplyDwm           (const LoadedTheme & theme);
-    void    NotifyListeners    (const LoadedTheme & theme);
+    void    NotifyListeners (const LoadedTheme & theme);
 
 
-    IFileSystem                        & m_fs;
-    std::wstring                         m_themesBaseDir;
-    std::wstring                         m_sharedDir;
+    IFileSystem                & m_fs;
+    std::wstring                 m_themesBaseDir;
+    std::wstring                 m_sharedDir;
 
-    std::vector<LoadedTheme>             m_available;
-    std::string                          m_activeName;
-    std::string                          m_activeFamilyId;
-    std::string                          m_activeVariantId;
+    std::vector<LoadedTheme>     m_available;
+    std::string                  m_activeName;
+    std::string                  m_activeFamilyId;
+    std::string                  m_activeVariantId;
 
-    Rml::Context                       * m_context    = nullptr;
-    HWND                                 m_hwnd       = nullptr;
-
-    // Documents currently loaded into m_context for the active theme.
-    // Tracked so Activate() can unload them deterministically.
-    std::vector<Rml::ElementDocument *>  m_activeDocs;
-
-    std::vector<ChangeListener>          m_listeners;
+    std::vector<ChangeListener>  m_listeners;
 };

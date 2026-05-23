@@ -2,7 +2,6 @@
 
 #include "DragDropTarget.h"
 
-#include "DriveWidgetElement.h"
 #include "DriveWidgetState.h"
 
 
@@ -280,30 +279,15 @@ STDMETHODIMP DragDropTarget::DragEnter (
 
 STDMETHODIMP DragDropTarget::DragOver (
     DWORD     /*grfKeyState*/,
-    POINTL    pt,
+    POINTL    /*pt*/,
     DWORD   * pdwEffect)
 {
-    DriveWidgetElement *  pWidget = nullptr;
-
-
-
     if (pdwEffect == nullptr)
     {
         return E_POINTER;
     }
 
-    if (!m_fDragHasSupportedFile)
-    {
-        *pdwEffect = DROPEFFECT_NONE;
-        return S_OK;
-    }
-
-    if (m_hitTest)
-    {
-        pWidget = m_hitTest (pt.x, pt.y);
-    }
-
-    *pdwEffect = (pWidget != nullptr) ? DROPEFFECT_COPY : DROPEFFECT_NONE;
+    *pdwEffect = DROPEFFECT_NONE;
     return S_OK;
 }
 
@@ -335,44 +319,14 @@ STDMETHODIMP DragDropTarget::DragLeave()
 ////////////////////////////////////////////////////////////////////////////////
 
 STDMETHODIMP DragDropTarget::Drop (
-    IDataObject * pData,
+    IDataObject * /*pData*/,
     DWORD         /*grfKeyState*/,
-    POINTL        pt,
+    POINTL        /*pt*/,
     DWORD       * pdwEffect)
 {
-    std::wstring          path;
-    DriveWidgetElement *  pWidget = nullptr;
-    HRESULT               hr      = S_OK;
-
-
-
     if (pdwEffect != nullptr)
     {
         *pdwEffect = DROPEFFECT_NONE;
-    }
-
-    hr = ExtractFirstHDropPath (pData, path);
-
-    if (hr != S_OK || !IsSupportedDiskImageExtension (path))
-    {
-        m_fDragHasSupportedFile = false;
-        return S_OK;
-    }
-
-    if (m_hitTest)
-    {
-        pWidget = m_hitTest (pt.x, pt.y);
-    }
-
-    if (pWidget != nullptr)
-    {
-        HRESULT  hrMount = pWidget->HandleDroppedFile (path);
-        IGNORE_RETURN_VALUE (hrMount, S_OK);
-
-        if (pdwEffect != nullptr)
-        {
-            *pdwEffect = DROPEFFECT_COPY;
-        }
     }
 
     m_fDragHasSupportedFile = false;

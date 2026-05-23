@@ -14,15 +14,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  ThemeManagerTests
 //
-//  Exercises the ThemeManager + ThemeBootstrapPlanner without an
-//  Active RmlUi context. Per the deferred timing note,
-//  hot-swap latency is validated against a live context in P9.
+//  Exercises the ThemeManager + ThemeBootstrapPlanner without a
+//  painter context. Per the deferred timing note,
+//  hot-swap latency is validated against a live context in a later
+//  phase.
 //
-//  All file I/O routes through `InMemoryFileSystem`. A null
-//  Rml::Context is intentional: Activate() succeeds on the data
-//  side and skips document loading (BindRml would attach docs once
-//  a real context exists in the running shell — covered by P9
-//  acceptance).
+//  All file I/O routes through `InMemoryFileSystem`. Document
+//  rendering is not part of this surface; Activate() succeeds on the
+//  data side and a later phase attaches docs once a real painter
+//  exists in the running shell.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,12 +65,6 @@ namespace
         const char         * themeJson)
     {
         fs.WriteAllText (dir + L"\\theme.json", themeJson);
-        // theme.json doesn't declare entryDocuments → fallback to
-        // shared. Make sure the shared fallbacks exist.
-        fs.WriteAllText (std::wstring (kThemesBase) + L"\\_shared\\title_bar.rml",     "<rml/>");
-        fs.WriteAllText (std::wstring (kThemesBase) + L"\\_shared\\nav_layer.rml",     "<rml/>");
-        fs.WriteAllText (std::wstring (kThemesBase) + L"\\_shared\\settings.rml",      "<rml/>");
-        fs.WriteAllText (std::wstring (kThemesBase) + L"\\_shared\\drive_widgets.rml", "<rml/>");
     }
 }
 

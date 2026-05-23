@@ -10,7 +10,6 @@
 #include "D3DRenderer.h"
 #include "MenuSystem.h"
 #include "DebugConsole.h"
-#include "Ui/UiShell.h"
 #include "Ui/TitleBar.h"
 #include "Ui/NavLayer.h"
 #include "Ui/DriveWidgetState.h"
@@ -197,10 +196,10 @@ private:
     void    CreateVideoModes();
     HRESULT CreateCpu (const MachineConfig & config);
 
-    // P6 -- pumps the per-drive widget state from the CPU-side disk
+    // Pumps the per-drive widget state from the CPU-side disk
     // controller (motor + R/W nibble deltas) into m_driveWidgetState
     // then asks the DriveWidgetController to push the result into the
-    // RmlUi element classes. Cheap; safe to call every frame.
+    // chrome drive-widget classes. Cheap; safe to call every frame.
     void    UpdateDriveWidgets();
     int64_t NowMs() const;
 
@@ -260,36 +259,33 @@ private:
     WasapiAudio         m_wasapiAudio;
     DebugConsole        m_debugConsole;
 
-    // P3 RmlUi shell. Owned here so its lifetime matches the
-    // emulator window's. Initialised after m_d3dRenderer is up and
-    // shut down before D3DRenderer is torn down. Parallel-mode in
-    // P3: existing Win32 menus / dialogs are untouched; the shell
-    // composites on top of the framebuffer via the after-blit hook.
+    // UI-thread filesystem and chrome ownership. The painter pass
+    // and shell composition is reintroduced in a later phase; for now
+    // only the per-window filesystem stays here so the settings panel
+    // and config store can resolve paths on the UI thread.
     Win32FileSystem     m_uiFs;
-    UiShell             m_uiShell;
 
-    // P4 chrome. TitleBar owns the inline RML title-bar doc + the
-    // per-button rect cache that the WM_NCHITTEST helper queries.
-    // NavLayer owns the parity table for legacy IDM_* commands and
-    // (eventually) the drop-down menu RML. Both run in parallel mode
-    // alongside the existing Win32 menu bar — P9 retires the latter.
+    // Chrome surfaces. TitleBar owns the per-button rect cache that
+    // the WM_NCHITTEST helper queries. NavLayer owns the parity
+    // table for legacy IDM_* commands. Both run alongside the
+    // existing Win32 menu bar until the painter retires the latter.
     TitleBar            m_titleBar;
     NavLayer            m_navLayer;
 
-    // P6 drive widgets. The controller owns the <drive-widget> element
-    // instancer + the active theme's drive_widgets.rml document. The
-    // drag-drop target registers a single IDropTarget on the main HWND
-    // and uses the controller's HitTest to find a widget under cursor.
-    // Per-drive UI/CPU bridge state lives in m_driveWidgetState; the
-    // CPU thread's motor + nibble counters are sampled once per UI
-    // frame and pushed into the elements via SyncFromStates.
+    // Drive widget state pump. The controller channel publishes
+    // per-drive door/spin sync events the chrome painter will consume
+    // once reintroduced. The drag-drop target registers a single
+    // IDropTarget on the main HWND. Per-drive UI/CPU bridge state
+    // lives in m_driveWidgetState; the CPU thread's motor + nibble
+    // counters are sampled once per UI frame and pushed through the
+    // controller.
     DriveWidgetController                m_driveWidgets;
     DragDropTarget                       m_dragDropTarget;
 
-    // P7 -- consolidated RmlUi Settings panel. Lazily constructed
-    // pieces so we can defer their I/O until first Show() on the
-    // panel. ThemeManager + UserConfigStore + GlobalUserPrefs are
-    // owned here so SettingsPanel can be a pure view layer.
+    // Consolidated settings panel. Lazily constructed pieces so we
+    // can defer their I/O until first Show() on the panel.
+    // ThemeManager + UserConfigStore + GlobalUserPrefs are owned
+    // here so SettingsPanel can be a pure view layer.
     std::unique_ptr<ThemeManager>        m_themeManager;
     std::unique_ptr<UserConfigStore>     m_userConfigStore;
     GlobalUserPrefs                      m_globalPrefs;

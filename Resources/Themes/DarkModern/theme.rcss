@@ -1,7 +1,0 @@
-/* Dark Modern — design tokens. */
-.theme-token-bg-base    { background-color: #14171c; }
-.theme-token-bg-panel   { background-color: #1c2027; }
-.theme-token-fg-default { color: #d8dde6; }
-.theme-token-fg-muted   { color: #8a93a3; }
-.theme-token-accent     { color: #4cc9ff; }
-.theme-token-border     { border-color: #2a323e; }

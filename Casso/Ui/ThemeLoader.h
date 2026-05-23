@@ -29,7 +29,7 @@
 //         file path + a human-readable message. NO C++ exceptions
 //         cross the API boundary.
 //
-//  `ThemeLoader` knows nothing about RmlUi or Mica. Activation hooks
+//  `ThemeLoader` knows nothing about the painter or DWM. Activation hooks
 //  live one layer up in `ThemeManager`.
 //
 ////////////////////////////////////////////////////////////////////////////////

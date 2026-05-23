@@ -327,7 +327,7 @@ int WINAPI wWinMain (
         // Legacy Win32 `MachinePickerDialog` is retired
         // (FR-027). At startup we deterministically pick the first
         // available machine from `MachineScanner::Scan`; the user
-        // can switch later via the RmlUi Settings panel. If nothing
+        // can switch later via the Settings panel. If nothing
         // was discovered (no Machines/ folder, asset bootstrap
         // failed) we surface a single error and exit.
         vector<fs::path> scanPaths = PathResolver::BuildSearchPaths (

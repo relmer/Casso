@@ -46,15 +46,15 @@ public:
 
     void Shutdown();
 
-    // Accessors used by the RmlUi backend. Both
+    // Accessors for the underlying device. Both
     // return non-owning pointers whose lifetime is bounded by
     // Initialize -> Shutdown on this renderer.
     ID3D11Device        * GetDevice  () const { return m_device.Get  (); }
     ID3D11DeviceContext * GetContext() const { return m_context.Get(); }
 
     // Hook point invoked by UploadAndPresent between the emulator
-    // blit DrawIndexed and swapChain->Present. UiShell::Initialize
-    // installs its Render() bound to this hook so RmlUi content
+    // blit DrawIndexed and swapChain->Present. The native UI painter
+    // installs its Render() bound to this hook so chrome content
     // composites on top of the framebuffer every frame. A null
     // hook (the default) skips the call entirely. Set once at
     // shell-init time; safe to clear back to nullptr at shutdown.
@@ -98,7 +98,8 @@ private:
 
     // Hook point. Invoked from UploadAndPresent after the
     // emulator blit DrawIndexed and before swapChain->Present so
-    // RmlUi (or any other overlay) can draw onto the back buffer.
+    // the native chrome painter (or any other overlay) can draw
+    // onto the back buffer.
     std::function<void()>  m_afterBlitHook;
 };
 

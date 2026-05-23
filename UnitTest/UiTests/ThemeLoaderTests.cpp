@@ -14,7 +14,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  ThemeLoaderTests
 //
-//  Pure-logic tests for parsing and validating `theme.json`. No RmlUi,
+//  Pure-logic tests for parsing and validating `theme.json`. No painter,
 //  no Win32 file I/O — every fixture lives in `InMemoryFileSystem`.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,48 +140,6 @@ public:
         Assert::IsTrue (FAILED (hr));
         Assert::IsTrue (err.code == ThemeLoadResult::MetadataInvalid);
         Assert::IsFalse (err.message.empty());
-    }
-
-
-    TEST_METHOD (MissingEntryDocument_Rejected)
-    {
-        InMemoryFileSystem  fs;
-        LoadedTheme         theme;
-        ThemeLoadError      err;
-        HRESULT             hr;
-
-        std::wstring  dir = std::wstring (kThemesBase) + L"\\BrokenLinks";
-        fs.WriteAllText (dir + L"\\theme.json", kHappyJson);
-        // ... but no .rml files exist on disk.
-
-        hr = ThemeLoader::Load (fs, dir, L"", theme, err);
-
-        Assert::IsTrue (FAILED (hr));
-        Assert::IsTrue (err.code == ThemeLoadResult::DocumentMissing);
-        Assert::IsFalse (err.offendingPath.empty());
-    }
-
-
-    TEST_METHOD (EntryDocumentsOmitted_FallsBackToShared)
-    {
-        InMemoryFileSystem  fs;
-        LoadedTheme         theme;
-        ThemeLoadError      err;
-        HRESULT             hr;
-        std::wstring        dir       = std::wstring (kThemesBase) + L"\\Minimal";
-        std::wstring        sharedDir = std::wstring (kThemesBase) + L"\\_shared";
-
-        fs.WriteAllText (dir + L"\\theme.json",
-                         R"({"$cassoThemeVersion": 1, "name": "Minimal", "familyId": "apple2", "variantId": "ii", "uiTokens": {}, "driveVisualProfile": {"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"}})");
-        fs.WriteAllText (sharedDir + L"\\title_bar.rml",     "<rml/>");
-        fs.WriteAllText (sharedDir + L"\\nav_layer.rml",     "<rml/>");
-        fs.WriteAllText (sharedDir + L"\\settings.rml",      "<rml/>");
-        fs.WriteAllText (sharedDir + L"\\drive_widgets.rml", "<rml/>");
-
-        hr = ThemeLoader::Load (fs, dir, sharedDir, theme, err);
-
-        Assert::IsTrue (SUCCEEDED (hr));
-        Assert::IsTrue (theme.entryDocs.titleBar.find (L"_shared") != std::wstring::npos);
     }
 
 

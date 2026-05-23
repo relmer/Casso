@@ -13,28 +13,23 @@
 //
 //  TitleBar
 //
-//  P4 custom title bar. Has two halves:
+//  Custom title-bar surface. Two halves:
 //
-//      TitleBarLayout (pure logic, no Win32 / no Rml)
+//      TitleBarLayout (pure logic, no Win32 / no painter)
 //          Given a client width and a title-bar height, computes the
 //          rects of the title bar, the three system buttons, and the
 //          drag region. Exercised by TitleBarLayoutTests.
 //
-//      TitleBar (Rml-aware)
-//          Owns a Rml::ElementDocument inlined from a small RML+RCSS
-//          string literal pair. Show()/Hide() attach the doc to a
-//          context. GetButtonRect() exposes the current per-button
-//          rect (in client coordinates) so the WM_NCHITTEST helper
-//          can hand the OS HTMINBUTTON / HTMAXBUTTON / HTCLOSE for
-//          the right regions and Snap Layouts surfaces on hover.
+//      TitleBar (chrome owner)
+//          Owns the per-button rect cache the WM_NCHITTEST helper
+//          queries so the OS hands us HTMINBUTTON / HTMAXBUTTON /
+//          HTCLOSE for the right regions. The native painter pass
+//          (introduced in a later phase) takes over actual drawing;
+//          for now Show/Hide are no-ops while UpdateGeometry keeps
+//          the cached rects fresh.
 //
-//  P4 invariants:
-//      * No theme system yet — markup is hard-coded.
-//      * Click routing happens through WM_NCLBUTTONUP, not RML
-//        listeners. The RML doc is decorative; the C++ side owns
-//        button geometry.
-//      * Layout uses GetSystemMetricsForDpi so it scales with the
-//        active DPI.
+//  Layout uses GetSystemMetricsForDpi so it scales with the active
+//  per-window DPI.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,7 +86,7 @@ public:
     TitleBar  ();
     ~TitleBar ();
 
-    HRESULT Show           (Rml::Context * context);
+    void    Show           ();
     void    Hide           ();
     void    UpdateGeometry (int clientWidth, UINT dpi);
 
@@ -101,8 +96,5 @@ public:
     RECT    GetButtonRect     (SystemButton which) const;
 
 private:
-    Rml::Context         * m_context  = nullptr;
-    Rml::ElementDocument * m_doc      = nullptr;
-
     TitleBarLayoutOutput   m_layout   = {};
 };

@@ -13,7 +13,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  DriveWidgetStateTests
 //
 //  Pure-logic state transitions for the per-drive widget
-//  state. No RmlUi context required.
+//  state. No chrome context required.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -15,7 +15,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  Pure-logic tests for `TitleBarLayout::Compute`. The layout function
 //  computes the title-bar rect, the three system-button rects, and the
 //  drag-region rect from a client width + title height + button width.
-//  No Win32 / no RmlUi.
+//  No Win32 / no painter.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

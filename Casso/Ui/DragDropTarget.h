@@ -14,9 +14,9 @@
 //
 //  DragDropTarget
 //
-//  Single main-window IDropTarget ( -- one
+//  Single main-window IDropTarget — one
 //  RegisterDragDrop call for the whole HWND, hit-testing the dropped
-//  point against RmlUi to find a drive widget under cursor).
+//  point against the native chrome to find a drive widget under cursor.
 //
 //  Ownership
 //  ---------
@@ -29,9 +29,9 @@
 //  Hit-test
 //  --------
 //  On DragOver, calls back through a host-supplied lambda that takes
-//  the (screenX, screenY) pair and returns the topmost drive widget
-//  pointer (or nullptr). The host owns the RmlUi context and the
-//  drive-widget catalog; this class only needs the answer.
+//  the (screenX, screenY) pair and returns true when the point lands
+//  on an accepting drive widget. The host owns the chrome tree; this
+//  class only needs the yes/no answer.
 //
 //  Drop
 //  ----
@@ -41,13 +41,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DriveWidgetElement;
-
 
 class DragDropTarget : public IDropTarget
 {
 public:
-    using HitTestFn = std::function<DriveWidgetElement * (int screenX, int screenY)>;
+    using HitTestFn = std::function<bool (int screenX, int screenY)>;
 
 
     DragDropTarget  ();

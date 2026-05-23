@@ -41,7 +41,7 @@
 //  `platform-locked` entry return `E_INVALIDARG` and leave the
 //  snapshot untouched.
 //
-//  No I/O. No RmlUi. No Win32. This is the pure-logic seam exercised
+//  No I/O. No Win32. This is the pure-logic seam exercised
 //  by `SettingsPanelStateTests` and `HardwareTreeTests`.
 //
 ////////////////////////////////////////////////////////////////////////////////

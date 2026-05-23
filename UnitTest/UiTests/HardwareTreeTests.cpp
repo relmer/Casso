@@ -18,7 +18,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  `SettingsPanelState::ExtractHardware` against fixture JSONs and
 //  assert that the produced rows carry the right (kind, slot,
 //  capability, lockReason, enabled) for the SettingsPanel renderer
-//  to consume. RmlUi is NOT loaded.
+//  to consume. The chrome surface is NOT loaded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
