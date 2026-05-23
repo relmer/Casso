@@ -2,6 +2,8 @@
 
 #include "TitleBar.h"
 
+#include "../WindowsThemeColors.h"
+
 
 
 
@@ -317,32 +319,34 @@ void TitleBar::Paint (
     const ChromeVisualState & /*visual*/,
     const ChromeTheme       & theme)
 {
-    HRESULT             hr            = S_OK;
-    ChromeButtonVisual  minVis        = ButtonVisual (SystemButton::Minimize);
-    ChromeButtonVisual  maxVis        = ButtonVisual (SystemButton::Maximize);
-    ChromeButtonVisual  closeVis      = ButtonVisual (SystemButton::Close);
-    uint32_t            minColor      = theme.sysButtonIdleArgb;
-    uint32_t            maxColor      = theme.sysButtonIdleArgb;
-    uint32_t            closeColor    = theme.sysButtonIdleArgb;
-    uint32_t            closeGlyphArgb = theme.titleTextArgb;
+    HRESULT                    hr            = S_OK;
+    ChromeButtonVisual         minVis        = ButtonVisual (SystemButton::Minimize);
+    ChromeButtonVisual         maxVis        = ButtonVisual (SystemButton::Maximize);
+    ChromeButtonVisual         closeVis      = ButtonVisual (SystemButton::Close);
+    const WindowsThemeColors & sys           = WindowsThemeColors::Instance();
+    uint32_t                   minColor      = 0;
+    uint32_t                   maxColor      = 0;
+    uint32_t                   closeColor    = 0;
+    uint32_t                   glyphArgb     = sys.CaptionButtonForegroundArgb();
+    uint32_t                   closeGlyph    = glyphArgb;
 
 
 
-    if      (minVis == ChromeButtonVisual::Pressed) { minColor = theme.sysButtonPressedArgb; }
-    else if (minVis == ChromeButtonVisual::Hover)   { minColor = theme.sysButtonHoverArgb;   }
+    if      (minVis == ChromeButtonVisual::Pressed) { minColor = sys.CaptionButtonPressedArgb(); }
+    else if (minVis == ChromeButtonVisual::Hover)   { minColor = sys.CaptionButtonHoverArgb();   }
 
-    if      (maxVis == ChromeButtonVisual::Pressed) { maxColor = theme.sysButtonPressedArgb; }
-    else if (maxVis == ChromeButtonVisual::Hover)   { maxColor = theme.sysButtonHoverArgb;   }
+    if      (maxVis == ChromeButtonVisual::Pressed) { maxColor = sys.CaptionButtonPressedArgb(); }
+    else if (maxVis == ChromeButtonVisual::Hover)   { maxColor = sys.CaptionButtonHoverArgb();   }
 
     if (closeVis == ChromeButtonVisual::Pressed)
     {
-        closeColor     = theme.sysButtonClosePressedArgb;
-        closeGlyphArgb = theme.sysButtonCloseHoverGlyphArgb;
+        closeColor = sys.CloseButtonPressedArgb();
+        closeGlyph = sys.CloseButtonForegroundOverArgb();
     }
     else if (closeVis == ChromeButtonVisual::Hover)
     {
-        closeColor     = theme.sysButtonCloseHoverArgb;
-        closeGlyphArgb = theme.sysButtonCloseHoverGlyphArgb;
+        closeColor = sys.CloseButtonHoverArgb();
+        closeGlyph = sys.CloseButtonForegroundOverArgb();
     }
 
     painter.FillGradientRect ((float) m_layout.titleBar.left,
@@ -356,14 +360,14 @@ void TitleBar::Paint (
                                               (float) m_layout.titleBar.top,
                                               160.0f,
                                               (float) (m_layout.titleBar.bottom - m_layout.titleBar.top),
-                                              theme.titleTextArgb,
+                                              glyphArgb,
                                               s_kTitleFontDip,
                                               TitleBarLayout::WindowsUiFontFamily(),
                                               DwriteTextRenderer::HAlign::Left,
                                               DwriteTextRenderer::VAlign::Center));
-    PaintButton (painter, text, m_layout.minButton,   s_kMinGlyph,   minColor,   theme.titleTextArgb);
-    PaintButton (painter, text, m_layout.maxButton,   s_kMaxGlyph,   maxColor,   theme.titleTextArgb);
-    PaintButton (painter, text, m_layout.closeButton, s_kCloseGlyph, closeColor, closeGlyphArgb);
+    PaintButton (painter, text, m_layout.minButton,   s_kMinGlyph,   minColor,   glyphArgb);
+    PaintButton (painter, text, m_layout.maxButton,   s_kMaxGlyph,   maxColor,   glyphArgb);
+    PaintButton (painter, text, m_layout.closeButton, s_kCloseGlyph, closeColor, closeGlyph);
 }
 
 

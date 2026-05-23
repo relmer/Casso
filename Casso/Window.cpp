@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Window.h"
+#include "Ui/WindowsThemeColors.h"
 
 
 
@@ -358,6 +359,24 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
             // Force the chrome to drop its hot-button state when the
             // cursor leaves the non-client area entirely.
             (void) pThis->OnMouseMove (0, MAKELPARAM ((WORD) ptOff.x, (WORD) ptOff.y));
+            callDefWndProc = true;
+            break;
+        }
+
+        case WM_SETTINGCHANGE:
+        {
+            const wchar_t *  sectionName = reinterpret_cast<const wchar_t *> (lParam);
+
+
+            // Refresh the cached Windows light/dark-mode flag so the
+            // chrome picks up Settings -> Personalization -> Colors
+            // changes without restarting Casso. ImmersiveColorSet is
+            // the documented signal for theme swaps.
+            if (sectionName != nullptr &&
+                _wcsicmp (sectionName, L"ImmersiveColorSet") == 0)
+            {
+                WindowsThemeColors::Instance().Refresh();
+            }
             callDefWndProc = true;
             break;
         }

@@ -379,6 +379,10 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="..\Casso\Ui\WindowsThemeColors.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="..\Casso\Ui\ThemeLoader.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
@@ -483,6 +487,7 @@
     <ClCompile Include="UiTests\ThemeLoaderTests.cpp" />
     <ClCompile Include="UiTests\ThemeManagerTests.cpp" />
     <ClCompile Include="UiTests\DriveWidgetHitTests.cpp" />
+    <ClCompile Include="UiTests\WindowsThemeColorsTests.cpp" />
     <ClCompile Include="UiTests\DriveWidgetStateTests.cpp" />
     <ClCompile Include="UiTests\DragDropHitTestRoutingTests.cpp" />
     <ClCompile Include="UiTests\LedIndicatorStateTests.cpp" />
