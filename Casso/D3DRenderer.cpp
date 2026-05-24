@@ -248,6 +248,25 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
                                         &m_context);
     CHRA (hr);
 
+#ifdef _DEBUG
+    // Wire the D3D11 InfoQueue so the debug layer DebugBreak()s on the
+    // exact call that violates a rule rather than letting the violation
+    // propagate into a later AV / DEVICE_REMOVED. Pinpointing the
+    // illegal operation is much easier with the stack still at the
+    // offending call.
+    {
+        ComPtr<ID3D11InfoQueue>  infoQueue;
+        HRESULT                  hrInfo = m_device.As (&infoQueue);
+
+
+        if (SUCCEEDED (hrInfo) && infoQueue)
+        {
+            infoQueue->SetBreakOnSeverity (D3D11_MESSAGE_SEVERITY_CORRUPTION, TRUE);
+            infoQueue->SetBreakOnSeverity (D3D11_MESSAGE_SEVERITY_ERROR,      TRUE);
+        }
+    }
+#endif
+
     // Create render target view
     hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
     CHRA (hr);
