@@ -447,6 +447,13 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
 
 
     BAIL_OUT_IF (m_context == nullptr || m_swapChain == nullptr, S_OK);
+    // Skip the present entirely when the back-buffer RTV isn't bound.
+    // This happens after Resize bails on DXGI_ERROR_DEVICE_REMOVED
+    // (or any other path that leaves m_rtv null) -- ClearRenderTargetView
+    // and the CRT pass both AV on a null RTV, and the right answer
+    // for a transient device-removed frame is to drop it and let the
+    // next Resize/restore rebuild the pipeline.
+    BAIL_OUT_IF (m_rtv == nullptr, S_OK);
 
     // Upload framebuffer to texture
     if (m_texture != nullptr && framebuffer != nullptr)
