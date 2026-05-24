@@ -431,7 +431,13 @@ HRESULT DwriteTextRenderer::MeasureString (
     outHeightDip = 0.0f;
 
     CBRAEx (text, E_INVALIDARG);
-    CBRA (m_dwriteFactory);
+
+    // Non-asserting member-state check: callers from chrome layout
+    // may invoke MeasureString during window-creation -- before
+    // Initialize() has run -- to size a first-pass layout. The
+    // chrome falls back to a fixed-width heuristic in that case and
+    // re-measures on the next Layout pass once Initialize is done.
+    CBR (m_dwriteFactory);
 
     hr = EnsureTextFormat (fontFamily, fontSizeDip, &rawFmt);
     CHRA (hr);

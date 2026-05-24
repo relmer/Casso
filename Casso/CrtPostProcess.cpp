@@ -267,38 +267,57 @@ RECT ComputeLetterboxRect (int backBufferW, int backBufferH)
 
 RECT ComputeLetterboxRectInRect (const RECT & contentRect)
 {
+    // Backward-compatible alias: fixed 4:3 aspect for callers that
+    // do not yet pass the desired aspect through.
+    return ComputeAspectFitRectInRect (contentRect, 4, 3);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeAspectFitRectInRect
+//
+//  Returns the largest centered sub-rectangle of `contentRect` whose
+//  width:height equals `aspectW:aspectH`. Pillarbox or letterbox bars
+//  fill the remainder. Integer arithmetic keeps the bars pixel-aligned.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT ComputeAspectFitRectInRect (const RECT & contentRect, int aspectW, int aspectH)
+{
     RECT  r        = {};
     int   contentW = contentRect.right  - contentRect.left;
     int   contentH = contentRect.bottom - contentRect.top;
 
 
 
-    if (contentW <= 0 || contentH <= 0)
+    if (contentW <= 0 || contentH <= 0 || aspectW <= 0 || aspectH <= 0)
     {
         return r;
     }
 
-    // Target 4:3 aspect. If area is wider, pillarbox; if narrower, letterbox.
-    // Integer arithmetic keeps bars pixel-aligned.
-    int  w43 = (contentH * 4) / 3;
-    if (w43 <= contentW)
+    int  wForH = (contentH * aspectW) / aspectH;
+    if (wForH <= contentW)
     {
-        int  barX = (contentW - w43) / 2;
+        int  barX = (contentW - wForH) / 2;
 
         r.left   = contentRect.left + barX;
         r.top    = contentRect.top;
-        r.right  = r.left + w43;
+        r.right  = r.left + wForH;
         r.bottom = contentRect.bottom;
     }
     else
     {
-        int  h34  = (contentW * 3) / 4;
-        int  barY = (contentH - h34) / 2;
+        int  hForW = (contentW * aspectH) / aspectW;
+        int  barY  = (contentH - hForW) / 2;
 
         r.left   = contentRect.left;
         r.top    = contentRect.top + barY;
         r.right  = contentRect.right;
-        r.bottom = r.top + h34;
+        r.bottom = r.top + hForW;
     }
 
     return r;

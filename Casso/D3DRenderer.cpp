@@ -486,7 +486,13 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
         {
             contentRect.top    = std::min (std::max (0, m_topInsetPx), m_backBufferH);
             contentRect.bottom = std::max<LONG> (contentRect.top, m_backBufferH - std::max (0, m_bottomInsetPx));
-            fittedRect         = ComputeLetterboxRectInRect (contentRect);
+            // Preserve the emulator framebuffer's native aspect rather
+            // than a fixed 4:3. The Apple //e DHGR framebuffer is
+            // 560x384 (35:24, slightly wider than 4:3); forcing 4:3
+            // would pillarbox 24px on each side of a default-sized
+            // window even when the content area exactly matches the
+            // framebuffer dimensions.
+            fittedRect         = ComputeAspectFitRectInRect (contentRect, m_texWidth, m_texHeight);
         }
 
         hr = m_crtPost.Process (m_srv.Get(),
