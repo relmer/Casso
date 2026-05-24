@@ -70,6 +70,16 @@ protected:
     virtual LRESULT OnNcHitTest   (HWND hwnd, int xScreen, int yScreen);
     virtual bool    OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen);
 
+    // Custom-chrome opt-in for WM_NCLBUTTONDOWN. Returning true tells
+    // s_WndProc to consume the message when the hit-test is HTMINBUTTON
+    // / HTMAXBUTTON / HTCLOSE so DefWindowProc does not run its system-
+    // button tracking loop (which on WS_CAPTION windows draws ghost
+    // caption icons over custom chrome and forces a double-click for
+    // the actual action). Default is false so non-chrome windows like
+    // DebugConsole and DiskIIDebugDialog keep their standard X-button
+    // behavior.
+    virtual bool    WantsCustomCaptionButtons () const { return false; }
+
 protected:
     WORD      m_idIcon        = 0;
     WORD      m_idIconSmall   = 0;

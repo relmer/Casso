@@ -310,15 +310,23 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
             // Drag (HTCAPTION) and resize (HTLEFT etc.) hits stay
             // unconsumed so DefWindowProc's modal loop continues
             // to own them.
-            switch (wParam)
+            //
+            // Only the main chrome window opts in via
+            // WantsCustomCaptionButtons; classic dialogs (debug
+            // console, Disk II debug) keep their standard X-button
+            // behavior so WM_CLOSE still arrives at OnClose.
+            if (pThis->WantsCustomCaptionButtons())
             {
-                case HTMINBUTTON:
-                case HTMAXBUTTON:
-                case HTCLOSE:
-                    return 0;
+                switch (wParam)
+                {
+                    case HTMINBUTTON:
+                    case HTMAXBUTTON:
+                    case HTCLOSE:
+                        return 0;
 
-                default:
-                    break;
+                    default:
+                        break;
+                }
             }
 
             callDefWndProc = true;

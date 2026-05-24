@@ -1190,6 +1190,40 @@ bool DiskIIDebugDialog::OnClose (HWND hwnd)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnKeyDown
+//
+//  Forwards Alt+F4 to the owner Casso window so the whole app exits
+//  rather than just hiding this dialog -- matches the user's mental
+//  model that Alt+F4 is an "exit Casso" gesture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskIIDebugDialog::OnKeyDown (WPARAM vk, LPARAM lParam)
+{
+    static constexpr LONG_PTR  s_kAltContextBit = 1LL << 29;
+
+    HWND  hwndOwner = nullptr;
+
+
+    if (vk == VK_F4 && (lParam & s_kAltContextBit))
+    {
+        hwndOwner = GetWindow (m_hwnd, GW_OWNER);
+        if (hwndOwner != nullptr)
+        {
+            PostMessage (hwndOwner, WM_CLOSE, 0, 0);
+            return false;
+        }
+    }
+
+    return Window::OnKeyDown (vk, lParam);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnDestroy
 //
 //  Cancel any timers, drop the HWND. Override the base Window

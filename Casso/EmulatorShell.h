@@ -159,6 +159,7 @@ private:
     bool    OnNcCalcSize  (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult) override;
     LRESULT OnNcHitTest   (HWND hwnd, int xScreen, int yScreen) override;
     bool    OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen) override;
+    bool    WantsCustomCaptionButtons () const override { return true; }
 
     // CPU thread entry point and helpers
     void RunOneFrame();

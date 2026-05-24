@@ -465,6 +465,8 @@ void WindowCommandManager::OnHelpCommand (int id)
             }
             else
             {
+                m_shell.m_debugConsole.SetMainWindow (m_shell.m_hwnd);
+
                 if (m_shell.m_debugConsole.Show (m_shell.m_hInstance))
                 {
                     m_shell.m_debugConsole.LogConfig (

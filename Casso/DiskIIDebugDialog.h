@@ -106,6 +106,7 @@ protected:
     LRESULT OnCreate (HWND hwnd, CREATESTRUCT * pcs)   override;
     bool    OnClose (HWND hwnd)                       override;
     bool    OnDestroy (HWND hwnd)                       override;
+    bool    OnKeyDown (WPARAM vk, LPARAM lParam)       override;
     bool    OnSize (HWND hwnd, UINT width, UINT height) override;
     bool    OnCommandEx (HWND hwnd, int id, int notifyCode, HWND hCtl) override;
     HBRUSH  OnCtlColorStatic (HWND hwndDlg, HDC hdc, HWND hwndStatic) override;
