@@ -663,8 +663,17 @@ HRESULT D3DRenderer::Resize (int width, int height)
     BAIL_OUT_IF (width <= 0 || height <= 0, S_OK);
     BAIL_OUT_IF (m_deviceRemoved, S_OK);
 
-    // Release the old render target view before resizing
-    m_context->OMSetRenderTargets (0, nullptr, nullptr);
+    // Release the old render target view before resizing. Also unbind
+    // SRVs from the pixel shader -- m_srv (framebuffer upload) and
+    // the CRT's intermediates may still be bound from the previous
+    // UploadAndPresent and the driver retains them until rebind.
+    // Letting them dangle through ResizeBuffers has tripped
+    // DXGI_ERROR_DRIVER_INTERNAL_ERROR on rapid drags.
+    {
+        ID3D11ShaderResourceView *  nullSrvs[8] = { nullptr };
+        m_context->OMSetRenderTargets (0, nullptr, nullptr);
+        m_context->PSSetShaderResources (0, 8, nullSrvs);
+    }
 
     if (m_rtv)
     {

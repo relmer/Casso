@@ -537,6 +537,21 @@ HRESULT CrtPostProcess::EnsureSize (int width, int height)
         return S_OK;
     }
 
+    // Unbind everything from the pipeline before releasing the old
+    // resources. D3D11 retains internal references to bound RTVs and
+    // SRVs; if we just Reset the ComPtrs while they're still bound,
+    // the GPU keeps the old (now full-window-sized) textures alive
+    // until the next pipeline rebind. During rapid window resize that
+    // stacks up VRAM and command-buffer pressure and is a common
+    // trigger for DXGI_ERROR_DRIVER_INTERNAL_ERROR. Unbinding here
+    // ensures the Reset()s below actually free the GPU memory.
+    if (m_context != nullptr)
+    {
+        ID3D11ShaderResourceView *  nullSrvs[8] = { nullptr };
+        m_context->OMSetRenderTargets (0, nullptr, nullptr);
+        m_context->PSSetShaderResources (0, 8, nullSrvs);
+    }
+
     for (i = 0; i < 2; ++i)
     {
         m_ppMainSrv[i].Reset();
