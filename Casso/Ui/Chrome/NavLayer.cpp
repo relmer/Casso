@@ -11,12 +11,14 @@
 namespace
 {
     constexpr int       s_kBaseDpi        = 96;
-    constexpr int       s_kNavHeightPx    = 28;
-    constexpr int       s_kMenuPadXPx     = 14;
+    constexpr int       s_kNavHeightPx    = 32;
+    constexpr int       s_kLeadingGapPx   = 10;
+    constexpr int       s_kMenuPadXPx     = 12;
+    constexpr int       s_kMenuGapPx      = 4;
     constexpr int       s_kRowHeightPx    = 26;
     constexpr int       s_kDropdownWidthPx = 300;
     constexpr int       s_kAccelOffsetPx  = 190;
-    constexpr float     s_kFontDip        = 13.0f;
+    constexpr float     s_kFontDip        = 14.0f;
     constexpr wchar_t   s_kFontFamily[]   = L"Segoe UI";
 
 
@@ -235,10 +237,11 @@ void NavLayer::Dispatch (WORD commandId) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void NavLayer::Layout (int x, int y, int width, UINT dpi)
+void NavLayer::Layout (int x, int y, int width, UINT dpi, DwriteTextRenderer * pTextForMeasure)
 {
-    int  currentX = x;
+    int  currentX = x + Scale (s_kLeadingGapPx, dpi);
     int  pad      = Scale (s_kMenuPadXPx, dpi);
+    int  gap      = Scale (s_kMenuGapPx,  dpi);
     int  height   = Scale (s_kNavHeightPx, dpi);
 
 
@@ -251,14 +254,38 @@ void NavLayer::Layout (int x, int y, int width, UINT dpi)
 
     for (int i = 0; i < kMenuCount; i++)
     {
-        const wchar_t * name = GetMenuName ((NavMenu) i);
-        int             menuW = ((int) wcslen (name) * 8) + (pad * 2);
+        const wchar_t *  name      = GetMenuName ((NavMenu) i);
+        int              menuW     = 0;
+        float            textWidth = 0.0f;
+        float            textHt    = 0.0f;
+        HRESULT          hrMeasure = E_FAIL;
+
+        if (pTextForMeasure != nullptr)
+        {
+            hrMeasure = pTextForMeasure->MeasureString (name, s_kFontDip, s_kFontFamily, textWidth, textHt);
+        }
+
+        if (SUCCEEDED (hrMeasure) && textWidth > 0.0f)
+        {
+            // ceil to avoid sub-pixel truncation. DPI scaling is
+            // already baked into the D2D context's per-device DPI
+            // so we draw in device-independent pixels here.
+            menuW = (int) (textWidth + 0.5f) + pad * 2;
+        }
+        else
+        {
+            // Fallback when no measurer is available (called before
+            // BeginDraw at startup). 8 px per char is a rough Segoe UI
+            // baseline; the next Layout pass with a live measurer
+            // tightens it.
+            menuW = ((int) wcslen (name) * 8) + pad * 2;
+        }
 
         m_menuRects[i].left   = currentX;
         m_menuRects[i].top    = y;
         m_menuRects[i].right  = currentX + menuW;
         m_menuRects[i].bottom = y + height;
-        currentX += menuW;
+        currentX += menuW + gap;
     }
 }
 
@@ -522,13 +549,15 @@ void NavLayer::PaintStrip (
         }
 
         IGNORE_RETURN_VALUE (hr, text.DrawString (GetMenuName ((NavMenu) i),
-                                                  (float) (m_menuRects[i].left + 10),
-                                                  (float) (m_menuRects[i].top + 5),
+                                                  (float) m_menuRects[i].left,
+                                                  (float) m_menuRects[i].top,
                                                   (float) (m_menuRects[i].right - m_menuRects[i].left),
                                                   (float) (m_menuRects[i].bottom - m_menuRects[i].top),
                                                   theme.navItemTextArgb,
                                                   s_kFontDip,
-                                                  s_kFontFamily));
+                                                  s_kFontFamily,
+                                                  DwriteTextRenderer::HAlign::Center,
+                                                  DwriteTextRenderer::VAlign::Center));
     }
 }
 

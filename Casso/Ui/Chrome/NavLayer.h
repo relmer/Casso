@@ -47,7 +47,8 @@ public:
     static std::string                      EmitParityMarkdown ();
 
     void                              Dispatch             (WORD commandId) const;
-    void                              Layout               (int x, int y, int width, UINT dpi);
+    void                              Layout               (int x, int y, int width, UINT dpi,
+                                                            DwriteTextRenderer * pTextForMeasure = nullptr);
     void                              PaintStrip           (DxUiPainter             & painter,
                                                             DwriteTextRenderer      & text,
                                                             const ChromeVisualState & visual,

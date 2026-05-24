@@ -62,7 +62,7 @@ static constexpr int     kFramebufferHeight      = 384;
 static constexpr LPCWSTR kWindowClass           = L"CassoWindow";
 static constexpr int     s_kBaseDpi             = 96;
 static constexpr int     s_kScaleRoundHalfDpi   = 48;
-static constexpr int     s_kNavStripHeightDp    = 28;
+static constexpr int     s_kNavStripHeightDp    = 32;
 static constexpr int     s_kCommandBarHeightDp  = 56;
 static constexpr int     s_kDriveWidgetGapDp    = 16;
 
@@ -630,7 +630,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     }
     m_titleBar.UpdateGeometry (clientW, dpi);
-    m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), clientW, dpi);
+    m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), clientW, dpi, &m_uiShell.Text());
     m_navLayer.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
     m_driveChrome[0].Initialize (6, 0, this);
     m_driveChrome[1].Initialize (6, 1, this);
@@ -1832,7 +1832,7 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
                                              dpi);
         IGNORE_RETURN_VALUE (hrUiR, S_OK);
         m_titleBar.UpdateGeometry (static_cast<int> (width), dpi);
-        m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), static_cast<int> (width), dpi);
+        m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), static_cast<int> (width), dpi, &m_uiShell.Text());
         LayoutDriveWidgetsInCommandBar (m_driveChrome, static_cast<int> (width), renderH, dpi);
         m_uiShell.HitTest().Clear();
         m_uiShell.HitTest().Register (HitRect { m_driveChrome[0].BodyRect(), HitSlot::Custom, 0 });

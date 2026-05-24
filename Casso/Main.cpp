@@ -271,6 +271,14 @@ int WINAPI wWinMain (
     UNREFERENCED_PARAMETER (hPrevInstance);
     UNREFERENCED_PARAMETER (nCmdShow);
 
+    // Per-monitor DPI awareness v2. Without this Windows bitmap-scales
+    // the entire window up on high-DPI displays, which makes every DX
+    // pixel we render blurry. Setting it programmatically (rather than
+    // via a manifest entry) keeps the manifest minimal. v2 is available
+    // on Windows 10 1703+, which is below Casso's supported floor, so
+    // the failure path is unreachable in practice.
+    (void) SetProcessDpiAwarenessContext (DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
 #ifdef _DEBUG
     // Enable frequent heap validation to catch corruption near its source
     // _CrtSetDbgFlag (_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_ALWAYS_DF);

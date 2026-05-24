@@ -68,6 +68,12 @@ public:
                                HAlign          hAlign = HAlign::Left,
                                VAlign          vAlign = VAlign::Top);
 
+    HRESULT  MeasureString    (const wchar_t * text,
+                               float           fontSizeDip,
+                               const wchar_t * fontFamily,
+                               float         & outWidthDip,
+                               float         & outHeightDip);
+
     HRESULT  OnDeviceLost     ();
     HRESULT  OnDeviceRestored (ID3D11Device * pDevice);
 

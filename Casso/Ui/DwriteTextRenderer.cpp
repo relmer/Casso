@@ -403,6 +403,67 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MeasureString
+//
+//  Returns the natural pixel extent of `text` in the requested font.
+//  Independent of BeginDraw/EndDraw bracketing so chrome layout code
+//  can size hit-rects before the first frame is rendered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DwriteTextRenderer::MeasureString (
+    const wchar_t  * text,
+    float            fontSizeDip,
+    const wchar_t  * fontFamily,
+    float          & outWidthDip,
+    float          & outHeightDip)
+{
+    HRESULT                            hr      = S_OK;
+    ComPtr<IDWriteTextFormat>          format;
+    IDWriteTextFormat                * rawFmt  = nullptr;
+    ComPtr<IDWriteTextLayout>          layout;
+    DWRITE_TEXT_METRICS                metrics = {};
+    UINT32                             textLen = 0;
+
+
+
+    outWidthDip  = 0.0f;
+    outHeightDip = 0.0f;
+
+    CBRAEx (text, E_INVALIDARG);
+    CBRA (m_dwriteFactory);
+
+    hr = EnsureTextFormat (fontFamily, fontSizeDip, &rawFmt);
+    CHRA (hr);
+
+    format.Attach (rawFmt);
+
+    textLen = (UINT32) wcslen (text);
+
+    hr = m_dwriteFactory->CreateTextLayout (text,
+                                            textLen,
+                                            format.Get(),
+                                            FLT_MAX,
+                                            FLT_MAX,
+                                            &layout);
+    CHRA (hr);
+
+    hr = layout->GetMetrics (&metrics);
+    CHRA (hr);
+
+    outWidthDip  = metrics.widthIncludingTrailingWhitespace;
+    outHeightDip = metrics.height;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnDeviceLost
 //
 ////////////////////////////////////////////////////////////////////////////////
