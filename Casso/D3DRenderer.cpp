@@ -447,18 +447,13 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
 
 
     BAIL_OUT_IF (m_context == nullptr || m_swapChain == nullptr, S_OK);
-    // Skip the present entirely when the back-buffer RTV isn't bound.
-    // This happens after Resize bails on DXGI_ERROR_DEVICE_REMOVED
-    // (or any other path that leaves m_rtv null) -- ClearRenderTargetView
-    // and the CRT pass both AV on a null RTV, and the right answer
-    // for a transient device-removed frame is to drop it and let the
-    // next Resize/restore rebuild the pipeline. The trace lets us
-    // catch null-RTV situations we didn't expect.
-    if (m_rtv == nullptr)
-    {
-        OutputDebugStringW (L"D3DRenderer::UploadAndPresent: m_rtv is null; skipping frame. If unexpected, check Resize's DEVICE_REMOVED trace.\n");
-    }
-    BAIL_OUT_IF (m_rtv == nullptr, S_OK);
+    // Device permanently removed (or transiently between Resize
+    // attempts) -- skip silently. Recovery is a follow-up that
+    // recreates the full pipeline; for now we just stop rendering
+    // and avoid the AV on a null m_rtv. No log to avoid flooding the
+    // output window once the device is dead and the message loop
+    // keeps calling UploadAndPresent every iteration.
+    BAIL_OUT_IF (m_deviceRemoved || m_rtv == nullptr, S_OK);
 
     // Upload framebuffer to texture
     if (m_texture != nullptr && framebuffer != nullptr)
@@ -666,6 +661,7 @@ HRESULT D3DRenderer::Resize (int width, int height)
 
     BAIL_OUT_IF (m_swapChain == nullptr || m_device == nullptr || m_context == nullptr, S_OK);
     BAIL_OUT_IF (width <= 0 || height <= 0, S_OK);
+    BAIL_OUT_IF (m_deviceRemoved, S_OK);
 
     // Release the old render target view before resizing
     m_context->OMSetRenderTargets (0, nullptr, nullptr);
@@ -695,9 +691,10 @@ HRESULT D3DRenderer::Resize (int width, int height)
 
 
         swprintf_s (trace,
-                    L"D3DRenderer::Resize: ResizeBuffers returned DXGI_ERROR_DEVICE_REMOVED; GetDeviceRemovedReason=0x%08lX; leaving m_rtv null until next Resize.\n",
+                    L"D3DRenderer::Resize: ResizeBuffers returned DXGI_ERROR_DEVICE_REMOVED; GetDeviceRemovedReason=0x%08lX; rendering disabled until restart.\n",
                     (unsigned long) removedReason);
         OutputDebugStringW (trace);
+        m_deviceRemoved = true;
     }
     BAIL_OUT_IF (hr == DXGI_ERROR_DEVICE_REMOVED, hr);
     CHRA (hr);
@@ -711,9 +708,10 @@ HRESULT D3DRenderer::Resize (int width, int height)
 
 
         swprintf_s (trace,
-                    L"D3DRenderer::Resize: GetBuffer returned DXGI_ERROR_DEVICE_REMOVED; GetDeviceRemovedReason=0x%08lX; leaving m_rtv null until next Resize.\n",
+                    L"D3DRenderer::Resize: GetBuffer returned DXGI_ERROR_DEVICE_REMOVED; GetDeviceRemovedReason=0x%08lX; rendering disabled until restart.\n",
                     (unsigned long) removedReason);
         OutputDebugStringW (trace);
+        m_deviceRemoved = true;
     }
     BAIL_OUT_IF (hr == DXGI_ERROR_DEVICE_REMOVED, hr);
     CHRA (hr);

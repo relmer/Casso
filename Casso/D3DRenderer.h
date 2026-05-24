@@ -101,9 +101,10 @@ private:
     int                              m_topInsetPx     = 0;
     int                              m_bottomInsetPx  = 0;
 
-    int     m_texWidth    = 0;
-    int     m_texHeight   = 0;
-    bool    m_fullscreen  = false;
+    int     m_texWidth         = 0;
+    int     m_texHeight        = 0;
+    bool    m_fullscreen       = false;
+    bool    m_deviceRemoved    = false;
 
     RECT    m_windowedRect  = {};
     LONG    m_windowedStyle = 0;
