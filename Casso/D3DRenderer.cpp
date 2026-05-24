@@ -663,16 +663,22 @@ HRESULT D3DRenderer::Resize (int width, int height)
         m_rtv.Reset();
     }
 
-    // Resize the swap chain buffers
+    // Resize the swap chain buffers. DXGI_ERROR_DEVICE_REMOVED here
+    // is GPU-side (TDR, driver crash, sleep/wake, RDP transitions,
+    // hybrid-GPU switch, VM suspend) -- not a Casso bug. Bail before
+    // the assert; the next paint will retry. Any other failure still
+    // asserts so real bugs surface.
     hr = m_swapChain->ResizeBuffers (0,
                                      static_cast<UINT> (width),
                                      static_cast<UINT> (height),
                                      DXGI_FORMAT_UNKNOWN,
                                      0);
+    BAIL_OUT_IF (hr == DXGI_ERROR_DEVICE_REMOVED, hr);
     CHRA (hr);
 
     // Re-create render target view
     hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
+    BAIL_OUT_IF (hr == DXGI_ERROR_DEVICE_REMOVED, hr);
     CHRA (hr);
 
     hr = m_device->CreateRenderTargetView (backBuffer.Get(), nullptr, &m_rtv);
