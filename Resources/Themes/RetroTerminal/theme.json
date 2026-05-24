@@ -6,12 +6,6 @@
     "variantId":          "iic",
     "author":             "Casso",
     "description":        "Apple //c phosphor palette with distinct compact drive treatment.",
-    "entryDocuments": {
-        "titleBar":     "title_bar.rml",
-        "navLayer":     "nav_layer.rml",
-        "settings":     "settings.rml",
-        "driveWidgets": "drive_widgets.rml"
-    },
     "crtDefaults": {
         "brightness": 1.1,
         "scanlines":  { "enabled": true, "intensity": 0.85 },

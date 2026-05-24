@@ -95,7 +95,6 @@ private:
 
     IFileSystem                & m_fs;
     std::wstring                 m_themesBaseDir;
-    std::wstring                 m_sharedDir;
 
     std::vector<LoadedTheme>     m_available;
     std::string                  m_activeName;

@@ -74,7 +74,6 @@ ThemeManager::ThemeManager (
     const std::wstring & themesBaseDir)
     : m_fs (fs)
     , m_themesBaseDir (themesBaseDir)
-    , m_sharedDir (themesBaseDir + L"\\_shared")
 {
 }
 
@@ -116,7 +115,7 @@ HRESULT ThemeManager::Discover ()
         LoadedTheme     theme;
         ThemeLoadError  err;
         std::wstring    dir    = ThemeLoader::JoinPath (m_themesBaseDir, name);
-        HRESULT         hrLoad = ThemeLoader::Load (m_fs, dir, m_sharedDir, theme, err);
+        HRESULT         hrLoad = ThemeLoader::Load (m_fs, dir, theme, err);
 
         if (SUCCEEDED (hrLoad))
         {

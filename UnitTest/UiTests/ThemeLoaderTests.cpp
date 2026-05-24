@@ -37,23 +37,13 @@ namespace
             "doorAnimation": "mechanicalSwing",
             "syncChannel": "drive-door"
         },
-        "entryDocuments": {
-            "titleBar":     "title_bar.rml",
-            "navLayer":     "nav_layer.rml",
-            "settings":     "settings.rml",
-            "driveWidgets": "drive_widgets.rml"
-        },
         "useMicaBackdrop": false
     })";
 
 
     void WriteHappyTheme (InMemoryFileSystem & fs, const std::wstring & dir)
     {
-        fs.WriteAllText (dir + L"\\theme.json",        kHappyJson);
-        fs.WriteAllText (dir + L"\\title_bar.rml",     "<rml/>");
-        fs.WriteAllText (dir + L"\\nav_layer.rml",     "<rml/>");
-        fs.WriteAllText (dir + L"\\settings.rml",      "<rml/>");
-        fs.WriteAllText (dir + L"\\drive_widgets.rml", "<rml/>");
+        fs.WriteAllText (dir + L"\\theme.json", kHappyJson);
     }
 }
 
@@ -65,7 +55,7 @@ TEST_CLASS (ThemeLoaderTests)
 {
 public:
 
-    TEST_METHOD (HappyPath_LoadsAndResolvesEntryDocs)
+    TEST_METHOD (HappyPath_LoadsMetadata)
     {
         InMemoryFileSystem  fs;
         LoadedTheme         theme;
@@ -75,7 +65,7 @@ public:
         std::wstring  dir = std::wstring (kThemesBase) + L"\\Skeuomorphic";
         WriteHappyTheme (fs, dir);
 
-        hr = ThemeLoader::Load (fs, dir, L"", theme, err);
+        hr = ThemeLoader::Load (fs, dir, theme, err);
 
         Assert::IsTrue (SUCCEEDED (hr), L"Load failed");
         Assert::AreEqual (string ("Skeuomorphic"), theme.name);
@@ -84,9 +74,6 @@ public:
         Assert::AreEqual (1, theme.version);
         Assert::IsFalse (theme.isBuiltIn);
         Assert::IsFalse (theme.useMicaBackdrop);
-        // Entry docs resolved to absolute paths
-        Assert::IsTrue (theme.entryDocs.titleBar.find (L"title_bar.rml") != std::wstring::npos);
-        Assert::IsTrue (theme.entryDocs.navLayer.find (L"nav_layer.rml") != std::wstring::npos);
     }
 
 
@@ -100,7 +87,7 @@ public:
         std::wstring  dir = std::wstring (kThemesBase) + L"\\NoVersion";
         fs.WriteAllText (dir + L"\\theme.json", R"({ "name": "x", "familyId": "apple2", "variantId": "ii", "uiTokens": {}, "driveVisualProfile": {"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"} })");
 
-        hr = ThemeLoader::Load (fs, dir, L"", theme, err);
+        hr = ThemeLoader::Load (fs, dir, theme, err);
 
         Assert::IsTrue (FAILED (hr));
         Assert::IsTrue (err.code == ThemeLoadResult::MetadataInvalid);
@@ -118,7 +105,7 @@ public:
         fs.WriteAllText (dir + L"\\theme.json",
                          R"({"$cassoThemeVersion": 999, "name": "x", "familyId": "apple2", "variantId": "ii", "uiTokens": {}, "driveVisualProfile": {"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"}})");
 
-        hr = ThemeLoader::Load (fs, dir, L"", theme, err);
+        hr = ThemeLoader::Load (fs, dir, theme, err);
 
         Assert::IsTrue (FAILED (hr));
         Assert::IsTrue (err.code == ThemeLoadResult::VersionTooNew);
@@ -135,7 +122,7 @@ public:
         std::wstring  dir = std::wstring (kThemesBase) + L"\\Bad";
         fs.WriteAllText (dir + L"\\theme.json", "{ this is not json");
 
-        hr = ThemeLoader::Load (fs, dir, L"", theme, err);
+        hr = ThemeLoader::Load (fs, dir, theme, err);
 
         Assert::IsTrue (FAILED (hr));
         Assert::IsTrue (err.code == ThemeLoadResult::MetadataInvalid);
@@ -152,7 +139,6 @@ public:
 
         hr = ThemeLoader::Load (fs,
                                 std::wstring (kThemesBase) + L"\\Empty",
-                                L"",
                                 theme,
                                 err);
 
@@ -170,7 +156,6 @@ public:
         fs.WriteAllText (std::wstring (kThemesBase) + L"\\A\\theme.json", kHappyJson);
         fs.WriteAllText (std::wstring (kThemesBase) + L"\\B\\something.txt", "");
         fs.WriteAllText (std::wstring (kThemesBase) + L"\\C\\theme.json", kHappyJson);
-        fs.WriteAllText (std::wstring (kThemesBase) + L"\\_shared\\title_bar.rml", "");
 
         hr = ThemeLoader::EnumerateCandidateDirs (fs, kThemesBase, found);
 
@@ -195,7 +180,7 @@ public:
         fs.WriteAllText (dir + L"\\theme.json",
                          R"({"$cassoThemeVersion":1,"name":"Broken","familyId":"apple2","uiTokens":{},"driveVisualProfile":{"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"}})");
 
-        hr = ThemeLoader::Load (fs, dir, L"", theme, err);
+        hr = ThemeLoader::Load (fs, dir, theme, err);
 
         Assert::IsTrue (FAILED (hr));
         Assert::IsTrue (err.code == ThemeLoadResult::MetadataInvalid);
@@ -209,16 +194,11 @@ public:
         ThemeLoadError      err;
         HRESULT             hr;
         std::wstring        dir = std::wstring (kThemesBase) + L"\\Commodore";
-        std::wstring        sharedDir = std::wstring (kThemesBase) + L"\\_shared";
 
         fs.WriteAllText (dir + L"\\theme.json",
                          R"({"$cassoThemeVersion":1,"name":"Commodore","familyId":"commodore64","variantId":"c64c","uiTokens":{},"driveVisualProfile":{"style":"disk2","colorway":"ivory","doorAnimation":"x","syncChannel":"drive-door"}})");
-        fs.WriteAllText (sharedDir + L"\\title_bar.rml", "<rml/>");
-        fs.WriteAllText (sharedDir + L"\\nav_layer.rml", "<rml/>");
-        fs.WriteAllText (sharedDir + L"\\settings.rml", "<rml/>");
-        fs.WriteAllText (sharedDir + L"\\drive_widgets.rml", "<rml/>");
 
-        hr = ThemeLoader::Load (fs, dir, sharedDir, theme, err);
+        hr = ThemeLoader::Load (fs, dir, theme, err);
 
         Assert::IsTrue (SUCCEEDED (hr));
         Assert::AreEqual (string ("commodore64"), theme.familyId);

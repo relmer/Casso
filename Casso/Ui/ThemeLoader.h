@@ -22,12 +22,10 @@
 //      1. EnumerateCandidateDirs (themesBaseDir) — returns every
 //         sub-directory of `themesBaseDir` that contains a `theme.json`.
 //         Subdirs without one (e.g. `_shared/`) are skipped silently.
-//      2. Load (dir) — parse + validate `<dir>/theme.json`, resolve
-//         per-element `.rml` paths (entryDocuments fall back to
-//         `Themes/_shared/<entry>.rml`), and return a `LoadedTheme`
-//         struct OR a structured `ThemeLoadError` with the failing
-//         file path + a human-readable message. NO C++ exceptions
-//         cross the API boundary.
+//      2. Load (dir) — parse + validate `<dir>/theme.json` and return
+//         a `LoadedTheme` struct OR a structured `ThemeLoadError` with
+//         the failing file path + a human-readable message. NO C++
+//         exceptions cross the API boundary.
 //
 //  `ThemeLoader` knows nothing about the painter or DWM. Activation hooks
 //  live one layer up in `ThemeManager`.
@@ -39,7 +37,6 @@ enum class ThemeLoadResult
     Success,
     MetadataMissing,           // theme.json does not exist
     MetadataInvalid,           // theme.json failed to parse / missing required fields
-    DocumentMissing,           // an entryDocuments path resolves to a missing file
     VersionTooNew,             // $cassoThemeVersion > kCurrentThemeSchemaVersion
     UnknownError
 };
@@ -57,17 +54,6 @@ struct ThemeCrtDefaults
     float    colorBleedWidth     = 1.0f;
 };
 
-
-struct ThemeEntryDocuments
-{
-    // Absolute paths, resolved against either the theme directory or
-    // `Themes/_shared/`. Empty wstring == not declared and no shared
-    // fallback was provided either.
-    std::wstring  titleBar;
-    std::wstring  navLayer;
-    std::wstring  settings;
-    std::wstring  driveWidgets;
-};
 
 struct ThemeDriveVisualProfile
 {
@@ -90,7 +76,6 @@ struct LoadedTheme
     bool                useMicaBackdrop      = false;
 
     std::wstring        directoryPath;               // absolute, no trailing sep
-    ThemeEntryDocuments entryDocs;
     ThemeCrtDefaults    crtDefaults;
     JsonValue           uiTokens;
     ThemeDriveVisualProfile driveVisualProfile;
@@ -101,7 +86,7 @@ struct ThemeLoadError
 {
     ThemeLoadResult  code           = ThemeLoadResult::UnknownError;
     std::wstring     themeDir;
-    std::wstring     offendingPath; // empty unless DocumentMissing / file-level
+    std::wstring     offendingPath; // empty unless file-level
     std::string      message;
     int              jsonLine       = 0;
     int              jsonColumn     = 0;
@@ -125,7 +110,6 @@ public:
                                                 std::vector<std::wstring>  & outNames);
     static HRESULT      Load                   (IFileSystem                & fs,
                                                 const std::wstring         & themeDir,
-                                                const std::wstring         & sharedDir,
                                                 LoadedTheme                & outTheme,
                                                 ThemeLoadError             & outError);
 
@@ -134,11 +118,6 @@ public:
 
     static HRESULT      ParseMetadata          (const std::string          & jsonText,
                                                 LoadedTheme                & outTheme,
-                                                ThemeLoadError             & outError);
-    static HRESULT      ResolveEntryDocs       (IFileSystem                & fs,
-                                                const std::wstring         & themeDir,
-                                                const std::wstring         & sharedDir,
-                                                LoadedTheme                & ioTheme,
                                                 ThemeLoadError             & outError);
     static std::wstring JoinPath               (const std::wstring         & dir,
                                                 const std::wstring         & leaf);

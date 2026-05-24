@@ -26,8 +26,7 @@ namespace
     {
         // Theme paths in theme.json are ASCII by spec (filename
         // restrictions). A naive widen is fine for the relative
-        // names we deal with here; any non-ASCII filename is a
-        // theme-author bug and will surface as DocumentMissing.
+        // names we deal with here.
         return std::wstring (s.begin(), s.end());
     }
 
@@ -175,9 +174,7 @@ HRESULT ThemeLoader::EnumerateCandidateDirs (
 //  ThemeLoader::ParseMetadata
 //
 //  Parses + validates raw theme.json text. Doesn't touch the
-//  filesystem; entryDocument paths in `outTheme.entryDocs` are
-//  left relative to the theme directory (caller resolves to
-//  absolute via ResolveEntryDocs).
+//  filesystem.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -189,7 +186,6 @@ HRESULT ThemeLoader::ParseMetadata (
     HRESULT             hr            = S_OK;
     JsonValue           root;
     JsonParseError      perr;
-    const JsonValue *   entryObj      = nullptr;
     const JsonValue *   uiTokensObj   = nullptr;
     const JsonValue *   driveProfile  = nullptr;
     const JsonValue *   crtObj        = nullptr;
@@ -319,30 +315,6 @@ HRESULT ThemeLoader::ParseMetadata (
         return E_INVALIDARG;
     }
 
-    // ---- entryDocuments (all optional; resolved later) --------------------
-
-    if (SUCCEEDED (root.GetObject ("entryDocuments", entryObj)) && entryObj != nullptr)
-    {
-        std::string  s;
-
-        if (SUCCEEDED (entryObj->GetString ("titleBar", s)))
-        {
-            outTheme.entryDocs.titleBar = Utf8ToWide (s);
-        }
-        if (SUCCEEDED (entryObj->GetString ("navLayer", s)))
-        {
-            outTheme.entryDocs.navLayer = Utf8ToWide (s);
-        }
-        if (SUCCEEDED (entryObj->GetString ("settings", s)))
-        {
-            outTheme.entryDocs.settings = Utf8ToWide (s);
-        }
-        if (SUCCEEDED (entryObj->GetString ("driveWidgets", s)))
-        {
-            outTheme.entryDocs.driveWidgets = Utf8ToWide (s);
-        }
-    }
-
     // ---- crtDefaults (all optional; clamped to schema bounds) -------------
 
     if (SUCCEEDED (root.GetObject ("crtDefaults", crtObj)) && crtObj != nullptr)
@@ -384,115 +356,9 @@ HRESULT ThemeLoader::ParseMetadata (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ThemeLoader::ResolveEntryDocs
-//
-//  Resolves each entryDocument path against `themeDir` first and,
-//  if the file doesn't exist there, falls back to `sharedDir`.
-//  Any entry that resolves to a missing file produces a
-//  DocumentMissing error.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static HRESULT ResolveOne (
-    IFileSystem         & fs,
-    const std::wstring  & themeDir,
-    const std::wstring  & sharedDir,
-    const wchar_t       * sharedLeaf,
-    std::wstring        & ioPath,
-    ThemeLoadError      & outError)
-{
-    std::wstring  candidate;
-    std::wstring  fallback;
-
-
-
-    if (!ioPath.empty())
-    {
-        // Theme declared an entry — must exist in theme dir.
-        candidate = ThemeLoader::JoinPath (themeDir, ioPath);
-        if (fs.Exists (candidate))
-        {
-            ioPath = candidate;
-            return S_OK;
-        }
-
-        outError.code          = ThemeLoadResult::DocumentMissing;
-        outError.offendingPath = candidate;
-        outError.message       = "theme.json entryDocuments path does not exist on disk";
-        return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
-    }
-
-    // Not declared — try _shared fallback.
-    if (!sharedDir.empty() && sharedLeaf != nullptr)
-    {
-        fallback = ThemeLoader::JoinPath (sharedDir, sharedLeaf);
-        if (fs.Exists (fallback))
-        {
-            ioPath = fallback;
-            return S_OK;
-        }
-    }
-
-    // Neither declared nor shared — leave empty. Caller decides
-    // whether the missing entry is fatal (titleBar/navLayer are
-    // mandatory; settings/driveWidgets are optional in early phases).
-    return S_OK;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ResolveEntryDocs
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT ThemeLoader::ResolveEntryDocs (
-    IFileSystem         & fs,
-    const std::wstring  & themeDir,
-    const std::wstring  & sharedDir,
-    LoadedTheme         & ioTheme,
-    ThemeLoadError      & outError)
-{
-    HRESULT  hr = S_OK;
-
-
-
-    hr = ResolveOne (fs, themeDir, sharedDir, L"title_bar.rml",
-                     ioTheme.entryDocs.titleBar, outError);
-    if (FAILED (hr)) { return hr; }
-
-    hr = ResolveOne (fs, themeDir, sharedDir, L"nav_layer.rml",
-                     ioTheme.entryDocs.navLayer, outError);
-    if (FAILED (hr)) { return hr; }
-
-    hr = ResolveOne (fs, themeDir, sharedDir, L"settings.rml",
-                     ioTheme.entryDocs.settings, outError);
-    if (FAILED (hr)) { return hr; }
-
-    hr = ResolveOne (fs, themeDir, sharedDir, L"drive_widgets.rml",
-                     ioTheme.entryDocs.driveWidgets, outError);
-    if (FAILED (hr)) { return hr; }
-
-    return S_OK;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ThemeLoader::Load
 //
 //  Loads `<themeDir>/theme.json` and validates it.
-//
-//  * `sharedDir` is the absolute path to `Themes/_shared/`; if
-//    `entryDocuments.<entry>` is absent from theme.json the
-//    corresponding `<sharedDir>/<entry>.rml` is checked. If
-//    `sharedDir` is empty no fallback is attempted.
 //
 //  * On success returns S_OK and fills `outTheme`. `outError`
 //    is left untouched.
@@ -507,7 +373,6 @@ HRESULT ThemeLoader::ResolveEntryDocs (
 HRESULT ThemeLoader::Load (
     IFileSystem                & fs,
     const std::wstring         & themeDir,
-    const std::wstring         & sharedDir,
     LoadedTheme                & outTheme,
     ThemeLoadError             & outError)
 {
@@ -548,11 +413,6 @@ HRESULT ThemeLoader::Load (
     }
 
     outTheme.directoryPath = StripTrailingSep (themeDir);
-
-    // Entry-document resolution is deferred until the native painter
-    // owns chrome rendering. Skip ResolveEntryDocs in this baseline
-    // so metadata-only themes load cleanly.
-    (void) sharedDir;
 
     return S_OK;
 }
