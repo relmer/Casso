@@ -23,6 +23,8 @@
 
 namespace
 {
+    constexpr UINT  s_kMaxBoundPsSrvSlots = 2;
+
     constexpr const char *  kVertexShaderSrc =
         "struct VSInput  { float2 pos : POSITION; float2 uv : TEXCOORD; };\n"
         "struct VSOutput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
@@ -547,9 +549,10 @@ HRESULT CrtPostProcess::EnsureSize (int width, int height)
     // ensures the Reset()s below actually free the GPU memory.
     if (m_context != nullptr)
     {
-        ID3D11ShaderResourceView *  nullSrvs[8] = { nullptr };
-        m_context->OMSetRenderTargets (0, nullptr, nullptr);
-        m_context->PSSetShaderResources (0, 8, nullSrvs);
+        ID3D11ShaderResourceView *  nullSrvs[s_kMaxBoundPsSrvSlots] = {};
+
+        m_context->OMSetRenderTargets   (0, nullptr, nullptr);
+        m_context->PSSetShaderResources (0, s_kMaxBoundPsSrvSlots, nullSrvs);
     }
 
     for (i = 0; i < 2; ++i)
@@ -651,8 +654,8 @@ void CrtPostProcess::DrawFullscreen (
     UINT                       offset        = 0;
     float                      clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
     D3D11_VIEWPORT             vp            = {};
-    ID3D11ShaderResourceView * srvs[2]       = { srv0, srv1 };
-    ID3D11ShaderResourceView * nullSrvs[2]   = { nullptr, nullptr };
+    ID3D11ShaderResourceView * srvs[s_kMaxBoundPsSrvSlots]     = { srv0, srv1 };
+    ID3D11ShaderResourceView * nullSrvs[s_kMaxBoundPsSrvSlots] = {};
     ID3D11Buffer             * cbs[1]        = { m_constantBuffer.Get() };
     float                      blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
@@ -686,14 +689,14 @@ void CrtPostProcess::DrawFullscreen (
     m_context->VSSetShader            (m_vs.Get(), nullptr, 0);
     m_context->PSSetShader            (ps,         nullptr, 0);
     m_context->PSSetSamplers          (0, 1, m_sampler.GetAddressOf());
-    m_context->PSSetShaderResources   (0, 2, srvs);
+    m_context->PSSetShaderResources   (0, s_kMaxBoundPsSrvSlots, srvs);
     m_context->PSSetConstantBuffers   (0, 1, cbs);
 
     m_context->DrawIndexed (6, 0, 0);
 
     // Detach SRVs so the just-written RT can be bound as an input on the
     // next pass without a D3D11 hazard warning.
-    m_context->PSSetShaderResources (0, 2, nullSrvs);
+    m_context->PSSetShaderResources (0, s_kMaxBoundPsSrvSlots, nullSrvs);
 }
 
 

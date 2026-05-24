@@ -45,6 +45,7 @@ namespace
     static constexpr WORD     s_kBmpMagic            = 0x4D42;
     static constexpr WORD     s_kBmpPlanes           = 1;
     static constexpr WORD     s_kBmpBitsPerPixel     = 32;
+    static constexpr UINT     s_kMaxBoundPsSrvSlots  = 2;
 
 
     HRESULT DumpBackBufferBmp (
@@ -653,9 +654,10 @@ Error:
 
 HRESULT D3DRenderer::Resize (int width, int height)
 {
-    HRESULT                 hr         = S_OK;
-    ComPtr<ID3D11Texture2D> backBuffer;
-    D3D11_VIEWPORT          vp         = {};
+    HRESULT                     hr                              = S_OK;
+    ComPtr<ID3D11Texture2D>     backBuffer;
+    D3D11_VIEWPORT              vp                              = {};
+    ID3D11ShaderResourceView *  nullSrvs[s_kMaxBoundPsSrvSlots] = {};
 
 
 
@@ -669,11 +671,8 @@ HRESULT D3DRenderer::Resize (int width, int height)
     // UploadAndPresent and the driver retains them until rebind.
     // Letting them dangle through ResizeBuffers has tripped
     // DXGI_ERROR_DRIVER_INTERNAL_ERROR on rapid drags.
-    {
-        ID3D11ShaderResourceView *  nullSrvs[8] = { nullptr };
-        m_context->OMSetRenderTargets (0, nullptr, nullptr);
-        m_context->PSSetShaderResources (0, 8, nullSrvs);
-    }
+    m_context->OMSetRenderTargets   (0, nullptr, nullptr);
+    m_context->PSSetShaderResources (0, s_kMaxBoundPsSrvSlots, nullSrvs);
 
     if (m_rtv)
     {
