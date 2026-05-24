@@ -563,18 +563,18 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     clientH = kFramebufferHeight * scale + ComputeChromeTopInsetPx (dpi) + ComputeChromeBottomInsetPx (dpi);
 
     rc    = { 0, 0, clientW, clientH };
-    // Borderless custom-chrome recipe. WS_THICKFRAME keeps Aero Snap
-    // and edge resize live. WS_CAPTION is intentionally OMITTED:
-    // on Win11 the OS unconditionally draws its own caption buttons
-    // for any window that declares WS_CAPTION, which produced ghost
-    // min/max/close glyphs alongside our DX-rendered ones. The DWM
-    // drop-shadow and snap-layout animations are preserved via
-    // ExtendFrameIntoClientArea below. Sizing math through
-    // AdjustWindowRectExForDpi accounts for the (invisible) non-client
-    // frame so the requested client area is preserved.
-    style    = WS_POPUP | WS_THICKFRAME |
-               WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU |
-               WS_CLIPCHILDREN;
+    // Custom-chrome recipe modeled on microsoft/terminal's
+    // NonClientIslandWindow: keep WS_OVERLAPPEDWINDOW (which includes
+    // WS_CAPTION + WS_SYSMENU + WS_THICKFRAME + WS_MINIMIZEBOX +
+    // WS_MAXIMIZEBOX) so DefWindowProc has the full caption
+    // infrastructure for drag-to-move, edge resize, snap layouts, and
+    // single-click min/max/close semantics. The visual caption is
+    // hidden by collapsing the NC area in WM_NCCALCSIZE; our
+    // WM_NCHITTEST returns HTMINBUTTON/HTMAXBUTTON/HTCLOSE for the
+    // button rects and HTCAPTION for the drag region, so the OS
+    // dispatches the right system action and our OnNcLButtonUp
+    // dispatches the action for the captioned buttons.
+    style    = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
     // No menu bar -> bMenu = FALSE in window-rect math.
     fSuccess = AdjustWindowRectExForDpi (&rc, style, FALSE, 0, dpi);
     CWRA (fSuccess);
@@ -2162,8 +2162,11 @@ bool EmulatorShell::OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, boo
 
 bool EmulatorShell::OnNcCalcSize (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult)
 {
-    UNREFERENCED_PARAMETER (hwnd);
-    UNREFERENCED_PARAMETER (lParam);
+    NCCALCSIZE_PARAMS *  pParams      = nullptr;
+    LRESULT              defResult    = 0;
+    LONG                 originalTop  = 0;
+
+
 
     if (wParam == FALSE)
     {
@@ -2171,9 +2174,30 @@ bool EmulatorShell::OnNcCalcSize (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESU
         return false;
     }
 
-    // Keep rgrc[0] as-is: client area == full window rect. Windows
-    // still respects WS_THICKFRAME for the resize cursor.
-    outResult = 0;
+    pParams = reinterpret_cast<NCCALCSIZE_PARAMS *> (lParam);
+    if (pParams == nullptr)
+    {
+        outResult = 0;
+        return false;
+    }
+
+    // Mirror microsoft/terminal NonClientIslandWindow::_OnNcCalcSize:
+    // let DefWindowProc compute the default frame (gives Windows the
+    // correct resize-border math at the left/right/bottom edges, plus
+    // Aero Snap awareness) then re-apply the original top edge so the
+    // visual title-bar area collapses into our client rect for the
+    // custom-painted chrome. Drag and edge resize keep working because
+    // the OS still sees a captioned window with thick frames.
+    originalTop = pParams->rgrc[0].top;
+    defResult   = DefWindowProc (hwnd, WM_NCCALCSIZE, wParam, lParam);
+    if (defResult != 0)
+    {
+        outResult = defResult;
+        return false;
+    }
+
+    pParams->rgrc[0].top = originalTop;
+    outResult            = 0;
     return false;
 }
 
