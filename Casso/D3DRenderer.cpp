@@ -7,6 +7,7 @@
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "dxguid.lib")
 
 
 
@@ -253,16 +254,48 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
     // exact call that violates a rule rather than letting the violation
     // propagate into a later AV / DEVICE_REMOVED. Pinpointing the
     // illegal operation is much easier with the stack still at the
-    // offending call.
+    // offending call. We break on WARNING too because the
+    // DEVICE_REMOVAL_PROCESS_POSSIBLY_AT_FAULT diagnostic itself is
+    // WARNING severity, and the upstream violation that triggered it
+    // is often emitted as WARNING as well.
     {
-        ComPtr<ID3D11InfoQueue>  infoQueue;
-        HRESULT                  hrInfo = m_device.As (&infoQueue);
+        ComPtr<ID3D11InfoQueue>  d3dInfoQueue;
+        HRESULT                  hrD3dInfo = m_device.As (&d3dInfoQueue);
 
 
-        if (SUCCEEDED (hrInfo) && infoQueue)
+        if (SUCCEEDED (hrD3dInfo) && d3dInfoQueue)
         {
-            infoQueue->SetBreakOnSeverity (D3D11_MESSAGE_SEVERITY_CORRUPTION, TRUE);
-            infoQueue->SetBreakOnSeverity (D3D11_MESSAGE_SEVERITY_ERROR,      TRUE);
+            d3dInfoQueue->SetBreakOnSeverity (D3D11_MESSAGE_SEVERITY_CORRUPTION, TRUE);
+            d3dInfoQueue->SetBreakOnSeverity (D3D11_MESSAGE_SEVERITY_ERROR,      TRUE);
+            d3dInfoQueue->SetBreakOnSeverity (D3D11_MESSAGE_SEVERITY_WARNING,    TRUE);
+        }
+    }
+
+    // DXGI keeps its own InfoQueue covering swap-chain / Present /
+    // ResizeBuffers diagnostics that don't surface through D3D11's queue.
+    // Resolve via the optional dxgidebug.dll entry point so we degrade
+    // gracefully on machines/SKUs without the DirectX Graphics Tools
+    // optional feature installed.
+    {
+        HMODULE  dxgiDebug = LoadLibraryW (L"dxgidebug.dll");
+
+        if (dxgiDebug != nullptr)
+        {
+            using PFN_DXGIGetDebugInterface = HRESULT (WINAPI *) (REFIID, void **);
+            auto  pfnGet = reinterpret_cast<PFN_DXGIGetDebugInterface> (GetProcAddress (dxgiDebug, "DXGIGetDebugInterface"));
+
+            if (pfnGet != nullptr)
+            {
+                ComPtr<IDXGIInfoQueue>  dxgiInfoQueue;
+                HRESULT                 hrDxgiInfo = pfnGet (IID_PPV_ARGS (&dxgiInfoQueue));
+
+                if (SUCCEEDED (hrDxgiInfo) && dxgiInfoQueue)
+                {
+                    dxgiInfoQueue->SetBreakOnSeverity (DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, TRUE);
+                    dxgiInfoQueue->SetBreakOnSeverity (DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR,      TRUE);
+                    dxgiInfoQueue->SetBreakOnSeverity (DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_WARNING,    TRUE);
+                }
+            }
         }
     }
 #endif

@@ -7,6 +7,7 @@
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <dxgi.h>
+#include <dxgidebug.h>
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 #include <commdlg.h>
