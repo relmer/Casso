@@ -409,6 +409,33 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
             break;
         }
 
+        case WM_DPICHANGED:
+        {
+            // Windows hands us the suggested new window rect in lParam
+            // when the user drags the window between monitors with
+            // different DPI scales (or when the display scale itself
+            // changes). Resizing the window to that rect lets the OS
+            // scale our chrome metrics correctly; WM_SIZE fires from
+            // SetWindowPos and our existing handler re-runs the chrome
+            // layout, resizes the swap chain, and rebinds the D2D
+            // target at the new DPI.
+            RECT *  pSuggested = reinterpret_cast<RECT *> (lParam);
+
+
+            if (pSuggested != nullptr)
+            {
+                SetWindowPos (hwnd,
+                              nullptr,
+                              pSuggested->left,
+                              pSuggested->top,
+                              pSuggested->right  - pSuggested->left,
+                              pSuggested->bottom - pSuggested->top,
+                              SWP_NOZORDER | SWP_NOACTIVATE);
+            }
+            callDefWndProc = true;
+            break;
+        }
+
         case WM_NOTIFY:
             callDefWndProc = pThis->OnNotify (hwnd, wParam, lParam);
             break;

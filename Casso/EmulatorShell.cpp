@@ -550,20 +550,35 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     hr = Window::Initialize (hInstance);
     CHR (hr);
 
-    // Calculate window size for desired client area. Per-monitor DPI
-    // v2 (enabled at process start in wWinMain) makes Windows scale
-    // the requested CreateWindowEx size by the destination monitor's
-    // DPI / 96 ratio at window-creation time -- so we pass logical
-    // (96-DPI) dimensions here and let the OS apply the per-monitor
-    // scale itself. Pre-scaling here would be a double-scale.
-    dpi     = s_kBaseDpi;
-    clientW = kFramebufferWidth;
-    clientH = kFramebufferHeight + ComputeChromeTopInsetPx (dpi) + ComputeChromeBottomInsetPx (dpi);
+    // Calculate window size for desired client area, scaled for the
+    // monitor we will actually open on. With per-monitor DPI v2,
+    // CreateWindowEx uses the requested size *as physical pixels* on
+    // the destination monitor -- there's no automatic logical->physical
+    // mapping. So if the cursor monitor is at 150% scale, requesting
+    // 560-px logical means we get a 560-physical-pixel window that
+    // looks half-size next to anything else on that display. Resolve
+    // the destination monitor's DPI up front and pre-scale.
+    if (GetCursorMonitorWorkArea (work, activeMon))
+    {
+        UINT  dpiX = 0;
+        UINT  dpiY = 0;
 
-    // Note: when GetDpiForMonitor reports the destination monitor's
-    // DPI as different from the primary monitor's, Windows will fire
-    // WM_DPICHANGED right after creation and our OnSize handler will
-    // re-layout the chrome against the actual DPI.
+
+        if (SUCCEEDED (GetDpiForMonitor (activeMon, MDT_EFFECTIVE_DPI, &dpiX, &dpiY)) && dpiX > 0)
+        {
+            dpi = dpiX;
+        }
+    }
+
+    if (dpi == 0)
+    {
+        dpi = GetDpiForSystem();
+    }
+
+    clientW = MulDiv (kFramebufferWidth,  static_cast<int> (dpi), s_kBaseDpi);
+    clientH = MulDiv (kFramebufferHeight, static_cast<int> (dpi), s_kBaseDpi)
+              + ComputeChromeTopInsetPx (dpi)
+              + ComputeChromeBottomInsetPx (dpi);
 
     rc    = { 0, 0, clientW, clientH };
     // Custom-chrome recipe modeled on microsoft/terminal's
