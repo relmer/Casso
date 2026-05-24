@@ -31,6 +31,7 @@
 #include "Video/MonochromeTint.h"
 #include "Ui/Win11DwmHelpers.h"
 #include "Ui/TitleBarHitTest.h"
+#include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/DriveWidgetController.h"
 
 #pragma comment(lib, "ole32.lib")
@@ -58,12 +59,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int     kFramebufferWidth       = 560;
-static constexpr int     kFramebufferHeight      = 384;
+static constexpr int     kFramebufferWidth       = ChromeMetrics::kFramebufferWidthPx;
+static constexpr int     kFramebufferHeight      = ChromeMetrics::kFramebufferHeightPx;
 static constexpr LPCWSTR kWindowClass           = L"CassoWindow";
-static constexpr int     s_kBaseDpi             = 96;
-static constexpr int     s_kNavStripHeightDp    = 32;
-static constexpr int     s_kCommandBarHeightDp  = 56;
+static constexpr int     s_kBaseDpi             = ChromeMetrics::kBaseDpi;
 static constexpr int     s_kDriveWidgetGapDp    = 16;
 
 
@@ -80,17 +79,13 @@ namespace
 {
     int ComputeChromeTopInsetPx (UINT dpi)
     {
-        int   navStrip = MulDiv (s_kNavStripHeightDp, static_cast<int> (dpi), s_kBaseDpi);
-
-
-
-        return TitleBarLayout::DefaultTitleHeight ((UINT) dpi) + navStrip;
+        return ChromeMetrics::ChromeTopInsetPx (dpi);
     }
 
 
     int ComputeChromeBottomInsetPx (UINT dpi)
     {
-        return MulDiv (s_kCommandBarHeightDp, static_cast<int> (dpi), s_kBaseDpi);
+        return ChromeMetrics::ChromeBottomInsetPx (dpi);
     }
 
 

@@ -5,6 +5,7 @@
 #include "../EmulatorShell.h"
 #include "../resource.h"
 #include "Version.h"
+#include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
@@ -22,18 +23,7 @@
 
 namespace
 {
-    constexpr int  s_kFramebufferWidthPx   = 560;
-    constexpr int  s_kFramebufferHeightPx  = 384;
-    constexpr int  s_kNavStripHeightDp     = 28;
-    constexpr int  s_kBaselineDpi          = 96;
-
-
-    int  ComputeChromeTopInsetPx (UINT dpi)
-    {
-        int  navStrip = MulDiv (s_kNavStripHeightDp, static_cast<int> (dpi), s_kBaselineDpi);
-
-        return navStrip;
-    }
+    using namespace ChromeMetrics;
 }
 
 
@@ -298,6 +288,19 @@ void WindowCommandManager::OnViewCommand (int id)
         {
             if (!m_shell.m_d3dRenderer.IsFullscreen())
             {
+                RECT  rcActualClient = {};
+                RECT  rcActualWindow = {};
+                int   desiredClientW = 0;
+                int   desiredClientH = 0;
+                int   actualClientW  = 0;
+                int   actualClientH  = 0;
+                int   deltaW         = 0;
+                int   deltaH         = 0;
+                int   fixedW         = 0;
+                int   fixedH         = 0;
+                DWORD adjustStyle    = 0;
+
+
                 dpi   = GetDpiForWindow (m_shell.m_hwnd);
                 scale = (dpi + 48) / 96;
 
@@ -306,11 +309,28 @@ void WindowCommandManager::OnViewCommand (int id)
                     scale = 1;
                 }
 
-                rc    = { 0, 0,
-                          s_kFramebufferWidthPx * scale,
-                          s_kFramebufferHeightPx * scale + ComputeChromeTopInsetPx (dpi) };
+                // Target client area: framebuffer at the requested
+                // integer scale, plus BOTH chrome insets. The prior
+                // version forgot the bottom command bar inset, which
+                // shrank the content area below framebuffer aspect
+                // and produced visible pillarbox on Ctrl+0.
+                desiredClientW = kFramebufferWidthPx  * scale;
+                desiredClientH = kFramebufferHeightPx * scale
+                                 + ChromeTopInsetPx    (dpi)
+                                 + ChromeBottomInsetPx (dpi);
+
                 style = static_cast<DWORD> (GetWindowLong (m_shell.m_hwnd, GWL_STYLE));
-                AdjustWindowRectExForDpi (&rc, style, FALSE, 0, dpi);
+
+                // Strip WS_CAPTION before AdjustWindowRectExForDpi.
+                // Our WM_NCCALCSIZE handler restores the original top
+                // edge, so the caption height is *not* carved out of
+                // the client area -- if we passed the full style, the
+                // computed window height would over-account for the
+                // caption and the final client would be taller than
+                // requested by that amount, recreating the pillarbox.
+                adjustStyle = style & ~static_cast<DWORD> (WS_CAPTION);
+                rc          = { 0, 0, desiredClientW, desiredClientH };
+                AdjustWindowRectExForDpi (&rc, adjustStyle, FALSE, 0, dpi);
 
                 w = rc.right - rc.left;
                 h = rc.bottom - rc.top;
@@ -322,6 +342,26 @@ void WindowCommandManager::OnViewCommand (int id)
                 y = mi.rcWork.top  + (mi.rcWork.bottom - mi.rcWork.top - h) / 2;
 
                 SetWindowPos (m_shell.m_hwnd, nullptr, x, y, w, h, SWP_NOZORDER);
+
+                // Reconcile: measure actual client and nudge if the
+                // border math is off (same residual-delta technique
+                // as EmulatorShell::CreateEmulatorWindow). Without
+                // this the WM_NCCALCSIZE bottom border eats a few
+                // pixels and the aspect won't be exactly framebuffer.
+                if (GetClientRect (m_shell.m_hwnd, &rcActualClient) && GetWindowRect (m_shell.m_hwnd, &rcActualWindow))
+                {
+                    actualClientW = rcActualClient.right  - rcActualClient.left;
+                    actualClientH = rcActualClient.bottom - rcActualClient.top;
+                    deltaW        = desiredClientW - actualClientW;
+                    deltaH        = desiredClientH - actualClientH;
+
+                    if (deltaW != 0 || deltaH != 0)
+                    {
+                        fixedW = (rcActualWindow.right  - rcActualWindow.left) + deltaW;
+                        fixedH = (rcActualWindow.bottom - rcActualWindow.top)  + deltaH;
+                        SetWindowPos (m_shell.m_hwnd, nullptr, 0, 0, fixedW, fixedH, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+                    }
+                }
             }
             break;
         }

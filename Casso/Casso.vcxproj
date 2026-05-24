@@ -302,6 +302,7 @@
     <ClInclude Include="Config\UserConfigStore.h" />
     <ClInclude Include="Config\GlobalUserPrefs.h" />
     <ClInclude Include="Ui\TitleBarHitTest.h" />
+    <ClInclude Include="Ui\Chrome\ChromeMetrics.h" />
     <ClInclude Include="Ui\Chrome\TitleBar.h" />
     <ClInclude Include="Ui\Chrome\NavLayer.h" />
     <ClInclude Include="Ui\Win11DwmHelpers.h" />
