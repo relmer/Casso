@@ -23,8 +23,8 @@ public:
         led.Layout (20, 30, 96);
         layout = led.GetLayout();
 
-        Assert::IsTrue (layout.coreRect.right - layout.coreRect.left >= 12);
-        Assert::IsTrue (layout.coreRect.left - layout.haloRect.left >= 4);
+        Assert::IsTrue (layout.coreRect.right - layout.coreRect.left >= 6);
+        Assert::IsTrue (layout.coreRect.left - layout.haloRect.left >= 2);
         Assert::AreEqual ((unsigned int) theme.ledIdleArgb, (unsigned int) led.CoreArgb (theme));
 
         led.SetState (LedState::Present);

@@ -76,13 +76,13 @@ struct ChromeTheme
         theme.dropdownItemTextArgb    = 0xFFF3EAD7;
         theme.dropdownAccelArgb       = 0xFFB8C0CA;
         theme.dropdownHoverArgb       = 0xFF34475F;
-        theme.driveBodyArgb           = 0xFFCDBB91;
-        theme.driveBezelArgb          = 0xFF3D3426;
-        theme.driveLabelArgb          = 0xFF1C1812;
-        theme.ledIdleArgb             = 0xFF303030;
-        theme.ledPresentArgb          = 0xFFFFB13B;
-        theme.ledActiveArgb           = 0xFF55FF74;
-        theme.ledHaloArgb             = 0x8055FF74;
+        theme.driveBodyArgb           = 0xFF141414;
+        theme.driveBezelArgb          = 0xFF050505;
+        theme.driveLabelArgb          = 0xFFE6E2D8;
+        theme.ledIdleArgb             = 0xFF1A0606;
+        theme.ledPresentArgb          = 0xFF1A0606;
+        theme.ledActiveArgb           = 0xFFFF2818;
+        theme.ledHaloArgb             = 0x60FF2818;
         return theme;
     }
 };

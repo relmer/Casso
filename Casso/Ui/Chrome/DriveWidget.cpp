@@ -10,17 +10,30 @@
 
 namespace
 {
-    constexpr int    s_kBaseDpi          = 96;
-    constexpr int    s_kBodyWidthPx      = 190;
-    constexpr int    s_kBodyHeightPx     = 44;
-    constexpr int    s_kSlotInsetPx      = 8;
-    constexpr int    s_kSlotHeightPx     = 12;
-    constexpr int    s_kEjectSizePx      = 14;
-    constexpr int    s_kLabelPadPx       = 8;
-    constexpr float  s_kLabelFontDip     = 12.0f;
-    constexpr int    s_kSpinDotCount     = 10;
-    constexpr int    s_kSpinRadiusPx     = 10;
-    constexpr wchar_t s_kFontFamily[]    = L"Segoe UI";
+    constexpr int     s_kBaseDpi           = 96;
+    constexpr int     s_kBodyWidthPx       = 220;
+    constexpr int     s_kBodyHeightPx      = 160;
+    constexpr int     s_kFaceplateHeightPx = 104;
+    constexpr int     s_kCaseBackInsetPx   = 30;
+    constexpr int     s_kLabelPadPx        = 10;
+    constexpr float   s_kLabelFontDip      = 13.0f;
+    constexpr float   s_kInUseFontDip      = 10.0f;
+    constexpr int     s_kSlotInsetPx       = 22;
+    constexpr int     s_kSlotHeightPx      = 6;
+    constexpr int     s_kSlotCenterYPx     = 50;
+    constexpr int     s_kDoorWidthPx       = 72;
+    constexpr int     s_kDoorHeightPx      = 44;
+    constexpr int     s_kDoorTravelPx      = 32;
+    constexpr int     s_kNotchWidthPx      = 28;
+    constexpr int     s_kNotchHeightPx     = 8;
+    constexpr int     s_kLedCenterYPx      = 84;
+    constexpr int     s_kInUseGapPx        = 4;
+    constexpr int     s_kInUseWidthPx      = 56;
+    constexpr int     s_kRidgeCountPx      = 2;
+    constexpr int     s_kCassowaryWidthPx  = 38;
+    constexpr int     s_kCassowaryHeightPx = 40;
+    constexpr int     s_kCassowaryMarginPx = 12;
+    constexpr wchar_t s_kFontFamily[]      = L"Segoe UI";
 
 
     bool RectContains (const RECT & rect, int x, int y)
@@ -36,6 +49,106 @@ namespace
 
 
         return MulDiv (value, (int) effectiveDpi, s_kBaseDpi);
+    }
+
+
+    float Clamp01 (float v)
+    {
+        if (v < 0.0f) { return 0.0f; }
+        if (v > 1.0f) { return 1.0f; }
+        return v;
+    }
+
+
+    // Fills a trapezoid with parallel horizontal front and back edges
+    // by stacking 1-px horizontal scanlines whose widths interpolate
+    // linearly from front to back. Used for the receding case top.
+    void FillTrapezoidApprox (DxUiPainter & painter,
+                              float frontLeft,  float frontRight,
+                              float backLeft,   float backRight,
+                              float frontY,     float backY,
+                              uint32_t argb)
+    {
+        int    height = (int) (frontY - backY);
+        int    i      = 0;
+        float  denom  = (float) ((height > 1) ? (height - 1) : 1);
+
+        if (height <= 0)
+        {
+            return;
+        }
+
+        for (i = 0; i < height; i++)
+        {
+            float  t     = (float) i / denom;
+            float  left  = frontLeft  + (backLeft  - frontLeft)  * t;
+            float  right = frontRight + (backRight - frontRight) * t;
+            float  y     = frontY - 1.0f - (float) i;
+
+            painter.FillRect (left, y, right - left, 1.0f, argb);
+        }
+    }
+
+
+    // Draws a horizontal ridge line on the case top at fractional depth
+    // (0=front, 1=back), respecting the trapezoid's perspective taper.
+    void DrawCaseRidge (DxUiPainter & painter,
+                        float frontLeft, float frontRight,
+                        float backLeft,  float backRight,
+                        float frontY,    float backY,
+                        float depthT,
+                        uint32_t argb)
+    {
+        float  y     = frontY + (backY - frontY) * depthT;
+        float  left  = frontLeft  + (backLeft  - frontLeft)  * depthT;
+        float  right = frontRight + (backRight - frontRight) * depthT;
+
+        painter.FillRect (left + 2.0f, y, right - left - 4.0f, 1.0f, argb);
+    }
+
+
+    // Cassowary head silhouette in profile, beak pointing LEFT,
+    // tall casque on top, rendered as horizontal scanlines so it can
+    // be rainbow-striped a la the classic Apple logo. The grid is
+    // 28 cols x 30 rows; each row stores (startCol, endCol) inclusive.
+    void DrawCassowaryRainbow (DxUiPainter & painter,
+                               float left, float top,
+                               float width, float height)
+    {
+        constexpr int       kGridW             = 28;
+        constexpr int       kGridH             = 30;
+        constexpr int       kStripeCount       = 6;
+        static const uint8_t s_kSilhouette[kGridH][2] = {
+            { 16, 18 }, { 16, 18 }, { 15, 18 }, { 15, 19 }, { 14, 19 },
+            { 14, 20 }, { 13, 20 }, { 12, 21 }, { 10, 22 }, {  7, 24 },
+            {  5, 25 }, {  3, 26 }, {  2, 26 }, {  1, 26 }, {  0, 26 },
+            {  0, 25 }, {  2, 25 }, {  5, 24 }, {  7, 24 }, {  8, 23 },
+            {  9, 22 }, { 10, 22 }, { 10, 23 }, { 10, 23 }, { 11, 22 },
+            { 11, 21 }, { 12, 21 }, { 12, 20 }, { 13, 20 }, { 13, 19 },
+        };
+        static const uint32_t s_kStripeColors[kStripeCount] = {
+            0xFF61BB46,  // green
+            0xFFFDB827,  // yellow
+            0xFFF5821F,  // orange
+            0xFFE03A3E,  // red
+            0xFF963D97,  // purple
+            0xFF009DDC,  // blue
+        };
+
+        float  rowH = height / (float) kGridH;
+        float  colW = width  / (float) kGridW;
+
+        for (int row = 0; row < kGridH; row++)
+        {
+            int    stripe   = (row * kStripeCount) / kGridH;
+            int    startCol = s_kSilhouette[row][0];
+            int    endCol   = s_kSilhouette[row][1];
+            float  x        = left + (float) startCol * colW;
+            float  y        = top  + (float) row      * rowH;
+            float  w        = (float) (endCol - startCol + 1) * colW;
+
+            painter.FillRect (x, y, w, rowH + 0.5f, s_kStripeColors[stripe]);
+        }
     }
 }
 
@@ -66,12 +179,14 @@ void DriveWidget::Initialize (int slot, int drive, IDriveCommandSink * pSink)
 
 void DriveWidget::Layout (int x, int y, UINT dpi)
 {
-    int  bodyW      = Scale (s_kBodyWidthPx, dpi);
-    int  bodyH      = Scale (s_kBodyHeightPx, dpi);
-    int  slotInset  = Scale (s_kSlotInsetPx, dpi);
-    int  slotH      = Scale (s_kSlotHeightPx, dpi);
-    int  ejectSize  = Scale (s_kEjectSizePx, dpi);
-    int  labelPad   = Scale (s_kLabelPadPx, dpi);
+    int  bodyW       = Scale (s_kBodyWidthPx, dpi);
+    int  bodyH       = Scale (s_kBodyHeightPx, dpi);
+    int  faceH       = Scale (s_kFaceplateHeightPx, dpi);
+    int  slotInset   = Scale (s_kSlotInsetPx, dpi);
+    int  slotH       = Scale (s_kSlotHeightPx, dpi);
+    int  slotCY      = Scale (s_kSlotCenterYPx, dpi);
+    int  doorW       = Scale (s_kDoorWidthPx, dpi);
+    int  doorH       = Scale (s_kDoorHeightPx, dpi);
 
 
 
@@ -80,18 +195,25 @@ void DriveWidget::Layout (int x, int y, UINT dpi)
     m_bodyRect.right  = x + bodyW;
     m_bodyRect.bottom = y + bodyH;
 
-    m_slotRect.left   = x + slotInset;
-    m_slotRect.top    = y + slotInset;
-    m_slotRect.right  = x + bodyW - slotInset;
+    // Faceplate occupies the BOTTOM portion of the widget; the receding
+    // case top is painted above it for fake 3D perspective.
+    m_faceRect.left   = x;
+    m_faceRect.top    = y + bodyH - faceH;
+    m_faceRect.right  = x + bodyW;
+    m_faceRect.bottom = y + bodyH;
+
+    m_slotRect.left   = m_faceRect.left  + slotInset;
+    m_slotRect.top    = m_faceRect.top   + slotCY - slotH / 2;
+    m_slotRect.right  = m_faceRect.right - slotInset;
     m_slotRect.bottom = m_slotRect.top + slotH;
 
-    m_ejectRect.left   = x + labelPad;
-    m_ejectRect.bottom = y + bodyH - labelPad;
-    m_ejectRect.right  = m_ejectRect.left + ejectSize;
-    m_ejectRect.top    = m_ejectRect.bottom - ejectSize;
+    m_ejectRect.left   = m_faceRect.left + (bodyW - doorW) / 2;
+    m_ejectRect.top    = m_faceRect.top + slotCY - doorH / 2;
+    m_ejectRect.right  = m_ejectRect.left + doorW;
+    m_ejectRect.bottom = m_ejectRect.top + doorH;
 
-    m_led.Layout (m_bodyRect.right - labelPad - ejectSize,
-                  m_bodyRect.bottom - labelPad - ejectSize,
+    m_led.Layout (m_faceRect.left + Scale (s_kLabelPadPx + s_kInUseWidthPx + s_kInUseGapPx, dpi),
+                  m_faceRect.top + Scale (s_kLedCenterYPx, dpi) - Scale (3, dpi),
                   dpi);
 }
 
@@ -106,7 +228,6 @@ void DriveWidget::Layout (int x, int y, UINT dpi)
 
 void DriveWidget::SyncFromState (const DriveWidgetState & state)
 {
-    bool  mounted = state.IsMounted();
     bool  motorOn = state.motorOn.load (std::memory_order_relaxed);
     bool  active  = motorOn || state.diskActive.load (std::memory_order_relaxed);
 
@@ -119,18 +240,7 @@ void DriveWidget::SyncFromState (const DriveWidgetState & state)
     m_state.motorOn.store (motorOn, std::memory_order_relaxed);
     m_state.diskActive.store (active, std::memory_order_relaxed);
 
-    if (active)
-    {
-        m_led.SetState (LedState::Active);
-    }
-    else if (mounted)
-    {
-        m_led.SetState (LedState::Present);
-    }
-    else
-    {
-        m_led.SetState (LedState::Idle);
-    }
+    m_led.SetState (active ? LedState::Active : LedState::Idle);
 }
 
 
@@ -150,55 +260,154 @@ void DriveWidget::Paint (
 {
     HRESULT  hr           = S_OK;
     int      bodyW        = m_bodyRect.right - m_bodyRect.left;
-    int      bodyH        = m_bodyRect.bottom - m_bodyRect.top;
+    int      faceW        = m_faceRect.right - m_faceRect.left;
+    int      faceH        = m_faceRect.bottom - m_faceRect.top;
     int      slotW        = m_slotRect.right - m_slotRect.left;
     int      slotH        = m_slotRect.bottom - m_slotRect.top;
-    int      doorH        = slotH;
-    bool     motorOn      = m_state.motorOn.load (std::memory_order_relaxed);
-    wchar_t  label[32]    = {};
+    int      doorW        = m_ejectRect.right - m_ejectRect.left;
+    int      doorH        = m_ejectRect.bottom - m_ejectRect.top;
     UINT     dpi          = (visual.dpi == 0) ? (UINT) s_kBaseDpi : visual.dpi;
+    int      doorTravel   = Scale (s_kDoorTravelPx, dpi);
+    int      notchW       = Scale (s_kNotchWidthPx, dpi);
+    int      notchH       = Scale (s_kNotchHeightPx, dpi);
+    int      labelPad     = Scale (s_kLabelPadPx, dpi);
+    int      inUseW       = Scale (s_kInUseWidthPx, dpi);
+    int      caseBackInset = Scale (s_kCaseBackInsetPx, dpi);
     float    labelFontDip = s_kLabelFontDip * (float) dpi / (float) s_kBaseDpi;
+    float    inUseFontDip = s_kInUseFontDip * (float) dpi / (float) s_kBaseDpi;
+    float    doorOffset   = 0.0f;
+    wchar_t  label[32]    = {};
 
 
 
-    painter.FillRect ((float) m_bodyRect.left, (float) m_bodyRect.top, (float) bodyW, (float) bodyH, theme.driveBodyArgb);
-    painter.OutlineRect ((float) m_bodyRect.left, (float) m_bodyRect.top, (float) bodyW, (float) bodyH, 2.0f, theme.driveBezelArgb);
-
-    if (m_state.doorState == DriveWidgetState::Door::Open || m_state.doorState == DriveWidgetState::Door::Opening)
+    // Receding case top: trapezoid spanning the space above the
+    // faceplate, narrowing toward the back to suggest perspective.
+    // Camera is slightly above and in front of the drive.
     {
-        doorH = slotH / 2;
-    }
+        float  frontLeft  = (float) m_bodyRect.left;
+        float  frontRight = (float) m_bodyRect.right;
+        float  backLeft   = (float) (m_bodyRect.left  + caseBackInset + m_perspectiveSkewPx);
+        float  backRight  = (float) (m_bodyRect.right - caseBackInset + m_perspectiveSkewPx);
+        float  frontY     = (float) m_faceRect.top;
+        float  backY      = (float) m_bodyRect.top;
+        uint32_t caseColor   = 0xFFCCB68B;
+        uint32_t caseHilite  = 0xFFE6D3AC;
+        uint32_t caseShade   = 0xFF8E7A55;
+        uint32_t backEdge    = 0xFF5E4F36;
 
-    painter.FillRect ((float) m_slotRect.left, (float) m_slotRect.top, (float) slotW, (float) slotH, 0xFF101010);
-    painter.FillRect ((float) m_slotRect.left, (float) m_slotRect.top, (float) slotW, (float) doorH, theme.driveBezelArgb);
-    painter.FillRect ((float) m_ejectRect.left,
-                      (float) m_ejectRect.top,
-                      (float) (m_ejectRect.right - m_ejectRect.left),
-                      (float) (m_ejectRect.bottom - m_ejectRect.top),
-                      0xFF6C604B);
+        FillTrapezoidApprox (painter, frontLeft, frontRight, backLeft, backRight,
+                             frontY, backY, caseColor);
 
-    if (motorOn)
-    {
-        for (int i = 0; i < s_kSpinDotCount; i++)
+        // Back-edge dark line (rear of case top).
+        painter.FillRect (backLeft, backY, backRight - backLeft, 1.0f, backEdge);
+
+        // Front-edge highlight (where case top meets faceplate top).
+        painter.FillRect (frontLeft, frontY - 1.0f, frontRight - frontLeft, 1.0f, caseHilite);
+
+        // Diagonal side highlights -- approximate by drawing a thin
+        // line along each slanted edge using small stair-step rects.
         {
-            float  angle = ((float) (i + visual.frameIndex) * 6.2831853f) / (float) s_kSpinDotCount;
-            float  cx    = (float) (m_bodyRect.left + bodyW / 2) + cosf (angle) * (float) s_kSpinRadiusPx;
-            float  cy    = (float) (m_bodyRect.top + bodyH / 2) + sinf (angle) * (float) s_kSpinRadiusPx;
-            painter.FillRect (cx, cy, 4.0f, 4.0f, 0xAA202020);
+            int    edgeH = (int) (frontY - backY);
+            int    i     = 0;
+            float  denom = (float) ((edgeH > 1) ? (edgeH - 1) : 1);
+
+            for (i = 0; i < edgeH; i++)
+            {
+                float  t       = (float) i / denom;
+                float  leftEdge  = frontLeft  + (backLeft  - frontLeft)  * t;
+                float  rightEdge = frontRight + (backRight - frontRight) * t;
+                float  y         = frontY - 1.0f - (float) i;
+
+                painter.FillRect (leftEdge,           y, 1.0f, 1.0f, caseShade);
+                painter.FillRect (rightEdge - 1.0f,   y, 1.0f, 1.0f, caseShade);
+            }
+        }
+
+        // Two horizontal ridge lines suggesting the Disk II top-panel
+        // divisions, drawn in perspective so they taper with the top.
+        for (int i = 1; i <= s_kRidgeCountPx; i++)
+        {
+            float  depthT = (float) i / (float) (s_kRidgeCountPx + 1);
+            DrawCaseRidge (painter, frontLeft, frontRight, backLeft, backRight,
+                           frontY, backY, depthT, caseShade);
         }
     }
 
-    m_led.Paint (painter, theme);
+    // Black faceplate (the "front") spans full body width.
+    painter.FillRect ((float) m_faceRect.left, (float) m_faceRect.top, (float) faceW, (float) faceH, theme.driveBodyArgb);
 
+    // Slot.
+    painter.FillRect ((float) m_slotRect.left, (float) m_slotRect.top, (float) slotW, (float) slotH, theme.driveBezelArgb);
+
+    // Door tab vertical position.
+    {
+        int64_t  elapsed  = visual.nowMs - m_state.animationStartTimeMs;
+        float    progress = Clamp01 ((float) elapsed / (float) DriveWidgetState::kDoorAnimationMs);
+
+        if (m_state.doorState == DriveWidgetState::Door::Open)
+        {
+            doorOffset = 1.0f;
+        }
+        else if (m_state.doorState == DriveWidgetState::Door::Opening)
+        {
+            doorOffset = progress;
+        }
+        else if (m_state.doorState == DriveWidgetState::Door::Closing)
+        {
+            doorOffset = 1.0f - progress;
+        }
+    }
+
+    {
+        float  doorY     = (float) m_ejectRect.top - doorOffset * (float) doorTravel;
+        float  doorLeft  = (float) m_ejectRect.left;
+        float  notchLeft = doorLeft + (float) (doorW - notchW) / 2.0f;
+        float  notchTop  = doorY + (float) doorH;
+
+        painter.FillRect (doorLeft, doorY, (float) doorW, (float) doorH, 0xFF1F1F1F);
+        painter.OutlineRect (doorLeft, doorY, (float) doorW, (float) doorH, 1.0f, 0xFF000000);
+
+        // Finger notch: small darker rectangle below the door tab.
+        painter.FillRect (notchLeft, notchTop, (float) notchW, (float) notchH, theme.driveBezelArgb);
+    }
+
+    // "DRIVE N" upper-left of faceplate.
     swprintf_s (label, L"DRIVE %d", m_drive + 1);
     IGNORE_RETURN_VALUE (hr, text.DrawString (label,
-                                              (float) (m_bodyRect.left + s_kLabelPadPx),
-                                              (float) (m_bodyRect.bottom - s_kLabelPadPx - 22),
-                                              (float) bodyW,
-                                              20.0f,
+                                              (float) (m_faceRect.left + labelPad),
+                                              (float) (m_faceRect.top + labelPad - 2),
+                                              (float) (faceW - 2 * labelPad),
+                                              labelFontDip + 4.0f,
                                               theme.driveLabelArgb,
                                               labelFontDip,
                                               s_kFontFamily));
+
+    // "IN USE >" label bottom-left of faceplate, LED to its right.
+    IGNORE_RETURN_VALUE (hr, text.DrawString (L"IN USE \u25B6",
+                                              (float) (m_faceRect.left + labelPad),
+                                              (float) (m_led.GetLayout().coreRect.top - 3),
+                                              (float) inUseW,
+                                              inUseFontDip + 4.0f,
+                                              theme.driveLabelArgb,
+                                              inUseFontDip,
+                                              s_kFontFamily));
+
+    UNREFERENCED_PARAMETER (bodyW);
+    m_led.Paint (painter, theme);
+
+    // Cassowary rainbow logo, bottom-right of faceplate (where the
+    // Apple logo lives on the real Disk II). Silhouette is left-facing
+    // so the bird "watches" the drive slot.
+    {
+        int    iconW   = Scale (s_kCassowaryWidthPx,  dpi);
+        int    iconH   = Scale (s_kCassowaryHeightPx, dpi);
+        int    marginX = Scale (s_kCassowaryMarginPx, dpi);
+        int    marginY = Scale (s_kCassowaryMarginPx, dpi);
+        float  iconX   = (float) (m_faceRect.right  - iconW - marginX);
+        float  iconY   = (float) (m_faceRect.bottom - iconH - marginY);
+
+        DrawCassowaryRainbow (painter, iconX, iconY, (float) iconW, (float) iconH);
+    }
 }
 
 

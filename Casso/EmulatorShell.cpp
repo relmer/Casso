@@ -119,7 +119,18 @@ namespace
 
         for (i = 0; i < driveChrome.size(); i++)
         {
-            driveChrome[i].Layout (x + static_cast<int> (i) * (widgetW + gap), y, dpi);
+            int  widgetX       = x + static_cast<int> (i) * (widgetW + gap);
+            int  widgetCenterX = widgetX + widgetW / 2;
+            int  vanishingX    = clientW / 2;
+            // Shrink factor matches the case-top depth ratio (back
+            // edge is ~20% narrower than the front, so back center
+            // shifts ~20% of the way toward the shared vanishing
+            // point). Numerator chosen to match s_kCaseBackInsetPx
+            // ratio in DriveWidget.cpp.
+            int  skewPx        = MulDiv (vanishingX - widgetCenterX, 27, 100);
+
+            driveChrome[i].SetPerspectiveSkewPx (skewPx);
+            driveChrome[i].Layout (widgetX, y, dpi);
         }
     }
 

@@ -31,6 +31,7 @@ public:
 
     void               Initialize      (int slot, int drive, IDriveCommandSink * pSink);
     void               Layout          (int x, int y, UINT dpi);
+    void               SetPerspectiveSkewPx (int skewPx) { m_perspectiveSkewPx = skewPx; }
     void               SyncFromState   (const DriveWidgetState & state);
     void               Paint           (DxUiPainter & painter,
                                          DwriteTextRenderer & text,
@@ -48,8 +49,10 @@ private:
     int                 m_drive     = 0;
     IDriveCommandSink * m_sink      = nullptr;
     RECT                m_bodyRect  = {};
+    RECT                m_faceRect  = {};
     RECT                m_slotRect  = {};
     RECT                m_ejectRect = {};
     LedIndicator        m_led;
     DriveWidgetState    m_state;
+    int                 m_perspectiveSkewPx = 0;
 };

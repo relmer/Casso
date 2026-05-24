@@ -26,6 +26,8 @@ public:
         eject = drive.EjectRect();
 
         Assert::IsTrue (drive.HitTest ((body.left + body.right) / 2,
+                                       body.top + 5) == DriveWidgetRegion::Body);
+        Assert::IsTrue (drive.HitTest (eject.right + 1,
                                        (body.top + body.bottom) / 2) == DriveWidgetRegion::Body);
         Assert::IsTrue (drive.HitTest ((eject.left + eject.right) / 2,
                                        (eject.top + eject.bottom) / 2) == DriveWidgetRegion::Eject);

@@ -9,8 +9,26 @@
 namespace
 {
     constexpr int  s_kBaseDpi       = 96;
-    constexpr int  s_kCorePx        = 12;
-    constexpr int  s_kHaloPaddingPx = 4;
+    constexpr int  s_kCorePx        = 7;
+    constexpr int  s_kHaloPaddingPx = 2;
+
+
+    void FillCircleApproxLocal (DxUiPainter & painter, float cx, float cy, float r, uint32_t argb)
+    {
+        constexpr int  kSlices = 10;
+
+        for (int i = 0; i < kSlices; i++)
+        {
+            float  y0   = cy - r + (2.0f * r * (float) i)       / (float) kSlices;
+            float  y1   = cy - r + (2.0f * r * (float) (i + 1)) / (float) kSlices;
+            float  ymid = (y0 + y1) * 0.5f;
+            float  dy   = ymid - cy;
+            float  sq   = r * r - dy * dy;
+            float  half = (sq > 0.0f) ? sqrtf (sq) : 0.0f;
+
+            painter.FillRect (cx - half, y0, 2.0f * half, y1 - y0, argb);
+        }
+    }
 }
 
 
@@ -105,21 +123,17 @@ uint32_t LedIndicator::HaloArgb (const ChromeTheme & theme) const
 void LedIndicator::Paint (DxUiPainter & painter, const ChromeTheme & theme) const
 {
     uint32_t  halo = HaloArgb (theme);
+    float     cx   = (float) (m_layout.coreRect.left + m_layout.coreRect.right) * 0.5f;
+    float     cy   = (float) (m_layout.coreRect.top  + m_layout.coreRect.bottom) * 0.5f;
+    float     coreR = (float) (m_layout.coreRect.right - m_layout.coreRect.left) * 0.5f;
+    float     haloR = (float) (m_layout.haloRect.right - m_layout.haloRect.left) * 0.5f;
 
 
 
     if (halo != 0)
     {
-        painter.FillRect ((float) m_layout.haloRect.left,
-                          (float) m_layout.haloRect.top,
-                          (float) (m_layout.haloRect.right - m_layout.haloRect.left),
-                          (float) (m_layout.haloRect.bottom - m_layout.haloRect.top),
-                          halo);
+        FillCircleApproxLocal (painter, cx, cy, haloR, halo);
     }
 
-    painter.FillRect ((float) m_layout.coreRect.left,
-                      (float) m_layout.coreRect.top,
-                      (float) (m_layout.coreRect.right - m_layout.coreRect.left),
-                      (float) (m_layout.coreRect.bottom - m_layout.coreRect.top),
-                      CoreArgb (theme));
+    FillCircleApproxLocal (painter, cx, cy, coreR, CoreArgb (theme));
 }

@@ -25,7 +25,7 @@ namespace ChromeMetrics
     constexpr int  kBaseDpi              = 96;
     constexpr int  kTitleBarHeightDp     = 32;
     constexpr int  kNavStripHeightDp     = 32;
-    constexpr int  kCommandBarHeightDp   = 56;
+    constexpr int  kCommandBarHeightDp   = 192;
 
 
     inline int  ScaleForDpi (int dp, UINT dpi)
