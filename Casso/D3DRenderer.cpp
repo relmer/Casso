@@ -36,18 +36,21 @@ struct Vertex
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr wchar_t  s_kpszSmokeDumpEnv[]   = L"CASSO_SMOKE_DUMP_DIR";
+static constexpr UINT64   s_kSmokeFrameStartup   = 60;
+static constexpr UINT64   s_kSmokeFrameSettings  = 240;
+static constexpr DWORD    s_kBmpHeaderSize       = sizeof (BITMAPFILEHEADER) + sizeof (BITMAPINFOHEADER);
+static constexpr WORD     s_kBmpMagic            = 0x4D42;
+static constexpr WORD     s_kBmpPlanes           = 1;
+static constexpr WORD     s_kBmpBitsPerPixel     = 32;
+static constexpr UINT     s_kMaxBoundPsSrvSlots  = 2;
+
+
+
+
+
 namespace
 {
-    static constexpr wchar_t  s_kpszSmokeDumpEnv[]   = L"CASSO_SMOKE_DUMP_DIR";
-    static constexpr UINT64   s_kSmokeFrameStartup   = 60;
-    static constexpr UINT64   s_kSmokeFrameSettings  = 240;
-    static constexpr DWORD    s_kBmpHeaderSize       = sizeof (BITMAPFILEHEADER) + sizeof (BITMAPINFOHEADER);
-    static constexpr WORD     s_kBmpMagic            = 0x4D42;
-    static constexpr WORD     s_kBmpPlanes           = 1;
-    static constexpr WORD     s_kBmpBitsPerPixel     = 32;
-    static constexpr UINT     s_kMaxBoundPsSrvSlots  = 2;
-
-
     HRESULT DumpBackBufferBmp (
         ID3D11Device        * device,
         ID3D11DeviceContext * context,
