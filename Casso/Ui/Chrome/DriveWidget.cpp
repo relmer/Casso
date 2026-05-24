@@ -148,14 +148,16 @@ void DriveWidget::Paint (
     const ChromeVisualState   & visual,
     const ChromeTheme         & theme)
 {
-    HRESULT  hr       = S_OK;
-    int      bodyW    = m_bodyRect.right - m_bodyRect.left;
-    int      bodyH    = m_bodyRect.bottom - m_bodyRect.top;
-    int      slotW    = m_slotRect.right - m_slotRect.left;
-    int      slotH    = m_slotRect.bottom - m_slotRect.top;
-    int      doorH    = slotH;
-    bool     motorOn  = m_state.motorOn.load (std::memory_order_relaxed);
-    wchar_t  label[32] = {};
+    HRESULT  hr           = S_OK;
+    int      bodyW        = m_bodyRect.right - m_bodyRect.left;
+    int      bodyH        = m_bodyRect.bottom - m_bodyRect.top;
+    int      slotW        = m_slotRect.right - m_slotRect.left;
+    int      slotH        = m_slotRect.bottom - m_slotRect.top;
+    int      doorH        = slotH;
+    bool     motorOn      = m_state.motorOn.load (std::memory_order_relaxed);
+    wchar_t  label[32]    = {};
+    UINT     dpi          = (visual.dpi == 0) ? (UINT) s_kBaseDpi : visual.dpi;
+    float    labelFontDip = s_kLabelFontDip * (float) dpi / (float) s_kBaseDpi;
 
 
 
@@ -195,7 +197,7 @@ void DriveWidget::Paint (
                                               (float) bodyW,
                                               20.0f,
                                               theme.driveLabelArgb,
-                                              s_kLabelFontDip,
+                                              labelFontDip,
                                               s_kFontFamily));
 }
 

@@ -33,9 +33,11 @@ namespace
                       const RECT              & rect,
                       const wchar_t           * glyph,
                       uint32_t                  fillArgb,
-                      uint32_t                  textArgb)
+                      uint32_t                  textArgb,
+                      UINT                      dpi)
     {
-        HRESULT  hr = S_OK;
+        HRESULT  hr             = S_OK;
+        float    glyphFontDip   = 11.0f * (float) dpi / (float) s_kBaseDpi;
 
 
 
@@ -50,7 +52,7 @@ namespace
                                                   (float) (rect.right - rect.left),
                                                   (float) (rect.bottom - rect.top),
                                                   textArgb,
-                                                  11.0f,
+                                                  glyphFontDip,
                                                   s_kMdl2Family,
                                                   DwriteTextRenderer::HAlign::Center,
                                                   DwriteTextRenderer::VAlign::Center));
@@ -316,7 +318,7 @@ ChromeButtonVisual TitleBar::ButtonVisual (SystemButton which) const
 void TitleBar::Paint (
     DxUiPainter             & painter,
     DwriteTextRenderer      & text,
-    const ChromeVisualState & /*visual*/,
+    const ChromeVisualState & visual,
     const ChromeTheme       & theme)
 {
     HRESULT                    hr            = S_OK;
@@ -329,6 +331,8 @@ void TitleBar::Paint (
     uint32_t                   closeColor    = 0;
     uint32_t                   glyphArgb     = sys.CaptionButtonForegroundArgb();
     uint32_t                   closeGlyph    = glyphArgb;
+    UINT                       dpi           = (visual.dpi == 0) ? s_kBaseDpi : visual.dpi;
+    float                      titleFontDip  = s_kTitleFontDip * (float) dpi / (float) s_kBaseDpi;
 
 
 
@@ -361,13 +365,13 @@ void TitleBar::Paint (
                                               160.0f,
                                               (float) (m_layout.titleBar.bottom - m_layout.titleBar.top),
                                               glyphArgb,
-                                              s_kTitleFontDip,
+                                              titleFontDip,
                                               TitleBarLayout::WindowsUiFontFamily(),
                                               DwriteTextRenderer::HAlign::Left,
                                               DwriteTextRenderer::VAlign::Center));
-    PaintButton (painter, text, m_layout.minButton,   s_kMinGlyph,   minColor,   glyphArgb);
-    PaintButton (painter, text, m_layout.maxButton,   s_kMaxGlyph,   maxColor,   glyphArgb);
-    PaintButton (painter, text, m_layout.closeButton, s_kCloseGlyph, closeColor, closeGlyph);
+    PaintButton (painter, text, m_layout.minButton,   s_kMinGlyph,   minColor,   glyphArgb,  dpi);
+    PaintButton (painter, text, m_layout.maxButton,   s_kMaxGlyph,   maxColor,   glyphArgb,  dpi);
+    PaintButton (painter, text, m_layout.closeButton, s_kCloseGlyph, closeColor, closeGlyph, dpi);
 }
 
 

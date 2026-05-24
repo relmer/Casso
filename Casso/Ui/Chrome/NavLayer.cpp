@@ -238,10 +238,12 @@ void NavLayer::Dispatch (WORD commandId) const
 
 void NavLayer::Layout (int x, int y, int width, UINT dpi, DwriteTextRenderer * pTextForMeasure)
 {
-    int  currentX = x;
-    int  pad      = Scale (s_kMenuPadXPx, dpi);
-    int  gap      = Scale (s_kMenuGapPx,  dpi);
-    int  height   = Scale (s_kNavHeightPx, dpi);
+    int    currentX = x;
+    int    pad      = Scale (s_kMenuPadXPx, dpi);
+    int    gap      = Scale (s_kMenuGapPx,  dpi);
+    int    height   = Scale (s_kNavHeightPx, dpi);
+    UINT   eDpi     = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
+    float  fontDip  = s_kFontDip * (float) eDpi / (float) s_kBaseDpi;
 
 
 
@@ -261,7 +263,7 @@ void NavLayer::Layout (int x, int y, int width, UINT dpi, DwriteTextRenderer * p
 
         if (pTextForMeasure != nullptr)
         {
-            hrMeasure = pTextForMeasure->MeasureString (name, s_kFontDip, s_kFontFamily, textWidth, textHt);
+            hrMeasure = pTextForMeasure->MeasureString (name, fontDip, s_kFontFamily, textWidth, textHt);
         }
 
         if (SUCCEEDED (hrMeasure) && textWidth > 0.0f)
@@ -523,10 +525,12 @@ bool NavLayer::HandleMouseUp (int x, int y)
 void NavLayer::PaintStrip (
     DxUiPainter             & painter,
     DwriteTextRenderer      & text,
-    const ChromeVisualState & /*visual*/,
+    const ChromeVisualState & visual,
     const ChromeTheme       & theme)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr           = S_OK;
+    UINT     dpi          = (visual.dpi == 0) ? (UINT) s_kBaseDpi : visual.dpi;
+    float    fontDip      = s_kFontDip * (float) dpi / (float) s_kBaseDpi;
 
 
 
@@ -553,7 +557,7 @@ void NavLayer::PaintStrip (
                                                   (float) (m_menuRects[i].right - m_menuRects[i].left),
                                                   (float) (m_menuRects[i].bottom - m_menuRects[i].top),
                                                   theme.navItemTextArgb,
-                                                  s_kFontDip,
+                                                  fontDip,
                                                   s_kFontFamily,
                                                   DwriteTextRenderer::HAlign::Center,
                                                   DwriteTextRenderer::VAlign::Center));
@@ -572,12 +576,14 @@ void NavLayer::PaintStrip (
 void NavLayer::PaintDropdown (
     DxUiPainter             & painter,
     DwriteTextRenderer      & text,
-    const ChromeVisualState & /*visual*/,
+    const ChromeVisualState & visual,
     const ChromeTheme       & theme)
 {
-    HRESULT  hr   = S_OK;
-    RECT     rect = DropdownRect();
-    int      row  = 0;
+    HRESULT  hr      = S_OK;
+    RECT     rect    = DropdownRect();
+    int      row     = 0;
+    UINT     dpi     = (visual.dpi == 0) ? (UINT) s_kBaseDpi : visual.dpi;
+    float    fontDip = s_kFontDip * (float) dpi / (float) s_kBaseDpi;
 
 
 
@@ -620,7 +626,7 @@ void NavLayer::PaintDropdown (
                                                   (float) s_kAccelOffsetPx,
                                                   (float) m_rowHeightPx,
                                                   theme.dropdownItemTextArgb,
-                                                  s_kFontDip,
+                                                  fontDip,
                                                   s_kFontFamily));
         if (entry.accelerator != nullptr)
         {
@@ -630,7 +636,7 @@ void NavLayer::PaintDropdown (
                                                       (float) (rect.right - rect.left - s_kAccelOffsetPx),
                                                       (float) m_rowHeightPx,
                                                       theme.dropdownAccelArgb,
-                                                      s_kFontDip,
+                                                      fontDip,
                                                       s_kFontFamily));
         }
         row++;
