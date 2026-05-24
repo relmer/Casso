@@ -397,7 +397,7 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
     scd.SampleDesc.Count = 1;
     scd.BufferUsage      = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     scd.BufferCount      = s_kFlipModelBufferCount;
-    scd.Scaling          = DXGI_SCALING_NONE;
+    scd.Scaling          = DXGI_SCALING_STRETCH;
     scd.SwapEffect       = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     scd.AlphaMode        = DXGI_ALPHA_MODE_IGNORE;
     scd.Flags            = 0;
