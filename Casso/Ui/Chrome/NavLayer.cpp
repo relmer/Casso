@@ -12,7 +12,6 @@ namespace
 {
     constexpr int       s_kBaseDpi        = 96;
     constexpr int       s_kNavHeightPx    = 32;
-    constexpr int       s_kLeadingGapPx   = 10;
     constexpr int       s_kMenuPadXPx     = 12;
     constexpr int       s_kMenuGapPx      = 4;
     constexpr int       s_kRowHeightPx    = 26;
@@ -239,7 +238,7 @@ void NavLayer::Dispatch (WORD commandId) const
 
 void NavLayer::Layout (int x, int y, int width, UINT dpi, DwriteTextRenderer * pTextForMeasure)
 {
-    int  currentX = x + Scale (s_kLeadingGapPx, dpi);
+    int  currentX = x;
     int  pad      = Scale (s_kMenuPadXPx, dpi);
     int  gap      = Scale (s_kMenuGapPx,  dpi);
     int  height   = Scale (s_kNavHeightPx, dpi);

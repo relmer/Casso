@@ -17,6 +17,7 @@
 #include <uxtheme.h>
 #include <wincodec.h>
 #include <dwrite_3.h>
+#include <shellscalingapi.h>
 #include <d2d1_3.h>
 #include <d2d1helper.h>
 #include <dxgi1_2.h>

@@ -36,6 +36,7 @@
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "shell32.lib")
+#pragma comment(lib, "shcore.lib")
 
 // Embed Common Controls v6 dependency in the binary's activation
 // context. Without this, SetWindowSubclass / TOOLINFO / and a host
@@ -61,7 +62,6 @@ static constexpr int     kFramebufferWidth       = 560;
 static constexpr int     kFramebufferHeight      = 384;
 static constexpr LPCWSTR kWindowClass           = L"CassoWindow";
 static constexpr int     s_kBaseDpi             = 96;
-static constexpr int     s_kScaleRoundHalfDpi   = 48;
 static constexpr int     s_kNavStripHeightDp    = 32;
 static constexpr int     s_kCommandBarHeightDp  = 56;
 static constexpr int     s_kDriveWidgetGapDp    = 16;
@@ -529,7 +529,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 {
     HRESULT   hr          = S_OK;
     UINT      dpi         = 0;
-    int       scale       = 0;
     int       clientW     = 0;
     int       clientH     = 0;
     RECT      rc          = {};
@@ -551,16 +550,20 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     hr = Window::Initialize (hInstance);
     CHR (hr);
 
-    // Calculate window size for desired client area, scaled for DPI
-    dpi   = GetDpiForSystem();
-    scale = (dpi + s_kScaleRoundHalfDpi) / s_kBaseDpi;
-    if (scale < 1)
-    {
-        scale = 1;
-    }
+    // Calculate window size for desired client area. Per-monitor DPI
+    // v2 (enabled at process start in wWinMain) makes Windows scale
+    // the requested CreateWindowEx size by the destination monitor's
+    // DPI / 96 ratio at window-creation time -- so we pass logical
+    // (96-DPI) dimensions here and let the OS apply the per-monitor
+    // scale itself. Pre-scaling here would be a double-scale.
+    dpi     = s_kBaseDpi;
+    clientW = kFramebufferWidth;
+    clientH = kFramebufferHeight + ComputeChromeTopInsetPx (dpi) + ComputeChromeBottomInsetPx (dpi);
 
-    clientW = kFramebufferWidth * scale;
-    clientH = kFramebufferHeight * scale + ComputeChromeTopInsetPx (dpi) + ComputeChromeBottomInsetPx (dpi);
+    // Note: when GetDpiForMonitor reports the destination monitor's
+    // DPI as different from the primary monitor's, Windows will fire
+    // WM_DPICHANGED right after creation and our OnSize handler will
+    // re-layout the chrome against the actual DPI.
 
     rc    = { 0, 0, clientW, clientH };
     // Custom-chrome recipe modeled on microsoft/terminal's
