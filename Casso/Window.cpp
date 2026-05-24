@@ -289,38 +289,39 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
 
         case WM_NCLBUTTONDOWN:
         {
-            POINT  ptScreen  = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
-            POINT  ptClient  = ptScreen;
+            POINT  ptScreen = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+            POINT  ptClient = ptScreen;
 
 
             ScreenToClient (hwnd, &ptClient);
 
-            // Drive caption-button pressed state through the same
-            // OnLButtonDown path the client area uses. The buttons
-            // live in the non-client area when the chrome returns
-            // HTMINBUTTON/HTMAXBUTTON/HTCLOSE, but their visual
-            // hover/press cycle is owned by the chrome painter, so
-            // we forward the event with client-relative coordinates.
-            (void) pThis->OnLButtonDown (MK_LBUTTON,
-                                         MAKELPARAM (ptClient.x, ptClient.y));
+            // Record the press for caption-button hover/press visuals
+            // (the painter polls this through OnMouseMove). Critically,
+            // we do NOT consume the message: DefWindowProc owns the
+            // modal NC loop that implements drag-to-move, resize-from-
+            // edge, and the system click semantics for HTMINBUTTON /
+            // HTMAXBUTTON / HTCLOSE. Swallowing it broke all three.
+            (void) pThis->OnMouseMove (MK_LBUTTON,
+                                       MAKELPARAM (ptClient.x, ptClient.y));
             callDefWndProc = true;
             break;
         }
 
         case WM_NCLBUTTONUP:
         {
-            POINT  ptScreen   = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
-            POINT  ptClient   = ptScreen;
-            bool   consumed   = false;
+            POINT  ptScreen = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+            POINT  ptClient = ptScreen;
+            bool   consumed = false;
 
 
             ScreenToClient (hwnd, &ptClient);
 
-            // Update the released visual state before the click is
-            // dispatched so a successful close/min/max paint flips
-            // the button back to idle on the next frame.
-            (void) pThis->OnLButtonUp (0,
-                                       MAKELPARAM (ptClient.x, ptClient.y));
+            // Clear the press visual then dispatch through the existing
+            // chrome path. OnNcLButtonUp returns true for HTCLOSE /
+            // HTMINBUTTON / HTMAXBUTTON; for any other hit we fall
+            // through so DefWindowProc can finish its NC loop work
+            // (drag, resize, system-menu, etc).
+            (void) pThis->OnMouseMove (0, MAKELPARAM (ptClient.x, ptClient.y));
 
             consumed = pThis->OnNcLButtonUp (hwnd,
                                               (LRESULT) wParam,
@@ -339,14 +340,15 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
         {
             POINT  ptScreen = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
             POINT  ptClient = ptScreen;
+            WPARAM mouseFlags = (GetKeyState (VK_LBUTTON) & 0x8000) ? MK_LBUTTON : 0;
 
 
             ScreenToClient (hwnd, &ptClient);
 
-            // Hover tracking for the custom caption buttons. Without
-            // this the chrome only ever sees client-area mouse moves
-            // (WM_MOUSEMOVE), so caption-button hover never lights up.
-            (void) pThis->OnMouseMove (0, MAKELPARAM (ptClient.x, ptClient.y));
+            // Hover/press tracking for the custom caption buttons.
+            // The painter inspects the left-button bit in wParam to
+            // decide between Hover and Pressed visual states.
+            (void) pThis->OnMouseMove (mouseFlags, MAKELPARAM (ptClient.x, ptClient.y));
             callDefWndProc = true;
             break;
         }
