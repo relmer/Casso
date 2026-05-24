@@ -45,6 +45,70 @@ static constexpr WORD     s_kBmpMagic            = 0x4D42;
 static constexpr WORD     s_kBmpPlanes           = 1;
 static constexpr WORD     s_kBmpBitsPerPixel     = 32;
 static constexpr UINT     s_kMaxBoundPsSrvSlots  = 2;
+// Floor for the flip-model back buffer's allocated size. Picked so the
+// back buffer is large enough for typical monitor configurations on a
+// fresh launch -- this lets SetSourceSize handle every reasonable
+// resize without ever invoking ResizeBuffers on the hot drag path.
+// Memory cost: 4096 * 4096 * 4 bytes * 2 buffers ~= 134 MB. Acceptable
+// for the modern GPUs Casso targets, and the cost of NOT paying it is
+// the driver-side crash that prompted the flip-model migration.
+static constexpr int      s_kMinPhysicalBackBuffer = 4096;
+// BufferCount for the flip-model swap chain. Flip-discard requires at
+// least 2; we don't need triple-buffering.
+static constexpr UINT     s_kFlipModelBufferCount  = 2;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChooseInitialPhysicalBackBufferSize
+//
+//  Walks every attached display and returns the max pixel dimensions
+//  observed (clamped to at least s_kMinPhysicalBackBuffer). The flip-
+//  model swap chain is allocated at this size and SetSourceSize then
+//  hands DWM the (logical) sub-rect we actually want presented, so a
+//  drag-stress resize loop touches no GPU allocations at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static BOOL CALLBACK MaxMonitorEnumProc (HMONITOR hMonitor, HDC, LPRECT, LPARAM lParam)
+{
+    SIZE        * pMax  = reinterpret_cast<SIZE *> (lParam);
+    MONITORINFO   mi    = { sizeof (mi) };
+    BOOL          ok    = FALSE;
+    LONG          monW  = 0;
+    LONG          monH  = 0;
+
+    ok = GetMonitorInfoW (hMonitor, &mi);
+    if (ok)
+    {
+        monW = mi.rcMonitor.right  - mi.rcMonitor.left;
+        monH = mi.rcMonitor.bottom - mi.rcMonitor.top;
+        pMax->cx = std::max<LONG> (pMax->cx, monW);
+        pMax->cy = std::max<LONG> (pMax->cy, monH);
+    }
+    return TRUE;
+}
+
+
+
+
+
+static SIZE ChooseInitialPhysicalBackBufferSize (int initialClientW, int initialClientH)
+{
+    SIZE  monMax = { 0, 0 };
+    SIZE  result = { s_kMinPhysicalBackBuffer, s_kMinPhysicalBackBuffer };
+
+    EnumDisplayMonitors (nullptr, nullptr, MaxMonitorEnumProc, reinterpret_cast<LPARAM> (&monMax));
+
+    result.cx = std::max<LONG> (result.cx, monMax.cx);
+    result.cy = std::max<LONG> (result.cy, monMax.cy);
+    result.cx = std::max<LONG> (result.cx, initialClientW);
+    result.cy = std::max<LONG> (result.cy, initialClientH);
+    return result;
+}
 
 
 
@@ -54,7 +118,9 @@ static HRESULT DumpBackBufferBmp (
     ID3D11Device        * device,
     ID3D11DeviceContext * context,
     IDXGISwapChain      * swapChain,
-    UINT64                frameIndex)
+    UINT64                frameIndex,
+    UINT                  logicalW,
+    UINT                  logicalH)
 {
     HRESULT                   hr                = S_OK;
     wchar_t                   dumpDir[MAX_PATH] = {};
@@ -68,6 +134,8 @@ static HRESULT DumpBackBufferBmp (
     BITMAPFILEHEADER          fileHeader        = {};
     BITMAPINFOHEADER          infoHeader        = {};
     LONG                      y                 = 0;
+    UINT                      dumpW             = 0;
+    UINT                      dumpH             = 0;
 
 
 
@@ -98,24 +166,32 @@ static HRESULT DumpBackBufferBmp (
     out.open (outPath, std::ios::binary | std::ios::trunc);
     CBR (out.good());
 
+    // Under the flip-model swap chain the back buffer is sized to the
+    // physical max (often much larger than the visible area). Only the
+    // top-left logicalW x logicalH region holds meaningful pixels; the
+    // rest is undefined. Dump only the logical sub-rect so the smoke
+    // image matches what the user actually sees on screen.
+    dumpW = (logicalW > 0 && logicalW <= desc.Width)  ? logicalW : desc.Width;
+    dumpH = (logicalH > 0 && logicalH <= desc.Height) ? logicalH : desc.Height;
+
     fileHeader.bfType    = s_kBmpMagic;
     fileHeader.bfOffBits = s_kBmpHeaderSize;
-    fileHeader.bfSize    = s_kBmpHeaderSize + desc.Width * desc.Height * sizeof (uint32_t);
+    fileHeader.bfSize    = s_kBmpHeaderSize + dumpW * dumpH * sizeof (uint32_t);
 
     infoHeader.biSize        = sizeof (BITMAPINFOHEADER);
-    infoHeader.biWidth       = static_cast<LONG> (desc.Width);
-    infoHeader.biHeight      = -static_cast<LONG> (desc.Height);
+    infoHeader.biWidth       = static_cast<LONG> (dumpW);
+    infoHeader.biHeight      = -static_cast<LONG> (dumpH);
     infoHeader.biPlanes      = s_kBmpPlanes;
     infoHeader.biBitCount    = s_kBmpBitsPerPixel;
     infoHeader.biCompression = BI_RGB;
-    infoHeader.biSizeImage   = desc.Width * desc.Height * sizeof (uint32_t);
+    infoHeader.biSizeImage   = dumpW * dumpH * sizeof (uint32_t);
 
     out.write (reinterpret_cast<const char *> (&fileHeader), sizeof (fileHeader));
     out.write (reinterpret_cast<const char *> (&infoHeader), sizeof (infoHeader));
-    for (y = 0; y < static_cast<LONG> (desc.Height); y++)
+    for (y = 0; y < static_cast<LONG> (dumpH); y++)
     {
         const char * row = reinterpret_cast<const char *> (static_cast<const Byte *> (mapped.pData) + mapped.RowPitch * y);
-        out.write (row, desc.Width * sizeof (uint32_t));
+        out.write (row, dumpW * sizeof (uint32_t));
     }
 
 Error:
@@ -168,10 +244,14 @@ D3DRenderer::~D3DRenderer()
 HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
 {
     HRESULT                    hr                  = S_OK;
-    DXGI_SWAP_CHAIN_DESC       scd                 = {};
+    DXGI_SWAP_CHAIN_DESC1      scd                 = {};
     UINT                       createFlags         = 0;
     D3D_FEATURE_LEVEL          featureLevel;
     ComPtr<ID3D11Texture2D>    backBuffer;
+    ComPtr<IDXGIDevice>        dxgiDevice;
+    ComPtr<IDXGIAdapter>       dxgiAdapter;
+    ComPtr<IDXGIFactory2>      dxgiFactory;
+    ComPtr<IDXGISwapChain1>    swapChain1;
     D3D11_VIEWPORT             vp                  = {};
     D3D11_TEXTURE2D_DESC       td                  = {};
     D3D11_SAMPLER_DESC         sd                  = {};
@@ -179,6 +259,7 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
     D3D11_SUBRESOURCE_DATA     initData            = {};
     int                        initialBackBufferW  = texWidth;
     int                        initialBackBufferH  = texHeight;
+    SIZE                       physicalSize        = {};
 
     Vertex vertices[] =
     {
@@ -210,20 +291,15 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
         }
     }
 
-    // Create device and swap chain
-    scd.BufferCount                        = 1;
-    scd.BufferDesc.Width                   = static_cast<UINT> (initialBackBufferW);
-    scd.BufferDesc.Height                  = static_cast<UINT> (initialBackBufferH);
-    // BGRA matches Video/PixelFormat.h byte order (B in byte 0); using
-    // R8G8B8A8 instead would force every Windows pixel-export path
-    // (CF_DIB clipboard, BMP, WIC) to swizzle R/B on the way out.
-    scd.BufferDesc.Format                  = DXGI_FORMAT_B8G8R8A8_UNORM;
-    scd.BufferDesc.RefreshRate.Numerator   = 60;
-    scd.BufferDesc.RefreshRate.Denominator = 1;
-    scd.BufferUsage                        = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    scd.OutputWindow                       = hwnd;
-    scd.SampleDesc.Count                   = 1;
-    scd.Windowed                           = TRUE;
+    // Flip-model swap chain back buffer is allocated at the max of all
+    // attached monitor sizes (clamped up to s_kMinPhysicalBackBuffer)
+    // so SetSourceSize -- not ResizeBuffers -- handles every routine
+    // resize. The driver-internal-error crash that motivated the
+    // flip-model migration was specifically triggered by
+    // ResizeBuffers stress during rapid drag-resize.
+    physicalSize          = ChooseInitialPhysicalBackBufferSize (initialBackBufferW, initialBackBufferH);
+    m_physicalBackBufferW = static_cast<int> (physicalSize.cx);
+    m_physicalBackBufferH = static_cast<int> (physicalSize.cy);
 
 #ifdef _DEBUG
     createFlags |= D3D11_CREATE_DEVICE_DEBUG;
@@ -235,18 +311,16 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
     // by the native UI overlay.
     createFlags |= D3D11_CREATE_DEVICE_BGRA_SUPPORT;
 
-    hr = D3D11CreateDeviceAndSwapChain (nullptr,
-                                        D3D_DRIVER_TYPE_HARDWARE,
-                                        nullptr,
-                                        createFlags,
-                                        nullptr,
-                                        0,
-                                        D3D11_SDK_VERSION,
-                                        &scd,
-                                        &m_swapChain,
-                                        &m_device,
-                                        &featureLevel,
-                                        &m_context);
+    hr = D3D11CreateDevice (nullptr,
+                            D3D_DRIVER_TYPE_HARDWARE,
+                            nullptr,
+                            createFlags,
+                            nullptr,
+                            0,
+                            D3D11_SDK_VERSION,
+                            &m_device,
+                            &featureLevel,
+                            &m_context);
     CHRA (hr);
 
 #ifdef _DEBUG
@@ -300,6 +374,54 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
     }
 #endif
 
+    // Walk device -> IDXGIDevice -> adapter -> parent factory so we
+    // create the swap chain on the same DXGI factory the device is
+    // already associated with (rather than minting an independent
+    // factory via CreateDXGIFactory). This is the pattern Microsoft
+    // documents for D3D11 + flip-model.
+    hr = m_device.As (&dxgiDevice);
+    CHRA (hr);
+    hr = dxgiDevice->GetAdapter (&dxgiAdapter);
+    CHRA (hr);
+    hr = dxgiAdapter->GetParent (IID_PPV_ARGS (&dxgiFactory));
+    CHRA (hr);
+
+    // Flip-discard swap chain. Back buffer stays at physical (max)
+    // size for the lifetime of the renderer; SetSourceSize on Resize
+    // tells DWM what subrect to present. BGRA matches Video/PixelFormat.h
+    // so the framebuffer upload stays a straight memcpy.
+    scd.Width            = static_cast<UINT> (m_physicalBackBufferW);
+    scd.Height           = static_cast<UINT> (m_physicalBackBufferH);
+    scd.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
+    scd.Stereo           = FALSE;
+    scd.SampleDesc.Count = 1;
+    scd.BufferUsage      = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    scd.BufferCount      = s_kFlipModelBufferCount;
+    scd.Scaling          = DXGI_SCALING_NONE;
+    scd.SwapEffect       = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    scd.AlphaMode        = DXGI_ALPHA_MODE_IGNORE;
+    scd.Flags            = 0;
+
+    hr = dxgiFactory->CreateSwapChainForHwnd (m_device.Get(),
+                                              hwnd,
+                                              &scd,
+                                              nullptr,
+                                              nullptr,
+                                              &swapChain1);
+    CHRA (hr);
+
+    // SetSourceSize lives on IDXGISwapChain2 (dxgi1_3). The factory
+    // hands back IDXGISwapChain1; QI up. IDXGISwapChain2 is present
+    // on every Windows 8.1+ system Casso targets.
+    hr = swapChain1.As (&m_swapChain);
+    CHRA (hr);
+
+    // Casso owns Alt+Enter via the menu system's fullscreen toggle;
+    // disable DXGI's default hijacking so it does not punt us into
+    // an exclusive-fullscreen mode behind our back.
+    hr = dxgiFactory->MakeWindowAssociation (hwnd, DXGI_MWA_NO_ALT_ENTER);
+    CHRA (hr);
+
     // Create render target view
     hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
     CHRA (hr);
@@ -308,7 +430,16 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
 
     m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf(), nullptr);
 
-    // Viewport
+    // Tell DWM the initial source sub-rect; without this, the
+    // first Present would scale the whole (oversized) back buffer
+    // into the client area.
+    hr = m_swapChain->SetSourceSize (static_cast<UINT> (initialBackBufferW),
+                                     static_cast<UINT> (initialBackBufferH));
+    CHRA (hr);
+
+    // Viewport spans the logical (presented) sub-rect only. Anything
+    // we render outside this rect would never reach the screen anyway
+    // -- DWM clips to the source size at present time.
     vp.Width    = static_cast<float> (initialBackBufferW);
     vp.Height   = static_cast<float> (initialBackBufferH);
     vp.MaxDepth = 1.0f;
@@ -585,7 +716,12 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
         s_frameIndex++;
         if (s_frameIndex == s_kSmokeFrameStartup || s_frameIndex == s_kSmokeFrameSettings)
         {
-            HRESULT  hrDump = DumpBackBufferBmp (m_device.Get(), m_context.Get(), m_swapChain.Get(), s_frameIndex);
+            HRESULT  hrDump = DumpBackBufferBmp (m_device.Get(),
+                                                 m_context.Get(),
+                                                 m_swapChain.Get(),
+                                                 s_frameIndex,
+                                                 static_cast<UINT> (m_backBufferW),
+                                                 static_cast<UINT> (m_backBufferH));
             IGNORE_RETURN_VALUE (hrDump, S_OK);
         }
     }
@@ -710,6 +846,9 @@ HRESULT D3DRenderer::Resize (int width, int height)
     ComPtr<ID3D11Texture2D>     backBuffer;
     D3D11_VIEWPORT              vp                              = {};
     ID3D11ShaderResourceView *  nullSrvs[s_kMaxBoundPsSrvSlots] = {};
+    int                         newPhysicalW                    = 0;
+    int                         newPhysicalH                    = 0;
+    bool                        needsRealloc                    = false;
 
 
 
@@ -717,75 +856,95 @@ HRESULT D3DRenderer::Resize (int width, int height)
     BAIL_OUT_IF (width <= 0 || height <= 0, S_OK);
     BAIL_OUT_IF (m_deviceRemoved, S_OK);
 
-    // Release the old render target view before resizing. Also unbind
-    // SRVs from the pixel shader -- m_srv (framebuffer upload) and
-    // the CRT's intermediates may still be bound from the previous
-    // UploadAndPresent and the driver retains them until rebind.
-    // Letting them dangle through ResizeBuffers has tripped
-    // DXGI_ERROR_DRIVER_INTERNAL_ERROR on rapid drags.
-    m_context->OMSetRenderTargets   (0, nullptr, nullptr);
-    m_context->PSSetShaderResources (0, s_kMaxBoundPsSrvSlots, nullSrvs);
+    // Hot path: the logical area still fits in the allocated back
+    // buffer. Tell DWM the new source sub-rect, update the viewport,
+    // and we're done -- no GPU allocation, no driver stress, no
+    // resource invalidation. This is the entire point of the
+    // flip-model migration.
+    needsRealloc = (width > m_physicalBackBufferW) || (height > m_physicalBackBufferH);
 
-    if (m_rtv)
+    if (needsRealloc)
     {
-        m_rtv.Reset();
+        // Cold path: window grew past the initial physical allocation
+        // (e.g., user dragged it onto a larger monitor than we sized
+        // for at startup). Grow the back buffer once, then return to
+        // the SetSourceSize hot path. Headroom plus the monitor max
+        // keeps subsequent edge-of-monitor drags off this branch.
+        newPhysicalW = std::max (width,  m_physicalBackBufferW);
+        newPhysicalH = std::max (height, m_physicalBackBufferH);
+
+        // Unbind SRVs from the pixel shader -- m_srv (framebuffer
+        // upload) and the CRT's intermediates may still be bound from
+        // the previous UploadAndPresent and the driver retains them
+        // until rebind. Letting them dangle through ResizeBuffers has
+        // tripped DXGI_ERROR_DRIVER_INTERNAL_ERROR.
+        m_context->OMSetRenderTargets   (0, nullptr, nullptr);
+        m_context->PSSetShaderResources (0, s_kMaxBoundPsSrvSlots, nullSrvs);
+
+        if (m_rtv)
+        {
+            m_rtv.Reset();
+        }
+
+        // DXGI_ERROR_DEVICE_REMOVED on the rare ResizeBuffers path is
+        // still treated as a non-bug latch (same rationale as the
+        // legacy bitblt code), letting the window stay interactive on
+        // the last good frame instead of asserting.
+        hr = m_swapChain->ResizeBuffers (s_kFlipModelBufferCount,
+                                         static_cast<UINT> (newPhysicalW),
+                                         static_cast<UINT> (newPhysicalH),
+                                         DXGI_FORMAT_UNKNOWN,
+                                         0);
+        if (hr == DXGI_ERROR_DEVICE_REMOVED)
+        {
+            HRESULT  removedReason = m_device->GetDeviceRemovedReason();
+            wchar_t  trace[256]    = {};
+
+
+            swprintf_s (trace,
+                        L"D3DRenderer::Resize: ResizeBuffers returned DXGI_ERROR_DEVICE_REMOVED; GetDeviceRemovedReason=0x%08lX; rendering disabled until restart.\n",
+                        (unsigned long) removedReason);
+            OutputDebugStringW (trace);
+            m_deviceRemoved = true;
+        }
+        BAIL_OUT_IF (hr == DXGI_ERROR_DEVICE_REMOVED, hr);
+        CHRA (hr);
+
+        hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
+        if (hr == DXGI_ERROR_DEVICE_REMOVED)
+        {
+            HRESULT  removedReason = m_device->GetDeviceRemovedReason();
+            wchar_t  trace[256]    = {};
+
+
+            swprintf_s (trace,
+                        L"D3DRenderer::Resize: GetBuffer returned DXGI_ERROR_DEVICE_REMOVED; GetDeviceRemovedReason=0x%08lX; rendering disabled until restart.\n",
+                        (unsigned long) removedReason);
+            OutputDebugStringW (trace);
+            m_deviceRemoved = true;
+        }
+        BAIL_OUT_IF (hr == DXGI_ERROR_DEVICE_REMOVED, hr);
+        CHRA (hr);
+
+        hr = m_device->CreateRenderTargetView (backBuffer.Get(), nullptr, &m_rtv);
+        CHRA (hr);
+
+        m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf(), nullptr);
+
+        m_physicalBackBufferW = newPhysicalW;
+        m_physicalBackBufferH = newPhysicalH;
     }
 
-    // Resize the swap chain buffers. DXGI_ERROR_DEVICE_REMOVED here
-    // is GPU-side (TDR, driver crash, sleep/wake, RDP transitions,
-    // hybrid-GPU switch, VM suspend) -- not a Casso bug. Bail before
-    // the assert; the next paint will retry. Any other failure still
-    // asserts so real bugs surface. The OutputDebugString traces let
-    // us confirm in the debugger whether a null-RTV crash downstream
-    // was actually preceded by this whitelisted bail (vs. some other
-    // path Reset'ing m_rtv).
-    hr = m_swapChain->ResizeBuffers (0,
-                                     static_cast<UINT> (width),
-                                     static_cast<UINT> (height),
-                                     DXGI_FORMAT_UNKNOWN,
-                                     0);
-    if (hr == DXGI_ERROR_DEVICE_REMOVED)
-    {
-        HRESULT  removedReason = m_device->GetDeviceRemovedReason();
-        wchar_t  trace[256]   = {};
-
-
-        swprintf_s (trace,
-                    L"D3DRenderer::Resize: ResizeBuffers returned DXGI_ERROR_DEVICE_REMOVED; GetDeviceRemovedReason=0x%08lX; rendering disabled until restart.\n",
-                    (unsigned long) removedReason);
-        OutputDebugStringW (trace);
-        m_deviceRemoved = true;
-    }
-    BAIL_OUT_IF (hr == DXGI_ERROR_DEVICE_REMOVED, hr);
+    // SetSourceSize is the flip-model way to update what DWM
+    // presents -- metadata-only, no GPU allocation, sub-pixel exact.
+    hr = m_swapChain->SetSourceSize (static_cast<UINT> (width), static_cast<UINT> (height));
     CHRA (hr);
 
-    // Re-create render target view
-    hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
-    if (hr == DXGI_ERROR_DEVICE_REMOVED)
-    {
-        HRESULT  removedReason = m_device->GetDeviceRemovedReason();
-        wchar_t  trace[256]   = {};
-
-
-        swprintf_s (trace,
-                    L"D3DRenderer::Resize: GetBuffer returned DXGI_ERROR_DEVICE_REMOVED; GetDeviceRemovedReason=0x%08lX; rendering disabled until restart.\n",
-                    (unsigned long) removedReason);
-        OutputDebugStringW (trace);
-        m_deviceRemoved = true;
-    }
-    BAIL_OUT_IF (hr == DXGI_ERROR_DEVICE_REMOVED, hr);
-    CHRA (hr);
-
-    hr = m_device->CreateRenderTargetView (backBuffer.Get(), nullptr, &m_rtv);
-    CHRA (hr);
-    
-    m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf(), nullptr);
-
-    // Update viewport to match new window size
+    // Viewport tracks the new logical sub-rect so the CRT pass and
+    // chrome composite never write outside what DWM will present.
     vp.Width    = static_cast<float> (width);
     vp.Height   = static_cast<float> (height);
     vp.MaxDepth = 1.0f;
-
     m_context->RSSetViewports (1, &vp);
 
     m_backBufferW = width;

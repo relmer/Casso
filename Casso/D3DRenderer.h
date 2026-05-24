@@ -76,7 +76,13 @@ private:
 
     ComPtr<ID3D11Device>             m_device;
     ComPtr<ID3D11DeviceContext>      m_context;
-    ComPtr<IDXGISwapChain>           m_swapChain;
+    // IDXGISwapChain2 (rather than the base IDXGISwapChain) gives us
+    // SetSourceSize, the flip-model mechanism for telling DWM what
+    // sub-rect of the (oversized, fixed-allocation) back buffer to
+    // present. SetSourceSize replaces ResizeBuffers on the hot drag
+    // path; ResizeBuffers under driver stress was the source of the
+    // DXGI_ERROR_DRIVER_INTERNAL_ERROR device-removed crashes.
+    ComPtr<IDXGISwapChain2>          m_swapChain;
     ComPtr<ID3D11RenderTargetView>   m_rtv;
     ComPtr<ID3D11Texture2D>          m_texture;
     ComPtr<ID3D11ShaderResourceView> m_srv;
@@ -96,10 +102,18 @@ private:
     // resized lazily inside Process() when the back buffer size changes.
     CrtPostProcess                   m_crtPost;
     CrtParams                        m_crtParams;
-    int                              m_backBufferW    = 0;
-    int                              m_backBufferH    = 0;
-    int                              m_topInsetPx     = 0;
-    int                              m_bottomInsetPx  = 0;
+    // Logical (presented) size = current client area. All public
+    // accessors and chrome layout consume this.
+    int                              m_backBufferW         = 0;
+    int                              m_backBufferH         = 0;
+    // Physical (allocated) size of the flip-model back buffer.
+    // Stays large to avoid ResizeBuffers on every drag tick; only
+    // grown when a client area exceeds it (e.g., user dragged the
+    // window onto a larger monitor than we initially sized for).
+    int                              m_physicalBackBufferW = 0;
+    int                              m_physicalBackBufferH = 0;
+    int                              m_topInsetPx          = 0;
+    int                              m_bottomInsetPx       = 0;
 
     int     m_texWidth         = 0;
     int     m_texHeight        = 0;
