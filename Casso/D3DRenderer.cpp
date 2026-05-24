@@ -452,7 +452,12 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
     // (or any other path that leaves m_rtv null) -- ClearRenderTargetView
     // and the CRT pass both AV on a null RTV, and the right answer
     // for a transient device-removed frame is to drop it and let the
-    // next Resize/restore rebuild the pipeline.
+    // next Resize/restore rebuild the pipeline. The trace lets us
+    // catch null-RTV situations we didn't expect.
+    if (m_rtv == nullptr)
+    {
+        OutputDebugStringW (L"D3DRenderer::UploadAndPresent: m_rtv is null; skipping frame. If unexpected, check Resize's DEVICE_REMOVED trace.\n");
+    }
     BAIL_OUT_IF (m_rtv == nullptr, S_OK);
 
     // Upload framebuffer to texture
@@ -674,17 +679,28 @@ HRESULT D3DRenderer::Resize (int width, int height)
     // is GPU-side (TDR, driver crash, sleep/wake, RDP transitions,
     // hybrid-GPU switch, VM suspend) -- not a Casso bug. Bail before
     // the assert; the next paint will retry. Any other failure still
-    // asserts so real bugs surface.
+    // asserts so real bugs surface. The OutputDebugString traces let
+    // us confirm in the debugger whether a null-RTV crash downstream
+    // was actually preceded by this whitelisted bail (vs. some other
+    // path Reset'ing m_rtv).
     hr = m_swapChain->ResizeBuffers (0,
                                      static_cast<UINT> (width),
                                      static_cast<UINT> (height),
                                      DXGI_FORMAT_UNKNOWN,
                                      0);
+    if (hr == DXGI_ERROR_DEVICE_REMOVED)
+    {
+        OutputDebugStringW (L"D3DRenderer::Resize: ResizeBuffers returned DXGI_ERROR_DEVICE_REMOVED; leaving m_rtv null until next Resize.\n");
+    }
     BAIL_OUT_IF (hr == DXGI_ERROR_DEVICE_REMOVED, hr);
     CHRA (hr);
 
     // Re-create render target view
     hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
+    if (hr == DXGI_ERROR_DEVICE_REMOVED)
+    {
+        OutputDebugStringW (L"D3DRenderer::Resize: GetBuffer returned DXGI_ERROR_DEVICE_REMOVED; leaving m_rtv null until next Resize.\n");
+    }
     BAIL_OUT_IF (hr == DXGI_ERROR_DEVICE_REMOVED, hr);
     CHRA (hr);
 
