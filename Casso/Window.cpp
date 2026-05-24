@@ -296,14 +296,31 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
             ScreenToClient (hwnd, &ptClient);
 
             // Surface the press to the chrome painter so caption
-            // buttons can light up Pressed visuals (the painter reads
-            // MK_LBUTTON from the synthesized OnMouseMove). The
-            // message itself is NOT consumed: DefWindowProc owns the
-            // modal NC loop that implements drag-to-move, edge resize,
-            // and the single-click semantics for HTMINBUTTON /
-            // HTMAXBUTTON / HTCLOSE / HTCAPTION (double-click max).
+            // buttons can light up Pressed visuals.
             (void) pThis->OnMouseMove (MK_LBUTTON,
                                        MAKELPARAM (ptClient.x, ptClient.y));
+
+            // For caption-button hits we swallow the message so
+            // DefWindowProc does not run its own system-button
+            // tracking (which both draws ghost min/max/close icons
+            // over our chrome on WS_CAPTION windows and consumes
+            // the first click for itself, forcing a double-click
+            // for any single-click min/max action). OnNcLButtonUp
+            // dispatches the action on the matching release.
+            // Drag (HTCAPTION) and resize (HTLEFT etc.) hits stay
+            // unconsumed so DefWindowProc's modal loop continues
+            // to own them.
+            switch (wParam)
+            {
+                case HTMINBUTTON:
+                case HTMAXBUTTON:
+                case HTCLOSE:
+                    return 0;
+
+                default:
+                    break;
+            }
+
             callDefWndProc = true;
             break;
         }
