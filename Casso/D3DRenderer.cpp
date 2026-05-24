@@ -690,7 +690,14 @@ HRESULT D3DRenderer::Resize (int width, int height)
                                      0);
     if (hr == DXGI_ERROR_DEVICE_REMOVED)
     {
-        OutputDebugStringW (L"D3DRenderer::Resize: ResizeBuffers returned DXGI_ERROR_DEVICE_REMOVED; leaving m_rtv null until next Resize.\n");
+        HRESULT  removedReason = m_device->GetDeviceRemovedReason();
+        wchar_t  trace[256]   = {};
+
+
+        swprintf_s (trace,
+                    L"D3DRenderer::Resize: ResizeBuffers returned DXGI_ERROR_DEVICE_REMOVED; GetDeviceRemovedReason=0x%08lX; leaving m_rtv null until next Resize.\n",
+                    (unsigned long) removedReason);
+        OutputDebugStringW (trace);
     }
     BAIL_OUT_IF (hr == DXGI_ERROR_DEVICE_REMOVED, hr);
     CHRA (hr);
@@ -699,7 +706,14 @@ HRESULT D3DRenderer::Resize (int width, int height)
     hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
     if (hr == DXGI_ERROR_DEVICE_REMOVED)
     {
-        OutputDebugStringW (L"D3DRenderer::Resize: GetBuffer returned DXGI_ERROR_DEVICE_REMOVED; leaving m_rtv null until next Resize.\n");
+        HRESULT  removedReason = m_device->GetDeviceRemovedReason();
+        wchar_t  trace[256]   = {};
+
+
+        swprintf_s (trace,
+                    L"D3DRenderer::Resize: GetBuffer returned DXGI_ERROR_DEVICE_REMOVED; GetDeviceRemovedReason=0x%08lX; leaving m_rtv null until next Resize.\n",
+                    (unsigned long) removedReason);
+        OutputDebugStringW (trace);
     }
     BAIL_OUT_IF (hr == DXGI_ERROR_DEVICE_REMOVED, hr);
     CHRA (hr);
