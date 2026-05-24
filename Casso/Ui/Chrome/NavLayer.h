@@ -87,4 +87,5 @@ private:
     bool                              m_hasHoverMenu    = false;
     int                               m_highlightIndex  = -1;
     int                               m_rowHeightPx     = 26;
+    UINT                              m_dpi             = 96;
 };

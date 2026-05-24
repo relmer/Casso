@@ -15,8 +15,10 @@ namespace
     constexpr int       s_kMenuPadXPx     = 12;
     constexpr int       s_kMenuGapPx      = 4;
     constexpr int       s_kRowHeightPx    = 26;
-    constexpr int       s_kDropdownWidthPx = 300;
-    constexpr int       s_kAccelOffsetPx  = 190;
+    constexpr int       s_kDropdownWidthDp = 300;
+    constexpr int       s_kAccelOffsetDp   = 190;
+    constexpr int       s_kRowPadLeftDp    = 10;
+    constexpr int       s_kRowPadTopDp     = 5;
     constexpr float     s_kFontDip        = 14.0f;
     constexpr wchar_t   s_kFontFamily[]   = L"Segoe UI";
 
@@ -252,6 +254,7 @@ void NavLayer::Layout (int x, int y, int width, UINT dpi, DwriteTextRenderer * p
     m_stripRect.right  = x + width;
     m_stripRect.bottom = y + height;
     m_rowHeightPx      = Scale (s_kRowHeightPx, dpi);
+    m_dpi              = eDpi;
 
     for (int i = 0; i < kMenuCount; i++)
     {
@@ -579,11 +582,14 @@ void NavLayer::PaintDropdown (
     const ChromeVisualState & visual,
     const ChromeTheme       & theme)
 {
-    HRESULT  hr      = S_OK;
-    RECT     rect    = DropdownRect();
-    int      row     = 0;
-    UINT     dpi     = (visual.dpi == 0) ? (UINT) s_kBaseDpi : visual.dpi;
-    float    fontDip = s_kFontDip * (float) dpi / (float) s_kBaseDpi;
+    HRESULT  hr            = S_OK;
+    RECT     rect          = DropdownRect();
+    int      row           = 0;
+    UINT     dpi           = (visual.dpi == 0) ? (UINT) s_kBaseDpi : visual.dpi;
+    float    fontDip       = s_kFontDip * (float) dpi / (float) s_kBaseDpi;
+    int      rowPadLeftPx  = Scale (s_kRowPadLeftDp,   dpi);
+    int      rowPadTopPx   = Scale (s_kRowPadTopDp,    dpi);
+    int      accelOffsetPx = Scale (s_kAccelOffsetDp,  dpi);
 
 
 
@@ -621,9 +627,9 @@ void NavLayer::PaintDropdown (
         }
 
         IGNORE_RETURN_VALUE (hr, text.DrawString (entry.label,
-                                                  (float) (rect.left + 10),
-                                                  (float) (rect.top + row * m_rowHeightPx + 5),
-                                                  (float) s_kAccelOffsetPx,
+                                                  (float) (rect.left + rowPadLeftPx),
+                                                  (float) (rect.top + row * m_rowHeightPx + rowPadTopPx),
+                                                  (float) accelOffsetPx,
                                                   (float) m_rowHeightPx,
                                                   theme.dropdownItemTextArgb,
                                                   fontDip,
@@ -631,9 +637,9 @@ void NavLayer::PaintDropdown (
         if (entry.accelerator != nullptr)
         {
             IGNORE_RETURN_VALUE (hr, text.DrawString (entry.accelerator,
-                                                      (float) (rect.left + s_kAccelOffsetPx),
-                                                      (float) (rect.top + row * m_rowHeightPx + 5),
-                                                      (float) (rect.right - rect.left - s_kAccelOffsetPx),
+                                                      (float) (rect.left + accelOffsetPx),
+                                                      (float) (rect.top + row * m_rowHeightPx + rowPadTopPx),
+                                                      (float) (rect.right - rect.left - accelOffsetPx),
                                                       (float) m_rowHeightPx,
                                                       theme.dropdownAccelArgb,
                                                       fontDip,
@@ -666,15 +672,16 @@ RECT NavLayer::MenuRect (NavMenu menu) const
 
 RECT NavLayer::DropdownRect () const
 {
-    RECT  menu = MenuRect (m_openMenu);
-    RECT  rect = {};
+    RECT  menu          = MenuRect (m_openMenu);
+    RECT  rect          = {};
+    int   dropdownWidth = Scale (s_kDropdownWidthDp, m_dpi);
     int   rows = EntryCount (m_openMenu);
 
 
 
     rect.left   = menu.left;
     rect.top    = menu.bottom;
-    rect.right  = menu.left + s_kDropdownWidthPx;
+    rect.right  = menu.left + dropdownWidth;
     rect.bottom = menu.bottom + rows * m_rowHeightPx;
     return rect;
 }
