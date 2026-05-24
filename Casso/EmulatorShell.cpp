@@ -527,19 +527,21 @@ Error:
 
 HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 {
-    HRESULT   hr          = S_OK;
-    UINT      dpi         = 0;
-    int       clientW     = 0;
-    int       clientH     = 0;
-    RECT      rc          = {};
-    DWORD     style       = 0;
-    BOOL      fSuccess    = FALSE;
-    RECT      work        = {};
-    HMONITOR  activeMon   = nullptr;
-    LONG      windowX     = CW_USEDEFAULT;
-    LONG      windowY     = CW_USEDEFAULT;
-    int       windowW     = 0;
-    int       windowH     = 0;
+    HRESULT   hr                = S_OK;
+    UINT      dpi               = 0;
+    int       clientW           = 0;
+    int       clientH           = 0;
+    RECT      rc                = {};
+    DWORD     style             = 0;
+    DWORD     adjustStyle       = 0;
+    BOOL      fSuccess          = FALSE;
+    RECT      work              = {};
+    HMONITOR  activeMon         = nullptr;
+    LONG      windowX           = CW_USEDEFAULT;
+    LONG      windowY           = CW_USEDEFAULT;
+    int       windowW           = 0;
+    int       windowH           = 0;
+    bool      hadSavedPlacement = false;
 
 
 
@@ -593,8 +595,20 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // dispatches the right system action and our OnNcLButtonUp
     // dispatches the action for the captioned buttons.
     style    = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
+    // Strip WS_CAPTION for the rect-adjust math because our
+    // WM_NCCALCSIZE handler restores the original top edge -- it does
+    // *not* carve a caption out of the client area. If we passed the
+    // full WS_OVERLAPPEDWINDOW style here, AdjustWindowRectExForDpi
+    // would add the caption height to windowH but NCCALCSIZE would
+    // hand that height back as client space, leaving the actual
+    // client taller than requested by the caption height. That extra
+    // vertical slack makes the aspect-fit content area shorter-than-
+    // framebuffer ratio, producing the pillarbox the user reported.
+    // Sizing math has to mirror what NCCALCSIZE actually carves out:
+    // left + right borders, bottom border. Top edge is preserved.
     // No menu bar -> bMenu = FALSE in window-rect math.
-    fSuccess = AdjustWindowRectExForDpi (&rc, style, FALSE, 0, dpi);
+    adjustStyle = style & ~WS_CAPTION;
+    fSuccess = AdjustWindowRectExForDpi (&rc, adjustStyle, FALSE, 0, dpi);
     CWRA (fSuccess);
 
     windowW = rc.right - rc.left;
@@ -605,7 +619,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         CenterInWorkArea (work, windowW, windowH, windowX, windowY);
     }
 
-    m_windowManager.TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH);
+    hadSavedPlacement = m_windowManager.TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH);
     hr = Window::Create (0,
                          L"Casso",
                          style,
@@ -613,6 +627,44 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
                          windowW, windowH,
                          nullptr);
     CHR (hr);
+
+    // Reconcile actual client size against desired client size. The
+    // request-time math (AdjustWindowRectExForDpi minus WS_CAPTION) is
+    // a best-guess at what our WM_NCCALCSIZE handler will hand back as
+    // client area, but DefWindowProc's border carve-out depends on
+    // exact frame metrics that vary by Windows version and DPI. Rather
+    // than chase those numbers, measure the actual client and nudge
+    // the window by the residual delta so the chrome math and
+    // framebuffer aspect-fit see exactly the dimensions we expect.
+    // Skip the reconcile if saved placement was restored -- the user
+    // chose that size deliberately.
+    if (!hadSavedPlacement)
+    {
+        RECT  rcActualClient = {};
+        RECT  rcActualWindow = {};
+        int   actualClientW  = 0;
+        int   actualClientH  = 0;
+        int   deltaW         = 0;
+        int   deltaH         = 0;
+        int   fixedW         = 0;
+        int   fixedH         = 0;
+
+
+        if (GetClientRect (m_hwnd, &rcActualClient) && GetWindowRect (m_hwnd, &rcActualWindow))
+        {
+            actualClientW = rcActualClient.right  - rcActualClient.left;
+            actualClientH = rcActualClient.bottom - rcActualClient.top;
+            deltaW        = clientW - actualClientW;
+            deltaH        = clientH - actualClientH;
+
+            if (deltaW != 0 || deltaH != 0)
+            {
+                fixedW = (rcActualWindow.right  - rcActualWindow.left) + deltaW;
+                fixedH = (rcActualWindow.bottom - rcActualWindow.top)  + deltaH;
+                SetWindowPos (m_hwnd, nullptr, 0, 0, fixedW, fixedH, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+            }
+        }
+    }
 
     // DWM gating. Rounded corners + dark immersive caption
     // are best-effort and runtime-gated to the right Win10/11 build.
@@ -645,6 +697,19 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         {
             clientW = rcActual.right  - rcActual.left;
             clientH = rcActual.bottom - rcActual.top;
+        }
+
+        // Re-resolve DPI against the live HWND. The 'dpi' we used to
+        // size the window was the *cursor* monitor's at request time;
+        // Windows may have placed the window on a different monitor
+        // (per-monitor v2) or honored saved placement that lives on
+        // another monitor. The actual chrome metrics need to match
+        // the monitor the window is actually on so the framebuffer
+        // aspect-fit produces no pillarbox at default size.
+        UINT  windowDpi = GetDpiForWindow (m_hwnd);
+        if (windowDpi != 0)
+        {
+            dpi = windowDpi;
         }
     }
     m_titleBar.UpdateGeometry (clientW, dpi);

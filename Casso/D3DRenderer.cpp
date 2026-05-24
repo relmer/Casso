@@ -470,28 +470,25 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
     // Clear render target
     m_context->ClearRenderTargetView (m_rtv.Get(), clearColor);
 
-    // Stretch the emulator framebuffer to fill the entire content area
-    // between the top and bottom chrome insets, without preserving the
-    // 35:24 framebuffer aspect. The original Apple //e CRT itself had
-    // non-square pixels (560 dots across a 4:3 display => ~1.46x0.83
-    // per pixel), so the framebuffer's pixel grid is already a
-    // stylized representation; letterboxing the framebuffer into a
-    // chrome-bounded area produces visible black bars at any window
-    // aspect that does not coincidentally match 35:24, which the
-    // user observes (and dislikes) on every resized window. Stretch
-    // delivers the "fill the chrome content area" behavior they want
-    // at every window aspect.
+    // Aspect-fit the emulator framebuffer (35:24 for the //e DHGR
+    // 560x384) into the chrome-bounded content area. The window's
+    // initial client dimensions are sized so the content area exactly
+    // matches the framebuffer aspect; pillarbox / letterbox bars
+    // only appear when the user resizes the window to a different
+    // aspect than the framebuffer's.
     {
         ScopedPerfTimer  timer ("D3DRenderer.CrtPostProcess");
-        RECT  fittedRect = { 0, 0, m_backBufferW, m_backBufferH };
+        RECT  contentRect = { 0, 0, m_backBufferW, m_backBufferH };
+        RECT  fittedRect  = {};
 
 
 
         if (m_texWidth > 0 && m_texHeight > 0 && m_backBufferW > 0 && m_backBufferH > 0)
         {
-            fittedRect.top    = std::min (std::max (0, m_topInsetPx),  m_backBufferH);
-            fittedRect.bottom = std::max<LONG> (fittedRect.top,
-                                                m_backBufferH - std::max (0, m_bottomInsetPx));
+            contentRect.top    = std::min (std::max (0, m_topInsetPx), m_backBufferH);
+            contentRect.bottom = std::max<LONG> (contentRect.top,
+                                                 m_backBufferH - std::max (0, m_bottomInsetPx));
+            fittedRect         = ComputeAspectFitRectInRect (contentRect, m_texWidth, m_texHeight);
         }
 
         hr = m_crtPost.Process (m_srv.Get(),
