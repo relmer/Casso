@@ -442,6 +442,18 @@ HRESULT EmulatorShell::Initialize (
 
         if (SUCCEEDED (hrUi))
         {
+            UINT  initialDpi = GetDpiForWindow (m_hwnd);
+
+            // Propagate the live monitor DPI into UiShell so the first
+            // D2D BindBackBuffer uses the right DPI for text. Without
+            // this the initial paint binds at the m_dpi default (0->96)
+            // and chrome text renders tiny on high-DPI displays until
+            // the user resizes the window.
+            HRESULT  hrUiResize = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
+                                                     m_d3dRenderer.GetBackBufferHeight(),
+                                                     initialDpi);
+            IGNORE_RETURN_VALUE (hrUiResize, S_OK);
+
             m_d3dRenderer.SetAfterBlitHook ([this] () { m_diskManager->UpdateDriveWidgets(); m_uiShell.Render(); });
             m_uiShell.HitTest().Clear();
             m_uiShell.HitTest().Register (HitRect { m_driveChrome[0].BodyRect(), HitSlot::Custom, 0 });
