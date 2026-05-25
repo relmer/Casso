@@ -31,6 +31,13 @@ public:
 
     void               Initialize      (int slot, int drive, IDriveCommandSink * pSink);
     void               Layout          (int x, int y, UINT dpi);
+    void               Hide            ()
+    {
+        m_bodyRect  = {};
+        m_faceRect  = {};
+        m_slotRect  = {};
+        m_ejectRect = {};
+    }
     void               SetPerspectiveSkewPx (int skewPx) { m_perspectiveSkewPx = skewPx; }
     void               SetCompact      (bool compact)    { m_compact = compact; }
     bool               IsCompact       () const          { return m_compact; }

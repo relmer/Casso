@@ -51,6 +51,7 @@ public:
                  const std::wstring                              & currentMachineName);
 
     DiskIIController *  FindSlot6Controller    ();
+    bool                HasSlot6Controller     () { return FindSlot6Controller() != nullptr; }
 
     HRESULT  MountDiskInSlot6       (int drive, const std::string & path);
     void     EjectDiskInSlot6       (int drive);

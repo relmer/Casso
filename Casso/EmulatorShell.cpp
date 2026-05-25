@@ -597,9 +597,27 @@ HRESULT EmulatorShell::Initialize (
             IGNORE_RETURN_VALUE (hrUiResize, S_OK);
 
             m_d3dRenderer.SetAfterBlitHook ([this] () { m_diskManager->UpdateDriveWidgets(); m_uiShell.Render(); });
-            m_uiShell.HitTest().Clear();
-            m_uiShell.HitTest().Register (HitRect { m_driveChrome[0].BodyRect(), HitSlot::Custom, 0 });
-            m_uiShell.HitTest().Register (HitRect { m_driveChrome[1].BodyRect(), HitSlot::Custom, 1 });
+
+            {
+                bool  fHasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+
+                if (!fHasDisk)
+                {
+                    // No Slot 6 controller (stripped Apple II config) --
+                    // collapse the drive widgets so they paint nothing
+                    // and the bottom command bar is clear of drive UI.
+                    m_driveChrome[0].Hide();
+                    m_driveChrome[1].Hide();
+                }
+
+                m_uiShell.HitTest().Clear();
+                if (fHasDisk)
+                {
+                    m_uiShell.HitTest().Register (HitRect { m_driveChrome[0].BodyRect(), HitSlot::Custom, 0 });
+                    m_uiShell.HitTest().Register (HitRect { m_driveChrome[1].BodyRect(), HitSlot::Custom, 1 });
+                }
+            }
+
             if (m_fOleInitialized)
             {
                 HRESULT hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.HitTest(), [this] (int tag, const std::wstring & path) { Mount (6, tag, path); });
@@ -2312,11 +2330,28 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
 
         {
             ChromeLayoutResult  layout = m_chromeLayout.Resolve (static_cast<int> (width), renderH, dpi);
+            bool                fHasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
 
-            LayoutDriveWidgetsInCommandBar (m_driveChrome, layout, static_cast<int> (width), renderH, dpi);
+            if (fHasDisk)
+            {
+                LayoutDriveWidgetsInCommandBar (m_driveChrome, layout, static_cast<int> (width), renderH, dpi);
+            }
+            else
+            {
+                // Machine has no Disk II controller (e.g. stripped Apple II
+                // config). Collapse the drive widget rects so DriveWidget
+                // paints nothing and the drag-drop overlay's empty-rect
+                // path treats the whole window as the drop target.
+                m_driveChrome[0].Hide();
+                m_driveChrome[1].Hide();
+            }
+
             m_uiShell.HitTest().Clear();
-            m_uiShell.HitTest().Register (HitRect { m_driveChrome[0].BodyRect(), HitSlot::Custom, 0 });
-            m_uiShell.HitTest().Register (HitRect { m_driveChrome[1].BodyRect(), HitSlot::Custom, 1 });
+            if (fHasDisk)
+            {
+                m_uiShell.HitTest().Register (HitRect { m_driveChrome[0].BodyRect(), HitSlot::Custom, 0 });
+                m_uiShell.HitTest().Register (HitRect { m_driveChrome[1].BodyRect(), HitSlot::Custom, 1 });
+            }
             m_d3dRenderer.SetTopInsetPx    (layout.topInsetPx);
             m_d3dRenderer.SetBottomInsetPx (layout.bottomInsetPx);
         }
