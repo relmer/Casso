@@ -547,10 +547,33 @@ HRESULT SettingsPanelState::ExtractHardware (
     const JsonValue              & mergedJson,
     std::vector<HardwareEntry>   & outEntries)
 {
+    static const struct { const char * id; const char * display; }  s_kDeviceDisplayNames[] =
+    {
+        { "disk-ii",                 "Disk ][" },
+        { "smartport",               "SmartPort" },
+        { "mockingboard",            "Mockingboard" },
+        { "passport",                "Passport MIDI" },
+        { "serial",                  "Super Serial Card" },
+        { "parallel",                "Parallel Printer" },
+        { "videx",                   "Videx 80-Column" },
+        { "ramworks",                "RamWorks" },
+        { "ramfactor",               "RAMFactor" },
+        { "saturn128",               "Saturn 128K" },
+        { "language-card",           "Language Card" },
+        { "extended-80-column",      "Extended 80-Column Card" },
+        { "cassette",                "Cassette" },
+        { "speaker",                 "Speaker" },
+        { "keyboard",                "Keyboard" },
+        { "joystick",                "Joystick" },
+        { "paddle",                  "Paddle" },
+        { "monitor",                 "Monitor" },
+    };
+
     HRESULT             hr       = S_OK;
     const JsonValue *   devArr   = nullptr;
     const JsonValue *   slotArr  = nullptr;
     size_t              i        = 0;
+    size_t              j        = 0;
 
 
     CBR (mergedJson.GetType() == JsonType::Object);
@@ -568,12 +591,23 @@ HRESULT SettingsPanelState::ExtractHardware (
             }
 
             HardwareEntry  hw;
+            std::string    devType = GetStringOpt (entry, "type", "");
+            std::string    friendly = devType;
+
+            for (j = 0; j < sizeof (s_kDeviceDisplayNames) / sizeof (s_kDeviceDisplayNames[0]); ++j)
+            {
+                if (devType == s_kDeviceDisplayNames[j].id)
+                {
+                    friendly = s_kDeviceDisplayNames[j].display;
+                    break;
+                }
+            }
 
             hw.kind        = HardwareEntryKind::InternalDevice;
             hw.jsonIndex   = (int) i;
             hw.slot        = 0;
-            hw.type        = GetStringOpt (entry, "type", "");
-            hw.displayName = hw.type;
+            hw.type        = devType;
+            hw.displayName = friendly;
             hw.capability  = ParseCapability (
                 GetStringOpt (entry, "capabilityFlag", ""),
                 CapabilityFlag::Required);   // FR-015 default for internal
@@ -595,15 +629,25 @@ HRESULT SettingsPanelState::ExtractHardware (
             }
 
             HardwareEntry  hw;
-            int            slotNum = GetIntOpt (entry, "slot", 0);
-            std::string    dev     = GetStringOpt (entry, "device", "");
+            int            slotNum  = GetIntOpt (entry, "slot", 0);
+            std::string    dev      = GetStringOpt (entry, "device", "");
+            std::string    devNice  = dev;
+
+            for (j = 0; j < sizeof (s_kDeviceDisplayNames) / sizeof (s_kDeviceDisplayNames[0]); ++j)
+            {
+                if (dev == s_kDeviceDisplayNames[j].id)
+                {
+                    devNice = s_kDeviceDisplayNames[j].display;
+                    break;
+                }
+            }
 
             hw.kind        = HardwareEntryKind::Slot;
             hw.jsonIndex   = (int) i;
             hw.slot        = slotNum;
             hw.type        = dev;
             hw.displayName = std::string ("Slot ") + std::to_string (slotNum)
-                           + ": " + (dev.empty() ? std::string ("(rom only)") : dev);
+                           + ": " + (dev.empty() ? std::string ("(rom only)") : devNice);
             hw.capability  = ParseCapability (
                 GetStringOpt (entry, "capabilityFlag", ""),
                 CapabilityFlag::Optional);   // FR-015 default for slots

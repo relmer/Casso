@@ -158,7 +158,6 @@ void Checkbox::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     constexpr uint32_t  s_kTextIdle     = 0xFFE8EEF4;
     constexpr uint32_t  s_kTextDisabled = 0xFF707070;
     constexpr float     s_kBoxSizeDp    = 16.0f;
-    constexpr float     s_kCheckInsetDp = 3.0f;
     constexpr float     s_kFocusInsetDp = -2.0f;
     constexpr float     s_kFocusThickDp = 1.0f;
     constexpr float     s_kLabelGapDp   = 6.0f;
@@ -166,7 +165,6 @@ void Checkbox::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 
     HRESULT  hr          = S_OK;
     float    boxSize     = m_scaler.Pxf (s_kBoxSizeDp);
-    float    checkInset  = m_scaler.Pxf (s_kCheckInsetDp);
     float    focusInset  = m_scaler.Pxf (s_kFocusInsetDp);
     float    focusThick  = m_scaler.Pxf (s_kFocusThickDp);
     float    labelGap    = m_scaler.Pxf (s_kLabelGapDp);
@@ -185,11 +183,16 @@ void Checkbox::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 
     if (m_checked)
     {
-        painter.FillRect (boxLeft   + checkInset,
-                          boxTop    + checkInset,
-                          boxSize - checkInset * 2.0f,
-                          boxSize - checkInset * 2.0f,
-                          glyphColor);
+        IGNORE_RETURN_VALUE (hr, text.DrawString (L"\u2713",
+                                                  boxLeft,
+                                                  boxTop,
+                                                  boxSize,
+                                                  boxSize,
+                                                  glyphColor,
+                                                  boxSize * 0.95f,
+                                                  L"Segoe UI Symbol",
+                                                  DwriteTextRenderer::HAlign::Center,
+                                                  DwriteTextRenderer::VAlign::Center));
     }
 
     if (m_focused)
@@ -209,5 +212,7 @@ void Checkbox::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                               (float) (m_rect.bottom - m_rect.top),
                                               textColor,
                                               fontDip,
-                                              L"Segoe UI"));
+                                              L"Segoe UI",
+                                              DwriteTextRenderer::HAlign::Left,
+                                              DwriteTextRenderer::VAlign::Center));
 }

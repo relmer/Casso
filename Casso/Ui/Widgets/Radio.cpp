@@ -272,6 +272,8 @@ void RadioGroup::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                                   (float) (opt.rect.bottom - opt.rect.top),
                                                   textColor,
                                                   fontDip,
-                                                  L"Segoe UI"));
+                                                  L"Segoe UI",
+                                                  DwriteTextRenderer::HAlign::Left,
+                                                  DwriteTextRenderer::VAlign::Center));
     }
 }

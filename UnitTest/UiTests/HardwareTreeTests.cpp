@@ -180,6 +180,6 @@ public:
         std::vector<HardwareEntry>  out;
         SettingsPanelState::ExtractHardware (ParseOrFail (j), out);
 
-        Assert::AreEqual (std::string ("Slot 6: disk-ii"), out[0].displayName);
+        Assert::AreEqual (std::string ("Slot 6: Disk ]["), out[0].displayName);
     }
 };

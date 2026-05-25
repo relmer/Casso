@@ -386,7 +386,9 @@ void Dropdown::PaintBase (DxUiPainter & painter, DwriteTextRenderer & text) cons
                                               (float) (m_rect.bottom - m_rect.top),
                                               s_kTextArgb,
                                               fontDip,
-                                              s_kFontFamily));
+                                              s_kFontFamily,
+                                              DwriteTextRenderer::HAlign::Left,
+                                              DwriteTextRenderer::VAlign::Center));
 
     // Chevron: stack of horizontal rects forming a downward triangle.
     for (int row = 0; row < chevronH; row++)
@@ -450,6 +452,8 @@ void Dropdown::PaintMenu (DxUiPainter & painter, DwriteTextRenderer & text) cons
                                                   (float) (row.bottom - row.top),
                                                   s_kTextArgb,
                                                   fontDip,
-                                                  s_kFontFamily));
+                                                  s_kFontFamily,
+                                                  DwriteTextRenderer::HAlign::Left,
+                                                  DwriteTextRenderer::VAlign::Center));
     }
 }

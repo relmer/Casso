@@ -149,8 +149,14 @@ HRESULT SettingsPanel::Initialize (
 
     m_applyButton.SetLabel  (L"Apply");
     m_applyButton.SetClick  ([this] { OnApplyClicked();  });
-    m_cancelButton.SetLabel (L"Cancel");
-    m_cancelButton.SetClick ([this] { OnCancelClicked(); });
+    m_applyButton.SetColors (0xFF2A6FB7u, 0xFF3380C8u, 0xFF1E548Cu);
+    m_applyButton.SetTextColor (0xFFFFFFFFu);
+
+    m_cancelButton.SetLabel    (L"Cancel");
+    m_cancelButton.SetClick    ([this] { OnCancelClicked(); });
+    m_cancelButton.SetColors   (0xFF3A3F46u, 0xFF4A5058u, 0xFF2A2F36u);
+    m_cancelButton.SetTextColor (0xFFE8EEF4u);
+    m_cancelButton.SetOutline   (1.0f, 0xFF5A6068u);
 
     return S_OK;
 }
@@ -178,13 +184,15 @@ HRESULT SettingsPanel::Show ()
     LoadCurrentMachineIntoState();
     PopulateMachineList();
 
-    m_machinePage.Rebuild();
-    m_hardwarePage.Rebuild();
-
     if (m_uiShell != nullptr)
     {
         Layout (m_uiShell->ViewportWidth(), m_uiShell->ViewportHeight(), m_uiShell->Scaler());
     }
+
+    // Rebuild AFTER Layout so widgets that need to be populated by Layout
+    // (e.g. Dropdown items) exist before Rebuild calls SetSelected.
+    m_machinePage.Rebuild();
+    m_hardwarePage.Rebuild();
 
     m_visible = true;
     return hr;

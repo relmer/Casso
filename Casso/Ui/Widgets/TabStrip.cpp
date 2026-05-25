@@ -258,6 +258,8 @@ void TabStrip::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                                   (float) (t.rect.bottom - t.rect.top)  - padY * 2.0f,
                                                   s_kTextArgb,
                                                   fontDip,
-                                                  L"Segoe UI"));
+                                                  L"Segoe UI",
+                                                  DwriteTextRenderer::HAlign::Center,
+                                                  DwriteTextRenderer::VAlign::Center));
     }
 }

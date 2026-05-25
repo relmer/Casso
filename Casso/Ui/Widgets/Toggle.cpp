@@ -226,6 +226,23 @@ void Toggle::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                                   (float) (m_rect.bottom - m_rect.top),
                                                   textColor,
                                                   fontDip,
-                                                  L"Segoe UI"));
+                                                  L"Segoe UI",
+                                                  DwriteTextRenderer::HAlign::Left,
+                                                  DwriteTextRenderer::VAlign::Center));
+    }
+    else
+    {
+        const wchar_t * stateText = m_checked ? L"On" : L"Off";
+
+        IGNORE_RETURN_VALUE (hr, text.DrawString (stateText,
+                                                  pillLeft + pillW + labelGap,
+                                                  (float) m_rect.top,
+                                                  (float) (m_rect.right - m_rect.left) - pillW - labelGap,
+                                                  (float) (m_rect.bottom - m_rect.top),
+                                                  textColor,
+                                                  fontDip,
+                                                  L"Segoe UI",
+                                                  DwriteTextRenderer::HAlign::Left,
+                                                  DwriteTextRenderer::VAlign::Center));
     }
 }

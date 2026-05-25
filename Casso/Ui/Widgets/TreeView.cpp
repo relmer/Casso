@@ -556,7 +556,9 @@ void TreeView::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                                       rowHeight,
                                                       textCol,
                                                       fontDip,
-                                                      L"Segoe UI"));
+                                                      L"Segoe UI",
+                                                      DwriteTextRenderer::HAlign::Left,
+                                                      DwriteTextRenderer::VAlign::Center));
         }
     }
 }

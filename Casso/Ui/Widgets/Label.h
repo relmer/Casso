@@ -48,7 +48,9 @@ public:
                                                   (float) (m_rect.bottom - m_rect.top),
                                                   m_argb,
                                                   m_scaler.Pxf (m_fontDip),
-                                                  L"Segoe UI"));
+                                                  L"Segoe UI",
+                                                  DwriteTextRenderer::HAlign::Left,
+                                                  DwriteTextRenderer::VAlign::Center));
     }
 
 private:
