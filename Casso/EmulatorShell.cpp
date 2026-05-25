@@ -1064,6 +1064,12 @@ int EmulatorShell::RunMessageLoop()
             }
         }
 
+        // Drain deferred SettingsPanel work (e.g. machine switch +
+        // ROM-bootstrap modal) here, outside any input handler, so the
+        // nested message pump inside MessageBox can't re-enter the
+        // dropdown that scheduled the switch.
+        m_settingsPanel.ProcessPendingActions();
+
         // Copy latest framebuffer under lock, then present with vsync
         {
             lock_guard<mutex> lock (m_fbMutex);

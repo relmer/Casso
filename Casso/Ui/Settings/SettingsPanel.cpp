@@ -374,13 +374,33 @@ void SettingsPanel::OnMachineSelected (const std::string & machineName)
     // (SwitchMachine), and especially showing a modal MessageBox for
     // ROM bootstrap consent — which pumps the message queue — while
     // still inside that input handler races our own input state. Defer
-    // the work to the next Paint, which runs from the main loop with
-    // a clean stack.
+    // the work to the next ProcessPendingActions tick from the main
+    // loop, which runs with a clean stack.
     if (machineName.empty())
     {
         return;
     }
     m_pendingMachineSelect = machineName;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProcessPendingActions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::ProcessPendingActions ()
+{
+    if (!m_pendingMachineSelect.empty())
+    {
+        std::string  pending;
+        pending.swap (m_pendingMachineSelect);
+        DoMachineSelect (pending);
+    }
 }
 
 
@@ -568,13 +588,6 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
                                                     : s_kEdgeThickDp;
 
 
-
-    if (!m_pendingMachineSelect.empty())
-    {
-        std::string  pending;
-        pending.swap (m_pendingMachineSelect);
-        DoMachineSelect (pending);
-    }
 
     if (!m_visible)
     {
