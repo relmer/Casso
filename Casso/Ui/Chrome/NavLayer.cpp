@@ -121,27 +121,14 @@ namespace
 
 
     // True when menu mnemonic underlines should be visible.
-    // Cues appear when (a) the user is holding Alt (Windows convention
-    // for "show me the access keys") or (b) a top-level menu is already
-    // open (the user explicitly entered keyboard menu mode via F10 or
-    // Alt+mnemonic). The caller passes `menuActive` for case (b).
-    // Note that Left Alt is also //e Open Apple — that's fine because
-    // the //e modifier path is suppressed once the menu grabs focus,
-    // and Alt-without-menu is a harmless cue overlay while Open Apple
-    // is asserted.
-    bool ShouldShowMnemonicCues (bool menuActive)
+    // Strictly gated on physical Alt held: matches user expectation
+    // ("I press Alt to see access keys") and applies uniformly to the
+    // top-level strip and any open dropdown. Left Alt is also //e Open
+    // Apple, but that's harmless overlay — the //e modifier path is
+    // suppressed once the menu grabs focus.
+    bool ShouldShowMnemonicCues ()
     {
-        if (menuActive)
-        {
-            return true;
-        }
-
-        if ((GetAsyncKeyState (VK_MENU) & 0x8000) != 0)
-        {
-            return true;
-        }
-
-        return false;
+        return (GetAsyncKeyState (VK_MENU) & 0x8000) != 0;
     }
 }
 
@@ -665,7 +652,7 @@ void NavLayer::PaintStrip (
     HRESULT  hr           = S_OK;
     UINT     dpi          = (visual.dpi == 0) ? (UINT) s_kBaseDpi : visual.dpi;
     float    fontDip      = s_kFontDip * (float) dpi / (float) s_kBaseDpi;
-    bool     showCues     = ShouldShowMnemonicCues (m_isOpen);
+    bool     showCues     = ShouldShowMnemonicCues();
 
 
 
@@ -764,7 +751,7 @@ void NavLayer::PaintDropdown (
     int      rowPadLeftPx  = Scale (s_kRowPadLeftDp,   dpi);
     int      rowPadTopPx   = Scale (s_kRowPadTopDp,    dpi);
     int      accelOffsetPx = Scale (s_kAccelOffsetDp,  dpi);
-    bool     showCues      = ShouldShowMnemonicCues (m_isOpen);
+    bool     showCues      = ShouldShowMnemonicCues();
 
 
 
