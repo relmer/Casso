@@ -359,8 +359,29 @@ void TitleBar::Paint (
                               (float) (m_layout.titleBar.bottom - m_layout.titleBar.top),
                               theme.titleBarTopArgb,
                               theme.titleBarBottomArgb);
+
+    // App icon (drawn left of the title text). Title-bar height drives
+    // the icon size with a small padding inset so it sits visually
+    // inside the bar rather than touching the edges.
+    float  titleH         = (float) (m_layout.titleBar.bottom - m_layout.titleBar.top);
+    float  iconPadDip     = titleH * 0.18f;
+    float  iconSizeDip    = titleH - iconPadDip * 2.0f;
+    float  iconLeftDip    = (float) m_layout.titleBar.left + s_kTitlePadDip;
+    float  textOffsetDip  = s_kTitlePadDip;
+
+    if (iconSizeDip > 0.0f && !m_appIconPixels.empty() && m_appIconW > 0 && m_appIconH > 0)
+    {
+        HRESULT  hrIcon = text.DrawIconBitmap (m_appIconPixels.data(),
+                                               m_appIconW, m_appIconH,
+                                               iconLeftDip,
+                                               (float) m_layout.titleBar.top + iconPadDip,
+                                               iconSizeDip, iconSizeDip);
+        IGNORE_RETURN_VALUE (hrIcon, S_OK);
+        textOffsetDip = s_kTitlePadDip + iconSizeDip + iconPadDip;
+    }
+
     IGNORE_RETURN_VALUE (hr, text.DrawString (s_kTitle,
-                                              (float) m_layout.titleBar.left + s_kTitlePadDip,
+                                              (float) m_layout.titleBar.left + textOffsetDip,
                                               (float) m_layout.titleBar.top,
                                               160.0f,
                                               (float) (m_layout.titleBar.bottom - m_layout.titleBar.top),
@@ -393,4 +414,23 @@ RECT TitleBar::GetButtonRect (SystemButton which) const
     }
 
     return RECT { 0, 0, 0, 0 };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetAppIcon
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TitleBar::SetAppIcon (std::vector<uint32_t> bgraPremulPixels,
+                           int                    widthPx,
+                           int                    heightPx)
+{
+    m_appIconPixels = std::move (bgraPremulPixels);
+    m_appIconW      = widthPx;
+    m_appIconH      = heightPx;
 }

@@ -192,6 +192,106 @@ namespace
         outX = work.left + (work.right - work.left - windowW) / 2;
         outY = work.top  + (work.bottom - work.top - windowH) / 2;
     }
+
+
+    // Loads an HICON resource into a CPU-side premultiplied BGRA8
+    // pixel buffer suitable for the DwriteTextRenderer::DrawIconBitmap
+    // path. Uses a GDI memory DC + 32-bit DIB section to capture the
+    // icon's alpha-channelled pixels (LoadImageW preserves alpha when
+    // LR_DEFAULTCOLOR is set on a Vista+ icon). Premultiplies the
+    // pixels in place because D2D's DrawBitmap expects premultiplied
+    // sources.
+    bool LoadIconAsPremulBgra (
+        HINSTANCE             hInstance,
+        int                   iconResourceId,
+        int                   sizePx,
+        std::vector<uint32_t> & outPixels,
+        int                  & outW,
+        int                  & outH)
+    {
+        HICON       hIcon       = nullptr;
+        HDC         screenDc    = nullptr;
+        HDC         memDc       = nullptr;
+        HBITMAP     dib         = nullptr;
+        HBITMAP     oldBitmap   = nullptr;
+        void      * dibBits     = nullptr;
+        BITMAPINFO  bmi         = {};
+        bool        success     = false;
+        size_t      pixelCount  = (size_t) sizePx * (size_t) sizePx;
+
+
+
+        hIcon = (HICON) LoadImageW (hInstance,
+                                    MAKEINTRESOURCEW (iconResourceId),
+                                    IMAGE_ICON,
+                                    sizePx, sizePx,
+                                    LR_DEFAULTCOLOR);
+        if (hIcon == nullptr)
+        {
+            return false;
+        }
+
+        screenDc = GetDC (nullptr);
+        memDc    = CreateCompatibleDC (screenDc);
+
+        bmi.bmiHeader.biSize        = sizeof (BITMAPINFOHEADER);
+        bmi.bmiHeader.biWidth       = sizePx;
+        bmi.bmiHeader.biHeight      = -sizePx;   // top-down DIB
+        bmi.bmiHeader.biPlanes      = 1;
+        bmi.bmiHeader.biBitCount    = 32;
+        bmi.bmiHeader.biCompression = BI_RGB;
+
+        dib = CreateDIBSection (memDc, &bmi, DIB_RGB_COLORS, &dibBits, nullptr, 0);
+
+        if (dib != nullptr && dibBits != nullptr)
+        {
+            oldBitmap = (HBITMAP) SelectObject (memDc, dib);
+
+            // Clear the DIB to transparent so the icon's alpha channel
+            // composites against zero instead of the screen DC's
+            // garbage contents.
+            memset (dibBits, 0, pixelCount * sizeof (uint32_t));
+
+            if (DrawIconEx (memDc, 0, 0, hIcon, sizePx, sizePx, 0, nullptr, DI_NORMAL))
+            {
+                uint32_t  * src  = (uint32_t *) dibBits;
+                size_t      i    = 0;
+
+                outPixels.assign (pixelCount, 0);
+
+                // Premultiply each BGRA pixel. DIB layout is 0xAARRGGBB
+                // in little-endian uint32 (B,G,R,A in memory order).
+                for (i = 0; i < pixelCount; i++)
+                {
+                    uint32_t  px = src[i];
+                    uint8_t   a  = (uint8_t) ((px >> 24) & 0xFF);
+                    uint8_t   r  = (uint8_t) ((px >> 16) & 0xFF);
+                    uint8_t   g  = (uint8_t) ((px >>  8) & 0xFF);
+                    uint8_t   b  = (uint8_t) ( px        & 0xFF);
+
+                    r = (uint8_t) ((r * a) / 255);
+                    g = (uint8_t) ((g * a) / 255);
+                    b = (uint8_t) ((b * a) / 255);
+
+                    outPixels[i] = ((uint32_t) a << 24) | ((uint32_t) r << 16) |
+                                   ((uint32_t) g <<  8) |  (uint32_t) b;
+                }
+
+                outW    = sizePx;
+                outH    = sizePx;
+                success = true;
+            }
+
+            SelectObject (memDc, oldBitmap);
+        }
+
+        if (dib != nullptr)      { DeleteObject (dib); }
+        if (memDc != nullptr)    { DeleteDC (memDc); }
+        if (screenDc != nullptr) { ReleaseDC (nullptr, screenDc); }
+        DestroyIcon (hIcon);
+
+        return success;
+    }
 }
 
 
@@ -775,6 +875,22 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_titleBar.UpdateGeometry (clientW, dpi);
     m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), clientW, dpi, &m_uiShell.Text());
     m_navLayer.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
+
+    // Load the app icon (IDI_CASSO) into a premultiplied BGRA8 pixel
+    // buffer so the title bar can blit it left of the caption text.
+    // Loaded at 32x32 (high enough to look crisp at typical title-bar
+    // sizes when D2D linearly downscales it); failure is non-fatal --
+    // the title bar simply omits the icon if the load misses.
+    {
+        std::vector<uint32_t>  iconPixels;
+        int                    iconW = 0;
+        int                    iconH = 0;
+
+        if (LoadIconAsPremulBgra (hInstance, IDI_CASSO, 32, iconPixels, iconW, iconH))
+        {
+            m_titleBar.SetAppIcon (std::move (iconPixels), iconW, iconH);
+        }
+    }
     m_driveChrome[0].Initialize (6, 0, this);
     m_driveChrome[1].Initialize (6, 1, this);
     {

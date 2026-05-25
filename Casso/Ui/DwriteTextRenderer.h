@@ -88,6 +88,19 @@ public:
                                float            destWidthDip,
                                float            destHeightDip);
 
+    // Same shape as DrawFramebuffer but uses a SEPARATE cached
+    // ID2D1Bitmap so the emulator framebuffer cache (which gets
+    // refreshed every theme-preview frame) doesn't thrash against
+    // the title-bar icon cache (which is stable for the app's
+    // lifetime). Source pixels MUST be premultiplied BGRA8.
+    HRESULT  DrawIconBitmap   (const uint32_t * srcBgraPremul,
+                               int              srcWidthPx,
+                               int              srcHeightPx,
+                               float            destXDip,
+                               float            destYDip,
+                               float            destWidthDip,
+                               float            destHeightDip);
+
     HRESULT  MeasureString    (const wchar_t * text,
                                float           fontSizeDip,
                                const wchar_t * fontFamily,
@@ -132,6 +145,9 @@ private:
     ComPtr<ID2D1Bitmap>               m_framebufferBitmap;
     int                               m_framebufferBitmapW = 0;
     int                               m_framebufferBitmapH = 0;
+    ComPtr<ID2D1Bitmap>               m_iconBitmap;
+    int                               m_iconBitmapW = 0;
+    int                               m_iconBitmapH = 0;
 
     ComPtr<IDWriteFactory>            m_dwriteFactory;
 

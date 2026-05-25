@@ -118,6 +118,9 @@ void DwriteTextRenderer::Shutdown ()
     m_framebufferBitmap.Reset();
     m_framebufferBitmapW = 0;
     m_framebufferBitmapH = 0;
+    m_iconBitmap.Reset();
+    m_iconBitmapW = 0;
+    m_iconBitmapH = 0;
     m_formatCache.clear();
     m_dwriteFactory.Reset();
     m_d2dContext.Reset();
@@ -527,6 +530,82 @@ HRESULT DwriteTextRenderer::DrawFramebuffer (
     dest.bottom = destYDip + destHeightDip;
 
     m_d2dContext->DrawBitmap (m_framebufferBitmap.Get(),
+                              &dest, m_globalAlpha,
+                              D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
+                              nullptr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawIconBitmap
+//
+//  Same upload-and-blit logic as DrawFramebuffer but uses a dedicated
+//  cached ID2D1Bitmap so the title-bar app icon (stable size) and the
+//  emulator framebuffer (560x384) don't ping-pong recreating the same
+//  cache slot every frame. Source pixels are interpreted as
+//  premultiplied BGRA8 so the alpha channel composites correctly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DwriteTextRenderer::DrawIconBitmap (
+    const uint32_t * srcBgraPremul,
+    int              srcWidthPx,
+    int              srcHeightPx,
+    float            destXDip,
+    float            destYDip,
+    float            destWidthDip,
+    float            destHeightDip)
+{
+    HRESULT       hr     = S_OK;
+    D2D1_RECT_F   dest   = {};
+
+
+
+    CBRA (m_d2dContext);
+    CBRA (m_drawing);
+    CBRA (srcBgraPremul);
+    CBRA (srcWidthPx > 0 && srcHeightPx > 0);
+
+    if (m_iconBitmap == nullptr ||
+        m_iconBitmapW != srcWidthPx ||
+        m_iconBitmapH != srcHeightPx)
+    {
+        D2D1_BITMAP_PROPERTIES  props = {};
+
+        props.pixelFormat.format    = DXGI_FORMAT_B8G8R8A8_UNORM;
+        props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+        props.dpiX                  = 96.0f;
+        props.dpiY                  = 96.0f;
+
+        m_iconBitmap.Reset();
+        hr = m_d2dContext->CreateBitmap (D2D1::SizeU ((UINT32) srcWidthPx, (UINT32) srcHeightPx),
+                                         nullptr, 0, &props, &m_iconBitmap);
+        CHRA (hr);
+        m_iconBitmapW = srcWidthPx;
+        m_iconBitmapH = srcHeightPx;
+    }
+
+    {
+        D2D1_RECT_U  srcRect = D2D1::RectU (0, 0, (UINT32) srcWidthPx, (UINT32) srcHeightPx);
+
+        hr = m_iconBitmap->CopyFromMemory (&srcRect, srcBgraPremul,
+                                           (UINT32) (srcWidthPx * sizeof (uint32_t)));
+        CHRA (hr);
+    }
+
+    dest.left   = destXDip;
+    dest.top    = destYDip;
+    dest.right  = destXDip + destWidthDip;
+    dest.bottom = destYDip + destHeightDip;
+
+    m_d2dContext->DrawBitmap (m_iconBitmap.Get(),
                               &dest, m_globalAlpha,
                               D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
                               nullptr);

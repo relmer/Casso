@@ -66,6 +66,9 @@ public:
     void                Hide              ();
     void                UpdateGeometry    (int clientWidth, UINT dpi);
     void                SetMousePosition  (int x, int y, bool leftDown);
+    void                SetAppIcon        (std::vector<uint32_t> bgraPremulPixels,
+                                            int                    widthPx,
+                                            int                    heightPx);
     void                Paint             (DxUiPainter             & painter,
                                             DwriteTextRenderer      & text,
                                             const ChromeVisualState & visual,
@@ -83,4 +86,8 @@ private:
     SystemButton           m_hotButton    = SystemButton::Minimize;
     bool                   m_hasHotButton = false;
     bool                   m_leftDown     = false;
+
+    std::vector<uint32_t>  m_appIconPixels;     // premultiplied BGRA8
+    int                    m_appIconW    = 0;
+    int                    m_appIconH    = 0;
 };
