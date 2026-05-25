@@ -2,9 +2,10 @@
 #include <windows.h>
 
 // Application icons. The icon assigned the lowest numerical resource ID
-// (IDI_CASSO_SILHOUETTE_ACCENT) is what Windows Explorer displays for
-// Casso.exe. All four are embedded so callers can pick a different
+// (IDI_CASSO_SILHOUETTE) is what Windows Explorer displays for
+// Casso.exe. All five are embedded so callers can pick a different
 // motif at runtime via LoadIcon if desired.
+IDI_CASSO_SILHOUETTE         ICON "..\\Resources\\Icons\\Casso-0-silhouette.ico"
 IDI_CASSO_SILHOUETTE_ACCENT  ICON "..\\Resources\\Icons\\Casso-4-silhouette-accent.ico"
 IDI_CASSO_SILHOUETTE_RAINBOW ICON "..\\Resources\\Icons\\Casso-1-silhouette-rainbow.ico"
 IDI_CASSO_FLAT_COLOR_HEAD    ICON "..\\Resources\\Icons\\Casso-2-flat-color-head.ico"
