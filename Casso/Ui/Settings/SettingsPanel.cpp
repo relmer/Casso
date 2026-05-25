@@ -4,6 +4,7 @@
 
 #include "../UiShell.h"
 #include "../../EmulatorShell.h"
+#include "../../AssetBootstrap.h"
 #include "../../Config/UserConfigStore.h"
 #include "../../Config/IFileSystem.h"
 #include "../ThemeManager.h"
@@ -368,14 +369,65 @@ void SettingsPanel::PopulateMachineList ()
 
 void SettingsPanel::OnMachineSelected (const std::string & machineName)
 {
-    HRESULT       hr       = S_OK;
-    std::wstring  wideName (machineName.begin(), machineName.end());
+    HRESULT           hr          = S_OK;
+    std::wstring      wideName (machineName.begin(), machineName.end());
+    HINSTANCE         hInstance   = (HINSTANCE) GetModuleHandleW (nullptr);
+    HWND              hwndParent  = (m_emuShell != nullptr && m_emuShell->m_renderHwnd != nullptr)
+                                        ? m_emuShell->m_renderHwnd
+                                        : GetActiveWindow();
+    std::vector<fs::path>  searchPaths;
+    fs::path          assetBaseDir;
+    std::string       bootstrapError;
 
 
 
     if (m_emuShell == nullptr || machineName.empty())
     {
         return;
+    }
+
+    // Pre-flight: ensure ROMs for the target machine exist on disk
+    // before asking MachineManager::SwitchMachine to load the config.
+    // Without this, picking an uninstalled machine throws a "ROM file
+    // not found" error dialog. Mirrors the startup flow in Main.cpp.
+    searchPaths  = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
+                                                   PathResolver::GetWorkingDirectory());
+    assetBaseDir = AssetBootstrap::GetAssetBaseDirectory (searchPaths,
+                                                          PathResolver::GetExecutableDirectory());
+
+    hr = AssetBootstrap::CheckAndFetchRoms (hInstance, wideName, hwndParent,
+                                            searchPaths, assetBaseDir, bootstrapError);
+    if (hr == S_FALSE)
+    {
+        // User declined the download; leave the active machine alone.
+        return;
+    }
+    if (FAILED (hr))
+    {
+        std::wstring  wErr (bootstrapError.begin(), bootstrapError.end());
+
+        MessageBoxW (hwndParent,
+                     std::format (L"ROM download failed:\n{}", wErr).c_str(),
+                     L"Casso", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    // Best-effort: drive audio bootstrap for machines with a Disk II.
+    {
+        bool     hasDisk     = false;
+        std::string  hasDiskErr;
+        HRESULT  hrHasDisk   = AssetBootstrap::HasDiskController (hInstance, wideName,
+                                                                  hasDisk, hasDiskErr);
+        IGNORE_RETURN_VALUE (hrHasDisk, S_OK);
+
+        if (hasDisk)
+        {
+            fs::path     devicesDir = assetBaseDir / L"Devices" / L"DiskII";
+            std::string  diskAudioErr;
+            HRESULT      hrAudio    = AssetBootstrap::CheckAndFetchDiskAudio (hInstance, wideName, hwndParent,
+                                                                              devicesDir, diskAudioErr);
+            IGNORE_RETURN_VALUE (hrAudio, S_OK);
+        }
     }
 
     hr = m_emuShell->SwitchMachine (wideName);
