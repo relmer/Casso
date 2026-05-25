@@ -12,43 +12,29 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildSearchPaths
+//
+//  Returns the single user-writable asset directory: %LOCALAPPDATA%\Casso\.
+//  Casso uses no exe-adjacent or cwd-relative fallback path -- every file
+//  it reads or writes lives in that one directory. The exeDir / cwd
+//  parameters are accepted for API compatibility but ignored.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 vector<fs::path> PathResolver::BuildSearchPaths (
-    const fs::path & exeDir,
-    const fs::path & cwd)
+    const fs::path & /*exeDir*/,
+    const fs::path & /*cwd*/)
 {
     fs::path          localAppData = GetLocalAppDataDir (L"Casso");
     vector<fs::path>  searchBases;
 
 
 
-    // %LOCALAPPDATA%\Casso\ is preferred so a user-installed copy
-    // resolves Machines/ / Themes/ / Disks/ / ROMs out of their own
-    // writable data dir before falling through to the exe-adjacent
-    // dev / portable layout.
     if (!localAppData.empty())
     {
         searchBases.push_back (localAppData);
-    }
-
-    searchBases.push_back (exeDir);
-    searchBases.push_back (cwd);
-
-    // Also try parent directories (handles running from x64/Debug/)
-    for (const auto & base : { exeDir, cwd })
-    {
-        fs::path parent = base.parent_path ();
-
-        if (!parent.empty () && parent != base)
-        {
-            searchBases.push_back (parent);
-
-            fs::path grandparent = parent.parent_path ();
-
-            if (!grandparent.empty () && grandparent != parent)
-            {
-                searchBases.push_back (grandparent);
-            }
-        }
     }
 
     return searchBases;
