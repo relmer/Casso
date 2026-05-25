@@ -498,6 +498,7 @@
     <ClCompile Include="UiTests\WindowsThemeColorsTests.cpp" />
     <ClCompile Include="UiTests\DriveWidgetStateTests.cpp" />
     <ClCompile Include="UiTests\DragDropHitTestRoutingTests.cpp" />
+    <ClCompile Include="UiTests\DragDropTargetFormatTests.cpp" />
     <ClCompile Include="UiTests\LedIndicatorStateTests.cpp" />
     <ClCompile Include="UiTests\NavLayerDropdownTests.cpp" />
     <ClCompile Include="UiTests\AutoMountTests.cpp" />
@@ -509,6 +510,7 @@
     <ClCompile Include="UiTests\LayoutTests.cpp" />
     <ClCompile Include="UiTests\DpiScalerTests.cpp" />
     <ClCompile Include="UiTests\ChromeLayoutTests.cpp" />
+    <ClCompile Include="UiTests\Win11DwmHelpersTests.cpp" />
     <ClCompile Include="UiTests\HitTesterTests.cpp" />
     <ClCompile Include="UiTests\NcHitTestTests.cpp" />
     <ClCompile Include="UiTests\FocusManagerTests.cpp" />
