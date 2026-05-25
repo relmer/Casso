@@ -437,10 +437,10 @@ takes effect immediately and persists across app restart.
 
 ### P4c — Ship built-in themes (FR-031)
 
-- [x] T133 [P] [US4] Author `Resources\Themes\Skeuomorphic\theme.json` plus image/font assets — base theme.json shipped; per-variant art DEFERRED to follow-up theme expansion spec
-- [x] T134 [P] [US4] Author `Resources\Themes\DarkModern\theme.json` plus assets — base theme.json shipped; per-variant art DEFERRED
-- [x] T135 [P] [US4] Author `Resources\Themes\RetroTerminal\theme.json` plus assets — base theme.json shipped; per-variant art DEFERRED
-- [x] T136 [US4] Register the three theme directories as embedded resources in `Casso.rc` / `resource.h` so `AssetBootstrap` can extract them on first launch (FR-030, FR-037) — AssetBootstrap reads themes from on-disk Resources\Themes; embedded-resource extraction DEFERRED (current path-resolution model works for both dev and installed builds)
+- [x] T133 [P] [US4] Author `Resources\Themes\Skeuomorphic\theme.json` plus image / font assets — variantOverrides for Apple //e and Apple //c shipped (CRT defaults + driveVisualProfile colorway). Per-variant art (textures/9-slice) DEFERRED to follow-up theme expansion spec when ChromeTheme gains JSON-driven uiTokens consumption.
+- [x] T134 [P] [US4] Author `Resources\Themes\DarkModern\theme.json` plus assets — variantOverrides shipped with per-machine CRT tuning.
+- [x] T135 [P] [US4] Author `Resources\Themes\RetroTerminal\theme.json` plus assets — variantOverrides shipped with per-machine phosphor / scanline tuning per machine era.
+- [x] T136 [US4] Register the three theme directories as embedded resources — base theme.json files already embedded via Casso.rc (IDR_THEME_SKEUO/DARK/RETRO_THEME_JSON). Full per-asset extraction DEFERRED to single-location storage spec (extract-on-first-launch to %LOCALAPPDATA%\Casso\); see backlog todo.
 
 ### P4d — Tests
 
