@@ -73,6 +73,13 @@ public:
 
     HRESULT End              (ID3D11RenderTargetView * pRtv);
 
+    // Global alpha multiplier applied to every vertex's alpha channel.
+    // Used by the Settings panel's live-preview state machine to fade
+    // the whole UI without touching individual paint call sites. 1.0
+    // is opaque (default), 0.0 is fully transparent.
+    void    SetGlobalAlpha   (float alpha)            { m_globalAlpha = (alpha < 0.0f) ? 0.0f : (alpha > 1.0f) ? 1.0f : alpha; }
+    float   GlobalAlpha      () const                 { return m_globalAlpha; }
+
     int     PendingVertexCount () const { return (int) m_vertices.size(); }
 
 private:
@@ -100,7 +107,7 @@ private:
                               const Vertex & bottomRight);
     void    NdcFromPixel     (float xPx, float yPx, float & outX, float & outY) const;
 
-    static Vertex MakeVertex (uint32_t argbColor);
+    static Vertex MakeVertex (uint32_t argbColor, float alphaMultiplier = 1.0f);
 
 
     ID3D11Device                    * m_device  = nullptr;   // non-owning
@@ -118,6 +125,7 @@ private:
     int                               m_viewportWidthPx      = 0;
     int                               m_viewportHeightPx     = 0;
     bool                              m_betweenBeginEnd      = false;
+    float                             m_globalAlpha          = 1.0f;
 
     std::vector<Vertex>               m_vertices;
 };

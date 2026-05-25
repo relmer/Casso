@@ -145,7 +145,14 @@ void DisplayPage::Rebuild ()
     }
 
     m_monitor.SetSelected ((int) state->Prefs().colorMode);
-    m_monitor.SetSelect ([state] (int idx) { state->SetColorMode ((SettingsColorMode) idx); });
+    m_monitor.SetSelect ([this, state] (int idx)
+    {
+        state->SetColorMode ((SettingsColorMode) idx);
+        if (m_onMonitor)
+        {
+            m_onMonitor (idx);
+        }
+    });
 
     m_brightness.SetOnChange ([this] (float v)
     {
@@ -161,6 +168,14 @@ void DisplayPage::Rebuild ()
             m_onContrast (v);
         }
     });
+
+    m_brightness.SetOnDragStart      ([this] { if (m_onPreview) { m_onPreview (kControlBrightness, true,  false); } });
+    m_brightness.SetOnDragEnd        ([this] { if (m_onPreview) { m_onPreview (kControlBrightness, false, false); } });
+    m_brightness.SetOnKeyboardChange ([this] { if (m_onPreview) { m_onPreview (kControlBrightness, true,  true);  } });
+
+    m_contrast.SetOnDragStart        ([this] { if (m_onPreview) { m_onPreview (kControlContrast,   true,  false); } });
+    m_contrast.SetOnDragEnd          ([this] { if (m_onPreview) { m_onPreview (kControlContrast,   false, false); } });
+    m_contrast.SetOnKeyboardChange   ([this] { if (m_onPreview) { m_onPreview (kControlContrast,   true,  true);  } });
 }
 
 
@@ -275,16 +290,37 @@ void DisplayPage::CollectFocusables (std::vector<std::function<void (bool)>> & o
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
+void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
+                         int focusedControlId,
+                         float nonFocusedAlpha,
+                         float focusedAlpha) const
 {
-    m_monitorLabel.Paint    (painter, text);
-    m_brightnessLabel.Paint (painter, text);
-    m_contrastLabel.Paint   (painter, text);
+    auto  SetAlphaFor = [&] (int control)
+    {
+        float  a = (control == focusedControlId) ? focusedAlpha : nonFocusedAlpha;
+        painter.SetGlobalAlpha (a);
+        text.SetGlobalAlpha    (a);
+    };
 
-    // Slider bases first; dropdown menu paints last so it overlays the
-    // sliders if its menu opens downward over them.
-    m_brightness.Paint  (painter, text);
-    m_contrast.Paint    (painter, text);
-    m_monitor.PaintBase (painter, text);
-    m_monitor.PaintMenu (painter, text);
+
+
+    SetAlphaFor (kControlMonitor);
+    m_monitorLabel.Paint    (painter, text);
+    m_monitor.PaintBase     (painter, text);
+
+    SetAlphaFor (kControlBrightness);
+    m_brightnessLabel.Paint (painter, text);
+    m_brightness.Paint      (painter, text);
+
+    SetAlphaFor (kControlContrast);
+    m_contrastLabel.Paint   (painter, text);
+    m_contrast.Paint        (painter, text);
+
+    // Dropdown menu floats above the page; paint last so it overlays.
+    SetAlphaFor (kControlMonitor);
+    m_monitor.PaintMenu     (painter, text);
+
+    // Restore default so the rest of the panel paints opaque.
+    painter.SetGlobalAlpha (1.0f);
+    text.SetGlobalAlpha    (1.0f);
 }

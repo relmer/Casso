@@ -208,6 +208,14 @@ private:
     // it straight into Save(baseDir, fs).
     const std::wstring &  AssetBaseDir () const { return m_assetBaseDir; }
 
+    // Live channel for the Settings → Display monitor dropdown. The
+    // dropdown calls this on every selection so the user sees the
+    // colour-treatment change as they hover/select; Cancel restores
+    // the baseline by calling this again with the entry-state value.
+    // Bypasses the IDM command queue so the change is visible on the
+    // next CPU frame rather than waiting for queue drain.
+    void  SetColorModeLive (int settingsColorModeIndex);
+
     // Activates the named theme in ThemeManager (which notifies the
     // chrome cache listener) and persists the choice into GlobalUserPrefs.
     // No-op if the name is empty; falls back to Skeuomorphic if unknown.

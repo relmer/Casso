@@ -380,6 +380,12 @@ HRESULT DwriteTextRenderer::DrawString (
 
     hr = m_d2dContext->CreateSolidColorBrush (ColorFromArgb (argbColor), &brush);
     CHRA (hr);
+    if (m_globalAlpha < 1.0f)
+    {
+        D2D1_COLOR_F  scaled = brush->GetColor();
+        scaled.a *= m_globalAlpha;
+        brush->SetColor (scaled);
+    }
 
     layoutRect.left   = xDip;
     layoutRect.top    = yDip;
@@ -434,6 +440,12 @@ HRESULT DwriteTextRenderer::FillRect (
 
     hr = m_d2dContext->CreateSolidColorBrush (ColorFromArgb (argbColor), &brush);
     CHRA (hr);
+    if (m_globalAlpha < 1.0f)
+    {
+        D2D1_COLOR_F  scaled = brush->GetColor();
+        scaled.a *= m_globalAlpha;
+        brush->SetColor (scaled);
+    }
 
     rect.left   = xDip;
     rect.top    = yDip;
@@ -515,7 +527,7 @@ HRESULT DwriteTextRenderer::DrawFramebuffer (
     dest.bottom = destYDip + destHeightDip;
 
     m_d2dContext->DrawBitmap (m_framebufferBitmap.Get(),
-                              &dest, 1.0f,
+                              &dest, m_globalAlpha,
                               D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
                               nullptr);
 

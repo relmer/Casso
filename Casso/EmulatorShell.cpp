@@ -1181,6 +1181,33 @@ HRESULT EmulatorShell::SwitchMachine(const wstring & machineName)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::SetColorModeLive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetColorModeLive (int settingsColorModeIndex)
+{
+    ColorMode  mode = ColorMode::Color;
+
+
+    switch (settingsColorModeIndex)
+    {
+        case 0:  mode = ColorMode::Color;     break;
+        case 1:  mode = ColorMode::GreenMono; break;
+        case 2:  mode = ColorMode::AmberMono; break;
+        case 3:  mode = ColorMode::WhiteMono; break;
+        default: return;
+    }
+
+    m_colorMode.store (mode, std::memory_order_release);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RunMessageLoop
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -99,6 +99,13 @@ public:
 
     bool     IsTargetBound    () const { return m_targetBound; }
 
+    // Global alpha multiplier (matches DxUiPainter::SetGlobalAlpha).
+    // Pre-multiplied into every brush's alpha channel and into the
+    // opacity arg of DrawBitmap so a single switch fades all text,
+    // filled rects, and the framebuffer preview uniformly.
+    void     SetGlobalAlpha   (float alpha) { m_globalAlpha = (alpha < 0.0f) ? 0.0f : (alpha > 1.0f) ? 1.0f : alpha; }
+    float    GlobalAlpha      () const      { return m_globalAlpha; }
+
 private:
     struct TextFormatKey
     {
@@ -133,4 +140,5 @@ private:
 
     bool                              m_targetBound = false;
     bool                              m_drawing     = false;
+    float                             m_globalAlpha = 1.0f;
 };

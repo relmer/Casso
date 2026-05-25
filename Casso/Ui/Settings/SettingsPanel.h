@@ -106,6 +106,9 @@ private:
     void  RebuildFocusOrder           ();
     void  SyncFocusToWidgets          ();
     bool  AnyDropdownOpenOnActivePage () const;
+    void  UpdatePreviewFade           (int64_t nowMs);
+    void  StartPreview                (int focus, bool keyboardMode);
+    void  EndPreview                  ();
 
 
     UiShell         * m_uiShell   = nullptr;
@@ -123,12 +126,32 @@ private:
     // Staged CRT params. brightness/contrast live in GlobalUserPrefs
     // (global, not per-machine) so they bypass SettingsPanelState's
     // per-machine apply pipeline. Baseline captures the value at Show
-    // time so Cancel can revert; pending is what the Display sliders
-    // mutate; CommitApply pushes pending into prefs + Save.
+    // time so Cancel can revert; live values are written directly to
+    // GlobalUserPrefs.crt for instant shader preview while the panel
+    // is faded out. CommitApply just flips userOverride + Saves; Cancel
+    // restores the baseline values back to GlobalUserPrefs.crt.
     float               m_baselineBrightness = 1.0f;
     float               m_baselineContrast   = 1.0f;
-    float               m_pendingBrightness  = 1.0f;
-    float               m_pendingContrast    = 1.0f;
+    int                 m_baselineColorMode  = -1;
+
+    // Live-preview state machine. While a slider is dragged or a
+    // dropdown is open, the panel fades out so the user can see the
+    // emulator respond to the change. Keyboard-driven changes auto-
+    // dismiss the preview 500ms after the last keystroke.
+    enum class PreviewFocus
+    {
+        None              = 0,
+        BrightnessSlider  = 1,
+        ContrastSlider    = 2,
+        MonitorDropdown   = 3,
+    };
+
+    PreviewFocus        m_previewFocus       = PreviewFocus::None;
+    bool                m_previewKeyboard    = false;     // true => auto-end via idle timer
+    int64_t             m_lastInteractionMs  = 0;
+    float               m_panelAlpha         = 1.0f;      // animated 1.0 <-> 0.0
+    float               m_focusedAlpha       = 1.0f;      // animated 1.0 <-> 0.5
+    int64_t             m_lastFrameMs        = 0;
 
     TabStrip            m_tabs;
     MachinePage         m_machinePage;

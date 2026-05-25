@@ -190,8 +190,44 @@ HRESULT SettingsPanel::Initialize (
     m_machinePage.SetOnMachineSelected ([this] (const std::string & machineName) { OnMachineSelected (machineName); });
     m_hardwarePage.SetState (&m_state);
     m_displayPage.SetState  (&m_state);
-    m_displayPage.SetOnBrightnessChange ([this] (float pct) { m_pendingBrightness = pct / 50.0f; });
-    m_displayPage.SetOnContrastChange   ([this] (float pct) { m_pendingContrast   = pct / 50.0f; });
+
+    // Brightness / contrast slide callbacks write LIVE to GlobalUserPrefs.crt
+    // so the emulator's per-frame MakeCrtParams picks the new value up on
+    // the next CPU frame. Cancel undoes this by restoring the baseline
+    // values; OK simply flips userOverride + Saves to disk.
+    m_displayPage.SetOnBrightnessChange ([this] (float pct)
+    {
+        if (m_prefs != nullptr)
+        {
+            m_prefs->crt.brightness = pct / 50.0f;
+        }
+    });
+    m_displayPage.SetOnContrastChange ([this] (float pct)
+    {
+        if (m_prefs != nullptr)
+        {
+            m_prefs->crt.contrast = pct / 50.0f;
+        }
+    });
+    m_displayPage.SetOnMonitorChange ([this] (int idx)
+    {
+        if (m_emuShell != nullptr)
+        {
+            m_emuShell->SetColorModeLive (idx);
+        }
+    });
+    m_displayPage.SetOnPreview ([this] (int controlId, bool start, bool keyboardMode)
+    {
+        if (start)
+        {
+            StartPreview (controlId, keyboardMode);
+        }
+        else
+        {
+            EndPreview();
+        }
+    });
+
     m_themePage.SetOnThemeSelected ([this] (const std::string & themeName) { OnThemeSelected (themeName); });
 
     // Live framebuffer source for the Settings → Theme preview. The
@@ -250,16 +286,26 @@ HRESULT SettingsPanel::Show ()
     m_pendingMachineSelect.clear();
     m_pendingTheme.clear();
 
-    // Snapshot the baseline CRT params so Cancel can revert. The
-    // sliders mutate m_pending* directly via their callbacks; until
-    // CommitApply runs, m_globalPrefs.crt stays untouched.
+    // Snapshot the baseline CRT params + color mode so Cancel can
+    // revert. Brightness / contrast values are mutated LIVE on every
+    // slider tick (so the user sees the shader respond while the
+    // panel is faded out); Cancel writes the baselines back to
+    // GlobalUserPrefs.crt so the shader picks them up next frame.
     if (m_prefs != nullptr)
     {
         m_baselineBrightness = m_prefs->crt.brightness;
         m_baselineContrast   = m_prefs->crt.contrast;
-        m_pendingBrightness  = m_baselineBrightness;
-        m_pendingContrast    = m_baselineContrast;
     }
+    m_baselineColorMode = (int) m_state.Prefs().colorMode;
+
+    // Reset preview state so a previous session's interaction doesn't
+    // leak in (e.g. user closed the panel mid-drag via Esc).
+    m_previewFocus      = PreviewFocus::None;
+    m_previewKeyboard   = false;
+    m_lastInteractionMs = 0;
+    m_panelAlpha        = 1.0f;
+    m_focusedAlpha      = 1.0f;
+    m_lastFrameMs       = 0;
 
     if (m_uiShell != nullptr)
     {
@@ -271,7 +317,7 @@ HRESULT SettingsPanel::Show ()
     m_machinePage.Rebuild();
     m_hardwarePage.Rebuild();
     m_displayPage.Rebuild();
-    m_displayPage.SetInitialCrt (m_pendingBrightness, m_pendingContrast);
+    m_displayPage.SetInitialCrt (m_baselineBrightness, m_baselineContrast);
 
     m_visible = true;
     RebuildFocusOrder();
@@ -401,6 +447,90 @@ void SettingsPanel::Hide ()
 {
     m_visible = false;
     m_scrim.Hide();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartPreview / EndPreview / UpdatePreviewFade
+//
+//  The live-preview state machine. While a slider is being dragged
+//  or a dropdown is open, the panel fades out (alpha -> 0) so the
+//  user can see the emulator respond to the change; the focused
+//  control stays at ~50% alpha so they can still see what they're
+//  manipulating. Keyboard-driven changes auto-end the preview 500ms
+//  after the last keystroke.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::StartPreview (int focus, bool keyboardMode)
+{
+    m_previewFocus      = (PreviewFocus) focus;
+    m_previewKeyboard   = keyboardMode;
+    m_lastInteractionMs = (int64_t) GetTickCount64();
+}
+
+
+void SettingsPanel::EndPreview ()
+{
+    m_previewFocus      = PreviewFocus::None;
+    m_previewKeyboard   = false;
+}
+
+
+void SettingsPanel::UpdatePreviewFade (int64_t nowMs)
+{
+    constexpr int64_t  s_kKeyboardIdleMs = 500;     // FR-2: 0.5s after last keystroke
+    constexpr float    s_kFadeDurationMs = 180.0f;  // panel/scrim fade-in/out time
+
+    float    targetPanel    = 1.0f;
+    float    targetFocused  = 1.0f;
+    int64_t  dtMs           = 0;
+    float    dtFraction     = 0.0f;
+
+
+
+    if (m_lastFrameMs == 0)
+    {
+        m_lastFrameMs = nowMs;
+    }
+    dtMs = nowMs - m_lastFrameMs;
+    m_lastFrameMs = nowMs;
+
+    // Keyboard idle timeout: auto-end the preview once the user stops
+    // tapping arrow keys. Mouse-drag preview ends explicitly on
+    // mouse-up via EndPreview so this check is keyboard-only.
+    if (m_previewFocus != PreviewFocus::None && m_previewKeyboard &&
+        (nowMs - m_lastInteractionMs) >= s_kKeyboardIdleMs)
+    {
+        EndPreview();
+    }
+
+    if (m_previewFocus != PreviewFocus::None)
+    {
+        targetPanel   = 0.0f;
+        targetFocused = 0.5f;
+    }
+
+    if (dtMs <= 0 || s_kFadeDurationMs <= 0.0f)
+    {
+        m_panelAlpha   = targetPanel;
+        m_focusedAlpha = targetFocused;
+        return;
+    }
+
+    dtFraction = (float) dtMs / s_kFadeDurationMs;
+    if (dtFraction > 1.0f) { dtFraction = 1.0f; }
+
+    m_panelAlpha   += (targetPanel   - m_panelAlpha)   * dtFraction;
+    m_focusedAlpha += (targetFocused - m_focusedAlpha) * dtFraction;
+
+    // Snap when very close to target so we settle instead of asymptoting.
+    if (std::fabs (targetPanel   - m_panelAlpha)   < 0.005f) { m_panelAlpha   = targetPanel;   }
+    if (std::fabs (targetFocused - m_focusedAlpha) < 0.005f) { m_focusedAlpha = targetFocused; }
 }
 
 
@@ -830,7 +960,32 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
         return;
     }
 
-    // Dimmed backdrop behind the panel.
+    // Detect monitor-dropdown open/close transitions so the preview
+    // state fades in/out as the user opens / dismisses it. Driven by
+    // polling here rather than dropdown callbacks because Dropdown
+    // doesn't expose OnOpen / OnClose hooks today.
+    {
+        bool  monitorOpen = m_displayPage.MonitorDropdown().IsOpen();
+
+        if (monitorOpen && m_previewFocus != PreviewFocus::MonitorDropdown)
+        {
+            StartPreview ((int) PreviewFocus::MonitorDropdown, false);
+        }
+        else if (!monitorOpen && m_previewFocus == PreviewFocus::MonitorDropdown)
+        {
+            EndPreview();
+        }
+    }
+
+    UpdatePreviewFade ((int64_t) GetTickCount64());
+
+    float  panelA   = m_panelAlpha;
+    float  focusedA = m_focusedAlpha;
+    int    focusedControlId = (m_previewFocus == PreviewFocus::None) ? -1 : (int) m_previewFocus;
+
+    // ----- Dimmed backdrop behind the panel (fades with the panel). -----
+    painter.SetGlobalAlpha (panelA);
+    text.SetGlobalAlpha    (panelA);
     painter.FillRect ((float) m_viewport.left,
                       (float) m_viewport.top,
                       (float) (m_viewport.right  - m_viewport.left),
@@ -878,12 +1033,24 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
         case TabIndex::Machine:  m_machinePage.Paint  (painter, text); break;
         case TabIndex::Hardware: m_hardwarePage.Paint (painter, text); break;
         case TabIndex::Theme:    m_themePage.Paint    (painter, text); break;
-        case TabIndex::Display:  m_displayPage.Paint  (painter, text); break;
+        case TabIndex::Display:
+            // DisplayPage paints its own controls at per-control alpha
+            // (focused vs non-focused). It restores global alpha to 1.0
+            // on exit; we re-clamp to panelA below so the buttons keep
+            // honouring the panel-fade.
+            m_displayPage.Paint  (painter, text, focusedControlId, panelA, focusedA);
+            painter.SetGlobalAlpha (panelA);
+            text.SetGlobalAlpha    (panelA);
+            break;
     }
 
     m_applyButton.Paint  (painter, text, theme);
     m_cancelButton.Paint (painter, text, theme);
 
+    // Modal scrim (reset-required confirmation) always paints fully
+    // opaque; it stops the panel from being interactable beneath it.
+    painter.SetGlobalAlpha (1.0f);
+    text.SetGlobalAlpha    (1.0f);
     m_scrim.Paint (painter);
 }
 
@@ -1161,19 +1328,15 @@ void SettingsPanel::CommitApply ()
 
     pendingMachine.swap (m_pendingMachineSelect);
 
-    // Persist staged CRT params (brightness + contrast). The moment
-    // any value differs from the baseline we flip userOverride so the
-    // theme defaults stop applying; this matches the existing rule
-    // that loading any "crt" object from disk sets userOverride. The
-    // live emulator picks the new values up automatically because
-    // EmulatorShell's per-frame MakeCrtParams reads m_globalPrefs.crt.
+    // CRT brightness / contrast were already written live to
+    // GlobalUserPrefs.crt by the slider callbacks; CommitApply just
+    // flips userOverride (so theme defaults stop applying) and Saves
+    // to disk when the values changed from the baseline.
     if (m_prefs != nullptr)
     {
-        bool  brightnessChanged = (m_pendingBrightness != m_baselineBrightness);
-        bool  contrastChanged   = (m_pendingContrast   != m_baselineContrast);
+        bool  brightnessChanged = (m_prefs->crt.brightness != m_baselineBrightness);
+        bool  contrastChanged   = (m_prefs->crt.contrast   != m_baselineContrast);
 
-        m_prefs->crt.brightness = m_pendingBrightness;
-        m_prefs->crt.contrast   = m_pendingContrast;
         if (brightnessChanged || contrastChanged)
         {
             m_prefs->crt.userOverride = true;
@@ -1186,9 +1349,10 @@ void SettingsPanel::CommitApply ()
             IGNORE_RETURN_VALUE (hrSave, S_OK);
         }
 
-        m_baselineBrightness = m_pendingBrightness;
-        m_baselineContrast   = m_pendingContrast;
+        m_baselineBrightness = m_prefs->crt.brightness;
+        m_baselineContrast   = m_prefs->crt.contrast;
     }
+    m_baselineColorMode = (int) m_state.Prefs().colorMode;
 
     // Apply the staged theme BEFORE any machine switch so the chrome
     // is already in its final geometry when SwitchMachine triggers a
@@ -1244,8 +1408,26 @@ void SettingsPanel::OnCancelClicked ()
 {
     m_pendingMachineSelect.clear();
     m_pendingTheme.clear();
-    m_pendingBrightness = m_baselineBrightness;
-    m_pendingContrast   = m_baselineContrast;
+
+    // Roll back any live-preview CRT changes so the emulator
+    // immediately reverts to its pre-panel state. The shader picks the
+    // restored values up on the next frame via the existing per-frame
+    // MakeCrtParams path.
+    if (m_prefs != nullptr)
+    {
+        m_prefs->crt.brightness = m_baselineBrightness;
+        m_prefs->crt.contrast   = m_baselineContrast;
+    }
+    if (m_emuShell != nullptr && m_baselineColorMode >= 0)
+    {
+        m_emuShell->SetColorModeLive (m_baselineColorMode);
+    }
+
+    m_previewFocus      = PreviewFocus::None;
+    m_previewKeyboard   = false;
+    m_panelAlpha        = 1.0f;
+    m_focusedAlpha      = 1.0f;
+
     m_state.Cancel();
     m_visible = false;
 }

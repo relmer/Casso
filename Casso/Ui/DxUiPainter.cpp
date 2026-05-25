@@ -358,7 +358,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxUiPainter::Vertex DxUiPainter::MakeVertex (uint32_t argbColor)
+DxUiPainter::Vertex DxUiPainter::MakeVertex (uint32_t argbColor, float alphaMultiplier)
 {
     Vertex  v;
     float   a = ((argbColor >> 24) & 0xFF) * s_kByteToUnit;
@@ -367,6 +367,8 @@ DxUiPainter::Vertex DxUiPainter::MakeVertex (uint32_t argbColor)
     float   b = ((argbColor      ) & 0xFF) * s_kByteToUnit;
 
 
+
+    a *= (alphaMultiplier < 0.0f) ? 0.0f : (alphaMultiplier > 1.0f) ? 1.0f : alphaMultiplier;
 
     // Premultiply RGB by alpha so the source-over blend renders correctly.
     v.x = 0.0f;
@@ -460,7 +462,7 @@ void DxUiPainter::FillRect (
     float     heightPx,
     uint32_t  argbColor)
 {
-    Vertex  v = MakeVertex (argbColor);
+    Vertex  v = MakeVertex (argbColor, m_globalAlpha);
 
 
 
@@ -485,8 +487,8 @@ void DxUiPainter::FillGradientRect (
     uint32_t  argbTop,
     uint32_t  argbBottom)
 {
-    Vertex  top    = MakeVertex (argbTop);
-    Vertex  bottom = MakeVertex (argbBottom);
+    Vertex  top    = MakeVertex (argbTop,    m_globalAlpha);
+    Vertex  bottom = MakeVertex (argbBottom, m_globalAlpha);
 
 
 

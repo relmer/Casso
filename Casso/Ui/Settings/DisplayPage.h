@@ -32,11 +32,22 @@ class DisplayPage
 public:
     using BrightnessFn = std::function<void (float value)>;
     using ContrastFn   = std::function<void (float value)>;
+    using MonitorFn    = std::function<void (int colorModeIndex)>;
+    using PreviewFn    = std::function<void (int controlId, bool start, bool keyboardMode)>;
+
+    // Control ids used by SetOnPreview to identify which control is
+    // being interacted with. Match the SettingsPanel::PreviewFocus
+    // enum offsets so the panel can cast directly.
+    static constexpr int  kControlBrightness = 1;
+    static constexpr int  kControlContrast   = 2;
+    static constexpr int  kControlMonitor    = 3;
 
     void  SetState              (SettingsPanelState * state);
     void  SetInitialCrt         (float brightness, float contrast);
-    void  SetOnBrightnessChange (BrightnessFn fn) { m_onBrightness = std::move (fn); }
-    void  SetOnContrastChange   (ContrastFn   fn) { m_onContrast   = std::move (fn); }
+    void  SetOnBrightnessChange (BrightnessFn fn) { m_onBrightness  = std::move (fn); }
+    void  SetOnContrastChange   (ContrastFn   fn) { m_onContrast    = std::move (fn); }
+    void  SetOnMonitorChange    (MonitorFn    fn) { m_onMonitor     = std::move (fn); }
+    void  SetOnPreview          (PreviewFn    fn) { m_onPreview     = std::move (fn); }
 
     void  Layout    (const RECT & rect, const DpiScaler & scaler);
     void  Rebuild   ();
@@ -47,7 +58,15 @@ public:
     void  OnMouseHover  (int x, int y);
     bool  OnKey         (WPARAM vk);
 
-    void  Paint (DxUiPainter & painter, DwriteTextRenderer & text) const;
+    // Render. When focusedControlId is -1 every control paints at
+    // `nonFocusedAlpha`; otherwise the matching control paints at
+    // `focusedAlpha` (used by the panel's live-preview fade so the
+    // user can see the slider / dropdown they're interacting with
+    // while the rest of the UI fades out).
+    void  Paint (DxUiPainter & painter, DwriteTextRenderer & text,
+                 int focusedControlId = -1,
+                 float nonFocusedAlpha = 1.0f,
+                 float focusedAlpha    = 1.0f) const;
 
     void  CollectFocusables (std::vector<std::function<void (bool)>> & out);
     bool  AnyDropdownOpen   () const { return m_monitor.IsOpen(); }
@@ -61,6 +80,8 @@ private:
     SettingsPanelState  * m_state = nullptr;
     BrightnessFn          m_onBrightness;
     ContrastFn            m_onContrast;
+    MonitorFn             m_onMonitor;
+    PreviewFn             m_onPreview;
 
     Label                 m_monitorLabel;
     Label                 m_brightnessLabel;
