@@ -109,7 +109,7 @@ void MachinePage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_speedLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_speedLabel.SetText (L"CPU speed:");
     m_speed.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
-    m_speed.SetItems ({ L"Authentic (1.023 MHz)", L"2x (2.046 MHz)", L"Maximum (unthrottled)" });
+    m_speed.SetItems ({ L"Authentic (1.023 MHz)", L"2x (2.046 MHz)", L"Maximum (full afterburner)" });
     y += rowHeight + sectionGap;
 
     m_wpLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
