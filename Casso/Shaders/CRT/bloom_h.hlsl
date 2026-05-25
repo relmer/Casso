@@ -20,7 +20,7 @@ cbuffer CrtCb : register(b0)
     float  g_colorBleedWidth;
     float  g_outputW;
     float  g_outputH;
-    float  g_pad;
+    float  g_contrast;
 };
 
 struct PSInput

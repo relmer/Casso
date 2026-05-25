@@ -120,6 +120,16 @@ private:
     std::string         m_pendingMachineSelect;
     std::string         m_pendingTheme;
 
+    // Staged CRT params. brightness/contrast live in GlobalUserPrefs
+    // (global, not per-machine) so they bypass SettingsPanelState's
+    // per-machine apply pipeline. Baseline captures the value at Show
+    // time so Cancel can revert; pending is what the Display sliders
+    // mutate; CommitApply pushes pending into prefs + Save.
+    float               m_baselineBrightness = 1.0f;
+    float               m_baselineContrast   = 1.0f;
+    float               m_pendingBrightness  = 1.0f;
+    float               m_pendingContrast    = 1.0f;
+
     TabStrip            m_tabs;
     MachinePage         m_machinePage;
     HardwarePage        m_hardwarePage;

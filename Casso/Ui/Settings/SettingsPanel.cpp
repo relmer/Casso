@@ -189,6 +189,9 @@ HRESULT SettingsPanel::Initialize (
     m_machinePage.SetState  (&m_state);
     m_machinePage.SetOnMachineSelected ([this] (const std::string & machineName) { OnMachineSelected (machineName); });
     m_hardwarePage.SetState (&m_state);
+    m_displayPage.SetState  (&m_state);
+    m_displayPage.SetOnBrightnessChange ([this] (float v) { m_pendingBrightness = v; });
+    m_displayPage.SetOnContrastChange   ([this] (float v) { m_pendingContrast   = v; });
     m_themePage.SetOnThemeSelected ([this] (const std::string & themeName) { OnThemeSelected (themeName); });
 
     // Live framebuffer source for the Settings → Theme preview. The
@@ -247,6 +250,17 @@ HRESULT SettingsPanel::Show ()
     m_pendingMachineSelect.clear();
     m_pendingTheme.clear();
 
+    // Snapshot the baseline CRT params so Cancel can revert. The
+    // sliders mutate m_pending* directly via their callbacks; until
+    // CommitApply runs, m_globalPrefs.crt stays untouched.
+    if (m_prefs != nullptr)
+    {
+        m_baselineBrightness = m_prefs->crt.brightness;
+        m_baselineContrast   = m_prefs->crt.contrast;
+        m_pendingBrightness  = m_baselineBrightness;
+        m_pendingContrast    = m_baselineContrast;
+    }
+
     if (m_uiShell != nullptr)
     {
         Layout (m_uiShell->ViewportWidth(), m_uiShell->ViewportHeight(), m_uiShell->Scaler());
@@ -256,6 +270,8 @@ HRESULT SettingsPanel::Show ()
     // (e.g. Dropdown items) exist before Rebuild calls SetSelected.
     m_machinePage.Rebuild();
     m_hardwarePage.Rebuild();
+    m_displayPage.Rebuild();
+    m_displayPage.SetInitialCrt (m_pendingBrightness, m_pendingContrast);
 
     m_visible = true;
     RebuildFocusOrder();
@@ -295,7 +311,7 @@ void SettingsPanel::RebuildFocusOrder ()
         case TabIndex::Machine:  m_machinePage.CollectFocusables  (m_focusSetters); break;
         case TabIndex::Hardware: m_hardwarePage.CollectFocusables (m_focusSetters); break;
         case TabIndex::Theme:    m_themePage.CollectFocusables    (m_focusSetters); break;
-        case TabIndex::Display:  break;
+        case TabIndex::Display:  m_displayPage.CollectFocusables  (m_focusSetters); break;
     }
 
     m_focusSetters.push_back ([this] (bool f) { m_cancelButton.SetFocused (f); });
@@ -363,6 +379,10 @@ bool SettingsPanel::AnyDropdownOpenOnActivePage () const
     if ((TabIndex) m_activeTab == TabIndex::Theme)
     {
         return m_themePage.AnyDropdownOpen();
+    }
+    if ((TabIndex) m_activeTab == TabIndex::Display)
+    {
+        return m_displayPage.AnyDropdownOpen();
     }
     return false;
 }
@@ -893,7 +913,10 @@ void SettingsPanel::OnMouseMove (int x, int y)
         case TabIndex::Machine:  m_machinePage.OnMouseHover  (x, y); break;
         case TabIndex::Hardware: m_hardwarePage.OnMouseHover (x, y); break;
         case TabIndex::Theme:    m_themePage.OnMouseHover    (x, y); break;
-        case TabIndex::Display:  m_displayPage.OnMouseHover  (x, y); break;
+        case TabIndex::Display:
+            m_displayPage.OnMouseHover (x, y);
+            m_displayPage.OnMouseMove  (x, y);   // slider drag tracking
+            break;
     }
 }
 
@@ -1138,6 +1161,35 @@ void SettingsPanel::CommitApply ()
 
     pendingMachine.swap (m_pendingMachineSelect);
 
+    // Persist staged CRT params (brightness + contrast). The moment
+    // any value differs from the baseline we flip userOverride so the
+    // theme defaults stop applying; this matches the existing rule
+    // that loading any "crt" object from disk sets userOverride. The
+    // live emulator picks the new values up automatically because
+    // EmulatorShell's per-frame MakeCrtParams reads m_globalPrefs.crt.
+    if (m_prefs != nullptr)
+    {
+        bool  brightnessChanged = (m_pendingBrightness != m_baselineBrightness);
+        bool  contrastChanged   = (m_pendingContrast   != m_baselineContrast);
+
+        m_prefs->crt.brightness = m_pendingBrightness;
+        m_prefs->crt.contrast   = m_pendingContrast;
+        if (brightnessChanged || contrastChanged)
+        {
+            m_prefs->crt.userOverride = true;
+        }
+
+        if (m_emuShell != nullptr && (brightnessChanged || contrastChanged))
+        {
+            HRESULT  hrSave = m_prefs->Save (m_emuShell->AssetBaseDir(), *m_fs);
+
+            IGNORE_RETURN_VALUE (hrSave, S_OK);
+        }
+
+        m_baselineBrightness = m_pendingBrightness;
+        m_baselineContrast   = m_pendingContrast;
+    }
+
     // Apply the staged theme BEFORE any machine switch so the chrome
     // is already in its final geometry when SwitchMachine triggers a
     // resize / repaint cascade. Theme apply is idempotent when the
@@ -1192,6 +1244,8 @@ void SettingsPanel::OnCancelClicked ()
 {
     m_pendingMachineSelect.clear();
     m_pendingTheme.clear();
+    m_pendingBrightness = m_baselineBrightness;
+    m_pendingContrast   = m_baselineContrast;
     m_state.Cancel();
     m_visible = false;
 }

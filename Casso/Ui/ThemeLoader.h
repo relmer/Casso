@@ -45,6 +45,7 @@ enum class ThemeLoadResult
 struct ThemeCrtDefaults
 {
     float    brightness          = 1.0f;
+    float    contrast            = 1.0f;
     bool     scanlinesEnabled    = false;
     float    scanlinesIntensity  = 0.5f;
     bool     bloomEnabled        = false;

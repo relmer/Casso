@@ -202,6 +202,12 @@ private:
         return m_uiFramebuffer.empty() ? nullptr : m_uiFramebuffer.data();
     }
 
+    // Where GlobalUserPrefs lives on disk. SettingsPanel.CommitApply
+    // needs this to call m_globalPrefs.Save() when CRT brightness /
+    // contrast change. Returned by reference so the caller can pass
+    // it straight into Save(baseDir, fs).
+    const std::wstring &  AssetBaseDir () const { return m_assetBaseDir; }
+
     // Activates the named theme in ThemeManager (which notifies the
     // chrome cache listener) and persists the choice into GlobalUserPrefs.
     // No-op if the name is empty; falls back to Skeuomorphic if unknown.

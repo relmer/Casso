@@ -38,20 +38,20 @@ namespace
 
     // See Shaders/CRT/brightness.hlsl
     constexpr const char *  kPsBrightness =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_pad; };\n"
+        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; };\n"
         "Texture2D    tex : register(t0);\n"
         "SamplerState sam : register(s0);\n"
         "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
         "float4 main (PSInput i) : SV_TARGET\n"
         "{\n"
         "    float4 c = tex.Sample (sam, i.uv);\n"
-        "    c.rgb *= g_brightness;\n"
+        "    c.rgb = saturate (((c.rgb - 0.5) * g_contrast + 0.5) * g_brightness);\n"
         "    return c;\n"
         "}\n";
 
     // See Shaders/CRT/scanlines.hlsl
     constexpr const char *  kPsScanlines =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_pad; };\n"
+        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; };\n"
         "Texture2D    tex : register(t0);\n"
         "SamplerState sam : register(s0);\n"
         "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
@@ -67,7 +67,7 @@ namespace
 
     // See Shaders/CRT/bloom_h.hlsl
     constexpr const char *  kPsBloomH =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_pad; };\n"
+        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; };\n"
         "Texture2D    tex : register(t0);\n"
         "SamplerState sam : register(s0);\n"
         "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
@@ -88,7 +88,7 @@ namespace
 
     // See Shaders/CRT/bloom_v.hlsl
     constexpr const char *  kPsBloomV =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_pad; };\n"
+        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; };\n"
         "Texture2D    tex : register(t0);\n"
         "SamplerState sam : register(s0);\n"
         "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
@@ -109,7 +109,7 @@ namespace
 
     // See Shaders/CRT/bloom_composite.hlsl
     constexpr const char *  kPsBloomComp =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_pad; };\n"
+        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; };\n"
         "Texture2D    texSrc   : register(t0);\n"
         "Texture2D    texBloom : register(t1);\n"
         "SamplerState sam      : register(s0);\n"
@@ -123,7 +123,7 @@ namespace
 
     // See Shaders/CRT/color_bleed.hlsl
     constexpr const char *  kPsColorBleed =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_pad; };\n"
+        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; };\n"
         "Texture2D    tex : register(t0);\n"
         "SamplerState sam : register(s0);\n"
         "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
@@ -199,6 +199,7 @@ CrtParams MakeCrtParams (
 {
     CrtParams  params;
     float      brightness   = prefsCrt.brightness;
+    float      contrast     = prefsCrt.contrast;
     bool       scanEn       = prefsCrt.scanlinesEnabled;
     float      scanInt      = prefsCrt.scanlinesIntensity;
     bool       bloomEn      = prefsCrt.bloomEnabled;
@@ -214,6 +215,7 @@ CrtParams MakeCrtParams (
     if (!prefsCrt.userOverride && themeDefaults != nullptr)
     {
         brightness = themeDefaults->brightness;
+        contrast   = themeDefaults->contrast;
         scanEn     = themeDefaults->scanlinesEnabled;
         scanInt    = themeDefaults->scanlinesIntensity;
         bloomEn    = themeDefaults->bloomEnabled;
@@ -230,7 +232,7 @@ CrtParams MakeCrtParams (
     params.colorBleedWidth   = bleedEn ? bleedW  : 0.0f;
     params.outputW           = (outputW > 0.0f) ? outputW : 1.0f;
     params.outputH           = (outputH > 0.0f) ? outputH : 1.0f;
-    params.pad               = 0.0f;
+    params.contrast          = contrast;
 
     return params;
 }

@@ -77,6 +77,7 @@ public:
         // pre-populated (the slider's stored default isn't applied until
         // the user enables the effect).
         Assert::AreEqual (1.0f,    params.brightness);
+        Assert::AreEqual (1.0f,    params.contrast);
         Assert::AreEqual (0.0f,    params.scanlineIntensity);
         Assert::AreEqual (0.0f,    params.bloomRadius);
         Assert::AreEqual (0.0f,    params.bloomStrength);
@@ -118,6 +119,7 @@ public:
         GlobalUserPrefs  prefs;
         prefs.crt.userOverride        = true;
         prefs.crt.brightness          = 1.2f;
+        prefs.crt.contrast            = 1.6f;
         prefs.crt.scanlinesEnabled    = true;
         prefs.crt.scanlinesIntensity  = 0.7f;
         prefs.crt.bloomEnabled        = true;
@@ -129,6 +131,7 @@ public:
         CrtParams  params = MakeCrtParams (prefs.crt, nullptr, 1024.0f, 768.0f);
 
         Assert::AreEqual (1.2f, params.brightness);
+        Assert::AreEqual (1.6f, params.contrast);
         Assert::AreEqual (0.7f, params.scanlineIntensity);
         Assert::AreEqual (2.0f, params.bloomRadius);
         Assert::AreEqual (0.4f, params.bloomStrength);
@@ -138,15 +141,9 @@ public:
 
     TEST_METHOD (MakeCrtParams_ThemeOverride_OnlyAppliesWhenUserHasNoOverride)
     {
-        // Theme says "scanlines on at 0.8, bloom on at radius=3.0". Two
-        // cases:
-        //
-        //   1. prefs.userOverride == false (first-run; user hasn't touched
-        //      anything yet) -> theme defaults take effect.
-        //   2. prefs.userOverride == true (user customised at least one
-        //      slider) -> theme defaults are ignored entirely, prefs win.
         ThemeCrtDefaults  theme;
         theme.brightness          = 0.85f;
+        theme.contrast            = 1.15f;
         theme.scanlinesEnabled    = true;
         theme.scanlinesIntensity  = 0.8f;
         theme.bloomEnabled        = true;
@@ -161,6 +158,7 @@ public:
             CrtParams  params = MakeCrtParams (prefs.crt, &theme, 640.0f, 480.0f);
 
             Assert::AreEqual (0.85f, params.brightness);
+            Assert::AreEqual (1.15f, params.contrast);
             Assert::AreEqual (0.8f,  params.scanlineIntensity);
             Assert::AreEqual (3.0f,  params.bloomRadius);
             Assert::AreEqual (0.55f, params.bloomStrength);
@@ -173,6 +171,7 @@ public:
             GlobalUserPrefs  prefs;
             prefs.crt.userOverride       = true;
             prefs.crt.brightness         = 1.4f;
+            prefs.crt.contrast           = 0.7f;
             prefs.crt.scanlinesEnabled   = false;
             prefs.crt.scanlinesIntensity = 0.2f;
             prefs.crt.bloomEnabled       = false;
@@ -184,6 +183,7 @@ public:
             CrtParams  params = MakeCrtParams (prefs.crt, &theme, 640.0f, 480.0f);
 
             Assert::AreEqual (1.4f, params.brightness);
+            Assert::AreEqual (0.7f, params.contrast);
             Assert::AreEqual (0.0f, params.scanlineIntensity);  // disabled
             Assert::AreEqual (0.0f, params.bloomRadius);        // disabled
             Assert::AreEqual (0.0f, params.bloomStrength);      // disabled

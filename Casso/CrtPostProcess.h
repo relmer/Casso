@@ -32,7 +32,7 @@ struct CrtParams
     float    colorBleedWidth    = 0.0f;
     float    outputW            = 1.0f;
     float    outputH            = 1.0f;
-    float    pad                = 0.0f;
+    float    contrast           = 1.0f;
 };
 
 

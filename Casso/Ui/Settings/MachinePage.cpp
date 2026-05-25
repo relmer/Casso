@@ -112,12 +112,6 @@ void MachinePage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_speed.SetItems ({ L"Authentic", L"2x", L"Maximum" });
     y += rowHeight + sectionGap;
 
-    m_colorLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_colorLabel.SetText (L"Monitor:");
-    m_color.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
-    m_color.SetItems ({ L"Color", L"Green monochrome", L"Amber monochrome", L"White monochrome" });
-    y += rowHeight + sectionGap;
-
     m_wpLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_wpLabel.SetText (L"Write protect:");
     m_writeProtect[0].SetRect (MakeRect (controlsX,                y, checkWidth, rowHeight));
@@ -146,13 +140,11 @@ void MachinePage::Layout (const RECT & rect, const DpiScaler & scaler)
 
     m_machineLabel.SetDpi    (dpi);
     m_speedLabel.SetDpi      (dpi);
-    m_colorLabel.SetDpi      (dpi);
     m_wpLabel.SetDpi         (dpi);
     m_audioLabel.SetDpi      (dpi);
     m_mechLabel.SetDpi       (dpi);
     m_machineDropdown.SetDpi (dpi);
     m_speed.SetDpi           (dpi);
-    m_color.SetDpi           (dpi);
     m_mechanism.SetDpi       (dpi);
     m_driveAudio.SetDpi      (dpi);
     m_writeProtect[0].SetDpi (dpi);
@@ -184,7 +176,6 @@ void MachinePage::Rebuild ()
     }
 
     m_speed.SetSelected     ((int) state->Prefs().speedMode);
-    m_color.SetSelected     ((int) state->Prefs().colorMode);
     m_mechanism.SetSelected (state->Prefs().floppyMechanism == "alps" ? 1 : 0);
     m_driveAudio.SetChecked (state->Prefs().floppySoundEnabled);
     m_writeProtect[0].SetChecked (state->Prefs().writeProtect[0]);
@@ -204,7 +195,6 @@ void MachinePage::Rebuild ()
         }
     });
     m_speed.SetSelect        ([state] (int idx) { state->SetSpeedMode ((SettingsSpeedMode) idx); });
-    m_color.SetSelect        ([state] (int idx) { state->SetColorMode ((SettingsColorMode) idx); });
     m_mechanism.SetSelect    ([state] (int idx) { state->SetMechanism (idx == 1 ? "alps" : "shugart"); });
     m_driveAudio.SetOnChange ([this, state] (bool checked)
     {
@@ -249,7 +239,6 @@ void MachinePage::OnLButtonDown (int x, int y)
 
     if (m_machineDropdown.OnLButtonDown (x, y)) { return; }
     if (m_speed.OnLButtonDown      (x, y)) { return; }
-    if (m_color.OnLButtonDown      (x, y)) { return; }
     if (m_mechanism.OnLButtonDown  (x, y)) { return; }
     if (m_driveAudio.OnLButtonDown (x, y)) { return; }
     for (i = 0; i < 2; ++i)
@@ -274,7 +263,6 @@ void MachinePage::OnLButtonUp (int x, int y)
 
     (void) m_machineDropdown.OnLButtonUp (x, y);
     (void) m_speed.OnLButtonUp     (x, y);
-    (void) m_color.OnLButtonUp     (x, y);
     (void) m_mechanism.OnLButtonUp (x, y);
     (void) m_driveAudio.OnLButtonUp (x, y);
     for (i = 0; i < 2; ++i)
@@ -299,7 +287,6 @@ void MachinePage::OnMouseHover (int x, int y)
 
     m_machineDropdown.SetMouseHover (x, y);
     m_speed.SetMouseHover     (x, y);
-    m_color.SetMouseHover     (x, y);
     m_mechanism.SetMouseHover (x, y);
     m_driveAudio.SetMouseHover (x, y);
     for (i = 0; i < 2; ++i)
@@ -324,7 +311,6 @@ bool MachinePage::OnKey (WPARAM vk)
 
     if (m_machineDropdown.HandleKey (vk)) { return true; }
     if (m_speed.HandleKey      (vk)) { return true; }
-    if (m_color.HandleKey      (vk)) { return true; }
     if (m_mechanism.HandleKey  (vk)) { return true; }
     if (m_driveAudio.OnKey     (vk)) { return true; }
     for (i = 0; i < 2; ++i)
@@ -353,7 +339,6 @@ void MachinePage::CollectFocusables (std::vector<std::function<void (bool)>> & o
 {
     out.push_back ([this] (bool f) { m_machineDropdown.SetFocused (f); });
     out.push_back ([this] (bool f) { m_speed.SetFocused           (f); });
-    out.push_back ([this] (bool f) { m_color.SetFocused           (f); });
     out.push_back ([this] (bool f) { m_writeProtect[0].SetFocused (f); });
     out.push_back ([this] (bool f) { m_writeProtect[1].SetFocused (f); });
     out.push_back ([this] (bool f) { m_driveAudio.SetFocused      (f); });
@@ -374,7 +359,6 @@ bool MachinePage::AnyDropdownOpen () const
 {
     return m_machineDropdown.IsOpen() ||
            m_speed.IsOpen()           ||
-           m_color.IsOpen()           ||
            m_mechanism.IsOpen();
 }
 
@@ -394,7 +378,6 @@ void MachinePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 
     m_machineLabel.Paint (painter, text);
     m_speedLabel.Paint   (painter, text);
-    m_colorLabel.Paint   (painter, text);
     m_wpLabel.Paint      (painter, text);
     m_audioLabel.Paint   (painter, text);
     m_mechLabel.Paint    (painter, text);
@@ -403,7 +386,6 @@ void MachinePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     // sit on top of any sibling controls below them.
     m_machineDropdown.PaintBase (painter, text);
     m_speed.PaintBase           (painter, text);
-    m_color.PaintBase           (painter, text);
     m_mechanism.PaintBase       (painter, text);
     m_driveAudio.Paint          (painter, text);
     for (i = 0; i < 2; ++i)
@@ -413,6 +395,5 @@ void MachinePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 
     m_machineDropdown.PaintMenu (painter, text);
     m_speed.PaintMenu           (painter, text);
-    m_color.PaintMenu           (painter, text);
     m_mechanism.PaintMenu       (painter, text);
 }

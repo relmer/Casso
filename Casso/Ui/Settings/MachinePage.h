@@ -62,7 +62,6 @@ public:
     const Toggle      & DriveAudioToggle     () const { return m_driveAudio; }
     const Checkbox    & WriteProtect         (int drive) const { return m_writeProtect[(size_t) drive]; }
     const Dropdown    & SpeedDropdown        () const { return m_speed; }
-    const Dropdown    & ColorDropdown        () const { return m_color; }
     const Dropdown    & MechanismDropdown    () const { return m_mechanism; }
     const std::vector<std::string> & Machines () const { return m_machines; }
     int               ActiveMachineIndex     () const { return m_activeMachineIndex; }
@@ -78,14 +77,12 @@ private:
 
     Label                        m_machineLabel;
     Label                        m_speedLabel;
-    Label                        m_colorLabel;
     Label                        m_wpLabel;
     Label                        m_audioLabel;
     Label                        m_mechLabel;
 
     Dropdown                     m_machineDropdown;
     Dropdown                     m_speed;
-    Dropdown                     m_color;
     Dropdown                     m_mechanism;
     Toggle                       m_driveAudio;
     std::array<Checkbox, 2>      m_writeProtect;

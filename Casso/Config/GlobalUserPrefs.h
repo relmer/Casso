@@ -38,6 +38,7 @@ struct GlobalUserPrefs
     struct Crt
     {
         float    brightness          = 1.0f;           // 0.0 .. 2.0
+        float    contrast            = 1.0f;           // 0.0 .. 2.0
         bool     scanlinesEnabled    = false;
         float    scanlinesIntensity  = 0.5f;           // 0.0 .. 1.0
         bool     bloomEnabled        = false;

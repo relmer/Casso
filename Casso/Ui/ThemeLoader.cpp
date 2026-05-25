@@ -321,6 +321,8 @@ HRESULT ThemeLoader::ParseMetadata (
     {
         outTheme.crtDefaults.brightness =
             (float) GetNumberOpt (*crtObj, "brightness", outTheme.crtDefaults.brightness);
+        outTheme.crtDefaults.contrast =
+            (float) GetNumberOpt (*crtObj, "contrast",   outTheme.crtDefaults.contrast);
 
         if (SUCCEEDED (crtObj->GetObject ("scanlines", scanObj)) && scanObj != nullptr)
         {

@@ -56,6 +56,7 @@ public:
         orig.activeTheme            = "Retro Terminal";
         orig.lastSelectedMachine    = "Apple2e";
         orig.crt.brightness         = 1.25f;
+        orig.crt.contrast           = 1.35f;
         orig.crt.scanlinesEnabled   = true;
         orig.crt.scanlinesIntensity = 0.75f;
         orig.crt.bloomEnabled       = true;
@@ -77,6 +78,7 @@ public:
         Assert::AreEqual (orig.activeTheme,         loaded.activeTheme);
         Assert::AreEqual (orig.lastSelectedMachine, loaded.lastSelectedMachine);
         Assert::AreEqual (orig.crt.brightness,      loaded.crt.brightness);
+        Assert::AreEqual (orig.crt.contrast,        loaded.crt.contrast);
         Assert::AreEqual (orig.crt.scanlinesEnabled,    loaded.crt.scanlinesEnabled);
         Assert::AreEqual (orig.crt.scanlinesIntensity,  loaded.crt.scanlinesIntensity);
         Assert::AreEqual (orig.crt.bloomEnabled,        loaded.crt.bloomEnabled);
@@ -105,6 +107,7 @@ public:
         Assert::AreEqual (string ("DarkModern"), prefs.activeTheme);
         // crt sub-object missing → struct defaults preserved.
         Assert::AreEqual (1.0f, prefs.crt.brightness);
+        Assert::AreEqual (1.0f, prefs.crt.contrast);
     }
 
 

@@ -257,6 +257,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     colorBleed.emplace_back ("width",   JsonValue ((double) crt.colorBleedWidth));
 
     crtObj.emplace_back ("brightness", JsonValue ((double) crt.brightness));
+    crtObj.emplace_back ("contrast",   JsonValue ((double) crt.contrast));
     crtObj.emplace_back ("scanlines",  JsonValue (std::move (scanlines)));
     crtObj.emplace_back ("bloom",      JsonValue (std::move (bloom)));
     crtObj.emplace_back ("colorBleed", JsonValue (std::move (colorBleed)));
@@ -326,6 +327,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     {
         crt.userOverride = true;
         crt.brightness = (float) GetNumberOpt (*crtSub, "brightness", crt.brightness);
+        crt.contrast   = (float) GetNumberOpt (*crtSub, "contrast",   crt.contrast);
 
         if (SUCCEEDED (crtSub->GetObject ("scanlines", scanlines)) && scanlines != nullptr)
         {
@@ -349,6 +351,8 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
         // shaders into nonsense territory.
         if (crt.brightness         < 0.0f) crt.brightness         = 0.0f;
         if (crt.brightness         > 2.0f) crt.brightness         = 2.0f;
+        if (crt.contrast           < 0.0f) crt.contrast           = 0.0f;
+        if (crt.contrast           > 2.0f) crt.contrast           = 2.0f;
         if (crt.scanlinesIntensity < 0.0f) crt.scanlinesIntensity = 0.0f;
         if (crt.scanlinesIntensity > 1.0f) crt.scanlinesIntensity = 1.0f;
         if (crt.bloomRadius        < 0.0f) crt.bloomRadius        = 0.0f;
