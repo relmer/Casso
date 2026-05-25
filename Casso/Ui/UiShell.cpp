@@ -481,3 +481,33 @@ bool UiShell::HandleKey (WPARAM vk)
 
     return false;
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsCapturingInput
+//
+//  True when an overlay UI (settings panel or open top-level menu) is
+//  consuming keystrokes. EmulatorShell::OnChar uses this to suppress
+//  the WM_CHAR that Windows generates from a WM_KEYDOWN we already
+//  handled — e.g. Enter pressed on the settings OK button should not
+//  also reach the //e keyboard as a carriage return.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool UiShell::IsCapturingInput () const
+{
+    if (m_settingsPanel != nullptr && m_settingsPanel->IsVisible())
+    {
+        return true;
+    }
+
+    if (m_navLayer != nullptr && m_navLayer->IsOpen())
+    {
+        return true;
+    }
+
+    return false;
+}

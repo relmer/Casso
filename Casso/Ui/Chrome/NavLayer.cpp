@@ -20,44 +20,48 @@ namespace
     constexpr int       s_kRowPadLeftDp    = 10;
     constexpr int       s_kRowPadTopDp     = 5;
     constexpr float     s_kFontDip        = 14.0f;
+    constexpr float     s_kUnderlineThicknessDip = 1.0f;
     constexpr wchar_t   s_kFontFamily[]   = L"Segoe UI";
 
 
+    // Label syntax: `&X` marks `X` as the menu mnemonic (Win32
+    // convention). The `&` is stripped before rendering; the marked
+    // glyph is underlined when mnemonic cues should be shown.
     constexpr NavCommandEntry s_kEntries[] =
     {
-        { IDM_FILE_OPEN,                NavMenu::File,    L"Switch Machine...",      L"Ctrl+O"        },
-        { IDM_FILE_EXIT,                NavMenu::File,    L"Exit",                   nullptr          },
-        { IDM_EDIT_COPY_TEXT,           NavMenu::Edit,    L"Copy Text",              L"Ctrl+Shift+C"  },
-        { IDM_EDIT_COPY_SCREENSHOT,     NavMenu::Edit,    L"Copy Screenshot",        L"Ctrl+Alt+C"    },
-        { IDM_EDIT_PASTE,               NavMenu::Edit,    L"Paste",                  L"Ctrl+V"        },
-        { IDM_MACHINE_RESET,            NavMenu::Machine, L"Reset",                  L"Ctrl+R"        },
-        { IDM_MACHINE_POWERCYCLE,       NavMenu::Machine, L"Power Cycle",            L"Ctrl+Shift+R"  },
-        { IDM_MACHINE_PAUSE,            NavMenu::Machine, L"Pause",                  L"Pause"         },
-        { IDM_MACHINE_STEP,             NavMenu::Machine, L"Step",                   L"F11"           },
-        { IDM_MACHINE_SPEED_1X,         NavMenu::Machine, L"Speed: 1x (Authentic)",  nullptr          },
-        { IDM_MACHINE_SPEED_2X,         NavMenu::Machine, L"Speed: 2x",              nullptr          },
-        { IDM_MACHINE_SPEED_MAX,        NavMenu::Machine, L"Speed: Maximum",         nullptr          },
-        { IDM_MACHINE_INFO,             NavMenu::Machine, L"Machine Info...",        nullptr          },
-        { IDM_DISK_INSERT1,             NavMenu::Disk,    L"Insert Drive 1...",      L"Ctrl+1"        },
-        { IDM_DISK_EJECT1,              NavMenu::Disk,    L"Eject Drive 1",          L"Ctrl+Shift+1"  },
-        { IDM_DISK_WRITEPROTECT1,       NavMenu::Disk,    L"Write Protect Drive 1",  nullptr          },
-        { IDM_DISK_INSERT2,             NavMenu::Disk,    L"Insert Drive 2...",      L"Ctrl+2"        },
-        { IDM_DISK_EJECT2,              NavMenu::Disk,    L"Eject Drive 2",          L"Ctrl+Shift+2"  },
-        { IDM_DISK_WRITEPROTECT2,       NavMenu::Disk,    L"Write Protect Drive 2",  nullptr          },
-        { IDM_DISK_WRITEMODE_BUFFER,    NavMenu::Disk,    L"Write Mode: Buffer and Flush", nullptr    },
-        { IDM_DISK_WRITEMODE_COW,       NavMenu::Disk,    L"Write Mode: Copy on Write",    nullptr    },
-        { IDM_VIEW_COLOR,               NavMenu::View,    L"Color",                  nullptr          },
-        { IDM_VIEW_GREEN,               NavMenu::View,    L"Green Monochrome",       nullptr          },
-        { IDM_VIEW_AMBER,               NavMenu::View,    L"Amber Monochrome",       nullptr          },
-        { IDM_VIEW_WHITE,               NavMenu::View,    L"White Monochrome",       nullptr          },
-        { IDM_VIEW_FULLSCREEN,          NavMenu::View,    L"Fullscreen",             L"Alt+Enter"     },
-        { IDM_VIEW_RESET_SIZE,          NavMenu::View,    L"Reset Window Size",      L"Ctrl+0"        },
-        { IDM_VIEW_CRT_SHADER,          NavMenu::View,    L"CRT Shader",             nullptr          },
-        { IDM_VIEW_SETTINGS,            NavMenu::View,    L"Settings...",            L"Ctrl+,"        },
-        { IDM_VIEW_DISKII_DEBUG,        NavMenu::View,    L"Disk II Debug...",       L"Ctrl+Shift+D"  },
-        { IDM_HELP_KEYMAP,              NavMenu::Help,    L"Keyboard Map",           L"F1"            },
-        { IDM_HELP_DEBUG,               NavMenu::Help,    L"Debug Console",          L"Ctrl+D"        },
-        { IDM_HELP_ABOUT,               NavMenu::Help,    L"About Casso...",         nullptr          },
+        { IDM_FILE_OPEN,                NavMenu::File,    L"&Switch Machine...",     L"Ctrl+O"        },
+        { IDM_FILE_EXIT,                NavMenu::File,    L"E&xit",                  nullptr          },
+        { IDM_EDIT_COPY_TEXT,           NavMenu::Edit,    L"&Copy Text",             L"Ctrl+Shift+C"  },
+        { IDM_EDIT_COPY_SCREENSHOT,     NavMenu::Edit,    L"Copy &Screenshot",       L"Ctrl+Alt+C"    },
+        { IDM_EDIT_PASTE,               NavMenu::Edit,    L"&Paste",                 L"Ctrl+V"        },
+        { IDM_MACHINE_RESET,            NavMenu::Machine, L"&Reset",                 L"Ctrl+R"        },
+        { IDM_MACHINE_POWERCYCLE,       NavMenu::Machine, L"Po&wer Cycle",           L"Ctrl+Shift+R"  },
+        { IDM_MACHINE_PAUSE,            NavMenu::Machine, L"&Pause",                 L"Pause"         },
+        { IDM_MACHINE_STEP,             NavMenu::Machine, L"&Step",                  L"F11"           },
+        { IDM_MACHINE_SPEED_1X,         NavMenu::Machine, L"Speed: &1x (Authentic)", nullptr          },
+        { IDM_MACHINE_SPEED_2X,         NavMenu::Machine, L"Speed: &2x",             nullptr          },
+        { IDM_MACHINE_SPEED_MAX,        NavMenu::Machine, L"Speed: &Maximum",        nullptr          },
+        { IDM_MACHINE_INFO,             NavMenu::Machine, L"Machine &Info...",       nullptr          },
+        { IDM_DISK_INSERT1,             NavMenu::Disk,    L"&Insert Drive 1...",     L"Ctrl+1"        },
+        { IDM_DISK_EJECT1,              NavMenu::Disk,    L"&Eject Drive 1",         L"Ctrl+Shift+1"  },
+        { IDM_DISK_WRITEPROTECT1,       NavMenu::Disk,    L"&Write Protect Drive 1", nullptr          },
+        { IDM_DISK_INSERT2,             NavMenu::Disk,    L"Insert Drive &2...",     L"Ctrl+2"        },
+        { IDM_DISK_EJECT2,              NavMenu::Disk,    L"Eje&ct Drive 2",         L"Ctrl+Shift+2"  },
+        { IDM_DISK_WRITEPROTECT2,       NavMenu::Disk,    L"Write &Protect Drive 2", nullptr          },
+        { IDM_DISK_WRITEMODE_BUFFER,    NavMenu::Disk,    L"Write &Mode: Buffer and Flush", nullptr   },
+        { IDM_DISK_WRITEMODE_COW,       NavMenu::Disk,    L"Write M&ode: Copy on Write",    nullptr   },
+        { IDM_VIEW_COLOR,               NavMenu::View,    L"&Color",                 nullptr          },
+        { IDM_VIEW_GREEN,               NavMenu::View,    L"&Green Monochrome",      nullptr          },
+        { IDM_VIEW_AMBER,               NavMenu::View,    L"&Amber Monochrome",      nullptr          },
+        { IDM_VIEW_WHITE,               NavMenu::View,    L"&White Monochrome",      nullptr          },
+        { IDM_VIEW_FULLSCREEN,          NavMenu::View,    L"&Fullscreen",            L"Alt+Enter"     },
+        { IDM_VIEW_RESET_SIZE,          NavMenu::View,    L"&Reset Window Size",     L"Ctrl+0"        },
+        { IDM_VIEW_CRT_SHADER,          NavMenu::View,    L"CRT &Shader",            nullptr          },
+        { IDM_VIEW_SETTINGS,            NavMenu::View,    L"Se&ttings...",           L"Ctrl+,"        },
+        { IDM_VIEW_DISKII_DEBUG,        NavMenu::View,    L"&Disk II Debug...",      L"Ctrl+Shift+D"  },
+        { IDM_HELP_KEYMAP,              NavMenu::Help,    L"&Keyboard Map",          L"F1"            },
+        { IDM_HELP_DEBUG,               NavMenu::Help,    L"De&bug Console",         L"Ctrl+D"        },
+        { IDM_HELP_ABOUT,               NavMenu::Help,    L"&About Casso...",        nullptr          },
     };
 
 
@@ -74,6 +78,66 @@ namespace
 
 
         return MulDiv (value, (int) effectiveDpi, s_kBaseDpi);
+    }
+
+
+    // Parse a Win32-style label ("E&xit") into a stripped string
+    // ("Exit") plus the index of the mnemonic char in the stripped
+    // string (1 here) and its lower-cased char ('x'). A literal "&&"
+    // collapses to a single '&' and never marks a mnemonic. If no
+    // mnemonic marker is present, outIndex is -1.
+    void ParseMnemonic (const wchar_t * label, std::wstring & outStripped, int & outIndex, wchar_t & outLower)
+    {
+        outStripped.clear();
+        outIndex = -1;
+        outLower = 0;
+
+        if (label == nullptr)
+        {
+            return;
+        }
+
+        for (const wchar_t * p = label; *p != L'\0'; p++)
+        {
+            if (*p == L'&')
+            {
+                if (*(p + 1) == L'&')
+                {
+                    outStripped.push_back (L'&');
+                    p++;
+                    continue;
+                }
+
+                if (outIndex < 0 && *(p + 1) != L'\0')
+                {
+                    outIndex = (int) outStripped.size();
+                    outLower = (wchar_t) towlower (*(p + 1));
+                }
+                continue;
+            }
+            outStripped.push_back (*p);
+        }
+    }
+
+
+    // True when menu mnemonic underlines should be visible: either the
+    // user is holding Alt, or the system-wide "Always underline access
+    // keys" accessibility setting is on. Matches Win32 menu behavior.
+    bool ShouldShowMnemonicCues ()
+    {
+        BOOL  alwaysShow = FALSE;
+
+        if ((GetKeyState (VK_MENU) & 0x8000) != 0)
+        {
+            return true;
+        }
+
+        if (SystemParametersInfoW (SPI_GETKEYBOARDCUES, 0, &alwaysShow, 0) && alwaysShow)
+        {
+            return true;
+        }
+
+        return false;
     }
 }
 
@@ -131,12 +195,12 @@ const wchar_t * NavLayer::GetMenuName (NavMenu menu)
 {
     switch (menu)
     {
-    case NavMenu::File:    return L"File";
-    case NavMenu::Edit:    return L"Edit";
-    case NavMenu::Machine: return L"Machine";
-    case NavMenu::Disk:    return L"Disk";
-    case NavMenu::View:    return L"View";
-    case NavMenu::Help:    return L"Help";
+    case NavMenu::File:    return L"&File";
+    case NavMenu::Edit:    return L"&Edit";
+    case NavMenu::Machine: return L"&Machine";
+    case NavMenu::Disk:    return L"&Disk";
+    case NavMenu::View:    return L"&View";
+    case NavMenu::Help:    return L"&Help";
     }
 
     return L"?";
@@ -166,12 +230,19 @@ std::string NavLayer::EmitParityMarkdown ()
     {
         char            buf[256]      = {};
         const wchar_t * menuName      = GetMenuName (e.menu);
+        std::wstring    menuStripped;
+        std::wstring    labelStripped;
+        int             mnIdx         = -1;
+        wchar_t         mnCh          = 0;
         char            menuBuf[32]   = {};
         char            labelBuf[128] = {};
         char            accelBuf[64]  = {};
 
-        WideCharToMultiByte (CP_UTF8, 0, menuName, -1, menuBuf, sizeof (menuBuf), nullptr, nullptr);
-        WideCharToMultiByte (CP_UTF8, 0, e.label, -1, labelBuf, sizeof (labelBuf), nullptr, nullptr);
+        ParseMnemonic (menuName, menuStripped,  mnIdx, mnCh);
+        ParseMnemonic (e.label,  labelStripped, mnIdx, mnCh);
+
+        WideCharToMultiByte (CP_UTF8, 0, menuStripped.c_str(),  -1, menuBuf,  sizeof (menuBuf),  nullptr, nullptr);
+        WideCharToMultiByte (CP_UTF8, 0, labelStripped.c_str(), -1, labelBuf, sizeof (labelBuf), nullptr, nullptr);
 
         if (e.accelerator != nullptr)
         {
@@ -259,14 +330,19 @@ void NavLayer::Layout (int x, int y, int width, UINT dpi, DwriteTextRenderer * p
     for (int i = 0; i < kMenuCount; i++)
     {
         const wchar_t *  name      = GetMenuName ((NavMenu) i);
+        std::wstring     stripped;
+        int              mnIdx     = -1;
+        wchar_t          mnCh      = 0;
         int              menuW     = 0;
         float            textWidth = 0.0f;
         float            textHt    = 0.0f;
         HRESULT          hrMeasure = E_FAIL;
 
+        ParseMnemonic (name, stripped, mnIdx, mnCh);
+
         if (pTextForMeasure != nullptr)
         {
-            hrMeasure = pTextForMeasure->MeasureString (name, fontDip, s_kFontFamily, textWidth, textHt);
+            hrMeasure = pTextForMeasure->MeasureString (stripped.c_str(), fontDip, s_kFontFamily, textWidth, textHt);
         }
 
         if (SUCCEEDED (hrMeasure) && textWidth > 0.0f)
@@ -342,8 +418,13 @@ bool NavLayer::HandleAltKey (wchar_t ch)
     for (int i = 0; i < kMenuCount; i++)
     {
         const wchar_t * name = GetMenuName ((NavMenu) i);
+        std::wstring    stripped;
+        int             mnIdx = -1;
+        wchar_t         mnCh  = 0;
 
-        if ((wchar_t) towlower (name[0]) == lower)
+        ParseMnemonic (name, stripped, mnIdx, mnCh);
+
+        if (mnCh != 0 && mnCh == lower)
         {
             Open ((NavMenu) i);
             return true;
@@ -420,6 +501,37 @@ bool NavLayer::HandleKey (WPARAM vk)
             Dispatch (entry->commandId);
             Close();
             return true;
+        }
+    }
+
+    // Mnemonic activation within an open menu: typing the marked
+    // letter (no Alt) invokes that item directly (Win32 convention).
+    if (vk >= 'A' && vk <= 'Z')
+    {
+        wchar_t  lower = (wchar_t) towlower ((wchar_t) vk);
+        int      row   = 0;
+
+        for (const NavCommandEntry & entry : s_kEntries)
+        {
+            std::wstring  stripped;
+            int           mnIdx = -1;
+            wchar_t       mnCh  = 0;
+
+            if (entry.menu != m_openMenu)
+            {
+                continue;
+            }
+
+            ParseMnemonic (entry.label, stripped, mnIdx, mnCh);
+
+            if (mnCh != 0 && mnCh == lower)
+            {
+                m_highlightIndex = row;
+                Dispatch (entry.commandId);
+                Close();
+                return true;
+            }
+            row++;
         }
     }
 
@@ -549,6 +661,7 @@ void NavLayer::PaintStrip (
     HRESULT  hr           = S_OK;
     UINT     dpi          = (visual.dpi == 0) ? (UINT) s_kBaseDpi : visual.dpi;
     float    fontDip      = s_kFontDip * (float) dpi / (float) s_kBaseDpi;
+    bool     showCues     = ShouldShowMnemonicCues();
 
 
 
@@ -560,25 +673,67 @@ void NavLayer::PaintStrip (
 
     for (int i = 0; i < kMenuCount; i++)
     {
+        const wchar_t *  name      = GetMenuName ((NavMenu) i);
+        std::wstring     stripped;
+        int              mnIdx     = -1;
+        wchar_t          mnCh      = 0;
+        float            rectW     = (float) (m_menuRects[i].right - m_menuRects[i].left);
+        float            rectH     = (float) (m_menuRects[i].bottom - m_menuRects[i].top);
+
+        ParseMnemonic (name, stripped, mnIdx, mnCh);
+
         if ((m_hasHoverMenu && m_hoverMenu == (NavMenu) i) || (m_isOpen && m_openMenu == (NavMenu) i))
         {
             painter.FillRect ((float) m_menuRects[i].left,
                               (float) m_menuRects[i].top,
-                              (float) (m_menuRects[i].right - m_menuRects[i].left),
-                              (float) (m_menuRects[i].bottom - m_menuRects[i].top),
+                              rectW,
+                              rectH,
                               theme.navHoverArgb);
         }
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (GetMenuName ((NavMenu) i),
+        IGNORE_RETURN_VALUE (hr, text.DrawString (stripped.c_str(),
                                                   (float) m_menuRects[i].left,
                                                   (float) m_menuRects[i].top,
-                                                  (float) (m_menuRects[i].right - m_menuRects[i].left),
-                                                  (float) (m_menuRects[i].bottom - m_menuRects[i].top),
+                                                  rectW,
+                                                  rectH,
                                                   theme.navItemTextArgb,
                                                   fontDip,
                                                   s_kFontFamily,
                                                   DwriteTextRenderer::HAlign::Center,
                                                   DwriteTextRenderer::VAlign::Center));
+
+        if (showCues && mnIdx >= 0 && !stripped.empty())
+        {
+            float        fullW    = 0.0f;
+            float        fullH    = 0.0f;
+            float        prefixW  = 0.0f;
+            float        charW    = 0.0f;
+            std::wstring prefix   = stripped.substr (0, (size_t) mnIdx);
+            std::wstring prefixCh = stripped.substr (0, (size_t) mnIdx + 1);
+            HRESULT      hrM      = text.MeasureString (stripped.c_str(), fontDip, s_kFontFamily, fullW, fullH);
+
+            if (FAILED (hrM) || fullW <= 0.0f)
+            {
+                continue;
+            }
+
+            if (!prefix.empty())
+            {
+                float ignH = 0.0f;
+                IGNORE_RETURN_VALUE (hrM, text.MeasureString (prefix.c_str(), fontDip, s_kFontFamily, prefixW, ignH));
+            }
+            {
+                float pcW  = 0.0f;
+                float ignH = 0.0f;
+                IGNORE_RETURN_VALUE (hrM, text.MeasureString (prefixCh.c_str(), fontDip, s_kFontFamily, pcW, ignH));
+                charW = pcW - prefixW;
+            }
+
+            float baseX = (float) m_menuRects[i].left + (rectW - fullW) / 2.0f + prefixW;
+            float baseY = (float) m_menuRects[i].top  + (rectH + fullH) / 2.0f;
+
+            painter.FillRect (baseX, baseY, charW, s_kUnderlineThicknessDip, theme.navItemTextArgb);
+        }
     }
 }
 
@@ -605,6 +760,7 @@ void NavLayer::PaintDropdown (
     int      rowPadLeftPx  = Scale (s_kRowPadLeftDp,   dpi);
     int      rowPadTopPx   = Scale (s_kRowPadTopDp,    dpi);
     int      accelOffsetPx = Scale (s_kAccelOffsetDp,  dpi);
+    bool     showCues      = ShouldShowMnemonicCues();
 
 
 
@@ -627,10 +783,16 @@ void NavLayer::PaintDropdown (
 
     for (const NavCommandEntry & entry : s_kEntries)
     {
+        std::wstring  stripped;
+        int           mnIdx = -1;
+        wchar_t       mnCh  = 0;
+
         if (entry.menu != m_openMenu)
         {
             continue;
         }
+
+        ParseMnemonic (entry.label, stripped, mnIdx, mnCh);
 
         if (row == m_highlightIndex)
         {
@@ -641,7 +803,7 @@ void NavLayer::PaintDropdown (
                               theme.dropdownHoverArgb);
         }
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (entry.label,
+        IGNORE_RETURN_VALUE (hr, text.DrawString (stripped.c_str(),
                                                   (float) (rect.left + rowPadLeftPx),
                                                   (float) (rect.top + row * m_rowHeightPx + rowPadTopPx),
                                                   (float) accelOffsetPx,
@@ -649,6 +811,39 @@ void NavLayer::PaintDropdown (
                                                   theme.dropdownItemTextArgb,
                                                   fontDip,
                                                   s_kFontFamily));
+
+        if (showCues && mnIdx >= 0 && !stripped.empty())
+        {
+            float        prefixW  = 0.0f;
+            float        charW    = 0.0f;
+            float        fullH    = 0.0f;
+            std::wstring prefix   = stripped.substr (0, (size_t) mnIdx);
+            std::wstring prefixCh = stripped.substr (0, (size_t) mnIdx + 1);
+            HRESULT      hrM      = S_OK;
+
+            if (!prefix.empty())
+            {
+                IGNORE_RETURN_VALUE (hrM, text.MeasureString (prefix.c_str(), fontDip, s_kFontFamily, prefixW, fullH));
+            }
+            else
+            {
+                std::wstring oneCh (1, stripped[(size_t) mnIdx]);
+                IGNORE_RETURN_VALUE (hrM, text.MeasureString (oneCh.c_str(), fontDip, s_kFontFamily, prefixW, fullH));
+                prefixW = 0.0f;
+            }
+            {
+                float pcW = 0.0f;
+                float ignH = 0.0f;
+                IGNORE_RETURN_VALUE (hrM, text.MeasureString (prefixCh.c_str(), fontDip, s_kFontFamily, pcW, ignH));
+                charW = pcW - prefixW;
+            }
+
+            float baseX = (float) (rect.left + rowPadLeftPx) + prefixW;
+            float baseY = (float) (rect.top + row * m_rowHeightPx + rowPadTopPx) + fullH;
+
+            painter.FillRect (baseX, baseY, charW, s_kUnderlineThicknessDip, theme.dropdownItemTextArgb);
+        }
+
         if (entry.accelerator != nullptr)
         {
             IGNORE_RETURN_VALUE (hr, text.DrawString (entry.accelerator,

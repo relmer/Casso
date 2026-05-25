@@ -56,6 +56,7 @@ public:
     bool     OnLButtonDown      (int x, int y);
     bool     OnLButtonUp        (int x, int y);
     bool     HandleKey          (WPARAM vk);
+    bool     IsCapturingInput   () const;
 
     DxUiPainter         & Painter   ()       { return m_painter; }
     DwriteTextRenderer  & Text      ()       { return m_text; }

@@ -1930,6 +1930,15 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
         return false;
     }
 
+    // Suppress the WM_CHAR that Windows synthesizes from a WM_KEYDOWN
+    // already consumed by overlay UI (settings panel / open menu).
+    // Without this, hitting Enter on the settings OK button closes the
+    // panel and then drops a CR into the //e keyboard.
+    if (m_uiShell.IsCapturingInput())
+    {
+        return false;
+    }
+
     if (ch >= 1 && ch <= 127)
     {
         m_refs.keyboard->KeyPress (static_cast<Byte> (ch));
