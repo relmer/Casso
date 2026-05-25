@@ -344,13 +344,8 @@ void UiShell::Render ()
 
         if (settingsVisible)
         {
-            // Translucent dim layer so the emulator framebuffer behind
-            // the panel stays partially visible instead of going black.
-            m_painter.FillRect (0.0f,
-                                0.0f,
-                                (float) m_viewportWidthPx,
-                                (float) m_viewportHeightPx,
-                                0xA0000000u);
+            // The SettingsPanel owns its own backdrop dim and fades it
+            // with the preview state machine; no second scrim here.
             m_settingsPanel->Layout (m_viewportWidthPx, m_viewportHeightPx, m_scaler);
             m_settingsPanel->Paint (m_painter, m_text);
         }

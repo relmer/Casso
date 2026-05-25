@@ -489,10 +489,10 @@ void SettingsPanel::UpdatePreviewFade (int64_t nowMs)
     constexpr int64_t  s_kKeyboardIdleMs = 500;     // FR-2: 0.5s after last keystroke
     constexpr float    s_kFadeDurationMs = 180.0f;  // panel/scrim fade-in/out time
 
-    float    targetPanel    = 1.0f;
-    float    targetFocused  = 1.0f;
-    int64_t  dtMs           = 0;
-    float    maxStep        = 0.0f;
+    float    targetPanel   = 1.0f;
+    float    targetFocused = 1.0f;
+    int64_t  dtMs          = 0;
+    float    maxStep       = 0.0f;
 
 
 
@@ -526,11 +526,7 @@ void SettingsPanel::UpdatePreviewFade (int64_t nowMs)
     }
 
     // Linear ramp toward target at a rate of 1.0/duration per ms.
-    // Exponential lerp (`alpha += (target-alpha) * dtFraction`)
-    // asymptotes -- it never actually reaches the target -- so the
-    // scrim never fully cleared during preview. A clamped linear
-    // step guarantees we land on the target after the configured
-    // fade duration.
+    // Lands exactly on the target after the configured fade duration.
     maxStep = (float) dtMs / s_kFadeDurationMs;
 
     if (targetPanel > m_panelAlpha)
