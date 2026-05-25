@@ -580,6 +580,7 @@ HRESULT EmulatorShell::Initialize (
                                                  m_uiFs);
         IGNORE_RETURN_VALUE (hrSettings, S_OK);
         m_uiShell.SetSettingsPanel (&m_settingsPanel);
+        m_uiShell.SetDragSource    (&m_dragDropTarget);
 
         if (SUCCEEDED (hrUi))
         {
@@ -603,6 +604,18 @@ HRESULT EmulatorShell::Initialize (
             {
                 HRESULT hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.HitTest(), [this] (int tag, const std::wstring & path) { Mount (6, tag, path); });
                 IGNORE_RETURN_VALUE (hrDrop, S_OK);
+
+                // CassoRenderSurface is a child HWND that occludes the
+                // parent's client area for the emulator framebuffer. OLE
+                // hit-tests the topmost window under the cursor, so the
+                // child needs its own RegisterDragDrop pointing at the
+                // same IDropTarget — otherwise the user sees the
+                // not-allowed cursor anywhere over the emulator content.
+                if (m_renderHwnd != nullptr)
+                {
+                    HRESULT hrDropChild = m_dragDropTarget.AttachAdditionalWindow (m_renderHwnd);
+                    IGNORE_RETURN_VALUE (hrDropChild, S_OK);
+                }
             }
         }
     }

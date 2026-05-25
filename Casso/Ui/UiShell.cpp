@@ -336,6 +336,8 @@ void UiShell::Render ()
                 }
             }
 
+            PaintDragDropOverlay (visual, localTheme, bottomInset, barTop);
+
             if (m_navLayer != nullptr)
             {
                 m_navLayer->PaintDropdown (m_painter, m_text, visual, localTheme);
@@ -353,6 +355,227 @@ void UiShell::Render ()
 
     IGNORE_RETURN_VALUE (hr, m_painter.End (rtv));
     IGNORE_RETURN_VALUE (hr, m_text.EndDraw());
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintDragDropOverlay
+//
+//  Visual feedback while an OLE drag is in progress over the window:
+//
+//   * Unsupported file type: full-viewport dim. The OS already paints
+//     the not-allowed cursor; the dim signals "we noticed, this isn't
+//     going anywhere".
+//
+//   * Supported disk image: dim everything except the drive widget
+//     rects, then paint an amber glow border on each drive. The drive
+//     currently under the cursor gets a brighter / thicker glow so the
+//     user can see exactly where the drop will land.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UiShell::PaintDragDropOverlay (
+    const ChromeVisualState & /*visual*/,
+    const ChromeTheme       & /*theme*/,
+    int                       /*bottomInset*/,
+    int                       /*barTop*/)
+{
+    const uint32_t  s_kDimRejectArgb     = 0x90000000;
+    const uint32_t  s_kDimAcceptArgb     = 0x55000000;
+    const uint32_t  s_kGlowArgb          = 0xC0FFB347;
+    const uint32_t  s_kGlowHoverArgb     = 0xFFFFC966;
+    const float     s_kGlowThicknessPx   = 3.0f;
+    const float     s_kGlowHoverInsetPx  = 2.0f;
+    const float     s_kGlowHoverThickPx  = 4.0f;
+
+    int             hovered              = -1;
+    bool            accept               = false;
+    int             viewportW            = m_viewportWidthPx;
+    int             viewportH            = m_viewportHeightPx;
+
+
+
+    if (m_dragSource == nullptr || !m_dragSource->IsDragInProgress())
+    {
+        return;
+    }
+
+    accept  = m_dragSource->IsDragAcceptedType();
+    hovered = m_dragSource->HoveredTag();
+
+    if (!accept)
+    {
+        // Unsupported file: dim the whole viewport. OS provides the
+        // not-allowed cursor.
+        m_painter.FillRect (0.0f, 0.0f,
+                            (float) viewportW,
+                            (float) viewportH,
+                            s_kDimRejectArgb);
+        return;
+    }
+
+    // Supported file: dim only the regions OUTSIDE drive widget rects,
+    // then glow-border each drive.
+    if (m_driveWidgets == nullptr)
+    {
+        m_painter.FillRect (0.0f, 0.0f,
+                            (float) viewportW,
+                            (float) viewportH,
+                            s_kDimAcceptArgb);
+        return;
+    }
+
+    {
+        // Decompose the "everything except drive rects" region into
+        // axis-aligned strips. The drives sit in the bottom command
+        // bar, so:
+        //   1. top strip from y=0 to min(drive.top)
+        //   2. bottom strip from max(drive.bottom) to viewportH
+        //   3. left strip from x=0 to leftmost drive (only within the
+        //      drive band)
+        //   4. right strip from rightmost drive to viewportW (within
+        //      the drive band)
+        //   5. between-strips covering gaps between adjacent drives
+        //      (within the drive band)
+        RECT  d0       = (*m_driveWidgets)[0].BodyRect();
+        RECT  d1       = (*m_driveWidgets)[1].BodyRect();
+        bool  d0Empty  = (d0.right <= d0.left) || (d0.bottom <= d0.top);
+        bool  d1Empty  = (d1.right <= d1.left) || (d1.bottom <= d1.top);
+        LONG  bandTop  = 0;
+        LONG  bandBot  = 0;
+        LONG  bandLeft = 0;
+        LONG  bandRt   = 0;
+        LONG  leftX    = 0;
+        LONG  midL     = 0;
+        LONG  midR     = 0;
+        LONG  rightX   = 0;
+
+        if (d0Empty && d1Empty)
+        {
+            m_painter.FillRect (0.0f, 0.0f,
+                                (float) viewportW,
+                                (float) viewportH,
+                                s_kDimAcceptArgb);
+            return;
+        }
+
+        if (!d0Empty && !d1Empty)
+        {
+            bandTop  = std::min (d0.top,    d1.top);
+            bandBot  = std::max (d0.bottom, d1.bottom);
+            bandLeft = std::min (d0.left,   d1.left);
+            bandRt   = std::max (d0.right,  d1.right);
+        }
+        else
+        {
+            const RECT &  only = d0Empty ? d1 : d0;
+            bandTop  = only.top;
+            bandBot  = only.bottom;
+            bandLeft = only.left;
+            bandRt   = only.right;
+        }
+
+        // 1. top strip
+        if (bandTop > 0)
+        {
+            m_painter.FillRect (0.0f, 0.0f,
+                                (float) viewportW,
+                                (float) bandTop,
+                                s_kDimAcceptArgb);
+        }
+
+        // 2. bottom strip
+        if (bandBot < viewportH)
+        {
+            m_painter.FillRect (0.0f, (float) bandBot,
+                                (float) viewportW,
+                                (float) (viewportH - bandBot),
+                                s_kDimAcceptArgb);
+        }
+
+        // 3/4/5. left, between, right within the drive band
+        if (d0Empty || d1Empty)
+        {
+            const RECT &  only = d0Empty ? d1 : d0;
+            leftX  = only.left;
+            rightX = only.right;
+
+            if (leftX > 0)
+            {
+                m_painter.FillRect (0.0f, (float) bandTop,
+                                    (float) leftX,
+                                    (float) (bandBot - bandTop),
+                                    s_kDimAcceptArgb);
+            }
+
+            if (rightX < viewportW)
+            {
+                m_painter.FillRect ((float) rightX, (float) bandTop,
+                                    (float) (viewportW - rightX),
+                                    (float) (bandBot - bandTop),
+                                    s_kDimAcceptArgb);
+            }
+        }
+        else
+        {
+            leftX  = std::min (d0.left,  d1.left);
+            midL   = std::min (d0.right, d1.right);
+            midR   = std::max (d0.left,  d1.left);
+            rightX = std::max (d0.right, d1.right);
+
+            if (leftX > 0)
+            {
+                m_painter.FillRect (0.0f, (float) bandTop,
+                                    (float) leftX,
+                                    (float) (bandBot - bandTop),
+                                    s_kDimAcceptArgb);
+            }
+
+            if (midR > midL)
+            {
+                m_painter.FillRect ((float) midL, (float) bandTop,
+                                    (float) (midR - midL),
+                                    (float) (bandBot - bandTop),
+                                    s_kDimAcceptArgb);
+            }
+
+            if (rightX < viewportW)
+            {
+                m_painter.FillRect ((float) rightX, (float) bandTop,
+                                    (float) (viewportW - rightX),
+                                    (float) (bandBot - bandTop),
+                                    s_kDimAcceptArgb);
+            }
+        }
+
+        // Glow borders. Hovered drive gets a thicker, brighter outline
+        // inset slightly so it sits inside the rect instead of bleeding
+        // into the surrounding dim.
+        for (int i = 0; i < 2; i++)
+        {
+            const RECT &  r       = (i == 0) ? d0 : d1;
+            bool          empty   = (r.right <= r.left) || (r.bottom <= r.top);
+            bool          hot     = (hovered == i);
+            uint32_t      argb    = hot ? s_kGlowHoverArgb : s_kGlowArgb;
+            float         thick   = hot ? s_kGlowHoverThickPx : s_kGlowThicknessPx;
+            float         inset   = hot ? s_kGlowHoverInsetPx : 0.0f;
+
+            if (empty)
+            {
+                continue;
+            }
+
+            m_painter.OutlineRect ((float) r.left  + inset,
+                                   (float) r.top   + inset,
+                                   (float) (r.right  - r.left)  - 2.0f * inset,
+                                   (float) (r.bottom - r.top)   - 2.0f * inset,
+                                   thick,
+                                   argb);
+        }
+    }
 }
 
 

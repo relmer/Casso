@@ -191,4 +191,139 @@ public:
     }
 };
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DragDropTargetDispatchTests
+//
+//  Exercise the IDropTarget state machine without Initialize() (i.e.
+//  without RegisterDragDrop side-effects). Verifies that DragEnter /
+//  DragOver / DragLeave / Drop correctly maintain the accessor flags
+//  used by the visual-feedback overlay (IsDragInProgress,
+//  IsDragAcceptedType, HoveredTag) and that DROPEFFECT reflects the
+//  same logic OLE will hand to the cursor.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DragDropTargetDispatchTests)
+{
+public:
+
+    TEST_METHOD (FreshTarget_IsNotInProgress)
+    {
+        DragDropTarget  t;
+
+        Assert::IsFalse  (t.IsDragInProgress());
+        Assert::IsFalse  (t.IsDragAcceptedType());
+        Assert::AreEqual (-1, t.HoveredTag());
+    }
+
+    TEST_METHOD (DragEnter_SupportedFile_SetsInProgressAndAccepted)
+    {
+        DragDropTarget       t;
+        MockHDropDataObject  obj (L"C:\\Disks\\demo.dsk");
+        POINTL               pt     = { 100, 100 };
+        DWORD                effect = DROPEFFECT_COPY;
+        HRESULT              hr     = t.DragEnter (&obj, 0, pt, &effect);
+
+        Assert::AreEqual (S_OK,  hr);
+        Assert::IsTrue   (t.IsDragInProgress(),    L"Drag must be in progress after DragEnter");
+        Assert::IsTrue   (t.IsDragAcceptedType(),  L"Supported extension must be accepted");
+        // No hit-test wired -> tag stays -1 -> effect resolves to NONE.
+        Assert::AreEqual ((DWORD) DROPEFFECT_NONE, effect,
+            L"Without a hit-test hit, effect must be NONE even for supported files");
+    }
+
+    TEST_METHOD (DragEnter_UnsupportedFile_InProgressButNotAccepted)
+    {
+        DragDropTarget       t;
+        MockHDropDataObject  obj (L"C:\\Disks\\readme.txt");
+        POINTL               pt     = { 100, 100 };
+        DWORD                effect = DROPEFFECT_COPY;
+        HRESULT              hr     = t.DragEnter (&obj, 0, pt, &effect);
+
+        Assert::AreEqual (S_OK, hr);
+        Assert::IsTrue   (t.IsDragInProgress(),
+            L"Drag is in progress regardless of file type");
+        Assert::IsFalse  (t.IsDragAcceptedType(),
+            L"Unsupported extension must NOT be accepted (overlay paints reject scrim)");
+        Assert::AreEqual ((DWORD) DROPEFFECT_NONE, effect);
+    }
+
+    TEST_METHOD (DragLeave_ResetsAllState)
+    {
+        DragDropTarget       t;
+        MockHDropDataObject  obj (L"C:\\Disks\\demo.woz");
+        POINTL               pt     = { 100, 100 };
+        DWORD                effect = DROPEFFECT_COPY;
+
+        (void) t.DragEnter (&obj, 0, pt, &effect);
+        Assert::IsTrue (t.IsDragInProgress());
+
+        Assert::AreEqual (S_OK, t.DragLeave());
+        Assert::IsFalse  (t.IsDragInProgress(),    L"DragLeave must reset in-progress");
+        Assert::IsFalse  (t.IsDragAcceptedType(),  L"DragLeave must reset accepted");
+        Assert::AreEqual (-1, t.HoveredTag(),      L"DragLeave must reset hovered tag");
+    }
+
+    TEST_METHOD (Drop_ResetsState)
+    {
+        DragDropTarget       t;
+        MockHDropDataObject  obj (L"C:\\Disks\\demo.nib");
+        POINTL               pt     = { 100, 100 };
+        DWORD                effect = DROPEFFECT_COPY;
+
+        (void) t.DragEnter (&obj, 0, pt, &effect);
+
+        Assert::AreEqual (S_OK, t.Drop (&obj, 0, pt, &effect));
+        Assert::IsFalse  (t.IsDragInProgress());
+        Assert::IsFalse  (t.IsDragAcceptedType());
+        Assert::AreEqual (-1, t.HoveredTag());
+        Assert::AreEqual ((DWORD) DROPEFFECT_NONE, effect,
+            L"Without a hit, Drop reports NONE and skips the mount callback");
+    }
+
+    TEST_METHOD (DragEnter_NullDataObject_InProgressButNotAccepted)
+    {
+        DragDropTarget  t;
+        POINTL          pt     = { 100, 100 };
+        DWORD           effect = DROPEFFECT_COPY;
+        HRESULT         hr     = t.DragEnter (nullptr, 0, pt, &effect);
+
+        Assert::AreEqual (S_OK, hr);
+        Assert::IsTrue   (t.IsDragInProgress(),
+            L"A drag that arrives without a usable IDataObject still gets the overlay");
+        Assert::IsFalse  (t.IsDragAcceptedType());
+        Assert::AreEqual ((DWORD) DROPEFFECT_NONE, effect);
+    }
+
+    TEST_METHOD (DragOver_NullPdwEffect_ReturnsPointerError)
+    {
+        DragDropTarget  t;
+        POINTL          pt = { 0, 0 };
+
+        Assert::AreEqual (E_POINTER, t.DragOver (0, pt, nullptr));
+    }
+
+    TEST_METHOD (Extensions_AllFourFormats_AreAccepted)
+    {
+        const wchar_t *  exts[] = {
+            L"C:\\a.dsk", L"C:\\a.NIB", L"C:\\a.Woz", L"C:\\a.po"
+        };
+
+        for (size_t i = 0; i < sizeof (exts) / sizeof (exts[0]); i++)
+        {
+            DragDropTarget       t;
+            MockHDropDataObject  obj (exts[i]);
+            POINTL               pt     = { 0, 0 };
+            DWORD                effect = DROPEFFECT_COPY;
+
+            (void) t.DragEnter (&obj, 0, pt, &effect);
+            Assert::IsTrue (t.IsDragAcceptedType(),
+                L"All four supported extensions must accept regardless of case");
+        }
+    }
+};
+
 }   // namespace UiTests

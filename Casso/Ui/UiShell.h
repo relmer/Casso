@@ -4,6 +4,7 @@
 
 #include "Animation.h"
 #include "DpiScaler.h"
+#include "DragDropTarget.h"
 #include "DwriteTextRenderer.h"
 #include "DxUiPainter.h"
 #include "FocusManager.h"
@@ -52,6 +53,7 @@ public:
                                   std::array<DriveWidget, 2>      * driveWidgets,
                                   const ChromeTheme               * theme);
     void     SetSettingsPanel   (SettingsPanel                   * settingsPanel);
+    void     SetDragSource      (const DragDropTarget            * dragSource) { m_dragSource = dragSource; }
     bool     OnMouseMove        (int x, int y, bool leftDown);
     bool     OnLButtonDown      (int x, int y);
     bool     OnLButtonUp        (int x, int y);
@@ -78,6 +80,10 @@ public:
 
 private:
     HRESULT  RefreshTextTarget ();
+    void     PaintDragDropOverlay (const ChromeVisualState & visual,
+                                    const ChromeTheme       & theme,
+                                    int                       bottomInset,
+                                    int                       barTop);
 
     D3DRenderer                 * m_renderer     = nullptr;
 
@@ -93,6 +99,7 @@ private:
     std::array<DriveWidget, 2>  * m_driveWidgets  = nullptr;
     const ChromeTheme           * m_theme         = nullptr;
     SettingsPanel               * m_settingsPanel = nullptr;
+    const DragDropTarget        * m_dragSource    = nullptr;
 
     int                           m_viewportWidthPx  = 0;
     int                           m_viewportHeightPx = 0;

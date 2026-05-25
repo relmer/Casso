@@ -56,7 +56,7 @@ HRESULT DragDropTarget::Initialize (HWND hwnd, HitTestFn hitTest)
     hr = RegisterDragDrop (hwnd, this);
     if (SUCCEEDED (hr))
     {
-        m_fRegistered = true;
+        m_registeredHwnds.push_back (hwnd);
     }
 
 Error:
@@ -78,7 +78,7 @@ HRESULT DragDropTarget::Initialize (HWND hwnd, HitTester * pHitTester, DropFn dr
 
 
 
-    CBRAEx (hwnd, E_INVALIDARG);
+    CBRAEx (hwnd,       E_INVALIDARG);
     CBRAEx (pHitTester, E_INVALIDARG);
 
     m_hwnd      = hwnd;
@@ -89,11 +89,73 @@ HRESULT DragDropTarget::Initialize (HWND hwnd, HitTester * pHitTester, DropFn dr
     hr = RegisterDragDrop (hwnd, this);
     if (SUCCEEDED (hr))
     {
-        m_fRegistered = true;
+        m_registeredHwnds.push_back (hwnd);
     }
 
 Error:
     return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AttachAdditionalWindow
+//
+//  Registers the same IDropTarget instance with a second HWND so that
+//  drag-overs on a child window (e.g. the CassoRenderSurface child that
+//  occludes the parent's client area) get routed through the same
+//  hit-test + dispatch path. Without this, OLE shows the not-allowed
+//  cursor over the child because the child has no IDropTarget of its
+//  own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DragDropTarget::AttachAdditionalWindow (HWND hwnd)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    CBRAEx (hwnd, E_INVALIDARG);
+
+    hr = RegisterDragDrop (hwnd, this);
+    if (SUCCEEDED (hr))
+    {
+        m_registeredHwnds.push_back (hwnd);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RevokeAllRegistrations
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DragDropTarget::RevokeAllRegistrations ()
+{
+    size_t   i  = 0;
+    HRESULT  hr = S_OK;
+
+
+
+    for (i = 0; i < m_registeredHwnds.size(); i++)
+    {
+        if (m_registeredHwnds[i] != nullptr)
+        {
+            hr = RevokeDragDrop (m_registeredHwnds[i]);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }
+
+    m_registeredHwnds.clear();
 }
 
 
@@ -107,19 +169,16 @@ Error:
 
 void DragDropTarget::Shutdown()
 {
-    if (m_fRegistered && m_hwnd != nullptr)
-    {
-        HRESULT  hr = RevokeDragDrop (m_hwnd);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+    RevokeAllRegistrations();
 
-        m_fRegistered = false;
-    }
-
-    m_hwnd       = nullptr;
-    m_hitTest    = {};
-    m_hitTester  = nullptr;
-    m_drop       = {};
-    m_lastHitTag = -1;
+    m_hwnd                  = nullptr;
+    m_hitTest               = {};
+    m_hitTester             = nullptr;
+    m_drop                  = {};
+    m_lastHitTag            = -1;
+    m_fDragActive           = false;
+    m_fDragHasSupportedFile = false;
+    m_dragPath.clear();
 }
 
 
@@ -261,6 +320,7 @@ STDMETHODIMP DragDropTarget::DragEnter (
 
 
 
+    m_fDragActive           = true;
     m_fDragHasSupportedFile = false;
     m_dragPath.clear();
 
@@ -314,9 +374,10 @@ STDMETHODIMP DragDropTarget::DragOver (
 
 STDMETHODIMP DragDropTarget::DragLeave()
 {
+    m_fDragActive           = false;
     m_fDragHasSupportedFile = false;
     m_dragPath.clear();
-    m_lastHitTag = -1;
+    m_lastHitTag            = -1;
     return S_OK;
 }
 
@@ -349,9 +410,10 @@ STDMETHODIMP DragDropTarget::Drop (
         m_drop (tag, m_dragPath);
     }
 
+    m_fDragActive           = false;
     m_fDragHasSupportedFile = false;
     m_dragPath.clear();
-    m_lastHitTag = -1;
+    m_lastHitTag            = -1;
 
     return S_OK;
 }
