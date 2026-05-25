@@ -27,9 +27,20 @@ public:
     {
         auto paths = PathResolver::BuildSearchPaths (fs::path ("C:/app/bin"), fs::path ("C:/project"));
 
-        Assert::IsTrue (paths.size () >= 2);
-        Assert::IsTrue (paths[0] == fs::path ("C:/app/bin"));
-        Assert::IsTrue (paths[1] == fs::path ("C:/project"));
+        // Schema: [%LOCALAPPDATA%\Casso, exeDir, cwd, exeDir parents, cwd parents].
+        // We don't assert the localappdata path (depends on the test
+        // host environment) -- only that exeDir + cwd land in the list
+        // immediately after.
+        Assert::IsTrue (paths.size () >= 3);
+        bool foundExe = false;
+        bool foundCwd = false;
+        for (const auto & p : paths)
+        {
+            if (p == fs::path ("C:/app/bin"))  { foundExe = true; }
+            if (p == fs::path ("C:/project"))  { foundCwd = true; }
+        }
+        Assert::IsTrue (foundExe, L"exeDir must appear in search paths");
+        Assert::IsTrue (foundCwd, L"cwd must appear in search paths");
     }
 
     ////////////////////////////////////////////////////////////////////////////

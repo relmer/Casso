@@ -465,7 +465,7 @@ Error:
 HRESULT AssetBootstrap::EnsureMachineConfigs (
     HINSTANCE                hInstance,
     const vector<fs::path> & searchPaths,
-    const fs::path         & exeDir)
+    const fs::path         & /*exeDir*/)
 {
     HRESULT     hr           = S_OK;
     fs::path    machinesDir;
@@ -473,9 +473,13 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
 
 
 
-    machinesDir = PathResolver::FindOrCreateAssetDir (searchPaths,
-                                                      fs::path ("Machines"),
-                                                      exeDir);
+    // Embedded machine JSONs always extract under %LOCALAPPDATA%\Casso\,
+    // not into whichever exe-adjacent Machines/ a dev happens to have
+    // lying around. Reads still cascade through searchPaths so legacy
+    // exe-adjacent layouts continue to resolve ROMs / overrides, but
+    // writes go to a single user-owned location.
+    machinesDir = GetAssetBaseDirectory (searchPaths, fs::path()) / L"Machines";
+    fs::create_directories (machinesDir, ec);
 
     for (const EmbeddedConfig & cfg : s_kEmbeddedConfigs)
     {
@@ -669,7 +673,7 @@ static const EmbeddedTheme s_kEmbeddedThemes[] =
 HRESULT AssetBootstrap::EnsureThemes (
     HINSTANCE                hInstance,
     const vector<fs::path> & searchPaths,
-    const fs::path         & exeDir)
+    const fs::path         & /*exeDir*/)
 {
     HRESULT     hr        = S_OK;
     fs::path    themesDir;
@@ -677,9 +681,10 @@ HRESULT AssetBootstrap::EnsureThemes (
 
 
 
-    themesDir = PathResolver::FindOrCreateAssetDir (searchPaths,
-                                                    fs::path ("Themes"),
-                                                    exeDir);
+    // Same logic as EnsureMachineConfigs: extract to %LOCALAPPDATA%\Casso\,
+    // not into an exe-adjacent Themes/ dir.
+    themesDir = GetAssetBaseDirectory (searchPaths, fs::path()) / L"Themes";
+    fs::create_directories (themesDir, ec);
 
     for (const EmbeddedTheme & theme : s_kEmbeddedThemes)
     {

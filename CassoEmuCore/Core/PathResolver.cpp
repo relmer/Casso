@@ -16,9 +16,22 @@ vector<fs::path> PathResolver::BuildSearchPaths (
     const fs::path & exeDir,
     const fs::path & cwd)
 {
-    vector<fs::path> searchBases = { exeDir, cwd };
+    fs::path          localAppData = GetLocalAppDataDir (L"Casso");
+    vector<fs::path>  searchBases;
 
 
+
+    // %LOCALAPPDATA%\Casso\ is preferred so a user-installed copy
+    // resolves Machines/ / Themes/ / Disks/ / ROMs out of their own
+    // writable data dir before falling through to the exe-adjacent
+    // dev / portable layout.
+    if (!localAppData.empty())
+    {
+        searchBases.push_back (localAppData);
+    }
+
+    searchBases.push_back (exeDir);
+    searchBases.push_back (cwd);
 
     // Also try parent directories (handles running from x64/Debug/)
     for (const auto & base : { exeDir, cwd })

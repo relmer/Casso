@@ -825,6 +825,31 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
                          nullptr);
     CHR (hr);
 
+    // Force the app icon onto the window itself (not just the class).
+    // Win32 MessageBox-style dialogs and the task bar pick the icon up
+    // via WM_GETICON on the parent HWND, NOT WNDCLASS::hIcon; without
+    // explicit WM_SETICON the dialog title bar shows no icon and the
+    // taskbar falls back to the generic Windows logo.
+    {
+        int    iconBigSize   = GetSystemMetrics (SM_CXICON);
+        int    iconSmallSize = GetSystemMetrics (SM_CXSMICON);
+        HICON  hIconBig      = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO),
+                                                   IMAGE_ICON, iconBigSize, iconBigSize,
+                                                   LR_DEFAULTCOLOR | LR_SHARED);
+        HICON  hIconSm       = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO),
+                                                   IMAGE_ICON, iconSmallSize, iconSmallSize,
+                                                   LR_DEFAULTCOLOR | LR_SHARED);
+
+        if (hIconBig != nullptr)
+        {
+            SendMessageW (m_hwnd, WM_SETICON, ICON_BIG,   (LPARAM) hIconBig);
+        }
+        if (hIconSm != nullptr)
+        {
+            SendMessageW (m_hwnd, WM_SETICON, ICON_SMALL, (LPARAM) hIconSm);
+        }
+    }
+
     // Reconcile actual client size against desired client size. The
     // request-time math (AdjustWindowRectExForDpi minus WS_CAPTION) is
     // a best-guess at what our WM_NCCALCSIZE handler will hand back as
