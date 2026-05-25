@@ -154,7 +154,7 @@ HRESULT SettingsPanel::Initialize (
     m_machinePage.SetOnMachineSelected ([this] (const std::string & machineName) { OnMachineSelected (machineName); });
     m_hardwarePage.SetState (&m_state);
 
-    m_applyButton.SetLabel  (L"Apply");
+    m_applyButton.SetLabel  (L"OK");
     m_applyButton.SetClick  ([this] { OnApplyClicked();  });
     m_applyButton.SetColors (0xFF2A6FB7u, 0xFF3380C8u, 0xFF1E548Cu);
     m_applyButton.SetTextColor (0xFFFFFFFFu);
