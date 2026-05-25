@@ -147,6 +147,20 @@ def variant_photoreal(size: int) -> Image.Image:
     return tile
 
 
+def variant_silhouette(size: int) -> Image.Image:
+    radius = int(size * RADIUS_FRAC)
+    bg = Image.new("RGBA", (size, size), (18, 16, 22, 255))
+
+    sil = silhouette_alpha()
+    sil_recolored = Image.new("RGBA", sil.size, (245, 235, 210, 0))
+    sil_recolored.putalpha(sil.split()[3])
+    sil_s, x, y = fit_into(size, sil_recolored, 0.92, 0.0)
+    bg.paste(sil_s, (x, y), sil_s)
+
+    bg.putalpha(rounded_mask(size, radius))
+    return bg
+
+
 def variant_silhouette_accent(size: int) -> Image.Image:
     radius = int(size * RADIUS_FRAC)
     bg = Image.new("RGBA", (size, size), (18, 16, 22, 255))
@@ -181,6 +195,7 @@ def variant_silhouette_accent(size: int) -> Image.Image:
 # ---------- driver -----------------------------------------------------------
 
 VARIANTS = {
+    "Casso-0-silhouette":         variant_silhouette,
     "Casso-1-silhouette-rainbow": variant_silhouette_rainbow,
     "Casso-2-flat-color-head":    variant_flat_color_head,
     "Casso-3-photoreal":          variant_photoreal,

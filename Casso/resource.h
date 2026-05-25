@@ -48,13 +48,15 @@
 
 // Application icons. Windows uses the icon with the lowest numerical
 // resource ID as the EXE's shell icon, so the default app icon
-// (silhouette + accent) gets the lowest ID. The remaining icons are
-// embedded for completeness so callers can switch via LoadIcon.
-#define IDI_CASSO_SILHOUETTE_ACCENT 102
-#define IDI_CASSO_SILHOUETTE_RAINBOW 103
-#define IDI_CASSO_FLAT_COLOR_HEAD   104
-#define IDI_CASSO_PHOTOREAL         105
-#define IDI_CASSO                   IDI_CASSO_SILHOUETTE_ACCENT
+// (plain silhouette — most legible at small sizes) gets the lowest
+// ID. The remaining icons are embedded for completeness so callers
+// can switch via LoadIcon.
+#define IDI_CASSO_SILHOUETTE        102
+#define IDI_CASSO_SILHOUETTE_ACCENT 103
+#define IDI_CASSO_SILHOUETTE_RAINBOW 104
+#define IDI_CASSO_FLAT_COLOR_HEAD   105
+#define IDI_CASSO_PHOTOREAL         106
+#define IDI_CASSO                   IDI_CASSO_SILHOUETTE
 
 // Embedded default machine configs (RCDATA) — extracted to disk on
 // first run when the user has no Machines/ folder.

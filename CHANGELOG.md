@@ -6,6 +6,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.808] — Plain Silhouette Icon
+
+### Changed
+- **Default app icon is now the plain cassowary silhouette.** The
+  silhouette+accent variant (previously default) was hard to read at
+  title-bar and small-icon sizes — the rainbow stripe and scanline
+  overlay both compete for the same pixels. The new
+  `IDI_CASSO_SILHOUETTE` is a cream silhouette on a dark warm tile
+  with no extra ornamentation, so it stays legible at 16x16. The
+  other four motifs remain embedded for callers that want them.
+
 ## [1.3.807] — App Icon
 
 ### Added
