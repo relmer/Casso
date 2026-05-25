@@ -187,13 +187,22 @@ void Slider::ApplyValue (float v)
 
 bool Slider::OnLButtonDown (int x, int y)
 {
+    bool  startedDrag = false;
+
+
     if (!HitTest (x, y))
     {
         return false;
     }
 
-    m_dragging = true;
+    startedDrag = !m_dragging;
+    m_dragging  = true;
     ApplyValue (ValueFromX (x));
+
+    if (startedDrag && m_onDragStart)
+    {
+        m_onDragStart();
+    }
     return true;
 }
 
@@ -210,13 +219,18 @@ bool Slider::OnLButtonDown (int x, int y)
 bool Slider::OnLButtonUp (int x, int y)
 {
     bool  consumed = m_dragging;
-
+    bool  endedDrag = m_dragging;
 
 
     UNREFERENCED_PARAMETER (x);
     UNREFERENCED_PARAMETER (y);
 
     m_dragging = false;
+
+    if (endedDrag && m_onDragEnd)
+    {
+        m_onDragEnd();
+    }
     return consumed;
 }
 
@@ -255,6 +269,7 @@ bool Slider::OnMouseMove (int x, int y)
 bool Slider::OnKey (WPARAM vk)
 {
     constexpr int  s_kPageSteps = 10;
+    bool           consumed = false;
 
 
 
@@ -268,32 +283,44 @@ bool Slider::OnKey (WPARAM vk)
         case VK_LEFT:
         case VK_DOWN:
             ApplyValue (m_value - m_step);
-            return true;
+            consumed = true;
+            break;
 
         case VK_RIGHT:
         case VK_UP:
             ApplyValue (m_value + m_step);
-            return true;
+            consumed = true;
+            break;
 
         case VK_PRIOR:
             ApplyValue (m_value + m_step * (float) s_kPageSteps);
-            return true;
+            consumed = true;
+            break;
 
         case VK_NEXT:
             ApplyValue (m_value - m_step * (float) s_kPageSteps);
-            return true;
+            consumed = true;
+            break;
 
         case VK_HOME:
             ApplyValue (m_min);
-            return true;
+            consumed = true;
+            break;
 
         case VK_END:
             ApplyValue (m_max);
-            return true;
+            consumed = true;
+            break;
 
         default:
-            return false;
+            break;
     }
+
+    if (consumed && m_onKeyboard)
+    {
+        m_onKeyboard();
+    }
+    return consumed;
 }
 
 
@@ -310,46 +337,103 @@ void Slider::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 {
     constexpr uint32_t  s_kTrack         = 0xFF404040;
     constexpr uint32_t  s_kTrackFill     = 0xFF6E9BFF;
-    constexpr uint32_t  s_kThumb         = 0xFFE8EEF4;
-    constexpr uint32_t  s_kThumbDisabled = 0xFF707070;
-    constexpr uint32_t  s_kFocusRing     = 0xFFAACCFF;
+    constexpr uint32_t  s_kTick          = 0xFF6A7585;
+    constexpr uint32_t  s_kPuckBody      = 0xFFFFFFFF;
+    constexpr uint32_t  s_kPuckCore      = 0xFF6E9BFF;
+    constexpr uint32_t  s_kPuckRing      = 0xFF606060;
+    constexpr uint32_t  s_kPuckCoreDis   = 0xFF888888;
+    constexpr uint32_t  s_kValueText     = 0xFFE8EEF4;
     constexpr float     s_kTrackHeight   = 4.0f;
-    constexpr float     s_kThumbWidth    = 10.0f;
-    constexpr float     s_kThumbHeight   = 16.0f;
-    constexpr float     s_kFocusThick    = 1.0f;
+    constexpr float     s_kPuckRadius    = 8.0f;
+    constexpr float     s_kPuckRadiusHov = 10.0f;
+    constexpr float     s_kPuckRadiusFoc = 11.0f;
+    constexpr float     s_kPuckCoreShare = 0.45f;   // inner-dot diameter as fraction of outer
+    constexpr float     s_kTickHeight    = 4.0f;
+    constexpr float     s_kTickGap       = 4.0f;
+    constexpr float     s_kValueGapPx    = 8.0f;
+    constexpr float     s_kValueFontDip  = 12.0f;
+    constexpr float     s_kValueWidthPx  = 48.0f;
+    constexpr wchar_t   s_kFont[]        = L"Segoe UI";
 
-    float    centerY    = (float) m_rect.top + ((float) (m_rect.bottom - m_rect.top)) * 0.5f;
-    float    trackLeft  = (float) m_rect.left;
-    float    trackWidth = (float) (m_rect.right - m_rect.left);
-    float    t          = 0.0f;
-    float    fillWidth  = 0.0f;
-    float    thumbX     = 0.0f;
-    uint32_t thumbColor = m_enabled ? s_kThumb : s_kThumbDisabled;
+    HRESULT  hr            = S_OK;
+    float    rectW         = (float) (m_rect.right  - m_rect.left);
+    float    rectH         = (float) (m_rect.bottom - m_rect.top);
+    float    valueW        = s_kValueWidthPx;
+    float    trackLeft     = (float) m_rect.left;
+    float    trackAvailW   = std::max (0.0f, rectW - (valueW + s_kValueGapPx));
+    float    centerY       = (float) m_rect.top + rectH * 0.5f;
+    float    t             = 0.0f;
+    float    fillWidth     = 0.0f;
+    float    puckCx        = 0.0f;
+    float    puckR         = m_enabled ? s_kPuckRadius : s_kPuckRadius;
+    uint32_t coreColor     = m_enabled ? s_kPuckCore : s_kPuckCoreDis;
 
 
-
-    UNREFERENCED_PARAMETER (text);
 
     if (m_max - m_min > s_kEpsilon)
     {
         t = (m_value - m_min) / (m_max - m_min);
     }
 
-    fillWidth = trackWidth * t;
-    thumbX    = trackLeft + trackWidth * t - s_kThumbWidth * 0.5f;
+    fillWidth = trackAvailW * t;
+    puckCx    = trackLeft + trackAvailW * t;
 
+    if (m_focused)       { puckR = s_kPuckRadiusFoc; }
+    else if (m_hover ||
+             m_dragging) { puckR = s_kPuckRadiusHov; }
+
+    // ----- Track (background + filled portion). -----
     painter.FillRect (trackLeft, centerY - s_kTrackHeight * 0.5f,
-                      trackWidth, s_kTrackHeight, s_kTrack);
+                      trackAvailW, s_kTrackHeight, s_kTrack);
     painter.FillRect (trackLeft, centerY - s_kTrackHeight * 0.5f,
                       fillWidth, s_kTrackHeight, s_kTrackFill);
 
-    painter.FillRect (thumbX, centerY - s_kThumbHeight * 0.5f,
-                      s_kThumbWidth, s_kThumbHeight, thumbColor);
-
-    if (m_focused)
+    // ----- Tick marks below the track. -----
+    if (m_showTicks && m_step > s_kEpsilon && trackAvailW > 0.0f)
     {
-        painter.OutlineRect (thumbX - 2.0f, centerY - s_kThumbHeight * 0.5f - 2.0f,
-                             s_kThumbWidth + 4.0f, s_kThumbHeight + 4.0f,
-                             s_kFocusThick, s_kFocusRing);
+        int    tickCount = (int) std::round ((m_max - m_min) / m_step) + 1;
+        int    i         = 0;
+        float  tickTop   = centerY + s_kTrackHeight * 0.5f + s_kTickGap;
+
+        for (i = 0; i < tickCount; i++)
+        {
+            float  tickT  = (float) i / (float) (tickCount - 1);
+            float  tickCx = trackLeft + trackAvailW * tickT;
+
+            painter.FillRect (tickCx - 0.5f, tickTop, 1.0f, s_kTickHeight, s_kTick);
+        }
+    }
+
+    // ----- Fluent 2 puck: white outer circle with thin grey ring,
+    // accent-coloured inner dot. Outer diameter grows on hover/focus.
+    painter.FillCircleApprox (puckCx, centerY, puckR,           s_kPuckBody);
+    painter.FillCircleApprox (puckCx, centerY, puckR,           s_kPuckRing); // ring underlay
+    painter.FillCircleApprox (puckCx, centerY, puckR - 1.0f,    s_kPuckBody); // white fill, leaving 1px ring
+    painter.FillCircleApprox (puckCx, centerY, puckR * s_kPuckCoreShare, coreColor);
+
+    // ----- Value readout to the right of the track. -----
+    {
+        wchar_t  buf[32] = {};
+        int      pct     = (int) std::round (m_value);
+
+        if (!m_suffix.empty())
+        {
+            swprintf_s (buf, L"%d%ls", pct, m_suffix.c_str());
+        }
+        else
+        {
+            swprintf_s (buf, L"%d", pct);
+        }
+
+        IGNORE_RETURN_VALUE (hr, text.DrawString (buf,
+                                                  trackLeft + trackAvailW + s_kValueGapPx,
+                                                  (float) m_rect.top,
+                                                  valueW,
+                                                  rectH,
+                                                  s_kValueText,
+                                                  s_kValueFontDip,
+                                                  s_kFont,
+                                                  DwriteTextRenderer::HAlign::Right,
+                                                  DwriteTextRenderer::VAlign::Center));
     }
 }

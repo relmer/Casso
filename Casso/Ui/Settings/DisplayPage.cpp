@@ -60,8 +60,10 @@ void DisplayPage::SetState (SettingsPanelState * state)
 
 void DisplayPage::SetInitialCrt (float brightness, float contrast)
 {
-    m_brightness.SetValue (brightness);
-    m_contrast.SetValue   (contrast);
+    // Sliders are 0-100% (step 10) for a clean UX; shader values live
+    // in [0.0, 2.0] where 1.0 is identity. Map 50% slider = 1.0 shader.
+    m_brightness.SetValue (brightness * 50.0f);
+    m_contrast.SetValue   (contrast   * 50.0f);
 }
 
 
@@ -98,15 +100,19 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_brightnessLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_brightnessLabel.SetText (L"Brightness:");
     m_brightness.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
-    m_brightness.SetRange     (0.0f, 2.0f);
-    m_brightness.SetStep      (0.05f);
+    m_brightness.SetRange     (0.0f, 100.0f);
+    m_brightness.SetStep      (10.0f);
+    m_brightness.SetSuffix    (L"%");
+    m_brightness.SetShowTicks (true);
     y += rowHeight + sectionGap;
 
     m_contrastLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_contrastLabel.SetText (L"Contrast:");
     m_contrast.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
-    m_contrast.SetRange     (0.0f, 2.0f);
-    m_contrast.SetStep      (0.05f);
+    m_contrast.SetRange     (0.0f, 100.0f);
+    m_contrast.SetStep      (10.0f);
+    m_contrast.SetSuffix    (L"%");
+    m_contrast.SetShowTicks (true);
 
     m_monitorLabel.SetDpi    (dpi);
     m_brightnessLabel.SetDpi (dpi);

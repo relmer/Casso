@@ -36,15 +36,21 @@
 class Slider
 {
 public:
-    using ChangeFn = std::function<void (float value)>;
+    using ChangeFn      = std::function<void (float value)>;
+    using InteractionFn = std::function<void ()>;
 
     void   SetRect    (const RECT & rect) { m_rect = rect; }
     void   SetRange   (float minValue, float maxValue);
     void   SetStep    (float step) { m_step = step; }
     void   SetValue   (float value);
+    void   SetSuffix  (const std::wstring & suffix) { m_suffix = suffix; }
+    void   SetShowTicks (bool show) { m_showTicks = show; }
     void   SetEnabled (bool enabled) { m_enabled = enabled; if (!enabled) { m_dragging = false; m_hover = false; } }
     void   SetFocused (bool focused) { m_focused = focused; }
     void   SetOnChange (ChangeFn fn) { m_change = std::move (fn); }
+    void   SetOnDragStart (InteractionFn fn) { m_onDragStart = std::move (fn); }
+    void   SetOnDragEnd   (InteractionFn fn) { m_onDragEnd   = std::move (fn); }
+    void   SetOnKeyboardChange (InteractionFn fn) { m_onKeyboard = std::move (fn); }
 
     const RECT & Rect      () const { return m_rect;     }
     float        Min       () const { return m_min;      }
@@ -69,14 +75,19 @@ private:
     float  ValueFromX     (int x) const;
 
 
-    RECT      m_rect     = {};
-    ChangeFn  m_change;
-    float     m_min      = 0.0f;
-    float     m_max      = 1.0f;
-    float     m_step     = 0.01f;
-    float     m_value    = 0.0f;
-    bool      m_enabled  = true;
-    bool      m_focused  = false;
-    bool      m_hover    = false;
-    bool      m_dragging = false;
+    RECT           m_rect     = {};
+    ChangeFn       m_change;
+    InteractionFn  m_onDragStart;
+    InteractionFn  m_onDragEnd;
+    InteractionFn  m_onKeyboard;
+    std::wstring   m_suffix;
+    float          m_min      = 0.0f;
+    float          m_max      = 1.0f;
+    float          m_step     = 0.01f;
+    float          m_value    = 0.0f;
+    bool           m_enabled  = true;
+    bool           m_focused  = false;
+    bool           m_hover    = false;
+    bool           m_dragging = false;
+    bool           m_showTicks = true;
 };

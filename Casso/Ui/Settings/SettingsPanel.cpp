@@ -190,8 +190,8 @@ HRESULT SettingsPanel::Initialize (
     m_machinePage.SetOnMachineSelected ([this] (const std::string & machineName) { OnMachineSelected (machineName); });
     m_hardwarePage.SetState (&m_state);
     m_displayPage.SetState  (&m_state);
-    m_displayPage.SetOnBrightnessChange ([this] (float v) { m_pendingBrightness = v; });
-    m_displayPage.SetOnContrastChange   ([this] (float v) { m_pendingContrast   = v; });
+    m_displayPage.SetOnBrightnessChange ([this] (float pct) { m_pendingBrightness = pct / 50.0f; });
+    m_displayPage.SetOnContrastChange   ([this] (float pct) { m_pendingContrast   = pct / 50.0f; });
     m_themePage.SetOnThemeSelected ([this] (const std::string & themeName) { OnThemeSelected (themeName); });
 
     // Live framebuffer source for the Settings → Theme preview. The
