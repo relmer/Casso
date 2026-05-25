@@ -2,6 +2,9 @@
 
 #include "ThemePage.h"
 
+#include "../Chrome/ChromeMetrics.h"
+#include "../IDriveCommandSink.h"
+
 
 
 
@@ -19,20 +22,20 @@ namespace
     constexpr int  s_kDropdownWidthDp = 220;
     constexpr int  s_kPagePadDp       = 16;
 
-    // Mock-window preview dimensions in dp -- a miniature of the live
-    // Casso window using the selected theme's actual palette. Keeping
-    // these in dp keeps the preview crisp under DPI scaling without
-    // bitmap blur.
-    constexpr int  s_kPrevTitleBarDp     = 22;
-    constexpr int  s_kPrevNavStripDp     = 20;
-    constexpr int  s_kPrevDriveBarFullDp = 80;
-    constexpr int  s_kPrevDriveBarCompactDp = 28;
-    constexpr int  s_kPrevSysButtonWDp   = 22;
-    constexpr int  s_kPrevSysButtonGapDp = 2;
-    constexpr int  s_kPrevCaptionFontDp  = 11;
-    constexpr int  s_kPrevNavFontDp      = 11;
-    constexpr int  s_kPrevDriveFontDp    = 10;
-    constexpr int  s_kPrevDriveGapDp     = 12;
+    // 100%-zoom window dimensions in dp. The preview is rendered at
+    // the SAME aspect ratio as the live emulator window would be at
+    // integer scale 1x, so the user sees a true miniature of what
+    // their window will look like after picking OK.
+    constexpr int  s_kPrevFbWidthDp       = ChromeMetrics::kFramebufferWidthPx;   // 560
+    constexpr int  s_kPrevFbHeightDp      = ChromeMetrics::kFramebufferHeightPx;  // 384
+    constexpr int  s_kPrevTitleBarDp      = 32;
+    constexpr int  s_kPrevNavStripDp      = 32;
+    constexpr int  s_kPrevDriveBarFullDp  = 192;
+    constexpr int  s_kPrevDriveBarCmptDp  = 64;
+    constexpr int  s_kPrevSysButtonWDp    = 46;
+    constexpr int  s_kPrevSysButtonGapDp  = 1;
+    constexpr int  s_kPrevCaptionFontDp   = 14;
+    constexpr int  s_kPrevNavFontDp       = 13;
 
 
     RECT MakeRect (int l, int t, int w, int h)
@@ -42,129 +45,199 @@ namespace
     }
 
 
-    void PaintPreviewWindow (DxUiPainter        & painter,
-                             DwriteTextRenderer & text,
-                             const RECT         & rect,
-                             const ChromeTheme  & theme,
-                             const DpiScaler    & scaler,
-                             const std::function<const uint32_t * (int &, int &)> & framebufferSource)
+    // Linear interpolation between two ARGB endpoints, premultiplied
+    // per-channel. Used for the title-bar gradient bands.
+    uint32_t LerpArgb (uint32_t a, uint32_t b, float t)
     {
-        int       windowW    = rect.right  - rect.left;
-        int       windowH    = rect.bottom - rect.top;
-        int       titleH     = scaler.Px (s_kPrevTitleBarDp);
-        int       navH       = scaler.Px (s_kPrevNavStripDp);
-        int       driveH     = scaler.Px (theme.compactDrives ? s_kPrevDriveBarCompactDp
-                                                              : s_kPrevDriveBarFullDp);
-        int       sysButtonW = scaler.Px (s_kPrevSysButtonWDp);
-        int       sysButtonGap = scaler.Px (s_kPrevSysButtonGapDp);
-        float     captionDip = (float) s_kPrevCaptionFontDp * (float) scaler.Dpi() / 96.0f;
-        float     navDip     = (float) s_kPrevNavFontDp     * (float) scaler.Dpi() / 96.0f;
-        float     driveDip   = (float) s_kPrevDriveFontDp   * (float) scaler.Dpi() / 96.0f;
-        HRESULT   hr         = S_OK;
+        uint8_t  aA = (uint8_t) ((a >> 24) & 0xFF);
+        uint8_t  rA = (uint8_t) ((a >> 16) & 0xFF);
+        uint8_t  gA = (uint8_t) ((a >>  8) & 0xFF);
+        uint8_t  bA = (uint8_t) ( a        & 0xFF);
+        uint8_t  aB = (uint8_t) ((b >> 24) & 0xFF);
+        uint8_t  rB = (uint8_t) ((b >> 16) & 0xFF);
+        uint8_t  gB = (uint8_t) ((b >>  8) & 0xFF);
+        uint8_t  bB = (uint8_t) ( b        & 0xFF);
+        uint8_t  aOut = (uint8_t) (aA + (int) ((aB - (int) aA) * t));
+        uint8_t  rOut = (uint8_t) (rA + (int) ((rB - (int) rA) * t));
+        uint8_t  gOut = (uint8_t) (gA + (int) ((gB - (int) gA) * t));
+        uint8_t  bOut = (uint8_t) (bA + (int) ((bB - (int) bA) * t));
+
+        return ((uint32_t) aOut << 24) | ((uint32_t) rOut << 16) |
+               ((uint32_t) gOut <<  8) |  (uint32_t) bOut;
+    }
+
+
+    // Pure-paint sink for the preview-only DriveWidgets: ignores every
+    // command. DriveWidget requires an IDriveCommandSink* in Initialize
+    // but we only ever Layout + Paint, never dispatch input from the
+    // preview, so the sink never receives calls.
+    class NullDriveSink : public IDriveCommandSink
+    {
+    public:
+        HRESULT  Mount (int /*slot*/, int /*drive*/, const std::wstring & /*path*/) override { return S_OK; }
+        void     Eject (int /*slot*/, int /*drive*/)                                override { }
+    };
+
+
+    // Computes the actual preview rect inside availRect that matches
+    // the 100%-zoom window's aspect ratio (which depends on whether
+    // the staged theme uses compact drives, since that changes the
+    // bottom inset). Returns the scale factor used so the caller can
+    // size sub-regions consistently.
+    void ComputePreviewGeometry (const RECT  & availRect,
+                                 bool          compactDrives,
+                                 RECT        & outPrevRect,
+                                 float       & outScale)
+    {
+        int    driveDp      = compactDrives ? s_kPrevDriveBarCmptDp : s_kPrevDriveBarFullDp;
+        int    targetWdp    = s_kPrevFbWidthDp;
+        int    targetHdp    = s_kPrevTitleBarDp + s_kPrevNavStripDp + s_kPrevFbHeightDp + driveDp;
+        int    availW       = std::max (0, (int) (availRect.right  - availRect.left));
+        int    availH       = std::max (0, (int) (availRect.bottom - availRect.top));
+        float  targetAspect = (float) targetWdp / (float) targetHdp;
+        float  availAspect  = (availH > 0) ? ((float) availW / (float) availH) : 0.0f;
+        int    prevW        = 0;
+        int    prevH        = 0;
+
+        if (availW <= 0 || availH <= 0)
+        {
+            outPrevRect = {};
+            outScale    = 0.0f;
+            return;
+        }
+
+        if (availAspect > targetAspect)
+        {
+            // Height-limited: preview is as tall as available, width
+            // shrinks to preserve aspect.
+            prevH = availH;
+            prevW = (int) ((float) prevH * targetAspect);
+        }
+        else
+        {
+            prevW = availW;
+            prevH = (int) ((float) prevW / targetAspect);
+        }
+
+        outPrevRect.left   = availRect.left + (availW - prevW) / 2;
+        outPrevRect.top    = availRect.top  + (availH - prevH) / 2;
+        outPrevRect.right  = outPrevRect.left + prevW;
+        outPrevRect.bottom = outPrevRect.top  + prevH;
+        outScale           = (float) prevW / (float) targetWdp;
+    }
+
+
+    void PaintPreviewWindow (DxUiPainter                          & painter,
+                             DwriteTextRenderer                   & text,
+                             const RECT                           & availRect,
+                             const ChromeTheme                    & theme,
+                             const std::function<const uint32_t * (int &, int &)> & framebufferSource,
+                             std::array<DriveWidget, 2>           & previewDrives)
+    {
+        RECT      prevRect = {};
+        float     scale    = 0.0f;
+        HRESULT   hr       = S_OK;
+        auto      ScalePx  = [&scale] (int dp) -> int { return (int) ((float) dp * scale); };
 
 
 
-        if (windowW <= 0 || windowH <= 0)
+        ComputePreviewGeometry (availRect, theme.compactDrives, prevRect, scale);
+        if (scale <= 0.0f)
         {
             return;
         }
 
-        // Outer drop-shadow / border so the preview reads as a window
-        // on the panel background rather than a flat region.
-        painter.OutlineRect ((float) rect.left, (float) rect.top,
-                             (float) windowW, (float) windowH, 1.0f, 0xFF101010);
+        int  prevW       = prevRect.right  - prevRect.left;
+        int  prevH       = prevRect.bottom - prevRect.top;
+        int  titleH      = ScalePx (s_kPrevTitleBarDp);
+        int  navH        = ScalePx (s_kPrevNavStripDp);
+        int  driveBarH   = ScalePx (theme.compactDrives ? s_kPrevDriveBarCmptDp : s_kPrevDriveBarFullDp);
+        int  screenH     = std::max (0, prevH - titleH - navH - driveBarH);
+        UINT effectiveDpi = (UINT) std::max (24, (int) (96.0f * scale));
 
-        // ----- Title bar gradient (top -> bottom). -----
+        // Outer 1px frame so the preview reads as a discrete window
+        // on the panel background.
+        painter.OutlineRect ((float) prevRect.left, (float) prevRect.top,
+                             (float) prevW, (float) prevH, 1.0f, 0xFF101010);
+
+        // ----- Title bar gradient. -----
         {
-            int  bandStep = (titleH > 0) ? titleH : 1;
-            int  i        = 0;
+            int  bandSteps = std::max (1, titleH);
+            int  i         = 0;
 
-            for (i = 0; i < bandStep; i++)
+            for (i = 0; i < bandSteps; i++)
             {
-                float    t      = (float) i / (float) bandStep;
-                uint8_t  aTop   = (uint8_t) ((theme.titleBarTopArgb    >> 24) & 0xFF);
-                uint8_t  rTop   = (uint8_t) ((theme.titleBarTopArgb    >> 16) & 0xFF);
-                uint8_t  gTop   = (uint8_t) ((theme.titleBarTopArgb    >>  8) & 0xFF);
-                uint8_t  bTop   = (uint8_t) ((theme.titleBarTopArgb         ) & 0xFF);
-                uint8_t  aBot   = (uint8_t) ((theme.titleBarBottomArgb >> 24) & 0xFF);
-                uint8_t  rBot   = (uint8_t) ((theme.titleBarBottomArgb >> 16) & 0xFF);
-                uint8_t  gBot   = (uint8_t) ((theme.titleBarBottomArgb >>  8) & 0xFF);
-                uint8_t  bBot   = (uint8_t) ((theme.titleBarBottomArgb      ) & 0xFF);
-                uint8_t  a      = (uint8_t) (aTop + (int) ((aBot - (int) aTop) * t));
-                uint8_t  r      = (uint8_t) (rTop + (int) ((rBot - (int) rTop) * t));
-                uint8_t  g      = (uint8_t) (gTop + (int) ((gBot - (int) gTop) * t));
-                uint8_t  b      = (uint8_t) (bTop + (int) ((bBot - (int) bTop) * t));
-                uint32_t argb   = ((uint32_t) a << 24) | ((uint32_t) r << 16) | ((uint32_t) g << 8) | (uint32_t) b;
+                float     t    = (float) i / (float) bandSteps;
+                uint32_t  argb = LerpArgb (theme.titleBarTopArgb, theme.titleBarBottomArgb, t);
 
-                painter.FillRect ((float) rect.left, (float) (rect.top + i),
-                                  (float) windowW, 1.0f, argb);
+                painter.FillRect ((float) prevRect.left, (float) (prevRect.top + i),
+                                  (float) prevW, 1.0f, argb);
             }
         }
 
-        // Caption text.
-        IGNORE_RETURN_VALUE (hr, text.DrawString (L"Casso",
-                                                  (float) (rect.left + scaler.Px (8)),
-                                                  (float) rect.top,
-                                                  (float) (windowW - 3 * (sysButtonW + sysButtonGap) - scaler.Px (16)),
-                                                  (float) titleH,
-                                                  theme.titleTextArgb,
-                                                  captionDip,
-                                                  L"Segoe UI",
-                                                  DwriteTextRenderer::HAlign::Left,
-                                                  DwriteTextRenderer::VAlign::Center));
-
-        // System buttons: idle-coloured placeholders for min/max, red
-        // for close. The idle colour is normally transparent so it
-        // reads against the title-bar gradient; that's fine here too.
+        // Caption + system buttons.
         {
-            int  btnRight = rect.right - sysButtonGap;
-            int  btnTop   = rect.top;
-            int  btnH     = titleH;
+            int    sysBtnW      = ScalePx (s_kPrevSysButtonWDp);
+            int    sysBtnGap    = std::max (0, ScalePx (s_kPrevSysButtonGapDp));
+            float  captionDip   = (float) s_kPrevCaptionFontDp * scale;
+            int    btnRight     = prevRect.right;
+            int    btnTop       = prevRect.top;
+            int    btnH         = titleH;
 
-            // Close (rightmost).
-            painter.FillRect ((float) (btnRight - sysButtonW), (float) btnTop,
-                              (float) sysButtonW, (float) btnH,
+            IGNORE_RETURN_VALUE (hr, text.DrawString (L"Casso emulator",
+                                                      (float) (prevRect.left + ScalePx (12)),
+                                                      (float) btnTop,
+                                                      (float) (prevW - 3 * (sysBtnW + sysBtnGap) - ScalePx (24)),
+                                                      (float) btnH,
+                                                      theme.titleTextArgb,
+                                                      captionDip,
+                                                      L"Segoe UI",
+                                                      DwriteTextRenderer::HAlign::Left,
+                                                      DwriteTextRenderer::VAlign::Center));
+
+            // Close (rightmost) -- always red.
+            painter.FillRect ((float) (btnRight - sysBtnW), (float) btnTop,
+                              (float) sysBtnW, (float) btnH,
                               theme.sysButtonCloseHoverArgb);
-            // X glyph
             {
-                float  cx = (float) (btnRight - sysButtonW / 2);
+                float  cx = (float) (btnRight - sysBtnW / 2);
                 float  cy = (float) (btnTop + btnH / 2);
-                float  r  = (float) scaler.Px (4);
+                float  r  = (float) ScalePx (5);
 
                 painter.FillRect (cx - r, cy - 0.5f, r * 2.0f, 1.0f, theme.sysButtonCloseHoverGlyphArgb);
                 painter.FillRect (cx - 0.5f, cy - r, 1.0f, r * 2.0f, theme.sysButtonCloseHoverGlyphArgb);
             }
 
-            int  btnMaxRight = btnRight - sysButtonW - sysButtonGap;
-            painter.FillRect ((float) (btnMaxRight - sysButtonW), (float) btnTop,
-                              (float) sysButtonW, (float) btnH, 0x0FFFFFFF);
-            painter.OutlineRect ((float) (btnMaxRight - sysButtonW + scaler.Px (6)),
-                                 (float) (btnTop + scaler.Px (6)),
-                                 (float) (sysButtonW - scaler.Px (12)),
-                                 (float) (btnH - scaler.Px (12)),
+            int  btnMaxRight = btnRight - sysBtnW - sysBtnGap;
+            painter.FillRect ((float) (btnMaxRight - sysBtnW), (float) btnTop,
+                              (float) sysBtnW, (float) btnH, theme.sysButtonIdleArgb);
+            painter.OutlineRect ((float) (btnMaxRight - sysBtnW + ScalePx (12)),
+                                 (float) (btnTop + ScalePx (10)),
+                                 (float) (sysBtnW - ScalePx (24)),
+                                 (float) (btnH - ScalePx (20)),
                                  1.0f, theme.titleTextArgb);
 
-            int  btnMinRight = btnMaxRight - sysButtonW - sysButtonGap;
-            painter.FillRect ((float) (btnMinRight - sysButtonW), (float) btnTop,
-                              (float) sysButtonW, (float) btnH, 0x0FFFFFFF);
-            painter.FillRect ((float) (btnMinRight - sysButtonW + scaler.Px (6)),
+            int  btnMinRight = btnMaxRight - sysBtnW - sysBtnGap;
+            painter.FillRect ((float) (btnMinRight - sysBtnW), (float) btnTop,
+                              (float) sysBtnW, (float) btnH, theme.sysButtonIdleArgb);
+            painter.FillRect ((float) (btnMinRight - sysBtnW + ScalePx (12)),
                               (float) (btnTop + btnH / 2),
-                              (float) (sysButtonW - scaler.Px (12)), 1.0f,
+                              (float) (sysBtnW - ScalePx (24)), 1.0f,
                               theme.titleTextArgb);
         }
 
         // ----- Nav strip. -----
         {
-            int     navTop   = rect.top + titleH;
-            wchar_t menuList[] = L"File    Machine    View    Help";
+            int    navTop = prevRect.top + titleH;
+            float  navDip = (float) s_kPrevNavFontDp * scale;
 
-            painter.FillRect ((float) rect.left, (float) navTop,
-                              (float) windowW, (float) navH,
+            painter.FillRect ((float) prevRect.left, (float) navTop,
+                              (float) prevW, (float) navH,
                               theme.navStripArgb);
-            IGNORE_RETURN_VALUE (hr, text.DrawString (menuList,
-                                                      (float) (rect.left + scaler.Px (10)),
+            IGNORE_RETURN_VALUE (hr, text.DrawString (L"File   Machine   View   Help",
+                                                      (float) (prevRect.left + ScalePx (12)),
                                                       (float) navTop,
-                                                      (float) (windowW - scaler.Px (20)),
+                                                      (float) (prevW - ScalePx (24)),
                                                       (float) navH,
                                                       theme.navItemTextArgb,
                                                       navDip,
@@ -173,20 +246,13 @@ namespace
                                                       DwriteTextRenderer::VAlign::Center));
         }
 
-        // ----- Screen area (everything between nav strip and drive bar). -----
+        // ----- Screen area: live emulator framebuffer, aspect-fit. -----
         {
-            int       screenTop = rect.top + titleH + navH;
-            int       screenH   = std::max (0, windowH - titleH - navH - driveH);
-            uint32_t  screenBg  = 0xFF000000;
+            int  screenTop = prevRect.top + titleH + navH;
 
-            painter.FillRect ((float) rect.left, (float) screenTop,
-                              (float) windowW, (float) screenH, screenBg);
+            painter.FillRect ((float) prevRect.left, (float) screenTop,
+                              (float) prevW, (float) screenH, 0xFF000000);
 
-            // Live emulator framebuffer: D2D bitmap upload + scaled
-            // linear blit. The chrome composition pass is sandwiched
-            // between the D3D emulator blit and Present, so the
-            // framebuffer pointer the source returns is always one
-            // frame fresh.
             if (screenH > 0 && framebufferSource)
             {
                 int               fbW = 0;
@@ -195,21 +261,17 @@ namespace
 
                 if (fbPixels != nullptr && fbW > 0 && fbH > 0)
                 {
-                    // Letterbox the framebuffer inside the screen area
-                    // so its native aspect ratio is preserved (Apple II
-                    // is 560:384). Without this the preview stretches
-                    // and the emulator content looks distorted.
                     float  srcAspect = (float) fbW / (float) fbH;
-                    float  dstAspect = (float) windowW / (float) screenH;
-                    float  drawW     = (float) windowW;
+                    float  dstAspect = (float) prevW / (float) screenH;
+                    float  drawW     = (float) prevW;
                     float  drawH     = (float) screenH;
-                    float  drawX     = (float) rect.left;
+                    float  drawX     = (float) prevRect.left;
                     float  drawY     = (float) screenTop;
 
                     if (dstAspect > srcAspect)
                     {
                         drawW = drawH * srcAspect;
-                        drawX += ((float) windowW - drawW) * 0.5f;
+                        drawX += ((float) prevW - drawW) * 0.5f;
                     }
                     else
                     {
@@ -224,115 +286,48 @@ namespace
             }
         }
 
-        // ----- Drive bar. -----
+        // ----- Drive bar: real DriveWidget instances at preview scale. -----
         {
-            int  driveTop = rect.bottom - driveH;
+            int       driveTop  = prevRect.bottom - driveBarH;
+            int       gap       = std::max (1, ScalePx (16));
+            ChromeVisualState  visual = {};
 
-            painter.FillRect ((float) rect.left, (float) driveTop,
-                              (float) windowW, (float) driveH,
+            painter.FillRect ((float) prevRect.left, (float) driveTop,
+                              (float) prevW, (float) driveBarH,
                               theme.navStripArgb);
 
-            if (theme.compactDrives)
+            // Layout each preview drive: probe widget[0] for its
+            // intrinsic size at the effective DPI, then space the
+            // pair horizontally just like
+            // LayoutDriveWidgetsInCommandBar does for the live chrome.
+            previewDrives[0].SetCompact (theme.compactDrives);
+            previewDrives[1].SetCompact (theme.compactDrives);
+            previewDrives[0].Layout (0, 0, effectiveDpi);
+
+            RECT  probe   = previewDrives[0].BodyRect();
+            int   widgetW = probe.right  - probe.left;
+            int   widgetH = probe.bottom - probe.top;
+            int   totalW  = widgetW * 2 + gap;
+            int   startX  = prevRect.left + std::max (0, (prevW - totalW) / 2);
+            int   widgetY = driveTop + (driveBarH - widgetH) / 2;
+            int   d       = 0;
+
+            for (d = 0; d < 2; d++)
             {
-                // Two flat compact cards centred horizontally.
-                int  cardW = scaler.Px (90);
-                int  cardH = std::max (scaler.Px (18), driveH - scaler.Px (8));
-                int  gap   = scaler.Px (s_kPrevDriveGapDp);
-                int  total = cardW * 2 + gap;
-                int  cardX = rect.left + (windowW - total) / 2;
-                int  cardY = driveTop + (driveH - cardH) / 2;
-                int  d     = 0;
+                int  widgetX       = startX + d * (widgetW + gap);
+                int  widgetCenterX = widgetX + widgetW / 2;
+                int  vanishingX    = prevRect.left + prevW / 2;
+                int  skewPx        = MulDiv (vanishingX - widgetCenterX, 27, 100);
 
-                for (d = 0; d < 2; d++)
-                {
-                    int  x = cardX + d * (cardW + gap);
-                    int  ledR = scaler.Px (3);
-                    int  ledX = x + cardW - scaler.Px (10);
-                    int  ledY = cardY + cardH / 2 - ledR;
-
-                    painter.FillRect    ((float) x, (float) cardY, (float) cardW, (float) cardH, theme.driveBodyArgb);
-                    painter.OutlineRect ((float) x, (float) cardY, (float) cardW, (float) cardH, 1.0f, theme.driveBezelArgb);
-
-                    wchar_t  drv[16];
-                    swprintf_s (drv, L"Drive %d", d + 1);
-                    IGNORE_RETURN_VALUE (hr, text.DrawString (drv,
-                                                              (float) (x + scaler.Px (8)),
-                                                              (float) cardY,
-                                                              (float) (cardW - scaler.Px (24)),
-                                                              (float) cardH,
-                                                              theme.driveLabelArgb,
-                                                              driveDip,
-                                                              L"Segoe UI",
-                                                              DwriteTextRenderer::HAlign::Left,
-                                                              DwriteTextRenderer::VAlign::Center));
-
-                    // LED: idle dot with a halo ring suggesting the
-                    // active palette. Using ledActive keeps the
-                    // preview lively even though no disk is mounted.
-                    painter.FillRect ((float) (ledX - ledR), (float) ledY,
-                                      (float) (ledR * 2), (float) (ledR * 2),
-                                      theme.ledActiveArgb);
-                }
+                previewDrives[(size_t) d].SetPerspectiveSkewPx (skewPx);
+                previewDrives[(size_t) d].Layout (widgetX, widgetY, effectiveDpi);
             }
-            else
-            {
-                // Simplified skeuomorphic mini-drives: rectangular
-                // beige cases with a darker faceplate band, slot, and
-                // an LED on each. Not pixel-perfect to the real
-                // widget, but unmistakably "the realistic ones".
-                int  cardW = scaler.Px (110);
-                int  cardH = std::max (scaler.Px (40), driveH - scaler.Px (10));
-                int  gap   = scaler.Px (s_kPrevDriveGapDp);
-                int  total = cardW * 2 + gap;
-                int  cardX = rect.left + (windowW - total) / 2;
-                int  cardY = rect.bottom - driveH + (driveH - cardH) / 2;
-                int  d     = 0;
 
-                for (d = 0; d < 2; d++)
-                {
-                    int  x       = cardX + d * (cardW + gap);
-                    int  faceH   = cardH / 2;
-                    int  faceY   = cardY + cardH - faceH;
-                    int  slotInset = scaler.Px (10);
-                    int  slotH   = scaler.Px (3);
-                    int  slotY   = faceY + faceH / 2 - slotH / 2;
-                    int  ledR    = scaler.Px (3);
-                    int  ledX    = x + cardW - scaler.Px (14);
-                    int  ledY    = faceY + faceH - scaler.Px (10);
-
-                    // Beige case top.
-                    painter.FillRect ((float) x, (float) cardY,
-                                      (float) cardW, (float) (cardH - faceH), 0xFFCCB68B);
-                    // Darker faceplate.
-                    painter.FillRect ((float) x, (float) faceY,
-                                      (float) cardW, (float) faceH, theme.driveBodyArgb);
-                    painter.OutlineRect ((float) x, (float) cardY,
-                                         (float) cardW, (float) cardH, 1.0f, 0xFF000000);
-                    // Slot.
-                    painter.FillRect ((float) (x + slotInset), (float) slotY,
-                                      (float) (cardW - slotInset * 2), (float) slotH,
-                                      theme.driveBezelArgb);
-                    // "DRIVE N" label.
-                    {
-                        wchar_t  drv[16];
-                        swprintf_s (drv, L"DRIVE %d", d + 1);
-                        IGNORE_RETURN_VALUE (hr, text.DrawString (drv,
-                                                                  (float) (x + scaler.Px (6)),
-                                                                  (float) (faceY + scaler.Px (2)),
-                                                                  (float) (cardW - scaler.Px (12)),
-                                                                  driveDip + 2.0f,
-                                                                  theme.driveLabelArgb,
-                                                                  driveDip,
-                                                                  L"Segoe UI",
-                                                                  DwriteTextRenderer::HAlign::Left,
-                                                                  DwriteTextRenderer::VAlign::Top));
-                    }
-                    // LED.
-                    painter.FillRect ((float) (ledX - ledR), (float) ledY,
-                                      (float) (ledR * 2), (float) (ledR * 2),
-                                      theme.ledActiveArgb);
-                }
-            }
+            visual.dpi        = effectiveDpi;
+            visual.nowMs      = 0;
+            visual.frameIndex = 0;
+            previewDrives[0].Paint (painter, text, visual, theme);
+            previewDrives[1].Paint (painter, text, visual, theme);
         }
     }
 }
@@ -508,19 +503,26 @@ void ThemePage::CollectFocusables (std::vector<std::function<void (bool)>> & out
 
 void ThemePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 {
+    static NullDriveSink  s_kNullSink;
+
     m_themeLabel.Paint          (painter, text);
     m_themeDropdown.PaintBase   (painter, text);
 
-    // Live preview of the dropdown's current selection. Reads the
-    // staged theme name (not the active chrome theme) so the user can
-    // see what they'll get before committing OK.
+    // Live preview of the staged dropdown selection.
     if (m_previewRect.right > m_previewRect.left &&
         m_previewRect.bottom > m_previewRect.top &&
         m_activeIndex >= 0 && m_activeIndex < (int) m_themeIds.size())
     {
         ChromeTheme  preview = ChromeTheme::ForName (m_themeIds[(size_t) m_activeIndex]);
 
-        PaintPreviewWindow (painter, text, m_previewRect, preview, m_scaler, m_framebufferSource);
+        if (!m_previewDrivesInitialized)
+        {
+            m_previewDrives[0].Initialize (6, 0, &s_kNullSink);
+            m_previewDrives[1].Initialize (6, 1, &s_kNullSink);
+            m_previewDrivesInitialized = true;
+        }
+
+        PaintPreviewWindow (painter, text, m_previewRect, preview, m_framebufferSource, m_previewDrives);
     }
 
     m_themeDropdown.PaintMenu   (painter, text);

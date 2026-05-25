@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "../Chrome/ChromeTheme.h"
+#include "../Chrome/DriveWidget.h"
 #include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
@@ -48,18 +49,24 @@ public:
     void  CollectFocusables (std::vector<std::function<void (bool)>> & out);
     bool  AnyDropdownOpen   () const { return m_themeDropdown.IsOpen(); }
 
-    const Dropdown                 & ThemeDropdown () const { return m_themeDropdown; }
-    const std::vector<std::string> & Themes        () const { return m_themeIds; }
+    const Dropdown                 & ThemeDropdown    () const { return m_themeDropdown; }
+    const std::vector<std::string> & Themes           () const { return m_themeIds; }
     int                              ActiveThemeIndex () const { return m_activeIndex; }
 
 private:
-    std::vector<std::string>  m_themeIds;
-    int                       m_activeIndex = -1;
-    ThemeSelectFn             m_onThemeSelected;
-    FramebufferSourceFn       m_framebufferSource;
+    std::vector<std::string>      m_themeIds;
+    int                           m_activeIndex = -1;
+    ThemeSelectFn                 m_onThemeSelected;
+    FramebufferSourceFn           m_framebufferSource;
 
-    Label                     m_themeLabel;
-    Dropdown                  m_themeDropdown;
-    RECT                      m_previewRect = {};
-    DpiScaler                 m_scaler;
+    Label                         m_themeLabel;
+    Dropdown                      m_themeDropdown;
+    RECT                          m_previewRect = {};
+    DpiScaler                     m_scaler;
+
+    // Preview-only DriveWidget instances rendered with the staged
+    // theme inside the mock window. Mutable because Paint is const
+    // but the widgets' Layout / SetCompact / SyncFromState are not.
+    mutable std::array<DriveWidget, 2>  m_previewDrives;
+    mutable bool                        m_previewDrivesInitialized = false;
 };
