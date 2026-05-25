@@ -10,6 +10,9 @@ namespace
 {
     constexpr int       s_kRowHeightDp     = 28;
     constexpr int       s_kTextInsetDp     = 8;
+    constexpr int       s_kChevronWidthDp  = 10;
+    constexpr int       s_kChevronHeightDp = 5;
+    constexpr int       s_kChevronRightDp  = 10;
     constexpr uint32_t  s_kBoxIdleArgb     = 0xFF263241;
     constexpr uint32_t  s_kBoxHoverArgb    = 0xFF33475C;
     constexpr uint32_t  s_kBoxPressedArgb  = 0xFF1E2733;
@@ -312,24 +315,57 @@ void Dropdown::Commit (int index)
 //
 //  Paint
 //
+//  Convenience that paints both the base box and (if open) the popup
+//  menu in a single call. Callers that need correct z-order with
+//  multiple dropdowns should use PaintBase / PaintMenu separately.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Dropdown::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 {
-    HRESULT      hr        = S_OK;
-    uint32_t     boxColor  = m_pressed ? s_kBoxPressedArgb : (m_hover ? s_kBoxHoverArgb : s_kBoxIdleArgb);
+    PaintBase (painter, text);
+    PaintMenu (painter, text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintBase
+//
+//  Paints the closed-box portion of the dropdown: background fill,
+//  border, selected-item text, and a chevron glyph on the right that
+//  signals click-to-open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dropdown::PaintBase (DxUiPainter & painter, DwriteTextRenderer & text) const
+{
+    HRESULT      hr            = S_OK;
+    uint32_t     boxColor      = m_pressed ? s_kBoxPressedArgb : (m_hover ? s_kBoxHoverArgb : s_kBoxIdleArgb);
     std::wstring label;
-    int          i         = 0;
-    int          rowHeight = m_scaler.Px (s_kRowHeightDp);
-    int          textInset = m_scaler.Px (s_kTextInsetDp);
-    float        edgePx    = m_scaler.Pxf (s_kEdgePx);
-    float        fontDip   = m_scaler.Pxf (s_kFontDip);
+    float        edgePx        = m_scaler.Pxf (s_kEdgePx);
+    float        fontDip       = m_scaler.Pxf (s_kFontDip);
+    int          textInset     = m_scaler.Px (s_kTextInsetDp);
+    int          chevronW      = m_scaler.Px (s_kChevronWidthDp);
+    int          chevronH      = m_scaler.Px (s_kChevronHeightDp);
+    int          chevronRight  = m_scaler.Px (s_kChevronRightDp);
+    int          chevronX      = m_rect.right - chevronRight - chevronW;
+    int          chevronY      = (m_rect.top + m_rect.bottom) / 2 - chevronH / 2;
+    int          textWidth     = (m_rect.right - m_rect.left) - textInset - (chevronRight + chevronW);
 
 
 
     if (m_selected >= 0 && m_selected < (int) m_items.size())
     {
         label = m_items[(size_t) m_selected];
+    }
+
+    if (textWidth < 0)
+    {
+        textWidth = 0;
     }
 
     painter.FillRect    ((float) m_rect.left,
@@ -346,11 +382,51 @@ void Dropdown::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     IGNORE_RETURN_VALUE (hr, text.DrawString (label.c_str(),
                                               (float) (m_rect.left + textInset),
                                               (float) m_rect.top,
-                                              (float) (m_rect.right - m_rect.left - textInset),
+                                              (float) textWidth,
                                               (float) (m_rect.bottom - m_rect.top),
                                               s_kTextArgb,
                                               fontDip,
                                               s_kFontFamily));
+
+    // Chevron: stack of horizontal rects forming a downward triangle.
+    for (int row = 0; row < chevronH; row++)
+    {
+        int  inset = (row * chevronW) / (2 * chevronH);
+        int  w     = chevronW - inset * 2;
+
+        if (w <= 0) break;
+
+        painter.FillRect ((float) (chevronX + inset),
+                          (float) (chevronY + row),
+                          (float) w,
+                          1.0f,
+                          s_kTextArgb);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintMenu
+//
+//  Paints the popup list when the dropdown is open. Pages that host
+//  several dropdowns should call this AFTER painting every other
+//  widget so the open menu draws on top of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dropdown::PaintMenu (DxUiPainter & painter, DwriteTextRenderer & text) const
+{
+    HRESULT  hr        = S_OK;
+    int      i         = 0;
+    int      rowHeight = m_scaler.Px (s_kRowHeightDp);
+    int      textInset = m_scaler.Px (s_kTextInsetDp);
+    float    fontDip   = m_scaler.Pxf (s_kFontDip);
+
+
 
     if (!m_open)
     {

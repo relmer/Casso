@@ -11,24 +11,6 @@ namespace
     constexpr int  s_kBaseDpi       = 96;
     constexpr int  s_kCorePx        = 7;
     constexpr int  s_kHaloPaddingPx = 2;
-
-
-    void FillCircleApproxLocal (DxUiPainter & painter, float cx, float cy, float r, uint32_t argb)
-    {
-        constexpr int  kSlices = 10;
-
-        for (int i = 0; i < kSlices; i++)
-        {
-            float  y0   = cy - r + (2.0f * r * (float) i)       / (float) kSlices;
-            float  y1   = cy - r + (2.0f * r * (float) (i + 1)) / (float) kSlices;
-            float  ymid = (y0 + y1) * 0.5f;
-            float  dy   = ymid - cy;
-            float  sq   = r * r - dy * dy;
-            float  half = (sq > 0.0f) ? sqrtf (sq) : 0.0f;
-
-            painter.FillRect (cx - half, y0, 2.0f * half, y1 - y0, argb);
-        }
-    }
 }
 
 
@@ -132,8 +114,8 @@ void LedIndicator::Paint (DxUiPainter & painter, const ChromeTheme & theme) cons
 
     if (halo != 0)
     {
-        FillCircleApproxLocal (painter, cx, cy, haloR, halo);
+        painter.FillCircleApprox (cx, cy, haloR, halo);
     }
 
-    FillCircleApproxLocal (painter, cx, cy, coreR, CoreArgb (theme));
+    painter.FillCircleApprox (cx, cy, coreR, CoreArgb (theme));
 }

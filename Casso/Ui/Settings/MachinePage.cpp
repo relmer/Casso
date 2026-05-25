@@ -14,41 +14,18 @@
 
 namespace
 {
-    constexpr int    s_kRowHeightDp    = 28;
-    constexpr int    s_kLabelWidthDp   = 140;
-    constexpr int    s_kRadioWidthDp   = 110;
-    constexpr int    s_kCheckWidthDp   = 140;
-    constexpr int    s_kDropdownWidthDp = 260;
-    constexpr int    s_kSectionGapDp   = 14;
-    constexpr int    s_kPagePadDp      = 16;
+    constexpr int    s_kRowHeightDp     = 28;
+    constexpr int    s_kLabelWidthDp    = 140;
+    constexpr int    s_kCheckWidthDp    = 140;
+    constexpr int    s_kDropdownWidthDp = 200;
+    constexpr int    s_kSectionGapDp    = 14;
+    constexpr int    s_kPagePadDp       = 16;
 
 
     RECT MakeRect (int l, int t, int w, int h)
     {
         RECT  rc = { l, t, l + w, t + h };
         return rc;
-    }
-
-
-    std::vector<RadioOption>  BuildRadioRow (const DpiScaler & scaler,
-                                             int leftPx, int topPx,
-                                             const std::vector<std::wstring> & labels)
-    {
-        std::vector<RadioOption>  out;
-        size_t                    i           = 0;
-        int                       radioWidth  = scaler.Px (s_kRadioWidthDp);
-        int                       rowHeight   = scaler.Px (s_kRowHeightDp);
-        int                       x           = leftPx;
-
-        for (i = 0; i < labels.size(); ++i)
-        {
-            RadioOption  opt;
-            opt.rect  = MakeRect (x, topPx, radioWidth, rowHeight);
-            opt.label = labels[i];
-            out.push_back (std::move (opt));
-            x += radioWidth;
-        }
-        return out;
     }
 }
 
@@ -128,14 +105,14 @@ void MachinePage::Layout (const RECT & rect, const DpiScaler & scaler)
 
     m_speedLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_speedLabel.SetText (L"CPU speed:");
-    m_speed.SetOptions (BuildRadioRow (scaler, controlsX, y,
-                                       { L"Authentic", L"2x", L"Maximum" }));
+    m_speed.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
+    m_speed.SetItems ({ L"Authentic", L"2x", L"Maximum" });
     y += rowHeight + sectionGap;
 
     m_colorLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_colorLabel.SetText (L"Video:");
-    m_color.SetOptions (BuildRadioRow (scaler, controlsX, y,
-                                       { L"Color", L"Green", L"Amber", L"White" }));
+    m_color.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
+    m_color.SetItems ({ L"Color", L"Green", L"Amber", L"White" });
     y += rowHeight + sectionGap;
 
     m_wpLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
@@ -149,13 +126,12 @@ void MachinePage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_audioLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_audioLabel.SetText (L"Drive audio:");
     m_driveAudio.SetRect (MakeRect (controlsX, y, checkWidth, rowHeight));
-    m_driveAudio.SetLabel (L"Floppy sound on");
     y += rowHeight + sectionGap;
 
     m_mechLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_mechLabel.SetText (L"Mechanism:");
-    m_mechanism.SetOptions (BuildRadioRow (scaler, controlsX, y,
-                                           { L"Shugart", L"Alps" }));
+    m_mechanism.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
+    m_mechanism.SetItems ({ L"Shugart", L"Alps" });
 
     m_machineLabel.SetDpi    (dpi);
     m_speedLabel.SetDpi      (dpi);
@@ -215,9 +191,9 @@ void MachinePage::Rebuild ()
             }
         }
     });
-    m_speed.SetOnChange      ([state] (int idx) { state->SetSpeedMode ((SettingsSpeedMode) idx); });
-    m_color.SetOnChange      ([state] (int idx) { state->SetColorMode ((SettingsColorMode) idx); });
-    m_mechanism.SetOnChange  ([state] (int idx) { state->SetMechanism (idx == 1 ? "alps" : "shugart"); });
+    m_speed.SetSelect        ([state] (int idx) { state->SetSpeedMode ((SettingsSpeedMode) idx); });
+    m_color.SetSelect        ([state] (int idx) { state->SetColorMode ((SettingsColorMode) idx); });
+    m_mechanism.SetSelect    ([state] (int idx) { state->SetMechanism (idx == 1 ? "alps" : "shugart"); });
     m_driveAudio.SetOnChange ([state] (bool checked) { state->SetFloppySound (checked); });
     m_writeProtect[0].SetOnChange ([state] (bool checked) { state->SetWriteProtect (0, checked); });
     m_writeProtect[1].SetOnChange ([state] (bool checked) { state->SetWriteProtect (1, checked); });
@@ -238,9 +214,9 @@ void MachinePage::OnLButtonDown (int x, int y)
     int   i = 0;
 
     if (m_machineDropdown.OnLButtonDown (x, y)) { return; }
-    if (m_speed.OnLButtonDown     (x, y)) { return; }
-    if (m_color.OnLButtonDown     (x, y)) { return; }
-    if (m_mechanism.OnLButtonDown (x, y)) { return; }
+    if (m_speed.OnLButtonDown      (x, y)) { return; }
+    if (m_color.OnLButtonDown      (x, y)) { return; }
+    if (m_mechanism.OnLButtonDown  (x, y)) { return; }
     if (m_driveAudio.OnLButtonDown (x, y)) { return; }
     for (i = 0; i < 2; ++i)
     {
@@ -313,10 +289,10 @@ bool MachinePage::OnKey (WPARAM vk)
     int  i = 0;
 
     if (m_machineDropdown.HandleKey (vk)) { return true; }
-    if (m_speed.OnKey      (vk)) { return true; }
-    if (m_color.OnKey      (vk)) { return true; }
-    if (m_mechanism.OnKey  (vk)) { return true; }
-    if (m_driveAudio.OnKey (vk)) { return true; }
+    if (m_speed.HandleKey      (vk)) { return true; }
+    if (m_color.HandleKey      (vk)) { return true; }
+    if (m_mechanism.HandleKey  (vk)) { return true; }
+    if (m_driveAudio.OnKey     (vk)) { return true; }
     for (i = 0; i < 2; ++i)
     {
         if (m_writeProtect[(size_t) i].OnKey (vk)) { return true; }
@@ -345,13 +321,20 @@ void MachinePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     m_audioLabel.Paint   (painter, text);
     m_mechLabel.Paint    (painter, text);
 
-    m_machineDropdown.Paint (painter, text);
-    m_speed.Paint        (painter, text);
-    m_color.Paint        (painter, text);
-    m_mechanism.Paint    (painter, text);
-    m_driveAudio.Paint   (painter, text);
+    // Dropdown base boxes first; their open menus paint last so they
+    // sit on top of any sibling controls below them.
+    m_machineDropdown.PaintBase (painter, text);
+    m_speed.PaintBase           (painter, text);
+    m_color.PaintBase           (painter, text);
+    m_mechanism.PaintBase       (painter, text);
+    m_driveAudio.Paint          (painter, text);
     for (i = 0; i < 2; ++i)
     {
         m_writeProtect[(size_t) i].Paint (painter, text);
     }
+
+    m_machineDropdown.PaintMenu (painter, text);
+    m_speed.PaintMenu           (painter, text);
+    m_color.PaintMenu           (painter, text);
+    m_mechanism.PaintMenu       (painter, text);
 }

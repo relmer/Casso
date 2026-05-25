@@ -240,19 +240,19 @@ void RadioGroup::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
         float               boxLeft  = (float) opt.rect.left;
         float               boxTop   = (float) opt.rect.top
                                        + ((float) (opt.rect.bottom - opt.rect.top) - boxSize) * 0.5f;
+        float               cx       = boxLeft + boxSize * 0.5f;
+        float               cy       = boxTop  + boxSize * 0.5f;
+        float               outerR   = boxSize * 0.5f;
+        float               innerR   = (boxSize - dotInset * 2.0f) * 0.5f;
         uint32_t            boxColor = m_enabled
                                             ? (m_hover == i ? s_kBoxHover : s_kBoxIdle)
                                             : s_kBoxDisabled;
 
-        painter.FillRect (boxLeft, boxTop, boxSize, boxSize, boxColor);
+        painter.FillCircleApprox (cx, cy, outerR, boxColor);
 
         if (m_selected == i)
         {
-            painter.FillRect (boxLeft   + dotInset,
-                              boxTop    + dotInset,
-                              boxSize - dotInset * 2.0f,
-                              boxSize - dotInset * 2.0f,
-                              dotColor);
+            painter.FillCircleApprox (cx, cy, innerR, dotColor);
         }
 
         if (m_focused && m_selected == i)

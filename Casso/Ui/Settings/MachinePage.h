@@ -5,10 +5,10 @@
 #include "SettingsPanelState.h"
 
 #include "../DpiScaler.h"
-#include "../Widgets/Checkbox.h"
 #include "../Widgets/Dropdown.h"
+#include "../Widgets/Checkbox.h"
 #include "../Widgets/Label.h"
-#include "../Widgets/Radio.h"
+#include "../Widgets/Toggle.h"
 
 
 
@@ -23,11 +23,11 @@
 //
 //      * Machine selector (Dropdown) -- the outermost control;
 //        switching machines reloads the rest of the panel.
-//      * Speed mode    (RadioGroup: authentic / 2x / max)
-//      * Color mode    (RadioGroup: color / green / amber / white)
+//      * Speed mode    (Dropdown: authentic / 2x / max)
+//      * Color mode    (Dropdown: color / green / amber / white)
 //      * Write protect (one Checkbox per drive: D1 / D2)
-//      * Drive audio   (Checkbox: floppy sound on/off)
-//      * Mechanism     (RadioGroup: shugart / alps)
+//      * Drive audio   (Toggle: floppy sound on/off)
+//      * Mechanism     (Dropdown: shugart / alps)
 //
 //  All change events route into the supplied `SettingsPanelState`
 //  through the small setter API; widgets read their initial state
@@ -54,11 +54,11 @@ public:
     void  Paint                 (DxUiPainter & painter, DwriteTextRenderer & text) const;
 
     // Test accessors.
-    const Checkbox    & DriveAudioCheckbox   () const { return m_driveAudio; }
+    const Toggle      & DriveAudioToggle     () const { return m_driveAudio; }
     const Checkbox    & WriteProtect         (int drive) const { return m_writeProtect[(size_t) drive]; }
-    const RadioGroup  & SpeedRadios          () const { return m_speed; }
-    const RadioGroup  & ColorRadios          () const { return m_color; }
-    const RadioGroup  & MechanismRadios      () const { return m_mechanism; }
+    const Dropdown    & SpeedDropdown        () const { return m_speed; }
+    const Dropdown    & ColorDropdown        () const { return m_color; }
+    const Dropdown    & MechanismDropdown    () const { return m_mechanism; }
     const std::vector<std::string> & Machines () const { return m_machines; }
     int               ActiveMachineIndex     () const { return m_activeMachineIndex; }
     const Dropdown  & MachineDropdown() const { return m_machineDropdown; }
@@ -77,9 +77,9 @@ private:
     Label                        m_mechLabel;
 
     Dropdown                     m_machineDropdown;
-    RadioGroup                   m_speed;
-    RadioGroup                   m_color;
-    RadioGroup                   m_mechanism;
-    Checkbox                     m_driveAudio;
+    Dropdown                     m_speed;
+    Dropdown                     m_color;
+    Dropdown                     m_mechanism;
+    Toggle                       m_driveAudio;
     std::array<Checkbox, 2>      m_writeProtect;
 };

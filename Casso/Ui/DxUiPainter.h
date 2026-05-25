@@ -63,6 +63,14 @@ public:
                               float thicknessPx,
                               uint32_t argbColor);
 
+    // Approximate filled circle using horizontal slices. Cheap and
+    // looks good enough at typical UI sizes (radii 4-12px). Used for
+    // round indicators (LEDs, radio dots, toggle thumbs).
+    void    FillCircleApprox (float cxPx,
+                              float cyPx,
+                              float radiusPx,
+                              uint32_t argbColor);
+
     HRESULT End              (ID3D11RenderTargetView * pRtv);
 
     int     PendingVertexCount () const { return (int) m_vertices.size(); }

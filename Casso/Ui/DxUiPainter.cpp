@@ -529,6 +529,47 @@ void DxUiPainter::OutlineRect (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FillCircleApprox
+//
+//  Approximates a filled circle using horizontal slices. Inexpensive
+//  and visually adequate for small UI indicators (LED dots, radio
+//  buttons, toggle thumbs). Slice count scales gently with radius.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxUiPainter::FillCircleApprox (
+    float     cxPx,
+    float     cyPx,
+    float     radiusPx,
+    uint32_t  argbColor)
+{
+    int  slices = (int) (radiusPx * 2.0f);
+
+
+
+    if (radiusPx <= 0.0f) return;
+    if (slices  <  8)     slices = 8;
+    if (slices  > 32)     slices = 32;
+
+    for (int i = 0; i < slices; i++)
+    {
+        float  y0   = cyPx - radiusPx + (2.0f * radiusPx * (float) i)       / (float) slices;
+        float  y1   = cyPx - radiusPx + (2.0f * radiusPx * (float) (i + 1)) / (float) slices;
+        float  ymid = (y0 + y1) * 0.5f;
+        float  dy   = ymid - cyPx;
+        float  sq   = radiusPx * radiusPx - dy * dy;
+        float  half = (sq > 0.0f) ? sqrtf (sq) : 0.0f;
+
+        FillRect (cxPx - half, y0, 2.0f * half, y1 - y0, argbColor);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  End
 //
 ////////////////////////////////////////////////////////////////////////////////
