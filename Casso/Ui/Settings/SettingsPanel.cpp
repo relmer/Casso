@@ -492,7 +492,7 @@ void SettingsPanel::UpdatePreviewFade (int64_t nowMs)
     float    targetPanel    = 1.0f;
     float    targetFocused  = 1.0f;
     int64_t  dtMs           = 0;
-    float    dtFraction     = 0.0f;
+    float    maxStep        = 0.0f;
 
 
 
@@ -525,15 +525,31 @@ void SettingsPanel::UpdatePreviewFade (int64_t nowMs)
         return;
     }
 
-    dtFraction = (float) dtMs / s_kFadeDurationMs;
-    if (dtFraction > 1.0f) { dtFraction = 1.0f; }
+    // Linear ramp toward target at a rate of 1.0/duration per ms.
+    // Exponential lerp (`alpha += (target-alpha) * dtFraction`)
+    // asymptotes -- it never actually reaches the target -- so the
+    // scrim never fully cleared during preview. A clamped linear
+    // step guarantees we land on the target after the configured
+    // fade duration.
+    maxStep = (float) dtMs / s_kFadeDurationMs;
 
-    m_panelAlpha   += (targetPanel   - m_panelAlpha)   * dtFraction;
-    m_focusedAlpha += (targetFocused - m_focusedAlpha) * dtFraction;
+    if (targetPanel > m_panelAlpha)
+    {
+        m_panelAlpha = std::min (targetPanel, m_panelAlpha + maxStep);
+    }
+    else
+    {
+        m_panelAlpha = std::max (targetPanel, m_panelAlpha - maxStep);
+    }
 
-    // Snap when very close to target so we settle instead of asymptoting.
-    if (std::fabs (targetPanel   - m_panelAlpha)   < 0.005f) { m_panelAlpha   = targetPanel;   }
-    if (std::fabs (targetFocused - m_focusedAlpha) < 0.005f) { m_focusedAlpha = targetFocused; }
+    if (targetFocused > m_focusedAlpha)
+    {
+        m_focusedAlpha = std::min (targetFocused, m_focusedAlpha + maxStep);
+    }
+    else
+    {
+        m_focusedAlpha = std::max (targetFocused, m_focusedAlpha - maxStep);
+    }
 }
 
 

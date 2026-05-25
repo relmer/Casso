@@ -508,12 +508,27 @@ void ThemePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     m_themeLabel.Paint          (painter, text);
     m_themeDropdown.PaintBase   (painter, text);
 
-    // Live preview of the staged dropdown selection.
+    // Live preview tracks the dropdown's effective hovered/highlighted
+    // item while open (so mouse hover and arrow-key nav both update
+    // the mock window immediately), and falls back to the committed
+    // selection when closed. Matches the monitor dropdown live channel.
+    int  previewIndex = m_activeIndex;
+
+    if (m_themeDropdown.IsOpen())
+    {
+        int  highlighted = m_themeDropdown.HighlightIndex();
+
+        if (highlighted >= 0 && highlighted < (int) m_themeIds.size())
+        {
+            previewIndex = highlighted;
+        }
+    }
+
     if (m_previewRect.right > m_previewRect.left &&
         m_previewRect.bottom > m_previewRect.top &&
-        m_activeIndex >= 0 && m_activeIndex < (int) m_themeIds.size())
+        previewIndex >= 0 && previewIndex < (int) m_themeIds.size())
     {
-        ChromeTheme  preview = ChromeTheme::ForName (m_themeIds[(size_t) m_activeIndex]);
+        ChromeTheme  preview = ChromeTheme::ForName (m_themeIds[(size_t) previewIndex]);
 
         if (!m_previewDrivesInitialized)
         {
