@@ -1771,7 +1771,7 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     {
         if (!m_navLayer.IsOpen())
         {
-            m_navLayer.Open (NavMenu::File);
+            m_navLayer.Open (NavMenu::File, true);
         }
         else
         {

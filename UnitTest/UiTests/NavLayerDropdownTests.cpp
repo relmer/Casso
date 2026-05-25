@@ -19,7 +19,7 @@ public:
 
 
 
-        nav.Open (NavMenu::File);
+        nav.Open (NavMenu::File, true);
         Assert::IsTrue (nav.IsOpen());
         Assert::IsTrue (nav.OpenMenu() == NavMenu::File);
 
@@ -49,7 +49,7 @@ public:
 
 
         nav.SetDispatch ([&dispatched] (WORD commandId) { dispatched = commandId; });
-        nav.Open (NavMenu::File);
+        nav.Open (NavMenu::File, true);
         Assert::IsTrue (nav.HandleKey (VK_DOWN));
         Assert::AreEqual (1, nav.HighlightIndex());
         Assert::IsTrue (nav.HandleKey (VK_RETURN));
@@ -67,7 +67,7 @@ public:
 
         nav.SetDispatch ([&dispatched] (WORD commandId) { dispatched = commandId; });
         nav.Layout (0, 32, 800, 96);
-        nav.Open (NavMenu::File);
+        nav.Open (NavMenu::File, true);
         Assert::IsTrue (nav.HandleMouseMove (10, 32 + 28 + 4));
         Assert::IsTrue (nav.HandleMouseUp (10, 32 + 28 + 4));
         Assert::AreEqual ((int) IDM_FILE_OPEN, (int) dispatched);

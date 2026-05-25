@@ -121,13 +121,18 @@ namespace
 
 
     // True when menu mnemonic underlines should be visible.
-    // Strictly gated on physical Alt held: matches user expectation
-    // ("I press Alt to see access keys") and applies uniformly to the
-    // top-level strip and any open dropdown. Left Alt is also //e Open
-    // Apple, but that's harmless overlay — the //e modifier path is
-    // suppressed once the menu grabs focus.
-    bool ShouldShowMnemonicCues ()
+    // Cues appear when (a) the user is holding Alt (Windows convention
+    // for "show me the access keys") or (b) the menu was opened via
+    // keyboard (F10 or Alt+mnemonic) — keyboard navigation implies the
+    // user wants to see the access keys. Mouse-opened menus stay clean
+    // unless Alt is pressed.
+    bool ShouldShowMnemonicCues (bool openedByKeyboard)
     {
+        if (openedByKeyboard)
+        {
+            return true;
+        }
+
         return (GetAsyncKeyState (VK_MENU) & 0x8000) != 0;
     }
 }
@@ -369,11 +374,12 @@ void NavLayer::Layout (int x, int y, int width, UINT dpi, DwriteTextRenderer * p
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void NavLayer::Open (NavMenu menu)
+void NavLayer::Open (NavMenu menu, bool openedByKeyboard)
 {
-    m_openMenu       = menu;
-    m_isOpen         = true;
-    m_highlightIndex = (EntryCount (menu) > 0) ? 0 : -1;
+    m_openMenu         = menu;
+    m_isOpen           = true;
+    m_openedByKeyboard = openedByKeyboard;
+    m_highlightIndex   = (EntryCount (menu) > 0) ? 0 : -1;
 }
 
 
@@ -417,7 +423,7 @@ bool NavLayer::HandleAltKey (wchar_t ch)
 
         if (mnCh != 0 && mnCh == lower)
         {
-            Open ((NavMenu) i);
+            Open ((NavMenu) i, true);
             return true;
         }
     }
@@ -455,14 +461,14 @@ bool NavLayer::HandleKey (WPARAM vk)
     if (vk == VK_LEFT || (vk == VK_TAB && (GetKeyState (VK_SHIFT) & 0x8000)))
     {
         int  nextMenu = (openMenuIdx <= 0) ? (kMenuCount - 1) : (openMenuIdx - 1);
-        Open ((NavMenu) nextMenu);
+        Open ((NavMenu) nextMenu, m_openedByKeyboard);
         return true;
     }
 
     if (vk == VK_RIGHT || vk == VK_TAB)
     {
         int  nextMenu = (openMenuIdx + 1) % kMenuCount;
-        Open ((NavMenu) nextMenu);
+        Open ((NavMenu) nextMenu, m_openedByKeyboard);
         return true;
     }
 
@@ -554,7 +560,7 @@ bool NavLayer::HandleMouseMove (int x, int y)
             m_hasHoverMenu = true;
             if (m_isOpen)
             {
-                Open ((NavMenu) i);
+                Open ((NavMenu) i, m_openedByKeyboard);
             }
             return true;
         }
@@ -590,7 +596,7 @@ bool NavLayer::HandleMouseDown (int x, int y)
             }
             else
             {
-                Open ((NavMenu) i);
+                Open ((NavMenu) i, false);
             }
             return true;
         }
@@ -652,7 +658,7 @@ void NavLayer::PaintStrip (
     HRESULT  hr           = S_OK;
     UINT     dpi          = (visual.dpi == 0) ? (UINT) s_kBaseDpi : visual.dpi;
     float    fontDip      = s_kFontDip * (float) dpi / (float) s_kBaseDpi;
-    bool     showCues     = ShouldShowMnemonicCues();
+    bool     showCues     = ShouldShowMnemonicCues (IsOpenByKeyboard());
 
 
 
@@ -751,7 +757,7 @@ void NavLayer::PaintDropdown (
     int      rowPadLeftPx  = Scale (s_kRowPadLeftDp,   dpi);
     int      rowPadTopPx   = Scale (s_kRowPadTopDp,    dpi);
     int      accelOffsetPx = Scale (s_kAccelOffsetDp,  dpi);
-    bool     showCues      = ShouldShowMnemonicCues();
+    bool     showCues      = ShouldShowMnemonicCues (IsOpenByKeyboard());
 
 
 

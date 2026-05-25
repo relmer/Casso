@@ -57,9 +57,10 @@ public:
                                                             DwriteTextRenderer      & text,
                                                             const ChromeVisualState & visual,
                                                             const ChromeTheme       & theme);
-    void                              Open                 (NavMenu menu);
+    void                              Open                 (NavMenu menu, bool openedByKeyboard);
     void                              Close                ();
     bool                              IsOpen               () const { return m_isOpen; }
+    bool                              IsOpenByKeyboard     () const { return m_isOpen && m_openedByKeyboard; }
     NavMenu                           OpenMenu             () const { return m_openMenu; }
     bool                              HandleAltKey         (wchar_t ch);
     bool                              HandleKey            (WPARAM vk);
@@ -79,13 +80,14 @@ private:
     int                               HitEntryIndex        (int x, int y) const;
 
     DispatchFn                        m_dispatch;
-    RECT                              m_stripRect       = {};
-    std::array<RECT, kMenuCount>      m_menuRects       = {};
-    NavMenu                           m_openMenu        = NavMenu::File;
-    NavMenu                           m_hoverMenu       = NavMenu::File;
-    bool                              m_isOpen          = false;
-    bool                              m_hasHoverMenu    = false;
-    int                               m_highlightIndex  = -1;
-    int                               m_rowHeightPx     = 26;
-    UINT                              m_dpi             = 96;
+    RECT                              m_stripRect        = {};
+    std::array<RECT, kMenuCount>      m_menuRects        = {};
+    NavMenu                           m_openMenu         = NavMenu::File;
+    NavMenu                           m_hoverMenu        = NavMenu::File;
+    bool                              m_isOpen           = false;
+    bool                              m_openedByKeyboard = false;
+    bool                              m_hasHoverMenu     = false;
+    int                               m_highlightIndex   = -1;
+    int                               m_rowHeightPx      = 26;
+    UINT                              m_dpi              = 96;
 };
