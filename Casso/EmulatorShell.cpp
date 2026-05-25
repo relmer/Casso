@@ -388,6 +388,23 @@ HRESULT EmulatorShell::Initialize (
     m_textOverlay.resize (fbSize, 0);
     m_uiFramebuffer.resize (fbSize, 0);
 
+    // Prime the chrome-affecting theme state BEFORE creating the
+    // window so the initial ClientSizeForCenter inside
+    // CreateEmulatorWindow reads the right drive-bar thickness. Without
+    // this, a user whose persisted activeTheme is compact (DarkModern
+    // or RetroTerminal) would get a window sized for the full
+    // skeuomorphic strip on first paint, then immediately shrink as
+    // soon as ThemeManager::Activate fires its listener later in
+    // Initialize. GlobalUserPrefs.Load needs only assetBaseDir + the
+    // UI-thread filesystem, both of which are already live here.
+    {
+        HRESULT  hrPrefsEarly = m_globalPrefs.Load (assetBaseDir.wstring(), m_uiFs);
+
+        IGNORE_RETURN_VALUE (hrPrefsEarly, S_OK);
+        m_chromeTheme = ChromeTheme::ForName (m_globalPrefs.activeTheme);
+        ApplyThemeToChrome (m_chromeTheme);
+    }
+
     hr = CreateEmulatorWindow (hInstance);
     CHR (hr);
 
@@ -443,6 +460,7 @@ HRESULT EmulatorShell::Initialize (
         m_themeManager->AddChangeListener ([this] (const LoadedTheme & t)
         {
             m_chromeTheme = ChromeTheme::ForName (t.name);
+            ApplyThemeToChrome (m_chromeTheme);
         });
 
         HRESULT  hrActivate = m_themeManager->Activate (m_globalPrefs.activeTheme);
@@ -1068,6 +1086,78 @@ HRESULT EmulatorShell::ApplyAndPersistTheme (const std::string & themeName)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ApplyThemeToChrome
+//
+//  Push freshly-activated theme into the chrome regions whose layout
+//  depends on theme state. Currently that's the drive bar:
+//      * Compact themes shrink the bottom inset and switch the per-
+//        drive widget to the small flat card paint path.
+//      * Skeuomorphic restores the full 192dp inset and the
+//        Apple ][-style realistic widgets.
+//  When the bottom inset changes, the HWND is resized by the delta so
+//  the emulator pixel grid is preserved across the theme swap (i.e.
+//  the user's window grows or shrinks instead of the framebuffer
+//  pillarboxing). The actual painter re-layout happens inside OnResize
+//  via the existing WM_SIZE path.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyThemeToChrome (const ChromeTheme & theme)
+{
+    constexpr int  s_kFullDriveBarDp    = 192;
+    constexpr int  s_kCompactDriveBarDp = 64;
+
+    int   desiredThicknessDp = theme.compactDrives ? s_kCompactDriveBarDp : s_kFullDriveBarDp;
+    int   priorThicknessDp   = m_driveBarSlot.DesiredThicknessDp();
+    UINT  dpi                = (m_hwnd != nullptr) ? GetDpiForWindow (m_hwnd) : (UINT) ChromeMetrics::kBaseDpi;
+    RECT  rcClient           = {};
+    RECT  rcWindow           = {};
+
+
+
+    m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
+    m_driveChrome[0].SetCompact (theme.compactDrives);
+    m_driveChrome[1].SetCompact (theme.compactDrives);
+
+    if (m_hwnd == nullptr || desiredThicknessDp == priorThicknessDp)
+    {
+        return;
+    }
+
+    // Resize the window so the existing emulator pixel grid keeps its
+    // current size. The center rect equals the framebuffer-sized area
+    // bounded by the chrome insets; the new client size = (current
+    // center) + (new contributor totals).
+    if (!GetClientRect (m_hwnd, &rcClient) || !GetWindowRect (m_hwnd, &rcWindow))
+    {
+        return;
+    }
+
+    {
+        // Compute the current centerRect using the PRIOR drive bar
+        // thickness, then ask the layout for the new client size that
+        // hosts the same centerRect under the NEW thickness.
+        int                 oldBottomPx = ChromeLayout::ScaleForDpi (priorThicknessDp, dpi);
+        int                 newBottomPx = ChromeLayout::ScaleForDpi (desiredThicknessDp, dpi);
+        int                 deltaPx     = newBottomPx - oldBottomPx;
+        int                 ncOverheadW = (rcWindow.right  - rcWindow.left)  - (rcClient.right  - rcClient.left);
+        int                 ncOverheadH = (rcWindow.bottom - rcWindow.top)   - (rcClient.bottom - rcClient.top);
+        int                 newClientH  = (rcClient.bottom - rcClient.top) + deltaPx;
+        int                 newWindowW  = (rcWindow.right  - rcWindow.left);
+        int                 newWindowH  = newClientH + ncOverheadH;
+
+        UNREFERENCED_PARAMETER (ncOverheadW);
+        SetWindowPos (m_hwnd, nullptr, 0, 0, newWindowW, newWindowH,
+                      SWP_NOZORDER | SWP_NOMOVE | SWP_NOACTIVATE);
+    }
 }
 
 

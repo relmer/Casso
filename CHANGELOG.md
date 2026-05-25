@@ -6,61 +6,92 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.3.853] — UI Overhaul (spec 007)
+## [1.3.952] — UI overhaul (spec 007)
 
 ### Added
-- **feat(ui): full UI overhaul — RmlUi chrome, themes, Settings panel,
-  CRT post-processing.**
-  - Borderless main window with custom chrome — title bar, drive
-    widgets, and nav layer all rendered by RmlUi on top of the D3D11
-    framebuffer.
+- **feat(ui): full UI overhaul — native DirectX chrome, themes, Settings
+  panel, CRT post-processing, drive widgets.**
+  - Borderless main window with custom native chrome — title bar with
+    Win11-style caption buttons, drag region, drive widgets, and nav
+    layer with keyboard mnemonics (Alt-held + keyboard-opened menus
+    show underlined access keys), all rendered through `DxUiPainter`
+    + `DwriteTextRenderer` on top of the D3D11 framebuffer. No
+    third-party UI engine; native Direct2D / DirectWrite end-to-end.
+  - **Chrome layout manager** (`ChromeLayout`) is the single source of
+    truth for chrome inset math. Edge contributors (`IEdgeContributor`)
+    reserve thickness on one of the four window edges; center layers
+    (`ICenterLayer`) reserve non-uniform padding around the center
+    rect (interface plumbed for future monitor-frame work, no
+    implementations shipped). Pure-function `Resolve()` reduces
+    contributor state into a canonical inset snapshot; both the
+    initial window-size calculation and the `Ctrl+0` reset-window-size
+    path read from the same source, eliminating the historical drift
+    class that produced pillarboxing.
   - Three built-in themes — **Skeuomorphic**, **Dark Modern**, and
     **Retro Terminal** — hot-swappable from `Settings → Theme` with
-    no restart and no machine reset.
+    no restart and no machine reset. Each theme drives its own chrome
+    colour palette and CRT shader defaults; Dark Modern + Retro
+    Terminal additionally request compact drive widgets so the bottom
+    chrome strip shrinks dramatically, and the window auto-resizes by
+    the inset delta on theme swap so the emulator pixel grid is
+    preserved.
+  - **Skeuomorphic drive widgets**: realistic Apple Disk II faceplates
+    with receding case top, animated door tab, finger notch, slot,
+    "DRIVE N" / "IN USE >" labels, status LED, and the Cassowary
+    rainbow logo in the cassowary-on-the-bay corner. Click to mount;
+    drop a `.dsk` / `.do` / `.po` / `.nib` onto a widget to insert it.
+  - **Compact drive widgets** (Dark Modern + Retro Terminal themes):
+    small flat rounded cards with label + status LED on the right.
+    Same mount / hit / drag-drop semantics as the skeuomorphic widgets
+    but a fraction of the visual footprint.
   - Consolidated **Settings** panel replaces the old `OptionsDialog`
-    and `MachinePickerDialog`. Machine selection, emulation speed,
-    video color mode, floppy sound + mechanism, write-protect, theme
-    picker, and CRT controls all live in one non-modal in-window
-    panel (FR-001..FR-017, FR-041). The panel now opens from
-    View → Settings... and Ctrl+, in the live runtime.
-  - Drag-and-drop disk mounting — drop a `.dsk` / `.do` / `.po` /
-    `.nib` onto a drive widget to insert it; click-to-browse on the
-    same widget opens a file picker.
+    and `MachinePickerDialog`. Machine selection, CPU speed, monitor
+    type (color / green / amber / white), floppy sound + mechanism
+    (Shugart / Alps), write-protect per drive, theme picker, and CRT
+    controls all live in one non-modal in-window panel with full
+    keyboard navigation (Tab/Shift+Tab through focusables, Enter on
+    OK / Cancel buttons). Opens from `View → Settings…` and `Ctrl+,`.
   - **CRT post-processing**: scanlines, phosphor bloom, color bleed.
     Each effect is independently toggleable; a single brightness
-    slider gates the master mix.
+    slider gates the master mix. Per-theme defaults live in each
+    theme's JSON.
   - Auto-remount of the last-inserted disks on machine load so a
     typical "boot Apple ][+" workflow is one click.
   - **Per-machine settings persistence** in `<machineName>_user.json`
     (delta against the embedded default) replaces the registry-based
     `RegistrySettings` path for everything the Settings panel owns.
-  - **Constitution amendment v1.4.0 → v1.5.0** — Approved Dependencies
-    allowlist now permits RmlUi 6.2 + three MIT/PD CRT shader sources.
-    The license-guard build step (`scripts/CheckShaderLicenses.ps1`)
-    enforces the allowlist on every build.
+  - **GlobalUserPrefs** persists the active theme and CRT defaults
+    in `GlobalUserPrefs.json` next to the machine configs.
 
 ### Removed
 - **Legacy Win32 menu bar** (FR-026). All commands previously served
   by the File/Edit/Machine/Disk/View/Help menu bar now route through
-  the RmlUi `NavLayer`; the parity table at
+  the native `NavLayer`; the parity table at
   `specs/007-ui-overhaul/menu-command-parity.md` is the source of
   truth and `NavLayerTraceabilityTests` enforces it in CI.
 - **`OptionsDialog` and `MachinePickerDialog`** (FR-027). Both Win32
   dialogs are deleted; the Settings panel hosts the same controls.
+- **`ChromeMetrics::*Px()` inset functions** — replaced by
+  `ChromeLayout::Resolve()` and `ChromeLayout::ClientSizeForCenter()`.
+  `ChromeMetrics` slims down to a constants-only header (framebuffer
+  dimensions + base DPI).
 
 ### Tech notes
-- Vendored **RmlUi 6.2** and three community CRT shader ports under
-  `External/` (all MIT or public-domain — see
-  `External/RmlUi/LICENSE` and `Casso/Shaders/*.license.txt`).
-- Custom **DirectWrite-backed** `Rml::FontEngineInterface` — no
-  FreeType dependency, native ClearType + emoji on Win10+.
+- All UI rendering is native Direct2D / DirectWrite — no third-party
+  UI engine, no FreeType. Native ClearType + emoji on Win10+.
 - Win11 effects (**Mica backdrop**, rounded corners, immersive dark
   caption) are runtime-gated via `Win11DwmHelpers`; the app falls
   back gracefully on Win10.
+- All user-visible strings use **sentence casing** (menu items, page
+  titles, dialog captions, file-filter strings) per the in-repo
+  convention.
 - **48 functional requirements delivered** — FR-001..FR-047 + FR-022b.
   See `specs/007-ui-overhaul/spec.md` for the full traceability.
-
-
+- **17 new `ChromeLayoutTests`** cover the planner end-to-end: empty
+  / single / multi-edge contributors, DPI scaling, center-layer
+  padding, over-allocation clamping, `ClientSizeForCenter`
+  inverse-roundtrip, contributor mutation, and a regression test for
+  the historical Ctrl+0 pillarbox.
 
 ### Fixed
 - **Machine picker showed empty list.** `MachinePickerDialog::ScanMachines`
@@ -109,6 +140,11 @@ Entries before versioning was introduced use dates only.
   immediately after `CreateMemoryDevices`. Drive sounds work on every
   machine you switch into, not just whichever one was active at
   launch.
+- **Ctrl+0 pillarbox.** Window-size math for `Ctrl+0` reset omitted
+  the bottom chrome inset; framebuffer was scaled to the wrong client
+  area and the emulator viewport letterboxed. Now goes through
+  `ChromeLayout::ClientSizeForCenter` along with the initial
+  window-size path so the two call sites cannot drift.
 
 ### Changed
 - **`MachineScanner` extracted to `CassoEmuCore/Core`** as a pure
@@ -122,6 +158,7 @@ Entries before versioning was introduced use dates only.
   first-search-path-wins, missing-Machines-dir handling, missing
   per-machine JSON, unparseable JSON fallback, JSON without `name`
   field, empty search paths.
+- Added `ChromeLayoutTests` (17 cases): see Tech notes above.
 
 ## [1.3.764] — Disk II Debug Window (spec 006)
 

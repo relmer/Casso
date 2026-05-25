@@ -32,6 +32,8 @@ public:
     void               Initialize      (int slot, int drive, IDriveCommandSink * pSink);
     void               Layout          (int x, int y, UINT dpi);
     void               SetPerspectiveSkewPx (int skewPx) { m_perspectiveSkewPx = skewPx; }
+    void               SetCompact      (bool compact)    { m_compact = compact; }
+    bool               IsCompact       () const          { return m_compact; }
     void               SyncFromState   (const DriveWidgetState & state);
     void               Paint           (DxUiPainter & painter,
                                          DwriteTextRenderer & text,
@@ -55,4 +57,5 @@ private:
     LedIndicator        m_led;
     DriveWidgetState    m_state;
     int                 m_perspectiveSkewPx = 0;
+    bool                m_compact           = false;
 };

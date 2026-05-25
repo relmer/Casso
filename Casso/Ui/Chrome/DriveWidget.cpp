@@ -35,6 +35,17 @@ namespace
     constexpr int     s_kCassowaryMarginPx = 12;
     constexpr wchar_t s_kFontFamily[]      = L"Segoe UI";
 
+    // Compact paint-path dimensions. The compact widget is a flat
+    // rounded card with "DRIVE N" on the left and the status LED on
+    // the right -- no 3D case top, no door, no cassowary. Total
+    // height is sized so the drive bar can shrink the bottom inset
+    // dramatically when the active theme requests compact drives.
+    constexpr int     s_kCompactBodyWidthPx  = 140;
+    constexpr int     s_kCompactBodyHeightPx = 40;
+    constexpr int     s_kCompactPadPx        = 10;
+    constexpr int     s_kCompactCornerPx     = 4;
+    constexpr float   s_kCompactFontDip      = 12.0f;
+
 
     bool RectContains (const RECT & rect, int x, int y)
     {
@@ -190,6 +201,31 @@ void DriveWidget::Layout (int x, int y, UINT dpi)
 
 
 
+    if (m_compact)
+    {
+        // Compact card: faceRect == bodyRect (no receding case top);
+        // the LED sits on the right edge with the label filling the
+        // remainder. Slot/eject rects collapse to zero since the
+        // compact widget has no door affordance.
+        int  cBodyW = Scale (s_kCompactBodyWidthPx,  dpi);
+        int  cBodyH = Scale (s_kCompactBodyHeightPx, dpi);
+        int  pad    = Scale (s_kCompactPadPx,        dpi);
+
+        m_bodyRect.left   = x;
+        m_bodyRect.top    = y;
+        m_bodyRect.right  = x + cBodyW;
+        m_bodyRect.bottom = y + cBodyH;
+
+        m_faceRect  = m_bodyRect;
+        m_slotRect  = {};
+        m_ejectRect = {};
+
+        m_led.Layout (m_bodyRect.right - pad - Scale (10, dpi),
+                      m_bodyRect.top   + cBodyH / 2 - Scale (3, dpi),
+                      dpi);
+        return;
+    }
+
     m_bodyRect.left   = x;
     m_bodyRect.top    = y;
     m_bodyRect.right  = x + bodyW;
@@ -277,6 +313,57 @@ void DriveWidget::Paint (
     float    inUseFontDip = s_kInUseFontDip * (float) dpi / (float) s_kBaseDpi;
     float    doorOffset   = 0.0f;
     wchar_t  label[32]    = {};
+
+
+
+    if (m_compact)
+    {
+        int      bodyWcompact  = m_bodyRect.right  - m_bodyRect.left;
+        int      bodyHcompact  = m_bodyRect.bottom - m_bodyRect.top;
+        int      pad           = Scale (s_kCompactPadPx, dpi);
+        float    fontDip       = s_kCompactFontDip * (float) dpi / (float) s_kBaseDpi;
+        uint32_t bodyFill      = theme.driveBodyArgb;
+        uint32_t bezelEdge     = theme.driveBezelArgb;
+        uint32_t labelArgb     = theme.driveLabelArgb;
+
+        // Flat card body with a single bezel-coloured outline.
+        painter.FillRect    ((float) m_bodyRect.left, (float) m_bodyRect.top,
+                             (float) bodyWcompact, (float) bodyHcompact, bodyFill);
+        painter.OutlineRect ((float) m_bodyRect.left, (float) m_bodyRect.top,
+                             (float) bodyWcompact, (float) bodyHcompact, 1.0f, bezelEdge);
+
+        swprintf_s (label, L"Drive %d", m_drive + 1);
+        IGNORE_RETURN_VALUE (hr, text.DrawString (label,
+                                                  (float) (m_bodyRect.left + pad),
+                                                  (float) m_bodyRect.top,
+                                                  (float) (bodyWcompact - 2 * pad - Scale (16, dpi)),
+                                                  (float) bodyHcompact,
+                                                  labelArgb,
+                                                  fontDip,
+                                                  s_kFontFamily,
+                                                  DwriteTextRenderer::HAlign::Left,
+                                                  DwriteTextRenderer::VAlign::Center));
+
+        UNREFERENCED_PARAMETER (bodyW);
+        UNREFERENCED_PARAMETER (faceW);
+        UNREFERENCED_PARAMETER (faceH);
+        UNREFERENCED_PARAMETER (slotW);
+        UNREFERENCED_PARAMETER (slotH);
+        UNREFERENCED_PARAMETER (doorW);
+        UNREFERENCED_PARAMETER (doorH);
+        UNREFERENCED_PARAMETER (doorTravel);
+        UNREFERENCED_PARAMETER (notchW);
+        UNREFERENCED_PARAMETER (notchH);
+        UNREFERENCED_PARAMETER (labelPad);
+        UNREFERENCED_PARAMETER (inUseW);
+        UNREFERENCED_PARAMETER (caseBackInset);
+        UNREFERENCED_PARAMETER (labelFontDip);
+        UNREFERENCED_PARAMETER (inUseFontDip);
+        UNREFERENCED_PARAMETER (doorOffset);
+
+        m_led.Paint (painter, theme);
+        return;
+    }
 
 
 

@@ -16,6 +16,13 @@ struct ChromeVisualState
 
 struct ChromeTheme
 {
+    // Whether the drive widgets use the compact paint path (small flat
+    // card with label + LED). False = full skeuomorphic Apple Disk II
+    // widgets. The drive-bar thickness contracts with this flag via
+    // EmulatorShell's theme listener so the emulator pixel grid is
+    // preserved across theme swaps.
+    bool      compactDrives             = false;
+
     uint32_t  titleBarTopArgb        = 0;
     uint32_t  titleBarBottomArgb     = 0;
     uint32_t  titleTextArgb          = 0;
@@ -95,6 +102,7 @@ struct ChromeTheme
 
         // Win11-style flat dark: graphite gradient, near-pure-white
         // labels, cool blue accent for hover/highlight, blue LEDs.
+        theme.compactDrives                 = true;
         theme.titleBarTopArgb               = 0xFF202225;
         theme.titleBarBottomArgb            = 0xFF17181B;
         theme.titleTextArgb                 = 0xFFF0F0F0;
@@ -130,6 +138,7 @@ struct ChromeTheme
 
         // P1 phosphor on near-black: deep green-black panels with
         // bright phosphor-green labels and LEDs to evoke a CRT cabinet.
+        theme.compactDrives                 = true;
         theme.titleBarTopArgb               = 0xFF16381E;
         theme.titleBarBottomArgb            = 0xFF0A1F0E;
         theme.titleTextArgb                 = 0xFFB7FCB9;

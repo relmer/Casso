@@ -197,6 +197,12 @@ private:
     // No-op if the name is empty; falls back to Skeuomorphic if unknown.
     HRESULT ApplyAndPersistTheme (const std::string & themeName);
 
+    // Pushes a freshly-activated ChromeTheme into the layout-affecting
+    // chrome state: drive bar thickness, per-drive compact flag, and
+    // (if the bottom inset changed) a window resize that preserves the
+    // emulator pixel grid. Called from the ThemeManager listener.
+    void    ApplyThemeToChrome   (const ChromeTheme & theme);
+
     // MachineManager and WindowCommandManager touch enough shell
     // state during construction and command dispatch that friend
     // declarations are the pragmatic seam; no new global state is
