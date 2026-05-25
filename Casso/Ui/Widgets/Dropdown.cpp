@@ -8,6 +8,9 @@
 
 namespace
 {
+    constexpr uint32_t  s_kFocusRingArgb   = 0xFFAACCFF;
+    constexpr float     s_kFocusRingPx     = 1.5f;
+    constexpr float     s_kFocusInsetPx    = -2.0f;
     constexpr int       s_kRowHeightDp     = 28;
     constexpr int       s_kTextInsetDp     = 8;
     constexpr int       s_kChevronWidthDp  = 10;
@@ -267,8 +270,24 @@ bool Dropdown::HandleKey (WPARAM vk)
 
 
 
-    if (!m_open || count <= 0)
+    if (!m_enabled || count <= 0)
     {
+        return false;
+    }
+
+    if (!m_open)
+    {
+        if (!m_focused)
+        {
+            return false;
+        }
+
+        if (vk == VK_RETURN || vk == VK_SPACE || vk == VK_DOWN)
+        {
+            Open();
+            return true;
+        }
+
         return false;
     }
 
@@ -427,6 +446,19 @@ void Dropdown::PaintBase (DxUiPainter & painter, DwriteTextRenderer & text) cons
                           (float) w,
                           1.0f,
                           textColor);
+    }
+
+    if (m_focused)
+    {
+        float  focusInset = m_scaler.Pxf (s_kFocusInsetPx);
+        float  focusThick = m_scaler.Pxf (s_kFocusRingPx);
+
+        painter.OutlineRect ((float) m_rect.left + focusInset,
+                             (float) m_rect.top  + focusInset,
+                             (float) (m_rect.right  - m_rect.left) - focusInset * 2.0f,
+                             (float) (m_rect.bottom - m_rect.top)  - focusInset * 2.0f,
+                             focusThick,
+                             s_kFocusRingArgb);
     }
 }
 

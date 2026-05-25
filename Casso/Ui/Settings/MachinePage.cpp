@@ -340,6 +340,50 @@ bool MachinePage::OnKey (WPARAM vk)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachinePage::CollectFocusables
+//
+//  Pushes one focus-setter lambda per focusable widget on the page,
+//  in visual tab order. The mechanism dropdown is included whether or
+//  not drive audio is enabled; the dropdown ignores keyboard activation
+//  while disabled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachinePage::CollectFocusables (std::vector<std::function<void (bool)>> & out)
+{
+    out.push_back ([this] (bool f) { m_machineDropdown.SetFocused (f); });
+    out.push_back ([this] (bool f) { m_speed.SetFocused           (f); });
+    out.push_back ([this] (bool f) { m_color.SetFocused           (f); });
+    out.push_back ([this] (bool f) { m_writeProtect[0].SetFocused (f); });
+    out.push_back ([this] (bool f) { m_writeProtect[1].SetFocused (f); });
+    out.push_back ([this] (bool f) { m_driveAudio.SetFocused      (f); });
+    out.push_back ([this] (bool f) { m_mechanism.SetFocused       (f); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachinePage::AnyDropdownOpen
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MachinePage::AnyDropdownOpen () const
+{
+    return m_machineDropdown.IsOpen() ||
+           m_speed.IsOpen()           ||
+           m_color.IsOpen()           ||
+           m_mechanism.IsOpen();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachinePage::Paint
 //
 ////////////////////////////////////////////////////////////////////////////////

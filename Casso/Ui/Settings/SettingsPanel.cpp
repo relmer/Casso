@@ -238,7 +238,109 @@ HRESULT SettingsPanel::Show ()
     m_hardwarePage.Rebuild();
 
     m_visible = true;
+    RebuildFocusOrder();
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RebuildFocusOrder
+//
+//  Re-collect the focus list from the TabStrip, the currently active
+//  page, and the Apply / Cancel buttons; reset FocusManager to the
+//  first entry so Tab traversal starts at the tab strip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::RebuildFocusOrder ()
+{
+    int  nextId = 0;
+
+
+    m_focusSetters.clear();
+
+    if (m_uiShell == nullptr)
+    {
+        return;
+    }
+
+    m_focusSetters.push_back ([this] (bool f) { m_tabs.SetFocused (f); });
+
+    switch ((TabIndex) m_activeTab)
+    {
+        case TabIndex::Machine:  m_machinePage.CollectFocusables  (m_focusSetters); break;
+        case TabIndex::Hardware: m_hardwarePage.CollectFocusables (m_focusSetters); break;
+        case TabIndex::Theme:    break;
+        case TabIndex::Display:  break;
+    }
+
+    m_focusSetters.push_back ([this] (bool f) { m_cancelButton.SetFocused (f); });
+    m_focusSetters.push_back ([this] (bool f) { m_applyButton.SetFocused  (f); });
+
+    FocusManager & focus = m_uiShell->Focus();
+
+    focus.Clear();
+    for (nextId = 0; nextId < (int) m_focusSetters.size(); ++nextId)
+    {
+        focus.RegisterFocusable (nextId);
+    }
+
+    SyncFocusToWidgets();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncFocusToWidgets
+//
+//  Push the FocusManager's current-id state out to all registered
+//  widgets via the cached setter callbacks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::SyncFocusToWidgets ()
+{
+    int  current = 0;
+    int  i       = 0;
+
+
+    if (m_uiShell == nullptr)
+    {
+        return;
+    }
+
+    current = m_uiShell->Focus().Current();
+
+    for (i = 0; i < (int) m_focusSetters.size(); ++i)
+    {
+        m_focusSetters[(size_t) i] (i == current);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AnyDropdownOpenOnActivePage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsPanel::AnyDropdownOpenOnActivePage () const
+{
+    if ((TabIndex) m_activeTab == TabIndex::Machine)
+    {
+        return m_machinePage.AnyDropdownOpen();
+    }
+    return false;
 }
 
 
@@ -553,7 +655,7 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const Dpi
     tabs.push_back ({ MakeRect (left + tabWidth * 3,   tabsTop, tabWidth, tabHeight), L"Display"  });
     m_tabs.SetTabs (std::move (tabs));
     m_tabs.SetSelected (m_activeTab);
-    m_tabs.SetOnChange ([this] (int idx) { m_activeTab = idx; });
+    m_tabs.SetOnChange ([this] (int idx) { m_activeTab = idx; RebuildFocusOrder(); });
     m_tabs.SetDpi (dpi);
 
     pageRect.left   = m_panelRect.left   + pad;
@@ -793,6 +895,9 @@ void SettingsPanel::OnLButtonUp (int x, int y)
 
 bool SettingsPanel::OnKey (WPARAM vk)
 {
+    bool  shiftHeld = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
+
+
     if (!m_visible)
     {
         return false;
@@ -801,6 +906,28 @@ bool SettingsPanel::OnKey (WPARAM vk)
     if (m_scrim.IsVisible())
     {
         return m_scrim.OnKey (vk);
+    }
+
+    // Open dropdowns take priority — Up/Down/Enter/Esc steer the menu
+    // rather than the panel-level focus list.
+    if (AnyDropdownOpenOnActivePage())
+    {
+        switch ((TabIndex) m_activeTab)
+        {
+            case TabIndex::Machine:  if (m_machinePage.OnKey (vk)) { return true; } break;
+            default: break;
+        }
+    }
+
+    if (vk == VK_TAB && m_uiShell != nullptr)
+    {
+        FocusKey  fk = shiftHeld ? FocusKey::ShiftTab : FocusKey::Tab;
+
+        if (m_uiShell->Focus().HandleKey (fk))
+        {
+            SyncFocusToWidgets();
+        }
+        return true;
     }
 
     if (vk == VK_ESCAPE)
@@ -816,6 +943,9 @@ bool SettingsPanel::OnKey (WPARAM vk)
         case TabIndex::Theme:    if (m_themePage.OnKey    (vk)) { return true; } break;
         case TabIndex::Display:  if (m_displayPage.OnKey  (vk)) { return true; } break;
     }
+
+    if (m_applyButton.OnKey  (vk)) { return true; }
+    if (m_cancelButton.OnKey (vk)) { return true; }
 
     return m_tabs.OnKey (vk);
 }

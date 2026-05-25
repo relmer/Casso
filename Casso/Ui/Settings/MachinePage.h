@@ -55,6 +55,9 @@ public:
     bool  OnKey                 (WPARAM vk);
     void  Paint                 (DxUiPainter & painter, DwriteTextRenderer & text) const;
 
+    void  CollectFocusables (std::vector<std::function<void (bool)>> & out);
+    bool  AnyDropdownOpen   () const;
+
     // Test accessors.
     const Toggle      & DriveAudioToggle     () const { return m_driveAudio; }
     const Checkbox    & WriteProtect         (int drive) const { return m_writeProtect[(size_t) drive]; }

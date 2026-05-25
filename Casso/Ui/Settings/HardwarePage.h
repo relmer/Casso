@@ -50,6 +50,11 @@ public:
     void  OnMouseHover  (int x, int y) { m_tree.SetMouseHover (x, y); }
     bool  OnKey         (WPARAM vk)    { return m_tree.OnKey (vk); }
 
+    void  CollectFocusables (std::vector<std::function<void (bool)>> & out)
+    {
+        out.push_back ([this] (bool f) { m_tree.SetFocused (f); });
+    }
+
     void  Paint         (DxUiPainter & painter, DwriteTextRenderer & text) const
     {
         m_tree.Paint (painter, text);

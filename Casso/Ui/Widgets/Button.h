@@ -34,8 +34,11 @@ public:
         m_outlineArgb  = argb;
     }
     void  SetMouse        (int x, int y, bool down);
+    void  SetFocused      (bool focused) { m_focused = focused; }
+    bool  Focused         () const { return m_focused; }
     bool  HitTest         (int x, int y) const;
     void  Click           ();
+    bool  OnKey           (WPARAM vk);
     void  Paint           (DxUiPainter & painter, DwriteTextRenderer & text, const ChromeTheme & theme);
 
 private:
@@ -44,6 +47,7 @@ private:
     ClickFn       m_click;
     bool          m_hover           = false;
     bool          m_pressed         = false;
+    bool          m_focused         = false;
     DpiScaler     m_scaler;
     bool          m_useOverrides    = false;
     uint32_t      m_idleOverride    = 0;

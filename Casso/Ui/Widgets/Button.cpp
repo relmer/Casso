@@ -28,8 +28,29 @@ void Button::Click ()
 }
 
 
+bool Button::OnKey (WPARAM vk)
+{
+    if (!m_focused)
+    {
+        return false;
+    }
+
+    if (vk == VK_RETURN || vk == VK_SPACE)
+    {
+        Click();
+        return true;
+    }
+
+    return false;
+}
+
+
 void Button::Paint (DxUiPainter & painter, DwriteTextRenderer & text, const ChromeTheme & theme)
 {
+    constexpr uint32_t  s_kFocusRingArgb = 0xFFAACCFF;
+    constexpr float     s_kFocusRingPx   = 1.5f;
+    constexpr float     s_kFocusInsetPx  = -2.0f;
+
     HRESULT  hr        = S_OK;
     uint32_t themeIdle    = m_useOverrides ? m_idleOverride    : theme.sysButtonIdleArgb;
     uint32_t themeHover   = m_useOverrides ? m_hoverOverride   : theme.sysButtonHoverArgb;
@@ -66,4 +87,17 @@ void Button::Paint (DxUiPainter & painter, DwriteTextRenderer & text, const Chro
                                               L"Segoe UI",
                                               DwriteTextRenderer::HAlign::Center,
                                               DwriteTextRenderer::VAlign::Center));
+
+    if (m_focused)
+    {
+        float  focusInset = m_scaler.Pxf (s_kFocusInsetPx);
+        float  focusThick = m_scaler.Pxf (s_kFocusRingPx);
+
+        painter.OutlineRect ((float) m_rect.left + focusInset,
+                             (float) m_rect.top  + focusInset,
+                             (float) (m_rect.right  - m_rect.left) - focusInset * 2.0f,
+                             (float) (m_rect.bottom - m_rect.top)  - focusInset * 2.0f,
+                             focusThick,
+                             s_kFocusRingArgb);
+    }
 }

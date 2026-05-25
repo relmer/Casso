@@ -19,6 +19,8 @@ public:
     void  SetItems       (const std::vector<std::wstring> & items);
     void  SetSelected    (int index);
     void  SetEnabled     (bool enabled) { m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; m_open = false; } }
+    void  SetFocused     (bool focused) { m_focused = focused; if (!focused) { m_open = false; } }
+    bool  Focused        () const { return m_focused; }
     void  SetSelect      (SelectFn select) { m_select = std::move (select); }
     void  Open           ();
     void  Close()        { m_open = false; }
@@ -51,4 +53,5 @@ private:
     int                       m_selected  = -1;
     DpiScaler                 m_scaler;
     bool                      m_enabled   = true;
+    bool                      m_focused   = false;
 };

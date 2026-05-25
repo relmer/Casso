@@ -364,7 +364,8 @@ bool NavLayer::HandleAltKey (wchar_t ch)
 
 bool NavLayer::HandleKey (WPARAM vk)
 {
-    int  count = EntryCount (m_openMenu);
+    int  count       = EntryCount (m_openMenu);
+    int  openMenuIdx = MenuIndex (m_openMenu);
 
 
 
@@ -373,9 +374,23 @@ bool NavLayer::HandleKey (WPARAM vk)
         return false;
     }
 
-    if (vk == VK_ESCAPE)
+    if (vk == VK_ESCAPE || vk == VK_F10)
     {
         Close();
+        return true;
+    }
+
+    if (vk == VK_LEFT || (vk == VK_TAB && (GetKeyState (VK_SHIFT) & 0x8000)))
+    {
+        int  nextMenu = (openMenuIdx <= 0) ? (kMenuCount - 1) : (openMenuIdx - 1);
+        Open ((NavMenu) nextMenu);
+        return true;
+    }
+
+    if (vk == VK_RIGHT || vk == VK_TAB)
+    {
+        int  nextMenu = (openMenuIdx + 1) % kMenuCount;
+        Open ((NavMenu) nextMenu);
         return true;
     }
 
@@ -396,7 +411,7 @@ bool NavLayer::HandleKey (WPARAM vk)
         return true;
     }
 
-    if (vk == VK_RETURN)
+    if (vk == VK_RETURN || vk == VK_SPACE)
     {
         const NavCommandEntry * entry = EntryAt (m_highlightIndex);
 

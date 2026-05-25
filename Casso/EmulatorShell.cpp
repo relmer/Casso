@@ -1764,6 +1764,22 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
         return false;
     }
 
+    // F10 — focus the menu bar (Windows convention). Opens the File
+    // menu so subsequent Left/Right (or Tab) keys cycle between
+    // top-level menus while Up/Down/Enter navigate within.
+    if (vk == VK_F10 && !ctrlHeld && !altHeld)
+    {
+        if (!m_navLayer.IsOpen())
+        {
+            m_navLayer.Open (NavMenu::File);
+        }
+        else
+        {
+            m_navLayer.Close();
+        }
+        return false;
+    }
+
     // Ctrl+V — paste from clipboard (host-meta convenience, not a //e
     // hardware key). Consumed before reaching the emulated keyboard.
     if (vk == 'V' && ctrlHeld && !altHeld)

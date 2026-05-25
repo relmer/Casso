@@ -101,6 +101,9 @@ private:
     void  OnApplyClicked              ();
     void  OnCancelClicked             ();
     void  CommitApply                 ();
+    void  RebuildFocusOrder           ();
+    void  SyncFocusToWidgets          ();
+    bool  AnyDropdownOpenOnActivePage () const;
 
 
     UiShell         * m_uiShell   = nullptr;
@@ -127,4 +130,6 @@ private:
     RECT                m_panelRect    = {};
     RECT                m_captionRect  = {};
     int                 m_activeTab    = (int) TabIndex::Machine;
+
+    std::vector<std::function<void (bool)>>  m_focusSetters;
 };

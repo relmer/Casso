@@ -473,9 +473,10 @@ bool UiShell::HandleKey (WPARAM vk)
         return true;
     }
 
-    if (m_navLayer != nullptr)
+    if (m_navLayer != nullptr && m_navLayer->IsOpen())
     {
-        return m_navLayer->HandleKey (vk);
+        (void) m_navLayer->HandleKey (vk);
+        return true;
     }
 
     return false;
