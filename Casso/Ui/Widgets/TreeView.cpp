@@ -491,9 +491,14 @@ void TreeView::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     constexpr float     s_kFontDip        = 13.0f;
     constexpr float     s_kTwistyHeight   = 8.0f;
 
-    HRESULT  hr     = S_OK;
-    int      i      = 0;
-    size_t   n      = m_flatRows.size();
+    HRESULT  hr        = S_OK;
+    int      i         = 0;
+    size_t   n         = m_flatRows.size();
+    float    checkInset = m_scaler.Pxf (s_kCheckInset);
+    float    fontDip    = m_scaler.Pxf (s_kFontDip);
+    float    twistyHt   = m_scaler.Pxf (s_kTwistyHeight);
+    float    textGap    = m_scaler.Pxf (4.0f);
+    float    twistyPad  = m_scaler.Pxf (4.0f);
 
 
 
@@ -505,7 +510,7 @@ void TreeView::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
         float             rowHeight = (float) m_rowHeightPx;
         float             twistyX   = (float) (m_rect.left + fr.depth * m_indentPx);
         float             checkboxX = twistyX + (float) m_twistyPx;
-        float             textX     = checkboxX + (float) m_checkboxPx + 4.0f;
+        float             textX     = checkboxX + (float) m_checkboxPx + textGap;
         uint32_t          rowFill   = (i == m_highlight) ? s_kRowHighlight
                                        : (i == m_hoverRow ? s_kRowHover : s_kRowIdle);
         bool              hasChildren = (node != nullptr) && !node->children.empty();
@@ -524,9 +529,9 @@ void TreeView::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 
         if (hasChildren)
         {
-            painter.FillRect (twistyX + 4.0f,
-                              rowY + (rowHeight - s_kTwistyHeight) * 0.5f,
-                              (float) m_twistyPx - 8.0f, s_kTwistyHeight, s_kTwistyArgb);
+            painter.FillRect (twistyX + twistyPad,
+                              rowY + (rowHeight - twistyHt) * 0.5f,
+                              (float) m_twistyPx - twistyPad * 2.0f, twistyHt, s_kTwistyArgb);
         }
 
         painter.FillRect (checkboxX,
@@ -535,10 +540,10 @@ void TreeView::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 
         if (node != nullptr && node->checked)
         {
-            painter.FillRect (checkboxX + s_kCheckInset,
-                              rowY + (rowHeight - (float) m_checkboxPx) * 0.5f + s_kCheckInset,
-                              (float) m_checkboxPx - s_kCheckInset * 2.0f,
-                              (float) m_checkboxPx - s_kCheckInset * 2.0f,
+            painter.FillRect (checkboxX + checkInset,
+                              rowY + (rowHeight - (float) m_checkboxPx) * 0.5f + checkInset,
+                              (float) m_checkboxPx - checkInset * 2.0f,
+                              (float) m_checkboxPx - checkInset * 2.0f,
                               glyphCol);
         }
 
@@ -550,7 +555,7 @@ void TreeView::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                                       (float) m_rect.right - textX,
                                                       rowHeight,
                                                       textCol,
-                                                      s_kFontDip,
+                                                      fontDip,
                                                       L"Segoe UI"));
         }
     }

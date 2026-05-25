@@ -346,6 +346,7 @@
     <ClInclude Include="Ui\HitTester.h" />
     <ClInclude Include="Ui\FocusManager.h" />
     <ClInclude Include="Ui\Layout.h" />
+    <ClInclude Include="Ui\DpiScaler.h" />
     <ClInclude Include="Ui\Animation.h" />
     <ClInclude Include="TrackSectorPredicate.h" />
     <ClInclude Include="DebugDialogProjection.h" />

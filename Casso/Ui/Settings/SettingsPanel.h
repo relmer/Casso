@@ -8,6 +8,7 @@
 #include "SettingsPanelState.h"
 #include "ThemePage.h"
 
+#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 #include "../Widgets/Button.h"
@@ -70,7 +71,7 @@ public:
     // chrome but before debug overlays; the routing helpers consume the
     // event only when the panel is visible so the emulator and chrome
     // continue to receive mouse / key when the panel is closed.
-    void    Layout    (int viewportWidthPx, int viewportHeightPx);
+    void    Layout    (int viewportWidthPx, int viewportHeightPx, const DpiScaler & scaler);
     void    Paint     (DxUiPainter & painter, DwriteTextRenderer & text);
     void    OnMouseMove   (int x, int y);
     void    OnLButtonDown (int x, int y);

@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 
@@ -31,6 +32,7 @@ public:
     bool  OnLButtonUp    (int x, int y);
     bool  HandleKey      (WPARAM vk);
     void  Paint          (DxUiPainter & painter, DwriteTextRenderer & text) const;
+    void  SetDpi         (UINT dpi) { m_scaler.SetDpi (dpi); }
 
 private:
     void  Commit         (int index);
@@ -43,4 +45,5 @@ private:
     bool                      m_hover     = false;
     int                       m_highlight = -1;
     int                       m_selected  = -1;
+    DpiScaler                 m_scaler;
 };

@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 
@@ -27,6 +28,7 @@ public:
     void  SetText       (const std::wstring & text) { m_text = text; }
     void  SetColorArgb  (uint32_t argb) { m_argb = argb; }
     void  SetFontSizeDip (float dip) { m_fontDip = dip; }
+    void  SetDpi        (UINT dpi) { m_scaler.SetDpi (dpi); }
 
     const RECT         & Rect      () const { return m_rect; }
     const std::wstring & Text      () const { return m_text; }
@@ -45,7 +47,7 @@ public:
                                                   (float) (m_rect.right  - m_rect.left),
                                                   (float) (m_rect.bottom - m_rect.top),
                                                   m_argb,
-                                                  m_fontDip,
+                                                  m_scaler.Pxf (m_fontDip),
                                                   L"Segoe UI"));
     }
 
@@ -54,4 +56,5 @@ private:
     std::wstring  m_text;
     uint32_t      m_argb    = 0xFFFFFFFF;
     float         m_fontDip = 13.0f;
+    DpiScaler     m_scaler;
 };

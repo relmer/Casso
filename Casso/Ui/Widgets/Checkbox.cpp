@@ -157,51 +157,57 @@ void Checkbox::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     constexpr uint32_t  s_kFocusRing    = 0xFFAACCFF;
     constexpr uint32_t  s_kTextIdle     = 0xFFE8EEF4;
     constexpr uint32_t  s_kTextDisabled = 0xFF707070;
-    constexpr float     s_kBoxSize      = 16.0f;
-    constexpr float     s_kCheckInset   = 3.0f;
-    constexpr float     s_kFocusInset   = -2.0f;
-    constexpr float     s_kFocusThick   = 1.0f;
-    constexpr float     s_kLabelGap     = 6.0f;
+    constexpr float     s_kBoxSizeDp    = 16.0f;
+    constexpr float     s_kCheckInsetDp = 3.0f;
+    constexpr float     s_kFocusInsetDp = -2.0f;
+    constexpr float     s_kFocusThickDp = 1.0f;
+    constexpr float     s_kLabelGapDp   = 6.0f;
     constexpr float     s_kFontDip      = 13.0f;
 
-    HRESULT  hr        = S_OK;
-    float    boxLeft   = (float) m_rect.left;
-    float    boxTop    = (float) m_rect.top + ((float) (m_rect.bottom - m_rect.top) - s_kBoxSize) * 0.5f;
-    uint32_t boxColor  = m_enabled
+    HRESULT  hr          = S_OK;
+    float    boxSize     = m_scaler.Pxf (s_kBoxSizeDp);
+    float    checkInset  = m_scaler.Pxf (s_kCheckInsetDp);
+    float    focusInset  = m_scaler.Pxf (s_kFocusInsetDp);
+    float    focusThick  = m_scaler.Pxf (s_kFocusThickDp);
+    float    labelGap    = m_scaler.Pxf (s_kLabelGapDp);
+    float    fontDip     = m_scaler.Pxf (s_kFontDip);
+    float    boxLeft     = (float) m_rect.left;
+    float    boxTop      = (float) m_rect.top + ((float) (m_rect.bottom - m_rect.top) - boxSize) * 0.5f;
+    uint32_t boxColor    = m_enabled
                             ? (m_pressed ? s_kBoxPressed : (m_hover ? s_kBoxHover : s_kBoxIdle))
                             : s_kBoxDisabled;
-    uint32_t glyphColor = m_enabled ? s_kCheck : s_kCheckDisabled;
-    uint32_t textColor  = m_enabled ? s_kTextIdle : s_kTextDisabled;
+    uint32_t glyphColor  = m_enabled ? s_kCheck : s_kCheckDisabled;
+    uint32_t textColor   = m_enabled ? s_kTextIdle : s_kTextDisabled;
 
 
 
-    painter.FillRect (boxLeft, boxTop, s_kBoxSize, s_kBoxSize, boxColor);
+    painter.FillRect (boxLeft, boxTop, boxSize, boxSize, boxColor);
 
     if (m_checked)
     {
-        painter.FillRect (boxLeft   + s_kCheckInset,
-                          boxTop    + s_kCheckInset,
-                          s_kBoxSize - s_kCheckInset * 2.0f,
-                          s_kBoxSize - s_kCheckInset * 2.0f,
+        painter.FillRect (boxLeft   + checkInset,
+                          boxTop    + checkInset,
+                          boxSize - checkInset * 2.0f,
+                          boxSize - checkInset * 2.0f,
                           glyphColor);
     }
 
     if (m_focused)
     {
-        painter.OutlineRect (boxLeft + s_kFocusInset,
-                             boxTop  + s_kFocusInset,
-                             s_kBoxSize - s_kFocusInset * 2.0f,
-                             s_kBoxSize - s_kFocusInset * 2.0f,
-                             s_kFocusThick,
+        painter.OutlineRect (boxLeft + focusInset,
+                             boxTop  + focusInset,
+                             boxSize - focusInset * 2.0f,
+                             boxSize - focusInset * 2.0f,
+                             focusThick,
                              s_kFocusRing);
     }
 
     IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.c_str(),
-                                              boxLeft + s_kBoxSize + s_kLabelGap,
+                                              boxLeft + boxSize + labelGap,
                                               (float) m_rect.top,
-                                              (float) (m_rect.right - m_rect.left) - s_kBoxSize - s_kLabelGap,
+                                              (float) (m_rect.right - m_rect.left) - boxSize - labelGap,
                                               (float) (m_rect.bottom - m_rect.top),
                                               textColor,
-                                              s_kFontDip,
+                                              fontDip,
                                               L"Segoe UI"));
 }

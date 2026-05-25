@@ -20,17 +20,18 @@
 
 namespace
 {
-    constexpr int    s_kPanelWidthPx   = 720;
-    constexpr int    s_kPanelHeightPx  = 540;
-    constexpr int    s_kTabHeightPx    = 32;
-    constexpr int    s_kBottomBarPx    = 56;
-    constexpr int    s_kButtonWidthPx  = 96;
-    constexpr int    s_kButtonHeightPx = 28;
-    constexpr int    s_kButtonGapPx    = 8;
-    constexpr int    s_kPanelPadPx     = 16;
+    constexpr int    s_kPanelWidthDp   = 720;
+    constexpr int    s_kPanelHeightDp  = 540;
+    constexpr int    s_kTabHeightDp    = 32;
+    constexpr int    s_kBottomBarDp    = 56;
+    constexpr int    s_kButtonWidthDp  = 96;
+    constexpr int    s_kButtonHeightDp = 28;
+    constexpr int    s_kButtonGapDp    = 8;
+    constexpr int    s_kPanelPadDp     = 16;
+    constexpr int    s_kPanelMarginDp  = 16;
     constexpr uint32_t s_kPanelBgArgb  = 0xFF1A2230;
     constexpr uint32_t s_kPanelEdgeArgb = 0xFF334050;
-    constexpr float    s_kEdgeThickPx  = 1.0f;
+    constexpr float    s_kEdgeThickDp  = 1.0f;
 
 
     ////////////////////////////////////////////////////////////////////////////
@@ -182,7 +183,7 @@ HRESULT SettingsPanel::Show ()
 
     if (m_uiShell != nullptr)
     {
-        Layout (m_uiShell->ViewportWidth(), m_uiShell->ViewportHeight());
+        Layout (m_uiShell->ViewportWidth(), m_uiShell->ViewportHeight(), m_uiShell->Scaler());
     }
 
     m_visible = true;
@@ -386,20 +387,28 @@ void SettingsPanel::OnMachineSelected (const std::string & machineName)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx)
+void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const DpiScaler & scaler)
 {
-    static constexpr int  s_kMinPanelMarginPx = 16;
-
-    int     panelWidth  = std::min<int> (s_kPanelWidthPx,  std::max<int> (0, viewportWidthPx  - s_kMinPanelMarginPx * 2));
-    int     panelHeight = std::min<int> (s_kPanelHeightPx, std::max<int> (0, viewportHeightPx - s_kMinPanelMarginPx * 2));
-    int     left        = (viewportWidthPx  - panelWidth)  / 2;
-    int     top         = (viewportHeightPx - panelHeight) / 2;
-    int     tabWidth    = std::max<int> (40, panelWidth / 4);
-    RECT    pageRect    = {};
-    RECT    bottomRow   = {};
-    int     applyX      = 0;
-    int     cancelX     = 0;
-    int     buttonY     = 0;
+    UINT    dpi          = scaler.Dpi();
+    int     marginPx     = scaler.Px (s_kPanelMarginDp);
+    int     basePanelW   = scaler.Px (s_kPanelWidthDp);
+    int     basePanelH   = scaler.Px (s_kPanelHeightDp);
+    int     tabHeight    = scaler.Px (s_kTabHeightDp);
+    int     bottomBar    = scaler.Px (s_kBottomBarDp);
+    int     buttonWidth  = scaler.Px (s_kButtonWidthDp);
+    int     buttonHeight = scaler.Px (s_kButtonHeightDp);
+    int     buttonGap    = scaler.Px (s_kButtonGapDp);
+    int     pad          = scaler.Px (s_kPanelPadDp);
+    int     panelWidth   = std::min<int> (basePanelW, std::max<int> (0, viewportWidthPx  - marginPx * 2));
+    int     panelHeight  = std::min<int> (basePanelH, std::max<int> (0, viewportHeightPx - marginPx * 2));
+    int     left         = (viewportWidthPx  - panelWidth)  / 2;
+    int     top          = (viewportHeightPx - panelHeight) / 2;
+    int     tabWidth     = std::max<int> (40, panelWidth / 4);
+    RECT    pageRect     = {};
+    RECT    bottomRow    = {};
+    int     applyX       = 0;
+    int     cancelX      = 0;
+    int     buttonY      = 0;
     std::vector<TabStrip::Tab>  tabs;
 
 
@@ -407,35 +416,38 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx)
     m_viewport  = { 0, 0, viewportWidthPx, viewportHeightPx };
     m_panelRect = MakeRect (left, top, panelWidth, panelHeight);
 
-    tabs.push_back ({ MakeRect (left,                  top, tabWidth, s_kTabHeightPx), L"Machine"  });
-    tabs.push_back ({ MakeRect (left + tabWidth,       top, tabWidth, s_kTabHeightPx), L"Hardware" });
-    tabs.push_back ({ MakeRect (left + tabWidth * 2,   top, tabWidth, s_kTabHeightPx), L"Theme"    });
-    tabs.push_back ({ MakeRect (left + tabWidth * 3,   top, tabWidth, s_kTabHeightPx), L"Display"  });
+    tabs.push_back ({ MakeRect (left,                  top, tabWidth, tabHeight), L"Machine"  });
+    tabs.push_back ({ MakeRect (left + tabWidth,       top, tabWidth, tabHeight), L"Hardware" });
+    tabs.push_back ({ MakeRect (left + tabWidth * 2,   top, tabWidth, tabHeight), L"Theme"    });
+    tabs.push_back ({ MakeRect (left + tabWidth * 3,   top, tabWidth, tabHeight), L"Display"  });
     m_tabs.SetTabs (std::move (tabs));
     m_tabs.SetSelected (m_activeTab);
     m_tabs.SetOnChange ([this] (int idx) { m_activeTab = idx; });
+    m_tabs.SetDpi (dpi);
 
-    pageRect.left   = m_panelRect.left   + s_kPanelPadPx;
-    pageRect.top    = m_panelRect.top    + s_kTabHeightPx + s_kPanelPadPx;
-    pageRect.right  = m_panelRect.right  - s_kPanelPadPx;
-    pageRect.bottom = m_panelRect.bottom - s_kBottomBarPx;
+    pageRect.left   = m_panelRect.left   + pad;
+    pageRect.top    = m_panelRect.top    + tabHeight + pad;
+    pageRect.right  = m_panelRect.right  - pad;
+    pageRect.bottom = m_panelRect.bottom - bottomBar;
 
-    m_machinePage.Layout  (pageRect);
-    m_hardwarePage.SetRect (pageRect);
-    m_themePage.Layout    (pageRect);
-    m_displayPage.Layout  (pageRect);
+    m_machinePage.Layout   (pageRect, scaler);
+    m_hardwarePage.SetRect (pageRect, scaler);
+    m_themePage.Layout     (pageRect, scaler);
+    m_displayPage.Layout   (pageRect, scaler);
 
     bottomRow.left   = m_panelRect.left;
-    bottomRow.top    = m_panelRect.bottom - s_kBottomBarPx;
+    bottomRow.top    = m_panelRect.bottom - bottomBar;
     bottomRow.right  = m_panelRect.right;
     bottomRow.bottom = m_panelRect.bottom;
 
-    applyX  = m_panelRect.right - s_kPanelPadPx - s_kButtonWidthPx;
-    cancelX = applyX            - s_kButtonGapPx - s_kButtonWidthPx;
-    buttonY = bottomRow.top     + (s_kBottomBarPx - s_kButtonHeightPx) / 2;
+    applyX  = m_panelRect.right - pad - buttonWidth;
+    cancelX = applyX            - buttonGap - buttonWidth;
+    buttonY = bottomRow.top     + (bottomBar - buttonHeight) / 2;
 
-    m_applyButton.Layout  (MakeRect (applyX,  buttonY, s_kButtonWidthPx, s_kButtonHeightPx));
-    m_cancelButton.Layout (MakeRect (cancelX, buttonY, s_kButtonWidthPx, s_kButtonHeightPx));
+    m_applyButton.Layout  (MakeRect (applyX,  buttonY, buttonWidth, buttonHeight));
+    m_cancelButton.Layout (MakeRect (cancelX, buttonY, buttonWidth, buttonHeight));
+    m_applyButton.SetDpi  (dpi);
+    m_cancelButton.SetDpi (dpi);
 
     m_scrim.SetViewportRect (m_viewport);
 }
@@ -455,6 +467,8 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
     constexpr uint32_t  s_kBackdropArgb = 0x60000000;
 
     ChromeTheme  theme = ChromeTheme::Skeuomorphic();
+    float        edgeThick = (m_uiShell != nullptr) ? m_uiShell->Scaler().Pxf (s_kEdgeThickDp)
+                                                    : s_kEdgeThickDp;
 
 
 
@@ -479,7 +493,7 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
                           (float) m_panelRect.top,
                           (float) (m_panelRect.right  - m_panelRect.left),
                           (float) (m_panelRect.bottom - m_panelRect.top),
-                          s_kEdgeThickPx, s_kPanelEdgeArgb);
+                          edgeThick, s_kPanelEdgeArgb);
 
     m_tabs.Paint  (painter, text);
 

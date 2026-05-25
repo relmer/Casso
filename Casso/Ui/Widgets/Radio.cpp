@@ -213,18 +213,24 @@ void RadioGroup::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     constexpr uint32_t  s_kFocusRing    = 0xFFAACCFF;
     constexpr uint32_t  s_kTextIdle     = 0xFFE8EEF4;
     constexpr uint32_t  s_kTextDisabled = 0xFF707070;
-    constexpr float     s_kBoxSize      = 16.0f;
-    constexpr float     s_kDotInset     = 4.0f;
-    constexpr float     s_kFocusInset   = -2.0f;
-    constexpr float     s_kFocusThick   = 1.0f;
-    constexpr float     s_kLabelGap     = 6.0f;
+    constexpr float     s_kBoxSizeDp    = 16.0f;
+    constexpr float     s_kDotInsetDp   = 4.0f;
+    constexpr float     s_kFocusInsetDp = -2.0f;
+    constexpr float     s_kFocusThickDp = 1.0f;
+    constexpr float     s_kLabelGapDp   = 6.0f;
     constexpr float     s_kFontDip      = 13.0f;
 
-    HRESULT  hr        = S_OK;
-    int      i         = 0;
-    size_t   n         = m_options.size();
-    uint32_t textColor = m_enabled ? s_kTextIdle : s_kTextDisabled;
-    uint32_t dotColor  = m_enabled ? s_kDot      : s_kDotDisabled;
+    HRESULT  hr         = S_OK;
+    int      i          = 0;
+    size_t   n          = m_options.size();
+    float    boxSize    = m_scaler.Pxf (s_kBoxSizeDp);
+    float    dotInset   = m_scaler.Pxf (s_kDotInsetDp);
+    float    focusInset = m_scaler.Pxf (s_kFocusInsetDp);
+    float    focusThick = m_scaler.Pxf (s_kFocusThickDp);
+    float    labelGap   = m_scaler.Pxf (s_kLabelGapDp);
+    float    fontDip    = m_scaler.Pxf (s_kFontDip);
+    uint32_t textColor  = m_enabled ? s_kTextIdle : s_kTextDisabled;
+    uint32_t dotColor   = m_enabled ? s_kDot      : s_kDotDisabled;
 
 
 
@@ -233,39 +239,39 @@ void RadioGroup::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
         const RadioOption & opt      = m_options[(size_t) i];
         float               boxLeft  = (float) opt.rect.left;
         float               boxTop   = (float) opt.rect.top
-                                       + ((float) (opt.rect.bottom - opt.rect.top) - s_kBoxSize) * 0.5f;
+                                       + ((float) (opt.rect.bottom - opt.rect.top) - boxSize) * 0.5f;
         uint32_t            boxColor = m_enabled
                                             ? (m_hover == i ? s_kBoxHover : s_kBoxIdle)
                                             : s_kBoxDisabled;
 
-        painter.FillRect (boxLeft, boxTop, s_kBoxSize, s_kBoxSize, boxColor);
+        painter.FillRect (boxLeft, boxTop, boxSize, boxSize, boxColor);
 
         if (m_selected == i)
         {
-            painter.FillRect (boxLeft   + s_kDotInset,
-                              boxTop    + s_kDotInset,
-                              s_kBoxSize - s_kDotInset * 2.0f,
-                              s_kBoxSize - s_kDotInset * 2.0f,
+            painter.FillRect (boxLeft   + dotInset,
+                              boxTop    + dotInset,
+                              boxSize - dotInset * 2.0f,
+                              boxSize - dotInset * 2.0f,
                               dotColor);
         }
 
         if (m_focused && m_selected == i)
         {
-            painter.OutlineRect (boxLeft + s_kFocusInset,
-                                 boxTop  + s_kFocusInset,
-                                 s_kBoxSize - s_kFocusInset * 2.0f,
-                                 s_kBoxSize - s_kFocusInset * 2.0f,
-                                 s_kFocusThick,
+            painter.OutlineRect (boxLeft + focusInset,
+                                 boxTop  + focusInset,
+                                 boxSize - focusInset * 2.0f,
+                                 boxSize - focusInset * 2.0f,
+                                 focusThick,
                                  s_kFocusRing);
         }
 
         IGNORE_RETURN_VALUE (hr, text.DrawString (opt.label.c_str(),
-                                                  boxLeft + s_kBoxSize + s_kLabelGap,
+                                                  boxLeft + boxSize + labelGap,
                                                   (float) opt.rect.top,
-                                                  (float) (opt.rect.right - opt.rect.left) - s_kBoxSize - s_kLabelGap,
+                                                  (float) (opt.rect.right - opt.rect.left) - boxSize - labelGap,
                                                   (float) (opt.rect.bottom - opt.rect.top),
                                                   textColor,
-                                                  s_kFontDip,
+                                                  fontDip,
                                                   L"Segoe UI"));
     }
 }

@@ -8,8 +8,8 @@
 
 namespace
 {
-    constexpr int       s_kRowHeightPx     = 28;
-    constexpr int       s_kTextInsetPx     = 8;
+    constexpr int       s_kRowHeightDp     = 28;
+    constexpr int       s_kTextInsetDp     = 8;
     constexpr uint32_t  s_kBoxIdleArgb     = 0xFF263241;
     constexpr uint32_t  s_kBoxHoverArgb    = 0xFF33475C;
     constexpr uint32_t  s_kBoxPressedArgb  = 0xFF1E2733;
@@ -107,20 +107,21 @@ bool Dropdown::HitTest (int x, int y) const
 
 int Dropdown::ItemHitTest (int x, int y) const
 {
-    RECT  menuRect = m_rect;
-    int   index    = -1;
+    RECT  menuRect   = m_rect;
+    int   index      = -1;
+    int   rowHeight  = m_scaler.Px (s_kRowHeightDp);
 
 
 
     menuRect.top    = m_rect.bottom;
-    menuRect.bottom = m_rect.bottom + (int) m_items.size() * s_kRowHeightPx;
+    menuRect.bottom = m_rect.bottom + (int) m_items.size() * rowHeight;
 
     if (!m_open || !RectContains (menuRect, x, y))
     {
         return -1;
     }
 
-    index = (y - menuRect.top) / s_kRowHeightPx;
+    index = (y - menuRect.top) / rowHeight;
     if (index < 0 || index >= (int) m_items.size())
     {
         return -1;
@@ -315,10 +316,14 @@ void Dropdown::Commit (int index)
 
 void Dropdown::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 {
-    HRESULT      hr       = S_OK;
-    uint32_t     boxColor = m_pressed ? s_kBoxPressedArgb : (m_hover ? s_kBoxHoverArgb : s_kBoxIdleArgb);
+    HRESULT      hr        = S_OK;
+    uint32_t     boxColor  = m_pressed ? s_kBoxPressedArgb : (m_hover ? s_kBoxHoverArgb : s_kBoxIdleArgb);
     std::wstring label;
-    int          i        = 0;
+    int          i         = 0;
+    int          rowHeight = m_scaler.Px (s_kRowHeightDp);
+    int          textInset = m_scaler.Px (s_kTextInsetDp);
+    float        edgePx    = m_scaler.Pxf (s_kEdgePx);
+    float        fontDip   = m_scaler.Pxf (s_kFontDip);
 
 
 
@@ -336,15 +341,15 @@ void Dropdown::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                          (float) m_rect.top,
                          (float) (m_rect.right - m_rect.left),
                          (float) (m_rect.bottom - m_rect.top),
-                         s_kEdgePx,
+                         edgePx,
                          s_kEdgeArgb);
     IGNORE_RETURN_VALUE (hr, text.DrawString (label.c_str(),
-                                              (float) (m_rect.left + s_kTextInsetPx),
+                                              (float) (m_rect.left + textInset),
                                               (float) m_rect.top,
-                                              (float) (m_rect.right - m_rect.left - s_kTextInsetPx),
+                                              (float) (m_rect.right - m_rect.left - textInset),
                                               (float) (m_rect.bottom - m_rect.top),
                                               s_kTextArgb,
-                                              s_kFontDip,
+                                              fontDip,
                                               s_kFontFamily));
 
     if (!m_open)
@@ -354,7 +359,7 @@ void Dropdown::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 
     for (i = 0; i < (int) m_items.size(); i++)
     {
-        RECT      row   = { m_rect.left, m_rect.bottom + i * s_kRowHeightPx, m_rect.right, m_rect.bottom + (i + 1) * s_kRowHeightPx };
+        RECT      row   = { m_rect.left, m_rect.bottom + i * rowHeight, m_rect.right, m_rect.bottom + (i + 1) * rowHeight };
         uint32_t  color = (i == m_highlight) ? s_kMenuHoverArgb : s_kMenuArgb;
 
         painter.FillRect ((float) row.left,
@@ -363,12 +368,12 @@ void Dropdown::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                           (float) (row.bottom - row.top),
                           color);
         IGNORE_RETURN_VALUE (hr, text.DrawString (m_items[(size_t) i].c_str(),
-                                                  (float) (row.left + s_kTextInsetPx),
+                                                  (float) (row.left + textInset),
                                                   (float) row.top,
-                                                  (float) (row.right - row.left - s_kTextInsetPx),
+                                                  (float) (row.right - row.left - textInset),
                                                   (float) (row.bottom - row.top),
                                                   s_kTextArgb,
-                                                  s_kFontDip,
+                                                  fontDip,
                                                   s_kFontFamily));
     }
 }

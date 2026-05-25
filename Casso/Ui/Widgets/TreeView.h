@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 
@@ -67,6 +68,14 @@ public:
     void  SetEnabled   (bool enabled) { m_enabled = enabled; }
     void  SetFocused   (bool focused) { m_focused = focused; }
     void  SetOnToggle  (ToggleFn fn) { m_toggle = std::move (fn); }
+    void  SetDpi       (UINT dpi)
+    {
+        m_scaler.SetDpi (dpi);
+        m_rowHeightPx = m_scaler.Px (22);
+        m_indentPx    = m_scaler.Px (18);
+        m_checkboxPx  = m_scaler.Px (16);
+        m_twistyPx    = m_scaler.Px (16);
+    }
 
     const std::vector<TreeNode> & Nodes        () const { return m_nodes; }
     int                           Highlight    () const { return m_highlight; }
@@ -125,4 +134,5 @@ private:
     std::vector<TreeNode> m_nodes;
     std::vector<FlatRow>  m_flatRows;
     ToggleFn              m_toggle;
+    DpiScaler             m_scaler;
 };

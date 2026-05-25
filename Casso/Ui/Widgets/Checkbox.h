@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 
@@ -43,6 +44,7 @@ public:
     void  SetEnabled (bool enabled) { m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; } }
     void  SetFocused (bool focused) { m_focused = focused; }
     void  SetOnChange (ChangeFn fn) { m_change = std::move (fn); }
+    void  SetDpi      (UINT dpi) { m_scaler.SetDpi (dpi); }
 
     const RECT         & Rect     () const { return m_rect;     }
     const std::wstring & Label    () const { return m_label;    }
@@ -71,4 +73,5 @@ private:
     bool          m_focused = false;
     bool          m_hover   = false;
     bool          m_pressed = false;
+    DpiScaler     m_scaler;
 };

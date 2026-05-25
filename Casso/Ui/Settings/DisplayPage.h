@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 #include "../Widgets/Label.h"
@@ -22,11 +23,14 @@
 class DisplayPage
 {
 public:
-    void  Layout (const RECT & rect)
+    void  Layout (const RECT & rect, const DpiScaler & scaler)
     {
-        RECT  msgRect = { rect.left + 16, rect.top + 16, rect.right - 16, rect.top + 48 };
+        int   pad     = scaler.Px (16);
+        int   bottom  = scaler.Px (48);
+        RECT  msgRect = { rect.left + pad, rect.top + pad, rect.right - pad, rect.top + bottom };
         m_placeholder.SetRect (msgRect);
         m_placeholder.SetText (L"Display + CRT controls arrive in P4.");
+        m_placeholder.SetDpi  (scaler.Dpi());
     }
 
     void  OnLButtonDown (int, int) {}

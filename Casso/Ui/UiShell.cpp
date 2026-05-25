@@ -135,13 +135,14 @@ HRESULT UiShell::OnResize (int viewportWidthPx, int viewportHeightPx, UINT dpi)
     m_viewportWidthPx  = viewportWidthPx;
     m_viewportHeightPx = viewportHeightPx;
     m_dpi              = (dpi == 0) ? 96 : dpi;
+    m_scaler.SetDpi    (m_dpi);
     m_targetDirty      = true;
 
     m_text.UnbindBackBuffer();
 
     if (m_settingsPanel != nullptr && m_settingsPanel->IsVisible())
     {
-        m_settingsPanel->Layout (m_viewportWidthPx, m_viewportHeightPx);
+        m_settingsPanel->Layout (m_viewportWidthPx, m_viewportHeightPx, m_scaler);
     }
 
     return S_OK;
@@ -348,7 +349,7 @@ void UiShell::Render ()
                                 (float) m_viewportWidthPx,
                                 (float) m_viewportHeightPx,
                                 0xFF101418u);
-            m_settingsPanel->Layout (m_viewportWidthPx, m_viewportHeightPx);
+            m_settingsPanel->Layout (m_viewportWidthPx, m_viewportHeightPx, m_scaler);
             m_settingsPanel->Paint (m_painter, m_text);
         }
     }

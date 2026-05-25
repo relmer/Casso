@@ -499,6 +499,7 @@
     <ClCompile Include="UiTests\CrtParameterMappingTests.cpp" />
     <ClCompile Include="UiTests\CrtLetterboxLayoutTests.cpp" />
     <ClCompile Include="UiTests\LayoutTests.cpp" />
+    <ClCompile Include="UiTests\DpiScalerTests.cpp" />
     <ClCompile Include="UiTests\HitTesterTests.cpp" />
     <ClCompile Include="UiTests\NcHitTestTests.cpp" />
     <ClCompile Include="UiTests\FocusManagerTests.cpp" />

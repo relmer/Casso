@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Animation.h"
+#include "DpiScaler.h"
 #include "DwriteTextRenderer.h"
 #include "DxUiPainter.h"
 #include "FocusManager.h"
@@ -66,6 +67,8 @@ public:
     int    ViewportWidth  () const { return m_viewportWidthPx; }
     int    ViewportHeight () const { return m_viewportHeightPx; }
 
+    const DpiScaler  & Scaler () const { return m_scaler; }
+
 private:
     HRESULT  RefreshTextTarget ();
 
@@ -87,6 +90,7 @@ private:
     int                           m_viewportWidthPx  = 0;
     int                           m_viewportHeightPx = 0;
     UINT                          m_dpi              = 96;
+    DpiScaler                     m_scaler;
     bool                          m_initialized      = false;
     bool                          m_targetDirty      = true;
     bool                          m_leftDown         = false;

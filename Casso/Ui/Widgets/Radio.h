@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 
@@ -43,6 +44,7 @@ public:
     void  SetEnabled  (bool enabled) { m_enabled = enabled; }
     void  SetFocused  (bool focused) { m_focused = focused; }
     void  SetOnChange (ChangeFn fn)  { m_change = std::move (fn); }
+    void  SetDpi      (UINT dpi)     { m_scaler.SetDpi (dpi); }
 
     const std::vector<RadioOption> & Options    () const { return m_options;  }
     int                              Selected   () const { return m_selected; }
@@ -68,4 +70,5 @@ private:
     int                       m_pressedIdx = -1;
     bool                      m_enabled    = true;
     bool                      m_focused    = false;
+    DpiScaler                 m_scaler;
 };

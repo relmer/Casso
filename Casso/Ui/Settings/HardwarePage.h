@@ -4,6 +4,7 @@
 
 #include "SettingsPanelState.h"
 
+#include "../DpiScaler.h"
 #include "../Widgets/TreeView.h"
 
 
@@ -37,7 +38,7 @@
 class HardwarePage
 {
 public:
-    void  SetRect    (const RECT & rect);
+    void  SetRect    (const RECT & rect, const DpiScaler & scaler);
     void  SetState   (SettingsPanelState * state);
     void  Rebuild    ();
 

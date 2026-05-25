@@ -49,9 +49,10 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HardwarePage::SetRect (const RECT & rect)
+void HardwarePage::SetRect (const RECT & rect, const DpiScaler & scaler)
 {
     m_tree.SetRect (rect);
+    m_tree.SetDpi  (scaler.Dpi());
 }
 
 

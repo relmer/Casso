@@ -406,6 +406,8 @@ public:
 
 
 
+        DpiScaler                scaler;
+
         st.LoadFromMachine ("machineA", machineA, machineA);
         page.SetState (&st);
         page.SetMachineList (machines, 0);
@@ -413,7 +415,7 @@ public:
         {
             st.LoadFromMachine (machineName, machineB, machineB);
         });
-        page.Layout (rect);
+        page.Layout (rect, scaler);
         page.Rebuild();
 
         Assert::AreEqual ((size_t) 2, page.Machines().size());
