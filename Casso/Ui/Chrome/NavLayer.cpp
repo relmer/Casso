@@ -120,19 +120,26 @@ namespace
     }
 
 
-    // True when menu mnemonic underlines should be visible. We
-    // deliberately do NOT trigger on Alt-held: left-Alt is the //e
-    // Open Apple key, so a user holding it during emulation should
-    // not see chrome cues flicker on. Cues appear instead when (a)
-    // a top-level menu is already open (the user explicitly entered
-    // keyboard menu mode via F10 or Alt+mnemonic), or (b) the
-    // system-wide "Always underline access keys" accessibility
-    // setting is on. The caller passes `menuActive` for case (a).
+    // True when menu mnemonic underlines should be visible.
+    // Cues appear when (a) the user is holding Alt (Windows convention
+    // for "show me the access keys"), (b) a top-level menu is already
+    // open (the user explicitly entered keyboard menu mode via F10 or
+    // Alt+mnemonic), or (c) the system-wide "Always underline access
+    // keys" accessibility setting is on. The caller passes `menuActive`
+    // for case (b). Note that Left Alt is also //e Open Apple — that's
+    // fine because the //e modifier path is suppressed once the menu
+    // grabs focus, and Alt-without-menu is a harmless cue overlay while
+    // Open Apple is asserted.
     bool ShouldShowMnemonicCues (bool menuActive)
     {
         BOOL  alwaysShow = FALSE;
 
         if (menuActive)
+        {
+            return true;
+        }
+
+        if ((GetKeyState (VK_MENU) & 0x8000) != 0)
         {
             return true;
         }
