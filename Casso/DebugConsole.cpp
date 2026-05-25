@@ -181,7 +181,7 @@ HRESULT DebugConsole::InitializeConsole (HINSTANCE hInstance)
     CHR (hr);
 
     hr = Window::Create (0,
-                         L"Casso Debug Console",
+                         L"Casso debug console",
                          WS_OVERLAPPEDWINDOW,
                          CW_USEDEFAULT, CW_USEDEFAULT,
                          600, 400,

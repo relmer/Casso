@@ -287,7 +287,7 @@ int WINAPI wWinMain (
     // Register GUI error notification so EHM errors show a MessageBox
     SetNotifyFunction ([] (const wchar_t * message)
     {
-        MessageBoxW (NULL, message, L"Casso Emulator", MB_OK | MB_ICONERROR);
+        MessageBoxW (NULL, message, L"Casso emulator", MB_OK | MB_ICONERROR);
     });
 
     // Parse command line
@@ -353,7 +353,7 @@ int WINAPI wWinMain (
                 nullptr,
                 L"Casso could not find any machine configurations.\n"
                 L"Reinstall or restore the Machines/ directory.",
-                L"Casso Emulator",
+                L"Casso emulator",
                 MB_OK | MB_ICONERROR);
             return 1;
         }

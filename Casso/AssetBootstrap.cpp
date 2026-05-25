@@ -1894,7 +1894,7 @@ static int PromptDiskAudioConsent (HWND hwndParent)
     tdc.hwndParent         = hwndParent;
     tdc.hInstance          = nullptr;
     tdc.dwFlags            = TDF_USE_COMMAND_LINKS | TDF_ALLOW_DIALOG_CANCELLATION;
-    tdc.pszWindowTitle     = L"Casso \x2014 Drive Audio Samples";
+    tdc.pszWindowTitle     = L"Casso \x2014 Drive audio samples";
     tdc.pszMainIcon        = TD_INFORMATION_ICON;
     tdc.pszMainInstruction = L"Download Disk II audio samples?";
     tdc.pszContent         = content;

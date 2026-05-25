@@ -212,8 +212,8 @@ void WindowCommandManager::OnMachineCommand (int id)
             std::wstring info = std::format (
                 L"Machine: {}\n"
                 L"CPU: {}\n"
-                L"Clock Speed: {} Hz\n"
-                L"Memory Regions: {}\n"
+                L"Clock speed: {} Hz\n"
+                L"Memory regions: {}\n"
                 L"Devices: {}",
                 std::wstring (m_shell.m_config.name.begin(), m_shell.m_config.name.end()),
                 std::wstring (m_shell.m_config.cpu.begin(), m_shell.m_config.cpu.end()),
@@ -221,7 +221,7 @@ void WindowCommandManager::OnMachineCommand (int id)
                 (m_shell.m_config.ram.size() + 1 + m_shell.m_config.slots.size()),
                 (m_shell.m_config.internalDevices.size() + m_shell.m_config.slots.size()));
 
-            MessageBoxW (m_shell.m_hwnd, info.c_str(), L"Machine Info", MB_ICONINFORMATION | MB_OK);
+            MessageBoxW (m_shell.m_hwnd, info.c_str(), L"Machine info", MB_ICONINFORMATION | MB_OK);
             break;
         }
     }
@@ -375,7 +375,7 @@ HRESULT WindowCommandManager::PromptForDiskImage (int drive)
     ComPtr<IFileOpenDialog>          dialog;
     ComPtr<IShellItem>               item;
     PWSTR                            pszPath    = nullptr;
-    COMDLG_FILTERSPEC                filters[1] = { { L"Disk Images", L"*.dsk;*.nib;*.woz;*.po" } };
+    COMDLG_FILTERSPEC                filters[1] = { { L"Disk images", L"*.dsk;*.nib;*.woz;*.po" } };
 
 
 
@@ -438,11 +438,11 @@ void WindowCommandManager::OnDiskCommand (int id)
         {
             ofn.lStructSize = sizeof (ofn);
             ofn.hwndOwner   = m_shell.m_hwnd;
-            ofn.lpstrFilter = L"Disk Images (*.dsk)\0*.dsk\0All Files (*.*)\0*.*\0";
+            ofn.lpstrFilter = L"Disk images (*.dsk)\0*.dsk\0All files (*.*)\0*.*\0";
             ofn.lpstrFile   = filePath;
             ofn.nMaxFile    = MAX_PATH;
             ofn.lpstrTitle  = (id == IDM_DISK_INSERT1) ?
-                L"Insert Disk in Drive 1" : L"Insert Disk in Drive 2";
+                L"Insert disk in drive 1" : L"Insert disk in drive 2";
             ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
 
             if (GetOpenFileNameW (&ofn))
@@ -499,31 +499,31 @@ void WindowCommandManager::OnHelpCommand (int id)
         case IDM_HELP_KEYMAP:
         {
             MessageBoxW (m_shell.m_hwnd,
-                L"PC Key Mapping:\n\n"
-                L"Arrow Keys -> Apple ][ cursor movement\n"
+                L"PC key mapping:\n\n"
+                L"Arrow keys -> Apple ][ cursor movement\n"
                 L"Enter -> Return\n"
                 L"Escape -> Escape\n"
                 L"Delete -> Delete\n"
-                L"Ctrl+Reset -> Warm Reset\n"
+                L"Ctrl+Reset -> Warm reset\n"
                 L"Left Alt -> Open Apple (//e)\n"
                 L"Right Alt -> Closed Apple (//e)\n\n"
-                L"Emulator Controls:\n"
+                L"Emulator controls:\n"
                 L"Ctrl+R -> Reset\n"
-                L"Ctrl+Alt+R -> Autoboot Reset (cold boot from disk)\n"
-                L"Ctrl+Shift+R -> Power Cycle\n"
-                L"Pause -> Pause/Resume\n"
+                L"Ctrl+Alt+R -> Autoboot reset (cold boot from disk)\n"
+                L"Ctrl+Shift+R -> Power cycle\n"
+                L"Pause -> Pause/resume\n"
                 L"F11 -> Step (when paused)\n"
                 L"Alt+Enter -> Fullscreen\n"
-                L"Ctrl+0 -> Reset Window Size\n"
-                L"Ctrl+D -> Debug Console",
-                L"Keyboard Map", MB_ICONINFORMATION | MB_OK);
+                L"Ctrl+0 -> Reset window size\n"
+                L"Ctrl+D -> Debug console",
+                L"Keyboard map", MB_ICONINFORMATION | MB_OK);
             break;
         }
 
         case IDM_HELP_ABOUT:
         {
             MessageBoxW (m_shell.m_hwnd,
-                L"Casso Apple ][ Emulator\n"
+                L"Casso Apple ][ emulator\n"
                 L"Version " _CRT_WIDE (VERSION_STRING) L"\n"
                 L"Built " _CRT_WIDE (VERSION_BUILD_TIMESTAMP) L"\n\n"
                 L"An Apple ][ / ][+ / //e platform emulator built on\n"
