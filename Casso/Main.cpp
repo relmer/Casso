@@ -259,12 +259,12 @@ int WINAPI wWinMain (
     _In_     LPWSTR    lpCmdLine,
     _In_     int       nCmdShow)
 {
-    HRESULT        hr = S_OK;
-    wstring        machineName;
-    wstring        disk1Path;
-    wstring        disk2Path;
-    MachineConfig  config;
-    EmulatorShell  shell;
+    HRESULT                          hr = S_OK;
+    wstring                          machineName;
+    wstring                          disk1Path;
+    wstring                          disk2Path;
+    MachineConfig                    config;
+    std::unique_ptr<EmulatorShell>   shell = std::make_unique<EmulatorShell>();
 
 
 
@@ -375,13 +375,13 @@ int WINAPI wWinMain (
     }
 
     // Initialize emulator
-    hr = shell.Initialize (hInstance, machineName, config,
-                           fs::path (disk1Path).string(),
-                           fs::path (disk2Path).string());
+    hr = shell->Initialize (hInstance, machineName, config,
+                            fs::path (disk1Path).string(),
+                            fs::path (disk2Path).string());
     CHRN (hr, L"Failed to initialize emulator");
 
     // Run message loop
-    return shell.RunMessageLoop();
+    return shell->RunMessageLoop();
 
 Error:
     return FAILED (hr) ? 1 : 0;
