@@ -995,7 +995,8 @@ void SettingsPanel::OnLButtonUp (int x, int y)
 
 bool SettingsPanel::OnKey (WPARAM vk)
 {
-    bool  shiftHeld = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
+    bool  shiftHeld = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
+    bool  ctrlHeld  = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
 
 
     if (!m_visible)
@@ -1017,6 +1018,29 @@ bool SettingsPanel::OnKey (WPARAM vk)
             case TabIndex::Machine:  if (m_machinePage.OnKey (vk)) { return true; } break;
             default: break;
         }
+    }
+
+    // Ctrl+Tab / Ctrl+Shift+Tab cycle through the tab pages regardless
+    // of which widget currently owns focus inside the page. Matches the
+    // Windows convention used by browser tabs, VS document tabs, etc.
+    if (vk == VK_TAB && ctrlHeld)
+    {
+        constexpr int  s_kTabCount = 4;
+        int            next       = m_activeTab + (shiftHeld ? -1 : 1);
+
+        if (next < 0)
+        {
+            next = s_kTabCount - 1;
+        }
+        else if (next >= s_kTabCount)
+        {
+            next = 0;
+        }
+
+        m_activeTab = next;
+        m_tabs.SetSelected (m_activeTab);
+        RebuildFocusOrder();
+        return true;
     }
 
     if (vk == VK_TAB && m_uiShell != nullptr)
