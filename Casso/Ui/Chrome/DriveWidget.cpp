@@ -30,9 +30,9 @@ namespace
     constexpr int     s_kInUseGapPx        = 4;
     constexpr int     s_kInUseWidthPx      = 56;
     constexpr int     s_kRidgeCountPx      = 2;
-    constexpr int     s_kCassowaryWidthPx  = 32;
-    constexpr int     s_kCassowaryHeightPx = 48;
-    constexpr int     s_kCassowaryMarginPx = 10;
+    constexpr int     s_kCassowaryWidthPx  = 28;
+    constexpr int     s_kCassowaryHeightPx = 42;
+    constexpr int     s_kCassowaryMarginPx = 6;
     constexpr wchar_t s_kFontFamily[]      = L"Segoe UI";
 
     // Compact paint-path dimensions. The compact widget is a flat
