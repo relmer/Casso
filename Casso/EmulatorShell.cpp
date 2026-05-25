@@ -77,25 +77,14 @@ static constexpr int     s_kDriveWidgetGapDp    = 16;
 
 namespace
 {
-    int ComputeChromeTopInsetPx (UINT dpi)
-    {
-        return ChromeMetrics::ChromeTopInsetPx (dpi);
-    }
-
-
-    int ComputeChromeBottomInsetPx (UINT dpi)
-    {
-        return ChromeMetrics::ChromeBottomInsetPx (dpi);
-    }
-
-
     void LayoutDriveWidgetsInCommandBar (
-        std::array<DriveWidget, 2> & driveChrome,
-        int                         clientW,
-        int                         clientH,
-        UINT                        dpi)
+        std::array<DriveWidget, 2>  & driveChrome,
+        const ChromeLayoutResult    & layout,
+        int                           clientW,
+        int                           clientH,
+        UINT                          dpi)
     {
-        int     bottomInset   = ComputeChromeBottomInsetPx (dpi);
+        int     bottomInset   = layout.bottomInsetPx;
         int     commandBarTop = std::max (0, clientH - bottomInset);
         int     commandBarH   = std::max (0, clientH - commandBarTop);
         int     gap           = MulDiv (s_kDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
@@ -356,6 +345,14 @@ HRESULT EmulatorShell::Initialize (
     m_config             = config;
     m_cyclesPerFrame     = config.cyclesPerFrame;
 
+    // Register chrome regions with the layout planner once -- their
+    // pointers stay registered for the lifetime of the shell. Theme
+    // changes that resize the drive bar mutate m_driveBarSlot in
+    // place; ChromeLayout reads the live thickness on every Resolve.
+    m_chromeLayout.Register (&m_titleBarSlot);
+    m_chromeLayout.Register (&m_navStripSlot);
+    m_chromeLayout.Register (&m_driveBarSlot);
+
     searchPaths  = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
                                                    PathResolver::GetWorkingDirectory());
     assetBaseDir = AssetBootstrap::GetAssetBaseDirectory (searchPaths,
@@ -615,10 +612,16 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         dpi = GetDpiForSystem();
     }
 
-    clientW = MulDiv (kFramebufferWidth,  static_cast<int> (dpi), s_kBaseDpi);
-    clientH = MulDiv (kFramebufferHeight, static_cast<int> (dpi), s_kBaseDpi)
-              + ComputeChromeTopInsetPx (dpi)
-              + ComputeChromeBottomInsetPx (dpi);
+    {
+        SIZE  centerPx = {};
+        SIZE  client   = {};
+
+        centerPx.cx = MulDiv (kFramebufferWidth,  static_cast<int> (dpi), s_kBaseDpi);
+        centerPx.cy = MulDiv (kFramebufferHeight, static_cast<int> (dpi), s_kBaseDpi);
+        client      = m_chromeLayout.ClientSizeForCenter ((int) centerPx.cx, (int) centerPx.cy, dpi);
+        clientW     = (int) client.cx;
+        clientH     = (int) client.cy;
+    }
 
     rc    = { 0, 0, clientW, clientH };
     // Custom-chrome recipe modeled on microsoft/terminal's
@@ -754,9 +757,13 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_navLayer.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
     m_driveChrome[0].Initialize (6, 0, this);
     m_driveChrome[1].Initialize (6, 1, this);
-    LayoutDriveWidgetsInCommandBar (m_driveChrome, clientW, clientH, dpi);
-    m_d3dRenderer.SetTopInsetPx    (ComputeChromeTopInsetPx (dpi));
-    m_d3dRenderer.SetBottomInsetPx (ComputeChromeBottomInsetPx (dpi));
+    {
+        ChromeLayoutResult  layout = m_chromeLayout.Resolve (clientW, clientH, dpi);
+
+        LayoutDriveWidgetsInCommandBar (m_driveChrome, layout, clientW, clientH, dpi);
+        m_d3dRenderer.SetTopInsetPx    (layout.topInsetPx);
+        m_d3dRenderer.SetBottomInsetPx (layout.bottomInsetPx);
+    }
 
     // Load accelerator table
     m_accelTable = LoadAccelerators (hInstance, MAKEINTRESOURCE (IDR_ACCELERATOR));
@@ -2054,12 +2061,17 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
         IGNORE_RETURN_VALUE (hrUiR, S_OK);
         m_titleBar.UpdateGeometry (static_cast<int> (width), dpi);
         m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), static_cast<int> (width), dpi, &m_uiShell.Text());
-        LayoutDriveWidgetsInCommandBar (m_driveChrome, static_cast<int> (width), renderH, dpi);
-        m_uiShell.HitTest().Clear();
-        m_uiShell.HitTest().Register (HitRect { m_driveChrome[0].BodyRect(), HitSlot::Custom, 0 });
-        m_uiShell.HitTest().Register (HitRect { m_driveChrome[1].BodyRect(), HitSlot::Custom, 1 });
-        m_d3dRenderer.SetTopInsetPx    (ComputeChromeTopInsetPx (dpi));
-        m_d3dRenderer.SetBottomInsetPx (ComputeChromeBottomInsetPx (dpi));
+
+        {
+            ChromeLayoutResult  layout = m_chromeLayout.Resolve (static_cast<int> (width), renderH, dpi);
+
+            LayoutDriveWidgetsInCommandBar (m_driveChrome, layout, static_cast<int> (width), renderH, dpi);
+            m_uiShell.HitTest().Clear();
+            m_uiShell.HitTest().Register (HitRect { m_driveChrome[0].BodyRect(), HitSlot::Custom, 0 });
+            m_uiShell.HitTest().Register (HitRect { m_driveChrome[1].BodyRect(), HitSlot::Custom, 1 });
+            m_d3dRenderer.SetTopInsetPx    (layout.topInsetPx);
+            m_d3dRenderer.SetBottomInsetPx (layout.bottomInsetPx);
+        }
     }
 
     {

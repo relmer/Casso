@@ -5,6 +5,7 @@
 #include "../EmulatorShell.h"
 #include "../resource.h"
 #include "Version.h"
+#include "Ui/Chrome/ChromeLayout.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Shell/CpuManager.h"
@@ -303,14 +304,20 @@ void WindowCommandManager::OnViewCommand (int id)
                 }
 
                 // Target client area: framebuffer at the requested
-                // integer scale, plus BOTH chrome insets. The prior
-                // version forgot the bottom command bar inset, which
-                // shrank the content area below framebuffer aspect
-                // and produced visible pillarbox on Ctrl+0.
-                desiredClientW = kFramebufferWidthPx  * scale;
-                desiredClientH = kFramebufferHeightPx * scale
-                                 + ChromeTopInsetPx    (dpi)
-                                 + ChromeBottomInsetPx (dpi);
+                // integer scale, with every chrome contributor's inset
+                // summed by the single source of truth. The historical
+                // Ctrl+0 pillarbox came from this site inlining the
+                // formula and forgetting the command-bar inset; routing
+                // through ChromeLayout::ClientSizeForCenter eliminates
+                // the drift class entirely.
+                {
+                    SIZE  desired = m_shell.m_chromeLayout.ClientSizeForCenter (
+                                        kFramebufferWidthPx  * scale,
+                                        kFramebufferHeightPx * scale,
+                                        dpi);
+                    desiredClientW = (int) desired.cx;
+                    desiredClientH = (int) desired.cy;
+                }
 
                 // Measure the current window's non-client overhead and
                 // size the new window from that, rather than computing

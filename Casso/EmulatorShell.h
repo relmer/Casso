@@ -12,6 +12,7 @@
 #include "DebugConsole.h"
 #include "Ui/Chrome/TitleBar.h"
 #include "Ui/Chrome/NavLayer.h"
+#include "Ui/Chrome/ChromeLayout.h"
 #include "Ui/Chrome/ChromeTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/DriveWidgetState.h"
@@ -232,6 +233,16 @@ private:
     NavLayer            m_navLayer;
     ChromeTheme         m_chromeTheme    = ChromeTheme::Skeuomorphic();
     std::array<DriveWidget, 2> m_driveChrome;
+
+    // Chrome layout planner. Owns the canonical inset math for the
+    // title bar, nav strip, and drive bar; replaces the historical
+    // ChromeMetrics constants that drifted between EmulatorShell and
+    // WindowCommandManager. Edge contributors below are pointer-tied
+    // to this layout and report their desired thickness on demand.
+    ChromeLayout            m_chromeLayout;
+    SimpleEdgeContributor   m_titleBarSlot { ChromeEdge::Top,    32 };
+    SimpleEdgeContributor   m_navStripSlot { ChromeEdge::Top,    32 };
+    SimpleEdgeContributor   m_driveBarSlot { ChromeEdge::Bottom, 192 };
 
     // Drive widget state pump. The controller channel publishes
     // per-drive door/spin sync events the chrome painter will consume
