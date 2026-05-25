@@ -122,29 +122,21 @@ namespace
 
     // True when menu mnemonic underlines should be visible.
     // Cues appear when (a) the user is holding Alt (Windows convention
-    // for "show me the access keys"), (b) a top-level menu is already
+    // for "show me the access keys") or (b) a top-level menu is already
     // open (the user explicitly entered keyboard menu mode via F10 or
-    // Alt+mnemonic), or (c) the system-wide "Always underline access
-    // keys" accessibility setting is on. The caller passes `menuActive`
-    // for case (b). Note that Left Alt is also //e Open Apple — that's
-    // fine because the //e modifier path is suppressed once the menu
-    // grabs focus, and Alt-without-menu is a harmless cue overlay while
-    // Open Apple is asserted.
+    // Alt+mnemonic). The caller passes `menuActive` for case (b).
+    // Note that Left Alt is also //e Open Apple — that's fine because
+    // the //e modifier path is suppressed once the menu grabs focus,
+    // and Alt-without-menu is a harmless cue overlay while Open Apple
+    // is asserted.
     bool ShouldShowMnemonicCues (bool menuActive)
     {
-        BOOL  alwaysShow = FALSE;
-
         if (menuActive)
         {
             return true;
         }
 
         if ((GetKeyState (VK_MENU) & 0x8000) != 0)
-        {
-            return true;
-        }
-
-        if (SystemParametersInfoW (SPI_GETKEYBOARDCUES, 0, &alwaysShow, 0) && alwaysShow)
         {
             return true;
         }
