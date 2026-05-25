@@ -298,6 +298,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // Register and create the window via the base class
     m_kpszWndClass  = kWindowClass;
     m_hbrBackground = reinterpret_cast<HBRUSH> (COLOR_WINDOW + 1);
+    m_idIcon        = IDI_CASSO;
+    m_idIconSmall   = IDI_CASSO;
 
     hr = Window::Initialize (hInstance);
     CHR (hr);
