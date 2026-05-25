@@ -78,12 +78,6 @@ public:
     void    OnLButtonUp   (int x, int y);
     bool    OnKey         (WPARAM vk);
 
-    // Drains pending deferred actions (machine switch, etc.). Called
-    // from the main UI loop between message-pump drains so heavy work
-    // (modal ROM-bootstrap MessageBox, SwitchMachine teardown) runs on
-    // a clean stack rather than nested inside an input handler.
-    void    ProcessPendingActions ();
-
     const SettingsPanelState & State () const { return m_state; }
     SettingsPanelState       & MutableState () { return m_state; }
 

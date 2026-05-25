@@ -190,6 +190,7 @@ HRESULT SettingsPanel::Show ()
 
     LoadCurrentMachineIntoState();
     PopulateMachineList();
+    m_pendingMachineSelect.clear();
 
     if (m_uiShell != nullptr)
     {
@@ -371,38 +372,16 @@ void SettingsPanel::PopulateMachineList ()
 
 void SettingsPanel::OnMachineSelected (const std::string & machineName)
 {
-    // The dropdown invokes this callback from inside its own
-    // OnLButtonUp. Tearing down + re-creating the entire emulator
-    // (SwitchMachine), and especially showing a modal MessageBox for
-    // ROM bootstrap consent — which pumps the message queue — while
-    // still inside that input handler races our own input state. Defer
-    // the work to the next ProcessPendingActions tick from the main
-    // loop, which runs with a clean stack.
+    // Stage the user's pick. The actual SwitchMachine (including the
+    // possibly-modal ROM bootstrap) is deferred until OK is hit, so
+    // the user can still Cancel out without disturbing the running
+    // machine. CommitApply calls DoMachineSelect when this differs
+    // from the currently-loaded machine.
     if (machineName.empty())
     {
         return;
     }
     m_pendingMachineSelect = machineName;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProcessPendingActions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsPanel::ProcessPendingActions ()
-{
-    if (!m_pendingMachineSelect.empty())
-    {
-        std::string  pending;
-        pending.swap (m_pendingMachineSelect);
-        DoMachineSelect (pending);
-    }
 }
 
 
@@ -846,7 +825,10 @@ void SettingsPanel::CommitApply ()
 {
     SettingsApplyAdapter  adapter (*m_emuShell);
     JsonValue             currentJson;
-    HRESULT               hr = S_OK;
+    HRESULT               hr             = S_OK;
+    std::string           pendingMachine;
+    std::wstring          currentMachine;
+    std::string           currentMachineNarrow;
 
 
 
@@ -865,9 +847,30 @@ void SettingsPanel::CommitApply ()
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    if (adapter.ResetQueued() && m_emuShell != nullptr)
+    pendingMachine.swap (m_pendingMachineSelect);
+
+    if (m_emuShell != nullptr)
     {
-        IGNORE_RETURN_VALUE (hr, m_emuShell->SwitchMachine (m_emuShell->CurrentMachineName()));
+        currentMachine = m_emuShell->CurrentMachineName();
+        currentMachineNarrow.reserve (currentMachine.size());
+        for (wchar_t c : currentMachine)
+        {
+            currentMachineNarrow.push_back ((char) (unsigned char) c);
+        }
+    }
+
+    // DoMachineSelect handles the ROM bootstrap modal + posts the
+    // SwitchMachine command to the CPU thread. Either an explicit
+    // machine change OR a hardware-reset-requiring edit drives a
+    // full switch; pendingMachine wins because it's the user's
+    // explicit choice.
+    if (!pendingMachine.empty() && pendingMachine != currentMachineNarrow)
+    {
+        DoMachineSelect (pendingMachine);
+    }
+    else if (adapter.ResetQueued() && m_emuShell != nullptr && !currentMachineNarrow.empty())
+    {
+        DoMachineSelect (currentMachineNarrow);
     }
 
     m_visible = false;
@@ -885,6 +888,7 @@ void SettingsPanel::CommitApply ()
 
 void SettingsPanel::OnCancelClicked ()
 {
+    m_pendingMachineSelect.clear();
     m_state.Cancel();
     m_visible = false;
 }
