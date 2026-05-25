@@ -410,7 +410,7 @@ public:
 
         st.LoadFromMachine ("machineA", machineA, machineA);
         page.SetState (&st);
-        page.SetMachineList (machines, 0);
+        page.SetMachineList (machines, { L"machineA", L"machineB" }, 0);
         page.SetOnMachineSelected ([&st, &machineB] (const std::string & machineName)
         {
             st.LoadFromMachine (machineName, machineB, machineB);

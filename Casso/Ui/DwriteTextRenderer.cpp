@@ -403,6 +403,52 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FillRect
+//
+//  Paints a filled axis-aligned rectangle through the D2D context.
+//  Useful when a fill needs to composite in submission order against
+//  prior DrawString calls (e.g. opaque dropdown menu background that
+//  must hide earlier text rendered underneath). DxUiPainter's FillRect
+//  goes through D3D and always flushes before any D2D text, so it
+//  cannot cover text drawn earlier in the same frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DwriteTextRenderer::FillRect (
+    float    xDip,
+    float    yDip,
+    float    widthDip,
+    float    heightDip,
+    uint32_t argbColor)
+{
+    HRESULT                            hr     = S_OK;
+    ComPtr<ID2D1SolidColorBrush>       brush;
+    D2D1_RECT_F                        rect   = {};
+
+
+    CBRA (m_d2dContext);
+    CBRA (m_drawing);
+
+    hr = m_d2dContext->CreateSolidColorBrush (ColorFromArgb (argbColor), &brush);
+    CHRA (hr);
+
+    rect.left   = xDip;
+    rect.top    = yDip;
+    rect.right  = xDip + widthDip;
+    rect.bottom = yDip + heightDip;
+
+    m_d2dContext->FillRectangle (&rect, brush.Get());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MeasureString
 //
 //  Returns the natural pixel extent of `text` in the requested font.

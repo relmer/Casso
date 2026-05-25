@@ -16,10 +16,13 @@ namespace
     constexpr uint32_t  s_kBoxIdleArgb     = 0xFF263241;
     constexpr uint32_t  s_kBoxHoverArgb    = 0xFF33475C;
     constexpr uint32_t  s_kBoxPressedArgb  = 0xFF1E2733;
+    constexpr uint32_t  s_kBoxDisabledArgb = 0xFF1C242F;
     constexpr uint32_t  s_kMenuArgb        = 0xFF202A35;
     constexpr uint32_t  s_kMenuHoverArgb   = 0xFF34475F;
     constexpr uint32_t  s_kTextArgb        = 0xFFE8EEF4;
+    constexpr uint32_t  s_kTextDisabledArgb = 0xFF6A7585;
     constexpr uint32_t  s_kEdgeArgb        = 0xFF5C7088;
+    constexpr uint32_t  s_kEdgeDisabledArgb = 0xFF364252;
     constexpr float     s_kEdgePx          = 1.0f;
     constexpr float     s_kFontDip         = 13.0f;
     constexpr wchar_t   s_kFontFamily[]    = L"Segoe UI";
@@ -148,6 +151,13 @@ void Dropdown::SetMouseHover (int x, int y)
 
 
 
+    if (!m_enabled)
+    {
+        m_hover   = false;
+        m_pressed = false;
+        return;
+    }
+
     m_hover = HitTest (x, y);
 
     if (item >= 0)
@@ -172,6 +182,11 @@ void Dropdown::SetMouseHover (int x, int y)
 
 bool Dropdown::OnLButtonDown (int x, int y)
 {
+    if (!m_enabled)
+    {
+        return false;
+    }
+
     if (HitTest (x, y))
     {
         m_pressed = true;
@@ -206,6 +221,11 @@ bool Dropdown::OnLButtonUp (int x, int y)
     bool  wasPressed = m_pressed;
 
 
+
+    if (!m_enabled)
+    {
+        return false;
+    }
 
     m_pressed = false;
 
@@ -344,7 +364,11 @@ void Dropdown::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 void Dropdown::PaintBase (DxUiPainter & painter, DwriteTextRenderer & text) const
 {
     HRESULT      hr            = S_OK;
-    uint32_t     boxColor      = m_pressed ? s_kBoxPressedArgb : (m_hover ? s_kBoxHoverArgb : s_kBoxIdleArgb);
+    uint32_t     boxColor      = m_enabled
+                                     ? (m_pressed ? s_kBoxPressedArgb : (m_hover ? s_kBoxHoverArgb : s_kBoxIdleArgb))
+                                     : s_kBoxDisabledArgb;
+    uint32_t     textColor     = m_enabled ? s_kTextArgb : s_kTextDisabledArgb;
+    uint32_t     edgeColor     = m_enabled ? s_kEdgeArgb : s_kEdgeDisabledArgb;
     std::wstring label;
     float        edgePx        = m_scaler.Pxf (s_kEdgePx);
     float        fontDip       = m_scaler.Pxf (s_kFontDip);
@@ -378,13 +402,13 @@ void Dropdown::PaintBase (DxUiPainter & painter, DwriteTextRenderer & text) cons
                          (float) (m_rect.right - m_rect.left),
                          (float) (m_rect.bottom - m_rect.top),
                          edgePx,
-                         s_kEdgeArgb);
+                         edgeColor);
     IGNORE_RETURN_VALUE (hr, text.DrawString (label.c_str(),
                                               (float) (m_rect.left + textInset),
                                               (float) m_rect.top,
                                               (float) textWidth,
                                               (float) (m_rect.bottom - m_rect.top),
-                                              s_kTextArgb,
+                                              textColor,
                                               fontDip,
                                               s_kFontFamily,
                                               DwriteTextRenderer::HAlign::Left,
@@ -402,7 +426,7 @@ void Dropdown::PaintBase (DxUiPainter & painter, DwriteTextRenderer & text) cons
                           (float) (chevronY + row),
                           (float) w,
                           1.0f,
-                          s_kTextArgb);
+                          textColor);
     }
 }
 
@@ -429,6 +453,7 @@ void Dropdown::PaintMenu (DxUiPainter & painter, DwriteTextRenderer & text) cons
     float    fontDip   = m_scaler.Pxf (s_kFontDip);
 
 
+    (void) painter;
 
     if (!m_open)
     {
@@ -440,11 +465,14 @@ void Dropdown::PaintMenu (DxUiPainter & painter, DwriteTextRenderer & text) cons
         RECT      row   = { m_rect.left, m_rect.bottom + i * rowHeight, m_rect.right, m_rect.bottom + (i + 1) * rowHeight };
         uint32_t  color = (i == m_highlight) ? s_kMenuHoverArgb : s_kMenuArgb;
 
-        painter.FillRect ((float) row.left,
-                          (float) row.top,
-                          (float) (row.right - row.left),
-                          (float) (row.bottom - row.top),
-                          color);
+        // D2D fill (not D3D painter) so the menu background composites
+        // in submission order with prior text and hides sibling text
+        // underneath the open menu.
+        IGNORE_RETURN_VALUE (hr, text.FillRect ((float) row.left,
+                                                (float) row.top,
+                                                (float) (row.right - row.left),
+                                                (float) (row.bottom - row.top),
+                                                color));
         IGNORE_RETURN_VALUE (hr, text.DrawString (m_items[(size_t) i].c_str(),
                                                   (float) (row.left + textInset),
                                                   (float) row.top,

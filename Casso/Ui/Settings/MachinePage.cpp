@@ -55,21 +55,24 @@ void MachinePage::SetState (SettingsPanelState * state)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachinePage::SetMachineList (std::vector<std::string> machines, int activeIndex)
+void MachinePage::SetMachineList (std::vector<std::string>  machineIds,
+                                  std::vector<std::wstring> displayNames,
+                                  int                       activeIndex)
 {
-    std::vector<std::wstring>  labels;
-
-
-
-    m_machines           = std::move (machines);
+    m_machines           = std::move (machineIds);
     m_activeMachineIndex = activeIndex;
 
-    for (const std::string & machine : m_machines)
+    if (displayNames.size() != m_machines.size())
     {
-        labels.emplace_back (machine.begin(), machine.end());
+        // Caller mismatch — fall back to ids as labels.
+        displayNames.clear();
+        for (const std::string & id : m_machines)
+        {
+            displayNames.emplace_back (id.begin(), id.end());
+        }
     }
 
-    m_machineDropdown.SetItems    (labels);
+    m_machineDropdown.SetItems    (displayNames);
     m_machineDropdown.SetSelected (m_activeMachineIndex);
 }
 
@@ -128,10 +131,18 @@ void MachinePage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_driveAudio.SetRect (MakeRect (controlsX, y, checkWidth, rowHeight));
     y += rowHeight + sectionGap;
 
-    m_mechLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_mechLabel.SetText (L"Mechanism:");
-    m_mechanism.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
-    m_mechanism.SetItems ({ L"Shugart", L"Alps" });
+    // Mechanism is a child of Drive audio: indent its label so it sits
+    // under the audio toggle column, and shift its dropdown right by
+    // the same amount.
+    {
+        int  mechLabelX = controlsX;
+        int  mechCtrlX  = mechLabelX + labelWidth;
+
+        m_mechLabel.SetRect (MakeRect (mechLabelX, y, labelWidth, rowHeight));
+        m_mechLabel.SetText (L"Mechanism:");
+        m_mechanism.SetRect  (MakeRect (mechCtrlX, y, dropWidth, rowHeight));
+        m_mechanism.SetItems ({ L"Shugart", L"Alps" });
+    }
 
     m_machineLabel.SetDpi    (dpi);
     m_speedLabel.SetDpi      (dpi);
@@ -179,6 +190,7 @@ void MachinePage::Rebuild ()
     m_writeProtect[0].SetChecked (state->Prefs().writeProtect[0]);
     m_writeProtect[1].SetChecked (state->Prefs().writeProtect[1]);
     m_machineDropdown.SetSelected (m_activeMachineIndex);
+    ApplyMechanismEnabled (state->Prefs().floppySoundEnabled);
 
     m_machineDropdown.SetSelect ([this] (int idx)
     {
@@ -194,9 +206,31 @@ void MachinePage::Rebuild ()
     m_speed.SetSelect        ([state] (int idx) { state->SetSpeedMode ((SettingsSpeedMode) idx); });
     m_color.SetSelect        ([state] (int idx) { state->SetColorMode ((SettingsColorMode) idx); });
     m_mechanism.SetSelect    ([state] (int idx) { state->SetMechanism (idx == 1 ? "alps" : "shugart"); });
-    m_driveAudio.SetOnChange ([state] (bool checked) { state->SetFloppySound (checked); });
+    m_driveAudio.SetOnChange ([this, state] (bool checked)
+    {
+        state->SetFloppySound (checked);
+        ApplyMechanismEnabled (checked);
+    });
     m_writeProtect[0].SetOnChange ([state] (bool checked) { state->SetWriteProtect (0, checked); });
     m_writeProtect[1].SetOnChange ([state] (bool checked) { state->SetWriteProtect (1, checked); });
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachinePage::ApplyMechanismEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachinePage::ApplyMechanismEnabled (bool enabled)
+{
+    constexpr uint32_t  s_kLabelEnabledArgb  = 0xFFE8EEF4;
+    constexpr uint32_t  s_kLabelDisabledArgb = 0xFF6A7585;
+
+    m_mechanism.SetEnabled (enabled);
+    m_mechLabel.SetColorArgb (enabled ? s_kLabelEnabledArgb : s_kLabelDisabledArgb);
 }
 
 

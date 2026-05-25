@@ -18,6 +18,7 @@ public:
     void  SetRect        (const RECT & rect) { m_rect = rect; }
     void  SetItems       (const std::vector<std::wstring> & items);
     void  SetSelected    (int index);
+    void  SetEnabled     (bool enabled) { m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; m_open = false; } }
     void  SetSelect      (SelectFn select) { m_select = std::move (select); }
     void  Open           ();
     void  Close()        { m_open = false; }
@@ -27,6 +28,7 @@ public:
     const std::vector<std::wstring> & Items () const { return m_items; }
     bool  HitTest        (int x, int y) const;
     int   ItemHitTest    (int x, int y) const;
+    bool  Enabled        () const { return m_enabled; }
     void  SetMouseHover  (int x, int y);
     bool  OnLButtonDown  (int x, int y);
     bool  OnLButtonUp    (int x, int y);
@@ -48,4 +50,5 @@ private:
     int                       m_highlight = -1;
     int                       m_selected  = -1;
     DpiScaler                 m_scaler;
+    bool                      m_enabled   = true;
 };

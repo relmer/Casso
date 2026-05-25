@@ -68,6 +68,12 @@ public:
                                HAlign          hAlign = HAlign::Left,
                                VAlign          vAlign = VAlign::Top);
 
+    HRESULT  FillRect         (float    xDip,
+                               float    yDip,
+                               float    widthDip,
+                               float    heightDip,
+                               uint32_t argbColor);
+
     HRESULT  MeasureString    (const wchar_t * text,
                                float           fontSizeDip,
                                const wchar_t * fontFamily,

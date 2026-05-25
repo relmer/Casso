@@ -567,6 +567,12 @@ HRESULT SettingsPanelState::ExtractHardware (
         { "joystick",                "Joystick" },
         { "paddle",                  "Paddle" },
         { "monitor",                 "Monitor" },
+        { "apple2-keyboard",         "Keyboard" },
+        { "apple2-speaker",          "Speaker" },
+        { "apple2-softswitches",     "Soft Switches" },
+        { "apple2e-keyboard",        "Keyboard (Apple //e)" },
+        { "apple2e-softswitches",    "Soft Switches (Apple //e)" },
+        { "apple2e-mmu",             "Memory Management Unit" },
     };
 
     HRESULT             hr       = S_OK;

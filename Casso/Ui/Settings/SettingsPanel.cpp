@@ -22,6 +22,7 @@ namespace
 {
     constexpr int    s_kPanelWidthDp   = 720;
     constexpr int    s_kPanelHeightDp  = 540;
+    constexpr int    s_kCaptionHeightDp = 32;
     constexpr int    s_kTabHeightDp    = 32;
     constexpr int    s_kBottomBarDp    = 56;
     constexpr int    s_kButtonWidthDp  = 96;
@@ -31,7 +32,10 @@ namespace
     constexpr int    s_kPanelMarginDp  = 16;
     constexpr uint32_t s_kPanelBgArgb  = 0xFF1A2230;
     constexpr uint32_t s_kPanelEdgeArgb = 0xFF334050;
+    constexpr uint32_t s_kCaptionBgArgb = 0xFF0F1620;
+    constexpr uint32_t s_kCaptionTextArgb = 0xFFE8EEF4;
     constexpr float    s_kEdgeThickDp  = 1.0f;
+    constexpr float    s_kCaptionFontDp = 14.0f;
 
 
     ////////////////////////////////////////////////////////////////////////////
@@ -308,7 +312,8 @@ void SettingsPanel::PopulateMachineList ()
 {
     std::vector<std::filesystem::path>  searchPaths;
     std::vector<MachineInfo>            machinesInfo;
-    std::vector<std::string>            machines;
+    std::vector<std::string>            machineIds;
+    std::vector<std::wstring>           displayNames;
     std::string                         activeMachine;
     int                                 activeIndex = -1;
     int                                 i           = 0;
@@ -329,24 +334,27 @@ void SettingsPanel::PopulateMachineList ()
 
     for (const MachineInfo & info : machinesInfo)
     {
-        std::string  machine = NarrowMachineName (info.fileName);
+        std::string  machineId   = NarrowMachineName (info.fileName);
+        std::wstring displayName = info.displayName.empty() ? std::wstring (info.fileName) : info.displayName;
 
-        if (machine == activeMachine)
+        if (machineId == activeMachine)
         {
             activeIndex = i;
         }
 
-        machines.push_back (machine);
+        machineIds.push_back   (machineId);
+        displayNames.push_back (std::move (displayName));
         i++;
     }
 
-    if (machines.empty() && !activeMachine.empty())
+    if (machineIds.empty() && !activeMachine.empty())
     {
-        machines.push_back (activeMachine);
+        machineIds.push_back (activeMachine);
+        displayNames.emplace_back (activeMachine.begin(), activeMachine.end());
         activeIndex = 0;
     }
 
-    m_machinePage.SetMachineList (std::move (machines), activeIndex);
+    m_machinePage.SetMachineList (std::move (machineIds), std::move (displayNames), activeIndex);
 }
 
 
@@ -401,6 +409,7 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const Dpi
     int     marginPx     = scaler.Px (s_kPanelMarginDp);
     int     basePanelW   = scaler.Px (s_kPanelWidthDp);
     int     basePanelH   = scaler.Px (s_kPanelHeightDp);
+    int     captionH     = scaler.Px (s_kCaptionHeightDp);
     int     tabHeight    = scaler.Px (s_kTabHeightDp);
     int     bottomBar    = scaler.Px (s_kBottomBarDp);
     int     buttonWidth  = scaler.Px (s_kButtonWidthDp);
@@ -411,6 +420,7 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const Dpi
     int     panelHeight  = std::min<int> (basePanelH, std::max<int> (0, viewportHeightPx - marginPx * 2));
     int     left         = (viewportWidthPx  - panelWidth)  / 2;
     int     top          = (viewportHeightPx - panelHeight) / 2;
+    int     tabsTop      = top + captionH;
     int     tabWidth     = std::max<int> (40, panelWidth / 4);
     RECT    pageRect     = {};
     RECT    bottomRow    = {};
@@ -421,20 +431,21 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const Dpi
 
 
 
-    m_viewport  = { 0, 0, viewportWidthPx, viewportHeightPx };
-    m_panelRect = MakeRect (left, top, panelWidth, panelHeight);
+    m_viewport   = { 0, 0, viewportWidthPx, viewportHeightPx };
+    m_panelRect  = MakeRect (left, top, panelWidth, panelHeight);
+    m_captionRect = MakeRect (left, top, panelWidth, captionH);
 
-    tabs.push_back ({ MakeRect (left,                  top, tabWidth, tabHeight), L"Machine"  });
-    tabs.push_back ({ MakeRect (left + tabWidth,       top, tabWidth, tabHeight), L"Hardware" });
-    tabs.push_back ({ MakeRect (left + tabWidth * 2,   top, tabWidth, tabHeight), L"Theme"    });
-    tabs.push_back ({ MakeRect (left + tabWidth * 3,   top, tabWidth, tabHeight), L"Display"  });
+    tabs.push_back ({ MakeRect (left,                  tabsTop, tabWidth, tabHeight), L"Machine"  });
+    tabs.push_back ({ MakeRect (left + tabWidth,       tabsTop, tabWidth, tabHeight), L"Hardware" });
+    tabs.push_back ({ MakeRect (left + tabWidth * 2,   tabsTop, tabWidth, tabHeight), L"Theme"    });
+    tabs.push_back ({ MakeRect (left + tabWidth * 3,   tabsTop, tabWidth, tabHeight), L"Display"  });
     m_tabs.SetTabs (std::move (tabs));
     m_tabs.SetSelected (m_activeTab);
     m_tabs.SetOnChange ([this] (int idx) { m_activeTab = idx; });
     m_tabs.SetDpi (dpi);
 
     pageRect.left   = m_panelRect.left   + pad;
-    pageRect.top    = m_panelRect.top    + tabHeight + pad;
+    pageRect.top    = tabsTop            + tabHeight + pad;
     pageRect.right  = m_panelRect.right  - pad;
     pageRect.bottom = m_panelRect.bottom - bottomBar;
 
@@ -502,6 +513,29 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
                           (float) (m_panelRect.right  - m_panelRect.left),
                           (float) (m_panelRect.bottom - m_panelRect.top),
                           edgeThick, s_kPanelEdgeArgb);
+
+    // Caption bar.
+    {
+        HRESULT  hrCaption  = S_OK;
+        float    captionFont = (m_uiShell != nullptr) ? m_uiShell->Scaler().Pxf (s_kCaptionFontDp)
+                                                      : s_kCaptionFontDp;
+
+        painter.FillRect ((float) m_captionRect.left,
+                          (float) m_captionRect.top,
+                          (float) (m_captionRect.right  - m_captionRect.left),
+                          (float) (m_captionRect.bottom - m_captionRect.top),
+                          s_kCaptionBgArgb);
+        IGNORE_RETURN_VALUE (hrCaption, text.DrawString (L"Settings",
+                                                         (float) m_captionRect.left + 12.0f,
+                                                         (float) m_captionRect.top,
+                                                         (float) (m_captionRect.right  - m_captionRect.left) - 24.0f,
+                                                         (float) (m_captionRect.bottom - m_captionRect.top),
+                                                         s_kCaptionTextArgb,
+                                                         captionFont,
+                                                         L"Segoe UI",
+                                                         DwriteTextRenderer::HAlign::Left,
+                                                         DwriteTextRenderer::VAlign::Center));
+    }
 
     m_tabs.Paint  (painter, text);
 

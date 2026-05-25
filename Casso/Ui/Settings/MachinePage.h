@@ -41,7 +41,9 @@ public:
     using MachineSelectFn = std::function<void (const std::string & machineName)>;
 
     void  SetState              (SettingsPanelState * state);
-    void  SetMachineList        (std::vector<std::string> machines, int activeIndex);
+    void  SetMachineList        (std::vector<std::string>  machineIds,
+                                 std::vector<std::wstring> displayNames,
+                                 int                       activeIndex);
     void  SetOnMachineSelected  (MachineSelectFn fn) { m_onMachineSelected = std::move (fn); }
 
     void  Layout                (const RECT & rect, const DpiScaler & scaler);
@@ -64,6 +66,8 @@ public:
     const Dropdown  & MachineDropdown() const { return m_machineDropdown; }
 
 private:
+    void  ApplyMechanismEnabled (bool enabled);
+
     SettingsPanelState         * m_state              = nullptr;
     std::vector<std::string>     m_machines;
     int                          m_activeMachineIndex = -1;

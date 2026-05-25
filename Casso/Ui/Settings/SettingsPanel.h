@@ -123,5 +123,6 @@ private:
 
     RECT                m_viewport     = {};
     RECT                m_panelRect    = {};
+    RECT                m_captionRect  = {};
     int                 m_activeTab    = (int) TabIndex::Machine;
 };
