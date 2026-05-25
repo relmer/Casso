@@ -383,15 +383,8 @@ void UiShell::PaintDragDropOverlay (
     int                       /*bottomInset*/,
     int                       /*barTop*/)
 {
-    const uint32_t  s_kDimRejectArgb     = 0xD0000000;   // ~82% black -- file isn't going anywhere
-    const uint32_t  s_kDimAcceptArgb     = 0xA0000000;   // ~63% black -- drives stay bright through the haze
-    const uint32_t  s_kGlowRgb           = 0x00FFB347;   // warm amber, alpha varies per ring
-    const uint32_t  s_kGlowHoverRgb      = 0x00FFD27A;   // brighter when the cursor is on the target
-    const int       s_kGlowRings         = 14;           // depth of the soft falloff
-    const int       s_kGlowHoverRings    = 22;           // bigger halo for the active target
-    const float     s_kGlowPeakAlpha     =  192.0f;      // 0..255; inner ring alpha
-    const float     s_kGlowHoverPeakA    =  240.0f;
-    const float     s_kRingThicknessPx   =  1.0f;
+    const uint32_t  s_kDimRejectArgb     = 0xE6000000;   // ~90% black -- file isn't going anywhere
+    const uint32_t  s_kDimAcceptArgb     = 0xC8000000;   // ~78% black -- drives still readable through the haze
 
     int             hovered              = -1;
     bool            accept               = false;
@@ -536,39 +529,49 @@ void UiShell::PaintDragDropOverlay (
             }
         }
 
-        // Soft glow halos. For each drive, paint N concentric 1px-thick
-        // OutlineRects outset by 0, 1, 2, ..., N pixels with linearly-
-        // decreasing alpha. Stacked thin rings approximate a Gaussian
-        // falloff well enough to read as a glow without a shader pass.
+        // Soft radial glow originating BEHIND each drive. Paint a
+        // stack of concentric translucent filled circles centered on
+        // the drive, outer-to-inner so the brightest layer lands on
+        // top. The drive widget itself was already painted earlier;
+        // these layers overlay it with low alpha so the drive's own
+        // pixels show through while the glow extends well beyond the
+        // rectangle. Hovered drive: brighter base RGB + more layers
+        // + larger outer radius + higher peak alpha.
         for (int i = 0; i < 2; i++)
         {
             const RECT &  r       = (i == 0) ? d0 : d1;
             bool          empty   = (r.right <= r.left) || (r.bottom <= r.top);
             bool          hot     = (hovered == i);
-            int           rings   = hot ? s_kGlowHoverRings : s_kGlowRings;
-            float         peak    = hot ? s_kGlowHoverPeakA : s_kGlowPeakAlpha;
-            uint32_t      rgb     = hot ? s_kGlowHoverRgb   : s_kGlowRgb;
-            int           ring    = 0;
+            int           layers  = hot ? 60 : 36;
+            float         peak    = hot ? 24.0f : 14.0f;
+            uint32_t      rgb     = hot ? 0x00FFD27Au : 0x00FFB347u;
+            float         innerR  = 0.0f;
+            float         outerR  = 0.0f;
+            float         cx      = 0.0f;
+            float         cy      = 0.0f;
+            int           layer   = 0;
 
             if (empty)
             {
                 continue;
             }
 
-            for (ring = 0; ring < rings; ring++)
-            {
-                float     t       = (float) ring / (float) rings;
-                float     alphaF  = peak * (1.0f - t);
-                uint32_t  alphaU  = (uint32_t) std::clamp (alphaF, 0.0f, 255.0f);
-                uint32_t  argb    = (alphaU << 24) | rgb;
-                float     outset  = (float) ring;
+            cx     = (float) (r.left + r.right)  * 0.5f;
+            cy     = (float) (r.top  + r.bottom) * 0.5f;
+            innerR = (float) std::max (r.right - r.left, r.bottom - r.top) * 0.5f;
+            outerR = innerR * (hot ? 4.5f : 3.0f);
 
-                m_painter.OutlineRect ((float) r.left   - outset,
-                                       (float) r.top    - outset,
-                                       (float) (r.right  - r.left)  + 2.0f * outset,
-                                       (float) (r.bottom - r.top)   + 2.0f * outset,
-                                       s_kRingThicknessPx,
-                                       argb);
+            // Outer-to-inner so the brightest (innermost) layer paints
+            // last and lands on top.
+            for (layer = layers - 1; layer >= 0; layer--)
+            {
+                float     t      = (float) layer / (float) (layers - 1);
+                float     radius = innerR + (outerR - innerR) * t;
+                float     fall   = (1.0f - t) * (1.0f - t);   // quadratic falloff
+                uint32_t  alpha  = (uint32_t) std::clamp (peak * fall, 0.0f, 255.0f);
+                uint32_t  argb   = (alpha << 24) | rgb;
+
+                m_painter.FillCircleApprox (cx, cy, radius, argb);
             }
         }
     }

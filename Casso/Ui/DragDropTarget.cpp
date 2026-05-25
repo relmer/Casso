@@ -75,7 +75,6 @@ Error:
 HRESULT DragDropTarget::Initialize (HWND hwnd, HitTester * pHitTester, DropFn drop)
 {
     HRESULT  hr = S_OK;
-    char     msg[256];
 
 
 
@@ -88,9 +87,6 @@ HRESULT DragDropTarget::Initialize (HWND hwnd, HitTester * pHitTester, DropFn dr
     m_hitTest   = {};
 
     hr = RegisterDragDrop (hwnd, this);
-    sprintf_s (msg, "[DragDropTarget] Initialize hwnd=%p hr=0x%08lX\n",
-               (void *) hwnd, (unsigned long) hr);
-    OutputDebugStringA (msg);
     if (SUCCEEDED (hr))
     {
         m_registeredHwnds.push_back (hwnd);
@@ -119,16 +115,12 @@ Error:
 HRESULT DragDropTarget::AttachAdditionalWindow (HWND hwnd)
 {
     HRESULT  hr = S_OK;
-    char     msg[256];
 
 
 
     CBRAEx (hwnd, E_INVALIDARG);
 
     hr = RegisterDragDrop (hwnd, this);
-    sprintf_s (msg, "[DragDropTarget] AttachAdditionalWindow hwnd=%p hr=0x%08lX\n",
-               (void *) hwnd, (unsigned long) hr);
-    OutputDebugStringA (msg);
     if (SUCCEEDED (hr))
     {
         m_registeredHwnds.push_back (hwnd);
@@ -325,7 +317,6 @@ STDMETHODIMP DragDropTarget::DragEnter (
 {
     std::wstring  path;
     HRESULT       hr = S_OK;
-    char          msg[512];
 
 
 
@@ -339,11 +330,6 @@ STDMETHODIMP DragDropTarget::DragEnter (
         m_fDragHasSupportedFile = true;
         m_dragPath              = path;
     }
-
-    sprintf_s (msg, "[DragDropTarget] DragEnter pt=(%ld,%ld) hr=0x%08lX accepted=%d path-w=%zu\n",
-               pt.x, pt.y, (unsigned long) hr,
-               m_fDragHasSupportedFile ? 1 : 0, path.size());
-    OutputDebugStringA (msg);
 
     return DragOver (0, pt, pdwEffect);
 }
@@ -410,16 +396,9 @@ STDMETHODIMP DragDropTarget::Drop (
     POINTL        pt,
     DWORD       * pdwEffect)
 {
-    int   tag = PickAtScreen (pt);
-    char  msg[256];
+    int  tag = PickAtScreen (pt);
 
 
-
-    sprintf_s (msg, "[DragDropTarget] Drop pt=(%ld,%ld) tag=%d supported=%d hasDrop=%d\n",
-               pt.x, pt.y, tag,
-               m_fDragHasSupportedFile ? 1 : 0,
-               m_drop ? 1 : 0);
-    OutputDebugStringA (msg);
 
     if (pdwEffect != nullptr)
     {
@@ -476,7 +455,6 @@ int DragDropTarget::PickAtScreen (POINTL pt) const
 {
     POINT  client = { pt.x, pt.y };
     int    tag    = -1;
-    char   msg[256];
 
 
 
@@ -488,9 +466,6 @@ int DragDropTarget::PickAtScreen (POINTL pt) const
         }
 
         tag = PickAtClient (*m_hitTester, client.x, client.y);
-        sprintf_s (msg, "[DragDropTarget] PickAtScreen screen=(%ld,%ld) client=(%ld,%ld) tag=%d\n",
-                   pt.x, pt.y, (long) client.x, (long) client.y, tag);
-        OutputDebugStringA (msg);
         return tag;
     }
 
