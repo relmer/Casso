@@ -199,14 +199,16 @@ HRESULT SettingsPanel::Initialize (
     {
         if (m_prefs != nullptr)
         {
-            m_prefs->crt.brightness = pct / 50.0f;
+            m_prefs->crt.brightness   = pct / 50.0f;
+            m_prefs->crt.userOverride = true;   // bypass theme defaults during live preview
         }
     });
     m_displayPage.SetOnContrastChange ([this] (float pct)
     {
         if (m_prefs != nullptr)
         {
-            m_prefs->crt.contrast = pct / 50.0f;
+            m_prefs->crt.contrast     = pct / 50.0f;
+            m_prefs->crt.userOverride = true;
         }
     });
     m_displayPage.SetOnMonitorChange ([this] (int idx)
@@ -293,8 +295,9 @@ HRESULT SettingsPanel::Show ()
     // GlobalUserPrefs.crt so the shader picks them up next frame.
     if (m_prefs != nullptr)
     {
-        m_baselineBrightness = m_prefs->crt.brightness;
-        m_baselineContrast   = m_prefs->crt.contrast;
+        m_baselineBrightness   = m_prefs->crt.brightness;
+        m_baselineContrast     = m_prefs->crt.contrast;
+        m_baselineUserOverride = m_prefs->crt.userOverride;
     }
     m_baselineColorMode = (int) m_state.Prefs().colorMode;
 
@@ -512,7 +515,7 @@ void SettingsPanel::UpdatePreviewFade (int64_t nowMs)
     if (m_previewFocus != PreviewFocus::None)
     {
         targetPanel   = 0.0f;
-        targetFocused = 0.5f;
+        targetFocused = 0.9f;
     }
 
     if (dtMs <= 0 || s_kFadeDurationMs <= 0.0f)
@@ -1432,8 +1435,9 @@ void SettingsPanel::OnCancelClicked ()
     // MakeCrtParams path.
     if (m_prefs != nullptr)
     {
-        m_prefs->crt.brightness = m_baselineBrightness;
-        m_prefs->crt.contrast   = m_baselineContrast;
+        m_prefs->crt.brightness   = m_baselineBrightness;
+        m_prefs->crt.contrast     = m_baselineContrast;
+        m_prefs->crt.userOverride = m_baselineUserOverride;
     }
     if (m_emuShell != nullptr && m_baselineColorMode >= 0)
     {

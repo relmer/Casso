@@ -130,9 +130,10 @@ private:
     // GlobalUserPrefs.crt for instant shader preview while the panel
     // is faded out. CommitApply just flips userOverride + Saves; Cancel
     // restores the baseline values back to GlobalUserPrefs.crt.
-    float               m_baselineBrightness = 1.0f;
-    float               m_baselineContrast   = 1.0f;
-    int                 m_baselineColorMode  = -1;
+    float               m_baselineBrightness   = 1.0f;
+    float               m_baselineContrast     = 1.0f;
+    bool                m_baselineUserOverride = false;
+    int                 m_baselineColorMode    = -1;
 
     // Live-preview state machine. While a slider is dragged or a
     // dropdown is open, the panel fades out so the user can see the

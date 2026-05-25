@@ -133,17 +133,16 @@ void Slider::SetMouseHover (int x, int y)
 
 float Slider::ValueFromX (int x) const
 {
-    int    width = m_rect.right - m_rect.left;
-    float  t     = 0.0f;
+    constexpr int  s_kValueGapDp   = 8;
+    constexpr int  s_kValueWidthDp = 56;
+
+    int    valueAreaPx  = m_suffix.empty() ? 0 : (m_scaler.Px (s_kValueWidthDp) + m_scaler.Px (s_kValueGapDp));
+    int    trackAvailPx = std::max ((LONG) 1, (LONG) ((m_rect.right - m_rect.left) - valueAreaPx));
+    float  t            = 0.0f;
 
 
 
-    if (width <= 0)
-    {
-        return m_min;
-    }
-
-    t = (float) (x - m_rect.left) / (float) width;
+    t = (float) (x - m_rect.left) / (float) trackAvailPx;
     t = Clamp (t, 0.0f, 1.0f);
 
     return m_min + t * (m_max - m_min);
@@ -360,16 +359,18 @@ void Slider::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     constexpr wchar_t   s_kFont[]           = L"Segoe UI";
 
     HRESULT  hr            = S_OK;
+    bool     showValue     = !m_suffix.empty();
     float    trackHeight   = m_scaler.Pxf (s_kTrackHeightDp);
     float    tickHeight    = m_scaler.Pxf (s_kTickHeightDp);
     float    tickGap       = m_scaler.Pxf (s_kTickGapDp);
     float    valueGap      = m_scaler.Pxf (s_kValueGapDp);
     float    valueFontDip  = m_scaler.Pxf (s_kValueFontDp);
     float    valueWidth    = m_scaler.Pxf (s_kValueWidthDp);
+    float    valueAreaW    = showValue ? (valueWidth + valueGap) : 0.0f;
     float    rectW         = (float) (m_rect.right  - m_rect.left);
     float    rectH         = (float) (m_rect.bottom - m_rect.top);
     float    trackLeft     = (float) m_rect.left;
-    float    trackAvailW   = std::max (0.0f, rectW - (valueWidth + valueGap));
+    float    trackAvailW   = std::max (0.0f, rectW - valueAreaW);
     float    centerY       = (float) m_rect.top + rectH * 0.5f;
     float    t             = 0.0f;
     float    fillWidth     = 0.0f;
@@ -421,18 +422,12 @@ void Slider::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     painter.FillCircleApprox (puckCx, centerY, puckR * s_kPuckCoreShare, coreColor);
 
     // ----- Value readout to the right of the track. -----
+    if (showValue)
     {
         wchar_t  buf[32] = {};
         int      pct     = (int) std::round (m_value);
 
-        if (!m_suffix.empty())
-        {
-            swprintf_s (buf, L"%d%ls", pct, m_suffix.c_str());
-        }
-        else
-        {
-            swprintf_s (buf, L"%d", pct);
-        }
+        swprintf_s (buf, L"%d%ls", pct, m_suffix.c_str());
 
         IGNORE_RETURN_VALUE (hr, text.DrawString (buf,
                                                   trackLeft + trackAvailW + valueGap,
