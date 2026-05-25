@@ -402,7 +402,7 @@ HRESULT DwriteTextRenderer::DrawString (
                             format.Get(),
                             &layoutRect,
                             brush.Get(),
-                            D2D1_DRAW_TEXT_OPTIONS_NONE,
+                            D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT,
                             DWRITE_MEASURING_MODE_NATURAL);
 
 Error:
