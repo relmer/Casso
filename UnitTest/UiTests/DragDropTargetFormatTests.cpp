@@ -231,8 +231,10 @@ public:
         Assert::IsTrue   (t.IsDragInProgress(),    L"Drag must be in progress after DragEnter");
         Assert::IsTrue   (t.IsDragAcceptedType(),  L"Supported extension must be accepted");
         // No hit-test wired -> tag stays -1 -> effect resolves to NONE.
+        // (Drives are the only valid drop targets; everywhere else is
+        // dim + reject cursor per the visual overlay contract.)
         Assert::AreEqual ((DWORD) DROPEFFECT_NONE, effect,
-            L"Without a hit-test hit, effect must be NONE even for supported files");
+            L"Without a drive-widget hit, effect must be NONE even for supported files");
     }
 
     TEST_METHOD (DragEnter_UnsupportedFile_InProgressButNotAccepted)
@@ -281,7 +283,7 @@ public:
         Assert::IsFalse  (t.IsDragAcceptedType());
         Assert::AreEqual (-1, t.HoveredTag());
         Assert::AreEqual ((DWORD) DROPEFFECT_NONE, effect,
-            L"Without a hit, Drop reports NONE and skips the mount callback");
+            L"Without a drive hit, Drop reports NONE and skips the mount callback");
     }
 
     TEST_METHOD (DragEnter_NullDataObject_InProgressButNotAccepted)
