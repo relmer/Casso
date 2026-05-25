@@ -1265,6 +1265,36 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
             break;
         }
 
+        case IDM_AUDIO_DRIVE_ENABLE:
+        case IDM_AUDIO_DRIVE_DISABLE:
+        {
+            m_driveAudioMixer.SetEnabled (cmd.id == IDM_AUDIO_DRIVE_ENABLE);
+            break;
+        }
+
+        case IDM_AUDIO_DRIVE_MECHANISM:
+        {
+            // Payload is "shugart" or "alps" (canonical lower-case
+            // from SettingsPanelState). DriveAudioMixer wants the
+            // mixed-case directory name; map here so the mixer's
+            // validator accepts it and LoadSamples finds the right
+            // <devicesDir>/Audio/<Mechanism>/ subdir.
+            std::wstring  mech;
+
+            if (cmd.payload == "alps")
+            {
+                mech = L"Alps";
+            }
+            else
+            {
+                mech = L"Shugart";
+            }
+
+            HRESULT  hrMech = m_driveAudioMixer.SetMechanism (mech);
+            IGNORE_RETURN_VALUE (hrMech, S_OK);
+            break;
+        }
+
         default:
             break;
     }

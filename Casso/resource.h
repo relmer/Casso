@@ -39,6 +39,10 @@
 #define IDM_VIEW_DISKII_DEBUG       40038
 #define IDM_VIEW_SETTINGS           40039  // Consolidated settings panel
 
+#define IDM_AUDIO_DRIVE_ENABLE      40050
+#define IDM_AUDIO_DRIVE_DISABLE     40051
+#define IDM_AUDIO_DRIVE_MECHANISM   40052
+
 #define IDM_HELP_KEYMAP             40040
 #define IDM_HELP_DEBUG              40041
 #define IDM_HELP_ABOUT              40042

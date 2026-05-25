@@ -176,9 +176,14 @@ private:
 
     HRESULT CreateRenderSurface ();
 
-    // Queue a command for the CPU thread
+    // Queue a command for the CPU thread. Public so non-friend
+    // adapters (e.g. SettingsPanel's internal apply sink) can post
+    // without needing friend status -- this is already a thin
+    // wrapper over the CpuManager queue.
+public:
     void PostCommand (WORD id, const string & payload = "");
 
+private:
     // Machine switching delegated to MachineManager. Kept as a
     // public delegator so the existing IDM_FILE_OPEN command-queue
     // path can call the shell without learning the manager.

@@ -57,20 +57,31 @@ namespace
     {
     public:
         explicit SettingsApplyAdapter (EmulatorShell & shell)
+            : m_shell (shell)
         {
-            UNREFERENCED_PARAMETER (shell);
         }
 
         void ApplySpeedMode    (SettingsSpeedMode mode)        override { UNREFERENCED_PARAMETER (mode);    }
         void ApplyColorMode    (SettingsColorMode mode)        override { UNREFERENCED_PARAMETER (mode);    }
-        void ApplyFloppySound  (bool enabled)                  override { UNREFERENCED_PARAMETER (enabled); }
-        void ApplyMechanism    (const std::string & mechanism) override { UNREFERENCED_PARAMETER (mechanism); }
+
+        void ApplyFloppySound  (bool enabled) override
+        {
+            m_shell.PostCommand (enabled ? IDM_AUDIO_DRIVE_ENABLE
+                                         : IDM_AUDIO_DRIVE_DISABLE);
+        }
+
+        void ApplyMechanism    (const std::string & mechanism) override
+        {
+            m_shell.PostCommand (IDM_AUDIO_DRIVE_MECHANISM, mechanism);
+        }
+
         void ApplyWriteProtect (int drive, bool wp)            override { UNREFERENCED_PARAMETER (drive); UNREFERENCED_PARAMETER (wp); }
         void QueueMachineReset ()                              override { m_resetQueued = true; }
 
         bool  ResetQueued () const { return m_resetQueued; }
 
     private:
+        EmulatorShell & m_shell;
         bool            m_resetQueued = false;
     };
 
