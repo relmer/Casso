@@ -6,6 +6,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.807] — App Icon
+
+### Added
+- **Casso has an app icon.** The window title bar, taskbar, and Windows
+  Explorer now show a cassowary silhouette with a retro Apple-rainbow
+  accent stripe instead of the generic Windows EXE icon. Four motifs
+  ship embedded in the binary (silhouette+accent, silhouette+rainbow,
+  flat-color head, photoreal); the silhouette+accent variant is the
+  default. PNG masters and multi-resolution ICOs live in
+  `Resources/Icons/`, regeneratable via `Assets/Icon/build_icons.py`.
+
 ## [1.3.772] — Machine Picker Fixes
 
 ### Fixed
