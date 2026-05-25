@@ -30,9 +30,9 @@ namespace
     constexpr int     s_kInUseGapPx        = 4;
     constexpr int     s_kInUseWidthPx      = 56;
     constexpr int     s_kRidgeCountPx      = 2;
-    constexpr int     s_kCassowaryWidthPx  = 38;
-    constexpr int     s_kCassowaryHeightPx = 40;
-    constexpr int     s_kCassowaryMarginPx = 12;
+    constexpr int     s_kCassowaryWidthPx  = 32;
+    constexpr int     s_kCassowaryHeightPx = 48;
+    constexpr int     s_kCassowaryMarginPx = 10;
     constexpr wchar_t s_kFontFamily[]      = L"Segoe UI";
 
     // Compact paint-path dimensions. The compact widget is a flat
@@ -118,24 +118,31 @@ namespace
     }
 
 
-    // Cassowary head silhouette in profile, beak pointing LEFT,
-    // tall casque on top, rendered as horizontal scanlines so it can
-    // be rainbow-striped a la the classic Apple logo. The grid is
-    // 28 cols x 30 rows; each row stores (startCol, endCol) inclusive.
+    // Cassowary head + neck silhouette, baked from
+    // Resources/Branding/Cassowary.png at 36x54 resolution. Stored as
+    // a per-row 36-bit bitmask (bit 0 = leftmost column). Bitmask
+    // format preserves per-row concavities -- in particular the gap
+    // between the underside of the beak and the top of the neck --
+    // that a single (start, end) span per row would erroneously fill.
     void DrawCassowaryRainbow (DxUiPainter & painter,
                                float left, float top,
                                float width, float height)
     {
-        constexpr int       kGridW             = 28;
-        constexpr int       kGridH             = 30;
+        constexpr int       kGridW             = 36;
+        constexpr int       kGridH             = 54;
         constexpr int       kStripeCount       = 6;
-        static const uint8_t s_kSilhouette[kGridH][2] = {
-            { 16, 18 }, { 16, 18 }, { 15, 18 }, { 15, 19 }, { 14, 19 },
-            { 14, 20 }, { 13, 20 }, { 12, 21 }, { 10, 22 }, {  7, 24 },
-            {  5, 25 }, {  3, 26 }, {  2, 26 }, {  1, 26 }, {  0, 26 },
-            {  0, 25 }, {  2, 25 }, {  5, 24 }, {  7, 24 }, {  8, 23 },
-            {  9, 22 }, { 10, 22 }, { 10, 23 }, { 10, 23 }, { 11, 22 },
-            { 11, 21 }, { 12, 21 }, { 12, 20 }, { 13, 20 }, { 13, 19 },
+        static const uint64_t s_kSilhouette[kGridH] = {
+            0x0000000000ULL, 0x0000000000ULL, 0x0000000000ULL, 0x0000000000ULL, 0x0000000000ULL,
+            0x000000FE00ULL, 0x000001FF80ULL, 0x000003FFC0ULL, 0x000007FFE0ULL, 0x00000FFFC0ULL,
+            0x00000FFFC0ULL, 0x00001FFF80ULL, 0x00001FFF00ULL, 0x00003FFF00ULL, 0x00003FFF00ULL,
+            0x00007FFE00ULL, 0x00007FFE00ULL, 0x0000FFFE00ULL, 0x0000FFFC00ULL, 0x0000FFFC00ULL,
+            0x0000FFFC00ULL, 0x0001FFFC00ULL, 0x0001FFFC00ULL, 0x0001FFFC00ULL, 0x0001FFFC00ULL,
+            0x0003FFFE00ULL, 0x0003FFFE00ULL, 0x0003FFFF00ULL, 0x0003FFFF80ULL, 0x0003FFFFC0ULL,
+            0x0003FFFFC0ULL, 0x0007FFFFE0ULL, 0x0007FFFFE0ULL, 0x0007FFFFE0ULL, 0x000FFFFFF0ULL,
+            0x001FFFFFF0ULL, 0x003FFFFFF0ULL, 0x007FFFFFF0ULL, 0x00FFFFFFF0ULL, 0x01FFFFFFF8ULL,
+            0x01FFFFFFF8ULL, 0x03F007FFF8ULL, 0x038000FFF8ULL, 0x0200007FF8ULL, 0x0000007FF8ULL,
+            0x0000007FF8ULL, 0x0000007FF8ULL, 0x000000FFF8ULL, 0x000000FFF8ULL, 0x000001FFF8ULL,
+            0x000001FFF8ULL, 0x000001FFF8ULL, 0x000001FFF0ULL, 0x000003FFF0ULL
         };
         static const uint32_t s_kStripeColors[kStripeCount] = {
             0xFF61BB46,  // green
@@ -146,19 +153,61 @@ namespace
             0xFF009DDC,  // blue
         };
 
-        float  rowH = height / (float) kGridH;
-        float  colW = width  / (float) kGridW;
+        // Find the first / last non-empty row so the rainbow bands
+        // span the actual silhouette extents rather than the full
+        // grid (which would waste stripes on the empty rows above).
+        int  firstRow = kGridH;
+        int  lastRow  = -1;
+        int  i        = 0;
 
-        for (int row = 0; row < kGridH; row++)
+        for (i = 0; i < kGridH; i++)
         {
-            int    stripe   = (row * kStripeCount) / kGridH;
-            int    startCol = s_kSilhouette[row][0];
-            int    endCol   = s_kSilhouette[row][1];
-            float  x        = left + (float) startCol * colW;
-            float  y        = top  + (float) row      * rowH;
-            float  w        = (float) (endCol - startCol + 1) * colW;
+            if (s_kSilhouette[i] != 0)
+            {
+                if (i < firstRow) { firstRow = i; }
+                if (i > lastRow)  { lastRow  = i; }
+            }
+        }
+        if (lastRow < firstRow)
+        {
+            return;
+        }
 
-            painter.FillRect (x, y, w, rowH + 0.5f, s_kStripeColors[stripe]);
+        int    silhouetteH = lastRow - firstRow + 1;
+        float  rowH        = height / (float) kGridH;
+        float  colW        = width  / (float) kGridW;
+
+        for (int row = firstRow; row <= lastRow; row++)
+        {
+            uint64_t  bits   = s_kSilhouette[row];
+            int       stripe = ((row - firstRow) * kStripeCount) / silhouetteH;
+            uint32_t  argb   = s_kStripeColors[stripe];
+            int       col    = 0;
+
+            // Walk this row and emit one FillRect per contiguous bit
+            // run, so per-row concavities render as actual daylight
+            // rather than being span-filled.
+            while (col < kGridW)
+            {
+                if ((bits & (1ULL << col)) == 0)
+                {
+                    col++;
+                    continue;
+                }
+
+                int  runStart = col;
+
+                while (col < kGridW && (bits & (1ULL << col)) != 0)
+                {
+                    col++;
+                }
+
+                float  x = left + (float) runStart * colW;
+                float  y = top  + (float) row      * rowH;
+                float  w = (float) (col - runStart) * colW;
+
+                painter.FillRect (x, y, w, rowH + 0.5f, argb);
+            }
         }
     }
 }
