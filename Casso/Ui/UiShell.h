@@ -68,6 +68,12 @@ public:
     int    ViewportWidth  () const { return m_viewportWidthPx; }
     int    ViewportHeight () const { return m_viewportHeightPx; }
 
+    const ChromeTheme & Theme () const
+    {
+        static const ChromeTheme s_kFallback = ChromeTheme::Skeuomorphic();
+        return (m_theme != nullptr) ? *m_theme : s_kFallback;
+    }
+
     const DpiScaler  & Scaler () const { return m_scaler; }
 
 private:

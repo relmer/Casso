@@ -362,6 +362,7 @@ HRESULT EmulatorShell::Initialize (
                                                           PathResolver::GetExecutableDirectory());
     machinesDir  = assetBaseDir / fs::path ("Machines") / fs::path (m_currentMachineName);
     themesDir    = assetBaseDir / fs::path ("Themes");
+    m_assetBaseDir = assetBaseDir.wstring();
 
     // P6 -- bring up OLE on the UI thread before any RegisterDragDrop
     // call lands; IFileDialog (click-to-browse, used by the drive
@@ -436,6 +437,25 @@ HRESULT EmulatorShell::Initialize (
         IGNORE_RETURN_VALUE (hrTheme, S_OK);
         hrPrefs = m_globalPrefs.Load (assetBaseDir.wstring(), m_uiFs);
         IGNORE_RETURN_VALUE (hrPrefs, S_OK);
+
+        // Subscribe the chrome theme cache to ThemeManager BEFORE we
+        // activate, so the initial Activate() fires the listener and
+        // primes m_chromeTheme from the persisted user choice. Without
+        // this the chrome would still paint Skeuomorphic until the
+        // user re-picked the theme in Settings.
+        m_themeManager->AddChangeListener ([this] (const LoadedTheme & t)
+        {
+            m_chromeTheme = ChromeTheme::ForName (t.name);
+        });
+
+        HRESULT  hrActivate = m_themeManager->Activate (m_globalPrefs.activeTheme);
+        if (hrActivate != S_OK)
+        {
+            // Persisted theme name is unknown (renamed, deleted, or
+            // first-run with a stale default) -- fall back to the
+            // canonical built-in so the listener still fires.
+            IGNORE_RETURN_VALUE (hrActivate, m_themeManager->Activate ("Skeuomorphic"));
+        }
 
         hrSettings = m_settingsPanel.Initialize (m_uiShell,
                                                  *m_userConfigStore,
@@ -706,7 +726,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // restored a different size for this monitor topology -- using
     // the stale request would leave the chrome painted only to the
     // default width until the user resized the window.
-    m_chromeTheme = ChromeTheme::Skeuomorphic();
     {
         RECT  rcActual = {};
 
@@ -996,6 +1015,52 @@ void EmulatorShell::Eject (int slot, int drive)
 void EmulatorShell::ShowMachinePicker()
 {
     m_machineManager->ShowMachinePicker();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ApplyAndPersistTheme
+//
+//  Activates the named theme via ThemeManager (which fires our chrome
+//  cache listener) and writes the new choice into GlobalUserPrefs so
+//  the next launch starts in the same theme. Activation failure on an
+//  unknown name falls back to Skeuomorphic rather than leaving the
+//  chrome in a stale state.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::ApplyAndPersistTheme (const std::string & themeName)
+{
+    HRESULT  hr           = S_OK;
+    HRESULT  hrActivate   = S_OK;
+    HRESULT  hrSave       = S_OK;
+    std::string  resolved = themeName;
+
+
+
+    if (themeName.empty() || m_themeManager == nullptr)
+    {
+        return S_FALSE;
+    }
+
+    hrActivate = m_themeManager->Activate (themeName);
+    if (hrActivate != S_OK)
+    {
+        resolved   = "Skeuomorphic";
+        hrActivate = m_themeManager->Activate (resolved);
+    }
+    CHR (hrActivate);
+
+    m_globalPrefs.activeTheme = resolved;
+    hrSave = m_globalPrefs.Save (m_assetBaseDir, m_uiFs);
+    IGNORE_RETURN_VALUE (hrSave, S_OK);
+
+Error:
+    return hr;
 }
 
 

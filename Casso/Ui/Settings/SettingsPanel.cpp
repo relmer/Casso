@@ -188,6 +188,7 @@ HRESULT SettingsPanel::Initialize (
     m_machinePage.SetState  (&m_state);
     m_machinePage.SetOnMachineSelected ([this] (const std::string & machineName) { OnMachineSelected (machineName); });
     m_hardwarePage.SetState (&m_state);
+    m_themePage.SetOnThemeSelected ([this] (const std::string & themeName) { OnThemeSelected (themeName); });
 
     m_applyButton.SetLabel  (L"OK");
     m_applyButton.SetClick  ([this] { OnApplyClicked();  });
@@ -225,6 +226,7 @@ HRESULT SettingsPanel::Show ()
 
     LoadCurrentMachineIntoState();
     PopulateMachineList();
+    PopulateThemeList();
     m_pendingMachineSelect.clear();
 
     if (m_uiShell != nullptr)
@@ -274,7 +276,7 @@ void SettingsPanel::RebuildFocusOrder ()
     {
         case TabIndex::Machine:  m_machinePage.CollectFocusables  (m_focusSetters); break;
         case TabIndex::Hardware: m_hardwarePage.CollectFocusables (m_focusSetters); break;
-        case TabIndex::Theme:    break;
+        case TabIndex::Theme:    m_themePage.CollectFocusables    (m_focusSetters); break;
         case TabIndex::Display:  break;
     }
 
@@ -339,6 +341,10 @@ bool SettingsPanel::AnyDropdownOpenOnActivePage () const
     if ((TabIndex) m_activeTab == TabIndex::Machine)
     {
         return m_machinePage.AnyDropdownOpen();
+    }
+    if ((TabIndex) m_activeTab == TabIndex::Theme)
+    {
+        return m_themePage.AnyDropdownOpen();
     }
     return false;
 }
@@ -496,6 +502,87 @@ void SettingsPanel::PopulateMachineList ()
     }
 
     m_machinePage.SetMachineList (std::move (machineIds), std::move (displayNames), activeIndex);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PopulateThemeList
+//
+//  Walks the ThemeManager's discovered themes, builds parallel id +
+//  display-name vectors, and hands them to the theme page so the user
+//  can pick from the live catalogue rather than a hardcoded list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::PopulateThemeList ()
+{
+    std::vector<std::string>   themeIds;
+    std::vector<std::wstring>  displayNames;
+    std::string                activeName;
+    int                        activeIndex = -1;
+    int                        i           = 0;
+
+
+
+    if (m_themes == nullptr)
+    {
+        return;
+    }
+
+    activeName = m_themes->GetActiveThemeName();
+
+    for (const LoadedTheme & t : m_themes->GetAvailableThemes())
+    {
+        if (t.name == activeName)
+        {
+            activeIndex = i;
+        }
+        themeIds.push_back (t.name);
+        displayNames.emplace_back (t.name.begin(), t.name.end());
+        i++;
+    }
+
+    if (themeIds.empty() && !activeName.empty())
+    {
+        themeIds.push_back (activeName);
+        displayNames.emplace_back (activeName.begin(), activeName.end());
+        activeIndex = 0;
+    }
+
+    m_themePage.SetThemes (std::move (themeIds), std::move (displayNames), activeIndex);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnThemeSelected
+//
+//  Theme picks are applied immediately (FR-030 live hot-swap) rather
+//  than staged behind Apply, since there's no risk of mid-stream
+//  invalidation: ThemeManager.Activate swaps the chrome cache via the
+//  registered listener and EmulatorShell persists the choice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::OnThemeSelected (const std::string & themeName)
+{
+    HRESULT  hr = S_OK;
+
+
+    if (themeName.empty() || m_emuShell == nullptr)
+    {
+        return;
+    }
+
+    hr = m_emuShell->ApplyAndPersistTheme (themeName);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -699,7 +786,7 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
 {
     constexpr uint32_t  s_kBackdropArgb = 0x60000000;
 
-    ChromeTheme  theme = ChromeTheme::Skeuomorphic();
+    ChromeTheme  theme     = (m_uiShell != nullptr) ? m_uiShell->Theme() : ChromeTheme::Skeuomorphic();
     float        edgeThick = (m_uiShell != nullptr) ? m_uiShell->Scaler().Pxf (s_kEdgeThickDp)
                                                     : s_kEdgeThickDp;
 

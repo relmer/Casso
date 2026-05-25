@@ -96,7 +96,9 @@ private:
 
     void  LoadCurrentMachineIntoState ();
     void  PopulateMachineList         ();
+    void  PopulateThemeList           ();
     void  OnMachineSelected           (const std::string & machineName);
+    void  OnThemeSelected             (const std::string & themeName);
     void  DoMachineSelect             (const std::string & machineName);
     void  OnApplyClicked              ();
     void  OnCancelClicked             ();

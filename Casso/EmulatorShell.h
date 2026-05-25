@@ -191,6 +191,11 @@ private:
     void    ShowMachinePicker();
     const std::wstring &  CurrentMachineName () const { return m_currentMachineName; }
 
+    // Activates the named theme in ThemeManager (which notifies the
+    // chrome cache listener) and persists the choice into GlobalUserPrefs.
+    // No-op if the name is empty; falls back to Skeuomorphic if unknown.
+    HRESULT ApplyAndPersistTheme (const std::string & themeName);
+
     // MachineManager and WindowCommandManager touch enough shell
     // state during construction and command dispatch that friend
     // declarations are the pragmatic seam; no new global state is
@@ -225,7 +230,7 @@ private:
     // existing Win32 menu bar until the painter retires the latter.
     TitleBar            m_titleBar;
     NavLayer            m_navLayer;
-    ChromeTheme         m_chromeTheme;
+    ChromeTheme         m_chromeTheme    = ChromeTheme::Skeuomorphic();
     std::array<DriveWidget, 2> m_driveChrome;
 
     // Drive widget state pump. The controller channel publishes
@@ -321,6 +326,7 @@ private:
     // round-trip between sessions without one machine's setting
     // clobbering another's.
     wstring         m_currentMachineName;
+    wstring         m_assetBaseDir;
 
     // CPU-thread lifecycle, run/pause/step transitions, the UI -> CPU
     // command queue, and the paste buffer all live on CpuManager. The
