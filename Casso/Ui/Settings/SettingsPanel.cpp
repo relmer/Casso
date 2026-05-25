@@ -61,8 +61,32 @@ namespace
         {
         }
 
-        void ApplySpeedMode    (SettingsSpeedMode mode)        override { UNREFERENCED_PARAMETER (mode);    }
-        void ApplyColorMode    (SettingsColorMode mode)        override { UNREFERENCED_PARAMETER (mode);    }
+        void ApplySpeedMode (SettingsSpeedMode mode) override
+        {
+            WORD  id = IDM_MACHINE_SPEED_1X;
+
+            switch (mode)
+            {
+                case SettingsSpeedMode::Authentic: id = IDM_MACHINE_SPEED_1X;  break;
+                case SettingsSpeedMode::Double:    id = IDM_MACHINE_SPEED_2X;  break;
+                case SettingsSpeedMode::Maximum:   id = IDM_MACHINE_SPEED_MAX; break;
+            }
+            PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
+        }
+
+        void ApplyColorMode (SettingsColorMode mode) override
+        {
+            WORD  id = IDM_VIEW_COLOR;
+
+            switch (mode)
+            {
+                case SettingsColorMode::Color: id = IDM_VIEW_COLOR; break;
+                case SettingsColorMode::Green: id = IDM_VIEW_GREEN; break;
+                case SettingsColorMode::Amber: id = IDM_VIEW_AMBER; break;
+                case SettingsColorMode::White: id = IDM_VIEW_WHITE; break;
+            }
+            PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
+        }
 
         void ApplyFloppySound  (bool enabled) override
         {
