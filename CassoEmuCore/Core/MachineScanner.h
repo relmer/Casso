@@ -21,6 +21,7 @@ struct MachineInfo
 {
     wstring   displayName;
     wstring   fileName;
+    int       releaseYear = 0;
 };
 
 

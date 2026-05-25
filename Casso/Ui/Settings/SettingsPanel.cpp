@@ -369,12 +369,38 @@ void SettingsPanel::PopulateMachineList ()
 
 void SettingsPanel::OnMachineSelected (const std::string & machineName)
 {
+    // The dropdown invokes this callback from inside its own
+    // OnLButtonUp. Tearing down + re-creating the entire emulator
+    // (SwitchMachine), and especially showing a modal MessageBox for
+    // ROM bootstrap consent — which pumps the message queue — while
+    // still inside that input handler races our own input state. Defer
+    // the work to the next Paint, which runs from the main loop with
+    // a clean stack.
+    if (machineName.empty())
+    {
+        return;
+    }
+    m_pendingMachineSelect = machineName;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DoMachineSelect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::DoMachineSelect (const std::string & machineName)
+{
     HRESULT           hr          = S_OK;
     std::wstring      wideName (machineName.begin(), machineName.end());
     HINSTANCE         hInstance   = (HINSTANCE) GetModuleHandleW (nullptr);
-    HWND              hwndParent  = (m_emuShell != nullptr && m_emuShell->m_renderHwnd != nullptr)
-                                        ? m_emuShell->m_renderHwnd
-                                        : GetActiveWindow();
+    HWND              hwndRender  = (m_emuShell != nullptr) ? m_emuShell->m_renderHwnd : nullptr;
+    HWND              hwndParent  = (hwndRender != nullptr) ? GetAncestor (hwndRender, GA_ROOT)
+                                                            : GetActiveWindow();
     std::vector<fs::path>  searchPaths;
     fs::path          assetBaseDir;
     std::string       bootstrapError;
@@ -542,6 +568,13 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
                                                     : s_kEdgeThickDp;
 
 
+
+    if (!m_pendingMachineSelect.empty())
+    {
+        std::string  pending;
+        pending.swap (m_pendingMachineSelect);
+        DoMachineSelect (pending);
+    }
 
     if (!m_visible)
     {

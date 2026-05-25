@@ -5,6 +5,7 @@
 {
     "$cassoMachineVersion": 3,
     "name": "Apple //e",
+    "releaseYear": 1983,
     "cpu": "6502",
     "timing": {
         "videoStandard": "ntsc",
