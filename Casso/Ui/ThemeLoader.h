@@ -80,6 +80,20 @@ struct LoadedTheme
     ThemeCrtDefaults    crtDefaults;
     JsonValue           uiTokens;
     ThemeDriveVisualProfile driveVisualProfile;
+
+    // Optional per-machine overrides keyed by the machine's human-readable
+    // display name ("Apple ][", "Apple ][ plus", "Apple //e", "Apple //c",
+    // ...). The value is a sparse JsonValue object containing any subset
+    // of the top-level theme keys; ResolveForMachine() deep-merges these
+    // on top of the base before the theme is consumed. Missing machines
+    // inherit the base verbatim.
+    std::vector<std::pair<std::string, JsonValue>>  variantOverrides;
+
+    // Returns a copy of *this* with any variantOverrides entry matching
+    // `machineDisplayName` applied on top of the base. Match is exact and
+    // case-sensitive against the machine JSON's "name" field. If no entry
+    // matches, returns *this* verbatim.
+    LoadedTheme ResolveForMachine (const std::string & machineDisplayName) const;
 };
 
 

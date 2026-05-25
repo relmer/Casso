@@ -563,6 +563,11 @@ HRESULT EmulatorShell::Initialize (
             ApplyThemeToChrome (m_chromeTheme);
         });
 
+        // Tell the theme manager which machine is active BEFORE the
+        // first Activate so its listener notification carries the
+        // correctly-resolved (per-variant) theme.
+        m_themeManager->SetActiveMachineName (m_config.name);
+
         HRESULT  hrActivate = m_themeManager->Activate (m_globalPrefs.activeTheme);
         if (hrActivate != S_OK)
         {
@@ -2363,18 +2368,18 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
         if (!m_uiFramebuffer.empty())
         {
             const ThemeCrtDefaults *  themeDefaults = nullptr;
-            const LoadedTheme       *  active       = nullptr;
+            LoadedTheme                resolvedTheme;
             CrtParams                  params       = {};
+            bool                       fHaveTheme   = false;
 
-            if (m_themeManager != nullptr)
+            if (m_themeManager != nullptr && m_themeManager->GetActiveTheme() != nullptr)
             {
-                active = m_themeManager->GetActiveTheme();
-                if (active != nullptr)
-                {
-                    themeDefaults = &active->crtDefaults;
-                }
+                resolvedTheme = m_themeManager->GetActiveResolvedTheme();
+                themeDefaults = &resolvedTheme.crtDefaults;
+                fHaveTheme    = true;
             }
 
+            (void) fHaveTheme;
             params = MakeCrtParams (m_globalPrefs.crt,
                                     themeDefaults,
                                     (float) m_d3dRenderer.GetBackBufferWidth(),

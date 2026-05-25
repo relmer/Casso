@@ -25,5 +25,29 @@
         "doorAnimation": "compactLatch",
         "syncChannel": "drive-door"
     },
-    "useMicaBackdrop": false
+    "useMicaBackdrop": false,
+    "variantOverrides": {
+        "Apple ][": {
+            "crtDefaults": {
+                "scanlines":  { "enabled": true, "intensity": 0.95 },
+                "bloom":      { "enabled": true, "radius": 2.4, "strength": 0.8 },
+                "colorBleed": { "enabled": true, "width": 1.8 }
+            },
+            "driveVisualProfile": { "colorway": "amber-phosphor" }
+        },
+        "Apple ][ plus": {
+            "crtDefaults": {
+                "scanlines":  { "enabled": true, "intensity": 0.9 },
+                "bloom":      { "enabled": true, "radius": 2.2, "strength": 0.75 },
+                "colorBleed": { "enabled": true, "width": 1.7 }
+            }
+        },
+        "Apple //e": {
+            "crtDefaults": {
+                "scanlines":  { "enabled": true, "intensity": 0.75 },
+                "bloom":      { "enabled": true, "radius": 1.8, "strength": 0.65 },
+                "colorBleed": { "enabled": true, "width": 1.2 }
+            }
+        }
+    }
 }

@@ -25,5 +25,24 @@
         "doorAnimation": "mechanicalSwing",
         "syncChannel": "drive-door"
     },
-    "useMicaBackdrop": false
+    "useMicaBackdrop": false,
+    "variantOverrides": {
+        "Apple //e": {
+            "crtDefaults": {
+                "brightness": 1.05,
+                "bloom": { "enabled": true, "radius": 0.8, "strength": 0.25 }
+            },
+            "driveVisualProfile": { "colorway": "platinum" }
+        },
+        "Apple //c": {
+            "crtDefaults": {
+                "brightness": 1.1,
+                "bloom": { "enabled": true, "radius": 0.6, "strength": 0.2 }
+            },
+            "driveVisualProfile": {
+                "style":    "integrated",
+                "colorway": "platinum"
+            }
+        }
+    }
 }

@@ -204,4 +204,189 @@ public:
         Assert::AreEqual (string ("commodore64"), theme.familyId);
         Assert::AreEqual (string ("c64c"), theme.variantId);
     }
+
+
+    TEST_METHOD (VariantOverrides_Parsed_AndStoredKeyedByDisplayName)
+    {
+        InMemoryFileSystem  fs;
+        LoadedTheme         theme;
+        ThemeLoadError      err;
+        HRESULT             hr;
+        std::wstring        dir = std::wstring (kThemesBase) + L"\\Variants";
+        std::string         kJson;
+
+        kJson = R"({
+            "$cassoThemeVersion": 1,
+            "name": "T", "familyId": "apple2", "variantId": "ii",
+            "uiTokens": {},
+            "driveVisualProfile": {
+                "style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"
+            },
+            "variantOverrides": {
+                "Apple //e": { "crtDefaults": { "brightness": 1.25 } },
+                "Apple //c": {
+                    "driveVisualProfile": { "style": "integrated", "colorway": "platinum" }
+                }
+            }
+        })";
+
+        fs.WriteAllText (dir + L"\\theme.json", kJson);
+        hr = ThemeLoader::Load (fs, dir, theme, err);
+
+        Assert::IsTrue   (SUCCEEDED (hr));
+        Assert::AreEqual ((size_t) 2, theme.variantOverrides.size(),
+            L"Two variant overrides expected (Apple //e, Apple //c)");
+
+        // Order-preserving vector of pairs; spec doesn't promise ordering but
+        // current parser keeps insertion order from the JSON.
+        Assert::IsTrue (theme.variantOverrides[0].first == "Apple //e" ||
+                        theme.variantOverrides[1].first == "Apple //e");
+        Assert::IsTrue (theme.variantOverrides[0].first == "Apple //c" ||
+                        theme.variantOverrides[1].first == "Apple //c");
+    }
+
+
+    TEST_METHOD (ResolveForMachine_NoOverrides_ReturnsBaseUnchanged)
+    {
+        InMemoryFileSystem  fs;
+        LoadedTheme         theme;
+        LoadedTheme         resolved;
+        ThemeLoadError      err;
+        HRESULT             hr;
+        std::wstring        dir = std::wstring (kThemesBase) + L"\\Plain";
+
+        WriteHappyTheme (fs, dir);
+        hr = ThemeLoader::Load (fs, dir, theme, err);
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        // Brightness from kHappyJson defaults; no overrides exist.
+        resolved = theme.ResolveForMachine ("Apple //e");
+
+        Assert::AreEqual (theme.crtDefaults.brightness,  resolved.crtDefaults.brightness);
+        Assert::AreEqual (theme.driveVisualProfile.style, resolved.driveVisualProfile.style);
+    }
+
+
+    TEST_METHOD (ResolveForMachine_UnknownMachine_FallsThroughToBase)
+    {
+        InMemoryFileSystem  fs;
+        LoadedTheme         theme;
+        ThemeLoadError      err;
+        HRESULT             hr;
+        std::wstring        dir = std::wstring (kThemesBase) + L"\\Variants2";
+        std::string         kJson;
+
+        kJson = R"({
+            "$cassoThemeVersion": 1,
+            "name": "T", "familyId": "apple2", "variantId": "ii",
+            "uiTokens": {},
+            "driveVisualProfile": {
+                "style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"
+            },
+            "variantOverrides": {
+                "Apple //e": { "crtDefaults": { "brightness": 1.5 } }
+            }
+        })";
+
+        fs.WriteAllText (dir + L"\\theme.json", kJson);
+        hr = ThemeLoader::Load (fs, dir, theme, err);
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        {
+            LoadedTheme  resolved = theme.ResolveForMachine ("Commodore 64");
+            Assert::AreEqual (theme.crtDefaults.brightness, resolved.crtDefaults.brightness,
+                L"Unknown machine must inherit base verbatim");
+        }
+    }
+
+
+    TEST_METHOD (ResolveForMachine_MatchingMachine_AppliesOverrideValues)
+    {
+        InMemoryFileSystem  fs;
+        LoadedTheme         theme;
+        ThemeLoadError      err;
+        HRESULT             hr;
+        std::wstring        dir = std::wstring (kThemesBase) + L"\\Variants3";
+        std::string         kJson;
+
+        kJson = R"({
+            "$cassoThemeVersion": 1,
+            "name": "T", "familyId": "apple2", "variantId": "ii",
+            "uiTokens": {},
+            "driveVisualProfile": {
+                "style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"
+            },
+            "crtDefaults": {
+                "brightness": 1.0,
+                "scanlines": { "enabled": false, "intensity": 0.0 }
+            },
+            "variantOverrides": {
+                "Apple //c": {
+                    "crtDefaults": {
+                        "brightness": 1.3,
+                        "scanlines": { "enabled": true, "intensity": 0.6 }
+                    },
+                    "driveVisualProfile": {
+                        "style": "integrated",
+                        "colorway": "platinum"
+                    },
+                    "useMicaBackdrop": true
+                }
+            }
+        })";
+
+        fs.WriteAllText (dir + L"\\theme.json", kJson);
+        hr = ThemeLoader::Load (fs, dir, theme, err);
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        {
+            LoadedTheme  resolved = theme.ResolveForMachine ("Apple //c");
+
+            Assert::AreEqual (1.3f,  resolved.crtDefaults.brightness,         L"brightness overridden");
+            Assert::IsTrue   (resolved.crtDefaults.scanlinesEnabled,          L"scanlines toggled on");
+            Assert::AreEqual (0.6f,  resolved.crtDefaults.scanlinesIntensity, L"scanline intensity overridden");
+            Assert::AreEqual (string ("integrated"), resolved.driveVisualProfile.style);
+            Assert::AreEqual (string ("platinum"),   resolved.driveVisualProfile.colorway);
+            Assert::IsTrue   (resolved.useMicaBackdrop);
+
+            // Base value still wins for fields the override didn't touch.
+            Assert::AreEqual (string ("x"), resolved.driveVisualProfile.doorAnimation);
+        }
+    }
+
+
+    TEST_METHOD (ResolveForMachine_DoesNotMutateBaseTheme)
+    {
+        InMemoryFileSystem  fs;
+        LoadedTheme         theme;
+        ThemeLoadError      err;
+        HRESULT             hr;
+        std::wstring        dir = std::wstring (kThemesBase) + L"\\Variants4";
+        std::string         kJson;
+
+        kJson = R"({
+            "$cassoThemeVersion": 1,
+            "name": "T", "familyId": "apple2", "variantId": "ii",
+            "uiTokens": {},
+            "driveVisualProfile": {
+                "style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"
+            },
+            "variantOverrides": {
+                "Apple //c": { "crtDefaults": { "brightness": 2.0 } }
+            }
+        })";
+
+        fs.WriteAllText (dir + L"\\theme.json", kJson);
+        hr = ThemeLoader::Load (fs, dir, theme, err);
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        float  baseBefore = theme.crtDefaults.brightness;
+        {
+            LoadedTheme  resolved = theme.ResolveForMachine ("Apple //c");
+            Assert::AreEqual (2.0f, resolved.crtDefaults.brightness);
+        }
+
+        Assert::AreEqual (baseBefore, theme.crtDefaults.brightness,
+            L"ResolveForMachine must return a copy; base theme must remain untouched");
+    }
 };

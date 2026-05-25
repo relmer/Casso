@@ -349,7 +349,123 @@ HRESULT ThemeLoader::ParseMetadata (
         }
     }
 
+    // ---- optional: variantOverrides (per-machine sparse overlays) --------
+
+    {
+        const JsonValue *  overridesObj = nullptr;
+
+        if (SUCCEEDED (root.GetObject ("variantOverrides", overridesObj)) && overridesObj != nullptr)
+        {
+            const auto &  entries = overridesObj->GetObjectEntries();
+            size_t        i       = 0;
+
+            for (i = 0; i < entries.size(); i++)
+            {
+                if (entries[i].second.GetType() == JsonType::Object)
+                {
+                    outTheme.variantOverrides.emplace_back (entries[i].first, entries[i].second);
+                }
+            }
+        }
+    }
+
     return S_OK;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadedTheme::ResolveForMachine
+//
+//  Returns a copy of this theme with the variantOverrides entry for
+//  `machineDisplayName` (if any) applied on top of the base. Match is
+//  exact and case-sensitive against the machine JSON's "name" field.
+//  Missing entries produce a verbatim copy.
+//
+//  Only the fields actually consumed downstream are merged today:
+//   - crtDefaults (sub-objects: scanlines, bloom, colorBleed)
+//   - driveVisualProfile (scalar replacement)
+//   - useMicaBackdrop
+//
+//  uiTokens overrides are stored on the LoadedTheme but not deep-merged
+//  yet because ChromeTheme is keyed by name only (see ChromeTheme::ForName).
+//  When ChromeTheme grows a JSON-driven path the merge will land here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LoadedTheme LoadedTheme::ResolveForMachine (const std::string & machineDisplayName) const
+{
+    LoadedTheme         result    = *this;
+    const JsonValue *   override_ = nullptr;
+    size_t              i         = 0;
+
+    for (i = 0; i < variantOverrides.size(); i++)
+    {
+        if (variantOverrides[i].first == machineDisplayName)
+        {
+            override_ = &variantOverrides[i].second;
+            break;
+        }
+    }
+
+    if (override_ == nullptr)
+    {
+        return result;
+    }
+
+    {
+        const JsonValue *  crtObj   = nullptr;
+        const JsonValue *  scanObj  = nullptr;
+        const JsonValue *  bloomObj = nullptr;
+        const JsonValue *  bleedObj = nullptr;
+        const JsonValue *  driveObj = nullptr;
+        bool               mica     = false;
+
+        if (SUCCEEDED (override_->GetObject ("crtDefaults", crtObj)) && crtObj != nullptr)
+        {
+            double  d = 0.0;
+            if (SUCCEEDED (crtObj->GetNumber ("brightness", d))) { result.crtDefaults.brightness = (float) d; }
+            if (SUCCEEDED (crtObj->GetNumber ("contrast",   d))) { result.crtDefaults.contrast   = (float) d; }
+
+            if (SUCCEEDED (crtObj->GetObject ("scanlines", scanObj)) && scanObj != nullptr)
+            {
+                bool  b = false;
+                if (SUCCEEDED (scanObj->GetBool   ("enabled",   b))) { result.crtDefaults.scanlinesEnabled   = b; }
+                if (SUCCEEDED (scanObj->GetNumber ("intensity", d))) { result.crtDefaults.scanlinesIntensity = (float) d; }
+            }
+            if (SUCCEEDED (crtObj->GetObject ("bloom", bloomObj)) && bloomObj != nullptr)
+            {
+                bool  b = false;
+                if (SUCCEEDED (bloomObj->GetBool   ("enabled",  b))) { result.crtDefaults.bloomEnabled  = b; }
+                if (SUCCEEDED (bloomObj->GetNumber ("radius",   d))) { result.crtDefaults.bloomRadius   = (float) d; }
+                if (SUCCEEDED (bloomObj->GetNumber ("strength", d))) { result.crtDefaults.bloomStrength = (float) d; }
+            }
+            if (SUCCEEDED (crtObj->GetObject ("colorBleed", bleedObj)) && bleedObj != nullptr)
+            {
+                bool  b = false;
+                if (SUCCEEDED (bleedObj->GetBool   ("enabled", b))) { result.crtDefaults.colorBleedEnabled = b; }
+                if (SUCCEEDED (bleedObj->GetNumber ("width",   d))) { result.crtDefaults.colorBleedWidth   = (float) d; }
+            }
+        }
+
+        if (SUCCEEDED (override_->GetObject ("driveVisualProfile", driveObj)) && driveObj != nullptr)
+        {
+            std::string  s;
+            if (SUCCEEDED (driveObj->GetString ("style",         s)) && !s.empty()) { result.driveVisualProfile.style         = s; }
+            if (SUCCEEDED (driveObj->GetString ("colorway",      s)) && !s.empty()) { result.driveVisualProfile.colorway      = s; }
+            if (SUCCEEDED (driveObj->GetString ("doorAnimation", s)) && !s.empty()) { result.driveVisualProfile.doorAnimation = s; }
+            if (SUCCEEDED (driveObj->GetString ("syncChannel",   s)) && !s.empty()) { result.driveVisualProfile.syncChannel   = s; }
+        }
+
+        if (SUCCEEDED (override_->GetBool ("useMicaBackdrop", mica)))
+        {
+            result.useMicaBackdrop = mica;
+        }
+    }
+
+    return result;
 }
 
 

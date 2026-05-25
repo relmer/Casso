@@ -146,7 +146,12 @@ HRESULT ThemeManager::Activate (const std::string & themeName)
             m_activeName      = t.name;
             m_activeFamilyId  = t.familyId;
             m_activeVariantId = t.variantId;
-            NotifyListeners (t);
+            // Apply any per-machine overrides for the currently-tracked
+            // machine. With no machine set this is a no-op copy.
+            {
+                LoadedTheme  resolved = t.ResolveForMachine (m_activeMachine);
+                NotifyListeners (resolved);
+            }
             return S_OK;
         }
     }
@@ -234,6 +239,58 @@ const LoadedTheme * ThemeManager::GetActiveTheme () const
     }
 
     return nullptr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetActiveMachineName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ThemeManager::SetActiveMachineName (const std::string & machineDisplayName)
+{
+    const LoadedTheme *  active = nullptr;
+
+    if (m_activeMachine == machineDisplayName)
+    {
+        return;
+    }
+
+    m_activeMachine = machineDisplayName;
+
+    active = GetActiveTheme();
+    if (active != nullptr)
+    {
+        // Listeners see the resolved theme, not the base, so chrome /
+        // CRT picks up the new variant on the next frame without any
+        // additional plumbing on their end.
+        LoadedTheme  resolved = active->ResolveForMachine (m_activeMachine);
+        NotifyListeners (resolved);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetActiveResolvedTheme
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LoadedTheme ThemeManager::GetActiveResolvedTheme () const
+{
+    const LoadedTheme *  active = GetActiveTheme();
+
+    if (active == nullptr)
+    {
+        return LoadedTheme {};
+    }
+
+    return active->ResolveForMachine (m_activeMachine);
 }
 
 

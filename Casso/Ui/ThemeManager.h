@@ -87,6 +87,21 @@ public:
     const std::string              & GetActiveFamilyId         () const { return m_activeFamilyId; }
     const std::string              & GetActiveVariantId        () const { return m_activeVariantId; }
     const LoadedTheme              * GetActiveTheme            () const;
+
+    // Set the currently-active machine's human-readable display name so
+    // that LoadedTheme::ResolveForMachine can apply the right
+    // variantOverrides overlay. Triggers a listener notification with
+    // the newly-resolved theme so chrome / CRT picks up the change.
+    void                             SetActiveMachineName      (const std::string & machineDisplayName);
+    const std::string              & GetActiveMachineName      () const { return m_activeMachine; }
+
+    // Returns the active theme with its variantOverrides for the
+    // currently-set machine merged in. If no machine has been set or no
+    // overrides match, this is identical to *GetActiveTheme(). Returned
+    // value is a snapshot; callers shouldn't cache it across machine /
+    // theme changes.
+    LoadedTheme                      GetActiveResolvedTheme    () const;
+
     void                             AddChangeListener         (ChangeListener listener);
 
 private:
@@ -100,6 +115,7 @@ private:
     std::string                  m_activeName;
     std::string                  m_activeFamilyId;
     std::string                  m_activeVariantId;
+    std::string                  m_activeMachine;            // display name, e.g. "Apple //e"
 
     std::vector<ChangeListener>  m_listeners;
 };
