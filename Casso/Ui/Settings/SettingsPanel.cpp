@@ -12,6 +12,8 @@
 #include "Core/MachineScanner.h"
 #include "Core/PathResolver.h"
 
+#include "resource.h"
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -476,16 +478,14 @@ void SettingsPanel::DoMachineSelect (const std::string & machineName)
         }
     }
 
-    hr = m_emuShell->SwitchMachine (wideName);
-    if (FAILED (hr))
-    {
-        return;
-    }
-
-    LoadCurrentMachineIntoState();
-    PopulateMachineList();
-    m_machinePage.Rebuild();
-    m_hardwarePage.Rebuild();
+    // SwitchMachine mutates CPU/bus/device state and MUST run on the
+    // CPU thread (same as the File > Open Machine menu path). Posting
+    // IDM_FILE_OPEN routes through CpuManager's command queue so the
+    // teardown/recreate happens between CPU frames with no UI/CPU
+    // race. Hide the panel before posting -- we don't try to refresh
+    // it in place; reopen if the user wants to tweak more settings.
+    m_visible = false;
+    m_emuShell->PostCommand (IDM_FILE_OPEN, std::string (machineName));
 }
 
 

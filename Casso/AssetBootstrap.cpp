@@ -149,9 +149,9 @@ struct EmbeddedConfig
 
 static constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
 {
-    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     3 },
-    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 3 },
-    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    3 },
+    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     4 },
+    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 4 },
+    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    4 },
 };
 
 
@@ -187,6 +187,15 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
 
     // v1 Apple2e.json (had slot 6 already, but no $cassoDefault stamp).
     { "Apple2e",    "965f1f0fa55db9289000ddf9ff1e1416a9d85c0ebb5d35b8b8aa7f5ccf0da680" },
+
+    // v3 Apple2.json (pre-releaseYear).
+    { "Apple2",     "f2412b4d70c6847593af1aae5c310bb034dbfd38cc10594de402af75194cf671" },
+
+    // v3 Apple2Plus.json (pre-releaseYear).
+    { "Apple2Plus", "ebd7556e3cdfa3dd3fccc4993ec5d456e88063b0bd6d286372425f031b1c85df" },
+
+    // v3 Apple2e.json (pre-releaseYear).
+    { "Apple2e",    "9644241cca2e3220f520b8c13670f99a503a9dc3954dea514cf0a91aa9350040" },
 };
 
 
