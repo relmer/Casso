@@ -88,10 +88,34 @@ Entries before versioning was introduced use dates only.
 - **48 functional requirements delivered** — FR-001..FR-047 + FR-022b.
   See `specs/007-ui-overhaul/spec.md` for the full traceability.
 - **17 new `ChromeLayoutTests`** cover the planner end-to-end: empty
-  / single / multi-edge contributors, DPI scaling, center-layer
-  padding, over-allocation clamping, `ClientSizeForCenter`
-  inverse-roundtrip, contributor mutation, and a regression test for
-  the historical Ctrl+0 pillarbox.
+/ single / multi-edge contributors, DPI scaling, center-layer
+padding, over-allocation clamping, `ClientSizeForCenter`
+inverse-roundtrip, contributor mutation, and a regression test for
+the historical Ctrl+0 pillarbox.
+
+## [1.3.808] — Plain Silhouette Icon
+
+### Changed
+- **Default app icon is now the plain cassowary silhouette.** The
+silhouette+accent variant (previously default) was hard to read at
+title-bar and small-icon sizes — the rainbow stripe and scanline
+overlay both compete for the same pixels. The new
+`IDI_CASSO_SILHOUETTE` is a cream silhouette on a dark warm tile
+with no extra ornamentation, so it stays legible at 16x16. The
+other four motifs remain embedded for callers that want them.
+
+## [1.3.807] — App Icon
+
+### Added
+- **Casso has an app icon.** The window title bar, taskbar, and Windows
+Explorer now show a cassowary silhouette with a retro Apple-rainbow
+accent stripe instead of the generic Windows EXE icon. Four motifs
+ship embedded in the binary (silhouette+accent, silhouette+rainbow,
+flat-color head, photoreal); the silhouette+accent variant is the
+default. PNG masters and multi-resolution ICOs live in
+`Resources/Icons/`, regeneratable via `Assets/Icon/build_icons.py`.
+
+## [1.3.772] — Machine Picker Fixes
 
 ### Fixed
 - **Machine picker showed empty list.** `MachinePickerDialog::ScanMachines`
