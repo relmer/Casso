@@ -462,7 +462,7 @@ analysis sweep, full screenshot matrix capture, residue audit, documentation.
 
 ### P5a — US6 silent upgrade validation
 
-- [x] T140 [US6] Construct simulated v→v+3 `_user.json` fixtures + chain-upgrade tests (SC-003 / SC-007) — DEFERRED; current schema has had one revision since launch, so a 3-hop synthetic chain test isn't justified yet. Existing single-hop migration tests cover the current schema.
+- [x] T140 [US6] Construct simulated v→v+3 `_user.json` fixtures + chain-upgrade tests (SC-003 / SC-007) — added explicit multi-hop coverage in MachineConfigUpgradeTests (v1→v4, legacy key→v5, downgrade-Skip, idempotent chain through 5 passes). Plan() is a pure integer comparison so synthetic per-hop fixtures aren't needed; user-customization preservation half lives in existing UserConfigStore tests.
 
 ### P5b — SC-004 drag-drop reliability run
 
