@@ -120,14 +120,19 @@ namespace
     }
 
 
-    // True when menu mnemonic underlines should be visible: either the
-    // user is holding Alt, or the system-wide "Always underline access
-    // keys" accessibility setting is on. Matches Win32 menu behavior.
-    bool ShouldShowMnemonicCues ()
+    // True when menu mnemonic underlines should be visible. We
+    // deliberately do NOT trigger on Alt-held: left-Alt is the //e
+    // Open Apple key, so a user holding it during emulation should
+    // not see chrome cues flicker on. Cues appear instead when (a)
+    // a top-level menu is already open (the user explicitly entered
+    // keyboard menu mode via F10 or Alt+mnemonic), or (b) the
+    // system-wide "Always underline access keys" accessibility
+    // setting is on. The caller passes `menuActive` for case (a).
+    bool ShouldShowMnemonicCues (bool menuActive)
     {
         BOOL  alwaysShow = FALSE;
 
-        if ((GetKeyState (VK_MENU) & 0x8000) != 0)
+        if (menuActive)
         {
             return true;
         }
@@ -661,7 +666,7 @@ void NavLayer::PaintStrip (
     HRESULT  hr           = S_OK;
     UINT     dpi          = (visual.dpi == 0) ? (UINT) s_kBaseDpi : visual.dpi;
     float    fontDip      = s_kFontDip * (float) dpi / (float) s_kBaseDpi;
-    bool     showCues     = ShouldShowMnemonicCues();
+    bool     showCues     = ShouldShowMnemonicCues (m_isOpen);
 
 
 
@@ -760,7 +765,7 @@ void NavLayer::PaintDropdown (
     int      rowPadLeftPx  = Scale (s_kRowPadLeftDp,   dpi);
     int      rowPadTopPx   = Scale (s_kRowPadTopDp,    dpi);
     int      accelOffsetPx = Scale (s_kAccelOffsetDp,  dpi);
-    bool     showCues      = ShouldShowMnemonicCues();
+    bool     showCues      = ShouldShowMnemonicCues (m_isOpen);
 
 
 
