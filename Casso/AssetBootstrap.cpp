@@ -750,29 +750,28 @@ HRESULT AssetBootstrap::EnsureThemes (
 //
 //  GetAssetBaseDirectory
 //
-//  Returns the install root that contains (or should contain) the
-//  per-machine `Machines/` and per-device `Devices/` subtrees. We
-//  reuse the existing `Machines/` directory locator -- whichever
-//  search path holds Machines/ is, by construction, the install root.
-//  Falls back to the exe directory when no Machines/ exists yet
-//  (which `EnsureMachineConfigs` will then populate).
+//  Returns %LOCALAPPDATA%\Casso\ -- the single, user-writable root for
+//  every file Casso reads or writes at runtime (Machines/, Themes/,
+//  Disks/, GlobalUserPrefs.json, schema backups, downloaded ROMs,
+//  captured audio, etc.). Created on first launch if missing.
+//
+//  The legacy `searchPaths` / `exeDir` parameters are intentionally
+//  ignored: the location is no longer a function of where the EXE
+//  lives. That removes every Program Files write attempt and keeps
+//  user state out of the install directory.
+//
+//  Read-only built-in defaults (machine JSONs, theme.json, fonts) are
+//  embedded as RT_RCDATA in Casso.exe and extracted into this dir on
+//  first launch via EnsureMachineConfigs / EnsureThemes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 fs::path AssetBootstrap::GetAssetBaseDirectory (
-    const vector<fs::path> & searchPaths,
-    const fs::path         & exeDir)
+    const vector<fs::path> & /*searchPaths*/,
+    const fs::path         & /*exeDir*/)
 {
-    fs::path  machinesDir;
-
-
-
-    machinesDir = PathResolver::FindOrCreateAssetDir (searchPaths,
-                                                      fs::path ("Machines"),
-                                                      exeDir);
-    return machinesDir.parent_path ();
+    return PathResolver::GetLocalAppDataDir (L"Casso");
 }
-
 
 
 
@@ -781,19 +780,22 @@ fs::path AssetBootstrap::GetAssetBaseDirectory (
 //
 //  GetDiskDirectory
 //
-//  Returns the directory where downloaded disk images land. Mirrors
-//  GetAssetBaseDirectory: an existing Disks/ found via the search
-//  paths wins, otherwise we create one next to the exe.
+//  Returns <localAppData>\Casso\Disks\ -- downloaded disk images land
+//  here regardless of where the EXE was invoked from. Created on
+//  demand.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 fs::path AssetBootstrap::GetDiskDirectory (
-    const vector<fs::path> & searchPaths,
-    const fs::path         & exeDir)
+    const vector<fs::path> & /*searchPaths*/,
+    const fs::path         & /*exeDir*/)
 {
-    return PathResolver::FindOrCreateAssetDir (searchPaths,
-                                               fs::path ("Disks"),
-                                               exeDir);
+    fs::path     base   = GetAssetBaseDirectory (vector<fs::path>(), fs::path());
+    fs::path     disks  = base / L"Disks";
+    error_code   ec;
+
+    fs::create_directories (disks, ec);
+    return disks;
 }
 
 

@@ -9,6 +9,8 @@
 #include <mfreadwrite.h>
 #include <mferror.h>
 #include <propvarutil.h>
+#include <shlobj.h>
+#include <knownfolders.h>
 #include <wrl/client.h>
 
 #include <algorithm>

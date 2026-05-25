@@ -142,3 +142,69 @@ fs::path PathResolver::GetWorkingDirectory ()
 {
     return fs::current_path ();
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLocalAppDataDir
+//
+//  Resolves %LOCALAPPDATA%\<appName>\, creating the directory tree if
+//  it doesn't already exist. Three layered fallbacks because we never
+//  want this to fail in normal user setups:
+//
+//   1. SHGetKnownFolderPath (FOLDERID_LocalAppData) -- canonical API,
+//      works on every supported Windows even with redirected profiles.
+//   2. %LOCALAPPDATA% env var -- fine for the rare case where the
+//      Known Folder API fails (e.g. service contexts that don't fall
+//      out cleanly).
+//   3. %USERPROFILE%\AppData\Local -- last-resort literal path.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+fs::path PathResolver::GetLocalAppDataDir (const std::wstring & appName)
+{
+    HRESULT      hr      = S_OK;
+    PWSTR        pszPath = nullptr;
+    fs::path     result;
+    error_code   ec;
+    wchar_t      env[MAX_PATH] = {};
+    DWORD        envLen  = 0;
+
+
+
+    hr = SHGetKnownFolderPath (FOLDERID_LocalAppData, 0, nullptr, &pszPath);
+    if (SUCCEEDED (hr) && pszPath != nullptr)
+    {
+        result = fs::path (pszPath);
+        CoTaskMemFree (pszPath);
+    }
+
+    if (result.empty())
+    {
+        envLen = GetEnvironmentVariableW (L"LOCALAPPDATA", env, MAX_PATH);
+        if (envLen > 0 && envLen < MAX_PATH)
+        {
+            result = fs::path (env);
+        }
+    }
+
+    if (result.empty())
+    {
+        envLen = GetEnvironmentVariableW (L"USERPROFILE", env, MAX_PATH);
+        if (envLen > 0 && envLen < MAX_PATH)
+        {
+            result = fs::path (env) / L"AppData" / L"Local";
+        }
+    }
+
+    if (result.empty())
+    {
+        return result;
+    }
+
+    result /= appName;
+    fs::create_directories (result, ec);
+    return result;
+}
