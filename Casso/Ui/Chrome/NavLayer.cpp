@@ -136,7 +136,7 @@ namespace
             return true;
         }
 
-        if ((GetKeyState (VK_MENU) & 0x8000) != 0)
+        if ((GetAsyncKeyState (VK_MENU) & 0x8000) != 0)
         {
             return true;
         }
