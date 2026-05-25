@@ -228,6 +228,7 @@ HRESULT SettingsPanel::Show ()
     PopulateMachineList();
     PopulateThemeList();
     m_pendingMachineSelect.clear();
+    m_pendingTheme.clear();
 
     if (m_uiShell != nullptr)
     {
@@ -564,25 +565,20 @@ void SettingsPanel::PopulateThemeList ()
 //
 //  OnThemeSelected
 //
-//  Theme picks are applied immediately (FR-030 live hot-swap) rather
-//  than staged behind Apply, since there's no risk of mid-stream
-//  invalidation: ThemeManager.Activate swaps the chrome cache via the
-//  registered listener and EmulatorShell persists the choice.
+//  Stage the user's theme pick. Like the machine selector, the actual
+//  Activate + persist is deferred until OK so Cancel leaves the chrome
+//  exactly as the user found it (no resize, no colour change, no drive
+//  bar update). CommitApply consumes m_pendingTheme.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SettingsPanel::OnThemeSelected (const std::string & themeName)
 {
-    HRESULT  hr = S_OK;
-
-
-    if (themeName.empty() || m_emuShell == nullptr)
+    if (themeName.empty())
     {
         return;
     }
-
-    hr = m_emuShell->ApplyAndPersistTheme (themeName);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    m_pendingTheme = themeName;
 }
 
 
@@ -1101,6 +1097,19 @@ void SettingsPanel::CommitApply ()
 
     pendingMachine.swap (m_pendingMachineSelect);
 
+    // Apply the staged theme BEFORE any machine switch so the chrome
+    // is already in its final geometry when SwitchMachine triggers a
+    // resize / repaint cascade. Theme apply is idempotent when the
+    // staged value matches the active theme, so the typical no-change
+    // path costs nothing.
+    if (!m_pendingTheme.empty() && m_emuShell != nullptr)
+    {
+        HRESULT  hrTheme = m_emuShell->ApplyAndPersistTheme (m_pendingTheme);
+
+        IGNORE_RETURN_VALUE (hrTheme, S_OK);
+        m_pendingTheme.clear();
+    }
+
     if (m_emuShell != nullptr)
     {
         currentMachine = m_emuShell->CurrentMachineName();
@@ -1141,6 +1150,7 @@ void SettingsPanel::CommitApply ()
 void SettingsPanel::OnCancelClicked ()
 {
     m_pendingMachineSelect.clear();
+    m_pendingTheme.clear();
     m_state.Cancel();
     m_visible = false;
 }

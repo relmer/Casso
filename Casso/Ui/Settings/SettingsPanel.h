@@ -118,6 +118,7 @@ private:
     SettingsPanelState  m_state;
     bool                m_visible = false;
     std::string         m_pendingMachineSelect;
+    std::string         m_pendingTheme;
 
     TabStrip            m_tabs;
     MachinePage         m_machinePage;
