@@ -8,6 +8,7 @@
 #include "../../Config/UserConfigStore.h"
 #include "../../Config/IFileSystem.h"
 #include "../ThemeManager.h"
+#include "../Chrome/ChromeMetrics.h"
 
 #include "Core/MachineScanner.h"
 #include "Core/PathResolver.h"
@@ -189,6 +190,22 @@ HRESULT SettingsPanel::Initialize (
     m_machinePage.SetOnMachineSelected ([this] (const std::string & machineName) { OnMachineSelected (machineName); });
     m_hardwarePage.SetState (&m_state);
     m_themePage.SetOnThemeSelected ([this] (const std::string & themeName) { OnThemeSelected (themeName); });
+
+    // Live framebuffer source for the Settings → Theme preview. The
+    // ThemePage paints inside chrome composition, AFTER D3DRenderer
+    // has uploaded the current frame to the back buffer, so the
+    // CPU-side buffer the source returns is always one frame fresh.
+    if (m_emuShell != nullptr)
+    {
+        EmulatorShell  & shellRef = *m_emuShell;
+
+        m_themePage.SetFramebufferSource ([&shellRef] (int & outW, int & outH) -> const uint32_t *
+        {
+            outW = ChromeMetrics::kFramebufferWidthPx;
+            outH = ChromeMetrics::kFramebufferHeightPx;
+            return shellRef.UiFramebufferPixels();
+        });
+    }
 
     m_applyButton.SetLabel  (L"OK");
     m_applyButton.SetClick  ([this] { OnApplyClicked();  });

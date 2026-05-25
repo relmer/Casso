@@ -115,6 +115,9 @@ void DwriteTextRenderer::Shutdown ()
 {
     UnbindBackBuffer();
 
+    m_framebufferBitmap.Reset();
+    m_framebufferBitmapW = 0;
+    m_framebufferBitmapH = 0;
     m_formatCache.clear();
     m_dwriteFactory.Reset();
     m_d2dContext.Reset();
@@ -438,6 +441,83 @@ HRESULT DwriteTextRenderer::FillRect (
     rect.bottom = yDip + heightDip;
 
     m_d2dContext->FillRectangle (&rect, brush.Get());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawFramebuffer
+//
+//  Uploads a BGRA8 CPU pixel buffer into a cached ID2D1Bitmap and
+//  draws it into the destination DIP rect with linear interpolation.
+//  The bitmap is created lazily and recreated when the source
+//  dimensions change; otherwise CopyFromMemory rewrites the pixels
+//  in place each call. Used by the Settings → Theme preview to show
+//  the live emulator framebuffer inside the mock window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DwriteTextRenderer::DrawFramebuffer (
+    const uint32_t * srcBgraPixels,
+    int              srcWidthPx,
+    int              srcHeightPx,
+    float            destXDip,
+    float            destYDip,
+    float            destWidthDip,
+    float            destHeightDip)
+{
+    HRESULT       hr     = S_OK;
+    D2D1_RECT_F   dest   = {};
+
+
+
+    CBRA (m_d2dContext);
+    CBRA (m_drawing);
+    CBRA (srcBgraPixels);
+    CBRA (srcWidthPx > 0 && srcHeightPx > 0);
+
+    if (m_framebufferBitmap == nullptr ||
+        m_framebufferBitmapW != srcWidthPx ||
+        m_framebufferBitmapH != srcHeightPx)
+    {
+        D2D1_BITMAP_PROPERTIES  props = {};
+
+        props.pixelFormat.format    = DXGI_FORMAT_B8G8R8A8_UNORM;
+        props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_IGNORE;
+        props.dpiX                  = 96.0f;
+        props.dpiY                  = 96.0f;
+
+        m_framebufferBitmap.Reset();
+        hr = m_d2dContext->CreateBitmap (D2D1::SizeU ((UINT32) srcWidthPx, (UINT32) srcHeightPx),
+                                         nullptr, 0, &props, &m_framebufferBitmap);
+        CHRA (hr);
+        m_framebufferBitmapW = srcWidthPx;
+        m_framebufferBitmapH = srcHeightPx;
+    }
+
+    {
+        D2D1_RECT_U  srcRect = D2D1::RectU (0, 0, (UINT32) srcWidthPx, (UINT32) srcHeightPx);
+
+        hr = m_framebufferBitmap->CopyFromMemory (&srcRect, srcBgraPixels,
+                                                  (UINT32) (srcWidthPx * sizeof (uint32_t)));
+        CHRA (hr);
+    }
+
+    dest.left   = destXDip;
+    dest.top    = destYDip;
+    dest.right  = destXDip + destWidthDip;
+    dest.bottom = destYDip + destHeightDip;
+
+    m_d2dContext->DrawBitmap (m_framebufferBitmap.Get(),
+                              &dest, 1.0f,
+                              D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
+                              nullptr);
 
 Error:
     return hr;

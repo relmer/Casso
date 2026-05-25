@@ -74,6 +74,20 @@ public:
                                float    heightDip,
                                uint32_t argbColor);
 
+    // Uploads a CPU-side BGRA8 framebuffer into a cached ID2D1Bitmap
+    // and draws it into the destination rect with linear filtering.
+    // Used by the Settings → Theme preview to show the live emulator
+    // image inside the mock window. The bitmap is recreated if srcW
+    // or srcH changes; otherwise CopyFromMemory uploads the new
+    // pixels every call (cheap at 560x384 = 860 KB).
+    HRESULT  DrawFramebuffer  (const uint32_t * srcBgraPixels,
+                               int              srcWidthPx,
+                               int              srcHeightPx,
+                               float            destXDip,
+                               float            destYDip,
+                               float            destWidthDip,
+                               float            destHeightDip);
+
     HRESULT  MeasureString    (const wchar_t * text,
                                float           fontSizeDip,
                                const wchar_t * fontFamily,
@@ -108,6 +122,9 @@ private:
     ComPtr<ID2D1Device>               m_d2dDevice;
     ComPtr<ID2D1DeviceContext>        m_d2dContext;
     ComPtr<ID2D1Bitmap1>              m_target;
+    ComPtr<ID2D1Bitmap>               m_framebufferBitmap;
+    int                               m_framebufferBitmapW = 0;
+    int                               m_framebufferBitmapH = 0;
 
     ComPtr<IDWriteFactory>            m_dwriteFactory;
 

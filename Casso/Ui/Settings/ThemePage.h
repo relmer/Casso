@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "../Chrome/ChromeTheme.h"
 #include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
@@ -26,12 +27,14 @@
 class ThemePage
 {
 public:
-    using ThemeSelectFn = std::function<void (const std::string & themeName)>;
+    using ThemeSelectFn      = std::function<void (const std::string & themeName)>;
+    using FramebufferSourceFn = std::function<const uint32_t * (int & outWidthPx, int & outHeightPx)>;
 
     void  SetThemes             (std::vector<std::string>  themeIds,
                                  std::vector<std::wstring> displayNames,
                                  int                       activeIndex);
-    void  SetOnThemeSelected    (ThemeSelectFn fn) { m_onThemeSelected = std::move (fn); }
+    void  SetOnThemeSelected    (ThemeSelectFn       fn) { m_onThemeSelected   = std::move (fn); }
+    void  SetFramebufferSource  (FramebufferSourceFn fn) { m_framebufferSource = std::move (fn); }
 
     void  Layout                (const RECT & rect, const DpiScaler & scaler);
 
@@ -53,7 +56,10 @@ private:
     std::vector<std::string>  m_themeIds;
     int                       m_activeIndex = -1;
     ThemeSelectFn             m_onThemeSelected;
+    FramebufferSourceFn       m_framebufferSource;
 
     Label                     m_themeLabel;
     Dropdown                  m_themeDropdown;
+    RECT                      m_previewRect = {};
+    DpiScaler                 m_scaler;
 };

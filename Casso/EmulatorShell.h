@@ -192,6 +192,16 @@ private:
     void    ShowMachinePicker();
     const std::wstring &  CurrentMachineName () const { return m_currentMachineName; }
 
+    // Accessor used by the Settings → Theme preview to copy the live
+    // emulator framebuffer into the mock window. The UI framebuffer is
+    // the post-CRT-effects pixel buffer the chrome composes on top of;
+    // returning a raw pointer is safe because the chrome composition
+    // pass runs synchronously after the framebuffer is published.
+    const uint32_t *  UiFramebufferPixels () const
+    {
+        return m_uiFramebuffer.empty() ? nullptr : m_uiFramebuffer.data();
+    }
+
     // Activates the named theme in ThemeManager (which notifies the
     // chrome cache listener) and persists the choice into GlobalUserPrefs.
     // No-op if the name is empty; falls back to Skeuomorphic if unknown.
