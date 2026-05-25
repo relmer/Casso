@@ -90,4 +90,8 @@ private:
     Dropdown              m_monitor;
     Slider                m_brightness;
     Slider                m_contrast;
+
+    RECT                  m_monitorRowRect    = {};
+    RECT                  m_brightnessRowRect = {};
+    RECT                  m_contrastRowRect   = {};
 };

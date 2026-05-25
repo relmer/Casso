@@ -95,6 +95,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_monitorLabel.SetText (L"Monitor:");
     m_monitor.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
     m_monitor.SetItems ({ L"Color", L"Green monochrome", L"Amber monochrome", L"White monochrome" });
+    m_monitorRowRect = MakeRect (x, y, (controlsX + dropWidth) - x, rowHeight);
     y += rowHeight + sectionGap;
 
     m_brightnessLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
@@ -104,6 +105,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_brightness.SetStep      (10.0f);
     m_brightness.SetSuffix    (L"%");
     m_brightness.SetShowTicks (true);
+    m_brightnessRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
     y += rowHeight + sectionGap;
 
     m_contrastLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
@@ -113,11 +115,14 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_contrast.SetStep      (10.0f);
     m_contrast.SetSuffix    (L"%");
     m_contrast.SetShowTicks (true);
+    m_contrastRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
 
     m_monitorLabel.SetDpi    (dpi);
     m_brightnessLabel.SetDpi (dpi);
     m_contrastLabel.SetDpi   (dpi);
     m_monitor.SetDpi         (dpi);
+    m_brightness.SetDpi      (dpi);
+    m_contrast.SetDpi        (dpi);
 }
 
 
@@ -148,6 +153,16 @@ void DisplayPage::Rebuild ()
     m_monitor.SetSelect ([this, state] (int idx)
     {
         state->SetColorMode ((SettingsColorMode) idx);
+        if (m_onMonitor)
+        {
+            m_onMonitor (idx);
+        }
+    });
+    // Highlight changes (mouse hover + keyboard arrows while open) feed
+    // the same live channel so the user sees the colour treatment as
+    // they browse the list, not just on commit.
+    m_monitor.SetOnHighlightChange ([this] (int idx)
+    {
         if (m_onMonitor)
         {
             m_onMonitor (idx);
@@ -295,6 +310,8 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
                          float nonFocusedAlpha,
                          float focusedAlpha) const
 {
+    constexpr uint32_t  s_kFocusedBackingArgb = 0xFF202830;   // dark grey, near-opaque
+
     auto  SetAlphaFor = [&] (int control)
     {
         float  a = (control == focusedControlId) ? focusedAlpha : nonFocusedAlpha;
@@ -302,17 +319,31 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
         text.SetGlobalAlpha    (a);
     };
 
+    auto  PaintBackingIfFocused = [&] (int control, const RECT & rowRect)
+    {
+        if (control == focusedControlId)
+        {
+            painter.FillRect ((float) rowRect.left,  (float) rowRect.top,
+                              (float) (rowRect.right - rowRect.left),
+                              (float) (rowRect.bottom - rowRect.top),
+                              s_kFocusedBackingArgb);
+        }
+    };
+
 
 
     SetAlphaFor (kControlMonitor);
+    PaintBackingIfFocused (kControlMonitor, m_monitorRowRect);
     m_monitorLabel.Paint    (painter, text);
     m_monitor.PaintBase     (painter, text);
 
     SetAlphaFor (kControlBrightness);
+    PaintBackingIfFocused (kControlBrightness, m_brightnessRowRect);
     m_brightnessLabel.Paint (painter, text);
     m_brightness.Paint      (painter, text);
 
     SetAlphaFor (kControlContrast);
+    PaintBackingIfFocused (kControlContrast, m_contrastRowRect);
     m_contrastLabel.Paint   (painter, text);
     m_contrast.Paint        (painter, text);
 

@@ -973,6 +973,23 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
         }
         else if (!monitorOpen && m_previewFocus == PreviewFocus::MonitorDropdown)
         {
+            // Dropdown was open and is now closed. If the user
+            // committed an item (mouse click / Enter), the live
+            // colour mode already matches the dropdown's selection
+            // -- this push is a no-op. If they Escaped or clicked
+            // outside, the live colour mode is whatever they last
+            // hovered through the highlight channel; we revert it
+            // to the committed selection so the emulator goes back
+            // to the user's actual pick.
+            if (m_emuShell != nullptr)
+            {
+                int  committed = m_displayPage.MonitorDropdown().SelectedIndex();
+
+                if (committed >= 0)
+                {
+                    m_emuShell->SetColorModeLive (committed);
+                }
+            }
             EndPreview();
         }
     }

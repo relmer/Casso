@@ -22,6 +22,7 @@ public:
     void  SetFocused     (bool focused) { m_focused = focused; if (!focused) { m_open = false; } }
     bool  Focused        () const { return m_focused; }
     void  SetSelect      (SelectFn select) { m_select = std::move (select); }
+    void  SetOnHighlightChange (SelectFn fn) { m_highlightChange = std::move (fn); }
     void  Open           ();
     void  Close()        { m_open = false; }
     bool  IsOpen()       const { return m_open; }
@@ -45,6 +46,7 @@ private:
 
     std::vector<std::wstring>  m_items;
     SelectFn                  m_select;
+    SelectFn                  m_highlightChange;
     RECT                      m_rect      = {};
     bool                      m_open      = false;
     bool                      m_pressed   = false;

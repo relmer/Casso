@@ -343,29 +343,38 @@ void Slider::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     constexpr uint32_t  s_kPuckRing      = 0xFF606060;
     constexpr uint32_t  s_kPuckCoreDis   = 0xFF888888;
     constexpr uint32_t  s_kValueText     = 0xFFE8EEF4;
-    constexpr float     s_kTrackHeight   = 4.0f;
-    constexpr float     s_kPuckRadius    = 8.0f;
-    constexpr float     s_kPuckRadiusHov = 10.0f;
-    constexpr float     s_kPuckRadiusFoc = 11.0f;
-    constexpr float     s_kPuckCoreShare = 0.45f;   // inner-dot diameter as fraction of outer
-    constexpr float     s_kTickHeight    = 4.0f;
-    constexpr float     s_kTickGap       = 4.0f;
-    constexpr float     s_kValueGapPx    = 8.0f;
-    constexpr float     s_kValueFontDip  = 12.0f;
-    constexpr float     s_kValueWidthPx  = 48.0f;
-    constexpr wchar_t   s_kFont[]        = L"Segoe UI";
+
+    // All dimensions stored in dp; scaled to physical pixels via the
+    // per-widget DpiScaler (set by SetDpi). Slider was previously
+    // ignoring DPI which made the value readout illegible at >96dpi.
+    constexpr int       s_kTrackHeightDp    = 4;
+    constexpr int       s_kPuckRadiusDp     = 8;
+    constexpr int       s_kPuckRadiusHovDp  = 10;
+    constexpr int       s_kPuckRadiusFocDp  = 11;
+    constexpr float     s_kPuckCoreShare    = 0.45f;   // inner-dot diameter as fraction of outer
+    constexpr int       s_kTickHeightDp     = 4;
+    constexpr int       s_kTickGapDp        = 4;
+    constexpr int       s_kValueGapDp       = 8;
+    constexpr int       s_kValueFontDp      = 13;
+    constexpr int       s_kValueWidthDp     = 56;
+    constexpr wchar_t   s_kFont[]           = L"Segoe UI";
 
     HRESULT  hr            = S_OK;
+    float    trackHeight   = m_scaler.Pxf (s_kTrackHeightDp);
+    float    tickHeight    = m_scaler.Pxf (s_kTickHeightDp);
+    float    tickGap       = m_scaler.Pxf (s_kTickGapDp);
+    float    valueGap      = m_scaler.Pxf (s_kValueGapDp);
+    float    valueFontDip  = m_scaler.Pxf (s_kValueFontDp);
+    float    valueWidth    = m_scaler.Pxf (s_kValueWidthDp);
     float    rectW         = (float) (m_rect.right  - m_rect.left);
     float    rectH         = (float) (m_rect.bottom - m_rect.top);
-    float    valueW        = s_kValueWidthPx;
     float    trackLeft     = (float) m_rect.left;
-    float    trackAvailW   = std::max (0.0f, rectW - (valueW + s_kValueGapPx));
+    float    trackAvailW   = std::max (0.0f, rectW - (valueWidth + valueGap));
     float    centerY       = (float) m_rect.top + rectH * 0.5f;
     float    t             = 0.0f;
     float    fillWidth     = 0.0f;
     float    puckCx        = 0.0f;
-    float    puckR         = m_enabled ? s_kPuckRadius : s_kPuckRadius;
+    float    puckR         = m_scaler.Pxf (s_kPuckRadiusDp);
     uint32_t coreColor     = m_enabled ? s_kPuckCore : s_kPuckCoreDis;
 
 
@@ -378,29 +387,29 @@ void Slider::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     fillWidth = trackAvailW * t;
     puckCx    = trackLeft + trackAvailW * t;
 
-    if (m_focused)       { puckR = s_kPuckRadiusFoc; }
+    if (m_focused)       { puckR = m_scaler.Pxf (s_kPuckRadiusFocDp); }
     else if (m_hover ||
-             m_dragging) { puckR = s_kPuckRadiusHov; }
+             m_dragging) { puckR = m_scaler.Pxf (s_kPuckRadiusHovDp); }
 
     // ----- Track (background + filled portion). -----
-    painter.FillRect (trackLeft, centerY - s_kTrackHeight * 0.5f,
-                      trackAvailW, s_kTrackHeight, s_kTrack);
-    painter.FillRect (trackLeft, centerY - s_kTrackHeight * 0.5f,
-                      fillWidth, s_kTrackHeight, s_kTrackFill);
+    painter.FillRect (trackLeft, centerY - trackHeight * 0.5f,
+                      trackAvailW, trackHeight, s_kTrack);
+    painter.FillRect (trackLeft, centerY - trackHeight * 0.5f,
+                      fillWidth, trackHeight, s_kTrackFill);
 
     // ----- Tick marks below the track. -----
     if (m_showTicks && m_step > s_kEpsilon && trackAvailW > 0.0f)
     {
         int    tickCount = (int) std::round ((m_max - m_min) / m_step) + 1;
         int    i         = 0;
-        float  tickTop   = centerY + s_kTrackHeight * 0.5f + s_kTickGap;
+        float  tickTop   = centerY + trackHeight * 0.5f + tickGap;
 
         for (i = 0; i < tickCount; i++)
         {
             float  tickT  = (float) i / (float) (tickCount - 1);
             float  tickCx = trackLeft + trackAvailW * tickT;
 
-            painter.FillRect (tickCx - 0.5f, tickTop, 1.0f, s_kTickHeight, s_kTick);
+            painter.FillRect (tickCx - 0.5f, tickTop, 1.0f, tickHeight, s_kTick);
         }
     }
 
@@ -426,12 +435,12 @@ void Slider::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
         }
 
         IGNORE_RETURN_VALUE (hr, text.DrawString (buf,
-                                                  trackLeft + trackAvailW + s_kValueGapPx,
+                                                  trackLeft + trackAvailW + valueGap,
                                                   (float) m_rect.top,
-                                                  valueW,
+                                                  valueWidth,
                                                   rectH,
                                                   s_kValueText,
-                                                  s_kValueFontDip,
+                                                  valueFontDip,
                                                   s_kFont,
                                                   DwriteTextRenderer::HAlign::Right,
                                                   DwriteTextRenderer::VAlign::Center));

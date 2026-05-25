@@ -163,9 +163,13 @@ void Dropdown::SetMouseHover (int x, int y)
 
     m_hover = HitTest (x, y);
 
-    if (item >= 0)
+    if (item >= 0 && item != m_highlight)
     {
         m_highlight = item;
+        if (m_highlightChange)
+        {
+            m_highlightChange (m_highlight);
+        }
     }
 
     if (!m_hover && item < 0)
@@ -294,12 +298,14 @@ bool Dropdown::HandleKey (WPARAM vk)
     if (vk == VK_DOWN)
     {
         m_highlight = (m_highlight + 1) % count;
+        if (m_highlightChange) { m_highlightChange (m_highlight); }
         return true;
     }
 
     if (vk == VK_UP)
     {
         m_highlight = (m_highlight + count - 1) % count;
+        if (m_highlightChange) { m_highlightChange (m_highlight); }
         return true;
     }
 

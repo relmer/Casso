@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 
@@ -45,6 +46,7 @@ public:
     void   SetValue   (float value);
     void   SetSuffix  (const std::wstring & suffix) { m_suffix = suffix; }
     void   SetShowTicks (bool show) { m_showTicks = show; }
+    void   SetDpi     (UINT dpi) { m_scaler.SetDpi (dpi); }
     void   SetEnabled (bool enabled) { m_enabled = enabled; if (!enabled) { m_dragging = false; m_hover = false; } }
     void   SetFocused (bool focused) { m_focused = focused; }
     void   SetOnChange (ChangeFn fn) { m_change = std::move (fn); }
@@ -81,6 +83,7 @@ private:
     InteractionFn  m_onDragEnd;
     InteractionFn  m_onKeyboard;
     std::wstring   m_suffix;
+    DpiScaler      m_scaler;
     float          m_min      = 0.0f;
     float          m_max      = 1.0f;
     float          m_step     = 0.01f;
