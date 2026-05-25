@@ -429,6 +429,7 @@ STDMETHODIMP DragDropTarget::Drop (
     if (m_fDragHasSupportedFile && tag >= 0 && m_drop)
     {
         m_drop (tag, m_dragPath);
+        m_fSuppressNextClick = true;   // swallow the post-drop WM_LBUTTONUP
     }
 
     m_fDragActive           = false;

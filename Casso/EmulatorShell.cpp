@@ -2114,6 +2114,15 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         return false;
     }
 
+    // If we just finished an OLE drop on a drive widget, the OS posts
+    // a WM_LBUTTONUP that lands here on top of the drive. Swallow it
+    // so the user doesn't see the file-open dialog pop up immediately
+    // after the dropped image mounts.
+    if (m_dragDropTarget.ConsumeSuppressedClick())
+    {
+        return false;
+    }
+
     for (DriveWidget & drive : m_driveChrome)
     {
         region = drive.HitTest (x, y);

@@ -55,6 +55,17 @@ public:
     bool                 IsDragAcceptedType    () const { return m_fDragHasSupportedFile;  }
     int                  HoveredTag            () const { return m_lastHitTag;             }
 
+    // Drop completion sets a one-shot flag so the next WM_LBUTTONUP
+    // posted by the OS (the synthetic release at the end of an OLE drag)
+    // doesn't get treated as a real click. Consume returns the flag and
+    // clears it.
+    bool                 ConsumeSuppressedClick ()
+    {
+        bool result = m_fSuppressNextClick;
+        m_fSuppressNextClick = false;
+        return result;
+    }
+
 private:
     int                  PickAtScreen          (POINTL pt) const;
     void                 RevokeAllRegistrations ();
@@ -68,5 +79,6 @@ private:
     int                  m_lastHitTag           = -1;
     bool                 m_fDragActive           = false;
     bool                 m_fDragHasSupportedFile = false;
+    bool                 m_fSuppressNextClick    = false;
     std::wstring         m_dragPath;
 };

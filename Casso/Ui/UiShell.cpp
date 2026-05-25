@@ -383,13 +383,15 @@ void UiShell::PaintDragDropOverlay (
     int                       /*bottomInset*/,
     int                       /*barTop*/)
 {
-    const uint32_t  s_kDimRejectArgb     = 0x90000000;
-    const uint32_t  s_kDimAcceptArgb     = 0x55000000;
-    const uint32_t  s_kGlowArgb          = 0xC0FFB347;
-    const uint32_t  s_kGlowHoverArgb     = 0xFFFFC966;
-    const float     s_kGlowThicknessPx   = 3.0f;
-    const float     s_kGlowHoverInsetPx  = 2.0f;
-    const float     s_kGlowHoverThickPx  = 4.0f;
+    const uint32_t  s_kDimRejectArgb     = 0xD0000000;   // ~82% black -- file isn't going anywhere
+    const uint32_t  s_kDimAcceptArgb     = 0xA0000000;   // ~63% black -- drives stay bright through the haze
+    const uint32_t  s_kGlowRgb           = 0x00FFB347;   // warm amber, alpha varies per ring
+    const uint32_t  s_kGlowHoverRgb      = 0x00FFD27A;   // brighter when the cursor is on the target
+    const int       s_kGlowRings         = 14;           // depth of the soft falloff
+    const int       s_kGlowHoverRings    = 22;           // bigger halo for the active target
+    const float     s_kGlowPeakAlpha     =  192.0f;      // 0..255; inner ring alpha
+    const float     s_kGlowHoverPeakA    =  240.0f;
+    const float     s_kRingThicknessPx   =  1.0f;
 
     int             hovered              = -1;
     bool            accept               = false;
@@ -418,7 +420,7 @@ void UiShell::PaintDragDropOverlay (
     }
 
     // Supported file: dim only the regions OUTSIDE drive widget rects,
-    // then glow-border each drive.
+    // then halo each drive with a soft amber glow.
     if (m_driveWidgets == nullptr)
     {
         m_painter.FillRect (0.0f, 0.0f,
@@ -429,25 +431,12 @@ void UiShell::PaintDragDropOverlay (
     }
 
     {
-        // Decompose the "everything except drive rects" region into
-        // axis-aligned strips. The drives sit in the bottom command
-        // bar, so:
-        //   1. top strip from y=0 to min(drive.top)
-        //   2. bottom strip from max(drive.bottom) to viewportH
-        //   3. left strip from x=0 to leftmost drive (only within the
-        //      drive band)
-        //   4. right strip from rightmost drive to viewportW (within
-        //      the drive band)
-        //   5. between-strips covering gaps between adjacent drives
-        //      (within the drive band)
         RECT  d0       = (*m_driveWidgets)[0].BodyRect();
         RECT  d1       = (*m_driveWidgets)[1].BodyRect();
         bool  d0Empty  = (d0.right <= d0.left) || (d0.bottom <= d0.top);
         bool  d1Empty  = (d1.right <= d1.left) || (d1.bottom <= d1.top);
         LONG  bandTop  = 0;
         LONG  bandBot  = 0;
-        LONG  bandLeft = 0;
-        LONG  bandRt   = 0;
         LONG  leftX    = 0;
         LONG  midL     = 0;
         LONG  midR     = 0;
@@ -464,21 +453,17 @@ void UiShell::PaintDragDropOverlay (
 
         if (!d0Empty && !d1Empty)
         {
-            bandTop  = std::min (d0.top,    d1.top);
-            bandBot  = std::max (d0.bottom, d1.bottom);
-            bandLeft = std::min (d0.left,   d1.left);
-            bandRt   = std::max (d0.right,  d1.right);
+            bandTop = std::min (d0.top,    d1.top);
+            bandBot = std::max (d0.bottom, d1.bottom);
         }
         else
         {
             const RECT &  only = d0Empty ? d1 : d0;
-            bandTop  = only.top;
-            bandBot  = only.bottom;
-            bandLeft = only.left;
-            bandRt   = only.right;
+            bandTop = only.top;
+            bandBot = only.bottom;
         }
 
-        // 1. top strip
+        // 1. top strip (above the drive band)
         if (bandTop > 0)
         {
             m_painter.FillRect (0.0f, 0.0f,
@@ -487,7 +472,7 @@ void UiShell::PaintDragDropOverlay (
                                 s_kDimAcceptArgb);
         }
 
-        // 2. bottom strip
+        // 2. bottom strip (below the drive band)
         if (bandBot < viewportH)
         {
             m_painter.FillRect (0.0f, (float) bandBot,
@@ -496,7 +481,7 @@ void UiShell::PaintDragDropOverlay (
                                 s_kDimAcceptArgb);
         }
 
-        // 3/4/5. left, between, right within the drive band
+        // 3/4/5. left, between-drives, right within the drive band
         if (d0Empty || d1Empty)
         {
             const RECT &  only = d0Empty ? d1 : d0;
@@ -551,29 +536,40 @@ void UiShell::PaintDragDropOverlay (
             }
         }
 
-        // Glow borders. Hovered drive gets a thicker, brighter outline
-        // inset slightly so it sits inside the rect instead of bleeding
-        // into the surrounding dim.
+        // Soft glow halos. For each drive, paint N concentric 1px-thick
+        // OutlineRects outset by 0, 1, 2, ..., N pixels with linearly-
+        // decreasing alpha. Stacked thin rings approximate a Gaussian
+        // falloff well enough to read as a glow without a shader pass.
         for (int i = 0; i < 2; i++)
         {
             const RECT &  r       = (i == 0) ? d0 : d1;
             bool          empty   = (r.right <= r.left) || (r.bottom <= r.top);
             bool          hot     = (hovered == i);
-            uint32_t      argb    = hot ? s_kGlowHoverArgb : s_kGlowArgb;
-            float         thick   = hot ? s_kGlowHoverThickPx : s_kGlowThicknessPx;
-            float         inset   = hot ? s_kGlowHoverInsetPx : 0.0f;
+            int           rings   = hot ? s_kGlowHoverRings : s_kGlowRings;
+            float         peak    = hot ? s_kGlowHoverPeakA : s_kGlowPeakAlpha;
+            uint32_t      rgb     = hot ? s_kGlowHoverRgb   : s_kGlowRgb;
+            int           ring    = 0;
 
             if (empty)
             {
                 continue;
             }
 
-            m_painter.OutlineRect ((float) r.left  + inset,
-                                   (float) r.top   + inset,
-                                   (float) (r.right  - r.left)  - 2.0f * inset,
-                                   (float) (r.bottom - r.top)   - 2.0f * inset,
-                                   thick,
-                                   argb);
+            for (ring = 0; ring < rings; ring++)
+            {
+                float     t       = (float) ring / (float) rings;
+                float     alphaF  = peak * (1.0f - t);
+                uint32_t  alphaU  = (uint32_t) std::clamp (alphaF, 0.0f, 255.0f);
+                uint32_t  argb    = (alphaU << 24) | rgb;
+                float     outset  = (float) ring;
+
+                m_painter.OutlineRect ((float) r.left   - outset,
+                                       (float) r.top    - outset,
+                                       (float) (r.right  - r.left)  + 2.0f * outset,
+                                       (float) (r.bottom - r.top)   + 2.0f * outset,
+                                       s_kRingThicknessPx,
+                                       argb);
+            }
         }
     }
 }
