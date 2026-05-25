@@ -218,6 +218,38 @@ HRESULT SettingsPanel::Initialize (
             m_emuShell->SetColorModeLive (idx);
         }
     });
+
+    // Per-effect toggles and parameter sliders write LIVE to GlobalUserPrefs.crt
+    // (same pattern as brightness/contrast). MakeCrtParams picks up the new
+    // values on the next frame; Cancel restores the baselines.
+    m_displayPage.SetOnScanlinesEnChange ([this] (bool on)
+    {
+        if (m_prefs != nullptr) { m_prefs->crt.scanlinesEnabled  = on; m_prefs->crt.userOverride = true; }
+    });
+    m_displayPage.SetOnScanlinesIntChange ([this] (float pct)
+    {
+        if (m_prefs != nullptr) { m_prefs->crt.scanlinesIntensity = pct / 100.0f; m_prefs->crt.userOverride = true; }
+    });
+    m_displayPage.SetOnBloomEnChange ([this] (bool on)
+    {
+        if (m_prefs != nullptr) { m_prefs->crt.bloomEnabled       = on; m_prefs->crt.userOverride = true; }
+    });
+    m_displayPage.SetOnBloomRadiusChange ([this] (float pct)
+    {
+        if (m_prefs != nullptr) { m_prefs->crt.bloomRadius        = pct / 25.0f;  m_prefs->crt.userOverride = true; }
+    });
+    m_displayPage.SetOnBloomStrengthChange ([this] (float pct)
+    {
+        if (m_prefs != nullptr) { m_prefs->crt.bloomStrength      = pct / 100.0f; m_prefs->crt.userOverride = true; }
+    });
+    m_displayPage.SetOnColorBleedEnChange ([this] (bool on)
+    {
+        if (m_prefs != nullptr) { m_prefs->crt.colorBleedEnabled  = on; m_prefs->crt.userOverride = true; }
+    });
+    m_displayPage.SetOnColorBleedWChange ([this] (float pct)
+    {
+        if (m_prefs != nullptr) { m_prefs->crt.colorBleedWidth    = pct / 25.0f;  m_prefs->crt.userOverride = true; }
+    });
     m_displayPage.SetOnPreview ([this] (int controlId, bool start, bool keyboardMode)
     {
         if (start)
@@ -295,9 +327,16 @@ HRESULT SettingsPanel::Show ()
     // GlobalUserPrefs.crt so the shader picks them up next frame.
     if (m_prefs != nullptr)
     {
-        m_baselineBrightness   = m_prefs->crt.brightness;
-        m_baselineContrast     = m_prefs->crt.contrast;
-        m_baselineUserOverride = m_prefs->crt.userOverride;
+        m_baselineBrightness         = m_prefs->crt.brightness;
+        m_baselineContrast           = m_prefs->crt.contrast;
+        m_baselineUserOverride       = m_prefs->crt.userOverride;
+        m_baselineScanlinesEnabled   = m_prefs->crt.scanlinesEnabled;
+        m_baselineScanlinesIntensity = m_prefs->crt.scanlinesIntensity;
+        m_baselineBloomEnabled       = m_prefs->crt.bloomEnabled;
+        m_baselineBloomRadius        = m_prefs->crt.bloomRadius;
+        m_baselineBloomStrength      = m_prefs->crt.bloomStrength;
+        m_baselineColorBleedEnabled  = m_prefs->crt.colorBleedEnabled;
+        m_baselineColorBleedWidth    = m_prefs->crt.colorBleedWidth;
     }
     m_baselineColorMode = (int) m_state.Prefs().colorMode;
 
@@ -320,7 +359,20 @@ HRESULT SettingsPanel::Show ()
     m_machinePage.Rebuild();
     m_hardwarePage.Rebuild();
     m_displayPage.Rebuild();
-    m_displayPage.SetInitialCrt (m_baselineBrightness, m_baselineContrast);
+    {
+        GlobalUserPrefsCrtSnapshot  snap;
+
+        snap.brightness          = m_baselineBrightness;
+        snap.contrast            = m_baselineContrast;
+        snap.scanlinesEnabled    = m_baselineScanlinesEnabled;
+        snap.scanlinesIntensity  = m_baselineScanlinesIntensity;
+        snap.bloomEnabled        = m_baselineBloomEnabled;
+        snap.bloomRadius         = m_baselineBloomRadius;
+        snap.bloomStrength       = m_baselineBloomStrength;
+        snap.colorBleedEnabled   = m_baselineColorBleedEnabled;
+        snap.colorBleedWidth     = m_baselineColorBleedWidth;
+        m_displayPage.SetInitialCrt (snap);
+    }
 
     m_visible = true;
     RebuildFocusOrder();
@@ -1447,9 +1499,16 @@ void SettingsPanel::OnCancelClicked ()
     // MakeCrtParams path.
     if (m_prefs != nullptr)
     {
-        m_prefs->crt.brightness   = m_baselineBrightness;
-        m_prefs->crt.contrast     = m_baselineContrast;
-        m_prefs->crt.userOverride = m_baselineUserOverride;
+        m_prefs->crt.brightness         = m_baselineBrightness;
+        m_prefs->crt.contrast           = m_baselineContrast;
+        m_prefs->crt.userOverride       = m_baselineUserOverride;
+        m_prefs->crt.scanlinesEnabled   = m_baselineScanlinesEnabled;
+        m_prefs->crt.scanlinesIntensity = m_baselineScanlinesIntensity;
+        m_prefs->crt.bloomEnabled       = m_baselineBloomEnabled;
+        m_prefs->crt.bloomRadius        = m_baselineBloomRadius;
+        m_prefs->crt.bloomStrength      = m_baselineBloomStrength;
+        m_prefs->crt.colorBleedEnabled  = m_baselineColorBleedEnabled;
+        m_prefs->crt.colorBleedWidth    = m_baselineColorBleedWidth;
     }
     if (m_emuShell != nullptr && m_baselineColorMode >= 0)
     {
