@@ -46,7 +46,7 @@ namespace
         { IDM_DISK_WRITEPROTECT2,       NavMenu::Disk,    L"Write Protect Drive 2",  nullptr          },
         { IDM_DISK_WRITEMODE_BUFFER,    NavMenu::Disk,    L"Write Mode: Buffer and Flush", nullptr    },
         { IDM_DISK_WRITEMODE_COW,       NavMenu::Disk,    L"Write Mode: Copy on Write",    nullptr    },
-        { IDM_VIEW_COLOR,               NavMenu::View,    L"Color (NTSC)",           nullptr          },
+        { IDM_VIEW_COLOR,               NavMenu::View,    L"Color",                  nullptr          },
         { IDM_VIEW_GREEN,               NavMenu::View,    L"Green Monochrome",       nullptr          },
         { IDM_VIEW_AMBER,               NavMenu::View,    L"Amber Monochrome",       nullptr          },
         { IDM_VIEW_WHITE,               NavMenu::View,    L"White Monochrome",       nullptr          },

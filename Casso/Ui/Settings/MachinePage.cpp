@@ -115,7 +115,7 @@ void MachinePage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_colorLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_colorLabel.SetText (L"Monitor:");
     m_color.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
-    m_color.SetItems ({ L"Color", L"Green", L"Amber", L"White" });
+    m_color.SetItems ({ L"Color", L"Green monochrome", L"Amber monochrome", L"White monochrome" });
     y += rowHeight + sectionGap;
 
     m_wpLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
