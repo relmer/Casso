@@ -632,12 +632,43 @@ HRESULT EmulatorShell::Initialize (
                 // parent's client area for the emulator framebuffer. OLE
                 // hit-tests the topmost window under the cursor, so the
                 // child needs its own RegisterDragDrop pointing at the
-                // same IDropTarget — otherwise the user sees the
+                // same IDropTarget -- otherwise the user sees the
                 // not-allowed cursor anywhere over the emulator content.
                 if (m_renderHwnd != nullptr)
                 {
                     HRESULT hrDropChild = m_dragDropTarget.AttachAdditionalWindow (m_renderHwnd);
                     IGNORE_RETURN_VALUE (hrDropChild, S_OK);
+                }
+
+                // UIPI whitelist. When Casso runs at a higher integrity
+                // level than the source (e.g. user launched Casso
+                // elevated and is dragging from a non-elevated Explorer),
+                // UIPI silently blocks the messages OLE uses to marshal
+                // the dragged payload across the IL boundary. The fix
+                // is ChangeWindowMessageFilterEx for the three messages
+                // OLE actually uses for drop targets:
+                //   WM_DROPFILES       (0x0233)
+                //   WM_COPYDATA        (0x004A)
+                //   WM_COPYGLOBALDATA  (0x0049, undocumented but real)
+                // Allowing these on both registered HWNDs lets Explorer
+                // -> elevated-Casso drag work without lowering Casso's
+                // IL.
+                {
+                    const UINT  s_kWmCopyGlobalData = 0x0049;
+                    HWND        hwnds[2] = { m_hwnd, m_renderHwnd };
+                    size_t      i        = 0;
+
+                    for (i = 0; i < sizeof (hwnds) / sizeof (hwnds[0]); i++)
+                    {
+                        if (hwnds[i] == nullptr)
+                        {
+                            continue;
+                        }
+
+                        (void) ChangeWindowMessageFilterEx (hwnds[i], WM_DROPFILES,       MSGFLT_ALLOW, nullptr);
+                        (void) ChangeWindowMessageFilterEx (hwnds[i], WM_COPYDATA,        MSGFLT_ALLOW, nullptr);
+                        (void) ChangeWindowMessageFilterEx (hwnds[i], s_kWmCopyGlobalData, MSGFLT_ALLOW, nullptr);
+                    }
                 }
             }
         }
