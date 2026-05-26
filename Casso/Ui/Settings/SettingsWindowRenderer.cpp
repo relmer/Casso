@@ -4,6 +4,8 @@
 #include "SettingsPanel.h"
 #include "../Chrome/TitleBar.h"
 
+#pragma comment(lib, "dcomp.lib")
+
 
 
 
@@ -92,16 +94,32 @@ HRESULT SettingsWindowRenderer::Initialize (
     desc.BufferUsage      = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     desc.BufferCount      = s_kSwapBufferCount;
     desc.Scaling          = DXGI_SCALING_STRETCH;
-    desc.SwapEffect       = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-    desc.AlphaMode        = DXGI_ALPHA_MODE_IGNORE;
+    desc.SwapEffect       = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+    desc.AlphaMode        = DXGI_ALPHA_MODE_PREMULTIPLIED;
     desc.Flags            = 0;
 
-    hr = dxgiFactory->CreateSwapChainForHwnd (m_device,
-                                              m_hwnd,
-                                              &desc,
-                                              nullptr,
-                                              nullptr,
-                                              &m_swapChain);
+    hr = DCompositionCreateDevice (dxgiDevice.Get(), IID_PPV_ARGS (&m_dcompDevice));
+    CHRA (hr);
+
+    hr = m_dcompDevice->CreateTargetForHwnd (m_hwnd, TRUE, &m_dcompTarget);
+    CHRA (hr);
+
+    hr = m_dcompDevice->CreateVisual (&m_dcompVisual);
+    CHRA (hr);
+
+    hr = dxgiFactory->CreateSwapChainForComposition (m_device,
+                                                     &desc,
+                                                     nullptr,
+                                                     &m_swapChain);
+    CHRA (hr);
+
+    hr = m_dcompVisual->SetContent (m_swapChain.Get());
+    CHRA (hr);
+
+    hr = m_dcompTarget->SetRoot (m_dcompVisual.Get());
+    CHRA (hr);
+
+    hr = m_dcompDevice->Commit();
     CHRA (hr);
 
     hr = dxgiFactory->MakeWindowAssociation (m_hwnd, DXGI_MWA_NO_ALT_ENTER);
@@ -141,6 +159,9 @@ void SettingsWindowRenderer::Shutdown()
     }
 
     m_rtv.Reset();
+    m_dcompVisual.Reset();
+    m_dcompTarget.Reset();
+    m_dcompDevice.Reset();
     m_swapChain.Reset();
     m_context     = nullptr;
     m_device      = nullptr;
@@ -271,6 +292,12 @@ HRESULT SettingsWindowRenderer::Resize (int widthPx, int heightPx, UINT dpi)
     hr = CreateBackBufferTarget();
     CHRA (hr);
 
+    if (m_dcompDevice != nullptr)
+    {
+        hr = m_dcompDevice->Commit();
+        CHRA (hr);
+    }
+
 Error:
     return hr;
 }
@@ -292,6 +319,7 @@ HRESULT SettingsWindowRenderer::Render (SettingsPanel & panel)
     ChromeVisualState  visual        = {};
     ChromeTheme        theme         = (m_theme != nullptr) ? *m_theme : ChromeTheme::Skeuomorphic();
     float              clearColor[4] = { 0.10196079f, 0.13333334f, 0.18823530f, 1.0f };
+    bool               transparentPreview = false;
 
 
 
@@ -301,11 +329,20 @@ HRESULT SettingsWindowRenderer::Render (SettingsPanel & panel)
     viewport.Height   = static_cast<float> (m_heightPx);
     viewport.MaxDepth = 1.0f;
 
+    panel.Layout (m_widthPx, m_heightPx, m_scaler, (m_titleBar != nullptr) ? m_titleBar->GetTitleHeight() : 0);
+    panel.PreparePreviewFrame();
+    transparentPreview = panel.IsPreviewTransparencyActive();
+    if (transparentPreview)
+    {
+        clearColor[0] = 0.0f;
+        clearColor[1] = 0.0f;
+        clearColor[2] = 0.0f;
+        clearColor[3] = 0.0f;
+    }
+
     m_context->RSSetViewports (1, &viewport);
     m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf(), nullptr);
     m_context->ClearRenderTargetView (m_rtv.Get(), clearColor);
-
-    panel.Layout (m_widthPx, m_heightPx, m_scaler, (m_titleBar != nullptr) ? m_titleBar->GetTitleHeight() : 0);
 
     hr = m_painter.Begin (m_widthPx, m_heightPx);
     CHRA (hr);
@@ -314,7 +351,7 @@ HRESULT SettingsWindowRenderer::Render (SettingsPanel & panel)
     CHRA (hr);
 
     visual.dpi = m_scaler.Dpi();
-    if (m_titleBar != nullptr)
+    if (m_titleBar != nullptr && !transparentPreview)
     {
         m_titleBar->Paint (m_painter, m_text, visual, theme);
     }
@@ -329,6 +366,12 @@ HRESULT SettingsWindowRenderer::Render (SettingsPanel & panel)
 
     hr = m_swapChain->Present (1, 0);
     CHRA (hr);
+
+    if (m_dcompDevice != nullptr)
+    {
+        hr = m_dcompDevice->Commit();
+        CHRA (hr);
+    }
 
 Error:
     (void) s_kClearArgb;

@@ -277,6 +277,7 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
 
 
 
+    m_hwnd      = hwnd;
     m_texWidth  = texWidth;
     m_texHeight = texHeight;
 
@@ -718,6 +719,8 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
             fittedRect         = ComputeAspectFitRectInRect (contentRect, m_texWidth, m_texHeight);
         }
 
+        CacheEmulatorContentScreenRect (fittedRect);
+
         hr = m_crtPost.Process (m_srv.Get(),
                                 m_rtv.Get(),
                                 m_crtParams,
@@ -778,6 +781,39 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CacheEmulatorContentScreenRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void D3DRenderer::CacheEmulatorContentScreenRect (const RECT & fittedRect)
+{
+    HRESULT  hr     = S_OK;
+    POINT    origin = {};
+    BOOL     ok     = FALSE;
+
+
+
+    m_emulatorContentScreenRect = {};
+    BAIL_OUT_IF (m_hwnd == nullptr || IsRectEmpty (&fittedRect), S_OK);
+
+    ok = ClientToScreen (m_hwnd, &origin);
+    CWRA (ok);
+
+    m_emulatorContentScreenRect.left   = fittedRect.left   + origin.x;
+    m_emulatorContentScreenRect.top    = fittedRect.top    + origin.y;
+    m_emulatorContentScreenRect.right  = fittedRect.right  + origin.x;
+    m_emulatorContentScreenRect.bottom = fittedRect.bottom + origin.y;
+
+Error:
+    return;
 }
 
 
@@ -1029,6 +1065,9 @@ void D3DRenderer::Shutdown()
     m_swapChain.Reset();
     m_context.Reset();
     m_device.Reset();
+
+    m_hwnd                       = nullptr;
+    m_emulatorContentScreenRect  = {};
 }
 
 

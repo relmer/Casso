@@ -593,6 +593,49 @@ void DisplayPage::CollectFocusables (std::vector<std::function<void (bool)>> & o
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisplayPage::FocusedControlRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DisplayPage::FocusedControlRect (int controlId) const
+{
+    RECT  rect      = {};
+    RECT  menuRect  = {};
+    int   rowHeight = m_scaler.Px (s_kRowHeightDp);
+
+
+
+    switch (controlId)
+    {
+        case kControlBrightness:    rect = m_brightnessRowRect;    break;
+        case kControlContrast:      rect = m_contrastRowRect;      break;
+        case kControlMonitor:       rect = m_monitorRowRect;       break;
+        case kControlScanlinesInt:  rect = m_scanlinesIntRowRect;  break;
+        case kControlBloomRadius:   rect = m_bloomRadiusRowRect;   break;
+        case kControlBloomStrength: rect = m_bloomStrengthRowRect; break;
+        case kControlColorBleedW:   rect = m_colorBleedWRowRect;   break;
+        case kControlGamma:         rect = m_gammaRowRect;         break;
+        case kControlPersistence:   rect = m_persistenceRowRect;   break;
+        default:                    rect = {};                     break;
+    }
+
+    if (controlId == kControlMonitor && m_monitor.IsOpen())
+    {
+        menuRect        = m_monitor.Rect();
+        menuRect.top    = menuRect.bottom;
+        menuRect.bottom = menuRect.top + (int) m_monitor.Items().size() * rowHeight;
+        UnionRect (&rect, &rect, &menuRect);
+    }
+
+    return rect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisplayPage::Paint
 //
 ////////////////////////////////////////////////////////////////////////////////

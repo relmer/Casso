@@ -55,6 +55,7 @@ public:
     int  GetBackBufferWidth  () const { return m_backBufferW; }
     int  GetBackBufferHeight () const { return m_backBufferH; }
     int  GetBottomInsetPx    () const { return m_bottomInsetPx; }
+    RECT GetEmulatorContentScreenRect() const { return m_emulatorContentScreenRect; }
 
     void Shutdown();
 
@@ -83,7 +84,9 @@ public:
 
 private:
     HRESULT InitializeShaders();
+    void    CacheEmulatorContentScreenRect (const RECT & fittedRect);
 
+    HWND                             m_hwnd = nullptr;
     ComPtr<ID3D11Device>             m_device;
     ComPtr<ID3D11DeviceContext>      m_context;
     // IDXGISwapChain2 (rather than the base IDXGISwapChain) gives us
@@ -140,8 +143,9 @@ private:
     bool    m_fullscreen       = false;
     bool    m_deviceRemoved    = false;
 
-    RECT    m_windowedRect  = {};
-    LONG    m_windowedStyle = 0;
+    RECT    m_windowedRect                = {};
+    RECT    m_emulatorContentScreenRect   = {};
+    LONG    m_windowedStyle               = 0;
 
     // Hook point. Invoked from UploadAndPresent after the
     // emulator blit DrawIndexed and before swapChain->Present so

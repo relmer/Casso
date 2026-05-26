@@ -1582,6 +1582,7 @@ int EmulatorShell::RunMessageLoop()
         // persistence trail isn't still decaying). Saves ~20%% GPU at a
         // BASIC prompt. PeekMessage above still drains messages; the
         // brief sleep keeps this thread from spinning.
+        m_settingsPanel.UpdatePreviewOverlap (m_d3dRenderer.GetEmulatorContentScreenRect());
         IGNORE_RETURN_VALUE (hr, m_settingsPanel.RenderPopup());
         if (!m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
         {

@@ -9,6 +9,9 @@ Entries before versioning was introduced use dates only.
 ## [1.3.952] — UI overhaul (spec 007)
 
 ### Added
+- **feat(settings): Display-page live preview uses per-pixel alpha when the
+  Settings popup overlaps the emulator output, making the covered emulator
+  content fully visible while the focused CRT control remains visible.**
 - **feat(ui): full UI overhaul — native DirectX chrome, themes, Settings
   panel, CRT post-processing, drive widgets.**
   - Borderless main window with custom native chrome — title bar with

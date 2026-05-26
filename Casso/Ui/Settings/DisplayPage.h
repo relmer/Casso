@@ -136,6 +136,7 @@ public:
 
     void  CollectFocusables (std::vector<std::function<void (bool)>> & out);
     bool  AnyDropdownOpen   () const { return m_monitor.IsOpen(); }
+    RECT  FocusedControlRect (int controlId) const;
 
     // Test accessors.
     const Dropdown & MonitorDropdown    () const { return m_monitor;          }
