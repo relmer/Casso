@@ -691,10 +691,23 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
 
     auto  DrawIndicator = [&] (const RECT & rowRect, bool matchesDefault, bool themeOwned)
     {
-        HRESULT          hrLocal = S_OK;
-        const wchar_t *  label   = themeOwned ? L"(theme default)" : L"(monitor default)";
+        HRESULT          hrLocal       = S_OK;
+        const wchar_t *  label         = themeOwned ? L"(theme default)" : L"(monitor default)";
+        RECT             indicatorRect = { m_indicatorX,
+                                            rowRect.top,
+                                            m_indicatorX + (int) indicatorWidthPx,
+                                            rowRect.bottom };
+        RECT             intersect     = {};
 
         if (! matchesDefault)
+        {
+            return;
+        }
+        // Indicator column sits past the slider's right edge so its
+        // rect is NOT part of the row rect SetAlphaForRow excludes.
+        // Test the indicator's own rect against the exclude zone here
+        // so badges over the emulator stay invisible.
+        if (hasExclude && IntersectRect (&intersect, &indicatorRect, &excludeRect) != FALSE)
         {
             return;
         }

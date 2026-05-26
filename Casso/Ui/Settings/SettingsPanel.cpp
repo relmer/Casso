@@ -1622,7 +1622,7 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
         //   3. The focused control THEN paints over the top at its own
         //      alpha (0.9), wherever it sits, so it remains visible
         //      even if it''s over the emulator.
-        constexpr float  s_kTransparentPanelAlpha   = 0.50f;   // TEMP: 0.10 in production
+        constexpr float  s_kTransparentPanelAlpha   = 0.10f;
         constexpr float  s_kTransparentFocusedAlpha = 0.90f;
 
         std::vector<RECT>  drawRects;
