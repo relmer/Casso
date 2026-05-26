@@ -605,21 +605,63 @@ void SettingsPanel::ReseedDisplayCrtFromActiveMode ()
         return;
     }
 
-    const auto &  blk    = m_prefs->crtByMode[idx];
-    const auto &  preset = CrtPresets::ForMode ((size_t) idx);
-    const auto &  src    = blk.userOverride ? blk : preset;
+    const auto &              blk           = m_prefs->crtByMode[idx];
+    const auto &              preset        = CrtPresets::ForMode ((size_t) idx);
+    const ThemeCrtDefaults *  themeDefaults = nullptr;
+    if (m_themes != nullptr)
+    {
+        const LoadedTheme *  active = m_themes->GetActiveTheme();
+        if (active != nullptr)
+        {
+            themeDefaults = &active->crtDefaults;
+        }
+    }
 
-    snap.brightness         = src.brightness;
-    snap.contrast           = src.contrast;
-    snap.gamma              = src.gamma;
-    snap.persistence        = src.persistence;
-    snap.scanlinesEnabled   = src.scanlinesEnabled;
-    snap.scanlinesIntensity = src.scanlinesIntensity;
-    snap.bloomEnabled       = src.bloomEnabled;
-    snap.bloomRadius        = src.bloomRadius;
-    snap.bloomStrength      = src.bloomStrength;
-    snap.colorBleedEnabled  = src.colorBleedEnabled;
-    snap.colorBleedWidth    = src.colorBleedWidth;
+    if (blk.userOverride)
+    {
+        snap.brightness         = blk.brightness;
+        snap.contrast           = blk.contrast;
+        snap.gamma              = blk.gamma;
+        snap.persistence        = blk.persistence;
+        snap.scanlinesEnabled   = blk.scanlinesEnabled;
+        snap.scanlinesIntensity = blk.scanlinesIntensity;
+        snap.bloomEnabled       = blk.bloomEnabled;
+        snap.bloomRadius        = blk.bloomRadius;
+        snap.bloomStrength      = blk.bloomStrength;
+        snap.colorBleedEnabled  = blk.colorBleedEnabled;
+        snap.colorBleedWidth    = blk.colorBleedWidth;
+    }
+    else
+    {
+        // No user override: mirror MakeCrtParams's resolution chain
+        // (preset, with theme overrides on top). Otherwise the sliders
+        // would show preset values while the renderer was actually
+        // applying theme-overridden values, and the visual would
+        // appear to jump the moment the user touched any slider.
+        snap.brightness         = preset.brightness;
+        snap.contrast           = preset.contrast;
+        snap.gamma              = preset.gamma;
+        snap.persistence        = preset.persistence;
+        snap.scanlinesEnabled   = preset.scanlinesEnabled;
+        snap.scanlinesIntensity = preset.scanlinesIntensity;
+        snap.bloomEnabled       = preset.bloomEnabled;
+        snap.bloomRadius        = preset.bloomRadius;
+        snap.bloomStrength      = preset.bloomStrength;
+        snap.colorBleedEnabled  = preset.colorBleedEnabled;
+        snap.colorBleedWidth    = preset.colorBleedWidth;
+        if (themeDefaults != nullptr)
+        {
+            snap.brightness         = themeDefaults->brightness;
+            snap.contrast           = themeDefaults->contrast;
+            snap.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
+            snap.scanlinesIntensity = themeDefaults->scanlinesIntensity;
+            snap.bloomEnabled       = themeDefaults->bloomEnabled;
+            snap.bloomRadius        = themeDefaults->bloomRadius;
+            snap.bloomStrength      = themeDefaults->bloomStrength;
+            snap.colorBleedEnabled  = themeDefaults->colorBleedEnabled;
+            snap.colorBleedWidth    = themeDefaults->colorBleedWidth;
+        }
+    }
     m_displayPage.SetInitialCrt (snap);
 }
 
@@ -655,9 +697,37 @@ void SettingsPanel::PromoteActiveCrtToOverride ()
         return;
     }
 
-    const auto &  preset       = CrtPresets::ForMode ((size_t) ActiveModeIdx());
-    blk                        = preset;
-    blk.userOverride           = true;
+    // Seed the block with the SAME values MakeCrtParams would produce
+    // right now: preset for this monitor, with the active theme's
+    // crtDefaults layered on top. Without the theme layer, a clean
+    // theme (e.g. contrast=1.0, scanlines off) would silently flip
+    // to the raw preset values (contrast=0.9, scanlines on, bloom on)
+    // the instant the user nudged any slider, which looks like a bug.
+    const auto &              preset        = CrtPresets::ForMode ((size_t) ActiveModeIdx());
+    const ThemeCrtDefaults *  themeDefaults = nullptr;
+    if (m_themes != nullptr)
+    {
+        const LoadedTheme *  active = m_themes->GetActiveTheme();
+        if (active != nullptr)
+        {
+            themeDefaults = &active->crtDefaults;
+        }
+    }
+
+    blk = preset;
+    if (themeDefaults != nullptr)
+    {
+        blk.brightness         = themeDefaults->brightness;
+        blk.contrast           = themeDefaults->contrast;
+        blk.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
+        blk.scanlinesIntensity = themeDefaults->scanlinesIntensity;
+        blk.bloomEnabled       = themeDefaults->bloomEnabled;
+        blk.bloomRadius        = themeDefaults->bloomRadius;
+        blk.bloomStrength      = themeDefaults->bloomStrength;
+        blk.colorBleedEnabled  = themeDefaults->colorBleedEnabled;
+        blk.colorBleedWidth    = themeDefaults->colorBleedWidth;
+    }
+    blk.userOverride = true;
 }
 
 
