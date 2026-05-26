@@ -40,12 +40,14 @@ namespace Casso::Video
 
     inline uint32_t TintAmberMono (uint32_t pixel)
     {
-        // R:G ratio of ~0.82 lands between the warmer P3 amber (~0.69)
-        // and a true yellow (~1.0). Earlier 0.75 read too orange in
-        // user testing on modern displays where the white point is
-        // bluer than NTSC-era CRTs.
+        // P3 phosphor reference: full-luma output ~= rgb(255, 160, 0)
+        // (R:G = 0.627, B = 0). This is the historically-accurate emission
+        // peak (~590 nm) of the amber CRT chemistry used in the Apple
+        // Monitor //e Amber and Monitor //c, mapped into sRGB. Reads more
+        // orange on a modern LCD than it did against a dark CRT in dim
+        // lighting, but that's the actual phosphor color.
         uint8_t  l = Luminance (pixel);
-        return MakePixel (l, static_cast<uint8_t> (l * 0.82f), 0);
+        return MakePixel (l, static_cast<uint8_t> (l * 0.627f), 0);
     }
 
     inline uint32_t TintWhiteMono (uint32_t pixel)
