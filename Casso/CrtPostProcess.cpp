@@ -40,7 +40,7 @@ namespace
 
     // See Shaders/CRT/brightness.hlsl
     constexpr const char *  kPsBrightness =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; };\n"
+        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };\n"
         "Texture2D    tex : register(t0);\n"
         "SamplerState sam : register(s0);\n"
         "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
@@ -53,7 +53,7 @@ namespace
 
     // See Shaders/CRT/scanlines.hlsl
     constexpr const char *  kPsScanlines =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; };\n"
+        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };\n"
         "Texture2D    tex : register(t0);\n"
         "SamplerState sam : register(s0);\n"
         "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
@@ -71,7 +71,7 @@ namespace
 
     // See Shaders/CRT/bloom_h.hlsl
     constexpr const char *  kPsBloomH =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; };\n"
+        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };\n"
         "Texture2D    tex : register(t0);\n"
         "SamplerState sam : register(s0);\n"
         "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
@@ -92,7 +92,7 @@ namespace
 
     // See Shaders/CRT/bloom_v.hlsl
     constexpr const char *  kPsBloomV =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; };\n"
+        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };\n"
         "Texture2D    tex : register(t0);\n"
         "SamplerState sam : register(s0);\n"
         "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
@@ -113,7 +113,7 @@ namespace
 
     // See Shaders/CRT/bloom_composite.hlsl
     constexpr const char *  kPsBloomComp =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; };\n"
+        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };\n"
         "Texture2D    texSrc   : register(t0);\n"
         "Texture2D    texBloom : register(t1);\n"
         "SamplerState sam      : register(s0);\n"
@@ -127,7 +127,7 @@ namespace
 
     // See Shaders/CRT/color_bleed.hlsl
     constexpr const char *  kPsColorBleed =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; };\n"
+        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };\n"
         "Texture2D    tex : register(t0);\n"
         "SamplerState sam : register(s0);\n"
         "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
@@ -154,6 +154,42 @@ namespace
         "    }\n"
         "    float3 outY = float3 (centerYcbcr.x, chromaAcc / weightSum);\n"
         "    return float4 (ToRgb (outY), 1.0);\n"
+        "}\n";
+
+    // Persistence pass. Mixes current frame (t0) with the previous
+    // frame's post-bloom output (t1) using max() instead of lerp() so
+    // bright pixels snap on immediately but only fade gradually --
+    // matches real phosphor physics (electrons hit -> phosphor lights
+    // up instantly, then decays slowly). persistence==0 disables (pass-
+    // through); persistence==0.8 makes amber-style afterglow visible.
+    constexpr const char *  kPsPersistence =
+        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };\n"
+        "Texture2D    texCurrent : register(t0);\n"
+        "Texture2D    texPrev    : register(t1);\n"
+        "SamplerState sam        : register(s0);\n"
+        "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
+        "float4 main (PSInput i) : SV_TARGET\n"
+        "{\n"
+        "    float3 cur  = texCurrent.Sample (sam, i.uv).rgb;\n"
+        "    float3 prev = texPrev.Sample    (sam, i.uv).rgb;\n"
+        "    float3 decayed = prev * saturate (g_persistence);\n"
+        "    return float4 (max (cur, decayed), 1.0);\n"
+        "}\n";
+
+    // Final gamma pass. Applies pow(rgb, 1/gamma) so content authored
+    // for a ~1.8 CRT looks right on a 2.2 sRGB display. Trivial cost;
+    // single ALU op per channel.
+    constexpr const char *  kPsGamma =
+        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };\n"
+        "Texture2D    tex : register(t0);\n"
+        "SamplerState sam : register(s0);\n"
+        "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
+        "float4 main (PSInput i) : SV_TARGET\n"
+        "{\n"
+        "    float4 c = tex.Sample (sam, i.uv);\n"
+        "    float  invGamma = 1.0 / max (g_gamma, 0.1);\n"
+        "    c.rgb = pow (saturate (c.rgb), invGamma);\n"
+        "    return c;\n"
         "}\n";
 
     // See Shaders/CRT/copy.hlsl
@@ -499,13 +535,15 @@ HRESULT CrtPostProcess::Initialize (
     CHRA (hr);
 
     // Pixel shaders.
-    hr = CompilePixelShader (kPsBrightness, &m_psBrightness);  CHRA (hr);
-    hr = CompilePixelShader (kPsScanlines,  &m_psScanlines);   CHRA (hr);
-    hr = CompilePixelShader (kPsBloomH,     &m_psBloomH);      CHRA (hr);
-    hr = CompilePixelShader (kPsBloomV,     &m_psBloomV);      CHRA (hr);
-    hr = CompilePixelShader (kPsBloomComp,  &m_psBloomComp);   CHRA (hr);
-    hr = CompilePixelShader (kPsColorBleed, &m_psColorBleed);  CHRA (hr);
-    hr = CompilePixelShader (kPsCopy,       &m_psCopy);        CHRA (hr);
+    hr = CompilePixelShader (kPsBrightness,  &m_psBrightness);   CHRA (hr);
+    hr = CompilePixelShader (kPsScanlines,   &m_psScanlines);    CHRA (hr);
+    hr = CompilePixelShader (kPsBloomH,      &m_psBloomH);       CHRA (hr);
+    hr = CompilePixelShader (kPsBloomV,      &m_psBloomV);       CHRA (hr);
+    hr = CompilePixelShader (kPsBloomComp,   &m_psBloomComp);    CHRA (hr);
+    hr = CompilePixelShader (kPsColorBleed,  &m_psColorBleed);   CHRA (hr);
+    hr = CompilePixelShader (kPsPersistence, &m_psPersistence);  CHRA (hr);
+    hr = CompilePixelShader (kPsGamma,       &m_psGamma);        CHRA (hr);
+    hr = CompilePixelShader (kPsCopy,        &m_psCopy);         CHRA (hr);
 
     // Quad geometry.
     bd.ByteWidth = sizeof (vertices);
@@ -628,6 +666,17 @@ HRESULT CrtPostProcess::EnsureSize (int width, int height)
         hr = m_device->CreateShaderResourceView (m_ppBloomTex[i].Get(), nullptr, &m_ppBloomSrv[i]);
         CHRA (hr);
     }
+
+    // Persistence carry-over RT. One texture, not ping-pong; the
+    // previous frame's final color (pre-gamma) lives here from one
+    // Process() call to the next.
+    hr = m_device->CreateTexture2D (&td, nullptr, &m_persistenceTex);
+    CHRA (hr);
+    hr = m_device->CreateRenderTargetView (m_persistenceTex.Get(), nullptr, &m_persistenceRtv);
+    CHRA (hr);
+    hr = m_device->CreateShaderResourceView (m_persistenceTex.Get(), nullptr, &m_persistenceSrv);
+    CHRA (hr);
+    m_persistencePrimed = false;
 
     m_width  = width;
     m_height = height;
@@ -814,7 +863,50 @@ HRESULT CrtPostProcess::Process (
                     backBufferW, backBufferH,
                     nullptr);
 
-    // Pass 7: final copy, ppMain[1] -> back buffer.
+    // Pass 7: persistence. Current frame (ppMain[1]) mixed with the
+    // PREVIOUS frame's post-persistence result (m_persistenceTex) via
+    // max(current, prev*decay). Output lands in ppMain[0] AND we
+    // capture a copy into m_persistenceTex for next frame. First frame
+    // after EnsureSize has no valid prior, so we just pass through
+    // (the persistence cbuffer field stays 0 until primed).
+    if (params.persistence > 0.0f && m_persistencePrimed)
+    {
+        DrawFullscreen (m_ppMainRtv[0].Get(),
+                        m_ppMainSrv[1].Get(),
+                        m_persistenceSrv.Get(),
+                        m_psPersistence.Get(),
+                        backBufferW, backBufferH,
+                        nullptr);
+    }
+    else
+    {
+        // Pass-through: copy ppMain[1] -> ppMain[0] so subsequent
+        // passes can keep their input/output convention.
+        DrawFullscreen (m_ppMainRtv[0].Get(),
+                        m_ppMainSrv[1].Get(), nullptr,
+                        m_psCopy.Get(),
+                        backBufferW, backBufferH,
+                        nullptr);
+    }
+
+    // Capture the persistence-pass result into the carry-over RT
+    // before the destructive gamma pass writes to ppMain[1]. After
+    // this CopyResource the next frame can sample the previous final
+    // frame's post-color result.
+    if (m_persistenceTex && m_ppMainTex[0])
+    {
+        m_context->CopyResource (m_persistenceTex.Get(), m_ppMainTex[0].Get());
+        m_persistencePrimed = true;
+    }
+
+    // Pass 8: gamma, ppMain[0] -> ppMain[1].
+    DrawFullscreen (m_ppMainRtv[1].Get(),
+                    m_ppMainSrv[0].Get(), nullptr,
+                    m_psGamma.Get(),
+                    backBufferW, backBufferH,
+                    nullptr);
+
+    // Pass 9: final copy, ppMain[1] -> back buffer.
     DrawFullscreen (dstRtv,
                     m_ppMainSrv[1].Get(), nullptr,
                     m_psCopy.Get(),
@@ -850,6 +942,10 @@ void CrtPostProcess::Shutdown()
         m_ppBloomRtv[i].Reset();
         m_ppBloomTex[i].Reset();
     }
+    m_persistenceSrv.Reset();
+    m_persistenceRtv.Reset();
+    m_persistenceTex.Reset();
+    m_persistencePrimed = false;
 
     m_blendOpaque.Reset();
     m_sampler.Reset();
@@ -865,6 +961,8 @@ void CrtPostProcess::Shutdown()
     m_psBloomV.Reset();
     m_psBloomComp.Reset();
     m_psColorBleed.Reset();
+    m_psPersistence.Reset();
+    m_psGamma.Reset();
     m_psCopy.Reset();
 
     m_device  = nullptr;

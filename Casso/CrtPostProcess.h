@@ -138,6 +138,8 @@ private:
     ComPtr<ID3D11PixelShader>  m_psBloomV;
     ComPtr<ID3D11PixelShader>  m_psBloomComp;
     ComPtr<ID3D11PixelShader>  m_psColorBleed;
+    ComPtr<ID3D11PixelShader>  m_psPersistence;
+    ComPtr<ID3D11PixelShader>  m_psGamma;
     ComPtr<ID3D11PixelShader>  m_psCopy;
 
     // Ping-pong RTs sized to back buffer; recreated by EnsureSize on resize.
@@ -149,4 +151,13 @@ private:
     ComPtr<ID3D11Texture2D>          m_ppBloomTex[2];
     ComPtr<ID3D11RenderTargetView>   m_ppBloomRtv[2];
     ComPtr<ID3D11ShaderResourceView> m_ppBloomSrv[2];
+
+    // Persistence carry-over RT. Holds the post-bloom-composite result
+    // of the previous frame so the persistence pass can mix it with the
+    // current frame's pre-gamma output. Separate from the ping-pong
+    // pool so it doesn't get clobbered between frames.
+    ComPtr<ID3D11Texture2D>          m_persistenceTex;
+    ComPtr<ID3D11RenderTargetView>   m_persistenceRtv;
+    ComPtr<ID3D11ShaderResourceView> m_persistenceSrv;
+    bool                             m_persistencePrimed = false;
 };
