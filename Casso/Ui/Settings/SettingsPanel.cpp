@@ -620,6 +620,57 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UpdatePreviewOverlap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::UpdatePreviewOverlap (const RECT & emulatorContentScreenRect)
+{
+    HRESULT  hr          = S_OK;
+    RECT     windowRect  = {};
+    RECT     intersect   = {};
+    BOOL     ok          = FALSE;
+    BOOL     overlaps    = FALSE;
+
+
+
+    m_previewOverlapsEmulatorOutput = false;
+    BAIL_OUT_IF (!m_visible || !m_window.IsOpen() || IsRectEmpty (&emulatorContentScreenRect), S_OK);
+
+    ok = GetWindowRect (m_window.Hwnd(), &windowRect);
+    CWRA (ok);
+
+    overlaps = IntersectRect (&intersect, &windowRect, &emulatorContentScreenRect);
+    m_previewOverlapsEmulatorOutput = (overlaps != FALSE);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsPreviewTransparencyActive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsPanel::IsPreviewTransparencyActive() const
+{
+    return m_visible &&
+           m_previewOverlapsEmulatorOutput &&
+           (m_previewFocus != PreviewFocus::None) &&
+           ((TabIndex) m_activeTab == TabIndex::Display);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetTheme
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -661,7 +712,7 @@ SIZE SettingsPanel::PreferredClientSize (UINT dpi) const
 //  The live-preview state machine. While a slider is being dragged
 //  or a dropdown is open, the panel fades out (alpha -> 0) so the
 //  user can see the emulator respond to the change; the focused
-//  control stays at ~50% alpha so they can still see what they're
+//  control stays at 90% alpha so they can still see what they're
 //  manipulating. Keyboard-driven changes auto-end the preview 500ms
 //  after the last keystroke.
 //
@@ -672,6 +723,48 @@ void SettingsPanel::StartPreview (int focus, bool keyboardMode)
     m_previewFocus      = (PreviewFocus) focus;
     m_previewKeyboard   = keyboardMode;
     m_lastInteractionMs = (int64_t) GetTickCount64();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreparePreviewFrame
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::PreparePreviewFrame()
+{
+    if (m_visible && (TabIndex) m_activeTab == TabIndex::Display)
+    {
+        bool  monitorOpen = m_displayPage.MonitorDropdown().IsOpen();
+
+
+
+        if (monitorOpen && m_previewFocus != PreviewFocus::MonitorDropdown)
+        {
+            StartPreview ((int) PreviewFocus::MonitorDropdown, false);
+        }
+        else if (!monitorOpen && m_previewFocus == PreviewFocus::MonitorDropdown)
+        {
+            if (m_emuShell != nullptr)
+            {
+                int  committed = m_displayPage.MonitorDropdown().SelectedIndex();
+
+
+
+                if (committed >= 0)
+                {
+                    m_emuShell->SetColorModeLive (committed);
+                }
+            }
+            EndPreview();
+        }
+    }
+
+    UpdatePreviewFade ((int64_t) GetTickCount64());
 }
 
 
@@ -1413,9 +1506,12 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const Dpi
 
 void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
 {
-    ChromeTheme  theme     = (m_uiShell != nullptr) ? m_uiShell->Theme() : ChromeTheme::Skeuomorphic();
-    float        edgeThick = (m_uiShell != nullptr) ? m_uiShell->Scaler().Pxf (s_kEdgeThickDp)
-                                                    : s_kEdgeThickDp;
+    ChromeTheme  theme            = (m_uiShell != nullptr) ? m_uiShell->Theme() : ChromeTheme::Skeuomorphic();
+    float        edgeThick        = (m_uiShell != nullptr) ? m_uiShell->Scaler().Pxf (s_kEdgeThickDp)
+                                                           : s_kEdgeThickDp;
+    float        panelA           = m_panelAlpha;
+    float        focusedA         = m_focusedAlpha;
+    int          focusedControlId = (m_previewFocus == PreviewFocus::None) ? -1 : (int) m_previewFocus;
 
 
 
@@ -1424,45 +1520,20 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
         return;
     }
 
-    // Detect monitor-dropdown open/close transitions so the preview
-    // state fades in/out as the user opens / dismisses it. Driven by
-    // polling here rather than dropdown callbacks because Dropdown
-    // doesn't expose OnOpen / OnClose hooks today.
+    if (IsPreviewTransparencyActive())
     {
-        bool  monitorOpen = m_displayPage.MonitorDropdown().IsOpen();
+        RECT  focusedRect = m_displayPage.FocusedControlRect (focusedControlId);
 
-        if (monitorOpen && m_previewFocus != PreviewFocus::MonitorDropdown)
-        {
-            StartPreview ((int) PreviewFocus::MonitorDropdown, false);
-        }
-        else if (!monitorOpen && m_previewFocus == PreviewFocus::MonitorDropdown)
-        {
-            // Dropdown was open and is now closed. If the user
-            // committed an item (mouse click / Enter), the live
-            // colour mode already matches the dropdown's selection
-            // -- this push is a no-op. If they Escaped or clicked
-            // outside, the live colour mode is whatever they last
-            // hovered through the highlight channel; we revert it
-            // to the committed selection so the emulator goes back
-            // to the user's actual pick.
-            if (m_emuShell != nullptr)
-            {
-                int  committed = m_displayPage.MonitorDropdown().SelectedIndex();
 
-                if (committed >= 0)
-                {
-                    m_emuShell->SetColorModeLive (committed);
-                }
-            }
-            EndPreview();
+
+        if (!IsRectEmpty (&focusedRect))
+        {
+            m_displayPage.Paint (painter, text, focusedControlId, 0.0f, focusedA);
         }
+        painter.SetGlobalAlpha (1.0f);
+        text.SetGlobalAlpha    (1.0f);
+        return;
     }
-
-    UpdatePreviewFade ((int64_t) GetTickCount64());
-
-    float  panelA   = m_panelAlpha;
-    float  focusedA = m_focusedAlpha;
-    int    focusedControlId = (m_previewFocus == PreviewFocus::None) ? -1 : (int) m_previewFocus;
 
     painter.SetGlobalAlpha (panelA);
     text.SetGlobalAlpha    (panelA);

@@ -18,7 +18,7 @@
 static constexpr LPCWSTR  s_kpszSettingsWindowClass = L"Casso.Settings.Window";
 static constexpr LPCWSTR  s_kpszSettingsWindowTitle = L"Casso settings";
 static constexpr DWORD    s_kSettingsWindowStyle    = WS_POPUP | WS_THICKFRAME | WS_SYSMENU | WS_VISIBLE;
-static constexpr DWORD    s_kSettingsWindowExStyle  = WS_EX_DLGMODALFRAME | WS_EX_TOOLWINDOW;
+static constexpr DWORD    s_kSettingsWindowExStyle  = WS_EX_DLGMODALFRAME | WS_EX_TOOLWINDOW | WS_EX_NOREDIRECTIONBITMAP;
 static constexpr int      s_kBaseDpi                = 96;
 static constexpr int      s_kCenterDivisor          = 2;
 static constexpr int      s_kMinResizeBorderPx      = 8;

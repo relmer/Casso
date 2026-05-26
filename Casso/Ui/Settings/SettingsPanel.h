@@ -72,8 +72,11 @@ public:
     void    Cancel();
     HRESULT RenderPopup();
     void    SetTheme    (const ChromeTheme * theme);
+    void    UpdatePreviewOverlap (const RECT & emulatorContentScreenRect);
+    void    PreparePreviewFrame();
     SIZE    PreferredClientSize (UINT dpi) const;
     bool    IsVisible () const { return m_visible; }
+    bool    IsPreviewTransparencyActive() const;
 
     // Render + input routing. The owned settings popup composites Paint
     // into its own swap chain; the routing helpers consume popup-local
@@ -163,14 +166,21 @@ private:
         BrightnessSlider  = 1,
         ContrastSlider    = 2,
         MonitorDropdown   = 3,
+        ScanlinesSlider   = 4,
+        BloomRadiusSlider = 5,
+        BloomStrengthSlider = 6,
+        ColorBleedSlider  = 7,
+        GammaSlider       = 8,
+        PersistenceSlider = 9,
     };
 
     PreviewFocus        m_previewFocus       = PreviewFocus::None;
     bool                m_previewKeyboard    = false;     // true => auto-end via idle timer
     int64_t             m_lastInteractionMs  = 0;
     float               m_panelAlpha         = 1.0f;      // animated 1.0 <-> 0.0
-    float               m_focusedAlpha       = 1.0f;      // animated 1.0 <-> 0.5
+    float               m_focusedAlpha       = 1.0f;      // animated 1.0 <-> 0.9
     int64_t             m_lastFrameMs        = 0;
+    bool                m_previewOverlapsEmulatorOutput = false;
 
     TabStrip            m_tabs;
     MachinePage         m_machinePage;

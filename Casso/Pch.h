@@ -23,6 +23,7 @@
 #include <d2d1helper.h>
 #include <dxgi1_2.h>
 #include <dxgi1_3.h>
+#include <dcomp.h>
 
 #include <crtdbg.h>
 #include <shellapi.h>

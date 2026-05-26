@@ -28,6 +28,7 @@ public:
     bool  IsOpen()       const { return m_open; }
     int   HighlightIndex () const { return m_highlight; }
     int   SelectedIndex  () const { return m_selected; }
+    const RECT & Rect()    const { return m_rect; }
     const std::vector<std::wstring> & Items () const { return m_items; }
     bool  HitTest        (int x, int y) const;
     int   ItemHitTest    (int x, int y) const;

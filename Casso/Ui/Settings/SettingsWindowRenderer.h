@@ -47,6 +47,9 @@ private:
     ID3D11Device                    * m_device   = nullptr;
     ID3D11DeviceContext             * m_context  = nullptr;
     ComPtr<IDXGISwapChain1>           m_swapChain;
+    ComPtr<IDCompositionDevice>        m_dcompDevice;
+    ComPtr<IDCompositionTarget>        m_dcompTarget;
+    ComPtr<IDCompositionVisual>        m_dcompVisual;
     ComPtr<ID3D11RenderTargetView>    m_rtv;
     DxUiPainter                       m_painter;
     DwriteTextRenderer                m_text;
