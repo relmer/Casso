@@ -1822,6 +1822,42 @@ void EmulatorShell::PostCommand (WORD id, const string & payload)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  StepInstructionWhilePaused
+//
+//  Runs one CPU instruction directly from the UI thread. Caller MUST
+//  have verified the CPU thread is paused (blocked on pauseCV.wait)
+//  -- this is a quiet contract; we don't re-check here.
+//
+//  Steps the CPU, ticks the disk controller in step, then runs one
+//  full video frame and publishes the framebuffer so the main UI
+//  loop sees fbDirty next iteration and presents.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::StepInstructionWhilePaused ()
+{
+    if (m_cpu == nullptr)
+    {
+        return;
+    }
+
+    m_cpu->StepOne();
+
+    if (m_refs.diskController != nullptr)
+    {
+        m_refs.diskController->Tick (m_cpu->GetLastInstructionCycles());
+    }
+
+    RunOneFrame();
+    PublishFramebuffer();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PublishFramebuffer
 //
 //  Copies the freshly-rendered CPU framebuffer into the UI-visible

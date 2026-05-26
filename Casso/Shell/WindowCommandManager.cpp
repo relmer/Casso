@@ -183,10 +183,17 @@ void WindowCommandManager::OnMachineCommand (int id)
 
         case IDM_MACHINE_STEP:
         {
-            if (m_shell.m_cpuManager.IsPaused())
+            if (! m_shell.m_cpuManager.IsPaused())
             {
-                m_shell.PostCommand (static_cast<WORD> (id));
+                break;
             }
+            // CPU thread is provably idle (blocked on pauseCV.wait), so
+            // it's safe to drive the step directly from the UI thread.
+            // Routing through PostCommand+queue would never run -- the
+            // CPU thread can't drain its queue while paused. Delegated
+            // through the shell to avoid pulling DiskIIController's full
+            // definition into this header.
+            m_shell.StepInstructionWhilePaused();
             break;
         }
 

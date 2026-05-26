@@ -184,6 +184,12 @@ private:
 public:
     void PostCommand (WORD id, const string & payload = "");
 
+    // Single-step the CPU from the UI thread. Only safe when the
+    // CPU thread is paused (provably idle on pauseCV.wait); the
+    // caller must enforce that precondition. Bypasses PostCommand
+    // because the CPU thread can't drain its queue while paused.
+    void StepInstructionWhilePaused ();
+
 private:
     // Machine switching delegated to MachineManager. Kept as a
     // public delegator so the existing IDM_FILE_OPEN command-queue
