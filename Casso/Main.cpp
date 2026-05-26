@@ -127,8 +127,7 @@ static HRESULT LoadMachineConfig (
     // strictly from the embedded default for `machineName`, so if
     // the user has edited their on-disk JSON they're responsible
     // for any extra ROMs they reference.
-    romDir = AssetBootstrap::GetAssetBaseDirectory (romSearchPaths,
-                                                    PathResolver::GetExecutableDirectory());
+    romDir = AssetBootstrap::GetAssetBaseDirectory();
 
     hr = AssetBootstrap::CheckAndFetchRoms (hInstance, machineName, hwndParent,
                                             romSearchPaths, romDir, error);
@@ -184,9 +183,7 @@ static HRESULT LoadMachineConfig (
         {
             wstring  downloaded;
 
-            diskDir = AssetBootstrap::GetDiskDirectory (
-                romSearchPaths,
-                PathResolver::GetExecutableDirectory());
+            diskDir = AssetBootstrap::GetDiskDirectory();
 
             hr = AssetBootstrap::OfferBootDiskDownload (
                 hInstance, machineName, hwndParent, diskDir, downloaded, error);
@@ -298,24 +295,18 @@ int WINAPI wWinMain (
     // JSON configs (extracts embedded resources on first run if the
     // user is running a loose casso.exe with no Machines/ folder).
     {
-        vector<fs::path> bootstrapPaths = PathResolver::BuildSearchPaths (
-            PathResolver::GetExecutableDirectory(),
-            PathResolver::GetWorkingDirectory());
+        HRESULT hrBoot   = AssetBootstrap::EnsureMachineConfigs (hInstance);
+        HRESULT hrThemes = S_OK;
 
-        HRESULT hrBoot = AssetBootstrap::EnsureMachineConfigs (
-            hInstance,
-            bootstrapPaths,
-            PathResolver::GetExecutableDirectory());
+
+
         IGNORE_RETURN_VALUE (hrBoot, S_OK);
 
         // Extract the three built-in UI themes alongside the
         // machine configs so the very first launch has chrome to
         // render. User-authored Themes/<MyTheme>/ entries are
         // preserved — the planner only ever touches built-in dirs.
-        HRESULT hrThemes = AssetBootstrap::EnsureThemes (
-            hInstance,
-            bootstrapPaths,
-            PathResolver::GetExecutableDirectory());
+        hrThemes = AssetBootstrap::EnsureThemes (hInstance);
         IGNORE_RETURN_VALUE (hrThemes, S_OK);
     }
 
