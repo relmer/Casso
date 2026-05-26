@@ -115,8 +115,9 @@ public:
 private:
 
     HRESULT  EnsureSize         (int width, int height);
-    HRESULT  CompilePixelShader (const char * src,
-                                 ID3D11PixelShader ** out);
+    HRESULT  CompilePixelShader (int                  resourceId,
+                                  const char         * sourceName,
+                                  ID3D11PixelShader ** out);
     HRESULT  UploadConstants    (const CrtParams & params);
     void     DrawFullscreen     (ID3D11RenderTargetView   * rt,
                                  ID3D11ShaderResourceView * srv0,

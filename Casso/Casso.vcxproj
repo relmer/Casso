@@ -360,6 +360,7 @@
     <ClInclude Include="UnicodeSymbols.h" />
     <ClInclude Include="WasapiAudio.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="Shaders\ShaderResourceIds.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Casso.rc" />
@@ -371,6 +372,8 @@
     <None Include="Shaders\CRT\bloom_composite.hlsl" />
     <None Include="Shaders\CRT\color_bleed.hlsl" />
     <None Include="Shaders\CRT\brightness.hlsl" />
+    <None Include="Shaders\CRT\persistence.hlsl" />
+    <None Include="Shaders\CRT\gamma.hlsl" />
     <None Include="Shaders\CRT\copy.hlsl" />
     <None Include="Shaders\CRT\LICENSES.md" />
     <None Include="Shaders\Ui\ui_solid.hlsl" />

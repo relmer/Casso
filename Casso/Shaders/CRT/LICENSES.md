@@ -14,6 +14,8 @@ header in their corresponding `.hlsl` file.
 | `bloom_composite.hlsl`    | `bloom/shaders/bloom.glsl`                     | Hyllian / hunterk       | CC0 / PD     |
 | `color_bleed.hlsl`        | `ntsc/shaders/ntsc-adaptive/ntsc-pass1.glsl`   | Themaister / hunterk    | MIT          |
 | `brightness.hlsl`         | (original)                                     | Casso                   | n/a          |
+| `persistence.hlsl`        | (original)                                     | Casso                   | n/a          |
+| `gamma.hlsl`              | (original)                                     | Casso                   | n/a          |
 | `copy.hlsl`               | (original)                                     | Casso                   | n/a          |
 
 All third-party shaders are MIT or public-domain (CC0). `scripts/CheckShaderLicenses.ps1`
