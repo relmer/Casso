@@ -2,6 +2,8 @@
 
 #include "CrtPostProcess.h"
 
+#include "Config/CrtPresets.h"
+
 #pragma comment(lib, "d3dcompiler.lib")
 
 
@@ -182,38 +184,51 @@ namespace
 //
 //  MakeCrtParams
 //
-//  Pure logic. Produces a `CrtParams` constant buffer
-//  payload from the user's prefs + (optionally) the active theme's
-//  `crtDefaults`.
+//  Pure logic. Produces a `CrtParams` constant-buffer payload by
+//  resolving the precedence chain:
 //
-//  Resolution rule:
-//      * If `prefsCrt.userOverride == true` -> use prefs values verbatim.
-//      * Otherwise, if `themeDefaults != nullptr` -> use theme values.
-//      * Otherwise -> use the in-struct defaults of `GlobalUserPrefs::Crt`.
+//    1. User override (prefsCrt.userOverride == true) -> prefsCrt verbatim
+//    2. Theme variant override (themeDefaults != nullptr) -> theme values
+//    3. Monitor-type preset (CrtPresets::ForMode(modeIndex)) -> preset values
+//    4. (Implicit) struct defaults of GlobalUserPrefs::Crt -- fallback
+//       if everything above is somehow unset
+//
+//  Gamma and persistence are NEW in the per-monitor schema and have
+//  no theme-default equivalent yet; they fall through user override ->
+//  monitor preset directly.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 CrtParams MakeCrtParams (
     const GlobalUserPrefs::Crt  & prefsCrt,
+    size_t                        modeIndex,
     const ThemeCrtDefaults      * themeDefaults,
     float                         outputW,
     float                         outputH)
 {
-    CrtParams  params;
-    float      brightness   = prefsCrt.brightness;
-    float      contrast     = prefsCrt.contrast;
-    bool       scanEn       = prefsCrt.scanlinesEnabled;
-    float      scanInt      = prefsCrt.scanlinesIntensity;
-    bool       bloomEn      = prefsCrt.bloomEnabled;
-    float      bloomR       = prefsCrt.bloomRadius;
-    float      bloomS       = prefsCrt.bloomStrength;
-    bool       bleedEn      = prefsCrt.colorBleedEnabled;
-    float      bleedW       = prefsCrt.colorBleedWidth;
+    CrtParams                    params;
+    const GlobalUserPrefs::Crt & preset = CrtPresets::ForMode (modeIndex);
+
+    // Default everything from the monitor-type preset; layered sources
+    // overwrite into this struct in lowest-priority-first order so the
+    // highest-priority winner is the final value.
+    float  brightness  = preset.brightness;
+    float  contrast    = preset.contrast;
+    float  gamma       = preset.gamma;
+    float  persistence = preset.persistence;
+    bool   scanEn      = preset.scanlinesEnabled;
+    float  scanInt     = preset.scanlinesIntensity;
+    bool   bloomEn     = preset.bloomEnabled;
+    float  bloomR      = preset.bloomRadius;
+    float  bloomS      = preset.bloomStrength;
+    bool   bleedEn     = preset.colorBleedEnabled;
+    float  bleedW      = preset.colorBleedWidth;
 
 
-    // Resolution rule: theme overrides apply only when the user hasn't
-    // committed any prefs of their own. The moment FromJson parses a
-    // "crt" object on disk we flip userOverride=true and prefs win.
+
+    // Theme variant overrides land on top of the monitor preset for
+    // every field the theme cares about. Theme doesn't yet carry
+    // gamma / persistence so those keep preset values.
     if (!prefsCrt.userOverride && themeDefaults != nullptr)
     {
         brightness = themeDefaults->brightness;
@@ -227,14 +242,33 @@ CrtParams MakeCrtParams (
         bleedW     = themeDefaults->colorBleedWidth;
     }
 
+    // User overrides win outright. Once flipped, prefs values land
+    // verbatim regardless of theme or preset.
+    if (prefsCrt.userOverride)
+    {
+        brightness  = prefsCrt.brightness;
+        contrast    = prefsCrt.contrast;
+        gamma       = prefsCrt.gamma;
+        persistence = prefsCrt.persistence;
+        scanEn      = prefsCrt.scanlinesEnabled;
+        scanInt     = prefsCrt.scanlinesIntensity;
+        bloomEn     = prefsCrt.bloomEnabled;
+        bloomR      = prefsCrt.bloomRadius;
+        bloomS      = prefsCrt.bloomStrength;
+        bleedEn     = prefsCrt.colorBleedEnabled;
+        bleedW      = prefsCrt.colorBleedWidth;
+    }
+
     params.brightness        = brightness;
+    params.contrast          = contrast;
+    params.gamma             = gamma;
+    params.persistence       = persistence;
     params.scanlineIntensity = scanEn  ? scanInt : 0.0f;
     params.bloomRadius       = bloomEn ? bloomR  : 0.0f;
     params.bloomStrength     = bloomEn ? bloomS  : 0.0f;
     params.colorBleedWidth   = bleedEn ? bleedW  : 0.0f;
     params.outputW           = (outputW > 0.0f) ? outputW : 1.0f;
     params.outputH           = (outputH > 0.0f) ? outputH : 1.0f;
-    params.contrast          = contrast;
 
     return params;
 }

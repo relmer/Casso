@@ -72,21 +72,23 @@ public:
     {
         GlobalUserPrefs  prefs;
 
-        CrtParams  params = MakeCrtParams (prefs.crtByMode[0], nullptr, 1920.0f, 1080.0f);
+        CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 1920.0f, 1080.0f);
 
-        // brightness defaults to 1.0; every "enabled" toggle is off out of
-        // the box (FR-038 / FR-040) so all effect magnitudes should be 0
-        // even though prefs has nonzero intensity/radius/strength sliders
-        // pre-populated (the slider's stored default isn't applied until
-        // the user enables the effect).
+        // With userOverride=false and no theme override, MakeCrtParams
+        // pulls from the Color monitor preset (CrtPresets::ForMode(0)).
+        // That preset has bloom on (radius 2 / strength 0.30) and color
+        // bleed on (width 3) by design -- those are the defining color
+        // CRT looks. Scanlines / persistence off for color mode.
         Assert::AreEqual (1.0f,    params.brightness);
         Assert::AreEqual (1.0f,    params.contrast);
         Assert::AreEqual (0.0f,    params.scanlineIntensity);
-        Assert::AreEqual (0.0f,    params.bloomRadius);
-        Assert::AreEqual (0.0f,    params.bloomStrength);
-        Assert::AreEqual (0.0f,    params.colorBleedWidth);
+        Assert::AreEqual (2.0f,    params.bloomRadius);
+        Assert::AreEqual (0.30f,   params.bloomStrength);
+        Assert::AreEqual (3.0f,    params.colorBleedWidth);
         Assert::AreEqual (1920.0f, params.outputW);
         Assert::AreEqual (1080.0f, params.outputH);
+        Assert::AreEqual (2.2f,    params.gamma);
+        Assert::AreEqual (0.0f,    params.persistence);
     }
 
 
@@ -107,7 +109,7 @@ public:
         prefs.crtByMode[0].colorBleedEnabled   = false;
         prefs.crtByMode[0].colorBleedWidth     = 2.5f;
 
-        CrtParams  params = MakeCrtParams (prefs.crtByMode[0], nullptr, 800.0f, 600.0f);
+        CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 800.0f, 600.0f);
 
         Assert::AreEqual (1.5f, params.brightness);
         Assert::AreEqual (0.0f, params.scanlineIntensity);
@@ -131,7 +133,7 @@ public:
         prefs.crtByMode[0].colorBleedEnabled   = true;
         prefs.crtByMode[0].colorBleedWidth     = 1.5f;
 
-        CrtParams  params = MakeCrtParams (prefs.crtByMode[0], nullptr, 1024.0f, 768.0f);
+        CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 1024.0f, 768.0f);
 
         Assert::AreEqual (1.2f, params.brightness);
         Assert::AreEqual (1.6f, params.contrast);
@@ -158,7 +160,7 @@ public:
         // Case 1 -- no user override; theme wins.
         {
             GlobalUserPrefs  prefs;          // userOverride == false
-            CrtParams  params = MakeCrtParams (prefs.crtByMode[0], &theme, 640.0f, 480.0f);
+            CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, &theme, 640.0f, 480.0f);
 
             Assert::AreEqual (0.85f, params.brightness);
             Assert::AreEqual (1.15f, params.contrast);
@@ -183,7 +185,7 @@ public:
             prefs.crtByMode[0].colorBleedEnabled  = false;
             prefs.crtByMode[0].colorBleedWidth    = 0.5f;
 
-            CrtParams  params = MakeCrtParams (prefs.crtByMode[0], &theme, 640.0f, 480.0f);
+            CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, &theme, 640.0f, 480.0f);
 
             Assert::AreEqual (1.4f, params.brightness);
             Assert::AreEqual (0.7f, params.contrast);

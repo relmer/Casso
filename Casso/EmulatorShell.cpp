@@ -1501,6 +1501,7 @@ int EmulatorShell::RunMessageLoop()
                 }
             }
             CrtParams  params = MakeCrtParams (m_globalPrefs.crtByMode[(int) m_colorMode.load(std::memory_order_acquire)],
+                                               (size_t) m_colorMode.load(std::memory_order_acquire),
                                                themeDefaults,
                                                (float) m_d3dRenderer.GetBackBufferWidth(),
                                                (float) m_d3dRenderer.GetBackBufferHeight());
@@ -2457,6 +2458,7 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
 
             (void) fHaveTheme;
             params = MakeCrtParams (m_globalPrefs.crtByMode[(int) m_colorMode.load(std::memory_order_acquire)],
+                                    (size_t) m_colorMode.load(std::memory_order_acquire),
                                     themeDefaults,
                                     (float) m_d3dRenderer.GetBackBufferWidth(),
                                     (float) m_d3dRenderer.GetBackBufferHeight());

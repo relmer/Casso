@@ -33,6 +33,8 @@ struct CrtParams
     float    outputW            = 1.0f;
     float    outputH            = 1.0f;
     float    contrast           = 1.0f;
+    float    gamma              = 2.2f;
+    float    persistence        = 0.0f;
 };
 
 
@@ -44,6 +46,7 @@ struct CrtParams
 ////////////////////////////////////////////////////////////////////////////////
 
 CrtParams  MakeCrtParams      (const GlobalUserPrefs::Crt & prefsCrt,
+                               size_t                       modeIndex,
                                const ThemeCrtDefaults     * themeDefaults,
                                float                        outputW,
                                float                        outputH);
