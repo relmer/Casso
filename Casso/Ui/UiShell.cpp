@@ -529,49 +529,26 @@ void UiShell::PaintDragDropOverlay (
             }
         }
 
-        // Soft radial glow originating BEHIND each drive. Paint a
-        // stack of concentric translucent filled circles centered on
-        // the drive, outer-to-inner so the brightest layer lands on
-        // top. The drive widget itself was already painted earlier;
-        // these layers overlay it with low alpha so the drive's own
-        // pixels show through while the glow extends well beyond the
-        // rectangle. Hovered drive: brighter base RGB + more layers
-        // + larger outer radius + higher peak alpha.
-        for (int i = 0; i < 2; i++)
+        // Drop-target affordance: leave the drives un-dimmed (they
+        // already paint at full brightness vs the ~78% scrim around
+        // them). Hovered drive gets a subtle warm tint so the active
+        // target reads as the "selected" drop point. Skipping the
+        // concentric-circle glow until the dragdrop-light-source
+        // follow-up ships the real texture-quad version -- the slice-
+        // approximated circles produced visible banding and obscured
+        // the drive content under them.
+        if (hovered >= 0 && hovered < 2)
         {
-            const RECT &  r       = (i == 0) ? d0 : d1;
-            bool          empty   = (r.right <= r.left) || (r.bottom <= r.top);
-            bool          hot     = (hovered == i);
-            int           layers  = hot ? 60 : 36;
-            float         peak    = hot ? 24.0f : 14.0f;
-            uint32_t      rgb     = hot ? 0x00FFD27Au : 0x00FFB347u;
-            float         innerR  = 0.0f;
-            float         outerR  = 0.0f;
-            float         cx      = 0.0f;
-            float         cy      = 0.0f;
-            int           layer   = 0;
+            const RECT &  r     = (hovered == 0) ? d0 : d1;
+            bool          empty = (r.right <= r.left) || (r.bottom <= r.top);
 
-            if (empty)
+            if (!empty)
             {
-                continue;
-            }
-
-            cx     = (float) (r.left + r.right)  * 0.5f;
-            cy     = (float) (r.top  + r.bottom) * 0.5f;
-            innerR = (float) std::max (r.right - r.left, r.bottom - r.top) * 0.5f;
-            outerR = innerR * (hot ? 4.5f : 3.0f);
-
-            // Outer-to-inner so the brightest (innermost) layer paints
-            // last and lands on top.
-            for (layer = layers - 1; layer >= 0; layer--)
-            {
-                float     t      = (float) layer / (float) (layers - 1);
-                float     radius = innerR + (outerR - innerR) * t;
-                float     fall   = (1.0f - t) * (1.0f - t);   // quadratic falloff
-                uint32_t  alpha  = (uint32_t) std::clamp (peak * fall, 0.0f, 255.0f);
-                uint32_t  argb   = (alpha << 24) | rgb;
-
-                m_painter.FillCircleApprox (cx, cy, radius, argb);
+                m_painter.FillRect ((float) r.left,
+                                    (float) r.top,
+                                    (float) (r.right  - r.left),
+                                    (float) (r.bottom - r.top),
+                                    0x30FFD27Au);
             }
         }
     }
