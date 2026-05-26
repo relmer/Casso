@@ -18,9 +18,9 @@
 //  consolidated Settings panel. Holds two parallel copies of every
 //  user-mutable setting:
 //
-//      * `original`  -- the values as merged from
-//        `<default>.json` + `<machine>_user.json` at the moment
-//        `LoadFromMachine` was called. Never mutated by the panel.
+//      * `original`  -- the values as merged from the embedded default
+//        plus unified user preferences at the moment `LoadFromMachine`
+//        was called. Never mutated by the panel.
 //      * `current`   -- the values the user is editing live in the
 //        panel. Mutated by every checkbox / dropdown / slider event.
 //
@@ -142,6 +142,7 @@ public:
     const std::string              & MachineName   () const { return m_machineName; }
     const SettingsUiPrefs          & Prefs         () const { return m_current.prefs; }
     const std::vector<HardwareEntry> & Hardware    () const { return m_current.hardware; }
+    const JsonValue                & DefaultJson   () const { return m_defaultJson; }
 
     void    SetSpeedMode       (SettingsSpeedMode mode);
     void    SetColorMode       (SettingsColorMode mode);

@@ -120,7 +120,7 @@ HRESULT Win32FileSystem::WriteAllText (
         std::filesystem::create_directories (parentDir, ec);
     }
 
-    tempPath = path + L".casso-tmp";
+    tempPath = path + L".tmp";
 
     hTemp = CreateFileW (tempPath.c_str(),
                          GENERIC_WRITE,

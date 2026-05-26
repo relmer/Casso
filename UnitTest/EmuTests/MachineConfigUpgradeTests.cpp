@@ -536,7 +536,7 @@ public:
             "Apple2e", 4, &content, "", priors);
 
         Assert::IsTrue (action == MachineConfigUpgradeAction::OverwriteSilent,
-            L"v1 -> v4 must OverwriteSilent (file is stamped, so user customizations live in a separate _user.json that survives independently)");
+            L"v1 -> v4 must OverwriteSilent (file is stamped, so user customizations live in a separate user JSON that survives independently)");
     }
 
     TEST_METHOD (Plan_VersionJump_LegacyKeyV1ToCurrentV5_OverwriteSilent)

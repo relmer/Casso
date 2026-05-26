@@ -132,7 +132,7 @@ A user double-clicks the custom D3D-rendered title bar to toggle fullscreen, dra
 
 ### User Story 6 — Per-machine JSON settings survive an upgrade (Priority: P3)
 
-A user who ran Casso v1.x has a `Machines/apple2e/apple2e_user.json` file on disk that predates a new `$cassoMachineVersion` value. On launching the new version, Casso detects the version mismatch (reading legacy `$cassoDefault` as an alias only when `$cassoMachineVersion` is absent), automatically runs `MachineConfigUpgrade` to bring the user file forward, and writes the migrated file back. If both version fields are present, migration uses `$cassoMachineVersion` as authoritative and immediately rewrites the file to canonical format with `$cassoMachineVersion` only. The user's customizations (speed, video mode, disabled components) are preserved; new fields introduced in the new version fall through to the read-only default machine JSON.
+A user who ran Casso v1.x has a `Machines/apple2e/apple2euser JSON` file on disk that predates a new `$cassoMachineVersion` value. On launching the new version, Casso detects the version mismatch (reading legacy `$cassoDefault` as an alias only when `$cassoMachineVersion` is absent), automatically runs `MachineConfigUpgrade` to bring the user file forward, and writes the migrated file back. If both version fields are present, migration uses `$cassoMachineVersion` as authoritative and immediately rewrites the file to canonical format with `$cassoMachineVersion` only. The user's customizations (speed, video mode, disabled components) are preserved; new fields introduced in the new version fall through to the read-only default machine JSON.
 
 **Why this priority**: Settings persistence is only trustworthy if upgrades are silent and lossless. Losing a user's hardware configuration on update is a serious regression. Prioritized P3 because the upgrade path is infrastructure that only activates during the version transition, not the daily-use path.
 
@@ -180,7 +180,7 @@ A user who ran Casso v1.x has a `Machines/apple2e/apple2e_user.json` file on dis
 
 ### Functional Requirements — Area 1: Settings Persistence
 
-- **FR-012**: Per-machine user-override settings MUST be stored as JSON files at `<assetBaseDir>/Machines/<MachineName>/<MachineName>_user.json`, following the same directory convention as the existing default machine JSONs.
+- **FR-012**: Per-machine user-override settings MUST be stored as JSON files at `<assetBaseDir>/Machines/<MachineName>/per-machine user JSON`, following the same directory convention as the existing default machine JSONs.
 - **FR-013**: On loading a machine, if a user JSON file exists and its version is lower than the current default JSON's version, `MachineConfigUpgrade` MUST be invoked to migrate the user file before the config is used, and the migrated result MUST be written back to the user JSON path. The canonical field name is `$cassoMachineVersion`; loaders MUST accept legacy `$cassoDefault` as a read alias during migration only when `$cassoMachineVersion` is absent, and writers MUST emit only `$cassoMachineVersion`. If both fields are present, `$cassoMachineVersion` MUST be treated as authoritative and migration MUST immediately rewrite the file to canonical format containing only `$cassoMachineVersion`.
 - **FR-014**: Fields present in the user JSON MUST shadow (take precedence over) the corresponding fields in the read-only default JSON. Fields absent from the user JSON MUST fall through to the default JSON value.
 - **FR-015**: The machine configuration JSON schema MUST be extended to include a `capabilityFlag` field on each hardware component entry (both `internalDevices` and `slots`). Valid values are `"optional"`, `"required"`, and `"platform-locked"`. Absence of the field in legacy JSONs MUST be treated as `"optional"` for slots and `"required"` for internal devices.
@@ -276,7 +276,7 @@ A user who ran Casso v1.x has a `Machines/apple2e/apple2e_user.json` file on dis
 
 ### Key Entities
 
-- **MachineUserConfig**: Per-machine user override JSON file (`<MachineName>_user.json`). Contains a `$cassoMachineVersion` version field, only the fields the user has explicitly changed from the default, and a `lastMountedImages` map (slot → drive → image path) per FR-047. Merged at load time with the read-only default JSON. Managed by a new `UserConfigStore` or equivalent.
+- **MachineUserConfig**: Per-machine user override JSON file (`per-machine user JSON`). Contains a `$cassoMachineVersion` version field, only the fields the user has explicitly changed from the default, and a `lastMountedImages` map (slot → drive → image path) per FR-047. Merged at load time with the read-only default JSON. Managed by a new `UserConfigStore` or equivalent.
 - **HardwareComponentEntry**: A node in the hardware configuration tree. Has a `type` (string matching the component registry), a human-readable `displayName`, a `capabilityFlag` (`optional` / `required` / `platform-locked`), an optional `lockReason` string (for platform-locked tooltip), and an `enabled` boolean state.
 - **Theme**: A subdirectory of `Themes/` containing `theme.json` metadata
   (name, `$cassoThemeVersion`, `familyId`, `variantId`, `uiTokens`,
@@ -298,7 +298,7 @@ A user who ran Casso v1.x has a `Machines/apple2e/apple2e_user.json` file on dis
 - **SC-004**: Drive widget drag-and-drop succeeds for all supported image formats (`.dsk`, `.nib`, `.woz`, `.po`) with at least 99% success across a 200-attempt validation run, with no format-specific failure rate exceeding 2%.
 - **SC-005**: No Win32 UI dialog (`DialogBox*`, `DialogBoxIndirectParam*`) ships in the application binary — the source/build audit confirms zero such calls.
 - **SC-006**: All commands reachable via the current Win32 menu bar remain reachable through the D3D navigation layer; no command is lost in the migration.
-- **SC-007**: A user with a pre-existing `_user.json` from an earlier version experiences no settings loss or application error after upgrading; the migration is silent.
+- **SC-007**: A user with a pre-existing `user JSON` from an earlier version experiences no settings loss or application error after upgrading; the migration is silent.
 - **SC-008**: At least 90% of user-study participants can locate and change the
   machine's emulation speed without instruction, compared to a baseline of
   under 60% with the current menu system.
@@ -324,7 +324,7 @@ A user who ran Casso v1.x has a `Machines/apple2e/apple2e_user.json` file on dis
 - Native UI rendering/input ownership is authoritative for chrome/settings
   surfaces; no alternate UI ownership path is retained.
 - The CRT post-processing shaders are HLSL ports of MIT/public-domain community shaders (e.g., CRT-Lottes, CRT-Geom-Mod, libretro common shader collection). GPL-licensed shaders (e.g., CRT-Royale) are explicitly excluded to keep Casso MIT-licensed.
-- Per-machine `_user.json` files contain only settings reachable from the Settings panel that are *machine-specific* (speed, video mode, write protect, drive audio, component enable/disable, last-mounted disk images). UI preferences that span machines (active theme, CRT effect parameters, window geometry) live in `GlobalUserPrefs.json`. See `research.md` R6 for the full rationale on this split. Low-level timing and ROM configuration remain in the default machine JSONs and are not user-overridable from the UI.
+- Per-machine `user JSON` files contain only settings reachable from the Settings panel that are *machine-specific* (speed, video mode, write protect, drive audio, component enable/disable, last-mounted disk images). UI preferences that span machines (active theme, CRT effect parameters, window geometry) live in `UserPrefs.json`. See `research.md` R6 for the full rationale on this split. Low-level timing and ROM configuration remain in the default machine JSONs and are not user-overridable from the UI.
 - Theme textures and images are loaded at theme-selection time; they are retained in GPU memory until a different theme is selected or the application exits. Themes do not hot-reload individual assets independently.
 - The three built-in theme names (Skeuomorphic, Dark Modern, Retro Terminal) are final for the initial release; additional built-in themes may be added in subsequent releases without schema changes.
 - The `Casso` project's existing `atomic<ColorMode>` and `atomic<SpeedMode>` fields in `EmulatorShell` are the authoritative runtime state; the Settings panel reads from and writes to these atomics (through the existing command-queue mechanism where a reset is needed).

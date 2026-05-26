@@ -57,11 +57,9 @@ Entries before versioning was introduced use dates only.
     theme's JSON.
   - Auto-remount of the last-inserted disks on machine load so a
     typical "boot Apple ][+" workflow is one click.
-  - **Per-machine settings persistence** in `<machineName>_user.json`
-    (delta against the embedded default) replaces the registry-based
-    `RegistrySettings` path for everything the Settings panel owns.
-  - **GlobalUserPrefs** persists the active theme and CRT defaults
-    in `GlobalUserPrefs.json` next to the machine configs.
+  - **Unified user preferences persistence** in `UserPrefs.json` stores
+    global UI state and per-machine deltas together, replacing both the
+    registry-based `RegistrySettings` path and the old split-file model.
 
 ### Removed
 - **Legacy Win32 menu bar** (FR-026). All commands previously served

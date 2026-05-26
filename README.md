@@ -20,7 +20,7 @@ Casso's entire chrome moved from the legacy Win32 menu bar / Win32 dialogs to a 
 - **Drag-and-drop disk mounting** — drop a `.dsk` / `.do` / `.po` / `.nib` onto either drive widget to insert it; click-to-browse on the same widget opens a file picker.
 - **CRT post-processing** — scanlines, phosphor bloom, color bleed. Each effect toggles independently; a single brightness slider gates the master mix.
 - **Auto-remount** of the last-inserted disks on machine load, so the typical "boot Apple ][+" flow is one click.
-- **Per-machine settings** persist as a delta against the embedded default in `<machineName>_user.json`, replacing the registry-based prefs path.
+- **User preferences** persist in one `UserPrefs.json` file: global UI state under `global`, and per-machine deltas under `machines` keyed by display name.
 
 <!-- TODO: capture screenshot -- caption: "Skeuomorphic theme: warm wood/brass title bar, drive widgets with idle/spin LEDs, Settings panel open over Apple //e DOS 3.3 boot." -->
 <!-- TODO: capture screenshot -- caption: "Dark Modern theme: flat dark chrome, blue accent LEDs, Settings panel showing the Theme dropdown." -->

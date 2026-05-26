@@ -88,5 +88,5 @@ Use this focused loop before full matrix capture:
 
 Expected persistence artifacts:
 
-- `<MachineName>_user.json` stores speed under `$cassoUiPrefs.speedMode`.
+- `per-machine user JSON` stores speed under `$cassoUiPrefs.speedMode`.
 - Hardware toggles persist as enable-state deltas in `internalDevices[]` / `slots[]` (`type|slot` + `enabled` only).

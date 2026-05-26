@@ -467,6 +467,7 @@ HRESULT EmulatorShell::Initialize (
     machinesDir  = assetBaseDir / fs::path ("Machines") / fs::path (m_currentMachineName);
     themesDir    = assetBaseDir / fs::path ("Themes");
     m_assetBaseDir = assetBaseDir.wstring();
+    m_userConfigStore = std::make_unique<UserConfigStore> (assetBaseDir.wstring());
 
     // P6 -- bring up OLE on the UI thread before any RegisterDragDrop
     // call lands; IFileDialog (click-to-browse, used by the drive
@@ -502,10 +503,10 @@ HRESULT EmulatorShell::Initialize (
     // or RetroTerminal) would get a window sized for the full
     // skeuomorphic strip on first paint, then immediately shrink as
     // soon as ThemeManager::Activate fires its listener later in
-    // Initialize. GlobalUserPrefs.Load needs only assetBaseDir + the
+    // Initialize. UserConfigStore needs only assetBaseDir + the
     // UI-thread filesystem, both of which are already live here.
     {
-        HRESULT  hrPrefsEarly = m_globalPrefs.Load (assetBaseDir.wstring(), m_uiFs);
+        HRESULT  hrPrefsEarly = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
 
         IGNORE_RETURN_VALUE (hrPrefsEarly, S_OK);
         m_chromeTheme = ChromeTheme::ForName (m_globalPrefs.activeTheme);
@@ -552,11 +553,10 @@ HRESULT EmulatorShell::Initialize (
         IGNORE_RETURN_VALUE (hrUi, S_OK);
         m_uiShell.SetChrome (&m_titleBar, &m_navLayer, &m_driveChrome, &m_chromeTheme);
 
-        m_userConfigStore = std::make_unique<UserConfigStore> (machinesDir.wstring());
         m_themeManager    = std::make_unique<ThemeManager> (m_uiFs, themesDir.wstring());
         hrTheme           = m_themeManager->Discover();
         IGNORE_RETURN_VALUE (hrTheme, S_OK);
-        hrPrefs = m_globalPrefs.Load (assetBaseDir.wstring(), m_uiFs);
+        hrPrefs = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
         IGNORE_RETURN_VALUE (hrPrefs, S_OK);
 
         // Subscribe the chrome theme cache to ThemeManager BEFORE we
@@ -1363,7 +1363,14 @@ HRESULT EmulatorShell::ApplyAndPersistTheme (const std::string & themeName)
     CHR (hrActivate);
 
     m_globalPrefs.activeTheme = resolved;
-    hrSave = m_globalPrefs.Save (m_assetBaseDir, m_uiFs);
+    if (m_userConfigStore != nullptr)
+    {
+        hrSave = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
+    }
+    else
+    {
+        hrSave = m_globalPrefs.Save (m_assetBaseDir, m_uiFs);
+    }
     IGNORE_RETURN_VALUE (hrSave, S_OK);
 
 Error:

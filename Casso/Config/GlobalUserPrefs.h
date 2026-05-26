@@ -15,10 +15,8 @@
 //  GlobalUserPrefs
 //
 //  Singleton (in the lifetime sense, not the global-state sense) of all
-//  non-machine-specific user preferences. Mirrors the JSON shape defined
-//  by `specs/007-ui-overhaul/contracts/global-user-prefs.schema.json`.
-//
-//  File location:  <assetBaseDir>/GlobalUserPrefs.json
+//  non-machine-specific user preferences. Mirrors the global section of
+//  the unified user preferences JSON persisted by UserConfigStore.
 //
 //  Missing-field tolerance: any absent leaf falls back to its in-struct
 //  default. Unknown fields are preserved and re-emitted on Save so user

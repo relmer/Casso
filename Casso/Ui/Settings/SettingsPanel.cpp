@@ -1603,10 +1603,10 @@ void SettingsPanel::CommitApply ()
     {
         // BuildJson rooted at the merged JSON includes the canonical
         // version stamp; SaveDelta diffs against the embedded default
-        // so only user-changed keys persist to <Machine>_user.json.
+        // so only user-changed keys persist.
         hr = m_ucs->SaveDelta (m_state.MachineName(),
                                 currentJson,
-                                currentJson,   // default fallback to current when caller lacks it
+                                m_state.DefaultJson(),
                                 *m_fs);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
@@ -1647,8 +1647,16 @@ void SettingsPanel::CommitApply ()
 
         if (m_emuShell != nullptr && anyCrtChanged)
         {
-            HRESULT  hrSave = m_prefs->Save (m_emuShell->AssetBaseDir(), *m_fs);
+            HRESULT  hrSave = S_OK;
 
+            if (m_ucs != nullptr)
+            {
+                hrSave = m_ucs->SaveAll (*m_prefs, *m_fs);
+            }
+            else
+            {
+                hrSave = m_prefs->Save (m_emuShell->AssetBaseDir(), *m_fs);
+            }
             IGNORE_RETURN_VALUE (hrSave, S_OK);
         }
 

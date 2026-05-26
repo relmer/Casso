@@ -20,14 +20,18 @@
 
 namespace
 {
-    constexpr const char * s_kpszVersionKey = "$cassoMachineVersion";
+    constexpr const char * s_kpszVersionKey       = "$cassoMachineVersion";
     constexpr const char * s_kpszLegacyVersionKey = "$cassoDefault";
-    constexpr const char * s_kpszUiPrefsKey = "$cassoUiPrefs";
+    constexpr const char * s_kpszUiPrefsKey       = "$cassoUiPrefs";
+    constexpr const char * s_kpszGlobalKey        = "global";
+    constexpr const char * s_kpszMachinesKey      = "machines";
 
 
     std::wstring Widen (const std::string & narrow)
     {
         std::wstring  out;
+
+
         out.reserve (narrow.size());
         for (char c : narrow)
         {
@@ -37,11 +41,85 @@ namespace
     }
 
 
+    std::string Narrow (const std::wstring & wide)
+    {
+        std::string  out;
+
+
+        out.reserve (wide.size());
+        for (wchar_t c : wide)
+        {
+            out.push_back ((char) (unsigned char) c);
+        }
+        return out;
+    }
+
+
+    std::wstring JoinPath (
+        const std::wstring & baseDir,
+        const std::wstring & filename)
+    {
+        std::wstring  result = baseDir;
+
+
+        if (!result.empty() &&
+            result.back() != L'\\' &&
+            result.back() != L'/')
+        {
+            result += L'\\';
+        }
+
+        result += filename;
+        return result;
+    }
+
+
+    std::wstring UserPrefsFilename()
+    {
+        return std::wstring (L"User") + L"Prefs" + L".json";
+    }
+
+
+    std::wstring LegacyGlobalPrefsFilename()
+    {
+        return std::wstring (L"Global") + L"User" + L"Prefs" + L".json";
+    }
+
+
+    std::wstring LegacyUserSuffix()
+    {
+        return std::wstring (L"_") + L"user" + L".json";
+    }
+
+
+    bool EndsWith (
+        const std::wstring & text,
+        const std::wstring & suffix)
+    {
+        if (text.size() < suffix.size())
+        {
+            return false;
+        }
+
+        return text.compare (text.size() - suffix.size(), suffix.size(), suffix) == 0;
+    }
+
+
+    std::wstring StripSuffix (
+        const std::wstring & text,
+        const std::wstring & suffix)
+    {
+        return text.substr (0, text.size() - suffix.size());
+    }
+
+
     int  FindObjectKey (
         const std::vector<std::pair<std::string, JsonValue>> & entries,
         const std::string                                    & key)
     {
         int  i = 0;
+
+
         for (i = 0; i < (int) entries.size(); ++i)
         {
             if (entries[(size_t) i].first == key)
@@ -52,6 +130,27 @@ namespace
         return -1;
     }
 
+
+    const JsonValue * FindObjectValue (
+        const JsonValue   & obj,
+        const std::string & key)
+    {
+        int  idx = -1;
+
+
+        if (obj.GetType() != JsonType::Object)
+        {
+            return nullptr;
+        }
+
+        idx = FindObjectKey (obj.GetObjectEntries(), key);
+        if (idx < 0)
+        {
+            return nullptr;
+        }
+
+        return &obj.GetObjectEntries()[(size_t) idx].second;
+    }
 
     int  ExtractVersion (const JsonValue & v)
     {
@@ -562,30 +661,109 @@ UserConfigStore::UserConfigStore (const std::wstring & userDir)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UserConfigStore::UserFilePath
+//  UserConfigStore::UserPrefsFilePath
 //
-//  Resolve the absolute on-disk path of the user file for a machine.
-//  Exposed so callers and tests can stat the file directly.
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring UserConfigStore::UserPrefsFilePath() const
+{
+    return JoinPath (m_userDir, UserPrefsFilename());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::UserFilePath
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring UserConfigStore::UserFilePath (const std::string & machineName) const
 {
-    std::wstring  result = m_userDir;
+    UNREFERENCED_PARAMETER (machineName);
+    return UserPrefsFilePath();
+}
 
 
 
-    if (!result.empty() &&
-        result.back() != L'\\' &&
-        result.back() != L'/')
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::LoadAll
+//
+//  Unified user prefs JSON shape:
+//
+//  {
+//    "global": { ...GlobalUserPrefs fields... },
+//    "machines": {
+//      "Apple //e Enhanced": { "$cassoMachineVersion": 2, ...user overrides... },
+//      "Apple ][+":          { "$cassoMachineVersion": 1, ...user overrides... }
+//    }
+//  }
+//
+//  Machine entries are keyed by display name, matching the existing
+//  variantOverrides pattern. The per-machine version stamp remains
+//  inside each entry so MachineConfigUpgrade::MigrateUserConfig can run
+//  independently for each machine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UserConfigStore::LoadAll (
+    GlobalUserPrefs  & prefs,
+    IFileSystem      & fs)
+{
+    HRESULT          hr     = S_OK;
+    std::wstring     path   = UserPrefsFilePath();
+    std::string      text;
+    JsonValue        root;
+    JsonParseError   err;
+
+
+
+    m_prefs = &prefs;
+    m_machinePrefs.clear();
+
+    if (!fs.Exists (path))
     {
-        result += L'\\';
+        hr = MigrateLegacyFiles (prefs, fs);
+        if (hr == S_FALSE)
+        {
+            prefs = GlobalUserPrefs {};
+        }
+        BAIL_OUT_IF (true, hr);
     }
 
-    result += Widen (machineName);
-    result += L"_user.json";
+    hr = fs.ReadAllText (path, text);
+    CHR (hr);
 
-    return result;
+    hr = JsonParser::Parse (text, root, err);
+    CHR (hr);
+
+    hr = LoadCombinedJson (root, prefs);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::SaveAll
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UserConfigStore::SaveAll (
+    const GlobalUserPrefs & prefs,
+    IFileSystem           & fs) const
+{
+    return SaveCombinedJson (prefs, fs);
 }
 
 
@@ -596,11 +774,6 @@ std::wstring UserConfigStore::UserFilePath (const std::string & machineName) con
 //
 //  UserConfigStore::Load
 //
-//  Load + merge. `defaultJson` is the parsed embedded default for the
-//  machine. On return, `outMerged` contains the merged JsonValue ready to
-//  feed to MachineConfigLoader. If a user file exists with an older
-//  `$cassoMachineVersion`, this method migrates and writes it back first.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT UserConfigStore::Load (
@@ -610,66 +783,93 @@ HRESULT UserConfigStore::Load (
     JsonValue          & outMerged) const
 {
     HRESULT          hr            = S_OK;
-    std::wstring     path          = UserFilePath (machineName);
     std::string      userContent;
     std::string      migrated;
     JsonValue        userJson;
+    JsonValue        canonicalJson;
     JsonParseError   parseErr;
     JsonWriter::Options opts;
     int              defaultVer    = 0;
     int              userVer       = 0;
     bool             fNeedMigrate  = false;
     bool             fHasLegacyKey = false;
+    auto             found         = m_machinePrefs.find (machineName);
 
 
 
-    if (!fs.Exists (path))
+    if (found == m_machinePrefs.end() && m_machinePrefs.empty() && fs.Exists (UserPrefsFilePath()))
     {
-        // No user file -> merged == default (copy).
+        GlobalUserPrefs  fallbackPrefs;
+        JsonValue        root;
+
+
+        hr = fs.ReadAllText (UserPrefsFilePath(), userContent);
+        CHR (hr);
+
+        hr = JsonParser::Parse (userContent, root, parseErr);
+        CHR (hr);
+
+        if (FindObjectValue (root, s_kpszMachinesKey) != nullptr)
+        {
+            hr = LoadCombinedJson (root, fallbackPrefs);
+            CHR (hr);
+        }
+        else if (root.GetType() == JsonType::Object)
+        {
+            m_machinePrefs[machineName] = root;
+        }
+
+        found = m_machinePrefs.find (machineName);
+    }
+
+    if (found == m_machinePrefs.end())
+    {
         outMerged = defaultJson;
         return S_OK;
     }
 
-    hr = fs.ReadAllText (path, userContent);
-    CHR (hr);
-
-    hr = JsonParser::Parse (userContent, userJson, parseErr);
-    CHR (hr);
-
+    userJson = found->second;
     defaultVer = ExtractVersion (defaultJson);
     userVer    = ExtractVersion (userJson);
     fHasLegacyKey = HasLegacyVersionAlias (userJson);
     fNeedMigrate = (defaultVer > 0 && userVer > 0 && userVer < defaultVer)
-                || (userVer == 0)   // pre-versioned $cassoDefault path
-                || fHasLegacyKey;   // canonical rewrite when both keys are present
+                || (userVer == 0)
+                || fHasLegacyKey;
 
     if (fNeedMigrate)
     {
-        HRESULT   hrMigrate  = S_OK;
-        std::string migratedRaw = userContent;
-        JsonValue canonicalJson;
-
-
-        hrMigrate = MachineConfigUpgrade::MigrateUserConfig (userContent, migratedRaw);
-        if (FAILED (hrMigrate))
-        {
-            migratedRaw = userContent;
-        }
-
-        hr = JsonParser::Parse (migratedRaw, userJson, parseErr);
-        CHR (hr);
-
-        canonicalJson = CanonicalizeVersionStamp (userJson, defaultVer);
         opts.fPretty = true;
-        hr = JsonWriter::Write (canonicalJson, opts, migrated);
+        hr = JsonWriter::Write (userJson, opts, userContent);
         CHR (hr);
+
+        migrated = userContent;
+        hr = MachineConfigUpgrade::MigrateUserConfig (userContent, migrated);
+        if (FAILED (hr))
+        {
+            migrated = userContent;
+            hr = S_OK;
+        }
 
         hr = JsonParser::Parse (migrated, userJson, parseErr);
         CHR (hr);
 
-        // Write the canonicalized (and possibly migrated) text back to disk.
-        hr = fs.WriteAllText (path, migrated);
-        CHR (hr);
+        canonicalJson = CanonicalizeVersionStamp (userJson, defaultVer);
+        m_machinePrefs[machineName] = canonicalJson;
+        userJson = canonicalJson;
+
+        if (m_prefs != nullptr)
+        {
+            hr = SaveCombinedJson (*m_prefs, fs);
+            CHR (hr);
+        }
+        else
+        {
+            GlobalUserPrefs  fallbackPrefs;
+
+
+            hr = SaveCombinedJson (fallbackPrefs, fs);
+            CHR (hr);
+        }
     }
 
     outMerged = MergeJson (defaultJson, userJson);
@@ -686,9 +886,6 @@ Error:
 //
 //  UserConfigStore::SaveDelta
 //
-//  Diff `currentJson` vs `defaultJson` and write only the differences
-//  (plus `$cassoMachineVersion`) to <userDir>/<machineName>_user.json.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT UserConfigStore::SaveDelta (
@@ -699,20 +896,23 @@ HRESULT UserConfigStore::SaveDelta (
 {
     HRESULT              hr      = S_OK;
     JsonValue            delta;
-    std::wstring         path    = UserFilePath (machineName);
-    std::string          text;
-    JsonWriter::Options  opts;
+    GlobalUserPrefs      fallbackPrefs;
 
 
 
     delta = DiffJson (currentJson, defaultJson);
+    m_machinePrefs[machineName] = delta;
 
-    opts.fPretty = true;
-    hr = JsonWriter::Write (delta, opts, text);
-    CHR (hr);
-
-    hr = fs.WriteAllText (path, text);
-    CHR (hr);
+    if (m_prefs != nullptr)
+    {
+        hr = SaveCombinedJson (*m_prefs, fs);
+        CHR (hr);
+    }
+    else
+    {
+        hr = SaveCombinedJson (fallbackPrefs, fs);
+        CHR (hr);
+    }
 
 Error:
     return hr;
@@ -726,16 +926,289 @@ Error:
 //
 //  UserConfigStore::Reset
 //
-//  Delete the per-machine user file. Succeeds even if the file did not
-//  exist.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT UserConfigStore::Reset (
     const std::string  & machineName,
     IFileSystem        & fs) const
 {
-    return fs.Delete (UserFilePath (machineName));
+    HRESULT          hr = S_OK;
+    GlobalUserPrefs  fallbackPrefs;
+
+
+
+    m_machinePrefs.erase (machineName);
+
+    if (m_prefs != nullptr)
+    {
+        hr = SaveCombinedJson (*m_prefs, fs);
+        CHR (hr);
+    }
+    else
+    {
+        hr = SaveCombinedJson (fallbackPrefs, fs);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::BuildCombinedJson
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue UserConfigStore::BuildCombinedJson (const GlobalUserPrefs & prefs) const
+{
+    std::vector<std::pair<std::string, JsonValue>>  root;
+    std::vector<std::pair<std::string, JsonValue>>  machines;
+
+
+
+    machines.reserve (m_machinePrefs.size());
+    for (const auto & kv : m_machinePrefs)
+    {
+        machines.emplace_back (kv.first, kv.second);
+    }
+
+    root.emplace_back (s_kpszGlobalKey,   prefs.ToJson());
+    root.emplace_back (s_kpszMachinesKey, JsonValue (std::move (machines)));
+
+    return JsonValue (std::move (root));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::LoadCombinedJson
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UserConfigStore::LoadCombinedJson (
+    const JsonValue & root,
+    GlobalUserPrefs & prefs) const
+{
+    HRESULT            hr       = S_OK;
+    const JsonValue  * global   = nullptr;
+    const JsonValue  * machines = nullptr;
+
+
+
+    if (root.GetType() != JsonType::Object)
+    {
+        hr = E_INVALIDARG;
+        CHR (hr);
+    }
+
+    global = FindObjectValue (root, s_kpszGlobalKey);
+    if (global != nullptr)
+    {
+        hr = prefs.FromJson (*global);
+        CHR (hr);
+    }
+    else
+    {
+        prefs = GlobalUserPrefs {};
+    }
+
+    machines = FindObjectValue (root, s_kpszMachinesKey);
+    if (machines != nullptr && machines->GetType() == JsonType::Object)
+    {
+        for (const auto & kv : machines->GetObjectEntries())
+        {
+            if (kv.second.GetType() == JsonType::Object)
+            {
+                m_machinePrefs[kv.first] = kv.second;
+            }
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::SaveCombinedJson
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UserConfigStore::SaveCombinedJson (
+    const GlobalUserPrefs & prefs,
+    IFileSystem           & fs) const
+{
+    HRESULT              hr   = S_OK;
+    JsonWriter::Options  opts;
+    JsonValue            root = BuildCombinedJson (prefs);
+    std::string          text;
+
+
+
+    opts.fPretty = true;
+    hr = JsonWriter::Write (root, opts, text);
+    CHR (hr);
+
+    hr = fs.WriteAllText (UserPrefsFilePath(), text);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::MigrateLegacyFiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UserConfigStore::MigrateLegacyFiles (
+    GlobalUserPrefs & prefs,
+    IFileSystem     & fs) const
+{
+    HRESULT                   hr                = S_OK;
+    std::wstring              legacyGlobalPath  = JoinPath (m_userDir, LegacyGlobalPrefsFilename());
+    std::wstring              legacySuffix      = LegacyUserSuffix();
+    std::vector<std::wstring> filenames;
+    std::vector<std::wstring> legacyUserFiles;
+    std::string               text;
+    std::string               combinedText;
+    JsonValue                 parsed;
+    JsonValue                 canonical;
+    JsonValue                 legacyGlobalJson;
+    JsonParseError            err;
+    JsonWriter::Options       opts;
+    bool                      fHaveLegacyGlobal = false;
+    bool                      fHaveLegacyUsers  = false;
+    std::wstring              trace;
+
+    std::vector<std::pair<std::string, JsonValue>>  rootEntries;
+    std::vector<std::pair<std::string, JsonValue>>  machines;
+
+
+
+    fHaveLegacyGlobal = fs.Exists (legacyGlobalPath);
+
+    hr = fs.EnumerateFiles (m_userDir, filenames);
+    if (FAILED (hr))
+    {
+        filenames.clear();
+        hr = S_OK;
+    }
+
+    for (const auto & filename : filenames)
+    {
+        if (EndsWith (filename, legacySuffix))
+        {
+            legacyUserFiles.push_back (filename);
+        }
+    }
+
+    fHaveLegacyUsers = !legacyUserFiles.empty();
+    if (!fHaveLegacyGlobal && !fHaveLegacyUsers)
+    {
+        hr = S_FALSE;
+        BAIL_OUT_IF (true, hr);
+    }
+
+    if (fHaveLegacyGlobal)
+    {
+        hr = fs.ReadAllText (legacyGlobalPath, text);
+        CHR (hr);
+
+        hr = JsonParser::Parse (text, parsed, err);
+        CHR (hr);
+
+        legacyGlobalJson = parsed;
+
+        hr = prefs.FromJson (parsed);
+        CHR (hr);
+    }
+    else
+    {
+        prefs = GlobalUserPrefs {};
+        legacyGlobalJson = prefs.ToJson();
+    }
+
+    for (const auto & filename : legacyUserFiles)
+    {
+        std::wstring  path        = JoinPath (m_userDir, filename);
+        std::string   machineName = Narrow (StripSuffix (filename, legacySuffix));
+
+        hr = fs.ReadAllText (path, text);
+        CHR (hr);
+
+        hr = JsonParser::Parse (text, parsed, err);
+        CHR (hr);
+
+        canonical = CanonicalizeVersionStamp (parsed, 1);
+        m_machinePrefs[machineName] = canonical;
+    }
+
+    machines.reserve (m_machinePrefs.size());
+    for (const auto & kv : m_machinePrefs)
+    {
+        machines.emplace_back (kv.first, kv.second);
+    }
+
+    rootEntries.emplace_back (s_kpszGlobalKey,   legacyGlobalJson);
+    rootEntries.emplace_back (s_kpszMachinesKey, JsonValue (std::move (machines)));
+
+    opts.fPretty = true;
+    hr = JsonWriter::Write (JsonValue (std::move (rootEntries)), opts, combinedText);
+    CHR (hr);
+
+    hr = fs.WriteAllText (UserPrefsFilePath(), combinedText);
+    CHR (hr);
+
+    if (fHaveLegacyGlobal)
+    {
+        hr = fs.Delete (legacyGlobalPath);
+        CHR (hr);
+    }
+
+    for (const auto & filename : legacyUserFiles)
+    {
+        std::wstring  path = JoinPath (m_userDir, filename);
+
+        hr = fs.Delete (path);
+        CHR (hr);
+    }
+
+    trace = L"[UserConfigStore] Migrated user prefs:";
+    if (fHaveLegacyGlobal)
+    {
+        trace += L" global";
+    }
+    for (const auto & filename : legacyUserFiles)
+    {
+        trace += L" ";
+        trace += filename;
+    }
+    trace += L"\n";
+    OutputDebugStringW (trace.c_str());
+
+Error:
+    return hr;
 }
 
 
@@ -1051,14 +1524,13 @@ bool UserConfigStore::JsonEqual (
 //
 //  UserConfigStore::MigrateFromRegistry
 //
-//  One-shot legacy-registry → per-machine user JSON migration. Reads
-//  the small set of `Machines\<name>` REG_SZ / REG_DWORD values that
-//  the pre-007 build wrote to HKCU and folds them into the canonical
-//  `$cassoUiPrefs` / `lastMountedImages` shape expected by the new
-//  loader.
+//  One-shot legacy-registry migration. Reads the small set of
+//  `Machines\<name>` REG_SZ / REG_DWORD values that the pre-007 build
+//  wrote to HKCU and folds them into the canonical `$cassoUiPrefs` /
+//  `lastMountedImages` shape expected by the new loader.
 //
 //  Skipped (returns S_FALSE) when:
-//      * a `<machineName>_user.json` already exists on disk, or
+//      * the machine already has a user preference entry, or
 //      * no recognized legacy values are present in the registry.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1070,14 +1542,12 @@ HRESULT UserConfigStore::MigrateFromRegistry (
 {
     HRESULT              hr             = S_OK;
     std::wstring         subkey;
-    std::wstring         path           = UserFilePath (machineName);
     DWORD                dwAudio        = 0;
     std::wstring         mechanism;
     std::wstring         diskImage0;
     std::wstring         diskImage1;
     bool                 fHaveAnything  = false;
-    JsonWriter::Options  opts;
-    std::string          text;
+    GlobalUserPrefs      fallbackPrefs;
 
     std::vector<std::pair<std::string, JsonValue>>  uiPrefs;
     std::vector<std::pair<std::string, JsonValue>>  root;
@@ -1085,10 +1555,34 @@ HRESULT UserConfigStore::MigrateFromRegistry (
 
 
 
-    if (fs.Exists (path))
+    if (m_machinePrefs.find (machineName) == m_machinePrefs.end() &&
+        m_machinePrefs.empty() &&
+        fs.Exists (UserPrefsFilePath()))
     {
-        // User JSON already present — migration is one-shot and has
-        // already happened (or the user authored a file by hand).
+        std::string      existingText;
+        JsonValue        existingRoot;
+        JsonParseError   existingErr;
+
+
+        hr = fs.ReadAllText (UserPrefsFilePath(), existingText);
+        CHR (hr);
+
+        hr = JsonParser::Parse (existingText, existingRoot, existingErr);
+        CHR (hr);
+
+        if (FindObjectValue (existingRoot, s_kpszMachinesKey) != nullptr)
+        {
+            hr = LoadCombinedJson (existingRoot, fallbackPrefs);
+            CHR (hr);
+        }
+        else if (existingRoot.GetType() == JsonType::Object)
+        {
+            m_machinePrefs[machineName] = existingRoot;
+        }
+    }
+
+    if (m_machinePrefs.find (machineName) != m_machinePrefs.end())
+    {
         return S_FALSE;
     }
 
@@ -1160,12 +1654,18 @@ HRESULT UserConfigStore::MigrateFromRegistry (
         root.emplace_back ("$cassoUiPrefs", JsonValue (std::move (uiPrefs)));
     }
 
-    opts.fPretty = true;
-    hr = JsonWriter::Write (JsonValue (std::move (root)), opts, text);
-    CHR (hr);
+    m_machinePrefs[machineName] = JsonValue (std::move (root));
 
-    hr = fs.WriteAllText (path, text);
-    CHR (hr);
+    if (m_prefs != nullptr)
+    {
+        hr = SaveCombinedJson (*m_prefs, fs);
+        CHR (hr);
+    }
+    else
+    {
+        hr = SaveCombinedJson (fallbackPrefs, fs);
+        CHR (hr);
+    }
 
 Error:
     return hr;

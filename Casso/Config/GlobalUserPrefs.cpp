@@ -132,7 +132,7 @@ std::wstring GlobalUserPrefs::FilePath (const std::wstring & baseDir)
     {
         result += L'\\';
     }
-    result += L"GlobalUserPrefs.json";
+    result += L"UserPrefs.json";
 
     return result;
 }
@@ -145,9 +145,9 @@ std::wstring GlobalUserPrefs::FilePath (const std::wstring & baseDir)
 //
 //  GlobalUserPrefs::Load
 //
-//  Read GlobalUserPrefs.json under `baseDir`. If absent, leaves `*this`
-//  at struct defaults and returns S_FALSE so the caller can treat it as
-//  first run.
+//  Read the unified preferences file under `baseDir`. If absent, leaves
+//  `*this` at struct defaults and returns S_FALSE so the caller can treat
+//  it as first run.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -175,8 +175,27 @@ HRESULT GlobalUserPrefs::Load (
     hr = JsonParser::Parse (text, root, err);
     CHR (hr);
 
-    hr = FromJson (root);
-    CHR (hr);
+    if (root.GetType() == JsonType::Object)
+    {
+        const JsonValue *  global = nullptr;
+
+
+        if (SUCCEEDED (root.GetObject ("global", global)) && global != nullptr)
+        {
+            hr = FromJson (*global);
+            CHR (hr);
+        }
+        else
+        {
+            hr = FromJson (root);
+            CHR (hr);
+        }
+    }
+    else
+    {
+        hr = FromJson (root);
+        CHR (hr);
+    }
 
 Error:
     return hr;
@@ -190,7 +209,7 @@ Error:
 //
 //  GlobalUserPrefs::Save
 //
-//  Atomically write GlobalUserPrefs.json under `baseDir`.
+//  Atomically write the unified preferences file under `baseDir`.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -202,13 +221,17 @@ HRESULT GlobalUserPrefs::Save (
     std::wstring         path    = FilePath (baseDir);
     std::string          text;
     JsonWriter::Options  opts;
-    JsonValue            root    = ToJson();
+    JsonValue            global  = ToJson();
+    std::vector<std::pair<std::string, JsonValue>>  rootEntries;
+    std::vector<std::pair<std::string, JsonValue>>  machines;
 
 
 
+    rootEntries.emplace_back ("global",   std::move (global));
+    rootEntries.emplace_back ("machines", JsonValue (std::move (machines)));
     opts.fPretty = true;
 
-    hr = JsonWriter::Write (root, opts, text);
+    hr = JsonWriter::Write (JsonValue (std::move (rootEntries)), opts, text);
     CHR (hr);
 
     hr = fs.WriteAllText (path, text);

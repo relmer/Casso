@@ -170,7 +170,7 @@ string MachineConfigUpgrade::BytesToHex (span<const uint8_t> bytes)
 //
 //  MigrateUserConfig
 //
-//  JSON-aware single-pass migration of a per-machine `<Machine>_user.json`
+//  JSON-aware single-pass migration of a per-machine `per-machine user JSON`
 //  document. Handles two distinct schema concerns:
 //
 //      1.  Version-stamp rename / canonicalization. The legacy key name

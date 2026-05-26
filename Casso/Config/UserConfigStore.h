@@ -4,6 +4,7 @@
 
 #include "IFileSystem.h"
 #include "IRegistrySettings.h"
+#include "GlobalUserPrefs.h"
 
 #include "Core/JsonValue.h"
 
@@ -15,14 +16,10 @@
 //
 //  UserConfigStore
 //
-//  Per-machine `_user.json` shadow store. Operates at the JsonValue
-//  layer — the caller passes parsed default-config JSON in, gets
-//  parsed merged-config JSON back, and re-runs MachineConfigLoader on
-//  the result if it needs a typed MachineConfig.
-//
-//  File layout:
-//
-//      <userDir>/<machineName>_user.json
+//  Unified user preferences store. Operates at the JsonValue layer for
+//  per-machine overrides — the caller passes parsed default-config JSON
+//  in, gets parsed merged-config JSON back, and re-runs
+//  MachineConfigLoader on the result if it needs a typed MachineConfig.
 //
 //  Merge rules (FR-014, FR-017):
 //      * Objects deep-merge — only keys present in the user file
@@ -38,8 +35,8 @@
 //        version stamp (still a legal user file).
 //
 //  Migration:
-//      * On Load, if the user file's `$cassoMachineVersion` is less than
-//        the default's, MachineConfigUpgrade::MigrateUserConfig runs
+//      * On Load, if a machine entry's `$cassoMachineVersion` is less
+//        than the default's, MachineConfigUpgrade::MigrateUserConfig runs
 //        and the upgraded result is written back via WriteAllText.
 //      * Legacy `$cassoDefault` is accepted as an alias during migration
 //        reads only. Any alias usage is rewritten to canonical
@@ -54,6 +51,10 @@ class UserConfigStore
 public:
     explicit UserConfigStore (const std::wstring & userDir);
 
+    HRESULT      LoadAll           (GlobalUserPrefs  & prefs,
+                                    IFileSystem      & fs);
+    HRESULT      SaveAll           (const GlobalUserPrefs & prefs,
+                                    IFileSystem           & fs) const;
     HRESULT      Load              (const std::string & machineName,
                                     const JsonValue   & defaultJson,
                                     IFileSystem       & fs,
@@ -65,12 +66,13 @@ public:
     HRESULT      Reset             (const std::string & machineName,
                                     IFileSystem       & fs) const;
     std::wstring UserFilePath      (const std::string & machineName) const;
+    std::wstring UserPrefsFilePath () const;
 
     // One-shot migration: reads the legacy per-machine registry keys
     // (DriveAudioEnabled, DiskIIMechanism, DiskImage0, DiskImage1) and
-    // writes them into `<machineName>_user.json`. No-op (S_FALSE) when
-    // the user file already exists, or when no legacy registry values
-    // are present. Returns S_OK after a successful write.
+    // writes them into the unified preferences file. No-op (S_FALSE)
+    // when the machine entry already exists, or when no legacy registry
+    // values are present. Returns S_OK after a successful write.
     HRESULT      MigrateFromRegistry (const std::string & machineName,
                                       IRegistrySettings & reg,
                                       IFileSystem       & fs) const;
@@ -85,5 +87,15 @@ public:
                                    const JsonValue & b);
 
 private:
-    std::wstring m_userDir;
+    HRESULT      MigrateLegacyFiles  (GlobalUserPrefs & prefs,
+                                      IFileSystem     & fs) const;
+    HRESULT      SaveCombinedJson    (const GlobalUserPrefs & prefs,
+                                      IFileSystem           & fs) const;
+    JsonValue    BuildCombinedJson   (const GlobalUserPrefs & prefs) const;
+    HRESULT      LoadCombinedJson    (const JsonValue & root,
+                                      GlobalUserPrefs & prefs) const;
+
+    std::wstring                       m_userDir;
+    mutable std::map<std::string, JsonValue>  m_machinePrefs;
+    GlobalUserPrefs                  * m_prefs = nullptr;
 };
