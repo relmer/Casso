@@ -130,15 +130,10 @@ public:
     // user can see the slider / dropdown they're interacting with
     // while the rest of the UI fades out).
     //
-    // `excludeRect` (in client-space pixels): any non-focused control
-    // whose row rect intersects this rect is SKIPPED. Used by the
-    // transparency-mode paint to keep the emulator-overlap zone fully
-    // transparent. Pass an empty rect to disable exclusion.
     void  Paint (DxUiPainter & painter, DwriteTextRenderer & text,
                  int          focusedControlId = -1,
                  float        nonFocusedAlpha  = 1.0f,
-                 float        focusedAlpha     = 1.0f,
-                 const RECT & excludeRect      = RECT {}) const;
+                 float        focusedAlpha     = 1.0f) const;
 
     void  CollectFocusables (std::vector<std::function<void (bool)>> & out);
     bool  AnyDropdownOpen   () const { return m_monitor.IsOpen(); }

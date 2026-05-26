@@ -50,6 +50,9 @@ IDR_HLSL_COLOR_BLEED     RCDATA "Shaders\\CRT\\color_bleed.hlsl"
 IDR_HLSL_PERSISTENCE     RCDATA "Shaders\\CRT\\persistence.hlsl"
 IDR_HLSL_GAMMA           RCDATA "Shaders\\CRT\\gamma.hlsl"
 IDR_HLSL_COPY            RCDATA "Shaders\\CRT\\copy.hlsl"
+IDR_HLSL_SETTINGS_GAUSSIAN_H RCDATA "Shaders\\Settings\\gaussian_h.hlsl"
+IDR_HLSL_SETTINGS_GAUSSIAN_V RCDATA "Shaders\\Settings\\gaussian_v.hlsl"
+IDR_HLSL_SETTINGS_COMPOSE    RCDATA "Shaders\\Settings\\settings_compose.hlsl"
 
 // Keyboard Accelerator Table
 IDR_ACCELERATOR ACCELERATORS

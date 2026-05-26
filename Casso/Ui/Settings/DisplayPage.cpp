@@ -643,8 +643,7 @@ RECT DisplayPage::FocusedControlRect (int controlId) const
 void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
                          int          focusedControlId,
                          float        nonFocusedAlpha,
-                         float        focusedAlpha,
-                         const RECT & excludeRect) const
+                         float        focusedAlpha) const
 {
     constexpr uint32_t  s_kFocusedBackingArgb = 0xFF202830;   // dark grey, near-opaque
     constexpr uint32_t  s_kIndicatorArgb      = 0xFF7A8FA5;   // muted blue-grey
@@ -655,25 +654,14 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
 
     float  indicatorFontPx  = m_scaler.Pxf (s_kIndicatorFontDp);
     float  indicatorWidthPx = m_scaler.Pxf (s_kIndicatorWidthDp);
-    bool   hasExclude       = ! IsRectEmpty (&excludeRect);
-
-    auto  RowExcluded = [&] (const RECT & rowRect, int control)
-    {
-        RECT  intersect = {};
-        if (! hasExclude || control == focusedControlId)
-        {
-            return false;
-        }
-        return IntersectRect (&intersect, &rowRect, &excludeRect) != FALSE;
-    };
 
     auto  SetAlphaForRow = [&] (int control, const RECT & rowRect)
     {
         float  a = (control == focusedControlId) ? focusedAlpha : nonFocusedAlpha;
-        if (RowExcluded (rowRect, control))
-        {
-            a = 0.0f;
-        }
+
+
+
+        (void) rowRect;
         painter.SetGlobalAlpha (a);
         text.SetGlobalAlpha    (a);
     };
@@ -691,23 +679,12 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
 
     auto  DrawIndicator = [&] (const RECT & rowRect, bool matchesDefault, bool themeOwned)
     {
-        HRESULT          hrLocal       = S_OK;
-        const wchar_t *  label         = themeOwned ? L"(theme default)" : L"(monitor default)";
-        RECT             indicatorRect = { m_indicatorX,
-                                            rowRect.top,
-                                            m_indicatorX + (int) indicatorWidthPx,
-                                            rowRect.bottom };
-        RECT             intersect     = {};
+        HRESULT          hrLocal = S_OK;
+        const wchar_t *  label   = themeOwned ? L"(theme default)" : L"(monitor default)";
+
+
 
         if (! matchesDefault)
-        {
-            return;
-        }
-        // Indicator column sits past the slider's right edge so its
-        // rect is NOT part of the row rect SetAlphaForRow excludes.
-        // Test the indicator's own rect against the exclude zone here
-        // so badges over the emulator stay invisible.
-        if (hasExclude && IntersectRect (&intersect, &indicatorRect, &excludeRect) != FALSE)
         {
             return;
         }

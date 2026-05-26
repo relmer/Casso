@@ -18,7 +18,7 @@ Casso's entire chrome moved from the legacy Win32 menu bar / Win32 dialogs to a 
 - **Custom themes are first-class.** Drop a directory under `Themes/<YourTheme>/` containing a `theme.json` plus the entry documents (`title_bar.rml`, `nav_layer.rml`, `settings.rml`, `drive_widgets.rml`) and matching `.rcss` — Casso picks it up on the next launch and the theme appears in the Settings dropdown. See [docs/themes/AUTHORING.md](docs/themes/AUTHORING.md) for a step-by-step guide.
 - **Consolidated Settings panel** replaces the old `OptionsDialog` and `MachinePickerDialog`. Machine selection, machine info, emulation speed, video color mode, disk write mode, floppy sound + mechanism, write-protect, theme picker, and the new CRT controls live in one non-modal in-window panel.
 - **Drag-and-drop disk mounting** — drop a `.dsk` / `.do` / `.po` / `.nib` onto either drive widget to insert it; click-to-browse on the same widget opens a file picker.
-- **CRT post-processing** — scanlines, phosphor bloom, color bleed. Each effect toggles independently; a single brightness slider gates the master mix.
+- **CRT post-processing** — scanlines, phosphor bloom, color bleed. Each effect toggles independently; a single brightness slider gates the master mix, and Display preview uses a per-pixel emulator clip with gaussian-blurred darkening when Settings overlaps the emulator.
 - **Auto-remount** of the last-inserted disks on machine load, so the typical "boot Apple ][+" flow is one click.
 - **User preferences** persist in one `UserPrefs.json` file: global UI state under `global`, and per-machine deltas under `machines` keyed by display name.
 

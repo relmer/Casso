@@ -723,6 +723,30 @@ bool SettingsPanel::IsPreviewTransparencyActive() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetFocusedControlClientRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT SettingsPanel::GetFocusedControlClientRect() const
+{
+    RECT  rect = {};
+
+
+
+    if ((m_previewFocus != PreviewFocus::None) && ((TabIndex) m_activeTab == TabIndex::Display))
+    {
+        rect = m_displayPage.FocusedControlRect ((int) m_previewFocus);
+    }
+
+    return rect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetTheme
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -762,11 +786,9 @@ SIZE SettingsPanel::PreferredClientSize (UINT dpi) const
 //  StartPreview / EndPreview / UpdatePreviewFade
 //
 //  The live-preview state machine. While a slider is being dragged
-//  or a dropdown is open, the panel fades out (alpha -> 0) so the
-//  user can see the emulator respond to the change; the focused
-//  control stays at 90% alpha so they can still see what they're
-//  manipulating. Keyboard-driven changes auto-end the preview 500ms
-//  after the last keystroke.
+//  or a dropdown is open, the renderer can reveal the emulator under
+//  the settings window. Keyboard-driven changes auto-end the preview
+//  500ms after the last keystroke.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -817,6 +839,9 @@ void SettingsPanel::PreparePreviewFrame()
     }
 
     UpdatePreviewFade ((int64_t) GetTickCount64());
+    m_window.GetRenderer().SetTransparencyState (IsPreviewTransparencyActive(),
+                                                 m_emulatorOverlapClientRect,
+                                                 GetFocusedControlClientRect());
 }
 
 
@@ -1597,94 +1622,14 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
     ChromeTheme  theme            = (m_uiShell != nullptr) ? m_uiShell->Theme() : ChromeTheme::Skeuomorphic();
     float        edgeThick        = (m_uiShell != nullptr) ? m_uiShell->Scaler().Pxf (s_kEdgeThickDp)
                                                            : s_kEdgeThickDp;
-    float        panelA           = m_panelAlpha;
-    float        focusedA         = m_focusedAlpha;
+    float        panelA           = 1.0f;
+    float        focusedA         = 1.0f;
     int          focusedControlId = (m_previewFocus == PreviewFocus::None) ? -1 : (int) m_previewFocus;
 
 
 
     if (!m_visible)
     {
-        return;
-    }
-
-    if (IsPreviewTransparencyActive())
-    {
-        // Two-zone paint:
-        //   1. Panel chrome + sliders at 10%% alpha EVERYWHERE the
-        //      panel does NOT overlap the emulator content rect.
-        //      Splits the panel into the up-to-4 axis-aligned rects
-        //      above / below / left / right of the overlap and paints
-        //      each one separately.
-        //   2. The overlapping zone stays at the swap-chain clear's
-        //      alpha=0 -- the emulator behind shows through 100%%
-        //      regardless of what controls landed there.
-        //   3. The focused control THEN paints over the top at its own
-        //      alpha (0.9), wherever it sits, so it remains visible
-        //      even if it''s over the emulator.
-        constexpr float  s_kTransparentPanelAlpha   = 0.10f;
-        constexpr float  s_kTransparentFocusedAlpha = 0.90f;
-
-        std::vector<RECT>  drawRects;
-        if (IsRectEmpty (&m_emulatorOverlapClientRect))
-        {
-            drawRects.push_back (m_panelRect);
-        }
-        else
-        {
-            // Compute panel ∖ overlap as four axis-aligned bands.
-            RECT  overlap = {};
-            (void) IntersectRect (&overlap, &m_panelRect, &m_emulatorOverlapClientRect);
-            if (IsRectEmpty (&overlap))
-            {
-                drawRects.push_back (m_panelRect);
-            }
-            else
-            {
-                if (overlap.top > m_panelRect.top)
-                {
-                    drawRects.push_back ({ m_panelRect.left, m_panelRect.top,
-                                            m_panelRect.right, overlap.top });
-                }
-                if (overlap.bottom < m_panelRect.bottom)
-                {
-                    drawRects.push_back ({ m_panelRect.left, overlap.bottom,
-                                            m_panelRect.right, m_panelRect.bottom });
-                }
-                if (overlap.left > m_panelRect.left)
-                {
-                    drawRects.push_back ({ m_panelRect.left, overlap.top,
-                                            overlap.left, overlap.bottom });
-                }
-                if (overlap.right < m_panelRect.right)
-                {
-                    drawRects.push_back ({ overlap.right, overlap.top,
-                                            m_panelRect.right, overlap.bottom });
-                }
-            }
-        }
-
-        painter.SetGlobalAlpha (s_kTransparentPanelAlpha);
-        text.SetGlobalAlpha    (s_kTransparentPanelAlpha);
-        for (const RECT & r : drawRects)
-        {
-            painter.FillRect ((float) r.left,  (float) r.top,
-                              (float) (r.right - r.left),
-                              (float) (r.bottom - r.top),
-                              s_kPanelBgArgb);
-        }
-
-        // The focused control paints at full focus-alpha. m_displayPage.Paint
-        // walks every control; pass nonFocused alpha = panelAlpha so the
-        // other controls show in the bands too, plus an excludeRect so
-        // they're SKIPPED when their row falls inside the emulator
-        // overlap (keeping that zone at the swap-chain's 100%% clear).
-        m_displayPage.Paint (painter, text, focusedControlId,
-                             s_kTransparentPanelAlpha, s_kTransparentFocusedAlpha,
-                             m_emulatorOverlapClientRect);
-
-        painter.SetGlobalAlpha (1.0f);
-        text.SetGlobalAlpha    (1.0f);
         return;
     }
 
@@ -1710,10 +1655,9 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
         case TabIndex::Hardware: m_hardwarePage.Paint (painter, text); break;
         case TabIndex::Theme:    m_themePage.Paint    (painter, text); break;
         case TabIndex::Display:
-            // DisplayPage paints its own controls at per-control alpha
-            // (focused vs non-focused). It restores global alpha to 1.0
-            // on exit; we re-clamp to panelA below so the buttons keep
-            // honouring the panel-fade.
+            // DisplayPage paints its own controls at per-control alpha.
+            // It restores global alpha to 1.0 on exit; re-clamp so the
+            // buttons inherit the panel alpha consistently.
             m_displayPage.Paint  (painter, text, focusedControlId, panelA, focusedA);
             painter.SetGlobalAlpha (panelA);
             text.SetGlobalAlpha    (panelA);

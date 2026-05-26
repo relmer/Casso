@@ -380,6 +380,9 @@
     <None Include="Shaders\CRT\gamma.hlsl" />
     <None Include="Shaders\CRT\copy.hlsl" />
     <None Include="Shaders\CRT\LICENSES.md" />
+    <None Include="Shaders\Settings\gaussian_h.hlsl" />
+    <None Include="Shaders\Settings\gaussian_v.hlsl" />
+    <None Include="Shaders\Settings\settings_compose.hlsl" />
     <None Include="Shaders\Ui\ui_solid.hlsl" />
     <None Include="Shaders\Ui\ui_textured.hlsl" />
     <None Include="Shaders\Ui\ui_glyph.hlsl" />

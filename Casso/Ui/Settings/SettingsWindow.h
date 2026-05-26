@@ -37,6 +37,8 @@ public:
     bool    IsOpen() const { return m_hwnd != nullptr; }
     HWND    Hwnd   () const { return m_hwnd; }
 
+    SettingsWindowRenderer & GetRenderer() { return m_renderer; }
+
 private:
     static LRESULT CALLBACK s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 
