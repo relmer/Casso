@@ -122,8 +122,10 @@ HRESULT SettingsWindowRenderer::Initialize (
     hr = m_dcompDevice->Commit();
     CHRA (hr);
 
-    hr = dxgiFactory->MakeWindowAssociation (m_hwnd, DXGI_MWA_NO_ALT_ENTER);
-    CHRA (hr);
+    // Note: no MakeWindowAssociation call -- composition swap chains
+    // aren't bound to an HWND, they're bound to the DComp visual. The
+    // Alt+Enter fullscreen path doesn't exist for these surfaces, so
+    // there's nothing to suppress.
 
     hr = CreateBackBufferTarget();
     CHRA (hr);
