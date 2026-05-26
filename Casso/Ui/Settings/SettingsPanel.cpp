@@ -26,7 +26,7 @@
 namespace
 {
     constexpr int    s_kPanelWidthDp   = 720;
-    constexpr int    s_kPanelHeightDp  = 540;
+    constexpr int    s_kPanelHeightDp  = 720;
     constexpr int    s_kCaptionHeightDp = 32;
     constexpr int    s_kTabHeightDp    = 32;
     constexpr int    s_kBottomBarDp    = 56;

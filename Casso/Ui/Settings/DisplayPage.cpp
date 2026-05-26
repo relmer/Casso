@@ -16,12 +16,12 @@
 
 namespace
 {
-    constexpr int    s_kRowHeightDp     = 28;
+    constexpr int    s_kRowHeightDp     = 26;
     constexpr int    s_kLabelWidthDp    = 140;
     constexpr int    s_kDropdownWidthDp = 220;
     constexpr int    s_kSliderWidthDp   = 260;
-    constexpr int    s_kSectionGapDp    = 14;
-    constexpr int    s_kPagePadDp       = 16;
+    constexpr int    s_kSectionGapDp    = 8;
+    constexpr int    s_kPagePadDp       = 12;
 
 
     RECT MakeRect (int l, int t, int w, int h)
@@ -217,24 +217,25 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     y += rowHeight + sectionGap;
 
     // --- Persistence (single slider, no enable toggle -- 0% IS disabled) ---
+    // Restore button shares this row, hugging the right edge of the slider
+    // column so we save a vertical row.
     m_persistenceLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_persistenceLabel.SetText (L"Persistence:");
     m_persistence.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
-    m_persistence.SetRange     (0.0f, 99.0f);   // upper bound matches CrtParams clamp
+    m_persistence.SetRange     (0.0f, 99.0f);
     m_persistence.SetStep      (5.0f);
     m_persistence.SetSuffix    (L"%");
     m_persistence.SetShowTicks (true);
     m_persistenceRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
-    y += rowHeight + sectionGap;
 
-    // --- Restore defaults button ---
     {
-        int  btnWidth  = scaler.Px (180);
-        int  btnHeight = scaler.Px (28);
+        int  btnWidth  = scaler.Px (140);
+        int  btnHeight = rowHeight;
+        int  btnX      = controlsX + sliderWidth + scaler.Px (60);     // gap after the slider's value text
 
-        m_restore.Layout   (MakeRect (controlsX, y, btnWidth, btnHeight));
+        m_restore.Layout   (MakeRect (btnX, y, btnWidth, btnHeight));
         m_restore.SetLabel (L"Restore defaults");
-        m_restoreRowRect = MakeRect (x, y, (controlsX + btnWidth) - x, btnHeight);
+        m_restoreRowRect = MakeRect (btnX, y, btnWidth, btnHeight);
     }
 
     m_monitorLabel.SetDpi        (dpi);

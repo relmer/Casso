@@ -588,6 +588,71 @@ HRESULT EmulatorShell::Initialize (
             IGNORE_RETURN_VALUE (hrActivate, m_themeManager->Activate ("Skeuomorphic"));
         }
 
+        // Apply the persisted per-machine colorMode (and any other
+        // live-effect settings) at boot. Without this the initial
+        // emulator state defaults to Color regardless of what the user
+        // last saved; the missing path was that MachineManager::
+        // SwitchMachine has the colorMode-apply logic but it only fires
+        // on USER-INITIATED machine switches, not the boot path.
+        {
+            std::string         machineNameNarrow;
+            JsonValue           defaultJson;
+            JsonValue           mergedJson;
+            JsonParseError      parseErr;
+            std::ifstream       configFile;
+            std::stringstream   ss;
+            std::string         jsonText;
+            std::wstring        configRelPath = std::wstring (L"Machines\\") + m_currentMachineName +
+                                                L"\\" + m_currentMachineName + L".json";
+            fs::path            configPath    = PathResolver::FindFile (PathResolver::BuildSearchPaths (
+                                                    PathResolver::GetExecutableDirectory(),
+                                                    PathResolver::GetWorkingDirectory()),
+                                                    configRelPath);
+
+            machineNameNarrow.reserve (m_currentMachineName.size());
+            for (wchar_t c : m_currentMachineName)
+            {
+                machineNameNarrow.push_back ((char) (unsigned char) c);
+            }
+
+            if (!configPath.empty())
+            {
+                configFile.open (configPath);
+                if (configFile.good())
+                {
+                    ss << configFile.rdbuf();
+                    jsonText = ss.str();
+
+                    if (SUCCEEDED (JsonParser::Parse (jsonText, defaultJson, parseErr)) &&
+                        SUCCEEDED (m_userConfigStore->Load (machineNameNarrow,
+                                                            defaultJson,
+                                                            m_uiFs,
+                                                            mergedJson)) &&
+                        mergedJson.GetType() == JsonType::Object)
+                    {
+                        const JsonValue *  uiPrefs   = nullptr;
+                        std::string        colorMode;
+
+                        if (SUCCEEDED (mergedJson.GetObject ("$cassoUiPrefs", uiPrefs)) &&
+                            uiPrefs != nullptr &&
+                            SUCCEEDED (uiPrefs->GetString ("colorMode", colorMode)))
+                        {
+                            int  modeIdx = -1;
+                            if      (colorMode == "color") { modeIdx = 0; }
+                            else if (colorMode == "green") { modeIdx = 1; }
+                            else if (colorMode == "amber") { modeIdx = 2; }
+                            else if (colorMode == "white") { modeIdx = 3; }
+
+                            if (modeIdx >= 0)
+                            {
+                                SetColorModeLive (modeIdx);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         hrSettings = m_settingsPanel.Initialize (m_uiShell,
                                                  *m_userConfigStore,
                                                  m_globalPrefs,
