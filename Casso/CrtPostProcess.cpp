@@ -3,6 +3,7 @@
 #include "CrtPostProcess.h"
 
 #include "Config/CrtPresets.h"
+#include "Shaders/ShaderResourceIds.h"
 
 #pragma comment(lib, "d3dcompiler.lib")
 
@@ -11,11 +12,8 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Inline shader source. Kept in sync with the canonical .hlsl files under
-//  Casso/Shaders/CRT/. The .hlsl files are the source of truth for offline
-//  tooling + the GPL-guard script (scripts/CheckShaderLicenses.ps1); the
-//  copies here exist so the renderer has no runtime dependency on a
-//  separate Shaders/ directory.
+//  Embedded shader plumbing. Pixel shader source lives in Casso/Shaders/CRT
+//  and is embedded as RCDATA so the .hlsl files are the single source of truth.
 //
 //  Shared vertex shader: emits a fullscreen triangle from the indexed quad
 //  upload in CrtPostProcess::Initialize. Same input layout as the existing
@@ -25,9 +23,9 @@
 
 namespace
 {
-    constexpr UINT  s_kMaxBoundPsSrvSlots = 2;
+    constexpr UINT          s_kMaxBoundPsSrvSlots = 2;
 
-    constexpr const char *  kVertexShaderSrc =
+    constexpr const char *  s_kpszVertexShaderSrc =
         "struct VSInput  { float2 pos : POSITION; float2 uv : TEXCOORD; };\n"
         "struct VSOutput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
         "VSOutput main (VSInput i)\n"
@@ -38,182 +36,12 @@ namespace
         "    return o;\n"
         "}\n";
 
-    // See Shaders/CRT/brightness.hlsl
-    constexpr const char *  kPsBrightness =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };\n"
-        "Texture2D    tex : register(t0);\n"
-        "SamplerState sam : register(s0);\n"
-        "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
-        "float4 main (PSInput i) : SV_TARGET\n"
-        "{\n"
-        "    float4 c = tex.Sample (sam, i.uv);\n"
-        "    c.rgb = saturate (((c.rgb - 0.5) * g_contrast + 0.5) * g_brightness);\n"
-        "    return c;\n"
-        "}\n";
 
-    // See Shaders/CRT/scanlines.hlsl
-    constexpr const char *  kPsScanlines =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };\n"
-        "Texture2D    tex : register(t0);\n"
-        "SamplerState sam : register(s0);\n"
-        "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
-        "static const float kNativeScanlines = 192.0;\n"
-        "float4 main (PSInput i) : SV_TARGET\n"
-        "{\n"
-        "    float4 c       = tex.Sample (sam, i.uv);\n"
-        "    float  linePos = i.uv.y * kNativeScanlines;\n"
-        "    float  gap     = sin (linePos * 3.14159265);\n"
-        "    float  bright  = gap * gap;\n"
-        // Luminance-weight the darkening: real CRT scanlines are
-        // visible only where the electron beam was lit. Pure-black
-        // pixels (or pixels lifted slightly off black by contrast<1)
-        // stay untouched, so we don't get a striped grey background
-        // when contrast is below 1.0. Bright pixels darken the full
-        // intensity; mid pixels get partial darkening.
-        "    float  lum     = max (c.r, max (c.g, c.b));\n"
-        "    float  weight  = saturate (lum * 4.0);\n"
-        "    float  darken  = lerp (1.0, lerp (1.0 - g_scanlineIntensity, 1.0, bright), weight);\n"
-        "    c.rgb *= darken;\n"
-        "    return c;\n"
-        "}\n";
-
-    // See Shaders/CRT/bloom_h.hlsl
-    constexpr const char *  kPsBloomH =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };\n"
-        "Texture2D    tex : register(t0);\n"
-        "SamplerState sam : register(s0);\n"
-        "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
-        "static const float W[5] = { 0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216 };\n"
-        "float4 main (PSInput i) : SV_TARGET\n"
-        "{\n"
-        "    float  tx   = 1.0 / max (g_outputW, 1.0);\n"
-        "    float  step = tx * max (g_bloomRadius, 0.001);\n"
-        "    float3 acc  = tex.Sample (sam, i.uv).rgb * W[0];\n"
-        "    [unroll] for (int k = 1; k < 5; ++k)\n"
-        "    {\n"
-        "        float2 off = float2 (step * (float) k, 0.0);\n"
-        "        acc += tex.Sample (sam, i.uv + off).rgb * W[k];\n"
-        "        acc += tex.Sample (sam, i.uv - off).rgb * W[k];\n"
-        "    }\n"
-        "    return float4 (acc, 1.0);\n"
-        "}\n";
-
-    // See Shaders/CRT/bloom_v.hlsl
-    constexpr const char *  kPsBloomV =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };\n"
-        "Texture2D    tex : register(t0);\n"
-        "SamplerState sam : register(s0);\n"
-        "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
-        "static const float W[5] = { 0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216 };\n"
-        "float4 main (PSInput i) : SV_TARGET\n"
-        "{\n"
-        "    float  ty   = 1.0 / max (g_outputH, 1.0);\n"
-        "    float  step = ty * max (g_bloomRadius, 0.001);\n"
-        "    float3 acc  = tex.Sample (sam, i.uv).rgb * W[0];\n"
-        "    [unroll] for (int k = 1; k < 5; ++k)\n"
-        "    {\n"
-        "        float2 off = float2 (0.0, step * (float) k);\n"
-        "        acc += tex.Sample (sam, i.uv + off).rgb * W[k];\n"
-        "        acc += tex.Sample (sam, i.uv - off).rgb * W[k];\n"
-        "    }\n"
-        "    return float4 (acc, 1.0);\n"
-        "}\n";
-
-    // See Shaders/CRT/bloom_composite.hlsl
-    constexpr const char *  kPsBloomComp =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };\n"
-        "Texture2D    texSrc   : register(t0);\n"
-        "Texture2D    texBloom : register(t1);\n"
-        "SamplerState sam      : register(s0);\n"
-        "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
-        "float4 main (PSInput i) : SV_TARGET\n"
-        "{\n"
-        "    float3 b = texSrc.Sample   (sam, i.uv).rgb;\n"
-        "    float3 g = texBloom.Sample (sam, i.uv).rgb;\n"
-        "    return float4 (b + g * g_bloomStrength, 1.0);\n"
-        "}\n";
-
-    // See Shaders/CRT/color_bleed.hlsl
-    constexpr const char *  kPsColorBleed =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };\n"
-        "Texture2D    tex : register(t0);\n"
-        "SamplerState sam : register(s0);\n"
-        "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
-        "float3 ToYCbCr (float3 c) { float y = 0.299*c.r + 0.587*c.g + 0.114*c.b; float cb = -0.168736*c.r - 0.331264*c.g + 0.5*c.b; float cr = 0.5*c.r - 0.418688*c.g - 0.081312*c.b; return float3 (y, cb, cr); }\n"
-        "float3 ToRgb (float3 c) { float r = c.x + 1.402*c.z; float g = c.x - 0.344136*c.y - 0.714136*c.z; float b = c.x + 1.772*c.y; return float3 (r, g, b); }\n"
-        "float4 main (PSInput i) : SV_TARGET\n"
-        "{\n"
-        "    float  tx     = 1.0 / max (g_outputW, 1.0);\n"
-        "    float  radius = max (g_colorBleedWidth, 0.0);\n"
-        "    float3 centerYcbcr = ToYCbCr (tex.Sample (sam, i.uv).rgb);\n"
-        "    float2 chromaAcc   = centerYcbcr.yz;\n"
-        "    float  weightSum   = 1.0;\n"
-        "    int    iRadius     = (int) ceil (radius);\n"
-        "    [unroll(8)] for (int k = 1; k <= 8; ++k)\n"
-        "    {\n"
-        "        if (k > iRadius) break;\n"
-        "        float  w = (radius - (float) (k - 1)) / max (radius, 0.0001);\n"
-        "        if (w < 0.0) w = 0.0;\n"
-        "        float2 off = float2 (tx * (float) k, 0.0);\n"
-        "        float3 p = ToYCbCr (tex.Sample (sam, i.uv + off).rgb);\n"
-        "        float3 m = ToYCbCr (tex.Sample (sam, i.uv - off).rgb);\n"
-        "        chromaAcc += p.yz * w + m.yz * w;\n"
-        "        weightSum += 2.0 * w;\n"
-        "    }\n"
-        "    float3 outY = float3 (centerYcbcr.x, chromaAcc / weightSum);\n"
-        "    return float4 (ToRgb (outY), 1.0);\n"
-        "}\n";
-
-    // Persistence pass. Mixes current frame (t0) with the previous
-    // frame's post-bloom output (t1) using max() instead of lerp() so
-    // bright pixels snap on immediately but only fade gradually --
-    // matches real phosphor physics (electrons hit -> phosphor lights
-    // up instantly, then decays slowly). persistence==0 disables (pass-
-    // through); persistence==0.8 makes amber-style afterglow visible.
-    constexpr const char *  kPsPersistence =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };\n"
-        "Texture2D    texCurrent : register(t0);\n"
-        "Texture2D    texPrev    : register(t1);\n"
-        "SamplerState sam        : register(s0);\n"
-        "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
-        "float4 main (PSInput i) : SV_TARGET\n"
-        "{\n"
-        "    float3 cur  = texCurrent.Sample (sam, i.uv).rgb;\n"
-        "    float3 prev = texPrev.Sample    (sam, i.uv).rgb;\n"
-        // The carry-over RT is 8-bit UNORM, so a pure prev*decay
-        // multiply quantizes back to the same byte once it gets
-        // small enough (1/255 * 0.8 rounds to 1/255 -- ghost forever).
-        // Subtracting ~1.5/255 after the multiply guarantees the
-        // value crosses to zero in finite time even at high decay.
-        "    float3 decayed = max (prev * saturate (g_persistence) - (1.5 / 255.0), 0.0);\n"
-        "    return float4 (max (cur, decayed), 1.0);\n"
-        "}\n";
-
-    // Final gamma pass. Applies pow(rgb, 1/gamma) so content authored
-    // for a ~1.8 CRT looks right on a 2.2 sRGB display. Trivial cost;
-    // single ALU op per channel.
-    constexpr const char *  kPsGamma =
-        "cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };\n"
-        "Texture2D    tex : register(t0);\n"
-        "SamplerState sam : register(s0);\n"
-        "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
-        "float4 main (PSInput i) : SV_TARGET\n"
-        "{\n"
-        "    float4 c = tex.Sample (sam, i.uv);\n"
-        "    float  invGamma = 1.0 / max (g_gamma, 0.1);\n"
-        "    c.rgb = pow (saturate (c.rgb), invGamma);\n"
-        "    return c;\n"
-        "}\n";
-
-    // See Shaders/CRT/copy.hlsl
-    constexpr const char *  kPsCopy =
-        "Texture2D    tex : register(t0);\n"
-        "SamplerState sam : register(s0);\n"
-        "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
-        "float4 main (PSInput i) : SV_TARGET\n"
-        "{\n"
-        "    return tex.Sample (sam, i.uv);\n"
-        "}\n";
+    struct ShaderSource
+    {
+        const void * pData  = nullptr;
+        size_t       cbData = 0;
+    };
 
 
     struct CrtVertex
@@ -223,6 +51,55 @@ namespace
         float u;
         float v;
     };
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadShaderSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LoadShaderSource (int resourceId, ShaderSource * outSource)
+{
+    HRESULT    hr        = S_OK;
+    HINSTANCE  hInstance = nullptr;
+    HRSRC      hRes      = nullptr;
+    HGLOBAL    hMem      = nullptr;
+    DWORD      cbData    = 0;
+    void     * pData     = nullptr;
+
+
+
+    CBRAEx (outSource, E_INVALIDARG);
+
+    outSource->pData  = nullptr;
+    outSource->cbData = 0;
+
+    hInstance = GetModuleHandleW (nullptr);
+    CBRA (hInstance);
+
+    hRes = FindResourceW (hInstance, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
+    CWRA (hRes);
+
+    cbData = SizeofResource (hInstance, hRes);
+    CBRA (cbData > 0);
+
+    hMem = LoadResource (hInstance, hRes);
+    CWRA (hMem);
+
+    pData = LockResource (hMem);
+    CWRA (pData);
+
+    outSource->pData  = pData;
+    outSource->cbData = static_cast<size_t> (cbData);
+
+Error:
+    return hr;
+}
 }
 
 
@@ -451,20 +328,29 @@ CrtPostProcess::~CrtPostProcess()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CrtPostProcess::CompilePixelShader (const char * src, ID3D11PixelShader ** out)
+HRESULT CrtPostProcess::CompilePixelShader (
+    int                  resourceId,
+    const char         * sourceName,
+    ID3D11PixelShader ** out)
 {
     HRESULT             hr     = S_OK;
+    ShaderSource        source = {};
     ComPtr<ID3DBlob>    blob;
     ComPtr<ID3DBlob>    errors;
 
 
 
-    CBRAEx (out, E_INVALIDARG);
+    CBRAEx (sourceName, E_INVALIDARG);
+    CBRAEx (out,        E_INVALIDARG);
+
     *out = nullptr;
 
-    hr = D3DCompile (src,
-                     strlen (src),
-                     "CrtPostProcess.hlsl",
+    hr = LoadShaderSource (resourceId, &source);
+    CHRA (hr);
+
+    hr = D3DCompile (source.pData,
+                     source.cbData,
+                     sourceName,
                      nullptr,
                      nullptr,
                      "main",
@@ -531,7 +417,7 @@ HRESULT CrtPostProcess::Initialize (
     m_context = context;
 
     // VS (shared).
-    hr = D3DCompile (kVertexShaderSrc, strlen (kVertexShaderSrc),
+    hr = D3DCompile (s_kpszVertexShaderSrc, strlen (s_kpszVertexShaderSrc),
                      "CrtPostProcess.hlsl", nullptr, nullptr, "main",
                      "vs_4_0", 0, 0, &vsBlob, &errors);
     CHRA (hr);
@@ -548,15 +434,15 @@ HRESULT CrtPostProcess::Initialize (
     CHRA (hr);
 
     // Pixel shaders.
-    hr = CompilePixelShader (kPsBrightness,  &m_psBrightness);   CHRA (hr);
-    hr = CompilePixelShader (kPsScanlines,   &m_psScanlines);    CHRA (hr);
-    hr = CompilePixelShader (kPsBloomH,      &m_psBloomH);       CHRA (hr);
-    hr = CompilePixelShader (kPsBloomV,      &m_psBloomV);       CHRA (hr);
-    hr = CompilePixelShader (kPsBloomComp,   &m_psBloomComp);    CHRA (hr);
-    hr = CompilePixelShader (kPsColorBleed,  &m_psColorBleed);   CHRA (hr);
-    hr = CompilePixelShader (kPsPersistence, &m_psPersistence);  CHRA (hr);
-    hr = CompilePixelShader (kPsGamma,       &m_psGamma);        CHRA (hr);
-    hr = CompilePixelShader (kPsCopy,        &m_psCopy);         CHRA (hr);
+    hr = CompilePixelShader (IDR_HLSL_BRIGHTNESS,      "brightness.hlsl",       &m_psBrightness);   CHRA (hr);
+    hr = CompilePixelShader (IDR_HLSL_SCANLINES,       "scanlines.hlsl",        &m_psScanlines);    CHRA (hr);
+    hr = CompilePixelShader (IDR_HLSL_BLOOM_H,         "bloom_h.hlsl",          &m_psBloomH);       CHRA (hr);
+    hr = CompilePixelShader (IDR_HLSL_BLOOM_V,         "bloom_v.hlsl",          &m_psBloomV);       CHRA (hr);
+    hr = CompilePixelShader (IDR_HLSL_BLOOM_COMPOSITE, "bloom_composite.hlsl",  &m_psBloomComp);    CHRA (hr);
+    hr = CompilePixelShader (IDR_HLSL_COLOR_BLEED,     "color_bleed.hlsl",      &m_psColorBleed);   CHRA (hr);
+    hr = CompilePixelShader (IDR_HLSL_PERSISTENCE,     "persistence.hlsl",      &m_psPersistence);  CHRA (hr);
+    hr = CompilePixelShader (IDR_HLSL_GAMMA,           "gamma.hlsl",            &m_psGamma);        CHRA (hr);
+    hr = CompilePixelShader (IDR_HLSL_COPY,            "copy.hlsl",             &m_psCopy);         CHRA (hr);
 
     // Quad geometry.
     bd.ByteWidth = sizeof (vertices);
