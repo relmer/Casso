@@ -156,6 +156,14 @@ public:
         theme.bloomStrength       = 0.55f;
         theme.colorBleedEnabled   = false;
         theme.colorBleedWidth     = 1.0f;
+        // Mark all field groups as theme-declared so the layering
+        // logic in MakeCrtParams applies them (mirrors what
+        // ThemeLoader does when the JSON has every block).
+        theme.hasBrightness       = true;
+        theme.hasContrast         = true;
+        theme.hasScanlines        = true;
+        theme.hasBloom            = true;
+        theme.hasColorBleed       = true;
 
         // Case 1 -- no user override; theme wins.
         {

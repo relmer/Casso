@@ -314,15 +314,24 @@ HRESULT SettingsPanel::Initialize (
         blk = preset;
         if (themeDefaults != nullptr)
         {
-            blk.brightness         = themeDefaults->brightness;
-            blk.contrast           = themeDefaults->contrast;
-            blk.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
-            blk.scanlinesIntensity = themeDefaults->scanlinesIntensity;
-            blk.bloomEnabled       = themeDefaults->bloomEnabled;
-            blk.bloomRadius        = themeDefaults->bloomRadius;
-            blk.bloomStrength      = themeDefaults->bloomStrength;
-            blk.colorBleedEnabled  = themeDefaults->colorBleedEnabled;
-            blk.colorBleedWidth    = themeDefaults->colorBleedWidth;
+            if (themeDefaults->hasBrightness) { blk.brightness = themeDefaults->brightness; }
+            if (themeDefaults->hasContrast)   { blk.contrast   = themeDefaults->contrast;   }
+            if (themeDefaults->hasScanlines)
+            {
+                blk.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
+                blk.scanlinesIntensity = themeDefaults->scanlinesIntensity;
+            }
+            if (themeDefaults->hasBloom)
+            {
+                blk.bloomEnabled = themeDefaults->bloomEnabled;
+                blk.bloomRadius  = themeDefaults->bloomRadius;
+                blk.bloomStrength = themeDefaults->bloomStrength;
+            }
+            if (themeDefaults->hasColorBleed)
+            {
+                blk.colorBleedEnabled = themeDefaults->colorBleedEnabled;
+                blk.colorBleedWidth   = themeDefaults->colorBleedWidth;
+            }
         }
         blk.userOverride = true;
 
@@ -910,15 +919,24 @@ void SettingsPanel::ReseedDisplayCrtFromActiveMode ()
         snap.colorBleedWidth    = preset.colorBleedWidth;
         if (themeDefaults != nullptr)
         {
-            snap.brightness         = themeDefaults->brightness;
-            snap.contrast           = themeDefaults->contrast;
-            snap.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
-            snap.scanlinesIntensity = themeDefaults->scanlinesIntensity;
-            snap.bloomEnabled       = themeDefaults->bloomEnabled;
-            snap.bloomRadius        = themeDefaults->bloomRadius;
-            snap.bloomStrength      = themeDefaults->bloomStrength;
-            snap.colorBleedEnabled  = themeDefaults->colorBleedEnabled;
-            snap.colorBleedWidth    = themeDefaults->colorBleedWidth;
+            if (themeDefaults->hasBrightness) { snap.brightness = themeDefaults->brightness; }
+            if (themeDefaults->hasContrast)   { snap.contrast   = themeDefaults->contrast;   }
+            if (themeDefaults->hasScanlines)
+            {
+                snap.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
+                snap.scanlinesIntensity = themeDefaults->scanlinesIntensity;
+            }
+            if (themeDefaults->hasBloom)
+            {
+                snap.bloomEnabled  = themeDefaults->bloomEnabled;
+                snap.bloomRadius   = themeDefaults->bloomRadius;
+                snap.bloomStrength = themeDefaults->bloomStrength;
+            }
+            if (themeDefaults->hasColorBleed)
+            {
+                snap.colorBleedEnabled = themeDefaults->colorBleedEnabled;
+                snap.colorBleedWidth   = themeDefaults->colorBleedWidth;
+            }
         }
     }
     m_displayPage.SetInitialCrt (snap);
@@ -979,23 +997,41 @@ void SettingsPanel::PublishDisplayDefaultsHint ()
     hint.values.colorBleedEnabled  = preset.colorBleedEnabled;
     hint.values.colorBleedWidth    = preset.colorBleedWidth;
 
-    // Layer theme overrides for the field-groups the theme owns.
+    // Layer theme overrides ONLY for the field-groups the theme
+    // actually declares -- otherwise an unset group's struct-default
+    // (scanlinesEnabled=false etc.) would silently overwrite the
+    // monitor preset's correct value.
     if (themeDefaults != nullptr)
     {
-        hint.values.brightness         = themeDefaults->brightness;
-        hint.values.contrast           = themeDefaults->contrast;
-        hint.values.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
-        hint.values.scanlinesIntensity = themeDefaults->scanlinesIntensity;
-        hint.values.bloomEnabled       = themeDefaults->bloomEnabled;
-        hint.values.bloomRadius        = themeDefaults->bloomRadius;
-        hint.values.bloomStrength      = themeDefaults->bloomStrength;
-        hint.values.colorBleedEnabled  = themeDefaults->colorBleedEnabled;
-        hint.values.colorBleedWidth    = themeDefaults->colorBleedWidth;
-        hint.brightnessFromTheme       = true;
-        hint.contrastFromTheme         = true;
-        hint.scanlinesFromTheme        = true;
-        hint.bloomFromTheme            = true;
-        hint.colorBleedFromTheme       = true;
+        if (themeDefaults->hasBrightness)
+        {
+            hint.values.brightness    = themeDefaults->brightness;
+            hint.brightnessFromTheme  = true;
+        }
+        if (themeDefaults->hasContrast)
+        {
+            hint.values.contrast    = themeDefaults->contrast;
+            hint.contrastFromTheme  = true;
+        }
+        if (themeDefaults->hasScanlines)
+        {
+            hint.values.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
+            hint.values.scanlinesIntensity = themeDefaults->scanlinesIntensity;
+            hint.scanlinesFromTheme        = true;
+        }
+        if (themeDefaults->hasBloom)
+        {
+            hint.values.bloomEnabled  = themeDefaults->bloomEnabled;
+            hint.values.bloomRadius   = themeDefaults->bloomRadius;
+            hint.values.bloomStrength = themeDefaults->bloomStrength;
+            hint.bloomFromTheme       = true;
+        }
+        if (themeDefaults->hasColorBleed)
+        {
+            hint.values.colorBleedEnabled = themeDefaults->colorBleedEnabled;
+            hint.values.colorBleedWidth   = themeDefaults->colorBleedWidth;
+            hint.colorBleedFromTheme      = true;
+        }
     }
 
     m_displayPage.SetDefaultsHint (hint);
@@ -1053,15 +1089,24 @@ void SettingsPanel::PromoteActiveCrtToOverride ()
     blk = preset;
     if (themeDefaults != nullptr)
     {
-        blk.brightness         = themeDefaults->brightness;
-        blk.contrast           = themeDefaults->contrast;
-        blk.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
-        blk.scanlinesIntensity = themeDefaults->scanlinesIntensity;
-        blk.bloomEnabled       = themeDefaults->bloomEnabled;
-        blk.bloomRadius        = themeDefaults->bloomRadius;
-        blk.bloomStrength      = themeDefaults->bloomStrength;
-        blk.colorBleedEnabled  = themeDefaults->colorBleedEnabled;
-        blk.colorBleedWidth    = themeDefaults->colorBleedWidth;
+        if (themeDefaults->hasBrightness) { blk.brightness = themeDefaults->brightness; }
+        if (themeDefaults->hasContrast)   { blk.contrast   = themeDefaults->contrast;   }
+        if (themeDefaults->hasScanlines)
+        {
+            blk.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
+            blk.scanlinesIntensity = themeDefaults->scanlinesIntensity;
+        }
+        if (themeDefaults->hasBloom)
+        {
+            blk.bloomEnabled  = themeDefaults->bloomEnabled;
+            blk.bloomRadius   = themeDefaults->bloomRadius;
+            blk.bloomStrength = themeDefaults->bloomStrength;
+        }
+        if (themeDefaults->hasColorBleed)
+        {
+            blk.colorBleedEnabled = themeDefaults->colorBleedEnabled;
+            blk.colorBleedWidth   = themeDefaults->colorBleedWidth;
+        }
     }
     blk.userOverride = true;
 }
@@ -1577,7 +1622,7 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
         //   3. The focused control THEN paints over the top at its own
         //      alpha (0.9), wherever it sits, so it remains visible
         //      even if it''s over the emulator.
-        constexpr float  s_kTransparentPanelAlpha   = 0.10f;
+        constexpr float  s_kTransparentPanelAlpha   = 0.50f;   // TEMP: 0.10 in production
         constexpr float  s_kTransparentFocusedAlpha = 0.90f;
 
         std::vector<RECT>  drawRects;
@@ -1630,11 +1675,13 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
         }
 
         // The focused control paints at full focus-alpha. m_displayPage.Paint
-        // walks every control; pass a nonFocused alpha of 0 so the others
-        // stay invisible regardless of where they landed. The focused
-        // control draws over the transparent zone if that's where it sits.
+        // walks every control; pass nonFocused alpha = panelAlpha so the
+        // other controls show in the bands too, plus an excludeRect so
+        // they're SKIPPED when their row falls inside the emulator
+        // overlap (keeping that zone at the swap-chain's 100%% clear).
         m_displayPage.Paint (painter, text, focusedControlId,
-                             0.0f, s_kTransparentFocusedAlpha);
+                             s_kTransparentPanelAlpha, s_kTransparentFocusedAlpha,
+                             m_emulatorOverlapClientRect);
 
         painter.SetGlobalAlpha (1.0f);
         text.SetGlobalAlpha    (1.0f);

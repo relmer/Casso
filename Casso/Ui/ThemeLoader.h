@@ -53,6 +53,16 @@ struct ThemeCrtDefaults
     float    bloomStrength       = 0.5f;
     bool     colorBleedEnabled   = false;
     float    colorBleedWidth     = 1.0f;
+    // Per-group "the theme JSON actually said something" flags. Consumers
+    // must check these before layering theme values onto a monitor
+    // preset -- otherwise a theme that omits a group (e.g. Skeuomorphic
+    // not setting scanlines) silently wipes the preset's defaults with
+    // the struct-zero values above.
+    bool     hasBrightness       = false;
+    bool     hasContrast         = false;
+    bool     hasScanlines        = false;
+    bool     hasBloom            = false;
+    bool     hasColorBleed       = false;
 };
 
 

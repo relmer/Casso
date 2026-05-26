@@ -153,19 +153,32 @@ CrtParams MakeCrtParams (
 
 
     // Theme variant overrides land on top of the monitor preset for
-    // every field the theme cares about. Theme doesn't yet carry
-    // gamma / persistence so those keep preset values.
+    // every field group the theme actually declares. Theme doesn't
+    // yet carry gamma / persistence so those keep preset values.
+    // The per-group hasX flags are CRITICAL -- a theme that omits a
+    // group (e.g. Skeuomorphic not setting scanlines) must leave the
+    // monitor preset's value alone, not silently wipe it with the
+    // ThemeCrtDefaults struct-default.
     if (!prefsCrt.userOverride && themeDefaults != nullptr)
     {
-        brightness = themeDefaults->brightness;
-        contrast   = themeDefaults->contrast;
-        scanEn     = themeDefaults->scanlinesEnabled;
-        scanInt    = themeDefaults->scanlinesIntensity;
-        bloomEn    = themeDefaults->bloomEnabled;
-        bloomR     = themeDefaults->bloomRadius;
-        bloomS     = themeDefaults->bloomStrength;
-        bleedEn    = themeDefaults->colorBleedEnabled;
-        bleedW     = themeDefaults->colorBleedWidth;
+        if (themeDefaults->hasBrightness) { brightness = themeDefaults->brightness; }
+        if (themeDefaults->hasContrast)   { contrast   = themeDefaults->contrast;   }
+        if (themeDefaults->hasScanlines)
+        {
+            scanEn  = themeDefaults->scanlinesEnabled;
+            scanInt = themeDefaults->scanlinesIntensity;
+        }
+        if (themeDefaults->hasBloom)
+        {
+            bloomEn = themeDefaults->bloomEnabled;
+            bloomR  = themeDefaults->bloomRadius;
+            bloomS  = themeDefaults->bloomStrength;
+        }
+        if (themeDefaults->hasColorBleed)
+        {
+            bleedEn = themeDefaults->colorBleedEnabled;
+            bleedW  = themeDefaults->colorBleedWidth;
+        }
     }
 
     // User overrides win outright. Once flipped, prefs values land

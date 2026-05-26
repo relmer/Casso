@@ -641,9 +641,10 @@ RECT DisplayPage::FocusedControlRect (int controlId) const
 ////////////////////////////////////////////////////////////////////////////////
 
 void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
-                         int focusedControlId,
-                         float nonFocusedAlpha,
-                         float focusedAlpha) const
+                         int          focusedControlId,
+                         float        nonFocusedAlpha,
+                         float        focusedAlpha,
+                         const RECT & excludeRect) const
 {
     constexpr uint32_t  s_kFocusedBackingArgb = 0xFF202830;   // dark grey, near-opaque
     constexpr uint32_t  s_kIndicatorArgb      = 0xFF7A8FA5;   // muted blue-grey
@@ -654,10 +655,25 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
 
     float  indicatorFontPx  = m_scaler.Pxf (s_kIndicatorFontDp);
     float  indicatorWidthPx = m_scaler.Pxf (s_kIndicatorWidthDp);
+    bool   hasExclude       = ! IsRectEmpty (&excludeRect);
 
-    auto  SetAlphaFor = [&] (int control)
+    auto  RowExcluded = [&] (const RECT & rowRect, int control)
+    {
+        RECT  intersect = {};
+        if (! hasExclude || control == focusedControlId)
+        {
+            return false;
+        }
+        return IntersectRect (&intersect, &rowRect, &excludeRect) != FALSE;
+    };
+
+    auto  SetAlphaForRow = [&] (int control, const RECT & rowRect)
     {
         float  a = (control == focusedControlId) ? focusedAlpha : nonFocusedAlpha;
+        if (RowExcluded (rowRect, control))
+        {
+            a = 0.0f;
+        }
         painter.SetGlobalAlpha (a);
         text.SetGlobalAlpha    (a);
     };
@@ -702,12 +718,12 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
 
 
 
-    SetAlphaFor (kControlMonitor);
+    SetAlphaForRow (kControlMonitor, m_monitorRowRect);
     PaintBackingIfFocused (kControlMonitor, m_monitorRowRect);
     m_monitorLabel.Paint    (painter, text);
     m_monitor.PaintBase     (painter, text);
 
-    SetAlphaFor (kControlBrightness);
+    SetAlphaForRow (kControlBrightness, m_brightnessRowRect);
     PaintBackingIfFocused (kControlBrightness, m_brightnessRowRect);
     m_brightnessLabel.Paint (painter, text);
     m_brightness.Paint      (painter, text);
@@ -715,7 +731,7 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
                    FloatMatches (m_brightness.Value() / 100.0f, m_hint.values.brightness),
                    m_hint.brightnessFromTheme);
 
-    SetAlphaFor (kControlContrast);
+    SetAlphaForRow (kControlContrast, m_contrastRowRect);
     PaintBackingIfFocused (kControlContrast, m_contrastRowRect);
     m_contrastLabel.Paint   (painter, text);
     m_contrast.Paint        (painter, text);
@@ -723,7 +739,7 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
                    FloatMatches (m_contrast.Value() / 100.0f, m_hint.values.contrast),
                    m_hint.contrastFromTheme);
 
-    SetAlphaFor (kControlGamma);
+    SetAlphaForRow (kControlGamma, m_gammaRowRect);
     PaintBackingIfFocused (kControlGamma, m_gammaRowRect);
     m_gammaLabel.Paint      (painter, text);
     m_gamma.Paint           (painter, text);
@@ -732,13 +748,13 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
                    false);  // gamma is never theme-owned
 
     // Scanlines section: label in the left column, toggle in the value column.
-    SetAlphaFor (-1);
+    SetAlphaForRow (-1, m_scanlinesEnRowRect);
     m_scanlinesLabel.Paint (painter, text);
     m_scanlinesEn.Paint    (painter, text);
     DrawIndicator (m_scanlinesEnRowRect,
                    m_scanlinesEn.Checked() == m_hint.values.scanlinesEnabled,
                    m_hint.scanlinesFromTheme);
-    SetAlphaFor (kControlScanlinesInt);
+    SetAlphaForRow (kControlScanlinesInt, m_scanlinesIntRowRect);
     PaintBackingIfFocused (kControlScanlinesInt, m_scanlinesIntRowRect);
     m_scanlinesIntLabel.Paint (painter, text);
     m_scanlinesInt.Paint      (painter, text);
@@ -747,20 +763,20 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
                    m_hint.scanlinesFromTheme);
 
     // Bloom section
-    SetAlphaFor (-1);
+    SetAlphaForRow (-1, m_bloomEnRowRect);
     m_bloomLabel.Paint (painter, text);
     m_bloomEn.Paint    (painter, text);
     DrawIndicator (m_bloomEnRowRect,
                    m_bloomEn.Checked() == m_hint.values.bloomEnabled,
                    m_hint.bloomFromTheme);
-    SetAlphaFor (kControlBloomRadius);
+    SetAlphaForRow (kControlBloomRadius, m_bloomRadiusRowRect);
     PaintBackingIfFocused (kControlBloomRadius, m_bloomRadiusRowRect);
     m_bloomRadiusLabel.Paint (painter, text);
     m_bloomRadius.Paint      (painter, text);
     DrawIndicator (m_bloomRadiusRowRect,
                    FloatMatches (m_bloomRadius.Value(), m_hint.values.bloomRadius),
                    m_hint.bloomFromTheme);
-    SetAlphaFor (kControlBloomStrength);
+    SetAlphaForRow (kControlBloomStrength, m_bloomStrengthRowRect);
     PaintBackingIfFocused (kControlBloomStrength, m_bloomStrengthRowRect);
     m_bloomStrengthLabel.Paint (painter, text);
     m_bloomStrength.Paint      (painter, text);
@@ -769,13 +785,13 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
                    m_hint.bloomFromTheme);
 
     // Color-bleed section
-    SetAlphaFor (-1);
+    SetAlphaForRow (-1, m_colorBleedEnRowRect);
     m_colorBleedLabel.Paint (painter, text);
     m_colorBleedEn.Paint    (painter, text);
     DrawIndicator (m_colorBleedEnRowRect,
                    m_colorBleedEn.Checked() == m_hint.values.colorBleedEnabled,
                    m_hint.colorBleedFromTheme);
-    SetAlphaFor (kControlColorBleedW);
+    SetAlphaForRow (kControlColorBleedW, m_colorBleedWRowRect);
     PaintBackingIfFocused (kControlColorBleedW, m_colorBleedWRowRect);
     m_colorBleedWLabel.Paint (painter, text);
     m_colorBleedW.Paint      (painter, text);
@@ -783,7 +799,7 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
                    FloatMatches (m_colorBleedW.Value(), m_hint.values.colorBleedWidth),
                    m_hint.colorBleedFromTheme);
 
-    SetAlphaFor (kControlPersistence);
+    SetAlphaForRow (kControlPersistence, m_persistenceRowRect);
     PaintBackingIfFocused (kControlPersistence, m_persistenceRowRect);
     m_persistenceLabel.Paint (painter, text);
     m_persistence.Paint      (painter, text);
@@ -791,7 +807,7 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
                    FloatMatches (m_persistence.Value() / 100.0f, m_hint.values.persistence),
                    false);  // persistence is never theme-owned
 
-    SetAlphaFor (-1);
+    SetAlphaForRow (-1, m_restoreRowRect);
     {
         static const ChromeTheme  s_kFallbackTheme = ChromeTheme::Skeuomorphic();
         // Button consults theme tokens for color when the caller hasn't
@@ -803,7 +819,7 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
     }
 
     // Dropdown menu floats above the page; paint last so it overlays.
-    SetAlphaFor (kControlMonitor);
+    SetAlphaForRow (kControlMonitor, m_monitorRowRect);
     m_monitor.PaintMenu     (painter, text);
 
     // Restore default so the rest of the panel paints opaque.

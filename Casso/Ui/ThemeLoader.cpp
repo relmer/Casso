@@ -319,10 +319,17 @@ HRESULT ThemeLoader::ParseMetadata (
 
     if (SUCCEEDED (root.GetObject ("crtDefaults", crtObj)) && crtObj != nullptr)
     {
-        outTheme.crtDefaults.brightness =
-            (float) GetNumberOpt (*crtObj, "brightness", outTheme.crtDefaults.brightness);
-        outTheme.crtDefaults.contrast =
-            (float) GetNumberOpt (*crtObj, "contrast",   outTheme.crtDefaults.contrast);
+        double  d = 0.0;
+        if (SUCCEEDED (crtObj->GetNumber ("brightness", d)))
+        {
+            outTheme.crtDefaults.brightness    = (float) d;
+            outTheme.crtDefaults.hasBrightness = true;
+        }
+        if (SUCCEEDED (crtObj->GetNumber ("contrast", d)))
+        {
+            outTheme.crtDefaults.contrast    = (float) d;
+            outTheme.crtDefaults.hasContrast = true;
+        }
 
         if (SUCCEEDED (crtObj->GetObject ("scanlines", scanObj)) && scanObj != nullptr)
         {
@@ -330,6 +337,7 @@ HRESULT ThemeLoader::ParseMetadata (
                                                                     outTheme.crtDefaults.scanlinesEnabled);
             outTheme.crtDefaults.scanlinesIntensity = (float) GetNumberOpt (*scanObj, "intensity",
                                                                             outTheme.crtDefaults.scanlinesIntensity);
+            outTheme.crtDefaults.hasScanlines       = true;
         }
         if (SUCCEEDED (crtObj->GetObject ("bloom", bloomObj)) && bloomObj != nullptr)
         {
@@ -339,6 +347,7 @@ HRESULT ThemeLoader::ParseMetadata (
                                                                        outTheme.crtDefaults.bloomRadius);
             outTheme.crtDefaults.bloomStrength = (float) GetNumberOpt (*bloomObj, "strength",
                                                                        outTheme.crtDefaults.bloomStrength);
+            outTheme.crtDefaults.hasBloom      = true;
         }
         if (SUCCEEDED (crtObj->GetObject ("colorBleed", bleedObj)) && bleedObj != nullptr)
         {
@@ -346,6 +355,7 @@ HRESULT ThemeLoader::ParseMetadata (
                                                                  outTheme.crtDefaults.colorBleedEnabled);
             outTheme.crtDefaults.colorBleedWidth   = (float) GetNumberOpt (*bleedObj, "width",
                                                                            outTheme.crtDefaults.colorBleedWidth);
+            outTheme.crtDefaults.hasColorBleed     = true;
         }
     }
 
@@ -426,14 +436,15 @@ LoadedTheme LoadedTheme::ResolveForMachine (const std::string & machineDisplayNa
         if (SUCCEEDED (override_->GetObject ("crtDefaults", crtObj)) && crtObj != nullptr)
         {
             double  d = 0.0;
-            if (SUCCEEDED (crtObj->GetNumber ("brightness", d))) { result.crtDefaults.brightness = (float) d; }
-            if (SUCCEEDED (crtObj->GetNumber ("contrast",   d))) { result.crtDefaults.contrast   = (float) d; }
+            if (SUCCEEDED (crtObj->GetNumber ("brightness", d))) { result.crtDefaults.brightness = (float) d; result.crtDefaults.hasBrightness = true; }
+            if (SUCCEEDED (crtObj->GetNumber ("contrast",   d))) { result.crtDefaults.contrast   = (float) d; result.crtDefaults.hasContrast   = true; }
 
             if (SUCCEEDED (crtObj->GetObject ("scanlines", scanObj)) && scanObj != nullptr)
             {
                 bool  b = false;
                 if (SUCCEEDED (scanObj->GetBool   ("enabled",   b))) { result.crtDefaults.scanlinesEnabled   = b; }
                 if (SUCCEEDED (scanObj->GetNumber ("intensity", d))) { result.crtDefaults.scanlinesIntensity = (float) d; }
+                result.crtDefaults.hasScanlines = true;
             }
             if (SUCCEEDED (crtObj->GetObject ("bloom", bloomObj)) && bloomObj != nullptr)
             {
@@ -441,12 +452,14 @@ LoadedTheme LoadedTheme::ResolveForMachine (const std::string & machineDisplayNa
                 if (SUCCEEDED (bloomObj->GetBool   ("enabled",  b))) { result.crtDefaults.bloomEnabled  = b; }
                 if (SUCCEEDED (bloomObj->GetNumber ("radius",   d))) { result.crtDefaults.bloomRadius   = (float) d; }
                 if (SUCCEEDED (bloomObj->GetNumber ("strength", d))) { result.crtDefaults.bloomStrength = (float) d; }
+                result.crtDefaults.hasBloom = true;
             }
             if (SUCCEEDED (crtObj->GetObject ("colorBleed", bleedObj)) && bleedObj != nullptr)
             {
                 bool  b = false;
                 if (SUCCEEDED (bleedObj->GetBool   ("enabled", b))) { result.crtDefaults.colorBleedEnabled = b; }
                 if (SUCCEEDED (bleedObj->GetNumber ("width",   d))) { result.crtDefaults.colorBleedWidth   = (float) d; }
+                result.crtDefaults.hasColorBleed = true;
             }
         }
 
