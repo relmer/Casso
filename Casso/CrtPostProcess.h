@@ -35,6 +35,11 @@ struct CrtParams
     float    contrast           = 1.0f;
     float    gamma              = 2.2f;
     float    persistence        = 0.0f;
+    // D3D11 requires constant buffer sizes to be a multiple of 16
+    // bytes; the 10 fields above pack to 40 bytes, so pad to 48.
+    // These slots are intentionally unused by every shader.
+    float    _pad0              = 0.0f;
+    float    _pad1              = 0.0f;
 };
 
 
