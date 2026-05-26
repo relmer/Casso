@@ -757,7 +757,7 @@ HRESULT AssetBootstrap::EnsureThemes (
 //
 //  Returns %LOCALAPPDATA%\Casso\ -- the single, user-writable root for
 //  every file Casso reads or writes at runtime (Machines/, Themes/,
-//  Disks/, GlobalUserPrefs.json, schema backups, downloaded ROMs,
+//  Disks/, UserPrefs.json, schema backups, downloaded ROMs,
 //  captured audio, etc.). Created on first launch if missing.
 //
 //  The legacy `searchPaths` / `exeDir` parameters are intentionally

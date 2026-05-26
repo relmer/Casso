@@ -95,7 +95,7 @@ public:
         span<const MachineConfigPriorHash>         priorHashes);
 
 
-    // Migrate a user-authored `<Machine>_user.json` content forward
+    // Migrate a user-authored `per-machine user JSON` content forward
     // To the current schema (007-ui-overhaul, ):
     //
     //   1. Renames JSON key `$cassoDefault` to `$cassoMachineVersion`.

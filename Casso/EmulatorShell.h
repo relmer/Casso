@@ -202,10 +202,9 @@ private:
         return m_uiFramebuffer.empty() ? nullptr : m_uiFramebuffer.data();
     }
 
-    // Where GlobalUserPrefs lives on disk. SettingsPanel.CommitApply
-    // needs this to call m_globalPrefs.Save() when CRT brightness /
-    // contrast change. Returned by reference so the caller can pass
-    // it straight into Save(baseDir, fs).
+    // Base directory for user preferences. SettingsPanel.CommitApply
+    // uses this as the fallback save path when the unified store is not
+    // available.
     const std::wstring &  AssetBaseDir () const { return m_assetBaseDir; }
 
     // Live channel for the Settings → Display monitor dropdown. The

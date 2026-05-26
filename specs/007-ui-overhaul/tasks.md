@@ -326,7 +326,7 @@ dispatch land on focused managers rather than the original god-class.
 **Goal**: Replace the current Win32 menu-command settings and machine-switch entry points with the native
 in-canvas Settings panel: machine selector outermost, hardware tree, transient
 state, Cancel/Apply semantics, reset-prompt for reset-required changes,
-per-machine `_user.json` persistence with schema merge and version migration.
+per-machine `user JSON` persistence with schema merge and version migration.
 
 **Independent Test**: Open Settings, switch between two machines, observe every
 control update within one frame (US1 acceptance). Toggle an optional hardware
@@ -348,9 +348,9 @@ with unapplied changes — nothing persisted.
 
 ### P3b — Persistence + migration
 
-- [X] T120 [US1] Extend `C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp` to read/write per-machine `_user.json` with shadow/fallthrough merge (FR-012, FR-014, FR-017)
-- [X] T120a [US1] Extend `C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp` to run a one-shot migration that reads `RegistrySettings` machine-specific keys and writes them to `<Machine>_user.json` on first load when the user JSON is absent (FR-016)
-- [X] T120b [US1] Apply persisted `lastMountedImages` from `_user.json` on machine load / application launch; missing paths start empty with a warning, eject clears the entry, and mount overwrites it (FR-047)
+- [X] T120 [US1] Extend `C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp` to read/write per-machine `user JSON` with shadow/fallthrough merge (FR-012, FR-014, FR-017)
+- [X] T120a [US1] Extend `C:\Users\relmer\repos\relmer\Casso\Casso\Config\UserConfigStore.cpp` to run a one-shot migration that reads `RegistrySettings` machine-specific keys and writes them to `per-machine user JSON` on first load when the user JSON is absent (FR-016)
+- [X] T120b [US1] Apply persisted `lastMountedImages` from `user JSON` on machine load / application launch; missing paths start empty with a warning, eject clears the entry, and mount overwrites it (FR-047)
 - [X] T120c [US1] Extend `C:\Users\relmer\repos\relmer\Casso\Casso\Config\GlobalUserPrefs.cpp` and `.h` with `WindowPlacementProfile` read/write keyed by monitor topology + active monitor under `HKCU\Software\relmer\Casso\WindowPlacement\v1\<hash>` (FR-048)
 - [X] T120d [US1] Wire `C:\Users\relmer\repos\relmer\Casso\Casso\Window.cpp` and `C:\Users\relmer\repos\relmer\Casso\Casso\EmulatorShell.cpp` to apply saved window bounds on startup and save profile updates on `WM_MOVE` / `WM_SIZE` (FR-048)
 - [X] T121 [US1] Extend `C:\Users\relmer\repos\relmer\Casso\CassoEmuCore\Core\MachineConfigUpgrade.cpp` and `.h` to add a `capabilityFlag` upgrade step and the canonical-field rewrite rule: accept legacy `$cassoDefault` as a read-alias **only** when `$cassoMachineVersion` is absent; when both are present, treat `$cassoMachineVersion` as authoritative and immediately rewrite the file to canonical form containing only `$cassoMachineVersion` (FR-013, FR-015)
@@ -428,7 +428,7 @@ takes effect immediately and persists across app restart.
 
 ### P4a — ThemePage / DisplayPage implementations
 
-- [x] T130 [US4] Fill `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\ThemePage.cpp` with theme picker, hot-swap dispatch (FR-033), discovery refresh on panel open (FR-035), persistence in `GlobalUserPrefs.json` (FR-034) — shipped with live hover/keyboard preview
+- [x] T130 [US4] Fill `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\ThemePage.cpp` with theme picker, hot-swap dispatch (FR-033), discovery refresh on panel open (FR-035), persistence in `UserPrefs.json` (FR-034) — shipped with live hover/keyboard preview
 - [x] T131 [US4] Fill `C:\Users\relmer\repos\relmer\Casso\Casso\Ui\Settings\DisplayPage.cpp` with CRT brightness slider (FR-038), per-effect toggles (FR-039), and per-effect parameter sliders (FR-040). All values persisted globally, never per-machine. — shipped brightness + contrast sliders + monitor type dropdown with live preview; per-effect toggles (scanlines/bloom/color-bleed) DEFERRED to a follow-up CRT-tuning spec
 
 ### P4b — `GlobalUserPrefs` plumbing
@@ -462,7 +462,7 @@ analysis sweep, full screenshot matrix capture, residue audit, documentation.
 
 ### P5a — US6 silent upgrade validation
 
-- [x] T140 [US6] Construct simulated v→v+3 `_user.json` fixtures + chain-upgrade tests (SC-003 / SC-007) — added explicit multi-hop coverage in MachineConfigUpgradeTests (v1→v4, legacy key→v5, downgrade-Skip, idempotent chain through 5 passes). Plan() is a pure integer comparison so synthetic per-hop fixtures aren't needed; user-customization preservation half lives in existing UserConfigStore tests.
+- [x] T140 [US6] Construct simulated v→v+3 `user JSON` fixtures + chain-upgrade tests (SC-003 / SC-007) — added explicit multi-hop coverage in MachineConfigUpgradeTests (v1→v4, legacy key→v5, downgrade-Skip, idempotent chain through 5 passes). Plan() is a pure integer comparison so synthetic per-hop fixtures aren't needed; user-customization preservation half lives in existing UserConfigStore tests.
 
 ### P5b — SC-004 drag-drop reliability run
 

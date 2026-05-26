@@ -40,8 +40,8 @@ single `UiShell` owner that consumes translated `WM_*` events.
     bloom, libretro ntsc-adaptive chroma stage — unchanged by this work)
   - **REMOVED**: RmlUi (`External/RmlUi/`) — see Constitution Check
 **Storage**:
-  - Per-machine: `<assetBaseDir>/Machines/<Name>/<Name>_user.json`
-  - Global: `<assetBaseDir>/GlobalUserPrefs.json`
+  - Per-machine: `<assetBaseDir>/Machines/<Name>/<Name>user JSON`
+  - Global: `<assetBaseDir>/UserPrefs.json`
   - Themes: `<assetBaseDir>/Themes/<ThemeName>/` (`theme.json` + assets)
   - Window placement: `HKCU\Software\relmer\Casso\WindowPlacement\v1\<hash>`
 **Testing**: Microsoft C++ Unit Test Framework (`UnitTest/`), with all
@@ -394,7 +394,7 @@ Closes US1 + US2 and folds in P2 theme picker entry point.
 - `SettingsPanelState` transient buffer; Cancel discards; Apply commits
   via existing command queue + reset prompt for reset-required changes
   (FR-009, FR-010, edge cases).
-- Per-machine `_user.json` read/write through `UserConfigStore` with
+- Per-machine `user JSON` read/write through `UserConfigStore` with
   schema merge + `MachineConfigUpgrade` invocation (FR-012 through
   FR-017, US6 / FR-013 canonical-field rules).
 - Tests: `SettingsPanelStateTests`, plus extension of existing
