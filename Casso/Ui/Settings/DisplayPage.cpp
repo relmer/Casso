@@ -134,6 +134,8 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     int   y            = rect.top  + pad;
     int   controlsX    = x + labelWidth;        // every control starts here
 
+    m_scaler = scaler;
+
 
 
     // Monitor row + Restore defaults button (sharing this row so the
@@ -602,10 +604,13 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
 {
     constexpr uint32_t  s_kFocusedBackingArgb = 0xFF202830;   // dark grey, near-opaque
     constexpr uint32_t  s_kIndicatorArgb      = 0xFF7A8FA5;   // muted blue-grey
-    constexpr float     s_kIndicatorFontDip   = 12.0f;
-    constexpr float     s_kIndicatorWidthDip  = 140.0f;
+    constexpr int       s_kIndicatorFontDp    = 12;
+    constexpr int       s_kIndicatorWidthDp   = 140;
     constexpr wchar_t   s_kFont[]             = L"Segoe UI";
     constexpr float     s_kFloatEpsilon       = 0.001f;
+
+    float  indicatorFontPx  = m_scaler.Pxf (s_kIndicatorFontDp);
+    float  indicatorWidthPx = m_scaler.Pxf (s_kIndicatorWidthDp);
 
     auto  SetAlphaFor = [&] (int control)
     {
@@ -638,10 +643,10 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
                              text.DrawString (label,
                                               (float) m_indicatorX,
                                               (float) rowRect.top,
-                                              s_kIndicatorWidthDip,
+                                              indicatorWidthPx,
                                               (float) (rowRect.bottom - rowRect.top),
                                               s_kIndicatorArgb,
-                                              s_kIndicatorFontDip,
+                                              indicatorFontPx,
                                               s_kFont,
                                               DwriteTextRenderer::HAlign::Left,
                                               DwriteTextRenderer::VAlign::Center));

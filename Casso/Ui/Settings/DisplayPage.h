@@ -155,6 +155,7 @@ public:
 private:
     SettingsPanelState  * m_state = nullptr;
     DisplayDefaultsHint   m_hint  = {};
+    DpiScaler             m_scaler;
     BrightnessFn          m_onBrightness;
     ContrastFn            m_onContrast;
     GammaFn               m_onGamma;
