@@ -34,7 +34,6 @@ namespace
     // which is exactly the point.
     constexpr WORD kKnownMenuCommandIds[] =
     {
-        IDM_FILE_OPEN,
         IDM_FILE_EXIT,
 
         IDM_EDIT_COPY_TEXT,
@@ -45,14 +44,11 @@ namespace
         IDM_MACHINE_POWERCYCLE,
         IDM_MACHINE_PAUSE,
         IDM_MACHINE_STEP,
-        IDM_MACHINE_INFO,
 
         IDM_DISK_INSERT1,
         IDM_DISK_EJECT1,
         IDM_DISK_INSERT2,
         IDM_DISK_EJECT2,
-        IDM_DISK_WRITEMODE_BUFFER,
-        IDM_DISK_WRITEMODE_COW,
 
         IDM_VIEW_FULLSCREEN,
         IDM_VIEW_RESET_SIZE,
@@ -97,6 +93,12 @@ public:
         for (const NavCommandEntry & e : NavLayer::GetCommandEntries())
         {
             wchar_t  msg[128] = {};
+
+            if (NavLayer::IsSeparator (e))
+            {
+                continue;
+            }
+
             swprintf_s (msg, L"Duplicate command id 0x%04X in NavLayer table", e.commandId);
             Assert::IsTrue (seen.insert (e.commandId).second, msg);
         }
@@ -107,13 +109,18 @@ public:
     {
         for (const NavCommandEntry & e : NavLayer::GetCommandEntries())
         {
+            if (NavLayer::IsSeparator (e))
+            {
+                continue;
+            }
+
             Assert::IsNotNull (e.label,
                                L"NavLayer entry must have a non-null label");
             Assert::IsTrue   (e.label[0] != L'\0',
                                L"NavLayer entry label must be non-empty");
 
             // GetMenuName returns "?" for unknown enumerators — bare
-            // pointer compare against the known six is enough.
+            // pointer compare against the known menus is enough.
             const wchar_t * name = NavLayer::GetMenuName (e.menu);
             Assert::IsTrue (name[0] != L'?',
                             L"NavLayer entry uses an unknown NavMenu enumerator");
@@ -137,6 +144,12 @@ public:
         for (const NavCommandEntry & e : NavLayer::GetCommandEntries())
         {
             char  needle[32] = {};
+
+            if (NavLayer::IsSeparator (e))
+            {
+                continue;
+            }
+
             snprintf (needle, sizeof (needle), "| %u |", (unsigned) e.commandId);
 
             wchar_t  msg[160] = {};

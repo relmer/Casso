@@ -5,6 +5,7 @@
 #include "SettingsPanelState.h"
 
 #include "../DpiScaler.h"
+#include "../Widgets/Label.h"
 #include "../Widgets/TreeView.h"
 
 
@@ -55,16 +56,17 @@ public:
         out.push_back ([this] (bool f) { m_tree.SetFocused (f); });
     }
 
-    void  Paint         (DxUiPainter & painter, DwriteTextRenderer & text) const
-    {
-        m_tree.Paint (painter, text);
-    }
+    void  Paint         (DxUiPainter & painter, DwriteTextRenderer & text) const;
 
     // Pure helper: convert one hardware-entry list into the TreeNode
     // tree the underlying TreeView consumes. Exposed for unit tests.
     static std::vector<TreeNode>  BuildNodes (const std::vector<HardwareEntry> & entries);
 
 private:
-    SettingsPanelState  * m_state = nullptr;
-    TreeView              m_tree;
+    static constexpr size_t              kInfoRowCount = 5;
+
+    SettingsPanelState                 * m_state = nullptr;
+    std::array<Label, kInfoRowCount>     m_infoLabels;
+    std::array<Label, kInfoRowCount>     m_infoValues;
+    TreeView                             m_tree;
 };

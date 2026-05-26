@@ -14,7 +14,7 @@
     },
     "$cassoUiPrefs": {
       "type": "object",
-      "description": "Machine-scoped UI preferences persisted from SettingsPanelState. Fields omitted here fall through to implicit defaults in code (authentic/color/shugart/writeProtect=false).",
+      "description": "Machine-scoped UI preferences persisted from SettingsPanelState. Fields omitted here fall through to implicit defaults in code (authentic/color/buffer-and-flush/shugart/writeProtect=false)."
       "additionalProperties": false,
       "properties": {
         "speedMode": {
@@ -24,6 +24,10 @@
         "colorMode": {
           "type": "string",
           "enum": ["color", "green", "amber", "white"]
+        },
+        "writeMode": {
+          "type": "string",
+          "enum": ["buffer-and-flush", "copy-on-write"]
         },
         "floppySoundEnabled": { "type": "boolean" },
         "floppyMechanism": {

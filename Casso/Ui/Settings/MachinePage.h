@@ -26,6 +26,7 @@
 //      * Speed mode    (Dropdown: authentic / 2x / max)
 //      * Color mode    (Dropdown: color / green / amber / white)
 //      * Write protect (one Checkbox per drive: D1 / D2)
+//      * Write mode    (Dropdown: buffer+flush / copy-on-write)
 //      * Drive audio   (Toggle: floppy sound on/off)
 //      * Mechanism     (Dropdown: shugart / alps)
 //
@@ -62,6 +63,7 @@ public:
     const Toggle      & DriveAudioToggle     () const { return m_driveAudio; }
     const Checkbox    & WriteProtect         (int drive) const { return m_writeProtect[(size_t) drive]; }
     const Dropdown    & SpeedDropdown        () const { return m_speed; }
+    const Dropdown    & WriteModeDropdown() const { return m_writeMode; }
     const Dropdown    & MechanismDropdown    () const { return m_mechanism; }
     const std::vector<std::string> & Machines () const { return m_machines; }
     int               ActiveMachineIndex     () const { return m_activeMachineIndex; }
@@ -78,11 +80,13 @@ private:
     Label                        m_machineLabel;
     Label                        m_speedLabel;
     Label                        m_wpLabel;
+    Label                        m_writeModeLabel;
     Label                        m_audioLabel;
     Label                        m_mechLabel;
 
     Dropdown                     m_machineDropdown;
     Dropdown                     m_speed;
+    Dropdown                     m_writeMode;
     Dropdown                     m_mechanism;
     Toggle                       m_driveAudio;
     std::array<Checkbox, 2>      m_writeProtect;

@@ -14,12 +14,15 @@ namespace
     constexpr int       s_kNavHeightPx    = 32;
     constexpr int       s_kMenuPadXPx     = 12;
     constexpr int       s_kMenuGapPx      = 4;
-    constexpr int       s_kRowHeightPx    = 26;
-    constexpr int       s_kDropdownWidthDp = 300;
-    constexpr int       s_kAccelOffsetDp   = 190;
-    constexpr int       s_kRowPadLeftDp    = 10;
-    constexpr int       s_kRowPadTopDp     = 5;
-    constexpr float     s_kFontDip        = 14.0f;
+    constexpr int       s_kRowHeightPx      = 26;
+    constexpr int       s_kSeparatorHeightDp = 10;
+    constexpr int       s_kSeparatorInsetDp  = 10;
+    constexpr int       s_kMidpointDivisor   = 2;
+    constexpr int       s_kDropdownWidthDp   = 300;
+    constexpr int       s_kAccelOffsetDp     = 190;
+    constexpr int       s_kRowPadLeftDp      = 10;
+    constexpr int       s_kRowPadTopDp       = 5;
+    constexpr float     s_kFontDip           = 14.0f;
     constexpr float     s_kUnderlineThicknessDip = 1.0f;
     constexpr wchar_t   s_kFontFamily[]   = L"Segoe UI";
 
@@ -29,29 +32,27 @@ namespace
     // glyph is underlined when mnemonic cues should be shown.
     constexpr NavCommandEntry s_kEntries[] =
     {
-        { IDM_FILE_OPEN,                NavMenu::File,    L"&Switch machine...",     L"Ctrl+O"        },
         { IDM_FILE_EXIT,                NavMenu::File,    L"E&xit",                  nullptr          },
         { IDM_EDIT_COPY_TEXT,           NavMenu::Edit,    L"&Copy text",             L"Ctrl+Shift+C"  },
         { IDM_EDIT_COPY_SCREENSHOT,     NavMenu::Edit,    L"Copy &screenshot",       L"Ctrl+Alt+C"    },
         { IDM_EDIT_PASTE,               NavMenu::Edit,    L"&Paste",                 L"Ctrl+V"        },
         { IDM_MACHINE_RESET,            NavMenu::Machine, L"&Reset",                 L"Ctrl+R"        },
         { IDM_MACHINE_POWERCYCLE,       NavMenu::Machine, L"Po&wer cycle",           L"Ctrl+Shift+R"  },
-        { IDM_MACHINE_PAUSE,            NavMenu::Machine, L"&Pause",                 L"Pause"         },
-        { IDM_MACHINE_STEP,             NavMenu::Machine, L"&Step",                  L"F11"           },
-        { IDM_MACHINE_INFO,             NavMenu::Machine, L"Machine &info...",       nullptr          },
         { IDM_DISK_INSERT1,             NavMenu::Disk,    L"&Insert drive 1...",     L"Ctrl+1"        },
         { IDM_DISK_EJECT1,              NavMenu::Disk,    L"&Eject drive 1",         L"Ctrl+Shift+1"  },
+        { 0,                            NavMenu::Disk,    nullptr,                   nullptr          },
         { IDM_DISK_INSERT2,             NavMenu::Disk,    L"Insert drive &2...",     L"Ctrl+2"        },
         { IDM_DISK_EJECT2,              NavMenu::Disk,    L"Eje&ct drive 2",         L"Ctrl+Shift+2"  },
-        { IDM_DISK_WRITEMODE_BUFFER,    NavMenu::Disk,    L"Write &mode: buffer and flush", nullptr   },
-        { IDM_DISK_WRITEMODE_COW,       NavMenu::Disk,    L"Write m&ode: copy on write",    nullptr   },
         { IDM_VIEW_FULLSCREEN,          NavMenu::View,    L"&Fullscreen",            L"Alt+Enter"     },
         { IDM_VIEW_RESET_SIZE,          NavMenu::View,    L"&Reset window size",     L"Ctrl+0"        },
+        { 0,                            NavMenu::View,    nullptr,                   nullptr          },
         { IDM_VIEW_SETTINGS,            NavMenu::View,    L"Se&ttings...",           L"Ctrl+,"        },
-        { IDM_VIEW_DISKII_DEBUG,        NavMenu::View,    L"&Disk II debug...",      L"Ctrl+Shift+D"  },
         { IDM_HELP_KEYMAP,              NavMenu::Help,    L"&Keyboard map",          L"F1"            },
-        { IDM_HELP_DEBUG,               NavMenu::Help,    L"De&bug console",         L"Ctrl+D"        },
         { IDM_HELP_ABOUT,               NavMenu::Help,    L"&About Casso...",        nullptr          },
+        { IDM_MACHINE_PAUSE,            NavMenu::Debug,   L"&Pause",                 L"Pause"         },
+        { IDM_MACHINE_STEP,             NavMenu::Debug,   L"&Step",                  L"F11"           },
+        { IDM_VIEW_DISKII_DEBUG,        NavMenu::Debug,   L"Disk ][ Debug...",       L"Ctrl+Shift+D"  },
+        { IDM_HELP_DEBUG,               NavMenu::Debug,   L"De&bug console",         L"Ctrl+D"        },
     };
 
 
@@ -187,6 +188,7 @@ const wchar_t * NavLayer::GetMenuName (NavMenu menu)
     case NavMenu::Disk:    return L"&Disk";
     case NavMenu::View:    return L"&View";
     case NavMenu::Help:    return L"&Help";
+    case NavMenu::Debug:   return L"&Debug";
     }
 
     return L"?";
@@ -223,6 +225,11 @@ std::string NavLayer::EmitParityMarkdown ()
         char            menuBuf[32]   = {};
         char            labelBuf[128] = {};
         char            accelBuf[64]  = {};
+
+        if (IsSeparator (e))
+        {
+            continue;
+        }
 
         ParseMnemonic (menuName, menuStripped,  mnIdx, mnCh);
         ParseMnemonic (e.label,  labelStripped, mnIdx, mnCh);
@@ -504,7 +511,7 @@ bool NavLayer::HandleKey (WPARAM vk)
             int           mnIdx = -1;
             wchar_t       mnCh  = 0;
 
-            if (entry.menu != m_openMenu)
+            if (entry.menu != m_openMenu || IsSeparator (entry))
             {
                 continue;
             }
@@ -739,15 +746,17 @@ void NavLayer::PaintDropdown (
     const ChromeVisualState & visual,
     const ChromeTheme       & theme)
 {
-    HRESULT  hr            = S_OK;
-    RECT     rect          = DropdownRect();
-    int      row           = 0;
-    UINT     dpi           = (visual.dpi == 0) ? (UINT) s_kBaseDpi : visual.dpi;
-    float    fontDip       = s_kFontDip * (float) dpi / (float) s_kBaseDpi;
-    int      rowPadLeftPx  = Scale (s_kRowPadLeftDp,   dpi);
-    int      rowPadTopPx   = Scale (s_kRowPadTopDp,    dpi);
-    int      accelOffsetPx = Scale (s_kAccelOffsetDp,  dpi);
-    bool     showCues      = ShouldShowMnemonicCues (IsOpenByKeyboard());
+    HRESULT  hr                 = S_OK;
+    RECT     rect               = DropdownRect();
+    int      row                = 0;
+    int      y                  = 0;
+    UINT     dpi                = (visual.dpi == 0) ? (UINT) s_kBaseDpi : visual.dpi;
+    float    fontDip            = s_kFontDip * (float) dpi / (float) s_kBaseDpi;
+    int      rowPadLeftPx       = Scale (s_kRowPadLeftDp,    dpi);
+    int      rowPadTopPx        = Scale (s_kRowPadTopDp,     dpi);
+    int      accelOffsetPx      = Scale (s_kAccelOffsetDp,   dpi);
+    int      separatorInsetPx   = Scale (s_kSeparatorInsetDp, dpi);
+    bool     showCues           = ShouldShowMnemonicCues (IsOpenByKeyboard());
 
 
 
@@ -771,11 +780,23 @@ void NavLayer::PaintDropdown (
     for (const NavCommandEntry & entry : s_kEntries)
     {
         std::wstring  stripped;
-        int           mnIdx = -1;
-        wchar_t       mnCh  = 0;
+        int           mnIdx       = -1;
+        wchar_t       mnCh        = 0;
+        int           entryHeight = EntryHeight (entry);
 
         if (entry.menu != m_openMenu)
         {
+            continue;
+        }
+
+        if (IsSeparator (entry))
+        {
+            painter.FillRect ((float) (rect.left + separatorInsetPx),
+                              (float) (rect.top + y + entryHeight / s_kMidpointDivisor),
+                              (float) (rect.right - rect.left - separatorInsetPx - separatorInsetPx),
+                              s_kUnderlineThicknessDip,
+                              theme.navHoverArgb);
+            y += entryHeight;
             continue;
         }
 
@@ -784,17 +805,17 @@ void NavLayer::PaintDropdown (
         if (row == m_highlightIndex)
         {
             painter.FillRect ((float) rect.left,
-                              (float) (rect.top + row * m_rowHeightPx),
+                              (float) (rect.top + y),
                               (float) (rect.right - rect.left),
-                              (float) m_rowHeightPx,
+                              (float) entryHeight,
                               theme.dropdownHoverArgb);
         }
 
         IGNORE_RETURN_VALUE (hr, text.DrawString (stripped.c_str(),
                                                   (float) (rect.left + rowPadLeftPx),
-                                                  (float) (rect.top + row * m_rowHeightPx + rowPadTopPx),
+                                                  (float) (rect.top + y + rowPadTopPx),
                                                   (float) accelOffsetPx,
-                                                  (float) m_rowHeightPx,
+                                                  (float) entryHeight,
                                                   theme.dropdownItemTextArgb,
                                                   fontDip,
                                                   s_kFontFamily));
@@ -826,7 +847,7 @@ void NavLayer::PaintDropdown (
             }
 
             float baseX = (float) (rect.left + rowPadLeftPx) + prefixW;
-            float baseY = (float) (rect.top + row * m_rowHeightPx + rowPadTopPx) + fullH;
+            float baseY = (float) (rect.top + y + rowPadTopPx) + fullH;
 
             painter.FillRect (baseX, baseY, charW, s_kUnderlineThicknessDip, theme.dropdownItemTextArgb);
         }
@@ -835,13 +856,14 @@ void NavLayer::PaintDropdown (
         {
             IGNORE_RETURN_VALUE (hr, text.DrawString (entry.accelerator,
                                                       (float) (rect.left + accelOffsetPx),
-                                                      (float) (rect.top + row * m_rowHeightPx + rowPadTopPx),
+                                                      (float) (rect.top + y + rowPadTopPx),
                                                       (float) (rect.right - rect.left - accelOffsetPx),
-                                                      (float) m_rowHeightPx,
+                                                      (float) entryHeight,
                                                       theme.dropdownAccelArgb,
                                                       fontDip,
                                                       s_kFontFamily));
         }
+        y += entryHeight;
         row++;
     }
 }
@@ -854,6 +876,12 @@ void NavLayer::PaintDropdown (
 //  Helpers
 //
 ////////////////////////////////////////////////////////////////////////////////
+
+bool NavLayer::IsSeparator (const NavCommandEntry & entry)
+{
+    return entry.commandId == 0;
+}
+
 
 int NavLayer::MenuIndex (NavMenu menu) const
 {
@@ -872,14 +900,13 @@ RECT NavLayer::DropdownRect () const
     RECT  menu          = MenuRect (m_openMenu);
     RECT  rect          = {};
     int   dropdownWidth = Scale (s_kDropdownWidthDp, m_dpi);
-    int   rows = EntryCount (m_openMenu);
 
 
 
     rect.left   = menu.left;
     rect.top    = menu.bottom;
     rect.right  = menu.left + dropdownWidth;
-    rect.bottom = menu.bottom + rows * m_rowHeightPx;
+    rect.bottom = menu.bottom + DropdownHeight (m_openMenu);
     return rect;
 }
 
@@ -892,7 +919,7 @@ const NavCommandEntry * NavLayer::EntryAt (int index) const
 
     for (const NavCommandEntry & entry : s_kEntries)
     {
-        if (entry.menu != m_openMenu)
+        if (entry.menu != m_openMenu || IsSeparator (entry))
         {
             continue;
         }
@@ -916,7 +943,7 @@ int NavLayer::EntryCount (NavMenu menu) const
 
     for (const NavCommandEntry & entry : s_kEntries)
     {
-        if (entry.menu == menu)
+        if (entry.menu == menu && !IsSeparator (entry))
         {
             count++;
         }
@@ -926,10 +953,41 @@ int NavLayer::EntryCount (NavMenu menu) const
 }
 
 
+int NavLayer::DropdownHeight (NavMenu menu) const
+{
+    int  height = 0;
+
+
+
+    for (const NavCommandEntry & entry : s_kEntries)
+    {
+        if (entry.menu == menu)
+        {
+            height += EntryHeight (entry);
+        }
+    }
+
+    return height;
+}
+
+
+int NavLayer::EntryHeight (const NavCommandEntry & entry) const
+{
+    if (IsSeparator (entry))
+    {
+        return Scale (s_kSeparatorHeightDp, m_dpi);
+    }
+
+    return m_rowHeightPx;
+}
+
+
 int NavLayer::HitEntryIndex (int x, int y) const
 {
-    RECT  rect = DropdownRect();
-    int   row  = 0;
+    RECT  rect      = DropdownRect();
+    int   row       = 0;
+    int   currentY  = 0;
+    int   localY    = y - rect.top;
 
 
 
@@ -938,11 +996,26 @@ int NavLayer::HitEntryIndex (int x, int y) const
         return -1;
     }
 
-    row = (y - rect.top) / m_rowHeightPx;
-    if (row >= EntryCount (m_openMenu))
+    for (const NavCommandEntry & entry : s_kEntries)
     {
-        return -1;
+        int  entryHeight = EntryHeight (entry);
+
+        if (entry.menu != m_openMenu)
+        {
+            continue;
+        }
+
+        if (localY >= currentY && localY < currentY + entryHeight)
+        {
+            return IsSeparator (entry) ? -1 : row;
+        }
+
+        currentY += entryHeight;
+        if (!IsSeparator (entry))
+        {
+            row++;
+        }
     }
 
-    return row;
+    return -1;
 }

@@ -28,8 +28,8 @@
 //  `currentJson` suitable for `UserConfigStore::SaveDelta`, then
 //  pushes the live-applicable fields through `ISettingsApplySink`.
 //
-//  Per-machine UI preferences (speed mode, color mode, floppy sound,
-//  mechanism, per-drive write protect) are persisted under the
+//  Per-machine UI preferences (speed mode, color mode, write mode,
+//  floppy sound, mechanism, per-drive write protect) are persisted under the
 //  reserved JSON key `$cassoUiPrefs` so they round-trip the same
 //  upgrade/migration path as the rest of the machine config without
 //  expanding the typed `MachineConfig` schema.
@@ -63,10 +63,18 @@ enum class SettingsColorMode
 };
 
 
+enum class SettingsWriteMode
+{
+    BufferAndFlush = 0,
+    CopyOnWrite    = 1,
+};
+
+
 struct SettingsUiPrefs
 {
     SettingsSpeedMode  speedMode             = SettingsSpeedMode::Authentic;
     SettingsColorMode  colorMode             = SettingsColorMode::Color;
+    SettingsWriteMode  writeMode             = SettingsWriteMode::BufferAndFlush;
     bool               floppySoundEnabled    = true;
     std::string        floppyMechanism       = "shugart";   // "shugart" | "alps"
     bool               writeProtect[2]       = { false, false };
@@ -90,6 +98,16 @@ struct HardwareEntry
     CapabilityFlag     capability   = CapabilityFlag::Optional;
     std::string        lockReason;                    // only meaningful for PlatformLocked
     bool               enabled      = true;
+};
+
+
+struct SettingsMachineInfo
+{
+    std::string  name;
+    std::string  cpu;
+    uint32_t     clockSpeed    = 0;
+    size_t       memoryRegions = 0;
+    size_t       devices       = 0;
 };
 
 
@@ -139,13 +157,15 @@ public:
 
     // ---- Live (current) accessors / mutators ---------------------------
 
-    const std::string              & MachineName   () const { return m_machineName; }
-    const SettingsUiPrefs          & Prefs         () const { return m_current.prefs; }
+    const std::string                & MachineName () const { return m_machineName; }
+    const SettingsMachineInfo        & MachineInfo() const { return m_machineInfo; }
+    const SettingsUiPrefs            & Prefs       () const { return m_current.prefs; }
     const std::vector<HardwareEntry> & Hardware    () const { return m_current.hardware; }
-    const JsonValue                & DefaultJson   () const { return m_defaultJson; }
+    const JsonValue                  & DefaultJson () const { return m_defaultJson; }
 
     void    SetSpeedMode       (SettingsSpeedMode mode);
     void    SetColorMode       (SettingsColorMode mode);
+    void    SetWriteMode       (SettingsWriteMode mode);
     void    SetFloppySound     (bool enabled);
     void    SetMechanism       (const std::string & mechanism);
     void    SetWriteProtect    (int drive, bool wp);
@@ -158,13 +178,15 @@ public:
 
     // ---- Pure helpers (exposed for tests) ------------------------------
 
-    static HRESULT ExtractHardware (const JsonValue            & mergedJson,
-                                    std::vector<HardwareEntry> & outEntries);
-    static HRESULT ExtractUiPrefs  (const JsonValue            & mergedJson,
-                                    SettingsUiPrefs            & outPrefs);
-    static JsonValue BuildJson     (const JsonValue                 & mergedJson,
-                                    const std::vector<HardwareEntry> & hw,
-                                    const SettingsUiPrefs          & prefs);
+    static HRESULT ExtractHardware    (const JsonValue            & mergedJson,
+                                       std::vector<HardwareEntry> & outEntries);
+    static HRESULT ExtractMachineInfo (const JsonValue            & mergedJson,
+                                       SettingsMachineInfo        & outInfo);
+    static HRESULT ExtractUiPrefs     (const JsonValue            & mergedJson,
+                                       SettingsUiPrefs            & outPrefs);
+    static JsonValue BuildJson        (const JsonValue                 & mergedJson,
+                                       const std::vector<HardwareEntry> & hw,
+                                       const SettingsUiPrefs          & prefs);
 
 private:
 
@@ -179,9 +201,10 @@ private:
                                const std::vector<HardwareEntry> & b);
 
 
-    std::string  m_machineName;
-    JsonValue    m_defaultJson;
-    JsonValue    m_mergedJson;
+    std::string          m_machineName;
+    SettingsMachineInfo  m_machineInfo;
+    JsonValue            m_defaultJson;
+    JsonValue            m_mergedJson;
 
     Snapshot     m_original;
     Snapshot     m_current;

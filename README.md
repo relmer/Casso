@@ -16,7 +16,7 @@ Casso's entire chrome moved from the legacy Win32 menu bar / Win32 dialogs to a 
 
 - **Three built-in themes** — Skeuomorphic, Dark Modern, Retro Terminal — hot-swappable from **Settings → Theme** with no restart and no machine reset.
 - **Custom themes are first-class.** Drop a directory under `Themes/<YourTheme>/` containing a `theme.json` plus the entry documents (`title_bar.rml`, `nav_layer.rml`, `settings.rml`, `drive_widgets.rml`) and matching `.rcss` — Casso picks it up on the next launch and the theme appears in the Settings dropdown. See [docs/themes/AUTHORING.md](docs/themes/AUTHORING.md) for a step-by-step guide.
-- **Consolidated Settings panel** replaces the old `OptionsDialog` and `MachinePickerDialog`. Machine selection, emulation speed, video color mode, floppy sound + mechanism, write-protect, theme picker, and the new CRT controls live in one non-modal in-window panel.
+- **Consolidated Settings panel** replaces the old `OptionsDialog` and `MachinePickerDialog`. Machine selection, machine info, emulation speed, video color mode, disk write mode, floppy sound + mechanism, write-protect, theme picker, and the new CRT controls live in one non-modal in-window panel.
 - **Drag-and-drop disk mounting** — drop a `.dsk` / `.do` / `.po` / `.nib` onto either drive widget to insert it; click-to-browse on the same widget opens a file picker.
 - **CRT post-processing** — scanlines, phosphor bloom, color bleed. Each effect toggles independently; a single brightness slider gates the master mix.
 - **Auto-remount** of the last-inserted disks on machine load, so the typical "boot Apple ][+" flow is one click.
@@ -26,9 +26,9 @@ Casso's entire chrome moved from the legacy Win32 menu bar / Win32 dialogs to a 
 <!-- TODO: capture screenshot -- caption: "Dark Modern theme: flat dark chrome, blue accent LEDs, Settings panel showing the Theme dropdown." -->
 <!-- TODO: capture screenshot -- caption: "Retro Terminal theme: green-on-black VT323 font, scanlines + bloom enabled, NTSC color mode." -->
 
-### Disk II Debug Window (v1.3.730)
+### Disk ][ Debug Window (v1.3.730)
 
-A modeless live event log of every Disk II controller event the active machine emits. Open with **View → Disk II Debug...** or **Ctrl+Shift+D**:
+A modeless live event log of every Disk II controller event the active machine emits. Open with **Debug → Disk ][ Debug...** or **Ctrl+Shift+D**:
 
 - Motor on/off, head step / bump (with prev → new quarter-track), address marks (track / sector / volume), data reads, drive selects, insert / eject events, and audio decisions (started / restarted / continued / silent).
 - Filter by event type, drive, track range, sector range, audio sub-category, or any combination; pause / resume / clear; Ctrl+C copies the selected rows tab-separated.
