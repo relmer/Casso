@@ -7,6 +7,7 @@
 #include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
+#include "../Widgets/Button.h"
 #include "../Widgets/Dropdown.h"
 #include "../Widgets/Label.h"
 #include "../Widgets/Slider.h"
@@ -33,6 +34,8 @@ class DisplayPage
 public:
     using BrightnessFn    = std::function<void (float value)>;
     using ContrastFn      = std::function<void (float value)>;
+    using GammaFn         = std::function<void (float value)>;
+    using PersistenceFn   = std::function<void (float value)>;
     using MonitorFn       = std::function<void (int colorModeIndex)>;
     using ScanlinesEnFn   = std::function<void (bool enabled)>;
     using ScanlinesIntFn  = std::function<void (float intensity)>;
@@ -42,6 +45,7 @@ public:
     using ColorBleedEnFn  = std::function<void (bool enabled)>;
     using ColorBleedWFn   = std::function<void (float width)>;
     using PreviewFn       = std::function<void (int controlId, bool start, bool keyboardMode)>;
+    using RestoreFn       = std::function<void ()>;
 
     // Control ids used by SetOnPreview to identify which control is
     // being interacted with. Match the SettingsPanel::PreviewFocus
@@ -53,11 +57,15 @@ public:
     static constexpr int  kControlBloomRadius    = 5;
     static constexpr int  kControlBloomStrength  = 6;
     static constexpr int  kControlColorBleedW    = 7;
+    static constexpr int  kControlGamma          = 8;
+    static constexpr int  kControlPersistence    = 9;
 
     void  SetState              (SettingsPanelState * state);
     void  SetInitialCrt         (const struct GlobalUserPrefsCrtSnapshot & snap);
     void  SetOnBrightnessChange     (BrightnessFn    fn) { m_onBrightness    = std::move (fn); }
     void  SetOnContrastChange       (ContrastFn      fn) { m_onContrast      = std::move (fn); }
+    void  SetOnGammaChange          (GammaFn         fn) { m_onGamma         = std::move (fn); }
+    void  SetOnPersistenceChange    (PersistenceFn   fn) { m_onPersistence   = std::move (fn); }
     void  SetOnMonitorChange        (MonitorFn       fn) { m_onMonitor       = std::move (fn); }
     void  SetOnScanlinesEnChange    (ScanlinesEnFn   fn) { m_onScanlinesEn   = std::move (fn); }
     void  SetOnScanlinesIntChange   (ScanlinesIntFn  fn) { m_onScanlinesInt  = std::move (fn); }
@@ -67,6 +75,7 @@ public:
     void  SetOnColorBleedEnChange   (ColorBleedEnFn  fn) { m_onColorBleedEn  = std::move (fn); }
     void  SetOnColorBleedWChange    (ColorBleedWFn   fn) { m_onColorBleedW   = std::move (fn); }
     void  SetOnPreview              (PreviewFn       fn) { m_onPreview       = std::move (fn); }
+    void  SetOnRestoreDefaults      (RestoreFn       fn) { m_onRestore       = std::move (fn); }
 
     void  Layout    (const RECT & rect, const DpiScaler & scaler);
     void  Rebuild   ();
@@ -94,6 +103,8 @@ public:
     const Dropdown & MonitorDropdown    () const { return m_monitor;          }
     const Slider   & BrightnessSlider   () const { return m_brightness;       }
     const Slider   & ContrastSlider     () const { return m_contrast;         }
+    const Slider   & GammaSlider        () const { return m_gamma;            }
+    const Slider   & PersistenceSlider  () const { return m_persistence;      }
     const Toggle   & ScanlinesToggle    () const { return m_scanlinesEn;      }
     const Slider   & ScanlinesSlider    () const { return m_scanlinesInt;     }
     const Toggle   & BloomToggle        () const { return m_bloomEn;          }
@@ -101,11 +112,14 @@ public:
     const Slider   & BloomStrengthSlider() const { return m_bloomStrength;    }
     const Toggle   & ColorBleedToggle   () const { return m_colorBleedEn;     }
     const Slider   & ColorBleedSlider   () const { return m_colorBleedW;      }
+    const Button   & RestoreButton      () const { return m_restore;          }
 
 private:
     SettingsPanelState  * m_state = nullptr;
     BrightnessFn          m_onBrightness;
     ContrastFn            m_onContrast;
+    GammaFn               m_onGamma;
+    PersistenceFn         m_onPersistence;
     MonitorFn             m_onMonitor;
     ScanlinesEnFn         m_onScanlinesEn;
     ScanlinesIntFn        m_onScanlinesInt;
@@ -115,10 +129,18 @@ private:
     ColorBleedEnFn        m_onColorBleedEn;
     ColorBleedWFn         m_onColorBleedW;
     PreviewFn             m_onPreview;
+    RestoreFn             m_onRestore;
 
     Label                 m_monitorLabel;
     Label                 m_brightnessLabel;
     Label                 m_contrastLabel;
+    Label                 m_gammaLabel;
+    Label                 m_persistenceLabel;
+    // Left-column labels for the toggle rows -- the toggle widget itself
+    // paints just the On/Off state indicator in the value column.
+    Label                 m_scanlinesLabel;
+    Label                 m_bloomLabel;
+    Label                 m_colorBleedLabel;
     Label                 m_scanlinesIntLabel;
     Label                 m_bloomRadiusLabel;
     Label                 m_bloomStrengthLabel;
@@ -127,6 +149,8 @@ private:
     Dropdown              m_monitor;
     Slider                m_brightness;
     Slider                m_contrast;
+    Slider                m_gamma;
+    Slider                m_persistence;
     Toggle                m_scanlinesEn;
     Slider                m_scanlinesInt;
     Toggle                m_bloomEn;
@@ -134,10 +158,13 @@ private:
     Slider                m_bloomStrength;
     Toggle                m_colorBleedEn;
     Slider                m_colorBleedW;
+    Button                m_restore;
 
     RECT                  m_monitorRowRect       = {};
     RECT                  m_brightnessRowRect    = {};
     RECT                  m_contrastRowRect      = {};
+    RECT                  m_gammaRowRect         = {};
+    RECT                  m_persistenceRowRect   = {};
     RECT                  m_scanlinesEnRowRect   = {};
     RECT                  m_scanlinesIntRowRect  = {};
     RECT                  m_bloomEnRowRect       = {};
@@ -145,6 +172,7 @@ private:
     RECT                  m_bloomStrengthRowRect = {};
     RECT                  m_colorBleedEnRowRect  = {};
     RECT                  m_colorBleedWRowRect   = {};
+    RECT                  m_restoreRowRect       = {};
 };
 
 
@@ -155,6 +183,8 @@ struct GlobalUserPrefsCrtSnapshot
 {
     float    brightness          = 1.0f;
     float    contrast            = 1.0f;
+    float    gamma               = 2.2f;
+    float    persistence         = 0.0f;
     bool     scanlinesEnabled    = false;
     float    scanlinesIntensity  = 0.5f;
     bool     bloomEnabled        = false;

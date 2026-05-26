@@ -5,6 +5,7 @@
 #include "../UiShell.h"
 #include "../../EmulatorShell.h"
 #include "../../AssetBootstrap.h"
+#include "../../Config/CrtPresets.h"
 #include "../../Config/UserConfigStore.h"
 #include "../../Config/IFileSystem.h"
 #include "../ThemeManager.h"
@@ -195,20 +196,45 @@ HRESULT SettingsPanel::Initialize (
     // so the emulator's per-frame MakeCrtParams picks the new value up on
     // the next CPU frame. Cancel undoes this by restoring the baseline
     // values; OK simply flips userOverride + Saves to disk.
+    // CRT slider callbacks write LIVE to the CURRENTLY-ACTIVE monitor's
+    // crt block. ActiveModeIdx() reads m_state.Prefs().colorMode so
+    // every edit lands on whichever monitor type the user has selected
+    // in the dropdown. MakeCrtParams picks up the new values on the
+    // next frame; Cancel restores the per-block baselines.
     m_displayPage.SetOnBrightnessChange ([this] (float pct)
     {
         if (m_prefs != nullptr)
         {
-            m_prefs->crtByMode[0].brightness   = pct / 100.0f;       // slider 0..200% -> shader 0..2.0
-            m_prefs->crtByMode[0].userOverride = true;               // bypass theme defaults during live preview
+            auto & blk = m_prefs->crtByMode[ActiveModeIdx()];
+            blk.brightness   = pct / 100.0f;     // slider 0..200% -> shader 0..2.0
+            blk.userOverride = true;
         }
     });
     m_displayPage.SetOnContrastChange ([this] (float pct)
     {
         if (m_prefs != nullptr)
         {
-            m_prefs->crtByMode[0].contrast     = pct / 100.0f;       // slider 0..200% -> shader 0..2.0
-            m_prefs->crtByMode[0].userOverride = true;
+            auto & blk = m_prefs->crtByMode[ActiveModeIdx()];
+            blk.contrast     = pct / 100.0f;
+            blk.userOverride = true;
+        }
+    });
+    m_displayPage.SetOnGammaChange ([this] (float g)
+    {
+        if (m_prefs != nullptr)
+        {
+            auto & blk = m_prefs->crtByMode[ActiveModeIdx()];
+            blk.gamma        = g;
+            blk.userOverride = true;
+        }
+    });
+    m_displayPage.SetOnPersistenceChange ([this] (float pct)
+    {
+        if (m_prefs != nullptr)
+        {
+            auto & blk = m_prefs->crtByMode[ActiveModeIdx()];
+            blk.persistence  = pct / 100.0f;
+            blk.userOverride = true;
         }
     });
     m_displayPage.SetOnMonitorChange ([this] (int idx)
@@ -217,38 +243,56 @@ HRESULT SettingsPanel::Initialize (
         {
             m_emuShell->SetColorModeLive (idx);
         }
+        // After the monitor switch, push the new monitor's CRT block
+        // into the slider widgets so the user sees its current values
+        // (either their previous user override or, for an untouched
+        // monitor, the preset's defaults projected through MakeCrtParams).
+        ReseedDisplayCrtFromActiveMode();
     });
 
-    // Per-effect toggles and parameter sliders write LIVE to GlobalUserPrefs.crt
-    // (same pattern as brightness/contrast). MakeCrtParams picks up the new
-    // values on the next frame; Cancel restores the baselines.
+    // Per-effect toggles and parameter sliders write LIVE to the active
+    // monitor's CRT block.
     m_displayPage.SetOnScanlinesEnChange ([this] (bool on)
     {
-        if (m_prefs != nullptr) { m_prefs->crtByMode[0].scanlinesEnabled  = on; m_prefs->crtByMode[0].userOverride = true; }
+        if (m_prefs != nullptr) { auto & b = m_prefs->crtByMode[ActiveModeIdx()]; b.scanlinesEnabled  = on; b.userOverride = true; }
     });
     m_displayPage.SetOnScanlinesIntChange ([this] (float pct)
     {
-        if (m_prefs != nullptr) { m_prefs->crtByMode[0].scanlinesIntensity = pct / 100.0f; m_prefs->crtByMode[0].userOverride = true; }
+        if (m_prefs != nullptr) { auto & b = m_prefs->crtByMode[ActiveModeIdx()]; b.scanlinesIntensity = pct / 100.0f; b.userOverride = true; }
     });
     m_displayPage.SetOnBloomEnChange ([this] (bool on)
     {
-        if (m_prefs != nullptr) { m_prefs->crtByMode[0].bloomEnabled       = on; m_prefs->crtByMode[0].userOverride = true; }
+        if (m_prefs != nullptr) { auto & b = m_prefs->crtByMode[ActiveModeIdx()]; b.bloomEnabled       = on; b.userOverride = true; }
     });
     m_displayPage.SetOnBloomRadiusChange ([this] (float px)
     {
-        if (m_prefs != nullptr) { m_prefs->crtByMode[0].bloomRadius        = px;            m_prefs->crtByMode[0].userOverride = true; }
+        if (m_prefs != nullptr) { auto & b = m_prefs->crtByMode[ActiveModeIdx()]; b.bloomRadius        = px;            b.userOverride = true; }
     });
     m_displayPage.SetOnBloomStrengthChange ([this] (float pct)
     {
-        if (m_prefs != nullptr) { m_prefs->crtByMode[0].bloomStrength      = pct / 100.0f; m_prefs->crtByMode[0].userOverride = true; }
+        if (m_prefs != nullptr) { auto & b = m_prefs->crtByMode[ActiveModeIdx()]; b.bloomStrength      = pct / 100.0f; b.userOverride = true; }
     });
     m_displayPage.SetOnColorBleedEnChange ([this] (bool on)
     {
-        if (m_prefs != nullptr) { m_prefs->crtByMode[0].colorBleedEnabled  = on; m_prefs->crtByMode[0].userOverride = true; }
+        if (m_prefs != nullptr) { auto & b = m_prefs->crtByMode[ActiveModeIdx()]; b.colorBleedEnabled  = on; b.userOverride = true; }
     });
     m_displayPage.SetOnColorBleedWChange ([this] (float px)
     {
-        if (m_prefs != nullptr) { m_prefs->crtByMode[0].colorBleedWidth    = px;            m_prefs->crtByMode[0].userOverride = true; }
+        if (m_prefs != nullptr) { auto & b = m_prefs->crtByMode[ActiveModeIdx()]; b.colorBleedWidth    = px;            b.userOverride = true; }
+    });
+    m_displayPage.SetOnRestoreDefaults ([this] ()
+    {
+        // Clear the active monitor's user override; MakeCrtParams will
+        // then resolve the chain (theme override > monitor preset >
+        // engine fallback) from scratch. Reseed the sliders so the
+        // user immediately sees the resolved defaults.
+        if (m_prefs != nullptr)
+        {
+            auto &  blk = m_prefs->crtByMode[ActiveModeIdx()];
+            blk = GlobalUserPrefs::Crt {};        // struct-default = no override
+            blk.userOverride = false;
+        }
+        ReseedDisplayCrtFromActiveMode();
     });
     m_displayPage.SetOnPreview ([this] (int controlId, bool start, bool keyboardMode)
     {
@@ -320,23 +364,15 @@ HRESULT SettingsPanel::Show ()
     m_pendingMachineSelect.clear();
     m_pendingTheme.clear();
 
-    // Snapshot the baseline CRT params + color mode so Cancel can
-    // revert. Brightness / contrast values are mutated LIVE on every
-    // slider tick (so the user sees the shader respond while the
-    // panel is faded out); Cancel writes the baselines back to
-    // GlobalUserPrefs.crt so the shader picks them up next frame.
+    // Snapshot ALL 4 monitor CRT blocks so Cancel can revert any edits
+    // the user made -- including edits to monitors other than the one
+    // active at panel open (they may have switched mid-edit).
     if (m_prefs != nullptr)
     {
-        m_baselineBrightness         = m_prefs->crtByMode[0].brightness;
-        m_baselineContrast           = m_prefs->crtByMode[0].contrast;
-        m_baselineUserOverride       = m_prefs->crtByMode[0].userOverride;
-        m_baselineScanlinesEnabled   = m_prefs->crtByMode[0].scanlinesEnabled;
-        m_baselineScanlinesIntensity = m_prefs->crtByMode[0].scanlinesIntensity;
-        m_baselineBloomEnabled       = m_prefs->crtByMode[0].bloomEnabled;
-        m_baselineBloomRadius        = m_prefs->crtByMode[0].bloomRadius;
-        m_baselineBloomStrength      = m_prefs->crtByMode[0].bloomStrength;
-        m_baselineColorBleedEnabled  = m_prefs->crtByMode[0].colorBleedEnabled;
-        m_baselineColorBleedWidth    = m_prefs->crtByMode[0].colorBleedWidth;
+        for (size_t i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
+        {
+            m_baselineCrt[i] = m_prefs->crtByMode[i];
+        }
     }
     m_baselineColorMode = (int) m_state.Prefs().colorMode;
 
@@ -359,20 +395,7 @@ HRESULT SettingsPanel::Show ()
     m_machinePage.Rebuild();
     m_hardwarePage.Rebuild();
     m_displayPage.Rebuild();
-    {
-        GlobalUserPrefsCrtSnapshot  snap;
-
-        snap.brightness          = m_baselineBrightness;
-        snap.contrast            = m_baselineContrast;
-        snap.scanlinesEnabled    = m_baselineScanlinesEnabled;
-        snap.scanlinesIntensity  = m_baselineScanlinesIntensity;
-        snap.bloomEnabled        = m_baselineBloomEnabled;
-        snap.bloomRadius         = m_baselineBloomRadius;
-        snap.bloomStrength       = m_baselineBloomStrength;
-        snap.colorBleedEnabled   = m_baselineColorBleedEnabled;
-        snap.colorBleedWidth     = m_baselineColorBleedWidth;
-        m_displayPage.SetInitialCrt (snap);
-    }
+    ReseedDisplayCrtFromActiveMode();
 
     m_visible = true;
     RebuildFocusOrder();
@@ -526,6 +549,78 @@ void SettingsPanel::StartPreview (int focus, bool keyboardMode)
     m_previewFocus      = (PreviewFocus) focus;
     m_previewKeyboard   = keyboardMode;
     m_lastInteractionMs = (int64_t) GetTickCount64();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActiveModeIdx
+//
+//  Returns the currently-selected monitor type as an index into
+//  GlobalUserPrefs::crtByMode. Reads SettingsPanelState because the
+//  monitor dropdown writes there as the source of truth; the live
+//  shell state can lag by a frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SettingsPanel::ActiveModeIdx () const
+{
+    int  idx = (int) m_state.Prefs().colorMode;
+
+    if (idx < 0 || idx >= (int) GlobalUserPrefs::kCrtModeCount)
+    {
+        return 0;
+    }
+    return idx;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReseedDisplayCrtFromActiveMode
+//
+//  Pushes the currently-active monitor's CRT block into the DisplayPage
+//  sliders. Called at panel Show, after a monitor change, and after
+//  "Restore defaults" so the slider widgets reflect whatever
+//  MakeCrtParams will produce on the next frame.
+//
+//  When the active block has userOverride=false we read the resolved
+//  preset values (CrtPresets::ForMode) so the user sees "what the
+//  defaults are" rather than the still-zero in-struct defaults.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::ReseedDisplayCrtFromActiveMode ()
+{
+    GlobalUserPrefsCrtSnapshot  snap;
+    int                         idx = ActiveModeIdx();
+
+    if (m_prefs == nullptr)
+    {
+        m_displayPage.SetInitialCrt (snap);
+        return;
+    }
+
+    const auto &  blk    = m_prefs->crtByMode[idx];
+    const auto &  preset = CrtPresets::ForMode ((size_t) idx);
+    const auto &  src    = blk.userOverride ? blk : preset;
+
+    snap.brightness         = src.brightness;
+    snap.contrast           = src.contrast;
+    snap.gamma              = src.gamma;
+    snap.persistence        = src.persistence;
+    snap.scanlinesEnabled   = src.scanlinesEnabled;
+    snap.scanlinesIntensity = src.scanlinesIntensity;
+    snap.bloomEnabled       = src.bloomEnabled;
+    snap.bloomRadius        = src.bloomRadius;
+    snap.bloomStrength      = src.bloomStrength;
+    snap.colorBleedEnabled  = src.colorBleedEnabled;
+    snap.colorBleedWidth    = src.colorBleedWidth;
+    m_displayPage.SetInitialCrt (snap);
 }
 
 
@@ -1412,29 +1507,36 @@ void SettingsPanel::CommitApply ()
 
     pendingMachine.swap (m_pendingMachineSelect);
 
-    // CRT brightness / contrast were already written live to
-    // GlobalUserPrefs.crt by the slider callbacks; CommitApply just
-    // flips userOverride (so theme defaults stop applying) and Saves
-    // to disk when the values changed from the baseline.
+    // CRT sliders were already mutating the active monitor block live;
+    // CommitApply diffs ALL monitor blocks (the user may have edited
+    // multiple before clicking OK) and saves on any change. Single
+    // Save call covers every block since GlobalUserPrefs writes the
+    // whole file atomically.
     if (m_prefs != nullptr)
     {
-        bool  brightnessChanged  = (m_prefs->crtByMode[0].brightness         != m_baselineBrightness);
-        bool  contrastChanged    = (m_prefs->crtByMode[0].contrast           != m_baselineContrast);
-        bool  scanEnChanged      = (m_prefs->crtByMode[0].scanlinesEnabled   != m_baselineScanlinesEnabled);
-        bool  scanIntChanged     = (m_prefs->crtByMode[0].scanlinesIntensity != m_baselineScanlinesIntensity);
-        bool  bloomEnChanged     = (m_prefs->crtByMode[0].bloomEnabled       != m_baselineBloomEnabled);
-        bool  bloomRChanged      = (m_prefs->crtByMode[0].bloomRadius        != m_baselineBloomRadius);
-        bool  bloomSChanged      = (m_prefs->crtByMode[0].bloomStrength      != m_baselineBloomStrength);
-        bool  bleedEnChanged     = (m_prefs->crtByMode[0].colorBleedEnabled  != m_baselineColorBleedEnabled);
-        bool  bleedWChanged      = (m_prefs->crtByMode[0].colorBleedWidth    != m_baselineColorBleedWidth);
-        bool  anyCrtChanged      = brightnessChanged || contrastChanged ||
-                                   scanEnChanged     || scanIntChanged  ||
-                                   bloomEnChanged    || bloomRChanged   || bloomSChanged ||
-                                   bleedEnChanged    || bleedWChanged;
+        bool  anyCrtChanged = false;
+        size_t  i = 0;
 
-        if (anyCrtChanged)
+        for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
         {
-            m_prefs->crtByMode[0].userOverride = true;
+            const auto &  cur = m_prefs->crtByMode[i];
+            const auto &  base = m_baselineCrt[i];
+
+            if (cur.brightness         != base.brightness         ||
+                cur.contrast           != base.contrast           ||
+                cur.gamma              != base.gamma              ||
+                cur.persistence        != base.persistence        ||
+                cur.scanlinesEnabled   != base.scanlinesEnabled   ||
+                cur.scanlinesIntensity != base.scanlinesIntensity ||
+                cur.bloomEnabled       != base.bloomEnabled       ||
+                cur.bloomRadius        != base.bloomRadius        ||
+                cur.bloomStrength      != base.bloomStrength      ||
+                cur.colorBleedEnabled  != base.colorBleedEnabled  ||
+                cur.colorBleedWidth    != base.colorBleedWidth    ||
+                cur.userOverride       != base.userOverride)
+            {
+                anyCrtChanged = true;
+            }
         }
 
         if (m_emuShell != nullptr && anyCrtChanged)
@@ -1444,15 +1546,13 @@ void SettingsPanel::CommitApply ()
             IGNORE_RETURN_VALUE (hrSave, S_OK);
         }
 
-        m_baselineBrightness         = m_prefs->crtByMode[0].brightness;
-        m_baselineContrast           = m_prefs->crtByMode[0].contrast;
-        m_baselineScanlinesEnabled   = m_prefs->crtByMode[0].scanlinesEnabled;
-        m_baselineScanlinesIntensity = m_prefs->crtByMode[0].scanlinesIntensity;
-        m_baselineBloomEnabled       = m_prefs->crtByMode[0].bloomEnabled;
-        m_baselineBloomRadius        = m_prefs->crtByMode[0].bloomRadius;
-        m_baselineBloomStrength      = m_prefs->crtByMode[0].bloomStrength;
-        m_baselineColorBleedEnabled  = m_prefs->crtByMode[0].colorBleedEnabled;
-        m_baselineColorBleedWidth    = m_prefs->crtByMode[0].colorBleedWidth;
+        // Re-snapshot baselines so subsequent Cancel after another
+        // round of edits reverts to THIS committed state, not the
+        // pre-commit one.
+        for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
+        {
+            m_baselineCrt[i] = m_prefs->crtByMode[i];
+        }
     }
     m_baselineColorMode = (int) m_state.Prefs().colorMode;
 
@@ -1511,22 +1611,15 @@ void SettingsPanel::OnCancelClicked ()
     m_pendingMachineSelect.clear();
     m_pendingTheme.clear();
 
-    // Roll back any live-preview CRT changes so the emulator
-    // immediately reverts to its pre-panel state. The shader picks the
-    // restored values up on the next frame via the existing per-frame
-    // MakeCrtParams path.
+    // Roll back live-preview edits across every monitor block. The
+    // shader picks the restored values up on the next frame via the
+    // per-frame MakeCrtParams path.
     if (m_prefs != nullptr)
     {
-        m_prefs->crtByMode[0].brightness         = m_baselineBrightness;
-        m_prefs->crtByMode[0].contrast           = m_baselineContrast;
-        m_prefs->crtByMode[0].userOverride       = m_baselineUserOverride;
-        m_prefs->crtByMode[0].scanlinesEnabled   = m_baselineScanlinesEnabled;
-        m_prefs->crtByMode[0].scanlinesIntensity = m_baselineScanlinesIntensity;
-        m_prefs->crtByMode[0].bloomEnabled       = m_baselineBloomEnabled;
-        m_prefs->crtByMode[0].bloomRadius        = m_baselineBloomRadius;
-        m_prefs->crtByMode[0].bloomStrength      = m_baselineBloomStrength;
-        m_prefs->crtByMode[0].colorBleedEnabled  = m_baselineColorBleedEnabled;
-        m_prefs->crtByMode[0].colorBleedWidth    = m_baselineColorBleedWidth;
+        for (size_t i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
+        {
+            m_prefs->crtByMode[i] = m_baselineCrt[i];
+        }
     }
     if (m_emuShell != nullptr && m_baselineColorMode >= 0)
     {

@@ -2,6 +2,8 @@
 
 #include "DisplayPage.h"
 
+#include "../Chrome/ChromeTheme.h"
+
 
 
 
@@ -61,10 +63,14 @@ void DisplayPage::SetState (SettingsPanelState * state)
 void DisplayPage::SetInitialCrt (const GlobalUserPrefsCrtSnapshot & snap)
 {
     // Brightness/contrast: slider 0..200%, 100% = identity (shader 1.0).
+    // Gamma: slider 1.4..2.4 directly (with 0.1 step).
+    // Persistence: slider 0..100% maps to shader 0..1.0.
     // Bloom radius / color bleed: slider value is pixels directly.
     // Other sliders are 0..100% (a normalized 0..1 in the shader).
     m_brightness.SetValue       (snap.brightness         * 100.0f);
     m_contrast.SetValue         (snap.contrast           * 100.0f);
+    m_gamma.SetValue            (snap.gamma);
+    m_persistence.SetValue      (snap.persistence        * 100.0f);
     m_scanlinesEn.SetChecked    (snap.scanlinesEnabled);
     m_scanlinesInt.SetValue     (snap.scanlinesIntensity * 100.0f);
     m_bloomEn.SetChecked        (snap.bloomEnabled);
@@ -92,19 +98,20 @@ void DisplayPage::SetInitialCrt (const GlobalUserPrefsCrtSnapshot & snap)
 
 void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
 {
-    UINT  dpi         = scaler.Dpi();
-    int   pad         = scaler.Px (s_kPagePadDp);
-    int   rowHeight   = scaler.Px (s_kRowHeightDp);
-    int   labelWidth  = scaler.Px (s_kLabelWidthDp);
-    int   dropWidth   = scaler.Px (s_kDropdownWidthDp);
-    int   sliderWidth = scaler.Px (s_kSliderWidthDp);
-    int   sectionGap  = scaler.Px (s_kSectionGapDp);
-    int   tightGap    = scaler.Px (4);
-    int   x           = rect.left + pad;
-    int   y           = rect.top  + pad;
-    int   controlsX   = x + labelWidth;
-    int   subLabelW   = scaler.Px (110);              // narrower for sub-parameters
-    int   subCtrlX    = x + scaler.Px (24) + subLabelW;
+    UINT  dpi          = scaler.Dpi();
+    int   pad          = scaler.Px (s_kPagePadDp);
+    int   rowHeight    = scaler.Px (s_kRowHeightDp);
+    int   labelWidth   = scaler.Px (s_kLabelWidthDp);
+    int   dropWidth    = scaler.Px (s_kDropdownWidthDp);
+    int   sliderWidth  = scaler.Px (s_kSliderWidthDp);
+    int   togglePillW  = scaler.Px (70);            // wide enough for "Off" / "On" text
+    int   sectionGap   = scaler.Px (s_kSectionGapDp);
+    int   tightGap     = scaler.Px (4);
+    int   x            = rect.left + pad;
+    int   y            = rect.top  + pad;
+    int   controlsX    = x + labelWidth;
+    int   subLabelW    = scaler.Px (110);           // narrower for sub-parameters
+    int   subCtrlX     = x + scaler.Px (24) + subLabelW;
 
 
 
@@ -135,10 +142,22 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_contrastRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
     y += rowHeight + sectionGap;
 
-    // --- Scanlines section ---
-    m_scanlinesEn.SetRect  (MakeRect (x, y, labelWidth + dropWidth, rowHeight));
-    m_scanlinesEn.SetLabel (L"Scanlines");
-    m_scanlinesEnRowRect = MakeRect (x, y, labelWidth + dropWidth, rowHeight);
+    m_gammaLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_gammaLabel.SetText (L"Gamma:");
+    m_gamma.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
+    m_gamma.SetRange     (1.4f, 2.4f);
+    m_gamma.SetStep      (0.1f);
+    m_gamma.SetSuffix    (L"");
+    m_gamma.SetShowTicks (true);
+    m_gammaRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
+    y += rowHeight + sectionGap;
+
+    // --- Scanlines section (toggle on the value column, label on the left) ---
+    m_scanlinesLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_scanlinesLabel.SetText (L"Scanlines:");
+    m_scanlinesEn.SetRect    (MakeRect (controlsX, y, togglePillW, rowHeight));
+    m_scanlinesEn.SetLabel   (L"");                                   // empty -> Toggle paints On/Off
+    m_scanlinesEnRowRect = MakeRect (x, y, (controlsX + togglePillW) - x, rowHeight);
     y += rowHeight + tightGap;
 
     m_scanlinesIntLabel.SetRect (MakeRect (x + scaler.Px (24), y, subLabelW, rowHeight));
@@ -152,9 +171,11 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     y += rowHeight + sectionGap;
 
     // --- Bloom section ---
-    m_bloomEn.SetRect  (MakeRect (x, y, labelWidth + dropWidth, rowHeight));
-    m_bloomEn.SetLabel (L"Bloom");
-    m_bloomEnRowRect = MakeRect (x, y, labelWidth + dropWidth, rowHeight);
+    m_bloomLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_bloomLabel.SetText (L"Bloom:");
+    m_bloomEn.SetRect    (MakeRect (controlsX, y, togglePillW, rowHeight));
+    m_bloomEn.SetLabel   (L"");
+    m_bloomEnRowRect = MakeRect (x, y, (controlsX + togglePillW) - x, rowHeight);
     y += rowHeight + tightGap;
 
     m_bloomRadiusLabel.SetRect (MakeRect (x + scaler.Px (24), y, subLabelW, rowHeight));
@@ -178,9 +199,11 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     y += rowHeight + sectionGap;
 
     // --- Color bleed section ---
-    m_colorBleedEn.SetRect  (MakeRect (x, y, labelWidth + dropWidth, rowHeight));
-    m_colorBleedEn.SetLabel (L"Color bleed");
-    m_colorBleedEnRowRect = MakeRect (x, y, labelWidth + dropWidth, rowHeight);
+    m_colorBleedLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_colorBleedLabel.SetText (L"Color bleed:");
+    m_colorBleedEn.SetRect    (MakeRect (controlsX, y, togglePillW, rowHeight));
+    m_colorBleedEn.SetLabel   (L"");
+    m_colorBleedEnRowRect = MakeRect (x, y, (controlsX + togglePillW) - x, rowHeight);
     y += rowHeight + tightGap;
 
     m_colorBleedWLabel.SetRect (MakeRect (x + scaler.Px (24), y, subLabelW, rowHeight));
@@ -191,10 +214,37 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_colorBleedW.SetSuffix    (L" px");
     m_colorBleedW.SetShowTicks (true);
     m_colorBleedWRowRect = MakeRect (x, y, (subCtrlX + sliderWidth) - x, rowHeight);
+    y += rowHeight + sectionGap;
+
+    // --- Persistence (single slider, no enable toggle -- 0% IS disabled) ---
+    m_persistenceLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_persistenceLabel.SetText (L"Persistence:");
+    m_persistence.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
+    m_persistence.SetRange     (0.0f, 99.0f);   // upper bound matches CrtParams clamp
+    m_persistence.SetStep      (5.0f);
+    m_persistence.SetSuffix    (L"%");
+    m_persistence.SetShowTicks (true);
+    m_persistenceRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
+    y += rowHeight + sectionGap;
+
+    // --- Restore defaults button ---
+    {
+        int  btnWidth  = scaler.Px (180);
+        int  btnHeight = scaler.Px (28);
+
+        m_restore.Layout   (MakeRect (controlsX, y, btnWidth, btnHeight));
+        m_restore.SetLabel (L"Restore defaults");
+        m_restoreRowRect = MakeRect (x, y, (controlsX + btnWidth) - x, btnHeight);
+    }
 
     m_monitorLabel.SetDpi        (dpi);
     m_brightnessLabel.SetDpi     (dpi);
     m_contrastLabel.SetDpi       (dpi);
+    m_gammaLabel.SetDpi          (dpi);
+    m_persistenceLabel.SetDpi    (dpi);
+    m_scanlinesLabel.SetDpi      (dpi);
+    m_bloomLabel.SetDpi          (dpi);
+    m_colorBleedLabel.SetDpi     (dpi);
     m_scanlinesIntLabel.SetDpi   (dpi);
     m_bloomRadiusLabel.SetDpi    (dpi);
     m_bloomStrengthLabel.SetDpi  (dpi);
@@ -202,6 +252,8 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_monitor.SetDpi             (dpi);
     m_brightness.SetDpi          (dpi);
     m_contrast.SetDpi            (dpi);
+    m_gamma.SetDpi               (dpi);
+    m_persistence.SetDpi         (dpi);
     m_scanlinesEn.SetDpi         (dpi);
     m_scanlinesInt.SetDpi        (dpi);
     m_bloomEn.SetDpi             (dpi);
@@ -209,6 +261,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_bloomStrength.SetDpi       (dpi);
     m_colorBleedEn.SetDpi        (dpi);
     m_colorBleedW.SetDpi         (dpi);
+    m_restore.SetDpi             (dpi);
 }
 
 
@@ -278,6 +331,18 @@ void DisplayPage::Rebuild ()
     m_contrast.SetOnDragEnd          ([this] { if (m_onPreview) { m_onPreview (kControlContrast,   false, false); } });
     m_contrast.SetOnKeyboardChange   ([this] { if (m_onPreview) { m_onPreview (kControlContrast,   true,  true);  } });
 
+    m_gamma.SetOnChange         ([this] (float v) { if (m_onGamma)       { m_onGamma       (v); } });
+    m_gamma.SetOnDragStart      ([this] { if (m_onPreview) { m_onPreview (kControlGamma,       true,  false); } });
+    m_gamma.SetOnDragEnd        ([this] { if (m_onPreview) { m_onPreview (kControlGamma,       false, false); } });
+    m_gamma.SetOnKeyboardChange ([this] { if (m_onPreview) { m_onPreview (kControlGamma,       true,  true);  } });
+
+    m_persistence.SetOnChange         ([this] (float v) { if (m_onPersistence) { m_onPersistence (v); } });
+    m_persistence.SetOnDragStart      ([this] { if (m_onPreview) { m_onPreview (kControlPersistence, true,  false); } });
+    m_persistence.SetOnDragEnd        ([this] { if (m_onPreview) { m_onPreview (kControlPersistence, false, false); } });
+    m_persistence.SetOnKeyboardChange ([this] { if (m_onPreview) { m_onPreview (kControlPersistence, true,  true);  } });
+
+    m_restore.SetClick ([this] { if (m_onRestore) { m_onRestore(); } });
+
     // --- Effect toggles ---------------------------------------------------
     m_scanlinesEn.SetOnChange ([this] (bool on)
     {
@@ -341,6 +406,13 @@ void DisplayPage::OnLButtonDown (int x, int y)
     if (m_bloomStrength.OnLButtonDown  (x, y)) { return; }
     if (m_colorBleedEn.OnLButtonDown   (x, y)) { return; }
     if (m_colorBleedW.OnLButtonDown    (x, y)) { return; }
+    if (m_gamma.OnLButtonDown          (x, y)) { return; }
+    if (m_persistence.OnLButtonDown    (x, y)) { return; }
+    if (m_restore.HitTest              (x, y))
+    {
+        m_restore.SetMouse (x, y, true);
+        return;
+    }
 }
 
 
@@ -358,6 +430,8 @@ void DisplayPage::OnLButtonUp (int x, int y)
     (void) m_monitor.OnLButtonUp         (x, y);
     (void) m_brightness.OnLButtonUp      (x, y);
     (void) m_contrast.OnLButtonUp        (x, y);
+    (void) m_gamma.OnLButtonUp           (x, y);
+    (void) m_persistence.OnLButtonUp     (x, y);
     (void) m_scanlinesEn.OnLButtonUp     (x, y);
     (void) m_scanlinesInt.OnLButtonUp    (x, y);
     (void) m_bloomEn.OnLButtonUp         (x, y);
@@ -365,6 +439,15 @@ void DisplayPage::OnLButtonUp (int x, int y)
     (void) m_bloomStrength.OnLButtonUp   (x, y);
     (void) m_colorBleedEn.OnLButtonUp    (x, y);
     (void) m_colorBleedW.OnLButtonUp     (x, y);
+    if (m_restore.HitTest (x, y))
+    {
+        m_restore.SetMouse (x, y, false);
+        m_restore.Click();
+    }
+    else
+    {
+        m_restore.SetMouse (x, y, false);
+    }
 }
 
 
@@ -381,6 +464,8 @@ void DisplayPage::OnMouseMove (int x, int y)
 {
     (void) m_brightness.OnMouseMove     (x, y);
     (void) m_contrast.OnMouseMove       (x, y);
+    (void) m_gamma.OnMouseMove          (x, y);
+    (void) m_persistence.OnMouseMove    (x, y);
     (void) m_scanlinesInt.OnMouseMove   (x, y);
     (void) m_bloomRadius.OnMouseMove    (x, y);
     (void) m_bloomStrength.OnMouseMove  (x, y);
@@ -409,6 +494,9 @@ void DisplayPage::OnMouseHover (int x, int y)
     m_bloomStrength.SetMouseHover   (x, y);
     m_colorBleedEn.SetMouseHover    (x, y);
     m_colorBleedW.SetMouseHover     (x, y);
+    m_gamma.SetMouseHover           (x, y);
+    m_persistence.SetMouseHover     (x, y);
+    m_restore.SetMouse              (x, y, false);
 }
 
 
@@ -426,6 +514,8 @@ bool DisplayPage::OnKey (WPARAM vk)
     if (m_monitor.HandleKey        (vk)) { return true; }
     if (m_brightness.OnKey         (vk)) { return true; }
     if (m_contrast.OnKey           (vk)) { return true; }
+    if (m_gamma.OnKey              (vk)) { return true; }
+    if (m_persistence.OnKey        (vk)) { return true; }
     if (m_scanlinesEn.OnKey        (vk)) { return true; }
     if (m_scanlinesInt.OnKey       (vk)) { return true; }
     if (m_bloomEn.OnKey            (vk)) { return true; }
@@ -433,6 +523,7 @@ bool DisplayPage::OnKey (WPARAM vk)
     if (m_bloomStrength.OnKey      (vk)) { return true; }
     if (m_colorBleedEn.OnKey       (vk)) { return true; }
     if (m_colorBleedW.OnKey        (vk)) { return true; }
+    if (m_restore.OnKey            (vk)) { return true; }
     return false;
 }
 
@@ -451,6 +542,7 @@ void DisplayPage::CollectFocusables (std::vector<std::function<void (bool)>> & o
     out.push_back ([this] (bool f) { m_monitor.SetFocused         (f); });
     out.push_back ([this] (bool f) { m_brightness.SetFocused      (f); });
     out.push_back ([this] (bool f) { m_contrast.SetFocused        (f); });
+    out.push_back ([this] (bool f) { m_gamma.SetFocused           (f); });
     out.push_back ([this] (bool f) { m_scanlinesEn.SetFocused     (f); });
     out.push_back ([this] (bool f) { m_scanlinesInt.SetFocused    (f); });
     out.push_back ([this] (bool f) { m_bloomEn.SetFocused         (f); });
@@ -458,6 +550,8 @@ void DisplayPage::CollectFocusables (std::vector<std::function<void (bool)>> & o
     out.push_back ([this] (bool f) { m_bloomStrength.SetFocused   (f); });
     out.push_back ([this] (bool f) { m_colorBleedEn.SetFocused    (f); });
     out.push_back ([this] (bool f) { m_colorBleedW.SetFocused     (f); });
+    out.push_back ([this] (bool f) { m_persistence.SetFocused     (f); });
+    out.push_back ([this] (bool f) { m_restore.SetFocused         (f); });
 }
 
 
@@ -512,9 +606,15 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
     m_contrastLabel.Paint   (painter, text);
     m_contrast.Paint        (painter, text);
 
-    // Scanlines section
+    SetAlphaFor (kControlGamma);
+    PaintBackingIfFocused (kControlGamma, m_gammaRowRect);
+    m_gammaLabel.Paint      (painter, text);
+    m_gamma.Paint           (painter, text);
+
+    // Scanlines section: label in the left column, toggle in the value column.
     SetAlphaFor (-1);
-    m_scanlinesEn.Paint (painter, text);
+    m_scanlinesLabel.Paint (painter, text);
+    m_scanlinesEn.Paint    (painter, text);
     SetAlphaFor (kControlScanlinesInt);
     PaintBackingIfFocused (kControlScanlinesInt, m_scanlinesIntRowRect);
     m_scanlinesIntLabel.Paint (painter, text);
@@ -522,7 +622,8 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
 
     // Bloom section
     SetAlphaFor (-1);
-    m_bloomEn.Paint (painter, text);
+    m_bloomLabel.Paint (painter, text);
+    m_bloomEn.Paint    (painter, text);
     SetAlphaFor (kControlBloomRadius);
     PaintBackingIfFocused (kControlBloomRadius, m_bloomRadiusRowRect);
     m_bloomRadiusLabel.Paint (painter, text);
@@ -534,11 +635,28 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
 
     // Color-bleed section
     SetAlphaFor (-1);
-    m_colorBleedEn.Paint (painter, text);
+    m_colorBleedLabel.Paint (painter, text);
+    m_colorBleedEn.Paint    (painter, text);
     SetAlphaFor (kControlColorBleedW);
     PaintBackingIfFocused (kControlColorBleedW, m_colorBleedWRowRect);
     m_colorBleedWLabel.Paint (painter, text);
     m_colorBleedW.Paint      (painter, text);
+
+    SetAlphaFor (kControlPersistence);
+    PaintBackingIfFocused (kControlPersistence, m_persistenceRowRect);
+    m_persistenceLabel.Paint (painter, text);
+    m_persistence.Paint      (painter, text);
+
+    SetAlphaFor (-1);
+    {
+        static const ChromeTheme  s_kFallbackTheme = ChromeTheme::Skeuomorphic();
+        // Button consults theme tokens for color when the caller hasn't
+        // set explicit override colors. DisplayPage doesn't carry a
+        // theme handle so we hand it the canonical fallback -- chrome
+        // theming for the button face will land when the page picks
+        // up the active theme pointer in a follow-up.
+        const_cast<Button &> (m_restore).Paint (painter, text, s_kFallbackTheme);
+    }
 
     // Dropdown menu floats above the page; paint last so it overlays.
     SetAlphaFor (kControlMonitor);

@@ -15,6 +15,8 @@
 #include "../Widgets/ModalScrim.h"
 #include "../Widgets/TabStrip.h"
 
+#include "../../Config/GlobalUserPrefs.h"
+
 #include "Core/MachineScanner.h"
 
 
@@ -108,6 +110,10 @@ private:
     bool  AnyDropdownOpenOnActivePage () const;
     void  UpdatePreviewFade           (int64_t nowMs);
     void  StartPreview                (int focus, bool keyboardMode);
+
+    // Helpers for the per-monitor CRT plumbing.
+    int   ActiveModeIdx               () const;
+    void  ReseedDisplayCrtFromActiveMode ();
     void  EndPreview                  ();
 
 
@@ -130,17 +136,14 @@ private:
     // GlobalUserPrefs.crt for instant shader preview while the panel
     // is faded out. CommitApply just flips userOverride + Saves; Cancel
     // restores the baseline values back to GlobalUserPrefs.crt.
-    float               m_baselineBrightness         = 1.0f;
-    float               m_baselineContrast           = 1.0f;
-    bool                m_baselineUserOverride       = false;
-    int                 m_baselineColorMode          = -1;
-    bool                m_baselineScanlinesEnabled   = false;
-    float               m_baselineScanlinesIntensity = 0.5f;
-    bool                m_baselineBloomEnabled       = false;
-    float               m_baselineBloomRadius        = 1.0f;
-    float               m_baselineBloomStrength      = 0.5f;
-    bool                m_baselineColorBleedEnabled  = false;
-    float               m_baselineColorBleedWidth    = 1.0f;
+    // CRT baseline state. Captured at Show() time so Cancel can revert
+    // any live-edited values. The per-monitor schema means we keep a
+    // snapshot of ALL 4 mode blocks because the user can switch
+    // monitors inside the panel and edit multiple blocks before they
+    // decide whether to commit. baselineColorMode tracks which monitor
+    // was active at panel open.
+    GlobalUserPrefs::Crt  m_baselineCrt[GlobalUserPrefs::kCrtModeCount] = {};
+    int                   m_baselineColorMode = -1;
 
     // Live-preview state machine. While a slider is dragged or a
     // dropdown is open, the panel fades out so the user can see the
