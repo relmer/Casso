@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include "CpuStatus.h"
 #include "Microcode.h"
 
@@ -131,4 +133,31 @@ protected:
     // instruction table off the stack of any function holding a Cpu.
     std::vector<Microcode> instructionSet {std::vector<Microcode> (256)};
     Byte                  m_lastCycles = 0;
+
+#ifdef _DEBUG
+    // Circular trace of recent instructions. Updated each StepOne, dumped
+    // newest-first on illegal-opcode hit. ~1 MHz emulation means the
+    // buffer covers roughly 256 microseconds of real time -- enough to
+    // see what JMP/JSR/RTS chain landed PC on garbage. Disabled in
+    // Release so the per-step overhead is zero in shipping builds.
+    struct TraceEntry
+    {
+        Word    pc;
+        Byte    opcode;
+        Byte    a;
+        Byte    x;
+        Byte    y;
+        Byte    sp;
+        Byte    p;
+    };
+
+    static constexpr size_t  kTraceBufferSize = 256;
+
+    std::array<TraceEntry, kTraceBufferSize>  m_trace      = {};
+    size_t                                    m_traceHead  = 0;       // next slot to write
+    uint64_t                                  m_traceCount = 0;       // total entries pushed
+
+    void TracePush ();
+    void DumpInstructionTrace (Byte faultOpcode, Word faultPC) const;
+#endif
 };

@@ -318,6 +318,17 @@ EmulatorShell::EmulatorShell()
 
     m_prng = make_unique<Prng> (seed);
 
+#ifdef _DEBUG
+    // Log the per-boot DRAM seed so when an illegal-opcode (or any
+    // other non-deterministic) fault fires later, the user can grep
+    // the debug output for "[Casso] Cold boot seed:" and capture the
+    // value into a bug report. Re-running with the same seed gives
+    // byte-identical DRAM at every PowerCycle, which is the first
+    // requirement for reproducing flaky CPU faults.
+    DEBUGMSG (L"[Casso] Cold boot seed: 0x%016llX\n",
+              (unsigned long long) seed);
+#endif
+
     // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
     // 17,030-cycle frame counter for $C019 (RDVBLBAR) reads.
