@@ -136,7 +136,11 @@ float Slider::ValueFromX (int x) const
     constexpr int  s_kValueGapDp   = 8;
     constexpr int  s_kValueWidthDp = 56;
 
-    int    valueAreaPx  = m_suffix.empty() ? 0 : (m_scaler.Px (s_kValueWidthDp) + m_scaler.Px (s_kValueGapDp));
+    // Must match the showValue logic in Paint() exactly, otherwise the
+    // puck draw position and the click-to-value mapping disagree and
+    // a click on the puck snaps to a different value.
+    bool   showValue    = m_explicitShowValue ? m_showValue : !m_suffix.empty();
+    int    valueAreaPx  = showValue ? (m_scaler.Px (s_kValueWidthDp) + m_scaler.Px (s_kValueGapDp)) : 0;
     int    trackAvailPx = std::max ((LONG) 1, (LONG) ((m_rect.right - m_rect.left) - valueAreaPx));
     float  t            = 0.0f;
 
