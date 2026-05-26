@@ -57,7 +57,7 @@ private:
         float  outputW            = 0.0f;
         float  outputH            = 0.0f;
         float  dimFactor          = 0.0f;
-        float  _pad               = 0.0f;
+        float  featherPx          = 0.0f;
     };
 
 

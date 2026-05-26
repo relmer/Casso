@@ -20,6 +20,10 @@ namespace
     constexpr UINT          s_kTexCoordOffsetBytes   = sizeof (float) * 2;
     constexpr float         s_kGaussianRadiusPx      = 8.0f;
     constexpr float         s_kDimFactor             = 0.25f;
+    // Feather the focused-control sharp pop-out by this many pixels
+    // beyond the control's row rect so the boundary against the
+    // blurred backdrop reads as a soft halo, not a harsh edge.
+    constexpr float         s_kFocusFeatherPx        = 24.0f;
     constexpr uint32_t      s_kClearArgb             = 0xFF1A2230;
 
     constexpr const char *  s_kpszVertexShaderSrc =
@@ -929,6 +933,7 @@ HRESULT SettingsWindowRenderer::RenderTransparency (
     composeParams.outputW            = (float) m_widthPx;
     composeParams.outputH            = (float) m_heightPx;
     composeParams.dimFactor          = s_kDimFactor;
+    composeParams.featherPx          = s_kFocusFeatherPx;
     hr = UploadComposeParams (composeParams);
     CHRA (hr);
 

@@ -1582,8 +1582,17 @@ int EmulatorShell::RunMessageLoop()
         // persistence trail isn't still decaying). Saves ~20%% GPU at a
         // BASIC prompt. PeekMessage above still drains messages; the
         // brief sleep keeps this thread from spinning.
+        //
+        // FORCE PRESENT when the nav layer has an open menu so menu
+        // hover / open / close transitions paint. Without this, a
+        // paused machine produces no fb changes -> no Present -> menus
+        // open in state-only and never repaint, looking dead.
         m_settingsPanel.UpdatePreviewOverlap (m_d3dRenderer.GetEmulatorContentScreenRect());
         IGNORE_RETURN_VALUE (hr, m_settingsPanel.RenderPopup());
+        if (m_navLayer.IsOpen())
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
         if (!m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
         {
             Sleep (1);
