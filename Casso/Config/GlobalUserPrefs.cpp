@@ -231,12 +231,14 @@ Error:
 JsonValue GlobalUserPrefs::ToJson() const
 {
     std::vector<std::pair<std::string, JsonValue>>  root;
-    std::vector<std::pair<std::string, JsonValue>>  scanlines;
-    std::vector<std::pair<std::string, JsonValue>>  bloom;
-    std::vector<std::pair<std::string, JsonValue>>  colorBleed;
     std::vector<std::pair<std::string, JsonValue>>  crtObj;
     std::vector<std::pair<std::string, JsonValue>>  bounds;
     std::vector<std::pair<std::string, JsonValue>>  windowObj;
+    size_t                                          i = 0;
+    static const char *  s_kModeKeys[GlobalUserPrefs::kCrtModeCount] = {
+        "color", "green", "amber", "white"
+    };
+
 
 
     // $cassoGlobalPrefsVersion (always first for human readability).
@@ -245,22 +247,39 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("activeTheme",         JsonValue (activeTheme));
     root.emplace_back ("lastSelectedMachine", JsonValue (lastSelectedMachine));
 
-    // crt
-    scanlines.emplace_back ("enabled",   JsonValue (crt.scanlinesEnabled));
-    scanlines.emplace_back ("intensity", JsonValue ((double) crt.scanlinesIntensity));
+    // crt: one sub-object per monitor type. Persist every block even
+    // when userOverride is false so a roundtrip is deterministic; the
+    // override flag controls whether the values are APPLIED, not
+    // whether they're written.
+    for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
+    {
+        const Crt &                                     c = crtByMode[i];
+        std::vector<std::pair<std::string, JsonValue>>  modeObj;
+        std::vector<std::pair<std::string, JsonValue>>  scanlines;
+        std::vector<std::pair<std::string, JsonValue>>  bloom;
+        std::vector<std::pair<std::string, JsonValue>>  colorBleed;
 
-    bloom.emplace_back ("enabled",  JsonValue (crt.bloomEnabled));
-    bloom.emplace_back ("radius",   JsonValue ((double) crt.bloomRadius));
-    bloom.emplace_back ("strength", JsonValue ((double) crt.bloomStrength));
+        scanlines.emplace_back ("enabled",   JsonValue (c.scanlinesEnabled));
+        scanlines.emplace_back ("intensity", JsonValue ((double) c.scanlinesIntensity));
 
-    colorBleed.emplace_back ("enabled", JsonValue (crt.colorBleedEnabled));
-    colorBleed.emplace_back ("width",   JsonValue ((double) crt.colorBleedWidth));
+        bloom.emplace_back ("enabled",  JsonValue (c.bloomEnabled));
+        bloom.emplace_back ("radius",   JsonValue ((double) c.bloomRadius));
+        bloom.emplace_back ("strength", JsonValue ((double) c.bloomStrength));
 
-    crtObj.emplace_back ("brightness", JsonValue ((double) crt.brightness));
-    crtObj.emplace_back ("contrast",   JsonValue ((double) crt.contrast));
-    crtObj.emplace_back ("scanlines",  JsonValue (std::move (scanlines)));
-    crtObj.emplace_back ("bloom",      JsonValue (std::move (bloom)));
-    crtObj.emplace_back ("colorBleed", JsonValue (std::move (colorBleed)));
+        colorBleed.emplace_back ("enabled", JsonValue (c.colorBleedEnabled));
+        colorBleed.emplace_back ("width",   JsonValue ((double) c.colorBleedWidth));
+
+        modeObj.emplace_back ("userOverride", JsonValue (c.userOverride));
+        modeObj.emplace_back ("brightness",   JsonValue ((double) c.brightness));
+        modeObj.emplace_back ("contrast",     JsonValue ((double) c.contrast));
+        modeObj.emplace_back ("gamma",        JsonValue ((double) c.gamma));
+        modeObj.emplace_back ("persistence",  JsonValue ((double) c.persistence));
+        modeObj.emplace_back ("scanlines",    JsonValue (std::move (scanlines)));
+        modeObj.emplace_back ("bloom",        JsonValue (std::move (bloom)));
+        modeObj.emplace_back ("colorBleed",   JsonValue (std::move (colorBleed)));
+
+        crtObj.emplace_back (s_kModeKeys[i], JsonValue (std::move (modeObj)));
+    }
 
     root.emplace_back ("crt", JsonValue (std::move (crtObj)));
 
@@ -300,13 +319,13 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 {
     HRESULT             hr            = S_OK;
     const JsonValue *   crtSub        = nullptr;
-    const JsonValue *   scanlines     = nullptr;
-    const JsonValue *   bloom         = nullptr;
-    const JsonValue *   colorBleed    = nullptr;
     const JsonValue *   windowSub     = nullptr;
     const JsonValue *   bounds        = nullptr;
     const auto *        rootEntries   = (const std::vector<std::pair<std::string, JsonValue>> *) nullptr;
     size_t              i             = 0;
+    static const char *  s_kModeKeys[GlobalUserPrefs::kCrtModeCount] = {
+        "color", "green", "amber", "white"
+    };
 
 
 
@@ -325,42 +344,62 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
     if (SUCCEEDED (v.GetObject ("crt", crtSub)) && crtSub != nullptr)
     {
-        crt.userOverride = true;
-        crt.brightness = (float) GetNumberOpt (*crtSub, "brightness", crt.brightness);
-        crt.contrast   = (float) GetNumberOpt (*crtSub, "contrast",   crt.contrast);
+        for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
+        {
+            const JsonValue *  modeObj    = nullptr;
+            const JsonValue *  scanlines  = nullptr;
+            const JsonValue *  bloom      = nullptr;
+            const JsonValue *  colorBleed = nullptr;
+            Crt &              c          = crtByMode[i];
 
-        if (SUCCEEDED (crtSub->GetObject ("scanlines", scanlines)) && scanlines != nullptr)
-        {
-            crt.scanlinesEnabled   = GetBoolOpt   (*scanlines, "enabled",   crt.scanlinesEnabled);
-            crt.scanlinesIntensity = (float) GetNumberOpt (*scanlines, "intensity", crt.scanlinesIntensity);
-        }
-        if (SUCCEEDED (crtSub->GetObject ("bloom", bloom)) && bloom != nullptr)
-        {
-            crt.bloomEnabled  = GetBoolOpt (*bloom, "enabled", crt.bloomEnabled);
-            crt.bloomRadius   = (float) GetNumberOpt (*bloom, "radius",   crt.bloomRadius);
-            crt.bloomStrength = (float) GetNumberOpt (*bloom, "strength", crt.bloomStrength);
-        }
-        if (SUCCEEDED (crtSub->GetObject ("colorBleed", colorBleed)) && colorBleed != nullptr)
-        {
-            crt.colorBleedEnabled = GetBoolOpt (*colorBleed, "enabled", crt.colorBleedEnabled);
-            crt.colorBleedWidth   = (float) GetNumberOpt (*colorBleed, "width",   crt.colorBleedWidth);
-        }
+            if (FAILED (crtSub->GetObject (s_kModeKeys[i], modeObj)) || modeObj == nullptr)
+            {
+                continue;
+            }
 
-        // Clamp every numeric CRT field to its documented range so a
-        // hand-edited prefs file with out-of-range values can't drive the
-        // shaders into nonsense territory.
-        if (crt.brightness         < 0.0f)  crt.brightness         = 0.0f;
-        if (crt.brightness         > 2.0f)  crt.brightness         = 2.0f;
-        if (crt.contrast           < 0.0f)  crt.contrast           = 0.0f;
-        if (crt.contrast           > 2.0f)  crt.contrast           = 2.0f;
-        if (crt.scanlinesIntensity < 0.0f)  crt.scanlinesIntensity = 0.0f;
-        if (crt.scanlinesIntensity > 1.0f)  crt.scanlinesIntensity = 1.0f;
-        if (crt.bloomRadius        < 0.0f)  crt.bloomRadius        = 0.0f;
-        if (crt.bloomRadius        > 10.0f) crt.bloomRadius        = 10.0f;
-        if (crt.bloomStrength      < 0.0f)  crt.bloomStrength      = 0.0f;
-        if (crt.bloomStrength      > 1.0f)  crt.bloomStrength      = 1.0f;
-        if (crt.colorBleedWidth    < 0.0f)  crt.colorBleedWidth    = 0.0f;
-        if (crt.colorBleedWidth    > 8.0f)  crt.colorBleedWidth    = 8.0f;
+            c.userOverride = GetBoolOpt (*modeObj, "userOverride", c.userOverride);
+            c.brightness   = (float) GetNumberOpt (*modeObj, "brightness",   c.brightness);
+            c.contrast     = (float) GetNumberOpt (*modeObj, "contrast",     c.contrast);
+            c.gamma        = (float) GetNumberOpt (*modeObj, "gamma",        c.gamma);
+            c.persistence  = (float) GetNumberOpt (*modeObj, "persistence",  c.persistence);
+
+            if (SUCCEEDED (modeObj->GetObject ("scanlines", scanlines)) && scanlines != nullptr)
+            {
+                c.scanlinesEnabled   = GetBoolOpt   (*scanlines, "enabled",   c.scanlinesEnabled);
+                c.scanlinesIntensity = (float) GetNumberOpt (*scanlines, "intensity", c.scanlinesIntensity);
+            }
+            if (SUCCEEDED (modeObj->GetObject ("bloom", bloom)) && bloom != nullptr)
+            {
+                c.bloomEnabled  = GetBoolOpt (*bloom, "enabled", c.bloomEnabled);
+                c.bloomRadius   = (float) GetNumberOpt (*bloom, "radius",   c.bloomRadius);
+                c.bloomStrength = (float) GetNumberOpt (*bloom, "strength", c.bloomStrength);
+            }
+            if (SUCCEEDED (modeObj->GetObject ("colorBleed", colorBleed)) && colorBleed != nullptr)
+            {
+                c.colorBleedEnabled = GetBoolOpt (*colorBleed, "enabled", c.colorBleedEnabled);
+                c.colorBleedWidth   = (float) GetNumberOpt (*colorBleed, "width",   c.colorBleedWidth);
+            }
+
+            // Clamp every numeric CRT field to its documented range so a
+            // hand-edited prefs file with out-of-range values can't drive
+            // the shaders into nonsense territory.
+            if (c.brightness         < 0.0f)  c.brightness         = 0.0f;
+            if (c.brightness         > 2.0f)  c.brightness         = 2.0f;
+            if (c.contrast           < 0.0f)  c.contrast           = 0.0f;
+            if (c.contrast           > 2.0f)  c.contrast           = 2.0f;
+            if (c.gamma              < 1.4f)  c.gamma              = 1.4f;
+            if (c.gamma              > 2.4f)  c.gamma              = 2.4f;
+            if (c.scanlinesIntensity < 0.0f)  c.scanlinesIntensity = 0.0f;
+            if (c.scanlinesIntensity > 1.0f)  c.scanlinesIntensity = 1.0f;
+            if (c.bloomRadius        < 0.0f)  c.bloomRadius        = 0.0f;
+            if (c.bloomRadius        > 10.0f) c.bloomRadius        = 10.0f;
+            if (c.bloomStrength      < 0.0f)  c.bloomStrength      = 0.0f;
+            if (c.bloomStrength      > 1.0f)  c.bloomStrength      = 1.0f;
+            if (c.colorBleedWidth    < 0.0f)  c.colorBleedWidth    = 0.0f;
+            if (c.colorBleedWidth    > 8.0f)  c.colorBleedWidth    = 8.0f;
+            if (c.persistence        < 0.0f)  c.persistence        = 0.0f;
+            if (c.persistence        > 0.99f) c.persistence        = 0.99f;
+        }
     }
 
     if (SUCCEEDED (v.GetObject ("window", windowSub)) && windowSub != nullptr)

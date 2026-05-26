@@ -29,7 +29,7 @@ public:
         Assert::AreEqual (1, prefs.version);
         Assert::AreEqual (string ("Skeuomorphic"), prefs.activeTheme);
         Assert::AreEqual (true,  prefs.activeTheme.size() > 0);
-        Assert::AreEqual (false, prefs.crt.scanlinesEnabled);
+        Assert::AreEqual (false, prefs.crtByMode[0].scanlinesEnabled);
         Assert::AreEqual (false, prefs.window.fHaveLastBounds);
     }
 
@@ -55,15 +55,15 @@ public:
 
         orig.activeTheme            = "Retro Terminal";
         orig.lastSelectedMachine    = "Apple2e";
-        orig.crt.brightness         = 1.25f;
-        orig.crt.contrast           = 1.35f;
-        orig.crt.scanlinesEnabled   = true;
-        orig.crt.scanlinesIntensity = 0.75f;
-        orig.crt.bloomEnabled       = true;
-        orig.crt.bloomRadius        = 2.0f;
-        orig.crt.bloomStrength      = 0.6f;
-        orig.crt.colorBleedEnabled  = true;
-        orig.crt.colorBleedWidth    = 1.5f;
+        orig.crtByMode[0].brightness         = 1.25f;
+        orig.crtByMode[0].contrast           = 1.35f;
+        orig.crtByMode[0].scanlinesEnabled   = true;
+        orig.crtByMode[0].scanlinesIntensity = 0.75f;
+        orig.crtByMode[0].bloomEnabled       = true;
+        orig.crtByMode[0].bloomRadius        = 2.0f;
+        orig.crtByMode[0].bloomStrength      = 0.6f;
+        orig.crtByMode[0].colorBleedEnabled  = true;
+        orig.crtByMode[0].colorBleedWidth    = 1.5f;
         orig.window.fHaveLastBounds = true;
         orig.window.x = 100; orig.window.y = 50;
         orig.window.w = 1280; orig.window.h = 720;
@@ -77,15 +77,15 @@ public:
 
         Assert::AreEqual (orig.activeTheme,         loaded.activeTheme);
         Assert::AreEqual (orig.lastSelectedMachine, loaded.lastSelectedMachine);
-        Assert::AreEqual (orig.crt.brightness,      loaded.crt.brightness);
-        Assert::AreEqual (orig.crt.contrast,        loaded.crt.contrast);
-        Assert::AreEqual (orig.crt.scanlinesEnabled,    loaded.crt.scanlinesEnabled);
-        Assert::AreEqual (orig.crt.scanlinesIntensity,  loaded.crt.scanlinesIntensity);
-        Assert::AreEqual (orig.crt.bloomEnabled,        loaded.crt.bloomEnabled);
-        Assert::AreEqual (orig.crt.bloomRadius,         loaded.crt.bloomRadius);
-        Assert::AreEqual (orig.crt.bloomStrength,       loaded.crt.bloomStrength);
-        Assert::AreEqual (orig.crt.colorBleedEnabled,   loaded.crt.colorBleedEnabled);
-        Assert::AreEqual (orig.crt.colorBleedWidth,     loaded.crt.colorBleedWidth);
+        Assert::AreEqual (orig.crtByMode[0].brightness,      loaded.crtByMode[0].brightness);
+        Assert::AreEqual (orig.crtByMode[0].contrast,        loaded.crtByMode[0].contrast);
+        Assert::AreEqual (orig.crtByMode[0].scanlinesEnabled,    loaded.crtByMode[0].scanlinesEnabled);
+        Assert::AreEqual (orig.crtByMode[0].scanlinesIntensity,  loaded.crtByMode[0].scanlinesIntensity);
+        Assert::AreEqual (orig.crtByMode[0].bloomEnabled,        loaded.crtByMode[0].bloomEnabled);
+        Assert::AreEqual (orig.crtByMode[0].bloomRadius,         loaded.crtByMode[0].bloomRadius);
+        Assert::AreEqual (orig.crtByMode[0].bloomStrength,       loaded.crtByMode[0].bloomStrength);
+        Assert::AreEqual (orig.crtByMode[0].colorBleedEnabled,   loaded.crtByMode[0].colorBleedEnabled);
+        Assert::AreEqual (orig.crtByMode[0].colorBleedWidth,     loaded.crtByMode[0].colorBleedWidth);
         Assert::AreEqual (orig.window.fHaveLastBounds,  loaded.window.fHaveLastBounds);
         Assert::AreEqual (orig.window.x,                loaded.window.x);
         Assert::AreEqual (orig.window.fullscreen,       loaded.window.fullscreen);
@@ -106,8 +106,8 @@ public:
         Assert::IsTrue (SUCCEEDED (hr));
         Assert::AreEqual (string ("DarkModern"), prefs.activeTheme);
         // crt sub-object missing → struct defaults preserved.
-        Assert::AreEqual (1.0f, prefs.crt.brightness);
-        Assert::AreEqual (1.0f, prefs.crt.contrast);
+        Assert::AreEqual (1.0f, prefs.crtByMode[0].brightness);
+        Assert::AreEqual (1.0f, prefs.crtByMode[0].contrast);
     }
 
 

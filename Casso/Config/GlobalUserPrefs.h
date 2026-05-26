@@ -34,11 +34,17 @@ struct GlobalUserPrefs
     std::string  activeTheme         = "Skeuomorphic"; // FR-030 default
     std::string  lastSelectedMachine;                  // empty == none
 
-    // `userOverride` gates whether theme CRT defaults still apply.
+    // CRT state per monitor type. Each monitor (Color / Green / Amber /
+    // White) has its own block so the user can dial in different
+    // brightness, gamma, scanlines, etc. for each and the values stick
+    // independently. `userOverride` gates whether the block's values
+    // are applied verbatim or whether the layered preset / theme chain
+    // is consulted instead (see CrtPostProcess::MakeCrtParams).
     struct Crt
     {
         float    brightness          = 1.0f;           // 0.0 .. 2.0
         float    contrast            = 1.0f;           // 0.0 .. 2.0
+        float    gamma               = 2.2f;           // 1.4 .. 2.4 (final pow(rgb, 1/gamma))
         bool     scanlinesEnabled    = false;
         float    scanlinesIntensity  = 0.5f;           // 0.0 .. 1.0
         bool     bloomEnabled        = false;
@@ -46,10 +52,16 @@ struct GlobalUserPrefs
         float    bloomStrength       = 0.5f;           // 0.0 .. 1.0
         bool     colorBleedEnabled   = false;
         float    colorBleedWidth     = 1.0f;           // 0.0 .. 8.0 (output pixels)
+        float    persistence         = 0.0f;           // 0.0 .. 0.99 (phosphor decay factor)
         bool     userOverride        = false;
     };
 
-    Crt          crt;
+    // Index by SettingsColorMode (Color=0, Green=1, Amber=2, White=3).
+    // The matching ColorMode enum lives in UiCommandTypes.h; we don't
+    // pull that include in here so the GlobalUserPrefs header stays
+    // free of UI-layer dependencies.
+    static constexpr size_t  kCrtModeCount = 4;
+    Crt          crtByMode[kCrtModeCount];
 
     struct
     {

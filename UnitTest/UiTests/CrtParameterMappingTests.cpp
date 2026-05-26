@@ -37,10 +37,13 @@ public:
             "{\n"
             "  \"$cassoGlobalPrefsVersion\": 1,\n"
             "  \"crt\": {\n"
-            "    \"brightness\": 5.5,\n"
-            "    \"scanlines\":  { \"enabled\": true,  \"intensity\": 2.0 },\n"
-            "    \"bloom\":      { \"enabled\": true,  \"radius\": 99.0, \"strength\": -1.0 },\n"
-            "    \"colorBleed\": { \"enabled\": true,  \"width\": -3.0 }\n"
+            "    \"color\": {\n"
+            "      \"userOverride\": true,\n"
+            "      \"brightness\": 5.5,\n"
+            "      \"scanlines\":  { \"enabled\": true,  \"intensity\": 2.0 },\n"
+            "      \"bloom\":      { \"enabled\": true,  \"radius\": 99.0, \"strength\": -1.0 },\n"
+            "      \"colorBleed\": { \"enabled\": true,  \"width\": -3.0 }\n"
+            "    }\n"
             "  }\n"
             "}\n";
 
@@ -56,12 +59,12 @@ public:
         hr = prefs.FromJson (parsed);
         Assert::IsTrue (SUCCEEDED (hr));
 
-        Assert::AreEqual (2.0f,  prefs.crt.brightness);
-        Assert::AreEqual (1.0f,  prefs.crt.scanlinesIntensity);
-        Assert::AreEqual (10.0f, prefs.crt.bloomRadius);    // bloom radius clamp now 0..10 px
-        Assert::AreEqual (0.0f,  prefs.crt.bloomStrength);
-        Assert::AreEqual (0.0f,  prefs.crt.colorBleedWidth);
-        Assert::IsTrue   (prefs.crt.userOverride);
+        Assert::AreEqual (2.0f,  prefs.crtByMode[0].brightness);
+        Assert::AreEqual (1.0f,  prefs.crtByMode[0].scanlinesIntensity);
+        Assert::AreEqual (10.0f, prefs.crtByMode[0].bloomRadius);    // clamp 0..10 px
+        Assert::AreEqual (0.0f,  prefs.crtByMode[0].bloomStrength);
+        Assert::AreEqual (0.0f,  prefs.crtByMode[0].colorBleedWidth);
+        Assert::IsTrue   (prefs.crtByMode[0].userOverride);
     }
 
 
@@ -69,7 +72,7 @@ public:
     {
         GlobalUserPrefs  prefs;
 
-        CrtParams  params = MakeCrtParams (prefs.crt, nullptr, 1920.0f, 1080.0f);
+        CrtParams  params = MakeCrtParams (prefs.crtByMode[0], nullptr, 1920.0f, 1080.0f);
 
         // brightness defaults to 1.0; every "enabled" toggle is off out of
         // the box (FR-038 / FR-040) so all effect magnitudes should be 0
@@ -94,17 +97,17 @@ public:
         // shader uniforms; that's how `CrtPostProcess::Process` keeps a
         // single fixed pipeline regardless of which subset is enabled.
         GlobalUserPrefs  prefs;
-        prefs.crt.userOverride        = true;
-        prefs.crt.brightness          = 1.5f;
-        prefs.crt.scanlinesEnabled    = false;
-        prefs.crt.scanlinesIntensity  = 0.9f;
-        prefs.crt.bloomEnabled        = false;
-        prefs.crt.bloomRadius         = 3.0f;
-        prefs.crt.bloomStrength       = 0.8f;
-        prefs.crt.colorBleedEnabled   = false;
-        prefs.crt.colorBleedWidth     = 2.5f;
+        prefs.crtByMode[0].userOverride        = true;
+        prefs.crtByMode[0].brightness          = 1.5f;
+        prefs.crtByMode[0].scanlinesEnabled    = false;
+        prefs.crtByMode[0].scanlinesIntensity  = 0.9f;
+        prefs.crtByMode[0].bloomEnabled        = false;
+        prefs.crtByMode[0].bloomRadius         = 3.0f;
+        prefs.crtByMode[0].bloomStrength       = 0.8f;
+        prefs.crtByMode[0].colorBleedEnabled   = false;
+        prefs.crtByMode[0].colorBleedWidth     = 2.5f;
 
-        CrtParams  params = MakeCrtParams (prefs.crt, nullptr, 800.0f, 600.0f);
+        CrtParams  params = MakeCrtParams (prefs.crtByMode[0], nullptr, 800.0f, 600.0f);
 
         Assert::AreEqual (1.5f, params.brightness);
         Assert::AreEqual (0.0f, params.scanlineIntensity);
@@ -117,18 +120,18 @@ public:
     TEST_METHOD (MakeCrtParams_EnabledEffectsPropagateSliderValues)
     {
         GlobalUserPrefs  prefs;
-        prefs.crt.userOverride        = true;
-        prefs.crt.brightness          = 1.2f;
-        prefs.crt.contrast            = 1.6f;
-        prefs.crt.scanlinesEnabled    = true;
-        prefs.crt.scanlinesIntensity  = 0.7f;
-        prefs.crt.bloomEnabled        = true;
-        prefs.crt.bloomRadius         = 2.0f;
-        prefs.crt.bloomStrength       = 0.4f;
-        prefs.crt.colorBleedEnabled   = true;
-        prefs.crt.colorBleedWidth     = 1.5f;
+        prefs.crtByMode[0].userOverride        = true;
+        prefs.crtByMode[0].brightness          = 1.2f;
+        prefs.crtByMode[0].contrast            = 1.6f;
+        prefs.crtByMode[0].scanlinesEnabled    = true;
+        prefs.crtByMode[0].scanlinesIntensity  = 0.7f;
+        prefs.crtByMode[0].bloomEnabled        = true;
+        prefs.crtByMode[0].bloomRadius         = 2.0f;
+        prefs.crtByMode[0].bloomStrength       = 0.4f;
+        prefs.crtByMode[0].colorBleedEnabled   = true;
+        prefs.crtByMode[0].colorBleedWidth     = 1.5f;
 
-        CrtParams  params = MakeCrtParams (prefs.crt, nullptr, 1024.0f, 768.0f);
+        CrtParams  params = MakeCrtParams (prefs.crtByMode[0], nullptr, 1024.0f, 768.0f);
 
         Assert::AreEqual (1.2f, params.brightness);
         Assert::AreEqual (1.6f, params.contrast);
@@ -155,7 +158,7 @@ public:
         // Case 1 -- no user override; theme wins.
         {
             GlobalUserPrefs  prefs;          // userOverride == false
-            CrtParams  params = MakeCrtParams (prefs.crt, &theme, 640.0f, 480.0f);
+            CrtParams  params = MakeCrtParams (prefs.crtByMode[0], &theme, 640.0f, 480.0f);
 
             Assert::AreEqual (0.85f, params.brightness);
             Assert::AreEqual (1.15f, params.contrast);
@@ -169,18 +172,18 @@ public:
         // values for the same fields.
         {
             GlobalUserPrefs  prefs;
-            prefs.crt.userOverride       = true;
-            prefs.crt.brightness         = 1.4f;
-            prefs.crt.contrast           = 0.7f;
-            prefs.crt.scanlinesEnabled   = false;
-            prefs.crt.scanlinesIntensity = 0.2f;
-            prefs.crt.bloomEnabled       = false;
-            prefs.crt.bloomRadius        = 1.0f;
-            prefs.crt.bloomStrength      = 0.1f;
-            prefs.crt.colorBleedEnabled  = false;
-            prefs.crt.colorBleedWidth    = 0.5f;
+            prefs.crtByMode[0].userOverride       = true;
+            prefs.crtByMode[0].brightness         = 1.4f;
+            prefs.crtByMode[0].contrast           = 0.7f;
+            prefs.crtByMode[0].scanlinesEnabled   = false;
+            prefs.crtByMode[0].scanlinesIntensity = 0.2f;
+            prefs.crtByMode[0].bloomEnabled       = false;
+            prefs.crtByMode[0].bloomRadius        = 1.0f;
+            prefs.crtByMode[0].bloomStrength      = 0.1f;
+            prefs.crtByMode[0].colorBleedEnabled  = false;
+            prefs.crtByMode[0].colorBleedWidth    = 0.5f;
 
-            CrtParams  params = MakeCrtParams (prefs.crt, &theme, 640.0f, 480.0f);
+            CrtParams  params = MakeCrtParams (prefs.crtByMode[0], &theme, 640.0f, 480.0f);
 
             Assert::AreEqual (1.4f, params.brightness);
             Assert::AreEqual (0.7f, params.contrast);
@@ -216,15 +219,15 @@ public:
         hr = prefs.FromJson (parsed);
         Assert::IsTrue (SUCCEEDED (hr));
 
-        Assert::IsFalse  (prefs.crt.userOverride);
-        Assert::AreEqual (1.0f,  prefs.crt.brightness);
-        Assert::AreEqual (false, prefs.crt.scanlinesEnabled);
-        Assert::AreEqual (0.5f,  prefs.crt.scanlinesIntensity);
-        Assert::AreEqual (false, prefs.crt.bloomEnabled);
-        Assert::AreEqual (1.0f,  prefs.crt.bloomRadius);
-        Assert::AreEqual (0.5f,  prefs.crt.bloomStrength);
-        Assert::AreEqual (false, prefs.crt.colorBleedEnabled);
-        Assert::AreEqual (1.0f,  prefs.crt.colorBleedWidth);
+        Assert::IsFalse  (prefs.crtByMode[0].userOverride);
+        Assert::AreEqual (1.0f,  prefs.crtByMode[0].brightness);
+        Assert::AreEqual (false, prefs.crtByMode[0].scanlinesEnabled);
+        Assert::AreEqual (0.5f,  prefs.crtByMode[0].scanlinesIntensity);
+        Assert::AreEqual (false, prefs.crtByMode[0].bloomEnabled);
+        Assert::AreEqual (1.0f,  prefs.crtByMode[0].bloomRadius);
+        Assert::AreEqual (0.5f,  prefs.crtByMode[0].bloomStrength);
+        Assert::AreEqual (false, prefs.crtByMode[0].colorBleedEnabled);
+        Assert::AreEqual (1.0f,  prefs.crtByMode[0].colorBleedWidth);
     }
 
 
