@@ -1075,8 +1075,7 @@ void SettingsPanel::DoMachineSelect (const std::string & machineName)
     // not found" error dialog. Mirrors the startup flow in Main.cpp.
     searchPaths  = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
                                                    PathResolver::GetWorkingDirectory());
-    assetBaseDir = AssetBootstrap::GetAssetBaseDirectory (searchPaths,
-                                                          PathResolver::GetExecutableDirectory());
+    assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
 
     hr = AssetBootstrap::CheckAndFetchRoms (hInstance, wideName, hwndParent,
                                             searchPaths, assetBaseDir, bootstrapError);

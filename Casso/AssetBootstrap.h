@@ -16,9 +16,8 @@
 //   * Detect missing ROM files for a given machine config and offer
 //     to download them from the AppleWin project.
 //
-//  Both helpers honor the existing repo layout when present (a
-//  Machines/ or ROMs/ directory found via PathResolver search paths
-//  is reused). Otherwise assets are placed next to casso.exe.
+//  Runtime asset roots live under the user-writable
+//  %LOCALAPPDATA%\Casso\ directory.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,9 +25,7 @@ class AssetBootstrap
 {
 public:
 
-    static HRESULT  EnsureMachineConfigs  (HINSTANCE                hInstance,
-                                           const vector<fs::path> & searchPaths,
-                                           const fs::path         & exeDir);
+    static HRESULT  EnsureMachineConfigs  (HINSTANCE hInstance);
 
     // Overhaul : extract the three built-in
     // themes into `<assetBase>/Themes/<Name>/` on first launch
@@ -37,9 +34,7 @@ public:
     // any whose `theme.json` does NOT carry `$cassoBuiltIn: true` —
     // are NEVER overwritten. The per-theme decision is delegated
     // to `ThemeBootstrapPlanner::Plan`.
-    static HRESULT  EnsureThemes          (HINSTANCE                hInstance,
-                                           const vector<fs::path> & searchPaths,
-                                           const fs::path         & exeDir);
+    static HRESULT  EnsureThemes          (HINSTANCE hInstance);
 
     // Returns the install root that contains (or should contain) the
     // per-machine `Machines/` and per-device `Devices/` subtrees. The
@@ -47,11 +42,9 @@ public:
     // `<base>/Machines/<MachineName>/<RomName>` for machine-specific
     // ROMs and `<base>/Devices/DiskII/<RomName>` for shared Disk II
     // controller ROMs.
-    static fs::path GetAssetBaseDirectory (const vector<fs::path> & searchPaths,
-                                           const fs::path         & exeDir);
+    static fs::path GetAssetBaseDirectory();
 
-    static fs::path GetDiskDirectory      (const vector<fs::path> & searchPaths,
-                                           const fs::path         & exeDir);
+    static fs::path GetDiskDirectory();
 
     static HRESULT  GetRequiredRoms       (HINSTANCE                hInstance,
                                            const wstring          & machineName,

@@ -463,9 +463,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssetBootstrap::EnsureMachineConfigs (
-    HINSTANCE                hInstance,
-    const vector<fs::path> & searchPaths,
-    const fs::path         & /*exeDir*/)
+    HINSTANCE hInstance)
 {
     HRESULT     hr           = S_OK;
     fs::path    machinesDir;
@@ -475,10 +473,8 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
 
     // Embedded machine JSONs always extract under %LOCALAPPDATA%\Casso\,
     // not into whichever exe-adjacent Machines/ a dev happens to have
-    // lying around. Reads still cascade through searchPaths so legacy
-    // exe-adjacent layouts continue to resolve ROMs / overrides, but
-    // writes go to a single user-owned location.
-    machinesDir = GetAssetBaseDirectory (searchPaths, fs::path()) / L"Machines";
+    // lying around.
+    machinesDir = GetAssetBaseDirectory() / L"Machines";
     fs::create_directories (machinesDir, ec);
 
     for (const EmbeddedConfig & cfg : s_kEmbeddedConfigs)
@@ -671,9 +667,7 @@ static const EmbeddedTheme s_kEmbeddedThemes[] =
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssetBootstrap::EnsureThemes (
-    HINSTANCE                hInstance,
-    const vector<fs::path> & searchPaths,
-    const fs::path         & /*exeDir*/)
+    HINSTANCE hInstance)
 {
     HRESULT     hr        = S_OK;
     fs::path    themesDir;
@@ -683,7 +677,7 @@ HRESULT AssetBootstrap::EnsureThemes (
 
     // Same logic as EnsureMachineConfigs: extract to %LOCALAPPDATA%\Casso\,
     // not into an exe-adjacent Themes/ dir.
-    themesDir = GetAssetBaseDirectory (searchPaths, fs::path()) / L"Themes";
+    themesDir = GetAssetBaseDirectory() / L"Themes";
     fs::create_directories (themesDir, ec);
 
     for (const EmbeddedTheme & theme : s_kEmbeddedThemes)
@@ -760,10 +754,9 @@ HRESULT AssetBootstrap::EnsureThemes (
 //  Disks/, GlobalUserPrefs.json, schema backups, downloaded ROMs,
 //  captured audio, etc.). Created on first launch if missing.
 //
-//  The legacy `searchPaths` / `exeDir` parameters are intentionally
-//  ignored: the location is no longer a function of where the EXE
-//  lives. That removes every Program Files write attempt and keeps
-//  user state out of the install directory.
+//  The location is no longer a function of where the EXE lives. That
+//  removes every Program Files write attempt and keeps user state out
+//  of the install directory.
 //
 //  Read-only built-in defaults (machine JSONs, theme.json, fonts) are
 //  embedded as RT_RCDATA in Casso.exe and extracted into this dir on
@@ -771,9 +764,7 @@ HRESULT AssetBootstrap::EnsureThemes (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-fs::path AssetBootstrap::GetAssetBaseDirectory (
-    const vector<fs::path> & /*searchPaths*/,
-    const fs::path         & /*exeDir*/)
+fs::path AssetBootstrap::GetAssetBaseDirectory()
 {
     return PathResolver::GetLocalAppDataDir (L"Casso");
 }
@@ -791,11 +782,9 @@ fs::path AssetBootstrap::GetAssetBaseDirectory (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-fs::path AssetBootstrap::GetDiskDirectory (
-    const vector<fs::path> & /*searchPaths*/,
-    const fs::path         & /*exeDir*/)
+fs::path AssetBootstrap::GetDiskDirectory()
 {
-    fs::path     base   = GetAssetBaseDirectory (vector<fs::path>(), fs::path());
+    fs::path     base   = GetAssetBaseDirectory();
     fs::path     disks  = base / L"Disks";
     error_code   ec;
 

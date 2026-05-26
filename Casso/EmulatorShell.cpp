@@ -445,7 +445,6 @@ HRESULT EmulatorShell::Initialize (
 {
     HRESULT          hr           = S_OK;
     size_t           fbSize       = 0;
-    vector<fs::path> searchPaths;
     fs::path         assetBaseDir;
     fs::path         machinesDir;
     fs::path         themesDir;
@@ -464,10 +463,7 @@ HRESULT EmulatorShell::Initialize (
     m_chromeLayout.Register (&m_navStripSlot);
     m_chromeLayout.Register (&m_driveBarSlot);
 
-    searchPaths  = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
-                                                   PathResolver::GetWorkingDirectory());
-    assetBaseDir = AssetBootstrap::GetAssetBaseDirectory (searchPaths,
-                                                          PathResolver::GetExecutableDirectory());
+    assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
     machinesDir  = assetBaseDir / fs::path ("Machines") / fs::path (m_currentMachineName);
     themesDir    = assetBaseDir / fs::path ("Themes");
     m_assetBaseDir = assetBaseDir.wstring();
@@ -1632,18 +1628,13 @@ void EmulatorShell::OnCpuThreadStart()
     // per-machine registry already overrode it during Initialize.
     if (m_wasapiAudio.IsInitialized() && !m_diskAudioSources.empty())
     {
-        vector<fs::path>  searchPaths;
         fs::path          baseDir;
         wstring           devicesDir;
 
-        // Use the same install-root resolution that Main.cpp /
+        // Use the same user-writable asset root that Main.cpp /
         // AssetBootstrap used when writing the WAVs so the read
-        // path agrees with the write path. Re-resolving via the
-        // exe directory alone is wrong in dev builds, where the
-        // exe sits under x64/Debug while the Devices/ tree lives
-        // at the repo root.
-        searchPaths = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(), PathResolver::GetWorkingDirectory());
-        baseDir     = AssetBootstrap::GetAssetBaseDirectory (searchPaths, PathResolver::GetExecutableDirectory());
+        // path agrees with the write path.
+        baseDir     = AssetBootstrap::GetAssetBaseDirectory();
         devicesDir  = (baseDir / L"Devices" / L"DiskII").wstring();
 
         m_driveAudioMixer.SetSampleLoadContext (devicesDir, m_wasapiAudio.GetSampleRate());
