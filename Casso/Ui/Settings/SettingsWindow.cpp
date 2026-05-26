@@ -1044,34 +1044,53 @@ RECT SettingsWindow::GetInitialWindowRect (HWND hwndOwner, UINT dpi) const
         workRect = ownerRect;
     }
 
-    // Pick the side of the owner with more available space and place
-    // the popup as far to that side as possible (clamped to the work
-    // area). When the popup is wide enough to overlap the owner even
-    // at the chosen edge that's fine -- the user sees the panel
-    // covering the OWNER's edge (chrome) rather than its center
-    // (emulator). Old behavior overlap-centered when neither side
-    // fully fit, which always hid the screen content.
-    if (ownerKnown)
+    // Placement rules (per user spec):
+    //   1. Owner maximized -> center on owner.
+    //   2. Else, prefer right edge of owner, top-aligned, if the popup
+    //      fits entirely on the owner's monitor.
+    //   3. Else, try left edge, same rule.
+    //   4. Else (neither side fits without clipping the popup off the
+    //      monitor), pick the side with more room and align flush
+    //      with that monitor's work-area edge. Popup partially
+    //      overlaps the owner, which is fine -- never blankets it
+    //      since the popup is on one edge of the screen.
+    //   5. NEVER span monitor boundaries (final clamp to workRect).
+    bool  ownerMaximized = ownerKnown && (IsZoomed (hwndOwner) != FALSE);
+
+    if (! ownerKnown)
+    {
+        x = workRect.left + (workRect.right  - workRect.left - width)  / s_kCenterDivisor;
+        y = workRect.top  + (workRect.bottom - workRect.top  - height) / s_kCenterDivisor;
+    }
+    else if (ownerMaximized)
+    {
+        x = ownerRect.left + (ownerRect.right  - ownerRect.left - width)  / s_kCenterDivisor;
+        y = ownerRect.top  + (ownerRect.bottom - ownerRect.top  - height) / s_kCenterDivisor;
+    }
+    else if (ownerRect.right + s_kSideGapPx + width <= workRect.right)
+    {
+        x = ownerRect.right + s_kSideGapPx;
+        y = ownerRect.top;
+    }
+    else if (ownerRect.left - s_kSideGapPx - width >= workRect.left)
+    {
+        x = ownerRect.left - s_kSideGapPx - width;
+        y = ownerRect.top;
+    }
+    else
     {
         int  roomRight = workRect.right - ownerRect.right;
         int  roomLeft  = ownerRect.left - workRect.left;
 
         if (roomRight >= roomLeft)
         {
-            x = std::min<int> (ownerRect.right + s_kSideGapPx,
-                               workRect.right  - width);
+            x = workRect.right - width;
         }
         else
         {
-            x = std::max<int> (ownerRect.left - s_kSideGapPx - width,
-                               workRect.left);
+            x = workRect.left;
         }
         y = ownerRect.top;
-    }
-    else
-    {
-        x = workRect.left + (workRect.right  - workRect.left - width)  / s_kCenterDivisor;
-        y = workRect.top  + (workRect.bottom - workRect.top  - height) / s_kCenterDivisor;
     }
 
     x = std::max<int> (workRect.left, std::min<int> (x, workRect.right  - width));
