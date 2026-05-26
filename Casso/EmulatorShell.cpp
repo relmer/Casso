@@ -1540,13 +1540,14 @@ int EmulatorShell::RunMessageLoop()
         }
 
         // Copy latest framebuffer under lock, then present with vsync
+        bool  fbDirtyThisFrame = false;
         {
             lock_guard<mutex> lock (m_fbMutex);
 
             if (m_fbReady)
             {
-                m_fbReady = false;
-
+                m_fbReady        = false;
+                fbDirtyThisFrame = true;
             }
         }
 
@@ -1573,7 +1574,24 @@ int EmulatorShell::RunMessageLoop()
             m_d3dRenderer.SetCrtParams (params);
         }
 
-        m_d3dRenderer.UploadAndPresent (m_uiFramebuffer.data());
+        // Skip the entire upload + 9-pass post-process when neither the
+        // emulator framebuffer nor any CRT param changed (and the
+        // persistence trail isn't still decaying). Saves ~20%% GPU at a
+        // BASIC prompt. PeekMessage above still drains messages; the
+        // brief sleep keeps this thread from spinning.
+        //
+        // The settings panel paints into the back buffer via the
+        // after-blit hook and runs its own fade / hover animations, so
+        // while it's visible we always repaint -- otherwise hovered
+        // sliders freeze and the fade-in stalls.
+        bool  uiOverlayDirty = m_settingsPanel.IsVisible();
+        if (! uiOverlayDirty && ! m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
+        {
+            Sleep (1);
+            continue;
+        }
+
+        m_d3dRenderer.UploadAndPresent (fbDirtyThisFrame ? m_uiFramebuffer.data() : nullptr);
     }
 
     m_cpuManager.Stop();

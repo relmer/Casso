@@ -810,6 +810,7 @@ HRESULT CrtPostProcess::Process (
     int                         backBufferH)
 {
     HRESULT  hr   = S_OK;
+    int      cur  = 0;
 
 
 
@@ -824,95 +825,103 @@ HRESULT CrtPostProcess::Process (
     hr = UploadConstants (params);
     CHRA (hr);
 
-    // Pass 1: brightness, srcEmulator -> ppMain[0], in the letterboxed
-    // viewport. The pre-pass clear renders the bars black.
+    // Brightness pass: srcEmulator -> ppMain[0], in the letterboxed
+    // viewport. The pre-pass clear renders the bars black. Always
+    // runs (it also applies contrast and is the only pass that knows
+    // the viewport rect).
     DrawFullscreen (m_ppMainRtv[0].Get(),
                     srcSrv, nullptr,
                     m_psBrightness.Get(),
                     backBufferW, backBufferH,
                     &viewportRect);
+    cur = 0;
 
-    // Pass 2: bloom horizontal, ppMain[0] -> ppBloom[0].
-    DrawFullscreen (m_ppBloomRtv[0].Get(),
-                    m_ppMainSrv[0].Get(), nullptr,
-                    m_psBloomH.Get(),
-                    backBufferW, backBufferH,
-                    nullptr);
-
-    // Pass 3: bloom vertical, ppBloom[0] -> ppBloom[1].
-    DrawFullscreen (m_ppBloomRtv[1].Get(),
-                    m_ppBloomSrv[0].Get(), nullptr,
-                    m_psBloomV.Get(),
-                    backBufferW, backBufferH,
-                    nullptr);
-
-    // Pass 4: bloom composite, (ppMain[0] + ppBloom[1]) -> ppMain[1].
-    DrawFullscreen (m_ppMainRtv[1].Get(),
-                    m_ppMainSrv[0].Get(),
-                    m_ppBloomSrv[1].Get(),
-                    m_psBloomComp.Get(),
-                    backBufferW, backBufferH,
-                    nullptr);
-
-    // Pass 5: color bleed, ppMain[1] -> ppMain[0].
-    DrawFullscreen (m_ppMainRtv[0].Get(),
-                    m_ppMainSrv[1].Get(), nullptr,
-                    m_psColorBleed.Get(),
-                    backBufferW, backBufferH,
-                    nullptr);
-
-    // Pass 6: persistence. Current frame (ppMain[0]) mixed with the
-    // PREVIOUS frame's post-persistence result (m_persistenceTex) via
-    // max(current, prev*decay). Output ppMain[1], then captured into
-    // m_persistenceTex for next frame. Persistence MUST run BEFORE
-    // scanlines: the max() operation only ever brightens, so it would
-    // erase scanline darkening every frame if it ran after.
-    if (params.persistence > 0.0f && m_persistencePrimed)
+    // Bloom: 3-pass blur + composite. Skipped wholesale when strength
+    // or radius is zero (idle GPU win on color preset which has bloom
+    // off, and gives the user a true off when they toggle it).
+    if (params.bloomStrength > 0.0f && params.bloomRadius > 0.0f)
     {
-        DrawFullscreen (m_ppMainRtv[1].Get(),
-                        m_ppMainSrv[0].Get(),
-                        m_persistenceSrv.Get(),
-                        m_psPersistence.Get(),
+        DrawFullscreen (m_ppBloomRtv[0].Get(),
+                        m_ppMainSrv[cur].Get(), nullptr,
+                        m_psBloomH.Get(),
                         backBufferW, backBufferH,
                         nullptr);
-    }
-    else
-    {
-        DrawFullscreen (m_ppMainRtv[1].Get(),
-                        m_ppMainSrv[0].Get(), nullptr,
-                        m_psCopy.Get(),
+        DrawFullscreen (m_ppBloomRtv[1].Get(),
+                        m_ppBloomSrv[0].Get(), nullptr,
+                        m_psBloomV.Get(),
                         backBufferW, backBufferH,
                         nullptr);
+        DrawFullscreen (m_ppMainRtv[1 - cur].Get(),
+                        m_ppMainSrv[cur].Get(),
+                        m_ppBloomSrv[1].Get(),
+                        m_psBloomComp.Get(),
+                        backBufferW, backBufferH,
+                        nullptr);
+        cur = 1 - cur;
     }
 
-    // Capture the persistence-pass result (ppMain[1]) into the
-    // carry-over RT before downstream passes consume / overwrite it.
-    // Scanline darkening is deliberately NOT in the carry-over so the
-    // dark bands don't ghost.
-    if (m_persistenceTex && m_ppMainTex[1])
+    // Color bleed: 1 pass. Skipped when width is zero.
+    if (params.colorBleedWidth > 0.0f)
     {
-        m_context->CopyResource (m_persistenceTex.Get(), m_ppMainTex[1].Get());
-        m_persistencePrimed = true;
+        DrawFullscreen (m_ppMainRtv[1 - cur].Get(),
+                        m_ppMainSrv[cur].Get(), nullptr,
+                        m_psColorBleed.Get(),
+                        backBufferW, backBufferH,
+                        nullptr);
+        cur = 1 - cur;
     }
 
-    // Pass 7: scanlines, ppMain[1] -> ppMain[0]. Runs after persistence
-    // so the darkening survives instead of being max()'d away.
-    DrawFullscreen (m_ppMainRtv[0].Get(),
-                    m_ppMainSrv[1].Get(), nullptr,
-                    m_psScanlines.Get(),
-                    backBufferW, backBufferH,
-                    nullptr);
+    // Persistence MUST run BEFORE scanlines: max() only ever
+    // brightens, so it would erase scanline darkening every frame
+    // if it ran after. When persistence > 0 but not yet primed
+    // (first frame after EnsureSize), skip the shader and just
+    // capture the current state so the next frame has a prior.
+    if (params.persistence > 0.0f)
+    {
+        if (m_persistencePrimed)
+        {
+            DrawFullscreen (m_ppMainRtv[1 - cur].Get(),
+                            m_ppMainSrv[cur].Get(),
+                            m_persistenceSrv.Get(),
+                            m_psPersistence.Get(),
+                            backBufferW, backBufferH,
+                            nullptr);
+            cur = 1 - cur;
+        }
+        if (m_persistenceTex && m_ppMainTex[cur])
+        {
+            m_context->CopyResource (m_persistenceTex.Get(), m_ppMainTex[cur].Get());
+            m_persistencePrimed = true;
+        }
+    }
 
-    // Pass 8: gamma, ppMain[0] -> ppMain[1].
-    DrawFullscreen (m_ppMainRtv[1].Get(),
-                    m_ppMainSrv[0].Get(), nullptr,
-                    m_psGamma.Get(),
-                    backBufferW, backBufferH,
-                    nullptr);
+    // Scanlines: 1 pass. Skipped when intensity is zero (scanlines
+    // toggle off in UI sets intensity=0 in MakeCrtParams).
+    if (params.scanlineIntensity > 0.0f)
+    {
+        DrawFullscreen (m_ppMainRtv[1 - cur].Get(),
+                        m_ppMainSrv[cur].Get(), nullptr,
+                        m_psScanlines.Get(),
+                        backBufferW, backBufferH,
+                        nullptr);
+        cur = 1 - cur;
+    }
 
-    // Pass 9: final copy, ppMain[1] -> back buffer.
+    // Gamma. Skip when within 1% of 1.0 (no-op pow). Tiny epsilon
+    // since UI slider steps are 0.1.
+    if (params.gamma < 0.99f || params.gamma > 1.01f)
+    {
+        DrawFullscreen (m_ppMainRtv[1 - cur].Get(),
+                        m_ppMainSrv[cur].Get(), nullptr,
+                        m_psGamma.Get(),
+                        backBufferW, backBufferH,
+                        nullptr);
+        cur = 1 - cur;
+    }
+
+    // Final copy to back buffer.
     DrawFullscreen (dstRtv,
-                    m_ppMainSrv[1].Get(), nullptr,
+                    m_ppMainSrv[cur].Get(), nullptr,
                     m_psCopy.Get(),
                     backBufferW, backBufferH,
                     nullptr);

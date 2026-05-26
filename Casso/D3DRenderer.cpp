@@ -614,6 +614,38 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NeedsPresent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool D3DRenderer::NeedsPresent (bool framebufferDirty) const
+{
+    if (framebufferDirty || m_redrawForced)
+    {
+        return true;
+    }
+    // Persistence shader animates a fading trail every frame even
+    // when the emulator framebuffer hasn't changed; we have to keep
+    // rendering until the trail is gone (and the post-process pipeline
+    // will keep producing distinct outputs).
+    if (m_crtParams.persistence > 0.0f)
+    {
+        return true;
+    }
+    // Any other slider / toggle change touches CrtParams.
+    if (memcmp (&m_crtParams, &m_lastPresentedParams, sizeof (CrtParams)) != 0)
+    {
+        return true;
+    }
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UploadAndPresent
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -728,6 +760,9 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
 
     hr = m_swapChain->Present (1, 0);
     CHRA (hr);
+
+    m_lastPresentedParams = m_crtParams;
+    m_redrawForced        = false;
 
 Error:
     return hr;
@@ -855,6 +890,8 @@ HRESULT D3DRenderer::Resize (int width, int height)
     BAIL_OUT_IF (m_swapChain == nullptr || m_device == nullptr || m_context == nullptr, S_OK);
     BAIL_OUT_IF (width <= 0 || height <= 0, S_OK);
     BAIL_OUT_IF (m_deviceRemoved, S_OK);
+
+    m_redrawForced = true;
 
     // Hot path: the logical area still fits in the allocated back
     // buffer. Tell DWM the new source sub-rect, update the viewport,

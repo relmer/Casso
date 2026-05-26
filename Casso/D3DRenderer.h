@@ -36,6 +36,16 @@ public:
     void SetTopInsetPx    (int insetPx)             { m_topInsetPx    = std::max (0, insetPx); }
     void SetBottomInsetPx (int insetPx)             { m_bottomInsetPx = std::max (0, insetPx); }
 
+    // Returns true if the next frame would produce a visually
+    // different result than the last one we presented. The shell uses
+    // this to short-circuit the entire 9-pass post-process when nothing
+    // has changed -- otherwise we burn ~25%% GPU per refresh on a
+    // static screen. `framebufferDirty` is the only thing the renderer
+    // can't tell on its own; pass true whenever the emulator produced a
+    // new frame.
+    bool NeedsPresent     (bool framebufferDirty) const;
+    void MarkRedrawNeeded ()                            { m_redrawForced = true; }
+
     bool IsFullscreen() const { return m_fullscreen; }
 
     // Accessors for the current swap chain dimensions so the
@@ -102,6 +112,10 @@ private:
     // resized lazily inside Process() when the back buffer size changes.
     CrtPostProcess                   m_crtPost;
     CrtParams                        m_crtParams;
+    // Snapshot of the last successfully-presented CrtParams so
+    // NeedsPresent() can tell when sliders / toggles really changed.
+    CrtParams                        m_lastPresentedParams = {};
+    bool                             m_redrawForced        = true;
     // Logical (presented) size = current client area. All public
     // accessors and chrome layout consume this.
     int                              m_backBufferW         = 0;
