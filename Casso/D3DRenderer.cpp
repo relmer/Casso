@@ -40,6 +40,10 @@ struct Vertex
 static constexpr wchar_t  s_kpszSmokeDumpEnv[]   = L"CASSO_SMOKE_DUMP_DIR";
 static constexpr UINT64   s_kSmokeFrameStartup   = 60;
 static constexpr UINT64   s_kSmokeFrameSettings  = 240;
+// Frames to keep re-rendering after the emulator framebuffer goes
+// idle, so the persistence trail finishes decaying. At 60 fps,
+// 90 frames = 1.5s; 0.8^90 is < UNORM precision even before the bias.
+static constexpr int      s_kPersistenceSettleFrames = 90;
 static constexpr DWORD    s_kBmpHeaderSize       = sizeof (BITMAPFILEHEADER) + sizeof (BITMAPINFOHEADER);
 static constexpr WORD     s_kBmpMagic            = 0x4D42;
 static constexpr WORD     s_kBmpPlanes           = 1;
@@ -625,10 +629,10 @@ bool D3DRenderer::NeedsPresent (bool framebufferDirty) const
         return true;
     }
     // Persistence shader animates a fading trail every frame even
-    // when the emulator framebuffer hasn't changed; we have to keep
-    // rendering until the trail is gone (and the post-process pipeline
-    // will keep producing distinct outputs).
-    if (m_crtParams.persistence > 0.0f)
+    // when the emulator framebuffer hasn't changed. Keep re-rendering
+    // until the trail is fully decayed -- ~1.5s at the highest decay
+    // (amber's 0.8) with the UNORM bias is more than enough.
+    if (m_crtParams.persistence > 0.0f && m_idleFramesSinceFbChange < s_kPersistenceSettleFrames)
     {
         return true;
     }
@@ -763,6 +767,14 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
 
     m_lastPresentedParams = m_crtParams;
     m_redrawForced        = false;
+    if (framebuffer != nullptr)
+    {
+        m_idleFramesSinceFbChange = 0;
+    }
+    else
+    {
+        m_idleFramesSinceFbChange++;
+    }
 
 Error:
     return hr;

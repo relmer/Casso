@@ -64,7 +64,15 @@ namespace
         "    float  linePos = i.uv.y * kNativeScanlines;\n"
         "    float  gap     = sin (linePos * 3.14159265);\n"
         "    float  bright  = gap * gap;\n"
-        "    float  darken  = lerp (1.0 - g_scanlineIntensity, 1.0, bright);\n"
+        // Luminance-weight the darkening: real CRT scanlines are
+        // visible only where the electron beam was lit. Pure-black
+        // pixels (or pixels lifted slightly off black by contrast<1)
+        // stay untouched, so we don't get a striped grey background
+        // when contrast is below 1.0. Bright pixels darken the full
+        // intensity; mid pixels get partial darkening.
+        "    float  lum     = max (c.r, max (c.g, c.b));\n"
+        "    float  weight  = saturate (lum * 4.0);\n"
+        "    float  darken  = lerp (1.0, lerp (1.0 - g_scanlineIntensity, 1.0, bright), weight);\n"
         "    c.rgb *= darken;\n"
         "    return c;\n"
         "}\n";

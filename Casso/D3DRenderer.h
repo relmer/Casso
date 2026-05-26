@@ -114,8 +114,14 @@ private:
     CrtParams                        m_crtParams;
     // Snapshot of the last successfully-presented CrtParams so
     // NeedsPresent() can tell when sliders / toggles really changed.
-    CrtParams                        m_lastPresentedParams = {};
-    bool                             m_redrawForced        = true;
+    CrtParams                        m_lastPresentedParams      = {};
+    bool                             m_redrawForced             = true;
+    // Counts how many frames have been presented since the emulator
+    // last produced a new framebuffer. Used by NeedsPresent to stop
+    // re-rendering after the persistence trail has finished decaying
+    // (otherwise persistence>0 would force a present every vsync
+    // forever, even on a fully static screen).
+    int                              m_idleFramesSinceFbChange  = 0;
     // Logical (presented) size = current client area. All public
     // accessors and chrome layout consume this.
     int                              m_backBufferW         = 0;
