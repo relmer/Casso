@@ -349,18 +349,18 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
         // Clamp every numeric CRT field to its documented range so a
         // hand-edited prefs file with out-of-range values can't drive the
         // shaders into nonsense territory.
-        if (crt.brightness         < 0.0f) crt.brightness         = 0.0f;
-        if (crt.brightness         > 2.0f) crt.brightness         = 2.0f;
-        if (crt.contrast           < 0.0f) crt.contrast           = 0.0f;
-        if (crt.contrast           > 2.0f) crt.contrast           = 2.0f;
-        if (crt.scanlinesIntensity < 0.0f) crt.scanlinesIntensity = 0.0f;
-        if (crt.scanlinesIntensity > 1.0f) crt.scanlinesIntensity = 1.0f;
-        if (crt.bloomRadius        < 0.0f) crt.bloomRadius        = 0.0f;
-        if (crt.bloomRadius        > 4.0f) crt.bloomRadius        = 4.0f;
-        if (crt.bloomStrength      < 0.0f) crt.bloomStrength      = 0.0f;
-        if (crt.bloomStrength      > 1.0f) crt.bloomStrength      = 1.0f;
-        if (crt.colorBleedWidth    < 0.0f) crt.colorBleedWidth    = 0.0f;
-        if (crt.colorBleedWidth    > 4.0f) crt.colorBleedWidth    = 4.0f;
+        if (crt.brightness         < 0.0f)  crt.brightness         = 0.0f;
+        if (crt.brightness         > 2.0f)  crt.brightness         = 2.0f;
+        if (crt.contrast           < 0.0f)  crt.contrast           = 0.0f;
+        if (crt.contrast           > 2.0f)  crt.contrast           = 2.0f;
+        if (crt.scanlinesIntensity < 0.0f)  crt.scanlinesIntensity = 0.0f;
+        if (crt.scanlinesIntensity > 1.0f)  crt.scanlinesIntensity = 1.0f;
+        if (crt.bloomRadius        < 0.0f)  crt.bloomRadius        = 0.0f;
+        if (crt.bloomRadius        > 10.0f) crt.bloomRadius        = 10.0f;
+        if (crt.bloomStrength      < 0.0f)  crt.bloomStrength      = 0.0f;
+        if (crt.bloomStrength      > 1.0f)  crt.bloomStrength      = 1.0f;
+        if (crt.colorBleedWidth    < 0.0f)  crt.colorBleedWidth    = 0.0f;
+        if (crt.colorBleedWidth    > 8.0f)  crt.colorBleedWidth    = 8.0f;
     }
 
     if (SUCCEEDED (v.GetObject ("window", windowSub)) && windowSub != nullptr)

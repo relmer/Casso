@@ -42,10 +42,10 @@ struct GlobalUserPrefs
         bool     scanlinesEnabled    = false;
         float    scanlinesIntensity  = 0.5f;           // 0.0 .. 1.0
         bool     bloomEnabled        = false;
-        float    bloomRadius         = 1.0f;           // 0.0 .. 4.0
+        float    bloomRadius         = 1.0f;           // 0.0 .. 10.0 (output pixels)
         float    bloomStrength       = 0.5f;           // 0.0 .. 1.0
         bool     colorBleedEnabled   = false;
-        float    colorBleedWidth     = 1.0f;           // 0.0 .. 4.0
+        float    colorBleedWidth     = 1.0f;           // 0.0 .. 8.0 (output pixels)
         bool     userOverride        = false;
     };
 

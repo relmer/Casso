@@ -60,18 +60,18 @@ void DisplayPage::SetState (SettingsPanelState * state)
 
 void DisplayPage::SetInitialCrt (const GlobalUserPrefsCrtSnapshot & snap)
 {
-    // Brightness/contrast sliders: 0-100% where 50% = identity (shader = 1.0).
-    // Map other shader values to slider percentages similarly so the UX is
-    // consistent across rows.
-    m_brightness.SetValue       (snap.brightness         * 50.0f);
-    m_contrast.SetValue         (snap.contrast           * 50.0f);
+    // Brightness/contrast: slider 0..200%, 100% = identity (shader 1.0).
+    // Bloom radius / color bleed: slider value is pixels directly.
+    // Other sliders are 0..100% (a normalized 0..1 in the shader).
+    m_brightness.SetValue       (snap.brightness         * 100.0f);
+    m_contrast.SetValue         (snap.contrast           * 100.0f);
     m_scanlinesEn.SetChecked    (snap.scanlinesEnabled);
-    m_scanlinesInt.SetValue     (snap.scanlinesIntensity * 100.0f); // 0..1 -> 0..100
+    m_scanlinesInt.SetValue     (snap.scanlinesIntensity * 100.0f);
     m_bloomEn.SetChecked        (snap.bloomEnabled);
-    m_bloomRadius.SetValue      (snap.bloomRadius        * 25.0f);  // 0..4 -> 0..100
-    m_bloomStrength.SetValue    (snap.bloomStrength      * 100.0f); // 0..1 -> 0..100
+    m_bloomRadius.SetValue      (snap.bloomRadius);                  // px direct
+    m_bloomStrength.SetValue    (snap.bloomStrength      * 100.0f);
     m_colorBleedEn.SetChecked   (snap.colorBleedEnabled);
-    m_colorBleedW.SetValue      (snap.colorBleedWidth    * 25.0f);  // 0..4 -> 0..100
+    m_colorBleedW.SetValue      (snap.colorBleedWidth);              // px direct
 
     // Parameter sliders are enabled iff their toggle is on.
     m_scanlinesInt.SetEnabled  (snap.scanlinesEnabled);
@@ -118,7 +118,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_brightnessLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_brightnessLabel.SetText (L"Brightness:");
     m_brightness.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
-    m_brightness.SetRange     (0.0f, 100.0f);
+    m_brightness.SetRange     (0.0f, 200.0f);
     m_brightness.SetStep      (10.0f);
     m_brightness.SetSuffix    (L"%");
     m_brightness.SetShowTicks (true);
@@ -128,7 +128,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_contrastLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_contrastLabel.SetText (L"Contrast:");
     m_contrast.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
-    m_contrast.SetRange     (0.0f, 100.0f);
+    m_contrast.SetRange     (0.0f, 200.0f);
     m_contrast.SetStep      (10.0f);
     m_contrast.SetSuffix    (L"%");
     m_contrast.SetShowTicks (true);
@@ -160,9 +160,9 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_bloomRadiusLabel.SetRect (MakeRect (x + scaler.Px (24), y, subLabelW, rowHeight));
     m_bloomRadiusLabel.SetText (L"Radius:");
     m_bloomRadius.SetRect      (MakeRect (subCtrlX, y, sliderWidth, rowHeight));
-    m_bloomRadius.SetRange     (0.0f, 100.0f);
-    m_bloomRadius.SetStep      (10.0f);
-    m_bloomRadius.SetSuffix    (L"%");
+    m_bloomRadius.SetRange     (0.0f, 10.0f);
+    m_bloomRadius.SetStep      (1.0f);
+    m_bloomRadius.SetSuffix    (L" px");
     m_bloomRadius.SetShowTicks (true);
     m_bloomRadiusRowRect = MakeRect (x, y, (subCtrlX + sliderWidth) - x, rowHeight);
     y += rowHeight + tightGap;
@@ -186,9 +186,9 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_colorBleedWLabel.SetRect (MakeRect (x + scaler.Px (24), y, subLabelW, rowHeight));
     m_colorBleedWLabel.SetText (L"Width:");
     m_colorBleedW.SetRect      (MakeRect (subCtrlX, y, sliderWidth, rowHeight));
-    m_colorBleedW.SetRange     (0.0f, 100.0f);
-    m_colorBleedW.SetStep      (10.0f);
-    m_colorBleedW.SetSuffix    (L"%");
+    m_colorBleedW.SetRange     (0.0f, 8.0f);
+    m_colorBleedW.SetStep      (1.0f);
+    m_colorBleedW.SetSuffix    (L" px");
     m_colorBleedW.SetShowTicks (true);
     m_colorBleedWRowRect = MakeRect (x, y, (subCtrlX + sliderWidth) - x, rowHeight);
 

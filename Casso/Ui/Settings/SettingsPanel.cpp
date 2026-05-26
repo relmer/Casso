@@ -199,15 +199,15 @@ HRESULT SettingsPanel::Initialize (
     {
         if (m_prefs != nullptr)
         {
-            m_prefs->crt.brightness   = pct / 50.0f;
-            m_prefs->crt.userOverride = true;   // bypass theme defaults during live preview
+            m_prefs->crt.brightness   = pct / 100.0f;       // slider 0..200% -> shader 0..2.0
+            m_prefs->crt.userOverride = true;               // bypass theme defaults during live preview
         }
     });
     m_displayPage.SetOnContrastChange ([this] (float pct)
     {
         if (m_prefs != nullptr)
         {
-            m_prefs->crt.contrast     = pct / 50.0f;
+            m_prefs->crt.contrast     = pct / 100.0f;       // slider 0..200% -> shader 0..2.0
             m_prefs->crt.userOverride = true;
         }
     });
@@ -234,9 +234,9 @@ HRESULT SettingsPanel::Initialize (
     {
         if (m_prefs != nullptr) { m_prefs->crt.bloomEnabled       = on; m_prefs->crt.userOverride = true; }
     });
-    m_displayPage.SetOnBloomRadiusChange ([this] (float pct)
+    m_displayPage.SetOnBloomRadiusChange ([this] (float px)
     {
-        if (m_prefs != nullptr) { m_prefs->crt.bloomRadius        = pct / 25.0f;  m_prefs->crt.userOverride = true; }
+        if (m_prefs != nullptr) { m_prefs->crt.bloomRadius        = px;            m_prefs->crt.userOverride = true; }
     });
     m_displayPage.SetOnBloomStrengthChange ([this] (float pct)
     {
@@ -246,9 +246,9 @@ HRESULT SettingsPanel::Initialize (
     {
         if (m_prefs != nullptr) { m_prefs->crt.colorBleedEnabled  = on; m_prefs->crt.userOverride = true; }
     });
-    m_displayPage.SetOnColorBleedWChange ([this] (float pct)
+    m_displayPage.SetOnColorBleedWChange ([this] (float px)
     {
-        if (m_prefs != nullptr) { m_prefs->crt.colorBleedWidth    = pct / 25.0f;  m_prefs->crt.userOverride = true; }
+        if (m_prefs != nullptr) { m_prefs->crt.colorBleedWidth    = px;            m_prefs->crt.userOverride = true; }
     });
     m_displayPage.SetOnPreview ([this] (int controlId, bool start, bool keyboardMode)
     {

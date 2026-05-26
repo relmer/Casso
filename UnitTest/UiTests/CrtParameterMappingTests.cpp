@@ -56,11 +56,11 @@ public:
         hr = prefs.FromJson (parsed);
         Assert::IsTrue (SUCCEEDED (hr));
 
-        Assert::AreEqual (2.0f, prefs.crt.brightness);
-        Assert::AreEqual (1.0f, prefs.crt.scanlinesIntensity);
-        Assert::AreEqual (4.0f, prefs.crt.bloomRadius);
-        Assert::AreEqual (0.0f, prefs.crt.bloomStrength);
-        Assert::AreEqual (0.0f, prefs.crt.colorBleedWidth);
+        Assert::AreEqual (2.0f,  prefs.crt.brightness);
+        Assert::AreEqual (1.0f,  prefs.crt.scanlinesIntensity);
+        Assert::AreEqual (10.0f, prefs.crt.bloomRadius);    // bloom radius clamp now 0..10 px
+        Assert::AreEqual (0.0f,  prefs.crt.bloomStrength);
+        Assert::AreEqual (0.0f,  prefs.crt.colorBleedWidth);
         Assert::IsTrue   (prefs.crt.userOverride);
     }
 
