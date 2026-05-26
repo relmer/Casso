@@ -114,6 +114,7 @@ private:
     // Helpers for the per-monitor CRT plumbing.
     int   ActiveModeIdx               () const;
     void  ReseedDisplayCrtFromActiveMode ();
+    void  PromoteActiveCrtToOverride  ();
     void  EndPreview                  ();
 
 

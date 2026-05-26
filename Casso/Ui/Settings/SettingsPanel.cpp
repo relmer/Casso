@@ -205,36 +205,36 @@ HRESULT SettingsPanel::Initialize (
     {
         if (m_prefs != nullptr)
         {
+            PromoteActiveCrtToOverride();
             auto & blk = m_prefs->crtByMode[ActiveModeIdx()];
             blk.brightness   = pct / 100.0f;     // slider 0..200% -> shader 0..2.0
-            blk.userOverride = true;
         }
     });
     m_displayPage.SetOnContrastChange ([this] (float pct)
     {
         if (m_prefs != nullptr)
         {
+            PromoteActiveCrtToOverride();
             auto & blk = m_prefs->crtByMode[ActiveModeIdx()];
             blk.contrast     = pct / 100.0f;
-            blk.userOverride = true;
         }
     });
     m_displayPage.SetOnGammaChange ([this] (float g)
     {
         if (m_prefs != nullptr)
         {
+            PromoteActiveCrtToOverride();
             auto & blk = m_prefs->crtByMode[ActiveModeIdx()];
             blk.gamma        = g;
-            blk.userOverride = true;
         }
     });
     m_displayPage.SetOnPersistenceChange ([this] (float pct)
     {
         if (m_prefs != nullptr)
         {
+            PromoteActiveCrtToOverride();
             auto & blk = m_prefs->crtByMode[ActiveModeIdx()];
             blk.persistence  = pct / 100.0f;
-            blk.userOverride = true;
         }
     });
     m_displayPage.SetOnMonitorChange ([this] (int idx)
@@ -254,31 +254,31 @@ HRESULT SettingsPanel::Initialize (
     // monitor's CRT block.
     m_displayPage.SetOnScanlinesEnChange ([this] (bool on)
     {
-        if (m_prefs != nullptr) { auto & b = m_prefs->crtByMode[ActiveModeIdx()]; b.scanlinesEnabled  = on; b.userOverride = true; }
+        if (m_prefs != nullptr) { PromoteActiveCrtToOverride(); m_prefs->crtByMode[ActiveModeIdx()].scanlinesEnabled  = on; }
     });
     m_displayPage.SetOnScanlinesIntChange ([this] (float pct)
     {
-        if (m_prefs != nullptr) { auto & b = m_prefs->crtByMode[ActiveModeIdx()]; b.scanlinesIntensity = pct / 100.0f; b.userOverride = true; }
+        if (m_prefs != nullptr) { PromoteActiveCrtToOverride(); m_prefs->crtByMode[ActiveModeIdx()].scanlinesIntensity = pct / 100.0f; }
     });
     m_displayPage.SetOnBloomEnChange ([this] (bool on)
     {
-        if (m_prefs != nullptr) { auto & b = m_prefs->crtByMode[ActiveModeIdx()]; b.bloomEnabled       = on; b.userOverride = true; }
+        if (m_prefs != nullptr) { PromoteActiveCrtToOverride(); m_prefs->crtByMode[ActiveModeIdx()].bloomEnabled       = on; }
     });
     m_displayPage.SetOnBloomRadiusChange ([this] (float px)
     {
-        if (m_prefs != nullptr) { auto & b = m_prefs->crtByMode[ActiveModeIdx()]; b.bloomRadius        = px;            b.userOverride = true; }
+        if (m_prefs != nullptr) { PromoteActiveCrtToOverride(); m_prefs->crtByMode[ActiveModeIdx()].bloomRadius        = px; }
     });
     m_displayPage.SetOnBloomStrengthChange ([this] (float pct)
     {
-        if (m_prefs != nullptr) { auto & b = m_prefs->crtByMode[ActiveModeIdx()]; b.bloomStrength      = pct / 100.0f; b.userOverride = true; }
+        if (m_prefs != nullptr) { PromoteActiveCrtToOverride(); m_prefs->crtByMode[ActiveModeIdx()].bloomStrength      = pct / 100.0f; }
     });
     m_displayPage.SetOnColorBleedEnChange ([this] (bool on)
     {
-        if (m_prefs != nullptr) { auto & b = m_prefs->crtByMode[ActiveModeIdx()]; b.colorBleedEnabled  = on; b.userOverride = true; }
+        if (m_prefs != nullptr) { PromoteActiveCrtToOverride(); m_prefs->crtByMode[ActiveModeIdx()].colorBleedEnabled  = on; }
     });
     m_displayPage.SetOnColorBleedWChange ([this] (float px)
     {
-        if (m_prefs != nullptr) { auto & b = m_prefs->crtByMode[ActiveModeIdx()]; b.colorBleedWidth    = px;            b.userOverride = true; }
+        if (m_prefs != nullptr) { PromoteActiveCrtToOverride(); m_prefs->crtByMode[ActiveModeIdx()].colorBleedWidth    = px; }
     });
     m_displayPage.SetOnRestoreDefaults ([this] ()
     {
@@ -621,6 +621,43 @@ void SettingsPanel::ReseedDisplayCrtFromActiveMode ()
     snap.colorBleedEnabled  = src.colorBleedEnabled;
     snap.colorBleedWidth    = src.colorBleedWidth;
     m_displayPage.SetInitialCrt (snap);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PromoteActiveCrtToOverride
+//
+//  First time the user touches any CRT control on an untouched monitor,
+//  copy the resolved preset values into the active block before flipping
+//  userOverride=true. Without this, the slider's lambda writes only the
+//  one changed field and leaves every other field at the default-
+//  constructed Crt{} zeros (scanlinesEnabled=false, bloomEnabled=false,
+//  brightness=1.0, etc.), which silently turns off whatever the preset
+//  had enabled the moment userOverride flips on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::PromoteActiveCrtToOverride ()
+{
+    if (m_prefs == nullptr)
+    {
+        return;
+    }
+
+    auto &  blk = m_prefs->crtByMode[ActiveModeIdx()];
+
+    if (blk.userOverride)
+    {
+        return;
+    }
+
+    const auto &  preset       = CrtPresets::ForMode ((size_t) ActiveModeIdx());
+    blk                        = preset;
+    blk.userOverride           = true;
 }
 
 
