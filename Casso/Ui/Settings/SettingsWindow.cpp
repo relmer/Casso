@@ -1044,23 +1044,29 @@ RECT SettingsWindow::GetInitialWindowRect (HWND hwndOwner, UINT dpi) const
         workRect = ownerRect;
     }
 
-    // Side-prefer placement: try right of owner first, then left,
-    // then fall back to centered overlap if neither side fits on the
-    // current monitor's work area without clipping.
-    if (ownerKnown && ownerRect.right + s_kSideGapPx + width <= workRect.right)
+    // Pick the side of the owner with more available space and place
+    // the popup as far to that side as possible (clamped to the work
+    // area). When the popup is wide enough to overlap the owner even
+    // at the chosen edge that's fine -- the user sees the panel
+    // covering the OWNER's edge (chrome) rather than its center
+    // (emulator). Old behavior overlap-centered when neither side
+    // fully fit, which always hid the screen content.
+    if (ownerKnown)
     {
-        x = ownerRect.right + s_kSideGapPx;
+        int  roomRight = workRect.right - ownerRect.right;
+        int  roomLeft  = ownerRect.left - workRect.left;
+
+        if (roomRight >= roomLeft)
+        {
+            x = std::min<int> (ownerRect.right + s_kSideGapPx,
+                               workRect.right  - width);
+        }
+        else
+        {
+            x = std::max<int> (ownerRect.left - s_kSideGapPx - width,
+                               workRect.left);
+        }
         y = ownerRect.top;
-    }
-    else if (ownerKnown && ownerRect.left - s_kSideGapPx - width >= workRect.left)
-    {
-        x = ownerRect.left - s_kSideGapPx - width;
-        y = ownerRect.top;
-    }
-    else if (ownerKnown)
-    {
-        x = ownerRect.left + (ownerRect.right  - ownerRect.left - width)  / s_kCenterDivisor;
-        y = ownerRect.top  + (ownerRect.bottom - ownerRect.top  - height) / s_kCenterDivisor;
     }
     else
     {
