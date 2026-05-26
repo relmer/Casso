@@ -287,19 +287,45 @@ HRESULT SettingsPanel::Initialize (
     });
     m_displayPage.SetOnRestoreDefaults ([this] ()
     {
-        // Restore Defaults gives the user the MONITOR's hardware-correct
-        // preset values, bypassing any theme override. The theme is
-        // about chrome look (bezels, drives, fonts) -- the monitor
-        // preset is about phosphor characteristics -- so when the user
-        // explicitly asks for "defaults for this monitor type", they
-        // want amber's real scanlines / persistence, not whatever the
-        // active theme decided to wash them out with.
-        if (m_prefs != nullptr)
+        // Restore Defaults gives the user the RESOLVED defaults
+        // (theme override layered on monitor preset) -- the same
+        // values the "(theme default)" / "(monitor default)" badges
+        // refer to. Anything else creates the confusing experience
+        // where Restore moves a slider AWAY from a position the
+        // badge had just marked as "default".
+        if (m_prefs == nullptr)
         {
-            auto &  blk = m_prefs->crtByMode[ActiveModeIdx()];
-            blk = CrtPresets::ForMode ((size_t) ActiveModeIdx());
-            blk.userOverride = true;
+            return;
         }
+
+        auto &                     blk           = m_prefs->crtByMode[ActiveModeIdx()];
+        const auto &               preset        = CrtPresets::ForMode ((size_t) ActiveModeIdx());
+        const ThemeCrtDefaults *   themeDefaults = nullptr;
+
+        if (m_themes != nullptr)
+        {
+            const LoadedTheme *  active = m_themes->GetActiveTheme();
+            if (active != nullptr)
+            {
+                themeDefaults = &active->crtDefaults;
+            }
+        }
+
+        blk = preset;
+        if (themeDefaults != nullptr)
+        {
+            blk.brightness         = themeDefaults->brightness;
+            blk.contrast           = themeDefaults->contrast;
+            blk.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
+            blk.scanlinesIntensity = themeDefaults->scanlinesIntensity;
+            blk.bloomEnabled       = themeDefaults->bloomEnabled;
+            blk.bloomRadius        = themeDefaults->bloomRadius;
+            blk.bloomStrength      = themeDefaults->bloomStrength;
+            blk.colorBleedEnabled  = themeDefaults->colorBleedEnabled;
+            blk.colorBleedWidth    = themeDefaults->colorBleedWidth;
+        }
+        blk.userOverride = true;
+
         ReseedDisplayCrtFromActiveMode();
     });
     m_displayPage.SetOnPreview ([this] (int controlId, bool start, bool keyboardMode)
@@ -627,6 +653,7 @@ Error:
 void SettingsPanel::UpdatePreviewOverlap (const RECT & emulatorContentScreenRect)
 {
     HRESULT  hr          = S_OK;
+    POINT    origin      = {};
     RECT     windowRect  = {};
     RECT     intersect   = {};
     BOOL     ok          = FALSE;
@@ -635,6 +662,7 @@ void SettingsPanel::UpdatePreviewOverlap (const RECT & emulatorContentScreenRect
 
 
     m_previewOverlapsEmulatorOutput = false;
+    m_emulatorOverlapClientRect     = {};
     BAIL_OUT_IF (!m_visible || !m_window.IsOpen() || IsRectEmpty (&emulatorContentScreenRect), S_OK);
 
     ok = GetWindowRect (m_window.Hwnd(), &windowRect);
@@ -642,6 +670,21 @@ void SettingsPanel::UpdatePreviewOverlap (const RECT & emulatorContentScreenRect
 
     overlaps = IntersectRect (&intersect, &windowRect, &emulatorContentScreenRect);
     m_previewOverlapsEmulatorOutput = (overlaps != FALSE);
+
+    if (overlaps)
+    {
+        // Translate the screen-space intersection into client-space
+        // for use during Paint. The renderer paints in client coords
+        // (its viewport is the window client area).
+        origin.x = 0;
+        origin.y = 0;
+        ok = ClientToScreen (m_window.Hwnd(), &origin);
+        CWRA (ok);
+        m_emulatorOverlapClientRect = { intersect.left   - origin.x,
+                                         intersect.top    - origin.y,
+                                         intersect.right  - origin.x,
+                                         intersect.bottom - origin.y };
+    }
 
 Error:
     return;
@@ -1522,14 +1565,77 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
 
     if (IsPreviewTransparencyActive())
     {
-        RECT  focusedRect = m_displayPage.FocusedControlRect (focusedControlId);
+        // Two-zone paint:
+        //   1. Panel chrome + sliders at 10%% alpha EVERYWHERE the
+        //      panel does NOT overlap the emulator content rect.
+        //      Splits the panel into the up-to-4 axis-aligned rects
+        //      above / below / left / right of the overlap and paints
+        //      each one separately.
+        //   2. The overlapping zone stays at the swap-chain clear's
+        //      alpha=0 -- the emulator behind shows through 100%%
+        //      regardless of what controls landed there.
+        //   3. The focused control THEN paints over the top at its own
+        //      alpha (0.9), wherever it sits, so it remains visible
+        //      even if it''s over the emulator.
+        constexpr float  s_kTransparentPanelAlpha   = 0.10f;
+        constexpr float  s_kTransparentFocusedAlpha = 0.90f;
 
-
-
-        if (!IsRectEmpty (&focusedRect))
+        std::vector<RECT>  drawRects;
+        if (IsRectEmpty (&m_emulatorOverlapClientRect))
         {
-            m_displayPage.Paint (painter, text, focusedControlId, 0.0f, focusedA);
+            drawRects.push_back (m_panelRect);
         }
+        else
+        {
+            // Compute panel ∖ overlap as four axis-aligned bands.
+            RECT  overlap = {};
+            (void) IntersectRect (&overlap, &m_panelRect, &m_emulatorOverlapClientRect);
+            if (IsRectEmpty (&overlap))
+            {
+                drawRects.push_back (m_panelRect);
+            }
+            else
+            {
+                if (overlap.top > m_panelRect.top)
+                {
+                    drawRects.push_back ({ m_panelRect.left, m_panelRect.top,
+                                            m_panelRect.right, overlap.top });
+                }
+                if (overlap.bottom < m_panelRect.bottom)
+                {
+                    drawRects.push_back ({ m_panelRect.left, overlap.bottom,
+                                            m_panelRect.right, m_panelRect.bottom });
+                }
+                if (overlap.left > m_panelRect.left)
+                {
+                    drawRects.push_back ({ m_panelRect.left, overlap.top,
+                                            overlap.left, overlap.bottom });
+                }
+                if (overlap.right < m_panelRect.right)
+                {
+                    drawRects.push_back ({ overlap.right, overlap.top,
+                                            m_panelRect.right, overlap.bottom });
+                }
+            }
+        }
+
+        painter.SetGlobalAlpha (s_kTransparentPanelAlpha);
+        text.SetGlobalAlpha    (s_kTransparentPanelAlpha);
+        for (const RECT & r : drawRects)
+        {
+            painter.FillRect ((float) r.left,  (float) r.top,
+                              (float) (r.right - r.left),
+                              (float) (r.bottom - r.top),
+                              s_kPanelBgArgb);
+        }
+
+        // The focused control paints at full focus-alpha. m_displayPage.Paint
+        // walks every control; pass a nonFocused alpha of 0 so the others
+        // stay invisible regardless of where they landed. The focused
+        // control draws over the transparent zone if that's where it sits.
+        m_displayPage.Paint (painter, text, focusedControlId,
+                             0.0f, s_kTransparentFocusedAlpha);
+
         painter.SetGlobalAlpha (1.0f);
         text.SetGlobalAlpha    (1.0f);
         return;

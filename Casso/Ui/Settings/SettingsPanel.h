@@ -181,6 +181,12 @@ private:
     float               m_focusedAlpha       = 1.0f;      // animated 1.0 <-> 0.9
     int64_t             m_lastFrameMs        = 0;
     bool                m_previewOverlapsEmulatorOutput = false;
+    // Emulator content rect translated into Settings-window client
+    // coords (or {0,0,0,0} when there's no overlap). Used during
+    // transparency-mode paint to skip the panel chrome over the
+    // emulator so the underlying composition is 100%% transparent
+    // there.
+    RECT                m_emulatorOverlapClientRect = {};
 
     TabStrip            m_tabs;
     MachinePage         m_machinePage;
