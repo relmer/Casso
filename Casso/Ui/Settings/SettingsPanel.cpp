@@ -1418,23 +1418,41 @@ void SettingsPanel::CommitApply ()
     // to disk when the values changed from the baseline.
     if (m_prefs != nullptr)
     {
-        bool  brightnessChanged = (m_prefs->crt.brightness != m_baselineBrightness);
-        bool  contrastChanged   = (m_prefs->crt.contrast   != m_baselineContrast);
+        bool  brightnessChanged  = (m_prefs->crt.brightness         != m_baselineBrightness);
+        bool  contrastChanged    = (m_prefs->crt.contrast           != m_baselineContrast);
+        bool  scanEnChanged      = (m_prefs->crt.scanlinesEnabled   != m_baselineScanlinesEnabled);
+        bool  scanIntChanged     = (m_prefs->crt.scanlinesIntensity != m_baselineScanlinesIntensity);
+        bool  bloomEnChanged     = (m_prefs->crt.bloomEnabled       != m_baselineBloomEnabled);
+        bool  bloomRChanged      = (m_prefs->crt.bloomRadius        != m_baselineBloomRadius);
+        bool  bloomSChanged      = (m_prefs->crt.bloomStrength      != m_baselineBloomStrength);
+        bool  bleedEnChanged     = (m_prefs->crt.colorBleedEnabled  != m_baselineColorBleedEnabled);
+        bool  bleedWChanged      = (m_prefs->crt.colorBleedWidth    != m_baselineColorBleedWidth);
+        bool  anyCrtChanged      = brightnessChanged || contrastChanged ||
+                                   scanEnChanged     || scanIntChanged  ||
+                                   bloomEnChanged    || bloomRChanged   || bloomSChanged ||
+                                   bleedEnChanged    || bleedWChanged;
 
-        if (brightnessChanged || contrastChanged)
+        if (anyCrtChanged)
         {
             m_prefs->crt.userOverride = true;
         }
 
-        if (m_emuShell != nullptr && (brightnessChanged || contrastChanged))
+        if (m_emuShell != nullptr && anyCrtChanged)
         {
             HRESULT  hrSave = m_prefs->Save (m_emuShell->AssetBaseDir(), *m_fs);
 
             IGNORE_RETURN_VALUE (hrSave, S_OK);
         }
 
-        m_baselineBrightness = m_prefs->crt.brightness;
-        m_baselineContrast   = m_prefs->crt.contrast;
+        m_baselineBrightness         = m_prefs->crt.brightness;
+        m_baselineContrast           = m_prefs->crt.contrast;
+        m_baselineScanlinesEnabled   = m_prefs->crt.scanlinesEnabled;
+        m_baselineScanlinesIntensity = m_prefs->crt.scanlinesIntensity;
+        m_baselineBloomEnabled       = m_prefs->crt.bloomEnabled;
+        m_baselineBloomRadius        = m_prefs->crt.bloomRadius;
+        m_baselineBloomStrength      = m_prefs->crt.bloomStrength;
+        m_baselineColorBleedEnabled  = m_prefs->crt.colorBleedEnabled;
+        m_baselineColorBleedWidth    = m_prefs->crt.colorBleedWidth;
     }
     m_baselineColorMode = (int) m_state.Prefs().colorMode;
 

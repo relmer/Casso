@@ -219,7 +219,7 @@ public:
 
     TEST_METHOD (TintAmberMono_OnWhite_GivesAmber_NotBlue)
     {
-        // Amber is R=L, G=L*0.75, B=0. The bug under the old RGBA-in-
+        // Amber is R=L, G=L*0.82, B=0. The bug under the old RGBA-in-
         // BGRA code wrote B=L instead of R=L, producing a cyan-blue
         // pixel. This assertion would have caught that on day one.
         uint32_t  out = Casso::Video::TintAmberMono (
@@ -228,9 +228,9 @@ public:
         Assert::AreEqual (uint8_t (255), Casso::Video::ExtractR (out),
             L"Amber mono of white must put full luma in R "
             L"(not B — that bug renders as blue on screen)");
-        Assert::AreEqual (uint8_t (191), Casso::Video::ExtractG (out),
-            L"Amber mono of white must put 0.75 * luma in G "
-            L"(255 * 0.75 = 191.25 -> 191)");
+        Assert::AreEqual (uint8_t (209), Casso::Video::ExtractG (out),
+            L"Amber mono of white must put 0.82 * luma in G "
+            L"(255 * 0.82 = 209.1 -> 209)");
         Assert::AreEqual (uint8_t (0),   Casso::Video::ExtractB (out),
             L"Amber mono must zero B");
     }

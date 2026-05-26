@@ -40,8 +40,12 @@ namespace Casso::Video
 
     inline uint32_t TintAmberMono (uint32_t pixel)
     {
+        // R:G ratio of ~0.82 lands between the warmer P3 amber (~0.69)
+        // and a true yellow (~1.0). Earlier 0.75 read too orange in
+        // user testing on modern displays where the white point is
+        // bluer than NTSC-era CRTs.
         uint8_t  l = Luminance (pixel);
-        return MakePixel (l, static_cast<uint8_t> (l * 0.75f), 0);
+        return MakePixel (l, static_cast<uint8_t> (l * 0.82f), 0);
     }
 
     inline uint32_t TintWhiteMono (uint32_t pixel)

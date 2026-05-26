@@ -894,6 +894,35 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                                                          mergedJson)))
         {
             speedCmd = ResolveMachineSpeedCommand (mergedJson);
+
+            // Push the persisted colorMode into the running shell so
+            // the screen actually reflects what the user saved last
+            // session. Without this the live colorMode stays at its
+            // default until the user opens Settings -- which then
+            // makes Cancel snap the screen to the persisted value
+            // because the panel reads the baseline from prefs, not
+            // from the live shell state.
+            if (mergedJson.GetType() == JsonType::Object)
+            {
+                const JsonValue *  uiPrefs   = nullptr;
+                std::string        colorMode;
+                WORD               colorCmd  = 0;
+
+                if (SUCCEEDED (mergedJson.GetObject ("$cassoUiPrefs", uiPrefs)) &&
+                    uiPrefs != nullptr &&
+                    SUCCEEDED (uiPrefs->GetString ("colorMode", colorMode)))
+                {
+                    if      (colorMode == "color")  { colorCmd = IDM_VIEW_COLOR; }
+                    else if (colorMode == "green")  { colorCmd = IDM_VIEW_GREEN; }
+                    else if (colorMode == "amber")  { colorCmd = IDM_VIEW_AMBER; }
+                    else if (colorMode == "white")  { colorCmd = IDM_VIEW_WHITE; }
+
+                    if (colorCmd != 0)
+                    {
+                        m_shell.HandleCommand (colorCmd);
+                    }
+                }
+            }
         }
     }
 
