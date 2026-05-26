@@ -268,7 +268,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     // gap. All sliders are the same width so this lands at a single x
     // across every row; toggles use the same x even though their
     // controls don't extend that far.
-    m_indicatorX = controlsX + sliderWidth + scaler.Px (12);
+    m_indicatorX = controlsX + sliderWidth + scaler.Px (28);
 
     m_monitorLabel.SetDpi        (dpi);
     m_brightnessLabel.SetDpi     (dpi);
