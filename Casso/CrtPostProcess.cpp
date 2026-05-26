@@ -172,7 +172,12 @@ namespace
         "{\n"
         "    float3 cur  = texCurrent.Sample (sam, i.uv).rgb;\n"
         "    float3 prev = texPrev.Sample    (sam, i.uv).rgb;\n"
-        "    float3 decayed = prev * saturate (g_persistence);\n"
+        // The carry-over RT is 8-bit UNORM, so a pure prev*decay
+        // multiply quantizes back to the same byte once it gets
+        // small enough (1/255 * 0.8 rounds to 1/255 -- ghost forever).
+        // Subtracting ~1.5/255 after the multiply guarantees the
+        // value crosses to zero in finite time even at high decay.
+        "    float3 decayed = max (prev * saturate (g_persistence) - (1.5 / 255.0), 0.0);\n"
         "    return float4 (max (cur, decayed), 1.0);\n"
         "}\n";
 
