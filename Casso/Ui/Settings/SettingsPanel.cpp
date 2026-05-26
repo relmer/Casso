@@ -282,15 +282,18 @@ HRESULT SettingsPanel::Initialize (
     });
     m_displayPage.SetOnRestoreDefaults ([this] ()
     {
-        // Clear the active monitor's user override; MakeCrtParams will
-        // then resolve the chain (theme override > monitor preset >
-        // engine fallback) from scratch. Reseed the sliders so the
-        // user immediately sees the resolved defaults.
+        // Restore Defaults gives the user the MONITOR's hardware-correct
+        // preset values, bypassing any theme override. The theme is
+        // about chrome look (bezels, drives, fonts) -- the monitor
+        // preset is about phosphor characteristics -- so when the user
+        // explicitly asks for "defaults for this monitor type", they
+        // want amber's real scanlines / persistence, not whatever the
+        // active theme decided to wash them out with.
         if (m_prefs != nullptr)
         {
             auto &  blk = m_prefs->crtByMode[ActiveModeIdx()];
-            blk = GlobalUserPrefs::Crt {};        // struct-default = no override
-            blk.userOverride = false;
+            blk = CrtPresets::ForMode ((size_t) ActiveModeIdx());
+            blk.userOverride = true;
         }
         ReseedDisplayCrtFromActiveMode();
     });
