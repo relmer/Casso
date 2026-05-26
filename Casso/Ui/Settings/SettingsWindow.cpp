@@ -3,6 +3,9 @@
 #include "SettingsWindow.h"
 #include "SettingsPanel.h"
 
+#include "../../resource.h"
+#include "../Win11DwmHelpers.h"
+
 
 
 
@@ -135,6 +138,32 @@ HRESULT SettingsWindow::Create (
 
     ok = SetWindowTextW (hwndCreated, s_kpszSettingsWindowTitle);
     CWRA (ok);
+
+    // Match the main Casso window's dark caption (the title bar
+    // theming the user actually wanted is a follow-up -- this is the
+    // quick win so the white default title bar doesn't stand out
+    // against the dark settings content).
+    Win11DwmHelpers::ApplyImmersiveDarkMode (hwndCreated, true);
+
+    // Use the Casso app icon for the system menu / taskbar grouping
+    // hover preview / Win+Tab thumbnails. Owned popups don't show a
+    // separate taskbar entry but the icon still appears in those
+    // surfaces. Small + big variants are recommended; LoadIconW picks
+    // the right size for each WM_SETICON message.
+    {
+        HICON  hIconSmall = (HICON) LoadImageW (m_hInstance, MAKEINTRESOURCEW (IDI_CASSO),
+                                                IMAGE_ICON,
+                                                GetSystemMetrics (SM_CXSMICON),
+                                                GetSystemMetrics (SM_CYSMICON),
+                                                LR_DEFAULTCOLOR);
+        HICON  hIconBig   = (HICON) LoadImageW (m_hInstance, MAKEINTRESOURCEW (IDI_CASSO),
+                                                IMAGE_ICON,
+                                                GetSystemMetrics (SM_CXICON),
+                                                GetSystemMetrics (SM_CYICON),
+                                                LR_DEFAULTCOLOR);
+        if (hIconSmall != nullptr) { SendMessageW (hwndCreated, WM_SETICON, ICON_SMALL, (LPARAM) hIconSmall); }
+        if (hIconBig   != nullptr) { SendMessageW (hwndCreated, WM_SETICON, ICON_BIG,   (LPARAM) hIconBig);   }
+    }
 
     ShowWindow (hwndCreated, SW_SHOWNORMAL);
     SetForegroundWindow (hwndCreated);
@@ -640,6 +669,8 @@ SIZE SettingsWindow::GetPreferredClientSize (UINT dpi) const
 
 RECT SettingsWindow::GetInitialWindowRect (HWND hwndOwner, UINT dpi) const
 {
+    constexpr int  s_kSideGapPx = 8;
+
     RECT         windowRect = {};
     RECT         ownerRect  = {};
     RECT         workRect   = {};
@@ -650,17 +681,17 @@ RECT SettingsWindow::GetInitialWindowRect (HWND hwndOwner, UINT dpi) const
     int          height     = 0;
     int          x          = 0;
     int          y          = 0;
-    BOOL         ok         = FALSE;
+    bool         ownerKnown = false;
 
 
 
     windowRect = { 0, 0, client.cx, client.cy };
     AdjustWindowRectExForDpi (&windowRect, s_kSettingsWindowStyle, FALSE, s_kSettingsWindowExStyle, dpi);
 
-    width   = windowRect.right  - windowRect.left;
-    height  = windowRect.bottom - windowRect.top;
-    ok      = GetWindowRect (hwndOwner, &ownerRect);
-    monitor = MonitorFromWindow (hwndOwner, MONITOR_DEFAULTTONEAREST);
+    width      = windowRect.right  - windowRect.left;
+    height     = windowRect.bottom - windowRect.top;
+    ownerKnown = (GetWindowRect (hwndOwner, &ownerRect) != FALSE);
+    monitor    = MonitorFromWindow (hwndOwner, MONITOR_DEFAULTTONEAREST);
     if (monitor != nullptr && GetMonitorInfoW (monitor, &mi))
     {
         workRect = mi.rcWork;
@@ -670,7 +701,20 @@ RECT SettingsWindow::GetInitialWindowRect (HWND hwndOwner, UINT dpi) const
         workRect = ownerRect;
     }
 
-    if (ok)
+    // Side-prefer placement: try right of owner first, then left,
+    // then fall back to centered overlap if neither side fits on the
+    // current monitor's work area without clipping.
+    if (ownerKnown && ownerRect.right + s_kSideGapPx + width <= workRect.right)
+    {
+        x = ownerRect.right + s_kSideGapPx;
+        y = ownerRect.top;
+    }
+    else if (ownerKnown && ownerRect.left - s_kSideGapPx - width >= workRect.left)
+    {
+        x = ownerRect.left - s_kSideGapPx - width;
+        y = ownerRect.top;
+    }
+    else if (ownerKnown)
     {
         x = ownerRect.left + (ownerRect.right  - ownerRect.left - width)  / s_kCenterDivisor;
         y = ownerRect.top  + (ownerRect.bottom - ownerRect.top  - height) / s_kCenterDivisor;
