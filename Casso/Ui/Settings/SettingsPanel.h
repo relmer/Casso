@@ -77,6 +77,7 @@ public:
     SIZE    PreferredClientSize (UINT dpi) const;
     bool    IsVisible () const { return m_visible; }
     bool    IsPreviewTransparencyActive() const;
+    RECT    GetFocusedControlClientRect() const;
 
     // Render + input routing. The owned settings popup composites Paint
     // into its own swap chain; the routing helpers consume popup-local
@@ -157,9 +158,9 @@ private:
     int                   m_baselineColorMode = -1;
 
     // Live-preview state machine. While a slider is dragged or a
-    // dropdown is open, the panel fades out so the user can see the
-    // emulator respond to the change. Keyboard-driven changes auto-
-    // dismiss the preview 500ms after the last keystroke.
+    // dropdown is open, the renderer can reveal the emulator under the
+    // settings window. Keyboard-driven changes auto-dismiss the preview
+    // 500ms after the last keystroke.
     enum class PreviewFocus
     {
         None              = 0,
@@ -177,15 +178,13 @@ private:
     PreviewFocus        m_previewFocus       = PreviewFocus::None;
     bool                m_previewKeyboard    = false;     // true => auto-end via idle timer
     int64_t             m_lastInteractionMs  = 0;
-    float               m_panelAlpha         = 1.0f;      // animated 1.0 <-> 0.0
-    float               m_focusedAlpha       = 1.0f;      // animated 1.0 <-> 0.9
+    float               m_panelAlpha         = 1.0f;
+    float               m_focusedAlpha       = 1.0f;
     int64_t             m_lastFrameMs        = 0;
     bool                m_previewOverlapsEmulatorOutput = false;
     // Emulator content rect translated into Settings-window client
-    // coords (or {0,0,0,0} when there's no overlap). Used during
-    // transparency-mode paint to skip the panel chrome over the
-    // emulator so the underlying composition is 100%% transparent
-    // there.
+    // coords (or {0,0,0,0} when there's no overlap). The renderer
+    // uses it to clip the transparency compose pass per pixel.
     RECT                m_emulatorOverlapClientRect = {};
 
     TabStrip            m_tabs;

@@ -9,9 +9,9 @@ Entries before versioning was introduced use dates only.
 ## [1.3.952] — UI overhaul (spec 007)
 
 ### Added
-- **feat(settings): Display-page live preview uses per-pixel alpha when the
-  Settings popup overlaps the emulator output, making the covered emulator
-  content fully visible while the focused CRT control remains visible.**
+- **feat(settings): Display-page live preview uses a gaussian-blurred dark
+  overlay with per-pixel emulator clipping when the Settings popup overlaps
+  the emulator output, keeping only the focused CRT control sharp.**
 - **feat(menus,settings): menu restructure and settings relocation.**
   - File, Machine, Disk, View, Help, and the new Debug nav menu now
     group commands by user workflow: machine info moved to Settings →
