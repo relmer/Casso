@@ -6,8 +6,8 @@
 //   darkening kernel only. The original crt-pi shader also performs subpixel
 //   mask emulation and a curvature warp; both are omitted in this v1 port to
 //   keep the kernel a single ALU-cheap pass. Brightness is applied upstream
-//   in the brightness pass, so this pass only darkens per scanline based on
-//   the fragment row in *output* pixel space.
+//   in the brightness pass, so this pass only darkens between emulated
+//   scanlines based on the fragment's position in *emulated* scanline space.
 
 Texture2D    tex : register(t0);
 SamplerState sam : register(s0);
@@ -30,16 +30,27 @@ struct PSInput
     float2 uv  : TEXCOORD;
 };
 
+// Apple II native vertical resolution. The CPU framebuffer is 2x this
+// (pixel-doubled to 384 rows so the 4:3 aspect math works out), but for
+// scanline emulation we want one dark line per ORIGINAL raster line.
+static const float kNativeScanlines = 192.0;
+
 float4 main (PSInput i) : SV_TARGET
 {
     float4 c = tex.Sample (sam, i.uv);
 
-    // Output-space row index. pos.y is the rasterized pixel center.
-    // Darken every other row by (1 - intensity*amp). amp follows a
-    // cosine so the bright lines don't get aliased hard edges.
-    float row    = i.pos.y;
-    float wave   = 0.5 + 0.5 * cos (row * 3.14159265);
-    float darken = 1.0 - g_scanlineIntensity * wave * 0.6;
+    // UV runs 0..1 over the visible content rect; uv.y * kNativeScanlines
+    // gives the fractional emulated scanline index. A full cosine cycle
+    // per emulated line draws one bright phosphor stripe + one dark gap.
+    // sin^2 gives a smoother phosphor-glow falloff than a raw cosine.
+    float linePos = i.uv.y * kNativeScanlines;
+    float gap     = sin (linePos * 3.14159265);     // 0 at top of line, 1 at middle
+    float bright  = gap * gap;                       // sharper peak in the middle
+
+    // intensity == 1 means the gap rows go fully black; intensity == 0
+    // is a pass-through. No fudge multiplier -- "100%" should actually
+    // mean "100% scanlines".
+    float darken  = lerp (1.0 - g_scanlineIntensity, 1.0, bright);
 
     c.rgb *= darken;
     return c;
