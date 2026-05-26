@@ -16,12 +16,15 @@
 
 namespace
 {
-    constexpr int    s_kRowHeightDp     = 26;
+    // Match MachinePage's row spacing exactly so the two pages feel
+    // consistent when the user tabs between them.
+    constexpr int    s_kRowHeightDp     = 28;
     constexpr int    s_kLabelWidthDp    = 140;
     constexpr int    s_kDropdownWidthDp = 220;
-    constexpr int    s_kSliderWidthDp   = 260;
-    constexpr int    s_kSectionGapDp    = 8;
-    constexpr int    s_kPagePadDp       = 12;
+    constexpr int    s_kSliderWidthDp   = 280;
+    constexpr int    s_kSectionGapDp    = 14;       // gap between adjacent rows
+    constexpr int    s_kBigSectionGapDp = 22;       // gap between distinct "sections"
+    constexpr int    s_kPagePadDp       = 16;
 
 
     RECT MakeRect (int l, int t, int w, int h)
@@ -106,22 +109,31 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     int   sliderWidth  = scaler.Px (s_kSliderWidthDp);
     int   togglePillW  = scaler.Px (70);            // wide enough for "Off" / "On" text
     int   sectionGap   = scaler.Px (s_kSectionGapDp);
-    int   tightGap     = scaler.Px (4);
+    int   bigGap       = scaler.Px (s_kBigSectionGapDp);
     int   x            = rect.left + pad;
     int   y            = rect.top  + pad;
-    int   controlsX    = x + labelWidth;
-    int   subLabelW    = scaler.Px (110);           // narrower for sub-parameters
-    int   subCtrlX     = x + scaler.Px (24) + subLabelW;
+    int   controlsX    = x + labelWidth;        // every control starts here
 
 
 
+    // Monitor row + Restore defaults button (sharing this row so the
+    // button doesn't break the "all sliders aligned" promise below).
     m_monitorLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_monitorLabel.SetText (L"Monitor:");
     m_monitor.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
     m_monitor.SetItems ({ L"Color", L"Green monochrome", L"Amber monochrome", L"White monochrome" });
     m_monitorRowRect = MakeRect (x, y, (controlsX + dropWidth) - x, rowHeight);
+
+    {
+        int  btnWidth  = scaler.Px (140);
+        int  btnX      = controlsX + dropWidth + scaler.Px (16);
+        m_restore.Layout   (MakeRect (btnX, y, btnWidth, rowHeight));
+        m_restore.SetLabel (L"Restore defaults");
+        m_restoreRowRect = MakeRect (btnX, y, btnWidth, rowHeight);
+    }
     y += rowHeight + sectionGap;
 
+    // Brightness / Contrast / Gamma -- consistent column alignment.
     m_brightnessLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_brightnessLabel.SetText (L"Brightness:");
     m_brightness.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
@@ -144,81 +156,83 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
 
     m_gammaLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_gammaLabel.SetText (L"Gamma:");
-    m_gamma.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
-    m_gamma.SetRange     (1.4f, 2.4f);
-    m_gamma.SetStep      (0.1f);
-    m_gamma.SetSuffix    (L"");
-    m_gamma.SetShowTicks (true);
+    m_gamma.SetRect           (MakeRect (controlsX, y, sliderWidth, rowHeight));
+    m_gamma.SetRange          (1.4f, 2.4f);
+    m_gamma.SetStep           (0.1f);
+    m_gamma.SetSuffix         (L"");
+    m_gamma.SetShowValue      (true);     // dimensionless; opt in to readout
+    m_gamma.SetDecimalPlaces  (1);
+    m_gamma.SetShowTicks      (true);
     m_gammaRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
-    y += rowHeight + sectionGap;
+    y += rowHeight + bigGap;
 
-    // --- Scanlines section (toggle on the value column, label on the left) ---
+    // Scanlines section: enable on the toggle row, intensity slider on
+    // the next row -- both at controlsX so the slider value text aligns
+    // with every other slider above and below.
     m_scanlinesLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_scanlinesLabel.SetText (L"Scanlines:");
     m_scanlinesEn.SetRect    (MakeRect (controlsX, y, togglePillW, rowHeight));
-    m_scanlinesEn.SetLabel   (L"");                                   // empty -> Toggle paints On/Off
+    m_scanlinesEn.SetLabel   (L"");
     m_scanlinesEnRowRect = MakeRect (x, y, (controlsX + togglePillW) - x, rowHeight);
-    y += rowHeight + tightGap;
+    y += rowHeight + sectionGap;
 
-    m_scanlinesIntLabel.SetRect (MakeRect (x + scaler.Px (24), y, subLabelW, rowHeight));
-    m_scanlinesIntLabel.SetText (L"Intensity:");
-    m_scanlinesInt.SetRect      (MakeRect (subCtrlX, y, sliderWidth, rowHeight));
+    m_scanlinesIntLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_scanlinesIntLabel.SetText (L"  Intensity:");
+    m_scanlinesInt.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_scanlinesInt.SetRange     (0.0f, 100.0f);
     m_scanlinesInt.SetStep      (10.0f);
     m_scanlinesInt.SetSuffix    (L"%");
     m_scanlinesInt.SetShowTicks (true);
-    m_scanlinesIntRowRect = MakeRect (x, y, (subCtrlX + sliderWidth) - x, rowHeight);
-    y += rowHeight + sectionGap;
+    m_scanlinesIntRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
+    y += rowHeight + bigGap;
 
-    // --- Bloom section ---
+    // Bloom section
     m_bloomLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_bloomLabel.SetText (L"Bloom:");
     m_bloomEn.SetRect    (MakeRect (controlsX, y, togglePillW, rowHeight));
     m_bloomEn.SetLabel   (L"");
     m_bloomEnRowRect = MakeRect (x, y, (controlsX + togglePillW) - x, rowHeight);
-    y += rowHeight + tightGap;
+    y += rowHeight + sectionGap;
 
-    m_bloomRadiusLabel.SetRect (MakeRect (x + scaler.Px (24), y, subLabelW, rowHeight));
-    m_bloomRadiusLabel.SetText (L"Radius:");
-    m_bloomRadius.SetRect      (MakeRect (subCtrlX, y, sliderWidth, rowHeight));
+    m_bloomRadiusLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_bloomRadiusLabel.SetText (L"  Radius:");
+    m_bloomRadius.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_bloomRadius.SetRange     (0.0f, 10.0f);
     m_bloomRadius.SetStep      (1.0f);
     m_bloomRadius.SetSuffix    (L" px");
     m_bloomRadius.SetShowTicks (true);
-    m_bloomRadiusRowRect = MakeRect (x, y, (subCtrlX + sliderWidth) - x, rowHeight);
-    y += rowHeight + tightGap;
+    m_bloomRadiusRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
+    y += rowHeight + sectionGap;
 
-    m_bloomStrengthLabel.SetRect (MakeRect (x + scaler.Px (24), y, subLabelW, rowHeight));
-    m_bloomStrengthLabel.SetText (L"Strength:");
-    m_bloomStrength.SetRect      (MakeRect (subCtrlX, y, sliderWidth, rowHeight));
+    m_bloomStrengthLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_bloomStrengthLabel.SetText (L"  Strength:");
+    m_bloomStrength.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_bloomStrength.SetRange     (0.0f, 100.0f);
     m_bloomStrength.SetStep      (10.0f);
     m_bloomStrength.SetSuffix    (L"%");
     m_bloomStrength.SetShowTicks (true);
-    m_bloomStrengthRowRect = MakeRect (x, y, (subCtrlX + sliderWidth) - x, rowHeight);
-    y += rowHeight + sectionGap;
+    m_bloomStrengthRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
+    y += rowHeight + bigGap;
 
-    // --- Color bleed section ---
+    // Color bleed section
     m_colorBleedLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_colorBleedLabel.SetText (L"Color bleed:");
     m_colorBleedEn.SetRect    (MakeRect (controlsX, y, togglePillW, rowHeight));
     m_colorBleedEn.SetLabel   (L"");
     m_colorBleedEnRowRect = MakeRect (x, y, (controlsX + togglePillW) - x, rowHeight);
-    y += rowHeight + tightGap;
+    y += rowHeight + sectionGap;
 
-    m_colorBleedWLabel.SetRect (MakeRect (x + scaler.Px (24), y, subLabelW, rowHeight));
-    m_colorBleedWLabel.SetText (L"Width:");
-    m_colorBleedW.SetRect      (MakeRect (subCtrlX, y, sliderWidth, rowHeight));
+    m_colorBleedWLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_colorBleedWLabel.SetText (L"  Width:");
+    m_colorBleedW.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_colorBleedW.SetRange     (0.0f, 8.0f);
     m_colorBleedW.SetStep      (1.0f);
     m_colorBleedW.SetSuffix    (L" px");
     m_colorBleedW.SetShowTicks (true);
-    m_colorBleedWRowRect = MakeRect (x, y, (subCtrlX + sliderWidth) - x, rowHeight);
-    y += rowHeight + sectionGap;
+    m_colorBleedWRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
+    y += rowHeight + bigGap;
 
-    // --- Persistence (single slider, no enable toggle -- 0% IS disabled) ---
-    // Restore button shares this row, hugging the right edge of the slider
-    // column so we save a vertical row.
+    // Persistence (single slider, no enable toggle -- 0% is "off")
     m_persistenceLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_persistenceLabel.SetText (L"Persistence:");
     m_persistence.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
@@ -227,16 +241,6 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_persistence.SetSuffix    (L"%");
     m_persistence.SetShowTicks (true);
     m_persistenceRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
-
-    {
-        int  btnWidth  = scaler.Px (140);
-        int  btnHeight = rowHeight;
-        int  btnX      = controlsX + sliderWidth + scaler.Px (60);     // gap after the slider's value text
-
-        m_restore.Layout   (MakeRect (btnX, y, btnWidth, btnHeight));
-        m_restore.SetLabel (L"Restore defaults");
-        m_restoreRowRect = MakeRect (btnX, y, btnWidth, btnHeight);
-    }
 
     m_monitorLabel.SetDpi        (dpi);
     m_brightnessLabel.SetDpi     (dpi);

@@ -44,7 +44,9 @@ public:
     void   SetRange   (float minValue, float maxValue);
     void   SetStep    (float step) { m_step = step; }
     void   SetValue   (float value);
-    void   SetSuffix  (const std::wstring & suffix) { m_suffix = suffix; }
+    void   SetSuffix  (const std::wstring & suffix) { m_suffix = suffix; m_explicitShowValue = true; m_showValue = true; }
+    void   SetShowValue (bool show) { m_explicitShowValue = true; m_showValue = show; }
+    void   SetDecimalPlaces (int places) { m_decimalPlaces = places; }
     void   SetShowTicks (bool show) { m_showTicks = show; }
     void   SetDpi     (UINT dpi) { m_scaler.SetDpi (dpi); }
     void   SetEnabled (bool enabled) { m_enabled = enabled; if (!enabled) { m_dragging = false; m_hover = false; } }
@@ -93,4 +95,7 @@ private:
     bool           m_hover    = false;
     bool           m_dragging = false;
     bool           m_showTicks = true;
+    bool           m_showValue = false;
+    bool           m_explicitShowValue = false;
+    int            m_decimalPlaces = 0;
 };

@@ -359,7 +359,7 @@ void Slider::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     constexpr wchar_t   s_kFont[]           = L"Segoe UI";
 
     HRESULT  hr            = S_OK;
-    bool     showValue     = !m_suffix.empty();
+    bool     showValue     = m_explicitShowValue ? m_showValue : !m_suffix.empty();
     float    trackHeight   = m_scaler.Pxf (s_kTrackHeightDp);
     float    tickHeight    = m_scaler.Pxf (s_kTickHeightDp);
     float    tickGap       = m_scaler.Pxf (s_kTickGapDp);
@@ -425,9 +425,18 @@ void Slider::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     if (showValue)
     {
         wchar_t  buf[32] = {};
-        int      pct     = (int) std::round (m_value);
 
-        swprintf_s (buf, L"%d%ls", pct, m_suffix.c_str());
+        if (m_decimalPlaces > 0)
+        {
+            wchar_t  fmt[16] = {};
+            swprintf_s (fmt, L"%%.%dlf%%ls", m_decimalPlaces);
+            swprintf_s (buf, fmt, (double) m_value, m_suffix.c_str());
+        }
+        else
+        {
+            int  pct = (int) std::round (m_value);
+            swprintf_s (buf, L"%d%ls", pct, m_suffix.c_str());
+        }
 
         IGNORE_RETURN_VALUE (hr, text.DrawString (buf,
                                                   trackLeft + trackAvailW + valueGap,
