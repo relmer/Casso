@@ -95,6 +95,26 @@ void DisplayPage::SetInitialCrt (const GlobalUserPrefsCrtSnapshot & snap)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisplayPage::SetDefaultsHint
+//
+//  SettingsPanel passes the resolved per-control defaults whenever the
+//  active monitor changes (or Restore Defaults is hit) so Paint can
+//  decorate each row with "(theme default)" or "(monitor default)"
+//  when the current control value matches the default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisplayPage::SetDefaultsHint (const DisplayDefaultsHint & hint)
+{
+    m_hint = hint;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisplayPage::Layout
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -241,6 +261,12 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_persistence.SetSuffix    (L"%");
     m_persistence.SetShowTicks (true);
     m_persistenceRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
+
+    // Indicator column starts past the slider's right edge with a fixed
+    // gap. All sliders are the same width so this lands at a single x
+    // across every row; toggles use the same x even though their
+    // controls don't extend that far.
+    m_indicatorX = controlsX + sliderWidth + scaler.Px (12);
 
     m_monitorLabel.SetDpi        (dpi);
     m_brightnessLabel.SetDpi     (dpi);
@@ -575,6 +601,11 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
                          float focusedAlpha) const
 {
     constexpr uint32_t  s_kFocusedBackingArgb = 0xFF202830;   // dark grey, near-opaque
+    constexpr uint32_t  s_kIndicatorArgb      = 0xFF7A8FA5;   // muted blue-grey
+    constexpr float     s_kIndicatorFontDip   = 12.0f;
+    constexpr float     s_kIndicatorWidthDip  = 140.0f;
+    constexpr wchar_t   s_kFont[]             = L"Segoe UI";
+    constexpr float     s_kFloatEpsilon       = 0.001f;
 
     auto  SetAlphaFor = [&] (int control)
     {
@@ -594,6 +625,33 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
         }
     };
 
+    auto  DrawIndicator = [&] (const RECT & rowRect, bool matchesDefault, bool themeOwned)
+    {
+        HRESULT          hrLocal = S_OK;
+        const wchar_t *  label   = themeOwned ? L"(theme default)" : L"(monitor default)";
+
+        if (! matchesDefault)
+        {
+            return;
+        }
+        IGNORE_RETURN_VALUE (hrLocal,
+                             text.DrawString (label,
+                                              (float) m_indicatorX,
+                                              (float) rowRect.top,
+                                              s_kIndicatorWidthDip,
+                                              (float) (rowRect.bottom - rowRect.top),
+                                              s_kIndicatorArgb,
+                                              s_kIndicatorFontDip,
+                                              s_kFont,
+                                              DwriteTextRenderer::HAlign::Left,
+                                              DwriteTextRenderer::VAlign::Center));
+    };
+
+    auto  FloatMatches = [&] (float a, float b)
+    {
+        return std::fabs (a - b) < s_kFloatEpsilon;
+    };
+
 
 
     SetAlphaFor (kControlMonitor);
@@ -605,52 +663,85 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
     PaintBackingIfFocused (kControlBrightness, m_brightnessRowRect);
     m_brightnessLabel.Paint (painter, text);
     m_brightness.Paint      (painter, text);
+    DrawIndicator (m_brightnessRowRect,
+                   FloatMatches (m_brightness.Value() / 100.0f, m_hint.values.brightness),
+                   m_hint.brightnessFromTheme);
 
     SetAlphaFor (kControlContrast);
     PaintBackingIfFocused (kControlContrast, m_contrastRowRect);
     m_contrastLabel.Paint   (painter, text);
     m_contrast.Paint        (painter, text);
+    DrawIndicator (m_contrastRowRect,
+                   FloatMatches (m_contrast.Value() / 100.0f, m_hint.values.contrast),
+                   m_hint.contrastFromTheme);
 
     SetAlphaFor (kControlGamma);
     PaintBackingIfFocused (kControlGamma, m_gammaRowRect);
     m_gammaLabel.Paint      (painter, text);
     m_gamma.Paint           (painter, text);
+    DrawIndicator (m_gammaRowRect,
+                   FloatMatches (m_gamma.Value(), m_hint.values.gamma),
+                   false);  // gamma is never theme-owned
 
     // Scanlines section: label in the left column, toggle in the value column.
     SetAlphaFor (-1);
     m_scanlinesLabel.Paint (painter, text);
     m_scanlinesEn.Paint    (painter, text);
+    DrawIndicator (m_scanlinesEnRowRect,
+                   m_scanlinesEn.Checked() == m_hint.values.scanlinesEnabled,
+                   m_hint.scanlinesFromTheme);
     SetAlphaFor (kControlScanlinesInt);
     PaintBackingIfFocused (kControlScanlinesInt, m_scanlinesIntRowRect);
     m_scanlinesIntLabel.Paint (painter, text);
     m_scanlinesInt.Paint      (painter, text);
+    DrawIndicator (m_scanlinesIntRowRect,
+                   FloatMatches (m_scanlinesInt.Value() / 100.0f, m_hint.values.scanlinesIntensity),
+                   m_hint.scanlinesFromTheme);
 
     // Bloom section
     SetAlphaFor (-1);
     m_bloomLabel.Paint (painter, text);
     m_bloomEn.Paint    (painter, text);
+    DrawIndicator (m_bloomEnRowRect,
+                   m_bloomEn.Checked() == m_hint.values.bloomEnabled,
+                   m_hint.bloomFromTheme);
     SetAlphaFor (kControlBloomRadius);
     PaintBackingIfFocused (kControlBloomRadius, m_bloomRadiusRowRect);
     m_bloomRadiusLabel.Paint (painter, text);
     m_bloomRadius.Paint      (painter, text);
+    DrawIndicator (m_bloomRadiusRowRect,
+                   FloatMatches (m_bloomRadius.Value(), m_hint.values.bloomRadius),
+                   m_hint.bloomFromTheme);
     SetAlphaFor (kControlBloomStrength);
     PaintBackingIfFocused (kControlBloomStrength, m_bloomStrengthRowRect);
     m_bloomStrengthLabel.Paint (painter, text);
     m_bloomStrength.Paint      (painter, text);
+    DrawIndicator (m_bloomStrengthRowRect,
+                   FloatMatches (m_bloomStrength.Value() / 100.0f, m_hint.values.bloomStrength),
+                   m_hint.bloomFromTheme);
 
     // Color-bleed section
     SetAlphaFor (-1);
     m_colorBleedLabel.Paint (painter, text);
     m_colorBleedEn.Paint    (painter, text);
+    DrawIndicator (m_colorBleedEnRowRect,
+                   m_colorBleedEn.Checked() == m_hint.values.colorBleedEnabled,
+                   m_hint.colorBleedFromTheme);
     SetAlphaFor (kControlColorBleedW);
     PaintBackingIfFocused (kControlColorBleedW, m_colorBleedWRowRect);
     m_colorBleedWLabel.Paint (painter, text);
     m_colorBleedW.Paint      (painter, text);
+    DrawIndicator (m_colorBleedWRowRect,
+                   FloatMatches (m_colorBleedW.Value(), m_hint.values.colorBleedWidth),
+                   m_hint.colorBleedFromTheme);
 
     SetAlphaFor (kControlPersistence);
     PaintBackingIfFocused (kControlPersistence, m_persistenceRowRect);
     m_persistenceLabel.Paint (painter, text);
     m_persistence.Paint      (painter, text);
+    DrawIndicator (m_persistenceRowRect,
+                   FloatMatches (m_persistence.Value() / 100.0f, m_hint.values.persistence),
+                   false);  // persistence is never theme-owned
 
     SetAlphaFor (-1);
     {

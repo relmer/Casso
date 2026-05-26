@@ -666,6 +666,83 @@ void SettingsPanel::ReseedDisplayCrtFromActiveMode ()
         }
     }
     m_displayPage.SetInitialCrt (snap);
+
+    // Re-publish the per-control defaults hint so DisplayPage knows
+    // which value counts as "the default" and can render the
+    // (theme default) / (monitor default) badge in each row.
+    PublishDisplayDefaultsHint();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PublishDisplayDefaultsHint
+//
+//  Computes the resolved default value (theme override layered on
+//  monitor preset) for each Display-page control and pushes the
+//  snapshot to DisplayPage. Theme schema doesn't carry gamma or
+//  persistence, so those are always reported as monitor-owned.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::PublishDisplayDefaultsHint ()
+{
+    DisplayDefaultsHint  hint;
+
+    if (m_prefs == nullptr)
+    {
+        m_displayPage.SetDefaultsHint (hint);
+        return;
+    }
+
+    int                       idx           = ActiveModeIdx();
+    const auto &              preset        = CrtPresets::ForMode ((size_t) idx);
+    const ThemeCrtDefaults *  themeDefaults = nullptr;
+    if (m_themes != nullptr)
+    {
+        const LoadedTheme *  active = m_themes->GetActiveTheme();
+        if (active != nullptr)
+        {
+            themeDefaults = &active->crtDefaults;
+        }
+    }
+
+    // Start from the monitor preset for every field.
+    hint.values.brightness         = preset.brightness;
+    hint.values.contrast           = preset.contrast;
+    hint.values.gamma              = preset.gamma;
+    hint.values.persistence        = preset.persistence;
+    hint.values.scanlinesEnabled   = preset.scanlinesEnabled;
+    hint.values.scanlinesIntensity = preset.scanlinesIntensity;
+    hint.values.bloomEnabled       = preset.bloomEnabled;
+    hint.values.bloomRadius        = preset.bloomRadius;
+    hint.values.bloomStrength      = preset.bloomStrength;
+    hint.values.colorBleedEnabled  = preset.colorBleedEnabled;
+    hint.values.colorBleedWidth    = preset.colorBleedWidth;
+
+    // Layer theme overrides for the field-groups the theme owns.
+    if (themeDefaults != nullptr)
+    {
+        hint.values.brightness         = themeDefaults->brightness;
+        hint.values.contrast           = themeDefaults->contrast;
+        hint.values.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
+        hint.values.scanlinesIntensity = themeDefaults->scanlinesIntensity;
+        hint.values.bloomEnabled       = themeDefaults->bloomEnabled;
+        hint.values.bloomRadius        = themeDefaults->bloomRadius;
+        hint.values.bloomStrength      = themeDefaults->bloomStrength;
+        hint.values.colorBleedEnabled  = themeDefaults->colorBleedEnabled;
+        hint.values.colorBleedWidth    = themeDefaults->colorBleedWidth;
+        hint.brightnessFromTheme       = true;
+        hint.contrastFromTheme         = true;
+        hint.scanlinesFromTheme        = true;
+        hint.bloomFromTheme            = true;
+        hint.colorBleedFromTheme       = true;
+    }
+
+    m_displayPage.SetDefaultsHint (hint);
 }
 
 

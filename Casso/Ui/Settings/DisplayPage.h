@@ -29,6 +29,43 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+// Snapshot struct used by SettingsPanel to seed DisplayPage with the
+// full set of CRT values at Show() time. Mirrors GlobalUserPrefs::Crt
+// minus the userOverride bookkeeping field.
+struct GlobalUserPrefsCrtSnapshot
+{
+    float    brightness          = 1.0f;
+    float    contrast            = 1.0f;
+    float    gamma               = 2.2f;
+    float    persistence         = 0.0f;
+    bool     scanlinesEnabled    = false;
+    float    scanlinesIntensity  = 0.5f;
+    bool     bloomEnabled        = false;
+    float    bloomRadius         = 1.0f;
+    float    bloomStrength       = 0.5f;
+    bool     colorBleedEnabled   = false;
+    float    colorBleedWidth     = 1.0f;
+};
+
+
+// Per-control "what is the current default" snapshot. Each value is
+// the resolved default for this monitor (theme override if the active
+// theme defines that field-group, else the monitor preset). The
+// *FromTheme flags say which source won, so DisplayPage can render
+// "(theme default)" vs "(monitor default)" next to controls whose
+// current value matches the default. Theme schema does NOT carry
+// gamma or persistence -- those are always monitor-owned.
+struct DisplayDefaultsHint
+{
+    GlobalUserPrefsCrtSnapshot  values;
+    bool  brightnessFromTheme    = false;
+    bool  contrastFromTheme      = false;
+    bool  scanlinesFromTheme     = false;
+    bool  bloomFromTheme         = false;
+    bool  colorBleedFromTheme    = false;
+};
+
+
 class DisplayPage
 {
 public:
@@ -62,6 +99,7 @@ public:
 
     void  SetState              (SettingsPanelState * state);
     void  SetInitialCrt         (const struct GlobalUserPrefsCrtSnapshot & snap);
+    void  SetDefaultsHint       (const struct DisplayDefaultsHint        & hint);
     void  SetOnBrightnessChange     (BrightnessFn    fn) { m_onBrightness    = std::move (fn); }
     void  SetOnContrastChange       (ContrastFn      fn) { m_onContrast      = std::move (fn); }
     void  SetOnGammaChange          (GammaFn         fn) { m_onGamma         = std::move (fn); }
@@ -116,6 +154,7 @@ public:
 
 private:
     SettingsPanelState  * m_state = nullptr;
+    DisplayDefaultsHint   m_hint  = {};
     BrightnessFn          m_onBrightness;
     ContrastFn            m_onContrast;
     GammaFn               m_onGamma;
@@ -173,23 +212,5 @@ private:
     RECT                  m_colorBleedEnRowRect  = {};
     RECT                  m_colorBleedWRowRect   = {};
     RECT                  m_restoreRowRect       = {};
-};
-
-
-// Snapshot struct used by SettingsPanel to seed DisplayPage with the
-// full set of CRT values at Show() time. Mirrors GlobalUserPrefs::Crt
-// minus the userOverride bookkeeping field.
-struct GlobalUserPrefsCrtSnapshot
-{
-    float    brightness          = 1.0f;
-    float    contrast            = 1.0f;
-    float    gamma               = 2.2f;
-    float    persistence         = 0.0f;
-    bool     scanlinesEnabled    = false;
-    float    scanlinesIntensity  = 0.5f;
-    bool     bloomEnabled        = false;
-    float    bloomRadius         = 1.0f;
-    float    bloomStrength       = 0.5f;
-    bool     colorBleedEnabled   = false;
-    float    colorBleedWidth     = 1.0f;
+    int                   m_indicatorX           = 0;
 };
