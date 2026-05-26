@@ -7,6 +7,10 @@
 #include "../DxUiPainter.h"
 
 
+class TitleBar;
+struct ChromeTheme;
+
+
 
 
 
@@ -31,6 +35,7 @@ public:
     void    Shutdown   ();
     HRESULT Resize     (int widthPx, int heightPx, UINT dpi);
     HRESULT Render     (class SettingsPanel & panel);
+    void    SetChrome  (TitleBar * titleBar, const ChromeTheme * theme);
 
     bool    IsInitialized() const { return m_initialized; }
 
@@ -46,6 +51,8 @@ private:
     DxUiPainter                       m_painter;
     DwriteTextRenderer                m_text;
     DpiScaler                         m_scaler;
+    TitleBar                        * m_titleBar = nullptr;
+    const ChromeTheme                * m_theme    = nullptr;
     int                               m_widthPx  = 0;
     int                               m_heightPx = 0;
     bool                              m_initialized = false;

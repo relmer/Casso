@@ -568,6 +568,7 @@ HRESULT EmulatorShell::Initialize (
         {
             m_chromeTheme = ChromeTheme::ForName (t.name);
             ApplyThemeToChrome (m_chromeTheme);
+            m_settingsPanel.SetTheme (&m_chromeTheme);
         });
 
         // Tell the theme manager which machine is active BEFORE the

@@ -4,7 +4,6 @@
 #include "SettingsPanel.h"
 
 #include "../../resource.h"
-#include "../Win11DwmHelpers.h"
 
 
 
@@ -18,10 +17,119 @@
 
 static constexpr LPCWSTR  s_kpszSettingsWindowClass = L"Casso.Settings.Window";
 static constexpr LPCWSTR  s_kpszSettingsWindowTitle = L"Casso settings";
-static constexpr DWORD    s_kSettingsWindowStyle    = WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_VISIBLE;
+static constexpr DWORD    s_kSettingsWindowStyle    = WS_POPUP | WS_THICKFRAME | WS_SYSMENU | WS_VISIBLE;
 static constexpr DWORD    s_kSettingsWindowExStyle  = WS_EX_DLGMODALFRAME | WS_EX_TOOLWINDOW;
 static constexpr int      s_kBaseDpi                = 96;
 static constexpr int      s_kCenterDivisor          = 2;
+static constexpr int      s_kMinResizeBorderPx      = 8;
+static constexpr int      s_kIconSizePx             = 32;
+static constexpr WORD     s_kBgraBitCount           = 32;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadIconAsPremulBgra
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool LoadIconAsPremulBgra (
+    HINSTANCE                hInstance,
+    int                      iconResourceId,
+    int                      sizePx,
+    std::vector<uint32_t>  & outPixels,
+    int                    & outW,
+    int                    & outH)
+{
+    static constexpr int  s_kAlphaShift = 24;
+    static constexpr int  s_kRedShift   = 16;
+    static constexpr int  s_kGreenShift = 8;
+    static constexpr int  s_kByteMask   = 0xFF;
+    static constexpr int  s_kByteMax    = 255;
+
+    HICON       hIcon       = nullptr;
+    HDC         screenDc    = nullptr;
+    HDC         memDc       = nullptr;
+    HBITMAP     dib         = nullptr;
+    HBITMAP     oldBitmap   = nullptr;
+    void      * dibBits     = nullptr;
+    BITMAPINFO  bmi         = {};
+    bool        success     = false;
+    size_t      pixelCount  = (size_t) sizePx * (size_t) sizePx;
+
+
+
+    hIcon = (HICON) LoadImageW (hInstance,
+                                MAKEINTRESOURCEW (iconResourceId),
+                                IMAGE_ICON,
+                                sizePx, sizePx,
+                                LR_DEFAULTCOLOR);
+    if (hIcon == nullptr)
+    {
+        return false;
+    }
+
+    screenDc = GetDC (nullptr);
+    memDc    = CreateCompatibleDC (screenDc);
+
+    bmi.bmiHeader.biSize        = sizeof (BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth       = sizePx;
+    bmi.bmiHeader.biHeight      = -sizePx;
+    bmi.bmiHeader.biPlanes      = 1;
+    bmi.bmiHeader.biBitCount    = s_kBgraBitCount;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    dib = CreateDIBSection (memDc, &bmi, DIB_RGB_COLORS, &dibBits, nullptr, 0);
+
+    if (dib != nullptr && dibBits != nullptr)
+    {
+        oldBitmap = (HBITMAP) SelectObject (memDc, dib);
+        memset (dibBits, 0, pixelCount * sizeof (uint32_t));
+
+        if (DrawIconEx (memDc, 0, 0, hIcon, sizePx, sizePx, 0, nullptr, DI_NORMAL))
+        {
+            uint32_t  * src  = (uint32_t *) dibBits;
+            size_t      i    = 0;
+
+
+
+            outPixels.assign (pixelCount, 0);
+
+            for (i = 0; i < pixelCount; i++)
+            {
+                uint32_t  px = src[i];
+                uint8_t   a  = (uint8_t) ((px >> s_kAlphaShift) & s_kByteMask);
+                uint8_t   r  = (uint8_t) ((px >> s_kRedShift)   & s_kByteMask);
+                uint8_t   g  = (uint8_t) ((px >> s_kGreenShift) & s_kByteMask);
+                uint8_t   b  = (uint8_t) ( px                   & s_kByteMask);
+
+                r = (uint8_t) ((r * a) / s_kByteMax);
+                g = (uint8_t) ((g * a) / s_kByteMax);
+                b = (uint8_t) ((b * a) / s_kByteMax);
+
+                outPixels[i] = ((uint32_t) a << s_kAlphaShift) |
+                               ((uint32_t) r << s_kRedShift)   |
+                               ((uint32_t) g << s_kGreenShift) |
+                                (uint32_t) b;
+            }
+
+            outW    = sizePx;
+            outH    = sizePx;
+            success = true;
+        }
+
+        SelectObject (memDc, oldBitmap);
+    }
+
+    if (dib != nullptr)      { DeleteObject (dib); }
+    if (memDc != nullptr)    { DeleteDC (memDc); }
+    if (screenDc != nullptr) { ReleaseDC (nullptr, screenDc); }
+    DestroyIcon (hIcon);
+
+    return success;
+}
 
 
 
@@ -97,7 +205,8 @@ HRESULT SettingsWindow::Create (
     HWND                   hwndOwner,
     SettingsPanel        * panel,
     ID3D11Device         * device,
-    ID3D11DeviceContext  * context)
+    ID3D11DeviceContext  * context,
+    const ChromeTheme    * theme)
 {
     HRESULT  hr            = S_OK;
     UINT     dpi           = s_kBaseDpi;
@@ -111,6 +220,7 @@ HRESULT SettingsWindow::Create (
     CBRAEx (panel, E_INVALIDARG);
     CBRAEx (device, E_INVALIDARG);
     CBRAEx (context, E_INVALIDARG);
+    CBRAEx (theme, E_INVALIDARG);
     CBRA   (m_hInstance);
     BAIL_OUT_IF (m_hwnd != nullptr, S_OK);
 
@@ -118,6 +228,7 @@ HRESULT SettingsWindow::Create (
     m_panel     = panel;
     m_device    = device;
     m_context   = context;
+    m_theme     = theme;
 
     dpi        = GetDpiForWindow (hwndOwner);
     windowRect = GetInitialWindowRect (hwndOwner, dpi);
@@ -139,32 +250,6 @@ HRESULT SettingsWindow::Create (
     ok = SetWindowTextW (hwndCreated, s_kpszSettingsWindowTitle);
     CWRA (ok);
 
-    // Match the main Casso window's dark caption (the title bar
-    // theming the user actually wanted is a follow-up -- this is the
-    // quick win so the white default title bar doesn't stand out
-    // against the dark settings content).
-    Win11DwmHelpers::ApplyImmersiveDarkMode (hwndCreated, true);
-
-    // Use the Casso app icon for the system menu / taskbar grouping
-    // hover preview / Win+Tab thumbnails. Owned popups don't show a
-    // separate taskbar entry but the icon still appears in those
-    // surfaces. Small + big variants are recommended; LoadIconW picks
-    // the right size for each WM_SETICON message.
-    {
-        HICON  hIconSmall = (HICON) LoadImageW (m_hInstance, MAKEINTRESOURCEW (IDI_CASSO),
-                                                IMAGE_ICON,
-                                                GetSystemMetrics (SM_CXSMICON),
-                                                GetSystemMetrics (SM_CYSMICON),
-                                                LR_DEFAULTCOLOR);
-        HICON  hIconBig   = (HICON) LoadImageW (m_hInstance, MAKEINTRESOURCEW (IDI_CASSO),
-                                                IMAGE_ICON,
-                                                GetSystemMetrics (SM_CXICON),
-                                                GetSystemMetrics (SM_CYICON),
-                                                LR_DEFAULTCOLOR);
-        if (hIconSmall != nullptr) { SendMessageW (hwndCreated, WM_SETICON, ICON_SMALL, (LPARAM) hIconSmall); }
-        if (hIconBig   != nullptr) { SendMessageW (hwndCreated, WM_SETICON, ICON_BIG,   (LPARAM) hIconBig);   }
-    }
-
     ShowWindow (hwndCreated, SW_SHOWNORMAL);
     SetForegroundWindow (hwndCreated);
     SetFocus (hwndCreated);
@@ -176,6 +261,7 @@ Error:
         m_panel     = nullptr;
         m_device    = nullptr;
         m_context   = nullptr;
+        m_theme     = nullptr;
     }
     return hr;
 }
@@ -199,6 +285,27 @@ void SettingsWindow::Destroy()
     if (hwnd != nullptr)
     {
         DestroyWindow (hwnd);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTheme
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsWindow::SetTheme (const ChromeTheme * theme)
+{
+    m_theme = theme;
+    m_renderer.SetChrome (&m_titleBar, m_theme);
+
+    if (m_hwnd != nullptr)
+    {
+        InvalidateRect (m_hwnd, nullptr, FALSE);
     }
 }
 
@@ -296,6 +403,35 @@ LRESULT SettingsWindow::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM 
             result = 0;
             break;
 
+        case WM_NCCALCSIZE:
+            if (!OnNcCalcSize (hwnd, wParam, lParam, result))
+            {
+                break;
+            }
+            result = DefWindowProcW (hwnd, message, wParam, lParam);
+            break;
+
+        case WM_NCHITTEST:
+            result = OnNcHitTest (hwnd, (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam));
+            break;
+
+        case WM_NCLBUTTONDOWN:
+            OnNcMouse (message, wParam, lParam);
+            if (OnNcLButtonDown (hwnd, (LRESULT) wParam))
+            {
+                result = 0;
+                break;
+            }
+            result = DefWindowProcW (hwnd, message, wParam, lParam);
+            break;
+
+        case WM_NCLBUTTONUP:
+        case WM_NCMOUSEMOVE:
+        case WM_NCMOUSELEAVE:
+            OnNcMouse (message, wParam, lParam);
+            result = DefWindowProcW (hwnd, message, wParam, lParam);
+            break;
+
         case WM_GETMINMAXINFO:
             OnGetMinMax (reinterpret_cast<MINMAXINFO *> (lParam));
             result = 0;
@@ -364,10 +500,13 @@ LRESULT SettingsWindow::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM 
 
 HRESULT SettingsWindow::OnCreate (HWND hwnd)
 {
-    HRESULT  hr   = S_OK;
-    RECT     rc   = {};
-    BOOL     ok   = FALSE;
-    UINT     dpi  = s_kBaseDpi;
+    HRESULT               hr         = S_OK;
+    RECT                  rc         = {};
+    BOOL                  ok         = FALSE;
+    UINT                  dpi        = s_kBaseDpi;
+    std::vector<uint32_t> iconPixels;
+    int                   iconW      = 0;
+    int                   iconH      = 0;
 
 
 
@@ -376,6 +515,14 @@ HRESULT SettingsWindow::OnCreate (HWND hwnd)
     CWRA (ok);
 
     dpi = GetDpiForWindow (m_hwnd);
+    m_titleBar.UpdateGeometry (rc.right - rc.left, dpi);
+    m_renderer.SetChrome (&m_titleBar, m_theme);
+
+    if (LoadIconAsPremulBgra (m_hInstance, IDI_CASSO, s_kIconSizePx, iconPixels, iconW, iconH))
+    {
+        m_titleBar.SetAppIcon (std::move (iconPixels), iconW, iconH);
+    }
+
     hr  = m_renderer.Initialize (m_hwnd,
                                  m_device,
                                  m_context,
@@ -406,6 +553,7 @@ void SettingsWindow::OnDestroy()
     m_panel     = nullptr;
     m_device    = nullptr;
     m_context   = nullptr;
+    m_theme     = nullptr;
     m_hasFocus  = false;
 }
 
@@ -429,6 +577,7 @@ void SettingsWindow::OnSize (int widthPx, int heightPx)
     BAIL_OUT_IF (m_hwnd == nullptr || !m_renderer.IsInitialized(), S_OK);
 
     dpi = GetDpiForWindow (m_hwnd);
+    m_titleBar.UpdateGeometry (widthPx, dpi);
     hr  = m_renderer.Resize (widthPx, heightPx, dpi);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -463,6 +612,8 @@ void SettingsWindow::OnDpiChanged (UINT dpi, const RECT & suggestedRect)
                        suggestedRect.bottom - suggestedRect.top,
                        SWP_NOZORDER | SWP_NOACTIVATE);
     CWRA (ok);
+
+    m_titleBar.UpdateGeometry (suggestedRect.right - suggestedRect.left, dpi);
 
     hr = m_renderer.Resize (suggestedRect.right  - suggestedRect.left,
                             suggestedRect.bottom - suggestedRect.top,
@@ -515,6 +666,195 @@ void SettingsWindow::OnGetMinMax (MINMAXINFO * minMaxInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnNcCalcSize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsWindow::OnNcCalcSize (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult)
+{
+    NCCALCSIZE_PARAMS * pParams     = nullptr;
+    LRESULT            defResult    = 0;
+    LONG               originalTop  = 0;
+
+
+
+    if (wParam == FALSE)
+    {
+        outResult = 0;
+        return false;
+    }
+
+    pParams = reinterpret_cast<NCCALCSIZE_PARAMS *> (lParam);
+    if (pParams == nullptr)
+    {
+        outResult = 0;
+        return false;
+    }
+
+    originalTop = pParams->rgrc[0].top;
+    defResult   = DefWindowProcW (hwnd, WM_NCCALCSIZE, wParam, lParam);
+    if (defResult != 0)
+    {
+        outResult = defResult;
+        return false;
+    }
+
+    pParams->rgrc[0].top = originalTop;
+    outResult            = 0;
+    return false;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnNcHitTest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LRESULT SettingsWindow::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
+{
+    POINT                 pt       = { xScreen, yScreen };
+    RECT                  rcClient = {};
+    RECT                  rcTitle  = {};
+    RECT                  rcMin    = {};
+    RECT                  rcMax    = {};
+    RECT                  rcClose  = {};
+    TitleBarHitTestInput  in       = {};
+    UINT                  dpi      = s_kBaseDpi;
+    int                   framePx  = 0;
+    int                   padPx    = 0;
+    int                   borderPx = 0;
+
+
+
+    if (!ScreenToClient (hwnd, &pt))
+    {
+        return HTNOWHERE;
+    }
+
+    if (!GetClientRect (hwnd, &rcClient))
+    {
+        return HTNOWHERE;
+    }
+
+    rcTitle = m_titleBar.GetTitleBarRect();
+    rcMin   = m_titleBar.GetButtonRect (SystemButton::Minimize);
+    rcMax   = m_titleBar.GetButtonRect (SystemButton::Maximize);
+    rcClose = m_titleBar.GetButtonRect (SystemButton::Close);
+
+    dpi      = GetDpiForWindow (hwnd);
+    framePx  = GetSystemMetricsForDpi (SM_CXSIZEFRAME, dpi);
+    padPx    = GetSystemMetricsForDpi (SM_CXPADDEDBORDER, dpi);
+    borderPx = framePx + padPx;
+    if (borderPx < s_kMinResizeBorderPx)
+    {
+        borderPx = s_kMinResizeBorderPx;
+    }
+
+    in.clientWidth    = rcClient.right - rcClient.left;
+    in.clientHeight   = rcClient.bottom - rcClient.top;
+    in.mouseX         = pt.x;
+    in.mouseY         = pt.y;
+    in.titleLeft      = rcTitle.left;
+    in.titleTop       = rcTitle.top;
+    in.titleRight     = rcTitle.right;
+    in.titleBottom    = rcTitle.bottom;
+    in.minLeft        = rcMin.left;     in.minTop       = rcMin.top;
+    in.minRight       = rcMin.right;    in.minBottom    = rcMin.bottom;
+    in.maxLeft        = rcMax.left;     in.maxTop       = rcMax.top;
+    in.maxRight       = rcMax.right;    in.maxBottom    = rcMax.bottom;
+    in.closeLeft      = rcClose.left;   in.closeTop     = rcClose.top;
+    in.closeRight     = rcClose.right;  in.closeBottom  = rcClose.bottom;
+    in.resizeBorderPx = borderPx;
+
+    return TitleBarHitTest::Test (in);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnNcLButtonDown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsWindow::OnNcLButtonDown (HWND hwnd, LRESULT hitTest)
+{
+    WPARAM  command = 0;
+
+
+
+    switch (hitTest)
+    {
+        case HTCLOSE:
+            command = SC_CLOSE;
+            break;
+
+        case HTMINBUTTON:
+            command = SC_MINIMIZE;
+            break;
+
+        case HTMAXBUTTON:
+            command = IsZoomed (hwnd) ? SC_RESTORE : SC_MAXIMIZE;
+            break;
+
+        default:
+            return false;
+    }
+
+    PostMessageW (hwnd, WM_SYSCOMMAND, command, 0);
+    return true;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnNcMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsWindow::OnNcMouse (UINT message, WPARAM wParam, LPARAM lParam)
+{
+    POINT  pt       = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+    bool   leftDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+
+
+
+    if (message == WM_NCMOUSELEAVE)
+    {
+        pt.x     = -1;
+        pt.y     = -1;
+        leftDown = false;
+    }
+    else
+    {
+        ScreenToClient (m_hwnd, &pt);
+        if (message == WM_NCLBUTTONDOWN)
+        {
+            leftDown = true;
+        }
+        else if (message == WM_NCLBUTTONUP)
+        {
+            leftDown = false;
+        }
+    }
+
+    m_titleBar.SetMousePosition (pt.x, pt.y, leftDown);
+    InvalidateRect (m_hwnd, nullptr, FALSE);
+    (void) wParam;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnMouse
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -538,6 +878,8 @@ void SettingsWindow::OnMouse (UINT message, WPARAM wParam, LPARAM lParam)
         x = pt.x;
         y = pt.y;
     }
+
+    m_titleBar.SetMousePosition (x, y, (wParam & MK_LBUTTON) != 0);
 
     if (message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK)
     {
@@ -653,6 +995,7 @@ SIZE SettingsWindow::GetPreferredClientSize (UINT dpi) const
     if (m_panel != nullptr)
     {
         size = m_panel->PreferredClientSize (dpi);
+        size.cy += TitleBarLayout::DefaultTitleHeight (dpi);
     }
     return size;
 }
@@ -730,7 +1073,4 @@ RECT SettingsWindow::GetInitialWindowRect (HWND hwndOwner, UINT dpi) const
 
     return { x, y, x + width, y + height };
 }
-
-
-
 

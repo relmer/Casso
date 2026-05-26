@@ -2,6 +2,7 @@
 
 #include "SettingsWindowRenderer.h"
 #include "SettingsPanel.h"
+#include "../Chrome/TitleBar.h"
 
 
 
@@ -144,9 +145,27 @@ void SettingsWindowRenderer::Shutdown()
     m_context     = nullptr;
     m_device      = nullptr;
     m_hwnd        = nullptr;
+    m_titleBar   = nullptr;
+    m_theme      = nullptr;
     m_widthPx     = 0;
     m_heightPx    = 0;
     m_initialized = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetChrome
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsWindowRenderer::SetChrome (TitleBar * titleBar, const ChromeTheme * theme)
+{
+    m_titleBar = titleBar;
+    m_theme    = theme;
 }
 
 
@@ -268,9 +287,11 @@ Error:
 
 HRESULT SettingsWindowRenderer::Render (SettingsPanel & panel)
 {
-    HRESULT          hr            = S_OK;
-    D3D11_VIEWPORT   viewport      = {};
-    float            clearColor[4] = { 0.10196079f, 0.13333334f, 0.18823530f, 1.0f };
+    HRESULT           hr            = S_OK;
+    D3D11_VIEWPORT    viewport      = {};
+    ChromeVisualState  visual        = {};
+    ChromeTheme        theme         = (m_theme != nullptr) ? *m_theme : ChromeTheme::Skeuomorphic();
+    float              clearColor[4] = { 0.10196079f, 0.13333334f, 0.18823530f, 1.0f };
 
 
 
@@ -284,13 +305,19 @@ HRESULT SettingsWindowRenderer::Render (SettingsPanel & panel)
     m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf(), nullptr);
     m_context->ClearRenderTargetView (m_rtv.Get(), clearColor);
 
-    panel.Layout (m_widthPx, m_heightPx, m_scaler);
+    panel.Layout (m_widthPx, m_heightPx, m_scaler, (m_titleBar != nullptr) ? m_titleBar->GetTitleHeight() : 0);
 
     hr = m_painter.Begin (m_widthPx, m_heightPx);
     CHRA (hr);
 
     hr = m_text.BeginDraw();
     CHRA (hr);
+
+    visual.dpi = m_scaler.Dpi();
+    if (m_titleBar != nullptr)
+    {
+        m_titleBar->Paint (m_painter, m_text, visual, theme);
+    }
 
     panel.Paint (m_painter, m_text);
 

@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "SettingsWindowRenderer.h"
+#include "../Chrome/TitleBar.h"
 
 
 class SettingsPanel;
@@ -27,8 +28,10 @@ public:
     HRESULT Create        (HWND                   hwndOwner,
                            SettingsPanel        * panel,
                            ID3D11Device         * device,
-                           ID3D11DeviceContext  * context);
+                           ID3D11DeviceContext  * context,
+                           const ChromeTheme    * theme);
     void    Destroy       ();
+    void    SetTheme      (const ChromeTheme * theme);
     HRESULT Render        ();
 
     bool    IsOpen() const { return m_hwnd != nullptr; }
@@ -43,6 +46,10 @@ private:
     void    OnSize        (int widthPx, int heightPx);
     void    OnDpiChanged  (UINT dpi, const RECT & suggestedRect);
     void    OnGetMinMax   (MINMAXINFO * minMaxInfo);
+    bool    OnNcCalcSize  (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult);
+    LRESULT OnNcHitTest   (HWND hwnd, int xScreen, int yScreen);
+    bool    OnNcLButtonDown (HWND hwnd, LRESULT hitTest);
+    void    OnNcMouse     (UINT message, WPARAM wParam, LPARAM lParam);
     void    OnMouse       (UINT message, WPARAM wParam, LPARAM lParam);
     void    OnKeyDown     (WPARAM vk);
     void    CloseWithCancel();
@@ -58,6 +65,8 @@ private:
     ID3D11Device        * m_device    = nullptr;
     ID3D11DeviceContext * m_context   = nullptr;
     SettingsWindowRenderer  m_renderer;
+    TitleBar              m_titleBar;
+    ChromeTheme const   * m_theme     = nullptr;
     bool                  m_hasFocus  = false;
 };
 
