@@ -656,7 +656,7 @@ HRESULT EmulatorShell::Initialize (
                                                  *this,
                                                  m_uiFs);
         IGNORE_RETURN_VALUE (hrSettings, S_OK);
-        m_uiShell.SetSettingsPanel (&m_settingsPanel);
+        m_uiShell.SetSettingsPanel (nullptr);
         m_uiShell.SetDragSource    (&m_dragDropTarget);
 
         if (SUCCEEDED (hrUi))
@@ -1533,8 +1533,7 @@ int EmulatorShell::RunMessageLoop()
                 return static_cast<int> (msg.wParam);
             }
 
-            if (m_settingsPanel.IsVisible() ||
-                m_accelTable == nullptr ||
+            if (m_accelTable == nullptr ||
                 !TranslateAccelerator (m_hwnd, m_accelTable, &msg))
             {
                 TranslateMessage (&msg);
@@ -1582,13 +1581,8 @@ int EmulatorShell::RunMessageLoop()
         // persistence trail isn't still decaying). Saves ~20%% GPU at a
         // BASIC prompt. PeekMessage above still drains messages; the
         // brief sleep keeps this thread from spinning.
-        //
-        // The settings panel paints into the back buffer via the
-        // after-blit hook and runs its own fade / hover animations, so
-        // while it's visible we always repaint -- otherwise hovered
-        // sliders freeze and the fade-in stalls.
-        bool  uiOverlayDirty = m_settingsPanel.IsVisible();
-        if (! uiOverlayDirty && ! m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
+        IGNORE_RETURN_VALUE (hr, m_settingsPanel.RenderPopup());
+        if (!m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
         {
             Sleep (1);
             continue;

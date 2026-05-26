@@ -180,6 +180,11 @@ HRESULT SettingsPanel::Initialize (
     EmulatorShell   & emuShell,
     IFileSystem     & fs)
 {
+    HRESULT    hr        = S_OK;
+    HINSTANCE  hInstance = nullptr;
+
+
+
     m_uiShell  = &uiShell;
     m_ucs      = &ucs;
     m_prefs    = &prefs;
@@ -338,7 +343,12 @@ HRESULT SettingsPanel::Initialize (
     m_cancelButton.SetTextColor (0xFFE8EEF4u);
     m_cancelButton.SetOutline   (1.0f, 0xFF5A6068u);
 
-    return S_OK;
+    hInstance = (HINSTANCE) GetWindowLongPtrW (m_emuShell->GetHwnd(), GWLP_HINSTANCE);
+    hr = m_window.RegisterClass (hInstance);
+    CHRA (hr);
+
+Error:
+    return hr;
 }
 
 
@@ -357,7 +367,8 @@ HRESULT SettingsPanel::Initialize (
 
 HRESULT SettingsPanel::Show ()
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr      = S_OK;
+    HWND     hwnd    = nullptr;
 
 
 
@@ -402,6 +413,22 @@ HRESULT SettingsPanel::Show ()
 
     m_visible = true;
     RebuildFocusOrder();
+
+    if (m_emuShell != nullptr)
+    {
+        hwnd = m_emuShell->GetHwnd();
+        hr = m_window.Create (hwnd,
+                              this,
+                              m_emuShell->m_d3dRenderer.GetDevice(),
+                              m_emuShell->m_d3dRenderer.GetContext());
+        CHRA (hr);
+    }
+
+Error:
+    if (FAILED (hr))
+    {
+        m_visible = false;
+    }
     return hr;
 }
 
@@ -528,6 +555,83 @@ void SettingsPanel::Hide ()
 {
     m_visible = false;
     m_scrim.Hide();
+    m_window.Destroy();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Accept
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::Accept()
+{
+    OnApplyClicked();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Cancel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::Cancel()
+{
+    OnCancelClicked();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RenderPopup
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanel::RenderPopup()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (!m_visible, S_OK);
+
+    hr = m_window.Render();
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreferredClientSize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE SettingsPanel::PreferredClientSize (UINT dpi) const
+{
+    SIZE  size = {};
+
+
+
+    size.cx = MulDiv (s_kPanelWidthDp,  (int) dpi, (int) DpiScaler::kBaseDpi);
+    size.cy = MulDiv (s_kPanelHeightDp, (int) dpi, (int) DpiScaler::kBaseDpi);
+    return size;
 }
 
 
@@ -1210,28 +1314,25 @@ void SettingsPanel::DoMachineSelect (const std::string & machineName)
 //
 //  Layout
 //
-//  Centre a fixed-size panel within the viewport, then lay tabs,
-//  active page, modal scrim, and the Apply / Cancel button row.
+//  Fill the popup client area, then lay tabs, active page, modal scrim,
+//  and the Apply / Cancel button row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const DpiScaler & scaler)
 {
     UINT    dpi          = scaler.Dpi();
-    int     marginPx     = scaler.Px (s_kPanelMarginDp);
-    int     basePanelW   = scaler.Px (s_kPanelWidthDp);
-    int     basePanelH   = scaler.Px (s_kPanelHeightDp);
-    int     captionH     = scaler.Px (s_kCaptionHeightDp);
+    int     captionH     = 0;
     int     tabHeight    = scaler.Px (s_kTabHeightDp);
     int     bottomBar    = scaler.Px (s_kBottomBarDp);
     int     buttonWidth  = scaler.Px (s_kButtonWidthDp);
     int     buttonHeight = scaler.Px (s_kButtonHeightDp);
     int     buttonGap    = scaler.Px (s_kButtonGapDp);
     int     pad          = scaler.Px (s_kPanelPadDp);
-    int     panelWidth   = std::min<int> (basePanelW, std::max<int> (0, viewportWidthPx  - marginPx * 2));
-    int     panelHeight  = std::min<int> (basePanelH, std::max<int> (0, viewportHeightPx - marginPx * 2));
-    int     left         = (viewportWidthPx  - panelWidth)  / 2;
-    int     top          = (viewportHeightPx - panelHeight) / 2;
+    int     panelWidth   = std::max<int> (0, viewportWidthPx);
+    int     panelHeight  = std::max<int> (0, viewportHeightPx);
+    int     left         = 0;
+    int     top          = 0;
     int     tabsTop      = top + captionH;
     int     tabWidth     = std::max<int> (40, panelWidth / 4);
     RECT    pageRect     = {};
@@ -1295,8 +1396,6 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const Dpi
 
 void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
 {
-    constexpr uint32_t  s_kBackdropArgb = 0x60000000;
-
     ChromeTheme  theme     = (m_uiShell != nullptr) ? m_uiShell->Theme() : ChromeTheme::Skeuomorphic();
     float        edgeThick = (m_uiShell != nullptr) ? m_uiShell->Scaler().Pxf (s_kEdgeThickDp)
                                                     : s_kEdgeThickDp;
@@ -1348,14 +1447,8 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
     float  focusedA = m_focusedAlpha;
     int    focusedControlId = (m_previewFocus == PreviewFocus::None) ? -1 : (int) m_previewFocus;
 
-    // ----- Dimmed backdrop behind the panel (fades with the panel). -----
     painter.SetGlobalAlpha (panelA);
     text.SetGlobalAlpha    (panelA);
-    painter.FillRect ((float) m_viewport.left,
-                      (float) m_viewport.top,
-                      (float) (m_viewport.right  - m_viewport.left),
-                      (float) (m_viewport.bottom - m_viewport.top),
-                      s_kBackdropArgb);
 
     painter.FillRect    ((float) m_panelRect.left,
                           (float) m_panelRect.top,
@@ -1367,29 +1460,6 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
                           (float) (m_panelRect.right  - m_panelRect.left),
                           (float) (m_panelRect.bottom - m_panelRect.top),
                           edgeThick, s_kPanelEdgeArgb);
-
-    // Caption bar.
-    {
-        HRESULT  hrCaption  = S_OK;
-        float    captionFont = (m_uiShell != nullptr) ? m_uiShell->Scaler().Pxf (s_kCaptionFontDp)
-                                                      : s_kCaptionFontDp;
-
-        painter.FillRect ((float) m_captionRect.left,
-                          (float) m_captionRect.top,
-                          (float) (m_captionRect.right  - m_captionRect.left),
-                          (float) (m_captionRect.bottom - m_captionRect.top),
-                          s_kCaptionBgArgb);
-        IGNORE_RETURN_VALUE (hrCaption, text.DrawString (L"Settings",
-                                                         (float) m_captionRect.left + 12.0f,
-                                                         (float) m_captionRect.top,
-                                                         (float) (m_captionRect.right  - m_captionRect.left) - 24.0f,
-                                                         (float) (m_captionRect.bottom - m_captionRect.top),
-                                                         s_kCaptionTextArgb,
-                                                         captionFont,
-                                                         L"Segoe UI",
-                                                         DwriteTextRenderer::HAlign::Left,
-                                                         DwriteTextRenderer::VAlign::Center));
-    }
 
     m_tabs.Paint  (painter, text);
 
