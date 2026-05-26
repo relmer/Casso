@@ -8,7 +8,6 @@
     "description":        "Beige/cream Apple ][ hardware aesthetic with subtle bevels.",
     "crtDefaults": {
         "brightness": 1.0,
-        "scanlines":  { "enabled": false, "intensity": 0.0 },
         "bloom":      { "enabled": true,  "radius": 1.0, "strength": 0.3 },
         "colorBleed": { "enabled": false, "width":  0.0 }
     },
