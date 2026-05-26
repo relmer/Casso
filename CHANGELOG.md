@@ -51,6 +51,9 @@ Entries before versioning was introduced use dates only.
     controls all live in one non-modal in-window panel with full
     keyboard navigation (Tab/Shift+Tab through focusables, Enter on
     OK / Cancel buttons). Opens from `View → Settings…` and `Ctrl+,`.
+  - The Settings popup now uses the same ChromeTheme-driven custom
+    title bar as the main window, including gradient chrome, matching
+    caption buttons, drag/resize hit-testing, and the Casso app icon.
   - **CRT post-processing**: scanlines, phosphor bloom, color bleed.
     Each effect is independently toggleable; a single brightness
     slider gates the master mix. Per-theme defaults live in each

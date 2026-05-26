@@ -420,7 +420,8 @@ HRESULT SettingsPanel::Show ()
         hr = m_window.Create (hwnd,
                               this,
                               m_emuShell->m_d3dRenderer.GetDevice(),
-                              m_emuShell->m_d3dRenderer.GetContext());
+                              m_emuShell->m_d3dRenderer.GetContext(),
+                              &m_emuShell->m_chromeTheme);
         CHRA (hr);
     }
 
@@ -611,6 +612,21 @@ HRESULT SettingsPanel::RenderPopup()
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTheme
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::SetTheme (const ChromeTheme * theme)
+{
+    m_window.SetTheme (theme);
 }
 
 
@@ -1319,10 +1335,11 @@ void SettingsPanel::DoMachineSelect (const std::string & machineName)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const DpiScaler & scaler)
+void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const DpiScaler & scaler, int topInsetPx)
 {
     UINT    dpi          = scaler.Dpi();
     int     captionH     = 0;
+    int     contentTop   = std::max<int> (0, topInsetPx);
     int     tabHeight    = scaler.Px (s_kTabHeightDp);
     int     bottomBar    = scaler.Px (s_kBottomBarDp);
     int     buttonWidth  = scaler.Px (s_kButtonWidthDp);
@@ -1330,9 +1347,9 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const Dpi
     int     buttonGap    = scaler.Px (s_kButtonGapDp);
     int     pad          = scaler.Px (s_kPanelPadDp);
     int     panelWidth   = std::max<int> (0, viewportWidthPx);
-    int     panelHeight  = std::max<int> (0, viewportHeightPx);
+    int     panelHeight  = std::max<int> (0, viewportHeightPx - contentTop);
     int     left         = 0;
-    int     top          = 0;
+    int     top          = contentTop;
     int     tabsTop      = top + captionH;
     int     tabWidth     = std::max<int> (40, panelWidth / 4);
     RECT    pageRect     = {};
@@ -1830,6 +1847,7 @@ void SettingsPanel::CommitApply ()
         HRESULT  hrTheme = m_emuShell->ApplyAndPersistTheme (m_pendingTheme);
 
         IGNORE_RETURN_VALUE (hrTheme, S_OK);
+        m_window.SetTheme (&m_emuShell->m_chromeTheme);
         m_pendingTheme.clear();
     }
 

@@ -71,13 +71,14 @@ public:
     void    Accept();
     void    Cancel();
     HRESULT RenderPopup();
+    void    SetTheme    (const ChromeTheme * theme);
     SIZE    PreferredClientSize (UINT dpi) const;
     bool    IsVisible () const { return m_visible; }
 
     // Render + input routing. The owned settings popup composites Paint
     // into its own swap chain; the routing helpers consume popup-local
     // mouse / key events only while the panel is visible.
-    void    Layout    (int viewportWidthPx, int viewportHeightPx, const DpiScaler & scaler);
+    void    Layout    (int viewportWidthPx, int viewportHeightPx, const DpiScaler & scaler, int topInsetPx = 0);
     void    Paint     (DxUiPainter & painter, DwriteTextRenderer & text);
     void    OnMouseMove   (int x, int y);
     void    OnLButtonDown (int x, int y);
