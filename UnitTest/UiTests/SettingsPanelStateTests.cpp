@@ -20,6 +20,11 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace
 {
+    constexpr uint32_t  s_kFixtureClockSpeedHz    = 1023000;
+    constexpr size_t    s_kFixtureMemoryRegions   = 4;
+    constexpr size_t    s_kFixtureDevices         = 4;
+
+
     class RecordingSink : public ISettingsApplySink
     {
     public:
@@ -58,6 +63,8 @@ namespace
         "$cassoMachineVersion": 1,
         "name": "TestMachine",
         "cpu": "6502",
+        "timing": { "clockSpeed": 1023000 },
+        "ram": [ { "address": "0x0000", "size": "0xC000" } ],
         "internalDevices": [
             { "type": "keyboard" },
             { "type": "speaker" }
@@ -84,6 +91,7 @@ namespace
         "$cassoUiPrefs": {
             "speedMode": "double",
             "colorMode": "green",
+            "writeMode": "copy-on-write",
             "floppySoundEnabled": false,
             "floppyMechanism": "alps",
             "writeProtect": [ true, false ]
@@ -115,6 +123,10 @@ public:
         Assert::IsFalse (st.IsDirty(),       L"fresh load -> not dirty");
         Assert::IsFalse (st.RequiresReset(), L"fresh load -> no reset needed");
         Assert::AreEqual (std::string ("TestMachine"), st.MachineName());
+        Assert::AreEqual (std::string ("TestMachine"), st.MachineInfo().name);
+        Assert::AreEqual (s_kFixtureClockSpeedHz,  st.MachineInfo().clockSpeed);
+        Assert::AreEqual (s_kFixtureMemoryRegions, st.MachineInfo().memoryRegions);
+        Assert::AreEqual (s_kFixtureDevices,       st.MachineInfo().devices);
     }
 
 
@@ -155,6 +167,7 @@ public:
         st.SetSpeedMode      (SettingsSpeedMode::Maximum);
         st.SetColorMode      (SettingsColorMode::Amber);
         st.SetFloppySound    (false);
+        st.SetWriteMode      (SettingsWriteMode::CopyOnWrite);
         st.SetWriteProtect   (1, true);
         Assert::IsTrue (st.IsDirty());
 
@@ -163,6 +176,7 @@ public:
         Assert::IsFalse (st.IsDirty());
         Assert::IsTrue  (st.Prefs().speedMode          == SettingsSpeedMode::Authentic);
         Assert::IsTrue  (st.Prefs().colorMode          == SettingsColorMode::Color);
+        Assert::IsTrue  (st.Prefs().writeMode          == SettingsWriteMode::BufferAndFlush);
         Assert::IsTrue  (st.Prefs().floppySoundEnabled == true);
         Assert::IsFalse (st.Prefs().writeProtect[1]);
     }
@@ -176,6 +190,7 @@ public:
 
         Assert::IsTrue  (st.Prefs().speedMode          == SettingsSpeedMode::Double);
         Assert::IsTrue  (st.Prefs().colorMode          == SettingsColorMode::Green);
+        Assert::IsTrue  (st.Prefs().writeMode          == SettingsWriteMode::CopyOnWrite);
         Assert::IsFalse (st.Prefs().floppySoundEnabled);
         Assert::AreEqual (std::string ("alps"), st.Prefs().floppyMechanism);
         Assert::IsTrue  (st.Prefs().writeProtect[0]);
@@ -334,6 +349,7 @@ public:
         st.LoadFromMachine ("X", v, v);
 
         st.SetSpeedMode (SettingsSpeedMode::Double);
+        st.SetWriteMode (SettingsWriteMode::CopyOnWrite);
 
         RecordingSink  sink;
         JsonValue      outJson;
@@ -346,6 +362,7 @@ public:
         Assert::IsTrue (SUCCEEDED (JsonWriter::Write (outJson, opts, text)));
         Assert::IsTrue (text.find ("\"$cassoUiPrefs\"") != std::string::npos);
         Assert::IsTrue (text.find ("\"speedMode\":\"double\"") != std::string::npos);
+        Assert::IsTrue (text.find ("\"writeMode\":\"copy-on-write\"") != std::string::npos);
         Assert::IsTrue (text.find ("\"$cassoMachineVersion\"") != std::string::npos,
                         L"version key must round-trip");
     }

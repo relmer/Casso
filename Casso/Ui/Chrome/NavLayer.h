@@ -18,6 +18,7 @@ enum class NavMenu
     Disk    = 3,
     View    = 4,
     Help    = 5,
+    Debug   = 6,
 };
 
 
@@ -45,6 +46,7 @@ public:
     static std::span<const NavCommandEntry> GetCommandEntries ();
     static const wchar_t                  * GetMenuName       (NavMenu menu);
     static std::string                      EmitParityMarkdown ();
+    static bool                             IsSeparator        (const NavCommandEntry & entry);
 
     void                              Dispatch             (WORD commandId) const;
     void                              Layout               (int x, int y, int width, UINT dpi,
@@ -70,13 +72,15 @@ public:
     int                               HighlightIndex       () const { return m_highlightIndex; }
 
 private:
-    static constexpr int              kMenuCount = 6;
+    static constexpr int              kMenuCount = 7;
 
     int                               MenuIndex            (NavMenu menu) const;
     RECT                              MenuRect             (NavMenu menu) const;
     RECT                              DropdownRect         () const;
     const NavCommandEntry           * EntryAt              (int index) const;
     int                               EntryCount           (NavMenu menu) const;
+    int                               DropdownHeight       (NavMenu menu) const;
+    int                               EntryHeight          (const NavCommandEntry & entry) const;
     int                               HitEntryIndex        (int x, int y) const;
 
     DispatchFn                        m_dispatch;

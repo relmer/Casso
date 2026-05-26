@@ -12,6 +12,11 @@ Entries before versioning was introduced use dates only.
 - **feat(settings): Display-page live preview uses per-pixel alpha when the
   Settings popup overlaps the emulator output, making the covered emulator
   content fully visible while the focused CRT control remains visible.**
+- **feat(menus,settings): menu restructure and settings relocation.**
+  - File, Machine, Disk, View, Help, and the new Debug nav menu now
+    group commands by user workflow: machine info moved to Settings →
+    Hardware, write mode moved to Settings → Machine, debug tools live
+    under Debug, and Disk/View menus now include visual separators.
 - **feat(ui): full UI overhaul — native DirectX chrome, themes, Settings
   panel, CRT post-processing, drive widgets.**
   - Borderless main window with custom native chrome — title bar with

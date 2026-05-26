@@ -393,6 +393,7 @@ namespace
 
         uiObj.emplace_back ("speedMode",          JsonValue (std::string ("authentic")));
         uiObj.emplace_back ("colorMode",          JsonValue (std::string ("color")));
+        uiObj.emplace_back ("writeMode",          JsonValue (std::string ("buffer-and-flush")));
         uiObj.emplace_back ("floppySoundEnabled", JsonValue (true));
         uiObj.emplace_back ("floppyMechanism",    JsonValue (std::string ("shugart")));
         wp.emplace_back (JsonValue (false));

@@ -155,6 +155,27 @@ namespace
     }
 
 
+    const char *  WriteModeToString (SettingsWriteMode mode)
+    {
+        switch (mode)
+        {
+            case SettingsWriteMode::BufferAndFlush: return "buffer-and-flush";
+            case SettingsWriteMode::CopyOnWrite:    return "copy-on-write";
+        }
+        return "buffer-and-flush";
+    }
+
+
+    SettingsWriteMode  WriteModeFromString (
+        const std::string & s,
+        SettingsWriteMode  fallback)
+    {
+        if (s == "buffer-and-flush") return SettingsWriteMode::BufferAndFlush;
+        if (s == "copy-on-write")    return SettingsWriteMode::CopyOnWrite;
+        return fallback;
+    }
+
+
     // Deep-copy a JsonValue by writing+re-parsing. Cheap enough for the
     // settings panel snapshot (one-time at Show()) and avoids needing
     // a public clone API on JsonValue.
@@ -228,6 +249,9 @@ HRESULT SettingsPanelState::LoadFromMachine (
     m_original = Snapshot {};
 
     hr = ExtractUiPrefs (mergedJson, m_original.prefs);
+    CHR (hr);
+
+    hr = ExtractMachineInfo (mergedJson, m_machineInfo);
     CHR (hr);
 
     hr = ExtractHardware (mergedJson, m_original.hardware);
@@ -342,6 +366,21 @@ void SettingsPanelState::SetSpeedMode (SettingsSpeedMode mode)
 void SettingsPanelState::SetColorMode (SettingsColorMode mode)
 {
     m_current.prefs.colorMode = mode;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetWriteMode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetWriteMode (SettingsWriteMode mode)
+{
+    m_current.prefs.writeMode = mode;
 }
 
 
@@ -508,6 +547,10 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
         GetStringOpt (*uiObj, "colorMode", "color"),
         SettingsColorMode::Color);
 
+    outPrefs.writeMode = WriteModeFromString (
+        GetStringOpt (*uiObj, "writeMode", "buffer-and-flush"),
+        SettingsWriteMode::BufferAndFlush);
+
     outPrefs.floppySoundEnabled = GetBoolOpt   (*uiObj, "floppySoundEnabled", true);
     outPrefs.floppyMechanism    = GetStringOpt (*uiObj, "floppyMechanism",    "shugart");
 
@@ -521,6 +564,79 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
                 outPrefs.writeProtect[i] = entry.GetBool();
             }
         }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExtractMachineInfo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::ExtractMachineInfo (
+    const JsonValue     & mergedJson,
+    SettingsMachineInfo & outInfo)
+{
+    HRESULT            hr              = S_OK;
+    HRESULT            hrRead          = S_OK;
+    const JsonValue  * timingObj       = nullptr;
+    const JsonValue  * ramArray        = nullptr;
+    const JsonValue  * internalDevices = nullptr;
+    const JsonValue  * slots           = nullptr;
+
+
+
+    CBR (mergedJson.GetType() == JsonType::Object);
+
+    outInfo = SettingsMachineInfo {};
+
+    hrRead = mergedJson.GetString ("name", outInfo.name);
+    if (FAILED (hrRead))
+    {
+        outInfo.name.clear();
+    }
+
+    hrRead = mergedJson.GetString ("cpu", outInfo.cpu);
+    if (FAILED (hrRead))
+    {
+        outInfo.cpu.clear();
+    }
+
+    hrRead = mergedJson.GetObject ("timing", timingObj);
+    if (SUCCEEDED (hrRead) && timingObj != nullptr)
+    {
+        hrRead = timingObj->GetUint32 ("clockSpeed", outInfo.clockSpeed);
+        if (FAILED (hrRead))
+        {
+            outInfo.clockSpeed = 0;
+        }
+    }
+
+    hrRead = mergedJson.GetArray ("ram", ramArray);
+    if (SUCCEEDED (hrRead) && ramArray != nullptr)
+    {
+        outInfo.memoryRegions += ramArray->ArraySize();
+        outInfo.memoryRegions += 1;
+    }
+
+    hrRead = mergedJson.GetArray ("internalDevices", internalDevices);
+    if (SUCCEEDED (hrRead) && internalDevices != nullptr)
+    {
+        outInfo.devices += internalDevices->ArraySize();
+    }
+
+    hrRead = mergedJson.GetArray ("slots", slots);
+    if (SUCCEEDED (hrRead) && slots != nullptr)
+    {
+        outInfo.memoryRegions += slots->ArraySize();
+        outInfo.devices       += slots->ArraySize();
     }
 
 Error:
@@ -821,6 +937,7 @@ JsonValue SettingsPanelState::BuildJson (
     // $cassoUiPrefs block
     uiObj.emplace_back ("speedMode",          JsonValue (std::string (SpeedToString (prefs.speedMode))));
     uiObj.emplace_back ("colorMode",          JsonValue (std::string (ColorToString (prefs.colorMode))));
+    uiObj.emplace_back ("writeMode",          JsonValue (std::string (WriteModeToString (prefs.writeMode))));
     uiObj.emplace_back ("floppySoundEnabled", JsonValue (prefs.floppySoundEnabled));
     uiObj.emplace_back ("floppyMechanism",    JsonValue (prefs.floppyMechanism));
 
@@ -849,6 +966,7 @@ bool SettingsPanelState::PrefsEqual (
 {
     if (a.speedMode             != b.speedMode)             return false;
     if (a.colorMode             != b.colorMode)             return false;
+    if (a.writeMode             != b.writeMode)             return false;
     if (a.floppySoundEnabled    != b.floppySoundEnabled)    return false;
     if (a.floppyMechanism       != b.floppyMechanism)       return false;
     if (a.writeProtect[0]       != b.writeProtect[0])       return false;

@@ -14,6 +14,24 @@
 
 namespace
 {
+    constexpr int     s_kInfoLabelWidthDp = 140;
+    constexpr int     s_kInfoRowHeightDp  = 24;
+    constexpr int     s_kInfoValueGapDp   = 8;
+    constexpr int     s_kBigSectionGapDp  = 18;
+    constexpr size_t  s_kMachineRow       = 0;
+    constexpr size_t  s_kCpuRow           = 1;
+    constexpr size_t  s_kClockRow         = 2;
+    constexpr size_t  s_kMemoryRow        = 3;
+    constexpr size_t  s_kDevicesRow       = 4;
+
+
+    RECT MakeRect (int l, int t, int w, int h)
+    {
+        RECT  rc = { l, t, l + w, t + h };
+        return rc;
+    }
+
+
     TreeCapabilityFlag MapFlag (CapabilityFlag flag)
     {
         switch (flag)
@@ -51,8 +69,39 @@ namespace
 
 void HardwarePage::SetRect (const RECT & rect, const DpiScaler & scaler)
 {
-    m_tree.SetRect (rect);
-    m_tree.SetDpi  (scaler.Dpi());
+    UINT dpi         = scaler.Dpi();
+    int  labelWidth  = scaler.Px (s_kInfoLabelWidthDp);
+    int  rowHeight   = scaler.Px (s_kInfoRowHeightDp);
+    int  valueGap    = scaler.Px (s_kInfoValueGapDp);
+    int  sectionGap  = scaler.Px (s_kBigSectionGapDp);
+    int  valueX      = rect.left + labelWidth + valueGap;
+    int  y           = rect.top;
+    int  i           = 0;
+    RECT treeRect    = rect;
+
+
+
+    m_infoLabels[s_kMachineRow].SetText (L"Machine:");
+    m_infoLabels[s_kCpuRow].SetText     (L"CPU:");
+    m_infoLabels[s_kClockRow].SetText   (L"Clock speed:");
+    m_infoLabels[s_kMemoryRow].SetText  (L"Memory regions:");
+    m_infoLabels[s_kDevicesRow].SetText (L"Devices:");
+
+    for (i = 0; i < (int) kInfoRowCount; ++i)
+    {
+        m_infoLabels[(size_t) i].SetRect (MakeRect (rect.left, y, labelWidth, rowHeight));
+        m_infoValues[(size_t) i].SetRect (MakeRect (valueX,
+                                                    y,
+                                                    rect.right - valueX,
+                                                    rowHeight));
+        m_infoLabels[(size_t) i].SetDpi (dpi);
+        m_infoValues[(size_t) i].SetDpi (dpi);
+        y += rowHeight;
+    }
+
+    treeRect.top = y + sectionGap;
+    m_tree.SetRect (treeRect);
+    m_tree.SetDpi  (dpi);
 }
 
 
@@ -88,15 +137,22 @@ void HardwarePage::SetState (SettingsPanelState * state)
 
 void HardwarePage::Rebuild ()
 {
-    std::vector<HardwareEntry>  entries;
-    std::vector<TreeNode>       nodes;
-    SettingsPanelState        * state = m_state;
+    std::vector<HardwareEntry>   entries;
+    std::vector<TreeNode>        nodes;
+    SettingsPanelState         * state = m_state;
+    const SettingsMachineInfo  * info  = nullptr;
 
 
 
     if (state != nullptr)
     {
+        info    = &state->MachineInfo();
         entries = state->Hardware();
+        m_infoValues[s_kMachineRow].SetText (Widen (info->name));
+        m_infoValues[s_kCpuRow].SetText     (Widen (info->cpu));
+        m_infoValues[s_kClockRow].SetText   (std::format (L"{} Hz", info->clockSpeed));
+        m_infoValues[s_kMemoryRow].SetText  (std::format (L"{}", info->memoryRegions));
+        m_infoValues[s_kDevicesRow].SetText (std::format (L"{}", info->devices));
     }
 
     nodes = BuildNodes (entries);
@@ -123,6 +179,31 @@ void HardwarePage::Rebuild ()
             }
         }
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::Paint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
+{
+    int  i = 0;
+
+
+
+    for (i = 0; i < (int) kInfoRowCount; ++i)
+    {
+        m_infoLabels[(size_t) i].Paint (painter, text);
+        m_infoValues[(size_t) i].Paint (painter, text);
+    }
+
+    m_tree.Paint (painter, text);
 }
 
 
