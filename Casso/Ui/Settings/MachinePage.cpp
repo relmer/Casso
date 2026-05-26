@@ -125,18 +125,15 @@ void MachinePage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_driveAudio.SetRect (MakeRect (controlsX, y, checkWidth, rowHeight));
     y += rowHeight + sectionGap;
 
-    // Mechanism is a child of Drive audio: indent its label so it sits
-    // under the audio toggle column, and shift its dropdown right by
-    // the same amount.
-    {
-        int  mechLabelX = controlsX;
-        int  mechCtrlX  = mechLabelX + labelWidth;
-
-        m_mechLabel.SetRect (MakeRect (mechLabelX, y, labelWidth, rowHeight));
-        m_mechLabel.SetText (L"Mechanism:");
-        m_mechanism.SetRect  (MakeRect (mechCtrlX, y, dropWidth, rowHeight));
-        m_mechanism.SetItems ({ L"Shugart", L"Alps" });
-    }
+    // Mechanism is a child of Drive audio: indent the LABEL TEXT with
+    // leading spaces so it reads as a sub-item, but keep the label
+    // column and control column at the same x as every other row.
+    // Matches the convention used on the Display tab for sub-effect
+    // sliders (Intensity, Radius, Strength, Width).
+    m_mechLabel.SetRect  (MakeRect (x, y, labelWidth, rowHeight));
+    m_mechLabel.SetText  (L"  Mechanism:");
+    m_mechanism.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
+    m_mechanism.SetItems ({ L"Shugart", L"Alps" });
 
     m_machineLabel.SetDpi    (dpi);
     m_speedLabel.SetDpi      (dpi);
