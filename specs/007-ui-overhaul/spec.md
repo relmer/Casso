@@ -200,6 +200,13 @@ A user who ran Casso v1.x has a `Machines/apple2e/apple2euser JSON` file on disk
 - **FR-025**: LED indicators for each drive MUST be rendered in D3D with a soft-glow appearance (not a flat colored circle); LED states MUST include at minimum: idle (disk absent), disk present, and active (motor running). Every active theme MUST render each LED at no less than 12 logical pixels in diameter with a perceptible glow halo extending at least 4 logical pixels beyond the lit core in the active state. Exact colors and glow parameters beyond these minima are defined by the active theme.
 - **FR-026**: A D3D-rendered navigation/menu layer MUST replace the Win32 menu bar; it MUST provide access to all commands currently in the Win32 menus (File, Machine, View, Disk, Edit, Help groups).
 - **FR-027**: The Settings dialog (FR-001 through FR-017) MUST be rendered in D3D within the application window rather than as a Win32 dialog (`DialogBoxIndirectParam`). Source audit confirms the historical `OptionsDialog` and `MachinePickerDialog` implementations and `DialogBox*` call sites are already absent; this feature MUST keep those Win32 dialogs retired while moving the current `MenuSystem.cpp` / `EmulatorShell.cpp` settings and machine-switch command entry points to the native Settings panel.
+
+#### Post-P5 follow-up: Settings owned popup
+
+The Settings panel is promoted from an in-window D3D overlay to a native owned popup HWND because the overlay could be clipped when the main Casso window was resized below the panel's content size. The panel remains native-rendered D3D UI, not a `DialogBox*` Win32 dialog: the popup shares the main D3D11 device/context, owns its own flip-discard swap chain, is modeless, and uses `WS_EX_TOOLWINDOW` so it behaves like an owned app child rather than an alt-tab peer.
+
+User-visible behavior is now window-like: Settings has a title bar, close button, system menu, and resize border. `WM_GETMINMAXINFO` enforces the content minimum size, so the popup cannot be shrunk below its required controls even when the main emulator window is much smaller.
+
 - **FR-028**: The D3D chrome layer MUST correctly handle WM_NCHITTEST returns for borderless window behavior, ensuring OS-level window management (snap, Aero Shake, Task View) continues to function correctly.
 
 ### Functional Requirements — Area 3: CSS-Based Theme System

@@ -262,6 +262,8 @@
     <ClCompile Include="Ui\Settings\MachinePage.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPanel.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPanelState.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsWindow.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsWindowRenderer.cpp" />
     <ClCompile Include="Ui\Settings\ThemePage.cpp" />
     <ClCompile Include="Shell\ClipboardManager.cpp" />
     <ClCompile Include="Shell\CpuManager.cpp" />
@@ -336,6 +338,8 @@
     <ClInclude Include="Ui\Settings\MachinePage.h" />
     <ClInclude Include="Ui\Settings\SettingsPanel.h" />
     <ClInclude Include="Ui\Settings\SettingsPanelState.h" />
+    <ClInclude Include="Ui\Settings\SettingsWindow.h" />
+    <ClInclude Include="Ui\Settings\SettingsWindowRenderer.h" />
     <ClInclude Include="Ui\Settings\ThemePage.h" />
     <ClInclude Include="Shell\ClipboardManager.h" />
     <ClInclude Include="Shell\CpuManager.h" />

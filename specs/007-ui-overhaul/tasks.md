@@ -641,5 +641,6 @@ Once widgets land, run T094–T097 in parallel (4 chrome surfaces, distinct file
 - `[P]` strictly means "different files, no incomplete-task dependencies"; if two `[P]` tasks edit the same `.vcxproj` or `.sln`, they must be serialized regardless of the marker.
 - All tests must mock filesystem, registry, environment, and Win32 system APIs per FR-057 / SC-013. No test introduced by this spec may read or write real user-state paths.
 - Commit per task or per logically-coherent group; do not bundle P0 deletions with P1 introductions in a single commit — the two pipelines must never appear together in history.
+- [x] T151 Settings panel promoted to owned popup HWND with WM_GETMINMAXINFO + own swap chain (post-P5 follow-up).
 - All new `.cpp` files follow the project conventions (Pch.h first, EHM, single-exit on HRESULT functions, top-of-scope variable declarations, column alignment, 5 blank lines between top-level constructs, 3 blank lines after variable declaration blocks).
 

@@ -7,6 +7,7 @@
 #include "MachinePage.h"
 #include "SettingsPanelState.h"
 #include "ThemePage.h"
+#include "SettingsWindow.h"
 
 #include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
@@ -67,12 +68,15 @@ public:
 
     HRESULT Show      ();
     void    Hide      ();
+    void    Accept();
+    void    Cancel();
+    HRESULT RenderPopup();
+    SIZE    PreferredClientSize (UINT dpi) const;
     bool    IsVisible () const { return m_visible; }
 
-    // Render + input routing. The host UiShell composites Paint after
-    // chrome but before debug overlays; the routing helpers consume the
-    // event only when the panel is visible so the emulator and chrome
-    // continue to receive mouse / key when the panel is closed.
+    // Render + input routing. The owned settings popup composites Paint
+    // into its own swap chain; the routing helpers consume popup-local
+    // mouse / key events only while the panel is visible.
     void    Layout    (int viewportWidthPx, int viewportHeightPx, const DpiScaler & scaler);
     void    Paint     (DxUiPainter & painter, DwriteTextRenderer & text);
     void    OnMouseMove   (int x, int y);
@@ -127,6 +131,7 @@ private:
     IFileSystem     * m_fs        = nullptr;
 
     SettingsPanelState  m_state;
+    SettingsWindow      m_window;
     bool                m_visible = false;
     std::string         m_pendingMachineSelect;
     std::string         m_pendingTheme;
