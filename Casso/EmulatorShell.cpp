@@ -343,15 +343,9 @@ EmulatorShell::EmulatorShell()
                                                               kFramebufferHeight,
                                                               &m_refs.keyboard);
 
-    m_diskManager = std::make_unique<DiskManager> (m_ownedDevices,
-                                                    m_diskStore,
-                                                    m_diskAudioSources,
-                                                    m_wasapiAudio,
-                                                    m_driveWidgets,
-                                                    m_driveWidgetState,
-                                                    m_driveChrome,
-                                                    m_cpuManager,
-                                                    m_currentMachineName);
+    // DiskManager construction is deferred to Initialize -- it needs
+    // a UserConfigStore reference and that's created at Initialize
+    // time once the asset base dir is resolved.
 
     m_machineManager = std::make_unique<MachineManager> (*this);
 
@@ -468,6 +462,18 @@ HRESULT EmulatorShell::Initialize (
     themesDir    = assetBaseDir / fs::path ("Themes");
     m_assetBaseDir = assetBaseDir.wstring();
     m_userConfigStore = std::make_unique<UserConfigStore> (assetBaseDir.wstring());
+
+    m_diskManager = std::make_unique<DiskManager> (m_ownedDevices,
+                                                    m_diskStore,
+                                                    m_diskAudioSources,
+                                                    m_wasapiAudio,
+                                                    m_driveWidgets,
+                                                    m_driveWidgetState,
+                                                    m_driveChrome,
+                                                    m_cpuManager,
+                                                    m_currentMachineName,
+                                                    *m_userConfigStore,
+                                                    m_uiFs);
 
     // P6 -- bring up OLE on the UI thread before any RegisterDragDrop
     // call lands; IFileDialog (click-to-browse, used by the drive

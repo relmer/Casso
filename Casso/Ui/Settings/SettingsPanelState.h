@@ -78,6 +78,11 @@ struct SettingsUiPrefs
     bool               floppySoundEnabled    = true;
     std::string        floppyMechanism       = "shugart";   // "shugart" | "alps"
     bool               writeProtect[2]       = { false, false };
+    // Last-mounted disk paths per drive, stored as exe-relative when
+    // possible (PathResolver::MakeExeRelativePath). Empty = no
+    // remembered disk. Replaces the per-machine HKCU\...\Disk{1,2}
+    // registry values that DiskSettings used to own.
+    std::string        diskPath[2];
 };
 
 

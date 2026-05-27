@@ -556,6 +556,9 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
     outPrefs.floppySoundEnabled = GetBoolOpt   (*uiObj, "floppySoundEnabled", true);
     outPrefs.floppyMechanism    = GetStringOpt (*uiObj, "floppyMechanism",    "shugart");
 
+    outPrefs.diskPath[0] = GetStringOpt (*uiObj, "disk1Path", "");
+    outPrefs.diskPath[1] = GetStringOpt (*uiObj, "disk2Path", "");
+
     if (SUCCEEDED (uiObj->GetArray ("writeProtect", wpArr)) && wpArr != nullptr)
     {
         for (i = 0; i < wpArr->ArraySize() && i < 2; ++i)
@@ -1048,6 +1051,8 @@ JsonValue SettingsPanelState::BuildJson (
     uiObj.emplace_back ("writeMode",          JsonValue (std::string (WriteModeToString (prefs.writeMode))));
     uiObj.emplace_back ("floppySoundEnabled", JsonValue (prefs.floppySoundEnabled));
     uiObj.emplace_back ("floppyMechanism",    JsonValue (prefs.floppyMechanism));
+    uiObj.emplace_back ("disk1Path",          JsonValue (prefs.diskPath[0]));
+    uiObj.emplace_back ("disk2Path",          JsonValue (prefs.diskPath[1]));
 
     wpArr.emplace_back (JsonValue (prefs.writeProtect[0]));
     wpArr.emplace_back (JsonValue (prefs.writeProtect[1]));
@@ -1077,6 +1082,8 @@ bool SettingsPanelState::PrefsEqual (
     if (a.writeMode             != b.writeMode)             return false;
     if (a.floppySoundEnabled    != b.floppySoundEnabled)    return false;
     if (a.floppyMechanism       != b.floppyMechanism)       return false;
+    if (a.diskPath[0]           != b.diskPath[0])           return false;
+    if (a.diskPath[1]           != b.diskPath[1])           return false;
     if (a.writeProtect[0]       != b.writeProtect[0])       return false;
     if (a.writeProtect[1]       != b.writeProtect[1])       return false;
     return true;

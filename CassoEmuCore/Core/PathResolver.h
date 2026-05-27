@@ -39,4 +39,16 @@ public:
     // fails (extremely rare on supported Windows). Empty path returned
     // only if every fallback fails.
     static fs::path GetLocalAppDataDir (const std::wstring & appName);
+
+    // Convert an absolute path to one relative to the executable
+    // directory when the input lives under (or beside) the exe. Used
+    // by the per-machine disk-path persistence so the casso.exe +
+    // Disks/ tree stays portable across moves. Returns the input
+    // unchanged if it's already relative, lives outside the exe
+    // subtree, or escapes via `..`.
+    static std::wstring MakeExeRelativePath (const std::wstring & absolutePath);
+
+    // Inverse of MakeExeRelativePath: relative entries are joined
+    // with the exe directory; absolute entries pass through.
+    static std::wstring ResolveExeRelativePath (const std::wstring & storedPath);
 };

@@ -2,6 +2,7 @@
 
 #include "AssetBootstrap.h"
 #include "Config/GlobalUserPrefs.h"
+#include "Config/UserConfigStore.h"
 #include "Config/Win32FileSystem.h"
 #include "Core/MachineConfig.h"
 #include "Core/PathResolver.h"
@@ -170,24 +171,27 @@ static HRESULT LoadMachineConfig (
         }
     }
 
-    // Boot-disk pre-flight: if the user didn't pass --disk1 and the
-    // registry has no remembered disk for this machine (or the
+    // Boot-disk pre-flight: if the user didn't pass --disk1 and there's
+    // no remembered disk for this machine in UserPrefs (or the
     // remembered path no longer points at a real file), and the
     // machine has a Disk ][ controller, offer to download a stock
     // Apple system master disk. Without this the user just stares at
     // a spinning drive forever after first launch.
     if (inoutDisk1Path.empty())
     {
-        hrSaved = DiskSettings::ReadSavedDiskPath (0, machineName, savedDisk);
+        Win32FileSystem  fs_io;
+        UserConfigStore  store (AssetBootstrap::GetAssetBaseDirectory().wstring());
+
+        hrSaved = DiskSettings::ReadSavedDiskPath (store, fs_io, 0, machineName, savedDisk);
         IGNORE_RETURN_VALUE (hrSaved, S_OK);
 
-        // Treat a remembered-but-missing disk the same as "no remembered
-        // disk", and clear the stale registry value so we don't keep
+        // Treat a remembered-but-missing disk the same as "no
+        // remembered disk", and clear the stale value so we don't keep
         // tripping over it on every launch.
         if (!savedDisk.empty() && !fs::exists (fs::path (savedDisk)))
         {
             HRESULT hrClear = DiskSettings::WriteSavedDiskPath (
-                0, machineName, wstring());
+                store, fs_io, 0, machineName, wstring());
             IGNORE_RETURN_VALUE (hrClear, S_OK);
             savedDisk.clear();
         }

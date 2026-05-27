@@ -34,7 +34,9 @@ DiskManager::DiskManager (
     std::array<DriveWidgetState, 2>                 & driveWidgetState,
     std::array<DriveWidget, 2>                      & driveChrome,
     CpuManager                                      & cpuManager,
-    const std::wstring                              & currentMachineName)
+    const std::wstring                              & currentMachineName,
+    UserConfigStore                                 & userConfigStore,
+    IFileSystem                                     & fileSystem)
     : m_ownedDevices       (ownedDevices),
       m_diskStore          (diskStore),
       m_diskAudioSources   (diskAudioSources),
@@ -43,7 +45,9 @@ DiskManager::DiskManager (
       m_driveWidgetState   (driveWidgetState),
       m_driveChrome        (driveChrome),
       m_cpuManager         (cpuManager),
-      m_currentMachineName (currentMachineName)
+      m_currentMachineName (currentMachineName),
+      m_userConfigStore    (userConfigStore),
+      m_fileSystem         (fileSystem)
 {
 }
 
@@ -127,7 +131,8 @@ void DiskManager::MountCommandLineDisks (
     if (resolvedDisk1.empty() && !m_currentMachineName.empty())
     {
         std::wstring  saved;
-        HRESULT       hrRead = DiskSettings::ReadSavedDiskPath (0, m_currentMachineName, saved);
+        HRESULT       hrRead = DiskSettings::ReadSavedDiskPath (m_userConfigStore, m_fileSystem,
+                                                                0, m_currentMachineName, saved);
 
         if (hrRead == S_OK && !saved.empty())
         {
@@ -139,7 +144,7 @@ void DiskManager::MountCommandLineDisks (
             {
                 OutputDebugStringW (L"[DiskManager] FR-047: drive 0 last-mounted image missing; clearing.\n");
                 HRESULT  hrClear = DiskSettings::WriteSavedDiskPath (
-                    0, m_currentMachineName, std::wstring());
+                    m_userConfigStore, m_fileSystem, 0, m_currentMachineName, std::wstring());
                 IGNORE_RETURN_VALUE (hrClear, S_OK);
             }
         }
@@ -148,7 +153,8 @@ void DiskManager::MountCommandLineDisks (
     if (resolvedDisk2.empty() && !m_currentMachineName.empty())
     {
         std::wstring  saved;
-        HRESULT       hrRead = DiskSettings::ReadSavedDiskPath (1, m_currentMachineName, saved);
+        HRESULT       hrRead = DiskSettings::ReadSavedDiskPath (m_userConfigStore, m_fileSystem,
+                                                                1, m_currentMachineName, saved);
 
         if (hrRead == S_OK && !saved.empty())
         {
@@ -160,7 +166,7 @@ void DiskManager::MountCommandLineDisks (
             {
                 OutputDebugStringW (L"[DiskManager] FR-047: drive 1 last-mounted image missing; clearing.\n");
                 HRESULT  hrClear = DiskSettings::WriteSavedDiskPath (
-                    1, m_currentMachineName, std::wstring());
+                    m_userConfigStore, m_fileSystem, 1, m_currentMachineName, std::wstring());
                 IGNORE_RETURN_VALUE (hrClear, S_OK);
             }
         }
@@ -232,7 +238,8 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
     if (!m_currentMachineName.empty())
     {
         std::wstring  wPath = fs::path (path).wstring();
-        HRESULT       hrReg = DiskSettings::WriteSavedDiskPath (drive, m_currentMachineName, wPath);
+        HRESULT       hrReg = DiskSettings::WriteSavedDiskPath (m_userConfigStore, m_fileSystem,
+                                                                drive, m_currentMachineName, wPath);
         IGNORE_RETURN_VALUE (hrReg, S_OK);
     }
 
@@ -292,7 +299,8 @@ void DiskManager::EjectDiskInSlot6 (int drive)
     // up empty in this slot.
     if (!m_currentMachineName.empty())
     {
-        HRESULT  hrReg = DiskSettings::WriteSavedDiskPath (drive, m_currentMachineName, L"");
+        HRESULT  hrReg = DiskSettings::WriteSavedDiskPath (m_userConfigStore, m_fileSystem,
+                                                           drive, m_currentMachineName, L"");
         IGNORE_RETURN_VALUE (hrReg, S_OK);
     }
 

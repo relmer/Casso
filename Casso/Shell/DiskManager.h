@@ -37,6 +37,10 @@ class WasapiAudio;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+class UserConfigStore;
+class IFileSystem;
+
+
 class DiskManager
 {
 public:
@@ -48,7 +52,9 @@ public:
                  std::array<DriveWidgetState, 2>                 & driveWidgetState,
                  std::array<DriveWidget, 2>                      & driveChrome,
                  CpuManager                                      & cpuManager,
-                 const std::wstring                              & currentMachineName);
+                 const std::wstring                              & currentMachineName,
+                 UserConfigStore                                 & userConfigStore,
+                 IFileSystem                                     & fileSystem);
 
     DiskIIController *  FindSlot6Controller    ();
     bool                HasSlot6Controller     () { return FindSlot6Controller() != nullptr; }
@@ -84,6 +90,8 @@ private:
     std::array<DriveWidget, 2>                       & m_driveChrome;
     CpuManager                                       & m_cpuManager;
     const std::wstring                               & m_currentMachineName;
+    UserConfigStore                                  & m_userConfigStore;
+    IFileSystem                                      & m_fileSystem;
 
     std::array<uint64_t, 2>  m_lastReadNibbles      {};
     std::array<uint64_t, 2>  m_lastWriteNibbles     {};
