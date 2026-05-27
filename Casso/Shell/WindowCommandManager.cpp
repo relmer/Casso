@@ -537,14 +537,21 @@ void WindowCommandManager::OnHelpCommand (int id)
         case IDM_HELP_ABOUT:
         {
             MessageBoxW (m_shell.m_hwnd,
-                L"Casso Apple ][ emulator\n"
-                L"Version " _CRT_WIDE (VERSION_STRING) L"\n"
-                L"Built " _CRT_WIDE (VERSION_BUILD_TIMESTAMP) L"\n\n"
-                L"An Apple ][ / ][+ / //e platform emulator built on\n"
-                L"the Casso 6502 assembler/emulator project.\n\n"
-                L"https://github.com/relmer/Casso",
-                L"About Casso", MB_ICONINFORMATION | MB_OK);
-            break;
+                         L"Casso Emulator\n"
+                            L"\n"
+                            L"Version " _CRT_WIDE (VERSION_STRING) L"\n"
+                            L"Built " _CRT_WIDE (VERSION_BUILD_TIMESTAMP) L"\n"
+                            L"\n"
+                            L"An Apple ][, ][ plus, and //e platform emulator built \n"
+                            L"on the Casso 6502 assembler/emulator project.\n"
+                            L"\n"
+                            L"https://github.com/relmer/Casso"
+                            L"\n"
+                            L"Copyright (C) by Robert Elmer\n"
+                            L"MIT License\n",
+                         L"About Casso", 
+                         MB_ICONINFORMATION | MB_OK);
+                break;
         }
     }
 }

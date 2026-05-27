@@ -156,6 +156,15 @@ private:
     // was active at panel open.
     GlobalUserPrefs::Crt  m_baselineCrt[GlobalUserPrefs::kCrtModeCount] = {};
     int                   m_baselineColorMode = -1;
+    // Tracks whether the monitor dropdown was open last frame so the
+    // dropdown-closed revert fires even if a click on another control
+    // changes m_previewFocus in the same frame.
+    bool                  m_monitorWasOpen    = false;
+    // The monitor index that was active when the dropdown was opened.
+    // Used to revert the live preview when the dropdown closes without
+    // a click selection (since SelectedIndex() stays at the original
+    // until a click commits a new one).
+    int                   m_monitorOpenedAt   = -1;
 
     // Live-preview state machine. While a slider is dragged or a
     // dropdown is open, the renderer can reveal the emulator under the

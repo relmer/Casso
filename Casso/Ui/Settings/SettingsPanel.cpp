@@ -822,25 +822,46 @@ void SettingsPanel::PreparePreviewFrame()
 
 
 
-        if (monitorOpen && m_previewFocus != PreviewFocus::MonitorDropdown)
+        if (monitorOpen && ! m_monitorWasOpen)
         {
-            StartPreview ((int) PreviewFocus::MonitorDropdown, false);
+            // Capture the active monitor at open time so the close-
+            // without-commit path can revert to it even when the
+            // close was triggered by clicking a different control
+            // (which moves m_previewFocus away from MonitorDropdown
+            // in the same frame).
+            m_monitorOpenedAt = m_displayPage.MonitorDropdown().SelectedIndex();
+            if (m_previewFocus != PreviewFocus::MonitorDropdown)
+            {
+                StartPreview ((int) PreviewFocus::MonitorDropdown, false);
+            }
         }
-        else if (!monitorOpen && m_previewFocus == PreviewFocus::MonitorDropdown)
+        else if (! monitorOpen && m_monitorWasOpen)
         {
+            // Dropdown just closed. SelectedIndex() reflects whatever
+            // was committed by a click (or the original value if no
+            // click). Apply unconditionally to revert any hover-
+            // preview that ran while the dropdown was open.
             if (m_emuShell != nullptr)
             {
                 int  committed = m_displayPage.MonitorDropdown().SelectedIndex();
 
-
-
+                if (committed < 0)
+                {
+                    committed = m_monitorOpenedAt;
+                }
                 if (committed >= 0)
                 {
                     m_emuShell->SetColorModeLive (committed);
                 }
             }
-            EndPreview();
+            m_monitorOpenedAt = -1;
+            if (m_previewFocus == PreviewFocus::MonitorDropdown)
+            {
+                EndPreview();
+            }
         }
+
+        m_monitorWasOpen = monitorOpen;
     }
 
     UpdatePreviewFade ((int64_t) GetTickCount64());
