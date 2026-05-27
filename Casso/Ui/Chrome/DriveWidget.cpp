@@ -613,12 +613,19 @@ void DriveWidget::Paint (
         constexpr float  kPi                = 3.14159265f;
         constexpr float  kMaxAngleRad       = 75.0f * kPi / 180.0f;
 
+        // Visible-flap length: 100% when closed, 20% when fully open.
+        // Models the real Disk II behavior where the door tucks
+        // mostly inside the case as it opens, leaving a small flap
+        // sticking out above the bezel slot.
+        constexpr float  kOpenVisibleFraction = 0.20f;
+
         float    angle      = doorOffset * kMaxAngleRad;
         float    cosA       = cosf (angle);
         float    sinA       = sinf (angle);
         float    doorHf     = (float) doorH;
-        float    depthBack  = doorHf * sinA;
-        float    visibleH   = doorHf * cosA;
+        float    visLen     = doorHf * (1.0f - (1.0f - kOpenVisibleFraction) * doorOffset);
+        float    depthBack  = visLen * sinA;
+        float    visibleH   = visLen * cosA;
         float    caseDepthY = (float) (m_faceRect.top - m_bodyRect.top);
         float    skewX;
         float    dxBack;
