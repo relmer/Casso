@@ -66,7 +66,9 @@ void DisplayPage::SetState (SettingsPanelState * state)
 void DisplayPage::SetInitialCrt (const GlobalUserPrefsCrtSnapshot & snap)
 {
     // Brightness/contrast: slider 0..200%, 100% = identity (shader 1.0).
-    // Gamma: slider 1.4..2.4 directly (with 0.1 step).
+    // Gamma: slider 0.5..2.5 directly (with 0.1 step). 1.0 is true
+    // bypass -- the shader skip-band catches values within 1% of 1.0
+    // and elides the gamma pass entirely.
     // Persistence: slider 0..100% maps to shader 0..1.0.
     // Bloom radius / color bleed: slider value is pixels directly.
     // Other sliders are 0..100% (a normalized 0..1 in the shader).
@@ -187,7 +189,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_gammaLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_gammaLabel.SetText (L"Gamma:");
     m_gamma.SetRect           (MakeRect (controlsX, y, sliderWidth, rowHeight));
-    m_gamma.SetRange          (1.4f, 2.4f);
+    m_gamma.SetRange          (0.5f, 2.5f);
     m_gamma.SetStep           (0.1f);
     m_gamma.SetSuffix         (L"");
     m_gamma.SetShowValue      (true);     // dimensionless; opt in to readout

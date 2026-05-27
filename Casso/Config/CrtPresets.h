@@ -36,16 +36,26 @@ namespace CrtPresets
         // Green (P1): short decay, faint green afterglow, distinct
         //   scanline visibility -- the classic computer-terminal vibe.
         // Amber (P3): slow decay -> high persistence; visible scanlines
-        //   + soft bloom + warmer gamma. The look of a 1980s amber
-        //   monitor in a dim office.
+        //   + soft bloom. The look of a 1980s amber monitor in a dim
+        //   office.
         // White (P4): blend of blue + yellow phosphors, ~60ms decay;
         //   subtler look than the mono colors, slight bloom.
+        //
+        // Gamma defaults to 1.0 (true bypass) for every mode. Physical
+        // CRT gamma is ~2.2-2.5 regardless of phosphor type, set by
+        // the electron gun -- so it isn't what distinguished an amber
+        // tube from a green tube from a color CRT in 1985. The things
+        // that DID distinguish them (hue, persistence, scanlines, bloom)
+        // each have their own knob below. Layering an opinionated
+        // gamma on top of the host display's already-calibrated curve
+        // just produces a stack the user never asked for; treat the
+        // gamma slider as a user-customization lever instead.
         static const GlobalUserPrefs::Crt  s_kPresets[GlobalUserPrefs::kCrtModeCount] = {
             // Color
             {
                 /* brightness         */ 1.00f,
                 /* contrast           */ 1.00f,
-                /* gamma              */ 2.20f,
+                /* gamma              */ 1.00f,
                 /* scanlinesEnabled   */ false,
                 /* scanlinesIntensity */ 0.30f,
                 /* bloomEnabled       */ true,
@@ -60,7 +70,7 @@ namespace CrtPresets
             {
                 /* brightness         */ 1.05f,
                 /* contrast           */ 0.95f,
-                /* gamma              */ 1.80f,
+                /* gamma              */ 1.00f,
                 /* scanlinesEnabled   */ true,
                 /* scanlinesIntensity */ 0.40f,
                 /* bloomEnabled       */ true,
@@ -75,7 +85,7 @@ namespace CrtPresets
             {
                 /* brightness         */ 1.05f,
                 /* contrast           */ 0.90f,
-                /* gamma              */ 1.80f,
+                /* gamma              */ 1.00f,
                 /* scanlinesEnabled   */ true,
                 /* scanlinesIntensity */ 0.50f,
                 /* bloomEnabled       */ true,
@@ -90,7 +100,7 @@ namespace CrtPresets
             {
                 /* brightness         */ 1.00f,
                 /* contrast           */ 1.00f,
-                /* gamma              */ 1.90f,
+                /* gamma              */ 1.00f,
                 /* scanlinesEnabled   */ true,
                 /* scanlinesIntensity */ 0.35f,
                 /* bloomEnabled       */ true,

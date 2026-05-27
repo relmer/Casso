@@ -49,6 +49,7 @@ namespace
 
     WORD  ResolveMachineSpeedCommand (const JsonValue & mergedJson)
     {
+        HRESULT            hr      = S_OK;
         const JsonValue *  uiPrefs = nullptr;
         std::string        speed;
 
@@ -58,13 +59,15 @@ namespace
             return 0;
         }
 
-        if (FAILED (mergedJson.GetObject ("$cassoUiPrefs", uiPrefs)) || uiPrefs == nullptr)
+        hr = mergedJson.GetObject ("$cassoUiPrefs", uiPrefs);
+        if (FAILED (hr) || uiPrefs == nullptr)
         {
             return 0;
         }
         _Analysis_assume_ (uiPrefs != nullptr);
 
-        if (FAILED (uiPrefs->GetString ("speedMode", speed)))
+        hr = uiPrefs->GetString ("speedMode", speed);
+        if (FAILED (hr))
         {
             return 0;
         }

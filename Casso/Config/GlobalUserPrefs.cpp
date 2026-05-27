@@ -410,8 +410,8 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
             if (c.brightness         > 2.0f)  c.brightness         = 2.0f;
             if (c.contrast           < 0.0f)  c.contrast           = 0.0f;
             if (c.contrast           > 2.0f)  c.contrast           = 2.0f;
-            if (c.gamma              < 1.4f)  c.gamma              = 1.4f;
-            if (c.gamma              > 2.4f)  c.gamma              = 2.4f;
+            if (c.gamma              < 0.5f)  c.gamma              = 0.5f;
+            if (c.gamma              > 2.5f)  c.gamma              = 2.5f;
             if (c.scanlinesIntensity < 0.0f)  c.scanlinesIntensity = 0.0f;
             if (c.scanlinesIntensity > 1.0f)  c.scanlinesIntensity = 1.0f;
             if (c.bloomRadius        < 0.0f)  c.bloomRadius        = 0.0f;

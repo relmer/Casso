@@ -42,7 +42,7 @@ struct GlobalUserPrefs
     {
         float    brightness          = 1.0f;           // 0.0 .. 2.0
         float    contrast            = 1.0f;           // 0.0 .. 2.0
-        float    gamma               = 2.2f;           // 1.4 .. 2.4 (final pow(rgb, 1/gamma))
+        float    gamma               = 1.0f;           // 0.5 .. 2.5 (final pow(rgb, 1/gamma)); 1.0 = bypass
         bool     scanlinesEnabled    = false;
         float    scanlinesIntensity  = 0.5f;           // 0.0 .. 1.0
         bool     bloomEnabled        = false;

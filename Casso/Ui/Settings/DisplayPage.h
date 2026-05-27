@@ -36,7 +36,7 @@ struct GlobalUserPrefsCrtSnapshot
 {
     float    brightness          = 1.0f;
     float    contrast            = 1.0f;
-    float    gamma               = 2.2f;
+    float    gamma               = 1.0f;
     float    persistence         = 0.0f;
     bool     scanlinesEnabled    = false;
     float    scanlinesIntensity  = 0.5f;

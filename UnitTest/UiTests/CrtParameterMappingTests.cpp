@@ -87,7 +87,7 @@ public:
         Assert::AreEqual (3.0f,    params.colorBleedWidth);
         Assert::AreEqual (1920.0f, params.outputW);
         Assert::AreEqual (1080.0f, params.outputH);
-        Assert::AreEqual (2.2f,    params.gamma);
+        Assert::AreEqual (1.0f,    params.gamma);
         Assert::AreEqual (0.0f,    params.persistence);
     }
 

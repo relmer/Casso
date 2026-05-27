@@ -533,7 +533,8 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
 
     outPrefs = SettingsUiPrefs {};
 
-    if (FAILED (mergedJson.GetObject (s_kpszUiPrefsKey, uiObj)) || uiObj == nullptr)
+    hr = mergedJson.GetObject (s_kpszUiPrefsKey, uiObj);
+    if (FAILED (hr) || uiObj == nullptr)
     {
         // No $cassoUiPrefs in the file -- struct defaults stand.
         return S_OK;
