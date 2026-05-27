@@ -540,11 +540,20 @@ void TreeView::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 
         if (node != nullptr && node->checked)
         {
-            painter.FillRect (checkboxX + checkInset,
-                              rowY + (rowHeight - (float) m_checkboxPx) * 0.5f + checkInset,
-                              (float) m_checkboxPx - checkInset * 2.0f,
-                              (float) m_checkboxPx - checkInset * 2.0f,
-                              glyphCol);
+            // Real check-mark glyph, matching the standalone Checkbox
+            // widget. Earlier impl drew a filled inner square which
+            // read more like a focus ring than a tick.
+            float  boxYPx = rowY + (rowHeight - (float) m_checkboxPx) * 0.5f;
+            IGNORE_RETURN_VALUE (hr, text.DrawString (L"\u2713",
+                                                      checkboxX,
+                                                      boxYPx,
+                                                      (float) m_checkboxPx,
+                                                      (float) m_checkboxPx,
+                                                      glyphCol,
+                                                      (float) m_checkboxPx * 0.95f,
+                                                      L"Segoe UI Symbol",
+                                                      DwriteTextRenderer::HAlign::Center,
+                                                      DwriteTextRenderer::VAlign::Center));
         }
 
         if (node != nullptr)
