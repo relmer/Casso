@@ -244,6 +244,13 @@ HRESULT SettingsPanel::Initialize (
     });
     m_displayPage.SetOnMonitorChange ([this] (int idx)
     {
+        // Apply both palette AND the active mode index so the live
+        // render AND the slider widgets reflect the hovered/selected
+        // monitor's full CRT settings, not just its palette. State
+        // gets reverted from PreparePreviewFrame's dropdown-close
+        // detector if the user cancels the dropdown without
+        // selecting a new monitor.
+        m_state.SetColorMode ((SettingsColorMode) idx);
         if (m_emuShell != nullptr)
         {
             m_emuShell->SetColorModeLive (idx);
@@ -838,21 +845,26 @@ void SettingsPanel::PreparePreviewFrame()
         else if (! monitorOpen && m_monitorWasOpen)
         {
             // Dropdown just closed. SelectedIndex() reflects whatever
-            // was committed by a click (or the original value if no
-            // click). Apply unconditionally to revert any hover-
-            // preview that ran while the dropdown was open.
-            if (m_emuShell != nullptr)
-            {
-                int  committed = m_displayPage.MonitorDropdown().SelectedIndex();
+            // was committed by a click (or stays at the dropdown-open
+            // value if the user cancelled by clicking outside). Apply
+            // unconditionally to revert any hover-preview that ran
+            // while the dropdown was open: palette, active CRT mode
+            // index, and slider widgets all snap to the committed
+            // monitor's full state.
+            int  committed = m_displayPage.MonitorDropdown().SelectedIndex();
 
-                if (committed < 0)
-                {
-                    committed = m_monitorOpenedAt;
-                }
-                if (committed >= 0)
+            if (committed < 0)
+            {
+                committed = m_monitorOpenedAt;
+            }
+            if (committed >= 0)
+            {
+                m_state.SetColorMode ((SettingsColorMode) committed);
+                if (m_emuShell != nullptr)
                 {
                     m_emuShell->SetColorModeLive (committed);
                 }
+                ReseedDisplayCrtFromActiveMode();
             }
             m_monitorOpenedAt = -1;
             if (m_previewFocus == PreviewFocus::MonitorDropdown)

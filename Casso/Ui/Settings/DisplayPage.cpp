@@ -211,7 +211,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_scanlinesIntLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
     m_scanlinesIntLabel.SetText (L"Intensity:");
     m_scanlinesInt.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
-    m_scanlinesInt.SetRange     (0.0f, 100.0f);
+    m_scanlinesInt.SetRange     (10.0f, 100.0f);
     m_scanlinesInt.SetStep      (10.0f);
     m_scanlinesInt.SetSuffix    (L"%");
     m_scanlinesInt.SetShowTicks (true);
@@ -229,7 +229,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_bloomRadiusLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
     m_bloomRadiusLabel.SetText (L"Radius:");
     m_bloomRadius.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
-    m_bloomRadius.SetRange     (0.0f, 10.0f);
+    m_bloomRadius.SetRange     (1.0f, 10.0f);
     m_bloomRadius.SetStep      (1.0f);
     m_bloomRadius.SetSuffix    (L" px");
     m_bloomRadius.SetShowTicks (true);
@@ -239,7 +239,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_bloomStrengthLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
     m_bloomStrengthLabel.SetText (L"Strength:");
     m_bloomStrength.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
-    m_bloomStrength.SetRange     (0.0f, 100.0f);
+    m_bloomStrength.SetRange     (10.0f, 100.0f);
     m_bloomStrength.SetStep      (10.0f);
     m_bloomStrength.SetSuffix    (L"%");
     m_bloomStrength.SetShowTicks (true);
@@ -257,7 +257,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_colorBleedWLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
     m_colorBleedWLabel.SetText (L"Width:");
     m_colorBleedW.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
-    m_colorBleedW.SetRange     (0.0f, 8.0f);
+    m_colorBleedW.SetRange     (1.0f, 8.0f);
     m_colorBleedW.SetStep      (1.0f);
     m_colorBleedW.SetSuffix    (L" px");
     m_colorBleedW.SetShowTicks (true);

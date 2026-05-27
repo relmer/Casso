@@ -581,6 +581,14 @@ void SettingsWindow::OnSize (int widthPx, int heightPx)
     hr  = m_renderer.Resize (widthPx, heightPx, dpi);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
+    // Force a render at the new size. WM_SIZE arrives inside Windows'
+    // modal resize loop, which blocks the EmulatorShell's main render
+    // loop until the user releases the mouse. Without this explicit
+    // Render(), the popup paints with stale layout (OK/Cancel buttons
+    // stuck at the old right edge) for the entire drag.
+    hr = Render();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
 Error:
     return;
 }

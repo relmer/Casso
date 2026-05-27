@@ -78,10 +78,11 @@ public:
         // pulls from the Color monitor preset (CrtPresets::ForMode(0)).
         // That preset has bloom on (radius 2 / strength 0.30) and color
         // bleed on (width 3) by design -- those are the defining color
-        // CRT looks. Scanlines / persistence off for color mode.
+        // CRT looks. Scanlines on at 0.20 for subtle TV-line texture;
+        // persistence off (P22 phosphors decay in ~30us).
         Assert::AreEqual (1.0f,    params.brightness);
         Assert::AreEqual (1.0f,    params.contrast);
-        Assert::AreEqual (0.0f,    params.scanlineIntensity);
+        Assert::AreEqual (0.20f,   params.scanlineIntensity);
         Assert::AreEqual (2.0f,    params.bloomRadius);
         Assert::AreEqual (0.30f,   params.bloomStrength);
         Assert::AreEqual (3.0f,    params.colorBleedWidth);
