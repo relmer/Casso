@@ -586,6 +586,27 @@ void DriveWidget::Paint (
     // Slot.
     painter.FillRect ((float) m_slotRect.left, (float) m_slotRect.top, (float) slotW, (float) slotH, theme.driveBezelArgb);
 
+    // Finger-pull recess behind the door: a darker rectangle that the
+    // user grabs the disk through. Drawn before the door so it's
+    // visually revealed as the door tilts open.
+    {
+        float    insetX     = (float) Scale (4, dpi);
+        float    insetTop   = (float) Scale (3, dpi);
+        float    insetBot   = (float) Scale (2, dpi);
+        float    rx         = (float) m_ejectRect.left   + insetX;
+        float    ry         = (float) m_ejectRect.top    + insetTop;
+        float    rw         = (float) m_ejectRect.right  - rx - insetX;
+        float    rh         = (float) m_ejectRect.bottom - ry - insetBot;
+        uint32_t recessArgb = 0xFF050505;
+        uint32_t shadowArgb = 0xFF000000;
+
+        painter.FillRect (rx, ry, rw, rh, recessArgb);
+        // Inset shadow on the top + left edges so the recess reads as
+        // sunken below the faceplate surface.
+        painter.FillRect (rx, ry, rw,   1.0f, shadowArgb);
+        painter.FillRect (rx, ry, 1.0f, rh,   shadowArgb);
+    }
+
     // Door tab vertical position.
     {
         int64_t  elapsed  = visual.nowMs - m_state.animationStartTimeMs;
