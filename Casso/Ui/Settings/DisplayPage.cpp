@@ -666,15 +666,15 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
         text.SetGlobalAlpha    (a);
     };
 
-    auto  PaintBackingIfFocused = [&] (int control, const RECT & rowRect)
+    // Legacy per-row dark backing rect that used to highlight the
+    // focused control during in-window-overlay preview. The new
+    // owned-popup design replaces that with the compose pass's
+    // blur+dim+sharp-focus pipeline -- the row backing is now both
+    // redundant and visually wrong (paints over the blurred backdrop
+    // as a hard-edged dark rectangle). Kept as a stub for grep-ability
+    // in case we want to bring it back as an opt-in for accessibility.
+    auto  PaintBackingIfFocused = [] (int /*control*/, const RECT & /*rowRect*/)
     {
-        if (control == focusedControlId)
-        {
-            painter.FillRect ((float) rowRect.left,  (float) rowRect.top,
-                              (float) (rowRect.right - rowRect.left),
-                              (float) (rowRect.bottom - rowRect.top),
-                              s_kFocusedBackingArgb);
-        }
     };
 
     auto  DrawIndicator = [&] (const RECT & rowRect, bool matchesDefault, bool themeOwned)

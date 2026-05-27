@@ -711,8 +711,13 @@ Error:
 
 bool SettingsPanel::IsPreviewTransparencyActive() const
 {
+    // Engage blur+dim+compose any time the user is actively
+    // interacting with a Display-page control, regardless of whether
+    // the popup overlaps the emulator. When there's no overlap the
+    // emu-clip rect is empty so the compose shader's per-pixel
+    // transparent zone is empty too -- the blur+dim still happens to
+    // focus attention on the control being adjusted.
     return m_visible &&
-           m_previewOverlapsEmulatorOutput &&
            (m_previewFocus != PreviewFocus::None) &&
            ((TabIndex) m_activeTab == TabIndex::Display);
 }
