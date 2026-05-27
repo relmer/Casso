@@ -529,23 +529,43 @@ void TreeView::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 
         if (hasChildren)
         {
-            // Fluent-style chevron: '⏷' (U+23F7) when expanded, '⏵'
-            // (U+23F5) when collapsed. Replaces the previous filled
-            // square placeholder. Sized to match the checkbox so it
-            // reads as a comparable affordance, not a separator.
-            const wchar_t *  chevron     = node->expanded ? L"\u23F7" : L"\u23F5";
-            float            chevronH    = (float) m_checkboxPx;
-            float            chevronYPx  = rowY + (rowHeight - chevronH) * 0.5f;
-            IGNORE_RETURN_VALUE (hr, text.DrawString (chevron,
-                                                      twistyX,
-                                                      chevronYPx,
-                                                      (float) m_twistyPx,
-                                                      chevronH,
-                                                      s_kTwistyArgb,
-                                                      chevronH,
-                                                      L"Segoe UI Symbol",
-                                                      DwriteTextRenderer::HAlign::Center,
-                                                      DwriteTextRenderer::VAlign::Center));
+            // Geometric chevron: triangle rendered with horizontal
+            // scanlines. Avoids Segoe UI Symbol's chevron glyph,
+            // whose visual center sits below the line-box center
+            // (no font metrics fix can correct that since the glyph
+            // is intentionally drawn there for "play button" style
+            // contexts). Triangle apex points right when collapsed,
+            // down when expanded; size matches the checkbox.
+            float  triSize    = (float) m_checkboxPx * 0.55f;
+            float  triCx      = twistyX + (float) m_twistyPx * 0.5f;
+            float  triCy      = rowY + rowHeight * 0.5f;
+            int    steps      = (int) triSize;
+            int    s          = 0;
+
+            if (node->expanded)
+            {
+                // Down-pointing triangle: top is full width, apex at bottom.
+                float  topY = triCy - triSize * 0.5f;
+                for (s = 0; s < steps; ++s)
+                {
+                    float  t      = (float) s / (float) steps;
+                    float  width  = triSize * (1.0f - t);
+                    float  rowY2  = topY + (float) s;
+                    painter.FillRect (triCx - width * 0.5f, rowY2, width, 1.0f, s_kTwistyArgb);
+                }
+            }
+            else
+            {
+                // Right-pointing triangle: left is full height, apex at right.
+                float  leftX = triCx - triSize * 0.5f;
+                for (s = 0; s < steps; ++s)
+                {
+                    float  t      = (float) s / (float) steps;
+                    float  height = triSize * (1.0f - t);
+                    float  colX   = leftX + (float) s;
+                    painter.FillRect (colX, triCy - height * 0.5f, 1.0f, height, s_kTwistyArgb);
+                }
+            }
         }
 
         painter.FillRect (checkboxX,
