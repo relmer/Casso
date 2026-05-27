@@ -352,10 +352,8 @@ void DriveWidget::Paint (
     int      faceH        = m_faceRect.bottom - m_faceRect.top;
     int      slotW        = m_slotRect.right - m_slotRect.left;
     int      slotH        = m_slotRect.bottom - m_slotRect.top;
-    int      doorW        = m_ejectRect.right - m_ejectRect.left;
     int      doorH        = m_ejectRect.bottom - m_ejectRect.top;
     UINT     dpi          = (visual.dpi == 0) ? (UINT) s_kBaseDpi : visual.dpi;
-    int      doorTravel   = Scale (s_kDoorTravelPx, dpi);
     int      notchW       = Scale (s_kNotchWidthPx, dpi);
     int      notchH       = Scale (s_kNotchHeightPx, dpi);
     int      labelPad     = Scale (s_kLabelPadPx, dpi);
@@ -401,9 +399,7 @@ void DriveWidget::Paint (
         UNREFERENCED_PARAMETER (faceH);
         UNREFERENCED_PARAMETER (slotW);
         UNREFERENCED_PARAMETER (slotH);
-        UNREFERENCED_PARAMETER (doorW);
         UNREFERENCED_PARAMETER (doorH);
-        UNREFERENCED_PARAMETER (doorTravel);
         UNREFERENCED_PARAMETER (notchW);
         UNREFERENCED_PARAMETER (notchH);
         UNREFERENCED_PARAMETER (labelPad);
@@ -610,16 +606,104 @@ void DriveWidget::Paint (
     }
 
     {
-        float  doorY     = (float) m_ejectRect.top - doorOffset * (float) doorTravel;
-        float  doorLeft  = (float) m_ejectRect.left;
-        float  notchLeft = doorLeft + (float) (doorW - notchW) / 2.0f;
-        float  notchTop  = doorY + (float) doorH;
+        // Cantilever rotation: door is hinged at its top edge (the
+        // bezel slot's top) and tilts up + back like a tiny garage
+        // door. Max tilt clamped to 75 deg so the door's far edge
+        // doesn't overshoot the case top.
+        constexpr float  kPi                = 3.14159265f;
+        constexpr float  kMaxAngleRad       = 75.0f * kPi / 180.0f;
 
-        painter.FillRect (doorLeft, doorY, (float) doorW, (float) doorH, 0xFF1F1F1F);
-        painter.OutlineRect (doorLeft, doorY, (float) doorW, (float) doorH, 1.0f, 0xFF000000);
+        float    angle      = doorOffset * kMaxAngleRad;
+        float    cosA       = cosf (angle);
+        float    sinA       = sinf (angle);
+        float    doorHf     = (float) doorH;
+        float    depthBack  = doorHf * sinA;
+        float    visibleH   = doorHf * cosA;
+        float    caseDepthY = (float) (m_faceRect.top - m_bodyRect.top);
+        float    skewX;
+        float    dxBack;
+        float    dyShift;
+        float    hingeY     = (float) m_ejectRect.top;
+        float    hingeL     = (float) m_ejectRect.left;
+        float    hingeR     = (float) m_ejectRect.right;
+        float    farL;
+        float    farR;
+        float    farY;
+        uint8_t  shade;
+        uint32_t doorArgb;
+        uint32_t edgeArgb   = 0xFF000000;
+        uint32_t hiliteArgb = 0xFF5A5A5A;
+        float    yTop;
+        float    yBot;
+        int      rows;
+        int      i          = 0;
 
-        // Finger notch: small darker rectangle below the door tab.
-        painter.FillRect (notchLeft, notchTop, (float) notchW, (float) notchH, theme.driveBezelArgb);
+        if (caseDepthY < 1.0f)
+        {
+            caseDepthY = 1.0f;
+        }
+        skewX     = (float) m_perspectiveSkewPx / caseDepthY;
+        dxBack    = depthBack * skewX;
+        dyShift   = depthBack;
+        farL      = hingeL + dxBack;
+        farR      = hingeR + dxBack;
+        farY      = hingeY + visibleH - dyShift;
+
+        // Front face (closed) is the darkest; underside (visible as
+        // the door tilts) lerps toward a slightly lighter grey so the
+        // tilt reads visually.
+        shade     = (uint8_t) (0x1F + (uint32_t) (sinA * (float) (0x4A - 0x1F)));
+        doorArgb  = 0xFF000000u | ((uint32_t) shade << 16) | ((uint32_t) shade << 8) | (uint32_t) shade;
+
+        yTop      = std::min (hingeY, farY);
+        yBot      = std::max (hingeY, farY);
+        rows      = (int) (yBot - yTop);
+        if (rows < 1)
+        {
+            rows = 1;
+        }
+
+        // Fill the door parallelogram scanline by scanline.
+        for (i = 0; i < rows; i++)
+        {
+            float  y     = yTop + (float) i;
+            float  t;
+            float  lx;
+            float  rx;
+
+            if (farY >= hingeY)
+            {
+                t = (y - hingeY) / std::max (farY - hingeY, 1.0f);
+            }
+            else
+            {
+                t = (hingeY - y) / std::max (hingeY - farY, 1.0f);
+            }
+            lx = hingeL + t * (farL - hingeL);
+            rx = hingeR + t * (farR - hingeR);
+            painter.FillRect (lx, y, rx - lx, 1.0f, doorArgb);
+        }
+
+        // Hinge edge highlight (thin lighter line at the top edge so
+        // the cantilever pivot reads).
+        painter.FillRect (hingeL, hingeY, hingeR - hingeL, 1.0f, hiliteArgb);
+
+        // Far edge (top of door when closed -> rear of door when open):
+        // dark outline along whichever screen-y it currently occupies.
+        painter.FillRect (farL, farY, farR - farL, 1.0f, edgeArgb);
+
+        // Finger notch hangs below the closed door. Fades out as the
+        // door tilts since it would project at weird angles above the
+        // hinge -- not worth animating geometrically.
+        if (doorOffset < 0.4f)
+        {
+            float    notchLeft = farL + (farR - farL - (float) notchW) / 2.0f;
+            float    notchTop  = farY + 1.0f;
+            uint8_t  na        = (uint8_t) (255.0f * (1.0f - doorOffset / 0.4f));
+            uint32_t notchArgb = (theme.driveBezelArgb & 0x00FFFFFF) | ((uint32_t) na << 24);
+
+            painter.FillRect (notchLeft, notchTop, (float) notchW, (float) notchH, notchArgb);
+        }
     }
 
     // "DRIVE N" upper-left of faceplate.
