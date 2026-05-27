@@ -682,11 +682,14 @@ HRESULT AssetBootstrap::EnsureThemes (
 
     for (const EmbeddedTheme & theme : s_kEmbeddedThemes)
     {
-        fs::path              themeSubdir   = themesDir / theme.dirName;
-        fs::path              themeJsonPath = themeSubdir / "theme.json";
-        bool                  diskExists    = false;
+        fs::path              themeSubdir       = themesDir / theme.dirName;
+        fs::path              themeJsonPath     = themeSubdir / "theme.json";
+        bool                  diskExists        = false;
         string                diskJsonText;
-        ThemeBootstrapAction  action        = ThemeBootstrapAction::Skip;
+        string                embeddedJsonText;
+        ThemeBootstrapAction  action            = ThemeBootstrapAction::Skip;
+        int                   themeJsonResId    = 0;
+
 
 
         diskExists = fs::exists (themeJsonPath, ec);
@@ -703,7 +706,28 @@ HRESULT AssetBootstrap::EnsureThemes (
             }
         }
 
+        // Find the embedded theme.json resource id so the planner can
+        // diff disk vs canonical bytes. Built-in themes always have a
+        // theme.json file as their first entry by convention; cope if
+        // ever that stops being true by scanning.
+        for (const EmbeddedThemeFile & f : theme.files)
+        {
+            if (std::string (f.relativePath) == "theme.json")
+            {
+                themeJsonResId = f.resourceId;
+                break;
+            }
+        }
+
+        if (themeJsonResId != 0)
+        {
+            span<const Byte>  embeddedBytes = ExtractResource (hInstance, themeJsonResId);
+            embeddedJsonText.assign (reinterpret_cast<const char *> (embeddedBytes.data()),
+                                     embeddedBytes.size());
+        }
+
         action = ThemeBootstrapPlanner::Plan (diskExists ? &diskJsonText : nullptr,
+                                              embeddedJsonText,
                                               theme.currentVersion);
 
         if (action == ThemeBootstrapAction::Skip)

@@ -175,7 +175,10 @@ public:
 
     TEST_METHOD (BootstrapPlanner_MissingDisk_InstallsBuiltIn)
     {
-        Assert::IsTrue (ThemeBootstrapPlanner::Plan (nullptr, 1)
+        std::string  embedded =
+            R"({"$cassoThemeVersion": 1, "$cassoBuiltIn": true, "name": "Skeuomorphic"})";
+
+        Assert::IsTrue (ThemeBootstrapPlanner::Plan (nullptr, embedded, 1)
                         == ThemeBootstrapAction::InstallBuiltIn);
     }
 
@@ -185,8 +188,9 @@ public:
         // No $cassoBuiltIn marker -> user theme -> skip even if
         // version is older than the embedded built-in's.
         std::string userTheme = R"({"$cassoThemeVersion": 1, "name": "MyCustom"})";
+        std::string embedded  = R"({"$cassoThemeVersion": 99, "$cassoBuiltIn": true, "name": "Skeuomorphic"})";
 
-        Assert::IsTrue (ThemeBootstrapPlanner::Plan (&userTheme, 99)
+        Assert::IsTrue (ThemeBootstrapPlanner::Plan (&userTheme, embedded, 99)
                         == ThemeBootstrapAction::Skip);
     }
 
@@ -195,9 +199,11 @@ public:
     {
         std::string oldBuiltIn =
             R"({"$cassoThemeVersion": 1, "$cassoBuiltIn": true, "name": "Skeuomorphic"})";
+        std::string embeddedV3 =
+            R"({"$cassoThemeVersion": 3, "$cassoBuiltIn": true, "name": "Skeuomorphic"})";
 
-        // Embedded built-in is now v3 -> upgrade required.
-        Assert::IsTrue (ThemeBootstrapPlanner::Plan (&oldBuiltIn, 3)
+        // Embedded built-in is now v3 -> upgrade required (bytes differ too).
+        Assert::IsTrue (ThemeBootstrapPlanner::Plan (&oldBuiltIn, embeddedV3, 3)
                         == ThemeBootstrapAction::InstallBuiltIn);
     }
 
@@ -207,17 +213,34 @@ public:
         std::string currentBuiltIn =
             R"({"$cassoThemeVersion": 1, "$cassoBuiltIn": true, "name": "Skeuomorphic"})";
 
-        Assert::IsTrue (ThemeBootstrapPlanner::Plan (&currentBuiltIn, 1)
+        // Bytes match the embedded canonical -> skip.
+        Assert::IsTrue (ThemeBootstrapPlanner::Plan (&currentBuiltIn, currentBuiltIn, 1)
                         == ThemeBootstrapAction::Skip);
+    }
+
+
+    TEST_METHOD (BootstrapPlanner_BuiltInBytesDiffer_TriggersInstall)
+    {
+        // Same version, but the embedded canonical bytes were edited
+        // (developer tweaked a theme value without bumping the version).
+        // Content drift must re-extract.
+        std::string onDisk =
+            R"({"$cassoThemeVersion": 1, "$cassoBuiltIn": true, "name": "Skeuomorphic", "crtDefaults": {"brightness": 1.0}})";
+        std::string embedded =
+            R"({"$cassoThemeVersion": 1, "$cassoBuiltIn": true, "name": "Skeuomorphic", "crtDefaults": {"brightness": 1.1}})";
+
+        Assert::IsTrue (ThemeBootstrapPlanner::Plan (&onDisk, embedded, 1)
+                        == ThemeBootstrapAction::InstallBuiltIn);
     }
 
 
     TEST_METHOD (BootstrapPlanner_GarbageDisk_InstallsBuiltIn)
     {
         // A half-written extract from a previous crash. Replace it.
-        std::string garbage = "{ not json at all";
+        std::string garbage  = "{ not json at all";
+        std::string embedded = R"({"$cassoThemeVersion": 1, "$cassoBuiltIn": true, "name": "Skeuomorphic"})";
 
-        Assert::IsTrue (ThemeBootstrapPlanner::Plan (&garbage, 1)
+        Assert::IsTrue (ThemeBootstrapPlanner::Plan (&garbage, embedded, 1)
                         == ThemeBootstrapAction::InstallBuiltIn);
     }
 };

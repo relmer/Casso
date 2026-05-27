@@ -18,6 +18,7 @@
 
 ThemeBootstrapAction ThemeBootstrapPlanner::Plan (
     const std::string * themeJsonOnDisk,
+    const std::string & embeddedThemeJson,
     int                 currentVersion)
 {
     HRESULT         hr        = S_OK;
@@ -46,6 +47,15 @@ ThemeBootstrapAction ThemeBootstrapPlanner::Plan (
     if (!isBuiltIn)
     {
         return ThemeBootstrapAction::Skip;
+    }
+
+    // Built-in marker says "this is ours" -- compare bytes against the
+    // embedded canonical copy. Any drift (developer edited the embedded
+    // theme.json without bumping currentVersion) re-extracts on the
+    // next launch automatically.
+    if (! embeddedThemeJson.empty() && *themeJsonOnDisk != embeddedThemeJson)
+    {
+        return ThemeBootstrapAction::InstallBuiltIn;
     }
 
     hr = parsed.GetInt ("$cassoThemeVersion", version);

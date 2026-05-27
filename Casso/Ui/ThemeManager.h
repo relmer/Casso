@@ -45,7 +45,30 @@ enum class ThemeBootstrapAction
 class ThemeBootstrapPlanner
 {
 public:
+    // Decide what to do with the on-disk theme.json relative to the
+    // embedded canonical bytes.
+    //
+    // Returns InstallBuiltIn when:
+    //   - Nothing on disk yet (first launch)
+    //   - On-disk JSON is unparseable
+    //   - On-disk file is built-in AND its bytes differ from the
+    //     embedded canonical bytes (content drift -- developer edited
+    //     the embedded theme without bumping the version, fixed at
+    //     next launch automatically)
+    //   - On-disk file is built-in AND its version stamp is older
+    //     than `currentVersion` (legacy version-bump path; kept as
+    //     a backstop)
+    //
+    // Returns Skip when:
+    //   - On-disk file is user-authored ($cassoBuiltIn != true)
+    //   - On-disk file matches the embedded bytes exactly
+    //
+    // `embeddedJsonBytes` must be the byte stream of the embedded
+    // theme.json resource (typically a span<const Byte> reinterpreted
+    // as a string). Caller already has it loaded for the InstallBuiltIn
+    // path, so passing it costs nothing.
     static ThemeBootstrapAction Plan (const std::string * themeJsonOnDisk,
+                                      const std::string & embeddedThemeJson,
                                       int                 currentVersion);
 };
 
