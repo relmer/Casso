@@ -398,24 +398,46 @@ HRESULT DwriteTextRenderer::DrawString (
 
     if (vAlign == VAlign::CenterOnCapHeight)
     {
-        // Look up the font face's metrics so we can place the cap-
-        // height midline of the rendered text at the rect's vertical
-        // center. The metrics are in font-design units; scale by
-        // (fontSizeDip / designUnitsPerEm) to DIPs.
+        // Compute the cap-height midline position using the actual
+        // measured line baseline (from IDWriteTextLayout) plus the
+        // font face's capHeight metric. Reliable across line-spacing
+        // modes and lineGap quirks -- DWrite's DEFAULT line spacing
+        // distributes lineGap inside the line box, so assuming
+        // baseline == layoutRect.top + ascent is wrong.
         //
-        // After the layout-rect shift, we use DWRITE_PARAGRAPH_
-        // ALIGNMENT_NEAR so DirectWrite places the line box at
-        // layoutRect.top -- we've already done the alignment math.
+        // Steps:
+        //   1. Create a layout with NEAR alignment to measure where
+        //      DWrite would place the baseline within layoutRect.
+        //   2. Look up capHeight from the font face metrics.
+        //   3. capMidY (within layoutRect) = baseline - capHeight/2.
+        //   4. Shift layoutRect so capMidY == heightDip/2.
+        ComPtr<IDWriteTextLayout>      layout;
         ComPtr<IDWriteFontCollection>  collection;
         ComPtr<IDWriteFontFamily>      familyObj;
         ComPtr<IDWriteFont>            font;
         ComPtr<IDWriteFontFace>        face;
-        UINT32                         familyIndex = 0;
-        BOOL                           familyFound = FALSE;
-        DWRITE_FONT_METRICS            metrics     = {};
-        HRESULT                        hrMetrics   = S_OK;
+        UINT32                         familyIndex   = 0;
+        BOOL                           familyFound   = FALSE;
+        DWRITE_FONT_METRICS            metrics       = {};
+        DWRITE_LINE_METRICS            lineMetrics   = {};
+        UINT32                         lineCount     = 0;
+        HRESULT                        hrMetrics     = S_OK;
+        UINT32                         textLenLocal  = (UINT32) wcslen (text);
 
-        hrMetrics = format->GetFontCollection (&collection);
+        hrMetrics = m_dwriteFactory->CreateTextLayout (text,
+                                                       textLenLocal,
+                                                       format.Get(),
+                                                       widthDip,
+                                                       heightDip,
+                                                       &layout);
+        if (SUCCEEDED (hrMetrics) && layout)
+        {
+            hrMetrics = layout->GetLineMetrics (&lineMetrics, 1, &lineCount);
+        }
+        if (SUCCEEDED (hrMetrics))
+        {
+            hrMetrics = format->GetFontCollection (&collection);
+        }
         if (SUCCEEDED (hrMetrics) && collection)
         {
             hrMetrics = collection->FindFamilyName (fontFamily, &familyIndex, &familyFound);
@@ -435,27 +457,22 @@ HRESULT DwriteTextRenderer::DrawString (
         {
             hrMetrics = font->CreateFontFace (&face);
         }
-        if (SUCCEEDED (hrMetrics) && face)
+        if (SUCCEEDED (hrMetrics) && face && lineCount > 0)
         {
             face->GetMetrics (&metrics);
-            float  upem            = (float) metrics.designUnitsPerEm;
+            float  upem = (float) metrics.designUnitsPerEm;
             if (upem > 0.0f)
             {
-                float  scale          = fontSizeDip / upem;
-                float  ascentDip      = (float) metrics.ascent     * scale;
-                float  capHeightDip   = (float) metrics.capHeight  * scale;
-                // Cap-height midline is `ascent - capHeight/2` DIPs
-                // below the line box's top edge.
-                float  capCenterFromTop = ascentDip - capHeightDip * 0.5f;
-                // We want capCenterFromTop after the shift to equal
-                // (heightDip / 2). So layoutRect.top shifts by:
-                float  shift          = heightDip * 0.5f - capCenterFromTop;
+                float  capHeightDip = (float) metrics.capHeight * (fontSizeDip / upem);
+                float  baselineY    = lineMetrics.baseline;
+                float  capMidY      = baselineY - capHeightDip * 0.5f;
+                float  shift        = heightDip * 0.5f - capMidY;
                 layoutRect.top    += shift;
                 layoutRect.bottom += shift;
             }
         }
-        // Silent fallback: if any DWrite call failed we just leave
-        // the rect in place and use Top alignment.
+        // Silent fallback: if any DWrite call failed we leave the
+        // rect in place and use NEAR alignment.
     }
 
     textLen = (UINT32) wcslen (text);
