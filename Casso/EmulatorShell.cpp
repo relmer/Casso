@@ -778,6 +778,12 @@ HRESULT EmulatorShell::Initialize (
     ShowWindow (m_hwnd, SW_SHOW);
     UpdateWindow (m_hwnd);
 
+    // Reconcile actual client size against the desired framebuffer-sized
+    // client now that the window is shown and its NC frame has fully
+    // materialized. Done before UpdateWindowTitle so the user never sees
+    // the wrong-size window flash.
+    ReconcileInitialClientSize();
+
     UpdateWindowTitle();
 
     // / FR-034. Cold power-on: seed DRAM via the shared Prng and
@@ -1020,50 +1026,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     }
 
-    // Reconcile actual client size against desired client size. Two
-    // sources of drift to handle:
-    //   1. The pre-Create DPI estimate was based on cursor monitor;
-    //      after CreateWindowEx, the window's actual DPI (now in
-    //      m_scaler via WM_NCCREATE) may differ -- recompute the
-    //      desired client size from that authoritative DPI.
-    //   2. AdjustWindowRectExForDpi minus WS_CAPTION is a best-guess
-    //      at what our WM_NCCALCSIZE hands back as client area;
-    //      DefWindowProc's border carve-out varies by Windows version.
-    //      Measure the actual client and nudge by the residual delta.
-    // Skip if saved placement was restored -- the user chose that
-    // size deliberately.
-    if (!hadSavedPlacement)
-    {
-        SIZE  desired        = m_layout.ClientSizeForFramebuffer (kFramebufferWidth, kFramebufferHeight);
-        RECT  rcActualClient = {};
-        RECT  rcActualWindow = {};
-        int   actualClientW  = 0;
-        int   actualClientH  = 0;
-        int   deltaW         = 0;
-        int   deltaH         = 0;
-        int   fixedW         = 0;
-        int   fixedH         = 0;
-
-
-        clientW = (int) desired.cx;
-        clientH = (int) desired.cy;
-
-        if (GetClientRect (m_hwnd, &rcActualClient) && GetWindowRect (m_hwnd, &rcActualWindow))
-        {
-            actualClientW = rcActualClient.right  - rcActualClient.left;
-            actualClientH = rcActualClient.bottom - rcActualClient.top;
-            deltaW        = clientW - actualClientW;
-            deltaH        = clientH - actualClientH;
-
-            if (deltaW != 0 || deltaH != 0)
-            {
-                fixedW = (rcActualWindow.right  - rcActualWindow.left) + deltaW;
-                fixedH = (rcActualWindow.bottom - rcActualWindow.top)  + deltaH;
-                SetWindowPos (m_hwnd, nullptr, 0, 0, fixedW, fixedH, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
-            }
-        }
-    }
-
     // DWM gating. Rounded corners + dark immersive caption
     // are best-effort and runtime-gated to the right Win10/11 build.
     // Mica stays opt-in: it'll be toggled per-theme in P5 via
@@ -1071,6 +1033,15 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     Win11DwmHelpers::ExtendFrameIntoClientArea (m_hwnd, 1);
     Win11DwmHelpers::ApplyRoundedCorners       (m_hwnd, true);
     Win11DwmHelpers::ApplyImmersiveDarkMode    (m_hwnd, true);
+
+    // Defer the size reconcile until after ShowWindow. The NC frame
+    // (border carve-out from DefWindowProc + DWM rounded corners +
+    // thick frame) doesn't materialize until the window is shown,
+    // so measuring NC overhead now returns 0 and the reconcile would
+    // shrink the window to match the (wrong) measurement. The flag
+    // tells ReconcileInitialClientSize whether to run; saved
+    // placement deliberately bypasses the reset-to-default sizing.
+    m_initialSizeReconciled = hadSavedPlacement;
 
     // Legacy Win32 menu bar is retired (FR-026). All menu
     // commands now route through `NavLayer` + the native nav strip;
@@ -1184,6 +1155,78 @@ HRESULT EmulatorShell::CreateRenderSurface ()
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReconcileInitialClientSize
+//
+//  Run once after ShowWindow to size the window so its client area
+//  matches what LayoutManager wants for the framebuffer. Must run
+//  POST-ShowWindow because the NC frame (DefWindowProc border carve-
+//  out + DWM rounded corners) doesn't materialize until the window
+//  is visible; measuring NC overhead before that returns 0 and the
+//  reconcile would shrink the window to match the (wrong) measurement.
+//  Idempotent via m_initialSizeReconciled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReconcileInitialClientSize ()
+{
+    SIZE  desired        = {};
+    RECT  rcActualClient = {};
+    RECT  rcActualWindow = {};
+    int   ncOverheadW    = 0;
+    int   ncOverheadH    = 0;
+    int   desiredClientW = 0;
+    int   desiredClientH = 0;
+    int   fixedW         = 0;
+    int   fixedH         = 0;
+
+
+
+    if (m_initialSizeReconciled || m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    m_initialSizeReconciled = true;
+
+    desired         = m_layout.ClientSizeForFramebuffer (kFramebufferWidth, kFramebufferHeight);
+    desiredClientW  = (int) desired.cx;
+    desiredClientH  = (int) desired.cy;
+
+    // Force a fresh WM_NCCALCSIZE so DefWindowProc carves the actual
+    // thick-frame borders into the client rect. Without this, the
+    // post-ShowWindow GetClientRect returns the full window rect
+    // (NC overhead = 0) and the reconcile math thinks no resize is
+    // needed -- leaving the emulator pixel grid undersized by the
+    // border width on the eventual first NCCALCSIZE.
+    SetWindowPos (m_hwnd, nullptr, 0, 0, 0, 0,
+                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+
+    if (!GetClientRect (m_hwnd, &rcActualClient) || !GetWindowRect (m_hwnd, &rcActualWindow))
+    {
+        return;
+    }
+
+    ncOverheadW = (rcActualWindow.right  - rcActualWindow.left)
+                  - (rcActualClient.right  - rcActualClient.left);
+    ncOverheadH = (rcActualWindow.bottom - rcActualWindow.top)
+                  - (rcActualClient.bottom - rcActualClient.top);
+
+    fixedW = desiredClientW + ncOverheadW;
+    fixedH = desiredClientH + ncOverheadH;
+
+    if (fixedW != (rcActualWindow.right  - rcActualWindow.left) ||
+        fixedH != (rcActualWindow.bottom - rcActualWindow.top))
+    {
+        SetWindowPos (m_hwnd, nullptr, 0, 0, fixedW, fixedH, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
 }
 
 

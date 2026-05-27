@@ -173,6 +173,7 @@ private:
 
     // Initialization helpers
     HRESULT CreateEmulatorWindow (HINSTANCE hInstance);
+    void    ReconcileInitialClientSize ();
 
     HRESULT CreateRenderSurface ();
 
@@ -249,6 +250,7 @@ private:
 
     HACCEL              m_accelTable      = nullptr;
     HWND                m_renderHwnd      = nullptr;
+    bool                m_initialSizeReconciled = false;
 
     MemoryBus           m_memoryBus;
     ComponentRegistry   m_registry;
