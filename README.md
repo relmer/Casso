@@ -6,32 +6,53 @@
 [![Downloads](https://img.shields.io/github/downloads/relmer/Casso/total)](https://github.com/relmer/Casso/releases)
 -->
 
+## About
+
+Casso is a retro / classic-machine platform emulator and from-scratch AS65-compatible 6502 assembler, written in C++. Today the platform emulator targets the Apple II family (][, ][+, //e); the abstractions are generic enough to host other 6502-based machines later.
+
+Two of the three built-in themes booting the [casso-rocks demo disk](Apple2/Demos) — same Apple //e core, different chrome:
+
+| Skeuomorphic | Dark Modern |
+| :---: | :---: |
+| ![Casso Skeuomorphic theme booting the casso-rocks DHGR demo](Assets/theme-skeuomorphic-dhgr.png) | ![Casso Dark Modern theme booting the casso-rocks DHGR demo](Assets/theme-darkmodern-dhgr.png) |
+
+The project includes:
+
+- **Apple II platform emulator** — GUI-based Apple II, II+, and //e emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
+- **6502 CPU emulator** — passes [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) and all 151 legal-opcode sets from [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) (10,000 vectors each).
+- **AS65-compatible assembler** — a from-scratch reimplementation of Frank A. Kingswood's AS65, intended as a drop-in replacement. Supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, ...) including flag concatenation (`-tlfile`).
+- **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
+- **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
+- **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
+- **1500+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, reset semantics, perf budget, and backwards-compat for ][/][+ machines.
+
 ## What's New
 
-A few major capability waves landed between v1.3.509 and v1.4.1171. Headlines below; see [CHANGELOG.md](CHANGELOG.md) for the granular history.
+See [CHANGELOG.md](CHANGELOG.md) for the granular history.
 
 ### UI Overhaul (v1.4.1171)
 
-Casso's entire chrome moved from the legacy Win32 menu bar / Win32 dialogs to a borderless, themed shell rendered straight onto the same D3D11 framebuffer that draws the emulator video — using a native Direct2D / DirectWrite pipeline (`DxUiPainter` + `DwriteTextRenderer`), no third-party UI engine:
+Casso's entire chrome moved from the legacy Win32 menu bar / Win32 dialogs to a borderless, themed shell rendered straight onto the same D3D11 framebuffer that draws the emulator video — using a native Direct2D / DirectWrite pipeline (`DxUiPainter` + `DwriteTextRenderer`), no third-party UI engine.
 
-- **Three built-in themes** — Skeuomorphic, Dark Modern, Retro Terminal — hot-swappable from **Settings → Theme** with no restart and no machine reset. Each theme ships under `Resources/Themes/<Name>/` (extracted to `Themes/<Name>/` at first run) with a `theme.json` describing colors, CRT defaults, drive visual profile, and other UI tokens consumed by the native widget renderer. The token-based custom-theme authoring surface is still being wired through the native widgets — see [docs/themes/AUTHORING.md](docs/themes/AUTHORING.md) for the current state.
-- **Skeuomorphic drive widgets** with realistic Apple Disk II faceplates: perspective-projected case top with two indented lid panels that taper toward the back, nine vent slits down each side, beige case wrapping a black inset faceplate on all four sides, cantilever door hinged at the slot top that tilts up and back (tucking inside the case with a small flap visible when fully open) revealing a recessed finger-pull behind it, status LED, and the Cassowary rainbow logo. Click to mount; drop a `.dsk` / `.do` / `.po` / `.nib` onto a widget to insert it. Eject animates the door open even on an empty drive.
-- **Consolidated Settings panel** replaces the old `OptionsDialog` and `MachinePickerDialog`. Machine selection, machine info, emulation speed, video color mode, disk write mode, floppy sound + mechanism, write-protect, theme picker, and the new CRT controls live in one non-modal in-window panel with full keyboard navigation.
-- **Restructured menu bar** with seven nav menus — File, Edit, Machine, Disk, View, Debug, Help — grouping commands by user workflow. Machine info moved to Settings → Hardware; write mode moved to Settings → Machine; debug tools live under the new Debug menu (positioned between View and Help).
-- **CRT post-processing** — scanlines, phosphor bloom, color bleed. Each effect toggles independently; a single brightness slider gates the master mix. Display preview uses a per-pixel emulator clip with gaussian-blurred darkening when the Settings popup overlaps the emulator output.
-- **Auto-remount** of the last-inserted disks on machine load, so the typical "boot Apple ][+" flow is one click.
-- **Unified user preferences** persist in one `UserPrefs.json` file: global UI state under `global`, and per-machine deltas under `machines` keyed by display name. (A small set of legacy values — last-loaded machine name, per-machine last-inserted disk paths, audio download consent — still live in the registry for backwards compatibility.)
+**Three built-in themes** — Skeuomorphic, Dark Modern, Retro Terminal — hot-swappable from **Settings → Theme** with no restart and no machine reset. Each theme ships under `Resources/Themes/<Name>/` (extracted to `Themes/<Name>/` at first run) with a `theme.json` describing colors, CRT defaults, drive visual profile, and other UI tokens consumed by the native widget renderer. The token-based custom-theme authoring surface is still being wired through the native widgets — see [docs/themes/AUTHORING.md](docs/themes/AUTHORING.md) for the current state.
 
-<!-- TODO: capture screenshot -- caption: "Retro Terminal theme: green-on-black VT323 font, scanlines + bloom enabled, NTSC color mode." -->
+<p align="center"><img src="Assets/feat-themes.png" alt="Theme picker hot-swapping between Skeuomorphic, Dark Modern, and Retro Terminal" width="540" /></p>
 
-### Disk ][ Debug Window (v1.3.730)
+**Skeuomorphic drive widgets** with realistic Apple Disk II faceplates: perspective-projected case top with two indented lid panels that taper toward the back, nine vent slits down each side, beige case wrapping a black inset faceplate on all four sides, cantilever door hinged at the slot top that tilts up and back (tucking inside the case with a small flap visible when fully open) revealing a recessed finger-pull behind it, status LED, and the Cassowary rainbow logo. Click a drive to pick a disk image, or drag-and-drop a `.dsk` / `.do` / `.po` / `.nib` file onto it. Eject animates the door open even on an empty drive.
 
-A modeless live event log of every Disk II controller event the active machine emits. Open with **Debug → Disk ][ Debug...** or **Ctrl+Shift+D**:
+<p align="center"><img src="Assets/feat-drive-widgets.png" alt="Skeuomorphic drive widgets: Drive 1 active with red IN USE LED, Drive 2 idle" width="540" /></p>
 
-- Motor on/off, head step / bump (with prev → new quarter-track), address marks (track / sector / volume), data reads, drive selects, insert / eject events, and audio decisions (started / restarted / continued / silent).
-- Filter by event type, drive, track range, sector range, audio sub-category, or any combination; pause / resume / clear; Ctrl+C copies the selected rows tab-separated.
-- Right-click the column header to show / hide the Wall, Uptime, Cycle, Event, or Detail columns.
-- Open the dialog *before* the operation you want to investigate -- events emitted before the dialog opens are not retained.
+**Consolidated Settings panel** replaces the old `OptionsDialog` and `MachinePickerDialog`. Machine selection, machine info, emulation speed, video color mode, disk write mode, floppy sound + mechanism, write-protect, theme picker, and the new CRT controls live in one non-modal in-window panel with full keyboard navigation.
+
+<p align="center"><img src="Assets/feat-settings.png" alt="Settings panel — Machine tab with machine, CPU speed, write protect, write mode, and drive audio controls" width="540" /></p>
+
+**CRT effects** — scanlines, phosphor bloom, and color bleed (each independently toggleable, with its own parameter sliders), plus persistence trails, contrast, and gamma sliders. Per-monitor presets (Color / Green / Amber / White) seed sensible defaults; themes can override; user tweaks persist as overrides on top of either. The Settings popup gets out of your way as you scrub a control — the panel fades, the emulator behind it stays sharp inside a per-pixel clip, and only the focused control remains opaque — so you can evaluate the effect of every parameter change live.
+
+<p align="center"><img src="Assets/feat-crt-effects.png" alt="Display tab CRT controls — monitor preset, brightness, contrast, gamma, scanlines, bloom, color bleed, persistence" width="540" /></p>
+
+<p align="center"><img src="Assets/feat-live-preview.png" alt="Live-preview mode — Settings panel fades while the focused Intensity slider stays sharp over the live emulator output" width="540" /></p>
+
+**Unified user preferences** persist in `%LOCALAPPDATA%\Casso\UserPrefs.json`: global UI state under `global`, and per-machine deltas under `machines` keyed by display name. Most settings live there today; a small set of legacy values (last-loaded machine, per-machine last-inserted disk paths, audio download consent, window placement) still live in the registry for backwards compatibility and will migrate to JSON in a follow-up.
 
 ### Disk II audio (v1.3.696)
 
@@ -43,51 +64,6 @@ Realistic mechanical sounds during disk activity, mixed into the WASAPI pipeline
 - *View → Options...* dialog with a Drive Audio toggle (default on) and a Disk II mechanism dropdown (Shugart SA400 by default, or Alps 2124A). Both persist per-machine via the registry.
 - First-run consent dialog downloads the actual recordings from the [OpenEmulator](https://github.com/openemulator/libemulation) project; OGGs are decoded in memory via vendored `stb_vorbis` and written as WAV (no `.ogg` retained on disk). Asked once per machine, persisted thereafter.
 - Generic `IDriveAudioSink` / `IDriveAudioSource` / `DriveAudioMixer` abstraction so future drive types (//c internal 5.25, DuoDisk, Apple 5.25 Drive, ProFile, ...) plug in without touching the mixer.
-
-### Friendly first-run bootstrap (v1.3.573)
-
-Drop `Casso.exe` anywhere, double-click, and the rest happens:
-
-- **Missing ROMs?** Casso lists what's needed and offers to download them from the AppleWin project in one click.
-- **First time on the Apple //e?** Casso offers to download a stock Apple system master disk (DOS 3.3 or ProDOS) from the Asimov archive so the //e boots straight to a BASIC prompt instead of spinning forever waiting for a disk.
-- **Lost your Machines/ folder?** The three default machine configs (`Apple ][`, `Apple ][+`, `Apple //e`) are bundled inside `Casso.exe` and extracted on demand.
-- **Moved your install?** Per-machine remembered disks are stored as paths relative to `Casso.exe`, so the whole `Casso.exe` + `Disks/` tree is portable.
-
-### Apple //e fidelity (v1.3.509)
-
-Casso became a real Apple //e — not just a 6502 host that draws text:
-
-- Cold boot to BASIC with audit-correct Language Card state machine, 64 KB auxiliary RAM, and the //e MMU (`INTCXROM` / `SLOTC3ROM` / `INTC8ROM` / `STORE80` / `RAMRD` / `RAMWRT` and the `ALTZP`-driven page-0/1 swap).
-- 80-column text mode + Double Hi-Res with NTSC artifact colors.
-- Cycle-accurate IRQ / NMI dispatch, soft reset vs. power cycle distinction, `RDVBLBAR` ($C019) wired into the video timing model.
-- Disk II controller with full DOS 3.3 / ProDOS / WOZ v1 + v2 support, `.dsk` / `.do` / `.po` nibblization, and auto-flush on eject so user writes survive.
-- Headless test harness (`HeadlessHost`) for deterministic integration tests of cold boot, disk boot, framebuffer hashing, and reset semantics.
-
-## About
-
-Casso is a retro / classic-machine platform emulator and from-scratch AS65-compatible 6502 assembler, written in C++. Today the platform emulator targets the Apple II family (][, ][+, //e); the abstractions are generic enough to host other 6502-based machines later.
-
-The two built-in chrome themes booting the [casso-rocks demo disk](Apple2/Demos) — same Apple //e core, different chrome:
-
-| Skeuomorphic | Dark Modern |
-| :---: | :---: |
-| ![Casso Skeuomorphic theme booting the casso-rocks DHGR demo](Assets/theme-skeuomorphic-dhgr.png) | ![Casso Dark Modern theme booting the casso-rocks DHGR demo](Assets/theme-darkmodern-dhgr.png) |
-
-The same cassowary photo rendered in HGR (6 colors, NTSC artifacting) and DHGR (16 colors, Floyd-Steinberg dithered) by the bootable [casso-rocks demo disk](Apple2/Demos):
-
-| DHGR (16 colors) | HGR (6 colors) |
-| :---: | :---: |
-| ![Casso emulating an Apple //e showing the DHGR cassowary demo](Assets/Apple%202e%20DHGR%20Cassowary.png) | ![Casso emulating an Apple //e showing the HGR cassowary demo](Assets/Apple%202e%20HGR%20Cassowary.png) |
-
-The project includes:
-
-- **Apple II platform emulator** — GUI-based Apple II, II+, and //e emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
-- **6502 CPU emulator** — passes [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) and all 151 legal-opcode sets from [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) (10,000 vectors each).
-- **AS65-compatible assembler** — a from-scratch reimplementation of Frank A. Kingswood's AS65, intended as a drop-in replacement. Supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, ...) including flag concatenation (`-tlfile`).
-- **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
-- **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
-- **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
-- **1500+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHR video, reset semantics, perf budget, and backwards-compat for ][/][+ machines.
 
 ## Project Structure
 
@@ -141,23 +117,26 @@ Casso.sln
 
 ```powershell
 # Assemble a source file to a flat binary (AS65 mode — no subcommand)
-.\x64\Debug\CassoCli.exe input.a65 -o output.bin
+CassoCli input.a65 -o output.bin
 
 # Assemble with a listing file and a symbol table
-.\x64\Debug\CassoCli.exe input.a65 -o output.bin -l listing.txt -t
+CassoCli input.a65 -o output.bin -l listing.txt -t
 
 # Output Motorola S-record (.s19) or Intel HEX (.hex)
-.\x64\Debug\CassoCli.exe input.a65 -s   -o output.s19
-.\x64\Debug\CassoCli.exe input.a65 -s2  -o output.hex
+CassoCli input.a65 -s   -o output.s19
+CassoCli input.a65 -s2  -o output.hex
 
-# Pre-define a symbol on the command line, generate cycle counts in the listing
-.\x64\Debug\CassoCli.exe input.a65 -d DEBUG=1 -cl listing.txt
+# Pre-define a symbol on the command line
+CassoCli input.a65 -d DEBUG=1 -o output.bin
+
+# Generate a listing with cycle counts
+CassoCli input.a65 -c -l listing.txt
 
 # Assemble and run an assembly source directly
-.\x64\Debug\CassoCli.exe run input.a65
+CassoCli run input.a65
 
 # Load and run a pre-assembled binary at a specific address
-.\x64\Debug\CassoCli.exe run output.bin --load $8000
+CassoCli run output.bin --load $8000
 ```
 
 ### Apple II Emulator
@@ -171,10 +150,10 @@ distributed with this project. A script is included to download them from the
 .\scripts\FetchRoms.ps1
 
 # Run the emulator (defaults to Apple II+)
-.\ARM64\Debug\Casso.exe
+Casso
 
 # Run with a specific machine config
-.\ARM64\Debug\Casso.exe --machine Apple2e
+Casso --machine Apple2e
 ```
 
 ROM images live under `Machines/<MachineName>/` (e.g.,
@@ -224,31 +203,32 @@ All 56 standard 6502 mnemonics are implemented. Validated against [Klaus Dormann
 - [x] Per-opcode validation against [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) ([#29](https://github.com/relmer/Casso/issues/29), [#38](https://github.com/relmer/Casso/issues/38))
 - [x] Apple //e fidelity — cold boot to BASIC, audit-correct Language Card, 64 KB aux RAM, 80-column text + Double Hi-Res, soft reset vs. power cycle, IRQ/NMI dispatch, RDVBLBAR
 - [x] Disk II controller — DOS 3.3 / ProDOS `.dsk` / `.do` / `.po` nibblization + WOZ v1 / v2 with auto-flush on eject
-- [x] Disk II mechanical audio — stereo motor hum, head-step clicks, track-0 bump, disk insert / eject sounds, with a runtime View → Options... → Drive Audio toggle. Built on a generic `IDriveAudioSink` / `IDriveAudioSource` / `DriveAudioMixer` abstraction so future drive types (//c internal 5.25, DuoDisk, ProFile, …) plug in without touching the mixer
+- [x] Disk II mechanical audio — stereo motor hum, head-step clicks, track-0 bump, disk insert / eject sounds, with a runtime Settings → Machine → Drive audio toggle. Built on a generic `IDriveAudioSink` / `IDriveAudioSource` / `DriveAudioMixer` abstraction so future drive types (//c internal 5.25, DuoDisk, ProFile, …) plug in without touching the mixer
 - [x] Headless test harness for deterministic integration tests (`HeadlessHost`, framebuffer scraper, keyboard injector)
 - [x] Performance gate — emulator throughput budget enforced in CI (Release-only)
-
-### High Priority
-
-- [ ] Interactive debugger / monitor — step, breakpoints, register watch, memory dump ([#51](https://github.com/relmer/Casso/issues/51))
-- [ ] Undocumented / illegal opcode support ([#52](https://github.com/relmer/Casso/issues/52))
+- [x] Cycle-accurate execution and profiling ([#57](https://github.com/relmer/Casso/issues/57))
 
 ### Medium Priority
 
 - [ ] 65C02 extended instruction support, with assembler `--cpu` flag ([#9](https://github.com/relmer/Casso/issues/9))
-- [ ] VS Code extension — syntax highlighting, assemble-on-save, inline diagnostics ([#54](https://github.com/relmer/Casso/issues/54))
-- [ ] Example programs — ready-to-assemble demos and tutorials ([#55](https://github.com/relmer/Casso/issues/55))
-- [x] Cycle-accurate execution and profiling ([#57](https://github.com/relmer/Casso/issues/57))
-- [ ] NES 6502 / Ricoh 2A03 variant ([#47](https://github.com/relmer/Casso/issues/47))
+- [ ] Undocumented / illegal opcode support ([#52](https://github.com/relmer/Casso/issues/52))
 - [ ] Rockwell / WDC 65C02 variants ([#49](https://github.com/relmer/Casso/issues/49), [#50](https://github.com/relmer/Casso/issues/50))
+- [ ] Disk II copy-protection fidelity — spin-up delay, cycle-accurate rotational position, bit-level write path ([#67](https://github.com/relmer/Casso/issues/67))
+- [ ] Boot *Karateka* from its WOZ image (RWTS18 copy protection) ([#68](https://github.com/relmer/Casso/issues/68))
+- [ ] *Choplifter* gameplay starts after the title screen (WOZ copy protection) ([#69](https://github.com/relmer/Casso/issues/69))
+- [ ] Boot *Lode Runner* from its WOZ image (copy protection) ([#70](https://github.com/relmer/Casso/issues/70))
 
 ### Low Priority
 
+- [ ] NES 6502 / Ricoh 2A03 variant ([#47](https://github.com/relmer/Casso/issues/47))
+- [ ] Example programs — ready-to-assemble demos and tutorials ([#55](https://github.com/relmer/Casso/issues/55))
+- [ ] VS Code extension — syntax highlighting, assemble-on-save, inline diagnostics ([#54](https://github.com/relmer/Casso/issues/54))
+- [ ] Interactive debugger / monitor — step, breakpoints, register watch, memory dump ([#51](https://github.com/relmer/Casso/issues/51))
 - [ ] Relocatable object output — o65 format for cc65 toolchain integration ([#58](https://github.com/relmer/Casso/issues/58))
 
 ## Why "Casso"?
 
-The 6502 emulator world already has too many projects named [Emu](https://en.wikipedia.org/wiki/Emu), so I decided to be a little different. I picked its larger, flightless, slightly-more-dangerous cousin: the [cassowary](https://en.wikipedia.org/wiki/Cassowary)—Casso to his friends. I want this to be a great emulator and a great assembler, but don't take things too seriously.
+While [emu](https://en.wikipedia.org/wiki/Emu) is the more obvious name and mascot for an emulator, I wanted Casso to stand out; to be just a little weird; to _think different_. I picked its larger, flightless, considerably more dangerous cousin: the [cassowary](https://en.wikipedia.org/wiki/Cassowary)—Casso to his friends.
 
 I thus present to you our regal namesake—revel in his splendor!
 
@@ -257,22 +237,6 @@ I thus present to you our regal namesake—revel in his splendor!
 </p>
 
 *Cassowary photo by [Mr. Smiley / BunyipCo](https://bunyipco.blogspot.com/2015/04/cassowary-update.html), licensed under [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/).*
-
-## Approved Third-Party Dependencies
-
-Per the [Casso Constitution v1.5.0](.specify/memory/constitution.md), every vendored
-third-party source must be MIT or public-domain and listed in the Approved Dependencies
-allowlist. The current allowlist:
-
-| Component                                  | Upstream                                                        | Version / SHA                                  | License  | Used by                            |
-|--------------------------------------------|------------------------------------------------------------------|------------------------------------------------|----------|------------------------------------|
-| **libretro `crt-pi`** (scanlines)          | https://github.com/libretro/glsl-shaders (`crt/shaders/crt-pi.glsl`) | collection `42fa8a98ab19bdaffb53280746a30819eb21f807` | MIT — Davide Berra        | `Casso/Shaders/CRT/scanlines.hlsl` |
-| **libretro `bloom`** (Gaussian bloom pass) | https://github.com/libretro/glsl-shaders (`bloom/shaders/bloom.glsl`) | collection `42fa8a98ab19bdaffb53280746a30819eb21f807` | CC0 / PD — Hyllian, hunterk | `Casso/Shaders/CRT/bloom_*.hlsl`   |
-| **libretro `ntsc-adaptive`** (color bleed) | https://github.com/libretro/glsl-shaders (`ntsc/shaders/ntsc-adaptive/ntsc-pass1.glsl`) | collection `42fa8a98ab19bdaffb53280746a30819eb21f807` | MIT — Themaister, hunterk  | `Casso/Shaders/CRT/color_bleed.hlsl` |
-| **stb_vorbis**                             | https://github.com/nothings/stb                                  | vendored single-header                         | MIT / PD | OGG decode for Disk II audio samples |
-
-`scripts/CheckShaderLicenses.ps1` runs pre-build to enforce that no GPL / copyleft strings
-leak into `Casso/Shaders/` outside of designated `// ATTRIBUTION:` comment blocks.
 
 ## Acknowledgments
 
@@ -285,7 +249,7 @@ Thank you to both authors for making these invaluable resources freely available
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for commit conventions, build instructions, and code style guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for commit conventions, build instructions, code style guidelines, and other contributor guidelines.
 
 ## License
 

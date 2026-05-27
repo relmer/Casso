@@ -59,6 +59,18 @@ Or use the VS Code tasks (Ctrl+Shift+B).
 - Every `.cpp` file must include `"Pch.h"` as its first `#include`
 - Use quoted includes (`"header.h"`) for project headers; system headers go in `Pch.h`
 
+## Third-Party Dependencies
+
+Casso vendors a small allowlist of MIT / BSD / Apache / public-domain
+third-party sources under `External/` (no package manager, no binary
+downloads). The current allowlist and the rules around adding to it
+live in [`.specify/memory/constitution.md`](.specify/memory/constitution.md)
+under **Approved Third-Party Dependencies**. Adding a new entry is a
+constitution amendment (MINOR version bump); don't quietly add
+dependencies without going through that process. `scripts/CheckShaderLicenses.ps1`
+also runs pre-build to keep GPL / copyleft strings out of `Casso/Shaders/`
+outside designated `// ATTRIBUTION:` comment blocks.
+
 ## Changelog and README
 
 - **ALWAYS** update [CHANGELOG.md](CHANGELOG.md) when making user-visible changes (`feat`, `fix`, `perf`)

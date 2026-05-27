@@ -83,8 +83,8 @@ public:
         Assert::AreEqual (1.0f,    params.brightness);
         Assert::AreEqual (1.0f,    params.contrast);
         Assert::AreEqual (0.20f,   params.scanlineIntensity);
-        Assert::AreEqual (2.0f,    params.bloomRadius);
-        Assert::AreEqual (0.30f,   params.bloomStrength);
+        Assert::AreEqual (1.0f,    params.bloomRadius);
+        Assert::AreEqual (0.20f,   params.bloomStrength);
         Assert::AreEqual (3.0f,    params.colorBleedWidth);
         Assert::AreEqual (1920.0f, params.outputW);
         Assert::AreEqual (1080.0f, params.outputH);

@@ -59,8 +59,8 @@ namespace CrtPresets
                 /* scanlinesEnabled   */ true,
                 /* scanlinesIntensity */ 0.20f,
                 /* bloomEnabled       */ true,
-                /* bloomRadius        */ 2.0f,
-                /* bloomStrength      */ 0.30f,
+                /* bloomRadius        */ 1.0f,
+                /* bloomStrength      */ 0.20f,
                 /* colorBleedEnabled  */ true,
                 /* colorBleedWidth    */ 3.0f,
                 /* persistence        */ 0.00f,
@@ -69,7 +69,7 @@ namespace CrtPresets
             // Green (P1)
             {
                 /* brightness         */ 1.05f,
-                /* contrast           */ 0.95f,
+                /* contrast           */ 1.00f,
                 /* gamma              */ 1.00f,
                 /* scanlinesEnabled   */ true,
                 /* scanlinesIntensity */ 0.40f,
@@ -84,7 +84,7 @@ namespace CrtPresets
             // Amber (P3)
             {
                 /* brightness         */ 1.05f,
-                /* contrast           */ 0.90f,
+                /* contrast           */ 1.00f,
                 /* gamma              */ 1.00f,
                 /* scanlinesEnabled   */ true,
                 /* scanlinesIntensity */ 0.50f,
