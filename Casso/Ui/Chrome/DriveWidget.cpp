@@ -463,85 +463,115 @@ void DriveWidget::Paint (
         }
 
         // Two indented lid panels on the case top, matching the real
-        // Disk II's stamped panel design. Each panel is a rounded
-        // recessed rectangle drawn with a slightly darker shade and
-        // a 1-px shadow on its top/left edges to suggest depth.
+        // Disk II's stamped panel design. Stacked FRONT-TO-BACK so
+        // each panel is wider than it is tall (matches the photo --
+        // a side-by-side layout would make tall-narrow rectangles
+        // because the case-top trapezoid is much wider than deep).
+        //
+        // Both panels clamp to the trapezoid bounds at their depth
+        // so they never extend past the slanted left/right edges.
+        float  panelTopBack    = backY;
+        float  panelBottomFront = frontY;
+        float  panelInsetTop;
+        float  panelInsetBottom;
+        UNREFERENCED_PARAMETER (panelTopBack);
+        UNREFERENCED_PARAMETER (panelBottomFront);
         {
-            float  topInsetX   = (frontLeft + (backLeft - frontLeft) * 0.10f) + 8.0f;
-            float  bottomInsetX = (frontRight + (backRight - frontRight) * 0.10f) - 8.0f;
             float  edgeH       = frontY - backY;
-            float  panelInsetTop    = backY  + edgeH * 0.18f;
-            float  panelInsetBottom = frontY - edgeH * 0.15f;
-            float  midGap      = (bottomInsetX - topInsetX) * 0.05f;
-            float  panelW      = ((bottomInsetX - topInsetX) - midGap) * 0.5f;
-            float  panel1Left  = topInsetX;
-            float  panel1Right = panel1Left + panelW;
-            float  panel2Left  = panel1Right + midGap;
-            float  panel2Right = panel2Left + panelW;
-            uint32_t panelFill   = 0xFFC0AA82;          // ~3%% darker than caseColor
+            float  midGapH     = edgeH * 0.08f;
+            float  panelH      = (edgeH - midGapH) * 0.5f;
+            // Vertical insets keep panels off the very front and back edges.
+            float  topMargin   = edgeH * 0.10f;
+            float  bottomMargin = edgeH * 0.08f;
+            float  rearY1      = backY + topMargin;
+            float  rearY2      = rearY1 + panelH - topMargin;
+            float  frontY1     = rearY2 + midGapH;
+            float  frontY2     = frontY - bottomMargin;
+            uint32_t panelFill   = 0xFFC0AA82;
             uint32_t panelShadow = 0xFF8E7A55;
             uint32_t panelHilite = 0xFFD8C49B;
+            float  sideMargin    = 12.0f;
 
-            auto DrawPanel = [&] (float l, float r)
+            auto LerpEdge = [&] (float yPos)
             {
-                painter.FillRect (l, panelInsetTop,
-                                  r - l, panelInsetBottom - panelInsetTop,
-                                  panelFill);
-                // Top + left edges shadow (recessed appearance).
-                painter.FillRect (l, panelInsetTop, r - l, 1.0f, panelShadow);
-                painter.FillRect (l, panelInsetTop, 1.0f, panelInsetBottom - panelInsetTop, panelShadow);
-                // Bottom + right edges highlight.
-                painter.FillRect (l, panelInsetBottom - 1.0f, r - l, 1.0f, panelHilite);
-                painter.FillRect (r - 1.0f, panelInsetTop, 1.0f, panelInsetBottom - panelInsetTop, panelHilite);
+                // depth fraction at this y (0 = front, 1 = back)
+                float  t      = (yPos - frontY) / (backY - frontY);
+                float  leftEdge   = frontLeft  + (backLeft  - frontLeft)  * t;
+                float  rightEdge  = frontRight + (backRight - frontRight) * t;
+                return std::pair<float,float> (leftEdge + sideMargin, rightEdge - sideMargin);
             };
 
-            DrawPanel (panel1Left, panel1Right);
-            DrawPanel (panel2Left, panel2Right);
+            auto DrawPanel = [&] (float yTop, float yBot)
+            {
+                auto  topEdges    = LerpEdge (yTop);
+                auto  bottomEdges = LerpEdge (yBot);
+                // Use the narrower of the two depths so we stay inside
+                // the trapezoid bounds at every row of the panel.
+                float l = std::max (topEdges.first,  bottomEdges.first);
+                float r = std::min (topEdges.second, bottomEdges.second);
+                if (r <= l)
+                {
+                    return;
+                }
+                painter.FillRect (l, yTop, r - l, yBot - yTop, panelFill);
+                painter.FillRect (l, yTop, r - l, 1.0f, panelShadow);
+                painter.FillRect (l, yTop, 1.0f, yBot - yTop, panelShadow);
+                painter.FillRect (l, yBot - 1.0f, r - l, 1.0f, panelHilite);
+                painter.FillRect (r - 1.0f, yTop, 1.0f, yBot - yTop, panelHilite);
+            };
+
+            DrawPanel (rearY1, rearY2);
+            DrawPanel (frontY1, frontY2);
+
+            // Cache the rear panel's y-range so the vent slits below
+            // can align with it.
+            panelInsetTop    = rearY1;
+            panelInsetBottom = rearY2;
         }
 
-        // Nine vent slots along the left edge of the case top, the
-        // signature Disk II detail. Drawn as short dark horizontal
-        // slits stepping down the slanted left edge of the trapezoid
-        // so they appear cut into the top-left of the case.
+        // Nine vent slots stepping along the LEFT edge of the rear
+        // lid-panel y-range. Real Disk II has these on the upper-
+        // left of the case roughly aligned with the back panel.
         {
-            int    ventCount   = s_kVentCountPx;
-            float  edgeH       = frontY - backY;
-            float  ventRegionT0 = 0.25f;        // start 25%% down from front
-            float  ventRegionT1 = 0.85f;        // end 85%% down (just before back)
-            int    v           = 0;
-            float  ventSlitH   = (float) Scale (s_kVentSlotHeightPx, dpi);
-            uint32_t ventArgb  = 0xFF4A3F2A;    // very dark brown (case interior shadow)
+            int      ventCount  = s_kVentCountPx;
+            float    ventTop    = panelInsetTop;
+            float    ventBottom = panelInsetBottom;
+            float    span       = ventBottom - ventTop;
+            float    spacing    = span / (float) (ventCount + 1);
+            float    slitH      = (float) Scale (s_kVentSlotHeightPx, dpi);
+            uint32_t ventArgb   = 0xFF4A3F2A;
+            int      v          = 0;
 
             for (v = 0; v < ventCount; v++)
             {
-                float  t      = ventRegionT0 + (ventRegionT1 - ventRegionT0)
-                                    * ((float) v / (float) (ventCount - 1));
-                // Travel UP from front toward back as t increases
-                // (front y is larger than back y).
-                float  y      = frontY - 1.0f - t * edgeH;
-                float  leftAtT  = frontLeft  + (backLeft  - frontLeft)  * t;
-                float  rightAtT = frontRight + (backRight - frontRight) * t;
-                // Vent slot length ~12%% of the top width at this depth.
-                float  slitLen = (rightAtT - leftAtT) * 0.12f;
-                // Inset from the slanted left edge by a tiny amount so
-                // the slits sit inside the panel area.
-                float  slitX   = leftAtT + 4.0f;
-                painter.FillRect (slitX, y, slitLen, ventSlitH, ventArgb);
+                float  y         = ventTop + spacing * (float) (v + 1);
+                float  depthT    = (y - frontY) / (backY - frontY);
+                float  leftAtY   = frontLeft  + (backLeft  - frontLeft)  * depthT;
+                float  rightAtY  = frontRight + (backRight - frontRight) * depthT;
+                float  slitLen   = (rightAtY - leftAtY) * 0.10f;
+                float  slitX     = leftAtY + 6.0f;
+                painter.FillRect (slitX, y, slitLen, slitH, ventArgb);
             }
         }
     }
 
-    // Black faceplate (the "front") spans full body width. The corners
-    // get a 2-px diagonal trim to suggest the real Disk II's chamfered
-    // front-face edges.
+    // Black faceplate, inset from the body's left/right edges so the
+    // beige case wraps around the faceplate on all four sides
+    // (matches the real Disk II's recessed front panel).
     {
-        float  ffx = (float) m_faceRect.left;
+        int    faceInsetX = Scale (4, dpi);
+        int    faceInsetB = Scale (3, dpi);
+        float  ffx = (float) (m_faceRect.left  + faceInsetX);
         float  ffy = (float) m_faceRect.top;
-        float  ffw = (float) faceW;
-        float  ffh = (float) faceH;
+        float  ffw = (float) (faceW - 2 * faceInsetX);
+        float  ffh = (float) (faceH - faceInsetB);
+        // Beige body shows around the faceplate (top edge already
+        // butts against the case-top trapezoid; bottom + sides need
+        // explicit fill).
+        painter.FillRect ((float) m_faceRect.left, (float) m_faceRect.top,
+                          (float) faceW, (float) faceH, 0xFFCCB68B);
         painter.FillRect (ffx, ffy, ffw, ffh, theme.driveBodyArgb);
-        // Trim the four corner pixels back to body color to suggest
-        // rounded edges without breaking the rect-only painter.
+        // Corner chamfer on the inset faceplate.
         painter.FillRect (ffx,             ffy,             1.0f, 1.0f, 0xFFCCB68B);
         painter.FillRect (ffx + ffw - 1,   ffy,             1.0f, 1.0f, 0xFFCCB68B);
         painter.FillRect (ffx,             ffy + ffh - 1,   1.0f, 1.0f, 0xFFCCB68B);
