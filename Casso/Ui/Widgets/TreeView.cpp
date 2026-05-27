@@ -535,17 +535,23 @@ void TreeView::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
             // (no font metrics fix can correct that since the glyph
             // is intentionally drawn there for "play button" style
             // contexts). Triangle apex points right when collapsed,
-            // down when expanded; size matches the checkbox.
+            // down when expanded.
+            //
+            // Base spans the full triSize; apex-to-base distance is
+            // a shorter triDepth so the triangle reads as a stubbier
+            // Fluent-style chevron rather than a tall play button.
             float  triSize    = (float) m_checkboxPx * 0.55f;
+            float  triDepth   = triSize * 0.65f;
             float  triCx      = twistyX + (float) m_twistyPx * 0.5f;
             float  triCy      = rowY + rowHeight * 0.5f;
-            int    steps      = (int) triSize;
+            int    steps      = (int) triDepth;
             int    s          = 0;
 
             if (node->expanded)
             {
-                // Down-pointing triangle: top is full width, apex at bottom.
-                float  topY = triCy - triSize * 0.5f;
+                // Down-pointing triangle: top edge full triSize wide,
+                // apex at bottom, total height triDepth.
+                float  topY = triCy - triDepth * 0.5f;
                 for (s = 0; s < steps; ++s)
                 {
                     float  t      = (float) s / (float) steps;
@@ -556,8 +562,9 @@ void TreeView::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
             }
             else
             {
-                // Right-pointing triangle: left is full height, apex at right.
-                float  leftX = triCx - triSize * 0.5f;
+                // Right-pointing triangle: left edge full triSize tall,
+                // apex at right, total width triDepth.
+                float  leftX = triCx - triDepth * 0.5f;
                 for (s = 0; s < steps; ++s)
                 {
                     float  t      = (float) s / (float) steps;
