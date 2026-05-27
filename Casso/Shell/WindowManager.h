@@ -4,7 +4,7 @@
 
 #include "../Config/WindowPlacementProfile.h"
 
-class GlobalUserPrefs;
+struct GlobalUserPrefs;
 
 
 

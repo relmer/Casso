@@ -773,34 +773,76 @@ HRESULT EmulatorShell::Initialize (
 
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
 
-    // Seed the mixer state
-    // from the per-machine registry before the audio thread first
-    // calls SetEnabled / SetMechanism. Default is enabled + Shugart
-    // when nothing has been persisted yet.
+    // Seed the mixer state from the per-machine $cassoUiPrefs JSON
+    // before the audio thread first calls SetEnabled / SetMechanism.
+    // Default is enabled + Shugart when nothing has been persisted yet.
     {
-        wstring  subkey;
-        DWORD    enabledDw = 1;
-        wstring  mechanism;
-        HRESULT  hrReg     = S_OK;
+        std::string         machineNameNarrow;
+        JsonValue           defaultJson;
+        JsonValue           mergedJson;
+        JsonParseError      parseErr;
+        std::ifstream       configFile;
+        std::stringstream   ss;
+        std::string         jsonText;
+        std::wstring        configRelPath = std::wstring (L"Machines\\") + m_currentMachineName +
+                                            L"\\" + m_currentMachineName + L".json";
+        fs::path            configPath    = PathResolver::FindFile (PathResolver::BuildSearchPaths (
+                                                PathResolver::GetExecutableDirectory(),
+                                                PathResolver::GetWorkingDirectory()),
+                                                configRelPath);
 
-        subkey = wstring (L"Machines\\") + m_currentMachineName;
 
-        hrReg = RegistrySettings::ReadDword (subkey.c_str(),
-                                             L"DriveAudioEnabled",
-                                             enabledDw);
-        IGNORE_RETURN_VALUE (hrReg, S_OK);
-
-        m_driveAudioMixer.SetEnabled (enabledDw != 0);
-
-        hrReg = RegistrySettings::ReadString (subkey.c_str(),
-                                              L"DiskIIMechanism",
-                                              mechanism);
-        IGNORE_RETURN_VALUE (hrReg, S_OK);
-
-        if (!mechanism.empty() && m_driveAudioMixer.IsValidMechanism (mechanism))
+        machineNameNarrow.reserve (m_currentMachineName.size());
+        for (wchar_t c : m_currentMachineName)
         {
-            HRESULT  hrMech = m_driveAudioMixer.SetMechanism (mechanism);
-            IGNORE_RETURN_VALUE (hrMech, S_OK);
+            machineNameNarrow.push_back ((char) (unsigned char) c);
+        }
+
+        if (!configPath.empty())
+        {
+            configFile.open (configPath);
+            if (configFile.good())
+            {
+                HRESULT  hrLoad;
+
+                ss << configFile.rdbuf();
+                jsonText = ss.str();
+
+                hrLoad = JsonParser::Parse (jsonText, defaultJson, parseErr);
+                if (SUCCEEDED (hrLoad))
+                {
+                    hrLoad = m_userConfigStore->Load (machineNameNarrow,
+                                                     defaultJson,
+                                                     m_uiFs,
+                                                     mergedJson);
+                }
+                if (SUCCEEDED (hrLoad) && mergedJson.GetType() == JsonType::Object)
+                {
+                    const JsonValue *  uiPrefs   = nullptr;
+
+                    if (SUCCEEDED (mergedJson.GetObject ("$cassoUiPrefs", uiPrefs)) &&
+                        uiPrefs != nullptr)
+                    {
+                        bool         enabled = true;
+                        std::string  mechNarrow;
+
+                        if (SUCCEEDED (uiPrefs->GetBool ("floppySoundEnabled", enabled)))
+                        {
+                            m_driveAudioMixer.SetEnabled (enabled);
+                        }
+                        if (SUCCEEDED (uiPrefs->GetString ("floppyMechanism", mechNarrow)) && !mechNarrow.empty())
+                        {
+                            std::wstring  mechWide (mechNarrow.begin(), mechNarrow.end());
+
+                            if (m_driveAudioMixer.IsValidMechanism (mechWide))
+                            {
+                                HRESULT  hrMech = m_driveAudioMixer.SetMechanism (mechWide);
+                                IGNORE_RETURN_VALUE (hrMech, S_OK);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
