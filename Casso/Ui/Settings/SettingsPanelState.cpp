@@ -702,15 +702,11 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
 
             if (bank.empty() || bank == "main")
             {
-                label = (i == 0) ? "Main RAM" : std::format ("RAM {}", i);
+                label = "RAM (main)";
             }
             else
             {
-                label = std::format ("{} RAM", bank);
-                if (! label.empty())
-                {
-                    label[0] = (char) toupper ((unsigned char) label[0]);
-                }
+                label = std::format ("RAM ({})", bank);
             }
             FormatRegion (label, addr, size);
         }
