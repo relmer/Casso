@@ -17,8 +17,8 @@ enum class NavMenu
     Machine = 2,
     Disk    = 3,
     View    = 4,
-    Help    = 5,
-    Debug   = 6,
+    Debug   = 5,
+    Help    = 6,
 };
 
 
