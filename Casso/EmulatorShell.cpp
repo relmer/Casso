@@ -559,6 +559,23 @@ HRESULT EmulatorShell::Initialize (
         hrPrefs = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
         IGNORE_RETURN_VALUE (hrPrefs, S_OK);
 
+        // Record the currently-active machine so the next launch boots
+        // it by default (Main resolves the value via this same field).
+        {
+            std::string  narrow;
+
+            narrow.reserve (m_currentMachineName.size());
+            for (wchar_t c : m_currentMachineName)
+            {
+                narrow.push_back ((char) (unsigned char) c);
+            }
+            if (m_globalPrefs.lastSelectedMachine != narrow)
+            {
+                m_globalPrefs.lastSelectedMachine = narrow;
+                SaveGlobalPrefs();
+            }
+        }
+
         // Subscribe the chrome theme cache to ThemeManager BEFORE we
         // activate, so the initial Activate() fires the listener and
         // primes m_chromeTheme from the persisted user choice. Without

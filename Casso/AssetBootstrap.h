@@ -73,10 +73,17 @@ public:
     // is populated (or already was), S_FALSE if the user declined,
     // and an error HRESULT with `outError` set on hard failure.
     // Errors do not block startup (FR-009).
+    //
+    // `prefs.audioDownloadConsent` carries the persisted user choice
+    // across launches ("ask" / "allow" / "decline"); the function
+    // reads it to decide whether to prompt, and writes the user's new
+    // choice back. The caller is responsible for flushing prefs to
+    // disk after this returns.
     static HRESULT  CheckAndFetchDiskAudio (HINSTANCE                hInstance,
                                             const wstring          & machineName,
                                             HWND                     hwndParent,
                                             const fs::path         & devicesDir,
+                                            struct GlobalUserPrefs & prefs,
                                             string                 & outError);
 
     // In-memory OGG Vorbis fetch + decode + resample to mono float32

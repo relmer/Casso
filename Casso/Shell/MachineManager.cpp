@@ -5,7 +5,6 @@
 #include "../EmulatorShell.h"
 #include "../AssetBootstrap.h"
 #include "../DiskSettings.h"
-#include "../RegistrySettings.h"
 #include "../resource.h"
 #include "Core/PathResolver.h"
 #include "Core/MachineConfig.h"
@@ -44,9 +43,6 @@
 
 namespace
 {
-    constexpr LPCWSTR  s_kpszLastMachineValue = L"LastMachine";
-
-
     WORD  ResolveMachineSpeedCommand (const JsonValue & mergedJson)
     {
         HRESULT            hr      = S_OK;
@@ -841,7 +837,6 @@ void MachineManager::ShowMachinePicker ()
 HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 {
     HRESULT                hr             = S_OK;
-    HRESULT                hrReg          = S_OK;
     std::vector<fs::path>  searchPaths;
     fs::path               configRelPath;
     fs::path               configPath;
@@ -1024,9 +1019,14 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     m_shell.UpdateWindowTitle();
 
-    // Save to registry (don't pollute hr with the result)
-    hrReg = RegistrySettings::WriteString (s_kpszLastMachineValue, machineName);
-    IGNORE_RETURN_VALUE (hrReg, S_OK);
+    // Record the new active machine in GlobalUserPrefs so the next
+    // launch boots it by default. SaveGlobalPrefs flushes the change
+    // to UserPrefs.json on disk.
+    if (m_shell.m_globalPrefs.lastSelectedMachine != machineNameNarrow)
+    {
+        m_shell.m_globalPrefs.lastSelectedMachine = machineNameNarrow;
+        m_shell.SaveGlobalPrefs();
+    }
 
     // Same cold-power-on sequence as Initialize() -- seed DRAM and
     // run the 6502 /RESET sequence. Without this the newly-built

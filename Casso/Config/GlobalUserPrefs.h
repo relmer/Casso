@@ -32,6 +32,13 @@ struct GlobalUserPrefs
     std::string  activeTheme         = "Skeuomorphic"; // FR-030 default
     std::string  lastSelectedMachine;                  // empty == none
 
+    // Disk II audio asset download consent. Tri-state string:
+    //   "ask"     -- user has never been prompted (default)
+    //   "allow"   -- silently re-fetch missing audio assets
+    //   "decline" -- skip the prompt, leave audio assets missing
+    // AssetBootstrap::CheckAndFetchDiskAudio reads + writes this.
+    std::string  audioDownloadConsent  = "ask";
+
     // CRT state per monitor type. Each monitor (Color / Green / Amber /
     // White) has its own block so the user can dial in different
     // brightness, gamma, scanlines, etc. for each and the values stick

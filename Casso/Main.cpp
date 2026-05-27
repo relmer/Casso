@@ -1,17 +1,15 @@
 #include "Pch.h"
 
 #include "AssetBootstrap.h"
+#include "Config/GlobalUserPrefs.h"
+#include "Config/Win32FileSystem.h"
 #include "Core/MachineConfig.h"
 #include "Core/PathResolver.h"
 #include "DiskSettings.h"
 #include "EmulatorShell.h"
 #include "Core/MachineScanner.h"
-#include "RegistrySettings.h"
 
 #pragma comment(lib, "ole32.lib")
-
-
-static constexpr LPCWSTR kLastMachineValue = L"LastMachine";
 
 
 
@@ -149,11 +147,26 @@ static HRESULT LoadMachineConfig (
 
         if (hasDisk)
         {
-            fs::path  devicesDir = romDir / L"Devices" / L"DiskII";
-            string    diskAudioErr;
-            HRESULT   hrDiskAudio = AssetBootstrap::CheckAndFetchDiskAudio (
-                hInstance, machineName, hwndParent, devicesDir, diskAudioErr);
+            fs::path            devicesDir   = romDir / L"Devices" / L"DiskII";
+            string              diskAudioErr;
+            GlobalUserPrefs     prefs;
+            Win32FileSystem     fs_io;
+            std::wstring        assetBase    = AssetBootstrap::GetAssetBaseDirectory().wstring();
+            HRESULT             hrLoad;
+            HRESULT             hrDiskAudio;
+
+            hrLoad = prefs.Load (assetBase, fs_io);
+            IGNORE_RETURN_VALUE (hrLoad, S_OK);
+
+            hrDiskAudio = AssetBootstrap::CheckAndFetchDiskAudio (
+                hInstance, machineName, hwndParent, devicesDir, prefs, diskAudioErr);
             IGNORE_RETURN_VALUE (hrDiskAudio, S_OK);
+
+            // The consent choice may have changed (user just answered
+            // the prompt). Flush regardless so any in-memory mutation
+            // lands on disk for the next launch.
+            HRESULT  hrSave = prefs.Save (assetBase, fs_io);
+            IGNORE_RETURN_VALUE (hrSave, S_OK);
         }
     }
 
@@ -310,10 +323,18 @@ int WINAPI wWinMain (
         IGNORE_RETURN_VALUE (hrThemes, S_OK);
     }
 
-    // Resolve machine name: command line > registry > picker dialog
+    // Resolve machine name: command line > UserPrefs.json lastSelectedMachine > first discovered.
     if (machineName.empty())
     {
-        RegistrySettings::ReadString (kLastMachineValue, machineName);
+        GlobalUserPrefs   earlyPrefs;
+        Win32FileSystem   earlyFs;
+        std::wstring      assetBaseDir = AssetBootstrap::GetAssetBaseDirectory().wstring();
+        HRESULT           hrLoad;
+
+        hrLoad = earlyPrefs.Load (assetBaseDir, earlyFs);
+        IGNORE_RETURN_VALUE (hrLoad, S_OK);
+        machineName.assign (earlyPrefs.lastSelectedMachine.begin(),
+                            earlyPrefs.lastSelectedMachine.end());
     }
 
     if (machineName.empty() ||
@@ -359,13 +380,10 @@ int WINAPI wWinMain (
     CHR (hr);
     BAIL_OUT_IF (hr == S_FALSE, S_OK);
 
-    // Remember last-used machine (don't pollute hr with the result)
-    {
-        HRESULT hrReg = RegistrySettings::WriteString (kLastMachineValue, machineName);
-        IGNORE_RETURN_VALUE (hrReg, S_OK);
-    }
-
-    // Initialize emulator
+    // Initialize emulator. EmulatorShell::Initialize records the
+    // chosen machine into GlobalUserPrefs.lastSelectedMachine and
+    // flushes it to UserPrefs.json so the next launch boots the
+    // same machine without --machine.
     hr = shell->Initialize (hInstance, machineName, config,
                             fs::path (disk1Path).string(),
                             fs::path (disk2Path).string());

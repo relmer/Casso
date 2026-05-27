@@ -29,6 +29,7 @@ namespace
         "$cassoGlobalPrefsVersion",
         "activeTheme",
         "lastSelectedMachine",
+        "audioDownloadConsent",
         "crt",
         "window"
     };
@@ -268,6 +269,7 @@ JsonValue GlobalUserPrefs::ToJson() const
 
     root.emplace_back ("activeTheme",         JsonValue (activeTheme));
     root.emplace_back ("lastSelectedMachine", JsonValue (lastSelectedMachine));
+    root.emplace_back ("audioDownloadConsent", JsonValue (audioDownloadConsent));
 
     // crt: one sub-object per monitor type. Persist every block even
     // when userOverride is false so a roundtrip is deterministic; the
@@ -366,9 +368,10 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     // Reset to defaults so partial JSON doesn't leak old state across loads.
     *this = GlobalUserPrefs {};
 
-    version             = GetIntOpt    (v, s_kpszVersionKey,        s_kCurrentVersion);
-    activeTheme         = GetStringOpt (v, "activeTheme",           activeTheme);
-    lastSelectedMachine = GetStringOpt (v, "lastSelectedMachine",   lastSelectedMachine);
+    version              = GetIntOpt    (v, s_kpszVersionKey,        s_kCurrentVersion);
+    activeTheme          = GetStringOpt (v, "activeTheme",            activeTheme);
+    lastSelectedMachine  = GetStringOpt (v, "lastSelectedMachine",    lastSelectedMachine);
+    audioDownloadConsent = GetStringOpt (v, "audioDownloadConsent",   audioDownloadConsent);
 
     if (SUCCEEDED (v.GetObject ("crt", crtSub)) && crtSub != nullptr)
     {
