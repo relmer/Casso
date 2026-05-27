@@ -95,6 +95,7 @@ void MachinePage::Layout (const RECT & rect, const DpiScaler & scaler)
     int  checkWidth   = scaler.Px (s_kCheckWidthDp);
     int  dropWidth    = scaler.Px (s_kDropdownWidthDp);
     int  sectionGap   = scaler.Px (s_kSectionGapDp);
+    int  childIndent  = scaler.Px (18);          // matches TreeView indent
     int  x            = rect.left + pad;
     int  y            = rect.top  + pad;
     int  controlsX    = x + labelWidth;
@@ -131,13 +132,10 @@ void MachinePage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_driveAudio.SetRect (MakeRect (controlsX, y, checkWidth, rowHeight));
     y += rowHeight + sectionGap;
 
-    // Mechanism is a child of Drive audio: indent the LABEL TEXT with
-    // leading spaces so it reads as a sub-item, but keep the label
-    // column and control column at the same x as every other row.
-    // Matches the convention used on the Display tab for sub-effect
-    // sliders (Intensity, Radius, Strength, Width).
-    m_mechLabel.SetRect  (MakeRect (x, y, labelWidth, rowHeight));
-    m_mechLabel.SetText  (L"  Mechanism:");
+    // Mechanism is a child of Drive audio: indent the label by the
+    // same childIndent used elsewhere (matches TreeView's 18 dp).
+    m_mechLabel.SetRect  (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
+    m_mechLabel.SetText  (L"Mechanism:");
     m_mechanism.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
     m_mechanism.SetItems ({ L"Shugart", L"Alps" });
 

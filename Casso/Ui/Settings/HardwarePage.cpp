@@ -15,9 +15,9 @@
 namespace
 {
     constexpr int     s_kInfoLabelWidthDp = 140;
-    constexpr int     s_kInfoRowHeightDp  = 24;
+    constexpr int     s_kInfoRowHeightDp  = 28;        // matches Machine / Display / Theme pages
     constexpr int     s_kInfoValueGapDp   = 8;
-    constexpr int     s_kBigSectionGapDp  = 18;
+    constexpr int     s_kBigSectionGapDp  = 14;        // matches other pages' sectionGap
     constexpr size_t  s_kMachineRow       = 0;
     constexpr size_t  s_kCpuRow           = 1;
     constexpr size_t  s_kClockRow         = 2;
@@ -94,31 +94,38 @@ void HardwarePage::SetRect (const RECT & rect, const DpiScaler & scaler)
     {
         if (i >= kFixedInfoRowCount)
         {
-            // Memory sub-rows form a 3-column table aligned under the
-            // value column above: name | size | address range.
-            int  nameW = scaler.Px (110);
-            int  sizeW = scaler.Px (55);
-            int  addrW = scaler.Px (130);
+            // Memory sub-row N sits at the same y as the "Memory:"
+            // header for N=0, and stacks below for N>=1. Row 0 thus
+            // shares a line with the Memory: header label; the
+            // header itself contributes no extra row.
+            int  nameW    = scaler.Px (110);
+            int  sizeW    = scaler.Px (55);
+            int  addrW    = scaler.Px (130);
+            int  subIndex = (int) (i - kFixedInfoRowCount);
+            int  rowY     = rect.top + ((int) s_kMemoryRow + subIndex) * rowHeight;
 
-            m_infoLabels[i].SetRect (MakeRect (valueX,                     y, nameW, rowHeight));
-            m_infoValues[i].SetRect (MakeRect (valueX + nameW,             y, sizeW, rowHeight));
-            m_infoExtras[i].SetRect (MakeRect (valueX + nameW + sizeW,     y, addrW, rowHeight));
+            m_infoLabels[i].SetRect (MakeRect (valueX,                 rowY, nameW, rowHeight));
+            m_infoValues[i].SetRect (MakeRect (valueX + nameW,         rowY, sizeW, rowHeight));
+            m_infoExtras[i].SetRect (MakeRect (valueX + nameW + sizeW, rowY, addrW, rowHeight));
         }
         else
         {
             m_infoLabels[i].SetRect (MakeRect (rect.left, y, labelWidth, rowHeight));
             m_infoValues[i].SetRect (MakeRect (valueX, y, rect.right - valueX, rowHeight));
             m_infoExtras[i].SetRect (MakeRect (rect.right, y, 0, rowHeight));
+            y += rowHeight;
         }
         m_infoLabels[i].SetDpi (dpi);
         m_infoValues[i].SetDpi (dpi);
         m_infoExtras[i].SetDpi (dpi);
-        // Only fixed rows + the in-use memory rows occupy real y;
-        // unused memory rows collapse to zero-height off-screen.
-        if (i < kFixedInfoRowCount || i < kFixedInfoRowCount + m_memoryRowsInUse)
-        {
-            y += rowHeight;
-        }
+    }
+
+    // y now sits one row PAST the Memory header. Bump down by the
+    // remaining memory rows (rowsInUse - 1, since row 0 shares a
+    // line with the header).
+    if (m_memoryRowsInUse > 1)
+    {
+        y += (int) (m_memoryRowsInUse - 1) * rowHeight;
     }
 
     treeRect.top = y + sectionGap;

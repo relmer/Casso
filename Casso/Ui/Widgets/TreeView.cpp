@@ -529,9 +529,23 @@ void TreeView::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 
         if (hasChildren)
         {
-            painter.FillRect (twistyX + twistyPad,
-                              rowY + (rowHeight - twistyHt) * 0.5f,
-                              (float) m_twistyPx - twistyPad * 2.0f, twistyHt, s_kTwistyArgb);
+            // Fluent-style chevron: '⏷' (U+23F7) when expanded, '⏵'
+            // (U+23F5) when collapsed. Replaces the previous filled
+            // square placeholder. Sized smaller than the row so it
+            // reads as an affordance, not a separator.
+            const wchar_t *  chevron     = node->expanded ? L"\u23F7" : L"\u23F5";
+            float            chevronH    = rowHeight * 0.55f;
+            float            chevronYPx  = rowY + (rowHeight - chevronH) * 0.5f;
+            IGNORE_RETURN_VALUE (hr, text.DrawString (chevron,
+                                                      twistyX,
+                                                      chevronYPx,
+                                                      (float) m_twistyPx,
+                                                      chevronH,
+                                                      s_kTwistyArgb,
+                                                      chevronH,
+                                                      L"Segoe UI Symbol",
+                                                      DwriteTextRenderer::HAlign::Center,
+                                                      DwriteTextRenderer::VAlign::Center));
         }
 
         painter.FillRect (checkboxX,

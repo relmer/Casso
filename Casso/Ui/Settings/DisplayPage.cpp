@@ -130,6 +130,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     int   togglePillW  = scaler.Px (70);            // wide enough for "Off" / "On" text
     int   sectionGap   = scaler.Px (s_kSectionGapDp);
     int   bigGap       = scaler.Px (s_kBigSectionGapDp);
+    int   childIndent  = scaler.Px (18);            // matches TreeView indent
     int   x            = rect.left + pad;
     int   y            = rect.top  + pad;
     int   controlsX    = x + labelWidth;        // every control starts here
@@ -151,6 +152,13 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
         int  btnX      = controlsX + dropWidth + scaler.Px (16);
         m_restore.Layout   (MakeRect (btnX, y, btnWidth, rowHeight));
         m_restore.SetLabel (L"Restore defaults");
+        // Title-bar caption buttons (sysButton*) are invisible at idle
+        // by design; this is a content-area button and needs an at-
+        // rest fill so it reads as clickable before hover. Subtle
+        // grey with a brighter hover.
+        m_restore.SetColors (0xFF3A4252,    // idle
+                              0xFF4A5364,    // hover
+                              0xFF2A3140);   // pressed
         m_restoreRowRect = MakeRect (btnX, y, btnWidth, rowHeight);
     }
     y += rowHeight + sectionGap;
@@ -198,8 +206,8 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_scanlinesEnRowRect = MakeRect (x, y, (controlsX + togglePillW) - x, rowHeight);
     y += rowHeight + sectionGap;
 
-    m_scanlinesIntLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_scanlinesIntLabel.SetText (L"  Intensity:");
+    m_scanlinesIntLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
+    m_scanlinesIntLabel.SetText (L"Intensity:");
     m_scanlinesInt.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_scanlinesInt.SetRange     (0.0f, 100.0f);
     m_scanlinesInt.SetStep      (10.0f);
@@ -216,8 +224,8 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_bloomEnRowRect = MakeRect (x, y, (controlsX + togglePillW) - x, rowHeight);
     y += rowHeight + sectionGap;
 
-    m_bloomRadiusLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_bloomRadiusLabel.SetText (L"  Radius:");
+    m_bloomRadiusLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
+    m_bloomRadiusLabel.SetText (L"Radius:");
     m_bloomRadius.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_bloomRadius.SetRange     (0.0f, 10.0f);
     m_bloomRadius.SetStep      (1.0f);
@@ -226,8 +234,8 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_bloomRadiusRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
     y += rowHeight + sectionGap;
 
-    m_bloomStrengthLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_bloomStrengthLabel.SetText (L"  Strength:");
+    m_bloomStrengthLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
+    m_bloomStrengthLabel.SetText (L"Strength:");
     m_bloomStrength.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_bloomStrength.SetRange     (0.0f, 100.0f);
     m_bloomStrength.SetStep      (10.0f);
@@ -244,8 +252,8 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_colorBleedEnRowRect = MakeRect (x, y, (controlsX + togglePillW) - x, rowHeight);
     y += rowHeight + sectionGap;
 
-    m_colorBleedWLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_colorBleedWLabel.SetText (L"  Width:");
+    m_colorBleedWLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
+    m_colorBleedWLabel.SetText (L"Width:");
     m_colorBleedW.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_colorBleedW.SetRange     (0.0f, 8.0f);
     m_colorBleedW.SetStep      (1.0f);
