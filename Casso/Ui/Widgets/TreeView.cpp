@@ -572,9 +572,17 @@ void TreeView::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 
         if (node != nullptr)
         {
+            // DirectWrite's PARAGRAPH_ALIGNMENT_CENTER centers the
+            // text LINE BOX, which has more space above the cap
+            // height than below the baseline for typical Latin fonts.
+            // Net effect: the ink center sits a couple pixels above
+            // the rect center. Nudge the rect down by ~10%% of the
+            // font dip to compensate and align the ink center with
+            // the chevron and checkbox.
+            float  vNudge = fontDip * 0.10f;
             IGNORE_RETURN_VALUE (hr, text.DrawString (node->label.c_str(),
                                                       textX,
-                                                      rowY,
+                                                      rowY + vNudge,
                                                       (float) m_rect.right - textX,
                                                       rowHeight,
                                                       textCol,
