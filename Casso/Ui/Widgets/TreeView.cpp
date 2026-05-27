@@ -531,10 +531,10 @@ void TreeView::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
         {
             // Fluent-style chevron: '⏷' (U+23F7) when expanded, '⏵'
             // (U+23F5) when collapsed. Replaces the previous filled
-            // square placeholder. Sized smaller than the row so it
-            // reads as an affordance, not a separator.
+            // square placeholder. Sized to match the checkbox so it
+            // reads as a comparable affordance, not a separator.
             const wchar_t *  chevron     = node->expanded ? L"\u23F7" : L"\u23F5";
-            float            chevronH    = rowHeight * 0.55f;
+            float            chevronH    = (float) m_checkboxPx;
             float            chevronYPx  = rowY + (rowHeight - chevronH) * 0.5f;
             IGNORE_RETURN_VALUE (hr, text.DrawString (chevron,
                                                       twistyX,
