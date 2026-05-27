@@ -53,10 +53,32 @@ protected:
     virtual bool    OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu);
     virtual bool    OnKeyDown  (WPARAM vk, LPARAM lParam);
     virtual bool    OnKeyUp    (WPARAM vk, LPARAM lParam);
+    virtual bool    OnMouseMove (WPARAM wParam, LPARAM lParam);
+    virtual bool    OnLButtonDown (WPARAM wParam, LPARAM lParam);
+    virtual bool    OnLButtonUp (WPARAM wParam, LPARAM lParam);
     virtual bool    OnNotify   (HWND hwnd, WPARAM wParam, LPARAM lParam);
     virtual bool    OnPaint    (HWND hwnd);
+    virtual bool    OnMove     (HWND hwnd, int x, int y);
     virtual bool    OnSize     (HWND hwnd, UINT width, UINT height);
     virtual bool    OnTimer    (HWND hwnd, UINT_PTR timerId);
+
+    // Custom-chrome dispatchers (P4). Return true to fall through to
+    // DefWindowProc with the original message; return false to short-
+    // circuit. Sub-classes that want to short-circuit must also call
+    // SetCustomLResult to publish the LRESULT.
+    virtual bool    OnNcCalcSize  (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult);
+    virtual LRESULT OnNcHitTest   (HWND hwnd, int xScreen, int yScreen);
+    virtual bool    OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen);
+
+    // Custom-chrome opt-in for WM_NCLBUTTONDOWN. Returning true tells
+    // s_WndProc to consume the message when the hit-test is HTMINBUTTON
+    // / HTMAXBUTTON / HTCLOSE so DefWindowProc does not run its system-
+    // button tracking loop (which on WS_CAPTION windows draws ghost
+    // caption icons over custom chrome and forces a double-click for
+    // the actual action). Default is false so non-chrome windows like
+    // DebugConsole and DiskIIDebugDialog keep their standard X-button
+    // behavior.
+    virtual bool    WantsCustomCaptionButtons () const { return false; }
 
 protected:
     WORD      m_idIcon        = 0;

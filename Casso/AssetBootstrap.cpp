@@ -6,10 +6,10 @@
 #include "Core/MachineConfig.h"
 #include "Core/MachineConfigUpgrade.h"
 #include "Core/PathResolver.h"
-#include "Ehm.h"
 #include "External/StbVorbisWrapper.h"
 #include "RegistrySettings.h"
 #include "resource.h"
+#include "Ui/ThemeManager.h"
 #include "UnicodeSymbols.h"
 
 #pragma comment(lib, "winhttp.lib")
@@ -33,7 +33,7 @@ static constexpr LPCWSTR       s_kpszAsimovHost   = L"www.apple.asimov.net";
 //
 //  Static map: (machineName, Casso ROM filename) -> AppleWin source
 //  basename + size + on-disk relative directory. Per spec
-//  005-disk-ii-audio Phase 12 (T122 + Q1), machine-specific ROMs are
+//  005-disk-ii-audio (T122 + Q1), machine-specific ROMs are
 //  keyed by their owning machine so a shared upstream file
 //  (Apple2_Video.rom, Apple2e_Enhanced_Video.rom) downloads once per
 //  machine into Machines/<MachineName>/. The handful of bytes
@@ -56,6 +56,10 @@ struct RomSpec
     size_t       expectedSize;
     string_view  description;
 };
+
+
+
+
 
 static constexpr RomSpec s_kRomCatalog[] =
 {
@@ -136,15 +140,18 @@ struct EmbeddedConfig
     int          resourceId;
     string_view  machineName;        // "Apple2", "Apple2Plus", "Apple2e"
     string_view  fileName;           // "<machineName>.json"
-    int          currentVersion;     // must match "$cassoDefault" in the embedded JSON
+    int          currentVersion;     // must match "$cassoMachineVersion" in the embedded JSON
 };
+
+
+
 
 
 static constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
 {
-    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     2 },
-    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 2 },
-    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    2 },
+    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     6 },
+    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 6 },
+    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    6 },
 };
 
 
@@ -180,6 +187,33 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
 
     // v1 Apple2e.json (had slot 6 already, but no $cassoDefault stamp).
     { "Apple2e",    "965f1f0fa55db9289000ddf9ff1e1416a9d85c0ebb5d35b8b8aa7f5ccf0da680" },
+
+    // v3 Apple2.json (pre-releaseYear).
+    { "Apple2",     "f2412b4d70c6847593af1aae5c310bb034dbfd38cc10594de402af75194cf671" },
+
+    // v3 Apple2Plus.json (pre-releaseYear).
+    { "Apple2Plus", "ebd7556e3cdfa3dd3fccc4993ec5d456e88063b0bd6d286372425f031b1c85df" },
+
+    // v3 Apple2e.json (pre-releaseYear).
+    { "Apple2e",    "9644241cca2e3220f520b8c13670f99a503a9dc3954dea514cf0a91aa9350040" },
+
+    // v4 Apple2.json (added releaseYear; no cpuManufacturer).
+    { "Apple2",     "15161b4c950923a667dd36fa00ebd56cfd983f1f43c44adbb84638443b29fab6" },
+
+    // v4 Apple2Plus.json (added releaseYear; no cpuManufacturer).
+    { "Apple2Plus", "832e16feb56939c03c9ac919d3159524577f9e033d846e69c008e945f92ba488" },
+
+    // v4 Apple2e.json (added releaseYear; no cpuManufacturer).
+    { "Apple2e",    "5be9af71ff3480c357e82512abae961966cc783767b1dbedc86b492a9cc72087" },
+
+    // v5 Apple2.json (added cpuManufacturer = "MOS Technology").
+    { "Apple2",     "c350e447e6c4e4bbaa307f9f5f11ee1cfe0eff2a8823fbb20d0a6eabcdd122ac" },
+
+    // v5 Apple2Plus.json (added cpuManufacturer = "Synertek" -- wrong, fixed in v6).
+    { "Apple2Plus", "32dbbce9904f47914f348f443e80df7b0b3b6c6dbf7f7193a943acc69b3f150d" },
+
+    // v5 Apple2e.json (added cpuManufacturer = "Synertek" -- wrong, fixed in v6).
+    { "Apple2e",    "51de42de280e38a1f0c9dfbe5f01e5cccb1498cdc20f14616e7821e99756891f" },
 };
 
 
@@ -190,7 +224,6 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
 //
 //  DiskAudioSpec
 //
-//  Per spec 005-disk-ii-audio Phase 13 (T131 / FR-017 / FR-018):
 //  fully-specified map of OpenEmulator OGG sample basenames to Casso
 //  WAV filenames, keyed by mechanism. Files live under
 //  `raw.githubusercontent.com/openemulator/libemulation/master/res/sounds/<Mechanism>/`.
@@ -214,6 +247,10 @@ struct DiskAudioSpec
     string_view  wavBasename;        // Casso target filename (matches DiskIIAudioSource s_kpszSampleFiles)
 };
 
+
+
+
+
 static constexpr LPCWSTR  s_kpszOpenEmulatorHost      = L"raw.githubusercontent.com";
 static constexpr LPCWSTR  s_kpszOpenEmulatorPathFmt   = L"/openemulator/libemulation/master/res/sounds/";
 
@@ -228,6 +265,10 @@ static constexpr DiskAudioSpec s_kDiskAudioCatalog[] =
     { "Alps",    "Alps 2124A Head.ogg",     "HeadStep.wav"  },
     { "Alps",    "Alps 2124A Stop.ogg",     "HeadStop.wav"  },
 };
+
+
+
+
 
 static constexpr string_view s_kDiskAudioMechanisms[] = { "Shugart", "Alps" };
 
@@ -275,16 +316,16 @@ static span<const Byte> ExtractResource (HINSTANCE hInstance, int resourceId)
 
 
     hRes = FindResourceW (hInstance, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
-    CWR (hRes != nullptr);
+    CWRA (hRes != nullptr);
 
     size = SizeofResource (hInstance, hRes);
-    CBR (size > 0);
+    CBRA (size > 0);
 
     hMem = LoadResource (hInstance, hRes);
-    CWR (hMem != nullptr);
+    CWRA (hMem != nullptr);
 
     data = LockResource (hMem);
-    CPR (data);
+    CWRA (data);
 
     result = span<const Byte> (static_cast<const Byte *> (data), static_cast<size_t> (size));
 
@@ -440,9 +481,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssetBootstrap::EnsureMachineConfigs (
-    HINSTANCE                hInstance,
-    const vector<fs::path> & searchPaths,
-    const fs::path         & exeDir)
+    HINSTANCE hInstance)
 {
     HRESULT     hr           = S_OK;
     fs::path    machinesDir;
@@ -450,13 +489,15 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
 
 
 
-    machinesDir = PathResolver::FindOrCreateAssetDir (searchPaths,
-                                                      fs::path ("Machines"),
-                                                      exeDir);
+    // Embedded machine JSONs always extract under %LOCALAPPDATA%\Casso\,
+    // not into whichever exe-adjacent Machines/ a dev happens to have
+    // lying around.
+    machinesDir = GetAssetBaseDirectory() / L"Machines";
+    fs::create_directories (machinesDir, ec);
 
     for (const EmbeddedConfig & cfg : s_kEmbeddedConfigs)
     {
-        // Per spec 005-disk-ii-audio Phase 12 (T120/T124): embedded
+        // Embedded
         // defaults extract into the per-machine subdir,
         // Machines/<MachineName>/<MachineName>.json, so each machine's
         // assets (config + ROMs + future per-machine extras) live
@@ -544,29 +585,202 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetAssetBaseDirectory
+//  EmbeddedThemeFile / EmbeddedTheme
 //
-//  Returns the install root that contains (or should contain) the
-//  per-machine `Machines/` and per-device `Devices/` subtrees. We
-//  reuse the existing `Machines/` directory locator -- whichever
-//  search path holds Machines/ is, by construction, the install root.
-//  Falls back to the exe directory when no Machines/ exists yet
-//  (which `EnsureMachineConfigs` will then populate).
+//  Static catalog of every file (per built-in theme) that ships
+//  embedded in Casso.exe. Each theme lists its files via a leaf
+//  relative to the theme directory; `EnsureThemes` extracts them
+//  into `<assetBase>/Themes/<dirName>/<relPath>` after the per-theme
+//  install/skip decision (`ThemeBootstrapPlanner::Plan`).
+//
+//  Bump `currentVersion` in lockstep with the `$cassoThemeVersion`
+//  field of the on-disk `theme.json` for that theme. Older built-in
+//  copies on disk (same `dirName` + `$cassoBuiltIn: true` + lower
+//  version) are upgraded in place; user themes (no built-in marker)
+//  are never touched.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-fs::path AssetBootstrap::GetAssetBaseDirectory (
-    const vector<fs::path> & searchPaths,
-    const fs::path         & exeDir)
+struct EmbeddedThemeFile
 {
-    fs::path  machinesDir;
+    int          resourceId;
+    const char * relativePath;       // POSIX-style; ASCII only
+};
 
 
 
-    machinesDir = PathResolver::FindOrCreateAssetDir (searchPaths,
-                                                      fs::path ("Machines"),
-                                                      exeDir);
-    return machinesDir.parent_path ();
+
+
+struct EmbeddedTheme
+{
+    const char *                       dirName;        // matches "name" in theme.json
+    int                                currentVersion; // mirrors theme.json $cassoThemeVersion
+    span<const EmbeddedThemeFile>      files;
+};
+
+
+
+
+
+static constexpr EmbeddedThemeFile s_kSkeuomorphicFiles[] =
+{
+    { IDR_THEME_SKEUO_THEME_JSON,         "theme.json"          },
+    { IDR_THEME_SKEUO_FONT_TTF,           "fonts/Inter-Regular.ttf" },
+    { IDR_THEME_SKEUO_FONT_OFL,           "fonts/OFL.txt"       },
+    { IDR_THEME_SKEUO_FONT_TODO,          "fonts/TODO_FONTS.md" },
+};
+
+
+
+
+
+static constexpr EmbeddedThemeFile s_kDarkModernFiles[] =
+{
+    { IDR_THEME_DARK_THEME_JSON,         "theme.json"          },
+    { IDR_THEME_DARK_FONT_TTF,           "fonts/Inter-Regular.ttf" },
+    { IDR_THEME_DARK_FONT_OFL,           "fonts/OFL.txt"       },
+    { IDR_THEME_DARK_FONT_TODO,          "fonts/TODO_FONTS.md" },
+};
+
+
+
+
+
+static constexpr EmbeddedThemeFile s_kRetroTerminalFiles[] =
+{
+    { IDR_THEME_RETRO_THEME_JSON,         "theme.json"          },
+    { IDR_THEME_RETRO_FONT_TTF,           "fonts/VT323-Regular.ttf" },
+    { IDR_THEME_RETRO_FONT_OFL,           "fonts/OFL.txt"       },
+    { IDR_THEME_RETRO_FONT_TODO,          "fonts/TODO_FONTS.md" },
+};
+
+
+
+
+
+static const EmbeddedTheme s_kEmbeddedThemes[] =
+{
+    { "Skeuomorphic",  1, span<const EmbeddedThemeFile> (s_kSkeuomorphicFiles)  },
+    { "DarkModern",    1, span<const EmbeddedThemeFile> (s_kDarkModernFiles)    },
+    { "RetroTerminal", 1, span<const EmbeddedThemeFile> (s_kRetroTerminalFiles) },
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureThemes
+//
+//  For each built-in theme, consult `ThemeBootstrapPlanner::Plan`
+//  with the on-disk theme.json (if any) and either skip the
+//  directory (user theme or up-to-date built-in) or re-extract
+//  every embedded file. User-authored sibling themes are untouched
+//  because their `theme.json` lacks the `$cassoBuiltIn: true`
+//  marker — the planner only ever returns `InstallBuiltIn` for an
+//  already-built-in directory whose version is stale, or for an
+//  empty / corrupt directory belonging to one of *our* names.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::EnsureThemes (
+    HINSTANCE hInstance)
+{
+    HRESULT     hr        = S_OK;
+    fs::path    themesDir;
+    error_code  ec;
+
+
+
+    // Same logic as EnsureMachineConfigs: extract to %LOCALAPPDATA%\Casso\,
+    // not into an exe-adjacent Themes/ dir.
+    themesDir = GetAssetBaseDirectory() / L"Themes";
+    fs::create_directories (themesDir, ec);
+
+    for (const EmbeddedTheme & theme : s_kEmbeddedThemes)
+    {
+        fs::path              themeSubdir       = themesDir / theme.dirName;
+        fs::path              themeJsonPath     = themeSubdir / "theme.json";
+        bool                  diskExists        = false;
+        string                diskJsonText;
+        string                embeddedJsonText;
+        ThemeBootstrapAction  action            = ThemeBootstrapAction::Skip;
+        int                   themeJsonResId    = 0;
+
+
+
+        diskExists = fs::exists (themeJsonPath, ec);
+
+        if (diskExists)
+        {
+            ifstream      file (themeJsonPath);
+            stringstream  ss;
+
+            if (file.good())
+            {
+                ss << file.rdbuf();
+                diskJsonText = ss.str();
+            }
+        }
+
+        // Find the embedded theme.json resource id so the planner can
+        // diff disk vs canonical bytes. Built-in themes always have a
+        // theme.json file as their first entry by convention; cope if
+        // ever that stops being true by scanning.
+        for (const EmbeddedThemeFile & f : theme.files)
+        {
+            if (std::string (f.relativePath) == "theme.json")
+            {
+                themeJsonResId = f.resourceId;
+                break;
+            }
+        }
+
+        if (themeJsonResId != 0)
+        {
+            span<const Byte>  embeddedBytes = ExtractResource (hInstance, themeJsonResId);
+            embeddedJsonText.assign (reinterpret_cast<const char *> (embeddedBytes.data()),
+                                     embeddedBytes.size());
+        }
+
+        action = ThemeBootstrapPlanner::Plan (diskExists ? &diskJsonText : nullptr,
+                                              embeddedJsonText,
+                                              theme.currentVersion);
+
+        if (action == ThemeBootstrapAction::Skip)
+        {
+            continue;
+        }
+
+        // InstallBuiltIn: (re)extract every file. Create the theme
+        // directory + any sub-dirs (e.g. fonts/) as we go.
+        fs::create_directories (themeSubdir, ec);
+
+        for (const EmbeddedThemeFile & f : theme.files)
+        {
+            fs::path          target = themeSubdir / f.relativePath;
+            span<const Byte>  bytes;
+            HRESULT           hrItem;
+
+            fs::create_directories (target.parent_path(), ec);
+
+            bytes = ExtractResource (hInstance, f.resourceId);
+
+            // 0-byte resources are legal (the font placeholders).
+            // bytes.data() can still be non-null because RC always
+            // produces a tracked allocation. WriteFileBytes happily
+            // writes a 0-byte file.
+            hrItem = WriteFileBytes (target, bytes);
+
+            if (FAILED (hrItem))
+            {
+                hr = hrItem;
+            }
+        }
+    }
+
+    return hr;
 }
 
 
@@ -575,21 +789,49 @@ fs::path AssetBootstrap::GetAssetBaseDirectory (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetDiskDirectory
+//  GetAssetBaseDirectory
 //
-//  Returns the directory where downloaded disk images land. Mirrors
-//  GetAssetBaseDirectory: an existing Disks/ found via the search
-//  paths wins, otherwise we create one next to the exe.
+//  Returns %LOCALAPPDATA%\Casso\ -- the single, user-writable root for
+//  every file Casso reads or writes at runtime (Machines/, Themes/,
+//  Disks/, UserPrefs.json, schema backups, downloaded ROMs,
+//  captured audio, etc.). Created on first launch if missing.
+//
+//  The location is no longer a function of where the EXE lives. That
+//  removes every Program Files write attempt and keeps user state out
+//  of the install directory.
+//
+//  Read-only built-in defaults (machine JSONs, theme.json, fonts) are
+//  embedded as RT_RCDATA in Casso.exe and extracted into this dir on
+//  first launch via EnsureMachineConfigs / EnsureThemes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-fs::path AssetBootstrap::GetDiskDirectory (
-    const vector<fs::path> & searchPaths,
-    const fs::path         & exeDir)
+fs::path AssetBootstrap::GetAssetBaseDirectory()
 {
-    return PathResolver::FindOrCreateAssetDir (searchPaths,
-                                               fs::path ("Disks"),
-                                               exeDir);
+    return PathResolver::GetLocalAppDataDir (L"Casso");
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDiskDirectory
+//
+//  Returns <localAppData>\Casso\Disks\ -- downloaded disk images land
+//  here regardless of where the EXE was invoked from. Created on
+//  demand.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+fs::path AssetBootstrap::GetDiskDirectory()
+{
+    fs::path     base   = GetAssetBaseDirectory();
+    fs::path     disks  = base / L"Disks";
+    error_code   ec;
+
+    fs::create_directories (disks, ec);
+    return disks;
 }
 
 
@@ -669,6 +911,7 @@ static HRESULT DownloadHttp (
     DWORD        bytesAvail   = 0;
     DWORD        bytesRead    = 0;
     string       narrowHost;
+
 
 
     outBytes.clear();
@@ -796,6 +1039,7 @@ static HRESULT DownloadOne (
     wstring  wPath = wstring (s_kpszUrlPrefix) + AsciiToWide (spec.appleWinName);
 
 
+
     return DownloadHttp (hSession,
                          s_kpszAppleWinHost,
                          wPath.c_str(),
@@ -820,6 +1064,7 @@ static bool PromptUser (HWND hwndParent, const vector<const RomSpec *> & missing
     wstring  message;
     wstring  title;
     int      response = 0;
+
 
 
     message = L"Casso needs the following Apple ROM image(s):\n\n";
@@ -874,6 +1119,7 @@ static const EmbeddedConfig * FindEmbeddedConfig (const wstring & machineName)
     wstring                 wide;
 
 
+
     for (const EmbeddedConfig & cfg : s_kEmbeddedConfigs)
     {
         wide = AsciiToWide (cfg.machineName);
@@ -912,6 +1158,7 @@ static HRESULT LoadEmbeddedJson (
     HRESULT                 hr    = S_OK;
     const EmbeddedConfig  * cfg   = nullptr;
     span<const Byte>        bytes;
+
 
 
     outJsonText.clear();
@@ -967,6 +1214,7 @@ HRESULT AssetBootstrap::GetRequiredRoms (
     string   narrowName;
 
 
+
     outRomFiles.clear();
 
     hr = LoadEmbeddedJson (hInstance, machineName, jsonText, narrowName, outError);
@@ -1009,6 +1257,7 @@ HRESULT AssetBootstrap::HasDiskController (
     HRESULT             hrOpt        = S_OK;
     size_t              idx          = 0;
     string              device;
+
 
 
     outHasDiskController = false;
@@ -1175,6 +1424,7 @@ static wstring GetEmbeddedDisplayName (HINSTANCE hInstance, const wstring & mach
     wstring         result    = machineName;
 
 
+
     hr = LoadEmbeddedJson (hInstance, machineName, jsonText, narrowName, dummyError);
 
     if (SUCCEEDED (hr))
@@ -1210,6 +1460,12 @@ static constexpr int  s_kIdProDOS = 1002;
 static constexpr int  s_kIdSkip   = IDCANCEL;
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PromptBootDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static const BootDiskSpec * PromptBootDisk (HWND hwndParent, const wstring & displayName)
 {
     HRESULT               hr            = S_OK;
@@ -1219,6 +1475,7 @@ static const BootDiskSpec * PromptBootDisk (HWND hwndParent, const wstring & dis
     TASKDIALOGCONFIG      cfg           = { sizeof (TASKDIALOGCONFIG) };
     TASKDIALOG_BUTTON     buttons[2]    = {};
     const BootDiskSpec  * result        = nullptr;
+
 
 
     body  = L"The ";
@@ -1323,6 +1580,7 @@ HRESULT AssetBootstrap::OfferBootDiskDownload (
     error_code            ec;
 
 
+
     outDiskPath.clear();
 
     hr = HasDiskController (hInstance, machineName, hasDisk, outError);
@@ -1375,6 +1633,7 @@ Error:
 
     return hr;
 }
+
 
 
 
@@ -1634,6 +1893,9 @@ Error:
 static constexpr int       s_kIdDiskAudioDownload       = 2001;
 static constexpr int       s_kIdDiskAudioSkip           = IDCANCEL;
 static constexpr LPCWSTR   s_kpszPromptForAudioDownload = L"PromptForAudioDownload";
+static constexpr DWORD     s_kAudioConsentUnasked       = 1;
+static constexpr DWORD     s_kAudioConsentAccepted      = 2;
+static constexpr DWORD     s_kAudioConsentDeclined      = 3;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1670,7 +1932,7 @@ static int PromptDiskAudioConsent (HWND hwndParent)
     tdc.hwndParent         = hwndParent;
     tdc.hInstance          = nullptr;
     tdc.dwFlags            = TDF_USE_COMMAND_LINKS | TDF_ALLOW_DIALOG_CANCELLATION;
-    tdc.pszWindowTitle     = L"Casso \x2014 Drive Audio Samples";
+    tdc.pszWindowTitle     = L"Casso \x2014 Drive audio samples";
     tdc.pszMainIcon        = TD_INFORMATION_ICON;
     tdc.pszMainInstruction = L"Download Disk II audio samples?";
     tdc.pszContent         = content;
@@ -1748,7 +2010,7 @@ HRESULT AssetBootstrap::CheckAndFetchDiskAudio (
     HINTERNET    hSession       = nullptr;
     bool         anyMissing     = false;
     int          consent        = 0;
-    DWORD        promptFlag     = 1;
+    DWORD        consentState   = s_kAudioConsentUnasked;
     wstring      subkey;
     HRESULT      hrReg          = S_OK;
     error_code   ec;
@@ -1757,22 +2019,13 @@ HRESULT AssetBootstrap::CheckAndFetchDiskAudio (
 
     UNREFERENCED_PARAMETER (hInstance);
 
-    // Per-machine "ask me about disk audio?" flag. Absent or non-zero
-    // means "ask"; zero means the user has already answered (either
-    // accepted the download or skipped it) and we never prompt again
-    // for this machine on subsequent launches. Manual reset path:
-    // delete the value (or set it to 1) via regedit.
-    subkey = wstring (L"Machines\\") + machineName;
-    hrReg  = RegistrySettings::ReadDword (subkey.c_str (),
-                                          s_kpszPromptForAudioDownload,
-                                          promptFlag);
-    IGNORE_RETURN_VALUE (hrReg, S_OK);
-
-    if (promptFlag == 0)
-    {
-        return S_FALSE;
-    }
-
+    // Self-healing semantics: always check what's missing on disk
+    // before consulting the saved consent state. If everything is
+    // already present we have nothing to do regardless of prior
+    // answer. If anything is missing and the user previously
+    // accepted, silently re-fetch (the consent stands); if they
+    // previously declined, respect that with no prompt; if they
+    // have never been asked, prompt now.
     for (string_view mech : s_kDiskAudioMechanisms)
     {
         fs::path  mechDir = devicesDir / string (mech);
@@ -1786,15 +2039,43 @@ HRESULT AssetBootstrap::CheckAndFetchDiskAudio (
 
     BAIL_OUT_IF (!anyMissing, S_OK);
 
-    consent = PromptDiskAudioConsent (hwndParent);
-
-    // The question is resolved either way -- never prompt again for
-    // this machine. Persist the answer before acting on it so a
-    // crash mid-download still suppresses the next launch's prompt.
-    hrReg = RegistrySettings::WriteDword (subkey.c_str (),
-                                          s_kpszPromptForAudioDownload,
-                                          0);
+    subkey       = wstring (L"Machines\\") + machineName;
+    hrReg        = RegistrySettings::ReadDword (subkey.c_str (),
+                                                s_kpszPromptForAudioDownload,
+                                                consentState);
     IGNORE_RETURN_VALUE (hrReg, S_OK);
+
+    if (consentState == s_kAudioConsentDeclined)
+    {
+        return S_FALSE;
+    }
+
+    // Legacy values from earlier builds: the prompt flag was a
+    // boolean ("0 = already asked, ignore"; anything else = "prompt").
+    // A persisted 0 from a prior accept-and-download is now
+    // indistinguishable from an old decline. Treat the legacy 0 as
+    // a fresh ask so the user can re-affirm and we can restore the
+    // missing WAVs.
+    if (consentState != s_kAudioConsentAccepted && consentState != s_kAudioConsentUnasked)
+    {
+        consentState = s_kAudioConsentUnasked;
+    }
+
+    if (consentState == s_kAudioConsentAccepted)
+    {
+        consent = s_kIdDiskAudioDownload;
+    }
+    else
+    {
+        consent = PromptDiskAudioConsent (hwndParent);
+        consentState = (consent == s_kIdDiskAudioDownload)
+                        ? s_kAudioConsentAccepted
+                        : s_kAudioConsentDeclined;
+        hrReg = RegistrySettings::WriteDword (subkey.c_str (),
+                                              s_kpszPromptForAudioDownload,
+                                              consentState);
+        IGNORE_RETURN_VALUE (hrReg, S_OK);
+    }
 
     if (consent != s_kIdDiskAudioDownload)
     {

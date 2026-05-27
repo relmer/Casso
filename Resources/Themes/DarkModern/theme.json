@@ -1,0 +1,47 @@
+{
+    "$cassoThemeVersion": 1,
+    "$cassoBuiltIn":      true,
+    "name":               "DarkModern",
+    "familyId":           "apple2",
+    "variantId":          "ii-plus",
+    "author":             "Casso",
+    "description":        "Sleek dark UI with glowing LED accents for Apple II+ and IIe variants.",
+    "crtDefaults": {
+        "brightness": 1.05,
+        "scanlines":  { "enabled": true,  "intensity": 0.25 },
+        "bloom":      { "enabled": true,  "radius": 1.5, "strength": 0.5 },
+        "colorBleed": { "enabled": false, "width":  0.0 }
+    },
+    "uiTokens": {
+        "chrome": {
+            "titleTextColor": "#f0f0f0",
+            "backgroundGradient": ["#1d1f23", "#2a2e36"]
+        },
+        "timingsMs": { "driveDoor": 110 },
+        "supportedVariants": ["ii-plus", "iie"]
+    },
+    "driveVisualProfile": {
+        "style": "disk2",
+        "colorway": "graphite",
+        "doorAnimation": "mechanicalSwing",
+        "syncChannel": "drive-door"
+    },
+    "useMicaBackdrop": true,
+    "variantOverrides": {
+        "Apple //e": {
+            "crtDefaults": {
+                "brightness": 1.1,
+                "scanlines": { "enabled": true, "intensity": 0.3 },
+                "bloom":     { "enabled": true, "radius": 1.2, "strength": 0.45 }
+            }
+        },
+        "Apple //c": {
+            "crtDefaults": {
+                "brightness": 1.15,
+                "scanlines": { "enabled": false, "intensity": 0.0 },
+                "bloom":     { "enabled": true, "radius": 0.8, "strength": 0.35 }
+            },
+            "driveVisualProfile": { "style": "integrated", "colorway": "platinum" }
+        }
+    }
+}

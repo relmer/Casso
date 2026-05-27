@@ -106,6 +106,54 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ParseCapabilityFlag
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineConfigLoader::ParseCapabilityFlag (
+    const string  & str,
+    CapabilityFlag  defaultFlag,
+    CapabilityFlag & outFlag,
+    string         & outError)
+{
+    HRESULT hr = S_OK;
+
+
+
+    if (str.empty ())
+    {
+        outFlag = defaultFlag;
+    }
+    else if (str == "optional")
+    {
+        outFlag = CapabilityFlag::Optional;
+    }
+    else if (str == "required")
+    {
+        outFlag = CapabilityFlag::Required;
+    }
+    else if (str == "platform-locked")
+    {
+        outFlag = CapabilityFlag::PlatformLocked;
+    }
+    else
+    {
+        CBRF (false, outError = format (
+            "Invalid capabilityFlag: '{}' (expected 'optional', 'required', or 'platform-locked')",
+            str));
+    }
+
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LoadTiming
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -371,11 +419,30 @@ HRESULT MachineConfigLoader::LoadInternalDevices (
     {
         const JsonValue & entry = devArray.ArrayAt (idx);
         InternalDevice    dev;
+        string            flagStr;
+        HRESULT           hrFlag = S_OK;
+        HRESULT           hrLock = S_OK;
 
 
 
         hr = entry.GetString ("type", dev.type);
         CHRF (hr, outError = format ("internalDevices[{}]: missing or invalid 'type' field", idx));
+
+        // Optional: capabilityFlag (default = Required per FR-015).
+        hrFlag = entry.GetString ("capabilityFlag", flagStr);
+
+        if (SUCCEEDED (hrFlag))
+        {
+            hr = ParseCapabilityFlag (flagStr,
+                                      CapabilityFlag::Required,
+                                      dev.capabilityFlag,
+                                      outError);
+            CHRF (hr, outError = format ("internalDevices[{}]: {}", idx, outError));
+        }
+
+        // Optional: lockReason
+        hrLock = entry.GetString ("lockReason", dev.lockReason);
+        IGNORE_RETURN_VALUE (hrLock, S_OK);
 
         outConfig.internalDevices.push_back (dev);
     }
@@ -462,6 +529,27 @@ HRESULT MachineConfigLoader::LoadSlots (
                                      idx, slot.rom, slot.romSize));
         }
 
+        // Optional: capabilityFlag (default = Optional per FR-015).
+        {
+            string   flagStr;
+            HRESULT  hrFlag = entry.GetString ("capabilityFlag", flagStr);
+
+            if (SUCCEEDED (hrFlag))
+            {
+                hr = ParseCapabilityFlag (flagStr,
+                                          CapabilityFlag::Optional,
+                                          slot.capabilityFlag,
+                                          outError);
+                CHRF (hr, outError = format ("slots[{}]: {}", idx, outError));
+            }
+        }
+
+        // Optional: lockReason
+        {
+            HRESULT hrLock = entry.GetString ("lockReason", slot.lockReason);
+            IGNORE_RETURN_VALUE (hrLock, S_OK);
+        }
+
         outConfig.slots.push_back (slot);
     }
 
@@ -499,6 +587,8 @@ HRESULT MachineConfigLoader::CollectRomFiles (
     string              file;
     HRESULT             hrOpt          = S_OK;
     size_t              idx            = 0;
+
+
 
     outFiles.clear();
 
@@ -708,6 +798,12 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetValue
+//
+////////////////////////////////////////////////////////////////////////////////
+
 HRESULT MachineConfigLoader::GetValue (
     const JsonValue  & entry,
     const Field<T>   & f,

@@ -308,4 +308,287 @@ public:
         Assert::AreEqual (size_t (64),
                           MachineConfigUpgrade::BytesToHex (in).size());
     }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  ParseStamp — 007 : new key + legacy fallback
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (ParseStamp_NewKeyPresent_Returned)
+    {
+        Assert::AreEqual (7, MachineConfigUpgrade::ParseStamp (
+            "{ \"$cassoMachineVersion\": 7, \"name\": \"x\" }"));
+    }
+
+    TEST_METHOD (ParseStamp_NewKeyTakesPrecedenceOverLegacy)
+    {
+        // Forward-compat: if both keys are present (e.g. a partially
+        // migrated user file), the new key wins.
+        Assert::AreEqual (9, MachineConfigUpgrade::ParseStamp (
+            "{ \"$cassoMachineVersion\": 9, \"$cassoDefault\": 4 }"));
+    }
+
+    TEST_METHOD (ParseStamp_NeitherKey_ReturnsZero)
+    {
+        Assert::AreEqual (0, MachineConfigUpgrade::ParseStamp (
+            "{ \"name\": \"x\" }"));
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  MigrateUserConfig — 007 : rename legacy key
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (MigrateUserConfig_RenamesLegacyKey)
+    {
+        string   input    = "{ \"$cassoDefault\": 2, \"name\": \"x\" }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == S_OK,
+            L"Migration of legacy key should report S_OK (changes applied).");
+        Assert::IsTrue (migrated.find ("\"$cassoMachineVersion\"") != string::npos,
+            L"Migrated output must contain the new key name.");
+        Assert::IsTrue (migrated.find ("\"$cassoDefault\"") == string::npos,
+            L"Migrated output must no longer contain the legacy key name.");
+        Assert::IsTrue (migrated.find ("\"name\": \"x\"") != string::npos,
+            L"All other fields must be preserved verbatim.");
+    }
+
+    TEST_METHOD (MigrateUserConfig_Idempotent)
+    {
+        string   input    = "{\n    \"$cassoDefault\": 2,\n    \"name\": \"x\"\n}";
+        string   first;
+        string   second;
+        HRESULT  hrFirst  = MachineConfigUpgrade::MigrateUserConfig (input, first);
+        HRESULT  hrSecond = MachineConfigUpgrade::MigrateUserConfig (first, second);
+
+        Assert::IsTrue (hrFirst  == S_OK,
+            L"First pass must report changes applied.");
+        Assert::IsTrue (hrSecond == S_FALSE,
+            L"Second pass must report no-op (S_FALSE).");
+        Assert::AreEqual (first, second,
+            L"Second pass output must be byte-for-byte identical to first.");
+    }
+
+    TEST_METHOD (MigrateUserConfig_AlreadyNewSchema_NoOp)
+    {
+        string   input    = "{ \"$cassoMachineVersion\": 3, \"name\": \"x\" }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == S_FALSE,
+            L"Already-migrated content must report S_FALSE.");
+        Assert::AreEqual (input, migrated,
+            L"Already-migrated content must be returned unchanged.");
+    }
+
+    TEST_METHOD (MigrateUserConfig_BothVersionFields_RenamesLegacyAlias)
+    {
+        string   input    = "{ \"$cassoMachineVersion\": 9, \"$cassoDefault\": 4, \"name\": \"x\" }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == S_OK,
+            L"Presence of legacy alias should trigger rewrite.");
+        Assert::IsTrue (migrated.find ("\"$cassoDefault\"") == string::npos,
+            L"Legacy alias must be removed from migrated output.");
+        Assert::IsTrue (migrated.find ("\"$cassoMachineVersion\"") != string::npos,
+            L"Migrated output must keep canonical key.");
+    }
+
+    TEST_METHOD (MigrateUserConfig_LegacyKeyAsStringValue_NotRewritten)
+    {
+        // Edge case: the literal "$cassoDefault" appearing as a string
+        // VALUE (not a key) must not be rewritten. We confirm this by
+        // checking that a content with the token followed by a comma
+        // (rather than a colon) is left alone.
+        string   input    = "{ \"description\": \"$cassoDefault\", \"v\": 1 }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == S_FALSE,
+            L"Token used as a value (not a key) must not trigger migration.");
+        Assert::AreEqual (input, migrated,
+            L"Content must be returned unchanged.");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  MigrateUserConfig — capabilityFlag default injection
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (MigrateUserConfig_InternalDevicesDefaultRequired)
+    {
+        string   input    = "{ \"$cassoMachineVersion\": 3,"
+                            "  \"internalDevices\": ["
+                            "    { \"type\": \"keyboard\" },"
+                            "    { \"type\": \"speaker\", \"capabilityFlag\": \"optional\" }"
+                            "  ] }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == S_OK,
+            L"Missing capabilityFlag in internalDevices must trigger migration.");
+        Assert::IsTrue (migrated.find ("\"capabilityFlag\": \"required\"") != string::npos,
+            L"Entry without an explicit flag must default to 'required'.");
+        Assert::IsTrue (migrated.find ("\"capabilityFlag\": \"optional\"") != string::npos,
+            L"Pre-existing 'optional' flag must be preserved.");
+    }
+
+
+    TEST_METHOD (MigrateUserConfig_SlotsDefaultOptional)
+    {
+        string   input    = "{ \"$cassoMachineVersion\": 3,"
+                            "  \"slots\": ["
+                            "    { \"slot\": 1 },"
+                            "    { \"slot\": 6, \"capabilityFlag\": \"platform-locked\" }"
+                            "  ] }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == S_OK);
+        Assert::IsTrue (migrated.find ("\"capabilityFlag\": \"optional\"") != string::npos,
+            L"slots[] entries without a flag must default to 'optional'.");
+        Assert::IsTrue (migrated.find ("\"capabilityFlag\": \"platform-locked\"") != string::npos,
+            L"Pre-existing slot lock-reason must be preserved.");
+    }
+
+
+    TEST_METHOD (MigrateUserConfig_BothKeysAndMissingFlags_AppliesAllChanges)
+    {
+        string   input    = "{ \"$cassoMachineVersion\": 3,"
+                            "  \"$cassoDefault\": 2,"
+                            "  \"internalDevices\": [ { \"type\": \"k\" } ],"
+                            "  \"slots\": [ { \"slot\": 1 } ] }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == S_OK);
+        Assert::IsTrue (migrated.find ("\"$cassoDefault\"")        == string::npos,
+            L"Legacy alias must be dropped when canonical is present.");
+        Assert::IsTrue (migrated.find ("\"$cassoMachineVersion\"") != string::npos);
+        Assert::IsTrue (migrated.find ("\"capabilityFlag\": \"required\"") != string::npos);
+        Assert::IsTrue (migrated.find ("\"capabilityFlag\": \"optional\"") != string::npos);
+    }
+
+
+    TEST_METHOD (MigrateUserConfig_CapabilityFlag_Idempotent)
+    {
+        string   input    = "{ \"$cassoMachineVersion\": 3,"
+                            "  \"internalDevices\": [ { \"type\": \"k\" } ] }";
+        string   first;
+        string   second;
+        HRESULT  hr1      = MachineConfigUpgrade::MigrateUserConfig (input, first);
+        HRESULT  hr2      = MachineConfigUpgrade::MigrateUserConfig (first, second);
+
+        Assert::IsTrue (hr1 == S_OK,
+            L"First pass injects the missing flag.");
+        Assert::IsTrue (hr2 == S_FALSE,
+            L"Second pass must report no-op once flag is present.");
+        Assert::AreEqual (first, second,
+            L"Second-pass output must be byte-for-byte identical to first.");
+    }
+
+
+    TEST_METHOD (MigrateUserConfig_UnparseableInput_E_INVALIDARG)
+    {
+        string   input    = "{\"unterminated\":";
+        string   migrated = "leftover sentinel";
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == E_INVALIDARG,
+            L"Unparseable input must be reported as E_INVALIDARG.");
+        Assert::IsTrue (migrated.empty(),
+            L"On failure outMigrated must be cleared.");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  Multi-version-jump chain (T140 / SC-003 / SC-007)
+    //
+    //  Plan() is a pure integer comparison: any diskVersion strictly less
+    //  than embeddedVersion lands as OverwriteSilent (regardless of how
+    //  many schema bumps were skipped). These tests exercise that path
+    //  across multi-hop deltas to prove SC-003's "old user file gets
+    //  forward-migrated cleanly" promise holds without needing per-hop
+    //  migration code. The user-customization-preservation half of
+    //  SC-007 lives in UserConfigStore's shadow/fallthrough merge tests
+    //  -- this file only owns the upgrade-action half.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Plan_VersionJump_1To4_OverwriteSilent)
+    {
+        // User file is stamped v1; embedded jumped to v4 (three schema
+        // bumps skipped). No backup needed because the file is a known
+        // extracted default carrying a current-form stamp.
+        string                          content = "{\"$cassoMachineVersion\":1,\"speed\":\"2x\"}";
+        vector<MachineConfigPriorHash>  priors  = MakePriors();
+        MachineConfigUpgradeAction      action  = MachineConfigUpgrade::Plan (
+            "Apple2e", 4, &content, "", priors);
+
+        Assert::IsTrue (action == MachineConfigUpgradeAction::OverwriteSilent,
+            L"v1 -> v4 must OverwriteSilent (file is stamped, so user customizations live in a separate user JSON that survives independently)");
+    }
+
+    TEST_METHOD (Plan_VersionJump_LegacyKeyV1ToCurrentV5_OverwriteSilent)
+    {
+        // User file uses legacy $cassoDefault key at v1 and we've
+        // shipped through v5 since. ParseStamp accepts the legacy
+        // key, so Plan still resolves to OverwriteSilent.
+        string                          content = "{\"$cassoDefault\":1,\"slots\":[]}";
+        vector<MachineConfigPriorHash>  priors  = MakePriors();
+        MachineConfigUpgradeAction      action  = MachineConfigUpgrade::Plan (
+            "Apple2", 5, &content, "", priors);
+
+        Assert::IsTrue (action == MachineConfigUpgradeAction::OverwriteSilent,
+            L"legacy-keyed v1 file must still upgrade cleanly across multiple version bumps");
+    }
+
+    TEST_METHOD (Plan_VersionJump_NewerThanEmbedded_Skip)
+    {
+        // Forward-compat: a v4 disk file when running a v2-aware
+        // build must be left alone (don't downgrade the user).
+        string                          content = "{\"$cassoMachineVersion\":4}";
+        vector<MachineConfigPriorHash>  priors  = MakePriors();
+        MachineConfigUpgradeAction      action  = MachineConfigUpgrade::Plan (
+            "Apple2e", 2, &content, "", priors);
+
+        Assert::IsTrue (action == MachineConfigUpgradeAction::Skip,
+            L"disk newer than embedded must Skip (no downgrade)");
+    }
+
+    TEST_METHOD (MigrateUserConfig_ChainIdempotent_ThroughMultipleApplications)
+    {
+        // Repeatedly applying MigrateUserConfig to its own output must
+        // converge after the first pass -- proves that pretending each
+        // application is a "version hop" doesn't accumulate drift even
+        // across several rounds.
+        string  cur = "{\"$cassoDefault\":1,\"speed\":\"2x\"}";
+        string  next;
+        size_t  pass = 0;
+
+        for (pass = 0; pass < 5; pass++)
+        {
+            HRESULT  hr = MachineConfigUpgrade::MigrateUserConfig (cur, next);
+            Assert::IsTrue (SUCCEEDED (hr), L"chain pass must succeed");
+            if (pass == 0)
+            {
+                Assert::AreNotEqual (cur, next, L"first pass must rewrite legacy key");
+            }
+            else
+            {
+                Assert::AreEqual (cur, next, L"subsequent passes must be no-ops");
+            }
+            cur = next;
+        }
+    }
 };

@@ -19,47 +19,28 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
-    //  BuildSearchPaths_ContainsExeDirAndCwd
+    //  BuildSearchPaths_ReturnsLocalAppDataOnly
+    //
+    //  Casso uses a single asset directory; exeDir / cwd parameters
+    //  are accepted for compat but no longer contribute search paths.
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    TEST_METHOD (BuildSearchPaths_ContainsExeDirAndCwd)
+    TEST_METHOD (BuildSearchPaths_ReturnsLocalAppDataOnly)
     {
-        auto paths = PathResolver::BuildSearchPaths (fs::path ("C:/app/bin"), fs::path ("C:/project"));
+        auto paths = PathResolver::BuildSearchPaths (fs::path ("C:/app/bin"),
+                                                     fs::path ("C:/project"));
 
-        Assert::IsTrue (paths.size () >= 2);
-        Assert::IsTrue (paths[0] == fs::path ("C:/app/bin"));
-        Assert::IsTrue (paths[1] == fs::path ("C:/project"));
-    }
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  BuildSearchPaths_IncludesParentDirectories
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    TEST_METHOD (BuildSearchPaths_IncludesParentDirectories)
-    {
-        auto paths = PathResolver::BuildSearchPaths (
-            fs::path ("C:/app/x64/Debug"), fs::path ("C:/project/build"));
-
-
-
-        // Should include parents: C:/app/x64, C:/app, C:/project
-        bool foundExeParent      = false;
-        bool foundExeGrandparent = false;
-        bool foundCwdParent      = false;
-
+        // The single element is %LOCALAPPDATA%\Casso\, which depends on
+        // the test host. We only assert that the legacy fallback dirs
+        // do NOT appear.
+        Assert::AreEqual ((size_t) 1, paths.size (),
+            L"BuildSearchPaths now returns exactly one entry (localappdata)");
         for (const auto & p : paths)
         {
-            if (p == fs::path ("C:/app/x64"))      foundExeParent      = true;
-            if (p == fs::path ("C:/app"))           foundExeGrandparent = true;
-            if (p == fs::path ("C:/project"))       foundCwdParent      = true;
+            Assert::AreNotEqual (fs::path ("C:/app/bin").wstring(),  p.wstring());
+            Assert::AreNotEqual (fs::path ("C:/project").wstring(),  p.wstring());
         }
-
-        Assert::IsTrue (foundExeParent);
-        Assert::IsTrue (foundExeGrandparent);
-        Assert::IsTrue (foundCwdParent);
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -79,7 +60,7 @@ public:
         }
 
         std::vector<fs::path> paths = { repoRoot, fs::path ("C:/nonexistent") };
-        fs::path result = PathResolver::FindFile (paths, "Machines/Apple2Plus.json");
+        fs::path result = PathResolver::FindFile (paths, "Resources/Machines/Apple2Plus/Apple2Plus.json");
 
         Assert::IsFalse (result.empty ());
         Assert::IsTrue (fs::exists (result));
@@ -101,7 +82,7 @@ public:
         }
 
         std::vector<fs::path> paths = { fs::path ("C:/nonexistent"), repoRoot };
-        fs::path result = PathResolver::FindFile (paths, "Machines/Apple2Plus.json");
+        fs::path result = PathResolver::FindFile (paths, "Resources/Machines/Apple2Plus/Apple2Plus.json");
 
         Assert::IsFalse (result.empty ());
         Assert::IsTrue (fs::exists (result));
@@ -140,7 +121,7 @@ public:
 
         std::vector<fs::path> paths = { repoRoot };
 
-        fs::path configFound = PathResolver::FindFile (paths, "Machines/Apple2Plus.json");
+        fs::path configFound = PathResolver::FindFile (paths, "Resources/Machines/Apple2Plus/Apple2Plus.json");
         Assert::IsFalse (configFound.empty ());
 
         // ROMs/ may or may not exist in the test environment,
@@ -150,21 +131,30 @@ public:
 
 private:
 
-    // Walk up from the test DLL directory to find the repo root (has machines/)
+    // Walk up from the test DLL directory until we find a directory
+    // that contains Resources/Machines/Apple2Plus/Apple2Plus.json -- this
+    // is the repo root regardless of which build configuration the
+    // test DLL was loaded from. Independent of BuildSearchPaths so it
+    // keeps working after that API collapsed to localappdata-only.
     static fs::path FindRepoRoot ()
     {
-        auto paths = PathResolver::BuildSearchPaths (
-            PathResolver::GetExecutableDirectory (),
-            PathResolver::GetWorkingDirectory ());
+        fs::path  cursor = PathResolver::GetExecutableDirectory();
+        fs::path  marker = fs::path ("Resources") / "Machines" /
+                           "Apple2Plus" / "Apple2Plus.json";
+        int       hop    = 0;
 
-        fs::path found = PathResolver::FindFile (paths, "Machines/Apple2Plus.json");
-
-        if (found.empty ())
+        for (hop = 0; hop < 8; hop++)
         {
-            return {};
+            if (fs::exists (cursor / marker))
+            {
+                return cursor;
+            }
+            if (cursor.parent_path() == cursor)
+            {
+                return {};
+            }
+            cursor = cursor.parent_path();
         }
-
-        // Return the repo root (two levels up from Machines/Apple2Plus.json)
-        return found.parent_path ().parent_path ();
+        return {};
     }
 };

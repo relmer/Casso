@@ -239,6 +239,7 @@
     <ClCompile Include="RegressionTests.cpp" />
     <ClCompile Include="EmuTests\MemoryBusTests.cpp" />
     <ClCompile Include="EmuTests\JsonParserTests.cpp" />
+    <ClCompile Include="EmuTests\JsonWriterTests.cpp" />
     <ClCompile Include="EmuTests\DeviceTests.cpp" />
     <ClCompile Include="EmuTests\KeyboardTests.cpp" />
     <ClCompile Include="EmuTests\SoftSwitchTests.cpp" />
@@ -331,11 +332,190 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="..\Casso\Config\UserConfigStore.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Config\Win32RegistrySettings.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\RegistrySettings.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Config\WindowPlacementProfile.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Config\GlobalUserPrefs.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\TitleBarHitTest.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Chrome\TitleBar.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Chrome\ChromeLayout.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Chrome\NavLayer.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Chrome\DriveWidget.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Chrome\LedIndicator.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\DragDropTarget.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>    <ClCompile Include="..\Casso\Ui\Win11DwmHelpers.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\WindowsThemeColors.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\ThemeLoader.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\ThemeManager.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\AutoMountResolver.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Settings\SettingsPanelState.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Settings\MachinePage.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Settings\HardwarePage.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\DxUiPainter.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\DwriteTextRenderer.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>    <ClCompile Include="..\Casso\Ui\HitTester.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\FocusManager.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Layout.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Animation.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Widgets\Checkbox.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Widgets\Toggle.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Widgets\Radio.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Widgets\Dropdown.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Widgets\Slider.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Widgets\TreeView.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Widgets\ModalScrim.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Widgets\Tooltip.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Widgets\TabStrip.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\CrtPostProcess.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="Casso\TrackSectorPredicateTests.cpp" />
     <ClCompile Include="Casso\DebugDialogProjectionTests.cpp" />
     <ClCompile Include="Casso\DiskIIDebugDialogColumnTests.cpp" />
-    <ClCompile Include="Casso\MenuSystemTests.cpp" />
+    <ClCompile Include="Casso\MenuPredicatesTests.cpp" />
     <ClCompile Include="Casso\RichEditSquiggleTests.cpp" />
+    <ClCompile Include="UiTests\UserConfigStoreTests.cpp" />
+    <ClCompile Include="UiTests\GlobalUserPrefsTests.cpp" />
+    <ClCompile Include="UiTests\WindowPlacementProfileTests.cpp" />
+    <ClCompile Include="UiTests\CheckboxTests.cpp" />
+    <ClCompile Include="UiTests\RadioGroupTests.cpp" />
+    <ClCompile Include="UiTests\SliderTests.cpp" />
+    <ClCompile Include="UiTests\TreeViewTests.cpp" />
+    <ClCompile Include="UiTests\ModalScrimTests.cpp" />
+    <ClCompile Include="UiTests\TooltipTests.cpp" />
+    <ClCompile Include="UiTests\TabStripTests.cpp" />
+    <ClCompile Include="UiTests\TitleBarHitTestTests.cpp" />
+    <ClCompile Include="UiTests\TitleBarLayoutTests.cpp" />
+    <ClCompile Include="UiTests\ChromeCommandRoutingTests.cpp" />
+    <ClCompile Include="UiTests\ThemeLoaderTests.cpp" />
+    <ClCompile Include="UiTests\ThemeManagerTests.cpp" />
+    <ClCompile Include="UiTests\DriveWidgetHitTests.cpp" />
+    <ClCompile Include="UiTests\WindowsThemeColorsTests.cpp" />
+    <ClCompile Include="UiTests\DriveWidgetStateTests.cpp" />
+    <ClCompile Include="UiTests\DragDropHitTestRoutingTests.cpp" />
+    <ClCompile Include="UiTests\DragDropTargetFormatTests.cpp" />
+    <ClCompile Include="UiTests\LedIndicatorStateTests.cpp" />
+    <ClCompile Include="UiTests\NavLayerDropdownTests.cpp" />
+    <ClCompile Include="UiTests\AutoMountTests.cpp" />
+    <ClCompile Include="UiTests\SettingsPanelStateTests.cpp" />
+    <ClCompile Include="UiTests\HardwareTreeTests.cpp" />
+    <ClCompile Include="UiTests\HardwarePageTests.cpp" />
+    <ClCompile Include="UiTests\CrtParameterMappingTests.cpp" />
+    <ClCompile Include="UiTests\CrtLetterboxLayoutTests.cpp" />
+    <ClCompile Include="UiTests\LayoutTests.cpp" />
+    <ClCompile Include="UiTests\DpiScalerTests.cpp" />
+    <ClCompile Include="UiTests\ChromeLayoutTests.cpp" />
+    <ClCompile Include="UiTests\Win11DwmHelpersTests.cpp" />
+    <ClCompile Include="UiTests\HitTesterTests.cpp" />
+    <ClCompile Include="UiTests\NcHitTestTests.cpp" />
+    <ClCompile Include="UiTests\FocusManagerTests.cpp" />
+    <ClCompile Include="UiTests\AnimationSyncTests.cpp" />
+    <ClCompile Include="UiTests\DxUiPainterTests.cpp" />
     <ClCompile Include="Devices\DiskIIDebugDialogTests.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -372,3 +552,7 @@
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
+
+
+
+

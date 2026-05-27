@@ -51,13 +51,97 @@ void Cpu::Reset()
 
 
 
+#ifdef _DEBUG
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TracePush
+//
+//  Snap the current pre-execution CPU state into the ring buffer.
+//  Called at the top of StepOne so the entry captures the instruction
+//  that is about to run -- the head-1 entry on dump is the faulting
+//  instruction itself; head-2 is its predecessor; and so on. Cheap
+//  enough to leave on for the entire Debug session (~30 bytes per
+//  step, 256-entry ring, zero allocation, no I/O).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu::TracePush ()
+{
+    TraceEntry &  e = m_trace[m_traceHead];
+
+    e.pc     = PC;
+    e.opcode = memory[PC];
+    e.a      = A;
+    e.x      = X;
+    e.y      = Y;
+    e.sp     = SP;
+    e.p      = status.status;
+
+    m_traceHead = (m_traceHead + 1) % kTraceBufferSize;
+    m_traceCount++;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DumpInstructionTrace
+//
+//  Dumps the ring buffer newest-first via DEBUGMSG. Format mirrors
+//  conventional 6502 disassemblers so the output is easy to skim:
+//
+//    [-N]  PC=$XXXX  op=$XX (NAME)   A=$XX X=$XX Y=$XX SP=$XX P=$XX
+//
+//  Pre-faces with a banner so the dump is easy to spot in DbgView.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
+{
+    size_t  total   = (m_traceCount < kTraceBufferSize) ? (size_t) m_traceCount
+                                                        : kTraceBufferSize;
+    size_t  i       = 0;
+    size_t  index   = 0;
+
+    DEBUGMSG (L"\n");
+    DEBUGMSG (L"[Casso] === CPU illegal-opcode fault ===\n");
+    DEBUGMSG (L"[Casso] Fault: opcode $%02X at PC=$%04X\n",
+              faultOpcode, faultPC);
+    DEBUGMSG (L"[Casso] Trace (newest-first, %zu entries):\n", total);
+
+    for (i = 0; i < total; i++)
+    {
+        // head currently points one PAST the most recent push, so the
+        // newest entry is (head - 1) mod size. Step backward from there.
+        index = (m_traceHead + kTraceBufferSize - 1 - i) % kTraceBufferSize;
+
+        const TraceEntry &  e        = m_trace[index];
+        const char *        opName   = instructionSet[e.opcode].instructionName != nullptr
+                                       ? instructionSet[e.opcode].instructionName
+                                       : "???";
+
+        DEBUGMSG (L"[Casso] [-%03zu] PC=$%04X  op=$%02X (%hs)  "
+                  L"A=$%02X X=$%02X Y=$%02X SP=$%02X P=$%02X\n",
+                  i, (unsigned) e.pc, (unsigned) e.opcode, opName,
+                  (unsigned) e.a, (unsigned) e.x, (unsigned) e.y,
+                  (unsigned) e.sp, (unsigned) e.p);
+    }
+
+    DEBUGMSG (L"[Casso] === end trace ===\n");
+}
+
+#endif
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  StepOne
 //
 ////////////////////////////////////////////////////////////////////////////////
-
 void Cpu::StepOne()
 {
 
@@ -67,9 +151,16 @@ void Cpu::StepOne()
 
 
 
+#ifdef _DEBUG
+    TracePush();
+#endif
+
     if (!microcode.isLegal)
     {
         DEBUGMSG (L"Illegal opcode $%02X at PC=$%04X\n", opcode, PC);
+#ifdef _DEBUG
+        DumpInstructionTrace (opcode, PC);
+#endif
         ASSERT (false);
 
         m_lastCycles = 2;

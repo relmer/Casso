@@ -134,6 +134,28 @@ public:
         Assert::IsTrue   (sink.log[1].which == RecordingAudioEventSink::Kind::Restarted);
     }
 
+    TEST_METHOD (HeadStepPastSeekThreshold_doesNotEnterSeekContinuePath)
+    {
+        DiskIIAudioSource         src;
+        RecordingAudioEventSink   sink;
+
+        src.SetSampleBufferForTest (L"HeadStep", vector<float> (1024, 0.5f));
+        src.SetAudioEventSink (&sink);
+
+        src.Tick       (100000);
+        src.OnHeadStep (1);
+
+        // Beyond kSeekThresholdCycles (16,368) the source should start
+        // a new event rather than restart/continue seek behavior.
+        src.Tick       (116500);
+        src.OnHeadStep (2);
+
+        Assert::AreEqual (size_t (2), sink.log.size());
+        Assert::IsTrue   (sink.log[0].which == RecordingAudioEventSink::Kind::Started);
+        Assert::IsTrue   (sink.log[1].which == RecordingAudioEventSink::Kind::Restarted);
+        Assert::IsFalse  (src.IsSeekMode());
+    }
+
     TEST_METHOD (HeadStepDuringSeekMode_firesAudioContinued)
     {
         DiskIIAudioSource         src;

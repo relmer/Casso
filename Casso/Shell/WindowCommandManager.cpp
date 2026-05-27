@@ -1,0 +1,582 @@
+#include "Pch.h"
+
+#include "WindowCommandManager.h"
+
+#include "../EmulatorShell.h"
+#include "../resource.h"
+#include "Version.h"
+#include "Ui/Chrome/ChromeLayout.h"
+#include "Ui/Chrome/ChromeMetrics.h"
+#include "Ui/Chrome/DriveWidget.h"
+#include "Shell/CpuManager.h"
+#include "Shell/DiskManager.h"
+#include "Shell/MachineManager.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Anonymous helpers
+//
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    using namespace ChromeMetrics;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WindowCommandManager
+//
+////////////////////////////////////////////////////////////////////////////////
+
+WindowCommandManager::WindowCommandManager (EmulatorShell & shell)
+    : m_shell (shell)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleCommand
+//
+//  Public command-pump entry point. Used by the NavLayer so click
+//  routing from the chrome funnels through the same dispatch path as
+//  a Win32 menu pick. Intentionally a thin wrapper -- OnCommand owns
+//  the real id-range demux.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::HandleCommand (WORD commandId)
+{
+    OnCommand (m_shell.m_hwnd, (int) commandId);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WindowCommandManager::OnCommand (HWND hwnd, int id)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+
+    if      (id >= IDM_EDIT_COPY_TEXT && id <= IDM_EDIT_PASTE)       { OnEditCommand (id); }
+    else if (id >= IDM_FILE_OPEN     && id <= IDM_FILE_EXIT)          { OnFileCommand (id); }
+    else if (id >= IDM_MACHINE_RESET && id <= IDM_MACHINE_INFO)       { OnMachineCommand (id); }
+    else if (id >= IDM_DISK_INSERT1  && id <= IDM_DISK_WRITEPROTECT2) { OnDiskCommand (id); }
+    else if (id >= IDM_VIEW_COLOR    && id <= IDM_VIEW_SETTINGS)      { OnViewCommand (id); }
+    else if (id >= IDM_HELP_KEYMAP   && id <= IDM_HELP_ABOUT)         { OnHelpCommand (id); }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnFileCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnFileCommand (int id)
+{
+    switch (id)
+    {
+        case IDM_FILE_OPEN:
+        {
+            m_shell.ShowMachinePicker();
+            break;
+        }
+
+        case IDM_FILE_EXIT:
+        {
+            DestroyWindow (m_shell.m_hwnd);
+            break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnEditCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnEditCommand (int id)
+{
+    switch (id)
+    {
+        case IDM_EDIT_COPY_TEXT:
+        {
+            m_shell.m_clipboardManager->CopyScreenText (m_shell.m_hwnd);
+            break;
+        }
+
+        case IDM_EDIT_COPY_SCREENSHOT:
+        {
+            m_shell.m_clipboardManager->CopyScreenshot (m_shell.m_hwnd);
+            break;
+        }
+
+        case IDM_EDIT_PASTE:
+        {
+            m_shell.m_clipboardManager->PasteFromClipboard (m_shell.m_hwnd);
+            break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMachineCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnMachineCommand (int id)
+{
+    bool paused = false;
+
+
+
+    switch (id)
+    {
+        case IDM_MACHINE_RESET:
+        case IDM_MACHINE_POWERCYCLE:
+        {
+            m_shell.PostCommand (static_cast<WORD> (id));
+            break;
+        }
+
+        case IDM_MACHINE_PAUSE:
+        {
+            paused = m_shell.m_cpuManager.TogglePaused();
+            (void) paused;
+            m_shell.UpdateWindowTitle();
+            break;
+        }
+
+        case IDM_MACHINE_STEP:
+        {
+            if (! m_shell.m_cpuManager.IsPaused())
+            {
+                break;
+            }
+            // CPU thread is provably idle (blocked on pauseCV.wait), so
+            // it's safe to drive the step directly from the UI thread.
+            // Routing through PostCommand+queue would never run -- the
+            // CPU thread can't drain its queue while paused. Delegated
+            // through the shell to avoid pulling DiskIIController's full
+            // definition into this header.
+            m_shell.StepInstructionWhilePaused();
+            break;
+        }
+
+        case IDM_MACHINE_SPEED_1X:
+        {
+            m_shell.m_cpuManager.SetSpeedMode (SpeedMode::Authentic);
+            break;
+        }
+
+        case IDM_MACHINE_SPEED_2X:
+        {
+            m_shell.m_cpuManager.SetSpeedMode (SpeedMode::Double);
+            break;
+        }
+
+        case IDM_MACHINE_SPEED_MAX:
+        {
+            m_shell.m_cpuManager.SetSpeedMode (SpeedMode::Maximum);
+            break;
+        }
+
+        case IDM_MACHINE_INFO:
+        {
+            std::wstring info = std::format (
+                L"Machine: {}\n"
+                L"CPU: {}\n"
+                L"Clock speed: {} Hz\n"
+                L"Memory regions: {}\n"
+                L"Devices: {}",
+                std::wstring (m_shell.m_config.name.begin(), m_shell.m_config.name.end()),
+                std::wstring (m_shell.m_config.cpu.begin(), m_shell.m_config.cpu.end()),
+                m_shell.m_config.clockSpeed,
+                (m_shell.m_config.ram.size() + 1 + m_shell.m_config.slots.size()),
+                (m_shell.m_config.internalDevices.size() + m_shell.m_config.slots.size()));
+
+            MessageBoxW (m_shell.m_hwnd, info.c_str(), L"Machine info", MB_ICONINFORMATION | MB_OK);
+            break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnViewCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnViewCommand (int id)
+{
+    UINT        dpi   = 0;
+    int         scale = 0;
+    HMONITOR    hMon  = nullptr;
+    MONITORINFO mi    = { sizeof (mi) };
+    int         w     = 0;
+    int         h     = 0;
+    int         x     = 0;
+    int         y     = 0;
+
+
+
+    switch (id)
+    {
+        case IDM_VIEW_COLOR:
+        {
+            m_shell.m_colorMode.store (ColorMode::Color, std::memory_order_release);
+            break;
+        }
+
+        case IDM_VIEW_GREEN:
+        {
+            m_shell.m_colorMode.store (ColorMode::GreenMono, std::memory_order_release);
+            break;
+        }
+
+        case IDM_VIEW_AMBER:
+        {
+            m_shell.m_colorMode.store (ColorMode::AmberMono, std::memory_order_release);
+            break;
+        }
+
+        case IDM_VIEW_WHITE:
+        {
+            m_shell.m_colorMode.store (ColorMode::WhiteMono, std::memory_order_release);
+            break;
+        }
+
+        case IDM_VIEW_FULLSCREEN:
+        {
+            m_shell.m_d3dRenderer.ToggleFullscreen (m_shell.m_hwnd);
+            break;
+        }
+
+        case IDM_VIEW_RESET_SIZE:
+        {
+            if (!m_shell.m_d3dRenderer.IsFullscreen())
+            {
+                RECT  rcCurrentClient = {};
+                RECT  rcCurrentWindow = {};
+                int   desiredClientW  = 0;
+                int   desiredClientH  = 0;
+                int   ncOverheadW     = 0;
+                int   ncOverheadH     = 0;
+
+
+                dpi   = GetDpiForWindow (m_shell.m_hwnd);
+                scale = (dpi + 48) / 96;
+
+                if (scale < 1)
+                {
+                    scale = 1;
+                }
+
+                // Target client area: framebuffer at the requested
+                // integer scale, with every chrome contributor's inset
+                // summed by the single source of truth. The historical
+                // Ctrl+0 pillarbox came from this site inlining the
+                // formula and forgetting the command-bar inset; routing
+                // through ChromeLayout::ClientSizeForCenter eliminates
+                // the drift class entirely.
+                {
+                    SIZE  desired = m_shell.m_chromeLayout.ClientSizeForCenter (
+                                        kFramebufferWidthPx  * scale,
+                                        kFramebufferHeightPx * scale,
+                                        dpi);
+                    desiredClientW = (int) desired.cx;
+                    desiredClientH = (int) desired.cy;
+                }
+
+                // Measure the current window's non-client overhead and
+                // size the new window from that, rather than computing
+                // it theoretically with AdjustWindowRectExForDpi. Our
+                // WM_NCCALCSIZE handler doesn't match the stock
+                // calculation, so the AdjustWindowRect path used to
+                // land on a wrong size and need a follow-up nudge --
+                // and that nudge was visible as a jitter on every
+                // Ctrl+0 press. Style/DPI don't change between the
+                // measurement and the SetWindowPos, so the real
+                // overhead is a stable input.
+                if (GetClientRect (m_shell.m_hwnd, &rcCurrentClient) && GetWindowRect (m_shell.m_hwnd, &rcCurrentWindow))
+                {
+                    ncOverheadW = (rcCurrentWindow.right  - rcCurrentWindow.left)
+                                  - (rcCurrentClient.right  - rcCurrentClient.left);
+                    ncOverheadH = (rcCurrentWindow.bottom - rcCurrentWindow.top)
+                                  - (rcCurrentClient.bottom - rcCurrentClient.top);
+                }
+
+                w = desiredClientW + ncOverheadW;
+                h = desiredClientH + ncOverheadH;
+
+                hMon = MonitorFromWindow (m_shell.m_hwnd, MONITOR_DEFAULTTONEAREST);
+                GetMonitorInfo (hMon, &mi);
+
+                x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - w) / 2;
+                y = mi.rcWork.top  + (mi.rcWork.bottom - mi.rcWork.top - h) / 2;
+
+                SetWindowPos (m_shell.m_hwnd, nullptr, x, y, w, h, SWP_NOZORDER);
+            }
+            break;
+        }
+
+        case IDM_VIEW_DISKII_DEBUG:
+        {
+            m_shell.OpenDiskIIDebugDialog();
+            break;
+        }
+
+        case IDM_VIEW_SETTINGS:
+        {
+            HRESULT  hrShow = m_shell.m_settingsPanel.Show();
+            IGNORE_RETURN_VALUE (hrShow, S_OK);
+            break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PromptForDiskImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WindowCommandManager::PromptForDiskImage (int drive)
+{
+    HRESULT                          hr         = S_OK;
+    ComPtr<IFileOpenDialog>          dialog;
+    ComPtr<IShellItem>               item;
+    PWSTR                            pszPath    = nullptr;
+    COMDLG_FILTERSPEC                filters[1] = { { L"Disk images", L"*.dsk;*.nib;*.woz;*.po" } };
+
+
+
+    hr = CoCreateInstance (CLSID_FileOpenDialog,
+                           nullptr,
+                           CLSCTX_INPROC_SERVER,
+                           IID_PPV_ARGS (&dialog));
+    CHR (hr);
+
+    hr = dialog->SetFileTypes (1, filters);
+    CHR (hr);
+
+    hr = dialog->Show (m_shell.m_hwnd);
+    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
+    {
+        hr = S_FALSE;
+        goto Error;
+    }
+    CHR (hr);
+
+    hr = dialog->GetResult (&item);
+    CHR (hr);
+
+    hr = item->GetDisplayName (SIGDN_FILESYSPATH, &pszPath);
+    CHR (hr);
+
+    hr = m_shell.Mount (6, drive, pszPath);
+    CHR (hr);
+
+Error:
+    if (pszPath != nullptr)
+    {
+        CoTaskMemFree (pszPath);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDiskCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnDiskCommand (int id)
+{
+    WCHAR          filePath[MAX_PATH] = {};
+    OPENFILENAMEW  ofn                = {};
+
+
+
+    switch (id)
+    {
+        case IDM_DISK_INSERT1:
+        case IDM_DISK_INSERT2:
+        {
+            ofn.lStructSize = sizeof (ofn);
+            ofn.hwndOwner   = m_shell.m_hwnd;
+            ofn.lpstrFilter = L"Disk images (*.dsk)\0*.dsk\0All files (*.*)\0*.*\0";
+            ofn.lpstrFile   = filePath;
+            ofn.nMaxFile    = MAX_PATH;
+            ofn.lpstrTitle  = (id == IDM_DISK_INSERT1) ?
+                L"Insert disk in drive 1" : L"Insert disk in drive 2";
+            ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+
+            if (GetOpenFileNameW (&ofn))
+            {
+                m_shell.PostCommand (static_cast<WORD> (id), fs::path (filePath).string());
+            }
+            break;
+        }
+
+        case IDM_DISK_EJECT1:
+        case IDM_DISK_EJECT2:
+        {
+            m_shell.PostCommand (static_cast<WORD> (id));
+            break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnHelpCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnHelpCommand (int id)
+{
+    switch (id)
+    {
+        case IDM_HELP_DEBUG:
+        {
+            if (m_shell.m_debugConsole.IsVisible())
+            {
+                m_shell.m_debugConsole.Hide();
+            }
+            else
+            {
+                m_shell.m_debugConsole.SetMainWindow (m_shell.m_hwnd);
+
+                if (m_shell.m_debugConsole.Show (m_shell.m_hInstance))
+                {
+                    m_shell.m_debugConsole.LogConfig (
+                        std::format ("Machine: {}\nCPU: {}\nClock: {} Hz\nDevices: {}",
+                            m_shell.m_config.name, m_shell.m_config.cpu, m_shell.m_config.clockSpeed,
+                            (m_shell.m_config.internalDevices.size() + m_shell.m_config.slots.size())));
+                }
+            }
+            break;
+        }
+
+        case IDM_HELP_KEYMAP:
+        {
+            MessageBoxW (m_shell.m_hwnd,
+                L"PC key mapping:\n\n"
+                L"Arrow keys -> Apple ][ cursor movement\n"
+                L"Enter -> Return\n"
+                L"Escape -> Escape\n"
+                L"Delete -> Delete\n"
+                L"Ctrl+Reset -> Warm reset\n"
+                L"Left Alt -> Open Apple (//e)\n"
+                L"Right Alt -> Closed Apple (//e)\n\n"
+                L"Emulator controls:\n"
+                L"Ctrl+R -> Reset\n"
+                L"Ctrl+Alt+R -> Autoboot reset (cold boot from disk)\n"
+                L"Ctrl+Shift+R -> Power cycle\n"
+                L"Pause -> Pause/resume\n"
+                L"F11 -> Step (when paused)\n"
+                L"Alt+Enter -> Fullscreen\n"
+                L"Ctrl+0 -> Reset window size\n"
+                L"Ctrl+D -> Debug console",
+                L"Keyboard map", MB_ICONINFORMATION | MB_OK);
+            break;
+        }
+
+        case IDM_HELP_ABOUT:
+        {
+            MessageBoxW (m_shell.m_hwnd,
+                         L"Casso Emulator\n"
+                            L"\n"
+                            L"Version " _CRT_WIDE (VERSION_STRING) L"\n"
+                            L"Built " _CRT_WIDE (VERSION_BUILD_TIMESTAMP) L"\n"
+                            L"\n"
+                            L"An Apple ][, ][ plus, and //e platform emulator built \n"
+                            L"on the Casso 6502 assembler/emulator project.\n"
+                            L"\n"
+                            L"https://github.com/relmer/Casso"
+                            L"\n"
+                            L"Copyright (C) by Robert Elmer\n"
+                            L"MIT License\n",
+                         L"About Casso", 
+                         MB_ICONINFORMATION | MB_OK);
+                break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnInitMenuPopup
+//
+//  Recomputes the dynamic menu items (enable/disable, checkmarks)
+//  every time Windows opens a popup so a SwitchMachine that swaps the
+//  active config between menu opens picks up the controller delta on
+//  the next click.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WindowCommandManager::OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (hMenu);
+    UNREFERENCED_PARAMETER (itemIndex);
+    UNREFERENCED_PARAMETER (isWindowMenu);
+
+    return true;
+}

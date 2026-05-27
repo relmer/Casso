@@ -1,4 +1,5 @@
 #include "resource.h"
+#include "Shaders\\ShaderResourceIds.h"
 #include <windows.h>
 
 // Application icons. The icon assigned the lowest numerical resource ID
@@ -20,6 +21,39 @@ IDR_MACHINE_APPLE2      RCDATA "..\\Resources\\Machines\\Apple2\\Apple2.json"
 IDR_MACHINE_APPLE2PLUS  RCDATA "..\\Resources\\Machines\\Apple2Plus\\Apple2Plus.json"
 IDR_MACHINE_APPLE2E     RCDATA "..\\Resources\\Machines\\Apple2e\\Apple2e.json"
 
+// Embedded built-in theme files (extracted on first run by
+// AssetBootstrap::EnsureThemes — see Casso/AssetBootstrap.cpp).
+// Sources live under Resources/Themes/<Name>/; the runtime
+// Themes/ tree is .gitignored.
+IDR_THEME_SKEUO_THEME_JSON         RCDATA "..\\Resources\\Themes\\Skeuomorphic\\theme.json"
+IDR_THEME_SKEUO_FONT_TTF           RCDATA "..\\Resources\\Themes\\Skeuomorphic\\fonts\\Inter-Regular.ttf"
+IDR_THEME_SKEUO_FONT_OFL           RCDATA "..\\Resources\\Themes\\Skeuomorphic\\fonts\\OFL.txt"
+IDR_THEME_SKEUO_FONT_TODO          RCDATA "..\\Resources\\Themes\\Skeuomorphic\\fonts\\TODO_FONTS.md"
+
+IDR_THEME_DARK_THEME_JSON          RCDATA "..\\Resources\\Themes\\DarkModern\\theme.json"
+IDR_THEME_DARK_FONT_TTF            RCDATA "..\\Resources\\Themes\\DarkModern\\fonts\\Inter-Regular.ttf"
+IDR_THEME_DARK_FONT_OFL            RCDATA "..\\Resources\\Themes\\DarkModern\\fonts\\OFL.txt"
+IDR_THEME_DARK_FONT_TODO           RCDATA "..\\Resources\\Themes\\DarkModern\\fonts\\TODO_FONTS.md"
+
+IDR_THEME_RETRO_THEME_JSON         RCDATA "..\\Resources\\Themes\\RetroTerminal\\theme.json"
+IDR_THEME_RETRO_FONT_TTF           RCDATA "..\\Resources\\Themes\\RetroTerminal\\fonts\\VT323-Regular.ttf"
+IDR_THEME_RETRO_FONT_OFL           RCDATA "..\\Resources\\Themes\\RetroTerminal\\fonts\\OFL.txt"
+IDR_THEME_RETRO_FONT_TODO          RCDATA "..\\Resources\\Themes\\RetroTerminal\\fonts\\TODO_FONTS.md"
+
+// Embedded CRT HLSL sources (compiled at runtime by CrtPostProcess).
+IDR_HLSL_BRIGHTNESS      RCDATA "Shaders\\CRT\\brightness.hlsl"
+IDR_HLSL_SCANLINES       RCDATA "Shaders\\CRT\\scanlines.hlsl"
+IDR_HLSL_BLOOM_H         RCDATA "Shaders\\CRT\\bloom_h.hlsl"
+IDR_HLSL_BLOOM_V         RCDATA "Shaders\\CRT\\bloom_v.hlsl"
+IDR_HLSL_BLOOM_COMPOSITE RCDATA "Shaders\\CRT\\bloom_composite.hlsl"
+IDR_HLSL_COLOR_BLEED     RCDATA "Shaders\\CRT\\color_bleed.hlsl"
+IDR_HLSL_PERSISTENCE     RCDATA "Shaders\\CRT\\persistence.hlsl"
+IDR_HLSL_GAMMA           RCDATA "Shaders\\CRT\\gamma.hlsl"
+IDR_HLSL_COPY            RCDATA "Shaders\\CRT\\copy.hlsl"
+IDR_HLSL_SETTINGS_GAUSSIAN_H RCDATA "Shaders\\Settings\\gaussian_h.hlsl"
+IDR_HLSL_SETTINGS_GAUSSIAN_V RCDATA "Shaders\\Settings\\gaussian_v.hlsl"
+IDR_HLSL_SETTINGS_COMPOSE    RCDATA "Shaders\\Settings\\settings_compose.hlsl"
+
 // Keyboard Accelerator Table
 IDR_ACCELERATOR ACCELERATORS
 BEGIN
@@ -35,6 +69,7 @@ BEGIN
     "2",            IDM_DISK_INSERT2,       VIRTKEY, CONTROL
     VK_F1,          IDM_HELP_KEYMAP,        VIRTKEY
     "D",            IDM_VIEW_DISKII_DEBUG,  VIRTKEY, CONTROL, SHIFT
+    VK_OEM_COMMA,   IDM_VIEW_SETTINGS,      VIRTKEY, CONTROL
 END
 
 // Version Information

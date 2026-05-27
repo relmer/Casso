@@ -10,35 +10,48 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExtractDisplayName
+//  ExtractFields
 //
-//  Pulls the "name" field out of a machine config JSON blob. Returns
-//  empty when the JSON is unparseable or has no "name" — the caller
-//  treats that as "fall back to the subdirectory name".
+//  Pulls the "name" and "releaseYear" fields out of a machine config
+//  JSON blob. Returns empty / 0 when either is missing or unparseable
+//  -- the caller treats absent "name" as "fall back to the
+//  subdirectory name" and absent "releaseYear" as "sort to the end".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static wstring ExtractDisplayName (const string & jsonText)
+static void ExtractFields (const string  & jsonText,
+                           wstring       & outDisplayName,
+                           int           & outReleaseYear)
 {
     HRESULT         hr = S_OK;
-    wstring         displayName;
     string          name;
+    int             year = 0;
     JsonValue       root;
     JsonParseError  parseError;
 
 
 
+    outDisplayName.clear();
+    outReleaseYear = 0;
+
     hr = JsonParser::Parse (jsonText, root, parseError);
     CHR (hr);
 
     hr = root.GetString ("name", name);
-    CHRF (hr, name.clear());
+    if (SUCCEEDED (hr))
+    {
+        outDisplayName.assign (name.begin(), name.end());
+    }
 
-    displayName.assign (name.begin(), name.end());
+    hr = root.GetInt ("releaseYear", year);
+    if (SUCCEEDED (hr))
+    {
+        outReleaseYear = year;
+    }
 
 
 Error:
-    return displayName;
+    return;
 }
 
 
@@ -91,7 +104,7 @@ vector<MachineInfo> MachineScanner::Scan (
             }
 
             info.fileName    = subDir.filename().wstring();
-            name             = ExtractDisplayName (jsonText);
+            ExtractFields (jsonText, name, info.releaseYear);
             info.displayName = name.empty() ? info.fileName : name;
 
             results.push_back (move (info));
@@ -100,6 +113,20 @@ vector<MachineInfo> MachineScanner::Scan (
         // First search path containing a non-empty Machines/ wins.
         break;
     }
+
+    // Sort chronologically by releaseYear (ascending), then by display
+    // name as a tiebreaker. Machines without a releaseYear sort to the
+    // end so old configs without the field don't move ahead of the
+    // embedded defaults.
+    std::sort (results.begin(), results.end(),
+               [] (const MachineInfo & a, const MachineInfo & b)
+    {
+        int  aYear = a.releaseYear > 0 ? a.releaseYear : INT_MAX;
+        int  bYear = b.releaseYear > 0 ? b.releaseYear : INT_MAX;
+
+        if (aYear != bYear) { return aYear < bYear; }
+        return a.displayName < b.displayName;
+    });
 
     return results;
 }

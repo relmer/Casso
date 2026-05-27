@@ -1,0 +1,53 @@
+{
+    "$cassoThemeVersion": 1,
+    "$cassoBuiltIn":      true,
+    "name":               "RetroTerminal",
+    "familyId":           "apple2",
+    "variantId":          "iic",
+    "author":             "Casso",
+    "description":        "Apple //c phosphor palette with distinct compact drive treatment.",
+    "crtDefaults": {
+        "brightness": 1.1,
+        "scanlines":  { "enabled": true, "intensity": 0.85 },
+        "bloom":      { "enabled": true, "radius": 2.0, "strength": 0.7 },
+        "colorBleed": { "enabled": true, "width":  1.5 }
+    },
+    "uiTokens": {
+        "chrome": {
+            "titleTextColor": "#b7fcb9",
+            "backgroundGradient": ["#102714", "#16381e"]
+        },
+        "timingsMs": { "driveDoor": 95 }
+    },
+    "driveVisualProfile": {
+        "style": "disk2",
+        "colorway": "iic-platinum",
+        "doorAnimation": "compactLatch",
+        "syncChannel": "drive-door"
+    },
+    "useMicaBackdrop": false,
+    "variantOverrides": {
+        "Apple ][": {
+            "crtDefaults": {
+                "scanlines":  { "enabled": true, "intensity": 0.95 },
+                "bloom":      { "enabled": true, "radius": 2.4, "strength": 0.8 },
+                "colorBleed": { "enabled": true, "width": 1.8 }
+            },
+            "driveVisualProfile": { "colorway": "amber-phosphor" }
+        },
+        "Apple ][ plus": {
+            "crtDefaults": {
+                "scanlines":  { "enabled": true, "intensity": 0.9 },
+                "bloom":      { "enabled": true, "radius": 2.2, "strength": 0.75 },
+                "colorBleed": { "enabled": true, "width": 1.7 }
+            }
+        },
+        "Apple //e": {
+            "crtDefaults": {
+                "scanlines":  { "enabled": true, "intensity": 0.75 },
+                "bloom":      { "enabled": true, "radius": 1.8, "strength": 0.65 },
+                "colorBleed": { "enabled": true, "width": 1.2 }
+            }
+        }
+    }
+}

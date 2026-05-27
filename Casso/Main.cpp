@@ -4,9 +4,8 @@
 #include "Core/MachineConfig.h"
 #include "Core/PathResolver.h"
 #include "DiskSettings.h"
-#include "Ehm.h"
 #include "EmulatorShell.h"
-#include "MachinePickerDialog.h"
+#include "Core/MachineScanner.h"
 #include "RegistrySettings.h"
 
 #pragma comment(lib, "ole32.lib")
@@ -128,8 +127,7 @@ static HRESULT LoadMachineConfig (
     // strictly from the embedded default for `machineName`, so if
     // the user has edited their on-disk JSON they're responsible
     // for any extra ROMs they reference.
-    romDir = AssetBootstrap::GetAssetBaseDirectory (romSearchPaths,
-                                                    PathResolver::GetExecutableDirectory());
+    romDir = AssetBootstrap::GetAssetBaseDirectory();
 
     hr = AssetBootstrap::CheckAndFetchRoms (hInstance, machineName, hwndParent,
                                             romSearchPaths, romDir, error);
@@ -137,7 +135,7 @@ static HRESULT LoadMachineConfig (
     CHRN (hr, format (L"ROM download failed:\n{}",
                       wstring (error.begin(), error.end())).c_str());
 
-    // Disk II audio bootstrap (spec 005-disk-ii-audio Phase 13 /
+    // Disk II audio bootstrap (spec 005-disk-ii-audio /
     // FR-017). Only relevant when the active machine actually has a
     // Disk II controller wired up. Failures are best-effort: we log
     // and continue so a missing-internet startup still launches the
@@ -185,9 +183,7 @@ static HRESULT LoadMachineConfig (
         {
             wstring  downloaded;
 
-            diskDir = AssetBootstrap::GetDiskDirectory (
-                romSearchPaths,
-                PathResolver::GetExecutableDirectory());
+            diskDir = AssetBootstrap::GetDiskDirectory();
 
             hr = AssetBootstrap::OfferBootDiskDownload (
                 hInstance, machineName, hwndParent, diskDir, downloaded, error);
@@ -260,17 +256,25 @@ int WINAPI wWinMain (
     _In_     LPWSTR    lpCmdLine,
     _In_     int       nCmdShow)
 {
-    HRESULT        hr = S_OK;
-    wstring        machineName;
-    wstring        disk1Path;
-    wstring        disk2Path;
-    MachineConfig  config;
-    EmulatorShell  shell;
+    HRESULT                          hr = S_OK;
+    wstring                          machineName;
+    wstring                          disk1Path;
+    wstring                          disk2Path;
+    MachineConfig                    config;
+    std::unique_ptr<EmulatorShell>   shell = std::make_unique<EmulatorShell>();
 
 
 
     UNREFERENCED_PARAMETER (hPrevInstance);
     UNREFERENCED_PARAMETER (nCmdShow);
+
+    // Per-monitor DPI awareness v2. Without this Windows bitmap-scales
+    // the entire window up on high-DPI displays, which makes every DX
+    // pixel we render blurry. Setting it programmatically (rather than
+    // via a manifest entry) keeps the manifest minimal. v2 is available
+    // on Windows 10 1703+, which is below Casso's supported floor, so
+    // the failure path is unreachable in practice.
+    (void) SetProcessDpiAwarenessContext (DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
 #ifdef _DEBUG
     // Enable frequent heap validation to catch corruption near its source
@@ -280,7 +284,7 @@ int WINAPI wWinMain (
     // Register GUI error notification so EHM errors show a MessageBox
     SetNotifyFunction ([] (const wchar_t * message)
     {
-        MessageBoxW (NULL, message, L"Casso Emulator", MB_OK | MB_ICONERROR);
+        MessageBoxW (NULL, message, L"Casso emulator", MB_OK | MB_ICONERROR);
     });
 
     // Parse command line
@@ -291,15 +295,19 @@ int WINAPI wWinMain (
     // JSON configs (extracts embedded resources on first run if the
     // user is running a loose casso.exe with no Machines/ folder).
     {
-        vector<fs::path> bootstrapPaths = PathResolver::BuildSearchPaths (
-            PathResolver::GetExecutableDirectory(),
-            PathResolver::GetWorkingDirectory());
+        HRESULT hrBoot   = AssetBootstrap::EnsureMachineConfigs (hInstance);
+        HRESULT hrThemes = S_OK;
 
-        HRESULT hrBoot = AssetBootstrap::EnsureMachineConfigs (
-            hInstance,
-            bootstrapPaths,
-            PathResolver::GetExecutableDirectory());
+
+
         IGNORE_RETURN_VALUE (hrBoot, S_OK);
+
+        // Extract the three built-in UI themes alongside the
+        // machine configs so the very first launch has chrome to
+        // render. User-authored Themes/<MyTheme>/ entries are
+        // preserved — the planner only ever touches built-in dirs.
+        hrThemes = AssetBootstrap::EnsureThemes (hInstance);
+        IGNORE_RETURN_VALUE (hrThemes, S_OK);
     }
 
     // Resolve machine name: command line > registry > picker dialog
@@ -315,8 +323,33 @@ int WINAPI wWinMain (
             fs::path ("Machines") / fs::path (machineName).string()
                                   / (fs::path (machineName).string() + ".json")).empty())
     {
-        machineName = MachinePickerDialog::Show (nullptr, machineName);
-        CBR (!machineName.empty());
+        // Legacy Win32 `MachinePickerDialog` is retired
+        // (FR-027). At startup we deterministically pick the first
+        // available machine from `MachineScanner::Scan`; the user
+        // can switch later via the Settings panel. If nothing
+        // was discovered (no Machines/ folder, asset bootstrap
+        // failed) we surface a single error and exit.
+        vector<fs::path> scanPaths = PathResolver::BuildSearchPaths (
+            PathResolver::GetExecutableDirectory(),
+            PathResolver::GetWorkingDirectory());
+
+        vector<MachineInfo> discovered = MachineScanner::Scan (
+            scanPaths,
+            &MachineScanner::ListDirectory,
+            &MachineScanner::ReadFile);
+
+        if (discovered.empty())
+        {
+            MessageBoxW (
+                nullptr,
+                L"Casso could not find any machine configurations.\n"
+                L"Reinstall or restore the Machines/ directory.",
+                L"Casso emulator",
+                MB_OK | MB_ICONERROR);
+            return 1;
+        }
+
+        machineName = discovered.front().fileName;
     }
 
     // Load machine configuration. S_FALSE here means the user
@@ -333,13 +366,13 @@ int WINAPI wWinMain (
     }
 
     // Initialize emulator
-    hr = shell.Initialize (hInstance, machineName, config,
-                           fs::path (disk1Path).string(),
-                           fs::path (disk2Path).string());
+    hr = shell->Initialize (hInstance, machineName, config,
+                            fs::path (disk1Path).string(),
+                            fs::path (disk2Path).string());
     CHRN (hr, L"Failed to initialize emulator");
 
     // Run message loop
-    return shell.RunMessageLoop();
+    return shell->RunMessageLoop();
 
 Error:
     return FAILED (hr) ? 1 : 0;

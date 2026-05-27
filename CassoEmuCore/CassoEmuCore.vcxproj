@@ -190,6 +190,7 @@
     </ClCompile>
     <ClCompile Include="Core\JsonParser.cpp" />
     <ClCompile Include="Core\JsonValue.cpp" />
+    <ClCompile Include="Core\JsonWriter.cpp" />
     <ClCompile Include="Core\MachineConfig.cpp" />
     <ClCompile Include="Core\MachineConfigUpgrade.cpp" />
     <ClCompile Include="Core\MachineScanner.cpp" />
@@ -240,6 +241,7 @@
     <ClInclude Include="Core\ComponentRegistry.h" />
     <ClInclude Include="Core\JsonParser.h" />
     <ClInclude Include="Core\JsonValue.h" />
+    <ClInclude Include="Core\JsonWriter.h" />
     <ClInclude Include="Core\MemoryBus.h" />
     <ClInclude Include="Core\EmuCpu.h" />
     <ClInclude Include="Core\MemoryBusCpu.h" />

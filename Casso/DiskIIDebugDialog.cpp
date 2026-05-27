@@ -1190,6 +1190,40 @@ bool DiskIIDebugDialog::OnClose (HWND hwnd)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnKeyDown
+//
+//  Forwards Alt+F4 to the owner Casso window so the whole app exits
+//  rather than just hiding this dialog -- matches the user's mental
+//  model that Alt+F4 is an "exit Casso" gesture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskIIDebugDialog::OnKeyDown (WPARAM vk, LPARAM lParam)
+{
+    static constexpr LONG_PTR  s_kAltContextBit = 1LL << 29;
+
+    HWND  hwndOwner = nullptr;
+
+
+    if (vk == VK_F4 && (lParam & s_kAltContextBit))
+    {
+        hwndOwner = GetWindow (m_hwnd, GW_OWNER);
+        if (hwndOwner != nullptr)
+        {
+            PostMessage (hwndOwner, WM_CLOSE, 0, 0);
+            return false;
+        }
+    }
+
+    return Window::OnKeyDown (vk, lParam);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnDestroy
 //
 //  Cancel any timers, drop the HWND. Override the base Window
@@ -1814,6 +1848,8 @@ void DiskIIDebugDialog::CopySelectedRowsToClipboard()
     wchar_t  *                                    pMem      = nullptr;
     size_t                                        byteCount = 0;
     bool                                          opened    = false;
+    BOOL                                          fSuccess  = FALSE;
+    HANDLE                                        hClipData = nullptr;
 
     if (m_listView == nullptr || m_hwnd == nullptr)
     {
@@ -1847,20 +1883,24 @@ void DiskIIDebugDialog::CopySelectedRowsToClipboard()
     byteCount = (payload.size() + 1) * sizeof (wchar_t);
 
     hMem = GlobalAlloc (GMEM_MOVEABLE, byteCount);
-    CPRA (hMem);
+    CWRA (hMem);
 
     pMem = static_cast<wchar_t *> (GlobalLock (hMem));
-    CPRA (pMem);
+    CWRA (pMem);
 
     memcpy (pMem, payload.data(), byteCount - sizeof (wchar_t));
     pMem[payload.size()] = L'\0';
     GlobalUnlock (hMem);
 
-    CWRA (OpenClipboard (m_hwnd));
+    fSuccess = OpenClipboard (m_hwnd);
+    CWRA (fSuccess);
     opened = true;
 
-    CWRA (EmptyClipboard());
-    CPRA (SetClipboardData (CF_UNICODETEXT, hMem));
+    fSuccess = EmptyClipboard();
+    CWRA (fSuccess);
+
+    hClipData = SetClipboardData (CF_UNICODETEXT, hMem);
+    CWRA (hClipData);
 
     // SetClipboardData succeeded -> the system now owns hMem.
     hMem = nullptr;

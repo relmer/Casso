@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://casso/schemas/machine-user-config.schema.json",
+  "title": "MachineUserConfig",
+  "description": "Per-machine user-override JSON. Shadows the read-only default MachineConfig at load time; only fields the user has explicitly changed are present. See specs/007-ui-overhaul/data-model.md for merge semantics.",
+  "type": "object",
+  "required": ["$cassoMachineVersion"],
+  "additionalProperties": true,
+  "properties": {
+    "$cassoMachineVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Canonical schema version of the user file. Legacy `$cassoDefault` is accepted only during migration reads and is rewritten to `$cassoMachineVersion` on load."
+    },
+    "$cassoUiPrefs": {
+      "type": "object",
+      "description": "Machine-scoped UI preferences persisted from SettingsPanelState. Fields omitted here fall through to implicit defaults in code (authentic/color/buffer-and-flush/shugart/writeProtect=false)."
+      "additionalProperties": false,
+      "properties": {
+        "speedMode": {
+          "type": "string",
+          "enum": ["authentic", "double", "maximum"]
+        },
+        "colorMode": {
+          "type": "string",
+          "enum": ["color", "green", "amber", "white"]
+        },
+        "writeMode": {
+          "type": "string",
+          "enum": ["buffer-and-flush", "copy-on-write"]
+        },
+        "floppySoundEnabled": { "type": "boolean" },
+        "floppyMechanism": {
+          "type": "string",
+          "enum": ["shugart", "alps"]
+        },
+        "writeProtect": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "boolean" }
+        }
+      }
+    },
+    "internalDevices": {
+      "type": "array",
+      "description": "Enable-state delta only. Entries identify component by `type` and override only `enabled`; other component fields fall through to default machine JSON.",
+      "items": {
+        "type": "object",
+        "required": ["type", "enabled"],
+        "additionalProperties": false,
+        "properties": {
+          "type":    { "type": "string" },
+          "enabled": { "type": "boolean" }
+        }
+      }
+    },
+    "slots": {
+      "type": "array",
+      "description": "Enable-state delta only. Entries identify slot by `slot` and override only `enabled`; device/rom/capability metadata remain in default machine JSON.",
+      "items": {
+        "type": "object",
+        "required": ["slot", "enabled"],
+        "additionalProperties": false,
+        "properties": {
+          "slot":    { "type": "integer", "minimum": 0, "maximum": 7 },
+          "enabled": { "type": "boolean" }
+        }
+      }
+    },
+    "lastMountedImages": {
+      "type": "object",
+      "description": "Per-FR-047. Slot -> drive -> absolute image path. On machine load, each entry is auto-mounted; missing files are cleared on next SaveDelta.",
+      "patternProperties": {
+        "^[0-7]$": {
+          "type": "object",
+          "patternProperties": {
+            "^[0-9]+$": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

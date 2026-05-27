@@ -342,3 +342,33 @@ Error:
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RecordDriveDoorSyncEvent / GetLastDriveDoorSyncEventMs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WasapiAudio::RecordDriveDoorSyncEvent (int drive, int64_t timestampMs)
+{
+    if (drive < 0 || drive >= static_cast<int> (m_lastDriveDoorSyncMs.size()))
+    {
+        return;
+    }
+
+    m_lastDriveDoorSyncMs[drive] = timestampMs;
+}
+
+
+int64_t WasapiAudio::GetLastDriveDoorSyncEventMs (int drive) const
+{
+    if (drive < 0 || drive >= static_cast<int> (m_lastDriveDoorSyncMs.size()))
+    {
+        return 0;
+    }
+
+    return m_lastDriveDoorSyncMs[drive];
+}
+
+
+
+

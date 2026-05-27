@@ -4,6 +4,7 @@
 
 #include "../CassoEmuCore/Pch.h"
 #include "../CassoCore/Pch.h"
+#include "../Casso/Pch.h"
 
 // winnt.h #defines these as intrinsic aliases (_bittest etc.) which
 // mangles unrelated test calls like CpuOperations::BitTest into
@@ -14,7 +15,6 @@
 #undef BitTestAndReset
 #undef BitTestAndComplement
 
-#include <crtdbg.h>
 #include <cstdlib>
 
 #include <CppUnitTest.h>

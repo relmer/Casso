@@ -1,0 +1,338 @@
+# Feature Specification: Full UI Overhaul
+
+**Feature Branch**: `007-ui-overhaul`  
+**Created**: 2026-05-20  
+**Status**: Draft  
+**Input**: User description: Full UI overhaul — Uber Settings Dialog, Full Custom D3D Chrome, JSON/File-Based Theme System
+
+---
+
+## Overview
+
+This feature replaces Casso's current Win32-native chrome (title bar, menu bar,
+status bar, option dialogs) with a fully custom Direct3D 11-rendered user
+interface, while simultaneously consolidating scattered per-feature settings
+dialogs into a single machine-aware settings panel and introducing a
+hot-swappable, JSON-defined theme system. The result is an application whose
+every visible pixel — save the core emulated video output — is rendered through
+the existing D3D11 pipeline, delivering a cohesive, skeuomorphic-ready
+aesthetic.
+
+The UI layer is native-owned (D3D11 + DirectWrite + Win32 input routing).
+The emulated viewport's CRT post-processing uses MIT/public-domain shader
+sources (for example CRT-Lottes, CRT-Geom-Mod) shipped in-tree as HLSL ports.
+
+The overhaul spans three interlocked deliverables:
+
+1. **Uber Settings Dialog** — one consolidated settings panel whose top-level control is machine selection; all other settings (speed, video mode, write protect, drive audio, hardware component tree) immediately reflect the selected machine's saved configuration when the machine selection changes.
+2. **Full Custom D3D Chrome** — borderless window with custom D3D-rendered title bar, drive widgets (physical disk drive look with spinning animation and eject slot), realistic LED indicators, and a D3D-rendered navigation/menu layer.
+3. **JSON-Based Native Theme System** — themes expressed as metadata +
+   style-token + asset files in `Themes/` (bootstrapped on first launch like
+   `Machines/`), hot-swappable at runtime, with several built-in themes shipped
+   with the application.
+
+## Clarifications
+
+### Session 2026-05-23
+
+- Q: Which machine config version field is canonical during migration? → A: Canonicalize to `$cassoMachineVersion`; accept `$cassoDefault` as a legacy alias during migration reads.
+- Q: How should version-field conflicts be handled when both fields are present? → A: Use `$cassoMachineVersion` as source of truth and immediately rewrite to canonical format containing only `$cassoMachineVersion`.
+
+---
+
+## User Scenarios & Testing *(mandatory)*
+
+### User Story 1 — Change emulation speed without hunting through menus (Priority: P1)
+
+A user who frequently switches between authentic 1 MHz and maximum-speed disk imaging runs opens the single Settings panel from the custom toolbar, changes the machine from Apple //e to Apple II+, and immediately sees all settings (speed, video mode, hardware tree) update to that machine's last-saved values. They then set speed to Maximum. On closing, those settings are committed as the Apple II+'s user override and the menu items (which no longer exist as Win32 menus) are no longer needed.
+
+**Why this priority**: Consolidating scattered menu items into a single machine-aware dialog is the core productivity gain of the settings work. If this story fails, users still need to find multiple menu items across multiple menus and the overhaul has not achieved its goal.
+
+**Independent Test**: With at least two machine profiles installed, open the Settings dialog, switch between machines, and verify that every visible setting control reflects the newly-selected machine's persisted values within one frame of the selection change. Changing speed mode for one machine MUST NOT alter another machine's saved speed mode.
+
+**Acceptance Scenarios**:
+
+1. **Given** the Settings dialog is open with machine Apple //e selected, **When** the user changes the machine selector to Apple II+, **Then** all setting controls (speed, video mode, write protect, drive audio, hardware tree) immediately display the Apple II+'s last-saved values without closing and reopening the dialog.
+2. **Given** a user has previously set Apple //e to "Maximum" speed and Apple II+ to "Authentic", **When** the user opens the Settings dialog and switches machines between them, **Then** each machine's speed setting is shown correctly for that machine, and changes to one machine do not alter the other.
+3. **Given** the user changes speed mode to "Double" for the currently running machine, **When** the dialog is confirmed/applied, **Then** emulation speed changes immediately and the per-machine user JSON is updated with the new value.
+
+---
+
+### User Story 2 — Enable or disable a hardware component for a machine (Priority: P1)
+
+A power user opens the Settings dialog, navigates the hardware component tree, and unchecks the "Disk II Controller (Slot 6)" component to test booting without a disk controller. Optional components show a normal enabled checkbox; required components (e.g., Apple II speaker) show a checked, grayed-out checkbox; platform-locked components (e.g., 80-column card on Apple //c) show a checked, grayed-out checkbox with a tooltip explaining the lock. The user re-enables Disk II, applies, and the change takes effect on the next machine reset without restarting the application.
+
+**Why this priority**: The hardware capability tree is a new first-class concept enabling users to model stripped-down machine configurations without editing raw JSON. Without it, the only way to remove a component is a manual JSON edit.
+
+**Independent Test**: Open the Settings dialog, locate the Disk II controller row in the hardware tree, uncheck it, apply, and reset the machine. Verify the emulator boots without a disk controller. Then re-enable it, apply, and reset — the disk controller must be active again.
+
+**Acceptance Scenarios**:
+
+1. **Given** the hardware component tree is displayed, **When** a component has capability `optional`, **Then** it renders with a fully interactive checkbox that can be checked or unchecked.
+2. **Given** a component has capability `required`, **When** the tree renders it, **Then** its checkbox is checked and disabled (not interactive), and no tooltip is required.
+3. **Given** a component has capability `platform-locked`, **When** the tree renders it, **Then** its checkbox is checked, disabled, and a hover tooltip explains why the component cannot be removed (e.g., "Built into the Apple //c motherboard").
+4. **Given** the user unchecks an optional component and confirms the dialog, **When** the machine resets, **Then** that component is absent from the active hardware configuration.
+
+---
+
+### User Story 3 — Insert a disk using the custom drive widget (Priority: P1)
+
+A user sees two physical-drive-style widgets in the custom D3D chrome. Drive 1 shows an idle drive with a visible eject slot and a softly glowing LED. They drag a `.woz` file from Windows Explorer onto the Drive 1 widget; the drive widget plays a brief door-close animation, the LED brightens to indicate a disk is present, and the disk label appears next to the widget. When the emulated machine reads the disk, a spinning disk animation plays inside the drive face.
+
+**Why this priority**: Drive interaction is the most frequent user action in a disk-based Apple II emulator. The custom chrome replaces the current Win32 status-bar drive indicators and drag-drop behavior with a more discoverable, expressive equivalent.
+
+**Independent Test**: With no disks mounted, drag a `.dsk` image file onto each drive widget and verify: (a) door-close animation plays, (b) LED changes to "disk present" state, (c) disk label is visible, (d) during a disk read the spinning animation runs, (e) the eject button ejects the disk and plays a door-open animation.
+
+**Acceptance Scenarios**:
+
+1. **Given** a drive widget is in the empty state, **When** the user drags a valid disk image file onto it, **Then** a door-close animation plays, the LED transitions to "disk present" brightness, and the disk label is shown adjacent to the widget.
+2. **Given** a disk is mounted and the emulated machine is executing a disk read or write, **When** the D3D frame renders, **Then** an animated spinning disk is visible within the drive widget face.
+3. **Given** a disk is mounted, **When** the user clicks the eject affordance on the widget, **Then** a door-open animation plays, the LED returns to idle glow, and the disk is unmounted.
+4. **Given** a drive widget is in the empty or mounted state, **When** the user clicks the drive widget body (not the eject affordance), **Then** a file-open dialog appears filtered to `.dsk`, `.nib`, `.woz`, and `.po`; on confirmation the selected image is mounted and the door-close animation plays.
+5. **Given** the user drags an unrecognized file type onto a drive widget, **When** the drop occurs, **Then** no animation plays, the widget state is unchanged, and a brief error indication is shown (e.g., LED flickers or a tooltip-style message appears).
+
+---
+
+### User Story 4 — Apply a different theme at runtime (Priority: P2)
+
+A user navigates to the Theme section of the Settings dialog and selects "Retro Terminal" from the list of installed themes. Without closing the application or resetting the machine, all chrome (drive widgets, LEDs, title bar, menu bar, settings dialog chrome) instantly re-renders with the phosphor-green/scanline aesthetic. The emulated video output is unaffected. The user then switches back to "Skeuomorphic" to confirm the beige/cream look returns.
+
+**Why this priority**: The theme system is what allows the chrome overhaul to serve users with different aesthetic preferences, and hot-swap is the differentiating quality that makes theme selection exploratory rather than a restart-and-hope workflow.
+
+**Independent Test**: Ship at least three built-in themes. Open Settings, cycle through all three, and verify that (a) the first post-switch frame is fully themed (zero mixed-theme chrome regions), (b) the emulated screen content does not change, (c) the theme selection persists across application restarts.
+
+**Acceptance Scenarios**:
+
+1. **Given** the Settings dialog is open on the Theme page, **When** the user selects a different theme from the list, **Then** all custom-chrome visual elements update to that theme's colors, textures, and layout geometry within one rendered frame (no restart required).
+2. **Given** a theme change is applied, **When** the emulated video output frame is rendered, **Then** the emulated screen content is pixel-identical to what it would have been with any other theme active (themes affect only chrome, not emulation).
+3. **Given** the user selects "Dark Modern", closes the application, and relaunches, **When** the application fully initializes, **Then** the chrome renders with the "Dark Modern" theme without requiring the user to re-select it.
+4. **Given** a user has authored a custom theme directory (`theme.json` + assets)
+   and placed it in the `Themes/` directory while the application is running,
+   **When** the user opens the Settings Theme page, **Then** the new theme
+   appears in the list and can be selected immediately.
+
+---
+
+### User Story 5 — Interact with the custom title bar and navigation layer (Priority: P2)
+
+A user double-clicks the custom D3D-rendered title bar to toggle fullscreen, drags it to reposition the window, and right-clicks it to access a system-menu equivalent. The custom menu/navigation layer (replacing the Win32 menu bar) responds to hover and click with animated highlights consistent with the active theme.
+
+**Why this priority**: The custom chrome is only usable if its fundamental windowing behaviors (move, resize, fullscreen, close) are at least as reliable as the Win32 chrome they replace.
+
+**Independent Test**: Confirm drag-to-move, double-click-to-fullscreen, close button, minimize, and maximize all work correctly with the borderless window. Confirm the nav layer opens sub-menus on click and can be dismissed by clicking outside.
+
+**Acceptance Scenarios**:
+
+1. **Given** the application is in windowed mode, **When** the user clicks and drags the custom title bar region, **Then** the window repositions following the drag exactly as a native title bar would.
+2. **Given** the user double-clicks the custom title bar, **When** the action completes, **Then** the window toggles between windowed and fullscreen mode, consistent with the existing D3DRenderer fullscreen toggle behavior.
+3. **Given** the user clicks the close button in the custom title bar, **When** the click is processed, **Then** the application initiates a clean shutdown (saving state, flushing dirty disk images) exactly as closing via Alt+F4 currently does.
+4. **Given** the navigation layer is visible, **When** the user clicks a top-level nav item (e.g., "Machine"), **Then** a drop-down panel appears with the items that were formerly in the corresponding Win32 menu, styled per the active theme.
+
+---
+
+### User Story 6 — Per-machine JSON settings survive an upgrade (Priority: P3)
+
+A user who ran Casso v1.x has a `Machines/apple2e/apple2euser JSON` file on disk that predates a new `$cassoMachineVersion` value. On launching the new version, Casso detects the version mismatch (reading legacy `$cassoDefault` as an alias only when `$cassoMachineVersion` is absent), automatically runs `MachineConfigUpgrade` to bring the user file forward, and writes the migrated file back. If both version fields are present, migration uses `$cassoMachineVersion` as authoritative and immediately rewrites the file to canonical format with `$cassoMachineVersion` only. The user's customizations (speed, video mode, disabled components) are preserved; new fields introduced in the new version fall through to the read-only default machine JSON.
+
+**Why this priority**: Settings persistence is only trustworthy if upgrades are silent and lossless. Losing a user's hardware configuration on update is a serious regression. Prioritized P3 because the upgrade path is infrastructure that only activates during the version transition, not the daily-use path.
+
+**Independent Test**: Create a user JSON with a version behind the current default (using either canonical `$cassoMachineVersion` or legacy `$cassoDefault`), launch the application, and verify the user file is silently upgraded and the resulting in-memory config merges user overrides with new default fields correctly.
+
+**Acceptance Scenarios**:
+
+1. **Given** a user JSON file exists with a canonical `$cassoMachineVersion` (or legacy `$cassoDefault` when canonical is absent) value lower than the current default, **When** the application loads that machine, **Then** `MachineConfigUpgrade` is invoked before the config is used, and the migrated file is written back to disk in the same location using `$cassoMachineVersion`.
+2. **Given** a user JSON contains both `$cassoMachineVersion` and `$cassoDefault`, **When** the machine config is loaded, **Then** migration uses `$cassoMachineVersion` as authoritative and immediately rewrites the user JSON to canonical format with `$cassoMachineVersion` only.
+3. **Given** the migrated user JSON is missing a field introduced in the new version (e.g., `capabilityFlag` on a new internal device), **When** the config is resolved, **Then** the missing field's value is silently taken from the read-only default JSON rather than causing an error.
+4. **Given** the user JSON specifies a non-default value for a field that also exists in the default (e.g., speed mode), **When** the config is resolved, **Then** the user JSON's value takes precedence over the default.
+
+---
+
+### Edge Cases
+
+- What happens when the `Themes/` directory is missing or empty on first launch? → Bootstrap must extract built-in theme files from embedded resources, mirroring the `Machines/` bootstrap pattern in `AssetBootstrap`.
+- What happens when a user-authored theme is malformed (invalid token metadata,
+  missing `theme.json`, missing asset file)? → The theme is excluded from the
+  selection list, a warning is logged, and the previously active theme remains
+  active. Application does not crash.
+- What happens when the Settings dialog is open and the user triggers a machine reset? → If the dialog has unapplied changes, present a brief confirmation; if confirmed, dismiss the dialog without applying and proceed with the reset.
+- What happens when the user JSON for a machine references a component `type` that no longer exists in the current codebase? → The unknown component is skipped (logged as a warning) and the machine loads with the remaining valid components.
+- What happens when the user drags an image file onto a drive widget while the emulator is running at Maximum speed? → The disk insert must be safe regardless of emulation speed; the command is posted to the CPU thread command queue (same as current behavior) and the UI widget updates optimistically.
+- What happens when D3D device is lost (e.g., screen lock, GPU driver update)? → The existing `D3DRenderer` device-lost recovery path must cover the chrome layer as well; all chrome geometry and textures must be re-created on device restore.
+- What happens when there is no user JSON yet for a machine (first launch or fresh install)? → No migration is run; the read-only default JSON is used as the sole config source; a user JSON is written only on the first explicit settings change.
+
+---
+
+## Requirements *(mandatory)*
+
+### Functional Requirements — Area 1: Uber Settings Dialog
+
+- **FR-001**: The Settings panel MUST be the single entry point for all emulation and machine configuration; no setting currently accessible via Win32 menu items SHALL remain exclusively in a menu item after this feature ships.
+- **FR-002**: Machine selection MUST be the outermost/governing control in the Settings panel; all other controls MUST reflect the selected machine's saved values and MUST update immediately when the machine selection changes, without closing and reopening the dialog.
+- **FR-003**: The Settings panel MUST expose the following controls, each bound to the selected machine's saved values: machine selector, emulation speed (Authentic / Double / Maximum), write protect mode (per-drive or global), floppy sound toggle and mechanism selector, video mode (Color / Green / Amber / White Mono).
+- **FR-004**: The Settings panel MUST include a hardware component tree (listview or treeview layout) that reflects the selected machine's hardware configuration, structured to match the JSON hierarchy (internal devices, slots).
+- **FR-005**: Each hardware component row in the tree MUST display the component's human-readable name, its slot or position (where applicable), and a checkbox indicating enabled/disabled state.
+- **FR-006**: Components with capability `optional` MUST render an interactive checkbox; the user CAN check or uncheck them.
+- **FR-007**: Components with capability `required` MUST render a checked, non-interactive (disabled) checkbox; no tooltip is required.
+- **FR-008**: Components with capability `platform-locked` MUST render a checked, non-interactive checkbox AND display a tooltip on hover explaining why the component is locked (e.g., "Built into the Apple //c motherboard — cannot be removed").
+- **FR-009**: Settings changes in the panel MUST NOT take effect in the running emulation until the user explicitly applies or confirms them; a Cancel action MUST discard all unapplied changes.
+- **FR-010**: On confirmation, settings that require a machine reset to take effect (e.g., hardware component changes) MUST prompt the user before applying, clearly stating that a reset will occur.
+- **FR-011**: Settings that take effect immediately without a reset (e.g., emulation speed, video mode, floppy sound toggle) MUST be applied at dialog confirmation without requiring a machine reset.
+
+### Functional Requirements — Area 1: Settings Persistence
+
+- **FR-012**: Per-machine user-override settings MUST be stored as JSON files at `<assetBaseDir>/Machines/<MachineName>/per-machine user JSON`, following the same directory convention as the existing default machine JSONs.
+- **FR-013**: On loading a machine, if a user JSON file exists and its version is lower than the current default JSON's version, `MachineConfigUpgrade` MUST be invoked to migrate the user file before the config is used, and the migrated result MUST be written back to the user JSON path. The canonical field name is `$cassoMachineVersion`; loaders MUST accept legacy `$cassoDefault` as a read alias during migration only when `$cassoMachineVersion` is absent, and writers MUST emit only `$cassoMachineVersion`. If both fields are present, `$cassoMachineVersion` MUST be treated as authoritative and migration MUST immediately rewrite the file to canonical format containing only `$cassoMachineVersion`.
+- **FR-014**: Fields present in the user JSON MUST shadow (take precedence over) the corresponding fields in the read-only default JSON. Fields absent from the user JSON MUST fall through to the default JSON value.
+- **FR-015**: The machine configuration JSON schema MUST be extended to include a `capabilityFlag` field on each hardware component entry (both `internalDevices` and `slots`). Valid values are `"optional"`, `"required"`, and `"platform-locked"`. Absence of the field in legacy JSONs MUST be treated as `"optional"` for slots and `"required"` for internal devices.
+- **FR-016**: Registry-based settings (`RegistrySettings`) for machine-specific values (speed, video mode, etc.) MUST be superseded by the per-machine user JSON; the registry path MAY be retained as a one-time migration source on first upgrade but MUST NOT be the primary storage after this feature ships.
+- **FR-017**: User JSON files MUST NOT overwrite the read-only embedded default JSONs; the shadow/fallthrough merge MUST be performed in memory at load time.
+
+### Functional Requirements — Area 2: Full Custom D3D Chrome
+
+- **FR-018**: The application window MUST use a borderless style; all window chrome (title bar, borders, resize handles, system buttons) MUST be implemented in the D3D rendering layer rather than by the Win32 window manager.
+- **FR-019**: The custom title bar region MUST support: drag to move the window, double-click to toggle fullscreen (delegating to the existing `D3DRenderer::ToggleFullscreen`), close button (triggering clean shutdown), minimize button, and maximize/restore button.
+- **FR-020**: The application MUST maintain the existing Win32 window handle (`HWND`) as the D3D render surface anchor; the emulated video output sub-region MUST remain pixel-identical in position and scale to the Apple II 4:3 aspect-ratio policy defined in FR-043.
+- **FR-021**: Drive widgets MUST be rendered in D3D and MUST visually represent physical disk drive hardware at a fidelity determined by the active theme. At minimum, every active theme MUST render each drive widget at no less than 96×64 logical pixels (so the eject affordance and LED are unambiguously hittable / readable) and MUST distinguish the empty / mounted / motor-active states visually.
+- **FR-022**: Drive widgets MUST support drag-and-drop of disk image files from Windows Explorer (`.dsk`, `.nib`, `.woz`, `.po`); on successful drop the existing disk-mount logic MUST be invoked.
+- **FR-022b**: Drive widgets MUST also support click-to-browse; clicking the drive widget body (not the eject affordance) MUST open a file-open dialog filtered to supported disk image types and invoke the existing disk-mount logic on confirmation.
+- **FR-023**: Drive widgets MUST display a spinning disk animation during active disk read or write operations, driven by the same motor-on/off signals currently used by the audio and debug systems.
+- **FR-024**: Drive widgets MUST display an eject affordance; clicking it MUST invoke the existing disk-eject logic.
+- **FR-025**: LED indicators for each drive MUST be rendered in D3D with a soft-glow appearance (not a flat colored circle); LED states MUST include at minimum: idle (disk absent), disk present, and active (motor running). Every active theme MUST render each LED at no less than 12 logical pixels in diameter with a perceptible glow halo extending at least 4 logical pixels beyond the lit core in the active state. Exact colors and glow parameters beyond these minima are defined by the active theme.
+- **FR-026**: A D3D-rendered navigation/menu layer MUST replace the Win32 menu bar; it MUST provide access to all commands currently in the Win32 menus (File, Machine, View, Disk, Edit, Help groups).
+- **FR-027**: The Settings dialog (FR-001 through FR-017) MUST be rendered in D3D within the application window rather than as a Win32 dialog (`DialogBoxIndirectParam`). Source audit confirms the historical `OptionsDialog` and `MachinePickerDialog` implementations and `DialogBox*` call sites are already absent; this feature MUST keep those Win32 dialogs retired while moving the current `MenuSystem.cpp` / `EmulatorShell.cpp` settings and machine-switch command entry points to the native Settings panel.
+
+#### Post-P5 follow-up: Settings owned popup
+
+The Settings panel is promoted from an in-window D3D overlay to a native owned popup HWND because the overlay could be clipped when the main Casso window was resized below the panel's content size. The panel remains native-rendered D3D UI, not a `DialogBox*` Win32 dialog: the popup shares the main D3D11 device/context, owns its own flip-discard swap chain, is modeless, and uses `WS_EX_TOOLWINDOW` so it behaves like an owned app child rather than an alt-tab peer.
+
+User-visible behavior is now window-like: Settings has a title bar, close button, system menu, and resize border. `WM_GETMINMAXINFO` enforces the content minimum size, so the popup cannot be shrunk below its required controls even when the main emulator window is much smaller.
+
+- **FR-028**: The D3D chrome layer MUST correctly handle WM_NCHITTEST returns for borderless window behavior, ensuring OS-level window management (snap, Aero Shake, Task View) continues to function correctly.
+
+### Functional Requirements — Area 3: CSS-Based Theme System
+
+- **FR-029**: Themes MUST be defined as a directory under the asset base
+  directory (same base as `Machines/` and `Devices/`) containing `theme.json`
+  metadata and optional `fonts/`, `images/`, `sounds/` asset subdirectories.
+  The `theme.json` schema is defined in
+  `contracts/theme-metadata.schema.json` and includes at minimum:
+  `$cassoThemeVersion` (int), `name` (string), `author` (optional),
+  `description` (optional), `familyId`, `variantId`, `uiTokens` (colors,
+  gradients, shading, depth, animation timings), `driveVisualProfile`,
+  `crtDefaults`, and `useMicaBackdrop` (bool, default false; runtime-gated).
+- **FR-030**: On first launch (or when `Themes/` is absent), `AssetBootstrap` MUST extract the built-in themes from embedded resources to the `Themes/` directory, following the same pattern as `EnsureMachineConfigs`.
+- **FR-031**: The application MUST ship at least three built-in themes: **Skeuomorphic** (beige/cream palette, physical Apple II hardware appearance), **Dark Modern** (dark palette with glowing LED accents and neon highlights), and **Retro Terminal** (phosphor green/amber, scanlines overlay, CRT aesthetic).
+- **FR-032**: A theme's metadata/tokens MUST define: color palette tokens,
+  widget visual treatment (drive widgets, LED indicators, title bar, nav
+  layer, settings panel), layout geometry constants, animation parameters, and
+  CRT effect defaults.
+- **FR-033**: Themes MUST be hot-swappable: switching the active theme in the
+  Settings panel MUST cause all chrome to re-render with the new theme's
+  styles in the first post-switch frame, without restart or machine reset.
+- **FR-034**: The active theme selection MUST persist across application restarts, stored in global user settings (not machine-specific, as theme is a UI preference not a machine property).
+- **FR-035**: User-authored theme directories placed in `Themes/` while the application is running MUST appear in the theme list the next time the Theme section of the Settings panel is opened (no restart required to discover new themes).
+- **FR-036**: A malformed theme (missing `theme.json`, invalid token metadata,
+  or missing assets) MUST be excluded from the theme list with a warning
+  logged; it MUST NOT crash the application or corrupt the active theme.
+- **FR-037**: Built-in theme files in `Themes/` that have been overwritten or deleted by the user MUST be re-extracted from embedded resources on next launch (same behavior as machine config defaults).
+- **FR-038**: The Settings panel MUST include a CRT brightness control (e.g., a knob or slider) that adjusts the luminance of the emulated display output. The brightness value MUST be persisted globally (display preference, not machine-specific) and applied in real time as the control is adjusted.
+- **FR-039**: The D3D renderer MUST support optional CRT post-processing effects applied to the emulated screen sub-region: scanlines (horizontal darkening bands matching the Apple II display refresh geometry), phosphor bloom (soft luminance bloom on bright pixels), and color bleed (lateral spread of chroma between adjacent pixels, approximating NTSC phosphor persistence). Each effect MUST be individually toggleable. Implementation MAY adapt MIT/public-domain HLSL ports of community CRT shaders (e.g., CRT-Lottes, CRT-Geom-Mod) shipped in-tree; GPL-licensed shaders MUST NOT be used.
+- **FR-040**: CRT effect parameters (scanline intensity, bloom radius/strength, bleed width) MUST be configurable per-theme as defaults in `theme.json`, and MUST also be overridable per-user in the Settings panel. User overrides are persisted globally (display preference, not machine-specific).
+- **FR-041**: The emulated machine MUST continue running while the Settings panel is open; no pause/resume API is required.
+- **FR-042**: The application MUST support Windows 10 and Windows 11; Windows 11-only DWM APIs (e.g., `DwmSetWindowAttribute` with `DWMWA_WINDOW_CORNER_PREFERENCE`, Mica backdrop) MAY be used in the chrome implementation but MUST be runtime-gated via `IsWindows11OrGreater()` so that Windows 10 falls back gracefully (sharp corners, solid background) without losing chrome functionality.
+- **FR-043**: The emulated display viewport MUST maintain the Apple II's native aspect ratio (4:3) at all window sizes; when the window aspect ratio differs from 4:3, the viewport MUST be letterboxed or pillarboxed with the remaining area used by chrome widgets or rendered black.
+- **FR-044**: All interactive elements in the native-rendered settings panel
+  MUST be fully operable via keyboard alone (Tab/Shift-Tab to navigate,
+  Space/Enter to activate, Escape to dismiss); keyboard focus MUST be
+  visually indicated in all active themes.
+- **FR-045**: The `theme.json` metadata file MUST include a `$cassoThemeVersion` integer field. On load, if the version is lower than the current expected version, a theme upgrade path MUST be applied (analogous to `MachineConfigUpgrade`) before the theme is used.
+- **FR-046**: The application MUST use a native-owned UI pipeline for custom
+  chrome and settings surfaces (D3D11 geometry + DirectWrite text + Win32
+  input routing) composited on the existing swap chain.
+- **FR-047**: The mounted disk image path for each drive MUST be persisted per-machine in the user JSON (`lastMountedImages[<slot>][<drive>]`). On machine selection or application launch, the persisted image MUST be auto-mounted. Ejecting clears the persisted entry; mounting overwrites it. If the persisted path no longer exists on disk, the drive starts empty with a warning logged.
+- **FR-048**: Window position/size MUST persist **per monitor configuration**. On startup, Casso MUST restore bounds for the current monitor configuration if present. If absent, Casso MUST open at default 100% size centered on the active monitor.
+- **FR-049**: Drive widget icons for Apple II-family variants MUST read as
+  Disk ][ hardware (not generic disk placeholders), with variant-specific
+  color/texture treatment allowed.
+- **FR-050**: Drive door animations (open/close) and drive sounds MUST be
+  synchronized through a shared UI event timeline with at most one-frame skew.
+- **FR-051**: Themes MUST ship suitable variants for Apple II, II+, IIe, and
+  //c. //c MUST have distinct color treatment and distinct drive style.
+- **FR-052**: Theme schema MUST support future non-Apple families without
+  schema redesign (`familyId` + `variantId` extensibility).
+- **FR-053**: Previously added legacy UI runtime ownership paths in the Casso
+  codebase (initialization, per-frame rendering, and input dispatch for that
+  path) MUST be removed so only the native UI pipeline remains active.
+- **FR-054**: Legacy UI dependency/build wiring previously added during the
+  prior attempt (solution/project references, compile units, resource bindings,
+  and related tests for the retired path) MUST be removed from active build
+  targets.
+- **FR-055**: Automated validation MUST include unit tests for critical native
+  UI behavior: chrome/nav ownership routing, NC hit-testing behavior, drive
+  door animation state transitions, and animation/sound sync-event timing.
+- **FR-056**: Runtime validation MUST include launching the application and
+  capturing a screenshot matrix covering startup chrome, visible menu/dropdown,
+  NC controls (min/max/close), settings panel visibility, and drive door
+  open/close states for review against user-visible acceptance behavior.
+- **FR-057**: Unit tests for this feature MUST be isolated from system state:
+  tests MUST NOT read/write real registry keys, real machine/user preference
+  files, or other host filesystem state. Tests MUST use mocks/fakes/in-memory
+  adapters for filesystem, registry, and environment dependencies.
+
+---
+
+### Key Entities
+
+- **MachineUserConfig**: Per-machine user override JSON file (`per-machine user JSON`). Contains a `$cassoMachineVersion` version field, only the fields the user has explicitly changed from the default, and a `lastMountedImages` map (slot → drive → image path) per FR-047. Merged at load time with the read-only default JSON. Managed by a new `UserConfigStore` or equivalent.
+- **HardwareComponentEntry**: A node in the hardware configuration tree. Has a `type` (string matching the component registry), a human-readable `displayName`, a `capabilityFlag` (`optional` / `required` / `platform-locked`), an optional `lockReason` string (for platform-locked tooltip), and an `enabled` boolean state.
+- **Theme**: A subdirectory of `Themes/` containing `theme.json` metadata
+  (name, `$cassoThemeVersion`, `familyId`, `variantId`, `uiTokens`,
+  `driveVisualProfile`, CRT defaults) and asset files (fonts, images, sounds).
+  Loaded by `ThemeManager` and applied to the native UI layer at selection time.
+- **SettingsPanelState**: Transient in-memory snapshot of the Settings dialog's current selections; not persisted until the user confirms. Allows cancel-without-effect semantics.
+- **DriveWidgetState**: Runtime state for each drive widget: mounted disk path (or empty), motor running flag, write-active flag, animation frame index. Updated by the CPU thread's motor/drive signals and read by the D3D render thread.
+- **WindowPlacementProfile**: Per-monitor-configuration window bounds record (`x,y,w,h`) keyed by a hash of current monitor topology + active monitor. Stored under `HKCU\Software\relmer\Casso\WindowPlacement\v1\<hash>`.
+
+---
+
+## Success Criteria *(mandatory)*
+
+### Measurable Outcomes
+
+- **SC-001**: A user can change machine, adjust all settings, and confirm in under 60 seconds — half the time currently required by navigating three separate menus and dialogs.
+- **SC-002**: Switching the active theme causes all chrome to fully update within a single displayed frame on an integrated laptop GPU (Intel **or** AMD iGPU) at 1280x960 and 1920x1080 window sizes, at both 100% and 150% display scale. Validation captures consecutive frames during theme switch and requires the first post-switch frame to contain zero mixed-theme chrome regions (no partial redraw).
+- **SC-003**: Per-machine user settings survive at least three consecutive application upgrades (each introducing at least one new config field) without data loss or user-visible error.
+- **SC-004**: Drive widget drag-and-drop succeeds for all supported image formats (`.dsk`, `.nib`, `.woz`, `.po`) with at least 99% success across a 200-attempt validation run, with no format-specific failure rate exceeding 2%.
+- **SC-005**: No Win32 UI dialog (`DialogBox*`, `DialogBoxIndirectParam*`) ships in the application binary — the source/build audit confirms zero such calls.
+- **SC-006**: All commands reachable via the current Win32 menu bar remain reachable through the D3D navigation layer; no command is lost in the migration.
+- **SC-007**: A user with a pre-existing `user JSON` from an earlier version experiences no settings loss or application error after upgrading; the migration is silent.
+- **SC-008**: At least 90% of user-study participants can locate and change the
+  machine's emulation speed without instruction, compared to a baseline of
+  under 60% with the current menu system.
+- **SC-009**: Apple II-family drive widgets are correctly recognized as Disk ][
+  style in review screenshots for Apple II, II+, and IIe variants.
+- **SC-010**: Door open/close animations and matching drive sounds remain within
+  one frame of each other in instrumentation logs.
+- **SC-011**: Source/build audit confirms no active legacy UI runtime symbols
+  or dependency wiring remain in the shipping targets.
+- **SC-012**: Validation screenshots show no missing menus, no missing NC
+  components, and no broken chrome geometry across required scenarios.
+- **SC-013**: UT runs are deterministic and side-effect free: no persistent
+  registry or filesystem mutations occur during test execution.
+
+---
+
+## Assumptions
+
+- The existing `D3DRenderer::UploadAndPresent` pipeline remains the sole path for presenting the emulated framebuffer; the chrome layer is composited as an additional D3D render pass on the same swap chain, not a separate window.
+- `WM_NCHITTEST` customization is sufficient to achieve borderless-window drag/resize behavior on Windows 11; Windows 11-only DWM APIs are permitted and preferred for rounded corners and backdrop effects.
+- The `AssetBootstrap` directory-scanning and embedded-resource-extraction pattern is directly reusable for the `Themes/` bootstrap without architectural changes.
+- The `MachineConfigUpgrade` system already handles versioned config migration; extending it to cover the `capabilityFlag` field and other new schema fields is an incremental change, not a redesign. Machine JSONs use `$cassoMachineVersion` as canonical, while legacy `$cassoDefault` remains a migration-read alias only when canonical is absent; if both appear, migration uses `$cassoMachineVersion` as authoritative and immediately rewrites the file to canonical format with `$cassoMachineVersion` only. Theme `theme.json` files use `$cassoThemeVersion` following the same per-type convention.
+- Native UI rendering/input ownership is authoritative for chrome/settings
+  surfaces; no alternate UI ownership path is retained.
+- The CRT post-processing shaders are HLSL ports of MIT/public-domain community shaders (e.g., CRT-Lottes, CRT-Geom-Mod, libretro common shader collection). GPL-licensed shaders (e.g., CRT-Royale) are explicitly excluded to keep Casso MIT-licensed.
+- Per-machine `user JSON` files contain only settings reachable from the Settings panel that are *machine-specific* (speed, video mode, write protect, drive audio, component enable/disable, last-mounted disk images). UI preferences that span machines (active theme, CRT effect parameters, window geometry) live in `UserPrefs.json`. See `research.md` R6 for the full rationale on this split. Low-level timing and ROM configuration remain in the default machine JSONs and are not user-overridable from the UI.
+- Theme textures and images are loaded at theme-selection time; they are retained in GPU memory until a different theme is selected or the application exits. Themes do not hot-reload individual assets independently.
+- The three built-in theme names (Skeuomorphic, Dark Modern, Retro Terminal) are final for the initial release; additional built-in themes may be added in subsequent releases without schema changes.
+- The `Casso` project's existing `atomic<ColorMode>` and `atomic<SpeedMode>` fields in `EmulatorShell` are the authoritative runtime state; the Settings panel reads from and writes to these atomics (through the existing command-queue mechanism where a reset is needed).
+- The historical Win32 `OptionsDialog` and `MachinePickerDialog` are already absent and MUST NOT be reintroduced; backward compatibility is achieved via the user JSON migration path (FR-013), not by keeping old dialogs alive.

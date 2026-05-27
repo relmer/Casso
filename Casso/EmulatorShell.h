@@ -8,8 +8,24 @@
 #include "Core/InterruptController.h"
 #include "Core/ComponentRegistry.h"
 #include "D3DRenderer.h"
-#include "MenuSystem.h"
+#include "UiCommandTypes.h"
 #include "DebugConsole.h"
+#include "Ui/Chrome/TitleBar.h"
+#include "Ui/Chrome/NavLayer.h"
+#include "Ui/Chrome/ChromeLayout.h"
+#include "Ui/Chrome/ChromeTheme.h"
+#include "Ui/Chrome/DriveWidget.h"
+#include "Ui/DriveWidgetState.h"
+#include "Ui/DriveWidgetController.h"
+#include "Ui/DragDropTarget.h"
+#include "Ui/IDriveCommandSink.h"
+#include "Ui/Settings/SettingsPanel.h"
+#include "Ui/ThemeManager.h"
+#include "Ui/UiShell.h"
+#include "Config/Win32FileSystem.h"
+#include "Config/Win32RegistrySettings.h"
+#include "Config/UserConfigStore.h"
+#include "Config/GlobalUserPrefs.h"
 #include "Video/VideoOutput.h"
 #include "Video/CharacterRomData.h"
 #include "Video/VideoTiming.h"
@@ -18,24 +34,12 @@
 #include "Audio/DiskIIAudioSource.h"
 #include "WasapiAudio.h"
 #include "DiskIIDebugDialog.h"
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorCommand
-//
-//  Commands queued from the UI thread for the CPU thread to execute.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct EmulatorCommand
-{
-    WORD  id;
-    string payload;
-};
+#include "Shell/ClipboardManager.h"
+#include "Shell/CpuManager.h"
+#include "Shell/DiskManager.h"
+#include "Shell/MachineManager.h"
+#include "Shell/WindowCommandManager.h"
+#include "Shell/WindowManager.h"
 
 
 
@@ -47,7 +51,7 @@ struct EmulatorCommand
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class EmulatorShell : public Window
+class EmulatorShell : public Window, public IDriveCommandSink
 {
 public:
     EmulatorShell();
@@ -65,13 +69,13 @@ public:
     void HandleCommand (WORD commandId);
 
     // State
-    bool IsRunning() const { return m_running.load (memory_order_acquire); }
-    bool IsPaused() const { return m_paused.load (memory_order_acquire); }
+    bool IsRunning() const { return m_cpuManager.IsRunning(); }
+    bool IsPaused() const { return m_cpuManager.IsPaused(); }
 
     // Access bus for test wiring
     MemoryBus & GetBus() { return m_memoryBus; }
 
-    // Phase 4 / FR-034 / FR-035: split-reset entry points exposed for the
+    // / FR-034 / FR-035: split-reset entry points exposed for the
     // menu commands (IDM_MACHINE_RESET / IDM_MACHINE_POWERCYCLE) and any
     // future programmatic callers. SoftReset preserves user RAM and
     // re-runs the 6502 /RESET sequence. PowerCycle re-seeds every DRAM-
@@ -118,6 +122,20 @@ public:
         return m_uptimeAnchor;
     }
 
+    // ---- IDriveCommandSink --------------------------------------
+    // UI-thread entry points the drive widgets call into when the user
+    // drops a file, clicks-to-browse, or clicks the eject affordance.
+    // Both forms route through the existing IDM_DISK_* command queue so
+    // the actual mount/eject runs on the CPU thread same as the menu
+    // path. `Mount` accepts only slot 6 (the integrated Disk II);
+    // unknown slots are E_INVALIDARG and the mount is dropped.
+    HRESULT Mount  (int slot, int drive, const std::wstring & path) override;
+    void    Eject  (int slot, int drive) override;
+
+    // Static window procs for child windows
+    static LRESULT CALLBACK s_RenderSurfaceWndProc (
+        HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
 private:
     // Window message handler overrides
     bool    OnChar (WPARAM ch, LPARAM lParam) override;
@@ -127,82 +145,103 @@ private:
     bool    OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis) override;
     bool    OnKeyDown (WPARAM vk, LPARAM lParam) override;
     bool    OnKeyUp (WPARAM vk, LPARAM lParam) override;
+    bool    OnMouseMove (WPARAM wParam, LPARAM lParam) override;
+    bool    OnLButtonDown (WPARAM wParam, LPARAM lParam) override;
+    bool    OnLButtonUp (WPARAM wParam, LPARAM lParam) override;
+    bool    OnMove (HWND hwnd, int x, int y) override;
     bool    OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
     bool    OnSize (HWND hwnd, UINT width, UINT height) override;
     bool    OnTimer (HWND hwnd, UINT_PTR timerId) override;
     bool    OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu) override;
 
-    // Command group handlers
-    void OnFileCommand (int id);
-    void OnEditCommand (int id);
-    void OnMachineCommand (int id);
-    void OnViewCommand (int id);
-    void OnDiskCommand (int id);
-    void OnHelpCommand (int id);
+    // P4 custom-chrome overrides — borderless window + WM_NCHITTEST
+    // delegated to TitleBarHitTest, system-button click routing on
+    // WM_NCLBUTTONUP.
+    bool    OnNcCalcSize  (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult) override;
+    LRESULT OnNcHitTest   (HWND hwnd, int xScreen, int yScreen) override;
+    bool    OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen) override;
+    bool    WantsCustomCaptionButtons () const override { return true; }
 
     // CPU thread entry point and helpers
-    void CpuThreadProc();
     void RunOneFrame();
     void ExecuteCpuSlices();
     void RenderFramebuffer();
-    void ProcessCommands();
+    void DispatchCpuCommand (const EmulatorCommand & cmd);
+    void OnCpuThreadStart();
+    void OnCpuThreadStop();
+    void PublishFramebuffer();
     void UpdateWindowTitle();
-    void SelectVideoMode();
 
     // Initialization helpers
     HRESULT CreateEmulatorWindow (HINSTANCE hInstance);
-    HRESULT CreateMemoryDevices (const MachineConfig & config);
-    void    WireLanguageCard();
-    void    WirePageTable();
-    void    RebuildBankingPages();
-    void    MountCommandLineDisks (const string & disk1Path, const string & disk2Path);
-    HRESULT MountDiskInSlot6 (int drive, const string & path);
-    void    EjectDiskInSlot6 (int drive);
-    void    RemountSlot6Disks();
-    class DiskIIController * FindSlot6Controller();
-    void    CreateVideoModes();
-    HRESULT CreateCpu (const MachineConfig & config);
 
-    Byte * GetAuxRamBuffer();
+    HRESULT CreateRenderSurface ();
 
-    // Machine switching
-    void    ShowMachinePicker();
-    HRESULT SwitchMachine (const wstring & machineName);
-
-    void CopyScreenText();
-    void CopyScreenshot();
-    void PasteFromClipboard();
-    void DrainPasteBuffer();
-
-    // Status bar
-    void    CreateStatusBar();
-    void    UpdateStatusBar();
-    void    RefreshDriveStatus();
-    void    DrawDriveStatusItem (DRAWITEMSTRUCT * pdis, int driveIndex);
-    void    ShowDevicePopup();
-
-    // Queue a command for the CPU thread
+    // Queue a command for the CPU thread. Public so non-friend
+    // adapters (e.g. SettingsPanel's internal apply sink) can post
+    // without needing friend status -- this is already a thin
+    // wrapper over the CpuManager queue.
+public:
     void PostCommand (WORD id, const string & payload = "");
 
+    // Single-step the CPU from the UI thread. Only safe when the
+    // CPU thread is paused (provably idle on pauseCV.wait); the
+    // caller must enforce that precondition. Bypasses PostCommand
+    // because the CPU thread can't drain its queue while paused.
+    void StepInstructionWhilePaused ();
+
+private:
+    // Machine switching delegated to MachineManager. Kept as a
+    // public delegator so the existing IDM_FILE_OPEN command-queue
+    // path can call the shell without learning the manager.
+    HRESULT SwitchMachine (const std::wstring & machineName);
+    void    ShowMachinePicker();
+    const std::wstring &  CurrentMachineName () const { return m_currentMachineName; }
+
+    // Accessor used by the Settings → Theme preview to copy the live
+    // emulator framebuffer into the mock window. The UI framebuffer is
+    // the post-CRT-effects pixel buffer the chrome composes on top of;
+    // returning a raw pointer is safe because the chrome composition
+    // pass runs synchronously after the framebuffer is published.
+    const uint32_t *  UiFramebufferPixels () const
+    {
+        return m_uiFramebuffer.empty() ? nullptr : m_uiFramebuffer.data();
+    }
+
+    // Base directory for user preferences. SettingsPanel.CommitApply
+    // uses this as the fallback save path when the unified store is not
+    // available.
+    const std::wstring &  AssetBaseDir () const { return m_assetBaseDir; }
+
+    // Live channel for the Settings → Display monitor dropdown. The
+    // dropdown calls this on every selection so the user sees the
+    // colour-treatment change as they hover/select; Cancel restores
+    // the baseline by calling this again with the entry-state value.
+    // Bypasses the IDM command queue so the change is visible on the
+    // next CPU frame rather than waiting for queue drain.
+    void  SetColorModeLive (int settingsColorModeIndex);
+
+    // Activates the named theme in ThemeManager (which notifies the
+    // chrome cache listener) and persists the choice into GlobalUserPrefs.
+    // No-op if the name is empty; falls back to Skeuomorphic if unknown.
+    HRESULT ApplyAndPersistTheme (const std::string & themeName);
+
+    // Pushes a freshly-activated ChromeTheme into the layout-affecting
+    // chrome state: drive bar thickness, per-drive compact flag, and
+    // (if the bottom inset changed) a window resize that preserves the
+    // emulator pixel grid. Called from the ThemeManager listener.
+    void    ApplyThemeToChrome   (const ChromeTheme & theme);
+
+    // MachineManager and WindowCommandManager touch enough shell
+    // state during construction and command dispatch that friend
+    // declarations are the pragmatic seam; no new global state is
+    // introduced.
+    friend class MachineManager;
+    friend class WindowCommandManager;
+    friend class SettingsPanel;
+
     HACCEL              m_accelTable      = nullptr;
-    HWND                m_statusBar       = nullptr;
     HWND                m_renderHwnd      = nullptr;
-
-    // Tooltip control owned by the status bar so owner-drawn drive
-    // parts can show "Drive N: <path>" on hover. SBT_TOOLTIPS only
-    // fires for truncated text parts, so we maintain our own tool
-    // entries instead.
-    HWND                m_driveTooltip            = nullptr;
-
-    static LRESULT CALLBACK s_StatusBarSubclass (
-        HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
-        UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
-
-    // Cached status-bar layout: counted by UpdateStatusBar so the periodic
-    // RefreshDriveStatus and OnDrawItem handlers can identify which parts
-    // are owner-drawn drive indicators without re-querying the bar.
-    int                 m_statusBarDriveCount = 0;
-    int                 m_statusBarFirstDrivePart = 0;
 
     MemoryBus           m_memoryBus;
     ComponentRegistry   m_registry;
@@ -211,19 +250,72 @@ private:
     unique_ptr<class Prng> m_prng;
 
     D3DRenderer         m_d3dRenderer;
-    MenuSystem          m_menuSystem;
     WasapiAudio         m_wasapiAudio;
     DebugConsole        m_debugConsole;
 
-    // Drive audio (spec 005-disk-ii-audio). Mixer is always
-    // allocated; per-drive sources are populated only when the
-    // active machine config carries a Disk II controller (FR-015).
-    // Cold-boot flag suppresses OnDiskInserted during startup
-    // mounts so command-line / autoload paths don't trigger the
-    // door-close sound at app launch (FR-013).
+    // UI-thread filesystem and chrome ownership. The painter pass
+    // and shell composition is reintroduced in a later phase; for now
+    // only the per-window filesystem stays here so the settings panel
+    // and config store can resolve paths on the UI thread.
+    Win32FileSystem        m_uiFs;
+    Win32RegistrySettings  m_uiRegistry;
+
+    // Chrome surfaces. TitleBar owns the per-button rect cache that
+    // the WM_NCHITTEST helper queries. NavLayer owns the parity
+    // table for legacy IDM_* commands. Both run alongside the
+    // existing Win32 menu bar until the painter retires the latter.
+    TitleBar            m_titleBar;
+    NavLayer            m_navLayer;
+    ChromeTheme         m_chromeTheme    = ChromeTheme::Skeuomorphic();
+    std::array<DriveWidget, 2> m_driveChrome;
+
+    // Chrome layout planner. Owns the canonical inset math for the
+    // title bar, nav strip, and drive bar; replaces the historical
+    // ChromeMetrics constants that drifted between EmulatorShell and
+    // WindowCommandManager. Edge contributors below are pointer-tied
+    // to this layout and report their desired thickness on demand.
+    ChromeLayout            m_chromeLayout;
+    SimpleEdgeContributor   m_titleBarSlot { ChromeEdge::Top,    32 };
+    SimpleEdgeContributor   m_navStripSlot { ChromeEdge::Top,    32 };
+    SimpleEdgeContributor   m_driveBarSlot { ChromeEdge::Bottom, 192 };
+
+    // Drive widget state pump. The controller channel publishes
+    // per-drive door/spin sync events the chrome painter will consume
+    // once reintroduced. The drag-drop target registers a single
+    // IDropTarget on the main HWND. Per-drive UI/CPU bridge state
+    // lives in m_driveWidgetState; the CPU thread's motor + nibble
+    // counters are sampled once per UI frame and pushed through the
+    // controller.
+    DriveWidgetController                m_driveWidgets;
+    DragDropTarget                       m_dragDropTarget;
+
+    // Native UI shell. Owns the painter, text renderer, hit-tester,
+    // focus manager, animation broker, and input translator. Wired
+    // onto D3DRenderer's after-blit hook so chrome composites every
+    // frame between the emulator blit and Present.
+    UiShell             m_uiShell;
+
+    // Consolidated settings panel. Lazily constructed pieces so we
+    // can defer their I/O until first Show() on the panel.
+    // ThemeManager + UserConfigStore + GlobalUserPrefs are owned
+    // here so SettingsPanel can be a pure view layer.
+    std::unique_ptr<ThemeManager>        m_themeManager;
+    std::unique_ptr<UserConfigStore>     m_userConfigStore;
+    GlobalUserPrefs                      m_globalPrefs;
+    SettingsPanel                        m_settingsPanel;
+
+    std::array<DriveWidgetState, 2>      m_driveWidgetState;
+
+    // Set true once OleInitialize has succeeded on the UI thread so
+    // shutdown can pair the call with OleUninitialize. RegisterDragDrop
+    // requires OLE (STA) on the registering thread.
+    bool                                 m_fOleInitialized = false;
+
+    // Drive audio. Mixer is always allocated; per-drive sources are
+    // populated only when the active machine config carries a
+    // Disk II controller (FR-015).
     DriveAudioMixer            m_driveAudioMixer;
     vector<unique_ptr<DiskIIAudioSource>> m_diskAudioSources;
-    bool                       m_coldBootMountWindow = true;
 
     // Owned devices
     vector<unique_ptr<MemoryDevice>> m_ownedDevices;
@@ -265,7 +357,7 @@ private:
     unique_ptr<class AppleIIeMmu> m_mmu;
     unique_ptr<VideoTiming>       m_videoTiming;
 
-    // Phase 11 / T097 / FR-025. The store coordinates auto-flush of dirty
+    // / T097 / FR-025. The store coordinates auto-flush of dirty
     // disk images on Eject / SwitchMachine / Shutdown / PowerCycle. Each
     // mounted disk's DiskImage is owned by the store; the slot 6 disk
     // controller sees it via DiskIIController::SetExternalDisk.
@@ -280,26 +372,17 @@ private:
     // round-trip between sessions without one machine's setting
     // clobbering another's.
     wstring         m_currentMachineName;
+    wstring         m_assetBaseDir;
 
-    // -- Threading --
-    thread     m_cpuThread;
-
-    // Pause synchronization
-    mutex              m_pauseMutex;
-    condition_variable m_pauseCV;
+    // CPU-thread lifecycle, run/pause/step transitions, the UI -> CPU
+    // command queue, and the paste buffer all live on CpuManager. The
+    // shell wires its per-frame and per-command callbacks at startup
+    // and otherwise reads the manager's transition state through the
+    // IsRunning() / IsPaused() / GetSpeedMode() accessors.
+    CpuManager         m_cpuManager;
 
     // Atomic flags (UI writes, CPU reads)
-    atomic<bool>       m_running{true};
-    atomic<bool>       m_paused{false};
-    atomic<SpeedMode>  m_speedMode{SpeedMode::Authentic};
     atomic<ColorMode>  m_colorMode{ColorMode::Color};
-
-    // Command queue (UI → CPU, protected by m_cmdMutex)
-    mutex                    m_cmdMutex;
-    vector<EmulatorCommand>  m_commandQueue;
-
-    // Paste queue (UI -> CPU, protected by m_cmdMutex)
-    string             m_pasteBuffer;
 
     // Double framebuffer (CPU renders, UI presents, protected by m_fbMutex)
     mutex              m_fbMutex;
@@ -317,6 +400,17 @@ private:
     // so resets re-zero it even while the dialog is closed.
     std::unique_ptr<class DiskIIDebugDialog>  m_diskIIDebugDialog;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
+
+    // Extracted shell-side managers. WindowManager is stateless today
+    // (per-monitor placement persistence still lives in the registry);
+    // ClipboardManager holds references back to the shared CPU/UI
+    // state it operates on plus a pointer-to-pointer for the active
+    // keyboard so machine switches do not require re-wiring.
+    WindowManager                             m_windowManager;
+    std::unique_ptr<ClipboardManager>         m_clipboardManager;
+    std::unique_ptr<DiskManager>              m_diskManager;
+    std::unique_ptr<MachineManager>           m_machineManager;
+    std::unique_ptr<WindowCommandManager>     m_windowCommandManager;
 };
 
 

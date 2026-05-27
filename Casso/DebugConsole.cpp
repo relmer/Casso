@@ -111,6 +111,37 @@ bool DebugConsole::OnClose (HWND hwnd)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnKeyDown
+//
+//  Intercepts Alt+F4 and forwards it to the main Casso window so the
+//  whole app exits, matching the user's mental model that Alt+F4 is
+//  an "exit Casso" gesture regardless of which Casso window currently
+//  has focus. Without this override the secondary window would
+//  swallow the close to itself via the standard WM_SYSCOMMAND/SC_CLOSE
+//  -> WM_CLOSE -> OnClose -> Hide() chain.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugConsole::OnKeyDown (WPARAM vk, LPARAM lParam)
+{
+    static constexpr LONG_PTR  s_kAltContextBit = 1LL << 29;
+
+
+    if (vk == VK_F4 && (lParam & s_kAltContextBit) && m_hwndMain != nullptr)
+    {
+        PostMessage (m_hwndMain, WM_CLOSE, 0, 0);
+        return false;
+    }
+
+    return Window::OnKeyDown (vk, lParam);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnSize
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -150,7 +181,7 @@ HRESULT DebugConsole::InitializeConsole (HINSTANCE hInstance)
     CHR (hr);
 
     hr = Window::Create (0,
-                         L"Casso Debug Console",
+                         L"Casso debug console",
                          WS_OVERLAPPEDWINDOW,
                          CW_USEDEFAULT, CW_USEDEFAULT,
                          600, 400,

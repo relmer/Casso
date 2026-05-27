@@ -68,6 +68,33 @@ struct CharacterRomReference
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CapabilityFlag
+//
+//  Per FR-015 (007-ui-overhaul): describes whether a given internal
+//  device or slot card may be disabled by the user.
+//
+//    optional        — user may toggle on/off freely.
+//    required        — present by default; UI disables the checkbox.
+//    platform-locked — physically present on this hardware; UI shows
+//                      a tooltip with lockReason explaining why.
+//
+//  Default per FR-015: internal devices → required, slot entries → optional.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class CapabilityFlag
+{
+    Optional,
+    Required,
+    PlatformLocked
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InternalDevice
 //
 //  Motherboard device with hardcoded address mapping. Just a type name.
@@ -76,7 +103,9 @@ struct CharacterRomReference
 
 struct InternalDevice
 {
-    string  type;
+    string          type;
+    CapabilityFlag  capabilityFlag = CapabilityFlag::Required;
+    string          lockReason;            // Optional: shown as tooltip when PlatformLocked.
 };
 
 
@@ -114,11 +143,13 @@ struct DeviceConfig
 
 struct SlotConfig
 {
-    int     slot         = 0;     // 1..7
-    string  device;               // Optional: registered device type
-    string  rom;                  // Optional: slot ROM filename
-    string  resolvedRomPath;
-    size_t  romSize      = 0;
+    int             slot            = 0;     // 1..7
+    string          device;                  // Optional: registered device type
+    string          rom;                     // Optional: slot ROM filename
+    string          resolvedRomPath;
+    size_t          romSize         = 0;
+    CapabilityFlag  capabilityFlag  = CapabilityFlag::Optional;
+    string          lockReason;              // Optional: shown as tooltip when PlatformLocked.
 };
 
 
@@ -263,6 +294,14 @@ private:
 
     static HRESULT ParseHexAddress    (const string & str, Word & outAddr, string & outError);
     static HRESULT ParseHexSize       (const string & str, uint32_t & outSize, string & outError);
+
+    // Maps the JSON string ("optional"|"required"|"platform-locked") to
+    // the CapabilityFlag enum. If the input is empty the supplied
+    // `defaultFlag` is returned. Unknown strings produce E_INVALIDARG.
+    static HRESULT ParseCapabilityFlag (const string  & str,
+                                        CapabilityFlag  defaultFlag,
+                                        CapabilityFlag & outFlag,
+                                        string         & outError);
 
     static HRESULT LoadTiming         (const JsonValue & timing,
                                        MachineConfig   & outConfig,

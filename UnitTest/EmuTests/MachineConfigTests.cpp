@@ -330,6 +330,128 @@ public:
             L"On parse failure no files should be reported");
     }
 
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  007-ui-overhaul / FR-015 — capabilityFlag default inversion
+    //
+    //  Internal devices default to CapabilityFlag::Required; slot entries
+    //  default to CapabilityFlag::Optional. The asymmetry is asserted in
+    //  both directions in a single test method to guard against an
+    //  accidental swap during refactor.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Load_CapabilityFlag_DefaultInversion)
+    {
+        std::string json = R"({
+            "name": "Test",
+            "cpu": "6502",
+            "timing": {
+                "videoStandard": "ntsc",
+                "clockSpeed": 1023000,
+                "cyclesPerScanline": 65
+            },
+            "ram": [],
+            "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
+            "internalDevices": [
+                { "type": "apple2-keyboard" }
+            ],
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
+            ],
+            "video": { "modes": [] },
+            "keyboard": { "type": "test" }
+        })";
+
+        MachineConfig config;
+        std::string   error;
+
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
+                                                config, error);
+
+        Assert::IsTrue (SUCCEEDED (hr),
+            std::format (L"Load should succeed: {}",
+                std::wstring (error.begin (), error.end ())).c_str ());
+
+        Assert::AreEqual (size_t (1), config.internalDevices.size ());
+        Assert::IsTrue (config.internalDevices[0].capabilityFlag == CapabilityFlag::Required,
+            L"Internal device without explicit capabilityFlag must default to Required.");
+
+        Assert::AreEqual (size_t (1), config.slots.size ());
+        Assert::IsTrue (config.slots[0].capabilityFlag == CapabilityFlag::Optional,
+            L"Slot entry without explicit capabilityFlag must default to Optional.");
+    }
+
+    TEST_METHOD (Load_CapabilityFlag_ExplicitPlatformLocked_Preserved)
+    {
+        std::string json = R"({
+            "name": "Test",
+            "cpu": "6502",
+            "timing": {
+                "videoStandard": "ntsc",
+                "clockSpeed": 1023000,
+                "cyclesPerScanline": 65
+            },
+            "ram": [],
+            "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
+            "internalDevices": [
+                { "type": "apple2c-80col", "capabilityFlag": "platform-locked",
+                  "lockReason": "Integrated on motherboard" }
+            ],
+            "slots": [],
+            "video": { "modes": [] },
+            "keyboard": { "type": "test" }
+        })";
+
+        MachineConfig config;
+        std::string   error;
+
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
+                                                config, error);
+
+        Assert::IsTrue (SUCCEEDED (hr));
+        Assert::IsTrue (config.internalDevices[0].capabilityFlag == CapabilityFlag::PlatformLocked,
+            L"Explicit capabilityFlag must round-trip.");
+        Assert::AreEqual (std::string ("Integrated on motherboard"),
+                          config.internalDevices[0].lockReason);
+    }
+
+    TEST_METHOD (Load_CapabilityFlag_InvalidValue_Rejected)
+    {
+        std::string json = R"({
+            "name": "Test",
+            "cpu": "6502",
+            "timing": {
+                "videoStandard": "ntsc",
+                "clockSpeed": 1023000,
+                "cyclesPerScanline": 65
+            },
+            "ram": [],
+            "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
+            "internalDevices": [
+                { "type": "apple2-keyboard", "capabilityFlag": "bogus" }
+            ],
+            "slots": [],
+            "video": { "modes": [] },
+            "keyboard": { "type": "test" }
+        })";
+
+        MachineConfig config;
+        std::string   error;
+
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
+                                                config, error);
+
+        Assert::IsTrue (FAILED (hr),
+            L"Unknown capabilityFlag value must surface as an error.");
+        Assert::IsTrue (error.find ("capabilityFlag") != std::string::npos,
+            L"Error message must mention the bad field.");
+    }
+
 private:
 
     // Mock resolver that creates a temporary file of the expected size for the

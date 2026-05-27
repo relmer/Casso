@@ -49,6 +49,12 @@ The solution has five projects:
 ### EHM (Error Handling Macros)
 - Every function that calls a failable API must use the EHM pattern:
   `HRESULT hr = S_OK;` at top, `Error:` label before cleanup, single exit via `return hr;`
+- EHM is for **all functions with failable operations**, regardless of return
+  type (HRESULT/enum/int/struct/void). For non-HRESULT returns, keep a local
+  vestigial `HRESULT hr = S_OK;` for macros and return the normal result at
+  `Error:`; for `void`, `Error:` must end with explicit `return;`.
+- Functions returning `HRESULT` MUST have exactly one exit point (`Error:` -> `return hr;`).
+  Do not use early `return` statements in those functions.
 - **NEVER** use bare `goto Error` — always use EHM macros (CHR, CBR, CWRA, CHRF, etc.)
 - EHM macros must only contain **trivial expressions** — no function calls with side effects
   or out params. Store the result first, then pass it to the macro:
@@ -61,7 +67,8 @@ The solution has five projects:
   CHRF (hr, outError = "...");
   ```
 - The same rule applies to **all** macros (not just EHM): never call non-trivial functions
-  inside macro arguments. Trivial: `.size()`, `.empty()`, `.load()`, member access.
+  inside macro arguments. Trivial: `.size()`, `.count()`, `.bad()`, `.empty()`, `.load()`,
+  and member access.
   Non-trivial: anything with side effects, allocations, or out params.
 - When intentionally ignoring an HRESULT return value, use the `IGNORE_RETURN_VALUE` macro:
   ```cpp
@@ -72,6 +79,23 @@ The solution has five projects:
 - Use `CHRN`/`CBRN` for user-facing notification errors (auto-detects GUI/console)
 - Use `CHRF`/`CBRF` for failures with a custom action (e.g., setting an error string)
 - Use `BAIL_OUT_IF` for early-exit guard checks with a specific HRESULT
+- **Default to asserting variants** (`CHRA`/`CWRA`/`CBRA`/`CPRA`). Only use
+  non-asserting (`CHR`/`CWR`/`CBR`/`CPR`) when failure is legitimately
+  possible due to user input or external state (e.g., user-provided file
+  path, network). Failure of internal API calls indicates a Casso bug and
+  SHOULD assert.
+- **CPR/CPRA test C++ allocation results only** (sets `hr = E_OUTOFMEMORY`).
+  Use only for `new`/`malloc` — APIs that don't call `SetLastError`.
+  For other pointer checks:
+  - **Parameter pointer validation**: `CBRAEx (ptr, E_INVALIDARG)` —
+    null param passed by caller is an argument error, not OOM.
+  - **Member-state precondition** (`m_foo` must have been initialized):
+    `CBRA (m_foo)` — null member = Casso bug, default `E_FAIL`.
+  - **Win32 API that returns a handle/pointer** (HWND from
+    `CreateWindowEx`, HDC from `GetDC`, HGLOBAL from `GlobalAlloc`,
+    HMENU from `CreatePopupMenu`, etc.): `CWRA (ptr)` —
+    these APIs document `GetLastError` on failure, so CWRA captures
+    the real error code rather than blindly reporting `E_OUTOFMEMORY`.
 - For **non-HRESULT-returning** functions (returning enum/int/struct/void/etc.)
   that still want flat EHM control flow, declare a vestigial
   `HRESULT hr = S_OK;` at the top of the function purely to satisfy the
@@ -80,6 +104,25 @@ The solution has five projects:
   optimizes away in release. Example: `MachineConfigUpgrade::Plan`
   in `CassoEmuCore/Core/MachineConfigUpgrade.cpp` uses this to flatten
   a decision tree returning an enum.
+- For **`void` functions** using EHM, the `Error:` label must be followed
+  by explicit `return;`, not a lonely `;`. The dangling semicolon reads
+  like a typo.
+- **Prefer EHM bail-out over body-wrapping.** Use `CBR`/`CHR`/`CHRF` at
+  the top with a jump to `Error:` rather than wrapping the function body
+  in `if (precondition) { … }`. EHM flattens indentation; body-wrap
+  increases it.
+- Use EHM bail-outs aggressively to reduce indentation; inside loops prefer
+  guard-style `continue`/`break` patterns rather than adding nested `if` blocks.
+- When multiple EHM macro calls (`CBR`/`CBRF`/`CHR`/`CHRF`/etc.) appear
+  on **consecutive lines** (no blank lines or comments between them),
+  column-align their arguments — same rule as variable declarations.
+- Macro-selection guidance:
+  - `*A` variants (`CHRA`/`CWRA`/`CBRA`/`CPRA`) for bug-indicating/internal failures.
+  - Non-`*A` variants (`CHR`/`CWR`/`CBR`/`CPR`) for expected user/external failures.
+  - `*F` variants (`CHRF`/`CBRF`) when you must run custom failure action.
+  - `*N` variants (`CHRN`/`CBRN`) for user-facing notification failures.
+  - `CWR/CWRA` for Win32 APIs that set `GetLastError`; `CBR/CBRA` for boolean checks.
+  - `CPR/CPRA` only for allocation results (`new`/`malloc`-style OOM checks).
 
 ### Variable Declarations
 - **ALL** local variables declared at the **top** of the function (or top of a necessary local block)
@@ -98,14 +141,29 @@ BYTE           * buffer         = nullptr;
 ```
 
 ### Wrapped Function Parameters
-- When a function call is too long for one line, wrap and align parameters to the opening `(`
+- **Function calls** and **declarations in `.h` files**: wrap and align
+  parameters to the opening `(`. The first argument stays on the same
+  line as the opening paren; continuation lines align under it.
 ```cpp
 hr = D3D11CreateDeviceAndSwapChain (nullptr,
                                     D3D_DRIVER_TYPE_HARDWARE,
                                     nullptr,
                                     createFlags);
 ```
-- When a function **definition** wraps its parameter list, the **first** parameter must wrap to the next line (indented one level), with one parameter per line, column-aligned like variable declarations (type, pointer/ref column, name)
+- **In `.h` header declarations**, the opening-paren columns of
+  successive declarations (without interceding comments) must align.
+  Pad return-type + name with spaces so the `(` columns line up:
+```cpp
+    HRESULT Initialize (ID3D11Device         * pDevice,
+                        ID3D11DeviceContext  * pContext,
+                        UINT                   viewportWidthPx,
+                        UINT                   viewportHeightPx);
+    void    Shutdown   ();
+    HRESULT Resize     (UINT widthPx, UINT heightPx);
+```
+- **Function definitions in `.cpp` files**: the first parameter wraps
+  to the next line (indented one level), with one parameter per line,
+  column-aligned like variable declarations (type, pointer/ref column, name):
 ```cpp
 HRESULT EmulatorShell::Initialize (
     HINSTANCE              hInstance,
@@ -211,6 +269,13 @@ void Function2()
 //
 ////////////////////////////////////////////////////////////////////////////////
 ```
+- **Function documentation comments belong in the `.cpp` file** inside
+  the `////` header block — NOT in the `.h` declaration. Headers should
+  have only terse one-liner comments (or none) on member functions.
+- **No phase/task/spec references in comments.** Never include spec
+  numbers, phase IDs, task numbers, or "Per spec …" / "Open Question N"
+  in code comments. These have no context without the spec and become
+  meaningless noise. Write comments that stand alone.
 
 ### Type Definitions
 - `Byte` = `unsigned char`, `SByte` = `signed char`, `Word` = `unsigned short`
@@ -230,6 +295,17 @@ void Function2()
 - Use `TestCpu::Step()` / `StepN()` to execute instructions
 - Call `CpuOperations` static methods directly for unit-level tests
 - No test may run the real `CassoCli` binary
+- Unit tests **MUST NEVER** rely on or alter real system state
+- **ALL** system services **MUST** be mocked or abstracted behind interfaces:
+  - **File system**: no reading/writing real files on disk in unit tests
+  - **Registry**: no access to the real Windows registry
+  - **Network**: no real HTTP/socket calls
+  - **Process/environment**: no inspection of real processes, env vars, or console handles
+  - **System APIs**: no direct calls to APIs like `SHGetKnownFolderPath`, `CreateFileW`,
+    `CreateToolhelp32Snapshot`, `OpenProcessToken`, `DeviceIoControl`, etc.
+- If a module uses system APIs, inject dependencies via interfaces and test
+  pure/data-driven logic with mocks or synthetic inputs.
+- Temp files are acceptable only in integration tests, never in unit tests.
 
 ## Build System
 
@@ -291,7 +367,7 @@ void Function2()
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/003-apple2-platform-emulator/plan.md
+at specs/007-ui-overhaul/plan.md
 <!-- SPECKIT END -->
 
 ## Security Rules

@@ -12,30 +12,29 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildSearchPaths
+//
+//  Returns the single user-writable asset directory: %LOCALAPPDATA%\Casso\.
+//  Casso uses no exe-adjacent or cwd-relative fallback path -- every file
+//  it reads or writes lives in that one directory. The exeDir / cwd
+//  parameters are accepted for API compatibility but ignored.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 vector<fs::path> PathResolver::BuildSearchPaths (
-    const fs::path & exeDir,
-    const fs::path & cwd)
+    const fs::path & /*exeDir*/,
+    const fs::path & /*cwd*/)
 {
-    vector<fs::path> searchBases = { exeDir, cwd };
+    fs::path          localAppData = GetLocalAppDataDir (L"Casso");
+    vector<fs::path>  searchBases;
 
 
 
-    // Also try parent directories (handles running from x64/Debug/)
-    for (const auto & base : { exeDir, cwd })
+    if (!localAppData.empty())
     {
-        fs::path parent = base.parent_path ();
-
-        if (!parent.empty () && parent != base)
-        {
-            searchBases.push_back (parent);
-
-            fs::path grandparent = parent.parent_path ();
-
-            if (!grandparent.empty () && grandparent != parent)
-            {
-                searchBases.push_back (grandparent);
-            }
-        }
+        searchBases.push_back (localAppData);
     }
 
     return searchBases;
@@ -141,4 +140,70 @@ fs::path PathResolver::GetExecutableDirectory ()
 fs::path PathResolver::GetWorkingDirectory ()
 {
     return fs::current_path ();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLocalAppDataDir
+//
+//  Resolves %LOCALAPPDATA%\<appName>\, creating the directory tree if
+//  it doesn't already exist. Three layered fallbacks because we never
+//  want this to fail in normal user setups:
+//
+//   1. SHGetKnownFolderPath (FOLDERID_LocalAppData) -- canonical API,
+//      works on every supported Windows even with redirected profiles.
+//   2. %LOCALAPPDATA% env var -- fine for the rare case where the
+//      Known Folder API fails (e.g. service contexts that don't fall
+//      out cleanly).
+//   3. %USERPROFILE%\AppData\Local -- last-resort literal path.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+fs::path PathResolver::GetLocalAppDataDir (const std::wstring & appName)
+{
+    HRESULT      hr      = S_OK;
+    PWSTR        pszPath = nullptr;
+    fs::path     result;
+    error_code   ec;
+    wchar_t      env[MAX_PATH] = {};
+    DWORD        envLen  = 0;
+
+
+
+    hr = SHGetKnownFolderPath (FOLDERID_LocalAppData, 0, nullptr, &pszPath);
+    if (SUCCEEDED (hr) && pszPath != nullptr)
+    {
+        result = fs::path (pszPath);
+        CoTaskMemFree (pszPath);
+    }
+
+    if (result.empty())
+    {
+        envLen = GetEnvironmentVariableW (L"LOCALAPPDATA", env, MAX_PATH);
+        if (envLen > 0 && envLen < MAX_PATH)
+        {
+            result = fs::path (env);
+        }
+    }
+
+    if (result.empty())
+    {
+        envLen = GetEnvironmentVariableW (L"USERPROFILE", env, MAX_PATH);
+        if (envLen > 0 && envLen < MAX_PATH)
+        {
+            result = fs::path (env) / L"AppData" / L"Local";
+        }
+    }
+
+    if (result.empty())
+    {
+        return result;
+    }
+
+    result /= appName;
+    fs::create_directories (result, ec);
+    return result;
 }

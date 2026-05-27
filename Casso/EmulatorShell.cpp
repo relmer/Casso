@@ -16,8 +16,7 @@
 #include "Devices/LanguageCard.h"
 #include "Devices/AppleIIeMmu.h"
 #include "Core/Prng.h"
-#include "OptionsDialog.h"
-#include "MachinePickerDialog.h"
+
 #include "RegistrySettings.h"
 #include "DiskSettings.h"
 #include "UnicodeSymbols.h"
@@ -30,9 +29,15 @@
 #include "Video/AppleDoubleHiResMode.h"
 #include "Video/PixelFormat.h"
 #include "Video/MonochromeTint.h"
+#include "Ui/Win11DwmHelpers.h"
+#include "Ui/TitleBarHitTest.h"
+#include "Ui/Chrome/ChromeMetrics.h"
+#include "Ui/DriveWidgetController.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "shell32.lib")
+#pragma comment(lib, "shcore.lib")
 
 // Embed Common Controls v6 dependency in the binary's activation
 // context. Without this, SetWindowSubclass / TOOLINFO / and a host
@@ -44,8 +49,6 @@
     "processorArchitecture='*' publicKeyToken='6595b64144ccf1df' " \
     "language='*'\"")
 
-static constexpr LPCWSTR kLastMachineValue = L"LastMachine";
-
 
 
 
@@ -56,16 +59,240 @@ static constexpr LPCWSTR kLastMachineValue = L"LastMachine";
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr LONGLONG kHundredNsPerSecond = 10000000LL;
+static constexpr int     kFramebufferWidth       = ChromeMetrics::kFramebufferWidthPx;
+static constexpr int     kFramebufferHeight      = ChromeMetrics::kFramebufferHeightPx;
+static constexpr LPCWSTR kWindowClass           = L"CassoWindow";
+static constexpr int     s_kBaseDpi             = ChromeMetrics::kBaseDpi;
+static constexpr int     s_kDriveWidgetGapDp    = 16;
 
-static constexpr int    kFramebufferWidth  = 560;
-static constexpr int    kFramebufferHeight = 384;
-static constexpr LPCWSTR kWindowClass      = L"CassoWindow";
 
-// Drive activity LED refresh timer (~20 Hz). Cheap and responsive enough
-// for the eye to register motor on/off bursts without consuming UI cycles.
-static constexpr UINT_PTR kDriveStatusTimerId    = 0x10D5;
-static constexpr UINT     kDriveStatusTimerMs    = 50;
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Window placement helpers
+//
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    void LayoutDriveWidgetsInCommandBar (
+        std::array<DriveWidget, 2>  & driveChrome,
+        const ChromeLayoutResult    & layout,
+        int                           clientW,
+        int                           clientH,
+        UINT                          dpi)
+    {
+        int     bottomInset   = layout.bottomInsetPx;
+        int     commandBarTop = std::max (0, clientH - bottomInset);
+        int     commandBarH   = std::max (0, clientH - commandBarTop);
+        int     gap           = MulDiv (s_kDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
+        RECT    probe         = {};
+        int     widgetW       = 0;
+        int     widgetH       = 0;
+        int     totalW        = 0;
+        int     x             = 0;
+        int     y             = 0;
+        size_t  i             = 0;
+
+
+
+        driveChrome[0].Layout (0, 0, dpi);
+        probe   = driveChrome[0].BodyRect();
+        widgetW = probe.right  - probe.left;
+        widgetH = probe.bottom - probe.top;
+        totalW  = widgetW * static_cast<int> (driveChrome.size()) + gap * (static_cast<int> (driveChrome.size()) - 1);
+        x       = std::max (0, (clientW - totalW) / 2);
+        y       = commandBarTop + (commandBarH - widgetH) / 2;
+
+        for (i = 0; i < driveChrome.size(); i++)
+        {
+            int  widgetX       = x + static_cast<int> (i) * (widgetW + gap);
+            int  widgetCenterX = widgetX + widgetW / 2;
+            int  vanishingX    = clientW / 2;
+            // Shrink factor matches the case-top depth ratio (back
+            // edge is ~20% narrower than the front, so back center
+            // shifts ~20% of the way toward the shared vanishing
+            // point). Numerator chosen to match s_kCaseBackInsetPx
+            // ratio in DriveWidget.cpp.
+            int  skewPx        = MulDiv (vanishingX - widgetCenterX, 27, 100);
+
+            driveChrome[i].SetPerspectiveSkewPx (skewPx);
+            driveChrome[i].Layout (widgetX, y, dpi);
+        }
+    }
+
+
+    BOOL RegisterRenderSurfaceClass (HINSTANCE hInstance)
+    {
+        WNDCLASSEXW wcex = { sizeof (wcex) };
+
+
+
+        if (GetClassInfoExW (hInstance, L"CassoRenderSurface", &wcex))
+        {
+            return TRUE;
+        }
+
+        wcex.style         = 0;
+        wcex.lpfnWndProc   = EmulatorShell::s_RenderSurfaceWndProc;
+        wcex.cbClsExtra    = 0;
+        wcex.cbWndExtra    = 0;
+        wcex.hInstance     = hInstance;
+        wcex.hIcon         = nullptr;
+        wcex.hCursor       = nullptr;
+        wcex.hbrBackground = nullptr;
+        wcex.lpszMenuName  = nullptr;
+        wcex.lpszClassName = L"CassoRenderSurface";
+        wcex.hIconSm       = nullptr;
+
+        return RegisterClassExW (&wcex) != 0;
+    }
+
+
+    bool GetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outMonitor)
+    {
+        POINT          pt       = {};
+        HMONITOR       hMon     = nullptr;
+        MONITORINFOEXW mi       = { sizeof (mi) };
+
+
+
+        if (!GetCursorPos (&pt))
+        {
+            pt.x = 0;
+            pt.y = 0;
+        }
+
+        hMon = MonitorFromPoint (pt, MONITOR_DEFAULTTONEAREST);
+        if (hMon == nullptr)
+        {
+            return false;
+        }
+
+        if (!GetMonitorInfoW (hMon, &mi))
+        {
+            return false;
+        }
+
+        outWork    = mi.rcWork;
+        outMonitor = hMon;
+        return true;
+    }
+
+
+    void CenterInWorkArea (
+        const RECT & work,
+        int          windowW,
+        int          windowH,
+        LONG       & outX,
+        LONG       & outY)
+    {
+        outX = work.left + (work.right - work.left - windowW) / 2;
+        outY = work.top  + (work.bottom - work.top - windowH) / 2;
+    }
+
+
+    // Loads an HICON resource into a CPU-side premultiplied BGRA8
+    // pixel buffer suitable for the DwriteTextRenderer::DrawIconBitmap
+    // path. Uses a GDI memory DC + 32-bit DIB section to capture the
+    // icon's alpha-channelled pixels (LoadImageW preserves alpha when
+    // LR_DEFAULTCOLOR is set on a Vista+ icon). Premultiplies the
+    // pixels in place because D2D's DrawBitmap expects premultiplied
+    // sources.
+    bool LoadIconAsPremulBgra (
+        HINSTANCE             hInstance,
+        int                   iconResourceId,
+        int                   sizePx,
+        std::vector<uint32_t> & outPixels,
+        int                  & outW,
+        int                  & outH)
+    {
+        HICON       hIcon       = nullptr;
+        HDC         screenDc    = nullptr;
+        HDC         memDc       = nullptr;
+        HBITMAP     dib         = nullptr;
+        HBITMAP     oldBitmap   = nullptr;
+        void      * dibBits     = nullptr;
+        BITMAPINFO  bmi         = {};
+        bool        success     = false;
+        size_t      pixelCount  = (size_t) sizePx * (size_t) sizePx;
+
+
+
+        hIcon = (HICON) LoadImageW (hInstance,
+                                    MAKEINTRESOURCEW (iconResourceId),
+                                    IMAGE_ICON,
+                                    sizePx, sizePx,
+                                    LR_DEFAULTCOLOR);
+        if (hIcon == nullptr)
+        {
+            return false;
+        }
+
+        screenDc = GetDC (nullptr);
+        memDc    = CreateCompatibleDC (screenDc);
+
+        bmi.bmiHeader.biSize        = sizeof (BITMAPINFOHEADER);
+        bmi.bmiHeader.biWidth       = sizePx;
+        bmi.bmiHeader.biHeight      = -sizePx;   // top-down DIB
+        bmi.bmiHeader.biPlanes      = 1;
+        bmi.bmiHeader.biBitCount    = 32;
+        bmi.bmiHeader.biCompression = BI_RGB;
+
+        dib = CreateDIBSection (memDc, &bmi, DIB_RGB_COLORS, &dibBits, nullptr, 0);
+
+        if (dib != nullptr && dibBits != nullptr)
+        {
+            oldBitmap = (HBITMAP) SelectObject (memDc, dib);
+
+            // Clear the DIB to transparent so the icon's alpha channel
+            // composites against zero instead of the screen DC's
+            // garbage contents.
+            memset (dibBits, 0, pixelCount * sizeof (uint32_t));
+
+            if (DrawIconEx (memDc, 0, 0, hIcon, sizePx, sizePx, 0, nullptr, DI_NORMAL))
+            {
+                uint32_t  * src  = (uint32_t *) dibBits;
+                size_t      i    = 0;
+
+                outPixels.assign (pixelCount, 0);
+
+                // Premultiply each BGRA pixel. DIB layout is 0xAARRGGBB
+                // in little-endian uint32 (B,G,R,A in memory order).
+                for (i = 0; i < pixelCount; i++)
+                {
+                    uint32_t  px = src[i];
+                    uint8_t   a  = (uint8_t) ((px >> 24) & 0xFF);
+                    uint8_t   r  = (uint8_t) ((px >> 16) & 0xFF);
+                    uint8_t   g  = (uint8_t) ((px >>  8) & 0xFF);
+                    uint8_t   b  = (uint8_t) ( px        & 0xFF);
+
+                    r = (uint8_t) ((r * a) / 255);
+                    g = (uint8_t) ((g * a) / 255);
+                    b = (uint8_t) ((b * a) / 255);
+
+                    outPixels[i] = ((uint32_t) a << 24) | ((uint32_t) r << 16) |
+                                   ((uint32_t) g <<  8) |  (uint32_t) b;
+                }
+
+                outW    = sizePx;
+                outH    = sizePx;
+                success = true;
+            }
+
+            SelectObject (memDc, oldBitmap);
+        }
+
+        if (dib != nullptr)      { DeleteObject (dib); }
+        if (memDc != nullptr)    { DeleteDC (memDc); }
+        if (screenDc != nullptr) { ReleaseDC (nullptr, screenDc); }
+        DestroyIcon (hIcon);
+
+        return success;
+    }
+}
 
 
 
@@ -79,7 +306,7 @@ static constexpr UINT     kDriveStatusTimerMs    = 50;
 
 EmulatorShell::EmulatorShell()
 {
-    // Phase 4 / FR-035. The Prng is the deterministic stand-in for
+    // / FR-035. The Prng is the deterministic stand-in for
     // indeterminate //e DRAM at power-on, shared across every device that
     // re-seeds in PowerCycle. The seed is derived from a couple of
     // weakly-correlated host sources so consecutive launches hit
@@ -91,10 +318,44 @@ EmulatorShell::EmulatorShell()
 
     m_prng = make_unique<Prng> (seed);
 
-    // Phase 5 / FR-033 / T055. //e video timing model — owned at the
+#ifdef _DEBUG
+    // Log the per-boot DRAM seed so when an illegal-opcode (or any
+    // other non-deterministic) fault fires later, the user can grep
+    // the debug output for "[Casso] Cold boot seed:" and capture the
+    // value into a bug report. Re-running with the same seed gives
+    // byte-identical DRAM at every PowerCycle, which is the first
+    // requirement for reproducing flaky CPU faults.
+    DEBUGMSG (L"[Casso] Cold boot seed: 0x%016llX\n",
+              (unsigned long long) seed);
+#endif
+
+    // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
     // 17,030-cycle frame counter for $C019 (RDVBLBAR) reads.
     m_videoTiming = make_unique<VideoTiming>();
+
+    m_clipboardManager = std::make_unique<ClipboardManager> (m_memoryBus,
+                                                              m_cpuManager.GetCommandMutex(),
+                                                              m_cpuManager.GetPasteBuffer(),
+                                                              m_fbMutex,
+                                                              m_uiFramebuffer,
+                                                              kFramebufferWidth,
+                                                              kFramebufferHeight,
+                                                              &m_refs.keyboard);
+
+    m_diskManager = std::make_unique<DiskManager> (m_ownedDevices,
+                                                    m_diskStore,
+                                                    m_diskAudioSources,
+                                                    m_wasapiAudio,
+                                                    m_driveWidgets,
+                                                    m_driveWidgetState,
+                                                    m_driveChrome,
+                                                    m_cpuManager,
+                                                    m_currentMachineName);
+
+    m_machineManager = std::make_unique<MachineManager> (*this);
+
+    m_windowCommandManager = std::make_unique<WindowCommandManager> (*this);
 }
 
 
@@ -112,12 +373,9 @@ EmulatorShell::~EmulatorShell()
     HRESULT             hrFlush    = S_OK;
     DiskIIController *  controller = nullptr;
 
-    m_running.store (false, memory_order_release);
 
-    if (m_cpuThread.joinable())
-    {
-        m_cpuThread.join();
-    }
+
+    m_cpuManager.Stop();
 
     // Spec-006 / FR-024. Revoke BOTH sinks BEFORE the dialog tears
     // down its ring (and before the controller / audio source itself
@@ -126,7 +384,7 @@ EmulatorShell::~EmulatorShell()
     // attachment order in OpenDiskIIDebugDialog.
     if (m_diskIIDebugDialog != nullptr)
     {
-        controller = FindSlot6Controller();
+        controller = m_diskManager->FindSlot6Controller();
 
         if (controller != nullptr)
         {
@@ -145,13 +403,27 @@ EmulatorShell::~EmulatorShell()
         m_diskIIDebugDialog.reset();
     }
 
-    // Phase 11 / T097 / FR-025. Final auto-flush of any dirty disks on
+    // / T097 / FR-025. Final auto-flush of any dirty disks on
     // process shutdown — matches the "graceful exit" requirement from
     // audit §7 so a crash-free quit never loses user writes.
     hrFlush = m_diskStore.FlushAll();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
+    // Native-only ownership teardown.
+    m_d3dRenderer.SetAfterBlitHook (nullptr);
+    m_uiShell.Shutdown();
+    m_dragDropTarget.Shutdown();
+    m_driveWidgets.UnloadDocument();
+    m_navLayer.Hide();
+    m_titleBar.Hide();
+
     m_d3dRenderer.Shutdown();
+
+    if (m_fOleInitialized)
+    {
+        OleUninitialize();
+        m_fOleInitialized = false;
+    }
 }
 
 
@@ -171,14 +443,49 @@ HRESULT EmulatorShell::Initialize (
     const string        & disk1Path,
     const string        & disk2Path)
 {
-    HRESULT hr     = S_OK;
-    size_t  fbSize = 0;
+    HRESULT          hr           = S_OK;
+    size_t           fbSize       = 0;
+    fs::path         assetBaseDir;
+    fs::path         machinesDir;
+    fs::path         themesDir;
 
 
 
     m_currentMachineName = machineName;
     m_config             = config;
     m_cyclesPerFrame     = config.cyclesPerFrame;
+
+    // Register chrome regions with the layout planner once -- their
+    // pointers stay registered for the lifetime of the shell. Theme
+    // changes that resize the drive bar mutate m_driveBarSlot in
+    // place; ChromeLayout reads the live thickness on every Resolve.
+    m_chromeLayout.Register (&m_titleBarSlot);
+    m_chromeLayout.Register (&m_navStripSlot);
+    m_chromeLayout.Register (&m_driveBarSlot);
+
+    assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
+    machinesDir  = assetBaseDir / fs::path ("Machines") / fs::path (m_currentMachineName);
+    themesDir    = assetBaseDir / fs::path ("Themes");
+    m_assetBaseDir = assetBaseDir.wstring();
+    m_userConfigStore = std::make_unique<UserConfigStore> (assetBaseDir.wstring());
+
+    // P6 -- bring up OLE on the UI thread before any RegisterDragDrop
+    // call lands; IFileDialog (click-to-browse, used by the drive
+    // widgets) also requires the apartment to be live. OleInitialize
+    // implies CoInitializeEx(STA) on this thread. Non-fatal on
+    // failure -- drag-drop and the file dialog will degrade quietly.
+    {
+        HRESULT  hrOle = OleInitialize (nullptr);
+
+        if (SUCCEEDED (hrOle))
+        {
+            m_fOleInitialized = true;
+        }
+        else
+        {
+            OutputDebugStringA ("[EmulatorShell] OleInitialize failed; drag-drop disabled.\n");
+        }
+    }
 
     // Register built-in device factories
     ComponentRegistry::RegisterBuiltinDevices (m_registry);
@@ -189,30 +496,259 @@ HRESULT EmulatorShell::Initialize (
     m_textOverlay.resize (fbSize, 0);
     m_uiFramebuffer.resize (fbSize, 0);
 
+    // Prime the chrome-affecting theme state BEFORE creating the
+    // window so the initial ClientSizeForCenter inside
+    // CreateEmulatorWindow reads the right drive-bar thickness. Without
+    // this, a user whose persisted activeTheme is compact (DarkModern
+    // or RetroTerminal) would get a window sized for the full
+    // skeuomorphic strip on first paint, then immediately shrink as
+    // soon as ThemeManager::Activate fires its listener later in
+    // Initialize. UserConfigStore needs only assetBaseDir + the
+    // UI-thread filesystem, both of which are already live here.
+    {
+        HRESULT  hrPrefsEarly = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
+
+        IGNORE_RETURN_VALUE (hrPrefsEarly, S_OK);
+        m_chromeTheme = ChromeTheme::ForName (m_globalPrefs.activeTheme);
+        ApplyThemeToChrome (m_chromeTheme);
+    }
+
     hr = CreateEmulatorWindow (hInstance);
     CHR (hr);
 
-    hr = CreateMemoryDevices (config);
+    hr = m_machineManager->CreateMemoryDevices (config);
     CHR (hr);
 
-    WireLanguageCard();
-    CreateVideoModes();
+    m_machineManager->WireLanguageCard();
+    m_machineManager->CreateVideoModes();
 
     // Validate memory bus for overlapping device address ranges
     hr = m_memoryBus.Validate();
     CHR (hr);
 
-    hr = CreateCpu (config);
+    hr = m_machineManager->CreateCpu (config);
     CHR (hr);
 
-    WirePageTable();
+    m_machineManager->WirePageTable();
 
-    // Create status bar (after window, before D3D init so Resize accounts for it)
-    CreateStatusBar();
+    hr = CreateRenderSurface();
+    CHR (hr);
 
     // Initialize D3D11
     hr = m_d3dRenderer.Initialize (m_renderHwnd, kFramebufferWidth, kFramebufferHeight);
     CHR (hr);
+
+    // Native UI runtime bootstrap. UiShell owns the painter, text
+    // renderer, hit-tester, focus manager, and input translator;
+    // wiring it onto the after-blit hook lets it composite chrome on
+    // top of the emulator frame without ever pausing the render loop.
+    {
+        HRESULT  hrUi       = m_uiShell.Initialize (&m_d3dRenderer);
+        HRESULT  hrSettings = S_OK;
+        HRESULT  hrTheme    = S_OK;
+        HRESULT  hrPrefs    = S_OK;
+
+
+
+        IGNORE_RETURN_VALUE (hrUi, S_OK);
+        m_uiShell.SetChrome (&m_titleBar, &m_navLayer, &m_driveChrome, &m_chromeTheme);
+
+        m_themeManager    = std::make_unique<ThemeManager> (m_uiFs, themesDir.wstring());
+        hrTheme           = m_themeManager->Discover();
+        IGNORE_RETURN_VALUE (hrTheme, S_OK);
+        hrPrefs = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
+        IGNORE_RETURN_VALUE (hrPrefs, S_OK);
+
+        // Subscribe the chrome theme cache to ThemeManager BEFORE we
+        // activate, so the initial Activate() fires the listener and
+        // primes m_chromeTheme from the persisted user choice. Without
+        // this the chrome would still paint Skeuomorphic until the
+        // user re-picked the theme in Settings.
+        m_themeManager->AddChangeListener ([this] (const LoadedTheme & t)
+        {
+            m_chromeTheme = ChromeTheme::ForName (t.name);
+            ApplyThemeToChrome (m_chromeTheme);
+            m_settingsPanel.SetTheme (&m_chromeTheme);
+        });
+
+        // Tell the theme manager which machine is active BEFORE the
+        // first Activate so its listener notification carries the
+        // correctly-resolved (per-variant) theme.
+        m_themeManager->SetActiveMachineName (m_config.name);
+
+        HRESULT  hrActivate = m_themeManager->Activate (m_globalPrefs.activeTheme);
+        if (hrActivate != S_OK)
+        {
+            // Persisted theme name is unknown (renamed, deleted, or
+            // first-run with a stale default) -- fall back to the
+            // canonical built-in so the listener still fires.
+            IGNORE_RETURN_VALUE (hrActivate, m_themeManager->Activate ("Skeuomorphic"));
+        }
+
+        // Apply the persisted per-machine colorMode (and any other
+        // live-effect settings) at boot. Without this the initial
+        // emulator state defaults to Color regardless of what the user
+        // last saved; the missing path was that MachineManager::
+        // SwitchMachine has the colorMode-apply logic but it only fires
+        // on USER-INITIATED machine switches, not the boot path.
+        {
+            std::string         machineNameNarrow;
+            JsonValue           defaultJson;
+            JsonValue           mergedJson;
+            JsonParseError      parseErr;
+            std::ifstream       configFile;
+            std::stringstream   ss;
+            std::string         jsonText;
+            std::wstring        configRelPath = std::wstring (L"Machines\\") + m_currentMachineName +
+                                                L"\\" + m_currentMachineName + L".json";
+            fs::path            configPath    = PathResolver::FindFile (PathResolver::BuildSearchPaths (
+                                                    PathResolver::GetExecutableDirectory(),
+                                                    PathResolver::GetWorkingDirectory()),
+                                                    configRelPath);
+
+            machineNameNarrow.reserve (m_currentMachineName.size());
+            for (wchar_t c : m_currentMachineName)
+            {
+                machineNameNarrow.push_back ((char) (unsigned char) c);
+            }
+
+            if (!configPath.empty())
+            {
+                configFile.open (configPath);
+                if (configFile.good())
+                {
+                    ss << configFile.rdbuf();
+                    jsonText = ss.str();
+
+                    if (SUCCEEDED (JsonParser::Parse (jsonText, defaultJson, parseErr)) &&
+                        SUCCEEDED (m_userConfigStore->Load (machineNameNarrow,
+                                                            defaultJson,
+                                                            m_uiFs,
+                                                            mergedJson)) &&
+                        mergedJson.GetType() == JsonType::Object)
+                    {
+                        const JsonValue *  uiPrefs   = nullptr;
+                        std::string        colorMode;
+
+                        if (SUCCEEDED (mergedJson.GetObject ("$cassoUiPrefs", uiPrefs)) &&
+                            uiPrefs != nullptr &&
+                            SUCCEEDED (uiPrefs->GetString ("colorMode", colorMode)))
+                        {
+                            int  modeIdx = -1;
+                            if      (colorMode == "color") { modeIdx = 0; }
+                            else if (colorMode == "green") { modeIdx = 1; }
+                            else if (colorMode == "amber") { modeIdx = 2; }
+                            else if (colorMode == "white") { modeIdx = 3; }
+
+                            if (modeIdx >= 0)
+                            {
+                                SetColorModeLive (modeIdx);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        hrSettings = m_settingsPanel.Initialize (m_uiShell,
+                                                 *m_userConfigStore,
+                                                 m_globalPrefs,
+                                                 *m_themeManager,
+                                                 *this,
+                                                 m_uiFs);
+        IGNORE_RETURN_VALUE (hrSettings, S_OK);
+        m_uiShell.SetSettingsPanel (nullptr);
+        m_uiShell.SetDragSource    (&m_dragDropTarget);
+
+        if (SUCCEEDED (hrUi))
+        {
+            UINT  initialDpi = GetDpiForWindow (m_hwnd);
+
+            // Propagate the live monitor DPI into UiShell so the first
+            // D2D BindBackBuffer uses the right DPI for text. Without
+            // this the initial paint binds at the m_dpi default (0->96)
+            // and chrome text renders tiny on high-DPI displays until
+            // the user resizes the window.
+            HRESULT  hrUiResize = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
+                                                     m_d3dRenderer.GetBackBufferHeight(),
+                                                     initialDpi);
+            IGNORE_RETURN_VALUE (hrUiResize, S_OK);
+
+            m_d3dRenderer.SetAfterBlitHook ([this] () { m_diskManager->UpdateDriveWidgets(); m_uiShell.Render(); });
+
+            {
+                bool  fHasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+
+                if (!fHasDisk)
+                {
+                    // No Slot 6 controller (stripped Apple II config) --
+                    // collapse the drive widgets so they paint nothing
+                    // and the bottom command bar is clear of drive UI.
+                    m_driveChrome[0].Hide();
+                    m_driveChrome[1].Hide();
+                }
+
+                m_uiShell.HitTest().Clear();
+                if (fHasDisk)
+                {
+                    m_uiShell.HitTest().Register (HitRect { m_driveChrome[0].BodyRect(), HitSlot::Custom, 0 });
+                    m_uiShell.HitTest().Register (HitRect { m_driveChrome[1].BodyRect(), HitSlot::Custom, 1 });
+                }
+            }
+
+            if (m_fOleInitialized)
+            {
+                HRESULT hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.HitTest(), [this] (int tag, const std::wstring & path) { Mount (6, tag, path); });
+                IGNORE_RETURN_VALUE (hrDrop, S_OK);
+
+                // CassoRenderSurface is a child HWND that occludes the
+                // parent's client area for the emulator framebuffer. OLE
+                // hit-tests the topmost window under the cursor, so the
+                // child needs its own RegisterDragDrop pointing at the
+                // same IDropTarget -- otherwise the user sees the
+                // not-allowed cursor anywhere over the emulator content.
+                if (m_renderHwnd != nullptr)
+                {
+                    HRESULT hrDropChild = m_dragDropTarget.AttachAdditionalWindow (m_renderHwnd);
+                    IGNORE_RETURN_VALUE (hrDropChild, S_OK);
+                }
+
+                // UIPI whitelist. When Casso runs at a higher integrity
+                // level than the source (e.g. user launched Casso
+                // elevated and is dragging from a non-elevated Explorer),
+                // UIPI silently blocks the messages OLE uses to marshal
+                // the dragged payload across the IL boundary. The fix
+                // is ChangeWindowMessageFilterEx for the three messages
+                // OLE actually uses for drop targets:
+                //   WM_DROPFILES       (0x0233)
+                //   WM_COPYDATA        (0x004A)
+                //   WM_COPYGLOBALDATA  (0x0049, undocumented but real)
+                // Allowing these on both registered HWNDs lets Explorer
+                // -> elevated-Casso drag work without lowering Casso's
+                // IL.
+                {
+                    const UINT  s_kWmCopyGlobalData = 0x0049;
+                    HWND        hwnds[2] = { m_hwnd, m_renderHwnd };
+                    size_t      i        = 0;
+
+                    for (i = 0; i < sizeof (hwnds) / sizeof (hwnds[0]); i++)
+                    {
+                        if (hwnds[i] == nullptr)
+                        {
+                            continue;
+                        }
+
+                        (void) ChangeWindowMessageFilterEx (hwnds[i], WM_DROPFILES,       MSGFLT_ALLOW, nullptr);
+                        (void) ChangeWindowMessageFilterEx (hwnds[i], WM_COPYDATA,        MSGFLT_ALLOW, nullptr);
+                        (void) ChangeWindowMessageFilterEx (hwnds[i], s_kWmCopyGlobalData, MSGFLT_ALLOW, nullptr);
+                    }
+                }
+            }
+        }
+    }
+
+    // Native-only bootstrap baseline: legacy chrome overlay retired
+    // ahead of the native painter. Keep existing command/menu path active.
 
     // WASAPI audio is initialized on the CPU thread (COM apartment requirement)
 
@@ -222,7 +758,7 @@ HRESULT EmulatorShell::Initialize (
 
     UpdateWindowTitle();
 
-    // Phase 4 / FR-034. Cold power-on: seed DRAM via the shared Prng and
+    // / FR-034. Cold power-on: seed DRAM via the shared Prng and
     // run the 6502 /RESET sequence. Without this, the CPU starts at PC=0
     // and executes uninitialized RAM, leading to garbage on screen and
     // a beep loop instead of the firmware prompt. Mirrors what the
@@ -235,9 +771,9 @@ HRESULT EmulatorShell::Initialize (
     // exits early because trackBits[0] == 0).
     PowerCycle();
 
-    MountCommandLineDisks (disk1Path, disk2Path);
+    m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
 
-    // Spec 005-disk-ii-audio Phase 14 (Q4): seed the mixer state
+    // Seed the mixer state
     // from the per-machine registry before the audio thread first
     // calls SetEnabled / SetMechanism. Default is enabled + Shugart
     // when nothing has been persisted yet.
@@ -284,63 +820,251 @@ Error:
 
 HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 {
-    HRESULT hr        = S_OK;
-    UINT    dpi       = 0;
-    int     scale     = 0;
-    int     clientW   = 0;
-    int     clientH   = 0;
-    RECT    rc        = {};
-    DWORD   style     = 0;
-    BOOL    fSuccess  = FALSE;
+    HRESULT   hr                = S_OK;
+    UINT      dpi               = 0;
+    int       clientW           = 0;
+    int       clientH           = 0;
+    RECT      rc                = {};
+    DWORD     style             = 0;
+    DWORD     adjustStyle       = 0;
+    BOOL      fSuccess          = FALSE;
+    RECT      work              = {};
+    HMONITOR  activeMon         = nullptr;
+    LONG      windowX           = CW_USEDEFAULT;
+    LONG      windowY           = CW_USEDEFAULT;
+    int       windowW           = 0;
+    int       windowH           = 0;
+    bool      hadSavedPlacement = false;
 
 
 
     // Register and create the window via the base class
     m_kpszWndClass  = kWindowClass;
-    m_hbrBackground = reinterpret_cast<HBRUSH> (COLOR_WINDOW + 1);
+    m_hbrBackground = reinterpret_cast<HBRUSH> (GetStockObject (BLACK_BRUSH));
     m_idIcon        = IDI_CASSO;
     m_idIconSmall   = IDI_CASSO;
 
     hr = Window::Initialize (hInstance);
     CHR (hr);
 
-    // Calculate window size for desired client area, scaled for DPI
-    dpi   = GetDpiForSystem();
-    scale = (dpi + 48) / 96;  // 96=1x, 144=1.5x→2, 192=2x→2, 240=2.5x→3
-    if (scale < 1)
+    // Calculate window size for desired client area, scaled for the
+    // monitor we will actually open on. With per-monitor DPI v2,
+    // CreateWindowEx uses the requested size *as physical pixels* on
+    // the destination monitor -- there's no automatic logical->physical
+    // mapping. So if the cursor monitor is at 150% scale, requesting
+    // 560-px logical means we get a 560-physical-pixel window that
+    // looks half-size next to anything else on that display. Resolve
+    // the destination monitor's DPI up front and pre-scale.
+    if (GetCursorMonitorWorkArea (work, activeMon))
     {
-        scale = 1;
+        UINT  dpiX = 0;
+        UINT  dpiY = 0;
+
+
+        if (SUCCEEDED (GetDpiForMonitor (activeMon, MDT_EFFECTIVE_DPI, &dpiX, &dpiY)) && dpiX > 0)
+        {
+            dpi = dpiX;
+        }
     }
 
-    clientW = kFramebufferWidth * scale;
-    clientH = kFramebufferHeight * scale;
+    if (dpi == 0)
+    {
+        dpi = GetDpiForSystem();
+    }
+
+    {
+        SIZE  centerPx = {};
+        SIZE  client   = {};
+
+        centerPx.cx = MulDiv (kFramebufferWidth,  static_cast<int> (dpi), s_kBaseDpi);
+        centerPx.cy = MulDiv (kFramebufferHeight, static_cast<int> (dpi), s_kBaseDpi);
+        client      = m_chromeLayout.ClientSizeForCenter ((int) centerPx.cx, (int) centerPx.cy, dpi);
+        clientW     = (int) client.cx;
+        clientH     = (int) client.cy;
+    }
 
     rc    = { 0, 0, clientW, clientH };
-    style = WS_OVERLAPPEDWINDOW;
-    fSuccess = AdjustWindowRect (&rc, style, TRUE);  // TRUE = has menu
+    // Custom-chrome recipe modeled on microsoft/terminal's
+    // NonClientIslandWindow: keep WS_OVERLAPPEDWINDOW (which includes
+    // WS_CAPTION + WS_SYSMENU + WS_THICKFRAME + WS_MINIMIZEBOX +
+    // WS_MAXIMIZEBOX) so DefWindowProc has the full caption
+    // infrastructure for drag-to-move, edge resize, snap layouts, and
+    // single-click min/max/close semantics. The visual caption is
+    // hidden by collapsing the NC area in WM_NCCALCSIZE; our
+    // WM_NCHITTEST returns HTMINBUTTON/HTMAXBUTTON/HTCLOSE for the
+    // button rects and HTCAPTION for the drag region, so the OS
+    // dispatches the right system action and our OnNcLButtonUp
+    // dispatches the action for the captioned buttons.
+    style    = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
+    // Strip WS_CAPTION for the rect-adjust math because our
+    // WM_NCCALCSIZE handler restores the original top edge -- it does
+    // *not* carve a caption out of the client area. If we passed the
+    // full WS_OVERLAPPEDWINDOW style here, AdjustWindowRectExForDpi
+    // would add the caption height to windowH but NCCALCSIZE would
+    // hand that height back as client space, leaving the actual
+    // client taller than requested by the caption height. That extra
+    // vertical slack makes the aspect-fit content area shorter-than-
+    // framebuffer ratio, producing the pillarbox the user reported.
+    // Sizing math has to mirror what NCCALCSIZE actually carves out:
+    // left + right borders, bottom border. Top edge is preserved.
+    // No menu bar -> bMenu = FALSE in window-rect math.
+    adjustStyle = style & ~WS_CAPTION;
+    fSuccess = AdjustWindowRectExForDpi (&rc, adjustStyle, FALSE, 0, dpi);
     CWRA (fSuccess);
 
-    // Create window
+    windowW = rc.right - rc.left;
+    windowH = rc.bottom - rc.top;
+
+    if (GetCursorMonitorWorkArea (work, activeMon))
+    {
+        CenterInWorkArea (work, windowW, windowH, windowX, windowY);
+    }
+
+    hadSavedPlacement = m_windowManager.TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH);
     hr = Window::Create (0,
                          L"Casso",
                          style,
-                         CW_USEDEFAULT, CW_USEDEFAULT,
-                         rc.right - rc.left, rc.bottom - rc.top,
+                         windowX, windowY,
+                         windowW, windowH,
                          nullptr);
     CHR (hr);
 
-    // Create menu bar
-    hr = m_menuSystem.CreateMenuBar (m_hwnd);
-    CHR (hr);
+    // Force the app icon onto the window itself (not just the class).
+    // Win32 MessageBox-style dialogs and the task bar pick the icon up
+    // via WM_GETICON on the parent HWND, NOT WNDCLASS::hIcon; without
+    // explicit WM_SETICON the dialog title bar shows no icon and the
+    // taskbar falls back to the generic Windows logo.
+    {
+        int    iconBigSize   = GetSystemMetrics (SM_CXICON);
+        int    iconSmallSize = GetSystemMetrics (SM_CXSMICON);
+        HICON  hIconBig      = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO),
+                                                   IMAGE_ICON, iconBigSize, iconBigSize,
+                                                   LR_DEFAULTCOLOR | LR_SHARED);
+        HICON  hIconSm       = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO),
+                                                   IMAGE_ICON, iconSmallSize, iconSmallSize,
+                                                   LR_DEFAULTCOLOR | LR_SHARED);
 
-    // Recalculate window size after menu added
-    fSuccess = AdjustWindowRect (&rc, style, TRUE);
-    CWRA (fSuccess);
+        if (hIconBig != nullptr)
+        {
+            SendMessageW (m_hwnd, WM_SETICON, ICON_BIG,   (LPARAM) hIconBig);
+        }
+        if (hIconSm != nullptr)
+        {
+            SendMessageW (m_hwnd, WM_SETICON, ICON_SMALL, (LPARAM) hIconSm);
+        }
+    }
 
-    fSuccess = SetWindowPos (m_hwnd, nullptr, 0, 0,
-                             rc.right - rc.left, rc.bottom - rc.top,
-                             SWP_NOMOVE | SWP_NOZORDER);
-    CWRA (fSuccess);
+    // Reconcile actual client size against desired client size. The
+    // request-time math (AdjustWindowRectExForDpi minus WS_CAPTION) is
+    // a best-guess at what our WM_NCCALCSIZE handler will hand back as
+    // client area, but DefWindowProc's border carve-out depends on
+    // exact frame metrics that vary by Windows version and DPI. Rather
+    // than chase those numbers, measure the actual client and nudge
+    // the window by the residual delta so the chrome math and
+    // framebuffer aspect-fit see exactly the dimensions we expect.
+    // Skip the reconcile if saved placement was restored -- the user
+    // chose that size deliberately.
+    if (!hadSavedPlacement)
+    {
+        RECT  rcActualClient = {};
+        RECT  rcActualWindow = {};
+        int   actualClientW  = 0;
+        int   actualClientH  = 0;
+        int   deltaW         = 0;
+        int   deltaH         = 0;
+        int   fixedW         = 0;
+        int   fixedH         = 0;
+
+
+        if (GetClientRect (m_hwnd, &rcActualClient) && GetWindowRect (m_hwnd, &rcActualWindow))
+        {
+            actualClientW = rcActualClient.right  - rcActualClient.left;
+            actualClientH = rcActualClient.bottom - rcActualClient.top;
+            deltaW        = clientW - actualClientW;
+            deltaH        = clientH - actualClientH;
+
+            if (deltaW != 0 || deltaH != 0)
+            {
+                fixedW = (rcActualWindow.right  - rcActualWindow.left) + deltaW;
+                fixedH = (rcActualWindow.bottom - rcActualWindow.top)  + deltaH;
+                SetWindowPos (m_hwnd, nullptr, 0, 0, fixedW, fixedH, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+            }
+        }
+    }
+
+    // DWM gating. Rounded corners + dark immersive caption
+    // are best-effort and runtime-gated to the right Win10/11 build.
+    // Mica stays opt-in: it'll be toggled per-theme in P5 via
+    // theme.json `useMicaBackdrop`.
+    Win11DwmHelpers::ExtendFrameIntoClientArea (m_hwnd, 1);
+    Win11DwmHelpers::ApplyRoundedCorners       (m_hwnd, true);
+    Win11DwmHelpers::ApplyImmersiveDarkMode    (m_hwnd, true);
+
+    // Legacy Win32 menu bar is retired (FR-026). All menu
+    // commands now route through `NavLayer` + the native nav strip;
+    // keyboard accelerators (loaded below) keep working independently
+    // of the menu bar. `m_menuSystem` is intentionally left in place
+    // to cache `SpeedMode` / `ColorMode` for any downstream reader,
+    // but no `HMENU` is ever created or attached to the window.
+
+    // Prime the title-bar layout cache so the WM_NCHITTEST helper has
+    // valid button rects even before the first WM_SIZE arrives. Read
+    // the actual client size from the HWND rather than the requested
+    // clientW, since TryLoadSavedWindowPlacement above may have
+    // restored a different size for this monitor topology -- using
+    // the stale request would leave the chrome painted only to the
+    // default width until the user resized the window.
+    {
+        RECT  rcActual = {};
+
+
+        if (GetClientRect (m_hwnd, &rcActual))
+        {
+            clientW = rcActual.right  - rcActual.left;
+            clientH = rcActual.bottom - rcActual.top;
+        }
+
+        // Re-resolve DPI against the live HWND. The 'dpi' we used to
+        // size the window was the *cursor* monitor's at request time;
+        // Windows may have placed the window on a different monitor
+        // (per-monitor v2) or honored saved placement that lives on
+        // another monitor. The actual chrome metrics need to match
+        // the monitor the window is actually on so the framebuffer
+        // aspect-fit produces no pillarbox at default size.
+        UINT  windowDpi = GetDpiForWindow (m_hwnd);
+        if (windowDpi != 0)
+        {
+            dpi = windowDpi;
+        }
+    }
+    m_titleBar.UpdateGeometry (clientW, dpi);
+    m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), clientW, dpi, &m_uiShell.Text());
+    m_navLayer.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
+
+    // Load the app icon (IDI_CASSO) into a premultiplied BGRA8 pixel
+    // buffer so the title bar can blit it left of the caption text.
+    // Loaded at 32x32 (high enough to look crisp at typical title-bar
+    // sizes when D2D linearly downscales it); failure is non-fatal --
+    // the title bar simply omits the icon if the load misses.
+    {
+        std::vector<uint32_t>  iconPixels;
+        int                    iconW = 0;
+        int                    iconH = 0;
+
+        if (LoadIconAsPremulBgra (hInstance, IDI_CASSO, 32, iconPixels, iconW, iconH))
+        {
+            m_titleBar.SetAppIcon (std::move (iconPixels), iconW, iconH);
+        }
+    }
+    m_driveChrome[0].Initialize (6, 0, this);
+    m_driveChrome[1].Initialize (6, 1, this);
+    {
+        ChromeLayoutResult  layout = m_chromeLayout.Resolve (clientW, clientH, dpi);
+
+        LayoutDriveWidgetsInCommandBar (m_driveChrome, layout, clientW, clientH, dpi);
+        m_d3dRenderer.SetTopInsetPx    (layout.topInsetPx);
+        m_d3dRenderer.SetBottomInsetPx (layout.bottomInsetPx);
+    }
 
     // Load accelerator table
     m_accelTable = LoadAccelerators (hInstance, MAKEINTRESOURCE (IDR_ACCELERATOR));
@@ -356,120 +1080,30 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CreateStatusBar
+//  CreateRenderSurface
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::CreateStatusBar()
+HRESULT EmulatorShell::CreateRenderSurface ()
 {
-    HRESULT              hr       = S_OK;
-    INITCOMMONCONTROLSEX icex     = { sizeof (icex), ICC_BAR_CLASSES };
-    BOOL                 fSuccess = FALSE;
-    RECT                 rcClient = {};
-    int                  sbHeight = 0;
-    RECT                 sbRect   = {};
+    HRESULT  hr       = S_OK;
+    BOOL     fSuccess = FALSE;
+    RECT     rcClient = {};
 
 
 
-    fSuccess = InitCommonControlsEx (&icex);
-    CWRA (fSuccess);
-
-    m_statusBar = CreateWindowExW (0,
-                                   STATUSCLASSNAME,
-                                   nullptr,
-                                   WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP,
-                                   0, 0, 0, 0,
-                                   m_hwnd,
-                                   nullptr,
-                                   m_hInstance,
-                                   nullptr);
-    CWRA (m_statusBar);
-
-    // Tooltip control parented to the status bar so the owner-drawn
-    // Drive 1/Drive 2 parts can show "Drive N: <path>" on hover. The
-    // status bar itself doesn't deliver tooltip messages for owner-drawn
-    // parts (SBT_TOOLTIPS / SB_SETTIPTEXT only triggers on truncated
-    // text), and TTF_SUBCLASS doesn't intercept the status bar's mouse
-    // messages reliably -- the canonical workaround is to subclass the
-    // status bar manually and TTM_RELAYEVENT each mouse message into
-    // the tooltip control.
-    m_driveTooltip = CreateWindowExW (WS_EX_TOPMOST,
-                                      TOOLTIPS_CLASS,
-                                      nullptr,
-                                      WS_POPUP | TTS_ALWAYSTIP | TTS_NOPREFIX,
-                                      CW_USEDEFAULT, CW_USEDEFAULT,
-                                      CW_USEDEFAULT, CW_USEDEFAULT,
-                                      m_statusBar,
-                                      nullptr,
-                                      m_hInstance,
-                                      nullptr);
-
-    if (m_driveTooltip != nullptr)
-    {
-        SetWindowPos (m_driveTooltip, HWND_TOPMOST, 0, 0, 0, 0,
-                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-    }
-
-    UpdateStatusBar();
-
-    // Pre-register the Drive 1/Drive 2 tools now (after parts exist) so
-    // the very first hover works. RefreshDriveStatus then keeps the
-    // rects + text in sync as the user resizes / mounts / ejects.
-    if (m_driveTooltip != nullptr && m_refs.diskController != nullptr)
-    {
-        TOOLINFOW  ti = { };
-
-        for (int d = 0; d < DiskIIController::kDriveCount; d++)
-        {
-            ti.cbSize   = sizeof (ti);
-            ti.uFlags   = 0;
-            ti.hwnd     = m_statusBar;
-            ti.uId      = static_cast<UINT_PTR> (d);
-            ti.rect     = RECT { 0, 0, 1, 1 };
-            ti.lpszText = const_cast<LPWSTR> (L"");
-
-            SendMessage (m_driveTooltip, TTM_ADDTOOLW, 0,
-                         reinterpret_cast<LPARAM> (&ti));
-        }
-
-        SendMessage (m_driveTooltip, TTM_ACTIVATE, TRUE, 0);
-
-        // Snappier hover: 250 ms instead of the default ~half-second.
-        SendMessage (m_driveTooltip, TTM_SETDELAYTIME, TTDT_INITIAL, MAKELPARAM (250, 0));
-        SendMessage (m_driveTooltip, TTM_SETDELAYTIME, TTDT_AUTOPOP, MAKELPARAM (10000, 0));
-
-        // Subclass the status bar so we can forward mouse messages to
-        // the tooltip via TTM_RELAYEVENT. SetWindowSubclass keeps a
-        // per-instance reference data slot for `this`.
-        SetWindowSubclass (m_statusBar, &EmulatorShell::s_StatusBarSubclass,
-                           1, reinterpret_cast<DWORD_PTR> (this));
-
-        RefreshDriveStatus();
-    }
-
-    // Periodic refresh for owner-drawn drive activity LEDs. Only set when
-    // a Disk II controller is present; otherwise the indicators don't
-    // exist and the timer would just be paint-invalidating empty space.
-    if (m_refs.diskController != nullptr)
-    {
-        SetTimer (m_hwnd, kDriveStatusTimerId, kDriveStatusTimerMs, nullptr);
-    }
-
-    fSuccess = GetWindowRect (m_statusBar, &sbRect);
-    CWRA (fSuccess);
-
-    sbHeight = sbRect.bottom - sbRect.top;
-
-    // Create a child window for D3D rendering (above the status bar)
     fSuccess = GetClientRect (m_hwnd, &rcClient);
     CWRA (fSuccess);
 
+    fSuccess = RegisterRenderSurfaceClass (m_hInstance);
+    CWRA (fSuccess);
+
     m_renderHwnd = CreateWindowExW (0,
-                                    L"Static",
+                                    L"CassoRenderSurface",
                                     nullptr,
-                                    WS_CHILD | WS_VISIBLE,
+                                    WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
                                     0, 0,
-                                    rcClient.right, rcClient.bottom - sbHeight,
+                                    rcClient.right, rcClient.bottom,
                                     m_hwnd,
                                     nullptr,
                                     m_hInstance,
@@ -477,7 +1111,7 @@ void EmulatorShell::CreateStatusBar()
     CWRA (m_renderHwnd);
 
 Error:
-    return;
+    return hr;
 }
 
 
@@ -486,524 +1120,142 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UpdateStatusBar
+//  s_RenderSurfaceWndProc
+//
+//  Window proc for the custom render surface child window class. Suppresses
+//  background erase and paint paths at the class level to prevent white
+//  flash during resize. Chains all other messages to DefWindowProc to
+//  preserve normal child window behavior and parent message routing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::UpdateStatusBar()
+LRESULT CALLBACK EmulatorShell::s_RenderSurfaceWndProc (
+    HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    static constexpr int  s_kLeftPartCount        = 4;
-    static constexpr int  s_kPadding              = 24;
-    static constexpr int  s_kDriveIndicatorWidth  = 90;
-    static constexpr int  s_kMaxDriveCount        = 2;
-    static constexpr int  s_kMaxPartCount         = s_kLeftPartCount + s_kMaxDriveCount;
+    HWND        parent = nullptr;
+    PAINTSTRUCT ps     = {};
 
-    HRESULT hr                          = S_OK;
-    BOOL    fSuccess                    = FALSE;
-    HDC     hdc                         = NULL;
-    HFONT   sbFont                      = NULL;
-    HFONT   oldFont                     = nullptr;
-    SIZE    size                        = { };
-    int     parts[s_kMaxPartCount]      = { };
-    int     edge                        = 0;
-    int     driveCount                  = 0;
-    int     totalParts                  = 0;
-    int     statusBarWidth              = 0;
-    int     driveTotalWidth             = 0;
-    RECT    sbClientRect                = { };
 
-    wstring statusBarItem[s_kLeftPartCount] =
+
+    switch (uMsg)
     {
-        format (L"CPU: {}",           fs::path (m_config.cpu).wstring()),
-        format (L"Clock: {:.3f} MHz", m_config.clockSpeed / 1000000.0),
-        format (L"Machine: {}",       fs::path (m_config.name).wstring()),
-        format (L"{} devices",        (m_config.internalDevices.size() + m_config.slots.size())),
-    };
+        case WM_ERASEBKGND:
+            return 1;
 
+        case WM_PAINT:
+            BeginPaint (hwnd, &ps);
+            EndPaint (hwnd, &ps);
+            return 0;
 
+        case WM_PRINTCLIENT:
+            return 0;
 
-    if (m_refs.diskController != nullptr)
-    {
-        driveCount = DiskIIController::kDriveCount;
-    }
-
-    totalParts                 = s_kLeftPartCount + driveCount;
-    driveTotalWidth            = driveCount * s_kDriveIndicatorWidth;
-    m_statusBarDriveCount      = driveCount;
-    m_statusBarFirstDrivePart  = s_kLeftPartCount;
-
-    hdc = GetDC (m_statusBar);
-    CPRA (hdc);
-
-    sbFont = reinterpret_cast<HFONT> (SendMessage (m_statusBar, WM_GETFONT, 0, 0));
-    if (sbFont != NULL)
-    {
-        oldFont = static_cast<HFONT> (SelectObject (hdc, sbFont));
-    }
-
-    fSuccess = GetClientRect (m_statusBar, &sbClientRect);
-    CWRA (fSuccess);
-    statusBarWidth = sbClientRect.right - sbClientRect.left;
-
-    // Left-aligned parts: width measured from text + padding.
-    for (int i = 0; i < s_kLeftPartCount - 1; i++)
-    {
-        fSuccess = GetTextExtentPoint32W (hdc,
-                                          statusBarItem[i].c_str(),
-                                          static_cast<int> (statusBarItem[i].size()),
-                                          &size);
-        CWRA (fSuccess);
-
-        edge    += size.cx + s_kPadding;
-        parts[i] = edge;
-    }
-
-    // The "N devices" part fills the gap between the left items and the
-    // right-aligned drive indicators (or to the right edge when no
-    // controller is present).
-    if (driveCount == 0)
-    {
-        parts[s_kLeftPartCount - 1] = -1;
-    }
-    else
-    {
-        parts[s_kLeftPartCount - 1] = statusBarWidth - driveTotalWidth;
-
-        for (int d = 0; d < driveCount; d++)
-        {
-            int idx = s_kLeftPartCount + d;
-
-            if (d == driveCount - 1)
+        case WM_MOUSEMOVE:
+        case WM_LBUTTONDOWN:
+        case WM_LBUTTONUP:
+            parent = GetParent (hwnd);
+            if (parent != nullptr)
             {
-                parts[idx] = -1;
+                return SendMessage (parent, uMsg, wParam, lParam);
             }
-            else
+            return DefWindowProc (hwnd, uMsg, wParam, lParam);
+
+        // Keep resize cursors in sync with the parent NC hit-test math.
+        case WM_SETCURSOR:
+            parent = GetParent (hwnd);
+            if (parent != nullptr)
             {
-                parts[idx] = statusBarWidth - (driveCount - 1 - d) * s_kDriveIndicatorWidth;
-            }
-        }
-    }
-
-    SendMessage (m_statusBar, SB_SETPARTS, totalParts, reinterpret_cast<LPARAM> (parts));
-
-    for (int i = 0; i < s_kLeftPartCount; i++)
-    {
-        SendMessageW (m_statusBar,
-                      SB_SETTEXTW,
-                      i,
-                      reinterpret_cast<LPARAM> (statusBarItem[i].c_str()));
-    }
-
-    // Owner-draw drive indicators. The lParam carries the drive index so
-    // OnDrawItem can paint without having to re-derive it from the part
-    // index. SBT_OWNERDRAW + the part index in wParam tells the status bar
-    // to fire WM_DRAWITEM with itemData = our payload.
-    for (int d = 0; d < driveCount; d++)
-    {
-        int idx = s_kLeftPartCount + d;
-
-        SendMessage (m_statusBar,
-                     SB_SETTEXTW,
-                     static_cast<WPARAM> (idx) | SBT_OWNERDRAW,
-                     static_cast<LPARAM> (d));
-    }
+                POINT    pt     = {};
+                LRESULT  hit    = HTCLIENT;
+                LPCWSTR  cursor = IDC_ARROW;
 
 
 
-Error:
-    if (oldFont != nullptr)
-    {
-        SelectObject (hdc, oldFont);
-    }
+                if (GetCursorPos (&pt))
+                {
+                    hit = SendMessage (parent, WM_NCHITTEST, 0, MAKELPARAM (pt.x, pt.y));
 
-    ReleaseDC (m_statusBar, hdc);
+                    switch (hit)
+                    {
+                        case HTTOPLEFT:
+                        case HTBOTTOMRIGHT:
+                            cursor = IDC_SIZENWSE;
+                            break;
 
-    return;
-}
+                        case HTTOPRIGHT:
+                        case HTBOTTOMLEFT:
+                            cursor = IDC_SIZENESW;
+                            break;
 
+                        case HTTOP:
+                        case HTBOTTOM:
+                            cursor = IDC_SIZENS;
+                            break;
 
+                        case HTLEFT:
+                        case HTRIGHT:
+                            cursor = IDC_SIZEWE;
+                            break;
+                    }
+                }
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RefreshDriveStatus
-//
-//  Forces a repaint of just the owner-drawn drive-indicator parts on the
-//  status bar. Called from OnTimer so the LED reflects current motor +
-//  active-drive state without flickering the rest of the bar.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::RefreshDriveStatus()
-{
-    RECT      partRect = { };
-    LONG      result   = 0;
-    wchar_t   tooltip[MAX_PATH + 96] = { };
-    TOOLINFOW ti       = { };
-
-    if (m_statusBar == nullptr || m_statusBarDriveCount <= 0)
-    {
-        return;
-    }
-
-    for (int d = 0; d < m_statusBarDriveCount; d++)
-    {
-        int  partIndex = m_statusBarFirstDrivePart + d;
-
-        result = static_cast<LONG> (SendMessage (m_statusBar,
-                                                 SB_GETRECT,
-                                                 partIndex,
-                                                 reinterpret_cast<LPARAM> (&partRect)));
-
-        if (result != 0)
-        {
-            InvalidateRect (m_statusBar, &partRect, FALSE);
-        }
-
-        // Refresh the matching tooltip's rect + text. The tools were
-        // pre-registered in CreateStatusBar; here we just keep them in
-        // sync as the user mounts/ejects images and resizes the window.
-        if (m_driveTooltip != nullptr && result != 0)
-        {
-            const string & srcPath = m_diskStore.GetSourcePath (6, d);
-
-            if (srcPath.empty())
-            {
-                swprintf_s (tooltip, L"Drive %d: (empty)", d + 1);
-            }
-            else if (m_refs.diskController != nullptr)
-            {
-                auto &  engine = m_refs.diskController->GetEngine (d);
-                int     track  = engine.GetCurrentTrack();
-
-                swprintf_s (tooltip,
-                            L"Drive %d: %hs  [track %d  R:%llu  W:%llu]",
-                            d + 1, srcPath.c_str(),
-                            track,
-                            (unsigned long long) engine.GetReadNibbles(),
-                            (unsigned long long) engine.GetWriteNibbles());
-            }
-            else
-            {
-                swprintf_s (tooltip, L"Drive %d: %hs", d + 1, srcPath.c_str());
+                SetCursor (LoadCursorW (nullptr, cursor));
+                return TRUE;
             }
 
-            ti.cbSize   = sizeof (ti);
-            ti.hwnd     = m_statusBar;
-            ti.uId      = static_cast<UINT_PTR> (d);
-            ti.rect     = partRect;
-            ti.lpszText = tooltip;
+            SetCursor (LoadCursorW (nullptr, IDC_ARROW));
+            return TRUE;
 
-            SendMessage (m_driveTooltip, TTM_NEWTOOLRECT, 0,
-                         reinterpret_cast<LPARAM> (&ti));
-            SendMessage (m_driveTooltip, TTM_UPDATETIPTEXTW, 0,
-                         reinterpret_cast<LPARAM> (&ti));
-        }
+        // For NC regions returned by the parent hit-test, return HTTRANSPARENT
+        // so the parent receives the follow-up NC mouse messages.
+        case WM_NCHITTEST:
+            parent = GetParent (hwnd);
+            if (parent != nullptr)
+            {
+                LRESULT  hit = SendMessage (parent, uMsg, wParam, lParam);
+
+                if (hit != HTCLIENT && hit != HTNOWHERE)
+                {
+                    return HTTRANSPARENT;
+                }
+
+                return hit;
+            }
+            return DefWindowProc (hwnd, uMsg, wParam, lParam);
+
+        case WM_NCLBUTTONDOWN:
+        case WM_NCLBUTTONUP:
+        case WM_NCDESTROY:
+        case WM_NCMOUSEMOVE:
+            parent = GetParent (hwnd);
+            if (parent != nullptr)
+            {
+                return SendMessage (parent, uMsg, wParam, lParam);
+            }
+            return DefWindowProc (hwnd, uMsg, wParam, lParam);
+
+        default:
+            return DefWindowProc (hwnd, uMsg, wParam, lParam);
     }
 }
 
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  s_StatusBarSubclass
-//
-//  Window subclass for the status bar: forwards mouse messages to the
-//  drive tooltip control via TTM_RELAYEVENT so it can decide whether the
-//  cursor is inside a registered tool's rect and show/hide the popup.
-//  This is the canonical pattern for tooltips on owner-drawn parts that
-//  the parent control does not natively expose to TTF_SUBCLASS.
+//  OnMove
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT CALLBACK EmulatorShell::s_StatusBarSubclass (
-    HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
-    UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
+bool EmulatorShell::OnMove (HWND hwnd, int x, int y)
 {
-    UNREFERENCED_PARAMETER (uIdSubclass);
+    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (x);
+    UNREFERENCED_PARAMETER (y);
 
-    EmulatorShell * self = reinterpret_cast<EmulatorShell *> (dwRefData);
-
-    if (self != nullptr && self->m_driveTooltip != nullptr)
-    {
-        switch (uMsg)
-        {
-            case WM_MOUSEMOVE:
-            case WM_LBUTTONDOWN:
-            case WM_LBUTTONUP:
-            case WM_RBUTTONDOWN:
-            case WM_RBUTTONUP:
-            case WM_MBUTTONDOWN:
-            case WM_MBUTTONUP:
-            {
-                MSG msg = { };
-                msg.hwnd    = hwnd;
-                msg.message = uMsg;
-                msg.wParam  = wParam;
-                msg.lParam  = lParam;
-                SendMessage (self->m_driveTooltip, TTM_RELAYEVENT, 0,
-                             reinterpret_cast<LPARAM> (&msg));
-                break;
-            }
-            default:
-                break;
-        }
-    }
-
-    return DefSubclassProc (hwnd, uMsg, wParam, lParam);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DrawDriveStatusItem
-//
-//  Paints one drive indicator: "Drive N: " followed by a filled circle
-//  that's red when the controller's motor is on AND that drive is the
-//  selected one, grey otherwise. Honors the system-default 3D face
-//  background and window text color so the indicator blends with the rest
-//  of the status bar.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::DrawDriveStatusItem (DRAWITEMSTRUCT * pdis, int driveIndex)
-{
-    static constexpr int  s_kDotRadius     = 5;
-    static constexpr int  s_kLeftMargin    = 6;
-    static constexpr int  s_kRightMargin   = 22;
-    static constexpr int  s_kLabelDotGap   = 10;
-
-    wchar_t   label[16]    = { };
-    HBRUSH    bgBrush      = nullptr;
-    HBRUSH    dotBrush     = nullptr;
-    HPEN      dotPen       = nullptr;
-    HBRUSH    oldBrush     = nullptr;
-    HPEN      oldPen       = nullptr;
-    SIZE      labelSize    = { };
-    RECT      labelRect    = { };
-    int       dotCx        = 0;
-    int       dotCy        = 0;
-    bool      active       = false;
-    COLORREF  dotColor     = 0;
-
-    if (pdis == nullptr)
-    {
-        return;
-    }
-
-    swprintf_s (label, L"Drive %d:", driveIndex + 1);
-
-    bgBrush = GetSysColorBrush (COLOR_3DFACE);
-    FillRect (pdis->hDC, &pdis->rcItem, bgBrush);
-
-    SetBkMode    (pdis->hDC, TRANSPARENT);
-    SetTextColor (pdis->hDC, GetSysColor (COLOR_WINDOWTEXT));
-
-    labelRect       = pdis->rcItem;
-    labelRect.left += s_kLeftMargin;
-
-    DrawTextW (pdis->hDC, label, -1, &labelRect,
-               DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-
-    GetTextExtentPoint32W (pdis->hDC, label,
-                           static_cast<int> (wcslen (label)),
-                           &labelSize);
-
-    active = m_refs.diskController != nullptr
-          && m_refs.diskController->IsMotorOn()
-          && m_refs.diskController->GetActiveDrive() == driveIndex
-          && m_refs.diskController->GetDisk (driveIndex) != nullptr
-          && m_refs.diskController->GetDisk (driveIndex)->IsLoaded();
-
-    dotColor = active ? RGB (220, 32, 32) : RGB (128, 128, 128);
-
-    dotCx = labelRect.left + labelSize.cx + s_kLabelDotGap + s_kDotRadius;
-    dotCy = (pdis->rcItem.top + pdis->rcItem.bottom) / 2;
-
-    // Only the rightmost drive part shares pixels with the SBARS_SIZEGRIP
-    // corner — clamp its dot position so the ellipse stays inside the
-    // visible area. Other drive parts paint where the gap calculation
-    // says, which keeps the colon-to-dot spacing consistent across drives.
-    if (driveIndex == m_statusBarDriveCount - 1)
-    {
-        if (dotCx + s_kDotRadius > pdis->rcItem.right - s_kRightMargin)
-        {
-            dotCx = pdis->rcItem.right - s_kRightMargin - s_kDotRadius;
-        }
-    }
-
-    dotBrush = CreateSolidBrush (dotColor);
-    dotPen   = CreatePen        (PS_SOLID, 1, dotColor);
-
-    if (dotBrush != nullptr && dotPen != nullptr)
-    {
-        oldBrush = static_cast<HBRUSH> (SelectObject (pdis->hDC, dotBrush));
-        oldPen   = static_cast<HPEN>   (SelectObject (pdis->hDC, dotPen));
-
-        Ellipse (pdis->hDC,
-                 dotCx - s_kDotRadius, dotCy - s_kDotRadius,
-                 dotCx + s_kDotRadius, dotCy + s_kDotRadius);
-
-        if (oldBrush != nullptr) SelectObject (pdis->hDC, oldBrush);
-        if (oldPen   != nullptr) SelectObject (pdis->hDC, oldPen);
-    }
-
-    if (dotBrush != nullptr) DeleteObject (dotBrush);
-    if (dotPen   != nullptr) DeleteObject (dotPen);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShowDevicePopup
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ShowDevicePopup()
-{
-    HRESULT hr       = S_OK;
-    BOOL    fSuccess = FALSE;
-    HMENU   hMenu    = nullptr;
-    POINT   pt       = {};
-    UINT    itemId   = 1;
-    wstring label;
-
-
-
-    hMenu = CreatePopupMenu();
-    CPRA (hMenu);
-
-    // RAM regions (skip aux-bank entries -- shown via aux-ram-card device)
-    for (const auto & region : m_config.ram)
-    {
-        if (!region.bank.empty())
-        {
-            continue;
-        }
-
-        Word ramEnd = static_cast<Word> (region.address + region.size - 1);
-        label = format (L"${:04X}-${:04X}  Ram", region.address, ramEnd);
-        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
-        CWRA (fSuccess);
-    }
-
-    // System ROM
-    {
-        Word romEnd  = static_cast<Word> (m_config.systemRom.address + m_config.systemRom.fileSize - 1);
-        wstring file = fs::path (m_config.systemRom.file).wstring();
-        label = format (L"${:04X}-${:04X}  Rom ({})", m_config.systemRom.address, romEnd, file);
-        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
-        CWRA (fSuccess);
-    }
-
-    // Slot ROMs
-    for (const auto & slot : m_config.slots)
-    {
-        if (slot.rom.empty())
-        {
-            continue;
-        }
-
-        Word    romStart = static_cast<Word> (0xC000 + slot.slot * 0x100);
-        Word    romEnd   = static_cast<Word> (romStart + slot.romSize - 1);
-        wstring file     = fs::path (slot.rom).wstring();
-        label = format (L"${:04X}-${:04X}  Slot {} Rom ({})", romStart, romEnd, slot.slot, file);
-        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
-        CWRA (fSuccess);
-    }
-
-    fSuccess = AppendMenuW (hMenu, MF_SEPARATOR, 0, nullptr);
-    CWRA (fSuccess);
-
-    // Internal devices
-    for (const auto & idev : m_config.internalDevices)
-    {
-        wstring name  = fs::path (idev.type).wstring();
-        bool    found = false;
-
-        for (const auto & dev : m_ownedDevices)
-        {
-            Word devStart = dev->GetStart();
-            Word devEnd   = dev->GetEnd();
-            bool match    = false;
-
-            if ((idev.type == "apple2-keyboard" || idev.type == "apple2e-keyboard") &&
-                m_refs.keyboard != nullptr && dev.get() == static_cast<MemoryDevice *> (m_refs.keyboard))
-            {
-                match = true;
-            }
-            else if (idev.type == "apple2-speaker" &&
-                     m_refs.speaker != nullptr && dev.get() == static_cast<MemoryDevice *> (m_refs.speaker))
-            {
-                match = true;
-            }
-            else if ((idev.type == "apple2-softswitches" || idev.type == "apple2e-softswitches") &&
-                     m_refs.softSwitches != nullptr && dev.get() == static_cast<MemoryDevice *> (m_refs.softSwitches))
-            {
-                match = true;
-            }
-            else if (idev.type == "aux-ram-card" && devStart == 0xC003 && devEnd == 0xC006)
-            {
-                match = true;
-            }
-            else if (idev.type == "language-card" && devStart == 0xC080 && devEnd == 0xC08F)
-            {
-                match = true;
-            }
-
-            if (match)
-            {
-                label = format (L"${:04X}-${:04X}  {}", devStart, devEnd, name);
-                found = true;
-                break;
-            }
-        }
-
-        if (!found)
-        {
-            label = name;
-        }
-
-        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
-        CWRA (fSuccess);
-    }
-
-    // Slot devices
-    for (const auto & slot : m_config.slots)
-    {
-        if (slot.device.empty())
-        {
-            continue;
-        }
-
-        wstring name = fs::path (slot.device).wstring();
-        Word    ioStart = static_cast<Word> (0xC080 + slot.slot * 16);
-        Word    ioEnd   = static_cast<Word> (ioStart + 15);
-        label = format (L"${:04X}-${:04X}  Slot {} ({})", ioStart, ioEnd, slot.slot, name);
-        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
-        CWRA (fSuccess);
-    }
-
-    fSuccess = GetCursorPos (&pt);
-    CWRA (fSuccess);
-
-    TrackPopupMenu (hMenu, TPM_LEFTALIGN | TPM_BOTTOMALIGN,
-                    pt.x, pt.y, 0, m_hwnd, nullptr);
-
-Error:
-    if (hMenu != nullptr)
-    {
-        DestroyMenu (hMenu);
-    }
+    m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
+    return false;
 }
 
 
@@ -1018,30 +1270,9 @@ Error:
 
 bool EmulatorShell::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
-    NMHDR   * pnmh = reinterpret_cast<NMHDR *> (lParam);
-    NMMOUSE * pnmm = nullptr;
-
     UNREFERENCED_PARAMETER (hwnd);
     UNREFERENCED_PARAMETER (wParam);
-
-
-
-    if (pnmh->hwndFrom == m_statusBar && pnmh->code == NM_CLICK)
-    {
-        pnmm = reinterpret_cast<NMMOUSE *> (lParam);
-
-        if (pnmm->dwItemSpec == 2)
-        {
-            ShowMachinePicker();
-            return false;
-        }
-
-        if (pnmm->dwItemSpec == 3)
-        {
-            ShowDevicePopup();
-            return false;
-        }
-    }
+    UNREFERENCED_PARAMETER (lParam);
 
     return true;
 }
@@ -1049,328 +1280,19 @@ bool EmulatorShell::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CreateMemoryDevices
+//  Mount  (IDriveCommandSink)
+//
+//  IDriveCommandSink override delegates straight through to the
+//  DiskManager so the chrome / drag-drop entry points and the manager
+//  share a single mount path.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
+HRESULT EmulatorShell::Mount (int slot, int drive, const std::wstring & path)
 {
-    HRESULT  hr      = S_OK;
-    bool     romOk   = false;
-
-    wstring  wideError;
-    string   error;
-
-
-
-    // Load character generator ROM (used by video renderers, not on bus)
-    if (!config.characterRom.resolvedPath.empty())
-    {
-        HRESULT hrChar = m_charRom.LoadFromFile (config.characterRom.resolvedPath);
-
-        if (FAILED (hrChar))
-        {
-            DEBUGMSG (L"Failed to load character ROM '%hs', using fallback\n",
-                      config.characterRom.resolvedPath.c_str());
-            m_charRom.LoadEmbeddedFallback();
-        }
-    }
-    else
-    {
-        m_charRom.LoadEmbeddedFallback();
-    }
-
-    // RAM regions. Skip aux-bank entries: the AppleIIeMmu owns the
-    // auxiliary 64 KiB internally. Track the main RAM RamDevice for
-    // MMU page-table wiring.
-    for (const auto & region : config.ram)
-    {
-        if (!region.bank.empty())
-        {
-            continue;
-        }
-
-        Word start = region.address;
-        Word end   = static_cast<Word> (region.address + region.size - 1);
-
-        auto device = make_unique<RamDevice> (start, end);
-
-        if (m_refs.mainRamDev == nullptr)
-        {
-            m_refs.mainRamDev = device.get();
-        }
-
-        m_memoryBus.AddDevice (device.get());
-        m_ownedDevices.push_back (move (device));
-    }
-
-    // System ROM (single, file size determines end address)
-    {
-        Word romStart = config.systemRom.address;
-        Word romEnd   = static_cast<Word> (config.systemRom.address + config.systemRom.fileSize - 1);
-
-        auto device = RomDevice::CreateFromFile (romStart,
-                                                 romEnd,
-                                                 config.systemRom.resolvedPath,
-                                                 error);
-
-        romOk = (device != nullptr);
-
-        if (!romOk)
-        {
-            wideError.assign (error.begin(), error.end());
-            CBRN (false, wideError.c_str());
-        }
-
-        m_memoryBus.AddDevice (device.get());
-        m_ownedDevices.push_back (move (device));
-    }
-
-    // Internal motherboard devices
-    for (const auto & idev : config.internalDevices)
-    {
-        DeviceConfig devCfg;
-        devCfg.type = idev.type;
-
-        // The //e MMU is a coordinator object, not a bus device — it owns
-        // the auxiliary 64 KiB and rebinds the page table on every
-        // banking-changed event. Instantiate it directly here; full wiring
-        // (siblings, Initialize) happens after the device pass.
-        if (devCfg.type == "apple2e-mmu")
-        {
-            m_mmu = make_unique<AppleIIeMmu>();
-            continue;
-        }
-
-        auto device = m_registry.Create (devCfg.type, devCfg, m_memoryBus);
-
-        if (!device)
-        {
-            DEBUGMSG (L"Warning: Unknown device type '%hs'\n", devCfg.type.c_str());
-            continue;
-        }
-
-        // Track specific device pointers for quick access
-        if (devCfg.type == "apple2-keyboard" ||
-            devCfg.type == "apple2e-keyboard")
-        {
-            m_refs.keyboard = static_cast<AppleKeyboard *> (device.get());
-        }
-        else if (devCfg.type == "apple2-softswitches" ||
-                 devCfg.type == "apple2e-softswitches")
-        {
-            m_refs.softSwitches = static_cast<AppleSoftSwitchBank *> (device.get());
-        }
-        else if (devCfg.type == "apple2-speaker")
-        {
-            m_refs.speaker = static_cast<AppleSpeaker *> (device.get());
-        }
-
-        m_memoryBus.AddDevice (device.get());
-        m_ownedDevices.push_back (move (device));
-    }
-
-    // Wire IIe keyboard <-> softswitch sibling so $C00C-$C00F reaches the
-    // softswitch (the keyboard's range $C000-$C063 would otherwise eat it).
-    {
-        auto * iieKbd = dynamic_cast<AppleIIeKeyboard *>     (m_refs.keyboard);
-        auto * iieSw  = dynamic_cast<AppleIIeSoftSwitchBank *> (m_refs.softSwitches);
-
-        if (iieKbd != nullptr && iieSw != nullptr)
-        {
-            iieKbd->SetSoftSwitchSibling (iieSw);
-            iieSw->SetKeyboard           (iieKbd);
-        }
-
-        if (iieKbd != nullptr && m_refs.speaker != nullptr)
-        {
-            iieKbd->SetSpeakerSibling (m_refs.speaker);
-        }
-
-        if (iieKbd != nullptr && m_mmu != nullptr)
-        {
-            iieKbd->SetMmu (m_mmu.get());
-        }
-
-        if (iieKbd != nullptr && m_videoTiming != nullptr)
-        {
-            iieKbd->SetVideoTiming (m_videoTiming.get());
-        }
-
-        if (iieSw != nullptr && m_videoTiming != nullptr)
-        {
-            iieSw->SetVideoTiming (m_videoTiming.get());
-        }
-
-        if (iieSw != nullptr && m_mmu != nullptr)
-        {
-            iieSw->SetMmu (m_mmu.get());
-        }
-    }
-
-    // Initialize the //e MMU once main RAM exists. The MMU rebinds the
-    // page table for $0000-$BFFF based on RAMRD/RAMWRT/ALTZP/80STORE.
-    if (m_mmu != nullptr && m_refs.mainRamDev != nullptr)
-    {
-        auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_refs.softSwitches);
-
-        HRESULT hrMmu = m_mmu->Initialize (
-            &m_memoryBus,
-            m_refs.mainRamDev,
-            nullptr,
-            nullptr,
-            nullptr,
-            iieSw);
-
-        if (FAILED (hrMmu))
-        {
-            DEBUGMSG (L"AppleIIeMmu::Initialize failed (hr=0x%08x)\n", hrMmu);
-        }
-    }
-
-    // Slot devices and slot ROMs
-    for (const auto & slot : config.slots)
-    {
-        // Slot device (e.g., disk-ii)
-        if (!slot.device.empty())
-        {
-            DeviceConfig devCfg;
-            devCfg.type    = slot.device;
-            devCfg.slot    = slot.slot;
-            devCfg.hasSlot = true;
-
-            auto device = m_registry.Create (devCfg.type, devCfg, m_memoryBus);
-
-            if (!device)
-            {
-                DEBUGMSG (L"Warning: Unknown slot device type '%hs'\n", devCfg.type.c_str());
-            }
-            else
-            {
-                m_memoryBus.AddDevice (device.get());
-                m_ownedDevices.push_back (move (device));
-            }
-        }
-
-        // Slot ROM at $Cs00-$CsFF
-        if (!slot.rom.empty())
-        {
-            Word romStart = static_cast<Word> (0xC000 + slot.slot * 0x100);
-            Word romEnd   = static_cast<Word> (romStart + slot.romSize - 1);
-
-            auto device = RomDevice::CreateFromFile (romStart,
-                                                     romEnd,
-                                                     slot.resolvedRomPath,
-                                                     error);
-
-            if (device == nullptr)
-            {
-                wideError.assign (error.begin(), error.end());
-                CBRN (false, wideError.c_str());
-            }
-
-            // On //e the AppleIIeMmu owns the $C100-$CFFF router and
-            // dispatches between internal ROM and slot ROMs based on
-            // INTCXROM/SLOTC3ROM/INTC8ROM. On ][/][+, the slot ROM is
-            // bus-resident as before (no INTCXROM concept).
-            if (m_mmu != nullptr)
-            {
-                vector<Byte> bytes (slot.romSize);
-
-                for (size_t i = 0; i < slot.romSize; i++)
-                {
-                    bytes[i] = device->Read (static_cast<Word> (romStart + i));
-                }
-
-                m_mmu->AttachSlotRom (slot.slot, move (bytes));
-            }
-            else
-            {
-                m_memoryBus.AddDevice (device.get());
-            }
-
-            m_ownedDevices.push_back (move (device));
-        }
-    }
-
-    // Cache DiskIIController pointer for the status-bar drive activity
-    // indicator. We pick the first one we find (typically slot 6).
-    m_refs.diskController = nullptr;
-    for (auto & dev : m_ownedDevices)
-    {
-        DiskIIController *  dc = dynamic_cast<DiskIIController *> (dev.get());
-
-        if (dc != nullptr)
-        {
-            m_refs.diskController = dc;
-            break;
-        }
-    }
-
-    // Drive-audio wiring (spec 005-disk-ii-audio FR-008 / FR-012 /
-    // FR-015 / FR-016). Allocate one DiskIIAudioSource per drive on
-    // the discovered controller (if any), register each with the
-    // mixer, and route the controller's audio-sink events into
-    // drive 0's source (single sink covers both drives; the head /
-    // motor events themselves are not currently drive-tagged in
-    // DiskIIController -- a follow-up could split per-drive sinks).
-    //
-    // Pan policy: single-drive profiles play centered (equal-power
-    // center). Two-drive profiles place Drive 1 left-of-center and
-    // Drive 2 right-of-center using kDrivePanOffset radians.
-    m_diskAudioSources.clear();
-    m_driveAudioMixer.UnregisterAllSources();
-
-    if (m_refs.diskController != nullptr)
-    {
-        int  driveCount = DiskIIController::kDriveCount;
-        int  drive      = 0;
-
-        for (drive = 0; drive < driveCount; drive++)
-        {
-            auto  src = make_unique<DiskIIAudioSource>();
-
-            if (driveCount <= 1)
-            {
-                src->SetPan (DriveAudioMixer::kSpeakerCenter,
-                             DriveAudioMixer::kSpeakerCenter);
-            }
-            else if (drive == 0)
-            {
-                // Drive 1 (UI numbering; index 0): left bias.
-                // theta measured from the right speaker per FR-012,
-                // so panL = sin(theta), panR = cos(theta). At
-                // theta = pi/4 + pi/8 = 3*pi/8 this is roughly
-                // 0.924 L / 0.383 R -- halfway between the left
-                // speaker and center.
-                float  theta = DriveAudioMixer::kCenterAngle + DriveAudioMixer::kDrivePanOffset;
-
-                src->SetPan (sinf (theta), cosf (theta));
-            }
-            else
-            {
-                // Drive 2 (UI numbering; index 1): mirror, right bias.
-                float  theta = DriveAudioMixer::kCenterAngle - DriveAudioMixer::kDrivePanOffset;
-
-                src->SetPan (sinf (theta), cosf (theta));
-            }
-
-            m_driveAudioMixer.RegisterSource (src.get());
-            src->SetDriveIndex (drive);
-            m_diskAudioSources.push_back (std::move (src));
-        }
-
-        if (!m_diskAudioSources.empty())
-        {
-            m_refs.diskController->SetAudioSink (m_diskAudioSources[0].get());
-        }
-    }
-
-Error:
-    return hr;
+    return m_diskManager->Mount (slot, drive, path);
 }
 
 
@@ -1379,629 +1301,13 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WireLanguageCard
+//  Eject  (IDriveCommandSink)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::WireLanguageCard()
+void EmulatorShell::Eject (int slot, int drive)
 {
-    LanguageCard * lc        = nullptr;
-    RomDevice    * romDevice = nullptr;
-
-
-
-    // Find the LanguageCard device
-    for (auto & dev : m_ownedDevices)
-    {
-        lc = dynamic_cast<LanguageCard *> (dev.get());
-
-        if (lc != nullptr)
-        {
-            break;
-        }
-    }
-
-    if (lc == nullptr)
-    {
-        return;
-    }
-
-    // Find a ROM device covering $D000–$FFFF
-    for (const auto & entry : m_memoryBus.GetEntries())
-    {
-        auto * rom = dynamic_cast<RomDevice *> (entry.device);
-
-        if (rom != nullptr && entry.start <= 0xD000 && entry.end >= 0xFFFF)
-        {
-            romDevice = rom;
-            break;
-        }
-    }
-
-    if (romDevice == nullptr)
-    {
-        return;
-    }
-
-    Word romStart = romDevice->GetStart();
-
-    // Copy $D000–$FFFF ROM data to language card
-    vector<Byte> lcRomData (0x3000);
-
-    for (size_t i = 0; i < 0x3000; i++)
-    {
-        lcRomData[i] = romDevice->Read (static_cast<Word> (0xD000 + i));
-    }
-
-    lc->SetRomData (lcRomData);
-    m_memoryBus.RemoveDevice (romDevice);
-
-    // Re-add slot ROM ($C100-$CFFF) if original extended below $D000.
-    // $C000-$C0FF is I/O space and must not be shadowed by ROM.
-    if (romStart < 0xD000)
-    {
-        Word   slotRomStart = static_cast<Word> (max (static_cast<int> (romStart), 0xC100));
-        size_t dataOffset   = slotRomStart - romStart;
-        size_t lowerSize    = 0xD000 - slotRomStart;
-
-        UNREFERENCED_PARAMETER (dataOffset);
-
-        vector<Byte> lowerData (lowerSize);
-
-        for (size_t i = 0; i < lowerSize; i++)
-        {
-            lowerData[i] = romDevice->Read (static_cast<Word> (slotRomStart + i));
-        }
-
-        // On //e: hand to the MMU's CxxxRomRouter (audit C8 carryover).
-        // On ][/][+: keep the legacy bus-resident ROM device.
-        if (m_mmu != nullptr)
-        {
-            m_mmu->AttachInternalCxxxRom (move (lowerData));
-        }
-        else
-        {
-            auto lowerRom = RomDevice::CreateFromData (
-                slotRomStart, static_cast<Word> (0xCFFF),
-                lowerData.data(), lowerData.size());
-
-            m_memoryBus.AddDevice (lowerRom.get());
-            m_ownedDevices.push_back (move (lowerRom));
-        }
-    }
-
-    // Bank device intercepts $D000–$FFFF, routing to LC RAM or ROM
-    auto lcBank = make_unique<LanguageCardBank> (*lc);
-    m_memoryBus.AddDevice (lcBank.get());
-    m_ownedDevices.push_back (move (lcBank));
-
-    // //e wiring: LC needs the MMU (for ALTZP routing) and the keyboard
-    // sibling needs the LC pointer for $C011/$C012 status reads.
-    if (m_mmu != nullptr)
-    {
-        lc->SetMmu (m_mmu.get());
-    }
-
-    auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_refs.keyboard);
-
-    if (iieKbd != nullptr)
-    {
-        iieKbd->SetLanguageCard (lc);
-    }
-
-    auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_refs.softSwitches);
-
-    if (iieSw != nullptr)
-    {
-        iieSw->SetLanguageCard (lc);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WirePageTable
-//
-//  Sets up the MemoryBus page table to point each $0000-$BFFF page at the
-//  CPU's main RAM buffer (memory[]). This is the baseline mapping; the IIe
-//  may later swap pages to aux RAM via 80STORE/PAGE2 banking.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::WirePageTable()
-{
-    if (!m_cpu)
-    {
-        return;
-    }
-
-    Byte * mainRam = const_cast<Byte *> (m_cpu->GetMemory());
-
-    // Map all RAM pages ($0000-$BFFF) to main memory
-    for (int page = 0x00; page < 0xC0; page++)
-    {
-        Byte * pagePtr = mainRam + (page * 0x100);
-        m_memoryBus.SetReadPage  (page, pagePtr);
-        m_memoryBus.SetWritePage (page, pagePtr);
-    }
-
-    // Register banking-change callback so soft switches can trigger remapping
-    m_memoryBus.SetBankingChangedCallback ([this]()
-    {
-        RebuildBankingPages();
-    });
-
-    // Initial state
-    RebuildBankingPages();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetAuxRamBuffer
-//
-//  Returns the //e auxiliary 64 KiB buffer (owned by AppleIIeMmu) or
-//  nullptr when no MMU is wired (Apple ][ / ][+).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte * EmulatorShell::GetAuxRamBuffer()
-{
-    return m_mmu != nullptr ? m_mmu->GetAuxBuffer() : nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RebuildBankingPages
-//
-//  When the //e MMU is present, it owns all $0000-$BFFF page-table
-//  routing (RAMRD/RAMWRT/ALTZP/80STORE+PAGE2/HIRES) and is invoked
-//  directly by the soft-switch bank on every banking-changed event.
-//  This shim only handles the legacy fallback where no MMU exists
-//  (][/][+) — those machines never set 80STORE so all pages stay
-//  bound to main RAM.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::RebuildBankingPages()
-{
-    if (!m_cpu)
-    {
-        return;
-    }
-
-    if (m_mmu != nullptr)
-    {
-        return;
-    }
-
-    Byte * mainRam = const_cast<Byte *> (m_cpu->GetMemory());
-
-    for (int page = 0x04; page <= 0x07; page++)
-    {
-        Byte * p = mainRam + (page * 0x100);
-        m_memoryBus.SetReadPage  (page, p);
-        m_memoryBus.SetWritePage (page, p);
-    }
-    for (int page = 0x20; page <= 0x3F; page++)
-    {
-        Byte * p = mainRam + (page * 0x100);
-        m_memoryBus.SetReadPage  (page, p);
-        m_memoryBus.SetWritePage (page, p);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MountCommandLineDisks
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::MountCommandLineDisks (
-    const string & disk1Path,
-    const string & disk2Path)
-{
-    HRESULT  hr = S_OK;
-    string   resolvedDisk1 = disk1Path;
-    string   resolvedDisk2 = disk2Path;
-
-    // Per-machine remembered disks. Command-line wins; otherwise fall
-    // back to whatever this machine had mounted last session, so the
-    // user doesn't have to re-pick the .dsk every launch (and so the
-    // test harness can flip-test the same image without re-clicking
-    // the file dialog).
-    if (resolvedDisk1.empty() && !m_currentMachineName.empty())
-    {
-        wstring  saved;
-        HRESULT  hrRead = DiskSettings::ReadSavedDiskPath (0, m_currentMachineName, saved);
-
-        if (hrRead == S_OK && !saved.empty())
-        {
-            resolvedDisk1 = fs::path (saved).string();
-        }
-    }
-
-    if (resolvedDisk2.empty() && !m_currentMachineName.empty())
-    {
-        wstring  saved;
-        HRESULT  hrRead = DiskSettings::ReadSavedDiskPath (1, m_currentMachineName, saved);
-
-        if (hrRead == S_OK && !saved.empty())
-        {
-            resolvedDisk2 = fs::path (saved).string();
-        }
-    }
-
-    if (resolvedDisk1.empty() && resolvedDisk2.empty())
-    {
-        return;
-    }
-
-    if (!resolvedDisk1.empty())
-    {
-        hr = MountDiskInSlot6 (0, resolvedDisk1);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-
-    if (!resolvedDisk2.empty())
-    {
-        hr = MountDiskInSlot6 (1, resolvedDisk2);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FindSlot6Controller
-//
-//  Phase 11 / T097. Scans the owned-device list for the Disk II
-//  controller. Returns nullptr if none is wired (e.g., a machine config
-//  without a disk slot).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DiskIIController * EmulatorShell::FindSlot6Controller()
-{
-    DiskIIController *  result = nullptr;
-
-    for (auto & dev : m_ownedDevices)
-    {
-        result = dynamic_cast<DiskIIController *> (dev.get());
-
-        if (result != nullptr)
-        {
-            break;
-        }
-    }
-
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MountDiskInSlot6
-//
-//  Phase 11 / T097 / FR-025. Routes the mount through the DiskImageStore
-//  so dirty writes auto-flush back to the host filesystem on Eject,
-//  SwitchMachine, PowerCycle, and Shutdown. The Disk II controller's
-//  nibble engine is then re-pointed at the store-owned DiskImage via
-//  SetExternalDisk so the controller drives the same image bytes the
-//  store will eventually serialize.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT EmulatorShell::MountDiskInSlot6 (int drive, const string & path)
-{
-    HRESULT              hr         = S_OK;
-    DiskIIController  *  controller = FindSlot6Controller();
-    DiskImage         *  external   = nullptr;
-
-    CBR (controller != nullptr);
-
-    hr = m_diskStore.Mount (6, drive, path);
-    CHR (hr);
-
-    external = m_diskStore.GetImage (6, drive);
-    controller->SetExternalDisk (drive, external);
-
-    // Spec-006 bug 14b. The store-based mount path bypasses the
-    // controller's own MountDisk method, so fire the IDiskIIEventSink
-    // hook explicitly here so the debug window sees the insert. Cold
-    // boot mounts still fire on the controller side (the debug window
-    // is rarely open at app launch and the user wants to see the
-    // mount that ran without their click); the cold-boot suppression
-    // below is audio-only (FR-013).
-    controller->NotifyDiskInserted (drive);
-
-    // Persist this drive's mount path so the next launch / next time
-    // this machine is selected auto-mounts the same disk. Don't pollute
-    // hr with the registry result -- a missing key is non-fatal.
-    if (!m_currentMachineName.empty())
-    {
-        wstring  wPath = fs::path (path).wstring();
-        HRESULT  hrReg = DiskSettings::WriteSavedDiskPath (drive, m_currentMachineName, wPath);
-        IGNORE_RETURN_VALUE (hrReg, S_OK);
-    }
-
-    // Drive-audio door-close (FR-013). Cold-boot mounts (command-line,
-    // last-session restoration, autoload) MUST be suppressed -- they
-    // happen before the user has interacted with the running //e and
-    // shouldn't audibly slam the drive door at app launch. Post-startup
-    // mounts (user-initiated mid-session) always fire.
-    if (!m_coldBootMountWindow &&
-        drive >= 0 &&
-        static_cast<size_t> (drive) < m_diskAudioSources.size() &&
-        m_diskAudioSources[drive] != nullptr)
-    {
-        m_diskAudioSources[drive]->OnDiskInserted();
-    }
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EjectDiskInSlot6
-//
-//  Phase 11 / T097 / FR-025. Auto-flushes dirty bits via the store and
-//  detaches the controller's external disk.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::EjectDiskInSlot6 (int drive)
-{
-    DiskIIController *  controller = FindSlot6Controller();
-
-    m_diskStore.Eject (6, drive);
-
-    if (controller != nullptr)
-    {
-        controller->SetExternalDisk (drive, nullptr);
-
-        // Spec-006 bug 14b. Mirror the insert path: fire the
-        // controller-level event sink so the debug window logs the
-        // eject. Fires AFTER the external disk is detached so any
-        // sink that inspects the controller sees the post-eject
-        // state.
-        controller->NotifyDiskEjected (drive);
-    }
-
-    // Clear the per-machine remembered path so the next launch comes up
-    // empty in this slot.
-    if (!m_currentMachineName.empty())
-    {
-        HRESULT  hrReg = DiskSettings::WriteSavedDiskPath (drive, m_currentMachineName, L"");
-        IGNORE_RETURN_VALUE (hrReg, S_OK);
-    }
-
-    // Drive-audio door-open (FR-014). Eject events always fire (no
-    // cold-boot eject case in practice -- the app launches with the
-    // drive bay closed).
-    if (drive >= 0 &&
-        static_cast<size_t> (drive) < m_diskAudioSources.size() &&
-        m_diskAudioSources[drive] != nullptr)
-    {
-        m_diskAudioSources[drive]->OnDiskEjected();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RemountSlot6Disks
-//
-//  Re-reads every currently mounted slot-6 disk image from the host
-//  filesystem so that an external regeneration of the .dsk file (e.g. a
-//  developer iterating on a demo image) is picked up by the next boot.
-//  Used by the Reset and Power Cycle menu commands; without this, the
-//  controller keeps serving the original byte buffer the disk was
-//  loaded with at mount time, and any external rewrite of the .dsk is
-//  invisible until the user manually ejects and re-inserts the image.
-//
-//  Snapshots paths first because the re-mount path goes through Eject
-//  + Mount internally, which transiently blanks the source-path slot.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::RemountSlot6Disks()
-{
-    string   savedDisk[DiskImageStore::kDriveCount];
-    HRESULT  hrMount = S_OK;
-    int      drive   = 0;
-
-    for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
-    {
-        savedDisk[drive] = m_diskStore.GetSourcePath (6, drive);
-    }
-
-    for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
-    {
-        if (!savedDisk[drive].empty())
-        {
-            hrMount = MountDiskInSlot6 (drive, savedDisk[drive]);
-            IGNORE_RETURN_VALUE (hrMount, S_OK);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CreateVideoModes
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::CreateVideoModes()
-{
-    auto textMode = make_unique<AppleTextMode> (m_memoryBus, m_charRom);
-    m_refs.activeVideoMode = textMode.get();
-    m_videoModes.push_back (move (textMode));
-
-    auto loResMode = make_unique<AppleLoResMode> (m_memoryBus);
-    m_videoModes.push_back (move (loResMode));
-
-    auto hiResMode = make_unique<AppleHiResMode> (m_memoryBus);
-    m_videoModes.push_back (move (hiResMode));
-
-    auto doubleHiResMode = make_unique<AppleDoubleHiResMode> (m_memoryBus);
-    m_videoModes.push_back (move (doubleHiResMode));
-
-    // Index 4: 80-column text (used on //e). Wired with aux memory from
-    // the AppleIIeMmu when present.
-    auto text80 = make_unique<Apple80ColTextMode> (m_memoryBus, m_charRom);
-
-    Byte * auxBuf = GetAuxRamBuffer();
-
-    if (auxBuf != nullptr)
-    {
-        text80->SetAuxMemory (auxBuf);
-
-        // DHR also needs aux memory access (FR-019). Index 3 = AppleDoubleHiResMode.
-        auto * dhr = static_cast<AppleDoubleHiResMode *> (m_videoModes[3].get());
-        dhr->SetAuxMemory (auxBuf);
-    }
-
-    m_videoModes.push_back (move (text80));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CreateCpu
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
-{
-    HRESULT  hr      = S_OK;
-    ifstream romFile;
-    Word     addr    = 0;
-    char     byte    = 0;
-
-
-
-    m_cpu = make_unique<EmuCpu> (m_memoryBus);
-
-    // Phase 5 / FR-033 / T056. Wire the //e video timing model into the
-    // EmuCpu cycle fan-out. Every AddCycles call now ticks VideoTiming
-    // so $C019 (RDVBLBAR) tracks the 17,030-cycle frame. Null-safe for
-    // tests/builds that haven't constructed a timing model.
-    if (m_videoTiming != nullptr)
-    {
-        m_cpu->SetVideoTiming (m_videoTiming.get());
-    }
-
-    // Wire the InterruptController to the CPU. Phase 1 wiring registers
-    // zero asserters today — the //e card slots (1/3/4/5/6) will allocate
-    // tokens here in later phases as their devices are added. The
-    // controller exists now so Apple ][ / ][+ / //e all share the same
-    // IRQ aggregation seam.
-    m_interruptController.SetCpu (m_cpu->GetCpu());
-
-    // The base Cpu class uses an internal memory[] array. Copy system ROM
-    // and slot ROMs into that array so PeekByte/disassembly can see them.
-    {
-        // System ROM
-        if (!config.systemRom.resolvedPath.empty())
-        {
-            romFile.open (config.systemRom.resolvedPath, ios::binary);
-
-            if (romFile.good())
-            {
-                addr = config.systemRom.address;
-
-                while (romFile.good() && addr < config.systemRom.address + config.systemRom.fileSize)
-                {
-                    romFile.read (&byte, 1);
-
-                    if (romFile.gcount() == 1)
-                    {
-                        m_cpu->PokeByte (addr, static_cast<Byte> (byte));
-                        addr++;
-                    }
-                }
-
-                romFile.close();
-            }
-        }
-
-        // Slot ROMs
-        for (const auto & slot : config.slots)
-        {
-            if (slot.rom.empty() || slot.resolvedRomPath.empty())
-            {
-                continue;
-            }
-
-            romFile.open (slot.resolvedRomPath, ios::binary);
-
-            if (!romFile.good())
-            {
-                continue;
-            }
-
-            addr = static_cast<Word> (0xC000 + slot.slot * 0x100);
-
-            while (romFile.good() && addr < 0xC000 + slot.slot * 0x100 + slot.romSize)
-            {
-                romFile.read (&byte, 1);
-
-                if (romFile.gcount() == 1)
-                {
-                    m_cpu->PokeByte (addr, static_cast<Byte> (byte));
-                    addr++;
-                }
-            }
-
-            romFile.close();
-        }
-    }
-
-    m_cpu->InitForEmulation();
-
-    // Connect speaker to CPU cycle counter for audio timestamps
-    if (m_refs.speaker != nullptr)
-    {
-        m_refs.speaker->SetCycleCounter (m_cpu->GetCycleCounterPtr());
-    }
-
-    return hr;
+    m_diskManager->Eject (slot, drive);
 }
 
 
@@ -2016,65 +1322,132 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
 
 void EmulatorShell::ShowMachinePicker()
 {
-    HRESULT           hr             = S_OK;
-    wstring           currentName    = fs::path (m_config.name).wstring();
-    wstring           selected       = MachinePickerDialog::Show (m_hwnd, currentName);
-    vector<fs::path>  searchPaths;
-    fs::path          romDir;
-    string            error;
-    bool              hasDisk        = false;
-    string            hasDiskErr;
-    HRESULT           hrHasDisk      = S_OK;
+    m_machineManager->ShowMachinePicker();
+}
 
 
 
-    if (selected.empty() || selected == currentName)
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ApplyAndPersistTheme
+//
+//  Activates the named theme via ThemeManager (which fires our chrome
+//  cache listener) and writes the new choice into GlobalUserPrefs so
+//  the next launch starts in the same theme. Activation failure on an
+//  unknown name falls back to Skeuomorphic rather than leaving the
+//  chrome in a stale state.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::ApplyAndPersistTheme (const std::string & themeName)
+{
+    HRESULT  hr           = S_OK;
+    HRESULT  hrActivate   = S_OK;
+    HRESULT  hrSave       = S_OK;
+    std::string  resolved = themeName;
+
+
+
+    if (themeName.empty() || m_themeManager == nullptr)
+    {
+        return S_FALSE;
+    }
+
+    hrActivate = m_themeManager->Activate (themeName);
+    if (hrActivate != S_OK)
+    {
+        resolved   = "Skeuomorphic";
+        hrActivate = m_themeManager->Activate (resolved);
+    }
+    CHR (hrActivate);
+
+    m_globalPrefs.activeTheme = resolved;
+    if (m_userConfigStore != nullptr)
+    {
+        hrSave = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
+    }
+    else
+    {
+        hrSave = m_globalPrefs.Save (m_assetBaseDir, m_uiFs);
+    }
+    IGNORE_RETURN_VALUE (hrSave, S_OK);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ApplyThemeToChrome
+//
+//  Push freshly-activated theme into the chrome regions whose layout
+//  depends on theme state. Currently that's the drive bar:
+//      * Compact themes shrink the bottom inset and switch the per-
+//        drive widget to the small flat card paint path.
+//      * Skeuomorphic restores the full 192dp inset and the
+//        Apple ][-style realistic widgets.
+//  When the bottom inset changes, the HWND is resized by the delta so
+//  the emulator pixel grid is preserved across the theme swap (i.e.
+//  the user's window grows or shrinks instead of the framebuffer
+//  pillarboxing). The actual painter re-layout happens inside OnResize
+//  via the existing WM_SIZE path.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyThemeToChrome (const ChromeTheme & theme)
+{
+    constexpr int  s_kFullDriveBarDp    = 192;
+    constexpr int  s_kCompactDriveBarDp = 64;
+
+    int   desiredThicknessDp = theme.compactDrives ? s_kCompactDriveBarDp : s_kFullDriveBarDp;
+    int   priorThicknessDp   = m_driveBarSlot.DesiredThicknessDp();
+    UINT  dpi                = (m_hwnd != nullptr) ? GetDpiForWindow (m_hwnd) : (UINT) ChromeMetrics::kBaseDpi;
+    RECT  rcClient           = {};
+    RECT  rcWindow           = {};
+
+
+
+    m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
+    m_driveChrome[0].SetCompact (theme.compactDrives);
+    m_driveChrome[1].SetCompact (theme.compactDrives);
+
+    if (m_hwnd == nullptr || desiredThicknessDp == priorThicknessDp)
     {
         return;
     }
 
-    // Bootstrap target-machine assets on the UI thread before posting
-    // the switch command. CheckAndFetchRoms shows a modal TaskDialog
-    // that requires STA + a same-thread parent HWND; SwitchMachine
-    // runs on the CPU thread (MULTITHREADED COM) via ProcessCommands,
-    // so doing this here keeps modal UI on the thread that owns the
-    // main window.
-    searchPaths = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
-                                                  PathResolver::GetWorkingDirectory());
-    romDir      = AssetBootstrap::GetAssetBaseDirectory (searchPaths,
-                                                         PathResolver::GetExecutableDirectory());
-
-    hr = AssetBootstrap::CheckAndFetchRoms (m_hInstance, selected, m_hwnd,
-                                            searchPaths, romDir, error);
-
-    if (hr == S_FALSE)
+    // Resize the window so the existing emulator pixel grid keeps its
+    // current size. The center rect equals the framebuffer-sized area
+    // bounded by the chrome insets; the new client size = (current
+    // center) + (new contributor totals).
+    if (!GetClientRect (m_hwnd, &rcClient) || !GetWindowRect (m_hwnd, &rcWindow))
     {
         return;
     }
 
-    if (FAILED (hr))
     {
-        wstring msg = format (L"ROM download failed:\n{}",
-                              wstring (error.begin(), error.end()));
-        MessageBoxW (m_hwnd, msg.c_str(), L"Casso Emulator", MB_OK | MB_ICONERROR);
-        return;
+        // Compute the current centerRect using the PRIOR drive bar
+        // thickness, then ask the layout for the new client size that
+        // hosts the same centerRect under the NEW thickness.
+        int                 oldBottomPx = ChromeLayout::ScaleForDpi (priorThicknessDp, dpi);
+        int                 newBottomPx = ChromeLayout::ScaleForDpi (desiredThicknessDp, dpi);
+        int                 deltaPx     = newBottomPx - oldBottomPx;
+        int                 ncOverheadW = (rcWindow.right  - rcWindow.left)  - (rcClient.right  - rcClient.left);
+        int                 ncOverheadH = (rcWindow.bottom - rcWindow.top)   - (rcClient.bottom - rcClient.top);
+        int                 newClientH  = (rcClient.bottom - rcClient.top) + deltaPx;
+        int                 newWindowW  = (rcWindow.right  - rcWindow.left);
+        int                 newWindowH  = newClientH + ncOverheadH;
+
+        UNREFERENCED_PARAMETER (ncOverheadW);
+        SetWindowPos (m_hwnd, nullptr, 0, 0, newWindowW, newWindowH,
+                      SWP_NOZORDER | SWP_NOMOVE | SWP_NOACTIVATE);
     }
-
-    // Disk II audio bootstrap is best-effort, same as Main.cpp.
-    hrHasDisk = AssetBootstrap::HasDiskController (m_hInstance, selected,
-                                                   hasDisk, hasDiskErr);
-    IGNORE_RETURN_VALUE (hrHasDisk, S_OK);
-
-    if (hasDisk)
-    {
-        fs::path  devicesDir   = romDir / L"Devices" / L"DiskII";
-        string    diskAudioErr;
-        HRESULT   hrDiskAudio  = AssetBootstrap::CheckAndFetchDiskAudio (
-            m_hInstance, selected, m_hwnd, devicesDir, diskAudioErr);
-        IGNORE_RETURN_VALUE (hrDiskAudio, S_OK);
-    }
-
-    PostCommand (IDM_FILE_OPEN, fs::path (selected).string());
 }
 
 
@@ -2087,176 +1460,36 @@ void EmulatorShell::ShowMachinePicker()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
+HRESULT EmulatorShell::SwitchMachine(const wstring & machineName)
 {
-    HRESULT             hr             = S_OK;
-    HRESULT             hrReg          = S_OK;
-    vector<fs::path>    searchPaths;
-    fs::path            configRelPath;
-    fs::path            configPath;
-    ifstream            configFile;
-    bool                configGood     = false;
-    stringstream        ss;
-    string              jsonText;
-    vector<fs::path>    romSearchPaths;
-    string              error;
-    MachineConfig       newConfig;
-    string              machineNameNarrow = fs::path (machineName).string();
+    return m_machineManager->SwitchMachine(machineName);
+}
 
 
 
-    // Find and load the new machine config. ROM/disk-audio asset
-    // bootstrap happens on the UI thread in ShowMachinePicker before
-    // the switch command is enqueued; by the time we're here, every
-    // asset the new machine needs is already on disk.
-    searchPaths   = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
-                                                     PathResolver::GetWorkingDirectory());
-    configRelPath = fs::path ("Machines") / machineNameNarrow
-                                          / (machineNameNarrow + ".json");
-    configPath    = PathResolver::FindFile (searchPaths, configRelPath);
 
-    CBRN (!configPath.empty(),
-          format (L"Machine config not found: {}", machineName).c_str());
 
-    configFile.open (configPath);
-    configGood = configFile.good();
-    CBRN (configGood,
-          format (L"Cannot open machine config:\n{}", configPath.wstring()).c_str());
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SetColorModeLive
+//
+////////////////////////////////////////////////////////////////////////////////
 
-    ss << configFile.rdbuf();
-    jsonText = ss.str();
+void EmulatorShell::SetColorModeLive (int settingsColorModeIndex)
+{
+    ColorMode  mode = ColorMode::Color;
 
-    romSearchPaths.push_back (configPath.parent_path().parent_path().parent_path());
 
-    for (const auto & p : searchPaths)
+    switch (settingsColorModeIndex)
     {
-        if (p != romSearchPaths[0])
-        {
-            romSearchPaths.push_back (p);
-        }
+        case 0:  mode = ColorMode::Color;     break;
+        case 1:  mode = ColorMode::GreenMono; break;
+        case 2:  mode = ColorMode::AmberMono; break;
+        case 3:  mode = ColorMode::WhiteMono; break;
+        default: return;
     }
 
-    hr = MachineConfigLoader::Load (jsonText,
-                                    machineNameNarrow,
-                                    romSearchPaths,
-                                    newConfig,
-                                    error);
-    CHRN (hr, format (L"Failed to load machine config:\n{}",
-                      wstring (error.begin(), error.end())).c_str());
-
-    // Phase 11 / T097 / FR-025. Auto-flush every dirty disk before
-    // tearing down the previous machine so user writes survive the
-    // machine switch.
-    {
-        HRESULT  hrFlush = m_diskStore.FlushAll();
-        IGNORE_RETURN_VALUE (hrFlush, S_OK);
-    }
-
-    // Tear down current machine. The Disk II debug dialog (if open)
-    // holds a raw pointer into the old CPU's cycle counter; revoke it
-    // before the CPU is reset so the dialog can't dereference dangling
-    // memory between here and CreateCpu below.
-    if (m_diskIIDebugDialog != nullptr)
-    {
-        m_diskIIDebugDialog->SetCycleCounter (nullptr);
-    }
-
-    // Tear down ALL per-machine state in one atomic move. m_refs is
-    // a struct of observer pointers into the owning collections
-    // (m_ownedDevices, m_videoModes); resetting it as a whole keeps
-    // the "every observer must be invalidated when its owner goes
-    // away" invariant from rotting as new observers are added. m_mmu
-    // is a unique_ptr that survives across switches and is only
-    // reassigned when the new config carries an apple2e-mmu device;
-    // it must be explicitly reset here or it'll keep its stale
-    // RamDevice pointer alive across a //e → ][ switch.
-    m_cpu.reset();
-    m_ownedDevices.clear();
-    m_videoModes.clear();
-    m_memoryBus = MemoryBus();
-    m_refs      = {};
-    m_mmu.reset();
-
-    // Initialize with new config
-    m_currentMachineName = machineName;
-    m_config              = newConfig;
-    m_cyclesPerFrame      = newConfig.cyclesPerFrame;
-
-    hr = CreateMemoryDevices (newConfig);
-    CHR (hr);
-
-    // CreateMemoryDevices unregistered the old disk-audio sources and
-    // built new ones. They've been registered with the mixer but no
-    // sample data is loaded yet — SetMechanism is what triggers
-    // LoadSamples on each registered source. Without this re-poke,
-    // the new machine's drive plays in eerie silence (FR-009).
-    {
-        wstring   currentMechanism = m_driveAudioMixer.GetMechanism();
-        HRESULT   hrMech           = m_driveAudioMixer.SetMechanism (currentMechanism);
-        IGNORE_RETURN_VALUE (hrMech, S_OK);
-    }
-
-    WireLanguageCard();
-    CreateVideoModes();
-
-    hr = m_memoryBus.Validate();
-    CHR (hr);
-
-    hr = CreateCpu (newConfig);
-    CHR (hr);
-
-    WirePageTable();
-
-    // Re-attach the new CPU's cycle counter to the debug dialog (the
-    // pointer was revoked above before the old CPU was destroyed).
-    if (m_diskIIDebugDialog != nullptr && m_cpu != nullptr)
-    {
-        m_diskIIDebugDialog->SetCycleCounter (m_cpu->GetCycleCounterPtr());
-    }
-
-    // Spec-006 bug 15. Re-wire the debug dialog onto the freshly
-    // built controller + audio source. Without this the dialog goes
-    // silent after a machine switch even though it's still on screen.
-    AttachDebugSinksIfOpen();
-
-    UpdateStatusBar();
-    UpdateWindowTitle();
-
-    // Restart the drive activity timer based on the new machine's
-    // hardware. KillTimer is a no-op if the timer wasn't set; SetTimer
-    // is only needed when a Disk II controller is present.
-    if (m_hwnd != nullptr)
-    {
-        KillTimer (m_hwnd, kDriveStatusTimerId);
-        if (m_refs.diskController != nullptr)
-        {
-            SetTimer (m_hwnd, kDriveStatusTimerId, kDriveStatusTimerMs, nullptr);
-        }
-    }
-
-    // Save to registry (don't pollute hr with the result)
-    hrReg = RegistrySettings::WriteString (kLastMachineValue, machineName);
-    IGNORE_RETURN_VALUE (hrReg, S_OK);
-
-    // Phase 4 / FR-034. Same cold-power-on sequence as Initialize() —
-    // seed DRAM and run the 6502 /RESET sequence. Without this the
-    // newly-built machine starts with a random PC into uninitialized
-    // RAM. Mounts persist across the switch (they were flushed above
-    // and re-mounted by the new config); aux RAM, LC RAM, and CPU
-    // registers are all reseeded.
-    //
-    // Must run BEFORE the per-machine remount: PowerCycle ejects every
-    // drive and rebinds the controller's engine to its empty internal
-    // disk, which would silently throw away whatever we just mounted.
-    PowerCycle();
-
-    // Remount per-machine disks if any were saved last time this
-    // machine was active. Empty paths fall through harmlessly so a
-    // never-used machine won't try to mount anything.
-    MountCommandLineDisks (string(), string());
-
-Error:
-    return hr;
+    m_colorMode.store (mode, std::memory_order_release);
 }
 
 
@@ -2271,34 +1504,33 @@ Error:
 
 int EmulatorShell::RunMessageLoop()
 {
-    MSG msg = {};
+    MSG      msg = {};
+    HRESULT  hr  = S_OK;
 
 
 
-    // Start the CPU thread
-    m_cpuThread = thread (&EmulatorShell::CpuThreadProc, this);
+    hr = m_cpuManager.Start (
+        [this] { OnCpuThreadStart(); },
+        [this] (const EmulatorCommand & cmd) { DispatchCpuCommand (cmd); },
+        [this] { RunOneFrame(); PublishFramebuffer(); },
+        [this] { OnCpuThreadStop(); });
+    CHRA (hr);
 
     // Cold-boot mount window is closed once the UI message loop is
     // ready to deliver user input -- any mount issued from here on
     // is treated as a real, user-initiated swap and fires the
     // drive-audio door-close (FR-013).
-    m_coldBootMountWindow = false;
+    m_diskManager->SetColdBootMountWindow (false);
 
     // UI thread loop: process messages, present latest framebuffer with vsync
-    while (m_running.load (memory_order_acquire))
+    while (m_cpuManager.IsRunning())
     {
         // Process all pending messages
         while (PeekMessage (&msg, nullptr, 0, 0, PM_REMOVE))
         {
             if (msg.message == WM_QUIT)
             {
-                m_running.store (false, memory_order_release);
-
-                if (m_cpuThread.joinable())
-                {
-                    m_cpuThread.join();
-                }
-
+                m_cpuManager.Stop();
                 return static_cast<int> (msg.wParam);
             }
 
@@ -2311,24 +1543,68 @@ int EmulatorShell::RunMessageLoop()
         }
 
         // Copy latest framebuffer under lock, then present with vsync
+        bool  fbDirtyThisFrame = false;
         {
             lock_guard<mutex> lock (m_fbMutex);
 
             if (m_fbReady)
             {
-                m_fbReady = false;
-
+                m_fbReady        = false;
+                fbDirtyThisFrame = true;
             }
         }
 
-        m_d3dRenderer.UploadAndPresent (m_uiFramebuffer.data());
+        // / FR-038. Push the latest CRT params (brightness slider,
+        // scanlines/bloom/color-bleed toggles + magnitudes) to the
+        // renderer every UI frame so user edits land on the very next
+        // present. The active theme's `crtDefaults` only apply when the
+        // user hasn't customised anything yet (see MakeCrtParams).
+        {
+            const ThemeCrtDefaults *  themeDefaults = nullptr;
+            if (m_themeManager != nullptr)
+            {
+                const LoadedTheme *  active = m_themeManager->GetActiveTheme();
+                if (active != nullptr)
+                {
+                    themeDefaults = &active->crtDefaults;
+                }
+            }
+            CrtParams  params = MakeCrtParams (m_globalPrefs.crtByMode[(int) m_colorMode.load(std::memory_order_acquire)],
+                                               (size_t) m_colorMode.load(std::memory_order_acquire),
+                                               themeDefaults,
+                                               (float) m_d3dRenderer.GetBackBufferWidth(),
+                                               (float) m_d3dRenderer.GetBackBufferHeight());
+            m_d3dRenderer.SetCrtParams (params);
+        }
+
+        // Skip the entire upload + 9-pass post-process when neither the
+        // emulator framebuffer nor any CRT param changed (and the
+        // persistence trail isn't still decaying). Saves ~20%% GPU at a
+        // BASIC prompt. PeekMessage above still drains messages; the
+        // brief sleep keeps this thread from spinning.
+        //
+        // FORCE PRESENT when the nav layer has an open menu so menu
+        // hover / open / close transitions paint. Without this, a
+        // paused machine produces no fb changes -> no Present -> menus
+        // open in state-only and never repaint, looking dead.
+        m_settingsPanel.UpdatePreviewOverlap (m_d3dRenderer.GetEmulatorContentScreenRect());
+        IGNORE_RETURN_VALUE (hr, m_settingsPanel.RenderPopup());
+        if (m_navLayer.IsOpen())
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+        if (!m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
+        {
+            Sleep (1);
+            continue;
+        }
+
+        m_d3dRenderer.UploadAndPresent (fbDirtyThisFrame ? m_uiFramebuffer.data() : nullptr);
     }
 
-    if (m_cpuThread.joinable())
-    {
-        m_cpuThread.join();
-    }
+    m_cpuManager.Stop();
 
+Error:
     return 0;
 }
 
@@ -2338,30 +1614,19 @@ int EmulatorShell::RunMessageLoop()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CpuThreadProc
+//  OnCpuThreadStart
 //
-//  Runs on a dedicated thread.  Owns the 6502 execution loop, audio
-//  generation/submission (WASAPI), and software framebuffer rendering.
-//  Communicates with the UI thread via atomics and mutex-protected buffers.
+//  CPU-thread-side initialization callback invoked by CpuManager once
+//  the worker thread is alive and COM is initialized. Brings up the
+//  WASAPI client and seeds the drive-audio mixer with the per-machine
+//  sample set so subsequent SetMechanism() switches reload from disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::CpuThreadProc()
+void EmulatorShell::OnCpuThreadStart()
 {
-    HRESULT       hr              = S_OK;
-    HANDLE        hTimer          = nullptr;
-    LARGE_INTEGER dueTime         = {};
-    SpeedMode     speed           = SpeedMode::Authentic;
-    bool          fComInitialized = false;
-    BOOL          fSuccess        = FALSE;
+    HRESULT  hr = S_OK;
 
-
-
-    // Initialize COM on this thread for WASAPI
-    hr = CoInitializeEx (nullptr, COINIT_MULTITHREADED);
-    CHRA (hr);
-
-    fComInitialized = true;
 
     // Initialize WASAPI audio (non-fatal if it fails)
     hr = m_wasapiAudio.Initialize();
@@ -2370,84 +1635,24 @@ void EmulatorShell::CpuThreadProc()
     // Drive-audio sample loading (spec 005-disk-ii-audio FR-009,
     // NFR-005, FR-019, FR-006). The mixer holds the asset-load
     // context so any later runtime mechanism switch (Options dialog,
-    // Phase 14) can reload every registered source through one
+    // ) can reload every registered source through one
     // entry point. Default mechanism is Shugart unless the
     // per-machine registry already overrode it during Initialize.
     if (m_wasapiAudio.IsInitialized() && !m_diskAudioSources.empty())
     {
-        vector<fs::path>  searchPaths;
         fs::path          baseDir;
         wstring           devicesDir;
 
-        // Use the same install-root resolution that Main.cpp /
+        // Use the same user-writable asset root that Main.cpp /
         // AssetBootstrap used when writing the WAVs so the read
-        // path agrees with the write path. Re-resolving via the
-        // exe directory alone is wrong in dev builds, where the
-        // exe sits under x64/Debug while the Devices/ tree lives
-        // at the repo root.
-        searchPaths = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(), PathResolver::GetWorkingDirectory());
-        baseDir     = AssetBootstrap::GetAssetBaseDirectory (searchPaths, PathResolver::GetExecutableDirectory());
+        // path agrees with the write path.
+        baseDir     = AssetBootstrap::GetAssetBaseDirectory();
         devicesDir  = (baseDir / L"Devices" / L"DiskII").wstring();
 
         m_driveAudioMixer.SetSampleLoadContext (devicesDir, m_wasapiAudio.GetSampleRate());
 
         HRESULT  hrLoad = m_driveAudioMixer.SetMechanism (m_driveAudioMixer.GetMechanism());
         IGNORE_RETURN_VALUE (hrLoad, S_OK);
-    }
-    
-    // Create a high-resolution waitable timer for 60fps frame pacing
-    hTimer = CreateWaitableTimerEx (nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
-    CWRA (hTimer);
-
-    while (m_running.load (memory_order_acquire))
-    {
-        {
-            unique_lock<mutex> lock (m_pauseMutex);
-            m_pauseCV.wait (lock, 
-                [&] 
-                { 
-                    return !m_paused.load (memory_order_acquire) || !m_running.load (memory_order_acquire); 
-                });
-        }
-
-        // Process deferred commands from the UI thread
-        ProcessCommands();
-
-        // Arm the timer for this frame
-        dueTime.QuadPart = -(kHundredNsPerSecond * kAppleCyclesPerFrame / kAppleCpuClock);
-        fSuccess = SetWaitableTimer (hTimer, &dueTime, 0, nullptr, nullptr, FALSE);
-        CWRA (fSuccess);
-
-        // Execute one frame of CPU + audio + video
-        RunOneFrame();
-
-        // Publish the completed framebuffer for the UI thread
-        {
-            lock_guard<mutex> lock (m_fbMutex);
-            m_uiFramebuffer = m_cpuFramebuffer;
-            m_fbReady = true;
-        }
-
-        // Wait for the remainder of the frame period
-        speed = m_speedMode.load (memory_order_acquire);
-
-        if (speed != SpeedMode::Maximum)
-        {
-            WaitForSingleObject (hTimer, INFINITE);
-        }
-    }
-
-Error:
-    if (hTimer != nullptr)
-    {
-        CloseHandle (hTimer);
-    }
-
-    m_wasapiAudio.Shutdown();
-
-    if (fComInitialized)
-    {
-        CoUninitialize();
     }
 }
 
@@ -2457,102 +1662,138 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProcessCommands
-//
-//  Drains the command queue and executes each command on the CPU thread,
-//  where it is safe to touch CPU, bus, and device state.
+//  OnCpuThreadStop
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ProcessCommands()
+void EmulatorShell::OnCpuThreadStop()
 {
-    vector<EmulatorCommand> cmds;
+    m_wasapiAudio.Shutdown();
+}
 
-    {
-        lock_guard<mutex> lock (m_cmdMutex);
-        cmds.swap (m_commandQueue);
-    }
 
-    for (const auto & cmd : cmds)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchCpuCommand
+//
+//  Single-command dispatcher invoked by CpuManager once per drained
+//  EmulatorCommand. All branches run on the CPU thread, where it is
+//  safe to touch CPU, bus, and device state.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
+{
+    switch (cmd.id)
     {
-        switch (cmd.id)
+        case IDM_FILE_OPEN:
         {
-            case IDM_FILE_OPEN:
+            wstring wideName (cmd.payload.begin(), cmd.payload.end());
+            HRESULT hrSwitch = SwitchMachine (wideName);
+
+            if (FAILED (hrSwitch))
             {
-                wstring wideName (cmd.payload.begin(), cmd.payload.end());
-                HRESULT hrSwitch = SwitchMachine (wideName);
-
-                if (FAILED (hrSwitch))
-                {
-                    DEBUGMSG (L"SwitchMachine failed: 0x%08X\n", hrSwitch);
-                }
-                break;
+                DEBUGMSG (L"SwitchMachine failed: 0x%08X\n", hrSwitch);
             }
-
-            case IDM_MACHINE_RESET:
-            {
-                // Re-read disks from the host filesystem first so an
-                // externally-regenerated .dsk (typical dev workflow:
-                // hack on a demo, regenerate the disk image, hit
-                // Reset) is picked up by the post-reset boot.
-                RemountSlot6Disks();
-                SoftReset();
-                break;
-            }
-
-            case IDM_MACHINE_POWERCYCLE:
-            {
-                // EmulatorShell::PowerCycle preserves DiskImageStore
-                // mounts but DiskIIController::PowerCycle unbinds the
-                // controller's external-disk pointer (it re-points
-                // each engine at its empty internal sentinel), so
-                // without an explicit re-mount the drives come up
-                // empty and the boot ROM has nothing to read.
-                // RemountSlot6Disks both re-binds the engines AND
-                // re-reads the host file (so external regenerations
-                // are picked up).
-                PowerCycle();
-                RemountSlot6Disks();
-                break;
-            }
-
-            case IDM_MACHINE_STEP:
-            {
-                if (m_cpu)
-                {
-                    m_cpu->StepOne();
-
-                    if (m_refs.diskController != nullptr)
-                    {
-                        m_refs.diskController->Tick (m_cpu->GetLastInstructionCycles());
-                    }
-                }
-                break;
-            }
-
-            case IDM_DISK_INSERT1:
-            case IDM_DISK_INSERT2:
-            {
-                int      drive   = (cmd.id == IDM_DISK_INSERT1) ? 0 : 1;
-                HRESULT  hrMount = S_OK;
-
-                hrMount = MountDiskInSlot6 (drive, cmd.payload);
-                IGNORE_RETURN_VALUE (hrMount, S_OK);
-                break;
-            }
-
-            case IDM_DISK_EJECT1:
-            case IDM_DISK_EJECT2:
-            {
-                int   drive = (cmd.id == IDM_DISK_EJECT1) ? 0 : 1;
-
-                EjectDiskInSlot6 (drive);
-                break;
-            }
-
-            default:
-                break;
+            break;
         }
+
+        case IDM_MACHINE_RESET:
+        {
+            // Re-read disks from the host filesystem first so an
+            // externally-regenerated .dsk (typical dev workflow:
+            // hack on a demo, regenerate the disk image, hit
+            // Reset) is picked up by the post-reset boot.
+            m_diskManager->RemountSlot6Disks();
+            SoftReset();
+            break;
+        }
+
+        case IDM_MACHINE_POWERCYCLE:
+        {
+            // EmulatorShell::PowerCycle preserves DiskImageStore
+            // mounts but DiskIIController::PowerCycle unbinds the
+            // controller's external-disk pointer (it re-points
+            // each engine at its empty internal sentinel), so
+            // without an explicit re-mount the drives come up
+            // empty and the boot ROM has nothing to read.
+            // RemountSlot6Disks both re-binds the engines AND
+            // re-reads the host file (so external regenerations
+            // are picked up).
+            PowerCycle();
+            m_diskManager->RemountSlot6Disks();
+            break;
+        }
+
+        case IDM_MACHINE_STEP:
+        {
+            if (m_cpu)
+            {
+                m_cpu->StepOne();
+
+                if (m_refs.diskController != nullptr)
+                {
+                    m_refs.diskController->Tick (m_cpu->GetLastInstructionCycles());
+                }
+            }
+            break;
+        }
+
+        case IDM_DISK_INSERT1:
+        case IDM_DISK_INSERT2:
+        {
+            int      drive   = (cmd.id == IDM_DISK_INSERT1) ? 0 : 1;
+            HRESULT  hrMount = S_OK;
+
+            hrMount = m_diskManager->MountDiskInSlot6 (drive, cmd.payload);
+            IGNORE_RETURN_VALUE (hrMount, S_OK);
+            break;
+        }
+
+        case IDM_DISK_EJECT1:
+        case IDM_DISK_EJECT2:
+        {
+            int   drive = (cmd.id == IDM_DISK_EJECT1) ? 0 : 1;
+
+            m_diskManager->EjectDiskInSlot6 (drive);
+            break;
+        }
+
+        case IDM_AUDIO_DRIVE_ENABLE:
+        case IDM_AUDIO_DRIVE_DISABLE:
+        {
+            m_driveAudioMixer.SetEnabled (cmd.id == IDM_AUDIO_DRIVE_ENABLE);
+            break;
+        }
+
+        case IDM_AUDIO_DRIVE_MECHANISM:
+        {
+            // Payload is "shugart" or "alps" (canonical lower-case
+            // from SettingsPanelState). DriveAudioMixer wants the
+            // mixed-case directory name; map here so the mixer's
+            // validator accepts it and LoadSamples finds the right
+            // <devicesDir>/Audio/<Mechanism>/ subdir.
+            std::wstring  mech;
+
+            if (cmd.payload == "alps")
+            {
+                mech = L"Alps";
+            }
+            else
+            {
+                mech = L"Shugart";
+            }
+
+            HRESULT  hrMech = m_driveAudioMixer.SetMechanism (mech);
+            IGNORE_RETURN_VALUE (hrMech, S_OK);
+            break;
+        }
+
+        default:
+            break;
     }
 }
 
@@ -2564,12 +1805,15 @@ void EmulatorShell::ProcessCommands()
 //
 //  PostCommand
 //
+//  Thin wrapper that hands the command id and payload to the CpuManager
+//  queue. Retained on EmulatorShell so call sites that already speak
+//  the "post a menu id" idiom do not need to know the manager exists.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::PostCommand (WORD id, const string & payload)
 {
-    lock_guard<mutex> lock (m_cmdMutex);
-    m_commandQueue.push_back ({ id, payload });
+    m_cpuManager.PostCommand (id, payload);
 }
 
 
@@ -2578,52 +1822,34 @@ void EmulatorShell::PostCommand (WORD id, const string & payload)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PasteFromClipboard
+//  StepInstructionWhilePaused
+//
+//  Runs one CPU instruction directly from the UI thread. Caller MUST
+//  have verified the CPU thread is paused (blocked on pauseCV.wait)
+//  -- this is a quiet contract; we don't re-check here.
+//
+//  Steps the CPU, ticks the disk controller in step, then runs one
+//  full video frame and publishes the framebuffer so the main UI
+//  loop sees fbDirty next iteration and presents.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PasteFromClipboard()
+void EmulatorShell::StepInstructionWhilePaused ()
 {
-    if (!OpenClipboard (m_hwnd))
+    if (m_cpu == nullptr)
     {
         return;
     }
 
-    HANDLE hData = GetClipboardData (CF_UNICODETEXT);
+    m_cpu->StepOne();
 
-    if (hData != nullptr)
+    if (m_refs.diskController != nullptr)
     {
-        wchar_t * pText = static_cast<wchar_t *> (GlobalLock (hData));
-
-        if (pText != nullptr)
-        {
-            lock_guard<mutex> lock (m_cmdMutex);
-
-            for (size_t i = 0; pText[i] != L'\0'; i++)
-            {
-                wchar_t ch = pText[i];
-
-                // Convert \r\n and \n to \r (Apple II Return key)
-                if (ch == L'\n')
-                {
-                    continue;
-                }
-
-                if (ch == L'\r')
-                {
-                    m_pasteBuffer += static_cast<char> (0x0D);
-                }
-                else if (ch >= 0x20 && ch < 0x7F)
-                {
-                    m_pasteBuffer += static_cast<char> (ch);
-                }
-            }
-
-            GlobalUnlock (hData);
-        }
+        m_refs.diskController->Tick (m_cpu->GetLastInstructionCycles());
     }
 
-    CloseClipboard();
+    RunOneFrame();
+    PublishFramebuffer();
 }
 
 
@@ -2632,47 +1858,21 @@ void EmulatorShell::PasteFromClipboard()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DrainPasteBuffer
+//  PublishFramebuffer
+//
+//  Copies the freshly-rendered CPU framebuffer into the UI-visible
+//  framebuffer under m_fbMutex so the next UI message-loop iteration
+//  can pick it up and present.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::DrainPasteBuffer()
+void EmulatorShell::PublishFramebuffer()
 {
-    Byte ch = 0;
+    lock_guard<mutex>  lock (m_fbMutex);
 
-
-
-    if (m_refs.keyboard == nullptr)
-    {
-        return;
-    }
-
-    // Wait until the CPU has consumed the previous key (strobe clear)
-    if (!m_refs.keyboard->IsStrobeClear())
-    {
-        return;
-    }
-
-    {
-        lock_guard<mutex> lock (m_cmdMutex);
-
-        if (m_pasteBuffer.empty())
-        {
-            return;
-        }
-
-        ch = static_cast<Byte> (m_pasteBuffer[0]);
-        m_pasteBuffer.erase (m_pasteBuffer.begin());
-    }
-
-    m_refs.keyboard->KeyPress (ch);
+    m_uiFramebuffer = m_cpuFramebuffer;
+    m_fbReady       = true;
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
 
 
 
@@ -2705,7 +1905,7 @@ void EmulatorShell::ExecuteCpuSlices()
     static constexpr uint32_t kSliceCycles = 1023;
 
     uint32_t  targetCycles    = m_cyclesPerFrame;
-    SpeedMode speed           = m_speedMode.load (memory_order_acquire);
+    SpeedMode speed           = m_cpuManager.GetSpeedMode();
     bool      audioActive     = (m_refs.speaker != nullptr && m_wasapiAudio.IsInitialized());
     double    cyclesPerSample = 0.0;
     uint32_t  sliceTarget     = 0;
@@ -2731,7 +1931,7 @@ void EmulatorShell::ExecuteCpuSlices()
     for (uint32_t executed = 0; executed < targetCycles; )
     {
         // Feed next paste character if available
-        DrainPasteBuffer();
+        m_clipboardManager->DrainPasteBuffer();
 
         sliceTarget = targetCycles - executed;
 
@@ -2802,7 +2002,7 @@ void EmulatorShell::RenderFramebuffer()
 
 
 
-    SelectVideoMode();
+    m_machineManager->SelectVideoMode();
 
     if (m_refs.activeVideoMode != nullptr)
     {
@@ -2885,7 +2085,23 @@ void EmulatorShell::RenderFramebuffer()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::HandleCommand (WORD commandId)
+{
+    m_windowCommandManager->HandleCommand (commandId);
+}
 
 
 
@@ -2899,16 +2115,7 @@ void EmulatorShell::RenderFramebuffer()
 
 bool EmulatorShell::OnCommand (HWND hwnd, int id)
 {
-    UNREFERENCED_PARAMETER (hwnd);
-
-    if      (id >= IDM_EDIT_COPY_TEXT && id <= IDM_EDIT_PASTE)       { OnEditCommand (id); }
-    else if (id >= IDM_FILE_OPEN     && id <= IDM_FILE_EXIT)          { OnFileCommand (id); }
-    else if (id >= IDM_MACHINE_RESET && id <= IDM_MACHINE_INFO)       { OnMachineCommand (id); }
-    else if (id >= IDM_DISK_INSERT1  && id <= IDM_DISK_WRITEPROTECT2) { OnDiskCommand (id); }
-    else if (id >= IDM_VIEW_COLOR    && id <= IDM_VIEW_DISKII_DEBUG)  { OnViewCommand (id); }
-    else if (id >= IDM_HELP_KEYMAP   && id <= IDM_HELP_ABOUT)         { OnHelpCommand (id); }
-
-    return false;
+    return m_windowCommandManager->OnCommand (hwnd, id);
 }
 
 
@@ -2951,10 +2158,13 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
 
 
 
-    KillTimer (m_hwnd, kDriveStatusTimerId);
+    m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
 
-    m_running.store (false, memory_order_release);
-    m_pauseCV.notify_one();
+    // P6 -- revoke the IDropTarget before the HWND is destroyed.
+    // RevokeDragDrop requires a valid window handle.
+    m_dragDropTarget.Shutdown();
+
+    m_cpuManager.Stop();
     PostQuitMessage (0);
     
     return false;
@@ -2965,6 +2175,107 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
 
 
 ////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMouseMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
+{
+    int   x        = ((int) (short) LOWORD (lParam));
+    int   y        = ((int) (short) HIWORD (lParam));
+    bool  leftDown = (wParam & MK_LBUTTON) != 0;
+
+
+
+    if (m_uiShell.OnMouseMove (x, y, leftDown))
+    {
+        return false;
+    }
+
+    return false;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnLButtonDown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
+{
+    int  x = ((int) (short) LOWORD (lParam));
+    int  y = ((int) (short) HIWORD (lParam));
+
+
+
+    UNREFERENCED_PARAMETER (wParam);
+
+    SetCapture (m_hwnd);
+    if (m_uiShell.OnLButtonDown (x, y))
+    {
+        return false;
+    }
+
+    return false;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnLButtonUp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
+{
+    int                x      = ((int) (short) LOWORD (lParam));
+    int                y      = ((int) (short) HIWORD (lParam));
+    DriveWidgetRegion  region = DriveWidgetRegion::None;
+
+
+
+    UNREFERENCED_PARAMETER (wParam);
+
+    ReleaseCapture();
+    if (m_uiShell.OnLButtonUp (x, y))
+    {
+        return false;
+    }
+
+    // If we just finished an OLE drop on a drive widget, the OS posts
+    // a WM_LBUTTONUP that lands here on top of the drive. Swallow it
+    // so the user doesn't see the file-open dialog pop up immediately
+    // after the dropped image mounts.
+    if (m_dragDropTarget.ConsumeSuppressedClick())
+    {
+        return false;
+    }
+
+    for (DriveWidget & drive : m_driveChrome)
+    {
+        region = drive.HitTest (x, y);
+        if (region == DriveWidgetRegion::Body)
+        {
+            HRESULT  hrBrowse = m_windowCommandManager->PromptForDiskImage (drive.Drive());
+            IGNORE_RETURN_VALUE (hrBrowse, S_OK);
+            return false;
+        }
+
+        if (region == DriveWidgetRegion::Eject)
+        {
+            Eject (6, drive.Drive());
+            return false;
+        }
+    }
+
+    return false;
+}////////////////////////////////////////////////////////////////////////////////
 //
 //  OnKeyDown
 //
@@ -2977,6 +2288,11 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     bool ctrlHeld = false;
     bool altHeld  = false;
 
+    if (m_uiShell.HandleKey (vk))
+    {
+        return false;
+    }
+
     if (m_refs.keyboard == nullptr)
     {
         return false;
@@ -2985,11 +2301,32 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     ctrlHeld = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
     altHeld  = (GetKeyState (VK_MENU)    & 0x8000) != 0;
 
+    if (altHeld && vk >= 0x20 && vk <= 0x7E && m_navLayer.HandleAltKey ((wchar_t) vk))
+    {
+        return false;
+    }
+
+    // F10 — focus the menu bar (Windows convention). Opens the File
+    // menu so subsequent Left/Right (or Tab) keys cycle between
+    // top-level menus while Up/Down/Enter navigate within.
+    if (vk == VK_F10 && !ctrlHeld && !altHeld)
+    {
+        if (!m_navLayer.IsOpen())
+        {
+            m_navLayer.Open (NavMenu::File, true);
+        }
+        else
+        {
+            m_navLayer.Close();
+        }
+        return false;
+    }
+
     // Ctrl+V — paste from clipboard (host-meta convenience, not a //e
     // hardware key). Consumed before reaching the emulated keyboard.
     if (vk == 'V' && ctrlHeld && !altHeld)
     {
-        PasteFromClipboard();
+        m_clipboardManager->PasteFromClipboard (m_hwnd);
         return false;
     }
 
@@ -3010,7 +2347,7 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
     m_refs.keyboard->SetKeyDown (true);
 
-    // Phase 6 / T063 / FR-013. //e modifier-key wiring (host -> emulator):
+    // / T063 / FR-013. //e modifier-key wiring (host -> emulator):
     //   left  Alt   -> Open Apple   ($C061)
     //   right Alt   -> Closed Apple ($C062)
     //   Shift       -> Shift        ($C063)
@@ -3091,7 +2428,7 @@ bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 
     m_refs.keyboard->SetKeyDown (false);
 
-    // Phase 6 / T063: release //e modifiers when the host releases the
+    // / T063: release //e modifiers when the host releases the
     // physical key. Both VK_MENU and VK_L/RMENU events drive a re-query
     // of the canonical left/right state via GetKeyState — the modifier
     // remains asserted on the //e side as long as either physical Alt
@@ -3135,6 +2472,15 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
         return false;
     }
 
+    // Suppress the WM_CHAR that Windows synthesizes from a WM_KEYDOWN
+    // already consumed by overlay UI (settings panel / open menu).
+    // Without this, hitting Enter on the settings OK button closes the
+    // panel and then drops a CR into the //e keyboard.
+    if (m_uiShell.IsCapturingInput())
+    {
+        return false;
+    }
+
     if (ch >= 1 && ch <= 127)
     {
         m_refs.keyboard->KeyPress (static_cast<Byte> (ch));
@@ -3155,39 +2501,98 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 
 bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
 {
-    int  sbHeight   = 0;
-    RECT sbRect     = {};
-    int  renderH    = static_cast<int> (height);
+    int       renderH   = static_cast<int> (height);
+    HRESULT   hrPresent = S_OK;
+
+
 
     UNREFERENCED_PARAMETER (hwnd);
-
-
-
-    if (m_statusBar != nullptr)
-    {
-        SendMessage (m_statusBar, WM_SIZE, 0, 0);
-        GetWindowRect (m_statusBar, &sbRect);
-        sbHeight = sbRect.bottom - sbRect.top;
-
-        // Right-aligned drive indicators are anchored to the bar's client
-        // width. Recompute part edges so they stay flush with the right
-        // edge of the resized bar.
-        UpdateStatusBar();
-    }
-
-    renderH -= sbHeight;
 
     if (m_renderHwnd != nullptr)
     {
         MoveWindow (m_renderHwnd, 0, 0,
-                    static_cast<int> (width), renderH, TRUE);
+                    static_cast<int> (width), renderH, FALSE);
     }
 
+    // Release the D2D target bitmap before resizing the swap chain.
+    // ResizeBuffers fails with DXGI_ERROR_INVALID_CALL (0x887a0001) while
+    // any outside reference (D2D bitmap, IDXGISurface, RTV) still holds
+    // the back buffer. UiShell rebinds on the next Render() because
+    // OnResize below marks the text target dirty.
+    m_uiShell.Text().UnbindBackBuffer();
+
     m_d3dRenderer.Resize (static_cast<int> (width), renderH);
+
+    {
+        UINT     dpi   = GetDpiForWindow (m_hwnd);
+        HRESULT  hrUiR = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
+                                             m_d3dRenderer.GetBackBufferHeight(),
+                                             dpi);
+        IGNORE_RETURN_VALUE (hrUiR, S_OK);
+        m_titleBar.UpdateGeometry (static_cast<int> (width), dpi);
+        m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), static_cast<int> (width), dpi, &m_uiShell.Text());
+
+        {
+            ChromeLayoutResult  layout = m_chromeLayout.Resolve (static_cast<int> (width), renderH, dpi);
+            bool                fHasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+
+            if (fHasDisk)
+            {
+                LayoutDriveWidgetsInCommandBar (m_driveChrome, layout, static_cast<int> (width), renderH, dpi);
+            }
+            else
+            {
+                // Machine has no Disk II controller (e.g. stripped Apple II
+                // config). Collapse the drive widget rects so DriveWidget
+                // paints nothing and the drag-drop overlay's empty-rect
+                // path treats the whole window as the drop target.
+                m_driveChrome[0].Hide();
+                m_driveChrome[1].Hide();
+            }
+
+            m_uiShell.HitTest().Clear();
+            if (fHasDisk)
+            {
+                m_uiShell.HitTest().Register (HitRect { m_driveChrome[0].BodyRect(), HitSlot::Custom, 0 });
+                m_uiShell.HitTest().Register (HitRect { m_driveChrome[1].BodyRect(), HitSlot::Custom, 1 });
+            }
+            m_d3dRenderer.SetTopInsetPx    (layout.topInsetPx);
+            m_d3dRenderer.SetBottomInsetPx (layout.bottomInsetPx);
+        }
+    }
+
+    {
+        lock_guard<mutex> lock (m_fbMutex);
+
+        if (!m_uiFramebuffer.empty())
+        {
+            const ThemeCrtDefaults *  themeDefaults = nullptr;
+            LoadedTheme                resolvedTheme;
+            CrtParams                  params       = {};
+            bool                       fHaveTheme   = false;
+
+            if (m_themeManager != nullptr && m_themeManager->GetActiveTheme() != nullptr)
+            {
+                resolvedTheme = m_themeManager->GetActiveResolvedTheme();
+                themeDefaults = &resolvedTheme.crtDefaults;
+                fHaveTheme    = true;
+            }
+
+            (void) fHaveTheme;
+            params = MakeCrtParams (m_globalPrefs.crtByMode[(int) m_colorMode.load(std::memory_order_acquire)],
+                                    (size_t) m_colorMode.load(std::memory_order_acquire),
+                                    themeDefaults,
+                                    (float) m_d3dRenderer.GetBackBufferWidth(),
+                                    (float) m_d3dRenderer.GetBackBufferHeight());
+            m_d3dRenderer.SetCrtParams (params);
+
+            IGNORE_RETURN_VALUE (hrPresent, m_d3dRenderer.UploadAndPresent (m_uiFramebuffer.data()));
+        }
+    }
+
+    m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
     return false;
 }
-
-
 
 
 
@@ -3206,29 +2611,10 @@ bool EmulatorShell::OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis)
 {
     UNREFERENCED_PARAMETER (hwnd);
     UNREFERENCED_PARAMETER (idCtl);
+    UNREFERENCED_PARAMETER (pdis);
 
-    int  driveIndex = 0;
-    int  partIndex  = 0;
-
-    if (pdis == nullptr || pdis->hwndItem != m_statusBar)
-    {
-        return true;
-    }
-
-    partIndex = static_cast<int> (pdis->itemID);
-
-    if (partIndex < m_statusBarFirstDrivePart
-        || partIndex >= m_statusBarFirstDrivePart + m_statusBarDriveCount)
-    {
-        return true;
-    }
-
-    driveIndex = static_cast<int> (pdis->itemData);
-
-    DrawDriveStatusItem (pdis, driveIndex);
-    return false;
+    return true;
 }
-
 
 
 
@@ -3247,591 +2633,17 @@ bool EmulatorShell::OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis)
 bool EmulatorShell::OnTimer (HWND hwnd, UINT_PTR timerId)
 {
     UNREFERENCED_PARAMETER (hwnd);
-
-    if (timerId == kDriveStatusTimerId)
-    {
-        RefreshDriveStatus();
-        return false;
-    }
+    UNREFERENCED_PARAMETER (timerId);
 
     return true;
-}
-//  OnFileCommand
+}//  OnFileCommand
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::OnFileCommand (int id)
-{
-    switch (id)
-    {
-        case IDM_FILE_OPEN:
-        {
-            ShowMachinePicker();
-            break;
-        }
 
-        case IDM_FILE_EXIT:
-        {
-            DestroyWindow (m_hwnd);
-            break;
-        }
-    }
-}
 
 
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnEditCommand
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::OnEditCommand (int id)
-{
-    switch (id)
-    {
-        case IDM_EDIT_COPY_TEXT:
-        {
-            CopyScreenText();
-            break;
-        }
-
-        case IDM_EDIT_COPY_SCREENSHOT:
-        {
-            CopyScreenshot();
-            break;
-        }
-
-        case IDM_EDIT_PASTE:
-        {
-            PasteFromClipboard();
-            break;
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CopyScreenText
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::CopyScreenText()
-{
-    HGLOBAL hMem    = nullptr;
-    wchar_t * pDest = nullptr;
-    wstring   text;
-
-
-
-    if (m_cpu == nullptr)
-    {
-        return;
-    }
-
-    // Read the 40x24 text screen via the memory bus rather than the
-    // CPU's internal memory[] buffer. On the //e the MMU owns its own
-    // RAM device(s), so writes from firmware land in the bus-side
-    // buffer; m_cpu->GetMemory() points at a stale/uninitialized
-    // mirror that has nothing to do with what the user sees on screen.
-    // Same fix that landed for the framebuffer renderer earlier.
-    for (int row = 0; row < 24; row++)
-    {
-        // Apple II text screen uses a non-linear address mapping
-        Word base = static_cast<Word> (0x0400 + (row / 8) * 0x28 + (row % 8) * 0x80);
-
-        for (int col = 0; col < 40; col++)
-        {
-            Byte ch = m_memoryBus.ReadByte (static_cast<Word> (base + col));
-
-            // Convert Apple II screen code to ASCII
-            // Normal: $20-$3F = '@'..'_' on inverse, etc.
-            // High bit set ($80-$FF): normal ASCII characters.
-            if (ch >= 0xA0)
-            {
-                ch -= 0x80;
-            }
-            else if (ch >= 0x80)
-            {
-                ch -= 0x80;
-            }
-
-            // Clamp to printable ASCII
-            if (ch < 0x20 || ch > 0x7E)
-            {
-                ch = ' ';
-            }
-
-            text += static_cast<wchar_t> (ch);
-        }
-
-        // Trim trailing spaces on each row
-        while (!text.empty() && text.back() == L' ')
-        {
-            text.pop_back();
-        }
-
-        text += L"\r\n";
-    }
-
-    // Copy to clipboard
-    if (!OpenClipboard (m_hwnd))
-    {
-        return;
-    }
-
-    EmptyClipboard();
-
-    hMem = GlobalAlloc (GMEM_MOVEABLE, (text.size() + 1) * sizeof (wchar_t));
-
-    if (hMem != nullptr)
-    {
-        pDest = static_cast<wchar_t *> (GlobalLock (hMem));
-
-        if (pDest != nullptr)
-        {
-            memcpy (pDest, text.c_str(), (text.size() + 1) * sizeof (wchar_t));
-            GlobalUnlock (hMem);
-            SetClipboardData (CF_UNICODETEXT, hMem);
-        }
-    }
-
-    CloseClipboard();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CopyScreenshot
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::CopyScreenshot()
-{
-    HGLOBAL         hMem    = nullptr;
-    BITMAPINFOHEADER bih     = {};
-    size_t          dataSize = 0;
-    size_t          totalSize= 0;
-    Byte          * pDest    = nullptr;
-    int             w        = kFramebufferWidth;
-    int             h        = kFramebufferHeight;
-
-
-
-    // Copy the UI framebuffer as a DIB to the clipboard
-    {
-        lock_guard<mutex> lock (m_fbMutex);
-
-        dataSize  = static_cast<size_t> (w) * h * 4;
-        totalSize = sizeof (BITMAPINFOHEADER) + dataSize;
-
-        if (!OpenClipboard (m_hwnd))
-        {
-            return;
-        }
-
-        EmptyClipboard();
-
-        hMem = GlobalAlloc (GMEM_MOVEABLE, totalSize);
-
-        if (hMem == nullptr)
-        {
-            CloseClipboard();
-            return;
-        }
-
-        pDest = static_cast<Byte *> (GlobalLock (hMem));
-
-        if (pDest == nullptr)
-        {
-            CloseClipboard();
-            return;
-        }
-
-        // Fill BITMAPINFOHEADER (bottom-up DIB)
-        bih.biSize        = sizeof (bih);
-        bih.biWidth       = w;
-        bih.biHeight      = h;      // positive = bottom-up
-        bih.biPlanes      = 1;
-        bih.biBitCount    = 32;
-        bih.biCompression = BI_RGB;
-        bih.biSizeImage   = static_cast<DWORD> (dataSize);
-
-        memcpy (pDest, &bih, sizeof (bih));
-        pDest += sizeof (bih);
-
-        // Copy framebuffer rows bottom-up (DIB is flipped). The
-        // framebuffer is already in BGRA byte order (matches
-        // CF_DIB / BI_RGB), so no swizzle is required — just an
-        // upside-down memcpy per row.
-        for (int y = h - 1; y >= 0; y--)
-        {
-            memcpy (pDest,
-                    &m_uiFramebuffer[static_cast<size_t> (y) * w],
-                    static_cast<size_t> (w) * 4);
-            pDest += static_cast<size_t> (w) * 4;
-        }
-
-        GlobalUnlock (hMem);
-        SetClipboardData (CF_DIB, hMem);
-    }
-
-    CloseClipboard();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnMachineCommand
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::OnMachineCommand (int id)
-{
-    bool paused = false;
-
-    switch (id)
-    {
-        case IDM_MACHINE_RESET:
-        case IDM_MACHINE_POWERCYCLE:
-        {
-            PostCommand (static_cast<WORD> (id));
-            break;
-        }
-
-        case IDM_MACHINE_PAUSE:
-        {
-            paused = !m_paused.load (memory_order_acquire);
-            m_paused.store (paused, memory_order_release);
-            m_pauseCV.notify_one();
-            m_menuSystem.SetPaused (paused);
-            UpdateWindowTitle();
-            break;
-        }
-
-        case IDM_MACHINE_STEP:
-        {
-            if (m_paused.load (memory_order_acquire))
-            {
-                PostCommand (static_cast<WORD> (id));
-            }
-            break;
-        }
-
-        case IDM_MACHINE_SPEED_1X:
-        {
-            m_speedMode.store (SpeedMode::Authentic, memory_order_release);
-            m_menuSystem.SetSpeedMode (SpeedMode::Authentic);
-            break;
-        }
-
-        case IDM_MACHINE_SPEED_2X:
-        {
-            m_speedMode.store (SpeedMode::Double, memory_order_release);
-            m_menuSystem.SetSpeedMode (SpeedMode::Double);
-            break;
-        }
-
-        case IDM_MACHINE_SPEED_MAX:
-        {
-            m_speedMode.store (SpeedMode::Maximum, memory_order_release);
-            m_menuSystem.SetSpeedMode (SpeedMode::Maximum);
-            break;
-        }
-
-        case IDM_MACHINE_INFO:
-        {
-            wstring info = format (
-                L"Machine: {}\n"
-                L"CPU: {}\n"
-                L"Clock Speed: {} Hz\n"
-                L"Memory Regions: {}\n"
-                L"Devices: {}",
-                wstring (m_config.name.begin(), m_config.name.end()),
-                wstring (m_config.cpu.begin(), m_config.cpu.end()),
-                m_config.clockSpeed,
-                (m_config.ram.size() + 1 + m_config.slots.size()),
-                (m_config.internalDevices.size() + m_config.slots.size()));
-
-            MessageBoxW (m_hwnd, info.c_str(), L"Machine Info", MB_ICONINFORMATION | MB_OK);
-            break;
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnViewCommand
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::OnViewCommand (int id)
-{
-    UINT        dpi   = 0;
-    int         scale = 0;
-    RECT        rc    = {};
-    DWORD       style = 0;
-    HMONITOR    hMon  = nullptr;
-    MONITORINFO mi    = { sizeof (mi) };
-    int         w     = 0;
-    int         h     = 0;
-    int         x     = 0;
-    int         y     = 0;
-
-    switch (id)
-    {
-        case IDM_VIEW_COLOR:
-        {
-            m_colorMode.store (ColorMode::Color, memory_order_release);
-            m_menuSystem.SetColorMode (ColorMode::Color);
-            break;
-        }
-
-        case IDM_VIEW_GREEN:
-        {
-            m_colorMode.store (ColorMode::GreenMono, memory_order_release);
-            m_menuSystem.SetColorMode (ColorMode::GreenMono);
-            break;
-        }
-
-        case IDM_VIEW_AMBER:
-        {
-            m_colorMode.store (ColorMode::AmberMono, memory_order_release);
-            m_menuSystem.SetColorMode (ColorMode::AmberMono);
-            break;
-        }
-
-        case IDM_VIEW_WHITE:
-        {
-            m_colorMode.store (ColorMode::WhiteMono, memory_order_release);
-            m_menuSystem.SetColorMode (ColorMode::WhiteMono);
-            break;
-        }
-
-        case IDM_VIEW_FULLSCREEN:
-        {
-            m_d3dRenderer.ToggleFullscreen (m_hwnd);
-            break;
-        }
-
-        case IDM_VIEW_RESET_SIZE:
-        {
-            if (!m_d3dRenderer.IsFullscreen())
-            {
-                dpi   = GetDpiForWindow (m_hwnd);
-                scale = (dpi + 48) / 96;
-
-                if (scale < 1)
-                {
-                    scale = 1;
-                }
-
-                rc    = { 0, 0, kFramebufferWidth * scale, kFramebufferHeight * scale };
-                style = static_cast<DWORD> (GetWindowLong (m_hwnd, GWL_STYLE));
-                AdjustWindowRect (&rc, style, TRUE);
-
-                w = rc.right - rc.left;
-                h = rc.bottom - rc.top;
-
-                hMon = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
-                GetMonitorInfo (hMon, &mi);
-
-                x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - w) / 2;
-                y = mi.rcWork.top  + (mi.rcWork.bottom - mi.rcWork.top - h) / 2;
-
-                SetWindowPos (m_hwnd, nullptr, x, y, w, h, SWP_NOZORDER);
-            }
-            break;
-        }
-
-        case IDM_VIEW_OPTIONS:
-        {
-            bool     driveAudio  = m_driveAudioMixer.IsEnabled();
-            wstring  mechanism   = m_driveAudioMixer.GetMechanism();
-            bool     newEnabled  = driveAudio;
-            wstring  newMech     = mechanism;
-            HRESULT  hrDlg       = OptionsDialog::Show (
-                m_hwnd,
-                reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE)),
-                driveAudio,
-                mechanism,
-                newEnabled,
-                newMech);
-
-            if (hrDlg == S_OK)
-            {
-                wstring  subkey = wstring (L"Machines\\") + m_currentMachineName;
-
-                if (newEnabled != driveAudio)
-                {
-                    m_driveAudioMixer.SetEnabled (newEnabled);
-
-                    HRESULT  hrReg = RegistrySettings::WriteDword (
-                        subkey.c_str(),
-                        L"DriveAudioEnabled",
-                        newEnabled ? 1u : 0u);
-                    IGNORE_RETURN_VALUE (hrReg, S_OK);
-                }
-
-                if (newMech != mechanism && m_driveAudioMixer.IsValidMechanism (newMech))
-                {
-                    // FR-006 / SC-010: runtime swap, no restart and
-                    // no disk remount required. SetMechanism
-                    // re-invokes LoadSamples on every registered
-                    // source through the cached load context.
-                    HRESULT  hrMech = m_driveAudioMixer.SetMechanism (newMech);
-                    IGNORE_RETURN_VALUE (hrMech, S_OK);
-
-                    HRESULT  hrReg  = RegistrySettings::WriteString (
-                        subkey.c_str(),
-                        L"DiskIIMechanism",
-                        newMech);
-                    IGNORE_RETURN_VALUE (hrReg, S_OK);
-                }
-            }
-            break;
-        }
-
-        case IDM_VIEW_DISKII_DEBUG:
-        {
-            OpenDiskIIDebugDialog();
-            break;
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnDiskCommand
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::OnDiskCommand (int id)
-{
-    WCHAR           filePath[MAX_PATH] = {};
-    OPENFILENAMEW   ofn                = {};
-
-    switch (id)
-    {
-        case IDM_DISK_INSERT1:
-        case IDM_DISK_INSERT2:
-        {
-            ofn.lStructSize = sizeof (ofn);
-            ofn.hwndOwner   = m_hwnd;
-            ofn.lpstrFilter = L"Disk Images (*.dsk)\0*.dsk\0All Files (*.*)\0*.*\0";
-            ofn.lpstrFile   = filePath;
-            ofn.nMaxFile    = MAX_PATH;
-            ofn.lpstrTitle  = (id == IDM_DISK_INSERT1) ?
-                L"Insert Disk in Drive 1" : L"Insert Disk in Drive 2";
-            ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
-
-            if (GetOpenFileNameW (&ofn))
-            {
-                PostCommand (static_cast<WORD> (id), fs::path (filePath).string());
-            }
-            break;
-        }
-
-        case IDM_DISK_EJECT1:
-        case IDM_DISK_EJECT2:
-        {
-            PostCommand (static_cast<WORD> (id));
-            break;
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnHelpCommand
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::OnHelpCommand (int id)
-{
-    switch (id)
-    {
-        case IDM_HELP_DEBUG:
-        {
-            if (m_debugConsole.IsVisible())
-            {
-                m_debugConsole.Hide();
-            }
-            else
-            {
-                if (m_debugConsole.Show (m_hInstance))
-                {
-                    m_debugConsole.LogConfig (
-                        format ("Machine: {}\nCPU: {}\nClock: {} Hz\nDevices: {}",
-                            m_config.name, m_config.cpu, m_config.clockSpeed,
-                            (m_config.internalDevices.size() + m_config.slots.size())));
-                }
-            }
-            break;
-        }
-
-        case IDM_HELP_KEYMAP:
-        {
-            MessageBoxW (m_hwnd,
-                L"PC Key Mapping:\n\n"
-                L"Arrow Keys -> Apple ][ cursor movement\n"
-                L"Enter -> Return\n"
-                L"Escape -> Escape\n"
-                L"Delete -> Delete\n"
-                L"Ctrl+Reset -> Warm Reset\n"
-                L"Left Alt -> Open Apple (//e)\n"
-                L"Right Alt -> Closed Apple (//e)\n\n"
-                L"Emulator Controls:\n"
-                L"Ctrl+R -> Reset\n"
-                L"Ctrl+Alt+R -> Autoboot Reset (cold boot from disk)\n"
-                L"Ctrl+Shift+R -> Power Cycle\n"
-                L"Pause -> Pause/Resume\n"
-                L"F11 -> Step (when paused)\n"
-                L"Alt+Enter -> Fullscreen\n"
-                L"Ctrl+0 -> Reset Window Size\n"
-                L"Ctrl+D -> Debug Console",
-                L"Keyboard Map", MB_ICONINFORMATION | MB_OK);
-            break;
-        }
-
-        case IDM_HELP_ABOUT:
-        {
-            MessageBoxW (m_hwnd,
-                L"Casso Apple ][ Emulator\n"
-                L"Version " _CRT_WIDE (VERSION_STRING) L"\n"
-                L"Built " _CRT_WIDE (VERSION_BUILD_TIMESTAMP) L"\n\n"
-                L"An Apple ][ / ][+ / //e platform emulator built on\n"
-                L"the Casso 6502 assembler/emulator project.\n\n"
-                L"https://github.com/relmer/Casso",
-                L"About Casso", MB_ICONINFORMATION | MB_OK);
-            break;
-        }
-    }
-}
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UpdateWindowTitle
@@ -3863,11 +2675,11 @@ void EmulatorShell::UpdateWindowTitle()
         title += wideName;
     }
 
-    if (m_paused.load (memory_order_acquire))
+    if (m_cpuManager.IsPaused())
     {
         title += L" [Paused]";
     }
-    else if (m_running.load (memory_order_acquire))
+    else if (m_cpuManager.IsRunning())
     {
         title += L" [Running]";
     }
@@ -3885,134 +2697,13 @@ void EmulatorShell::UpdateWindowTitle()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SelectVideoMode
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SelectVideoMode()
-{
-    if (m_videoModes.size() < 3)
-    {
-        return;
-    }
-
-    // Read soft switch state
-    if (m_refs.softSwitches)
-    {
-        m_graphicsMode = m_refs.softSwitches->IsGraphicsMode();
-        m_mixedMode    = m_refs.softSwitches->IsMixedMode();
-        m_page2        = m_refs.softSwitches->IsPage2();
-        m_hiresMode    = m_refs.softSwitches->IsHiresMode();
-    }
-
-    // When 80STORE is active on the //e, $C054/$C055 control aux/main memory
-    // selection — not page 1/page 2. Suppress page2 for video rendering.
-    auto * iieSoftSwitches = dynamic_cast<AppleIIeSoftSwitchBank *> (m_refs.softSwitches);
-
-    if (iieSoftSwitches != nullptr && iieSoftSwitches->Is80Store())
-    {
-        m_page2 = false;
-    }
-
-    bool is80ColMode  = iieSoftSwitches != nullptr && iieSoftSwitches->Is80ColMode();
-    bool altCharSet   = iieSoftSwitches != nullptr && iieSoftSwitches->IsAltCharSet();
-
-    // Select video mode based on soft switch state
-    if (!m_graphicsMode)
-    {
-        // Text mode: use 80-col on //e if enabled, else 40-col
-        if (is80ColMode && m_videoModes.size() > 4)
-        {
-            m_refs.activeVideoMode = m_videoModes[4].get();
-        }
-        else
-        {
-            m_refs.activeVideoMode = m_videoModes[0].get();
-        }
-    }
-    else if (!m_hiresMode)
-    {
-        // Lo-res graphics
-        m_refs.activeVideoMode = m_videoModes[1].get();
-    }
-    else
-    {
-        // Hi-res graphics — use DHR (index 3) when DHIRES + 80COL are
-        // both active on the //e (FR-019, audit M8). Otherwise standard
-        // hi-res (index 2).
-        bool useDhr = iieSoftSwitches != nullptr
-                   && iieSoftSwitches->IsDoubleHiRes()
-                   && is80ColMode
-                   && m_videoModes.size() > 3;
-
-        if (useDhr)
-        {
-            m_refs.activeVideoMode = m_videoModes[3].get();
-        }
-        else
-        {
-            m_refs.activeVideoMode = m_videoModes[2].get();
-        }
-    }
-
-    // Pass page2 state to the active renderer
-    if (m_refs.activeVideoMode != nullptr)
-    {
-        m_refs.activeVideoMode->SetPage2 (m_page2);
-    }
-
-    // Keep text mode page2-aware for mixed-mode overlay rendering
-    m_videoModes[0]->SetPage2 (m_page2);
-
-    // Propagate ALTCHARSET to both text-mode renderers (audit M13 closure).
-    static_cast<AppleTextMode *> (m_videoModes[0].get())->SetAltCharSet (altCharSet);
-
-    if (m_videoModes.size() > 4)
-    {
-        static_cast<Apple80ColTextMode *> (m_videoModes[4].get())->SetAltCharSet (altCharSet);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  SoftReset
-//
-//  Phase 4 / FR-034. Drives the //e /RESET path: every device clears its
-//  reset-sensitive state (audit S10 [CRITICAL] - 80COL/ALTCHARSET no
-//  longer survive), the MMU returns to the post-reset banking flags, and
-//  the CPU re-loads PC from $FFFC. User RAM is preserved.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SoftReset()
 {
-    m_memoryBus.SoftResetAll();
-
-    if (m_mmu != nullptr)
-    {
-        m_mmu->OnSoftReset();
-    }
-
-    m_interruptController.SoftReset();
-
-    if (m_videoTiming != nullptr)
-    {
-        m_videoTiming->SoftReset();
-    }
-
-    if (m_cpu != nullptr)
-    {
-        m_cpu->SoftReset();
-    }
-
-    // Spec-006 / FR-004a. Re-zero the Disk II Debug Uptime column on
-    // every reset so the user sees a clean 00:00 anchor after each
-    // Ctrl+R / Ctrl+Shift+R.
-    ResetUptimeAnchor();
+    m_machineManager->SoftReset();
 }
 
 
@@ -4023,52 +2714,11 @@ void EmulatorShell::SoftReset()
 //
 //  PowerCycle
 //
-//  Phase 4 / FR-035. Reseeds every DRAM-owning device from m_prng then
-//  runs the SoftReset sequence. The Prng is constructed once (host
-//  process lifetime) so consecutive cycles within a single session
-//  continue producing fresh patterns rather than repeating the seed.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::PowerCycle()
 {
-    HRESULT  hrFlush = S_OK;
-
-    if (m_prng == nullptr)
-    {
-        return;
-    }
-
-    // Phase 11 / T097 / FR-025 / FR-035. Auto-flush dirty disks before
-    // reseeding device state so writes don't get lost across a power
-    // cycle. Mounts persist (matches DiskImageStore::SoftReset semantics
-    // — see comment block on DiskImageStore::PowerCycle, which is the
-    // unmount-everything variant tests can opt into directly).
-    hrFlush = m_diskStore.FlushAll();
-    IGNORE_RETURN_VALUE (hrFlush, S_OK);
-
-    m_memoryBus.PowerCycleAll (*m_prng);
-
-    if (m_mmu != nullptr)
-    {
-        m_mmu->OnPowerCycle (*m_prng);
-    }
-
-    m_interruptController.PowerCycle();
-
-    if (m_videoTiming != nullptr)
-    {
-        m_videoTiming->PowerCycle (*m_prng);
-    }
-
-    if (m_cpu != nullptr)
-    {
-        m_cpu->PowerCycle (*m_prng);
-    }
-
-    // Spec-006 / FR-004a. Re-zero the Disk II Debug Uptime column on
-    // every power-cycle as well as soft-reset.
-    ResetUptimeAnchor();
+    m_machineManager->PowerCycle();
 }
 
 
@@ -4097,7 +2747,9 @@ void EmulatorShell::OpenDiskIIDebugDialog()
     HINSTANCE           hInstance    = nullptr;
     size_t              i            = 0;
 
-    controller = FindSlot6Controller();
+
+
+    controller = m_diskManager->FindSlot6Controller();
 
     // FR-001a should have grayed the menu item; the accelerator
     // bypasses that gate so we defend in depth.
@@ -4180,7 +2832,7 @@ void EmulatorShell::AttachDebugSinksIfOpen()
 
     CBR (m_diskIIDebugDialog != nullptr);
 
-    controller = FindSlot6Controller();
+    controller = m_diskManager->FindSlot6Controller();
 
     if (controller != nullptr)
     {
@@ -4207,25 +2859,193 @@ Error:
 //
 //  OnInitMenuPopup
 //
-//  Spec-006 / FR-001a. Re-evaluate menu items whose enabled state
-//  depends on runtime machine config (currently just
-//  IDM_VIEW_DISKII_DEBUG). Win32 fires this every time the user
-//  opens a popup, so a SwitchMachine between menu opens picks up
-//  the controller delta on the next click.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool EmulatorShell::OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu)
 {
-    UNREFERENCED_PARAMETER (hwnd);
-    UNREFERENCED_PARAMETER (hMenu);
-    UNREFERENCED_PARAMETER (itemIndex);
-    UNREFERENCED_PARAMETER (isWindowMenu);
-
-    m_menuSystem.UpdateDynamicMenuItems (m_config);
-
-    return true;
+    return m_windowCommandManager->OnInitMenuPopup (hwnd, hMenu, itemIndex, isWindowMenu);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnNcCalcSize
+//
+//  Collapse the entire non-client area into the client rect so
+//  the chrome we draw owns every pixel. When wParam is TRUE we return
+//  0 with NCCALCSIZE_PARAMS.rgrc[0] untouched, telling Windows that
+//  the proposed window rect IS the new client rect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnNcCalcSize (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult)
+{
+    NCCALCSIZE_PARAMS *  pParams      = nullptr;
+    LRESULT              defResult    = 0;
+    LONG                 originalTop  = 0;
+
+
+
+    if (wParam == FALSE)
+    {
+        outResult = 0;
+        return false;
+    }
+
+    pParams = reinterpret_cast<NCCALCSIZE_PARAMS *> (lParam);
+    if (pParams == nullptr)
+    {
+        outResult = 0;
+        return false;
+    }
+
+    // Mirror microsoft/terminal NonClientIslandWindow::_OnNcCalcSize:
+    // let DefWindowProc compute the default frame (gives Windows the
+    // correct resize-border math at the left/right/bottom edges, plus
+    // Aero Snap awareness) then re-apply the original top edge so the
+    // visual title-bar area collapses into our client rect for the
+    // custom-painted chrome. Drag and edge resize keep working because
+    // the OS still sees a captioned window with thick frames.
+    originalTop = pParams->rgrc[0].top;
+    defResult   = DefWindowProc (hwnd, WM_NCCALCSIZE, wParam, lParam);
+    if (defResult != 0)
+    {
+        outResult = defResult;
+        return false;
+    }
+
+    pParams->rgrc[0].top = originalTop;
+    outResult            = 0;
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnNcHitTest
+//
+//  Routes through the unit-tested pure-logic helper. Pull the current
+//  title-bar geometry from the cached layout (kept in sync by
+//  TitleBar::UpdateGeometry in OnSize).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LRESULT EmulatorShell::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
+{
+    static constexpr int  s_kMinResizeBorderPx = 8;
+
+    POINT                 pt   = { xScreen, yScreen };
+    RECT                  rcClient = {};
+    RECT                  rcTitle  = {};
+    RECT                  rcMin    = {};
+    RECT                  rcMax    = {};
+    RECT                  rcClose  = {};
+    TitleBarHitTestInput  in       = {};
+    LRESULT               result   = HTNOWHERE;
+    UINT                  dpi      = 0;
+    int                   framePx  = 0;
+    int                   padPx    = 0;
+    int                   borderPx = 0;
+
+
+
+    if (!ScreenToClient (hwnd, &pt))
+    {
+        return HTNOWHERE;
+    }
+
+    if (!GetClientRect (hwnd, &rcClient))
+    {
+        return HTNOWHERE;
+    }
+
+    rcTitle = m_titleBar.GetTitleBarRect();
+    rcMin   = m_titleBar.GetButtonRect (SystemButton::Minimize);
+    rcMax   = m_titleBar.GetButtonRect (SystemButton::Maximize);
+    rcClose = m_titleBar.GetButtonRect (SystemButton::Close);
+
+    dpi      = GetDpiForWindow (hwnd);
+    framePx  = GetSystemMetricsForDpi (SM_CXSIZEFRAME, dpi);
+    padPx    = GetSystemMetricsForDpi (SM_CXPADDEDBORDER, dpi);
+    borderPx = framePx + padPx;
+    if (borderPx < s_kMinResizeBorderPx)
+    {
+        borderPx = s_kMinResizeBorderPx;
+    }
+
+    in.clientWidth   = rcClient.right - rcClient.left;
+    in.clientHeight  = rcClient.bottom - rcClient.top;
+    in.mouseX        = pt.x;
+    in.mouseY        = pt.y;
+    in.titleLeft     = rcTitle.left;
+    in.titleTop      = rcTitle.top;
+    in.titleRight    = rcTitle.right;
+    in.titleBottom   = rcTitle.bottom;
+    in.minLeft       = rcMin.left;     in.minTop    = rcMin.top;
+    in.minRight      = rcMin.right;    in.minBottom = rcMin.bottom;
+    in.maxLeft       = rcMax.left;     in.maxTop    = rcMax.top;
+    in.maxRight      = rcMax.right;    in.maxBottom = rcMax.bottom;
+    in.closeLeft     = rcClose.left;   in.closeTop  = rcClose.top;
+    in.closeRight    = rcClose.right;  in.closeBottom = rcClose.bottom;
+    in.resizeBorderPx = borderPx;
+
+    result = TitleBarHitTest::Test (in);
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnNcLButtonUp
+//
+//  Dispatch system-button clicks. HTCLOSE → WM_CLOSE,
+//  HTMINBUTTON → minimize, HTMAXBUTTON → toggle maximize. Everything
+//  else falls through to DefWindowProc so caption double-clicks,
+//  system-menu, snap layouts, etc. all keep working.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen)
+{
+    UNREFERENCED_PARAMETER (xScreen);
+    UNREFERENCED_PARAMETER (yScreen);
+
+    WINDOWPLACEMENT  wp = { sizeof (wp) };
+
+
+    switch (hitTest)
+    {
+        case HTCLOSE:
+            PostMessage (hwnd, WM_CLOSE, 0, 0);
+            return true;
+
+        case HTMINBUTTON:
+            ShowWindow (hwnd, SW_MINIMIZE);
+            return true;
+
+        case HTMAXBUTTON:
+            if (GetWindowPlacement (hwnd, &wp))
+            {
+                ShowWindow (hwnd,
+                            (wp.showCmd == SW_MAXIMIZE) ? SW_RESTORE : SW_MAXIMIZE);
+            }
+            return true;
+    }
+
+    return false;
+}
+
+
 
 
 

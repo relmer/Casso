@@ -3,9 +3,11 @@
 // To customize, copy it to Machines/<Name>/<Name>.json (any name
 // other than the three embedded defaults) and edit that copy.
 {
-    "$cassoDefault": 2,
+    "$cassoMachineVersion": 6,
     "name": "Apple //e",
+    "releaseYear": 1983,
     "cpu": "6502",
+    "cpuManufacturer": "MOS Technology",
     "timing": {
         "videoStandard": "ntsc",
         "clockSpeed": 1022727,

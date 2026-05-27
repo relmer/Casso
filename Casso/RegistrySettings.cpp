@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "RegistrySettings.h"
-#include "Ehm.h"
 
 
 
@@ -20,6 +19,8 @@
 wstring RegistrySettings::BuildKeyPath (LPCWSTR subkey)
 {
     wstring  path = kRegistryKeyPath;
+
+
 
     if (subkey != nullptr && *subkey != L'\0')
     {
@@ -146,6 +147,7 @@ Error:
 
     return hr;
 }
+
 
 
 

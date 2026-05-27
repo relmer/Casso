@@ -9,13 +9,17 @@
 #include <mfreadwrite.h>
 #include <mferror.h>
 #include <propvarutil.h>
+#include <shlobj.h>
+#include <knownfolders.h>
 #include <wrl/client.h>
 
 #include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <deque>
 #include <filesystem>
 #include <format>

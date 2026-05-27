@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://casso/schemas/theme-metadata.schema.json",
+  "title": "ThemeMetadata",
+  "description": "theme.json metadata file for native-owned UI theming.",
+  "type": "object",
+  "required": [
+    "$cassoThemeVersion",
+    "name",
+    "familyId",
+    "variantId",
+    "uiTokens",
+    "driveVisualProfile"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$cassoThemeVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "familyId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+    },
+    "variantId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+    },
+    "author": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "uiTokens": {
+      "type": "object",
+      "description": "Native visual tokens for color, gradient, depth, and timings.",
+      "additionalProperties": true
+    },
+    "driveVisualProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "style",
+        "colorway",
+        "doorAnimation",
+        "syncChannel"
+      ],
+      "properties": {
+        "style": {
+          "type": "string",
+          "enum": [
+            "disk2",
+            "disk35",
+            "generic"
+          ]
+        },
+        "colorway": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "doorAnimation": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "syncChannel": {
+          "type": "string",
+          "maxLength": 64
+        }
+      }
+    },
+    "crtDefaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "brightness": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 2.0
+        },
+        "scanlines": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "intensity": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0
+            }
+          }
+        },
+        "bloom": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "radius": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 4.0
+            },
+            "strength": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0
+            }
+          }
+        },
+        "colorBleed": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "width": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 4.0
+            }
+          }
+        }
+      }
+    },
+    "useMicaBackdrop": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "familyId": {
+            "const": "apple2"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "driveVisualProfile": {
+            "properties": {
+              "style": {
+                "const": "disk2"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

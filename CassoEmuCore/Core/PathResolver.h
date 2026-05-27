@@ -32,4 +32,11 @@ public:
 
     // Get the current working directory
     static fs::path GetWorkingDirectory ();
+
+    // Returns %LOCALAPPDATA%\<appName>\, creating the directory if it
+    // doesn't already exist. Falls back to the %LOCALAPPDATA% env var
+    // and finally %USERPROFILE%\AppData\Local if SHGetKnownFolderPath
+    // fails (extremely rare on supported Windows). Empty path returned
+    // only if every fallback fails.
+    static fs::path GetLocalAppDataDir (const std::wstring & appName);
 };

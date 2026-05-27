@@ -21,6 +21,8 @@ public:
     DebugConsole ();
     ~DebugConsole ();
 
+    void SetMainWindow (HWND hwndMain) { m_hwndMain = hwndMain; }
+
     bool Show (HINSTANCE hInstance);
     void Hide ();
     bool IsVisible () const;
@@ -31,12 +33,14 @@ public:
 protected:
     LRESULT OnCreate  (HWND hwnd, CREATESTRUCT * pcs) override;
     bool    OnClose   (HWND hwnd) override;
+    bool    OnKeyDown (WPARAM vk, LPARAM lParam) override;
     bool    OnSize    (HWND hwnd, UINT width, UINT height) override;
 
 private:
     HRESULT InitializeConsole (HINSTANCE hInstance);
 
     HWND    m_editCtrl = nullptr;
+    HWND    m_hwndMain = nullptr;
 };
 
 
