@@ -463,61 +463,69 @@ void DriveWidget::Paint (
         }
 
         // Two indented lid panels on the case top, matching the real
-        // Disk II's stamped panel design. Stacked FRONT-TO-BACK so
-        // each panel is wider than it is tall (matches the photo --
-        // a side-by-side layout would make tall-narrow rectangles
-        // because the case-top trapezoid is much wider than deep).
-        //
-        // Both panels clamp to the trapezoid bounds at their depth
-        // so they never extend past the slanted left/right edges.
-        float  panelTopBack    = backY;
-        float  panelBottomFront = frontY;
+        // Disk II's stamped panel design. Each panel is itself a
+        // trapezoid that follows the case-top's perspective slant
+        // (drawn scanline by scanline so the left/right edges taper
+        // toward the back exactly like the case top).
         float  panelInsetTop;
         float  panelInsetBottom;
-        UNREFERENCED_PARAMETER (panelTopBack);
-        UNREFERENCED_PARAMETER (panelBottomFront);
         {
-            float  edgeH       = frontY - backY;
-            float  midGapH     = edgeH * 0.08f;
-            float  panelH      = (edgeH - midGapH) * 0.5f;
-            // Vertical insets keep panels off the very front and back edges.
-            float  topMargin   = edgeH * 0.10f;
-            float  bottomMargin = edgeH * 0.08f;
-            float  rearY1      = backY + topMargin;
-            float  rearY2      = rearY1 + panelH - topMargin;
-            float  frontY1     = rearY2 + midGapH;
-            float  frontY2     = frontY - bottomMargin;
-            uint32_t panelFill   = 0xFFC0AA82;
-            uint32_t panelShadow = 0xFF8E7A55;
-            uint32_t panelHilite = 0xFFD8C49B;
-            float  sideMargin    = 12.0f;
+            float    edgeH        = frontY - backY;
+            float    midGapH      = edgeH * 0.08f;
+            float    panelH       = (edgeH - midGapH) * 0.5f;
+            float    topMargin    = edgeH * 0.10f;
+            float    bottomMargin = edgeH * 0.08f;
+            float    rearY1       = backY + topMargin;
+            float    rearY2       = rearY1 + panelH - topMargin;
+            float    frontY1      = rearY2 + midGapH;
+            float    frontY2      = frontY - bottomMargin;
+            uint32_t panelFill    = 0xFFC0AA82;
+            uint32_t panelShadow  = 0xFF8E7A55;
+            uint32_t panelHilite  = 0xFFD8C49B;
+            float    sideMargin   = 12.0f;
 
-            auto LerpEdge = [&] (float yPos)
+            auto LerpEdges = [&] (float yPos)
             {
                 // depth fraction at this y (0 = front, 1 = back)
-                float  t      = (yPos - frontY) / (backY - frontY);
+                float  t          = (yPos - frontY) / (backY - frontY);
                 float  leftEdge   = frontLeft  + (backLeft  - frontLeft)  * t;
                 float  rightEdge  = frontRight + (backRight - frontRight) * t;
                 return std::pair<float,float> (leftEdge + sideMargin, rightEdge - sideMargin);
             };
 
+            // Trapezoidal panel: edges follow case-top perspective.
+            // Linearly interpolate between (yTop edges) and (yBot edges)
+            // per scanline so the panel narrows toward the back.
             auto DrawPanel = [&] (float yTop, float yBot)
             {
-                auto  topEdges    = LerpEdge (yTop);
-                auto  bottomEdges = LerpEdge (yBot);
-                // Use the narrower of the two depths so we stay inside
-                // the trapezoid bounds at every row of the panel.
-                float l = std::max (topEdges.first,  bottomEdges.first);
-                float r = std::min (topEdges.second, bottomEdges.second);
-                if (r <= l)
+                auto   topEdges    = LerpEdges (yTop);
+                auto   bottomEdges = LerpEdges (yBot);
+                int    rows        = (int) (yBot - yTop);
+                int    i           = 0;
+                float  denom       = (float) ((rows > 1) ? (rows - 1) : 1);
+
+                for (i = 0; i < rows; i++)
                 {
-                    return;
+                    float  t          = (float) i / denom;
+                    // Note: i=0 is at yBot (front), i=rows-1 is at yTop (back).
+                    float  l          = bottomEdges.first  + (topEdges.first  - bottomEdges.first)  * t;
+                    float  r          = bottomEdges.second + (topEdges.second - bottomEdges.second) * t;
+                    float  y          = yBot - 1.0f - (float) i;
+                    uint32_t fill     = panelFill;
+
+                    if (i == rows - 1)
+                    {
+                        fill = panelShadow;
+                    }
+                    else if (i == 0)
+                    {
+                        fill = panelHilite;
+                    }
+                    painter.FillRect (l, y, r - l, 1.0f, fill);
+                    // Left edge shadow, right edge highlight, follow slant.
+                    painter.FillRect (l,        y, 1.0f, 1.0f, panelShadow);
+                    painter.FillRect (r - 1.0f, y, 1.0f, 1.0f, panelHilite);
                 }
-                painter.FillRect (l, yTop, r - l, yBot - yTop, panelFill);
-                painter.FillRect (l, yTop, r - l, 1.0f, panelShadow);
-                painter.FillRect (l, yTop, 1.0f, yBot - yTop, panelShadow);
-                painter.FillRect (l, yBot - 1.0f, r - l, 1.0f, panelHilite);
-                painter.FillRect (r - 1.0f, yTop, 1.0f, yBot - yTop, panelHilite);
             };
 
             DrawPanel (rearY1, rearY2);
@@ -529,9 +537,9 @@ void DriveWidget::Paint (
             panelInsetBottom = rearY2;
         }
 
-        // Nine vent slots stepping along the LEFT edge of the rear
-        // lid-panel y-range. Real Disk II has these on the upper-
-        // left of the case roughly aligned with the back panel.
+        // Nine vent slots on each side of the case top, aligned with
+        // the rear lid-panel y-range. Matches the real Disk II which
+        // has vents on both side faces of the case.
         {
             int      ventCount  = s_kVentCountPx;
             float    ventTop    = panelInsetTop;
@@ -539,6 +547,7 @@ void DriveWidget::Paint (
             float    span       = ventBottom - ventTop;
             float    spacing    = span / (float) (ventCount + 1);
             float    slitH      = (float) Scale (s_kVentSlotHeightPx, dpi);
+            float    slitInset  = 6.0f;
             uint32_t ventArgb   = 0xFF4A3F2A;
             int      v          = 0;
 
@@ -549,8 +558,8 @@ void DriveWidget::Paint (
                 float  leftAtY   = frontLeft  + (backLeft  - frontLeft)  * depthT;
                 float  rightAtY  = frontRight + (backRight - frontRight) * depthT;
                 float  slitLen   = (rightAtY - leftAtY) * 0.10f;
-                float  slitX     = leftAtY + 6.0f;
-                painter.FillRect (slitX, y, slitLen, slitH, ventArgb);
+                painter.FillRect (leftAtY  + slitInset,           y, slitLen, slitH, ventArgb);
+                painter.FillRect (rightAtY - slitInset - slitLen, y, slitLen, slitH, ventArgb);
             }
         }
     }
