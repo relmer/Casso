@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "../DpiScaler.h"
+
 
 
 
@@ -95,14 +97,25 @@ public:
     static constexpr int  kBaseDpi = 96;
 
 
+    explicit LayoutManager (const DpiScaler & scaler);
+
     void  Register   (IEdgeContributor * contributor);
     void  Register   (ICenterLayer     * layer);
     void  Unregister (IEdgeContributor * contributor);
     void  Unregister (ICenterLayer     * layer);
 
-    LayoutManagerResult  Resolve              (int clientWidthPx, int clientHeightPx, UINT dpi) const;
-    SIZE                ClientSizeForCenter  (int centerWidthPx, int centerHeightPx, UINT dpi) const;
+    LayoutManagerResult  Resolve                  (int clientWidthPx,
+                                                   int clientHeightPx) const;
+    SIZE                 ClientSizeForCenter      (int centerWidthPx,
+                                                   int centerHeightPx) const;
+    SIZE                 ClientSizeForFramebuffer (int framebufferWidthPx,
+                                                   int framebufferHeightPx) const;
 
+    int  ScaleForDpi (int dp) const;
+
+    // Static helper retained for the rare pre-window caller that has
+    // a DPI value but no LayoutManager to ask. Prefer the instance
+    // method everywhere else.
     static int  ScaleForDpi (int dp, UINT dpi);
 
 
@@ -110,6 +123,7 @@ public:
     const std::vector<ICenterLayer     *> & CenterLayers () const { return m_centerLayers; }
 
 private:
+    const DpiScaler                * m_scaler = nullptr;
     std::vector<IEdgeContributor *>  m_edges;
     std::vector<ICenterLayer     *>  m_centerLayers;
 };

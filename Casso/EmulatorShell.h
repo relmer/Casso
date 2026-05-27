@@ -280,7 +280,7 @@ private:
     // ChromeMetrics constants that drifted between EmulatorShell and
     // WindowCommandManager. Edge contributors below are pointer-tied
     // to this layout and report their desired thickness on demand.
-    LayoutManager            m_LayoutManager;
+    LayoutManager            m_layout { Scaler() };
     SimpleEdgeContributor   m_titleBarSlot { ChromeEdge::Top,    32 };
     SimpleEdgeContributor   m_navStripSlot { ChromeEdge::Top,    32 };
     SimpleEdgeContributor   m_driveBarSlot { ChromeEdge::Bottom, 192 };

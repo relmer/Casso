@@ -452,9 +452,9 @@ HRESULT EmulatorShell::Initialize (
     // pointers stay registered for the lifetime of the shell. Theme
     // changes that resize the drive bar mutate m_driveBarSlot in
     // place; LayoutManager reads the live thickness on every Resolve.
-    m_LayoutManager.Register (&m_titleBarSlot);
-    m_LayoutManager.Register (&m_navStripSlot);
-    m_LayoutManager.Register (&m_driveBarSlot);
+    m_layout.Register (&m_titleBarSlot);
+    m_layout.Register (&m_navStripSlot);
+    m_layout.Register (&m_driveBarSlot);
 
     assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
     machinesDir  = assetBaseDir / fs::path ("Machines") / fs::path (m_currentMachineName);
@@ -936,15 +936,17 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         dpi = GetDpiForSystem();
     }
 
-    {
-        SIZE  centerPx = {};
-        SIZE  client   = {};
+    // Seed the Window's authoritative DPI so the LayoutManager (which
+    // queries it) returns coherent sizes during the pre-Create math.
+    // WM_NCCREATE will overwrite this with GetDpiForWindow once the
+    // HWND exists; that value wins if it disagrees.
+    SetInitialDpi (dpi);
 
-        centerPx.cx = MulDiv (kFramebufferWidth,  static_cast<int> (dpi), s_kBaseDpi);
-        centerPx.cy = MulDiv (kFramebufferHeight, static_cast<int> (dpi), s_kBaseDpi);
-        client      = m_LayoutManager.ClientSizeForCenter ((int) centerPx.cx, (int) centerPx.cy, dpi);
-        clientW     = (int) client.cx;
-        clientH     = (int) client.cy;
+    {
+        SIZE  client = m_layout.ClientSizeForFramebuffer (kFramebufferWidth, kFramebufferHeight);
+
+        clientW = (int) client.cx;
+        clientH = (int) client.cy;
     }
 
     rc    = { 0, 0, clientW, clientH };
@@ -1018,18 +1020,21 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     }
 
-    // Reconcile actual client size against desired client size. The
-    // request-time math (AdjustWindowRectExForDpi minus WS_CAPTION) is
-    // a best-guess at what our WM_NCCALCSIZE handler will hand back as
-    // client area, but DefWindowProc's border carve-out depends on
-    // exact frame metrics that vary by Windows version and DPI. Rather
-    // than chase those numbers, measure the actual client and nudge
-    // the window by the residual delta so the chrome math and
-    // framebuffer aspect-fit see exactly the dimensions we expect.
-    // Skip the reconcile if saved placement was restored -- the user
-    // chose that size deliberately.
+    // Reconcile actual client size against desired client size. Two
+    // sources of drift to handle:
+    //   1. The pre-Create DPI estimate was based on cursor monitor;
+    //      after CreateWindowEx, the window's actual DPI (now in
+    //      m_scaler via WM_NCCREATE) may differ -- recompute the
+    //      desired client size from that authoritative DPI.
+    //   2. AdjustWindowRectExForDpi minus WS_CAPTION is a best-guess
+    //      at what our WM_NCCALCSIZE hands back as client area;
+    //      DefWindowProc's border carve-out varies by Windows version.
+    //      Measure the actual client and nudge by the residual delta.
+    // Skip if saved placement was restored -- the user chose that
+    // size deliberately.
     if (!hadSavedPlacement)
     {
+        SIZE  desired        = m_layout.ClientSizeForFramebuffer (kFramebufferWidth, kFramebufferHeight);
         RECT  rcActualClient = {};
         RECT  rcActualWindow = {};
         int   actualClientW  = 0;
@@ -1039,6 +1044,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         int   fixedW         = 0;
         int   fixedH         = 0;
 
+
+        clientW = (int) desired.cx;
+        clientH = (int) desired.cy;
 
         if (GetClientRect (m_hwnd, &rcActualClient) && GetWindowRect (m_hwnd, &rcActualWindow))
         {
@@ -1123,7 +1131,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_driveChrome[0].Initialize (6, 0, this);
     m_driveChrome[1].Initialize (6, 1, this);
     {
-        LayoutManagerResult  layout = m_LayoutManager.Resolve (clientW, clientH, dpi);
+        LayoutManagerResult  layout = m_layout.Resolve (clientW, clientH);
 
         LayoutDriveWidgetsInCommandBar (m_driveChrome, layout, clientW, clientH, dpi);
         m_d3dRenderer.SetTopInsetPx    (layout.topInsetPx);
@@ -1499,44 +1507,61 @@ void EmulatorShell::ApplyThemeToChrome (const ChromeTheme & theme)
 
     int   desiredThicknessDp = theme.compactDrives ? s_kCompactDriveBarDp : s_kFullDriveBarDp;
     int   priorThicknessDp   = m_driveBarSlot.DesiredThicknessDp();
-    UINT  dpi                = (m_hwnd != nullptr) ? GetDpiForWindow (m_hwnd) : (UINT) ChromeMetrics::kBaseDpi;
     RECT  rcClient           = {};
     RECT  rcWindow           = {};
+    int   centerW            = 0;
+    int   centerH            = 0;
 
 
 
-    m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
     m_driveChrome[0].SetCompact (theme.compactDrives);
     m_driveChrome[1].SetCompact (theme.compactDrives);
 
     if (m_hwnd == nullptr || desiredThicknessDp == priorThicknessDp)
     {
+        m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
         return;
     }
 
-    // Resize the window so the existing emulator pixel grid keeps its
-    // current size. The center rect equals the framebuffer-sized area
-    // bounded by the chrome insets; the new client size = (current
-    // center) + (new contributor totals).
+    // Skip the auto-resize for windows that are min/max/fullscreen --
+    // the user explicitly chose those window states and shouldn't see
+    // the window resize from under them on a theme swap. The new
+    // chrome thickness still gets applied to the contributor below
+    // so the next normal-state resize uses the right math.
+    if (IsIconic (m_hwnd) || IsZoomed (m_hwnd) || m_d3dRenderer.IsFullscreen())
+    {
+        m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
+        return;
+    }
+
     if (!GetClientRect (m_hwnd, &rcClient) || !GetWindowRect (m_hwnd, &rcWindow))
     {
+        m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
         return;
     }
 
+    // Capture the current center (emulator viewport) size BEFORE
+    // mutating the contributor. The user may have resized the window
+    // manually since boot; preserving "the emu viewport stays the
+    // same size, the drive bar grows/shrinks around it" is the
+    // intuitive contract on a theme swap.
     {
-        // Compute the current centerRect using the PRIOR drive bar
-        // thickness, then ask the layout for the new client size that
-        // hosts the same centerRect under the NEW thickness.
-        int                 oldBottomPx = LayoutManager::ScaleForDpi (priorThicknessDp, dpi);
-        int                 newBottomPx = LayoutManager::ScaleForDpi (desiredThicknessDp, dpi);
-        int                 deltaPx     = newBottomPx - oldBottomPx;
-        int                 ncOverheadW = (rcWindow.right  - rcWindow.left)  - (rcClient.right  - rcClient.left);
-        int                 ncOverheadH = (rcWindow.bottom - rcWindow.top)   - (rcClient.bottom - rcClient.top);
-        int                 newClientH  = (rcClient.bottom - rcClient.top) + deltaPx;
-        int                 newWindowW  = (rcWindow.right  - rcWindow.left);
-        int                 newWindowH  = newClientH + ncOverheadH;
+        LayoutManagerResult  before = m_layout.Resolve (rcClient.right  - rcClient.left,
+                                                        rcClient.bottom - rcClient.top);
 
-        UNREFERENCED_PARAMETER (ncOverheadW);
+        centerW = before.centerRect.right  - before.centerRect.left;
+        centerH = before.centerRect.bottom - before.centerRect.top;
+    }
+
+    m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
+
+    {
+        SIZE  newClient   = m_layout.ClientSizeForCenter (centerW, centerH);
+        int   ncOverheadH = (rcWindow.bottom - rcWindow.top) - (rcClient.bottom - rcClient.top);
+        int   ncOverheadW = (rcWindow.right  - rcWindow.left) - (rcClient.right  - rcClient.left);
+        int   newWindowW  = (int) newClient.cx + ncOverheadW;
+        int   newWindowH  = (int) newClient.cy + ncOverheadH;
+
         SetWindowPos (m_hwnd, nullptr, 0, 0, newWindowW, newWindowH,
                       SWP_NOZORDER | SWP_NOMOVE | SWP_NOACTIVATE);
     }
@@ -2625,7 +2650,7 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
         m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), static_cast<int> (width), dpi, &m_uiShell.Text());
 
         {
-            LayoutManagerResult  layout = m_LayoutManager.Resolve (static_cast<int> (width), renderH, dpi);
+            LayoutManagerResult  layout = m_layout.Resolve (static_cast<int> (width), renderH);
             bool                fHasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
 
             if (fHasDisk)

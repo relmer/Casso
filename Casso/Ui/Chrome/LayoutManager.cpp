@@ -8,14 +8,37 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LayoutManager::ScaleForDpi
-//
-//  DPI-scaling primitive used by Resolve. Mirrors ChromeMetrics::ScaleForDpi
-//  (which will be deleted once the migration is complete). Caps DPI at
-//  kBaseDpi when zero is supplied so callers can pass GetDpiForWindow's
-//  return value without guarding.
+//  LayoutManager::LayoutManager
 //
 ////////////////////////////////////////////////////////////////////////////////
+
+LayoutManager::LayoutManager (const DpiScaler & scaler)
+    : m_scaler (&scaler)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayoutManager::ScaleForDpi
+//
+//  DPI-scaling primitive. Two flavors: the instance method queries
+//  the bound DpiScaler (the normal path); the static overload is for
+//  the rare pre-window caller that has a raw DPI but no scaler yet.
+//  Caps DPI at kBaseDpi when zero is supplied so callers can pass
+//  GetDpiForWindow's return value without guarding.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int LayoutManager::ScaleForDpi (int dp) const
+{
+    return (m_scaler != nullptr) ? m_scaler->Px (dp)
+                                 : ScaleForDpi (dp, (UINT) kBaseDpi);
+}
+
 
 int LayoutManager::ScaleForDpi (int dp, UINT dpi)
 {
@@ -98,7 +121,7 @@ void LayoutManager::Unregister (ICenterLayer * layer)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LayoutManagerResult LayoutManager::Resolve (int clientWidthPx, int clientHeightPx, UINT dpi) const
+LayoutManagerResult LayoutManager::Resolve (int clientWidthPx, int clientHeightPx) const
 {
     LayoutManagerResult  r = {};
 
@@ -106,7 +129,7 @@ LayoutManagerResult LayoutManager::Resolve (int clientWidthPx, int clientHeightP
 
     for (IEdgeContributor * e : m_edges)
     {
-        int  px = ScaleForDpi (e->DesiredThicknessDp(), dpi);
+        int  px = ScaleForDpi (e->DesiredThicknessDp());
 
         switch (e->Edge())
         {
@@ -119,10 +142,10 @@ LayoutManagerResult LayoutManager::Resolve (int clientWidthPx, int clientHeightP
 
     for (ICenterLayer * c : m_centerLayers)
     {
-        r.topCenterPadPx    += ScaleForDpi (c->TopPadDp(),    dpi);
-        r.bottomCenterPadPx += ScaleForDpi (c->BottomPadDp(), dpi);
-        r.leftCenterPadPx   += ScaleForDpi (c->LeftPadDp(),   dpi);
-        r.rightCenterPadPx  += ScaleForDpi (c->RightPadDp(),  dpi);
+        r.topCenterPadPx    += ScaleForDpi (c->TopPadDp());
+        r.bottomCenterPadPx += ScaleForDpi (c->BottomPadDp());
+        r.leftCenterPadPx   += ScaleForDpi (c->LeftPadDp());
+        r.rightCenterPadPx  += ScaleForDpi (c->RightPadDp());
     }
 
     r.centerRect.left   = r.TotalLeftPx();
@@ -141,27 +164,51 @@ LayoutManagerResult LayoutManager::Resolve (int clientWidthPx, int clientHeightP
 //
 //  LayoutManager::ClientSizeForCenter
 //
-//  Inverse of Resolve: given a desired emulator pixel grid, return the
-//  client size that hosts it with all current contributors. This is the
-//  single source of truth for window-sizing math at:
-//      * EmulatorShell::Create (initial window size)
-//      * WindowCommandManager Ctrl+0 (snap to integer scale)
-//
-//  Both paths previously inlined the formula `framebuffer*scale +
-//  ChromeTopInset + ChromeBottomInset`. Centralizing here means a new
-//  contributor (e.g. a left-docked drive bar in spec 009) automatically
-//  participates in both call sites without further edits.
+//  Inverse of Resolve: given a desired emulator pixel grid (already
+//  scaled to physical pixels), return the client size that hosts it
+//  with all current contributors. Used by the theme-resize path
+//  which wants to preserve the user's current emu viewport size as
+//  the chrome thickness changes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SIZE LayoutManager::ClientSizeForCenter (int centerWidthPx, int centerHeightPx, UINT dpi) const
+SIZE LayoutManager::ClientSizeForCenter (int centerWidthPx, int centerHeightPx) const
 {
-    LayoutManagerResult  totals = Resolve (0, 0, dpi);
-    SIZE                size;
+    LayoutManagerResult  totals = Resolve (0, 0);
+    SIZE                 size;
 
 
 
     size.cx = centerWidthPx  + totals.TotalLeftPx() + totals.TotalRightPx();
     size.cy = centerHeightPx + totals.TotalTopPx()  + totals.TotalBottomPx();
     return size;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayoutManager::ClientSizeForFramebuffer
+//
+//  Owns the framebuffer scale policy. Today: linear DPI scaling --
+//  emu pixels scale at the same rate as chrome dp, so a 144 DPI
+//  monitor shows the framebuffer at 1.5x and chrome insets at 1.5x,
+//  and the two stay in proportion at every DPI. If we ever want to
+//  switch to integer-only scaling for pixel-art crispness, this is
+//  the one function to change.
+//
+//  Both EmulatorShell::CreateEmulatorWindow (initial window size)
+//  and WindowCommandManager Ctrl+0 (reset size) go through here.
+//  Previously each inlined its own (and disagreeing) formula.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE LayoutManager::ClientSizeForFramebuffer (int framebufferWidthPx, int framebufferHeightPx) const
+{
+    int   scaledFbWidthPx  = ScaleForDpi (framebufferWidthPx);
+    int   scaledFbHeightPx = ScaleForDpi (framebufferHeightPx);
+
+    return ClientSizeForCenter (scaledFbWidthPx, scaledFbHeightPx);
 }

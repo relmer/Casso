@@ -134,6 +134,28 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetInitialDpi
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Window::SetInitialDpi (UINT dpi)
+{
+    // Pre-Create only. WM_CREATE overwrites with GetDpiForWindow,
+    // which is the authoritative source once the window exists.
+    if (m_hwnd != nullptr)
+    {
+        return;
+    }
+    m_scaler.SetDpi (dpi);
+}
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  s_GetSetThisPointer
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,6 +175,16 @@ Window * Window::s_GetSetThisPointer (HWND hwnd, UINT message, WPARAM wParam, LP
         CREATESTRUCTW * pcs = reinterpret_cast<CREATESTRUCTW *> (lParam);
         pThis = static_cast<Window *> (pcs->lpCreateParams);
         SetWindowLongPtr (hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR> (pThis));
+
+        // Seed the per-window DPI as early as possible. WM_NCCREATE
+        // is the first message that has both an HWND and the `this`
+        // pointer bound, so every subsequent message handler can rely
+        // on m_scaler being current. WM_DPICHANGED keeps it current
+        // afterward.
+        if (pThis != nullptr)
+        {
+            pThis->m_scaler.SetDpi (GetDpiForWindow (hwnd));
+        }
     }
     else
     {
@@ -411,16 +443,23 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
 
         case WM_DPICHANGED:
         {
-            // Windows hands us the suggested new window rect in lParam
-            // when the user drags the window between monitors with
-            // different DPI scales (or when the display scale itself
-            // changes). Resizing the window to that rect lets the OS
-            // scale our chrome metrics correctly; WM_SIZE fires from
-            // SetWindowPos and our existing handler re-runs the chrome
-            // layout, resizes the swap chain, and rebinds the D2D
-            // target at the new DPI.
+            // NVI pattern: update m_scaler first so subclass hooks see
+            // the new DPI, fire the pre-resize hook for any layout
+            // recompute that should land before the window resize,
+            // apply the OS-suggested rect, then fire the post-resize
+            // hook for swap-chain/D2D-target rebinds. The base class
+            // owns the SetWindowPos so subclasses cannot accidentally
+            // skip it by forgetting to call base.
             RECT *  pSuggested = reinterpret_cast<RECT *> (lParam);
+            UINT    newDpi     = HIWORD (wParam);
 
+
+            if (newDpi != 0)
+            {
+                pThis->m_scaler.SetDpi (newDpi);
+            }
+
+            pThis->OnDpiChanging (pThis->m_scaler);
 
             if (pSuggested != nullptr)
             {
@@ -432,8 +471,9 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
                               pSuggested->bottom - pSuggested->top,
                               SWP_NOZORDER | SWP_NOACTIVATE);
             }
-            callDefWndProc = true;
-            break;
+
+            pThis->OnDpiChanged (pThis->m_scaler);
+            return 0;
         }
 
         case WM_NOTIFY:
