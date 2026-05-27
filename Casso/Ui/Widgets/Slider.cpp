@@ -99,11 +99,26 @@ void Slider::SetValue (float value)
 
 bool Slider::HitTest (int x, int y) const
 {
+    // Puck radius (max focused size) extends BEYOND m_rect on the
+    // left when value is at min, and on the right when value is at
+    // max AND there's no value-readout area to absorb it. Without
+    // this extension, the puck visibly reacts to hover/click in its
+    // outer half but the outer half is outside m_rect, so the input
+    // gets silently dropped.
+    constexpr int  s_kPuckRadiusMaxDp = 11;
+
+    int  puckExtPx = 0;
+
+
     if (!m_enabled)
     {
         return false;
     }
-    return x >= m_rect.left && x < m_rect.right && y >= m_rect.top && y < m_rect.bottom;
+    puckExtPx = m_scaler.Px (s_kPuckRadiusMaxDp);
+    return x >= (m_rect.left  - puckExtPx) &&
+           x <  (m_rect.right + puckExtPx) &&
+           y >= m_rect.top &&
+           y <  m_rect.bottom;
 }
 
 
