@@ -103,11 +103,12 @@ struct HardwareEntry
 
 struct SettingsMachineInfo
 {
-    std::string  name;
-    std::string  cpu;
-    uint32_t     clockSpeed    = 0;
-    size_t       memoryRegions = 0;
-    size_t       devices       = 0;
+    std::string                 name;
+    std::string                 cpu;
+    std::string                 cpuManufacturer;
+    uint32_t                    clockSpeed    = 0;
+    std::vector<std::string>    memoryRegions;
+    size_t                      devices       = 0;
 };
 
 

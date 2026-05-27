@@ -21,7 +21,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace
 {
     constexpr uint32_t  s_kFixtureClockSpeedHz    = 1023000;
-    constexpr size_t    s_kFixtureMemoryRegions   = 4;
     constexpr size_t    s_kFixtureDevices         = 4;
 
 
@@ -125,8 +124,12 @@ public:
         Assert::AreEqual (std::string ("TestMachine"), st.MachineName());
         Assert::AreEqual (std::string ("TestMachine"), st.MachineInfo().name);
         Assert::AreEqual (s_kFixtureClockSpeedHz,  st.MachineInfo().clockSpeed);
-        Assert::AreEqual (s_kFixtureMemoryRegions, st.MachineInfo().memoryRegions);
-        Assert::AreEqual (s_kFixtureDevices,       st.MachineInfo().devices);
+        // Memory regions now a list of formatted strings (one per RAM
+        // bank + systemRom if present). Fixture has 1 RAM entry, no
+        // systemRom block.
+        Assert::AreEqual (size_t (1), st.MachineInfo().memoryRegions.size());
+        // Devices counts internal + slot entries.
+        Assert::AreEqual (s_kFixtureDevices, st.MachineInfo().devices);
     }
 
 

@@ -63,10 +63,21 @@ public:
     static std::vector<TreeNode>  BuildNodes (const std::vector<HardwareEntry> & entries);
 
 private:
-    static constexpr size_t              kInfoRowCount = 5;
+    // Three fixed rows (Machine / CPU / Clock) + one header row
+    // (Memory regions) + N dynamic rows (one per region). Cap at a
+    // reasonable max so layout doesn't need vector reallocation each
+    // rebuild.
+    static constexpr size_t              kFixedInfoRowCount = 4;
+    static constexpr size_t              kMaxMemoryRows     = 8;
+    static constexpr size_t              kInfoRowCount      = kFixedInfoRowCount + kMaxMemoryRows;
 
     SettingsPanelState                 * m_state = nullptr;
     std::array<Label, kInfoRowCount>     m_infoLabels;
     std::array<Label, kInfoRowCount>     m_infoValues;
+    size_t                               m_memoryRowsInUse = 0;
+    int                                  m_rowHeight       = 0;
+    int                                  m_sectionGap      = 0;
+    RECT                                 m_baseRect        = {};
+    DpiScaler                            m_scaler;
     TreeView                             m_tree;
 };

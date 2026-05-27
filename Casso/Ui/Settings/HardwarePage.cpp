@@ -22,7 +22,6 @@ namespace
     constexpr size_t  s_kCpuRow           = 1;
     constexpr size_t  s_kClockRow         = 2;
     constexpr size_t  s_kMemoryRow        = 3;
-    constexpr size_t  s_kDevicesRow       = 4;
 
 
     RECT MakeRect (int l, int t, int w, int h)
@@ -76,27 +75,33 @@ void HardwarePage::SetRect (const RECT & rect, const DpiScaler & scaler)
     int  sectionGap  = scaler.Px (s_kBigSectionGapDp);
     int  valueX      = rect.left + labelWidth + valueGap;
     int  y           = rect.top;
-    int  i           = 0;
+    size_t i         = 0;
     RECT treeRect    = rect;
 
 
 
+    m_baseRect   = rect;
+    m_rowHeight  = rowHeight;
+    m_sectionGap = sectionGap;
+    m_scaler     = scaler;
+
     m_infoLabels[s_kMachineRow].SetText (L"Machine:");
     m_infoLabels[s_kCpuRow].SetText     (L"CPU:");
     m_infoLabels[s_kClockRow].SetText   (L"Clock speed:");
-    m_infoLabels[s_kMemoryRow].SetText  (L"Memory regions:");
-    m_infoLabels[s_kDevicesRow].SetText (L"Devices:");
+    m_infoLabels[s_kMemoryRow].SetText  (L"Memory:");
 
-    for (i = 0; i < (int) kInfoRowCount; ++i)
+    for (i = 0; i < kInfoRowCount; ++i)
     {
-        m_infoLabels[(size_t) i].SetRect (MakeRect (rect.left, y, labelWidth, rowHeight));
-        m_infoValues[(size_t) i].SetRect (MakeRect (valueX,
-                                                    y,
-                                                    rect.right - valueX,
-                                                    rowHeight));
-        m_infoLabels[(size_t) i].SetDpi (dpi);
-        m_infoValues[(size_t) i].SetDpi (dpi);
-        y += rowHeight;
+        m_infoLabels[i].SetRect (MakeRect (rect.left, y, labelWidth, rowHeight));
+        m_infoValues[i].SetRect (MakeRect (valueX, y, rect.right - valueX, rowHeight));
+        m_infoLabels[i].SetDpi (dpi);
+        m_infoValues[i].SetDpi (dpi);
+        // Only fixed rows + the in-use memory rows occupy real y;
+        // unused memory rows collapse to zero-height off-screen.
+        if (i < kFixedInfoRowCount || i < kFixedInfoRowCount + m_memoryRowsInUse)
+        {
+            y += rowHeight;
+        }
     }
 
     treeRect.top = y + sectionGap;
@@ -148,11 +153,59 @@ void HardwarePage::Rebuild ()
     {
         info    = &state->MachineInfo();
         entries = state->Hardware();
+
+        // Comma-grouped clock speed (e.g. "1,022,727 Hz"). std::format
+        // with the "L" locale-aware flag requires a locale; build the
+        // grouped string by hand for predictable output.
+        auto FormatGrouped = [] (uint32_t n)
+        {
+            std::wstring  s = std::to_wstring (n);
+            int           i = (int) s.size() - 3;
+            while (i > 0)
+            {
+                s.insert ((size_t) i, L",");
+                i -= 3;
+            }
+            return s;
+        };
+
+        std::wstring  cpuDisplay = Widen (info->cpu);
+        if (! info->cpuManufacturer.empty())
+        {
+            cpuDisplay = Widen (info->cpuManufacturer) + L" " + cpuDisplay;
+        }
+
         m_infoValues[s_kMachineRow].SetText (Widen (info->name));
-        m_infoValues[s_kCpuRow].SetText     (Widen (info->cpu));
-        m_infoValues[s_kClockRow].SetText   (std::format (L"{} Hz", info->clockSpeed));
-        m_infoValues[s_kMemoryRow].SetText  (std::format (L"{}", info->memoryRegions));
-        m_infoValues[s_kDevicesRow].SetText (std::format (L"{}", info->devices));
+        m_infoValues[s_kCpuRow].SetText     (cpuDisplay);
+        m_infoValues[s_kClockRow].SetText   (FormatGrouped (info->clockSpeed) + L" Hz");
+        m_infoValues[s_kMemoryRow].SetText  (L"");        // header row, value column blank
+
+        size_t  rowsInUse = std::min<size_t> (info->memoryRegions.size(), kMaxMemoryRows);
+        size_t  i         = 0;
+        for (i = 0; i < kMaxMemoryRows; ++i)
+        {
+            size_t  slotIdx = kFixedInfoRowCount + i;
+            if (i < rowsInUse)
+            {
+                // Two-space leading indent matches the Display page's
+                // sub-row convention so the regions read as children
+                // of the "Memory:" header above.
+                m_infoLabels[slotIdx].SetText (L"  " + Widen (info->memoryRegions[i]));
+            }
+            else
+            {
+                m_infoLabels[slotIdx].SetText (L"");
+            }
+            m_infoValues[slotIdx].SetText (L"");
+        }
+
+        if (rowsInUse != m_memoryRowsInUse)
+        {
+            m_memoryRowsInUse = rowsInUse;
+            // Re-run layout with the new row count so the tree shifts
+            // down to make space. Only fires when the count changes.
+            SetRect (m_baseRect, m_scaler);
+        }
     }
 
     nodes = BuildNodes (entries);

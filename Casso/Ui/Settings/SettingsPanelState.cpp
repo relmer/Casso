@@ -588,8 +588,60 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     HRESULT            hrRead          = S_OK;
     const JsonValue  * timingObj       = nullptr;
     const JsonValue  * ramArray        = nullptr;
+    const JsonValue  * romObj          = nullptr;
     const JsonValue  * internalDevices = nullptr;
     const JsonValue  * slots           = nullptr;
+
+    auto ParseHex = [] (const std::string & str) -> uint32_t
+    {
+        // Accept "0x" / "0X" / no prefix. Returns 0 on parse failure
+        // (which renders harmlessly as an empty/zero region line below).
+        size_t        i   = 0;
+        uint32_t      out = 0;
+        if (str.size() >= 2 && str[0] == '0' && (str[1] == 'x' || str[1] == 'X'))
+        {
+            i = 2;
+        }
+        for (; i < str.size(); ++i)
+        {
+            char c = str[i];
+            int  d = -1;
+            if      (c >= '0' && c <= '9') { d = c - '0';      }
+            else if (c >= 'a' && c <= 'f') { d = c - 'a' + 10; }
+            else if (c >= 'A' && c <= 'F') { d = c - 'A' + 10; }
+            else                            { return 0; }
+            out = (out << 4) | (uint32_t) d;
+        }
+        return out;
+    };
+
+    auto FormatSize = [] (uint32_t bytes) -> std::string
+    {
+        if (bytes == 0)
+        {
+            return "0";
+        }
+        if (bytes >= 1024 && (bytes % 1024) == 0)
+        {
+            return std::format ("{}K", bytes / 1024);
+        }
+        return std::format ("{}B", bytes);
+    };
+
+    auto FormatRegion = [&] (const std::string & label,
+                              const std::string & addrStr,
+                              const std::string & sizeStr)
+    {
+        uint32_t  addr = ParseHex (addrStr);
+        uint32_t  size = ParseHex (sizeStr);
+        if (size == 0)
+        {
+            return;
+        }
+        uint32_t  end  = addr + size - 1;
+        outInfo.memoryRegions.push_back (
+            std::format ("{}: {} @ ${:04X}-${:04X}", label, FormatSize (size), addr, end));
+    };
 
 
 
@@ -609,6 +661,12 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
         outInfo.cpu.clear();
     }
 
+    hrRead = mergedJson.GetString ("cpuManufacturer", outInfo.cpuManufacturer);
+    if (FAILED (hrRead))
+    {
+        outInfo.cpuManufacturer.clear();
+    }
+
     hrRead = mergedJson.GetObject ("timing", timingObj);
     if (SUCCEEDED (hrRead) && timingObj != nullptr)
     {
@@ -622,8 +680,58 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     hrRead = mergedJson.GetArray ("ram", ramArray);
     if (SUCCEEDED (hrRead) && ramArray != nullptr)
     {
-        outInfo.memoryRegions += ramArray->ArraySize();
-        outInfo.memoryRegions += 1;
+        size_t  i = 0;
+        for (i = 0; i < ramArray->ArraySize(); ++i)
+        {
+            const JsonValue &  entry  = ramArray->ArrayAt (i);
+            std::string        addr;
+            std::string        size;
+            std::string        bank;
+            std::string        label;
+
+            if (entry.GetType() != JsonType::Object)
+            {
+                continue;
+            }
+            IGNORE_RETURN_VALUE (hrRead, entry.GetString ("address", addr));
+            IGNORE_RETURN_VALUE (hrRead, entry.GetString ("size",    size));
+            IGNORE_RETURN_VALUE (hrRead, entry.GetString ("bank",    bank));
+
+            if (bank.empty() || bank == "main")
+            {
+                label = (i == 0) ? "Main RAM" : std::format ("RAM {}", i);
+            }
+            else
+            {
+                label = std::format ("{} RAM", bank);
+                if (! label.empty())
+                {
+                    label[0] = (char) toupper ((unsigned char) label[0]);
+                }
+            }
+            FormatRegion (label, addr, size);
+        }
+    }
+
+    hrRead = mergedJson.GetObject ("systemRom", romObj);
+    if (SUCCEEDED (hrRead) && romObj != nullptr)
+    {
+        std::string  addr;
+        std::string  size;
+
+        IGNORE_RETURN_VALUE (hrRead, romObj->GetString ("address", addr));
+        IGNORE_RETURN_VALUE (hrRead, romObj->GetString ("size",    size));
+        // System ROM size defaults to fill-to-$FFFF when omitted in the
+        // schema. Compute end from address if no size provided.
+        if (size.empty() && ! addr.empty())
+        {
+            uint32_t  startAddr = ParseHex (addr);
+            if (startAddr < 0x10000u)
+            {
+                size = std::format ("0x{:X}", 0x10000u - startAddr);
+            }
+        }
+        FormatRegion ("System ROM", addr, size);
     }
 
     hrRead = mergedJson.GetArray ("internalDevices", internalDevices);
@@ -635,8 +743,7 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     hrRead = mergedJson.GetArray ("slots", slots);
     if (SUCCEEDED (hrRead) && slots != nullptr)
     {
-        outInfo.memoryRegions += slots->ArraySize();
-        outInfo.devices       += slots->ArraySize();
+        outInfo.devices += slots->ArraySize();
     }
 
 Error:
