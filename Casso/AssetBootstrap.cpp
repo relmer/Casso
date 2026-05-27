@@ -149,9 +149,9 @@ struct EmbeddedConfig
 
 static constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
 {
-    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     4 },
-    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 4 },
-    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    4 },
+    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     5 },
+    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 5 },
+    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    5 },
 };
 
 
@@ -196,6 +196,15 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
 
     // v3 Apple2e.json (pre-releaseYear).
     { "Apple2e",    "9644241cca2e3220f520b8c13670f99a503a9dc3954dea514cf0a91aa9350040" },
+
+    // v4 Apple2.json (added releaseYear; no cpuManufacturer).
+    { "Apple2",     "15161b4c950923a667dd36fa00ebd56cfd983f1f43c44adbb84638443b29fab6" },
+
+    // v4 Apple2Plus.json (added releaseYear; no cpuManufacturer).
+    { "Apple2Plus", "832e16feb56939c03c9ac919d3159524577f9e033d846e69c008e945f92ba488" },
+
+    // v4 Apple2e.json (added releaseYear; no cpuManufacturer).
+    { "Apple2e",    "5be9af71ff3480c357e82512abae961966cc783767b1dbedc86b492a9cc72087" },
 };
 
 

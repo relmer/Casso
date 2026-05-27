@@ -92,8 +92,20 @@ void HardwarePage::SetRect (const RECT & rect, const DpiScaler & scaler)
 
     for (i = 0; i < kInfoRowCount; ++i)
     {
-        m_infoLabels[i].SetRect (MakeRect (rect.left, y, labelWidth, rowHeight));
-        m_infoValues[i].SetRect (MakeRect (valueX, y, rect.right - valueX, rowHeight));
+        if (i >= kFixedInfoRowCount)
+        {
+            // Memory sub-rows span the full content width with their
+            // label text (since they read as a list, not as label /
+            // value pairs). Value rect collapses to zero width so it
+            // doesn't intercept layout.
+            m_infoLabels[i].SetRect (MakeRect (rect.left, y, rect.right - rect.left, rowHeight));
+            m_infoValues[i].SetRect (MakeRect (rect.right, y, 0, rowHeight));
+        }
+        else
+        {
+            m_infoLabels[i].SetRect (MakeRect (rect.left, y, labelWidth, rowHeight));
+            m_infoValues[i].SetRect (MakeRect (valueX, y, rect.right - valueX, rowHeight));
+        }
         m_infoLabels[i].SetDpi (dpi);
         m_infoValues[i].SetDpi (dpi);
         // Only fixed rows + the in-use memory rows occupy real y;

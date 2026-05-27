@@ -3,7 +3,7 @@
 // To customize, copy it to Machines/<Name>/<Name>.json (any name
 // other than the three embedded defaults) and edit that copy.
 {
-    "$cassoMachineVersion": 4,
+    "$cassoMachineVersion": 5,
     "name": "Apple ][ plus",
     "releaseYear": 1979,
     "cpu": "6502",
