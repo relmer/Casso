@@ -62,6 +62,7 @@ namespace
         {
             return 0;
         }
+        _Analysis_assume_ (uiPrefs != nullptr);
 
         if (FAILED (uiPrefs->GetString ("speedMode", speed)))
         {

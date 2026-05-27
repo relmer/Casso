@@ -538,6 +538,7 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
         // No $cassoUiPrefs in the file -- struct defaults stand.
         return S_OK;
     }
+    _Analysis_assume_ (uiObj != nullptr);
 
     outPrefs.speedMode = SpeedFromString (
         GetStringOpt (*uiObj, "speedMode", "authentic"),
