@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.3.1167] — UI overhaul (spec 007)
+## [1.4.1171] — UI overhaul (spec 007)
 
 ### Added
 - **feat(settings): Display-page live preview uses a gaussian-blurred dark

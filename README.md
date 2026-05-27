@@ -8,22 +8,20 @@
 
 ## What's New
 
-A few major capability waves landed between v1.3.509 and v1.3.853. Headlines below; see [CHANGELOG.md](CHANGELOG.md) for the granular history.
+A few major capability waves landed between v1.3.509 and v1.4.1171. Headlines below; see [CHANGELOG.md](CHANGELOG.md) for the granular history.
 
-### UI Overhaul (v1.3.853)
+### UI Overhaul (v1.4.1171)
 
-Casso's entire chrome moved from the legacy Win32 menu bar / Win32 dialogs to a borderless, themed, in-process RmlUi shell — rendered straight onto the same D3D11 framebuffer that draws the emulator video:
+Casso's entire chrome moved from the legacy Win32 menu bar / Win32 dialogs to a borderless, themed shell rendered straight onto the same D3D11 framebuffer that draws the emulator video — using a native Direct2D / DirectWrite pipeline (`DxUiPainter` + `DwriteTextRenderer`), no third-party UI engine:
 
-- **Three built-in themes** — Skeuomorphic, Dark Modern, Retro Terminal — hot-swappable from **Settings → Theme** with no restart and no machine reset.
-- **Custom themes are first-class.** Drop a directory under `Themes/<YourTheme>/` containing a `theme.json` plus the entry documents (`title_bar.rml`, `nav_layer.rml`, `settings.rml`, `drive_widgets.rml`) and matching `.rcss` — Casso picks it up on the next launch and the theme appears in the Settings dropdown. See [docs/themes/AUTHORING.md](docs/themes/AUTHORING.md) for a step-by-step guide.
-- **Consolidated Settings panel** replaces the old `OptionsDialog` and `MachinePickerDialog`. Machine selection, machine info, emulation speed, video color mode, disk write mode, floppy sound + mechanism, write-protect, theme picker, and the new CRT controls live in one non-modal in-window panel.
-- **Drag-and-drop disk mounting** — drop a `.dsk` / `.do` / `.po` / `.nib` onto either drive widget to insert it; click-to-browse on the same widget opens a file picker.
-- **CRT post-processing** — scanlines, phosphor bloom, color bleed. Each effect toggles independently; a single brightness slider gates the master mix, and Display preview uses a per-pixel emulator clip with gaussian-blurred darkening when Settings overlaps the emulator.
+- **Three built-in themes** — Skeuomorphic, Dark Modern, Retro Terminal — hot-swappable from **Settings → Theme** with no restart and no machine reset. Each theme ships under `Resources/Themes/<Name>/` (extracted to `Themes/<Name>/` at first run) with a `theme.json` describing colors, CRT defaults, drive visual profile, and other UI tokens consumed by the native widget renderer. The token-based custom-theme authoring surface is still being wired through the native widgets — see [docs/themes/AUTHORING.md](docs/themes/AUTHORING.md) for the current state.
+- **Skeuomorphic drive widgets** with realistic Apple Disk II faceplates: perspective-projected case top with two indented lid panels that taper toward the back, nine vent slits down each side, beige case wrapping a black inset faceplate on all four sides, cantilever door hinged at the slot top that tilts up and back (tucking inside the case with a small flap visible when fully open) revealing a recessed finger-pull behind it, status LED, and the Cassowary rainbow logo. Click to mount; drop a `.dsk` / `.do` / `.po` / `.nib` onto a widget to insert it. Eject animates the door open even on an empty drive.
+- **Consolidated Settings panel** replaces the old `OptionsDialog` and `MachinePickerDialog`. Machine selection, machine info, emulation speed, video color mode, disk write mode, floppy sound + mechanism, write-protect, theme picker, and the new CRT controls live in one non-modal in-window panel with full keyboard navigation.
+- **Restructured menu bar** with seven nav menus — File, Edit, Machine, Disk, View, Debug, Help — grouping commands by user workflow. Machine info moved to Settings → Hardware; write mode moved to Settings → Machine; debug tools live under the new Debug menu (positioned between View and Help).
+- **CRT post-processing** — scanlines, phosphor bloom, color bleed. Each effect toggles independently; a single brightness slider gates the master mix. Display preview uses a per-pixel emulator clip with gaussian-blurred darkening when the Settings popup overlaps the emulator output.
 - **Auto-remount** of the last-inserted disks on machine load, so the typical "boot Apple ][+" flow is one click.
-- **User preferences** persist in one `UserPrefs.json` file: global UI state under `global`, and per-machine deltas under `machines` keyed by display name.
+- **Unified user preferences** persist in one `UserPrefs.json` file: global UI state under `global`, and per-machine deltas under `machines` keyed by display name. (A small set of legacy values — last-loaded machine name, per-machine last-inserted disk paths, audio download consent — still live in the registry for backwards compatibility.)
 
-<!-- TODO: capture screenshot -- caption: "Skeuomorphic theme: warm wood/brass title bar, drive widgets with idle/spin LEDs, Settings panel open over Apple //e DOS 3.3 boot." -->
-<!-- TODO: capture screenshot -- caption: "Dark Modern theme: flat dark chrome, blue accent LEDs, Settings panel showing the Theme dropdown." -->
 <!-- TODO: capture screenshot -- caption: "Retro Terminal theme: green-on-black VT323 font, scanlines + bloom enabled, NTSC color mode." -->
 
 ### Disk ][ Debug Window (v1.3.730)
@@ -69,7 +67,11 @@ Casso became a real Apple //e — not just a 6502 host that draws text:
 
 Casso is a retro / classic-machine platform emulator and from-scratch AS65-compatible 6502 assembler, written in C++. Today the platform emulator targets the Apple II family (][, ][+, //e); the abstractions are generic enough to host other 6502-based machines later.
 
-![Casso emulating an Apple //e booting DOS 3.3](Assets/Apple%202e%20DOS%203.3%20boot.png)
+The two built-in chrome themes booting the [casso-rocks demo disk](Apple2/Demos) — same Apple //e core, different chrome:
+
+| Skeuomorphic | Dark Modern |
+| :---: | :---: |
+| ![Casso Skeuomorphic theme booting the casso-rocks DHGR demo](Assets/theme-skeuomorphic-dhgr.png) | ![Casso Dark Modern theme booting the casso-rocks DHGR demo](Assets/theme-darkmodern-dhgr.png) |
 
 The same cassowary photo rendered in HGR (6 colors, NTSC artifacting) and DHGR (16 colors, Floyd-Steinberg dithered) by the bootable [casso-rocks demo disk](Apple2/Demos):
 
@@ -85,7 +87,7 @@ The project includes:
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
 - **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
-- **1100+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHR video, reset semantics, perf budget, and backwards-compat for ][/][+ machines.
+- **1500+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHR video, reset semantics, perf budget, and backwards-compat for ][/][+ machines.
 
 ## Project Structure
 
@@ -95,7 +97,7 @@ Casso.sln
 ├── CassoEmuCore/  Static library — Apple II devices, video modes, audio generator + drive-audio mixer
 ├── Casso/         Win32 application — Apple II platform emulator (D3D11, WASAPI, Disk II audio)
 ├── CassoCli/      Console application — AS65-compatible assembler CLI with `run` subcommand
-└── UnitTest/      Test DLL — Microsoft Native CppUnitTest (1100+ tests)
+└── UnitTest/      Test DLL — Microsoft Native CppUnitTest (1500+ tests)
 ```
 
 ## Requirements
@@ -264,7 +266,6 @@ allowlist. The current allowlist:
 
 | Component                                  | Upstream                                                        | Version / SHA                                  | License  | Used by                            |
 |--------------------------------------------|------------------------------------------------------------------|------------------------------------------------|----------|------------------------------------|
-| **RmlUi**                                  | https://github.com/mikke89/RmlUi                                 | `6.2` / `2230d1a6e8e0848ed87a5761e2a5160b2a175ba4` | MIT      | UI shell — title bar, nav layer, Settings panel, drive widgets |
 | **libretro `crt-pi`** (scanlines)          | https://github.com/libretro/glsl-shaders (`crt/shaders/crt-pi.glsl`) | collection `42fa8a98ab19bdaffb53280746a30819eb21f807` | MIT — Davide Berra        | `Casso/Shaders/CRT/scanlines.hlsl` |
 | **libretro `bloom`** (Gaussian bloom pass) | https://github.com/libretro/glsl-shaders (`bloom/shaders/bloom.glsl`) | collection `42fa8a98ab19bdaffb53280746a30819eb21f807` | CC0 / PD — Hyllian, hunterk | `Casso/Shaders/CRT/bloom_*.hlsl`   |
 | **libretro `ntsc-adaptive`** (color bleed) | https://github.com/libretro/glsl-shaders (`ntsc/shaders/ntsc-adaptive/ntsc-pass1.glsl`) | collection `42fa8a98ab19bdaffb53280746a30819eb21f807` | MIT — Themaister, hunterk  | `Casso/Shaders/CRT/color_bleed.hlsl` |
