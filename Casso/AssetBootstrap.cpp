@@ -149,9 +149,9 @@ struct EmbeddedConfig
 
 static constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
 {
-    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     5 },
-    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 5 },
-    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    5 },
+    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     6 },
+    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 6 },
+    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    6 },
 };
 
 
@@ -205,6 +205,15 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
 
     // v4 Apple2e.json (added releaseYear; no cpuManufacturer).
     { "Apple2e",    "5be9af71ff3480c357e82512abae961966cc783767b1dbedc86b492a9cc72087" },
+
+    // v5 Apple2.json (added cpuManufacturer = "MOS Technology").
+    { "Apple2",     "c350e447e6c4e4bbaa307f9f5f11ee1cfe0eff2a8823fbb20d0a6eabcdd122ac" },
+
+    // v5 Apple2Plus.json (added cpuManufacturer = "Synertek" -- wrong, fixed in v6).
+    { "Apple2Plus", "32dbbce9904f47914f348f443e80df7b0b3b6c6dbf7f7193a943acc69b3f150d" },
+
+    // v5 Apple2e.json (added cpuManufacturer = "Synertek" -- wrong, fixed in v6).
+    { "Apple2e",    "51de42de280e38a1f0c9dfbe5f01e5cccb1498cdc20f14616e7821e99756891f" },
 };
 
 
