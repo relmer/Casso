@@ -61,14 +61,23 @@ struct GlobalUserPrefs
     static constexpr size_t  kCrtModeCount = 4;
     Crt          crtByMode[kCrtModeCount];
 
+    struct WindowBounds
+    {
+        int  x = 0;
+        int  y = 0;
+        int  w = 0;
+        int  h = 0;
+    };
+
     struct
     {
-        bool     fHaveLastBounds = false;
-        int      x               = 0;
-        int      y               = 0;
-        int      w               = 1024;
-        int      h               = 768;
-        bool     fullscreen      = false;
+        bool        fullscreen = false;
+
+        // Per-monitor-topology window placement. Key is the topology
+        // hash from WindowPlacementProfile::BuildTopologySubkey so a
+        // single-monitor laptop layout and a docked multi-monitor
+        // layout each get their own remembered bounds.
+        std::map<std::string, WindowBounds>  placements;
     } window;
 
     // Unknown JSON keys round-trip back to disk untouched.

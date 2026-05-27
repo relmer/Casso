@@ -255,7 +255,6 @@ JsonValue GlobalUserPrefs::ToJson() const
 {
     std::vector<std::pair<std::string, JsonValue>>  root;
     std::vector<std::pair<std::string, JsonValue>>  crtObj;
-    std::vector<std::pair<std::string, JsonValue>>  bounds;
     std::vector<std::pair<std::string, JsonValue>>  windowObj;
     size_t                                          i = 0;
     static const char *  s_kModeKeys[GlobalUserPrefs::kCrtModeCount] = {
@@ -307,13 +306,19 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("crt", JsonValue (std::move (crtObj)));
 
     // window
-    if (window.fHaveLastBounds)
     {
-        bounds.emplace_back ("x", JsonValue ((double) window.x));
-        bounds.emplace_back ("y", JsonValue ((double) window.y));
-        bounds.emplace_back ("w", JsonValue ((double) window.w));
-        bounds.emplace_back ("h", JsonValue ((double) window.h));
-        windowObj.emplace_back ("lastBounds", JsonValue (std::move (bounds)));
+        std::vector<std::pair<std::string, JsonValue>>  placementsObj;
+
+        for (const auto & kv : window.placements)
+        {
+            std::vector<std::pair<std::string, JsonValue>>  bounds;
+            bounds.emplace_back ("x", JsonValue ((double) kv.second.x));
+            bounds.emplace_back ("y", JsonValue ((double) kv.second.y));
+            bounds.emplace_back ("w", JsonValue ((double) kv.second.w));
+            bounds.emplace_back ("h", JsonValue ((double) kv.second.h));
+            placementsObj.emplace_back (kv.first, JsonValue (std::move (bounds)));
+        }
+        windowObj.emplace_back ("placements", JsonValue (std::move (placementsObj)));
     }
     windowObj.emplace_back ("fullscreen", JsonValue (window.fullscreen));
 
@@ -343,7 +348,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     HRESULT             hr            = S_OK;
     const JsonValue *   crtSub        = nullptr;
     const JsonValue *   windowSub     = nullptr;
-    const JsonValue *   bounds        = nullptr;
+    const JsonValue *   placementsObj = nullptr;
     const auto *        rootEntries   = (const std::vector<std::pair<std::string, JsonValue>> *) nullptr;
     size_t              i             = 0;
     static const char *  s_kModeKeys[GlobalUserPrefs::kCrtModeCount] = {
@@ -427,13 +432,21 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
     if (SUCCEEDED (v.GetObject ("window", windowSub)) && windowSub != nullptr)
     {
-        if (SUCCEEDED (windowSub->GetObject ("lastBounds", bounds)) && bounds != nullptr)
+        if (SUCCEEDED (windowSub->GetObject ("placements", placementsObj)) && placementsObj != nullptr)
         {
-            window.fHaveLastBounds = true;
-            window.x = GetIntOpt (*bounds, "x", window.x);
-            window.y = GetIntOpt (*bounds, "y", window.y);
-            window.w = GetIntOpt (*bounds, "w", window.w);
-            window.h = GetIntOpt (*bounds, "h", window.h);
+            const auto &  entries = placementsObj->GetObjectEntries();
+            for (const auto & kv : entries)
+            {
+                if (kv.second.GetType() == JsonType::Object)
+                {
+                    WindowBounds  b;
+                    b.x = GetIntOpt (kv.second, "x", 0);
+                    b.y = GetIntOpt (kv.second, "y", 0);
+                    b.w = GetIntOpt (kv.second, "w", 0);
+                    b.h = GetIntOpt (kv.second, "h", 0);
+                    window.placements[kv.first] = b;
+                }
+            }
         }
         window.fullscreen = GetBoolOpt (*windowSub, "fullscreen", window.fullscreen);
     }
