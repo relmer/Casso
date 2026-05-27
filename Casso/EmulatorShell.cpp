@@ -78,7 +78,7 @@ namespace
 {
     void LayoutDriveWidgetsInCommandBar (
         std::array<DriveWidget, 2>  & driveChrome,
-        const ChromeLayoutResult    & layout,
+        const LayoutManagerResult    & layout,
         int                           clientW,
         int                           clientH,
         UINT                          dpi)
@@ -451,10 +451,10 @@ HRESULT EmulatorShell::Initialize (
     // Register chrome regions with the layout planner once -- their
     // pointers stay registered for the lifetime of the shell. Theme
     // changes that resize the drive bar mutate m_driveBarSlot in
-    // place; ChromeLayout reads the live thickness on every Resolve.
-    m_chromeLayout.Register (&m_titleBarSlot);
-    m_chromeLayout.Register (&m_navStripSlot);
-    m_chromeLayout.Register (&m_driveBarSlot);
+    // place; LayoutManager reads the live thickness on every Resolve.
+    m_LayoutManager.Register (&m_titleBarSlot);
+    m_LayoutManager.Register (&m_navStripSlot);
+    m_LayoutManager.Register (&m_driveBarSlot);
 
     assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
     machinesDir  = assetBaseDir / fs::path ("Machines") / fs::path (m_currentMachineName);
@@ -942,7 +942,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
         centerPx.cx = MulDiv (kFramebufferWidth,  static_cast<int> (dpi), s_kBaseDpi);
         centerPx.cy = MulDiv (kFramebufferHeight, static_cast<int> (dpi), s_kBaseDpi);
-        client      = m_chromeLayout.ClientSizeForCenter ((int) centerPx.cx, (int) centerPx.cy, dpi);
+        client      = m_LayoutManager.ClientSizeForCenter ((int) centerPx.cx, (int) centerPx.cy, dpi);
         clientW     = (int) client.cx;
         clientH     = (int) client.cy;
     }
@@ -1123,7 +1123,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_driveChrome[0].Initialize (6, 0, this);
     m_driveChrome[1].Initialize (6, 1, this);
     {
-        ChromeLayoutResult  layout = m_chromeLayout.Resolve (clientW, clientH, dpi);
+        LayoutManagerResult  layout = m_LayoutManager.Resolve (clientW, clientH, dpi);
 
         LayoutDriveWidgetsInCommandBar (m_driveChrome, layout, clientW, clientH, dpi);
         m_d3dRenderer.SetTopInsetPx    (layout.topInsetPx);
@@ -1527,8 +1527,8 @@ void EmulatorShell::ApplyThemeToChrome (const ChromeTheme & theme)
         // Compute the current centerRect using the PRIOR drive bar
         // thickness, then ask the layout for the new client size that
         // hosts the same centerRect under the NEW thickness.
-        int                 oldBottomPx = ChromeLayout::ScaleForDpi (priorThicknessDp, dpi);
-        int                 newBottomPx = ChromeLayout::ScaleForDpi (desiredThicknessDp, dpi);
+        int                 oldBottomPx = LayoutManager::ScaleForDpi (priorThicknessDp, dpi);
+        int                 newBottomPx = LayoutManager::ScaleForDpi (desiredThicknessDp, dpi);
         int                 deltaPx     = newBottomPx - oldBottomPx;
         int                 ncOverheadW = (rcWindow.right  - rcWindow.left)  - (rcClient.right  - rcClient.left);
         int                 ncOverheadH = (rcWindow.bottom - rcWindow.top)   - (rcClient.bottom - rcClient.top);
@@ -2625,7 +2625,7 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
         m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), static_cast<int> (width), dpi, &m_uiShell.Text());
 
         {
-            ChromeLayoutResult  layout = m_chromeLayout.Resolve (static_cast<int> (width), renderH, dpi);
+            LayoutManagerResult  layout = m_LayoutManager.Resolve (static_cast<int> (width), renderH, dpi);
             bool                fHasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
 
             if (fHasDisk)

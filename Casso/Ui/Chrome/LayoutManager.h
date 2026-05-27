@@ -8,7 +8,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ChromeLayout
+//  LayoutManager
 //
 //  Single source of truth for chrome inset math. Replaces the scattered
 //  `ChromeMetrics::*Px()` callers that historically drifted out of sync
@@ -70,7 +70,7 @@ public:
 };
 
 
-struct ChromeLayoutResult
+struct LayoutManagerResult
 {
     int   topInsetPx        = 0;
     int   bottomInsetPx     = 0;
@@ -89,7 +89,7 @@ struct ChromeLayoutResult
 };
 
 
-class ChromeLayout
+class LayoutManager
 {
 public:
     static constexpr int  kBaseDpi = 96;
@@ -100,7 +100,7 @@ public:
     void  Unregister (IEdgeContributor * contributor);
     void  Unregister (ICenterLayer     * layer);
 
-    ChromeLayoutResult  Resolve              (int clientWidthPx, int clientHeightPx, UINT dpi) const;
+    LayoutManagerResult  Resolve              (int clientWidthPx, int clientHeightPx, UINT dpi) const;
     SIZE                ClientSizeForCenter  (int centerWidthPx, int centerHeightPx, UINT dpi) const;
 
     static int  ScaleForDpi (int dp, UINT dpi);

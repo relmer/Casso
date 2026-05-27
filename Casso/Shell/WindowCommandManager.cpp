@@ -5,7 +5,7 @@
 #include "../EmulatorShell.h"
 #include "../resource.h"
 #include "Version.h"
-#include "Ui/Chrome/ChromeLayout.h"
+#include "Ui/Chrome/LayoutManager.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Shell/CpuManager.h"
@@ -315,10 +315,10 @@ void WindowCommandManager::OnViewCommand (int id)
                 // summed by the single source of truth. The historical
                 // Ctrl+0 pillarbox came from this site inlining the
                 // formula and forgetting the command-bar inset; routing
-                // through ChromeLayout::ClientSizeForCenter eliminates
+                // through LayoutManager::ClientSizeForCenter eliminates
                 // the drift class entirely.
                 {
-                    SIZE  desired = m_shell.m_chromeLayout.ClientSizeForCenter (
+                    SIZE  desired = m_shell.m_LayoutManager.ClientSizeForCenter (
                                         kFramebufferWidthPx  * scale,
                                         kFramebufferHeightPx * scale,
                                         dpi);

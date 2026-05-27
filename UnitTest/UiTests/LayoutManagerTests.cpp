@@ -2,7 +2,7 @@
 
 #include "CppUnitTest.h"
 
-#include "../Casso/Ui/Chrome/ChromeLayout.h"
+#include "../Casso/Ui/Chrome/LayoutManager.h"
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -49,14 +49,14 @@ namespace
 
 
 
-TEST_CLASS (ChromeLayoutTests)
+TEST_CLASS (LayoutManagerTests)
 {
 public:
 
     TEST_METHOD (Empty_ZeroInsets_CenterRectIsFullClient)
     {
-        ChromeLayout        layout;
-        ChromeLayoutResult  r = layout.Resolve (800, 600, 96);
+        LayoutManager        layout;
+        LayoutManagerResult  r = layout.Resolve (800, 600, 96);
 
         Assert::AreEqual (0,   r.topInsetPx);
         Assert::AreEqual (0,   r.bottomInsetPx);
@@ -71,12 +71,12 @@ public:
 
     TEST_METHOD (SingleTopEdge_ReservesTopInsetOnly)
     {
-        ChromeLayout  layout;
+        LayoutManager  layout;
         StubEdge      top (ChromeEdge::Top, 32);
 
         layout.Register (&top);
 
-        ChromeLayoutResult  r = layout.Resolve (800, 600, 96);
+        LayoutManagerResult  r = layout.Resolve (800, 600, 96);
 
         Assert::AreEqual (32,  r.topInsetPx);
         Assert::AreEqual (0,   r.bottomInsetPx);
@@ -87,14 +87,14 @@ public:
 
     TEST_METHOD (TwoTopEdges_StackThicknesses)
     {
-        ChromeLayout  layout;
+        LayoutManager  layout;
         StubEdge      titleBar (ChromeEdge::Top, 32);
         StubEdge      navStrip (ChromeEdge::Top, 32);
 
         layout.Register (&titleBar);
         layout.Register (&navStrip);
 
-        ChromeLayoutResult  r = layout.Resolve (800, 600, 96);
+        LayoutManagerResult  r = layout.Resolve (800, 600, 96);
 
         Assert::AreEqual (64,  r.topInsetPx);
         Assert::AreEqual (64L, r.centerRect.top);
@@ -103,7 +103,7 @@ public:
 
     TEST_METHOD (FourEdges_AllSidesReserved)
     {
-        ChromeLayout  layout;
+        LayoutManager  layout;
         StubEdge      top    (ChromeEdge::Top,    10);
         StubEdge      bottom (ChromeEdge::Bottom, 20);
         StubEdge      left   (ChromeEdge::Left,   30);
@@ -114,7 +114,7 @@ public:
         layout.Register (&left);
         layout.Register (&right);
 
-        ChromeLayoutResult  r = layout.Resolve (800, 600, 96);
+        LayoutManagerResult  r = layout.Resolve (800, 600, 96);
 
         Assert::AreEqual (10,  r.topInsetPx);
         Assert::AreEqual (20,  r.bottomInsetPx);
@@ -130,14 +130,14 @@ public:
 
     TEST_METHOD (DpiScaling_DoublesAtDpi192)
     {
-        ChromeLayout  layout;
+        LayoutManager  layout;
         StubEdge      top    (ChromeEdge::Top,    32);
         StubEdge      bottom (ChromeEdge::Bottom, 192);
 
         layout.Register (&top);
         layout.Register (&bottom);
 
-        ChromeLayoutResult  r = layout.Resolve (800, 600, 192);
+        LayoutManagerResult  r = layout.Resolve (800, 600, 192);
 
         Assert::AreEqual (64,  r.topInsetPx);
         Assert::AreEqual (384, r.bottomInsetPx);
@@ -146,12 +146,12 @@ public:
 
     TEST_METHOD (DpiScaling_150Percent_AtDpi144)
     {
-        ChromeLayout  layout;
+        LayoutManager  layout;
         StubEdge      bottom (ChromeEdge::Bottom, 192);
 
         layout.Register (&bottom);
 
-        ChromeLayoutResult  r = layout.Resolve (800, 600, 144);
+        LayoutManagerResult  r = layout.Resolve (800, 600, 144);
 
         Assert::AreEqual (288, r.bottomInsetPx);
     }
@@ -159,12 +159,12 @@ public:
 
     TEST_METHOD (DpiZero_TreatsAsBaseDpi)
     {
-        ChromeLayout  layout;
+        LayoutManager  layout;
         StubEdge      top (ChromeEdge::Top, 32);
 
         layout.Register (&top);
 
-        ChromeLayoutResult  r = layout.Resolve (800, 600, 0);
+        LayoutManagerResult  r = layout.Resolve (800, 600, 0);
 
         Assert::AreEqual (32, r.topInsetPx);
     }
@@ -172,14 +172,14 @@ public:
 
     TEST_METHOD (CenterLayer_AddsPaddingInsideChromeInsets)
     {
-        ChromeLayout  layout;
+        LayoutManager  layout;
         StubEdge      bottom  (ChromeEdge::Bottom, 100);
         StubCenter    monitor (8, 16, 4, 4);
 
         layout.Register (&bottom);
         layout.Register (&monitor);
 
-        ChromeLayoutResult  r = layout.Resolve (800, 600, 96);
+        LayoutManagerResult  r = layout.Resolve (800, 600, 96);
 
         Assert::AreEqual (100, r.bottomInsetPx);
         Assert::AreEqual (16,  r.bottomCenterPadPx);
@@ -196,14 +196,14 @@ public:
 
     TEST_METHOD (CenterRect_OverAllocated_ClampsNonNegative)
     {
-        ChromeLayout  layout;
+        LayoutManager  layout;
         StubEdge      top    (ChromeEdge::Top,    400);
         StubEdge      bottom (ChromeEdge::Bottom, 400);
 
         layout.Register (&top);
         layout.Register (&bottom);
 
-        ChromeLayoutResult  r = layout.Resolve (800, 600, 96);
+        LayoutManagerResult  r = layout.Resolve (800, 600, 96);
 
         // Window is 600 tall; top+bottom = 800. centerRect must not invert.
         Assert::IsTrue (r.centerRect.bottom >= r.centerRect.top);
@@ -213,7 +213,7 @@ public:
 
     TEST_METHOD (ClientSizeForCenter_AddsAllEdgeAndCenterPadding)
     {
-        ChromeLayout  layout;
+        LayoutManager  layout;
         StubEdge      top      (ChromeEdge::Top,    32);
         StubEdge      navStrip (ChromeEdge::Top,    32);
         StubEdge      bottom   (ChromeEdge::Bottom, 192);
@@ -236,7 +236,7 @@ public:
 
     TEST_METHOD (ClientSizeForCenter_DpiScales)
     {
-        ChromeLayout  layout;
+        LayoutManager  layout;
         StubEdge      top    (ChromeEdge::Top,    32);
         StubEdge      bottom (ChromeEdge::Bottom, 192);
 
@@ -253,7 +253,7 @@ public:
 
     TEST_METHOD (ClientSizeForCenter_InvariantUnderRoundtrip)
     {
-        ChromeLayout  layout;
+        LayoutManager  layout;
         StubEdge      top    (ChromeEdge::Top,    32);
         StubEdge      bottom (ChromeEdge::Bottom, 192);
 
@@ -263,7 +263,7 @@ public:
         // ClientSizeForCenter then Resolve should report a centerRect that
         // exactly matches the desired emulator size we asked to host.
         SIZE                client = layout.ClientSizeForCenter (560, 384, 96);
-        ChromeLayoutResult  r      = layout.Resolve ((int) client.cx, (int) client.cy, 96);
+        LayoutManagerResult  r      = layout.Resolve ((int) client.cx, (int) client.cy, 96);
 
         Assert::AreEqual (560L, r.centerRect.right  - r.centerRect.left);
         Assert::AreEqual (384L, r.centerRect.bottom - r.centerRect.top);
@@ -272,7 +272,7 @@ public:
 
     TEST_METHOD (Unregister_RemovesContribution)
     {
-        ChromeLayout  layout;
+        LayoutManager  layout;
         StubEdge      top    (ChromeEdge::Top,    32);
         StubEdge      bottom (ChromeEdge::Bottom, 192);
 
@@ -280,7 +280,7 @@ public:
         layout.Register   (&bottom);
         layout.Unregister (&bottom);
 
-        ChromeLayoutResult  r = layout.Resolve (800, 600, 96);
+        LayoutManagerResult  r = layout.Resolve (800, 600, 96);
 
         Assert::AreEqual (32, r.topInsetPx);
         Assert::AreEqual (0,  r.bottomInsetPx);
@@ -289,7 +289,7 @@ public:
 
     TEST_METHOD (Register_NullIsNoOp)
     {
-        ChromeLayout  layout;
+        LayoutManager  layout;
 
         layout.Register ((IEdgeContributor *) nullptr);
         layout.Register ((ICenterLayer     *) nullptr);
@@ -301,18 +301,18 @@ public:
 
     TEST_METHOD (ContributorMutation_NextResolveReflects)
     {
-        ChromeLayout  layout;
+        LayoutManager  layout;
         StubEdge      driveBar (ChromeEdge::Bottom, 192);
 
         layout.Register (&driveBar);
 
-        ChromeLayoutResult  before = layout.Resolve (800, 600, 96);
+        LayoutManagerResult  before = layout.Resolve (800, 600, 96);
 
         Assert::AreEqual (192, before.bottomInsetPx);
 
         driveBar.SetThickness (48);    // simulate compact-drives theme swap
 
-        ChromeLayoutResult  after = layout.Resolve (800, 600, 96);
+        LayoutManagerResult  after = layout.Resolve (800, 600, 96);
 
         Assert::AreEqual (48, after.bottomInsetPx);
     }
@@ -322,14 +322,14 @@ public:
     {
         // Regression test for the Ctrl+0 pillarbox bug. The historical bug
         // was that WindowCommandManager computed the desired client size
-        // without including the command-bar inset; with ChromeLayout, the
+        // without including the command-bar inset; with LayoutManager, the
         // same call yields the right value automatically because both call
         // sites share the same contributor list.
         constexpr int  fbW       = 560;
         constexpr int  fbH       = 384;
         constexpr int  scale     = 2;
 
-        ChromeLayout  layout;
+        LayoutManager  layout;
         StubEdge      titleBar (ChromeEdge::Top,    32);
         StubEdge      navStrip (ChromeEdge::Top,    32);
         StubEdge      driveBar (ChromeEdge::Bottom, 192);
@@ -349,12 +349,12 @@ public:
 
     TEST_METHOD (SimpleEdgeContributor_AsValueType_Works)
     {
-        ChromeLayout           layout;
+        LayoutManager           layout;
         SimpleEdgeContributor  bottom (ChromeEdge::Bottom, 100);
 
         layout.Register (&bottom);
 
-        ChromeLayoutResult  r = layout.Resolve (800, 600, 96);
+        LayoutManagerResult  r = layout.Resolve (800, 600, 96);
 
         Assert::AreEqual (100, r.bottomInsetPx);
 

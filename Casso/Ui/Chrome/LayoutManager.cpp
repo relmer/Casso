@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "ChromeLayout.h"
+#include "LayoutManager.h"
 
 
 
@@ -8,7 +8,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ChromeLayout::ScaleForDpi
+//  LayoutManager::ScaleForDpi
 //
 //  DPI-scaling primitive used by Resolve. Mirrors ChromeMetrics::ScaleForDpi
 //  (which will be deleted once the migration is complete). Caps DPI at
@@ -17,7 +17,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int ChromeLayout::ScaleForDpi (int dp, UINT dpi)
+int LayoutManager::ScaleForDpi (int dp, UINT dpi)
 {
     UINT  effectiveDpi = (dpi == 0) ? (UINT) kBaseDpi : dpi;
 
@@ -32,16 +32,16 @@ int ChromeLayout::ScaleForDpi (int dp, UINT dpi)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ChromeLayout::Register / Unregister
+//  LayoutManager::Register / Unregister
 //
 //  Append/remove contributor pointers. Lifetime is owned by the caller;
-//  ChromeLayout does not delete anything on shutdown. Unregister is a
+//  LayoutManager does not delete anything on shutdown. Unregister is a
 //  linear scan but the contributor list is small (currently <= 4 edges
 //  + a handful of future center layers) so the simplicity wins.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ChromeLayout::Register (IEdgeContributor * contributor)
+void LayoutManager::Register (IEdgeContributor * contributor)
 {
     if (contributor == nullptr)
     {
@@ -51,7 +51,7 @@ void ChromeLayout::Register (IEdgeContributor * contributor)
 }
 
 
-void ChromeLayout::Register (ICenterLayer * layer)
+void LayoutManager::Register (ICenterLayer * layer)
 {
     if (layer == nullptr)
     {
@@ -61,7 +61,7 @@ void ChromeLayout::Register (ICenterLayer * layer)
 }
 
 
-void ChromeLayout::Unregister (IEdgeContributor * contributor)
+void LayoutManager::Unregister (IEdgeContributor * contributor)
 {
     auto  it = std::remove (m_edges.begin(), m_edges.end(), contributor);
 
@@ -69,7 +69,7 @@ void ChromeLayout::Unregister (IEdgeContributor * contributor)
 }
 
 
-void ChromeLayout::Unregister (ICenterLayer * layer)
+void LayoutManager::Unregister (ICenterLayer * layer)
 {
     auto  it = std::remove (m_centerLayers.begin(), m_centerLayers.end(), layer);
 
@@ -82,7 +82,7 @@ void ChromeLayout::Unregister (ICenterLayer * layer)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ChromeLayout::Resolve
+//  LayoutManager::Resolve
 //
 //  Pure-function reduction of contributor state into a canonical inset
 //  snapshot. Sums edge contributors per-edge, sums center layer paddings
@@ -98,9 +98,9 @@ void ChromeLayout::Unregister (ICenterLayer * layer)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ChromeLayoutResult ChromeLayout::Resolve (int clientWidthPx, int clientHeightPx, UINT dpi) const
+LayoutManagerResult LayoutManager::Resolve (int clientWidthPx, int clientHeightPx, UINT dpi) const
 {
-    ChromeLayoutResult  r = {};
+    LayoutManagerResult  r = {};
 
 
 
@@ -139,7 +139,7 @@ ChromeLayoutResult ChromeLayout::Resolve (int clientWidthPx, int clientHeightPx,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ChromeLayout::ClientSizeForCenter
+//  LayoutManager::ClientSizeForCenter
 //
 //  Inverse of Resolve: given a desired emulator pixel grid, return the
 //  client size that hosts it with all current contributors. This is the
@@ -154,9 +154,9 @@ ChromeLayoutResult ChromeLayout::Resolve (int clientWidthPx, int clientHeightPx,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SIZE ChromeLayout::ClientSizeForCenter (int centerWidthPx, int centerHeightPx, UINT dpi) const
+SIZE LayoutManager::ClientSizeForCenter (int centerWidthPx, int centerHeightPx, UINT dpi) const
 {
-    ChromeLayoutResult  totals = Resolve (0, 0, dpi);
+    LayoutManagerResult  totals = Resolve (0, 0, dpi);
     SIZE                size;
 
 

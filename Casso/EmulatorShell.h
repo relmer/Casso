@@ -12,7 +12,7 @@
 #include "DebugConsole.h"
 #include "Ui/Chrome/TitleBar.h"
 #include "Ui/Chrome/NavLayer.h"
-#include "Ui/Chrome/ChromeLayout.h"
+#include "Ui/Chrome/LayoutManager.h"
 #include "Ui/Chrome/ChromeTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/DriveWidgetState.h"
@@ -280,7 +280,7 @@ private:
     // ChromeMetrics constants that drifted between EmulatorShell and
     // WindowCommandManager. Edge contributors below are pointer-tied
     // to this layout and report their desired thickness on demand.
-    ChromeLayout            m_chromeLayout;
+    LayoutManager            m_LayoutManager;
     SimpleEdgeContributor   m_titleBarSlot { ChromeEdge::Top,    32 };
     SimpleEdgeContributor   m_navStripSlot { ChromeEdge::Top,    32 };
     SimpleEdgeContributor   m_driveBarSlot { ChromeEdge::Bottom, 192 };

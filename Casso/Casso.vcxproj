@@ -235,7 +235,7 @@
     <ClCompile Include="Ui\TitleBarHitTest.cpp" />
     <ClCompile Include="Ui\Chrome\TitleBar.cpp" />
     <ClCompile Include="Ui\Chrome\NavLayer.cpp" />
-    <ClCompile Include="Ui\Chrome\ChromeLayout.cpp" />
+    <ClCompile Include="Ui\Chrome\LayoutManager.cpp" />
     <ClCompile Include="Ui\Win11DwmHelpers.cpp" />
     <ClCompile Include="Ui\WindowsThemeColors.cpp" />
     <ClCompile Include="Ui\ThemeLoader.cpp" />
@@ -302,7 +302,7 @@
     <ClInclude Include="Config\GlobalUserPrefs.h" />
     <ClInclude Include="Ui\TitleBarHitTest.h" />
     <ClInclude Include="Ui\Chrome\ChromeMetrics.h" />
-    <ClInclude Include="Ui\Chrome\ChromeLayout.h" />
+    <ClInclude Include="Ui\Chrome\LayoutManager.h" />
     <ClInclude Include="Ui\Chrome\TitleBar.h" />
     <ClInclude Include="Ui\Chrome\NavLayer.h" />
     <ClInclude Include="Ui\Win11DwmHelpers.h" />
