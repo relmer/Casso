@@ -373,9 +373,10 @@ HRESULT DwriteTextRenderer::DrawString (
 
     switch (vAlign)
     {
-        case VAlign::Top:    dwV = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;   break;
-        case VAlign::Center: dwV = DWRITE_PARAGRAPH_ALIGNMENT_CENTER; break;
-        case VAlign::Bottom: dwV = DWRITE_PARAGRAPH_ALIGNMENT_FAR;    break;
+        case VAlign::Top:                dwV = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;   break;
+        case VAlign::Center:             dwV = DWRITE_PARAGRAPH_ALIGNMENT_CENTER; break;
+        case VAlign::Bottom:             dwV = DWRITE_PARAGRAPH_ALIGNMENT_FAR;    break;
+        case VAlign::CenterOnCapHeight:  dwV = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;   break;
     }
 
     format->SetTextAlignment      (dwH);
@@ -394,6 +395,68 @@ HRESULT DwriteTextRenderer::DrawString (
     layoutRect.top    = yDip;
     layoutRect.right  = xDip + widthDip;
     layoutRect.bottom = yDip + heightDip;
+
+    if (vAlign == VAlign::CenterOnCapHeight)
+    {
+        // Look up the font face's metrics so we can place the cap-
+        // height midline of the rendered text at the rect's vertical
+        // center. The metrics are in font-design units; scale by
+        // (fontSizeDip / designUnitsPerEm) to DIPs.
+        //
+        // After the layout-rect shift, we use DWRITE_PARAGRAPH_
+        // ALIGNMENT_NEAR so DirectWrite places the line box at
+        // layoutRect.top -- we've already done the alignment math.
+        ComPtr<IDWriteFontCollection>  collection;
+        ComPtr<IDWriteFontFamily>      familyObj;
+        ComPtr<IDWriteFont>            font;
+        ComPtr<IDWriteFontFace>        face;
+        UINT32                         familyIndex = 0;
+        BOOL                           familyFound = FALSE;
+        DWRITE_FONT_METRICS            metrics     = {};
+        HRESULT                        hrMetrics   = S_OK;
+
+        hrMetrics = format->GetFontCollection (&collection);
+        if (SUCCEEDED (hrMetrics) && collection)
+        {
+            hrMetrics = collection->FindFamilyName (fontFamily, &familyIndex, &familyFound);
+        }
+        if (SUCCEEDED (hrMetrics) && familyFound)
+        {
+            hrMetrics = collection->GetFontFamily (familyIndex, &familyObj);
+        }
+        if (SUCCEEDED (hrMetrics) && familyObj)
+        {
+            hrMetrics = familyObj->GetFirstMatchingFont (DWRITE_FONT_WEIGHT_NORMAL,
+                                                          DWRITE_FONT_STRETCH_NORMAL,
+                                                          DWRITE_FONT_STYLE_NORMAL,
+                                                          &font);
+        }
+        if (SUCCEEDED (hrMetrics) && font)
+        {
+            hrMetrics = font->CreateFontFace (&face);
+        }
+        if (SUCCEEDED (hrMetrics) && face)
+        {
+            face->GetMetrics (&metrics);
+            float  upem            = (float) metrics.designUnitsPerEm;
+            if (upem > 0.0f)
+            {
+                float  scale          = fontSizeDip / upem;
+                float  ascentDip      = (float) metrics.ascent     * scale;
+                float  capHeightDip   = (float) metrics.capHeight  * scale;
+                // Cap-height midline is `ascent - capHeight/2` DIPs
+                // below the line box's top edge.
+                float  capCenterFromTop = ascentDip - capHeightDip * 0.5f;
+                // We want capCenterFromTop after the shift to equal
+                // (heightDip / 2). So layoutRect.top shifts by:
+                float  shift          = heightDip * 0.5f - capCenterFromTop;
+                layoutRect.top    += shift;
+                layoutRect.bottom += shift;
+            }
+        }
+        // Silent fallback: if any DWrite call failed we just leave
+        // the rect in place and use Top alignment.
+    }
 
     textLen = (UINT32) wcslen (text);
 

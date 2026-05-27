@@ -52,9 +52,21 @@ public:
 
     enum class VAlign
     {
-        Top    = 0,
-        Center = 1,
-        Bottom = 2,
+        Top                = 0,
+        // Centers the LINE BOX vertically. For typical Latin fonts
+        // the line box extends further above cap-height than below
+        // baseline, so the visible glyph cluster sits ABOVE the
+        // rect's geometric midline. Cheap, but mis-aligns text
+        // against icons sized to row geometry.
+        Center             = 1,
+        Bottom             = 2,
+        // Centers cap-height midline at the rect's vertical center.
+        // Uses the font face's metrics (ascent / descent / cap
+        // height) to compute the offset, so the visible center of
+        // the rendered ASCII text matches the geometric center of
+        // the rect. Use this when aligning text against icons or
+        // other geometry-centered widgets in the same row.
+        CenterOnCapHeight  = 3,
     };
 
     HRESULT  DrawString       (const wchar_t * text,
