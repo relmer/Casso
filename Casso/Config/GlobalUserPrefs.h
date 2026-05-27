@@ -74,7 +74,7 @@ struct GlobalUserPrefs
         bool        fullscreen = false;
 
         // Per-monitor-topology window placement. Key is the topology
-        // hash from WindowPlacementProfile::BuildTopologySubkey so a
+        // hash from WindowPlacementProfile::BuildTopologyKey so a
         // single-monitor laptop layout and a docked multi-monitor
         // layout each get their own remembered bounds.
         std::map<std::string, WindowBounds>  placements;

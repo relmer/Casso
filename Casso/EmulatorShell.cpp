@@ -1384,6 +1384,34 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::SaveGlobalPrefs
+//
+//  Flushes the in-memory GlobalUserPrefs to UserPrefs.json. Used as the
+//  WindowManager save callback so per-monitor window placement edits
+//  land on disk immediately after the user moves/resizes the window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SaveGlobalPrefs()
+{
+    HRESULT  hr = S_OK;
+
+
+    if (m_userConfigStore == nullptr)
+    {
+        return;
+    }
+
+    hr = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::ApplyThemeToChrome
 //
 //  Push freshly-activated theme into the chrome regions whose layout

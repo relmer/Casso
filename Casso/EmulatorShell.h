@@ -232,6 +232,14 @@ private:
     // emulator pixel grid. Called from the ThemeManager listener.
     void    ApplyThemeToChrome   (const ChromeTheme & theme);
 
+    // Flushes the in-memory GlobalUserPrefs to UserPrefs.json. Used as
+    // the WindowManager save callback so per-monitor window placement
+    // edits land on disk immediately after the user moves/resizes the
+    // window. Safe to call before m_userConfigStore exists -- the no-op
+    // path lets the in-class WindowManager initializer not race the
+    // shell's Initialize sequence.
+    void    SaveGlobalPrefs      ();
+
     // MachineManager and WindowCommandManager touch enough shell
     // state during construction and command dispatch that friend
     // declarations are the pragmatic seam; no new global state is
@@ -401,12 +409,12 @@ private:
     std::unique_ptr<class DiskIIDebugDialog>  m_diskIIDebugDialog;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 
-    // Extracted shell-side managers. WindowManager is stateless today
-    // (per-monitor placement persistence still lives in the registry);
+    // Extracted shell-side managers. WindowManager owns the per-monitor
+    // placement persistence (now backed by GlobalUserPrefs JSON).
     // ClipboardManager holds references back to the shared CPU/UI
     // state it operates on plus a pointer-to-pointer for the active
     // keyboard so machine switches do not require re-wiring.
-    WindowManager                             m_windowManager;
+    WindowManager                             m_windowManager { m_globalPrefs, [this] { SaveGlobalPrefs(); } };
     std::unique_ptr<ClipboardManager>         m_clipboardManager;
     std::unique_ptr<DiskManager>              m_diskManager;
     std::unique_ptr<MachineManager>           m_machineManager;
