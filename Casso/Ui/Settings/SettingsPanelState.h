@@ -101,14 +101,22 @@ struct HardwareEntry
 };
 
 
+struct SettingsMemoryRegion
+{
+    std::string  name;          // "Main RAM", "Aux RAM", "System ROM" ...
+    std::string  size;           // "48K" / "16K"
+    std::string  addressRange;   // "$0000-$BFFF"
+};
+
+
 struct SettingsMachineInfo
 {
-    std::string                 name;
-    std::string                 cpu;
-    std::string                 cpuManufacturer;
-    uint32_t                    clockSpeed    = 0;
-    std::vector<std::string>    memoryRegions;
-    size_t                      devices       = 0;
+    std::string                          name;
+    std::string                          cpu;
+    std::string                          cpuManufacturer;
+    uint32_t                             clockSpeed    = 0;
+    std::vector<SettingsMemoryRegion>    memoryRegions;
+    size_t                               devices       = 0;
 };
 
 

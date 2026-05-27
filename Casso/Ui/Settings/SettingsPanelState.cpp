@@ -638,9 +638,12 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
         {
             return;
         }
-        uint32_t  end  = addr + size - 1;
-        outInfo.memoryRegions.push_back (
-            std::format ("{}: {} @ ${:04X}-${:04X}", label, FormatSize (size), addr, end));
+        uint32_t              end    = addr + size - 1;
+        SettingsMemoryRegion  region;
+        region.name         = label;
+        region.size         = FormatSize (size);
+        region.addressRange = std::format ("${:04X}-${:04X}", addr, end);
+        outInfo.memoryRegions.push_back (std::move (region));
     };
 
 

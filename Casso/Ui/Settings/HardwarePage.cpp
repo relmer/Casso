@@ -94,20 +94,25 @@ void HardwarePage::SetRect (const RECT & rect, const DpiScaler & scaler)
     {
         if (i >= kFixedInfoRowCount)
         {
-            // Memory sub-rows span the full content width with their
-            // label text (since they read as a list, not as label /
-            // value pairs). Value rect collapses to zero width so it
-            // doesn't intercept layout.
-            m_infoLabels[i].SetRect (MakeRect (rect.left, y, rect.right - rect.left, rowHeight));
-            m_infoValues[i].SetRect (MakeRect (rect.right, y, 0, rowHeight));
+            // Memory sub-rows form a 3-column table aligned under the
+            // value column above: name | size | address range.
+            int  nameW = scaler.Px (110);
+            int  sizeW = scaler.Px (55);
+            int  addrW = scaler.Px (130);
+
+            m_infoLabels[i].SetRect (MakeRect (valueX,                     y, nameW, rowHeight));
+            m_infoValues[i].SetRect (MakeRect (valueX + nameW,             y, sizeW, rowHeight));
+            m_infoExtras[i].SetRect (MakeRect (valueX + nameW + sizeW,     y, addrW, rowHeight));
         }
         else
         {
             m_infoLabels[i].SetRect (MakeRect (rect.left, y, labelWidth, rowHeight));
             m_infoValues[i].SetRect (MakeRect (valueX, y, rect.right - valueX, rowHeight));
+            m_infoExtras[i].SetRect (MakeRect (rect.right, y, 0, rowHeight));
         }
         m_infoLabels[i].SetDpi (dpi);
         m_infoValues[i].SetDpi (dpi);
+        m_infoExtras[i].SetDpi (dpi);
         // Only fixed rows + the in-use memory rows occupy real y;
         // unused memory rows collapse to zero-height off-screen.
         if (i < kFixedInfoRowCount || i < kFixedInfoRowCount + m_memoryRowsInUse)
@@ -199,16 +204,17 @@ void HardwarePage::Rebuild ()
             size_t  slotIdx = kFixedInfoRowCount + i;
             if (i < rowsInUse)
             {
-                // Two-space leading indent matches the Display page's
-                // sub-row convention so the regions read as children
-                // of the "Memory:" header above.
-                m_infoLabels[slotIdx].SetText (L"  " + Widen (info->memoryRegions[i]));
+                const SettingsMemoryRegion &  r = info->memoryRegions[i];
+                m_infoLabels[slotIdx].SetText (Widen (r.name));
+                m_infoValues[slotIdx].SetText (Widen (r.size));
+                m_infoExtras[slotIdx].SetText (Widen (r.addressRange));
             }
             else
             {
                 m_infoLabels[slotIdx].SetText (L"");
+                m_infoValues[slotIdx].SetText (L"");
+                m_infoExtras[slotIdx].SetText (L"");
             }
-            m_infoValues[slotIdx].SetText (L"");
         }
 
         if (rowsInUse != m_memoryRowsInUse)
@@ -266,6 +272,7 @@ void HardwarePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text) cons
     {
         m_infoLabels[(size_t) i].Paint (painter, text);
         m_infoValues[(size_t) i].Paint (painter, text);
+        m_infoExtras[(size_t) i].Paint (painter, text);
     }
 
     m_tree.Paint (painter, text);

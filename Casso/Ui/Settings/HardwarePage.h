@@ -74,6 +74,7 @@ private:
     SettingsPanelState                 * m_state = nullptr;
     std::array<Label, kInfoRowCount>     m_infoLabels;
     std::array<Label, kInfoRowCount>     m_infoValues;
+    std::array<Label, kInfoRowCount>     m_infoExtras;
     size_t                               m_memoryRowsInUse = 0;
     int                                  m_rowHeight       = 0;
     int                                  m_sectionGap      = 0;
