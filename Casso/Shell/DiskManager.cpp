@@ -431,6 +431,13 @@ void DiskManager::Eject (int slot, int drive)
     }
 
     m_cpuManager.PostCommand (command);
+
+    // Animate the door open even if no disk is currently mounted.
+    // The path-change watcher in UpdateDriveWidgets only triggers
+    // BeginEject when the mounted path actually transitions to empty,
+    // so an eject click on an already-empty drive would otherwise be
+    // a visual no-op.
+    m_driveWidgetState[drive].BeginEject (NowMs());
 }
 
 
