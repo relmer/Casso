@@ -6,17 +6,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.3.952] — UI overhaul (spec 007)
+## [1.3.1167] — UI overhaul (spec 007)
 
 ### Added
 - **feat(settings): Display-page live preview uses a gaussian-blurred dark
   overlay with per-pixel emulator clipping when the Settings popup overlaps
   the emulator output, keeping only the focused CRT control sharp.**
 - **feat(menus,settings): menu restructure and settings relocation.**
-  - File, Machine, Disk, View, Help, and the new Debug nav menu now
-    group commands by user workflow: machine info moved to Settings →
+  - File, Edit, Machine, Disk, View, Debug, Help nav menus group
+    commands by user workflow: machine info moved to Settings →
     Hardware, write mode moved to Settings → Machine, debug tools live
-    under Debug, and Disk/View menus now include visual separators.
+    under Debug (positioned between View and Help), and Disk/View
+    menus now include visual separators.
 - **feat(ui): full UI overhaul — native DirectX chrome, themes, Settings
   panel, CRT post-processing, drive widgets.**
   - Borderless main window with custom native chrome — title bar with
@@ -44,10 +45,17 @@ Entries before versioning was introduced use dates only.
     the inset delta on theme swap so the emulator pixel grid is
     preserved.
   - **Skeuomorphic drive widgets**: realistic Apple Disk II faceplates
-    with receding case top, animated door tab, finger notch, slot,
-    "DRIVE N" / "IN USE >" labels, status LED, and the Cassowary
-    rainbow logo in the cassowary-on-the-bay corner. Click to mount;
-    drop a `.dsk` / `.do` / `.po` / `.nib` onto a widget to insert it.
+    with a perspective-projected receding case top (two indented lid
+    panels that taper toward the back, nine vent slits down each side
+    aligned with the rear panel), beige case wrapping the black inset
+    faceplate on all four sides, a cantilever door hinged at the slot
+    top that tilts up and back while the bulk of its length tucks
+    inside the case (leaving a 20% flap visible when fully open) and
+    reveals a recessed finger-pull behind it, slot, "DRIVE N" /
+    "IN USE ▶" labels, status LED, and the Cassowary rainbow logo in
+    the cassowary-on-the-bay corner. Click to mount; drop a `.dsk` /
+    `.do` / `.po` / `.nib` onto a widget to insert it. Eject clicks
+    animate the door open even on an empty drive.
   - **Compact drive widgets** (Dark Modern + Retro Terminal themes):
     small flat rounded cards with label + status LED on the right.
     Same mount / hit / drag-drop semantics as the skeuomorphic widgets
