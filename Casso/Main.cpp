@@ -348,12 +348,19 @@ int WINAPI wWinMain (
             fs::path ("Machines") / fs::path (machineName).string()
                                   / (fs::path (machineName).string() + ".json")).empty())
     {
-        // Legacy Win32 `MachinePickerDialog` is retired
-        // (FR-027). At startup we deterministically pick the first
-        // available machine from `MachineScanner::Scan`; the user
-        // can switch later via the Settings panel. If nothing
-        // was discovered (no Machines/ folder, asset bootstrap
-        // failed) we surface a single error and exit.
+        // Legacy Win32 `MachinePickerDialog` is retired (FR-027). At
+        // startup we deterministically pick a sensible default machine
+        // from `MachineScanner::Scan`; the user can switch later via
+        // the Settings panel. Apple //e is the modern Apple II family
+        // member most users will want, so prefer it if discovered.
+        // Otherwise fall back to the first scan result. If nothing
+        // was discovered at all (Machines/ missing, asset bootstrap
+        // wiped between runs) we still default to Apple2e so the
+        // downstream LoadMachineConfig flow gets to offer the ROM /
+        // sample-disk downloads instead of bailing with a dead-end
+        // error MessageBox.
+        constexpr std::wstring_view  s_kPreferredDefaultMachine = L"Apple2e";
+
         vector<fs::path> scanPaths = PathResolver::BuildSearchPaths (
             PathResolver::GetExecutableDirectory(),
             PathResolver::GetWorkingDirectory());
@@ -363,18 +370,23 @@ int WINAPI wWinMain (
             &MachineScanner::ListDirectory,
             &MachineScanner::ReadFile);
 
-        if (discovered.empty())
+        machineName.clear();
+        for (const MachineInfo & info : discovered)
         {
-            MessageBoxW (
-                nullptr,
-                L"Casso could not find any machine configurations.\n"
-                L"Reinstall or restore the Machines/ directory.",
-                L"Casso emulator",
-                MB_OK | MB_ICONERROR);
-            return 1;
+            if (info.fileName == s_kPreferredDefaultMachine)
+            {
+                machineName = info.fileName;
+                break;
+            }
         }
-
-        machineName = discovered.front().fileName;
+        if (machineName.empty() && !discovered.empty())
+        {
+            machineName = discovered.front().fileName;
+        }
+        if (machineName.empty())
+        {
+            machineName = std::wstring (s_kPreferredDefaultMachine);
+        }
     }
 
     // Load machine configuration. S_FALSE here means the user
