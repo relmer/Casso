@@ -17,7 +17,6 @@
 #include "Devices/AppleIIeMmu.h"
 #include "Core/Prng.h"
 
-#include "RegistrySettings.h"
 #include "DiskSettings.h"
 #include "UnicodeSymbols.h"
 #include "Core/MachineConfig.h"

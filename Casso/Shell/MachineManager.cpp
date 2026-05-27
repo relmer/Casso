@@ -879,14 +879,6 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     if (SUCCEEDED (JsonParser::Parse (jsonText, defaultJson, parseErr)) &&
         m_shell.m_userConfigStore != nullptr)
     {
-        // One-shot legacy registry → user JSON migration. Idempotent
-        // on subsequent loads thanks to the file-exists short-circuit
-        // inside MigrateFromRegistry.
-        HRESULT  hrMig = m_shell.m_userConfigStore->MigrateFromRegistry (machineNameNarrow,
-                                                                         m_shell.m_uiRegistry,
-                                                                         m_shell.m_uiFs);
-        IGNORE_RETURN_VALUE (hrMig, S_OK);
-
         if (SUCCEEDED (m_shell.m_userConfigStore->Load (machineNameNarrow,
                                                          defaultJson,
                                                          m_shell.m_uiFs,

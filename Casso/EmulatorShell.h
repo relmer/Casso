@@ -23,7 +23,6 @@
 #include "Ui/ThemeManager.h"
 #include "Ui/UiShell.h"
 #include "Config/Win32FileSystem.h"
-#include "Config/Win32RegistrySettings.h"
 #include "Config/UserConfigStore.h"
 #include "Config/GlobalUserPrefs.h"
 #include "Video/VideoOutput.h"
@@ -266,7 +265,6 @@ private:
     // only the per-window filesystem stays here so the settings panel
     // and config store can resolve paths on the UI thread.
     Win32FileSystem        m_uiFs;
-    Win32RegistrySettings  m_uiRegistry;
 
     // Chrome surfaces. TitleBar owns the per-button rect cache that
     // the WM_NCHITTEST helper queries. NavLayer owns the parity
