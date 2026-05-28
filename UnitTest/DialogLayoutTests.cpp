@@ -48,7 +48,7 @@ namespace DialogLayoutTests
             def.buttons = { { L"OK", 1, true, false }, { L"Cancel", 0, false, true } };
 
             auto  m = MakeMetrics();
-            auto  r = LayoutDialog (def, m);
+            auto  r = DialogLayout::Compute (def, m);
 
             Assert::AreEqual ((size_t) 2, r.buttonRectsPx.size());
             // Right-most button hugs content right edge.
@@ -65,7 +65,7 @@ namespace DialogLayoutTests
             def.body = { { std::wstring (100, L'a'), false, L"" } };
 
             auto  m = MakeMetrics();   // maxBodyWidthPx = 200, char = 8 → ~25 chars/line
-            auto  r = LayoutDialog (def, m);
+            auto  r = DialogLayout::Compute (def, m);
 
             // The single run should span multiple lines → wrapped rect taller than one line.
             LONG  h = r.bodyRunRectsPx[0].bottom - r.bodyRunRectsPx[0].top;
@@ -79,10 +79,10 @@ namespace DialogLayoutTests
             def.body    = { { L"Hello", false, L"" } };
 
             auto  m = MakeMetrics();
-            auto  noIcon = LayoutDialog (def, m);
+            auto  noIcon = DialogLayout::Compute (def, m);
 
             def.icon = DialogIcon::Info;
-            auto  withIcon = LayoutDialog (def, m);
+            auto  withIcon = DialogLayout::Compute (def, m);
 
             // Icon-present total width grows by iconSize + iconBodyGap.
             Assert::IsTrue (withIcon.totalSizePx.cx >= noIcon.totalSizePx.cx);
@@ -100,7 +100,7 @@ namespace DialogLayoutTests
             };
 
             auto  m = MakeMetrics();
-            auto  r = LayoutDialog (def, m);
+            auto  r = DialogLayout::Compute (def, m);
 
             Assert::AreEqual ((size_t) 1, r.hyperlinkHitRectsPx.size());
             // Hyperlink hit rect equals the body rect of the second run.
@@ -120,7 +120,7 @@ namespace DialogLayoutTests
             def.onPaintCustomBody    = [] (DialogPaintContext &) {};
 
             auto  m = MakeMetrics();
-            auto  r = LayoutDialog (def, m);
+            auto  r = DialogLayout::Compute (def, m);
 
             // Custom body rect is non-empty and sits between body and buttons.
             LONG  cbH = r.customBodyRectPx.bottom - r.customBodyRectPx.top;
@@ -141,8 +141,8 @@ namespace DialogLayoutTests
             bigger.outerPaddingPx *= 2.0f;
             bigger.buttonHeightPx *= 2.0f;
 
-            auto  rs = LayoutDialog (def, smaller);
-            auto  rl = LayoutDialog (def, bigger);
+            auto  rs = DialogLayout::Compute (def, smaller);
+            auto  rl = DialogLayout::Compute (def, bigger);
 
             // Larger metrics yield a larger total size.
             Assert::IsTrue (rl.totalSizePx.cx > rs.totalSizePx.cx);

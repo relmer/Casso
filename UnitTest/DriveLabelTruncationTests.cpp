@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "../Casso/Ui/Chrome/DriveLabelTruncation.h"
+#include "../Casso/UnicodeSymbols.h"
 
 
 
@@ -40,7 +41,7 @@ namespace DriveLabelTruncationTests
             // 64 px budget = 8 chars (the ellipsis counts as 1 char).
             auto  out = TruncateToWidth (L"superlongname.dsk", 64.0f, FixedWidthMeasure());
             Assert::IsTrue (out.size() <= 8);
-            Assert::AreEqual (L'\u2026', out.back());
+            Assert::AreEqual (s_kchEllipsis, out.back());
             Assert::AreEqual ((size_t) 0, out.find (L's'));   // starts with prefix of "super…"
         }
 
@@ -64,7 +65,7 @@ namespace DriveLabelTruncationTests
             // 4 px budget cannot even fit the ellipsis (8 px); function returns just ellipsis.
             auto  out = TruncateToWidth (L"name.dsk", 4.0f, FixedWidthMeasure());
             Assert::AreEqual ((size_t) 1, out.size());
-            Assert::AreEqual (L'\u2026', out[0]);
+            Assert::AreEqual (s_kchEllipsis, out[0]);
         }
 
 

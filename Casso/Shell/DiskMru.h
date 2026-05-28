@@ -45,5 +45,7 @@ public:
     bool                                Empty        () const { return m_entries.empty(); }
 
 private:
+    void                                EnforceCap   ();
+
     std::vector<std::filesystem::path>  m_entries;   // index 0 == most recent
 };

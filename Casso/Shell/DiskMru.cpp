@@ -8,32 +8,48 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EnforceCap
+//
+//  Trims the tail of `m_entries` until size <= k_capacity.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskMru::EnforceCap ()
+{
+    while (m_entries.size() > k_capacity)
+    {
+        m_entries.pop_back();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RecordMount
 //
-//  Move-to-front semantics: if `path` is already present, drop the
-//  prior occurrence; then insert at index 0; then evict the tail until
-//  size <= k_capacity. Empty paths are silently ignored.
+//  Move-to-front: drop any prior occurrence of `path`, insert at index 0,
+//  evict the tail until size <= k_capacity. Empty paths are ignored.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskMru::RecordMount (const std::filesystem::path & path)
 {
-    if (path.empty())
-    {
-        return;
-    }
+    std::vector<std::filesystem::path>::iterator  it;
 
-    auto it = std::find (m_entries.begin(), m_entries.end(), path);
-    if (it != m_entries.end())
-    {
-        m_entries.erase (it);
-    }
 
-    m_entries.insert (m_entries.begin(), path);
 
-    while (m_entries.size() > k_capacity)
+    if (!path.empty())
     {
-        m_entries.pop_back();
+        it = std::find (m_entries.begin(), m_entries.end(), path);
+        if (it != m_entries.end())
+        {
+            m_entries.erase (it);
+        }
+        m_entries.insert (m_entries.begin(), path);
+        EnforceCap();
     }
 }
 
@@ -60,23 +76,25 @@ std::vector<std::filesystem::path> DiskMru::Snapshot () const
 //
 //  Prune
 //
-//  Removes entries the predicate rejects. Preserves the surviving
-//  order. A null predicate is a no-op (returns the current snapshot).
+//  Removes entries the predicate rejects, preserving order. A null
+//  predicate is a no-op.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::filesystem::path> DiskMru::Prune (
     const std::function<bool (const std::filesystem::path &)> & existsPredicate)
 {
-    if (!existsPredicate)
-    {
-        return m_entries;
-    }
+    std::vector<std::filesystem::path>::iterator  last;
 
-    auto last = std::remove_if (m_entries.begin(),
-                                m_entries.end(),
-                                [&] (const std::filesystem::path & p) { return !existsPredicate (p); });
-    m_entries.erase (last, m_entries.end());
+
+
+    if (existsPredicate)
+    {
+        last = std::remove_if (m_entries.begin(),
+                               m_entries.end(),
+                               [&] (const std::filesystem::path & p) { return !existsPredicate (p); });
+        m_entries.erase (last, m_entries.end());
+    }
 
     return m_entries;
 }
@@ -97,9 +115,5 @@ std::vector<std::filesystem::path> DiskMru::Prune (
 void DiskMru::ReplaceAll (std::vector<std::filesystem::path> entries)
 {
     m_entries = std::move (entries);
-
-    while (m_entries.size() > k_capacity)
-    {
-        m_entries.pop_back();
-    }
+    EnforceCap();
 }

@@ -23,3 +23,6 @@ static constexpr wchar_t s_kchBullet  = L'\x2022';
 
 // U+2014 EM DASH (—)
 static constexpr wchar_t s_kchEmDash  = L'\x2014';
+
+// U+2026 HORIZONTAL ELLIPSIS (…)
+static constexpr wchar_t s_kchEllipsis = L'\x2026';

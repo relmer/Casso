@@ -53,6 +53,55 @@ struct DialogLayoutResult
 
 
 
-DialogLayoutResult LayoutDialog (
-    const DialogDefinition     & def,
-    const DialogLayoutMetrics  & metrics);
+class DialogLayout
+{
+public:
+    static DialogLayoutResult  Compute (
+        const DialogDefinition     & def,
+        const DialogLayoutMetrics  & metrics);
+
+private:
+    struct WrappedRun
+    {
+        size_t  runIndex;
+        size_t  start;
+        size_t  count;
+        float   xPx;
+        float   yPx;
+        float   widthPx;
+    };
+
+    struct LayoutState
+    {
+        const DialogDefinition     * def              = nullptr;
+        const DialogLayoutMetrics  * metrics          = nullptr;
+        DialogLayoutResult         * result           = nullptr;
+        std::vector<WrappedRun>      wrapped;
+        float                        bodyOriginXPx    = 0.0f;
+        float                        bodyOriginYPx    = 0.0f;
+        float                        bodyTotalHeightPx = 0.0f;
+        float                        contentBottomPx  = 0.0f;
+        float                        contentRightPx   = 0.0f;
+        bool                         hasIcon          = false;
+        bool                         hasCustomBody    = false;
+    };
+
+    static size_t  FindWrapBoundary        (std::wstring_view                                 text,
+                                            size_t                                            start,
+                                            float                                             maxWidthPx,
+                                            const std::function<float (std::wstring_view)>  & measure);
+    static void    WrapBody                (const std::vector<DialogTextRun>                & runs,
+                                            float                                             maxBodyWidthPx,
+                                            float                                             lineHeightPx,
+                                            const std::function<float (std::wstring_view)>  & measure,
+                                            std::vector<WrappedRun>                         & outWrapped,
+                                            float                                           & outTotalHeightPx);
+    static void    BeginLayout             (LayoutState & s);
+    static void    PerformBodyWrap         (LayoutState & s);
+    static void    BuildBodyRunRects       (LayoutState & s);
+    static void    BuildHyperlinkHitRects  (LayoutState & s);
+    static void    BuildIconRect           (LayoutState & s);
+    static void    BuildCustomBodyRect     (LayoutState & s);
+    static void    BuildButtonRects        (LayoutState & s);
+    static void    ComputeTotalSize        (LayoutState & s);
+};

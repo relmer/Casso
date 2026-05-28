@@ -8,58 +8,31 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Anonymous helpers
+//  DialogLayout::FindWrapBoundary
+//
+//  Returns the largest character count in [1..remaining] whose measured
+//  width fits in `maxWidthPx`. Prefers a whitespace break when possible.
+//  Single-exit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+size_t DialogLayout::FindWrapBoundary (
+    std::wstring_view                                  text,
+    size_t                                             start,
+    float                                              maxWidthPx,
+    const std::function<float (std::wstring_view)>   & measure)
 {
-    constexpr float  s_kZeroPx = 0.0f;
+    size_t  remaining = text.size() - start;
+    size_t  fit       = 0;
+    size_t  lastSpace = 0;
+    size_t  i         = 0;
+    size_t  result    = 0;
+    float   widthPx   = 0.0f;
 
 
 
-    struct WrappedRun
+    if (remaining > 0)
     {
-        size_t  runIndex;
-        size_t  start;
-        size_t  count;
-        float   xPx;
-        float   yPx;
-        float   widthPx;
-    };
-
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  FindWrapBoundary
-    //
-    //  Returns the largest character count in [1..remaining] whose measured
-    //  width fits in `maxWidthPx`. Prefers a whitespace break when possible.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    size_t FindWrapBoundary (
-        std::wstring_view                                  text,
-        size_t                                             start,
-        float                                              maxWidthPx,
-        const std::function<float (std::wstring_view)>   & measure)
-    {
-        size_t  remaining     = text.size() - start;
-        size_t  fit           = 0;
-        size_t  lastSpace     = 0;
-        size_t  i             = 0;
-        float   widthPx       = 0.0f;
-
-
-
-        if (remaining == 0)
-        {
-            return 0;
-        }
-
-        // Coarse linear probe: extend by 1 char until width exceeds the
-        // bound. Cheap for the short body strings dialogs carry.
         for (i = 1; i <= remaining; i++)
         {
             widthPx = measure (text.substr (start, i));
@@ -77,86 +50,77 @@ namespace
         if (fit == 0)
         {
             // Single character overflows the line — force a 1-char break.
-            return 1;
+            result = 1;
         }
-
-        if (fit < remaining && lastSpace > 0)
+        else if (fit < remaining && lastSpace > 0)
         {
-            return lastSpace;
+            result = lastSpace;
         }
-
-        return fit;
+        else
+        {
+            result = fit;
+        }
     }
 
+    return result;
+}
 
 
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  WrapBody
-    //
-    //  Greedy line-wrap across all body runs into `maxBodyWidthPx`.
-    //  Each emitted `WrappedRun` is a single line's worth of one source
-    //  run; a long run spans multiple WrappedRuns. The caller turns each
-    //  WrappedRun into a RECT.
-    //
-    ////////////////////////////////////////////////////////////////////////////
 
-    void WrapBody (
-        const std::vector<DialogTextRun>                 & runs,
-        float                                              maxBodyWidthPx,
-        float                                              lineHeightPx,
-        const std::function<float (std::wstring_view)>   & measure,
-        std::vector<WrappedRun>                          & outWrapped,
-        float                                            & outTotalHeightPx)
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialogLayout::WrapBody
+//
+//  Greedy line-wrap across all body runs into `maxBodyWidthPx`. Each
+//  emitted `WrappedRun` is one line's worth of one source run; a long
+//  run spans multiple WrappedRuns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogLayout::WrapBody (
+    const std::vector<DialogTextRun>                 & runs,
+    float                                              maxBodyWidthPx,
+    float                                              lineHeightPx,
+    const std::function<float (std::wstring_view)>   & measure,
+    std::vector<WrappedRun>                          & outWrapped,
+    float                                            & outTotalHeightPx)
+{
+    size_t  runIndex     = 0;
+    size_t  pos          = 0;
+    size_t  tentative    = 0;
+    float   cursorXPx    = 0.0f;
+    float   cursorYPx    = 0.0f;
+    float   remainingPx  = maxBodyWidthPx;
+    float   pieceWidthPx = 0.0f;
+
+
+
+    outWrapped.clear();
+    outTotalHeightPx = 0.0f;
+
+    for (runIndex = 0; runIndex < runs.size(); runIndex++)
     {
-        size_t  runIndex     = 0;
-        size_t  pos          = 0;
-        float   cursorXPx    = 0.0f;
-        float   cursorYPx    = 0.0f;
-        float   remainingPx  = maxBodyWidthPx;
-
-
-
-        outWrapped.clear();
-        outTotalHeightPx = 0.0f;
-
-        if (runs.empty())
+        std::wstring_view  view (runs[runIndex].text);
+        pos = 0;
+        while (pos < view.size())
         {
-            return;
-        }
-
-        for (runIndex = 0; runIndex < runs.size(); runIndex++)
-        {
-            const std::wstring & text = runs[runIndex].text;
-            pos = 0;
-            while (pos < text.size())
+            tentative = FindWrapBoundary (view, pos, remainingPx, measure);
+            if (tentative == 0)
             {
-                std::wstring_view  view (text);
-                size_t             tentative = FindWrapBoundary (view, pos, remainingPx, measure);
-
-
-
-                if (tentative == 0)
-                {
-                    // No room on the current line for even one char — newline.
-                    cursorXPx   = 0.0f;
-                    cursorYPx  += lineHeightPx;
-                    remainingPx = maxBodyWidthPx;
-                    continue;
-                }
-
-                float  pieceWidthPx = measure (view.substr (pos, tentative));
-
-
-
-                WrappedRun  emit { runIndex, pos, tentative, cursorXPx, cursorYPx, pieceWidthPx };
-                outWrapped.push_back (emit);
-
+                cursorXPx   = 0.0f;
+                cursorYPx  += lineHeightPx;
+                remainingPx = maxBodyWidthPx;
+            }
+            else
+            {
+                pieceWidthPx = measure (view.substr (pos, tentative));
+                outWrapped.push_back ({ runIndex, pos, tentative, cursorXPx, cursorYPx, pieceWidthPx });
                 pos        += tentative;
                 cursorXPx  += pieceWidthPx;
                 remainingPx = maxBodyWidthPx - cursorXPx;
-
-                if (pos < text.size())
+                if (pos < view.size())
                 {
                     cursorXPx   = 0.0f;
                     cursorYPx  += lineHeightPx;
@@ -164,8 +128,34 @@ namespace
                 }
             }
         }
+    }
 
-        outTotalHeightPx = cursorYPx + (outWrapped.empty() ? 0.0f : lineHeightPx);
+    outTotalHeightPx = cursorYPx + (outWrapped.empty() ? 0.0f : lineHeightPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialogLayout::BeginLayout
+//
+//  Sets up the body/icon origins from the metrics. Must run before any
+//  build-rects helper.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogLayout::BeginLayout (LayoutState & s)
+{
+    s.bodyOriginXPx = s.metrics->outerPaddingPx;
+    s.bodyOriginYPx = s.metrics->outerPaddingPx;
+    s.hasIcon       = (s.def->icon != DialogIcon::None);
+    s.hasCustomBody = (s.def->onPaintCustomBody != nullptr);
+
+    if (s.hasIcon)
+    {
+        s.bodyOriginXPx += s.metrics->iconSizePx + s.metrics->iconBodyGapPx;
     }
 }
 
@@ -175,75 +165,57 @@ namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LayoutDialog
-//
-//  Pure layout math producing the rects every DialogPrimitive consumer
-//  needs (icon slot, per-run body rects, hyperlink hit-rects, button
-//  row, optional custom-body rect) plus the overall window content
-//  size. Win32-free; all measurement happens through the metrics'
-//  callback hooks. Tests pin behavior with deterministic stubs.
+//  DialogLayout::PerformBodyWrap
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DialogLayoutResult LayoutDialog (
-    const DialogDefinition     & def,
-    const DialogLayoutMetrics  & metrics)
+void DialogLayout::PerformBodyWrap (LayoutState & s)
 {
-    DialogLayoutResult       result;
-    std::vector<WrappedRun>  wrapped;
-    float                    bodyTotalHeightPx = 0.0f;
-    float                    bodyOriginXPx     = 0.0f;
-    float                    bodyOriginYPx     = 0.0f;
-    float                    contentTopPx      = 0.0f;
-    float                    contentBottomPx   = 0.0f;
-    float                    contentRightPx    = 0.0f;
-    bool                     hasIcon           = (def.icon != DialogIcon::None);
-    bool                     hasCustomBody     = (def.onPaintCustomBody != nullptr);
-    size_t                   wi                = 0;
-    size_t                   bi                = 0;
-    float                    buttonRowYPx      = 0.0f;
-    float                    buttonRowRightPx  = 0.0f;
-    float                    iconYPx           = 0.0f;
-    float                    iconBlockHeightPx = hasIcon ? metrics.iconSizePx : 0.0f;
-    std::vector<float>       buttonWidthsPx;
+    auto  fallback = [] (std::wstring_view v) { return (float) v.size() * 0.0f; };
+
+    WrapBody (s.def->body,
+              s.metrics->maxBodyWidthPx,
+              s.metrics->bodyLineHeightPx,
+              s.metrics->measureBodyTextRun ? s.metrics->measureBodyTextRun : fallback,
+              s.wrapped,
+              s.bodyTotalHeightPx);
+}
 
 
 
-    bodyOriginXPx = metrics.outerPaddingPx;
-    contentTopPx  = metrics.outerPaddingPx;
 
-    if (hasIcon)
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialogLayout::BuildBodyRunRects
+//
+//  Turns each WrappedRun into (or unions with) the corresponding source
+//  run's rect. Multi-line runs end up with their bounding-box rect so
+//  hyperlink hit-testing covers the full underlined region.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogLayout::BuildBodyRunRects (LayoutState & s)
+{
+    size_t  wi       = 0;
+    float   leftPx   = 0.0f;
+    float   topPx    = 0.0f;
+    float   rightPx  = 0.0f;
+    float   bottomPx = 0.0f;
+
+
+
+    s.result->bodyRunRectsPx.assign (s.def->body.size(), RECT {});
+
+    for (wi = 0; wi < s.wrapped.size(); wi++)
     {
-        bodyOriginXPx += metrics.iconSizePx + metrics.iconBodyGapPx;
-    }
+        const WrappedRun &  w    = s.wrapped[wi];
+        RECT &              rect = s.result->bodyRunRectsPx[w.runIndex];
 
-    bodyOriginYPx = contentTopPx;
-
-    WrapBody (def.body,
-              metrics.maxBodyWidthPx,
-              metrics.bodyLineHeightPx,
-              metrics.measureBodyTextRun ? metrics.measureBodyTextRun
-                                         : [] (std::wstring_view v) { return (float) v.size() * s_kZeroPx; },
-              wrapped,
-              bodyTotalHeightPx);
-
-    // Per-run rects (1:1 with def.body). When a run wraps into multiple
-    // WrappedRun pieces, we take the union of the pieces' rects so the
-    // hyperlink hit-test is the full bounding box of the link's visual
-    // run. That matches user expectation — clicking anywhere on the
-    // underlined text triggers the link.
-    result.bodyRunRectsPx.assign (def.body.size(), RECT {});
-    result.hyperlinkHitRectsPx.clear();
-
-    for (wi = 0; wi < wrapped.size(); wi++)
-    {
-        const WrappedRun &  w     = wrapped[wi];
-        RECT &              rect  = result.bodyRunRectsPx[w.runIndex];
-
-        float  leftPx   = bodyOriginXPx + w.xPx;
-        float  topPx    = bodyOriginYPx + w.yPx;
-        float  rightPx  = leftPx + w.widthPx;
-        float  bottomPx = topPx + metrics.bodyLineHeightPx;
+        leftPx   = s.bodyOriginXPx + w.xPx;
+        topPx    = s.bodyOriginYPx + w.yPx;
+        rightPx  = leftPx + w.widthPx;
+        bottomPx = topPx + s.metrics->bodyLineHeightPx;
 
         if (rect.right == 0 && rect.bottom == 0)
         {
@@ -261,88 +233,207 @@ DialogLayoutResult LayoutDialog (
         }
     }
 
-    for (bi = 0; bi < def.body.size(); bi++)
+    s.contentBottomPx = s.bodyOriginYPx + std::max (s.bodyTotalHeightPx,
+                                                    s.hasIcon ? s.metrics->iconSizePx : 0.0f);
+    s.contentRightPx  = s.bodyOriginXPx + s.metrics->maxBodyWidthPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialogLayout::BuildHyperlinkHitRects
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogLayout::BuildHyperlinkHitRects (LayoutState & s)
+{
+    size_t  bi = 0;
+
+
+
+    s.result->hyperlinkHitRectsPx.clear();
+    for (bi = 0; bi < s.def->body.size(); bi++)
     {
-        if (def.body[bi].isHyperlink)
+        if (s.def->body[bi].isHyperlink)
         {
-            result.hyperlinkHitRectsPx.push_back (result.bodyRunRectsPx[bi]);
+            s.result->hyperlinkHitRectsPx.push_back (s.result->bodyRunRectsPx[bi]);
         }
     }
+}
 
-    contentBottomPx = bodyOriginYPx + std::max (bodyTotalHeightPx, iconBlockHeightPx);
-    contentRightPx  = bodyOriginXPx + metrics.maxBodyWidthPx;
 
-    if (hasIcon)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialogLayout::BuildIconRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogLayout::BuildIconRect (LayoutState & s)
+{
+    if (s.hasIcon)
     {
-        iconYPx = contentTopPx;
-        result.iconRectPx.left   = (LONG) metrics.outerPaddingPx;
-        result.iconRectPx.top    = (LONG) iconYPx;
-        result.iconRectPx.right  = (LONG) (metrics.outerPaddingPx + metrics.iconSizePx);
-        result.iconRectPx.bottom = (LONG) (iconYPx + metrics.iconSizePx);
+        s.result->iconRectPx.left   = (LONG) s.metrics->outerPaddingPx;
+        s.result->iconRectPx.top    = (LONG) s.metrics->outerPaddingPx;
+        s.result->iconRectPx.right  = (LONG) (s.metrics->outerPaddingPx + s.metrics->iconSizePx);
+        s.result->iconRectPx.bottom = (LONG) (s.metrics->outerPaddingPx + s.metrics->iconSizePx);
     }
+}
 
-    if (hasCustomBody)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialogLayout::BuildCustomBodyRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogLayout::BuildCustomBodyRect (LayoutState & s)
+{
+    float  cbTopPx    = 0.0f;
+    float  cbLeftPx   = 0.0f;
+    float  cbWidthPx  = 0.0f;
+    float  cbHeightPx = 0.0f;
+
+
+
+    if (s.hasCustomBody)
     {
-        float  cbTopPx     = contentBottomPx + metrics.bodyButtonsGapPx;
-        float  cbLeftPx    = metrics.outerPaddingPx;
-        float  cbWidthPx   = std::max ((float) def.customBodyMinSizePx.cx,
-                                       contentRightPx - cbLeftPx);
-        float  cbHeightPx  = (float) def.customBodyMinSizePx.cy;
+        cbTopPx    = s.contentBottomPx + s.metrics->bodyButtonsGapPx;
+        cbLeftPx   = s.metrics->outerPaddingPx;
+        cbWidthPx  = std::max ((float) s.def->customBodyMinSizePx.cx,
+                               s.contentRightPx - cbLeftPx);
+        cbHeightPx = (float) s.def->customBodyMinSizePx.cy;
 
-        result.customBodyRectPx.left   = (LONG) cbLeftPx;
-        result.customBodyRectPx.top    = (LONG) cbTopPx;
-        result.customBodyRectPx.right  = (LONG) (cbLeftPx + cbWidthPx);
-        result.customBodyRectPx.bottom = (LONG) (cbTopPx + cbHeightPx);
+        s.result->customBodyRectPx.left   = (LONG) cbLeftPx;
+        s.result->customBodyRectPx.top    = (LONG) cbTopPx;
+        s.result->customBodyRectPx.right  = (LONG) (cbLeftPx + cbWidthPx);
+        s.result->customBodyRectPx.bottom = (LONG) (cbTopPx + cbHeightPx);
 
-        contentBottomPx = (float) result.customBodyRectPx.bottom;
-        contentRightPx  = std::max (contentRightPx, (float) result.customBodyRectPx.right);
+        s.contentBottomPx = (float) s.result->customBodyRectPx.bottom;
+        s.contentRightPx  = std::max (s.contentRightPx, (float) s.result->customBodyRectPx.right);
     }
+}
 
-    // Button row: right-aligned within content; spaced by buttonSpacingPx.
-    buttonRowYPx     = contentBottomPx + metrics.bodyButtonsGapPx;
-    buttonRowRightPx = contentRightPx;
 
-    buttonWidthsPx.reserve (def.buttons.size());
-    for (bi = 0; bi < def.buttons.size(); bi++)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialogLayout::BuildButtonRects
+//
+//  Right-aligned within the content. Width = label + 2*padding, clamped
+//  by minButtonWidthPx. Placed right-to-left so the rightmost button
+//  hugs the content right edge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogLayout::BuildButtonRects (LayoutState & s)
+{
+    std::vector<float>  widthsPx;
+    size_t              bi             = 0;
+    size_t              idx            = 0;
+    float               labelW         = 0.0f;
+    float               w              = 0.0f;
+    float               cursorRightPx  = s.contentRightPx;
+    float               rowTopPx       = s.contentBottomPx + s.metrics->bodyButtonsGapPx;
+
+
+
+    widthsPx.reserve (s.def->buttons.size());
+    for (bi = 0; bi < s.def->buttons.size(); bi++)
     {
-        float  labelW = metrics.measureButtonLabel
-                            ? metrics.measureButtonLabel (def.buttons[bi].label)
-                            : (float) def.buttons[bi].label.size() * s_kZeroPx;
-        float  w      = labelW + 2.0f * metrics.buttonPaddingPx;
-        if (w < metrics.minButtonWidthPx) { w = metrics.minButtonWidthPx; }
-        buttonWidthsPx.push_back (w);
-    }
-
-    // Place buttons right-to-left so the rightmost button hugs the
-    // content right edge.
-    result.buttonRectsPx.assign (def.buttons.size(), RECT {});
-    {
-        float  cursorRightPx = buttonRowRightPx;
-        for (bi = def.buttons.size(); bi > 0; bi--)
+        labelW = s.metrics->measureButtonLabel
+                     ? s.metrics->measureButtonLabel (s.def->buttons[bi].label)
+                     : 0.0f;
+        w = labelW + 2.0f * s.metrics->buttonPaddingPx;
+        if (w < s.metrics->minButtonWidthPx)
         {
-            size_t  idx = bi - 1;
-            float   w   = buttonWidthsPx[idx];
-
-            RECT &  r = result.buttonRectsPx[idx];
-            r.right  = (LONG) cursorRightPx;
-            r.left   = (LONG) (cursorRightPx - w);
-            r.top    = (LONG) buttonRowYPx;
-            r.bottom = (LONG) (buttonRowYPx + metrics.buttonHeightPx);
-
-            cursorRightPx -= (w + metrics.buttonSpacingPx);
+            w = s.metrics->minButtonWidthPx;
         }
+        widthsPx.push_back (w);
     }
 
-    // Total size = right + padding, button-row-bottom + padding (or
-    // content-bottom + padding when there are no buttons).
+    s.result->buttonRectsPx.assign (s.def->buttons.size(), RECT {});
+    for (bi = s.def->buttons.size(); bi > 0; bi--)
     {
-        float  bottomPx = def.buttons.empty()
-                            ? contentBottomPx
-                            : buttonRowYPx + metrics.buttonHeightPx;
+        idx = bi - 1;
+        w   = widthsPx[idx];
 
-        result.totalSizePx.cx = (LONG) (contentRightPx + metrics.outerPaddingPx);
-        result.totalSizePx.cy = (LONG) (bottomPx + metrics.outerPaddingPx);
+        RECT &  r = s.result->buttonRectsPx[idx];
+        r.right  = (LONG) cursorRightPx;
+        r.left   = (LONG) (cursorRightPx - w);
+        r.top    = (LONG) rowTopPx;
+        r.bottom = (LONG) (rowTopPx + s.metrics->buttonHeightPx);
+
+        cursorRightPx -= (w + s.metrics->buttonSpacingPx);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialogLayout::ComputeTotalSize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogLayout::ComputeTotalSize (LayoutState & s)
+{
+    float  rowTopPx = s.contentBottomPx + s.metrics->bodyButtonsGapPx;
+    float  bottomPx = s.def->buttons.empty()
+                          ? s.contentBottomPx
+                          : rowTopPx + s.metrics->buttonHeightPx;
+
+    s.result->totalSizePx.cx = (LONG) (s.contentRightPx + s.metrics->outerPaddingPx);
+    s.result->totalSizePx.cy = (LONG) (bottomPx + s.metrics->outerPaddingPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialogLayout::Compute
+//
+//  Pure layout math producing the rects every DialogPrimitive consumer
+//  needs (icon slot, per-run body rects, hyperlink hit-rects, button
+//  row, optional custom-body rect) plus the overall window content
+//  size. Win32-free; all measurement happens through the metrics'
+//  callback hooks. Tests pin behavior with deterministic stubs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DialogLayoutResult DialogLayout::Compute (
+    const DialogDefinition     & def,
+    const DialogLayoutMetrics  & metrics)
+{
+    DialogLayoutResult  result;
+    LayoutState         s;
+
+    s.def     = & def;
+    s.metrics = & metrics;
+    s.result  = & result;
+
+    BeginLayout            (s);
+    PerformBodyWrap        (s);
+    BuildBodyRunRects      (s);
+    BuildHyperlinkHitRects (s);
+    BuildIconRect          (s);
+    BuildCustomBodyRect    (s);
+    BuildButtonRects       (s);
+    ComputeTotalSize       (s);
 
     return result;
 }
