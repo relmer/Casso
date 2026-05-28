@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DriveWidget.h"
+#include "DriveLabelTruncation.h"
 
 #include "../IDriveCommandSink.h"
 
@@ -767,6 +768,35 @@ void DriveWidget::Paint (
                                               theme.driveLabelArgb,
                                               labelFontDip,
                                               s_kFontFamily));
+
+    // Mounted-disk basename below "DRIVE N", ellipsis-truncated to the
+    // available faceplate width. Hidden when no disk is mounted.
+    if (!m_state.mountedImagePath.empty())
+    {
+        std::filesystem::path  imagePath (m_state.mountedImagePath);
+        std::wstring           basename     = imagePath.filename().wstring();
+        float                  basenameDip  = labelFontDip - 2.0f;
+        float                  maxWidthPx   = (float) (faceW - 2 * labelPad);
+        auto                   measure      = [&] (std::wstring_view v)
+        {
+            std::wstring  s (v);
+            float         w = 0.0f;
+            float         h = 0.0f;
+            HRESULT       mhr = text.MeasureString (s.c_str(), basenameDip, s_kFontFamily, w, h);
+            IGNORE_RETURN_VALUE (mhr, S_OK);
+            return w;
+        };
+        std::wstring           truncated    = TruncateToWidth (basename, maxWidthPx, measure);
+
+        IGNORE_RETURN_VALUE (hr, text.DrawString (truncated.c_str(),
+                                                  (float) (m_faceRect.left + labelPad),
+                                                  (float) (m_faceRect.top + labelPad + labelFontDip),
+                                                  maxWidthPx,
+                                                  basenameDip + 4.0f,
+                                                  theme.driveLabelArgb,
+                                                  basenameDip,
+                                                  s_kFontFamily));
+    }
 
     // "IN USE >" label bottom-left of faceplate, LED to its right.
     IGNORE_RETURN_VALUE (hr, text.DrawString (L"IN USE \u25B6",
