@@ -6,6 +6,70 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.4.1229] — UserPrefs JSON migration + window sizing fixes
+
+### Added
+- **feat(window): per-window DPI ownership.** `Window` base class now
+  owns the authoritative `DpiScaler` for its HWND, seeded on
+  `WM_NCCREATE` and updated on `WM_DPICHANGED` via a non-virtual
+  interface (`OnDpiChanging`/`OnDpiChanged` hooks). Subclasses query
+  DPI through `Window::Scaler()` -- no more cached copies, no more
+  raw `GetDpiForWindow` calls, no `dpi` parameters threaded through
+  call chains.
+- **feat(window): proper `OnMouseLeave` virtual.** Replaces the
+  previous fake-mouse-move-to-(-1,-1) hack that the chrome painter
+  relied on for clearing latched caption-button and nav-menu hover
+  state when the cursor exited the window.
+
+### Changed
+- **refactor(prefs): all settings now live in `UserPrefs.json`** --
+  no more Windows Registry usage. The registry stack
+  (`RegistrySettings`, `Win32RegistrySettings`, `IRegistrySettings`,
+  `InMemoryRegistry`) has been deleted, including the registry →
+  JSON migration path. Existing installs lose their registry-only
+  settings on upgrade (last machine, last disks, drive audio
+  preferences, audio-download consent, window placement); all are
+  cheap to re-customize on first launch.
+  - `GlobalUserPrefs.window.placements` is a per-topology map (FNV-1a
+    hash of monitor configuration) so multi-monitor users get
+    distinct remembered positions per layout.
+  - Per-machine `Disk1Path`/`Disk2Path`, `DiskIIMechanism`,
+    `DriveAudioEnabled`, `PromptForAudioDownload` all moved into
+    each machine's `$cassoUiPrefs` JSON block.
+- **refactor(layout): `ChromeLayout` renamed to `LayoutManager`.** It
+  owns more than just chrome now -- it's the single source of truth
+  for chrome insets *and* framebuffer-to-client sizing math.
+  `LayoutManager::ClientSizeForFramebuffer(fbW, fbH)` is the only
+  place that decides how the Apple ][ framebuffer scales relative
+  to the chrome at any given DPI (linear scaling today).
+- **refactor(window): `s_WndProc` slimmed to a flat dispatch table.**
+  Per-message processing extracted into named `Handle*` helpers
+  (`HandleNcLButtonDown`, `HandleNcLButtonUp`, `HandleSettingChange`,
+  `HandleDpiChanged`, etc.). Single `LRESULT retval` local, single
+  return point, EHM bailout pattern for the null-`this` guard.
+- **refactor(boot): default to Apple //e when no machine is selected
+  or the discovery scanner finds none installed** -- previously the
+  app bailed with a "no machines found" message-box.
+
+### Fixed
+- **fix(layout): initial window now matches `Ctrl+0` reset size.**
+  Two bugs were producing a smaller initial window:
+  1. The framebuffer sizing math at create time disagreed with the
+     Ctrl+0 reset path (one used linear DPI scaling, the other
+     integer; one included the drive-bar inset, the other inlined
+     its own formula). Both paths now route through
+     `LayoutManager::ClientSizeForFramebuffer`.
+  2. The post-create reconcile measured non-client overhead before
+     `ShowWindow` had triggered the first `WM_NCCALCSIZE`, so it
+     saw 0 and concluded no resize was needed. The reconcile is
+     now deferred until after `ShowWindow` and forces a
+     `SWP_FRAMECHANGED` before measuring.
+  The reconcile also re-centers on the current monitor's work area
+  with the final size, so the window doesn't visually shift when
+  the user presses `Ctrl+0` immediately after launch.
+
+
+
 ## [1.4.1171] — UI overhaul (spec 007)
 
 ### Added
