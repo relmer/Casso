@@ -10,6 +10,7 @@
 #include "External/StbVorbisWrapper.h"
 #include "resource.h"
 #include "Ui/ThemeManager.h"
+#include "Ui/Dialog/StandaloneDialog.h"
 #include "UnicodeSymbols.h"
 
 #pragma comment(lib, "winhttp.lib")
@@ -1059,11 +1060,12 @@ static HRESULT DownloadOne (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool PromptUser (HWND hwndParent, const vector<const RomSpec *> & missing)
+static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, const vector<const RomSpec *> & missing)
 {
-    wstring  message;
-    wstring  title;
-    int      response = 0;
+    wstring           message;
+    wstring           title;
+    int               response = 0;
+    DialogDefinition  def      = {};
 
 
 
@@ -1082,18 +1084,23 @@ static bool PromptUser (HWND hwndParent, const vector<const RomSpec *> & missing
         message += L'\n';
     }
 
-    message += L"\nThese files are not bundled with Casso but are available from the "
-               L"AppleWin open-source emulator project (https://github.com/AppleWin/AppleWin)."
-               L"\n\nWould you like to download them now? ";
+    message += L"\nThese files are not bundled with Casso but are available from "
+               L"the AppleWin open-source emulator project: ";
 
     title  = L"Casso ";
     title += s_kchEmDash;
     title += L" Download ROM Images";
 
-    response = MessageBoxW (hwndParent,
-                            message.c_str(),
-                            title.c_str(),
-                            MB_YESNO | MB_ICONQUESTION);
+    def.title = title;
+    def.icon  = DialogIcon::AppPhotoreal;
+    def.body.push_back ({ message, false, L"" });
+    def.body.push_back ({ L"https://github.com/AppleWin/AppleWin",
+                          true, L"https://github.com/AppleWin/AppleWin" });
+    def.body.push_back ({ L"\n\nWould you like to download them now?", false, L"" });
+    def.buttons.push_back ({ L"Download", IDYES, true,  false });
+    def.buttons.push_back ({ L"Cancel",   IDNO,  false, true  });
+
+    response = ShowStandaloneDialog (hInstance, hwndParent, def);
 
     return response == IDYES;
 }
@@ -1360,7 +1367,7 @@ HRESULT AssetBootstrap::CheckAndFetchRoms (
 
     BAIL_OUT_IF (missing.empty(), S_OK);
 
-    userOk = PromptUser (hwndParent, missing);
+    userOk = PromptUser (hInstance, hwndParent, missing);
     BAIL_OUT_IF (!userOk, S_FALSE);
 
     hSession = WinHttpOpen (s_kpszUserAgent,
@@ -1466,14 +1473,13 @@ static constexpr int  s_kIdSkip   = IDCANCEL;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static const BootDiskSpec * PromptBootDisk (HWND hwndParent, const wstring & displayName)
+static const BootDiskSpec * PromptBootDisk (HINSTANCE hInstance, HWND hwndParent, const wstring & displayName)
 {
     HRESULT               hr            = S_OK;
     int                   chosen        = 0;
     wstring               body;
     wstring               title;
-    TASKDIALOGCONFIG      cfg           = { sizeof (TASKDIALOGCONFIG) };
-    TASKDIALOG_BUTTON     buttons[2]    = {};
+    DialogDefinition      def           = {};
     const BootDiskSpec  * result        = nullptr;
 
 
@@ -1482,8 +1488,7 @@ static const BootDiskSpec * PromptBootDisk (HWND hwndParent, const wstring & dis
     body += displayName;
     body += L" has a Disk ][ controller in slot 6 but no disk in drive 1, "
             L"and will spin forever waiting for one. A system master disk "
-            L"is available from the Asimov archive "
-            L"(https://www.apple.asimov.net).\n\n"
+            L"is available from the Asimov archive.\n\n"
             L"Alternatives:\n"
             L"    ";
     body += s_kchBullet;
@@ -1493,45 +1498,21 @@ static const BootDiskSpec * PromptBootDisk (HWND hwndParent, const wstring & dis
     body += s_kchBullet;
     body += L" Skip and press Ctrl+Reset once the drive starts "
             L"spinning to drop to BASIC.\n\n"
-            L"Which disk would you like to download? ";
+            L"Which disk would you like to download?";
 
     title  = L"Casso ";
     title += s_kchEmDash;
     title += L" Boot Disk";
 
-    buttons[0].nButtonID     = s_kIdDos33;
-    buttons[0].pszButtonText = L"DOS 3.3 System Master\n"
-                               L"Boots Applesoft BASIC; type CATALOG to list files.";
-    buttons[1].nButtonID     = s_kIdProDOS;
-    buttons[1].pszButtonText = L"ProDOS Users Disk\n"
-                               L"Boots ProDOS 8 with the BASIC.SYSTEM shell.";
+    def.title = title;
+    def.icon  = DialogIcon::Info;
+    def.body.push_back ({ body, false, L"" });
+    def.buttons.push_back ({ L"DOS 3.3",  s_kIdDos33,  true,  false });
+    def.buttons.push_back ({ L"ProDOS",   s_kIdProDOS, false, false });
+    def.buttons.push_back ({ L"Skip",     s_kIdSkip,   false, true  });
 
-    cfg.hwndParent      = hwndParent;
-    cfg.dwFlags         = TDF_USE_COMMAND_LINKS | TDF_ALLOW_DIALOG_CANCELLATION;
-    cfg.pszWindowTitle  = title.c_str();
-    cfg.pszMainIcon     = TD_INFORMATION_ICON;
-    cfg.pszMainInstruction = L"No boot disk mounted";
-    cfg.pszContent      = body.c_str();
-    cfg.cButtons        = ARRAYSIZE (buttons);
-    cfg.pButtons        = buttons;
-    cfg.dwCommonButtons = TDCBF_CANCEL_BUTTON;
-    cfg.nDefaultButton  = s_kIdDos33;
-
-    hr = TaskDialogIndirect (&cfg, &chosen, nullptr, nullptr);
-
-    if (FAILED (hr))
-    {
-        // TaskDialog unavailable for some reason — fall back to a
-        // simpler MessageBox prompt: Yes=DOS3.3, No=ProDOS, Cancel=Skip.
-        chosen = MessageBoxW (hwndParent,
-            (body + L"\n\nYes = DOS 3.3, No = ProDOS, Cancel = Skip").c_str(),
-            title.c_str(),
-            MB_YESNOCANCEL | MB_ICONQUESTION);
-
-        if      (chosen == IDYES) chosen = s_kIdDos33;
-        else if (chosen == IDNO)  chosen = s_kIdProDOS;
-        else                      chosen = s_kIdSkip;
-    }
+    chosen = ShowStandaloneDialog (hInstance, hwndParent, def);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     if (chosen == s_kIdDos33)
     {
@@ -1588,7 +1569,7 @@ HRESULT AssetBootstrap::OfferBootDiskDownload (
 
     BAIL_OUT_IF (!hasDisk, S_FALSE);
 
-    choice = PromptBootDisk (hwndParent, GetEmbeddedDisplayName (hInstance, machineName));
+    choice = PromptBootDisk (hInstance, hwndParent, GetEmbeddedDisplayName (hInstance, machineName));
     BAIL_OUT_IF (choice == nullptr, S_FALSE);
 
     fs::create_directories (diskDir, ec);
@@ -1904,43 +1885,36 @@ static constexpr int       s_kIdDiskAudioSkip           = IDCANCEL;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static int PromptDiskAudioConsent (HWND hwndParent)
+static int PromptDiskAudioConsent (HINSTANCE hInstance, HWND hwndParent)
 {
-    int                  chosen     = s_kIdDiskAudioSkip;
-    TASKDIALOGCONFIG     tdc        = {};
-    TASKDIALOG_BUTTON    buttons[2] = {};
-    HRESULT              hr         = S_OK;
-    int                  result     = 0;
+    int               chosen  = s_kIdDiskAudioSkip;
+    DialogDefinition  def     = {};
+    wstring           title;
+    wstring           content;
 
-    LPCWSTR  content =
-        L"Casso can download a small set of Disk II drive-noise samples "
-        L"(\x2248 100 KB) from the OpenEmulator project to power the in-emulator "
-        L"drive-audio feature. The samples will be cached on this machine.\n\n"
-        L"The samples are licensed under GPL-3; please review their license "
-        L"before redistributing them.";
 
-    buttons[0].nButtonID     = s_kIdDiskAudioDownload;
-    buttons[0].pszButtonText = L"Download\nFetch the samples and cache them locally.";
-    buttons[1].nButtonID     = s_kIdDiskAudioSkip;
-    buttons[1].pszButtonText = L"Skip\nLaunch without drive audio.";
 
-    tdc.cbSize             = sizeof (tdc);
-    tdc.hwndParent         = hwndParent;
-    tdc.hInstance          = nullptr;
-    tdc.dwFlags            = TDF_USE_COMMAND_LINKS | TDF_ALLOW_DIALOG_CANCELLATION;
-    tdc.pszWindowTitle     = L"Casso \x2014 Drive audio samples";
-    tdc.pszMainIcon        = TD_INFORMATION_ICON;
-    tdc.pszMainInstruction = L"Download Disk II audio samples?";
-    tdc.pszContent         = content;
-    tdc.cButtons           = ARRAYSIZE (buttons);
-    tdc.pButtons           = buttons;
-    tdc.nDefaultButton     = s_kIdDiskAudioDownload;
+    content  = L"Casso can download a small set of Disk II drive-noise samples (";
+    content += s_kchAlmostEqual;
+    content += L" 100 KB) from the OpenEmulator project to power the in-emulator "
+               L"drive-audio feature. The samples will be cached on this machine.\n\n"
+               L"The samples are licensed under GPL-3; please review their license "
+               L"before redistributing them.";
 
-    hr = TaskDialogIndirect (&tdc, &result, nullptr, nullptr);
+    title  = L"Casso ";
+    title += s_kchEmDash;
+    title += L" Drive audio samples";
 
-    if (SUCCEEDED (hr))
+    def.title = title;
+    def.icon  = DialogIcon::Info;
+    def.body.push_back ({ content, false, L"" });
+    def.buttons.push_back ({ L"Download", s_kIdDiskAudioDownload, true,  false });
+    def.buttons.push_back ({ L"Skip",     s_kIdDiskAudioSkip,     false, true  });
+
+    chosen = ShowStandaloneDialog (hInstance, hwndParent, def);
+    if (chosen != s_kIdDiskAudioDownload && chosen != s_kIdDiskAudioSkip)
     {
-        chosen = result;
+        chosen = s_kIdDiskAudioSkip;
     }
 
     return chosen;
@@ -2046,7 +2020,7 @@ HRESULT AssetBootstrap::CheckAndFetchDiskAudio (
     else
     {
         // "ask" or any unknown value -- prompt now.
-        consent = PromptDiskAudioConsent (hwndParent);
+        consent = PromptDiskAudioConsent (hInstance, hwndParent);
         prefs.audioDownloadConsent = (consent == s_kIdDiskAudioDownload)
                                        ? std::string ("allow")
                                        : std::string ("decline");
