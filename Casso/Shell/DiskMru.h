@@ -44,6 +44,11 @@ public:
     size_t                              Size         () const { return m_entries.size(); }
     bool                                Empty        () const { return m_entries.empty(); }
 
+    // Bridge helpers between DiskMru and the GlobalUserPrefs JSON
+    // schema (which stores entries as narrow UTF-8 strings).
+    static DiskMru  FromUtf8 (const std::vector<std::string> & utf8Entries);
+    void            ToUtf8   (std::vector<std::string>       & outUtf8Entries) const;
+
 private:
     void                                EnforceCap   ();
 

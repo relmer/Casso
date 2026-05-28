@@ -147,5 +147,31 @@ namespace DiskMruTests
             m.ReplaceAll (many);
             Assert::AreEqual (DiskMru::k_capacity, m.Size());
         }
+
+
+        TEST_METHOD (FromUtf8_DropsEmpty_PreservesOrder)
+        {
+            std::vector<std::string>  in = { "C:\\Disks\\A.dsk", "", "C:\\Disks\\B.dsk" };
+            auto  mru = DiskMru::FromUtf8 (in);
+            auto  snap = mru.Snapshot();
+            Assert::AreEqual ((size_t) 2, snap.size());
+            Assert::IsTrue (snap[0] == std::filesystem::path ("C:\\Disks\\A.dsk"));
+            Assert::IsTrue (snap[1] == std::filesystem::path ("C:\\Disks\\B.dsk"));
+        }
+
+
+        TEST_METHOD (ToUtf8_RoundTrips)
+        {
+            DiskMru  mru;
+            mru.RecordMount (L"C:\\Disks\\A.dsk");
+            mru.RecordMount (L"C:\\Disks\\B.dsk");
+
+            std::vector<std::string>  out;
+            mru.ToUtf8 (out);
+
+            Assert::AreEqual ((size_t) 2, out.size());
+            Assert::AreEqual (std::string ("C:\\Disks\\B.dsk"), out[0]);
+            Assert::AreEqual (std::string ("C:\\Disks\\A.dsk"), out[1]);
+        }
     };
 }

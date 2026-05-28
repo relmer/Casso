@@ -117,3 +117,64 @@ void DiskMru::ReplaceAll (std::vector<std::filesystem::path> entries)
     m_entries = std::move (entries);
     EnforceCap();
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FromUtf8
+//
+//  Constructs a DiskMru from the GlobalUserPrefs `recentDisks`
+//  narrow-string list. Drops empty entries; preserves order; caps at
+//  k_capacity.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskMru DiskMru::FromUtf8 (const std::vector<std::string> & utf8Entries)
+{
+    DiskMru                             mru;
+    std::vector<std::filesystem::path>  paths;
+    size_t                              i = 0;
+
+
+
+    paths.reserve (utf8Entries.size());
+    for (i = 0; i < utf8Entries.size(); i++)
+    {
+        if (!utf8Entries[i].empty())
+        {
+            paths.emplace_back (std::filesystem::path (utf8Entries[i]));
+        }
+    }
+    mru.ReplaceAll (std::move (paths));
+    return mru;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ToUtf8
+//
+//  Serialises the snapshot into the `recentDisks` narrow-string list
+//  shape used by GlobalUserPrefs JSON.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskMru::ToUtf8 (std::vector<std::string> & outUtf8Entries) const
+{
+    size_t  i = 0;
+
+
+
+    outUtf8Entries.clear();
+    outUtf8Entries.reserve (m_entries.size());
+    for (i = 0; i < m_entries.size(); i++)
+    {
+        outUtf8Entries.push_back (m_entries[i].string());
+    }
+}
