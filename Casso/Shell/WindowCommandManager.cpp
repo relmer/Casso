@@ -428,8 +428,8 @@ Error:
 
 void WindowCommandManager::OnDiskCommand (int id)
 {
-    WCHAR          filePath[MAX_PATH] = {};
-    OPENFILENAMEW  ofn                = {};
+    HRESULT  hr    = S_OK;
+    int      drive = 0;
 
 
 
@@ -438,19 +438,14 @@ void WindowCommandManager::OnDiskCommand (int id)
         case IDM_DISK_INSERT1:
         case IDM_DISK_INSERT2:
         {
-            ofn.lStructSize = sizeof (ofn);
-            ofn.hwndOwner   = m_shell.m_hwnd;
-            ofn.lpstrFilter = L"Disk images (*.dsk)\0*.dsk\0All files (*.*)\0*.*\0";
-            ofn.lpstrFile   = filePath;
-            ofn.nMaxFile    = MAX_PATH;
-            ofn.lpstrTitle  = (id == IDM_DISK_INSERT1) ?
-                L"Insert disk in drive 1" : L"Insert disk in drive 2";
-            ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+            // Route both insert commands through the modern
+            // IFileOpenDialog-based picker. FR-015 keeps
+            // IFileOpenDialog as the supported file-picker surface;
+            // the legacy GetOpenFileNameW path is removed.
+            drive = (id == IDM_DISK_INSERT1) ? 1 : 2;
 
-            if (GetOpenFileNameW (&ofn))
-            {
-                m_shell.PostCommand (static_cast<WORD> (id), fs::path (filePath).string());
-            }
+            hr = PromptForDiskImage (drive);
+            IGNORE_RETURN_VALUE (hr, S_OK);
             break;
         }
 

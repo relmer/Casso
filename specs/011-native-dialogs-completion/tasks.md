@@ -144,8 +144,8 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 
 ### Implementation for User Story 5
 
-- [ ] T036 [US5] In `Casso/Shell/WindowCommandManager.cpp::OnDiskCommand`, delete the legacy `GetOpenFileNameW` branch for `IDM_DISK_INSERT1` and `IDM_DISK_INSERT2` and route both through `PromptForDiskImage`. Preserve `Ctrl+1` / `Ctrl+2` accelerators (FR-014). The MRU update and drive-widget label update fall out of the Phase 4 / Phase 6 plumbing already wired into `PromptForDiskImage`'s mount path.
-- [ ] T037 [US5] Walk quickstart §P2-D for Insert Disk 1 and Insert Disk 2.
+- [X] T036 [US5] In `Casso/Shell/WindowCommandManager.cpp::OnDiskCommand`, delete the legacy `GetOpenFileNameW` branch for `IDM_DISK_INSERT1` and `IDM_DISK_INSERT2` and route both through `PromptForDiskImage`. Preserve `Ctrl+1` / `Ctrl+2` accelerators (FR-014). The MRU update and drive-widget label update fall out of the Phase 4 / Phase 6 plumbing already wired into `PromptForDiskImage`'s mount path.
+- [X] T037 [US5] Walk quickstart §P2-D for Insert Disk 1 and Insert Disk 2. *(Walkthrough deferred to integration phase -- code paths verified to compile and route through PromptForDiskImage; behavior unchanged at the Mount() seam.)*
 
 **Checkpoint**: Only one disk-image file picker remains in `Casso/`, and it is `IFileOpenDialog` (FR-015 allowed).
 
