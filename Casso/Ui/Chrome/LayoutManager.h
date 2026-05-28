@@ -99,10 +99,10 @@ public:
 
     explicit LayoutManager (const DpiScaler & scaler);
 
-    void  Register   (IEdgeContributor * contributor);
-    void  Register   (ICenterLayer     * layer);
-    void  Unregister (IEdgeContributor * contributor);
-    void  Unregister (ICenterLayer     * layer);
+    void  RegisterEdge          (IEdgeContributor * contributor);
+    void  UnregisterEdge        (IEdgeContributor * contributor);
+    void  RegisterCenterLayer   (ICenterLayer     * layer);
+    void  UnregisterCenterLayer (ICenterLayer     * layer);
 
     LayoutManagerResult  Resolve                  (int clientWidthPx,
                                                    int clientHeightPx) const;
@@ -112,11 +112,6 @@ public:
                                                    int framebufferHeightPx) const;
 
     int  ScaleForDpi (int dp) const;
-
-    // Static helper retained for the rare pre-window caller that has
-    // a DPI value but no LayoutManager to ask. Prefer the instance
-    // method everywhere else.
-    static int  ScaleForDpi (int dp, UINT dpi);
 
 
     const std::vector<IEdgeContributor *> & Edges        () const { return m_edges;        }

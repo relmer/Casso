@@ -452,9 +452,9 @@ HRESULT EmulatorShell::Initialize (
     // pointers stay registered for the lifetime of the shell. Theme
     // changes that resize the drive bar mutate m_driveBarSlot in
     // place; LayoutManager reads the live thickness on every Resolve.
-    m_layout.Register (&m_titleBarSlot);
-    m_layout.Register (&m_navStripSlot);
-    m_layout.Register (&m_driveBarSlot);
+    m_layout.RegisterEdge (&m_titleBarSlot);
+    m_layout.RegisterEdge (&m_navStripSlot);
+    m_layout.RegisterEdge (&m_driveBarSlot);
 
     assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
     machinesDir  = assetBaseDir / fs::path ("Machines") / fs::path (m_currentMachineName);

@@ -10,6 +10,11 @@
 //
 //  LayoutManager::LayoutManager
 //
+//  Binds to an external DpiScaler -- typically the one owned by the
+//  Window the layout applies to. Stores a pointer so live DPI changes
+//  (WM_DPICHANGED updating the scaler) are picked up automatically on
+//  the next layout query without a per-frame re-bind.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 LayoutManager::LayoutManager (const DpiScaler & scaler)
@@ -25,28 +30,19 @@ LayoutManager::LayoutManager (const DpiScaler & scaler)
 //
 //  LayoutManager::ScaleForDpi
 //
-//  DPI-scaling primitive. Two flavors: the instance method queries
-//  the bound DpiScaler (the normal path); the static overload is for
-//  the rare pre-window caller that has a raw DPI but no scaler yet.
-//  Caps DPI at kBaseDpi when zero is supplied so callers can pass
-//  GetDpiForWindow's return value without guarding.
+//  DPI-scaling primitive. Returns dp scaled to physical pixels via the
+//  bound DpiScaler. Falls back to base DPI (1:1) if no scaler was ever
+//  bound, which only happens in malformed test setups.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int LayoutManager::ScaleForDpi (int dp) const
 {
-    return (m_scaler != nullptr) ? m_scaler->Px (dp)
-                                 : ScaleForDpi (dp, (UINT) kBaseDpi);
-}
-
-
-int LayoutManager::ScaleForDpi (int dp, UINT dpi)
-{
-    UINT  effectiveDpi = (dpi == 0) ? (UINT) kBaseDpi : dpi;
-
-
-
-    return MulDiv (dp, (int) effectiveDpi, kBaseDpi);
+    if (m_scaler == nullptr)
+    {
+        return dp;
+    }
+    return m_scaler->Px (dp);
 }
 
 
@@ -55,16 +51,16 @@ int LayoutManager::ScaleForDpi (int dp, UINT dpi)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LayoutManager::Register / Unregister
+//  LayoutManager::RegisterEdge
 //
-//  Append/remove contributor pointers. Lifetime is owned by the caller;
-//  LayoutManager does not delete anything on shutdown. Unregister is a
-//  linear scan but the contributor list is small (currently <= 4 edges
-//  + a handful of future center layers) so the simplicity wins.
+//  Append an edge contributor. Lifetime is owned by the caller;
+//  LayoutManager does not delete anything on shutdown. Null contributors
+//  are silently ignored so callers can pass conditional pointers without
+//  guarding at every site.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LayoutManager::Register (IEdgeContributor * contributor)
+void LayoutManager::RegisterEdge (IEdgeContributor * contributor)
 {
     if (contributor == nullptr)
     {
@@ -74,7 +70,40 @@ void LayoutManager::Register (IEdgeContributor * contributor)
 }
 
 
-void LayoutManager::Register (ICenterLayer * layer)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayoutManager::UnregisterEdge
+//
+//  Remove an edge contributor. Linear scan, but the contributor list is
+//  small (currently <= 4 edges) so the simplicity wins. No-op if the
+//  contributor was never registered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LayoutManager::UnregisterEdge (IEdgeContributor * contributor)
+{
+    auto  it = std::remove (m_edges.begin(), m_edges.end(), contributor);
+
+    m_edges.erase (it, m_edges.end());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayoutManager::RegisterCenterLayer
+//
+//  Append a center-layer contributor (a future monitor-frame border, for
+//  example). Same lifetime/null-handling contract as RegisterEdge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LayoutManager::RegisterCenterLayer (ICenterLayer * layer)
 {
     if (layer == nullptr)
     {
@@ -84,15 +113,18 @@ void LayoutManager::Register (ICenterLayer * layer)
 }
 
 
-void LayoutManager::Unregister (IEdgeContributor * contributor)
-{
-    auto  it = std::remove (m_edges.begin(), m_edges.end(), contributor);
-
-    m_edges.erase (it, m_edges.end());
-}
 
 
-void LayoutManager::Unregister (ICenterLayer * layer)
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayoutManager::UnregisterCenterLayer
+//
+//  Remove a center-layer contributor. Same contract as UnregisterEdge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LayoutManager::UnregisterCenterLayer (ICenterLayer * layer)
 {
     auto  it = std::remove (m_centerLayers.begin(), m_centerLayers.end(), layer);
 
@@ -207,8 +239,8 @@ SIZE LayoutManager::ClientSizeForCenter (int centerWidthPx, int centerHeightPx) 
 
 SIZE LayoutManager::ClientSizeForFramebuffer (int framebufferWidthPx, int framebufferHeightPx) const
 {
-    int   scaledFbWidthPx  = ScaleForDpi (framebufferWidthPx);
-    int   scaledFbHeightPx = ScaleForDpi (framebufferHeightPx);
+    int  scaledFbWidthPx  = ScaleForDpi (framebufferWidthPx);
+    int  scaledFbHeightPx = ScaleForDpi (framebufferHeightPx);
 
     return ClientSizeForCenter (scaledFbWidthPx, scaledFbHeightPx);
 }

@@ -86,7 +86,7 @@ public:
         LayoutManager  layout (s.scaler);
         StubEdge       top (ChromeEdge::Top, 32);
 
-        layout.Register (&top);
+        layout.RegisterEdge (&top);
 
         LayoutManagerResult  r = layout.Resolve (800, 600);
 
@@ -104,8 +104,8 @@ public:
         StubEdge       titleBar (ChromeEdge::Top, 32);
         StubEdge       navStrip (ChromeEdge::Top, 32);
 
-        layout.Register (&titleBar);
-        layout.Register (&navStrip);
+        layout.RegisterEdge (&titleBar);
+        layout.RegisterEdge (&navStrip);
 
         LayoutManagerResult  r = layout.Resolve (800, 600);
 
@@ -123,10 +123,10 @@ public:
         StubEdge       left   (ChromeEdge::Left,   30);
         StubEdge       right  (ChromeEdge::Right,  40);
 
-        layout.Register (&top);
-        layout.Register (&bottom);
-        layout.Register (&left);
-        layout.Register (&right);
+        layout.RegisterEdge (&top);
+        layout.RegisterEdge (&bottom);
+        layout.RegisterEdge (&left);
+        layout.RegisterEdge (&right);
 
         LayoutManagerResult  r = layout.Resolve (800, 600);
 
@@ -149,8 +149,8 @@ public:
         StubEdge       top    (ChromeEdge::Top,    32);
         StubEdge       bottom (ChromeEdge::Bottom, 192);
 
-        layout.Register (&top);
-        layout.Register (&bottom);
+        layout.RegisterEdge (&top);
+        layout.RegisterEdge (&bottom);
 
         LayoutManagerResult  r = layout.Resolve (800, 600);
 
@@ -165,7 +165,7 @@ public:
         LayoutManager  layout (s.scaler);
         StubEdge       bottom (ChromeEdge::Bottom, 192);
 
-        layout.Register (&bottom);
+        layout.RegisterEdge (&bottom);
 
         LayoutManagerResult  r = layout.Resolve (800, 600);
 
@@ -179,7 +179,7 @@ public:
         LayoutManager  layout (s.scaler);
         StubEdge       top (ChromeEdge::Top, 32);
 
-        layout.Register (&top);
+        layout.RegisterEdge (&top);
 
         LayoutManagerResult  r = layout.Resolve (800, 600);
 
@@ -194,8 +194,8 @@ public:
         StubEdge       bottom  (ChromeEdge::Bottom, 100);
         StubCenter     monitor (8, 16, 4, 4);
 
-        layout.Register (&bottom);
-        layout.Register (&monitor);
+        layout.RegisterEdge (&bottom);
+        layout.RegisterCenterLayer (&monitor);
 
         LayoutManagerResult  r = layout.Resolve (800, 600);
 
@@ -219,8 +219,8 @@ public:
         StubEdge       top    (ChromeEdge::Top,    400);
         StubEdge       bottom (ChromeEdge::Bottom, 400);
 
-        layout.Register (&top);
-        layout.Register (&bottom);
+        layout.RegisterEdge (&top);
+        layout.RegisterEdge (&bottom);
 
         LayoutManagerResult  r = layout.Resolve (800, 600);
 
@@ -239,10 +239,10 @@ public:
         StubEdge       bottom   (ChromeEdge::Bottom, 192);
         StubCenter     monitor  (8, 16, 4, 4);
 
-        layout.Register (&top);
-        layout.Register (&navStrip);
-        layout.Register (&bottom);
-        layout.Register (&monitor);
+        layout.RegisterEdge (&top);
+        layout.RegisterEdge (&navStrip);
+        layout.RegisterEdge (&bottom);
+        layout.RegisterCenterLayer (&monitor);
 
         // Center pixels 560x384; chrome cost vertical = 32+32+192+8+16 = 280;
         // horizontal = 4+4 = 8.
@@ -260,8 +260,8 @@ public:
         StubEdge       top    (ChromeEdge::Top,    32);
         StubEdge       bottom (ChromeEdge::Bottom, 192);
 
-        layout.Register (&top);
-        layout.Register (&bottom);
+        layout.RegisterEdge (&top);
+        layout.RegisterEdge (&bottom);
 
         // ClientSizeForCenter expects PRE-SCALED center pixels. At 192
         // DPI chrome doubles: top=64 + bottom=384 = 448 added.
@@ -279,8 +279,8 @@ public:
         StubEdge       top    (ChromeEdge::Top,    32);
         StubEdge       bottom (ChromeEdge::Bottom, 192);
 
-        layout.Register (&top);
-        layout.Register (&bottom);
+        layout.RegisterEdge (&top);
+        layout.RegisterEdge (&bottom);
 
         SIZE                 client = layout.ClientSizeForCenter (560, 384);
         LayoutManagerResult  r      = layout.Resolve ((int) client.cx, (int) client.cy);
@@ -297,8 +297,8 @@ public:
         StubEdge       top    (ChromeEdge::Top,    32);
         StubEdge       bottom (ChromeEdge::Bottom, 192);
 
-        layout.Register (&top);
-        layout.Register (&bottom);
+        layout.RegisterEdge (&top);
+        layout.RegisterEdge (&bottom);
 
         SIZE  sz = layout.ClientSizeForFramebuffer (560, 384);
 
@@ -314,8 +314,8 @@ public:
         StubEdge       top    (ChromeEdge::Top,    32);
         StubEdge       bottom (ChromeEdge::Bottom, 192);
 
-        layout.Register (&top);
-        layout.Register (&bottom);
+        layout.RegisterEdge (&top);
+        layout.RegisterEdge (&bottom);
 
         // 1.5x: framebuffer = 840x576; chrome = top(48) + bottom(288) = 336.
         SIZE  sz = layout.ClientSizeForFramebuffer (560, 384);
@@ -332,8 +332,8 @@ public:
         StubEdge       top    (ChromeEdge::Top,    32);
         StubEdge       bottom (ChromeEdge::Bottom, 192);
 
-        layout.Register (&top);
-        layout.Register (&bottom);
+        layout.RegisterEdge (&top);
+        layout.RegisterEdge (&bottom);
 
         // 2x: framebuffer = 1120x768; chrome = top(64) + bottom(384) = 448.
         SIZE  sz = layout.ClientSizeForFramebuffer (560, 384);
@@ -350,9 +350,9 @@ public:
         StubEdge       top    (ChromeEdge::Top,    32);
         StubEdge       bottom (ChromeEdge::Bottom, 192);
 
-        layout.Register   (&top);
-        layout.Register   (&bottom);
-        layout.Unregister (&bottom);
+        layout.RegisterEdge (&top);
+        layout.RegisterEdge (&bottom);
+        layout.UnregisterEdge (&bottom);
 
         LayoutManagerResult  r = layout.Resolve (800, 600);
 
@@ -366,8 +366,8 @@ public:
         ScopedScaler   s (96);
         LayoutManager  layout (s.scaler);
 
-        layout.Register ((IEdgeContributor *) nullptr);
-        layout.Register ((ICenterLayer     *) nullptr);
+        layout.RegisterEdge ((IEdgeContributor *) nullptr);
+        layout.RegisterCenterLayer ((ICenterLayer *) nullptr);
 
         Assert::AreEqual ((size_t) 0, layout.Edges().size());
         Assert::AreEqual ((size_t) 0, layout.CenterLayers().size());
@@ -380,7 +380,7 @@ public:
         LayoutManager  layout (s.scaler);
         StubEdge       driveBar (ChromeEdge::Bottom, 192);
 
-        layout.Register (&driveBar);
+        layout.RegisterEdge (&driveBar);
 
         LayoutManagerResult  before = layout.Resolve (800, 600);
 
@@ -400,7 +400,7 @@ public:
         LayoutManager  layout (s.scaler);
         StubEdge       bottom (ChromeEdge::Bottom, 100);
 
-        layout.Register (&bottom);
+        layout.RegisterEdge (&bottom);
 
         LayoutManagerResult  before = layout.Resolve (800, 600);
 
@@ -421,7 +421,7 @@ public:
         LayoutManager          layout (s.scaler);
         SimpleEdgeContributor  bottom (ChromeEdge::Bottom, 100);
 
-        layout.Register (&bottom);
+        layout.RegisterEdge (&bottom);
 
         LayoutManagerResult  r = layout.Resolve (800, 600);
 
