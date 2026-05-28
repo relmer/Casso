@@ -131,6 +131,12 @@ public:
     HRESULT Mount  (int slot, int drive, const std::wstring & path) override;
     void    Eject  (int slot, int drive) override;
 
+    // UI helper: open the drive door for visual feedback, show the
+    // file-open dialog, then close the door again. Mount-on-success
+    // is handled by the existing PromptForDiskImage path; this
+    // method just owns the door visual.
+    void    BrowseForDisk (int drive);
+
     // Static window procs for child windows
     static LRESULT CALLBACK s_RenderSurfaceWndProc (
         HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);

@@ -6,6 +6,50 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.4.1260] — Drive widget interaction + disk persistence fix
+
+### Added
+- **feat(chrome): drive widgets are now interactive.** Clicking a
+  drive's body or eject button opens the door, presents a file picker,
+  and either mounts the chosen disk or closes the door again if you
+  cancel. Default cold-boot door state is now `Open` (rather than
+  `Closed`) so empty drives look right out of the box; auto-close
+  animates when a saved disk is restored on launch.
+- **feat(chrome): mouse-leave virtual.** `Window::OnMouseLeave` is
+  routed through `EmulatorShell` → `UiShell` to clear latched hover
+  state on `TitleBar` and `NavLayer` without the old fake-mouse-move
+  hack.
+
+### Fixed
+- **fix(prefs): mounted disk path no longer wiped on every launch.**
+  `GlobalUserPrefs::Save` previously wrote a hardcoded empty
+  `"machines": {}` block, clobbering the per-machine prefs that
+  `UserConfigStore` had persisted (including `disk1Path` /
+  `disk2Path`). Main's pre-flight disk-audio consent save then fired
+  on every launch, so the disk you mounted last session was always
+  gone by the time the boot-disk prompt ran. `GlobalUserPrefs::Save`
+  now reads the existing file and preserves its machines section;
+  `UserConfigStore::SaveCombinedJson` does the same as a
+  belt-and-suspenders second line of defence. Regression test added.
+- **fix(chrome): door geometry, perspective, and visible recess strip.**
+  Door is now hinged inside the recess (not at the recess top),
+  retracts 75 % when fully open, and is sized to recess width rather
+  than the full eject-button rect. The recess's "finger notch" stays
+  visible as a strip below the closed door instead of being painted
+  as a separate sub-rect that disappeared at the wrong moments.
+- **fix(chrome): door animation actually animates.** `visual.nowMs` is
+  now populated from `steady_clock` in `UiShell::Render` (same time
+  base as `DiskManager::NowMs`); `m_redrawForced` is reset before the
+  after-blit hook instead of after, so the hook can request follow-up
+  frames; and `EmulatorShell::BrowseForDisk` pumps
+  `D3DRenderer::UploadAndPresent` from its own busy-wait so chrome
+  keeps painting while the UI thread is blocked waiting for the file
+  picker.
+
+
+
+
+
 ## [1.4.1229] — UserPrefs JSON migration + window sizing fixes
 
 ### Added

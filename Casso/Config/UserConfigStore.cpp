@@ -968,15 +968,56 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-JsonValue UserConfigStore::BuildCombinedJson (const GlobalUserPrefs & prefs) const
+JsonValue UserConfigStore::BuildCombinedJson (
+    const GlobalUserPrefs & prefs,
+    IFileSystem           & fs) const
 {
     std::vector<std::pair<std::string, JsonValue>>  root;
     std::vector<std::pair<std::string, JsonValue>>  machines;
+    std::map<std::string, JsonValue>                merged;
+    std::string                                     existingText;
+    JsonValue                                       existing;
+    JsonParseError                                  err;
+    const JsonValue                               * existingMachines = nullptr;
+    HRESULT                                         hr               = S_OK;
 
 
 
-    machines.reserve (m_machinePrefs.size());
+    // Preserve any machines present in the on-disk file that we haven't
+    // touched in this process. m_machinePrefs is populated lazily; if a
+    // save fires before a given machine has been Load'd, that machine
+    // would otherwise be wiped from disk on the next write.
+    if (fs.Exists (UserPrefsFilePath()))
+    {
+        hr = fs.ReadAllText (UserPrefsFilePath(), existingText);
+        if (SUCCEEDED (hr))
+        {
+            hr = JsonParser::Parse (existingText, existing, err);
+            if (SUCCEEDED (hr))
+            {
+                existingMachines = FindObjectValue (existing, s_kpszMachinesKey);
+                if (existingMachines != nullptr && existingMachines->GetType() == JsonType::Object)
+                {
+                    for (const auto & kv : existingMachines->GetObjectEntries())
+                    {
+                        if (kv.second.GetType() == JsonType::Object)
+                        {
+                            merged[kv.first] = kv.second;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // In-memory entries override on-disk entries.
     for (const auto & kv : m_machinePrefs)
+    {
+        merged[kv.first] = kv.second;
+    }
+
+    machines.reserve (merged.size());
+    for (const auto & kv : merged)
     {
         machines.emplace_back (kv.first, kv.second);
     }
@@ -1056,7 +1097,7 @@ HRESULT UserConfigStore::SaveCombinedJson (
 {
     HRESULT              hr   = S_OK;
     JsonWriter::Options  opts;
-    JsonValue            root = BuildCombinedJson (prefs);
+    JsonValue            root = BuildCombinedJson (prefs, fs);
     std::string          text;
 
 

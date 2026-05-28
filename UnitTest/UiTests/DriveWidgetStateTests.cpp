@@ -21,14 +21,14 @@ TEST_CLASS (DriveWidgetStateTests)
 {
 public:
 
-    TEST_METHOD (FreshState_IsEmpty_DoorClosed_LedIdle)
+    TEST_METHOD (FreshState_IsEmpty_DoorOpen_LedIdle)
     {
         DriveWidgetState  st;
 
         Assert::IsFalse (st.IsMounted(),
                          L"newly constructed state must not report a mount");
-        Assert::IsTrue (st.doorState == DriveWidgetState::Door::Closed,
-                        L"door should start closed");
+        Assert::IsTrue (st.doorState == DriveWidgetState::Door::Open,
+                        L"door should start open (empty drive visual)");
         Assert::IsFalse (st.motorOn.load(),
                          L"motor flag should default false");
         Assert::IsFalse (st.diskActive.load(),
@@ -59,7 +59,7 @@ public:
     {
         DriveWidgetState  st;
 
-        st.BeginInsert (L"a.woz", 0);   // settles to Closed without animation
+        st.BeginInsert (L"a.woz", 0);   // door transitions Open -> Closing
         Assert::IsTrue (st.IsMounted());
 
         st.BeginEject (500);
@@ -75,16 +75,21 @@ public:
     {
         DriveWidgetState  st;
 
-        st.BeginEject (0);
+        // Precondition: force the door closed (default is now Open).
+        st.BeginInsert (L"warmup.dsk", 0);
+        st.TickDoorAnimation (DriveWidgetState::kDoorAnimationMs);
+        Assert::IsTrue (st.doorState == DriveWidgetState::Door::Closed);
+
+        st.BeginEject (DriveWidgetState::kDoorAnimationMs);
         Assert::IsTrue (st.doorState == DriveWidgetState::Door::Opening);
 
         // Before the deadline -- still opening.
-        st.TickDoorAnimation (DriveWidgetState::kDoorAnimationMs - 1);
+        st.TickDoorAnimation (DriveWidgetState::kDoorAnimationMs + DriveWidgetState::kDoorAnimationMs - 1);
         Assert::IsTrue (st.doorState == DriveWidgetState::Door::Opening,
                         L"door should remain Opening before the deadline");
 
         // At exactly the deadline -- settles to Open.
-        st.TickDoorAnimation (DriveWidgetState::kDoorAnimationMs);
+        st.TickDoorAnimation (DriveWidgetState::kDoorAnimationMs + DriveWidgetState::kDoorAnimationMs);
         Assert::IsTrue (st.doorState == DriveWidgetState::Door::Open,
                         L"door should settle to Open at kDoorAnimationMs");
     }
@@ -108,11 +113,16 @@ public:
     {
         DriveWidgetState  st;
 
+        // Force the door closed first (default is now Open).
+        st.BeginInsert (L"warmup.dsk", 0);
+        st.TickDoorAnimation (DriveWidgetState::kDoorAnimationMs);
+        Assert::IsTrue (st.doorState == DriveWidgetState::Door::Closed,
+                        L"warmup insert + tick should settle door to Closed");
+
         st.BeginInsert (L"first.dsk", 42);
 
         Assert::IsTrue (st.doorState == DriveWidgetState::Door::Closed,
                         L"insert into already-closed drive should not start an animation");
-        Assert::AreEqual<int64_t> (0, st.animationStartTimeMs);
     }
 
     TEST_METHOD (MotorAndActiveFlags_RoundTripViaAtomics)

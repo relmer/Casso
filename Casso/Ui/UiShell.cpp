@@ -284,6 +284,8 @@ void UiShell::Render ()
     barTop             = std::max (0, m_viewportHeightPx - bottomInset);
     visual.dpi         = m_dpi;
     visual.frameIndex  = m_frameIndex++;
+    visual.nowMs       = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                            std::chrono::steady_clock::now().time_since_epoch()).count();
 
     if (rtv == nullptr)
     {
