@@ -212,6 +212,7 @@ Window * Window::s_GetSetThisPointer (HWND hwnd, UINT message, WPARAM wParam, LP
 
 LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    HRESULT   hr             = S_OK;
     bool      callDefWndProc = true;
     LRESULT   retval         = 0;
     Window  * pThis          = nullptr;
@@ -219,134 +220,132 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
 
 
     pThis = s_GetSetThisPointer (hwnd, message, wParam, lParam);
+    CBR (pThis);
 
-    if (pThis != nullptr)
+    switch (message)
     {
-        switch (message)
-        {
-            case WM_CHAR:
-                callDefWndProc = pThis->OnChar (wParam, lParam);
-                break;
+        case WM_CHAR:
+            callDefWndProc = pThis->OnChar (wParam, lParam);
+            break;
 
-            case WM_COMMAND:
-                callDefWndProc = pThis->OnCommandEx (hwnd,
-                                                     LOWORD (wParam),
-                                                     HIWORD (wParam),
-                                                     reinterpret_cast<HWND> (lParam));
-                break;
+        case WM_COMMAND:
+            callDefWndProc = pThis->OnCommandEx (hwnd,
+                                                 LOWORD (wParam),
+                                                 HIWORD (wParam),
+                                                 reinterpret_cast<HWND> (lParam));
+            break;
 
-            case WM_CTLCOLORSTATIC:
-                callDefWndProc = pThis->HandleCtlColorStatic (hwnd, wParam, lParam, retval);
-                break;
+        case WM_CTLCOLORSTATIC:
+            callDefWndProc = pThis->HandleCtlColorStatic (hwnd, wParam, lParam, retval);
+            break;
 
-            case WM_CLOSE:
-                callDefWndProc = pThis->OnClose (hwnd);
-                break;
+        case WM_CLOSE:
+            callDefWndProc = pThis->OnClose (hwnd);
+            break;
 
-            case WM_CREATE:
-                callDefWndProc = pThis->HandleCreate (hwnd, lParam, retval);
-                break;
+        case WM_CREATE:
+            callDefWndProc = pThis->HandleCreate (hwnd, lParam, retval);
+            break;
 
-            case WM_DESTROY:
-                callDefWndProc = pThis->OnDestroy (hwnd);
-                break;
+        case WM_DESTROY:
+            callDefWndProc = pThis->OnDestroy (hwnd);
+            break;
 
-            case WM_DRAWITEM:
-                callDefWndProc = pThis->OnDrawItem (hwnd,
-                                                    static_cast<int> (wParam),
-                                                    reinterpret_cast<DRAWITEMSTRUCT *> (lParam));
-                break;
+        case WM_DRAWITEM:
+            callDefWndProc = pThis->OnDrawItem (hwnd,
+                                                static_cast<int> (wParam),
+                                                reinterpret_cast<DRAWITEMSTRUCT *> (lParam));
+            break;
 
-            case WM_INITMENUPOPUP:
-                callDefWndProc = pThis->OnInitMenuPopup (hwnd,
-                                                         reinterpret_cast<HMENU> (wParam),
-                                                         LOWORD (lParam),
-                                                         HIWORD (lParam) != 0);
-                break;
+        case WM_INITMENUPOPUP:
+            callDefWndProc = pThis->OnInitMenuPopup (hwnd,
+                                                     reinterpret_cast<HMENU> (wParam),
+                                                     LOWORD (lParam),
+                                                     HIWORD (lParam) != 0);
+            break;
 
-            case WM_KEYDOWN:
-            case WM_SYSKEYDOWN:
-                callDefWndProc = pThis->OnKeyDown (wParam, lParam);
-                break;
+        case WM_KEYDOWN:
+        case WM_SYSKEYDOWN:
+            callDefWndProc = pThis->OnKeyDown (wParam, lParam);
+            break;
 
-            case WM_KEYUP:
-            case WM_SYSKEYUP:
-                callDefWndProc = pThis->OnKeyUp (wParam, lParam);
-                break;
+        case WM_KEYUP:
+        case WM_SYSKEYUP:
+            callDefWndProc = pThis->OnKeyUp (wParam, lParam);
+            break;
 
-            case WM_NCCALCSIZE:
-                callDefWndProc = pThis->OnNcCalcSize (hwnd, wParam, lParam, retval);
-                break;
+        case WM_NCCALCSIZE:
+            callDefWndProc = pThis->OnNcCalcSize (hwnd, wParam, lParam, retval);
+            break;
 
-            case WM_NCHITTEST:
-                callDefWndProc = pThis->HandleNcHitTest (hwnd, lParam, retval);
-                break;
+        case WM_NCHITTEST:
+            callDefWndProc = pThis->HandleNcHitTest (hwnd, lParam, retval);
+            break;
 
-            case WM_NCLBUTTONDOWN:
-                callDefWndProc = pThis->HandleNcLButtonDown (hwnd, wParam, lParam);
-                break;
+        case WM_NCLBUTTONDOWN:
+            callDefWndProc = pThis->HandleNcLButtonDown (hwnd, wParam, lParam);
+            break;
 
-            case WM_NCLBUTTONUP:
-                callDefWndProc = pThis->HandleNcLButtonUp (hwnd, wParam, lParam);
-                break;
+        case WM_NCLBUTTONUP:
+            callDefWndProc = pThis->HandleNcLButtonUp (hwnd, wParam, lParam);
+            break;
 
-            case WM_NCMOUSEMOVE:
-                callDefWndProc = pThis->HandleNcMouseMove (hwnd, lParam);
-                break;
+        case WM_NCMOUSEMOVE:
+            callDefWndProc = pThis->HandleNcMouseMove (hwnd, lParam);
+            break;
 
-            case WM_NCMOUSELEAVE:
-                callDefWndProc = pThis->HandleNcMouseLeave();
-                break;
+        case WM_NCMOUSELEAVE:
+            callDefWndProc = pThis->HandleNcMouseLeave();
+            break;
 
-            case WM_SETTINGCHANGE:
-                callDefWndProc = pThis->HandleSettingChange (lParam);
-                break;
+        case WM_SETTINGCHANGE:
+            callDefWndProc = pThis->HandleSettingChange (lParam);
+            break;
 
-            case WM_DPICHANGED:
-                callDefWndProc = pThis->HandleDpiChanged (hwnd, wParam, lParam);
-                break;
+        case WM_DPICHANGED:
+            callDefWndProc = pThis->HandleDpiChanged (hwnd, wParam, lParam);
+            break;
 
-            case WM_NOTIFY:
-                callDefWndProc = pThis->OnNotify (hwnd, wParam, lParam);
-                break;
+        case WM_NOTIFY:
+            callDefWndProc = pThis->OnNotify (hwnd, wParam, lParam);
+            break;
 
-            case WM_PAINT:
-                callDefWndProc = pThis->OnPaint (hwnd);
-                break;
+        case WM_PAINT:
+            callDefWndProc = pThis->OnPaint (hwnd);
+            break;
 
-            case WM_MOUSEMOVE:
-                callDefWndProc = pThis->OnMouseMove (wParam, lParam);
-                break;
+        case WM_MOUSEMOVE:
+            callDefWndProc = pThis->OnMouseMove (wParam, lParam);
+            break;
 
-            case WM_LBUTTONDOWN:
-                callDefWndProc = pThis->OnLButtonDown (wParam, lParam);
-                break;
+        case WM_LBUTTONDOWN:
+            callDefWndProc = pThis->OnLButtonDown (wParam, lParam);
+            break;
 
-            case WM_LBUTTONUP:
-                callDefWndProc = pThis->OnLButtonUp (wParam, lParam);
-                break;
+        case WM_LBUTTONUP:
+            callDefWndProc = pThis->OnLButtonUp (wParam, lParam);
+            break;
 
-            case WM_MOVE:
-                callDefWndProc = pThis->OnMove (hwnd,
-                                                (int) (short) LOWORD (lParam),
-                                                (int) (short) HIWORD (lParam));
-                break;
+        case WM_MOVE:
+            callDefWndProc = pThis->OnMove (hwnd,
+                                            (int) (short) LOWORD (lParam),
+                                            (int) (short) HIWORD (lParam));
+            break;
 
-            case WM_SIZE:
-                callDefWndProc = pThis->OnSize (hwnd, LOWORD (lParam), HIWORD (lParam));
-                break;
+        case WM_SIZE:
+            callDefWndProc = pThis->OnSize (hwnd, LOWORD (lParam), HIWORD (lParam));
+            break;
 
-            case WM_TIMER:
-                callDefWndProc = pThis->OnTimer (hwnd, static_cast<UINT_PTR> (wParam));
-                break;
-        }
+        case WM_TIMER:
+            callDefWndProc = pThis->OnTimer (hwnd, static_cast<UINT_PTR> (wParam));
+            break;
     }
 
+Error:
     if (callDefWndProc)
     {
         retval = DefWindowProc (hwnd, message, wParam, lParam);
     }
-
     return retval;
 }
 
