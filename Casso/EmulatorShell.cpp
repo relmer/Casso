@@ -696,7 +696,26 @@ HRESULT EmulatorShell::Initialize (
                                                      initialDpi);
             IGNORE_RETURN_VALUE (hrUiResize, S_OK);
 
-            m_d3dRenderer.SetAfterBlitHook ([this] () { m_diskManager->UpdateDriveWidgets(); m_uiShell.Render(); });
+            m_d3dRenderer.SetAfterBlitHook ([this] ()
+            {
+                m_diskManager->UpdateDriveWidgets();
+                m_uiShell.Render();
+
+                // Keep the present pump alive while any drive door is
+                // mid-animation. Without this, the door state advances
+                // (TickDoorAnimation in UpdateDriveWidgets ran above)
+                // but the chrome won't repaint next frame unless the
+                // emulator framebuffer happens to also be dirty.
+                for (const DriveWidgetState & st : m_driveWidgetState)
+                {
+                    if (st.doorState == DriveWidgetState::Door::Opening ||
+                        st.doorState == DriveWidgetState::Door::Closing)
+                    {
+                        m_d3dRenderer.MarkRedrawNeeded();
+                        break;
+                    }
+                }
+            });
 
             {
                 bool  fHasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
@@ -1444,6 +1463,95 @@ HRESULT EmulatorShell::Mount (int slot, int drive, const std::wstring & path)
 void EmulatorShell::Eject (int slot, int drive)
 {
     m_diskManager->Eject (slot, drive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowseForDisk
+//
+//  UI helper: open the drive door for visual feedback, show the
+//  file-open dialog, then restore the door to match the mount
+//  state. Empty drives leave the door open (matches real Disk II
+//  empty-drive visual); mounted drives close it back.
+//
+//  Mount-on-success runs through DiskManager::Mount, which queues
+//  to the CPU thread and posts a DoorClose sync event picked up
+//  by UpdateDriveWidgets -- so we don't need to touch the door on
+//  the success path here; BeginInsert closes it naturally.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::BrowseForDisk (int drive)
+{
+    using std::chrono::steady_clock;
+    using std::chrono::duration_cast;
+    using std::chrono::milliseconds;
+
+    auto                   nowMs      = []() -> int64_t {
+        return (int64_t) duration_cast<milliseconds> (steady_clock::now().time_since_epoch()).count();
+    };
+    DriveWidgetState *     pSt        = nullptr;
+    int64_t                now        = 0;
+    int64_t                deadline   = 0;
+    HRESULT                hrBrowse   = S_OK;
+    MSG                    msg        = {};
+
+
+
+    if (drive < 0 || drive >= (int) m_driveWidgetState.size())
+    {
+        return;
+    }
+
+    pSt = &m_driveWidgetState[drive];
+    now = nowMs();
+
+    pSt->StartDoorTransition (DriveWidgetState::Door::Opening, now);
+    m_d3dRenderer.MarkRedrawNeeded();
+
+    // Let the door animation finish and linger briefly so the user
+    // actually sees it open before the modal file-open dialog covers
+    // the drive. UploadAndPresent runs on the UI thread (see
+    // RunMessageLoop), so we have to drive presents AND pump Windows
+    // messages here -- the CPU emulation thread is separate but the
+    // chrome composite hook only fires from UploadAndPresent which
+    // is on the UI thread we're currently blocking. The time base
+    // MUST match DiskManager::NowMs (steady_clock ms) because
+    // TickDoorAnimation diffs the current frame time against
+    // animationStartTimeMs.
+    {
+        constexpr int64_t  s_kPostOpenLingerMs = 600;
+
+        deadline = now + DriveWidgetState::kDoorAnimationMs + s_kPostOpenLingerMs;
+    }
+    while (nowMs() < deadline)
+    {
+        while (PeekMessageW (&msg, nullptr, 0, 0, PM_REMOVE))
+        {
+            TranslateMessage (&msg);
+            DispatchMessageW (&msg);
+        }
+        m_d3dRenderer.MarkRedrawNeeded();
+        m_d3dRenderer.UploadAndPresent (nullptr);
+        Sleep (8);
+    }
+
+    hrBrowse = m_windowCommandManager->PromptForDiskImage (drive);
+    IGNORE_RETURN_VALUE (hrBrowse, S_OK);
+
+    // Cancel / error path: door follows mount state. Mounted drive
+    // closes back, empty drive stays open. The success path is
+    // handled asynchronously by BeginInsert when the queued mount
+    // completes.
+    if (hrBrowse != S_OK && pSt->IsMounted())
+    {
+        pSt->StartDoorTransition (DriveWidgetState::Door::Closing, nowMs());
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
 }
 
 
@@ -2462,14 +2570,14 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         region = drive.HitTest (x, y);
         if (region == DriveWidgetRegion::Body)
         {
-            HRESULT  hrBrowse = m_windowCommandManager->PromptForDiskImage (drive.Drive());
-            IGNORE_RETURN_VALUE (hrBrowse, S_OK);
+            BrowseForDisk (drive.Drive());
             return false;
         }
 
         if (region == DriveWidgetRegion::Eject)
         {
             Eject (6, drive.Drive());
+            BrowseForDisk (drive.Drive());
             return false;
         }
     }

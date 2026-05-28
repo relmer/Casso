@@ -124,13 +124,15 @@ HRESULT DiskSettings::ReadSavedDiskPath (
         return S_FALSE;
     }
 
-    if (FAILED (mergedJson.GetObject ("$cassoUiPrefs", uiPrefs)) || uiPrefs == nullptr)
+    hr = mergedJson.GetObject ("$cassoUiPrefs", uiPrefs);
+    if (FAILED (hr) || uiPrefs == nullptr)
     {
         return S_FALSE;
     }
     _Analysis_assume_ (uiPrefs != nullptr);
 
-    if (FAILED (uiPrefs->GetString (keyName, pathNarrow)) || pathNarrow.empty())
+    hr = uiPrefs->GetString (keyName, pathNarrow);
+    if (FAILED (hr) || pathNarrow.empty())
     {
         return S_FALSE;
     }

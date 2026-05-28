@@ -81,7 +81,8 @@ private:
                                       IFileSystem     & fs) const;
     HRESULT      SaveCombinedJson    (const GlobalUserPrefs & prefs,
                                       IFileSystem           & fs) const;
-    JsonValue    BuildCombinedJson   (const GlobalUserPrefs & prefs) const;
+    JsonValue    BuildCombinedJson   (const GlobalUserPrefs & prefs,
+                                      IFileSystem           & fs) const;
     HRESULT      LoadCombinedJson    (const JsonValue & root,
                                       GlobalUserPrefs & prefs) const;
 

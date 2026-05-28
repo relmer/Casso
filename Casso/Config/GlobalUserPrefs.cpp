@@ -218,15 +218,43 @@ HRESULT GlobalUserPrefs::Save (
     const std::wstring  & baseDir,
     IFileSystem         & fs) const
 {
-    HRESULT              hr      = S_OK;
-    std::wstring         path    = FilePath (baseDir);
+    HRESULT              hr               = S_OK;
+    std::wstring         path             = FilePath (baseDir);
     std::string          text;
+    std::string          existingText;
+    JsonValue            existing;
+    JsonParseError       err;
     JsonWriter::Options  opts;
-    JsonValue            global  = ToJson();
+    JsonValue            global           = ToJson();
     std::vector<std::pair<std::string, JsonValue>>  rootEntries;
     std::vector<std::pair<std::string, JsonValue>>  machines;
 
 
+
+    // Preserve any machines section the file already has on disk so that
+    // this "global only" save path doesn't clobber per-machine user prefs
+    // written by UserConfigStore. Without this, every Main.cpp pre-flight
+    // save wipes the disk path the user mounted last session.
+    if (fs.Exists (path))
+    {
+        hr = fs.ReadAllText (path, existingText);
+        if (SUCCEEDED (hr))
+        {
+            hr = JsonParser::Parse (existingText, existing, err);
+            if (SUCCEEDED (hr) && existing.GetType() == JsonType::Object)
+            {
+                for (const auto & kv : existing.GetObjectEntries())
+                {
+                    if (kv.first == "machines" && kv.second.GetType() == JsonType::Object)
+                    {
+                        machines = kv.second.GetObjectEntries();
+                        break;
+                    }
+                }
+            }
+        }
+        hr = S_OK;
+    }
 
     rootEntries.emplace_back ("global",   std::move (global));
     rootEntries.emplace_back ("machines", JsonValue (std::move (machines)));

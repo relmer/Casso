@@ -588,23 +588,26 @@ void DriveWidget::Paint (
 
     // Finger-pull recess behind the door: a darker rectangle that the
     // user grabs the disk through. Drawn before the door so it's
-    // visually revealed as the door tilts open.
+    // visually revealed as the door tilts open. Shared inset values
+    // used here AND by the door geometry below so the door visually
+    // fits inside the recess (same width, slightly shorter so a
+    // strip of recess shows above the hinge when the door is closed).
+    int    recessInsetX   = Scale (4, dpi);
+    int    recessInsetTop = Scale (3, dpi);
+    int    recessInsetBot = Scale (2, dpi);
+    float  recessLeft     = (float) (m_ejectRect.left  + recessInsetX);
+    float  recessRight    = (float) (m_ejectRect.right - recessInsetX);
+    float  recessTop      = (float) (m_ejectRect.top + recessInsetTop);
+    float  recessBottom   = (float) (m_ejectRect.bottom - recessInsetBot);
     {
-        float    insetX     = (float) Scale (4, dpi);
-        float    insetTop   = (float) Scale (3, dpi);
-        float    insetBot   = (float) Scale (2, dpi);
-        float    rx         = (float) m_ejectRect.left   + insetX;
-        float    ry         = (float) m_ejectRect.top    + insetTop;
-        float    rw         = (float) m_ejectRect.right  - rx - insetX;
-        float    rh         = (float) m_ejectRect.bottom - ry - insetBot;
         uint32_t recessArgb = 0xFF050505;
         uint32_t shadowArgb = 0xFF000000;
 
-        painter.FillRect (rx, ry, rw, rh, recessArgb);
+        painter.FillRect (recessLeft, recessTop, recessRight - recessLeft, recessBottom - recessTop, recessArgb);
         // Inset shadow on the top + left edges so the recess reads as
         // sunken below the faceplate surface.
-        painter.FillRect (rx, ry, rw,   1.0f, shadowArgb);
-        painter.FillRect (rx, ry, 1.0f, rh,   shadowArgb);
+        painter.FillRect (recessLeft, recessTop, recessRight - recessLeft, 1.0f, shadowArgb);
+        painter.FillRect (recessLeft, recessTop, 1.0f, recessBottom - recessTop, shadowArgb);
     }
 
     // Door tab vertical position.
@@ -627,33 +630,41 @@ void DriveWidget::Paint (
     }
 
     {
-        // Cantilever rotation: door is hinged at its top edge (the
-        // bezel slot's top) and tilts up + back like a tiny garage
-        // door. Max tilt clamped to 75 deg so the door's far edge
-        // doesn't overshoot the case top.
-        constexpr float  kPi                = 3.14159265f;
-        constexpr float  kMaxAngleRad       = 75.0f * kPi / 180.0f;
+        // Cantilever rotation: door is hinged a few px inside the
+        // slot bezel and tilts up + back as it opens, retracting
+        // mostly inside the case. Real Disk II behavior: the door
+        // pivots from a point inside the drive face (not flush with
+        // the slot top), and tucks 75% of its length inside as it
+        // opens, leaving only a small flap sticking out of the slot.
+        // Door horizontally matches the recess (insetX from the
+        // bezel edges) so the visible dark area stays the same
+        // width whether the door is open or closed.
+        // Max tilt clamped to 75 deg so the far edge doesn't
+        // overshoot the case top.
+        constexpr float  kPi                  = 3.14159265f;
+        constexpr float  kMaxAngleRad         = 75.0f * kPi / 180.0f;
+        constexpr float  kOpenVisibleFraction = 0.25f;     // 75% retracted
+        constexpr int    kHingeOffsetDp       = 4;          // pivot sits this far below the recess top
+        constexpr int    kFingerNotchDp       = 8;          // bottom strip of recess that stays visible when closed
 
-        // Visible-flap length: 100% when closed, 20% when fully open.
-        // Models the real Disk II behavior where the door tucks
-        // mostly inside the case as it opens, leaving a small flap
-        // sticking out above the bezel slot.
-        constexpr float  kOpenVisibleFraction = 0.20f;
-
+        float    hingeY     = recessTop + (float) Scale (kHingeOffsetDp, dpi);
+        float    hingeL     = recessLeft;
+        float    hingeR     = recessRight;
+        float    doorBottomY = recessBottom - (float) Scale (kFingerNotchDp, dpi);
+        float    doorHf     = doorBottomY - hingeY;
         float    angle      = doorOffset * kMaxAngleRad;
         float    cosA       = cosf (angle);
         float    sinA       = sinf (angle);
-        float    doorHf     = (float) doorH;
         float    visLen     = doorHf * (1.0f - (1.0f - kOpenVisibleFraction) * doorOffset);
         float    depthBack  = visLen * sinA;
         float    visibleH   = visLen * cosA;
         float    caseDepthY = (float) (m_faceRect.top - m_bodyRect.top);
-        float    skewX;
-        float    dxBack;
-        float    dyShift;
-        float    hingeY     = (float) m_ejectRect.top;
-        float    hingeL     = (float) m_ejectRect.left;
-        float    hingeR     = (float) m_ejectRect.right;
+        float    caseFrontW;
+        float    perDepthTaper;       // case-side taper magnitude per unit depth
+        float    fracL;
+        float    fracR;
+        float    dxBackL;
+        float    dxBackR;
         float    farL;
         float    farR;
         float    farY;
@@ -670,12 +681,37 @@ void DriveWidget::Paint (
         {
             caseDepthY = 1.0f;
         }
-        skewX     = (float) m_perspectiveSkewPx / caseDepthY;
-        dxBack    = depthBack * skewX;
-        dyShift   = depthBack;
-        farL      = hingeL + dxBack;
-        farR      = hingeR + dxBack;
-        farY      = hingeY + visibleH - dyShift;
+        caseFrontW      = (float) (m_bodyRect.right - m_bodyRect.left);
+        if (caseFrontW < 1.0f)
+        {
+            caseFrontW = 1.0f;
+        }
+        perDepthTaper = (float) caseBackInset / caseDepthY;
+
+        // Per-edge perspective: each side of the door's far edge
+        // applies the case-top trapezoid's own per-unit-depth taper
+        // at that horizontal position. A vertical line at front-x
+        // shifts by caseTaper * (1 - 2*fracX) per unit of depth,
+        // where fracX is the line's horizontal fraction across the
+        // case width (0 = leftmost, 1 = rightmost). Door edges
+        // converge inward at the back, matching the case-side
+        // inward taper at the same horizontal positions.
+        //
+        // The case-top trapezoid also shifts laterally by the
+        // camera-skew amount, but we deliberately don't apply that
+        // to the door: per-drive lateral shift would make the door
+        // tilt left/right depending on which drive it's on, and the
+        // resulting "door leans the wrong way" reads as more wrong
+        // than the lost camera-lateral consistency reads as right.
+        // Real 3D rendering would resolve this properly.
+        fracL   = (hingeL - (float) m_bodyRect.left) / caseFrontW;
+        fracR   = (hingeR - (float) m_bodyRect.left) / caseFrontW;
+        dxBackL = depthBack * perDepthTaper * (1.0f - 2.0f * fracL);
+        dxBackR = depthBack * perDepthTaper * (1.0f - 2.0f * fracR);
+
+        farL    = hingeL + dxBackL;
+        farR    = hingeR + dxBackR;
+        farY    = hingeY + visibleH - depthBack;
 
         // Front face (closed) is the darkest; underside (visible as
         // the door tilts) lerps toward a slightly lighter grey so the
@@ -719,19 +755,6 @@ void DriveWidget::Paint (
         // Far edge (top of door when closed -> rear of door when open):
         // dark outline along whichever screen-y it currently occupies.
         painter.FillRect (farL, farY, farR - farL, 1.0f, edgeArgb);
-
-        // Finger notch hangs below the closed door. Fades out as the
-        // door tilts since it would project at weird angles above the
-        // hinge -- not worth animating geometrically.
-        if (doorOffset < 0.4f)
-        {
-            float    notchLeft = farL + (farR - farL - (float) notchW) / 2.0f;
-            float    notchTop  = farY + 1.0f;
-            uint8_t  na        = (uint8_t) (255.0f * (1.0f - doorOffset / 0.4f));
-            uint32_t notchArgb = (theme.driveBezelArgb & 0x00FFFFFF) | ((uint32_t) na << 24);
-
-            painter.FillRect (notchLeft, notchTop, (float) notchW, (float) notchH, notchArgb);
-        }
     }
 
     // "DRIVE N" upper-left of faceplate.

@@ -738,6 +738,14 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
     (void) stride;
     (void) offset;
 
+    // Reset the redraw-needed flag BEFORE the after-blit hook so the
+    // hook can mark redraw for the NEXT frame -- e.g. chrome with an
+    // in-progress door animation needs another paint to advance.
+    // Without this, the hook's MarkRedrawNeeded would be overwritten
+    // by the post-Present reset below and the animation freezes after
+    // a single frame.
+    m_redrawForced = false;
+
     // Hook: native chrome composite pass runs here, between the
     // emulator blit and Present. Skipped silently if no shell is
     // installed (e.g. early-init failure path or unit-test harness).
@@ -769,7 +777,6 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
     CHRA (hr);
 
     m_lastPresentedParams = m_crtParams;
-    m_redrawForced        = false;
     if (framebuffer != nullptr)
     {
         m_idleFramesSinceFbChange = 0;

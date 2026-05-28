@@ -135,6 +135,51 @@ public:
     }
 
 
+    TEST_METHOD (Save_PreservesExistingMachinesSection)
+    {
+        // Regression: GlobalUserPrefs::Save previously wrote a hardcoded
+        // empty "machines" object, wiping any per-machine prefs that
+        // UserConfigStore had persisted. Main.cpp's pre-flight
+        // disk-audio save then clobbered the saved disk path every
+        // single launch. Verify Save reads the existing file and
+        // preserves its "machines" section verbatim.
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        std::string         seed;
+        std::string         text;
+        HRESULT             hr;
+
+
+        seed =
+            "{"
+              "\"global\": { \"$cassoGlobalPrefsVersion\": 1, \"activeTheme\": \"Skeuomorphic\" },"
+              "\"machines\": {"
+                "\"Apple2e\": {"
+                  "\"$cassoMachineVersion\": 6,"
+                  "\"$cassoUiPrefs\": { \"disk1Path\": \"D:\\\\boot.dsk\" }"
+                "}"
+              "}"
+            "}";
+
+        hr = fs.WriteAllText (GlobalUserPrefs::FilePath (L"C:\\Casso"), seed);
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        hr = prefs.Load (L"C:\\Casso", fs);
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        // The global-prefs Load path doesn't surface the machines
+        // section into the in-memory struct, so a subsequent Save must
+        // not lose it.
+        hr = prefs.Save (L"C:\\Casso", fs);
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        text = fs.PeekContent (GlobalUserPrefs::FilePath (L"C:\\Casso"));
+        Assert::IsTrue (text.find ("Apple2e")      != std::string::npos, L"Apple2e machine entry was wiped by Save");
+        Assert::IsTrue (text.find ("disk1Path")    != std::string::npos, L"disk1Path was wiped by Save");
+        Assert::IsTrue (text.find ("D:\\\\boot.dsk") != std::string::npos, L"disk1Path value was wiped by Save");
+    }
+
+
     TEST_METHOD (FromJson_OnNonObject_Fails)
     {
         GlobalUserPrefs  prefs;

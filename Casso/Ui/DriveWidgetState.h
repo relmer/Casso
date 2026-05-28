@@ -53,12 +53,17 @@ struct DriveWidgetState
     };
 
     // FR-021 / FR-025 door animation duration in ms.
-    static constexpr int64_t  kDoorAnimationMs = 200;
+    static constexpr int64_t  kDoorAnimationMs = 350;
 
     std::wstring      mountedImagePath;
     std::atomic<bool> motorOn              { false };
     std::atomic<bool> diskActive           { false };
-    Door              doorState            = Door::Closed;
+    // Default Open: an empty drive at rest shows the door open
+    // (matches real Apple Disk II). Drives that auto-mount at boot
+    // transition Open -> Closing via BeginInsert -- the brief 200 ms
+    // animation reads as the disk being inserted, which is a nicer
+    // cold-boot visual than the door snapping shut.
+    Door              doorState            = Door::Open;
     int64_t           animationStartTimeMs = 0;
     uint64_t          lastSyncEventId      = 0;
 
@@ -89,6 +94,26 @@ struct DriveWidgetState
         if (doorState == Door::Closed || doorState == Door::Closing)
         {
             doorState            = Door::Opening;
+            animationStartTimeMs = nowMs;
+        }
+    }
+
+    // UI-only door transition that does NOT touch mountedImagePath.
+    // Used when the user is browsing for a new disk: the chrome opens
+    // the door for visual feedback while the file-open dialog is up,
+    // then closes it again whether or not a disk was actually chosen.
+    void StartDoorTransition (Door target, int64_t nowMs)
+    {
+        if (target == Door::Opening &&
+            (doorState == Door::Closed || doorState == Door::Closing))
+        {
+            doorState            = Door::Opening;
+            animationStartTimeMs = nowMs;
+        }
+        else if (target == Door::Closing &&
+                 (doorState == Door::Open || doorState == Door::Opening))
+        {
+            doorState            = Door::Closing;
             animationStartTimeMs = nowMs;
         }
     }
