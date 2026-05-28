@@ -1530,11 +1530,14 @@ void SettingsPanel::DoMachineSelect (const std::string & machineName)
     }
     if (FAILED (hr))
     {
-        std::wstring  wErr (bootstrapError.begin(), bootstrapError.end());
+        std::wstring     wErr (bootstrapError.begin(), bootstrapError.end());
+        DialogDefinition def  = {};
 
-        MessageBoxW (hwndParent,
-                     std::format (L"ROM download failed:\n{}", wErr).c_str(),
-                     L"Casso", MB_OK | MB_ICONERROR);
+        def.title = L"Casso";
+        def.icon  = DialogIcon::Error;
+        def.body.push_back ({ std::format (L"ROM download failed:\n{}", wErr), false, L"" });
+        def.buttons.push_back ({ L"OK", 0, true, true });
+        (void) m_emuShell->ShowModalDialog (def);
         return;
     }
 

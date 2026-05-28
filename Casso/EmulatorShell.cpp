@@ -1656,6 +1656,35 @@ void EmulatorShell::SaveGlobalPrefs()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::ShowModalDialog
+//
+//  Lazy-registers the DialogPrimitive window class on first use and
+//  blocks until the user dismisses the dialog. Returns the chosen
+//  button's resultCode, or -1 when the user closes via window gesture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
+{
+    HRESULT  hr = S_OK;
+
+
+    hr = m_dialogPrimitive.RegisterClass (m_hInstance);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    return m_dialogPrimitive.Show (m_hwnd,
+                                   m_d3dRenderer.GetDevice(),
+                                   m_d3dRenderer.GetContext(),
+                                   &m_chromeTheme,
+                                   def);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::ApplyThemeToChrome
 //
 //  Push freshly-activated theme into the chrome regions whose layout

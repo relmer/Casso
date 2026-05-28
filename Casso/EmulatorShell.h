@@ -19,6 +19,8 @@
 #include "Ui/DriveWidgetController.h"
 #include "Ui/DragDropTarget.h"
 #include "Ui/IDriveCommandSink.h"
+#include "Ui/Dialog/DialogDefinition.h"
+#include "Ui/Dialog/DialogPrimitive.h"
 #include "Ui/Settings/SettingsPanel.h"
 #include "Ui/ThemeManager.h"
 #include "Ui/UiShell.h"
@@ -247,6 +249,11 @@ private:
     // shell's Initialize sequence.
     void    SaveGlobalPrefs      ();
 
+    // Lazily registers the DialogPrimitive window class on first call
+    // and shows the supplied dialog modally. Returns the resultCode
+    // of the chosen button, or -1 on close-gesture.
+    int     ShowModalDialog      (const DialogDefinition & def);
+
     // MachineManager and WindowCommandManager touch enough shell
     // state during construction and command dispatch that friend
     // declarations are the pragmatic seam; no new global state is
@@ -268,6 +275,7 @@ private:
     D3DRenderer         m_d3dRenderer;
     WasapiAudio         m_wasapiAudio;
     DebugConsole        m_debugConsole;
+    DialogPrimitive     m_dialogPrimitive;
 
     // UI-thread filesystem and chrome ownership. The painter pass
     // and shell composition is reintroduced in a later phase; for now
