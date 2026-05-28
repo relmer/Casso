@@ -577,6 +577,27 @@ bool NavLayer::HandleMouseMove (int x, int y)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ClearHover
+//
+//  Drop the hover-menu state and dropdown highlight so the nav strip
+//  paints as Idle. Called when the cursor leaves the window
+//  (WM_NCMOUSELEAVE) so hover visuals don't latch on. Leaves
+//  open-menu state alone -- a dropdown that was clicked open stays
+//  open even when the cursor briefly leaves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void NavLayer::ClearHover ()
+{
+    m_hasHoverMenu   = false;
+    m_highlightIndex = -1;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HandleMouseDown
 //
 ////////////////////////////////////////////////////////////////////////////////

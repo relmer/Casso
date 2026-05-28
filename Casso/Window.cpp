@@ -533,21 +533,15 @@ bool Window::HandleNcMouseMove (HWND hwnd, LPARAM lParam)
 //
 //  HandleNcMouseLeave
 //
-//  Force the chrome to drop its hot-button state when the cursor
-//  leaves the non-client area entirely. Synthesizes an off-screen
-//  mouse-move so OnMouseMove's hover logic clears any latched
-//  caption-button hover visuals.
+//  Forward to the subclass OnMouseLeave so chrome painters (caption
+//  buttons, nav menu) can clear their hot state when the cursor
+//  exits the window via the non-client area.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool Window::HandleNcMouseLeave ()
 {
-    constexpr WORD  s_kOffscreen = (WORD) -1;
-
-
-
-    (void) OnMouseMove (0, MAKELPARAM (s_kOffscreen, s_kOffscreen));
-    return true;
+    return OnMouseLeave();
 }
 
 
@@ -828,6 +822,24 @@ bool Window::OnMouseMove (WPARAM wParam, LPARAM lParam)
     UNREFERENCED_PARAMETER (wParam);
     UNREFERENCED_PARAMETER (lParam);
 
+    return true;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMouseLeave
+//
+//  Default no-op. Subclasses with hover state (caption buttons, nav
+//  menu items) override to clear that state when the cursor exits
+//  the window via the NC area.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::OnMouseLeave ()
+{
     return true;
 }
 

@@ -66,6 +66,7 @@ public:
     void                Hide              ();
     void                UpdateGeometry    (int clientWidth, UINT dpi);
     void                SetMousePosition  (int x, int y, bool leftDown);
+    void                ClearHover        ();
     void                SetAppIcon        (std::vector<uint32_t> bgraPremulPixels,
                                             int                    widthPx,
                                             int                    heightPx);

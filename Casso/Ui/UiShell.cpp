@@ -593,6 +593,35 @@ bool UiShell::OnMouseMove (int x, int y, bool leftDown)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnMouseLeave
+//
+//  Clear the chrome painters' hot-button / hover state when the
+//  cursor exits the window. Skips the settings panel because it
+//  intercepts mouse events while visible and runs its own dismiss
+//  flow on outside clicks rather than tracking NC-area leaves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UiShell::OnMouseLeave ()
+{
+    m_leftDown = false;
+
+    if (m_titleBar != nullptr)
+    {
+        m_titleBar->ClearHover();
+    }
+
+    if (m_navLayer != nullptr)
+    {
+        m_navLayer->ClearHover();
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnLButtonDown
 //
 ////////////////////////////////////////////////////////////////////////////////

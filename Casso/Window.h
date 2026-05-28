@@ -71,6 +71,7 @@ protected:
     virtual bool    OnKeyDown  (WPARAM vk, LPARAM lParam);
     virtual bool    OnKeyUp    (WPARAM vk, LPARAM lParam);
     virtual bool    OnMouseMove (WPARAM wParam, LPARAM lParam);
+    virtual bool    OnMouseLeave ();
     virtual bool    OnLButtonDown (WPARAM wParam, LPARAM lParam);
     virtual bool    OnLButtonUp (WPARAM wParam, LPARAM lParam);
     virtual bool    OnNotify   (HWND hwnd, WPARAM wParam, LPARAM lParam);

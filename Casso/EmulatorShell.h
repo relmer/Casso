@@ -145,6 +145,7 @@ private:
     bool    OnKeyDown (WPARAM vk, LPARAM lParam) override;
     bool    OnKeyUp (WPARAM vk, LPARAM lParam) override;
     bool    OnMouseMove (WPARAM wParam, LPARAM lParam) override;
+    bool    OnMouseLeave () override;
     bool    OnLButtonDown (WPARAM wParam, LPARAM lParam) override;
     bool    OnLButtonUp (WPARAM wParam, LPARAM lParam) override;
     bool    OnMove (HWND hwnd, int x, int y) override;
