@@ -16,6 +16,23 @@ deferred to a follow-up; the headless plumbing they consume is in tree
 and unit-tested.
 
 ### Added
+- **feat(011): DialogPrimitive modal window (T006–T009).** New
+  `Casso/Ui/Dialog/DialogPrimitive` pair implements the themed blocking
+  modal dialog. `RegisterClass` registers the Win32 class once per
+  instance; `Show()` creates the window, runs a private `GetMessage`
+  loop (disabling the owner window for the duration), and returns the
+  chosen button's `resultCode` (or -1 on Alt+F4 / WM_CLOSE). `Close()`
+  records the result and unblocks the loop. Keyboard: Enter = default
+  button, Escape = cancel button, Tab/Shift-Tab cycle focus.
+  Hyperlinks launch via `ShellExecuteW` with a user-facing notification
+  on failure.
+- **feat(011): DialogPrimitiveRenderer.** Split renderer class owns the
+  `CreateSwapChainForHwnd` swap chain (DXGI_ALPHA_MODE_IGNORE, no DComp
+  / no blur), RTV, `DxUiPainter` (geometry), and `DwriteTextRenderer`
+  (text). Paints a gradient title bar, solid dialog background with
+  theme colors, icon circle (Info/Warning/Error/App), word-wrapped body
+  text, hyperlink underlines, custom-body callback, and `Button`
+  widgets. DPI-aware: recomputes layout on WM_DPICHANGED.
 - **feat(011): DialogDefinition + DialogLayout primitives.** New
   `Casso/Ui/Dialog/` directory hosts the pure value types
   (`DialogIcon`, `DialogTextRun`, `DialogButton`, `DialogDefinition`)

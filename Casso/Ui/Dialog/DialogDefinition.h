@@ -22,7 +22,7 @@
 
 
 class DxUiPainter;
-class ChromeTheme;
+struct ChromeTheme;
 struct DialogPaintContext;
 struct DialogInputEvent;
 
