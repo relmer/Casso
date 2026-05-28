@@ -32,6 +32,7 @@
 #include "Ui/TitleBarHitTest.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/DriveWidgetController.h"
+#include "Shell/DiskMru.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -1447,7 +1448,53 @@ bool EmulatorShell::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 HRESULT EmulatorShell::Mount (int slot, int drive, const std::wstring & path)
 {
-    return m_diskManager->Mount (slot, drive, path);
+    HRESULT  hr = S_OK;
+
+
+
+    hr = m_diskManager->Mount (slot, drive, path);
+    CHR (hr);
+
+    RecordRecentDisk (path);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RecordRecentDisk
+//
+//  Push a successfully-mounted disk image onto the recent-disks MRU
+//  and persist the updated prefs. Best-effort; failures are swallowed
+//  so an MRU write hiccup never blocks a successful mount.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RecordRecentDisk (const std::wstring & path)
+{
+    DiskMru                   mru;
+    std::filesystem::path     fsPath;
+    std::vector<std::string>  serialized;
+
+
+
+    if (path.empty())
+    {
+        return;
+    }
+
+    fsPath = std::filesystem::path (path);
+    mru    = DiskMru::FromUtf8 (m_globalPrefs.recentDisks);
+    mru.RecordMount (fsPath);
+    mru.ToUtf8 (serialized);
+    m_globalPrefs.recentDisks = std::move (serialized);
+
+    SaveGlobalPrefs();
 }
 
 

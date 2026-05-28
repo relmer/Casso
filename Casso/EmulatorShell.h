@@ -254,6 +254,11 @@ private:
     // of the chosen button, or -1 on close-gesture.
     int     ShowModalDialog      (const DialogDefinition & def);
 
+    // Push a freshly mounted disk image onto the recent-disks MRU
+    // and persist user prefs. Best-effort; never propagates failures
+    // back into the mount path.
+    void    RecordRecentDisk     (const std::wstring & path);
+
     // MachineManager and WindowCommandManager touch enough shell
     // state during construction and command dispatch that friend
     // declarations are the pragmatic seam; no new global state is
