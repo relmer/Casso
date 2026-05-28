@@ -6,6 +6,50 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.4.1267] — Native dialogs foundation (spec 011 partial)
+
+Foundational primitives for the spec-011 native DX dialogs migration. The
+modal-overlay primitive itself and its downstream consumers (unified
+startup-download, boot-disk picker, Help/About/Keymap/Machine-Info
+themed dialogs, themed Debug Console, themed Disk II Debug Dialog) are
+deferred to a follow-up; the headless plumbing they consume is in tree
+and unit-tested.
+
+### Added
+- **feat(011): DialogDefinition + DialogLayout primitives.** New
+  `Casso/Ui/Dialog/` directory hosts the pure value types
+  (`DialogIcon`, `DialogTextRun`, `DialogButton`, `DialogDefinition`)
+  and the headless `LayoutDialog` free function (icon slot, wrapped
+  body runs, hyperlink hit rects, right-aligned button row, optional
+  custom-body rect). All text measurement is injected via callbacks
+  so the layout math is unit-tested without DirectWrite.
+- **feat(011): `DiskMru` helper.** Most-recently-used disk image
+  list with cap = 16, move-to-front dedup, oldest eviction, and a
+  `Prune (existsPredicate)` hook for headless testing.
+- **feat(011): `recentDisks` JSON field in `GlobalUserPrefs`.**
+  Top-level absolute-path array, most-recent-first; malformed
+  entries (non-string, empty) are dropped silently on load; existing
+  unknown-passthrough round-trip preserved.
+- **feat(011): drive widget filename label.** The faceplate now
+  shows the mounted disk's basename below `DRIVE N`, hidden when no
+  disk is mounted, ellipsis-truncated (single U+2026) when wider
+  than the available space. The truncation algorithm
+  (`Casso/Ui/Chrome/DriveLabelTruncation.*`) is a pure binary search
+  unit-tested with a deterministic measure stub.
+- **refactor(011): single disk-insert file picker.** The legacy
+  `GetOpenFileNameW` branch in `WindowCommandManager::OnDiskCommand`
+  is gone; both `IDM_DISK_INSERT1` and `IDM_DISK_INSERT2` route
+  through the modern `IFileOpenDialog`-backed `PromptForDiskImage`.
+  `Ctrl+1` / `Ctrl+2` accelerators preserved.
+
+### Tests
+- **+24 headless unit tests** across `DialogLayoutTests` (6),
+  `DiskMruTests` (9), `DriveLabelTruncationTests` (7), and
+  `GlobalUserPrefsTests` (+2 round-trip / malformed-entry cases).
+  All measurement and filesystem dependencies injected; no Win32, no
+  real file I/O.
+
+
 ## [1.4.1260] — Drive widget interaction + disk persistence fix
 
 ### Added

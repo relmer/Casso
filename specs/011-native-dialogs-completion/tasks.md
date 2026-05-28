@@ -7,6 +7,19 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 **Input**: Design documents from `/specs/011-native-dialogs-completion/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/dialog-primitive.md, quickstart.md
 
+## Execution Status (autonomous run 2026-05-28)
+
+**Completed (16/65)**: T001, T002 (scaffolding); T003, T004, T005 (DialogDefinition + DialogLayout + tests); T010, T011 (DiskMru + tests); T012 (`recentDisks` JSON schema); T030–T035 (US4 drive widget label); T036, T037 (US5 file-picker dedup).
+
+**Blocked on T006 — DialogPrimitive (43/65)**: every user story consumer (US1, US2, US3, US6, US7) and the SettingsPanel stray (T038) depends on the themed modal-overlay window the spec calls `DialogPrimitive`. T006 itself requires extracting and rewriting the 800-line `SettingsWindow.cpp` Win32 modal scaffolding (window class, NC hit-testing, DPI relayout, theme repaint, owner-disable modality, integration into `EmulatorShell`'s render loop) as a reusable primitive. The pure layout math + value types it consumes are already in tree (T003–T005); the missing piece is the integration tier, which needs end-to-end debug cycles that didn't fit this session. Also blocked: T013 (DiskMru owner + accessor, trivial once T006 lands), T014–T018 (US1 unified startup), T019–T024 (US2 boot picker), T025–T029 (US3 Help/About/Keymap/MachineInfo), T038 (SettingsPanel stray), T039–T043 (US6 themed Debug Console — additionally needs a new themed scrollable text panel widget), T044–T059 (US7 Disk II Debug Dialog — additionally needs themed text-input-with-validation, virtual sortable ListView, popup-menu, and tooltip widget primitives on top of the existing widget library, plus the incremental conversion of 81 KB of legacy Win32 control code).
+
+**Polish (T060–T065)**: explicitly merge-gate per spec; T063 (CHANGELOG) is landed alongside the foundational commits to keep CHANGELOG synchronised with what shipped.
+
+---
+
+**Input**: Design documents from `/specs/011-native-dialogs-completion/`
+**Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/dialog-primitive.md, quickstart.md
+
 **Tests**: Headless unit tests are required (per plan's Testability Surface). Test tasks are scheduled alongside the production code they cover so the suite remains green at every landed task. No Win32, no real file I/O in unit tests.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing. Story priorities mirror spec.md (P1 ships independently of P2; P3 lands last).
@@ -46,17 +59,17 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 - [X] T003 Define the pure value types in `Casso/Ui/Dialog/DialogDefinition.h` — `DialogIcon`, `DialogTextRun`, `DialogButton`, `DialogDefinition`, plus the `DialogPaintContext` / `DialogInputEvent` forward declarations referenced by the optional custom-body hooks. Match the field set in `contracts/dialog-primitive.md` exactly.
 - [X] T004 [P] Add `Casso/Ui/Dialog/DialogLayout.h` + `DialogLayout.cpp` implementing `LayoutDialog (DialogDefinition, DialogLayoutMetrics) -> DialogLayoutResult` as a pure function (icon slot, wrapped body runs, hyperlink hit rects, button row metrics, custom-body rect, total size). No Win32, no DirectWrite — all measurement goes through the injected `measureBodyTextRun` / `measureButtonLabel` callbacks.
 - [X] T005 [P] Add `UnitTest/DialogLayoutTests.cpp` coverage for: (a) button-row right-alignment and inter-button spacing, (b) body text wrapping at `maxBodyWidthPx`, (c) icon-present vs icon-absent total-size delta, (d) hyperlink hit-rect coincidence with the run's body rect, (e) custom-body hook reserves space between body and button row, (f) DPI scaling of padding and button height. All measurement callbacks are deterministic stubs (e.g. constant width per character).
-- [ ] T006 Extract the modal-overlay plumbing currently in `Casso/Ui/Settings/SettingsWindow.cpp` (window class, show/route-input/dismiss, `WM_DPICHANGED` re-layout, theme-change repaint) into `Casso/Ui/Dialog/DialogPrimitive.h` + `DialogPrimitive.cpp` implementing `DialogPrimitive::Show (ownerHwnd, theme, painter, definition) -> int` and `Close (int)`. `SettingsWindow` may either be re-expressed in terms of the primitive or continue to use a shared internal helper — pick whichever the extraction surfaces cleanly (per research.md Decision 1).
-- [ ] T007 [P] Wire `DialogPrimitive` body-text painting and hit-testing in `Casso/Ui/DxUiPainter.*` — extend the painter with the inline-hyperlink hit-region helper called out in plan.md (`Casso/Ui/DxUiPainter.* — EXISTING — extend for inline hyperlink hit-testing`). Hyperlink runs render in the theme's accent colour with underline; the hit rect is the painted run rect.
-- [ ] T008 Implement keyboard handling inside `DialogPrimitive` per the contract: `Enter` activates the `isDefault` button, `Escape` activates the `isCancel` button, `Tab` / `Shift+Tab` cycles buttons left-to-right / right-to-left, window-close gesture with no `isCancel` returns `-1`.
-- [ ] T009 Implement hyperlink activation in `DialogPrimitive` via `ShellExecuteW (NULL, L"open", url, …)`; on failure report via `CHRN` (themed dialog, since the primitive is by definition up). Use `CWRA` for painter-not-initialised and zero-buttons-with-no-close-gesture bug checks per the contract's failure table.
+- [!] T006 [BLOCKED] Extract the modal-overlay plumbing currently in `Casso/Ui/Settings/SettingsWindow.cpp` (window class, show/route-input/dismiss, `WM_DPICHANGED` re-layout, theme-change repaint) into `Casso/Ui/Dialog/DialogPrimitive.h` + `DialogPrimitive.cpp` implementing `DialogPrimitive::Show (ownerHwnd, theme, painter, definition) -> int` and `Close (int)`. `SettingsWindow` may either be re-expressed in terms of the primitive or continue to use a shared internal helper — pick whichever the extraction surfaces cleanly (per research.md Decision 1).
+- [!] T007 [BLOCKED] [P] Wire `DialogPrimitive` body-text painting and hit-testing in `Casso/Ui/DxUiPainter.*` — extend the painter with the inline-hyperlink hit-region helper called out in plan.md (`Casso/Ui/DxUiPainter.* — EXISTING — extend for inline hyperlink hit-testing`). Hyperlink runs render in the theme's accent colour with underline; the hit rect is the painted run rect.
+- [!] T008 [BLOCKED] Implement keyboard handling inside `DialogPrimitive` per the contract: `Enter` activates the `isDefault` button, `Escape` activates the `isCancel` button, `Tab` / `Shift+Tab` cycles buttons left-to-right / right-to-left, window-close gesture with no `isCancel` returns `-1`.
+- [!] T009 [BLOCKED] Implement hyperlink activation in `DialogPrimitive` via `ShellExecuteW (NULL, L"open", url, …)`; on failure report via `CHRN` (themed dialog, since the primitive is by definition up). Use `CWRA` for painter-not-initialised and zero-buttons-with-no-close-gesture bug checks per the contract's failure table.
 
 ### MRU + user prefs
 
 - [X] T010 [P] Add `Casso/Shell/DiskMru.h` + `DiskMru.cpp` implementing the pure helper from data-model.md §1: `RecordMount (path)`, `Snapshot () const`, `Prune (existsPredicate)`, `k_capacity = 16`, most-recent-first ordering, dedup-on-re-mount, oldest-eviction at cap. No file I/O, no JSON — pure list operations.
 - [X] T011 [P] Add `UnitTest/DiskMruTests.cpp` coverage for: insert-into-empty, dedup-move-to-front on re-mount, eviction of the oldest at cap, `Prune` removes entries the synthetic `existsPredicate` rejects, ordering preserved through prune, `Snapshot` returns most-recent-first, empty-list behaviours. Inject a fake predicate — never call `std::filesystem::exists` on a real path.
 - [X] T012 Extend the `GlobalUserPrefs` JSON schema in `Casso/Shell/GlobalUserPrefs.cpp` to load/save a top-level `recentDisks` string array, dropping malformed entries silently per data-model.md (non-string or empty values must not fail prefs load). Follow the same pattern the recent "preserve machines section" change uses. *(Path corrected from plan.md: file lives under `Casso/Config/`, not `Casso/Shell/`.)*
-- [ ] T013 Plumb the loaded `recentDisks` array into a `DiskMru` instance owned by `GlobalUserPrefs` (or whichever shell-scope singleton is the natural owner) and re-serialise on every change. Provide `GlobalUserPrefs::GetDiskMru ()` accessor used by mount sites in later phases.
+- [!] T013 [BLOCKED] Plumb the loaded `recentDisks` array into a `DiskMru` instance owned by `GlobalUserPrefs` (or whichever shell-scope singleton is the natural owner) and re-serialise on every change. Provide `GlobalUserPrefs::GetDiskMru ()` accessor used by mount sites in later phases.
 
 **Checkpoint**: `DialogPrimitive`, `DialogLayout`, `DiskMru`, and the `recentDisks` JSON field exist and are tested. User-story phases can now begin in parallel.
 
@@ -70,11 +83,11 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 
 ### Implementation for User Story 1
 
-- [ ] T014 [P] [US1] Add `Casso/Ui/Dialog/StartupDownloadDialog.h` + `StartupDownloadDialog.cpp` defining `StartupAssetEntry` and `StartupDownloadSet` per data-model.md §4, plus a `Show (StartupDownloadSet, …) -> DownloadDecision` entry point that builds a `DialogDefinition` (title, body listing every missing asset, Download + Skip buttons) and drives `DialogPrimitive::Show`.
-- [ ] T015 [P] [US1] Add `UnitTest/StartupDownloadSetTests.cpp` (new file — add to `UnitTest.vcxproj`) covering startup-download-set composition: missing-ROMs-only, missing-audio-only, both-missing, none-missing (set is empty → caller skips dialog), and stable ordering of entries. Use synthetic asset-presence inputs; no real filesystem.
-- [ ] T016 [US1] Wire the unified dialog's custom-body paint hook (`DialogDefinition::onPaintCustomBody`) to render per-asset / aggregate progress while downloads run. Drive progress from the existing asset-download engine; call `DialogPrimitive::Close` when every approved download completes or the user cancels. Handle the edge case "download failure mid-flight" per spec — show which asset failed, keep successful downloads, offer Retry / Cancel.
-- [ ] T017 [US1] Rewrite `Casso/AssetBootstrap.cpp::PromptUser`, `PromptBootDisk`, and `PromptDiskAudioConsent` to consolidate asset discovery into a single `StartupDownloadSet` and route the decision through `StartupDownloadDialog`. Delete the legacy `TaskDialogIndirect` / `MessageBoxW` call sites. Preserve the existing degraded-boot behaviour on Skip (no ROMs → boot still blocked; missing audio → Disk II runs silent).
-- [ ] T018 [US1] Verify FR-013 (theme + DPI) for this dialog by walking quickstart §P1-A under DarkModern, Skeuomorphic, GreenScreen at 100 / 125 / 150 / 200% DPI. Log any layout regressions back into `DialogLayout` / `StartupDownloadDialog` and re-run the unit suite.
+- [!] T014 [BLOCKED] [P] [US1] Add `Casso/Ui/Dialog/StartupDownloadDialog.h` + `StartupDownloadDialog.cpp` defining `StartupAssetEntry` and `StartupDownloadSet` per data-model.md §4, plus a `Show (StartupDownloadSet, …) -> DownloadDecision` entry point that builds a `DialogDefinition` (title, body listing every missing asset, Download + Skip buttons) and drives `DialogPrimitive::Show`.
+- [!] T015 [BLOCKED] [P] [US1] Add `UnitTest/StartupDownloadSetTests.cpp` (new file — add to `UnitTest.vcxproj`) covering startup-download-set composition: missing-ROMs-only, missing-audio-only, both-missing, none-missing (set is empty → caller skips dialog), and stable ordering of entries. Use synthetic asset-presence inputs; no real filesystem.
+- [!] T016 [BLOCKED] [US1] Wire the unified dialog's custom-body paint hook (`DialogDefinition::onPaintCustomBody`) to render per-asset / aggregate progress while downloads run. Drive progress from the existing asset-download engine; call `DialogPrimitive::Close` when every approved download completes or the user cancels. Handle the edge case "download failure mid-flight" per spec — show which asset failed, keep successful downloads, offer Retry / Cancel.
+- [!] T017 [BLOCKED] [US1] Rewrite `Casso/AssetBootstrap.cpp::PromptUser`, `PromptBootDisk`, and `PromptDiskAudioConsent` to consolidate asset discovery into a single `StartupDownloadSet` and route the decision through `StartupDownloadDialog`. Delete the legacy `TaskDialogIndirect` / `MessageBoxW` call sites. Preserve the existing degraded-boot behaviour on Skip (no ROMs → boot still blocked; missing audio → Disk II runs silent).
+- [!] T018 [BLOCKED] [US1] Verify FR-013 (theme + DPI) for this dialog by walking quickstart §P1-A under DarkModern, Skeuomorphic, GreenScreen at 100 / 125 / 150 / 200% DPI. Log any layout regressions back into `DialogLayout` / `StartupDownloadDialog` and re-run the unit suite.
 
 **Checkpoint**: First-run UX is one themed dialog. `AssetBootstrap.cpp` no longer references `TaskDialogIndirect` or `MessageBoxW`. P1-A in quickstart passes.
 
@@ -88,12 +101,12 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 
 ### Implementation for User Story 2
 
-- [ ] T019 [P] [US2] Add `Casso/Ui/Dialog/BootDiskPicker.h` + `BootDiskPicker.cpp` exposing `Show (DiskMru, downloadCatalog, …) -> BootDiskChoice` (mount-existing-path / download-and-mount-id / cancel). Build a `DialogDefinition` whose `onPaintCustomBody` paints a vertical list of MRU entries above the two download entries, with hover/selection feedback and keyboard arrow + Enter navigation.
-- [ ] T020 [US2] At `BootDiskPicker::Show` time, call `DiskMru::Prune` with `std::filesystem::exists` as the predicate and re-persist via `GlobalUserPrefs` if anything changed. Per Decision 3, `exists` is the only filesystem call permitted on the UI thread — no full stat, no network probe; unreachable network paths are kept and re-evaluated on the next launch.
-- [ ] T021 [US2] Wire mount sites so every successful mount records into `DiskMru` and persists: file-picker mount in `Casso/Shell/WindowCommandManager.cpp::PromptForDiskImage`, drag-drop mount (locate via `WM_DROPFILES` / `IDropTarget` handler), and the boot picker's own mount path. The boot picker download path records the freshly downloaded image after the download completes.
-- [ ] T022 [US2] Replace the legacy `PromptBootDisk` invocation site so that when the active machine has a Disk II in slot 6, drive 1 is empty, and the per-machine config did not pin a still-existing image, `BootDiskPicker::Show` is invoked. Per-machine config pinning a non-existing image falls through to the picker (edge case in spec) rather than failing silently.
-- [ ] T023 [US2] Extend `UnitTest/DiskMruTests.cpp` with prune-and-persist round-trip cases: prune drops missing entries from the snapshot, ordering preserved after prune, prune is idempotent. Still no real filesystem — inject the predicate.
-- [ ] T024 [US2] Walk quickstart §P1-B, §P1-C, §P1-D and verify behaviour matches under all three themes. Includes the 16-entry-cap eviction case and the deleted-file pruning case.
+- [!] T019 [BLOCKED] [P] [US2] Add `Casso/Ui/Dialog/BootDiskPicker.h` + `BootDiskPicker.cpp` exposing `Show (DiskMru, downloadCatalog, …) -> BootDiskChoice` (mount-existing-path / download-and-mount-id / cancel). Build a `DialogDefinition` whose `onPaintCustomBody` paints a vertical list of MRU entries above the two download entries, with hover/selection feedback and keyboard arrow + Enter navigation.
+- [!] T020 [BLOCKED] [US2] At `BootDiskPicker::Show` time, call `DiskMru::Prune` with `std::filesystem::exists` as the predicate and re-persist via `GlobalUserPrefs` if anything changed. Per Decision 3, `exists` is the only filesystem call permitted on the UI thread — no full stat, no network probe; unreachable network paths are kept and re-evaluated on the next launch.
+- [!] T021 [BLOCKED] [US2] Wire mount sites so every successful mount records into `DiskMru` and persists: file-picker mount in `Casso/Shell/WindowCommandManager.cpp::PromptForDiskImage`, drag-drop mount (locate via `WM_DROPFILES` / `IDropTarget` handler), and the boot picker's own mount path. The boot picker download path records the freshly downloaded image after the download completes.
+- [!] T022 [BLOCKED] [US2] Replace the legacy `PromptBootDisk` invocation site so that when the active machine has a Disk II in slot 6, drive 1 is empty, and the per-machine config did not pin a still-existing image, `BootDiskPicker::Show` is invoked. Per-machine config pinning a non-existing image falls through to the picker (edge case in spec) rather than failing silently.
+- [!] T023 [BLOCKED] [US2] Extend `UnitTest/DiskMruTests.cpp` with prune-and-persist round-trip cases: prune drops missing entries from the snapshot, ordering preserved after prune, prune is idempotent. Still no real filesystem — inject the predicate.
+- [!] T024 [BLOCKED] [US2] Walk quickstart §P1-B, §P1-C, §P1-D and verify behaviour matches under all three themes. Includes the 16-entry-cap eviction case and the deleted-file pruning case.
 
 **Checkpoint**: P1 ships. `AssetBootstrap.cpp` and the boot path no longer host any Win32 dialog API. P1 is independently demoable as the MVP.
 
@@ -107,11 +120,11 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 
 ### Implementation for User Story 3
 
-- [ ] T025 [P] [US3] In `Casso/Shell/WindowCommandManager.cpp`, replace `IDM_HELP_ABOUT`'s `MessageBoxW` with a `DialogDefinition` built from the existing About text content (product name, version, build date, description, URL, copyright, license), with `icon = DialogIcon::AppPhotoreal` (mapping to `IDI_CASSO_PHOTOREAL`) and the URL split into a `DialogTextRun { isHyperlink = true, hyperlinkUrl = L"https://github.com/relmer/Casso" }`. Route through `DialogPrimitive::Show`.
-- [ ] T026 [P] [US3] In `Casso/Shell/WindowCommandManager.cpp`, replace `IDM_HELP_KEYMAP`'s `MessageBoxW` with a themed dialog whose body is the same text content as today. Preserve the F1 accelerator (FR-014).
-- [ ] T027 [P] [US3] In `Casso/Shell/WindowCommandManager.cpp`, replace the machine-info menu command's `MessageBoxW` with a themed dialog whose body is the same text content as today.
-- [ ] T028 [US3] Verify the `IDI_CASSO_PHOTOREAL` icon resource renders at the large size requested in the About body (icon rect from `DialogLayoutMetrics::iconSizePx`). If WIC/D2D rendering of the `.ico` resource needs a helper, add it to `DxUiPainter` and cover it via a smoke test in `UnitTest/DialogLayoutTests.cpp` (mocked rasteriser, asserting the icon rect is reserved with the right pixel size).
-- [ ] T029 [US3] Walk quickstart §P2-A and §P2-B under each theme and DPI scale.
+- [!] T025 [BLOCKED] [P] [US3] In `Casso/Shell/WindowCommandManager.cpp`, replace `IDM_HELP_ABOUT`'s `MessageBoxW` with a `DialogDefinition` built from the existing About text content (product name, version, build date, description, URL, copyright, license), with `icon = DialogIcon::AppPhotoreal` (mapping to `IDI_CASSO_PHOTOREAL`) and the URL split into a `DialogTextRun { isHyperlink = true, hyperlinkUrl = L"https://github.com/relmer/Casso" }`. Route through `DialogPrimitive::Show`.
+- [!] T026 [BLOCKED] [P] [US3] In `Casso/Shell/WindowCommandManager.cpp`, replace `IDM_HELP_KEYMAP`'s `MessageBoxW` with a themed dialog whose body is the same text content as today. Preserve the F1 accelerator (FR-014).
+- [!] T027 [BLOCKED] [P] [US3] In `Casso/Shell/WindowCommandManager.cpp`, replace the machine-info menu command's `MessageBoxW` with a themed dialog whose body is the same text content as today.
+- [!] T028 [BLOCKED] [US3] Verify the `IDI_CASSO_PHOTOREAL` icon resource renders at the large size requested in the About body (icon rect from `DialogLayoutMetrics::iconSizePx`). If WIC/D2D rendering of the `.ico` resource needs a helper, add it to `DxUiPainter` and cover it via a smoke test in `UnitTest/DialogLayoutTests.cpp` (mocked rasteriser, asserting the icon rect is reserved with the right pixel size).
+- [!] T029 [BLOCKED] [US3] Walk quickstart §P2-A and §P2-B under each theme and DPI scale.
 
 **Checkpoint**: Help menu and machine-info command are themed. About hyperlink works.
 
@@ -155,7 +168,7 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 
 **Goal**: Replace the residual `MessageBoxW` in `SettingsPanel.cpp` with the themed dialog primitive. (Not a numbered user story in spec.md but tracked as FR-012 / quickstart §P2-E.)
 
-- [ ] T038 [US3] In `Casso/Ui/Settings/SettingsPanel.cpp`, replace the residual `MessageBoxW` call with a `DialogDefinition` routed through `DialogPrimitive::Show` (re-use whichever icon — Info / Warning — matches the original message's intent). Walk quickstart §P2-E.
+- [!] T038 [BLOCKED] [US3] In `Casso/Ui/Settings/SettingsPanel.cpp`, replace the residual `MessageBoxW` call with a `DialogDefinition` routed through `DialogPrimitive::Show` (re-use whichever icon — Info / Warning — matches the original message's intent). Walk quickstart §P2-E.
 
 **Checkpoint**: P2 ships. Help/About/Keymap/MachineInfo, drive label, file-open dedup, and Settings stray are all themed.
 
@@ -169,11 +182,11 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 
 ### Implementation for User Story 6
 
-- [ ] T039 [US6] Add `Casso/Ui/DebugConsolePanel.h` + `DebugConsolePanel.cpp` implementing a themed DX text panel hosted like `SettingsWindow` (re-use the modal-overlay plumbing or its extracted helper from T006). Monospace font from `ChromeTheme`; active theme palette.
-- [ ] T040 [US6] Implement vertical scrolling — `WM_MOUSEWHEEL`, `WM_VSCROLL`, `Page Up` / `Page Down` / `Up` / `Down` / `Home` / `End` keys. Clamp to content.
-- [ ] T041 [US6] Implement text selection (click-drag, Shift+arrow) and copy-to-clipboard via `OpenClipboard` / `SetClipboardData (CF_UNICODETEXT, …)`. Copy-with-no-selection is a no-op (per spec edge case).
-- [ ] T042 [US6] Delete `Casso/DebugConsole.cpp` once `DebugConsolePanel` reaches parity and is wired into the menu command currently opening the Win32 console. Update any owning code (e.g. `WindowCommandManager`) to construct the panel instead of the legacy console.
-- [ ] T043 [US6] Walk quickstart §P3-A under each theme.
+- [!] T039 [BLOCKED] [US6] Add `Casso/Ui/DebugConsolePanel.h` + `DebugConsolePanel.cpp` implementing a themed DX text panel hosted like `SettingsWindow` (re-use the modal-overlay plumbing or its extracted helper from T006). Monospace font from `ChromeTheme`; active theme palette.
+- [!] T040 [BLOCKED] [US6] Implement vertical scrolling — `WM_MOUSEWHEEL`, `WM_VSCROLL`, `Page Up` / `Page Down` / `Up` / `Down` / `Home` / `End` keys. Clamp to content.
+- [!] T041 [BLOCKED] [US6] Implement text selection (click-drag, Shift+arrow) and copy-to-clipboard via `OpenClipboard` / `SetClipboardData (CF_UNICODETEXT, …)`. Copy-with-no-selection is a no-op (per spec edge case).
+- [!] T042 [BLOCKED] [US6] Delete `Casso/DebugConsole.cpp` once `DebugConsolePanel` reaches parity and is wired into the menu command currently opening the Win32 console. Update any owning code (e.g. `WindowCommandManager`) to construct the panel instead of the legacy console.
+- [!] T043 [BLOCKED] [US6] Walk quickstart §P3-A under each theme.
 
 **Checkpoint**: No Win32 `EDIT` control remains in the Debug Console path.
 
@@ -187,25 +200,25 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 
 ### Scaffolding
 
-- [ ] T044 [US7] Add `Casso/Ui/DiskIIDebugPanel.h` + `DiskIIDebugPanel.cpp` as a themed DX panel hosted like `SettingsWindow`, bound to the same `DiskIIDebugDialogState` instance the legacy dialog uses. Land the panel empty (window chrome + state binding only) — no controls yet.
-- [ ] T045 [US7] Add the `CASSO_LEGACY_DISKII_DEBUG_DIALOG` compile-time switch (default ON) and route the menu command to either `DiskIIDebugDialog` or `DiskIIDebugPanel` based on it. Both must build at every commit during the conversion.
-- [ ] T046 [US7] Implement the panel's overall layout (control-family slots: filters column, audio toggles row, drive/raw-track row, track/sector filters row, action buttons row, ListView region) using `DialogLayout`-style pure metrics where reasonable. Verify SC-010: `DiskIIDebugDialogStateTests.cpp` still builds and passes — no Win32 types leaked into the state TU.
+- [!] T044 [BLOCKED] [US7] Add `Casso/Ui/DiskIIDebugPanel.h` + `DiskIIDebugPanel.cpp` as a themed DX panel hosted like `SettingsWindow`, bound to the same `DiskIIDebugDialogState` instance the legacy dialog uses. Land the panel empty (window chrome + state binding only) — no controls yet.
+- [!] T045 [BLOCKED] [US7] Add the `CASSO_LEGACY_DISKII_DEBUG_DIALOG` compile-time switch (default ON) and route the menu command to either `DiskIIDebugDialog` or `DiskIIDebugPanel` based on it. Both must build at every commit during the conversion.
+- [!] T046 [BLOCKED] [US7] Implement the panel's overall layout (control-family slots: filters column, audio toggles row, drive/raw-track row, track/sector filters row, action buttons row, ListView region) using `DialogLayout`-style pure metrics where reasonable. Verify SC-010: `DiskIIDebugDialogStateTests.cpp` still builds and passes — no Win32 types leaked into the state TU.
 
 ### Per-control-family conversions (in spec order, one family per task — leave the legacy version building between tasks)
 
-- [ ] T047 [US7] Static labels — render each label through `DxUiPainter` under each theme (quickstart §P3-B step 1). Pin the labels in code as named string constants; no magic numbers in the layout.
-- [ ] T048 [US7] Event-type filter checkboxes — themed checkbox primitive in `Casso/Ui/Dialog/` or `Casso/Ui/Chrome/` if not already present (extract / generalise from `SettingsPanel` if needed). Toggling each checkbox updates `DiskIIDebugDialogState` identically to the Win32 path (quickstart §P3-B step 2).
-- [ ] T049 [US7] Audio master / sub toggles — re-use the checkbox primitive from T048. Verify ListView re-filters identically (quickstart §P3-B step 3).
-- [ ] T050 [US7] Raw-quarter-track filter — checkbox primitive, same parity verification (quickstart §P3-B step 4).
-- [ ] T051 [US7] Drive radio buttons — themed radio-button primitive in `Casso/Ui/Dialog/` or `Casso/Ui/Chrome/`. Selecting each updates the state identically (quickstart §P3-B step 5).
-- [ ] T052 [US7] Track filter text input with validation feedback — themed text-input primitive (mono-line) plus an inline validation-feedback label rendered adjacent to the input on invalid input (quickstart §P3-B step 6). Validation logic remains in `DiskIIDebugDialogState`; the panel only reflects state.
-- [ ] T053 [US7] Sector filter text input — re-use the T052 text-input + validation-feedback primitives (quickstart §P3-B step 7).
-- [ ] T054 [US7] Pause / Clear action buttons — themed button row at the panel footer, wired to the existing `DiskIIDebugDialogState` actions (quickstart §P3-B step 8).
-- [ ] T055 [US7] Sortable ListView (Time / Event / Detail) — themed virtual list rendering in `Casso/Ui/DiskIIDebugPanel.cpp` reading from `DiskIIDebugDialogState`'s filtered view. Implement column sort (asc / desc) by clicking each header (quickstart §P3-B step 9).
-- [ ] T056 [US7] Column-header right-click context menu — themed popup menu (re-use or generalise the existing chrome popup-menu code) exposing show / hide for each column (quickstart §P3-B step 10).
-- [ ] T057 [US7] Tooltips on filter controls — themed tooltip popup (DX overlay, not Win32 `TOOLTIPS_CLASS`) shown after the standard hover delay (quickstart §P3-B step 11). The tooltip strings live in the panel TU as named constants.
-- [ ] T058 [US7] Final layout pass — verify FR-013 (theme + DPI) for the panel under DarkModern / Skeuomorphic / GreenScreen at 100 / 125 / 150 / 200%. Fix any layout drift surfaced by the per-control conversions.
-- [ ] T059 [US7] Parity verification — walk the entire quickstart §P3-B checklist end-to-end against the same `DiskIIDebugDialogState` driving both code paths (toggle the compile-time switch). Once parity is verified, delete `Casso/DiskIIDebugDialog.cpp` and remove the `CASSO_LEGACY_DISKII_DEBUG_DIALOG` switch. Re-verify SC-010 (`DiskIIDebugDialogStateTests.cpp` still builds and passes; state TU still Win32-free).
+- [!] T047 [BLOCKED] [US7] Static labels — render each label through `DxUiPainter` under each theme (quickstart §P3-B step 1). Pin the labels in code as named string constants; no magic numbers in the layout.
+- [!] T048 [BLOCKED] [US7] Event-type filter checkboxes — themed checkbox primitive in `Casso/Ui/Dialog/` or `Casso/Ui/Chrome/` if not already present (extract / generalise from `SettingsPanel` if needed). Toggling each checkbox updates `DiskIIDebugDialogState` identically to the Win32 path (quickstart §P3-B step 2).
+- [!] T049 [BLOCKED] [US7] Audio master / sub toggles — re-use the checkbox primitive from T048. Verify ListView re-filters identically (quickstart §P3-B step 3).
+- [!] T050 [BLOCKED] [US7] Raw-quarter-track filter — checkbox primitive, same parity verification (quickstart §P3-B step 4).
+- [!] T051 [BLOCKED] [US7] Drive radio buttons — themed radio-button primitive in `Casso/Ui/Dialog/` or `Casso/Ui/Chrome/`. Selecting each updates the state identically (quickstart §P3-B step 5).
+- [!] T052 [BLOCKED] [US7] Track filter text input with validation feedback — themed text-input primitive (mono-line) plus an inline validation-feedback label rendered adjacent to the input on invalid input (quickstart §P3-B step 6). Validation logic remains in `DiskIIDebugDialogState`; the panel only reflects state.
+- [!] T053 [BLOCKED] [US7] Sector filter text input — re-use the T052 text-input + validation-feedback primitives (quickstart §P3-B step 7).
+- [!] T054 [BLOCKED] [US7] Pause / Clear action buttons — themed button row at the panel footer, wired to the existing `DiskIIDebugDialogState` actions (quickstart §P3-B step 8).
+- [!] T055 [BLOCKED] [US7] Sortable ListView (Time / Event / Detail) — themed virtual list rendering in `Casso/Ui/DiskIIDebugPanel.cpp` reading from `DiskIIDebugDialogState`'s filtered view. Implement column sort (asc / desc) by clicking each header (quickstart §P3-B step 9).
+- [!] T056 [BLOCKED] [US7] Column-header right-click context menu — themed popup menu (re-use or generalise the existing chrome popup-menu code) exposing show / hide for each column (quickstart §P3-B step 10).
+- [!] T057 [BLOCKED] [US7] Tooltips on filter controls — themed tooltip popup (DX overlay, not Win32 `TOOLTIPS_CLASS`) shown after the standard hover delay (quickstart §P3-B step 11). The tooltip strings live in the panel TU as named constants.
+- [!] T058 [BLOCKED] [US7] Final layout pass — verify FR-013 (theme + DPI) for the panel under DarkModern / Skeuomorphic / GreenScreen at 100 / 125 / 150 / 200%. Fix any layout drift surfaced by the per-control conversions.
+- [!] T059 [BLOCKED] [US7] Parity verification — walk the entire quickstart §P3-B checklist end-to-end against the same `DiskIIDebugDialogState` driving both code paths (toggle the compile-time switch). Once parity is verified, delete `Casso/DiskIIDebugDialog.cpp` and remove the `CASSO_LEGACY_DISKII_DEBUG_DIALOG` switch. Re-verify SC-010 (`DiskIIDebugDialogStateTests.cpp` still builds and passes; state TU still Win32-free).
 
 **Checkpoint**: P3 ships. Only `IFileOpenDialog` and the `Main.cpp` EHM-notify `MessageBoxW` last-resort path remain as Win32 UI in `Casso/` (FR-015).
 
