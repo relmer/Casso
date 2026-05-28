@@ -105,6 +105,22 @@ protected:
     virtual void  OnDpiChanging (const DpiScaler & newScaler) { UNREFERENCED_PARAMETER (newScaler); }
     virtual void  OnDpiChanged  (const DpiScaler & newScaler) { UNREFERENCED_PARAMETER (newScaler); }
 
+private:
+    // Per-message dispatch helpers. s_WndProc forwards each handled
+    // message into one of these so the wndproc itself stays a flat
+    // dispatch table. Each helper returns true to fall through to
+    // DefWindowProc with the original message; helpers that need to
+    // publish a specific LRESULT do so via outRetval.
+    bool  HandleCtlColorStatic (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outRetval);
+    bool  HandleCreate         (HWND hwnd, LPARAM lParam, LRESULT & outRetval);
+    bool  HandleNcHitTest      (HWND hwnd, LPARAM lParam, LRESULT & outRetval);
+    bool  HandleNcLButtonDown  (HWND hwnd, WPARAM wParam, LPARAM lParam);
+    bool  HandleNcLButtonUp    (HWND hwnd, WPARAM wParam, LPARAM lParam);
+    bool  HandleNcMouseMove    (HWND hwnd, LPARAM lParam);
+    bool  HandleNcMouseLeave   ();
+    bool  HandleSettingChange  (LPARAM lParam);
+    bool  HandleDpiChanged     (HWND hwnd, WPARAM wParam, LPARAM lParam);
+
 protected:
     DpiScaler m_scaler;
     WORD      m_idIcon        = 0;

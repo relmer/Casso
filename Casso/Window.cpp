@@ -202,325 +202,426 @@ Window * Window::s_GetSetThisPointer (HWND hwnd, UINT message, WPARAM wParam, LP
 //
 //  s_WndProc
 //
+//  Thin dispatch table. Maps each handled Win32 message to the
+//  matching virtual handler (OnXxx) or per-message helper (HandleXxx)
+//  and falls through to DefWindowProc when the handler returns true.
+//  All per-message logic lives in those handlers/helpers -- this
+//  function should stay a flat switch with no inline processing.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    bool      callDefWndProc = false;
+    bool      callDefWndProc = true;
+    LRESULT   retval         = 0;
     Window  * pThis          = nullptr;
 
 
 
     pThis = s_GetSetThisPointer (hwnd, message, wParam, lParam);
 
-    if (pThis == nullptr)
+    if (pThis != nullptr)
     {
-        return DefWindowProc (hwnd, message, wParam, lParam);
-    }
-
-    // Custom-chrome NC mouse handling lives in the per-message switch
-    // below. WS_CAPTION is intentionally dropped from the window
-    // style so DWM does not draw a second set of system caption
-    // buttons over our DX-rendered ones; with WS_CAPTION gone there
-    // is nothing for DwmDefWindowProc to coordinate, so the
-    // forwarding shim that used to live here has been retired.
-
-    switch (message)
-    {
-        case WM_CHAR:
-            callDefWndProc = pThis->OnChar (wParam, lParam);
-            break;
-
-        case WM_COMMAND:
-            callDefWndProc = pThis->OnCommandEx (hwnd,
-                                                 LOWORD (wParam),
-                                                 HIWORD (wParam),
-                                                 reinterpret_cast<HWND> (lParam));
-            break;
-
-        case WM_CTLCOLORSTATIC:
+        switch (message)
         {
-            HBRUSH  hbr = pThis->OnCtlColorStatic (hwnd,
-                                                   reinterpret_cast<HDC> (wParam),
-                                                   reinterpret_cast<HWND> (lParam));
+            case WM_CHAR:
+                callDefWndProc = pThis->OnChar (wParam, lParam);
+                break;
 
-            if (hbr != nullptr)
-            {
-                return reinterpret_cast<LRESULT> (hbr);
-            }
+            case WM_COMMAND:
+                callDefWndProc = pThis->OnCommandEx (hwnd,
+                                                     LOWORD (wParam),
+                                                     HIWORD (wParam),
+                                                     reinterpret_cast<HWND> (lParam));
+                break;
 
-            callDefWndProc = true;
-            break;
+            case WM_CTLCOLORSTATIC:
+                callDefWndProc = pThis->HandleCtlColorStatic (hwnd, wParam, lParam, retval);
+                break;
+
+            case WM_CLOSE:
+                callDefWndProc = pThis->OnClose (hwnd);
+                break;
+
+            case WM_CREATE:
+                callDefWndProc = pThis->HandleCreate (hwnd, lParam, retval);
+                break;
+
+            case WM_DESTROY:
+                callDefWndProc = pThis->OnDestroy (hwnd);
+                break;
+
+            case WM_DRAWITEM:
+                callDefWndProc = pThis->OnDrawItem (hwnd,
+                                                    static_cast<int> (wParam),
+                                                    reinterpret_cast<DRAWITEMSTRUCT *> (lParam));
+                break;
+
+            case WM_INITMENUPOPUP:
+                callDefWndProc = pThis->OnInitMenuPopup (hwnd,
+                                                         reinterpret_cast<HMENU> (wParam),
+                                                         LOWORD (lParam),
+                                                         HIWORD (lParam) != 0);
+                break;
+
+            case WM_KEYDOWN:
+            case WM_SYSKEYDOWN:
+                callDefWndProc = pThis->OnKeyDown (wParam, lParam);
+                break;
+
+            case WM_KEYUP:
+            case WM_SYSKEYUP:
+                callDefWndProc = pThis->OnKeyUp (wParam, lParam);
+                break;
+
+            case WM_NCCALCSIZE:
+                callDefWndProc = pThis->OnNcCalcSize (hwnd, wParam, lParam, retval);
+                break;
+
+            case WM_NCHITTEST:
+                callDefWndProc = pThis->HandleNcHitTest (hwnd, lParam, retval);
+                break;
+
+            case WM_NCLBUTTONDOWN:
+                callDefWndProc = pThis->HandleNcLButtonDown (hwnd, wParam, lParam);
+                break;
+
+            case WM_NCLBUTTONUP:
+                callDefWndProc = pThis->HandleNcLButtonUp (hwnd, wParam, lParam);
+                break;
+
+            case WM_NCMOUSEMOVE:
+                callDefWndProc = pThis->HandleNcMouseMove (hwnd, lParam);
+                break;
+
+            case WM_NCMOUSELEAVE:
+                callDefWndProc = pThis->HandleNcMouseLeave();
+                break;
+
+            case WM_SETTINGCHANGE:
+                callDefWndProc = pThis->HandleSettingChange (lParam);
+                break;
+
+            case WM_DPICHANGED:
+                callDefWndProc = pThis->HandleDpiChanged (hwnd, wParam, lParam);
+                break;
+
+            case WM_NOTIFY:
+                callDefWndProc = pThis->OnNotify (hwnd, wParam, lParam);
+                break;
+
+            case WM_PAINT:
+                callDefWndProc = pThis->OnPaint (hwnd);
+                break;
+
+            case WM_MOUSEMOVE:
+                callDefWndProc = pThis->OnMouseMove (wParam, lParam);
+                break;
+
+            case WM_LBUTTONDOWN:
+                callDefWndProc = pThis->OnLButtonDown (wParam, lParam);
+                break;
+
+            case WM_LBUTTONUP:
+                callDefWndProc = pThis->OnLButtonUp (wParam, lParam);
+                break;
+
+            case WM_MOVE:
+                callDefWndProc = pThis->OnMove (hwnd,
+                                                (int) (short) LOWORD (lParam),
+                                                (int) (short) HIWORD (lParam));
+                break;
+
+            case WM_SIZE:
+                callDefWndProc = pThis->OnSize (hwnd, LOWORD (lParam), HIWORD (lParam));
+                break;
+
+            case WM_TIMER:
+                callDefWndProc = pThis->OnTimer (hwnd, static_cast<UINT_PTR> (wParam));
+                break;
         }
-
-        case WM_CLOSE:
-            callDefWndProc = pThis->OnClose (hwnd);
-            break;
-
-        case WM_CREATE:
-            return pThis->OnCreate (hwnd, reinterpret_cast<CREATESTRUCT *> (lParam));
-
-        case WM_DESTROY:
-            callDefWndProc = pThis->OnDestroy (hwnd);
-            break;
-
-        case WM_DRAWITEM:
-            callDefWndProc = pThis->OnDrawItem (hwnd,
-                                                static_cast<int> (wParam),
-                                                reinterpret_cast<DRAWITEMSTRUCT *> (lParam));
-            break;
-
-        case WM_INITMENUPOPUP:
-            callDefWndProc = pThis->OnInitMenuPopup (hwnd,
-                                                     reinterpret_cast<HMENU> (wParam),
-                                                     LOWORD (lParam),
-                                                     HIWORD (lParam) != 0);
-            break;
-
-        case WM_KEYDOWN:
-        case WM_SYSKEYDOWN:
-            // Route system-key events (Alt, Alt+key, F10) through the same
-            // OnKeyDown handler as plain keys so the emulated keyboard
-            // sees Alt-modifier state. Returns true (call DefWindowProc)
-            // for unconsumed events so Windows still handles Alt+F4,
-            // Alt+Space (system menu), F10, etc.
-            callDefWndProc = pThis->OnKeyDown (wParam, lParam);
-            break;
-
-        case WM_KEYUP:
-        case WM_SYSKEYUP:
-            callDefWndProc = pThis->OnKeyUp (wParam, lParam);
-            break;
-
-        case WM_NCCALCSIZE:
-        {
-            LRESULT  ncRes  = 0;
-            bool     callDef = pThis->OnNcCalcSize (hwnd, wParam, lParam, ncRes);
-
-            if (!callDef)
-            {
-                return ncRes;
-            }
-            callDefWndProc = true;
-            break;
-        }
-
-        case WM_NCHITTEST:
-        {
-            LRESULT  ncRes = pThis->OnNcHitTest (hwnd,
-                                                 (int) (short) LOWORD (lParam),
-                                                 (int) (short) HIWORD (lParam));
-
-            if (ncRes != HTNOWHERE)
-            {
-                return ncRes;
-            }
-            callDefWndProc = true;
-            break;
-        }
-
-        case WM_NCLBUTTONDOWN:
-        {
-            POINT  ptScreen = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
-            POINT  ptClient = ptScreen;
-
-
-            ScreenToClient (hwnd, &ptClient);
-
-            // Surface the press to the chrome painter so caption
-            // buttons can light up Pressed visuals.
-            (void) pThis->OnMouseMove (MK_LBUTTON,
-                                       MAKELPARAM (ptClient.x, ptClient.y));
-
-            // For caption-button hits we swallow the message so
-            // DefWindowProc does not run its own system-button
-            // tracking (which both draws ghost min/max/close icons
-            // over our chrome on WS_CAPTION windows and consumes
-            // the first click for itself, forcing a double-click
-            // for any single-click min/max action). OnNcLButtonUp
-            // dispatches the action on the matching release.
-            // Drag (HTCAPTION) and resize (HTLEFT etc.) hits stay
-            // unconsumed so DefWindowProc's modal loop continues
-            // to own them.
-            //
-            // Only the main chrome window opts in via
-            // WantsCustomCaptionButtons; classic dialogs (debug
-            // console, Disk II debug) keep their standard X-button
-            // behavior so WM_CLOSE still arrives at OnClose.
-            if (pThis->WantsCustomCaptionButtons())
-            {
-                switch (wParam)
-                {
-                    case HTMINBUTTON:
-                    case HTMAXBUTTON:
-                    case HTCLOSE:
-                        return 0;
-
-                    default:
-                        break;
-                }
-            }
-
-            callDefWndProc = true;
-            break;
-        }
-
-        case WM_NCLBUTTONUP:
-        {
-            POINT  ptScreen = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
-            POINT  ptClient = ptScreen;
-            bool   consumed = false;
-
-
-            ScreenToClient (hwnd, &ptClient);
-
-            // Clear the press visual.
-            (void) pThis->OnMouseMove (0, MAKELPARAM (ptClient.x, ptClient.y));
-
-            // For HTMINBUTTON / HTMAXBUTTON / HTCLOSE the chrome
-            // dispatches the action and consumes the message. For
-            // every other hit (HTCAPTION drag end, HTLEFT, etc.) we
-            // fall through so DefWindowProc finishes its NC loop.
-            consumed = pThis->OnNcLButtonUp (hwnd,
-                                              (LRESULT) wParam,
-                                              ptScreen.x,
-                                              ptScreen.y);
-
-            if (consumed)
-            {
-                return 0;
-            }
-            callDefWndProc = true;
-            break;
-        }
-
-        case WM_NCMOUSEMOVE:
-        {
-            POINT  ptScreen   = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
-            POINT  ptClient   = ptScreen;
-            WPARAM mouseFlags = (GetKeyState (VK_LBUTTON) & 0x8000) ? MK_LBUTTON : 0;
-
-
-            ScreenToClient (hwnd, &ptClient);
-
-            // Hover / press tracking for the custom caption buttons.
-            // VK_LBUTTON is sampled live so the press visual stays in
-            // sync while the OS runs its modal NC loop.
-            (void) pThis->OnMouseMove (mouseFlags, MAKELPARAM (ptClient.x, ptClient.y));
-            callDefWndProc = true;
-            break;
-        }
-
-        case WM_NCMOUSELEAVE:
-        {
-            POINT  ptOff = { -1, -1 };
-
-
-            // Force the chrome to drop its hot-button state when the
-            // cursor leaves the non-client area entirely.
-            (void) pThis->OnMouseMove (0, MAKELPARAM ((WORD) ptOff.x, (WORD) ptOff.y));
-            callDefWndProc = true;
-            break;
-        }
-
-        case WM_SETTINGCHANGE:
-        {
-            const wchar_t *  sectionName = reinterpret_cast<const wchar_t *> (lParam);
-
-
-            // Refresh the cached Windows light/dark-mode flag so the
-            // chrome picks up Settings -> Personalization -> Colors
-            // changes without restarting Casso. ImmersiveColorSet is
-            // the documented signal for theme swaps.
-            if (sectionName != nullptr &&
-                _wcsicmp (sectionName, L"ImmersiveColorSet") == 0)
-            {
-                WindowsThemeColors::Instance().Refresh();
-            }
-            callDefWndProc = true;
-            break;
-        }
-
-        case WM_DPICHANGED:
-        {
-            // NVI pattern: update m_scaler first so subclass hooks see
-            // the new DPI, fire the pre-resize hook for any layout
-            // recompute that should land before the window resize,
-            // apply the OS-suggested rect, then fire the post-resize
-            // hook for swap-chain/D2D-target rebinds. The base class
-            // owns the SetWindowPos so subclasses cannot accidentally
-            // skip it by forgetting to call base.
-            RECT *  pSuggested = reinterpret_cast<RECT *> (lParam);
-            UINT    newDpi     = HIWORD (wParam);
-
-
-            if (newDpi != 0)
-            {
-                pThis->m_scaler.SetDpi (newDpi);
-            }
-
-            pThis->OnDpiChanging (pThis->m_scaler);
-
-            if (pSuggested != nullptr)
-            {
-                SetWindowPos (hwnd,
-                              nullptr,
-                              pSuggested->left,
-                              pSuggested->top,
-                              pSuggested->right  - pSuggested->left,
-                              pSuggested->bottom - pSuggested->top,
-                              SWP_NOZORDER | SWP_NOACTIVATE);
-            }
-
-            pThis->OnDpiChanged (pThis->m_scaler);
-            return 0;
-        }
-
-        case WM_NOTIFY:
-            callDefWndProc = pThis->OnNotify (hwnd, wParam, lParam);
-            break;
-
-        case WM_PAINT:
-            callDefWndProc = pThis->OnPaint (hwnd);
-            break;
-
-        case WM_MOUSEMOVE:
-            callDefWndProc = pThis->OnMouseMove (wParam, lParam);
-            break;
-
-        case WM_LBUTTONDOWN:
-            callDefWndProc = pThis->OnLButtonDown (wParam, lParam);
-            break;
-
-        case WM_LBUTTONUP:
-            callDefWndProc = pThis->OnLButtonUp (wParam, lParam);
-            break;
-
-        case WM_MOVE:
-            callDefWndProc = pThis->OnMove (hwnd,
-                                            (int) (short) LOWORD (lParam),
-                                            (int) (short) HIWORD (lParam));
-            break;
-
-        case WM_SIZE:
-            callDefWndProc = pThis->OnSize (hwnd, LOWORD (lParam), HIWORD (lParam));
-            break;
-
-        case WM_TIMER:
-            callDefWndProc = pThis->OnTimer (hwnd, static_cast<UINT_PTR> (wParam));
-            break;
-
-        default:
-            callDefWndProc = true;
-            break;
     }
 
     if (callDefWndProc)
     {
-        return DefWindowProc (hwnd, message, wParam, lParam);
+        retval = DefWindowProc (hwnd, message, wParam, lParam);
     }
 
-    return 0;
+    return retval;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleCtlColorStatic
+//
+//  Forwards to the subclass-provided HBRUSH handler and publishes the
+//  returned brush as the message LRESULT. Falls through to
+//  DefWindowProc when the subclass returns nullptr (the standard
+//  static-control coloring path).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::HandleCtlColorStatic (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outRetval)
+{
+    HBRUSH  hbr = OnCtlColorStatic (hwnd,
+                                    reinterpret_cast<HDC> (wParam),
+                                    reinterpret_cast<HWND> (lParam));
+
+    if (hbr != nullptr)
+    {
+        outRetval = reinterpret_cast<LRESULT> (hbr);
+        return false;
+    }
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleCreate
+//
+//  Forwards WM_CREATE to the subclass and publishes its LRESULT
+//  result. WM_CREATE never falls through to DefWindowProc -- the
+//  subclass owns the decision via OnCreate's return value (0 to
+//  continue, -1 to abort window creation).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::HandleCreate (HWND hwnd, LPARAM lParam, LRESULT & outRetval)
+{
+    outRetval = OnCreate (hwnd, reinterpret_cast<CREATESTRUCT *> (lParam));
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleNcHitTest
+//
+//  Forwards to the subclass NC hit-test and publishes the returned
+//  HT* code as the message LRESULT. Falls through to DefWindowProc
+//  only when the subclass returns HTNOWHERE, signaling "I don't have
+//  an opinion -- let the OS classify this point".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::HandleNcHitTest (HWND hwnd, LPARAM lParam, LRESULT & outRetval)
+{
+    LRESULT  hit = OnNcHitTest (hwnd,
+                                (int) (short) LOWORD (lParam),
+                                (int) (short) HIWORD (lParam));
+
+    if (hit != HTNOWHERE)
+    {
+        outRetval = hit;
+        return false;
+    }
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleNcLButtonDown
+//
+//  Surface the press into the chrome painter (so caption buttons can
+//  light up Pressed visuals) and swallow the message for custom-
+//  caption-button hits when the subclass opts in via
+//  WantsCustomCaptionButtons. Drag (HTCAPTION) and resize hits stay
+//  unconsumed so DefWindowProc's modal loop continues to own them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::HandleNcLButtonDown (HWND hwnd, WPARAM wParam, LPARAM lParam)
+{
+    POINT  ptScreen = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+    POINT  ptClient = ptScreen;
+    bool   consume  = false;
+
+
+
+    ScreenToClient (hwnd, &ptClient);
+
+    (void) OnMouseMove (MK_LBUTTON, MAKELPARAM (ptClient.x, ptClient.y));
+
+    if (WantsCustomCaptionButtons())
+    {
+        consume = (wParam == HTMINBUTTON || wParam == HTMAXBUTTON || wParam == HTCLOSE);
+    }
+
+    return !consume;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleNcLButtonUp
+//
+//  Clear the press visual on the chrome painter, then dispatch the
+//  release through OnNcLButtonUp. For HTMINBUTTON / HTMAXBUTTON /
+//  HTCLOSE the chrome runs the action and consumes the message; every
+//  other hit falls through so DefWindowProc finishes its NC loop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::HandleNcLButtonUp (HWND hwnd, WPARAM wParam, LPARAM lParam)
+{
+    POINT  ptScreen = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+    POINT  ptClient = ptScreen;
+    bool   consumed = false;
+
+
+
+    ScreenToClient (hwnd, &ptClient);
+
+    (void) OnMouseMove (0, MAKELPARAM (ptClient.x, ptClient.y));
+
+    consumed = OnNcLButtonUp (hwnd, (LRESULT) wParam, ptScreen.x, ptScreen.y);
+
+    return !consumed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleNcMouseMove
+//
+//  Forward the NC cursor position into OnMouseMove so hover / press
+//  tracking for the custom caption buttons stays in sync while the
+//  OS runs its modal NC loop. VK_LBUTTON is sampled live because the
+//  NC modal loop does not deliver real mouse-button flags here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::HandleNcMouseMove (HWND hwnd, LPARAM lParam)
+{
+    POINT  ptScreen   = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+    POINT  ptClient   = ptScreen;
+    WPARAM mouseFlags = (GetKeyState (VK_LBUTTON) & 0x8000) ? MK_LBUTTON : 0;
+
+
+
+    ScreenToClient (hwnd, &ptClient);
+
+    (void) OnMouseMove (mouseFlags, MAKELPARAM (ptClient.x, ptClient.y));
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleNcMouseLeave
+//
+//  Force the chrome to drop its hot-button state when the cursor
+//  leaves the non-client area entirely. Synthesizes an off-screen
+//  mouse-move so OnMouseMove's hover logic clears any latched
+//  caption-button hover visuals.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::HandleNcMouseLeave ()
+{
+    constexpr WORD  s_kOffscreen = (WORD) -1;
+
+
+
+    (void) OnMouseMove (0, MAKELPARAM (s_kOffscreen, s_kOffscreen));
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleSettingChange
+//
+//  Refresh the cached Windows light/dark-mode flag when the OS posts
+//  an ImmersiveColorSet change so the chrome picks up Settings ->
+//  Personalization -> Colors swaps without restarting Casso.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::HandleSettingChange (LPARAM lParam)
+{
+    const wchar_t *  sectionName = reinterpret_cast<const wchar_t *> (lParam);
+
+
+
+    if (sectionName != nullptr &&
+        _wcsicmp (sectionName, L"ImmersiveColorSet") == 0)
+    {
+        WindowsThemeColors::Instance().Refresh();
+    }
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleDpiChanged
+//
+//  WM_DPICHANGED owns the per-window DPI lifecycle here. Updates the
+//  authoritative DpiScaler, fires the pre-resize subclass hook,
+//  applies the OS-suggested rect, then fires the post-resize hook.
+//  The base class owns the SetWindowPos so subclasses cannot
+//  accidentally skip it by forgetting to call base.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Window::HandleDpiChanged (HWND hwnd, WPARAM wParam, LPARAM lParam)
+{
+    RECT *  pSuggested = reinterpret_cast<RECT *> (lParam);
+    UINT    newDpi     = HIWORD (wParam);
+
+
+
+    if (newDpi != 0)
+    {
+        m_scaler.SetDpi (newDpi);
+    }
+
+    OnDpiChanging (m_scaler);
+
+    if (pSuggested != nullptr)
+    {
+        SetWindowPos (hwnd,
+                      nullptr,
+                      pSuggested->left,
+                      pSuggested->top,
+                      pSuggested->right  - pSuggested->left,
+                      pSuggested->bottom - pSuggested->top,
+                      SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+
+    OnDpiChanged (m_scaler);
+    return false;
 }
 
 
