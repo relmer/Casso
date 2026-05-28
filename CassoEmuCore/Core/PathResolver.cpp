@@ -207,3 +207,70 @@ fs::path PathResolver::GetLocalAppDataDir (const std::wstring & appName)
     fs::create_directories (result, ec);
     return result;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeExeRelativePath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PathResolver::MakeExeRelativePath (const std::wstring & absolutePath)
+{
+    fs::path     input  = fs::path (absolutePath);
+    fs::path     exeDir;
+    fs::path     rel;
+    error_code   ec;
+    std::wstring first;
+
+
+    if (input.empty() || input.is_relative())
+    {
+        return absolutePath;
+    }
+
+    exeDir = GetExecutableDirectory();
+    rel    = fs::relative (input, exeDir, ec);
+
+    if (ec || rel.empty())
+    {
+        return absolutePath;
+    }
+
+    // If `relative` produced a path that escapes the exe directory
+    // (starts with `..`), fall back to the absolute path so we don't
+    // bake a brittle climb-out into the prefs file.
+    first = rel.begin() == rel.end() ? std::wstring() : rel.begin()->wstring();
+    if (first == L"..")
+    {
+        return absolutePath;
+    }
+
+    return rel.wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResolveExeRelativePath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PathResolver::ResolveExeRelativePath (const std::wstring & storedPath)
+{
+    fs::path  stored = fs::path (storedPath);
+
+
+    if (storedPath.empty() || stored.is_absolute())
+    {
+        return storedPath;
+    }
+
+    return (GetExecutableDirectory() / stored).lexically_normal().wstring();
+}

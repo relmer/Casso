@@ -3,7 +3,6 @@
 #include "Pch.h"
 
 #include "IFileSystem.h"
-#include "IRegistrySettings.h"
 #include "GlobalUserPrefs.h"
 
 #include "Core/JsonValue.h"
@@ -67,15 +66,6 @@ public:
                                     IFileSystem       & fs) const;
     std::wstring UserFilePath      (const std::string & machineName) const;
     std::wstring UserPrefsFilePath () const;
-
-    // One-shot migration: reads the legacy per-machine registry keys
-    // (DriveAudioEnabled, DiskIIMechanism, DiskImage0, DiskImage1) and
-    // writes them into the unified preferences file. No-op (S_FALSE)
-    // when the machine entry already exists, or when no legacy registry
-    // values are present. Returns S_OK after a successful write.
-    HRESULT      MigrateFromRegistry (const std::string & machineName,
-                                      IRegistrySettings & reg,
-                                      IFileSystem       & fs) const;
 
     // ---- Pure helpers (exposed for testing) ----------------------------
 

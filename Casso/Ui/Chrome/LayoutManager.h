@@ -2,13 +2,15 @@
 
 #include "Pch.h"
 
+#include "../DpiScaler.h"
+
 
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ChromeLayout
+//  LayoutManager
 //
 //  Single source of truth for chrome inset math. Replaces the scattered
 //  `ChromeMetrics::*Px()` callers that historically drifted out of sync
@@ -70,7 +72,7 @@ public:
 };
 
 
-struct ChromeLayoutResult
+struct LayoutManagerResult
 {
     int   topInsetPx        = 0;
     int   bottomInsetPx     = 0;
@@ -89,27 +91,34 @@ struct ChromeLayoutResult
 };
 
 
-class ChromeLayout
+class LayoutManager
 {
 public:
     static constexpr int  kBaseDpi = 96;
 
 
-    void  Register   (IEdgeContributor * contributor);
-    void  Register   (ICenterLayer     * layer);
-    void  Unregister (IEdgeContributor * contributor);
-    void  Unregister (ICenterLayer     * layer);
+    explicit LayoutManager (const DpiScaler & scaler);
 
-    ChromeLayoutResult  Resolve              (int clientWidthPx, int clientHeightPx, UINT dpi) const;
-    SIZE                ClientSizeForCenter  (int centerWidthPx, int centerHeightPx, UINT dpi) const;
+    void  RegisterEdge          (IEdgeContributor * contributor);
+    void  UnregisterEdge        (IEdgeContributor * contributor);
+    void  RegisterCenterLayer   (ICenterLayer     * layer);
+    void  UnregisterCenterLayer (ICenterLayer     * layer);
 
-    static int  ScaleForDpi (int dp, UINT dpi);
+    LayoutManagerResult  Resolve                  (int clientWidthPx,
+                                                   int clientHeightPx) const;
+    SIZE                 ClientSizeForCenter      (int centerWidthPx,
+                                                   int centerHeightPx) const;
+    SIZE                 ClientSizeForFramebuffer (int framebufferWidthPx,
+                                                   int framebufferHeightPx) const;
+
+    int  ScaleForDpi (int dp) const;
 
 
     const std::vector<IEdgeContributor *> & Edges        () const { return m_edges;        }
     const std::vector<ICenterLayer     *> & CenterLayers () const { return m_centerLayers; }
 
 private:
+    const DpiScaler                * m_scaler = nullptr;
     std::vector<IEdgeContributor *>  m_edges;
     std::vector<ICenterLayer     *>  m_centerLayers;
 };

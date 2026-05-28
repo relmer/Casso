@@ -1548,11 +1548,19 @@ void SettingsPanel::DoMachineSelect (const std::string & machineName)
 
         if (hasDisk)
         {
-            fs::path     devicesDir = assetBaseDir / L"Devices" / L"DiskII";
+            fs::path     devicesDir  = assetBaseDir / L"Devices" / L"DiskII";
             std::string  diskAudioErr;
-            HRESULT      hrAudio    = AssetBootstrap::CheckAndFetchDiskAudio (hInstance, wideName, hwndParent,
-                                                                              devicesDir, diskAudioErr);
+            HRESULT      hrAudio     = AssetBootstrap::CheckAndFetchDiskAudio (hInstance, wideName, hwndParent,
+                                                                               devicesDir, *m_prefs, diskAudioErr);
             IGNORE_RETURN_VALUE (hrAudio, S_OK);
+
+            // The consent choice may have changed (user just answered
+            // the prompt). Flush so it lands on disk for next launch.
+            if (m_ucs != nullptr && m_fs != nullptr)
+            {
+                HRESULT  hrSave = m_ucs->SaveAll (*m_prefs, *m_fs);
+                IGNORE_RETURN_VALUE (hrSave, S_OK);
+            }
         }
     }
 

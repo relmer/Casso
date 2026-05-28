@@ -67,6 +67,7 @@ public:
     bool                              HandleAltKey         (wchar_t ch);
     bool                              HandleKey            (WPARAM vk);
     bool                              HandleMouseMove      (int x, int y);
+    void                              ClearHover           ();
     bool                              HandleMouseDown      (int x, int y);
     bool                              HandleMouseUp        (int x, int y);
     int                               HighlightIndex       () const { return m_highlightIndex; }

@@ -30,7 +30,7 @@ public:
         Assert::AreEqual (string ("Skeuomorphic"), prefs.activeTheme);
         Assert::AreEqual (true,  prefs.activeTheme.size() > 0);
         Assert::AreEqual (false, prefs.crtByMode[0].scanlinesEnabled);
-        Assert::AreEqual (false, prefs.window.fHaveLastBounds);
+        Assert::AreEqual (size_t (0), prefs.window.placements.size());
     }
 
 
@@ -64,9 +64,8 @@ public:
         orig.crtByMode[0].bloomStrength      = 0.6f;
         orig.crtByMode[0].colorBleedEnabled  = true;
         orig.crtByMode[0].colorBleedWidth    = 1.5f;
-        orig.window.fHaveLastBounds = true;
-        orig.window.x = 100; orig.window.y = 50;
-        orig.window.w = 1280; orig.window.h = 720;
+        orig.window.placements["topology-A"] = { 100, 50, 1280, 720 };
+        orig.window.placements["topology-B"] = { 200, 75, 1920, 1080 };
         orig.window.fullscreen      = true;
 
         hr = orig.Save (L"C:\\Casso", fs);
@@ -86,8 +85,10 @@ public:
         Assert::AreEqual (orig.crtByMode[0].bloomStrength,       loaded.crtByMode[0].bloomStrength);
         Assert::AreEqual (orig.crtByMode[0].colorBleedEnabled,   loaded.crtByMode[0].colorBleedEnabled);
         Assert::AreEqual (orig.crtByMode[0].colorBleedWidth,     loaded.crtByMode[0].colorBleedWidth);
-        Assert::AreEqual (orig.window.fHaveLastBounds,  loaded.window.fHaveLastBounds);
-        Assert::AreEqual (orig.window.x,                loaded.window.x);
+        Assert::AreEqual (size_t (2),                            loaded.window.placements.size());
+        Assert::AreEqual (100, loaded.window.placements["topology-A"].x);
+        Assert::AreEqual (720, loaded.window.placements["topology-A"].h);
+        Assert::AreEqual (1920, loaded.window.placements["topology-B"].w);
         Assert::AreEqual (orig.window.fullscreen,       loaded.window.fullscreen);
     }
 

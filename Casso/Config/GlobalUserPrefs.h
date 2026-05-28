@@ -32,6 +32,13 @@ struct GlobalUserPrefs
     std::string  activeTheme         = "Skeuomorphic"; // FR-030 default
     std::string  lastSelectedMachine;                  // empty == none
 
+    // Disk II audio asset download consent. Tri-state string:
+    //   "ask"     -- user has never been prompted (default)
+    //   "allow"   -- silently re-fetch missing audio assets
+    //   "decline" -- skip the prompt, leave audio assets missing
+    // AssetBootstrap::CheckAndFetchDiskAudio reads + writes this.
+    std::string  audioDownloadConsent  = "ask";
+
     // CRT state per monitor type. Each monitor (Color / Green / Amber /
     // White) has its own block so the user can dial in different
     // brightness, gamma, scanlines, etc. for each and the values stick
@@ -61,14 +68,23 @@ struct GlobalUserPrefs
     static constexpr size_t  kCrtModeCount = 4;
     Crt          crtByMode[kCrtModeCount];
 
+    struct WindowBounds
+    {
+        int  x = 0;
+        int  y = 0;
+        int  w = 0;
+        int  h = 0;
+    };
+
     struct
     {
-        bool     fHaveLastBounds = false;
-        int      x               = 0;
-        int      y               = 0;
-        int      w               = 1024;
-        int      h               = 768;
-        bool     fullscreen      = false;
+        bool        fullscreen = false;
+
+        // Per-monitor-topology window placement. Key is the topology
+        // hash from WindowPlacementProfile::BuildTopologyKey so a
+        // single-monitor laptop layout and a docked multi-monitor
+        // layout each get their own remembered bounds.
+        std::map<std::string, WindowBounds>  placements;
     } window;
 
     // Unknown JSON keys round-trip back to disk untouched.

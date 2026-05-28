@@ -3,7 +3,7 @@
 #include "WindowManager.h"
 
 #include "../Config/WindowPlacementProfile.h"
-#include "../Config/Win32RegistrySettings.h"
+#include "../Config/GlobalUserPrefs.h"
 
 
 
@@ -11,14 +11,14 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Anonymous helpers
+//  WindowManager::WindowManager
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+WindowManager::WindowManager (GlobalUserPrefs & prefs, SavePrefsFn savePrefs)
+    : m_profile   (prefs)
+    , m_savePrefs (std::move (savePrefs))
 {
-    Win32RegistrySettings  s_win32Reg;
-    WindowPlacementProfile s_profile (s_win32Reg);
 }
 
 
@@ -27,16 +27,16 @@ namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BuildPlacementSubkeyForMonitor
+//  BuildPlacementKeyForMonitor
 //
 //  Thin compatibility shim. Delegates to WindowPlacementProfile so the
 //  topology-hashing logic has exactly one home.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring WindowManager::BuildPlacementSubkeyForMonitor (HMONITOR activeMonitor)
+std::string WindowManager::BuildPlacementKeyForMonitor (HMONITOR activeMonitor)
 {
-    return WindowPlacementProfile::BuildTopologySubkey (activeMonitor);
+    return WindowPlacementProfile::BuildTopologyKey (activeMonitor);
 }
 
 
@@ -56,16 +56,16 @@ bool WindowManager::TryLoadSavedWindowPlacement (
     int     & outW,
     int     & outH) const
 {
-    std::wstring                     subkey;
+    std::string                      topologyKey;
     WindowPlacementProfile::Bounds   bounds;
     RECT                             wr     = {};
     HMONITOR                         hMon   = nullptr;
 
 
 
-    subkey = WindowPlacementProfile::BuildTopologySubkey (activeMonitor);
+    topologyKey = WindowPlacementProfile::BuildTopologyKey (activeMonitor);
 
-    if (!s_profile.TryLoad (subkey, bounds))
+    if (!m_profile.TryLoad (topologyKey, bounds))
     {
         return false;
     }
@@ -101,11 +101,10 @@ bool WindowManager::TryLoadSavedWindowPlacement (
 void WindowManager::SaveWindowPlacement (HWND hwnd, bool fullscreen)
 {
     HMONITOR                         hMon    = nullptr;
-    std::wstring                     subkey;
+    std::string                      topologyKey;
     RECT                             wr      = {};
     int                              width   = 0;
     int                              height  = 0;
-    HRESULT                          hr      = S_OK;
     WindowPlacementProfile::Bounds   bounds;
 
 
@@ -139,12 +138,16 @@ void WindowManager::SaveWindowPlacement (HWND hwnd, bool fullscreen)
         return;
     }
 
-    subkey   = WindowPlacementProfile::BuildTopologySubkey (hMon);
+    topologyKey = WindowPlacementProfile::BuildTopologyKey (hMon);
     bounds.x = wr.left;
     bounds.y = wr.top;
     bounds.w = width;
     bounds.h = height;
 
-    hr = s_profile.Save (subkey, bounds);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    m_profile.Save (topologyKey, bounds);
+
+    if (m_savePrefs)
+    {
+        m_savePrefs();
+    }
 }

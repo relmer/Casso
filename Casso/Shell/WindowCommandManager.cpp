@@ -5,7 +5,7 @@
 #include "../EmulatorShell.h"
 #include "../resource.h"
 #include "Version.h"
-#include "Ui/Chrome/ChromeLayout.h"
+#include "Ui/Chrome/LayoutManager.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Shell/CpuManager.h"
@@ -247,8 +247,6 @@ void WindowCommandManager::OnMachineCommand (int id)
 
 void WindowCommandManager::OnViewCommand (int id)
 {
-    UINT        dpi   = 0;
-    int         scale = 0;
     HMONITOR    hMon  = nullptr;
     MONITORINFO mi    = { sizeof (mi) };
     int         w     = 0;
@@ -302,26 +300,16 @@ void WindowCommandManager::OnViewCommand (int id)
                 int   ncOverheadH     = 0;
 
 
-                dpi   = GetDpiForWindow (m_shell.m_hwnd);
-                scale = (dpi + 48) / 96;
-
-                if (scale < 1)
+                // Target client area: framebuffer at the current DPI
+                // (linear scale), with every chrome contributor's
+                // inset summed by the single source of truth. The
+                // LayoutManager owns the framebuffer scale policy --
+                // see ClientSizeForFramebuffer for the one-line
+                // toggle to switch to integer-only scaling.
                 {
-                    scale = 1;
-                }
-
-                // Target client area: framebuffer at the requested
-                // integer scale, with every chrome contributor's inset
-                // summed by the single source of truth. The historical
-                // Ctrl+0 pillarbox came from this site inlining the
-                // formula and forgetting the command-bar inset; routing
-                // through ChromeLayout::ClientSizeForCenter eliminates
-                // the drift class entirely.
-                {
-                    SIZE  desired = m_shell.m_chromeLayout.ClientSizeForCenter (
-                                        kFramebufferWidthPx  * scale,
-                                        kFramebufferHeightPx * scale,
-                                        dpi);
+                    SIZE  desired = m_shell.m_layout.ClientSizeForFramebuffer (
+                                        kFramebufferWidthPx,
+                                        kFramebufferHeightPx);
                     desiredClientW = (int) desired.cx;
                     desiredClientH = (int) desired.cy;
                 }

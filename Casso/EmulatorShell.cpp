@@ -17,7 +17,6 @@
 #include "Devices/AppleIIeMmu.h"
 #include "Core/Prng.h"
 
-#include "RegistrySettings.h"
 #include "DiskSettings.h"
 #include "UnicodeSymbols.h"
 #include "Core/MachineConfig.h"
@@ -79,7 +78,7 @@ namespace
 {
     void LayoutDriveWidgetsInCommandBar (
         std::array<DriveWidget, 2>  & driveChrome,
-        const ChromeLayoutResult    & layout,
+        const LayoutManagerResult    & layout,
         int                           clientW,
         int                           clientH,
         UINT                          dpi)
@@ -343,15 +342,9 @@ EmulatorShell::EmulatorShell()
                                                               kFramebufferHeight,
                                                               &m_refs.keyboard);
 
-    m_diskManager = std::make_unique<DiskManager> (m_ownedDevices,
-                                                    m_diskStore,
-                                                    m_diskAudioSources,
-                                                    m_wasapiAudio,
-                                                    m_driveWidgets,
-                                                    m_driveWidgetState,
-                                                    m_driveChrome,
-                                                    m_cpuManager,
-                                                    m_currentMachineName);
+    // DiskManager construction is deferred to Initialize -- it needs
+    // a UserConfigStore reference and that's created at Initialize
+    // time once the asset base dir is resolved.
 
     m_machineManager = std::make_unique<MachineManager> (*this);
 
@@ -458,16 +451,28 @@ HRESULT EmulatorShell::Initialize (
     // Register chrome regions with the layout planner once -- their
     // pointers stay registered for the lifetime of the shell. Theme
     // changes that resize the drive bar mutate m_driveBarSlot in
-    // place; ChromeLayout reads the live thickness on every Resolve.
-    m_chromeLayout.Register (&m_titleBarSlot);
-    m_chromeLayout.Register (&m_navStripSlot);
-    m_chromeLayout.Register (&m_driveBarSlot);
+    // place; LayoutManager reads the live thickness on every Resolve.
+    m_layout.RegisterEdge (&m_titleBarSlot);
+    m_layout.RegisterEdge (&m_navStripSlot);
+    m_layout.RegisterEdge (&m_driveBarSlot);
 
     assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
     machinesDir  = assetBaseDir / fs::path ("Machines") / fs::path (m_currentMachineName);
     themesDir    = assetBaseDir / fs::path ("Themes");
     m_assetBaseDir = assetBaseDir.wstring();
     m_userConfigStore = std::make_unique<UserConfigStore> (assetBaseDir.wstring());
+
+    m_diskManager = std::make_unique<DiskManager> (m_ownedDevices,
+                                                    m_diskStore,
+                                                    m_diskAudioSources,
+                                                    m_wasapiAudio,
+                                                    m_driveWidgets,
+                                                    m_driveWidgetState,
+                                                    m_driveChrome,
+                                                    m_cpuManager,
+                                                    m_currentMachineName,
+                                                    *m_userConfigStore,
+                                                    m_uiFs);
 
     // P6 -- bring up OLE on the UI thread before any RegisterDragDrop
     // call lands; IFileDialog (click-to-browse, used by the drive
@@ -558,6 +563,23 @@ HRESULT EmulatorShell::Initialize (
         IGNORE_RETURN_VALUE (hrTheme, S_OK);
         hrPrefs = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
         IGNORE_RETURN_VALUE (hrPrefs, S_OK);
+
+        // Record the currently-active machine so the next launch boots
+        // it by default (Main resolves the value via this same field).
+        {
+            std::string  narrow;
+
+            narrow.reserve (m_currentMachineName.size());
+            for (wchar_t c : m_currentMachineName)
+            {
+                narrow.push_back ((char) (unsigned char) c);
+            }
+            if (m_globalPrefs.lastSelectedMachine != narrow)
+            {
+                m_globalPrefs.lastSelectedMachine = narrow;
+                SaveGlobalPrefs();
+            }
+        }
 
         // Subscribe the chrome theme cache to ThemeManager BEFORE we
         // activate, so the initial Activate() fires the listener and
@@ -756,6 +778,12 @@ HRESULT EmulatorShell::Initialize (
     ShowWindow (m_hwnd, SW_SHOW);
     UpdateWindow (m_hwnd);
 
+    // Reconcile actual client size against the desired framebuffer-sized
+    // client now that the window is shown and its NC frame has fully
+    // materialized. Done before UpdateWindowTitle so the user never sees
+    // the wrong-size window flash.
+    ReconcileInitialClientSize();
+
     UpdateWindowTitle();
 
     // / FR-034. Cold power-on: seed DRAM via the shared Prng and
@@ -773,34 +801,76 @@ HRESULT EmulatorShell::Initialize (
 
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
 
-    // Seed the mixer state
-    // from the per-machine registry before the audio thread first
-    // calls SetEnabled / SetMechanism. Default is enabled + Shugart
-    // when nothing has been persisted yet.
+    // Seed the mixer state from the per-machine $cassoUiPrefs JSON
+    // before the audio thread first calls SetEnabled / SetMechanism.
+    // Default is enabled + Shugart when nothing has been persisted yet.
     {
-        wstring  subkey;
-        DWORD    enabledDw = 1;
-        wstring  mechanism;
-        HRESULT  hrReg     = S_OK;
+        std::string         machineNameNarrow;
+        JsonValue           defaultJson;
+        JsonValue           mergedJson;
+        JsonParseError      parseErr;
+        std::ifstream       configFile;
+        std::stringstream   ss;
+        std::string         jsonText;
+        std::wstring        configRelPath = std::wstring (L"Machines\\") + m_currentMachineName +
+                                            L"\\" + m_currentMachineName + L".json";
+        fs::path            configPath    = PathResolver::FindFile (PathResolver::BuildSearchPaths (
+                                                PathResolver::GetExecutableDirectory(),
+                                                PathResolver::GetWorkingDirectory()),
+                                                configRelPath);
 
-        subkey = wstring (L"Machines\\") + m_currentMachineName;
 
-        hrReg = RegistrySettings::ReadDword (subkey.c_str(),
-                                             L"DriveAudioEnabled",
-                                             enabledDw);
-        IGNORE_RETURN_VALUE (hrReg, S_OK);
-
-        m_driveAudioMixer.SetEnabled (enabledDw != 0);
-
-        hrReg = RegistrySettings::ReadString (subkey.c_str(),
-                                              L"DiskIIMechanism",
-                                              mechanism);
-        IGNORE_RETURN_VALUE (hrReg, S_OK);
-
-        if (!mechanism.empty() && m_driveAudioMixer.IsValidMechanism (mechanism))
+        machineNameNarrow.reserve (m_currentMachineName.size());
+        for (wchar_t c : m_currentMachineName)
         {
-            HRESULT  hrMech = m_driveAudioMixer.SetMechanism (mechanism);
-            IGNORE_RETURN_VALUE (hrMech, S_OK);
+            machineNameNarrow.push_back ((char) (unsigned char) c);
+        }
+
+        if (!configPath.empty())
+        {
+            configFile.open (configPath);
+            if (configFile.good())
+            {
+                HRESULT  hrLoad;
+
+                ss << configFile.rdbuf();
+                jsonText = ss.str();
+
+                hrLoad = JsonParser::Parse (jsonText, defaultJson, parseErr);
+                if (SUCCEEDED (hrLoad))
+                {
+                    hrLoad = m_userConfigStore->Load (machineNameNarrow,
+                                                     defaultJson,
+                                                     m_uiFs,
+                                                     mergedJson);
+                }
+                if (SUCCEEDED (hrLoad) && mergedJson.GetType() == JsonType::Object)
+                {
+                    const JsonValue *  uiPrefs   = nullptr;
+
+                    if (SUCCEEDED (mergedJson.GetObject ("$cassoUiPrefs", uiPrefs)) &&
+                        uiPrefs != nullptr)
+                    {
+                        bool         enabled = true;
+                        std::string  mechNarrow;
+
+                        if (SUCCEEDED (uiPrefs->GetBool ("floppySoundEnabled", enabled)))
+                        {
+                            m_driveAudioMixer.SetEnabled (enabled);
+                        }
+                        if (SUCCEEDED (uiPrefs->GetString ("floppyMechanism", mechNarrow)) && !mechNarrow.empty())
+                        {
+                            std::wstring  mechWide (mechNarrow.begin(), mechNarrow.end());
+
+                            if (m_driveAudioMixer.IsValidMechanism (mechWide))
+                            {
+                                HRESULT  hrMech = m_driveAudioMixer.SetMechanism (mechWide);
+                                IGNORE_RETURN_VALUE (hrMech, S_OK);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -872,15 +942,17 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         dpi = GetDpiForSystem();
     }
 
-    {
-        SIZE  centerPx = {};
-        SIZE  client   = {};
+    // Seed the Window's authoritative DPI so the LayoutManager (which
+    // queries it) returns coherent sizes during the pre-Create math.
+    // WM_NCCREATE will overwrite this with GetDpiForWindow once the
+    // HWND exists; that value wins if it disagrees.
+    SetInitialDpi (dpi);
 
-        centerPx.cx = MulDiv (kFramebufferWidth,  static_cast<int> (dpi), s_kBaseDpi);
-        centerPx.cy = MulDiv (kFramebufferHeight, static_cast<int> (dpi), s_kBaseDpi);
-        client      = m_chromeLayout.ClientSizeForCenter ((int) centerPx.cx, (int) centerPx.cy, dpi);
-        clientW     = (int) client.cx;
-        clientH     = (int) client.cy;
+    {
+        SIZE  client = m_layout.ClientSizeForFramebuffer (kFramebufferWidth, kFramebufferHeight);
+
+        clientW = (int) client.cx;
+        clientH = (int) client.cy;
     }
 
     rc    = { 0, 0, clientW, clientH };
@@ -954,44 +1026,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     }
 
-    // Reconcile actual client size against desired client size. The
-    // request-time math (AdjustWindowRectExForDpi minus WS_CAPTION) is
-    // a best-guess at what our WM_NCCALCSIZE handler will hand back as
-    // client area, but DefWindowProc's border carve-out depends on
-    // exact frame metrics that vary by Windows version and DPI. Rather
-    // than chase those numbers, measure the actual client and nudge
-    // the window by the residual delta so the chrome math and
-    // framebuffer aspect-fit see exactly the dimensions we expect.
-    // Skip the reconcile if saved placement was restored -- the user
-    // chose that size deliberately.
-    if (!hadSavedPlacement)
-    {
-        RECT  rcActualClient = {};
-        RECT  rcActualWindow = {};
-        int   actualClientW  = 0;
-        int   actualClientH  = 0;
-        int   deltaW         = 0;
-        int   deltaH         = 0;
-        int   fixedW         = 0;
-        int   fixedH         = 0;
-
-
-        if (GetClientRect (m_hwnd, &rcActualClient) && GetWindowRect (m_hwnd, &rcActualWindow))
-        {
-            actualClientW = rcActualClient.right  - rcActualClient.left;
-            actualClientH = rcActualClient.bottom - rcActualClient.top;
-            deltaW        = clientW - actualClientW;
-            deltaH        = clientH - actualClientH;
-
-            if (deltaW != 0 || deltaH != 0)
-            {
-                fixedW = (rcActualWindow.right  - rcActualWindow.left) + deltaW;
-                fixedH = (rcActualWindow.bottom - rcActualWindow.top)  + deltaH;
-                SetWindowPos (m_hwnd, nullptr, 0, 0, fixedW, fixedH, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
-            }
-        }
-    }
-
     // DWM gating. Rounded corners + dark immersive caption
     // are best-effort and runtime-gated to the right Win10/11 build.
     // Mica stays opt-in: it'll be toggled per-theme in P5 via
@@ -999,6 +1033,15 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     Win11DwmHelpers::ExtendFrameIntoClientArea (m_hwnd, 1);
     Win11DwmHelpers::ApplyRoundedCorners       (m_hwnd, true);
     Win11DwmHelpers::ApplyImmersiveDarkMode    (m_hwnd, true);
+
+    // Defer the size reconcile until after ShowWindow. The NC frame
+    // (border carve-out from DefWindowProc + DWM rounded corners +
+    // thick frame) doesn't materialize until the window is shown,
+    // so measuring NC overhead now returns 0 and the reconcile would
+    // shrink the window to match the (wrong) measurement. The flag
+    // tells ReconcileInitialClientSize whether to run; saved
+    // placement deliberately bypasses the reset-to-default sizing.
+    m_initialSizeReconciled = hadSavedPlacement;
 
     // Legacy Win32 menu bar is retired (FR-026). All menu
     // commands now route through `NavLayer` + the native nav strip;
@@ -1059,7 +1102,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_driveChrome[0].Initialize (6, 0, this);
     m_driveChrome[1].Initialize (6, 1, this);
     {
-        ChromeLayoutResult  layout = m_chromeLayout.Resolve (clientW, clientH, dpi);
+        LayoutManagerResult  layout = m_layout.Resolve (clientW, clientH);
 
         LayoutDriveWidgetsInCommandBar (m_driveChrome, layout, clientW, clientH, dpi);
         m_d3dRenderer.SetTopInsetPx    (layout.topInsetPx);
@@ -1112,6 +1155,99 @@ HRESULT EmulatorShell::CreateRenderSurface ()
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReconcileInitialClientSize
+//
+//  Run once after ShowWindow to size the window so its client area
+//  matches what LayoutManager wants for the framebuffer. Must run
+//  POST-ShowWindow because the NC frame (DefWindowProc border carve-
+//  out + DWM rounded corners) doesn't materialize until the window
+//  is visible; measuring NC overhead before that returns 0 and the
+//  reconcile would shrink the window to match the (wrong) measurement.
+//  Idempotent via m_initialSizeReconciled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReconcileInitialClientSize ()
+{
+    SIZE  desired        = {};
+    RECT  rcActualClient = {};
+    RECT  rcActualWindow = {};
+    int   ncOverheadW    = 0;
+    int   ncOverheadH    = 0;
+    int   desiredClientW = 0;
+    int   desiredClientH = 0;
+    int   fixedW         = 0;
+    int   fixedH         = 0;
+
+
+
+    if (m_initialSizeReconciled || m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    m_initialSizeReconciled = true;
+
+    desired         = m_layout.ClientSizeForFramebuffer (kFramebufferWidth, kFramebufferHeight);
+    desiredClientW  = (int) desired.cx;
+    desiredClientH  = (int) desired.cy;
+
+    // Force a fresh WM_NCCALCSIZE so DefWindowProc carves the actual
+    // thick-frame borders into the client rect. Without this, the
+    // post-ShowWindow GetClientRect returns the full window rect
+    // (NC overhead = 0) and the reconcile math thinks no resize is
+    // needed -- leaving the emulator pixel grid undersized by the
+    // border width on the eventual first NCCALCSIZE.
+    SetWindowPos (m_hwnd, nullptr, 0, 0, 0, 0,
+                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+
+    if (!GetClientRect (m_hwnd, &rcActualClient) || !GetWindowRect (m_hwnd, &rcActualWindow))
+    {
+        return;
+    }
+
+    ncOverheadW = (rcActualWindow.right  - rcActualWindow.left)
+                  - (rcActualClient.right  - rcActualClient.left);
+    ncOverheadH = (rcActualWindow.bottom - rcActualWindow.top)
+                  - (rcActualClient.bottom - rcActualClient.top);
+
+    fixedW = desiredClientW + ncOverheadW;
+    fixedH = desiredClientH + ncOverheadH;
+
+    if (fixedW != (rcActualWindow.right  - rcActualWindow.left) ||
+        fixedH != (rcActualWindow.bottom - rcActualWindow.top))
+    {
+        // Recenter on the current monitor's work area using the final
+        // size. The initial Create centered using a pre-reconcile size
+        // estimate; without this re-center the reconcile resize would
+        // grow the window from its top-left and leave it visually off
+        // center vs Ctrl+0 reset (which centers with the final size).
+        HMONITOR    hMon = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
+        MONITORINFO mi   = { sizeof (mi) };
+        int         x    = 0;
+        int         y    = 0;
+        UINT        flags = SWP_NOZORDER | SWP_NOACTIVATE;
+
+        if (hMon != nullptr && GetMonitorInfo (hMon, &mi))
+        {
+            x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - fixedW) / 2;
+            y = mi.rcWork.top  + (mi.rcWork.bottom - mi.rcWork.top - fixedH) / 2;
+        }
+        else
+        {
+            flags |= SWP_NOMOVE;
+        }
+
+        SetWindowPos (m_hwnd, nullptr, x, y, fixedW, fixedH, flags);
+    }
 }
 
 
@@ -1384,6 +1520,34 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::SaveGlobalPrefs
+//
+//  Flushes the in-memory GlobalUserPrefs to UserPrefs.json. Used as the
+//  WindowManager save callback so per-monitor window placement edits
+//  land on disk immediately after the user moves/resizes the window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SaveGlobalPrefs()
+{
+    HRESULT  hr = S_OK;
+
+
+    if (m_userConfigStore == nullptr)
+    {
+        return;
+    }
+
+    hr = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::ApplyThemeToChrome
 //
 //  Push freshly-activated theme into the chrome regions whose layout
@@ -1407,44 +1571,61 @@ void EmulatorShell::ApplyThemeToChrome (const ChromeTheme & theme)
 
     int   desiredThicknessDp = theme.compactDrives ? s_kCompactDriveBarDp : s_kFullDriveBarDp;
     int   priorThicknessDp   = m_driveBarSlot.DesiredThicknessDp();
-    UINT  dpi                = (m_hwnd != nullptr) ? GetDpiForWindow (m_hwnd) : (UINT) ChromeMetrics::kBaseDpi;
     RECT  rcClient           = {};
     RECT  rcWindow           = {};
+    int   centerW            = 0;
+    int   centerH            = 0;
 
 
 
-    m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
     m_driveChrome[0].SetCompact (theme.compactDrives);
     m_driveChrome[1].SetCompact (theme.compactDrives);
 
     if (m_hwnd == nullptr || desiredThicknessDp == priorThicknessDp)
     {
+        m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
         return;
     }
 
-    // Resize the window so the existing emulator pixel grid keeps its
-    // current size. The center rect equals the framebuffer-sized area
-    // bounded by the chrome insets; the new client size = (current
-    // center) + (new contributor totals).
+    // Skip the auto-resize for windows that are min/max/fullscreen --
+    // the user explicitly chose those window states and shouldn't see
+    // the window resize from under them on a theme swap. The new
+    // chrome thickness still gets applied to the contributor below
+    // so the next normal-state resize uses the right math.
+    if (IsIconic (m_hwnd) || IsZoomed (m_hwnd) || m_d3dRenderer.IsFullscreen())
+    {
+        m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
+        return;
+    }
+
     if (!GetClientRect (m_hwnd, &rcClient) || !GetWindowRect (m_hwnd, &rcWindow))
     {
+        m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
         return;
     }
 
+    // Capture the current center (emulator viewport) size BEFORE
+    // mutating the contributor. The user may have resized the window
+    // manually since boot; preserving "the emu viewport stays the
+    // same size, the drive bar grows/shrinks around it" is the
+    // intuitive contract on a theme swap.
     {
-        // Compute the current centerRect using the PRIOR drive bar
-        // thickness, then ask the layout for the new client size that
-        // hosts the same centerRect under the NEW thickness.
-        int                 oldBottomPx = ChromeLayout::ScaleForDpi (priorThicknessDp, dpi);
-        int                 newBottomPx = ChromeLayout::ScaleForDpi (desiredThicknessDp, dpi);
-        int                 deltaPx     = newBottomPx - oldBottomPx;
-        int                 ncOverheadW = (rcWindow.right  - rcWindow.left)  - (rcClient.right  - rcClient.left);
-        int                 ncOverheadH = (rcWindow.bottom - rcWindow.top)   - (rcClient.bottom - rcClient.top);
-        int                 newClientH  = (rcClient.bottom - rcClient.top) + deltaPx;
-        int                 newWindowW  = (rcWindow.right  - rcWindow.left);
-        int                 newWindowH  = newClientH + ncOverheadH;
+        LayoutManagerResult  before = m_layout.Resolve (rcClient.right  - rcClient.left,
+                                                        rcClient.bottom - rcClient.top);
 
-        UNREFERENCED_PARAMETER (ncOverheadW);
+        centerW = before.centerRect.right  - before.centerRect.left;
+        centerH = before.centerRect.bottom - before.centerRect.top;
+    }
+
+    m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
+
+    {
+        SIZE  newClient   = m_layout.ClientSizeForCenter (centerW, centerH);
+        int   ncOverheadH = (rcWindow.bottom - rcWindow.top) - (rcClient.bottom - rcClient.top);
+        int   ncOverheadW = (rcWindow.right  - rcWindow.left) - (rcClient.right  - rcClient.left);
+        int   newWindowW  = (int) newClient.cx + ncOverheadW;
+        int   newWindowH  = (int) newClient.cy + ncOverheadH;
+
         SetWindowPos (m_hwnd, nullptr, 0, 0, newWindowW, newWindowH,
                       SWP_NOZORDER | SWP_NOMOVE | SWP_NOACTIVATE);
     }
@@ -2201,6 +2382,25 @@ bool EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnMouseLeave
+//
+//  Routes through UiShell so chrome painters (title-bar caption
+//  buttons, nav strip) drop their hot-button / hover state when the
+//  cursor exits the window via the non-client area.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnMouseLeave ()
+{
+    m_uiShell.OnMouseLeave();
+    return false;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnLButtonDown
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2533,7 +2733,7 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
         m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), static_cast<int> (width), dpi, &m_uiShell.Text());
 
         {
-            ChromeLayoutResult  layout = m_chromeLayout.Resolve (static_cast<int> (width), renderH, dpi);
+            LayoutManagerResult  layout = m_layout.Resolve (static_cast<int> (width), renderH);
             bool                fHasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
 
             if (fHasDisk)

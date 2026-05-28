@@ -1,17 +1,16 @@
 #include "Pch.h"
 
 #include "AssetBootstrap.h"
+#include "Config/GlobalUserPrefs.h"
+#include "Config/UserConfigStore.h"
+#include "Config/Win32FileSystem.h"
 #include "Core/MachineConfig.h"
 #include "Core/PathResolver.h"
 #include "DiskSettings.h"
 #include "EmulatorShell.h"
 #include "Core/MachineScanner.h"
-#include "RegistrySettings.h"
 
 #pragma comment(lib, "ole32.lib")
-
-
-static constexpr LPCWSTR kLastMachineValue = L"LastMachine";
 
 
 
@@ -149,32 +148,50 @@ static HRESULT LoadMachineConfig (
 
         if (hasDisk)
         {
-            fs::path  devicesDir = romDir / L"Devices" / L"DiskII";
-            string    diskAudioErr;
-            HRESULT   hrDiskAudio = AssetBootstrap::CheckAndFetchDiskAudio (
-                hInstance, machineName, hwndParent, devicesDir, diskAudioErr);
+            fs::path            devicesDir   = romDir / L"Devices" / L"DiskII";
+            string              diskAudioErr;
+            GlobalUserPrefs     prefs;
+            Win32FileSystem     fs_io;
+            std::wstring        assetBase    = AssetBootstrap::GetAssetBaseDirectory().wstring();
+            HRESULT             hrLoad;
+            HRESULT             hrDiskAudio;
+
+            hrLoad = prefs.Load (assetBase, fs_io);
+            IGNORE_RETURN_VALUE (hrLoad, S_OK);
+
+            hrDiskAudio = AssetBootstrap::CheckAndFetchDiskAudio (
+                hInstance, machineName, hwndParent, devicesDir, prefs, diskAudioErr);
             IGNORE_RETURN_VALUE (hrDiskAudio, S_OK);
+
+            // The consent choice may have changed (user just answered
+            // the prompt). Flush regardless so any in-memory mutation
+            // lands on disk for the next launch.
+            HRESULT  hrSave = prefs.Save (assetBase, fs_io);
+            IGNORE_RETURN_VALUE (hrSave, S_OK);
         }
     }
 
-    // Boot-disk pre-flight: if the user didn't pass --disk1 and the
-    // registry has no remembered disk for this machine (or the
+    // Boot-disk pre-flight: if the user didn't pass --disk1 and there's
+    // no remembered disk for this machine in UserPrefs (or the
     // remembered path no longer points at a real file), and the
     // machine has a Disk ][ controller, offer to download a stock
     // Apple system master disk. Without this the user just stares at
     // a spinning drive forever after first launch.
     if (inoutDisk1Path.empty())
     {
-        hrSaved = DiskSettings::ReadSavedDiskPath (0, machineName, savedDisk);
+        Win32FileSystem  fs_io;
+        UserConfigStore  store (AssetBootstrap::GetAssetBaseDirectory().wstring());
+
+        hrSaved = DiskSettings::ReadSavedDiskPath (store, fs_io, 0, machineName, savedDisk);
         IGNORE_RETURN_VALUE (hrSaved, S_OK);
 
-        // Treat a remembered-but-missing disk the same as "no remembered
-        // disk", and clear the stale registry value so we don't keep
+        // Treat a remembered-but-missing disk the same as "no
+        // remembered disk", and clear the stale value so we don't keep
         // tripping over it on every launch.
         if (!savedDisk.empty() && !fs::exists (fs::path (savedDisk)))
         {
             HRESULT hrClear = DiskSettings::WriteSavedDiskPath (
-                0, machineName, wstring());
+                store, fs_io, 0, machineName, wstring());
             IGNORE_RETURN_VALUE (hrClear, S_OK);
             savedDisk.clear();
         }
@@ -310,10 +327,18 @@ int WINAPI wWinMain (
         IGNORE_RETURN_VALUE (hrThemes, S_OK);
     }
 
-    // Resolve machine name: command line > registry > picker dialog
+    // Resolve machine name: command line > UserPrefs.json lastSelectedMachine > first discovered.
     if (machineName.empty())
     {
-        RegistrySettings::ReadString (kLastMachineValue, machineName);
+        GlobalUserPrefs   earlyPrefs;
+        Win32FileSystem   earlyFs;
+        std::wstring      assetBaseDir = AssetBootstrap::GetAssetBaseDirectory().wstring();
+        HRESULT           hrLoad;
+
+        hrLoad = earlyPrefs.Load (assetBaseDir, earlyFs);
+        IGNORE_RETURN_VALUE (hrLoad, S_OK);
+        machineName.assign (earlyPrefs.lastSelectedMachine.begin(),
+                            earlyPrefs.lastSelectedMachine.end());
     }
 
     if (machineName.empty() ||
@@ -323,12 +348,19 @@ int WINAPI wWinMain (
             fs::path ("Machines") / fs::path (machineName).string()
                                   / (fs::path (machineName).string() + ".json")).empty())
     {
-        // Legacy Win32 `MachinePickerDialog` is retired
-        // (FR-027). At startup we deterministically pick the first
-        // available machine from `MachineScanner::Scan`; the user
-        // can switch later via the Settings panel. If nothing
-        // was discovered (no Machines/ folder, asset bootstrap
-        // failed) we surface a single error and exit.
+        // Legacy Win32 `MachinePickerDialog` is retired (FR-027). At
+        // startup we deterministically pick a sensible default machine
+        // from `MachineScanner::Scan`; the user can switch later via
+        // the Settings panel. Apple //e is the modern Apple II family
+        // member most users will want, so prefer it if discovered.
+        // Otherwise fall back to the first scan result. If nothing
+        // was discovered at all (Machines/ missing, asset bootstrap
+        // wiped between runs) we still default to Apple2e so the
+        // downstream LoadMachineConfig flow gets to offer the ROM /
+        // sample-disk downloads instead of bailing with a dead-end
+        // error MessageBox.
+        constexpr std::wstring_view  s_kPreferredDefaultMachine = L"Apple2e";
+
         vector<fs::path> scanPaths = PathResolver::BuildSearchPaths (
             PathResolver::GetExecutableDirectory(),
             PathResolver::GetWorkingDirectory());
@@ -338,18 +370,23 @@ int WINAPI wWinMain (
             &MachineScanner::ListDirectory,
             &MachineScanner::ReadFile);
 
-        if (discovered.empty())
+        machineName.clear();
+        for (const MachineInfo & info : discovered)
         {
-            MessageBoxW (
-                nullptr,
-                L"Casso could not find any machine configurations.\n"
-                L"Reinstall or restore the Machines/ directory.",
-                L"Casso emulator",
-                MB_OK | MB_ICONERROR);
-            return 1;
+            if (info.fileName == s_kPreferredDefaultMachine)
+            {
+                machineName = info.fileName;
+                break;
+            }
         }
-
-        machineName = discovered.front().fileName;
+        if (machineName.empty() && !discovered.empty())
+        {
+            machineName = discovered.front().fileName;
+        }
+        if (machineName.empty())
+        {
+            machineName = std::wstring (s_kPreferredDefaultMachine);
+        }
     }
 
     // Load machine configuration. S_FALSE here means the user
@@ -359,13 +396,10 @@ int WINAPI wWinMain (
     CHR (hr);
     BAIL_OUT_IF (hr == S_FALSE, S_OK);
 
-    // Remember last-used machine (don't pollute hr with the result)
-    {
-        HRESULT hrReg = RegistrySettings::WriteString (kLastMachineValue, machineName);
-        IGNORE_RETURN_VALUE (hrReg, S_OK);
-    }
-
-    // Initialize emulator
+    // Initialize emulator. EmulatorShell::Initialize records the
+    // chosen machine into GlobalUserPrefs.lastSelectedMachine and
+    // flushes it to UserPrefs.json so the next launch boots the
+    // same machine without --machine.
     hr = shell->Initialize (hInstance, machineName, config,
                             fs::path (disk1Path).string(),
                             fs::path (disk2Path).string());

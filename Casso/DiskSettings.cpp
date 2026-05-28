@@ -1,9 +1,13 @@
 #include "Pch.h"
 
 #include "DiskSettings.h"
+
+#include "Config/IFileSystem.h"
+#include "Config/UserConfigStore.h"
+#include "Core/JsonParser.h"
+#include "Core/JsonValue.h"
 #include "Core/PathResolver.h"
 #include "Ehm.h"
-#include "RegistrySettings.h"
 
 
 
@@ -11,148 +15,69 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Storage layout
-//
-//  HKCU\Software\relmer\Casso\Machines\<machine> stores the per-machine
-//  drive-bay state. Disk paths are stored relative to casso.exe when
-//  the disk lives under or beside the exe (the common case for the
-//  default Disks/ peer dir). User-mounted disks from elsewhere keep
-//  their absolute path. Result: the casso.exe + Disks/ tree stays
-//  portable across moves while explicitly-located disks are remembered
-//  exactly as the user pointed at them.
+//  Anonymous helpers
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr LPCWSTR  s_kpszMachinesRoot       = L"Machines";
-static constexpr LPCWSTR  s_kpszDiskValueNames[2]  = { L"Disk1", L"Disk2" };
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MakeMachineSubkey
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static wstring MakeMachineSubkey (const wstring & machineName)
+namespace
 {
-    wstring  sub = s_kpszMachinesRoot;
-
-
-    if (!machineName.empty())
+    // Load the per-machine default JSON (the on-disk Machines/<Name>/
+    // <Name>.json) into `outDefault`. Returns S_FALSE when the file
+    // isn't found, S_OK on a clean parse, error HRESULT otherwise.
+    HRESULT LoadMachineDefaultJson (const std::wstring  & machineName,
+                                    JsonValue           & outDefault)
     {
-        sub += L"\\";
-        sub += machineName;
+        std::vector<fs::path>  searchPaths;
+        fs::path               configRelPath;
+        fs::path               configPath;
+        std::ifstream          configFile;
+        std::stringstream      ss;
+        std::string            jsonText;
+        JsonParseError         parseErr;
+        HRESULT                hr            = S_OK;
+
+
+        searchPaths   = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
+                                                          PathResolver::GetWorkingDirectory());
+        configRelPath = fs::path ("Machines") / fs::path (machineName).string()
+                                              / (fs::path (machineName).string() + ".json");
+        configPath    = PathResolver::FindFile (searchPaths, configRelPath);
+
+        if (configPath.empty())
+        {
+            return S_FALSE;
+        }
+
+        configFile.open (configPath);
+        if (!configFile.good())
+        {
+            return S_FALSE;
+        }
+
+        ss << configFile.rdbuf();
+        jsonText = ss.str();
+        hr = JsonParser::Parse (jsonText, outDefault, parseErr);
+        return hr;
     }
 
-    return sub;
-}
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MakeLegacyDiskValueName
-//
-//  Pre-hierarchy value name (e.g. Disk1.apple2e). Kept for one-shot
-//  migration of users who already have a saved disk under the flat
-//  layout from the previous build -- read from the legacy slot if the
-//  new slot is empty, then re-write into the new slot.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static wstring MakeLegacyDiskValueName (int drive, const wstring & machineName)
-{
-    wstring  name;
-
-
-    name = (drive == 0) ? L"Disk1." : L"Disk2.";
-    name += machineName;
-    return name;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MakeRegistryDiskPath
-//
-//  Convert a (possibly absolute) path into the form that should land
-//  in the registry: relative to the exe directory when the disk lives
-//  under it, otherwise the original absolute path.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static wstring MakeRegistryDiskPath (const wstring & inputPath)
-{
-    fs::path     input  = fs::path (inputPath);
-    fs::path     exeDir;
-    fs::path     rel;
-    error_code   ec;
-    wstring      first;
-
-
-    if (input.empty())
+    std::string  WideToNarrowAscii (const std::wstring & w)
     {
-        return wstring();
+        std::string  narrow;
+
+        narrow.reserve (w.size());
+        for (wchar_t c : w)
+        {
+            narrow.push_back (static_cast<char> (static_cast<unsigned char> (c)));
+        }
+        return narrow;
     }
 
-    if (input.is_relative())
+
+    std::wstring NarrowToWideAscii (const std::string & s)
     {
-        return inputPath;
+        return std::wstring (s.begin(), s.end());
     }
-
-    exeDir = PathResolver::GetExecutableDirectory();
-    rel    = fs::relative (input, exeDir, ec);
-
-    if (ec || rel.empty())
-    {
-        return inputPath;
-    }
-
-    // If `relative` produced a path that escapes the exe directory
-    // (starts with `..`), fall back to the absolute path so we don't
-    // bake a brittle climb-out into the registry.
-    first = rel.begin() == rel.end() ? wstring() : rel.begin()->wstring();
-
-    if (first == L"..")
-    {
-        return inputPath;
-    }
-
-    return rel.wstring();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ResolveRegistryDiskPath
-//
-//  Inverse of MakeRegistryDiskPath: relative entries are joined with
-//  the exe directory; absolute entries pass through unchanged.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static wstring ResolveRegistryDiskPath (const wstring & storedValue)
-{
-    fs::path  stored = fs::path (storedValue);
-
-
-    if (storedValue.empty() || stored.is_absolute())
-    {
-        return storedValue;
-    }
-
-    return (PathResolver::GetExecutableDirectory() / stored).lexically_normal().wstring();
 }
 
 
@@ -166,44 +91,52 @@ static wstring ResolveRegistryDiskPath (const wstring & storedValue)
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskSettings::ReadSavedDiskPath (
-    int             drive,
-    const wstring & machineName,
-    wstring       & outPath)
+    UserConfigStore    & store,
+    IFileSystem        & fs,
+    int                  drive,
+    const std::wstring & machineName,
+    std::wstring       & outPath)
 {
-    HRESULT  hr     = S_OK;
-    wstring  subkey = MakeMachineSubkey (machineName);
-    wstring  raw;
+    HRESULT             hr            = S_OK;
+    JsonValue           defaultJson;
+    JsonValue           mergedJson;
+    const JsonValue *   uiPrefs       = nullptr;
+    std::string         pathNarrow;
+    const char *        keyName       = (drive == 0) ? "disk1Path" : "disk2Path";
 
-    
 
     outPath.clear();
 
-    hr = RegistrySettings::ReadString (subkey.c_str(), s_kpszDiskValueNames[drive], raw);
-
-    if (hr == S_FALSE || (hr == S_OK && raw.empty()))
+    if (drive < 0 || drive > 1 || machineName.empty())
     {
-        // Fall back to the legacy flat-namespace value from the prior
-        // build. If found, copy it forward to the hierarchical layout
-        // (now in relative-path form) so subsequent reads hit the new
-        // location.
-        wstring  legacy;
-        HRESULT  hrLegacy = RegistrySettings::ReadString (MakeLegacyDiskValueName (drive, machineName).c_str(), legacy);
-
-        if (hrLegacy == S_OK && !legacy.empty())
-        {
-            raw = legacy;
-            HRESULT hrMigrate = RegistrySettings::WriteString (subkey.c_str(), s_kpszDiskValueNames[drive],
-                                                               MakeRegistryDiskPath (legacy));
-            IGNORE_RETURN_VALUE (hrMigrate, S_OK);
-        }
+        return S_FALSE;
     }
 
-    if (!raw.empty())
+    hr = LoadMachineDefaultJson (machineName, defaultJson);
+    if (hr != S_OK)
     {
-        outPath = ResolveRegistryDiskPath (raw);
+        return S_FALSE;
     }
 
-    return hr;
+    hr = store.Load (WideToNarrowAscii (machineName), defaultJson, fs, mergedJson);
+    if (FAILED (hr) || mergedJson.GetType() != JsonType::Object)
+    {
+        return S_FALSE;
+    }
+
+    if (FAILED (mergedJson.GetObject ("$cassoUiPrefs", uiPrefs)) || uiPrefs == nullptr)
+    {
+        return S_FALSE;
+    }
+    _Analysis_assume_ (uiPrefs != nullptr);
+
+    if (FAILED (uiPrefs->GetString (keyName, pathNarrow)) || pathNarrow.empty())
+    {
+        return S_FALSE;
+    }
+
+    outPath = PathResolver::ResolveExeRelativePath (NarrowToWideAscii (pathNarrow));
+    return S_OK;
 }
 
 
@@ -217,13 +150,97 @@ HRESULT DiskSettings::ReadSavedDiskPath (
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskSettings::WriteSavedDiskPath (
-    int             drive,
-    const wstring & machineName,
-    const wstring & path)
+    UserConfigStore    & store,
+    IFileSystem        & fs,
+    int                  drive,
+    const std::wstring & machineName,
+    const std::wstring & path)
 {
-    wstring  subkey  = MakeMachineSubkey (machineName);
-    wstring  toStore = path.empty() ? wstring() : MakeRegistryDiskPath (path);
+    HRESULT          hr            = S_OK;
+    JsonValue        defaultJson;
+    JsonValue        mergedJson;
+    JsonValue        updatedJson;
+    std::wstring     stored;
+    std::string      storedNarrow;
+    const char *     keyName       = (drive == 0) ? "disk1Path" : "disk2Path";
+    std::vector<std::pair<std::string, JsonValue>>  rootEntries;
+    std::vector<std::pair<std::string, JsonValue>>  uiPrefsEntries;
+    int              uiPrefsIdx    = -1;
+    int              i             = 0;
 
 
-    return RegistrySettings::WriteString (subkey.c_str(), s_kpszDiskValueNames[drive], toStore);
+    if (drive < 0 || drive > 1 || machineName.empty())
+    {
+        return E_INVALIDARG;
+    }
+
+    hr = LoadMachineDefaultJson (machineName, defaultJson);
+    if (hr != S_OK)
+    {
+        return S_FALSE;
+    }
+
+    hr = store.Load (WideToNarrowAscii (machineName), defaultJson, fs, mergedJson);
+    CHR (hr);
+
+    if (mergedJson.GetType() != JsonType::Object)
+    {
+        return S_FALSE;
+    }
+
+    stored       = PathResolver::MakeExeRelativePath (path);
+    storedNarrow = WideToNarrowAscii (stored);
+
+    // Splice the new diskNPath into the merged JSON's $cassoUiPrefs
+    // block. The JsonValue API is read-mostly; we rebuild the relevant
+    // sub-objects via swap-and-replace.
+    rootEntries = mergedJson.GetObjectEntries();
+
+    for (i = 0; i < (int) rootEntries.size(); ++i)
+    {
+        if (rootEntries[(size_t) i].first == "$cassoUiPrefs")
+        {
+            uiPrefsIdx = i;
+            if (rootEntries[(size_t) i].second.GetType() == JsonType::Object)
+            {
+                uiPrefsEntries = rootEntries[(size_t) i].second.GetObjectEntries();
+            }
+            break;
+        }
+    }
+
+    // Replace or append the key inside the $cassoUiPrefs block.
+    {
+        bool  replaced = false;
+        for (i = 0; i < (int) uiPrefsEntries.size(); ++i)
+        {
+            if (uiPrefsEntries[(size_t) i].first == keyName)
+            {
+                uiPrefsEntries[(size_t) i].second = JsonValue (storedNarrow);
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced)
+        {
+            uiPrefsEntries.emplace_back (keyName, JsonValue (storedNarrow));
+        }
+    }
+
+    if (uiPrefsIdx < 0)
+    {
+        rootEntries.emplace_back ("$cassoUiPrefs", JsonValue (std::move (uiPrefsEntries)));
+    }
+    else
+    {
+        rootEntries[(size_t) uiPrefsIdx].second = JsonValue (std::move (uiPrefsEntries));
+    }
+
+    updatedJson = JsonValue (std::move (rootEntries));
+
+    hr = store.SaveDelta (WideToNarrowAscii (machineName), updatedJson, defaultJson, fs);
+    CHR (hr);
+
+Error:
+    return hr;
 }

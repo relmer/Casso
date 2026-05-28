@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Ui/DpiScaler.h"
+
 
 
 
@@ -35,6 +37,21 @@ public:
 
     HWND GetHwnd() const { return m_hwnd; }
 
+    // Authoritative per-window DPI. Set automatically on WM_CREATE
+    // (from GetDpiForWindow) and updated on WM_DPICHANGED. Subclasses
+    // and consumers should read DPI through this scaler -- never call
+    // GetDpiForWindow directly, never cache a copy, never plumb a
+    // `dpi` parameter through a call chain.
+    const DpiScaler &  Scaler () const { return m_scaler; }
+    UINT               Dpi    () const { return m_scaler.Dpi(); }
+
+    // Pre-Create bootstrap. Lets the caller seed the DPI from the
+    // monitor the window will be created on so any pre-window sizing
+    // math (e.g. initial client rect) has a coherent DPI to work
+    // against. WM_CREATE overwrites this with GetDpiForWindow, which
+    // is authoritative. No-op if called after the HWND exists.
+    void  SetInitialDpi (UINT dpi);
+
 protected:
     ATOM RegisterWindowClass (HINSTANCE hInstance);
 
@@ -54,6 +71,7 @@ protected:
     virtual bool    OnKeyDown  (WPARAM vk, LPARAM lParam);
     virtual bool    OnKeyUp    (WPARAM vk, LPARAM lParam);
     virtual bool    OnMouseMove (WPARAM wParam, LPARAM lParam);
+    virtual bool    OnMouseLeave ();
     virtual bool    OnLButtonDown (WPARAM wParam, LPARAM lParam);
     virtual bool    OnLButtonUp (WPARAM wParam, LPARAM lParam);
     virtual bool    OnNotify   (HWND hwnd, WPARAM wParam, LPARAM lParam);
@@ -80,7 +98,32 @@ protected:
     // behavior.
     virtual bool    WantsCustomCaptionButtons () const { return false; }
 
+    // DPI lifecycle hooks (Non-Virtual Interface). The base WndProc
+    // updates m_scaler, calls OnDpiChanging (subclass relayout BEFORE
+    // SetWindowPos), applies the OS-suggested rect, then calls
+    // OnDpiChanged (subclass post-resize work). Subclasses override
+    // either hook -- they never need to remember to call base.
+    virtual void  OnDpiChanging (const DpiScaler & newScaler) { UNREFERENCED_PARAMETER (newScaler); }
+    virtual void  OnDpiChanged  (const DpiScaler & newScaler) { UNREFERENCED_PARAMETER (newScaler); }
+
+private:
+    // Per-message dispatch helpers. s_WndProc forwards each handled
+    // message into one of these so the wndproc itself stays a flat
+    // dispatch table. Each helper returns true to fall through to
+    // DefWindowProc with the original message; helpers that need to
+    // publish a specific LRESULT do so via outRetval.
+    bool  HandleCtlColorStatic (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outRetval);
+    bool  HandleCreate         (HWND hwnd, LPARAM lParam, LRESULT & outRetval);
+    bool  HandleNcHitTest      (HWND hwnd, LPARAM lParam, LRESULT & outRetval);
+    bool  HandleNcLButtonDown  (HWND hwnd, WPARAM wParam, LPARAM lParam);
+    bool  HandleNcLButtonUp    (HWND hwnd, WPARAM wParam, LPARAM lParam);
+    bool  HandleNcMouseMove    (HWND hwnd, LPARAM lParam);
+    bool  HandleNcMouseLeave   ();
+    bool  HandleSettingChange  (LPARAM lParam);
+    bool  HandleDpiChanged     (HWND hwnd, WPARAM wParam, LPARAM lParam);
+
 protected:
+    DpiScaler m_scaler;
     WORD      m_idIcon        = 0;
     WORD      m_idIconSmall   = 0;
     WORD      m_idMenuName    = 0;

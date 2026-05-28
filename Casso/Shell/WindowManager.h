@@ -2,6 +2,9 @@
 
 #include "Pch.h"
 
+#include "../Config/WindowPlacementProfile.h"
+
+struct GlobalUserPrefs;
 
 
 
@@ -10,22 +13,20 @@
 //
 //  WindowManager
 //
-//  Owner of per-monitor-topology window-placement persistence. Today
-//  the backing store is the legacy `HKCU\Software\relmer\Casso\
-//  WindowPlacement\v1\<hash>` registry tree; a later sub-phase swaps
-//  that out for the JSON-backed WindowPlacementProfile in
-//  GlobalUserPrefs without changing this class's surface.
-//
-//  All entry points are stateless (no member data), so a single
-//  shared instance is owned by EmulatorShell.
+//  Owner of per-monitor-topology window-placement persistence. Backing
+//  store is GlobalUserPrefs::window::placements (JSON-persisted via
+//  UserConfigStore::SaveAll). Mutates the live prefs object via the
+//  injected `WindowPlacementProfile` and then invokes the supplied
+//  `savePrefs` callback so the change lands on disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class WindowManager
 {
 public:
-    WindowManager  () = default;
-    ~WindowManager () = default;
+    using SavePrefsFn = std::function<void()>;
+
+    WindowManager  (GlobalUserPrefs & prefs, SavePrefsFn savePrefs);
 
     void  SaveWindowPlacement       (HWND hwnd,
                                      bool fullscreen);
@@ -37,5 +38,9 @@ public:
 
     // Exposed for tests and for callers that need the same monitor
     // topology key without going through the load/save helpers.
-    static std::wstring  BuildPlacementSubkeyForMonitor (HMONITOR activeMonitor);
+    static std::string  BuildPlacementKeyForMonitor (HMONITOR activeMonitor);
+
+private:
+    mutable WindowPlacementProfile  m_profile;
+    SavePrefsFn                     m_savePrefs;
 };

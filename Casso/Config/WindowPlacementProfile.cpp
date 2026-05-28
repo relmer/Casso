@@ -113,8 +113,8 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-WindowPlacementProfile::WindowPlacementProfile (IRegistrySettings & reg)
-    : m_reg (&reg)
+WindowPlacementProfile::WindowPlacementProfile (GlobalUserPrefs & prefs)
+    : m_prefs (&prefs)
 {
 }
 
@@ -124,22 +124,22 @@ WindowPlacementProfile::WindowPlacementProfile (IRegistrySettings & reg)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WindowPlacementProfile::BuildTopologySubkey
+//  WindowPlacementProfile::BuildTopologyKey
 //
 //  Folds the current monitor set + active monitor into a deterministic
 //  16-hex-char FNV-1a hash. Two different physical topologies will (with
-//  extremely high probability) produce different subkeys.
+//  extremely high probability) produce different keys.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring WindowPlacementProfile::BuildTopologySubkey (HMONITOR activeMonitor)
+std::string WindowPlacementProfile::BuildTopologyKey (HMONITOR activeMonitor)
 {
     std::vector<MonitorSnapshot>  monitors;
     std::wstring                  activeDevice;
     MONITORINFOEXW                activeInfo  = { sizeof (activeInfo) };
     std::wstring                  canonical;
     uint64_t                      hash        = 0;
-    wchar_t                       hashHex[s_kHashHexChars + 1] = {};
+    char                          hashHex[s_kHashHexChars + 1] = {};
     size_t                        i           = 0;
 
 
@@ -191,9 +191,9 @@ std::wstring WindowPlacementProfile::BuildTopologySubkey (HMONITOR activeMonitor
     canonical += activeDevice;
 
     hash = HashFNV1a64 (canonical);
-    swprintf_s (hashHex, _countof (hashHex), L"%016llX", hash);
+    sprintf_s (hashHex, _countof (hashHex), "%016llX", hash);
 
-    return std::wstring (L"WindowPlacement\\v1\\") + hashHex;
+    return std::string (hashHex);
 }
 
 
@@ -204,59 +204,32 @@ std::wstring WindowPlacementProfile::BuildTopologySubkey (HMONITOR activeMonitor
 //
 //  WindowPlacementProfile::TryLoad
 //
-//  Reads four REG_SZ values (x, y, w, h) at `topologySubkey`. Any
-//  missing or unparseable value short-circuits the load and returns
+//  Reads the bounds for `topologyKey` from GlobalUserPrefs::window
+//  ::placements. Missing entries (or zero-sized stored bounds) return
 //  false so callers fall back to default-centered placement.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool WindowPlacementProfile::TryLoad (
-    const std::wstring & topologySubkey,
-    Bounds             & outBounds) const
+    const std::string & topologyKey,
+    Bounds            & outBounds) const
 {
-    HRESULT       hr  = S_OK;
-    std::wstring  sx;
-    std::wstring  sy;
-    std::wstring  sw;
-    std::wstring  sh;
-    LONG          x   = 0;
-    LONG          y   = 0;
-    LONG          w   = 0;
-    LONG          h   = 0;
-
-
-
-    if (m_reg == nullptr)
+    if (m_prefs == nullptr)
     {
         return false;
     }
 
-    hr = m_reg->ReadString (topologySubkey.c_str(), L"x", sx);
-    if (hr != S_OK) { return false; }
-    hr = m_reg->ReadString (topologySubkey.c_str(), L"y", sy);
-    if (hr != S_OK) { return false; }
-    hr = m_reg->ReadString (topologySubkey.c_str(), L"w", sw);
-    if (hr != S_OK) { return false; }
-    hr = m_reg->ReadString (topologySubkey.c_str(), L"h", sh);
-    if (hr != S_OK) { return false; }
-
-    if (!TryParseLong (sx, x) ||
-        !TryParseLong (sy, y) ||
-        !TryParseLong (sw, w) ||
-        !TryParseLong (sh, h))
+    auto  it = m_prefs->window.placements.find (topologyKey);
+    if (it == m_prefs->window.placements.end())
+    {
+        return false;
+    }
+    if (it->second.w <= 0 || it->second.h <= 0)
     {
         return false;
     }
 
-    if (w <= 0 || h <= 0)
-    {
-        return false;
-    }
-
-    outBounds.x = x;
-    outBounds.y = y;
-    outBounds.w = static_cast<int> (w);
-    outBounds.h = static_cast<int> (h);
+    outBounds = it->second;
     return true;
 }
 
@@ -268,27 +241,19 @@ bool WindowPlacementProfile::TryLoad (
 //
 //  WindowPlacementProfile::Save
 //
+//  Writes the bounds into the GlobalUserPrefs window-placements map.
+//  Persistence to disk is the caller's responsibility -- the same Save
+//  pattern as every other GlobalUserPrefs mutation.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT WindowPlacementProfile::Save (
-    const std::wstring & topologySubkey,
-    const Bounds       & bounds)
+void WindowPlacementProfile::Save (
+    const std::string & topologyKey,
+    const Bounds      & bounds)
 {
-    HRESULT  hr = S_OK;
-
-
-
-    CBRAEx (m_reg, E_INVALIDARG);
-
-    hr = m_reg->WriteString (topologySubkey.c_str(), L"x", std::to_wstring (bounds.x));
-    CHR (hr);
-    hr = m_reg->WriteString (topologySubkey.c_str(), L"y", std::to_wstring (bounds.y));
-    CHR (hr);
-    hr = m_reg->WriteString (topologySubkey.c_str(), L"w", std::to_wstring (bounds.w));
-    CHR (hr);
-    hr = m_reg->WriteString (topologySubkey.c_str(), L"h", std::to_wstring (bounds.h));
-    CHR (hr);
-
-Error:
-    return hr;
+    if (m_prefs == nullptr)
+    {
+        return;
+    }
+    m_prefs->window.placements[topologyKey] = bounds;
 }

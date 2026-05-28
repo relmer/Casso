@@ -55,6 +55,7 @@ public:
     void     SetSettingsPanel   (SettingsPanel                   * settingsPanel);
     void     SetDragSource      (const DragDropTarget            * dragSource) { m_dragSource = dragSource; }
     bool     OnMouseMove        (int x, int y, bool leftDown);
+    void     OnMouseLeave       ();
     bool     OnLButtonDown      (int x, int y);
     bool     OnLButtonUp        (int x, int y);
     bool     HandleKey          (WPARAM vk);

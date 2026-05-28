@@ -1,13 +1,13 @@
 #include "Pch.h"
 
 #include "AssetBootstrap.h"
+#include "Config/GlobalUserPrefs.h"
 #include "Core/JsonParser.h"
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
 #include "Core/MachineConfigUpgrade.h"
 #include "Core/PathResolver.h"
 #include "External/StbVorbisWrapper.h"
-#include "RegistrySettings.h"
 #include "resource.h"
 #include "Ui/ThemeManager.h"
 #include "UnicodeSymbols.h"
@@ -1892,10 +1892,6 @@ Error:
 
 static constexpr int       s_kIdDiskAudioDownload       = 2001;
 static constexpr int       s_kIdDiskAudioSkip           = IDCANCEL;
-static constexpr LPCWSTR   s_kpszPromptForAudioDownload = L"PromptForAudioDownload";
-static constexpr DWORD     s_kAudioConsentUnasked       = 1;
-static constexpr DWORD     s_kAudioConsentAccepted      = 2;
-static constexpr DWORD     s_kAudioConsentDeclined      = 3;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2000,24 +1996,23 @@ static bool DirectoryHasAnyWav (const fs::path & dir)
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssetBootstrap::CheckAndFetchDiskAudio (
-    HINSTANCE         hInstance,
-    const wstring   & machineName,
-    HWND              hwndParent,
-    const fs::path  & devicesDir,
-    string          & outError)
+    HINSTANCE                hInstance,
+    const wstring          & machineName,
+    HWND                     hwndParent,
+    const fs::path         & devicesDir,
+    struct GlobalUserPrefs & prefs,
+    string                 & outError)
 {
     HRESULT      hr             = S_OK;
     HINTERNET    hSession       = nullptr;
     bool         anyMissing     = false;
     int          consent        = 0;
-    DWORD        consentState   = s_kAudioConsentUnasked;
-    wstring      subkey;
-    HRESULT      hrReg          = S_OK;
     error_code   ec;
 
 
 
     UNREFERENCED_PARAMETER (hInstance);
+    UNREFERENCED_PARAMETER (machineName);
 
     // Self-healing semantics: always check what's missing on disk
     // before consulting the saved consent state. If everything is
@@ -2039,42 +2034,22 @@ HRESULT AssetBootstrap::CheckAndFetchDiskAudio (
 
     BAIL_OUT_IF (!anyMissing, S_OK);
 
-    subkey       = wstring (L"Machines\\") + machineName;
-    hrReg        = RegistrySettings::ReadDword (subkey.c_str (),
-                                                s_kpszPromptForAudioDownload,
-                                                consentState);
-    IGNORE_RETURN_VALUE (hrReg, S_OK);
-
-    if (consentState == s_kAudioConsentDeclined)
+    if (prefs.audioDownloadConsent == "decline")
     {
         return S_FALSE;
     }
 
-    // Legacy values from earlier builds: the prompt flag was a
-    // boolean ("0 = already asked, ignore"; anything else = "prompt").
-    // A persisted 0 from a prior accept-and-download is now
-    // indistinguishable from an old decline. Treat the legacy 0 as
-    // a fresh ask so the user can re-affirm and we can restore the
-    // missing WAVs.
-    if (consentState != s_kAudioConsentAccepted && consentState != s_kAudioConsentUnasked)
-    {
-        consentState = s_kAudioConsentUnasked;
-    }
-
-    if (consentState == s_kAudioConsentAccepted)
+    if (prefs.audioDownloadConsent == "allow")
     {
         consent = s_kIdDiskAudioDownload;
     }
     else
     {
+        // "ask" or any unknown value -- prompt now.
         consent = PromptDiskAudioConsent (hwndParent);
-        consentState = (consent == s_kIdDiskAudioDownload)
-                        ? s_kAudioConsentAccepted
-                        : s_kAudioConsentDeclined;
-        hrReg = RegistrySettings::WriteDword (subkey.c_str (),
-                                              s_kpszPromptForAudioDownload,
-                                              consentState);
-        IGNORE_RETURN_VALUE (hrReg, S_OK);
+        prefs.audioDownloadConsent = (consent == s_kIdDiskAudioDownload)
+                                       ? std::string ("allow")
+                                       : std::string ("decline");
     }
 
     if (consent != s_kIdDiskAudioDownload)

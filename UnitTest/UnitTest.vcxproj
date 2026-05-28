@@ -336,14 +336,6 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
-    <ClCompile Include="..\Casso\Config\Win32RegistrySettings.cpp">
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
-    </ClCompile>
-    <ClCompile Include="..\Casso\RegistrySettings.cpp">
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
-    </ClCompile>
     <ClCompile Include="..\Casso\Config\WindowPlacementProfile.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
@@ -360,7 +352,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
-    <ClCompile Include="..\Casso\Ui\Chrome\ChromeLayout.cpp">
+    <ClCompile Include="..\Casso\Ui\Chrome\LayoutManager.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
@@ -509,7 +501,7 @@
     <ClCompile Include="UiTests\CrtLetterboxLayoutTests.cpp" />
     <ClCompile Include="UiTests\LayoutTests.cpp" />
     <ClCompile Include="UiTests\DpiScalerTests.cpp" />
-    <ClCompile Include="UiTests\ChromeLayoutTests.cpp" />
+    <ClCompile Include="UiTests\LayoutManagerTests.cpp" />
     <ClCompile Include="UiTests\Win11DwmHelpersTests.cpp" />
     <ClCompile Include="UiTests\HitTesterTests.cpp" />
     <ClCompile Include="UiTests\NcHitTestTests.cpp" />
