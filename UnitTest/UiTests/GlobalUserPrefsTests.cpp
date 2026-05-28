@@ -189,4 +189,48 @@ public:
         hr = prefs.FromJson (v);
         Assert::IsTrue (FAILED (hr));
     }
+
+
+    TEST_METHOD (RecentDisks_RoundTrip)
+    {
+        GlobalUserPrefs  orig;
+        GlobalUserPrefs  loaded;
+        JsonValue        v;
+        HRESULT          hr;
+
+        orig.recentDisks.push_back ("C:\\Disks\\A.dsk");
+        orig.recentDisks.push_back ("C:\\Disks\\B.dsk");
+
+        v  = orig.ToJson();
+        hr = loaded.FromJson (v);
+
+        Assert::IsTrue (SUCCEEDED (hr));
+        Assert::AreEqual ((size_t) 2, loaded.recentDisks.size());
+        Assert::AreEqual (std::string ("C:\\Disks\\A.dsk"), loaded.recentDisks[0]);
+        Assert::AreEqual (std::string ("C:\\Disks\\B.dsk"), loaded.recentDisks[1]);
+    }
+
+
+    TEST_METHOD (RecentDisks_DropsMalformedEntries)
+    {
+        GlobalUserPrefs                                  prefs;
+        std::vector<std::pair<std::string, JsonValue>>   root;
+        std::vector<JsonValue>                           arr;
+        JsonValue                                        v;
+        HRESULT                                          hr;
+
+        arr.emplace_back (JsonValue (std::string ("C:\\good.dsk")));
+        arr.emplace_back (JsonValue (42.0));                          // wrong type
+        arr.emplace_back (JsonValue (std::string ("")));              // empty
+        arr.emplace_back (JsonValue (std::string ("C:\\good2.dsk")));
+
+        root.emplace_back ("recentDisks", JsonValue (std::move (arr)));
+        v = JsonValue (std::move (root));
+
+        hr = prefs.FromJson (v);
+        Assert::IsTrue (SUCCEEDED (hr));
+        Assert::AreEqual ((size_t) 2, prefs.recentDisks.size());
+        Assert::AreEqual (std::string ("C:\\good.dsk"),  prefs.recentDisks[0]);
+        Assert::AreEqual (std::string ("C:\\good2.dsk"), prefs.recentDisks[1]);
+    }
 };

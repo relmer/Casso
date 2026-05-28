@@ -87,6 +87,12 @@ struct GlobalUserPrefs
         std::map<std::string, WindowBounds>  placements;
     } window;
 
+    // Most-recently-used disk image absolute paths, most-recent-first,
+    // capped at 16 entries. Populated by AssetBootstrap / DiskManager /
+    // BootDiskPicker; consumed by the themed boot-disk picker. Malformed
+    // entries (non-string or empty) are dropped silently on load.
+    std::vector<std::string>  recentDisks;
+
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;
 

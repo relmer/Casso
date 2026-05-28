@@ -30,6 +30,7 @@ namespace
         "activeTheme",
         "lastSelectedMachine",
         "audioDownloadConsent",
+        "recentDisks",
         "crt",
         "window"
     };
@@ -354,6 +355,20 @@ JsonValue GlobalUserPrefs::ToJson() const
 
     root.emplace_back ("window", JsonValue (std::move (windowObj)));
 
+    // recentDisks: most-recent-first absolute paths, cap enforced by
+    // DiskMru itself before we get here.
+    {
+        std::vector<JsonValue>  recentArr;
+        size_t                  ri = 0;
+
+        recentArr.reserve (recentDisks.size());
+        for (ri = 0; ri < recentDisks.size(); ri++)
+        {
+            recentArr.emplace_back (JsonValue (recentDisks[ri]));
+        }
+        root.emplace_back ("recentDisks", JsonValue (std::move (recentArr)));
+    }
+
     // Round-trip unknown keys verbatim.
     for (const auto & kv : unknownPassthrough)
     {
@@ -480,6 +495,34 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
             }
         }
         window.fullscreen = GetBoolOpt (*windowSub, "fullscreen", window.fullscreen);
+    }
+
+    // recentDisks: drop non-string and empty entries silently per
+    // data-model.md §1; cap is enforced by DiskMru on use.
+    {
+        const JsonValue *  recentArr = nullptr;
+        size_t             ri        = 0;
+
+        recentDisks.clear();
+
+        if (SUCCEEDED (v.GetArray ("recentDisks", recentArr)) && recentArr != nullptr)
+        {
+            recentDisks.reserve (recentArr->ArraySize());
+            for (ri = 0; ri < recentArr->ArraySize(); ri++)
+            {
+                const JsonValue &  entry = recentArr->ArrayAt (ri);
+                if (entry.GetType() != JsonType::String)
+                {
+                    continue;
+                }
+                const std::string &  s = entry.GetString();
+                if (s.empty())
+                {
+                    continue;
+                }
+                recentDisks.push_back (s);
+            }
+        }
     }
 
     // Capture unknown top-level keys for round-tripping.
