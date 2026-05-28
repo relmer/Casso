@@ -1225,7 +1225,28 @@ void EmulatorShell::ReconcileInitialClientSize ()
     if (fixedW != (rcActualWindow.right  - rcActualWindow.left) ||
         fixedH != (rcActualWindow.bottom - rcActualWindow.top))
     {
-        SetWindowPos (m_hwnd, nullptr, 0, 0, fixedW, fixedH, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+        // Recenter on the current monitor's work area using the final
+        // size. The initial Create centered using a pre-reconcile size
+        // estimate; without this re-center the reconcile resize would
+        // grow the window from its top-left and leave it visually off
+        // center vs Ctrl+0 reset (which centers with the final size).
+        HMONITOR    hMon = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
+        MONITORINFO mi   = { sizeof (mi) };
+        int         x    = 0;
+        int         y    = 0;
+        UINT        flags = SWP_NOZORDER | SWP_NOACTIVATE;
+
+        if (hMon != nullptr && GetMonitorInfo (hMon, &mi))
+        {
+            x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - fixedW) / 2;
+            y = mi.rcWork.top  + (mi.rcWork.bottom - mi.rcWork.top - fixedH) / 2;
+        }
+        else
+        {
+            flags |= SWP_NOMOVE;
+        }
+
+        SetWindowPos (m_hwnd, nullptr, x, y, fixedW, fixedH, flags);
     }
 }
 
