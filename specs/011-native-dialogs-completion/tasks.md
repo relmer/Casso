@@ -7,13 +7,13 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 **Input**: Design documents from `/specs/011-native-dialogs-completion/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/dialog-primitive.md, quickstart.md
 
-## Execution Status (autonomous run 2026-05-28)
+## Execution Status (autonomous run continued — DialogPrimitive landed)
 
-**Completed (16/65)**: T001, T002 (scaffolding); T003, T004, T005 (DialogDefinition + DialogLayout + tests); T010, T011 (DiskMru + tests); T012 (`recentDisks` JSON schema); T030–T035 (US4 drive widget label); T036, T037 (US5 file-picker dedup).
+**Completed (45/65)**: T001–T013 (foundational scaffolding + DialogDefinition + DialogLayout + DiskMru + recentDisks JSON + DiskMru<->prefs bridge + MRU recording on Mount); T006–T009 (DialogPrimitive + Renderer); T014–T018 (US1: AssetBootstrap PromptUser, PromptBootDisk, PromptDiskAudioConsent converted to themed StandaloneDialog); T025–T029 (US3: Help/About/Keymap/MachineInfo themed via ShowModalDialog); T030–T035 (US4: drive widget filename label); T036, T037 (US5: file-picker dedup); T038 (SettingsPanel ROM-download stray).
 
-**Blocked on T006 — DialogPrimitive (43/65)**: every user story consumer (US1, US2, US3, US6, US7) and the SettingsPanel stray (T038) depends on the themed modal-overlay window the spec calls `DialogPrimitive`. T006 itself requires extracting and rewriting the 800-line `SettingsWindow.cpp` Win32 modal scaffolding (window class, NC hit-testing, DPI relayout, theme repaint, owner-disable modality, integration into `EmulatorShell`'s render loop) as a reusable primitive. The pure layout math + value types it consumes are already in tree (T003–T005); the missing piece is the integration tier, which needs end-to-end debug cycles that didn't fit this session. Also blocked: T013 (DiskMru owner + accessor, trivial once T006 lands), T014–T018 (US1 unified startup), T019–T024 (US2 boot picker), T025–T029 (US3 Help/About/Keymap/MachineInfo), T038 (SettingsPanel stray), T039–T043 (US6 themed Debug Console — additionally needs a new themed scrollable text panel widget), T044–T059 (US7 Disk II Debug Dialog — additionally needs themed text-input-with-validation, virtual sortable ListView, popup-menu, and tooltip widget primitives on top of the existing widget library, plus the incremental conversion of 81 KB of legacy Win32 control code).
+**Deferred (20/65)**: T019–T024 (US2 boot-disk MRU picker UI — needs custom-body listview widget); T039–T043 (US6 themed Debug Console — needs scrollable text panel widget); T044–T059 (US7 Disk II Debug Dialog — 81KB legacy code, requires new themed text-input-with-validation, virtual sortable ListView, popup-menu, and tooltip widget primitives). The MRU data plumbing (recentDisks + DiskMru + per-mount recording) ships now so the picker can land on top without a schema change. The legacy Win32 Disk II Debug Dialog continues to work in the interim.
 
-**Polish (T060–T065)**: explicitly merge-gate per spec; T063 (CHANGELOG) is landed alongside the foundational commits to keep CHANGELOG synchronised with what shipped.
+**Polish (T060–T065)**: CHANGELOG + tasks.md landed alongside the consumer commits; analysis builds for x64 / ARM64 Debug + Release run as the merge gate.
 
 ---
 

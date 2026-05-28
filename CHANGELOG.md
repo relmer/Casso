@@ -6,14 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.4.1267] — Native dialogs foundation (spec 011 partial)
+## [1.4.1280] — Native dialogs migration (spec 011)
 
-Foundational primitives for the spec-011 native DX dialogs migration. The
-modal-overlay primitive itself and its downstream consumers (unified
-startup-download, boot-disk picker, Help/About/Keymap/Machine-Info
-themed dialogs, themed Debug Console, themed Disk II Debug Dialog) are
-deferred to a follow-up; the headless plumbing they consume is in tree
-and unit-tested.
+Themed DX-based modal dialogs now replace every Win32 `MessageBoxW` /
+`TaskDialogIndirect` consumer in the app (except the pre-shell EHM
+notification fallback in `Main.cpp`). The bootstrap-time prompts, the
+in-app Help/About/Keymap/Machine Info dialogs, and the SettingsPanel
+ROM-error notification all paint through the new `DialogPrimitive` and
+honour the active chrome theme. The `IFileOpenDialog`-based disk picker
+is preserved as the lone deliberate Win32 surface.
 
 ### Added
 - **feat(011): DialogPrimitive modal window (T006–T009).** New
@@ -21,50 +22,66 @@ and unit-tested.
   modal dialog. `RegisterClass` registers the Win32 class once per
   instance; `Show()` creates the window, runs a private `GetMessage`
   loop (disabling the owner window for the duration), and returns the
-  chosen button's `resultCode` (or -1 on Alt+F4 / WM_CLOSE). `Close()`
-  records the result and unblocks the loop. Keyboard: Enter = default
-  button, Escape = cancel button, Tab/Shift-Tab cycle focus.
-  Hyperlinks launch via `ShellExecuteW` with a user-facing notification
-  on failure.
+  chosen button's `resultCode` (or -1 on Alt+F4 / WM_CLOSE). Keyboard:
+  Enter = default button, Escape = cancel button, Tab/Shift-Tab cycle
+  focus. Hyperlinks launch via `ShellExecuteW`.
 - **feat(011): DialogPrimitiveRenderer.** Split renderer class owns the
   `CreateSwapChainForHwnd` swap chain (DXGI_ALPHA_MODE_IGNORE, no DComp
   / no blur), RTV, `DxUiPainter` (geometry), and `DwriteTextRenderer`
   (text). Paints a gradient title bar, solid dialog background with
-  theme colors, icon circle (Info/Warning/Error/App), word-wrapped body
-  text, hyperlink underlines, custom-body callback, and `Button`
-  widgets. DPI-aware: recomputes layout on WM_DPICHANGED.
-- **feat(011): DialogDefinition + DialogLayout primitives.** New
-  `Casso/Ui/Dialog/` directory hosts the pure value types
-  (`DialogIcon`, `DialogTextRun`, `DialogButton`, `DialogDefinition`)
-  and the headless `LayoutDialog` free function (icon slot, wrapped
-  body runs, hyperlink hit rects, right-aligned button row, optional
-  custom-body rect). All text measurement is injected via callbacks
-  so the layout math is unit-tested without DirectWrite.
-- **feat(011): `DiskMru` helper.** Most-recently-used disk image
-  list with cap = 16, move-to-front dedup, oldest eviction, and a
-  `Prune (existsPredicate)` hook for headless testing.
-- **feat(011): `recentDisks` JSON field in `GlobalUserPrefs`.**
-  Top-level absolute-path array, most-recent-first; malformed
-  entries (non-string, empty) are dropped silently on load; existing
-  unknown-passthrough round-trip preserved.
-- **feat(011): drive widget filename label.** The faceplate now
-  shows the mounted disk's basename below `DRIVE N`, hidden when no
-  disk is mounted, ellipsis-truncated (single U+2026) when wider
-  than the available space. The truncation algorithm
-  (`Casso/Ui/Chrome/DriveLabelTruncation.*`) is a pure binary search
+  theme colours, icon circle (Info / Warning / Error / App), word-wrapped
+  body text, hyperlink underlines, optional custom-body callback, and
+  `Button` widgets. DPI-aware: recomputes layout on WM_DPICHANGED.
+- **feat(011): DialogDefinition + DialogLayout primitives.** Pure value
+  types and headless `LayoutDialog` free function; all measurement is
+  injected so the math is unit-tested without DirectWrite.
+- **feat(011): StandaloneDialog wrapper.** Bootstrap-friendly helper
+  that spins up a transient `D3D11CreateDevice (HARDWARE)` + skeuomorphic
+  `ChromeTheme` + one-shot `DialogPrimitive` for callers that fire before
+  `EmulatorShell` exists (e.g. `AssetBootstrap`'s missing-asset prompts).
+- **feat(011): themed startup prompts.** `AssetBootstrap::PromptUser`
+  (missing-asset download approval — now with clickable URL hyperlink),
+  `PromptBootDisk` (DOS 3.3 / ProDOS / Skip), and
+  `PromptDiskAudioConsent` (download / skip with GPL-3 disclosure) all
+  paint through `StandaloneDialog`. The legacy `TaskDialogIndirect`
+  + `MessageBoxW` fallback paths are removed.
+- **feat(011): themed in-app dialogs.** `IDM_MACHINE_INFO`,
+  `IDM_HELP_KEYMAP`, `IDM_HELP_ABOUT` (with the photoreal Cassowary app
+  icon + clickable GitHub URL) and the SettingsPanel ROM-download
+  failure notification all route through `EmulatorShell::ShowModalDialog`.
+- **feat(011): `DiskMru` helper + `recentDisks` persistence.**
+  Most-recently-used disk image list (cap = 16, move-to-front dedup,
+  oldest eviction) round-trips through the new `recentDisks` JSON
+  array in `GlobalUserPrefs`. Every successful `EmulatorShell::Mount`
+  pushes the image path onto the MRU and persists.
+- **feat(011): drive widget filename label.** The faceplate now shows
+  the mounted disk's basename below `DRIVE N`, hidden when no disk is
+  mounted, ellipsis-truncated (single U+2026) when wider than the
+  available space. Truncation algorithm is a pure binary search,
   unit-tested with a deterministic measure stub.
-- **refactor(011): single disk-insert file picker.** The legacy
-  `GetOpenFileNameW` branch in `WindowCommandManager::OnDiskCommand`
-  is gone; both `IDM_DISK_INSERT1` and `IDM_DISK_INSERT2` route
+- **refactor(011): single disk-insert file picker.** Legacy
+  `GetOpenFileNameW` branch removed; both `IDM_DISK_INSERT*` route
   through the modern `IFileOpenDialog`-backed `PromptForDiskImage`.
-  `Ctrl+1` / `Ctrl+2` accelerators preserved.
+- **chore(011): named Unicode constants.** New `s_kchAlmostEqual`
+  (U+2248) in `UnicodeSymbols.h`; all dialog body strings consume
+  named constants rather than inline `\xNNNN` escapes.
+
+### Deferred
+- US2 boot-disk MRU picker UI, US6 themed Debug Console wrapper, and
+  US7 themed Disk II Debug Dialog conversion. These require additional
+  themed widget primitives (custom-body MRU listview, scrollable text
+  panel, themed text input + popup menu + virtual sortable ListView)
+  that aren't yet in the widget library; the MRU data plumbing
+  (`recentDisks` + `DiskMru`) ships now so the picker can land on top
+  of it later without a schema change. The legacy Win32 Disk II Debug
+  Dialog continues to work in the interim.
 
 ### Tests
 - **+24 headless unit tests** across `DialogLayoutTests` (6),
   `DiskMruTests` (9), `DriveLabelTruncationTests` (7), and
-  `GlobalUserPrefsTests` (+2 round-trip / malformed-entry cases).
-  All measurement and filesystem dependencies injected; no Win32, no
-  real file I/O.
+  `GlobalUserPrefsTests` (+2 round-trip / malformed-entry cases). All
+  measurement and filesystem dependencies injected; no Win32, no real
+  file I/O. Total suite: 1616/1616 passing.
 
 
 ## [1.4.1260] — Drive widget interaction + disk persistence fix
