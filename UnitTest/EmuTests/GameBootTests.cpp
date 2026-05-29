@@ -186,8 +186,13 @@ namespace
 
         Assert::IsTrue (core.diskController->IsMotorOn (),
             L"Boot ROM must turn the motor on");
-        Assert::IsTrue (bitsAfter > 0,
-            L"Nibble engine must advance through the WOZ bit stream");
+
+        // Either the bit cursor advanced OR the head walked off track 0.
+        // Bit cursor wraps at the end of each track, so a sample exactly
+        // on a track boundary can read 0 even after millions of bits
+        // were consumed -- multi-track movement is a wrap-proof signal.
+        Assert::IsTrue (bitsAfter > 0 || tracksVisited.size () > 1,
+            L"Boot ROM must drive the controller (bit cursor advanced or head moved)");
 
         swprintf_s (failMsg,
             L"%ls: head only visited %zu distinct tracks (need >= %d); "
@@ -229,5 +234,19 @@ public:
     TEST_METHOD (Karateka_WozBoot_LoaderReachesProtectionChecks)
     {
         AssertGameBoots ("Apple2/Demos/Karateka.woz", L"Karateka", 2);
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //  Lode Runner (1983, Broderbund). Mid-tier protection. Loader
+    //  walks the head further than Karateka but still doesn't reach
+    //  the deep content tracks under current emulation -- ~4 distinct
+    //  tracks before stalling. Bar set at >= 3 to prove the loader
+    //  is decoding bits and stepping; full boot is a follow-up.
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (LodeRunner_WozBoot_LoaderReachesProtectionChecks)
+    {
+        AssertGameBoots ("Apple2/Demos/LodeRunner.woz", L"Lode Runner", 3);
     }
 };
