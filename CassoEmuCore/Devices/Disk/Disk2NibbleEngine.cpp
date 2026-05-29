@@ -32,8 +32,9 @@ Disk2NibbleEngine::Disk2NibbleEngine()
 
 void Disk2NibbleEngine::SetDiskImage (DiskImage * disk)
 {
-    m_disk   = disk;
-    m_bitPos = 0;
+    m_disk        = disk;
+    m_bitPos      = 0;
+    m_headWindow  = 0;
 }
 
 
@@ -158,6 +159,8 @@ void Disk2NibbleEngine::Reset()
     m_latchIsFresh    = false;
     m_readNibbles     = 0;
     m_writeNibbles    = 0;
+    m_headWindow      = 0;
+    m_weakRngState    = 0xDEADBEEFu;
 }
 
 
@@ -232,6 +235,7 @@ void Disk2NibbleEngine::AdvanceOneBit()
     else
     {
         bit = m_disk->ReadBit (m_currentTrack, m_bitPos);
+        bit = ApplyHeadWindow (bit);
         ShiftReadBit (bit);
     }
 
@@ -425,3 +429,80 @@ bool Disk2NibbleEngine::ConsumeFreshNibble (uint8_t & outNibble)
 
     return true;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyHeadWindow
+//
+//  MC3470 read-amplifier model, ported from AppleWin's
+//  DataLatchReadWOZ (Disk.cpp). Maintains a sliding 4-bit window of
+//  the most-recent bits read off the surface. Two effects:
+//
+//    1. One-bit pipeline delay. When the window has at least one
+//       1-bit, the amplifier outputs the bit read on the PREVIOUS
+//       call (window bit 1, not the just-shifted-in bit 0). This is
+//       hardware behavior -- the amp needs a cell of integration
+//       time -- and is what AppleWin reproduces.
+//
+//    2. Weak bits / floating output. When all four window bits are
+//       zero (an unformatted region or intentional weak-bit gap),
+//       the amplifier has no signal to lock to and floats. AppleWin
+//       models this as a ~30% chance of a 1-bit per cell. WOZ-2.0
+//       protection schemes (Karateka RWTS18, Lode Runner, etc.) key
+//       off this randomness to detect copies, which trim the floating
+//       region to a deterministic value during duplication.
+//
+//  RNG is a per-engine LCG (not the global rand() AppleWin uses) so
+//  that tests remain deterministic per engine instance.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint8_t Disk2NibbleEngine::ApplyHeadWindow (uint8_t inBit)
+{
+    uint8_t   outBit = 0;
+
+    m_headWindow = static_cast<uint8_t> (((m_headWindow << 1) | (inBit & 1)) & 0x0F);
+
+    if ((m_headWindow & 0x0F) != 0)
+    {
+        outBit = static_cast<uint8_t> ((m_headWindow >> 1) & 1);
+    }
+    else
+    {
+        outBit = NextWeakBit();
+    }
+
+    return outBit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NextWeakBit
+//
+//  Per-engine deterministic LCG (Numerical Recipes constants). Returns
+//  a 1-bit with ~30% probability -- the WOZ-2.0 reference value for
+//  MC3470 floating-output behavior.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint8_t Disk2NibbleEngine::NextWeakBit()
+{
+    static constexpr uint32_t   kLcgMultiplier = 1664525u;
+    static constexpr uint32_t   kLcgIncrement  = 1013904223u;
+    // 0x4CCCCCCC = floor (0.3 * 2^32). Compare m_weakRngState (unsigned
+    // 32-bit) against this for a ~30% probability of returning 1.
+    static constexpr uint32_t   kWeakThreshold = 0x4CCCCCCCu;
+
+    m_weakRngState = m_weakRngState * kLcgMultiplier + kLcgIncrement;
+
+    return (m_weakRngState < kWeakThreshold) ? 1 : 0;
+}
+

@@ -223,30 +223,32 @@ public:
 
     ////////////////////////////////////////////////////////////////////////
     //  Karateka (1984, Broderbund). Aggressive copy-protection: nibble
-    //  counts, non-standard sync patterns, and a famous "Jordan
-    //  Mechner phase-6 bug". Full boot is a future goal -- this test
+    //  counts, non-standard sync patterns, and the Jordan-Mechner-era
+    //  RWTS18 trickery. Full boot is a future goal -- this test
     //  currently only proves Disk II plumbing reaches the loader far
     //  enough to attempt protection checks (motor, bit cursor, head
-    //  movement off track 0). Bumping to >= 10 tracks here is the
-    //  acceptance bar for "Karateka boots."
+    //  movement off track 0). Empirically the head walks 3 tracks
+    //  within the cycle budget before the protection check stalls
+    //  the loader; weak-bit emulation alone is not sufficient to
+    //  push past the check. Tracked for a follow-up issue.
     ////////////////////////////////////////////////////////////////////////
 
     TEST_METHOD (Karateka_WozBoot_LoaderReachesProtectionChecks)
     {
-        AssertGameBoots ("Apple2/Demos/Karateka.woz", L"Karateka", 2);
+        AssertGameBoots ("Apple2/Demos/Karateka.woz", L"Karateka", 3);
     }
 
 
     ////////////////////////////////////////////////////////////////////////
-    //  Lode Runner (1983, Broderbund). Mid-tier protection. Loader
-    //  walks the head further than Karateka but still doesn't reach
-    //  the deep content tracks under current emulation -- ~4 distinct
-    //  tracks before stalling. Bar set at >= 3 to prove the loader
-    //  is decoding bits and stepping; full boot is a follow-up.
+    //  Lode Runner (1983, Broderbund). Also stalls in protection like
+    //  Karateka; head reaches 4 distinct tracks before the loader's
+    //  check fails. Strong evidence the two games depend on the same
+    //  missing fidelity piece (track-seam jitter? big-skip jitter?
+    //  some other LSS detail). Follow-up issue tracks the dig.
     ////////////////////////////////////////////////////////////////////////
 
     TEST_METHOD (LodeRunner_WozBoot_LoaderReachesProtectionChecks)
     {
-        AssertGameBoots ("Apple2/Demos/LodeRunner.woz", L"Lode Runner", 3);
+        AssertGameBoots ("Apple2/Demos/LodeRunner.woz", L"Lode Runner", 4);
     }
 };

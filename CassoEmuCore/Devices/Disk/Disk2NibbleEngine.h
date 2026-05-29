@@ -72,6 +72,8 @@ private:
     void       AdvanceOneBit();
     void       ShiftReadBit (uint8_t bit);
     void       ShiftWriteBit();
+    uint8_t    ApplyHeadWindow (uint8_t inBit);
+    uint8_t    NextWeakBit();
 
     DiskImage *  m_disk          = nullptr;
     int          m_currentTrack  = 0;
@@ -85,6 +87,18 @@ private:
     int          m_latchDelayBits  = 0;
     uint8_t      m_writeLatch      = 0;
     bool         m_latchIsFresh    = false;
+
+    // MC3470 read-amplifier model (mirrors AppleWin's FloppyDrive::
+    // m_headWindow). Sliding 4-bit window of the most-recent bit cells
+    // read off the surface. When all four are zero (unformatted region
+    // or intentional weak-bit gap), the amplifier "floats" and the
+    // output bit is randomized (~30% chance of a 1). Otherwise the
+    // output is the bit read on the previous call -- a one-bit pipeline
+    // delay through the head. Both behaviors are required for fidelity
+    // with WOZ protection schemes that key off unformatted-region read
+    // variability (Karateka RWTS18, Lode Runner, etc.).
+    uint8_t      m_headWindow     = 0;
+    uint32_t     m_weakRngState   = 0xDEADBEEFu;
 
     // Lifetime nibble I/O counters (increment on CPU read of $C0EC
     // when MSB-set, and on CPU write of $C0ED in write mode). Surfaced

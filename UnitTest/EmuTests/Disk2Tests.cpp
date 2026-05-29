@@ -298,9 +298,10 @@ public:
         WriteNibbleToImage (*img, 0, off, 0xAA);
         WriteNibbleToImage (*img, 0, off, 0x96);
 
-        // Pump 8 bits per nibble × 3 nibbles. The latch reports the first
-        // nibble whose MSB is set: 0xD5.
-        for (i = 0; i < 8; i++)
+        // Pump 8 bits per nibble × 3 nibbles, plus one extra cell to
+        // drain the MC3470 head-amplifier's one-cell pipeline delay.
+        // The latch reports the first nibble whose MSB is set: 0xD5.
+        for (i = 0; i < 9; i++)
         {
             disk->Tick (Disk2NibbleEngine::kCyclesPerBit);
         }

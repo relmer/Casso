@@ -177,6 +177,11 @@ public:
 
         eng.SetDiskImage (&img);
         eng.SetMotorOn   (true);
+
+        // Drain the MC3470 head-amplifier's one-cell pipeline delay so
+        // subsequent "TickBits (eng, 8)" calls assemble a full nibble
+        // matching the documented "8 bits per nibble" model.
+        eng.Tick (Disk2NibbleEngine::kCyclesPerBit);
     }
 
     static void TickBits (Disk2NibbleEngine & eng, int bits)
@@ -309,6 +314,91 @@ public:
                 L"Interleaved ConsumeFreshNibble must not change the CPU-visible ReadLatch");
 
             engA.ConsumeFreshNibble (sink);
+        }
+    }
+
+
+    TEST_METHOD (WeakBits_UnformattedTrackProducesMixedBitsViaHeadAmpFloat)
+    {
+        // MC3470 read-amplifier model: when the sliding 4-bit head
+        // window is all zeros (no signal locked to the surface), the
+        // amplifier "floats" and the output bit is randomized with
+        // ~30% probability of a 1. This is the behavior WOZ-2.0
+        // copy-protection schemes (Karateka RWTS18, Lode Runner) key
+        // off to detect bit-exact copies that have replaced the
+        // floating region with deterministic zeros or ones.
+        //
+        // Drive the engine across a fully-zero track and count the
+        // 1-bits in the working shift register over a large sample.
+        // The empirical rate must land in a band around 30% --
+        // statistically wide enough to be insensitive to the exact
+        // LCG constants but tight enough to fail if the weak-bit
+        // path is silently bypassed.
+        DiskImage             img;
+        Disk2NibbleEngine     eng;
+        const int             kSampleBits = 100000;
+        int                   onesCount   = 0;
+        int                   i           = 0;
+        double                rate        = 0.0;
+
+        // 4096-bit track of all zeros. Engine will only ever see
+        // window == 0 once the initial seed bits drain, so every
+        // subsequent output bit must come from the weak-bit RNG.
+        img.ResizeTrack (0, 4096);
+
+        eng.SetDiskImage (&img);
+        eng.SetMotorOn   (true);
+
+        for (i = 0; i < kSampleBits; i++)
+        {
+            eng.Tick (Disk2NibbleEngine::kCyclesPerBit);
+
+            // PeekReadLatch reflects the latest assembled state.
+            // We count by sampling the latch's LSB each cell -- a
+            // proxy for the most-recently-shifted-in bit.
+            if ((eng.PeekReadLatch () & 0x01) != 0)
+            {
+                onesCount++;
+            }
+        }
+
+        rate = (double) onesCount / (double) kSampleBits;
+
+        // ~30% target ± wide tolerance. If the weak-bit path is
+        // disabled entirely, rate collapses to 0.0 and this fails.
+        // If the threshold drifts catastrophically, rate moves out
+        // of the 0.20..0.40 band.
+        Assert::IsTrue (rate > 0.20 && rate < 0.40,
+            L"Weak-bit rate must be in the ~30% band over unformatted track");
+    }
+
+
+    TEST_METHOD (WeakBits_FormattedTrackIsDeterministicAcrossRuns)
+    {
+        // Sanity guard: weak-bit randomization MUST NOT leak into
+        // tracks with real signal. A formatted track (any non-zero
+        // pattern in every 4-cell window) keeps the head window
+        // non-zero, taking the deterministic branch every cell.
+        // Two engines fed the same formatted bit stream must produce
+        // byte-identical latch sequences.
+        DiskImage             imgA;
+        DiskImage             imgB;
+        Disk2NibbleEngine     engA;
+        Disk2NibbleEngine     engB;
+        int                   i        = 0;
+
+        // 0xFF pattern -- every bit is 1, so the head window never
+        // empties and the weak-bit RNG never fires.
+        PrepareSingleByteStream (imgA, engA, 0xFF);
+        PrepareSingleByteStream (imgB, engB, 0xFF);
+
+        for (i = 0; i < 256; i++)
+        {
+            engA.Tick (Disk2NibbleEngine::kCyclesPerBit);
+            engB.Tick (Disk2NibbleEngine::kCyclesPerBit);
+
+            Assert::AreEqual ((int) engA.PeekReadLatch (), (int) engB.PeekReadLatch (),
+                L"Formatted-track latch sequence must be deterministic across engines");
         }
     }
 };
