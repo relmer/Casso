@@ -15,6 +15,7 @@
 #include "Ui/DwriteTextRenderer.h"
 #include "Ui/Dialog/StandaloneDialog.h"
 #include "Ui/Dialog/StartupDownloadDialog.h"
+#include "Ui/Widgets/ListView.h"
 #include "UnicodeSymbols.h"
 
 #pragma comment(lib, "winhttp.lib")
@@ -1681,9 +1682,8 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int  s_kBootMruRowHeightPx = 26;
-static constexpr int  s_kBootMruRowGapPx    = 2;
-static constexpr int  s_kBootMruBodyWidthPx = 480;
+static constexpr int  s_kBootMruBodyWidthDp  = 520;
+static constexpr int  s_kBootMruSourceColDp  = 200;
 
 HRESULT AssetBootstrap::PromptBootDiskMru (
     HINSTANCE                  hInstance,
@@ -1696,24 +1696,25 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
 {
     struct DownloadRow { const BootDiskSpec * spec; wstring label; };
 
-    HRESULT             hr           = S_OK;
-    bool                hasDisk      = false;
-    DialogDefinition    def          = {};
+    HRESULT             hr            = S_OK;
+    bool                hasDisk       = false;
+    DialogDefinition    def           = {};
     wstring             title;
     wstring             intro;
     wstring             displayName;
-    vector<wstring>     labels;
-    DownloadRow         downloads[]  =
+    DownloadRow         downloads[]   =
     {
-        { &s_kDos33Disk,  L"DOS 3.3 (Download)" },
-        { &s_kProDOSDisk, L"ProDOS (Download)"  }
+        { &s_kDos33Disk,  L"DOS 3.3"  },
+        { &s_kProDOSDisk, L"ProDOS"   }
     };
-    int                 hovered      = -1;
-    int                 chosen       = IDCANCEL;
-    int                 mruCount     = (int) mruEntries.size();
+    int                 chosen        = IDCANCEL;
+    int                 mruCount      = (int) mruEntries.size();
     int                 downloadCount = (int) std::size (downloads);
-    int                 rowCount     = mruCount + downloadCount;
-    int                 totalH       = 0;
+    int                 rowCount      = mruCount + downloadCount;
+    UINT                sysDpi        = (hwndParent != nullptr) ? GetDpiForWindow (hwndParent)
+                                                                : GetDpiForSystem();
+    ListView            list;
+    error_code          ec;
 
 
     outDiskPath.clear();
@@ -1742,80 +1743,71 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
                  L"stock master from the Asimov archive to get started.";
     }
 
-    labels.reserve ((size_t) rowCount);
-    for (const auto & p : mruEntries)
+    // Populate the list. Mru rows show "<basename> | <parent dir>";
+    // download rows show "<name> | Asimov archive (Download)".
     {
-        labels.push_back (p.filename().wstring());
-    }
-    for (const DownloadRow & dr : downloads)
-    {
-        labels.push_back (dr.label);
+        std::vector<ListView::Column>            cols;
+        std::vector<std::vector<ListView::Cell>> rows;
+
+        cols.push_back ({ L"Disk image", 0,                     DwriteTextRenderer::HAlign::Left });
+        cols.push_back ({ L"Location",   s_kBootMruSourceColDp, DwriteTextRenderer::HAlign::Left });
+
+        rows.reserve ((size_t) rowCount);
+
+        for (const auto & p : mruEntries)
+        {
+            ListView::Cell name { p.filename().wstring(), false };
+            ListView::Cell loc  { p.parent_path().wstring(), true };
+            rows.push_back ({ std::move (name), std::move (loc) });
+        }
+
+        for (const DownloadRow & dr : downloads)
+        {
+            fs::path        wantPath = diskDir / string (dr.spec->cassoName);
+            bool            present  = fs::exists (wantPath, ec);
+            ListView::Cell  name     { dr.label, false };
+            ListView::Cell  loc      { present ? wantPath.parent_path().wstring()
+                                                : L"Asimov archive (Download)",
+                                       true };
+            rows.push_back ({ std::move (name), std::move (loc) });
+        }
+
+        list.SetDpi        (sysDpi);
+        list.SetShowHeader (true);
+        list.SetColumns    (std::move (cols));
+        list.SetRows       (std::move (rows));
     }
 
-    totalH = rowCount * s_kBootMruRowHeightPx
-           + (rowCount > 0 ? (rowCount - 1) * s_kBootMruRowGapPx : 0);
-
-    def.title = title;
-    def.icon  = DialogIcon::AppFlat;
+    def.title              = title;
+    def.icon               = DialogIcon::AppFlat;
     def.iconSizeOverrideDp = 64.0f;
     def.body.push_back ({ intro, false, L"" });
-    def.customBodyMinSizePx.cx = s_kBootMruBodyWidthPx;
-    def.customBodyMinSizePx.cy = totalH;
+    def.customBodyMinSizePx.cx = MulDiv (s_kBootMruBodyWidthDp, (int) sysDpi, 96);
+    def.customBodyMinSizePx.cy = list.RequiredHeightPx();
 
-    def.onPaintCustomBody = [&labels, mruCount, &hovered] (DialogPaintContext & ctx)
+    def.onPaintCustomBody = [&list] (DialogPaintContext & ctx)
     {
-        if (ctx.painter == nullptr || ctx.text == nullptr || ctx.theme == nullptr)
+        if (ctx.painter == nullptr || ctx.text == nullptr)
         {
             return;
         }
 
-        float    x      = (float) ctx.customBodyRect.left;
-        float    y      = (float) ctx.customBodyRect.top;
-        float    w      = (float) (ctx.customBodyRect.right - ctx.customBodyRect.left);
-        uint32_t bg     = ctx.theme->dropdownBgArgb;
-        uint32_t fg     = ctx.theme->dropdownItemTextArgb;
-        uint32_t fgDim  = (fg & 0x00FFFFFFu) | 0xB0000000u;
-        uint32_t hov    = ctx.theme->navHoverArgb;
-        float    rowH   = (float) s_kBootMruRowHeightPx;
-        float    gap    = (float) s_kBootMruRowGapPx;
-        float    fontPx = 14.0f * ctx.dpiScale;
-        HRESULT  hr     = S_OK;
-
-        for (size_t i = 0; i < labels.size(); ++i)
-        {
-            float    ry        = y + (float) i * (rowH + gap);
-            bool     isHov     = ((int) i == hovered);
-            bool     isDownload = ((int) i >= mruCount);
-            uint32_t bandBg    = isHov ? hov : bg;
-            uint32_t textArgb  = isDownload ? fgDim : fg;
-
-            ctx.painter->FillRect (x, ry, w, rowH, bandBg);
-
-            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (labels[i].c_str(),
-                                                           x + 8.0f, ry,
-                                                           w - 16.0f, rowH,
-                                                           textArgb,
-                                                           fontPx, L"Segoe UI",
-                                                           DwriteTextRenderer::HAlign::Left,
-                                                           DwriteTextRenderer::VAlign::CenterOnCapHeight));
-        }
+        list.SetTheme (ctx.theme);
+        list.SetRect  (ctx.customBodyRect);
+        list.Paint    (*ctx.painter, *ctx.text);
     };
 
-    def.onInputCustomBody = [rowCount, &hovered] (const DialogInputEvent & ev) -> std::optional<int>
+    def.onInputCustomBody = [&list] (const DialogInputEvent & ev) -> std::optional<int>
     {
-        int  rowH    = s_kBootMruRowHeightPx;
-        int  gap     = s_kBootMruRowGapPx;
-        int  stride  = rowH + gap;
-        int  idx     = (ev.yPx < 0) ? -1 : (ev.yPx / stride);
-        bool isRow   = (idx >= 0 && idx < rowCount && (ev.yPx % stride) < rowH);
+        int  idx = list.HitTestRow (ev.xPx, ev.yPx);
 
         if (ev.kind == DialogInputEvent::Kind::MouseMove)
         {
-            hovered = isRow ? idx : -1;
+            list.SetHoveredRow (idx);
             return std::nullopt;
         }
 
-        if (ev.kind == DialogInputEvent::Kind::LeftButtonUp && isRow)
+        if (ev.kind == DialogInputEvent::Kind::LeftButtonUp && idx >= 0)
         {
             return idx;
         }
