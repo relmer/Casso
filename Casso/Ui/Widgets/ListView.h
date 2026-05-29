@@ -84,7 +84,9 @@ public:
             {
                 IGNORE_RETURN_VALUE (hr, text.MeasureString (m_columns[c].title.c_str(),
                                                              hdrDip, L"Segoe UI", w, h));
-                wpx = std::max (wpx, (int) std::ceil (w));
+                // MeasureString uses regular weight; the header paints
+                // bold, which is ~10% wider. Bump to avoid wrapping.
+                wpx = std::max (wpx, (int) std::ceil (w * 1.12f));
             }
 
             for (const auto & row : m_rows)
@@ -244,9 +246,9 @@ public:
     }
 
 private:
-    static constexpr int  s_kRowHeightDp     = 36;
-    static constexpr int  s_kHeaderHeightDp  = 30;
-    static constexpr int  s_kHeaderGapDp     = 4;
+    static constexpr int  s_kRowHeightDp     = 30;
+    static constexpr int  s_kHeaderHeightDp  = 26;
+    static constexpr int  s_kHeaderGapDp     = 2;
     static constexpr int  s_kCellPadLeftDp   = 12;
     static constexpr int  s_kCellPadRightDp  = 16;
     static constexpr float s_kFontDp         = 14.0f;
