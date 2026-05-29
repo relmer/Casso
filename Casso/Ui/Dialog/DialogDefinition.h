@@ -86,6 +86,9 @@ struct DialogDefinition
 {
     std::wstring                                       title;
     DialogIcon                                         icon = DialogIcon::None;
+    // Per-dialog icon size override in DIPs. 0 = use the default
+    // primitive icon size.
+    float                                              iconSizeOverrideDp = 0.0f;
     std::vector<DialogTextRun>                         body;
     std::vector<DialogButton>                          buttons;
 

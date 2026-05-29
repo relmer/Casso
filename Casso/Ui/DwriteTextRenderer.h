@@ -78,7 +78,8 @@ public:
                                float           fontSizeDip,
                                const wchar_t * fontFamily,
                                HAlign          hAlign = HAlign::Left,
-                               VAlign          vAlign = VAlign::Top);
+                               VAlign          vAlign = VAlign::Top,
+                               DWRITE_FONT_WEIGHT weight = DWRITE_FONT_WEIGHT_NORMAL);
 
     HRESULT  FillRect         (float    xDip,
                                float    yDip,
@@ -134,19 +135,22 @@ public:
 private:
     struct TextFormatKey
     {
-        std::wstring  family;
-        float         sizeDip = 0.0f;
+        std::wstring        family;
+        float               sizeDip = 0.0f;
+        DWRITE_FONT_WEIGHT  weight  = DWRITE_FONT_WEIGHT_NORMAL;
 
         bool operator < (const TextFormatKey & other) const
         {
             if (family != other.family) { return family < other.family; }
-            return sizeDip < other.sizeDip;
+            if (sizeDip != other.sizeDip) { return sizeDip < other.sizeDip; }
+            return weight < other.weight;
         }
     };
 
 
     HRESULT  EnsureTextFormat (const wchar_t                * family,
                                float                          fontSizeDip,
+                               DWRITE_FONT_WEIGHT             weight,
                                IDWriteTextFormat           ** outFormat);
 
 

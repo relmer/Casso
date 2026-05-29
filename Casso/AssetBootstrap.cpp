@@ -1103,7 +1103,7 @@ static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, const vector<const
     }
 
     intro  = L"Casso needs the Apple //e ROMs listed below to boot. ";
-    intro += L"They're not bundled, but the AppleWin project hosts them at:";
+    intro += L"They're not bundled but can be downloaded from AppleWin at ";
 
     title  = L"Casso ";
     title += s_kchEmDash;
@@ -1113,8 +1113,9 @@ static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, const vector<const
                             + rowCount * s_kRomRowGapDp)
                     * dpiScale);
 
-    def.title = title;
-    def.icon  = DialogIcon::AppFlat;
+    def.title              = title;
+    def.icon               = DialogIcon::AppFlat;
+    def.iconSizeOverrideDp = 64.0f;
     def.body.push_back ({ intro, false, L"" });
     def.body.push_back ({ L"https://github.com/AppleWin/AppleWin",
                           true, L"https://github.com/AppleWin/AppleWin" });
@@ -1162,19 +1163,21 @@ static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, const vector<const
 
             ctx.painter->FillRect (x, y, fullW, rowH, headerBg);
 
-            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (L"ROM File",
+            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (L"ROM file",
                                                            x + pad, y,
                                                            nameW, rowH,
-                                                           headerFg, fontPx, L"Segoe UI Semibold",
+                                                           headerFg, fontPx, L"Segoe UI",
                                                            DwriteTextRenderer::HAlign::Left,
-                                                           DwriteTextRenderer::VAlign::Center));
+                                                           DwriteTextRenderer::VAlign::Center,
+                                                           DWRITE_FONT_WEIGHT_BOLD));
 
             IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (L"Description",
                                                            descX, y,
                                                            descW, rowH,
-                                                           headerFg, fontPx, L"Segoe UI Semibold",
+                                                           headerFg, fontPx, L"Segoe UI",
                                                            DwriteTextRenderer::HAlign::Left,
-                                                           DwriteTextRenderer::VAlign::Center));
+                                                           DwriteTextRenderer::VAlign::Center,
+                                                           DWRITE_FONT_WEIGHT_BOLD));
 
             y += rowH + gap;
         }

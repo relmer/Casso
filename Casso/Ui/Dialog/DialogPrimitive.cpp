@@ -63,6 +63,8 @@ HRESULT DialogPrimitive::RegisterClass (HINSTANCE hInstance)
 
     CBRAEx (hInstance, E_INVALIDARG);
 
+    m_hInstance = hInstance;
+
     ok = GetClassInfoExW (hInstance, s_kpszDialogClass, &wcex);
     BAIL_OUT_IF (ok, S_OK);
 
@@ -80,8 +82,6 @@ HRESULT DialogPrimitive::RegisterClass (HINSTANCE hInstance)
 
     atom = RegisterClassExW (&wcex);
     CWRA (atom);
-
-    m_hInstance = hInstance;
 
 Error:
     return hr;
@@ -750,7 +750,9 @@ void DialogPrimitive::RecomputeLayout (UINT dpi)
     metrics.buttonHeightPx   = s_kButtonHeightDp   * dpiScale;
     metrics.buttonPaddingPx  = s_kButtonPaddingDp  * dpiScale;
     metrics.buttonSpacingPx  = s_kButtonSpacingDp  * dpiScale;
-    metrics.iconSizePx       = s_kIconSizeDp       * dpiScale;
+    metrics.iconSizePx       = ((m_def != nullptr && m_def->iconSizeOverrideDp > 0.0f)
+                                ? m_def->iconSizeOverrideDp
+                                : s_kIconSizeDp) * dpiScale;
     metrics.bodyLineHeightPx = s_kBodyLineHeightDp * dpiScale;
     metrics.outerPaddingPx   = s_kOuterPaddingDp   * dpiScale;
     metrics.iconBodyGapPx    = s_kIconBodyGapDp    * dpiScale;
