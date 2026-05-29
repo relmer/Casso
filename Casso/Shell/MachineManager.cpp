@@ -799,6 +799,18 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
         m_shell.m_refs.speaker->SetCycleCounter (m_shell.m_cpu->GetCycleCounterPtr());
     }
 
+    // Issue #67: drive Disk2Controller bit-stream catch-up off the CPU
+    // cycle counter so every $C0Ex read/write resyncs the engine to
+    // elapsed CPU time before the soft-switch dispatch fires (matches
+    // AppleWin's CpuCalcCycles-at-top-of-handler pattern). MachineManager
+    // owns both the EmuCpu and the device list, so this is the right
+    // wiring point -- the controller is cached into m_refs.diskController
+    // just above in AddDevices.
+    if (m_shell.m_refs.diskController != nullptr)
+    {
+        m_shell.m_refs.diskController->SetCpuCycleSource (m_shell.m_cpu->GetBusCyclePtr());
+    }
+
     return hr;
 }
 

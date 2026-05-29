@@ -12,11 +12,31 @@ class DiskImage;
 //
 //  Disk2NibbleEngine
 //
-//  Bit-stream LSS-style engine. Owns the per-drive stream cursor and the
-//  read/write data latches. The engine ticks through the current track
-//  at the standard Disk II bit rate (~4 cycles per bit at 1.023 MHz).
-//  Head position, motor state, drive selection, write protect, and Q6/Q7
-//  latches are owned by Disk2Controller and pushed in via setters.
+//  Faithful port of the Disk II Logic State Sequencer (LSS) -- the P6
+//  state machine inside the controller that turns the raw magnetic flux
+//  stream into the CPU-visible data register. Owns the per-drive stream
+//  cursor, the 8-bit data latch, and the LSS state/clock. Head position,
+//  motor state, drive selection, write protect, and Q6/Q7 latches are
+//  owned by Disk2Controller and pushed in via setters.
+//
+//  The sequencer runs at 2 MHz (two LSS clocks per CPU cycle). Eight LSS
+//  clocks make one bit cell, so the head advances one bit every four CPU
+//  cycles -- the standard ~250 kbps Disk II data rate at 1.023 MHz. The
+//  read pulse is sampled once per bit cell, at LSS clock 4.
+//
+//  References:
+//    - "Understanding the Apple IIe" (Sather), Fig 9.11 (DOS 3.3 / 16-
+//      sector P6 Logic State Sequencer) and Table 9.3 (LSS commands).
+//    - WOZ disk image spec, incl. "Freaking Out Like a MC3470":
+//        https://applesauce.codes/woz/
+//    - Reference LSS stepping loop and P6 sequencer ROM adapted from
+//      apple2js (MIT, (c) Will Scullin):
+//        https://github.com/whscullin/apple2js
+//        js/cards/disk2.ts (SEQUENCER_ROM_16)
+//        js/cards/drivers/WozDiskDriver.ts (moveHead)
+//      The sequencer ROM itself is factual hardware data (the physical
+//      contents of the P6 PROM); the surrounding code is an independent
+//      C++ implementation.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,13 +62,15 @@ public:
     size_t     GetBitPosition() const { return m_bitPos; }
 
     // Lifetime nibble I/O counters surfaced to the UI status-bar
-    // tooltip. Increment on each successful CPU latch read (MSB-set)
-    // and each CPU latch write while in write mode.
+    // tooltip. The read counter increments once per assembled nibble
+    // (LSS "byte ready" rising edge); the write counter increments on
+    // each CPU latch write while in write mode.
     uint64_t   GetReadNibbles() const { return m_readNibbles; }
     uint64_t   GetWriteNibbles() const { return m_writeNibbles; }
 
-    // Diagnostic / test peek at the current read latch contents without
-    // the read-clears-on-MSB side effect ReadLatch carries.
+    // Diagnostic / test peek at the current data latch contents. ReadLatch
+    // is itself a pure sample (no side effect), so this is identical to
+    // ReadLatch but const and counter-free.
     uint8_t    PeekReadLatch() const { return m_readLatch; }
 
     void       Tick (uint32_t cpuCycles);
@@ -69,9 +91,7 @@ public:
     bool       ConsumeFreshNibble (uint8_t & outNibble);
 
 private:
-    void       AdvanceOneBit();
-    void       ShiftReadBit (uint8_t bit);
-    void       ShiftWriteBit();
+    void       StepLss();
     uint8_t    ApplyHeadWindow (uint8_t inBit);
     uint8_t    NextWeakBit();
 
@@ -81,12 +101,20 @@ private:
     bool         m_writeMode     = false;
     bool         m_shiftLoadMode = false;
     size_t       m_bitPos        = 0;
-    uint32_t     m_cycleAccum    = 0;
-    uint8_t      m_readLatch       = 0;
-    uint8_t      m_workingShift    = 0;
-    int          m_latchDelayBits  = 0;
-    uint8_t      m_writeLatch      = 0;
-    bool         m_latchIsFresh    = false;
+
+    // Logic State Sequencer registers. m_lssState is the 4-bit P6
+    // sequencer state (high nibble of the ROM command); m_lssClock is
+    // the 0..7 bit-cell clock; m_readLatch is the 8-bit data register
+    // the CPU reads at $C0EC; m_bus is the value last written by the
+    // CPU, loaded into the latch by the LSS LOAD command during writes.
+    // m_lssState starts at 2 (UtA2e p.9-29) so the sequencer produces
+    // correctly synced nibbles immediately rather than emitting a
+    // spurious leading 1.
+    uint8_t      m_lssState      = 2;
+    int          m_lssClock      = 0;
+    uint8_t      m_readLatch     = 0;
+    uint8_t      m_bus           = 0;
+    bool         m_latchIsFresh  = false;
 
     // MC3470 read-amplifier model (mirrors AppleWin's FloppyDrive::
     // m_headWindow). Sliding 4-bit window of the most-recent bit cells

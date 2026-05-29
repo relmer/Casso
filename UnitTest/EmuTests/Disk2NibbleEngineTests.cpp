@@ -38,17 +38,26 @@ public:
         eng.SetDiskImage (&img);
         eng.SetMotorOn   (true);
 
-        eng.Tick (3);
-        Assert::AreEqual (size_t (0), eng.GetBitPosition(),
-            L"3 cycles is below the 4-cycle bit boundary");
-
-        eng.Tick (1);
+        // The Logic State Sequencer runs at 2 MHz (two LSS clocks per CPU
+        // cycle) and advances the head one bit per eight LSS clocks --
+        // i.e. one bit every kCyclesPerBit (4) CPU cycles, the standard
+        // ~250 kbps data rate. A full bit cell's worth of cycles advances
+        // exactly one bit.
+        eng.Tick (Disk2NibbleEngine::kCyclesPerBit);
         Assert::AreEqual (size_t (1), eng.GetBitPosition(),
-            L"4 cumulative cycles must produce one bit advance");
+            L"One bit cell (4 cycles) must produce one bit advance");
 
         eng.Tick (Disk2NibbleEngine::kCyclesPerBit * 5);
         Assert::AreEqual (size_t (6), eng.GetBitPosition(),
             L"5 more bits' worth of cycles must advance 5 bits");
+
+        // Sub-bit-cell ticks accumulate across calls: the LSS clock is
+        // retained between Tick calls, so two half-cell ticks make one
+        // whole bit advance rather than being rounded away.
+        eng.Tick (Disk2NibbleEngine::kCyclesPerBit / 2);
+        eng.Tick (Disk2NibbleEngine::kCyclesPerBit / 2);
+        Assert::AreEqual (size_t (7), eng.GetBitPosition(),
+            L"Two half-cell ticks must sum to one bit advance");
     }
 
     TEST_METHOD (ReadAdvancesPosition)

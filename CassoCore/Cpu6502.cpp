@@ -44,6 +44,7 @@ HRESULT Cpu6502::Reset ()
     m_nmiLine     = false;
     m_nmiPending  = false;
     m_totalCycles = 0;
+    m_busCycle    = 0;
 
     return hr;
 }
@@ -82,6 +83,36 @@ HRESULT Cpu6502::Step (uint32_t & outCycles)
     }
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateBusCycle
+//
+//  Refreshes the sub-instruction bus-cycle estimate to the current memory
+//  access. A 6502 read/write to the operand address lands on the final
+//  cycle of the instruction, so the access cycle is the start-of-instruction
+//  cumulative count plus (m_lastCycles - 1). During StepOne m_totalCycles
+//  still holds the start-of-instruction value -- it is only rolled forward
+//  after the instruction retires -- so it serves as that base regardless of
+//  whether the host drives the CPU via Step or StepOne + AddCycles.
+//  Disk2Controller samples this (via GetBusCyclePtr) at each $C0Ex access,
+//  giving rotational position current to the access rather than quantized to
+//  the instruction boundary.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu6502::UpdateBusCycle ()
+{
+    uint64_t  offset = (m_lastCycles > 0) ? static_cast<uint64_t> (m_lastCycles - 1) : 0;
+
+
+
+    m_busCycle = m_totalCycles + offset;
 }
 
 

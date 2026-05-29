@@ -104,6 +104,21 @@ public:
     // Cycle-driven advance. EmuCpu pumps cycles per Step.
     void   Tick (uint32_t cpuCycles);
 
+    // Issue #67: catch-up cycle source. When set, every Read/Write of
+    // the $C0Ex page first walks the active drive's bit-stream engine
+    // forward to the CPU's current cycle count BEFORE the soft-switch
+    // dispatch fires, mirroring AppleWin's CpuCalcCycles-at-top-of-
+    // handler pattern. The counter is the per-instruction cycle
+    // accumulator (m_totalCycles), so the engine is current to the end
+    // of the previous instruction at the moment of the access -- the
+    // same effective granularity AppleWin provides.
+    //
+    // When a source is attached, the per-instruction Tick path no
+    // longer advances the engine bit cursor (the catch-up does it on
+    // demand). Pass nullptr for tests that drive the controller
+    // without a real CPU.
+    void   SetCpuCycleSource (const uint64_t * cycleSource) noexcept { m_cpuCycleSource = cycleSource; m_lastCpuSync = (cycleSource != nullptr) ? *cycleSource : 0; }
+
     // Inspectors used by Phase 9 tests.
     int    GetActiveDrive() const { return m_activeDrive; }
     bool   IsMotorOn() const { return m_motorOn; }
@@ -122,6 +137,7 @@ private:
     void   HandlePhase (int phase, bool on);
     void   UpdateEngineSelection();
     Byte   HandleReadDispatch();
+    void   CatchUpToCpu();
 
     int                  m_slot;
     Word                 m_ioStart;
@@ -161,4 +177,7 @@ private:
 
     IDisk2EventSink *         m_eventSink       = nullptr;
     Disk2AddressMarkWatcher   m_addrMarkWatcher;
+
+    const uint64_t *          m_cpuCycleSource = nullptr;
+    uint64_t                  m_lastCpuSync    = 0;
 };

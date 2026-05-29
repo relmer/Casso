@@ -74,6 +74,8 @@ Byte Disk2Controller::Read (Word address)
 {
     int   offset = (address - m_ioStart) & 0x0F;
 
+    CatchUpToCpu();
+
     HandleSwitch (offset);
 
     return HandleReadDispatch();
@@ -95,6 +97,8 @@ Byte Disk2Controller::Read (Word address)
 void Disk2Controller::Write (Word address, Byte value)
 {
     int   offset = (address - m_ioStart) & 0x0F;
+
+    CatchUpToCpu();
 
     HandleSwitch (offset);
 
@@ -524,7 +528,59 @@ void Disk2Controller::Tick (uint32_t cpuCycles)
         }
     }
 
-    m_engine[m_activeDrive].Tick (cpuCycles);
+    // When a CPU cycle source is attached, the engine bit cursor is
+    // driven exclusively via CatchUpToCpu at each $C0Ex access. Skip the
+    // per-instruction engine advance here to avoid double-counting
+    // cycles. Motor spin-up/spindown timers above still run off the bulk
+    // per-instruction count -- they're coarse-grained and don't need
+    // sub-instruction precision.
+    if (m_cpuCycleSource == nullptr)
+    {
+        m_engine[m_activeDrive].Tick (cpuCycles);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatchUpToCpu
+//
+//  Issue #67. When a CPU cycle source is attached, pull the active
+//  drive's bit-stream engine forward to the CPU's current cycle count.
+//  Called from the top of Read/Write so by the time HandleSwitch /
+//  HandleReadDispatch run, the engine's m_bitPos reflects elapsed CPU
+//  time since the last access. The source is the sub-instruction bus
+//  cycle (Cpu6502::m_busCycle), current to the in-flight $C0Ex access
+//  rather than the instruction boundary -- matching AppleWin attributing
+//  the disk update to the exact bus cycle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::CatchUpToCpu()
+{
+    uint64_t  now   = 0;
+    uint64_t  delta = 0;
+
+
+    if (m_cpuCycleSource == nullptr)
+    {
+        return;
+    }
+
+    now = *m_cpuCycleSource;
+
+    if (now <= m_lastCpuSync)
+    {
+        return;
+    }
+
+    delta         = now - m_lastCpuSync;
+    m_lastCpuSync = now;
+
+    m_engine[m_activeDrive].Tick (static_cast<uint32_t> (delta));
 }
 
 

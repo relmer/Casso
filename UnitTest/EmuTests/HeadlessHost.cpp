@@ -266,6 +266,14 @@ HRESULT HeadlessHost::BuildAppleIIeWithDisk2 (EmulatorCore & outCore)
 
     outCore.bus->AddDevice (outCore.diskController.get ());
 
+    // Issue #67: drive Disk2Controller bit-stream catch-up off the CPU
+    // cycle counter so $C0Ex reads/writes resync the engine to elapsed
+    // CPU time before dispatch (matches AppleWin's CpuCalcCycles-at-top-
+    // of-handler pattern). DiskReadbackTests that pump Tick(N) manually
+    // without running the CPU MUST detach this pointer via
+    // SetCpuCycleSource(nullptr) after spin-up.
+    outCore.diskController->SetCpuCycleSource (outCore.cpu->GetBusCyclePtr ());
+
 Error:
     return hr;
 }

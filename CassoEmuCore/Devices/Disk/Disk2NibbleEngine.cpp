@@ -6,6 +6,79 @@
 
 
 
+namespace
+{
+    // Logic State Sequencer clocking. The P6 sequencer runs at 2 MHz --
+    // two LSS clocks per 1.023 MHz CPU cycle. Eight LSS clocks make one
+    // bit cell, so the head advances one bit every four CPU cycles. The
+    // read pulse is sampled once per bit cell, at clock 4.
+    constexpr uint32_t   kLssClocksPerCpuCycle = 2;
+    constexpr int        kLssReadClock         = 4;
+    constexpr int        kLssMaxClock          = 7;
+    constexpr uint8_t    kLssInitialState      = 2;
+
+    // Data-latch MSB ("byte ready" / QA) and the write-bit selector taken
+    // from the sequencer's next-state high bit.
+    constexpr uint8_t    kLatchMsbMask  = 0x80;
+    constexpr uint8_t    kWriteBitMask  = 0x08;
+
+    // Sequencer ROM index bit positions (see "Understanding the Apple IIe"
+    // Fig 9.11 column ordering): pulse-absent, latch MSB, Q6, Q7, then the
+    // 4-bit current state shifted into the high nibble.
+    constexpr uint8_t    kIdxNoPulse  = 0x01;
+    constexpr uint8_t    kIdxLatchMsb = 0x02;
+    constexpr uint8_t    kIdxQ6       = 0x04;
+    constexpr uint8_t    kIdxQ7       = 0x08;
+    constexpr int        kIdxStateShift = 4;
+
+    // P6 sequencer command opcodes (low nibble of each ROM entry). See
+    // UtA2e Table 9.3 "Logic State Sequencer Commands".
+    constexpr uint8_t    kLssCmdClr       = 0x0;   // latch <- 0
+    constexpr uint8_t    kLssCmdNop       = 0x8;   // hold
+    constexpr uint8_t    kLssCmdShiftZero = 0x9;   // latch <- latch << 1
+    constexpr uint8_t    kLssCmdShiftRight = 0xA;  // latch >>= 1 (WP -> 0xFF)
+    constexpr uint8_t    kLssCmdLoad      = 0xB;   // latch <- bus
+    constexpr uint8_t    kLssCmdShiftOne  = 0xD;   // latch <- (latch << 1) | 1
+
+    constexpr uint8_t    kLssCommandMask  = 0x0F;
+    constexpr int        kLssStateShift   = 4;
+    constexpr uint8_t    kLssStateMask    = 0x0F;
+
+    // DOS 3.3 / 16-sector P6 Logic State Sequencer ROM. 16 states (rows) x
+    // 16 input combinations (columns). Column index = Q7<<3 | Q6<<2 |
+    // QA<<1 | (pulse ? 0 : 1). High nibble of each entry is the next
+    // state; low nibble is the command opcode above.
+    //
+    // Source: "Understanding the Apple IIe" (Sather) Fig 9.11; identical
+    // bytes published in apple2js (MIT, (c) Will Scullin), js/cards/
+    // disk2.ts SEQUENCER_ROM_16. The ROM contents are factual hardware
+    // data (the physical P6 PROM image).
+    constexpr uint8_t   s_kSequencerRom16[256] =
+    {
+        //                Q7 L (Read)                                     Q7 H (Write)
+        //    Q6 L (Shift)            Q6 H (Load)             Q6 L (Shift)             Q6 H (Load)
+        //  QA L        QA H        QA L        QA H        QA L        QA H        QA L        QA H
+        0x18, 0x18, 0x18, 0x18, 0x0A, 0x0A, 0x0A, 0x0A, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, // 0
+        0x2D, 0x2D, 0x38, 0x38, 0x0A, 0x0A, 0x0A, 0x0A, 0x28, 0x28, 0x28, 0x28, 0x28, 0x28, 0x28, 0x28, // 1
+        0xD8, 0x38, 0x08, 0x28, 0x0A, 0x0A, 0x0A, 0x0A, 0x39, 0x39, 0x39, 0x39, 0x3B, 0x3B, 0x3B, 0x3B, // 2
+        0xD8, 0x48, 0x48, 0x48, 0x0A, 0x0A, 0x0A, 0x0A, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, // 3
+        0xD8, 0x58, 0xD8, 0x58, 0x0A, 0x0A, 0x0A, 0x0A, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, // 4
+        0xD8, 0x68, 0xD8, 0x68, 0x0A, 0x0A, 0x0A, 0x0A, 0x68, 0x68, 0x68, 0x68, 0x68, 0x68, 0x68, 0x68, // 5
+        0xD8, 0x78, 0xD8, 0x78, 0x0A, 0x0A, 0x0A, 0x0A, 0x78, 0x78, 0x78, 0x78, 0x78, 0x78, 0x78, 0x78, // 6
+        0xD8, 0x88, 0xD8, 0x88, 0x0A, 0x0A, 0x0A, 0x0A, 0x08, 0x08, 0x88, 0x88, 0x08, 0x08, 0x88, 0x88, // 7
+        0xD8, 0x98, 0xD8, 0x98, 0x0A, 0x0A, 0x0A, 0x0A, 0x98, 0x98, 0x98, 0x98, 0x98, 0x98, 0x98, 0x98, // 8
+        0xD8, 0x29, 0xD8, 0xA8, 0x0A, 0x0A, 0x0A, 0x0A, 0xA8, 0xA8, 0xA8, 0xA8, 0xA8, 0xA8, 0xA8, 0xA8, // 9
+        0xCD, 0xBD, 0xD8, 0xB8, 0x0A, 0x0A, 0x0A, 0x0A, 0xB9, 0xB9, 0xB9, 0xB9, 0xBB, 0xBB, 0xBB, 0xBB, // A
+        0xD9, 0x59, 0xD8, 0xC8, 0x0A, 0x0A, 0x0A, 0x0A, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8, // B
+        0xD9, 0xD9, 0xD8, 0xA0, 0x0A, 0x0A, 0x0A, 0x0A, 0xD8, 0xD8, 0xD8, 0xD8, 0xD8, 0xD8, 0xD8, 0xD8, // C
+        0xD8, 0x08, 0xE8, 0xE8, 0x0A, 0x0A, 0x0A, 0x0A, 0xE8, 0xE8, 0xE8, 0xE8, 0xE8, 0xE8, 0xE8, 0xE8, // D
+        0xFD, 0xFD, 0xF8, 0xF8, 0x0A, 0x0A, 0x0A, 0x0A, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, // E
+        0xDD, 0x4D, 0xE0, 0xE0, 0x0A, 0x0A, 0x0A, 0x0A, 0x88, 0x88, 0x08, 0x08, 0x88, 0x88, 0x08, 0x08  // F
+    };
+}
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -16,7 +89,6 @@
 Disk2NibbleEngine::Disk2NibbleEngine()
 {
 }
-
 
 
 
@@ -40,23 +112,20 @@ void Disk2NibbleEngine::SetDiskImage (DiskImage * disk)
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetMotorOn
 //
 //  Motor-off freezes the bit cursor; the next motor-on resumes from the
-//  same position (real Disk II behavior — the disk keeps spinning for ~1s
-//  after motor-off but Phase 9 models the simpler "freeze" semantics).
+//  same position (real Disk II behavior -- the disk keeps spinning for ~1s
+//  after motor-off, which the controller models with its spindown timer).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2NibbleEngine::SetMotorOn (bool on)
 {
-    m_motorOn    = on;
-    m_cycleAccum = 0;
+    m_motorOn = on;
 }
-
 
 
 
@@ -81,13 +150,13 @@ void Disk2NibbleEngine::SetShiftLoadMode (bool q6)
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetCurrentTrack
 //
 //  Clamps to [0, kMaxTrack]. Track is full-track index (controller maps
-//  half-tracks → full tracks). Switching tracks resets the bit cursor.
+//  half-tracks -> full tracks). Switching tracks preserves rotational
+//  position by carrying the bit cursor modulo the new track's bit length.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,7 +207,6 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Reset
@@ -147,22 +215,20 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
 
 void Disk2NibbleEngine::Reset()
 {
-    m_motorOn         = false;
-    m_writeMode       = false;
-    m_shiftLoadMode   = false;
-    m_bitPos          = 0;
-    m_cycleAccum      = 0;
-    m_readLatch       = 0;
-    m_workingShift    = 0;
-    m_latchDelayBits  = 0;
-    m_writeLatch      = 0;
-    m_latchIsFresh    = false;
-    m_readNibbles     = 0;
-    m_writeNibbles    = 0;
-    m_headWindow      = 0;
-    m_weakRngState    = 0xDEADBEEFu;
+    m_motorOn        = false;
+    m_writeMode      = false;
+    m_shiftLoadMode  = false;
+    m_bitPos         = 0;
+    m_lssState       = kLssInitialState;
+    m_lssClock       = 0;
+    m_readLatch      = 0;
+    m_bus            = 0;
+    m_latchIsFresh   = false;
+    m_readNibbles    = 0;
+    m_writeNibbles   = 0;
+    m_headWindow     = 0;
+    m_weakRngState   = 0xDEADBEEFu;
 }
-
 
 
 
@@ -171,166 +237,136 @@ void Disk2NibbleEngine::Reset()
 //
 //  Tick
 //
-//  Advance the bit cursor by floor (cycles / 4). One bit per 4 CPU cycles
-//  matches the real Disk II ~250 kbps data rate at 1.023 MHz.
+//  Advance the Logic State Sequencer by two LSS clocks per CPU cycle.
+//  Motor-off freezes the sequencer (the controller models the ~1s
+//  post-command spindown separately).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2NibbleEngine::Tick (uint32_t cpuCycles)
 {
-    uint32_t   bitsToAdvance = 0;
-    uint32_t   i             = 0;
+    uint32_t   lssClocks = 0;
+    uint32_t   i         = 0;
 
     if (!m_motorOn)
     {
         return;
     }
 
-    m_cycleAccum  += cpuCycles;
-    bitsToAdvance  = m_cycleAccum / kCyclesPerBit;
-    m_cycleAccum  %= kCyclesPerBit;
+    lssClocks = cpuCycles * kLssClocksPerCpuCycle;
 
-    for (i = 0; i < bitsToAdvance; i++)
+    for (i = 0; i < lssClocks; i++)
     {
-        AdvanceOneBit();
+        StepLss();
     }
 }
 
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AdvanceOneBit
+//  StepLss
 //
-//  Per-bit clock. In read mode: shift the read latch left and OR in the
-//  next bit from the track stream; if the latch high bit becomes 1 the
-//  caller will harvest it via ReadLatch. In write mode: stream the write
-//  latch's MSB out to the track and shift the latch left.
+//  One 2 MHz Logic State Sequencer clock. Faithful port of the P6 state
+//  machine: sample the read pulse (clock 4 only), index the sequencer ROM
+//  by {pulse, latch MSB, Q6, Q7, state}, execute the resulting command,
+//  advance to the next state, and -- at clock 4 -- write any outgoing bit
+//  and advance the head one bit cell.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2NibbleEngine::AdvanceOneBit()
+void Disk2NibbleEngine::StepLss()
 {
-    uint8_t   bit       = 0;
-    size_t    trackBits = 0;
+    uint8_t   pulse      = 0;
+    uint8_t   idx        = 0;
+    uint8_t   command    = 0;
+    bool      prevMsbSet = false;
+    size_t    trackBits  = 0;
 
-    if (m_disk == nullptr)
+    if (m_lssClock == kLssReadClock)
     {
-        return;
+        uint8_t  rawBit = (m_disk != nullptr)
+                          ? m_disk->ReadBit (m_currentTrack, m_bitPos)
+                          : 0;
+
+        pulse = ApplyHeadWindow (rawBit);
     }
 
-    trackBits = m_disk->GetTrackBitCount (m_currentTrack);
+    idx  = static_cast<uint8_t> (pulse ? 0 : kIdxNoPulse);
+    idx |= static_cast<uint8_t> ((m_readLatch & kLatchMsbMask) ? kIdxLatchMsb : 0);
+    idx |= static_cast<uint8_t> (m_shiftLoadMode ? kIdxQ6 : 0);
+    idx |= static_cast<uint8_t> (m_writeMode ? kIdxQ7 : 0);
+    idx |= static_cast<uint8_t> (m_lssState << kIdxStateShift);
 
-    if (trackBits == 0)
+    command    = s_kSequencerRom16[idx];
+    prevMsbSet = (m_readLatch & kLatchMsbMask) != 0;
+
+    switch (command & kLssCommandMask)
     {
-        return;
+        case kLssCmdClr:
+            m_readLatch = 0;
+            break;
+        case kLssCmdNop:
+            break;
+        case kLssCmdShiftZero:
+            m_readLatch = static_cast<uint8_t> ((m_readLatch << 1) & 0xFF);
+            break;
+        case kLssCmdShiftRight:
+            m_readLatch = static_cast<uint8_t> (m_readLatch >> 1);
+
+            if (m_disk != nullptr && m_disk->IsWriteProtected())
+            {
+                m_readLatch |= kLatchMsbMask;
+            }
+            break;
+        case kLssCmdLoad:
+            m_readLatch = m_bus;
+            break;
+        case kLssCmdShiftOne:
+            m_readLatch = static_cast<uint8_t> (((m_readLatch << 1) | 0x01) & 0xFF);
+            break;
+        default:
+            break;
     }
 
-    if (m_writeMode)
+    m_lssState = static_cast<uint8_t> ((command >> kLssStateShift) & kLssStateMask);
+
+    // Rising edge of the latch MSB in read-data mode is the LSS "byte
+    // ready" signal: a full nibble just assembled. Mark it fresh for
+    // ConsumeFreshNibble and bump the lifetime read counter. Gated to
+    // read mode so the SR write-protect-sense path (Q6 high) does not
+    // spuriously count.
+    if (!m_shiftLoadMode && !m_writeMode && !prevMsbSet && (m_readLatch & kLatchMsbMask) != 0)
     {
-        ShiftWriteBit();
+        m_latchIsFresh = true;
+        m_readNibbles++;
     }
-    else
+
+    if (m_lssClock == kLssReadClock)
     {
-        bit = m_disk->ReadBit (m_currentTrack, m_bitPos);
-        bit = ApplyHeadWindow (bit);
-        ShiftReadBit (bit);
-    }
-
-    m_bitPos = (m_bitPos + 1) % trackBits;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShiftReadBit
-//
-//  Standard Disk II LSS read: shift left, OR in bit. When the latch
-//  hits an MSB-set state, it stays "full" until the CPU consumes it
-//  (a subsequent ReadLatch return) and then continues shifting.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2NibbleEngine::ShiftReadBit (uint8_t bit)
-{
-    // Port of the canonical Disk II Logic State Sequencer read model.
-    //
-    // The Disk II's LSS shifts every bit-cell. When the working
-    // shift register's MSB becomes 1 (a complete nibble assembled),
-    // the visible latch is updated and the shift register clears so
-    // the next nibble can start assembling. A latch-delay (~7 µs ≈
-    // 2 bit-cells) holds the visible latch stable for the CPU to
-    // read before the latch resumes tracking the (now-resetting)
-    // shift register.
-    m_workingShift = static_cast<uint8_t> ((m_workingShift << 1) | (bit & 1));
-
-    if (m_latchDelayBits > 0)
-    {
-        m_latchDelayBits--;
-
-        if (m_workingShift == 0)
+        if (m_writeMode && m_disk != nullptr && !m_disk->IsWriteProtected())
         {
-            // No leading 1-bit yet for the next nibble (sync-gap
-            // zero bits). Extend the delay so the CPU keeps seeing
-            // the just-completed nibble until something interesting
-            // arrives.
-            m_latchDelayBits++;
+            uint8_t  outBit = static_cast<uint8_t> ((m_lssState & kWriteBitMask) ? 1 : 0);
+
+            m_disk->WriteBit (m_currentTrack, m_bitPos, outBit);
+        }
+
+        trackBits = (m_disk != nullptr) ? m_disk->GetTrackBitCount (m_currentTrack) : 0;
+
+        if (trackBits > 0)
+        {
+            m_bitPos = (m_bitPos + 1) % trackBits;
         }
     }
 
-    // SEPARATE check (not else): when the delay reaches zero in this
-    // same call, we update the latch immediately rather than waitingfor the next
-    // bit-cell -- which would have lost the data.
-    if (m_latchDelayBits == 0)
-    {
-        m_readLatch = m_workingShift;
+    m_lssClock++;
 
-        if ((m_workingShift & 0x80) != 0)
-        {
-            // Rising edge of the LSS "byte ready" signal: a full
-            // nibble just assembled and latched. Mark it fresh so
-            // ConsumeFreshNibble (the passive-watcher side channel)
-            // hands this exact byte to the address-mark state
-            // machine exactly once, instead of seeing every CPU
-            // poll's repeated sample.
-            m_latchDelayBits = 2;
-            m_workingShift   = 0;
-            m_latchIsFresh   = true;
-        }
+    if (m_lssClock > kLssMaxClock)
+    {
+        m_lssClock = 0;
     }
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShiftWriteBit
-//
-//  Streams the MSB of the write latch onto the disk and shifts the latch
-//  left. The disk's WriteBit honors the image's write-protect flag.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2NibbleEngine::ShiftWriteBit()
-{
-    uint8_t   outBit = 0;
-
-    outBit       = static_cast<uint8_t> ((m_writeLatch >> 7) & 1);
-    m_writeLatch = static_cast<uint8_t> (m_writeLatch << 1);
-
-    if (m_disk != nullptr && !m_disk->IsWriteProtected())
-    {
-        m_disk->WriteBit (m_currentTrack, m_bitPos, outBit);
-    }
-}
-
 
 
 
@@ -339,39 +375,18 @@ void Disk2NibbleEngine::ShiftWriteBit()
 //
 //  ReadLatch
 //
-//  Returns the current latch value. If the latch is "full" (MSB set) we
-//  reset it after reporting so subsequent bits start a fresh nibble.
+//  Pure sample of the data register, exactly as the 6502 sees it when it
+//  reads $C0EC. The LSS has already been ticked forward to the current
+//  cycle by the controller, so the latch holds the correct value. There
+//  is NO side effect: the CPU spins a tight LDA $C0EC / BPL loop and must
+//  see the same byte on repeated reads until the next nibble assembles.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 uint8_t Disk2NibbleEngine::ReadLatch()
 {
-    // Real P5A behavior: reading $C0EC is a pure sample of the shift
-    // register's current state. There is NO side effect on the read --
-    // the shift register keeps shifting bits in regardless of whether
-    // the CPU read it. The "byte ready" signal is just the MSB.
-    //
-    // The CPU is responsible for spinning a tight LDA/BPL loop until
-    // it catches the latch with MSB-set, which it then knows is a
-    // complete nibble. The next read after that will catch the latch
-    // about 32 µs later (8 bit-cells) when the next nibble has
-    // assembled.
-    //
-    // Earlier model "clear on MSB-set read" was wrong: it broke the
-    // boot ROM's address-prolog scan because each read cleared the
-    // latch back to 0, and the CPU's tight loop ran faster than the
-    // engine could produce complete nibbles, so the CPU never saw
-    // MSB-set.
-    uint8_t   value = m_readLatch;
-
-    if (value & 0x80)
-    {
-        m_readNibbles++;
-    }
-
-    return value;
+    return m_readLatch;
 }
-
 
 
 
@@ -380,14 +395,17 @@ uint8_t Disk2NibbleEngine::ReadLatch()
 //
 //  WriteLatch
 //
+//  Stores the CPU-written byte on the controller bus. The LSS LOAD command
+//  (Q6 high, Q7 high) copies the bus into the data latch, after which the
+//  shift path (Q6 low, Q7 high) streams it onto the track one bit per cell.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2NibbleEngine::WriteLatch (uint8_t value)
 {
-    m_writeLatch = value;
+    m_bus = value;
     m_writeNibbles++;
 }
-
 
 
 
@@ -396,19 +414,14 @@ void Disk2NibbleEngine::WriteLatch (uint8_t value)
 //
 //  ConsumeFreshNibble
 //
-//  Passive-watcher side channel: returns true exactly once per
-//  LSS "byte ready" rising edge. The controller calls this AFTER
-//  ReadLatch so the watcher's address-mark / data-mark state
-//  machines see exactly one nibble per assembly cycle instead of
-//  the CPU-visible repeat stream. Does NOT touch m_readLatch, so
-//  the CPU-visible byte returned by ReadLatch is unchanged.
+//  Passive-watcher side channel: returns true exactly once per LSS
+//  "byte ready" rising edge. The controller calls this AFTER ReadLatch
+//  so the watcher's address-mark / data-mark state machines see exactly
+//  one nibble per assembly cycle instead of the CPU-visible repeat
+//  stream. Does NOT touch m_readLatch, so the CPU-visible byte returned
+//  by ReadLatch is unchanged.
 //
 //  Returns false unless both the latch is fresh AND its MSB is set.
-//  The MSB guard handles the intermediate partial-assembly latch
-//  updates that ShiftReadBit can produce between two "byte ready"
-//  events (the latch is overwritten with sub-nibble values when
-//  the latch-delay has expired but the working shift register has
-//  not yet hit MSB).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -419,7 +432,7 @@ bool Disk2NibbleEngine::ConsumeFreshNibble (uint8_t & outNibble)
         return false;
     }
 
-    if ((m_readLatch & 0x80) == 0)
+    if ((m_readLatch & kLatchMsbMask) == 0)
     {
         return false;
     }
@@ -433,31 +446,30 @@ bool Disk2NibbleEngine::ConsumeFreshNibble (uint8_t & outNibble)
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ApplyHeadWindow
 //
-//  MC3470 read-amplifier model, ported from AppleWin's
-//  DataLatchReadWOZ (Disk.cpp). Maintains a sliding 4-bit window of
-//  the most-recent bits read off the surface. Two effects:
+//  MC3470 read-amplifier model, ported from AppleWin's DataLatchReadWOZ
+//  (Disk.cpp). Maintains a sliding 4-bit window of the most-recent bits
+//  read off the surface. Two effects:
 //
-//    1. One-bit pipeline delay. When the window has at least one
-//       1-bit, the amplifier outputs the bit read on the PREVIOUS
-//       call (window bit 1, not the just-shifted-in bit 0). This is
-//       hardware behavior -- the amp needs a cell of integration
-//       time -- and is what AppleWin reproduces.
+//    1. One-bit pipeline delay. When the window has at least one 1-bit,
+//       the amplifier outputs the bit read on the PREVIOUS call (window
+//       bit 1, not the just-shifted-in bit 0). This is hardware behavior
+//       -- the amp needs a cell of integration time.
 //
-//    2. Weak bits / floating output. When all four window bits are
-//       zero (an unformatted region or intentional weak-bit gap),
-//       the amplifier has no signal to lock to and floats. AppleWin
-//       models this as a ~30% chance of a 1-bit per cell. WOZ-2.0
-//       protection schemes (Karateka RWTS18, Lode Runner, etc.) key
-//       off this randomness to detect copies, which trim the floating
-//       region to a deterministic value during duplication.
+//    2. Weak bits / floating output. When all four window bits are zero
+//       (an unformatted region or intentional weak-bit gap), the amplifier
+//       has no signal to lock to and floats. AppleWin models this as a
+//       ~30% chance of a 1-bit per cell. WOZ-2.0 protection schemes
+//       (Karateka RWTS18, Lode Runner, etc.) key off this randomness to
+//       detect copies that trimmed the floating region to a deterministic
+//       value during duplication. The WOZ spec calls this "Freaking Out
+//       Like a MC3470".
 //
-//  RNG is a per-engine LCG (not the global rand() AppleWin uses) so
-//  that tests remain deterministic per engine instance.
+//  RNG is a per-engine LCG (not the global rand() AppleWin uses) so that
+//  tests remain deterministic per engine instance.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -478,7 +490,6 @@ uint8_t Disk2NibbleEngine::ApplyHeadWindow (uint8_t inBit)
 
     return outBit;
 }
-
 
 
 
@@ -505,4 +516,3 @@ uint8_t Disk2NibbleEngine::NextWeakBit()
 
     return (m_weakRngState < kWeakThreshold) ? 1 : 0;
 }
-

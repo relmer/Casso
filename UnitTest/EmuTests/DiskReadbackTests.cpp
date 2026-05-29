@@ -152,6 +152,13 @@ namespace
 
         core.diskController->SetExternalDisk (kDrive1, external);
 
+        // DiskReadbackTests drive the controller via direct bus reads
+        // + manual Tick(N) pumping, without running the CPU. The
+        // catch-up-on-read path needs a live, advancing CPU cycle
+        // counter to do its job; detach the source so Tick(N) goes
+        // back to advancing the engine bit cursor itself.
+        core.diskController->SetCpuCycleSource (nullptr);
+
         // Spin up: select drive 1, motor on, set Q7=0/Q6=0 (read mode).
         core.bus->ReadByte (kSelectDrive1);
         core.bus->ReadByte (kMotorOn);
