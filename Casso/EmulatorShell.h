@@ -217,6 +217,22 @@ private:
         return m_uiFramebuffer.empty() ? nullptr : m_uiFramebuffer.data();
     }
 
+    // Accessor for the Settings → Theme preview so it can render the
+    // basename label with the actual filename of whatever disk image is
+    // currently mounted in each drive (or an empty string if the drive
+    // is empty). Index 0 is drive 1, index 1 is drive 2.
+    const std::wstring &  MountedImagePath (int driveIndex) const
+    {
+        static const std::wstring  s_kEmpty;
+
+        if (driveIndex < 0 || driveIndex >= (int) m_driveWidgetState.size())
+        {
+            return s_kEmpty;
+        }
+
+        return m_driveWidgetState[(size_t) driveIndex].mountedImagePath;
+    }
+
     // Base directory for user preferences. SettingsPanel.CommitApply
     // uses this as the fallback save path when the unified store is not
     // available.

@@ -372,6 +372,11 @@ HRESULT SettingsPanel::Initialize (
             outH = ChromeMetrics::kFramebufferHeightPx;
             return shellRef.UiFramebufferPixels();
         });
+
+        m_themePage.SetMountedPathSource ([&shellRef] (int driveIndex) -> std::wstring
+        {
+            return shellRef.MountedImagePath (driveIndex);
+        });
     }
 
     m_applyButton.SetLabel  (L"OK");

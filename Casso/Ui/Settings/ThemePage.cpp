@@ -132,6 +132,7 @@ namespace
                              const RECT                           & availRect,
                              const ChromeTheme                    & theme,
                              const std::function<const uint32_t * (int &, int &)> & framebufferSource,
+                             const std::function<std::wstring (int)>              & mountedPathSource,
                              std::array<DriveWidget, 2>           & previewDrives)
     {
         RECT      prevRect = {};
@@ -303,14 +304,28 @@ namespace
             previewDrives[0].SetCompact (theme.compactDrives);
             previewDrives[1].SetCompact (theme.compactDrives);
 
-            // Preview a mounted disk so the basename label is visible.
-            // Without this, the label strip is rendered empty and the
-            // preview misrepresents the live chrome.
-            DriveWidgetState  fakeMount;
-            fakeMount.mountedImagePath = L"casso-rocks.dsk";
-            fakeMount.doorState        = DriveWidgetState::Door::Closed;
-            previewDrives[0].SyncFromState (fakeMount);
-            previewDrives[1].SyncFromState (fakeMount);
+            // Preview the actual mounted disk paths so the basename
+            // label strip reflects the live drive state. Falls back to
+            // empty (no label) if the host hasn't wired a source or the
+            // drive is empty.
+            DriveWidgetState  mount0;
+            DriveWidgetState  mount1;
+
+            if (mountedPathSource)
+            {
+                mount0.mountedImagePath = mountedPathSource (0);
+                mount1.mountedImagePath = mountedPathSource (1);
+            }
+
+            mount0.doorState = mount0.mountedImagePath.empty()
+                ? DriveWidgetState::Door::Open
+                : DriveWidgetState::Door::Closed;
+            mount1.doorState = mount1.mountedImagePath.empty()
+                ? DriveWidgetState::Door::Open
+                : DriveWidgetState::Door::Closed;
+
+            previewDrives[0].SyncFromState (mount0);
+            previewDrives[1].SyncFromState (mount1);
 
             previewDrives[0].Layout (0, 0, effectiveDpi);
 
@@ -548,7 +563,7 @@ void ThemePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
             m_previewDrivesInitialized = true;
         }
 
-        PaintPreviewWindow (painter, text, m_previewRect, preview, m_framebufferSource, m_previewDrives);
+        PaintPreviewWindow (painter, text, m_previewRect, preview, m_framebufferSource, m_mountedPathSource, m_previewDrives);
     }
 
     m_themeDropdown.PaintMenu   (painter, text);
