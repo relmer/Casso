@@ -8,6 +8,7 @@
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 #include "../Widgets/Checkbox.h"
+#include "../Widgets/Label.h"
 #include "../../UnicodeSymbols.h"
 
 
@@ -340,7 +341,6 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     // percent / Done / Failed indicator.
     def.onPaintCustomBody = [&set, &state] (DialogPaintContext & ctx)
     {
-        HRESULT   hr        = S_OK;
         float     x         = 0.0f;
         float     y         = 0.0f;
         float     fullW     = 0.0f;
@@ -348,8 +348,6 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
         float     headerH   = (float) s_kHeaderHeightDp     * ctx.dpiScale;
         float     headerGap = (float) s_kHeaderGapAboveDp   * ctx.dpiScale;
         float     gap       = (float) s_kRowGapDp           * ctx.dpiScale;
-        float     fontPx    = s_kFontDp                     * ctx.dpiScale;
-        float     hFontPx   = s_kHeaderFontDp               * ctx.dpiScale;
         float     sourceW   = s_kSourceColumnDp             * ctx.dpiScale;
         float     statusW   = s_kStatusColumnDp             * ctx.dpiScale;
         float     colGap    = s_kColumnGapDp                * ctx.dpiScale;
@@ -357,6 +355,9 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
         uint32_t  fgDim     = 0;
         uint32_t  hdrFg     = 0;
         wstring   curGroup;
+        Label     hdrLabel;
+        Label     sourceLabel;
+        Label     statusLabel;
 
 
 
@@ -374,6 +375,20 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
 
         state.bodyOriginXPx = ctx.customBodyRect.left;
         state.bodyOriginYPx = ctx.customBodyRect.top;
+
+        hdrLabel.SetDpi         (state.dpi);
+        hdrLabel.SetFontSizeDip (s_kHeaderFontDp);
+        hdrLabel.SetColorArgb   (hdrFg);
+        hdrLabel.SetFontWeight  (DWRITE_FONT_WEIGHT_BOLD);
+
+        sourceLabel.SetDpi         (state.dpi);
+        sourceLabel.SetFontSizeDip (s_kFontDp);
+        sourceLabel.SetColorArgb   (fgDim);
+
+        statusLabel.SetDpi         (state.dpi);
+        statusLabel.SetFontSizeDip (s_kFontDp);
+        statusLabel.SetColorArgb   (fg);
+        statusLabel.SetHAlign      (DwriteTextRenderer::HAlign::Right);
 
         for (size_t i = 0; i < set.entries.size(); i++)
         {
@@ -393,13 +408,10 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
 
                 curGroup = entry.groupLabel;
 
-                IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (curGroup.c_str(),
-                                                               x, y,
-                                                               fullW, headerH,
-                                                               hdrFg, hFontPx, L"Segoe UI",
-                                                               DwriteTextRenderer::HAlign::Left,
-                                                               DwriteTextRenderer::VAlign::Center,
-                                                               DWRITE_FONT_WEIGHT_BOLD));
+                hdrLabel.SetText (curGroup);
+                hdrLabel.SetRect ({ (LONG) x, (LONG) y,
+                                    (LONG) (x + fullW), (LONG) (y + headerH) });
+                hdrLabel.Paint   (*ctx.painter, *ctx.text);
 
                 y += headerH + gap;
             }
@@ -417,23 +429,17 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
             cb.SetLabel   (entry.displayName);
             cb.Paint      (*ctx.painter, *ctx.text);
 
-            // Source column (dim).
-            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (entry.source.c_str(),
-                                                           x + cbAvailW + colGap, ry,
-                                                           sourceW, rowH,
-                                                           fgDim, fontPx, L"Segoe UI",
-                                                           DwriteTextRenderer::HAlign::Left,
-                                                           DwriteTextRenderer::VAlign::Center));
+            sourceLabel.SetText (entry.source);
+            sourceLabel.SetRect ({ (LONG) (x + cbAvailW + colGap), (LONG) ry,
+                                   (LONG) (x + cbAvailW + colGap + sourceW), (LONG) (ry + rowH) });
+            sourceLabel.Paint   (*ctx.painter, *ctx.text);
 
-            // Status column (right-aligned). Same fg as label -- no red.
             if (state.showStatus && entry.selected)
             {
-                IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (status.c_str(),
-                                                               x + fullW - statusW, ry,
-                                                               statusW, rowH,
-                                                               fg, fontPx, L"Segoe UI",
-                                                               DwriteTextRenderer::HAlign::Right,
-                                                               DwriteTextRenderer::VAlign::Center));
+                statusLabel.SetText (status);
+                statusLabel.SetRect ({ (LONG) (x + fullW - statusW), (LONG) ry,
+                                       (LONG) (x + fullW),           (LONG) (ry + rowH) });
+                statusLabel.Paint   (*ctx.painter, *ctx.text);
             }
 
             y += rowH + gap;
