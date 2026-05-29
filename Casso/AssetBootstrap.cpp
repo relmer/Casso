@@ -2455,6 +2455,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         entry.groupLabel    = MachineDisplayName (narrowMachine) + L" ROMs";
         entry.displayName   = AsciiToWide (spec->description);
         entry.kindLabel     = L"ROM";
+        entry.source        = L"AppleWin (GitHub)";
         entry.selectable    = false;
         entry.selected      = true;
         entry.destPaths.push_back (assetBaseDir / string (spec->localRelDir) / spec->cassoName);
@@ -2539,6 +2540,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
             entry.kind          = StartupAssetKind::DriveAudio;
             entry.groupLabel    = L"Disk ][ audio";
             entry.kindLabel     = L"Drive audio";
+            entry.source        = L"OpenEmulator (GitHub)";
             entry.expectedBytes = 0;
             entry.selectable    = true;
             entry.selected      = true;
@@ -2680,6 +2682,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
             entry.groupLabel    = L"Boot disks";
             entry.displayName   = AsciiToWide (string (spec->shortLabel));
             entry.kindLabel     = L"Boot disk";
+            entry.source        = L"Asimov";
             entry.selectable    = true;
             entry.selected      = dc.defaultSelected;
             entry.destPaths.push_back (wantPath);

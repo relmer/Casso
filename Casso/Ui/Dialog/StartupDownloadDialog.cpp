@@ -7,21 +7,23 @@
 #include "../Chrome/ChromeTheme.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
+#include "../Widgets/Checkbox.h"
 #include "../../UnicodeSymbols.h"
 
 
 namespace fs = std::filesystem;
 
 
-static constexpr int    s_kRowHeightDp        = 56;
-static constexpr int    s_kRowGapDp           = 4;
-static constexpr int    s_kBodyWidthDp        = 540;
+static constexpr int    s_kRowHeightDp        = 28;
+static constexpr int    s_kRowGapDp           = 2;
+static constexpr int    s_kBodyWidthDp        = 560;
 static constexpr int    s_kHeaderHeightDp     = 26;
+static constexpr int    s_kHeaderGapAboveDp   = 6;
 static constexpr float  s_kFontDp             = 13.0f;
 static constexpr float  s_kHeaderFontDp       = 13.0f;
-static constexpr float  s_kTextPaddingDp      = 8.0f;
-static constexpr float  s_kProgressBarHeightDp = 8.0f;
-static constexpr float  s_kStatusColumnDp     = 160.0f;
+static constexpr float  s_kSourceColumnDp     = 170.0f;
+static constexpr float  s_kStatusColumnDp     = 64.0f;
+static constexpr float  s_kColumnGapDp        = 12.0f;
 static constexpr unsigned int  s_kTickIntervalMs = 100;
 
 static constexpr int    s_kIdDownload = 100;
@@ -61,7 +63,8 @@ namespace
         Downloading,
         Done,
         Failed,
-        Cancelled
+        Cancelled,
+        Skipped
     };
 
 
@@ -80,119 +83,91 @@ namespace
     {
         StartupDownloadSet  *        set         = nullptr;
         std::vector<EntryRuntime>    runtime;
+        std::vector<Checkbox>        checkboxes;     // parallel to entries
+        std::vector<std::thread>     workers;
         std::atomic<bool>            cancelFlag{false};
-        std::atomic<bool>            workerDone {false};
+        std::atomic<int>             workersInFlight{0};
         std::atomic<bool>            anyFailed  {false};
-        std::thread                  worker;
         size_t                       downloadBtnIdx = SIZE_MAX;
         size_t                       skipBtnIdx     = SIZE_MAX;
         size_t                       exitBtnIdx     = SIZE_MAX;
         bool                         downloading    = false;
+        bool                         finished       = false;
         bool                         showStatus     = false;  // gates per-row status text
+        UINT                         dpi            = 96;
+        int                          bodyOriginXPx  = 0;
+        int                          bodyOriginYPx  = 0;
         StartupDownloadResult        result         = StartupDownloadResult::Skipped;
     };
 
 
 
-    std::wstring FormatBytes (std::uint64_t bytes)
+    void WorkerThreadProc (DialogState * state, size_t index)
     {
-        wchar_t buf[64] = {};
+        StartupAssetEntry & entry = state->set->entries[index];
+        EntryRuntime      & rt    = state->runtime[index];
+        HRESULT             hr    = S_OK;
 
-        if (bytes < 1024ull)
+        rt.status.store ((int) EntryStatus::Downloading, std::memory_order_relaxed);
+        rt.startedWrite = true;
+
+        if (entry.downloadFn)
         {
-            swprintf_s (buf, L"%llu B", (unsigned long long) bytes);
-        }
-        else if (bytes < 1024ull * 1024ull)
-        {
-            swprintf_s (buf, L"%.1f KB", (double) bytes / 1024.0);
+            hr = entry.downloadFn (rt.bytesDone, state->cancelFlag, rt.errorMsg);
         }
         else
         {
-            swprintf_s (buf, L"%.2f MB", (double) bytes / (1024.0 * 1024.0));
+            rt.errorMsg = "No downloader registered";
+            hr = E_NOTIMPL;
         }
 
-        return buf;
+        if (hr == E_ABORT || state->cancelFlag.load (std::memory_order_relaxed))
+        {
+            rt.status.store ((int) EntryStatus::Cancelled, std::memory_order_relaxed);
+        }
+        else if (FAILED (hr))
+        {
+            rt.status.store ((int) EntryStatus::Failed, std::memory_order_relaxed);
+            state->anyFailed.store (true, std::memory_order_relaxed);
+        }
+        else
+        {
+            rt.status.store ((int) EntryStatus::Done, std::memory_order_relaxed);
+        }
+
+        state->workersInFlight.fetch_sub (1, std::memory_order_acq_rel);
     }
 
 
 
-    std::wstring StatusText (const EntryRuntime & rt, std::uint64_t expected)
+    void StartWorkers (DialogState & state)
     {
-        EntryStatus    s        = (EntryStatus) rt.status.load (std::memory_order_relaxed);
-        std::uint64_t  done     = rt.bytesDone.load (std::memory_order_relaxed);
-        std::wstring   doneStr  = FormatBytes (done);
-        std::wstring   totalStr = (expected > 0) ? FormatBytes (expected) : std::wstring (L"?");
-
-        switch (s)
+        for (size_t i = 0; i < state.set->entries.size(); i++)
         {
-            case EntryStatus::Pending:     return L"Waiting...";
-            case EntryStatus::Downloading: return doneStr + L" / " + totalStr;
-            case EntryStatus::Done:        return L"Done";
-            case EntryStatus::Failed:      return L"Failed";
-            case EntryStatus::Cancelled:   return L"Cancelled";
-        }
+            if (!state.set->entries[i].selected)
+            {
+                state.runtime[i].status.store ((int) EntryStatus::Skipped, std::memory_order_relaxed);
+                continue;
+            }
 
-        return L"";
+            state.workersInFlight.fetch_add (1, std::memory_order_acq_rel);
+            state.workers.emplace_back (WorkerThreadProc, &state, i);
+        }
     }
 
 
 
-    void WorkerThreadProc (DialogState * state)
+    void JoinAllWorkers (DialogState & state)
     {
-        if (state == nullptr || state->set == nullptr)
+        for (std::thread & t : state.workers)
         {
-            return;
-        }
-
-        for (size_t i = 0; i < state->set->entries.size(); i++)
-        {
-            StartupAssetEntry & entry = state->set->entries[i];
-            EntryRuntime      & rt    = state->runtime[i];
-
-            if (!entry.selected)
+            if (t.joinable())
             {
-                // User unchecked this asset. Leave runtime untouched so
-                // the row shows blank status (handled by paint).
-                continue;
-            }
-
-            if (state->cancelFlag.load (std::memory_order_relaxed))
-            {
-                rt.status.store ((int) EntryStatus::Cancelled, std::memory_order_relaxed);
-                continue;
-            }
-
-            rt.status.store ((int) EntryStatus::Downloading, std::memory_order_relaxed);
-            rt.startedWrite = true;
-
-            HRESULT  hr = S_OK;
-
-            if (entry.downloadFn)
-            {
-                hr = entry.downloadFn (rt.bytesDone, state->cancelFlag, rt.errorMsg);
-            }
-            else
-            {
-                rt.errorMsg = "No downloader registered";
-                hr = E_NOTIMPL;
-            }
-
-            if (hr == E_ABORT || state->cancelFlag.load (std::memory_order_relaxed))
-            {
-                rt.status.store ((int) EntryStatus::Cancelled, std::memory_order_relaxed);
-            }
-            else if (FAILED (hr))
-            {
-                rt.status.store ((int) EntryStatus::Failed, std::memory_order_relaxed);
-                state->anyFailed.store (true, std::memory_order_relaxed);
-            }
-            else
-            {
-                rt.status.store ((int) EntryStatus::Done, std::memory_order_relaxed);
+                t.join();
             }
         }
 
-        state->workerDone.store (true, std::memory_order_release);
+        state.workers.clear();
     }
 
 
@@ -223,6 +198,42 @@ namespace
                 }
             }
         }
+    }
+
+
+
+    std::wstring StatusText (const EntryRuntime & rt, std::uint64_t expected)
+    {
+        EntryStatus    s    = (EntryStatus) rt.status.load (std::memory_order_relaxed);
+        std::uint64_t  done = rt.bytesDone.load (std::memory_order_relaxed);
+
+        switch (s)
+        {
+            case EntryStatus::Pending:     return L"Waiting";
+            case EntryStatus::Skipped:     return L"";
+            case EntryStatus::Done:        return L"Done";
+            case EntryStatus::Failed:      return L"Failed";
+            case EntryStatus::Cancelled:   return L"Cancelled";
+            case EntryStatus::Downloading:
+                break;
+        }
+
+        if (expected == 0)
+        {
+            // Unknown size: simple busy indicator.
+            return L"...";
+        }
+
+        int  pct = (int) ((100ull * done) / expected);
+
+        if (pct > 100)
+        {
+            pct = 100;
+        }
+
+        wchar_t buf[16] = {};
+        swprintf_s (buf, L"%d%%", pct);
+        return buf;
     }
 }
 
@@ -255,10 +266,24 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
         return StartupDownloadResult::NothingToDo;
     }
 
-    state.set     = &set;
-    state.runtime = std::vector<EntryRuntime> (set.entries.size());
-    requiresRoms  = set.RequiresRoms();
-    rowCount      = (int) set.entries.size();
+    state.set        = &set;
+    state.runtime    = std::vector<EntryRuntime> (set.entries.size());
+    state.checkboxes = std::vector<Checkbox> (set.entries.size());
+    state.dpi        = sysDpi;
+    requiresRoms     = set.RequiresRoms();
+    rowCount         = (int) set.entries.size();
+
+    for (size_t i = 0; i < set.entries.size(); i++)
+    {
+        Checkbox          & cb    = state.checkboxes[i];
+        StartupAssetEntry & entry = set.entries[i];
+
+        cb.SetDpi     (sysDpi);
+        cb.SetLabel   (entry.displayName);
+        cb.SetChecked (entry.selected);
+        cb.SetEnabled (entry.selectable);
+        cb.SetOnChange ([&entry] (bool checked) { entry.selected = checked; });
+    }
 
     for (const StartupAssetEntry & entry : set.entries)
     {
@@ -295,9 +320,8 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
                 L"Skip to continue without them, or Exit to quit.";
     }
 
-    totalH = (int) ((float) (s_kHeaderHeightDp
-                             + headerCount * (s_kHeaderHeightDp + s_kRowGapDp)
-                             + rowCount    * (s_kRowHeightDp    + s_kRowGapDp))
+    totalH = (int) ((float) (headerCount * (s_kHeaderHeightDp + s_kRowGapDp + s_kHeaderGapAboveDp)
+                             + rowCount  * (s_kRowHeightDp    + s_kRowGapDp))
                     * dpiScale);
 
     def.title              = title;
@@ -310,9 +334,10 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
 
     def.tickIntervalMs = s_kTickIntervalMs;
 
-    // Paint hook: tree-style layout. Group headers are bold no-checkbox
-    // rows; entries are checkbox + label + progress bar + (optional)
-    // status. Status is hidden until the user clicks Download.
+    // Paint hook: single-line tree rows. Group headers are bold no-row;
+    // each entry row paints a Checkbox widget on the left, then a dim
+    // source label, then (when status is showing) a right-aligned
+    // percent / Done / Failed indicator.
     def.onPaintCustomBody = [&set, &state] (DialogPaintContext & ctx)
     {
         HRESULT   hr        = S_OK;
@@ -321,27 +346,17 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
         float     fullW     = 0.0f;
         float     rowH      = (float) s_kRowHeightDp        * ctx.dpiScale;
         float     headerH   = (float) s_kHeaderHeightDp     * ctx.dpiScale;
+        float     headerGap = (float) s_kHeaderGapAboveDp   * ctx.dpiScale;
         float     gap       = (float) s_kRowGapDp           * ctx.dpiScale;
         float     fontPx    = s_kFontDp                     * ctx.dpiScale;
         float     hFontPx   = s_kHeaderFontDp               * ctx.dpiScale;
-        float     pad       = s_kTextPaddingDp              * ctx.dpiScale;
-        float     barH      = s_kProgressBarHeightDp        * ctx.dpiScale;
+        float     sourceW   = s_kSourceColumnDp             * ctx.dpiScale;
         float     statusW   = s_kStatusColumnDp             * ctx.dpiScale;
-        float     cbBoxDp   = 16.0f;
-        float     cbBoxPx   = cbBoxDp                       * ctx.dpiScale;
-        float     indentPx  = 20.0f                         * ctx.dpiScale;
-        float     cbColPx   = indentPx + cbBoxPx + pad;
-        uint32_t  rowBgA    = 0;
-        uint32_t  rowBgB    = 0;
+        float     colGap    = s_kColumnGapDp                * ctx.dpiScale;
         uint32_t  fg        = 0;
         uint32_t  fgDim     = 0;
         uint32_t  hdrFg     = 0;
-        uint32_t  barBg     = 0;
-        uint32_t  barFg     = 0;
-        uint32_t  barDone   = 0;
-        uint32_t  barFail   = 0;
         wstring   curGroup;
-        size_t    rowIdx    = 0;
 
 
 
@@ -353,30 +368,34 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
         x       = (float) ctx.customBodyRect.left;
         y       = (float) ctx.customBodyRect.top;
         fullW   = (float) (ctx.customBodyRect.right - ctx.customBodyRect.left);
-        rowBgA  = ctx.theme->navStripArgb;
-        rowBgB  = ctx.theme->dropdownBgArgb;
         fg      = ctx.theme->dropdownItemTextArgb;
-        fgDim   = (fg & 0x00FFFFFFu) | 0x80000000u;
+        fgDim   = (fg & 0x00FFFFFFu) | 0x70000000u;
         hdrFg   = ctx.theme->titleTextArgb;
-        barBg   = ctx.theme->dropdownHoverArgb;
-        barFg   = ctx.theme->navHoverArgb;
-        barDone = ctx.theme->ledActiveArgb;
-        barFail = 0xFFCC4444;
+
+        state.bodyOriginXPx = ctx.customBodyRect.left;
+        state.bodyOriginYPx = ctx.customBodyRect.top;
 
         for (size_t i = 0; i < set.entries.size(); i++)
         {
             const StartupAssetEntry & entry  = set.entries[i];
             const EntryRuntime      & rt     = state.runtime[i];
-            EntryStatus               s      = (EntryStatus) rt.status.load (std::memory_order_relaxed);
-            std::uint64_t             done   = rt.bytesDone.load (std::memory_order_relaxed);
+            Checkbox                & cb     = state.checkboxes[i];
+            std::wstring              status = state.showStatus
+                                                  ? StatusText (rt, entry.expectedBytes)
+                                                  : wstring();
 
             if (entry.groupLabel != curGroup)
             {
+                if (!curGroup.empty())
+                {
+                    y += headerGap;
+                }
+
                 curGroup = entry.groupLabel;
 
                 IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (curGroup.c_str(),
-                                                               x + pad, y,
-                                                               fullW - pad * 2.0f, headerH,
+                                                               x, y,
+                                                               fullW, headerH,
                                                                hdrFg, hFontPx, L"Segoe UI",
                                                                DwriteTextRenderer::HAlign::Left,
                                                                DwriteTextRenderer::VAlign::Center,
@@ -385,173 +404,74 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
                 y += headerH + gap;
             }
 
-            float       ry        = y;
-            uint32_t    rowBg     = ((rowIdx & 1u) == 0u) ? rowBgA : rowBgB;
-            std::wstring  status  = state.showStatus
-                                       ? StatusText (rt, entry.expectedBytes)
-                                       : wstring();
-            uint32_t    rowFg     = entry.selected ? fg : fgDim;
+            float  ry         = y;
+            float  cbAvailW   = fullW - sourceW - statusW - colGap * 2.0f;
+            RECT   cbRect     = { (LONG) x,
+                                  (LONG) ry,
+                                  (LONG) (x + cbAvailW),
+                                  (LONG) (ry + rowH) };
 
-            ctx.painter->FillRect (x, ry, fullW, rowH, rowBg);
+            cb.SetChecked (entry.selected);
+            cb.SetEnabled (entry.selectable && !state.downloading);
+            cb.SetRect    (cbRect);
+            cb.SetLabel   (entry.displayName);
+            cb.Paint      (*ctx.painter, *ctx.text);
 
-            // Checkbox.
-            {
-                float     cx     = x + indentPx;
-                float     cy     = ry + (rowH - cbBoxPx) * 0.5f;
-                uint32_t  edge   = entry.selectable ? fg : fgDim;
-                uint32_t  fill   = entry.selected   ? barDone : 0x00000000u;
-
-                ctx.painter->FillRect (cx,            cy,            cbBoxPx, 1.0f * ctx.dpiScale, edge);
-                ctx.painter->FillRect (cx,            cy + cbBoxPx - 1.0f * ctx.dpiScale, cbBoxPx, 1.0f * ctx.dpiScale, edge);
-                ctx.painter->FillRect (cx,            cy,            1.0f * ctx.dpiScale, cbBoxPx, edge);
-                ctx.painter->FillRect (cx + cbBoxPx - 1.0f * ctx.dpiScale, cy,            1.0f * ctx.dpiScale, cbBoxPx, edge);
-
-                if (entry.selected)
-                {
-                    float inset = 3.0f * ctx.dpiScale;
-                    ctx.painter->FillRect (cx + inset, cy + inset,
-                                           cbBoxPx - inset * 2.0f, cbBoxPx - inset * 2.0f, fill);
-                }
-            }
-
-            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (entry.displayName.c_str(),
-                                                           x + cbColPx, ry,
-                                                           fullW - cbColPx - statusW - pad, rowH * 0.55f,
-                                                           rowFg, fontPx, L"Segoe UI",
+            // Source column (dim).
+            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (entry.source.c_str(),
+                                                           x + cbAvailW + colGap, ry,
+                                                           sourceW, rowH,
+                                                           fgDim, fontPx, L"Segoe UI",
                                                            DwriteTextRenderer::HAlign::Left,
                                                            DwriteTextRenderer::VAlign::Center));
 
-            if (state.showStatus)
+            // Status column (right-aligned). Same fg as label -- no red.
+            if (state.showStatus && entry.selected)
             {
                 IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (status.c_str(),
-                                                               x + fullW - statusW - pad, ry,
-                                                               statusW, rowH * 0.55f,
-                                                               rowFg, fontPx, L"Segoe UI",
+                                                               x + fullW - statusW, ry,
+                                                               statusW, rowH,
+                                                               fg, fontPx, L"Segoe UI",
                                                                DwriteTextRenderer::HAlign::Right,
                                                                DwriteTextRenderer::VAlign::Center));
             }
 
-            if (state.showStatus && entry.selected)
-            {
-                float    barX     = x + cbColPx;
-                float    barY     = ry + rowH * 0.55f + pad * 0.5f;
-                float    barFullW = fullW - cbColPx - pad;
-                float    pct      = 0.0f;
-                uint32_t fillCol  = barFg;
-
-                if (s == EntryStatus::Done)
-                {
-                    pct     = 1.0f;
-                    fillCol = barDone;
-                }
-                else if (s == EntryStatus::Failed)
-                {
-                    pct     = 1.0f;
-                    fillCol = barFail;
-                }
-                else if (s == EntryStatus::Cancelled)
-                {
-                    pct = 0.0f;
-                }
-                else if (entry.expectedBytes > 0 && done > 0)
-                {
-                    pct = (float) ((double) done / (double) entry.expectedBytes);
-
-                    if (pct > 1.0f)
-                    {
-                        pct = 1.0f;
-                    }
-                }
-                else if (s == EntryStatus::Downloading)
-                {
-                    pct = 0.25f;
-                }
-
-                ctx.painter->FillRect (barX, barY, barFullW, barH, barBg);
-
-                if (pct > 0.0f)
-                {
-                    ctx.painter->FillRect (barX, barY, barFullW * pct, barH, fillCol);
-                }
-            }
-
-            if (state.showStatus && s == EntryStatus::Failed && !rt.errorMsg.empty())
-            {
-                std::wstring  msg;
-
-                msg.reserve (rt.errorMsg.size());
-
-                for (char ch : rt.errorMsg)
-                {
-                    msg.push_back (static_cast<wchar_t> ((unsigned char) ch));
-                }
-
-                IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (msg.c_str(),
-                                                               x + cbColPx, ry + rowH - pad * 1.5f,
-                                                               fullW - cbColPx - pad, pad * 1.5f,
-                                                               barFail, fontPx * 0.85f, L"Segoe UI",
-                                                               DwriteTextRenderer::HAlign::Left,
-                                                               DwriteTextRenderer::VAlign::Center));
-            }
-
             y += rowH + gap;
-            rowIdx++;
         }
     };
 
-    // Input hook: toggle entry.selected when the user clicks within a
-    // row's checkbox (while not yet downloading). Coordinates are
-    // already relative to the custom-body rect.
-    def.onInputCustomBody = [&set, &state, dpiScale] (
-        const DialogInputEvent & ev) -> std::optional<int>
+    // Input hook: forward mouse events to the per-row Checkbox widgets.
+    // Coordinates arrive body-relative; the Checkbox widget hit-tests
+    // against absolute window coordinates (the same space its rect is
+    // set to during paint), so we add the cached body origin.
+    def.onInputCustomBody = [&state] (const DialogInputEvent & ev) -> std::optional<int>
     {
-        if (ev.kind != DialogInputEvent::Kind::LeftButtonDown)
-        {
-            return std::nullopt;
-        }
-
         if (state.downloading)
         {
             return std::nullopt;
         }
 
-        float    rowH      = (float) s_kRowHeightDp    * dpiScale;
-        float    headerH   = (float) s_kHeaderHeightDp * dpiScale;
-        float    gap       = (float) s_kRowGapDp       * dpiScale;
-        float    indentPx  = 20.0f                     * dpiScale;
-        float    cbBoxPx   = 16.0f                     * dpiScale;
-        float    pad       = s_kTextPaddingDp          * dpiScale;
-        float    cbColPx   = indentPx + cbBoxPx + pad;
-        float    y         = 0.0f;
-        wstring  curGroup;
+        int absX = ev.xPx + state.bodyOriginXPx;
+        int absY = ev.yPx + state.bodyOriginYPx;
 
-        for (size_t i = 0; i < set.entries.size(); i++)
+        for (Checkbox & cb : state.checkboxes)
         {
-            StartupAssetEntry & entry = set.entries[i];
-
-            if (entry.groupLabel != curGroup)
+            switch (ev.kind)
             {
-                curGroup = entry.groupLabel;
-                y       += headerH + gap;
-            }
+                case DialogInputEvent::Kind::LeftButtonDown:
+                    cb.OnLButtonDown (absX, absY);
+                    break;
 
-            float ry = y;
-            y       += rowH + gap;
+                case DialogInputEvent::Kind::LeftButtonUp:
+                    cb.OnLButtonUp (absX, absY);
+                    break;
 
-            if ((float) ev.yPx < ry || (float) ev.yPx >= ry + rowH)
-            {
-                continue;
-            }
+                case DialogInputEvent::Kind::MouseMove:
+                    cb.SetMouseHover (absX, absY);
+                    break;
 
-            if (!entry.selectable)
-            {
-                return std::nullopt;
-            }
-
-            if ((float) ev.xPx < cbColPx)
-            {
-                entry.selected = !entry.selected;
-                return std::nullopt;
+                case DialogInputEvent::Kind::KeyDown:
+                    break;
             }
         }
 
@@ -592,7 +512,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
                 dlg.SetButtonVisible (state.skipBtnIdx, false);
             }
 
-            state.worker = std::thread (WorkerThreadProc, &state);
+            StartWorkers (state);
             return false;
         }
 
@@ -607,12 +527,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
             if (state.downloading)
             {
                 state.cancelFlag.store (true, std::memory_order_release);
-
-                if (state.worker.joinable())
-                {
-                    state.worker.join();
-                }
-
+                JoinAllWorkers (state);
                 RemovePartialFiles (state);
             }
 
@@ -627,13 +542,12 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     {
         dlg.Repaint();
 
-        if (state.downloading && state.workerDone.load (std::memory_order_acquire))
+        if (state.downloading
+            && !state.finished
+            && state.workersInFlight.load (std::memory_order_acquire) == 0)
         {
-            if (state.worker.joinable())
-            {
-                state.worker.join();
-            }
-
+            state.finished = true;
+            JoinAllWorkers (state);
             RemovePartialFiles (state);
 
             state.result = state.anyFailed.load (std::memory_order_relaxed)
@@ -647,10 +561,10 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     dialogResult = ShowStandaloneDialog (hInstance, hwndOwner, def);
     UNREFERENCED_PARAMETER (dialogResult);
 
-    if (state.worker.joinable())
+    if (!state.workers.empty())
     {
         state.cancelFlag.store (true, std::memory_order_release);
-        state.worker.join();
+        JoinAllWorkers (state);
         RemovePartialFiles (state);
 
         if (state.result == StartupDownloadResult::Skipped)
