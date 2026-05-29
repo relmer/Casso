@@ -134,6 +134,19 @@ static constexpr BootDiskSpec s_kProDOSDisk =
 
 
 
+static std::wstring MachineDisplayName (std::string_view machineId)
+{
+    if (machineId == "Apple2")          return L"Apple ][";
+    if (machineId == "Apple2Plus")      return L"Apple ][+";
+    if (machineId == "Apple2e")         return L"Apple //e";
+    if (machineId == "Apple2eEnhanced") return L"Apple //e Enhanced";
+    return std::wstring (machineId.begin (), machineId.end ());
+}
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmbeddedConfig
@@ -2401,7 +2414,6 @@ HRESULT AssetBootstrap::RunStartupDownloader (
     vector<string>         romFiles;
     string                 narrowMachine;
     fs::path               devicesDir     = assetBaseDir / "Devices" / "DiskII";
-    fs::path               bootDiskDest;
     bool                   audioIncluded  = false;
     error_code             ec;
 
@@ -2440,8 +2452,11 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         }
 
         entry.kind          = StartupAssetKind::Rom;
+        entry.groupLabel    = MachineDisplayName (narrowMachine) + L" ROMs";
         entry.displayName   = AsciiToWide (spec->description);
         entry.kindLabel     = L"ROM";
+        entry.selectable    = false;
+        entry.selected      = true;
         entry.destPaths.push_back (assetBaseDir / string (spec->localRelDir) / spec->cassoName);
         entry.expectedBytes = (std::uint64_t) spec->expectedSize;
         entry.downloadFn    = [spec, destPath = entry.destPaths.front()] (
@@ -2490,30 +2505,45 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
     if (considerDiskAudio && prefs.audioDownloadConsent != "decline")
     {
-        StartupAssetEntry  entry;
-        size_t             missingCount = 0;
-
-        for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
+        for (string_view mechanism : s_kDiskAudioMechanisms)
         {
-            fs::path  mechDir = devicesDir / string (spec.mechanism);
-            fs::path  wavPath = mechDir / string (spec.wavBasename);
+            StartupAssetEntry  entry;
+            string             mechStr   (mechanism);
+            wstring            mechW     (mechanism.begin (), mechanism.end ());
+            size_t             missingCount = 0;
 
-            if (fs::exists (wavPath, ec))
+            for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
+            {
+                fs::path  mechDir = devicesDir / string (spec.mechanism);
+                fs::path  wavPath = mechDir / string (spec.wavBasename);
+
+                if (spec.mechanism != mechanism)
+                {
+                    continue;
+                }
+
+                if (fs::exists (wavPath, ec))
+                {
+                    continue;
+                }
+
+                entry.destPaths.push_back (wavPath);
+                missingCount++;
+            }
+
+            if (missingCount == 0)
             {
                 continue;
             }
 
-            entry.destPaths.push_back (wavPath);
-            missingCount++;
-        }
-
-        if (missingCount > 0)
-        {
             entry.kind          = StartupAssetKind::DriveAudio;
+            entry.groupLabel    = L"Disk ][ audio";
             entry.kindLabel     = L"Drive audio";
             entry.expectedBytes = 0;
-            entry.displayName   = format (L"Disk II drive audio ({} files)", missingCount);
-            entry.downloadFn    = [devicesDir] (
+            entry.selectable    = true;
+            entry.selected      = true;
+            entry.displayName   = mechW + L" mechanism";
+            entry.downloadFn    = [devicesDir, mechStr] (
                 std::atomic<std::uint64_t> & bytesDone,
                 std::atomic<bool>          & cancel,
                 std::string                & err) -> HRESULT
@@ -2537,6 +2567,11 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                     vector<float>                pcm;
                     wstring                      urlPath;
                     std::atomic<std::uint64_t>   perFileBytes{0};
+
+                    if (spec.mechanism != mechStr)
+                    {
+                        continue;
+                    }
 
                     if (fs::exists (wavPath, ecLocal))
                     {
@@ -2581,8 +2616,6 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
                     if (FAILED (hr))
                     {
-                        // Best-effort per file -- log and continue so a
-                        // single 404 doesn't poison the whole batch.
                         DEBUGMSG (L"Drive audio: skipping %S (%s)\n",
                                   spec.oggBasename.data (),
                                   wstring (err.begin (), err.end ()).c_str ());
@@ -2624,18 +2657,34 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
     if (offerBootDisk)
     {
-        fs::path  wantPath = diskDir / string (s_kDos33Disk.cassoName);
-
-        if (!fs::exists (wantPath, ec))
+        struct DiskChoice { const BootDiskSpec * spec; bool defaultSelected; };
+        DiskChoice  choices[] =
         {
-            StartupAssetEntry  entry;
+            { &s_kDos33Disk,  true  },
+            { &s_kProDOSDisk, false }
+        };
+
+        for (const DiskChoice & dc : choices)
+        {
+            fs::path  wantPath = diskDir / string (dc.spec->cassoName);
+
+            if (fs::exists (wantPath, ec))
+            {
+                continue;
+            }
+
+            const BootDiskSpec * spec = dc.spec;
+            StartupAssetEntry    entry;
 
             entry.kind          = StartupAssetKind::BootDisk;
-            entry.displayName   = AsciiToWide (s_kDos33Disk.description);
+            entry.groupLabel    = L"Boot disks";
+            entry.displayName   = AsciiToWide (string (spec->shortLabel));
             entry.kindLabel     = L"Boot disk";
+            entry.selectable    = true;
+            entry.selected      = dc.defaultSelected;
             entry.destPaths.push_back (wantPath);
-            entry.expectedBytes = (std::uint64_t) s_kDos33Disk.expectedSize;
-            entry.downloadFn    = [destPath = wantPath] (
+            entry.expectedBytes = (std::uint64_t) spec->expectedSize;
+            entry.downloadFn    = [spec, destPath = wantPath] (
                 std::atomic<std::uint64_t> & bytesDone,
                 std::atomic<bool>          & cancel,
                 std::string                & err) -> HRESULT
@@ -2654,9 +2703,9 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
                 hr = DownloadHttp (hSes,
                                    s_kpszAsimovHost,
-                                   s_kDos33Disk.asimovUrlPath,
-                                   s_kDos33Disk.expectedSize,
-                                   s_kDos33Disk.shortLabel,
+                                   spec->asimovUrlPath,
+                                   spec->expectedSize,
+                                   spec->shortLabel,
                                    payload,
                                    err,
                                    &bytesDone,
@@ -2675,14 +2724,14 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                 return hr;
             };
 
-            bootDiskDest = wantPath;
             set.entries.push_back (std::move (entry));
         }
     }
 
     BAIL_OUT_IF (set.entries.empty (), S_OK);
 
-    result = StartupDownloadDialog::Show (hInstance, hwndParent, set);
+    result = StartupDownloadDialog::Show (hInstance, hwndParent,
+                                          MachineDisplayName (narrowMachine), set);
 
     switch (result)
     {
@@ -2693,9 +2742,17 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         {
             prefs.audioDownloadConsent = "allow";
         }
-        if (!bootDiskDest.empty () && fs::exists (bootDiskDest, ec))
+        // Pick the first boot-disk entry whose file is actually on
+        // disk -- preserves catalog order (DOS 3.3 over ProDOS) and
+        // tolerates the user unchecking the default.
+        for (const StartupAssetEntry & entry : set.entries)
         {
-            outBootDiskPath = bootDiskDest.wstring ();
+            if (entry.kind != StartupAssetKind::BootDisk) continue;
+            if (entry.destPaths.empty ())                 continue;
+            if (!fs::exists (entry.destPaths.front (), ec)) continue;
+
+            outBootDiskPath = entry.destPaths.front ().wstring ();
+            break;
         }
         hr = S_OK;
         break;

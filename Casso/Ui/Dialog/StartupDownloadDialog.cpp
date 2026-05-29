@@ -88,6 +88,7 @@ namespace
         size_t                       skipBtnIdx     = SIZE_MAX;
         size_t                       exitBtnIdx     = SIZE_MAX;
         bool                         downloading    = false;
+        bool                         showStatus     = false;  // gates per-row status text
         StartupDownloadResult        result         = StartupDownloadResult::Skipped;
     };
 
@@ -147,6 +148,13 @@ namespace
         {
             StartupAssetEntry & entry = state->set->entries[i];
             EntryRuntime      & rt    = state->runtime[i];
+
+            if (!entry.selected)
+            {
+                // User unchecked this asset. Leave runtime untouched so
+                // the row shows blank status (handled by paint).
+                continue;
+            }
 
             if (state->cancelFlag.load (std::memory_order_relaxed))
             {
@@ -223,20 +231,22 @@ namespace
 
 StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hInstance,
                                                    HWND                     hwndOwner,
+                                                   const std::wstring     & machineDisplayName,
                                                    StartupDownloadSet     & set)
 {
     DialogDefinition        def           = {};
     DialogState             state;
     wstring                 title;
     wstring                 intro;
-    wstring                 sources;
     int                     dialogResult  = 0;
     UINT                    sysDpi        = (hwndOwner != nullptr) ? GetDpiForWindow (hwndOwner)
                                                                    : GetDpiForSystem();
     float                   dpiScale      = (sysDpi > 0) ? ((float) sysDpi / 96.0f) : 1.0f;
     bool                    requiresRoms  = false;
     int                     rowCount      = 0;
+    int                     headerCount   = 0;
     int                     totalH        = 0;
+    wstring                 prevGroup;
 
 
 
@@ -250,70 +260,59 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     requiresRoms  = set.RequiresRoms();
     rowCount      = (int) set.entries.size();
 
+    for (const StartupAssetEntry & entry : set.entries)
+    {
+        if (entry.groupLabel != prevGroup)
+        {
+            headerCount++;
+            prevGroup = entry.groupLabel;
+        }
+    }
+
     title  = L"Casso ";
     title += s_kchEmDash;
     title += L" Download assets";
 
     if (requiresRoms)
     {
-        intro = L"Casso needs the assets listed below to boot. "
-                L"Click Download to fetch them now, or Exit to quit.";
+        if (machineDisplayName.empty())
+        {
+            intro = L"This machine configuration needs the following files to boot. "
+                    L"Click Download to fetch them now, or Exit to quit.";
+        }
+        else
+        {
+            intro  = L"The ";
+            intro += machineDisplayName;
+            intro += L" configuration needs the following files to boot. "
+                     L"Click Download to fetch them now, or Exit to quit.";
+        }
     }
     else
     {
-        intro = L"The following optional assets are missing. "
-                L"Click Download to fetch them, Skip to continue without them, "
-                L"or Exit to quit.";
-    }
-
-    // Build the sources blurb so the user knows these files come from
-    // third parties and are not bundled with Casso.
-    {
-        bool  hasRom    = false;
-        bool  hasAudio  = false;
-        bool  hasDisk   = false;
-
-        for (const StartupAssetEntry & entry : set.entries)
-        {
-            switch (entry.kind)
-            {
-            case StartupAssetKind::Rom:        hasRom   = true; break;
-            case StartupAssetKind::DriveAudio: hasAudio = true; break;
-            case StartupAssetKind::BootDisk:   hasDisk  = true; break;
-            }
-        }
-
-        sources  = L"These files are not bundled with Casso. They will be downloaded from:";
-        if (hasRom)
-        {
-            sources += L"\n    \x2022  ROMs: the AppleWin project (raw.githubusercontent.com)";
-        }
-        if (hasAudio)
-        {
-            sources += L"\n    \x2022  Drive audio: OpenEmulator (raw.githubusercontent.com)";
-        }
-        if (hasDisk)
-        {
-            sources += L"\n    \x2022  Boot disks: Asimov mirror (apple.asimov.net)";
-        }
+        intro = L"The following optional files are missing. "
+                L"Choose what to download, then click Download, "
+                L"Skip to continue without them, or Exit to quit.";
     }
 
     totalH = (int) ((float) (s_kHeaderHeightDp
-                             + rowCount * (s_kRowHeightDp + s_kRowGapDp))
+                             + headerCount * (s_kHeaderHeightDp + s_kRowGapDp)
+                             + rowCount    * (s_kRowHeightDp    + s_kRowGapDp))
                     * dpiScale);
 
     def.title              = title;
     def.icon               = DialogIcon::AppFlat;
     def.iconSizeOverrideDp = 64.0f;
-    def.body.push_back ({ intro,   false, L"" });
-    def.body.push_back ({ sources, false, L"" });
+    def.body.push_back ({ intro, false, L"" });
 
     def.customBodyMinSizePx.cx = (int) ((float) s_kBodyWidthDp * dpiScale);
     def.customBodyMinSizePx.cy = totalH;
 
     def.tickIntervalMs = s_kTickIntervalMs;
 
-    // Paint hook reads atomic status/bytes for each entry every frame.
+    // Paint hook: tree-style layout. Group headers are bold no-checkbox
+    // rows; entries are checkbox + label + progress bar + (optional)
+    // status. Status is hidden until the user clicks Download.
     def.onPaintCustomBody = [&set, &state] (DialogPaintContext & ctx)
     {
         HRESULT   hr        = S_OK;
@@ -328,15 +327,21 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
         float     pad       = s_kTextPaddingDp              * ctx.dpiScale;
         float     barH      = s_kProgressBarHeightDp        * ctx.dpiScale;
         float     statusW   = s_kStatusColumnDp             * ctx.dpiScale;
+        float     cbBoxDp   = 16.0f;
+        float     cbBoxPx   = cbBoxDp                       * ctx.dpiScale;
+        float     indentPx  = 20.0f                         * ctx.dpiScale;
+        float     cbColPx   = indentPx + cbBoxPx + pad;
         uint32_t  rowBgA    = 0;
         uint32_t  rowBgB    = 0;
         uint32_t  fg        = 0;
-        uint32_t  hdrBg     = 0;
+        uint32_t  fgDim     = 0;
         uint32_t  hdrFg     = 0;
         uint32_t  barBg     = 0;
         uint32_t  barFg     = 0;
         uint32_t  barDone   = 0;
         uint32_t  barFail   = 0;
+        wstring   curGroup;
+        size_t    rowIdx    = 0;
 
 
 
@@ -351,32 +356,12 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
         rowBgA  = ctx.theme->navStripArgb;
         rowBgB  = ctx.theme->dropdownBgArgb;
         fg      = ctx.theme->dropdownItemTextArgb;
-        hdrBg   = ctx.theme->navHoverArgb;
+        fgDim   = (fg & 0x00FFFFFFu) | 0x80000000u;
         hdrFg   = ctx.theme->titleTextArgb;
         barBg   = ctx.theme->dropdownHoverArgb;
         barFg   = ctx.theme->navHoverArgb;
         barDone = ctx.theme->ledActiveArgb;
         barFail = 0xFFCC4444;
-
-        ctx.painter->FillRect (x, y, fullW, headerH, hdrBg);
-
-        IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (L"Asset",
-                                                       x + pad, y,
-                                                       fullW - statusW - pad * 2.0f, headerH,
-                                                       hdrFg, hFontPx, L"Segoe UI",
-                                                       DwriteTextRenderer::HAlign::Left,
-                                                       DwriteTextRenderer::VAlign::Center,
-                                                       DWRITE_FONT_WEIGHT_BOLD));
-
-        IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (L"Status",
-                                                       x + fullW - statusW - pad, y,
-                                                       statusW, headerH,
-                                                       hdrFg, hFontPx, L"Segoe UI",
-                                                       DwriteTextRenderer::HAlign::Right,
-                                                       DwriteTextRenderer::VAlign::Center,
-                                                       DWRITE_FONT_WEIGHT_BOLD));
-
-        y += headerH + gap;
 
         for (size_t i = 0; i < set.entries.size(); i++)
         {
@@ -384,33 +369,73 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
             const EntryRuntime      & rt     = state.runtime[i];
             EntryStatus               s      = (EntryStatus) rt.status.load (std::memory_order_relaxed);
             std::uint64_t             done   = rt.bytesDone.load (std::memory_order_relaxed);
-            float                     ry     = y + (float) i * (rowH + gap);
-            uint32_t                  rowBg  = ((i & 1u) == 0u) ? rowBgA : rowBgB;
-            std::wstring              status = StatusText (rt, entry.expectedBytes);
-            std::wstring              line1  = entry.kindLabel.empty()
-                                                  ? entry.displayName
-                                                  : (entry.displayName + L"  \u2013  " + entry.kindLabel);
+
+            if (entry.groupLabel != curGroup)
+            {
+                curGroup = entry.groupLabel;
+
+                IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (curGroup.c_str(),
+                                                               x + pad, y,
+                                                               fullW - pad * 2.0f, headerH,
+                                                               hdrFg, hFontPx, L"Segoe UI",
+                                                               DwriteTextRenderer::HAlign::Left,
+                                                               DwriteTextRenderer::VAlign::Center,
+                                                               DWRITE_FONT_WEIGHT_BOLD));
+
+                y += headerH + gap;
+            }
+
+            float       ry        = y;
+            uint32_t    rowBg     = ((rowIdx & 1u) == 0u) ? rowBgA : rowBgB;
+            std::wstring  status  = state.showStatus
+                                       ? StatusText (rt, entry.expectedBytes)
+                                       : wstring();
+            uint32_t    rowFg     = entry.selected ? fg : fgDim;
 
             ctx.painter->FillRect (x, ry, fullW, rowH, rowBg);
 
-            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (line1.c_str(),
-                                                           x + pad, ry,
-                                                           fullW - statusW - pad * 2.0f, rowH * 0.55f,
-                                                           fg, fontPx, L"Segoe UI",
+            // Checkbox.
+            {
+                float     cx     = x + indentPx;
+                float     cy     = ry + (rowH - cbBoxPx) * 0.5f;
+                uint32_t  edge   = entry.selectable ? fg : fgDim;
+                uint32_t  fill   = entry.selected   ? barDone : 0x00000000u;
+
+                ctx.painter->FillRect (cx,            cy,            cbBoxPx, 1.0f * ctx.dpiScale, edge);
+                ctx.painter->FillRect (cx,            cy + cbBoxPx - 1.0f * ctx.dpiScale, cbBoxPx, 1.0f * ctx.dpiScale, edge);
+                ctx.painter->FillRect (cx,            cy,            1.0f * ctx.dpiScale, cbBoxPx, edge);
+                ctx.painter->FillRect (cx + cbBoxPx - 1.0f * ctx.dpiScale, cy,            1.0f * ctx.dpiScale, cbBoxPx, edge);
+
+                if (entry.selected)
+                {
+                    float inset = 3.0f * ctx.dpiScale;
+                    ctx.painter->FillRect (cx + inset, cy + inset,
+                                           cbBoxPx - inset * 2.0f, cbBoxPx - inset * 2.0f, fill);
+                }
+            }
+
+            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (entry.displayName.c_str(),
+                                                           x + cbColPx, ry,
+                                                           fullW - cbColPx - statusW - pad, rowH * 0.55f,
+                                                           rowFg, fontPx, L"Segoe UI",
                                                            DwriteTextRenderer::HAlign::Left,
                                                            DwriteTextRenderer::VAlign::Center));
 
-            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (status.c_str(),
-                                                           x + fullW - statusW - pad, ry,
-                                                           statusW, rowH * 0.55f,
-                                                           fg, fontPx, L"Segoe UI",
-                                                           DwriteTextRenderer::HAlign::Right,
-                                                           DwriteTextRenderer::VAlign::Center));
-
+            if (state.showStatus)
             {
-                float    barX     = x + pad;
+                IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (status.c_str(),
+                                                               x + fullW - statusW - pad, ry,
+                                                               statusW, rowH * 0.55f,
+                                                               rowFg, fontPx, L"Segoe UI",
+                                                               DwriteTextRenderer::HAlign::Right,
+                                                               DwriteTextRenderer::VAlign::Center));
+            }
+
+            if (state.showStatus && entry.selected)
+            {
+                float    barX     = x + cbColPx;
                 float    barY     = ry + rowH * 0.55f + pad * 0.5f;
-                float    barFullW = fullW - pad * 2.0f;
+                float    barFullW = fullW - cbColPx - pad;
                 float    pct      = 0.0f;
                 uint32_t fillCol  = barFg;
 
@@ -426,7 +451,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
                 }
                 else if (s == EntryStatus::Cancelled)
                 {
-                    pct     = 0.0f;
+                    pct = 0.0f;
                 }
                 else if (entry.expectedBytes > 0 && done > 0)
                 {
@@ -439,8 +464,6 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
                 }
                 else if (s == EntryStatus::Downloading)
                 {
-                    // Indeterminate (unknown size): show partial fill so the
-                    // user sees we're alive.
                     pct = 0.25f;
                 }
 
@@ -452,7 +475,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
                 }
             }
 
-            if (s == EntryStatus::Failed && !rt.errorMsg.empty())
+            if (state.showStatus && s == EntryStatus::Failed && !rt.errorMsg.empty())
             {
                 std::wstring  msg;
 
@@ -464,17 +487,78 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
                 }
 
                 IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (msg.c_str(),
-                                                               x + pad, ry + rowH - pad * 1.5f,
-                                                               fullW - pad * 2.0f, pad * 1.5f,
+                                                               x + cbColPx, ry + rowH - pad * 1.5f,
+                                                               fullW - cbColPx - pad, pad * 1.5f,
                                                                barFail, fontPx * 0.85f, L"Segoe UI",
                                                                DwriteTextRenderer::HAlign::Left,
                                                                DwriteTextRenderer::VAlign::Center));
             }
+
+            y += rowH + gap;
+            rowIdx++;
         }
     };
 
-    // Build buttons. Indices captured into state so the tick / button
-    // hooks can address them by symbolic name.
+    // Input hook: toggle entry.selected when the user clicks within a
+    // row's checkbox (while not yet downloading). Coordinates are
+    // already relative to the custom-body rect.
+    def.onInputCustomBody = [&set, &state, dpiScale] (
+        const DialogInputEvent & ev) -> std::optional<int>
+    {
+        if (ev.kind != DialogInputEvent::Kind::LeftButtonDown)
+        {
+            return std::nullopt;
+        }
+
+        if (state.downloading)
+        {
+            return std::nullopt;
+        }
+
+        float    rowH      = (float) s_kRowHeightDp    * dpiScale;
+        float    headerH   = (float) s_kHeaderHeightDp * dpiScale;
+        float    gap       = (float) s_kRowGapDp       * dpiScale;
+        float    indentPx  = 20.0f                     * dpiScale;
+        float    cbBoxPx   = 16.0f                     * dpiScale;
+        float    pad       = s_kTextPaddingDp          * dpiScale;
+        float    cbColPx   = indentPx + cbBoxPx + pad;
+        float    y         = 0.0f;
+        wstring  curGroup;
+
+        for (size_t i = 0; i < set.entries.size(); i++)
+        {
+            StartupAssetEntry & entry = set.entries[i];
+
+            if (entry.groupLabel != curGroup)
+            {
+                curGroup = entry.groupLabel;
+                y       += headerH + gap;
+            }
+
+            float ry = y;
+            y       += rowH + gap;
+
+            if ((float) ev.yPx < ry || (float) ev.yPx >= ry + rowH)
+            {
+                continue;
+            }
+
+            if (!entry.selectable)
+            {
+                return std::nullopt;
+            }
+
+            if ((float) ev.xPx < cbColPx)
+            {
+                entry.selected = !entry.selected;
+                return std::nullopt;
+            }
+        }
+
+        return std::nullopt;
+    };
+
+    // Build buttons.
     state.downloadBtnIdx = def.buttons.size();
     def.buttons.push_back ({ L"Download", s_kIdDownload, true, false });
 
@@ -499,6 +583,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
             }
 
             state.downloading = true;
+            state.showStatus  = true;
             dlg.SetButtonLabel   (state.downloadBtnIdx, L"Downloading...");
             dlg.SetButtonEnabled (state.downloadBtnIdx, false);
 
@@ -549,8 +634,6 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
                 state.worker.join();
             }
 
-            // Clean up any partials from failed/cancelled entries so we
-            // don't leave truncated files on disk.
             RemovePartialFiles (state);
 
             state.result = state.anyFailed.load (std::memory_order_relaxed)
@@ -564,8 +647,6 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     dialogResult = ShowStandaloneDialog (hInstance, hwndOwner, def);
     UNREFERENCED_PARAMETER (dialogResult);
 
-    // Defensive: if somehow we exit Show() with the worker still running
-    // (WM_CLOSE path bypasses onButtonActivated), cancel and join.
     if (state.worker.joinable())
     {
         state.cancelFlag.store (true, std::memory_order_release);

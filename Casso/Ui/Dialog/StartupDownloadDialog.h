@@ -43,10 +43,13 @@ enum class StartupAssetKind
 struct StartupAssetEntry
 {
     StartupAssetKind                  kind          = StartupAssetKind::Rom;
-    std::wstring                      displayName;        // e.g. "Apple ][e ROM"
+    std::wstring                      groupLabel;         // tree parent ("Apple //e ROMs")
+    std::wstring                      displayName;        // tree leaf ("Apple //e ROM")
     std::wstring                      kindLabel;          // e.g. "ROM" / "Drive audio"
     std::vector<std::filesystem::path>  destPaths;        // every file produced (for cleanup)
     std::uint64_t                     expectedBytes = 0;  // 0 = unknown
+    bool                              selectable    = true;   // user can toggle the checkbox?
+    bool                              selected      = true;   // initial / current checkbox state
 
     // Performs the entire fetch (HTTP + decode + write). MUST update
     // `bytesDone` as bytes are received and MUST check `cancel`
@@ -87,5 +90,6 @@ class StartupDownloadDialog
 public:
     static StartupDownloadResult  Show (HINSTANCE                hInstance,
                                         HWND                     hwndOwner,
+                                        const std::wstring     & machineDisplayName,
                                         StartupDownloadSet     & set);
 };
