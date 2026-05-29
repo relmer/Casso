@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.4.1284] — Native dialogs migration (spec 011)
+## [1.4.1289] — Native dialogs migration (spec 011)
 
 Themed DX-based modal dialogs now replace every Win32 `MessageBoxW` /
 `TaskDialogIndirect` consumer in the app (except the pre-shell EHM
@@ -62,19 +62,40 @@ is preserved as the lone deliberate Win32 surface.
 - **refactor(011): single disk-insert file picker.** Legacy
   `GetOpenFileNameW` branch removed; both `IDM_DISK_INSERT*` route
   through the modern `IFileOpenDialog`-backed `PromptForDiskImage`.
+- **feat(011): boot-disk MRU picker (US2).** When no disk is configured
+  at startup, a themed picker lists every still-present recent disk
+  image as a clickable row (basename + hover highlight) above
+  `Download…` / `Skip` footer buttons. Selecting a row mounts that
+  image; `Download…` falls through to the asset bootstrap; `Skip` /
+  Esc boots without a disk. Existence-prunes the MRU on show so
+  deleted files don't reappear.
+- **feat(011): DialogPrimitive custom-body input.** `DialogDefinition`
+  gained an `onInputCustomBody` hook (`std::optional<int>` return =
+  close-request); `DialogPrimitive` dispatches mouse / keyboard events
+  through it before its own handling. `DialogPaintContext` now carries
+  the `DwriteTextRenderer` pointer so custom-body paint callbacks can
+  render text in addition to geometry.
+- **feat(011): Win11 dark-mode pass on debug dialogs (US6/US7).**
+  `DebugConsole` and `DiskIIDebugDialog` apply
+  `DWMWA_USE_IMMERSIVE_DARK_MODE`, dark control brushes, the
+  `DarkMode_Explorer` window theme, and `WM_CTLCOLORSTATIC` overrides so
+  the developer-only dialogs match the rest of the Win11 dark chrome.
+  ListView header (`ItemsView` theme) + row colors picked up too; the
+  Disk II Debug dialog still flags invalid track/sector input in red.
+- **chore(011): link uxtheme.lib.** Required for `SetWindowTheme` calls
+  used by the dark-mode pass; added to all six `AdditionalDependencies`
+  entries in `Casso.vcxproj`.
 - **chore(011): named Unicode constants.** New `s_kchAlmostEqual`
   (U+2248) in `UnicodeSymbols.h`; all dialog body strings consume
   named constants rather than inline `\xNNNN` escapes.
 
 ### Deferred
-- US2 boot-disk MRU picker UI, US6 themed Debug Console wrapper, and
-  US7 themed Disk II Debug Dialog conversion. These require additional
-  themed widget primitives (custom-body MRU listview, scrollable text
-  panel, themed text input + popup menu + virtual sortable ListView)
-  that aren't yet in the widget library; the MRU data plumbing
-  (`recentDisks` + `DiskMru`) ships now so the picker can land on top
-  of it later without a schema change. The legacy Win32 Disk II Debug
-  Dialog continues to work in the interim.
+- US6 / US7 full DX panel rewrites. The developer-only Debug Console
+  and Disk II Debug Dialog ship with the Win11 dark-mode pass instead
+  of a from-scratch DX rebuild. The missing widget primitives (themed
+  text input + validation feedback, radio buttons, virtual sortable
+  ListView, popup column menu, tooltip popup) are tracked for future
+  feature work; the user-facing path (US1–US5) ships end-to-end in DX.
 
 ### Tests
 - **+24 headless unit tests** across `DialogLayoutTests` (6),
