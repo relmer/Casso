@@ -266,18 +266,14 @@ Byte Disk2Controller::HandleReadDispatch()
 
     if (!m_q6 && !m_q7)
     {
-        // Issue #67 deliverable 1: during the motor spin-up window
-        // the read head sees garbage, not real bit-stream data.
-        // Return 0x00 (no MSB-set, so the CPU's tight BPL polling
-        // loop never sees "byte ready") and skip both the latch
-        // read and the address-mark watcher feed so the watcher's
-        // state machines don't accumulate phantom partial nibbles
-        // from disk regions the head couldn't actually read.
-        if (m_motorSpinupRemaining > 0)
-        {
-            return 0;
-        }
-
+        // Issue #67 deliverable 1: during the LSS-stability window
+        // after the motor's off->on edge, force the CPU-visible
+        // latch to 0x80 (MSB set, but data is garbage). The bit
+        // cursor and address-mark watcher still run normally so
+        // rotational position and sync detection stay correct;
+        // only the byte the CPU reads is overridden. Matches
+        // AppleWin's MOTOR_ON_UNTIL_LSS_STABLE_CYCLES path
+        // (GH#864).
         nibble = m_engine[m_activeDrive].ReadLatch();
 
         // Spec-006 T032 / FR-008: feed the passive watcher exactly
@@ -294,6 +290,11 @@ Byte Disk2Controller::HandleReadDispatch()
         if (m_engine[m_activeDrive].ConsumeFreshNibble (fresh))
         {
             m_addrMarkWatcher.ObserveNibble (fresh);
+        }
+
+        if (m_motorSpinupRemaining > 0)
+        {
+            return 0x80;
         }
 
         return nibble;

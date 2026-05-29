@@ -397,7 +397,7 @@ public:
             L"Spin-up cycle counter must equal the full window on motor-on edge");
     }
 
-    TEST_METHOD (Spinup_ReadsReturnZerosInsideWindow)
+    TEST_METHOD (Spinup_ReadsReturn80InsideWindow)
     {
         unique_ptr<Disk2Controller>    disk  = make_unique<Disk2Controller> (6);
         DiskImage *                    img   = disk->GetDisk (0);
@@ -415,10 +415,11 @@ public:
         disk->Read (kQ7Off);
         disk->Read (kQ6Off);
 
-        // Tick a handful of bit cells -- well inside the ~71k-cycle
-        // spin-up window. The latch must keep returning 0 because
-        // the head is not yet at reading speed; protection schemes
-        // rely on this absence-of-valid-sync signal.
+        // Tick a handful of bit cells -- well inside the LSS-stable
+        // window (0x2EC cycles). The latch must keep returning 0x80
+        // (MSB set, but data garbage); copy-protection schemes rely
+        // on the absence of real sync nibbles during this window.
+        // Matches AppleWin's GH#864 behavior.
         for (i = 0; i < 8; i++)
         {
             disk->Tick (Disk2NibbleEngine::kCyclesPerBit);
@@ -426,8 +427,8 @@ public:
 
         value = disk->Read (kQ6Off);
 
-        Assert::AreEqual (static_cast<Byte> (0x00), value,
-            L"Reads inside the spin-up window must return 0x00");
+        Assert::AreEqual (static_cast<Byte> (0x80), value,
+            L"Reads inside the LSS-stability window must return 0x80");
         Assert::IsFalse (disk->IsMotorAtSpeed (),
             L"Motor must still report not-at-speed after 32 cycles");
     }

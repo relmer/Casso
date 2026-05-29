@@ -46,18 +46,19 @@ public:
     // AppleWin SPINNING_CYCLES.
     static constexpr uint32_t  kMotorSpindownCycles = 1'000'000U;
 
-    // Issue #67 deliverable 1: motor spin-up window. Real Disk II
-    // hardware needs ~1 revolution (~70 ms at 300 RPM) to reach
-    // reading speed after the motor is energized. During this
-    // window the read head sees garbage; copy-protection schemes
-    // deliberately read during spin-up and verify the absence of
-    // valid sync nibbles. We model this by returning 0x00 from
-    // the read latch path for kMotorSpinupCycles after the off->on
-    // edge -- the bit cursor inside the engine still advances so
-    // rotational position is correct once the window closes; only
-    // the CPU-visible read is suppressed. ~70 ms at 1.023 MHz =
-    // ~71,600 cycles.
-    static constexpr uint32_t  kMotorSpinupCycles = 71'600U;
+    // Issue #67 deliverable 1: LSS stability window. For roughly
+    // 0x2EC CPU cycles after the motor's off->on edge the Disk II
+    // Logic State Sequencer hasn't latched a stable nibble yet, so
+    // any read returns 0x80 (MSB set, meaningless data). Copy-
+    // protection schemes deliberately read during this window and
+    // verify the absence of valid sync nibbles. Matches AppleWin's
+    // MOTOR_ON_UNTIL_LSS_STABLE_CYCLES (GH#864); the per-card range
+    // is 0x2EC-0x990 cycles. The bit cursor still advances during
+    // the window -- only the CPU-visible latch is overridden -- so
+    // rotational position stays accurate. Note: physical disk spin-
+    // up takes ~500 ms, but the firmware doesn't care; it only
+    // cares about the LSS-stable bit, which is much shorter.
+    static constexpr uint32_t  kMotorSpinupCycles = 0x2EC;
 
     explicit Disk2Controller (int slot);
 
