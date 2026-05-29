@@ -12,9 +12,9 @@
 //
 //  EventCategory
 //
-//  Tags a DiskIIEvent ring entry as a controller-side event or an
+//  Tags a Disk2Event ring entry as a controller-side event or an
 //  audio-side event so the UI-thread formatter routes to the right
-//  detail template (FR-023). Stays uint8_t to keep DiskIIEvent at 24
+//  detail template (FR-023). Stays uint8_t to keep Disk2Event at 24
 //  bytes total.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,7 +31,7 @@ enum class EventCategory : uint8_t
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIEventType
+//  Disk2EventType
 //
 //  Concrete event identifier. Controller-side and audio-side event
 //  types share one enum so the consumer can switch on a single field;
@@ -44,7 +44,7 @@ enum class EventCategory : uint8_t
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class DiskIIEventType : uint8_t
+enum class Disk2EventType : uint8_t
 {
     // Controller-side
     MotorCommandOn      = 0,
@@ -76,14 +76,14 @@ enum class DiskIIEventType : uint8_t
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIEvent
+//  Disk2Event
 //
 //  Single ring-buffer entry. Fixed-size POD; the SPSC ring stores these
 //  by value in a contiguous power-of-two array. Layout (24 bytes total
 //  on the v145 toolchain):
 //
 //      offset 0  : EventCategory   category   (uint8_t)
-//      offset 1  : DiskIIEventType type       (uint8_t)
+//      offset 1  : Disk2EventType type       (uint8_t)
 //      offset 2  : int8_t          drive      (0-based; -1 == n/a)
 //      offset 3  : uint8_t         reserved   (alignment padding)
 //      offset 4  : uint32_t        reserved2  (alignment padding for cycle)
@@ -91,7 +91,7 @@ enum class DiskIIEventType : uint8_t
 //      offset 16 : payload union              (12 bytes max)
 //
 //  Spec-006 bug fix: `drive` is the controller's active-drive index
-//  at the moment the event fired, stamped by the IDiskIIEventSink
+//  at the moment the event fired, stamped by the IDISK2EventSink
 //  implementation (which tracks DriveSelect transitions). It is the
 //  fall-through source for the Debug dialog's Drive column when the
 //  per-payload variant doesn't already carry one (motor, head step,
@@ -106,11 +106,11 @@ enum class DiskIIEventType : uint8_t
 //  The static_assert at the bottom of this header is normative: any
 //  future enlargement of the payload MUST be accompanied by a
 //  documented relaxation of the size bound and a benchmark of the
-//  ring's memory footprint (4096 * sizeof(DiskIIEvent)).
+//  ring's memory footprint (4096 * sizeof(Disk2Event)).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-struct DiskIIEvent
+struct Disk2Event
 {
     struct StepPayload
     {
@@ -168,7 +168,7 @@ struct DiskIIEvent
     };
 
     EventCategory           category;
-    DiskIIEventType         type;
+    Disk2EventType         type;
     int8_t                  drive;
     uint8_t                 reserved;
     uint32_t                reserved2;
@@ -176,8 +176,8 @@ struct DiskIIEvent
     Payload                 payload;
 };
 
-static_assert (sizeof (DiskIIEvent) <= 32,
-               "DiskIIEvent must stay <= 32 bytes (NFR-003 ring footprint). "
+static_assert (sizeof (Disk2Event) <= 32,
+               "Disk2Event must stay <= 32 bytes (NFR-003 ring footprint). "
                "Tasks.md T002 target was 24 bytes, but 8-byte alignment for "
                "cycle (uint64_t) plus the 12-byte payload union pads to 32. "
                "4096 * 32 = 128 KiB ring is still well within budget.");

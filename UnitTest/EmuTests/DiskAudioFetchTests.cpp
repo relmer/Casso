@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "Audio/DiskIIAudioSource.h"
+#include "Audio/Disk2AudioSource.h"
 #include "External/StbVorbisWrapper.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -16,7 +16,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  bootstrap pipeline. We can directly exercise the OGG decoder
 //  wrapper (lives in CassoEmuCore, linked into the test DLL) and
 //  end-to-end WAV write + IMFSourceReader round trip via
-//  DiskIIAudioSource::LoadSamples. The Win32-side AssetBootstrap
+//  Disk2AudioSource::LoadSamples. The Win32-side AssetBootstrap
 //  glue (FetchAndDecodeOgg / WritePcmAsWav / CheckAndFetchDiskAudio)
 //  ships inside Casso.exe rather than a static library, so its
 //  network-touching paths are covered by the manual integration
@@ -153,7 +153,7 @@ public:
     //
     //  Round-trips a known sine wave through the same WAV format the
     //  AssetBootstrap downloader writes, then loads it via
-    //  DiskIIAudioSource::LoadSamples (which is what the production
+    //  Disk2AudioSource::LoadSamples (which is what the production
     //  shell calls). Asserts the loaded buffer is non-empty and that
     //  the peak amplitude is close to the original 0.5. Anything
     //  catastrophically wrong in the WAV format would surface as an
@@ -181,7 +181,7 @@ public:
 
         WriteMonoPcm16Wav (motorPath, src, s_kTestSampleRate);
 
-        DiskIIAudioSource  src1;
+        Disk2AudioSource  src1;
 
         HRESULT  hr = src1.LoadSamples (devicesDir.wstring().c_str(),
                                         L"Shugart",
@@ -227,7 +227,7 @@ public:
     //  LoadSamples_mechanismFallback_picksPerMechanismCopy
     //
     //  Verifies the FR-019 per-file precedence rule: with no override
-    //  at Devices/DiskII/, the per-mechanism subdir's copy is loaded
+    //  at Devices/Disk2/, the per-mechanism subdir's copy is loaded
     //  instead.
     //
     ////////////////////////////////////////////////////////////////////////
@@ -242,7 +242,7 @@ public:
         fs::create_directories (mechDir, ec);
         WriteMonoPcm16Wav (mechDir / L"MotorLoop.wav", pcm, s_kTestSampleRate);
 
-        DiskIIAudioSource  src;
+        Disk2AudioSource  src;
 
         HRESULT  hr = src.LoadSamples (devicesDir.wstring().c_str(),
                                        L"Shugart",

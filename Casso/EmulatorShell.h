@@ -30,9 +30,9 @@
 #include "Video/VideoTiming.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Audio/DriveAudioMixer.h"
-#include "Audio/DiskIIAudioSource.h"
+#include "Audio/Disk2AudioSource.h"
 #include "WasapiAudio.h"
-#include "DiskIIDebugDialog.h"
+#include "Disk2DebugDialog.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
@@ -86,8 +86,8 @@ public:
     // entry point. On first call: lazy-create the modeless dialog,
     // attach it as the sink on the active Disk II controller
     // (controller #0 per FR-017) AND on that controller's
-    // DiskIIAudioSource. On subsequent calls: show + bring to front.
-    void OpenDiskIIDebugDialog();
+    // Disk2AudioSource. On subsequent calls: show + bring to front.
+    void OpenDisk2DebugDialog();
 
     // Spec-006 bug 15. SwitchMachine destroys and recreates the
     // controller + audio source while the modeless debug dialog
@@ -106,13 +106,13 @@ public:
     {
         m_uptimeAnchor = std::chrono::steady_clock::now();
 
-        if (m_diskIIDebugDialog != nullptr)
+        if (m_DISK2DebugDialog != nullptr)
         {
-            m_diskIIDebugDialog->SetUptimeAnchor (m_uptimeAnchor);
+            m_DISK2DebugDialog->SetUptimeAnchor (m_uptimeAnchor);
             // Spec-006 bug-fix. Clear stale rows from the pre-reset
             // boot so the post-reset uptime anchor doesn't end up
             // formatting events that pre-date its own zero point.
-            m_diskIIDebugDialog->ClearEvents();
+            m_DISK2DebugDialog->ClearEvents();
         }
     }
 
@@ -330,7 +330,7 @@ private:
     // populated only when the active machine config carries a
     // Disk II controller (FR-015).
     DriveAudioMixer            m_driveAudioMixer;
-    vector<unique_ptr<DiskIIAudioSource>> m_diskAudioSources;
+    vector<unique_ptr<Disk2AudioSource>> m_diskAudioSources;
 
     // Owned devices
     vector<unique_ptr<MemoryDevice>> m_ownedDevices;
@@ -363,7 +363,7 @@ private:
         class AppleSoftSwitchBank *   softSwitches     = nullptr;
         class AppleSpeaker *          speaker          = nullptr;
         class RamDevice *             mainRamDev       = nullptr;
-        class DiskIIController *      diskController   = nullptr;
+        class Disk2Controller *      diskController   = nullptr;
         class VideoOutput *           activeVideoMode  = nullptr;
     };
 
@@ -375,7 +375,7 @@ private:
     // / T097 / FR-025. The store coordinates auto-flush of dirty
     // disk images on Eject / SwitchMachine / Shutdown / PowerCycle. Each
     // mounted disk's DiskImage is owned by the store; the slot 6 disk
-    // controller sees it via DiskIIController::SetExternalDisk.
+    // controller sees it via Disk2Controller::SetExternalDisk.
     DiskImageStore                m_diskStore;
 
     // Emulation state
@@ -413,7 +413,7 @@ private:
     // can be lazy-created on first Ctrl+Shift+D and reused across
     // opens. The uptime anchor lives on the shell (not the dialog)
     // so resets re-zero it even while the dialog is closed.
-    std::unique_ptr<class DiskIIDebugDialog>  m_diskIIDebugDialog;
+    std::unique_ptr<class Disk2DebugDialog>  m_DISK2DebugDialog;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 
     // Extracted shell-side managers. WindowManager owns the per-monitor

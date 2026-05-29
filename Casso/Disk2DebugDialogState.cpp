@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "DiskIIDebugDialogState.h"
+#include "Disk2DebugDialogState.h"
 #include "DebugDialogProjection.h"
 
 
@@ -102,32 +102,32 @@ bool ComputeWasAtTail (int topIndex, int countPerPage, int totalCount) noexcept
 //
 //  EventTypeCategoryBit
 //
-//  Map a DiskIIEventType to its FR-014 checkbox-category bit. Audio
+//  Map a Disk2EventType to its FR-014 checkbox-category bit. Audio
 //  event types return 0 (audio gating is handled separately by the
 //  audioMaster + sub-toggle path). The EventsLost synthetic also
 //  returns 0; the filter treats it as always-shown.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static uint32_t EventTypeCategoryBit (DiskIIEventType type) noexcept
+static uint32_t EventTypeCategoryBit (Disk2EventType type) noexcept
 {
     switch (type)
     {
-        case DiskIIEventType::MotorCommandOn:
-        case DiskIIEventType::MotorEngaged:
-        case DiskIIEventType::MotorCommandOff:
-        case DiskIIEventType::MotorDisengaged:    return FilterState::kEventCatMotor;
+        case Disk2EventType::MotorCommandOn:
+        case Disk2EventType::MotorEngaged:
+        case Disk2EventType::MotorCommandOff:
+        case Disk2EventType::MotorDisengaged:    return FilterState::kEventCatMotor;
 
-        case DiskIIEventType::HeadStep:           return FilterState::kEventCatHeadStep;
-        case DiskIIEventType::HeadBump:           return FilterState::kEventCatHeadBump;
-        case DiskIIEventType::AddrMark:           return FilterState::kEventCatAddrMark;
-        case DiskIIEventType::DataRead:           return FilterState::kEventCatRead;
-        case DiskIIEventType::DataWrite:          return FilterState::kEventCatWrite;
+        case Disk2EventType::HeadStep:           return FilterState::kEventCatHeadStep;
+        case Disk2EventType::HeadBump:           return FilterState::kEventCatHeadBump;
+        case Disk2EventType::AddrMark:           return FilterState::kEventCatAddrMark;
+        case Disk2EventType::DataRead:           return FilterState::kEventCatRead;
+        case Disk2EventType::DataWrite:          return FilterState::kEventCatWrite;
 
-        case DiskIIEventType::DiskInserted:
-        case DiskIIEventType::DiskEjected:        return FilterState::kEventCatDoor;
+        case Disk2EventType::DiskInserted:
+        case Disk2EventType::DiskEjected:        return FilterState::kEventCatDoor;
 
-        case DiskIIEventType::DriveSelect:        return FilterState::kEventCatDriveSelect;
+        case Disk2EventType::DriveSelect:        return FilterState::kEventCatDriveSelect;
 
         default:                                  return 0;
     }
@@ -147,16 +147,16 @@ static uint32_t EventTypeCategoryBit (DiskIIEventType type) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool MatchesAudioSubToggle (DiskIIEventType type, const FilterState & f) noexcept
+static bool MatchesAudioSubToggle (Disk2EventType type, const FilterState & f) noexcept
 {
     switch (type)
     {
-        case DiskIIEventType::AudioStarted:        return f.audioStarted;
-        case DiskIIEventType::AudioRestarted:      return f.audioRestarted;
-        case DiskIIEventType::AudioContinued:      return f.audioContinued;
-        case DiskIIEventType::AudioSilent:         return f.audioSilent;
-        case DiskIIEventType::AudioLoopStarted:    return true;
-        case DiskIIEventType::AudioLoopStopped:    return true;
+        case Disk2EventType::AudioStarted:        return f.audioStarted;
+        case Disk2EventType::AudioRestarted:      return f.audioRestarted;
+        case Disk2EventType::AudioContinued:      return f.audioContinued;
+        case Disk2EventType::AudioSilent:         return f.audioSilent;
+        case Disk2EventType::AudioLoopStarted:    return true;
+        case Disk2EventType::AudioLoopStopped:    return true;
         default:                                   return true;
     }
 }
@@ -170,7 +170,7 @@ static bool MatchesAudioSubToggle (DiskIIEventType type, const FilterState & f) 
 //  MatchesFilter
 //
 //  Compose the FR-014 filter (event-type / drive / track / sector /
-//  audio) over one DiskIIEventDisplay. Synthetic EventsLost rows are
+//  audio) over one Disk2EventDisplay. Synthetic EventsLost rows are
 //  always shown so the overflow marker is never filterable.
 //
 //  Field-absent rule: when a display row's track or sector field is
@@ -180,11 +180,11 @@ static bool MatchesAudioSubToggle (DiskIIEventType type, const FilterState & f) 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MatchesFilter (const DiskIIEventDisplay & e, const FilterState & f) noexcept
+bool MatchesFilter (const Disk2EventDisplay & e, const FilterState & f) noexcept
 {
     uint32_t  catBit = 0;
 
-    if (e.type == DiskIIEventType::EventsLost)
+    if (e.type == Disk2EventType::EventsLost)
     {
         return true;
     }
@@ -213,7 +213,7 @@ bool MatchesFilter (const DiskIIEventDisplay & e, const FilterState & f) noexcep
 
     if (f.driveFilter != 0)
     {
-        if (e.drive == DiskIIEventDisplay::kFieldNotApplicable)
+        if (e.drive == Disk2EventDisplay::kFieldNotApplicable)
         {
             // Synthetic EventsLost is the only row without a drive
             // context; treat the always-shown rule (above) as
@@ -231,12 +231,12 @@ bool MatchesFilter (const DiskIIEventDisplay & e, const FilterState & f) noexcep
         {
             // driveFilter is the 1-based UI selection (1 = Drive 1,
             // 2 = Drive 2); event.drive is the 0-based internal
-            // index (matches DiskIIController::m_activeDrive).
+            // index (matches Disk2Controller::m_activeDrive).
             return false;
         }
     }
 
-    if (e.track != DiskIIEventDisplay::kFieldNotApplicable)
+    if (e.track != Disk2EventDisplay::kFieldNotApplicable)
     {
         if (!f.trackFilter.Matches (e.track))
         {
@@ -244,7 +244,7 @@ bool MatchesFilter (const DiskIIEventDisplay & e, const FilterState & f) noexcep
         }
     }
 
-    if (e.sector != DiskIIEventDisplay::kFieldNotApplicable)
+    if (e.sector != Disk2EventDisplay::kFieldNotApplicable)
     {
         if (!f.sectorFilter.Matches (e.sector))
         {
@@ -269,7 +269,7 @@ bool MatchesFilter (const DiskIIEventDisplay & e, const FilterState & f) noexcep
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppendColumnText (std::wstring & out, const DiskIIEventDisplay & e, int logicalId)
+void AppendColumnText (std::wstring & out, const Disk2EventDisplay & e, int logicalId)
 {
     std::wstring_view  label;
     wchar_t            driveBuf[4] = {};
@@ -280,7 +280,7 @@ void AppendColumnText (std::wstring & out, const DiskIIEventDisplay & e, int log
         case 1: out.append (e.uptimeStr.data()); break;
         case 2: out.append (e.cycleStr.data()); break;
         case 3:
-            if (e.drive != DiskIIEventDisplay::kFieldNotApplicable)
+            if (e.drive != Disk2EventDisplay::kFieldNotApplicable)
             {
                 swprintf_s (driveBuf, L"%d", e.drive + 1);
                 out.append (driveBuf);
@@ -310,7 +310,7 @@ void AppendColumnText (std::wstring & out, const DiskIIEventDisplay & e, int log
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring BuildClipboardText (
-    const std::vector<const DiskIIEventDisplay *> &  selected,
+    const std::vector<const Disk2EventDisplay *> &  selected,
     const std::array<LogicalColumn, kColumnCount> &  columns)
 {
     std::wstring  out;
@@ -320,7 +320,7 @@ std::wstring BuildClipboardText (
 
     for (rowIdx = 0; rowIdx < selected.size(); rowIdx++)
     {
-        const DiskIIEventDisplay *  row = selected[rowIdx];
+        const Disk2EventDisplay *  row = selected[rowIdx];
 
         if (row == nullptr)
         {
@@ -364,7 +364,7 @@ std::wstring BuildClipboardText (
 //  visible entry carrying the width the ListView should use and a
 //  needsAutoSize flag set iff this column has never been auto-sized
 //  yet. The caller (RebuildListViewColumns on Win32, the test
-//  fixture in DiskIIDebugDialogColumnTests headless) consumes the
+//  fixture in Disk2DebugDialogColumnTests headless) consumes the
 //  vector to either drive a real LV or assert the plan's contents.
 //
 ////////////////////////////////////////////////////////////////////////////////

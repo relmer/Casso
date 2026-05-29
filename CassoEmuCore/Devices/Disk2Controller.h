@@ -6,12 +6,12 @@
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
 #include "Disk/DiskImage.h"
-#include "Disk/DiskIINibbleEngine.h"
-#include "DiskIIAddressMarkWatcher.h"
+#include "Disk/Disk2NibbleEngine.h"
+#include "Disk2AddressMarkWatcher.h"
 
 
 class IDriveAudioSink;
-class IDiskIIEventSink;
+class IDISK2EventSink;
 
 
 
@@ -19,12 +19,12 @@ class IDiskIIEventSink;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIController
+//  Disk2Controller
 //
 //  Phase 9 rewrite per audit §7. True bit-stream LSS controller:
 //  $C0Ex/$C0Fx soft switches own phase magnets, motor on/off, drive
 //  select, and Q6/Q7 latches. Reads/writes go through a per-drive
-//  DiskIINibbleEngine that streams the active DiskImage bit-stream at
+//  Disk2NibbleEngine that streams the active DiskImage bit-stream at
 //  the standard 4-cycles-per-bit data rate.
 //
 //  Slot 6 ROM ($C600-$C6FF) is owned by the AppleIIeMmu's CxxxRomRouter
@@ -33,7 +33,7 @@ class IDiskIIEventSink;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DiskIIController : public MemoryDevice
+class Disk2Controller : public MemoryDevice
 {
 public:
     static constexpr int    kDriveCount      = 2;
@@ -59,7 +59,7 @@ public:
     // ~71,600 cycles.
     static constexpr uint32_t  kMotorSpinupCycles = 71'600U;
 
-    explicit DiskIIController (int slot);
+    explicit Disk2Controller (int slot);
 
     Byte Read (Word address) override;
     void Write (Word address, Byte value) override;
@@ -78,7 +78,7 @@ public:
     // Spec-006 bug 14b. When EmulatorShell drives mount/eject through
     // DiskImageStore + SetExternalDisk (bypassing this class's own
     // MountDisk / EjectDisk), the controller's own load path never
-    // runs and the IDiskIIEventSink never sees the user-facing
+    // runs and the IDISK2EventSink never sees the user-facing
     // insert/eject. These notify-only entrypoints let the shell fire
     // those events without re-routing the actual image bytes.
     void          NotifyDiskInserted (int drive);
@@ -96,9 +96,9 @@ public:
     // controller fast-paths around the per-fire-site guard when
     // unattached so behavior is byte-identical to the pre-feature
     // path, FR-007 / FR-020 / SC-007). Propagated to the embedded
-    // DiskIIAddressMarkWatcher so the watcher fires its own
+    // Disk2AddressMarkWatcher so the watcher fires its own
     // address-mark / data-mark events through the same sink.
-    void          SetEventSink (IDiskIIEventSink * sink) noexcept;
+    void          SetEventSink (IDISK2EventSink * sink) noexcept;
 
     // Cycle-driven advance. EmuCpu pumps cycles per Step.
     void   Tick (uint32_t cpuCycles);
@@ -112,7 +112,7 @@ public:
     int    GetCurrentTrack() const { return m_quarterTrack / 4; }
     bool   IsQ6() const { return m_q6; }
     bool   IsQ7() const { return m_q7; }
-    DiskIINibbleEngine &  GetEngine (int drive)  { return m_engine[drive]; }
+    Disk2NibbleEngine &  GetEngine (int drive)  { return m_engine[drive]; }
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
@@ -154,10 +154,10 @@ private:
 
     DiskImage            m_disks[kDriveCount];
     DiskImage *          m_activeDisk[kDriveCount] = { nullptr, nullptr };
-    DiskIINibbleEngine   m_engine[kDriveCount];
+    Disk2NibbleEngine   m_engine[kDriveCount];
 
     IDriveAudioSink *    m_audioSink   = nullptr;
 
-    IDiskIIEventSink *         m_eventSink       = nullptr;
-    DiskIIAddressMarkWatcher   m_addrMarkWatcher;
+    IDISK2EventSink *         m_eventSink       = nullptr;
+    Disk2AddressMarkWatcher   m_addrMarkWatcher;
 };

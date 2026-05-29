@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "IDiskIIEventSink.h"
+#include "IDISK2EventSink.h"
 
 
 
@@ -10,10 +10,10 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIAddressMarkWatcher
+//  Disk2AddressMarkWatcher
 //
 //  Passive nibble-stream observer that decodes Disk II address marks
-//  and detects 6-and-2 data-mark frames. Lives inside DiskIIController
+//  and detects 6-and-2 data-mark frames. Lives inside Disk2Controller
 //  and receives every nibble that the CPU read from the data latch.
 //
 //  Read-only invariant (FR-008): the watcher MUST NOT mutate the
@@ -30,7 +30,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DiskIIAddressMarkWatcher
+class Disk2AddressMarkWatcher
 {
 public:
     // Disk II 4-and-4 address-mark prologue / epilogue (Beneath Apple
@@ -51,9 +51,9 @@ public:
     static constexpr uint32_t kDataNibbleCount       = 342;
     static constexpr uint32_t kDataNibbleCountSlack  = 16;
 
-    DiskIIAddressMarkWatcher() = default;
+    Disk2AddressMarkWatcher() = default;
 
-    // Called by DiskIIController::Read whenever the data latch returns
+    // Called by Disk2Controller::Read whenever the data latch returns
     // a fresh nibble to the CPU. The watcher inspects but does not
     // modify the nibble.
     void   ObserveNibble (uint8_t nibble) noexcept;
@@ -61,7 +61,7 @@ public:
     // Propagates the controller's sink pointer. Pass nullptr to
     // detach. Safe to call from the UI thread between CPU slices,
     // matching the audio-sink attach pattern from spec-005.
-    void   SetEventSink (IDiskIIEventSink * sink) noexcept   { m_eventSink = sink; }
+    void   SetEventSink (IDISK2EventSink * sink) noexcept   { m_eventSink = sink; }
 
     // Test seam: most recent fully-decoded sector / track / volume
     // numbers from the latest address mark (-1 until the first
@@ -104,7 +104,7 @@ private:
         return (uint8_t) (((hi << 1) | 1) & lo);
     }
 
-    IDiskIIEventSink *  m_eventSink     = nullptr;
+    IDISK2EventSink *  m_eventSink     = nullptr;
 
     AddrState           m_addrState     = AddrState::Idle;
     uint8_t             m_volHi         = 0;

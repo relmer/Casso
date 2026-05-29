@@ -1,8 +1,8 @@
 #include "Pch.h"
 #include "Core/MemoryBus.h"
-#include "Devices/DiskIIController.h"
+#include "Devices/Disk2Controller.h"
 
-// DiskIIController carries two DiskImage instances; per-test heap allocation
+// Disk2Controller carries two DiskImage instances; per-test heap allocation
 // keeps the C6262 stack-frame budget happy.
 #pragma warning (disable: 6262)
 
@@ -57,7 +57,7 @@ static void WriteNibbleToImage (DiskImage & img, int track, size_t & bitOffset, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIITests
+//  Disk2Tests
 //
 //  Phase 9 acceptance: $C0Ex soft-switch surface, phase magnets, motor,
 //  drive select, Q6/Q7 LSS cross-product, write-protect, head-clamp, and
@@ -65,13 +65,13 @@ static void WriteNibbleToImage (DiskImage & img, int track, size_t & bitOffset, 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_CLASS (DiskIITests)
+TEST_CLASS (Disk2Tests)
 {
 public:
 
     TEST_METHOD (Slot6_IORange_C0E0_to_C0EF)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         Assert::AreEqual (static_cast<Word> (0xC0E0), disk->GetStart ());
         Assert::AreEqual (static_cast<Word> (0xC0EF), disk->GetEnd ());
@@ -79,7 +79,7 @@ public:
 
     TEST_METHOD (PhaseMagnetsStepHeadCorrectly)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         disk->Read (kMotorOn);
 
@@ -94,7 +94,7 @@ public:
 
     TEST_METHOD (MotorOnOffViaC0E8C0E9)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         disk->Read (kMotorOn);
         Assert::IsTrue  (disk->IsMotorOn (), L"$C0E9 must enable the motor");
@@ -114,7 +114,7 @@ public:
 
     TEST_METHOD (DriveSelectViaC0EAC0EB)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         disk->Read (kDrive2);
         Assert::AreEqual (1, disk->GetActiveDrive (), L"$C0EB selects drive 2");
@@ -125,7 +125,7 @@ public:
 
     TEST_METHOD (Q7ClearQ6ClearReadsNibble)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         disk->Read (kQ7Off);
         disk->Read (kQ6Off);
@@ -138,7 +138,7 @@ public:
 
     TEST_METHOD (Q7ClearQ6SetReadsWriteProtect)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         disk->GetDisk (0)->SetWriteProtected (true);
 
@@ -151,7 +151,7 @@ public:
 
     TEST_METHOD (Q7SetQ6ClearShiftLoad)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         disk->Read (kQ7On);
         disk->Read (kQ6Off);
@@ -162,7 +162,7 @@ public:
 
     TEST_METHOD (Q7SetQ6SetWritesNibble)
     {
-        unique_ptr<DiskIIController>   disk      = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk      = make_unique<Disk2Controller> (6);
         size_t                         bitOffset = 0;
 
         // Provide a writable track so the engine has somewhere to push bits.
@@ -173,7 +173,7 @@ public:
         disk->Read  (kQ7On);
 
         disk->Write (kQ7On, 0xFF);
-        disk->Tick (DiskIINibbleEngine::kCyclesPerBit * kBitsPerNibble);
+        disk->Tick (Disk2NibbleEngine::kCyclesPerBit * kBitsPerNibble);
 
         Assert::IsTrue (disk->IsQ7 () && disk->IsQ6 (),
             L"Q7=Q6=1 must be set after $C0ED + $C0EF");
@@ -183,7 +183,7 @@ public:
 
     TEST_METHOD (NibbleStreamAdvancesAtCorrectBitTime)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         disk->GetDisk (0)->ResizeTrack (0, 64);
 
@@ -193,7 +193,7 @@ public:
 
         size_t   posBefore = disk->GetEngine (0).GetBitPosition ();
 
-        disk->Tick (DiskIINibbleEngine::kCyclesPerBit * 4);
+        disk->Tick (Disk2NibbleEngine::kCyclesPerBit * 4);
 
         size_t   posAfter = disk->GetEngine (0).GetBitPosition ();
 
@@ -203,7 +203,7 @@ public:
 
     TEST_METHOD (WriteProtectedDiskRejectsWrite)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         disk->GetDisk (0)->ResizeTrack    (0, 8);
         disk->GetDisk (0)->SetWriteProtected (true);
@@ -215,7 +215,7 @@ public:
 
     TEST_METHOD (HeadStepWrapsAtTrackBoundaries)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
         int                            i    = 0;
 
         disk->Read (kMotorOn);
@@ -233,13 +233,13 @@ public:
 
         Assert::IsTrue (disk->GetQuarterTrack () >= 0,
             L"Quarter-track must remain in legal range after long forward walk");
-        Assert::IsTrue (disk->GetQuarterTrack () <= DiskIIController::kMaxQuarterTrack,
+        Assert::IsTrue (disk->GetQuarterTrack () <= Disk2Controller::kMaxQuarterTrack,
             L"Quarter-track must clamp to kMaxQuarterTrack");
     }
 
     TEST_METHOD (LSS_ReadsKnownNibblePattern)
     {
-        unique_ptr<DiskIIController>   disk  = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk  = make_unique<Disk2Controller> (6);
         DiskImage *                    img   = disk->GetDisk (0);
         size_t                         off   = 0;
         Byte                           value = 0;
@@ -255,7 +255,7 @@ public:
         // the test nibbles. The bit cursor advances during spin-up, so
         // we write the pattern at wherever the engine ends up so the LSS
         // sees the MSB-set nibble on the very next bit cells.
-        disk->Tick (DiskIIController::kMotorSpinupCycles);
+        disk->Tick (Disk2Controller::kMotorSpinupCycles);
 
         off = disk->GetEngine (0).GetBitPosition ();
         WriteNibbleToImage (*img, 0, off, 0xD5);
@@ -266,7 +266,7 @@ public:
         // nibble whose MSB is set: 0xD5.
         for (i = 0; i < 8; i++)
         {
-            disk->Tick (DiskIINibbleEngine::kCyclesPerBit);
+            disk->Tick (Disk2NibbleEngine::kCyclesPerBit);
         }
 
         value = disk->Read (kQ6Off);
@@ -277,7 +277,7 @@ public:
 
     TEST_METHOD (LSS_WritesPatternRoundTrip)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
         DiskImage *                    img  = disk->GetDisk (0);
         int                            i    = 0;
 
@@ -290,7 +290,7 @@ public:
 
         for (i = 0; i < 8; i++)
         {
-            disk->Tick (DiskIINibbleEngine::kCyclesPerBit);
+            disk->Tick (Disk2NibbleEngine::kCyclesPerBit);
         }
 
         Assert::IsTrue (img->IsDirty (),
@@ -299,7 +299,7 @@ public:
 
     TEST_METHOD (Reset_ClearsControllerState)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         disk->Read (kMotorOn);
         disk->Read (kPhase1On);
@@ -313,7 +313,7 @@ public:
 
     TEST_METHOD (GetDisk_Bounds)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         Assert::IsNotNull (disk->GetDisk (0));
         Assert::IsNotNull (disk->GetDisk (1));
@@ -323,7 +323,7 @@ public:
 
     TEST_METHOD (MountDisk_InvalidDrive_ReturnsError)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         HRESULT   hr = disk->MountDisk (3, "nonexistent.dsk");
 
@@ -332,7 +332,7 @@ public:
 
     TEST_METHOD (MountDisk_MissingFile_ReturnsError)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         HRESULT   hr = disk->MountDisk (0, "this_file_does_not_exist.dsk");
 
@@ -345,7 +345,7 @@ public:
 
     TEST_METHOD (Spinup_MotorOnArmsSpinupWindow)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         Assert::AreEqual (uint32_t (0), disk->GetMotorSpinupRemaining (),
             L"Cold controller must not have a pending spin-up");
@@ -356,14 +356,14 @@ public:
             L"Motor flag must be true immediately on $C0E9");
         Assert::IsFalse (disk->IsMotorAtSpeed (),
             L"Motor must NOT be at speed inside the spin-up window");
-        Assert::AreEqual (DiskIIController::kMotorSpinupCycles,
+        Assert::AreEqual (Disk2Controller::kMotorSpinupCycles,
             disk->GetMotorSpinupRemaining (),
             L"Spin-up cycle counter must equal the full window on motor-on edge");
     }
 
     TEST_METHOD (Spinup_ReadsReturnZerosInsideWindow)
     {
-        unique_ptr<DiskIIController>   disk  = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk  = make_unique<Disk2Controller> (6);
         DiskImage *                    img   = disk->GetDisk (0);
         size_t                         off   = 0;
         Byte                           value = 0;
@@ -385,7 +385,7 @@ public:
         // rely on this absence-of-valid-sync signal.
         for (i = 0; i < 8; i++)
         {
-            disk->Tick (DiskIINibbleEngine::kCyclesPerBit);
+            disk->Tick (Disk2NibbleEngine::kCyclesPerBit);
         }
 
         value = disk->Read (kQ6Off);
@@ -398,7 +398,7 @@ public:
 
     TEST_METHOD (Spinup_RealDataAfterWindowExpires)
     {
-        unique_ptr<DiskIIController>   disk  = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk  = make_unique<Disk2Controller> (6);
         DiskImage *                    img   = disk->GetDisk (0);
         size_t                         off   = 0;
         Byte                           value = 0;
@@ -417,14 +417,14 @@ public:
 
         // Drain the spin-up window in a single big tick, then poll
         // until the latch produces an MSB-set nibble.
-        disk->Tick (DiskIIController::kMotorSpinupCycles);
+        disk->Tick (Disk2Controller::kMotorSpinupCycles);
 
         Assert::IsTrue (disk->IsMotorAtSpeed (),
             L"Motor must be at speed once the spin-up counter drains");
 
-        for (i = 0; i < kBudget; i += DiskIINibbleEngine::kCyclesPerBit)
+        for (i = 0; i < kBudget; i += Disk2NibbleEngine::kCyclesPerBit)
         {
-            disk->Tick (DiskIINibbleEngine::kCyclesPerBit);
+            disk->Tick (Disk2NibbleEngine::kCyclesPerBit);
             value = disk->Read (kQ6Off);
 
             if (value & 0x80)
@@ -439,10 +439,10 @@ public:
 
     TEST_METHOD (Spinup_MotorOnDuringSpindownDoesNotRearm)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         disk->Read (kMotorOn);
-        disk->Tick (DiskIIController::kMotorSpinupCycles);
+        disk->Tick (Disk2Controller::kMotorSpinupCycles);
 
         Assert::IsTrue (disk->IsMotorAtSpeed (),
             L"Precondition: motor reached speed");
@@ -468,7 +468,7 @@ public:
 
     TEST_METHOD (Spinup_ResetClearsSpinupCounter)
     {
-        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         disk->Read (kMotorOn);
 

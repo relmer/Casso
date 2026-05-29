@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "Audio/DiskIIAudioSource.h"
+#include "Audio/Disk2AudioSource.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -9,7 +9,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIAudioSourceSeekTests
+//  Disk2AudioSourceSeekTests
 //
 //  Step-vs-seek discrimination (spec FR-005). The source enters
 //  "seek mode" when steps arrive within kSeekThresholdCycles of each
@@ -17,13 +17,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_CLASS (DiskIIAudioSourceSeekTests)
+TEST_CLASS (Disk2AudioSourceSeekTests)
 {
 public:
 
     TEST_METHOD (FourStepsWithin16ms_doNotResetHeadPosFourTimes)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource  src;
         vector<float>      step (8);
         float              out[4] = {};
         uint64_t           cycle  = 100000;
@@ -59,7 +59,7 @@ public:
 
     TEST_METHOD (StepsApartByMoreThan16ms_treatBothAsSingleClicks)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource  src;
 
         src.SetSampleBufferForTest (L"HeadStep", vector<float> (16, 0.5f));
 
@@ -76,7 +76,7 @@ public:
 
     TEST_METHOD (SeekModeIdleTimeout_after50ms_clearsSeekMode)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource  src;
 
         src.SetSampleBufferForTest (L"HeadStep", vector<float> (16, 0.5f));
 
@@ -94,7 +94,7 @@ public:
 
     TEST_METHOD (OnHeadBump_alwaysRestartsAndClearsSeekMode)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource  src;
 
         src.SetSampleBufferForTest (L"HeadStep", vector<float> (16, 0.5f));
         src.SetSampleBufferForTest (L"HeadStop", vector<float> (16, 0.9f));

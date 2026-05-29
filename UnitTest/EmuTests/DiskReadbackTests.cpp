@@ -12,7 +12,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DiskReadbackTests
 //
-//  End-to-end "Casso writes a disk image, then Casso's DiskIIController
+//  End-to-end "Casso writes a disk image, then Casso's Disk2Controller
 //  + LSS engine reads it back through the bus" tests. No boot ROM, no
 //  CPU -- just the disk subsystem driven via direct controller API
 //  calls and bus reads of $C0E0-$C0EF (slot 6).
@@ -137,8 +137,8 @@ namespace
         HRESULT      hr        = S_OK;
         DiskImage *  external  = nullptr;
 
-        hr = host.BuildAppleIIeWithDiskII (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDiskII");
+        hr = host.BuildAppleIIeWithDisk2 (core);
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDisk2");
 
         core.PowerCycle ();
 
@@ -164,7 +164,7 @@ namespace
         // zeros the controller hands back during spin-up. Tests
         // written before #67 expected immediate readiness; the
         // controller now models the ~70 ms physical spin-up.
-        core.diskController->Tick (DiskIIController::kMotorSpinupCycles);
+        core.diskController->Tick (Disk2Controller::kMotorSpinupCycles);
 
         return external;
     }

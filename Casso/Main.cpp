@@ -148,7 +148,7 @@ static HRESULT LoadMachineConfig (
 
         if (hasDisk)
         {
-            fs::path            devicesDir   = romDir / L"Devices" / L"DiskII";
+            fs::path            devicesDir   = romDir / L"Devices" / L"Disk2";
             string              diskAudioErr;
             GlobalUserPrefs     prefs;
             Win32FileSystem     fs_io;

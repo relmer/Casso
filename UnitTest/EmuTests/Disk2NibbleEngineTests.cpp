@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "Devices/Disk/DiskIINibbleEngine.h"
+#include "Devices/Disk/Disk2NibbleEngine.h"
 #include "Devices/Disk/DiskImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -17,21 +17,21 @@ namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIINibbleEngineTests
+//  Disk2NibbleEngineTests
 //
 //  Phase 9 unit-level acceptance for the bit-stream engine, independent
 //  of the controller surface.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_CLASS (DiskIINibbleEngineTests)
+TEST_CLASS (Disk2NibbleEngineTests)
 {
 public:
 
     TEST_METHOD (BitTimingMatches4uSPerBit)
     {
         DiskImage             img;
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine    eng;
 
         img.ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
 
@@ -46,7 +46,7 @@ public:
         Assert::AreEqual (size_t (1), eng.GetBitPosition(),
             L"4 cumulative cycles must produce one bit advance");
 
-        eng.Tick (DiskIINibbleEngine::kCyclesPerBit * 5);
+        eng.Tick (Disk2NibbleEngine::kCyclesPerBit * 5);
         Assert::AreEqual (size_t (6), eng.GetBitPosition(),
             L"5 more bits' worth of cycles must advance 5 bits");
     }
@@ -54,14 +54,14 @@ public:
     TEST_METHOD (ReadAdvancesPosition)
     {
         DiskImage             img;
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine    eng;
 
         img.ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
 
         eng.SetDiskImage (&img);
         eng.SetMotorOn   (true);
 
-        eng.Tick (DiskIINibbleEngine::kCyclesPerBit * 16);
+        eng.Tick (Disk2NibbleEngine::kCyclesPerBit * 16);
 
         Assert::AreEqual (size_t (16), eng.GetBitPosition(),
             L"Ticking 16 bit-times must advance 16 bits");
@@ -70,7 +70,7 @@ public:
     TEST_METHOD (WriteAdvancesPositionAndMarksDirty)
     {
         DiskImage             img;
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine    eng;
 
         img.ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
 
@@ -79,7 +79,7 @@ public:
         eng.SetWriteMode (true);
         eng.WriteLatch   (0xFF);
 
-        eng.Tick (DiskIINibbleEngine::kCyclesPerBit * 8);
+        eng.Tick (Disk2NibbleEngine::kCyclesPerBit * 8);
 
         Assert::IsTrue (img.IsDirty(),
             L"Write-mode tick must mark the image dirty");
@@ -90,14 +90,14 @@ public:
     TEST_METHOD (MotorOffFreezesPosition)
     {
         DiskImage             img;
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine    eng;
 
         img.ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
 
         eng.SetDiskImage (&img);
         eng.SetMotorOn   (false);
 
-        eng.Tick (DiskIINibbleEngine::kCyclesPerBit * 100);
+        eng.Tick (Disk2NibbleEngine::kCyclesPerBit * 100);
 
         Assert::AreEqual (size_t (0), eng.GetBitPosition(),
             L"Motor off must freeze the bit cursor");
@@ -105,14 +105,14 @@ public:
 
     TEST_METHOD (SetCurrentTrackClampsToValidRange)
     {
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine    eng;
 
         eng.SetCurrentTrack (-5);
-        Assert::AreEqual (DiskIINibbleEngine::kMinTrack, eng.GetCurrentTrack(),
+        Assert::AreEqual (Disk2NibbleEngine::kMinTrack, eng.GetCurrentTrack(),
             L"Negative tracks must clamp to kMinTrack");
 
         eng.SetCurrentTrack (1000);
-        Assert::AreEqual (DiskIINibbleEngine::kMaxTrack, eng.GetCurrentTrack(),
+        Assert::AreEqual (Disk2NibbleEngine::kMaxTrack, eng.GetCurrentTrack(),
             L"Out-of-range tracks must clamp to kMaxTrack");
     }
 
@@ -121,10 +121,10 @@ public:
         // Regression for the Ctrl+Shift+R PowerCycle path: the status-bar
         // tooltip reads GetReadNibbles / GetWriteNibbles, so a power cycle
         // that did not zero them left the tooltip showing stale pre-cycle
-        // counts. Reset() is invoked from DiskIIController::PowerCycle
-        // (via DiskIIController::Reset), so clearing the counters here is
+        // counts. Reset() is invoked from Disk2Controller::PowerCycle
+        // (via Disk2Controller::Reset), so clearing the counters here is
         // what restores the tooltip after a manual cold boot.
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine    eng;
 
         eng.WriteLatch (0xAA);
         eng.WriteLatch (0xAA);
@@ -164,7 +164,7 @@ public:
         }
     }
 
-    static void PrepareSingleByteStream (DiskImage & img, DiskIINibbleEngine & eng, uint8_t value)
+    static void PrepareSingleByteStream (DiskImage & img, Disk2NibbleEngine & eng, uint8_t value)
     {
         size_t   i = 0;
 
@@ -179,15 +179,15 @@ public:
         eng.SetMotorOn   (true);
     }
 
-    static void TickBits (DiskIINibbleEngine & eng, int bits)
+    static void TickBits (Disk2NibbleEngine & eng, int bits)
     {
-        eng.Tick ((uint32_t) (DiskIINibbleEngine::kCyclesPerBit * bits));
+        eng.Tick ((uint32_t) (Disk2NibbleEngine::kCyclesPerBit * bits));
     }
 
 
     TEST_METHOD (ConsumeFreshNibble_returnsFalse_onFreshEngine)
     {
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine    eng;
         uint8_t               out = 0xCC;
 
         Assert::IsFalse (eng.ConsumeFreshNibble (out),
@@ -203,7 +203,7 @@ public:
         // call without any further bit advancement must return
         // false (no new "byte ready" rising edge has occurred).
         DiskImage             img;
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine    eng;
         uint8_t               out = 0;
 
         PrepareSingleByteStream (img, eng, 0xFF);
@@ -229,7 +229,7 @@ public:
         // ConsumeFreshNibble returns true exactly once, then
         // returns false until the NEXT assembly.
         DiskImage             img;
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine    eng;
         uint8_t               out = 0;
 
         PrepareSingleByteStream (img, eng, 0xFF);
@@ -256,7 +256,7 @@ public:
         // MUST refuse those even though the fresh flag has not been
         // cleared yet by a prior consume.
         DiskImage             img;
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine    eng;
         uint8_t               out = 0xCC;
 
         PrepareSingleByteStream (img, eng, 0xFF);
@@ -289,8 +289,8 @@ public:
         // CPU-visible byte.
         DiskImage             imgA;
         DiskImage             imgB;
-        DiskIINibbleEngine    engA;
-        DiskIINibbleEngine    engB;
+        Disk2NibbleEngine    engA;
+        Disk2NibbleEngine    engB;
         int                   i        = 0;
         uint8_t               sink     = 0;
 

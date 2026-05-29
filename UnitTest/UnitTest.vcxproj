@@ -254,8 +254,8 @@
     <ClCompile Include="EmuTests\MachineConfigUpgradeTests.cpp" />
     <ClCompile Include="EmuTests\MachineScannerTests.cpp" />
     <ClCompile Include="EmuTests\VideoModeTests.cpp" />
-    <ClCompile Include="EmuTests\DiskIITests.cpp" />
-    <ClCompile Include="EmuTests\DiskIINibbleEngineTests.cpp" />
+    <ClCompile Include="EmuTests\Disk2Tests.cpp" />
+    <ClCompile Include="EmuTests\Disk2NibbleEngineTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageTests.cpp" />
     <ClCompile Include="EmuTests\NibblizationTests.cpp" />
     <ClCompile Include="EmuTests\WozLoaderTests.cpp" />
@@ -292,16 +292,16 @@
     <ClCompile Include="EmuTests\AssetBootstrapTests.cpp" />
     <ClCompile Include="EmuTests\DiskAudioFetchTests.cpp" />
     <ClCompile Include="EmuTests\PerformanceTests.cpp" />
-    <ClCompile Include="Audio\DiskIIAudioSourceStateTests.cpp" />
-    <ClCompile Include="Audio\DiskIIAudioSourcePlaybackTests.cpp" />
-    <ClCompile Include="Audio\DiskIIAudioSourceSeekTests.cpp" />
+    <ClCompile Include="Audio\Disk2AudioSourceStateTests.cpp" />
+    <ClCompile Include="Audio\Disk2AudioSourcePlaybackTests.cpp" />
+    <ClCompile Include="Audio\Disk2AudioSourceSeekTests.cpp" />
     <ClCompile Include="Audio\DriveAudioMixerTests.cpp" />
     <ClCompile Include="Audio\DriveAudioMixerMechanismTests.cpp" />
-    <ClCompile Include="Audio\DiskIIAudioSourceEventSinkTests.cpp" />
-    <ClCompile Include="Devices\DiskIIControllerAudioTests.cpp" />
-    <ClCompile Include="Devices\DiskIIEventRingTests.cpp" />
-    <ClCompile Include="Devices\DiskIIAddressMarkWatcherTests.cpp" />
-    <ClCompile Include="Devices\DiskIIControllerEventTests.cpp" />
+    <ClCompile Include="Audio\Disk2AudioSourceEventSinkTests.cpp" />
+    <ClCompile Include="Devices\Disk2ControllerAudioTests.cpp" />
+    <ClCompile Include="Devices\Disk2EventRingTests.cpp" />
+    <ClCompile Include="Devices\Disk2AddressMarkWatcherTests.cpp" />
+    <ClCompile Include="Devices\Disk2ControllerEventTests.cpp" />
     <ClCompile Include="..\Casso\CassoPch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
@@ -324,7 +324,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
-    <ClCompile Include="..\Casso\DiskIIDebugDialogState.cpp">
+    <ClCompile Include="..\Casso\Disk2DebugDialogState.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
@@ -468,7 +468,7 @@
     </ClCompile>
     <ClCompile Include="Casso\TrackSectorPredicateTests.cpp" />
     <ClCompile Include="Casso\DebugDialogProjectionTests.cpp" />
-    <ClCompile Include="Casso\DiskIIDebugDialogColumnTests.cpp" />
+    <ClCompile Include="Casso\Disk2DebugDialogColumnTests.cpp" />
     <ClCompile Include="Casso\MenuPredicatesTests.cpp" />
     <ClCompile Include="Casso\RichEditSquiggleTests.cpp" />
     <ClCompile Include="UiTests\UserConfigStoreTests.cpp" />
@@ -508,7 +508,7 @@
     <ClCompile Include="UiTests\FocusManagerTests.cpp" />
     <ClCompile Include="UiTests\AnimationSyncTests.cpp" />
     <ClCompile Include="UiTests\DxUiPainterTests.cpp" />
-    <ClCompile Include="Devices\DiskIIDebugDialogTests.cpp" />
+    <ClCompile Include="Devices\Disk2DebugDialogTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />

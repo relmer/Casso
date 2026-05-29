@@ -2,9 +2,9 @@
 
 #include "Pch.h"
 
-#include "../CassoEmuCore/Devices/DiskIIEvent.h"
-#include "../CassoEmuCore/Devices/DiskIIEventRing.h"
-#include "DiskIIEventDisplay.h"
+#include "../CassoEmuCore/Devices/Disk2Event.h"
+#include "../CassoEmuCore/Devices/Disk2EventRing.h"
+#include "Disk2EventDisplay.h"
 
 
 
@@ -15,7 +15,7 @@
 //  DebugDialogProjection
 //
 //  UI-thread helper that drains the producer's SPSC ring of
-//  DiskIIEvent records, formats each into a DiskIIEventDisplay
+//  Disk2Event records, formats each into a Disk2EventDisplay
 //  (Wall / Uptime / Cycle / Detail strings already laid out), and
 //  appends them to the dialog's rolling deque. The dialog's
 //  LVN_GETDISPINFO handler then reads from that deque without
@@ -46,7 +46,7 @@ class DebugDialogProjection
 {
 public:
     // FR-007 "rolling cap". 100,000 entries * ~ a few hundred bytes
-    // per DiskIIEventDisplay is well under the dialog's memory budget;
+    // per Disk2EventDisplay is well under the dialog's memory budget;
     // older entries are dropped from the front in FIFO order.
     static constexpr size_t   kDisplayDequeCap   = 100000;
 
@@ -56,21 +56,21 @@ public:
 
     // Returns the fixed-width label for the Event column based on
     // (category, type). Stable wide string view; no allocation.
-    static std::wstring_view  EventLabel (EventCategory cat, DiskIIEventType type);
+    static std::wstring_view  EventLabel (EventCategory cat, Disk2EventType type);
 
     // Format one source event into a display record.
     static void               FormatEvent      (
-        const DiskIIEvent &                          src,
+        const Disk2Event &                          src,
         std::chrono::steady_clock::time_point        uptimeAnchor,
-        DiskIIEventDisplay &                         out);
+        Disk2EventDisplay &                         out);
 
     // Drain the ring; if droppedCount > 0, push a synthetic
     // EventsLost record FIRST before the drained batch (FR-010).
     // After the batch, enforce the rolling cap by pop_front'ing
     // until size <= kDisplayDequeCap.
     static void               DrainAndProject  (
-        DiskIIEventRing &                            ring,
-        std::deque<DiskIIEventDisplay> &             deque,
+        Disk2EventRing &                            ring,
+        std::deque<Disk2EventDisplay> &             deque,
         uint32_t                                     droppedCount,
         std::chrono::steady_clock::time_point        uptimeAnchor);
 

@@ -9,7 +9,7 @@
 #include "HeadlessHost.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/DiskIIController.h"
+#include "Devices/Disk2Controller.h"
 #include "Devices/AppleIIeSoftSwitchBank.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -41,7 +41,7 @@ namespace fs = std::filesystem;
 //    - leaves the cassowary on screen.
 //
 //  Exercises: HgrPreprocess.py output -> Assembler -> NibblizationLayer
-//  -> DiskImageStore -> DiskIIController -> DiskIINibbleEngine ->
+//  -> DiskImageStore -> Disk2Controller -> Disk2NibbleEngine ->
 //  Disk2.rom slot 6 boot -> 6502 CPU executing our RWTS -> MMU HGR
 //  page-1 writes -> AppleIIeSoftSwitchBank graphics-mode latching.
 //
@@ -286,8 +286,8 @@ public:
         HeadlessHost  host;
         EmulatorCore  core;
 
-        HRESULT  hr = host.BuildAppleIIeWithDiskII (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDiskII must succeed");
+        HRESULT  hr = host.BuildAppleIIeWithDisk2 (core);
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDisk2 must succeed");
 
         core.PowerCycle ();
 

@@ -83,10 +83,10 @@ namespace
         DiskFormat        fmt,
         const vector<Byte> & bytes)
     {
-        HRESULT       hr        = host.BuildAppleIIeWithDiskII (core);
+        HRESULT       hr        = host.BuildAppleIIeWithDisk2 (core);
         DiskImage  *  external  = nullptr;
 
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDiskII must succeed");
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDisk2 must succeed");
 
         core.PowerCycle ();
 

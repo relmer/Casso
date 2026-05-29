@@ -30,7 +30,7 @@ TEST_CLASS (AssetBootstrapTests)
 {
 public:
 
-    TEST_METHOD (Embedded_AppleII_RequiresSystemCharacterAndDiskIIRom)
+    TEST_METHOD (Embedded_AppleII_RequiresSystemCharacterAndDisk2Rom)
     {
         std::vector<std::string> files;
 
@@ -47,7 +47,7 @@ public:
             L"Apple2 slot 6 ROM must be Disk2.rom");
     }
 
-    TEST_METHOD (Embedded_AppleIIPlus_RequiresSystemCharacterAndDiskIIRom)
+    TEST_METHOD (Embedded_AppleIIPlus_RequiresSystemCharacterAndDisk2Rom)
     {
         std::vector<std::string> files;
 
@@ -64,7 +64,7 @@ public:
             L"Apple2Plus slot 6 ROM must be Disk2.rom");
     }
 
-    TEST_METHOD (Embedded_AppleIIe_RequiresSystemCharacterAndDiskIIRom)
+    TEST_METHOD (Embedded_AppleIIe_RequiresSystemCharacterAndDisk2Rom)
     {
         std::vector<std::string> files;
 

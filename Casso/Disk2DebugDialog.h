@@ -3,10 +3,10 @@
 #include "Pch.h"
 
 #include "Window.h"
-#include "DiskIIDebugDialogState.h"
+#include "Disk2DebugDialogState.h"
 #include "DebugDialogProjection.h"
-#include "../CassoEmuCore/Devices/IDiskIIEventSink.h"
-#include "../CassoEmuCore/Devices/DiskIIEventRing.h"
+#include "../CassoEmuCore/Devices/IDISK2EventSink.h"
+#include "../CassoEmuCore/Devices/Disk2EventRing.h"
 #include "../CassoEmuCore/Audio/IDriveAudioEventSink.h"
 
 
@@ -15,11 +15,11 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIDebugDialog
+//  Disk2DebugDialog
 //
-//  Spec-006 modeless debug window. Implements BOTH IDiskIIEventSink
+//  Spec-006 modeless debug window. Implements BOTH IDISK2EventSink
 //  (the controller-side contract) and IDriveAudioEventSink (the
-//  audio-side contract). Each sink callback packs a DiskIIEvent POD
+//  audio-side contract). Each sink callback packs a Disk2Event POD
 //  and tries to push it onto m_ring; ring-full bumps
 //  m_droppedSinceLastDrain (atomic, CPU-thread only) so the next
 //  UI-thread drain can emit a single coalesced [N events lost] marker.
@@ -29,13 +29,13 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DiskIIDebugDialog : public Window,
-                          public IDiskIIEventSink,
+class Disk2DebugDialog : public Window,
+                          public IDISK2EventSink,
                           public IDriveAudioEventSink
 {
 public:
-    DiskIIDebugDialog();
-    ~DiskIIDebugDialog() override;
+    Disk2DebugDialog();
+    ~Disk2DebugDialog() override;
 
     HRESULT Create (HINSTANCE hInstance, HWND parentHwnd);
     void    Show();
@@ -80,7 +80,7 @@ public:
         m_cycleCounter = counter;
     }
 
-    // IDiskIIEventSink
+    // IDISK2EventSink
     void OnMotorCommandOn() override;
     void OnMotorEngaged() override;
     void OnMotorCommandOff() override;
@@ -114,15 +114,15 @@ protected:
     bool    OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
 
 private:
-    DiskIIEvent MakeStampedEvent (EventCategory cat, DiskIIEventType type) const noexcept;
-    void    PushControllerEvent (DiskIIEventType type) noexcept;
+    Disk2Event MakeStampedEvent (EventCategory cat, Disk2EventType type) const noexcept;
+    void    PushControllerEvent (Disk2EventType type) noexcept;
     void    PushHeadStepEvent (int prevQt, int newQt) noexcept;
     void    PushHeadBumpEvent (int atQt) noexcept;
     void    PushAddrMarkEvent (int track, int sector, int volume) noexcept;
-    void    PushDataMarkEvent (DiskIIEventType type, int track, int sector, int volume, int byteCount) noexcept;
-    void    PushDriveEvent (DiskIIEventType type, int drive) noexcept;
-    void    PushAudioEvent (DiskIIEventType type, SoundKind kind, int drive, SilentReason reason) noexcept;
-    void    PublishToRing (const DiskIIEvent & e) noexcept;
+    void    PushDataMarkEvent (Disk2EventType type, int track, int sector, int volume, int byteCount) noexcept;
+    void    PushDriveEvent (Disk2EventType type, int drive) noexcept;
+    void    PushAudioEvent (Disk2EventType type, SoundKind kind, int drive, SilentReason reason) noexcept;
+    void    PublishToRing (const Disk2Event & e) noexcept;
 
     HRESULT CreateChildControls (HWND hwnd);
     void    LayoutChildControls (int width, int height);
@@ -198,9 +198,9 @@ private:
 
     HFONT                                   m_uiFont             = nullptr;
 
-    DiskIIEventRing                         m_ring;
+    Disk2EventRing                         m_ring;
     std::atomic<uint32_t>                   m_droppedSinceLastDrain { 0 };
-    std::deque<DiskIIEventDisplay>          m_deque;
+    std::deque<Disk2EventDisplay>          m_deque;
     std::vector<uint32_t>                   m_filteredIndices;
 
     FilterState                             m_filter;
@@ -242,7 +242,7 @@ private:
     const uint64_t *                        m_cycleCounter       = nullptr;
 
     // Spec-006 bug fix. Cached active-drive index used to stamp
-    // DiskIIEvent::drive on every controller-side event that doesn't
+    // Disk2Event::drive on every controller-side event that doesn't
     // carry its own drive (motor / head / address mark / data mark).
     // Initialized to 0 (controller boots with drive 0 active);
     // updated on OnDriveSelect BEFORE the event is pushed so the

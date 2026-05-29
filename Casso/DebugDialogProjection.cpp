@@ -270,62 +270,62 @@ static std::wstring FormatCoord (wchar_t prefix, int value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::wstring FormatDetail (const DiskIIEvent & src)
+static std::wstring FormatDetail (const Disk2Event & src)
 {
     switch (src.type)
     {
-        case DiskIIEventType::HeadStep:
+        case Disk2EventType::HeadStep:
             return std::format (L"quarter-track {} -> {}",
                                 src.payload.step.prevQt,
                                 src.payload.step.newQt);
 
-        case DiskIIEventType::HeadBump:
+        case Disk2EventType::HeadBump:
             return std::format (L"at quarter-track {}", src.payload.bump.atQt);
 
-        case DiskIIEventType::AddrMark:
+        case Disk2EventType::AddrMark:
             return std::format (L"{} {} {}",
                                 FormatCoord (L'T', src.payload.addrMark.track),
                                 FormatCoord (L'S', src.payload.addrMark.sector),
                                 FormatCoord (L'V', src.payload.addrMark.volume));
 
-        case DiskIIEventType::DataRead:
+        case Disk2EventType::DataRead:
             return std::format (L"{} {} {} ({} bytes)",
                                 FormatCoord (L'T', src.payload.dataMark.track),
                                 FormatCoord (L'S', src.payload.dataMark.sector),
                                 FormatCoord (L'V', src.payload.dataMark.volume),
                                 src.payload.dataMark.byteCount);
 
-        case DiskIIEventType::DataWrite:
+        case Disk2EventType::DataWrite:
             return std::format (L"{} {} {} ({} bytes)",
                                 FormatCoord (L'T', src.payload.dataMark.track),
                                 FormatCoord (L'S', src.payload.dataMark.sector),
                                 FormatCoord (L'V', src.payload.dataMark.volume),
                                 src.payload.dataMark.byteCount);
 
-        case DiskIIEventType::DriveSelect:
-        case DiskIIEventType::DiskInserted:
-        case DiskIIEventType::DiskEjected:
+        case Disk2EventType::DriveSelect:
+        case Disk2EventType::DiskInserted:
+        case Disk2EventType::DiskEjected:
             return std::wstring();
 
-        case DiskIIEventType::EventsLost:
+        case Disk2EventType::EventsLost:
             return std::format (L"[{} events lost]", src.payload.lost.count);
 
-        case DiskIIEventType::AudioStarted:
-        case DiskIIEventType::AudioRestarted:
-        case DiskIIEventType::AudioContinued:
-        case DiskIIEventType::AudioLoopStarted:
-        case DiskIIEventType::AudioLoopStopped:
+        case Disk2EventType::AudioStarted:
+        case Disk2EventType::AudioRestarted:
+        case Disk2EventType::AudioContinued:
+        case Disk2EventType::AudioLoopStarted:
+        case Disk2EventType::AudioLoopStopped:
             return std::format (L"kind={}", SoundKindLabel (src.payload.audio.kind));
 
-        case DiskIIEventType::AudioSilent:
+        case Disk2EventType::AudioSilent:
             return std::format (L"kind={} reason={}",
                                 SoundKindLabel    (src.payload.audio.kind),
                                 SilentReasonLabel (src.payload.audio.reason));
 
-        case DiskIIEventType::MotorCommandOn:
-        case DiskIIEventType::MotorEngaged:
-        case DiskIIEventType::MotorCommandOff:
-        case DiskIIEventType::MotorDisengaged:
+        case Disk2EventType::MotorCommandOn:
+        case Disk2EventType::MotorEngaged:
+        case Disk2EventType::MotorCommandOff:
+        case Disk2EventType::MotorDisengaged:
             return std::wstring();
     }
 
@@ -342,40 +342,40 @@ static std::wstring FormatDetail (const DiskIIEvent & src)
 //
 //  Drive index for the FR-014 filter projection and the Drive column.
 //  Spec-006 bug fix: every drive-specific event now carries its drive
-//  on the top-level DiskIIEvent.drive field (stamped by the dialog's
-//  IDiskIIEventSink at fire time from the cached active drive). For
+//  on the top-level Disk2Event.drive field (stamped by the dialog's
+//  IDISK2EventSink at fire time from the cached active drive). For
 //  event types that already carry an explicit drive in their payload
 //  (DriveSelect / DiskInserted / DiskEjected / audio outcomes), the
 //  payload value is authoritative and matches the top-level stamp.
-//  Returns DiskIIEventDisplay::kFieldNotApplicable only for the
+//  Returns Disk2EventDisplay::kFieldNotApplicable only for the
 //  synthetic EventsLost marker (src.drive == -1).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static int PayloadDrive (const DiskIIEvent & src)
+static int PayloadDrive (const Disk2Event & src)
 {
     switch (src.type)
     {
-        case DiskIIEventType::DriveSelect:
-        case DiskIIEventType::DiskInserted:
-        case DiskIIEventType::DiskEjected:
+        case Disk2EventType::DriveSelect:
+        case Disk2EventType::DiskInserted:
+        case Disk2EventType::DiskEjected:
             return src.payload.drive.drive;
 
-        case DiskIIEventType::AudioStarted:
-        case DiskIIEventType::AudioRestarted:
-        case DiskIIEventType::AudioContinued:
-        case DiskIIEventType::AudioSilent:
-        case DiskIIEventType::AudioLoopStarted:
-        case DiskIIEventType::AudioLoopStopped:
+        case Disk2EventType::AudioStarted:
+        case Disk2EventType::AudioRestarted:
+        case Disk2EventType::AudioContinued:
+        case Disk2EventType::AudioSilent:
+        case Disk2EventType::AudioLoopStarted:
+        case Disk2EventType::AudioLoopStopped:
             return src.payload.audio.drive;
 
-        case DiskIIEventType::EventsLost:
-            return DiskIIEventDisplay::kFieldNotApplicable;
+        case Disk2EventType::EventsLost:
+            return Disk2EventDisplay::kFieldNotApplicable;
 
         default:
             if (src.drive < 0)
             {
-                return DiskIIEventDisplay::kFieldNotApplicable;
+                return Disk2EventDisplay::kFieldNotApplicable;
             }
             return src.drive;
     }
@@ -391,31 +391,31 @@ static int PayloadDrive (const DiskIIEvent & src)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring_view DebugDialogProjection::EventLabel (EventCategory cat, DiskIIEventType type)
+std::wstring_view DebugDialogProjection::EventLabel (EventCategory cat, Disk2EventType type)
 {
     (void) cat;
 
     switch (type)
     {
-        case DiskIIEventType::MotorCommandOn:    return L"Motor command on";
-        case DiskIIEventType::MotorEngaged:      return L"Motor engaged";
-        case DiskIIEventType::MotorCommandOff:   return L"Motor command off";
-        case DiskIIEventType::MotorDisengaged:   return L"Motor disengaged";
-        case DiskIIEventType::HeadStep:          return L"Head step";
-        case DiskIIEventType::HeadBump:          return L"Head bump";
-        case DiskIIEventType::AddrMark:          return L"Address mark";
-        case DiskIIEventType::DataRead:          return L"Data read";
-        case DiskIIEventType::DataWrite:         return L"Data write";
-        case DiskIIEventType::DriveSelect:       return L"Drive select";
-        case DiskIIEventType::DiskInserted:      return L"Disk inserted";
-        case DiskIIEventType::DiskEjected:       return L"Disk ejected";
-        case DiskIIEventType::EventsLost:        return L"Events lost";
-        case DiskIIEventType::AudioStarted:      return L"Audio started";
-        case DiskIIEventType::AudioRestarted:    return L"Audio restarted";
-        case DiskIIEventType::AudioContinued:    return L"Audio continued";
-        case DiskIIEventType::AudioSilent:       return L"Audio silent";
-        case DiskIIEventType::AudioLoopStarted:  return L"Audio loop started";
-        case DiskIIEventType::AudioLoopStopped:  return L"Audio loop stopped";
+        case Disk2EventType::MotorCommandOn:    return L"Motor command on";
+        case Disk2EventType::MotorEngaged:      return L"Motor engaged";
+        case Disk2EventType::MotorCommandOff:   return L"Motor command off";
+        case Disk2EventType::MotorDisengaged:   return L"Motor disengaged";
+        case Disk2EventType::HeadStep:          return L"Head step";
+        case Disk2EventType::HeadBump:          return L"Head bump";
+        case Disk2EventType::AddrMark:          return L"Address mark";
+        case Disk2EventType::DataRead:          return L"Data read";
+        case Disk2EventType::DataWrite:         return L"Data write";
+        case Disk2EventType::DriveSelect:       return L"Drive select";
+        case Disk2EventType::DiskInserted:      return L"Disk inserted";
+        case Disk2EventType::DiskEjected:       return L"Disk ejected";
+        case Disk2EventType::EventsLost:        return L"Events lost";
+        case Disk2EventType::AudioStarted:      return L"Audio started";
+        case Disk2EventType::AudioRestarted:    return L"Audio restarted";
+        case Disk2EventType::AudioContinued:    return L"Audio continued";
+        case Disk2EventType::AudioSilent:       return L"Audio silent";
+        case Disk2EventType::AudioLoopStarted:  return L"Audio loop started";
+        case Disk2EventType::AudioLoopStopped:  return L"Audio loop stopped";
     }
 
     return L"?";
@@ -432,23 +432,23 @@ std::wstring_view DebugDialogProjection::EventLabel (EventCategory cat, DiskIIEv
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugDialogProjection::FormatEvent (
-    const DiskIIEvent &                          src,
+    const Disk2Event &                          src,
     std::chrono::steady_clock::time_point        uptimeAnchor,
-    DiskIIEventDisplay &                         out)
+    Disk2EventDisplay &                         out)
 {
     out.category = src.category;
     out.type     = src.type;
     out.drive    = PayloadDrive (src);
-    out.track    = DiskIIEventDisplay::kFieldNotApplicable;
-    out.sector   = DiskIIEventDisplay::kFieldNotApplicable;
+    out.track    = Disk2EventDisplay::kFieldNotApplicable;
+    out.sector   = Disk2EventDisplay::kFieldNotApplicable;
 
-    if (src.type == DiskIIEventType::AddrMark)
+    if (src.type == Disk2EventType::AddrMark)
     {
         out.track  = src.payload.addrMark.track;
         out.sector = src.payload.addrMark.sector;
     }
-    else if (src.type == DiskIIEventType::DataRead
-             || src.type == DiskIIEventType::DataWrite)
+    else if (src.type == Disk2EventType::DataRead
+             || src.type == Disk2EventType::DataWrite)
     {
         out.track  = src.payload.dataMark.track;
         out.sector = src.payload.dataMark.sector;
@@ -472,21 +472,21 @@ void DebugDialogProjection::FormatEvent (
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugDialogProjection::DrainAndProject (
-    DiskIIEventRing &                            ring,
-    std::deque<DiskIIEventDisplay> &             deque,
+    Disk2EventRing &                            ring,
+    std::deque<Disk2EventDisplay> &             deque,
     uint32_t                                     droppedCount,
     std::chrono::steady_clock::time_point        uptimeAnchor)
 {
-    DiskIIEvent             batch[kDrainBatchSize] = {};
+    Disk2Event             batch[kDrainBatchSize] = {};
     uint32_t                drained                = 0;
     uint32_t                i                      = 0;
-    DiskIIEventDisplay      lostEntry;
-    DiskIIEvent             syntheticLost          = {};
+    Disk2EventDisplay      lostEntry;
+    Disk2Event             syntheticLost          = {};
 
     if (droppedCount > 0)
     {
         syntheticLost.category          = EventCategory::Controller;
-        syntheticLost.type              = DiskIIEventType::EventsLost;
+        syntheticLost.type              = Disk2EventType::EventsLost;
         syntheticLost.drive             = -1;
         syntheticLost.cycle             = 0;
         syntheticLost.payload.lost.count = droppedCount;
@@ -501,7 +501,7 @@ void DebugDialogProjection::DrainAndProject (
 
         for (i = 0; i < drained; i++)
         {
-            DiskIIEventDisplay  entry;
+            Disk2EventDisplay  entry;
 
             FormatEvent (batch[i], uptimeAnchor, entry);
             deque.push_back (std::move (entry));

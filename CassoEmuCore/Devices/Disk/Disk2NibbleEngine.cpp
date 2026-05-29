@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "DiskIINibbleEngine.h"
+#include "Disk2NibbleEngine.h"
 #include "DiskImage.h"
 
 
@@ -9,11 +9,11 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIINibbleEngine
+//  Disk2NibbleEngine
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskIINibbleEngine::DiskIINibbleEngine()
+Disk2NibbleEngine::Disk2NibbleEngine()
 {
 }
 
@@ -25,12 +25,12 @@ DiskIINibbleEngine::DiskIINibbleEngine()
 //
 //  SetDiskImage
 //
-//  Called by DiskIIController on Mount / Eject / DriveSelect transitions.
+//  Called by Disk2Controller on Mount / Eject / DriveSelect transitions.
 //  Resets the bit cursor so the new image starts streaming from offset 0.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIINibbleEngine::SetDiskImage (DiskImage * disk)
+void Disk2NibbleEngine::SetDiskImage (DiskImage * disk)
 {
     m_disk   = disk;
     m_bitPos = 0;
@@ -50,7 +50,7 @@ void DiskIINibbleEngine::SetDiskImage (DiskImage * disk)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIINibbleEngine::SetMotorOn (bool on)
+void Disk2NibbleEngine::SetMotorOn (bool on)
 {
     m_motorOn    = on;
     m_cycleAccum = 0;
@@ -66,13 +66,13 @@ void DiskIINibbleEngine::SetMotorOn (bool on)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIINibbleEngine::SetWriteMode (bool q7)
+void Disk2NibbleEngine::SetWriteMode (bool q7)
 {
     m_writeMode = q7;
 }
 
 
-void DiskIINibbleEngine::SetShiftLoadMode (bool q6)
+void Disk2NibbleEngine::SetShiftLoadMode (bool q6)
 {
     m_shiftLoadMode = q6;
 }
@@ -90,7 +90,7 @@ void DiskIINibbleEngine::SetShiftLoadMode (bool q6)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIINibbleEngine::SetCurrentTrack (int track)
+void Disk2NibbleEngine::SetCurrentTrack (int track)
 {
     int   clamped = track;
 
@@ -144,7 +144,7 @@ void DiskIINibbleEngine::SetCurrentTrack (int track)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIINibbleEngine::Reset()
+void Disk2NibbleEngine::Reset()
 {
     m_motorOn         = false;
     m_writeMode       = false;
@@ -173,7 +173,7 @@ void DiskIINibbleEngine::Reset()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIINibbleEngine::Tick (uint32_t cpuCycles)
+void Disk2NibbleEngine::Tick (uint32_t cpuCycles)
 {
     uint32_t   bitsToAdvance = 0;
     uint32_t   i             = 0;
@@ -208,7 +208,7 @@ void DiskIINibbleEngine::Tick (uint32_t cpuCycles)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIINibbleEngine::AdvanceOneBit()
+void Disk2NibbleEngine::AdvanceOneBit()
 {
     uint8_t   bit       = 0;
     size_t    trackBits = 0;
@@ -252,7 +252,7 @@ void DiskIINibbleEngine::AdvanceOneBit()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIINibbleEngine::ShiftReadBit (uint8_t bit)
+void Disk2NibbleEngine::ShiftReadBit (uint8_t bit)
 {
     // Port of the canonical Disk II Logic State Sequencer read model.
     //
@@ -314,7 +314,7 @@ void DiskIINibbleEngine::ShiftReadBit (uint8_t bit)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIINibbleEngine::ShiftWriteBit()
+void Disk2NibbleEngine::ShiftWriteBit()
 {
     uint8_t   outBit = 0;
 
@@ -340,7 +340,7 @@ void DiskIINibbleEngine::ShiftWriteBit()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint8_t DiskIINibbleEngine::ReadLatch()
+uint8_t Disk2NibbleEngine::ReadLatch()
 {
     // Real P5A behavior: reading $C0EC is a pure sample of the shift
     // register's current state. There is NO side effect on the read --
@@ -378,7 +378,7 @@ uint8_t DiskIINibbleEngine::ReadLatch()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIINibbleEngine::WriteLatch (uint8_t value)
+void Disk2NibbleEngine::WriteLatch (uint8_t value)
 {
     m_writeLatch = value;
     m_writeNibbles++;
@@ -408,7 +408,7 @@ void DiskIINibbleEngine::WriteLatch (uint8_t value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskIINibbleEngine::ConsumeFreshNibble (uint8_t & outNibble)
+bool Disk2NibbleEngine::ConsumeFreshNibble (uint8_t & outNibble)
 {
     if (!m_latchIsFresh)
     {

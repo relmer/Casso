@@ -8,11 +8,11 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IDiskIIEventSink
+//  IDISK2EventSink
 //
-//  Abstract notification interface fired by DiskIIController whenever a
+//  Abstract notification interface fired by Disk2Controller whenever a
 //  user-visible event happens on the controller surface. Implemented by
-//  Casso/DiskIIDebugDialog and exercised by the spec-006 debug window;
+//  Casso/Disk2DebugDialog and exercised by the spec-006 debug window;
 //  the controller has zero awareness of who is listening.
 //
 //  Contract:
@@ -37,7 +37,7 @@
 //                       kMaxQuarterTrack. Mutually exclusive with
 //                       OnHeadStep for any single HandlePhase call.
 //
-//  Address / data marks (fired by DiskIIAddressMarkWatcher):
+//  Address / data marks (fired by Disk2AddressMarkWatcher):
 //    * OnAddressMark   -- after D5 AA 96 + 4-and-4 fields + good XOR
 //                          checksum
 //    * OnDataMarkRead  -- after D5 AA AD + 342 nibbles + DE AA EB
@@ -60,10 +60,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class IDiskIIEventSink
+class IDISK2EventSink
 {
 public:
-    virtual ~IDiskIIEventSink() = default;
+    virtual ~IDISK2EventSink() = default;
 
     virtual void OnMotorCommandOn() = 0;
     virtual void OnMotorEngaged() = 0;

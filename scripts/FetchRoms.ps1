@@ -5,7 +5,7 @@
 .DESCRIPTION
     Downloads ROM files from AppleWin's GitHub repository and places them in
     the per-machine `Machines/<MachineName>/` (and shared
-    `Devices/DiskII/`) subdirectories.
+    `Devices/Disk2/`) subdirectories.
 
     Files downloaded (per spec 005-disk-ii-audio Phase 12; some
     upstream files land in more than one machine folder so each
@@ -15,8 +15,8 @@
       - Apple IIe ROM        (16 KB) → Machines/Apple2e/Apple2e.rom
       - Apple IIe Video ROM  (4 KB)  → Machines/Apple2e/Apple2e_Video.rom
       - Apple II Video ROM   (2 KB)  → Machines/Apple2/Apple2_Video.rom + Machines/Apple2Plus/Apple2_Video.rom
-      - Disk II Boot ROM     (256 B) → Devices/DiskII/Disk2.rom
-      - Disk II 13-sector    (256 B) → Devices/DiskII/Disk2_13Sector.rom
+      - Disk II Boot ROM     (256 B) → Devices/Disk2/Disk2.rom
+      - Disk II 13-sector    (256 B) → Devices/Disk2/Disk2_13Sector.rom
 
     Source: https://github.com/AppleWin/AppleWin/tree/master/resource
 
@@ -53,8 +53,8 @@ $romFiles = @(
     @{ Source = 'Apple2_Video.rom';            Dest = 'Apple2_Video.rom';        Subdir = 'Machines/Apple2Plus';       Size = 2048;   Desc = 'Apple II/II+ Character Generator ROM (][+)' },
     @{ Source = 'Apple2e_Enhanced_Video.rom';  Dest = 'Apple2e_Video.rom';       Subdir = 'Machines/Apple2e';          Size = 4096;   Desc = 'Apple IIe Character Generator ROM (//e)' },
     @{ Source = 'Apple2e_Enhanced_Video.rom';  Dest = 'Apple2e_Video.rom';       Subdir = 'Machines/Apple2eEnhanced';  Size = 4096;   Desc = 'Apple IIe Character Generator ROM (//e Enhanced)' },
-    @{ Source = 'DISK2.rom';                   Dest = 'Disk2.rom';               Subdir = 'Devices/DiskII';            Size = 256;    Desc = 'Disk II Boot ROM (slot 6)' },
-    @{ Source = 'DISK2-13sector.rom';          Dest = 'Disk2_13Sector.rom';      Subdir = 'Devices/DiskII';            Size = 256;    Desc = 'Disk II Boot ROM (13-sector original)' }
+    @{ Source = 'DISK2.rom';                   Dest = 'Disk2.rom';               Subdir = 'Devices/Disk2';            Size = 256;    Desc = 'Disk II Boot ROM (slot 6)' },
+    @{ Source = 'DISK2-13sector.rom';          Dest = 'Disk2_13Sector.rom';      Subdir = 'Devices/Disk2';            Size = 256;    Desc = 'Disk II Boot ROM (13-sector original)' }
 )
 
 $downloaded = 0

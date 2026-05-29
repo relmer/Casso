@@ -40,7 +40,7 @@ public:
     // per-machine `Machines/` and per-device `Devices/` subtrees. The
     // downloader places freshly fetched ROMs at
     // `<base>/Machines/<MachineName>/<RomName>` for machine-specific
-    // ROMs and `<base>/Devices/DiskII/<RomName>` for shared Disk II
+    // ROMs and `<base>/Devices/Disk2/<RomName>` for shared Disk II
     // controller ROMs.
     static fs::path GetAssetBaseDirectory();
 
@@ -104,7 +104,7 @@ public:
     // the range after the wrapper's downmix so clipping is for
     // safety, not for level). Used by the bootstrap path to bake
     // freshly decoded OGGs into WAVs that the existing IMFSourceReader
-    // loader (DiskIIAudioSource::LoadSamples) can pick up unchanged.
+    // loader (Disk2AudioSource::LoadSamples) can pick up unchanged.
     static HRESULT  WritePcmAsWav          (const fs::path         & outPath,
                                             const vector<float>    & pcm,
                                             uint32_t                 sampleRate,

@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "Audio/DiskIIAudioSource.h"
+#include "Audio/Disk2AudioSource.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -9,7 +9,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIAudioSourceStateTests
+//  Disk2AudioSourceStateTests
 //
 //  Verifies that the IDriveAudioSink event hooks mutate internal
 //  state in the documented way without touching the host filesystem
@@ -17,13 +17,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_CLASS (DiskIIAudioSourceStateTests)
+TEST_CLASS (Disk2AudioSourceStateTests)
 {
 public:
 
     TEST_METHOD (OnMotorEngaged_setsRunningTrue)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource  src;
 
         Assert::IsFalse (src.IsMotorRunning());
         src.OnMotorEngaged();
@@ -32,7 +32,7 @@ public:
 
     TEST_METHOD (OnMotorDisengaged_setsRunningFalse)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource  src;
 
         src.OnMotorEngaged();
         src.OnMotorDisengaged();
@@ -41,7 +41,7 @@ public:
 
     TEST_METHOD (OnHeadStep_resetsHeadPos_andSelectsStepBuffer)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource  src;
         float              out[16] = {};
 
         src.SetSampleBufferForTest (L"HeadStep", vector<float> (32, 0.5f));
@@ -55,13 +55,13 @@ public:
         // Step volume is 0.30; sample is 0.5 -> 0.15 per output sample.
         for (int i = 0; i < 16; i++)
         {
-            Assert::AreEqual (0.5f * DiskIIAudioSource::kHeadVolume, out[i], 1e-5f);
+            Assert::AreEqual (0.5f * Disk2AudioSource::kHeadVolume, out[i], 1e-5f);
         }
     }
 
     TEST_METHOD (OnHeadBump_selectsStopBufferDistinctFromStep)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource  src;
         float              out[8] = {};
 
         src.SetSampleBufferForTest (L"HeadStep", vector<float> (32, 0.5f));
@@ -74,13 +74,13 @@ public:
         // (0.5). Volume is the same kHeadVolume for both.
         for (int i = 0; i < 8; i++)
         {
-            Assert::AreEqual (0.9f * DiskIIAudioSource::kHeadVolume, out[i], 1e-5f);
+            Assert::AreEqual (0.9f * Disk2AudioSource::kHeadVolume, out[i], 1e-5f);
         }
     }
 
     TEST_METHOD (OnDiskInserted_selectsCloseBuffer_resetsDoorPos)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource  src;
         float              out[8] = {};
 
         src.SetSampleBufferForTest (L"DoorClose", vector<float> (16, 0.6f));
@@ -91,13 +91,13 @@ public:
 
         for (int i = 0; i < 8; i++)
         {
-            Assert::AreEqual (0.6f * DiskIIAudioSource::kDoorVolume, out[i], 1e-5f);
+            Assert::AreEqual (0.6f * Disk2AudioSource::kDoorVolume, out[i], 1e-5f);
         }
     }
 
     TEST_METHOD (OnDiskEjected_selectsOpenBuffer_resetsDoorPos)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource  src;
         float              out[8] = {};
 
         src.SetSampleBufferForTest (L"DoorClose", vector<float> (16, 0.6f));
@@ -108,13 +108,13 @@ public:
 
         for (int i = 0; i < 8; i++)
         {
-            Assert::AreEqual (0.3f * DiskIIAudioSource::kDoorVolume, out[i], 1e-5f);
+            Assert::AreEqual (0.3f * Disk2AudioSource::kDoorVolume, out[i], 1e-5f);
         }
     }
 
     TEST_METHOD (SetPan_storesValuesAndReturnsThem)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource  src;
 
         src.SetPan (0.25f, 0.75f);
         Assert::AreEqual (0.25f, src.PanLeft(),  1e-6f);

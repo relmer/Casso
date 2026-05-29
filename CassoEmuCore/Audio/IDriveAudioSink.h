@@ -29,7 +29,7 @@ public:
     // fires on the on->off edge, which for the Disk II is the
     // spindown-timer expiry inside Tick(), NOT the raw $C0E8 access
     // (FR-001/FR-002). Renamed in spec-006 to match the four-event
-    // motor lifecycle on IDiskIIEventSink (FR-006); semantics are
+    // motor lifecycle on IDISK2EventSink (FR-006); semantics are
     // unchanged from spec-005's OnMotorStart/OnMotorStop.
     virtual void OnMotorEngaged() = 0;
     virtual void OnMotorDisengaged() = 0;

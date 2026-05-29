@@ -253,7 +253,7 @@ public:
     // `machineName` selects the per-machine ROM subdir
     // (Machines/<machineName>/<file>) used to resolve systemRom and
     // characterRom files. Slot ROMs whose device is "disk-ii" resolve
-    // under Devices/DiskII/<file>. Pass the bare machine identifier
+    // under Devices/Disk2/<file>. Pass the bare machine identifier
     // (e.g., "Apple2e"), not a localized display name.
     static HRESULT Load            (const string           & jsonText,
                                     const string           & machineName,

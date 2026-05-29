@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "Audio/DiskIIAudioSource.h"
+#include "Audio/Disk2AudioSource.h"
 #include "Audio/DriveAudioMixer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -19,7 +19,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  state-change on validation failure").
 //
 //  The tests write tiny known-amplitude WAVs into a temp
-//  Devices/DiskII/<Mechanism>/ tree (constitution \xA7II allows
+//  Devices/Disk2/<Mechanism>/ tree (constitution \xA7II allows
 //  tempdir use), then call SetMechanism and verify the active
 //  motor-loop buffer reflects the new mechanism via the source's
 //  GeneratePCM peak amplitude.
@@ -93,7 +93,7 @@ namespace
     }
 
 
-    static float SamplePeak (DiskIIAudioSource & src)
+    static float SamplePeak (Disk2AudioSource & src)
     {
         // Spec-006 bug 14a: motor loop is gated on disk presence, so
         // tests that just want to measure the loaded motor buffer's
@@ -150,8 +150,8 @@ public:
         WriteSquareWav (devicesDir / L"Shugart" / L"MotorLoop.wav", 0.10f, 256);
         WriteSquareWav (devicesDir / L"Alps"    / L"MotorLoop.wav", 0.80f, 256);
 
-        DiskIIAudioSource  srcA;
-        DiskIIAudioSource  srcB;
+        Disk2AudioSource  srcA;
+        Disk2AudioSource  srcB;
         DriveAudioMixer    mixer;
 
         mixer.RegisterSource (&srcA);
@@ -184,7 +184,7 @@ public:
         WriteSquareWav (devicesDir / L"Shugart" / L"MotorLoop.wav", 0.80f, 256);
         WriteSquareWav (devicesDir / L"Alps"    / L"MotorLoop.wav", 0.10f, 256);
 
-        DiskIIAudioSource  src;
+        Disk2AudioSource  src;
         DriveAudioMixer    mixer;
 
         mixer.RegisterSource (&src);

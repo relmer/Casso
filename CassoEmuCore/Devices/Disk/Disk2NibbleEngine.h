@@ -10,24 +10,24 @@ class DiskImage;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIINibbleEngine
+//  Disk2NibbleEngine
 //
 //  Bit-stream LSS-style engine. Owns the per-drive stream cursor and the
 //  read/write data latches. The engine ticks through the current track
 //  at the standard Disk II bit rate (~4 cycles per bit at 1.023 MHz).
 //  Head position, motor state, drive selection, write protect, and Q6/Q7
-//  latches are owned by DiskIIController and pushed in via setters.
+//  latches are owned by Disk2Controller and pushed in via setters.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DiskIINibbleEngine
+class Disk2NibbleEngine
 {
 public:
     static constexpr int   kCyclesPerBit = 4;
     static constexpr int   kMinTrack     = 0;
     static constexpr int   kMaxTrack     = 39;
 
-    DiskIINibbleEngine();
+    Disk2NibbleEngine();
 
     void       SetDiskImage (DiskImage * disk);
     void       SetMotorOn (bool on);
@@ -59,7 +59,7 @@ public:
     // assembled MSB-set nibble. ReadLatch is a pure sample with no
     // consume side effect (the CPU polls $C0EC in a tight BPL loop
     // and sees the same byte many times); feeding every sampled
-    // ReadLatch return into the DiskIIAddressMarkWatcher fills the
+    // ReadLatch return into the Disk2AddressMarkWatcher fills the
     // watcher with garbage repeats and partial-assembly bytes, and
     // its state machines never match a real D5 AA 96 prologue.
     // ConsumeFreshNibble is the side-channel the controller uses

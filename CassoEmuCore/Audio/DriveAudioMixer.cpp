@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Audio/DriveAudioMixer.h"
-#include "Audio/DiskIIAudioSource.h"
+#include "Audio/Disk2AudioSource.h"
 
 
 
@@ -158,7 +158,7 @@ HRESULT DriveAudioMixer::SetMechanism (const wstring & mechanism)
 
     for (IDriveAudioSource * src : m_sources)
     {
-        DiskIIAudioSource *  disk = dynamic_cast<DiskIIAudioSource *> (src);
+        Disk2AudioSource *  disk = dynamic_cast<Disk2AudioSource *> (src);
 
         if (disk == nullptr)
         {
@@ -189,7 +189,7 @@ HRESULT DriveAudioMixer::SetMechanism (const wstring & mechanism)
 //  Forwards the cycle count to any source that participates in
 //  cycle-based state machines (Disk II step/seek discriminator).
 //  Non-Disk-II sources can no-op their Tick; we only special-case
-//  DiskIIAudioSource here because IDriveAudioSource itself does not
+//  Disk2AudioSource here because IDriveAudioSource itself does not
 //  carry a Tick on its abstract surface (NFR-002 keeps the abstract
 //  interface minimal).
 //
@@ -197,11 +197,11 @@ HRESULT DriveAudioMixer::SetMechanism (const wstring & mechanism)
 
 void DriveAudioMixer::Tick (uint64_t currentCycle)
 {
-    DiskIIAudioSource *  disk = nullptr;
+    Disk2AudioSource *  disk = nullptr;
 
     for (IDriveAudioSource * src : m_sources)
     {
-        disk = dynamic_cast<DiskIIAudioSource *> (src);
+        disk = dynamic_cast<Disk2AudioSource *> (src);
 
         if (disk != nullptr)
         {

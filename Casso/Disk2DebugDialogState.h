@@ -2,8 +2,8 @@
 
 #include "Pch.h"
 
-#include "../CassoEmuCore/Devices/DiskIIEvent.h"
-#include "DiskIIEventDisplay.h"
+#include "../CassoEmuCore/Devices/Disk2Event.h"
+#include "Disk2EventDisplay.h"
 #include "TrackSectorPredicate.h"
 
 
@@ -12,10 +12,10 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIDebugDialogState
+//  Disk2DebugDialogState
 //
 //  Non-Win32 pieces of the spec-006 Disk II Debug dialog. Factored out
-//  of DiskIIDebugDialog.cpp so the headless UnitTest project can link
+//  of Disk2DebugDialog.cpp so the headless UnitTest project can link
 //  them without dragging in CreateWindowEx, ListView, RichEdit, etc.
 //
 //  Public surface:
@@ -98,7 +98,7 @@ constexpr int  kDetailColumnId = kColumnCount - 1;
 
 void   SeedDefaultColumns (std::array<LogicalColumn, kColumnCount> & columns) noexcept;
 bool   ComputeWasAtTail   (int topIndex, int countPerPage, int totalCount) noexcept;
-bool   MatchesFilter      (const DiskIIEventDisplay & e, const FilterState & f) noexcept;
+bool   MatchesFilter      (const Disk2EventDisplay & e, const FilterState & f) noexcept;
 
 
 
@@ -140,10 +140,10 @@ std::vector<VisibleColumnSpec> PlanVisibleColumns (
 // the widest cell), and reused internally by BuildClipboardText.
 void          AppendColumnText (
     std::wstring &                                   out,
-    const DiskIIEventDisplay &                       e,
+    const Disk2EventDisplay &                       e,
     int                                              logicalId);
 
 std::wstring  BuildClipboardText (
-    const std::vector<const DiskIIEventDisplay *> &  selected,
+    const std::vector<const Disk2EventDisplay *> &  selected,
     const std::array<LogicalColumn, kColumnCount> &  columns);
 

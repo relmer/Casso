@@ -11,7 +11,7 @@
 #include "Devices/AppleIIeSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
 #include "Devices/LanguageCard.h"
-#include "Devices/DiskIIController.h"
+#include "Devices/Disk2Controller.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Video/VideoTiming.h"
 #include "FixtureProvider.h"
@@ -75,10 +75,10 @@ struct EmulatorCore
     std::unique_ptr<EmuCpu>                    cpu;
 
     // Phase 11 (T097/T099-T104). Optional Disk II wiring. Set by
-    // HeadlessHost::BuildAppleIIeWithDiskII so US2 integration tests can
+    // HeadlessHost::BuildAppleIIeWithDisk2 so US2 integration tests can
     // mount synthetic disks through the store and pump the controller's
     // nibble engine in lock-step with the CPU.
-    std::unique_ptr<DiskIIController>          diskController;
+    std::unique_ptr<Disk2Controller>          diskController;
     std::unique_ptr<DiskImageStore>            diskStore;
 
     // Cycle-pumped helpers used by Phase 7 integration tests.
@@ -112,7 +112,7 @@ public:
     HRESULT             BuildAppleII             (EmulatorCore & outCore);
     HRESULT             BuildAppleIIPlus         (EmulatorCore & outCore);
     HRESULT             BuildAppleIIe            (EmulatorCore & outCore);
-    HRESULT             BuildAppleIIeWithDiskII  (EmulatorCore & outCore);
+    HRESULT             BuildAppleIIeWithDisk2  (EmulatorCore & outCore);
 
 private:
     HRESULT             BuildCommon (HeadlessMachineKind kind, EmulatorCore & outCore);

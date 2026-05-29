@@ -1,9 +1,9 @@
 #include "Pch.h"
 #include "Core/MemoryBus.h"
-#include "Devices/DiskIIController.h"
+#include "Devices/Disk2Controller.h"
 #include "Audio/IDriveAudioSink.h"
 
-// DiskIIController carries two DiskImage instances; per-test heap
+// Disk2Controller carries two DiskImage instances; per-test heap
 // allocation would otherwise blow the C6262 stack-frame budget on
 // some tests.
 #pragma warning (disable: 6262)
@@ -72,19 +72,19 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIControllerAudioTests
+//  Disk2ControllerAudioTests
 //
 //  Verifies controller event-firing semantics (spec FR-001..FR-004).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_CLASS (DiskIIControllerAudioTests)
+TEST_CLASS (Disk2ControllerAudioTests)
 {
 public:
 
     TEST_METHOD (MotorOnSoftSwitch_firesOnMotorEngaged_exactlyOnce)
     {
-        DiskIIController  ctrl (6);
+        Disk2Controller  ctrl (6);
         RecordingSink     sink;
 
         ctrl.SetAudioSink (&sink);
@@ -97,7 +97,7 @@ public:
 
     TEST_METHOD (MotorOffThenSpindownTick_firesOnMotorDisengaged)
     {
-        DiskIIController  ctrl (6);
+        Disk2Controller  ctrl (6);
         RecordingSink     sink;
 
         ctrl.SetAudioSink (&sink);
@@ -113,7 +113,7 @@ public:
 
     TEST_METHOD (MotorOffThenMotorOnWithinSpindown_doesNotFireOnMotorDisengaged)
     {
-        DiskIIController  ctrl (6);
+        Disk2Controller  ctrl (6);
         RecordingSink     sink;
 
         ctrl.SetAudioSink (&sink);
@@ -132,7 +132,7 @@ public:
 
     TEST_METHOD (PhaseChange_noMovement_firesNothing)
     {
-        DiskIIController  ctrl (6);
+        Disk2Controller  ctrl (6);
         RecordingSink     sink;
 
         ctrl.SetAudioSink (&sink);
@@ -147,7 +147,7 @@ public:
 
     TEST_METHOD (PhaseChange_pastTrack0_firesOnHeadBump_notOnHeadStep)
     {
-        DiskIIController  ctrl (6);
+        Disk2Controller  ctrl (6);
         RecordingSink     sink;
 
         ctrl.SetAudioSink (&sink);
@@ -163,7 +163,7 @@ public:
 
     TEST_METHOD (PhaseChange_oneQuarterStep_firesOnHeadStep_withCorrectQt)
     {
-        DiskIIController  ctrl (6);
+        Disk2Controller  ctrl (6);
         RecordingSink     sink;
 
         ctrl.SetAudioSink (&sink);
