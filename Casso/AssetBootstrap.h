@@ -112,21 +112,25 @@ public:
                                             uint32_t                 sampleRate,
                                             string                 & outError);
 
-    static HRESULT  OfferBootDiskDownload (HINSTANCE                hInstance,
-                                           const wstring          & machineName,
+    // Themed boot-disk picker. Lists the user's recent disk images
+    // plus "Download" rows for the DOS 3.3 and ProDOS stock masters
+    // (sourced from the Asimov archive). Always shown when the
+    // machine has a Disk ][ controller and no boot disk has been
+    // resolved yet, even when the MRU is empty -- the download rows
+    // give a fresh install somewhere to go. Picking a row mounts it
+    // (downloading on demand for the stock rows); Skip leaves the
+    // slot empty.
+    //
+    // On return:
+    //   outDiskPath = path to mount, or empty if the user skipped /
+    //                 the machine has no Disk ][ controller.
+    static HRESULT  PromptBootDiskMru     (HINSTANCE                hInstance,
                                            HWND                     hwndParent,
+                                           const wstring          & machineName,
+                                           const vector<fs::path> & mruEntries,
                                            const fs::path         & diskDir,
                                            wstring                & outDiskPath,
                                            string                 & outError);
-
-    // Returns:
-    //   >= 0: index into `mruEntries` of the disk the user picked.
-    //   -1  : user pressed "Download stock master".
-    //   IDCANCEL: user cancelled / skipped.
-    static int      PromptBootDiskMru     (HINSTANCE                hInstance,
-                                           HWND                     hwndParent,
-                                           const wstring          & displayName,
-                                           const vector<fs::path> & mruEntries);
 
     // Unified startup downloader. Inspects the current install for
     // every required-or-optional asset that's missing (ROMs from the

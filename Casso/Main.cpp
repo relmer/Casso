@@ -224,8 +224,6 @@ static HRESULT LoadMachineConfig (
             DiskMru                mru;
             vector<fs::path>       mruExisting;
             HRESULT                hrPrefs    = S_OK;
-            int                    mruChoice  = IDCANCEL;
-            bool                   wantDownload = true;
 
             diskDir = AssetBootstrap::GetDiskDirectory();
 
@@ -235,39 +233,18 @@ static HRESULT LoadMachineConfig (
             mru         = DiskMru::FromUtf8 (prefs.recentDisks);
             mruExisting = mru.Prune ([] (const fs::path & p) { return fs::exists (p); });
 
-            if (!mruExisting.empty())
-            {
-                mruChoice = AssetBootstrap::PromptBootDiskMru (
-                    hInstance, hwndParent, machineName, mruExisting);
+            hr = AssetBootstrap::PromptBootDiskMru (
+                hInstance, hwndParent, machineName, mruExisting, diskDir, downloaded, error);
 
-                if (mruChoice >= 0 && mruChoice < (int) mruExisting.size())
-                {
-                    inoutDisk1Path = mruExisting[mruChoice].wstring();
-                    wantDownload   = false;
-                }
-                else if (mruChoice == IDCANCEL)
-                {
-                    wantDownload = false;
-                }
+            CHRN (hr, format (L"Boot disk download failed:\n{}",
+                              wstring (error.begin(), error.end())).c_str());
+
+            if (!downloaded.empty())
+            {
+                inoutDisk1Path = downloaded;
             }
 
-            if (wantDownload)
-            {
-                hr = AssetBootstrap::OfferBootDiskDownload (
-                    hInstance, machineName, hwndParent, diskDir, downloaded, error);
-
-                // S_FALSE = "user said no" or "no disk controller for this
-                // machine" — both are fine, just keep the slot empty.
-                // Hard failure surfaces a notification and bails.
-                if (hr != S_FALSE)
-                {
-                    CHRN (hr, format (L"Boot disk download failed:\n{}",
-                                      wstring (error.begin(), error.end())).c_str());
-                    inoutDisk1Path = downloaded;
-                }
-
-                hr = S_OK;
-            }
+            hr = S_OK;
         }
     }
 

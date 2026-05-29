@@ -1595,77 +1595,69 @@ static wstring GetEmbeddedDisplayName (HINSTANCE hInstance, const wstring & mach
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PromptBootDisk
+//  DownloadStockBootDisk
 //
-//  Three-button TaskDialog: DOS 3.3 / ProDOS / Cancel. Returns the
-//  chosen disk spec, or nullptr if the user cancelled. Falls back to
-//  a Yes/No/Cancel MessageBox if comctl32 v6's TaskDialogIndirect
-//  isn't available.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr int  s_kIdDos33  = 1001;
-static constexpr int  s_kIdProDOS = 1002;
-static constexpr int  s_kIdSkip   = IDCANCEL;
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PromptBootDisk
+//  Pure download helper used by PromptBootDiskMru's "Download..." rows.
+//  Fetches `spec` from the Asimov mirror, writes it under `diskDir`,
+//  and returns the absolute path in `outDiskPath`. No UI; the caller
+//  owns the prompt and progress reporting.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static const BootDiskSpec * PromptBootDisk (HINSTANCE hInstance, HWND hwndParent, const wstring & displayName)
+static HRESULT DownloadStockBootDisk (
+    const BootDiskSpec     & spec,
+    const fs::path         & diskDir,
+    wstring                & outDiskPath,
+    string                 & outError)
 {
-    HRESULT               hr            = S_OK;
-    int                   chosen        = 0;
-    wstring               body;
-    wstring               title;
-    DialogDefinition      def           = {};
-    const BootDiskSpec  * result        = nullptr;
+    HRESULT       hr        = S_OK;
+    HINTERNET     hSession  = nullptr;
+    fs::path      destPath;
+    vector<Byte>  payload;
+    error_code    ec;
 
 
+    outDiskPath.clear();
 
-    body  = L"The ";
-    body += displayName;
-    body += L" has a Disk ][ controller in slot 6 but no disk in drive 1, "
-            L"and will spin forever waiting for one. A system master disk "
-            L"is available from the Asimov archive.\n\n"
-            L"Alternatives:\n"
-            L"    ";
-    body += s_kchBullet;
-    body += L" Skip and use Disk > Insert Drive 1... (Ctrl+1) to "
-            L"mount your own .dsk.\n"
-            L"    ";
-    body += s_kchBullet;
-    body += L" Skip and press Ctrl+Reset once the drive starts "
-            L"spinning to drop to BASIC.\n\n"
-            L"Which disk would you like to download?";
+    fs::create_directories (diskDir, ec);
+    destPath = diskDir / spec.cassoName;
 
-    title  = L"Casso ";
-    title += s_kchEmDash;
-    title += L" Boot Disk";
-
-    def.title = title;
-    def.icon  = DialogIcon::Info;
-    def.body.push_back ({ body, false, L"" });
-    def.buttons.push_back ({ L"DOS 3.3",  s_kIdDos33,  true,  false });
-    def.buttons.push_back ({ L"ProDOS",   s_kIdProDOS, false, false });
-    def.buttons.push_back ({ L"Skip",     s_kIdSkip,   false, true  });
-
-    chosen = ShowStandaloneDialog (hInstance, hwndParent, def);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    if (chosen == s_kIdDos33)
+    if (fs::exists (destPath, ec))
     {
-        result = &s_kDos33Disk;
-    }
-    else if (chosen == s_kIdProDOS)
-    {
-        result = &s_kProDOSDisk;
+        outDiskPath = destPath.wstring();
+        BAIL_OUT_IF (true, S_OK);
     }
 
-    return result;
+    hSession = WinHttpOpen (s_kpszUserAgent,
+                            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                            WINHTTP_NO_PROXY_NAME,
+                            WINHTTP_NO_PROXY_BYPASS,
+                            0);
+    CBRF (hSession != nullptr,
+          outError = "Cannot initialize WinHTTP session");
+
+    hr = DownloadHttp (hSession,
+                       s_kpszAsimovHost,
+                       spec.asimovUrlPath,
+                       spec.expectedSize,
+                       spec.shortLabel,
+                       payload,
+                       outError);
+    CHR (hr);
+
+    hr = WriteFileBytes (destPath, payload);
+    CHRF (hr,
+          outError = format ("Cannot write {}", destPath.string()));
+
+    outDiskPath = destPath.wstring();
+
+Error:
+    if (hSession != nullptr)
+    {
+        WinHttpCloseHandle (hSession);
+    }
+
+    return hr;
 }
 
 
@@ -1676,89 +1668,133 @@ static const BootDiskSpec * PromptBootDisk (HINSTANCE hInstance, HWND hwndParent
 //
 //  PromptBootDiskMru
 //
-//  Custom-body dialog that lists recently mounted disk images (basenames
-//  only). The user can click a row to mount that image, press "Download
-//  stock master..." to fall through to the Asimov download path, or
-//  "Skip" to leave the drive empty. Pruning to existing files is the
-//  caller's responsibility.
+//  Themed dialog that lists the user's recent disk images plus stock
+//  "Download" rows for DOS 3.3 / ProDOS. Always shown when the machine
+//  has a Disk ][ controller and no boot disk has been resolved yet,
+//  even when the MRU is empty (the download rows give a fresh install
+//  somewhere to go). Picking a row mounts that image (downloading on
+//  demand for the stock rows); the Skip button leaves the slot empty.
+//
+//  On return:
+//    outDiskPath = path to mount, or empty if the user skipped / the
+//                  machine has no Disk ][ controller.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int  s_kMruRowHeightPx     = 26;
-static constexpr int  s_kMruRowGapPx        = 2;
-static constexpr int  s_kMruBodyWidthPx     = 480;
-static constexpr int  s_kIdMruDownload      = -1;
-static constexpr int  s_kIdMruSkip          = IDCANCEL;
+static constexpr int  s_kBootMruRowHeightPx = 26;
+static constexpr int  s_kBootMruRowGapPx    = 2;
+static constexpr int  s_kBootMruBodyWidthPx = 480;
 
-int AssetBootstrap::PromptBootDiskMru (
+HRESULT AssetBootstrap::PromptBootDiskMru (
     HINSTANCE                  hInstance,
     HWND                       hwndParent,
-    const wstring            & displayName,
-    const vector<fs::path>   & mruEntries)
+    const wstring            & machineName,
+    const vector<fs::path>   & mruEntries,
+    const fs::path           & diskDir,
+    wstring                  & outDiskPath,
+    string                   & outError)
 {
-    DialogDefinition          def       = {};
-    wstring                   title;
-    wstring                   intro;
-    wstring                   downloadLabel;
-    vector<wstring>           labels;
-    int                       hovered   = -1;
-    int                       chosen    = 0;
-    int                       rowCount  = (int) mruEntries.size();
-    int                       totalH    = 0;
+    struct DownloadRow { const BootDiskSpec * spec; wstring label; };
+
+    HRESULT             hr           = S_OK;
+    bool                hasDisk      = false;
+    DialogDefinition    def          = {};
+    wstring             title;
+    wstring             intro;
+    wstring             displayName;
+    vector<wstring>     labels;
+    DownloadRow         downloads[]  =
+    {
+        { &s_kDos33Disk,  L"DOS 3.3 (Download)" },
+        { &s_kProDOSDisk, L"ProDOS (Download)"  }
+    };
+    int                 hovered      = -1;
+    int                 chosen       = IDCANCEL;
+    int                 mruCount     = (int) mruEntries.size();
+    int                 downloadCount = (int) std::size (downloads);
+    int                 rowCount     = mruCount + downloadCount;
+    int                 totalH       = 0;
+
+
+    outDiskPath.clear();
+
+    hr = HasDiskController (hInstance, machineName, hasDisk, outError);
+    CHR (hr);
+
+    BAIL_OUT_IF (!hasDisk, S_OK);
+
+    displayName = GetEmbeddedDisplayName (hInstance, machineName);
 
     title  = L"Casso ";
     title += s_kchEmDash;
     title += L" Boot Disk";
 
-    intro  = L"Choose a recent disk for ";
-    intro += displayName;
-    intro += L", or download a stock master from the Asimov archive.";
+    if (mruCount > 0)
+    {
+        intro  = L"Choose a recent disk for ";
+        intro += displayName;
+        intro += L", or download a stock master from the Asimov archive.";
+    }
+    else
+    {
+        intro  = displayName;
+        intro += L" has a Disk ][ controller but no boot disk. Pick a "
+                 L"stock master from the Asimov archive to get started.";
+    }
 
-    labels.reserve (mruEntries.size());
+    labels.reserve ((size_t) rowCount);
     for (const auto & p : mruEntries)
     {
         labels.push_back (p.filename().wstring());
     }
+    for (const DownloadRow & dr : downloads)
+    {
+        labels.push_back (dr.label);
+    }
 
-    totalH = rowCount * s_kMruRowHeightPx
-           + (rowCount > 0 ? (rowCount - 1) * s_kMruRowGapPx : 0);
+    totalH = rowCount * s_kBootMruRowHeightPx
+           + (rowCount > 0 ? (rowCount - 1) * s_kBootMruRowGapPx : 0);
 
     def.title = title;
-    def.icon  = DialogIcon::Info;
+    def.icon  = DialogIcon::AppFlat;
+    def.iconSizeOverrideDp = 64.0f;
     def.body.push_back ({ intro, false, L"" });
-    def.customBodyMinSizePx.cx = s_kMruBodyWidthPx;
+    def.customBodyMinSizePx.cx = s_kBootMruBodyWidthPx;
     def.customBodyMinSizePx.cy = totalH;
 
-    def.onPaintCustomBody = [&labels, &hovered] (DialogPaintContext & ctx)
+    def.onPaintCustomBody = [&labels, mruCount, &hovered] (DialogPaintContext & ctx)
     {
         if (ctx.painter == nullptr || ctx.text == nullptr || ctx.theme == nullptr)
         {
             return;
         }
 
-        float    x    = (float) ctx.customBodyRect.left;
-        float    y    = (float) ctx.customBodyRect.top;
-        float    w    = (float) (ctx.customBodyRect.right - ctx.customBodyRect.left);
-        uint32_t bg   = ctx.theme->dropdownBgArgb;
-        uint32_t fg   = ctx.theme->dropdownItemTextArgb;
-        uint32_t hov  = ctx.theme->navHoverArgb;
-        float    rowH = (float) s_kMruRowHeightPx;
-        float    gap  = (float) s_kMruRowGapPx;
+        float    x      = (float) ctx.customBodyRect.left;
+        float    y      = (float) ctx.customBodyRect.top;
+        float    w      = (float) (ctx.customBodyRect.right - ctx.customBodyRect.left);
+        uint32_t bg     = ctx.theme->dropdownBgArgb;
+        uint32_t fg     = ctx.theme->dropdownItemTextArgb;
+        uint32_t fgDim  = (fg & 0x00FFFFFFu) | 0xB0000000u;
+        uint32_t hov    = ctx.theme->navHoverArgb;
+        float    rowH   = (float) s_kBootMruRowHeightPx;
+        float    gap    = (float) s_kBootMruRowGapPx;
         float    fontPx = 14.0f * ctx.dpiScale;
-        HRESULT  hr   = S_OK;
+        HRESULT  hr     = S_OK;
 
         for (size_t i = 0; i < labels.size(); ++i)
         {
-            float    ry    = y + (float) i * (rowH + gap);
-            bool     isHov = ((int) i == hovered);
-            uint32_t bandBg = isHov ? hov : bg;
+            float    ry        = y + (float) i * (rowH + gap);
+            bool     isHov     = ((int) i == hovered);
+            bool     isDownload = ((int) i >= mruCount);
+            uint32_t bandBg    = isHov ? hov : bg;
+            uint32_t textArgb  = isDownload ? fgDim : fg;
 
             ctx.painter->FillRect (x, ry, w, rowH, bandBg);
 
             IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (labels[i].c_str(),
                                                            x + 8.0f, ry,
                                                            w - 16.0f, rowH,
-                                                           fg,
+                                                           textArgb,
                                                            fontPx, L"Segoe UI",
                                                            DwriteTextRenderer::HAlign::Left,
                                                            DwriteTextRenderer::VAlign::CenterOnCapHeight));
@@ -1767,8 +1803,8 @@ int AssetBootstrap::PromptBootDiskMru (
 
     def.onInputCustomBody = [rowCount, &hovered] (const DialogInputEvent & ev) -> std::optional<int>
     {
-        int  rowH    = s_kMruRowHeightPx;
-        int  gap     = s_kMruRowGapPx;
+        int  rowH    = s_kBootMruRowHeightPx;
+        int  gap     = s_kBootMruRowGapPx;
         int  stride  = rowH + gap;
         int  idx     = (ev.yPx < 0) ? -1 : (ev.yPx / stride);
         bool isRow   = (idx >= 0 && idx < rowCount && (ev.yPx % stride) < rowH);
@@ -1787,102 +1823,22 @@ int AssetBootstrap::PromptBootDiskMru (
         return std::nullopt;
     };
 
-    downloadLabel  = L"Download stock";
-    downloadLabel += s_kchEllipsis;
-
-    def.buttons.push_back ({ downloadLabel,             s_kIdMruDownload, false, false });
-    def.buttons.push_back ({ L"Skip",                   s_kIdMruSkip,     true,  true  });
+    def.buttons.push_back ({ L"Skip", IDCANCEL, true, true });
 
     chosen = ShowStandaloneDialog (hInstance, hwndParent, def);
-    return chosen;
-}
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OfferBootDiskDownload
-//
-//  When invoked for a machine with a Disk ][ controller and no disk
-//  has been resolved yet, prompts the user to download a stock Apple
-//  master disk (DOS 3.3 / ProDOS) from the Asimov mirror, drops it
-//  into `diskDir`, and returns its absolute path in `outDiskPath`.
-//  Returns S_FALSE (and `outDiskPath` empty) when:
-//    * the machine config has no Disk ][ controller, or
-//    * the user declined the download.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT AssetBootstrap::OfferBootDiskDownload (
-    HINSTANCE                hInstance,
-    const wstring          & machineName,
-    HWND                     hwndParent,
-    const fs::path         & diskDir,
-    wstring                & outDiskPath,
-    string                 & outError)
-{
-    HRESULT               hr           = S_OK;
-    bool                  hasDisk      = false;
-    const BootDiskSpec  * choice       = nullptr;
-    HINTERNET             hSession     = nullptr;
-    fs::path              destPath;
-    vector<Byte>          payload;
-    error_code            ec;
-
-
-
-    outDiskPath.clear();
-
-    hr = HasDiskController (hInstance, machineName, hasDisk, outError);
-    CHR (hr);
-
-    BAIL_OUT_IF (!hasDisk, S_FALSE);
-
-    choice = PromptBootDisk (hInstance, hwndParent, GetEmbeddedDisplayName (hInstance, machineName));
-    BAIL_OUT_IF (choice == nullptr, S_FALSE);
-
-    fs::create_directories (diskDir, ec);
-    destPath = diskDir / choice->cassoName;
-
-    // If the user already has the disk on disk (e.g. left over from a
-    // prior session), skip the download.
-    if (fs::exists (destPath, ec))
+    if (chosen >= 0 && chosen < mruCount)
     {
-        outDiskPath = destPath.wstring();
-        BAIL_OUT_IF (true, S_OK);
+        outDiskPath = mruEntries[(size_t) chosen].wstring();
     }
-
-    hSession = WinHttpOpen (s_kpszUserAgent,
-                            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-                            WINHTTP_NO_PROXY_NAME,
-                            WINHTTP_NO_PROXY_BYPASS,
-                            0);
-    CBRF (hSession != nullptr,
-          outError = "Cannot initialize WinHTTP session");
-
-    hr = DownloadHttp (hSession,
-                       s_kpszAsimovHost,
-                       choice->asimovUrlPath,
-                       choice->expectedSize,
-                       choice->shortLabel,
-                       payload,
-                       outError);
-    CHR (hr);
-
-    hr = WriteFileBytes (destPath, payload);
-    CHRF (hr,
-          outError = format ("Cannot write {}", destPath.string()));
-
-    outDiskPath = destPath.wstring();
+    else if (chosen >= mruCount && chosen < rowCount)
+    {
+        const BootDiskSpec & spec = *downloads[chosen - mruCount].spec;
+        hr = DownloadStockBootDisk (spec, diskDir, outDiskPath, outError);
+        CHR (hr);
+    }
 
 Error:
-    if (hSession != nullptr)
-    {
-        WinHttpCloseHandle (hSession);
-    }
-
     return hr;
 }
 
