@@ -30,8 +30,8 @@ namespace
     constexpr int  s_kPrevFbHeightDp      = ChromeMetrics::kFramebufferHeightPx;  // 384
     constexpr int  s_kPrevTitleBarDp      = 32;
     constexpr int  s_kPrevNavStripDp      = 32;
-    constexpr int  s_kPrevDriveBarFullDp  = 192;
-    constexpr int  s_kPrevDriveBarCmptDp  = 64;
+    constexpr int  s_kPrevDriveBarFullDp  = 212;
+    constexpr int  s_kPrevDriveBarCmptDp  = 84;
     constexpr int  s_kPrevSysButtonWDp    = 46;
     constexpr int  s_kPrevSysButtonGapDp  = 1;
     constexpr int  s_kPrevCaptionFontDp   = 14;
@@ -302,14 +302,25 @@ namespace
             // LayoutDriveWidgetsInCommandBar does for the live chrome.
             previewDrives[0].SetCompact (theme.compactDrives);
             previewDrives[1].SetCompact (theme.compactDrives);
+
+            // Preview a mounted disk so the basename label is visible.
+            // Without this, the label strip is rendered empty and the
+            // preview misrepresents the live chrome.
+            DriveWidgetState  fakeMount;
+            fakeMount.mountedImagePath = L"casso-rocks.dsk";
+            fakeMount.doorState        = DriveWidgetState::Door::Closed;
+            previewDrives[0].SyncFromState (fakeMount);
+            previewDrives[1].SyncFromState (fakeMount);
+
             previewDrives[0].Layout (0, 0, effectiveDpi);
 
-            RECT  probe   = previewDrives[0].BodyRect();
+            RECT  probe   = previewDrives[0].OuterRect();
             int   widgetW = probe.right  - probe.left;
             int   widgetH = probe.bottom - probe.top;
             int   totalW  = widgetW * 2 + gap;
             int   startX  = prevRect.left + std::max (0, (prevW - totalW) / 2);
-            int   widgetY = driveTop + (driveBarH - widgetH) / 2;
+            int   labelGapPx = std::max (1, ScalePx (2));
+            int   widgetY = prevRect.bottom - widgetH - labelGapPx;
             int   d       = 0;
 
             for (d = 0; d < 2; d++)
