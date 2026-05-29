@@ -88,12 +88,16 @@ void DialogLayout::WrapBody (
     float                                            & outTotalHeightPx)
 {
     size_t  runIndex     = 0;
+    size_t  segStart     = 0;
+    size_t  nlPos        = 0;
+    size_t  segEnd       = 0;
     size_t  pos          = 0;
     size_t  tentative    = 0;
     float   cursorXPx    = 0.0f;
     float   cursorYPx    = 0.0f;
     float   remainingPx  = maxBodyWidthPx;
     float   pieceWidthPx = 0.0f;
+    bool    moreSegments = false;
 
 
 
@@ -103,30 +107,64 @@ void DialogLayout::WrapBody (
     for (runIndex = 0; runIndex < runs.size(); runIndex++)
     {
         std::wstring_view  view (runs[runIndex].text);
-        pos = 0;
-        while (pos < view.size())
+        segStart = 0;
+
+        while (true)
         {
-            tentative = FindWrapBoundary (view, pos, remainingPx, measure);
-            if (tentative == 0)
+            nlPos        = view.find (L'\n', segStart);
+            segEnd       = (nlPos == std::wstring_view::npos) ? view.size() : nlPos;
+            moreSegments = (nlPos != std::wstring_view::npos);
+
+            // Emit a zero-width marker for empty segments so the
+            // run's bounding rect (built downstream) includes this
+            // blank line. Without this DWrite would draw an extra
+            // line outside the unioned rect.
+            if (segStart == segEnd)
             {
-                cursorXPx   = 0.0f;
-                cursorYPx  += lineHeightPx;
-                remainingPx = maxBodyWidthPx;
+                outWrapped.push_back ({ runIndex, segStart, 0, cursorXPx, cursorYPx, 0.0f });
             }
             else
             {
-                pieceWidthPx = measure (view.substr (pos, tentative));
-                outWrapped.push_back ({ runIndex, pos, tentative, cursorXPx, cursorYPx, pieceWidthPx });
-                pos        += tentative;
-                cursorXPx  += pieceWidthPx;
-                remainingPx = maxBodyWidthPx - cursorXPx;
-                if (pos < view.size())
+                std::wstring_view  segment = view.substr (segStart, segEnd - segStart);
+                pos = 0;
+
+                while (pos < segment.size())
                 {
-                    cursorXPx   = 0.0f;
-                    cursorYPx  += lineHeightPx;
-                    remainingPx = maxBodyWidthPx;
+                    tentative = FindWrapBoundary (segment, pos, remainingPx, measure);
+                    if (tentative == 0)
+                    {
+                        cursorXPx   = 0.0f;
+                        cursorYPx  += lineHeightPx;
+                        remainingPx = maxBodyWidthPx;
+                    }
+                    else
+                    {
+                        pieceWidthPx = measure (segment.substr (pos, tentative));
+                        outWrapped.push_back ({ runIndex, segStart + pos, tentative,
+                                                cursorXPx, cursorYPx, pieceWidthPx });
+                        pos        += tentative;
+                        cursorXPx  += pieceWidthPx;
+                        remainingPx = maxBodyWidthPx - cursorXPx;
+                        if (pos < segment.size())
+                        {
+                            cursorXPx   = 0.0f;
+                            cursorYPx  += lineHeightPx;
+                            remainingPx = maxBodyWidthPx;
+                        }
+                    }
                 }
             }
+
+            if (!moreSegments)
+            {
+                break;
+            }
+
+            // Force a hard break at the explicit \n.
+            cursorXPx   = 0.0f;
+            cursorYPx  += lineHeightPx;
+            remainingPx = maxBodyWidthPx;
+            segStart    = nlPos + 1;
         }
     }
 
