@@ -62,6 +62,8 @@ private:
     bool     HitTestHyperlink     (int xPx, int yPx, size_t & outBodyRunIdx) const;
     void     LaunchHyperlink      (size_t bodyRunIdx);
     bool     DispatchCustomBodyInput (DialogInputEvent::Kind kind, int xPx, int yPx, int vkCode);
+    size_t   HyperlinkCount       () const;
+    size_t   NthHyperlinkBodyIdx  (size_t hyperlinkIdx) const;
 
     int      TitleHeightPx        () const;
     RECT     GetInitialWindowRect (HWND hwndOwner, UINT dpi) const;
@@ -79,8 +81,10 @@ private:
     DialogPrimitiveRenderer      m_renderer;
     DialogLayoutResult           m_layout;
     std::vector<Button>          m_buttons;
-    size_t                       m_focusedButton = SIZE_MAX;
-    int                          m_chosenId      = -1;
-    UINT                         m_dpi           = DpiScaler::kBaseDpi;
-    bool                         m_closed        = false;
+    size_t                       m_focusedButton    = SIZE_MAX;
+    size_t                       m_focusedHyperlink = SIZE_MAX;
+    size_t                       m_hoveredHyperlink = SIZE_MAX;
+    int                          m_chosenId         = -1;
+    UINT                         m_dpi              = DpiScaler::kBaseDpi;
+    bool                         m_closed           = false;
 };

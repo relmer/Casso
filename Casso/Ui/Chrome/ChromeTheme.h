@@ -46,6 +46,8 @@ struct ChromeTheme
     uint32_t  ledPresentArgb         = 0;
     uint32_t  ledActiveArgb          = 0;
     uint32_t  ledHaloArgb            = 0;
+    uint32_t  linkArgb               = 0;
+    uint32_t  linkHoverArgb          = 0;
 
     static ChromeTheme Skeuomorphic()
     {
@@ -90,6 +92,8 @@ struct ChromeTheme
         theme.ledPresentArgb          = 0xFF1A0606;
         theme.ledActiveArgb           = 0xFFFF2818;
         theme.ledHaloArgb             = 0x60FF2818;
+        theme.linkArgb                = 0xFF6FB8FF;
+        theme.linkHoverArgb           = 0xFFB7DFFF;
         return theme;
     }
 
@@ -126,6 +130,8 @@ struct ChromeTheme
         theme.ledPresentArgb                = 0xFF06121A;
         theme.ledActiveArgb                 = 0xFF3DA1FF;
         theme.ledHaloArgb                   = 0x603DA1FF;
+        theme.linkArgb                      = 0xFF6FB8FF;
+        theme.linkHoverArgb                 = 0xFFA8D2FF;
         return theme;
     }
 
@@ -162,6 +168,8 @@ struct ChromeTheme
         theme.ledPresentArgb                = 0xFF071907;
         theme.ledActiveArgb                 = 0xFF2BFF6A;
         theme.ledHaloArgb                   = 0x602BFF6A;
+        theme.linkArgb                      = 0xFF8AFF8A;
+        theme.linkHoverArgb                 = 0xFFB7FCB9;
         return theme;
     }
 

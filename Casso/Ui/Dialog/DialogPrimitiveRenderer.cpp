@@ -6,7 +6,7 @@
 
 
 static constexpr UINT      s_kSwapBufferCount        = 2;
-static constexpr float     s_kBodyFontDp              = 11.0f;
+static constexpr float     s_kBodyFontDp              = 13.0f;
 static constexpr float     s_kTitleFontDp             = 13.0f;
 static constexpr float     s_kTitlePaddingDp          = 12.0f;
 static constexpr float     s_kUnderlineHeightPx       = 1.0f;
@@ -323,7 +323,9 @@ HRESULT DialogPrimitiveRenderer::Render (
     const DialogLayoutResult & layout,
     const ChromeTheme        & theme,
     int                        titleHeightPx,
-    std::vector<Button>      & buttons)
+    std::vector<Button>      & buttons,
+    size_t                     focusedHyperlinkRunIdx,
+    size_t                     hoveredHyperlinkRunIdx)
 {
     HRESULT        hr            = S_OK;
     D3D11_VIEWPORT viewport      = {};
@@ -356,7 +358,8 @@ HRESULT DialogPrimitiveRenderer::Render (
     PaintBackground (theme, titleHeightPx);
     PaintTitle      (def, theme, titleHeightPx);
     PaintIcon       (def, layout, titleHeightPx);
-    PaintBody       (def, layout, theme, titleHeightPx);
+    PaintBody       (def, layout, theme, titleHeightPx,
+                     focusedHyperlinkRunIdx, hoveredHyperlinkRunIdx);
     PaintCustomBody (def, layout, theme, titleHeightPx);
     PaintButtons    (buttons, theme);
 
@@ -655,7 +658,9 @@ void DialogPrimitiveRenderer::PaintBody (
     const DialogDefinition   & def,
     const DialogLayoutResult & layout,
     const ChromeTheme        & theme,
-    int                        titleHeightPx)
+    int                        titleHeightPx,
+    size_t                     focusedHyperlinkRunIdx,
+    size_t                     hoveredHyperlinkRunIdx)
 {
     HRESULT  hr         = S_OK;
     float    fontPx     = m_scaler.Pxf (s_kBodyFontDp);
@@ -663,6 +668,7 @@ void DialogPrimitiveRenderer::PaintBody (
     float    lineH      = (layout.bodyLineHeightPx > 0.0f) ? layout.bodyLineHeightPx
                                                            : fontPx;
     size_t   pi         = 0;
+    size_t   hi         = 0;
 
 
 
@@ -677,7 +683,11 @@ void DialogPrimitiveRenderer::PaintBody (
 
         const DialogTextRun &  run        = def.body[p.runIndex];
         std::wstring           piece      (run.text.data() + p.start, p.count);
-        uint32_t               textColor  = run.isHyperlink ? theme.navHoverArgb
+        bool                   isFocused  = run.isHyperlink && (p.runIndex == focusedHyperlinkRunIdx);
+        bool                   isHovered  = run.isHyperlink && (p.runIndex == hoveredHyperlinkRunIdx);
+        uint32_t               linkColor  = (isFocused || isHovered) ? theme.linkHoverArgb
+                                                                     : theme.linkArgb;
+        uint32_t               textColor  = run.isHyperlink ? linkColor
                                                             : theme.dropdownItemTextArgb;
         float                  x          = p.xPx;
         float                  y          = p.yPx + titleH;
@@ -693,8 +703,46 @@ void DialogPrimitiveRenderer::PaintBody (
         if (run.isHyperlink)
         {
             m_painter.FillRect (x, y + lineH - s_kUnderlineHeightPx,
-                                w, s_kUnderlineHeightPx, theme.navHoverArgb);
+                                w, s_kUnderlineHeightPx, linkColor);
         }
+    }
+
+    for (hi = 0; hi < layout.hyperlinkHitRectsPx.size() && hi < def.body.size(); hi++)
+    {
+        size_t  bodyIdx = SIZE_MAX;
+        size_t  hlIdx   = 0;
+
+        for (size_t bi = 0; bi < def.body.size(); bi++)
+        {
+            if (!def.body[bi].isHyperlink)
+            {
+                continue;
+            }
+
+            if (hlIdx == hi)
+            {
+                bodyIdx = bi;
+                break;
+            }
+
+            hlIdx++;
+        }
+
+        if (bodyIdx != focusedHyperlinkRunIdx)
+        {
+            continue;
+        }
+
+        const RECT &  rect = layout.hyperlinkHitRectsPx[hi];
+        float         rx   = (float) rect.left   - 2.0f;
+        float         ry   = (float) rect.top    + titleH - 1.0f;
+        float         rw   = (float) (rect.right  - rect.left) + 4.0f;
+        float         rh   = (float) (rect.bottom - rect.top)  + 2.0f;
+
+        m_painter.FillRect (rx,        ry,        rw,   1.0f, theme.linkHoverArgb);
+        m_painter.FillRect (rx,        ry + rh - 1.0f, rw, 1.0f, theme.linkHoverArgb);
+        m_painter.FillRect (rx,        ry,        1.0f, rh,   theme.linkHoverArgb);
+        m_painter.FillRect (rx + rw - 1.0f, ry,   1.0f, rh,   theme.linkHoverArgb);
     }
 }
 

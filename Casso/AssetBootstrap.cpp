@@ -1063,13 +1063,13 @@ static HRESULT DownloadOne (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int    s_kRomRowHeightPx   = 22;
-static constexpr int    s_kRomRowGapPx      = 2;
-static constexpr int    s_kRomBodyWidthPx   = 520;
-static constexpr int    s_kRomNameColumnPx  = 180;
-static constexpr int    s_kRomColumnGapPx   = 16;
-static constexpr float  s_kRomFontDp        = 11.0f;
-static constexpr float  s_kRomTextPaddingPx = 6.0f;
+static constexpr int    s_kRomRowHeightDp   = 26;
+static constexpr int    s_kRomRowGapDp      = 2;
+static constexpr int    s_kRomBodyWidthDp   = 520;
+static constexpr int    s_kRomNameColumnDp  = 180;
+static constexpr int    s_kRomColumnGapDp   = 16;
+static constexpr float  s_kRomFontDp        = 13.0f;
+static constexpr float  s_kRomTextPaddingDp = 6.0f;
 
 static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, const vector<const RomSpec *> & missing)
 {
@@ -1079,13 +1079,16 @@ static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, const vector<const
         wstring  description;
     };
 
-    DialogDefinition  def      = {};
+    DialogDefinition  def         = {};
     wstring           title;
     wstring           intro;
     vector<RomRow>    rows;
-    int               response = 0;
-    int               rowCount = (int) missing.size();
-    int               totalH   = 0;
+    int               response    = 0;
+    int               rowCount    = (int) missing.size();
+    UINT              sysDpi      = (hwndParent != nullptr) ? GetDpiForWindow (hwndParent)
+                                                            : GetDpiForSystem();
+    float             dpiScale    = (sysDpi > 0) ? ((float) sysDpi / 96.0f) : 1.0f;
+    int               totalH      = 0;
 
 
 
@@ -1106,16 +1109,17 @@ static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, const vector<const
     title += s_kchEmDash;
     title += L" Download ROM Images";
 
-    totalH = rowCount * s_kRomRowHeightPx
-           + (rowCount > 0 ? (rowCount - 1) * s_kRomRowGapPx : 0);
+    totalH = (int) ((float) (rowCount * s_kRomRowHeightDp
+                            + (rowCount > 0 ? (rowCount - 1) * s_kRomRowGapDp : 0))
+                    * dpiScale);
 
     def.title = title;
-    def.icon  = DialogIcon::AppPhotoreal;
+    def.icon  = DialogIcon::AppFlat;
     def.body.push_back ({ intro, false, L"" });
     def.body.push_back ({ L"https://github.com/AppleWin/AppleWin",
                           true, L"https://github.com/AppleWin/AppleWin" });
 
-    def.customBodyMinSizePx.cx = s_kRomBodyWidthPx;
+    def.customBodyMinSizePx.cx = (int) ((float) s_kRomBodyWidthDp * dpiScale);
     def.customBodyMinSizePx.cy = totalH;
 
     def.onPaintCustomBody = [rows] (DialogPaintContext & ctx)
@@ -1123,10 +1127,12 @@ static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, const vector<const
         HRESULT  hr     = S_OK;
         float    x      = 0.0f;
         float    y      = 0.0f;
-        float    rowH   = (float) s_kRomRowHeightPx;
-        float    gap    = (float) s_kRomRowGapPx;
-        float    fontPx = s_kRomFontDp * ctx.dpiScale;
-        float    nameW  = (float) s_kRomNameColumnPx;
+        float    rowH   = (float) s_kRomRowHeightDp  * ctx.dpiScale;
+        float    gap    = (float) s_kRomRowGapDp     * ctx.dpiScale;
+        float    fontPx = s_kRomFontDp               * ctx.dpiScale;
+        float    nameW  = (float) s_kRomNameColumnDp * ctx.dpiScale;
+        float    pad    = s_kRomTextPaddingDp        * ctx.dpiScale;
+        float    colGap = (float) s_kRomColumnGapDp  * ctx.dpiScale;
         float    descX  = 0.0f;
         float    descW  = 0.0f;
         uint32_t bg     = 0;
@@ -1146,28 +1152,19 @@ static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, const vector<const
         bg    = ctx.theme->dropdownBgArgb;
         fg    = ctx.theme->dropdownItemTextArgb;
         band  = ctx.theme->navStripArgb;
-        descX = x + nameW + (float) s_kRomColumnGapPx;
+        descX = x + nameW + colGap;
         descW = (float) (ctx.customBodyRect.right - (LONG) descX);
 
         for (i = 0; i < rows.size(); i++)
         {
-            float  ry = y + (float) i * (rowH + gap);
+            float    ry     = y + (float) i * (rowH + gap);
+            uint32_t rowBg  = ((i & 1u) == 0u) ? band : bg;
+            float    fullW  = (float) (ctx.customBodyRect.right - ctx.customBodyRect.left);
 
-            if ((i & 1u) == 0u)
-            {
-                ctx.painter->FillRect (x, ry,
-                                       (float) (ctx.customBodyRect.right - ctx.customBodyRect.left),
-                                       rowH, band);
-            }
-            else
-            {
-                ctx.painter->FillRect (x, ry,
-                                       (float) (ctx.customBodyRect.right - ctx.customBodyRect.left),
-                                       rowH, bg);
-            }
+            ctx.painter->FillRect (x, ry, fullW, rowH, rowBg);
 
             IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (rows[i].name.c_str(),
-                                                           x + s_kRomTextPaddingPx, ry,
+                                                           x + pad, ry,
                                                            nameW, rowH,
                                                            fg, fontPx, L"Segoe UI",
                                                            DwriteTextRenderer::HAlign::Left,

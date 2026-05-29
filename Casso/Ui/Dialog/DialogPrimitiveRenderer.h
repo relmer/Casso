@@ -46,7 +46,9 @@ public:
                            const DialogLayoutResult & layout,
                            const ChromeTheme        & theme,
                            int                        titleHeightPx,
-                           std::vector<Button>      & buttons);
+                           std::vector<Button>      & buttons,
+                           size_t                     focusedHyperlinkRunIdx,
+                           size_t                     hoveredHyperlinkRunIdx);
     HRESULT MeasureText   (const wchar_t * text,
                            float           fontSizePx,
                            float         & outWidthPx);
@@ -67,7 +69,9 @@ private:
     void    PaintBody              (const DialogDefinition   & def,
                                     const DialogLayoutResult & layout,
                                     const ChromeTheme        & theme,
-                                    int                        titleHeightPx);
+                                    int                        titleHeightPx,
+                                    size_t                     focusedHyperlinkRunIdx,
+                                    size_t                     hoveredHyperlinkRunIdx);
     void    PaintCustomBody        (const DialogDefinition   & def,
                                     const DialogLayoutResult & layout,
                                     const ChromeTheme        & theme,

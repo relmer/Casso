@@ -8,14 +8,14 @@ static constexpr LPCWSTR  s_kpszDialogClass       = L"Casso.Dialog.Primitive";
 static constexpr DWORD    s_kDialogStyle           = WS_POPUP | WS_SYSMENU;
 static constexpr DWORD    s_kDialogExStyle         = 0;
 static constexpr float    s_kTitleHeightDp         = 32.0f;
-static constexpr float    s_kBodyFontDp            = 11.0f;
+static constexpr float    s_kBodyFontDp            = 13.0f;
 static constexpr float    s_kButtonFontDp          = 13.0f;
 static constexpr float    s_kMaxBodyWidthDp        = 360.0f;
 static constexpr float    s_kButtonHeightDp        = 28.0f;
 static constexpr float    s_kButtonPaddingDp       = 16.0f;
 static constexpr float    s_kButtonSpacingDp       = 8.0f;
 static constexpr float    s_kIconSizeDp            = 32.0f;
-static constexpr float    s_kBodyLineHeightDp      = 18.0f;
+static constexpr float    s_kBodyLineHeightDp      = 22.0f;
 static constexpr float    s_kOuterPaddingDp        = 16.0f;
 static constexpr float    s_kIconBodyGapDp         = 12.0f;
 static constexpr float    s_kBodyButtonsGapDp      = 16.0f;
@@ -205,7 +205,9 @@ Error:
     m_theme       = nullptr;
     m_def         = nullptr;
     m_buttons.clear();
-    m_focusedButton = SIZE_MAX;
+    m_focusedButton    = SIZE_MAX;
+    m_focusedHyperlink = SIZE_MAX;
+    m_hoveredHyperlink = SIZE_MAX;
 
     return m_chosenId;
 }
@@ -331,6 +333,23 @@ LRESULT DialogPrimitive::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM
         case WM_LBUTTONUP:
             OnMouse (message, wParam, lParam);
             result = 0;
+            break;
+
+        case WM_SETCURSOR:
+            if (LOWORD (lParam) == HTCLIENT)
+            {
+                POINT  pt = {};
+                size_t hl = SIZE_MAX;
+
+                if (GetCursorPos (&pt) && ScreenToClient (m_hwnd, &pt)
+                    && HitTestHyperlink (pt.x, pt.y, hl))
+                {
+                    SetCursor (LoadCursorW (nullptr, IDC_HAND));
+                    result = TRUE;
+                    break;
+                }
+            }
+            result = DefWindowProcW (hwnd, message, wParam, lParam);
             break;
 
         default:
@@ -494,7 +513,11 @@ void DialogPrimitive::OnKeyDown (WPARAM vk)
     switch (vk)
     {
         case VK_RETURN:
-            if (m_focusedButton < m_buttons.size())
+            if (m_focusedHyperlink != SIZE_MAX)
+            {
+                LaunchHyperlink (m_focusedHyperlink);
+            }
+            else if (m_focusedButton < m_buttons.size())
             {
                 m_buttons[m_focusedButton].Click();
             }
@@ -516,7 +539,11 @@ void DialogPrimitive::OnKeyDown (WPARAM vk)
         }
 
         case VK_SPACE:
-            if (m_focusedButton < m_buttons.size())
+            if (m_focusedHyperlink != SIZE_MAX)
+            {
+                LaunchHyperlink (m_focusedHyperlink);
+            }
+            else if (m_focusedButton < m_buttons.size())
             {
                 m_buttons[m_focusedButton].Click();
             }
@@ -538,12 +565,14 @@ void DialogPrimitive::OnKeyDown (WPARAM vk)
 
 void DialogPrimitive::OnMouse (UINT message, WPARAM wParam, LPARAM lParam)
 {
-    int      xPx   = (int) (short) LOWORD (lParam);
-    int      yPx   = (int) (short) HIWORD (lParam);
-    bool     down  = (message == WM_LBUTTONDOWN);
-    bool     up    = (message == WM_LBUTTONUP);
-    bool     dirty = false;
-    size_t   hitIdx = SIZE_MAX;
+    int      xPx       = (int) (short) LOWORD (lParam);
+    int      yPx       = (int) (short) HIWORD (lParam);
+    bool     down      = (message == WM_LBUTTONDOWN);
+    bool     up        = (message == WM_LBUTTONUP);
+    bool     dirty     = false;
+    size_t   hitIdx    = SIZE_MAX;
+    size_t   hlRunIdx  = SIZE_MAX;
+    size_t   newHover  = SIZE_MAX;
     DialogInputEvent::Kind  kind = DialogInputEvent::Kind::MouseMove;
 
     UNREFERENCED_PARAMETER (wParam);
@@ -563,6 +592,17 @@ void DialogPrimitive::OnMouse (UINT message, WPARAM wParam, LPARAM lParam)
         dirty = dirty || (m_buttons[i].Focused() != wasHover);
     }
 
+    if (HitTestHyperlink (xPx, yPx, hlRunIdx))
+    {
+        newHover = hlRunIdx;
+    }
+
+    if (newHover != m_hoveredHyperlink)
+    {
+        m_hoveredHyperlink = newHover;
+        dirty = true;
+    }
+
     if (up)
     {
         for (size_t i = 0; i < m_buttons.size(); ++i)
@@ -580,7 +620,6 @@ void DialogPrimitive::OnMouse (UINT message, WPARAM wParam, LPARAM lParam)
             return;
         }
 
-        size_t  hlRunIdx = SIZE_MAX;
         if (HitTestHyperlink (xPx, yPx, hlRunIdx))
         {
             LaunchHyperlink (hlRunIdx);
@@ -764,7 +803,10 @@ void DialogPrimitive::RenderFrame()
     CBR (m_theme != nullptr);
     CBR (m_renderer.IsInitialized());
 
-    IGNORE_RETURN_VALUE (hr, m_renderer.Render (*m_def, m_layout, *m_theme, TitleHeightPx(), m_buttons));
+    IGNORE_RETURN_VALUE (hr, m_renderer.Render (*m_def, m_layout, *m_theme,
+                                                TitleHeightPx(), m_buttons,
+                                                m_focusedHyperlink,
+                                                m_hoveredHyperlink));
 
 Error:
     return;
@@ -846,38 +888,135 @@ void DialogPrimitive::ActivateCancelButton()
 
 void DialogPrimitive::CycleFocus (int delta)
 {
-    HRESULT  hr   = S_OK;
-    size_t   next = 0;
+    HRESULT  hr        = S_OK;
+    size_t   buttonN   = m_buttons.size();
+    size_t   linkN     = HyperlinkCount();
+    size_t   total     = buttonN + linkN;
+    size_t   cur       = 0;
+    size_t   next      = 0;
 
 
 
-    CBR (!m_buttons.empty());
+    CBR (total != 0);
 
-    if (m_focusedButton < m_buttons.size())
+    if (m_focusedHyperlink != SIZE_MAX)
+    {
+        size_t  hlOrdinal = 0;
+
+        for (size_t bi = 0; bi < m_def->body.size() && bi < m_focusedHyperlink; bi++)
+        {
+            if (m_def->body[bi].isHyperlink)
+            {
+                hlOrdinal++;
+            }
+        }
+        cur = buttonN + hlOrdinal;
+    }
+    else if (m_focusedButton < buttonN)
+    {
+        cur = m_focusedButton;
+    }
+    else
+    {
+        cur = (delta > 0) ? (total - 1) : 0;
+    }
+
+    if (delta > 0)
+    {
+        next = (cur + 1) % total;
+    }
+    else
+    {
+        next = (cur == 0) ? (total - 1) : (cur - 1);
+    }
+
+    if (m_focusedButton < buttonN)
     {
         m_buttons[m_focusedButton].SetFocused (false);
     }
 
-    if (m_focusedButton >= m_buttons.size())
+    m_focusedButton    = SIZE_MAX;
+    m_focusedHyperlink = SIZE_MAX;
+
+    if (next < buttonN)
     {
-        next = (delta > 0) ? 0 : m_buttons.size() - 1;
-    }
-    else if (delta > 0)
-    {
-        next = (m_focusedButton + 1) % m_buttons.size();
+        m_focusedButton = next;
+        m_buttons[next].SetFocused (true);
     }
     else
     {
-        next = (m_focusedButton == 0) ? m_buttons.size() - 1 : m_focusedButton - 1;
+        m_focusedHyperlink = NthHyperlinkBodyIdx (next - buttonN);
     }
-
-    m_focusedButton = next;
-    m_buttons[next].SetFocused (true);
 
     InvalidateRect (m_hwnd, nullptr, FALSE);
 
 Error:
     return;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HyperlinkCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t DialogPrimitive::HyperlinkCount() const
+{
+    size_t  count = 0;
+
+    if (m_def == nullptr)
+    {
+        return 0;
+    }
+
+    for (const DialogTextRun & run : m_def->body)
+    {
+        if (run.isHyperlink)
+        {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NthHyperlinkBodyIdx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t DialogPrimitive::NthHyperlinkBodyIdx (size_t hyperlinkIdx) const
+{
+    size_t  seen = 0;
+
+    if (m_def == nullptr)
+    {
+        return SIZE_MAX;
+    }
+
+    for (size_t bi = 0; bi < m_def->body.size(); bi++)
+    {
+        if (!m_def->body[bi].isHyperlink)
+        {
+            continue;
+        }
+
+        if (seen == hyperlinkIdx)
+        {
+            return bi;
+        }
+
+        seen++;
+    }
+
+    return SIZE_MAX;
 }
 
 
