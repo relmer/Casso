@@ -74,6 +74,8 @@ private:
                                     int                        titleHeightPx);
     void    PaintButtons           (std::vector<Button>      & buttons,
                                     const ChromeTheme        & theme);
+    void    EnsureAppIconLoaded    (int                        iconResourceId,
+                                    int                        sizePx);
 
     HWND                              m_hwnd        = nullptr;
     ID3D11Device                    * m_device      = nullptr;   // non-owning
@@ -83,6 +85,10 @@ private:
     DxUiPainter                       m_painter;
     DwriteTextRenderer                m_text;
     DpiScaler                         m_scaler;
+    std::vector<uint32_t>             m_appIconPixels;
+    int                               m_appIconW       = 0;
+    int                               m_appIconH       = 0;
+    int                               m_appIconResId   = 0;
     int                               m_widthPx     = 0;
     int                               m_heightPx    = 0;
     bool                              m_initialized = false;

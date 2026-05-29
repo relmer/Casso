@@ -2,6 +2,7 @@
 
 #include "DialogPrimitiveRenderer.h"
 #include "../Chrome/ChromeTheme.h"
+#include "../../resource.h"
 
 
 static constexpr UINT      s_kSwapBufferCount        = 2;
@@ -20,7 +21,113 @@ static constexpr float     s_kClearA                  = 1.0f;
 static constexpr uint32_t  s_kIconColorInfo           = 0xFF4A9EDB;
 static constexpr uint32_t  s_kIconColorWarning        = 0xFFF5A623;
 static constexpr uint32_t  s_kIconColorError          = 0xFFE5424D;
-static constexpr uint32_t  s_kIconColorApp            = 0xFF8899AA;
+static constexpr int       s_kBgraBitCount            = 32;
+static constexpr int       s_kAlphaShift              = 24;
+static constexpr int       s_kRedShift                = 16;
+static constexpr int       s_kGreenShift              = 8;
+static constexpr int       s_kByteMask                = 0xFF;
+static constexpr int       s_kByteMax                 = 255;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadIconAsPremulBgra
+//
+//  Local copy of the SettingsWindow/EmulatorShell helper. Loads an
+//  HICON resource into a CPU-side premultiplied BGRA8 pixel buffer
+//  suitable for DwriteTextRenderer::DrawIconBitmap.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool LoadIconAsPremulBgra (
+    HINSTANCE               hInstance,
+    int                     iconResourceId,
+    int                     sizePx,
+    std::vector<uint32_t> & outPixels,
+    int                   & outW,
+    int                   & outH)
+{
+    HICON       hIcon       = nullptr;
+    HDC         screenDc    = nullptr;
+    HDC         memDc       = nullptr;
+    HBITMAP     dib         = nullptr;
+    HBITMAP     oldBitmap   = nullptr;
+    void      * dibBits     = nullptr;
+    BITMAPINFO  bmi         = {};
+    bool        success     = false;
+    size_t      pixelCount  = (size_t) sizePx * (size_t) sizePx;
+    size_t      i           = 0;
+
+
+
+    hIcon = (HICON) LoadImageW (hInstance,
+                                MAKEINTRESOURCEW (iconResourceId),
+                                IMAGE_ICON,
+                                sizePx, sizePx,
+                                LR_DEFAULTCOLOR);
+    if (hIcon == nullptr)
+    {
+        return false;
+    }
+
+    screenDc = GetDC (nullptr);
+    memDc    = CreateCompatibleDC (screenDc);
+
+    bmi.bmiHeader.biSize        = sizeof (BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth       = sizePx;
+    bmi.bmiHeader.biHeight      = -sizePx;
+    bmi.bmiHeader.biPlanes      = 1;
+    bmi.bmiHeader.biBitCount    = s_kBgraBitCount;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    dib = CreateDIBSection (memDc, &bmi, DIB_RGB_COLORS, &dibBits, nullptr, 0);
+
+    if (dib != nullptr && dibBits != nullptr)
+    {
+        oldBitmap = (HBITMAP) SelectObject (memDc, dib);
+        memset (dibBits, 0, pixelCount * sizeof (uint32_t));
+
+        if (DrawIconEx (memDc, 0, 0, hIcon, sizePx, sizePx, 0, nullptr, DI_NORMAL))
+        {
+            uint32_t  * src = (uint32_t *) dibBits;
+
+            outPixels.assign (pixelCount, 0);
+
+            for (i = 0; i < pixelCount; i++)
+            {
+                uint32_t  px = src[i];
+                uint8_t   a  = (uint8_t) ((px >> s_kAlphaShift) & s_kByteMask);
+                uint8_t   r  = (uint8_t) ((px >> s_kRedShift)   & s_kByteMask);
+                uint8_t   g  = (uint8_t) ((px >> s_kGreenShift) & s_kByteMask);
+                uint8_t   b  = (uint8_t) ( px                   & s_kByteMask);
+
+                r = (uint8_t) ((r * a) / s_kByteMax);
+                g = (uint8_t) ((g * a) / s_kByteMax);
+                b = (uint8_t) ((b * a) / s_kByteMax);
+
+                outPixels[i] = ((uint32_t) a << s_kAlphaShift) |
+                               ((uint32_t) r << s_kRedShift)   |
+                               ((uint32_t) g << s_kGreenShift) |
+                                (uint32_t) b;
+            }
+
+            outW    = sizePx;
+            outH    = sizePx;
+            success = true;
+        }
+
+        SelectObject (memDc, oldBitmap);
+    }
+
+    if (dib != nullptr)      { DeleteObject (dib); }
+    if (memDc != nullptr)    { DeleteDC (memDc); }
+    if (screenDc != nullptr) { ReleaseDC (nullptr, screenDc); }
+    DestroyIcon (hIcon);
+
+    return success;
+}
 
 
 
@@ -144,6 +251,11 @@ void DialogPrimitiveRenderer::Shutdown()
 
     m_rtv.Reset();
     m_swapChain.Reset();
+
+    m_appIconPixels.clear();
+    m_appIconW     = 0;
+    m_appIconH     = 0;
+    m_appIconResId = 0;
 
     m_context     = nullptr;
     m_device      = nullptr;
@@ -422,6 +534,42 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EnsureAppIconLoaded
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogPrimitiveRenderer::EnsureAppIconLoaded (int iconResourceId, int sizePx)
+{
+    HINSTANCE  hInstance = nullptr;
+
+    if (!m_appIconPixels.empty() && m_appIconResId == iconResourceId && m_appIconW == sizePx)
+    {
+        return;
+    }
+
+    if (m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    hInstance = (HINSTANCE) GetWindowLongPtrW (m_hwnd, GWLP_HINSTANCE);
+    if (hInstance == nullptr)
+    {
+        return;
+    }
+
+    if (LoadIconAsPremulBgra (hInstance, iconResourceId, sizePx,
+                              m_appIconPixels, m_appIconW, m_appIconH))
+    {
+        m_appIconResId = iconResourceId;
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PaintIcon
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -431,15 +579,17 @@ void DialogPrimitiveRenderer::PaintIcon (
     const DialogLayoutResult & layout,
     int                        titleHeightPx)
 {
-    float     iconL   = 0.0f;
-    float     iconT   = 0.0f;
-    float     iconR   = 0.0f;
-    float     iconB   = 0.0f;
-    float     iconW   = 0.0f;
-    float     cx      = 0.0f;
-    float     cy      = 0.0f;
-    float     radius  = 0.0f;
-    uint32_t  color   = 0;
+    HRESULT   hr           = S_OK;
+    float     iconL        = 0.0f;
+    float     iconT        = 0.0f;
+    float     iconR        = 0.0f;
+    float     iconB        = 0.0f;
+    float     iconW        = 0.0f;
+    float     cx           = 0.0f;
+    float     cy           = 0.0f;
+    float     radius       = 0.0f;
+    uint32_t  color        = 0;
+    int       appResId     = 0;
 
 
 
@@ -448,23 +598,36 @@ void DialogPrimitiveRenderer::PaintIcon (
         return;
     }
 
-    iconL  = static_cast<float> (layout.iconRectPx.left);
-    iconT  = static_cast<float> (layout.iconRectPx.top)    + static_cast<float> (titleHeightPx);
-    iconR  = static_cast<float> (layout.iconRectPx.right);
-    iconB  = static_cast<float> (layout.iconRectPx.bottom) + static_cast<float> (titleHeightPx);
+    iconL  = (float) layout.iconRectPx.left;
+    iconT  = (float) layout.iconRectPx.top    + (float) titleHeightPx;
+    iconR  = (float) layout.iconRectPx.right;
+    iconB  = (float) layout.iconRectPx.bottom + (float) titleHeightPx;
     iconW  = iconR - iconL;
     cx     = (iconL + iconR) / s_kCenterDivisor;
     cy     = (iconT + iconB) / s_kCenterDivisor;
     radius = iconW * s_kIconRadiusFraction;
 
+    if (def.icon == DialogIcon::AppPhotoreal || def.icon == DialogIcon::AppFlat)
+    {
+        appResId = (def.icon == DialogIcon::AppPhotoreal) ? IDI_CASSO_PHOTOREAL : IDI_CASSO;
+        EnsureAppIconLoaded (appResId, (int) iconW);
+
+        if (!m_appIconPixels.empty() && m_appIconW > 0 && m_appIconH > 0)
+        {
+            IGNORE_RETURN_VALUE (hr, m_text.DrawIconBitmap (m_appIconPixels.data(),
+                                                            m_appIconW, m_appIconH,
+                                                            iconL, iconT,
+                                                            iconW, iconB - iconT));
+            return;
+        }
+    }
+
     switch (def.icon)
     {
-        case DialogIcon::Info:         color = s_kIconColorInfo;    break;
-        case DialogIcon::Warning:      color = s_kIconColorWarning; break;
-        case DialogIcon::Error:        color = s_kIconColorError;   break;
-        case DialogIcon::AppPhotoreal: color = s_kIconColorApp;     break;
-        case DialogIcon::AppFlat:      color = s_kIconColorApp;     break;
-        default:                                                     break;
+        case DialogIcon::Info:    color = s_kIconColorInfo;    break;
+        case DialogIcon::Warning: color = s_kIconColorWarning; break;
+        case DialogIcon::Error:   color = s_kIconColorError;   break;
+        default:                                                break;
     }
 
     if (color != 0)
@@ -480,8 +643,11 @@ void DialogPrimitiveRenderer::PaintIcon (
 //
 //  PaintBody
 //
-//  Iterates body runs in definition order: normal text in body text
-//  color, hyperlinks in accent color with a single-pixel underline.
+//  Iterates per-line wrapped pieces produced by DialogLayout, drawing
+//  each substring at its exact pixel rect. This avoids letting DWrite
+//  re-wrap inside the unioned per-run bounding rect (which would
+//  disagree with FindWrapBoundary at the edges and cause spurious
+//  mid-sentence breaks).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -491,25 +657,34 @@ void DialogPrimitiveRenderer::PaintBody (
     const ChromeTheme        & theme,
     int                        titleHeightPx)
 {
-    HRESULT  hr    = S_OK;
-    float    fontPx = m_scaler.Pxf (s_kBodyFontDp);
-    float    titleH = static_cast<float> (titleHeightPx);
-    size_t   count  = std::min (def.body.size(), layout.bodyRunRectsPx.size());
+    HRESULT  hr         = S_OK;
+    float    fontPx     = m_scaler.Pxf (s_kBodyFontDp);
+    float    titleH     = (float) titleHeightPx;
+    float    lineH      = (layout.bodyLineHeightPx > 0.0f) ? layout.bodyLineHeightPx
+                                                           : fontPx;
+    size_t   pi         = 0;
 
 
 
-    for (size_t i = 0; i < count; ++i)
+    for (pi = 0; pi < layout.wrappedPiecesPx.size(); pi++)
     {
-        const DialogTextRun  & run       = def.body[i];
-        const RECT           & rect      = layout.bodyRunRectsPx[i];
-        float                  x         = static_cast<float> (rect.left);
-        float                  y         = static_cast<float> (rect.top)  + titleH;
-        float                  w         = static_cast<float> (rect.right  - rect.left);
-        float                  h         = static_cast<float> (rect.bottom - rect.top);
-        uint32_t               textColor = run.isHyperlink ? theme.navHoverArgb : theme.dropdownItemTextArgb;
+        const DialogWrappedPiece &  p = layout.wrappedPiecesPx[pi];
 
-        IGNORE_RETURN_VALUE (hr, m_text.DrawString (run.text.c_str(),
-                                                    x, y, w, h,
+        if (p.count == 0 || p.runIndex >= def.body.size())
+        {
+            continue;
+        }
+
+        const DialogTextRun &  run        = def.body[p.runIndex];
+        std::wstring           piece      (run.text.data() + p.start, p.count);
+        uint32_t               textColor  = run.isHyperlink ? theme.navHoverArgb
+                                                            : theme.dropdownItemTextArgb;
+        float                  x          = p.xPx;
+        float                  y          = p.yPx + titleH;
+        float                  w          = p.widthPx;
+
+        IGNORE_RETURN_VALUE (hr, m_text.DrawString (piece.c_str(),
+                                                    x, y, w, lineH,
                                                     textColor,
                                                     fontPx, L"Segoe UI",
                                                     DwriteTextRenderer::HAlign::Left,
@@ -517,7 +692,8 @@ void DialogPrimitiveRenderer::PaintBody (
 
         if (run.isHyperlink)
         {
-            m_painter.FillRect (x, y + h - s_kUnderlineHeightPx, w, s_kUnderlineHeightPx, theme.navHoverArgb);
+            m_painter.FillRect (x, y + lineH - s_kUnderlineHeightPx,
+                                w, s_kUnderlineHeightPx, theme.navHoverArgb);
         }
     }
 }

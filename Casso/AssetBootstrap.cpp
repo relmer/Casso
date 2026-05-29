@@ -1063,43 +1063,125 @@ static HRESULT DownloadOne (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr int    s_kRomRowHeightPx   = 22;
+static constexpr int    s_kRomRowGapPx      = 2;
+static constexpr int    s_kRomBodyWidthPx   = 520;
+static constexpr int    s_kRomNameColumnPx  = 180;
+static constexpr int    s_kRomColumnGapPx   = 16;
+static constexpr float  s_kRomFontDp        = 11.0f;
+static constexpr float  s_kRomTextPaddingPx = 6.0f;
+
 static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, const vector<const RomSpec *> & missing)
 {
-    wstring           message;
-    wstring           title;
-    int               response = 0;
+    struct RomRow
+    {
+        wstring  name;
+        wstring  description;
+    };
+
     DialogDefinition  def      = {};
+    wstring           title;
+    wstring           intro;
+    vector<RomRow>    rows;
+    int               response = 0;
+    int               rowCount = (int) missing.size();
+    int               totalH   = 0;
 
 
 
-    message = L"Casso needs the following Apple ROM image(s):\n\n";
-
+    rows.reserve (missing.size());
     for (const RomSpec * spec : missing)
     {
-        message += L"    ";
-        message += s_kchBullet;
-        message += L' ';
-        message += AsciiToWide (spec->cassoName);
-        message += L"  ";
-        message += s_kchEmDash;
-        message += L"  ";
-        message += AsciiToWide (spec->description);
-        message += L'\n';
+        RomRow  row;
+
+        row.name        = AsciiToWide (spec->cassoName);
+        row.description = AsciiToWide (spec->description);
+        rows.push_back (std::move (row));
     }
 
-    message += L"\nThese files are not bundled with Casso but are available from "
-               L"the AppleWin open-source emulator project: ";
+    intro  = L"Casso needs the Apple //e ROMs listed below to boot. ";
+    intro += L"They're not bundled, but the AppleWin project hosts them at:";
 
     title  = L"Casso ";
     title += s_kchEmDash;
     title += L" Download ROM Images";
 
+    totalH = rowCount * s_kRomRowHeightPx
+           + (rowCount > 0 ? (rowCount - 1) * s_kRomRowGapPx : 0);
+
     def.title = title;
     def.icon  = DialogIcon::AppPhotoreal;
-    def.body.push_back ({ message, false, L"" });
+    def.body.push_back ({ intro, false, L"" });
     def.body.push_back ({ L"https://github.com/AppleWin/AppleWin",
                           true, L"https://github.com/AppleWin/AppleWin" });
-    def.body.push_back ({ L"\n\nWould you like to download them now?", false, L"" });
+
+    def.customBodyMinSizePx.cx = s_kRomBodyWidthPx;
+    def.customBodyMinSizePx.cy = totalH;
+
+    def.onPaintCustomBody = [rows] (DialogPaintContext & ctx)
+    {
+        HRESULT  hr     = S_OK;
+        float    x      = 0.0f;
+        float    y      = 0.0f;
+        float    rowH   = (float) s_kRomRowHeightPx;
+        float    gap    = (float) s_kRomRowGapPx;
+        float    fontPx = s_kRomFontDp * ctx.dpiScale;
+        float    nameW  = (float) s_kRomNameColumnPx;
+        float    descX  = 0.0f;
+        float    descW  = 0.0f;
+        uint32_t bg     = 0;
+        uint32_t fg     = 0;
+        uint32_t band   = 0;
+        size_t   i      = 0;
+
+
+
+        if (ctx.painter == nullptr || ctx.text == nullptr || ctx.theme == nullptr)
+        {
+            return;
+        }
+
+        x     = (float) ctx.customBodyRect.left;
+        y     = (float) ctx.customBodyRect.top;
+        bg    = ctx.theme->dropdownBgArgb;
+        fg    = ctx.theme->dropdownItemTextArgb;
+        band  = ctx.theme->navStripArgb;
+        descX = x + nameW + (float) s_kRomColumnGapPx;
+        descW = (float) (ctx.customBodyRect.right - (LONG) descX);
+
+        for (i = 0; i < rows.size(); i++)
+        {
+            float  ry = y + (float) i * (rowH + gap);
+
+            if ((i & 1u) == 0u)
+            {
+                ctx.painter->FillRect (x, ry,
+                                       (float) (ctx.customBodyRect.right - ctx.customBodyRect.left),
+                                       rowH, band);
+            }
+            else
+            {
+                ctx.painter->FillRect (x, ry,
+                                       (float) (ctx.customBodyRect.right - ctx.customBodyRect.left),
+                                       rowH, bg);
+            }
+
+            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (rows[i].name.c_str(),
+                                                           x + s_kRomTextPaddingPx, ry,
+                                                           nameW, rowH,
+                                                           fg, fontPx, L"Segoe UI",
+                                                           DwriteTextRenderer::HAlign::Left,
+                                                           DwriteTextRenderer::VAlign::Center));
+
+            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (rows[i].description.c_str(),
+                                                           descX, ry,
+                                                           descW, rowH,
+                                                           fg, fontPx, L"Segoe UI",
+                                                           DwriteTextRenderer::HAlign::Left,
+                                                           DwriteTextRenderer::VAlign::Center));
+        }
+    };
+
     def.buttons.push_back ({ L"Download", IDYES, true,  false });
     def.buttons.push_back ({ L"Cancel",   IDNO,  false, true  });
 

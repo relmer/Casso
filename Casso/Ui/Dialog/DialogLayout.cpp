@@ -274,6 +274,18 @@ void DialogLayout::BuildBodyRunRects (LayoutState & s)
     s.contentBottomPx = s.bodyOriginYPx + std::max (s.bodyTotalHeightPx,
                                                     s.hasIcon ? s.metrics->iconSizePx : 0.0f);
     s.contentRightPx  = s.bodyOriginXPx + s.metrics->maxBodyWidthPx;
+
+    s.result->wrappedPiecesPx.clear();
+    s.result->wrappedPiecesPx.reserve (s.wrapped.size());
+    for (wi = 0; wi < s.wrapped.size(); wi++)
+    {
+        DialogWrappedPiece  piece = s.wrapped[wi];
+
+        piece.xPx += s.bodyOriginXPx;
+        piece.yPx += s.bodyOriginYPx;
+        s.result->wrappedPiecesPx.push_back (piece);
+    }
+    s.result->bodyLineHeightPx = s.metrics->bodyLineHeightPx;
 }
 
 

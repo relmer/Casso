@@ -41,14 +41,28 @@ struct DialogLayoutMetrics
 
 
 
+struct DialogWrappedPiece
+{
+    size_t  runIndex = 0;
+    size_t  start    = 0;
+    size_t  count    = 0;
+    float   xPx      = 0.0f;    // absolute, includes body origin
+    float   yPx      = 0.0f;    // absolute, includes body origin
+    float   widthPx  = 0.0f;
+};
+
+
+
 struct DialogLayoutResult
 {
-    SIZE                totalSizePx        = {};
-    RECT                iconRectPx         = {};   // zero when icon == None
-    std::vector<RECT>   bodyRunRectsPx;             // 1:1 with definition.body
-    std::vector<RECT>   hyperlinkHitRectsPx;        // subset where isHyperlink
-    std::vector<RECT>   buttonRectsPx;              // 1:1 with definition.buttons
-    RECT                customBodyRectPx   = {};   // zero when no onPaintCustomBody
+    SIZE                              totalSizePx        = {};
+    RECT                              iconRectPx         = {};   // zero when icon == None
+    std::vector<RECT>                 bodyRunRectsPx;             // 1:1 with definition.body
+    std::vector<RECT>                 hyperlinkHitRectsPx;        // subset where isHyperlink
+    std::vector<RECT>                 buttonRectsPx;              // 1:1 with definition.buttons
+    RECT                              customBodyRectPx   = {};   // zero when no onPaintCustomBody
+    std::vector<DialogWrappedPiece>   wrappedPiecesPx;            // per-line slices for renderer
+    float                             bodyLineHeightPx   = 0.0f;
 };
 
 
@@ -61,15 +75,7 @@ public:
         const DialogLayoutMetrics  & metrics);
 
 private:
-    struct WrappedRun
-    {
-        size_t  runIndex;
-        size_t  start;
-        size_t  count;
-        float   xPx;
-        float   yPx;
-        float   widthPx;
-    };
+    using WrappedRun = DialogWrappedPiece;
 
     struct LayoutState
     {
