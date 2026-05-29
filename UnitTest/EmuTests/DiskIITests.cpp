@@ -247,13 +247,20 @@ public:
 
         img->ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
 
-        WriteNibbleToImage (*img, 0, off, 0xD5);
-        WriteNibbleToImage (*img, 0, off, 0xAA);
-        WriteNibbleToImage (*img, 0, off, 0x96);
-
         disk->Read (kMotorOn);
         disk->Read (kQ7Off);
         disk->Read (kQ6Off);
+
+        // Issue #67: drain the motor spin-up window before laying down
+        // the test nibbles. The bit cursor advances during spin-up, so
+        // we write the pattern at wherever the engine ends up so the LSS
+        // sees the MSB-set nibble on the very next bit cells.
+        disk->Tick (DiskIIController::kMotorSpinupCycles);
+
+        off = disk->GetEngine (0).GetBitPosition ();
+        WriteNibbleToImage (*img, 0, off, 0xD5);
+        WriteNibbleToImage (*img, 0, off, 0xAA);
+        WriteNibbleToImage (*img, 0, off, 0x96);
 
         // Pump 8 bits per nibble × 3 nibbles. The latch reports the first
         // nibble whose MSB is set: 0xD5.
@@ -330,5 +337,147 @@ public:
         HRESULT   hr = disk->MountDisk (0, "this_file_does_not_exist.dsk");
 
         Assert::IsTrue (FAILED (hr));
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //  Issue #67 deliverable 1: motor spin-up window
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Spinup_MotorOnArmsSpinupWindow)
+    {
+        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+
+        Assert::AreEqual (uint32_t (0), disk->GetMotorSpinupRemaining (),
+            L"Cold controller must not have a pending spin-up");
+
+        disk->Read (kMotorOn);
+
+        Assert::IsTrue  (disk->IsMotorOn (),
+            L"Motor flag must be true immediately on $C0E9");
+        Assert::IsFalse (disk->IsMotorAtSpeed (),
+            L"Motor must NOT be at speed inside the spin-up window");
+        Assert::AreEqual (DiskIIController::kMotorSpinupCycles,
+            disk->GetMotorSpinupRemaining (),
+            L"Spin-up cycle counter must equal the full window on motor-on edge");
+    }
+
+    TEST_METHOD (Spinup_ReadsReturnZerosInsideWindow)
+    {
+        unique_ptr<DiskIIController>   disk  = make_unique<DiskIIController> (6);
+        DiskImage *                    img   = disk->GetDisk (0);
+        size_t                         off   = 0;
+        Byte                           value = 0;
+        int                            i     = 0;
+
+        img->ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
+
+        WriteNibbleToImage (*img, 0, off, 0xD5);
+        WriteNibbleToImage (*img, 0, off, 0xAA);
+        WriteNibbleToImage (*img, 0, off, 0x96);
+
+        disk->Read (kMotorOn);
+        disk->Read (kQ7Off);
+        disk->Read (kQ6Off);
+
+        // Tick a handful of bit cells -- well inside the ~71k-cycle
+        // spin-up window. The latch must keep returning 0 because
+        // the head is not yet at reading speed; protection schemes
+        // rely on this absence-of-valid-sync signal.
+        for (i = 0; i < 8; i++)
+        {
+            disk->Tick (DiskIINibbleEngine::kCyclesPerBit);
+        }
+
+        value = disk->Read (kQ6Off);
+
+        Assert::AreEqual (static_cast<Byte> (0x00), value,
+            L"Reads inside the spin-up window must return 0x00");
+        Assert::IsFalse (disk->IsMotorAtSpeed (),
+            L"Motor must still report not-at-speed after 32 cycles");
+    }
+
+    TEST_METHOD (Spinup_RealDataAfterWindowExpires)
+    {
+        unique_ptr<DiskIIController>   disk  = make_unique<DiskIIController> (6);
+        DiskImage *                    img   = disk->GetDisk (0);
+        size_t                         off   = 0;
+        Byte                           value = 0;
+        uint64_t                       i     = 0;
+        const uint64_t                 kBudget = 600'000ULL;
+
+        img->ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
+
+        WriteNibbleToImage (*img, 0, off, 0xD5);
+        WriteNibbleToImage (*img, 0, off, 0xAA);
+        WriteNibbleToImage (*img, 0, off, 0x96);
+
+        disk->Read (kMotorOn);
+        disk->Read (kQ7Off);
+        disk->Read (kQ6Off);
+
+        // Drain the spin-up window in a single big tick, then poll
+        // until the latch produces an MSB-set nibble.
+        disk->Tick (DiskIIController::kMotorSpinupCycles);
+
+        Assert::IsTrue (disk->IsMotorAtSpeed (),
+            L"Motor must be at speed once the spin-up counter drains");
+
+        for (i = 0; i < kBudget; i += DiskIINibbleEngine::kCyclesPerBit)
+        {
+            disk->Tick (DiskIINibbleEngine::kCyclesPerBit);
+            value = disk->Read (kQ6Off);
+
+            if (value & 0x80)
+            {
+                break;
+            }
+        }
+
+        Assert::IsTrue ((value & 0x80) != 0,
+            L"Latch must produce a real MSB-set nibble after spin-up");
+    }
+
+    TEST_METHOD (Spinup_MotorOnDuringSpindownDoesNotRearm)
+    {
+        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+
+        disk->Read (kMotorOn);
+        disk->Tick (DiskIIController::kMotorSpinupCycles);
+
+        Assert::IsTrue (disk->IsMotorAtSpeed (),
+            L"Precondition: motor reached speed");
+
+        // Issue motor-off; this only arms the spindown timer -- the
+        // physical disk keeps spinning at 300 RPM.
+        disk->Read (kMotorOff);
+
+        Assert::IsTrue (disk->IsMotorOn (),
+            L"Motor flag stays true during spindown window");
+        Assert::IsTrue (disk->IsMotorAtSpeed (),
+            L"Disk is still at speed during the spindown window");
+
+        // Motor-on inside the spindown window: cancels the spindown
+        // and must NOT re-arm spin-up (the disk never lost speed).
+        disk->Read (kMotorOn);
+
+        Assert::AreEqual (uint32_t (0), disk->GetMotorSpinupRemaining (),
+            L"Motor-on inside spindown must not re-arm the spin-up window");
+        Assert::IsTrue (disk->IsMotorAtSpeed (),
+            L"Reads must remain at-speed across an intra-spindown motor toggle");
+    }
+
+    TEST_METHOD (Spinup_ResetClearsSpinupCounter)
+    {
+        unique_ptr<DiskIIController>   disk = make_unique<DiskIIController> (6);
+
+        disk->Read (kMotorOn);
+
+        Assert::AreNotEqual (uint32_t (0), disk->GetMotorSpinupRemaining (),
+            L"Precondition: spin-up armed");
+
+        disk->Reset ();
+
+        Assert::AreEqual (uint32_t (0), disk->GetMotorSpinupRemaining (),
+            L"Reset must clear the spin-up counter");
     }
 };

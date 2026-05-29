@@ -40,6 +40,25 @@ public:
     static constexpr int    kPhaseCount      = 4;
     static constexpr int    kMaxQuarterTrack = 139;
 
+    // Real Disk II: writing $C0E8 (motor off) starts a ~1-second
+    // spindown so DOS RWTS can toggle the motor off between
+    // commands without losing rotational sync. UTAIIe ch. 9 /
+    // AppleWin SPINNING_CYCLES.
+    static constexpr uint32_t  kMotorSpindownCycles = 1'000'000U;
+
+    // Issue #67 deliverable 1: motor spin-up window. Real Disk II
+    // hardware needs ~1 revolution (~70 ms at 300 RPM) to reach
+    // reading speed after the motor is energized. During this
+    // window the read head sees garbage; copy-protection schemes
+    // deliberately read during spin-up and verify the absence of
+    // valid sync nibbles. We model this by returning 0x00 from
+    // the read latch path for kMotorSpinupCycles after the off->on
+    // edge -- the bit cursor inside the engine still advances so
+    // rotational position is correct once the window closes; only
+    // the CPU-visible read is suppressed. ~70 ms at 1.023 MHz =
+    // ~71,600 cycles.
+    static constexpr uint32_t  kMotorSpinupCycles = 71'600U;
+
     explicit DiskIIController (int slot);
 
     Byte Read (Word address) override;
@@ -87,6 +106,8 @@ public:
     // Inspectors used by Phase 9 tests.
     int    GetActiveDrive() const { return m_activeDrive; }
     bool   IsMotorOn() const { return m_motorOn; }
+    bool   IsMotorAtSpeed() const { return m_motorOn && m_motorSpinupRemaining == 0; }
+    uint32_t  GetMotorSpinupRemaining() const { return m_motorSpinupRemaining; }
     int    GetQuarterTrack() const { return m_quarterTrack; }
     int    GetCurrentTrack() const { return m_quarterTrack / 4; }
     bool   IsQ6() const { return m_q6; }
@@ -117,8 +138,15 @@ private:
     // read) doesn't lose rotational sync. Tracked in CPU cycles
     // remaining; ticks down in Tick(); reaches 0 and we actually
     // stop the engine. UTAIIe ch. 9 / AppleWin SPINNING_CYCLES.
-    static constexpr uint32_t  kMotorSpindownCycles = 1'000'000U;
+    // Constant kMotorSpindownCycles lives in the public section
+    // for test access.
     uint32_t             m_motorSpindownCycles = 0;
+
+    // Issue #67 deliverable 1: motor spin-up window remainder.
+    // Constant kMotorSpinupCycles lives in the public section
+    // for test access. See the public-section comment for the
+    // protection-fidelity rationale.
+    uint32_t             m_motorSpinupRemaining = 0;
 
     int                  m_activeDrive  = 0;
     bool                 m_q6           = false;

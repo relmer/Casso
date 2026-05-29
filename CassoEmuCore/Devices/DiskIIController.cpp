@@ -161,12 +161,25 @@ void DiskIIController::HandleSwitch (int offset)
             // spindown window don't restart the motor sound. (Renamed
             // from OnMotorStart in spec-006 to align with the new
             // four-event motor lifecycle on IDiskIIEventSink.)
+            //
+            // Issue #67: on a true off->on edge (motor genuinely cold,
+            // not just inside the spindown window), arm the spin-up
+            // window so reads return zeros for ~70 ms while the
+            // physical disk reaches reading speed. During spindown
+            // the disk is still spinning at 300 RPM, so a motor-on
+            // that merely cancels a pending spindown does NOT need
+            // a fresh spin-up.
             {
                 bool  edge = (!m_motorOn);
 
                 m_motorSpindownCycles = 0;
                 m_motorOn = true;
                 m_engine[m_activeDrive].SetMotorOn (true);
+
+                if (edge)
+                {
+                    m_motorSpinupRemaining = kMotorSpinupCycles;
+                }
 
                 if (edge && m_audioSink != nullptr)
                 {
@@ -253,6 +266,18 @@ Byte DiskIIController::HandleReadDispatch()
 
     if (!m_q6 && !m_q7)
     {
+        // Issue #67 deliverable 1: during the motor spin-up window
+        // the read head sees garbage, not real bit-stream data.
+        // Return 0x00 (no MSB-set, so the CPU's tight BPL polling
+        // loop never sees "byte ready") and skip both the latch
+        // read and the address-mark watcher feed so the watcher's
+        // state machines don't accumulate phantom partial nibbles
+        // from disk regions the head couldn't actually read.
+        if (m_motorSpinupRemaining > 0)
+        {
+            return 0;
+        }
+
         nibble = m_engine[m_activeDrive].ReadLatch();
 
         // Spec-006 T032 / FR-008: feed the passive watcher exactly
@@ -450,6 +475,23 @@ void DiskIIController::UpdateEngineSelection()
 
 void DiskIIController::Tick (uint32_t cpuCycles)
 {
+    // Issue #67 deliverable 1: drain the spin-up counter before any
+    // other state advances. The bit cursor inside the per-drive
+    // engine still ticks normally (rotational position must be
+    // correct when the window closes) -- only the CPU-visible read
+    // dispatch suppresses real data during this window.
+    if (m_motorSpinupRemaining > 0)
+    {
+        if (cpuCycles >= m_motorSpinupRemaining)
+        {
+            m_motorSpinupRemaining = 0;
+        }
+        else
+        {
+            m_motorSpinupRemaining -= cpuCycles;
+        }
+    }
+
     if (m_motorSpindownCycles > 0)
     {
         if (cpuCycles >= m_motorSpindownCycles)
@@ -650,6 +692,7 @@ void DiskIIController::Reset()
     m_quarterTrack = 0;
     m_motorOn      = false;
     m_motorSpindownCycles = 0;
+    m_motorSpinupRemaining = 0;
     m_activeDrive  = 0;
     m_q6           = false;
     m_q7           = false;

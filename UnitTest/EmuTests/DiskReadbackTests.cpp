@@ -159,6 +159,13 @@ namespace
         core.bus->ReadByte (kSlotIoBase + 0xC); // Q6=0
         core.bus->ReadByte (kQ7Off);
 
+        // Issue #67: drain the motor spin-up window so the very next
+        // read returns real bit-stream data rather than the synthetic
+        // zeros the controller hands back during spin-up. Tests
+        // written before #67 expected immediate readiness; the
+        // controller now models the ~70 ms physical spin-up.
+        core.diskController->Tick (DiskIIController::kMotorSpinupCycles);
+
         return external;
     }
 
