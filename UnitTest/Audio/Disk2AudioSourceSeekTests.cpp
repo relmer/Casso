@@ -23,7 +23,7 @@ public:
 
     TEST_METHOD (FourStepsWithin16ms_doNotResetHeadPosFourTimes)
     {
-        Disk2AudioSource  src;
+        Disk2AudioSource   src;
         vector<float>      step (8);
         float              out[4] = {};
         uint64_t           cycle  = 100000;

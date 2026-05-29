@@ -1548,7 +1548,7 @@ void SettingsPanel::DoMachineSelect (const std::string & machineName)
 
         if (hasDisk)
         {
-            fs::path     devicesDir  = assetBaseDir / L"Devices" / L"Disk2";
+            fs::path     devicesDir  = assetBaseDir / L"Devices" / L"DiskII";
             std::string  diskAudioErr;
             HRESULT      hrAudio     = AssetBootstrap::CheckAndFetchDiskAudio (hInstance, wideName, hwndParent,
                                                                                devicesDir, *m_prefs, diskAudioErr);

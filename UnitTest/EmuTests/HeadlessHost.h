@@ -78,7 +78,7 @@ struct EmulatorCore
     // HeadlessHost::BuildAppleIIeWithDisk2 so US2 integration tests can
     // mount synthetic disks through the store and pump the controller's
     // nibble engine in lock-step with the CPU.
-    std::unique_ptr<Disk2Controller>          diskController;
+    std::unique_ptr<Disk2Controller>           diskController;
     std::unique_ptr<DiskImageStore>            diskStore;
 
     // Cycle-pumped helpers used by Phase 7 integration tests.

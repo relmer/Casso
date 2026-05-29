@@ -210,7 +210,7 @@ void DiskManager::MountCommandLineDisks (
 HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
 {
     HRESULT              hr         = S_OK;
-    Disk2Controller  *  controller = FindSlot6Controller();
+    Disk2Controller  *   controller = FindSlot6Controller();
     DiskImage         *  external   = nullptr;
 
 
@@ -223,7 +223,7 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
     controller->SetExternalDisk (drive, external);
 
     // The store-based mount path bypasses the controller's own
-    // MountDisk method, so fire the IDISK2EventSink hook explicitly
+    // MountDisk method, so fire the IDisk2EventSink hook explicitly
     // here so the debug window sees the insert. Cold boot mounts
     // still fire on the controller side (the debug window is rarely
     // open at app launch and the user wants to see the mount that

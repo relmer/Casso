@@ -106,13 +106,13 @@ public:
     {
         m_uptimeAnchor = std::chrono::steady_clock::now();
 
-        if (m_DISK2DebugDialog != nullptr)
+        if (m_disk2DebugDialog != nullptr)
         {
-            m_DISK2DebugDialog->SetUptimeAnchor (m_uptimeAnchor);
+            m_disk2DebugDialog->SetUptimeAnchor (m_uptimeAnchor);
             // Spec-006 bug-fix. Clear stale rows from the pre-reset
             // boot so the post-reset uptime anchor doesn't end up
             // formatting events that pre-date its own zero point.
-            m_DISK2DebugDialog->ClearEvents();
+            m_disk2DebugDialog->ClearEvents();
         }
     }
 
@@ -363,7 +363,7 @@ private:
         class AppleSoftSwitchBank *   softSwitches     = nullptr;
         class AppleSpeaker *          speaker          = nullptr;
         class RamDevice *             mainRamDev       = nullptr;
-        class Disk2Controller *      diskController   = nullptr;
+        class Disk2Controller *       diskController   = nullptr;
         class VideoOutput *           activeVideoMode  = nullptr;
     };
 
@@ -413,7 +413,7 @@ private:
     // can be lazy-created on first Ctrl+Shift+D and reused across
     // opens. The uptime anchor lives on the shell (not the dialog)
     // so resets re-zero it even while the dialog is closed.
-    std::unique_ptr<class Disk2DebugDialog>  m_DISK2DebugDialog;
+    std::unique_ptr<class Disk2DebugDialog>   m_disk2DebugDialog;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 
     // Extracted shell-side managers. WindowManager owns the per-monitor

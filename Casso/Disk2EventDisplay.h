@@ -38,7 +38,7 @@ struct Disk2EventDisplay
     static constexpr int   kFieldNotApplicable = INT_MIN;
 
     EventCategory            category    = EventCategory::Controller;
-    Disk2EventType          type        = Disk2EventType::EventsLost;
+    Disk2EventType           type        = Disk2EventType::EventsLost;
 
     int                      drive       = kFieldNotApplicable;
     int                      track       = kFieldNotApplicable;

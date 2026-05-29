@@ -218,8 +218,8 @@ HRESULT Disk2AudioSource::LoadSamples (
     for (i = 0; i < s_kcSampleFiles; i++)
     {
         // Per-file precedence (FR-019): explicit override at
-        // Devices/Disk2/<file>.wav wins over the per-mechanism copy
-        // at Devices/Disk2/<Mechanism>/<file>.wav. Both missing ==
+        // Devices/DiskII/<file>.wav wins over the per-mechanism copy
+        // at Devices/DiskII/<Mechanism>/<file>.wav. Both missing ==
         // silent, FR-009.
         fs::path        overridePath = baseDir / s_kpszSampleFiles[i];
         fs::path        mechPath     = mechDir / s_kpszSampleFiles[i];

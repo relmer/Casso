@@ -41,7 +41,7 @@ public:
 
     TEST_METHOD (OnHeadStep_resetsHeadPos_andSelectsStepBuffer)
     {
-        Disk2AudioSource  src;
+        Disk2AudioSource   src;
         float              out[16] = {};
 
         src.SetSampleBufferForTest (L"HeadStep", vector<float> (32, 0.5f));
@@ -61,7 +61,7 @@ public:
 
     TEST_METHOD (OnHeadBump_selectsStopBufferDistinctFromStep)
     {
-        Disk2AudioSource  src;
+        Disk2AudioSource   src;
         float              out[8] = {};
 
         src.SetSampleBufferForTest (L"HeadStep", vector<float> (32, 0.5f));
@@ -80,7 +80,7 @@ public:
 
     TEST_METHOD (OnDiskInserted_selectsCloseBuffer_resetsDoorPos)
     {
-        Disk2AudioSource  src;
+        Disk2AudioSource   src;
         float              out[8] = {};
 
         src.SetSampleBufferForTest (L"DoorClose", vector<float> (16, 0.6f));
@@ -97,7 +97,7 @@ public:
 
     TEST_METHOD (OnDiskEjected_selectsOpenBuffer_resetsDoorPos)
     {
-        Disk2AudioSource  src;
+        Disk2AudioSource   src;
         float              out[8] = {};
 
         src.SetSampleBufferForTest (L"DoorClose", vector<float> (16, 0.6f));

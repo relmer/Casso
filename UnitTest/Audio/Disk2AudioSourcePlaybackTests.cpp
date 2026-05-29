@@ -22,7 +22,7 @@ public:
 
     TEST_METHOD (MotorRunning_outputContainsScaledMotorSamples)
     {
-        Disk2AudioSource  src;
+        Disk2AudioSource   src;
         float              out[16] = {};
 
         src.SetSampleBufferForTest (L"MotorLoop", vector<float> (32, 1.0f));
@@ -38,7 +38,7 @@ public:
 
     TEST_METHOD (MotorRunning_wrapsAtBufferEnd)
     {
-        Disk2AudioSource  src;
+        Disk2AudioSource   src;
         vector<float>      motor (4);
         float              out[16] = {};
 
@@ -63,7 +63,7 @@ public:
 
     TEST_METHOD (MotorNotRunning_motorContributionIsZero)
     {
-        Disk2AudioSource  src;
+        Disk2AudioSource   src;
         float              out[8] = {};
 
         src.SetSampleBufferForTest (L"MotorLoop", vector<float> (16, 1.0f));
@@ -77,7 +77,7 @@ public:
 
     TEST_METHOD (OnHeadStep_then_GeneratePCM_outputsScaledStepSampleOnce_thenZero)
     {
-        Disk2AudioSource  src;
+        Disk2AudioSource   src;
         vector<float>      step (4, 0.5f);
         float              out[8] = {};
 
@@ -98,7 +98,7 @@ public:
 
     TEST_METHOD (MotorPlusHeadPlusDoor_simultaneouslyMixedAdditively)
     {
-        Disk2AudioSource  src;
+        Disk2AudioSource   src;
         float              out[4] = {};
 
         src.SetSampleBufferForTest (L"MotorLoop", vector<float> (16, 1.0f));
@@ -126,7 +126,7 @@ public:
 
     TEST_METHOD (MissingMotorBuffer_emptyBuffer_outputsSilenceForMotor)
     {
-        Disk2AudioSource  src;
+        Disk2AudioSource   src;
         float              out[8] = {};
 
         // No MotorLoop set -> empty buffer; FR-009.
@@ -141,7 +141,7 @@ public:
 
     TEST_METHOD (MissingHeadBuffer_OnHeadStep_outputsSilence)
     {
-        Disk2AudioSource  src;
+        Disk2AudioSource   src;
         float              out[8] = {};
 
         src.OnHeadStep (1);
@@ -155,7 +155,7 @@ public:
 
     TEST_METHOD (MissingDoorBuffer_OnDiskInserted_outputsSilence)
     {
-        Disk2AudioSource  src;
+        Disk2AudioSource   src;
         float              out[8] = {};
 
         src.OnDiskInserted();

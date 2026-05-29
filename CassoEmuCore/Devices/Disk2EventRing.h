@@ -63,5 +63,5 @@ public:
 private:
     alignas(64) std::atomic<uint32_t>   m_head { 0 };   // consumer-owned
     alignas(64) std::atomic<uint32_t>   m_tail { 0 };   // producer-owned
-    Disk2Event                         m_slots[kEventRingCapacity] {};
+    Disk2Event                          m_slots[kEventRingCapacity] {};
 };

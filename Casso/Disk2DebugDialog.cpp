@@ -1842,7 +1842,7 @@ void Disk2DebugDialog::CopySelectedRowsToClipboard()
     HRESULT                                       hr        = S_OK;
     int                                           selIdx    = -1;
     uint32_t                                      deqIdx    = 0;
-    std::vector<const Disk2EventDisplay *>       selected;
+    std::vector<const Disk2EventDisplay *>        selected;
     std::wstring                                  payload;
     HGLOBAL                                       hMem      = nullptr;
     wchar_t  *                                    pMem      = nullptr;
@@ -2410,7 +2410,7 @@ void Disk2DebugDialog::ClearEvents() noexcept
     // calls on huge backlogs at no behavior cost.
     constexpr uint32_t  kClearDrainBatchSize = 64;
 
-    Disk2Event  scratch[kClearDrainBatchSize] = {};
+    Disk2Event   scratch[kClearDrainBatchSize] = {};
     uint32_t     drained                       = 0;
 
     m_droppedSinceLastDrain.store (0, std::memory_order_release);
@@ -2596,7 +2596,7 @@ void Disk2DebugDialog::PushDriveEvent (Disk2EventType type, int drive) noexcept
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2DebugDialog::PushAudioEvent (
-    Disk2EventType  type,
+    Disk2EventType   type,
     SoundKind        kind,
     int              drive,
     SilentReason     reason) noexcept
@@ -2620,7 +2620,7 @@ void Disk2DebugDialog::PushAudioEvent (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IDISK2EventSink overrides
+//  IDisk2EventSink overrides
 //
 ////////////////////////////////////////////////////////////////////////////////
 

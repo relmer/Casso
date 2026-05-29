@@ -89,8 +89,8 @@ public:
 
     TEST_METHOD (FormatEvent_HeadStep_detailMatchesQtArrow)
     {
-        Disk2Event          src = MakeStep (12, 16, 1234567);
-        Disk2EventDisplay   out;
+        Disk2Event           src = MakeStep (12, 16, 1234567);
+        Disk2EventDisplay    out;
         auto                 anchor = std::chrono::steady_clock::now();
 
         DebugDialogProjection::FormatEvent (src, anchor, out);
@@ -103,8 +103,8 @@ public:
 
     TEST_METHOD (FormatEvent_AddrMark_detailHasTrackSectorVolume)
     {
-        Disk2Event          src = {};
-        Disk2EventDisplay   out;
+        Disk2Event           src = {};
+        Disk2EventDisplay    out;
         auto                 anchor = std::chrono::steady_clock::now();
 
         src.category              = EventCategory::Controller;
@@ -121,8 +121,8 @@ public:
 
     TEST_METHOD (FormatEvent_DataRead_detailHasSectorAndByteCount)
     {
-        Disk2Event          src = {};
-        Disk2EventDisplay   out;
+        Disk2Event           src = {};
+        Disk2EventDisplay    out;
         auto                 anchor = std::chrono::steady_clock::now();
 
         src.type                   = Disk2EventType::DataRead;
@@ -137,8 +137,8 @@ public:
 
     TEST_METHOD (FormatEvent_DataRead_detailUsesQuestionMarkWhenCachedAddrMarkAbsent)
     {
-        Disk2Event          src = {};
-        Disk2EventDisplay   out;
+        Disk2Event           src = {};
+        Disk2EventDisplay    out;
         auto                 anchor = std::chrono::steady_clock::now();
 
         src.type                   = Disk2EventType::DataRead;
@@ -151,8 +151,8 @@ public:
 
     TEST_METHOD (FormatEvent_DriveSelect_detailHasDriveAndDriveField)
     {
-        Disk2Event          src = {};
-        Disk2EventDisplay   out;
+        Disk2Event           src = {};
+        Disk2EventDisplay    out;
         auto                 anchor = std::chrono::steady_clock::now();
 
         src.type                = Disk2EventType::DriveSelect;
@@ -166,8 +166,8 @@ public:
 
     TEST_METHOD (FormatEvent_MotorEngaged_detailIsEmpty)
     {
-        Disk2Event          src = {};
-        Disk2EventDisplay   out;
+        Disk2Event           src = {};
+        Disk2EventDisplay    out;
         auto                 anchor = std::chrono::steady_clock::now();
 
         src.type = Disk2EventType::MotorEngaged;
@@ -179,8 +179,8 @@ public:
 
     TEST_METHOD (FormatEvent_AudioStarted_detailHasKindAndDrive)
     {
-        Disk2Event          src = {};
-        Disk2EventDisplay   out;
+        Disk2Event           src = {};
+        Disk2EventDisplay    out;
         auto                 anchor = std::chrono::steady_clock::now();
 
         src.category             = EventCategory::Audio;
@@ -195,8 +195,8 @@ public:
 
     TEST_METHOD (FormatEvent_AudioSilent_detailHasKindDriveReason)
     {
-        Disk2Event          src = {};
-        Disk2EventDisplay   out;
+        Disk2Event           src = {};
+        Disk2EventDisplay    out;
         auto                 anchor = std::chrono::steady_clock::now();
 
         src.category              = EventCategory::Audio;
@@ -213,8 +213,8 @@ public:
 
     TEST_METHOD (FormatEvent_EventsLost_detailHasCount)
     {
-        Disk2Event          src = {};
-        Disk2EventDisplay   out;
+        Disk2Event           src = {};
+        Disk2EventDisplay    out;
         auto                 anchor = std::chrono::steady_clock::now();
 
         src.type                  = Disk2EventType::EventsLost;
@@ -227,8 +227,8 @@ public:
 
     TEST_METHOD (FormatEvent_Uptime_freshAnchor_startsAtZeroZero)
     {
-        Disk2Event          src = MakeStep (0, 1, 0);
-        Disk2EventDisplay   out;
+        Disk2Event           src = MakeStep (0, 1, 0);
+        Disk2EventDisplay    out;
         auto                 anchor = std::chrono::steady_clock::now();
 
         DebugDialogProjection::FormatEvent (src, anchor, out);
@@ -242,8 +242,8 @@ public:
 
     TEST_METHOD (DrainAndProject_emptyRingZeroDropped_dequeUnchanged)
     {
-        Disk2EventRing                  ring;
-        std::deque<Disk2EventDisplay>   deque;
+        Disk2EventRing                   ring;
+        std::deque<Disk2EventDisplay>    deque;
         auto                             anchor = std::chrono::steady_clock::now();
 
         DebugDialogProjection::DrainAndProject (ring, deque, 0, anchor);
@@ -253,8 +253,8 @@ public:
 
     TEST_METHOD (DrainAndProject_pushesNEventsInFifoOrder)
     {
-        Disk2EventRing                  ring;
-        std::deque<Disk2EventDisplay>   deque;
+        Disk2EventRing                   ring;
+        std::deque<Disk2EventDisplay>    deque;
         auto                             anchor = std::chrono::steady_clock::now();
 
         for (int i = 0; i < 5; i++)
@@ -279,8 +279,8 @@ public:
 
     TEST_METHOD (DrainAndProject_droppedCountEmitsLeadingEventsLost)
     {
-        Disk2EventRing                  ring;
-        std::deque<Disk2EventDisplay>   deque;
+        Disk2EventRing                   ring;
+        std::deque<Disk2EventDisplay>    deque;
         auto                             anchor = std::chrono::steady_clock::now();
 
         Assert::IsTrue (ring.TryPush (MakeStep (1, 2, 100)));
@@ -295,8 +295,8 @@ public:
 
     TEST_METHOD (DrainAndProject_rollingCapEnforced_oldestDroppedFromFront)
     {
-        Disk2EventRing                  ring;
-        std::deque<Disk2EventDisplay>   deque;
+        Disk2EventRing                   ring;
+        std::deque<Disk2EventDisplay>    deque;
         auto                             anchor = std::chrono::steady_clock::now();
 
         // Pre-fill the deque to the cap so a single drained entry
@@ -346,7 +346,7 @@ public:
     ////////////////////////////////////////////////////////////////////////////
 
     static Disk2EventDisplay MakeDisplay (
-        Disk2EventType  type,
+        Disk2EventType   type,
         EventCategory    cat,
         int              drive  = Disk2EventDisplay::kFieldNotApplicable,
         int              track  = Disk2EventDisplay::kFieldNotApplicable,
@@ -368,11 +368,11 @@ public:
     TEST_METHOD (Filter_allChecked_showsEverything)
     {
         FilterState           f;
-        Disk2EventDisplay    motor    = MakeDisplay (Disk2EventType::MotorEngaged,  EventCategory::Controller);
-        Disk2EventDisplay    step     = MakeDisplay (Disk2EventType::HeadStep,      EventCategory::Controller);
-        Disk2EventDisplay    addr     = MakeDisplay (Disk2EventType::AddrMark,      EventCategory::Controller, 1, 17, 5);
-        Disk2EventDisplay    audio    = MakeDisplay (Disk2EventType::AudioStarted,  EventCategory::Audio,      1);
-        Disk2EventDisplay    loop     = MakeDisplay (Disk2EventType::AudioLoopStarted, EventCategory::Audio,   1);
+        Disk2EventDisplay     motor    = MakeDisplay (Disk2EventType::MotorEngaged,  EventCategory::Controller);
+        Disk2EventDisplay     step     = MakeDisplay (Disk2EventType::HeadStep,      EventCategory::Controller);
+        Disk2EventDisplay     addr     = MakeDisplay (Disk2EventType::AddrMark,      EventCategory::Controller, 1, 17, 5);
+        Disk2EventDisplay     audio    = MakeDisplay (Disk2EventType::AudioStarted,  EventCategory::Audio,      1);
+        Disk2EventDisplay     loop     = MakeDisplay (Disk2EventType::AudioLoopStarted, EventCategory::Audio,   1);
 
         Assert::IsTrue (MatchesFilter (motor, f));
         Assert::IsTrue (MatchesFilter (step,  f));
@@ -386,9 +386,9 @@ public:
     TEST_METHOD (Filter_allUncheckedAndAudioOff_hidesAllNonLost)
     {
         FilterState           f;
-        Disk2EventDisplay    motor = MakeDisplay (Disk2EventType::MotorEngaged, EventCategory::Controller);
-        Disk2EventDisplay    audio = MakeDisplay (Disk2EventType::AudioStarted, EventCategory::Audio, 1);
-        Disk2EventDisplay    lost  = MakeDisplay (Disk2EventType::EventsLost,   EventCategory::Controller);
+        Disk2EventDisplay     motor = MakeDisplay (Disk2EventType::MotorEngaged, EventCategory::Controller);
+        Disk2EventDisplay     audio = MakeDisplay (Disk2EventType::AudioStarted, EventCategory::Audio, 1);
+        Disk2EventDisplay     lost  = MakeDisplay (Disk2EventType::EventsLost,   EventCategory::Controller);
 
         f.eventTypeMask = 0;
         f.audioMaster   = false;
@@ -405,9 +405,9 @@ public:
         FilterState           f;
         // Drive radio "Drive 1" = UI value 1 = internal drive index 0.
         // Drive radio "Drive 2" = UI value 2 = internal drive index 1.
-        Disk2EventDisplay    drv1  = MakeDisplay (Disk2EventType::DriveSelect, EventCategory::Controller, 0);
-        Disk2EventDisplay    drv2  = MakeDisplay (Disk2EventType::DriveSelect, EventCategory::Controller, 1);
-        Disk2EventDisplay    motor = MakeDisplay (Disk2EventType::MotorEngaged, EventCategory::Controller);
+        Disk2EventDisplay     drv1  = MakeDisplay (Disk2EventType::DriveSelect, EventCategory::Controller, 0);
+        Disk2EventDisplay     drv2  = MakeDisplay (Disk2EventType::DriveSelect, EventCategory::Controller, 1);
+        Disk2EventDisplay     motor = MakeDisplay (Disk2EventType::MotorEngaged, EventCategory::Controller);
 
         f.driveFilter = 1;    // "Drive 1" -> internal 0
 
@@ -434,10 +434,10 @@ public:
     TEST_METHOD (Filter_trackList_showsOnlyMatchingAddrMarks)
     {
         FilterState           f;
-        Disk2EventDisplay    t0  = MakeDisplay (Disk2EventType::AddrMark, EventCategory::Controller, 1, 0,  0);
-        Disk2EventDisplay    t1  = MakeDisplay (Disk2EventType::AddrMark, EventCategory::Controller, 1, 1,  0);
-        Disk2EventDisplay    t17 = MakeDisplay (Disk2EventType::AddrMark, EventCategory::Controller, 1, 17, 0);
-        Disk2EventDisplay    t5  = MakeDisplay (Disk2EventType::AddrMark, EventCategory::Controller, 1, 5,  0);
+        Disk2EventDisplay     t0  = MakeDisplay (Disk2EventType::AddrMark, EventCategory::Controller, 1, 0,  0);
+        Disk2EventDisplay     t1  = MakeDisplay (Disk2EventType::AddrMark, EventCategory::Controller, 1, 1,  0);
+        Disk2EventDisplay     t17 = MakeDisplay (Disk2EventType::AddrMark, EventCategory::Controller, 1, 17, 0);
+        Disk2EventDisplay     t5  = MakeDisplay (Disk2EventType::AddrMark, EventCategory::Controller, 1, 5,  0);
 
         f.trackFilter = TrackSectorPredicate::Parse (L"0-2,17", TrackSectorPredicate::Mode::Track, false);
 
@@ -452,7 +452,7 @@ public:
     TEST_METHOD (Filter_sectorOutOfRangeValue_matchesNothing_doesNotThrow)
     {
         FilterState           f;
-        Disk2EventDisplay    s0  = MakeDisplay (Disk2EventType::DataRead, EventCategory::Controller, 1, Disk2EventDisplay::kFieldNotApplicable, 0);
+        Disk2EventDisplay     s0  = MakeDisplay (Disk2EventType::DataRead, EventCategory::Controller, 1, Disk2EventDisplay::kFieldNotApplicable, 0);
 
         f.sectorFilter = TrackSectorPredicate::Parse (L"999", TrackSectorPredicate::Mode::Sector);
 
@@ -467,10 +467,10 @@ public:
         // driveFilter == 1 means "Drive 1" in the UI; the underlying
         // event index for that selection is 0. Read events from drive 0
         // must pass the predicate.
-        Disk2EventDisplay    matching   = MakeDisplay (Disk2EventType::DataRead, EventCategory::Controller, 0, Disk2EventDisplay::kFieldNotApplicable, 0);
-        Disk2EventDisplay    wrongDrive = MakeDisplay (Disk2EventType::DataRead, EventCategory::Controller, 1, Disk2EventDisplay::kFieldNotApplicable, 0);
-        Disk2EventDisplay    motor      = MakeDisplay (Disk2EventType::MotorEngaged, EventCategory::Controller);
-        Disk2EventDisplay    audio      = MakeDisplay (Disk2EventType::AudioStarted, EventCategory::Audio, 0);
+        Disk2EventDisplay     matching   = MakeDisplay (Disk2EventType::DataRead, EventCategory::Controller, 0, Disk2EventDisplay::kFieldNotApplicable, 0);
+        Disk2EventDisplay     wrongDrive = MakeDisplay (Disk2EventType::DataRead, EventCategory::Controller, 1, Disk2EventDisplay::kFieldNotApplicable, 0);
+        Disk2EventDisplay     motor      = MakeDisplay (Disk2EventType::MotorEngaged, EventCategory::Controller);
+        Disk2EventDisplay     audio      = MakeDisplay (Disk2EventType::AudioStarted, EventCategory::Audio, 0);
 
         f.eventTypeMask = FilterState::kEventCatRead;
         f.driveFilter   = 1;
@@ -590,8 +590,8 @@ public:
 
     TEST_METHOD (PauseInducedOverflow_singleLostMarkerWithCoalescedCount)
     {
-        Disk2EventRing                  ring;
-        std::deque<Disk2EventDisplay>   deque;
+        Disk2EventRing                   ring;
+        std::deque<Disk2EventDisplay>    deque;
         uint32_t                         dropped       = 0;
         uint64_t                         totalPushed   = 8192;
         uint64_t                         pushAttempted = 0;
@@ -634,8 +634,8 @@ public:
 
     TEST_METHOD (ClearWithInFlight_inFlightDrainsIntoEmptyDequeWithNoMarker)
     {
-        Disk2EventRing                  ring;
-        std::deque<Disk2EventDisplay>   deque;
+        Disk2EventRing                   ring;
+        std::deque<Disk2EventDisplay>    deque;
         uint32_t                         dropped     = 0;
         int                              i           = 0;
         auto                             anchor      = std::chrono::steady_clock::now();
@@ -680,7 +680,7 @@ public:
     ////////////////////////////////////////////////////////////////////////////
 
     static Disk2EventDisplay MakeFormattedDisplay (
-        Disk2EventType  type,
+        Disk2EventType   type,
         EventCategory    cat,
         const wchar_t *  wall,
         const wchar_t *  uptime,
@@ -795,8 +795,8 @@ public:
         // the Uptime column reads 00:00.xxx (not whatever the
         // pre-reset value was).
         std::chrono::steady_clock::time_point  anchor      = std::chrono::steady_clock::now();
-        Disk2Event                            src         = {};
-        Disk2EventDisplay                     out         = {};
+        Disk2Event                             src         = {};
+        Disk2EventDisplay                      out         = {};
         const wchar_t                       *  uptimeText  = nullptr;
 
         std::this_thread::sleep_for (std::chrono::milliseconds (5));

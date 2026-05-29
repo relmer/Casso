@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "IDISK2EventSink.h"
+#include "IDisk2EventSink.h"
 
 
 
@@ -61,7 +61,7 @@ public:
     // Propagates the controller's sink pointer. Pass nullptr to
     // detach. Safe to call from the UI thread between CPU slices,
     // matching the audio-sink attach pattern from spec-005.
-    void   SetEventSink (IDISK2EventSink * sink) noexcept   { m_eventSink = sink; }
+    void   SetEventSink (IDisk2EventSink * sink) noexcept   { m_eventSink = sink; }
 
     // Test seam: most recent fully-decoded sector / track / volume
     // numbers from the latest address mark (-1 until the first
@@ -104,7 +104,7 @@ private:
         return (uint8_t) (((hi << 1) | 1) & lo);
     }
 
-    IDISK2EventSink *  m_eventSink     = nullptr;
+    IDisk2EventSink *  m_eventSink     = nullptr;
 
     AddrState           m_addrState     = AddrState::Idle;
     uint8_t             m_volHi         = 0;

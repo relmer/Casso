@@ -56,7 +56,7 @@ public:
                  UserConfigStore                                 & userConfigStore,
                  IFileSystem                                     & fileSystem);
 
-    Disk2Controller *  FindSlot6Controller    ();
+    Disk2Controller *   FindSlot6Controller    ();
     bool                HasSlot6Controller     () { return FindSlot6Controller() != nullptr; }
 
     HRESULT  MountDiskInSlot6       (int drive, const std::string & path);

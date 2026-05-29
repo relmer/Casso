@@ -272,7 +272,7 @@
     <ClInclude Include="Devices\AppleSpeaker.h" />
     <ClInclude Include="Devices\LanguageCard.h" />
     <ClInclude Include="Devices\Disk2Controller.h" />
-    <ClInclude Include="Devices\IDISK2EventSink.h" />
+    <ClInclude Include="Devices\IDisk2EventSink.h" />
     <ClInclude Include="Devices\Disk2Event.h" />
     <ClInclude Include="Devices\Disk2EventRing.h" />
     <ClInclude Include="Devices\Disk2AddressMarkWatcher.h" />

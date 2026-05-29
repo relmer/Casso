@@ -8,7 +8,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IDISK2EventSink
+//  IDisk2EventSink
 //
 //  Abstract notification interface fired by Disk2Controller whenever a
 //  user-visible event happens on the controller surface. Implemented by
@@ -60,10 +60,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class IDISK2EventSink
+class IDisk2EventSink
 {
 public:
-    virtual ~IDISK2EventSink() = default;
+    virtual ~IDisk2EventSink() = default;
 
     virtual void OnMotorCommandOn() = 0;
     virtual void OnMotorEngaged() = 0;

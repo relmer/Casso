@@ -22,14 +22,14 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  RecordingSink
 //
 //  Captures an ordered log of address-mark and data-mark events.
-//  Other IDISK2EventSink methods are no-ops; the watcher only fires
+//  Other IDisk2EventSink methods are no-ops; the watcher only fires
 //  OnAddressMark / OnDataMarkRead per FR-008.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    class RecordingSink : public IDISK2EventSink
+    class RecordingSink : public IDisk2EventSink
     {
     public:
         struct AddrEntry
@@ -193,7 +193,7 @@ namespace Disk2AddressMarkWatcherTests
 
         TEST_METHOD (GoodAddressMark_firesOnceWithDecodedFields)
         {
-            Disk2AddressMarkWatcher  watcher;
+            Disk2AddressMarkWatcher   watcher;
             RecordingSink             sink;
             std::vector<uint8_t>      stream;
 
@@ -211,7 +211,7 @@ namespace Disk2AddressMarkWatcherTests
 
         TEST_METHOD (CorruptChecksum_firesZeroAddressMarks)
         {
-            Disk2AddressMarkWatcher  watcher;
+            Disk2AddressMarkWatcher   watcher;
             RecordingSink             sink;
             std::vector<uint8_t>      stream;
 
@@ -254,7 +254,7 @@ namespace Disk2AddressMarkWatcherTests
 
         TEST_METHOD (DataMark_firesOnceOnEpilogue)
         {
-            Disk2AddressMarkWatcher  watcher;
+            Disk2AddressMarkWatcher   watcher;
             RecordingSink             sink;
             std::vector<uint8_t>      stream;
 
@@ -275,7 +275,7 @@ namespace Disk2AddressMarkWatcherTests
 
         TEST_METHOD (DataMarkWithoutAddressMark_firesWithCachedSectorMinusOne)
         {
-            Disk2AddressMarkWatcher  watcher;
+            Disk2AddressMarkWatcher   watcher;
             RecordingSink             sink;
             std::vector<uint8_t>      stream;
 
@@ -297,7 +297,7 @@ namespace Disk2AddressMarkWatcherTests
 
         TEST_METHOD (InterleavedSectorCadence_firesInOrder)
         {
-            Disk2AddressMarkWatcher  watcher;
+            Disk2AddressMarkWatcher   watcher;
             RecordingSink             sink;
             std::vector<uint8_t>      stream;
 
@@ -359,10 +359,10 @@ namespace Disk2AddressMarkWatcherTests
 
         TEST_METHOD (EnginePollingLoop_firesExactlyOneAddressAndDataMark)
         {
-            Disk2AddressMarkWatcher  watcher;
+            Disk2AddressMarkWatcher   watcher;
             RecordingSink             sink;
             DiskImage                 img;
-            Disk2NibbleEngine        eng;
+            Disk2NibbleEngine         eng;
             std::vector<uint8_t>      stream;
             size_t                    bitOffset    = 0;
             size_t                    i            = 0;

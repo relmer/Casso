@@ -5,7 +5,7 @@
 #include "Window.h"
 #include "Disk2DebugDialogState.h"
 #include "DebugDialogProjection.h"
-#include "../CassoEmuCore/Devices/IDISK2EventSink.h"
+#include "../CassoEmuCore/Devices/IDisk2EventSink.h"
 #include "../CassoEmuCore/Devices/Disk2EventRing.h"
 #include "../CassoEmuCore/Audio/IDriveAudioEventSink.h"
 
@@ -17,7 +17,7 @@
 //
 //  Disk2DebugDialog
 //
-//  Spec-006 modeless debug window. Implements BOTH IDISK2EventSink
+//  Spec-006 modeless debug window. Implements BOTH IDisk2EventSink
 //  (the controller-side contract) and IDriveAudioEventSink (the
 //  audio-side contract). Each sink callback packs a Disk2Event POD
 //  and tries to push it onto m_ring; ring-full bumps
@@ -30,7 +30,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 class Disk2DebugDialog : public Window,
-                          public IDISK2EventSink,
+                          public IDisk2EventSink,
                           public IDriveAudioEventSink
 {
 public:
@@ -80,7 +80,7 @@ public:
         m_cycleCounter = counter;
     }
 
-    // IDISK2EventSink
+    // IDisk2EventSink
     void OnMotorCommandOn() override;
     void OnMotorEngaged() override;
     void OnMotorCommandOff() override;
@@ -198,9 +198,9 @@ private:
 
     HFONT                                   m_uiFont             = nullptr;
 
-    Disk2EventRing                         m_ring;
+    Disk2EventRing                          m_ring;
     std::atomic<uint32_t>                   m_droppedSinceLastDrain { 0 };
-    std::deque<Disk2EventDisplay>          m_deque;
+    std::deque<Disk2EventDisplay>           m_deque;
     std::vector<uint32_t>                   m_filteredIndices;
 
     FilterState                             m_filter;

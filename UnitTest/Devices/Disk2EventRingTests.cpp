@@ -69,7 +69,7 @@ namespace Disk2EventRingTests
 
         TEST_METHOD (PushFillsToCapacityThenRejects)
         {
-            Disk2EventRing  ring;
+            Disk2EventRing   ring;
             uint32_t         i    = 0;
 
             for (i = 0; i < Disk2EventRing::kEventRingCapacity; i++)
@@ -87,8 +87,8 @@ namespace Disk2EventRingTests
 
         TEST_METHOD (FifoOrderingOnFullCycle)
         {
-            Disk2EventRing  ring;
-            Disk2Event      out  {};
+            Disk2EventRing   ring;
+            Disk2Event       out  {};
             uint32_t         i    = 0;
 
             for (i = 0; i < Disk2EventRing::kEventRingCapacity; i++)
@@ -108,8 +108,8 @@ namespace Disk2EventRingTests
 
         TEST_METHOD (DrainEmptiesRing)
         {
-            Disk2EventRing  ring;
-            Disk2Event      buffer[32];
+            Disk2EventRing   ring;
+            Disk2Event       buffer[32];
             uint32_t         i      = 0;
             uint32_t         pulled = 0;
 
@@ -131,8 +131,8 @@ namespace Disk2EventRingTests
 
         TEST_METHOD (DrainCapsAtMaxCount)
         {
-            Disk2EventRing  ring;
-            Disk2Event      buffer[10];
+            Disk2EventRing   ring;
+            Disk2Event       buffer[10];
             uint32_t         i      = 0;
             uint32_t         pulled = 0;
 
@@ -157,8 +157,8 @@ namespace Disk2EventRingTests
             // Fill, partially drain, refill, fully drain -- exercises
             // the index-wrap behavior. The 32-bit counters increment
             // monotonically; the mask isolates the slot index.
-            Disk2EventRing  ring;
-            Disk2Event      out  {};
+            Disk2EventRing   ring;
+            Disk2Event       out  {};
             uint32_t         i    = 0;
 
             for (i = 0; i < Disk2EventRing::kEventRingCapacity; i++)
@@ -198,7 +198,7 @@ namespace Disk2EventRingTests
             // must correspond exactly to a producer-side failed
             // push (ring-full case) -- the counter of failed pushes
             // bounds the total gap size.
-            Disk2EventRing                 ring;
+            Disk2EventRing                  ring;
             std::atomic<bool>               consumerDone { false };
             std::atomic<uint32_t>           failedPushes { 0 };
             constexpr uint64_t              kTotal       = 100000;
@@ -220,7 +220,7 @@ namespace Disk2EventRingTests
             uint64_t      seen    = 0;
             uint64_t      lastVal = 0;
             bool          haveLast = false;
-            Disk2Event   out     {};
+            Disk2Event    out     {};
 
             while (seen < kTotal)
             {

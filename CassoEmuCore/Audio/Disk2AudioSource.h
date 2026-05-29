@@ -58,7 +58,7 @@ public:
     //   2. devicesDir/<mechanism>/<filename>.wav (per-mechanism)
     //   3. silent (FR-009)
     //
-    // `devicesDir` is the absolute path to `Devices/Disk2/`,
+    // `devicesDir` is the absolute path to `Devices/DiskII/`,
     // `mechanism` is L"Shugart" / L"Alps" (no path separators).
     HRESULT  LoadSamples (const wchar_t * devicesDir,
                           const wchar_t * mechanism,

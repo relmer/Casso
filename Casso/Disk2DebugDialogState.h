@@ -140,7 +140,7 @@ std::vector<VisibleColumnSpec> PlanVisibleColumns (
 // the widest cell), and reused internally by BuildClipboardText.
 void          AppendColumnText (
     std::wstring &                                   out,
-    const Disk2EventDisplay &                       e,
+    const Disk2EventDisplay &                        e,
     int                                              logicalId);
 
 std::wstring  BuildClipboardText (

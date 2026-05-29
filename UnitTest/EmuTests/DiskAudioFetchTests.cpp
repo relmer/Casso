@@ -227,7 +227,7 @@ public:
     //  LoadSamples_mechanismFallback_picksPerMechanismCopy
     //
     //  Verifies the FR-019 per-file precedence rule: with no override
-    //  at Devices/Disk2/, the per-mechanism subdir's copy is loaded
+    //  at Devices/DiskII/, the per-mechanism subdir's copy is loaded
     //  instead.
     //
     ////////////////////////////////////////////////////////////////////////

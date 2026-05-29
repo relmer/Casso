@@ -151,12 +151,12 @@ static bool MatchesAudioSubToggle (Disk2EventType type, const FilterState & f) n
 {
     switch (type)
     {
-        case Disk2EventType::AudioStarted:        return f.audioStarted;
-        case Disk2EventType::AudioRestarted:      return f.audioRestarted;
-        case Disk2EventType::AudioContinued:      return f.audioContinued;
-        case Disk2EventType::AudioSilent:         return f.audioSilent;
-        case Disk2EventType::AudioLoopStarted:    return true;
-        case Disk2EventType::AudioLoopStopped:    return true;
+        case Disk2EventType::AudioStarted:         return f.audioStarted;
+        case Disk2EventType::AudioRestarted:       return f.audioRestarted;
+        case Disk2EventType::AudioContinued:       return f.audioContinued;
+        case Disk2EventType::AudioSilent:          return f.audioSilent;
+        case Disk2EventType::AudioLoopStarted:     return true;
+        case Disk2EventType::AudioLoopStopped:     return true;
         default:                                   return true;
     }
 }

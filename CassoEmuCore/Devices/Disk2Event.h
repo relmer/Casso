@@ -91,7 +91,7 @@ enum class Disk2EventType : uint8_t
 //      offset 16 : payload union              (12 bytes max)
 //
 //  Spec-006 bug fix: `drive` is the controller's active-drive index
-//  at the moment the event fired, stamped by the IDISK2EventSink
+//  at the moment the event fired, stamped by the IDisk2EventSink
 //  implementation (which tracks DriveSelect transitions). It is the
 //  fall-through source for the Debug dialog's Drive column when the
 //  per-payload variant doesn't already carry one (motor, head step,
@@ -168,7 +168,7 @@ struct Disk2Event
     };
 
     EventCategory           category;
-    Disk2EventType         type;
+    Disk2EventType          type;
     int8_t                  drive;
     uint8_t                 reserved;
     uint32_t                reserved2;

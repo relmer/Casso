@@ -2,7 +2,7 @@
 
 #include "Disk2Controller.h"
 #include "Audio/IDriveAudioSink.h"
-#include "IDISK2EventSink.h"
+#include "IDisk2EventSink.h"
 #include "Core/Prng.h"
 
 
@@ -160,7 +160,7 @@ void Disk2Controller::HandleSwitch (int offset)
             // off->on edge so brief intra-sector toggles inside the
             // spindown window don't restart the motor sound. (Renamed
             // from OnMotorStart in spec-006 to align with the new
-            // four-event motor lifecycle on IDISK2EventSink.)
+            // four-event motor lifecycle on IDisk2EventSink.)
             //
             // Issue #67: on a true off->on edge (motor genuinely cold,
             // not just inside the spindown window), arm the spin-up
@@ -640,7 +640,7 @@ bool Disk2Controller::HasExternalDisk (int drive) const
 //
 //  NotifyDiskInserted / NotifyDiskEjected
 //
-//  Spec-006 bug 14b. Fires the IDISK2EventSink hooks without touching
+//  Spec-006 bug 14b. Fires the IDisk2EventSink hooks without touching
 //  controller state. Used by EmulatorShell on the DiskImageStore +
 //  SetExternalDisk hot path so the debug window still sees user-facing
 //  insert / eject events on disks mounted outside MountDisk.
@@ -791,7 +791,7 @@ unique_ptr<MemoryDevice> Disk2Controller::Create (const DeviceConfig & config, M
 //
 //  SetEventSink
 //
-//  Spec-006 FR-007: caller-owned IDISK2EventSink pointer (default
+//  Spec-006 FR-007: caller-owned IDisk2EventSink pointer (default
 //  nullptr). The controller never deletes it and never invokes
 //  anything on it from outside its own fire sites. Sink is also
 //  propagated to the embedded Disk2AddressMarkWatcher so the
@@ -804,7 +804,7 @@ unique_ptr<MemoryDevice> Disk2Controller::Create (const DeviceConfig & config, M
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2Controller::SetEventSink (IDISK2EventSink * sink) noexcept
+void Disk2Controller::SetEventSink (IDisk2EventSink * sink) noexcept
 {
     m_eventSink = sink;
     m_addrMarkWatcher.SetEventSink (sink);

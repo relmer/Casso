@@ -40,7 +40,7 @@ public:
     // per-machine `Machines/` and per-device `Devices/` subtrees. The
     // downloader places freshly fetched ROMs at
     // `<base>/Machines/<MachineName>/<RomName>` for machine-specific
-    // ROMs and `<base>/Devices/Disk2/<RomName>` for shared Disk II
+    // ROMs and `<base>/Devices/DiskII/<RomName>` for shared Disk II
     // controller ROMs.
     static fs::path GetAssetBaseDirectory();
 

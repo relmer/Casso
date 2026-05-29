@@ -31,7 +31,7 @@ public:
     TEST_METHOD (BitTimingMatches4uSPerBit)
     {
         DiskImage             img;
-        Disk2NibbleEngine    eng;
+        Disk2NibbleEngine     eng;
 
         img.ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
 
@@ -54,7 +54,7 @@ public:
     TEST_METHOD (ReadAdvancesPosition)
     {
         DiskImage             img;
-        Disk2NibbleEngine    eng;
+        Disk2NibbleEngine     eng;
 
         img.ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
 
@@ -70,7 +70,7 @@ public:
     TEST_METHOD (WriteAdvancesPositionAndMarksDirty)
     {
         DiskImage             img;
-        Disk2NibbleEngine    eng;
+        Disk2NibbleEngine     eng;
 
         img.ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
 
@@ -90,7 +90,7 @@ public:
     TEST_METHOD (MotorOffFreezesPosition)
     {
         DiskImage             img;
-        Disk2NibbleEngine    eng;
+        Disk2NibbleEngine     eng;
 
         img.ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
 
@@ -187,7 +187,7 @@ public:
 
     TEST_METHOD (ConsumeFreshNibble_returnsFalse_onFreshEngine)
     {
-        Disk2NibbleEngine    eng;
+        Disk2NibbleEngine     eng;
         uint8_t               out = 0xCC;
 
         Assert::IsFalse (eng.ConsumeFreshNibble (out),
@@ -203,7 +203,7 @@ public:
         // call without any further bit advancement must return
         // false (no new "byte ready" rising edge has occurred).
         DiskImage             img;
-        Disk2NibbleEngine    eng;
+        Disk2NibbleEngine     eng;
         uint8_t               out = 0;
 
         PrepareSingleByteStream (img, eng, 0xFF);
@@ -229,7 +229,7 @@ public:
         // ConsumeFreshNibble returns true exactly once, then
         // returns false until the NEXT assembly.
         DiskImage             img;
-        Disk2NibbleEngine    eng;
+        Disk2NibbleEngine     eng;
         uint8_t               out = 0;
 
         PrepareSingleByteStream (img, eng, 0xFF);
@@ -256,7 +256,7 @@ public:
         // MUST refuse those even though the fresh flag has not been
         // cleared yet by a prior consume.
         DiskImage             img;
-        Disk2NibbleEngine    eng;
+        Disk2NibbleEngine     eng;
         uint8_t               out = 0xCC;
 
         PrepareSingleByteStream (img, eng, 0xFF);
@@ -289,8 +289,8 @@ public:
         // CPU-visible byte.
         DiskImage             imgA;
         DiskImage             imgB;
-        Disk2NibbleEngine    engA;
-        Disk2NibbleEngine    engB;
+        Disk2NibbleEngine     engA;
+        Disk2NibbleEngine     engB;
         int                   i        = 0;
         uint8_t               sink     = 0;
 

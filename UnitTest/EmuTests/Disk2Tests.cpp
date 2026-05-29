@@ -162,7 +162,7 @@ public:
 
     TEST_METHOD (Q7SetQ6SetWritesNibble)
     {
-        unique_ptr<Disk2Controller>   disk      = make_unique<Disk2Controller> (6);
+        unique_ptr<Disk2Controller>    disk      = make_unique<Disk2Controller> (6);
         size_t                         bitOffset = 0;
 
         // Provide a writable track so the engine has somewhere to push bits.
@@ -215,7 +215,7 @@ public:
 
     TEST_METHOD (HeadStepWrapsAtTrackBoundaries)
     {
-        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+        unique_ptr<Disk2Controller>    disk = make_unique<Disk2Controller> (6);
         int                            i    = 0;
 
         disk->Read (kMotorOn);
@@ -239,7 +239,7 @@ public:
 
     TEST_METHOD (LSS_ReadsKnownNibblePattern)
     {
-        unique_ptr<Disk2Controller>   disk  = make_unique<Disk2Controller> (6);
+        unique_ptr<Disk2Controller>    disk  = make_unique<Disk2Controller> (6);
         DiskImage *                    img   = disk->GetDisk (0);
         size_t                         off   = 0;
         Byte                           value = 0;
@@ -277,7 +277,7 @@ public:
 
     TEST_METHOD (LSS_WritesPatternRoundTrip)
     {
-        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+        unique_ptr<Disk2Controller>    disk = make_unique<Disk2Controller> (6);
         DiskImage *                    img  = disk->GetDisk (0);
         int                            i    = 0;
 
@@ -363,7 +363,7 @@ public:
 
     TEST_METHOD (Spinup_ReadsReturnZerosInsideWindow)
     {
-        unique_ptr<Disk2Controller>   disk  = make_unique<Disk2Controller> (6);
+        unique_ptr<Disk2Controller>    disk  = make_unique<Disk2Controller> (6);
         DiskImage *                    img   = disk->GetDisk (0);
         size_t                         off   = 0;
         Byte                           value = 0;
@@ -398,7 +398,7 @@ public:
 
     TEST_METHOD (Spinup_RealDataAfterWindowExpires)
     {
-        unique_ptr<Disk2Controller>   disk  = make_unique<Disk2Controller> (6);
+        unique_ptr<Disk2Controller>    disk  = make_unique<Disk2Controller> (6);
         DiskImage *                    img   = disk->GetDisk (0);
         size_t                         off   = 0;
         Byte                           value = 0;

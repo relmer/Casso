@@ -343,7 +343,7 @@ static std::wstring FormatDetail (const Disk2Event & src)
 //  Drive index for the FR-014 filter projection and the Drive column.
 //  Spec-006 bug fix: every drive-specific event now carries its drive
 //  on the top-level Disk2Event.drive field (stamped by the dialog's
-//  IDISK2EventSink at fire time from the cached active drive). For
+//  IDisk2EventSink at fire time from the cached active drive). For
 //  event types that already carry an explicit drive in their payload
 //  (DriveSelect / DiskInserted / DiskEjected / audio outcomes), the
 //  payload value is authoritative and matches the top-level stamp.
@@ -432,7 +432,7 @@ std::wstring_view DebugDialogProjection::EventLabel (EventCategory cat, Disk2Eve
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugDialogProjection::FormatEvent (
-    const Disk2Event &                          src,
+    const Disk2Event &                           src,
     std::chrono::steady_clock::time_point        uptimeAnchor,
     Disk2EventDisplay &                         out)
 {
@@ -472,16 +472,16 @@ void DebugDialogProjection::FormatEvent (
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugDialogProjection::DrainAndProject (
-    Disk2EventRing &                            ring,
-    std::deque<Disk2EventDisplay> &             deque,
+    Disk2EventRing &                             ring,
+    std::deque<Disk2EventDisplay> &              deque,
     uint32_t                                     droppedCount,
     std::chrono::steady_clock::time_point        uptimeAnchor)
 {
-    Disk2Event             batch[kDrainBatchSize] = {};
+    Disk2Event              batch[kDrainBatchSize] = {};
     uint32_t                drained                = 0;
     uint32_t                i                      = 0;
-    Disk2EventDisplay      lostEntry;
-    Disk2Event             syntheticLost          = {};
+    Disk2EventDisplay       lostEntry;
+    Disk2Event              syntheticLost          = {};
 
     if (droppedCount > 0)
     {

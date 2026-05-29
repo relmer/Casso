@@ -52,7 +52,7 @@ struct RomSpec
     string_view  machineName;        // "Apple2"/"Apple2Plus"/... or "" for device-shared
     string_view  cassoName;
     string_view  appleWinName;
-    string_view  localRelDir;        // e.g. "Machines/Apple2e" or "Devices/Disk2"
+    string_view  localRelDir;        // e.g. "Machines/Apple2e" or "Devices/DiskII"
     size_t       expectedSize;
     string_view  description;
 };
@@ -71,8 +71,8 @@ static constexpr RomSpec s_kRomCatalog[] =
     { "Apple2e",          "Apple2e_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2e",           4096, "Apple //e Character Generator + MouseText" },
     { "Apple2eEnhanced",  "Apple2eEnhanced.rom",   "Apple2e_Enhanced.rom",       "Machines/Apple2eEnhanced",  16384, "Apple //e Enhanced ROM"                    },
     { "Apple2eEnhanced",  "Apple2e_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2eEnhanced",   4096, "Apple //e Character Generator + MouseText" },
-    { "",                 "Disk2.rom",             "DISK2.rom",                  "Devices/Disk2",              256, "Disk ][ Boot ROM (slot 6)"                 },
-    { "",                 "Disk2_13Sector.rom",    "DISK2-13sector.rom",         "Devices/Disk2",              256, "Disk ][ Boot ROM (13-sector)"              },
+    { "",                 "Disk2.rom",             "DISK2.rom",                  "Devices/DiskII",              256, "Disk ][ Boot ROM (slot 6)"                 },
+    { "",                 "Disk2_13Sector.rom",    "DISK2-13sector.rom",         "Devices/DiskII",              256, "Disk ][ Boot ROM (13-sector)"              },
 };
 
 

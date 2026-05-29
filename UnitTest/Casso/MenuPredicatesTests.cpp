@@ -33,7 +33,7 @@ namespace MenuPredicatesTests
 
 
 
-        TEST_METHOD (ShouldEnableDisk2DebugMenuItem_DISK2InSlot6_returnsTrue)
+        TEST_METHOD (ShouldEnableDisk2DebugMenuItem_Disk2InSlot6_returnsTrue)
         {
             MachineConfig  config;
             SlotConfig     slot6;

@@ -1,7 +1,7 @@
 #include "Pch.h"
 #include "Core/MemoryBus.h"
 #include "Devices/Disk2Controller.h"
-#include "Devices/IDISK2EventSink.h"
+#include "Devices/IDisk2EventSink.h"
 
 
 // Disk2Controller carries two DiskImage instances; per-test heap
@@ -30,7 +30,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace
 {
-    class RecordingEventSink : public IDISK2EventSink
+    class RecordingEventSink : public IDisk2EventSink
     {
     public:
         enum class Event
@@ -110,7 +110,7 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (MotorOnFirstStrobe_firesBothCommandOnAndEngaged)
         {
-            Disk2Controller     ctrl (6);
+            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
 
             ctrl.SetEventSink (&sink);
@@ -123,7 +123,7 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (MotorReStrobe_firesCommandOnButNotEngagedAgain)
         {
-            Disk2Controller     ctrl (6);
+            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
 
             ctrl.SetEventSink (&sink);
@@ -138,7 +138,7 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (MotorOffStrobe_firesCommandOff_butDisengagedOnlyAfterSpindown)
         {
-            Disk2Controller     ctrl (6);
+            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
 
             ctrl.SetEventSink (&sink);
@@ -159,7 +159,7 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (MotorOffRestrobe_alwaysFiresCommandOff_evenWhenMotorAlreadyOff)
         {
-            Disk2Controller     ctrl (6);
+            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
 
             ctrl.SetEventSink (&sink);
@@ -175,7 +175,7 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (PhaseChange_noMovement_firesNoHeadEvents)
         {
-            Disk2Controller     ctrl (6);
+            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
 
             ctrl.SetEventSink (&sink);
@@ -190,7 +190,7 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (PhaseChange_pastTrack0_firesHeadBumpNotHeadStep)
         {
-            Disk2Controller     ctrl (6);
+            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
 
             ctrl.SetEventSink (&sink);
@@ -206,7 +206,7 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (PhaseChange_oneQuarterStep_firesHeadStepWithPrevAndNewQt)
         {
-            Disk2Controller     ctrl (6);
+            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
             size_t               i = 0;
 
@@ -234,7 +234,7 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (DriveSelect_firesOnceWithNewDriveIndex)
         {
-            Disk2Controller     ctrl (6);
+            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
 
             ctrl.SetEventSink (&sink);
@@ -249,7 +249,7 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (EjectDisk_firesOnceWithDriveIndex)
         {
-            Disk2Controller     ctrl (6);
+            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
 
             ctrl.SetEventSink (&sink);
@@ -271,7 +271,7 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (NotifyDiskInserted_firesOnceWithDriveIndex)
         {
-            Disk2Controller     ctrl (6);
+            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
 
             ctrl.SetEventSink (&sink);
@@ -284,7 +284,7 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (NotifyDiskEjected_firesOnceWithDriveIndex)
         {
-            Disk2Controller     ctrl (6);
+            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
 
             ctrl.SetEventSink (&sink);
@@ -297,7 +297,7 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (NotifyDisk_invalidDrive_isNoop)
         {
-            Disk2Controller     ctrl (6);
+            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
 
             ctrl.SetEventSink (&sink);
@@ -322,7 +322,7 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (DetachedSink_firesNothing)
         {
-            Disk2Controller     ctrl (6);
+            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
 
             // Attach then immediately revoke -- subsequent activity
@@ -353,8 +353,8 @@ namespace Disk2ControllerEventTests
             // recording sink records but never consumes, so any
             // mutation of the controller's observable state from
             // event firing would diverge them immediately.
-            Disk2Controller     baseline (6);
-            Disk2Controller     observed (6);
+            Disk2Controller      baseline (6);
+            Disk2Controller      observed (6);
             RecordingEventSink   sink;
             const Word           phases[] = { 0xC0E3, 0xC0E5, 0xC0E7, 0xC0E1, 0xC0E3, 0xC0E5 };
             size_t               i        = 0;
@@ -389,8 +389,8 @@ namespace Disk2ControllerEventTests
             // path's return value with vs without a sink is
             // identical -- the watcher must inspect but not mutate
             // the latch byte.
-            Disk2Controller     baseline (6);
-            Disk2Controller     observed (6);
+            Disk2Controller      baseline (6);
+            Disk2Controller      observed (6);
             RecordingEventSink   sink;
             int                  i = 0;
 

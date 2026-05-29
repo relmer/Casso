@@ -123,7 +123,7 @@ namespace Disk2DebugDialogTests
 
         TEST_METHOD (MatchesFilter_eventsLost_alwaysShown_evenWithEverythingOff)
         {
-            Disk2EventDisplay  e;
+            Disk2EventDisplay   e;
             FilterState         f;
 
             e.type           = Disk2EventType::EventsLost;
@@ -138,7 +138,7 @@ namespace Disk2DebugDialogTests
 
         TEST_METHOD (MatchesFilter_motorEvent_categoryBitGates)
         {
-            Disk2EventDisplay  e;
+            Disk2EventDisplay   e;
             FilterState         f;
 
             e.type     = Disk2EventType::MotorEngaged;
@@ -154,8 +154,8 @@ namespace Disk2DebugDialogTests
 
         TEST_METHOD (MatchesFilter_audioMasterOff_hidesAllAudio)
         {
-            Disk2EventDisplay  loop;
-            Disk2EventDisplay  shot;
+            Disk2EventDisplay   loop;
+            Disk2EventDisplay   shot;
             FilterState         f;
 
             loop.type     = Disk2EventType::AudioLoopStarted;
@@ -173,8 +173,8 @@ namespace Disk2DebugDialogTests
 
         TEST_METHOD (MatchesFilter_audioSubToggleOnlyAffectsOneShots)
         {
-            Disk2EventDisplay  loopStart;
-            Disk2EventDisplay  started;
+            Disk2EventDisplay   loopStart;
+            Disk2EventDisplay   started;
             FilterState         f;
 
             loopStart.type      = Disk2EventType::AudioLoopStarted;
@@ -202,8 +202,8 @@ namespace Disk2DebugDialogTests
             // match only drive 1 events. The previous "events without
             // drive bypass the predicate" rule has been retired; only
             // synthetic EventsLost still always shows.
-            Disk2EventDisplay  d0;
-            Disk2EventDisplay  d1;
+            Disk2EventDisplay   d0;
+            Disk2EventDisplay   d1;
             FilterState         f;
 
             d0.type     = Disk2EventType::HeadStep;
@@ -234,7 +234,7 @@ namespace Disk2DebugDialogTests
 
         TEST_METHOD (MatchesFilter_driveRadio_eventWithoutDrive_rejected_unlessAll)
         {
-            Disk2EventDisplay  noDrive;
+            Disk2EventDisplay   noDrive;
             FilterState         f;
 
             noDrive.type     = Disk2EventType::HeadStep;

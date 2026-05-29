@@ -11,7 +11,7 @@
 
 
 class IDriveAudioSink;
-class IDISK2EventSink;
+class IDisk2EventSink;
 
 
 
@@ -78,7 +78,7 @@ public:
     // Spec-006 bug 14b. When EmulatorShell drives mount/eject through
     // DiskImageStore + SetExternalDisk (bypassing this class's own
     // MountDisk / EjectDisk), the controller's own load path never
-    // runs and the IDISK2EventSink never sees the user-facing
+    // runs and the IDisk2EventSink never sees the user-facing
     // insert/eject. These notify-only entrypoints let the shell fire
     // those events without re-routing the actual image bytes.
     void          NotifyDiskInserted (int drive);
@@ -98,7 +98,7 @@ public:
     // path, FR-007 / FR-020 / SC-007). Propagated to the embedded
     // Disk2AddressMarkWatcher so the watcher fires its own
     // address-mark / data-mark events through the same sink.
-    void          SetEventSink (IDISK2EventSink * sink) noexcept;
+    void          SetEventSink (IDisk2EventSink * sink) noexcept;
 
     // Cycle-driven advance. EmuCpu pumps cycles per Step.
     void   Tick (uint32_t cpuCycles);
@@ -154,10 +154,10 @@ private:
 
     DiskImage            m_disks[kDriveCount];
     DiskImage *          m_activeDisk[kDriveCount] = { nullptr, nullptr };
-    Disk2NibbleEngine   m_engine[kDriveCount];
+    Disk2NibbleEngine    m_engine[kDriveCount];
 
     IDriveAudioSink *    m_audioSink   = nullptr;
 
-    IDISK2EventSink *         m_eventSink       = nullptr;
+    IDisk2EventSink *         m_eventSink       = nullptr;
     Disk2AddressMarkWatcher   m_addrMarkWatcher;
 };
