@@ -356,11 +356,18 @@ void DialogLayout::BuildCustomBodyRect (LayoutState & s)
 
     if (s.hasCustomBody)
     {
+        long  minWPx = (s.metrics->customBodyOverridePx.cx > 0)
+                       ? s.metrics->customBodyOverridePx.cx
+                       : s.def->customBodyMinSizePx.cx;
+        long  minHPx = (s.metrics->customBodyOverridePx.cy > 0)
+                       ? s.metrics->customBodyOverridePx.cy
+                       : s.def->customBodyMinSizePx.cy;
+
         cbTopPx    = s.contentBottomPx + s.metrics->bodyButtonsGapPx;
         cbLeftPx   = s.metrics->outerPaddingPx;
-        cbWidthPx  = std::max ((float) s.def->customBodyMinSizePx.cx,
+        cbWidthPx  = std::max ((float) minWPx,
                                s.contentRightPx - cbLeftPx);
-        cbHeightPx = (float) s.def->customBodyMinSizePx.cy;
+        cbHeightPx = (float) minHPx;
 
         s.result->customBodyRectPx.left   = (LONG) cbLeftPx;
         s.result->customBodyRectPx.top    = (LONG) cbTopPx;

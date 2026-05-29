@@ -100,6 +100,11 @@ struct DialogDefinition
     // code to request that the dialog close with that value.
     std::function<void (DialogPaintContext &)>                          onPaintCustomBody;
     std::function<std::optional<int> (const DialogInputEvent &)>        onInputCustomBody;
+    // Optional measurement hook fired during layout, giving consumers
+    // access to a DwriteTextRenderer so they can size the custom body
+    // based on string metrics. Returning a non-zero SIZE overrides
+    // `customBodyMinSizePx` for that layout pass.
+    std::function<SIZE (DwriteTextRenderer &, float dpiScale)>          onMeasureCustomBody;
     SIZE                                               customBodyMinSizePx = {};
 
     // Optional hook fired when a button is activated (mouse, default,

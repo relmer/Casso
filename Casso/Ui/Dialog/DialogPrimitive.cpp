@@ -797,6 +797,12 @@ void DialogPrimitive::RecomputeLayout (UINT dpi)
         return w;
     };
 
+    if (m_def->onMeasureCustomBody)
+    {
+        SIZE measured = m_def->onMeasureCustomBody (measurer, dpiScale);
+        metrics.customBodyOverridePx = measured;
+    }
+
     m_layout = DialogLayout::Compute (*m_def, metrics);
 
 Error:

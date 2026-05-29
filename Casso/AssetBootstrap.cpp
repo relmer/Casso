@@ -1683,7 +1683,6 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr int  s_kBootMruBodyWidthDp  = 520;
-static constexpr int  s_kBootMruSourceColDp  = 200;
 
 HRESULT AssetBootstrap::PromptBootDiskMru (
     HINSTANCE                  hInstance,
@@ -1749,8 +1748,8 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
         std::vector<ListView::Column>            cols;
         std::vector<std::vector<ListView::Cell>> rows;
 
-        cols.push_back ({ L"Disk image", 0,                     DwriteTextRenderer::HAlign::Left });
-        cols.push_back ({ L"Location",   s_kBootMruSourceColDp, DwriteTextRenderer::HAlign::Left });
+        cols.push_back ({ L"Disk image", 0, false, DwriteTextRenderer::HAlign::Left });
+        cols.push_back ({ L"Location",   0, false, DwriteTextRenderer::HAlign::Left });
 
         rows.reserve ((size_t) rowCount);
 
@@ -1784,6 +1783,16 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     def.body.push_back ({ intro, false, L"" });
     def.customBodyMinSizePx.cx = MulDiv (s_kBootMruBodyWidthDp, (int) sysDpi, 96);
     def.customBodyMinSizePx.cy = list.RequiredHeightPx();
+
+    def.onMeasureCustomBody = [&list, sysDpi] (DwriteTextRenderer & text, float /*dpiScale*/) -> SIZE
+    {
+        list.SetDpi (sysDpi);
+        list.MeasureColumnsPx (text);
+        SIZE  sz {};
+        sz.cx = list.TotalMeasuredWidthPx();
+        sz.cy = list.RequiredHeightPx();
+        return sz;
+    };
 
     def.onPaintCustomBody = [&list] (DialogPaintContext & ctx)
     {

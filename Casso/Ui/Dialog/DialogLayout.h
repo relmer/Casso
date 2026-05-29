@@ -37,6 +37,7 @@ struct DialogLayoutMetrics
     float                                       minButtonWidthPx    = 72.0f;
     std::function<float (std::wstring_view)>    measureBodyTextRun;
     std::function<float (std::wstring_view)>    measureButtonLabel;
+    SIZE                                        customBodyOverridePx = {};   // when non-zero, overrides def.customBodyMinSizePx
 };
 
 

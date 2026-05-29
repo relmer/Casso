@@ -37,7 +37,8 @@ public:
     struct Column
     {
         std::wstring                  title;
-        int                           widthDp = 0;     // 0 = stretch
+        int                           widthDp = 0;     // 0 = auto-fit content (or stretch if stretch=true)
+        bool                          stretch = false; // when true, column absorbs any remaining width after fixed/auto
         DwriteTextRenderer::HAlign    align   = DwriteTextRenderer::HAlign::Left;
     };
 
@@ -54,11 +55,68 @@ public:
     void  SetShowHeader   (bool b)                         { m_showHeader = b; }
     void  SetHoveredRow   (int row)                        { m_hovered = row; }
 
-    void  SetColumns      (std::vector<Column> cols)       { m_columns = std::move (cols); }
-    void  SetRows         (std::vector<std::vector<Cell>> rows) { m_rows = std::move (rows); }
+    void  SetColumns      (std::vector<Column> cols)       { m_columns = std::move (cols); m_measuredWPx.clear(); }
+    void  SetRows         (std::vector<std::vector<Cell>> rows) { m_rows = std::move (rows); m_measuredWPx.clear(); }
 
     int   HoveredRow      () const                         { return m_hovered; }
     int   RowCount        () const                         { return (int) m_rows.size(); }
+
+    // Measure each column's natural width from its header + cell text.
+    // Caller invokes this once after SetColumns/SetRows to populate
+    // auto-fit widths. The widget then uses these for layout and the
+    // caller can read TotalMeasuredWidthPx() to size the host dialog.
+    void  MeasureColumnsPx (DwriteTextRenderer & text)
+    {
+        HRESULT  hr        = S_OK;
+        float    fontDip   = (float) m_scaler.Pxf (s_kFontDp);
+        float    hdrDip    = (float) m_scaler.Pxf (s_kHeaderFontDp);
+        int      padPx     = m_scaler.Px (s_kCellPadLeftDp) + m_scaler.Px (s_kCellPadRightDp);
+        float    w         = 0.0f;
+        float    h         = 0.0f;
+
+        m_measuredWPx.assign (m_columns.size(), 0);
+
+        for (size_t c = 0; c < m_columns.size(); ++c)
+        {
+            int wpx = 0;
+
+            if (m_showHeader && !m_columns[c].title.empty())
+            {
+                IGNORE_RETURN_VALUE (hr, text.MeasureString (m_columns[c].title.c_str(),
+                                                             hdrDip, L"Segoe UI", w, h));
+                wpx = std::max (wpx, (int) std::ceil (w));
+            }
+
+            for (const auto & row : m_rows)
+            {
+                if (c < row.size() && !row[c].text.empty())
+                {
+                    IGNORE_RETURN_VALUE (hr, text.MeasureString (row[c].text.c_str(),
+                                                                 fontDip, L"Segoe UI", w, h));
+                    wpx = std::max (wpx, (int) std::ceil (w));
+                }
+            }
+
+            m_measuredWPx[c] = wpx + padPx;
+        }
+    }
+
+    int   TotalMeasuredWidthPx () const
+    {
+        int sum = 0;
+        for (size_t c = 0; c < m_columns.size(); ++c)
+        {
+            if (m_columns[c].widthDp > 0)
+            {
+                sum += m_scaler.Px (m_columns[c].widthDp);
+            }
+            else if (c < m_measuredWPx.size())
+            {
+                sum += m_measuredWPx[c];
+            }
+        }
+        return sum;
+    }
 
     // Body-height required to host the current header + rows at the
     // current DPI. Caller uses this to size customBodyMinSizePx.
@@ -186,11 +244,11 @@ public:
     }
 
 private:
-    static constexpr int  s_kRowHeightDp     = 32;
-    static constexpr int  s_kHeaderHeightDp  = 28;
-    static constexpr int  s_kHeaderGapDp     = 2;
-    static constexpr int  s_kCellPadLeftDp   = 10;
-    static constexpr int  s_kCellPadRightDp  = 10;
+    static constexpr int  s_kRowHeightDp     = 36;
+    static constexpr int  s_kHeaderHeightDp  = 30;
+    static constexpr int  s_kHeaderGapDp     = 4;
+    static constexpr int  s_kCellPadLeftDp   = 12;
+    static constexpr int  s_kCellPadRightDp  = 16;
     static constexpr float s_kFontDp         = 14.0f;
     static constexpr float s_kHeaderFontDp   = 13.0f;
 
@@ -204,16 +262,24 @@ private:
 
         for (size_t c = 0; c < m_columns.size(); ++c)
         {
-            if (m_columns[c].widthDp <= 0 && stretchIdx == -1)
+            if (m_columns[c].stretch && stretchIdx == -1)
             {
                 stretchIdx = (int) c;
+                continue;
             }
-            else
+
+            int wpx = 0;
+            if (m_columns[c].widthDp > 0)
             {
-                int wpx = m_scaler.Px (std::max (m_columns[c].widthDp, 1));
-                ws[c]   = wpx;
-                fixedTotal += wpx;
+                wpx = m_scaler.Px (m_columns[c].widthDp);
             }
+            else if (c < m_measuredWPx.size())
+            {
+                wpx = m_measuredWPx[c];
+            }
+
+            ws[c]       = wpx;
+            fixedTotal += wpx;
         }
 
         if (stretchIdx >= 0)
@@ -236,6 +302,7 @@ private:
     const ChromeTheme               * m_theme      = nullptr;
     std::vector<Column>               m_columns;
     std::vector<std::vector<Cell>>    m_rows;
+    std::vector<int>                  m_measuredWPx;
     DpiScaler                         m_scaler;
     int                               m_hovered    = -1;
     bool                              m_showHeader = false;
