@@ -126,6 +126,7 @@ private:
 
     HRESULT CreateChildControls (HWND hwnd);
     void    LayoutChildControls (int width, int height);
+    void    ApplyDarkThemeToChildren();
     void    RebuildListViewColumns();
     int     MeasureColumnContentWidth (int logicalId, size_t startIdx) const;
     void    SizeDetailColumnToRemainder();
@@ -197,6 +198,11 @@ private:
     HWND                                    m_clearButton        = nullptr;
 
     HFONT                                   m_uiFont             = nullptr;
+    HBRUSH                                  m_hbrCtrl            = nullptr;
+
+    static constexpr COLORREF               s_kBgColor    = RGB (0x14, 0x14, 0x14);
+    static constexpr COLORREF               s_kTextColor  = RGB (0xE6, 0xE2, 0xD8);
+    static constexpr COLORREF               s_kErrorColor = RGB (0xFF, 0x6B, 0x6B);
 
     DiskIIEventRing                         m_ring;
     std::atomic<uint32_t>                   m_droppedSinceLastDrain { 0 };

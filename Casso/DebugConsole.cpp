@@ -2,6 +2,8 @@
 
 #include "DebugConsole.h"
 
+#include "Ui/Win11DwmHelpers.h"
+
 
 
 
@@ -28,6 +30,38 @@ DebugConsole::DebugConsole ()
 
 DebugConsole::~DebugConsole ()
 {
+    ReleaseGdiObjects();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseGdiObjects
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugConsole::ReleaseGdiObjects ()
+{
+    if (m_hbrText != nullptr)
+    {
+        DeleteObject (m_hbrText);
+        m_hbrText = nullptr;
+    }
+
+    if (m_hFont != nullptr)
+    {
+        DeleteObject (m_hFont);
+        m_hFont = nullptr;
+    }
+
+    if (m_hbrBackground != nullptr)
+    {
+        DeleteObject (m_hbrBackground);
+        m_hbrBackground = nullptr;
+    }
 }
 
 
@@ -45,7 +79,6 @@ LRESULT DebugConsole::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
     HRESULT hr       = S_OK;
     UINT    dpi      = 0;
     int     fontSize = 0;
-    HFONT   hFont    = nullptr;
 
 
 
@@ -54,9 +87,12 @@ LRESULT DebugConsole::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
 
     fontSize = MulDiv (16, dpi, 96);
 
+    Win11DwmHelpers::ApplyImmersiveDarkMode (hwnd, true);
 
+    m_hbrText = CreateSolidBrush (s_kBgColor);
+    CWRA (m_hbrText);
 
-    m_editCtrl = CreateWindowEx (WS_EX_CLIENTEDGE,
+    m_editCtrl = CreateWindowEx (0,
                                  L"EDIT",
                                  L"",
                                  WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
@@ -67,24 +103,49 @@ LRESULT DebugConsole::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
                                  nullptr);
     CWRA (m_editCtrl);
 
-    hFont = CreateFont (fontSize, 0,
-                        0, 0,
-                        FW_NORMAL,
-                        FALSE,
-                        FALSE,
-                        FALSE,
-                        DEFAULT_CHARSET,
-                        OUT_DEFAULT_PRECIS,
-                        CLIP_DEFAULT_PRECIS,
-                        DEFAULT_QUALITY,
-                        FIXED_PITCH | FF_MODERN,
-                        L"Consolas");
-    CWRA (hFont);
+    SetWindowTheme (m_editCtrl, L"DarkMode_Explorer", nullptr);
 
-    SendMessage (m_editCtrl, WM_SETFONT, (WPARAM) hFont, TRUE);
+    m_hFont = CreateFont (fontSize, 0,
+                          0, 0,
+                          FW_NORMAL,
+                          FALSE,
+                          FALSE,
+                          FALSE,
+                          DEFAULT_CHARSET,
+                          OUT_DEFAULT_PRECIS,
+                          CLIP_DEFAULT_PRECIS,
+                          DEFAULT_QUALITY,
+                          FIXED_PITCH | FF_MODERN,
+                          L"Consolas");
+    CWRA (m_hFont);
+
+    SendMessage (m_editCtrl, WM_SETFONT, (WPARAM) m_hFont, TRUE);
 
 Error:
     return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnCtlColorStatic
+//
+//  Read-only EDIT controls send WM_CTLCOLORSTATIC; theme the text and
+//  background to match the rest of the chrome.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HBRUSH DebugConsole::OnCtlColorStatic (HWND hwndDlg, HDC hdc, HWND hwndStatic)
+{
+    UNREFERENCED_PARAMETER (hwndDlg);
+    UNREFERENCED_PARAMETER (hwndStatic);
+
+    SetTextColor (hdc, s_kTextColor);
+    SetBkColor   (hdc, s_kBgColor);
+    return m_hbrText;
 }
 
 
@@ -175,7 +236,8 @@ HRESULT DebugConsole::InitializeConsole (HINSTANCE hInstance)
 
 
     m_kpszWndClass  = L"CassoDebugConsole";
-    m_hbrBackground = reinterpret_cast<HBRUSH> (COLOR_WINDOW + 1);
+    m_hbrBackground = CreateSolidBrush (s_kBgColor);
+    CWRA (m_hbrBackground);
 
     hr = Window::Initialize (hInstance);
     CHR (hr);

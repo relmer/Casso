@@ -3,6 +3,7 @@
 #include "DiskIIDebugDialog.h"
 #include "RichEditSquiggle.h"
 #include "Ehm.h"
+#include "Ui/Win11DwmHelpers.h"
 
 
 
@@ -134,7 +135,8 @@ static void EnsureMsftEditLoaded()
 DiskIIDebugDialog::DiskIIDebugDialog()
 {
     m_kpszWndClass  = s_kpszDebugWndClass;
-    m_hbrBackground = reinterpret_cast<HBRUSH> (COLOR_BTNFACE + 1);
+    m_hbrBackground = CreateSolidBrush (s_kBgColor);
+    m_hbrCtrl       = CreateSolidBrush (s_kBgColor);
     m_uptimeAnchor  = std::chrono::steady_clock::now();
 
     SeedDefaultColumns (m_columns);
@@ -273,6 +275,18 @@ void DiskIIDebugDialog::Destroy()
         DeleteObject (m_uiFont);
         m_uiFont = nullptr;
     }
+
+    if (m_hbrCtrl != nullptr)
+    {
+        DeleteObject (m_hbrCtrl);
+        m_hbrCtrl = nullptr;
+    }
+
+    if (m_hbrBackground != nullptr)
+    {
+        DeleteObject (m_hbrBackground);
+        m_hbrBackground = nullptr;
+    }
 }
 
 
@@ -332,8 +346,12 @@ LRESULT DiskIIDebugDialog::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
 
     m_hwnd = hwnd;
 
+    Win11DwmHelpers::ApplyImmersiveDarkMode (hwnd, true);
+
     hr = CreateChildControls (hwnd);
     CHR (hr);
+
+    ApplyDarkThemeToChildren();
 
     RebuildListViewColumns();
 
@@ -347,6 +365,52 @@ LRESULT DiskIIDebugDialog::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
 
 Error:
     return SUCCEEDED (hr) ? 0 : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyDarkThemeToChildren
+//
+//  Walks every immediate child of the dialog and applies the
+//  DarkMode_Explorer visual style. Also configures the virtual-mode
+//  ListView's background/text colors so its viewport matches the
+//  surrounding chrome.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugDialog::ApplyDarkThemeToChildren()
+{
+    HWND child = nullptr;
+
+    if (m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    child = GetWindow (m_hwnd, GW_CHILD);
+
+    while (child != nullptr)
+    {
+        SetWindowTheme (child, L"DarkMode_Explorer", nullptr);
+        child = GetWindow (child, GW_HWNDNEXT);
+    }
+
+    if (m_listView != nullptr)
+    {
+        ListView_SetBkColor       (m_listView, s_kBgColor);
+        ListView_SetTextBkColor   (m_listView, s_kBgColor);
+        ListView_SetTextColor     (m_listView, s_kTextColor);
+
+        HWND header = ListView_GetHeader (m_listView);
+        if (header != nullptr)
+        {
+            SetWindowTheme (header, L"ItemsView", nullptr);
+        }
+    }
 }
 
 
@@ -1939,12 +2003,14 @@ HBRUSH DiskIIDebugDialog::OnCtlColorStatic (HWND hwndDlg, HDC hdc, HWND hwndStat
 
     if (hwndStatic == m_trackInvalidLabel || hwndStatic == m_sectorInvalidLabel)
     {
-        SetTextColor (hdc, RGB (200, 0, 0));
-        SetBkMode    (hdc, TRANSPARENT);
-        return GetSysColorBrush (COLOR_BTNFACE);
+        SetTextColor (hdc, s_kErrorColor);
+        SetBkColor   (hdc, s_kBgColor);
+        return m_hbrCtrl;
     }
 
-    return nullptr;
+    SetTextColor (hdc, s_kTextColor);
+    SetBkColor   (hdc, s_kBgColor);
+    return m_hbrCtrl;
 }
 
 
