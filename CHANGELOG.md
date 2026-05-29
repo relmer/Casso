@@ -8,6 +8,12 @@ Entries before versioning was introduced use dates only.
 
 ## [1.4.1260] — Drive widget interaction + disk persistence fix
 
+### Changed
+- **perf(chrome): snappier drive-widget click-to-dialog.** The post-door-open
+  linger before the file picker appears dropped from 600ms to 0ms (total
+  delay now matches the door animation, ~350ms). Door animation still
+  completes before the dialog covers the drive.
+
 ### Added
 - **feat(chrome): drive widgets are now interactive.** Clicking a
   drive's body or eject button opens the door, presents a file picker,
