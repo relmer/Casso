@@ -333,6 +333,74 @@ public:
             L"Write through the LSS must mark the image dirty");
     }
 
+    ////////////////////////////////////////////////////////////////////////////////
+    //  Issue #67 deliverable 3: bit-level write round-trip via Q6/Q7
+    //
+    //  Copy-protected disks rely on writing nibbles with non-standard sync
+    //  timing -- e.g. an 11-bit sync (8 ones + 3 zeros) instead of the
+    //  10-bit standard. The LSS write path must preserve the exact bit
+    //  pattern on the in-memory track image, not collapse extra zeros
+    //  into a fixed byte boundary. This test writes 0xFF + 3 zero bits +
+    //  0xD5 through the controller's Q7=1+Q6=1 write path and verifies
+    //  every bit landed at the right offset.
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (LSS_NonStandardSyncRoundTripsBitPattern)
+    {
+        unique_ptr<Disk2Controller>    disk      = make_unique<Disk2Controller> (6);
+        DiskImage *                    img       = disk->GetDisk (0);
+        size_t                         startBit  = 0;
+        size_t                         trackBits = 4096;
+        int                            i         = 0;
+        // 0xFF (8 ones) + 3 extra zero bits + 0xD5 (1,1,0,1,0,1,0,1) = 19 bits.
+        constexpr int                  kExpectLen = 19;
+        constexpr uint8_t              kExpected[kExpectLen] = {
+            1, 1, 1, 1, 1, 1, 1, 1,
+            0, 0, 0,
+            1, 1, 0, 1, 0, 1, 0, 1
+        };
+
+        img->ResizeTrack (0, trackBits);
+
+        disk->Read (kMotorOn);
+        disk->Tick (Disk2Controller::kMotorSpinupCycles);
+
+        // Enter LSS write mode: Q6=1 then Q7=1, then capture the bit
+        // cursor so we know exactly where the LSS will deposit bits.
+        disk->Read (kQ6On);
+        disk->Read (kQ7On);
+        startBit = disk->GetEngine (0).GetBitPosition ();
+
+        // Write 0xFF -> 8 cells -> 8 ones.
+        disk->Write (kQ7On, 0xFF);
+        for (i = 0; i < 8; i++)
+        {
+            disk->Tick (Disk2NibbleEngine::kCyclesPerBit);
+        }
+
+        // Latch is now 0x00 (shifted out). Tick 3 more cells for the
+        // non-standard sync's extra zeros.
+        for (i = 0; i < 3; i++)
+        {
+            disk->Tick (Disk2NibbleEngine::kCyclesPerBit);
+        }
+
+        // Reload latch with 0xD5 and write its 8 bits.
+        disk->Write (kQ7On, 0xD5);
+        for (i = 0; i < 8; i++)
+        {
+            disk->Tick (Disk2NibbleEngine::kCyclesPerBit);
+        }
+
+        for (i = 0; i < kExpectLen; i++)
+        {
+            uint8_t   actual = img->ReadBit (0, (startBit + i) % trackBits);
+
+            Assert::AreEqual (kExpected[i], actual,
+                L"LSS write must preserve the exact bit pattern, including non-standard sync zeros");
+        }
+    }
+
     TEST_METHOD (Reset_ClearsControllerState)
     {
         unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
