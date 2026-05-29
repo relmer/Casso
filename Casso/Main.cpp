@@ -224,6 +224,7 @@ static HRESULT LoadMachineConfig (
             DiskMru                mru;
             vector<fs::path>       mruExisting;
             HRESULT                hrPrefs    = S_OK;
+            bool                   userClosed = false;
 
             diskDir = AssetBootstrap::GetDiskDirectory();
 
@@ -234,10 +235,16 @@ static HRESULT LoadMachineConfig (
             mruExisting = mru.Prune ([] (const fs::path & p) { return fs::exists (p); });
 
             hr = AssetBootstrap::PromptBootDiskMru (
-                hInstance, hwndParent, machineName, mruExisting, diskDir, downloaded, error);
+                hInstance, hwndParent, machineName, mruExisting, diskDir, downloaded, userClosed, error);
 
             CHRN (hr, format (L"Boot disk download failed:\n{}",
                               wstring (error.begin(), error.end())).c_str());
+
+            if (userClosed)
+            {
+                hr = S_FALSE;
+                goto Error;
+            }
 
             if (!downloaded.empty())
             {

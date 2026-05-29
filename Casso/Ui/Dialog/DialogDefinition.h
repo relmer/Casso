@@ -122,4 +122,9 @@ struct DialogDefinition
     // primitive guarantees this fires only on the UI thread.
     std::function<void (class DialogPrimitive &)>                       onTick;
     unsigned int                                       tickIntervalMs   = 0;
+
+    // When set, WM_CLOSE (title-bar X, Alt+F4) returns this result
+    // code instead of clicking the cancel button. Use to distinguish
+    // "user closed the window" from "user clicked Cancel/Skip".
+    std::optional<int>                                 closeBoxResult;
 };

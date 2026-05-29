@@ -130,6 +130,7 @@ public:
                                            const vector<fs::path> & mruEntries,
                                            const fs::path         & diskDir,
                                            wstring                & outDiskPath,
+                                           bool                   & outUserClosed,
                                            string                 & outError);
 
     // Unified startup downloader. Inspects the current install for

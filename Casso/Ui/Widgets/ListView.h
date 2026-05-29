@@ -251,7 +251,7 @@ private:
     static constexpr int  s_kHeaderGapDp     = 2;
     static constexpr int  s_kCellPadLeftDp   = 12;
     static constexpr int  s_kCellPadRightDp  = 16;
-    static constexpr float s_kFontDp         = 14.0f;
+    static constexpr float s_kFontDp         = 13.0f;
     static constexpr float s_kHeaderFontDp   = 13.0f;
 
     void  ComputeColumnLayout (float fullW, std::vector<int> & xs, std::vector<int> & ws) const

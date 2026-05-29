@@ -661,6 +661,12 @@ void DialogPrimitive::OnMouse (UINT message, WPARAM wParam, LPARAM lParam)
 
 void DialogPrimitive::OnClose()
 {
+    if (m_def != nullptr && m_def->closeBoxResult.has_value())
+    {
+        Close (m_def->closeBoxResult.value());
+        return;
+    }
+
     ActivateCancelButton();
 }
 

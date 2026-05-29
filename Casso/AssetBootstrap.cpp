@@ -1691,9 +1691,12 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     const vector<fs::path>   & mruEntries,
     const fs::path           & diskDir,
     wstring                  & outDiskPath,
+    bool                     & outUserClosed,
     string                   & outError)
 {
     struct DownloadRow { const BootDiskSpec * spec; wstring label; };
+
+    static constexpr int s_kCloseBoxResult = -1000;
 
     HRESULT             hr            = S_OK;
     bool                hasDisk       = false;
@@ -1825,10 +1828,15 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     };
 
     def.buttons.push_back ({ L"Skip", IDCANCEL, true, true });
+    def.closeBoxResult = s_kCloseBoxResult;
 
     chosen = ShowStandaloneDialog (hInstance, hwndParent, def);
 
-    if (chosen >= 0 && chosen < mruCount)
+    if (chosen == s_kCloseBoxResult)
+    {
+        outUserClosed = true;
+    }
+    else if (chosen >= 0 && chosen < mruCount)
     {
         outDiskPath = mruEntries[(size_t) chosen].wstring();
     }
