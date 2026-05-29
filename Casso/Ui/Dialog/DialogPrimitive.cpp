@@ -352,6 +352,14 @@ LRESULT DialogPrimitive::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM
             result = DefWindowProcW (hwnd, message, wParam, lParam);
             break;
 
+        case WM_TIMER:
+            if (m_def != nullptr && m_def->onTick)
+            {
+                m_def->onTick (*this);
+            }
+            result = 0;
+            break;
+
         default:
             result = DefWindowProcW (hwnd, message, wParam, lParam);
             break;
@@ -397,6 +405,11 @@ HRESULT DialogPrimitive::OnCreate (HWND hwnd)
                                 dpi);
     CHRA (hr);
 
+    if (m_def != nullptr && m_def->tickIntervalMs > 0)
+    {
+        SetTimer (m_hwnd, 1, m_def->tickIntervalMs, nullptr);
+    }
+
 Error:
     return hr;
 }
@@ -412,6 +425,11 @@ Error:
 
 void DialogPrimitive::OnDestroy()
 {
+    if (m_hwnd != nullptr)
+    {
+        KillTimer (m_hwnd, 1);
+    }
+
     m_renderer.Shutdown();
     m_hwnd = nullptr;
 }
@@ -825,16 +843,116 @@ Error:
 
 void DialogPrimitive::ActivateButton (size_t idx)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr           = S_OK;
+    bool     shouldClose  = true;
+    int      resultCode   = 0;
 
 
 
     CBR (idx < m_def->buttons.size());
 
-    Close (m_def->buttons[idx].resultCode);
+    if (idx < m_buttons.size() && (!m_buttons[idx].Enabled() || !m_buttons[idx].Visible()))
+    {
+        return;
+    }
+
+    resultCode = m_def->buttons[idx].resultCode;
+
+    if (m_def->onButtonActivated)
+    {
+        shouldClose = m_def->onButtonActivated (idx, *this);
+    }
+
+    if (shouldClose)
+    {
+        Close (resultCode);
+    }
 
 Error:
     return;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetButtonLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogPrimitive::SetButtonLabel (size_t idx, const std::wstring & label)
+{
+    if (idx < m_buttons.size())
+    {
+        m_buttons[idx].SetLabel (label);
+        Repaint();
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetButtonEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogPrimitive::SetButtonEnabled (size_t idx, bool enabled)
+{
+    if (idx < m_buttons.size())
+    {
+        m_buttons[idx].SetEnabled (enabled);
+
+        if (!enabled && m_focusedButton == idx)
+        {
+            CycleFocus (1);
+        }
+
+        Repaint();
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetButtonVisible
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogPrimitive::SetButtonVisible (size_t idx, bool visible)
+{
+    if (idx < m_buttons.size())
+    {
+        m_buttons[idx].SetVisible (visible);
+
+        if (!visible && m_focusedButton == idx)
+        {
+            CycleFocus (1);
+        }
+
+        Repaint();
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Repaint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogPrimitive::Repaint ()
+{
+    if (m_hwnd != nullptr)
+    {
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+    }
 }
 
 
@@ -930,6 +1048,24 @@ void DialogPrimitive::CycleFocus (int delta)
     else
     {
         next = (cur == 0) ? (total - 1) : (cur - 1);
+    }
+
+    // Skip past hidden/disabled buttons. Bail after `total` attempts
+    // so we don't spin if nothing in the cycle is focusable.
+    for (size_t guard = 0; guard < total; guard++)
+    {
+        if (next >= buttonN)
+        {
+            break;
+        }
+
+        if (m_buttons[next].Visible() && m_buttons[next].Enabled())
+        {
+            break;
+        }
+
+        next = (delta > 0) ? ((next + 1) % total)
+                           : (next == 0 ? total - 1 : next - 1);
     }
 
     if (m_focusedButton < buttonN)

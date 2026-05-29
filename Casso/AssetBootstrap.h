@@ -97,7 +97,9 @@ public:
                                             LPCWSTR                  urlPath,
                                             uint32_t                 targetSampleRate,
                                             vector<float>          & outPcm,
-                                            string                 & outError);
+                                            string                 & outError,
+                                            std::atomic<std::uint64_t> * progressBytes  = nullptr,
+                                            std::atomic<bool>          * cancelRequested = nullptr);
 
     // Write `pcm` as a 16-bit PCM mono WAV file to `outPath`. Clips
     // out-of-range samples to int16 (drive noise stays well inside
@@ -125,4 +127,30 @@ public:
                                            HWND                     hwndParent,
                                            const wstring          & displayName,
                                            const vector<fs::path> & mruEntries);
+
+    // Unified startup downloader. Inspects the current install for
+    // every required-or-optional asset that's missing (ROMs from the
+    // catalog, Disk II drive audio per mechanism) and presents a
+    // SINGLE themed dialog letting the user accept or decline the
+    // download in one decision. Downloads run on a worker thread with
+    // live per-asset progress; the user can Exit at any point and
+    // partial files are removed before this returns.
+    //
+    // Returns:
+    //   S_OK       -> everything required is present (some optional
+    //                 items may have failed or been skipped)
+    //   S_FALSE    -> user chose Exit
+    //   <0 HRESULT -> hard failure
+    //
+    // `prefs.audioDownloadConsent` is read AND updated to reflect the
+    // user's choice (allow / decline). The caller is responsible for
+    // flushing prefs to disk after this returns.
+    static HRESULT  RunStartupDownloader  (HINSTANCE                hInstance,
+                                           const wstring          & machineName,
+                                           HWND                     hwndParent,
+                                           const vector<fs::path> & romSearchPaths,
+                                           const fs::path         & assetBaseDir,
+                                           bool                     considerDiskAudio,
+                                           struct GlobalUserPrefs & prefs,
+                                           string                 & outError);
 };

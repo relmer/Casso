@@ -1,0 +1,90 @@
+#pragma once
+
+#include "Pch.h"
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartupDownloadDialog
+//
+//  Single themed DX dialog that downloads every asset Casso needs to
+//  boot (missing ROMs, optional Disk II drive audio, ...) in one
+//  unified user experience. The caller assembles a `StartupDownloadSet`
+//  describing each missing asset and a closure that knows how to fetch
+//  it; the dialog drives the downloads on a worker thread, paints live
+//  per-asset progress, and lets the user Exit cleanly (cancelling any
+//  in-flight work and removing partial files) at any point.
+//
+//  Button policy:
+//    * If any ROM is missing  -> [Download] [Exit]      (no Skip; can't boot
+//                                                        without ROMs)
+//    * Otherwise              -> [Download] [Skip] [Exit]
+//
+//  After the user clicks Download, the Download button is relabelled
+//  "Downloading..." and disabled, the Skip button is hidden, and Exit
+//  remains active. Exit cancels in-flight downloads, deletes any
+//  partial files, and returns `Exit`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+
+
+enum class StartupAssetKind
+{
+    Rom,
+    DriveAudio
+};
+
+
+
+struct StartupAssetEntry
+{
+    StartupAssetKind        kind          = StartupAssetKind::Rom;
+    std::wstring            displayName;        // e.g. "Apple ][e ROM"
+    std::wstring            kindLabel;          // e.g. "ROM" / "Drive audio"
+    std::filesystem::path   destPath;           // primary file produced (for cleanup)
+    std::uint64_t           expectedBytes = 0;  // 0 = unknown
+
+    // Performs the entire fetch (HTTP + decode + write). MUST update
+    // `bytesDone` as bytes are received and MUST check `cancel`
+    // between chunks; on cancel, return E_ABORT and leave any partial
+    // file on disk -- the dialog removes it after worker join. On
+    // failure, fill `outError` with a short user-facing message.
+    std::function<HRESULT (
+        std::atomic<std::uint64_t> & bytesDone,
+        std::atomic<bool>          & cancel,
+        std::string                & outError)>  downloadFn;
+};
+
+
+
+struct StartupDownloadSet
+{
+    std::vector<StartupAssetEntry>  entries;
+
+    bool  Empty        () const { return entries.empty(); }
+    bool  RequiresRoms () const;
+};
+
+
+
+enum class StartupDownloadResult
+{
+    NothingToDo,
+    AllDone,
+    PartialDone,
+    Skipped,
+    Exit
+};
+
+
+
+class StartupDownloadDialog
+{
+public:
+    static StartupDownloadResult  Show (HINSTANCE                hInstance,
+                                        HWND                     hwndOwner,
+                                        StartupDownloadSet     & set);
+};

@@ -101,4 +101,20 @@ struct DialogDefinition
     std::function<void (DialogPaintContext &)>                          onPaintCustomBody;
     std::function<std::optional<int> (const DialogInputEvent &)>        onInputCustomBody;
     SIZE                                               customBodyMinSizePx = {};
+
+    // Optional hook fired when a button is activated (mouse, default,
+    // cancel). Receives the button index. Return true to close the
+    // dialog with that button's resultCode; return false to keep the
+    // dialog open (e.g. to start an async operation in-place). The
+    // primitive passes its own `this` so the hook can call
+    // SetButtonLabel / SetButtonEnabled / SetButtonVisible / Repaint
+    // to update the dialog without closing it.
+    std::function<bool (size_t buttonIdx, class DialogPrimitive &)>     onButtonActivated;
+
+    // Optional periodic tick. When `tickIntervalMs > 0` the primitive
+    // installs a WM_TIMER and invokes `onTick` on every fire. Use to
+    // poll worker-thread state and either repaint or call Close. The
+    // primitive guarantees this fires only on the UI thread.
+    std::function<void (class DialogPrimitive &)>                       onTick;
+    unsigned int                                       tickIntervalMs   = 0;
 };

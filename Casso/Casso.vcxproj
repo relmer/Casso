@@ -282,6 +282,7 @@
     <ClCompile Include="Ui\Dialog\DialogPrimitive.cpp" />
     <ClCompile Include="Ui\Dialog\DialogPrimitiveRenderer.cpp" />
     <ClCompile Include="Ui\Dialog\StandaloneDialog.cpp" />
+    <ClCompile Include="Ui\Dialog\StartupDownloadDialog.cpp" />
     <ClCompile Include="Shell\DiskMru.cpp" />
     <ClCompile Include="TrackSectorPredicate.cpp" />
     <ClCompile Include="DebugDialogProjection.cpp" />
@@ -314,6 +315,7 @@
     <ClInclude Include="Ui\Dialog\DialogPrimitive.h" />
     <ClInclude Include="Ui\Dialog\DialogPrimitiveRenderer.h" />
     <ClInclude Include="Ui\Dialog\StandaloneDialog.h" />
+    <ClInclude Include="Ui\Dialog\StartupDownloadDialog.h" />
     <ClInclude Include="Shell\DiskMru.h" />
     <ClInclude Include="Ui\Chrome\LayoutManager.h" />
     <ClInclude Include="Ui\Chrome\TitleBar.h" />

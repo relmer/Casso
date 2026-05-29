@@ -14,6 +14,7 @@
 #include "Ui/DxUiPainter.h"
 #include "Ui/DwriteTextRenderer.h"
 #include "Ui/Dialog/StandaloneDialog.h"
+#include "Ui/Dialog/StartupDownloadDialog.h"
 #include "UnicodeSymbols.h"
 
 #pragma comment(lib, "winhttp.lib")
@@ -898,13 +899,15 @@ static const RomSpec * FindRomSpec (string_view machineName, string_view cassoNa
 ////////////////////////////////////////////////////////////////////////////////
 
 static HRESULT DownloadHttp (
-    HINTERNET        hSession,
-    LPCWSTR          host,
-    LPCWSTR          urlPath,
-    size_t           expectedSize,
-    string_view      displayName,
-    vector<Byte>   & outBytes,
-    string         & outError)
+    HINTERNET                  hSession,
+    LPCWSTR                    host,
+    LPCWSTR                    urlPath,
+    size_t                     expectedSize,
+    string_view                displayName,
+    vector<Byte>             & outBytes,
+    string                   & outError,
+    std::atomic<std::uint64_t> * progressBytes  = nullptr,
+    std::atomic<bool>          * cancelRequested = nullptr)
 {
     HRESULT      hr           = S_OK;
     HINTERNET    hConnect     = nullptr;
@@ -920,6 +923,11 @@ static HRESULT DownloadHttp (
 
     outBytes.clear();
     outBytes.reserve (expectedSize);
+
+    if (progressBytes != nullptr)
+    {
+        progressBytes->store (0, std::memory_order_relaxed);
+    }
 
     for (LPCWSTR p = host; *p; p++)
     {
@@ -967,6 +975,13 @@ static HRESULT DownloadHttp (
     {
         vector<Byte>  chunk;
 
+        if (cancelRequested != nullptr && cancelRequested->load (std::memory_order_relaxed))
+        {
+            outError = format ("{} cancelled", displayName);
+            hr = E_ABORT;
+            goto Error;
+        }
+
         bytesAvail = 0;
         fOk = WinHttpQueryDataAvailable (hRequest, &bytesAvail);
         CBRF (fOk,
@@ -989,6 +1004,11 @@ static HRESULT DownloadHttp (
         }
 
         outBytes.insert (outBytes.end(), chunk.begin(), chunk.begin() + bytesRead);
+
+        if (progressBytes != nullptr)
+        {
+            progressBytes->store ((std::uint64_t) outBytes.size(), std::memory_order_relaxed);
+        }
     }
 
     // A non-zero `expectedSize` is treated as an integrity check
@@ -1871,11 +1891,13 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssetBootstrap::FetchAndDecodeOgg (
-    HINTERNET         hSession,
-    LPCWSTR           urlPath,
-    uint32_t          targetSampleRate,
-    vector<float>   & outPcm,
-    string          & outError)
+    HINTERNET                    hSession,
+    LPCWSTR                      urlPath,
+    uint32_t                     targetSampleRate,
+    vector<float>              & outPcm,
+    string                     & outError,
+    std::atomic<std::uint64_t> * progressBytes,
+    std::atomic<bool>          * cancelRequested)
 {
     HRESULT          hr             = S_OK;
     vector<Byte>     oggBytes;
@@ -1918,7 +1940,9 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
                        0,                       // 0 == any size acceptable
                        narrowName,
                        oggBytes,
-                       outError);
+                       outError,
+                       progressBytes,
+                       cancelRequested);
     CHR (hr);
 
     hr = StbVorbisWrapper::DecodeOggToInterleavedShort (
@@ -2342,5 +2366,230 @@ Error:
         WinHttpCloseHandle (hSession);
     }
 
+    return hr;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunStartupDownloader
+//
+//  Unified entry point: scans for every missing ROM and every missing
+//  Disk II drive-audio WAV, then presents a single themed dialog that
+//  downloads them on a worker thread with live per-asset progress.
+//  Replaces the legacy PromptUser (ROMs) + PromptDiskAudioConsent
+//  (audio) flows with one transparent experience.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::RunStartupDownloader (
+    HINSTANCE                hInstance,
+    const wstring          & machineName,
+    HWND                     hwndParent,
+    const vector<fs::path> & searchPaths,
+    const fs::path         & assetBaseDir,
+    bool                     considerDiskAudio,
+    GlobalUserPrefs        & prefs,
+    string                 & outError)
+{
+    HRESULT                hr             = S_OK;
+    StartupDownloadSet     set;
+    StartupDownloadResult  result         = StartupDownloadResult::NothingToDo;
+    vector<string>         romFiles;
+    string                 narrowMachine;
+    fs::path               devicesDir     = assetBaseDir / "Devices" / "DiskII";
+    bool                   audioIncluded  = false;
+    error_code             ec;
+
+    UNREFERENCED_PARAMETER (hInstance);
+
+    narrowMachine.reserve (machineName.size ());
+
+    for (wchar_t wch : machineName)
+    {
+        narrowMachine.push_back (static_cast<char> (wch & 0x7F));
+    }
+
+    hr = GetRequiredRoms (hInstance, machineName, romFiles, outError);
+    CHR (hr);
+
+    for (const string & romFile : romFiles)
+    {
+        const RomSpec    * spec    = FindRomSpec (narrowMachine, romFile);
+        fs::path           relPath;
+        fs::path           found;
+        StartupAssetEntry  entry;
+
+        CBRF (spec != nullptr,
+              outError = format ("ROM '{}' is missing and Casso has no download "
+                                 "URL for it. Place the file under {} and try again.",
+                                 romFile, assetBaseDir.string ()));
+
+        relPath = fs::path (string (spec->localRelDir)) / spec->cassoName;
+        found   = PathResolver::FindFile (searchPaths, relPath);
+
+        if (!found.empty ())
+        {
+            continue;
+        }
+
+        entry.kind          = StartupAssetKind::Rom;
+        entry.displayName   = AsciiToWide (spec->description);
+        entry.kindLabel     = L"ROM";
+        entry.destPath      = assetBaseDir / string (spec->localRelDir) / spec->cassoName;
+        entry.expectedBytes = (std::uint64_t) spec->expectedSize;
+        entry.downloadFn    = [spec, destPath = entry.destPath] (
+            std::atomic<std::uint64_t> & bytesDone,
+            std::atomic<bool>          & cancel,
+            std::string                & err) -> HRESULT
+        {
+            HRESULT       hr = S_OK;
+            HINTERNET     hSes    = nullptr;
+            vector<Byte>  payload;
+            error_code    ecLocal;
+            wstring       wPath   = wstring (s_kpszUrlPrefix) + AsciiToWide (spec->appleWinName);
+
+            hSes = WinHttpOpen (s_kpszUserAgent,
+                                WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                                WINHTTP_NO_PROXY_NAME,
+                                WINHTTP_NO_PROXY_BYPASS,
+                                0);
+            CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
+
+            hr = DownloadHttp (hSes,
+                                    s_kpszAppleWinHost,
+                                    wPath.c_str (),
+                                    spec->expectedSize,
+                                    spec->cassoName,
+                                    payload,
+                                    err,
+                                    &bytesDone,
+                                    &cancel);
+            CHR (hr);
+
+            fs::create_directories (destPath.parent_path (), ecLocal);
+            hr = WriteFileBytes (destPath, payload);
+            CHRF (hr, err = format ("Cannot write {}", destPath.string ()));
+
+        Error:
+            if (hSes != nullptr)
+            {
+                WinHttpCloseHandle (hSes);
+            }
+            return hr;
+        };
+
+        set.entries.push_back (std::move (entry));
+    }
+
+    if (considerDiskAudio && prefs.audioDownloadConsent != "decline")
+    {
+        for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
+        {
+            fs::path           mechDir = devicesDir / string (spec.mechanism);
+            fs::path           wavPath = mechDir / string (spec.wavBasename);
+            StartupAssetEntry  entry;
+
+            if (fs::exists (wavPath, ec))
+            {
+                continue;
+            }
+
+            entry.kind          = StartupAssetKind::DriveAudio;
+            entry.displayName   = AsciiToWide (string (spec.mechanism) + " " + string (spec.wavBasename));
+            entry.kindLabel     = L"Drive audio";
+            entry.destPath      = wavPath;
+            entry.expectedBytes = 0;
+            entry.downloadFn    = [spec, wavPath, mechDir] (
+                std::atomic<std::uint64_t> & bytesDone,
+                std::atomic<bool>          & cancel,
+                std::string                & err) -> HRESULT
+            {
+                HRESULT        hr = S_OK;
+                HINTERNET      hSes    = nullptr;
+                vector<float>  pcm;
+                error_code     ecLocal;
+                wstring        urlPath;
+
+                hSes = WinHttpOpen (s_kpszUserAgent,
+                                    WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                                    WINHTTP_NO_PROXY_NAME,
+                                    WINHTTP_NO_PROXY_BYPASS,
+                                    0);
+                CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
+
+                urlPath  = s_kpszOpenEmulatorPathFmt;
+                urlPath += wstring (spec.mechanism.begin (), spec.mechanism.end ());
+                urlPath += L"/";
+
+                for (char ch : spec.oggBasename)
+                {
+                    if (ch == ' ')
+                    {
+                        urlPath += L"%20";
+                    }
+                    else
+                    {
+                        urlPath += static_cast<wchar_t> (static_cast<unsigned char> (ch));
+                    }
+                }
+
+                hr = AssetBootstrap::FetchAndDecodeOgg (hSes,
+                                                             urlPath.c_str (),
+                                                             44100,
+                                                             pcm,
+                                                             err,
+                                                             &bytesDone,
+                                                             &cancel);
+                CHR (hr);
+
+                fs::create_directories (mechDir, ecLocal);
+
+                hr = AssetBootstrap::WritePcmAsWav (wavPath, pcm, 44100, err);
+                CHR (hr);
+
+            Error:
+                if (hSes != nullptr)
+                {
+                    WinHttpCloseHandle (hSes);
+                }
+                return hr;
+            };
+
+            set.entries.push_back (std::move (entry));
+            audioIncluded = true;
+        }
+    }
+
+    BAIL_OUT_IF (set.entries.empty (), S_OK);
+
+    result = StartupDownloadDialog::Show (hInstance, hwndParent, set);
+
+    switch (result)
+    {
+    case StartupDownloadResult::NothingToDo:
+    case StartupDownloadResult::AllDone:
+    case StartupDownloadResult::PartialDone:
+        if (audioIncluded)
+        {
+            prefs.audioDownloadConsent = "allow";
+        }
+        hr = S_OK;
+        break;
+
+    case StartupDownloadResult::Skipped:
+        if (audioIncluded)
+        {
+            prefs.audioDownloadConsent = "decline";
+        }
+        hr = S_OK;
+        break;
+
+    case StartupDownloadResult::Exit:
+        hr = S_FALSE;
+        break;
+    }
+
+Error:
     return hr;
 }

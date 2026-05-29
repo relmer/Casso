@@ -39,6 +39,17 @@ public:
                             const DialogDefinition & def);
     void     Close         (int chosenId);
 
+    // Runtime button mutation. Safe to call from inside an
+    // `onButtonActivated` hook to switch the dialog into a different
+    // mode (e.g. show "Downloading..." after the user clicks Download)
+    // without closing the window. The dialog repaints on the next
+    // frame; call Repaint() to schedule an immediate invalidation.
+    void     SetButtonLabel   (size_t idx, const std::wstring & label);
+    void     SetButtonEnabled (size_t idx, bool enabled);
+    void     SetButtonVisible (size_t idx, bool visible);
+    void     Repaint          ();
+    HWND     Hwnd             () const { return m_hwnd; }
+
 private:
     static LRESULT CALLBACK s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 

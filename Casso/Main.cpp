@@ -122,54 +122,40 @@ static HRESULT LoadMachineConfig (
         }
     }
 
-    // Pre-flight: detect missing ROMs and offer to download them
-    // BEFORE we open the on-disk JSON. The download set is decided
-    // strictly from the embedded default for `machineName`, so if
-    // the user has edited their on-disk JSON they're responsible
-    // for any extra ROMs they reference.
+    // Pre-flight: detect everything missing (ROMs + optional Disk II
+    // drive audio) and present a SINGLE themed dialog that downloads
+    // it all on a worker thread with live progress. Decisions for the
+    // download set are made strictly from the embedded default for
+    // `machineName` and the user's prior audio-consent choice.
     romDir = AssetBootstrap::GetAssetBaseDirectory();
 
-    hr = AssetBootstrap::CheckAndFetchRoms (hInstance, machineName, hwndParent,
-                                            romSearchPaths, romDir, error);
-    BAIL_OUT_IF (hr == S_FALSE, S_FALSE);
-    CHRN (hr, format (L"ROM download failed:\n{}",
-                      wstring (error.begin(), error.end())).c_str());
-
-    // Disk II audio bootstrap (spec 005-disk-ii-audio /
-    // FR-017). Only relevant when the active machine actually has a
-    // Disk II controller wired up. Failures are best-effort: we log
-    // and continue so a missing-internet startup still launches the
-    // emulator (the source mutes any unloaded sample, FR-009).
     {
-        bool     hasDisk    = false;
-        string   hasDiskErr;
-        HRESULT  hrHasDisk  = AssetBootstrap::HasDiskController (hInstance, machineName,
-                                                                 hasDisk, hasDiskErr);
+        bool             hasDisk      = false;
+        string           hasDiskErr;
+        HRESULT          hrHasDisk    = AssetBootstrap::HasDiskController (hInstance, machineName,
+                                                                           hasDisk, hasDiskErr);
+        GlobalUserPrefs  prefs;
+        Win32FileSystem  fs_io;
+        std::wstring     assetBase    = AssetBootstrap::GetAssetBaseDirectory().wstring();
+        HRESULT          hrLoad;
+        HRESULT          hrSave;
+
         IGNORE_RETURN_VALUE (hrHasDisk, S_OK);
 
-        if (hasDisk)
-        {
-            fs::path            devicesDir   = romDir / L"Devices" / L"DiskII";
-            string              diskAudioErr;
-            GlobalUserPrefs     prefs;
-            Win32FileSystem     fs_io;
-            std::wstring        assetBase    = AssetBootstrap::GetAssetBaseDirectory().wstring();
-            HRESULT             hrLoad;
-            HRESULT             hrDiskAudio;
+        hrLoad = prefs.Load (assetBase, fs_io);
+        IGNORE_RETURN_VALUE (hrLoad, S_OK);
 
-            hrLoad = prefs.Load (assetBase, fs_io);
-            IGNORE_RETURN_VALUE (hrLoad, S_OK);
+        hr = AssetBootstrap::RunStartupDownloader (hInstance, machineName, hwndParent,
+                                                   romSearchPaths, romDir, hasDisk,
+                                                   prefs, error);
 
-            hrDiskAudio = AssetBootstrap::CheckAndFetchDiskAudio (
-                hInstance, machineName, hwndParent, devicesDir, prefs, diskAudioErr);
-            IGNORE_RETURN_VALUE (hrDiskAudio, S_OK);
+        // Flush prefs regardless: audio consent may have been updated.
+        hrSave = prefs.Save (assetBase, fs_io);
+        IGNORE_RETURN_VALUE (hrSave, S_OK);
 
-            // The consent choice may have changed (user just answered
-            // the prompt). Flush regardless so any in-memory mutation
-            // lands on disk for the next launch.
-            HRESULT  hrSave = prefs.Save (assetBase, fs_io);
-            IGNORE_RETURN_VALUE (hrSave, S_OK);
-        }
+        BAIL_OUT_IF (hr == S_FALSE, S_FALSE);
+        CHRN (hr, format (L"Asset download failed:\n{}",
+                          wstring (error.begin(), error.end())).c_str());
     }
 
     // Boot-disk pre-flight: if the user didn't pass --disk1 and there's

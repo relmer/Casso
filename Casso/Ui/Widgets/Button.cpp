@@ -8,12 +8,24 @@
 
 bool Button::HitTest (int x, int y) const
 {
+    if (!m_visible || !m_enabled)
+    {
+        return false;
+    }
+
     return x >= m_rect.left && x < m_rect.right && y >= m_rect.top && y < m_rect.bottom;
 }
 
 
 void Button::SetMouse (int x, int y, bool down)
 {
+    if (!m_visible || !m_enabled)
+    {
+        m_hover   = false;
+        m_pressed = false;
+        return;
+    }
+
     m_hover   = HitTest (x, y);
     m_pressed = m_hover && down;
 }
@@ -21,6 +33,11 @@ void Button::SetMouse (int x, int y, bool down)
 
 void Button::Click ()
 {
+    if (!m_visible || !m_enabled)
+    {
+        return;
+    }
+
     if (m_click)
     {
         m_click();
@@ -30,7 +47,7 @@ void Button::Click ()
 
 bool Button::OnKey (WPARAM vk)
 {
-    if (!m_focused)
+    if (!m_visible || !m_enabled || !m_focused)
     {
         return false;
     }
@@ -50,6 +67,7 @@ void Button::Paint (DxUiPainter & painter, DwriteTextRenderer & text, const Chro
     constexpr uint32_t  s_kFocusRingArgb = 0xFFAACCFF;
     constexpr float     s_kFocusRingPx   = 1.5f;
     constexpr float     s_kFocusInsetPx  = -2.0f;
+    constexpr uint32_t  s_kDisabledMask  = 0x80FFFFFF;
 
     HRESULT  hr        = S_OK;
     uint32_t themeIdle    = m_useOverrides ? m_idleOverride    : theme.sysButtonIdleArgb;
@@ -60,6 +78,17 @@ void Button::Paint (DxUiPainter & painter, DwriteTextRenderer & text, const Chro
     float    fontDip      = m_scaler.Pxf (13.0f);
 
 
+
+    if (!m_visible)
+    {
+        return;
+    }
+
+    if (!m_enabled)
+    {
+        color     = (color     & 0x00FFFFFF) | (((color     >> 24) / 2) << 24);
+        textColor = (textColor & s_kDisabledMask);
+    }
 
     painter.FillRect ((float) m_rect.left,
                       (float) m_rect.top,

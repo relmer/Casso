@@ -36,6 +36,10 @@ public:
     void  SetMouse        (int x, int y, bool down);
     void  SetFocused      (bool focused) { m_focused = focused; }
     bool  Focused         () const { return m_focused; }
+    void  SetEnabled      (bool enabled) { m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; } }
+    bool  Enabled         () const { return m_enabled; }
+    void  SetVisible      (bool visible) { m_visible = visible; if (!visible) { m_hover = false; m_pressed = false; m_focused = false; } }
+    bool  Visible         () const { return m_visible; }
     bool  HitTest         (int x, int y) const;
     void  Click           ();
     bool  OnKey           (WPARAM vk);
@@ -48,6 +52,8 @@ private:
     bool          m_hover           = false;
     bool          m_pressed         = false;
     bool          m_focused         = false;
+    bool          m_enabled         = true;
+    bool          m_visible         = true;
     DpiScaler     m_scaler;
     bool          m_useOverrides    = false;
     uint32_t      m_idleOverride    = 0;
