@@ -201,6 +201,42 @@ public:
             L"4 bits should advance per 16 CPU cycles (4 cycles/bit)");
     }
 
+    TEST_METHOD (RotationalPosition_TwoReadsSeparatedByCyclesSeeAdvanceBits)
+    {
+        unique_ptr<Disk2Controller>   disk       = make_unique<Disk2Controller> (6);
+        size_t                        posFirst   = 0;
+        size_t                        posSecond  = 0;
+        size_t                        advanced   = 0;
+        constexpr uint32_t            kGap       = 1000;
+        constexpr size_t              kExpect    = kGap / Disk2NibbleEngine::kCyclesPerBit;
+        constexpr size_t              kTrackBits = 8192;
+
+
+
+        disk->GetDisk (0)->ResizeTrack (0, kTrackBits);
+
+        disk->Read (kMotorOn);
+        disk->Read (kQ7Off);
+        disk->Read (kQ6Off);
+
+        // Drain the spin-up window so the bit cursor is the only
+        // thing advancing under us.
+        disk->Tick (Disk2Controller::kMotorSpinupCycles);
+
+        disk->Read (kQ6Off);
+        posFirst  = disk->GetEngine (0).GetBitPosition ();
+
+        disk->Tick (kGap);
+
+        disk->Read (kQ6Off);
+        posSecond = disk->GetEngine (0).GetBitPosition ();
+
+        advanced  = (posSecond + kTrackBits - posFirst) % kTrackBits;
+
+        Assert::AreEqual (kExpect, advanced,
+            L"Two reads N cycles apart must see N / kCyclesPerBit bits advance");
+    }
+
     TEST_METHOD (WriteProtectedDiskRejectsWrite)
     {
         unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
