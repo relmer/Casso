@@ -130,13 +130,16 @@ static HRESULT LoadMachineConfig (
     romDir = AssetBootstrap::GetAssetBaseDirectory();
 
     {
-        bool             hasDisk      = false;
+        bool             hasDisk         = false;
         string           hasDiskErr;
-        HRESULT          hrHasDisk    = AssetBootstrap::HasDiskController (hInstance, machineName,
-                                                                           hasDisk, hasDiskErr);
+        HRESULT          hrHasDisk       = AssetBootstrap::HasDiskController (hInstance, machineName,
+                                                                              hasDisk, hasDiskErr);
         GlobalUserPrefs  prefs;
         Win32FileSystem  fs_io;
-        std::wstring     assetBase    = AssetBootstrap::GetAssetBaseDirectory().wstring();
+        std::wstring     assetBase       = AssetBootstrap::GetAssetBaseDirectory().wstring();
+        wstring          downloadedDisk;
+        fs::path         bootDiskDir     = AssetBootstrap::GetDiskDirectory();
+        bool             offerBootDisk   = false;
         HRESULT          hrLoad;
         HRESULT          hrSave;
 
@@ -145,17 +148,47 @@ static HRESULT LoadMachineConfig (
         hrLoad = prefs.Load (assetBase, fs_io);
         IGNORE_RETURN_VALUE (hrLoad, S_OK);
 
+        // Read the per-machine saved disk path up front so we can ask
+        // the unified downloader to also fetch a stock boot disk on
+        // first launch (no --disk1, no remembered disk, machine has a
+        // Disk ][ controller). Doing this here keeps the entire
+        // first-launch experience inside one themed dialog.
+        if (inoutDisk1Path.empty())
+        {
+            UserConfigStore  store (assetBase);
+
+            hrSaved = DiskSettings::ReadSavedDiskPath (store, fs_io, 0, machineName, savedDisk);
+            IGNORE_RETURN_VALUE (hrSaved, S_OK);
+
+            if (!savedDisk.empty() && !fs::exists (fs::path (savedDisk)))
+            {
+                HRESULT hrClear = DiskSettings::WriteSavedDiskPath (
+                    store, fs_io, 0, machineName, wstring());
+                IGNORE_RETURN_VALUE (hrClear, S_OK);
+                savedDisk.clear();
+            }
+
+            offerBootDisk = savedDisk.empty() && hasDisk;
+        }
+
         hr = AssetBootstrap::RunStartupDownloader (hInstance, machineName, hwndParent,
                                                    romSearchPaths, romDir, hasDisk,
-                                                   prefs, error);
+                                                   offerBootDisk, bootDiskDir,
+                                                   prefs, downloadedDisk, error);
 
-        // Flush prefs regardless: audio consent may have been updated.
         hrSave = prefs.Save (assetBase, fs_io);
         IGNORE_RETURN_VALUE (hrSave, S_OK);
 
         BAIL_OUT_IF (hr == S_FALSE, S_FALSE);
         CHRN (hr, format (L"Asset download failed:\n{}",
                           wstring (error.begin(), error.end())).c_str());
+
+        // If the unified downloader pulled a boot disk, treat it as
+        // disk1 so the legacy picker downstream short-circuits.
+        if (!downloadedDisk.empty())
+        {
+            inoutDisk1Path = downloadedDisk;
+        }
     }
 
     // Boot-disk pre-flight: if the user didn't pass --disk1 and there's

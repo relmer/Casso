@@ -202,9 +202,17 @@ namespace
                 continue;
             }
 
-            if (state.runtime[i].startedWrite && !state.set->entries[i].destPath.empty())
+            if (!state.runtime[i].startedWrite)
             {
-                fs::remove (state.set->entries[i].destPath, ec);
+                continue;
+            }
+
+            for (const fs::path & p : state.set->entries[i].destPaths)
+            {
+                if (!p.empty())
+                {
+                    fs::remove (p, ec);
+                }
             }
         }
     }
@@ -221,6 +229,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     DialogState             state;
     wstring                 title;
     wstring                 intro;
+    wstring                 sources;
     int                     dialogResult  = 0;
     UINT                    sysDpi        = (hwndOwner != nullptr) ? GetDpiForWindow (hwndOwner)
                                                                    : GetDpiForSystem();
@@ -257,6 +266,38 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
                 L"or Exit to quit.";
     }
 
+    // Build the sources blurb so the user knows these files come from
+    // third parties and are not bundled with Casso.
+    {
+        bool  hasRom    = false;
+        bool  hasAudio  = false;
+        bool  hasDisk   = false;
+
+        for (const StartupAssetEntry & entry : set.entries)
+        {
+            switch (entry.kind)
+            {
+            case StartupAssetKind::Rom:        hasRom   = true; break;
+            case StartupAssetKind::DriveAudio: hasAudio = true; break;
+            case StartupAssetKind::BootDisk:   hasDisk  = true; break;
+            }
+        }
+
+        sources  = L"These files are not bundled with Casso. They will be downloaded from:";
+        if (hasRom)
+        {
+            sources += L"\n    \x2022  ROMs: the AppleWin project (raw.githubusercontent.com)";
+        }
+        if (hasAudio)
+        {
+            sources += L"\n    \x2022  Drive audio: OpenEmulator (raw.githubusercontent.com)";
+        }
+        if (hasDisk)
+        {
+            sources += L"\n    \x2022  Boot disks: Asimov mirror (apple.asimov.net)";
+        }
+    }
+
     totalH = (int) ((float) (s_kHeaderHeightDp
                              + rowCount * (s_kRowHeightDp + s_kRowGapDp))
                     * dpiScale);
@@ -264,7 +305,8 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     def.title              = title;
     def.icon               = DialogIcon::AppFlat;
     def.iconSizeOverrideDp = 64.0f;
-    def.body.push_back ({ intro, false, L"" });
+    def.body.push_back ({ intro,   false, L"" });
+    def.body.push_back ({ sources, false, L"" });
 
     def.customBodyMinSizePx.cx = (int) ((float) s_kBodyWidthDp * dpiScale);
     def.customBodyMinSizePx.cy = totalH;

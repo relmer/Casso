@@ -34,18 +34,19 @@
 enum class StartupAssetKind
 {
     Rom,
-    DriveAudio
+    DriveAudio,
+    BootDisk
 };
 
 
 
 struct StartupAssetEntry
 {
-    StartupAssetKind        kind          = StartupAssetKind::Rom;
-    std::wstring            displayName;        // e.g. "Apple ][e ROM"
-    std::wstring            kindLabel;          // e.g. "ROM" / "Drive audio"
-    std::filesystem::path   destPath;           // primary file produced (for cleanup)
-    std::uint64_t           expectedBytes = 0;  // 0 = unknown
+    StartupAssetKind                  kind          = StartupAssetKind::Rom;
+    std::wstring                      displayName;        // e.g. "Apple ][e ROM"
+    std::wstring                      kindLabel;          // e.g. "ROM" / "Drive audio"
+    std::vector<std::filesystem::path>  destPaths;        // every file produced (for cleanup)
+    std::uint64_t                     expectedBytes = 0;  // 0 = unknown
 
     // Performs the entire fetch (HTTP + decode + write). MUST update
     // `bytesDone` as bytes are received and MUST check `cancel`

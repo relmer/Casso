@@ -2389,7 +2389,10 @@ HRESULT AssetBootstrap::RunStartupDownloader (
     const vector<fs::path> & searchPaths,
     const fs::path         & assetBaseDir,
     bool                     considerDiskAudio,
+    bool                     offerBootDisk,
+    const fs::path         & diskDir,
     GlobalUserPrefs        & prefs,
+    wstring                & outBootDiskPath,
     string                 & outError)
 {
     HRESULT                hr             = S_OK;
@@ -2398,10 +2401,13 @@ HRESULT AssetBootstrap::RunStartupDownloader (
     vector<string>         romFiles;
     string                 narrowMachine;
     fs::path               devicesDir     = assetBaseDir / "Devices" / "DiskII";
+    fs::path               bootDiskDest;
     bool                   audioIncluded  = false;
     error_code             ec;
 
     UNREFERENCED_PARAMETER (hInstance);
+
+    outBootDiskPath.clear();
 
     narrowMachine.reserve (machineName.size ());
 
@@ -2436,9 +2442,9 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         entry.kind          = StartupAssetKind::Rom;
         entry.displayName   = AsciiToWide (spec->description);
         entry.kindLabel     = L"ROM";
-        entry.destPath      = assetBaseDir / string (spec->localRelDir) / spec->cassoName;
+        entry.destPaths.push_back (assetBaseDir / string (spec->localRelDir) / spec->cassoName);
         entry.expectedBytes = (std::uint64_t) spec->expectedSize;
-        entry.downloadFn    = [spec, destPath = entry.destPath] (
+        entry.downloadFn    = [spec, destPath = entry.destPaths.front()] (
             std::atomic<std::uint64_t> & bytesDone,
             std::atomic<bool>          & cancel,
             std::string                & err) -> HRESULT
@@ -2484,32 +2490,38 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
     if (considerDiskAudio && prefs.audioDownloadConsent != "decline")
     {
+        StartupAssetEntry  entry;
+        size_t             missingCount = 0;
+
         for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
         {
-            fs::path           mechDir = devicesDir / string (spec.mechanism);
-            fs::path           wavPath = mechDir / string (spec.wavBasename);
-            StartupAssetEntry  entry;
+            fs::path  mechDir = devicesDir / string (spec.mechanism);
+            fs::path  wavPath = mechDir / string (spec.wavBasename);
 
             if (fs::exists (wavPath, ec))
             {
                 continue;
             }
 
+            entry.destPaths.push_back (wavPath);
+            missingCount++;
+        }
+
+        if (missingCount > 0)
+        {
             entry.kind          = StartupAssetKind::DriveAudio;
-            entry.displayName   = AsciiToWide (string (spec.mechanism) + " " + string (spec.wavBasename));
             entry.kindLabel     = L"Drive audio";
-            entry.destPath      = wavPath;
             entry.expectedBytes = 0;
-            entry.downloadFn    = [spec, wavPath, mechDir] (
+            entry.displayName   = format (L"Disk II drive audio ({} files)", missingCount);
+            entry.downloadFn    = [devicesDir] (
                 std::atomic<std::uint64_t> & bytesDone,
                 std::atomic<bool>          & cancel,
                 std::string                & err) -> HRESULT
             {
-                HRESULT        hr = S_OK;
-                HINTERNET      hSes    = nullptr;
-                vector<float>  pcm;
-                error_code     ecLocal;
-                wstring        urlPath;
+                HRESULT     hr            = S_OK;
+                HINTERNET   hSes          = nullptr;
+                error_code  ecLocal;
+                uint64_t    cumulative    = 0;
 
                 hSes = WinHttpOpen (s_kpszUserAgent,
                                     WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
@@ -2518,35 +2530,84 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                                     0);
                 CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
 
-                urlPath  = s_kpszOpenEmulatorPathFmt;
-                urlPath += wstring (spec.mechanism.begin (), spec.mechanism.end ());
-                urlPath += L"/";
-
-                for (char ch : spec.oggBasename)
+                for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
                 {
-                    if (ch == ' ')
+                    fs::path                     mechDir = devicesDir / string (spec.mechanism);
+                    fs::path                     wavPath = mechDir / string (spec.wavBasename);
+                    vector<float>                pcm;
+                    wstring                      urlPath;
+                    std::atomic<std::uint64_t>   perFileBytes{0};
+
+                    if (fs::exists (wavPath, ecLocal))
                     {
-                        urlPath += L"%20";
+                        continue;
                     }
-                    else
+
+                    if (cancel.load (std::memory_order_relaxed))
                     {
-                        urlPath += static_cast<wchar_t> (static_cast<unsigned char> (ch));
+                        hr = E_ABORT;
+                        goto Error;
                     }
+
+                    urlPath  = s_kpszOpenEmulatorPathFmt;
+                    urlPath += wstring (spec.mechanism.begin (), spec.mechanism.end ());
+                    urlPath += L"/";
+
+                    for (char ch : spec.oggBasename)
+                    {
+                        if (ch == ' ')
+                        {
+                            urlPath += L"%20";
+                        }
+                        else
+                        {
+                            urlPath += static_cast<wchar_t> (static_cast<unsigned char> (ch));
+                        }
+                    }
+
+                    hr = AssetBootstrap::FetchAndDecodeOgg (hSes,
+                                                            urlPath.c_str (),
+                                                            44100,
+                                                            pcm,
+                                                            err,
+                                                            &perFileBytes,
+                                                            &cancel);
+
+                    if (hr == E_ABORT || cancel.load (std::memory_order_relaxed))
+                    {
+                        hr = E_ABORT;
+                        goto Error;
+                    }
+
+                    if (FAILED (hr))
+                    {
+                        // Best-effort per file -- log and continue so a
+                        // single 404 doesn't poison the whole batch.
+                        DEBUGMSG (L"Drive audio: skipping %S (%s)\n",
+                                  spec.oggBasename.data (),
+                                  wstring (err.begin (), err.end ()).c_str ());
+                        err.clear ();
+                        hr = S_OK;
+                        continue;
+                    }
+
+                    fs::create_directories (mechDir, ecLocal);
+
+                    hr = AssetBootstrap::WritePcmAsWav (wavPath, pcm, 44100, err);
+
+                    if (FAILED (hr))
+                    {
+                        DEBUGMSG (L"Drive audio: write failed for %S (%s)\n",
+                                  spec.wavBasename.data (),
+                                  wstring (err.begin (), err.end ()).c_str ());
+                        err.clear ();
+                        hr = S_OK;
+                        continue;
+                    }
+
+                    cumulative += perFileBytes.load (std::memory_order_relaxed);
+                    bytesDone.store (cumulative, std::memory_order_relaxed);
                 }
-
-                hr = AssetBootstrap::FetchAndDecodeOgg (hSes,
-                                                             urlPath.c_str (),
-                                                             44100,
-                                                             pcm,
-                                                             err,
-                                                             &bytesDone,
-                                                             &cancel);
-                CHR (hr);
-
-                fs::create_directories (mechDir, ecLocal);
-
-                hr = AssetBootstrap::WritePcmAsWav (wavPath, pcm, 44100, err);
-                CHR (hr);
 
             Error:
                 if (hSes != nullptr)
@@ -2558,6 +2619,64 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
             set.entries.push_back (std::move (entry));
             audioIncluded = true;
+        }
+    }
+
+    if (offerBootDisk)
+    {
+        fs::path  wantPath = diskDir / string (s_kDos33Disk.cassoName);
+
+        if (!fs::exists (wantPath, ec))
+        {
+            StartupAssetEntry  entry;
+
+            entry.kind          = StartupAssetKind::BootDisk;
+            entry.displayName   = AsciiToWide (s_kDos33Disk.description);
+            entry.kindLabel     = L"Boot disk";
+            entry.destPaths.push_back (wantPath);
+            entry.expectedBytes = (std::uint64_t) s_kDos33Disk.expectedSize;
+            entry.downloadFn    = [destPath = wantPath] (
+                std::atomic<std::uint64_t> & bytesDone,
+                std::atomic<bool>          & cancel,
+                std::string                & err) -> HRESULT
+            {
+                HRESULT       hr      = S_OK;
+                HINTERNET     hSes    = nullptr;
+                vector<Byte>  payload;
+                error_code    ecLocal;
+
+                hSes = WinHttpOpen (s_kpszUserAgent,
+                                    WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                                    WINHTTP_NO_PROXY_NAME,
+                                    WINHTTP_NO_PROXY_BYPASS,
+                                    0);
+                CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
+
+                hr = DownloadHttp (hSes,
+                                   s_kpszAsimovHost,
+                                   s_kDos33Disk.asimovUrlPath,
+                                   s_kDos33Disk.expectedSize,
+                                   s_kDos33Disk.shortLabel,
+                                   payload,
+                                   err,
+                                   &bytesDone,
+                                   &cancel);
+                CHR (hr);
+
+                fs::create_directories (destPath.parent_path (), ecLocal);
+                hr = WriteFileBytes (destPath, payload);
+                CHRF (hr, err = format ("Cannot write {}", destPath.string ()));
+
+            Error:
+                if (hSes != nullptr)
+                {
+                    WinHttpCloseHandle (hSes);
+                }
+                return hr;
+            };
+
+            bootDiskDest = wantPath;
+            set.entries.push_back (std::move (entry));
         }
     }
 
@@ -2573,6 +2692,10 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         if (audioIncluded)
         {
             prefs.audioDownloadConsent = "allow";
+        }
+        if (!bootDiskDest.empty () && fs::exists (bootDiskDest, ec))
+        {
+            outBootDiskPath = bootDiskDest.wstring ();
         }
         hr = S_OK;
         break;
