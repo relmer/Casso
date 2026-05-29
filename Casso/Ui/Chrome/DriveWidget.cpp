@@ -37,6 +37,9 @@ namespace
     constexpr int     s_kCassowaryWidthPx  = 28;
     constexpr int     s_kCassowaryHeightPx = 42;
     constexpr int     s_kCassowaryMarginPx = 6;
+    constexpr int     s_kLabelStripHeightPx = 18;
+    constexpr int     s_kLabelStripGapPx    = 2;
+    constexpr float   s_kBasenameFontDip    = 11.0f;
     constexpr wchar_t s_kFontFamily[]      = L"Segoe UI";
 
     // Compact paint-path dimensions. The compact widget is a flat
@@ -273,6 +276,11 @@ void DriveWidget::Layout (int x, int y, UINT dpi)
         m_slotRect  = {};
         m_ejectRect = {};
 
+        m_labelRect.left   = m_bodyRect.left;
+        m_labelRect.top    = m_bodyRect.bottom + Scale (s_kLabelStripGapPx, dpi);
+        m_labelRect.right  = m_bodyRect.right;
+        m_labelRect.bottom = m_labelRect.top + Scale (s_kLabelStripHeightPx, dpi);
+
         m_led.Layout (m_bodyRect.right - pad - Scale (10, dpi),
                       m_bodyRect.top   + cBodyH / 2 - Scale (3, dpi),
                       dpi);
@@ -300,6 +308,11 @@ void DriveWidget::Layout (int x, int y, UINT dpi)
     m_ejectRect.top    = m_faceRect.top + slotCY - doorH / 2;
     m_ejectRect.right  = m_ejectRect.left + doorW;
     m_ejectRect.bottom = m_ejectRect.top + doorH;
+
+    m_labelRect.left   = m_bodyRect.left;
+    m_labelRect.top    = m_bodyRect.bottom + Scale (s_kLabelStripGapPx, dpi);
+    m_labelRect.right  = m_bodyRect.right;
+    m_labelRect.bottom = m_labelRect.top + Scale (s_kLabelStripHeightPx, dpi);
 
     m_led.Layout (m_faceRect.left + Scale (s_kLabelPadPx + s_kInUseWidthPx + s_kInUseGapPx, dpi),
                   m_faceRect.top + Scale (s_kLedCenterYPx, dpi) - Scale (3, dpi),
@@ -411,6 +424,7 @@ void DriveWidget::Paint (
         UNREFERENCED_PARAMETER (doorOffset);
 
         m_led.Paint (painter, theme);
+        PaintBasenameLabel (text, theme, dpi);
         return;
     }
 
@@ -758,7 +772,10 @@ void DriveWidget::Paint (
         painter.FillRect (farL, farY, farR - farL, 1.0f, edgeArgb);
     }
 
-    // "DRIVE N" upper-left of faceplate.
+    // "DRIVE N" upper-left of faceplate. Mounted-disk basename is
+    // painted in m_labelRect (below the body) after the case + face
+    // rendering completes, so it's the same code path in both
+    // skeuomorphic and compact modes.
     swprintf_s (label, L"DRIVE %d", m_drive + 1);
     IGNORE_RETURN_VALUE (hr, text.DrawString (label,
                                               (float) (m_faceRect.left + labelPad),
@@ -768,35 +785,6 @@ void DriveWidget::Paint (
                                               theme.driveLabelArgb,
                                               labelFontDip,
                                               s_kFontFamily));
-
-    // Mounted-disk basename below "DRIVE N", ellipsis-truncated to the
-    // available faceplate width. Hidden when no disk is mounted.
-    if (!m_state.mountedImagePath.empty())
-    {
-        std::filesystem::path  imagePath (m_state.mountedImagePath);
-        std::wstring           basename     = imagePath.filename().wstring();
-        float                  basenameDip  = labelFontDip - 2.0f;
-        float                  maxWidthPx   = (float) (faceW - 2 * labelPad);
-        auto                   measure      = [&] (std::wstring_view v)
-        {
-            std::wstring  s (v);
-            float         w = 0.0f;
-            float         h = 0.0f;
-            HRESULT       mhr = text.MeasureString (s.c_str(), basenameDip, s_kFontFamily, w, h);
-            IGNORE_RETURN_VALUE (mhr, S_OK);
-            return w;
-        };
-        std::wstring           truncated    = TruncateToWidth (basename, maxWidthPx, measure);
-
-        IGNORE_RETURN_VALUE (hr, text.DrawString (truncated.c_str(),
-                                                  (float) (m_faceRect.left + labelPad),
-                                                  (float) (m_faceRect.top + labelPad + labelFontDip),
-                                                  maxWidthPx,
-                                                  basenameDip + 4.0f,
-                                                  theme.driveLabelArgb,
-                                                  basenameDip,
-                                                  s_kFontFamily));
-    }
 
     // "IN USE >" label bottom-left of faceplate, LED to its right.
     IGNORE_RETURN_VALUE (hr, text.DrawString (L"IN USE \u25B6",
@@ -824,6 +812,67 @@ void DriveWidget::Paint (
 
         DrawCassowaryRainbow (painter, iconX, iconY, (float) iconW, (float) iconH);
     }
+
+    PaintBasenameLabel (text, theme, dpi);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintBasenameLabel
+//
+//  Paints the mounted disk's basename inside m_labelRect (below the
+//  drive icon body) in both compact and skeuomorphic paint paths.
+//  Hidden when no disk is mounted; ellipsis-truncated to the label
+//  strip width via the pure TruncateToWidth algorithm.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DriveWidget::PaintBasenameLabel (
+    DwriteTextRenderer  & text,
+    const ChromeTheme   & theme,
+    UINT                  dpi)
+{
+    HRESULT                hr           = S_OK;
+    float                  basenameDip  = s_kBasenameFontDip * (float) dpi / (float) s_kBaseDpi;
+    float                  maxWidthPx   = (float) (m_labelRect.right - m_labelRect.left);
+    std::filesystem::path  imagePath;
+    std::wstring           basename;
+    std::wstring           truncated;
+    auto                   measure      = [&] (std::wstring_view v)
+    {
+        std::wstring  s (v);
+        float         w   = 0.0f;
+        float         h   = 0.0f;
+        HRESULT       mhr = text.MeasureString (s.c_str(), basenameDip, s_kFontFamily, w, h);
+        IGNORE_RETURN_VALUE (mhr, S_OK);
+        return w;
+    };
+
+
+
+    if (m_state.mountedImagePath.empty())
+    {
+        return;
+    }
+
+    imagePath = std::filesystem::path (m_state.mountedImagePath);
+    basename  = imagePath.filename().wstring();
+    truncated = TruncateToWidth (basename, maxWidthPx, measure);
+
+    IGNORE_RETURN_VALUE (hr, text.DrawString (truncated.c_str(),
+                                              (float) m_labelRect.left,
+                                              (float) m_labelRect.top,
+                                              maxWidthPx,
+                                              (float) (m_labelRect.bottom - m_labelRect.top),
+                                              theme.driveLabelArgb,
+                                              basenameDip,
+                                              s_kFontFamily,
+                                              DwriteTextRenderer::HAlign::Center,
+                                              DwriteTextRenderer::VAlign::Center));
 }
 
 

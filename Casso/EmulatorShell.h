@@ -305,7 +305,7 @@ private:
     LayoutManager            m_layout { Scaler() };
     SimpleEdgeContributor   m_titleBarSlot { ChromeEdge::Top,    32 };
     SimpleEdgeContributor   m_navStripSlot { ChromeEdge::Top,    32 };
-    SimpleEdgeContributor   m_driveBarSlot { ChromeEdge::Bottom, 192 };
+    SimpleEdgeContributor   m_driveBarSlot { ChromeEdge::Bottom, 212 };
 
     // Drive widget state pump. The controller channel publishes
     // per-drive door/spin sync events the chrome painter will consume

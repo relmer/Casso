@@ -99,7 +99,7 @@ namespace
 
 
         driveChrome[0].Layout (0, 0, dpi);
-        probe   = driveChrome[0].BodyRect();
+        probe   = driveChrome[0].OuterRect();
         widgetW = probe.right  - probe.left;
         widgetH = probe.bottom - probe.top;
         totalW  = widgetW * static_cast<int> (driveChrome.size()) + gap * (static_cast<int> (driveChrome.size()) - 1);
@@ -1750,8 +1750,12 @@ int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
 
 void EmulatorShell::ApplyThemeToChrome (const ChromeTheme & theme)
 {
-    constexpr int  s_kFullDriveBarDp    = 192;
-    constexpr int  s_kCompactDriveBarDp = 64;
+    // Drive-bar slot thickness. Skeuomorphic shows the full 3D drive
+    // body (160 px) plus ~30 px of vertical slack and the basename
+    // label strip (~20 px). Compact themes show only the flat card
+    // (40 px) plus padding and the label strip.
+    constexpr int  s_kFullDriveBarDp    = 212;
+    constexpr int  s_kCompactDriveBarDp = 84;
 
     int   desiredThicknessDp = theme.compactDrives ? s_kCompactDriveBarDp : s_kFullDriveBarDp;
     int   priorThicknessDp   = m_driveBarSlot.DesiredThicknessDp();
