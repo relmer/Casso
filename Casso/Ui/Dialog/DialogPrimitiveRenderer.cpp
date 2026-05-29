@@ -668,7 +668,6 @@ void DialogPrimitiveRenderer::PaintBody (
     float    lineH      = (layout.bodyLineHeightPx > 0.0f) ? layout.bodyLineHeightPx
                                                            : fontPx;
     size_t   pi         = 0;
-    size_t   hi         = 0;
 
 
 
@@ -705,44 +704,19 @@ void DialogPrimitiveRenderer::PaintBody (
             m_painter.FillRect (x, y + lineH - s_kUnderlineHeightPx,
                                 w, s_kUnderlineHeightPx, linkColor);
         }
-    }
 
-    for (hi = 0; hi < layout.hyperlinkHitRectsPx.size() && hi < def.body.size(); hi++)
-    {
-        size_t  bodyIdx = SIZE_MAX;
-        size_t  hlIdx   = 0;
-
-        for (size_t bi = 0; bi < def.body.size(); bi++)
+        if (isFocused)
         {
-            if (!def.body[bi].isHyperlink)
-            {
-                continue;
-            }
+            float  rx = x   - 2.0f;
+            float  ry = y   - 1.0f;
+            float  rw = w   + 4.0f;
+            float  rh = lineH + 2.0f;
 
-            if (hlIdx == hi)
-            {
-                bodyIdx = bi;
-                break;
-            }
-
-            hlIdx++;
+            m_painter.FillRect (rx,            ry,            rw,   1.0f, theme.linkHoverArgb);
+            m_painter.FillRect (rx,            ry + rh - 1.0f, rw,  1.0f, theme.linkHoverArgb);
+            m_painter.FillRect (rx,            ry,            1.0f, rh,   theme.linkHoverArgb);
+            m_painter.FillRect (rx + rw - 1.0f, ry,           1.0f, rh,   theme.linkHoverArgb);
         }
-
-        if (bodyIdx != focusedHyperlinkRunIdx)
-        {
-            continue;
-        }
-
-        const RECT &  rect = layout.hyperlinkHitRectsPx[hi];
-        float         rx   = (float) rect.left   - 2.0f;
-        float         ry   = (float) rect.top    + titleH - 1.0f;
-        float         rw   = (float) (rect.right  - rect.left) + 4.0f;
-        float         rh   = (float) (rect.bottom - rect.top)  + 2.0f;
-
-        m_painter.FillRect (rx,        ry,        rw,   1.0f, theme.linkHoverArgb);
-        m_painter.FillRect (rx,        ry + rh - 1.0f, rw, 1.0f, theme.linkHoverArgb);
-        m_painter.FillRect (rx,        ry,        1.0f, rh,   theme.linkHoverArgb);
-        m_painter.FillRect (rx + rw - 1.0f, ry,   1.0f, rh,   theme.linkHoverArgb);
     }
 }
 

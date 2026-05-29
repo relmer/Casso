@@ -1109,8 +1109,8 @@ static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, const vector<const
     title += s_kchEmDash;
     title += L" Download ROM Images";
 
-    totalH = (int) ((float) (rowCount * s_kRomRowHeightDp
-                            + (rowCount > 0 ? (rowCount - 1) * s_kRomRowGapDp : 0))
+    totalH = (int) ((float) ((rowCount + 1) * s_kRomRowHeightDp
+                            + rowCount * s_kRomRowGapDp)
                     * dpiScale);
 
     def.title = title;
@@ -1154,6 +1154,30 @@ static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, const vector<const
         band  = ctx.theme->navStripArgb;
         descX = x + nameW + colGap;
         descW = (float) (ctx.customBodyRect.right - (LONG) descX);
+
+        {
+            float     fullW    = (float) (ctx.customBodyRect.right - ctx.customBodyRect.left);
+            uint32_t  headerBg = ctx.theme->navHoverArgb;
+            uint32_t  headerFg = ctx.theme->titleTextArgb;
+
+            ctx.painter->FillRect (x, y, fullW, rowH, headerBg);
+
+            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (L"ROM File",
+                                                           x + pad, y,
+                                                           nameW, rowH,
+                                                           headerFg, fontPx, L"Segoe UI Semibold",
+                                                           DwriteTextRenderer::HAlign::Left,
+                                                           DwriteTextRenderer::VAlign::Center));
+
+            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (L"Description",
+                                                           descX, y,
+                                                           descW, rowH,
+                                                           headerFg, fontPx, L"Segoe UI Semibold",
+                                                           DwriteTextRenderer::HAlign::Left,
+                                                           DwriteTextRenderer::VAlign::Center));
+
+            y += rowH + gap;
+        }
 
         for (i = 0; i < rows.size(); i++)
         {
