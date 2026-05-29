@@ -551,6 +551,7 @@ void DialogPrimitiveRenderer::PaintCustomBody (
     adjustedRect.bottom += titleHeightPx;
 
     ctx.painter        = &m_painter;
+    ctx.text           = &m_text;
     ctx.theme          = &theme;
     ctx.customBodyRect = adjustedRect;
     ctx.dpiScale       = static_cast<float> (m_scaler.Dpi()) / static_cast<float> (DpiScaler::kBaseDpi);

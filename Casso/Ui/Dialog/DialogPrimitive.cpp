@@ -486,6 +486,11 @@ Error:
 
 void DialogPrimitive::OnKeyDown (WPARAM vk)
 {
+    if (DispatchCustomBodyInput (DialogInputEvent::Kind::KeyDown, 0, 0, (int) vk))
+    {
+        return;
+    }
+
     switch (vk)
     {
         case VK_RETURN:
@@ -539,8 +544,17 @@ void DialogPrimitive::OnMouse (UINT message, WPARAM wParam, LPARAM lParam)
     bool     up    = (message == WM_LBUTTONUP);
     bool     dirty = false;
     size_t   hitIdx = SIZE_MAX;
+    DialogInputEvent::Kind  kind = DialogInputEvent::Kind::MouseMove;
 
+    UNREFERENCED_PARAMETER (wParam);
 
+    if      (message == WM_LBUTTONDOWN) { kind = DialogInputEvent::Kind::LeftButtonDown; }
+    else if (message == WM_LBUTTONUP)   { kind = DialogInputEvent::Kind::LeftButtonUp;   }
+
+    if (DispatchCustomBodyInput (kind, xPx, yPx, 0))
+    {
+        return;
+    }
 
     for (size_t i = 0; i < m_buttons.size(); ++i)
     {
@@ -865,6 +879,70 @@ void DialogPrimitive::CycleFocus (int delta)
 Error:
     return;
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchCustomBodyInput
+//
+//  When the definition has custom-body hooks, forwards the input
+//  event in window-relative coordinates (translated into custom-body
+//  coordinates) and closes the dialog with the returned result code
+//  if the hook requests it. Returns true when the event was consumed
+//  so the default button/hyperlink dispatch is suppressed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DialogPrimitive::DispatchCustomBodyInput (DialogInputEvent::Kind kind, int xPx, int yPx, int vkCode)
+{
+    DialogInputEvent           ev   = {};
+    std::optional<int>         req;
+    int                        titleH = TitleHeightPx();
+    RECT                       rc = m_layout.customBodyRectPx;
+    bool                       consumed = false;
+
+    if (m_def == nullptr || !m_def->onInputCustomBody)
+    {
+        return false;
+    }
+
+    rc.top    += titleH;
+    rc.bottom += titleH;
+
+    if (kind == DialogInputEvent::Kind::KeyDown)
+    {
+        ev.kind   = kind;
+        ev.vkCode = vkCode;
+        req       = m_def->onInputCustomBody (ev);
+    }
+    else
+    {
+        bool insideX = (xPx >= rc.left && xPx < rc.right);
+        bool insideY = (yPx >= rc.top  && yPx < rc.bottom);
+        if (!(insideX && insideY))
+        {
+            return false;
+        }
+
+        ev.kind = kind;
+        ev.xPx  = xPx - rc.left;
+        ev.yPx  = yPx - rc.top;
+        req     = m_def->onInputCustomBody (ev);
+        consumed = true;
+    }
+
+    if (req.has_value())
+    {
+        Close (req.value());
+        return true;
+    }
+
+    InvalidateRect (m_hwnd, nullptr, FALSE);
+    return consumed;
+}
+
 
 
 

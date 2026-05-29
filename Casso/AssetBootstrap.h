@@ -116,4 +116,13 @@ public:
                                            const fs::path         & diskDir,
                                            wstring                & outDiskPath,
                                            string                 & outError);
+
+    // Returns:
+    //   >= 0: index into `mruEntries` of the disk the user picked.
+    //   -1  : user pressed "Download stock master".
+    //   IDCANCEL: user cancelled / skipped.
+    static int      PromptBootDiskMru     (HINSTANCE                hInstance,
+                                           HWND                     hwndParent,
+                                           const wstring          & displayName,
+                                           const vector<fs::path> & mruEntries);
 };

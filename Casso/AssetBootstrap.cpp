@@ -10,6 +10,9 @@
 #include "External/StbVorbisWrapper.h"
 #include "resource.h"
 #include "Ui/ThemeManager.h"
+#include "Ui/Chrome/ChromeTheme.h"
+#include "Ui/DxUiPainter.h"
+#include "Ui/DwriteTextRenderer.h"
 #include "Ui/Dialog/StandaloneDialog.h"
 #include "UnicodeSymbols.h"
 
@@ -1524,6 +1527,135 @@ static const BootDiskSpec * PromptBootDisk (HINSTANCE hInstance, HWND hwndParent
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PromptBootDiskMru
+//
+//  Custom-body dialog that lists recently mounted disk images (basenames
+//  only). The user can click a row to mount that image, press "Download
+//  stock master..." to fall through to the Asimov download path, or
+//  "Skip" to leave the drive empty. Pruning to existing files is the
+//  caller's responsibility.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr int  s_kMruRowHeightPx     = 26;
+static constexpr int  s_kMruRowGapPx        = 2;
+static constexpr int  s_kMruBodyWidthPx     = 480;
+static constexpr int  s_kIdMruDownload      = -1;
+static constexpr int  s_kIdMruSkip          = IDCANCEL;
+
+int AssetBootstrap::PromptBootDiskMru (
+    HINSTANCE                  hInstance,
+    HWND                       hwndParent,
+    const wstring            & displayName,
+    const vector<fs::path>   & mruEntries)
+{
+    DialogDefinition          def       = {};
+    wstring                   title;
+    wstring                   intro;
+    wstring                   downloadLabel;
+    vector<wstring>           labels;
+    int                       hovered   = -1;
+    int                       chosen    = 0;
+    int                       rowCount  = (int) mruEntries.size();
+    int                       totalH    = 0;
+
+    title  = L"Casso ";
+    title += s_kchEmDash;
+    title += L" Boot Disk";
+
+    intro  = L"Choose a recent disk for ";
+    intro += displayName;
+    intro += L", or download a stock master from the Asimov archive.";
+
+    labels.reserve (mruEntries.size());
+    for (const auto & p : mruEntries)
+    {
+        labels.push_back (p.filename().wstring());
+    }
+
+    totalH = rowCount * s_kMruRowHeightPx
+           + (rowCount > 0 ? (rowCount - 1) * s_kMruRowGapPx : 0);
+
+    def.title = title;
+    def.icon  = DialogIcon::Info;
+    def.body.push_back ({ intro, false, L"" });
+    def.customBodyMinSizePx.cx = s_kMruBodyWidthPx;
+    def.customBodyMinSizePx.cy = totalH;
+
+    def.onPaintCustomBody = [&labels, &hovered] (DialogPaintContext & ctx)
+    {
+        if (ctx.painter == nullptr || ctx.text == nullptr || ctx.theme == nullptr)
+        {
+            return;
+        }
+
+        float    x    = (float) ctx.customBodyRect.left;
+        float    y    = (float) ctx.customBodyRect.top;
+        float    w    = (float) (ctx.customBodyRect.right - ctx.customBodyRect.left);
+        uint32_t bg   = ctx.theme->dropdownBgArgb;
+        uint32_t fg   = ctx.theme->dropdownItemTextArgb;
+        uint32_t hov  = ctx.theme->navHoverArgb;
+        float    rowH = (float) s_kMruRowHeightPx;
+        float    gap  = (float) s_kMruRowGapPx;
+        float    fontPx = 14.0f * ctx.dpiScale;
+        HRESULT  hr   = S_OK;
+
+        for (size_t i = 0; i < labels.size(); ++i)
+        {
+            float    ry    = y + (float) i * (rowH + gap);
+            bool     isHov = ((int) i == hovered);
+            uint32_t bandBg = isHov ? hov : bg;
+
+            ctx.painter->FillRect (x, ry, w, rowH, bandBg);
+
+            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (labels[i].c_str(),
+                                                           x + 8.0f, ry,
+                                                           w - 16.0f, rowH,
+                                                           fg,
+                                                           fontPx, L"Segoe UI",
+                                                           DwriteTextRenderer::HAlign::Left,
+                                                           DwriteTextRenderer::VAlign::CenterOnCapHeight));
+        }
+    };
+
+    def.onInputCustomBody = [rowCount, &hovered] (const DialogInputEvent & ev) -> std::optional<int>
+    {
+        int  rowH    = s_kMruRowHeightPx;
+        int  gap     = s_kMruRowGapPx;
+        int  stride  = rowH + gap;
+        int  idx     = (ev.yPx < 0) ? -1 : (ev.yPx / stride);
+        bool isRow   = (idx >= 0 && idx < rowCount && (ev.yPx % stride) < rowH);
+
+        if (ev.kind == DialogInputEvent::Kind::MouseMove)
+        {
+            hovered = isRow ? idx : -1;
+            return std::nullopt;
+        }
+
+        if (ev.kind == DialogInputEvent::Kind::LeftButtonUp && isRow)
+        {
+            return idx;
+        }
+
+        return std::nullopt;
+    };
+
+    downloadLabel  = L"Download stock";
+    downloadLabel += s_kchEllipsis;
+
+    def.buttons.push_back ({ downloadLabel,             s_kIdMruDownload, false, false });
+    def.buttons.push_back ({ L"Skip",                   s_kIdMruSkip,     true,  true  });
+
+    chosen = ShowStandaloneDialog (hInstance, hwndParent, def);
+    return chosen;
 }
 
 

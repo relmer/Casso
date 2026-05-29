@@ -61,6 +61,7 @@ private:
     void     CycleFocus           (int delta);
     bool     HitTestHyperlink     (int xPx, int yPx, size_t & outBodyRunIdx) const;
     void     LaunchHyperlink      (size_t bodyRunIdx);
+    bool     DispatchCustomBodyInput (DialogInputEvent::Kind kind, int xPx, int yPx, int vkCode);
 
     int      TitleHeightPx        () const;
     RECT     GetInitialWindowRect (HWND hwndOwner, UINT dpi) const;

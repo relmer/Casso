@@ -22,6 +22,7 @@
 
 
 class DxUiPainter;
+class DwriteTextRenderer;
 struct ChromeTheme;
 struct DialogPaintContext;
 struct DialogInputEvent;
@@ -61,10 +62,11 @@ struct DialogButton
 
 struct DialogPaintContext
 {
-    DxUiPainter        * painter        = nullptr;
-    const ChromeTheme  * theme          = nullptr;
-    RECT                 customBodyRect = {};
-    float                dpiScale       = 1.0f;
+    DxUiPainter         * painter        = nullptr;
+    DwriteTextRenderer  * text           = nullptr;
+    const ChromeTheme   * theme          = nullptr;
+    RECT                  customBodyRect = {};
+    float                 dpiScale       = 1.0f;
 };
 
 
@@ -91,8 +93,9 @@ struct DialogDefinition
     // reserves space between the body text and the button row equal
     // to `customBodyMinSizePx`; the primitive then calls the hook on
     // every render frame. `onInputCustomBody` receives input events
-    // hit-tested into the custom body rect.
-    std::function<void (DialogPaintContext &)>         onPaintCustomBody;
-    std::function<void (const DialogInputEvent &)>     onInputCustomBody;
+    // hit-tested into the custom body rect and may return a result
+    // code to request that the dialog close with that value.
+    std::function<void (DialogPaintContext &)>                          onPaintCustomBody;
+    std::function<std::optional<int> (const DialogInputEvent &)>        onInputCustomBody;
     SIZE                                               customBodyMinSizePx = {};
 };

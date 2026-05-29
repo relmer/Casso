@@ -9,6 +9,7 @@
 #include "DiskSettings.h"
 #include "EmulatorShell.h"
 #include "Core/MachineScanner.h"
+#include "Shell/DiskMru.h"
 
 #pragma comment(lib, "ole32.lib")
 
@@ -198,24 +199,56 @@ static HRESULT LoadMachineConfig (
 
         if (savedDisk.empty())
         {
-            wstring  downloaded;
+            wstring                downloaded;
+            GlobalUserPrefs        prefs;
+            Win32FileSystem        fs_prefs;
+            DiskMru                mru;
+            vector<fs::path>       mruExisting;
+            HRESULT                hrPrefs    = S_OK;
+            int                    mruChoice  = IDCANCEL;
+            bool                   wantDownload = true;
 
             diskDir = AssetBootstrap::GetDiskDirectory();
 
-            hr = AssetBootstrap::OfferBootDiskDownload (
-                hInstance, machineName, hwndParent, diskDir, downloaded, error);
+            hrPrefs = prefs.Load (AssetBootstrap::GetAssetBaseDirectory().wstring(), fs_prefs);
+            IGNORE_RETURN_VALUE (hrPrefs, S_OK);
 
-            // S_FALSE = "user said no" or "no disk controller for this
-            // machine" — both are fine, just keep the slot empty.
-            // Hard failure surfaces a notification and bails.
-            if (hr != S_FALSE)
+            mru         = DiskMru::FromUtf8 (prefs.recentDisks);
+            mruExisting = mru.Prune ([] (const fs::path & p) { return fs::exists (p); });
+
+            if (!mruExisting.empty())
             {
-                CHRN (hr, format (L"Boot disk download failed:\n{}",
-                                  wstring (error.begin(), error.end())).c_str());
-                inoutDisk1Path = downloaded;
+                mruChoice = AssetBootstrap::PromptBootDiskMru (
+                    hInstance, hwndParent, machineName, mruExisting);
+
+                if (mruChoice >= 0 && mruChoice < (int) mruExisting.size())
+                {
+                    inoutDisk1Path = mruExisting[mruChoice].wstring();
+                    wantDownload   = false;
+                }
+                else if (mruChoice == IDCANCEL)
+                {
+                    wantDownload = false;
+                }
             }
 
-            hr = S_OK;
+            if (wantDownload)
+            {
+                hr = AssetBootstrap::OfferBootDiskDownload (
+                    hInstance, machineName, hwndParent, diskDir, downloaded, error);
+
+                // S_FALSE = "user said no" or "no disk controller for this
+                // machine" — both are fine, just keep the slot empty.
+                // Hard failure surfaces a notification and bails.
+                if (hr != S_FALSE)
+                {
+                    CHRN (hr, format (L"Boot disk download failed:\n{}",
+                                      wstring (error.begin(), error.end())).c_str());
+                    inoutDisk1Path = downloaded;
+                }
+
+                hr = S_OK;
+            }
         }
     }
 
