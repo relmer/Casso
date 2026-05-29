@@ -64,6 +64,7 @@ static constexpr int     kFramebufferHeight      = ChromeMetrics::kFramebufferHe
 static constexpr LPCWSTR kWindowClass           = L"CassoWindow";
 static constexpr int     s_kBaseDpi             = ChromeMetrics::kBaseDpi;
 static constexpr int     s_kDriveWidgetGapDp    = 16;
+static constexpr int     s_kLabelBottomGapDp    = 2;
 
 
 
@@ -86,8 +87,8 @@ namespace
     {
         int     bottomInset   = layout.bottomInsetPx;
         int     commandBarTop = std::max (0, clientH - bottomInset);
-        int     commandBarH   = std::max (0, clientH - commandBarTop);
         int     gap           = MulDiv (s_kDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
+        int     bottomGap     = 0;
         RECT    probe         = {};
         int     widgetW       = 0;
         int     widgetH       = 0;
@@ -104,7 +105,11 @@ namespace
         widgetH = probe.bottom - probe.top;
         totalW  = widgetW * static_cast<int> (driveChrome.size()) + gap * (static_cast<int> (driveChrome.size()) - 1);
         x       = std::max (0, (clientW - totalW) / 2);
-        y       = commandBarTop + (commandBarH - widgetH) / 2;
+        // Anchor the widget to the bottom so the margin between the
+        // basename label and the window edge mirrors the gap between
+        // the drive body and the label (s_kLabelStripGapPx, scaled).
+        bottomGap = MulDiv (s_kLabelBottomGapDp, static_cast<int> (dpi), s_kBaseDpi);
+        y         = std::max (commandBarTop, clientH - widgetH - bottomGap);
 
         for (i = 0; i < driveChrome.size(); i++)
         {
