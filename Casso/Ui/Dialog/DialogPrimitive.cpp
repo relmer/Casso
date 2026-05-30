@@ -936,6 +936,7 @@ void DialogPrimitive::SetButtonLabel (size_t idx, const std::wstring & label)
     if (idx < m_buttons.size())
     {
         m_buttons[idx].SetLabel (label);
+        RecomputeLayout (m_dpi);
         Repaint();
     }
 }

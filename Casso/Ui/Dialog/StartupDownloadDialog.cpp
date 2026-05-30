@@ -239,6 +239,91 @@ namespace
 
 
 
+    struct RowMetrics
+    {
+        float  x         = 0.0f;
+        float  fullW     = 0.0f;
+        float  rowH      = 0.0f;
+        float  headerH   = 0.0f;
+        float  headerGap = 0.0f;
+        float  gap       = 0.0f;
+        float  sourceW   = 0.0f;
+        float  statusW   = 0.0f;
+        float  colGap    = 0.0f;
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  PaintGroupHeader
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    void PaintGroupHeader (DialogPaintContext   & ctx,
+                           Label                & hdrLabel,
+                           const std::wstring   & groupLabel,
+                           const RowMetrics     & m,
+                           float                  y)
+    {
+        hdrLabel.SetText (groupLabel);
+        hdrLabel.SetRect ({ (LONG) m.x, (LONG) y,
+                            (LONG) (m.x + m.fullW), (LONG) (y + m.headerH) });
+        hdrLabel.Paint   (*ctx.painter, *ctx.text);
+    }
+
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  PaintEntryRow
+    //
+    //  Paints one tree-leaf row: Checkbox + (label inside checkbox) on
+    //  the left, dim source column, optional right-aligned status.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    void PaintEntryRow (DialogPaintContext        & ctx,
+                        const StartupAssetEntry   & entry,
+                        Checkbox                  & cb,
+                        Label                     & sourceLabel,
+                        Label                     & statusLabel,
+                        const std::wstring        & status,
+                        bool                        downloading,
+                        bool                        showStatus,
+                        const RowMetrics          & m,
+                        float                       y)
+    {
+        float  cbAvailW = m.fullW - m.sourceW - m.statusW - m.colGap * 2.0f;
+        RECT   cbRect   = { (LONG) m.x,
+                            (LONG) y,
+                            (LONG) (m.x + cbAvailW),
+                            (LONG) (y + m.rowH) };
+
+
+
+        cb.SetChecked (entry.selected);
+        cb.SetEnabled (entry.selectable && !downloading);
+        cb.SetRect    (cbRect);
+        cb.SetLabel   (entry.displayName);
+        cb.Paint      (*ctx.painter, *ctx.text);
+
+        sourceLabel.SetText (entry.source);
+        sourceLabel.SetRect ({ (LONG) (m.x + cbAvailW + m.colGap), (LONG) y,
+                               (LONG) (m.x + cbAvailW + m.colGap + m.sourceW), (LONG) (y + m.rowH) });
+        sourceLabel.Paint   (*ctx.painter, *ctx.text);
+
+        if (showStatus && entry.selected)
+        {
+            statusLabel.SetText (status);
+            statusLabel.SetRect ({ (LONG) (m.x + m.fullW - m.statusW), (LONG) y,
+                                   (LONG) (m.x + m.fullW),             (LONG) (y + m.rowH) });
+            statusLabel.Paint   (*ctx.painter, *ctx.text);
+        }
+    }
+
+
+
     ////////////////////////////////////////////////////////////////////////////
     //
     //  PaintBody
@@ -252,23 +337,15 @@ namespace
 
     void PaintBody (DialogPaintContext & ctx, StartupDownloadSet & set, DialogState & state)
     {
-        float     x         = 0.0f;
-        float     y         = 0.0f;
-        float     fullW     = 0.0f;
-        float     rowH      = (float) s_kRowHeightDp        * ctx.dpiScale;
-        float     headerH   = (float) s_kHeaderHeightDp     * ctx.dpiScale;
-        float     headerGap = (float) s_kHeaderGapAboveDp   * ctx.dpiScale;
-        float     gap       = (float) s_kRowGapDp           * ctx.dpiScale;
-        float     sourceW   = s_kSourceColumnDp             * ctx.dpiScale;
-        float     statusW   = s_kStatusColumnDp             * ctx.dpiScale;
-        float     colGap    = s_kColumnGapDp                * ctx.dpiScale;
-        uint32_t  fg        = 0;
-        uint32_t  fgDim     = 0;
-        uint32_t  hdrFg     = 0;
-        wstring   curGroup;
-        Label     hdrLabel;
-        Label     sourceLabel;
-        Label     statusLabel;
+        RowMetrics  m         = {};
+        float       y         = 0.0f;
+        uint32_t    fg        = 0;
+        uint32_t    fgDim     = 0;
+        uint32_t    hdrFg     = 0;
+        wstring     curGroup;
+        Label       hdrLabel;
+        Label       sourceLabel;
+        Label       statusLabel;
 
 
 
@@ -277,12 +354,20 @@ namespace
             return;
         }
 
-        x       = (float) ctx.customBodyRect.left;
-        y       = (float) ctx.customBodyRect.top;
-        fullW   = (float) (ctx.customBodyRect.right - ctx.customBodyRect.left);
-        fg      = ctx.theme->dropdownItemTextArgb;
-        fgDim   = (fg & 0x00FFFFFFu) | 0x70000000u;
-        hdrFg   = ctx.theme->titleTextArgb;
+        m.x         = (float) ctx.customBodyRect.left;
+        m.fullW     = (float) (ctx.customBodyRect.right - ctx.customBodyRect.left);
+        m.rowH      = (float) s_kRowHeightDp      * ctx.dpiScale;
+        m.headerH   = (float) s_kHeaderHeightDp   * ctx.dpiScale;
+        m.headerGap = (float) s_kHeaderGapAboveDp * ctx.dpiScale;
+        m.gap       = (float) s_kRowGapDp         * ctx.dpiScale;
+        m.sourceW   = s_kSourceColumnDp           * ctx.dpiScale;
+        m.statusW   = s_kStatusColumnDp           * ctx.dpiScale;
+        m.colGap    = s_kColumnGapDp              * ctx.dpiScale;
+
+        y     = (float) ctx.customBodyRect.top;
+        fg    = ctx.theme->dropdownItemTextArgb;
+        fgDim = (fg & 0x00FFFFFFu) | 0x70000000u;
+        hdrFg = ctx.theme->titleTextArgb;
 
         state.bodyOriginXPx = ctx.customBodyRect.left;
         state.bodyOriginYPx = ctx.customBodyRect.top;
@@ -305,7 +390,6 @@ namespace
         {
             const StartupAssetEntry & entry  = set.entries[i];
             const EntryRuntime      & rt     = state.runtime[i];
-            Checkbox                & cb     = state.checkboxes[i];
             std::wstring              status = state.showStatus
                                                   ? StatusText (rt, entry.expectedBytes)
                                                   : wstring();
@@ -314,46 +398,17 @@ namespace
             {
                 if (!curGroup.empty())
                 {
-                    y += headerGap;
+                    y += m.headerGap;
                 }
 
                 curGroup = entry.groupLabel;
-
-                hdrLabel.SetText (curGroup);
-                hdrLabel.SetRect ({ (LONG) x, (LONG) y,
-                                    (LONG) (x + fullW), (LONG) (y + headerH) });
-                hdrLabel.Paint   (*ctx.painter, *ctx.text);
-
-                y += headerH + gap;
+                PaintGroupHeader (ctx, hdrLabel, curGroup, m, y);
+                y += m.headerH + m.gap;
             }
 
-            float  ry         = y;
-            float  cbAvailW   = fullW - sourceW - statusW - colGap * 2.0f;
-            RECT   cbRect     = { (LONG) x,
-                                  (LONG) ry,
-                                  (LONG) (x + cbAvailW),
-                                  (LONG) (ry + rowH) };
-
-            cb.SetChecked (entry.selected);
-            cb.SetEnabled (entry.selectable && !state.downloading);
-            cb.SetRect    (cbRect);
-            cb.SetLabel   (entry.displayName);
-            cb.Paint      (*ctx.painter, *ctx.text);
-
-            sourceLabel.SetText (entry.source);
-            sourceLabel.SetRect ({ (LONG) (x + cbAvailW + colGap), (LONG) ry,
-                                   (LONG) (x + cbAvailW + colGap + sourceW), (LONG) (ry + rowH) });
-            sourceLabel.Paint   (*ctx.painter, *ctx.text);
-
-            if (state.showStatus && entry.selected)
-            {
-                statusLabel.SetText (status);
-                statusLabel.SetRect ({ (LONG) (x + fullW - statusW), (LONG) ry,
-                                       (LONG) (x + fullW),           (LONG) (ry + rowH) });
-                statusLabel.Paint   (*ctx.painter, *ctx.text);
-            }
-
-            y += rowH + gap;
+            PaintEntryRow (ctx, entry, state.checkboxes[i], sourceLabel, statusLabel,
+                           status, state.downloading, state.showStatus, m, y);
+            y += m.rowH + m.gap;
         }
     }
 
@@ -502,6 +557,20 @@ namespace
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartupDownloadDialog::Show
+//
+//  Constructs and modally displays the unified startup-asset download
+//  dialog. Builds checkbox widgets parallel to set.entries, wires the
+//  custom-body paint/input hooks, button activation, and tick handlers
+//  to free helpers (PaintBody / HandleBodyInput / HandleButtonActivated /
+//  HandleTick), and runs the standalone dialog loop. On exit, cancels
+//  and joins any still-running download workers, scrubs partial files,
+//  and returns the chosen StartupDownloadResult.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hInstance,
                                                    HWND                     hwndOwner,
                                                    const std::wstring     & machineDisplayName,
@@ -566,8 +635,8 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
 
         intro  = L"The ";
         intro += machineStr;
-        intro += L" needs the following files to boot. Click "
-                 L"Download to fetch them now, or Exit to quit.";
+        intro += L" needs the following files to boot.\n"
+                 L"Click Download to fetch them now, or Exit to quit.";
     }
     else
     {
