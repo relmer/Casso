@@ -414,4 +414,105 @@ public:
 
         Assert::IsTrue (out[0] > 0.0f, L"Motor audible again after re-insert");
     }
+
+
+    ////////////////////////////////////////////////////////////////////
+    //
+    //  Boot-recalibrate ratchet -- a rapid run of consecutive head bumps
+    //  (head pinned at the track-0 stop) renders as a grouped
+    //  [thunk, pause, click, click] cadence rather than a steady stream
+    //  of identical thunks (the "fast buzz" regression). Models the real
+    //  controller stream: an isolated first bump, then bumps every
+    //  ~19,690 cycles -- comfortably inside kHeadIdleCycles (51,150).
+    //
+    ////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (RapidBumpBurst_rendersMachineGunRatchetNotSteadyThunks)
+    {
+        Disk2AudioSource          src;
+        RecordingAudioEventSink   sink;
+        uint64_t                  cycle = 236309;
+
+        src.SetSampleBufferForTest (L"HeadStep", vector<float> (1024, 0.5f));
+        src.SetSampleBufferForTest (L"HeadStop", vector<float> (1024, 0.9f));
+        src.SetAudioEventSink (&sink);
+
+        // Nine consecutive bumps, each 19,690 cycles after the previous.
+        for (int n = 0; n < 9; n++)
+        {
+            src.Tick (cycle);
+            src.OnHeadBump();
+            cycle += 19690;
+        }
+
+        // Two of the nine bumps land on the silent ratchet slot, so only
+        // seven produce an audio onset. The expected sound sequence is
+        // [thunk, click, click, thunk, click, click, thunk].
+        SoundKind  expected[7] =
+        {
+            SoundKind::HeadStop,
+            SoundKind::HeadStep,
+            SoundKind::HeadStep,
+            SoundKind::HeadStop,
+            SoundKind::HeadStep,
+            SoundKind::HeadStep,
+            SoundKind::HeadStop,
+        };
+
+        Assert::AreEqual (size_t (7), sink.log.size());
+
+        for (int i = 0; i < 7; i++)
+        {
+            Assert::IsTrue (sink.log[i].sound == expected[i]);
+        }
+    }
+
+    TEST_METHOD (IsolatedBumpsFarApart_eachRenderAsFirmThunk)
+    {
+        Disk2AudioSource          src;
+        RecordingAudioEventSink   sink;
+
+        src.SetSampleBufferForTest (L"HeadStep", vector<float> (16, 0.5f));
+        src.SetSampleBufferForTest (L"HeadStop", vector<float> (16, 0.9f));
+        src.SetAudioEventSink (&sink);
+
+        // Two bumps separated by more than kHeadIdleCycles (51,150) are
+        // not a ratchet -- each is a discrete wall-bang thunk.
+        src.Tick (100000);
+        src.OnHeadBump();
+        src.Tick (100000 + 60000);
+        src.OnHeadBump();
+
+        Assert::AreEqual (size_t (2), sink.log.size());
+        Assert::IsTrue   (sink.log[0].sound == SoundKind::HeadStop);
+        Assert::IsTrue   (sink.log[1].sound == SoundKind::HeadStop);
+    }
+
+    TEST_METHOD (StepBetweenBumps_reArmsRatchetSoNextBumpIsThunk)
+    {
+        Disk2AudioSource          src;
+        RecordingAudioEventSink   sink;
+
+        src.SetSampleBufferForTest (L"HeadStep", vector<float> (16, 0.5f));
+        src.SetSampleBufferForTest (L"HeadStop", vector<float> (16, 0.9f));
+
+        // Drive a short ratchet so the slot counter advances off zero.
+        src.Tick (100000);
+        src.OnHeadBump();
+        src.Tick (119690);
+        src.OnHeadBump();
+
+        // A real step (head left the wall) must re-arm the pattern.
+        src.Tick (139380);
+        src.OnHeadStep (1);
+        Assert::AreEqual (uint32_t (0), src.GetRatchetSlot());
+
+        // The next bump after the step is therefore an isolated thunk.
+        src.SetAudioEventSink (&sink);
+        src.Tick (159070);
+        src.OnHeadBump();
+
+        Assert::AreEqual (size_t (1), sink.log.size());
+        Assert::IsTrue   (sink.log[0].sound == SoundKind::HeadStop);
+    }
 };

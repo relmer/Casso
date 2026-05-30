@@ -440,6 +440,11 @@ void Disk2AudioSource::OnHeadStep (int newQt)
 
     m_lastStepCycle = m_currentCycle;
 
+    // A real step means the head left the track-0 wall, so the bump
+    // ratchet is no longer in progress -- re-arm it from the top.
+    m_lastEventWasBump = false;
+    m_ratchetSlot      = 0;
+
     // Spec-006 audio-decision sink (FR-022 / FR-025). Mapping:
     //   * wasInSeekMode == true at entry  -> AudioContinued
     //   * empty step buffer               -> AudioSilent / BufferMissing
@@ -475,15 +480,22 @@ void Disk2AudioSource::OnHeadStep (int newQt)
 //
 //  OnHeadBump
 //
-//  Track-0 / max-track wall-bang. Always restarts the stop one-shot
-//  (a bump is a discrete event, never collapsed into the seek-burst
-//  state). Clears seek mode so a subsequent step starts fresh.
+//  Track-0 / max-track wall-bang. An ISOLATED bump is a firm thunk
+//  (the HeadStop one-shot, restarted). A rapid run of consecutive bumps
+//  -- as the controller emits while the head is pinned against the
+//  track-0 stop during a boot recalibrate -- is instead rendered through
+//  a 4-slot ratchet pattern [thunk, pause, click, click] so it sounds
+//  like a slow machine gun rather than a continuous buzz. Clears seek
+//  mode either way.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2AudioSource::OnHeadBump()
 {
     bool      previousStillPlaying = false;
+    bool      ratchet              = false;
+    uint64_t  gap                  = 0;
+    uint32_t  slot                 = 0;
     uint32_t  headLen              = 0;
 
     if (m_headBuf != nullptr)
@@ -492,25 +504,80 @@ void Disk2AudioSource::OnHeadBump()
         previousStillPlaying = (headLen > 0 && m_headPos < headLen);
     }
 
-    m_seekMode      = false;
-    m_headBuf       = &m_stopBuf;
-    m_headPos       = 0;
-    m_lastStepCycle = m_currentCycle;
+    if (m_lastEventWasBump && m_lastStepCycle != 0 && m_currentCycle >= m_lastStepCycle)
+    {
+        gap     = m_currentCycle - m_lastStepCycle;
+        ratchet = (gap < kHeadIdleCycles);
+    }
+
+    m_seekMode         = false;
+    m_lastEventWasBump = true;
+    m_lastStepCycle    = m_currentCycle;
+
+    if (!ratchet)
+    {
+        // Isolated wall-bang: firm thunk. Re-arm the ratchet so a
+        // following rapid burst renders [silent, click, click, thunk...].
+        m_ratchetSlot = kRatchetSlotSilent;
+        TriggerHeadShot (SoundKind::HeadStop, &m_stopBuf, previousStillPlaying);
+        return;
+    }
+
+    slot          = m_ratchetSlot;
+    m_ratchetSlot = (m_ratchetSlot + 1) % kRatchetPeriod;
+
+    if (slot == kRatchetSlotThunk)
+    {
+        TriggerHeadShot (SoundKind::HeadStop, &m_stopBuf, previousStillPlaying);
+    }
+    else if (slot == kRatchetSlotSilent)
+    {
+        // Rhythmic pause: hold the decaying tail and emit nothing. This
+        // silent slot is what breaks a steady 52 Hz buzz into the grouped
+        // "slow machine gun" cadence of a real recalibrate.
+    }
+    else
+    {
+        // The two remaining slots are step clicks -> 2:1 click-to-thunk.
+        TriggerHeadShot (SoundKind::HeadStep, &m_stepBuf, previousStillPlaying);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TriggerHeadShot
+//
+//  Starts a head one-shot on `buf` from sample 0 and fires the matching
+//  audio-decision event. Shared by the isolated-bump, ratchet-thunk and
+//  ratchet-click paths in OnHeadBump.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2AudioSource::TriggerHeadShot (
+    SoundKind             kind,
+    const vector<float> * buf,
+    bool                  previousStillPlaying)
+{
+    m_headBuf = buf;
+    m_headPos = 0;
 
     if (m_audioEventSink != nullptr)
     {
-        if (m_stopBuf.empty())
+        if (buf->empty())
         {
-            m_audioEventSink->OnAudioSilent (SoundKind::HeadStop, m_driveIndex,
+            m_audioEventSink->OnAudioSilent (kind, m_driveIndex,
                                              SilentReason::BufferMissing);
         }
         else if (previousStillPlaying)
         {
-            m_audioEventSink->OnAudioRestarted (SoundKind::HeadStop, m_driveIndex);
+            m_audioEventSink->OnAudioRestarted (kind, m_driveIndex);
         }
         else
         {
-            m_audioEventSink->OnAudioStarted (SoundKind::HeadStop, m_driveIndex);
+            m_audioEventSink->OnAudioStarted (kind, m_driveIndex);
         }
     }
 }

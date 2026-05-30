@@ -112,10 +112,20 @@ public:
     bool   IsSeekMode() const { return m_seekMode; }
     uint64_t GetLastStepCycle() const { return m_lastStepCycle; }
 
+    // Test introspection for the boot-recalibrate ratchet (see OnHeadBump).
+    uint32_t GetRatchetSlot() const { return m_ratchetSlot; }
+
 private:
     void   MixMotor (float * out, uint32_t n);
     void   MixHead (float * out, uint32_t n);
     void   MixDoor (float * out, uint32_t n);
+
+    // Starts a head one-shot on `buf` and fires the matching audio-event
+    // (Started / Restarted / Silent). Shared by the bump and ratchet paths.
+    void   TriggerHeadShot (
+        SoundKind             kind,
+        const vector<float> * buf,
+        bool                  previousStillPlaying);
 
     // Pan (equal-power, precomputed by SetPan).
     float                 m_panLeft   = IDriveAudioSource::kCenterPan;
@@ -153,6 +163,22 @@ private:
     uint64_t              m_lastStepCycle = 0;
     uint64_t              m_currentCycle  = 0;
     bool                  m_seekMode      = false;
+
+    // Boot-recalibrate ratchet. When the head is pinned against the
+    // track-0 stop, the controller fires a steady ~52 Hz stream of bumps
+    // (one per phase-on, ~19,690 cycles apart). Rendering every one as a
+    // HeadStop thunk smears into a continuous "fast buzz". A real Disk II
+    // recalibrate instead sounds like a slow machine gun: the ratcheting
+    // mechanism produces a grouped [thunk, pause, click, click] cadence.
+    // We reproduce that by cycling rapid consecutive bumps through a
+    // 4-slot pattern -- a thunk, a silent rhythmic pause, then two step
+    // clicks -- yielding a 2:1 click-to-thunk ratio at ~38 Hz effective.
+    static constexpr uint32_t kRatchetPeriod     = 4;
+    static constexpr uint32_t kRatchetSlotThunk  = 0;
+    static constexpr uint32_t kRatchetSlotSilent = 1;
+
+    uint32_t              m_ratchetSlot      = 0;
+    bool                  m_lastEventWasBump = false;
 
     // Spec-006 audio-decision sink (FR-022 / FR-025). Optional.
     IDriveAudioEventSink * m_audioEventSink = nullptr;
