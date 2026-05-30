@@ -6,6 +6,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.4.1288] — Protected games boot: quarter-track disk pipeline
+
+### Added
+- **feat(disk2): quarter-track read pipeline for half-track copy
+  protection.** The disk pipeline now resolves reads at quarter-track
+  (0-159) resolution via a TMAP-derived slot map, and the head stepper
+  uses the apple2js PHASE_DELTA model so it always rests on a valid
+  detent. Disks formatted on half-track boundaries — *Choplifter*,
+  *Karateka*, and *Lode Runner* — now boot from their original WOZ
+  images (previously stalled in the protected region around track 12).
+
+### Fixed
+- **fix(disk2): boot recalibrate audio is a machine-gun ratchet, not a
+  buzz.** During a DOS boot recalibrate the head pins at the track-0 stop
+  and emits a steady ~52 Hz stream of identical thunks; restarting the
+  same sample every 19 ms smeared into a continuous buzz. The audio layer
+  now cycles rapid consecutive bumps through a 4-slot ratchet pattern,
+  restoring the realistic slow "machine-gun" ratchet a real Disk II makes.
+  Isolated bumps stay firm thunks; a genuine step re-arms the pattern.
+
+
 ## [1.4.1279] — Disk II copy-protection fidelity foundations
 
 ### Added
