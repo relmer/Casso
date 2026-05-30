@@ -18,8 +18,14 @@
 //  button's resultCode, or -1 on close-gesture. For dialogs invoked
 //  after EmulatorShell is running, prefer EmulatorShell::ShowModalDialog.
 //
+//  `themeName` is the persisted GlobalUserPrefs::activeTheme value; it
+//  is resolved to a ChromeTheme via ChromeTheme::ForName so startup
+//  dialogs honour the user's theme choice. Unknown names fall back to
+//  Skeuomorphic.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int  ShowStandaloneDialog (HINSTANCE                hInstance,
                            HWND                     hwndOwner,
+                           std::string_view         themeName,
                            const DialogDefinition & def);

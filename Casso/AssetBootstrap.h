@@ -61,6 +61,7 @@ public:
                                            HWND                     hwndParent,
                                            const vector<fs::path> & searchPaths,
                                            const fs::path         & assetBaseDir,
+                                           std::string_view         themeName,
                                            string                 & outError);
 
     // Audio / FR-017 / FR-018. Inspects
@@ -129,6 +130,7 @@ public:
                                            const wstring          & machineName,
                                            const vector<fs::path> & mruEntries,
                                            const fs::path         & diskDir,
+                                           std::string_view         themeName,
                                            wstring                & outDiskPath,
                                            bool                   & outUserClosed,
                                            string                 & outError);

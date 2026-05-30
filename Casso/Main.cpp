@@ -235,7 +235,7 @@ static HRESULT LoadMachineConfig (
             mruExisting = mru.Prune ([] (const fs::path & p) { return fs::exists (p); });
 
             hr = AssetBootstrap::PromptBootDiskMru (
-                hInstance, hwndParent, machineName, mruExisting, diskDir, downloaded, userClosed, error);
+                hInstance, hwndParent, machineName, mruExisting, diskDir, prefs.activeTheme, downloaded, userClosed, error);
 
             CHRN (hr, format (L"Boot disk download failed:\n{}",
                               wstring (error.begin(), error.end())).c_str());

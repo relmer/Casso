@@ -36,9 +36,12 @@ is preserved as the lone deliberate Win32 surface.
   types and headless `LayoutDialog` free function; all measurement is
   injected so the math is unit-tested without DirectWrite.
 - **feat(011): StandaloneDialog wrapper.** Bootstrap-friendly helper
-  that spins up a transient `D3D11CreateDevice (HARDWARE)` + skeuomorphic
-  `ChromeTheme` + one-shot `DialogPrimitive` for callers that fire before
-  `EmulatorShell` exists (e.g. `AssetBootstrap`'s missing-asset prompts).
+  that spins up a transient `D3D11CreateDevice (HARDWARE)` + one-shot
+  `DialogPrimitive` for callers that fire before `EmulatorShell` exists
+  (e.g. `AssetBootstrap`'s missing-asset prompts). The caller passes
+  `GlobalUserPrefs::activeTheme` so startup dialogs honour the user's
+  persisted `ChromeTheme` choice (`Skeuomorphic` / `DarkModern` /
+  `RetroTerminal`) instead of always painting Skeuomorphic.
 - **feat(011): themed startup prompts.** `AssetBootstrap::PromptUser`
   (missing-asset download approval — now with clickable URL hyperlink),
   `PromptBootDisk` (DOS 3.3 / ProDOS / Skip), and

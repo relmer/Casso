@@ -1105,7 +1105,7 @@ static constexpr int    s_kRomColumnGapDp   = 16;
 static constexpr float  s_kRomFontDp        = 13.0f;
 static constexpr float  s_kRomTextPaddingDp = 6.0f;
 
-static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, const vector<const RomSpec *> & missing)
+static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, std::string_view themeName, const vector<const RomSpec *> & missing)
 {
     struct RomRow
     {
@@ -1243,7 +1243,7 @@ static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, const vector<const
     def.buttons.push_back ({ L"Download", IDYES, true,  false });
     def.buttons.push_back ({ L"Cancel",   IDNO,  false, true  });
 
-    response = ShowStandaloneDialog (hInstance, hwndParent, def);
+    response = ShowStandaloneDialog (hInstance, hwndParent, themeName, def);
 
     return response == IDYES;
 }
@@ -1464,6 +1464,7 @@ HRESULT AssetBootstrap::CheckAndFetchRoms (
     HWND                     hwndParent,
     const vector<fs::path> & searchPaths,
     const fs::path         & assetBaseDir,
+    std::string_view         themeName,
     string                 & outError)
 {
     HRESULT                  hr             = S_OK;
@@ -1510,7 +1511,7 @@ HRESULT AssetBootstrap::CheckAndFetchRoms (
 
     BAIL_OUT_IF (missing.empty(), S_OK);
 
-    userOk = PromptUser (hInstance, hwndParent, missing);
+    userOk = PromptUser (hInstance, hwndParent, themeName, missing);
     BAIL_OUT_IF (!userOk, S_FALSE);
 
     hSession = WinHttpOpen (s_kpszUserAgent,
@@ -1690,6 +1691,7 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     const wstring            & machineName,
     const vector<fs::path>   & mruEntries,
     const fs::path           & diskDir,
+    std::string_view           themeName,
     wstring                  & outDiskPath,
     bool                     & outUserClosed,
     string                   & outError)
@@ -1830,7 +1832,7 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     def.buttons.push_back ({ L"Skip", IDCANCEL, true, true });
     def.closeBoxResult = s_kCloseBoxResult;
 
-    chosen = ShowStandaloneDialog (hInstance, hwndParent, def);
+    chosen = ShowStandaloneDialog (hInstance, hwndParent, themeName, def);
 
     if (chosen == s_kCloseBoxResult)
     {
@@ -2125,7 +2127,7 @@ static constexpr int       s_kIdDiskAudioSkip           = IDCANCEL;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static int PromptDiskAudioConsent (HINSTANCE hInstance, HWND hwndParent)
+static int PromptDiskAudioConsent (HINSTANCE hInstance, HWND hwndParent, std::string_view themeName)
 {
     int               chosen  = s_kIdDiskAudioSkip;
     DialogDefinition  def     = {};
@@ -2151,7 +2153,7 @@ static int PromptDiskAudioConsent (HINSTANCE hInstance, HWND hwndParent)
     def.buttons.push_back ({ L"Download", s_kIdDiskAudioDownload, true,  false });
     def.buttons.push_back ({ L"Skip",     s_kIdDiskAudioSkip,     false, true  });
 
-    chosen = ShowStandaloneDialog (hInstance, hwndParent, def);
+    chosen = ShowStandaloneDialog (hInstance, hwndParent, themeName, def);
     if (chosen != s_kIdDiskAudioDownload && chosen != s_kIdDiskAudioSkip)
     {
         chosen = s_kIdDiskAudioSkip;
@@ -2260,7 +2262,7 @@ HRESULT AssetBootstrap::CheckAndFetchDiskAudio (
     else
     {
         // "ask" or any unknown value -- prompt now.
-        consent = PromptDiskAudioConsent (hInstance, hwndParent);
+        consent = PromptDiskAudioConsent (hInstance, hwndParent, prefs.activeTheme);
         prefs.audioDownloadConsent = (consent == s_kIdDiskAudioDownload)
                                        ? std::string ("allow")
                                        : std::string ("decline");
@@ -2698,7 +2700,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
     BAIL_OUT_IF (set.entries.empty (), S_OK);
 
-    result = StartupDownloadDialog::Show (hInstance, hwndParent,
+    result = StartupDownloadDialog::Show (hInstance, hwndParent, prefs.activeTheme,
                                           MachineDisplayName (narrowMachine), set);
 
     switch (result)

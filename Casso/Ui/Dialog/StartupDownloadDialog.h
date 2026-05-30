@@ -98,6 +98,7 @@ class StartupDownloadDialog
 public:
     static StartupDownloadResult  Show (HINSTANCE                hInstance,
                                         HWND                     hwndOwner,
+                                        std::string_view         themeName,
                                         const std::wstring     & machineDisplayName,
                                         StartupDownloadSet     & set);
 

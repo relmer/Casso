@@ -634,10 +634,15 @@ void StartupDownloadDialog::HandleTick (DialogPrimitive & dlg, DialogState & sta
 //  and joins any still-running download workers, scrubs partial files,
 //  and returns the chosen StartupDownloadResult.
 //
+//  `themeName` is forwarded to ShowStandaloneDialog so the dialog
+//  honours the user's persisted ChromeTheme choice; the caller passes
+//  GlobalUserPrefs::activeTheme.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hInstance,
                                                    HWND                     hwndOwner,
+                                                   std::string_view         themeName,
                                                    const std::wstring     & machineDisplayName,
                                                    StartupDownloadSet     & set)
 {
@@ -757,7 +762,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
         HandleTick (dlg, state);
     };
 
-    dialogResult = ShowStandaloneDialog (hInstance, hwndOwner, def);
+    dialogResult = ShowStandaloneDialog (hInstance, hwndOwner, themeName, def);
     UNREFERENCED_PARAMETER (dialogResult);
 
     if (!state.workers.empty())

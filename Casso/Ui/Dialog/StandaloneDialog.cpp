@@ -21,6 +21,7 @@
 
 int ShowStandaloneDialog (HINSTANCE                hInstance,
                           HWND                     hwndOwner,
+                          std::string_view         themeName,
                           const DialogDefinition & def)
 {
     HRESULT                     hr            = S_OK;
@@ -28,7 +29,7 @@ int ShowStandaloneDialog (HINSTANCE                hInstance,
     ComPtr<ID3D11DeviceContext> context;
     D3D_FEATURE_LEVEL           level         = D3D_FEATURE_LEVEL_11_0;
     UINT                        createFlags   = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
-    ChromeTheme                 theme         = ChromeTheme::Skeuomorphic();
+    ChromeTheme                 theme         = ChromeTheme::ForName (std::string (themeName));
     DialogPrimitive             primitive;
     int                         result        = -1;
     HWND                        hwndOwnerSafe = hwndOwner;
