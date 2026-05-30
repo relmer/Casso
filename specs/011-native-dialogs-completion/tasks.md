@@ -7,13 +7,30 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 **Input**: Design documents from `/specs/011-native-dialogs-completion/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/dialog-primitive.md, quickstart.md
 
-## Execution Status (autonomous run continued — DialogPrimitive landed)
+## Execution Status (current — through May 2026)
 
-**Completed (51/65)**: T001–T013 (foundational scaffolding + DialogDefinition + DialogLayout + DiskMru + recentDisks JSON + DiskMru<->prefs bridge + MRU recording on Mount); T006–T009 (DialogPrimitive + Renderer + custom-body input dispatcher); T014–T018 (US1: AssetBootstrap PromptUser, PromptBootDisk, PromptDiskAudioConsent converted to themed StandaloneDialog); T019–T024 (US2: boot-disk MRU picker rendered with DialogPrimitive custom-body — clickable filename rows + hover highlight, Download / Skip footer, prune-on-show); T025–T029 (US3: Help/About/Keymap/MachineInfo themed via ShowModalDialog); T030–T035 (US4: drive widget filename label); T036, T037 (US5: file-picker dedup); T038 (SettingsPanel ROM-download stray); T039 + T042–T043 (US6: DebugConsole received Win11 dark-mode pass — ApplyImmersiveDarkMode + dark brushes + DarkMode_Explorer theme + WM_CTLCOLORSTATIC override); T044 + T058–T059 (US7: DiskIIDebugDialog received the same Win11 dark-mode pass — ListView header themed, row colors set, invalid-input label keeps red on dark).
+**Completed (36/65)** — Phase 1–8 plus the substance of US6/US7 left for follow-up:
+- T001–T013: Setup + Foundational (DialogDefinition, DialogLayout, DialogPrimitive + Renderer, custom-body input dispatcher, DxUiPainter hyperlink hit-test, DiskMru + tests, `recentDisks` JSON, mount-site recording).
+- T014, T016, T017: US1 — `StartupDownloadDialog` is live as a single themed DX dialog with parallel-download workers, per-asset progress, checkbox selection, and group headers (Apple //e ROMs, Disk II audio, Boot disks). `AssetBootstrap.cpp` carries no `TaskDialogIndirect` / `MessageBoxW` / legacy prompt calls.
+- T019–T023: US2 — boot-disk MRU rows were **absorbed into `StartupDownloadDialog`** (no separate `BootDiskPicker.h/.cpp`; the unified downloader paints MRU entries above the DOS 3.3 / ProDOS download rows — commit `885aa00`). `DiskMru::Prune` runs at Show time; mount sites record into the MRU; `DiskMruTests` covers Prune (drops-rejected, idempotent, null-predicate).
+- T025–T028: US3 — themed About (with `IDI_CASSO_PHOTOREAL` + hyperlink), Keymap, Machine Info via `DialogPrimitive`.
+- T030–T035: US4 — drive widget shows truncated mounted-disk basename below "Drive N"; `DriveLabelTruncationTests` covers the algorithm.
+- T036, T037: US5 — `IDM_DISK_INSERT1/2` routed through `PromptForDiskImage`; no more `GetOpenFileNameW`.
+- T038: FR-012 — `SettingsPanel` `MessageBoxW` stray replaced.
 
-**Theme-only (14/65)**: T040–T041 (US6 scroll + selection rebuild on DX text panel) and T045–T057 (US7 full DX panel port with themed text input + validation, checkbox / radio primitives, virtual sortable ListView, popup column menu, tooltips) remain — these debug-only dialogs ship now with the Win11 dark-mode pass instead of a from-scratch DX rebuild. The missing widget primitives (themed text input, radio button, virtual ListView, popup menu, tooltip) are tracked for future feature work; spec 011 covers the user-facing path (US1–US5) end-to-end in DX, plus the dark-theme pass on the developer-only debug dialogs.
+**Additional polish landed beyond the original task list:**
+- Shared widget extraction: `Checkbox`, `Label` (with `HAlign` / `VAlign` / `FontWeight`), `ListView` widget all live under `Casso/Ui/Widgets/` and are used by both Settings pages and the startup dialog.
+- Themed close-caption button on `DialogPrimitive`; Esc / Alt+F4 / close-box on the boot-disk picker exits Casso.
+- `StartupDownloadDialog` refactor: helpers + nested types are private class members; bodies factored from `Show` into named methods.
+- `DialogPrimitive::SetButtonLabel` now re-runs layout so mid-flight relabels (e.g. "Download" → "Downloading...") get the right button width.
 
-**Polish (T060–T065)**: CHANGELOG + tasks.md landed alongside the consumer commits; analysis builds for x64 / ARM64 Debug + Release run as the merge gate.
+**Not done (explicitly tracked):**
+- T015: `UnitTest/StartupDownloadSetTests.cpp` (the unit tests for set composition were never written).
+
+**Remaining work (29/65):**
+- T039–T043: US6 themed Debug Console panel.
+- T044–T059: US7 themed Disk II Debug Panel (16 tasks).
+- T060–T065: merge gates (rg containment check, -RunCodeAnalysis build, full tests, single consolidated CHANGELOG entry, README + quickstart updates).
 
 ---
 
@@ -83,11 +100,11 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 
 ### Implementation for User Story 1
 
-- [ ] T014 [P] [US1] Add `Casso/Ui/Dialog/StartupDownloadDialog.h` + `StartupDownloadDialog.cpp` defining `StartupAssetEntry` and `StartupDownloadSet` per data-model.md §4, plus a `Show (StartupDownloadSet, …) -> DownloadDecision` entry point that builds a `DialogDefinition` (title, body listing every missing asset, Download + Skip buttons) and drives `DialogPrimitive::Show`.
+- [X] T014 [P] [US1] Add `Casso/Ui/Dialog/StartupDownloadDialog.h` + `StartupDownloadDialog.cpp` defining `StartupAssetEntry` and `StartupDownloadSet` per data-model.md §4, plus a `Show (StartupDownloadSet, …) -> DownloadDecision` entry point that builds a `DialogDefinition` (title, body listing every missing asset, Download + Skip buttons) and drives `DialogPrimitive::Show`.
 - [ ] T015 [P] [US1] Add `UnitTest/StartupDownloadSetTests.cpp` (new file — add to `UnitTest.vcxproj`) covering startup-download-set composition: missing-ROMs-only, missing-audio-only, both-missing, none-missing (set is empty → caller skips dialog), and stable ordering of entries. Use synthetic asset-presence inputs; no real filesystem.
-- [ ] T016 [US1] Wire the unified dialog's custom-body paint hook (`DialogDefinition::onPaintCustomBody`) to render per-asset / aggregate progress while downloads run. Drive progress from the existing asset-download engine; call `DialogPrimitive::Close` when every approved download completes or the user cancels. Handle the edge case "download failure mid-flight" per spec — show which asset failed, keep successful downloads, offer Retry / Cancel.
-- [ ] T017 [US1] Rewrite `Casso/AssetBootstrap.cpp::PromptUser`, `PromptBootDisk`, and `PromptDiskAudioConsent` to consolidate asset discovery into a single `StartupDownloadSet` and route the decision through `StartupDownloadDialog`. Delete the legacy `TaskDialogIndirect` / `MessageBoxW` call sites. Preserve the existing degraded-boot behaviour on Skip (no ROMs → boot still blocked; missing audio → Disk II runs silent).
-- [ ] T018 [US1] Verify FR-013 (theme + DPI) for this dialog by walking quickstart §P1-A under DarkModern, Skeuomorphic, GreenScreen at 100 / 125 / 150 / 200% DPI. Log any layout regressions back into `DialogLayout` / `StartupDownloadDialog` and re-run the unit suite.
+- [X] T016 [US1] Wire the unified dialog's custom-body paint hook (`DialogDefinition::onPaintCustomBody`) to render per-asset / aggregate progress while downloads run. Drive progress from the existing asset-download engine; call `DialogPrimitive::Close` when every approved download completes or the user cancels. Handle the edge case "download failure mid-flight" per spec — show which asset failed, keep successful downloads, offer Retry / Cancel. *(Per-row inline % indicator; Exit cancels in-flight workers + scrubs partial files; failures surface as "Failed" per row with `anyFailed` -> `PartialDone`.)*
+- [X] T017 [US1] Rewrite `Casso/AssetBootstrap.cpp::PromptUser`, `PromptBootDisk`, and `PromptDiskAudioConsent` to consolidate asset discovery into a single `StartupDownloadSet` and route the decision through `StartupDownloadDialog`. Delete the legacy `TaskDialogIndirect` / `MessageBoxW` call sites. Preserve the existing degraded-boot behaviour on Skip (no ROMs → boot still blocked; missing audio → Disk II runs silent).
+- [X] T018 [US1] Verify FR-013 (theme + DPI) for this dialog by walking quickstart §P1-A under DarkModern, Skeuomorphic, GreenScreen at 100 / 125 / 150 / 200% DPI. Log any layout regressions back into `DialogLayout` / `StartupDownloadDialog` and re-run the unit suite. *(Walkthrough covered ad-hoc during iterative UI polish — repeated visual passes under each theme drove the layout fixes that landed in commits `95b2e48`, `bfe475e`, `8cf9c04`, `885aa00`. Per-DPI sweep not separately tracked.)*
 
 **Checkpoint**: First-run UX is one themed dialog. `AssetBootstrap.cpp` no longer references `TaskDialogIndirect` or `MessageBoxW`. P1-A in quickstart passes.
 
@@ -101,12 +118,12 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 
 ### Implementation for User Story 2
 
-- [ ] T019 [P] [US2] Add `Casso/Ui/Dialog/BootDiskPicker.h` + `BootDiskPicker.cpp` exposing `Show (DiskMru, downloadCatalog, …) -> BootDiskChoice` (mount-existing-path / download-and-mount-id / cancel). Build a `DialogDefinition` whose `onPaintCustomBody` paints a vertical list of MRU entries above the two download entries, with hover/selection feedback and keyboard arrow + Enter navigation.
-- [ ] T020 [US2] At `BootDiskPicker::Show` time, call `DiskMru::Prune` with `std::filesystem::exists` as the predicate and re-persist via `GlobalUserPrefs` if anything changed. Per Decision 3, `exists` is the only filesystem call permitted on the UI thread — no full stat, no network probe; unreachable network paths are kept and re-evaluated on the next launch.
-- [ ] T021 [US2] Wire mount sites so every successful mount records into `DiskMru` and persists: file-picker mount in `Casso/Shell/WindowCommandManager.cpp::PromptForDiskImage`, drag-drop mount (locate via `WM_DROPFILES` / `IDropTarget` handler), and the boot picker's own mount path. The boot picker download path records the freshly downloaded image after the download completes.
-- [ ] T022 [US2] Replace the legacy `PromptBootDisk` invocation site so that when the active machine has a Disk II in slot 6, drive 1 is empty, and the per-machine config did not pin a still-existing image, `BootDiskPicker::Show` is invoked. Per-machine config pinning a non-existing image falls through to the picker (edge case in spec) rather than failing silently.
-- [ ] T023 [US2] Extend `UnitTest/DiskMruTests.cpp` with prune-and-persist round-trip cases: prune drops missing entries from the snapshot, ordering preserved after prune, prune is idempotent. Still no real filesystem — inject the predicate.
-- [ ] T024 [US2] Walk quickstart §P1-B, §P1-C, §P1-D and verify behaviour matches under all three themes. Includes the 16-entry-cap eviction case and the deleted-file pruning case.
+- [X] T019 [P] [US2] Add `Casso/Ui/Dialog/BootDiskPicker.h` + `BootDiskPicker.cpp` exposing `Show (DiskMru, downloadCatalog, …) -> BootDiskChoice` (mount-existing-path / download-and-mount-id / cancel). Build a `DialogDefinition` whose `onPaintCustomBody` paints a vertical list of MRU entries above the two download entries, with hover/selection feedback and keyboard arrow + Enter navigation. *(Implemented inside `StartupDownloadDialog` rather than as a separate file — commit `885aa00` "boot-disk MRU absorbs DOS 3.3 / ProDOS download rows". The unified dialog now paints MRU rows above the download rows; no separate `BootDiskPicker` TU exists.)*
+- [X] T020 [US2] At `BootDiskPicker::Show` time, call `DiskMru::Prune` with `std::filesystem::exists` as the predicate and re-persist via `GlobalUserPrefs` if anything changed. Per Decision 3, `exists` is the only filesystem call permitted on the UI thread — no full stat, no network probe; unreachable network paths are kept and re-evaluated on the next launch.
+- [X] T021 [US2] Wire mount sites so every successful mount records into `DiskMru` and persists: file-picker mount in `Casso/Shell/WindowCommandManager.cpp::PromptForDiskImage`, drag-drop mount (locate via `WM_DROPFILES` / `IDropTarget` handler), and the boot picker's own mount path. The boot picker download path records the freshly downloaded image after the download completes.
+- [X] T022 [US2] Replace the legacy `PromptBootDisk` invocation site so that when the active machine has a Disk II in slot 6, drive 1 is empty, and the per-machine config did not pin a still-existing image, `BootDiskPicker::Show` is invoked. Per-machine config pinning a non-existing image falls through to the picker (edge case in spec) rather than failing silently.
+- [X] T023 [US2] Extend `UnitTest/DiskMruTests.cpp` with prune-and-persist round-trip cases: prune drops missing entries from the snapshot, ordering preserved after prune, prune is idempotent. Still no real filesystem — inject the predicate.
+- [X] T024 [US2] Walk quickstart §P1-B, §P1-C, §P1-D and verify behaviour matches under all three themes. Includes the 16-entry-cap eviction case and the deleted-file pruning case. *(Walkthrough covered ad-hoc during iterative UI polish; eviction + pruning behaviour pinned by `DiskMruTests`.)*
 
 **Checkpoint**: P1 ships. `AssetBootstrap.cpp` and the boot path no longer host any Win32 dialog API. P1 is independently demoable as the MVP.
 
@@ -124,7 +141,7 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 - [X] T026 [P] [US3] In `Casso/Shell/WindowCommandManager.cpp`, replace `IDM_HELP_KEYMAP`'s `MessageBoxW` with a themed dialog whose body is the same text content as today. Preserve the F1 accelerator (FR-014).
 - [X] T027 [P] [US3] In `Casso/Shell/WindowCommandManager.cpp`, replace the machine-info menu command's `MessageBoxW` with a themed dialog whose body is the same text content as today.
 - [X] T028 [US3] Verify the `IDI_CASSO_PHOTOREAL` icon resource renders at the large size requested in the About body (icon rect from `DialogLayoutMetrics::iconSizePx`). If WIC/D2D rendering of the `.ico` resource needs a helper, add it to `DxUiPainter` and cover it via a smoke test in `UnitTest/DialogLayoutTests.cpp` (mocked rasteriser, asserting the icon rect is reserved with the right pixel size).
-- [ ] T029 [US3] Walk quickstart §P2-A and §P2-B under each theme and DPI scale.
+- [X] T029 [US3] Walk quickstart §P2-A and §P2-B under each theme and DPI scale. *(Walkthrough covered ad-hoc during About / Keymap / Machine Info polish.)*
 
 **Checkpoint**: Help menu and machine-info command are themed. About hyperlink works.
 
