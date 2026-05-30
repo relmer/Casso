@@ -50,6 +50,10 @@ struct ChromeTheme
     uint32_t  linkHoverArgb          = 0;
     uint32_t  panelBgArgb            = 0;
     uint32_t  panelEdgeArgb          = 0;
+    uint32_t  buttonIdleArgb         = 0;
+    uint32_t  buttonHoverArgb        = 0;
+    uint32_t  buttonPressedArgb      = 0;
+    uint32_t  buttonBorderArgb       = 0;
 
     static ChromeTheme Skeuomorphic()
     {
@@ -98,6 +102,10 @@ struct ChromeTheme
         theme.linkHoverArgb           = 0xFFB7DFFF;
         theme.panelBgArgb             = 0xFF1A2230;
         theme.panelEdgeArgb           = 0xFF334050;
+        theme.buttonIdleArgb          = 0xFF2D3F58;
+        theme.buttonHoverArgb         = 0xFF3D547A;
+        theme.buttonPressedArgb       = 0xFF1F2C40;
+        theme.buttonBorderArgb        = 0xFF4A5F80;
         return theme;
     }
 
@@ -138,6 +146,10 @@ struct ChromeTheme
         theme.linkHoverArgb                 = 0xFFA8D2FF;
         theme.panelBgArgb                   = 0xFF1E2024;
         theme.panelEdgeArgb                 = 0xFF3A3D42;
+        theme.buttonIdleArgb                = 0xFF323539;
+        theme.buttonHoverArgb               = 0xFF45494F;
+        theme.buttonPressedArgb             = 0xFF23252A;
+        theme.buttonBorderArgb              = 0xFF55595F;
         return theme;
     }
 
@@ -178,6 +190,10 @@ struct ChromeTheme
         theme.linkHoverArgb                 = 0xFFB7FCB9;
         theme.panelBgArgb                   = 0xFF0E2612;
         theme.panelEdgeArgb                 = 0xFF2A5C30;
+        theme.buttonIdleArgb                = 0xFF1A3F22;
+        theme.buttonHoverArgb               = 0xFF286036;
+        theme.buttonPressedArgb             = 0xFF0F2814;
+        theme.buttonBorderArgb              = 0xFF3A7548;
         return theme;
     }
 

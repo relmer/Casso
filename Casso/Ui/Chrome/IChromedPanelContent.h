@@ -76,4 +76,13 @@ public:
     virtual void     Accept () = 0;
     virtual void     Cancel () = 0;
     virtual bool     IsContentActive () const = 0;
+
+    // Window-ownership policy. Returning true makes ChromedPanelWindow
+    // create the host HWND with NO owner so the panel can move freely
+    // behind the main emulator window. Default is false (owned popup,
+    // Windows pins it above the owner — appropriate for modal/inline
+    // panels like Settings). Non-modal observability panels (debug
+    // console, Disk II event viewer) should return true so the user
+    // can park them behind Casso while watching the emulator.
+    virtual bool     IsNonModal () const { return false; }
 };

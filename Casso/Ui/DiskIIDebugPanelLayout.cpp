@@ -8,12 +8,12 @@ namespace
     constexpr int  kMargin96             = 8;
     constexpr int  kRowHeight96          = 22;
     constexpr int  kRowGap96             = 4;
-    constexpr int  kCheckWidth96         = 92;
-    constexpr int  kAudioCheckWidth96    = 86;
-    constexpr int  kRadioWidth96         = 60;
+    constexpr int  kCheckWidth96         = 110;
+    constexpr int  kAudioCheckWidth96    = 100;
+    constexpr int  kRadioWidth96         = 78;
     constexpr int  kEditWidth96          = 140;
-    constexpr int  kFilterLabelWidth96   = 78;
-    constexpr int  kRawQtCheckWidth96    = 150;
+    constexpr int  kFilterLabelWidth96   = 110;
+    constexpr int  kRawQtCheckWidth96    = 170;
     constexpr int  kIgnoredLabelHeight96 = 18;
     constexpr int  kButtonWidth96        = 90;
     constexpr int  kButtonHeight96       = 26;

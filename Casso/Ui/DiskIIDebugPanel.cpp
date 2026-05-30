@@ -1132,6 +1132,8 @@ void DiskIIDebugPanel::LayoutWidgets()
 
     m_columnMenu.SetDpi   (m_dpi);
     m_columnMenu.SetTheme (m_theme);
+
+    m_tooltip.SetDpi      (m_dpi);
 }
 
 
@@ -1229,7 +1231,7 @@ void DiskIIDebugPanel::ConfigureWidgets()
     m_clearButton.SetClick ([this] () { ClearEvents(); });
 
     std::vector<ListView::Column>  cols;
-    cols.push_back ({ L"Wall",   kColWallWidth,   false, DwriteTextRenderer::HAlign::Left  });
+    cols.push_back ({ L"Time",   kColWallWidth,   false, DwriteTextRenderer::HAlign::Left  });
     cols.push_back ({ L"Uptime", kColUptimeWidth, false, DwriteTextRenderer::HAlign::Left  });
     cols.push_back ({ L"Cycle",  kColCycleWidth,  false, DwriteTextRenderer::HAlign::Right });
     cols.push_back ({ L"Drive",  kColDriveWidth,  false, DwriteTextRenderer::HAlign::Right });

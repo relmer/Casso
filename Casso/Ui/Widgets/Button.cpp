@@ -70,12 +70,14 @@ void Button::Paint (DxUiPainter & painter, DwriteTextRenderer & text, const Chro
     constexpr uint32_t  s_kDisabledMask  = 0x80FFFFFF;
 
     HRESULT  hr        = S_OK;
-    uint32_t themeIdle    = m_useOverrides ? m_idleOverride    : theme.sysButtonIdleArgb;
-    uint32_t themeHover   = m_useOverrides ? m_hoverOverride   : theme.sysButtonHoverArgb;
-    uint32_t themePressed = m_useOverrides ? m_pressedOverride : theme.sysButtonPressedArgb;
+    uint32_t themeIdle    = m_useOverrides ? m_idleOverride    : theme.buttonIdleArgb;
+    uint32_t themeHover   = m_useOverrides ? m_hoverOverride   : theme.buttonHoverArgb;
+    uint32_t themePressed = m_useOverrides ? m_pressedOverride : theme.buttonPressedArgb;
     uint32_t color        = m_pressed ? themePressed : (m_hover ? themeHover : themeIdle);
     uint32_t textColor    = m_useTextOverride ? m_textOverride : theme.navItemTextArgb;
+    uint32_t borderColor  = theme.buttonBorderArgb;
     float    fontDip      = m_scaler.Pxf (13.0f);
+    float    autoBorderPx = m_scaler.Pxf (1.0f);
 
 
 
@@ -104,6 +106,19 @@ void Button::Paint (DxUiPainter & painter, DwriteTextRenderer & text, const Chro
                              (float) (m_rect.bottom - m_rect.top),
                              m_outlineThick,
                              m_outlineArgb);
+    }
+    else if (!m_useOverrides && borderColor != 0)
+    {
+        // Default themed buttons always paint a 1dip border so the
+        // shape is legible against the panel background even when the
+        // button fill is similar to the surface. Buttons that opt into
+        // a custom palette (m_useOverrides) own their own border.
+        painter.OutlineRect ((float) m_rect.left,
+                             (float) m_rect.top,
+                             (float) (m_rect.right  - m_rect.left),
+                             (float) (m_rect.bottom - m_rect.top),
+                             autoBorderPx,
+                             borderColor);
     }
 
     IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.c_str(),

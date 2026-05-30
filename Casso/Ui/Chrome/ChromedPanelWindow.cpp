@@ -227,6 +227,7 @@ HRESULT ChromedPanelWindow::Create (
     UINT     dpi           = s_kBaseDpi;
     RECT     windowRect    = {};
     HWND     hwndCreated   = nullptr;
+    HWND     hwndParent    = nullptr;
     BOOL     ok            = FALSE;
     LPCWSTR  effectiveClass = nullptr;
     LPCWSTR  title          = nullptr;
@@ -255,6 +256,12 @@ HRESULT ChromedPanelWindow::Create (
     dpi        = GetDpiForWindow (hwndOwner);
     windowRect = GetInitialWindowRect (hwndOwner, dpi);
 
+    // Non-modal panels pass nullptr for the parent so Windows doesn't
+    // pin them above the owner -- the user can park them behind Casso.
+    // Modal/inline panels stay owned so they auto-track the main
+    // window's z-order and lifecycle.
+    hwndParent = content->IsNonModal() ? nullptr : hwndOwner;
+
     hwndCreated = CreateWindowExW (s_kChromedPanelExStyle,
                                    effectiveClass,
                                    title,
@@ -263,7 +270,7 @@ HRESULT ChromedPanelWindow::Create (
                                    windowRect.top,
                                    windowRect.right - windowRect.left,
                                    windowRect.bottom - windowRect.top,
-                                   hwndOwner,
+                                   hwndParent,
                                    nullptr,
                                    m_hInstance,
                                    this);

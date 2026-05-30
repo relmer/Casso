@@ -97,6 +97,7 @@ public:
     void     Accept             ()                                  override;
     void     Cancel             ()                                  override;
     bool     IsContentActive    () const                            override;
+    bool     IsNonModal         () const                            override { return true; }
 
     // IDiskIIEventSink. Producer thread -- push into the lock-free ring;
     // the render thread drains and projects to display rows per frame.

@@ -31,7 +31,7 @@ namespace UnitTest_011
 
             Assert::AreEqual ((LONG) 8, s.eventTypeChecks[0].left);
             Assert::AreEqual ((LONG) 8, s.eventTypeChecks[0].top);
-            Assert::AreEqual ((LONG) 8 + 92, s.eventTypeChecks[0].right);
+            Assert::AreEqual ((LONG) 8 + 110, s.eventTypeChecks[0].right);
             Assert::AreEqual ((LONG) 8 + 22, s.eventTypeChecks[0].bottom);
         }
 

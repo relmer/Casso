@@ -165,6 +165,31 @@ is preserved as the lone deliberate Win32 surface.
   re-mounts them on the new controller, matching the user's physical
   mental model (the disk stays in the drive). Per-machine saved-disk
   prefs are still consulted when no disk is mounted at switch time.
+  Carry is also guarded by `HasSlot6Controller()` so destinations
+  without a Disk II (future non-Apple families, or //e → IIgs where
+  the 3.5" SmartPort lives in slot 5) cleanly drop incompatible media
+  rather than silently losing it.
+- **fix(011): Disk II debug panel polish.** A handful of cosmetic /
+  ergonomic issues in the new themed Disk II debug panel:
+  - Tooltips now scale with DPI (font, padding, border, anchor gap)
+    and measure real text width instead of estimating from a magic
+    character-width constant.
+  - Filter checkboxes, radio buttons, and the "Raw qt" toggle were
+    too narrow at default fonts, wrapping their labels; widened the
+    per-control slot widths in the layout helper.
+  - The `Drive` column header in the event list was clipping to
+    `Driv\ne`; bumped `kColDriveWidth` to fit the bold header glyphs.
+  - Non-modal panels (Disk II debug, Debug console) no longer pin
+    themselves above the main window — the new
+    `IChromedPanelContent::IsNonModal()` hook passes `nullptr` as
+    the parent HWND so the user can park them behind Casso.
+  - General-purpose `Button` widgets now use a dedicated themed
+    palette (`buttonIdle/Hover/Pressed/BorderArgb`) instead of
+    inheriting the transparent chrome min/max/close colours, and
+    paint a default 1dip border so a button actually looks like a
+    button. Chrome titlebar buttons are unaffected (they paint
+    themselves).
+  - Renamed the event list's `Wall` column header to `Time`.
 
 ### Deferred
 - None — all spec 011 tasks shipped.

@@ -82,6 +82,7 @@ public:
     void     Accept () override;
     void     Cancel () override;
     bool     IsContentActive () const override { return true; }
+    bool     IsNonModal      () const override { return true; }
 
 private:
     struct Pos
