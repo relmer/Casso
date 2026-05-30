@@ -190,6 +190,29 @@ is preserved as the lone deliberate Win32 surface.
     button. Chrome titlebar buttons are unaffected (they paint
     themselves).
   - Renamed the event list's `Wall` column header to `Time`.
+  - Tooltips are now fully opaque (background alpha bumped from 0xF0
+    to 0xFF) so text underneath no longer bleeds through.
+  - Non-modal panels (Disk II debug, Debug console) now get a taskbar
+    button via `WS_EX_APPWINDOW` and drop `WS_EX_TOOLWINDOW`, so they
+    re-appear in Alt+Tab and can be raised even when fully occluded
+    by Casso.
+  - Event list column headers are now user-resizable: faint vertical
+    separators mark each column edge, the cursor switches to
+    `IDC_SIZEWE` over the right-edge handle, and click-drag adjusts
+    the column width via `ListView::SetColumnOverrideWidthPx`.
+    Plumbed through a new `IChromedPanelContent::OnSetCursor` hook
+    that `ChromedPanelWindow::WndProc` routes from `WM_SETCURSOR`.
+  - "Invalid" feedback under the track / sector filters now restores
+    the rejected-token detail (e.g. `Invalid track: foo, 99`) instead
+    of the bare `Invalid` placeholder, slicing the original spans out
+    of the edit's text via `TrackSectorPredicate::RejectedSpans()`.
+  - The drive-filter radio row gets a `Drive:` label so the three
+    radios aren't anonymous. New layout slot + `Label m_driveFilterLabel`.
+  - `All` is now the default selected drive filter again: the bug was
+    that `ConfigureWidgets` called `SetSelected(0)` before
+    `LayoutWidgets` had populated `SetOptions`, so the out-of-range
+    clamp silently fell back to -1. `LayoutWidgets` now re-applies
+    `SetSelected (m_filter.driveFilter)` after `SetOptions`.
 
 ### Deferred
 - None — all spec 011 tasks shipped.

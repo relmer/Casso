@@ -69,8 +69,76 @@ public:
         return (idx < m_columns.size()) && m_columns[idx].visible;
     }
 
-    void  SetColumns      (std::vector<Column> cols)       { m_columns = std::move (cols); m_measuredWPx.clear(); }
+    void  SetColumns      (std::vector<Column> cols)       { m_columns = std::move (cols); m_measuredWPx.clear(); m_overrideWPx.assign (m_columns.size(), -1); }
     void  SetRows         (std::vector<std::vector<Cell>> rows) { m_rows = std::move (rows); m_measuredWPx.clear(); }
+
+    // User-resized column width (pixels). -1 means clear override and
+    // fall back to widthDp / measured / stretch. Caller is responsible
+    // for clamping to a sensible minimum (the widget enforces >= 1px).
+    void  SetColumnOverrideWidthPx (size_t idx, int px)
+    {
+        if (idx >= m_columns.size()) { return; }
+        if (m_overrideWPx.size() < m_columns.size())
+        {
+            m_overrideWPx.assign (m_columns.size(), -1);
+        }
+        m_overrideWPx[idx] = (px < 1 && px != -1) ? 1 : px;
+    }
+    int   ColumnOverrideWidthPx (size_t idx) const
+    {
+        if (idx >= m_overrideWPx.size()) { return -1; }
+        return m_overrideWPx[idx];
+    }
+    // Current effective width of a column (override > widthDp > measured;
+    // stretch returns whatever ComputeColumnLayout assigned this frame).
+    int   ColumnEffectiveWidthPx (size_t idx) const
+    {
+        std::vector<int>  xs;
+        std::vector<int>  ws;
+        if (idx >= m_columns.size()) { return 0; }
+        ComputeColumnLayout ((float) (m_rect.right - m_rect.left), xs, ws);
+        return ws[idx];
+    }
+
+    // Returns the index of a column whose right-edge separator the
+    // point is hovering, suitable for starting a column-resize drag.
+    // Returns -1 if the point is outside the header strip or not near
+    // any resize handle. tolerancePx is the half-width of the hit zone
+    // straddling the separator. The last visible column has no right
+    // separator (nothing to its right to push against) and is excluded.
+    int   HitTestColumnResize (int xPx, int yPx, int tolerancePx) const
+    {
+        int  headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDp) : 0;
+        std::vector<int>  colXPx;
+        std::vector<int>  colWPx;
+        int  lastVisible = -1;
+
+        if (!m_showHeader || headerH <= 0)            { return -1; }
+        if (yPx < 0 || yPx >= headerH)                { return -1; }
+        if (xPx < 0 || xPx >= (m_rect.right - m_rect.left)) { return -1; }
+
+        ComputeColumnLayout ((float) (m_rect.right - m_rect.left), colXPx, colWPx);
+
+        for (size_t c = 0; c < m_columns.size(); ++c)
+        {
+            if (m_columns[c].visible && colWPx[c] > 0)
+            {
+                lastVisible = (int) c;
+            }
+        }
+
+        for (size_t c = 0; c < m_columns.size(); ++c)
+        {
+            if (!m_columns[c].visible || colWPx[c] <= 0) { continue; }
+            if ((int) c == lastVisible)                   { continue; }
+            int rightEdge = colXPx[c] + colWPx[c];
+            if (xPx >= rightEdge - tolerancePx && xPx <= rightEdge + tolerancePx)
+            {
+                return (int) c;
+            }
+        }
+        return -1;
+    }
 
     int   HoveredRow      () const                         { return m_hovered; }
     int   RowCount        () const                         { return (int) m_rows.size(); }
@@ -302,6 +370,16 @@ public:
             }
 
             painter.FillRect (x, hy + headerH - 1.0f, fullW, 1.0f, border);
+
+            // Faint vertical separators between header columns so the
+            // user can see where each column ends (and where the resize
+            // handle lives).
+            for (size_t c = 0; c < m_columns.size(); ++c)
+            {
+                if (!m_columns[c].visible || colWPx[c] <= 0) { continue; }
+                float sepX = x + (float) colXPx[c] + (float) colWPx[c] - 1.0f;
+                painter.FillRect (sepX, hy + 2.0f, 1.0f, headerH - 4.0f, border);
+            }
         }
 
         for (size_t r = 0; r < m_rows.size(); ++r)
@@ -365,7 +443,11 @@ private:
             }
 
             int wpx = 0;
-            if (m_columns[c].widthDp > 0)
+            if (c < m_overrideWPx.size() && m_overrideWPx[c] >= 0)
+            {
+                wpx = m_overrideWPx[c];
+            }
+            else if (m_columns[c].widthDp > 0)
             {
                 wpx = m_scaler.Px (m_columns[c].widthDp);
             }
@@ -399,6 +481,7 @@ private:
     std::vector<Column>               m_columns;
     std::vector<std::vector<Cell>>    m_rows;
     std::vector<int>                  m_measuredWPx;
+    std::vector<int>                  m_overrideWPx;
     DpiScaler                         m_scaler;
     int                               m_hovered        = -1;
     int                               m_sortColumn     = -1;

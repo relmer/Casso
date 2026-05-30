@@ -231,6 +231,7 @@ HRESULT ChromedPanelWindow::Create (
     BOOL     ok            = FALSE;
     LPCWSTR  effectiveClass = nullptr;
     LPCWSTR  title          = nullptr;
+    DWORD    exStyle        = s_kChromedPanelExStyle;
 
 
 
@@ -256,13 +257,23 @@ HRESULT ChromedPanelWindow::Create (
     dpi        = GetDpiForWindow (hwndOwner);
     windowRect = GetInitialWindowRect (hwndOwner, dpi);
 
-    // Non-modal panels pass nullptr for the parent so Windows doesn't
-    // pin them above the owner -- the user can park them behind Casso.
-    // Modal/inline panels stay owned so they auto-track the main
-    // window's z-order and lifecycle.
-    hwndParent = content->IsNonModal() ? nullptr : hwndOwner;
+    // Non-modal panels: parent=nullptr (don't pin above owner) +
+    // WS_EX_APPWINDOW (give them a taskbar button so the user can
+    // alt-tab back to them after Casso covers them) + drop
+    // WS_EX_TOOLWINDOW (which hides from alt-tab/taskbar). Modal/inline
+    // panels (Settings) stay owned and keep the tool-window style so
+    // they don't pollute the taskbar.
+    if (content->IsNonModal())
+    {
+        hwndParent = nullptr;
+        exStyle    = (exStyle & ~WS_EX_TOOLWINDOW) | WS_EX_APPWINDOW;
+    }
+    else
+    {
+        hwndParent = hwndOwner;
+    }
 
-    hwndCreated = CreateWindowExW (s_kChromedPanelExStyle,
+    hwndCreated = CreateWindowExW (exStyle,
                                    effectiveClass,
                                    title,
                                    s_kChromedPanelStyle,
@@ -510,6 +521,31 @@ LRESULT ChromedPanelWindow::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPA
         case WM_MOUSEWHEEL:
             OnMouse (message, wParam, lParam);
             result = 0;
+            break;
+
+        case WM_SETCURSOR:
+            {
+                HCURSOR  cursor = nullptr;
+
+                if (m_content != nullptr && LOWORD (lParam) == HTCLIENT)
+                {
+                    POINT  pt = {};
+                    if (GetCursorPos (&pt) && ScreenToClient (hwnd, &pt))
+                    {
+                        cursor = m_content->OnSetCursor (pt.x, pt.y);
+                    }
+                }
+
+                if (cursor != nullptr)
+                {
+                    SetCursor (cursor);
+                    result = TRUE;
+                }
+                else
+                {
+                    result = DefWindowProcW (hwnd, message, wParam, lParam);
+                }
+            }
             break;
 
         case WM_GETOBJECT:

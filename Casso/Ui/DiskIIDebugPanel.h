@@ -98,6 +98,7 @@ public:
     void     Cancel             ()                                  override;
     bool     IsContentActive    () const                            override;
     bool     IsNonModal         () const                            override { return true; }
+    HCURSOR  OnSetCursor        (int x, int y)                      override;
 
     // IDiskIIEventSink. Producer thread -- push into the lock-free ring;
     // the render thread drains and projects to display rows per frame.
@@ -162,6 +163,7 @@ private:
 
     Label                                m_trackFilterLabel;
     Label                                m_sectorFilterLabel;
+    Label                                m_driveFilterLabel;
     Label                                m_trackInvalidLabel;
     Label                                m_sectorInvalidLabel;
 
@@ -192,4 +194,12 @@ private:
     bool                                  m_sortDescending  = false;
     bool                                  m_trackEditValid  = true;
     bool                                  m_sectorEditValid = true;
+
+    // Column-resize drag state. When m_resizeColumn >= 0 a drag is
+    // in progress: m_resizeStartXPx captures the client-X at drag
+    // start and m_resizeStartWidthPx captures the column width at
+    // drag start. Delta-applied per mouse-move.
+    int                                   m_resizeColumn        = -1;
+    int                                   m_resizeStartXPx      = 0;
+    int                                   m_resizeStartWidthPx  = 0;
 };

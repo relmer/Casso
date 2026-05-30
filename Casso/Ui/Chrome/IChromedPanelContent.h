@@ -85,4 +85,10 @@ public:
     // console, Disk II event viewer) should return true so the user
     // can park them behind Casso while watching the emulator.
     virtual bool     IsNonModal () const { return false; }
+
+    // Cursor hook. Called from WM_SETCURSOR with client-relative coords
+    // for the current cursor position. Return a loaded HCURSOR to
+    // override the default arrow, or nullptr to let the shell fall
+    // through to DefWindowProc (which paints the standard arrow).
+    virtual HCURSOR  OnSetCursor (int x, int y) { (void) x; (void) y; return nullptr; }
 };

@@ -45,6 +45,9 @@ namespace
     constexpr LPCWSTR  s_kpszClearLabel    = L"Clear";
     constexpr LPCWSTR  s_kpszAudioLabel    = L"Audio";
     constexpr LPCWSTR  s_kpszInvalidLabel  = L"Invalid";
+    constexpr LPCWSTR  s_kpszTrackInvalidPrefix  = L"Invalid track: ";
+    constexpr LPCWSTR  s_kpszSectorInvalidPrefix = L"Invalid sector: ";
+    constexpr LPCWSTR  s_kpszDriveFilterLabel    = L"Drive:";
 
     constexpr LPCWSTR  s_kpszEventCheckTips[kEventTypeCheckCount] =
     {
@@ -85,6 +88,35 @@ namespace
         outRgba[1] = (float) ((argb >>  8) & 0xFFu) / 255.0f;
         outRgba[2] = (float) ((argb      ) & 0xFFu) / 255.0f;
         outRgba[3] = (float) ((argb >> 24) & 0xFFu) / 255.0f;
+    }
+
+
+
+    // Builds the "Invalid track: tok1, tok2" detail label by slicing
+    // the rejected UTF-16 spans out of the original expression. If the
+    // edit parsed cleanly, returns an empty string. Defensive about
+    // bad spans so an out-of-range index can't crash the dialog.
+    std::wstring BuildInvalidLabel (
+        LPCWSTR                                                  prefix,
+        const std::wstring                                     & expr,
+        const std::vector<TrackSectorPredicate::RejectedSpan> & spans)
+    {
+        std::wstring  result;
+
+        if (spans.empty()) { return result; }
+
+        result = prefix;
+        for (size_t i = 0; i < spans.size(); ++i)
+        {
+            int  beginIdx = spans[i].beginUtf16;
+            int  endIdx   = spans[i].endUtf16;
+            if (beginIdx < 0)                       { beginIdx = 0; }
+            if (endIdx   > (int) expr.size())       { endIdx   = (int) expr.size(); }
+            if (endIdx  <= beginIdx)                { continue; }
+            if (i > 0)                              { result += L", "; }
+            result.append (expr, (size_t) beginIdx, (size_t) (endIdx - beginIdx));
+        }
+        return result;
     }
 }
 
@@ -326,6 +358,7 @@ HRESULT DiskIIDebugPanel::Render()
 
     m_trackFilterLabel.Paint  (m_painter, m_text);
     m_sectorFilterLabel.Paint (m_painter, m_text);
+    m_driveFilterLabel.Paint  (m_painter, m_text);
     m_trackInvalidLabel.Paint (m_painter, m_text);
     m_sectorInvalidLabel.Paint(m_painter, m_text);
 
@@ -613,6 +646,25 @@ void DiskIIDebugPanel::OnLButtonDown (int x, int y)
 
     if (!handled)
     {
+        // Column-resize drag has priority over header-sort: if the
+        // user grabbed a resize handle on a header right-edge, we
+        // start the drag here and the sort hit-test below is skipped.
+        int  relX       = x - m_layout.listView.left;
+        int  relY       = y - m_layout.listView.top;
+        int  tolPx      = MulDiv (4, (int) m_dpi, 96);
+        int  resizeCol  = m_eventList.HitTestColumnResize (relX, relY, tolPx);
+        if (resizeCol >= 0)
+        {
+            m_resizeColumn       = resizeCol;
+            m_resizeStartXPx     = x;
+            m_resizeStartWidthPx = m_eventList.ColumnEffectiveWidthPx ((size_t) resizeCol);
+            SetCapture (m_hwnd);
+            handled              = true;
+        }
+    }
+
+    if (!handled)
+    {
         // Click on listview header sorts by that column; first click on
         // a new column sorts ascending, subsequent clicks on the same
         // column flip direction. Click on row is reserved for selection
@@ -655,6 +707,12 @@ void DiskIIDebugPanel::OnLButtonDown (int x, int y)
 
 void DiskIIDebugPanel::OnLButtonUp (int x, int y)
 {
+    if (m_resizeColumn >= 0)
+    {
+        m_resizeColumn = -1;
+        ReleaseCapture();
+    }
+
     if (m_columnMenu.IsVisible())
     {
         if (m_columnMenu.OnLButtonUp (x, y)) { return; }
@@ -696,6 +754,16 @@ void DiskIIDebugPanel::OnLButtonUp (int x, int y)
 
 void DiskIIDebugPanel::OnMouseMove (int x, int y)
 {
+    if (m_resizeColumn >= 0)
+    {
+        int  deltaPx  = x - m_resizeStartXPx;
+        int  newWidth = m_resizeStartWidthPx + deltaPx;
+        int  minPx    = MulDiv (24, (int) m_dpi, 96);
+        if (newWidth < minPx) { newWidth = minPx; }
+        m_eventList.SetColumnOverrideWidthPx ((size_t) m_resizeColumn, newWidth);
+        return;
+    }
+
     if (m_columnMenu.IsVisible())
     {
         m_columnMenu.OnMouseMove (x, y);
@@ -749,6 +817,37 @@ void DiskIIDebugPanel::OnRButtonDown (int x, int y)
     if (relY < 0 || relY >= headerH)                              { return; }
 
     ShowColumnMenu (x, y);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnSetCursor
+//
+//  Cursor override for the panel. Returns IDC_SIZEWE while a column
+//  resize is active or when the cursor is parked on a header-edge
+//  resize handle; returns nullptr (default arrow) otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HCURSOR DiskIIDebugPanel::OnSetCursor (int x, int y)
+{
+    int  relX  = x - m_layout.listView.left;
+    int  relY  = y - m_layout.listView.top;
+    int  tolPx = MulDiv (4, (int) m_dpi, 96);
+
+    if (m_resizeColumn >= 0)
+    {
+        return LoadCursorW (nullptr, IDC_SIZEWE);
+    }
+    if (m_eventList.HitTestColumnResize (relX, relY, tolPx) >= 0)
+    {
+        return LoadCursorW (nullptr, IDC_SIZEWE);
+    }
+    return nullptr;
 }
 
 
@@ -1065,7 +1164,7 @@ void DiskIIDebugPanel::LayoutWidgets()
     m_sectorFilterLabel.SetHAlign      (DwriteTextRenderer::HAlign::Right);
     m_sectorFilterLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
 
-    m_trackInvalidLabel.SetText        (m_trackEditValid  ? L"" : s_kpszInvalidLabel);
+    m_trackInvalidLabel.SetText        (BuildInvalidLabel (s_kpszTrackInvalidPrefix, m_trackEdit.Text(), m_filter.trackFilter.RejectedSpans()).c_str());
     m_trackInvalidLabel.SetRect        (m_layout.trackInvalidLabel);
     m_trackInvalidLabel.SetDpi         (m_dpi);
     m_trackInvalidLabel.SetFontSizeDip (s_kLabelFontDip);
@@ -1073,7 +1172,7 @@ void DiskIIDebugPanel::LayoutWidgets()
     m_trackInvalidLabel.SetHAlign      (DwriteTextRenderer::HAlign::Left);
     m_trackInvalidLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
 
-    m_sectorInvalidLabel.SetText        (m_sectorEditValid ? L"" : s_kpszInvalidLabel);
+    m_sectorInvalidLabel.SetText        (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit.Text(), m_filter.sectorFilter.RejectedSpans()).c_str());
     m_sectorInvalidLabel.SetRect        (m_layout.sectorInvalidLabel);
     m_sectorInvalidLabel.SetDpi         (m_dpi);
     m_sectorInvalidLabel.SetFontSizeDip (s_kLabelFontDip);
@@ -1099,6 +1198,14 @@ void DiskIIDebugPanel::LayoutWidgets()
     m_rawQtCheck.SetRect (m_layout.rawQtCheck);
     m_rawQtCheck.SetDpi  (m_dpi);
 
+    m_driveFilterLabel.SetText        (s_kpszDriveFilterLabel);
+    m_driveFilterLabel.SetRect        (m_layout.driveFilterLabel);
+    m_driveFilterLabel.SetDpi         (m_dpi);
+    m_driveFilterLabel.SetFontSizeDip (s_kLabelFontDip);
+    m_driveFilterLabel.SetColorArgb   (textArgb);
+    m_driveFilterLabel.SetHAlign      (DwriteTextRenderer::HAlign::Left);
+    m_driveFilterLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
+
     // RadioGroup expects rects in its option records.
     std::vector<RadioOption>  driveOpts;
     for (int i = 0; i < kDriveRadioCount; i++)
@@ -1108,8 +1215,12 @@ void DiskIIDebugPanel::LayoutWidgets()
         opt.label = s_kpszDriveOptionLabels[i];
         driveOpts.push_back (std::move (opt));
     }
-    m_driveRadio.SetOptions (std::move (driveOpts));
-    m_driveRadio.SetDpi     (m_dpi);
+    m_driveRadio.SetOptions  (std::move (driveOpts));
+    m_driveRadio.SetDpi      (m_dpi);
+    // Re-apply selection after SetOptions: ConfigureWidgets calls
+    // SetSelected before LayoutWidgets has supplied any options, which
+    // makes the initial SetSelected a no-op (out-of-range clamps to -1).
+    m_driveRadio.SetSelected (m_filter.driveFilter);
 
     m_trackEdit.SetRect  (m_layout.trackEdit);
     m_trackEdit.SetDpi   (m_dpi);
@@ -1497,7 +1608,7 @@ void DiskIIDebugPanel::OnTrackEditChanged()
                                                         TrackSectorPredicate::Mode::Track,
                                                         m_filter.trackFilterRawQt);
     m_trackEditValid = m_filter.trackFilter.RejectedSpans().empty();
-    m_trackInvalidLabel.SetText (m_trackEditValid ? L"" : s_kpszInvalidLabel);
+    m_trackInvalidLabel.SetText (BuildInvalidLabel (s_kpszTrackInvalidPrefix, m_trackEdit.Text(), m_filter.trackFilter.RejectedSpans()).c_str());
 }
 
 
@@ -1515,7 +1626,7 @@ void DiskIIDebugPanel::OnSectorEditChanged()
     m_filter.sectorFilter = TrackSectorPredicate::Parse (m_sectorEdit.Text(),
                                                          TrackSectorPredicate::Mode::Sector);
     m_sectorEditValid = m_filter.sectorFilter.RejectedSpans().empty();
-    m_sectorInvalidLabel.SetText (m_sectorEditValid ? L"" : s_kpszInvalidLabel);
+    m_sectorInvalidLabel.SetText (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit.Text(), m_filter.sectorFilter.RejectedSpans()).c_str());
 }
 
 

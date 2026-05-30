@@ -96,7 +96,7 @@ void Tooltip::Tick (int64_t nowMs)
 
 void Tooltip::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 {
-    constexpr uint32_t  s_kBgArgb     = 0xF02D2D2D;
+    constexpr uint32_t  s_kBgArgb     = 0xFF2D2D2D;
     constexpr uint32_t  s_kBorderArgb = 0xFF606060;
     constexpr uint32_t  s_kTextArgb   = 0xFFE8EEF4;
     constexpr float     s_kPadXDip    = 8.0f;

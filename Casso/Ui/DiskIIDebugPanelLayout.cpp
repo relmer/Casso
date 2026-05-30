@@ -15,6 +15,7 @@ namespace
     constexpr int  kFilterLabelWidth96   = 110;
     constexpr int  kRawQtCheckWidth96    = 170;
     constexpr int  kIgnoredLabelHeight96 = 18;
+    constexpr int  kDriveLabelWidth96    = 44;
     constexpr int  kButtonWidth96        = 90;
     constexpr int  kButtonHeight96       = 26;
 
@@ -68,6 +69,7 @@ PanelLayoutSlots ComputeDiskIIDebugPanelLayout (
     int              radioWidth    = Scale (kRadioWidth96,         dpi);
     int              editWidth     = Scale (kEditWidth96,          dpi);
     int              labelWidth    = Scale (kFilterLabelWidth96,   dpi);
+    int              driveLblWidth = Scale (kDriveLabelWidth96,    dpi);
     int              rawQtWidth    = Scale (kRawQtCheckWidth96,    dpi);
     int              ignoredHeight = Scale (kIgnoredLabelHeight96, dpi);
     int              buttonWidth   = Scale (kButtonWidth96,        dpi);
@@ -101,6 +103,8 @@ PanelLayoutSlots ComputeDiskIIDebugPanelLayout (
 
     // Row 3: drive radios + filter label/edit pairs.
     x = margin;
+    slots.driveFilterLabel = MakeRect (x, y, driveLblWidth, rowHeight);
+    x += driveLblWidth + rowGap;
     for (int i = 0; i < kDriveRadioCount; i++)
     {
         slots.driveRadios[i] = MakeRect (x, y, radioWidth, rowHeight);

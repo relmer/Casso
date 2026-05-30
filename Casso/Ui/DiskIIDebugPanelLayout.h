@@ -41,6 +41,7 @@ struct PanelLayoutSlots
     RECT audioMasterCheck;
     RECT audioSubChecks   [kAudioSubCheckCount];
     RECT driveRadios      [kDriveRadioCount];
+    RECT driveFilterLabel;
     RECT trackFilterLabel;
     RECT trackEdit;
     RECT trackInvalidLabel;
