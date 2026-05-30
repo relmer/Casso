@@ -45,7 +45,14 @@ class Disk2NibbleEngine
 public:
     static constexpr int   kCyclesPerBit = 4;
     static constexpr int   kMinTrack     = 0;
-    static constexpr int   kMaxTrack     = 39;
+    static constexpr int   kMaxTrack     = 159;
+
+    // Nominal bit length of an unformatted quarter-track. When the head
+    // sits over a position the image holds no data for, the disk still
+    // spins: the bit cursor advances over this many cells of "no flux"
+    // (rawBit 0), which the head-window weak-bit model turns into the
+    // ~30% random stream a real drive reads off blank surface.
+    static constexpr size_t kUnformattedTrackBits = 51200;
 
     Disk2NibbleEngine();
 
@@ -94,6 +101,7 @@ private:
     void       StepLss();
     uint8_t    ApplyHeadWindow (uint8_t inBit);
     uint8_t    NextWeakBit();
+    size_t     CurrentTrackBits() const;
 
     DiskImage *  m_disk          = nullptr;
     int          m_currentTrack  = 0;

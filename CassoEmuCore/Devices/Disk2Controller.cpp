@@ -325,14 +325,42 @@ Byte Disk2Controller::HandleReadDispatch()
 //
 //  HandlePhase
 //
-//  Update the phase mask, walk the head one quarter-track toward the
-//  newly-energized phase, clamp to legal range, then push the resulting
-//  full-track index into the active drive's engine.
+//  Update the phase mask, walk the head toward the newly-energized phase,
+//  clamp to legal range, then push the resulting quarter-track index into
+//  the active drive's engine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2Controller::HandlePhase (int phase, bool on)
 {
+    // Stepper model ported clean-room from apple2js (MIT), disk2.ts
+    // setPhase + PHASE_DELTA. UTAIIe ch. 9 / Sather p. 9-12.
+    //
+    // The cog tracks the last-energized phase magnet (m_phase), NOT a
+    // position-derived magnet index. On each phase-ON event the head
+    // moves PHASE_DELTA[m_phase][phase] half-tracks (= *2 quarter-tracks)
+    // toward the newly-energized magnet, then remembers the new phase.
+    // Phase-OFF events do not move the head -- the cog holds its detent.
+    //
+    // Because every delta is an even number of quarter-tracks, a normal
+    // two-phase DOS step lands the head on a whole- or half-track detent
+    // (quarter-track index even); it can never get marooned on an odd
+    // quarter-track between detents. The previous position-derived model
+    // (`(m_quarterTrack / 2) & 3`) could not distinguish qt N from qt N+1
+    // and would leave the head stuck one quarter-track off a real track,
+    // serving unformatted noise on narrow-band protected disks.
+    static constexpr int  kPhaseDelta[kPhaseCount][kPhaseCount] =
+    {
+        {  0,  1,  2, -1 },
+        { -1,  0,  1,  2 },
+        { -2, -1,  0,  1 },
+        {  1, -2, -1,  0 },
+    };
+
+    int  prevQt  = m_quarterTrack;
+    int  qtDelta = 0;
+    int  postRaw = prevQt;
+
     if (on)
     {
         m_phases = static_cast<uint8_t> (m_phases | (1 << phase));
@@ -342,50 +370,13 @@ void Disk2Controller::HandlePhase (int phase, bool on)
         m_phases = static_cast<uint8_t> (m_phases & ~(1 << phase));
     }
 
-    // Disk II stepper model (UTAIIe ch. 9; AppleWin ControlStepperDeferred):
-    //   - 4 phase magnets arranged 90 degrees apart around the cog.
-    //   - The head's rotational position (which magnet it's nearest)
-    //     cycles every full track. Casso represents position as a
-    //     quarter-track count (0..kMaxQuarterTrack); two consecutive
-    //     quarter-tracks lie under different magnet positions, so
-    //     `(m_quarterTrack / 2) & 3` is the current "phase index" the
-    //     head is nearest.
-    //   - Movement is determined by which adjacent magnets (rot+/-1)
-    //     are currently energized. A single adjacent magnet pulls the
-    //     head one half-track toward it (= 2 quarter-tracks). Two
-    //     adjacent magnets ($3=0+1, $6=1+2, $C=2+3, $9=3+0) pull the
-    //     head only halfway, i.e. one quarter-track (the cog rests
-    //     between the two magnet positions).
-    //   - Opposing-only magnet pairs ($5=0+2, $A=1+3) cancel out and
-    //     leave the head where it is.
-    //
-    // The previous "highest set bit" model only stepped by one quarter-
-    // track per phase event regardless of the magnet topology, which
-    // walked the head ~1.5x too fast on standard DOS step sequences and
-    // dropped multi-track seeks intermittently.
-    int  rot       = (m_quarterTrack / 2) & 3;
-    int  direction = 0;
-
-    if (m_phases & (1 << ((rot + 1) & 3)))
+    if (on)
     {
-        direction += 1;
-    }
-    if (m_phases & (1 << ((rot + 3) & 3)))
-    {
-        direction -= 1;
+        qtDelta = kPhaseDelta[m_phase][phase] * 2;
+        m_phase = phase;
     }
 
-    int  qtDelta = direction * 2;
-
-    if (m_phases == 0x3 || m_phases == 0x6 ||
-        m_phases == 0xC || m_phases == 0x9)
-    {
-        qtDelta = direction;
-    }
-
-    int  prevQt  = m_quarterTrack;
-    int  postRaw = prevQt + qtDelta;
-
+    postRaw         = prevQt + qtDelta;
     m_quarterTrack += qtDelta;
 
     if (m_quarterTrack < 0)
@@ -398,7 +389,7 @@ void Disk2Controller::HandlePhase (int phase, bool on)
         m_quarterTrack = kMaxQuarterTrack;
     }
 
-    m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack / 4);
+    m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack);
 
     // Audio sink (FR-003 / FR-004). Fire only when the head actually
     // moved (qtDelta != 0). Distinguish a normal step from a track-0 /
@@ -460,7 +451,7 @@ void Disk2Controller::UpdateEngineSelection()
 
     m_engine[other].SetMotorOn (false);
     m_engine[m_activeDrive].SetMotorOn (m_motorOn);
-    m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack / 4);
+    m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack);
     m_engine[m_activeDrive].SetShiftLoadMode (m_q6);
     m_engine[m_activeDrive].SetWriteMode    (m_q7);
 }
@@ -746,6 +737,7 @@ void Disk2Controller::Reset()
     int   i = 0;
 
     m_phases       = 0;
+    m_phase        = 0;
     m_quarterTrack = 0;
     m_motorOn      = false;
     m_motorSpindownCycles = 0;

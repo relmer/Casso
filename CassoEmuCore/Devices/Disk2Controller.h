@@ -144,6 +144,7 @@ private:
     Word                 m_ioEnd;
 
     uint8_t              m_phases       = 0;
+    int                  m_phase        = 0;
     int                  m_quarterTrack = 0;
 
     bool                 m_motorOn      = false;

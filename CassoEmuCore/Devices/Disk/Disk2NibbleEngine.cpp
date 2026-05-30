@@ -154,15 +154,18 @@ void Disk2NibbleEngine::SetShiftLoadMode (bool q6)
 //
 //  SetCurrentTrack
 //
-//  Clamps to [0, kMaxTrack]. Track is full-track index (controller maps
-//  half-tracks -> full tracks). Switching tracks preserves rotational
-//  position by carrying the bit cursor modulo the new track's bit length.
+//  Clamps to [kMinTrack, kMaxTrack]. Track is a quarter-track index
+//  (0..159); the controller passes the head's physical quarter-track
+//  position. ResolveQuarterTrack maps it to a backing storage slot (-1 ==
+//  unformatted). Switching tracks preserves rotational position by
+//  carrying the bit cursor modulo the new track's bit length.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2NibbleEngine::SetCurrentTrack (int track)
 {
-    int   clamped = track;
+    int      clamped = track;
+    size_t   newBits = 0;
 
     if (clamped < kMinTrack)
     {
@@ -187,11 +190,8 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
         // RWTS read loop frequently times out and reports a checksum
         // error. Cap to the new track's bit length so we don't end
         // up past the wrap.
-        size_t  newBits = (m_disk != nullptr)
-                          ? m_disk->GetTrackBitCount (clamped)
-                          : 0;
-
         m_currentTrack = clamped;
+        newBits        = CurrentTrackBits ();
 
         if (newBits > 0)
         {
@@ -202,6 +202,37 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
             m_bitPos = 0;
         }
     }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CurrentTrackBits
+//
+//  Bit length of the stream under the head. A resolved slot reports its
+//  real length; an unformatted position (slot -1) reports the nominal
+//  blank-track length so the disk keeps spinning and the weak-bit model
+//  keeps producing noise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t Disk2NibbleEngine::CurrentTrackBits () const
+{
+    int   slot = (m_disk != nullptr) ? m_disk->ResolveQuarterTrack (m_currentTrack) : -1;
+
+    if (m_disk == nullptr)
+    {
+        return 0;
+    }
+
+    if (slot < 0)
+    {
+        return kUnformattedTrackBits;
+    }
+
+    return m_disk->GetTrackBitCount (slot);
 }
 
 
@@ -283,11 +314,12 @@ void Disk2NibbleEngine::StepLss()
     uint8_t   command    = 0;
     bool      prevMsbSet = false;
     size_t    trackBits  = 0;
+    int       slot       = (m_disk != nullptr) ? m_disk->ResolveQuarterTrack (m_currentTrack) : -1;
 
     if (m_lssClock == kLssReadClock)
     {
-        uint8_t  rawBit = (m_disk != nullptr)
-                          ? m_disk->ReadBit (m_currentTrack, m_bitPos)
+        uint8_t  rawBit = (slot >= 0)
+                          ? m_disk->ReadBit (slot, m_bitPos)
                           : 0;
 
         pulse = ApplyHeadWindow (rawBit);
@@ -345,14 +377,19 @@ void Disk2NibbleEngine::StepLss()
 
     if (m_lssClock == kLssReadClock)
     {
-        if (m_writeMode && m_disk != nullptr && !m_disk->IsWriteProtected())
+        if (m_writeMode && slot >= 0 && !m_disk->IsWriteProtected())
         {
             uint8_t  outBit = static_cast<uint8_t> ((m_lssState & kWriteBitMask) ? 1 : 0);
 
-            m_disk->WriteBit (m_currentTrack, m_bitPos, outBit);
+            m_disk->WriteBit (slot, m_bitPos, outBit);
         }
 
-        trackBits = (m_disk != nullptr) ? m_disk->GetTrackBitCount (m_currentTrack) : 0;
+        trackBits = (slot >= 0) ? m_disk->GetTrackBitCount (slot) : kUnformattedTrackBits;
+
+        if (m_disk == nullptr)
+        {
+            trackBits = 0;
+        }
 
         if (trackBits > 0)
         {

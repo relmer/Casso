@@ -22,6 +22,113 @@ DiskImage::DiskImage ()
     m_trackBits.resize      (kDefaultTrackCount);
     m_trackBitCounts.resize (kDefaultTrackCount, 0);
     m_trackDirty.resize     (kDefaultTrackCount, false);
+    InitWholeTrackMap ();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InitWholeTrackMap
+//
+//  Default quarter-track map for sector images: every quarter-track
+//  resolves to its whole track (qt / 4). WOZ loads overwrite this with the
+//  image's TMAP so half/quarter-track-formatted tracks resolve to distinct
+//  storage slots.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::InitWholeTrackMap ()
+{
+    int   qt = 0;
+
+    m_quarterTrackMap.assign (kQuarterTrackCount, -1);
+
+    for (qt = 0; qt < kQuarterTrackCount; qt++)
+    {
+        m_quarterTrackMap[qt] = qt / kQuarterTracksPerWholeTrack;
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResolveQuarterTrack
+//
+//  Maps a head quarter-track position to its backing storage slot, or -1
+//  when the position holds no data (unformatted: an out-of-range slot or a
+//  zero-length stream). Callers treat -1 as no flux under the head.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskImage::ResolveQuarterTrack (int quarterTrack) const
+{
+    int   slot = 0;
+
+    if (quarterTrack < 0 || quarterTrack >= static_cast<int> (m_quarterTrackMap.size ()))
+    {
+        return -1;
+    }
+
+    slot = m_quarterTrackMap[quarterTrack];
+
+    if (slot < 0 || slot >= static_cast<int> (m_trackBitCounts.size ()))
+    {
+        return -1;
+    }
+
+    if (m_trackBitCounts[slot] == 0)
+    {
+        return -1;
+    }
+
+    return slot;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClearQuarterTrackMap / SetQuarterTrackSlot / EnsureTrackSlots
+//
+//  Bulk-loader surface (WozLoader). ClearQuarterTrackMap marks every
+//  quarter-track unformatted; SetQuarterTrackSlot points one quarter-track
+//  at a storage slot; EnsureTrackSlots grows the slot storage to hold at
+//  least slotCount distinct bit streams.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::ClearQuarterTrackMap ()
+{
+    m_quarterTrackMap.assign (kQuarterTrackCount, -1);
+}
+
+
+void DiskImage::SetQuarterTrackSlot (int quarterTrack, int slot)
+{
+    if (quarterTrack < 0 || quarterTrack >= static_cast<int> (m_quarterTrackMap.size ()))
+    {
+        return;
+    }
+
+    m_quarterTrackMap[quarterTrack] = slot;
+}
+
+
+void DiskImage::EnsureTrackSlots (int slotCount)
+{
+    if (slotCount <= static_cast<int> (m_trackBits.size ()))
+    {
+        return;
+    }
+
+    m_trackBits.resize      (slotCount);
+    m_trackBitCounts.resize (slotCount, 0);
+    m_trackDirty.resize     (slotCount, false);
 }
 
 
@@ -331,6 +438,7 @@ void DiskImage::LoadFromBytes (DiskFormat fmt, const vector<Byte> & raw, const s
     m_loaded         = false;
     m_dirty          = false;
     m_rawSourceBytes = raw;
+    InitWholeTrackMap ();
 
     switch (fmt)
     {
@@ -397,6 +505,7 @@ HRESULT DiskImage::Load (const string & filePath)
     m_dirty          = false;
     m_format         = DiskFormat::Dsk;
     m_rawSourceBytes = move (raw);
+    InitWholeTrackMap ();
 
 Error:
     return hr;
@@ -444,6 +553,7 @@ void DiskImage::Eject ()
     m_trackBits.assign      (kDefaultTrackCount, vector<Byte> ());
     m_trackBitCounts.assign (kDefaultTrackCount, 0);
     m_trackDirty.assign     (kDefaultTrackCount, false);
+    InitWholeTrackMap ();
     m_loaded = false;
     m_dirty  = false;
 }

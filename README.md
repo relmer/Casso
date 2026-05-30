@@ -207,16 +207,16 @@ All 56 standard 6502 mnemonics are implemented. Validated against [Klaus Dormann
 - [x] Headless test harness for deterministic integration tests (`HeadlessHost`, framebuffer scraper, keyboard injector)
 - [x] Performance gate — emulator throughput budget enforced in CI (Release-only)
 - [x] Cycle-accurate execution and profiling ([#57](https://github.com/relmer/Casso/issues/57))
+- [x] Disk II copy-protection fidelity — motor spin-up delay, MC3470 weak-bit emulation, real 16-state LSS, quarter-track read pipeline, and bit-level write path ([#67](https://github.com/relmer/Casso/issues/67))
+- [x] Boot *Karateka* from its WOZ image (RWTS18 copy protection) ([#68](https://github.com/relmer/Casso/issues/68))
+- [x] Boot *Lode Runner* from its WOZ image (copy protection) ([#70](https://github.com/relmer/Casso/issues/70))
 
 ### Medium Priority
 
 - [ ] 65C02 extended instruction support, with assembler `--cpu` flag ([#9](https://github.com/relmer/Casso/issues/9))
 - [ ] Undocumented / illegal opcode support ([#52](https://github.com/relmer/Casso/issues/52))
 - [ ] Rockwell / WDC 65C02 variants ([#49](https://github.com/relmer/Casso/issues/49), [#50](https://github.com/relmer/Casso/issues/50))
-- [ ] Disk II copy-protection fidelity — spin-up delay, cycle-accurate rotational position, bit-level write path ([#67](https://github.com/relmer/Casso/issues/67))
-- [ ] Boot *Karateka* from its WOZ image (RWTS18 copy protection) ([#68](https://github.com/relmer/Casso/issues/68))
-- [ ] *Choplifter* gameplay starts after the title screen (WOZ copy protection) ([#69](https://github.com/relmer/Casso/issues/69))
-- [ ] Boot *Lode Runner* from its WOZ image (copy protection) ([#70](https://github.com/relmer/Casso/issues/70))
+- [ ] *Choplifter* gameplay starts after the title screen (WOZ copy protection) — boots; needs joystick/button input ([#69](https://github.com/relmer/Casso/issues/69), [#72](https://github.com/relmer/Casso/issues/72))
 
 ### Low Priority
 

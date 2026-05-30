@@ -130,6 +130,50 @@ public:
             L"Phase magnet stepping must move the head");
     }
 
+    ////////////////////////////////////////////////////////////////////////
+    //  Stepper guard: a realistic single-phase-at-a-time DOS seek must
+    //  advance exactly one half-track (2 quarter-tracks) per phase
+    //  energize and leave the head on an EVEN quarter-track detent after
+    //  every step.
+    //
+    //  Regression: the prior position-derived stepper could land the
+    //  head on an ODD quarter-track between detents (e.g. qt25 for a
+    //  track-6 seek) where narrow-band protected disks store no flux,
+    //  serving unformatted noise and stalling the loader. The apple2js
+    //  PHASE_DELTA model moves an even number of quarter-tracks per
+    //  energize, so an odd resting position is unreachable.
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (PhaseSeekAlwaysRestsOnEvenQuarterTrack)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+        int                           step = 0;
+
+        disk->Read (kMotorOn);
+
+        // From the track-0 detent (phase 0 energized last) an outward
+        // seek walks phases 1,2,3,0,1,2,3,0 -- eight half-steps == four
+        // whole tracks.
+        for (step = 0; step < 8; step++)
+        {
+            int   phase   = (step + 1) & 3;
+            Word  onAddr  = static_cast<Word> (kSlot6Base + 1 + phase * 2);
+            Word  offAddr = static_cast<Word> (kSlot6Base + phase * 2);
+            int   beforeQt = disk->GetQuarterTrack ();
+
+            disk->Read (onAddr);
+            disk->Read (offAddr);
+
+            Assert::AreEqual (beforeQt + 2, disk->GetQuarterTrack (),
+                L"Each phase energize must advance exactly one half-track");
+            Assert::AreEqual (0, disk->GetQuarterTrack () & 1,
+                L"Head must rest on an even quarter-track after every step");
+        }
+
+        Assert::AreEqual (16, disk->GetQuarterTrack (),
+            L"Eight half-steps must land the head at quarter-track 16 (track 4)");
+    }
+
     TEST_METHOD (MotorOnOffViaC0E8C0E9)
     {
         unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
