@@ -10,7 +10,7 @@
 // Define = 0 to exercise the panel path end-to-end before T059
 // deletes the legacy dialog and removes this switch.
 #ifndef CASSO_LEGACY_DISKII_DEBUG_DIALOG
-#define CASSO_LEGACY_DISKII_DEBUG_DIALOG 1
+#define CASSO_LEGACY_DISKII_DEBUG_DIALOG 0
 #endif
 
 #include "Core/PathResolver.h"
@@ -3218,6 +3218,14 @@ void EmulatorShell::OpenDiskIIDebugDialog()
                                          m_d3dRenderer.GetContext(),
                                          &m_chromeTheme);
         CHRF (hr, m_diskIIDebugPanel.reset());
+
+        m_diskIIDebugPanel->SetUptimeAnchor (m_uptimeAnchor);
+        m_diskIIDebugPanel->SetMultiControllerHint (diskIICount > 1);
+
+        if (m_cpu != nullptr)
+        {
+            m_diskIIDebugPanel->SetCycleCounter (m_cpu->GetCycleCounterPtr());
+        }
 
         controller->SetEventSink (m_diskIIDebugPanel.get());
 
