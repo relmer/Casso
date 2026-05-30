@@ -512,13 +512,15 @@ void WindowCommandManager::OnHelpCommand (int id)
             def.icon  = DialogIcon::AppPhotoreal;
             def.body.push_back ({ L"Casso Emulator\n\nVersion " _CRT_WIDE (VERSION_STRING)
                                   L"\nBuilt " _CRT_WIDE (VERSION_BUILD_TIMESTAMP)
-                                  L"\n\nAn Apple ][, ][ plus, and //e platform emulator "
+                                  L"\n\nAn Apple ][, Apple ][ plus, and Apple //e platform emulator "
                                   L"built on the Casso 6502 assembler/emulator project.\n\n",
                                   false, L"" });
             def.body.push_back ({ L"https://github.com/relmer/Casso",
                                   true, L"https://github.com/relmer/Casso" });
-            def.body.push_back ({ L"\nCopyright (C) by Robert Elmer\nMIT License",
+            def.body.push_back ({ L"\nCopyright (C) by Robert Elmer\n",
                                   false, L"" });
+            def.body.push_back ({ L"MIT License",
+                                  true, L"https://github.com/relmer/Casso/blob/master/LICENSE" });
             def.buttons.push_back ({ L"OK", 0, true, true });
             (void) m_shell.ShowModalDialog (def);
             break;
