@@ -3,10 +3,10 @@
 #include "DiskManager.h"
 
 #include "Core/MemoryBus.h"
-#include "Devices/DiskIIController.h"
+#include "Devices/Disk2Controller.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Audio/DriveAudioMixer.h"
-#include "Audio/DiskIIAudioSource.h"
+#include "Audio/Disk2AudioSource.h"
 #include "../DiskSettings.h"
 #include "../WasapiAudio.h"
 #include "../Ui/Chrome/DriveWidget.h"
@@ -28,7 +28,7 @@
 DiskManager::DiskManager (
     std::vector<std::unique_ptr<MemoryDevice>>      & ownedDevices,
     DiskImageStore                                  & diskStore,
-    std::vector<std::unique_ptr<DiskIIAudioSource>> & diskAudioSources,
+    std::vector<std::unique_ptr<Disk2AudioSource>> & diskAudioSources,
     WasapiAudio                                     & wasapiAudio,
     DriveWidgetController                           & driveWidgets,
     std::array<DriveWidgetState, 2>                 & driveWidgetState,
@@ -86,14 +86,14 @@ int64_t DiskManager::NowMs ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskIIController * DiskManager::FindSlot6Controller ()
+Disk2Controller * DiskManager::FindSlot6Controller ()
 {
-    DiskIIController *  result = nullptr;
+    Disk2Controller *  result = nullptr;
 
 
     for (auto & dev : m_ownedDevices)
     {
-        result = dynamic_cast<DiskIIController *> (dev.get());
+        result = dynamic_cast<Disk2Controller *> (dev.get());
 
         if (result != nullptr)
         {
@@ -210,7 +210,7 @@ void DiskManager::MountCommandLineDisks (
 HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
 {
     HRESULT              hr         = S_OK;
-    DiskIIController  *  controller = FindSlot6Controller();
+    Disk2Controller  *   controller = FindSlot6Controller();
     DiskImage         *  external   = nullptr;
 
 
@@ -223,7 +223,7 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
     controller->SetExternalDisk (drive, external);
 
     // The store-based mount path bypasses the controller's own
-    // MountDisk method, so fire the IDiskIIEventSink hook explicitly
+    // MountDisk method, so fire the IDisk2EventSink hook explicitly
     // here so the debug window sees the insert. Cold boot mounts
     // still fire on the controller side (the debug window is rarely
     // open at app launch and the user wants to see the mount that
@@ -279,7 +279,7 @@ Error:
 
 void DiskManager::EjectDiskInSlot6 (int drive)
 {
-    DiskIIController *  controller = FindSlot6Controller();
+    Disk2Controller *  controller = FindSlot6Controller();
 
 
     m_diskStore.Eject (6, drive);
@@ -466,7 +466,7 @@ void DiskManager::Eject (int slot, int drive)
 
 void DiskManager::UpdateDriveWidgets ()
 {
-    DiskIIController *  controller = FindSlot6Controller();
+    Disk2Controller *  controller = FindSlot6Controller();
     int64_t             nowMs      = NowMs();
     std::vector<DriveWidgetController::DriveSyncEvent>  syncEvents = m_driveWidgets.ConsumeSyncEvents();
     int                 drive      = 0;

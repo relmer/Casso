@@ -36,7 +36,7 @@
 #define IDM_VIEW_FULLSCREEN         40034
 #define IDM_VIEW_CRT_SHADER         40035
 #define IDM_VIEW_RESET_SIZE         40036
-#define IDM_VIEW_DISKII_DEBUG       40038
+#define IDM_VIEW_DISK2_DEBUG       40038
 #define IDM_VIEW_SETTINGS           40039  // Consolidated settings panel
 
 #define IDM_AUDIO_DRIVE_ENABLE      40050

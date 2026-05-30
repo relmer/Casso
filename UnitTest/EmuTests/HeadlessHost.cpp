@@ -231,18 +231,18 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeadlessHost::BuildAppleIIeWithDiskII
+//  HeadlessHost::BuildAppleIIeWithDisk2
 //
 //  Phase 11 (T097-T104). Extends BuildAppleIIe by attaching the Disk II
 //  boot ROM (Disk2.rom) to slot 6 via mmu->AttachSlotRom and adding a
-//  DiskIIController + DiskImageStore to outCore. Tests then mount
+//  Disk2Controller + DiskImageStore to outCore. Tests then mount
 //  synthetic disks via the store and call core.RunCycles to drive the
 //  controller in lock-step with the CPU. No third-party disk software is
 //  loaded — every fixture is built in memory at test-init time.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HeadlessHost::BuildAppleIIeWithDiskII (EmulatorCore & outCore)
+HRESULT HeadlessHost::BuildAppleIIeWithDisk2 (EmulatorCore & outCore)
 {
     HRESULT                hr = S_OK;
     std::vector<uint8_t>   slot6Rom;
@@ -261,10 +261,18 @@ HRESULT HeadlessHost::BuildAppleIIeWithDiskII (EmulatorCore & outCore)
 
     outCore.mmu->AttachSlotRom (6, std::move (slot6Rom));
 
-    outCore.diskController = std::make_unique<DiskIIController> (6);
+    outCore.diskController = std::make_unique<Disk2Controller> (6);
     outCore.diskStore      = std::make_unique<DiskImageStore> ();
 
     outCore.bus->AddDevice (outCore.diskController.get ());
+
+    // Issue #67: drive Disk2Controller bit-stream catch-up off the CPU
+    // cycle counter so $C0Ex reads/writes resync the engine to elapsed
+    // CPU time before dispatch (matches AppleWin's CpuCalcCycles-at-top-
+    // of-handler pattern). DiskReadbackTests that pump Tick(N) manually
+    // without running the CPU MUST detach this pointer via
+    // SetCpuCycleSource(nullptr) after spin-up.
+    outCore.diskController->SetCpuCycleSource (outCore.cpu->GetBusCyclePtr ());
 
 Error:
     return hr;

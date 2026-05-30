@@ -12,7 +12,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  MenuPredicatesTests
 //
-//  Headless coverage of ShouldEnableDiskIIDebugMenuItem (FR-001a):
+//  Headless coverage of ShouldEnableDisk2DebugMenuItem (FR-001a):
 //  the View -> Disk II Debug item is enabled iff the active machine
 //  config wires at least one Disk II controller.
 //
@@ -24,16 +24,16 @@ namespace MenuPredicatesTests
     {
     public:
 
-        TEST_METHOD (ShouldEnableDiskIIDebugMenuItem_emptyConfig_returnsFalse)
+        TEST_METHOD (ShouldEnableDisk2DebugMenuItem_emptyConfig_returnsFalse)
         {
             MachineConfig  config;
 
-            Assert::IsFalse (ShouldEnableDiskIIDebugMenuItem (config));
+            Assert::IsFalse (ShouldEnableDisk2DebugMenuItem (config));
         }
 
 
 
-        TEST_METHOD (ShouldEnableDiskIIDebugMenuItem_diskIIInSlot6_returnsTrue)
+        TEST_METHOD (ShouldEnableDisk2DebugMenuItem_Disk2InSlot6_returnsTrue)
         {
             MachineConfig  config;
             SlotConfig     slot6;
@@ -42,12 +42,12 @@ namespace MenuPredicatesTests
             slot6.device = "disk-ii";
             config.slots.push_back (slot6);
 
-            Assert::IsTrue (ShouldEnableDiskIIDebugMenuItem (config));
+            Assert::IsTrue (ShouldEnableDisk2DebugMenuItem (config));
         }
 
 
 
-        TEST_METHOD (ShouldEnableDiskIIDebugMenuItem_cassetteOnlyAppleII_returnsFalse)
+        TEST_METHOD (ShouldEnableDisk2DebugMenuItem_cassetteOnlyAppleII_returnsFalse)
         {
             MachineConfig  config;
             SlotConfig     slot1;
@@ -56,12 +56,12 @@ namespace MenuPredicatesTests
             slot1.device = "printer-card";
             config.slots.push_back (slot1);
 
-            Assert::IsFalse (ShouldEnableDiskIIDebugMenuItem (config));
+            Assert::IsFalse (ShouldEnableDisk2DebugMenuItem (config));
         }
 
 
 
-        TEST_METHOD (ShouldEnableDiskIIDebugMenuItem_multipleDiskIIControllers_returnsTrue)
+        TEST_METHOD (ShouldEnableDisk2DebugMenuItem_multipleDisk2Controllers_returnsTrue)
         {
             MachineConfig  config;
             SlotConfig     slot5;
@@ -74,7 +74,7 @@ namespace MenuPredicatesTests
             config.slots.push_back (slot5);
             config.slots.push_back (slot6);
 
-            Assert::IsTrue (ShouldEnableDiskIIDebugMenuItem (config));
+            Assert::IsTrue (ShouldEnableDisk2DebugMenuItem (config));
         }
     };
 }

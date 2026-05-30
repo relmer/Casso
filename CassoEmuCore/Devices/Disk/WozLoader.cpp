@@ -231,7 +231,6 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
     const Byte *   trksData             = nullptr;
     size_t         trksSize             = 0;
     int            qt                   = 0;
-    int            destTrack            = 0;
     Byte           trackIndex           = 0;
     int            trackI               = 0;
 
@@ -326,64 +325,68 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
 
     out.SetWriteProtected (writeProtected);
     out.SetSourceFormat   (DiskFormat::Woz);
+    out.ClearQuarterTrackMap ();
+
+    {
+        int   maxSlot = -1;
+
+        for (qt = 0; qt < static_cast<int> (kTmapChunkSize); qt++)
+        {
+            if (tmap[qt] != kTmapEmptyTrack && tmap[qt] > maxSlot)
+            {
+                maxSlot = tmap[qt];
+            }
+        }
+
+        out.EnsureTrackSlots (maxSlot + 1);
+    }
 
     if (isV2)
     {
+        vector<bool>   parsed (kV2TrkRecordCount, false);
+
         if (trksSize < kV2TrkRecordCount * kV2TrkRecordSize)
         {
             hr = E_FAIL;
             goto Error;
         }
 
-        for (qt = 0; qt < kTmapChunkSize; qt++)
+        for (qt = 0; qt < static_cast<int> (kTmapChunkSize); qt++)
         {
             trackIndex = tmap[qt];
-            if (trackIndex == kTmapEmptyTrack)
+            if (trackIndex == kTmapEmptyTrack || trackIndex >= kV2TrkRecordCount)
             {
                 continue;
             }
 
-            destTrack = qt / kQuarterTracksPerTrack;
-            if (destTrack >= kMaxTracks)
+            if (!parsed[trackIndex])
             {
-                continue;
+                HRESULT   hrTrack = ParseV2Track (
+                    raw,
+                    trksData + static_cast<size_t> (trackIndex) * kV2TrkRecordSize,
+                    trackIndex,
+                    out);
+
+                if (FAILED (hrTrack))
+                {
+                    hr = hrTrack;
+                    goto Error;
+                }
+
+                parsed[trackIndex] = true;
             }
 
-            if ((qt % kQuarterTracksPerTrack) != 0)
-            {
-                continue;
-            }
-
-            HRESULT   hrTrack = ParseV2Track (
-                raw,
-                trksData + static_cast<size_t> (trackIndex) * kV2TrkRecordSize,
-                destTrack,
-                out);
-
-            if (FAILED (hrTrack) && destTrack < out.GetTrackCount ())
-            {
-                hr = hrTrack;
-                goto Error;
-            }
+            out.SetQuarterTrackSlot (qt, trackIndex);
         }
     }
     else
     {
-        for (qt = 0; qt < kTmapChunkSize; qt++)
+        vector<bool>   parsed (kV2TrkRecordCount, false);
+
+        for (qt = 0; qt < static_cast<int> (kTmapChunkSize); qt++)
         {
             trackIndex = tmap[qt];
-            if (trackIndex == kTmapEmptyTrack)
-            {
-                continue;
-            }
-
-            destTrack = qt / kQuarterTracksPerTrack;
-            if (destTrack >= kMaxTracks)
-            {
-                continue;
-            }
-
-            if ((qt % kQuarterTracksPerTrack) != 0)
+            if (trackIndex == kTmapEmptyTrack || trackIndex >= kV2TrkRecordCount)
             {
                 continue;
             }
@@ -397,8 +400,14 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
                     goto Error;
                 }
 
-                ParseV1Track (trksData + recOffset, destTrack, out);
+                if (!parsed[trackIndex])
+                {
+                    ParseV1Track (trksData + recOffset, trackIndex, out);
+                    parsed[trackIndex] = true;
+                }
             }
+
+            out.SetQuarterTrackSlot (qt, trackIndex);
         }
     }
 

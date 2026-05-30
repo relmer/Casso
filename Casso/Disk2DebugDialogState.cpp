@@ -1,0 +1,399 @@
+#include "Pch.h"
+
+#include "Disk2DebugDialogState.h"
+#include "DebugDialogProjection.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  File-scope column defaults
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static const wchar_t * const  s_kpszColumnHeaders[kColumnCount] =
+{
+    L"Time",
+    L"Uptime",
+    L"Cycle count",
+    L"Drive",
+    L"Event",
+    L"Detail",
+};
+
+static const int              s_kColumnDefaultWidths[kColumnCount] =
+{
+    kColWallWidth,
+    kColUptimeWidth,
+    kColCycleWidth,
+    kColDriveWidth,
+    kColEventWidth,
+    kColDetailWidth,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SeedDefaultColumns
+//
+//  Populate the dialog's logical column model with the five spec-006
+//  columns in fixed id order. All columns default to visible with
+//  autoSizedYet = false so the first ShowColumn pass runs the FR-027
+//  auto-size-to-header step.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SeedDefaultColumns (std::array<LogicalColumn, kColumnCount> & columns) noexcept
+{
+    int  i = 0;
+
+    for (i = 0; i < kColumnCount; i++)
+    {
+        columns[i].id            = i;
+        columns[i].headerText    = s_kpszColumnHeaders[i];
+        columns[i].defaultWidth  = s_kColumnDefaultWidths[i];
+        columns[i].savedWidth    = s_kColumnDefaultWidths[i];
+        columns[i].visible       = true;
+        columns[i].autoSizedYet  = false;
+        columns[i].userResized   = false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeWasAtTail
+//
+//  Auto-tail decision per plan.md "Auto-Tail Scroll Algorithm". The
+//  dialog calls this BEFORE the projection mutates the deque so the
+//  pre-drain visible-window position decides whether to ensure-visible
+//  on the new last row.
+//
+//  Rules:
+//      * Empty list           -> at tail (vacuously true).
+//      * Visible last row     >= totalCount - 1 -> at tail.
+//      * Anything scrolled-up -> not at tail.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ComputeWasAtTail (int topIndex, int countPerPage, int totalCount) noexcept
+{
+    if (totalCount <= 0)
+    {
+        return true;
+    }
+
+    return (topIndex + countPerPage) >= totalCount;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EventTypeCategoryBit
+//
+//  Map a Disk2EventType to its FR-014 checkbox-category bit. Audio
+//  event types return 0 (audio gating is handled separately by the
+//  audioMaster + sub-toggle path). The EventsLost synthetic also
+//  returns 0; the filter treats it as always-shown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static uint32_t EventTypeCategoryBit (Disk2EventType type) noexcept
+{
+    switch (type)
+    {
+        case Disk2EventType::MotorCommandOn:
+        case Disk2EventType::MotorEngaged:
+        case Disk2EventType::MotorCommandOff:
+        case Disk2EventType::MotorDisengaged:    return FilterState::kEventCatMotor;
+
+        case Disk2EventType::HeadStep:           return FilterState::kEventCatHeadStep;
+        case Disk2EventType::HeadBump:           return FilterState::kEventCatHeadBump;
+        case Disk2EventType::AddrMark:           return FilterState::kEventCatAddrMark;
+        case Disk2EventType::DataRead:           return FilterState::kEventCatRead;
+        case Disk2EventType::DataWrite:          return FilterState::kEventCatWrite;
+
+        case Disk2EventType::DiskInserted:
+        case Disk2EventType::DiskEjected:        return FilterState::kEventCatDoor;
+
+        case Disk2EventType::DriveSelect:        return FilterState::kEventCatDriveSelect;
+
+        default:                                  return 0;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MatchesAudioSubToggle
+//
+//  Audio-side gating per FR-014c. Loop events are gated ONLY by the
+//  audio master; the four "one-shot" outcomes (Started / Restarted /
+//  Continued / Silent) also honor their per-outcome sub-toggle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool MatchesAudioSubToggle (Disk2EventType type, const FilterState & f) noexcept
+{
+    switch (type)
+    {
+        case Disk2EventType::AudioStarted:         return f.audioStarted;
+        case Disk2EventType::AudioRestarted:       return f.audioRestarted;
+        case Disk2EventType::AudioContinued:       return f.audioContinued;
+        case Disk2EventType::AudioSilent:          return f.audioSilent;
+        case Disk2EventType::AudioLoopStarted:     return true;
+        case Disk2EventType::AudioLoopStopped:     return true;
+        default:                                   return true;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MatchesFilter
+//
+//  Compose the FR-014 filter (event-type / drive / track / sector /
+//  audio) over one Disk2EventDisplay. Synthetic EventsLost rows are
+//  always shown so the overflow marker is never filterable.
+//
+//  Field-absent rule: when a display row's track or sector field is
+//  kFieldNotApplicable, the corresponding text predicate is bypassed
+//  (an event with no track cannot be track-rejected). Drive is
+//  symmetric.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MatchesFilter (const Disk2EventDisplay & e, const FilterState & f) noexcept
+{
+    uint32_t  catBit = 0;
+
+    if (e.type == Disk2EventType::EventsLost)
+    {
+        return true;
+    }
+
+    if (e.category == EventCategory::Audio)
+    {
+        if (!f.audioMaster)
+        {
+            return false;
+        }
+
+        if (!MatchesAudioSubToggle (e.type, f))
+        {
+            return false;
+        }
+    }
+    else
+    {
+        catBit = EventTypeCategoryBit (e.type);
+
+        if (catBit != 0 && (f.eventTypeMask & catBit) == 0)
+        {
+            return false;
+        }
+    }
+
+    if (f.driveFilter != 0)
+    {
+        if (e.drive == Disk2EventDisplay::kFieldNotApplicable)
+        {
+            // Synthetic EventsLost is the only row without a drive
+            // context; treat the always-shown rule (above) as
+            // authoritative for it and reject everything else here.
+            // Spec-006 bug fix: the previous "bypass" rule masked
+            // events that legitimately had no drive_index stamped
+            // because of producer-side oversights. Every real
+            // controller / audio event now stamps its drive at
+            // fire time, so reaching this branch means "no drive at
+            // all" -- which a non-All radio should never match.
+            return false;
+        }
+
+        if (e.drive != (f.driveFilter - 1))
+        {
+            // driveFilter is the 1-based UI selection (1 = Drive 1,
+            // 2 = Drive 2); event.drive is the 0-based internal
+            // index (matches Disk2Controller::m_activeDrive).
+            return false;
+        }
+    }
+
+    if (e.track != Disk2EventDisplay::kFieldNotApplicable)
+    {
+        if (!f.trackFilter.Matches (e.track))
+        {
+            return false;
+        }
+    }
+
+    if (e.sector != Disk2EventDisplay::kFieldNotApplicable)
+    {
+        if (!f.sectorFilter.Matches (e.sector))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppendColumnText
+//
+//  Append a single row's value for the logical column id to `out`.
+//  Wall / Uptime / Cycle / Detail come straight off the display
+//  record; Event resolves via DebugDialogProjection::EventLabel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppendColumnText (std::wstring & out, const Disk2EventDisplay & e, int logicalId)
+{
+    std::wstring_view  label;
+    wchar_t            driveBuf[4] = {};
+
+    switch (logicalId)
+    {
+        case 0: out.append (e.wallStr.data()); break;
+        case 1: out.append (e.uptimeStr.data()); break;
+        case 2: out.append (e.cycleStr.data()); break;
+        case 3:
+            if (e.drive != Disk2EventDisplay::kFieldNotApplicable)
+            {
+                swprintf_s (driveBuf, L"%d", e.drive + 1);
+                out.append (driveBuf);
+            }
+            break;
+        case 4:
+            label = DebugDialogProjection::EventLabel (e.category, e.type);
+            out.append (label);
+            break;
+        case 5: out.append (e.detail); break;
+        default: break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildClipboardText
+//
+//  Tab-separated rows in visible-column order, CRLF terminator.
+//  Hidden columns are omitted entirely -- no leading tab placeholder,
+//  no spacer string -- per FR-026.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BuildClipboardText (
+    const std::vector<const Disk2EventDisplay *> &  selected,
+    const std::array<LogicalColumn, kColumnCount> &  columns)
+{
+    std::wstring  out;
+    size_t        rowIdx       = 0;
+    int           colIdx       = 0;
+    bool          firstColumn  = true;
+
+    for (rowIdx = 0; rowIdx < selected.size(); rowIdx++)
+    {
+        const Disk2EventDisplay *  row = selected[rowIdx];
+
+        if (row == nullptr)
+        {
+            continue;
+        }
+
+        firstColumn = true;
+
+        for (colIdx = 0; colIdx < kColumnCount; colIdx++)
+        {
+            if (!columns[colIdx].visible)
+            {
+                continue;
+            }
+
+            if (!firstColumn)
+            {
+                out.push_back (L'\t');
+            }
+
+            AppendColumnText (out, *row, columns[colIdx].id);
+            firstColumn = false;
+        }
+
+        out.append (L"\r\n");
+    }
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlanVisibleColumns
+//
+//  Spec-006 T108 / FR-026 / FR-027. Pure planner: walks the logical
+//  column model in id order, emits a VisibleColumnSpec for each
+//  visible entry carrying the width the ListView should use and a
+//  needsAutoSize flag set iff this column has never been auto-sized
+//  yet. The caller (RebuildListViewColumns on Win32, the test
+//  fixture in Disk2DebugDialogColumnTests headless) consumes the
+//  vector to either drive a real LV or assert the plan's contents.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<VisibleColumnSpec> PlanVisibleColumns (
+    const std::array<LogicalColumn, kColumnCount> & model) noexcept
+{
+    std::vector<VisibleColumnSpec>  out;
+    int                             i = 0;
+
+    out.reserve (kColumnCount);
+
+    for (i = 0; i < kColumnCount; i++)
+    {
+        VisibleColumnSpec  spec = {};
+
+        if (!model[i].visible)
+        {
+            continue;
+        }
+
+        spec.id            = model[i].id;
+        spec.headerText    = model[i].headerText;
+        spec.width         = model[i].savedWidth;
+        spec.needsAutoSize = !model[i].autoSizedYet;
+
+        out.push_back (spec);
+    }
+
+    return out;
+}
+

@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.4.1369] — Native dialogs migration (spec 011)
+## [1.5.1395] — Native dialogs migration (spec 011)
 
 Themed DX-based modal dialogs now replace every Win32 `MessageBoxW` /
 `TaskDialogIndirect` consumer in the app (except the pre-shell EHM
@@ -92,7 +92,7 @@ is preserved as the lone deliberate Win32 surface.
   (U+2248) in `UnicodeSymbols.h`; all dialog body strings consume
   named constants rather than inline `\xNNNN` escapes.
 - **feat(011): DX Disk II Debug Panel (US7, T044-T055, T059).** Brand
-  new `DiskIIDebugPanel` replaces the legacy Win32 `DiskIIDebugDialog`
+  new `Disk2DebugPanel` replaces the legacy Win32 `DiskIIDebugDialog`
   (-3073 lines). Hosts itself in the shared `ChromedPanelWindow`
   chrome shell with the active theme; lays out filter checkboxes,
   audio toggles, drive radios, themed track / sector text inputs with
@@ -109,7 +109,7 @@ is preserved as the lone deliberate Win32 surface.
   mouse-wheel + PgUp/PgDn/Home/End/arrow scrolling, Ctrl+C copies the
   full buffer to the clipboard. Thread-safe `Log` / `LogConfig`
   contract preserved verbatim; existing call sites needed no change.
-- **feat(011): DiskIIDebugPanel column toggle + filter tooltips
+- **feat(011): Disk2DebugPanel column toggle + filter tooltips
   (T056–T058).** Right-clicking a `ListView` column header now opens a
   themed `PopupMenu` listing every column with its current visibility as
   a check; selecting an entry hides or shows the column and re-runs
@@ -138,7 +138,7 @@ is preserved as the lone deliberate Win32 surface.
   Selection highlight paints under the text using the active theme's
   nav-hover colour and tracks the viewport while dragging past the
   body edges.
-- **feat(011): DiskIIDebugPanel per-column sortable header (T055).**
+- **feat(011): Disk2DebugPanel per-column sortable header (T055).**
   Clicking any ListView header now sorts by that column; clicking the
   active column flips ascending / descending. All six columns
   (Wall / Uptime / Cycle / Drive / Event / Detail) participate, with
@@ -306,11 +306,75 @@ is preserved as the lone deliberate Win32 surface.
   `DiskMruTests` (9), `DriveLabelTruncationTests` (7), and
   `GlobalUserPrefsTests` (+2 round-trip / malformed-entry cases). All
   measurement and filesystem dependencies injected; no Win32, no real
-  file I/O. Plus `DiskIIDebugPanelLayoutTests` (10) covering the new
+  file I/O. Plus `Disk2DebugPanelLayoutTests` (10) covering the new
   layout slots. Total suite: 1634/1634 passing.
+
+## [1.5.1289] — Copy-protected games boot
+
+This release celebrates a milestone: Casso now boots original,
+copy-protected Apple II games straight from their unmodified WOZ
+preservation images. *Karateka*, *Choplifter*, and *Lode Runner* —
+three Broderbund classics whose protection schemes defeated naive
+emulation — all load and run.
+
+The fidelity work behind this milestone landed across the 1.4 series
+(motor spin-up delay, MC3470 weak-bit emulation, a real 16-state Logic
+State Sequencer, the quarter-track read pipeline for half-track
+protection, and a bit-level write path). This entry marks the point at
+which those pieces came together well enough to run real protected
+software, and bumps Casso to **1.5**.
+
+
+## [1.4.1288] — Protected games boot: quarter-track disk pipeline
+
+### Added
+- **feat(disk2): quarter-track read pipeline for half-track copy
+  protection.** The disk pipeline now resolves reads at quarter-track
+  (0-159) resolution via a TMAP-derived slot map, and the head stepper
+  uses the apple2js PHASE_DELTA model so it always rests on a valid
+  detent. Disks formatted on half-track boundaries — *Choplifter*,
+  *Karateka*, and *Lode Runner* — now boot from their original WOZ
+  images (previously stalled in the protected region around track 12).
+
+### Fixed
+- **fix(disk2): boot recalibrate audio is a machine-gun ratchet, not a
+  buzz.** During a DOS boot recalibrate the head pins at the track-0 stop
+  and emits a steady ~52 Hz stream of identical thunks; restarting the
+  same sample every 19 ms smeared into a continuous buzz. The audio layer
+  now cycles rapid consecutive bumps through a 4-slot ratchet pattern,
+  restoring the realistic slow "machine-gun" ratchet a real Disk II makes.
+  Isolated bumps stay firm thunks; a genuine step re-arms the pattern.
+
+
+## [1.4.1279] — Disk II copy-protection fidelity foundations
+
+### Added
+- **feat(disk2): MC3470 weak-bit emulation.** WOZ floating (fake-bit)
+  regions now return AppleWin-style randomized bits when the read head
+  sits over a weakly-magnetized area, matching real read-data-register
+  behavior.
+- **feat(disk2): real Logic State Sequencer.** The nibble engine now
+  drives reads/writes through a faithful 16-state LSS ROM (clean-room
+  from the MIT-licensed apple2js), replacing the simplified bit-shift
+  model.
+- **feat(disk2): motor spin-up delay.** Reads within ~70 ms of motor-on
+  return drive noise rather than instantly-valid data, matching the
+  mechanical spin-up a real Disk II requires.
+
+### Changed
+- **perf(cpu): sub-instruction (per-bus-access) cycle accounting.** The
+  CPU now exposes a bus-access-precise cycle counter; the Disk II
+  controller samples it so rotational position reflects the exact cycle
+  a `$C0Ex` access occurs rather than the end-of-instruction rollup.
 
 
 ## [1.4.1260] — Drive widget interaction + disk persistence fix
+
+### Changed
+- **perf(chrome): snappier drive-widget click-to-dialog.** The post-door-open
+  linger before the file picker appears dropped from 600ms to 0ms (total
+  delay now matches the door animation, ~350ms). Door animation still
+  completes before the dialog covers the drive.
 
 ### Added
 - **feat(chrome): drive widgets are now interactive.** Clicking a

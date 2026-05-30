@@ -17,7 +17,7 @@
 #include "Devices/AppleSoftSwitchBank.h"
 #include "Devices/AppleIIeSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
-#include "Devices/DiskIIController.h"
+#include "Devices/Disk2Controller.h"
 #include "Devices/LanguageCard.h"
 #include "Devices/AppleIIeMmu.h"
 #include "Video/AppleTextMode.h"
@@ -26,10 +26,10 @@
 #include "Video/AppleHiResMode.h"
 #include "Video/AppleDoubleHiResMode.h"
 #include "Audio/DriveAudioMixer.h"
-#include "Audio/DiskIIAudioSource.h"
+#include "Audio/Disk2AudioSource.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
-#include "../Ui/DiskIIDebugPanel.h"
+#include "../Ui/Disk2DebugPanel.h"
 
 
 
@@ -342,12 +342,12 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         }
     }
 
-    // Cache DiskIIController pointer for the status-bar drive activity
+    // Cache Disk2Controller pointer for the status-bar drive activity
     // indicator. We pick the first one we find (typically slot 6).
     m_shell.m_refs.diskController = nullptr;
     for (auto & dev : m_shell.m_ownedDevices)
     {
-        DiskIIController *  dc = dynamic_cast<DiskIIController *> (dev.get());
+        Disk2Controller *  dc = dynamic_cast<Disk2Controller *> (dev.get());
 
         if (dc != nullptr)
         {
@@ -357,12 +357,12 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     }
 
     // Drive-audio wiring (spec 005-disk-ii-audio FR-008 / FR-012 /
-    // FR-015 / FR-016). Allocate one DiskIIAudioSource per drive on
+    // FR-015 / FR-016). Allocate one Disk2AudioSource per drive on
     // the discovered controller (if any), register each with the
     // mixer, and route the controller's audio-sink events into
     // drive 0's source (single sink covers both drives; the head /
     // motor events themselves are not currently drive-tagged in
-    // DiskIIController -- a follow-up could split per-drive sinks).
+    // Disk2Controller -- a follow-up could split per-drive sinks).
     //
     // Pan policy: single-drive profiles play centered (equal-power
     // center). Two-drive profiles place Drive 1 left-of-center and
@@ -372,12 +372,12 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
 
     if (m_shell.m_refs.diskController != nullptr)
     {
-        int  driveCount = DiskIIController::kDriveCount;
+        int  driveCount = Disk2Controller::kDriveCount;
         int  drive      = 0;
 
         for (drive = 0; drive < driveCount; drive++)
         {
-            auto  src = std::make_unique<DiskIIAudioSource>();
+            auto  src = std::make_unique<Disk2AudioSource>();
 
             if (driveCount <= 1)
             {
@@ -799,6 +799,18 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
         m_shell.m_refs.speaker->SetCycleCounter (m_shell.m_cpu->GetCycleCounterPtr());
     }
 
+    // Issue #67: drive Disk2Controller bit-stream catch-up off the CPU
+    // cycle counter so every $C0Ex read/write resyncs the engine to
+    // elapsed CPU time before the soft-switch dispatch fires (matches
+    // AppleWin's CpuCalcCycles-at-top-of-handler pattern). MachineManager
+    // owns both the EmuCpu and the device list, so this is the right
+    // wiring point -- the controller is cached into m_refs.diskController
+    // just above in AddDevices.
+    if (m_shell.m_refs.diskController != nullptr)
+    {
+        m_shell.m_refs.diskController->SetCpuCycleSource (m_shell.m_cpu->GetBusCyclePtr());
+    }
+
     return hr;
 }
 
@@ -958,9 +970,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // holds a raw pointer into the old CPU's cycle counter; revoke it
     // before the CPU is reset so the dialog can't dereference dangling
     // memory between here and CreateCpu below.
-    if (m_shell.m_diskIIDebugPanel != nullptr)
+    if (m_shell.m_disk2DebugPanel != nullptr)
     {
-        m_shell.m_diskIIDebugPanel->SetCycleCounter (nullptr);
+        m_shell.m_disk2DebugPanel->SetCycleCounter (nullptr);
     }
 
     // Tear down ALL per-machine state in one atomic move. m_refs is a
@@ -1011,9 +1023,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     // Re-attach the new CPU's cycle counter to the debug dialog (the
     // pointer was revoked above before the old CPU was destroyed).
-    if (m_shell.m_diskIIDebugPanel != nullptr && m_shell.m_cpu != nullptr)
+    if (m_shell.m_disk2DebugPanel != nullptr && m_shell.m_cpu != nullptr)
     {
-        m_shell.m_diskIIDebugPanel->SetCycleCounter (m_shell.m_cpu->GetCycleCounterPtr());
+        m_shell.m_disk2DebugPanel->SetCycleCounter (m_shell.m_cpu->GetCycleCounterPtr());
     }
 
     // Re-wire the debug dialog onto the freshly built controller +

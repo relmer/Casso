@@ -13,7 +13,7 @@
 #include "Devices/AppleSoftSwitchBank.h"
 #include "Devices/AppleIIeSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
-#include "Devices/DiskIIController.h"
+#include "Devices/Disk2Controller.h"
 #include "Devices/LanguageCard.h"
 #include "Devices/AppleIIeMmu.h"
 #include "Core/Prng.h"
@@ -371,7 +371,7 @@ EmulatorShell::EmulatorShell()
 EmulatorShell::~EmulatorShell()
 {
     HRESULT             hrFlush    = S_OK;
-    DiskIIController *  controller = nullptr;
+    Disk2Controller *   controller = nullptr;
 
 
 
@@ -381,8 +381,8 @@ EmulatorShell::~EmulatorShell()
     // down its ring (and before the controller / audio source itself
     // is destroyed, which happens via m_ownedDevices / m_diskAudioSources
     // below). Controller sink first, then audio sink, matching the
-    // attachment order in OpenDiskIIDebugDialog.
-    if (m_diskIIDebugPanel != nullptr)
+    // attachment order in OpenDisk2DebugDialog.
+    if (m_disk2DebugPanel != nullptr)
     {
         controller = m_diskManager->FindSlot6Controller();
 
@@ -399,7 +399,7 @@ EmulatorShell::~EmulatorShell()
             }
         }
 
-        m_diskIIDebugPanel.reset();
+        m_disk2DebugPanel.reset();
     }
 
     // / T097 / FR-025. Final auto-flush of any dirty disks on
@@ -1576,7 +1576,7 @@ void EmulatorShell::BrowseForDisk (int drive)
     // TickDoorAnimation diffs the current frame time against
     // animationStartTimeMs.
     {
-        constexpr int64_t  s_kPostOpenLingerMs = 600;
+        constexpr int64_t  s_kPostOpenLingerMs = 0;
 
         deadline = now + DriveWidgetState::kDoorAnimationMs + s_kPostOpenLingerMs;
     }
@@ -1963,9 +1963,9 @@ int EmulatorShell::RunMessageLoop()
         // open in state-only and never repaint, looking dead.
         m_settingsPanel.UpdatePreviewOverlap (m_d3dRenderer.GetEmulatorContentScreenRect());
         IGNORE_RETURN_VALUE (hr, m_settingsPanel.RenderPopup());
-        if (m_diskIIDebugPanel != nullptr)
+        if (m_disk2DebugPanel != nullptr)
         {
-            IGNORE_RETURN_VALUE (hr, m_diskIIDebugPanel->RenderFrame());
+            IGNORE_RETURN_VALUE (hr, m_disk2DebugPanel->RenderFrame());
         }
         if (m_navLayer.IsOpen())
         {
@@ -2093,7 +2093,7 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
         case IDM_MACHINE_POWERCYCLE:
         {
             // EmulatorShell::PowerCycle preserves DiskImageStore
-            // mounts but DiskIIController::PowerCycle unbinds the
+            // mounts but Disk2Controller::PowerCycle unbinds the
             // controller's external-disk pointer (it re-points
             // each engine at its empty internal sentinel), so
             // without an explicit re-mount the drives come up
@@ -3124,23 +3124,23 @@ void EmulatorShell::PowerCycle()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OpenDiskIIDebugDialog
+//  OpenDisk2DebugDialog
 //
 //  Spec-006 / FR-001 / FR-017 / FR-024. View -> Disk II Debug...
 //  command handler and Ctrl+Shift+D accelerator target. Lazy-creates
 //  the modeless dialog on first open, wires it as the controller's
-//  event sink AND as the active DiskIIAudioSource's audio-event
+//  event sink AND as the active Disk2AudioSource's audio-event
 //  sink, applies the uptime anchor and the multi-controller title
 //  hint, then shows + foregrounds the window. Subsequent calls
 //  short-circuit to Show + SetForegroundWindow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::OpenDiskIIDebugDialog()
+void EmulatorShell::OpenDisk2DebugDialog()
 {
     HRESULT             hr           = S_OK;
-    DiskIIController *  controller   = nullptr;
-    int                 diskIICount  = 0;
+    Disk2Controller *   controller   = nullptr;
+    int                 Disk2Count  = 0;
     HINSTANCE           hInstance    = nullptr;
     size_t              i            = 0;
 
@@ -3156,47 +3156,47 @@ void EmulatorShell::OpenDiskIIDebugDialog()
     {
         if (slot.device == "disk-ii")
         {
-            diskIICount++;
+            Disk2Count++;
         }
     }
 
-    if (m_diskIIDebugPanel == nullptr || m_diskIIDebugPanel->Hwnd() == nullptr)
+    if (m_disk2DebugPanel == nullptr || m_disk2DebugPanel->Hwnd() == nullptr)
     {
         hInstance          = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
-        m_diskIIDebugPanel = std::make_unique<DiskIIDebugPanel>();
+        m_disk2DebugPanel = std::make_unique<Disk2DebugPanel>();
 
-        hr = m_diskIIDebugPanel->Create (hInstance,
+        hr = m_disk2DebugPanel->Create (hInstance,
                                          m_hwnd,
                                          m_d3dRenderer.GetDevice(),
                                          m_d3dRenderer.GetContext(),
                                          &m_chromeTheme);
-        CHRF (hr, m_diskIIDebugPanel.reset());
+        CHRF (hr, m_disk2DebugPanel.reset());
 
-        m_diskIIDebugPanel->SetUptimeAnchor (m_uptimeAnchor);
-        m_diskIIDebugPanel->SetMultiControllerHint (diskIICount > 1);
+        m_disk2DebugPanel->SetUptimeAnchor (m_uptimeAnchor);
+        m_disk2DebugPanel->SetMultiControllerHint (Disk2Count > 1);
 
         if (m_cpu != nullptr)
         {
-            m_diskIIDebugPanel->SetCycleCounter (m_cpu->GetCycleCounterPtr());
+            m_disk2DebugPanel->SetCycleCounter (m_cpu->GetCycleCounterPtr());
         }
 
-        controller->SetEventSink (m_diskIIDebugPanel.get());
+        controller->SetEventSink (m_disk2DebugPanel.get());
 
         for (i = 0; i < m_diskAudioSources.size(); i++)
         {
             if (m_diskAudioSources[i] != nullptr)
             {
-                m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugPanel.get());
+                m_diskAudioSources[i]->SetAudioEventSink (m_disk2DebugPanel.get());
             }
         }
     }
     else
     {
-        m_diskIIDebugPanel->SetMultiControllerHint (diskIICount > 1);
+        m_disk2DebugPanel->SetMultiControllerHint (Disk2Count > 1);
     }
 
-    m_diskIIDebugPanel->Show();
-    SetForegroundWindow (m_diskIIDebugPanel->Hwnd());
+    m_disk2DebugPanel->Show();
+    SetForegroundWindow (m_disk2DebugPanel->Hwnd());
 
 Error:
     return;
@@ -3212,7 +3212,7 @@ Error:
 //
 //  Spec-006 bug 15. SwitchMachine tears down the old controller and
 //  audio source then constructs new ones via CreateMemoryDevices,
-//  but the panel's sink wiring only ran inside OpenDiskIIDebugDialog
+//  but the panel's sink wiring only ran inside OpenDisk2DebugDialog
 //  on first open -- the new controller starts with m_eventSink ==
 //  nullptr and the new audio source with m_audioEventSink == nullptr,
 //  so the debug window goes silent post-switch. Re-attach both
@@ -3224,23 +3224,23 @@ Error:
 void EmulatorShell::AttachDebugSinksIfOpen()
 {
     HRESULT             hr         = S_OK;
-    DiskIIController *  controller = nullptr;
+    Disk2Controller *   controller = nullptr;
     size_t              i          = 0;
 
-    CBR (m_diskIIDebugPanel != nullptr);
+    CBR (m_disk2DebugPanel != nullptr);
 
     controller = m_diskManager->FindSlot6Controller();
 
     if (controller != nullptr)
     {
-        controller->SetEventSink (m_diskIIDebugPanel.get());
+        controller->SetEventSink (m_disk2DebugPanel.get());
     }
 
     for (i = 0; i < m_diskAudioSources.size(); i++)
     {
         if (m_diskAudioSources[i] != nullptr)
         {
-            m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugPanel.get());
+            m_diskAudioSources[i]->SetAudioEventSink (m_disk2DebugPanel.get());
         }
     }
 

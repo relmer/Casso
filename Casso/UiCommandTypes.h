@@ -52,7 +52,7 @@ enum class SpeedMode
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShouldEnableDiskIIDebugMenuItem
+//  ShouldEnableDisk2DebugMenuItem
 //
 //  Pure helper that returns true iff the active MachineConfig wires
 //  at least one Disk II controller (any slot). Inline so the headless
@@ -61,7 +61,7 @@ enum class SpeedMode
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-inline bool ShouldEnableDiskIIDebugMenuItem (const MachineConfig & config) noexcept
+inline bool ShouldEnableDisk2DebugMenuItem (const MachineConfig & config) noexcept
 {
     for (const SlotConfig & slot : config.slots)
     {

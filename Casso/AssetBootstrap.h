@@ -107,7 +107,7 @@ public:
     // the range after the wrapper's downmix so clipping is for
     // safety, not for level). Used by the bootstrap path to bake
     // freshly decoded OGGs into WAVs that the existing IMFSourceReader
-    // loader (DiskIIAudioSource::LoadSamples) can pick up unchanged.
+    // loader (Disk2AudioSource::LoadSamples) can pick up unchanged.
     static HRESULT  WritePcmAsWav          (const fs::path         & outPath,
                                             const vector<float>    & pcm,
                                             uint32_t                 sampleRate,

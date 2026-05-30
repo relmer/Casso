@@ -173,8 +173,8 @@ namespace
         HRESULT      hr        = S_OK;
         DiskImage *  external  = nullptr;
 
-        hr = host.BuildAppleIIeWithDiskII (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDiskII must succeed");
+        hr = host.BuildAppleIIeWithDisk2 (core);
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDisk2 must succeed");
 
         core.PowerCycle ();
 

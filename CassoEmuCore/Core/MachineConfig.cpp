@@ -474,7 +474,7 @@ HRESULT MachineConfigLoader::LoadSlots (
     bool     hasDev       = false;
     bool     hasRom       = false;
     fs::path machineRel   = fs::path ("Machines") / machineName;
-    fs::path diskIIRel    = fs::path ("Devices") / "DiskII";
+    fs::path disk2Rel     = fs::path ("Devices") / "DiskII";
 
 
 
@@ -513,7 +513,7 @@ HRESULT MachineConfigLoader::LoadSlots (
             // device families (Mockingboard, SSC, ...) can collocate
             // their resources alongside their boot ROMs. Anything we
             // don't recognise falls back to the per-machine folder.
-            slotRomRel = (slot.device == "disk-ii") ? diskIIRel : machineRel;
+            slotRomRel = (slot.device == "disk-ii") ? disk2Rel : machineRel;
 
             hr = ResolveRomFile (slot.rom,
                                  slotRomRel,

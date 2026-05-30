@@ -191,7 +191,7 @@ void WindowCommandManager::OnMachineCommand (int id)
             // it's safe to drive the step directly from the UI thread.
             // Routing through PostCommand+queue would never run -- the
             // CPU thread can't drain its queue while paused. Delegated
-            // through the shell to avoid pulling DiskIIController's full
+            // through the shell to avoid pulling Disk2Controller's full
             // definition into this header.
             m_shell.StepInstructionWhilePaused();
             break;
@@ -351,9 +351,9 @@ void WindowCommandManager::OnViewCommand (int id)
             break;
         }
 
-        case IDM_VIEW_DISKII_DEBUG:
+        case IDM_VIEW_DISK2_DEBUG:
         {
-            m_shell.OpenDiskIIDebugDialog();
+            m_shell.OpenDisk2DebugDialog();
             break;
         }
 
