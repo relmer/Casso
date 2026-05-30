@@ -3,6 +3,13 @@
 #include "Pch.h"
 
 
+class    Checkbox;
+class    DialogPrimitive;
+class    Label;
+struct   DialogInputEvent;
+struct   DialogPaintContext;
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,4 +100,37 @@ public:
                                         HWND                     hwndOwner,
                                         const std::wstring     & machineDisplayName,
                                         StartupDownloadSet     & set);
+
+private:
+    enum class  EntryStatus;
+    struct      EntryRuntime;
+    struct      DialogState;
+    struct      RowMetrics;
+
+    static void                WorkerThreadProc      (DialogState * state, size_t index);
+    static void                StartWorkers          (DialogState & state);
+    static void                JoinAllWorkers        (DialogState & state);
+    static void                RemovePartialFiles    (DialogState & state);
+    static std::wstring        StatusText            (const EntryRuntime & rt, std::uint64_t expected);
+    static void                PaintGroupHeader      (DialogPaintContext  & ctx,
+                                                      Label               & hdrLabel,
+                                                      const std::wstring  & groupLabel,
+                                                      const RowMetrics    & m,
+                                                      float                 y);
+    static void                PaintEntryRow         (DialogPaintContext       & ctx,
+                                                      const StartupAssetEntry  & entry,
+                                                      Checkbox                 & cb,
+                                                      Label                    & sourceLabel,
+                                                      Label                    & statusLabel,
+                                                      const std::wstring       & status,
+                                                      bool                       downloading,
+                                                      bool                       showStatus,
+                                                      const RowMetrics         & m,
+                                                      float                      y);
+    static void                PaintBody             (DialogPaintContext  & ctx,
+                                                      StartupDownloadSet  & set,
+                                                      DialogState         & state);
+    static std::optional<int>  HandleBodyInput       (const DialogInputEvent & ev, DialogState & state);
+    static bool                HandleButtonActivated (size_t idx, DialogPrimitive & dlg, DialogState & state);
+    static void                HandleTick            (DialogPrimitive & dlg, DialogState & state);
 };

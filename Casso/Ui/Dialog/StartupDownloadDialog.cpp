@@ -52,505 +52,557 @@ bool StartupDownloadSet::RequiresRoms () const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  StartupDownloadDialog::Show
+//  StartupDownloadDialog: nested type definitions
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+enum class StartupDownloadDialog::EntryStatus
 {
-    enum class EntryStatus
+    Pending,
+    Downloading,
+    Done,
+    Failed,
+    Cancelled,
+    Skipped
+};
+
+
+
+struct StartupDownloadDialog::EntryRuntime
+{
+    std::atomic<std::uint64_t>  bytesDone{0};
+    std::atomic<int>            status{(int) EntryStatus::Pending};
+    std::string                 errorMsg;
+    bool                        startedWrite = false;
+};
+
+
+
+struct StartupDownloadDialog::DialogState
+{
+    StartupDownloadSet  *        set         = nullptr;
+    std::vector<EntryRuntime>    runtime;
+    std::vector<Checkbox>        checkboxes;     // parallel to entries
+    std::vector<std::thread>     workers;
+    std::atomic<bool>            cancelFlag{false};
+    std::atomic<int>             workersInFlight{0};
+    std::atomic<bool>            anyFailed  {false};
+    size_t                       downloadBtnIdx = SIZE_MAX;
+    size_t                       skipBtnIdx     = SIZE_MAX;
+    size_t                       exitBtnIdx     = SIZE_MAX;
+    bool                         downloading    = false;
+    bool                         finished       = false;
+    bool                         showStatus     = false;  // gates per-row status text
+    UINT                         dpi            = 96;
+    int                          bodyOriginXPx  = 0;
+    int                          bodyOriginYPx  = 0;
+    StartupDownloadResult        result         = StartupDownloadResult::Skipped;
+};
+
+
+
+struct StartupDownloadDialog::RowMetrics
+{
+    float  x         = 0.0f;
+    float  fullW     = 0.0f;
+    float  rowH      = 0.0f;
+    float  headerH   = 0.0f;
+    float  headerGap = 0.0f;
+    float  gap       = 0.0f;
+    float  sourceW   = 0.0f;
+    float  statusW   = 0.0f;
+    float  colGap    = 0.0f;
+};
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WorkerThreadProc
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StartupDownloadDialog::WorkerThreadProc (DialogState * state, size_t index)
+{
+    StartupAssetEntry & entry = state->set->entries[index];
+    EntryRuntime      & rt    = state->runtime[index];
+    HRESULT             hr    = S_OK;
+
+    rt.status.store ((int) EntryStatus::Downloading, std::memory_order_relaxed);
+    rt.startedWrite = true;
+
+    if (entry.downloadFn)
     {
-        Pending,
-        Downloading,
-        Done,
-        Failed,
-        Cancelled,
-        Skipped
-    };
-
-
-
-    struct EntryRuntime
+        hr = entry.downloadFn (rt.bytesDone, state->cancelFlag, rt.errorMsg);
+    }
+    else
     {
-        std::atomic<std::uint64_t>  bytesDone{0};
-        std::atomic<int>            status{(int) EntryStatus::Pending};
-        std::string                 errorMsg;
-        bool                        startedWrite = false;
-    };
-
-
-
-    struct DialogState
-    {
-        StartupDownloadSet  *        set         = nullptr;
-        std::vector<EntryRuntime>    runtime;
-        std::vector<Checkbox>        checkboxes;     // parallel to entries
-        std::vector<std::thread>     workers;
-        std::atomic<bool>            cancelFlag{false};
-        std::atomic<int>             workersInFlight{0};
-        std::atomic<bool>            anyFailed  {false};
-        size_t                       downloadBtnIdx = SIZE_MAX;
-        size_t                       skipBtnIdx     = SIZE_MAX;
-        size_t                       exitBtnIdx     = SIZE_MAX;
-        bool                         downloading    = false;
-        bool                         finished       = false;
-        bool                         showStatus     = false;  // gates per-row status text
-        UINT                         dpi            = 96;
-        int                          bodyOriginXPx  = 0;
-        int                          bodyOriginYPx  = 0;
-        StartupDownloadResult        result         = StartupDownloadResult::Skipped;
-    };
-
-
-
-    void WorkerThreadProc (DialogState * state, size_t index)
-    {
-        StartupAssetEntry & entry = state->set->entries[index];
-        EntryRuntime      & rt    = state->runtime[index];
-        HRESULT             hr    = S_OK;
-
-        rt.status.store ((int) EntryStatus::Downloading, std::memory_order_relaxed);
-        rt.startedWrite = true;
-
-        if (entry.downloadFn)
-        {
-            hr = entry.downloadFn (rt.bytesDone, state->cancelFlag, rt.errorMsg);
-        }
-        else
-        {
-            rt.errorMsg = "No downloader registered";
-            hr = E_NOTIMPL;
-        }
-
-        if (hr == E_ABORT || state->cancelFlag.load (std::memory_order_relaxed))
-        {
-            rt.status.store ((int) EntryStatus::Cancelled, std::memory_order_relaxed);
-        }
-        else if (FAILED (hr))
-        {
-            rt.status.store ((int) EntryStatus::Failed, std::memory_order_relaxed);
-            state->anyFailed.store (true, std::memory_order_relaxed);
-        }
-        else
-        {
-            rt.status.store ((int) EntryStatus::Done, std::memory_order_relaxed);
-        }
-
-        state->workersInFlight.fetch_sub (1, std::memory_order_acq_rel);
+        rt.errorMsg = "No downloader registered";
+        hr = E_NOTIMPL;
     }
 
-
-
-    void StartWorkers (DialogState & state)
+    if (hr == E_ABORT || state->cancelFlag.load (std::memory_order_relaxed))
     {
-        for (size_t i = 0; i < state.set->entries.size(); i++)
+        rt.status.store ((int) EntryStatus::Cancelled, std::memory_order_relaxed);
+    }
+    else if (FAILED (hr))
+    {
+        rt.status.store ((int) EntryStatus::Failed, std::memory_order_relaxed);
+        state->anyFailed.store (true, std::memory_order_relaxed);
+    }
+    else
+    {
+        rt.status.store ((int) EntryStatus::Done, std::memory_order_relaxed);
+    }
+
+    state->workersInFlight.fetch_sub (1, std::memory_order_acq_rel);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartWorkers
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StartupDownloadDialog::StartWorkers (DialogState & state)
+{
+    for (size_t i = 0; i < state.set->entries.size(); i++)
+    {
+        if (!state.set->entries[i].selected)
         {
-            if (!state.set->entries[i].selected)
+            state.runtime[i].status.store ((int) EntryStatus::Skipped, std::memory_order_relaxed);
+            continue;
+        }
+
+        state.workersInFlight.fetch_add (1, std::memory_order_acq_rel);
+        state.workers.emplace_back (WorkerThreadProc, &state, i);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  JoinAllWorkers
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StartupDownloadDialog::JoinAllWorkers (DialogState & state)
+{
+    for (std::thread & t : state.workers)
+    {
+        if (t.joinable())
+        {
+            t.join();
+        }
+    }
+
+    state.workers.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RemovePartialFiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StartupDownloadDialog::RemovePartialFiles (DialogState & state)
+{
+    std::error_code  ec;
+
+    for (size_t i = 0; i < state.set->entries.size(); i++)
+    {
+        EntryStatus  s = (EntryStatus) state.runtime[i].status.load (std::memory_order_relaxed);
+
+        if (s == EntryStatus::Done)
+        {
+            continue;
+        }
+
+        if (!state.runtime[i].startedWrite)
+        {
+            continue;
+        }
+
+        for (const fs::path & p : state.set->entries[i].destPaths)
+        {
+            if (!p.empty())
             {
-                state.runtime[i].status.store ((int) EntryStatus::Skipped, std::memory_order_relaxed);
-                continue;
-            }
-
-            state.workersInFlight.fetch_add (1, std::memory_order_acq_rel);
-            state.workers.emplace_back (WorkerThreadProc, &state, i);
-        }
-    }
-
-
-
-    void JoinAllWorkers (DialogState & state)
-    {
-        for (std::thread & t : state.workers)
-        {
-            if (t.joinable())
-            {
-                t.join();
-            }
-        }
-
-        state.workers.clear();
-    }
-
-
-
-    void RemovePartialFiles (DialogState & state)
-    {
-        std::error_code  ec;
-
-        for (size_t i = 0; i < state.set->entries.size(); i++)
-        {
-            EntryStatus  s = (EntryStatus) state.runtime[i].status.load (std::memory_order_relaxed);
-
-            if (s == EntryStatus::Done)
-            {
-                continue;
-            }
-
-            if (!state.runtime[i].startedWrite)
-            {
-                continue;
-            }
-
-            for (const fs::path & p : state.set->entries[i].destPaths)
-            {
-                if (!p.empty())
-                {
-                    fs::remove (p, ec);
-                }
-            }
-        }
-    }
-
-
-
-    std::wstring StatusText (const EntryRuntime & rt, std::uint64_t expected)
-    {
-        EntryStatus    s    = (EntryStatus) rt.status.load (std::memory_order_relaxed);
-        std::uint64_t  done = rt.bytesDone.load (std::memory_order_relaxed);
-
-        switch (s)
-        {
-            case EntryStatus::Pending:     return L"Waiting";
-            case EntryStatus::Skipped:     return L"";
-            case EntryStatus::Done:        return L"Done";
-            case EntryStatus::Failed:      return L"Failed";
-            case EntryStatus::Cancelled:   return L"Cancelled";
-            case EntryStatus::Downloading:
-                break;
-        }
-
-        if (expected == 0)
-        {
-            // Unknown size: simple busy indicator.
-            return L"...";
-        }
-
-        int  pct = (int) ((100ull * done) / expected);
-
-        if (pct > 100)
-        {
-            pct = 100;
-        }
-
-        wchar_t buf[16] = {};
-        swprintf_s (buf, L"%d%%", pct);
-        return buf;
-    }
-
-
-
-    struct RowMetrics
-    {
-        float  x         = 0.0f;
-        float  fullW     = 0.0f;
-        float  rowH      = 0.0f;
-        float  headerH   = 0.0f;
-        float  headerGap = 0.0f;
-        float  gap       = 0.0f;
-        float  sourceW   = 0.0f;
-        float  statusW   = 0.0f;
-        float  colGap    = 0.0f;
-    };
-
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  PaintGroupHeader
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    void PaintGroupHeader (DialogPaintContext   & ctx,
-                           Label                & hdrLabel,
-                           const std::wstring   & groupLabel,
-                           const RowMetrics     & m,
-                           float                  y)
-    {
-        hdrLabel.SetText (groupLabel);
-        hdrLabel.SetRect ({ (LONG) m.x, (LONG) y,
-                            (LONG) (m.x + m.fullW), (LONG) (y + m.headerH) });
-        hdrLabel.Paint   (*ctx.painter, *ctx.text);
-    }
-
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  PaintEntryRow
-    //
-    //  Paints one tree-leaf row: Checkbox + (label inside checkbox) on
-    //  the left, dim source column, optional right-aligned status.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    void PaintEntryRow (DialogPaintContext        & ctx,
-                        const StartupAssetEntry   & entry,
-                        Checkbox                  & cb,
-                        Label                     & sourceLabel,
-                        Label                     & statusLabel,
-                        const std::wstring        & status,
-                        bool                        downloading,
-                        bool                        showStatus,
-                        const RowMetrics          & m,
-                        float                       y)
-    {
-        float  cbAvailW = m.fullW - m.sourceW - m.statusW - m.colGap * 2.0f;
-        RECT   cbRect   = { (LONG) m.x,
-                            (LONG) y,
-                            (LONG) (m.x + cbAvailW),
-                            (LONG) (y + m.rowH) };
-
-
-
-        cb.SetChecked (entry.selected);
-        cb.SetEnabled (entry.selectable && !downloading);
-        cb.SetRect    (cbRect);
-        cb.SetLabel   (entry.displayName);
-        cb.Paint      (*ctx.painter, *ctx.text);
-
-        sourceLabel.SetText (entry.source);
-        sourceLabel.SetRect ({ (LONG) (m.x + cbAvailW + m.colGap), (LONG) y,
-                               (LONG) (m.x + cbAvailW + m.colGap + m.sourceW), (LONG) (y + m.rowH) });
-        sourceLabel.Paint   (*ctx.painter, *ctx.text);
-
-        if (showStatus && entry.selected)
-        {
-            statusLabel.SetText (status);
-            statusLabel.SetRect ({ (LONG) (m.x + m.fullW - m.statusW), (LONG) y,
-                                   (LONG) (m.x + m.fullW),             (LONG) (y + m.rowH) });
-            statusLabel.Paint   (*ctx.painter, *ctx.text);
-        }
-    }
-
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  PaintBody
-    //
-    //  Single-line tree rows. Group headers are bold no-row; each entry
-    //  row paints a Checkbox widget on the left, then a dim source
-    //  label, then (when status is showing) a right-aligned percent /
-    //  Done / Failed indicator.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    void PaintBody (DialogPaintContext & ctx, StartupDownloadSet & set, DialogState & state)
-    {
-        RowMetrics  m         = {};
-        float       y         = 0.0f;
-        uint32_t    fg        = 0;
-        uint32_t    fgDim     = 0;
-        uint32_t    hdrFg     = 0;
-        wstring     curGroup;
-        Label       hdrLabel;
-        Label       sourceLabel;
-        Label       statusLabel;
-
-
-
-        if (ctx.painter == nullptr || ctx.text == nullptr || ctx.theme == nullptr)
-        {
-            return;
-        }
-
-        m.x         = (float) ctx.customBodyRect.left;
-        m.fullW     = (float) (ctx.customBodyRect.right - ctx.customBodyRect.left);
-        m.rowH      = (float) s_kRowHeightDp      * ctx.dpiScale;
-        m.headerH   = (float) s_kHeaderHeightDp   * ctx.dpiScale;
-        m.headerGap = (float) s_kHeaderGapAboveDp * ctx.dpiScale;
-        m.gap       = (float) s_kRowGapDp         * ctx.dpiScale;
-        m.sourceW   = s_kSourceColumnDp           * ctx.dpiScale;
-        m.statusW   = s_kStatusColumnDp           * ctx.dpiScale;
-        m.colGap    = s_kColumnGapDp              * ctx.dpiScale;
-
-        y     = (float) ctx.customBodyRect.top;
-        fg    = ctx.theme->dropdownItemTextArgb;
-        fgDim = (fg & 0x00FFFFFFu) | 0x70000000u;
-        hdrFg = ctx.theme->titleTextArgb;
-
-        state.bodyOriginXPx = ctx.customBodyRect.left;
-        state.bodyOriginYPx = ctx.customBodyRect.top;
-
-        hdrLabel.SetDpi         (state.dpi);
-        hdrLabel.SetFontSizeDip (s_kHeaderFontDp);
-        hdrLabel.SetColorArgb   (hdrFg);
-        hdrLabel.SetFontWeight  (DWRITE_FONT_WEIGHT_BOLD);
-
-        sourceLabel.SetDpi         (state.dpi);
-        sourceLabel.SetFontSizeDip (s_kFontDp);
-        sourceLabel.SetColorArgb   (fgDim);
-
-        statusLabel.SetDpi         (state.dpi);
-        statusLabel.SetFontSizeDip (s_kFontDp);
-        statusLabel.SetColorArgb   (fg);
-        statusLabel.SetHAlign      (DwriteTextRenderer::HAlign::Right);
-
-        for (size_t i = 0; i < set.entries.size(); i++)
-        {
-            const StartupAssetEntry & entry  = set.entries[i];
-            const EntryRuntime      & rt     = state.runtime[i];
-            std::wstring              status = state.showStatus
-                                                  ? StatusText (rt, entry.expectedBytes)
-                                                  : wstring();
-
-            if (entry.groupLabel != curGroup)
-            {
-                if (!curGroup.empty())
-                {
-                    y += m.headerGap;
-                }
-
-                curGroup = entry.groupLabel;
-                PaintGroupHeader (ctx, hdrLabel, curGroup, m, y);
-                y += m.headerH + m.gap;
-            }
-
-            PaintEntryRow (ctx, entry, state.checkboxes[i], sourceLabel, statusLabel,
-                           status, state.downloading, state.showStatus, m, y);
-            y += m.rowH + m.gap;
-        }
-    }
-
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  HandleBodyInput
-    //
-    //  Forwards mouse events to per-row Checkbox widgets. Coordinates
-    //  arrive body-relative; the Checkbox widget hit-tests against
-    //  absolute window coordinates (the same space its rect is set to
-    //  during paint), so the cached body origin is added back.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    std::optional<int> HandleBodyInput (const DialogInputEvent & ev, DialogState & state)
-    {
-        int  absX = 0;
-        int  absY = 0;
-
-
-
-        if (state.downloading)
-        {
-            return std::nullopt;
-        }
-
-        absX = ev.xPx + state.bodyOriginXPx;
-        absY = ev.yPx + state.bodyOriginYPx;
-
-        for (Checkbox & cb : state.checkboxes)
-        {
-            switch (ev.kind)
-            {
-                case DialogInputEvent::Kind::LeftButtonDown:
-                    cb.OnLButtonDown (absX, absY);
-                    break;
-
-                case DialogInputEvent::Kind::LeftButtonUp:
-                    cb.OnLButtonUp (absX, absY);
-                    break;
-
-                case DialogInputEvent::Kind::MouseMove:
-                    cb.SetMouseHover (absX, absY);
-                    break;
-
-                case DialogInputEvent::Kind::KeyDown:
-                    break;
+                fs::remove (p, ec);
             }
         }
+    }
+}
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StatusText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring StartupDownloadDialog::StatusText (const EntryRuntime & rt, std::uint64_t expected)
+{
+    EntryStatus    s    = (EntryStatus) rt.status.load (std::memory_order_relaxed);
+    std::uint64_t  done = rt.bytesDone.load (std::memory_order_relaxed);
+
+    switch (s)
+    {
+        case EntryStatus::Pending:     return L"Waiting";
+        case EntryStatus::Skipped:     return L"";
+        case EntryStatus::Done:        return L"Done";
+        case EntryStatus::Failed:      return L"Failed";
+        case EntryStatus::Cancelled:   return L"Cancelled";
+        case EntryStatus::Downloading:
+            break;
+    }
+
+    if (expected == 0)
+    {
+        // Unknown size: simple busy indicator.
+        return L"...";
+    }
+
+    int  pct = (int) ((100ull * done) / expected);
+
+    if (pct > 100)
+    {
+        pct = 100;
+    }
+
+    wchar_t buf[16] = {};
+    swprintf_s (buf, L"%d%%", pct);
+    return buf;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintGroupHeader
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StartupDownloadDialog::PaintGroupHeader (
+    DialogPaintContext   & ctx,
+    Label                & hdrLabel,
+    const std::wstring   & groupLabel,
+    const RowMetrics     & m,
+    float                  y)
+{
+    hdrLabel.SetText (groupLabel);
+    hdrLabel.SetRect ({ (LONG) m.x, (LONG) y,
+                        (LONG) (m.x + m.fullW), (LONG) (y + m.headerH) });
+    hdrLabel.Paint   (*ctx.painter, *ctx.text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintEntryRow
+//
+//  Paints one tree-leaf row: Checkbox + (label inside checkbox) on the
+//  left, dim source column, optional right-aligned status.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StartupDownloadDialog::PaintEntryRow (
+    DialogPaintContext        & ctx,
+    const StartupAssetEntry   & entry,
+    Checkbox                  & cb,
+    Label                     & sourceLabel,
+    Label                     & statusLabel,
+    const std::wstring        & status,
+    bool                        downloading,
+    bool                        showStatus,
+    const RowMetrics          & m,
+    float                       y)
+{
+    float  cbAvailW = m.fullW - m.sourceW - m.statusW - m.colGap * 2.0f;
+    RECT   cbRect   = { (LONG) m.x,
+                        (LONG) y,
+                        (LONG) (m.x + cbAvailW),
+                        (LONG) (y + m.rowH) };
+
+
+
+    cb.SetChecked (entry.selected);
+    cb.SetEnabled (entry.selectable && !downloading);
+    cb.SetRect    (cbRect);
+    cb.SetLabel   (entry.displayName);
+    cb.Paint      (*ctx.painter, *ctx.text);
+
+    sourceLabel.SetText (entry.source);
+    sourceLabel.SetRect ({ (LONG) (m.x + cbAvailW + m.colGap), (LONG) y,
+                           (LONG) (m.x + cbAvailW + m.colGap + m.sourceW), (LONG) (y + m.rowH) });
+    sourceLabel.Paint   (*ctx.painter, *ctx.text);
+
+    if (showStatus && entry.selected)
+    {
+        statusLabel.SetText (status);
+        statusLabel.SetRect ({ (LONG) (m.x + m.fullW - m.statusW), (LONG) y,
+                               (LONG) (m.x + m.fullW),             (LONG) (y + m.rowH) });
+        statusLabel.Paint   (*ctx.painter, *ctx.text);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintBody
+//
+//  Single-line tree rows. Group headers are bold no-row; each entry row
+//  paints a Checkbox widget on the left, then a dim source label, then
+//  (when status is showing) a right-aligned percent / Done / Failed
+//  indicator.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StartupDownloadDialog::PaintBody (
+    DialogPaintContext & ctx,
+    StartupDownloadSet & set,
+    DialogState        & state)
+{
+    RowMetrics  m         = {};
+    float       y         = 0.0f;
+    uint32_t    fg        = 0;
+    uint32_t    fgDim     = 0;
+    uint32_t    hdrFg     = 0;
+    wstring     curGroup;
+    Label       hdrLabel;
+    Label       sourceLabel;
+    Label       statusLabel;
+
+
+
+    if (ctx.painter == nullptr || ctx.text == nullptr || ctx.theme == nullptr)
+    {
+        return;
+    }
+
+    m.x         = (float) ctx.customBodyRect.left;
+    m.fullW     = (float) (ctx.customBodyRect.right - ctx.customBodyRect.left);
+    m.rowH      = (float) s_kRowHeightDp      * ctx.dpiScale;
+    m.headerH   = (float) s_kHeaderHeightDp   * ctx.dpiScale;
+    m.headerGap = (float) s_kHeaderGapAboveDp * ctx.dpiScale;
+    m.gap       = (float) s_kRowGapDp         * ctx.dpiScale;
+    m.sourceW   = s_kSourceColumnDp           * ctx.dpiScale;
+    m.statusW   = s_kStatusColumnDp           * ctx.dpiScale;
+    m.colGap    = s_kColumnGapDp              * ctx.dpiScale;
+
+    y     = (float) ctx.customBodyRect.top;
+    fg    = ctx.theme->dropdownItemTextArgb;
+    fgDim = (fg & 0x00FFFFFFu) | 0x70000000u;
+    hdrFg = ctx.theme->titleTextArgb;
+
+    state.bodyOriginXPx = ctx.customBodyRect.left;
+    state.bodyOriginYPx = ctx.customBodyRect.top;
+
+    hdrLabel.SetDpi         (state.dpi);
+    hdrLabel.SetFontSizeDip (s_kHeaderFontDp);
+    hdrLabel.SetColorArgb   (hdrFg);
+    hdrLabel.SetFontWeight  (DWRITE_FONT_WEIGHT_BOLD);
+
+    sourceLabel.SetDpi         (state.dpi);
+    sourceLabel.SetFontSizeDip (s_kFontDp);
+    sourceLabel.SetColorArgb   (fgDim);
+
+    statusLabel.SetDpi         (state.dpi);
+    statusLabel.SetFontSizeDip (s_kFontDp);
+    statusLabel.SetColorArgb   (fg);
+    statusLabel.SetHAlign      (DwriteTextRenderer::HAlign::Right);
+
+    for (size_t i = 0; i < set.entries.size(); i++)
+    {
+        const StartupAssetEntry & entry  = set.entries[i];
+        const EntryRuntime      & rt     = state.runtime[i];
+        std::wstring              status = state.showStatus
+                                              ? StatusText (rt, entry.expectedBytes)
+                                              : wstring();
+
+        if (entry.groupLabel != curGroup)
+        {
+            if (!curGroup.empty())
+            {
+                y += m.headerGap;
+            }
+
+            curGroup = entry.groupLabel;
+            PaintGroupHeader (ctx, hdrLabel, curGroup, m, y);
+            y += m.headerH + m.gap;
+        }
+
+        PaintEntryRow (ctx, entry, state.checkboxes[i], sourceLabel, statusLabel,
+                       status, state.downloading, state.showStatus, m, y);
+        y += m.rowH + m.gap;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleBodyInput
+//
+//  Forwards mouse events to per-row Checkbox widgets. Coordinates arrive
+//  body-relative; the Checkbox widget hit-tests against absolute window
+//  coordinates (the same space its rect is set to during paint), so the
+//  cached body origin is added back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<int> StartupDownloadDialog::HandleBodyInput (const DialogInputEvent & ev, DialogState & state)
+{
+    int  absX = 0;
+    int  absY = 0;
+
+
+
+    if (state.downloading)
+    {
         return std::nullopt;
     }
 
+    absX = ev.xPx + state.bodyOriginXPx;
+    absY = ev.yPx + state.bodyOriginYPx;
 
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  HandleButtonActivated
-    //
-    //  Returns true to close the dialog, false to keep it open. Download
-    //  swaps the dialog into "downloading" mode and spins up workers;
-    //  Skip / Exit set the result and signal close (cancelling and
-    //  joining workers first on Exit).
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    bool HandleButtonActivated (size_t idx, DialogPrimitive & dlg, DialogState & state)
+    for (Checkbox & cb : state.checkboxes)
     {
-        if (idx == state.downloadBtnIdx)
+        switch (ev.kind)
         {
-            if (state.downloading)
-            {
-                return false;
-            }
+            case DialogInputEvent::Kind::LeftButtonDown:
+                cb.OnLButtonDown (absX, absY);
+                break;
 
-            state.downloading = true;
-            state.showStatus  = true;
-            dlg.SetButtonLabel   (state.downloadBtnIdx, L"Downloading...");
-            dlg.SetButtonEnabled (state.downloadBtnIdx, false);
+            case DialogInputEvent::Kind::LeftButtonUp:
+                cb.OnLButtonUp (absX, absY);
+                break;
 
-            if (state.skipBtnIdx != SIZE_MAX)
-            {
-                dlg.SetButtonVisible (state.skipBtnIdx, false);
-            }
+            case DialogInputEvent::Kind::MouseMove:
+                cb.SetMouseHover (absX, absY);
+                break;
 
-            StartWorkers (state);
+            case DialogInputEvent::Kind::KeyDown:
+                break;
+        }
+    }
+
+    return std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleButtonActivated
+//
+//  Returns true to close the dialog, false to keep it open. Download
+//  swaps the dialog into "downloading" mode and spins up workers; Skip /
+//  Exit set the result and signal close (cancelling and joining workers
+//  first on Exit).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool StartupDownloadDialog::HandleButtonActivated (size_t idx, DialogPrimitive & dlg, DialogState & state)
+{
+    if (idx == state.downloadBtnIdx)
+    {
+        if (state.downloading)
+        {
             return false;
         }
 
-        if (state.skipBtnIdx != SIZE_MAX && idx == state.skipBtnIdx)
+        state.downloading = true;
+        state.showStatus  = true;
+        dlg.SetButtonLabel   (state.downloadBtnIdx, L"Downloading...");
+        dlg.SetButtonEnabled (state.downloadBtnIdx, false);
+
+        if (state.skipBtnIdx != SIZE_MAX)
         {
-            state.result = StartupDownloadResult::Skipped;
-            return true;
+            dlg.SetButtonVisible (state.skipBtnIdx, false);
         }
 
-        if (idx == state.exitBtnIdx)
-        {
-            if (state.downloading)
-            {
-                state.cancelFlag.store (true, std::memory_order_release);
-                JoinAllWorkers (state);
-                RemovePartialFiles (state);
-            }
+        StartWorkers (state);
+        return false;
+    }
 
-            state.result = StartupDownloadResult::Exit;
-            return true;
-        }
-
+    if (state.skipBtnIdx != SIZE_MAX && idx == state.skipBtnIdx)
+    {
+        state.result = StartupDownloadResult::Skipped;
         return true;
     }
 
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  HandleTick
-    //
-    //  Periodic repaint plus completion detection. When workers are all
-    //  done, finalizes result and closes the dialog.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    void HandleTick (DialogPrimitive & dlg, DialogState & state)
+    if (idx == state.exitBtnIdx)
     {
-        dlg.Repaint();
-
-        if (state.downloading
-            && !state.finished
-            && state.workersInFlight.load (std::memory_order_acquire) == 0)
+        if (state.downloading)
         {
-            state.finished = true;
+            state.cancelFlag.store (true, std::memory_order_release);
             JoinAllWorkers (state);
             RemovePartialFiles (state);
-
-            state.result = state.anyFailed.load (std::memory_order_relaxed)
-                              ? StartupDownloadResult::PartialDone
-                              : StartupDownloadResult::AllDone;
-
-            dlg.Close ((int) state.result);
         }
+
+        state.result = StartupDownloadResult::Exit;
+        return true;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleTick
+//
+//  Periodic repaint plus completion detection. When workers are all
+//  done, finalizes result and closes the dialog.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StartupDownloadDialog::HandleTick (DialogPrimitive & dlg, DialogState & state)
+{
+    dlg.Repaint();
+
+    if (state.downloading
+        && !state.finished
+        && state.workersInFlight.load (std::memory_order_acquire) == 0)
+    {
+        state.finished = true;
+        JoinAllWorkers (state);
+        RemovePartialFiles (state);
+
+        state.result = state.anyFailed.load (std::memory_order_relaxed)
+                          ? StartupDownloadResult::PartialDone
+                          : StartupDownloadResult::AllDone;
+
+        dlg.Close ((int) state.result);
     }
 }
 
