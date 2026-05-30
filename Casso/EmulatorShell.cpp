@@ -3,16 +3,6 @@
 #include "EmulatorShell.h"
 #include "AssetBootstrap.h"
 
-// Spec-011 / T045. Compile-time switch picking between the legacy
-// Win32 DiskIIDebugDialog and the new DX-themed DiskIIDebugPanel.
-// Default ON during the US7 conversion so the proven dialog keeps
-// shipping while the panel grows control-family by control-family.
-// Define = 0 to exercise the panel path end-to-end before T059
-// deletes the legacy dialog and removes this switch.
-#ifndef CASSO_LEGACY_DISKII_DEBUG_DIALOG
-#define CASSO_LEGACY_DISKII_DEBUG_DIALOG 0
-#endif
-
 #include "Core/PathResolver.h"
 #include "Version.h"
 #include "resource.h"
@@ -392,7 +382,7 @@ EmulatorShell::~EmulatorShell()
     // is destroyed, which happens via m_ownedDevices / m_diskAudioSources
     // below). Controller sink first, then audio sink, matching the
     // attachment order in OpenDiskIIDebugDialog.
-    if (m_diskIIDebugDialog != nullptr)
+    if (m_diskIIDebugPanel != nullptr)
     {
         controller = m_diskManager->FindSlot6Controller();
 
@@ -409,8 +399,7 @@ EmulatorShell::~EmulatorShell()
             }
         }
 
-        m_diskIIDebugDialog->Destroy();
-        m_diskIIDebugDialog.reset();
+        m_diskIIDebugPanel.reset();
     }
 
     // / T097 / FR-025. Final auto-flush of any dirty disks on
@@ -1974,12 +1963,10 @@ int EmulatorShell::RunMessageLoop()
         // open in state-only and never repaint, looking dead.
         m_settingsPanel.UpdatePreviewOverlap (m_d3dRenderer.GetEmulatorContentScreenRect());
         IGNORE_RETURN_VALUE (hr, m_settingsPanel.RenderPopup());
-#if !CASSO_LEGACY_DISKII_DEBUG_DIALOG
         if (m_diskIIDebugPanel != nullptr)
         {
             IGNORE_RETURN_VALUE (hr, m_diskIIDebugPanel->RenderFrame());
         }
-#endif
         if (m_navLayer.IsOpen())
         {
             m_d3dRenderer.MarkRedrawNeeded();
@@ -3173,43 +3160,9 @@ void EmulatorShell::OpenDiskIIDebugDialog()
         }
     }
 
-    if (m_diskIIDebugDialog == nullptr)
+    if (m_diskIIDebugPanel == nullptr)
     {
-        m_diskIIDebugDialog = std::make_unique<DiskIIDebugDialog>();
-
-        hInstance = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
-
-#if CASSO_LEGACY_DISKII_DEBUG_DIALOG
-        hr = m_diskIIDebugDialog->Create (hInstance, m_hwnd);
-        CHRF (hr, m_diskIIDebugDialog.reset());
-
-        m_diskIIDebugDialog->SetUptimeAnchor (m_uptimeAnchor);
-        m_diskIIDebugDialog->SetMultiControllerHint (diskIICount > 1);
-
-        if (m_cpu != nullptr)
-        {
-            m_diskIIDebugDialog->SetCycleCounter (m_cpu->GetCycleCounterPtr());
-        }
-
-        // FR-024: both sinks attached together, dialog implements
-        // both interfaces. Audio sink is a no-op if the mixer has no
-        // source registered (e.g., audio subsystem disabled).
-        controller->SetEventSink (m_diskIIDebugDialog.get());
-
-        for (i = 0; i < m_diskAudioSources.size(); i++)
-        {
-            if (m_diskAudioSources[i] != nullptr)
-            {
-                m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get());
-            }
-        }
-#else
-        // Spec-011 / US7. New DX-themed panel path. Same sink wiring
-        // contract as the legacy dialog -- both classes implement the
-        // same two interfaces so the controller / audio source don't
-        // notice which one is alive. T046+ populates the panel body;
-        // until then the host paints an empty themed surface.
-        m_diskIIDebugDialog.reset();
+        hInstance          = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
         m_diskIIDebugPanel = std::make_unique<DiskIIDebugPanel>();
 
         hr = m_diskIIDebugPanel->Create (hInstance,
@@ -3236,24 +3189,14 @@ void EmulatorShell::OpenDiskIIDebugDialog()
                 m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugPanel.get());
             }
         }
-#endif
     }
     else
     {
-#if CASSO_LEGACY_DISKII_DEBUG_DIALOG
-        m_diskIIDebugDialog->SetMultiControllerHint (diskIICount > 1);
-#endif
+        m_diskIIDebugPanel->SetMultiControllerHint (diskIICount > 1);
     }
 
-#if CASSO_LEGACY_DISKII_DEBUG_DIALOG
-    m_diskIIDebugDialog->Show();
-    SetForegroundWindow (m_diskIIDebugDialog->GetHwnd());
-#else
-    if (m_diskIIDebugPanel != nullptr)
-    {
-        m_diskIIDebugPanel->Show();
-    }
-#endif
+    m_diskIIDebugPanel->Show();
+    SetForegroundWindow (m_diskIIDebugPanel->Hwnd());
 
 Error:
     return;
@@ -3269,11 +3212,11 @@ Error:
 //
 //  Spec-006 bug 15. SwitchMachine tears down the old controller and
 //  audio source then constructs new ones via CreateMemoryDevices,
-//  but the dialog's sink wiring only ran inside OpenDiskIIDebugDialog
+//  but the panel's sink wiring only ran inside OpenDiskIIDebugDialog
 //  on first open -- the new controller starts with m_eventSink ==
 //  nullptr and the new audio source with m_audioEventSink == nullptr,
 //  so the debug window goes silent post-switch. Re-attach both
-//  sinks if the dialog is still open. No-op when the dialog has
+//  sinks if the panel is still open. No-op when the panel has
 //  never been opened.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3284,20 +3227,20 @@ void EmulatorShell::AttachDebugSinksIfOpen()
     DiskIIController *  controller = nullptr;
     size_t              i          = 0;
 
-    CBR (m_diskIIDebugDialog != nullptr);
+    CBR (m_diskIIDebugPanel != nullptr);
 
     controller = m_diskManager->FindSlot6Controller();
 
     if (controller != nullptr)
     {
-        controller->SetEventSink (m_diskIIDebugDialog.get());
+        controller->SetEventSink (m_diskIIDebugPanel.get());
     }
 
     for (i = 0; i < m_diskAudioSources.size(); i++)
     {
         if (m_diskAudioSources[i] != nullptr)
         {
-            m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get());
+            m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugPanel.get());
         }
     }
 

@@ -34,7 +34,7 @@
 #include "Audio/DriveAudioMixer.h"
 #include "Audio/DiskIIAudioSource.h"
 #include "WasapiAudio.h"
-#include "DiskIIDebugDialog.h"
+#include "Ui/DiskIIDebugPanel.h"
 #include "Ui/DiskIIDebugPanel.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuManager.h"
@@ -109,13 +109,10 @@ public:
     {
         m_uptimeAnchor = std::chrono::steady_clock::now();
 
-        if (m_diskIIDebugDialog != nullptr)
+        if (m_diskIIDebugPanel != nullptr)
         {
-            m_diskIIDebugDialog->SetUptimeAnchor (m_uptimeAnchor);
-            // Spec-006 bug-fix. Clear stale rows from the pre-reset
-            // boot so the post-reset uptime anchor doesn't end up
-            // formatting events that pre-date its own zero point.
-            m_diskIIDebugDialog->ClearEvents();
+            m_diskIIDebugPanel->SetUptimeAnchor (m_uptimeAnchor);
+            m_diskIIDebugPanel->ClearEvents();
         }
     }
 
@@ -439,16 +436,10 @@ private:
     uint32_t        m_cyclesPerFrame  = 17050;
     double          m_sampleRemainder = 0.0;
 
-    // Spec-006 / FR-001 / FR-004a. Owned by the shell so the dialog
-    // can be lazy-created on first Ctrl+Shift+D and reused across
-    // opens. The uptime anchor lives on the shell (not the dialog)
-    // so resets re-zero it even while the dialog is closed.
-    std::unique_ptr<class DiskIIDebugDialog>  m_diskIIDebugDialog;
-    // Spec-011 / US7. New DX-themed panel replacing m_diskIIDebugDialog.
-    // Both members exist unconditionally so the legacy and new code
-    // paths both build; CASSO_LEGACY_DISKII_DEBUG_DIALOG (in
-    // EmulatorShell.cpp) selects which one OpenDiskIIDebugDialog
-    // instantiates and which one the render loop drives.
+    // Spec-011 / US7. DX-themed panel for the Disk II debug window.
+    // Lazy-created on first Ctrl+Shift+D and reused across opens.
+    // The uptime anchor lives on the shell (not the panel) so resets
+    // re-zero it even while the panel is closed.
     std::unique_ptr<class DiskIIDebugPanel>   m_diskIIDebugPanel;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 

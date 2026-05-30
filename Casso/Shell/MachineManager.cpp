@@ -29,7 +29,7 @@
 #include "Audio/DiskIIAudioSource.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
-#include "../DiskIIDebugDialog.h"
+#include "../Ui/DiskIIDebugPanel.h"
 
 
 
@@ -946,9 +946,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // holds a raw pointer into the old CPU's cycle counter; revoke it
     // before the CPU is reset so the dialog can't dereference dangling
     // memory between here and CreateCpu below.
-    if (m_shell.m_diskIIDebugDialog != nullptr)
+    if (m_shell.m_diskIIDebugPanel != nullptr)
     {
-        m_shell.m_diskIIDebugDialog->SetCycleCounter (nullptr);
+        m_shell.m_diskIIDebugPanel->SetCycleCounter (nullptr);
     }
 
     // Tear down ALL per-machine state in one atomic move. m_refs is a
@@ -999,9 +999,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     // Re-attach the new CPU's cycle counter to the debug dialog (the
     // pointer was revoked above before the old CPU was destroyed).
-    if (m_shell.m_diskIIDebugDialog != nullptr && m_shell.m_cpu != nullptr)
+    if (m_shell.m_diskIIDebugPanel != nullptr && m_shell.m_cpu != nullptr)
     {
-        m_shell.m_diskIIDebugDialog->SetCycleCounter (m_shell.m_cpu->GetCycleCounterPtr());
+        m_shell.m_diskIIDebugPanel->SetCycleCounter (m_shell.m_cpu->GetCycleCounterPtr());
     }
 
     // Re-wire the debug dialog onto the freshly built controller +
