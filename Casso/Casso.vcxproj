@@ -225,7 +225,6 @@
     <ClCompile Include="PerfStats.cpp" />
     <ClCompile Include="Window.cpp" />
     <ClCompile Include="EmulatorShell.cpp" />
-    <ClCompile Include="DebugConsole.cpp" />
     <ClCompile Include="DiskSettings.cpp" />
     <ClCompile Include="AssetBootstrap.cpp" />
     <ClCompile Include="Config\Win32FileSystem.cpp" />
@@ -291,6 +290,7 @@
     <ClCompile Include="DiskIIDebugDialogState.cpp" />
     <ClCompile Include="Ui\DiskIIDebugPanel.cpp" />
     <ClCompile Include="Ui\DiskIIDebugPanelLayout.cpp" />
+    <ClCompile Include="Ui\DebugConsolePanel.cpp" />
     <ClCompile Include="RichEditSquiggle.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -302,7 +302,6 @@
     <ClInclude Include="Window.h" />
     <ClInclude Include="EmulatorShell.h" />
     <ClInclude Include="DiskIIEventDisplay.h" />
-    <ClInclude Include="DebugConsole.h" />
     <ClInclude Include="DiskSettings.h" />
     <ClInclude Include="AssetBootstrap.h" />
     <ClInclude Include="Config\IFileSystem.h" />
@@ -377,6 +376,7 @@
     <ClInclude Include="DiskIIDebugDialogState.h" />
     <ClInclude Include="Ui\DiskIIDebugPanel.h" />
     <ClInclude Include="Ui\DiskIIDebugPanelLayout.h" />
+    <ClInclude Include="Ui\DebugConsolePanel.h" />
     <ClInclude Include="RichEditSquiggle.h" />
     <ClInclude Include="UnicodeSymbols.h" />
     <ClInclude Include="WasapiAudio.h" />
