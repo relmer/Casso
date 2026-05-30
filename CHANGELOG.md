@@ -156,6 +156,15 @@ is preserved as the lone deliberate Win32 surface.
   the settings popup and `DialogPrimitiveRenderer`, and pick up the
   active theme (Skeuomorphic / Dark / RetroTerminal) instead of the
   former blue-only constants.
+- **fix(011): mounted disks now follow the user across machine switches.**
+  Switching machines (e.g. //e → ][+) tore down the old Disk II
+  controller and brought up a fresh empty one, leaving the previously
+  mounted image orphaned in `DiskImageStore`. The new machine's boot
+  ROM then seeked to track 0, found no data, and spun forever. The
+  switch now snapshots slot-6 source paths before teardown and
+  re-mounts them on the new controller, matching the user's physical
+  mental model (the disk stays in the drive). Per-machine saved-disk
+  prefs are still consulted when no disk is mounted at switch time.
 
 ### Deferred
 - None — all spec 011 tasks shipped.
