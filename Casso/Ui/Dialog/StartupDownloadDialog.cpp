@@ -236,110 +236,21 @@ namespace
         swprintf_s (buf, L"%d%%", pct);
         return buf;
     }
-}
 
 
 
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  PaintBody
+    //
+    //  Single-line tree rows. Group headers are bold no-row; each entry
+    //  row paints a Checkbox widget on the left, then a dim source
+    //  label, then (when status is showing) a right-aligned percent /
+    //  Done / Failed indicator.
+    //
+    ////////////////////////////////////////////////////////////////////////////
 
-StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hInstance,
-                                                   HWND                     hwndOwner,
-                                                   const std::wstring     & machineDisplayName,
-                                                   StartupDownloadSet     & set)
-{
-    DialogDefinition        def           = {};
-    DialogState             state;
-    wstring                 title;
-    wstring                 intro;
-    int                     dialogResult  = 0;
-    UINT                    sysDpi        = (hwndOwner != nullptr) ? GetDpiForWindow (hwndOwner)
-                                                                   : GetDpiForSystem();
-    float                   dpiScale      = (sysDpi > 0) ? ((float) sysDpi / 96.0f) : 1.0f;
-    bool                    requiresRoms  = false;
-    int                     rowCount      = 0;
-    int                     headerCount   = 0;
-    int                     totalH        = 0;
-    wstring                 prevGroup;
-
-
-
-    if (set.Empty())
-    {
-        return StartupDownloadResult::NothingToDo;
-    }
-
-    state.set        = &set;
-    state.runtime    = std::vector<EntryRuntime> (set.entries.size());
-    state.checkboxes = std::vector<Checkbox> (set.entries.size());
-    state.dpi        = sysDpi;
-    requiresRoms     = set.RequiresRoms();
-    rowCount         = (int) set.entries.size();
-
-    for (size_t i = 0; i < set.entries.size(); i++)
-    {
-        Checkbox          & cb    = state.checkboxes[i];
-        StartupAssetEntry & entry = set.entries[i];
-
-        cb.SetDpi     (sysDpi);
-        cb.SetLabel   (entry.displayName);
-        cb.SetChecked (entry.selected);
-        cb.SetEnabled (entry.selectable);
-        cb.SetOnChange ([&entry] (bool checked) { entry.selected = checked; });
-    }
-
-    for (const StartupAssetEntry & entry : set.entries)
-    {
-        if (entry.groupLabel != prevGroup)
-        {
-            headerCount++;
-            prevGroup = entry.groupLabel;
-        }
-    }
-
-    title  = L"Casso ";
-    title += s_kchEmDash;
-    title += L" Download assets";
-
-    if (requiresRoms)
-    {
-        if (machineDisplayName.empty())
-        {
-            intro = L"This machine configuration needs the following files to boot. "
-                    L"Click Download to fetch them now, or Exit to quit.";
-        }
-        else
-        {
-            intro  = L"The ";
-            intro += machineDisplayName;
-            intro += L" configuration needs the following files to boot. "
-                     L"Click Download to fetch them now, or Exit to quit.";
-        }
-    }
-    else
-    {
-        intro = L"The following optional files are missing. "
-                L"Choose what to download, then click Download, "
-                L"Skip to continue without them, or Exit to quit.";
-    }
-
-    totalH = (int) ((float) (headerCount * (s_kHeaderHeightDp + s_kRowGapDp + s_kHeaderGapAboveDp)
-                             + rowCount  * (s_kRowHeightDp    + s_kRowGapDp))
-                    * dpiScale);
-
-    def.title              = title;
-    def.icon               = DialogIcon::AppFlat;
-    def.iconSizeOverrideDp = 64.0f;
-    def.body.push_back ({ intro, false, L"" });
-
-    def.customBodyMinSizePx.cx = (int) ((float) s_kBodyWidthDp * dpiScale);
-    def.customBodyMinSizePx.cy = totalH;
-
-    def.tickIntervalMs = s_kTickIntervalMs;
-
-    // Paint hook: single-line tree rows. Group headers are bold no-row;
-    // each entry row paints a Checkbox widget on the left, then a dim
-    // source label, then (when status is showing) a right-aligned
-    // percent / Done / Failed indicator.
-    def.onPaintCustomBody = [&set, &state] (DialogPaintContext & ctx)
+    void PaintBody (DialogPaintContext & ctx, StartupDownloadSet & set, DialogState & state)
     {
         float     x         = 0.0f;
         float     y         = 0.0f;
@@ -444,21 +355,35 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
 
             y += rowH + gap;
         }
-    };
+    }
 
-    // Input hook: forward mouse events to the per-row Checkbox widgets.
-    // Coordinates arrive body-relative; the Checkbox widget hit-tests
-    // against absolute window coordinates (the same space its rect is
-    // set to during paint), so we add the cached body origin.
-    def.onInputCustomBody = [&state] (const DialogInputEvent & ev) -> std::optional<int>
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  HandleBodyInput
+    //
+    //  Forwards mouse events to per-row Checkbox widgets. Coordinates
+    //  arrive body-relative; the Checkbox widget hit-tests against
+    //  absolute window coordinates (the same space its rect is set to
+    //  during paint), so the cached body origin is added back.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    std::optional<int> HandleBodyInput (const DialogInputEvent & ev, DialogState & state)
     {
+        int  absX = 0;
+        int  absY = 0;
+
+
+
         if (state.downloading)
         {
             return std::nullopt;
         }
 
-        int absX = ev.xPx + state.bodyOriginXPx;
-        int absY = ev.yPx + state.bodyOriginYPx;
+        absX = ev.xPx + state.bodyOriginXPx;
+        absY = ev.yPx + state.bodyOriginYPx;
 
         for (Checkbox & cb : state.checkboxes)
         {
@@ -482,25 +407,23 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
         }
 
         return std::nullopt;
-    };
-
-    // Build buttons.
-    state.downloadBtnIdx = def.buttons.size();
-    def.buttons.push_back ({ L"Download", s_kIdDownload, true, false });
-
-    if (!requiresRoms)
-    {
-        state.skipBtnIdx = def.buttons.size();
-        def.buttons.push_back ({ L"Skip", s_kIdSkip, false, false });
     }
 
-    state.exitBtnIdx = def.buttons.size();
-    def.buttons.push_back ({ L"Exit", s_kIdExit, false, true });
 
-    def.onButtonActivated = [&state, hInstance] (size_t idx, DialogPrimitive & dlg) -> bool
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  HandleButtonActivated
+    //
+    //  Returns true to close the dialog, false to keep it open. Download
+    //  swaps the dialog into "downloading" mode and spins up workers;
+    //  Skip / Exit set the result and signal close (cancelling and
+    //  joining workers first on Exit).
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    bool HandleButtonActivated (size_t idx, DialogPrimitive & dlg, DialogState & state)
     {
-        UNREFERENCED_PARAMETER (hInstance);
-
         if (idx == state.downloadBtnIdx)
         {
             if (state.downloading)
@@ -542,9 +465,20 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
         }
 
         return true;
-    };
+    }
 
-    def.onTick = [&state] (DialogPrimitive & dlg)
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  HandleTick
+    //
+    //  Periodic repaint plus completion detection. When workers are all
+    //  done, finalizes result and closes the dialog.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    void HandleTick (DialogPrimitive & dlg, DialogState & state)
     {
         dlg.Repaint();
 
@@ -562,6 +496,131 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
 
             dlg.Close ((int) state.result);
         }
+    }
+}
+
+
+
+
+StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hInstance,
+                                                   HWND                     hwndOwner,
+                                                   const std::wstring     & machineDisplayName,
+                                                   StartupDownloadSet     & set)
+{
+    DialogDefinition        def           = {};
+    DialogState             state;
+    wstring                 title;
+    wstring                 intro;
+    int                     dialogResult  = 0;
+    UINT                    sysDpi        = (hwndOwner != nullptr) ? GetDpiForWindow (hwndOwner)
+                                                                   : GetDpiForSystem();
+    float                   dpiScale      = (sysDpi > 0) ? ((float) sysDpi / 96.0f) : 1.0f;
+    bool                    requiresRoms  = false;
+    int                     rowCount      = 0;
+    int                     headerCount   = 0;
+    int                     totalH        = 0;
+    wstring                 prevGroup;
+
+
+
+    if (set.Empty())
+    {
+        return StartupDownloadResult::NothingToDo;
+    }
+
+    state.set        = &set;
+    state.runtime    = std::vector<EntryRuntime> (set.entries.size());
+    state.checkboxes = std::vector<Checkbox> (set.entries.size());
+    state.dpi        = sysDpi;
+    requiresRoms     = set.RequiresRoms();
+    rowCount         = (int) set.entries.size();
+
+    for (size_t i = 0; i < set.entries.size(); i++)
+    {
+        Checkbox          & cb    = state.checkboxes[i];
+        StartupAssetEntry & entry = set.entries[i];
+
+        cb.SetDpi     (sysDpi);
+        cb.SetLabel   (entry.displayName);
+        cb.SetChecked (entry.selected);
+        cb.SetEnabled (entry.selectable);
+        cb.SetOnChange ([&entry] (bool checked) { entry.selected = checked; });
+    }
+
+    for (const StartupAssetEntry & entry : set.entries)
+    {
+        if (entry.groupLabel != prevGroup)
+        {
+            headerCount++;
+            prevGroup = entry.groupLabel;
+        }
+    }
+
+    title  = L"Casso ";
+    title += s_kchEmDash;
+    title += L" Download assets";
+
+    if (requiresRoms)
+    {
+        wstring machineStr = machineDisplayName.empty() ? L"" : machineDisplayName;
+
+        intro  = L"The ";
+        intro += machineStr;
+        intro += L" needs the following files to boot. Click "
+                 L"Download to fetch them now, or Exit to quit.";
+    }
+    else
+    {
+        intro = L"The following optional files are missing. "
+                L"Choose what to download, then click Download, "
+                L"Skip to continue without them, or Exit to quit.";
+    }
+
+    totalH = (int) ((float) (headerCount * (s_kHeaderHeightDp + s_kRowGapDp + s_kHeaderGapAboveDp)
+                             + rowCount  * (s_kRowHeightDp    + s_kRowGapDp))
+                    * dpiScale);
+
+    def.title              = title;
+    def.icon               = DialogIcon::AppFlat;
+    def.iconSizeOverrideDp = 64.0f;
+    def.body.push_back ({ intro, false, L"" });
+
+    def.customBodyMinSizePx.cx = (int) ((float) s_kBodyWidthDp * dpiScale);
+    def.customBodyMinSizePx.cy = totalH;
+
+    def.tickIntervalMs = s_kTickIntervalMs;
+
+    def.onPaintCustomBody = [&set, &state] (DialogPaintContext & ctx)
+    {
+        PaintBody (ctx, set, state);
+    };
+
+    def.onInputCustomBody = [&state] (const DialogInputEvent & ev) -> std::optional<int>
+    {
+        return HandleBodyInput (ev, state);
+    };
+
+    // Build buttons.
+    state.downloadBtnIdx = def.buttons.size();
+    def.buttons.push_back ({ L"Download", s_kIdDownload, true, false });
+
+    if (!requiresRoms)
+    {
+        state.skipBtnIdx = def.buttons.size();
+        def.buttons.push_back ({ L"Skip", s_kIdSkip, false, false });
+    }
+
+    state.exitBtnIdx = def.buttons.size();
+    def.buttons.push_back ({ L"Exit", s_kIdExit, false, true });
+
+    def.onButtonActivated = [&state] (size_t idx, DialogPrimitive & dlg) -> bool
+    {
+        return HandleButtonActivated (idx, dlg, state);
+    };
+
+    def.onTick = [&state] (DialogPrimitive & dlg)
+    {
+        HandleTick (dlg, state);
     };
 
     dialogResult = ShowStandaloneDialog (hInstance, hwndOwner, def);
