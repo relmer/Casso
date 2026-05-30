@@ -70,7 +70,17 @@ public:
     }
 
     void  SetColumns      (std::vector<Column> cols)       { m_columns = std::move (cols); m_measuredWPx.clear(); m_overrideWPx.assign (m_columns.size(), -1); }
-    void  SetRows         (std::vector<std::vector<Cell>> rows) { m_rows = std::move (rows); m_measuredWPx.clear(); }
+    void  SetRows         (std::vector<std::vector<Cell>> rows)
+    {
+        bool  wasSticky = m_stickyTail;
+        m_rows = std::move (rows);
+        m_measuredWPx.clear();
+        int  maxTop = MaxTopRow();
+        if (wasSticky)        { m_topRow = maxTop; }
+        if (m_topRow > maxTop) { m_topRow = maxTop; }
+        if (m_topRow < 0)      { m_topRow = 0; }
+        m_stickyTail = (m_topRow >= maxTop);
+    }
 
     // User-resized column width (pixels). -1 means clear override and
     // fall back to widthDp / measured / stretch. Caller is responsible
@@ -95,8 +105,12 @@ public:
     {
         std::vector<int>  xs;
         std::vector<int>  ws;
+        int  cap     = VisibleRowCapacity();
+        bool needBar = ((int) m_rows.size() > cap) && (cap > 0);
+        int  fullW   = (m_rect.right - m_rect.left) - (needBar ? ScrollbarWidthPx() : 0);
+
         if (idx >= m_columns.size()) { return 0; }
-        ComputeColumnLayout ((float) (m_rect.right - m_rect.left), xs, ws);
+        ComputeColumnLayout ((float) fullW, xs, ws);
         return ws[idx];
     }
 
@@ -109,15 +123,18 @@ public:
     int   HitTestColumnResize (int xPx, int yPx, int tolerancePx) const
     {
         int  headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDp) : 0;
+        int  cap     = VisibleRowCapacity();
+        bool needBar = ((int) m_rows.size() > cap) && (cap > 0);
+        int  fullW   = (m_rect.right - m_rect.left) - (needBar ? ScrollbarWidthPx() : 0);
         std::vector<int>  colXPx;
         std::vector<int>  colWPx;
         int  lastVisible = -1;
 
         if (!m_showHeader || headerH <= 0)            { return -1; }
         if (yPx < 0 || yPx >= headerH)                { return -1; }
-        if (xPx < 0 || xPx >= (m_rect.right - m_rect.left)) { return -1; }
+        if (xPx < 0 || xPx >= fullW)                  { return -1; }
 
-        ComputeColumnLayout ((float) (m_rect.right - m_rect.left), colXPx, colWPx);
+        ComputeColumnLayout ((float) fullW, colXPx, colWPx);
 
         for (size_t c = 0; c < m_columns.size(); ++c)
         {
@@ -146,6 +163,51 @@ public:
     const Column & ColumnAt    (size_t idx) const          { return m_columns[idx]; }
     int           HeaderHeightPx () const                  { return m_showHeader ? m_scaler.Px (s_kHeaderHeightDp) : 0; }
     bool          ShowHeader     () const                  { return m_showHeader; }
+
+    // Vertical scroll API. The widget keeps a top-row index into
+    // m_rows; Paint clips to [m_topRow, m_topRow + visibleCap) and
+    // paints a scrollbar at the right edge when RowCount exceeds
+    // capacity. "Sticky tail" auto-pins the view to the bottom when
+    // new rows arrive while the user is already parked at the tail.
+    int   ScrollbarWidthPx () const                        { return m_scaler.Px (s_kScrollbarWidthDp); }
+    int   TopRow           () const                        { return m_topRow; }
+    int   VisibleRowCapacity () const
+    {
+        int  rowH    = m_scaler.Px (s_kRowHeightDp);
+        int  headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDp) : 0;
+        int  hdrGap  = m_showHeader ? m_scaler.Px (s_kHeaderGapDp)    : 0;
+        int  body    = (m_rect.bottom - m_rect.top) - headerH - hdrGap;
+        if (rowH <= 0 || body <= 0) { return 0; }
+        return body / rowH;
+    }
+    int   MaxTopRow        () const
+    {
+        int  cap  = VisibleRowCapacity();
+        int  rows = (int) m_rows.size();
+        return (rows > cap) ? (rows - cap) : 0;
+    }
+    bool  IsAtBottom       () const                        { return m_topRow >= MaxTopRow(); }
+    void  EnableStickyTail (bool b)                        { m_stickyTail = b; }
+    bool  StickyTail       () const                        { return m_stickyTail; }
+    void  SetTopRow        (int topRow)
+    {
+        int  maxTop = MaxTopRow();
+        if (topRow < 0)      { topRow = 0; }
+        if (topRow > maxTop) { topRow = maxTop; }
+        m_topRow = topRow;
+        m_stickyTail = (m_topRow >= maxTop);
+    }
+    void  ScrollByRows     (int delta)                     { SetTopRow (m_topRow + delta); }
+    void  ScrollByWheelDelta (int wheelDelta, int linesPerNotch = 3)
+    {
+        if (wheelDelta == 0) { return; }
+        int  notches = wheelDelta / WHEEL_DELTA;
+        if (notches == 0)
+        {
+            notches = (wheelDelta > 0) ? 1 : -1;
+        }
+        ScrollByRows (-notches * linesPerNotch);
+    }
 
     // Measure each column's natural width from its header + cell text.
     // Caller invokes this once after SetColumns/SetRows to populate
@@ -238,6 +300,9 @@ public:
     int   HitTestHeaderColumn (int xPx, int yPx) const
     {
         int  headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDp) : 0;
+        int  cap     = VisibleRowCapacity();
+        bool needBar = ((int) m_rows.size() > cap) && (cap > 0);
+        int  fullW   = (m_rect.right - m_rect.left) - (needBar ? ScrollbarWidthPx() : 0);
         std::vector<int>  colXPx;
         std::vector<int>  colWPx;
 
@@ -249,12 +314,12 @@ public:
         {
             return -1;
         }
-        if (xPx < 0 || xPx >= (m_rect.right - m_rect.left))
+        if (xPx < 0 || xPx >= fullW)
         {
             return -1;
         }
 
-        ComputeColumnLayout ((float) (m_rect.right - m_rect.left), colXPx, colWPx);
+        ComputeColumnLayout ((float) fullW, colXPx, colWPx);
 
         for (size_t c = 0; c < m_columns.size(); ++c)
         {
@@ -271,26 +336,25 @@ public:
     }
 
     // xPx/yPx are relative to the list's rect.left/top. Returns the
-    // data-row index, or -1 if the point is outside any data row.
+    // data-row index (into m_rows), or -1 if the point is outside any
+    // currently-visible data row. The returned index already accounts
+    // for the current scroll offset.
     int   HitTestRow (int xPx, int yPx) const
     {
         int  rowH    = m_scaler.Px (s_kRowHeightDp);
         int  headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDp) : 0;
         int  hdrGap  = m_showHeader ? m_scaler.Px (s_kHeaderGapDp)    : 0;
         int  body    = yPx - headerH - hdrGap;
-        int  idx     = (body < 0) ? -1 : (body / rowH);
+        int  visIdx  = (body < 0 || rowH <= 0) ? -1 : (body / rowH);
+        int  cap     = VisibleRowCapacity();
+        int  abs     = (visIdx < 0) ? -1 : (m_topRow + visIdx);
+        int  rowW    = (m_rect.right - m_rect.left) - ((int) m_rows.size() > cap ? ScrollbarWidthPx() : 0);
 
-        if (xPx < 0 || xPx >= (m_rect.right - m_rect.left))
-        {
-            return -1;
-        }
+        if (xPx < 0 || xPx >= rowW)                  { return -1; }
+        if (visIdx < 0 || visIdx >= cap)             { return -1; }
+        if (abs < 0 || abs >= (int) m_rows.size())   { return -1; }
 
-        if (idx < 0 || idx >= (int) m_rows.size())
-        {
-            return -1;
-        }
-
-        return idx;
+        return abs;
     }
 
     void  Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
@@ -315,6 +379,11 @@ public:
         uint32_t border    = 0;
         std::vector<int>  colXPx;
         std::vector<int>  colWPx;
+        int      visibleCap = VisibleRowCapacity();
+        int      totalRows  = (int) m_rows.size();
+        bool     needBar    = (totalRows > visibleCap) && (visibleCap > 0);
+        float    barW       = needBar ? (float) ScrollbarWidthPx() : 0.0f;
+        float    layoutW    = fullW - barW;
 
 
         if (m_theme == nullptr || m_columns.empty())
@@ -330,15 +399,15 @@ public:
         bgHeader = (bgRow & 0x00FFFFFFu) | 0xFF000000u;
         border   = (fg    & 0x00FFFFFFu) | 0x30000000u;
 
-        ComputeColumnLayout (fullW, colXPx, colWPx);
+        ComputeColumnLayout (layoutW, colXPx, colWPx);
 
-        painter.FillRect (x, y, fullW, RequiredHeight_F(), bgRow);
+        painter.FillRect (x, y, fullW, (float) (m_rect.bottom - m_rect.top), bgRow);
 
         if (m_showHeader)
         {
             float  hy = y;
 
-            painter.FillRect (x, hy, fullW, headerH, bgHeader);
+            painter.FillRect (x, hy, layoutW, headerH, bgHeader);
 
             for (size_t c = 0; c < m_columns.size(); ++c)
             {
@@ -369,7 +438,7 @@ public:
                 }
             }
 
-            painter.FillRect (x, hy + headerH - 1.0f, fullW, 1.0f, border);
+            painter.FillRect (x, hy + headerH - 1.0f, layoutW, 1.0f, border);
 
             // Faint vertical separators between header columns so the
             // user can see where each column ends (and where the resize
@@ -382,17 +451,20 @@ public:
             }
         }
 
-        for (size_t r = 0; r < m_rows.size(); ++r)
+        int  firstRow = m_topRow;
+        int  lastRow  = std::min (totalRows, m_topRow + (visibleCap > 0 ? visibleCap : totalRows));
+
+        for (int r = firstRow; r < lastRow; ++r)
         {
-            float  ry    = y + headerH + hdrGap + (float) r * rowH;
-            bool   isHov = ((int) r == m_hovered);
+            float  ry    = y + headerH + hdrGap + (float) (r - firstRow) * rowH;
+            bool   isHov = (r == m_hovered);
 
             if (isHov)
             {
-                painter.FillRect (x, ry, fullW, rowH, bgHover);
+                painter.FillRect (x, ry, layoutW, rowH, bgHover);
             }
 
-            const auto & cells = m_rows[r];
+            const auto & cells = m_rows[(size_t) r];
 
             for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
             {
@@ -408,6 +480,25 @@ public:
                                                           DwriteTextRenderer::VAlign::CenterOnCapHeight));
             }
         }
+
+        if (needBar)
+        {
+            float    bx          = x + fullW - barW;
+            float    by          = y + headerH + hdrGap;
+            float    bh          = (float) (m_rect.bottom - m_rect.top) - headerH - hdrGap;
+            uint32_t trackArgb   = (fg & 0x00FFFFFFu) | 0x18000000u;
+            uint32_t thumbArgb   = (fg & 0x00FFFFFFu) | 0x80000000u;
+            float    thumbH      = std::max (16.0f, bh * (float) visibleCap / (float) totalRows);
+            int      maxTop      = MaxTopRow();
+            float    travel      = bh - thumbH;
+            float    thumbY      = by + ((maxTop > 0) ? travel * (float) m_topRow / (float) maxTop : 0.0f);
+
+            if (bh > 0.0f && barW > 0.0f)
+            {
+                painter.FillRect (bx, by, barW, bh, trackArgb);
+                painter.FillRect (bx + 1.0f, thumbY, barW - 2.0f, thumbH, thumbArgb);
+            }
+        }
     }
 
 private:
@@ -417,6 +508,7 @@ private:
     static constexpr int  s_kCellPadLeftDp   = 12;
     static constexpr int  s_kCellPadRightDp  = 16;
     static constexpr int  s_kSortGlyphWidthDp = 10;
+    static constexpr int  s_kScrollbarWidthDp = 10;
     static constexpr float s_kFontDp         = 13.0f;
     static constexpr float s_kHeaderFontDp   = 13.0f;
 
@@ -487,4 +579,6 @@ private:
     int                               m_sortColumn     = -1;
     bool                              m_sortDescending = false;
     bool                              m_showHeader     = false;
+    int                               m_topRow         = 0;
+    bool                              m_stickyTail     = true;
 };

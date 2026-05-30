@@ -628,7 +628,8 @@ SIZE DiskIIDebugPanel::PreferredClientSize (UINT dpi) const
 
 void DiskIIDebugPanel::OnLButtonDown (int x, int y)
 {
-    bool  handled = false;
+    bool  handled    = false;
+    int   newFocus   = -1;
 
 
     if (m_columnMenu.IsVisible())
@@ -636,32 +637,69 @@ void DiskIIDebugPanel::OnLButtonDown (int x, int y)
         if (m_columnMenu.OnLButtonDown (x, y)) { return; }
     }
 
-    for (auto & cb : m_eventChecks)
+    for (size_t i = 0; i < m_eventChecks.size(); ++i)
     {
-        if (cb.OnLButtonDown (x, y)) { handled = true; break; }
-    }
-    if (!handled) { handled = m_audioMasterCheck.OnLButtonDown (x, y); }
-    if (!handled)
-    {
-        for (auto & cb : m_audioSubChecks)
+        if (m_eventChecks[i].OnLButtonDown (x, y))
         {
-            if (cb.OnLButtonDown (x, y)) { handled = true; break; }
+            handled  = true;
+            newFocus = 2 + (int) i;
+            break;
         }
     }
-    if (!handled) { handled = m_rawQtCheck.OnLButtonDown   (x, y); }
-    if (!handled) { handled = m_driveRadio.OnLButtonDown   (x, y); }
-    if (!handled) { handled = m_trackEdit.OnLButtonDown    (x, y); }
-    if (!handled) { handled = m_sectorEdit.OnLButtonDown   (x, y); }
+    if (!handled && m_audioMasterCheck.OnLButtonDown (x, y))
+    {
+        handled  = true;
+        newFocus = 10;
+    }
+    if (!handled)
+    {
+        for (size_t i = 0; i < m_audioSubChecks.size(); ++i)
+        {
+            if (m_audioSubChecks[i].OnLButtonDown (x, y))
+            {
+                handled  = true;
+                newFocus = 11 + (int) i;
+                break;
+            }
+        }
+    }
+    if (!handled && m_rawQtCheck.OnLButtonDown (x, y))
+    {
+        handled  = true;
+        newFocus = 15;
+    }
+    if (!handled && m_driveRadio.OnLButtonDown (x, y))
+    {
+        handled  = true;
+        newFocus = 16;
+    }
+    if (!handled && m_trackEdit.OnLButtonDown (x, y))
+    {
+        handled  = true;
+        newFocus = 17;
+    }
+    if (!handled && m_sectorEdit.OnLButtonDown (x, y))
+    {
+        handled  = true;
+        newFocus = 18;
+    }
 
     if (m_pauseButton.HitTest (x, y))
     {
         m_pauseButton.SetMouse (x, y, true);
-        handled = true;
+        handled  = true;
+        newFocus = 0;
     }
     if (!handled && m_clearButton.HitTest (x, y))
     {
         m_clearButton.SetMouse (x, y, true);
-        handled = true;
+        handled  = true;
+        newFocus = 1;
+    }
+
+    if (handled)
+    {
+        SetFocusIndex (newFocus);
     }
 
     if (!handled)
@@ -816,6 +854,29 @@ void DiskIIDebugPanel::OnMouseMove (int x, int y)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnMouseWheel
+//
+//  Wheel up scrolls back in history (older events); wheel down scrolls
+//  toward the tail. Mouse position is panel-relative; we forward to
+//  the list unconditionally because the trackpad / wheel input from
+//  the whole panel should drive the only scrollable widget.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::OnMouseWheel (int x, int y, int delta)
+{
+    (void) x;
+    (void) y;
+
+    m_eventList.ScrollByWheelDelta (delta, 3);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnRButtonDown
 //
 //  Right-click inside the list-view header strip surfaces a themed
@@ -915,11 +976,141 @@ void DiskIIDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClearAllWidgetFocus
+//
+//  Drops focus on every focusable widget. SetFocusIndex calls this
+//  before re-applying focus to the new owner.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::ClearAllWidgetFocus()
+{
+    m_pauseButton.SetFocused      (false);
+    m_clearButton.SetFocused      (false);
+    for (auto & cb : m_eventChecks)     { cb.SetFocused (false); }
+    m_audioMasterCheck.SetFocused (false);
+    for (auto & cb : m_audioSubChecks)  { cb.SetFocused (false); }
+    m_rawQtCheck.SetFocused       (false);
+    m_driveRadio.SetFocused       (false);
+    m_trackEdit.SetFocused        (false);
+    m_sectorEdit.SetFocused       (false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetFocusIndex
+//
+//  Single source of truth for which widget owns the keyboard. The
+//  index space:
+//
+//      0          m_pauseButton
+//      1          m_clearButton
+//      2..9       m_eventChecks[0..7]
+//      10         m_audioMasterCheck
+//      11..14     m_audioSubChecks[0..3]
+//      15         m_rawQtCheck
+//      16         m_driveRadio (entire group)
+//      17         m_trackEdit
+//      18         m_sectorEdit
+//
+//  Out-of-range values (including -1) clear all focus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::SetFocusIndex (int index)
+{
+    constexpr int  kCount = 19;
+
+
+    ClearAllWidgetFocus();
+
+    if (index < 0 || index >= kCount)
+    {
+        m_focusIndex = -1;
+        return;
+    }
+
+    m_focusIndex = index;
+
+    switch (index)
+    {
+        case 0:  m_pauseButton.SetFocused (true);       break;
+        case 1:  m_clearButton.SetFocused (true);       break;
+        case 10: m_audioMasterCheck.SetFocused (true);  break;
+        case 15: m_rawQtCheck.SetFocused (true);        break;
+        case 16: m_driveRadio.SetFocused (true);        break;
+        case 17: m_trackEdit.SetFocused  (true);        break;
+        case 18: m_sectorEdit.SetFocused (true);        break;
+        default:
+            if (index >= 2 && index <= 9)
+            {
+                m_eventChecks[(size_t) (index - 2)].SetFocused (true);
+            }
+            else if (index >= 11 && index <= 14)
+            {
+                m_audioSubChecks[(size_t) (index - 11)].SetFocused (true);
+            }
+            break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FocusCycle
+//
+//  Tab (+1) / Shift+Tab (-1) advance the focus index with wrap-around.
+//  No widget is hidden in the panel layout, so we don't skip stops.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::FocusCycle (int direction)
+{
+    constexpr int  kCount = 19;
+    int            next   = (m_focusIndex < 0) ? 0 : (m_focusIndex + direction);
+
+
+    while (next < 0)        { next += kCount; }
+    while (next >= kCount)  { next -= kCount; }
+
+    SetFocusIndex (next);
+}
+
+
+
+
+
 bool DiskIIDebugPanel::OnKey (WPARAM vk)
 {
+    bool  shiftDown = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
+
+
     if (m_columnMenu.IsVisible())  { return m_columnMenu.OnKey (vk); }
-    if (m_trackEdit.OnKey (vk))    { return true; }
-    if (m_sectorEdit.OnKey (vk))   { return true; }
+
+    if (vk == VK_TAB)
+    {
+        FocusCycle (shiftDown ? -1 : 1);
+        return true;
+    }
+
+    if (m_pauseButton.OnKey       (vk)) { return true; }
+    if (m_clearButton.OnKey       (vk)) { return true; }
+    for (auto & cb : m_eventChecks)     { if (cb.OnKey (vk)) { return true; } }
+    if (m_audioMasterCheck.OnKey  (vk)) { return true; }
+    for (auto & cb : m_audioSubChecks)  { if (cb.OnKey (vk)) { return true; } }
+    if (m_rawQtCheck.OnKey        (vk)) { return true; }
+    if (m_driveRadio.OnKey        (vk)) { return true; }
+    if (m_trackEdit.OnKey         (vk)) { return true; }
+    if (m_sectorEdit.OnKey        (vk)) { return true; }
     return false;
 }
 
@@ -1511,16 +1702,13 @@ void DiskIIDebugPanel::RebuildFilteredIndices()
 
 void DiskIIDebugPanel::PushListViewRows()
 {
-    int     slotHeight = m_layout.listView.bottom - m_layout.listView.top;
-    int     visible    = m_eventList.RequiredRowsForHeightPx (slotHeight);
-    size_t  total      = m_filteredIndices.size();
-    size_t  start      = (total > (size_t) visible) ? total - (size_t) visible : 0;
+    size_t  total = m_filteredIndices.size();
     std::vector<std::vector<ListView::Cell>>  rows;
 
 
-    rows.reserve (total - start);
+    rows.reserve (total);
 
-    for (size_t k = start; k < total; k++)
+    for (size_t k = 0; k < total; k++)
     {
         const DiskIIEventDisplay & e = m_events[m_filteredIndices[k]];
 

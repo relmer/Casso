@@ -198,6 +198,21 @@ is preserved as the lone deliberate Win32 surface.
     actually composite *above* widget text (both renderers batch, so
     submission order alone wasn't enough — text from underlying widgets
     would otherwise paint on top of the overlay's geometry).
+  - **Disk II debug panel: scrollable event list + scrollbar.** The
+    panel's `ListView` now keeps its full filtered history rather than
+    truncating to whatever fits in the slot, and paints a vertical
+    scrollbar at the right edge whenever the row count exceeds the
+    visible capacity. Mouse-wheel / trackpad scrolling is wired
+    through `IChromedPanelContent::OnMouseWheel`. Sticky-tail behaviour
+    keeps the latest events in view when parked at the bottom; once the
+    user scrolls back, new events accumulate without yanking the view.
+  - **Disk II debug panel: keyboard focus + Tab navigation.** Tab /
+    Shift+Tab cycle focus through the 19 focusable stops (Pause, Clear,
+    8 event-type checkboxes, audio master + 4 sub-checks, raw-Qt check,
+    drive radio group, track edit, sector edit). Mouse-clicks on any
+    widget also acquire focus. The existing per-widget focus rings
+    finally light up; Enter / Space activate buttons, Space toggles
+    checkboxes, arrows cycle radios — all without touching the mouse.
   - Non-modal panels (Disk II debug, Debug console) now get a taskbar
     button via `WS_EX_APPWINDOW` and drop `WS_EX_TOOLWINDOW`, so they
     re-appear in Alt+Tab and can be raised even when fully occluded

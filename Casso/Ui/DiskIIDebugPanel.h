@@ -92,6 +92,7 @@ public:
     void     OnLButtonUp        (int x, int y)                      override;
     void     OnRButtonDown      (int x, int y)                      override;
     void     OnMouseMove        (int x, int y)                      override;
+    void     OnMouseWheel       (int x, int y, int delta)           override;
     bool     OnKey              (WPARAM vk)                         override;
     bool     OnChar             (wchar_t ch)                        override;
     void     Accept             ()                                  override;
@@ -141,6 +142,9 @@ private:
     void    UpdatePauseLabel     ();
     void    UpdateTooltip        (int x, int y);
     void    ShowColumnMenu       (int anchorX, int anchorY);
+    void    FocusCycle           (int direction);
+    void    SetFocusIndex        (int index);
+    void    ClearAllWidgetFocus  ();
     int64_t NowMs                () const;
 
     ChromedPanelWindow                   m_window;
@@ -202,4 +206,10 @@ private:
     int                                   m_resizeColumn        = -1;
     int                                   m_resizeStartXPx      = 0;
     int                                   m_resizeStartWidthPx  = 0;
+
+    // Tab-order focus state. m_focusIndex selects which widget owns
+    // the keyboard; -1 means no widget is focused. SetFocusIndex
+    // mirrors the state to per-widget SetFocused(); FocusCycle wraps
+    // forward (+1) or backward (-1) with Tab / Shift+Tab.
+    int                                   m_focusIndex          = -1;
 };
