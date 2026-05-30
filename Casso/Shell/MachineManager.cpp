@@ -1050,6 +1050,16 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // physical mental model holds: the disk in the drive stays in
     // the drive across a machine swap. Empty paths fall through
     // harmlessly so a never-used machine won't try to mount anything.
+    //
+    // If the new machine has no Disk II controller at slot 6 (future
+    // non-Apple-II family), drop the carry rather than silently relying
+    // on MountDiskInSlot6's nullptr CBR. The disk in DiskImageStore
+    // was already flushed above, so no user data is lost.
+    if (!m_shell.m_diskManager->HasSlot6Controller())
+    {
+        carryDisk1.clear();
+        carryDisk2.clear();
+    }
     m_shell.m_diskManager->MountCommandLineDisks (carryDisk1, carryDisk2);
 
     if (speedCmd != 0)
