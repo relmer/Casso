@@ -1,8 +1,8 @@
 #include "Pch.h"
 
-#include "DiskIIController.h"
+#include "Disk2Controller.h"
 #include "Audio/IDriveAudioSink.h"
-#include "IDiskIIEventSink.h"
+#include "IDisk2EventSink.h"
 #include "Core/Prng.h"
 
 
@@ -26,7 +26,7 @@ static int FindHighestPhase (uint8_t phases)
     int   i      = 0;
     int   result = -1;
 
-    for (i = 0; i < DiskIIController::kPhaseCount; i++)
+    for (i = 0; i < Disk2Controller::kPhaseCount; i++)
     {
         if (phases & (1 << i))
         {
@@ -43,11 +43,11 @@ static int FindHighestPhase (uint8_t phases)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIController
+//  Disk2Controller
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskIIController::DiskIIController (int slot)
+Disk2Controller::Disk2Controller (int slot)
     : m_slot    (slot),
       m_ioStart (static_cast<Word> (0xC080 + slot * 16)),
       m_ioEnd   (static_cast<Word> (0xC08F + slot * 16))
@@ -70,9 +70,11 @@ DiskIIController::DiskIIController (int slot)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte DiskIIController::Read (Word address)
+Byte Disk2Controller::Read (Word address)
 {
     int   offset = (address - m_ioStart) & 0x0F;
+
+    CatchUpToCpu();
 
     HandleSwitch (offset);
 
@@ -92,9 +94,11 @@ Byte DiskIIController::Read (Word address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIController::Write (Word address, Byte value)
+void Disk2Controller::Write (Word address, Byte value)
 {
     int   offset = (address - m_ioStart) & 0x0F;
+
+    CatchUpToCpu();
 
     HandleSwitch (offset);
 
@@ -117,7 +121,7 @@ void DiskIIController::Write (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIController::HandleSwitch (int offset)
+void Disk2Controller::HandleSwitch (int offset)
 {
     switch (offset)
     {
@@ -160,13 +164,26 @@ void DiskIIController::HandleSwitch (int offset)
             // off->on edge so brief intra-sector toggles inside the
             // spindown window don't restart the motor sound. (Renamed
             // from OnMotorStart in spec-006 to align with the new
-            // four-event motor lifecycle on IDiskIIEventSink.)
+            // four-event motor lifecycle on IDisk2EventSink.)
+            //
+            // Issue #67: on a true off->on edge (motor genuinely cold,
+            // not just inside the spindown window), arm the spin-up
+            // window so reads return zeros for ~70 ms while the
+            // physical disk reaches reading speed. During spindown
+            // the disk is still spinning at 300 RPM, so a motor-on
+            // that merely cancels a pending spindown does NOT need
+            // a fresh spin-up.
             {
                 bool  edge = (!m_motorOn);
 
                 m_motorSpindownCycles = 0;
                 m_motorOn = true;
                 m_engine[m_activeDrive].SetMotorOn (true);
+
+                if (edge)
+                {
+                    m_motorSpinupRemaining = kMotorSpinupCycles;
+                }
 
                 if (edge && m_audioSink != nullptr)
                 {
@@ -246,13 +263,21 @@ void DiskIIController::HandleSwitch (int offset)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte DiskIIController::HandleReadDispatch()
+Byte Disk2Controller::HandleReadDispatch()
 {
     Byte     nibble = 0;
     uint8_t  fresh  = 0;
 
     if (!m_q6 && !m_q7)
     {
+        // Issue #67 deliverable 1: during the LSS-stability window
+        // after the motor's off->on edge, force the CPU-visible
+        // latch to 0x80 (MSB set, but data is garbage). The bit
+        // cursor and address-mark watcher still run normally so
+        // rotational position and sync detection stay correct;
+        // only the byte the CPU reads is overridden. Matches
+        // AppleWin's MOTOR_ON_UNTIL_LSS_STABLE_CYCLES path
+        // (GH#864).
         nibble = m_engine[m_activeDrive].ReadLatch();
 
         // Spec-006 T032 / FR-008: feed the passive watcher exactly
@@ -269,6 +294,11 @@ Byte DiskIIController::HandleReadDispatch()
         if (m_engine[m_activeDrive].ConsumeFreshNibble (fresh))
         {
             m_addrMarkWatcher.ObserveNibble (fresh);
+        }
+
+        if (m_motorSpinupRemaining > 0)
+        {
+            return 0x80;
         }
 
         return nibble;
@@ -301,7 +331,7 @@ Byte DiskIIController::HandleReadDispatch()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIController::HandlePhase (int phase, bool on)
+void Disk2Controller::HandlePhase (int phase, bool on)
 {
     if (on)
     {
@@ -424,7 +454,7 @@ void DiskIIController::HandlePhase (int phase, bool on)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIController::UpdateEngineSelection()
+void Disk2Controller::UpdateEngineSelection()
 {
     int   other = m_activeDrive ^ 1;
 
@@ -448,8 +478,25 @@ void DiskIIController::UpdateEngineSelection()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIController::Tick (uint32_t cpuCycles)
+void Disk2Controller::Tick (uint32_t cpuCycles)
 {
+    // Issue #67 deliverable 1: drain the spin-up counter before any
+    // other state advances. The bit cursor inside the per-drive
+    // engine still ticks normally (rotational position must be
+    // correct when the window closes) -- only the CPU-visible read
+    // dispatch suppresses real data during this window.
+    if (m_motorSpinupRemaining > 0)
+    {
+        if (cpuCycles >= m_motorSpinupRemaining)
+        {
+            m_motorSpinupRemaining = 0;
+        }
+        else
+        {
+            m_motorSpinupRemaining -= cpuCycles;
+        }
+    }
+
     if (m_motorSpindownCycles > 0)
     {
         if (cpuCycles >= m_motorSpindownCycles)
@@ -481,7 +528,59 @@ void DiskIIController::Tick (uint32_t cpuCycles)
         }
     }
 
-    m_engine[m_activeDrive].Tick (cpuCycles);
+    // When a CPU cycle source is attached, the engine bit cursor is
+    // driven exclusively via CatchUpToCpu at each $C0Ex access. Skip the
+    // per-instruction engine advance here to avoid double-counting
+    // cycles. Motor spin-up/spindown timers above still run off the bulk
+    // per-instruction count -- they're coarse-grained and don't need
+    // sub-instruction precision.
+    if (m_cpuCycleSource == nullptr)
+    {
+        m_engine[m_activeDrive].Tick (cpuCycles);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatchUpToCpu
+//
+//  Issue #67. When a CPU cycle source is attached, pull the active
+//  drive's bit-stream engine forward to the CPU's current cycle count.
+//  Called from the top of Read/Write so by the time HandleSwitch /
+//  HandleReadDispatch run, the engine's m_bitPos reflects elapsed CPU
+//  time since the last access. The source is the sub-instruction bus
+//  cycle (Cpu6502::m_busCycle), current to the in-flight $C0Ex access
+//  rather than the instruction boundary -- matching AppleWin attributing
+//  the disk update to the exact bus cycle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::CatchUpToCpu()
+{
+    uint64_t  now   = 0;
+    uint64_t  delta = 0;
+
+
+    if (m_cpuCycleSource == nullptr)
+    {
+        return;
+    }
+
+    now = *m_cpuCycleSource;
+
+    if (now <= m_lastCpuSync)
+    {
+        return;
+    }
+
+    delta         = now - m_lastCpuSync;
+    m_lastCpuSync = now;
+
+    m_engine[m_activeDrive].Tick (static_cast<uint32_t> (delta));
 }
 
 
@@ -494,7 +593,7 @@ void DiskIIController::Tick (uint32_t cpuCycles)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskIIController::MountDisk (int drive, const string & path)
+HRESULT Disk2Controller::MountDisk (int drive, const string & path)
 {
     HRESULT   hr = S_OK;
 
@@ -523,7 +622,7 @@ Error:
 }
 
 
-void DiskIIController::EjectDisk (int drive)
+void Disk2Controller::EjectDisk (int drive)
 {
     if (drive < 0 || drive >= kDriveCount)
     {
@@ -543,7 +642,7 @@ void DiskIIController::EjectDisk (int drive)
 }
 
 
-DiskImage * DiskIIController::GetDisk (int drive)
+DiskImage * Disk2Controller::GetDisk (int drive)
 {
     if (drive < 0 || drive >= kDriveCount)
     {
@@ -568,7 +667,7 @@ DiskImage * DiskIIController::GetDisk (int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIController::SetExternalDisk (int drive, DiskImage * external)
+void Disk2Controller::SetExternalDisk (int drive, DiskImage * external)
 {
     if (drive < 0 || drive >= kDriveCount)
     {
@@ -580,7 +679,7 @@ void DiskIIController::SetExternalDisk (int drive, DiskImage * external)
 }
 
 
-bool DiskIIController::HasExternalDisk (int drive) const
+bool Disk2Controller::HasExternalDisk (int drive) const
 {
     if (drive < 0 || drive >= kDriveCount)
     {
@@ -598,14 +697,14 @@ bool DiskIIController::HasExternalDisk (int drive) const
 //
 //  NotifyDiskInserted / NotifyDiskEjected
 //
-//  Spec-006 bug 14b. Fires the IDiskIIEventSink hooks without touching
+//  Spec-006 bug 14b. Fires the IDisk2EventSink hooks without touching
 //  controller state. Used by EmulatorShell on the DiskImageStore +
 //  SetExternalDisk hot path so the debug window still sees user-facing
 //  insert / eject events on disks mounted outside MountDisk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIController::NotifyDiskInserted (int drive)
+void Disk2Controller::NotifyDiskInserted (int drive)
 {
     if (drive < 0 || drive >= kDriveCount)
     {
@@ -619,7 +718,7 @@ void DiskIIController::NotifyDiskInserted (int drive)
 }
 
 
-void DiskIIController::NotifyDiskEjected (int drive)
+void Disk2Controller::NotifyDiskEjected (int drive)
 {
     if (drive < 0 || drive >= kDriveCount)
     {
@@ -642,7 +741,7 @@ void DiskIIController::NotifyDiskEjected (int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIController::Reset()
+void Disk2Controller::Reset()
 {
     int   i = 0;
 
@@ -650,6 +749,7 @@ void DiskIIController::Reset()
     m_quarterTrack = 0;
     m_motorOn      = false;
     m_motorSpindownCycles = 0;
+    m_motorSpinupRemaining = 0;
     m_activeDrive  = 0;
     m_q6           = false;
     m_q7           = false;
@@ -675,7 +775,7 @@ void DiskIIController::Reset()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIController::SoftReset()
+void Disk2Controller::SoftReset()
 {
     HRESULT   hrFlush = S_OK;
     int       drive   = 0;
@@ -705,7 +805,7 @@ void DiskIIController::SoftReset()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIController::PowerCycle (Prng & prng)
+void Disk2Controller::PowerCycle (Prng & prng)
 {
     int   drive = 0;
 
@@ -731,13 +831,13 @@ void DiskIIController::PowerCycle (Prng & prng)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-unique_ptr<MemoryDevice> DiskIIController::Create (const DeviceConfig & config, MemoryBus & bus)
+unique_ptr<MemoryDevice> Disk2Controller::Create (const DeviceConfig & config, MemoryBus & bus)
 {
     int   slot = config.hasSlot ? config.slot : 6;
 
     UNREFERENCED_PARAMETER (bus);
 
-    return make_unique<DiskIIController> (slot);
+    return make_unique<Disk2Controller> (slot);
 }
 
 
@@ -748,10 +848,10 @@ unique_ptr<MemoryDevice> DiskIIController::Create (const DeviceConfig & config, 
 //
 //  SetEventSink
 //
-//  Spec-006 FR-007: caller-owned IDiskIIEventSink pointer (default
+//  Spec-006 FR-007: caller-owned IDisk2EventSink pointer (default
 //  nullptr). The controller never deletes it and never invokes
 //  anything on it from outside its own fire sites. Sink is also
-//  propagated to the embedded DiskIIAddressMarkWatcher so the
+//  propagated to the embedded Disk2AddressMarkWatcher so the
 //  watcher fires its OnAddressMark / OnDataMarkRead notifications
 //  through the same sink, keeping the event stream chronologically
 //  interleaved on the dialog's ring.
@@ -761,7 +861,7 @@ unique_ptr<MemoryDevice> DiskIIController::Create (const DeviceConfig & config, 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIController::SetEventSink (IDiskIIEventSink * sink) noexcept
+void Disk2Controller::SetEventSink (IDisk2EventSink * sink) noexcept
 {
     m_eventSink = sink;
     m_addrMarkWatcher.SetEventSink (sink);

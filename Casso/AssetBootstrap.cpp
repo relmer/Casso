@@ -244,7 +244,7 @@ struct DiskAudioSpec
 {
     string_view  mechanism;          // "Shugart" or "Alps"
     string_view  oggBasename;        // upstream filename inside the OGG sounds folder
-    string_view  wavBasename;        // Casso target filename (matches DiskIIAudioSource s_kpszSampleFiles)
+    string_view  wavBasename;        // Casso target filename (matches Disk2AudioSource s_kpszSampleFiles)
 };
 
 
@@ -2098,7 +2098,7 @@ HRESULT AssetBootstrap::CheckAndFetchDiskAudio (
         }
 
         // Decode at the typical 44.1 kHz fallback; downstream
-        // DiskIIAudioSource::LoadSamples re-resamples to the WASAPI
+        // Disk2AudioSource::LoadSamples re-resamples to the WASAPI
         // device rate via IMFSourceReader when it reads the WAV back
         // in. Per A-001, broadband drive noise tolerates the double
         // resample.

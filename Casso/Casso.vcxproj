@@ -279,8 +279,8 @@
     <ClCompile Include="Ui\Animation.cpp" />
     <ClCompile Include="TrackSectorPredicate.cpp" />
     <ClCompile Include="DebugDialogProjection.cpp" />
-    <ClCompile Include="DiskIIDebugDialogState.cpp" />
-    <ClCompile Include="DiskIIDebugDialog.cpp" />
+    <ClCompile Include="Disk2DebugDialogState.cpp" />
+    <ClCompile Include="Disk2DebugDialog.cpp" />
     <ClCompile Include="RichEditSquiggle.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -291,7 +291,7 @@
     <ClInclude Include="UiCommandTypes.h" />
     <ClInclude Include="Window.h" />
     <ClInclude Include="EmulatorShell.h" />
-    <ClInclude Include="DiskIIEventDisplay.h" />
+    <ClInclude Include="Disk2EventDisplay.h" />
     <ClInclude Include="DebugConsole.h" />
     <ClInclude Include="DiskSettings.h" />
     <ClInclude Include="AssetBootstrap.h" />
@@ -353,8 +353,8 @@
     <ClInclude Include="Ui\Animation.h" />
     <ClInclude Include="TrackSectorPredicate.h" />
     <ClInclude Include="DebugDialogProjection.h" />
-    <ClInclude Include="DiskIIDebugDialogState.h" />
-    <ClInclude Include="DiskIIDebugDialog.h" />
+    <ClInclude Include="Disk2DebugDialogState.h" />
+    <ClInclude Include="Disk2DebugDialog.h" />
     <ClInclude Include="RichEditSquiggle.h" />
     <ClInclude Include="UnicodeSymbols.h" />
     <ClInclude Include="WasapiAudio.h" />

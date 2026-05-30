@@ -1,8 +1,8 @@
 #include "Pch.h"
 #include <random>
 
-#include "Devices/DiskIIAddressMarkWatcher.h"
-#include "Devices/Disk/DiskIINibbleEngine.h"
+#include "Devices/Disk2AddressMarkWatcher.h"
+#include "Devices/Disk/Disk2NibbleEngine.h"
 #include "Devices/Disk/DiskImage.h"
 
 
@@ -22,14 +22,14 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  RecordingSink
 //
 //  Captures an ordered log of address-mark and data-mark events.
-//  Other IDiskIIEventSink methods are no-ops; the watcher only fires
+//  Other IDisk2EventSink methods are no-ops; the watcher only fires
 //  OnAddressMark / OnDataMarkRead per FR-008.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    class RecordingSink : public IDiskIIEventSink
+    class RecordingSink : public IDisk2EventSink
     {
     public:
         struct AddrEntry
@@ -115,9 +115,9 @@ namespace
         Encode4and4 (sec, secHi, secLo);
         Encode4and4 (chk, chkHi, chkLo);
 
-        out.push_back (DiskIIAddressMarkWatcher::kAddrMarkPrologue0);
-        out.push_back (DiskIIAddressMarkWatcher::kAddrMarkPrologue1);
-        out.push_back (DiskIIAddressMarkWatcher::kAddrMarkPrologue2);
+        out.push_back (Disk2AddressMarkWatcher::kAddrMarkPrologue0);
+        out.push_back (Disk2AddressMarkWatcher::kAddrMarkPrologue1);
+        out.push_back (Disk2AddressMarkWatcher::kAddrMarkPrologue2);
         out.push_back (volHi);
         out.push_back (volLo);
         out.push_back (trkHi);
@@ -126,9 +126,9 @@ namespace
         out.push_back (secLo);
         out.push_back (chkHi);
         out.push_back (chkLo);
-        out.push_back (DiskIIAddressMarkWatcher::kSectorEpilogue0);
-        out.push_back (DiskIIAddressMarkWatcher::kSectorEpilogue1);
-        out.push_back (DiskIIAddressMarkWatcher::kSectorEpilogue2);
+        out.push_back (Disk2AddressMarkWatcher::kSectorEpilogue0);
+        out.push_back (Disk2AddressMarkWatcher::kSectorEpilogue1);
+        out.push_back (Disk2AddressMarkWatcher::kSectorEpilogue2);
     }
 
 
@@ -148,23 +148,23 @@ namespace
     {
         uint32_t  i = 0;
 
-        out.push_back (DiskIIAddressMarkWatcher::kAddrMarkPrologue0);
-        out.push_back (DiskIIAddressMarkWatcher::kAddrMarkPrologue1);
-        out.push_back (DiskIIAddressMarkWatcher::kDataMarkPrologue2);
+        out.push_back (Disk2AddressMarkWatcher::kAddrMarkPrologue0);
+        out.push_back (Disk2AddressMarkWatcher::kAddrMarkPrologue1);
+        out.push_back (Disk2AddressMarkWatcher::kDataMarkPrologue2);
 
-        for (i = 0; i < DiskIIAddressMarkWatcher::kDataNibbleCount + 1; i++)
+        for (i = 0; i < Disk2AddressMarkWatcher::kDataNibbleCount + 1; i++)
         {
             out.push_back (0x96);
         }
 
-        out.push_back (DiskIIAddressMarkWatcher::kSectorEpilogue0);
-        out.push_back (DiskIIAddressMarkWatcher::kSectorEpilogue1);
-        out.push_back (DiskIIAddressMarkWatcher::kSectorEpilogue2);
+        out.push_back (Disk2AddressMarkWatcher::kSectorEpilogue0);
+        out.push_back (Disk2AddressMarkWatcher::kSectorEpilogue1);
+        out.push_back (Disk2AddressMarkWatcher::kSectorEpilogue2);
     }
 
 
 
-    void FeedAll (DiskIIAddressMarkWatcher & w, const std::vector<uint8_t> & nibbles)
+    void FeedAll (Disk2AddressMarkWatcher & w, const std::vector<uint8_t> & nibbles)
     {
         size_t   i = 0;
 
@@ -181,19 +181,19 @@ namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIAddressMarkWatcherTests
+//  Disk2AddressMarkWatcherTests
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace DiskIIAddressMarkWatcherTests
+namespace Disk2AddressMarkWatcherTests
 {
-    TEST_CLASS (DiskIIAddressMarkWatcherTests)
+    TEST_CLASS (Disk2AddressMarkWatcherTests)
     {
     public:
 
         TEST_METHOD (GoodAddressMark_firesOnceWithDecodedFields)
         {
-            DiskIIAddressMarkWatcher  watcher;
+            Disk2AddressMarkWatcher   watcher;
             RecordingSink             sink;
             std::vector<uint8_t>      stream;
 
@@ -211,7 +211,7 @@ namespace DiskIIAddressMarkWatcherTests
 
         TEST_METHOD (CorruptChecksum_firesZeroAddressMarks)
         {
-            DiskIIAddressMarkWatcher  watcher;
+            Disk2AddressMarkWatcher   watcher;
             RecordingSink             sink;
             std::vector<uint8_t>      stream;
 
@@ -228,7 +228,7 @@ namespace DiskIIAddressMarkWatcherTests
 
         TEST_METHOD (RandomNibbleStream_firesZeroAddressMarks)
         {
-            DiskIIAddressMarkWatcher  watcher;
+            Disk2AddressMarkWatcher  watcher;
             RecordingSink             sink;
             std::mt19937              rng (0xC0FFEEu);
             std::uniform_int_distribution<int>  dist (0, 255);
@@ -254,7 +254,7 @@ namespace DiskIIAddressMarkWatcherTests
 
         TEST_METHOD (DataMark_firesOnceOnEpilogue)
         {
-            DiskIIAddressMarkWatcher  watcher;
+            Disk2AddressMarkWatcher   watcher;
             RecordingSink             sink;
             std::vector<uint8_t>      stream;
 
@@ -275,7 +275,7 @@ namespace DiskIIAddressMarkWatcherTests
 
         TEST_METHOD (DataMarkWithoutAddressMark_firesWithCachedSectorMinusOne)
         {
-            DiskIIAddressMarkWatcher  watcher;
+            Disk2AddressMarkWatcher   watcher;
             RecordingSink             sink;
             std::vector<uint8_t>      stream;
 
@@ -297,7 +297,7 @@ namespace DiskIIAddressMarkWatcherTests
 
         TEST_METHOD (InterleavedSectorCadence_firesInOrder)
         {
-            DiskIIAddressMarkWatcher  watcher;
+            Disk2AddressMarkWatcher   watcher;
             RecordingSink             sink;
             std::vector<uint8_t>      stream;
 
@@ -359,10 +359,10 @@ namespace DiskIIAddressMarkWatcherTests
 
         TEST_METHOD (EnginePollingLoop_firesExactlyOneAddressAndDataMark)
         {
-            DiskIIAddressMarkWatcher  watcher;
+            Disk2AddressMarkWatcher   watcher;
             RecordingSink             sink;
             DiskImage                 img;
-            DiskIINibbleEngine        eng;
+            Disk2NibbleEngine         eng;
             std::vector<uint8_t>      stream;
             size_t                    bitOffset    = 0;
             size_t                    i            = 0;
@@ -412,10 +412,10 @@ namespace DiskIIAddressMarkWatcherTests
             // simulate the 6502's "LDA $C0EC / BPL" spin loop with
             // several ReadLatch calls, then route the watcher
             // through ConsumeFreshNibble exactly as
-            // DiskIIController::HandleReadDispatch does.
+            // Disk2Controller::HandleReadDispatch does.
             for (bit = 0; bit < (int) (stream.size() * 8); bit++)
             {
-                eng.Tick ((uint32_t) DiskIINibbleEngine::kCyclesPerBit);
+                eng.Tick ((uint32_t) Disk2NibbleEngine::kCyclesPerBit);
 
                 for (pollIndex = 0; pollIndex < 8; pollIndex++)
                 {

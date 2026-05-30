@@ -12,7 +12,7 @@
 #include "Devices/AppleSoftSwitchBank.h"
 #include "Devices/AppleIIeSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
-#include "Devices/DiskIIController.h"
+#include "Devices/Disk2Controller.h"
 #include "Devices/LanguageCard.h"
 #include "Devices/AppleIIeMmu.h"
 #include "Core/Prng.h"
@@ -364,7 +364,7 @@ EmulatorShell::EmulatorShell()
 EmulatorShell::~EmulatorShell()
 {
     HRESULT             hrFlush    = S_OK;
-    DiskIIController *  controller = nullptr;
+    Disk2Controller *   controller = nullptr;
 
 
 
@@ -374,8 +374,8 @@ EmulatorShell::~EmulatorShell()
     // down its ring (and before the controller / audio source itself
     // is destroyed, which happens via m_ownedDevices / m_diskAudioSources
     // below). Controller sink first, then audio sink, matching the
-    // attachment order in OpenDiskIIDebugDialog.
-    if (m_diskIIDebugDialog != nullptr)
+    // attachment order in OpenDisk2DebugDialog.
+    if (m_disk2DebugDialog != nullptr)
     {
         controller = m_diskManager->FindSlot6Controller();
 
@@ -392,8 +392,8 @@ EmulatorShell::~EmulatorShell()
             }
         }
 
-        m_diskIIDebugDialog->Destroy();
-        m_diskIIDebugDialog.reset();
+        m_disk2DebugDialog->Destroy();
+        m_disk2DebugDialog.reset();
     }
 
     // / T097 / FR-025. Final auto-flush of any dirty disks on
@@ -2004,7 +2004,7 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
         case IDM_MACHINE_POWERCYCLE:
         {
             // EmulatorShell::PowerCycle preserves DiskImageStore
-            // mounts but DiskIIController::PowerCycle unbinds the
+            // mounts but Disk2Controller::PowerCycle unbinds the
             // controller's external-disk pointer (it re-points
             // each engine at its empty internal sentinel), so
             // without an explicit re-mount the drives come up
@@ -3035,23 +3035,23 @@ void EmulatorShell::PowerCycle()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OpenDiskIIDebugDialog
+//  OpenDisk2DebugDialog
 //
 //  Spec-006 / FR-001 / FR-017 / FR-024. View -> Disk II Debug...
 //  command handler and Ctrl+Shift+D accelerator target. Lazy-creates
 //  the modeless dialog on first open, wires it as the controller's
-//  event sink AND as the active DiskIIAudioSource's audio-event
+//  event sink AND as the active Disk2AudioSource's audio-event
 //  sink, applies the uptime anchor and the multi-controller title
 //  hint, then shows + foregrounds the window. Subsequent calls
 //  short-circuit to Show + SetForegroundWindow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::OpenDiskIIDebugDialog()
+void EmulatorShell::OpenDisk2DebugDialog()
 {
     HRESULT             hr           = S_OK;
-    DiskIIController *  controller   = nullptr;
-    int                 diskIICount  = 0;
+    Disk2Controller *   controller   = nullptr;
+    int                 Disk2Count  = 0;
     HINSTANCE           hInstance    = nullptr;
     size_t              i            = 0;
 
@@ -3067,47 +3067,47 @@ void EmulatorShell::OpenDiskIIDebugDialog()
     {
         if (slot.device == "disk-ii")
         {
-            diskIICount++;
+            Disk2Count++;
         }
     }
 
-    if (m_diskIIDebugDialog == nullptr)
+    if (m_disk2DebugDialog == nullptr)
     {
-        m_diskIIDebugDialog = std::make_unique<DiskIIDebugDialog>();
+        m_disk2DebugDialog = std::make_unique<Disk2DebugDialog>();
 
         hInstance = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
 
-        hr = m_diskIIDebugDialog->Create (hInstance, m_hwnd);
-        CHRF (hr, m_diskIIDebugDialog.reset());
+        hr = m_disk2DebugDialog->Create (hInstance, m_hwnd);
+        CHRF (hr, m_disk2DebugDialog.reset());
 
-        m_diskIIDebugDialog->SetUptimeAnchor (m_uptimeAnchor);
-        m_diskIIDebugDialog->SetMultiControllerHint (diskIICount > 1);
+        m_disk2DebugDialog->SetUptimeAnchor (m_uptimeAnchor);
+        m_disk2DebugDialog->SetMultiControllerHint (Disk2Count > 1);
 
         if (m_cpu != nullptr)
         {
-            m_diskIIDebugDialog->SetCycleCounter (m_cpu->GetCycleCounterPtr());
+            m_disk2DebugDialog->SetCycleCounter (m_cpu->GetCycleCounterPtr());
         }
 
         // FR-024: both sinks attached together, dialog implements
         // both interfaces. Audio sink is a no-op if the mixer has no
         // source registered (e.g., audio subsystem disabled).
-        controller->SetEventSink (m_diskIIDebugDialog.get());
+        controller->SetEventSink (m_disk2DebugDialog.get());
 
         for (i = 0; i < m_diskAudioSources.size(); i++)
         {
             if (m_diskAudioSources[i] != nullptr)
             {
-                m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get());
+                m_diskAudioSources[i]->SetAudioEventSink (m_disk2DebugDialog.get());
             }
         }
     }
     else
     {
-        m_diskIIDebugDialog->SetMultiControllerHint (diskIICount > 1);
+        m_disk2DebugDialog->SetMultiControllerHint (Disk2Count > 1);
     }
 
-    m_diskIIDebugDialog->Show();
-    SetForegroundWindow (m_diskIIDebugDialog->GetHwnd());
+    m_disk2DebugDialog->Show();
+    SetForegroundWindow (m_disk2DebugDialog->GetHwnd());
 
 Error:
     return;
@@ -3123,7 +3123,7 @@ Error:
 //
 //  Spec-006 bug 15. SwitchMachine tears down the old controller and
 //  audio source then constructs new ones via CreateMemoryDevices,
-//  but the dialog's sink wiring only ran inside OpenDiskIIDebugDialog
+//  but the dialog's sink wiring only ran inside OpenDisk2DebugDialog
 //  on first open -- the new controller starts with m_eventSink ==
 //  nullptr and the new audio source with m_audioEventSink == nullptr,
 //  so the debug window goes silent post-switch. Re-attach both
@@ -3135,23 +3135,23 @@ Error:
 void EmulatorShell::AttachDebugSinksIfOpen()
 {
     HRESULT             hr         = S_OK;
-    DiskIIController *  controller = nullptr;
+    Disk2Controller *   controller = nullptr;
     size_t              i          = 0;
 
-    CBR (m_diskIIDebugDialog != nullptr);
+    CBR (m_disk2DebugDialog != nullptr);
 
     controller = m_diskManager->FindSlot6Controller();
 
     if (controller != nullptr)
     {
-        controller->SetEventSink (m_diskIIDebugDialog.get());
+        controller->SetEventSink (m_disk2DebugDialog.get());
     }
 
     for (i = 0; i < m_diskAudioSources.size(); i++)
     {
         if (m_diskAudioSources[i] != nullptr)
         {
-            m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get());
+            m_diskAudioSources[i]->SetAudioEventSink (m_disk2DebugDialog.get());
         }
     }
 

@@ -8,7 +8,7 @@
 #include "../Devices/AppleSoftSwitchBank.h"
 #include "../Devices/AppleSpeaker.h"
 #include "../Devices/LanguageCard.h"
-#include "../Devices/DiskIIController.h"
+#include "../Devices/Disk2Controller.h"
 #include "../Devices/AppleIIeKeyboard.h"
 #include "../Devices/AppleIIeMmu.h"
 #include "../Devices/AppleIIeSoftSwitchBank.h"
@@ -122,5 +122,5 @@ void ComponentRegistry::RegisterBuiltinDevices (ComponentRegistry & registry)
     registry.Register ("apple2-softswitches",  AppleSoftSwitchBank::Create);
     registry.Register ("apple2e-softswitches", AppleIIeSoftSwitchBank::Create);
     registry.Register ("language-card",        LanguageCard::Create);
-    registry.Register ("disk-ii",              DiskIIController::Create);
+    registry.Register ("disk-ii",              Disk2Controller::Create);
 }

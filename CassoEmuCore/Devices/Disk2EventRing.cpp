@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "DiskIIEventRing.h"
+#include "Disk2EventRing.h"
 
 
 
@@ -22,7 +22,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskIIEventRing::TryPush (const DiskIIEvent & e) noexcept
+bool Disk2EventRing::TryPush (const Disk2Event & e) noexcept
 {
     uint32_t  tail     = m_tail.load (std::memory_order_relaxed);
     uint32_t  head     = m_head.load (std::memory_order_acquire);
@@ -54,7 +54,7 @@ bool DiskIIEventRing::TryPush (const DiskIIEvent & e) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskIIEventRing::TryPop (DiskIIEvent & out) noexcept
+bool Disk2EventRing::TryPop (Disk2Event & out) noexcept
 {
     uint32_t  head = m_head.load (std::memory_order_relaxed);
     uint32_t  tail = m_tail.load (std::memory_order_acquire);
@@ -85,7 +85,7 @@ bool DiskIIEventRing::TryPop (DiskIIEvent & out) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t DiskIIEventRing::Drain (DiskIIEvent * out, uint32_t maxCount) noexcept
+uint32_t Disk2EventRing::Drain (Disk2Event * out, uint32_t maxCount) noexcept
 {
     uint32_t  head     = m_head.load (std::memory_order_relaxed);
     uint32_t  tail     = m_tail.load (std::memory_order_acquire);
@@ -120,7 +120,7 @@ uint32_t DiskIIEventRing::Drain (DiskIIEvent * out, uint32_t maxCount) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t DiskIIEventRing::ApproxSize() const noexcept
+uint32_t Disk2EventRing::ApproxSize() const noexcept
 {
     uint32_t  tail = m_tail.load (std::memory_order_relaxed);
     uint32_t  head = m_head.load (std::memory_order_relaxed);

@@ -68,7 +68,7 @@ public:
     // Disk II mechanism management (spec 005-disk-ii-audio Phase 14 /
     // FR-006 / SC-010). The mixer holds the asset-load context
     // (devices dir + sample rate) so SetMechanism can reload every
-    // registered DiskIIAudioSource without the shell having to
+    // registered Disk2AudioSource without the shell having to
     // re-iterate the source set. `SetSampleLoadContext` must be
     // called before any `SetMechanism` for the reload to take
     // effect. `GetMechanism` returns the currently-active mechanism
@@ -85,7 +85,7 @@ public:
     void  GeneratePCM      (float * stereoOut, uint32_t numSamples);
 
     // Tick each registered source's per-frame state machine (used by
-    // DiskIIAudioSource for step-vs-seek timing). Called from
+    // Disk2AudioSource for step-vs-seek timing). Called from
     // WasapiAudio::SubmitFrame() just before GeneratePCM, with the
     // current CPU cycle count (FR-005).
     void  Tick             (uint64_t currentCycle);

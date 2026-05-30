@@ -1,0 +1,610 @@
+#include "Pch.h"
+#include "Core/MemoryBus.h"
+#include "Devices/Disk2Controller.h"
+
+// Disk2Controller carries two DiskImage instances; per-test heap allocation
+// keeps the C6262 stack-frame budget happy.
+#pragma warning (disable: 6262)
+
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+
+namespace
+{
+    static constexpr Word   kSlot6Base           = 0xC0E0;
+    static constexpr Word   kPhase0Off           = 0xC0E0;
+    static constexpr Word   kPhase0On            = 0xC0E1;
+    static constexpr Word   kPhase1On            = 0xC0E3;
+    static constexpr Word   kPhase2On            = 0xC0E5;
+    static constexpr Word   kPhase3On            = 0xC0E7;
+    static constexpr Word   kMotorOff            = 0xC0E8;
+    static constexpr Word   kMotorOn             = 0xC0E9;
+    static constexpr Word   kDrive1              = 0xC0EA;
+    static constexpr Word   kDrive2              = 0xC0EB;
+    static constexpr Word   kQ6Off               = 0xC0EC;
+    static constexpr Word   kQ6On                = 0xC0ED;
+    static constexpr Word   kQ7Off               = 0xC0EE;
+    static constexpr Word   kQ7On                = 0xC0EF;
+    static constexpr int    kBitsPerNibble       = 8;
+    static constexpr size_t kSyntheticTrackBytes = 64;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Helper: write an 8-bit MSB-first nibble into a packed bit-stream image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void WriteNibbleToImage (DiskImage & img, int track, size_t & bitOffset, Byte nibble)
+{
+    int   i = 0;
+
+    for (i = 7; i >= 0; i--)
+    {
+        Byte   b = static_cast<Byte> ((nibble >> i) & 1);
+
+        img.WriteBit (track, bitOffset++, b);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Helper: spin up, enter LSS write mode (Q6=1, Q7=1), and write a byte
+//  sequence through the controller's write path. Returns the bit cursor
+//  captured immediately before the first nibble was deposited.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static size_t WriteBytesThroughLss (Disk2Controller & disk, const Byte * data, int count)
+{
+    size_t   startBit = 0;
+    int      i        = 0;
+    int      b        = 0;
+
+    disk.Read (kMotorOn);
+    disk.Tick (Disk2Controller::kMotorSpinupCycles);
+    disk.Read (kQ6On);
+    disk.Read (kQ7On);
+
+    startBit = disk.GetEngine (0).GetBitPosition ();
+
+    for (i = 0; i < count; i++)
+    {
+        disk.Write (kQ7On, data[i]);
+
+        for (b = 0; b < kBitsPerNibble; b++)
+        {
+            disk.Tick (Disk2NibbleEngine::kCyclesPerBit);
+        }
+    }
+
+    return startBit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disk2Tests
+//
+//  Phase 9 acceptance: $C0Ex soft-switch surface, phase magnets, motor,
+//  drive select, Q6/Q7 LSS cross-product, write-protect, head-clamp, and
+//  bit-stream LSS round-trip via the rewritten controller + engine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (Disk2Tests)
+{
+public:
+
+    TEST_METHOD (Slot6_IORange_C0E0_to_C0EF)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+        Assert::AreEqual (static_cast<Word> (0xC0E0), disk->GetStart ());
+        Assert::AreEqual (static_cast<Word> (0xC0EF), disk->GetEnd ());
+    }
+
+    TEST_METHOD (PhaseMagnetsStepHeadCorrectly)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+        disk->Read (kMotorOn);
+
+        // Walking phase 0->1->2->3 advances one quarter-track per step.
+        disk->Read (kPhase0On);
+        disk->Read (kPhase0Off);
+        disk->Read (kPhase1On);
+
+        Assert::IsTrue (disk->GetQuarterTrack () > 0,
+            L"Phase magnet stepping must move the head");
+    }
+
+    TEST_METHOD (MotorOnOffViaC0E8C0E9)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+        disk->Read (kMotorOn);
+        Assert::IsTrue  (disk->IsMotorOn (), L"$C0E9 must enable the motor");
+
+        // $C0E8 starts the ~1 second motor-spindown timer (UTAIIe ch. 9
+        // / AppleWin SPINNING_CYCLES). The motor stays on until the
+        // timer expires; the controller advances the timer in Tick().
+        // A sufficiently large Tick must drop the motor.
+        disk->Read (kMotorOff);
+        Assert::IsTrue (disk->IsMotorOn (),
+            L"$C0E8 must keep the motor spinning for the spindown window");
+
+        disk->Tick (2'000'000);  // > 1M cycle spindown
+        Assert::IsFalse (disk->IsMotorOn (),
+            L"$C0E8 must disable the motor after the spindown timer expires");
+    }
+
+    TEST_METHOD (DriveSelectViaC0EAC0EB)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+        disk->Read (kDrive2);
+        Assert::AreEqual (1, disk->GetActiveDrive (), L"$C0EB selects drive 2");
+
+        disk->Read (kDrive1);
+        Assert::AreEqual (0, disk->GetActiveDrive (), L"$C0EA selects drive 1");
+    }
+
+    TEST_METHOD (Q7ClearQ6ClearReadsNibble)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+        disk->Read (kQ7Off);
+        disk->Read (kQ6Off);
+
+        Byte   v = disk->Read (kQ6Off);
+
+        Assert::AreEqual (static_cast<Byte> (0), v,
+            L"Q7=Q6=0 with no disk: read latch returns 0");
+    }
+
+    TEST_METHOD (Q7ClearQ6SetReadsWriteProtect)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+        disk->GetDisk (0)->SetWriteProtected (true);
+
+        disk->Read (kQ7Off);
+        Byte   v = disk->Read (kQ6On);
+
+        Assert::AreEqual (static_cast<Byte> (0x80), v,
+            L"Q7=0,Q6=1 with WP disk: bit 7 set");
+    }
+
+    TEST_METHOD (Q7SetQ6ClearShiftLoad)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+        disk->Read (kQ7On);
+        disk->Read (kQ6Off);
+
+        Assert::IsTrue  (disk->IsQ7 (), L"$C0EF sets Q7");
+        Assert::IsFalse (disk->IsQ6 (), L"$C0EC clears Q6");
+    }
+
+    TEST_METHOD (Q7SetQ6SetWritesNibble)
+    {
+        unique_ptr<Disk2Controller>    disk      = make_unique<Disk2Controller> (6);
+        size_t                         bitOffset = 0;
+
+        // Provide a writable track so the engine has somewhere to push bits.
+        disk->GetDisk (0)->ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
+
+        disk->Read  (kMotorOn);
+        disk->Read  (kQ6On);
+        disk->Read  (kQ7On);
+
+        disk->Write (kQ7On, 0xFF);
+        disk->Tick (Disk2NibbleEngine::kCyclesPerBit * kBitsPerNibble);
+
+        Assert::IsTrue (disk->IsQ7 () && disk->IsQ6 (),
+            L"Q7=Q6=1 must be set after $C0ED + $C0EF");
+
+        UNREFERENCED_PARAMETER (bitOffset);
+    }
+
+    TEST_METHOD (NibbleStreamAdvancesAtCorrectBitTime)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+        disk->GetDisk (0)->ResizeTrack (0, 64);
+
+        disk->Read (kMotorOn);
+        disk->Read (kQ7Off);
+        disk->Read (kQ6Off);
+
+        size_t   posBefore = disk->GetEngine (0).GetBitPosition ();
+
+        disk->Tick (Disk2NibbleEngine::kCyclesPerBit * 4);
+
+        size_t   posAfter = disk->GetEngine (0).GetBitPosition ();
+
+        Assert::AreEqual (size_t (4), posAfter - posBefore,
+            L"4 bits should advance per 16 CPU cycles (4 cycles/bit)");
+    }
+
+    TEST_METHOD (RotationalPosition_TwoReadsSeparatedByCyclesSeeAdvanceBits)
+    {
+        unique_ptr<Disk2Controller>   disk       = make_unique<Disk2Controller> (6);
+        size_t                        posFirst   = 0;
+        size_t                        posSecond  = 0;
+        size_t                        advanced   = 0;
+        constexpr uint32_t            kGap       = 1000;
+        constexpr size_t              kExpect    = kGap / Disk2NibbleEngine::kCyclesPerBit;
+        constexpr size_t              kTrackBits = 8192;
+
+
+
+        disk->GetDisk (0)->ResizeTrack (0, kTrackBits);
+
+        disk->Read (kMotorOn);
+        disk->Read (kQ7Off);
+        disk->Read (kQ6Off);
+
+        // Drain the spin-up window so the bit cursor is the only
+        // thing advancing under us.
+        disk->Tick (Disk2Controller::kMotorSpinupCycles);
+
+        disk->Read (kQ6Off);
+        posFirst  = disk->GetEngine (0).GetBitPosition ();
+
+        disk->Tick (kGap);
+
+        disk->Read (kQ6Off);
+        posSecond = disk->GetEngine (0).GetBitPosition ();
+
+        advanced  = (posSecond + kTrackBits - posFirst) % kTrackBits;
+
+        Assert::AreEqual (kExpect, advanced,
+            L"Two reads N cycles apart must see N / kCyclesPerBit bits advance");
+    }
+
+    TEST_METHOD (WriteProtectedDiskRejectsWrite)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+        disk->GetDisk (0)->ResizeTrack    (0, 8);
+        disk->GetDisk (0)->SetWriteProtected (true);
+        disk->GetDisk (0)->WriteBit       (0, 0, 1);
+
+        Assert::AreEqual (static_cast<uint8_t> (0), disk->GetDisk (0)->ReadBit (0, 0),
+            L"Write-protected disk must ignore WriteBit");
+    }
+
+    TEST_METHOD (HeadStepWrapsAtTrackBoundaries)
+    {
+        unique_ptr<Disk2Controller>    disk = make_unique<Disk2Controller> (6);
+        int                            i    = 0;
+
+        disk->Read (kMotorOn);
+
+        // Walk the head forward; clamp at quarter-track 139 must hold.
+        for (i = 0; i < 300; i++)
+        {
+            int    p   = i & 3;
+            Word   on  = static_cast<Word> (kSlot6Base + 1 + p * 2);
+            Word   off = static_cast<Word> (kSlot6Base     + p * 2);
+
+            disk->Read (on);
+            disk->Read (off);
+        }
+
+        Assert::IsTrue (disk->GetQuarterTrack () >= 0,
+            L"Quarter-track must remain in legal range after long forward walk");
+        Assert::IsTrue (disk->GetQuarterTrack () <= Disk2Controller::kMaxQuarterTrack,
+            L"Quarter-track must clamp to kMaxQuarterTrack");
+    }
+
+    TEST_METHOD (LSS_ReadsKnownNibblePattern)
+    {
+        unique_ptr<Disk2Controller>    disk  = make_unique<Disk2Controller> (6);
+        DiskImage *                    img   = disk->GetDisk (0);
+        size_t                         off   = 0;
+        Byte                           value = 0;
+        int                            i     = 0;
+
+        img->ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
+
+        disk->Read (kMotorOn);
+        disk->Read (kQ7Off);
+        disk->Read (kQ6Off);
+
+        // Issue #67: drain the motor spin-up window before laying down
+        // the test nibbles. The bit cursor advances during spin-up, so
+        // we write the pattern at wherever the engine ends up so the LSS
+        // sees the MSB-set nibble on the very next bit cells.
+        disk->Tick (Disk2Controller::kMotorSpinupCycles);
+
+        off = disk->GetEngine (0).GetBitPosition ();
+        WriteNibbleToImage (*img, 0, off, 0xD5);
+        WriteNibbleToImage (*img, 0, off, 0xAA);
+        WriteNibbleToImage (*img, 0, off, 0x96);
+
+        // Pump 8 bits per nibble × 3 nibbles, plus one extra cell to
+        // drain the MC3470 head-amplifier's one-cell pipeline delay.
+        // The latch reports the first nibble whose MSB is set: 0xD5.
+        for (i = 0; i < 9; i++)
+        {
+            disk->Tick (Disk2NibbleEngine::kCyclesPerBit);
+        }
+
+        value = disk->Read (kQ6Off);
+
+        Assert::AreEqual (static_cast<Byte> (0xD5), value,
+            L"LSS must reassemble the first MSB-set nibble in the stream");
+    }
+
+    TEST_METHOD (LSS_WritesPatternRoundTrip)
+    {
+        unique_ptr<Disk2Controller>    disk = make_unique<Disk2Controller> (6);
+        DiskImage *                    img  = disk->GetDisk (0);
+        int                            i    = 0;
+
+        img->ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
+
+        disk->Read  (kMotorOn);
+        disk->Read  (kQ6On);
+        disk->Read  (kQ7On);
+        disk->Write (kQ7On, 0xAA);
+
+        for (i = 0; i < 8; i++)
+        {
+            disk->Tick (Disk2NibbleEngine::kCyclesPerBit);
+        }
+
+        Assert::IsTrue (img->IsDirty (),
+            L"Write through the LSS must mark the image dirty");
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //  Issue #67 deliverable 3: the LSS write path drives the track
+    //
+    //  Copy-protected titles write nibbles with non-standard sync timing. The
+    //  real Logic State Sequencer latches the data byte only on its LD command,
+    //  which fires at a sequencer phase that the CPU's ~32-cycle-per-byte write
+    //  loop hits exactly -- manual bit-cell ticks cannot reproduce that phase,
+    //  so data-dependent and bit-exact write fidelity can only be validated
+    //  under real CPU timing (deferred to the CPU-driven boot tests). What we
+    //  can assert at the controller level is that the write path mechanically
+    //  drives the medium: it advances the head one cell per bit-cell tick and
+    //  deposits flux that marks the image dirty.
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (LSS_WriteAdvancesHeadAndDepositsFlux)
+    {
+        unique_ptr<Disk2Controller>    disk         = make_unique<Disk2Controller> (6);
+        DiskImage *                    img          = disk->GetDisk (0);
+        size_t                         startBit     = 0;
+        size_t                         endBit       = 0;
+        size_t                         advanced     = 0;
+        size_t                         trackBits    = 4096;
+        int                            i            = 0;
+        bool                           anyOne       = false;
+        constexpr int                  kNibbleCount = 6;
+        constexpr int                  kRegionBits  = kNibbleCount * kBitsPerNibble;
+        constexpr Byte                 kOnesData[kNibbleCount] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+
+        img->ResizeTrack (0, trackBits);
+
+        startBit = WriteBytesThroughLss (*disk, kOnesData, kNibbleCount);
+        endBit   = disk->GetEngine (0).GetBitPosition ();
+
+        advanced = (endBit + trackBits - startBit) % trackBits;
+        Assert::AreEqual (static_cast<size_t> (kRegionBits), advanced,
+            L"LSS write must advance the head one cell per bit-cell tick");
+
+        for (i = 0; i < kRegionBits; i++)
+        {
+            if (img->ReadBit (0, (startBit + i) % trackBits) != 0)
+            {
+                anyOne = true;
+            }
+        }
+
+        Assert::IsTrue (anyOne,
+            L"Writing 0xFF nibbles must deposit flux (one bits) on the track");
+        Assert::IsTrue (img->IsDirty (),
+            L"Write through the LSS must mark the image dirty");
+    }
+
+    TEST_METHOD (Reset_ClearsControllerState)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+        disk->Read (kMotorOn);
+        disk->Read (kPhase1On);
+        disk->Reset ();
+
+        Assert::IsFalse (disk->IsMotorOn (),
+            L"Reset must clear the motor flag");
+        Assert::AreEqual (0, disk->GetActiveDrive (),
+            L"Reset must select drive 0");
+    }
+
+    TEST_METHOD (GetDisk_Bounds)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+        Assert::IsNotNull (disk->GetDisk (0));
+        Assert::IsNotNull (disk->GetDisk (1));
+        Assert::IsNull    (disk->GetDisk (2));
+        Assert::IsNull    (disk->GetDisk (-1));
+    }
+
+    TEST_METHOD (MountDisk_InvalidDrive_ReturnsError)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+        HRESULT   hr = disk->MountDisk (3, "nonexistent.dsk");
+
+        Assert::IsTrue (FAILED (hr));
+    }
+
+    TEST_METHOD (MountDisk_MissingFile_ReturnsError)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+        HRESULT   hr = disk->MountDisk (0, "this_file_does_not_exist.dsk");
+
+        Assert::IsTrue (FAILED (hr));
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //  Issue #67 deliverable 1: motor spin-up window
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Spinup_MotorOnArmsSpinupWindow)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+        Assert::AreEqual (uint32_t (0), disk->GetMotorSpinupRemaining (),
+            L"Cold controller must not have a pending spin-up");
+
+        disk->Read (kMotorOn);
+
+        Assert::IsTrue  (disk->IsMotorOn (),
+            L"Motor flag must be true immediately on $C0E9");
+        Assert::IsFalse (disk->IsMotorAtSpeed (),
+            L"Motor must NOT be at speed inside the spin-up window");
+        Assert::AreEqual (Disk2Controller::kMotorSpinupCycles,
+            disk->GetMotorSpinupRemaining (),
+            L"Spin-up cycle counter must equal the full window on motor-on edge");
+    }
+
+    TEST_METHOD (Spinup_ReadsReturn80InsideWindow)
+    {
+        unique_ptr<Disk2Controller>    disk  = make_unique<Disk2Controller> (6);
+        DiskImage *                    img   = disk->GetDisk (0);
+        size_t                         off   = 0;
+        Byte                           value = 0;
+        int                            i     = 0;
+
+        img->ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
+
+        WriteNibbleToImage (*img, 0, off, 0xD5);
+        WriteNibbleToImage (*img, 0, off, 0xAA);
+        WriteNibbleToImage (*img, 0, off, 0x96);
+
+        disk->Read (kMotorOn);
+        disk->Read (kQ7Off);
+        disk->Read (kQ6Off);
+
+        // Tick a handful of bit cells -- well inside the LSS-stable
+        // window (0x2EC cycles). The latch must keep returning 0x80
+        // (MSB set, but data garbage); copy-protection schemes rely
+        // on the absence of real sync nibbles during this window.
+        // Matches AppleWin's GH#864 behavior.
+        for (i = 0; i < 8; i++)
+        {
+            disk->Tick (Disk2NibbleEngine::kCyclesPerBit);
+        }
+
+        value = disk->Read (kQ6Off);
+
+        Assert::AreEqual (static_cast<Byte> (0x80), value,
+            L"Reads inside the LSS-stability window must return 0x80");
+        Assert::IsFalse (disk->IsMotorAtSpeed (),
+            L"Motor must still report not-at-speed after 32 cycles");
+    }
+
+    TEST_METHOD (Spinup_RealDataAfterWindowExpires)
+    {
+        unique_ptr<Disk2Controller>    disk  = make_unique<Disk2Controller> (6);
+        DiskImage *                    img   = disk->GetDisk (0);
+        size_t                         off   = 0;
+        Byte                           value = 0;
+        uint64_t                       i     = 0;
+        const uint64_t                 kBudget = 600'000ULL;
+
+        img->ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
+
+        WriteNibbleToImage (*img, 0, off, 0xD5);
+        WriteNibbleToImage (*img, 0, off, 0xAA);
+        WriteNibbleToImage (*img, 0, off, 0x96);
+
+        disk->Read (kMotorOn);
+        disk->Read (kQ7Off);
+        disk->Read (kQ6Off);
+
+        // Drain the spin-up window in a single big tick, then poll
+        // until the latch produces an MSB-set nibble.
+        disk->Tick (Disk2Controller::kMotorSpinupCycles);
+
+        Assert::IsTrue (disk->IsMotorAtSpeed (),
+            L"Motor must be at speed once the spin-up counter drains");
+
+        for (i = 0; i < kBudget; i += Disk2NibbleEngine::kCyclesPerBit)
+        {
+            disk->Tick (Disk2NibbleEngine::kCyclesPerBit);
+            value = disk->Read (kQ6Off);
+
+            if (value & 0x80)
+            {
+                break;
+            }
+        }
+
+        Assert::IsTrue ((value & 0x80) != 0,
+            L"Latch must produce a real MSB-set nibble after spin-up");
+    }
+
+    TEST_METHOD (Spinup_MotorOnDuringSpindownDoesNotRearm)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+        disk->Read (kMotorOn);
+        disk->Tick (Disk2Controller::kMotorSpinupCycles);
+
+        Assert::IsTrue (disk->IsMotorAtSpeed (),
+            L"Precondition: motor reached speed");
+
+        // Issue motor-off; this only arms the spindown timer -- the
+        // physical disk keeps spinning at 300 RPM.
+        disk->Read (kMotorOff);
+
+        Assert::IsTrue (disk->IsMotorOn (),
+            L"Motor flag stays true during spindown window");
+        Assert::IsTrue (disk->IsMotorAtSpeed (),
+            L"Disk is still at speed during the spindown window");
+
+        // Motor-on inside the spindown window: cancels the spindown
+        // and must NOT re-arm spin-up (the disk never lost speed).
+        disk->Read (kMotorOn);
+
+        Assert::AreEqual (uint32_t (0), disk->GetMotorSpinupRemaining (),
+            L"Motor-on inside spindown must not re-arm the spin-up window");
+        Assert::IsTrue (disk->IsMotorAtSpeed (),
+            L"Reads must remain at-speed across an intra-spindown motor toggle");
+    }
+
+    TEST_METHOD (Spinup_ResetClearsSpinupCounter)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+        disk->Read (kMotorOn);
+
+        Assert::AreNotEqual (uint32_t (0), disk->GetMotorSpinupRemaining (),
+            L"Precondition: spin-up armed");
+
+        disk->Reset ();
+
+        Assert::AreEqual (uint32_t (0), disk->GetMotorSpinupRemaining (),
+            L"Reset must clear the spin-up counter");
+    }
+};

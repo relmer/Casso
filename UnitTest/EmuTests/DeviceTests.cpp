@@ -2,9 +2,9 @@
 #include "Core/MemoryBus.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
-#include "Devices/DiskIIController.h"
+#include "Devices/Disk2Controller.h"
 
-// DiskIIController embeds two DiskImage objects (~143KB each) which exceed
+// Disk2Controller embeds two DiskImage objects (~143KB each) which exceed
 // the C6262 stack-size threshold when stack-allocated in test methods.
 #pragma warning (disable: 6262)
 
@@ -89,9 +89,9 @@ public:
         Assert::IsFalse (error.empty ());
     }
 
-    TEST_METHOD (DiskIIController_Slot6_RespondsAtC0E0)
+    TEST_METHOD (Disk2Controller_Slot6_RespondsAtC0E0)
     {
-        DiskIIController disk (6);
+        Disk2Controller disk (6);
         MemoryBus bus;
         bus.AddDevice (&disk);
 
@@ -103,9 +103,9 @@ public:
         UNREFERENCED_PARAMETER (val);
     }
 
-    TEST_METHOD (DiskIIController_MotorOnOff)
+    TEST_METHOD (Disk2Controller_MotorOnOff)
     {
-        DiskIIController disk (6);
+        Disk2Controller disk (6);
 
         disk.Read (0xC0E9);   // Motor ON
 

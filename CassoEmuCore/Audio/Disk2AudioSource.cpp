@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Audio/DiskIIAudioSource.h"
+#include "Audio/Disk2AudioSource.h"
 
 #pragma comment(lib, "mf.lib")
 #pragma comment(lib, "mfplat.lib")
@@ -161,16 +161,16 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIAudioSource
+//  Disk2AudioSource
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskIIAudioSource::DiskIIAudioSource()
+Disk2AudioSource::Disk2AudioSource()
 {
 }
 
 
-DiskIIAudioSource::~DiskIIAudioSource()
+Disk2AudioSource::~Disk2AudioSource()
 {
 }
 
@@ -189,7 +189,7 @@ DiskIIAudioSource::~DiskIIAudioSource()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskIIAudioSource::LoadSamples (
+HRESULT Disk2AudioSource::LoadSamples (
     const wchar_t * devicesDir,
     const wchar_t * mechanism,
     uint32_t        targetSampleRate)
@@ -246,7 +246,7 @@ HRESULT DiskIIAudioSource::LoadSamples (
         if (FAILED (hrSlot))
         {
             DEBUGMSG (
-                L"DiskIIAudioSource: failed to load %s (hr=0x%08X) -- sound muted.\n",
+                L"Disk2AudioSource: failed to load %s (hr=0x%08X) -- sound muted.\n",
                 fullPath.wstring().c_str(), hrSlot);
             slots[i].clear();
         }
@@ -280,7 +280,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIAudioSource::SetSampleBufferForTest (
+void Disk2AudioSource::SetSampleBufferForTest (
     const wchar_t *    slot,
     vector<float> &&   samples)
 {
@@ -321,7 +321,7 @@ void DiskIIAudioSource::SetSampleBufferForTest (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIAudioSource::SetPan (float panLeft, float panRight)
+void Disk2AudioSource::SetPan (float panLeft, float panRight)
 {
     m_panLeft  = panLeft;
     m_panRight = panRight;
@@ -345,7 +345,7 @@ void DiskIIAudioSource::SetPan (float panLeft, float panRight)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIAudioSource::OnMotorEngaged()
+void Disk2AudioSource::OnMotorEngaged()
 {
     m_motorRunning = true;
 
@@ -369,7 +369,7 @@ void DiskIIAudioSource::OnMotorEngaged()
 }
 
 
-void DiskIIAudioSource::OnMotorDisengaged()
+void Disk2AudioSource::OnMotorDisengaged()
 {
     m_motorRunning = false;
 
@@ -398,7 +398,7 @@ void DiskIIAudioSource::OnMotorDisengaged()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIAudioSource::OnHeadStep (int newQt)
+void Disk2AudioSource::OnHeadStep (int newQt)
 {
     (void) newQt;
 
@@ -481,7 +481,7 @@ void DiskIIAudioSource::OnHeadStep (int newQt)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIAudioSource::OnHeadBump()
+void Disk2AudioSource::OnHeadBump()
 {
     bool      previousStillPlaying = false;
     uint32_t  headLen              = 0;
@@ -535,7 +535,7 @@ void DiskIIAudioSource::OnHeadBump()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIAudioSource::OnDiskInserted()
+void Disk2AudioSource::OnDiskInserted()
 {
     bool  wasPresent = m_diskPresent;
 
@@ -563,7 +563,7 @@ void DiskIIAudioSource::OnDiskInserted()
 }
 
 
-void DiskIIAudioSource::OnDiskEjected()
+void Disk2AudioSource::OnDiskEjected()
 {
     bool  wasPresent = m_diskPresent;
 
@@ -607,7 +607,7 @@ void DiskIIAudioSource::OnDiskEjected()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIAudioSource::Tick (uint64_t currentCycle)
+void Disk2AudioSource::Tick (uint64_t currentCycle)
 {
     m_currentCycle = currentCycle;
 
@@ -635,7 +635,7 @@ void DiskIIAudioSource::Tick (uint64_t currentCycle)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIAudioSource::MixMotor (float * out, uint32_t n)
+void Disk2AudioSource::MixMotor (float * out, uint32_t n)
 {
     uint32_t  len = static_cast<uint32_t> (m_motorBuf.size());
     uint32_t  i   = 0;
@@ -670,7 +670,7 @@ void DiskIIAudioSource::MixMotor (float * out, uint32_t n)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIAudioSource::MixHead (float * out, uint32_t n)
+void Disk2AudioSource::MixHead (float * out, uint32_t n)
 {
     uint32_t  len = 0;
     uint32_t  i   = 0;
@@ -711,7 +711,7 @@ void DiskIIAudioSource::MixHead (float * out, uint32_t n)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIAudioSource::MixDoor (float * out, uint32_t n)
+void Disk2AudioSource::MixDoor (float * out, uint32_t n)
 {
     uint32_t  len = 0;
     uint32_t  i   = 0;
@@ -750,7 +750,7 @@ void DiskIIAudioSource::MixDoor (float * out, uint32_t n)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
+void Disk2AudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
 {
     if (outMono == nullptr || numSamples == 0)
     {

@@ -585,7 +585,7 @@ public:
         Assert::IsNull (core.languageCard.get (),
             L"][ harness must NOT pull in LanguageCard by default");
         Assert::IsNull (core.diskController.get (),
-            L"][ harness must NOT pull in DiskIIController by default");
+            L"][ harness must NOT pull in Disk2Controller by default");
 
         Assert::IsFalse (core.HasAppleIIe (),
             L"][ harness must NOT report HasAppleIIe");

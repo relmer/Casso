@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "DiskIIEvent.h"
+#include "Disk2Event.h"
 
 
 
@@ -10,10 +10,10 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIEventRing
+//  Disk2EventRing
 //
 //  Fixed-capacity single-producer / single-consumer lock-free ring
-//  buffer carrying DiskIIEvent values between the CPU emulation thread
+//  buffer carrying Disk2Event values between the CPU emulation thread
 //  (producer) and the UI thread (consumer). Power-of-two capacity so
 //  the index-to-slot mapping is a cheap mask.
 //
@@ -33,7 +33,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DiskIIEventRing
+class Disk2EventRing
 {
 public:
     static constexpr uint32_t   kEventRingCapacity = 4096;
@@ -42,19 +42,19 @@ public:
     static_assert ((kEventRingCapacity & kRingMask) == 0,
                    "kEventRingCapacity must be a power of two");
 
-    DiskIIEventRing() = default;
+    Disk2EventRing() = default;
 
     // CPU thread only. Returns false when the ring is full (caller
     // should bump its own drop counter and continue).
-    bool       TryPush    (const DiskIIEvent & e) noexcept;
+    bool       TryPush    (const Disk2Event & e) noexcept;
 
     // UI thread only. Returns false when the ring is empty.
-    bool       TryPop     (DiskIIEvent & out) noexcept;
+    bool       TryPop     (Disk2Event & out) noexcept;
 
     // UI thread only. Pops up to `maxCount` entries into `out` and
     // returns the number actually written. `out` must point at storage
     // for at least `maxCount` events.
-    uint32_t   Drain      (DiskIIEvent * out, uint32_t maxCount) noexcept;
+    uint32_t   Drain      (Disk2Event * out, uint32_t maxCount) noexcept;
 
     // Advisory; either thread may call. Result may be stale by the
     // time the caller observes it. Intended only for diagnostics.
@@ -63,5 +63,5 @@ public:
 private:
     alignas(64) std::atomic<uint32_t>   m_head { 0 };   // consumer-owned
     alignas(64) std::atomic<uint32_t>   m_tail { 0 };   // producer-owned
-    DiskIIEvent                         m_slots[kEventRingCapacity] {};
+    Disk2Event                          m_slots[kEventRingCapacity] {};
 };

@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "Audio/DiskIIAudioSource.h"
+#include "Audio/Disk2AudioSource.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -9,20 +9,20 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIAudioSourcePlaybackTests
+//  Disk2AudioSourcePlaybackTests
 //
 //  Exercises GeneratePCM with synthetic in-memory sample buffers
 //  (spec FR-001, FR-003, FR-004, FR-009, FR-013, FR-014).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_CLASS (DiskIIAudioSourcePlaybackTests)
+TEST_CLASS (Disk2AudioSourcePlaybackTests)
 {
 public:
 
     TEST_METHOD (MotorRunning_outputContainsScaledMotorSamples)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource   src;
         float              out[16] = {};
 
         src.SetSampleBufferForTest (L"MotorLoop", vector<float> (32, 1.0f));
@@ -32,13 +32,13 @@ public:
 
         for (int i = 0; i < 16; i++)
         {
-            Assert::AreEqual (DiskIIAudioSource::kMotorVolume, out[i], 1e-6f);
+            Assert::AreEqual (Disk2AudioSource::kMotorVolume, out[i], 1e-6f);
         }
     }
 
     TEST_METHOD (MotorRunning_wrapsAtBufferEnd)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource   src;
         vector<float>      motor (4);
         float              out[16] = {};
 
@@ -55,7 +55,7 @@ public:
         // Pattern wraps every 4 samples.
         for (int i = 0; i < 16; i++)
         {
-            float  expected = static_cast<float> ((i % 4) + 1) * DiskIIAudioSource::kMotorVolume;
+            float  expected = static_cast<float> ((i % 4) + 1) * Disk2AudioSource::kMotorVolume;
 
             Assert::AreEqual (expected, out[i], 1e-6f);
         }
@@ -63,7 +63,7 @@ public:
 
     TEST_METHOD (MotorNotRunning_motorContributionIsZero)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource   src;
         float              out[8] = {};
 
         src.SetSampleBufferForTest (L"MotorLoop", vector<float> (16, 1.0f));
@@ -77,7 +77,7 @@ public:
 
     TEST_METHOD (OnHeadStep_then_GeneratePCM_outputsScaledStepSampleOnce_thenZero)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource   src;
         vector<float>      step (4, 0.5f);
         float              out[8] = {};
 
@@ -88,7 +88,7 @@ public:
         // First 4 samples carry the step sound; remainder are silent.
         for (int i = 0; i < 4; i++)
         {
-            Assert::AreEqual (0.5f * DiskIIAudioSource::kHeadVolume, out[i], 1e-6f);
+            Assert::AreEqual (0.5f * Disk2AudioSource::kHeadVolume, out[i], 1e-6f);
         }
         for (int i = 4; i < 8; i++)
         {
@@ -98,7 +98,7 @@ public:
 
     TEST_METHOD (MotorPlusHeadPlusDoor_simultaneouslyMixedAdditively)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource   src;
         float              out[4] = {};
 
         src.SetSampleBufferForTest (L"MotorLoop", vector<float> (16, 1.0f));
@@ -114,9 +114,9 @@ public:
         // OnDiskInserted while motor is running restarts the motor
         // loop at position 0, so the first 4 motor samples are
         // contributed here (motor[0..3] = 1.0).
-        float  expected = DiskIIAudioSource::kMotorVolume +
-                          DiskIIAudioSource::kHeadVolume  +
-                          DiskIIAudioSource::kDoorVolume;
+        float  expected = Disk2AudioSource::kMotorVolume +
+                          Disk2AudioSource::kHeadVolume  +
+                          Disk2AudioSource::kDoorVolume;
 
         for (int i = 0; i < 4; i++)
         {
@@ -126,7 +126,7 @@ public:
 
     TEST_METHOD (MissingMotorBuffer_emptyBuffer_outputsSilenceForMotor)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource   src;
         float              out[8] = {};
 
         // No MotorLoop set -> empty buffer; FR-009.
@@ -141,7 +141,7 @@ public:
 
     TEST_METHOD (MissingHeadBuffer_OnHeadStep_outputsSilence)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource   src;
         float              out[8] = {};
 
         src.OnHeadStep (1);
@@ -155,7 +155,7 @@ public:
 
     TEST_METHOD (MissingDoorBuffer_OnDiskInserted_outputsSilence)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource   src;
         float              out[8] = {};
 
         src.OnDiskInserted();

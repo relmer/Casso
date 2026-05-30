@@ -52,7 +52,7 @@ namespace
 
         IDM_VIEW_FULLSCREEN,
         IDM_VIEW_RESET_SIZE,
-        IDM_VIEW_DISKII_DEBUG,
+        IDM_VIEW_DISK2_DEBUG,
 
         IDM_HELP_KEYMAP,
         IDM_HELP_DEBUG,

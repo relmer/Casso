@@ -10,7 +10,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIAudioSource
+//  Disk2AudioSource
 //
 //  Concrete IDriveAudioSource for the Disk II 5.25" drive. Owns the
 //  per-drive sample buffers (MotorLoop, HeadStep, HeadStop, DoorOpen,
@@ -25,7 +25,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DiskIIAudioSource : public IDriveAudioSource
+class Disk2AudioSource : public IDriveAudioSource
 {
 public:
     // Per-sound attenuation (sums fall safely under 1.0 even with
@@ -47,8 +47,8 @@ public:
     // between disk operations resets cleanly (FR-005).
     static constexpr uint64_t kHeadIdleCycles      = 51150;
 
-    DiskIIAudioSource();
-    ~DiskIIAudioSource() override;
+    Disk2AudioSource();
+    ~Disk2AudioSource() override;
 
     // Asset loading. Decodes MotorLoop.wav, HeadStep.wav, HeadStop.wav,
     // DoorOpen.wav, DoorClose.wav at `targetSampleRate` mono float32

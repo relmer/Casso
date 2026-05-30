@@ -6,7 +6,7 @@
 #include "KeystrokeInjector.h"
 #include "TextScreenScraper.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Devices/DiskIIController.h"
+#include "Devices/Disk2Controller.h"
 #include "Devices/Disk/NibblizationLayer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -114,8 +114,8 @@ public:
         HeadlessHost   host;
         EmulatorCore   core;
 
-        HRESULT  hr = host.BuildAppleIIeWithDiskII (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDiskII must succeed");
+        HRESULT  hr = host.BuildAppleIIeWithDisk2 (core);
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDisk2 must succeed");
 
         core.PowerCycle ();
 
