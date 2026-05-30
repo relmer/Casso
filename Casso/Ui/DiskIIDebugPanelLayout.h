@@ -58,4 +58,5 @@ struct PanelLayoutSlots
 PanelLayoutSlots ComputeDiskIIDebugPanelLayout (
     int   clientWidthPx,
     int   clientHeightPx,
+    int   topOffsetPx,
     UINT  dpi) noexcept;

@@ -15,6 +15,11 @@ namespace
     constexpr int      s_kPreferredHeightDip = 600;
     constexpr UINT     s_kSwapBufferCount     = 2;
 
+    constexpr LPCWSTR  s_kpszTrackFilterLabel  = L"Track:";
+    constexpr LPCWSTR  s_kpszSectorFilterLabel = L"Sector:";
+
+    constexpr float    s_kLabelFontDip = 13.0f;
+
 
 
     void ArgbToFloat4 (uint32_t argb, float (& outRgba)[4]) noexcept
@@ -196,21 +201,65 @@ HRESULT DiskIIDebugPanel::RenderFrame()
 
 HRESULT DiskIIDebugPanel::Render()
 {
-    HRESULT  hr        = S_OK;
-    float    clear[4]  = { 0.08f, 0.08f, 0.08f, 1.0f };
-
+    HRESULT                  hr            = S_OK;
+    float                    clearColor[4] = { 0.08f, 0.08f, 0.08f, 1.0f };
+    ComPtr<ID3D11Texture2D>  backBuffer;
+    ComPtr<IDXGISurface>     surface;
+    ChromeVisualState        visual        = {};
+    D3D11_VIEWPORT           vp            = {};
 
 
     BAIL_OUT_IF (m_swapChain == nullptr || m_rtv == nullptr || m_context == nullptr, S_OK);
 
-    if (m_theme != nullptr)
+    if (!m_text.IsTargetBound())
     {
-        ArgbToFloat4 (m_theme->titleBarBottomArgb, clear);
-        clear[3] = 1.0f;
+        hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
+        CHRA (hr);
+
+        hr = backBuffer.As (&surface);
+        CHRA (hr);
+
+        hr = m_text.BindBackBuffer (surface.Get(), m_dpi, m_dpi);
+        CHRA (hr);
     }
 
+    if (m_theme != nullptr)
+    {
+        ArgbToFloat4 (m_theme->titleBarBottomArgb, clearColor);
+        clearColor[3] = 1.0f;
+    }
+
+    vp.TopLeftX = 0.0f;
+    vp.TopLeftY = 0.0f;
+    vp.Width    = (float) m_widthPx;
+    vp.Height   = (float) m_heightPx;
+    vp.MinDepth = 0.0f;
+    vp.MaxDepth = 1.0f;
+
+    m_context->RSSetViewports (1, &vp);
     m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf(), nullptr);
-    m_context->ClearRenderTargetView (m_rtv.Get(), clear);
+    m_context->ClearRenderTargetView (m_rtv.Get(), clearColor);
+
+    hr = m_painter.Begin (m_widthPx, m_heightPx);
+    CHRA (hr);
+
+    hr = m_text.BeginDraw();
+    CHRA (hr);
+
+    visual.dpi = m_dpi;
+    if (m_titleBar != nullptr && m_theme != nullptr)
+    {
+        m_titleBar->Paint (m_painter, m_text, visual, *m_theme);
+    }
+
+    m_trackFilterLabel.Paint  (m_painter, m_text);
+    m_sectorFilterLabel.Paint (m_painter, m_text);
+
+    hr = m_painter.End (m_rtv.Get());
+    CHRA (hr);
+
+    hr = m_text.EndDraw();
+    CHRA (hr);
 
     hr = m_swapChain->Present (1, 0);
     CHRA (hr);
@@ -307,6 +356,12 @@ HRESULT DiskIIDebugPanel::OnHostCreated (
     hr = EnsureSwapChain();
     CHRA (hr);
 
+    hr = m_painter.Initialize (device, context);
+    CHRA (hr);
+
+    hr = m_text.Initialize (device);
+    CHRA (hr);
+
     RecomputeLayout();
 
 Error:
@@ -325,6 +380,9 @@ Error:
 
 void DiskIIDebugPanel::OnHostDestroyed()
 {
+    m_text.UnbindBackBuffer();
+    m_text.Shutdown();
+    m_painter.Shutdown();
     ReleaseRenderTargets();
     m_swapChain.Reset();
     m_hwnd     = nullptr;
@@ -352,6 +410,7 @@ HRESULT DiskIIDebugPanel::OnHostResize (int widthPx, int heightPx, UINT dpi)
 
     BAIL_OUT_IF (m_swapChain == nullptr, S_OK);
 
+    m_text.UnbindBackBuffer();
     ReleaseRenderTargets();
 
     hr = m_swapChain->ResizeBuffers (s_kSwapBufferCount,
@@ -384,6 +443,7 @@ void DiskIIDebugPanel::SetChromeTheme (TitleBar * titleBar, const ChromeTheme * 
 {
     m_titleBar = titleBar;
     m_theme    = theme;
+    RecomputeLayout();
 }
 
 
@@ -628,13 +688,65 @@ void DiskIIDebugPanel::ReleaseRenderTargets()
 //  RecomputeLayout
 //
 //  Recomputes the cached PanelLayoutSlots whenever the panel's client
-//  size or DPI changes. The slots feed T047+ control rendering; for
-//  now they're computed and stored so the hit-test plumbing has
-//  something to query.
+//  size or DPI changes. Slots are positioned below the chrome title bar
+//  so they don't overlap it. Once slot rectangles are known, label
+//  widgets are re-anchored to the appropriate slots.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskIIDebugPanel::RecomputeLayout()
 {
-    m_layout = ComputeDiskIIDebugPanelLayout (m_widthPx, m_heightPx, m_dpi);
+    int  titleHeight = 0;
+
+
+    if (m_titleBar != nullptr)
+    {
+        titleHeight = m_titleBar->GetTitleHeight();
+    }
+
+    m_layout = ComputeDiskIIDebugPanelLayout (m_widthPx, m_heightPx, titleHeight, m_dpi);
+
+    LayoutLabels();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayoutLabels
+//
+//  Reapplies rect / DPI / theme color to every static text label
+//  owned by the panel. Called whenever the layout slots or theme
+//  change. Label widgets are stateless beyond what's set here, so this
+//  is the only path that needs to know about label-to-slot mapping.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::LayoutLabels()
+{
+    uint32_t  textArgb = 0xFFE8EEF4;
+
+
+    if (m_theme != nullptr)
+    {
+        textArgb = m_theme->navItemTextArgb;
+    }
+
+    m_trackFilterLabel.SetText        (s_kpszTrackFilterLabel);
+    m_trackFilterLabel.SetRect        (m_layout.trackFilterLabel);
+    m_trackFilterLabel.SetDpi         (m_dpi);
+    m_trackFilterLabel.SetFontSizeDip (s_kLabelFontDip);
+    m_trackFilterLabel.SetColorArgb   (textArgb);
+    m_trackFilterLabel.SetHAlign      (DwriteTextRenderer::HAlign::Right);
+    m_trackFilterLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
+
+    m_sectorFilterLabel.SetText        (s_kpszSectorFilterLabel);
+    m_sectorFilterLabel.SetRect        (m_layout.sectorFilterLabel);
+    m_sectorFilterLabel.SetDpi         (m_dpi);
+    m_sectorFilterLabel.SetFontSizeDip (s_kLabelFontDip);
+    m_sectorFilterLabel.SetColorArgb   (textArgb);
+    m_sectorFilterLabel.SetHAlign      (DwriteTextRenderer::HAlign::Right);
+    m_sectorFilterLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
 }

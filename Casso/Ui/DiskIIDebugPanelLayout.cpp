@@ -56,6 +56,7 @@ namespace
 PanelLayoutSlots ComputeDiskIIDebugPanelLayout (
     int   clientWidthPx,
     int   clientHeightPx,
+    int   topOffsetPx,
     UINT  dpi) noexcept
 {
     PanelLayoutSlots slots         = {};
@@ -72,7 +73,7 @@ PanelLayoutSlots ComputeDiskIIDebugPanelLayout (
     int              buttonWidth   = Scale (kButtonWidth96,        dpi);
     int              buttonHeight  = Scale (kButtonHeight96,       dpi);
     int              x             = 0;
-    int              y             = margin;
+    int              y             = topOffsetPx + margin;
     int              trackEditX    = 0;
     int              sectorEditX   = 0;
 

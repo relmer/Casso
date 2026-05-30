@@ -27,7 +27,7 @@ namespace UnitTest_011
 
         TEST_METHOD (Default96Dpi_FirstEventCheckOriginsAtMargin)
         {
-            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (900, 600, 96);
+            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (900, 600, 0, 96);
 
             Assert::AreEqual ((LONG) 8, s.eventTypeChecks[0].left);
             Assert::AreEqual ((LONG) 8, s.eventTypeChecks[0].top);
@@ -37,7 +37,7 @@ namespace UnitTest_011
 
         TEST_METHOD (Default96Dpi_EventChecksContiguousAcrossTopRow)
         {
-            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (900, 600, 96);
+            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (900, 600, 0, 96);
 
             for (int i = 1; i < kEventTypeCheckCount; i++)
             {
@@ -48,7 +48,7 @@ namespace UnitTest_011
 
         TEST_METHOD (Default96Dpi_RowsStackInOrder)
         {
-            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (900, 600, 96);
+            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (900, 600, 0, 96);
 
             Assert::IsTrue (s.audioMasterCheck.top     >= s.eventTypeChecks[0].bottom);
             Assert::IsTrue (s.driveRadios[0].top       >= s.audioMasterCheck.bottom);
@@ -60,14 +60,14 @@ namespace UnitTest_011
 
         TEST_METHOD (Default96Dpi_RawQtAlignedUnderTrackEdit)
         {
-            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (900, 600, 96);
+            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (900, 600, 0, 96);
 
             Assert::AreEqual (s.trackEdit.left, s.rawQtCheck.left);
         }
 
         TEST_METHOD (Default96Dpi_ButtonRowAtMarginLeft)
         {
-            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (900, 600, 96);
+            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (900, 600, 0, 96);
 
             Assert::AreEqual ((LONG) 8, s.pauseButton.left);
             Assert::AreEqual (s.pauseButton.right + 4, s.clearButton.left);
@@ -75,7 +75,7 @@ namespace UnitTest_011
 
         TEST_METHOD (Default96Dpi_ListViewFlexFillsRemainder)
         {
-            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (900, 600, 96);
+            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (900, 600, 0, 96);
 
             Assert::AreEqual ((LONG) 8,          s.listView.left);
             Assert::AreEqual ((LONG) 900 - 8,    s.listView.right);
@@ -86,8 +86,8 @@ namespace UnitTest_011
 
         TEST_METHOD (Dpi192_DoublesAllMetrics)
         {
-            PanelLayoutSlots s96  = ComputeDiskIIDebugPanelLayout (900, 600, 96);
-            PanelLayoutSlots s192 = ComputeDiskIIDebugPanelLayout (900, 600, 192);
+            PanelLayoutSlots s96  = ComputeDiskIIDebugPanelLayout (900, 600, 0, 96);
+            PanelLayoutSlots s192 = ComputeDiskIIDebugPanelLayout (900, 600, 0, 192);
 
             // Widths/heights of a checkbox double.
             LONG w96  = s96.eventTypeChecks[0].right  - s96.eventTypeChecks[0].left;
@@ -100,7 +100,7 @@ namespace UnitTest_011
 
         TEST_METHOD (Degenerate_TinyClient_ListViewClampsToOne)
         {
-            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (10, 10, 96);
+            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (10, 10, 0, 96);
 
             Assert::IsTrue (s.listView.right  > s.listView.left);
             Assert::IsTrue (s.listView.bottom > s.listView.top);
@@ -108,7 +108,7 @@ namespace UnitTest_011
 
         TEST_METHOD (DriveRadiosContiguousLeftToRight)
         {
-            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (900, 600, 96);
+            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (900, 600, 0, 96);
 
             for (int i = 1; i < kDriveRadioCount; i++)
             {
@@ -119,13 +119,23 @@ namespace UnitTest_011
 
         TEST_METHOD (AudioSubChecksAfterMaster)
         {
-            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (900, 600, 96);
+            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (900, 600, 0, 96);
 
             Assert::AreEqual (s.audioMasterCheck.right, s.audioSubChecks[0].left);
             for (int i = 1; i < kAudioSubCheckCount; i++)
             {
                 Assert::AreEqual (s.audioSubChecks[i - 1].right, s.audioSubChecks[i].left);
             }
+        }
+
+        TEST_METHOD (TopOffsetShiftsAllSlots)
+        {
+            PanelLayoutSlots s0   = ComputeDiskIIDebugPanelLayout (900, 600,  0, 96);
+            PanelLayoutSlots s40  = ComputeDiskIIDebugPanelLayout (900, 600, 40, 96);
+
+            Assert::AreEqual (s0.eventTypeChecks[0].top + 40, s40.eventTypeChecks[0].top);
+            Assert::AreEqual (s0.pauseButton.top         + 40, s40.pauseButton.top);
+            Assert::AreEqual (s0.listView.top            + 40, s40.listView.top);
         }
     };
 }

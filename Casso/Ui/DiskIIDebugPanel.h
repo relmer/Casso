@@ -3,6 +3,9 @@
 #include "Chrome/ChromedPanelWindow.h"
 #include "Chrome/IChromedPanelContent.h"
 #include "DiskIIDebugPanelLayout.h"
+#include "DxUiPainter.h"
+#include "DwriteTextRenderer.h"
+#include "Widgets/Label.h"
 
 #include "../../CassoEmuCore/Devices/IDiskIIEventSink.h"
 #include "../../CassoEmuCore/Devices/DiskIIEventRing.h"
@@ -107,6 +110,7 @@ private:
     HRESULT CreateBackBufferRtv  ();
     void    ReleaseRenderTargets ();
     void    RecomputeLayout      ();
+    void    LayoutLabels         ();
 
     ChromedPanelWindow                   m_window;
     PanelLayoutSlots                     m_layout = {};
@@ -122,4 +126,10 @@ private:
 
     Microsoft::WRL::ComPtr<IDXGISwapChain1>           m_swapChain;
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView>    m_rtv;
+
+    DxUiPainter                          m_painter;
+    DwriteTextRenderer                   m_text;
+
+    Label                                m_trackFilterLabel;
+    Label                                m_sectorFilterLabel;
 };
