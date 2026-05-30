@@ -36,10 +36,18 @@ public:
     uint64_t                      GetCycleCount    () const override { return m_totalCycles; }
 
     // Cycle-counter mutators used by host wiring (e.g. EmuCpu, speaker
-    // sample timing). The accumulator is shared with ICpu::GetCycleCount.
+    // sample timing). The accumulator is shared with ICpu::GetCycleCount
+    // and advances once per instruction at the post-StepOne rollup.
     void                          AddCycles          (Byte n) { m_totalCycles += n; }
-    void                          ResetCycles        ()       { m_totalCycles = 0; }
+    void                          ResetCycles        ()       { m_totalCycles = 0; m_busCycle = 0; }
     uint64_t *                    GetCycleCounterPtr ()       { return &m_totalCycles; }
+
+    // Issue #67: sub-instruction bus-cycle estimate. Unlike m_totalCycles
+    // (which only advances at the post-StepOne rollup), this is current to
+    // the in-flight memory access, so a $C0Ex disk read sees rotational
+    // position at the access cycle rather than the instruction boundary.
+    // Matches AppleWin attributing the disk update to the exact bus cycle.
+    uint64_t *                    GetBusCyclePtr     ()       { return &m_busCycle; }
 
     // I6502DebugInfo
     Cpu6502Registers              GetRegisters     () const override;
@@ -60,6 +68,11 @@ protected:
     // loads PC from the indicated vector. Used by IRQ/NMI dispatch.
     void                          DispatchVector (Word vector, bool fromBrk);
 
+    // Issue #67: refresh m_busCycle to the cycle of the in-flight memory
+    // access. Called from the MemoryBusCpu read/write override so the disk
+    // catch-up sees sub-instruction rotational position.
+    void                          UpdateBusCycle ();
+
 protected:
     static constexpr Byte         kStatusBreakBit     = 0x10;
     static constexpr Byte         kStatusAlwaysOneBit = 0x20;
@@ -68,4 +81,5 @@ protected:
     bool                          m_nmiLine    = false;
     bool                          m_nmiPending = false;
     uint64_t                      m_totalCycles = 0;
+    uint64_t                      m_busCycle    = 0;
 };

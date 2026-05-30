@@ -4,8 +4,8 @@
 
 
 class CpuManager;
-class DiskIIAudioSource;
-class DiskIIController;
+class Disk2AudioSource;
+class Disk2Controller;
 class DiskImageStore;
 class DriveWidget;
 class DriveWidgetController;
@@ -46,7 +46,7 @@ class DiskManager
 public:
     DiskManager (std::vector<std::unique_ptr<MemoryDevice>>      & ownedDevices,
                  DiskImageStore                                  & diskStore,
-                 std::vector<std::unique_ptr<DiskIIAudioSource>> & diskAudioSources,
+                 std::vector<std::unique_ptr<Disk2AudioSource>> & diskAudioSources,
                  WasapiAudio                                     & wasapiAudio,
                  DriveWidgetController                           & driveWidgets,
                  std::array<DriveWidgetState, 2>                 & driveWidgetState,
@@ -56,7 +56,7 @@ public:
                  UserConfigStore                                 & userConfigStore,
                  IFileSystem                                     & fileSystem);
 
-    DiskIIController *  FindSlot6Controller    ();
+    Disk2Controller *   FindSlot6Controller    ();
     bool                HasSlot6Controller     () { return FindSlot6Controller() != nullptr; }
 
     HRESULT  MountDiskInSlot6       (int drive, const std::string & path);
@@ -83,7 +83,7 @@ public:
 private:
     std::vector<std::unique_ptr<MemoryDevice>>       & m_ownedDevices;
     DiskImageStore                                   & m_diskStore;
-    std::vector<std::unique_ptr<DiskIIAudioSource>>  & m_diskAudioSources;
+    std::vector<std::unique_ptr<Disk2AudioSource>>  & m_diskAudioSources;
     WasapiAudio                                      & m_wasapiAudio;
     DriveWidgetController                            & m_driveWidgets;
     std::array<DriveWidgetState, 2>                  & m_driveWidgetState;

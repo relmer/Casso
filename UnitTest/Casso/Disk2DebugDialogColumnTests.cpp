@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "DiskIIDebugDialogState.h"
+#include "Disk2DebugDialogState.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -9,7 +9,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIDebugDialogColumnTests
+//  Disk2DebugDialogColumnTests
 //
 //  Spec-006 T108. Headless coverage of the PlanVisibleColumns pure
 //  helper (FR-026 / FR-027) -- given an in-memory LogicalColumn model,
@@ -20,9 +20,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace DiskIIDebugDialogColumnTests
+namespace Disk2DebugDialogColumnTests
 {
-    TEST_CLASS (DiskIIDebugDialogColumnTests)
+    TEST_CLASS (Disk2DebugDialogColumnTests)
     {
     public:
 

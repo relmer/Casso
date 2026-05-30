@@ -45,6 +45,8 @@ MemoryBusCpu::MemoryBusCpu (MemoryBus & memoryBus)
 
 Byte MemoryBusCpu::ReadByte (Word address)
 {
+    UpdateBusCycle ();
+
     return m_memoryBus.ReadByte (address);
 }
 
@@ -60,6 +62,8 @@ Byte MemoryBusCpu::ReadByte (Word address)
 
 void MemoryBusCpu::WriteByte (Word address, Byte value)
 {
+    UpdateBusCycle ();
+
     m_memoryBus.WriteByte (address, value);
 }
 

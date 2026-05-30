@@ -1,7 +1,7 @@
 #include "Pch.h"
 #include <thread>
 
-#include "Devices/DiskIIEventRing.h"
+#include "Devices/Disk2EventRing.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -23,12 +23,12 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace
 {
-    DiskIIEvent MakeEvent (uint64_t cycle)
+    Disk2Event MakeEvent (uint64_t cycle)
     {
-        DiskIIEvent  e {};
+        Disk2Event  e {};
 
         e.category               = EventCategory::Controller;
-        e.type                   = DiskIIEventType::HeadStep;
+        e.type                   = Disk2EventType::HeadStep;
         e.cycle                  = cycle;
         e.payload.step.prevQt    = 0;
         e.payload.step.newQt     = (int) (cycle & 0xFF);
@@ -43,7 +43,7 @@ namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIEventRingTests
+//  Disk2EventRingTests
 //
 //  Single-threaded fundamentals + a two-threaded stress test that
 //  verifies FIFO ordering and no torn reads under sustained producer/
@@ -51,16 +51,16 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace DiskIIEventRingTests
+namespace Disk2EventRingTests
 {
-    TEST_CLASS (DiskIIEventRingTests)
+    TEST_CLASS (Disk2EventRingTests)
     {
     public:
 
         TEST_METHOD (EmptyPopReturnsFalse)
         {
-            DiskIIEventRing  ring;
-            DiskIIEvent      out  {};
+            Disk2EventRing  ring;
+            Disk2Event      out  {};
 
             Assert::IsFalse (ring.TryPop (out));
             Assert::AreEqual ((uint32_t) 0, ring.ApproxSize());
@@ -69,34 +69,34 @@ namespace DiskIIEventRingTests
 
         TEST_METHOD (PushFillsToCapacityThenRejects)
         {
-            DiskIIEventRing  ring;
+            Disk2EventRing   ring;
             uint32_t         i    = 0;
 
-            for (i = 0; i < DiskIIEventRing::kEventRingCapacity; i++)
+            for (i = 0; i < Disk2EventRing::kEventRingCapacity; i++)
             {
                 Assert::IsTrue (ring.TryPush (MakeEvent (i)));
             }
 
-            Assert::AreEqual (DiskIIEventRing::kEventRingCapacity, ring.ApproxSize());
+            Assert::AreEqual (Disk2EventRing::kEventRingCapacity, ring.ApproxSize());
 
             // One-past-capacity push must fail without corrupting state.
             Assert::IsFalse (ring.TryPush (MakeEvent (0xDEADBEEF)));
-            Assert::AreEqual (DiskIIEventRing::kEventRingCapacity, ring.ApproxSize());
+            Assert::AreEqual (Disk2EventRing::kEventRingCapacity, ring.ApproxSize());
         }
 
 
         TEST_METHOD (FifoOrderingOnFullCycle)
         {
-            DiskIIEventRing  ring;
-            DiskIIEvent      out  {};
+            Disk2EventRing   ring;
+            Disk2Event       out  {};
             uint32_t         i    = 0;
 
-            for (i = 0; i < DiskIIEventRing::kEventRingCapacity; i++)
+            for (i = 0; i < Disk2EventRing::kEventRingCapacity; i++)
             {
                 Assert::IsTrue (ring.TryPush (MakeEvent (i)));
             }
 
-            for (i = 0; i < DiskIIEventRing::kEventRingCapacity; i++)
+            for (i = 0; i < Disk2EventRing::kEventRingCapacity; i++)
             {
                 Assert::IsTrue (ring.TryPop (out));
                 Assert::AreEqual ((uint64_t) i, out.cycle);
@@ -108,8 +108,8 @@ namespace DiskIIEventRingTests
 
         TEST_METHOD (DrainEmptiesRing)
         {
-            DiskIIEventRing  ring;
-            DiskIIEvent      buffer[32];
+            Disk2EventRing   ring;
+            Disk2Event       buffer[32];
             uint32_t         i      = 0;
             uint32_t         pulled = 0;
 
@@ -131,8 +131,8 @@ namespace DiskIIEventRingTests
 
         TEST_METHOD (DrainCapsAtMaxCount)
         {
-            DiskIIEventRing  ring;
-            DiskIIEvent      buffer[10];
+            Disk2EventRing   ring;
+            Disk2Event       buffer[10];
             uint32_t         i      = 0;
             uint32_t         pulled = 0;
 
@@ -157,11 +157,11 @@ namespace DiskIIEventRingTests
             // Fill, partially drain, refill, fully drain -- exercises
             // the index-wrap behavior. The 32-bit counters increment
             // monotonically; the mask isolates the slot index.
-            DiskIIEventRing  ring;
-            DiskIIEvent      out  {};
+            Disk2EventRing   ring;
+            Disk2Event       out  {};
             uint32_t         i    = 0;
 
-            for (i = 0; i < DiskIIEventRing::kEventRingCapacity; i++)
+            for (i = 0; i < Disk2EventRing::kEventRingCapacity; i++)
             {
                 Assert::IsTrue (ring.TryPush (MakeEvent (i)));
             }
@@ -174,13 +174,13 @@ namespace DiskIIEventRingTests
 
             for (i = 0; i < 2048; i++)
             {
-                uint64_t  cycleVal = DiskIIEventRing::kEventRingCapacity + i;
+                uint64_t  cycleVal = Disk2EventRing::kEventRingCapacity + i;
                 Assert::IsTrue (ring.TryPush (MakeEvent (cycleVal)));
             }
 
-            Assert::AreEqual (DiskIIEventRing::kEventRingCapacity, ring.ApproxSize());
+            Assert::AreEqual (Disk2EventRing::kEventRingCapacity, ring.ApproxSize());
 
-            for (i = 0; i < DiskIIEventRing::kEventRingCapacity; i++)
+            for (i = 0; i < Disk2EventRing::kEventRingCapacity; i++)
             {
                 uint64_t  expected = 2048ULL + i;
                 Assert::IsTrue (ring.TryPop (out));
@@ -198,7 +198,7 @@ namespace DiskIIEventRingTests
             // must correspond exactly to a producer-side failed
             // push (ring-full case) -- the counter of failed pushes
             // bounds the total gap size.
-            DiskIIEventRing                 ring;
+            Disk2EventRing                  ring;
             std::atomic<bool>               consumerDone { false };
             std::atomic<uint32_t>           failedPushes { 0 };
             constexpr uint64_t              kTotal       = 100000;
@@ -220,7 +220,7 @@ namespace DiskIIEventRingTests
             uint64_t      seen    = 0;
             uint64_t      lastVal = 0;
             bool          haveLast = false;
-            DiskIIEvent   out     {};
+            Disk2Event    out     {};
 
             while (seen < kTotal)
             {

@@ -1,8 +1,8 @@
-// DiskIIController embeds two DiskImage objects (~143KB each) which exceed
+// Disk2Controller embeds two DiskImage objects (~143KB each) which exceed
 // the C6262 stack-frame budget when constructed in TEST_METHOD frames.
-// Each test using a DiskIIController moves the controller onto the heap
+// Each test using a Disk2Controller moves the controller onto the heap
 // (unique_ptr) and the warning is suppressed at file scope to match the
-// pattern used by DiskIITests.cpp.
+// pattern used by Disk2Tests.cpp.
 #pragma warning(disable:6262)
 
 #include "Pch.h"
@@ -15,7 +15,7 @@
 #include "Devices/LanguageCard.h"
 #include "Devices/AppleIIeMmu.h"
 #include "Devices/AppleIIeSoftSwitchBank.h"
-#include "Devices/DiskIIController.h"
+#include "Devices/Disk2Controller.h"
 #include "Video/VideoTiming.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -220,13 +220,13 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
-    //  DiskII controller mount preservation
+    //  Disk2 controller mount preservation
     //
     ////////////////////////////////////////////////////////////////////////////
 
     TEST_METHOD (SoftResetPreservesDiskMountsAndFlushesDirty)
     {
-        unique_ptr<DiskIIController> ctrl = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller> ctrl = make_unique<Disk2Controller> (6);
 
         ctrl->GetDisk (0)->SetLoadedForTest (true, true);
         ctrl->GetDisk (1)->SetLoadedForTest (true, false);
@@ -367,7 +367,7 @@ public:
 
     TEST_METHOD (PowerCycleUnmountsAndFlushesAllDisks)
     {
-        unique_ptr<DiskIIController> ctrl = make_unique<DiskIIController> (6);
+        unique_ptr<Disk2Controller> ctrl = make_unique<Disk2Controller> (6);
         Prng                              prng (kPinnedSeed);
 
         ctrl->GetDisk (0)->SetLoadedForTest (true, true);

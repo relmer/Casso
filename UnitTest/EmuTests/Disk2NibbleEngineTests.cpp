@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "Devices/Disk/DiskIINibbleEngine.h"
+#include "Devices/Disk/Disk2NibbleEngine.h"
 #include "Devices/Disk/DiskImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -17,51 +17,60 @@ namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIINibbleEngineTests
+//  Disk2NibbleEngineTests
 //
 //  Phase 9 unit-level acceptance for the bit-stream engine, independent
 //  of the controller surface.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_CLASS (DiskIINibbleEngineTests)
+TEST_CLASS (Disk2NibbleEngineTests)
 {
 public:
 
     TEST_METHOD (BitTimingMatches4uSPerBit)
     {
         DiskImage             img;
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine     eng;
 
         img.ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
 
         eng.SetDiskImage (&img);
         eng.SetMotorOn   (true);
 
-        eng.Tick (3);
-        Assert::AreEqual (size_t (0), eng.GetBitPosition(),
-            L"3 cycles is below the 4-cycle bit boundary");
-
-        eng.Tick (1);
+        // The Logic State Sequencer runs at 2 MHz (two LSS clocks per CPU
+        // cycle) and advances the head one bit per eight LSS clocks --
+        // i.e. one bit every kCyclesPerBit (4) CPU cycles, the standard
+        // ~250 kbps data rate. A full bit cell's worth of cycles advances
+        // exactly one bit.
+        eng.Tick (Disk2NibbleEngine::kCyclesPerBit);
         Assert::AreEqual (size_t (1), eng.GetBitPosition(),
-            L"4 cumulative cycles must produce one bit advance");
+            L"One bit cell (4 cycles) must produce one bit advance");
 
-        eng.Tick (DiskIINibbleEngine::kCyclesPerBit * 5);
+        eng.Tick (Disk2NibbleEngine::kCyclesPerBit * 5);
         Assert::AreEqual (size_t (6), eng.GetBitPosition(),
             L"5 more bits' worth of cycles must advance 5 bits");
+
+        // Sub-bit-cell ticks accumulate across calls: the LSS clock is
+        // retained between Tick calls, so two half-cell ticks make one
+        // whole bit advance rather than being rounded away.
+        eng.Tick (Disk2NibbleEngine::kCyclesPerBit / 2);
+        eng.Tick (Disk2NibbleEngine::kCyclesPerBit / 2);
+        Assert::AreEqual (size_t (7), eng.GetBitPosition(),
+            L"Two half-cell ticks must sum to one bit advance");
     }
 
     TEST_METHOD (ReadAdvancesPosition)
     {
         DiskImage             img;
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine     eng;
 
         img.ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
 
         eng.SetDiskImage (&img);
         eng.SetMotorOn   (true);
 
-        eng.Tick (DiskIINibbleEngine::kCyclesPerBit * 16);
+        eng.Tick (Disk2NibbleEngine::kCyclesPerBit * 16);
 
         Assert::AreEqual (size_t (16), eng.GetBitPosition(),
             L"Ticking 16 bit-times must advance 16 bits");
@@ -70,7 +79,7 @@ public:
     TEST_METHOD (WriteAdvancesPositionAndMarksDirty)
     {
         DiskImage             img;
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine     eng;
 
         img.ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
 
@@ -79,7 +88,7 @@ public:
         eng.SetWriteMode (true);
         eng.WriteLatch   (0xFF);
 
-        eng.Tick (DiskIINibbleEngine::kCyclesPerBit * 8);
+        eng.Tick (Disk2NibbleEngine::kCyclesPerBit * 8);
 
         Assert::IsTrue (img.IsDirty(),
             L"Write-mode tick must mark the image dirty");
@@ -90,14 +99,14 @@ public:
     TEST_METHOD (MotorOffFreezesPosition)
     {
         DiskImage             img;
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine     eng;
 
         img.ResizeTrack (0, kSyntheticTrackBytes * kBitsPerNibble);
 
         eng.SetDiskImage (&img);
         eng.SetMotorOn   (false);
 
-        eng.Tick (DiskIINibbleEngine::kCyclesPerBit * 100);
+        eng.Tick (Disk2NibbleEngine::kCyclesPerBit * 100);
 
         Assert::AreEqual (size_t (0), eng.GetBitPosition(),
             L"Motor off must freeze the bit cursor");
@@ -105,14 +114,14 @@ public:
 
     TEST_METHOD (SetCurrentTrackClampsToValidRange)
     {
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine    eng;
 
         eng.SetCurrentTrack (-5);
-        Assert::AreEqual (DiskIINibbleEngine::kMinTrack, eng.GetCurrentTrack(),
+        Assert::AreEqual (Disk2NibbleEngine::kMinTrack, eng.GetCurrentTrack(),
             L"Negative tracks must clamp to kMinTrack");
 
         eng.SetCurrentTrack (1000);
-        Assert::AreEqual (DiskIINibbleEngine::kMaxTrack, eng.GetCurrentTrack(),
+        Assert::AreEqual (Disk2NibbleEngine::kMaxTrack, eng.GetCurrentTrack(),
             L"Out-of-range tracks must clamp to kMaxTrack");
     }
 
@@ -121,10 +130,10 @@ public:
         // Regression for the Ctrl+Shift+R PowerCycle path: the status-bar
         // tooltip reads GetReadNibbles / GetWriteNibbles, so a power cycle
         // that did not zero them left the tooltip showing stale pre-cycle
-        // counts. Reset() is invoked from DiskIIController::PowerCycle
-        // (via DiskIIController::Reset), so clearing the counters here is
+        // counts. Reset() is invoked from Disk2Controller::PowerCycle
+        // (via Disk2Controller::Reset), so clearing the counters here is
         // what restores the tooltip after a manual cold boot.
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine    eng;
 
         eng.WriteLatch (0xAA);
         eng.WriteLatch (0xAA);
@@ -164,7 +173,7 @@ public:
         }
     }
 
-    static void PrepareSingleByteStream (DiskImage & img, DiskIINibbleEngine & eng, uint8_t value)
+    static void PrepareSingleByteStream (DiskImage & img, Disk2NibbleEngine & eng, uint8_t value)
     {
         size_t   i = 0;
 
@@ -177,17 +186,22 @@ public:
 
         eng.SetDiskImage (&img);
         eng.SetMotorOn   (true);
+
+        // Drain the MC3470 head-amplifier's one-cell pipeline delay so
+        // subsequent "TickBits (eng, 8)" calls assemble a full nibble
+        // matching the documented "8 bits per nibble" model.
+        eng.Tick (Disk2NibbleEngine::kCyclesPerBit);
     }
 
-    static void TickBits (DiskIINibbleEngine & eng, int bits)
+    static void TickBits (Disk2NibbleEngine & eng, int bits)
     {
-        eng.Tick ((uint32_t) (DiskIINibbleEngine::kCyclesPerBit * bits));
+        eng.Tick ((uint32_t) (Disk2NibbleEngine::kCyclesPerBit * bits));
     }
 
 
     TEST_METHOD (ConsumeFreshNibble_returnsFalse_onFreshEngine)
     {
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine     eng;
         uint8_t               out = 0xCC;
 
         Assert::IsFalse (eng.ConsumeFreshNibble (out),
@@ -203,7 +217,7 @@ public:
         // call without any further bit advancement must return
         // false (no new "byte ready" rising edge has occurred).
         DiskImage             img;
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine     eng;
         uint8_t               out = 0;
 
         PrepareSingleByteStream (img, eng, 0xFF);
@@ -229,7 +243,7 @@ public:
         // ConsumeFreshNibble returns true exactly once, then
         // returns false until the NEXT assembly.
         DiskImage             img;
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine     eng;
         uint8_t               out = 0;
 
         PrepareSingleByteStream (img, eng, 0xFF);
@@ -256,7 +270,7 @@ public:
         // MUST refuse those even though the fresh flag has not been
         // cleared yet by a prior consume.
         DiskImage             img;
-        DiskIINibbleEngine    eng;
+        Disk2NibbleEngine     eng;
         uint8_t               out = 0xCC;
 
         PrepareSingleByteStream (img, eng, 0xFF);
@@ -289,8 +303,8 @@ public:
         // CPU-visible byte.
         DiskImage             imgA;
         DiskImage             imgB;
-        DiskIINibbleEngine    engA;
-        DiskIINibbleEngine    engB;
+        Disk2NibbleEngine     engA;
+        Disk2NibbleEngine     engB;
         int                   i        = 0;
         uint8_t               sink     = 0;
 
@@ -309,6 +323,91 @@ public:
                 L"Interleaved ConsumeFreshNibble must not change the CPU-visible ReadLatch");
 
             engA.ConsumeFreshNibble (sink);
+        }
+    }
+
+
+    TEST_METHOD (WeakBits_UnformattedTrackProducesMixedBitsViaHeadAmpFloat)
+    {
+        // MC3470 read-amplifier model: when the sliding 4-bit head
+        // window is all zeros (no signal locked to the surface), the
+        // amplifier "floats" and the output bit is randomized with
+        // ~30% probability of a 1. This is the behavior WOZ-2.0
+        // copy-protection schemes (Karateka RWTS18, Lode Runner) key
+        // off to detect bit-exact copies that have replaced the
+        // floating region with deterministic zeros or ones.
+        //
+        // Drive the engine across a fully-zero track and count the
+        // 1-bits in the working shift register over a large sample.
+        // The empirical rate must land in a band around 30% --
+        // statistically wide enough to be insensitive to the exact
+        // LCG constants but tight enough to fail if the weak-bit
+        // path is silently bypassed.
+        DiskImage             img;
+        Disk2NibbleEngine     eng;
+        const int             kSampleBits = 100000;
+        int                   onesCount   = 0;
+        int                   i           = 0;
+        double                rate        = 0.0;
+
+        // 4096-bit track of all zeros. Engine will only ever see
+        // window == 0 once the initial seed bits drain, so every
+        // subsequent output bit must come from the weak-bit RNG.
+        img.ResizeTrack (0, 4096);
+
+        eng.SetDiskImage (&img);
+        eng.SetMotorOn   (true);
+
+        for (i = 0; i < kSampleBits; i++)
+        {
+            eng.Tick (Disk2NibbleEngine::kCyclesPerBit);
+
+            // PeekReadLatch reflects the latest assembled state.
+            // We count by sampling the latch's LSB each cell -- a
+            // proxy for the most-recently-shifted-in bit.
+            if ((eng.PeekReadLatch () & 0x01) != 0)
+            {
+                onesCount++;
+            }
+        }
+
+        rate = (double) onesCount / (double) kSampleBits;
+
+        // ~30% target ± wide tolerance. If the weak-bit path is
+        // disabled entirely, rate collapses to 0.0 and this fails.
+        // If the threshold drifts catastrophically, rate moves out
+        // of the 0.20..0.40 band.
+        Assert::IsTrue (rate > 0.20 && rate < 0.40,
+            L"Weak-bit rate must be in the ~30% band over unformatted track");
+    }
+
+
+    TEST_METHOD (WeakBits_FormattedTrackIsDeterministicAcrossRuns)
+    {
+        // Sanity guard: weak-bit randomization MUST NOT leak into
+        // tracks with real signal. A formatted track (any non-zero
+        // pattern in every 4-cell window) keeps the head window
+        // non-zero, taking the deterministic branch every cell.
+        // Two engines fed the same formatted bit stream must produce
+        // byte-identical latch sequences.
+        DiskImage             imgA;
+        DiskImage             imgB;
+        Disk2NibbleEngine     engA;
+        Disk2NibbleEngine     engB;
+        int                   i        = 0;
+
+        // 0xFF pattern -- every bit is 1, so the head window never
+        // empties and the weak-bit RNG never fires.
+        PrepareSingleByteStream (imgA, engA, 0xFF);
+        PrepareSingleByteStream (imgB, engB, 0xFF);
+
+        for (i = 0; i < 256; i++)
+        {
+            engA.Tick (Disk2NibbleEngine::kCyclesPerBit);
+            engB.Tick (Disk2NibbleEngine::kCyclesPerBit);
+
+            Assert::AreEqual ((int) engA.PeekReadLatch (), (int) engB.PeekReadLatch (),
+                L"Formatted-track latch sequence must be deterministic across engines");
         }
     }
 };

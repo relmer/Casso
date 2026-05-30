@@ -42,7 +42,7 @@ public:
     DiskFormat    GetSourceFormat   () const override;
     HRESULT       Serialize         (vector<Byte> & outBytes) const override;
 
-    // Backward-compat / lifecycle surface used by DiskIIController and tests.
+    // Backward-compat / lifecycle surface used by Disk2Controller and tests.
     HRESULT          Load                (const string & filePath);
     void             Eject               ();
     HRESULT          Flush               ();

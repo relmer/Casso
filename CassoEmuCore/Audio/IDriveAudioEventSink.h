@@ -11,7 +11,7 @@
 //  SoundKind
 //
 //  Identifies the per-sound channel that a Disk II audio decision was
-//  made on. Stays a small enum (fits in uint8_t) so DiskIIEvent's
+//  made on. Stays a small enum (fits in uint8_t) so Disk2Event's
 //  payload union remains <= 12 bytes.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,7 +42,7 @@ enum class SilentReason : uint8_t
 {
     DriveAudioDisabled    = 0,   // user toggled drive audio off
     BufferMissing         = 1,   // sample WAV not loaded for this kind
-    NoSourceRegistered    = 2,   // no DiskIIAudioSource for active drive
+    NoSourceRegistered    = 2,   // no Disk2AudioSource for active drive
     ColdBootSuppression   = 3,   // first-slice insert (spec-005 FR-013)
     NoDiskPresent         = 4,   // motor on but drive bay empty (spec-006)
 };
@@ -55,7 +55,7 @@ enum class SilentReason : uint8_t
 //
 //  IDriveAudioEventSink
 //
-//  Abstract notification interface fired by DiskIIAudioSource at every
+//  Abstract notification interface fired by Disk2AudioSource at every
 //  audio-decision moment so the spec-006 debug window can show what the
 //  audio subsystem decided to do (and why, when nothing played).
 //

@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "DiskIIAddressMarkWatcher.h"
+#include "Disk2AddressMarkWatcher.h"
 
 
 
@@ -17,15 +17,15 @@
 //  terminal-accept condition is met.
 //
 //  PRECONDITION: callers MUST gate on the LSS "byte ready" rising
-//  edge (DiskIINibbleEngine::ConsumeFreshNibble) and pass each
+//  edge (Disk2NibbleEngine::ConsumeFreshNibble) and pass each
 //  assembled nibble exactly once. Feeding every CPU poll of $C0EC
 //  here floods the state machines with repeated bytes and partial-
 //  assembly garbage, and zero real D5 AA 96 / D5 AA AD prologues
-//  ever match. Spec-006 regression: see DiskIIController::Read.
+//  ever match. Spec-006 regression: see Disk2Controller::Read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIAddressMarkWatcher::ObserveNibble (uint8_t nibble) noexcept
+void Disk2AddressMarkWatcher::ObserveNibble (uint8_t nibble) noexcept
 {
     StepAddrMarkState (nibble);
     StepDataMarkState (nibble);
@@ -53,7 +53,7 @@ void DiskIIAddressMarkWatcher::ObserveNibble (uint8_t nibble) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIAddressMarkWatcher::StepAddrMarkState (uint8_t nibble) noexcept
+void Disk2AddressMarkWatcher::StepAddrMarkState (uint8_t nibble) noexcept
 {
     uint8_t  vol = 0;
     uint8_t  trk = 0;
@@ -192,7 +192,7 @@ void DiskIIAddressMarkWatcher::StepAddrMarkState (uint8_t nibble) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIAddressMarkWatcher::StepDataMarkState (uint8_t nibble) noexcept
+void Disk2AddressMarkWatcher::StepDataMarkState (uint8_t nibble) noexcept
 {
     m_peek2 = m_peek1;
     m_peek1 = m_peek0;

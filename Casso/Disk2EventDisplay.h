@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "../CassoEmuCore/Devices/DiskIIEvent.h"
+#include "../CassoEmuCore/Devices/Disk2Event.h"
 
 
 
@@ -10,9 +10,9 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIEventDisplay
+//  Disk2EventDisplay
 //
-//  UI-thread projection of a DiskIIEvent: every column already formatted
+//  UI-thread projection of a Disk2Event: every column already formatted
 //  to its final wide-character string so the virtual-mode ListView's
 //  LVN_GETDISPINFO handler is an O(1) array lookup with no allocation
 //  on the dispatch path.
@@ -33,12 +33,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-struct DiskIIEventDisplay
+struct Disk2EventDisplay
 {
     static constexpr int   kFieldNotApplicable = INT_MIN;
 
     EventCategory            category    = EventCategory::Controller;
-    DiskIIEventType          type        = DiskIIEventType::EventsLost;
+    Disk2EventType           type        = Disk2EventType::EventsLost;
 
     int                      drive       = kFieldNotApplicable;
     int                      track       = kFieldNotApplicable;

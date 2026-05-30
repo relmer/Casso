@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "DiskIIDebugDialogState.h"
+#include "Disk2DebugDialogState.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -9,7 +9,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIDebugDialogTests
+//  Disk2DebugDialogTests
 //
 //  Spec-006 T054 / T063. Headless coverage of the non-Win32 pieces of
 //  the Disk II Debug dialog: FilterState defaults, SeedDefaultColumns
@@ -17,9 +17,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace DiskIIDebugDialogTests
+namespace Disk2DebugDialogTests
 {
-    TEST_CLASS (DiskIIDebugDialogTests)
+    TEST_CLASS (Disk2DebugDialogTests)
     {
     public:
 
@@ -123,10 +123,10 @@ namespace DiskIIDebugDialogTests
 
         TEST_METHOD (MatchesFilter_eventsLost_alwaysShown_evenWithEverythingOff)
         {
-            DiskIIEventDisplay  e;
+            Disk2EventDisplay   e;
             FilterState         f;
 
-            e.type           = DiskIIEventType::EventsLost;
+            e.type           = Disk2EventType::EventsLost;
             e.category       = EventCategory::Controller;
             f.eventTypeMask  = 0;
             f.audioMaster    = false;
@@ -138,10 +138,10 @@ namespace DiskIIDebugDialogTests
 
         TEST_METHOD (MatchesFilter_motorEvent_categoryBitGates)
         {
-            DiskIIEventDisplay  e;
+            Disk2EventDisplay   e;
             FilterState         f;
 
-            e.type     = DiskIIEventType::MotorEngaged;
+            e.type     = Disk2EventType::MotorEngaged;
             e.category = EventCategory::Controller;
 
             Assert::IsTrue (MatchesFilter (e, f));
@@ -154,13 +154,13 @@ namespace DiskIIDebugDialogTests
 
         TEST_METHOD (MatchesFilter_audioMasterOff_hidesAllAudio)
         {
-            DiskIIEventDisplay  loop;
-            DiskIIEventDisplay  shot;
+            Disk2EventDisplay   loop;
+            Disk2EventDisplay   shot;
             FilterState         f;
 
-            loop.type     = DiskIIEventType::AudioLoopStarted;
+            loop.type     = Disk2EventType::AudioLoopStarted;
             loop.category = EventCategory::Audio;
-            shot.type     = DiskIIEventType::AudioStarted;
+            shot.type     = Disk2EventType::AudioStarted;
             shot.category = EventCategory::Audio;
 
             f.audioMaster = false;
@@ -173,13 +173,13 @@ namespace DiskIIDebugDialogTests
 
         TEST_METHOD (MatchesFilter_audioSubToggleOnlyAffectsOneShots)
         {
-            DiskIIEventDisplay  loopStart;
-            DiskIIEventDisplay  started;
+            Disk2EventDisplay   loopStart;
+            Disk2EventDisplay   started;
             FilterState         f;
 
-            loopStart.type      = DiskIIEventType::AudioLoopStarted;
+            loopStart.type      = Disk2EventType::AudioLoopStarted;
             loopStart.category  = EventCategory::Audio;
-            started.type        = DiskIIEventType::AudioStarted;
+            started.type        = Disk2EventType::AudioStarted;
             started.category    = EventCategory::Audio;
 
             f.audioStarted    = false;
@@ -202,15 +202,15 @@ namespace DiskIIDebugDialogTests
             // match only drive 1 events. The previous "events without
             // drive bypass the predicate" rule has been retired; only
             // synthetic EventsLost still always shows.
-            DiskIIEventDisplay  d0;
-            DiskIIEventDisplay  d1;
+            Disk2EventDisplay   d0;
+            Disk2EventDisplay   d1;
             FilterState         f;
 
-            d0.type     = DiskIIEventType::HeadStep;
+            d0.type     = Disk2EventType::HeadStep;
             d0.category = EventCategory::Controller;
             d0.drive    = 0;
 
-            d1.type     = DiskIIEventType::HeadStep;
+            d1.type     = Disk2EventType::HeadStep;
             d1.category = EventCategory::Controller;
             d1.drive    = 1;
 
@@ -234,12 +234,12 @@ namespace DiskIIDebugDialogTests
 
         TEST_METHOD (MatchesFilter_driveRadio_eventWithoutDrive_rejected_unlessAll)
         {
-            DiskIIEventDisplay  noDrive;
+            Disk2EventDisplay   noDrive;
             FilterState         f;
 
-            noDrive.type     = DiskIIEventType::HeadStep;
+            noDrive.type     = Disk2EventType::HeadStep;
             noDrive.category = EventCategory::Controller;
-            noDrive.drive    = DiskIIEventDisplay::kFieldNotApplicable;
+            noDrive.drive    = Disk2EventDisplay::kFieldNotApplicable;
 
             f.driveFilter = 0;
             Assert::IsTrue (MatchesFilter (noDrive, f));

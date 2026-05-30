@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "DiskIIDebugDialog.h"
+#include "Disk2DebugDialog.h"
 #include "RichEditSquiggle.h"
 #include "Ehm.h"
 
@@ -14,7 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static const wchar_t  s_kpszDebugWndClass[]      = L"CassoDiskIIDebugWindow";
+static const wchar_t  s_kpszDebugWndClass[]      = L"CassoDisk2DebugWindow";
 static const wchar_t  s_kpszDebugWndTitle[]      = L"Disk II Debug";
 
 static const wchar_t  s_kpszFilterRichEditClass[]  = L"RICHEDIT50W";
@@ -42,7 +42,7 @@ static constexpr int  kButtonHeight         = 26;
 static constexpr int  kRowGap               = 4;
 
 // Control IDs. Range 100-199 reserved for the dialog's own children.
-enum DiskIIDebugDialogCtrlId : int
+enum Disk2DebugDialogCtrlId : int
 {
     kIdListView           = 100,
 
@@ -64,7 +64,7 @@ enum DiskIIDebugDialogCtrlId : int
 
     // Header right-click popup column-toggle items. Range 160..164
     // maps directly to LogicalColumn id 0..4 (Wall, Uptime, Cycle,
-    // Event, Detail) per DiskIIDebugDialogState.
+    // Event, Detail) per Disk2DebugDialogState.
     kIdColumnToggleFirst  = 160,
     kIdColumnToggleLast   = 165,
 };
@@ -127,11 +127,11 @@ static void EnsureMsftEditLoaded()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIDebugDialog
+//  Disk2DebugDialog
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskIIDebugDialog::DiskIIDebugDialog()
+Disk2DebugDialog::Disk2DebugDialog()
 {
     m_kpszWndClass  = s_kpszDebugWndClass;
     m_hbrBackground = reinterpret_cast<HBRUSH> (COLOR_BTNFACE + 1);
@@ -151,11 +151,11 @@ DiskIIDebugDialog::DiskIIDebugDialog()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ~DiskIIDebugDialog
+//  ~Disk2DebugDialog
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskIIDebugDialog::~DiskIIDebugDialog()
+Disk2DebugDialog::~Disk2DebugDialog()
 {
     Destroy();
 }
@@ -170,7 +170,7 @@ DiskIIDebugDialog::~DiskIIDebugDialog()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskIIDebugDialog::Create (HINSTANCE hInstance, HWND parentHwnd)
+HRESULT Disk2DebugDialog::Create (HINSTANCE hInstance, HWND parentHwnd)
 {
     HRESULT hr = S_OK;
 
@@ -215,7 +215,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::Show()
+void Disk2DebugDialog::Show()
 {
     HRESULT hr = S_OK;
 
@@ -238,7 +238,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::Hide()
+void Disk2DebugDialog::Hide()
 {
     HRESULT hr = S_OK;
 
@@ -260,7 +260,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::Destroy()
+void Disk2DebugDialog::Destroy()
 {
     if (m_hwnd != nullptr)
     {
@@ -289,7 +289,7 @@ void DiskIIDebugDialog::Destroy()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HFONT DiskIIDebugDialog::AcquireUiFont()
+HFONT Disk2DebugDialog::AcquireUiFont()
 {
     NONCLIENTMETRICSW  ncm = {};
 
@@ -323,7 +323,7 @@ HFONT DiskIIDebugDialog::AcquireUiFont()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT DiskIIDebugDialog::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
+LRESULT Disk2DebugDialog::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
 {
     HRESULT  hr  = S_OK;
     RECT     rc  = {};
@@ -363,7 +363,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskIIDebugDialog::CreateChildControls (HWND hwnd)
+HRESULT Disk2DebugDialog::CreateChildControls (HWND hwnd)
 {
     HRESULT  hr   = S_OK;
     HFONT    font = nullptr;
@@ -640,7 +640,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::LayoutChildControls (int width, int height)
+void Disk2DebugDialog::LayoutChildControls (int width, int height)
 {
     int  x           = 0;
     int  y           = 0;
@@ -767,7 +767,7 @@ void DiskIIDebugDialog::LayoutChildControls (int width, int height)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::RebuildListViewColumns()
+void Disk2DebugDialog::RebuildListViewColumns()
 {
     int  virtualIdx   = 0;
     int  i            = 0;
@@ -849,7 +849,7 @@ void DiskIIDebugDialog::RebuildListViewColumns()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DiskIIDebugDialog::MeasureColumnContentWidth (int logicalId, size_t startIdx) const
+int Disk2DebugDialog::MeasureColumnContentWidth (int logicalId, size_t startIdx) const
 {
     constexpr int     kAutoSizePaddingPx = 16;
     constexpr int     kMinColumnWidth    = 32;
@@ -902,7 +902,7 @@ int DiskIIDebugDialog::MeasureColumnContentWidth (int logicalId, size_t startIdx
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::SizeDetailColumnToRemainder()
+void Disk2DebugDialog::SizeDetailColumnToRemainder()
 {
     constexpr int  kDetailMinWidth    = 200;
 
@@ -982,7 +982,7 @@ void DiskIIDebugDialog::SizeDetailColumnToRemainder()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::ToggleColumn (int id)
+void Disk2DebugDialog::ToggleColumn (int id)
 {
     if (id < 0 || id >= kColumnCount)
     {
@@ -1012,7 +1012,7 @@ void DiskIIDebugDialog::ToggleColumn (int id)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::CaptureCurrentWidthsIntoModel()
+void Disk2DebugDialog::CaptureCurrentWidthsIntoModel()
 {
     int  width     = 0;
     int  logicalId = 0;
@@ -1058,7 +1058,7 @@ void DiskIIDebugDialog::CaptureCurrentWidthsIntoModel()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::ShowHeaderContextMenu (int x, int y)
+void Disk2DebugDialog::ShowHeaderContextMenu (int x, int y)
 {
     HMENU  hMenu     = nullptr;
     BOOL   appended  = FALSE;
@@ -1122,7 +1122,7 @@ void DiskIIDebugDialog::ShowHeaderContextMenu (int x, int y)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::SetMultiControllerHint (bool isMulti) noexcept
+void Disk2DebugDialog::SetMultiControllerHint (bool isMulti) noexcept
 {
     if (m_hwnd == nullptr)
     {
@@ -1149,7 +1149,7 @@ void DiskIIDebugDialog::SetMultiControllerHint (bool isMulti) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskIIDebugDialog::OnSize (HWND hwnd, UINT width, UINT height)
+bool Disk2DebugDialog::OnSize (HWND hwnd, UINT width, UINT height)
 {
     UNREFERENCED_PARAMETER (hwnd);
 
@@ -1176,7 +1176,7 @@ bool DiskIIDebugDialog::OnSize (HWND hwnd, UINT width, UINT height)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskIIDebugDialog::OnClose (HWND hwnd)
+bool Disk2DebugDialog::OnClose (HWND hwnd)
 {
     UNREFERENCED_PARAMETER (hwnd);
 
@@ -1198,7 +1198,7 @@ bool DiskIIDebugDialog::OnClose (HWND hwnd)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskIIDebugDialog::OnKeyDown (WPARAM vk, LPARAM lParam)
+bool Disk2DebugDialog::OnKeyDown (WPARAM vk, LPARAM lParam)
 {
     static constexpr LONG_PTR  s_kAltContextBit = 1LL << 29;
 
@@ -1232,7 +1232,7 @@ bool DiskIIDebugDialog::OnKeyDown (WPARAM vk, LPARAM lParam)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskIIDebugDialog::OnDestroy (HWND hwnd)
+bool Disk2DebugDialog::OnDestroy (HWND hwnd)
 {
     if (m_drainTimerActive)
     {
@@ -1265,7 +1265,7 @@ bool DiskIIDebugDialog::OnDestroy (HWND hwnd)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskIIDebugDialog::OnCommandEx (HWND hwnd, int id, int notifyCode, HWND hCtl)
+bool Disk2DebugDialog::OnCommandEx (HWND hwnd, int id, int notifyCode, HWND hCtl)
 {
     UNREFERENCED_PARAMETER (hwnd);
 
@@ -1331,7 +1331,7 @@ bool DiskIIDebugDialog::OnCommandEx (HWND hwnd, int id, int notifyCode, HWND hCt
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::OnFilterControlToggled (int id, HWND hCtl)
+void Disk2DebugDialog::OnFilterControlToggled (int id, HWND hCtl)
 {
     bool      checked              = false;
     uint32_t  catBit               = 0;
@@ -1421,7 +1421,7 @@ void DiskIIDebugDialog::OnFilterControlToggled (int id, HWND hCtl)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::UpdateAudioSubEnableState()
+void Disk2DebugDialog::UpdateAudioSubEnableState()
 {
     int  i = 0;
 
@@ -1445,7 +1445,7 @@ void DiskIIDebugDialog::UpdateAudioSubEnableState()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::OnFilterTextChanged()
+void Disk2DebugDialog::OnFilterTextChanged()
 {
     if (m_hwnd == nullptr)
     {
@@ -1473,7 +1473,7 @@ void DiskIIDebugDialog::OnFilterTextChanged()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::OnFilterTextKillFocus()
+void Disk2DebugDialog::OnFilterTextKillFocus()
 {
     if (m_hwnd != nullptr && m_filterDebouncePending)
     {
@@ -1494,7 +1494,7 @@ void DiskIIDebugDialog::OnFilterTextKillFocus()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DiskIIDebugDialog::ReadEditText (HWND hEdit) const
+std::wstring Disk2DebugDialog::ReadEditText (HWND hEdit) const
 {
     HRESULT       hr  = S_OK;
     int           len = 0;
@@ -1526,7 +1526,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::FlushFilterDebounce()
+void Disk2DebugDialog::FlushFilterDebounce()
 {
     std::wstring  trackText;
     std::wstring  sectorText;
@@ -1593,7 +1593,7 @@ void DiskIIDebugDialog::FlushFilterDebounce()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::RebuildFilteredIndices()
+void Disk2DebugDialog::RebuildFilteredIndices()
 {
     size_t  i = 0;
 
@@ -1623,7 +1623,7 @@ void DiskIIDebugDialog::RebuildFilteredIndices()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DiskIIDebugDialog::CapturedFocusedDequeIdx() const noexcept
+int Disk2DebugDialog::CapturedFocusedDequeIdx() const noexcept
 {
     int  focused = -1;
 
@@ -1663,7 +1663,7 @@ int DiskIIDebugDialog::CapturedFocusedDequeIdx() const noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::RestoreFocusedDequeIdx (int priorDequeIdx) noexcept
+void Disk2DebugDialog::RestoreFocusedDequeIdx (int priorDequeIdx) noexcept
 {
     int  newItem = -1;
 
@@ -1706,7 +1706,7 @@ void DiskIIDebugDialog::RestoreFocusedDequeIdx (int priorDequeIdx) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::InvalidateListView()
+void Disk2DebugDialog::InvalidateListView()
 {
     int       newCount = 0;
     uint32_t  firstIdx = 0;
@@ -1761,7 +1761,7 @@ void DiskIIDebugDialog::InvalidateListView()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskIIDebugDialog::InstallListViewSubclass()
+HRESULT Disk2DebugDialog::InstallListViewSubclass()
 {
     HRESULT  hr   = S_OK;
     LONG_PTR prev = 0;
@@ -1794,13 +1794,13 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT CALLBACK DiskIIDebugDialog::s_ListViewSubclassProc (
+LRESULT CALLBACK Disk2DebugDialog::s_ListViewSubclassProc (
     HWND    hwnd,
     UINT    msg,
     WPARAM  wParam,
     LPARAM  lParam)
 {
-    DiskIIDebugDialog *  pThis = reinterpret_cast<DiskIIDebugDialog *> (
+    Disk2DebugDialog *  pThis = reinterpret_cast<Disk2DebugDialog *> (
                                      GetWindowLongPtrW (hwnd, GWLP_USERDATA));
 
     if (msg == WM_KEYDOWN
@@ -1837,12 +1837,12 @@ LRESULT CALLBACK DiskIIDebugDialog::s_ListViewSubclassProc (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::CopySelectedRowsToClipboard()
+void Disk2DebugDialog::CopySelectedRowsToClipboard()
 {
     HRESULT                                       hr        = S_OK;
     int                                           selIdx    = -1;
     uint32_t                                      deqIdx    = 0;
-    std::vector<const DiskIIEventDisplay *>       selected;
+    std::vector<const Disk2EventDisplay *>        selected;
     std::wstring                                  payload;
     HGLOBAL                                       hMem      = nullptr;
     wchar_t  *                                    pMem      = nullptr;
@@ -1933,7 +1933,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HBRUSH DiskIIDebugDialog::OnCtlColorStatic (HWND hwndDlg, HDC hdc, HWND hwndStatic)
+HBRUSH Disk2DebugDialog::OnCtlColorStatic (HWND hwndDlg, HDC hdc, HWND hwndStatic)
 {
     UNREFERENCED_PARAMETER (hwndDlg);
 
@@ -1957,7 +1957,7 @@ HBRUSH DiskIIDebugDialog::OnCtlColorStatic (HWND hwndDlg, HDC hdc, HWND hwndStat
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskIIDebugDialog::OnTimer (HWND hwnd, UINT_PTR timerId)
+bool Disk2DebugDialog::OnTimer (HWND hwnd, UINT_PTR timerId)
 {
     UNREFERENCED_PARAMETER (hwnd);
 
@@ -1998,7 +1998,7 @@ bool DiskIIDebugDialog::OnTimer (HWND hwnd, UINT_PTR timerId)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::HandleDrainTick()
+void Disk2DebugDialog::HandleDrainTick()
 {
     int       topIndex        = 0;
     int       countPerPage    = 0;
@@ -2148,7 +2148,7 @@ void DiskIIDebugDialog::HandleDrainTick()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::AppendFilteredIndicesFor (size_t startIdx)
+void Disk2DebugDialog::AppendFilteredIndicesFor (size_t startIdx)
 {
     size_t  i = 0;
 
@@ -2184,7 +2184,7 @@ void DiskIIDebugDialog::AppendFilteredIndicesFor (size_t startIdx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskIIDebugDialog::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
+bool Disk2DebugDialog::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
     NMHDR  *  pHdr      = reinterpret_cast<NMHDR *> (lParam);
     HWND      header    = nullptr;
@@ -2272,7 +2272,7 @@ bool DiskIIDebugDialog::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::HandleGetDispInfo (NMLVDISPINFOW * pInfo)
+void Disk2DebugDialog::HandleGetDispInfo (NMLVDISPINFOW * pInfo)
 {
     thread_local wchar_t  s_eventLabelBuf[32] = {};
     thread_local wchar_t  s_driveBuf[4]       = {};
@@ -2315,7 +2315,7 @@ void DiskIIDebugDialog::HandleGetDispInfo (NMLVDISPINFOW * pInfo)
         return;
     }
 
-    const DiskIIEventDisplay &  e = m_deque[deqIdx];
+    const Disk2EventDisplay &  e = m_deque[deqIdx];
 
     switch (logicalId)
     {
@@ -2332,7 +2332,7 @@ void DiskIIDebugDialog::HandleGetDispInfo (NMLVDISPINFOW * pInfo)
             break;
 
         case 3:
-            if (e.drive != DiskIIEventDisplay::kFieldNotApplicable)
+            if (e.drive != Disk2EventDisplay::kFieldNotApplicable)
             {
                 swprintf_s (s_driveBuf, L"%d", e.drive + 1);
                 item.pszText = s_driveBuf;
@@ -2372,9 +2372,9 @@ void DiskIIDebugDialog::HandleGetDispInfo (NMLVDISPINFOW * pInfo)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::PublishToRing (const DiskIIEvent & e) noexcept
+void Disk2DebugDialog::PublishToRing (const Disk2Event & e) noexcept
 {
-    DiskIIEvent  stamped = e;
+    Disk2Event  stamped = e;
 
     if (m_cycleCounter != nullptr)
     {
@@ -2402,15 +2402,15 @@ void DiskIIDebugDialog::PublishToRing (const DiskIIEvent & e) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::ClearEvents() noexcept
+void Disk2DebugDialog::ClearEvents() noexcept
 {
     // Stack scratch buffer for the drain loop. 64 entries x ~32 bytes
-    // per DiskIIEvent = ~2 KB on the stack -- well under any sensible
+    // per Disk2Event = ~2 KB on the stack -- well under any sensible
     // thread-stack reservation. Larger batch sizes save a few drain
     // calls on huge backlogs at no behavior cost.
     constexpr uint32_t  kClearDrainBatchSize = 64;
 
-    DiskIIEvent  scratch[kClearDrainBatchSize] = {};
+    Disk2Event   scratch[kClearDrainBatchSize] = {};
     uint32_t     drained                       = 0;
 
     m_droppedSinceLastDrain.store (0, std::memory_order_release);
@@ -2449,9 +2449,9 @@ void DiskIIDebugDialog::ClearEvents() noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskIIEvent DiskIIDebugDialog::MakeStampedEvent (EventCategory cat, DiskIIEventType type) const noexcept
+Disk2Event Disk2DebugDialog::MakeStampedEvent (EventCategory cat, Disk2EventType type) const noexcept
 {
-    DiskIIEvent  e = {};
+    Disk2Event  e = {};
 
     e.category = cat;
     e.type     = type;
@@ -2473,9 +2473,9 @@ DiskIIEvent DiskIIDebugDialog::MakeStampedEvent (EventCategory cat, DiskIIEventT
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::PushControllerEvent (DiskIIEventType type) noexcept
+void Disk2DebugDialog::PushControllerEvent (Disk2EventType type) noexcept
 {
-    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, type);
+    Disk2Event  e = MakeStampedEvent (EventCategory::Controller, type);
 
     PublishToRing (e);
 }
@@ -2490,9 +2490,9 @@ void DiskIIDebugDialog::PushControllerEvent (DiskIIEventType type) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::PushHeadStepEvent (int prevQt, int newQt) noexcept
+void Disk2DebugDialog::PushHeadStepEvent (int prevQt, int newQt) noexcept
 {
-    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, DiskIIEventType::HeadStep);
+    Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::HeadStep);
 
     e.payload.step.prevQt = prevQt;
     e.payload.step.newQt  = newQt;
@@ -2510,9 +2510,9 @@ void DiskIIDebugDialog::PushHeadStepEvent (int prevQt, int newQt) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::PushHeadBumpEvent (int atQt) noexcept
+void Disk2DebugDialog::PushHeadBumpEvent (int atQt) noexcept
 {
-    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, DiskIIEventType::HeadBump);
+    Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::HeadBump);
 
     e.payload.bump.atQt = atQt;
 
@@ -2529,9 +2529,9 @@ void DiskIIDebugDialog::PushHeadBumpEvent (int atQt) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::PushAddrMarkEvent (int track, int sector, int volume) noexcept
+void Disk2DebugDialog::PushAddrMarkEvent (int track, int sector, int volume) noexcept
 {
-    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, DiskIIEventType::AddrMark);
+    Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::AddrMark);
 
     e.payload.addrMark.track  = track;
     e.payload.addrMark.sector = sector;
@@ -2550,9 +2550,9 @@ void DiskIIDebugDialog::PushAddrMarkEvent (int track, int sector, int volume) no
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::PushDataMarkEvent (DiskIIEventType type, int track, int sector, int volume, int byteCount) noexcept
+void Disk2DebugDialog::PushDataMarkEvent (Disk2EventType type, int track, int sector, int volume, int byteCount) noexcept
 {
-    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, type);
+    Disk2Event  e = MakeStampedEvent (EventCategory::Controller, type);
 
     e.payload.dataMark.track     = track;
     e.payload.dataMark.sector    = sector;
@@ -2572,9 +2572,9 @@ void DiskIIDebugDialog::PushDataMarkEvent (DiskIIEventType type, int track, int 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::PushDriveEvent (DiskIIEventType type, int drive) noexcept
+void Disk2DebugDialog::PushDriveEvent (Disk2EventType type, int drive) noexcept
 {
-    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, type);
+    Disk2Event  e = MakeStampedEvent (EventCategory::Controller, type);
 
     // Drive events carry their target drive explicitly (eject / insert
     // routes through whichever bay the user touched, not the currently
@@ -2595,16 +2595,16 @@ void DiskIIDebugDialog::PushDriveEvent (DiskIIEventType type, int drive) noexcep
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::PushAudioEvent (
-    DiskIIEventType  type,
+void Disk2DebugDialog::PushAudioEvent (
+    Disk2EventType   type,
     SoundKind        kind,
     int              drive,
     SilentReason     reason) noexcept
 {
-    DiskIIEvent  e = MakeStampedEvent (EventCategory::Audio, type);
+    Disk2Event  e = MakeStampedEvent (EventCategory::Audio, type);
 
     // Audio events carry their target drive explicitly (sourced from
-    // the per-drive DiskIIAudioSource, not the controller's currently
+    // the per-drive Disk2AudioSource, not the controller's currently
     // selected drive).
     e.drive                = static_cast<int8_t> (drive);
     e.payload.audio.kind   = kind;
@@ -2620,23 +2620,23 @@ void DiskIIDebugDialog::PushAudioEvent (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IDiskIIEventSink overrides
+//  IDisk2EventSink overrides
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::OnMotorCommandOn()  { PushControllerEvent (DiskIIEventType::MotorCommandOn);   }
-void DiskIIDebugDialog::OnMotorEngaged()    { PushControllerEvent (DiskIIEventType::MotorEngaged);     }
-void DiskIIDebugDialog::OnMotorCommandOff() { PushControllerEvent (DiskIIEventType::MotorCommandOff);  }
-void DiskIIDebugDialog::OnMotorDisengaged() { PushControllerEvent (DiskIIEventType::MotorDisengaged);  }
+void Disk2DebugDialog::OnMotorCommandOn()  { PushControllerEvent (Disk2EventType::MotorCommandOn);   }
+void Disk2DebugDialog::OnMotorEngaged()    { PushControllerEvent (Disk2EventType::MotorEngaged);     }
+void Disk2DebugDialog::OnMotorCommandOff() { PushControllerEvent (Disk2EventType::MotorCommandOff);  }
+void Disk2DebugDialog::OnMotorDisengaged() { PushControllerEvent (Disk2EventType::MotorDisengaged);  }
 
-void DiskIIDebugDialog::OnHeadStep         (int prevQt, int newQt)              { PushHeadStepEvent (prevQt, newQt); }
-void DiskIIDebugDialog::OnHeadBump         (int atQt)                           { PushHeadBumpEvent (atQt); }
-void DiskIIDebugDialog::OnAddressMark      (int track, int sector, int volume)  { PushAddrMarkEvent (track, sector, volume); }
-void DiskIIDebugDialog::OnDataMarkRead     (int track, int sector, int volume, int byteCount) { PushDataMarkEvent (DiskIIEventType::DataRead,  track, sector, volume, byteCount); }
-void DiskIIDebugDialog::OnDataMarkWrite    (int track, int sector, int volume, int byteCount) { PushDataMarkEvent (DiskIIEventType::DataWrite, track, sector, volume, byteCount); }
-void DiskIIDebugDialog::OnDriveSelect      (int drive)                          { m_currentDrive = drive; PushDriveEvent    (DiskIIEventType::DriveSelect,  drive); }
-void DiskIIDebugDialog::OnDiskInserted     (int drive)                          { PushDriveEvent    (DiskIIEventType::DiskInserted, drive); }
-void DiskIIDebugDialog::OnDiskEjected      (int drive)                          { PushDriveEvent    (DiskIIEventType::DiskEjected,  drive); }
+void Disk2DebugDialog::OnHeadStep         (int prevQt, int newQt)              { PushHeadStepEvent (prevQt, newQt); }
+void Disk2DebugDialog::OnHeadBump         (int atQt)                           { PushHeadBumpEvent (atQt); }
+void Disk2DebugDialog::OnAddressMark      (int track, int sector, int volume)  { PushAddrMarkEvent (track, sector, volume); }
+void Disk2DebugDialog::OnDataMarkRead     (int track, int sector, int volume, int byteCount) { PushDataMarkEvent (Disk2EventType::DataRead,  track, sector, volume, byteCount); }
+void Disk2DebugDialog::OnDataMarkWrite    (int track, int sector, int volume, int byteCount) { PushDataMarkEvent (Disk2EventType::DataWrite, track, sector, volume, byteCount); }
+void Disk2DebugDialog::OnDriveSelect      (int drive)                          { m_currentDrive = drive; PushDriveEvent    (Disk2EventType::DriveSelect,  drive); }
+void Disk2DebugDialog::OnDiskInserted     (int drive)                          { PushDriveEvent    (Disk2EventType::DiskInserted, drive); }
+void Disk2DebugDialog::OnDiskEjected      (int drive)                          { PushDriveEvent    (Disk2EventType::DiskEjected,  drive); }
 
 
 
@@ -2648,9 +2648,9 @@ void DiskIIDebugDialog::OnDiskEjected      (int drive)                          
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugDialog::OnAudioStarted     (SoundKind kind, int drive)                    { PushAudioEvent (DiskIIEventType::AudioStarted,     kind, drive, SilentReason::DriveAudioDisabled); }
-void DiskIIDebugDialog::OnAudioRestarted   (SoundKind kind, int drive)                    { PushAudioEvent (DiskIIEventType::AudioRestarted,   kind, drive, SilentReason::DriveAudioDisabled); }
-void DiskIIDebugDialog::OnAudioContinued   (SoundKind kind, int drive)                    { PushAudioEvent (DiskIIEventType::AudioContinued,   kind, drive, SilentReason::DriveAudioDisabled); }
-void DiskIIDebugDialog::OnAudioSilent      (SoundKind kind, int drive, SilentReason reason) { PushAudioEvent (DiskIIEventType::AudioSilent,    kind, drive, reason); }
-void DiskIIDebugDialog::OnAudioLoopStarted (SoundKind kind, int drive)                    { PushAudioEvent (DiskIIEventType::AudioLoopStarted, kind, drive, SilentReason::DriveAudioDisabled); }
-void DiskIIDebugDialog::OnAudioLoopStopped (SoundKind kind, int drive)                    { PushAudioEvent (DiskIIEventType::AudioLoopStopped, kind, drive, SilentReason::DriveAudioDisabled); }
+void Disk2DebugDialog::OnAudioStarted     (SoundKind kind, int drive)                    { PushAudioEvent (Disk2EventType::AudioStarted,     kind, drive, SilentReason::DriveAudioDisabled); }
+void Disk2DebugDialog::OnAudioRestarted   (SoundKind kind, int drive)                    { PushAudioEvent (Disk2EventType::AudioRestarted,   kind, drive, SilentReason::DriveAudioDisabled); }
+void Disk2DebugDialog::OnAudioContinued   (SoundKind kind, int drive)                    { PushAudioEvent (Disk2EventType::AudioContinued,   kind, drive, SilentReason::DriveAudioDisabled); }
+void Disk2DebugDialog::OnAudioSilent      (SoundKind kind, int drive, SilentReason reason) { PushAudioEvent (Disk2EventType::AudioSilent,    kind, drive, reason); }
+void Disk2DebugDialog::OnAudioLoopStarted (SoundKind kind, int drive)                    { PushAudioEvent (Disk2EventType::AudioLoopStarted, kind, drive, SilentReason::DriveAudioDisabled); }
+void Disk2DebugDialog::OnAudioLoopStopped (SoundKind kind, int drive)                    { PushAudioEvent (Disk2EventType::AudioLoopStopped, kind, drive, SilentReason::DriveAudioDisabled); }

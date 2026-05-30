@@ -61,6 +61,7 @@ public:
     uint64_t         GetTotalCycles      () const  { return m_cpu6502->GetCycleCount (); }
     void             ResetCycles         ()        { m_cpu6502->ResetCycles (); }
     uint64_t *       GetCycleCounterPtr  ()        { return m_cpu6502->GetCycleCounterPtr (); }
+    uint64_t *       GetBusCyclePtr      ()        { return m_cpu6502->GetBusCyclePtr (); }
     void             AddCycles           (Byte n);
 
     // Phase 5 / FR-033. Optional sink ticked once per AddCycles call so

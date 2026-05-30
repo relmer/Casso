@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "Audio/DiskIIAudioSource.h"
+#include "Audio/Disk2AudioSource.h"
 #include "Audio/IDriveAudioEventSink.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -13,7 +13,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  RecordingAudioEventSink
 //
 //  Captures an ordered log of IDriveAudioEventSink callbacks fired by
-//  DiskIIAudioSource at each audio-decision moment (spec-006 FR-022 /
+//  Disk2AudioSource at each audio-decision moment (spec-006 FR-022 /
 //  FR-025). Headless: no file I/O, no audio rendering required.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,25 +78,25 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskIIAudioSourceEventSinkTests
+//  Disk2AudioSourceEventSinkTests
 //
-//  Spec-006 T039: each test wires a recording sink to DiskIIAudioSource
+//  Spec-006 T039: each test wires a recording sink to Disk2AudioSource
 //  and exercises a single controller-event path. The
 //  SetSampleBufferForTest seam keeps the host filesystem out of scope
 //  (constitution Principle II). With NO sink attached, audio output is
 //  byte-identical to the pre-feature path -- that invariant is covered
-//  by the pre-existing DriveAudioMixer / DiskIIAudioSource* test suites
+//  by the pre-existing DriveAudioMixer / Disk2AudioSource* test suites
 //  acting as the regression gate.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_CLASS (DiskIIAudioSourceEventSinkTests)
+TEST_CLASS (Disk2AudioSourceEventSinkTests)
 {
 public:
 
     TEST_METHOD (FirstHeadStepAfterLongQuiet_firesAudioStarted)
     {
-        DiskIIAudioSource         src;
+        Disk2AudioSource          src;
         RecordingAudioEventSink   sink;
 
         src.SetSampleBufferForTest (L"HeadStep", vector<float> (16, 0.5f));
@@ -113,7 +113,7 @@ public:
 
     TEST_METHOD (TwoCloseHeadSteps_firesStartedThenRestarted)
     {
-        DiskIIAudioSource         src;
+        Disk2AudioSource          src;
         RecordingAudioEventSink   sink;
 
         // Long HeadStep buffer so the first shot is still playing
@@ -136,7 +136,7 @@ public:
 
     TEST_METHOD (HeadStepPastSeekThreshold_doesNotEnterSeekContinuePath)
     {
-        DiskIIAudioSource         src;
+        Disk2AudioSource          src;
         RecordingAudioEventSink   sink;
 
         src.SetSampleBufferForTest (L"HeadStep", vector<float> (1024, 0.5f));
@@ -158,7 +158,7 @@ public:
 
     TEST_METHOD (HeadStepDuringSeekMode_firesAudioContinued)
     {
-        DiskIIAudioSource         src;
+        Disk2AudioSource          src;
         RecordingAudioEventSink   sink;
 
         src.SetSampleBufferForTest (L"HeadStep", vector<float> (1024, 0.5f));
@@ -182,7 +182,7 @@ public:
 
     TEST_METHOD (MissingHeadStepBuffer_firesAudioSilentBufferMissing)
     {
-        DiskIIAudioSource         src;
+        Disk2AudioSource          src;
         RecordingAudioEventSink   sink;
 
         // No HeadStep buffer injected -> empty.
@@ -199,7 +199,7 @@ public:
 
     TEST_METHOD (MotorEngaged_firesAudioLoopStarted_andDisengagedFiresLoopStopped)
     {
-        DiskIIAudioSource         src;
+        Disk2AudioSource          src;
         RecordingAudioEventSink   sink;
 
         src.SetSampleBufferForTest (L"MotorLoop",  vector<float> (32, 1.0f));
@@ -219,7 +219,7 @@ public:
 
     TEST_METHOD (MotorEngagedWithMissingBuffer_firesAudioSilentBufferMissing)
     {
-        DiskIIAudioSource         src;
+        Disk2AudioSource          src;
         RecordingAudioEventSink   sink;
 
         src.SetAudioEventSink (&sink);
@@ -234,7 +234,7 @@ public:
 
     TEST_METHOD (HeadBump_firesAudioStarted_thenRestartedWhenStillPlaying)
     {
-        DiskIIAudioSource         src;
+        Disk2AudioSource          src;
         RecordingAudioEventSink   sink;
 
         src.SetSampleBufferForTest (L"HeadStop", vector<float> (1024, 0.9f));
@@ -252,7 +252,7 @@ public:
 
     TEST_METHOD (DiskInsertedAndEjected_fireAudioStartedForDoorSounds)
     {
-        DiskIIAudioSource         src;
+        Disk2AudioSource          src;
         RecordingAudioEventSink   sink;
 
         src.SetSampleBufferForTest (L"DoorOpen",  vector<float> (16, 0.5f));
@@ -271,7 +271,7 @@ public:
 
     TEST_METHOD (DiskInsertedWithMissingBuffer_firesAudioSilentBufferMissing)
     {
-        DiskIIAudioSource         src;
+        Disk2AudioSource          src;
         RecordingAudioEventSink   sink;
 
         src.SetAudioEventSink (&sink);
@@ -286,7 +286,7 @@ public:
 
     TEST_METHOD (NoSinkAttached_isNoopAndDoesNotCrash)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource  src;
 
         src.SetSampleBufferForTest (L"MotorLoop", vector<float> (16, 1.0f));
         src.SetSampleBufferForTest (L"HeadStep",  vector<float> (16, 0.5f));
@@ -310,7 +310,7 @@ public:
 
     TEST_METHOD (MotorEngagedWithNoDisk_firesAudioSilentNoDiskPresent)
     {
-        DiskIIAudioSource         src;
+        Disk2AudioSource          src;
         RecordingAudioEventSink   sink;
 
         src.SetSampleBufferForTest (L"MotorLoop", vector<float> (32, 1.0f));
@@ -326,7 +326,7 @@ public:
 
     TEST_METHOD (EjectWhileMotorOn_firesLoopStoppedAndSilentNoDiskPresent)
     {
-        DiskIIAudioSource         src;
+        Disk2AudioSource          src;
         RecordingAudioEventSink   sink;
 
         src.SetSampleBufferForTest (L"MotorLoop",  vector<float> (32, 1.0f));
@@ -356,7 +356,7 @@ public:
 
     TEST_METHOD (InsertWhileMotorOn_firesRestartedAndDoorClose)
     {
-        DiskIIAudioSource         src;
+        Disk2AudioSource          src;
         RecordingAudioEventSink   sink;
 
         src.SetSampleBufferForTest (L"MotorLoop",  vector<float> (32, 1.0f));
@@ -386,7 +386,7 @@ public:
 
     TEST_METHOD (MotorOnWithDisk_thenEjectThenReinsert_mixOutputGatedCorrectly)
     {
-        DiskIIAudioSource  src;
+        Disk2AudioSource   src;
         float              out[8] = {};
 
         src.SetSampleBufferForTest (L"MotorLoop",  vector<float> (16, 1.0f));

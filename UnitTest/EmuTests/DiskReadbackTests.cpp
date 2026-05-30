@@ -12,7 +12,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DiskReadbackTests
 //
-//  End-to-end "Casso writes a disk image, then Casso's DiskIIController
+//  End-to-end "Casso writes a disk image, then Casso's Disk2Controller
 //  + LSS engine reads it back through the bus" tests. No boot ROM, no
 //  CPU -- just the disk subsystem driven via direct controller API
 //  calls and bus reads of $C0E0-$C0EF (slot 6).
@@ -137,8 +137,8 @@ namespace
         HRESULT      hr        = S_OK;
         DiskImage *  external  = nullptr;
 
-        hr = host.BuildAppleIIeWithDiskII (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDiskII");
+        hr = host.BuildAppleIIeWithDisk2 (core);
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDisk2");
 
         core.PowerCycle ();
 
@@ -152,12 +152,26 @@ namespace
 
         core.diskController->SetExternalDisk (kDrive1, external);
 
+        // DiskReadbackTests drive the controller via direct bus reads
+        // + manual Tick(N) pumping, without running the CPU. The
+        // catch-up-on-read path needs a live, advancing CPU cycle
+        // counter to do its job; detach the source so Tick(N) goes
+        // back to advancing the engine bit cursor itself.
+        core.diskController->SetCpuCycleSource (nullptr);
+
         // Spin up: select drive 1, motor on, set Q7=0/Q6=0 (read mode).
         core.bus->ReadByte (kSelectDrive1);
         core.bus->ReadByte (kMotorOn);
         core.bus->ReadByte (kQ6On);     // ensures Q6=1 first
         core.bus->ReadByte (kSlotIoBase + 0xC); // Q6=0
         core.bus->ReadByte (kQ7Off);
+
+        // Issue #67: drain the motor spin-up window so the very next
+        // read returns real bit-stream data rather than the synthetic
+        // zeros the controller hands back during spin-up. Tests
+        // written before #67 expected immediate readiness; the
+        // controller now models the ~70 ms physical spin-up.
+        core.diskController->Tick (Disk2Controller::kMotorSpinupCycles);
 
         return external;
     }
