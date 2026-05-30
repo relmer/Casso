@@ -147,11 +147,18 @@ is preserved as the lone deliberate Win32 surface.
   paints in the active sort header. `ListView::HitTestHeaderColumn`
   is the new shared hit-test helper.
 
+### Fixed
+- **fix(011): SettingsPanel + dialog body share one themed background.**
+  The settings popup hardcoded a dark-navy panel fill while the
+  themed dialog body used `dropdownBgArgb`, so the two surfaces drew
+  visibly different colours when stacked. New `panelBgArgb` /
+  `panelEdgeArgb` entries on `ChromeTheme` are now consumed by both
+  the settings popup and `DialogPrimitiveRenderer`, and pick up the
+  active theme (Skeuomorphic / Dark / RetroTerminal) instead of the
+  former blue-only constants.
+
 ### Deferred
-- Granular text-range selection in `DebugConsolePanel`. Ctrl+A and a
-  draggable selection are deferred; Ctrl+C copies the full buffer,
-  which covers the dominant use case (paste a session into a bug
-  report).
+- None — all spec 011 tasks shipped.
 
 ### Tests
 - **+24 headless unit tests** across `DialogLayoutTests` (6),

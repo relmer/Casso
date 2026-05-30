@@ -496,9 +496,9 @@ void DialogPrimitiveRenderer::PaintBackground (const ChromeTheme & theme, int ti
 
 
 
-    m_painter.FillRect     (0.0f, contentY, totalW, contentH,                 theme.dropdownBgArgb);
+    m_painter.FillRect     (0.0f, contentY, totalW, contentH,                 theme.panelBgArgb);
     m_painter.FillRect     (0.0f, contentY, totalW, s_kTitleSeparatorHeightPx, theme.navStripArgb);
-    m_painter.OutlineRect  (0.0f, 0.0f,     totalW, totalH,                   s_kBorderThicknessPx, theme.navStripArgb);
+    m_painter.OutlineRect  (0.0f, 0.0f,     totalW, totalH,                   s_kBorderThicknessPx, theme.panelEdgeArgb);
 }
 
 

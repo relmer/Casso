@@ -35,8 +35,6 @@ namespace
     constexpr int    s_kButtonGapDp    = 8;
     constexpr int    s_kPanelPadDp     = 16;
     constexpr int    s_kPanelMarginDp  = 16;
-    constexpr uint32_t s_kPanelBgArgb  = 0xFF1A2230;
-    constexpr uint32_t s_kPanelEdgeArgb = 0xFF334050;
     constexpr uint32_t s_kCaptionBgArgb = 0xFF0F1620;
     constexpr uint32_t s_kCaptionTextArgb = 0xFFE8EEF4;
     constexpr float    s_kEdgeThickDp  = 1.0f;
@@ -1690,12 +1688,12 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
                           (float) m_panelRect.top,
                           (float) (m_panelRect.right  - m_panelRect.left),
                           (float) (m_panelRect.bottom - m_panelRect.top),
-                          s_kPanelBgArgb);
+                          theme.panelBgArgb);
     painter.OutlineRect ((float) m_panelRect.left,
                           (float) m_panelRect.top,
                           (float) (m_panelRect.right  - m_panelRect.left),
                           (float) (m_panelRect.bottom - m_panelRect.top),
-                          edgeThick, s_kPanelEdgeArgb);
+                          edgeThick, theme.panelEdgeArgb);
 
     m_tabs.Paint  (painter, text);
 
