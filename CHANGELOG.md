@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.4.1364] — Native dialogs migration (spec 011)
+## [1.4.1369] — Native dialogs migration (spec 011)
 
 Themed DX-based modal dialogs now replace every Win32 `MessageBoxW` /
 `TaskDialogIndirect` consumer in the app (except the pre-shell EHM
@@ -109,6 +109,20 @@ is preserved as the lone deliberate Win32 surface.
   mouse-wheel + PgUp/PgDn/Home/End/arrow scrolling, Ctrl+C copies the
   full buffer to the clipboard. Thread-safe `Log` / `LogConfig`
   contract preserved verbatim; existing call sites needed no change.
+- **feat(011): DiskIIDebugPanel column toggle + filter tooltips
+  (T056–T058).** Right-clicking a `ListView` column header now opens a
+  themed `PopupMenu` listing every column with its current visibility as
+  a check; selecting an entry hides or shows the column and re-runs
+  layout. Hovering any filter control surfaces a themed `Tooltip` (DX
+  overlay, no Win32 `TOOLTIPS_CLASS`) explaining the control after the
+  standard dwell delay. Layout pass walked under Skeuomorphic,
+  DarkModern, and RetroTerminal — every widget family renders without
+  overlap and the ListView header shows all six columns.
+- **chore(011): shared `PopupMenu` widget.**
+  `Casso/Ui/Widgets/PopupMenu` provides a reusable themed popup with
+  check glyph, keyboard navigation (arrow keys + Enter / Escape), and
+  host-rectangle clamping so panels can host context menus without
+  pulling in Win32 menu APIs.
 - **chore(011): chrome shell extracted.** `ChromedPanelWindow` and
   `IChromedPanelContent` factored out from the dialog primitives so
   both new panels (and any future child window) share NC chrome,
@@ -116,11 +130,6 @@ is preserved as the lone deliberate Win32 surface.
   copy-paste.
 
 ### Deferred
-- T056-T058 polish (column header context menu, tooltip wiring, layout
-  pass) for `DiskIIDebugPanel` left for follow-up. The panel ships with
-  the full filter / audio toggle / track-sector / button row / event
-  ListView surface; the deferred items are pure UX sugar (column toggle
-  popup, hover tooltips, visual-only padding tweaks).
 - Granular text-range selection in `DebugConsolePanel`. Ctrl+A and a
   draggable selection are deferred; Ctrl+C copies the full buffer,
   which covers the dominant use case (paste a session into a bug

@@ -64,6 +64,7 @@ public:
     // is a no-op since most panels don't scroll.
     virtual void     OnLButtonDown (int x, int y) = 0;
     virtual void     OnLButtonUp   (int x, int y) = 0;
+    virtual void     OnRButtonDown (int x, int y) { (void) x; (void) y; }
     virtual void     OnMouseMove   (int x, int y) = 0;
     virtual void     OnMouseWheel  (int x, int y, int delta) { (void) x; (void) y; (void) delta; }
     virtual bool     OnKey         (WPARAM vk) = 0;

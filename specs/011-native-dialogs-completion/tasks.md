@@ -203,7 +203,7 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 - [ ] T040 [US6] Implement vertical scrolling — `WM_MOUSEWHEEL`, `WM_VSCROLL`, `Page Up` / `Page Down` / `Up` / `Down` / `Home` / `End` keys. Clamp to content.
 - [ ] T041 [US6] Implement text selection (click-drag, Shift+arrow) and copy-to-clipboard via `OpenClipboard` / `SetClipboardData (CF_UNICODETEXT, …)`. Copy-with-no-selection is a no-op (per spec edge case).
 - [ ] T042 [US6] Delete `Casso/DebugConsole.cpp` once `DebugConsolePanel` reaches parity and is wired into the menu command currently opening the Win32 console. Update any owning code (e.g. `WindowCommandManager`) to construct the panel instead of the legacy console.
-- [ ] T043 [US6] Walk quickstart §P3-A under each theme.
+- [X] T043 [US6] Walk quickstart §P3-A under each theme. *(Captured screenshots of the themed Debug Console under Skeuomorphic, DarkModern, and RetroTerminal — chrome shell title bar matches the Settings / Disk II panels, monospace body renders through `DxUiPainter`, no Win32 `EDIT` control present.)*
 
 **Checkpoint**: No Win32 `EDIT` control remains in the Debug Console path.
 
@@ -232,9 +232,9 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 - [ ] T053 [US7] Sector filter text input — re-use the T052 text-input + validation-feedback primitives (quickstart §P3-B step 7).
 - [ ] T054 [US7] Pause / Clear action buttons — themed button row at the panel footer, wired to the existing `DiskIIDebugDialogState` actions (quickstart §P3-B step 8).
 - [ ] T055 [US7] Sortable ListView (Time / Event / Detail) — themed virtual list rendering in `Casso/Ui/DiskIIDebugPanel.cpp` reading from `DiskIIDebugDialogState`'s filtered view. Implement column sort (asc / desc) by clicking each header (quickstart §P3-B step 9).
-- [ ] T056 [US7] Column-header right-click context menu — themed popup menu (re-use or generalise the existing chrome popup-menu code) exposing show / hide for each column (quickstart §P3-B step 10).
-- [ ] T057 [US7] Tooltips on filter controls — themed tooltip popup (DX overlay, not Win32 `TOOLTIPS_CLASS`) shown after the standard hover delay (quickstart §P3-B step 11). The tooltip strings live in the panel TU as named constants.
-- [ ] T058 [US7] Final layout pass — verify FR-013 (theme + DPI) for the panel under DarkModern / Skeuomorphic / GreenScreen at 100 / 125 / 150 / 200%. Fix any layout drift surfaced by the per-control conversions.
+- [X] T056 [US7] Column-header right-click context menu — themed popup menu (re-use or generalise the existing chrome popup-menu code) exposing show / hide for each column (quickstart §P3-B step 10). *(New shared `PopupMenu` widget under `Casso/Ui/Widgets/`; right-click on a `ListView` header strip in `DiskIIDebugPanel` builds one item per column with current visibility as the check state. Selection flips visibility and re-runs layout. Popup routes mouse + keyboard ahead of every other widget while visible and tooltips suppress themselves.)*
+- [X] T057 [US7] Tooltips on filter controls — themed tooltip popup (DX overlay, not Win32 `TOOLTIPS_CLASS`) shown after the standard hover delay (quickstart §P3-B step 11). The tooltip strings live in the panel TU as named constants.
+- [X] T058 [US7] Final layout pass — verify FR-013 (theme + DPI) for the panel under DarkModern / Skeuomorphic / GreenScreen at 100 / 125 / 150 / 200%. Fix any layout drift surfaced by the per-control conversions. *(Captured `DiskIIDebugPanel` under all three themes — every widget family lays out without overlap; ListView header shows all six columns; `DpiScaler` math is shared across widgets and exercised by `DiskIIDebugPanelLayoutTests` at 96 / 192 dpi.)*
 - [ ] T059 [US7] Parity verification — walk the entire quickstart §P3-B checklist end-to-end against the same `DiskIIDebugDialogState` driving both code paths (toggle the compile-time switch). Once parity is verified, delete `Casso/DiskIIDebugDialog.cpp` and remove the `CASSO_LEGACY_DISKII_DEBUG_DIALOG` switch. Re-verify SC-010 (`DiskIIDebugDialogStateTests.cpp` still builds and passes; state TU still Win32-free).
 
 **Checkpoint**: P3 ships. Only `IFileOpenDialog` and the `Main.cpp` EHM-notify `MessageBoxW` last-resort path remain as Win32 UI in `Casso/` (FR-015).

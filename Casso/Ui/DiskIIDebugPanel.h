@@ -9,6 +9,7 @@
 #include "Widgets/Checkbox.h"
 #include "Widgets/Label.h"
 #include "Widgets/ListView.h"
+#include "Widgets/PopupMenu.h"
 #include "Widgets/Radio.h"
 #include "Widgets/TextInput.h"
 #include "Widgets/Tooltip.h"
@@ -89,6 +90,7 @@ public:
     HRESULT  Render             ()                                  override;
     void     OnLButtonDown      (int x, int y)                      override;
     void     OnLButtonUp        (int x, int y)                      override;
+    void     OnRButtonDown      (int x, int y)                      override;
     void     OnMouseMove        (int x, int y)                      override;
     bool     OnKey              (WPARAM vk)                         override;
     bool     OnChar             (wchar_t ch)                        override;
@@ -135,6 +137,9 @@ private:
     void    OnTrackEditChanged   ();
     void    OnSectorEditChanged  ();
     void    UpdatePauseLabel     ();
+    void    UpdateTooltip        (int x, int y);
+    void    ShowColumnMenu       (int anchorX, int anchorY);
+    int64_t NowMs                () const;
 
     ChromedPanelWindow                   m_window;
     PanelLayoutSlots                     m_layout = {};
@@ -169,6 +174,8 @@ private:
     Button                                      m_pauseButton;
     Button                                      m_clearButton;
     ListView                                    m_eventList;
+    Tooltip                                     m_tooltip;
+    PopupMenu                                   m_columnMenu;
 
     FilterState                           m_filter;
     DiskIIEventRing                       m_ring;

@@ -499,6 +499,7 @@ LRESULT ChromedPanelWindow::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPA
         case WM_LBUTTONDOWN:
         case WM_LBUTTONUP:
         case WM_LBUTTONDBLCLK:
+        case WM_RBUTTONDOWN:
         case WM_MOUSEWHEEL:
             OnMouse (message, wParam, lParam);
             result = 0;
@@ -938,6 +939,11 @@ void ChromedPanelWindow::OnMouse (UINT message, WPARAM wParam, LPARAM lParam)
     {
         ReleaseCapture();
         m_content->OnLButtonUp (x, y);
+    }
+    else if (message == WM_RBUTTONDOWN)
+    {
+        SetFocus (m_hwnd);
+        m_content->OnRButtonDown (x, y);
     }
     else if (message == WM_MOUSEWHEEL)
     {

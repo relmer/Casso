@@ -40,6 +40,7 @@ public:
         int                           widthDp = 0;     // 0 = auto-fit content (or stretch if stretch=true)
         bool                          stretch = false; // when true, column absorbs any remaining width after fixed/auto
         DwriteTextRenderer::HAlign    align   = DwriteTextRenderer::HAlign::Left;
+        bool                          visible = true;
     };
 
     struct Cell
@@ -55,11 +56,27 @@ public:
     void  SetShowHeader   (bool b)                         { m_showHeader = b; }
     void  SetHoveredRow   (int row)                        { m_hovered = row; }
 
+    void  SetColumnVisible (size_t idx, bool visible)
+    {
+        if (idx < m_columns.size())
+        {
+            m_columns[idx].visible = visible;
+        }
+    }
+    bool  ColumnVisible    (size_t idx) const
+    {
+        return (idx < m_columns.size()) && m_columns[idx].visible;
+    }
+
     void  SetColumns      (std::vector<Column> cols)       { m_columns = std::move (cols); m_measuredWPx.clear(); }
     void  SetRows         (std::vector<std::vector<Cell>> rows) { m_rows = std::move (rows); m_measuredWPx.clear(); }
 
     int   HoveredRow      () const                         { return m_hovered; }
     int   RowCount        () const                         { return (int) m_rows.size(); }
+    size_t        ColumnCount  () const                    { return m_columns.size(); }
+    const Column & ColumnAt    (size_t idx) const          { return m_columns[idx]; }
+    int           HeaderHeightPx () const                  { return m_showHeader ? m_scaler.Px (s_kHeaderHeightDp) : 0; }
+    bool          ShowHeader     () const                  { return m_showHeader; }
 
     // Measure each column's natural width from its header + cell text.
     // Caller invokes this once after SetColumns/SetRows to populate
@@ -277,6 +294,12 @@ private:
 
         for (size_t c = 0; c < m_columns.size(); ++c)
         {
+            if (!m_columns[c].visible)
+            {
+                ws[c] = 0;
+                continue;
+            }
+
             if (m_columns[c].stretch && stretchIdx == -1)
             {
                 stretchIdx = (int) c;

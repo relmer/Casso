@@ -254,6 +254,7 @@
     <ClCompile Include="Ui\Widgets\TabStrip.cpp" />
     <ClCompile Include="Ui\Widgets\TextInput.cpp" />
     <ClCompile Include="Ui\Widgets\Tooltip.cpp" />
+    <ClCompile Include="Ui\Widgets\PopupMenu.cpp" />
     <ClCompile Include="Ui\Widgets\TreeView.cpp" />
     <ClCompile Include="Ui\AutoMountResolver.cpp" />
     <ClCompile Include="Ui\Settings\DisplayPage.cpp" />
@@ -345,6 +346,7 @@
     <ClInclude Include="Ui\Widgets\TabStrip.h" />
     <ClInclude Include="Ui\Widgets\TextInput.h" />
     <ClInclude Include="Ui\Widgets\Tooltip.h" />
+    <ClInclude Include="Ui\Widgets\PopupMenu.h" />
     <ClInclude Include="Ui\Widgets\TreeView.h" />
     <ClInclude Include="Ui\IDriveCommandSink.h" />
     <ClInclude Include="Ui\AutoMountResolver.h" />

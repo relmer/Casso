@@ -46,6 +46,38 @@ namespace
     constexpr LPCWSTR  s_kpszAudioLabel    = L"Audio";
     constexpr LPCWSTR  s_kpszInvalidLabel  = L"Invalid";
 
+    constexpr LPCWSTR  s_kpszEventCheckTips[kEventTypeCheckCount] =
+    {
+        L"Motor spin-up / spin-down transitions",
+        L"Stepper head moves between tracks",
+        L"Head bumps against track 0 stop",
+        L"Address-field reads (track / sector / volume)",
+        L"Data-field sector reads",
+        L"Data-field sector writes",
+        L"Disk-inserted / disk-ejected events",
+        L"Soft-switch drive selection (Drive 1 vs Drive 2)",
+    };
+
+    constexpr LPCWSTR  s_kpszAudioSubTips[kAudioSubCheckCount] =
+    {
+        L"Audio loop started",
+        L"Audio loop restarted with new parameters",
+        L"Audio loop continued without retrigger",
+        L"Audio loop silenced (with reason)",
+    };
+
+    constexpr LPCWSTR  s_kpszDriveRadioTips[kDriveRadioCount] =
+    {
+        L"Show events from all drives",
+        L"Show only events targeting Drive 1",
+        L"Show only events targeting Drive 2",
+    };
+
+    constexpr LPCWSTR  s_kpszAudioMasterTip = L"Master toggle for all audio-event categories below";
+    constexpr LPCWSTR  s_kpszRawQtTip       = L"Show every quarter-track head step (verbose)";
+    constexpr LPCWSTR  s_kpszTrackEditTip   = L"Filter rows to a single track (blank = all)";
+    constexpr LPCWSTR  s_kpszSectorEditTip  = L"Filter rows to a single sector (blank = all)";
+
 
     void ArgbToFloat4 (uint32_t argb, float (& outRgba)[4]) noexcept
     {
@@ -308,6 +340,11 @@ HRESULT DiskIIDebugPanel::Render()
 
     m_eventList.Paint (m_painter, m_text);
 
+    m_tooltip.Tick  (NowMs());
+    m_tooltip.Paint (m_painter, m_text);
+
+    m_columnMenu.Paint (m_painter, m_text);
+
     hr = m_painter.End (m_rtv.Get());
     CHRA (hr);
 
@@ -541,6 +578,11 @@ void DiskIIDebugPanel::OnLButtonDown (int x, int y)
     bool  handled = false;
 
 
+    if (m_columnMenu.IsVisible())
+    {
+        if (m_columnMenu.OnLButtonDown (x, y)) { return; }
+    }
+
     for (auto & cb : m_eventChecks)
     {
         if (cb.OnLButtonDown (x, y)) { handled = true; break; }
@@ -607,6 +649,11 @@ void DiskIIDebugPanel::OnLButtonDown (int x, int y)
 
 void DiskIIDebugPanel::OnLButtonUp (int x, int y)
 {
+    if (m_columnMenu.IsVisible())
+    {
+        if (m_columnMenu.OnLButtonUp (x, y)) { return; }
+    }
+
     for (auto & cb : m_eventChecks)        { cb.OnLButtonUp (x, y); }
     m_audioMasterCheck.OnLButtonUp (x, y);
     for (auto & cb : m_audioSubChecks)     { cb.OnLButtonUp (x, y); }
@@ -643,6 +690,13 @@ void DiskIIDebugPanel::OnLButtonUp (int x, int y)
 
 void DiskIIDebugPanel::OnMouseMove (int x, int y)
 {
+    if (m_columnMenu.IsVisible())
+    {
+        m_columnMenu.OnMouseMove (x, y);
+        m_tooltip.RequestHide (NowMs());
+        return;
+    }
+
     for (auto & cb : m_eventChecks)        { cb.SetMouseHover (x, y); }
     m_audioMasterCheck.SetMouseHover (x, y);
     for (auto & cb : m_audioSubChecks)     { cb.SetMouseHover (x, y); }
@@ -658,6 +712,72 @@ void DiskIIDebugPanel::OnMouseMove (int x, int y)
     int  relY = y - m_layout.listView.top;
     int  hit  = m_eventList.HitTestRow (relX, relY);
     m_eventList.SetHoveredRow (hit);
+
+    UpdateTooltip (x, y);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnRButtonDown
+//
+//  Right-click inside the list-view header strip surfaces a themed
+//  popup menu of column-visibility toggles. Anywhere else, right-click
+//  is currently a no-op.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::OnRButtonDown (int x, int y)
+{
+    int  relX        = x - m_layout.listView.left;
+    int  relY        = y - m_layout.listView.top;
+    int  headerH     = m_eventList.HeaderHeightPx();
+    int  listWidthPx = m_layout.listView.right - m_layout.listView.left;
+
+
+    if (!m_eventList.ShowHeader())                                { return; }
+    if (relX < 0 || relX >= listWidthPx)                          { return; }
+    if (relY < 0 || relY >= headerH)                              { return; }
+
+    ShowColumnMenu (x, y);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowColumnMenu
+//
+//  Builds a popup menu item for each column with the current
+//  visibility as the check state and anchors it at the click point.
+//  Selection callback is wired in ConfigureWidgets and flips the
+//  selected column's visibility, then re-runs layout so width / sort
+//  reflect the change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
+{
+    std::vector<PopupMenu::Item>  items;
+    RECT                          host = { 0, 0, m_widthPx, m_heightPx };
+
+
+    items.reserve (m_eventList.ColumnCount());
+
+    for (size_t i = 0; i < m_eventList.ColumnCount(); ++i)
+    {
+        PopupMenu::Item  item;
+        item.label   = m_eventList.ColumnAt (i).title;
+        item.checked = m_eventList.ColumnVisible (i);
+        items.push_back (std::move (item));
+    }
+
+    m_columnMenu.Show (anchorX, anchorY, std::move (items), m_text, host);
 }
 
 
@@ -672,8 +792,9 @@ void DiskIIDebugPanel::OnMouseMove (int x, int y)
 
 bool DiskIIDebugPanel::OnKey (WPARAM vk)
 {
-    if (m_trackEdit.OnKey (vk))  { return true; }
-    if (m_sectorEdit.OnKey (vk)) { return true; }
+    if (m_columnMenu.IsVisible())  { return m_columnMenu.OnKey (vk); }
+    if (m_trackEdit.OnKey (vk))    { return true; }
+    if (m_sectorEdit.OnKey (vk))   { return true; }
     return false;
 }
 
@@ -1002,6 +1123,9 @@ void DiskIIDebugPanel::LayoutWidgets()
     m_eventList.SetRect  (m_layout.listView);
     m_eventList.SetDpi   (m_dpi);
     m_eventList.SetTheme (m_theme);
+
+    m_columnMenu.SetDpi   (m_dpi);
+    m_columnMenu.SetTheme (m_theme);
 }
 
 
@@ -1107,6 +1231,13 @@ void DiskIIDebugPanel::ConfigureWidgets()
     cols.push_back ({ L"Detail", 0,               true,  DwriteTextRenderer::HAlign::Left  });
     m_eventList.SetColumns    (std::move (cols));
     m_eventList.SetShowHeader (true);
+
+    m_columnMenu.SetOnSelect ([this] (int index)
+    {
+        if (index < 0 || index >= (int) m_eventList.ColumnCount()) { return; }
+        m_eventList.SetColumnVisible ((size_t) index, !m_eventList.ColumnVisible ((size_t) index));
+        LayoutWidgets();
+    });
 }
 
 
@@ -1532,4 +1663,96 @@ void DiskIIDebugPanel::OnAudioLoopStopped (SoundKind kind, int drive)
     e.payload.audio.drive  = drive;
     e.payload.audio.reason = SilentReason::DriveAudioDisabled;
     PublishToRing (e);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NowMs
+//
+//  Wall-clock-ish millisecond stamp for tooltip dwell timing. Uses
+//  steady_clock so a system clock adjustment can't make a tooltip
+//  hide millennia in the future.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t DiskIIDebugPanel::NowMs() const
+{
+    auto  delta = std::chrono::steady_clock::now() - m_uptimeAnchor;
+    return std::chrono::duration_cast<std::chrono::milliseconds> (delta).count();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateTooltip
+//
+//  Walks the filter / drive / edit widgets and shows the appropriate
+//  tooltip for whichever the cursor is over. Tooltips dwell-open after
+//  ~500ms of stable hover (Tooltip widget enforces it) and hide as soon
+//  as the cursor leaves all known targets.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::UpdateTooltip (int x, int y)
+{
+    int64_t  now = NowMs();
+
+    for (size_t i = 0; i < m_eventChecks.size(); ++i)
+    {
+        if (m_eventChecks[i].HitTest (x, y))
+        {
+            m_tooltip.RequestShow (m_eventChecks[i].Rect(), s_kpszEventCheckTips[i], now);
+            return;
+        }
+    }
+
+    if (m_audioMasterCheck.HitTest (x, y))
+    {
+        m_tooltip.RequestShow (m_audioMasterCheck.Rect(), s_kpszAudioMasterTip, now);
+        return;
+    }
+
+    for (size_t i = 0; i < m_audioSubChecks.size(); ++i)
+    {
+        if (m_audioSubChecks[i].HitTest (x, y))
+        {
+            m_tooltip.RequestShow (m_audioSubChecks[i].Rect(), s_kpszAudioSubTips[i], now);
+            return;
+        }
+    }
+
+    if (m_rawQtCheck.HitTest (x, y))
+    {
+        m_tooltip.RequestShow (m_rawQtCheck.Rect(), s_kpszRawQtTip, now);
+        return;
+    }
+
+    int  driveHit = m_driveRadio.HitTest (x, y);
+    if (driveHit >= 0 && driveHit < (int) m_driveRadio.Options().size())
+    {
+        m_tooltip.RequestShow (m_driveRadio.Options()[driveHit].rect,
+                               s_kpszDriveRadioTips[driveHit],
+                               now);
+        return;
+    }
+
+    if (m_trackEdit.HitTest (x, y))
+    {
+        m_tooltip.RequestShow (m_trackEdit.Rect(), s_kpszTrackEditTip, now);
+        return;
+    }
+
+    if (m_sectorEdit.HitTest (x, y))
+    {
+        m_tooltip.RequestShow (m_sectorEdit.Rect(), s_kpszSectorEditTip, now);
+        return;
+    }
+
+    m_tooltip.RequestHide (now);
 }
