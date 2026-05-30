@@ -2,6 +2,7 @@
 
 #include "Chrome/ChromedPanelWindow.h"
 #include "Chrome/IChromedPanelContent.h"
+#include "DiskIIDebugPanelLayout.h"
 
 #include "../../CassoEmuCore/Devices/IDiskIIEventSink.h"
 #include "../../CassoEmuCore/Devices/DiskIIEventRing.h"
@@ -105,8 +106,10 @@ private:
     HRESULT EnsureSwapChain      ();
     HRESULT CreateBackBufferRtv  ();
     void    ReleaseRenderTargets ();
+    void    RecomputeLayout      ();
 
     ChromedPanelWindow                   m_window;
+    PanelLayoutSlots                     m_layout = {};
 
     ID3D11Device                       * m_device  = nullptr;
     ID3D11DeviceContext                * m_context = nullptr;

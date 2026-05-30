@@ -290,6 +290,7 @@
     <ClCompile Include="DiskIIDebugDialogState.cpp" />
     <ClCompile Include="DiskIIDebugDialog.cpp" />
     <ClCompile Include="Ui\DiskIIDebugPanel.cpp" />
+    <ClCompile Include="Ui\DiskIIDebugPanelLayout.cpp" />
     <ClCompile Include="RichEditSquiggle.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -375,6 +376,7 @@
     <ClInclude Include="DiskIIDebugDialogState.h" />
     <ClInclude Include="DiskIIDebugDialog.h" />
     <ClInclude Include="Ui\DiskIIDebugPanel.h" />
+    <ClInclude Include="Ui\DiskIIDebugPanelLayout.h" />
     <ClInclude Include="RichEditSquiggle.h" />
     <ClInclude Include="UnicodeSymbols.h" />
     <ClInclude Include="WasapiAudio.h" />

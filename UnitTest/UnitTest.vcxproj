@@ -328,6 +328,10 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="..\Casso\Ui\DiskIIDebugPanelLayout.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="..\Casso\RichEditSquiggle.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
@@ -513,6 +517,7 @@
     <ClCompile Include="DialogLayoutTests.cpp" />
     <ClCompile Include="DriveLabelTruncationTests.cpp" />
     <ClCompile Include="StartupDownloadSetTests.cpp" />
+    <ClCompile Include="DiskIIDebugPanelLayoutTests.cpp" />
     <ClCompile Include="..\Casso\Shell\DiskMru.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>

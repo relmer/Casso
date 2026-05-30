@@ -307,6 +307,8 @@ HRESULT DiskIIDebugPanel::OnHostCreated (
     hr = EnsureSwapChain();
     CHRA (hr);
 
+    RecomputeLayout();
+
 Error:
     return hr;
 }
@@ -361,6 +363,8 @@ HRESULT DiskIIDebugPanel::OnHostResize (int widthPx, int heightPx, UINT dpi)
 
     hr = CreateBackBufferRtv();
     CHRA (hr);
+
+    RecomputeLayout();
 
 Error:
     return hr;
@@ -613,4 +617,24 @@ void DiskIIDebugPanel::ReleaseRenderTargets()
         m_context->OMSetRenderTargets (1, &nullRtv, nullptr);
     }
     m_rtv.Reset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RecomputeLayout
+//
+//  Recomputes the cached PanelLayoutSlots whenever the panel's client
+//  size or DPI changes. The slots feed T047+ control rendering; for
+//  now they're computed and stored so the hit-test plumbing has
+//  something to query.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::RecomputeLayout()
+{
+    m_layout = ComputeDiskIIDebugPanelLayout (m_widthPx, m_heightPx, m_dpi);
 }
