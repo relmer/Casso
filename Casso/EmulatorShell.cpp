@@ -64,6 +64,12 @@ static constexpr LPCWSTR kWindowClass           = L"CassoWindow";
 static constexpr int     s_kBaseDpi             = ChromeMetrics::kBaseDpi;
 static constexpr int     s_kDriveWidgetGapDp    = 16;
 
+// WM_KEYDOWN / WM_CHAR lParam bit 30: "previous key state" — set when the
+// key was already down, i.e. this event is a Windows OS auto-repeat. We
+// gate the emulated keyboard strobe on this so holding a key delivers a
+// single //e keypress instead of flooding $C000 at the host repeat rate.
+static constexpr LPARAM  s_kPreviousKeyDownLParamBit = 0x40000000;
+
 
 
 
@@ -2027,6 +2033,11 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
                 {
                     m_refs.diskController->Tick (m_cpu->GetLastInstructionCycles());
                 }
+
+                if (m_refs.keyboard != nullptr)
+                {
+                    m_refs.keyboard->Tick (m_cpu->GetLastInstructionCycles());
+                }
             }
             break;
         }
@@ -2135,6 +2146,11 @@ void EmulatorShell::StepInstructionWhilePaused ()
     if (m_refs.diskController != nullptr)
     {
         m_refs.diskController->Tick (m_cpu->GetLastInstructionCycles());
+    }
+
+    if (m_refs.keyboard != nullptr)
+    {
+        m_refs.keyboard->Tick (m_cpu->GetLastInstructionCycles());
     }
 
     RunOneFrame();
@@ -2250,6 +2266,11 @@ void EmulatorShell::ExecuteCpuSlices()
             if (m_refs.diskController != nullptr)
             {
                 m_refs.diskController->Tick (cycles);
+            }
+
+            if (m_refs.keyboard != nullptr)
+            {
+                m_refs.keyboard->Tick (cycles);
             }
         }
 
@@ -2591,10 +2612,10 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
 bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 {
-    UNREFERENCED_PARAMETER (lParam);
-
-    bool ctrlHeld = false;
-    bool altHeld  = false;
+    bool  ctrlHeld  = false;
+    bool  altHeld   = false;
+    bool  isRepeat  = (lParam & s_kPreviousKeyDownLParamBit) != 0;
+    Byte  appleCode = 0;
 
     if (m_uiShell.HandleKey (vk))
     {
@@ -2682,34 +2703,47 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
         }
     }
 
-    switch (vk)
+    // Arrow / Escape / Delete map to //e control codes. Gated on the
+    // auto-repeat bit so the host OS repeat never reaches the latch; a
+    // fresh press arms the $C000 strobe once and registers the key for
+    // the emulator's own authentic //e auto-repeat cadence (Tick).
+    if (!isRepeat)
     {
-        case VK_LEFT:
-            m_refs.keyboard->KeyPress (kAppleKeyLeft);
-            break;
-            
-        case VK_RIGHT:
-            m_refs.keyboard->KeyPress (kAppleKeyRight);
-            break;
+        switch (vk)
+        {
+            case VK_LEFT:
+                appleCode = kAppleKeyLeft;
+                break;
 
-        case VK_UP:
-            m_refs.keyboard->KeyPress (kAppleKeyUp);
-            break;
+            case VK_RIGHT:
+                appleCode = kAppleKeyRight;
+                break;
 
-        case VK_DOWN:
-            m_refs.keyboard->KeyPress (kAppleKeyDown);
-            break;
-            
-        case VK_ESCAPE:
-            m_refs.keyboard->KeyPress (kAppleKeyEscape);
-            break;
+            case VK_UP:
+                appleCode = kAppleKeyUp;
+                break;
 
-        case VK_DELETE:
-            m_refs.keyboard->KeyPress (kAppleKeyDelete);
-            break;
+            case VK_DOWN:
+                appleCode = kAppleKeyDown;
+                break;
 
-        default:
-            break;
+            case VK_ESCAPE:
+                appleCode = kAppleKeyEscape;
+                break;
+
+            case VK_DELETE:
+                appleCode = kAppleKeyDelete;
+                break;
+
+            default:
+                break;
+        }
+
+        if (appleCode != 0)
+        {
+            m_refs.keyboard->KeyPress (appleCode);
+            m_refs.keyboard->BeginKeyRepeat (appleCode);
+        }
     }
 
     return false;
@@ -2735,6 +2769,12 @@ bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
     }
 
     m_refs.keyboard->SetKeyDown (false);
+
+    // Disarm auto-repeat on release. The //e latch holds a single key, so
+    // a key-up always ends the current repeat; this also clears any stale
+    // armed key so a later non-character press (e.g. a bare modifier) can
+    // never resurrect the previous character's repeat.
+    m_refs.keyboard->BeginKeyRepeat (0);
 
     // / T063: release //e modifiers when the host releases the
     // physical key. Both VK_MENU and VK_L/RMENU events drive a re-query
@@ -2773,7 +2813,7 @@ bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 
 bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 {
-    UNREFERENCED_PARAMETER (lParam);
+    bool isRepeat = (lParam & s_kPreviousKeyDownLParamBit) != 0;
 
     if (m_refs.keyboard == nullptr)
     {
@@ -2789,9 +2829,19 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
         return false;
     }
 
+    // Drop Windows OS auto-repeat: the host repeat rate would flood
+    // $C000 and confuse real-time games that poll it. A fresh press is
+    // latched once and registered for the emulator's own authentic //e
+    // auto-repeat cadence (driven in CPU time by AppleKeyboard::Tick).
+    if (isRepeat)
+    {
+        return false;
+    }
+
     if (ch >= 1 && ch <= 127)
     {
         m_refs.keyboard->KeyPress (static_cast<Byte> (ch));
+        m_refs.keyboard->BeginKeyRepeat (static_cast<Byte> (ch));
     }
 
     return false;

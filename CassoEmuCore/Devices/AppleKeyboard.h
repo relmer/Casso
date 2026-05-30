@@ -68,6 +68,32 @@ public:
     // Called from EmulatorShell for special keys (UI thread)
     void SetKeyDown (bool down) { m_anyKeyDown.store (down, memory_order_release); }
 
+    // Authentic Apple //e keyboard auto-repeat cadence: a held key arms
+    // the $C000 strobe once, waits ~half a second, then re-arms it at
+    // ~15 characters per second. Expressed in CPU cycles off the nominal
+    // //e clock so the timing is deterministic and host-independent.
+    static constexpr uint32_t kKeyRepeatClockHz      = 1020484;
+    static constexpr uint32_t kKeyRepeatDelayMs      = 500;
+    static constexpr uint32_t kKeyRepeatRateHz       = 15;
+    static constexpr uint32_t kMillisecondsPerSecond = 1000;
+    static constexpr uint32_t kKeyRepeatDelayCycles =
+        static_cast<uint32_t> (static_cast<uint64_t> (kKeyRepeatClockHz) *
+                               kKeyRepeatDelayMs / kMillisecondsPerSecond);
+    static constexpr uint32_t kKeyRepeatIntervalCycles =
+        kKeyRepeatClockHz / kKeyRepeatRateHz;
+
+    // Arm the emulated //e keyboard auto-repeat for a freshly-pressed key
+    // (UI thread). The host OS auto-repeat is suppressed by the shell; the
+    // authentic //e delay-then-repeat cadence is regenerated here instead.
+    // A value of 0 disarms (no key to repeat).
+    void BeginKeyRepeat (Byte asciiChar) { m_repeatKey.store (asciiChar, memory_order_release); }
+
+    // Advance the auto-repeat timer by one instruction's worth of CPU
+    // cycles (CPU thread). Re-arms the $C000 strobe with the held key
+    // after the initial delay and then at the steady repeat rate, but
+    // only while the key remains physically down (any-key-down set).
+    void Tick (uint32_t cpuCycles);
+
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
@@ -78,4 +104,12 @@ private:
     // the CPU thread.
     atomic<Byte>   m_latchedKey{0};
     atomic<bool>   m_anyKeyDown{false};
+
+    // Auto-repeat state. m_repeatKey is written by the UI thread (arm /
+    // disarm) and read by the CPU thread (Tick); the cadence accumulator,
+    // phase flag, and last-seen key are touched only by Tick.
+    atomic<Byte>   m_repeatKey{0};
+    uint32_t       m_repeatAccumCycles = 0;
+    bool           m_repeatStarted     = false;
+    Byte           m_lastRepeatKey     = 0;
 };
