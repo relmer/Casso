@@ -129,6 +129,24 @@ is preserved as the lone deliberate Win32 surface.
   title bar, sys buttons, DPI handling, and input routing without
   copy-paste.
 
+- **feat(011): DebugConsolePanel text selection (T041).** Click-drag
+  selects a character range; Shift+arrows / Shift+Home/End extend the
+  selection (Shift+Ctrl+Home/End jump to the buffer extremes), plain
+  caret-move keys collapse it. Ctrl+A selects the whole buffer; Ctrl+C
+  copies the current selection to the clipboard as `CF_UNICODETEXT`
+  (CR/LF between lines), or is a no-op when the selection is empty.
+  Selection highlight paints under the text using the active theme's
+  nav-hover colour and tracks the viewport while dragging past the
+  body edges.
+- **feat(011): DiskIIDebugPanel per-column sortable header (T055).**
+  Clicking any ListView header now sorts by that column; clicking the
+  active column flips ascending / descending. All six columns
+  (Wall / Uptime / Cycle / Drive / Event / Detail) participate, with
+  a numeric-aware comparator for the comma-grouped cycle string and
+  the projection's `EventLabel` for the event column. A ▲ / ▼ glyph
+  paints in the active sort header. `ListView::HitTestHeaderColumn`
+  is the new shared hit-test helper.
+
 ### Deferred
 - Granular text-range selection in `DebugConsolePanel`. Ctrl+A and a
   draggable selection are deferred; Ctrl+C copies the full buffer,

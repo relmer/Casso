@@ -383,9 +383,10 @@ HRESULT DebugConsolePanel::OnHostResize (int widthPx, int heightPx, UINT dpi)
     HRESULT  hr = S_OK;
 
 
-    m_widthPx  = std::max (1, widthPx);
-    m_heightPx = std::max (1, heightPx);
-    m_dpi      = dpi;
+    m_widthPx          = std::max (1, widthPx);
+    m_heightPx         = std::max (1, heightPx);
+    m_dpi              = dpi;
+    m_charMetricsReady = false;
 
     BAIL_OUT_IF (m_swapChain == nullptr, S_OK);
 
@@ -494,6 +495,51 @@ HRESULT DebugConsolePanel::Render()
         ClampScroll();
         startLine    = m_scrollLine;
 
+        EnsureCharMetrics();
+
+        // Selection highlight is painted underneath the text so the
+        // glyphs stay readable inside the highlighted span. The rect
+        // colour comes from the theme's nav-hover so it tracks
+        // Skeuomorphic / DarkModern / RetroTerminal automatically.
+        if (HasSelection() && m_theme != nullptr)
+        {
+            Pos       lo         = {};
+            Pos       hi         = {};
+            uint32_t  selArgb    = m_theme->navHoverArgb;
+            float     cellW      = (m_charWidthPx > 0.0f) ? m_charWidthPx : 1.0f;
+            float     bodyRight  = (float) m_widthPx - padPx;
+
+            OrderedSelection (lo, hi);
+
+            for (i = 0; i < visibleLines && (startLine + i) < total; i++)
+            {
+                int  lineIdx = startLine + i;
+
+                if (lineIdx < lo.line || lineIdx > hi.line)
+                {
+                    continue;
+                }
+
+                int    lineLen = (int) m_lines[(size_t) lineIdx].size();
+                int    startCol = (lineIdx == lo.line) ? std::min (lo.column, lineLen) : 0;
+                int    endCol   = (lineIdx == hi.line) ? std::min (hi.column, lineLen) : lineLen;
+                float  yPx      = bodyTopPx + padPx + (float) i * lineHeightPx;
+                float  xPx      = padPx + (float) startCol * cellW;
+                float  wPx      = (lineIdx == hi.line)
+                                  ? ((float) endCol * cellW + padPx - xPx)
+                                  : (bodyRight - xPx);
+
+                if (wPx < 1.0f)
+                {
+                    wPx = (lineIdx == hi.line && lineIdx == lo.line) ? 0.0f : cellW;
+                }
+                if (wPx > 0.0f)
+                {
+                    m_painter.FillRect (xPx, yPx, wPx, lineHeightPx, selArgb);
+                }
+            }
+        }
+
         for (i = 0; i < visibleLines && (startLine + i) < total; i++)
         {
             const std::wstring & line = m_lines[(size_t) (startLine + i)];
@@ -568,12 +614,28 @@ SIZE DebugConsolePanel::PreferredClientSize (UINT dpi) const
 //
 //  OnLButtonDown
 //
+//  Starts a click-drag text selection. Sets capture so we keep
+//  receiving WM_MOUSEMOVE / WM_LBUTTONUP even when the cursor leaves
+//  the client area, then anchors both ends of the selection at the
+//  hit-test column under the cursor.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugConsolePanel::OnLButtonDown (int x, int y)
 {
-    (void) x;
-    (void) y;
+    Pos  p = HitTestChar (x, y);
+
+
+    if (m_hwnd != nullptr)
+    {
+        SetCapture (m_hwnd);
+    }
+
+    std::lock_guard<std::mutex>  lock (m_bufferMutex);
+
+    m_selAnchor = p;
+    m_selCaret  = p;
+    m_selecting = true;
 }
 
 
@@ -590,6 +652,15 @@ void DebugConsolePanel::OnLButtonUp (int x, int y)
 {
     (void) x;
     (void) y;
+
+
+    if (GetCapture() == m_hwnd && m_hwnd != nullptr)
+    {
+        ReleaseCapture();
+    }
+
+    std::lock_guard<std::mutex>  lock (m_bufferMutex);
+    m_selecting = false;
 }
 
 
@@ -600,12 +671,42 @@ void DebugConsolePanel::OnLButtonUp (int x, int y)
 //
 //  OnMouseMove
 //
+//  Extends the live selection while the left button is held. Cursor
+//  positions outside the body region auto-scroll the viewport by one
+//  line per event so the user can drag-select past the visible window.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugConsolePanel::OnMouseMove (int x, int y)
 {
-    (void) x;
-    (void) y;
+    Pos  p             = {};
+    int  bodyTop       = 0;
+    int  bodyBottom    = 0;
+
+
+    if (!m_selecting)
+    {
+        return;
+    }
+
+    p          = HitTestChar (x, y);
+    bodyTop    = BodyTopPx() + MulDiv (s_kPadDp, (int) m_dpi, 96);
+    bodyBottom = m_heightPx  - MulDiv (s_kPadDp, (int) m_dpi, 96);
+
+    std::lock_guard<std::mutex>  lock (m_bufferMutex);
+
+    if (y < bodyTop)
+    {
+        m_scrollLine -= 1;
+        ClampScroll();
+    }
+    else if (y > bodyBottom)
+    {
+        m_scrollLine += 1;
+        ClampScroll();
+    }
+
+    m_selCaret = p;
 }
 
 
@@ -646,10 +747,12 @@ void DebugConsolePanel::OnMouseWheel (int x, int y, int delta)
 //
 //  OnKey
 //
-//  PgUp / PgDn / Home / End / arrow scroll. Ctrl+C copies the entire
-//  buffer to the clipboard (granular text selection is intentionally
-//  deferred -- see plan T056-T058). Ctrl+A is a no-op for now since
-//  "select all" carries no visible state without selection rendering.
+//  PgUp / PgDn scroll the viewport without moving the caret. Arrows /
+//  Home / End move the caret (Shift extends the active selection,
+//  unmodified collapses it; Ctrl jumps to buffer extremes for
+//  Home / End). Ctrl+A selects the whole buffer; Ctrl+C copies the
+//  current selection to the clipboard as CF_UNICODETEXT, or is a
+//  no-op when the selection is empty.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -657,30 +760,28 @@ bool DebugConsolePanel::OnKey (WPARAM vk)
 {
     bool  handled  = false;
     bool  ctrlDown = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
+    bool  shiftDn  = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
     int   page     = std::max (1, LinesVisible() - 1);
 
 
     if (ctrlDown && (vk == 'C' || vk == 'c'))
     {
-        CopyAllToClipboard();
+        CopySelectionToClipboard();
+        return true;
+    }
+
+    if (ctrlDown && (vk == 'A' || vk == 'a'))
+    {
+        SelectAll();
         return true;
     }
 
     {
         std::lock_guard<std::mutex>  lock (m_bufferMutex);
+        int                          totalLines = (int) m_lines.size();
 
         switch (vk)
         {
-            case VK_UP:
-                m_scrollLine -= 1;
-                handled = true;
-                break;
-
-            case VK_DOWN:
-                m_scrollLine += 1;
-                handled = true;
-                break;
-
             case VK_PRIOR:
                 m_scrollLine -= page;
                 handled = true;
@@ -691,13 +792,75 @@ bool DebugConsolePanel::OnKey (WPARAM vk)
                 handled = true;
                 break;
 
+            case VK_UP:
+                if (m_selCaret.line > 0)
+                {
+                    m_selCaret.line  -= 1;
+                    m_selCaret.column = ClampColumn (m_selCaret.line, m_selCaret.column);
+                }
+                handled = true;
+                break;
+
+            case VK_DOWN:
+                if (m_selCaret.line + 1 < totalLines)
+                {
+                    m_selCaret.line  += 1;
+                    m_selCaret.column = ClampColumn (m_selCaret.line, m_selCaret.column);
+                }
+                handled = true;
+                break;
+
+            case VK_LEFT:
+                if (m_selCaret.column > 0)
+                {
+                    m_selCaret.column -= 1;
+                }
+                else if (m_selCaret.line > 0)
+                {
+                    m_selCaret.line  -= 1;
+                    m_selCaret.column = ClampColumn (m_selCaret.line, INT_MAX);
+                }
+                handled = true;
+                break;
+
+            case VK_RIGHT:
+                if (m_selCaret.column < ClampColumn (m_selCaret.line, INT_MAX))
+                {
+                    m_selCaret.column += 1;
+                }
+                else if (m_selCaret.line + 1 < totalLines)
+                {
+                    m_selCaret.line  += 1;
+                    m_selCaret.column = 0;
+                }
+                handled = true;
+                break;
+
             case VK_HOME:
-                m_scrollLine = 0;
+                if (ctrlDown)
+                {
+                    m_selCaret.line   = 0;
+                    m_selCaret.column = 0;
+                    m_scrollLine      = 0;
+                }
+                else
+                {
+                    m_selCaret.column = 0;
+                }
                 handled = true;
                 break;
 
             case VK_END:
-                m_scrollLine = (int) m_lines.size();
+                if (ctrlDown)
+                {
+                    m_selCaret.line   = std::max (0, totalLines - 1);
+                    m_selCaret.column = ClampColumn (m_selCaret.line, INT_MAX);
+                    m_scrollLine      = totalLines;
+                }
+                else
+                {
+                    m_selCaret.column = ClampColumn (m_selCaret.line, INT_MAX);
+                }
                 handled = true;
                 break;
 
@@ -707,7 +870,31 @@ bool DebugConsolePanel::OnKey (WPARAM vk)
 
         if (handled)
         {
+            bool  isCaretMove = (vk == VK_UP   || vk == VK_DOWN ||
+                                 vk == VK_LEFT || vk == VK_RIGHT ||
+                                 vk == VK_HOME || vk == VK_END);
+
+            if (isCaretMove && !shiftDn)
+            {
+                m_selAnchor = m_selCaret;
+            }
+
             ClampScroll();
+
+            // Keep caret visible on caret-move keys.
+            if (isCaretMove)
+            {
+                int  visible = LinesVisible();
+                if (m_selCaret.line < m_scrollLine)
+                {
+                    m_scrollLine = m_selCaret.line;
+                }
+                else if (m_selCaret.line >= m_scrollLine + visible)
+                {
+                    m_scrollLine = m_selCaret.line - visible + 1;
+                }
+                ClampScroll();
+            }
         }
     }
 
@@ -935,34 +1122,76 @@ int DebugConsolePanel::LineHeightPx() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CopyAllToClipboard
+//  CopySelectionToClipboard
 //
-//  Joins every line with CRLF and shoves it into the Win32 clipboard
-//  as CF_UNICODETEXT. Falls through silently on any clipboard failure
-//  -- the user just hits Ctrl+C again if it doesn't take.
+//  Joins the currently selected text (CR/LF between lines) and shoves
+//  it into the Win32 clipboard as CF_UNICODETEXT. Empty selection is
+//  a no-op per the spec edge case; failures fall through silently so
+//  the user can simply retry.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebugConsolePanel::CopyAllToClipboard()
+void DebugConsolePanel::CopySelectionToClipboard()
 {
     std::wstring  joined;
-    size_t        totalChars = 0;
     HGLOBAL       hMem       = nullptr;
     wchar_t     * dst        = nullptr;
+    Pos           lo         = {};
+    Pos           hi         = {};
 
 
     {
         std::lock_guard<std::mutex>  lock (m_bufferMutex);
 
-        for (const auto & line : m_lines)
+        if (!HasSelection())
         {
-            totalChars += line.size() + 2;
+            return;
         }
-        joined.reserve (totalChars);
-        for (const auto & line : m_lines)
+
+        OrderedSelection (lo, hi);
+
+        if (lo.line == hi.line)
         {
-            joined.append (line);
-            joined.append (L"\r\n");
+            if (lo.line >= 0 && lo.line < (int) m_lines.size())
+            {
+                const std::wstring & line = m_lines[(size_t) lo.line];
+                int  startCol = std::max (0, std::min (lo.column, (int) line.size()));
+                int  endCol   = std::max (0, std::min (hi.column, (int) line.size()));
+                joined.assign (line, (size_t) startCol, (size_t) (endCol - startCol));
+            }
+        }
+        else
+        {
+            int  lastLine = std::min (hi.line, (int) m_lines.size() - 1);
+
+            for (int li = lo.line; li <= lastLine; li++)
+            {
+                if (li < 0 || li >= (int) m_lines.size())
+                {
+                    continue;
+                }
+                const std::wstring & line = m_lines[(size_t) li];
+
+                if (li == lo.line)
+                {
+                    int  startCol = std::max (0, std::min (lo.column, (int) line.size()));
+                    joined.append (line, (size_t) startCol, std::wstring::npos);
+                }
+                else if (li == hi.line)
+                {
+                    int  endCol = std::max (0, std::min (hi.column, (int) line.size()));
+                    joined.append (line, 0, (size_t) endCol);
+                }
+                else
+                {
+                    joined.append (line);
+                }
+
+                if (li != hi.line)
+                {
+                    joined.append (L"\r\n");
+                }
+            }
         }
     }
 
@@ -1002,4 +1231,247 @@ void DebugConsolePanel::CopyAllToClipboard()
     }
 
     CloseClipboard();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureCharMetrics
+//
+//  Lazily measures the monospace cell width by querying DirectWrite
+//  for a single 'M' at the current font size + DPI. Cached until
+//  Reset (e.g. via DPI change in OnHostResize). Cheap to call every
+//  frame because the bool gate short-circuits after the first hit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugConsolePanel::EnsureCharMetrics()
+{
+    HRESULT  hr      = S_OK;
+    float    width   = 0.0f;
+    float    height  = 0.0f;
+    float    fontPx  = (float) s_kFontDip * (float) m_dpi / 96.0f;
+
+
+    if (m_charMetricsReady)
+    {
+        return;
+    }
+    if (!m_text.IsTargetBound())
+    {
+        return;
+    }
+
+    hr = m_text.MeasureString (L"M", fontPx, s_kpszMonoFamily, width, height);
+    if (FAILED (hr) || width <= 0.0f)
+    {
+        m_charWidthPx = fontPx * 0.6f;
+    }
+    else
+    {
+        m_charWidthPx = width;
+    }
+    m_charMetricsReady = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HitTestChar
+//
+//  Maps a body-relative pixel point to a {line, column} buffer
+//  position. Returns a clamped position even for points above /
+//  below / outside the body so click-drag selection past the edges
+//  still makes sense.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebugConsolePanel::Pos DebugConsolePanel::HitTestChar (int xPx, int yPx) const
+{
+    Pos    p          = {};
+    int    padPx      = MulDiv (s_kPadDp, (int) m_dpi, 96);
+    int    bodyTop    = BodyTopPx() + padPx;
+    int    lineH      = LineHeightPx();
+    float  cellW      = (m_charWidthPx > 0.0f) ? m_charWidthPx : 1.0f;
+    int    rowFromTop = 0;
+
+
+    if (lineH <= 0)
+    {
+        return p;
+    }
+
+    rowFromTop = (yPx - bodyTop) / lineH;
+    if (yPx < bodyTop) { rowFromTop = -1; }
+
+    p.line = m_scrollLine + rowFromTop;
+    if (p.line < 0) { p.line = 0; }
+    if (p.line >= (int) m_lines.size())
+    {
+        p.line = std::max (0, (int) m_lines.size() - 1);
+    }
+
+    if (xPx <= padPx)
+    {
+        p.column = 0;
+    }
+    else
+    {
+        // Round to nearest character cell so the caret snaps to the
+        // gap closest to the cursor rather than always the left edge.
+        p.column = (int) (((float) (xPx - padPx) + cellW * 0.5f) / cellW);
+    }
+    p.column = ClampColumn (p.line, p.column);
+    return p;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClampColumn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DebugConsolePanel::ClampColumn (int line, int col) const
+{
+    int  maxCol = 0;
+
+
+    if (line < 0 || line >= (int) m_lines.size())
+    {
+        return 0;
+    }
+
+    maxCol = (int) m_lines[(size_t) line].size();
+    if (col < 0)      { col = 0; }
+    if (col > maxCol) { col = maxCol; }
+    return col;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CollapseSelectionToCaret
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugConsolePanel::CollapseSelectionToCaret()
+{
+    m_selAnchor = m_selCaret;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SelectAll
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugConsolePanel::SelectAll()
+{
+    std::lock_guard<std::mutex>  lock (m_bufferMutex);
+
+
+    m_selAnchor.line   = 0;
+    m_selAnchor.column = 0;
+
+    if (m_lines.empty())
+    {
+        m_selCaret = m_selAnchor;
+    }
+    else
+    {
+        m_selCaret.line   = (int) m_lines.size() - 1;
+        m_selCaret.column = (int) m_lines.back().size();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasSelection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugConsolePanel::HasSelection() const
+{
+    return (m_selAnchor.line != m_selCaret.line) ||
+           (m_selAnchor.column != m_selCaret.column);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OrderedSelection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugConsolePanel::OrderedSelection (Pos & lo, Pos & hi) const
+{
+    bool  anchorFirst = (m_selAnchor.line < m_selCaret.line) ||
+                        (m_selAnchor.line == m_selCaret.line &&
+                         m_selAnchor.column <= m_selCaret.column);
+
+
+    if (anchorFirst)
+    {
+        lo = m_selAnchor;
+        hi = m_selCaret;
+    }
+    else
+    {
+        lo = m_selCaret;
+        hi = m_selAnchor;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MoveCaretLineEnd
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugConsolePanel::MoveCaretLineEnd (Pos & p, bool toEnd) const
+{
+    p.column = toEnd ? ClampColumn (p.line, INT_MAX) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BodyTopPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DebugConsolePanel::BodyTopPx() const
+{
+    return (m_titleBar != nullptr) ? m_titleBar->GetTitleHeight() : 0;
 }

@@ -55,6 +55,7 @@ public:
     void  SetTheme        (const ChromeTheme * theme)      { m_theme = theme; }
     void  SetShowHeader   (bool b)                         { m_showHeader = b; }
     void  SetHoveredRow   (int row)                        { m_hovered = row; }
+    void  SetSortIndicator (int column, bool descending)   { m_sortColumn = column; m_sortDescending = descending; }
 
     void  SetColumnVisible (size_t idx, bool visible)
     {
@@ -162,6 +163,46 @@ public:
     }
 
     // xPx/yPx are relative to the list's rect.left/top. Returns the
+    // column index (visible columns only count their painted region;
+    // hidden columns have zero width and never match) of the header
+    // cell under the point, or -1 if the point is not inside the
+    // header strip. Use this to implement per-column sort on click.
+    int   HitTestHeaderColumn (int xPx, int yPx) const
+    {
+        int  headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDp) : 0;
+        std::vector<int>  colXPx;
+        std::vector<int>  colWPx;
+
+        if (!m_showHeader || headerH <= 0)
+        {
+            return -1;
+        }
+        if (yPx < 0 || yPx >= headerH)
+        {
+            return -1;
+        }
+        if (xPx < 0 || xPx >= (m_rect.right - m_rect.left))
+        {
+            return -1;
+        }
+
+        ComputeColumnLayout ((float) (m_rect.right - m_rect.left), colXPx, colWPx);
+
+        for (size_t c = 0; c < m_columns.size(); ++c)
+        {
+            if (!m_columns[c].visible || colWPx[c] <= 0)
+            {
+                continue;
+            }
+            if (xPx >= colXPx[c] && xPx < colXPx[c] + colWPx[c])
+            {
+                return (int) c;
+            }
+        }
+        return -1;
+    }
+
+    // xPx/yPx are relative to the list's rect.left/top. Returns the
     // data-row index, or -1 if the point is outside any data row.
     int   HitTestRow (int xPx, int yPx) const
     {
@@ -242,6 +283,22 @@ public:
                                                           m_columns[c].align,
                                                           DwriteTextRenderer::VAlign::Center,
                                                           DWRITE_FONT_WEIGHT_BOLD));
+
+                if ((int) c == m_sortColumn && m_columns[c].visible && colWPx[c] > 0)
+                {
+                    const wchar_t * glyph = m_sortDescending ? L"\u25BC" : L"\u25B2";
+                    float           gw    = (float) m_scaler.Px (s_kSortGlyphWidthDp);
+
+                    IGNORE_RETURN_VALUE (hr, text.DrawString (glyph,
+                                                              x + (float) colXPx[c] + (float) colWPx[c] - cellPadR - gw,
+                                                              hy,
+                                                              gw,
+                                                              headerH,
+                                                              hdrFg, hdrFontPx, L"Segoe UI",
+                                                              DwriteTextRenderer::HAlign::Right,
+                                                              DwriteTextRenderer::VAlign::Center,
+                                                              DWRITE_FONT_WEIGHT_BOLD));
+                }
             }
 
             painter.FillRect (x, hy + headerH - 1.0f, fullW, 1.0f, border);
@@ -281,6 +338,7 @@ private:
     static constexpr int  s_kHeaderGapDp     = 2;
     static constexpr int  s_kCellPadLeftDp   = 12;
     static constexpr int  s_kCellPadRightDp  = 16;
+    static constexpr int  s_kSortGlyphWidthDp = 10;
     static constexpr float s_kFontDp         = 13.0f;
     static constexpr float s_kHeaderFontDp   = 13.0f;
 
@@ -342,6 +400,8 @@ private:
     std::vector<std::vector<Cell>>    m_rows;
     std::vector<int>                  m_measuredWPx;
     DpiScaler                         m_scaler;
-    int                               m_hovered    = -1;
-    bool                              m_showHeader = false;
+    int                               m_hovered        = -1;
+    int                               m_sortColumn     = -1;
+    bool                              m_sortDescending = false;
+    bool                              m_showHeader     = false;
 };

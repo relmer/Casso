@@ -613,26 +613,32 @@ void DiskIIDebugPanel::OnLButtonDown (int x, int y)
 
     if (!handled)
     {
-        // Click on listview header sorts; click on row selects.
+        // Click on listview header sorts by that column; first click on
+        // a new column sorts ascending, subsequent clicks on the same
+        // column flip direction. Click on row is reserved for selection
+        // (not yet wired -- HitTestRow still returns the row index for
+        // future use).
         int  relX = x - m_layout.listView.left;
         int  relY = y - m_layout.listView.top;
         int  hit  = m_eventList.HitTestRow (relX, relY);
-        if (hit < 0 && relX >= 0 && relX < (m_layout.listView.right - m_layout.listView.left)
-                    && relY >= 0 && relY < (m_layout.listView.bottom - m_layout.listView.top))
+        if (hit < 0)
         {
-            // header click - sort placeholder: cycle direction on column 0
-            // until proper column hit-test lands. Keeps sort behavior
-            // accessible without per-column header math here.
-            if (m_sortColumn == 0)
+            int  col = m_eventList.HitTestHeaderColumn (relX, relY);
+            if (col >= 0)
             {
-                m_sortDescending = !m_sortDescending;
+                if (col == m_sortColumn)
+                {
+                    m_sortDescending = !m_sortDescending;
+                }
+                else
+                {
+                    m_sortColumn     = col;
+                    m_sortDescending = false;
+                }
+                m_eventList.SetSortIndicator (m_sortColumn, m_sortDescending);
+                RebuildFilteredIndices();
+                PushListViewRows();
             }
-            else
-            {
-                m_sortColumn     = 0;
-                m_sortDescending = false;
-            }
-            RebuildFilteredIndices();
         }
     }
 }
@@ -1294,6 +1300,66 @@ void DiskIIDebugPanel::RebuildFilteredIndices()
             m_filteredIndices.push_back (i);
         }
     }
+
+    if (m_sortColumn < 0)
+    {
+        return;
+    }
+
+    const std::deque<DiskIIEventDisplay> &  events = m_events;
+    int                                     col    = m_sortColumn;
+    bool                                    desc   = m_sortDescending;
+
+    auto cmpStr = [] (const wchar_t * a, const wchar_t * b) -> int
+    {
+        return wcscmp (a, b);
+    };
+
+    auto cmpCycle = [] (const wchar_t * a, const wchar_t * b) -> int
+    {
+        // Cycle strings carry thousands separators and no leading zeros,
+        // so length-then-lex is equivalent to numeric ordering.
+        size_t  la = wcslen (a);
+        size_t  lb = wcslen (b);
+        if (la != lb) { return (la < lb) ? -1 : 1; }
+        return wcscmp (a, b);
+    };
+
+    std::stable_sort (m_filteredIndices.begin(),
+                      m_filteredIndices.end(),
+                      [&] (size_t ia, size_t ib) -> bool
+    {
+        const DiskIIEventDisplay &  ea = events[ia];
+        const DiskIIEventDisplay &  eb = events[ib];
+        int                         c  = 0;
+
+        switch (col)
+        {
+            case 0: c = cmpStr   (ea.wallStr.data(),   eb.wallStr.data());   break;
+            case 1: c = cmpStr   (ea.uptimeStr.data(), eb.uptimeStr.data()); break;
+            case 2: c = cmpCycle (ea.cycleStr.data(),  eb.cycleStr.data());  break;
+            case 3:
+                if (ea.drive != eb.drive) { c = (ea.drive < eb.drive) ? -1 : 1; }
+                break;
+            case 4:
+            {
+                std::wstring_view  la = DebugDialogProjection::EventLabel (ea.category, ea.type);
+                std::wstring_view  lb = DebugDialogProjection::EventLabel (eb.category, eb.type);
+                c = la.compare (lb);
+                break;
+            }
+            case 5: c = ea.detail.compare (eb.detail); break;
+            default: break;
+        }
+
+        if (c == 0)
+        {
+            // Fall back to chronological (insertion) order so equal
+            // keys keep a stable, predictable arrangement.
+            return ia < ib;
+        }
+        return desc ? (c > 0) : (c < 0);
+    });
 }
 
 

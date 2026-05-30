@@ -22,8 +22,9 @@ class TitleBar;
 //  ChromedPanelWindow and exposes the same Log / LogConfig contract
 //  the shell already uses to push diagnostic strings. Lines are kept
 //  in a thread-safe buffer; the body paints them in a monospace font
-//  with mouse-wheel + keyboard scrolling and Ctrl+C copy-to-clipboard
-//  (whole buffer; granular selection deferred).
+//  with mouse-wheel + keyboard scrolling, click-drag / Shift+arrow
+//  text selection, Ctrl+A select-all, and Ctrl+C copy-selection to
+//  the clipboard.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,13 +84,28 @@ public:
     bool     IsContentActive () const override { return true; }
 
 private:
-    HRESULT  EnsureSwapChain     ();
-    HRESULT  CreateBackBufferRtv ();
-    void     ReleaseRenderTargets();
-    void     ClampScroll         ();
-    int      LinesVisible        () const;
-    int      LineHeightPx        () const;
-    void     CopyAllToClipboard  ();
+    struct Pos
+    {
+        int  line   = 0;
+        int  column = 0;
+    };
+
+    HRESULT  EnsureSwapChain         ();
+    HRESULT  CreateBackBufferRtv     ();
+    void     ReleaseRenderTargets    ();
+    void     ClampScroll             ();
+    int      LinesVisible            () const;
+    int      LineHeightPx            () const;
+    void     CopySelectionToClipboard ();
+    void     EnsureCharMetrics       ();
+    Pos      HitTestChar              (int xPx, int yPx) const;
+    int      ClampColumn             (int line, int col) const;
+    void     CollapseSelectionToCaret ();
+    void     SelectAll               ();
+    bool     HasSelection            () const;
+    void     OrderedSelection        (Pos & lo, Pos & hi) const;
+    void     MoveCaretLineEnd        (Pos & p, bool toEnd) const;
+    int      BodyTopPx               () const;
 
     static constexpr UINT  s_kSwapBufferCount = 2;
     static constexpr int   s_kFontDip         = 13;
@@ -113,4 +129,10 @@ private:
     std::vector<std::wstring>            m_lines;
     int                                  m_scrollLine = 0;
     static constexpr size_t              s_kMaxLines  = 4096;
+
+    Pos                                  m_selAnchor;
+    Pos                                  m_selCaret;
+    bool                                 m_selecting        = false;
+    float                                m_charWidthPx      = 0.0f;
+    bool                                 m_charMetricsReady = false;
 };
