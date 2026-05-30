@@ -25,14 +25,28 @@ namespace UnitTest_011
     {
     public:
 
-        TEST_METHOD (Default96Dpi_FirstEventCheckOriginsAtMargin)
+        TEST_METHOD (Default96Dpi_FirstEventCheckOriginsAfterLabel)
         {
             PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (900, 600, 0, 96);
 
-            Assert::AreEqual ((LONG) 8, s.eventTypeChecks[0].left);
+            Assert::AreEqual ((LONG) 8, s.diskEventsLabel.left);
+            Assert::AreEqual ((LONG) 8, s.diskEventsLabel.top);
+            Assert::AreEqual (s.diskEventsLabel.right + 4, s.eventTypeChecks[0].left);
             Assert::AreEqual ((LONG) 8, s.eventTypeChecks[0].top);
-            Assert::AreEqual ((LONG) 8 + 110, s.eventTypeChecks[0].right);
-            Assert::AreEqual ((LONG) 8 + 22, s.eventTypeChecks[0].bottom);
+            Assert::AreEqual ((LONG) 22, s.eventTypeChecks[0].bottom - s.eventTypeChecks[0].top);
+        }
+
+        TEST_METHOD (Default96Dpi_DiskAndAudioRowsAlignInColumns)
+        {
+            PanelLayoutSlots s = ComputeDiskIIDebugPanelLayout (900, 600, 0, 96);
+
+            Assert::AreEqual (s.diskEventsLabel.left,   s.audioEventsLabel.left);
+            Assert::AreEqual (s.diskEventsLabel.right,  s.audioEventsLabel.right);
+            Assert::AreEqual (s.eventTypeChecks[0].left, s.audioMasterCheck.left);
+            Assert::AreEqual (s.eventTypeChecks[1].left, s.audioSubChecks[0].left);
+            Assert::AreEqual (s.eventTypeChecks[2].left, s.audioSubChecks[1].left);
+            Assert::AreEqual (s.eventTypeChecks[3].left, s.audioSubChecks[2].left);
+            Assert::AreEqual (s.eventTypeChecks[4].left, s.audioSubChecks[3].left);
         }
 
         TEST_METHOD (Default96Dpi_EventChecksContiguousAcrossTopRow)

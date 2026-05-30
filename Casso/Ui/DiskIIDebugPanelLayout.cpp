@@ -9,13 +9,13 @@ namespace
     constexpr int  kRowHeight96          = 22;
     constexpr int  kRowGap96             = 4;
     constexpr int  kCheckWidth96         = 110;
-    constexpr int  kAudioCheckWidth96    = 100;
     constexpr int  kRadioWidth96         = 78;
     constexpr int  kEditWidth96          = 140;
     constexpr int  kFilterLabelWidth96   = 110;
     constexpr int  kRawQtCheckWidth96    = 170;
     constexpr int  kIgnoredLabelHeight96 = 18;
     constexpr int  kDriveLabelWidth96    = 44;
+    constexpr int  kRowLabelWidth96      = 92;
     constexpr int  kButtonWidth96        = 90;
     constexpr int  kButtonHeight96       = 26;
 
@@ -65,11 +65,11 @@ PanelLayoutSlots ComputeDiskIIDebugPanelLayout (
     int              rowHeight     = Scale (kRowHeight96,          dpi);
     int              rowGap        = Scale (kRowGap96,             dpi);
     int              checkWidth    = Scale (kCheckWidth96,         dpi);
-    int              audioWidth    = Scale (kAudioCheckWidth96,    dpi);
     int              radioWidth    = Scale (kRadioWidth96,         dpi);
     int              editWidth     = Scale (kEditWidth96,          dpi);
     int              labelWidth    = Scale (kFilterLabelWidth96,   dpi);
     int              driveLblWidth = Scale (kDriveLabelWidth96,    dpi);
+    int              rowLblWidth   = Scale (kRowLabelWidth96,      dpi);
     int              rawQtWidth    = Scale (kRawQtCheckWidth96,    dpi);
     int              ignoredHeight = Scale (kIgnoredLabelHeight96, dpi);
     int              buttonWidth   = Scale (kButtonWidth96,        dpi);
@@ -81,8 +81,10 @@ PanelLayoutSlots ComputeDiskIIDebugPanelLayout (
 
 
 
-    // Row 1: event-type checkboxes (8 across).
+    // Row 1: "Disk events:" label + 8 event-type checkboxes.
     x = margin;
+    slots.diskEventsLabel = MakeRect (x, y, rowLblWidth, rowHeight);
+    x += rowLblWidth + rowGap;
     for (int i = 0; i < kEventTypeCheckCount; i++)
     {
         slots.eventTypeChecks[i] = MakeRect (x, y, checkWidth, rowHeight);
@@ -90,14 +92,19 @@ PanelLayoutSlots ComputeDiskIIDebugPanelLayout (
     }
     y += rowHeight + rowGap;
 
-    // Row 2: audio master + 4 sub checks.
+    // Row 2: "Audio events:" label + audio master + 4 sub checks.
+    // Label width matches row 1 so the checkbox columns align, and
+    // every checkbox on the row is checkWidth wide (matches row 1) so
+    // every column lines up — not just the first one.
     x = margin;
+    slots.audioEventsLabel = MakeRect (x, y, rowLblWidth, rowHeight);
+    x += rowLblWidth + rowGap;
     slots.audioMasterCheck = MakeRect (x, y, checkWidth, rowHeight);
     x += checkWidth;
     for (int i = 0; i < kAudioSubCheckCount; i++)
     {
-        slots.audioSubChecks[i] = MakeRect (x, y, audioWidth, rowHeight);
-        x += audioWidth;
+        slots.audioSubChecks[i] = MakeRect (x, y, checkWidth, rowHeight);
+        x += checkWidth;
     }
     y += rowHeight + rowGap;
 

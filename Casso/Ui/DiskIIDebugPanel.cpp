@@ -43,11 +43,13 @@ namespace
     constexpr LPCWSTR  s_kpszPauseLabel    = L"Pause";
     constexpr LPCWSTR  s_kpszResumeLabel   = L"Resume";
     constexpr LPCWSTR  s_kpszClearLabel    = L"Clear";
-    constexpr LPCWSTR  s_kpszAudioLabel    = L"Audio";
+    constexpr LPCWSTR  s_kpszAudioLabel    = L"All";
     constexpr LPCWSTR  s_kpszInvalidLabel  = L"Invalid";
     constexpr LPCWSTR  s_kpszTrackInvalidPrefix  = L"Invalid track: ";
     constexpr LPCWSTR  s_kpszSectorInvalidPrefix = L"Invalid sector: ";
     constexpr LPCWSTR  s_kpszDriveFilterLabel    = L"Drive:";
+    constexpr LPCWSTR  s_kpszDiskEventsLabel     = L"Disk events:";
+    constexpr LPCWSTR  s_kpszAudioEventsLabel    = L"Audio events:";
 
     constexpr LPCWSTR  s_kpszEventCheckTips[kEventTypeCheckCount] =
     {
@@ -359,6 +361,8 @@ HRESULT DiskIIDebugPanel::Render()
     m_trackFilterLabel.Paint  (m_painter, m_text);
     m_sectorFilterLabel.Paint (m_painter, m_text);
     m_driveFilterLabel.Paint  (m_painter, m_text);
+    m_diskEventsLabel.Paint   (m_painter, m_text);
+    m_audioEventsLabel.Paint  (m_painter, m_text);
     m_trackInvalidLabel.Paint (m_painter, m_text);
     m_sectorInvalidLabel.Paint(m_painter, m_text);
 
@@ -1752,6 +1756,22 @@ void DiskIIDebugPanel::LayoutWidgets()
     m_driveFilterLabel.SetHAlign      (DwriteTextRenderer::HAlign::Left);
     m_driveFilterLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
 
+    m_diskEventsLabel.SetText        (s_kpszDiskEventsLabel);
+    m_diskEventsLabel.SetRect        (m_layout.diskEventsLabel);
+    m_diskEventsLabel.SetDpi         (m_dpi);
+    m_diskEventsLabel.SetFontSizeDip (s_kLabelFontDip);
+    m_diskEventsLabel.SetColorArgb   (textArgb);
+    m_diskEventsLabel.SetHAlign      (DwriteTextRenderer::HAlign::Left);
+    m_diskEventsLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
+
+    m_audioEventsLabel.SetText        (s_kpszAudioEventsLabel);
+    m_audioEventsLabel.SetRect        (m_layout.audioEventsLabel);
+    m_audioEventsLabel.SetDpi         (m_dpi);
+    m_audioEventsLabel.SetFontSizeDip (s_kLabelFontDip);
+    m_audioEventsLabel.SetColorArgb   (textArgb);
+    m_audioEventsLabel.SetHAlign      (DwriteTextRenderer::HAlign::Left);
+    m_audioEventsLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
+
     // RadioGroup expects rects in its option records.
     std::vector<RadioOption>  driveOpts;
     for (int i = 0; i < kDriveRadioCount; i++)
@@ -1833,6 +1853,7 @@ void DiskIIDebugPanel::ConfigureWidgets()
     m_audioMasterCheck.SetOnChange ([this] (bool checked)
     {
         m_filter.audioMaster = checked;
+        for (auto & cb : m_audioSubChecks) { cb.SetEnabled (checked); }
         OnFilterChanged();
     });
 
@@ -1846,6 +1867,7 @@ void DiskIIDebugPanel::ConfigureWidgets()
     {
         m_audioSubChecks[i].SetLabel    (s_kpszAudioSubLabels[i]);
         m_audioSubChecks[i].SetChecked  (*s_kAudioSubBackers[i]);
+        m_audioSubChecks[i].SetEnabled  (m_filter.audioMaster);
         bool * backer = s_kAudioSubBackers[i];
         m_audioSubChecks[i].SetOnChange ([this, backer] (bool checked)
         {

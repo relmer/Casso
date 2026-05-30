@@ -175,6 +175,8 @@ private:
     Label                                m_trackFilterLabel;
     Label                                m_sectorFilterLabel;
     Label                                m_driveFilterLabel;
+    Label                                m_diskEventsLabel;
+    Label                                m_audioEventsLabel;
     Label                                m_trackInvalidLabel;
     Label                                m_sectorInvalidLabel;
 

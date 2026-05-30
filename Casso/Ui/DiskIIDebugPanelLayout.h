@@ -14,8 +14,8 @@
 //  kRowGap=4 at 96 DPI) so the new panel is visually familiar.
 //
 //  Slot order (top to bottom):
-//      Row 1: 8 event-type checkboxes
-//      Row 2: audio master checkbox + 4 audio sub checkboxes
+//      Row 1: "Disk events:" label + 8 event-type checkboxes
+//      Row 2: "Audio events:" label + audio master checkbox + 4 audio sub checkboxes
 //      Row 3: 3 drive radios + track label + track edit + sector label + sector edit
 //      Row 4: raw-quarter-track checkbox (aligned under track edit)
 //      Row 5: track-invalid + sector-invalid feedback labels
@@ -37,6 +37,8 @@ constexpr int  kDriveRadioCount     = 3;
 
 struct PanelLayoutSlots
 {
+    RECT diskEventsLabel;
+    RECT audioEventsLabel;
     RECT eventTypeChecks  [kEventTypeCheckCount];
     RECT audioMasterCheck;
     RECT audioSubChecks   [kAudioSubCheckCount];
