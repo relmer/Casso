@@ -738,7 +738,9 @@ void DialogPrimitiveRenderer::PaintBody (
 
         if (run.isHyperlink)
         {
-            m_painter.FillRect (x, y + lineH - s_kUnderlineHeightPx,
+            float  underlineY = y + fontPx + m_scaler.Pxf (2.0f);
+
+            m_painter.FillRect (x, underlineY,
                                 w, s_kUnderlineHeightPx, linkColor);
         }
 
