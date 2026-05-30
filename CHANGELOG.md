@@ -307,7 +307,7 @@ is preserved as the lone deliberate Win32 surface.
   `GlobalUserPrefsTests` (+2 round-trip / malformed-entry cases). All
   measurement and filesystem dependencies injected; no Win32, no real
   file I/O. Plus `Disk2DebugPanelLayoutTests` (10) covering the new
-  layout slots. Total suite: 1634/1634 passing.
+  layout slots. Total suite: 1653/1653 passing.
 
 ## [1.5.1289] — Copy-protected games boot
 
