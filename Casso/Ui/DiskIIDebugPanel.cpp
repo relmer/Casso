@@ -642,14 +642,14 @@ void DiskIIDebugPanel::OnLButtonDown (int x, int y)
         if (m_eventChecks[i].OnLButtonDown (x, y))
         {
             handled  = true;
-            newFocus = 2 + (int) i;
+            newFocus = (int) i;
             break;
         }
     }
     if (!handled && m_audioMasterCheck.OnLButtonDown (x, y))
     {
         handled  = true;
-        newFocus = 10;
+        newFocus = 8;
     }
     if (!handled)
     {
@@ -658,7 +658,7 @@ void DiskIIDebugPanel::OnLButtonDown (int x, int y)
             if (m_audioSubChecks[i].OnLButtonDown (x, y))
             {
                 handled  = true;
-                newFocus = 11 + (int) i;
+                newFocus = 9 + (int) i;
                 break;
             }
         }
@@ -666,35 +666,35 @@ void DiskIIDebugPanel::OnLButtonDown (int x, int y)
     if (!handled && m_rawQtCheck.OnLButtonDown (x, y))
     {
         handled  = true;
-        newFocus = 15;
+        newFocus = 16;
     }
     if (!handled && m_driveRadio.OnLButtonDown (x, y))
     {
         handled  = true;
-        newFocus = 16;
+        newFocus = 13;
     }
     if (!handled && m_trackEdit.OnLButtonDown (x, y))
     {
         handled  = true;
-        newFocus = 17;
+        newFocus = 14;
     }
     if (!handled && m_sectorEdit.OnLButtonDown (x, y))
     {
         handled  = true;
-        newFocus = 18;
+        newFocus = 15;
     }
 
     if (m_pauseButton.HitTest (x, y))
     {
         m_pauseButton.SetMouse (x, y, true);
         handled  = true;
-        newFocus = 0;
+        newFocus = 17;
     }
     if (!handled && m_clearButton.HitTest (x, y))
     {
         m_clearButton.SetMouse (x, y, true);
         handled  = true;
-        newFocus = 1;
+        newFocus = 18;
     }
 
     if (handled)
@@ -718,36 +718,47 @@ void DiskIIDebugPanel::OnLButtonDown (int x, int y)
             m_resizeStartWidthPx = m_eventList.ColumnEffectiveWidthPx ((size_t) resizeCol);
             SetCapture (m_hwnd);
             handled              = true;
+
+            int  visIdx = m_eventList.VisibleIndexOfColumn (resizeCol);
+            if (visIdx >= 0)
+            {
+                SetFocusIndex (19 + 2 * visIdx + 1);
+            }
         }
     }
 
     if (!handled)
     {
-        // Click on listview header sorts by that column; first click on
-        // a new column sorts ascending, subsequent clicks on the same
-        // column flip direction. Click on row is reserved for selection
-        // (not yet wired -- HitTestRow still returns the row index for
-        // future use).
+        // Click on listview body selects a row; click on the header
+        // sorts that column (first click ascending, subsequent click
+        // on the same column flips direction).
         int  relX = x - m_layout.listView.left;
         int  relY = y - m_layout.listView.top;
         int  hit  = m_eventList.HitTestRow (relX, relY);
-        if (hit < 0)
+        if (hit >= 0)
+        {
+            int  N = m_eventList.VisibleColumnCount();
+            if (hit < (int) m_filteredIndices.size())
+            {
+                m_listSelectedEventIndex = (int) m_filteredIndices[(size_t) hit];
+            }
+            if (N > 0)
+            {
+                SetFocusIndex (19 + 2 * N - 1);
+            }
+            ApplyListSelection();
+        }
+        else
         {
             int  col = m_eventList.HitTestHeaderColumn (relX, relY);
             if (col >= 0)
             {
-                if (col == m_sortColumn)
+                SortByColumn (col);
+                int  visIdx = m_eventList.VisibleIndexOfColumn (col);
+                if (visIdx >= 0)
                 {
-                    m_sortDescending = !m_sortDescending;
+                    SetFocusIndex (19 + 2 * visIdx);
                 }
-                else
-                {
-                    m_sortColumn     = col;
-                    m_sortDescending = false;
-                }
-                m_eventList.SetSortIndicator (m_sortColumn, m_sortDescending);
-                RebuildFilteredIndices();
-                PushListViewRows();
             }
         }
     }
@@ -996,6 +1007,36 @@ void DiskIIDebugPanel::ClearAllWidgetFocus()
     m_driveRadio.SetFocused       (false);
     m_trackEdit.SetFocused        (false);
     m_sectorEdit.SetFocused       (false);
+    m_eventList.SetListFocused          (false);
+    m_eventList.SetFocusedHeaderColumn  (-1);
+    m_eventList.SetFocusedDividerColumn (-1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DynamicStopCount / TotalStopCount
+//
+//  The dynamic-stop count is 2 * VisibleColumnCount (one header stop +
+//  one right-divider stop per visible column), where the last divider
+//  slot is repurposed as the list-body stop (i.e. the last visible
+//  column has no divider; the very last dynamic stop is the list).
+//  So total dynamic stops = 2N for N visible columns (N headers,
+//  N-1 dividers, 1 list).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskIIDebugPanel::DynamicStopCount () const
+{
+    return 2 * m_eventList.VisibleColumnCount();
+}
+
+int DiskIIDebugPanel::TotalStopCount () const
+{
+    return 19 + DynamicStopCount();
 }
 
 
@@ -1007,17 +1048,18 @@ void DiskIIDebugPanel::ClearAllWidgetFocus()
 //  SetFocusIndex
 //
 //  Single source of truth for which widget owns the keyboard. The
-//  index space:
+//  index space (Z-pattern, top-to-bottom / left-to-right):
 //
-//      0          m_pauseButton
-//      1          m_clearButton
-//      2..9       m_eventChecks[0..7]
-//      10         m_audioMasterCheck
-//      11..14     m_audioSubChecks[0..3]
-//      15         m_rawQtCheck
-//      16         m_driveRadio (entire group)
-//      17         m_trackEdit
-//      18         m_sectorEdit
+//      0..7       m_eventChecks[0..7]
+//      8          m_audioMasterCheck
+//      9..12      m_audioSubChecks[0..3]
+//      13         m_driveRadio
+//      14         m_trackEdit
+//      15         m_sectorEdit
+//      16         m_rawQtCheck
+//      17         m_pauseButton
+//      18         m_clearButton
+//      19..       per-visible-column header / divider stops, then list
 //
 //  Out-of-range values (including -1) clear all focus.
 //
@@ -1025,12 +1067,12 @@ void DiskIIDebugPanel::ClearAllWidgetFocus()
 
 void DiskIIDebugPanel::SetFocusIndex (int index)
 {
-    constexpr int  kCount = 19;
+    int  total = TotalStopCount();
 
 
     ClearAllWidgetFocus();
 
-    if (index < 0 || index >= kCount)
+    if (index < 0 || index >= total)
     {
         m_focusIndex = -1;
         return;
@@ -1038,25 +1080,45 @@ void DiskIIDebugPanel::SetFocusIndex (int index)
 
     m_focusIndex = index;
 
-    switch (index)
+    if (index <= 7)
     {
-        case 0:  m_pauseButton.SetFocused (true);       break;
-        case 1:  m_clearButton.SetFocused (true);       break;
-        case 10: m_audioMasterCheck.SetFocused (true);  break;
-        case 15: m_rawQtCheck.SetFocused (true);        break;
-        case 16: m_driveRadio.SetFocused (true);        break;
-        case 17: m_trackEdit.SetFocused  (true);        break;
-        case 18: m_sectorEdit.SetFocused (true);        break;
-        default:
-            if (index >= 2 && index <= 9)
-            {
-                m_eventChecks[(size_t) (index - 2)].SetFocused (true);
-            }
-            else if (index >= 11 && index <= 14)
-            {
-                m_audioSubChecks[(size_t) (index - 11)].SetFocused (true);
-            }
-            break;
+        m_eventChecks[(size_t) index].SetFocused (true);
+        return;
+    }
+    if (index == 8)  { m_audioMasterCheck.SetFocused (true); return; }
+    if (index <= 12) { m_audioSubChecks[(size_t) (index - 9)].SetFocused (true); return; }
+    if (index == 13) { m_driveRadio.SetFocused  (true); return; }
+    if (index == 14) { m_trackEdit.SetFocused   (true); return; }
+    if (index == 15) { m_sectorEdit.SetFocused  (true); return; }
+    if (index == 16) { m_rawQtCheck.SetFocused  (true); return; }
+    if (index == 17) { m_pauseButton.SetFocused (true); return; }
+    if (index == 18) { m_clearButton.SetFocused (true); return; }
+
+    // Dynamic per-column stop.
+    int  d = index - 19;
+    int  N = m_eventList.VisibleColumnCount();
+    if (N <= 0 || d < 0 || d >= 2 * N)
+    {
+        m_focusIndex = -1;
+        return;
+    }
+
+    if (d == 2 * N - 1)
+    {
+        m_eventList.SetListFocused (true);
+        ApplyListSelection();
+        return;
+    }
+
+    if ((d & 1) == 0)
+    {
+        int  absCol = m_eventList.NthVisibleColumnIndex (d / 2);
+        if (absCol >= 0) { m_eventList.SetFocusedHeaderColumn (absCol); }
+    }
+    else
+    {
+        int  absCol = m_eventList.NthVisibleColumnIndex ((d - 1) / 2);
+        if (absCol >= 0) { m_eventList.SetFocusedDividerColumn (absCol); }
     }
 }
 
@@ -1068,19 +1130,30 @@ void DiskIIDebugPanel::SetFocusIndex (int index)
 //
 //  FocusCycle
 //
-//  Tab (+1) / Shift+Tab (-1) advance the focus index with wrap-around.
-//  No widget is hidden in the panel layout, so we don't skip stops.
+//  Tab (+1) / Shift+Tab (-1) advance the focus index with wrap-around
+//  over the full 0..TotalStopCount()-1 range. From the unfocused
+//  state, Tab lands on 0 and Shift+Tab lands on the last stop.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskIIDebugPanel::FocusCycle (int direction)
 {
-    constexpr int  kCount = 19;
-    int            next   = (m_focusIndex < 0) ? 0 : (m_focusIndex + direction);
+    int  total = TotalStopCount();
+    int  next  = 0;
 
 
-    while (next < 0)        { next += kCount; }
-    while (next >= kCount)  { next -= kCount; }
+    if (total <= 0) { return; }
+
+    if (m_focusIndex < 0)
+    {
+        next = (direction >= 0) ? 0 : (total - 1);
+    }
+    else
+    {
+        next = m_focusIndex + direction;
+        while (next < 0)        { next += total; }
+        while (next >= total)   { next -= total; }
+    }
 
     SetFocusIndex (next);
 }
@@ -1088,6 +1161,16 @@ void DiskIIDebugPanel::FocusCycle (int direction)
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnKey
+//
+//  Routes the key to the currently-focused widget only. The Tab key
+//  always cycles focus; the column popup, when visible, captures
+//  everything else.
+//
+////////////////////////////////////////////////////////////////////////////////
 
 bool DiskIIDebugPanel::OnKey (WPARAM vk)
 {
@@ -1102,16 +1185,228 @@ bool DiskIIDebugPanel::OnKey (WPARAM vk)
         return true;
     }
 
-    if (m_pauseButton.OnKey       (vk)) { return true; }
-    if (m_clearButton.OnKey       (vk)) { return true; }
-    for (auto & cb : m_eventChecks)     { if (cb.OnKey (vk)) { return true; } }
-    if (m_audioMasterCheck.OnKey  (vk)) { return true; }
-    for (auto & cb : m_audioSubChecks)  { if (cb.OnKey (vk)) { return true; } }
-    if (m_rawQtCheck.OnKey        (vk)) { return true; }
-    if (m_driveRadio.OnKey        (vk)) { return true; }
-    if (m_trackEdit.OnKey         (vk)) { return true; }
-    if (m_sectorEdit.OnKey        (vk)) { return true; }
+    if (m_focusIndex < 0) { return false; }
+
+    if (m_focusIndex >= 19)
+    {
+        int  d = m_focusIndex - 19;
+        int  N = m_eventList.VisibleColumnCount();
+        if (N <= 0 || d < 0 || d >= 2 * N) { return false; }
+
+        if (d == 2 * N - 1)
+        {
+            int  rowCount = m_eventList.RowCount();
+            int  cur      = m_eventList.SelectedRow();
+            int  cap      = m_eventList.VisibleRowCapacity();
+            int  next     = cur;
+
+            if (rowCount <= 0) { return false; }
+
+            switch (vk)
+            {
+                case VK_UP:    next = (cur <= 0) ? 0 : (cur - 1); break;
+                case VK_DOWN:  next = (cur < 0) ? 0 : ((cur + 1 >= rowCount) ? (rowCount - 1) : (cur + 1)); break;
+                case VK_HOME:  next = 0;                          break;
+                case VK_END:   next = rowCount - 1;               break;
+                case VK_PRIOR: next = (cur < 0) ? 0 : std::max (0, cur - std::max (1, cap)); break;
+                case VK_NEXT:  next = (cur < 0) ? 0 : std::min (rowCount - 1, cur + std::max (1, cap)); break;
+                default:       return false;
+            }
+            m_eventList.SetSelectedRow (next);
+            OnListSelectionMoved();
+            return true;
+        }
+
+        if ((d & 1) == 0)
+        {
+            if (vk == VK_SPACE || vk == VK_RETURN)
+            {
+                OnHeaderSortKey();
+                return true;
+            }
+            return false;
+        }
+
+        if (vk == VK_LEFT)  { OnDividerResizeKey (-1); return true; }
+        if (vk == VK_RIGHT) { OnDividerResizeKey (+1); return true; }
+        return false;
+    }
+
+    if (m_focusIndex <= 7) { return m_eventChecks[(size_t) m_focusIndex].OnKey (vk); }
+    switch (m_focusIndex)
+    {
+        case 8:  return m_audioMasterCheck.OnKey (vk);
+        case 13: return m_driveRadio.OnKey       (vk);
+        case 14: return m_trackEdit.OnKey        (vk);
+        case 15: return m_sectorEdit.OnKey       (vk);
+        case 16: return m_rawQtCheck.OnKey       (vk);
+        case 17: return m_pauseButton.OnKey      (vk);
+        case 18: return m_clearButton.OnKey      (vk);
+        default: break;
+    }
+    if (m_focusIndex >= 9 && m_focusIndex <= 12)
+    {
+        return m_audioSubChecks[(size_t) (m_focusIndex - 9)].OnKey (vk);
+    }
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyListSelection
+//
+//  Resolves m_listSelectedEventIndex (an absolute index into m_events)
+//  against the current m_filteredIndices and pushes the corresponding
+//  visible-row index into the ListView. If the previously-selected
+//  event is no longer visible under the current filter, snap to the
+//  previous still-visible row (or the next one if there is no
+//  previous). If neither exists, clear the selection.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::ApplyListSelection()
+{
+    if (m_listSelectedEventIndex < 0 || m_filteredIndices.empty())
+    {
+        m_listSelectedEventIndex = -1;
+        m_eventList.SetSelectedRow (-1);
+        return;
+    }
+
+    size_t  target = (size_t) m_listSelectedEventIndex;
+    auto    it     = std::lower_bound (m_filteredIndices.begin(),
+                                       m_filteredIndices.end(),
+                                       target);
+
+    if (it != m_filteredIndices.end() && *it == target)
+    {
+        m_eventList.SetSelectedRow ((int) (it - m_filteredIndices.begin()));
+        return;
+    }
+
+    if (it != m_filteredIndices.begin())
+    {
+        auto prev = it - 1;
+        m_listSelectedEventIndex = (int) *prev;
+        m_eventList.SetSelectedRow ((int) (prev - m_filteredIndices.begin()));
+        return;
+    }
+
+    if (it != m_filteredIndices.end())
+    {
+        m_listSelectedEventIndex = (int) *it;
+        m_eventList.SetSelectedRow ((int) (it - m_filteredIndices.begin()));
+        return;
+    }
+
+    m_listSelectedEventIndex = -1;
+    m_eventList.SetSelectedRow (-1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnListSelectionMoved
+//
+//  Mirrors the ListView's new selected-row index back into our
+//  persistent event-index identity so it survives filter/sort
+//  rebuilds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::OnListSelectionMoved()
+{
+    int  row = m_eventList.SelectedRow();
+
+
+    if (row < 0 || (size_t) row >= m_filteredIndices.size())
+    {
+        m_listSelectedEventIndex = -1;
+        return;
+    }
+    m_listSelectedEventIndex = (int) m_filteredIndices[(size_t) row];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SortByColumn
+//
+//  Toggles descending when the same column is re-sorted; otherwise
+//  switches to ascending sort on the new column. Rebuilds rows and
+//  preserves selection.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::SortByColumn (int absCol)
+{
+    if (absCol == m_sortColumn)
+    {
+        m_sortDescending = !m_sortDescending;
+    }
+    else
+    {
+        m_sortColumn     = absCol;
+        m_sortDescending = false;
+    }
+    m_eventList.SetSortIndicator (m_sortColumn, m_sortDescending);
+    RebuildFilteredIndices();
+    PushListViewRows();
+    ApplyListSelection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnHeaderSortKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::OnHeaderSortKey()
+{
+    if (m_focusIndex < 19) { return; }
+    int  d      = m_focusIndex - 19;
+    int  absCol = m_eventList.NthVisibleColumnIndex (d / 2);
+    if (absCol < 0) { return; }
+    SortByColumn (absCol);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDividerResizeKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::OnDividerResizeKey (int direction)
+{
+    if (m_focusIndex < 19) { return; }
+    int  d      = m_focusIndex - 19;
+    int  absCol = m_eventList.NthVisibleColumnIndex ((d - 1) / 2);
+    int  stepPx = MulDiv (8,  (int) m_dpi, 96);
+    int  minPx  = MulDiv (24, (int) m_dpi, 96);
+    if (absCol < 0) { return; }
+
+    int  curPx  = m_eventList.ColumnEffectiveWidthPx ((size_t) absCol);
+    int  newPx  = curPx + direction * stepPx;
+    if (newPx < minPx) { newPx = minPx; }
+    m_eventList.SetColumnOverrideWidthPx ((size_t) absCol, newPx);
 }
 
 
@@ -1600,6 +1895,7 @@ void DiskIIDebugPanel::DrainAndProject()
 
     RebuildFilteredIndices();
     PushListViewRows();
+    ApplyListSelection();
 }
 
 
@@ -1703,6 +1999,7 @@ void DiskIIDebugPanel::RebuildFilteredIndices()
 void DiskIIDebugPanel::PushListViewRows()
 {
     size_t  total = m_filteredIndices.size();
+    size_t  cap   = m_events.size();
     std::vector<std::vector<ListView::Cell>>  rows;
 
 
@@ -1710,7 +2007,9 @@ void DiskIIDebugPanel::PushListViewRows()
 
     for (size_t k = 0; k < total; k++)
     {
-        const DiskIIEventDisplay & e = m_events[m_filteredIndices[k]];
+        size_t  idx = m_filteredIndices[k];
+        if (idx >= cap) { continue; }
+        const DiskIIEventDisplay & e = m_events[idx];
 
         std::vector<ListView::Cell>  row;
         row.push_back ({ std::wstring (e.wallStr.data()),   false });
@@ -1798,6 +2097,7 @@ void DiskIIDebugPanel::OnFilterChanged()
 {
     RebuildFilteredIndices();
     PushListViewRows();
+    ApplyListSelection();
 }
 
 
@@ -1879,7 +2179,9 @@ void DiskIIDebugPanel::ClearEvents()
     m_events.clear();
     m_filteredIndices.clear();
     m_currentDrive = 0;
+    m_listSelectedEventIndex = -1;
     PushListViewRows();
+    ApplyListSelection();
 }
 
 

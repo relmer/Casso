@@ -164,6 +164,70 @@ public:
     int           HeaderHeightPx () const                  { return m_showHeader ? m_scaler.Px (s_kHeaderHeightDp) : 0; }
     bool          ShowHeader     () const                  { return m_showHeader; }
 
+    // Keyboard-driven selection / focus state. The host (panel) drives
+    // these via Tab navigation; the widget owns rendering only.
+    int   SelectedRow            () const                  { return m_selectedRow; }
+    bool  ListFocused            () const                  { return m_listFocused; }
+    int   FocusedHeaderColumn    () const                  { return m_focusedHeaderCol; }
+    int   FocusedDividerColumn   () const                  { return m_focusedDividerCol; }
+
+    void  SetListFocused           (bool b)                { m_listFocused = b; }
+    void  SetFocusedHeaderColumn   (int c)                 { m_focusedHeaderCol  = (c < 0) ? -1 : c; }
+    void  SetFocusedDividerColumn  (int c)                 { m_focusedDividerCol = (c < 0) ? -1 : c; }
+
+    void  SetSelectedRow (int r)
+    {
+        int  rows = (int) m_rows.size();
+        if (rows <= 0)            { m_selectedRow = -1; return; }
+        if (r < -1)               { r = -1; }
+        if (r >= rows)            { r = rows - 1; }
+        m_selectedRow = r;
+        if (r < 0) { return; }
+
+        int  cap = VisibleRowCapacity();
+        if (cap <= 0) { return; }
+        if (r < m_topRow)                  { SetTopRow (r); }
+        else if (r >= m_topRow + cap)      { SetTopRow (r - cap + 1); }
+    }
+
+    // Count of currently-visible columns (per m_columns[c].visible).
+    int   VisibleColumnCount () const
+    {
+        int  n = 0;
+        for (size_t c = 0; c < m_columns.size(); ++c)
+        {
+            if (m_columns[c].visible) { ++n; }
+        }
+        return n;
+    }
+
+    // Absolute m_columns index of the n-th visible column, or -1.
+    int   NthVisibleColumnIndex (int n) const
+    {
+        int  seen = 0;
+        for (size_t c = 0; c < m_columns.size(); ++c)
+        {
+            if (!m_columns[c].visible) { continue; }
+            if (seen == n) { return (int) c; }
+            ++seen;
+        }
+        return -1;
+    }
+
+    // Inverse: visible-column ordinal of the given absolute column,
+    // or -1 if the column is hidden / out of range.
+    int   VisibleIndexOfColumn (int absCol) const
+    {
+        if (absCol < 0 || (size_t) absCol >= m_columns.size()) { return -1; }
+        if (!m_columns[(size_t) absCol].visible)                { return -1; }
+        int  seen = 0;
+        for (int c = 0; c < absCol; ++c)
+        {
+            if (m_columns[(size_t) c].visible) { ++seen; }
+        }
+        return seen;
+    }
+
     // Vertical scroll API. The widget keeps a top-row index into
     // m_rows; Paint clips to [m_topRow, m_topRow + visibleCap) and
     // paints a scrollbar at the right edge when RowCount exceeds
@@ -449,6 +513,33 @@ public:
                 float sepX = x + (float) colXPx[c] + (float) colWPx[c] - 1.0f;
                 painter.FillRect (sepX, hy + 2.0f, 1.0f, headerH - 4.0f, border);
             }
+
+            // Keyboard focus markers. The 1px header rectangle marks
+            // the header that Space will sort on; the brighter 2px
+            // vertical bar marks the column-right divider that
+            // Left/Right will resize.
+            uint32_t focusArgb = (fg & 0x00FFFFFFu) | 0xC0000000u;
+
+            if (m_focusedHeaderCol >= 0 && (size_t) m_focusedHeaderCol < m_columns.size()
+                && m_columns[(size_t) m_focusedHeaderCol].visible
+                && colWPx[(size_t) m_focusedHeaderCol] > 0)
+            {
+                float fx = x + (float) colXPx[(size_t) m_focusedHeaderCol];
+                float fw = (float) colWPx[(size_t) m_focusedHeaderCol];
+                painter.FillRect (fx,             hy,               fw,   1.0f,        focusArgb);
+                painter.FillRect (fx,             hy + headerH - 1, fw,   1.0f,        focusArgb);
+                painter.FillRect (fx,             hy,               1.0f, headerH,     focusArgb);
+                painter.FillRect (fx + fw - 1.0f, hy,               1.0f, headerH,     focusArgb);
+            }
+
+            if (m_focusedDividerCol >= 0 && (size_t) m_focusedDividerCol < m_columns.size()
+                && m_columns[(size_t) m_focusedDividerCol].visible
+                && colWPx[(size_t) m_focusedDividerCol] > 0)
+            {
+                float dx = x + (float) colXPx[(size_t) m_focusedDividerCol]
+                             + (float) colWPx[(size_t) m_focusedDividerCol] - 2.0f;
+                painter.FillRect (dx, hy + 1.0f, 2.0f, headerH - 2.0f, focusArgb);
+            }
         }
 
         int  firstRow = m_topRow;
@@ -456,9 +547,16 @@ public:
 
         for (int r = firstRow; r < lastRow; ++r)
         {
+            if (r < 0 || (size_t) r >= m_rows.size()) { continue; }
             float  ry    = y + headerH + hdrGap + (float) (r - firstRow) * rowH;
             bool   isHov = (r == m_hovered);
+            bool   isSel = (m_listFocused && r == m_selectedRow);
 
+            if (isSel)
+            {
+                uint32_t selArgb = (bgHover & 0x00FFFFFFu) | 0xFF000000u;
+                painter.FillRect (x, ry, layoutW, rowH, selArgb);
+            }
             if (isHov)
             {
                 painter.FillRect (x, ry, layoutW, rowH, bgHover);
@@ -576,9 +674,13 @@ private:
     std::vector<int>                  m_overrideWPx;
     DpiScaler                         m_scaler;
     int                               m_hovered        = -1;
+    int                               m_selectedRow    = -1;
     int                               m_sortColumn     = -1;
     bool                              m_sortDescending = false;
     bool                              m_showHeader     = false;
     int                               m_topRow         = 0;
     bool                              m_stickyTail     = true;
+    bool                              m_listFocused      = false;
+    int                               m_focusedHeaderCol  = -1;
+    int                               m_focusedDividerCol = -1;
 };

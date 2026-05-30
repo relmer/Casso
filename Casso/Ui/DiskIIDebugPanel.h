@@ -145,6 +145,13 @@ private:
     void    FocusCycle           (int direction);
     void    SetFocusIndex        (int index);
     void    ClearAllWidgetFocus  ();
+    int     DynamicStopCount     () const;
+    int     TotalStopCount       () const;
+    void    ApplyListSelection   ();
+    void    OnListSelectionMoved ();
+    void    OnHeaderSortKey      ();
+    void    OnDividerResizeKey   (int direction);
+    void    SortByColumn         (int absCol);
     int64_t NowMs                () const;
 
     ChromedPanelWindow                   m_window;
@@ -210,6 +217,10 @@ private:
     // Tab-order focus state. m_focusIndex selects which widget owns
     // the keyboard; -1 means no widget is focused. SetFocusIndex
     // mirrors the state to per-widget SetFocused(); FocusCycle wraps
-    // forward (+1) or backward (-1) with Tab / Shift+Tab.
-    int                                   m_focusIndex          = -1;
+    // forward (+1) or backward (-1) with Tab / Shift+Tab. Indices
+    // 0..18 cover the named widget stops in Z-order; 19+ are dynamic
+    // per-column stops (header, divider, ..., list) computed from the
+    // currently visible columns.
+    int                                   m_focusIndex             = -1;
+    int                                   m_listSelectedEventIndex = -1;
 };

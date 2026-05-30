@@ -148,6 +148,24 @@ is preserved as the lone deliberate Win32 surface.
   is the new shared hit-test helper.
 
 ### Fixed
+- **fix(disk2debug): Z-pattern Tab order, list keyboard nav, selection
+  preservation.** The Disk II debug panel's Tab focus now follows a
+  Z-pattern top-to-bottom / left-to-right (Motor through DriveSel,
+  Audio master + sub-checks, Drive radio, Track/Sector edits, raw QT
+  checkbox, Pause, Clear) instead of starting on Pause. Past stop 18
+  the Tab cycle continues through dynamic per-visible-column stops:
+  each visible column gets a header stop (Space sorts) and a divider
+  stop (Left/Right resizes by 8dp); the last dynamic stop is the list
+  body, where Up/Down/Home/End/PageUp/PageDown move the selected row.
+  Selection is now persisted by event identity (index into `m_events`)
+  and remapped via `lower_bound` on every filter/sort/clear rebuild,
+  snapping to the nearest still-visible neighbour when the selected
+  event falls outside the current filter. `OnKey` now routes input to
+  the focused widget only (the old broadcast-to-all path swallowed
+  arrows for the wrong widgets) and `PushListViewRows` now skips
+  stale `m_filteredIndices` entries defensively to harden against any
+  index/deque desync that would have tripped a `vector subscript out
+  of range` assertion in ARM64 Debug.
 - **fix(011): SettingsPanel + dialog body share one themed background.**
   The settings popup hardcoded a dark-navy panel fill while the
   themed dialog body used `dropdownBgArgb`, so the two surfaces drew
