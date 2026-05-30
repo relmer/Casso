@@ -34,6 +34,16 @@ static constexpr int    s_kIdExit     = 102;
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartupDownloadSet::RequiresRoms
+//
+//  Returns true when any entry in the set is a ROM. Drives the button
+//  policy: ROM-required sets omit the Skip button because Casso can't
+//  boot the chosen machine configuration without its ROMs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool StartupDownloadSet::RequiresRoms () const
 {
     for (const StartupAssetEntry & entry : entries)
@@ -113,6 +123,8 @@ struct StartupDownloadDialog::RowMetrics
     float  statusW   = 0.0f;
     float  colGap    = 0.0f;
 };
+
+
 
 
 
@@ -605,6 +617,7 @@ void StartupDownloadDialog::HandleTick (DialogPrimitive & dlg, DialogState & sta
         dlg.Close ((int) state.result);
     }
 }
+
 
 
 
