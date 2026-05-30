@@ -34,31 +34,6 @@ static constexpr int    s_kIdExit     = 102;
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  StartupDownloadSet::RequiresRoms
-//
-//  Returns true when any entry in the set is a ROM. Drives the button
-//  policy: ROM-required sets omit the Skip button because Casso can't
-//  boot the chosen machine configuration without its ROMs.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool StartupDownloadSet::RequiresRoms () const
-{
-    for (const StartupAssetEntry & entry : entries)
-    {
-        if (entry.kind == StartupAssetKind::Rom)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //

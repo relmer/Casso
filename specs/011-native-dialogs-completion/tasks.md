@@ -25,9 +25,9 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 - `DialogPrimitive::SetButtonLabel` now re-runs layout so mid-flight relabels (e.g. "Download" → "Downloading...") get the right button width.
 
 **Not done (explicitly tracked):**
-- T015: `UnitTest/StartupDownloadSetTests.cpp` (the unit tests for set composition were never written).
+- (none — T015 landed in commit adding `UnitTest/StartupDownloadSetTests.cpp`)
 
-**Remaining work (29/65):**
+**Remaining work (28/65):**
 - T039–T043: US6 themed Debug Console panel.
 - T044–T059: US7 themed Disk II Debug Panel (16 tasks).
 - T060–T065: merge gates (rg containment check, -RunCodeAnalysis build, full tests, single consolidated CHANGELOG entry, README + quickstart updates).
@@ -101,7 +101,7 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 ### Implementation for User Story 1
 
 - [X] T014 [P] [US1] Add `Casso/Ui/Dialog/StartupDownloadDialog.h` + `StartupDownloadDialog.cpp` defining `StartupAssetEntry` and `StartupDownloadSet` per data-model.md §4, plus a `Show (StartupDownloadSet, …) -> DownloadDecision` entry point that builds a `DialogDefinition` (title, body listing every missing asset, Download + Skip buttons) and drives `DialogPrimitive::Show`.
-- [ ] T015 [P] [US1] Add `UnitTest/StartupDownloadSetTests.cpp` (new file — add to `UnitTest.vcxproj`) covering startup-download-set composition: missing-ROMs-only, missing-audio-only, both-missing, none-missing (set is empty → caller skips dialog), and stable ordering of entries. Use synthetic asset-presence inputs; no real filesystem.
+- [x] T015 [P] [US1] Add `UnitTest/StartupDownloadSetTests.cpp`
 - [X] T016 [US1] Wire the unified dialog's custom-body paint hook (`DialogDefinition::onPaintCustomBody`) to render per-asset / aggregate progress while downloads run. Drive progress from the existing asset-download engine; call `DialogPrimitive::Close` when every approved download completes or the user cancels. Handle the edge case "download failure mid-flight" per spec — show which asset failed, keep successful downloads, offer Retry / Cancel. *(Per-row inline % indicator; Exit cancels in-flight workers + scrubs partial files; failures surface as "Failed" per row with `anyFailed` -> `PartialDone`.)*
 - [X] T017 [US1] Rewrite `Casso/AssetBootstrap.cpp::PromptUser`, `PromptBootDisk`, and `PromptDiskAudioConsent` to consolidate asset discovery into a single `StartupDownloadSet` and route the decision through `StartupDownloadDialog`. Delete the legacy `TaskDialogIndirect` / `MessageBoxW` call sites. Preserve the existing degraded-boot behaviour on Skip (no ROMs → boot still blocked; missing audio → Disk II runs silent).
 - [X] T018 [US1] Verify FR-013 (theme + DPI) for this dialog by walking quickstart §P1-A under DarkModern, Skeuomorphic, GreenScreen at 100 / 125 / 150 / 200% DPI. Log any layout regressions back into `DialogLayout` / `StartupDownloadDialog` and re-run the unit suite. *(Walkthrough covered ad-hoc during iterative UI polish — repeated visual passes under each theme drove the layout fixes that landed in commits `95b2e48`, `bfe475e`, `8cf9c04`, `885aa00`. Per-DPI sweep not separately tracked.)*

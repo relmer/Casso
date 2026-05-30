@@ -77,7 +77,17 @@ struct StartupDownloadSet
     std::vector<StartupAssetEntry>  entries;
 
     bool  Empty        () const { return entries.empty(); }
-    bool  RequiresRoms () const;
+    bool  RequiresRoms () const
+    {
+        for (const StartupAssetEntry & entry : entries)
+        {
+            if (entry.kind == StartupAssetKind::Rom)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 };
 
 

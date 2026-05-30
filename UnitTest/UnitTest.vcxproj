@@ -512,6 +512,7 @@
     <ClCompile Include="DiskMruTests.cpp" />
     <ClCompile Include="DialogLayoutTests.cpp" />
     <ClCompile Include="DriveLabelTruncationTests.cpp" />
+    <ClCompile Include="StartupDownloadSetTests.cpp" />
     <ClCompile Include="..\Casso\Shell\DiskMru.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
