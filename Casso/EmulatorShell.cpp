@@ -1524,7 +1524,7 @@ void EmulatorShell::BrowseForDisk (int drive)
     // TickDoorAnimation diffs the current frame time against
     // animationStartTimeMs.
     {
-        constexpr int64_t  s_kPostOpenLingerMs = 600;
+        constexpr int64_t  s_kPostOpenLingerMs = 0;
 
         deadline = now + DriveWidgetState::kDoorAnimationMs + s_kPostOpenLingerMs;
     }

@@ -6,7 +6,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.4.1279] — Disk II copy-protection fidelity foundations
+
+### Added
+- **feat(disk2): MC3470 weak-bit emulation.** WOZ floating (fake-bit)
+  regions now return AppleWin-style randomized bits when the read head
+  sits over a weakly-magnetized area, matching real read-data-register
+  behavior.
+- **feat(disk2): real Logic State Sequencer.** The nibble engine now
+  drives reads/writes through a faithful 16-state LSS ROM (clean-room
+  from the MIT-licensed apple2js), replacing the simplified bit-shift
+  model.
+- **feat(disk2): motor spin-up delay.** Reads within ~70 ms of motor-on
+  return drive noise rather than instantly-valid data, matching the
+  mechanical spin-up a real Disk II requires.
+
+### Changed
+- **perf(cpu): sub-instruction (per-bus-access) cycle accounting.** The
+  CPU now exposes a bus-access-precise cycle counter; the Disk II
+  controller samples it so rotational position reflects the exact cycle
+  a `$C0Ex` access occurs rather than the end-of-instruction rollup.
+
+
+
 ## [1.4.1260] — Drive widget interaction + disk persistence fix
+
+### Changed
+- **perf(chrome): snappier drive-widget click-to-dialog.** The post-door-open
+  linger before the file picker appears dropped from 600ms to 0ms (total
+  delay now matches the door animation, ~350ms). Door animation still
+  completes before the dialog covers the drive.
 
 ### Added
 - **feat(chrome): drive widgets are now interactive.** Clicking a
