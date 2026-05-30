@@ -35,6 +35,7 @@
 #include "Audio/DiskIIAudioSource.h"
 #include "WasapiAudio.h"
 #include "DiskIIDebugDialog.h"
+#include "Ui/DiskIIDebugPanel.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
@@ -443,6 +444,12 @@ private:
     // opens. The uptime anchor lives on the shell (not the dialog)
     // so resets re-zero it even while the dialog is closed.
     std::unique_ptr<class DiskIIDebugDialog>  m_diskIIDebugDialog;
+    // Spec-011 / US7. New DX-themed panel replacing m_diskIIDebugDialog.
+    // Both members exist unconditionally so the legacy and new code
+    // paths both build; CASSO_LEGACY_DISKII_DEBUG_DIALOG (in
+    // EmulatorShell.cpp) selects which one OpenDiskIIDebugDialog
+    // instantiates and which one the render loop drives.
+    std::unique_ptr<class DiskIIDebugPanel>   m_diskIIDebugPanel;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 
     // Extracted shell-side managers. WindowManager owns the per-monitor

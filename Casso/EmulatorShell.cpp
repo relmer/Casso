@@ -2,6 +2,17 @@
 
 #include "EmulatorShell.h"
 #include "AssetBootstrap.h"
+
+// Spec-011 / T045. Compile-time switch picking between the legacy
+// Win32 DiskIIDebugDialog and the new DX-themed DiskIIDebugPanel.
+// Default ON during the US7 conversion so the proven dialog keeps
+// shipping while the panel grows control-family by control-family.
+// Define = 0 to exercise the panel path end-to-end before T059
+// deletes the legacy dialog and removes this switch.
+#ifndef CASSO_LEGACY_DISKII_DEBUG_DIALOG
+#define CASSO_LEGACY_DISKII_DEBUG_DIALOG 1
+#endif
+
 #include "Core/PathResolver.h"
 #include "Version.h"
 #include "resource.h"
@@ -1963,6 +1974,12 @@ int EmulatorShell::RunMessageLoop()
         // open in state-only and never repaint, looking dead.
         m_settingsPanel.UpdatePreviewOverlap (m_d3dRenderer.GetEmulatorContentScreenRect());
         IGNORE_RETURN_VALUE (hr, m_settingsPanel.RenderPopup());
+#if !CASSO_LEGACY_DISKII_DEBUG_DIALOG
+        if (m_diskIIDebugPanel != nullptr)
+        {
+            IGNORE_RETURN_VALUE (hr, m_diskIIDebugPanel->RenderFrame());
+        }
+#endif
         if (m_navLayer.IsOpen())
         {
             m_d3dRenderer.MarkRedrawNeeded();
@@ -3162,6 +3179,7 @@ void EmulatorShell::OpenDiskIIDebugDialog()
 
         hInstance = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
 
+#if CASSO_LEGACY_DISKII_DEBUG_DIALOG
         hr = m_diskIIDebugDialog->Create (hInstance, m_hwnd);
         CHRF (hr, m_diskIIDebugDialog.reset());
 
@@ -3185,14 +3203,49 @@ void EmulatorShell::OpenDiskIIDebugDialog()
                 m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugDialog.get());
             }
         }
+#else
+        // Spec-011 / US7. New DX-themed panel path. Same sink wiring
+        // contract as the legacy dialog -- both classes implement the
+        // same two interfaces so the controller / audio source don't
+        // notice which one is alive. T046+ populates the panel body;
+        // until then the host paints an empty themed surface.
+        m_diskIIDebugDialog.reset();
+        m_diskIIDebugPanel = std::make_unique<DiskIIDebugPanel>();
+
+        hr = m_diskIIDebugPanel->Create (hInstance,
+                                         m_hwnd,
+                                         m_d3dRenderer.GetDevice(),
+                                         m_d3dRenderer.GetContext(),
+                                         &m_chromeTheme);
+        CHRF (hr, m_diskIIDebugPanel.reset());
+
+        controller->SetEventSink (m_diskIIDebugPanel.get());
+
+        for (i = 0; i < m_diskAudioSources.size(); i++)
+        {
+            if (m_diskAudioSources[i] != nullptr)
+            {
+                m_diskAudioSources[i]->SetAudioEventSink (m_diskIIDebugPanel.get());
+            }
+        }
+#endif
     }
     else
     {
+#if CASSO_LEGACY_DISKII_DEBUG_DIALOG
         m_diskIIDebugDialog->SetMultiControllerHint (diskIICount > 1);
+#endif
     }
 
+#if CASSO_LEGACY_DISKII_DEBUG_DIALOG
     m_diskIIDebugDialog->Show();
     SetForegroundWindow (m_diskIIDebugDialog->GetHwnd());
+#else
+    if (m_diskIIDebugPanel != nullptr)
+    {
+        m_diskIIDebugPanel->Show();
+    }
+#endif
 
 Error:
     return;
