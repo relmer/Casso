@@ -199,10 +199,10 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 
 ### Implementation for User Story 6
 
-- [ ] T039 [US6] Add `Casso/Ui/DebugConsolePanel.h` + `DebugConsolePanel.cpp` implementing a themed DX text panel hosted like `SettingsWindow` (re-use the modal-overlay plumbing or its extracted helper from T006). Monospace font from `ChromeTheme`; active theme palette.
-- [ ] T040 [US6] Implement vertical scrolling — `WM_MOUSEWHEEL`, `WM_VSCROLL`, `Page Up` / `Page Down` / `Up` / `Down` / `Home` / `End` keys. Clamp to content.
+- [X] T039 [US6] Add `Casso/Ui/DebugConsolePanel.h` + `DebugConsolePanel.cpp` implementing a themed DX text panel hosted like `SettingsWindow` (re-use the modal-overlay plumbing or its extracted helper from T006). Monospace font from `ChromeTheme`; active theme palette.
+- [X] T040 [US6] Implement vertical scrolling — `WM_MOUSEWHEEL`, `WM_VSCROLL`, `Page Up` / `Page Down` / `Up` / `Down` / `Home` / `End` keys. Clamp to content.
 - [X] T041 [US6] Implement text selection (click-drag, Shift+arrow) and copy-to-clipboard via `OpenClipboard` / `SetClipboardData (CF_UNICODETEXT, …)`. Copy-with-no-selection is a no-op (per spec edge case).
-- [ ] T042 [US6] Delete `Casso/DebugConsole.cpp` once `DebugConsolePanel` reaches parity and is wired into the menu command currently opening the Win32 console. Update any owning code (e.g. `WindowCommandManager`) to construct the panel instead of the legacy console.
+- [X] T042 [US6] Delete `Casso/DebugConsole.cpp` once `DebugConsolePanel` reaches parity and is wired into the menu command currently opening the Win32 console. Update any owning code (e.g. `WindowCommandManager`) to construct the panel instead of the legacy console.
 - [X] T043 [US6] Walk quickstart §P3-A under each theme. *(Captured screenshots of the themed Debug Console under Skeuomorphic, DarkModern, and RetroTerminal — chrome shell title bar matches the Settings / Disk II panels, monospace body renders through `DxUiPainter`, no Win32 `EDIT` control present.)*
 
 **Checkpoint**: No Win32 `EDIT` control remains in the Debug Console path.
@@ -217,25 +217,25 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 
 ### Scaffolding
 
-- [ ] T044 [US7] Add `Casso/Ui/DiskIIDebugPanel.h` + `DiskIIDebugPanel.cpp` as a themed DX panel hosted like `SettingsWindow`, bound to the same `DiskIIDebugDialogState` instance the legacy dialog uses. Land the panel empty (window chrome + state binding only) — no controls yet.
-- [ ] T045 [US7] Add the `CASSO_LEGACY_DISKII_DEBUG_DIALOG` compile-time switch (default ON) and route the menu command to either `DiskIIDebugDialog` or `DiskIIDebugPanel` based on it. Both must build at every commit during the conversion.
-- [ ] T046 [US7] Implement the panel's overall layout (control-family slots: filters column, audio toggles row, drive/raw-track row, track/sector filters row, action buttons row, ListView region) using `DialogLayout`-style pure metrics where reasonable. Verify SC-010: `DiskIIDebugDialogStateTests.cpp` still builds and passes — no Win32 types leaked into the state TU.
+- [X] T044 [US7] Add `Casso/Ui/DiskIIDebugPanel.h` + `DiskIIDebugPanel.cpp` as a themed DX panel hosted like `SettingsWindow`, bound to the same `DiskIIDebugDialogState` instance the legacy dialog uses. Land the panel empty (window chrome + state binding only) — no controls yet.
+- [X] T045 [US7] Add the `CASSO_LEGACY_DISKII_DEBUG_DIALOG` compile-time switch (default ON) and route the menu command to either `DiskIIDebugDialog` or `DiskIIDebugPanel` based on it. Both must build at every commit during the conversion.
+- [X] T046 [US7] Implement the panel's overall layout (control-family slots: filters column, audio toggles row, drive/raw-track row, track/sector filters row, action buttons row, ListView region) using `DialogLayout`-style pure metrics where reasonable. Verify SC-010: `DiskIIDebugDialogStateTests.cpp` still builds and passes — no Win32 types leaked into the state TU.
 
 ### Per-control-family conversions (in spec order, one family per task — leave the legacy version building between tasks)
 
-- [ ] T047 [US7] Static labels — render each label through `DxUiPainter` under each theme (quickstart §P3-B step 1). Pin the labels in code as named string constants; no magic numbers in the layout.
-- [ ] T048 [US7] Event-type filter checkboxes — themed checkbox primitive in `Casso/Ui/Dialog/` or `Casso/Ui/Chrome/` if not already present (extract / generalise from `SettingsPanel` if needed). Toggling each checkbox updates `DiskIIDebugDialogState` identically to the Win32 path (quickstart §P3-B step 2).
-- [ ] T049 [US7] Audio master / sub toggles — re-use the checkbox primitive from T048. Verify ListView re-filters identically (quickstart §P3-B step 3).
-- [ ] T050 [US7] Raw-quarter-track filter — checkbox primitive, same parity verification (quickstart §P3-B step 4).
-- [ ] T051 [US7] Drive radio buttons — themed radio-button primitive in `Casso/Ui/Dialog/` or `Casso/Ui/Chrome/`. Selecting each updates the state identically (quickstart §P3-B step 5).
-- [ ] T052 [US7] Track filter text input with validation feedback — themed text-input primitive (mono-line) plus an inline validation-feedback label rendered adjacent to the input on invalid input (quickstart §P3-B step 6). Validation logic remains in `DiskIIDebugDialogState`; the panel only reflects state.
-- [ ] T053 [US7] Sector filter text input — re-use the T052 text-input + validation-feedback primitives (quickstart §P3-B step 7).
-- [ ] T054 [US7] Pause / Clear action buttons — themed button row at the panel footer, wired to the existing `DiskIIDebugDialogState` actions (quickstart §P3-B step 8).
+- [X] T047 [US7] Static labels — render each label through `DxUiPainter` under each theme (quickstart §P3-B step 1). Pin the labels in code as named string constants; no magic numbers in the layout.
+- [X] T048 [US7] Event-type filter checkboxes — themed checkbox primitive in `Casso/Ui/Dialog/` or `Casso/Ui/Chrome/` if not already present (extract / generalise from `SettingsPanel` if needed). Toggling each checkbox updates `DiskIIDebugDialogState` identically to the Win32 path (quickstart §P3-B step 2).
+- [X] T049 [US7] Audio master / sub toggles — re-use the checkbox primitive from T048. Verify ListView re-filters identically (quickstart §P3-B step 3).
+- [X] T050 [US7] Raw-quarter-track filter — checkbox primitive, same parity verification (quickstart §P3-B step 4).
+- [X] T051 [US7] Drive radio buttons — themed radio-button primitive in `Casso/Ui/Dialog/` or `Casso/Ui/Chrome/`. Selecting each updates the state identically (quickstart §P3-B step 5).
+- [X] T052 [US7] Track filter text input with validation feedback — themed text-input primitive (mono-line) plus an inline validation-feedback label rendered adjacent to the input on invalid input (quickstart §P3-B step 6). Validation logic remains in `DiskIIDebugDialogState`; the panel only reflects state.
+- [X] T053 [US7] Sector filter text input — re-use the T052 text-input + validation-feedback primitives (quickstart §P3-B step 7).
+- [X] T054 [US7] Pause / Clear action buttons — themed button row at the panel footer, wired to the existing `DiskIIDebugDialogState` actions (quickstart §P3-B step 8).
 - [X] T055 [US7] Sortable ListView (Time / Event / Detail) — themed virtual list rendering in `Casso/Ui/DiskIIDebugPanel.cpp` reading from `DiskIIDebugDialogState`'s filtered view. Implement column sort (asc / desc) by clicking each header (quickstart §P3-B step 9).
 - [X] T056 [US7] Column-header right-click context menu — themed popup menu (re-use or generalise the existing chrome popup-menu code) exposing show / hide for each column (quickstart §P3-B step 10). *(New shared `PopupMenu` widget under `Casso/Ui/Widgets/`; right-click on a `ListView` header strip in `DiskIIDebugPanel` builds one item per column with current visibility as the check state. Selection flips visibility and re-runs layout. Popup routes mouse + keyboard ahead of every other widget while visible and tooltips suppress themselves.)*
 - [X] T057 [US7] Tooltips on filter controls — themed tooltip popup (DX overlay, not Win32 `TOOLTIPS_CLASS`) shown after the standard hover delay (quickstart §P3-B step 11). The tooltip strings live in the panel TU as named constants.
 - [X] T058 [US7] Final layout pass — verify FR-013 (theme + DPI) for the panel under DarkModern / Skeuomorphic / GreenScreen at 100 / 125 / 150 / 200%. Fix any layout drift surfaced by the per-control conversions. *(Captured `DiskIIDebugPanel` under all three themes — every widget family lays out without overlap; ListView header shows all six columns; `DpiScaler` math is shared across widgets and exercised by `DiskIIDebugPanelLayoutTests` at 96 / 192 dpi.)*
-- [ ] T059 [US7] Parity verification — walk the entire quickstart §P3-B checklist end-to-end against the same `DiskIIDebugDialogState` driving both code paths (toggle the compile-time switch). Once parity is verified, delete `Casso/DiskIIDebugDialog.cpp` and remove the `CASSO_LEGACY_DISKII_DEBUG_DIALOG` switch. Re-verify SC-010 (`DiskIIDebugDialogStateTests.cpp` still builds and passes; state TU still Win32-free).
+- [X] T059 [US7] Parity verification — walk the entire quickstart §P3-B checklist end-to-end against the same `DiskIIDebugDialogState` driving both code paths (toggle the compile-time switch). Once parity is verified, delete `Casso/DiskIIDebugDialog.cpp` and remove the `CASSO_LEGACY_DISKII_DEBUG_DIALOG` switch. Re-verify SC-010 (`DiskIIDebugDialogStateTests.cpp` still builds and passes; state TU still Win32-free).
 
 **Checkpoint**: P3 ships. Only `IFileOpenDialog` and the `Main.cpp` EHM-notify `MessageBoxW` last-resort path remain as Win32 UI in `Casso/` (FR-015).
 
@@ -245,12 +245,12 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 
 **Purpose**: Bookkeeping run at merge time. **Do NOT mark these complete during development** — they are end-of-feature gates, run once, in this order.
 
-- [ ] T060 FR-015 containment check — run `rg -n "MessageBox|TaskDialog|GetOpenFileName" Casso/` and confirm hits are limited to (a) `IFileOpenDialog` in `WindowCommandManager::PromptForDiskImage` and (b) `MessageBoxW` in `Main.cpp`'s EHM `SetNotifyFunction` callback, plus comments. Any other hit is a regression to fix before merge.
-- [ ] T061 Run `scripts\Build.ps1 -RunCodeAnalysis` from PowerShell — must complete with zero analysis warnings.
-- [ ] T062 Run `scripts\RunTests.ps1` from PowerShell — full unit suite (including `DiskMruTests`, `DialogLayoutTests`, `DriveLabelTruncationTests`, `StartupDownloadSetTests`, and the unchanged `DiskIIDebugDialogStateTests`) must pass.
-- [ ] T063 Add **one consolidated** `CHANGELOG.md` entry for the feature per repo convention (single entry, not one per round of fixes). Cover the user-visible surface: unified first-run download dialog, themed boot-disk picker with MRU, themed About/Keymap/Machine-Info, drive widget filename label, single disk-insert file picker, themed Debug Console, themed Disk II Debug dialog.
-- [ ] T064 Update `README.md` only if test counts, supported-feature lists, or roadmap items change as a result of this feature.
-- [ ] T065 Update `specs/011-native-dialogs-completion/quickstart.md` with any verification steps discovered during implementation (new edge cases, additional reproduction notes). Final pass only — do not churn this file mid-development.
+- [X] T060 FR-015 containment check — run `rg -n "MessageBox|TaskDialog|GetOpenFileName" Casso/` and confirm hits are limited to (a) `IFileOpenDialog` in `WindowCommandManager::PromptForDiskImage` and (b) `MessageBoxW` in `Main.cpp`'s EHM `SetNotifyFunction` callback, plus comments. Any other hit is a regression to fix before merge.
+- [X] T061 Run `scripts\Build.ps1 -RunCodeAnalysis` from PowerShell — must complete with zero analysis warnings.
+- [X] T062 Run `scripts\RunTests.ps1` from PowerShell — full unit suite (including `DiskMruTests`, `DialogLayoutTests`, `DriveLabelTruncationTests`, `StartupDownloadSetTests`, and the unchanged `DiskIIDebugDialogStateTests`) must pass.
+- [X] T063 Add **one consolidated** `CHANGELOG.md` entry for the feature per repo convention (single entry, not one per round of fixes). Cover the user-visible surface: unified first-run download dialog, themed boot-disk picker with MRU, themed About/Keymap/Machine-Info, drive widget filename label, single disk-insert file picker, themed Debug Console, themed Disk II Debug dialog.
+- [X] T064 Update `README.md` only if test counts, supported-feature lists, or roadmap items change as a result of this feature.
+- [X] T065 Update `specs/011-native-dialogs-completion/quickstart.md` with any verification steps discovered during implementation (new edge cases, additional reproduction notes). Final pass only — do not churn this file mid-development.
 
 **Out of scope (per plan)**: Dormann (`scripts/RunDormannTest.ps1`) and Harte (`scripts/RunHarteTests.ps1 -SkipGenerate`) suites are **NOT required** — this feature touches no CPU, assembler, or binary-output code paths. Do not add tasks for them.
 
