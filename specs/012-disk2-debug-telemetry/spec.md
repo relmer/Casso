@@ -58,6 +58,15 @@ separate effort (spec 011, native-dialogs-completion). To avoid merge conflicts:
   the current pipeline cannot address, and emit an explicit diagnostic naming the
   affected tracks. Bonus over a bare FF indicator.
 - Q: Read-stall event and raw nibble peek? → A: Both approved as specified.
+- Q: The boot-recalibrate audio ratchet (Disk2AudioSource) deliberately
+  suppresses the audio onset on some head bumps (the silent slot of its
+  `[thunk, pause, click, click]` pattern), so the window shows a bare
+  `Head bump` row with no accompanying audio-decision event. Should the
+  window distinguish a bump that voiced a sound from one whose audio was
+  intentionally suppressed? → A: Yes. A bump-without-audio currently reads
+  like a dropped/missing event. The window MUST identify suppressed audio
+  events explicitly (Info severity) so an intentionally silent ratchet slot
+  is visibly distinct from an audio failure.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -296,6 +305,18 @@ not alter the live read stream (boot continues unaffected).
 - **FR-012**: For non-WOZ images (no TMAP), resolved-track display MUST degrade
   to commanded == resolved with empty TMAP content, and the half-track diagnostic
   MUST NOT fire.
+- **FR-013**: The system MUST distinguish a head-movement event that voiced a
+  sound from one whose audio was intentionally suppressed. The boot-recalibrate
+  ratchet in `Disk2AudioSource::OnHeadBump` cycles rapid consecutive bumps
+  through a `[thunk, silent, click, click]` pattern, deliberately emitting no
+  audio-decision event on the silent slot. Today such a bump renders as a bare
+  `Head bump` row with no adjacent `Audio …` row, which is indistinguishable
+  from a missing/dropped audio event. The window MUST surface an explicit
+  Info-severity indicator (e.g. an `Audio suppressed (ratchet)` annotation or a
+  voiced/silent marker on the bump row) so an intentionally silent ratchet slot
+  is visibly distinct from an audio failure. This requires the audio source to
+  report the suppression decision (a new audio-event-sink signal or equivalent
+  payload), not just omit the event.
 
 ### Key Entities
 
@@ -308,6 +329,9 @@ not alter the live read stream (boot continues unaffected).
 - **ReadStall record**: head position, revolution count at stall detection.
 - **Nibble peek**: ephemeral, non-perturbing sample of nibbles at the current
   head position (not a ring event; a pull-style query).
+- **Suppressed-audio marker**: per-bump indication that the audio source
+  intentionally voiced no sound on a ratchet silent slot, distinguishing a
+  deliberately silent bump from an audio failure (FR-013).
 
 ## Success Criteria *(mandatory)*
 
