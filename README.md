@@ -24,11 +24,19 @@ The project includes:
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
 - **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
-- **1500+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, reset semantics, perf budget, and backwards-compat for ][/][+ machines.
+- **1600+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, reset semantics, perf budget, and backwards-compat for ][/][+ machines.
 
 ## What's New
 
 See [CHANGELOG.md](CHANGELOG.md) for the granular history.
+
+### Copy-protected games boot (v1.5.1289)
+
+Casso's Disk II stack now models quarter-track head positioning and the authentic Logic State Sequencer faithfully enough to boot original, copy-protected Broderbund WOZ disk images straight off the wire. Three classics — *Karateka*, *Choplifter*, and *Lode Runner* — load and run from their unmodified preservation images, protection schemes and all.
+
+| Karateka | Choplifter | Lode Runner |
+| :---: | :---: | :---: |
+| ![Karateka booting in Casso](Assets/game-karateka.png) | ![Choplifter title screen in Casso](Assets/game-choplifter.png) | ![Lode Runner running in Casso](Assets/game-loderunner.png) |
 
 ### UI Overhaul (v1.4.1171)
 
@@ -216,7 +224,7 @@ All 56 standard 6502 mnemonics are implemented. Validated against [Klaus Dormann
 - [ ] 65C02 extended instruction support, with assembler `--cpu` flag ([#9](https://github.com/relmer/Casso/issues/9))
 - [ ] Undocumented / illegal opcode support ([#52](https://github.com/relmer/Casso/issues/52))
 - [ ] Rockwell / WDC 65C02 variants ([#49](https://github.com/relmer/Casso/issues/49), [#50](https://github.com/relmer/Casso/issues/50))
-- [ ] *Choplifter* gameplay starts after the title screen (WOZ copy protection) — boots; needs joystick/button input ([#69](https://github.com/relmer/Casso/issues/69), [#72](https://github.com/relmer/Casso/issues/72))
+- [ ] *Choplifter* gameplay starts after the title screen (WOZ copy protection) ([#69](https://github.com/relmer/Casso/issues/69), [#72](https://github.com/relmer/Casso/issues/72))
 
 ### Low Priority
 

@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.5.1289] — Copy-protected games boot
+
+This release celebrates a milestone: Casso now boots original,
+copy-protected Apple II games straight from their unmodified WOZ
+preservation images. *Karateka*, *Choplifter*, and *Lode Runner* —
+three Broderbund classics whose protection schemes defeated naive
+emulation — all load and run.
+
+The fidelity work behind this milestone landed across the 1.4 series
+(motor spin-up delay, MC3470 weak-bit emulation, a real 16-state Logic
+State Sequencer, the quarter-track read pipeline for half-track
+protection, and a bit-level write path). This entry marks the point at
+which those pieces came together well enough to run real protected
+software, and bumps Casso to **1.5**.
+
+
 ## [1.4.1288] — Protected games boot: quarter-track disk pipeline
 
 ### Added
