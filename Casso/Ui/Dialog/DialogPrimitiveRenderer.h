@@ -48,7 +48,9 @@ public:
                            int                        titleHeightPx,
                            std::vector<Button>      & buttons,
                            size_t                     focusedHyperlinkRunIdx,
-                           size_t                     hoveredHyperlinkRunIdx);
+                           size_t                     hoveredHyperlinkRunIdx,
+                           bool                       closeHovered,
+                           bool                       closePressed);
     HRESULT MeasureText   (const wchar_t * text,
                            float           fontSizePx,
                            float         & outWidthPx);
@@ -62,7 +64,9 @@ private:
                                     int                        titleHeightPx);
     void    PaintTitle             (const DialogDefinition   & def,
                                     const ChromeTheme        & theme,
-                                    int                        titleHeightPx);
+                                    int                        titleHeightPx,
+                                    bool                       closeHovered,
+                                    bool                       closePressed);
     void    PaintIcon              (const DialogDefinition   & def,
                                     const DialogLayoutResult & layout,
                                     int                        titleHeightPx);

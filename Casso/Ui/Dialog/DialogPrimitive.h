@@ -77,6 +77,8 @@ private:
     size_t   NthHyperlinkBodyIdx  (size_t hyperlinkIdx) const;
 
     int      TitleHeightPx        () const;
+    RECT     CloseButtonRectPx    () const;
+    bool     PointInCloseButton   (int xPx, int yPx) const;
     RECT     GetInitialWindowRect (HWND hwndOwner, UINT dpi) const;
     size_t   DefaultButtonIdx     () const;
     size_t   CancelButtonIdx      () const;
@@ -98,4 +100,6 @@ private:
     int                          m_chosenId         = -1;
     UINT                         m_dpi              = DpiScaler::kBaseDpi;
     bool                         m_closed           = false;
+    bool                         m_closeHovered     = false;
+    bool                         m_closePressed     = false;
 };

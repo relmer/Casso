@@ -2,6 +2,7 @@
 
 #include "DialogPrimitiveRenderer.h"
 #include "../Chrome/ChromeTheme.h"
+#include "../WindowsThemeColors.h"
 #include "../../resource.h"
 
 
@@ -27,6 +28,10 @@ static constexpr int       s_kRedShift                = 16;
 static constexpr int       s_kGreenShift              = 8;
 static constexpr int       s_kByteMask                = 0xFF;
 static constexpr int       s_kByteMax                 = 255;
+static constexpr float     s_kCloseButtonWidthDp      = 46.0f;
+static constexpr float     s_kCloseGlyphFontDp        = 10.0f;
+static constexpr wchar_t   s_kpszCloseGlyph[]         = L"\xE8BB";
+static constexpr wchar_t   s_kpszMdl2Family[]         = L"Segoe MDL2 Assets";
 
 
 
@@ -325,7 +330,9 @@ HRESULT DialogPrimitiveRenderer::Render (
     int                        titleHeightPx,
     std::vector<Button>      & buttons,
     size_t                     focusedHyperlinkRunIdx,
-    size_t                     hoveredHyperlinkRunIdx)
+    size_t                     hoveredHyperlinkRunIdx,
+    bool                       closeHovered,
+    bool                       closePressed)
 {
     HRESULT        hr            = S_OK;
     D3D11_VIEWPORT viewport      = {};
@@ -356,7 +363,7 @@ HRESULT DialogPrimitiveRenderer::Render (
     CHRA (hr);
 
     PaintBackground (theme, titleHeightPx);
-    PaintTitle      (def, theme, titleHeightPx);
+    PaintTitle      (def, theme, titleHeightPx, closeHovered, closePressed);
     PaintIcon       (def, layout, titleHeightPx);
     PaintBody       (def, layout, theme, titleHeightPx,
                      focusedHyperlinkRunIdx, hoveredHyperlinkRunIdx);
@@ -506,30 +513,60 @@ void DialogPrimitiveRenderer::PaintBackground (const ChromeTheme & theme, int ti
 void DialogPrimitiveRenderer::PaintTitle (
     const DialogDefinition & def,
     const ChromeTheme      & theme,
-    int                      titleHeightPx)
+    int                      titleHeightPx,
+    bool                     closeHovered,
+    bool                     closePressed)
 {
-    HRESULT  hr             = S_OK;
-    float    titlePaddingPx = m_scaler.Pxf (s_kTitlePaddingDp);
-    float    titleH         = static_cast<float> (titleHeightPx);
-    float    fontPx         = m_scaler.Pxf (s_kTitleFontDp);
-    float    textX          = titlePaddingPx;
-    float    textW          = static_cast<float> (m_widthPx) - titlePaddingPx * s_kCenterDivisor;
+    HRESULT                    hr             = S_OK;
+    float                      titlePaddingPx = m_scaler.Pxf (s_kTitlePaddingDp);
+    float                      titleH         = static_cast<float> (titleHeightPx);
+    float                      fontPx         = m_scaler.Pxf (s_kTitleFontDp);
+    float                      closeWPx       = m_scaler.Pxf (s_kCloseButtonWidthDp);
+    float                      closeGlyphPx   = m_scaler.Pxf (s_kCloseGlyphFontDp);
+    float                      closeLeftPx    = static_cast<float> (m_widthPx) - closeWPx;
+    float                      textX          = titlePaddingPx;
+    float                      textW          = closeLeftPx - titlePaddingPx * s_kCenterDivisor;
+    const WindowsThemeColors & sys            = WindowsThemeColors::Instance();
+    uint32_t                   fillArgb       = 0;
+    uint32_t                   glyphArgb      = sys.CaptionButtonForegroundArgb();
 
 
 
     m_painter.FillGradientRect (0.0f, 0.0f, static_cast<float> (m_widthPx), titleH,
                                 theme.titleBarTopArgb, theme.titleBarBottomArgb);
 
-    CBR (!def.title.empty());
+    if (!def.title.empty())
+    {
+        IGNORE_RETURN_VALUE (hr, m_text.DrawString (def.title.c_str(),
+                                                    textX, 0.0f, textW, titleH,
+                                                    theme.titleTextArgb,
+                                                    fontPx, L"Segoe UI",
+                                                    DwriteTextRenderer::HAlign::Left,
+                                                    DwriteTextRenderer::VAlign::Center));
+    }
 
-    IGNORE_RETURN_VALUE (hr, m_text.DrawString (def.title.c_str(),
-                                                textX, 0.0f, textW, titleH,
-                                                theme.titleTextArgb,
-                                                fontPx, L"Segoe UI",
-                                                DwriteTextRenderer::HAlign::Left,
+    if (closePressed)
+    {
+        fillArgb  = sys.CloseButtonPressedArgb();
+        glyphArgb = sys.CloseButtonGlyphPressedArgb();
+    }
+    else if (closeHovered)
+    {
+        fillArgb  = sys.CloseButtonHoverArgb();
+        glyphArgb = sys.CloseButtonGlyphHoverArgb();
+    }
+
+    if (fillArgb != 0)
+    {
+        m_painter.FillRect (closeLeftPx, 0.0f, closeWPx, titleH, fillArgb);
+    }
+
+    IGNORE_RETURN_VALUE (hr, m_text.DrawString (s_kpszCloseGlyph,
+                                                closeLeftPx, 0.0f, closeWPx, titleH,
+                                                glyphArgb,
+                                                closeGlyphPx, s_kpszMdl2Family,
+                                                DwriteTextRenderer::HAlign::Center,
                                                 DwriteTextRenderer::VAlign::Center));
-Error:
-    return;
 }
 
 

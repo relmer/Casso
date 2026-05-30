@@ -8,6 +8,7 @@ static constexpr LPCWSTR  s_kpszDialogClass       = L"Casso.Dialog.Primitive";
 static constexpr DWORD    s_kDialogStyle           = WS_POPUP | WS_SYSMENU;
 static constexpr DWORD    s_kDialogExStyle         = 0;
 static constexpr float    s_kTitleHeightDp         = 32.0f;
+static constexpr float    s_kCloseButtonWidthDp    = 46.0f;
 static constexpr float    s_kBodyFontDp            = 13.0f;
 static constexpr float    s_kButtonFontDp          = 13.0f;
 static constexpr float    s_kMaxBodyWidthDp        = 360.0f;
@@ -546,7 +547,14 @@ void DialogPrimitive::OnKeyDown (WPARAM vk)
             break;
 
         case VK_ESCAPE:
-            ActivateCancelButton();
+            if (m_def != nullptr && m_def->closeBoxResult.has_value())
+            {
+                Close (m_def->closeBoxResult.value());
+            }
+            else
+            {
+                ActivateCancelButton();
+            }
             break;
 
         case VK_TAB:
@@ -601,6 +609,34 @@ void DialogPrimitive::OnMouse (UINT message, WPARAM wParam, LPARAM lParam)
     if (DispatchCustomBodyInput (kind, xPx, yPx, 0))
     {
         return;
+    }
+
+    {
+        bool inClose      = PointInCloseButton (xPx, yPx);
+        bool newHovered   = inClose;
+        bool newPressed   = m_closePressed;
+
+        if (down)
+        {
+            newPressed = inClose;
+        }
+        else if (up)
+        {
+            bool wasPressed = m_closePressed;
+            newPressed = false;
+            if (wasPressed && inClose)
+            {
+                OnClose();
+                return;
+            }
+        }
+
+        if (newHovered != m_closeHovered || newPressed != m_closePressed)
+        {
+            m_closeHovered = newHovered;
+            m_closePressed = newPressed;
+            dirty = true;
+        }
     }
 
     for (size_t i = 0; i < m_buttons.size(); ++i)
@@ -838,7 +874,9 @@ void DialogPrimitive::RenderFrame()
     IGNORE_RETURN_VALUE (hr, m_renderer.Render (*m_def, m_layout, *m_theme,
                                                 TitleHeightPx(), m_buttons,
                                                 m_focusedHyperlink,
-                                                m_hoveredHyperlink));
+                                                m_hoveredHyperlink,
+                                                m_closeHovered,
+                                                m_closePressed));
 
 Error:
     return;
@@ -1336,6 +1374,61 @@ Error:
 int DialogPrimitive::TitleHeightPx() const
 {
     return static_cast<int> (s_kTitleHeightDp * static_cast<float> (m_dpi) / static_cast<float> (DpiScaler::kBaseDpi));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CloseButtonRectPx
+//
+//  Returns the close caption widget rect in client coordinates. Sized
+//  46dp wide x titleH tall, right-aligned in the title bar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DialogPrimitive::CloseButtonRectPx() const
+{
+    RECT  rect    = {};
+    int   widthPx = static_cast<int> (s_kCloseButtonWidthDp * static_cast<float> (m_dpi) / static_cast<float> (DpiScaler::kBaseDpi));
+    int   clientW = 0;
+    RECT  clientRect = {};
+
+
+
+    if (m_hwnd != nullptr && GetClientRect (m_hwnd, &clientRect))
+    {
+        clientW = clientRect.right - clientRect.left;
+    }
+
+    rect.right  = clientW;
+    rect.left   = clientW - widthPx;
+    rect.top    = 0;
+    rect.bottom = TitleHeightPx();
+
+    return rect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PointInCloseButton
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DialogPrimitive::PointInCloseButton (int xPx, int yPx) const
+{
+    RECT  rect = CloseButtonRectPx();
+
+
+
+    return (xPx >= rect.left) && (xPx < rect.right)
+        && (yPx >= rect.top)  && (yPx < rect.bottom);
 }
 
 
