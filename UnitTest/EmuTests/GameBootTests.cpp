@@ -227,31 +227,31 @@ public:
     ////////////////////////////////////////////////////////////////////////
     //  Karateka (1984, Broderbund). Aggressive copy-protection: nibble
     //  counts, non-standard sync patterns, and the Jordan-Mechner-era
-    //  RWTS18 trickery. Full boot is a future goal -- this test
-    //  currently only proves Disk II plumbing reaches the loader far
-    //  enough to attempt protection checks (motor, bit cursor, head
-    //  movement off track 0). Empirically the head walks 3 tracks
-    //  within the cycle budget before the protection check stalls
-    //  the loader; weak-bit emulation alone is not sufficient to
-    //  push past the check. Tracked for a follow-up issue.
+    //  RWTS18 trickery. With the quarter-track pipeline and apple2js
+    //  stepper model the loader now clears the protection checks, sweeps
+    //  the disk to stage the game, and turns the motor off once the load
+    //  completes -- the same boot signature as Choplifter. The head walks
+    //  well past the old 3-track protection stall (empirically ~14 distinct
+    //  tracks up to track 32), so require >= 10 as a "really loading" signal.
     ////////////////////////////////////////////////////////////////////////
 
-    TEST_METHOD (Karateka_WozBoot_LoaderReachesProtectionChecks)
+    TEST_METHOD (Karateka_WozBoot_HeadVisitsContentTracks)
     {
-        AssertGameBoots ("Apple2/Demos/Karateka.woz", L"Karateka", 3);
+        AssertGameBoots ("Apple2/Demos/Karateka.woz", L"Karateka", 10);
     }
 
 
     ////////////////////////////////////////////////////////////////////////
-    //  Lode Runner (1983, Broderbund). Also stalls in protection like
-    //  Karateka; head reaches 4 distinct tracks before the loader's
-    //  check fails. Strong evidence the two games depend on the same
-    //  missing fidelity piece (track-seam jitter? big-skip jitter?
-    //  some other LSS detail). Follow-up issue tracks the dig.
+    //  Lode Runner (1983, Broderbund). Same copy-protection family as
+    //  Karateka. Previously stalled at 4 tracks; with the quarter-track
+    //  pipeline + apple2js stepper it now boots, sweeping the disk and
+    //  reaching the high outer tracks (empirically ~21 distinct tracks up
+    //  to track 33) before handing off with the motor off. Require >= 15
+    //  distinct tracks as the "really loading" signal.
     ////////////////////////////////////////////////////////////////////////
 
-    TEST_METHOD (LodeRunner_WozBoot_LoaderReachesProtectionChecks)
+    TEST_METHOD (LodeRunner_WozBoot_HeadVisitsContentTracks)
     {
-        AssertGameBoots ("Apple2/Demos/LodeRunner.woz", L"Lode Runner", 4);
+        AssertGameBoots ("Apple2/Demos/LodeRunner.woz", L"Lode Runner", 15);
     }
 };
