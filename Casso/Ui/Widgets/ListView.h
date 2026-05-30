@@ -273,6 +273,95 @@ public:
         ScrollByRows (-notches * linesPerNotch);
     }
 
+    // Scrollbar thumb-drag hit testing & state. xPx/yPx are relative
+    // to the widget rect. Returns true if (xPx, yPx) lies on the
+    // currently-painted scrollbar thumb. The caller (panel) starts a
+    // drag with BeginThumbDrag (grabYPx = the y-coordinate of the
+    // initial click within the widget rect) and forwards subsequent
+    // mouse-move y values via UpdateThumbDrag.
+    bool  IsScrollbarVisible () const
+    {
+        int  cap = VisibleRowCapacity();
+        return (cap > 0) && ((int) m_rows.size() > cap);
+    }
+    bool  HitTestScrollbarThumb (int xPx, int yPx) const
+    {
+        if (!IsScrollbarVisible()) { return false; }
+
+        int   fullW   = m_rect.right - m_rect.left;
+        int   barW    = ScrollbarWidthPx();
+        int   bx      = fullW - barW;
+        int   headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDp) : 0;
+        int   hdrGap  = m_showHeader ? m_scaler.Px (s_kHeaderGapDp)    : 0;
+        int   by      = headerH + hdrGap;
+        int   bh      = (m_rect.bottom - m_rect.top) - by;
+        int   total   = (int) m_rows.size();
+        int   cap     = VisibleRowCapacity();
+        int   maxTop  = MaxTopRow();
+        float thumbH  = std::max (16.0f, (float) bh * (float) cap / (float) total);
+        float travel  = (float) bh - thumbH;
+        float thumbY  = (float) by + ((maxTop > 0) ? travel * (float) m_topRow / (float) maxTop : 0.0f);
+
+        if (xPx < bx || xPx >= bx + barW) { return false; }
+        return (float) yPx >= thumbY && (float) yPx < thumbY + thumbH;
+    }
+    bool  HitTestScrollbarTrack (int xPx, int yPx) const
+    {
+        if (!IsScrollbarVisible()) { return false; }
+
+        int  fullW   = m_rect.right - m_rect.left;
+        int  barW    = ScrollbarWidthPx();
+        int  bx      = fullW - barW;
+        int  headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDp) : 0;
+        int  hdrGap  = m_showHeader ? m_scaler.Px (s_kHeaderGapDp)    : 0;
+        int  by      = headerH + hdrGap;
+        int  bh      = (m_rect.bottom - m_rect.top) - by;
+
+        if (xPx < bx || xPx >= bx + barW) { return false; }
+        if (yPx < by || yPx >= by + bh)   { return false; }
+        return true;
+    }
+    // Begin a thumb drag. grabYPx is the y inside the widget where
+    // the user clicked the thumb; we remember the offset between the
+    // click and the thumb's current top so the thumb doesn't jump.
+    void  BeginThumbDrag (int grabYPx)
+    {
+        int   headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDp) : 0;
+        int   hdrGap  = m_showHeader ? m_scaler.Px (s_kHeaderGapDp)    : 0;
+        int   by      = headerH + hdrGap;
+        int   bh      = (m_rect.bottom - m_rect.top) - by;
+        int   total   = (int) m_rows.size();
+        int   cap     = VisibleRowCapacity();
+        int   maxTop  = MaxTopRow();
+        float thumbH  = (total > 0) ? std::max (16.0f, (float) bh * (float) cap / (float) total) : 0.0f;
+        float travel  = (float) bh - thumbH;
+        float thumbY  = (float) by + ((maxTop > 0) ? travel * (float) m_topRow / (float) maxTop : 0.0f);
+
+        m_dragging   = true;
+        m_dragGrabDy = (float) grabYPx - thumbY;
+    }
+    void  UpdateThumbDrag (int yPx)
+    {
+        if (!m_dragging || !IsScrollbarVisible()) { return; }
+
+        int   headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDp) : 0;
+        int   hdrGap  = m_showHeader ? m_scaler.Px (s_kHeaderGapDp)    : 0;
+        int   by      = headerH + hdrGap;
+        int   bh      = (m_rect.bottom - m_rect.top) - by;
+        int   total   = (int) m_rows.size();
+        int   cap     = VisibleRowCapacity();
+        int   maxTop  = MaxTopRow();
+        float thumbH  = std::max (16.0f, (float) bh * (float) cap / (float) total);
+        float travel  = (float) bh - thumbH;
+        float thumbY  = (float) yPx - m_dragGrabDy;
+        float ratio   = (travel > 0.0f) ? ((thumbY - (float) by) / travel) : 0.0f;
+        int   newTop  = (int) std::lround (ratio * (float) maxTop);
+
+        SetTopRow (newTop);
+    }
+    void  EndThumbDrag () { m_dragging = false; m_dragGrabDy = 0.0f; }
+    bool  IsThumbDragging () const { return m_dragging; }
+
     // Measure each column's natural width from its header + cell text.
     // Caller invokes this once after SetColumns/SetRows to populate
     // auto-fit widths. The widget then uses these for layout and the
@@ -475,20 +564,27 @@ public:
 
             for (size_t c = 0; c < m_columns.size(); ++c)
             {
+                bool   hasSort     = ((int) c == m_sortColumn) && m_columns[c].visible && (colWPx[c] > 0);
+                float  sortGlyphW  = (float) m_scaler.Px (s_kSortGlyphWidthDp);
+                float  sortReserve = hasSort ? (sortGlyphW + cellPadR) : 0.0f;
+                float  titleW      = (float) colWPx[c] - cellPadL - cellPadR - sortReserve;
+
+                if (titleW < 0.0f) { titleW = 0.0f; }
+
                 IGNORE_RETURN_VALUE (hr, text.DrawString (m_columns[c].title.c_str(),
                                                           x + (float) colXPx[c] + cellPadL,
                                                           hy,
-                                                          (float) colWPx[c] - cellPadL - cellPadR,
+                                                          titleW,
                                                           headerH,
                                                           hdrFg, hdrFontPx, L"Segoe UI",
                                                           m_columns[c].align,
                                                           DwriteTextRenderer::VAlign::Center,
                                                           DWRITE_FONT_WEIGHT_BOLD));
 
-                if ((int) c == m_sortColumn && m_columns[c].visible && colWPx[c] > 0)
+                if (hasSort)
                 {
                     const wchar_t * glyph = m_sortDescending ? L"\u25BC" : L"\u25B2";
-                    float           gw    = (float) m_scaler.Px (s_kSortGlyphWidthDp);
+                    float           gw    = sortGlyphW;
 
                     IGNORE_RETURN_VALUE (hr, text.DrawString (glyph,
                                                               x + (float) colXPx[c] + (float) colWPx[c] - cellPadR - gw,
@@ -683,4 +779,6 @@ private:
     bool                              m_listFocused      = false;
     int                               m_focusedHeaderCol  = -1;
     int                               m_focusedDividerCol = -1;
+    bool                              m_dragging         = false;
+    float                             m_dragGrabDy       = 0.0f;
 };

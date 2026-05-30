@@ -252,6 +252,28 @@ is preserved as the lone deliberate Win32 surface.
     `LayoutWidgets` had populated `SetOptions`, so the out-of-range
     clamp silently fell back to -1. `LayoutWidgets` now re-applies
     `SetSelected (m_filter.driveFilter)` after `SetOptions`.
+  - Right-aligned column headers no longer underlap the sort triangle.
+    `ListView::Paint` reserves the sort-glyph width plus a small gap
+    on the right edge of the title's draw rectangle on the sorted
+    column, so right-aligned titles shift left and the triangle has
+    its own clear lane.
+  - `TextInput` no longer wraps when text exceeds the visible width.
+    `DwriteTextRenderer::DrawString` gained an optional `wrap` flag
+    that toggles `DWRITE_WORD_WRAPPING_NO_WRAP`, and the renderer
+    exposes `PushClipRect`/`PopClipRect` so a widget can clip text
+    to its inner rect. `TextInput::Paint` measures the caret pixel
+    position, slides a per-widget `m_scrollPx` offset so the caret
+    stays in view (and trailing edge doesn't leave dead space), and
+    pushes a clip rect across the inner area. `CaretFromX` adjusts
+    by `m_scrollPx` so mouse clicks still hit the right character
+    once the text has scrolled.
+  - `ListView` scrollbar thumb is now draggable with live scrolling.
+    New `HitTestScrollbarThumb`/`HitTestScrollbarTrack` and
+    `BeginThumbDrag`/`UpdateThumbDrag`/`EndThumbDrag` on the widget;
+    the Disk II debug panel routes `WM_LBUTTONDOWN` / `WM_MOUSEMOVE`
+    / `WM_LBUTTONUP` through them (with capture) ahead of other
+    hit-tests. Track clicks above / below the thumb page-scroll by
+    one visible-row capacity.
 
 ### Deferred
 - None — all spec 011 tasks shipped.

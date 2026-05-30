@@ -79,7 +79,16 @@ public:
                                const wchar_t * fontFamily,
                                HAlign          hAlign = HAlign::Left,
                                VAlign          vAlign = VAlign::Top,
-                               DWRITE_FONT_WEIGHT weight = DWRITE_FONT_WEIGHT_NORMAL);
+                               DWRITE_FONT_WEIGHT weight = DWRITE_FONT_WEIGHT_NORMAL,
+                               bool            wrap   = true);
+
+    // Push an axis-aligned clip rect onto the d2d context. All
+    // subsequent DrawString / FillRect calls are clipped to the
+    // intersection of currently-active clips until the matching
+    // PopClipRect. Used by single-line text inputs to clip their
+    // scrolling text content to the visible inner rect.
+    HRESULT  PushClipRect     (float xDip, float yDip, float widthDip, float heightDip);
+    HRESULT  PopClipRect      ();
 
     HRESULT  FillRect         (float    xDip,
                                float    yDip,

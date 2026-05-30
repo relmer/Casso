@@ -308,6 +308,7 @@ void TextInput::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     float        padL      = m_scaler.Pxf (s_kPadLeftDp);
     float        padR      = m_scaler.Pxf (s_kPadRightDp);
     float        fontPx    = m_scaler.Pxf (s_kFontDip);
+    float        innerW    = w - padL - padR;
     uint32_t     bgArgb    = s_kFallbackBg;
     uint32_t     fgArgb    = s_kFallbackFg;
     uint32_t     selArgb   = s_kFallbackSel;
@@ -315,10 +316,13 @@ void TextInput::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     uint32_t     focusArgb = s_kFallbackFocus;
     float        textMeasW = 0.0f;
     float        textMeasH = 0.0f;
+    float        caretX    = 0.0f;
+    float        fullTextW = 0.0f;
     size_t       selStart  = std::min (m_caret, m_anchor);
     size_t       selEnd    = std::max (m_caret, m_anchor);
     std::wstring before;
     std::wstring sel;
+    std::wstring caretPrefix;
 
 
     if (m_theme != nullptr)
@@ -333,6 +337,24 @@ void TextInput::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     painter.FillRect    (x, y, w, h, bgArgb);
     painter.OutlineRect (x, y, w, h, 1.0f, m_focused ? focusArgb : edgeArgb);
 
+    caretPrefix.assign (m_text, 0, m_caret);
+    IGNORE_RETURN_VALUE (hr, text.MeasureString (caretPrefix.c_str(), fontPx, L"Segoe UI", caretX,    textMeasH));
+    IGNORE_RETURN_VALUE (hr, text.MeasureString (m_text.c_str(),      fontPx, L"Segoe UI", fullTextW, textMeasH));
+
+    if (innerW <= 0.0f)
+    {
+        m_scrollPx = 0.0f;
+    }
+    else
+    {
+        if (caretX - m_scrollPx < 0.0f)            { m_scrollPx = caretX; }
+        if (caretX - m_scrollPx > innerW)          { m_scrollPx = caretX - innerW; }
+        if (fullTextW - m_scrollPx < innerW)       { m_scrollPx = fullTextW - innerW; }
+        if (m_scrollPx < 0.0f)                     { m_scrollPx = 0.0f; }
+    }
+
+    IGNORE_RETURN_VALUE (hr, text.PushClipRect (x + padL, y, innerW, h));
+
     if (selStart != selEnd)
     {
         before.assign (m_text, 0, selStart);
@@ -343,30 +365,28 @@ void TextInput::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
         IGNORE_RETURN_VALUE (hr, text.MeasureString (before.c_str(), fontPx, L"Segoe UI", bx, textMeasH));
         IGNORE_RETURN_VALUE (hr, text.MeasureString (sel.c_str(),    fontPx, L"Segoe UI", sx, textMeasH));
 
-        painter.FillRect (x + padL + bx, y + 2.0f, sx, h - 4.0f, selArgb);
+        text.FillRect (x + padL + bx - m_scrollPx, y + 2.0f, sx, h - 4.0f, selArgb);
     }
 
     IGNORE_RETURN_VALUE (hr, text.DrawString (m_text.c_str(),
-                                              x + padL,
+                                              x + padL - m_scrollPx,
                                               y,
-                                              w - padL - padR,
+                                              std::max (innerW + m_scrollPx, fullTextW + 1.0f),
                                               h,
                                               fgArgb,
                                               fontPx,
                                               L"Segoe UI",
                                               DwriteTextRenderer::HAlign::Left,
-                                              DwriteTextRenderer::VAlign::Center));
+                                              DwriteTextRenderer::VAlign::Center,
+                                              DWRITE_FONT_WEIGHT_NORMAL,
+                                              false));
 
     if (m_focused)
     {
-        std::wstring  caretPrefix;
-        float         cx = 0.0f;
-
-        caretPrefix.assign (m_text, 0, m_caret);
-        IGNORE_RETURN_VALUE (hr, text.MeasureString (caretPrefix.c_str(), fontPx, L"Segoe UI", cx, textMeasH));
-
-        painter.FillRect (x + padL + cx, y + 2.0f, s_kCaretWidthPx, h - 4.0f, fgArgb);
+        text.FillRect (x + padL + caretX - m_scrollPx, y + 2.0f, (float) s_kCaretWidthPx, h - 4.0f, fgArgb);
     }
+
+    IGNORE_RETURN_VALUE (hr, text.PopClipRect());
 }
 
 
@@ -406,7 +426,7 @@ size_t TextInput::CaretFromX (DwriteTextRenderer & text, int xPx) const
     HRESULT       hr       = S_OK;
     float         padL     = m_scaler.Pxf (s_kPadLeftDp);
     float         fontPx   = m_scaler.Pxf (s_kFontDip);
-    float         target   = (float) xPx - (float) m_rect.left - padL;
+    float         target   = (float) xPx - (float) m_rect.left - padL + m_scrollPx;
     float         w        = 0.0f;
     float         h        = 0.0f;
     std::wstring  prefix;

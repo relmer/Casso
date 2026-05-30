@@ -704,6 +704,32 @@ void DiskIIDebugPanel::OnLButtonDown (int x, int y)
 
     if (!handled)
     {
+        // Scrollbar thumb drag has priority over column-resize and
+        // row-hit, so the user can grab the thumb without accidentally
+        // clicking the row beneath it. Clicks on the track (not the
+        // thumb) page-scroll by the visible row capacity.
+        int  relX = x - m_layout.listView.left;
+        int  relY = y - m_layout.listView.top;
+        if (m_eventList.HitTestScrollbarThumb (relX, relY))
+        {
+            m_eventList.BeginThumbDrag (relY);
+            SetCapture (m_hwnd);
+            handled = true;
+        }
+        else if (m_eventList.HitTestScrollbarTrack (relX, relY))
+        {
+            int  cap     = m_eventList.VisibleRowCapacity();
+            int  topRow  = m_eventList.TopRow();
+            int  headerH = m_eventList.HeaderHeightPx();
+            int  bodyH   = (m_layout.listView.bottom - m_layout.listView.top) - headerH;
+            int  newTop  = (relY < headerH + bodyH / 2) ? topRow - cap : topRow + cap;
+            m_eventList.SetTopRow (newTop);
+            handled = true;
+        }
+    }
+
+    if (!handled)
+    {
         // Column-resize drag has priority over header-sort: if the
         // user grabbed a resize handle on a header right-edge, we
         // start the drag here and the sort hit-test below is skipped.
@@ -776,6 +802,13 @@ void DiskIIDebugPanel::OnLButtonDown (int x, int y)
 
 void DiskIIDebugPanel::OnLButtonUp (int x, int y)
 {
+    if (m_eventList.IsThumbDragging())
+    {
+        m_eventList.EndThumbDrag();
+        ReleaseCapture();
+        return;
+    }
+
     if (m_resizeColumn >= 0)
     {
         m_resizeColumn = -1;
@@ -823,6 +856,13 @@ void DiskIIDebugPanel::OnLButtonUp (int x, int y)
 
 void DiskIIDebugPanel::OnMouseMove (int x, int y)
 {
+    if (m_eventList.IsThumbDragging())
+    {
+        int  relY = y - m_layout.listView.top;
+        m_eventList.UpdateThumbDrag (relY);
+        return;
+    }
+
     if (m_resizeColumn >= 0)
     {
         int  deltaPx  = x - m_resizeStartXPx;

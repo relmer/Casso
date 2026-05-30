@@ -92,4 +92,11 @@ private:
     HWND                  m_hwnd       = nullptr;
     ChangeFn              m_change;
     DpiScaler             m_scaler;
+
+    // Horizontal scroll offset (pixels) for the rendered text. Paint
+    // adjusts this so the caret remains inside the visible inner
+    // rect; mouse hit-testing translates xPx by m_scrollPx so clicks
+    // land on the character under the cursor regardless of scroll.
+    // Mutable because Paint() is const but owns the auto-scroll math.
+    mutable float         m_scrollPx   = 0.0f;
 };
