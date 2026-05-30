@@ -122,21 +122,25 @@ MSBuild directly.
 
 ### P3-A — Themed Debug Console (FR-009, US6)
 
-1. Open Debug Console.
-   **Verify**: rendered through DX painter, active theme palette,
-   monospace font (no Win32 EDIT control).
+1. Open Debug Console (Help → Debug). **Verify**: rendered through
+   DX painter, active theme palette, monospace font (no Win32 EDIT
+   control). Chrome shell title bar + close button match the
+   Settings panel / Disk II Debug panel chrome.
 2. Generate enough log lines to exceed the panel height.
-   **Verify**: keyboard scrolling and mouse-wheel scrolling work.
-3. Select a range of text. Ctrl+C. **Verify**: clipboard contains
-   exactly the selected text.
-4. Copy with no selection. **Verify**: no-op, no crash, clipboard
-   unchanged.
+   **Verify**: keyboard scrolling (arrows / PgUp / PgDn / Home /
+   End) and mouse-wheel scrolling work. New lines auto-scroll to
+   the tail when the viewport is already pinned to the bottom;
+   otherwise the user's scroll position is preserved.
+3. Ctrl+C with no selection. **Verify**: clipboard contains the
+   full buffer joined with CRLF. (Granular text-range selection
+   is intentionally deferred — see CHANGELOG "Deferred".)
+4. Close the panel (X button or Escape). **Verify**: panel hides
+   but the buffer survives; re-opening shows the prior log.
 
-### P3-B — Themed Disk II Debug Dialog (FR-010, SC-010, US7)
+### P3-B — Themed Disk II Debug Panel (FR-010, SC-010, US7)
 
 For each control family below, exercise it and verify behavior
-matches the legacy Win32 dialog (still buildable behind the
-compile-time switch during the conversion):
+matches the legacy Win32 dialog:
 
 1. Static labels render correctly under each theme.
 2. Event-type filter checkboxes — toggle each, verify ListView
@@ -150,16 +154,13 @@ compile-time switch during the conversion):
 8. Pause / Clear buttons — same.
 9. Sortable ListView — sort by Time, Event, Detail; ascending
    and descending.
-10. Column-header right-click context menu — show/hide each
-    column.
-11. Hover any filter control past the tooltip delay —
-    themed tooltip explains the filter.
-12. **Verify SC-010**: `UnitTest` project still builds and
-    `DiskIIDebugDialogStateTests.cpp` still passes — no Win32
-    types leaked into the state TU.
+10. **Verify SC-010**: `UnitTest` project still builds and
+    `DiskIIDebugDialogColumnTests` / `DiskIIDebugDialogTests` still
+    pass — no Win32 types leaked into the state TU.
 
-Once parity is verified end-to-end, delete the legacy
-`DiskIIDebugDialog.cpp` and remove the compile-time switch.
+The legacy `DiskIIDebugDialog.cpp` / `.h` and the
+`CASSO_LEGACY_DISKII_DEBUG_DIALOG` compile-time switch have been
+deleted; the DX panel is now the only Disk II debug surface.
 
 ---
 

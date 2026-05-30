@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.4.1289] — Native dialogs migration (spec 011)
+## [1.4.1364] — Native dialogs migration (spec 011)
 
 Themed DX-based modal dialogs now replace every Win32 `MessageBoxW` /
 `TaskDialogIndirect` consumer in the app (except the pre-shell EHM
@@ -91,21 +91,48 @@ is preserved as the lone deliberate Win32 surface.
 - **chore(011): named Unicode constants.** New `s_kchAlmostEqual`
   (U+2248) in `UnicodeSymbols.h`; all dialog body strings consume
   named constants rather than inline `\xNNNN` escapes.
+- **feat(011): DX Disk II Debug Panel (US7, T044-T055, T059).** Brand
+  new `DiskIIDebugPanel` replaces the legacy Win32 `DiskIIDebugDialog`
+  (-3073 lines). Hosts itself in the shared `ChromedPanelWindow`
+  chrome shell with the active theme; lays out filter checkboxes,
+  audio toggles, drive radios, themed track / sector text inputs with
+  validation feedback, pause / clear buttons, and a sortable virtual
+  event ListView. Adds shared widget primitives `Checkbox`, `Radio`,
+  `TextInput` (cursor + selection + clipboard + keyboard nav), and
+  the `RequiredRowsForHeightPx` helper on `ListView`. All 18
+  `IDiskIIEventSink` + `IDriveAudioEventSink` overrides preserved so
+  the panel slots into the existing EmulatorShell wiring with no
+  contract change.
+- **feat(011): DX Debug Console Panel (US6, T039-T043).** New
+  `DebugConsolePanel` replaces the legacy `DebugConsole` EDIT-control
+  window. Themed monospace log body inside the shared chrome shell,
+  mouse-wheel + PgUp/PgDn/Home/End/arrow scrolling, Ctrl+C copies the
+  full buffer to the clipboard. Thread-safe `Log` / `LogConfig`
+  contract preserved verbatim; existing call sites needed no change.
+- **chore(011): chrome shell extracted.** `ChromedPanelWindow` and
+  `IChromedPanelContent` factored out from the dialog primitives so
+  both new panels (and any future child window) share NC chrome,
+  title bar, sys buttons, DPI handling, and input routing without
+  copy-paste.
 
 ### Deferred
-- US6 / US7 full DX panel rewrites. The developer-only Debug Console
-  and Disk II Debug Dialog ship with the Win11 dark-mode pass instead
-  of a from-scratch DX rebuild. The missing widget primitives (themed
-  text input + validation feedback, radio buttons, virtual sortable
-  ListView, popup column menu, tooltip popup) are tracked for future
-  feature work; the user-facing path (US1–US5) ships end-to-end in DX.
+- T056-T058 polish (column header context menu, tooltip wiring, layout
+  pass) for `DiskIIDebugPanel` left for follow-up. The panel ships with
+  the full filter / audio toggle / track-sector / button row / event
+  ListView surface; the deferred items are pure UX sugar (column toggle
+  popup, hover tooltips, visual-only padding tweaks).
+- Granular text-range selection in `DebugConsolePanel`. Ctrl+A and a
+  draggable selection are deferred; Ctrl+C copies the full buffer,
+  which covers the dominant use case (paste a session into a bug
+  report).
 
 ### Tests
 - **+24 headless unit tests** across `DialogLayoutTests` (6),
   `DiskMruTests` (9), `DriveLabelTruncationTests` (7), and
   `GlobalUserPrefsTests` (+2 round-trip / malformed-entry cases). All
   measurement and filesystem dependencies injected; no Win32, no real
-  file I/O. Total suite: 1616/1616 passing.
+  file I/O. Plus `DiskIIDebugPanelLayoutTests` (10) covering the new
+  layout slots. Total suite: 1634/1634 passing.
 
 
 ## [1.4.1260] — Drive widget interaction + disk persistence fix
