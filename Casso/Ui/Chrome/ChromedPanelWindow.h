@@ -22,7 +22,7 @@ struct ChromeTheme;
 //  and interaction model live in an IChromedPanelContent provided to
 //  Create.
 //
-//  Use cases: Settings popup, Disk II Debug panel, Debug Console
+// Use cases: Settings popup, Disk II Debug panel
 //  panel. Each provides its own content + renderer; the chrome is
 //  identical and lives here.
 //

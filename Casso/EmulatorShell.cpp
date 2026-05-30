@@ -402,11 +402,6 @@ EmulatorShell::~EmulatorShell()
         m_diskIIDebugPanel.reset();
     }
 
-    if (m_debugConsolePanel != nullptr)
-    {
-        m_debugConsolePanel.reset();
-    }
-
     // / T097 / FR-025. Final auto-flush of any dirty disks on
     // process shutdown — matches the "graceful exit" requirement from
     // audit §7 so a crash-free quit never loses user writes.
@@ -1972,10 +1967,6 @@ int EmulatorShell::RunMessageLoop()
         {
             IGNORE_RETURN_VALUE (hr, m_diskIIDebugPanel->RenderFrame());
         }
-        if (m_debugConsolePanel != nullptr)
-        {
-            IGNORE_RETURN_VALUE (hr, m_debugConsolePanel->RenderFrame());
-        }
         if (m_navLayer.IsOpen())
         {
             m_d3dRenderer.MarkRedrawNeeded();
@@ -3169,7 +3160,7 @@ void EmulatorShell::OpenDiskIIDebugDialog()
         }
     }
 
-    if (m_diskIIDebugPanel == nullptr)
+    if (m_diskIIDebugPanel == nullptr || m_diskIIDebugPanel->Hwnd() == nullptr)
     {
         hInstance          = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
         m_diskIIDebugPanel = std::make_unique<DiskIIDebugPanel>();

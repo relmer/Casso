@@ -477,40 +477,6 @@ void WindowCommandManager::OnHelpCommand (int id)
 {
     switch (id)
     {
-        case IDM_HELP_DEBUG:
-        {
-            if (m_shell.m_debugConsolePanel != nullptr && m_shell.m_debugConsolePanel->IsVisible())
-            {
-                m_shell.m_debugConsolePanel->Hide();
-            }
-            else
-            {
-                if (m_shell.m_debugConsolePanel == nullptr)
-                {
-                    HRESULT  hrCreate;
-
-                    m_shell.m_debugConsolePanel = std::make_unique<DebugConsolePanel>();
-                    hrCreate = m_shell.m_debugConsolePanel->Create (m_shell.m_hInstance,
-                                                                    m_shell.m_hwnd,
-                                                                    m_shell.m_d3dRenderer.GetDevice(),
-                                                                    m_shell.m_d3dRenderer.GetContext(),
-                                                                    &m_shell.m_chromeTheme);
-                    if (FAILED (hrCreate))
-                    {
-                        m_shell.m_debugConsolePanel.reset();
-                        break;
-                    }
-                }
-
-                m_shell.m_debugConsolePanel->Show();
-                m_shell.m_debugConsolePanel->LogConfig (
-                    std::format ("Machine: {}\nCPU: {}\nClock: {} Hz\nDevices: {}",
-                        m_shell.m_config.name, m_shell.m_config.cpu, m_shell.m_config.clockSpeed,
-                        (m_shell.m_config.internalDevices.size() + m_shell.m_config.slots.size())));
-            }
-            break;
-        }
-
         case IDM_HELP_KEYMAP:
         {
             DialogDefinition def = {};
@@ -532,8 +498,7 @@ void WindowCommandManager::OnHelpCommand (int id)
                 L"Pause -> Pause/resume\n"
                 L"F11 -> Step (when paused)\n"
                 L"Alt+Enter -> Fullscreen\n"
-                L"Ctrl+0 -> Reset window size\n"
-                L"Ctrl+D -> Debug console",
+                L"Ctrl+0 -> Reset window size",
                 false, L"" });
             def.buttons.push_back ({ L"OK", 0, true, true });
             (void) m_shell.ShowModalDialog (def);

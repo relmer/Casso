@@ -9,7 +9,6 @@
 #include "Core/ComponentRegistry.h"
 #include "D3DRenderer.h"
 #include "UiCommandTypes.h"
-#include "Ui/DebugConsolePanel.h"
 #include "Ui/Chrome/TitleBar.h"
 #include "Ui/Chrome/NavLayer.h"
 #include "Ui/Chrome/LayoutManager.h"
@@ -293,7 +292,6 @@ private:
 
     D3DRenderer         m_d3dRenderer;
     WasapiAudio         m_wasapiAudio;
-    std::unique_ptr<DebugConsolePanel>  m_debugConsolePanel;
     DialogPrimitive     m_dialogPrimitive;
 
     // UI-thread filesystem and chrome ownership. The painter pass

@@ -284,6 +284,23 @@ is preserved as the lone deliberate Win32 surface.
 ### Deferred
 - None — all spec 011 tasks shipped.
 
+### Removed
+- **chore(debug): remove DX Debug Console panel.** The themed Debug
+  Console (Help → Debug, Ctrl+D) shipped earlier in this spec turned
+  out to carry no signal worth keeping (DEBUGMSG output is already
+  visible in the VS debugger and machine-config dumps duplicate what
+  the Hardware Info dialog shows). Removed `DebugConsolePanel.{h,cpp}`,
+  `IDM_HELP_DEBUG`, the Ctrl+D accelerator, the Help menu entry, the
+  keymap dialog line, and the per-frame render hook.
+
+### Fixed (post-merge polish)
+- **fix(disk2debug): allow reopening after the close box.** Clicking
+  the title-bar X destroyed the panel's HWND but left the owning
+  `unique_ptr` in `EmulatorShell` non-null with a stale handle. The
+  next menu / Ctrl+Shift+D click hit the cached pointer's `Show()`
+  on a dead HWND and silently did nothing. The open path now treats
+  `Hwnd() == nullptr` the same as `panel == nullptr` and reconstructs.
+
 ### Tests
 - **+24 headless unit tests** across `DialogLayoutTests` (6),
   `DiskMruTests` (9), `DriveLabelTruncationTests` (7), and

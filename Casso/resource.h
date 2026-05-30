@@ -44,7 +44,6 @@
 #define IDM_AUDIO_DRIVE_MECHANISM   40052
 
 #define IDM_HELP_KEYMAP             40040
-#define IDM_HELP_DEBUG              40041
 #define IDM_HELP_ABOUT              40042
 
 // Accelerator table
