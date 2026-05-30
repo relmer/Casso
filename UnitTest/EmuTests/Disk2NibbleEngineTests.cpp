@@ -410,4 +410,189 @@ public:
                 L"Formatted-track latch sequence must be deterministic across engines");
         }
     }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  Self-sync framing helpers
+    //
+    //  Lay down genuine 10-bit self-sync FF bytes (1111111100), the gap
+    //  pattern DOS 3.3 / ProDOS write between fields. Unlike an all-ones
+    //  stream, the two trailing zeros force the LSS through its re-align
+    //  path every byte -- the mechanism that makes every reader converge
+    //  on the same byte framing regardless of where it started reading.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static void WriteSelfSyncByte (DiskImage & img, size_t & bitPos)
+    {
+        int   i = 0;
+
+        for (i = 0; i < 8; i++)
+        {
+            img.WriteBit (0, bitPos++, 1);
+        }
+
+        img.WriteBit (0, bitPos++, 0);
+        img.WriteBit (0, bitPos++, 0);
+    }
+
+
+    TEST_METHOD (SelfSyncStreamFramesAsFFWithoutDrift)
+    {
+        // Port of apple2js disk2.spec.ts "reads an FF sync byte" /
+        // "reads several FF sync bytes". A run of 10-bit self-sync FF
+        // bytes must decode as a steady stream of 0xFF nibbles. Any
+        // dropped or doubled bit cell would show up as a non-FF nibble
+        // once the framing slipped -- the exact failure signature seen
+        // when a protected loader stalls hunting for a prologue.
+        DiskImage             img;
+        Disk2NibbleEngine     eng;
+        const int             kSyncBytes = 64;
+        size_t                bitPos     = 0;
+        int                   b          = 0;
+        int                   t          = 0;
+        int                   freshReads = 0;
+        int                   nonFF      = 0;
+        uint8_t               nib        = 0;
+
+        img.ResizeTrack (0, (size_t) kSyncBytes * 10);
+
+        for (b = 0; b < kSyncBytes; b++)
+        {
+            WriteSelfSyncByte (img, bitPos);
+        }
+
+        eng.SetDiskImage (&img);
+        eng.SetMotorOn   (true);
+
+
+
+        // Tick one bit cell at a time across several full revolutions,
+        // harvesting every freshly assembled nibble. Skip the first few
+        // assemblies while the sequencer locks onto self-sync.
+        for (t = 0; t < kSyncBytes * 10 * 4; t++)
+        {
+            eng.Tick (Disk2NibbleEngine::kCyclesPerBit);
+
+            if (eng.ConsumeFreshNibble (nib))
+            {
+                freshReads++;
+
+                if (freshReads > 4 && nib != 0xFF)
+                {
+                    nonFF++;
+                }
+            }
+        }
+
+        Assert::IsTrue (freshReads > 16,
+            L"Self-sync stream must assemble a steady run of nibbles");
+        Assert::AreEqual (0, nonFF,
+            L"Every framed self-sync nibble must be 0xFF -- no bit-slip drift");
+    }
+
+
+    static void WriteDataByte (DiskImage & img, size_t & bitPos, uint8_t value)
+    {
+        int   i = 0;
+
+        for (i = 0; i < 8; i++)
+        {
+            img.WriteBit (0, bitPos++, (uint8_t) ((value >> (7 - i)) & 1));
+        }
+    }
+
+
+    static void WriteZeroRun (DiskImage & img, size_t & bitPos, int count)
+    {
+        int   i = 0;
+
+        for (i = 0; i < count; i++)
+        {
+            img.WriteBit (0, bitPos++, 0);
+        }
+    }
+
+
+    TEST_METHOD (LssReSyncsAfterLongZeroGap)
+    {
+        // The boundary case protected loaders depend on: a long zero
+        // run (an intentional weak-bit / "fake bit" region, exactly the
+        // 234 runs of 4+ zeros measured on Choplifter track 0) is
+        // immediately followed by self-sync and a fresh prologue. The
+        // weak region randomizes, but self-sync is self-correcting:
+        // once enough FF sync bytes pass, framing MUST re-lock so the
+        // post-gap D5 AA 96 prologue decodes cleanly. If the LSS could
+        // not re-lock after a gap, the prologue after every weak region
+        // would be unreadable -- which is what a stalled loader looks
+        // like.
+        DiskImage             img;
+        Disk2NibbleEngine     eng;
+        const int             kLeadSync  = 24;
+        const int             kGapZeros  = 200;
+        const int             kTailSync  = 32;
+        size_t                bitPos     = 0;
+        int                   b          = 0;
+        int                   t          = 0;
+        int                   prologues  = 0;
+        uint8_t               nib        = 0;
+        std::vector<uint8_t>  harvested;
+
+        img.ResizeTrack (0, 4096);
+
+        for (b = 0; b < kLeadSync; b++)
+        {
+            WriteSelfSyncByte (img, bitPos);
+        }
+
+        WriteDataByte (img, bitPos, 0xD5);
+        WriteDataByte (img, bitPos, 0xAA);
+        WriteDataByte (img, bitPos, 0x96);
+
+        WriteZeroRun (img, bitPos, kGapZeros);
+
+        for (b = 0; b < kTailSync; b++)
+        {
+            WriteSelfSyncByte (img, bitPos);
+        }
+
+        WriteDataByte (img, bitPos, 0xD5);
+        WriteDataByte (img, bitPos, 0xAA);
+        WriteDataByte (img, bitPos, 0x96);
+
+        img.SetTrackBitCount (0, bitPos);
+
+        eng.SetDiskImage (&img);
+        eng.SetMotorOn   (true);
+
+
+
+        harvested.reserve (1024);
+
+        for (t = 0; t < (int) bitPos * 3; t++)
+        {
+            eng.Tick (Disk2NibbleEngine::kCyclesPerBit);
+
+            if (eng.ConsumeFreshNibble (nib))
+            {
+                harvested.push_back (nib);
+            }
+        }
+
+        for (b = 0; b + 2 < (int) harvested.size (); b++)
+        {
+            if (harvested[b] == 0xD5 && harvested[b + 1] == 0xAA && harvested[b + 2] == 0x96)
+            {
+                prologues++;
+            }
+        }
+
+        // Both prologues -- the one before the gap and the one after --
+        // must frame. Across ~3 revolutions each is seen multiple times;
+        // the floor of 2 proves the post-gap prologue re-locked at least
+        // once rather than being lost to permanent bit-slip.
+        Assert::IsTrue (prologues >= 2,
+            L"LSS must re-lock self-sync framing after a long zero/weak gap");
+    }
 };

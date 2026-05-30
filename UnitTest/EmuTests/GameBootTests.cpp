@@ -211,13 +211,16 @@ public:
 
     ////////////////////////////////////////////////////////////////////////
     //  Choplifter (1982, Broderbund). Standard DOS 3.3 boot with light
-    //  copy-protection. Loader sweeps tracks 0-22 to stage the game.
-    //  Strong "actually loading content" signal: >= 10 distinct tracks.
+    //  copy-protection that formats outer tracks (12+) on half-track
+    //  boundaries. The loader sweeps the disk to stage the game; with the
+    //  quarter-track pipeline and apple2js stepper model it reaches the
+    //  protected half-track region well past track 12. Strong "actually
+    //  loading content" signal: >= 20 distinct tracks.
     ////////////////////////////////////////////////////////////////////////
 
     TEST_METHOD (Choplifter_WozBoot_HeadVisitsContentTracks)
     {
-        AssertGameBoots ("Apple2/Demos/Choplifter.woz", L"Choplifter", 10);
+        AssertGameBoots ("Apple2/Demos/Choplifter.woz", L"Choplifter", 20);
     }
 
 
