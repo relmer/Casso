@@ -191,7 +191,13 @@ is preserved as the lone deliberate Win32 surface.
     themselves).
   - Renamed the event list's `Wall` column header to `Time`.
   - Tooltips are now fully opaque (background alpha bumped from 0xF0
-    to 0xFF) so text underneath no longer bleeds through.
+    to 0xFF) so text underneath no longer bleeds through. The Disk II
+    debug panel additionally flushes both `DxUiPainter` and
+    `DwriteTextRenderer` between underlying widgets and the
+    tooltip/column-menu overlays, so opaque overlay backgrounds
+    actually composite *above* widget text (both renderers batch, so
+    submission order alone wasn't enough — text from underlying widgets
+    would otherwise paint on top of the overlay's geometry).
   - Non-modal panels (Disk II debug, Debug console) now get a taskbar
     button via `WS_EX_APPWINDOW` and drop `WS_EX_TOOLWINDOW`, so they
     re-appear in Alt+Tab and can be raised even when fully occluded

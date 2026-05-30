@@ -374,6 +374,26 @@ HRESULT DiskIIDebugPanel::Render()
     m_eventList.Paint (m_painter, m_text);
 
     m_tooltip.Tick  (NowMs());
+
+    // Overlays (tooltip + column menu) must composite ABOVE every
+    // underlying widget. Both the geometry painter (DxUiPainter) and
+    // the text renderer (DwriteTextRenderer) batch their draws, so
+    // without an explicit flush all text would composite on top of
+    // all geometry — including the tooltip's opaque background. Flush
+    // both pipelines now so the next Begin/Paint cycle lands cleanly
+    // on top of everything painted so far.
+    if (m_tooltip.IsVisible() || m_columnMenu.IsVisible())
+    {
+        hr = m_painter.End (m_rtv.Get());
+        CHRA (hr);
+        hr = m_text.EndDraw();
+        CHRA (hr);
+        hr = m_painter.Begin (m_widthPx, m_heightPx);
+        CHRA (hr);
+        hr = m_text.BeginDraw();
+        CHRA (hr);
+    }
+
     m_tooltip.Paint (m_painter, m_text);
 
     m_columnMenu.Paint (m_painter, m_text);
