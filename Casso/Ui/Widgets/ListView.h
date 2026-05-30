@@ -120,6 +120,19 @@ public:
         return sum;
     }
 
+    // Number of data rows that can fit within the given pixel height
+    // (subtracting header + header gap). Caller uses this for manual
+    // tail-virtualization: push only the most recent N rows.
+    int   RequiredRowsForHeightPx (int heightPx) const
+    {
+        int  rowH    = m_scaler.Px (s_kRowHeightDp);
+        int  headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDp) : 0;
+        int  hdrGap  = m_showHeader ? m_scaler.Px (s_kHeaderGapDp)    : 0;
+        int  body    = heightPx - headerH - hdrGap;
+        if (rowH <= 0 || body <= 0) { return 0; }
+        return body / rowH;
+    }
+
     // Body-height required to host the current header + rows at the
     // current DPI. Caller uses this to size customBodyMinSizePx.
     int   RequiredHeightPx () const

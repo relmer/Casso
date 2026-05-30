@@ -67,6 +67,7 @@ public:
     virtual void     OnMouseMove   (int x, int y) = 0;
     virtual void     OnMouseWheel  (int x, int y, int delta) { (void) x; (void) y; (void) delta; }
     virtual bool     OnKey         (WPARAM vk) = 0;
+    virtual bool     OnChar        (wchar_t ch) { (void) ch; return false; }
 
     // Action semantics. Accept = VK_RETURN, Cancel = VK_ESCAPE /
     // WM_CLOSE / window-close. After either, the shell calls

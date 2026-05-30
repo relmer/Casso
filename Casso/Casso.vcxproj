@@ -253,6 +253,7 @@
     <ClCompile Include="Ui\Widgets\Radio.cpp" />
     <ClCompile Include="Ui\Widgets\Slider.cpp" />
     <ClCompile Include="Ui\Widgets\TabStrip.cpp" />
+    <ClCompile Include="Ui\Widgets\TextInput.cpp" />
     <ClCompile Include="Ui\Widgets\Tooltip.cpp" />
     <ClCompile Include="Ui\Widgets\TreeView.cpp" />
     <ClCompile Include="Ui\AutoMountResolver.cpp" />
@@ -344,6 +345,7 @@
     <ClInclude Include="Ui\Widgets\Radio.h" />
     <ClInclude Include="Ui\Widgets\Slider.h" />
     <ClInclude Include="Ui\Widgets\TabStrip.h" />
+    <ClInclude Include="Ui\Widgets\TextInput.h" />
     <ClInclude Include="Ui\Widgets\Tooltip.h" />
     <ClInclude Include="Ui\Widgets\TreeView.h" />
     <ClInclude Include="Ui\IDriveCommandSink.h" />

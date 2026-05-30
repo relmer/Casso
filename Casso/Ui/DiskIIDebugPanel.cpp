@@ -5,6 +5,8 @@
 #include "Chrome/ChromeTheme.h"
 #include "Chrome/TitleBar.h"
 
+#include "../DebugDialogProjection.h"
+
 
 namespace
 {
@@ -17,9 +19,32 @@ namespace
 
     constexpr LPCWSTR  s_kpszTrackFilterLabel  = L"Track:";
     constexpr LPCWSTR  s_kpszSectorFilterLabel = L"Sector:";
+    constexpr LPCWSTR  s_kpszTrackQtFilterLabel = L"Quarter-track:";
 
     constexpr float    s_kLabelFontDip = 13.0f;
 
+    constexpr LPCWSTR  s_kpszEventCheckLabels[kEventTypeCheckCount] =
+    {
+        L"Motor", L"HeadStep", L"HeadBump", L"AddrMark",
+        L"Read",  L"Write",    L"Door",     L"DriveSel",
+    };
+
+    constexpr LPCWSTR  s_kpszAudioSubLabels[kAudioSubCheckCount] =
+    {
+        L"Started", L"Restarted", L"Continued", L"Silent",
+    };
+
+    constexpr LPCWSTR  s_kpszDriveOptionLabels[kDriveRadioCount] =
+    {
+        L"All", L"Drive 1", L"Drive 2",
+    };
+
+    constexpr LPCWSTR  s_kpszRawQtLabel    = L"Quarter-track steps";
+    constexpr LPCWSTR  s_kpszPauseLabel    = L"Pause";
+    constexpr LPCWSTR  s_kpszResumeLabel   = L"Resume";
+    constexpr LPCWSTR  s_kpszClearLabel    = L"Clear";
+    constexpr LPCWSTR  s_kpszAudioLabel    = L"Audio";
+    constexpr LPCWSTR  s_kpszInvalidLabel  = L"Invalid";
 
 
     void ArgbToFloat4 (uint32_t argb, float (& outRgba)[4]) noexcept
@@ -43,6 +68,7 @@ namespace
 
 DiskIIDebugPanel::DiskIIDebugPanel()
 {
+    m_uptimeAnchor = std::chrono::steady_clock::now();
 }
 
 
@@ -211,6 +237,8 @@ HRESULT DiskIIDebugPanel::Render()
 
     BAIL_OUT_IF (m_swapChain == nullptr || m_rtv == nullptr || m_context == nullptr, S_OK);
 
+    DrainAndProject();
+
     if (!m_text.IsTargetBound())
     {
         hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
@@ -252,8 +280,33 @@ HRESULT DiskIIDebugPanel::Render()
         m_titleBar->Paint (m_painter, m_text, visual, *m_theme);
     }
 
+    for (auto & cb : m_eventChecks)
+    {
+        cb.Paint (m_painter, m_text);
+    }
+    m_audioMasterCheck.Paint (m_painter, m_text);
+    for (auto & cb : m_audioSubChecks)
+    {
+        cb.Paint (m_painter, m_text);
+    }
+    m_driveRadio.Paint   (m_painter, m_text);
+    m_rawQtCheck.Paint   (m_painter, m_text);
+
     m_trackFilterLabel.Paint  (m_painter, m_text);
     m_sectorFilterLabel.Paint (m_painter, m_text);
+    m_trackInvalidLabel.Paint (m_painter, m_text);
+    m_sectorInvalidLabel.Paint(m_painter, m_text);
+
+    m_trackEdit.Paint  (m_painter, m_text);
+    m_sectorEdit.Paint (m_painter, m_text);
+
+    if (m_theme != nullptr)
+    {
+        m_pauseButton.Paint (m_painter, m_text, *m_theme);
+        m_clearButton.Paint (m_painter, m_text, *m_theme);
+    }
+
+    m_eventList.Paint (m_painter, m_text);
 
     hr = m_painter.End (m_rtv.Get());
     CHRA (hr);
@@ -362,6 +415,7 @@ HRESULT DiskIIDebugPanel::OnHostCreated (
     hr = m_text.Initialize (device);
     CHRA (hr);
 
+    ConfigureWidgets();
     RecomputeLayout();
 
 Error:
@@ -475,15 +529,136 @@ SIZE DiskIIDebugPanel::PreferredClientSize (UINT dpi) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnLButtonDown / OnLButtonUp / OnMouseMove
+//  OnLButtonDown
 //
-//  No-ops in T044; control families add real input routing later.
+//  Routes mouse-down to whichever widget owns the hit point. First-hit
+//  wins; widgets earlier in the dispatch order get priority.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugPanel::OnLButtonDown (int x, int y) { (void) x; (void) y; }
-void DiskIIDebugPanel::OnLButtonUp   (int x, int y) { (void) x; (void) y; }
-void DiskIIDebugPanel::OnMouseMove   (int x, int y) { (void) x; (void) y; }
+void DiskIIDebugPanel::OnLButtonDown (int x, int y)
+{
+    bool  handled = false;
+
+
+    for (auto & cb : m_eventChecks)
+    {
+        if (cb.OnLButtonDown (x, y)) { handled = true; break; }
+    }
+    if (!handled) { handled = m_audioMasterCheck.OnLButtonDown (x, y); }
+    if (!handled)
+    {
+        for (auto & cb : m_audioSubChecks)
+        {
+            if (cb.OnLButtonDown (x, y)) { handled = true; break; }
+        }
+    }
+    if (!handled) { handled = m_rawQtCheck.OnLButtonDown   (x, y); }
+    if (!handled) { handled = m_driveRadio.OnLButtonDown   (x, y); }
+    if (!handled) { handled = m_trackEdit.OnLButtonDown    (x, y); }
+    if (!handled) { handled = m_sectorEdit.OnLButtonDown   (x, y); }
+
+    if (m_pauseButton.HitTest (x, y))
+    {
+        m_pauseButton.SetMouse (x, y, true);
+        handled = true;
+    }
+    if (!handled && m_clearButton.HitTest (x, y))
+    {
+        m_clearButton.SetMouse (x, y, true);
+        handled = true;
+    }
+
+    if (!handled)
+    {
+        // Click on listview header sorts; click on row selects.
+        int  relX = x - m_layout.listView.left;
+        int  relY = y - m_layout.listView.top;
+        int  hit  = m_eventList.HitTestRow (relX, relY);
+        if (hit < 0 && relX >= 0 && relX < (m_layout.listView.right - m_layout.listView.left)
+                    && relY >= 0 && relY < (m_layout.listView.bottom - m_layout.listView.top))
+        {
+            // header click - sort placeholder: cycle direction on column 0
+            // until proper column hit-test lands. Keeps sort behavior
+            // accessible without per-column header math here.
+            if (m_sortColumn == 0)
+            {
+                m_sortDescending = !m_sortDescending;
+            }
+            else
+            {
+                m_sortColumn     = 0;
+                m_sortDescending = false;
+            }
+            RebuildFilteredIndices();
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnLButtonUp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::OnLButtonUp (int x, int y)
+{
+    for (auto & cb : m_eventChecks)        { cb.OnLButtonUp (x, y); }
+    m_audioMasterCheck.OnLButtonUp (x, y);
+    for (auto & cb : m_audioSubChecks)     { cb.OnLButtonUp (x, y); }
+    m_rawQtCheck.OnLButtonUp   (x, y);
+    m_driveRadio.OnLButtonUp   (x, y);
+    m_trackEdit.OnLButtonUp    (x, y);
+    m_sectorEdit.OnLButtonUp   (x, y);
+
+    bool  pauseDown = m_pauseButton.HitTest (x, y);
+    bool  clearDown = m_clearButton.HitTest (x, y);
+
+    m_pauseButton.SetMouse (x, y, false);
+    m_clearButton.SetMouse (x, y, false);
+
+    if (pauseDown)
+    {
+        m_pauseButton.Click();
+    }
+    if (clearDown)
+    {
+        m_clearButton.Click();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMouseMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::OnMouseMove (int x, int y)
+{
+    for (auto & cb : m_eventChecks)        { cb.SetMouseHover (x, y); }
+    m_audioMasterCheck.SetMouseHover (x, y);
+    for (auto & cb : m_audioSubChecks)     { cb.SetMouseHover (x, y); }
+    m_rawQtCheck.SetMouseHover (x, y);
+    m_driveRadio.SetMouseHover (x, y);
+    m_trackEdit.SetMouseHover  (x, y);
+    m_sectorEdit.SetMouseHover (x, y);
+
+    m_pauseButton.SetMouse (x, y, m_pauseButton.HitTest (x, y) && (GetKeyState (VK_LBUTTON) & 0x8000));
+    m_clearButton.SetMouse (x, y, m_clearButton.HitTest (x, y) && (GetKeyState (VK_LBUTTON) & 0x8000));
+
+    int  relX = x - m_layout.listView.left;
+    int  relY = y - m_layout.listView.top;
+    int  hit  = m_eventList.HitTestRow (relX, relY);
+    m_eventList.SetHoveredRow (hit);
+}
 
 
 
@@ -493,15 +668,29 @@ void DiskIIDebugPanel::OnMouseMove   (int x, int y) { (void) x; (void) y; }
 //
 //  OnKey
 //
-//  Returns false to let the chrome shell handle the key (e.g. Esc =
-//  Cancel). T046+ will intercept tabs / arrows once focusable controls
-//  exist.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DiskIIDebugPanel::OnKey (WPARAM vk)
 {
-    (void) vk;
+    if (m_trackEdit.OnKey (vk))  { return true; }
+    if (m_sectorEdit.OnKey (vk)) { return true; }
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnChar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskIIDebugPanel::OnChar (wchar_t ch)
+{
+    if (m_trackEdit.OnChar  (ch)) { return true; }
+    if (m_sectorEdit.OnChar (ch)) { return true; }
     return false;
 }
 
@@ -706,7 +895,7 @@ void DiskIIDebugPanel::RecomputeLayout()
 
     m_layout = ComputeDiskIIDebugPanelLayout (m_widthPx, m_heightPx, titleHeight, m_dpi);
 
-    LayoutLabels();
+    LayoutWidgets();
 }
 
 
@@ -715,18 +904,17 @@ void DiskIIDebugPanel::RecomputeLayout()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LayoutLabels
+//  LayoutWidgets
 //
-//  Reapplies rect / DPI / theme color to every static text label
-//  owned by the panel. Called whenever the layout slots or theme
-//  change. Label widgets are stateless beyond what's set here, so this
-//  is the only path that needs to know about label-to-slot mapping.
+//  Reapplies rect / DPI / theme color to every widget owned by the
+//  panel. Called whenever the layout slots or theme change.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskIIDebugPanel::LayoutLabels()
+void DiskIIDebugPanel::LayoutWidgets()
 {
-    uint32_t  textArgb = 0xFFE8EEF4;
+    uint32_t  textArgb     = 0xFFE8EEF4;
+    uint32_t  invalidArgb  = 0xFFFF6666;
 
 
     if (m_theme != nullptr)
@@ -734,7 +922,7 @@ void DiskIIDebugPanel::LayoutLabels()
         textArgb = m_theme->navItemTextArgb;
     }
 
-    m_trackFilterLabel.SetText        (s_kpszTrackFilterLabel);
+    m_trackFilterLabel.SetText        (m_filter.trackFilterRawQt ? s_kpszTrackQtFilterLabel : s_kpszTrackFilterLabel);
     m_trackFilterLabel.SetRect        (m_layout.trackFilterLabel);
     m_trackFilterLabel.SetDpi         (m_dpi);
     m_trackFilterLabel.SetFontSizeDip (s_kLabelFontDip);
@@ -749,4 +937,599 @@ void DiskIIDebugPanel::LayoutLabels()
     m_sectorFilterLabel.SetColorArgb   (textArgb);
     m_sectorFilterLabel.SetHAlign      (DwriteTextRenderer::HAlign::Right);
     m_sectorFilterLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
+
+    m_trackInvalidLabel.SetText        (m_trackEditValid  ? L"" : s_kpszInvalidLabel);
+    m_trackInvalidLabel.SetRect        (m_layout.trackInvalidLabel);
+    m_trackInvalidLabel.SetDpi         (m_dpi);
+    m_trackInvalidLabel.SetFontSizeDip (s_kLabelFontDip);
+    m_trackInvalidLabel.SetColorArgb   (invalidArgb);
+    m_trackInvalidLabel.SetHAlign      (DwriteTextRenderer::HAlign::Left);
+    m_trackInvalidLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
+
+    m_sectorInvalidLabel.SetText        (m_sectorEditValid ? L"" : s_kpszInvalidLabel);
+    m_sectorInvalidLabel.SetRect        (m_layout.sectorInvalidLabel);
+    m_sectorInvalidLabel.SetDpi         (m_dpi);
+    m_sectorInvalidLabel.SetFontSizeDip (s_kLabelFontDip);
+    m_sectorInvalidLabel.SetColorArgb   (invalidArgb);
+    m_sectorInvalidLabel.SetHAlign      (DwriteTextRenderer::HAlign::Left);
+    m_sectorInvalidLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
+
+    for (int i = 0; i < kEventTypeCheckCount; i++)
+    {
+        m_eventChecks[i].SetRect (m_layout.eventTypeChecks[i]);
+        m_eventChecks[i].SetDpi  (m_dpi);
+    }
+
+    m_audioMasterCheck.SetRect (m_layout.audioMasterCheck);
+    m_audioMasterCheck.SetDpi  (m_dpi);
+
+    for (int i = 0; i < kAudioSubCheckCount; i++)
+    {
+        m_audioSubChecks[i].SetRect (m_layout.audioSubChecks[i]);
+        m_audioSubChecks[i].SetDpi  (m_dpi);
+    }
+
+    m_rawQtCheck.SetRect (m_layout.rawQtCheck);
+    m_rawQtCheck.SetDpi  (m_dpi);
+
+    // RadioGroup expects rects in its option records.
+    std::vector<RadioOption>  driveOpts;
+    for (int i = 0; i < kDriveRadioCount; i++)
+    {
+        RadioOption  opt;
+        opt.rect  = m_layout.driveRadios[i];
+        opt.label = s_kpszDriveOptionLabels[i];
+        driveOpts.push_back (std::move (opt));
+    }
+    m_driveRadio.SetOptions (std::move (driveOpts));
+    m_driveRadio.SetDpi     (m_dpi);
+
+    m_trackEdit.SetRect  (m_layout.trackEdit);
+    m_trackEdit.SetDpi   (m_dpi);
+    m_trackEdit.SetTheme (m_theme);
+    m_trackEdit.SetHwnd  (m_hwnd);
+
+    m_sectorEdit.SetRect  (m_layout.sectorEdit);
+    m_sectorEdit.SetDpi   (m_dpi);
+    m_sectorEdit.SetTheme (m_theme);
+    m_sectorEdit.SetHwnd  (m_hwnd);
+
+    m_pauseButton.Layout (m_layout.pauseButton);
+    m_pauseButton.SetDpi (m_dpi);
+    m_clearButton.Layout (m_layout.clearButton);
+    m_clearButton.SetDpi (m_dpi);
+
+    m_eventList.SetRect  (m_layout.listView);
+    m_eventList.SetDpi   (m_dpi);
+    m_eventList.SetTheme (m_theme);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConfigureWidgets
+//
+//  Wires labels, initial state, and change callbacks onto every widget.
+//  Called once after device init; layout (rect / DPI) is reapplied per
+//  resize / theme change via LayoutWidgets.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::ConfigureWidgets()
+{
+    static const std::array<uint32_t, kEventTypeCheckCount> s_kCheckBits =
+    {
+        FilterState::kEventCatMotor,    FilterState::kEventCatHeadStep,
+        FilterState::kEventCatHeadBump, FilterState::kEventCatAddrMark,
+        FilterState::kEventCatRead,     FilterState::kEventCatWrite,
+        FilterState::kEventCatDoor,     FilterState::kEventCatDriveSelect,
+    };
+
+
+    for (int i = 0; i < kEventTypeCheckCount; i++)
+    {
+        m_eventChecks[i].SetLabel    (s_kpszEventCheckLabels[i]);
+        m_eventChecks[i].SetChecked  ((m_filter.eventTypeMask & s_kCheckBits[i]) != 0);
+        uint32_t  bit = s_kCheckBits[i];
+        m_eventChecks[i].SetOnChange ([this, bit] (bool checked)
+        {
+            if (checked) { m_filter.eventTypeMask |=  bit; }
+            else         { m_filter.eventTypeMask &= ~bit; }
+            OnFilterChanged();
+        });
+    }
+
+    m_audioMasterCheck.SetLabel    (s_kpszAudioLabel);
+    m_audioMasterCheck.SetChecked  (m_filter.audioMaster);
+    m_audioMasterCheck.SetOnChange ([this] (bool checked)
+    {
+        m_filter.audioMaster = checked;
+        OnFilterChanged();
+    });
+
+    bool * const  s_kAudioSubBackers[kAudioSubCheckCount] =
+    {
+        &m_filter.audioStarted, &m_filter.audioRestarted,
+        &m_filter.audioContinued, &m_filter.audioSilent,
+    };
+
+    for (int i = 0; i < kAudioSubCheckCount; i++)
+    {
+        m_audioSubChecks[i].SetLabel    (s_kpszAudioSubLabels[i]);
+        m_audioSubChecks[i].SetChecked  (*s_kAudioSubBackers[i]);
+        bool * backer = s_kAudioSubBackers[i];
+        m_audioSubChecks[i].SetOnChange ([this, backer] (bool checked)
+        {
+            *backer = checked;
+            OnFilterChanged();
+        });
+    }
+
+    m_rawQtCheck.SetLabel    (s_kpszRawQtLabel);
+    m_rawQtCheck.SetChecked  (m_filter.trackFilterRawQt);
+    m_rawQtCheck.SetOnChange ([this] (bool checked)
+    {
+        m_filter.trackFilterRawQt = checked;
+        OnTrackEditChanged();
+        OnFilterChanged();
+        LayoutWidgets();
+    });
+
+    m_driveRadio.SetSelected (m_filter.driveFilter);
+    m_driveRadio.SetOnChange ([this] (int newIndex)
+    {
+        m_filter.driveFilter = newIndex;
+        OnFilterChanged();
+    });
+
+    m_trackEdit.SetMaxLength  (32);
+    m_trackEdit.SetOnChange   ([this] (const std::wstring &) { OnTrackEditChanged(); OnFilterChanged(); });
+
+    m_sectorEdit.SetMaxLength (32);
+    m_sectorEdit.SetOnChange  ([this] (const std::wstring &) { OnSectorEditChanged(); OnFilterChanged(); });
+
+    m_pauseButton.SetLabel (s_kpszPauseLabel);
+    m_pauseButton.SetClick ([this] ()
+    {
+        m_paused = !m_paused;
+        UpdatePauseLabel();
+    });
+
+    m_clearButton.SetLabel (s_kpszClearLabel);
+    m_clearButton.SetClick ([this] () { ClearEvents(); });
+
+    std::vector<ListView::Column>  cols;
+    cols.push_back ({ L"Wall",   kColWallWidth,   false, DwriteTextRenderer::HAlign::Left  });
+    cols.push_back ({ L"Uptime", kColUptimeWidth, false, DwriteTextRenderer::HAlign::Left  });
+    cols.push_back ({ L"Cycle",  kColCycleWidth,  false, DwriteTextRenderer::HAlign::Right });
+    cols.push_back ({ L"Drive",  kColDriveWidth,  false, DwriteTextRenderer::HAlign::Right });
+    cols.push_back ({ L"Event",  kColEventWidth,  false, DwriteTextRenderer::HAlign::Left  });
+    cols.push_back ({ L"Detail", 0,               true,  DwriteTextRenderer::HAlign::Left  });
+    m_eventList.SetColumns    (std::move (cols));
+    m_eventList.SetShowHeader (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrainAndProject
+//
+//  Per-frame pull: drain the ring into the deque (with dropped-count
+//  synthetic EventsLost), rebuild filtered index list, push visible
+//  rows into the list view. Pause skips the drain so producer events
+//  continue accumulating but the display freezes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::DrainAndProject()
+{
+    uint32_t  dropped = 0;
+
+
+    if (m_paused)
+    {
+        return;
+    }
+
+    dropped = m_droppedSinceLastDrain.exchange (0, std::memory_order_acq_rel);
+    DebugDialogProjection::DrainAndProject (m_ring, m_events, dropped, m_uptimeAnchor);
+
+    RebuildFilteredIndices();
+    PushListViewRows();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RebuildFilteredIndices
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::RebuildFilteredIndices()
+{
+    m_filteredIndices.clear();
+    m_filteredIndices.reserve (m_events.size());
+
+    for (size_t i = 0; i < m_events.size(); i++)
+    {
+        if (MatchesFilter (m_events[i], m_filter))
+        {
+            m_filteredIndices.push_back (i);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PushListViewRows
+//
+//  Manual virtualization: only push the rows that fit visibly within
+//  the ListView slot. Walking from the tail keeps the most recent
+//  events visible, matching the legacy auto-tail behavior.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::PushListViewRows()
+{
+    int     slotHeight = m_layout.listView.bottom - m_layout.listView.top;
+    int     visible    = m_eventList.RequiredRowsForHeightPx (slotHeight);
+    size_t  total      = m_filteredIndices.size();
+    size_t  start      = (total > (size_t) visible) ? total - (size_t) visible : 0;
+    std::vector<std::vector<ListView::Cell>>  rows;
+
+
+    rows.reserve (total - start);
+
+    for (size_t k = start; k < total; k++)
+    {
+        const DiskIIEventDisplay & e = m_events[m_filteredIndices[k]];
+
+        std::vector<ListView::Cell>  row;
+        row.push_back ({ std::wstring (e.wallStr.data()),   false });
+        row.push_back ({ std::wstring (e.uptimeStr.data()), false });
+        row.push_back ({ std::wstring (e.cycleStr.data()),  false });
+
+        wchar_t  driveBuf[8] = {};
+        if (e.drive == DiskIIEventDisplay::kFieldNotApplicable)
+        {
+            row.push_back ({ L"", false });
+        }
+        else
+        {
+            swprintf_s (driveBuf, L"%d", e.drive + 1);
+            row.push_back ({ std::wstring (driveBuf), false });
+        }
+
+        std::wstring_view  label = DebugDialogProjection::EventLabel (e.category, e.type);
+        row.push_back ({ std::wstring (label), false });
+        row.push_back ({ e.detail, false });
+
+        rows.push_back (std::move (row));
+    }
+
+    m_eventList.SetRows (std::move (rows));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PublishToRing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::PublishToRing (const DiskIIEvent & e)
+{
+    DiskIIEvent  stamped = e;
+
+    if (m_cycleCounter != nullptr)
+    {
+        stamped.cycle = *m_cycleCounter;
+    }
+
+    if (!m_ring.TryPush (stamped))
+    {
+        m_droppedSinceLastDrain.fetch_add (1, std::memory_order_relaxed);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeStampedEvent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskIIEvent DiskIIDebugPanel::MakeStampedEvent (EventCategory cat, DiskIIEventType type) const noexcept
+{
+    DiskIIEvent  e = {};
+
+    e.category = cat;
+    e.type     = type;
+    e.drive    = (int8_t) m_currentDrive;
+
+    return e;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnFilterChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::OnFilterChanged()
+{
+    RebuildFilteredIndices();
+    PushListViewRows();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnTrackEditChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::OnTrackEditChanged()
+{
+    m_filter.trackFilter = TrackSectorPredicate::Parse (m_trackEdit.Text(),
+                                                        TrackSectorPredicate::Mode::Track,
+                                                        m_filter.trackFilterRawQt);
+    m_trackEditValid = m_filter.trackFilter.RejectedSpans().empty();
+    m_trackInvalidLabel.SetText (m_trackEditValid ? L"" : s_kpszInvalidLabel);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnSectorEditChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::OnSectorEditChanged()
+{
+    m_filter.sectorFilter = TrackSectorPredicate::Parse (m_sectorEdit.Text(),
+                                                         TrackSectorPredicate::Mode::Sector);
+    m_sectorEditValid = m_filter.sectorFilter.RejectedSpans().empty();
+    m_sectorInvalidLabel.SetText (m_sectorEditValid ? L"" : s_kpszInvalidLabel);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdatePauseLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::UpdatePauseLabel()
+{
+    m_pauseButton.SetLabel (m_paused ? s_kpszResumeLabel : s_kpszPauseLabel);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClearEvents
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::ClearEvents()
+{
+    constexpr uint32_t  kClearDrainBatchSize = 64;
+    DiskIIEvent         scratch[kClearDrainBatchSize] = {};
+    uint32_t            drained                       = 0;
+
+
+    m_droppedSinceLastDrain.store (0, std::memory_order_release);
+    do
+    {
+        drained = m_ring.Drain (scratch, kClearDrainBatchSize);
+    }
+    while (drained > 0);
+
+    m_events.clear();
+    m_filteredIndices.clear();
+    m_currentDrive = 0;
+    PushListViewRows();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IDiskIIEventSink implementations
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::OnMotorCommandOn ()
+{
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, DiskIIEventType::MotorCommandOn);
+    PublishToRing (e);
+}
+void DiskIIDebugPanel::OnMotorEngaged ()
+{
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, DiskIIEventType::MotorEngaged);
+    PublishToRing (e);
+}
+void DiskIIDebugPanel::OnMotorCommandOff ()
+{
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, DiskIIEventType::MotorCommandOff);
+    PublishToRing (e);
+}
+void DiskIIDebugPanel::OnMotorDisengaged ()
+{
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, DiskIIEventType::MotorDisengaged);
+    PublishToRing (e);
+}
+
+void DiskIIDebugPanel::OnHeadStep (int prevQt, int newQt)
+{
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, DiskIIEventType::HeadStep);
+    e.payload.step.prevQt = prevQt;
+    e.payload.step.newQt  = newQt;
+    PublishToRing (e);
+}
+
+void DiskIIDebugPanel::OnHeadBump (int atQt)
+{
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, DiskIIEventType::HeadBump);
+    e.payload.bump.atQt = atQt;
+    PublishToRing (e);
+}
+
+void DiskIIDebugPanel::OnAddressMark (int track, int sector, int volume)
+{
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, DiskIIEventType::AddrMark);
+    e.payload.addrMark.track  = track;
+    e.payload.addrMark.sector = sector;
+    e.payload.addrMark.volume = volume;
+    PublishToRing (e);
+}
+
+void DiskIIDebugPanel::OnDataMarkRead (int track, int sector, int volume, int byteCount)
+{
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, DiskIIEventType::DataRead);
+    e.payload.dataMark.track     = track;
+    e.payload.dataMark.sector    = sector;
+    e.payload.dataMark.volume    = volume;
+    e.payload.dataMark.byteCount = byteCount;
+    PublishToRing (e);
+}
+
+void DiskIIDebugPanel::OnDataMarkWrite (int track, int sector, int volume, int byteCount)
+{
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, DiskIIEventType::DataWrite);
+    e.payload.dataMark.track     = track;
+    e.payload.dataMark.sector    = sector;
+    e.payload.dataMark.volume    = volume;
+    e.payload.dataMark.byteCount = byteCount;
+    PublishToRing (e);
+}
+
+void DiskIIDebugPanel::OnDriveSelect (int drive)
+{
+    m_currentDrive = drive;
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, DiskIIEventType::DriveSelect);
+    e.drive               = (int8_t) drive;
+    e.payload.drive.drive = drive;
+    PublishToRing (e);
+}
+
+void DiskIIDebugPanel::OnDiskInserted (int drive)
+{
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, DiskIIEventType::DiskInserted);
+    e.drive               = (int8_t) drive;
+    e.payload.drive.drive = drive;
+    PublishToRing (e);
+}
+
+void DiskIIDebugPanel::OnDiskEjected (int drive)
+{
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Controller, DiskIIEventType::DiskEjected);
+    e.drive               = (int8_t) drive;
+    e.payload.drive.drive = drive;
+    PublishToRing (e);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IDriveAudioEventSink implementations
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIDebugPanel::OnAudioStarted (SoundKind kind, int drive)
+{
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Audio, DiskIIEventType::AudioStarted);
+    e.drive                = (int8_t) drive;
+    e.payload.audio.kind   = kind;
+    e.payload.audio.drive  = drive;
+    e.payload.audio.reason = SilentReason::DriveAudioDisabled;
+    PublishToRing (e);
+}
+
+void DiskIIDebugPanel::OnAudioRestarted (SoundKind kind, int drive)
+{
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Audio, DiskIIEventType::AudioRestarted);
+    e.drive                = (int8_t) drive;
+    e.payload.audio.kind   = kind;
+    e.payload.audio.drive  = drive;
+    e.payload.audio.reason = SilentReason::DriveAudioDisabled;
+    PublishToRing (e);
+}
+
+void DiskIIDebugPanel::OnAudioContinued (SoundKind kind, int drive)
+{
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Audio, DiskIIEventType::AudioContinued);
+    e.drive                = (int8_t) drive;
+    e.payload.audio.kind   = kind;
+    e.payload.audio.drive  = drive;
+    e.payload.audio.reason = SilentReason::DriveAudioDisabled;
+    PublishToRing (e);
+}
+
+void DiskIIDebugPanel::OnAudioSilent (SoundKind kind, int drive, SilentReason reason)
+{
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Audio, DiskIIEventType::AudioSilent);
+    e.drive                = (int8_t) drive;
+    e.payload.audio.kind   = kind;
+    e.payload.audio.drive  = drive;
+    e.payload.audio.reason = reason;
+    PublishToRing (e);
+}
+
+void DiskIIDebugPanel::OnAudioLoopStarted (SoundKind kind, int drive)
+{
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Audio, DiskIIEventType::AudioLoopStarted);
+    e.drive                = (int8_t) drive;
+    e.payload.audio.kind   = kind;
+    e.payload.audio.drive  = drive;
+    e.payload.audio.reason = SilentReason::DriveAudioDisabled;
+    PublishToRing (e);
+}
+
+void DiskIIDebugPanel::OnAudioLoopStopped (SoundKind kind, int drive)
+{
+    DiskIIEvent  e = MakeStampedEvent (EventCategory::Audio, DiskIIEventType::AudioLoopStopped);
+    e.drive                = (int8_t) drive;
+    e.payload.audio.kind   = kind;
+    e.payload.audio.drive  = drive;
+    e.payload.audio.reason = SilentReason::DriveAudioDisabled;
+    PublishToRing (e);
 }

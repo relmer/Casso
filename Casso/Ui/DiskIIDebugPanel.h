@@ -5,8 +5,16 @@
 #include "DiskIIDebugPanelLayout.h"
 #include "DxUiPainter.h"
 #include "DwriteTextRenderer.h"
+#include "Widgets/Button.h"
+#include "Widgets/Checkbox.h"
 #include "Widgets/Label.h"
+#include "Widgets/ListView.h"
+#include "Widgets/Radio.h"
+#include "Widgets/TextInput.h"
+#include "Widgets/Tooltip.h"
 
+#include "../DiskIIDebugDialogState.h"
+#include "../DiskIIEventDisplay.h"
 #include "../../CassoEmuCore/Devices/IDiskIIEventSink.h"
 #include "../../CassoEmuCore/Devices/DiskIIEventRing.h"
 #include "../../CassoEmuCore/Audio/IDriveAudioEventSink.h"
@@ -58,6 +66,10 @@ public:
 
     HRESULT RenderFrame ();
     void    SetTheme    (const ChromeTheme * theme);
+    void    SetCycleCounter (const uint64_t * cycleCounter) { m_cycleCounter = cycleCounter; }
+    void    SetUptimeAnchor (std::chrono::steady_clock::time_point anchor) { m_uptimeAnchor = anchor; }
+    void    SetMultiControllerHint (bool multi)            { m_multiController = multi; }
+    void    ClearEvents     ();
 
     // IChromedPanelContent.
     LPCWSTR  GetWindowClassName () const override;
@@ -79,38 +91,50 @@ public:
     void     OnLButtonUp        (int x, int y)                      override;
     void     OnMouseMove        (int x, int y)                      override;
     bool     OnKey              (WPARAM vk)                         override;
+    bool     OnChar             (wchar_t ch)                        override;
     void     Accept             ()                                  override;
     void     Cancel             ()                                  override;
     bool     IsContentActive    () const                            override;
 
-    // IDiskIIEventSink. All no-ops for T044; T046+ pushes into m_state.
-    void OnMotorCommandOn  ()                                       override {}
-    void OnMotorEngaged    ()                                       override {}
-    void OnMotorCommandOff ()                                       override {}
-    void OnMotorDisengaged ()                                       override {}
-    void OnHeadStep        (int prevQt, int newQt)                  override { (void) prevQt; (void) newQt; }
-    void OnHeadBump        (int atQt)                               override { (void) atQt; }
-    void OnAddressMark     (int track, int sector, int volume)      override { (void) track; (void) sector; (void) volume; }
-    void OnDataMarkRead    (int track, int sector, int volume, int byteCount) override { (void) track; (void) sector; (void) volume; (void) byteCount; }
-    void OnDataMarkWrite   (int track, int sector, int volume, int byteCount) override { (void) track; (void) sector; (void) volume; (void) byteCount; }
-    void OnDriveSelect     (int drive)                              override { (void) drive; }
-    void OnDiskInserted    (int drive)                              override { (void) drive; }
-    void OnDiskEjected     (int drive)                              override { (void) drive; }
+    // IDiskIIEventSink. Producer thread -- push into the lock-free ring;
+    // the render thread drains and projects to display rows per frame.
+    void OnMotorCommandOn  ()                                       override;
+    void OnMotorEngaged    ()                                       override;
+    void OnMotorCommandOff ()                                       override;
+    void OnMotorDisengaged ()                                       override;
+    void OnHeadStep        (int prevQt, int newQt)                  override;
+    void OnHeadBump        (int atQt)                               override;
+    void OnAddressMark     (int track, int sector, int volume)      override;
+    void OnDataMarkRead    (int track, int sector, int volume, int byteCount) override;
+    void OnDataMarkWrite   (int track, int sector, int volume, int byteCount) override;
+    void OnDriveSelect     (int drive)                              override;
+    void OnDiskInserted    (int drive)                              override;
+    void OnDiskEjected     (int drive)                              override;
 
-    // IDriveAudioEventSink. All no-ops for T044.
-    void OnAudioStarted     (SoundKind kind, int drive)                    override { (void) kind; (void) drive; }
-    void OnAudioRestarted   (SoundKind kind, int drive)                    override { (void) kind; (void) drive; }
-    void OnAudioContinued   (SoundKind kind, int drive)                    override { (void) kind; (void) drive; }
-    void OnAudioSilent      (SoundKind kind, int drive, SilentReason reason) override { (void) kind; (void) drive; (void) reason; }
-    void OnAudioLoopStarted (SoundKind kind, int drive)                    override { (void) kind; (void) drive; }
-    void OnAudioLoopStopped (SoundKind kind, int drive)                    override { (void) kind; (void) drive; }
+    // IDriveAudioEventSink. Producer thread.
+    void OnAudioStarted     (SoundKind kind, int drive)                    override;
+    void OnAudioRestarted   (SoundKind kind, int drive)                    override;
+    void OnAudioContinued   (SoundKind kind, int drive)                    override;
+    void OnAudioSilent      (SoundKind kind, int drive, SilentReason reason) override;
+    void OnAudioLoopStarted (SoundKind kind, int drive)                    override;
+    void OnAudioLoopStopped (SoundKind kind, int drive)                    override;
 
 private:
     HRESULT EnsureSwapChain      ();
     HRESULT CreateBackBufferRtv  ();
     void    ReleaseRenderTargets ();
     void    RecomputeLayout      ();
-    void    LayoutLabels         ();
+    void    LayoutWidgets        ();
+    void    ConfigureWidgets     ();
+    void    DrainAndProject      ();
+    void    RebuildFilteredIndices ();
+    void    PushListViewRows     ();
+    void    PublishToRing        (const DiskIIEvent & e);
+    DiskIIEvent  MakeStampedEvent (EventCategory cat, DiskIIEventType type) const noexcept;
+    void    OnFilterChanged      ();
+    void    OnTrackEditChanged   ();
+    void    OnSectorEditChanged  ();
+    void    UpdatePauseLabel     ();
 
     ChromedPanelWindow                   m_window;
     PanelLayoutSlots                     m_layout = {};
@@ -132,4 +156,32 @@ private:
 
     Label                                m_trackFilterLabel;
     Label                                m_sectorFilterLabel;
+    Label                                m_trackInvalidLabel;
+    Label                                m_sectorInvalidLabel;
+
+    std::array<Checkbox, kEventTypeCheckCount>  m_eventChecks;
+    Checkbox                                    m_audioMasterCheck;
+    std::array<Checkbox, kAudioSubCheckCount>   m_audioSubChecks;
+    Checkbox                                    m_rawQtCheck;
+    RadioGroup                                  m_driveRadio;
+    TextInput                                   m_trackEdit;
+    TextInput                                   m_sectorEdit;
+    Button                                      m_pauseButton;
+    Button                                      m_clearButton;
+    ListView                                    m_eventList;
+
+    FilterState                           m_filter;
+    DiskIIEventRing                       m_ring;
+    std::deque<DiskIIEventDisplay>        m_events;
+    std::vector<size_t>                   m_filteredIndices;
+    std::atomic<uint32_t>                 m_droppedSinceLastDrain = 0;
+    const uint64_t                      * m_cycleCounter = nullptr;
+    std::chrono::steady_clock::time_point  m_uptimeAnchor;
+    bool                                  m_paused          = false;
+    bool                                  m_multiController = false;
+    int                                   m_currentDrive    = 0;
+    int                                   m_sortColumn      = -1;
+    bool                                  m_sortDescending  = false;
+    bool                                  m_trackEditValid  = true;
+    bool                                  m_sectorEditValid = true;
 };

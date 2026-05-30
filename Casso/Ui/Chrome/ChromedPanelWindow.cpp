@@ -488,6 +488,10 @@ LRESULT ChromedPanelWindow::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPA
             break;
 
         case WM_CHAR:
+            if (m_content != nullptr)
+            {
+                m_content->OnChar ((wchar_t) wParam);
+            }
             result = 0;
             break;
 
