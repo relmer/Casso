@@ -411,7 +411,7 @@ HRESULT WindowCommandManager::PromptForDiskImage (int drive)
     hr = item->GetDisplayName (SIGDN_FILESYSPATH, &pszPath);
     CHR (hr);
 
-    hr = m_shell.Mount (6, drive, pszPath);
+    hr = m_shell.Mount (6, drive - 1, pszPath);
     CHR (hr);
 
 Error:
@@ -474,7 +474,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive)
     }
     else if (!chosenPath.empty())
     {
-        hr = m_shell.Mount (6, drive, chosenPath);
+        hr = m_shell.Mount (6, drive - 1, chosenPath);
         CHR (hr);
     }
 

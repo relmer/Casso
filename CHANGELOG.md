@@ -12,6 +12,12 @@ Field-test fixes for the themed disk-insert MRU picker and the
 underlying dialog primitives.
 
 ### Fixed
+- **fix(picker): disk inserted into wrong drive.** Picking a disk in
+  Drive 1 (widget click → MRU picker → Browse → file dialog) was
+  mounting it into Drive 2. `WindowCommandManager::PromptInsertDiskMru`
+  and `PromptForDiskImage` were forwarding the 1-indexed display drive
+  number straight to `Mount`, which expects 0-indexed (drive `1` then
+  maps to `IDM_DISK_INSERT2`). Subtract 1 at the `Mount` call sites.
 - **fix(picker): boot-disk row index collided with `IDCANCEL`.**
   `PromptBootDiskMru` used `IDCANCEL` (= 2) as the Skip button ID, so
   once the MRU grew to ≥ 3 rows a click on row index 2 would have
