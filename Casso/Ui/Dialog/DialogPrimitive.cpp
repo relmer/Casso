@@ -325,6 +325,15 @@ LRESULT DialogPrimitive::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM
             result = 0;
             break;
 
+        case WM_SYSCHAR:
+            if (OnSysChar (wParam))
+            {
+                result = 0;
+                break;
+            }
+            result = DefWindowProcW (hwnd, message, wParam, lParam);
+            break;
+
         case WM_CHAR:
             result = 0;
             break;
@@ -583,6 +592,48 @@ void DialogPrimitive::OnKeyDown (WPARAM vk)
 
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnSysChar
+//
+//  Alt+letter accelerator dispatch. Buttons strip a single `&` from
+//  their label and remember the following character as their
+//  accelerator. Returns true if the keystroke matched a button.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DialogPrimitive::OnSysChar (WPARAM ch)
+{
+    wchar_t  key = (wchar_t) towlower ((wint_t) ch);
+
+
+    if (key == 0)
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < m_buttons.size(); ++i)
+    {
+        if (!m_buttons[i].Visible() || !m_buttons[i].Enabled())
+        {
+            continue;
+        }
+        if (m_buttons[i].Accelerator() == key)
+        {
+            ActivateButton (i);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnMouse
@@ -747,10 +798,6 @@ void DialogPrimitive::BuildButtons()
         m_buttons[i].Layout       (rect);
         m_buttons[i].SetLabel     (btn.label);
         m_buttons[i].SetDpi       (m_dpi);
-        m_buttons[i].SetColors    (m_theme != nullptr ? m_theme->navStripArgb       : 0xFF202020,
-                                   m_theme != nullptr ? m_theme->dropdownHoverArgb  : 0xFF3D6FB5,
-                                   m_theme != nullptr ? m_theme->navHoverArgb       : 0xFF2D4058);
-        m_buttons[i].SetTextColor (m_theme != nullptr ? m_theme->navItemTextArgb    : 0xFFF0F0F0);
 
         if (btn.isDefault)
         {
