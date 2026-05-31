@@ -86,6 +86,13 @@ public:
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
+    static constexpr Word kFirstButtonAddress = 0xC061;
+    static constexpr int  kButtonCount        = 3;     // $C061-$C063
+
+    // CPU thread. Coalesced emit for a guest read of a $C061-$C063
+    // button: fires only when that button's returned byte changed.
+    void EmitButtonRead (Word address, Byte value);
+
     MemoryBus *                    m_bus               = nullptr;
     class AppleIIeSoftSwitchBank * m_softSwitchSibling = nullptr;
     AppleSpeaker *                 m_speakerSibling    = nullptr;
@@ -95,4 +102,8 @@ private:
     atomic<bool>                   m_openApple   {false};
     atomic<bool>                   m_closedApple {false};
     atomic<bool>                   m_shift       {false};
+
+    // Last-emitted byte per button for coalescing (CPU thread only).
+    // -1 means "nothing emitted yet"; a Byte never matches it.
+    int                            m_lastEmittedButton[kButtonCount] = { -1, -1, -1 };
 };

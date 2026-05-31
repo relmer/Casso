@@ -51,7 +51,16 @@ public:
 
 
     void  SetDpi          (UINT dpi)                       { m_scaler.SetDpi (dpi); }
-    void  SetRect         (const RECT & rect)              { m_rect = rect; }
+    void  SetRect         (const RECT & rect)
+    {
+        bool  wasSticky = m_stickyTail;
+        m_rect = rect;
+        int  maxTop = MaxTopRow();
+        if (wasSticky)         { m_topRow = maxTop; }
+        if (m_topRow > maxTop) { m_topRow = maxTop; }
+        if (m_topRow < 0)      { m_topRow = 0; }
+        m_stickyTail = (m_topRow >= maxTop);
+    }
     void  SetTheme        (const ChromeTheme * theme)      { m_theme = theme; }
     void  SetShowHeader   (bool b)                         { m_showHeader = b; }
     void  SetHoveredRow   (int row)                        { m_hovered = row; }

@@ -357,6 +357,12 @@ void WindowCommandManager::OnViewCommand (int id)
             break;
         }
 
+        case IDM_VIEW_INPUT_DEBUG:
+        {
+            m_shell.OpenInputDebugDialog();
+            break;
+        }
+
         case IDM_VIEW_SETTINGS:
         {
             HRESULT  hrShow = m_shell.m_settingsPanel.Show();

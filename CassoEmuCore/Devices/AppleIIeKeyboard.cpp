@@ -3,6 +3,7 @@
 #include "AppleIIeKeyboard.h"
 #include "AppleIIeSoftSwitchBank.h"
 #include "AppleSpeaker.h"
+#include "IInputEventSink.h"
 
 
 
@@ -65,19 +66,31 @@ Byte AppleIIeKeyboard::Read (Word address)
     // $C061: Open Apple (bit 7).
     if (address == 0xC061)
     {
-        return m_openApple.load (memory_order_acquire) ? 0x80 : 0x00;
+        Byte value = m_openApple.load (memory_order_acquire) ? 0x80 : 0x00;
+
+        EmitButtonRead (address, value);
+
+        return value;
     }
 
     // $C062: Closed Apple (bit 7).
     if (address == 0xC062)
     {
-        return m_closedApple.load (memory_order_acquire) ? 0x80 : 0x00;
+        Byte value = m_closedApple.load (memory_order_acquire) ? 0x80 : 0x00;
+
+        EmitButtonRead (address, value);
+
+        return value;
     }
 
     // $C063: Shift (bit 7).
     if (address == 0xC063)
     {
-        return m_shift.load (memory_order_acquire) ? 0x80 : 0x00;
+        Byte value = m_shift.load (memory_order_acquire) ? 0x80 : 0x00;
+
+        EmitButtonRead (address, value);
+
+        return value;
     }
 
     // $C000-$C00B (keyboard data) and $C010 (strobe-clear) fall through
@@ -89,6 +102,40 @@ Byte AppleIIeKeyboard::Read (Word address)
     }
 
     return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmitButtonRead
+//
+//  CPU thread. Coalesced emit for a guest read of $C061-$C063: fires only
+//  when that button's returned byte (bit 7 = pressed) changed since the
+//  last emit, so a tight button-poll loop yields one event per press /
+//  release edge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleIIeKeyboard::EmitButtonRead (Word address, Byte value)
+{
+    IInputEventSink * sink = InputSink ();
+    int               idx  = static_cast<int> (address - kFirstButtonAddress);
+
+    if (sink == nullptr)
+    {
+        return;
+    }
+
+    if (m_lastEmittedButton[idx] == value)
+    {
+        return;
+    }
+
+    m_lastEmittedButton[idx] = value;
+    sink->OnButtonRead (address, value);
 }
 
 
@@ -173,6 +220,10 @@ void AppleIIeKeyboard::Reset ()
     m_openApple.store   (false, memory_order_release);
     m_closedApple.store (false, memory_order_release);
     m_shift.store       (false, memory_order_release);
+
+    m_lastEmittedButton[0] = -1;
+    m_lastEmittedButton[1] = -1;
+    m_lastEmittedButton[2] = -1;
 }
 
 

@@ -408,6 +408,16 @@ EmulatorShell::~EmulatorShell()
         m_disk2DebugPanel.reset();
     }
 
+    if (m_inputDebugPanel != nullptr)
+    {
+        if (m_refs.keyboard != nullptr)
+        {
+            m_refs.keyboard->SetInputEventSink (nullptr);
+        }
+
+        m_inputDebugPanel.reset();
+    }
+
     // / T097 / FR-025. Final auto-flush of any dirty disks on
     // process shutdown — matches the "graceful exit" requirement from
     // audit §7 so a crash-free quit never loses user writes.
@@ -1973,6 +1983,10 @@ int EmulatorShell::RunMessageLoop()
         {
             IGNORE_RETURN_VALUE (hr, m_disk2DebugPanel->RenderFrame());
         }
+        if (m_inputDebugPanel != nullptr)
+        {
+            IGNORE_RETURN_VALUE (hr, m_inputDebugPanel->RenderFrame());
+        }
         if (m_navLayer.IsOpen())
         {
             m_d3dRenderer.MarkRedrawNeeded();
@@ -3258,6 +3272,54 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OpenInputDebugDialog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OpenInputDebugDialog()
+{
+    HRESULT    hr        = S_OK;
+    HINSTANCE  hInstance = nullptr;
+
+
+
+    CBR (m_refs.keyboard != nullptr);
+
+    if (m_inputDebugPanel == nullptr || m_inputDebugPanel->Hwnd() == nullptr)
+    {
+        hInstance         = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
+        m_inputDebugPanel = std::make_unique<InputDebugPanel>();
+
+        hr = m_inputDebugPanel->Create (hInstance,
+                                         m_hwnd,
+                                         m_d3dRenderer.GetDevice(),
+                                         m_d3dRenderer.GetContext(),
+                                         &m_chromeTheme);
+        CHRF (hr, m_inputDebugPanel.reset());
+
+        m_inputDebugPanel->SetUptimeAnchor (m_uptimeAnchor);
+
+        if (m_cpu != nullptr)
+        {
+            m_inputDebugPanel->SetCycleCounter (m_cpu->GetCycleCounterPtr());
+        }
+
+        m_refs.keyboard->SetInputEventSink (m_inputDebugPanel.get());
+    }
+
+    m_inputDebugPanel->Show();
+    SetForegroundWindow (m_inputDebugPanel->Hwnd());
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AttachDebugSinksIfOpen
 //
 //  Spec-006 bug 15. SwitchMachine tears down the old controller and
@@ -3292,6 +3354,11 @@ void EmulatorShell::AttachDebugSinksIfOpen()
         {
             m_diskAudioSources[i]->SetAudioEventSink (m_disk2DebugPanel.get());
         }
+    }
+
+    if (m_inputDebugPanel != nullptr && m_refs.keyboard != nullptr)
+    {
+        m_refs.keyboard->SetInputEventSink (m_inputDebugPanel.get());
     }
 
 Error:

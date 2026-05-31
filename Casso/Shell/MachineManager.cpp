@@ -30,6 +30,7 @@
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "../Ui/Disk2DebugPanel.h"
+#include "../Ui/InputDebugPanel.h"
 
 
 
@@ -974,6 +975,14 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     {
         m_shell.m_disk2DebugPanel->SetCycleCounter (nullptr);
     }
+    if (m_shell.m_inputDebugPanel != nullptr)
+    {
+        m_shell.m_inputDebugPanel->SetCycleCounter (nullptr);
+    }
+    if (m_shell.m_refs.keyboard != nullptr)
+    {
+        m_shell.m_refs.keyboard->SetInputEventSink (nullptr);
+    }
 
     // Tear down ALL per-machine state in one atomic move. m_refs is a
     // struct of observer pointers into the owning collections
@@ -1026,6 +1035,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     if (m_shell.m_disk2DebugPanel != nullptr && m_shell.m_cpu != nullptr)
     {
         m_shell.m_disk2DebugPanel->SetCycleCounter (m_shell.m_cpu->GetCycleCounterPtr());
+    }
+    if (m_shell.m_inputDebugPanel != nullptr && m_shell.m_cpu != nullptr)
+    {
+        m_shell.m_inputDebugPanel->SetCycleCounter (m_shell.m_cpu->GetCycleCounterPtr());
     }
 
     // Re-wire the debug dialog onto the freshly built controller +

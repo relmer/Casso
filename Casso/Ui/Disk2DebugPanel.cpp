@@ -408,8 +408,18 @@ HRESULT Disk2DebugPanel::Render()
     hr = m_text.EndDraw();
     CHRA (hr);
 
-    hr = m_swapChain->Present (1, 0);
-    CHRA (hr);
+    // If the D2D target was lost partway through this frame (the
+    // swap-chain buffers were invalidated by a live resize), EndDraw
+    // unbinds the target and the frame we just built is incomplete --
+    // some text was flushed before the loss, the rest was dropped.
+    // Presenting it would flash partially-painted content (blank rows,
+    // missing buttons). Skip Present so the last good frame stays on
+    // screen; the next Render rebinds and repaints cleanly.
+    if (m_text.IsTargetBound())
+    {
+        hr = m_swapChain->Present (1, 0);
+        CHRA (hr);
+    }
 
 Error:
     return hr;

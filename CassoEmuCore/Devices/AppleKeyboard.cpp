@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "AppleKeyboard.h"
+#include "IInputEventSink.h"
 
 
 
@@ -31,21 +32,29 @@ Byte AppleKeyboard::Read (Word address)
     if (address >= 0xC000 && address <= 0xC00F)
     {
         // $C000-$C00F: Read keyboard data (bit 7 = strobe)
-        return m_latchedKey.load (memory_order_acquire);
+        Byte value = m_latchedKey.load (memory_order_acquire);
+
+        EmitKbdDataRead (address, value);
+
+        return value;
     }
 
     if (address >= 0xC010 && address <= 0xC01F)
     {
         // $C010-$C01F: Clear keyboard strobe (bit 7)
-        Byte key = m_latchedKey.fetch_and (0x7F, memory_order_acq_rel);
+        Byte old           = m_latchedKey.fetch_and (0x7F, memory_order_acq_rel);
+        bool clearedStrobe = (old & 0x80) != 0;
+        Byte value         = old & 0x7F;
 
         // Return the key with bit 7 reflecting any-key-down state
         if (m_anyKeyDown.load (memory_order_acquire))
         {
-            return (key & 0x7F) | 0x80;
+            value = value | 0x80;
         }
 
-        return key & 0x7F;
+        EmitKbdStrobe (address, value, clearedStrobe);
+
+        return value;
     }
 
     return 0;
@@ -90,6 +99,10 @@ void AppleKeyboard::Reset ()
     m_repeatAccumCycles = 0;
     m_repeatStarted     = false;
     m_lastRepeatKey     = 0;
+
+    m_lastEmittedKbdData   = -1;
+    m_lastEmittedStrobe    = -1;
+    m_lastHostKeyDownAscii = 0;
 }
 
 
@@ -125,6 +138,114 @@ void AppleKeyboard::KeyPress (Byte asciiChar)
     // Store key with bit 7 set (strobe) in a single atomic write
     m_latchedKey.store (
         TranslateToUppercase (asciiChar) | 0x80, memory_order_release);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BeginKeyRepeat
+//
+//  Arms (or disarms with 0) the //e auto-repeat for the freshly-pressed
+//  key, then raises the UI-thread host key-down / key-up notification on
+//  the input sink. Called only from the Windows message handlers, never
+//  from the CPU thread, so the host notifications are safe to stage
+//  directly into the panel's UI-owned buffer. A repeated press of the
+//  same held key (host OS key repeat that slips through) is coalesced.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleKeyboard::BeginKeyRepeat (Byte asciiChar)
+{
+    m_repeatKey.store (asciiChar, memory_order_release);
+
+    if (m_inputSink == nullptr)
+    {
+        return;
+    }
+
+    if (asciiChar != 0)
+    {
+        if (asciiChar != m_lastHostKeyDownAscii)
+        {
+            m_lastHostKeyDownAscii = asciiChar;
+            m_inputSink->OnHostKeyDown (asciiChar);
+        }
+
+        return;
+    }
+
+    if (m_lastHostKeyDownAscii != 0)
+    {
+        Byte released = m_lastHostKeyDownAscii;
+
+        m_lastHostKeyDownAscii = 0;
+        m_inputSink->OnHostKeyUp (released);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmitKbdDataRead
+//
+//  CPU thread. Coalesced emit for a guest read of $C000-$C00F: fires only
+//  when the latched-key byte (data bits + strobe) changed since the last
+//  emit, collapsing a million-poll wait loop into one event per latch
+//  transition. Bit 7 carries the strobe state.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleKeyboard::EmitKbdDataRead (Word address, Byte value)
+{
+    if (m_inputSink == nullptr)
+    {
+        return;
+    }
+
+    if (m_lastEmittedKbdData == value)
+    {
+        return;
+    }
+
+    m_lastEmittedKbdData = value;
+    m_inputSink->OnKbdDataRead (address, value, (value & 0x80) != 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmitKbdStrobe
+//
+//  CPU thread. Coalesced emit for a guest access of $C010-$C01F. Always
+//  fires when this access actually cleared a set strobe (a real edge the
+//  program cares about); otherwise fires only when the returned value
+//  (any-key-down bit 7 + data bits) changed since the last emit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleKeyboard::EmitKbdStrobe (Word address, Byte value, bool clearedStrobe)
+{
+    if (m_inputSink == nullptr)
+    {
+        return;
+    }
+
+    if (!clearedStrobe && m_lastEmittedStrobe == value)
+    {
+        return;
+    }
+
+    m_lastEmittedStrobe = value;
+    m_inputSink->OnKbdStrobe (address, value, clearedStrobe);
 }
 
 
@@ -181,6 +302,11 @@ void AppleKeyboard::Tick (uint32_t cpuCycles)
         m_repeatAccumCycles -= threshold;
         m_repeatStarted      = true;
         KeyPress (key);
+
+        if (m_inputSink != nullptr)
+        {
+            m_inputSink->OnHostAutoRepeat (key);
+        }
     }
 }
 

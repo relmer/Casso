@@ -163,6 +163,13 @@ private:
                                IDWriteTextFormat           ** outFormat);
 
 
+    HRESULT  EnsureCapMidY    (const wchar_t                * family,
+                               float                          fontSizeDip,
+                               DWRITE_FONT_WEIGHT             weight,
+                               IDWriteTextFormat            * format,
+                               float                        & outCapMidY);
+
+
     ComPtr<ID2D1Factory1>             m_d2dFactory;
     ComPtr<ID2D1Device>               m_d2dDevice;
     ComPtr<ID2D1DeviceContext>        m_d2dContext;
@@ -178,6 +185,8 @@ private:
 
     std::map<TextFormatKey,
              ComPtr<IDWriteTextFormat>>  m_formatCache;
+
+    std::map<TextFormatKey, float>       m_capMidCache;
 
     bool                              m_targetBound = false;
     bool                              m_drawing     = false;
