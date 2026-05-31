@@ -670,6 +670,13 @@ void DialogPrimitive::OnMouse (UINT message, WPARAM wParam, LPARAM lParam)
         if (down)
         {
             newPressed = inClose;
+
+            if (!inClose && yPx < TitleHeightPx())
+            {
+                ReleaseCapture();
+                SendMessageW (m_hwnd, WM_NCLBUTTONDOWN, HTCAPTION, lParam);
+                return;
+            }
         }
         else if (up)
         {
