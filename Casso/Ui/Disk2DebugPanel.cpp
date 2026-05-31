@@ -337,7 +337,7 @@ HRESULT Disk2DebugPanel::Render()
     hr = m_painter.Begin (m_widthPx, m_heightPx);
     CHRA (hr);
 
-    hr = m_text.BeginDraw();
+    hr = m_text.BeginDrawOffscreen();
     CHRA (hr);
 
     visual.dpi = m_dpi;
@@ -390,11 +390,11 @@ HRESULT Disk2DebugPanel::Render()
     {
         hr = m_painter.End (m_rtv.Get());
         CHRA (hr);
-        hr = m_text.EndDraw();
+        hr = m_text.EndDrawComposite();
         CHRA (hr);
         hr = m_painter.Begin (m_widthPx, m_heightPx);
         CHRA (hr);
-        hr = m_text.BeginDraw();
+        hr = m_text.BeginDrawOffscreen();
         CHRA (hr);
     }
 
@@ -405,7 +405,7 @@ HRESULT Disk2DebugPanel::Render()
     hr = m_painter.End (m_rtv.Get());
     CHRA (hr);
 
-    hr = m_text.EndDraw();
+    hr = m_text.EndDrawComposite();
     CHRA (hr);
 
     // If the D2D target was lost partway through this frame (the

@@ -115,6 +115,9 @@ void DwriteTextRenderer::Shutdown ()
 {
     UnbindBackBuffer();
 
+    m_offscreen.Reset();
+    m_offscreenW = 0;
+    m_offscreenH = 0;
     m_framebufferBitmap.Reset();
     m_framebufferBitmapW = 0;
     m_framebufferBitmapH = 0;
@@ -250,6 +253,143 @@ HRESULT DwriteTextRenderer::EndDraw ()
         // rebuilds. The target is now unbound; callers detect this via
         // IsTargetBound() and skip presenting the half-painted frame.
         DEBUGMSG (L"[Casso] DwriteTextRenderer::EndDraw target lost (D2DERR_RECREATE_TARGET); frame dropped\n");
+        UnbindBackBuffer();
+        return S_OK;
+    }
+
+    hr = hrEnd;
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BeginDrawOffscreen
+//
+//  Drop-in alternative to BeginDraw that targets a private offscreen
+//  bitmap instead of the swap-chain back-buffer surface. Paired with
+//  EndDrawComposite, which flushes the offscreen bitmap and then blits
+//  it onto the bound back buffer in a single DrawBitmap.
+//
+//  Why this exists: on some drivers (observed on ARM64) Direct2D drops
+//  the middle band of a frame when the render target IS the flip-model
+//  swap-chain surface and that surface is large -- top and bottom
+//  survive, the middle silently vanishes despite EndDraw returning
+//  S_OK. Rendering into a plain offscreen target and compositing the
+//  result sidesteps the limitation, so tall debug panels paint in full.
+//
+//  The offscreen bitmap is cached and only recreated when the target
+//  pixel size changes. It is cleared transparent so the composite
+//  alpha-blends cleanly over whatever D3D geometry was drawn earlier
+//  in the frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DwriteTextRenderer::BeginDrawOffscreen ()
+{
+    HRESULT                  hr    = S_OK;
+    D2D1_SIZE_U              size  = {};
+    D2D1_BITMAP_PROPERTIES1  props = {};
+
+
+
+    CBRA (m_d2dContext);
+    CBRA (m_targetBound);
+
+    size = m_target->GetPixelSize();
+
+    if (m_offscreen == nullptr || m_offscreenW != size.width || m_offscreenH != size.height)
+    {
+        m_offscreen.Reset();
+
+        props.pixelFormat.format    = DXGI_FORMAT_B8G8R8A8_UNORM;
+        props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+        props.dpiX                  = 96.0f;
+        props.dpiY                  = 96.0f;
+        props.bitmapOptions         = D2D1_BITMAP_OPTIONS_TARGET;
+
+        hr = m_d2dContext->CreateBitmap (size, nullptr, 0, &props, &m_offscreen);
+        CHRA (hr);
+
+        m_offscreenW = size.width;
+        m_offscreenH = size.height;
+    }
+
+    m_d2dContext->SetTarget (m_offscreen.Get());
+    m_d2dContext->BeginDraw();
+    m_d2dContext->Clear (D2D1::ColorF (0.0f, 0.0f, 0.0f, 0.0f));
+    m_drawing = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EndDrawComposite
+//
+//  Flushes the offscreen bitmap started by BeginDrawOffscreen, then
+//  rebinds the back-buffer target and draws the offscreen bitmap onto
+//  it 1:1 (nearest-neighbor, no scaling). On D2DERR_RECREATE_TARGET
+//  the target is dropped so the next BindBackBuffer rebuilds it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DwriteTextRenderer::EndDrawComposite ()
+{
+    HRESULT      hr     = S_OK;
+    HRESULT      hrEnd  = S_OK;
+    D2D1_SIZE_U  size   = {};
+    D2D1_RECT_F  dest   = {};
+
+
+
+    CBRA (m_d2dContext);
+
+    if (!m_drawing)
+    {
+        return S_OK;
+    }
+
+    hrEnd     = m_d2dContext->EndDraw();
+    m_drawing = false;
+
+    if (hrEnd == D2DERR_RECREATE_TARGET)
+    {
+        UnbindBackBuffer();
+        m_offscreen.Reset();
+        m_offscreenW = 0;
+        m_offscreenH = 0;
+        return S_OK;
+    }
+
+    hr = hrEnd;
+    CHRA (hr);
+
+    size   = m_target->GetPixelSize();
+    dest   = D2D1::RectF (0.0f, 0.0f, (float) size.width, (float) size.height);
+
+    m_d2dContext->SetTarget (m_target.Get());
+    m_d2dContext->BeginDraw();
+    m_d2dContext->DrawBitmap (m_offscreen.Get(),
+                              &dest,
+                              1.0f,
+                              D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR,
+                              &dest);
+    hrEnd = m_d2dContext->EndDraw();
+
+    if (hrEnd == D2DERR_RECREATE_TARGET)
+    {
         UnbindBackBuffer();
         return S_OK;
     }

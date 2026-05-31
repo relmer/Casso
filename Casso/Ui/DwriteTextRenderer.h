@@ -43,6 +43,9 @@ public:
     HRESULT  BeginDraw        ();
     HRESULT  EndDraw          ();
 
+    HRESULT  BeginDrawOffscreen ();
+    HRESULT  EndDrawComposite   ();
+
     enum class HAlign
     {
         Left   = 0,
@@ -174,6 +177,9 @@ private:
     ComPtr<ID2D1Device>               m_d2dDevice;
     ComPtr<ID2D1DeviceContext>        m_d2dContext;
     ComPtr<ID2D1Bitmap1>              m_target;
+    ComPtr<ID2D1Bitmap1>              m_offscreen;
+    UINT                              m_offscreenW = 0;
+    UINT                              m_offscreenH = 0;
     ComPtr<ID2D1Bitmap>               m_framebufferBitmap;
     int                               m_framebufferBitmapW = 0;
     int                               m_framebufferBitmapH = 0;
