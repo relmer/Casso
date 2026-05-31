@@ -135,6 +135,30 @@ public:
                                            bool                   & outUserClosed,
                                            string                 & outError);
 
+    // Themed runtime disk-insert picker. Mirrors PromptBootDiskMru
+    // but is used when the user clicks a drive widget (or invokes
+    // Disk -> Insert in drive N) on a running machine. Lists the
+    // user's recent disk images plus "Download" rows for the DOS 3.3
+    // and ProDOS stock masters so the picker is never empty even on
+    // a fresh install. The "Browse..." footer button falls through to
+    // the Win32 IFileOpenDialog for ad-hoc images. Cancel / close box
+    // leaves the slot untouched.
+    //
+    // On return:
+    //   outDiskPath  = path to mount, or empty if the user cancelled
+    //                  or chose Browse (caller then runs IFileOpenDialog)
+    //   outBrowse    = true if the user clicked Browse... (caller
+    //                  should fall through to its file-picker path)
+    static HRESULT  PromptInsertDiskMru   (HINSTANCE                hInstance,
+                                           HWND                     hwndParent,
+                                           int                      drive,
+                                           const vector<fs::path> & mruEntries,
+                                           const fs::path         & diskDir,
+                                           std::string_view         themeName,
+                                           wstring                & outDiskPath,
+                                           bool                   & outBrowse,
+                                           string                 & outError);
+
     // Unified startup downloader. Inspects the current install for
     // every required-or-optional asset that's missing (ROMs from the
     // catalog, Disk II drive audio per mechanism) and presents a
