@@ -5,6 +5,12 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
+// The ring carries kEventRingCapacity InputEvent slots inline, so a
+// single stack-allocated instance trips C6262. The ring is the system
+// under test; suppress for this file only.
+#pragma warning (disable: 6262)
+
+
 
 
 namespace
