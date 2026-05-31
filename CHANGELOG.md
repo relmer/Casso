@@ -12,6 +12,12 @@ Field-test fixes for the themed disk-insert MRU picker and the
 underlying dialog primitives.
 
 ### Fixed
+- **fix(picker): show friendly label for stock MRU entries.** After
+  the dup-suppression fix, a stock disk in the MRU still rendered as
+  its raw filename (`DOS 3.3 System Master.dsk`) because the friendly
+  label only lived on the now-suppressed download row. Pickers now
+  carry the label across: MRU entries that match a stock-download
+  target render as `DOS 3.3` / `ProDOS`.
 - **fix(picker): suppressed duplicate DOS 3.3 / ProDOS rows.** The
   boot and runtime MRU pickers always appended both stock-download
   rows even when the canonical disk file was already in the MRU,

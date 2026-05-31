@@ -1713,6 +1713,7 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
         { &s_kProDOSDisk, L"ProDOS"   }
     };
     std::vector<const DownloadRow *> shownDownloads;
+    std::vector<const DownloadRow *> mruLabels;
     int                 chosen        = s_kSkipResult;
     int                 mruCount      = (int) mruEntries.size();
     int                 downloadCount = 0;
@@ -1732,22 +1733,28 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
 
     displayName = GetEmbeddedDisplayName (hInstance, machineName);
 
+    mruLabels.assign ((size_t) mruCount, nullptr);
+
     for (const DownloadRow & dr : downloads)
     {
         fs::path         wantPath = diskDir / string (dr.spec->cassoName);
-        bool             inMru    = false;
+        int              matchIdx = -1;
         std::error_code  ecCmp;
 
-        for (const auto & p : mruEntries)
+        for (int i = 0; i < mruCount; ++i)
         {
-            if (fs::equivalent (p, wantPath, ecCmp))
+            if (fs::equivalent (mruEntries[(size_t) i], wantPath, ecCmp))
             {
-                inMru = true;
+                matchIdx = i;
                 break;
             }
         }
 
-        if (!inMru)
+        if (matchIdx >= 0)
+        {
+            mruLabels[(size_t) matchIdx] = &dr;
+        }
+        else
         {
             shownDownloads.push_back (&dr);
         }
@@ -1784,9 +1791,13 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
 
         rows.reserve ((size_t) rowCount);
 
-        for (const auto & p : mruEntries)
+        for (int i = 0; i < mruCount; ++i)
         {
-            ListView::Cell name { p.filename().wstring(), false };
+            const auto &  p           = mruEntries[(size_t) i];
+            std::wstring  displayLbl  = (mruLabels[(size_t) i] != nullptr)
+                                            ? std::wstring (mruLabels[(size_t) i]->label)
+                                            : p.filename().wstring();
+            ListView::Cell name { std::move (displayLbl), false };
             ListView::Cell loc  { p.parent_path().wstring(), true };
             rows.push_back ({ std::move (name), std::move (loc) });
         }
@@ -1922,6 +1933,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
         { &s_kProDOSDisk, L"ProDOS"   }
     };
     std::vector<const DownloadRow *> shownDownloads;
+    std::vector<const DownloadRow *> mruLabels;
     int                 chosen        = s_kCancelResult;
     int                 mruCount      = (int) mruEntries.size();
     int                 downloadCount = 0;
@@ -1935,22 +1947,28 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     outDiskPath.clear();
     outBrowse = false;
 
+    mruLabels.assign ((size_t) mruCount, nullptr);
+
     for (const DownloadRow & dr : downloads)
     {
         fs::path         wantPath = diskDir / string (dr.spec->cassoName);
-        bool             inMru    = false;
+        int              matchIdx = -1;
         std::error_code  ecCmp;
 
-        for (const auto & p : mruEntries)
+        for (int i = 0; i < mruCount; ++i)
         {
-            if (fs::equivalent (p, wantPath, ecCmp))
+            if (fs::equivalent (mruEntries[(size_t) i], wantPath, ecCmp))
             {
-                inMru = true;
+                matchIdx = i;
                 break;
             }
         }
 
-        if (!inMru)
+        if (matchIdx >= 0)
+        {
+            mruLabels[(size_t) matchIdx] = &dr;
+        }
+        else
         {
             shownDownloads.push_back (&dr);
         }
@@ -1985,9 +2003,13 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
         rows.reserve ((size_t) rowCount);
 
-        for (const auto & p : mruEntries)
+        for (int i = 0; i < mruCount; ++i)
         {
-            ListView::Cell name { p.filename().wstring(), false };
+            const auto &  p           = mruEntries[(size_t) i];
+            std::wstring  displayName = (mruLabels[(size_t) i] != nullptr)
+                                            ? std::wstring (mruLabels[(size_t) i]->label)
+                                            : p.filename().wstring();
+            ListView::Cell name { std::move (displayName), false };
             ListView::Cell loc  { p.parent_path().wstring(), true };
             rows.push_back ({ std::move (name), std::move (loc) });
         }
