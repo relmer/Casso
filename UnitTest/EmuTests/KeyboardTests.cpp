@@ -429,4 +429,148 @@ public:
         Assert::IsTrue ((val & 0x80) != 0,
             L"Phase 6 / FR-013: Shift must be implemented at $C063");
     }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  Authentic //e keyboard auto-repeat (driven by AppleKeyboard::Tick
+    //  in emulated CPU time). The shell suppresses the host OS repeat and
+    //  arms a single character via BeginKeyRepeat; the device regenerates
+    //  the real ~500ms delay then ~15 cps cadence, re-arming the $C000
+    //  strobe, but only while the key remains physically down.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (AutoRepeat_NoRepeatBeforeDelay)
+    {
+        AppleKeyboard kbd;
+
+        kbd.KeyPress      ('A');
+        kbd.SetKeyDown    (true);
+        kbd.BeginKeyRepeat('A');
+
+        // Consume the initial press strobe and register the armed key.
+        kbd.Read (0xC010);
+        kbd.Tick (1);
+
+        Assert::IsTrue (kbd.IsStrobeClear (),
+            L"Registering the armed key must not re-arm the strobe");
+
+        // Advance to just shy of the pre-repeat delay: still no repeat.
+        kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles - 2);
+
+        Assert::IsTrue (kbd.IsStrobeClear (),
+            L"No repeat strobe should fire before the initial delay elapses");
+    }
+
+    TEST_METHOD (AutoRepeat_StrobeRearmsAfterDelay)
+    {
+        AppleKeyboard kbd;
+
+        kbd.KeyPress      ('A');
+        kbd.SetKeyDown    (true);
+        kbd.BeginKeyRepeat('A');
+
+        kbd.Read (0xC010);
+        kbd.Tick (1);
+
+        // Cross the initial delay threshold in one accumulation step.
+        kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles);
+
+        Assert::IsFalse (kbd.IsStrobeClear (),
+            L"Strobe must re-arm once the initial repeat delay elapses");
+
+        Byte val = kbd.Read (0xC000);
+        Assert::AreEqual (static_cast<Byte> ('A'),
+            static_cast<Byte> (val & 0x7F),
+            L"Auto-repeat must re-latch the held key");
+    }
+
+    TEST_METHOD (AutoRepeat_SteadyRateAfterFirstRepeat)
+    {
+        AppleKeyboard kbd;
+
+        kbd.KeyPress      ('A');
+        kbd.SetKeyDown    (true);
+        kbd.BeginKeyRepeat('A');
+
+        kbd.Read (0xC010);
+        kbd.Tick (1);
+
+        // First repeat after the long initial delay.
+        kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles);
+        kbd.Read (0xC010);
+
+        // The faster steady interval (shorter than the initial delay) now
+        // governs subsequent repeats.
+        Assert::IsTrue (
+            AppleKeyboard::kKeyRepeatIntervalCycles <
+            AppleKeyboard::kKeyRepeatDelayCycles,
+            L"Steady repeat interval must be shorter than the initial delay");
+
+        kbd.Tick (AppleKeyboard::kKeyRepeatIntervalCycles);
+
+        Assert::IsFalse (kbd.IsStrobeClear (),
+            L"Strobe must re-arm again after one steady repeat interval");
+    }
+
+    TEST_METHOD (AutoRepeat_StopsWhenKeyReleased)
+    {
+        AppleKeyboard kbd;
+
+        kbd.KeyPress      ('A');
+        kbd.SetKeyDown    (true);
+        kbd.BeginKeyRepeat('A');
+
+        kbd.Read (0xC010);
+        kbd.Tick (1);
+        kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles);
+        kbd.Read (0xC010);
+
+        // Physical release: any-key-down clears and the shell disarms the
+        // repeat. No further repeats may fire, no matter how long we tick.
+        kbd.SetKeyDown    (false);
+        kbd.BeginKeyRepeat(0);
+
+        kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles * 2);
+
+        Assert::IsTrue (kbd.IsStrobeClear (),
+            L"Releasing the key must stop auto-repeat");
+    }
+
+    TEST_METHOD (AutoRepeat_RequiresKeyPhysicallyDown)
+    {
+        AppleKeyboard kbd;
+
+        // Armed but never marked physically down: nothing should repeat.
+        kbd.KeyPress      ('A');
+        kbd.BeginKeyRepeat('A');
+        kbd.Read (0xC010);
+
+        kbd.Tick (1);
+        kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles * 2);
+
+        Assert::IsTrue (kbd.IsStrobeClear (),
+            L"Auto-repeat must not fire unless the key is physically held");
+    }
+
+    TEST_METHOD (AutoRepeat_DisarmStopsRepeat)
+    {
+        AppleKeyboard kbd;
+
+        kbd.KeyPress      ('A');
+        kbd.SetKeyDown    (true);
+        kbd.BeginKeyRepeat('A');
+
+        kbd.Read (0xC010);
+        kbd.Tick (1);
+
+        // Disarm (arm value 0) before the delay elapses: even with the key
+        // still flagged down, no repeat should fire.
+        kbd.BeginKeyRepeat(0);
+        kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles * 2);
+
+        Assert::IsTrue (kbd.IsStrobeClear (),
+            L"Disarming auto-repeat must suppress further repeats");
+    }
 };

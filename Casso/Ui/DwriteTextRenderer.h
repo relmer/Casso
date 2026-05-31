@@ -43,6 +43,9 @@ public:
     HRESULT  BeginDraw        ();
     HRESULT  EndDraw          ();
 
+    HRESULT  BeginDrawOffscreen ();
+    HRESULT  EndDrawComposite   ();
+
     enum class HAlign
     {
         Left   = 0,
@@ -163,10 +166,20 @@ private:
                                IDWriteTextFormat           ** outFormat);
 
 
+    HRESULT  EnsureCapMidY    (const wchar_t                * family,
+                               float                          fontSizeDip,
+                               DWRITE_FONT_WEIGHT             weight,
+                               IDWriteTextFormat            * format,
+                               float                        & outCapMidY);
+
+
     ComPtr<ID2D1Factory1>             m_d2dFactory;
     ComPtr<ID2D1Device>               m_d2dDevice;
     ComPtr<ID2D1DeviceContext>        m_d2dContext;
     ComPtr<ID2D1Bitmap1>              m_target;
+    ComPtr<ID2D1Bitmap1>              m_offscreen;
+    UINT                              m_offscreenW = 0;
+    UINT                              m_offscreenH = 0;
     ComPtr<ID2D1Bitmap>               m_framebufferBitmap;
     int                               m_framebufferBitmapW = 0;
     int                               m_framebufferBitmapH = 0;
@@ -178,6 +191,8 @@ private:
 
     std::map<TextFormatKey,
              ComPtr<IDWriteTextFormat>>  m_formatCache;
+
+    std::map<TextFormatKey, float>       m_capMidCache;
 
     bool                              m_targetBound = false;
     bool                              m_drawing     = false;

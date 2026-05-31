@@ -337,7 +337,7 @@ HRESULT Disk2DebugPanel::Render()
     hr = m_painter.Begin (m_widthPx, m_heightPx);
     CHRA (hr);
 
-    hr = m_text.BeginDraw();
+    hr = m_text.BeginDrawOffscreen();
     CHRA (hr);
 
     visual.dpi = m_dpi;
@@ -390,11 +390,11 @@ HRESULT Disk2DebugPanel::Render()
     {
         hr = m_painter.End (m_rtv.Get());
         CHRA (hr);
-        hr = m_text.EndDraw();
+        hr = m_text.EndDrawComposite();
         CHRA (hr);
         hr = m_painter.Begin (m_widthPx, m_heightPx);
         CHRA (hr);
-        hr = m_text.BeginDraw();
+        hr = m_text.BeginDrawOffscreen();
         CHRA (hr);
     }
 
@@ -405,11 +405,21 @@ HRESULT Disk2DebugPanel::Render()
     hr = m_painter.End (m_rtv.Get());
     CHRA (hr);
 
-    hr = m_text.EndDraw();
+    hr = m_text.EndDrawComposite();
     CHRA (hr);
 
-    hr = m_swapChain->Present (1, 0);
-    CHRA (hr);
+    // If the D2D target was lost partway through this frame (the
+    // swap-chain buffers were invalidated by a live resize), EndDraw
+    // unbinds the target and the frame we just built is incomplete --
+    // some text was flushed before the loss, the rest was dropped.
+    // Presenting it would flash partially-painted content (blank rows,
+    // missing buttons). Skip Present so the last good frame stays on
+    // screen; the next Render rebinds and repaints cleanly.
+    if (m_text.IsTargetBound())
+    {
+        hr = m_swapChain->Present (1, 0);
+        CHRA (hr);
+    }
 
 Error:
     return hr;
@@ -1945,7 +1955,20 @@ void Disk2DebugPanel::ConfigureWidgets()
 void Disk2DebugPanel::DrainAndProject()
 {
     uint32_t  dropped = 0;
+    int64_t   ticks   = 0;
 
+
+    if (m_resetAnchorPending.exchange (false, std::memory_order_acq_rel))
+    {
+        // A reset (Ctrl+R / power-cycle) was requested from the CPU
+        // thread. Apply the staged Uptime anchor and clear the event
+        // list HERE, on the render thread, so m_events, m_filteredIndices
+        // and the ListView rows are only ever touched by one thread.
+        ticks = m_pendingAnchorTicks.load (std::memory_order_acquire);
+
+        m_uptimeAnchor = std::chrono::steady_clock::time_point (std::chrono::steady_clock::duration (ticks));
+        ClearEvents();
+    }
 
     if (m_paused)
     {
@@ -2244,6 +2267,27 @@ void Disk2DebugPanel::ClearEvents()
     m_listSelectedEventIndex = -1;
     PushListViewRows();
     ApplyListSelection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RequestResetAnchor
+//
+//  Thread-safe reset entry point for the CPU/reset thread. Stages the
+//  new Uptime anchor and raises a pending-reset flag; DrainAndProject
+//  applies the anchor and clears the event list on the render thread,
+//  keeping the event deque and ListView rows single-threaded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2DebugPanel::RequestResetAnchor (std::chrono::steady_clock::time_point anchor) noexcept
+{
+    m_pendingAnchorTicks.store (anchor.time_since_epoch().count(), std::memory_order_release);
+    m_resetAnchorPending.store (true, std::memory_order_release);
 }
 
 

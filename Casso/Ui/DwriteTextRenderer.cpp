@@ -115,6 +115,9 @@ void DwriteTextRenderer::Shutdown ()
 {
     UnbindBackBuffer();
 
+    m_offscreen.Reset();
+    m_offscreenW = 0;
+    m_offscreenH = 0;
     m_framebufferBitmap.Reset();
     m_framebufferBitmapW = 0;
     m_framebufferBitmapH = 0;
@@ -247,8 +250,146 @@ HRESULT DwriteTextRenderer::EndDraw ()
     if (hrEnd == D2DERR_RECREATE_TARGET)
     {
         // Device-lost path: drop the target so the next BindBackBuffer
-        // rebuilds. Surface as S_OK to the caller so the present path
-        // continues; the renderer-level recovery handles the rebuild.
+        // rebuilds. The target is now unbound; callers detect this via
+        // IsTargetBound() and skip presenting the half-painted frame.
+        DEBUGMSG (L"[Casso] DwriteTextRenderer::EndDraw target lost (D2DERR_RECREATE_TARGET); frame dropped\n");
+        UnbindBackBuffer();
+        return S_OK;
+    }
+
+    hr = hrEnd;
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BeginDrawOffscreen
+//
+//  Drop-in alternative to BeginDraw that targets a private offscreen
+//  bitmap instead of the swap-chain back-buffer surface. Paired with
+//  EndDrawComposite, which flushes the offscreen bitmap and then blits
+//  it onto the bound back buffer in a single DrawBitmap.
+//
+//  Why this exists: on some drivers (observed on ARM64) Direct2D drops
+//  the middle band of a frame when the render target IS the flip-model
+//  swap-chain surface and that surface is large -- top and bottom
+//  survive, the middle silently vanishes despite EndDraw returning
+//  S_OK. Rendering into a plain offscreen target and compositing the
+//  result sidesteps the limitation, so tall debug panels paint in full.
+//
+//  The offscreen bitmap is cached and only recreated when the target
+//  pixel size changes. It is cleared transparent so the composite
+//  alpha-blends cleanly over whatever D3D geometry was drawn earlier
+//  in the frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DwriteTextRenderer::BeginDrawOffscreen ()
+{
+    HRESULT                  hr    = S_OK;
+    D2D1_SIZE_U              size  = {};
+    D2D1_BITMAP_PROPERTIES1  props = {};
+
+
+
+    CBRA (m_d2dContext);
+    CBRA (m_targetBound);
+
+    size = m_target->GetPixelSize();
+
+    if (m_offscreen == nullptr || m_offscreenW != size.width || m_offscreenH != size.height)
+    {
+        m_offscreen.Reset();
+
+        props.pixelFormat.format    = DXGI_FORMAT_B8G8R8A8_UNORM;
+        props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+        props.dpiX                  = 96.0f;
+        props.dpiY                  = 96.0f;
+        props.bitmapOptions         = D2D1_BITMAP_OPTIONS_TARGET;
+
+        hr = m_d2dContext->CreateBitmap (size, nullptr, 0, &props, &m_offscreen);
+        CHRA (hr);
+
+        m_offscreenW = size.width;
+        m_offscreenH = size.height;
+    }
+
+    m_d2dContext->SetTarget (m_offscreen.Get());
+    m_d2dContext->BeginDraw();
+    m_d2dContext->Clear (D2D1::ColorF (0.0f, 0.0f, 0.0f, 0.0f));
+    m_drawing = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EndDrawComposite
+//
+//  Flushes the offscreen bitmap started by BeginDrawOffscreen, then
+//  rebinds the back-buffer target and draws the offscreen bitmap onto
+//  it 1:1 (nearest-neighbor, no scaling). On D2DERR_RECREATE_TARGET
+//  the target is dropped so the next BindBackBuffer rebuilds it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DwriteTextRenderer::EndDrawComposite ()
+{
+    HRESULT      hr     = S_OK;
+    HRESULT      hrEnd  = S_OK;
+    D2D1_SIZE_U  size   = {};
+    D2D1_RECT_F  dest   = {};
+
+
+
+    CBRA (m_d2dContext);
+
+    if (!m_drawing)
+    {
+        return S_OK;
+    }
+
+    hrEnd     = m_d2dContext->EndDraw();
+    m_drawing = false;
+
+    if (hrEnd == D2DERR_RECREATE_TARGET)
+    {
+        UnbindBackBuffer();
+        m_offscreen.Reset();
+        m_offscreenW = 0;
+        m_offscreenH = 0;
+        return S_OK;
+    }
+
+    hr = hrEnd;
+    CHRA (hr);
+
+    size   = m_target->GetPixelSize();
+    dest   = D2D1::RectF (0.0f, 0.0f, (float) size.width, (float) size.height);
+
+    m_d2dContext->SetTarget (m_target.Get());
+    m_d2dContext->BeginDraw();
+    m_d2dContext->DrawBitmap (m_offscreen.Get(),
+                              &dest,
+                              1.0f,
+                              D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR,
+                              &dest);
+    hrEnd = m_d2dContext->EndDraw();
+
+    if (hrEnd == D2DERR_RECREATE_TARGET)
+    {
         UnbindBackBuffer();
         return S_OK;
     }
@@ -318,6 +459,105 @@ HRESULT DwriteTextRenderer::EnsureTextFormat (
         m_formatCache[key] = format;
         *outFormat = format.Get();
         (*outFormat)->AddRef();
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureCapMidY
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DwriteTextRenderer::EnsureCapMidY (
+    const wchar_t      *  family,
+    float                 fontSizeDip,
+    DWRITE_FONT_WEIGHT    weight,
+    IDWriteTextFormat  *  format,
+    float              &  outCapMidY)
+{
+    HRESULT                        hr            = S_OK;
+    TextFormatKey                  key;
+    const wchar_t                * useFamily     = (family != nullptr) ? family : L"Segoe UI";
+    ComPtr<IDWriteTextLayout>      layout;
+    ComPtr<IDWriteFontCollection>  collection;
+    ComPtr<IDWriteFontFamily>      familyObj;
+    ComPtr<IDWriteFont>            font;
+    ComPtr<IDWriteFontFace>        face;
+    UINT32                         familyIndex   = 0;
+    BOOL                           familyFound   = FALSE;
+    DWRITE_FONT_METRICS            metrics       = {};
+    DWRITE_LINE_METRICS            lineMetrics   = {};
+    UINT32                         lineCount     = 0;
+    const float                    kMeasureBox   = 4096.0f;
+    const wchar_t                * kMeasureText  = L"Mg";
+
+
+
+    CBRA (m_dwriteFactory);
+    CBRAEx (format, E_INVALIDARG);
+
+    key.family  = useFamily;
+    key.sizeDip = fontSizeDip;
+    key.weight  = weight;
+
+    {
+        auto  it = m_capMidCache.find (key);
+
+        if (it != m_capMidCache.end())
+        {
+            outCapMidY = it->second;
+            return S_OK;
+        }
+    }
+
+    hr = m_dwriteFactory->CreateTextLayout (kMeasureText,
+                                            (UINT32) wcslen (kMeasureText),
+                                            format,
+                                            kMeasureBox,
+                                            kMeasureBox,
+                                            &layout);
+    CHRA (hr);
+
+    hr = layout->GetLineMetrics (&lineMetrics, 1, &lineCount);
+    CHRA (hr);
+
+    hr = format->GetFontCollection (&collection);
+    CHRA (hr);
+
+    hr = collection->FindFamilyName (useFamily, &familyIndex, &familyFound);
+    CHRA (hr);
+    CBRA (familyFound);
+
+    hr = collection->GetFontFamily (familyIndex, &familyObj);
+    CHRA (hr);
+
+    hr = familyObj->GetFirstMatchingFont (DWRITE_FONT_WEIGHT_NORMAL,
+                                          DWRITE_FONT_STRETCH_NORMAL,
+                                          DWRITE_FONT_STYLE_NORMAL,
+                                          &font);
+    CHRA (hr);
+
+    hr = font->CreateFontFace (&face);
+    CHRA (hr);
+    CBRA (lineCount > 0);
+
+    face->GetMetrics (&metrics);
+    {
+        float  upem = (float) metrics.designUnitsPerEm;
+        CBRA (upem > 0.0f);
+
+        float  capHeightDip = (float) metrics.capHeight * (fontSizeDip / upem);
+        float  baselineY    = lineMetrics.baseline;
+
+        outCapMidY         = baselineY - capHeightDip * 0.5f;
+        m_capMidCache[key] = outCapMidY;
     }
 
 Error:
@@ -403,81 +643,25 @@ HRESULT DwriteTextRenderer::DrawString (
 
     if (vAlign == VAlign::CenterOnCapHeight)
     {
-        // Compute the cap-height midline position using the actual
-        // measured line baseline (from IDWriteTextLayout) plus the
-        // font face's capHeight metric. Reliable across line-spacing
-        // modes and lineGap quirks -- DWrite's DEFAULT line spacing
-        // distributes lineGap inside the line box, so assuming
-        // baseline == layoutRect.top + ascent is wrong.
-        //
-        // Steps:
-        //   1. Create a layout with NEAR alignment to measure where
-        //      DWrite would place the baseline within layoutRect.
-        //   2. Look up capHeight from the font face metrics.
-        //   3. capMidY (within layoutRect) = baseline - capHeight/2.
-        //   4. Shift layoutRect so capMidY == heightDip/2.
-        ComPtr<IDWriteTextLayout>      layout;
-        ComPtr<IDWriteFontCollection>  collection;
-        ComPtr<IDWriteFontFamily>      familyObj;
-        ComPtr<IDWriteFont>            font;
-        ComPtr<IDWriteFontFace>        face;
-        UINT32                         familyIndex   = 0;
-        BOOL                           familyFound   = FALSE;
-        DWRITE_FONT_METRICS            metrics       = {};
-        DWRITE_LINE_METRICS            lineMetrics   = {};
-        UINT32                         lineCount     = 0;
-        HRESULT                        hrMetrics     = S_OK;
-        UINT32                         textLenLocal  = (UINT32) wcslen (text);
+        // Shift the layout rect so the font's cap-height midline lands on
+        // the vertical center of the rect. The cap-height midline position
+        // (capMidY, measured from the rect top under NEAR alignment) depends
+        // only on the font family, size, and weight -- not on the text or
+        // the rect dimensions -- so it is computed once and cached per
+        // format. Recomputing it per cell created ~6 DWrite COM objects on
+        // every cell every frame, which under heavy list scrolling could
+        // intermittently fail and drop text. See EnsureCapMidY.
+        float    capMidY = 0.0f;
+        HRESULT  hrCap   = EnsureCapMidY (fontFamily, fontSizeDip, weight, format.Get(), capMidY);
 
-        hrMetrics = m_dwriteFactory->CreateTextLayout (text,
-                                                       textLenLocal,
-                                                       format.Get(),
-                                                       widthDip,
-                                                       heightDip,
-                                                       &layout);
-        if (SUCCEEDED (hrMetrics) && layout)
+        if (SUCCEEDED (hrCap))
         {
-            hrMetrics = layout->GetLineMetrics (&lineMetrics, 1, &lineCount);
+            float  shift = heightDip * 0.5f - capMidY;
+            layoutRect.top    += shift;
+            layoutRect.bottom += shift;
         }
-        if (SUCCEEDED (hrMetrics))
-        {
-            hrMetrics = format->GetFontCollection (&collection);
-        }
-        if (SUCCEEDED (hrMetrics) && collection)
-        {
-            hrMetrics = collection->FindFamilyName (fontFamily, &familyIndex, &familyFound);
-        }
-        if (SUCCEEDED (hrMetrics) && familyFound)
-        {
-            hrMetrics = collection->GetFontFamily (familyIndex, &familyObj);
-        }
-        if (SUCCEEDED (hrMetrics) && familyObj)
-        {
-            hrMetrics = familyObj->GetFirstMatchingFont (DWRITE_FONT_WEIGHT_NORMAL,
-                                                          DWRITE_FONT_STRETCH_NORMAL,
-                                                          DWRITE_FONT_STYLE_NORMAL,
-                                                          &font);
-        }
-        if (SUCCEEDED (hrMetrics) && font)
-        {
-            hrMetrics = font->CreateFontFace (&face);
-        }
-        if (SUCCEEDED (hrMetrics) && face && lineCount > 0)
-        {
-            face->GetMetrics (&metrics);
-            float  upem = (float) metrics.designUnitsPerEm;
-            if (upem > 0.0f)
-            {
-                float  capHeightDip = (float) metrics.capHeight * (fontSizeDip / upem);
-                float  baselineY    = lineMetrics.baseline;
-                float  capMidY      = baselineY - capHeightDip * 0.5f;
-                float  shift        = heightDip * 0.5f - capMidY;
-                layoutRect.top    += shift;
-                layoutRect.bottom += shift;
-            }
-        }
-        // Silent fallback: if any DWrite call failed we leave the
-        // rect in place and use NEAR alignment.
+        // Silent fallback: if measurement failed we leave the rect in
+        // place and use NEAR alignment.
     }
 
     textLen = (UINT32) wcslen (text);

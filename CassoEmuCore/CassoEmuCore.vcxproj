@@ -209,6 +209,7 @@
     <ClCompile Include="Devices\LanguageCard.cpp" />
     <ClCompile Include="Devices\Disk2Controller.cpp" />
     <ClCompile Include="Devices\Disk2EventRing.cpp" />
+    <ClCompile Include="Devices\InputEventRing.cpp" />
     <ClCompile Include="Devices\Disk2AddressMarkWatcher.cpp" />
     <ClCompile Include="Devices\Disk\DiskImage.cpp" />
     <ClCompile Include="Devices\Disk\Disk2NibbleEngine.cpp" />
@@ -275,6 +276,9 @@
     <ClInclude Include="Devices\IDisk2EventSink.h" />
     <ClInclude Include="Devices\Disk2Event.h" />
     <ClInclude Include="Devices\Disk2EventRing.h" />
+    <ClInclude Include="Devices\IInputEventSink.h" />
+    <ClInclude Include="Devices\InputEvent.h" />
+    <ClInclude Include="Devices\InputEventRing.h" />
     <ClInclude Include="Devices\Disk2AddressMarkWatcher.h" />
     <ClInclude Include="Devices\AppleIIeKeyboard.h" />
     <ClInclude Include="Devices\AppleIIeMmu.h" />

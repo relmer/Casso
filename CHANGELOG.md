@@ -6,6 +6,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.5.1452] — Game input + debug-panel revamp
+
+Authentic //e keyboard handling that makes real-time action games
+playable, a new Input Debug panel, a themed native Disk II debug
+window, and a batch of disk/render correctness fixes. Validated by
+booting and playing *Karateka* end-to-end from its unmodified,
+copy-protected WOZ image ([#68](https://github.com/relmer/Casso/issues/68)).
+
+### Added
+- **feat(input): authentic //e keyboard auto-repeat.** The core
+  keyboard now generates hardware-faithful auto-repeat (initial delay
+  then steady cadence) instead of relying on host OS key repeat, so
+  timing-sensitive games behave correctly — *Karateka* movement on the
+  left/right arrow keys plays as it did on real hardware.
+- **feat(ui): Input Debug panel.** New themed, non-modal debug window
+  logging host→//e key events, the `$C000`/`$C010` keyboard strobe, and
+  Open/Closed-Apple button state, with column filtering, sorting, and
+  pause. Fed by a lock-free event ring drained on the render thread.
+- **feat(ui): native Disk II debug window.** DX/themed replacement for
+  the legacy Win32 Disk II debug dialog, sharing the same event-ring
+  projection and multi-column ListView.
+
+### Fixed
+- **fix(disk): keep the nibble engine advancing after a power cycle.**
+  A power cycle zeroes the CPU cycle counter, but the Disk II
+  controller's `CatchUpToCpu` retained a stale sync anchor and froze the
+  bit cursor for as long as the prior session's uptime — a minute-plus
+  boot hang when rebooting a machine that had been running a while.
+  `CatchUpToCpu` now re-anchors whenever the counter moves backward.
+- **fix(ui): render tall debug panels via an offscreen D2D composite.**
+  Debug panels above a threshold height stopped painting their text;
+  text now renders to an offscreen target that is composited into the
+  panel, so content paints at any height.
+- **fix(debug-panel): marshal the reset clear onto the render thread.**
+  Warm reset / power cycle run on the CPU thread and cleared the debug
+  panels' event deque and ListView rows directly, racing the render
+  thread's per-frame drain and double-freeing the row strings (a
+  heap-corruption assert). The clear is now staged behind an atomic flag
+  and serviced on the render thread, keeping that state single-threaded.
+
 ## [1.5.1405] — Disk-insert picker polish
 
 Field-test fixes for the themed disk-insert MRU picker and the

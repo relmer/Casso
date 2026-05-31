@@ -34,6 +34,7 @@
 #include "Audio/Disk2AudioSource.h"
 #include "WasapiAudio.h"
 #include "Ui/Disk2DebugPanel.h"
+#include "Ui/InputDebugPanel.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
@@ -89,6 +90,7 @@ public:
     // (controller #0 per FR-017) AND on that controller's
     // Disk2AudioSource. On subsequent calls: show + bring to front.
     void OpenDisk2DebugDialog();
+    void OpenInputDebugDialog();
 
     // Spec-006 bug 15. SwitchMachine destroys and recreates the
     // controller + audio source while the modeless debug dialog
@@ -109,11 +111,16 @@ public:
 
         if (m_disk2DebugPanel != nullptr)
         {
-            m_disk2DebugPanel->SetUptimeAnchor (m_uptimeAnchor);
-            // Spec-006 bug-fix. Clear stale rows from the pre-reset
-            // boot so the post-reset uptime anchor doesn't end up
-            // formatting events that pre-date its own zero point.
-            m_disk2DebugPanel->ClearEvents();
+            // ResetUptimeAnchor runs on the CPU thread. Touching the
+            // panel's event deque / ListView rows here would race the
+            // render thread's per-frame drain and corrupt the row Cells,
+            // so marshal the re-anchor + clear onto the render thread.
+            m_disk2DebugPanel->RequestResetAnchor (m_uptimeAnchor);
+        }
+
+        if (m_inputDebugPanel != nullptr)
+        {
+            m_inputDebugPanel->RequestResetAnchor (m_uptimeAnchor);
         }
     }
 
@@ -441,6 +448,7 @@ private:
     // The uptime anchor lives on the shell (not the panel) so resets
     // re-zero it even while the panel is closed.
     std::unique_ptr<class Disk2DebugPanel>   m_disk2DebugPanel;
+    std::unique_ptr<class InputDebugPanel>   m_inputDebugPanel;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 
     // Extracted shell-side managers. WindowManager owns the per-monitor
