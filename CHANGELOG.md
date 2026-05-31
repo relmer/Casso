@@ -6,6 +6,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.5.1405] — Disk-insert picker polish
+
+Field-test fixes for the themed disk-insert MRU picker and the
+underlying dialog primitives.
+
+### Fixed
+- **fix(widget): `ListView` empty body when `SetRows` precedes
+  `SetRect`.** Sticky-tail clamp in `SetRows` pinned `m_topRow` to
+  `rows.size()` because `VisibleRowCapacity()` returned 0 against an
+  empty rect, so the paint loop drew zero data rows. `SetRect` now
+  re-clamps `m_topRow` once the real rect is known.
+- **fix(dialog): button border invisible when colors overridden.**
+  `Button::Paint` only drew the 1dip auto-border in the
+  `!m_useOverrides` branch, and `DialogPrimitive::BuildButtons` was
+  forcing overrides with colors close to the dialog body. Border now
+  paints whenever `borderColor != 0`, and `BuildButtons` lets theme
+  defaults apply.
+- **fix(dialog): `&` accelerator marker.** `Button::SetLabel` now
+  strips the marker and captures the accelerator; `DialogPrimitive`
+  handles `WM_SYSCHAR` to dispatch Alt+letter to the matching
+  button.
+- **fix(dialog): draggable title bar on `WS_POPUP` dialogs.**
+  `DialogPrimitive::OnMouse` forwards in-title clicks (outside the
+  close box) as `WM_NCLBUTTONDOWN HTCAPTION`.
+- **fix(picker): drive number is 1-indexed.** `BrowseForDisk` now
+  passes `drive + 1` to `PromptInsertDiskMru` so the title reads
+  "Insert Disk — Drive 1/2" and the mount call gets the right slot.
+
 ## [1.5.1398] — Themed disk-insert MRU picker
 
 The runtime disk-insert flow (Disk → Insert Disk Image, drive-widget

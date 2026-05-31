@@ -51,7 +51,18 @@ public:
 
 
     void  SetDpi          (UINT dpi)                       { m_scaler.SetDpi (dpi); }
-    void  SetRect         (const RECT & rect)              { m_rect = rect; }
+    void  SetRect         (const RECT & rect)
+    {
+        m_rect = rect;
+        // SetRows may have run before the host knew the paint rect;
+        // it would have clamped m_topRow against a zero-capacity rect
+        // (VisibleRowCapacity returns 0) and, with sticky-tail on,
+        // pinned m_topRow to rows.size() — past the end. Re-clamp now
+        // that we know the real capacity.
+        int  maxTop = MaxTopRow();
+        if (m_topRow > maxTop) { m_topRow = maxTop; }
+        if (m_topRow < 0)      { m_topRow = 0; }
+    }
     void  SetTheme        (const ChromeTheme * theme)      { m_theme = theme; }
     void  SetShowHeader   (bool b)                         { m_showHeader = b; }
     void  SetHoveredRow   (int row)                        { m_hovered = row; }
