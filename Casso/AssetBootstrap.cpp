@@ -1712,10 +1712,11 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
         { &s_kDos33Disk,  L"DOS 3.3"  },
         { &s_kProDOSDisk, L"ProDOS"   }
     };
+    std::vector<const DownloadRow *> shownDownloads;
     int                 chosen        = s_kSkipResult;
     int                 mruCount      = (int) mruEntries.size();
-    int                 downloadCount = (int) std::size (downloads);
-    int                 rowCount      = mruCount + downloadCount;
+    int                 downloadCount = 0;
+    int                 rowCount      = 0;
     UINT                sysDpi        = (hwndParent != nullptr) ? GetDpiForWindow (hwndParent)
                                                                 : GetDpiForSystem();
     ListView            list;
@@ -1730,6 +1731,30 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     BAIL_OUT_IF (!hasDisk, S_OK);
 
     displayName = GetEmbeddedDisplayName (hInstance, machineName);
+
+    for (const DownloadRow & dr : downloads)
+    {
+        fs::path         wantPath = diskDir / string (dr.spec->cassoName);
+        bool             inMru    = false;
+        std::error_code  ecCmp;
+
+        for (const auto & p : mruEntries)
+        {
+            if (fs::equivalent (p, wantPath, ecCmp))
+            {
+                inMru = true;
+                break;
+            }
+        }
+
+        if (!inMru)
+        {
+            shownDownloads.push_back (&dr);
+        }
+    }
+
+    downloadCount = (int) shownDownloads.size();
+    rowCount      = mruCount + downloadCount;
 
     title  = L"Casso ";
     title += s_kchEmDash;
@@ -1766,14 +1791,10 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
             rows.push_back ({ std::move (name), std::move (loc) });
         }
 
-        for (const DownloadRow & dr : downloads)
+        for (const DownloadRow * dr : shownDownloads)
         {
-            fs::path        wantPath = diskDir / string (dr.spec->cassoName);
-            bool            present  = fs::exists (wantPath, ec);
-            ListView::Cell  name     { dr.label, false };
-            ListView::Cell  loc      { present ? wantPath.parent_path().wstring()
-                                                : L"Asimov archive (Download)",
-                                       true };
+            ListView::Cell  name { dr->label, false };
+            ListView::Cell  loc  { L"Asimov archive (Download)", true };
             rows.push_back ({ std::move (name), std::move (loc) });
         }
 
@@ -1849,7 +1870,7 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     }
     else if (chosen >= mruCount && chosen < rowCount)
     {
-        const BootDiskSpec & spec = *downloads[chosen - mruCount].spec;
+        const BootDiskSpec & spec = *shownDownloads[(size_t) (chosen - mruCount)]->spec;
         hr = DownloadStockBootDisk (spec, diskDir, outDiskPath, outError);
         CHR (hr);
     }
@@ -1900,10 +1921,11 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
         { &s_kDos33Disk,  L"DOS 3.3"  },
         { &s_kProDOSDisk, L"ProDOS"   }
     };
+    std::vector<const DownloadRow *> shownDownloads;
     int                 chosen        = s_kCancelResult;
     int                 mruCount      = (int) mruEntries.size();
-    int                 downloadCount = (int) std::size (downloads);
-    int                 rowCount      = mruCount + downloadCount;
+    int                 downloadCount = 0;
+    int                 rowCount      = 0;
     UINT                sysDpi        = (hwndParent != nullptr) ? GetDpiForWindow (hwndParent)
                                                                 : GetDpiForSystem();
     ListView            list;
@@ -1912,6 +1934,30 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
     outDiskPath.clear();
     outBrowse = false;
+
+    for (const DownloadRow & dr : downloads)
+    {
+        fs::path         wantPath = diskDir / string (dr.spec->cassoName);
+        bool             inMru    = false;
+        std::error_code  ecCmp;
+
+        for (const auto & p : mruEntries)
+        {
+            if (fs::equivalent (p, wantPath, ecCmp))
+            {
+                inMru = true;
+                break;
+            }
+        }
+
+        if (!inMru)
+        {
+            shownDownloads.push_back (&dr);
+        }
+    }
+
+    downloadCount = (int) shownDownloads.size();
+    rowCount      = mruCount + downloadCount;
 
     title  = L"Casso ";
     title += s_kchEmDash;
@@ -1946,14 +1992,10 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
             rows.push_back ({ std::move (name), std::move (loc) });
         }
 
-        for (const DownloadRow & dr : downloads)
+        for (const DownloadRow * dr : shownDownloads)
         {
-            fs::path        wantPath = diskDir / string (dr.spec->cassoName);
-            bool            present  = fs::exists (wantPath, ec);
-            ListView::Cell  name     { dr.label, false };
-            ListView::Cell  loc      { present ? wantPath.parent_path().wstring()
-                                                : L"Asimov archive (Download)",
-                                       true };
+            ListView::Cell  name { dr->label, false };
+            ListView::Cell  loc  { L"Asimov archive (Download)", true };
             rows.push_back ({ std::move (name), std::move (loc) });
         }
 
@@ -2030,7 +2072,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     }
     else if (chosen >= mruCount && chosen < rowCount)
     {
-        const BootDiskSpec & spec = *downloads[chosen - mruCount].spec;
+        const BootDiskSpec & spec = *shownDownloads[(size_t) (chosen - mruCount)]->spec;
         hr = DownloadStockBootDisk (spec, diskDir, outDiskPath, outError);
         CHR (hr);
     }

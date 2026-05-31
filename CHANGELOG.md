@@ -12,6 +12,12 @@ Field-test fixes for the themed disk-insert MRU picker and the
 underlying dialog primitives.
 
 ### Fixed
+- **fix(picker): suppressed duplicate DOS 3.3 / ProDOS rows.** The
+  boot and runtime MRU pickers always appended both stock-download
+  rows even when the canonical disk file was already in the MRU,
+  producing two entries that mounted the same file. Now skip the
+  download row when its target path matches an MRU entry (compared
+  via `fs::equivalent`).
 - **fix(picker): disk inserted into wrong drive.** Picking a disk in
   Drive 1 (widget click → MRU picker → Browse → file dialog) was
   mounting it into Drive 2. `WindowCommandManager::PromptInsertDiskMru`
