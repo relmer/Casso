@@ -563,8 +563,18 @@ void Disk2Controller::CatchUpToCpu()
 
     now = *m_cpuCycleSource;
 
+    // A power cycle zeroes the CPU cycle counter (m_totalCycles, and
+    // hence the m_busCycle source this anchor tracks) but does NOT
+    // rewind m_lastCpuSync. Without re-anchoring, every catch-up after
+    // a power cycle sees now < m_lastCpuSync and bails, freezing the
+    // bit cursor until the counter climbs back past the stale anchor --
+    // a dead disk for as long as the prior session ran (the boot ROM
+    // spins on $C0EC reading a non-advancing latch the whole time).
+    // Re-anchor on any non-forward move so the next access resumes the
+    // normal forward advance. The == case is a same-cycle no-op.
     if (now <= m_lastCpuSync)
     {
+        m_lastCpuSync = now;
         return;
     }
 

@@ -642,4 +642,76 @@ public:
             Assert::Fail (full.c_str ());
         }
     }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  A power cycle zeroes the CPU cycle counter that the disk engine's
+    //  catch-up anchor (m_lastCpuSync) tracks, but does not rewind the
+    //  anchor itself. Regression for the freeze where CatchUpToCpu then
+    //  saw the rewound counter as "no time elapsed" and stalled the bit
+    //  cursor until the counter climbed back past the stale anchor -- a
+    //  dead drive for as long as the prior session had run (the boot ROM
+    //  spins on $C0EC reading a non-advancing latch the whole time). The
+    //  cursor must keep advancing on the accesses right after the rewind.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (BitCursorAdvancesAfterCycleCounterRewind)
+    {
+        HeadlessHost   host;
+        EmulatorCore   core;
+        vector<Byte>   raw      = BuildSentinelDisk ();
+        uint64_t       cpuCycle = 0;
+        DiskImage *    external = nullptr;
+        HRESULT        hr       = S_OK;
+
+        hr = host.BuildAppleIIeWithDisk2 (core);
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDisk2");
+
+        core.PowerCycle ();
+
+        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1, "rewind.dsk",
+                                             DiskFormat::Dsk, raw);
+        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes");
+
+        external = core.diskStore->GetImage (kSlot6, kDrive1);
+        Assert::IsNotNull (external, L"GetImage");
+        core.diskController->SetExternalDisk (kDrive1, external);
+
+        // Drive the catch-up path from a live, mutable cycle source so
+        // the test can rewind it the way a power cycle does.
+        core.diskController->SetCpuCycleSource (&cpuCycle);
+
+        // Select drive 1, motor on, read mode (Q7=0, Q6=0).
+        cpuCycle += 1;  core.bus->ReadByte (kSelectDrive1);
+        cpuCycle += 1;  core.bus->ReadByte (kMotorOn);
+        cpuCycle += 1;  core.bus->ReadByte (kQ6On);
+        cpuCycle += 1;  core.bus->ReadByte (kReadLatch);
+        cpuCycle += 1;  core.bus->ReadByte (kQ7Off);
+
+        // Simulate a long first session: advance the counter far, then
+        // poll the latch so the catch-up anchor records the large value.
+        cpuCycle += 1'000'000ULL;
+        core.bus->ReadByte (kReadLatch);
+
+        // Power-cycle rewind: the CPU cycle counter resets to zero while
+        // the controller's anchor still holds the large value.
+        cpuCycle = 0;
+
+        size_t  bitBefore = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+
+        // A handful of post-rewind accesses, each a few bit-cells apart.
+        for (int i = 0; i < 8; i++)
+        {
+            cpuCycle += 64;
+            core.bus->ReadByte (kReadLatch);
+        }
+
+        size_t  bitAfter = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+
+        Assert::IsTrue (bitAfter != bitBefore,
+                        L"Bit cursor frozen after cycle-counter rewind "
+                        L"(power-cycle catch-up regression)");
+    }
 };
