@@ -9,7 +9,6 @@
 #include "Core/ComponentRegistry.h"
 #include "D3DRenderer.h"
 #include "UiCommandTypes.h"
-#include "DebugConsole.h"
 #include "Ui/Chrome/TitleBar.h"
 #include "Ui/Chrome/NavLayer.h"
 #include "Ui/Chrome/LayoutManager.h"
@@ -19,6 +18,8 @@
 #include "Ui/DriveWidgetController.h"
 #include "Ui/DragDropTarget.h"
 #include "Ui/IDriveCommandSink.h"
+#include "Ui/Dialog/DialogDefinition.h"
+#include "Ui/Dialog/DialogPrimitive.h"
 #include "Ui/Settings/SettingsPanel.h"
 #include "Ui/ThemeManager.h"
 #include "Ui/UiShell.h"
@@ -32,7 +33,7 @@
 #include "Audio/DriveAudioMixer.h"
 #include "Audio/Disk2AudioSource.h"
 #include "WasapiAudio.h"
-#include "Disk2DebugDialog.h"
+#include "Ui/Disk2DebugPanel.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
@@ -106,13 +107,13 @@ public:
     {
         m_uptimeAnchor = std::chrono::steady_clock::now();
 
-        if (m_disk2DebugDialog != nullptr)
+        if (m_disk2DebugPanel != nullptr)
         {
-            m_disk2DebugDialog->SetUptimeAnchor (m_uptimeAnchor);
+            m_disk2DebugPanel->SetUptimeAnchor (m_uptimeAnchor);
             // Spec-006 bug-fix. Clear stale rows from the pre-reset
             // boot so the post-reset uptime anchor doesn't end up
             // formatting events that pre-date its own zero point.
-            m_disk2DebugDialog->ClearEvents();
+            m_disk2DebugPanel->ClearEvents();
         }
     }
 
@@ -215,6 +216,22 @@ private:
         return m_uiFramebuffer.empty() ? nullptr : m_uiFramebuffer.data();
     }
 
+    // Accessor for the Settings → Theme preview so it can render the
+    // basename label with the actual filename of whatever disk image is
+    // currently mounted in each drive (or an empty string if the drive
+    // is empty). Index 0 is drive 1, index 1 is drive 2.
+    const std::wstring &  MountedImagePath (int driveIndex) const
+    {
+        static const std::wstring  s_kEmpty;
+
+        if (driveIndex < 0 || driveIndex >= (int) m_driveWidgetState.size())
+        {
+            return s_kEmpty;
+        }
+
+        return m_driveWidgetState[(size_t) driveIndex].mountedImagePath;
+    }
+
     // Base directory for user preferences. SettingsPanel.CommitApply
     // uses this as the fallback save path when the unified store is not
     // available.
@@ -247,6 +264,16 @@ private:
     // shell's Initialize sequence.
     void    SaveGlobalPrefs      ();
 
+    // Lazily registers the DialogPrimitive window class on first call
+    // and shows the supplied dialog modally. Returns the resultCode
+    // of the chosen button, or -1 on close-gesture.
+    int     ShowModalDialog      (const DialogDefinition & def);
+
+    // Push a freshly mounted disk image onto the recent-disks MRU
+    // and persist user prefs. Best-effort; never propagates failures
+    // back into the mount path.
+    void    RecordRecentDisk     (const std::wstring & path);
+
     // MachineManager and WindowCommandManager touch enough shell
     // state during construction and command dispatch that friend
     // declarations are the pragmatic seam; no new global state is
@@ -267,7 +294,7 @@ private:
 
     D3DRenderer         m_d3dRenderer;
     WasapiAudio         m_wasapiAudio;
-    DebugConsole        m_debugConsole;
+    DialogPrimitive     m_dialogPrimitive;
 
     // UI-thread filesystem and chrome ownership. The painter pass
     // and shell composition is reintroduced in a later phase; for now
@@ -292,7 +319,7 @@ private:
     LayoutManager            m_layout { Scaler() };
     SimpleEdgeContributor   m_titleBarSlot { ChromeEdge::Top,    32 };
     SimpleEdgeContributor   m_navStripSlot { ChromeEdge::Top,    32 };
-    SimpleEdgeContributor   m_driveBarSlot { ChromeEdge::Bottom, 192 };
+    SimpleEdgeContributor   m_driveBarSlot { ChromeEdge::Bottom, 212 };
 
     // Drive widget state pump. The controller channel publishes
     // per-drive door/spin sync events the chrome painter will consume
@@ -409,11 +436,11 @@ private:
     uint32_t        m_cyclesPerFrame  = 17050;
     double          m_sampleRemainder = 0.0;
 
-    // Spec-006 / FR-001 / FR-004a. Owned by the shell so the dialog
-    // can be lazy-created on first Ctrl+Shift+D and reused across
-    // opens. The uptime anchor lives on the shell (not the dialog)
-    // so resets re-zero it even while the dialog is closed.
-    std::unique_ptr<class Disk2DebugDialog>   m_disk2DebugDialog;
+    // Spec-011 / US7. DX-themed panel for the Disk II debug window.
+    // Lazy-created on first Ctrl+Shift+D and reused across opens.
+    // The uptime anchor lives on the shell (not the panel) so resets
+    // re-zero it even while the panel is closed.
+    std::unique_ptr<class Disk2DebugPanel>   m_disk2DebugPanel;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 
     // Extracted shell-side managers. WindowManager owns the per-monitor

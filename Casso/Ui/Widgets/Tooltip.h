@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 
@@ -28,6 +29,7 @@ public:
     void  SetDwellOpenMs  (int ms) { m_dwellOpenMs = ms; }
     void  SetDwellCloseMs (int ms) { m_dwellCloseMs = ms; }
     void  SetFontSizeDip  (float dip) { m_fontDip = dip; }
+    void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
 
     void  RequestShow     (const RECT & anchor, const std::wstring & text, int64_t nowMs);
     void  RequestHide     (int64_t nowMs);
@@ -40,6 +42,7 @@ public:
     void  Paint           (DxUiPainter & painter, DwriteTextRenderer & text) const;
 
 private:
+    DpiScaler     m_scaler;
     RECT          m_anchor       = {};
     std::wstring  m_text;
     std::wstring  m_pendingText;

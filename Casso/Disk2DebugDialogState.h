@@ -82,7 +82,7 @@ struct FilterState
 constexpr int  kColWallWidth   = 110;
 constexpr int  kColUptimeWidth = 90;
 constexpr int  kColCycleWidth  = 110;
-constexpr int  kColDriveWidth  = 56;
+constexpr int  kColDriveWidth  = 76;
 constexpr int  kColEventWidth  = 130;
 constexpr int  kColDetailWidth = 360;
 constexpr int  kColumnCount    = 6;

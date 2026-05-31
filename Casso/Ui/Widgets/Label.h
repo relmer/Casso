@@ -24,11 +24,15 @@
 class Label
 {
 public:
-    void  SetRect       (const RECT & rect) { m_rect = rect; }
-    void  SetText       (const std::wstring & text) { m_text = text; }
-    void  SetColorArgb  (uint32_t argb) { m_argb = argb; }
+    void  SetRect        (const RECT & rect) { m_rect = rect; }
+    void  SetText        (const std::wstring & text) { m_text = text; }
+    void  SetColorArgb   (uint32_t argb) { m_argb = argb; }
     void  SetFontSizeDip (float dip) { m_fontDip = dip; }
-    void  SetDpi        (UINT dpi) { m_scaler.SetDpi (dpi); }
+    void  SetFontFace    (const std::wstring & face) { m_fontFace = face; }
+    void  SetHAlign      (DwriteTextRenderer::HAlign a) { m_hAlign = a; }
+    void  SetVAlign      (DwriteTextRenderer::VAlign a) { m_vAlign = a; }
+    void  SetFontWeight  (DWRITE_FONT_WEIGHT w) { m_weight = w; }
+    void  SetDpi         (UINT dpi) { m_scaler.SetDpi (dpi); }
 
     const RECT         & Rect      () const { return m_rect; }
     const std::wstring & Text      () const { return m_text; }
@@ -48,15 +52,20 @@ public:
                                                   (float) (m_rect.bottom - m_rect.top),
                                                   m_argb,
                                                   m_scaler.Pxf (m_fontDip),
-                                                  L"Segoe UI",
-                                                  DwriteTextRenderer::HAlign::Left,
-                                                  DwriteTextRenderer::VAlign::Center));
+                                                  m_fontFace.c_str(),
+                                                  m_hAlign,
+                                                  m_vAlign,
+                                                  m_weight));
     }
 
 private:
-    RECT          m_rect    = {};
-    std::wstring  m_text;
-    uint32_t      m_argb    = 0xFFFFFFFF;
-    float         m_fontDip = 13.0f;
-    DpiScaler     m_scaler;
+    RECT                          m_rect     = {};
+    std::wstring                  m_text;
+    std::wstring                  m_fontFace = L"Segoe UI";
+    uint32_t                      m_argb     = 0xFFFFFFFF;
+    float                         m_fontDip  = 13.0f;
+    DwriteTextRenderer::HAlign    m_hAlign   = DwriteTextRenderer::HAlign::Left;
+    DwriteTextRenderer::VAlign    m_vAlign   = DwriteTextRenderer::VAlign::Center;
+    DWRITE_FONT_WEIGHT            m_weight   = DWRITE_FONT_WEIGHT_NORMAL;
+    DpiScaler                     m_scaler;
 };

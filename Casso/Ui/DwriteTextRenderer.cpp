@@ -273,6 +273,7 @@ Error:
 HRESULT DwriteTextRenderer::EnsureTextFormat (
     const wchar_t      *  family,
     float                 fontSizeDip,
+    DWRITE_FONT_WEIGHT    weight,
     IDWriteTextFormat  ** outFormat)
 {
     HRESULT             hr        = S_OK;
@@ -288,6 +289,7 @@ HRESULT DwriteTextRenderer::EnsureTextFormat (
 
     key.family  = useFamily;
     key.sizeDip = fontSizeDip;
+    key.weight  = weight;
 
     {
         auto  it = m_formatCache.find (key);
@@ -305,7 +307,7 @@ HRESULT DwriteTextRenderer::EnsureTextFormat (
 
         hr = m_dwriteFactory->CreateTextFormat (useFamily,
                                                 nullptr,
-                                                DWRITE_FONT_WEIGHT_NORMAL,
+                                                weight,
                                                 DWRITE_FONT_STYLE_NORMAL,
                                                 DWRITE_FONT_STRETCH_NORMAL,
                                                 fontSizeDip,
@@ -333,16 +335,18 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DwriteTextRenderer::DrawString (
-    const wchar_t  * text,
-    float            xDip,
-    float            yDip,
-    float            widthDip,
-    float            heightDip,
-    uint32_t         argbColor,
-    float            fontSizeDip,
-    const wchar_t  * fontFamily,
-    HAlign           hAlign,
-    VAlign           vAlign)
+    const wchar_t      * text,
+    float                xDip,
+    float                yDip,
+    float                widthDip,
+    float                heightDip,
+    uint32_t             argbColor,
+    float                fontSizeDip,
+    const wchar_t      * fontFamily,
+    HAlign               hAlign,
+    VAlign               vAlign,
+    DWRITE_FONT_WEIGHT   weight,
+    bool                 wrap)
 {
     HRESULT                            hr      = S_OK;
     ComPtr<IDWriteTextFormat>          format;
@@ -359,7 +363,7 @@ HRESULT DwriteTextRenderer::DrawString (
     CBRA (m_drawing);
     CBRAEx (text, E_INVALIDARG);
 
-    hr = EnsureTextFormat (fontFamily, fontSizeDip, &rawFmt);
+    hr = EnsureTextFormat (fontFamily, fontSizeDip, weight, &rawFmt);
     CHRA (hr);
 
     format.Attach (rawFmt);
@@ -381,6 +385,7 @@ HRESULT DwriteTextRenderer::DrawString (
 
     format->SetTextAlignment      (dwH);
     format->SetParagraphAlignment (dwV);
+    format->SetWordWrapping       (wrap ? DWRITE_WORD_WRAPPING_WRAP : DWRITE_WORD_WRAPPING_NO_WRAP);
 
     hr = m_d2dContext->CreateSolidColorBrush (ColorFromArgb (argbColor), &brush);
     CHRA (hr);
@@ -536,6 +541,56 @@ HRESULT DwriteTextRenderer::FillRect (
     rect.bottom = yDip + heightDip;
 
     m_d2dContext->FillRectangle (&rect, brush.Get());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PushClipRect / PopClipRect
+//
+//  Forwards directly to ID2D1DeviceContext's clip stack. All drawing
+//  ops between Push and Pop are clipped to the rect's intersection
+//  with currently-active clips. Caller must balance pushes and pops
+//  within a single BeginDraw/EndDraw pair.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DwriteTextRenderer::PushClipRect (float xDip, float yDip, float widthDip, float heightDip)
+{
+    HRESULT      hr   = S_OK;
+    D2D1_RECT_F  rect = {};
+
+
+    CBRA (m_d2dContext);
+    CBRA (m_drawing);
+
+    rect.left   = xDip;
+    rect.top    = yDip;
+    rect.right  = xDip + widthDip;
+    rect.bottom = yDip + heightDip;
+
+    m_d2dContext->PushAxisAlignedClip (&rect, D2D1_ANTIALIAS_MODE_ALIASED);
+
+Error:
+    return hr;
+}
+
+
+HRESULT DwriteTextRenderer::PopClipRect ()
+{
+    HRESULT  hr = S_OK;
+
+
+    CBRA (m_d2dContext);
+    CBRA (m_drawing);
+
+    m_d2dContext->PopAxisAlignedClip();
 
 Error:
     return hr;
@@ -736,7 +791,7 @@ HRESULT DwriteTextRenderer::MeasureString (
     // re-measures on the next Layout pass once Initialize is done.
     CBR (m_dwriteFactory);
 
-    hr = EnsureTextFormat (fontFamily, fontSizeDip, &rawFmt);
+    hr = EnsureTextFormat (fontFamily, fontSizeDip, DWRITE_FONT_WEIGHT_NORMAL, &rawFmt);
     CHRA (hr);
 
     format.Attach (rawFmt);

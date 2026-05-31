@@ -52,7 +52,6 @@ namespace
         { IDM_MACHINE_PAUSE,            NavMenu::Debug,   L"&Pause",                 L"Pause"         },
         { IDM_MACHINE_STEP,             NavMenu::Debug,   L"&Step",                  L"F11"           },
         { IDM_VIEW_DISK2_DEBUG,        NavMenu::Debug,   L"Disk ][ Debug...",       L"Ctrl+Shift+D"  },
-        { IDM_HELP_DEBUG,               NavMenu::Debug,   L"De&bug console",         L"Ctrl+D"        },
     };
 
 

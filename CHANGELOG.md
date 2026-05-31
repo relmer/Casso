@@ -6,6 +6,309 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.5.1395] — Native dialogs migration (spec 011)
+
+Themed DX-based modal dialogs now replace every Win32 `MessageBoxW` /
+`TaskDialogIndirect` consumer in the app (except the pre-shell EHM
+notification fallback in `Main.cpp`). The bootstrap-time prompts, the
+in-app Help/About/Keymap/Machine Info dialogs, and the SettingsPanel
+ROM-error notification all paint through the new `DialogPrimitive` and
+honour the active chrome theme. The `IFileOpenDialog`-based disk picker
+is preserved as the lone deliberate Win32 surface.
+
+### Added
+- **feat(011): DialogPrimitive modal window (T006–T009).** New
+  `Casso/Ui/Dialog/DialogPrimitive` pair implements the themed blocking
+  modal dialog. `RegisterClass` registers the Win32 class once per
+  instance; `Show()` creates the window, runs a private `GetMessage`
+  loop (disabling the owner window for the duration), and returns the
+  chosen button's `resultCode` (or -1 on Alt+F4 / WM_CLOSE). Keyboard:
+  Enter = default button, Escape = cancel button, Tab/Shift-Tab cycle
+  focus. Hyperlinks launch via `ShellExecuteW`.
+- **feat(011): DialogPrimitiveRenderer.** Split renderer class owns the
+  `CreateSwapChainForHwnd` swap chain (DXGI_ALPHA_MODE_IGNORE, no DComp
+  / no blur), RTV, `DxUiPainter` (geometry), and `DwriteTextRenderer`
+  (text). Paints a gradient title bar, solid dialog background with
+  theme colours, icon circle (Info / Warning / Error / App), word-wrapped
+  body text, hyperlink underlines, optional custom-body callback, and
+  `Button` widgets. DPI-aware: recomputes layout on WM_DPICHANGED.
+- **feat(011): DialogDefinition + DialogLayout primitives.** Pure value
+  types and headless `LayoutDialog` free function; all measurement is
+  injected so the math is unit-tested without DirectWrite.
+- **feat(011): StandaloneDialog wrapper.** Bootstrap-friendly helper
+  that spins up a transient `D3D11CreateDevice (HARDWARE)` + one-shot
+  `DialogPrimitive` for callers that fire before `EmulatorShell` exists
+  (e.g. `AssetBootstrap`'s missing-asset prompts). The caller passes
+  `GlobalUserPrefs::activeTheme` so startup dialogs honour the user's
+  persisted `ChromeTheme` choice (`Skeuomorphic` / `DarkModern` /
+  `RetroTerminal`) instead of always painting Skeuomorphic.
+- **feat(011): themed startup prompts.** `AssetBootstrap::PromptUser`
+  (missing-asset download approval — now with clickable URL hyperlink),
+  `PromptBootDisk` (DOS 3.3 / ProDOS / Skip), and
+  `PromptDiskAudioConsent` (download / skip with GPL-3 disclosure) all
+  paint through `StandaloneDialog`. The legacy `TaskDialogIndirect`
+  + `MessageBoxW` fallback paths are removed.
+- **feat(011): themed in-app dialogs.** `IDM_MACHINE_INFO`,
+  `IDM_HELP_KEYMAP`, `IDM_HELP_ABOUT` (with the photoreal Cassowary app
+  icon + clickable GitHub URL) and the SettingsPanel ROM-download
+  failure notification all route through `EmulatorShell::ShowModalDialog`.
+- **feat(011): `DiskMru` helper + `recentDisks` persistence.**
+  Most-recently-used disk image list (cap = 16, move-to-front dedup,
+  oldest eviction) round-trips through the new `recentDisks` JSON
+  array in `GlobalUserPrefs`. Every successful `EmulatorShell::Mount`
+  pushes the image path onto the MRU and persists.
+- **feat(011): drive widget filename label.** The faceplate now shows
+  the mounted disk's basename below `DRIVE N`, hidden when no disk is
+  mounted, ellipsis-truncated (single U+2026) when wider than the
+  available space. Truncation algorithm is a pure binary search,
+  unit-tested with a deterministic measure stub.
+- **refactor(011): single disk-insert file picker.** Legacy
+  `GetOpenFileNameW` branch removed; both `IDM_DISK_INSERT*` route
+  through the modern `IFileOpenDialog`-backed `PromptForDiskImage`.
+- **feat(011): boot-disk MRU picker (US2).** When no disk is configured
+  at startup, a themed picker lists every still-present recent disk
+  image as a clickable row (basename + hover highlight) above
+  `Download…` / `Skip` footer buttons. Selecting a row mounts that
+  image; `Download…` falls through to the asset bootstrap; `Skip` /
+  Esc boots without a disk. Existence-prunes the MRU on show so
+  deleted files don't reappear.
+- **feat(011): DialogPrimitive custom-body input.** `DialogDefinition`
+  gained an `onInputCustomBody` hook (`std::optional<int>` return =
+  close-request); `DialogPrimitive` dispatches mouse / keyboard events
+  through it before its own handling. `DialogPaintContext` now carries
+  the `DwriteTextRenderer` pointer so custom-body paint callbacks can
+  render text in addition to geometry.
+- **feat(011): Win11 dark-mode pass on debug dialogs (US6/US7).**
+  `DebugConsole` and `DiskIIDebugDialog` apply
+  `DWMWA_USE_IMMERSIVE_DARK_MODE`, dark control brushes, the
+  `DarkMode_Explorer` window theme, and `WM_CTLCOLORSTATIC` overrides so
+  the developer-only dialogs match the rest of the Win11 dark chrome.
+  ListView header (`ItemsView` theme) + row colors picked up too; the
+  Disk II Debug dialog still flags invalid track/sector input in red.
+- **chore(011): link uxtheme.lib.** Required for `SetWindowTheme` calls
+  used by the dark-mode pass; added to all six `AdditionalDependencies`
+  entries in `Casso.vcxproj`.
+- **chore(011): named Unicode constants.** New `s_kchAlmostEqual`
+  (U+2248) in `UnicodeSymbols.h`; all dialog body strings consume
+  named constants rather than inline `\xNNNN` escapes.
+- **feat(011): DX Disk II Debug Panel (US7, T044-T055, T059).** Brand
+  new `Disk2DebugPanel` replaces the legacy Win32 `DiskIIDebugDialog`
+  (-3073 lines). Hosts itself in the shared `ChromedPanelWindow`
+  chrome shell with the active theme; lays out filter checkboxes,
+  audio toggles, drive radios, themed track / sector text inputs with
+  validation feedback, pause / clear buttons, and a sortable virtual
+  event ListView. Adds shared widget primitives `Checkbox`, `Radio`,
+  `TextInput` (cursor + selection + clipboard + keyboard nav), and
+  the `RequiredRowsForHeightPx` helper on `ListView`. All 18
+  `IDiskIIEventSink` + `IDriveAudioEventSink` overrides preserved so
+  the panel slots into the existing EmulatorShell wiring with no
+  contract change.
+- **feat(011): DX Debug Console Panel (US6, T039-T043).** New
+  `DebugConsolePanel` replaces the legacy `DebugConsole` EDIT-control
+  window. Themed monospace log body inside the shared chrome shell,
+  mouse-wheel + PgUp/PgDn/Home/End/arrow scrolling, Ctrl+C copies the
+  full buffer to the clipboard. Thread-safe `Log` / `LogConfig`
+  contract preserved verbatim; existing call sites needed no change.
+- **feat(011): Disk2DebugPanel column toggle + filter tooltips
+  (T056–T058).** Right-clicking a `ListView` column header now opens a
+  themed `PopupMenu` listing every column with its current visibility as
+  a check; selecting an entry hides or shows the column and re-runs
+  layout. Hovering any filter control surfaces a themed `Tooltip` (DX
+  overlay, no Win32 `TOOLTIPS_CLASS`) explaining the control after the
+  standard dwell delay. Layout pass walked under Skeuomorphic,
+  DarkModern, and RetroTerminal — every widget family renders without
+  overlap and the ListView header shows all six columns.
+- **chore(011): shared `PopupMenu` widget.**
+  `Casso/Ui/Widgets/PopupMenu` provides a reusable themed popup with
+  check glyph, keyboard navigation (arrow keys + Enter / Escape), and
+  host-rectangle clamping so panels can host context menus without
+  pulling in Win32 menu APIs.
+- **chore(011): chrome shell extracted.** `ChromedPanelWindow` and
+  `IChromedPanelContent` factored out from the dialog primitives so
+  both new panels (and any future child window) share NC chrome,
+  title bar, sys buttons, DPI handling, and input routing without
+  copy-paste.
+
+- **feat(011): DebugConsolePanel text selection (T041).** Click-drag
+  selects a character range; Shift+arrows / Shift+Home/End extend the
+  selection (Shift+Ctrl+Home/End jump to the buffer extremes), plain
+  caret-move keys collapse it. Ctrl+A selects the whole buffer; Ctrl+C
+  copies the current selection to the clipboard as `CF_UNICODETEXT`
+  (CR/LF between lines), or is a no-op when the selection is empty.
+  Selection highlight paints under the text using the active theme's
+  nav-hover colour and tracks the viewport while dragging past the
+  body edges.
+- **feat(011): Disk2DebugPanel per-column sortable header (T055).**
+  Clicking any ListView header now sorts by that column; clicking the
+  active column flips ascending / descending. All six columns
+  (Wall / Uptime / Cycle / Drive / Event / Detail) participate, with
+  a numeric-aware comparator for the comma-grouped cycle string and
+  the projection's `EventLabel` for the event column. A ▲ / ▼ glyph
+  paints in the active sort header. `ListView::HitTestHeaderColumn`
+  is the new shared hit-test helper.
+
+### Fixed
+- **fix(disk2debug): Z-pattern Tab order, list keyboard nav, selection
+  preservation.** The Disk II debug panel's Tab focus now follows a
+  Z-pattern top-to-bottom / left-to-right (Motor through DriveSel,
+  Audio master + sub-checks, Drive radio, Track/Sector edits, raw QT
+  checkbox, Pause, Clear) instead of starting on Pause. Past stop 18
+  the Tab cycle continues through dynamic per-visible-column stops:
+  each visible column gets a header stop (Space sorts) and a divider
+  stop (Left/Right resizes by 8dp); the last dynamic stop is the list
+  body, where Up/Down/Home/End/PageUp/PageDown move the selected row.
+  Selection is now persisted by event identity (index into `m_events`)
+  and remapped via `lower_bound` on every filter/sort/clear rebuild,
+  snapping to the nearest still-visible neighbour when the selected
+  event falls outside the current filter. `OnKey` now routes input to
+  the focused widget only (the old broadcast-to-all path swallowed
+  arrows for the wrong widgets) and `PushListViewRows` now skips
+  stale `m_filteredIndices` entries defensively to harden against any
+  index/deque desync that would have tripped a `vector subscript out
+  of range` assertion in ARM64 Debug.
+- **fix(011): SettingsPanel + dialog body share one themed background.**
+  The settings popup hardcoded a dark-navy panel fill while the
+  themed dialog body used `dropdownBgArgb`, so the two surfaces drew
+  visibly different colours when stacked. New `panelBgArgb` /
+  `panelEdgeArgb` entries on `ChromeTheme` are now consumed by both
+  the settings popup and `DialogPrimitiveRenderer`, and pick up the
+  active theme (Skeuomorphic / Dark / RetroTerminal) instead of the
+  former blue-only constants.
+- **fix(011): mounted disks now follow the user across machine switches.**
+  Switching machines (e.g. //e → ][+) tore down the old Disk II
+  controller and brought up a fresh empty one, leaving the previously
+  mounted image orphaned in `DiskImageStore`. The new machine's boot
+  ROM then seeked to track 0, found no data, and spun forever. The
+  switch now snapshots slot-6 source paths before teardown and
+  re-mounts them on the new controller, matching the user's physical
+  mental model (the disk stays in the drive). Per-machine saved-disk
+  prefs are still consulted when no disk is mounted at switch time.
+  Carry is also guarded by `HasSlot6Controller()` so destinations
+  without a Disk II (future non-Apple families, or //e → IIgs where
+  the 3.5" SmartPort lives in slot 5) cleanly drop incompatible media
+  rather than silently losing it.
+- **fix(011): Disk II debug panel polish.** A handful of cosmetic /
+  ergonomic issues in the new themed Disk II debug panel:
+  - Tooltips now scale with DPI (font, padding, border, anchor gap)
+    and measure real text width instead of estimating from a magic
+    character-width constant.
+  - Filter checkboxes, radio buttons, and the "Raw qt" toggle were
+    too narrow at default fonts, wrapping their labels; widened the
+    per-control slot widths in the layout helper.
+  - The `Drive` column header in the event list was clipping to
+    `Driv\ne`; bumped `kColDriveWidth` to fit the bold header glyphs.
+  - Non-modal panels (Disk II debug, Debug console) no longer pin
+    themselves above the main window — the new
+    `IChromedPanelContent::IsNonModal()` hook passes `nullptr` as
+    the parent HWND so the user can park them behind Casso.
+  - General-purpose `Button` widgets now use a dedicated themed
+    palette (`buttonIdle/Hover/Pressed/BorderArgb`) instead of
+    inheriting the transparent chrome min/max/close colours, and
+    paint a default 1dip border so a button actually looks like a
+    button. Chrome titlebar buttons are unaffected (they paint
+    themselves).
+  - Renamed the event list's `Wall` column header to `Time`.
+  - Tooltips are now fully opaque (background alpha bumped from 0xF0
+    to 0xFF) so text underneath no longer bleeds through. The Disk II
+    debug panel additionally flushes both `DxUiPainter` and
+    `DwriteTextRenderer` between underlying widgets and the
+    tooltip/column-menu overlays, so opaque overlay backgrounds
+    actually composite *above* widget text (both renderers batch, so
+    submission order alone wasn't enough — text from underlying widgets
+    would otherwise paint on top of the overlay's geometry).
+  - **Disk II debug panel: scrollable event list + scrollbar.** The
+    panel's `ListView` now keeps its full filtered history rather than
+    truncating to whatever fits in the slot, and paints a vertical
+    scrollbar at the right edge whenever the row count exceeds the
+    visible capacity. Mouse-wheel / trackpad scrolling is wired
+    through `IChromedPanelContent::OnMouseWheel`. Sticky-tail behaviour
+    keeps the latest events in view when parked at the bottom; once the
+    user scrolls back, new events accumulate without yanking the view.
+  - **Disk II debug panel: keyboard focus + Tab navigation.** Tab /
+    Shift+Tab cycle focus through the 19 focusable stops (Pause, Clear,
+    8 event-type checkboxes, audio master + 4 sub-checks, raw-Qt check,
+    drive radio group, track edit, sector edit). Mouse-clicks on any
+    widget also acquire focus. The existing per-widget focus rings
+    finally light up; Enter / Space activate buttons, Space toggles
+    checkboxes, arrows cycle radios — all without touching the mouse.
+  - Non-modal panels (Disk II debug, Debug console) now get a taskbar
+    button via `WS_EX_APPWINDOW` and drop `WS_EX_TOOLWINDOW`, so they
+    re-appear in Alt+Tab and can be raised even when fully occluded
+    by Casso.
+  - Event list column headers are now user-resizable: faint vertical
+    separators mark each column edge, the cursor switches to
+    `IDC_SIZEWE` over the right-edge handle, and click-drag adjusts
+    the column width via `ListView::SetColumnOverrideWidthPx`.
+    Plumbed through a new `IChromedPanelContent::OnSetCursor` hook
+    that `ChromedPanelWindow::WndProc` routes from `WM_SETCURSOR`.
+  - "Invalid" feedback under the track / sector filters now restores
+    the rejected-token detail (e.g. `Invalid track: foo, 99`) instead
+    of the bare `Invalid` placeholder, slicing the original spans out
+    of the edit's text via `TrackSectorPredicate::RejectedSpans()`.
+  - The drive-filter radio row gets a `Drive:` label so the three
+    radios aren't anonymous. New layout slot + `Label m_driveFilterLabel`.
+  - `All` is now the default selected drive filter again: the bug was
+    that `ConfigureWidgets` called `SetSelected(0)` before
+    `LayoutWidgets` had populated `SetOptions`, so the out-of-range
+    clamp silently fell back to -1. `LayoutWidgets` now re-applies
+    `SetSelected (m_filter.driveFilter)` after `SetOptions`.
+  - Right-aligned column headers no longer underlap the sort triangle.
+    `ListView::Paint` reserves the sort-glyph width plus a small gap
+    on the right edge of the title's draw rectangle on the sorted
+    column, so right-aligned titles shift left and the triangle has
+    its own clear lane.
+  - `TextInput` no longer wraps when text exceeds the visible width.
+    `DwriteTextRenderer::DrawString` gained an optional `wrap` flag
+    that toggles `DWRITE_WORD_WRAPPING_NO_WRAP`, and the renderer
+    exposes `PushClipRect`/`PopClipRect` so a widget can clip text
+    to its inner rect. `TextInput::Paint` measures the caret pixel
+    position, slides a per-widget `m_scrollPx` offset so the caret
+    stays in view (and trailing edge doesn't leave dead space), and
+    pushes a clip rect across the inner area. `CaretFromX` adjusts
+    by `m_scrollPx` so mouse clicks still hit the right character
+    once the text has scrolled.
+  - `ListView` scrollbar thumb is now draggable with live scrolling.
+    New `HitTestScrollbarThumb`/`HitTestScrollbarTrack` and
+    `BeginThumbDrag`/`UpdateThumbDrag`/`EndThumbDrag` on the widget;
+    the Disk II debug panel routes `WM_LBUTTONDOWN` / `WM_MOUSEMOVE`
+    / `WM_LBUTTONUP` through them (with capture) ahead of other
+    hit-tests. Track clicks above / below the thumb page-scroll by
+    one visible-row capacity.
+  - Disk II debug panel: the event-type and audio-event checkbox
+    rows now have leading `Disk events:` / `Audio events:` labels
+    (same width on both rows, so the checkbox columns line up
+    vertically). The audio master checkbox is relabelled `All`
+    (the row label carries the "audio" word now), and the four
+    sub-checkboxes are now disabled when `All` is unchecked.
+
+### Deferred
+- None — all spec 011 tasks shipped.
+
+### Removed
+- **chore(debug): remove DX Debug Console panel.** The themed Debug
+  Console (Help → Debug, Ctrl+D) shipped earlier in this spec turned
+  out to carry no signal worth keeping (DEBUGMSG output is already
+  visible in the VS debugger and machine-config dumps duplicate what
+  the Hardware Info dialog shows). Removed `DebugConsolePanel.{h,cpp}`,
+  `IDM_HELP_DEBUG`, the Ctrl+D accelerator, the Help menu entry, the
+  keymap dialog line, and the per-frame render hook.
+
+### Fixed (post-merge polish)
+- **fix(disk2debug): allow reopening after the close box.** Clicking
+  the title-bar X destroyed the panel's HWND but left the owning
+  `unique_ptr` in `EmulatorShell` non-null with a stale handle. The
+  next menu / Ctrl+Shift+D click hit the cached pointer's `Show()`
+  on a dead HWND and silently did nothing. The open path now treats
+  `Hwnd() == nullptr` the same as `panel == nullptr` and reconstructs.
+
+### Tests
+- **+24 headless unit tests** across `DialogLayoutTests` (6),
+  `DiskMruTests` (9), `DriveLabelTruncationTests` (7), and
+  `GlobalUserPrefsTests` (+2 round-trip / malformed-entry cases). All
+  measurement and filesystem dependencies injected; no Win32, no real
+  file I/O. Plus `Disk2DebugPanelLayoutTests` (10) covering the new
+  layout slots. Total suite: 1653/1653 passing.
+
 ## [1.5.1289] — Copy-protected games boot
 
 This release celebrates a milestone: Casso now boots original,
@@ -63,7 +366,6 @@ software, and bumps Casso to **1.5**.
   CPU now exposes a bus-access-precise cycle counter; the Disk II
   controller samples it so rotational position reflects the exact cycle
   a `$C0Ex` access occurs rather than the end-of-instruction rollup.
-
 
 
 ## [1.4.1260] — Drive widget interaction + disk persistence fix

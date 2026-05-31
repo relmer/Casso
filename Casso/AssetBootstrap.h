@@ -61,6 +61,7 @@ public:
                                            HWND                     hwndParent,
                                            const vector<fs::path> & searchPaths,
                                            const fs::path         & assetBaseDir,
+                                           std::string_view         themeName,
                                            string                 & outError);
 
     // Audio / FR-017 / FR-018. Inspects
@@ -97,7 +98,9 @@ public:
                                             LPCWSTR                  urlPath,
                                             uint32_t                 targetSampleRate,
                                             vector<float>          & outPcm,
-                                            string                 & outError);
+                                            string                 & outError,
+                                            std::atomic<std::uint64_t> * progressBytes  = nullptr,
+                                            std::atomic<bool>          * cancelRequested = nullptr);
 
     // Write `pcm` as a 16-bit PCM mono WAV file to `outPath`. Clips
     // out-of-range samples to int16 (drive noise stays well inside
@@ -110,10 +113,58 @@ public:
                                             uint32_t                 sampleRate,
                                             string                 & outError);
 
-    static HRESULT  OfferBootDiskDownload (HINSTANCE                hInstance,
+    // Themed boot-disk picker. Lists the user's recent disk images
+    // plus "Download" rows for the DOS 3.3 and ProDOS stock masters
+    // (sourced from the Asimov archive). Always shown when the
+    // machine has a Disk ][ controller and no boot disk has been
+    // resolved yet, even when the MRU is empty -- the download rows
+    // give a fresh install somewhere to go. Picking a row mounts it
+    // (downloading on demand for the stock rows); Skip leaves the
+    // slot empty.
+    //
+    // On return:
+    //   outDiskPath = path to mount, or empty if the user skipped /
+    //                 the machine has no Disk ][ controller.
+    static HRESULT  PromptBootDiskMru     (HINSTANCE                hInstance,
+                                           HWND                     hwndParent,
+                                           const wstring          & machineName,
+                                           const vector<fs::path> & mruEntries,
+                                           const fs::path         & diskDir,
+                                           std::string_view         themeName,
+                                           wstring                & outDiskPath,
+                                           bool                   & outUserClosed,
+                                           string                 & outError);
+
+    // Unified startup downloader. Inspects the current install for
+    // every required-or-optional asset that's missing (ROMs from the
+    // catalog, Disk II drive audio per mechanism) and presents a
+    // SINGLE themed dialog letting the user accept or decline the
+    // download in one decision. Downloads run on a worker thread with
+    // live per-asset progress; the user can Exit at any point and
+    // partial files are removed before this returns.
+    //
+    // Returns:
+    //   S_OK       -> everything required is present (some optional
+    //                 items may have failed or been skipped)
+    //   S_FALSE    -> user chose Exit
+    //   <0 HRESULT -> hard failure
+    //
+    // `prefs.audioDownloadConsent` is read AND updated to reflect the
+    // user's choice (allow / decline). The caller is responsible for
+    // flushing prefs to disk after this returns.
+    // `outBootDiskPath` (if non-empty on return) names the freshly
+    // downloaded stock master disk; the caller should treat it as
+    // disk1 for the impending machine boot. Empty if no boot-disk
+    // entry was included or download did not finish.
+    static HRESULT  RunStartupDownloader  (HINSTANCE                hInstance,
                                            const wstring          & machineName,
                                            HWND                     hwndParent,
+                                           const vector<fs::path> & romSearchPaths,
+                                           const fs::path         & assetBaseDir,
+                                           bool                     considerDiskAudio,
+                                           bool                     offerBootDisk,
                                            const fs::path         & diskDir,
-                                           wstring                & outDiskPath,
+                                           struct GlobalUserPrefs & prefs,
+                                           wstring                & outBootDiskPath,
                                            string                 & outError);
 };

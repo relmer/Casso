@@ -2,6 +2,7 @@
 
 #include "EmulatorShell.h"
 #include "AssetBootstrap.h"
+
 #include "Core/PathResolver.h"
 #include "Version.h"
 #include "resource.h"
@@ -32,6 +33,7 @@
 #include "Ui/TitleBarHitTest.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/DriveWidgetController.h"
+#include "Shell/DiskMru.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -63,6 +65,7 @@ static constexpr int     kFramebufferHeight      = ChromeMetrics::kFramebufferHe
 static constexpr LPCWSTR kWindowClass           = L"CassoWindow";
 static constexpr int     s_kBaseDpi             = ChromeMetrics::kBaseDpi;
 static constexpr int     s_kDriveWidgetGapDp    = 16;
+static constexpr int     s_kLabelBottomGapDp    = 2;
 
 
 
@@ -85,8 +88,8 @@ namespace
     {
         int     bottomInset   = layout.bottomInsetPx;
         int     commandBarTop = std::max (0, clientH - bottomInset);
-        int     commandBarH   = std::max (0, clientH - commandBarTop);
         int     gap           = MulDiv (s_kDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
+        int     bottomGap     = 0;
         RECT    probe         = {};
         int     widgetW       = 0;
         int     widgetH       = 0;
@@ -98,12 +101,16 @@ namespace
 
 
         driveChrome[0].Layout (0, 0, dpi);
-        probe   = driveChrome[0].BodyRect();
+        probe   = driveChrome[0].OuterRect();
         widgetW = probe.right  - probe.left;
         widgetH = probe.bottom - probe.top;
         totalW  = widgetW * static_cast<int> (driveChrome.size()) + gap * (static_cast<int> (driveChrome.size()) - 1);
         x       = std::max (0, (clientW - totalW) / 2);
-        y       = commandBarTop + (commandBarH - widgetH) / 2;
+        // Anchor the widget to the bottom so the margin between the
+        // basename label and the window edge mirrors the gap between
+        // the drive body and the label (s_kLabelStripGapPx, scaled).
+        bottomGap = MulDiv (s_kLabelBottomGapDp, static_cast<int> (dpi), s_kBaseDpi);
+        y         = std::max (commandBarTop, clientH - widgetH - bottomGap);
 
         for (i = 0; i < driveChrome.size(); i++)
         {
@@ -375,7 +382,7 @@ EmulatorShell::~EmulatorShell()
     // is destroyed, which happens via m_ownedDevices / m_diskAudioSources
     // below). Controller sink first, then audio sink, matching the
     // attachment order in OpenDisk2DebugDialog.
-    if (m_disk2DebugDialog != nullptr)
+    if (m_disk2DebugPanel != nullptr)
     {
         controller = m_diskManager->FindSlot6Controller();
 
@@ -392,8 +399,7 @@ EmulatorShell::~EmulatorShell()
             }
         }
 
-        m_disk2DebugDialog->Destroy();
-        m_disk2DebugDialog.reset();
+        m_disk2DebugPanel.reset();
     }
 
     // / T097 / FR-025. Final auto-flush of any dirty disks on
@@ -1447,7 +1453,53 @@ bool EmulatorShell::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 HRESULT EmulatorShell::Mount (int slot, int drive, const std::wstring & path)
 {
-    return m_diskManager->Mount (slot, drive, path);
+    HRESULT  hr = S_OK;
+
+
+
+    hr = m_diskManager->Mount (slot, drive, path);
+    CHR (hr);
+
+    RecordRecentDisk (path);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RecordRecentDisk
+//
+//  Push a successfully-mounted disk image onto the recent-disks MRU
+//  and persist the updated prefs. Best-effort; failures are swallowed
+//  so an MRU write hiccup never blocks a successful mount.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RecordRecentDisk (const std::wstring & path)
+{
+    DiskMru                   mru;
+    std::filesystem::path     fsPath;
+    std::vector<std::string>  serialized;
+
+
+
+    if (path.empty())
+    {
+        return;
+    }
+
+    fsPath = std::filesystem::path (path);
+    mru    = DiskMru::FromUtf8 (m_globalPrefs.recentDisks);
+    mru.RecordMount (fsPath);
+    mru.ToUtf8 (serialized);
+    m_globalPrefs.recentDisks = std::move (serialized);
+
+    SaveGlobalPrefs();
 }
 
 
@@ -1656,6 +1708,35 @@ void EmulatorShell::SaveGlobalPrefs()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::ShowModalDialog
+//
+//  Lazy-registers the DialogPrimitive window class on first use and
+//  blocks until the user dismisses the dialog. Returns the chosen
+//  button's resultCode, or -1 when the user closes via window gesture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
+{
+    HRESULT  hr = S_OK;
+
+
+    hr = m_dialogPrimitive.RegisterClass (m_hInstance);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    return m_dialogPrimitive.Show (m_hwnd,
+                                   m_d3dRenderer.GetDevice(),
+                                   m_d3dRenderer.GetContext(),
+                                   &m_chromeTheme,
+                                   def);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::ApplyThemeToChrome
 //
 //  Push freshly-activated theme into the chrome regions whose layout
@@ -1674,8 +1755,12 @@ void EmulatorShell::SaveGlobalPrefs()
 
 void EmulatorShell::ApplyThemeToChrome (const ChromeTheme & theme)
 {
-    constexpr int  s_kFullDriveBarDp    = 192;
-    constexpr int  s_kCompactDriveBarDp = 64;
+    // Drive-bar slot thickness. Skeuomorphic shows the full 3D drive
+    // body (160 px) plus ~30 px of vertical slack and the basename
+    // label strip (~20 px). Compact themes show only the flat card
+    // (40 px) plus padding and the label strip.
+    constexpr int  s_kFullDriveBarDp    = 212;
+    constexpr int  s_kCompactDriveBarDp = 84;
 
     int   desiredThicknessDp = theme.compactDrives ? s_kCompactDriveBarDp : s_kFullDriveBarDp;
     int   priorThicknessDp   = m_driveBarSlot.DesiredThicknessDp();
@@ -1878,6 +1963,10 @@ int EmulatorShell::RunMessageLoop()
         // open in state-only and never repaint, looking dead.
         m_settingsPanel.UpdatePreviewOverlap (m_d3dRenderer.GetEmulatorContentScreenRect());
         IGNORE_RETURN_VALUE (hr, m_settingsPanel.RenderPopup());
+        if (m_disk2DebugPanel != nullptr)
+        {
+            IGNORE_RETURN_VALUE (hr, m_disk2DebugPanel->RenderFrame());
+        }
         if (m_navLayer.IsOpen())
         {
             m_d3dRenderer.MarkRedrawNeeded();
@@ -3071,43 +3160,43 @@ void EmulatorShell::OpenDisk2DebugDialog()
         }
     }
 
-    if (m_disk2DebugDialog == nullptr)
+    if (m_disk2DebugPanel == nullptr || m_disk2DebugPanel->Hwnd() == nullptr)
     {
-        m_disk2DebugDialog = std::make_unique<Disk2DebugDialog>();
+        hInstance          = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
+        m_disk2DebugPanel = std::make_unique<Disk2DebugPanel>();
 
-        hInstance = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
+        hr = m_disk2DebugPanel->Create (hInstance,
+                                         m_hwnd,
+                                         m_d3dRenderer.GetDevice(),
+                                         m_d3dRenderer.GetContext(),
+                                         &m_chromeTheme);
+        CHRF (hr, m_disk2DebugPanel.reset());
 
-        hr = m_disk2DebugDialog->Create (hInstance, m_hwnd);
-        CHRF (hr, m_disk2DebugDialog.reset());
-
-        m_disk2DebugDialog->SetUptimeAnchor (m_uptimeAnchor);
-        m_disk2DebugDialog->SetMultiControllerHint (Disk2Count > 1);
+        m_disk2DebugPanel->SetUptimeAnchor (m_uptimeAnchor);
+        m_disk2DebugPanel->SetMultiControllerHint (Disk2Count > 1);
 
         if (m_cpu != nullptr)
         {
-            m_disk2DebugDialog->SetCycleCounter (m_cpu->GetCycleCounterPtr());
+            m_disk2DebugPanel->SetCycleCounter (m_cpu->GetCycleCounterPtr());
         }
 
-        // FR-024: both sinks attached together, dialog implements
-        // both interfaces. Audio sink is a no-op if the mixer has no
-        // source registered (e.g., audio subsystem disabled).
-        controller->SetEventSink (m_disk2DebugDialog.get());
+        controller->SetEventSink (m_disk2DebugPanel.get());
 
         for (i = 0; i < m_diskAudioSources.size(); i++)
         {
             if (m_diskAudioSources[i] != nullptr)
             {
-                m_diskAudioSources[i]->SetAudioEventSink (m_disk2DebugDialog.get());
+                m_diskAudioSources[i]->SetAudioEventSink (m_disk2DebugPanel.get());
             }
         }
     }
     else
     {
-        m_disk2DebugDialog->SetMultiControllerHint (Disk2Count > 1);
+        m_disk2DebugPanel->SetMultiControllerHint (Disk2Count > 1);
     }
 
-    m_disk2DebugDialog->Show();
-    SetForegroundWindow (m_disk2DebugDialog->GetHwnd());
+    m_disk2DebugPanel->Show();
+    SetForegroundWindow (m_disk2DebugPanel->Hwnd());
 
 Error:
     return;
@@ -3123,11 +3212,11 @@ Error:
 //
 //  Spec-006 bug 15. SwitchMachine tears down the old controller and
 //  audio source then constructs new ones via CreateMemoryDevices,
-//  but the dialog's sink wiring only ran inside OpenDisk2DebugDialog
+//  but the panel's sink wiring only ran inside OpenDisk2DebugDialog
 //  on first open -- the new controller starts with m_eventSink ==
 //  nullptr and the new audio source with m_audioEventSink == nullptr,
 //  so the debug window goes silent post-switch. Re-attach both
-//  sinks if the dialog is still open. No-op when the dialog has
+//  sinks if the panel is still open. No-op when the panel has
 //  never been opened.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3138,20 +3227,20 @@ void EmulatorShell::AttachDebugSinksIfOpen()
     Disk2Controller *   controller = nullptr;
     size_t              i          = 0;
 
-    CBR (m_disk2DebugDialog != nullptr);
+    CBR (m_disk2DebugPanel != nullptr);
 
     controller = m_diskManager->FindSlot6Controller();
 
     if (controller != nullptr)
     {
-        controller->SetEventSink (m_disk2DebugDialog.get());
+        controller->SetEventSink (m_disk2DebugPanel.get());
     }
 
     for (i = 0; i < m_diskAudioSources.size(); i++)
     {
         if (m_diskAudioSources[i] != nullptr)
         {
-            m_diskAudioSources[i]->SetAudioEventSink (m_disk2DebugDialog.get());
+            m_diskAudioSources[i]->SetAudioEventSink (m_disk2DebugPanel.get());
         }
     }
 

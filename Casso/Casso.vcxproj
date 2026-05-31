@@ -114,7 +114,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -134,7 +134,7 @@
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -150,7 +150,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -170,7 +170,7 @@
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
@@ -186,7 +186,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
@@ -206,7 +206,7 @@
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -225,7 +225,6 @@
     <ClCompile Include="PerfStats.cpp" />
     <ClCompile Include="Window.cpp" />
     <ClCompile Include="EmulatorShell.cpp" />
-    <ClCompile Include="DebugConsole.cpp" />
     <ClCompile Include="DiskSettings.cpp" />
     <ClCompile Include="AssetBootstrap.cpp" />
     <ClCompile Include="Config\Win32FileSystem.cpp" />
@@ -234,6 +233,7 @@
     <ClCompile Include="Config\GlobalUserPrefs.cpp" />
     <ClCompile Include="Ui\TitleBarHitTest.cpp" />
     <ClCompile Include="Ui\Chrome\TitleBar.cpp" />
+    <ClCompile Include="Ui\Chrome\ChromedPanelWindow.cpp" />
     <ClCompile Include="Ui\Chrome\NavLayer.cpp" />
     <ClCompile Include="Ui\Chrome\LayoutManager.cpp" />
     <ClCompile Include="Ui\Win11DwmHelpers.cpp" />
@@ -252,7 +252,9 @@
     <ClCompile Include="Ui\Widgets\Radio.cpp" />
     <ClCompile Include="Ui\Widgets\Slider.cpp" />
     <ClCompile Include="Ui\Widgets\TabStrip.cpp" />
+    <ClCompile Include="Ui\Widgets\TextInput.cpp" />
     <ClCompile Include="Ui\Widgets\Tooltip.cpp" />
+    <ClCompile Include="Ui\Widgets\PopupMenu.cpp" />
     <ClCompile Include="Ui\Widgets\TreeView.cpp" />
     <ClCompile Include="Ui\AutoMountResolver.cpp" />
     <ClCompile Include="Ui\Settings\DisplayPage.cpp" />
@@ -277,10 +279,18 @@
     <ClCompile Include="Ui\FocusManager.cpp" />
     <ClCompile Include="Ui\Layout.cpp" />
     <ClCompile Include="Ui\Animation.cpp" />
+    <ClCompile Include="Ui\Chrome\DriveLabelTruncation.cpp" />
+    <ClCompile Include="Ui\Dialog\DialogLayout.cpp" />
+    <ClCompile Include="Ui\Dialog\DialogPrimitive.cpp" />
+    <ClCompile Include="Ui\Dialog\DialogPrimitiveRenderer.cpp" />
+    <ClCompile Include="Ui\Dialog\StandaloneDialog.cpp" />
+    <ClCompile Include="Ui\Dialog\StartupDownloadDialog.cpp" />
+    <ClCompile Include="Shell\DiskMru.cpp" />
     <ClCompile Include="TrackSectorPredicate.cpp" />
     <ClCompile Include="DebugDialogProjection.cpp" />
     <ClCompile Include="Disk2DebugDialogState.cpp" />
-    <ClCompile Include="Disk2DebugDialog.cpp" />
+    <ClCompile Include="Ui\Disk2DebugPanel.cpp" />
+    <ClCompile Include="Ui\Disk2DebugPanelLayout.cpp" />
     <ClCompile Include="RichEditSquiggle.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -292,7 +302,6 @@
     <ClInclude Include="Window.h" />
     <ClInclude Include="EmulatorShell.h" />
     <ClInclude Include="Disk2EventDisplay.h" />
-    <ClInclude Include="DebugConsole.h" />
     <ClInclude Include="DiskSettings.h" />
     <ClInclude Include="AssetBootstrap.h" />
     <ClInclude Include="Config\IFileSystem.h" />
@@ -302,8 +311,18 @@
     <ClInclude Include="Config\GlobalUserPrefs.h" />
     <ClInclude Include="Ui\TitleBarHitTest.h" />
     <ClInclude Include="Ui\Chrome\ChromeMetrics.h" />
+    <ClInclude Include="Ui\Chrome\DriveLabelTruncation.h" />
+    <ClInclude Include="Ui\Dialog\DialogDefinition.h" />
+    <ClInclude Include="Ui\Dialog\DialogLayout.h" />
+    <ClInclude Include="Ui\Dialog\DialogPrimitive.h" />
+    <ClInclude Include="Ui\Dialog\DialogPrimitiveRenderer.h" />
+    <ClInclude Include="Ui\Dialog\StandaloneDialog.h" />
+    <ClInclude Include="Ui\Dialog\StartupDownloadDialog.h" />
+    <ClInclude Include="Shell\DiskMru.h" />
     <ClInclude Include="Ui\Chrome\LayoutManager.h" />
     <ClInclude Include="Ui\Chrome\TitleBar.h" />
+    <ClInclude Include="Ui\Chrome\ChromedPanelWindow.h" />
+    <ClInclude Include="Ui\Chrome\IChromedPanelContent.h" />
     <ClInclude Include="Ui\Chrome\NavLayer.h" />
     <ClInclude Include="Ui\Win11DwmHelpers.h" />
     <ClInclude Include="Ui\WindowsThemeColors.h" />
@@ -324,7 +343,9 @@
     <ClInclude Include="Ui\Widgets\Radio.h" />
     <ClInclude Include="Ui\Widgets\Slider.h" />
     <ClInclude Include="Ui\Widgets\TabStrip.h" />
+    <ClInclude Include="Ui\Widgets\TextInput.h" />
     <ClInclude Include="Ui\Widgets\Tooltip.h" />
+    <ClInclude Include="Ui\Widgets\PopupMenu.h" />
     <ClInclude Include="Ui\Widgets\TreeView.h" />
     <ClInclude Include="Ui\IDriveCommandSink.h" />
     <ClInclude Include="Ui\AutoMountResolver.h" />
@@ -354,7 +375,8 @@
     <ClInclude Include="TrackSectorPredicate.h" />
     <ClInclude Include="DebugDialogProjection.h" />
     <ClInclude Include="Disk2DebugDialogState.h" />
-    <ClInclude Include="Disk2DebugDialog.h" />
+    <ClInclude Include="Ui\Disk2DebugPanel.h" />
+    <ClInclude Include="Ui\Disk2DebugPanelLayout.h" />
     <ClInclude Include="RichEditSquiggle.h" />
     <ClInclude Include="UnicodeSymbols.h" />
     <ClInclude Include="WasapiAudio.h" />

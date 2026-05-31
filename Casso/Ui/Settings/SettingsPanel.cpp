@@ -35,8 +35,6 @@ namespace
     constexpr int    s_kButtonGapDp    = 8;
     constexpr int    s_kPanelPadDp     = 16;
     constexpr int    s_kPanelMarginDp  = 16;
-    constexpr uint32_t s_kPanelBgArgb  = 0xFF1A2230;
-    constexpr uint32_t s_kPanelEdgeArgb = 0xFF334050;
     constexpr uint32_t s_kCaptionBgArgb = 0xFF0F1620;
     constexpr uint32_t s_kCaptionTextArgb = 0xFFE8EEF4;
     constexpr float    s_kEdgeThickDp  = 1.0f;
@@ -371,6 +369,11 @@ HRESULT SettingsPanel::Initialize (
             outW = ChromeMetrics::kFramebufferWidthPx;
             outH = ChromeMetrics::kFramebufferHeightPx;
             return shellRef.UiFramebufferPixels();
+        });
+
+        m_themePage.SetMountedPathSource ([&shellRef] (int driveIndex) -> std::wstring
+        {
+            return shellRef.MountedImagePath (driveIndex);
         });
     }
 
@@ -1513,55 +1516,54 @@ void SettingsPanel::DoMachineSelect (const std::string & machineName)
         return;
     }
 
-    // Pre-flight: ensure ROMs for the target machine exist on disk
-    // before asking MachineManager::SwitchMachine to load the config.
-    // Without this, picking an uninstalled machine throws a "ROM file
-    // not found" error dialog. Mirrors the startup flow in Main.cpp.
+    // Pre-flight: ensure ROMs and (if applicable) Disk II audio for
+    // the target machine exist on disk before asking
+    // MachineManager::SwitchMachine to load the config. Without this,
+    // picking an uninstalled machine throws a "ROM file not found"
+    // error dialog. Mirrors the unified startup flow in Main.cpp.
     searchPaths  = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
                                                    PathResolver::GetWorkingDirectory());
     assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
 
-    hr = AssetBootstrap::CheckAndFetchRoms (hInstance, wideName, hwndParent,
-                                            searchPaths, assetBaseDir, bootstrapError);
+    {
+        bool          hasDisk            = false;
+        std::string   hasDiskErr;
+        std::wstring  downloadedDisk;
+        HRESULT       hrHasDisk          = AssetBootstrap::HasDiskController (hInstance, wideName,
+                                                                              hasDisk, hasDiskErr);
+        IGNORE_RETURN_VALUE (hrHasDisk, S_OK);
+
+        // Switch-machine flow: never auto-download a boot disk -- the
+        // user explicitly picks the disk via File menu / settings.
+        hr = AssetBootstrap::RunStartupDownloader (hInstance, wideName, hwndParent,
+                                                   searchPaths, assetBaseDir, hasDisk,
+                                                   false, fs::path(),
+                                                   *m_prefs, downloadedDisk, bootstrapError);
+
+        // Audio consent may have been updated; flush prefs regardless.
+        if (m_ucs != nullptr && m_fs != nullptr)
+        {
+            HRESULT  hrSave = m_ucs->SaveAll (*m_prefs, *m_fs);
+            IGNORE_RETURN_VALUE (hrSave, S_OK);
+        }
+    }
+
     if (hr == S_FALSE)
     {
-        // User declined the download; leave the active machine alone.
+        // User chose Exit; leave the active machine alone.
         return;
     }
     if (FAILED (hr))
     {
-        std::wstring  wErr (bootstrapError.begin(), bootstrapError.end());
+        std::wstring     wErr (bootstrapError.begin(), bootstrapError.end());
+        DialogDefinition def  = {};
 
-        MessageBoxW (hwndParent,
-                     std::format (L"ROM download failed:\n{}", wErr).c_str(),
-                     L"Casso", MB_OK | MB_ICONERROR);
+        def.title = L"Casso";
+        def.icon  = DialogIcon::Error;
+        def.body.push_back ({ std::format (L"Asset download failed:\n{}", wErr), false, L"" });
+        def.buttons.push_back ({ L"OK", 0, true, true });
+        (void) m_emuShell->ShowModalDialog (def);
         return;
-    }
-
-    // Best-effort: drive audio bootstrap for machines with a Disk II.
-    {
-        bool     hasDisk     = false;
-        std::string  hasDiskErr;
-        HRESULT  hrHasDisk   = AssetBootstrap::HasDiskController (hInstance, wideName,
-                                                                  hasDisk, hasDiskErr);
-        IGNORE_RETURN_VALUE (hrHasDisk, S_OK);
-
-        if (hasDisk)
-        {
-            fs::path     devicesDir  = assetBaseDir / L"Devices" / L"DiskII";
-            std::string  diskAudioErr;
-            HRESULT      hrAudio     = AssetBootstrap::CheckAndFetchDiskAudio (hInstance, wideName, hwndParent,
-                                                                               devicesDir, *m_prefs, diskAudioErr);
-            IGNORE_RETURN_VALUE (hrAudio, S_OK);
-
-            // The consent choice may have changed (user just answered
-            // the prompt). Flush so it lands on disk for next launch.
-            if (m_ucs != nullptr && m_fs != nullptr)
-            {
-                HRESULT  hrSave = m_ucs->SaveAll (*m_prefs, *m_fs);
-                IGNORE_RETURN_VALUE (hrSave, S_OK);
-            }
-        }
     }
 
     // SwitchMachine mutates CPU/bus/device state and MUST run on the
@@ -1686,12 +1688,12 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
                           (float) m_panelRect.top,
                           (float) (m_panelRect.right  - m_panelRect.left),
                           (float) (m_panelRect.bottom - m_panelRect.top),
-                          s_kPanelBgArgb);
+                          theme.panelBgArgb);
     painter.OutlineRect ((float) m_panelRect.left,
                           (float) m_panelRect.top,
                           (float) (m_panelRect.right  - m_panelRect.left),
                           (float) (m_panelRect.bottom - m_panelRect.top),
-                          edgeThick, s_kPanelEdgeArgb);
+                          edgeThick, theme.panelEdgeArgb);
 
     m_tabs.Paint  (painter, text);
 
