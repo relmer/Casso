@@ -55,7 +55,6 @@ namespace
         IDM_VIEW_DISK2_DEBUG,
 
         IDM_HELP_KEYMAP,
-        IDM_HELP_DEBUG,
         IDM_HELP_ABOUT,
     };
 }

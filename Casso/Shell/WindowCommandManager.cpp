@@ -229,7 +229,12 @@ void WindowCommandManager::OnMachineCommand (int id)
                 (m_shell.m_config.ram.size() + 1 + m_shell.m_config.slots.size()),
                 (m_shell.m_config.internalDevices.size() + m_shell.m_config.slots.size()));
 
-            MessageBoxW (m_shell.m_hwnd, info.c_str(), L"Machine info", MB_ICONINFORMATION | MB_OK);
+            DialogDefinition def = {};
+            def.title = L"Machine info";
+            def.icon  = DialogIcon::Info;
+            def.body.push_back ({ info, false, L"" });
+            def.buttons.push_back ({ L"OK", 0, true, true });
+            (void) m_shell.ShowModalDialog (def);
             break;
         }
     }
@@ -428,8 +433,8 @@ Error:
 
 void WindowCommandManager::OnDiskCommand (int id)
 {
-    WCHAR          filePath[MAX_PATH] = {};
-    OPENFILENAMEW  ofn                = {};
+    HRESULT  hr    = S_OK;
+    int      drive = 0;
 
 
 
@@ -438,19 +443,14 @@ void WindowCommandManager::OnDiskCommand (int id)
         case IDM_DISK_INSERT1:
         case IDM_DISK_INSERT2:
         {
-            ofn.lStructSize = sizeof (ofn);
-            ofn.hwndOwner   = m_shell.m_hwnd;
-            ofn.lpstrFilter = L"Disk images (*.dsk)\0*.dsk\0All files (*.*)\0*.*\0";
-            ofn.lpstrFile   = filePath;
-            ofn.nMaxFile    = MAX_PATH;
-            ofn.lpstrTitle  = (id == IDM_DISK_INSERT1) ?
-                L"Insert disk in drive 1" : L"Insert disk in drive 2";
-            ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+            // Route both insert commands through the modern
+            // IFileOpenDialog-based picker. FR-015 keeps
+            // IFileOpenDialog as the supported file-picker surface;
+            // the legacy GetOpenFileNameW path is removed.
+            drive = (id == IDM_DISK_INSERT1) ? 1 : 2;
 
-            if (GetOpenFileNameW (&ofn))
-            {
-                m_shell.PostCommand (static_cast<WORD> (id), fs::path (filePath).string());
-            }
+            hr = PromptForDiskImage (drive);
+            IGNORE_RETURN_VALUE (hr, S_OK);
             break;
         }
 
@@ -477,30 +477,12 @@ void WindowCommandManager::OnHelpCommand (int id)
 {
     switch (id)
     {
-        case IDM_HELP_DEBUG:
-        {
-            if (m_shell.m_debugConsole.IsVisible())
-            {
-                m_shell.m_debugConsole.Hide();
-            }
-            else
-            {
-                m_shell.m_debugConsole.SetMainWindow (m_shell.m_hwnd);
-
-                if (m_shell.m_debugConsole.Show (m_shell.m_hInstance))
-                {
-                    m_shell.m_debugConsole.LogConfig (
-                        std::format ("Machine: {}\nCPU: {}\nClock: {} Hz\nDevices: {}",
-                            m_shell.m_config.name, m_shell.m_config.cpu, m_shell.m_config.clockSpeed,
-                            (m_shell.m_config.internalDevices.size() + m_shell.m_config.slots.size())));
-                }
-            }
-            break;
-        }
-
         case IDM_HELP_KEYMAP:
         {
-            MessageBoxW (m_shell.m_hwnd,
+            DialogDefinition def = {};
+            def.title = L"Keyboard map";
+            def.icon  = DialogIcon::Info;
+            def.body.push_back ({
                 L"PC key mapping:\n\n"
                 L"Arrow keys -> Apple ][ cursor movement\n"
                 L"Enter -> Return\n"
@@ -516,30 +498,32 @@ void WindowCommandManager::OnHelpCommand (int id)
                 L"Pause -> Pause/resume\n"
                 L"F11 -> Step (when paused)\n"
                 L"Alt+Enter -> Fullscreen\n"
-                L"Ctrl+0 -> Reset window size\n"
-                L"Ctrl+D -> Debug console",
-                L"Keyboard map", MB_ICONINFORMATION | MB_OK);
+                L"Ctrl+0 -> Reset window size",
+                false, L"" });
+            def.buttons.push_back ({ L"OK", 0, true, true });
+            (void) m_shell.ShowModalDialog (def);
             break;
         }
 
         case IDM_HELP_ABOUT:
         {
-            MessageBoxW (m_shell.m_hwnd,
-                         L"Casso Emulator\n"
-                            L"\n"
-                            L"Version " _CRT_WIDE (VERSION_STRING) L"\n"
-                            L"Built " _CRT_WIDE (VERSION_BUILD_TIMESTAMP) L"\n"
-                            L"\n"
-                            L"An Apple ][, ][ plus, and //e platform emulator built \n"
-                            L"on the Casso 6502 assembler/emulator project.\n"
-                            L"\n"
-                            L"https://github.com/relmer/Casso"
-                            L"\n"
-                            L"Copyright (C) by Robert Elmer\n"
-                            L"MIT License\n",
-                         L"About Casso", 
-                         MB_ICONINFORMATION | MB_OK);
-                break;
+            DialogDefinition def = {};
+            def.title = L"About Casso";
+            def.icon  = DialogIcon::AppPhotoreal;
+            def.body.push_back ({ L"Casso Emulator\n\nVersion " _CRT_WIDE (VERSION_STRING)
+                                  L"\nBuilt " _CRT_WIDE (VERSION_BUILD_TIMESTAMP)
+                                  L"\n\nAn Apple ][, Apple ][ plus, and Apple //e platform emulator "
+                                  L"built on the Casso 6502 assembler/emulator project.\n\n",
+                                  false, L"" });
+            def.body.push_back ({ L"https://github.com/relmer/Casso",
+                                  true, L"https://github.com/relmer/Casso" });
+            def.body.push_back ({ L"\nCopyright (C) by Robert Elmer\n",
+                                  false, L"" });
+            def.body.push_back ({ L"MIT License",
+                                  true, L"https://github.com/relmer/Casso/blob/master/LICENSE" });
+            def.buttons.push_back ({ L"OK", 0, true, true });
+            (void) m_shell.ShowModalDialog (def);
+            break;
         }
     }
 }

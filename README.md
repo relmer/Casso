@@ -24,11 +24,15 @@ The project includes:
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
 - **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
-- **1600+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, reset semantics, perf budget, and backwards-compat for ][/][+ machines.
+- **1650+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, reset semantics, perf budget, and backwards-compat for ][/][+ machines.
 
 ## What's New
 
 See [CHANGELOG.md](CHANGELOG.md) for the granular history.
+
+### Themed startup experience (v1.5.1395)
+
+The first-run asset bootstrap — ROMs, sample disks, and Disk II audio samples — now downloads through a single themed progress dialog that fetches every asset concurrently rather than serial-prompting through three separate Win32 dialogs. The boot-disk MRU picker that appears when no disk is configured also paints through the same DirectWrite pipeline as the rest of the chrome, so the entire first-launch path honours the active theme (Skeuomorphic / Dark Modern / Retro Terminal) instead of dropping back to native gray.
 
 ### Copy-protected games boot (v1.5.1289)
 
@@ -81,7 +85,7 @@ Casso.sln
 ├── CassoEmuCore/  Static library — Apple II devices, video modes, audio generator + drive-audio mixer
 ├── Casso/         Win32 application — Apple II platform emulator (D3D11, WASAPI, Disk II audio)
 ├── CassoCli/      Console application — AS65-compatible assembler CLI with `run` subcommand
-└── UnitTest/      Test DLL — Microsoft Native CppUnitTest (1500+ tests)
+└── UnitTest/      Test DLL — Microsoft Native CppUnitTest (1650+ tests)
 ```
 
 ## Requirements

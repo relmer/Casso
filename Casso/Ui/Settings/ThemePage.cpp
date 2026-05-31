@@ -30,8 +30,8 @@ namespace
     constexpr int  s_kPrevFbHeightDp      = ChromeMetrics::kFramebufferHeightPx;  // 384
     constexpr int  s_kPrevTitleBarDp      = 32;
     constexpr int  s_kPrevNavStripDp      = 32;
-    constexpr int  s_kPrevDriveBarFullDp  = 192;
-    constexpr int  s_kPrevDriveBarCmptDp  = 64;
+    constexpr int  s_kPrevDriveBarFullDp  = 212;
+    constexpr int  s_kPrevDriveBarCmptDp  = 84;
     constexpr int  s_kPrevSysButtonWDp    = 46;
     constexpr int  s_kPrevSysButtonGapDp  = 1;
     constexpr int  s_kPrevCaptionFontDp   = 14;
@@ -132,6 +132,7 @@ namespace
                              const RECT                           & availRect,
                              const ChromeTheme                    & theme,
                              const std::function<const uint32_t * (int &, int &)> & framebufferSource,
+                             const std::function<std::wstring (int)>              & mountedPathSource,
                              std::array<DriveWidget, 2>           & previewDrives)
     {
         RECT      prevRect = {};
@@ -302,14 +303,39 @@ namespace
             // LayoutDriveWidgetsInCommandBar does for the live chrome.
             previewDrives[0].SetCompact (theme.compactDrives);
             previewDrives[1].SetCompact (theme.compactDrives);
+
+            // Preview the actual mounted disk paths so the basename
+            // label strip reflects the live drive state. Falls back to
+            // empty (no label) if the host hasn't wired a source or the
+            // drive is empty.
+            DriveWidgetState  mount0;
+            DriveWidgetState  mount1;
+
+            if (mountedPathSource)
+            {
+                mount0.mountedImagePath = mountedPathSource (0);
+                mount1.mountedImagePath = mountedPathSource (1);
+            }
+
+            mount0.doorState = mount0.mountedImagePath.empty()
+                ? DriveWidgetState::Door::Open
+                : DriveWidgetState::Door::Closed;
+            mount1.doorState = mount1.mountedImagePath.empty()
+                ? DriveWidgetState::Door::Open
+                : DriveWidgetState::Door::Closed;
+
+            previewDrives[0].SyncFromState (mount0);
+            previewDrives[1].SyncFromState (mount1);
+
             previewDrives[0].Layout (0, 0, effectiveDpi);
 
-            RECT  probe   = previewDrives[0].BodyRect();
+            RECT  probe   = previewDrives[0].OuterRect();
             int   widgetW = probe.right  - probe.left;
             int   widgetH = probe.bottom - probe.top;
             int   totalW  = widgetW * 2 + gap;
             int   startX  = prevRect.left + std::max (0, (prevW - totalW) / 2);
-            int   widgetY = driveTop + (driveBarH - widgetH) / 2;
+            int   labelGapPx = std::max (1, ScalePx (2));
+            int   widgetY = prevRect.bottom - widgetH - labelGapPx;
             int   d       = 0;
 
             for (d = 0; d < 2; d++)
@@ -537,7 +563,7 @@ void ThemePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
             m_previewDrivesInitialized = true;
         }
 
-        PaintPreviewWindow (painter, text, m_previewRect, preview, m_framebufferSource, m_previewDrives);
+        PaintPreviewWindow (painter, text, m_previewRect, preview, m_framebufferSource, m_mountedPathSource, m_previewDrives);
     }
 
     m_themeDropdown.PaintMenu   (painter, text);

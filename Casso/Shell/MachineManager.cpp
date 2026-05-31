@@ -29,7 +29,7 @@
 #include "Audio/Disk2AudioSource.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
-#include "../Disk2DebugDialog.h"
+#include "../Ui/Disk2DebugPanel.h"
 
 
 
@@ -864,6 +864,8 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     JsonValue              mergedJson;
     JsonParseError         parseErr;
     WORD                   speedCmd = 0;
+    std::string            carryDisk1;
+    std::string            carryDisk2;
 
 
 
@@ -954,13 +956,23 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         IGNORE_RETURN_VALUE (hrFlush, S_OK);
     }
 
+    // Snapshot the currently-mounted slot-6 disks so they follow the
+    // user across the machine switch. The mental model is physical:
+    // the user mounted a disk, changed the host machine, and expects
+    // the disk to still be in the drive. Re-mounting on the new
+    // machine also updates its per-machine prefs so the disk sticks
+    // on subsequent launches. Empty paths fall through to the
+    // per-machine prefs lookup inside MountCommandLineDisks.
+    carryDisk1 = m_shell.m_diskStore.GetSourcePath (6, 0);
+    carryDisk2 = m_shell.m_diskStore.GetSourcePath (6, 1);
+
     // Tear down current machine. The Disk II debug dialog (if open)
     // holds a raw pointer into the old CPU's cycle counter; revoke it
     // before the CPU is reset so the dialog can't dereference dangling
     // memory between here and CreateCpu below.
-    if (m_shell.m_disk2DebugDialog != nullptr)
+    if (m_shell.m_disk2DebugPanel != nullptr)
     {
-        m_shell.m_disk2DebugDialog->SetCycleCounter (nullptr);
+        m_shell.m_disk2DebugPanel->SetCycleCounter (nullptr);
     }
 
     // Tear down ALL per-machine state in one atomic move. m_refs is a
@@ -1011,9 +1023,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     // Re-attach the new CPU's cycle counter to the debug dialog (the
     // pointer was revoked above before the old CPU was destroyed).
-    if (m_shell.m_disk2DebugDialog != nullptr && m_shell.m_cpu != nullptr)
+    if (m_shell.m_disk2DebugPanel != nullptr && m_shell.m_cpu != nullptr)
     {
-        m_shell.m_disk2DebugDialog->SetCycleCounter (m_shell.m_cpu->GetCycleCounterPtr());
+        m_shell.m_disk2DebugPanel->SetCycleCounter (m_shell.m_cpu->GetCycleCounterPtr());
     }
 
     // Re-wire the debug dialog onto the freshly built controller +
@@ -1045,9 +1057,22 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     PowerCycle();
 
     // Remount per-machine disks if any were saved last time this
-    // machine was active. Empty paths fall through harmlessly so a
-    // never-used machine won't try to mount anything.
-    m_shell.m_diskManager->MountCommandLineDisks (std::string(), std::string());
+    // machine was active. The disks that were in the drives before
+    // the switch take priority (passed explicitly here) so the user's
+    // physical mental model holds: the disk in the drive stays in
+    // the drive across a machine swap. Empty paths fall through
+    // harmlessly so a never-used machine won't try to mount anything.
+    //
+    // If the new machine has no Disk II controller at slot 6 (future
+    // non-Apple-II family), drop the carry rather than silently relying
+    // on MountDiskInSlot6's nullptr CBR. The disk in DiskImageStore
+    // was already flushed above, so no user data is lost.
+    if (!m_shell.m_diskManager->HasSlot6Controller())
+    {
+        carryDisk1.clear();
+        carryDisk2.clear();
+    }
+    m_shell.m_diskManager->MountCommandLineDisks (carryDisk1, carryDisk2);
 
     if (speedCmd != 0)
     {

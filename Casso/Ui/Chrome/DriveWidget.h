@@ -37,6 +37,7 @@ public:
         m_faceRect  = {};
         m_slotRect  = {};
         m_ejectRect = {};
+        m_labelRect = {};
     }
     void               SetPerspectiveSkewPx (int skewPx) { m_perspectiveSkewPx = skewPx; }
     void               SetCompact      (bool compact)    { m_compact = compact; }
@@ -49,11 +50,21 @@ public:
     DriveWidgetRegion  HitTest         (int x, int y) const;
     HRESULT            OnDrop          (const std::wstring & path);
     RECT               BodyRect        () const { return m_bodyRect; }
+    RECT               OuterRect       () const
+    {
+        RECT  r = m_bodyRect;
+        if (m_labelRect.bottom > r.bottom) { r.bottom = m_labelRect.bottom; }
+        return r;
+    }
     RECT               EjectRect       () const { return m_ejectRect; }
     LedState           Led             () const { return m_led.GetState(); }
     int                Drive           () const { return m_drive; }
 
 private:
+    void                PaintBasenameLabel (DwriteTextRenderer  & text,
+                                            const ChromeTheme   & theme,
+                                            UINT                  dpi);
+
     int                 m_slot      = 6;
     int                 m_drive     = 0;
     IDriveCommandSink * m_sink      = nullptr;
@@ -61,6 +72,7 @@ private:
     RECT                m_faceRect  = {};
     RECT                m_slotRect  = {};
     RECT                m_ejectRect = {};
+    RECT                m_labelRect = {};
     LedIndicator        m_led;
     DriveWidgetState    m_state;
     int                 m_perspectiveSkewPx = 0;

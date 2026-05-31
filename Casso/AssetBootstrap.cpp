@@ -10,6 +10,12 @@
 #include "External/StbVorbisWrapper.h"
 #include "resource.h"
 #include "Ui/ThemeManager.h"
+#include "Ui/Chrome/ChromeTheme.h"
+#include "Ui/DxUiPainter.h"
+#include "Ui/DwriteTextRenderer.h"
+#include "Ui/Dialog/StandaloneDialog.h"
+#include "Ui/Dialog/StartupDownloadDialog.h"
+#include "Ui/Widgets/ListView.h"
 #include "UnicodeSymbols.h"
 
 #pragma comment(lib, "winhttp.lib")
@@ -124,6 +130,19 @@ static constexpr BootDiskSpec s_kProDOSDisk =
     "Apple ProDOS Users Disk (680-0224-C). Boots ProDOS 8 with the BASIC.SYSTEM "
     "shell."
 };
+
+
+
+
+
+static std::wstring MachineDisplayName (std::string_view machineId)
+{
+    if (machineId == "Apple2")          return L"Apple ][";
+    if (machineId == "Apple2Plus")      return L"Apple ][+";
+    if (machineId == "Apple2e")         return L"Apple //e";
+    if (machineId == "Apple2eEnhanced") return L"Apple //e Enhanced";
+    return std::wstring (machineId.begin (), machineId.end ());
+}
 
 
 
@@ -894,13 +913,15 @@ static const RomSpec * FindRomSpec (string_view machineName, string_view cassoNa
 ////////////////////////////////////////////////////////////////////////////////
 
 static HRESULT DownloadHttp (
-    HINTERNET        hSession,
-    LPCWSTR          host,
-    LPCWSTR          urlPath,
-    size_t           expectedSize,
-    string_view      displayName,
-    vector<Byte>   & outBytes,
-    string         & outError)
+    HINTERNET                  hSession,
+    LPCWSTR                    host,
+    LPCWSTR                    urlPath,
+    size_t                     expectedSize,
+    string_view                displayName,
+    vector<Byte>             & outBytes,
+    string                   & outError,
+    std::atomic<std::uint64_t> * progressBytes  = nullptr,
+    std::atomic<bool>          * cancelRequested = nullptr)
 {
     HRESULT      hr           = S_OK;
     HINTERNET    hConnect     = nullptr;
@@ -916,6 +937,11 @@ static HRESULT DownloadHttp (
 
     outBytes.clear();
     outBytes.reserve (expectedSize);
+
+    if (progressBytes != nullptr)
+    {
+        progressBytes->store (0, std::memory_order_relaxed);
+    }
 
     for (LPCWSTR p = host; *p; p++)
     {
@@ -963,6 +989,13 @@ static HRESULT DownloadHttp (
     {
         vector<Byte>  chunk;
 
+        if (cancelRequested != nullptr && cancelRequested->load (std::memory_order_relaxed))
+        {
+            outError = format ("{} cancelled", displayName);
+            hr = E_ABORT;
+            goto Error;
+        }
+
         bytesAvail = 0;
         fOk = WinHttpQueryDataAvailable (hRequest, &bytesAvail);
         CBRF (fOk,
@@ -985,6 +1018,11 @@ static HRESULT DownloadHttp (
         }
 
         outBytes.insert (outBytes.end(), chunk.begin(), chunk.begin() + bytesRead);
+
+        if (progressBytes != nullptr)
+        {
+            progressBytes->store ((std::uint64_t) outBytes.size(), std::memory_order_relaxed);
+        }
     }
 
     // A non-zero `expectedSize` is treated as an integrity check
@@ -1059,41 +1097,153 @@ static HRESULT DownloadOne (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool PromptUser (HWND hwndParent, const vector<const RomSpec *> & missing)
+static constexpr int    s_kRomRowHeightDp   = 26;
+static constexpr int    s_kRomRowGapDp      = 2;
+static constexpr int    s_kRomBodyWidthDp   = 520;
+static constexpr int    s_kRomNameColumnDp  = 180;
+static constexpr int    s_kRomColumnGapDp   = 16;
+static constexpr float  s_kRomFontDp        = 13.0f;
+static constexpr float  s_kRomTextPaddingDp = 6.0f;
+
+static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, std::string_view themeName, const vector<const RomSpec *> & missing)
 {
-    wstring  message;
-    wstring  title;
-    int      response = 0;
+    struct RomRow
+    {
+        wstring  name;
+        wstring  description;
+    };
+
+    DialogDefinition  def         = {};
+    wstring           title;
+    wstring           intro;
+    vector<RomRow>    rows;
+    int               response    = 0;
+    int               rowCount    = (int) missing.size();
+    UINT              sysDpi      = (hwndParent != nullptr) ? GetDpiForWindow (hwndParent)
+                                                            : GetDpiForSystem();
+    float             dpiScale    = (sysDpi > 0) ? ((float) sysDpi / 96.0f) : 1.0f;
+    int               totalH      = 0;
 
 
 
-    message = L"Casso needs the following Apple ROM image(s):\n\n";
-
+    rows.reserve (missing.size());
     for (const RomSpec * spec : missing)
     {
-        message += L"    ";
-        message += s_kchBullet;
-        message += L' ';
-        message += AsciiToWide (spec->cassoName);
-        message += L"  ";
-        message += s_kchEmDash;
-        message += L"  ";
-        message += AsciiToWide (spec->description);
-        message += L'\n';
+        RomRow  row;
+
+        row.name        = AsciiToWide (spec->cassoName);
+        row.description = AsciiToWide (spec->description);
+        rows.push_back (std::move (row));
     }
 
-    message += L"\nThese files are not bundled with Casso but are available from the "
-               L"AppleWin open-source emulator project (https://github.com/AppleWin/AppleWin)."
-               L"\n\nWould you like to download them now? ";
+    intro  = L"Casso needs the Apple //e ROMs listed below to boot. ";
+    intro += L"They're not bundled but can be downloaded from AppleWin at ";
 
     title  = L"Casso ";
     title += s_kchEmDash;
     title += L" Download ROM Images";
 
-    response = MessageBoxW (hwndParent,
-                            message.c_str(),
-                            title.c_str(),
-                            MB_YESNO | MB_ICONQUESTION);
+    totalH = (int) ((float) ((rowCount + 1) * s_kRomRowHeightDp
+                            + rowCount * s_kRomRowGapDp)
+                    * dpiScale);
+
+    def.title              = title;
+    def.icon               = DialogIcon::AppFlat;
+    def.iconSizeOverrideDp = 64.0f;
+    def.body.push_back ({ intro, false, L"" });
+    def.body.push_back ({ L"https://github.com/AppleWin/AppleWin",
+                          true, L"https://github.com/AppleWin/AppleWin" });
+
+    def.customBodyMinSizePx.cx = (int) ((float) s_kRomBodyWidthDp * dpiScale);
+    def.customBodyMinSizePx.cy = totalH;
+
+    def.onPaintCustomBody = [rows] (DialogPaintContext & ctx)
+    {
+        HRESULT  hr     = S_OK;
+        float    x      = 0.0f;
+        float    y      = 0.0f;
+        float    rowH   = (float) s_kRomRowHeightDp  * ctx.dpiScale;
+        float    gap    = (float) s_kRomRowGapDp     * ctx.dpiScale;
+        float    fontPx = s_kRomFontDp               * ctx.dpiScale;
+        float    nameW  = (float) s_kRomNameColumnDp * ctx.dpiScale;
+        float    pad    = s_kRomTextPaddingDp        * ctx.dpiScale;
+        float    colGap = (float) s_kRomColumnGapDp  * ctx.dpiScale;
+        float    descX  = 0.0f;
+        float    descW  = 0.0f;
+        uint32_t bg     = 0;
+        uint32_t fg     = 0;
+        uint32_t band   = 0;
+        size_t   i      = 0;
+
+
+
+        if (ctx.painter == nullptr || ctx.text == nullptr || ctx.theme == nullptr)
+        {
+            return;
+        }
+
+        x     = (float) ctx.customBodyRect.left;
+        y     = (float) ctx.customBodyRect.top;
+        bg    = ctx.theme->dropdownBgArgb;
+        fg    = ctx.theme->dropdownItemTextArgb;
+        band  = ctx.theme->navStripArgb;
+        descX = x + nameW + colGap;
+        descW = (float) (ctx.customBodyRect.right - (LONG) descX);
+
+        {
+            float     fullW    = (float) (ctx.customBodyRect.right - ctx.customBodyRect.left);
+            uint32_t  headerBg = ctx.theme->navHoverArgb;
+            uint32_t  headerFg = ctx.theme->titleTextArgb;
+
+            ctx.painter->FillRect (x, y, fullW, rowH, headerBg);
+
+            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (L"ROM file",
+                                                           x + pad, y,
+                                                           nameW, rowH,
+                                                           headerFg, fontPx, L"Segoe UI",
+                                                           DwriteTextRenderer::HAlign::Left,
+                                                           DwriteTextRenderer::VAlign::Center,
+                                                           DWRITE_FONT_WEIGHT_BOLD));
+
+            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (L"Description",
+                                                           descX, y,
+                                                           descW, rowH,
+                                                           headerFg, fontPx, L"Segoe UI",
+                                                           DwriteTextRenderer::HAlign::Left,
+                                                           DwriteTextRenderer::VAlign::Center,
+                                                           DWRITE_FONT_WEIGHT_BOLD));
+
+            y += rowH + gap;
+        }
+
+        for (i = 0; i < rows.size(); i++)
+        {
+            float    ry     = y + (float) i * (rowH + gap);
+            uint32_t rowBg  = ((i & 1u) == 0u) ? band : bg;
+            float    fullW  = (float) (ctx.customBodyRect.right - ctx.customBodyRect.left);
+
+            ctx.painter->FillRect (x, ry, fullW, rowH, rowBg);
+
+            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (rows[i].name.c_str(),
+                                                           x + pad, ry,
+                                                           nameW, rowH,
+                                                           fg, fontPx, L"Segoe UI",
+                                                           DwriteTextRenderer::HAlign::Left,
+                                                           DwriteTextRenderer::VAlign::Center));
+
+            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (rows[i].description.c_str(),
+                                                           descX, ry,
+                                                           descW, rowH,
+                                                           fg, fontPx, L"Segoe UI",
+                                                           DwriteTextRenderer::HAlign::Left,
+                                                           DwriteTextRenderer::VAlign::Center));
+        }
+    };
+
+    def.buttons.push_back ({ L"Download", IDYES, true,  false });
+    def.buttons.push_back ({ L"Cancel",   IDNO,  false, true  });
+
+    response = ShowStandaloneDialog (hInstance, hwndParent, themeName, def);
 
     return response == IDYES;
 }
@@ -1314,6 +1464,7 @@ HRESULT AssetBootstrap::CheckAndFetchRoms (
     HWND                     hwndParent,
     const vector<fs::path> & searchPaths,
     const fs::path         & assetBaseDir,
+    std::string_view         themeName,
     string                 & outError)
 {
     HRESULT                  hr             = S_OK;
@@ -1360,7 +1511,7 @@ HRESULT AssetBootstrap::CheckAndFetchRoms (
 
     BAIL_OUT_IF (missing.empty(), S_OK);
 
-    userOk = PromptUser (hwndParent, missing);
+    userOk = PromptUser (hInstance, hwndParent, themeName, missing);
     BAIL_OUT_IF (!userOk, S_FALSE);
 
     hSession = WinHttpOpen (s_kpszUserAgent,
@@ -1446,156 +1597,33 @@ static wstring GetEmbeddedDisplayName (HINSTANCE hInstance, const wstring & mach
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PromptBootDisk
+//  DownloadStockBootDisk
 //
-//  Three-button TaskDialog: DOS 3.3 / ProDOS / Cancel. Returns the
-//  chosen disk spec, or nullptr if the user cancelled. Falls back to
-//  a Yes/No/Cancel MessageBox if comctl32 v6's TaskDialogIndirect
-//  isn't available.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr int  s_kIdDos33  = 1001;
-static constexpr int  s_kIdProDOS = 1002;
-static constexpr int  s_kIdSkip   = IDCANCEL;
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PromptBootDisk
+//  Pure download helper used by PromptBootDiskMru's "Download..." rows.
+//  Fetches `spec` from the Asimov mirror, writes it under `diskDir`,
+//  and returns the absolute path in `outDiskPath`. No UI; the caller
+//  owns the prompt and progress reporting.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static const BootDiskSpec * PromptBootDisk (HWND hwndParent, const wstring & displayName)
-{
-    HRESULT               hr            = S_OK;
-    int                   chosen        = 0;
-    wstring               body;
-    wstring               title;
-    TASKDIALOGCONFIG      cfg           = { sizeof (TASKDIALOGCONFIG) };
-    TASKDIALOG_BUTTON     buttons[2]    = {};
-    const BootDiskSpec  * result        = nullptr;
-
-
-
-    body  = L"The ";
-    body += displayName;
-    body += L" has a Disk ][ controller in slot 6 but no disk in drive 1, "
-            L"and will spin forever waiting for one. A system master disk "
-            L"is available from the Asimov archive "
-            L"(https://www.apple.asimov.net).\n\n"
-            L"Alternatives:\n"
-            L"    ";
-    body += s_kchBullet;
-    body += L" Skip and use Disk > Insert Drive 1... (Ctrl+1) to "
-            L"mount your own .dsk.\n"
-            L"    ";
-    body += s_kchBullet;
-    body += L" Skip and press Ctrl+Reset once the drive starts "
-            L"spinning to drop to BASIC.\n\n"
-            L"Which disk would you like to download? ";
-
-    title  = L"Casso ";
-    title += s_kchEmDash;
-    title += L" Boot Disk";
-
-    buttons[0].nButtonID     = s_kIdDos33;
-    buttons[0].pszButtonText = L"DOS 3.3 System Master\n"
-                               L"Boots Applesoft BASIC; type CATALOG to list files.";
-    buttons[1].nButtonID     = s_kIdProDOS;
-    buttons[1].pszButtonText = L"ProDOS Users Disk\n"
-                               L"Boots ProDOS 8 with the BASIC.SYSTEM shell.";
-
-    cfg.hwndParent      = hwndParent;
-    cfg.dwFlags         = TDF_USE_COMMAND_LINKS | TDF_ALLOW_DIALOG_CANCELLATION;
-    cfg.pszWindowTitle  = title.c_str();
-    cfg.pszMainIcon     = TD_INFORMATION_ICON;
-    cfg.pszMainInstruction = L"No boot disk mounted";
-    cfg.pszContent      = body.c_str();
-    cfg.cButtons        = ARRAYSIZE (buttons);
-    cfg.pButtons        = buttons;
-    cfg.dwCommonButtons = TDCBF_CANCEL_BUTTON;
-    cfg.nDefaultButton  = s_kIdDos33;
-
-    hr = TaskDialogIndirect (&cfg, &chosen, nullptr, nullptr);
-
-    if (FAILED (hr))
-    {
-        // TaskDialog unavailable for some reason — fall back to a
-        // simpler MessageBox prompt: Yes=DOS3.3, No=ProDOS, Cancel=Skip.
-        chosen = MessageBoxW (hwndParent,
-            (body + L"\n\nYes = DOS 3.3, No = ProDOS, Cancel = Skip").c_str(),
-            title.c_str(),
-            MB_YESNOCANCEL | MB_ICONQUESTION);
-
-        if      (chosen == IDYES) chosen = s_kIdDos33;
-        else if (chosen == IDNO)  chosen = s_kIdProDOS;
-        else                      chosen = s_kIdSkip;
-    }
-
-    if (chosen == s_kIdDos33)
-    {
-        result = &s_kDos33Disk;
-    }
-    else if (chosen == s_kIdProDOS)
-    {
-        result = &s_kProDOSDisk;
-    }
-
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OfferBootDiskDownload
-//
-//  When invoked for a machine with a Disk ][ controller and no disk
-//  has been resolved yet, prompts the user to download a stock Apple
-//  master disk (DOS 3.3 / ProDOS) from the Asimov mirror, drops it
-//  into `diskDir`, and returns its absolute path in `outDiskPath`.
-//  Returns S_FALSE (and `outDiskPath` empty) when:
-//    * the machine config has no Disk ][ controller, or
-//    * the user declined the download.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT AssetBootstrap::OfferBootDiskDownload (
-    HINSTANCE                hInstance,
-    const wstring          & machineName,
-    HWND                     hwndParent,
+static HRESULT DownloadStockBootDisk (
+    const BootDiskSpec     & spec,
     const fs::path         & diskDir,
     wstring                & outDiskPath,
     string                 & outError)
 {
-    HRESULT               hr           = S_OK;
-    bool                  hasDisk      = false;
-    const BootDiskSpec  * choice       = nullptr;
-    HINTERNET             hSession     = nullptr;
-    fs::path              destPath;
-    vector<Byte>          payload;
-    error_code            ec;
-
+    HRESULT       hr        = S_OK;
+    HINTERNET     hSession  = nullptr;
+    fs::path      destPath;
+    vector<Byte>  payload;
+    error_code    ec;
 
 
     outDiskPath.clear();
 
-    hr = HasDiskController (hInstance, machineName, hasDisk, outError);
-    CHR (hr);
-
-    BAIL_OUT_IF (!hasDisk, S_FALSE);
-
-    choice = PromptBootDisk (hwndParent, GetEmbeddedDisplayName (hInstance, machineName));
-    BAIL_OUT_IF (choice == nullptr, S_FALSE);
-
     fs::create_directories (diskDir, ec);
-    destPath = diskDir / choice->cassoName;
+    destPath = diskDir / spec.cassoName;
 
-    // If the user already has the disk on disk (e.g. left over from a
-    // prior session), skip the download.
     if (fs::exists (destPath, ec))
     {
         outDiskPath = destPath.wstring();
@@ -1612,9 +1640,9 @@ HRESULT AssetBootstrap::OfferBootDiskDownload (
 
     hr = DownloadHttp (hSession,
                        s_kpszAsimovHost,
-                       choice->asimovUrlPath,
-                       choice->expectedSize,
-                       choice->shortLabel,
+                       spec.asimovUrlPath,
+                       spec.expectedSize,
+                       spec.shortLabel,
                        payload,
                        outError);
     CHR (hr);
@@ -1640,6 +1668,197 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PromptBootDiskMru
+//
+//  Themed dialog that lists the user's recent disk images plus stock
+//  "Download" rows for DOS 3.3 / ProDOS. Always shown when the machine
+//  has a Disk ][ controller and no boot disk has been resolved yet,
+//  even when the MRU is empty (the download rows give a fresh install
+//  somewhere to go). Picking a row mounts that image (downloading on
+//  demand for the stock rows); the Skip button leaves the slot empty.
+//
+//  On return:
+//    outDiskPath = path to mount, or empty if the user skipped / the
+//                  machine has no Disk ][ controller.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr int  s_kBootMruBodyWidthDp  = 520;
+
+HRESULT AssetBootstrap::PromptBootDiskMru (
+    HINSTANCE                  hInstance,
+    HWND                       hwndParent,
+    const wstring            & machineName,
+    const vector<fs::path>   & mruEntries,
+    const fs::path           & diskDir,
+    std::string_view           themeName,
+    wstring                  & outDiskPath,
+    bool                     & outUserClosed,
+    string                   & outError)
+{
+    struct DownloadRow { const BootDiskSpec * spec; wstring label; };
+
+    static constexpr int s_kCloseBoxResult = -1000;
+
+    HRESULT             hr            = S_OK;
+    bool                hasDisk       = false;
+    DialogDefinition    def           = {};
+    wstring             title;
+    wstring             intro;
+    wstring             displayName;
+    DownloadRow         downloads[]   =
+    {
+        { &s_kDos33Disk,  L"DOS 3.3"  },
+        { &s_kProDOSDisk, L"ProDOS"   }
+    };
+    int                 chosen        = IDCANCEL;
+    int                 mruCount      = (int) mruEntries.size();
+    int                 downloadCount = (int) std::size (downloads);
+    int                 rowCount      = mruCount + downloadCount;
+    UINT                sysDpi        = (hwndParent != nullptr) ? GetDpiForWindow (hwndParent)
+                                                                : GetDpiForSystem();
+    ListView            list;
+    error_code          ec;
+
+
+    outDiskPath.clear();
+
+    hr = HasDiskController (hInstance, machineName, hasDisk, outError);
+    CHR (hr);
+
+    BAIL_OUT_IF (!hasDisk, S_OK);
+
+    displayName = GetEmbeddedDisplayName (hInstance, machineName);
+
+    title  = L"Casso ";
+    title += s_kchEmDash;
+    title += L" Boot Disk";
+
+    if (mruCount > 0)
+    {
+        intro  = L"Choose a recent disk for ";
+        intro += displayName;
+        intro += L", or download a stock master from the Asimov archive.";
+    }
+    else
+    {
+        intro  = displayName;
+        intro += L" has a Disk ][ controller but no boot disk. Pick a "
+                 L"stock master from the Asimov archive to get started.";
+    }
+
+    // Populate the list. Mru rows show "<basename> | <parent dir>";
+    // download rows show "<name> | Asimov archive (Download)".
+    {
+        std::vector<ListView::Column>            cols;
+        std::vector<std::vector<ListView::Cell>> rows;
+
+        cols.push_back ({ L"Disk image", 0, false, DwriteTextRenderer::HAlign::Left });
+        cols.push_back ({ L"Location",   0, false, DwriteTextRenderer::HAlign::Left });
+
+        rows.reserve ((size_t) rowCount);
+
+        for (const auto & p : mruEntries)
+        {
+            ListView::Cell name { p.filename().wstring(), false };
+            ListView::Cell loc  { p.parent_path().wstring(), true };
+            rows.push_back ({ std::move (name), std::move (loc) });
+        }
+
+        for (const DownloadRow & dr : downloads)
+        {
+            fs::path        wantPath = diskDir / string (dr.spec->cassoName);
+            bool            present  = fs::exists (wantPath, ec);
+            ListView::Cell  name     { dr.label, false };
+            ListView::Cell  loc      { present ? wantPath.parent_path().wstring()
+                                                : L"Asimov archive (Download)",
+                                       true };
+            rows.push_back ({ std::move (name), std::move (loc) });
+        }
+
+        list.SetDpi        (sysDpi);
+        list.SetShowHeader (true);
+        list.SetColumns    (std::move (cols));
+        list.SetRows       (std::move (rows));
+    }
+
+    def.title              = title;
+    def.icon               = DialogIcon::AppFlat;
+    def.iconSizeOverrideDp = 64.0f;
+    def.body.push_back ({ intro, false, L"" });
+    def.customBodyMinSizePx.cx = MulDiv (s_kBootMruBodyWidthDp, (int) sysDpi, 96);
+    def.customBodyMinSizePx.cy = list.RequiredHeightPx();
+
+    def.onMeasureCustomBody = [&list, sysDpi] (DwriteTextRenderer & text, float /*dpiScale*/) -> SIZE
+    {
+        list.SetDpi (sysDpi);
+        list.MeasureColumnsPx (text);
+        SIZE  sz {};
+        sz.cx = list.TotalMeasuredWidthPx();
+        sz.cy = list.RequiredHeightPx();
+        return sz;
+    };
+
+    def.onPaintCustomBody = [&list] (DialogPaintContext & ctx)
+    {
+        if (ctx.painter == nullptr || ctx.text == nullptr)
+        {
+            return;
+        }
+
+        list.SetTheme (ctx.theme);
+        list.SetRect  (ctx.customBodyRect);
+        list.Paint    (*ctx.painter, *ctx.text);
+    };
+
+    def.onInputCustomBody = [&list] (const DialogInputEvent & ev) -> std::optional<int>
+    {
+        int  idx = list.HitTestRow (ev.xPx, ev.yPx);
+
+        if (ev.kind == DialogInputEvent::Kind::MouseMove)
+        {
+            list.SetHoveredRow (idx);
+            return std::nullopt;
+        }
+
+        if (ev.kind == DialogInputEvent::Kind::LeftButtonUp && idx >= 0)
+        {
+            return idx;
+        }
+
+        return std::nullopt;
+    };
+
+    def.buttons.push_back ({ L"Skip", IDCANCEL, true, true });
+    def.closeBoxResult = s_kCloseBoxResult;
+
+    chosen = ShowStandaloneDialog (hInstance, hwndParent, themeName, def);
+
+    if (chosen == s_kCloseBoxResult)
+    {
+        outUserClosed = true;
+    }
+    else if (chosen >= 0 && chosen < mruCount)
+    {
+        outDiskPath = mruEntries[(size_t) chosen].wstring();
+    }
+    else if (chosen >= mruCount && chosen < rowCount)
+    {
+        const BootDiskSpec & spec = *downloads[chosen - mruCount].spec;
+        hr = DownloadStockBootDisk (spec, diskDir, outDiskPath, outError);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FetchAndDecodeOgg
 //
 //  WinHTTP GET -> in-memory vector<uint8_t> -> stb_vorbis decode ->
@@ -1652,11 +1871,13 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssetBootstrap::FetchAndDecodeOgg (
-    HINTERNET         hSession,
-    LPCWSTR           urlPath,
-    uint32_t          targetSampleRate,
-    vector<float>   & outPcm,
-    string          & outError)
+    HINTERNET                    hSession,
+    LPCWSTR                      urlPath,
+    uint32_t                     targetSampleRate,
+    vector<float>              & outPcm,
+    string                     & outError,
+    std::atomic<std::uint64_t> * progressBytes,
+    std::atomic<bool>          * cancelRequested)
 {
     HRESULT          hr             = S_OK;
     vector<Byte>     oggBytes;
@@ -1699,7 +1920,9 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
                        0,                       // 0 == any size acceptable
                        narrowName,
                        oggBytes,
-                       outError);
+                       outError,
+                       progressBytes,
+                       cancelRequested);
     CHR (hr);
 
     hr = StbVorbisWrapper::DecodeOggToInterleavedShort (
@@ -1904,43 +2127,36 @@ static constexpr int       s_kIdDiskAudioSkip           = IDCANCEL;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static int PromptDiskAudioConsent (HWND hwndParent)
+static int PromptDiskAudioConsent (HINSTANCE hInstance, HWND hwndParent, std::string_view themeName)
 {
-    int                  chosen     = s_kIdDiskAudioSkip;
-    TASKDIALOGCONFIG     tdc        = {};
-    TASKDIALOG_BUTTON    buttons[2] = {};
-    HRESULT              hr         = S_OK;
-    int                  result     = 0;
+    int               chosen  = s_kIdDiskAudioSkip;
+    DialogDefinition  def     = {};
+    wstring           title;
+    wstring           content;
 
-    LPCWSTR  content =
-        L"Casso can download a small set of Disk II drive-noise samples "
-        L"(\x2248 100 KB) from the OpenEmulator project to power the in-emulator "
-        L"drive-audio feature. The samples will be cached on this machine.\n\n"
-        L"The samples are licensed under GPL-3; please review their license "
-        L"before redistributing them.";
 
-    buttons[0].nButtonID     = s_kIdDiskAudioDownload;
-    buttons[0].pszButtonText = L"Download\nFetch the samples and cache them locally.";
-    buttons[1].nButtonID     = s_kIdDiskAudioSkip;
-    buttons[1].pszButtonText = L"Skip\nLaunch without drive audio.";
 
-    tdc.cbSize             = sizeof (tdc);
-    tdc.hwndParent         = hwndParent;
-    tdc.hInstance          = nullptr;
-    tdc.dwFlags            = TDF_USE_COMMAND_LINKS | TDF_ALLOW_DIALOG_CANCELLATION;
-    tdc.pszWindowTitle     = L"Casso \x2014 Drive audio samples";
-    tdc.pszMainIcon        = TD_INFORMATION_ICON;
-    tdc.pszMainInstruction = L"Download Disk II audio samples?";
-    tdc.pszContent         = content;
-    tdc.cButtons           = ARRAYSIZE (buttons);
-    tdc.pButtons           = buttons;
-    tdc.nDefaultButton     = s_kIdDiskAudioDownload;
+    content  = L"Casso can download a small set of Disk II drive-noise samples (";
+    content += s_kchAlmostEqual;
+    content += L" 100 KB) from the OpenEmulator project to power the in-emulator "
+               L"drive-audio feature. The samples will be cached on this machine.\n\n"
+               L"The samples are licensed under GPL-3; please review their license "
+               L"before redistributing them.";
 
-    hr = TaskDialogIndirect (&tdc, &result, nullptr, nullptr);
+    title  = L"Casso ";
+    title += s_kchEmDash;
+    title += L" Drive audio samples";
 
-    if (SUCCEEDED (hr))
+    def.title = title;
+    def.icon  = DialogIcon::Info;
+    def.body.push_back ({ content, false, L"" });
+    def.buttons.push_back ({ L"Download", s_kIdDiskAudioDownload, true,  false });
+    def.buttons.push_back ({ L"Skip",     s_kIdDiskAudioSkip,     false, true  });
+
+    chosen = ShowStandaloneDialog (hInstance, hwndParent, themeName, def);
+    if (chosen != s_kIdDiskAudioDownload && chosen != s_kIdDiskAudioSkip)
     {
-        chosen = result;
+        chosen = s_kIdDiskAudioSkip;
     }
 
     return chosen;
@@ -2046,7 +2262,7 @@ HRESULT AssetBootstrap::CheckAndFetchDiskAudio (
     else
     {
         // "ask" or any unknown value -- prompt now.
-        consent = PromptDiskAudioConsent (hwndParent);
+        consent = PromptDiskAudioConsent (hInstance, hwndParent, prefs.activeTheme);
         prefs.audioDownloadConsent = (consent == s_kIdDiskAudioDownload)
                                        ? std::string ("allow")
                                        : std::string ("decline");
@@ -2130,5 +2346,400 @@ Error:
         WinHttpCloseHandle (hSession);
     }
 
+    return hr;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunStartupDownloader
+//
+//  Unified entry point: scans for every missing ROM and every missing
+//  Disk II drive-audio WAV, then presents a single themed dialog that
+//  downloads them on a worker thread with live per-asset progress.
+//  Replaces the legacy PromptUser (ROMs) + PromptDiskAudioConsent
+//  (audio) flows with one transparent experience.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::RunStartupDownloader (
+    HINSTANCE                hInstance,
+    const wstring          & machineName,
+    HWND                     hwndParent,
+    const vector<fs::path> & searchPaths,
+    const fs::path         & assetBaseDir,
+    bool                     considerDiskAudio,
+    bool                     offerBootDisk,
+    const fs::path         & diskDir,
+    GlobalUserPrefs        & prefs,
+    wstring                & outBootDiskPath,
+    string                 & outError)
+{
+    HRESULT                hr             = S_OK;
+    StartupDownloadSet     set;
+    StartupDownloadResult  result         = StartupDownloadResult::NothingToDo;
+    vector<string>         romFiles;
+    string                 narrowMachine;
+    fs::path               devicesDir     = assetBaseDir / "Devices" / "DiskII";
+    bool                   audioIncluded  = false;
+    error_code             ec;
+
+    UNREFERENCED_PARAMETER (hInstance);
+
+    outBootDiskPath.clear();
+
+    narrowMachine.reserve (machineName.size ());
+
+    for (wchar_t wch : machineName)
+    {
+        narrowMachine.push_back (static_cast<char> (wch & 0x7F));
+    }
+
+    hr = GetRequiredRoms (hInstance, machineName, romFiles, outError);
+    CHR (hr);
+
+    for (const string & romFile : romFiles)
+    {
+        const RomSpec    * spec    = FindRomSpec (narrowMachine, romFile);
+        fs::path           relPath;
+        fs::path           found;
+        StartupAssetEntry  entry;
+
+        CBRF (spec != nullptr,
+              outError = format ("ROM '{}' is missing and Casso has no download "
+                                 "URL for it. Place the file under {} and try again.",
+                                 romFile, assetBaseDir.string ()));
+
+        relPath = fs::path (string (spec->localRelDir)) / spec->cassoName;
+        found   = PathResolver::FindFile (searchPaths, relPath);
+
+        if (!found.empty ())
+        {
+            continue;
+        }
+
+        entry.kind          = StartupAssetKind::Rom;
+        entry.groupLabel    = MachineDisplayName (narrowMachine) + L" ROMs";
+        entry.displayName   = AsciiToWide (spec->description);
+        entry.kindLabel     = L"ROM";
+        entry.source        = L"AppleWin (GitHub)";
+        entry.selectable    = false;
+        entry.selected      = true;
+        entry.destPaths.push_back (assetBaseDir / string (spec->localRelDir) / spec->cassoName);
+        entry.expectedBytes = (std::uint64_t) spec->expectedSize;
+        entry.downloadFn    = [spec, destPath = entry.destPaths.front()] (
+            std::atomic<std::uint64_t> & bytesDone,
+            std::atomic<bool>          & cancel,
+            std::string                & err) -> HRESULT
+        {
+            HRESULT       hr = S_OK;
+            HINTERNET     hSes    = nullptr;
+            vector<Byte>  payload;
+            error_code    ecLocal;
+            wstring       wPath   = wstring (s_kpszUrlPrefix) + AsciiToWide (spec->appleWinName);
+
+            hSes = WinHttpOpen (s_kpszUserAgent,
+                                WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                                WINHTTP_NO_PROXY_NAME,
+                                WINHTTP_NO_PROXY_BYPASS,
+                                0);
+            CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
+
+            hr = DownloadHttp (hSes,
+                                    s_kpszAppleWinHost,
+                                    wPath.c_str (),
+                                    spec->expectedSize,
+                                    spec->cassoName,
+                                    payload,
+                                    err,
+                                    &bytesDone,
+                                    &cancel);
+            CHR (hr);
+
+            fs::create_directories (destPath.parent_path (), ecLocal);
+            hr = WriteFileBytes (destPath, payload);
+            CHRF (hr, err = format ("Cannot write {}", destPath.string ()));
+
+        Error:
+            if (hSes != nullptr)
+            {
+                WinHttpCloseHandle (hSes);
+            }
+            return hr;
+        };
+
+        set.entries.push_back (std::move (entry));
+    }
+
+    if (considerDiskAudio && prefs.audioDownloadConsent != "decline")
+    {
+        for (string_view mechanism : s_kDiskAudioMechanisms)
+        {
+            StartupAssetEntry  entry;
+            string             mechStr   (mechanism);
+            wstring            mechW     (mechanism.begin (), mechanism.end ());
+            size_t             missingCount = 0;
+
+            for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
+            {
+                fs::path  mechDir = devicesDir / string (spec.mechanism);
+                fs::path  wavPath = mechDir / string (spec.wavBasename);
+
+                if (spec.mechanism != mechanism)
+                {
+                    continue;
+                }
+
+                if (fs::exists (wavPath, ec))
+                {
+                    continue;
+                }
+
+                entry.destPaths.push_back (wavPath);
+                missingCount++;
+            }
+
+            if (missingCount == 0)
+            {
+                continue;
+            }
+
+            entry.kind          = StartupAssetKind::DriveAudio;
+            entry.groupLabel    = L"Disk ][ audio";
+            entry.kindLabel     = L"Drive audio";
+            entry.source        = L"OpenEmulator (GitHub)";
+            entry.expectedBytes = 0;
+            entry.selectable    = true;
+            entry.selected      = true;
+            entry.displayName   = mechW + L" mechanism";
+            entry.downloadFn    = [devicesDir, mechStr] (
+                std::atomic<std::uint64_t> & bytesDone,
+                std::atomic<bool>          & cancel,
+                std::string                & err) -> HRESULT
+            {
+                HRESULT     hr            = S_OK;
+                HINTERNET   hSes          = nullptr;
+                error_code  ecLocal;
+                uint64_t    cumulative    = 0;
+
+                hSes = WinHttpOpen (s_kpszUserAgent,
+                                    WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                                    WINHTTP_NO_PROXY_NAME,
+                                    WINHTTP_NO_PROXY_BYPASS,
+                                    0);
+                CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
+
+                for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
+                {
+                    fs::path                     mechDir = devicesDir / string (spec.mechanism);
+                    fs::path                     wavPath = mechDir / string (spec.wavBasename);
+                    vector<float>                pcm;
+                    wstring                      urlPath;
+                    std::atomic<std::uint64_t>   perFileBytes{0};
+
+                    if (spec.mechanism != mechStr)
+                    {
+                        continue;
+                    }
+
+                    if (fs::exists (wavPath, ecLocal))
+                    {
+                        continue;
+                    }
+
+                    if (cancel.load (std::memory_order_relaxed))
+                    {
+                        hr = E_ABORT;
+                        goto Error;
+                    }
+
+                    urlPath  = s_kpszOpenEmulatorPathFmt;
+                    urlPath += wstring (spec.mechanism.begin (), spec.mechanism.end ());
+                    urlPath += L"/";
+
+                    for (char ch : spec.oggBasename)
+                    {
+                        if (ch == ' ')
+                        {
+                            urlPath += L"%20";
+                        }
+                        else
+                        {
+                            urlPath += static_cast<wchar_t> (static_cast<unsigned char> (ch));
+                        }
+                    }
+
+                    hr = AssetBootstrap::FetchAndDecodeOgg (hSes,
+                                                            urlPath.c_str (),
+                                                            44100,
+                                                            pcm,
+                                                            err,
+                                                            &perFileBytes,
+                                                            &cancel);
+
+                    if (hr == E_ABORT || cancel.load (std::memory_order_relaxed))
+                    {
+                        hr = E_ABORT;
+                        goto Error;
+                    }
+
+                    if (FAILED (hr))
+                    {
+                        DEBUGMSG (L"Drive audio: skipping %S (%s)\n",
+                                  spec.oggBasename.data (),
+                                  wstring (err.begin (), err.end ()).c_str ());
+                        err.clear ();
+                        hr = S_OK;
+                        continue;
+                    }
+
+                    fs::create_directories (mechDir, ecLocal);
+
+                    hr = AssetBootstrap::WritePcmAsWav (wavPath, pcm, 44100, err);
+
+                    if (FAILED (hr))
+                    {
+                        DEBUGMSG (L"Drive audio: write failed for %S (%s)\n",
+                                  spec.wavBasename.data (),
+                                  wstring (err.begin (), err.end ()).c_str ());
+                        err.clear ();
+                        hr = S_OK;
+                        continue;
+                    }
+
+                    cumulative += perFileBytes.load (std::memory_order_relaxed);
+                    bytesDone.store (cumulative, std::memory_order_relaxed);
+                }
+
+            Error:
+                if (hSes != nullptr)
+                {
+                    WinHttpCloseHandle (hSes);
+                }
+                return hr;
+            };
+
+            set.entries.push_back (std::move (entry));
+            audioIncluded = true;
+        }
+    }
+
+    if (offerBootDisk)
+    {
+        struct DiskChoice { const BootDiskSpec * spec; bool defaultSelected; };
+        DiskChoice  choices[] =
+        {
+            { &s_kDos33Disk,  true  },
+            { &s_kProDOSDisk, false }
+        };
+
+        for (const DiskChoice & dc : choices)
+        {
+            fs::path  wantPath = diskDir / string (dc.spec->cassoName);
+
+            if (fs::exists (wantPath, ec))
+            {
+                continue;
+            }
+
+            const BootDiskSpec * spec = dc.spec;
+            StartupAssetEntry    entry;
+
+            entry.kind          = StartupAssetKind::BootDisk;
+            entry.groupLabel    = L"Boot disks";
+            entry.displayName   = AsciiToWide (string (spec->shortLabel));
+            entry.kindLabel     = L"Boot disk";
+            entry.source        = L"Asimov";
+            entry.selectable    = true;
+            entry.selected      = dc.defaultSelected;
+            entry.destPaths.push_back (wantPath);
+            entry.expectedBytes = (std::uint64_t) spec->expectedSize;
+            entry.downloadFn    = [spec, destPath = wantPath] (
+                std::atomic<std::uint64_t> & bytesDone,
+                std::atomic<bool>          & cancel,
+                std::string                & err) -> HRESULT
+            {
+                HRESULT       hr      = S_OK;
+                HINTERNET     hSes    = nullptr;
+                vector<Byte>  payload;
+                error_code    ecLocal;
+
+                hSes = WinHttpOpen (s_kpszUserAgent,
+                                    WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                                    WINHTTP_NO_PROXY_NAME,
+                                    WINHTTP_NO_PROXY_BYPASS,
+                                    0);
+                CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
+
+                hr = DownloadHttp (hSes,
+                                   s_kpszAsimovHost,
+                                   spec->asimovUrlPath,
+                                   spec->expectedSize,
+                                   spec->shortLabel,
+                                   payload,
+                                   err,
+                                   &bytesDone,
+                                   &cancel);
+                CHR (hr);
+
+                fs::create_directories (destPath.parent_path (), ecLocal);
+                hr = WriteFileBytes (destPath, payload);
+                CHRF (hr, err = format ("Cannot write {}", destPath.string ()));
+
+            Error:
+                if (hSes != nullptr)
+                {
+                    WinHttpCloseHandle (hSes);
+                }
+                return hr;
+            };
+
+            set.entries.push_back (std::move (entry));
+        }
+    }
+
+    BAIL_OUT_IF (set.entries.empty (), S_OK);
+
+    result = StartupDownloadDialog::Show (hInstance, hwndParent, prefs.activeTheme,
+                                          MachineDisplayName (narrowMachine), set);
+
+    switch (result)
+    {
+    case StartupDownloadResult::NothingToDo:
+    case StartupDownloadResult::AllDone:
+    case StartupDownloadResult::PartialDone:
+        if (audioIncluded)
+        {
+            prefs.audioDownloadConsent = "allow";
+        }
+        // Pick the first boot-disk entry whose file is actually on
+        // disk -- preserves catalog order (DOS 3.3 over ProDOS) and
+        // tolerates the user unchecking the default.
+        for (const StartupAssetEntry & entry : set.entries)
+        {
+            if (entry.kind != StartupAssetKind::BootDisk) continue;
+            if (entry.destPaths.empty ())                 continue;
+            if (!fs::exists (entry.destPaths.front (), ec)) continue;
+
+            outBootDiskPath = entry.destPaths.front ().wstring ();
+            break;
+        }
+        hr = S_OK;
+        break;
+
+    case StartupDownloadResult::Skipped:
+        if (audioIncluded)
+        {
+            prefs.audioDownloadConsent = "decline";
+        }
+        hr = S_OK;
+        break;
+
+    case StartupDownloadResult::Exit:
+        hr = S_FALSE;
+        break;
+    }
+
+Error:
     return hr;
 }

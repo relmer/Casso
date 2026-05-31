@@ -96,20 +96,26 @@ void Tooltip::Tick (int64_t nowMs)
 
 void Tooltip::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 {
-    constexpr uint32_t  s_kBgArgb     = 0xF02D2D2D;
+    constexpr uint32_t  s_kBgArgb     = 0xFF2D2D2D;
     constexpr uint32_t  s_kBorderArgb = 0xFF606060;
     constexpr uint32_t  s_kTextArgb   = 0xFFE8EEF4;
-    constexpr float     s_kPadX       = 8.0f;
-    constexpr float     s_kPadY       = 4.0f;
-    constexpr float     s_kBorderPx   = 1.0f;
-    constexpr float     s_kCharWidth  = 7.0f;
-    constexpr float     s_kAnchorGap  = 4.0f;
+    constexpr float     s_kPadXDip    = 8.0f;
+    constexpr float     s_kPadYDip    = 4.0f;
+    constexpr float     s_kBorderDip  = 1.0f;
+    constexpr float     s_kAnchorGapDip = 4.0f;
 
-    HRESULT  hr      = S_OK;
-    float    width   = 0.0f;
-    float    height  = 0.0f;
-    float    boxLeft = 0.0f;
-    float    boxTop  = 0.0f;
+    HRESULT  hr        = S_OK;
+    float    fontPx    = m_scaler.Pxf (m_fontDip);
+    float    padX      = m_scaler.Pxf (s_kPadXDip);
+    float    padY      = m_scaler.Pxf (s_kPadYDip);
+    float    borderPx  = m_scaler.Pxf (s_kBorderDip);
+    float    anchorGap = m_scaler.Pxf (s_kAnchorGapDip);
+    float    textW     = 0.0f;
+    float    textH     = 0.0f;
+    float    width     = 0.0f;
+    float    height    = 0.0f;
+    float    boxLeft   = 0.0f;
+    float    boxTop    = 0.0f;
 
 
 
@@ -118,20 +124,25 @@ void Tooltip::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
         return;
     }
 
-    width  = (float) m_text.size() * s_kCharWidth + s_kPadX * 2.0f;
-    height = m_fontDip + s_kPadY * 2.0f;
+    hr = const_cast<DwriteTextRenderer &> (text).MeasureString (m_text.c_str(),
+                                                                fontPx, L"Segoe UI",
+                                                                textW, textH);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    width   = std::ceil (textW)  + padX * 2.0f;
+    height  = std::ceil (textH)  + padY * 2.0f;
     boxLeft = (float) m_anchor.left;
-    boxTop  = (float) m_anchor.bottom + s_kAnchorGap;
+    boxTop  = (float) m_anchor.bottom + anchorGap;
 
     painter.FillRect    (boxLeft, boxTop, width, height, s_kBgArgb);
-    painter.OutlineRect (boxLeft, boxTop, width, height, s_kBorderPx, s_kBorderArgb);
+    painter.OutlineRect (boxLeft, boxTop, width, height, borderPx, s_kBorderArgb);
 
     IGNORE_RETURN_VALUE (hr, text.DrawString (m_text.c_str(),
-                                              boxLeft + s_kPadX,
-                                              boxTop  + s_kPadY,
-                                              width  - s_kPadX * 2.0f,
-                                              height - s_kPadY * 2.0f,
+                                              boxLeft + padX,
+                                              boxTop  + padY,
+                                              width  - padX * 2.0f,
+                                              height - padY * 2.0f,
                                               s_kTextArgb,
-                                              m_fontDip,
+                                              fontPx,
                                               L"Segoe UI"));
 }

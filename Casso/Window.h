@@ -93,9 +93,8 @@ protected:
     // / HTMAXBUTTON / HTCLOSE so DefWindowProc does not run its system-
     // button tracking loop (which on WS_CAPTION windows draws ghost
     // caption icons over custom chrome and forces a double-click for
-    // the actual action). Default is false so non-chrome windows like
-    // DebugConsole and Disk2DebugDialog keep their standard X-button
-    // behavior.
+    // the actual action). Default is false so non-chrome windows
+    // keep their standard X-button behavior.
     virtual bool    WantsCustomCaptionButtons () const { return false; }
 
     // DPI lifecycle hooks (Non-Virtual Interface). The base WndProc
