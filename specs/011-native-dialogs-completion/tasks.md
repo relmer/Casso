@@ -7,9 +7,34 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 **Input**: Design documents from `/specs/011-native-dialogs-completion/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/dialog-primitive.md, quickstart.md
 
-## Execution Status (current — through May 2026)
+## Execution Status (current — May 30, 2026)
 
-**Completed (36/65)** — Phase 1–8 plus the substance of US6/US7 left for follow-up:
+**Completed (65/65) — feature shipped to master.** All user stories
+(US1–US7), polish phase, and merge gates (T060–T065) are landed. Post-
+merge polish (drive-widget click → themed MRU picker, button border
+visibility, `&` accelerator, title-bar drag, picker dedup + content-
+match labeling, drive 0/1 indexing fix) shipped directly to master.
+
+The notes below preserve the original phase-by-phase landing summary.
+
+**Phase 1–8** — DialogDefinition, DialogLayout, DialogPrimitive +
+Renderer, custom-body input dispatcher, DxUiPainter hyperlink hit-test,
+DiskMru + tests, `recentDisks` JSON, mount-site recording, US1
+`StartupDownloadDialog`, US2 boot-disk MRU absorbed into
+`StartupDownloadDialog` (commit `885aa00`), US3 themed About / Keymap
+/ Machine Info via `DialogPrimitive`, US4 drive widget filename label,
+US5 themed disk-insert MRU picker, FR-012 `SettingsPanel` `MessageBoxW`
+stray replaced.
+
+**Phase 9 (US6)** — Themed Debug Console panel landed (T039–T043), then
+subsequently **removed** entirely as redundant (checkpoint 034).
+
+**Phase 10 (US7)** — Themed Disk II Debug Panel converted control-
+family by control-family (T044–T059); legacy Win32 dialog deleted.
+
+**Phase 11 (Merge gates)** — T060–T065 all landed.
+
+**Original task list completion notes preserved below for history:**
 - T001–T013: Setup + Foundational (DialogDefinition, DialogLayout, DialogPrimitive + Renderer, custom-body input dispatcher, DxUiPainter hyperlink hit-test, DiskMru + tests, `recentDisks` JSON, mount-site recording).
 - T014, T016, T017: US1 — `StartupDownloadDialog` is live as a single themed DX dialog with parallel-download workers, per-asset progress, checkbox selection, and group headers (Apple //e ROMs, Disk II audio, Boot disks). `AssetBootstrap.cpp` carries no `TaskDialogIndirect` / `MessageBoxW` / legacy prompt calls.
 - T019–T023: US2 — boot-disk MRU rows were **absorbed into `StartupDownloadDialog`** (no separate `BootDiskPicker.h/.cpp`; the unified downloader paints MRU entries above the DOS 3.3 / ProDOS download rows — commit `885aa00`). `DiskMru::Prune` runs at Show time; mount sites record into the MRU; `DiskMruTests` covers Prune (drops-rejected, idempotent, null-predicate).
@@ -25,12 +50,9 @@ description: "Task list for feature 011 — Native DX Dialogs Completion"
 - `DialogPrimitive::SetButtonLabel` now re-runs layout so mid-flight relabels (e.g. "Download" → "Downloading...") get the right button width.
 
 **Not done (explicitly tracked):**
-- (none — T015 landed in commit adding `UnitTest/StartupDownloadSetTests.cpp`)
+- (none)
 
-**Remaining work (28/65):**
-- T039–T043: US6 themed Debug Console panel.
-- T044–T059: US7 themed Disk II Debug Panel (16 tasks).
-- T060–T065: merge gates (rg containment check, -RunCodeAnalysis build, full tests, single consolidated CHANGELOG entry, README + quickstart updates).
+**Remaining work**: none — feature complete (see "Execution Status" header above).
 
 ---
 
