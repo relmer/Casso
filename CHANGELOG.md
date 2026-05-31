@@ -6,6 +6,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.5.1398] — Themed disk-insert MRU picker
+
+The runtime disk-insert flow (Disk → Insert Disk Image, drive-widget
+click, or `IDM_DISK_INSERT1`/`2`) now opens the themed MRU picker
+instead of jumping straight to `IFileOpenDialog`. Lists the same
+existing-on-disk recents as the boot picker plus the always-available
+DOS 3.3 / ProDOS download rows. A **Browse...** button preserves the
+native `IFileOpenDialog` path for off-MRU images.
+
+### Added
+- **feat(011): `AssetBootstrap::PromptInsertDiskMru`.** Sibling to the
+  boot-time `PromptBootDiskMru` — same `ListView`-based DialogPrimitive
+  surface, theme-aware, but titled per drive and wired with a Browse
+  fallback instead of Skip. Uses out-of-range negative sentinel result
+  codes to avoid colliding with row indices.
+- **feat(011): `WindowCommandManager::PromptInsertDiskMru`.** Loads MRU
+  from `GlobalUserPrefs::recentDisks`, prunes vanished files, invokes
+  the themed picker, and routes the result: chosen row →
+  `EmulatorShell::Mount(6, drive, path)`; Browse → existing
+  `PromptForDiskImage` (`IFileOpenDialog`); Cancel/Esc/close → no-op.
+
+### Changed
+- **refactor(011): `OnDiskCommand` IDM_DISK_INSERT1/2** now invoke
+  `PromptInsertDiskMru` instead of `PromptForDiskImage` directly.
+
 ## [1.5.1395] — Native dialogs migration (spec 011)
 
 Themed DX-based modal dialogs now replace every Win32 `MessageBoxW` /

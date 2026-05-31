@@ -41,7 +41,8 @@ public:
 
     bool  OnInitMenuPopup      (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu);
 
-    HRESULT  PromptForDiskImage (int drive);
+    HRESULT  PromptForDiskImage   (int drive);
+    HRESULT  PromptInsertDiskMru  (int drive);
 
 private:
     EmulatorShell &  m_shell;

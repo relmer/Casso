@@ -2,8 +2,10 @@
 
 #include "WindowCommandManager.h"
 
+#include "../AssetBootstrap.h"
 #include "../EmulatorShell.h"
 #include "../resource.h"
+#include "../Shell/DiskMru.h"
 #include "Version.h"
 #include "Ui/Chrome/LayoutManager.h"
 #include "Ui/Chrome/ChromeMetrics.h"
@@ -427,6 +429,65 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PromptInsertDiskMru
+//
+//  Shows the themed disk MRU picker. Routes the user's chosen disk
+//  (recent image or stock master download) to Mount(); if the user
+//  clicks "Browse..." this falls through to the IFileOpenDialog path
+//  via PromptForDiskImage.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WindowCommandManager::PromptInsertDiskMru (int drive)
+{
+    HRESULT                          hr          = S_OK;
+    DiskMru                          mru;
+    std::vector<std::filesystem::path>  mruExisting;
+    std::filesystem::path            diskDir;
+    std::wstring                     chosenPath;
+    std::string                      error;
+    bool                             userBrowsed = false;
+
+
+    diskDir     = AssetBootstrap::GetDiskDirectory();
+    mru         = DiskMru::FromUtf8 (m_shell.m_globalPrefs.recentDisks);
+    mruExisting = mru.Prune ([] (const std::filesystem::path & p)
+                             {
+                                 return std::filesystem::exists (p);
+                             });
+
+    hr = AssetBootstrap::PromptInsertDiskMru (GetModuleHandle (nullptr),
+                                              m_shell.m_hwnd,
+                                              drive,
+                                              mruExisting,
+                                              diskDir,
+                                              m_shell.m_globalPrefs.activeTheme,
+                                              chosenPath,
+                                              userBrowsed,
+                                              error);
+    CHR (hr);
+
+    if (userBrowsed)
+    {
+        hr = PromptForDiskImage (drive);
+        CHR (hr);
+    }
+    else if (!chosenPath.empty())
+    {
+        hr = m_shell.Mount (6, drive, chosenPath);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnDiskCommand
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -443,13 +504,9 @@ void WindowCommandManager::OnDiskCommand (int id)
         case IDM_DISK_INSERT1:
         case IDM_DISK_INSERT2:
         {
-            // Route both insert commands through the modern
-            // IFileOpenDialog-based picker. FR-015 keeps
-            // IFileOpenDialog as the supported file-picker surface;
-            // the legacy GetOpenFileNameW path is removed.
             drive = (id == IDM_DISK_INSERT1) ? 1 : 2;
 
-            hr = PromptForDiskImage (drive);
+            hr = PromptInsertDiskMru (drive);
             IGNORE_RETURN_VALUE (hr, S_OK);
             break;
         }
