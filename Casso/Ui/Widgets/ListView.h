@@ -53,6 +53,11 @@ public:
     void  SetDpi          (UINT dpi)                       { m_scaler.SetDpi (dpi); }
     void  SetRect         (const RECT & rect)
     {
+        // SetRows may have run before the host knew the paint rect;
+        // it would have clamped m_topRow against a zero-capacity rect
+        // (VisibleRowCapacity returns 0) and, with sticky-tail on,
+        // pinned m_topRow to rows.size() — past the end. Re-clamp now
+        // that we know the real capacity, preserving sticky-tail intent.
         bool  wasSticky = m_stickyTail;
         m_rect = rect;
         int  maxTop = MaxTopRow();

@@ -17,7 +17,8 @@ public:
     using ClickFn = std::function<void()>;
 
     void  Layout          (const RECT & rect) { m_rect = rect; }
-    void  SetLabel        (const std::wstring & label) { m_label = label; }
+    void  SetLabel        (const std::wstring & label);
+    wchar_t  Accelerator  () const { return m_accelerator; }
     void  SetClick        (ClickFn click) { m_click = std::move (click); }
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
     void  SetColors       (uint32_t idleArgb, uint32_t hoverArgb, uint32_t pressedArgb)
@@ -48,6 +49,7 @@ public:
 private:
     RECT          m_rect            = {};
     std::wstring  m_label;
+    wchar_t       m_accelerator     = 0;
     ClickFn       m_click;
     bool          m_hover           = false;
     bool          m_pressed         = false;

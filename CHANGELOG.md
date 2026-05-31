@@ -6,6 +6,93 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.5.1405] — Disk-insert picker polish
+
+Field-test fixes for the themed disk-insert MRU picker and the
+underlying dialog primitives.
+
+### Fixed
+- **fix(picker): match stock-disk aliases by content for friendly
+  labeling.** Stock disks that lived under a different filename
+  (e.g. `dos33-master.dsk` next to the canonical `DOS 3.3 System
+  Master.dsk`) still rendered with their raw basename, since the prior
+  fix only matched MRU entries via `fs::equivalent` (same physical
+  file). Added a size-then-`memcmp` fallback so byte-identical aliases
+  at different paths also inherit the friendly label. Both copies
+  remain visible in the MRU; the download row is suppressed only when
+  some MRU entry matches.
+- **fix(picker): show friendly label for stock MRU entries.** After
+  the dup-suppression fix, a stock disk in the MRU still rendered as
+  its raw filename (`DOS 3.3 System Master.dsk`) because the friendly
+  label only lived on the now-suppressed download row. Pickers now
+  carry the label across: MRU entries that match a stock-download
+  target render as `DOS 3.3` / `ProDOS`.
+- **fix(picker): suppressed duplicate DOS 3.3 / ProDOS rows.** The
+  boot and runtime MRU pickers always appended both stock-download
+  rows even when the canonical disk file was already in the MRU,
+  producing two entries that mounted the same file. Now skip the
+  download row when its target path matches an MRU entry (compared
+  via `fs::equivalent`).
+- **fix(picker): disk inserted into wrong drive.** Picking a disk in
+  Drive 1 (widget click → MRU picker → Browse → file dialog) was
+  mounting it into Drive 2. `WindowCommandManager::PromptInsertDiskMru`
+  and `PromptForDiskImage` were forwarding the 1-indexed display drive
+  number straight to `Mount`, which expects 0-indexed (drive `1` then
+  maps to `IDM_DISK_INSERT2`). Subtract 1 at the `Mount` call sites.
+- **fix(picker): boot-disk row index collided with `IDCANCEL`.**
+  `PromptBootDiskMru` used `IDCANCEL` (= 2) as the Skip button ID, so
+  once the MRU grew to ≥ 3 rows a click on row index 2 would have
+  been mis-classified as Skip. Switched to a negative sentinel
+  (`s_kSkipResult = -2002`), mirroring `PromptInsertDiskMru`. Rows
+  keep their natural `0..N-1` indexing; buttons live in non-overlapping
+  negative space.
+- **fix(widget): `ListView` empty body when `SetRows` precedes
+  `SetRect`.** Sticky-tail clamp in `SetRows` pinned `m_topRow` to
+  `rows.size()` because `VisibleRowCapacity()` returned 0 against an
+  empty rect, so the paint loop drew zero data rows. `SetRect` now
+  re-clamps `m_topRow` once the real rect is known.
+- **fix(dialog): button border invisible when colors overridden.**
+  `Button::Paint` only drew the 1dip auto-border in the
+  `!m_useOverrides` branch, and `DialogPrimitive::BuildButtons` was
+  forcing overrides with colors close to the dialog body. Border now
+  paints whenever `borderColor != 0`, and `BuildButtons` lets theme
+  defaults apply.
+- **fix(dialog): `&` accelerator marker.** `Button::SetLabel` now
+  strips the marker and captures the accelerator; `DialogPrimitive`
+  handles `WM_SYSCHAR` to dispatch Alt+letter to the matching
+  button.
+- **fix(dialog): draggable title bar on `WS_POPUP` dialogs.**
+  `DialogPrimitive::OnMouse` forwards in-title clicks (outside the
+  close box) as `WM_NCLBUTTONDOWN HTCAPTION`.
+- **fix(picker): drive number is 1-indexed.** `BrowseForDisk` now
+  passes `drive + 1` to `PromptInsertDiskMru` so the title reads
+  "Insert Disk — Drive 1/2" and the mount call gets the right slot.
+
+## [1.5.1398] — Themed disk-insert MRU picker
+
+The runtime disk-insert flow (Disk → Insert Disk Image, drive-widget
+click, or `IDM_DISK_INSERT1`/`2`) now opens the themed MRU picker
+instead of jumping straight to `IFileOpenDialog`. Lists the same
+existing-on-disk recents as the boot picker plus the always-available
+DOS 3.3 / ProDOS download rows. A **Browse...** button preserves the
+native `IFileOpenDialog` path for off-MRU images.
+
+### Added
+- **feat(011): `AssetBootstrap::PromptInsertDiskMru`.** Sibling to the
+  boot-time `PromptBootDiskMru` — same `ListView`-based DialogPrimitive
+  surface, theme-aware, but titled per drive and wired with a Browse
+  fallback instead of Skip. Uses out-of-range negative sentinel result
+  codes to avoid colliding with row indices.
+- **feat(011): `WindowCommandManager::PromptInsertDiskMru`.** Loads MRU
+  from `GlobalUserPrefs::recentDisks`, prunes vanished files, invokes
+  the themed picker, and routes the result: chosen row →
+  `EmulatorShell::Mount(6, drive, path)`; Browse → existing
+  `PromptForDiskImage` (`IFileOpenDialog`); Cancel/Esc/close → no-op.
+
+### Changed
+- **refactor(011): `OnDiskCommand` IDM_DISK_INSERT1/2** now invoke
+  `PromptInsertDiskMru` instead of `PromptForDiskImage` directly.
+
 ## [1.5.1395] — Native dialogs migration (spec 011)
 
 Themed DX-based modal dialogs now replace every Win32 `MessageBoxW` /

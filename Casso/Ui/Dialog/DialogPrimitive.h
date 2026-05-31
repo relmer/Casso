@@ -60,6 +60,7 @@ private:
     void     OnSize         (int widthPx, int heightPx);
     void     OnDpiChanged   (UINT dpi, const RECT & suggestedRect);
     void     OnKeyDown      (WPARAM vk);
+    bool     OnSysChar      (WPARAM ch);
     void     OnMouse        (UINT message, WPARAM wParam, LPARAM lParam);
     void     OnClose        ();
 

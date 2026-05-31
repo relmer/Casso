@@ -6,6 +6,53 @@
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Button::SetLabel
+//
+//  Stores the label with a single ampersand stripped (Win32 accelerator
+//  convention). Captures the character after the first single `&` as
+//  the lowercase accelerator key. `&&` is preserved as a literal `&`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Button::SetLabel (const std::wstring & label)
+{
+    std::wstring  out;
+    wchar_t       accel = 0;
+    size_t        i     = 0;
+
+
+    out.reserve (label.size());
+
+    while (i < label.size())
+    {
+        if (label[i] == L'&' && i + 1 < label.size())
+        {
+            if (label[i + 1] == L'&')
+            {
+                out.push_back (L'&');
+                i += 2;
+                continue;
+            }
+            if (accel == 0)
+            {
+                accel = (wchar_t) towlower (label[i + 1]);
+            }
+            out.push_back (label[i + 1]);
+            i += 2;
+            continue;
+        }
+        out.push_back (label[i]);
+        ++i;
+    }
+
+    m_label       = std::move (out);
+    m_accelerator = accel;
+}
+
+
+
 bool Button::HitTest (int x, int y) const
 {
     if (!m_visible || !m_enabled)
@@ -107,12 +154,11 @@ void Button::Paint (DxUiPainter & painter, DwriteTextRenderer & text, const Chro
                              m_outlineThick,
                              m_outlineArgb);
     }
-    else if (!m_useOverrides && borderColor != 0)
+    else if (borderColor != 0)
     {
-        // Default themed buttons always paint a 1dip border so the
+        // Themed buttons always paint a 1dip border so the
         // shape is legible against the panel background even when the
-        // button fill is similar to the surface. Buttons that opt into
-        // a custom palette (m_useOverrides) own their own border.
+        // button fill is similar to the surface.
         painter.OutlineRect ((float) m_rect.left,
                              (float) m_rect.top,
                              (float) (m_rect.right  - m_rect.left),

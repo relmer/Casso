@@ -1608,7 +1608,7 @@ void EmulatorShell::BrowseForDisk (int drive)
         Sleep (8);
     }
 
-    hrBrowse = m_windowCommandManager->PromptForDiskImage (drive);
+    hrBrowse = m_windowCommandManager->PromptInsertDiskMru (drive + 1);
     IGNORE_RETURN_VALUE (hrBrowse, S_OK);
 
     // Cancel / error path: door follows mount state. Mounted drive
