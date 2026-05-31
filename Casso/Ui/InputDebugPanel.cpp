@@ -900,7 +900,20 @@ void InputDebugPanel::DrainAndProject()
     size_t                                     n           = 0;
     bool                                       changed     = false;
     InputEvent                                 lostEvent   = {};
+    int64_t                                    ticks       = 0;
 
+
+    if (m_resetAnchorPending.exchange (false, std::memory_order_acq_rel))
+    {
+        // A reset (Ctrl+R / power-cycle) was requested from the CPU
+        // thread. Apply the staged Uptime anchor and clear the event
+        // list HERE, on the render thread, so m_events, m_filteredIndices
+        // and the ListView rows are only ever touched by one thread.
+        ticks = m_pendingAnchorTicks.load (std::memory_order_acquire);
+
+        m_uptimeAnchor = std::chrono::steady_clock::time_point (std::chrono::steady_clock::duration (ticks));
+        ClearEvents();
+    }
 
     if (m_paused)
     {
@@ -1029,6 +1042,12 @@ void InputDebugPanel::ClearEvents()
     }
     m_droppedSinceLastDrain.store (0, std::memory_order_relaxed);
     PushListViewRows();
+}
+
+void InputDebugPanel::RequestResetAnchor (std::chrono::steady_clock::time_point anchor) noexcept
+{
+    m_pendingAnchorTicks.store (anchor.time_since_epoch().count(), std::memory_order_release);
+    m_resetAnchorPending.store (true, std::memory_order_release);
 }
 
 void InputDebugPanel::OnFilterChanged()

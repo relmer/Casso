@@ -111,17 +111,16 @@ public:
 
         if (m_disk2DebugPanel != nullptr)
         {
-            m_disk2DebugPanel->SetUptimeAnchor (m_uptimeAnchor);
-            // Spec-006 bug-fix. Clear stale rows from the pre-reset
-            // boot so the post-reset uptime anchor doesn't end up
-            // formatting events that pre-date its own zero point.
-            m_disk2DebugPanel->ClearEvents();
+            // ResetUptimeAnchor runs on the CPU thread. Touching the
+            // panel's event deque / ListView rows here would race the
+            // render thread's per-frame drain and corrupt the row Cells,
+            // so marshal the re-anchor + clear onto the render thread.
+            m_disk2DebugPanel->RequestResetAnchor (m_uptimeAnchor);
         }
 
         if (m_inputDebugPanel != nullptr)
         {
-            m_inputDebugPanel->SetUptimeAnchor (m_uptimeAnchor);
-            m_inputDebugPanel->ClearEvents();
+            m_inputDebugPanel->RequestResetAnchor (m_uptimeAnchor);
         }
     }
 

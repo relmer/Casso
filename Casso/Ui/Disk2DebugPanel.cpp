@@ -1955,7 +1955,20 @@ void Disk2DebugPanel::ConfigureWidgets()
 void Disk2DebugPanel::DrainAndProject()
 {
     uint32_t  dropped = 0;
+    int64_t   ticks   = 0;
 
+
+    if (m_resetAnchorPending.exchange (false, std::memory_order_acq_rel))
+    {
+        // A reset (Ctrl+R / power-cycle) was requested from the CPU
+        // thread. Apply the staged Uptime anchor and clear the event
+        // list HERE, on the render thread, so m_events, m_filteredIndices
+        // and the ListView rows are only ever touched by one thread.
+        ticks = m_pendingAnchorTicks.load (std::memory_order_acquire);
+
+        m_uptimeAnchor = std::chrono::steady_clock::time_point (std::chrono::steady_clock::duration (ticks));
+        ClearEvents();
+    }
 
     if (m_paused)
     {
@@ -2254,6 +2267,27 @@ void Disk2DebugPanel::ClearEvents()
     m_listSelectedEventIndex = -1;
     PushListViewRows();
     ApplyListSelection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RequestResetAnchor
+//
+//  Thread-safe reset entry point for the CPU/reset thread. Stages the
+//  new Uptime anchor and raises a pending-reset flag; DrainAndProject
+//  applies the anchor and clears the event list on the render thread,
+//  keeping the event deque and ListView rows single-threaded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2DebugPanel::RequestResetAnchor (std::chrono::steady_clock::time_point anchor) noexcept
+{
+    m_pendingAnchorTicks.store (anchor.time_since_epoch().count(), std::memory_order_release);
+    m_resetAnchorPending.store (true, std::memory_order_release);
 }
 
 

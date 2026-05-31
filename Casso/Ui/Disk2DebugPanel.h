@@ -72,6 +72,12 @@ public:
     void    SetMultiControllerHint (bool multi)            { m_multiController = multi; }
     void    ClearEvents     ();
 
+    // Thread-safe reset hook. The CPU/reset thread calls this to stage a
+    // new Uptime anchor and request an event-list clear; the render
+    // thread applies both inside DrainAndProject so the event deque and
+    // ListView rows are only ever mutated on one thread.
+    void    RequestResetAnchor (std::chrono::steady_clock::time_point anchor) noexcept;
+
     // IChromedPanelContent.
     LPCWSTR  GetWindowClassName () const override;
     LPCWSTR  GetWindowTitle     () const override;
@@ -198,6 +204,8 @@ private:
     std::deque<Disk2EventDisplay>        m_events;
     std::vector<size_t>                   m_filteredIndices;
     std::atomic<uint32_t>                 m_droppedSinceLastDrain = 0;
+    std::atomic<bool>                     m_resetAnchorPending    = false;
+    std::atomic<int64_t>                  m_pendingAnchorTicks    = 0;
     const uint64_t                      * m_cycleCounter = nullptr;
     std::chrono::steady_clock::time_point  m_uptimeAnchor;
     bool                                  m_paused          = false;
