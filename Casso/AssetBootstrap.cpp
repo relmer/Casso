@@ -1698,6 +1698,7 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
 {
     struct DownloadRow { const BootDiskSpec * spec; wstring label; };
 
+    static constexpr int s_kSkipResult     = -2002;
     static constexpr int s_kCloseBoxResult = -1000;
 
     HRESULT             hr            = S_OK;
@@ -1711,7 +1712,7 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
         { &s_kDos33Disk,  L"DOS 3.3"  },
         { &s_kProDOSDisk, L"ProDOS"   }
     };
-    int                 chosen        = IDCANCEL;
+    int                 chosen        = s_kSkipResult;
     int                 mruCount      = (int) mruEntries.size();
     int                 downloadCount = (int) std::size (downloads);
     int                 rowCount      = mruCount + downloadCount;
@@ -1829,7 +1830,7 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
         return std::nullopt;
     };
 
-    def.buttons.push_back ({ L"Skip", IDCANCEL, true, true });
+    def.buttons.push_back ({ L"Skip", s_kSkipResult, true, true });
     def.closeBoxResult = s_kCloseBoxResult;
 
     chosen = ShowStandaloneDialog (hInstance, hwndParent, themeName, def);
@@ -1837,6 +1838,10 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     if (chosen == s_kCloseBoxResult)
     {
         outUserClosed = true;
+    }
+    else if (chosen == s_kSkipResult)
+    {
+        // user skipped; outDiskPath stays empty
     }
     else if (chosen >= 0 && chosen < mruCount)
     {
@@ -1895,7 +1900,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
         { &s_kDos33Disk,  L"DOS 3.3"  },
         { &s_kProDOSDisk, L"ProDOS"   }
     };
-    int                 chosen        = IDCANCEL;
+    int                 chosen        = s_kCancelResult;
     int                 mruCount      = (int) mruEntries.size();
     int                 downloadCount = (int) std::size (downloads);
     int                 rowCount      = mruCount + downloadCount;

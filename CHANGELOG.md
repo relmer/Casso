@@ -12,6 +12,13 @@ Field-test fixes for the themed disk-insert MRU picker and the
 underlying dialog primitives.
 
 ### Fixed
+- **fix(picker): boot-disk row index collided with `IDCANCEL`.**
+  `PromptBootDiskMru` used `IDCANCEL` (= 2) as the Skip button ID, so
+  once the MRU grew to ≥ 3 rows a click on row index 2 would have
+  been mis-classified as Skip. Switched to a negative sentinel
+  (`s_kSkipResult = -2002`), mirroring `PromptInsertDiskMru`. Rows
+  keep their natural `0..N-1` indexing; buttons live in non-overlapping
+  negative space.
 - **fix(widget): `ListView` empty body when `SetRows` precedes
   `SetRect`.** Sticky-tail clamp in `SetRows` pinned `m_topRow` to
   `rows.size()` because `VisibleRowCapacity()` returned 0 against an
