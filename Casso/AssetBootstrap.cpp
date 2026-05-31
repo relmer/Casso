@@ -1685,6 +1685,61 @@ Error:
 
 static constexpr int  s_kBootMruBodyWidthDp  = 520;
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FilesHaveSameContent
+//
+//  Cheap byte-equality check for disk-image dedup heuristics in the
+//  MRU pickers. Bails on size mismatch before reading any bytes, so
+//  the common "not the same file" case costs one stat per side.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool FilesHaveSameContent (const fs::path & a, const fs::path & b)
+{
+    std::error_code  ec;
+    uintmax_t        sizeA   = fs::file_size (a, ec);
+    uintmax_t        sizeB   = 0;
+    std::ifstream    fa;
+    std::ifstream    fb;
+    std::vector<char> bufA;
+    std::vector<char> bufB;
+
+
+    if (ec)
+    {
+        return false;
+    }
+
+    sizeB = fs::file_size (b, ec);
+    if (ec || sizeA != sizeB || sizeA == 0)
+    {
+        return false;
+    }
+
+    fa.open (a, std::ios::binary);
+    fb.open (b, std::ios::binary);
+    if (!fa.is_open() || !fb.is_open())
+    {
+        return false;
+    }
+
+    bufA.resize ((size_t) sizeA);
+    bufB.resize ((size_t) sizeB);
+    fa.read (bufA.data(), (std::streamsize) sizeA);
+    fb.read (bufB.data(), (std::streamsize) sizeB);
+    if (!fa || !fb)
+    {
+        return false;
+    }
+
+    return std::memcmp (bufA.data(), bufB.data(), (size_t) sizeA) == 0;
+}
+
+
+
 HRESULT AssetBootstrap::PromptBootDiskMru (
     HINSTANCE                  hInstance,
     HWND                       hwndParent,
@@ -1737,24 +1792,27 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
 
     for (const DownloadRow & dr : downloads)
     {
-        fs::path         wantPath = diskDir / string (dr.spec->cassoName);
-        int              matchIdx = -1;
-        std::error_code  ecCmp;
+        fs::path           wantPath  = diskDir / string (dr.spec->cassoName);
+        bool               foundAny  = false;
+        std::error_code    ecCmp;
 
         for (int i = 0; i < mruCount; ++i)
         {
-            if (fs::equivalent (mruEntries[(size_t) i], wantPath, ecCmp))
+            bool match = fs::equivalent (mruEntries[(size_t) i], wantPath, ecCmp);
+
+            if (!match)
             {
-                matchIdx = i;
-                break;
+                match = FilesHaveSameContent (mruEntries[(size_t) i], wantPath);
+            }
+
+            if (match)
+            {
+                mruLabels[(size_t) i] = &dr;
+                foundAny = true;
             }
         }
 
-        if (matchIdx >= 0)
-        {
-            mruLabels[(size_t) matchIdx] = &dr;
-        }
-        else
+        if (!foundAny)
         {
             shownDownloads.push_back (&dr);
         }
@@ -1951,24 +2009,27 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
     for (const DownloadRow & dr : downloads)
     {
-        fs::path         wantPath = diskDir / string (dr.spec->cassoName);
-        int              matchIdx = -1;
-        std::error_code  ecCmp;
+        fs::path           wantPath  = diskDir / string (dr.spec->cassoName);
+        bool               foundAny  = false;
+        std::error_code    ecCmp;
 
         for (int i = 0; i < mruCount; ++i)
         {
-            if (fs::equivalent (mruEntries[(size_t) i], wantPath, ecCmp))
+            bool match = fs::equivalent (mruEntries[(size_t) i], wantPath, ecCmp);
+
+            if (!match)
             {
-                matchIdx = i;
-                break;
+                match = FilesHaveSameContent (mruEntries[(size_t) i], wantPath);
+            }
+
+            if (match)
+            {
+                mruLabels[(size_t) i] = &dr;
+                foundAny = true;
             }
         }
 
-        if (matchIdx >= 0)
-        {
-            mruLabels[(size_t) matchIdx] = &dr;
-        }
-        else
+        if (!foundAny)
         {
             shownDownloads.push_back (&dr);
         }

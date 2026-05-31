@@ -12,6 +12,15 @@ Field-test fixes for the themed disk-insert MRU picker and the
 underlying dialog primitives.
 
 ### Fixed
+- **fix(picker): match stock-disk aliases by content for friendly
+  labeling.** Stock disks that lived under a different filename
+  (e.g. `dos33-master.dsk` next to the canonical `DOS 3.3 System
+  Master.dsk`) still rendered with their raw basename, since the prior
+  fix only matched MRU entries via `fs::equivalent` (same physical
+  file). Added a size-then-`memcmp` fallback so byte-identical aliases
+  at different paths also inherit the friendly label. Both copies
+  remain visible in the MRU; the download row is suppressed only when
+  some MRU entry matches.
 - **fix(picker): show friendly label for stock MRU entries.** After
   the dup-suppression fix, a stock disk in the MRU still rendered as
   its raw filename (`DOS 3.3 System Master.dsk`) because the friendly
