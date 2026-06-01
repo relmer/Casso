@@ -39,10 +39,10 @@ class AppleIIeSoftSwitchBank : public AppleSoftSwitchBank
 public:
     AppleIIeSoftSwitchBank (MemoryBus * bus = nullptr);
 
-    Byte Read  (Word address) override;
-    void Write (Word address, Byte value) override;
-    Word GetEnd () const override { return 0xC07F; }
-    void Reset () override;
+    Byte Read      (Word address) override;
+    void Write     (Word address, Byte value) override;
+    Word GetEnd    () const override { return 0xC07F; }
+    void Reset     () override;
     void SoftReset () override;
 
     bool Is80ColMode    () const { return m_80colMode; }
@@ -55,17 +55,39 @@ public:
     void SetLanguageCard (LanguageCard * lc)        { m_lc           = lc; }
     void SetVideoTiming  (IVideoTiming * vt)        { m_videoTiming  = vt; }
 
+    // Wire the CPU bus-cycle accumulator that drives the PREAD paddle timer.
+    void SetCpuCycleSource (const uint64_t * src) { m_cpuCycleSource = src; }
+
+    // Stage an analog axis position (0-255, s_knPaddleCenter = neutral).
+    void SetPaddle (int axis, Byte position);
+
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
-private:
-    Byte ReadStatusRegister (Word address);
+    static constexpr Byte s_knPaddleCenter = 127;
 
-    MemoryBus *          m_bus         = nullptr;
-    AppleIIeMmu *        m_mmu         = nullptr;
-    AppleIIeKeyboard *   m_keyboard    = nullptr;
-    LanguageCard *       m_lc          = nullptr;
-    IVideoTiming *       m_videoTiming = nullptr;
-    bool                 m_80colMode   = false;
-    bool                 m_doubleHiRes = false;
-    bool                 m_altCharSet  = false;
+private:
+    static constexpr int      s_knPaddleAxisCount   = 4;
+    static constexpr Word     s_kwPaddle0Address    = 0xC064;
+    static constexpr Word     s_kwPaddleTimerStrobe = 0xC070;
+
+    // PREAD's poll loop advances its counter once per ~11 CPU cycles, so an
+    // axis holds bit 7 for position*11 cycles to yield a returned count equal
+    // to the position. The //e game-port resistor-capacitor full-scale read
+    // (~2.82 ms) lands at 255*11 cycles.
+    static constexpr uint64_t s_knPaddleCyclesPerUnit = 11;
+
+    Byte ReadStatusRegister (Word address);
+    Byte ReadPaddle         (Word address) const;
+
+    MemoryBus *          m_bus                = nullptr;
+    AppleIIeMmu *        m_mmu                = nullptr;
+    AppleIIeKeyboard *   m_keyboard           = nullptr;
+    LanguageCard *       m_lc                 = nullptr;
+    IVideoTiming *       m_videoTiming        = nullptr;
+    const uint64_t *     m_cpuCycleSource     = nullptr;
+    uint64_t             m_paddleTriggerCycle = 0;
+    bool                 m_80colMode          = false;
+    bool                 m_doubleHiRes        = false;
+    bool                 m_altCharSet         = false;
+    atomic<Byte>         m_paddlePosition[s_knPaddleAxisCount];
 };

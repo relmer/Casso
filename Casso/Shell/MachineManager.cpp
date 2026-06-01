@@ -812,6 +812,18 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
         m_shell.m_refs.diskController->SetCpuCycleSource (m_shell.m_cpu->GetBusCyclePtr());
     }
 
+    // Drive the analog paddle/joystick PREAD timer ($C070 strobe,
+    // $C064-$C067 countdown) off the same CPU bus-cycle accumulator so a
+    // paddle read measures elapsed cycles since the strobe.
+    {
+        auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+
+        if (iieSw != nullptr)
+        {
+            iieSw->SetCpuCycleSource (m_shell.m_cpu->GetBusCyclePtr());
+        }
+    }
+
     return hr;
 }
 

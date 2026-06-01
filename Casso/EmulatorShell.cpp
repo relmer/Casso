@@ -73,6 +73,11 @@ static constexpr int     s_kLabelBottomGapDp    = 2;
 // single //e keypress instead of flooding $C000 at the host repeat rate.
 static constexpr LPARAM  s_kPreviousKeyDownLParamBit = 0x40000000;
 
+// Emulated joystick axis extremes. The PREAD model reads 0..255; an axis
+// deflected to a key maps to a rail, neutral sits at s_knPaddleCenter.
+static constexpr Byte    s_kPaddleAxisMin            = 0;
+static constexpr Byte    s_kPaddleAxisMax            = 255;
+
 
 
 
@@ -2849,6 +2854,14 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
         }
     }
 
+    // Arrow keys double as the emulated joystick axes for joystick-mode
+    // games (e.g. Choplifter). Level-based: re-resolve both axes from the
+    // current key state on every arrow press.
+    if (vk == VK_LEFT || vk == VK_RIGHT || vk == VK_UP || vk == VK_DOWN)
+    {
+        UpdateJoystickAxesFromKeys ();
+    }
+
     return false;
 }
 
@@ -2901,7 +2914,58 @@ bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
         }
     }
 
+    if (vk == VK_LEFT || vk == VK_RIGHT || vk == VK_UP || vk == VK_DOWN)
+    {
+        UpdateJoystickAxesFromKeys ();
+    }
+
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateJoystickAxesFromKeys
+//
+//  Host UI thread. Resolves the four arrow keys into the two emulated
+//  joystick axes and stages them on the //e soft-switch bank, where the
+//  PREAD timer ($C070 / $C064-$C067) turns them into analog readings.
+//  No-op on ][/][+ (the bank isn't an AppleIIeSoftSwitchBank).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::UpdateJoystickAxesFromKeys ()
+{
+    auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_refs.softSwitches);
+    bool   left  = false;
+    bool   right = false;
+    bool   up    = false;
+    bool   down  = false;
+    Byte   x     = AppleIIeSoftSwitchBank::s_knPaddleCenter;
+    Byte   y     = AppleIIeSoftSwitchBank::s_knPaddleCenter;
+
+
+
+    if (iieSw == nullptr)
+    {
+        return;
+    }
+
+    left  = (GetKeyState (VK_LEFT)  & 0x8000) != 0;
+    right = (GetKeyState (VK_RIGHT) & 0x8000) != 0;
+    up    = (GetKeyState (VK_UP)    & 0x8000) != 0;
+    down  = (GetKeyState (VK_DOWN)  & 0x8000) != 0;
+
+    if (left  && !right) { x = s_kPaddleAxisMin; }
+    if (right && !left)  { x = s_kPaddleAxisMax; }
+    if (up    && !down)  { y = s_kPaddleAxisMin; }
+    if (down  && !up)    { y = s_kPaddleAxisMax; }
+
+    iieSw->SetPaddle (0, x);
+    iieSw->SetPaddle (1, y);
 }
 
 

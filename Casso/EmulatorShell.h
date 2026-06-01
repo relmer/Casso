@@ -192,6 +192,9 @@ private:
 
     HRESULT CreateRenderSurface ();
 
+    // Stage the emulated joystick axes from the host arrow keys.
+    void    UpdateJoystickAxesFromKeys ();
+
     // Queue a command for the CPU thread. Public so non-friend
     // adapters (e.g. SettingsPanel's internal apply sink) can post
     // without needing friend status -- this is already a thin
