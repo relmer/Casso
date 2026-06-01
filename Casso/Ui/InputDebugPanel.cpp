@@ -27,24 +27,36 @@ namespace
     constexpr Byte     s_kAnyKeyDownBit      = 0x80;
     constexpr Byte     s_kAsciiMask          = 0x7F;
 
-    constexpr LPCWSTR  s_kpszShowLabel  = L"Show:";
-    constexpr LPCWSTR  s_kpszPauseLabel = L"Pause";
+    constexpr Word     s_kPaddle0Address       = 0xC064;
+    constexpr Word     s_kPaddle1Address       = 0xC065;
+    constexpr Word     s_kPaddle2Address       = 0xC066;
+    constexpr Word     s_kPaddle3Address       = 0xC067;
+    constexpr Word     s_kPaddleTriggerAddress = 0xC070;
+    constexpr Byte     s_kPaddleCountingBit    = 0x80;
+
+    constexpr LPCWSTR  s_kpszEmuLabel    = L"Emulator input:";
+    constexpr LPCWSTR  s_kpszHostLabel   = L"Host input:";
+    constexpr LPCWSTR  s_kpszAllLabel    = L"All";
+    constexpr LPCWSTR  s_kpszKeyboardLabel = L"Keyboard";
+    constexpr LPCWSTR  s_kpszJoystickLabel = L"Joystick";
+    constexpr LPCWSTR  s_kpszPaddleLabel = L"Paddle";
+    constexpr LPCWSTR  s_kpszPauseLabel  = L"Pause";
     constexpr LPCWSTR  s_kpszResumeLabel = L"Resume";
-    constexpr LPCWSTR  s_kpszClearLabel = L"Clear";
+    constexpr LPCWSTR  s_kpszClearLabel  = L"Clear";
 
-    constexpr LPCWSTR  s_kpszCategoryLabels[kInputCategoryCheckCount] =
-    {
-        L"Host",
-        L"Guest",
-        L"System",
-    };
+    constexpr LPCWSTR  s_kpszPair0Label  = L"View PADDL0-PADDL1 as";
+    constexpr LPCWSTR  s_kpszPair1Label  = L"View PADDL2-PADDL3 as";
 
-    constexpr LPCWSTR  s_kpszCategoryTips[kInputCategoryCheckCount] =
-    {
-        L"Show host keyboard events from Windows and auto-repeat",
-        L"Show guest soft-switch reads observed by emulated code",
-        L"Show synthetic input-debug diagnostics",
-    };
+    constexpr LPCWSTR  s_kpszPair0Items[2] = { L"Joystick 0", L"Paddles 0, 1" };
+    constexpr LPCWSTR  s_kpszPair1Items[2] = { L"Joystick 1", L"Paddles 2, 3" };
+
+    constexpr LPCWSTR  s_kpszAllTip      = L"Toggle every emulator-input lane at once";
+    constexpr LPCWSTR  s_kpszEmuKbdTip   = L"Show guest keyboard soft-switch reads ($C000/$C010)";
+    constexpr LPCWSTR  s_kpszJoystickTip = L"Show game-port reads for pairs viewed as a joystick";
+    constexpr LPCWSTR  s_kpszPaddleTip   = L"Show game-port reads for pairs viewed as paddles";
+    constexpr LPCWSTR  s_kpszHostKbdTip  = L"Show host keyboard events from Windows and auto-repeat";
+
+    constexpr uint32_t s_kLabelArgb      = 0xFFB8C0CC;
 
 
     void ArgbToFloat4 (uint32_t argb, float (& outRgba)[4]) noexcept
@@ -217,6 +229,38 @@ namespace
     }
 
 
+    InputGamePortClass ClassifyGamePort (InputEventType type, Word address) noexcept
+    {
+        switch (type)
+        {
+            case InputEventType::ButtonRead:
+                switch (address)
+                {
+                    case s_kOpenAppleAddress:
+                    case s_kClosedAppleAddress: return InputGamePortClass::Pair0;
+                    case s_kShiftButtonAddress: return InputGamePortClass::Pair1;
+                    default:                    return InputGamePortClass::None;
+                }
+
+            case InputEventType::PaddleRead:
+                switch (address)
+                {
+                    case s_kPaddle0Address:
+                    case s_kPaddle1Address:     return InputGamePortClass::Pair0;
+                    case s_kPaddle2Address:
+                    case s_kPaddle3Address:     return InputGamePortClass::Pair1;
+                    default:                    return InputGamePortClass::None;
+                }
+
+            case InputEventType::PaddleTrigger:
+                return InputGamePortClass::Global;
+
+            default:
+                return InputGamePortClass::None;
+        }
+    }
+
+
     void FormatInputEvent (
         const InputEvent &                         src,
         std::chrono::steady_clock::time_point      uptimeAnchor,
@@ -228,10 +272,13 @@ namespace
         bool     strobe  = false;
         bool     akd     = false;
         bool     pressed = false;
+        bool     counting = false;
+        int      axis    = 0;
         LPCWSTR  button  = nullptr;
 
         out.category = src.category;
         out.type     = src.type;
+        out.gamePort = ClassifyGamePort (src.type, src.payload.io.address);
         out.cycle    = src.cycle;
         out.source   = SourceLabel (src.category);
         out.address.clear();
@@ -313,12 +360,23 @@ namespace
                 break;
 
             case InputEventType::PaddleTrigger:
-            case InputEventType::PaddleRead:
                 address = src.payload.io.address;
-                value   = src.payload.io.value;
+                out.address = std::format (L"${:04X}", address);
+                out.meaning = std::format (L"PTRIG strobe {}  (arm game-port timers)", out.address);
+                break;
+
+            case InputEventType::PaddleRead:
+                address  = src.payload.io.address;
+                value    = src.payload.io.value;
+                axis     = (int) (address - s_kPaddle0Address);
+                counting = (value & s_kPaddleCountingBit) != 0;
                 out.address = std::format (L"${:04X}", address);
                 out.value   = std::format (L"${:02X}", value);
-                out.meaning = std::format (L"Paddle event {} -> {}", out.address, out.value);
+                out.meaning = std::format (L"Read PADDL{} {} -> {}  counting={}",
+                                           axis,
+                                           out.address,
+                                           out.value,
+                                           counting ? 1 : 0);
                 break;
 
             case InputEventType::EventsLost:
@@ -664,19 +722,41 @@ void InputDebugPanel::ReleaseRenderTargets()
 
 void InputDebugPanel::ConfigureWidgets()
 {
-    HRESULT  hr = S_OK;
-    int      i  = 0;
+    int  p = 0;
 
 
     SeedDefaultColumns (m_columnsModel);
 
-    m_showLabel.SetText (s_kpszShowLabel);
+    m_emuLabel.SetText  (s_kpszEmuLabel);
+    m_hostLabel.SetText (s_kpszHostLabel);
+    m_emuLabel.SetColorArgb  (s_kLabelArgb);
+    m_hostLabel.SetColorArgb (s_kLabelArgb);
 
-    for (i = 0; i < kInputCategoryCheckCount; i++)
+    m_allCheck.SetLabel          (s_kpszAllLabel);
+    m_emuKeyboardCheck.SetLabel  (s_kpszKeyboardLabel);
+    m_joystickCheck.SetLabel     (s_kpszJoystickLabel);
+    m_paddleCheck.SetLabel       (s_kpszPaddleLabel);
+    m_hostKeyboardCheck.SetLabel (s_kpszKeyboardLabel);
+
+    m_allCheck.SetChecked          (true);
+    m_emuKeyboardCheck.SetChecked  (true);
+    m_joystickCheck.SetChecked     (true);
+    m_paddleCheck.SetChecked       (true);
+    m_hostKeyboardCheck.SetChecked (true);
+
+    m_pairLabel[0].SetText (s_kpszPair0Label);
+    m_pairLabel[1].SetText (s_kpszPair1Label);
+    m_pairLabel[0].SetColorArgb (s_kLabelArgb);
+    m_pairLabel[1].SetColorArgb (s_kLabelArgb);
+
+    m_pairView[0].SetItems ({ s_kpszPair0Items[0], s_kpszPair0Items[1] });
+    m_pairView[1].SetItems ({ s_kpszPair1Items[0], s_kpszPair1Items[1] });
+    for (p = 0; p < 2; p++)
     {
-        m_categoryChecks[i].SetLabel (s_kpszCategoryLabels[i]);
-        m_categoryChecks[i].SetChecked (true);
+        m_pairView[(size_t) p].SetSelected (m_filter.pairIsJoystick[p] ? 0 : 1);
     }
+    m_pairView[0].SetSelect ([this] (int idx) { OnPairViewChanged (0, idx); });
+    m_pairView[1].SetSelect ([this] (int idx) { OnPairViewChanged (1, idx); });
 
     m_pauseButton.SetLabel (s_kpszPauseLabel);
     m_clearButton.SetLabel (s_kpszClearLabel);
@@ -699,11 +779,16 @@ void InputDebugPanel::ConfigureWidgets()
     });
 
     m_tooltip.SetDpi (m_dpi);
+
+    UpdatePairVisibility();
+    SyncAllCheck();
+    RebuildFocusOrder();
 }
 
 void InputDebugPanel::RecomputeLayout()
 {
     int  topOffset = 0;
+    int  p         = 0;
 
 
     if (m_titleBar != nullptr)
@@ -711,8 +796,18 @@ void InputDebugPanel::RecomputeLayout()
         topOffset = m_titleBar->GetTitleHeight();
     }
 
-    m_showLabel.SetDpi (m_dpi);
-    for (int i = 0; i < kInputCategoryCheckCount; i++) { m_categoryChecks[i].SetDpi (m_dpi); }
+    m_emuLabel.SetDpi  (m_dpi);
+    m_hostLabel.SetDpi (m_dpi);
+    m_allCheck.SetDpi          (m_dpi);
+    m_emuKeyboardCheck.SetDpi  (m_dpi);
+    m_joystickCheck.SetDpi     (m_dpi);
+    m_paddleCheck.SetDpi       (m_dpi);
+    m_hostKeyboardCheck.SetDpi (m_dpi);
+    for (p = 0; p < 2; p++)
+    {
+        m_pairLabel[(size_t) p].SetDpi (m_dpi);
+        m_pairView[(size_t) p].SetDpi  (m_dpi);
+    }
     m_pauseButton.SetDpi (m_dpi);
     m_clearButton.SetDpi (m_dpi);
     m_eventList.SetDpi (m_dpi);
@@ -721,19 +816,31 @@ void InputDebugPanel::RecomputeLayout()
     m_columnMenu.SetTheme (m_theme);
     m_tooltip.SetDpi (m_dpi);
 
-    m_layout = ComputeInputDebugPanelLayout (m_widthPx, m_heightPx, topOffset, m_dpi);
+    m_layout = ComputeInputDebugPanelLayout (m_widthPx,
+                                             m_heightPx,
+                                             topOffset,
+                                             m_joystickVisible,
+                                             m_paddleVisible,
+                                             m_dpi);
     LayoutWidgets();
 }
 
 void InputDebugPanel::LayoutWidgets()
 {
-    int  i = 0;
+    int  p = 0;
 
 
-    m_showLabel.SetRect (m_layout.showLabel);
-    for (i = 0; i < kInputCategoryCheckCount; i++)
+    m_emuLabel.SetRect  (m_layout.emuLabel);
+    m_hostLabel.SetRect (m_layout.hostLabel);
+    m_allCheck.SetRect          (m_layout.allCheck);
+    m_emuKeyboardCheck.SetRect  (m_layout.emuKeyboardCheck);
+    m_joystickCheck.SetRect     (m_layout.joystickCheck);
+    m_paddleCheck.SetRect       (m_layout.paddleCheck);
+    m_hostKeyboardCheck.SetRect (m_layout.hostKeyboardCheck);
+    for (p = 0; p < 2; p++)
     {
-        m_categoryChecks[i].SetRect (m_layout.categoryChecks[i]);
+        m_pairLabel[(size_t) p].SetRect (m_layout.pairLabel[p]);
+        m_pairView[(size_t) p].SetRect  (m_layout.pairDropdown[p]);
     }
 
     m_pauseButton.Layout (m_layout.pauseButton);
@@ -807,17 +914,25 @@ HRESULT InputDebugPanel::Render()
         m_titleBar->Paint (m_painter, m_text, visual, *m_theme);
     }
 
-    m_showLabel.Paint (m_painter, m_text);
-    for (int i = 0; i < kInputCategoryCheckCount; i++)
-    {
-        m_categoryChecks[i].Paint (m_painter, m_text);
-    }
+    m_emuLabel.Paint  (m_painter, m_text);
+    m_hostLabel.Paint (m_painter, m_text);
+    m_allCheck.Paint          (m_painter, m_text);
+    m_emuKeyboardCheck.Paint  (m_painter, m_text);
+    if (m_joystickVisible) { m_joystickCheck.Paint (m_painter, m_text); }
+    if (m_paddleVisible)   { m_paddleCheck.Paint   (m_painter, m_text); }
+    m_hostKeyboardCheck.Paint (m_painter, m_text);
+    m_pairLabel[0].Paint (m_painter, m_text);
+    m_pairLabel[1].Paint (m_painter, m_text);
+    m_pairView[0].PaintBase (m_painter, m_text);
+    m_pairView[1].PaintBase (m_painter, m_text);
     if (m_theme != nullptr)
     {
         m_pauseButton.Paint (m_painter, m_text, *m_theme);
         m_clearButton.Paint (m_painter, m_text, *m_theme);
     }
     m_eventList.Paint (m_painter, m_text);
+    m_pairView[0].PaintMenu (m_painter, m_text);
+    m_pairView[1].PaintMenu (m_painter, m_text);
     m_tooltip.Tick (NowMs());
 
     if (m_tooltip.IsVisible() || m_columnMenu.IsVisible())
@@ -1052,12 +1167,60 @@ void InputDebugPanel::RequestResetAnchor (std::chrono::steady_clock::time_point 
 
 void InputDebugPanel::OnFilterChanged()
 {
-    m_filter.showHost   = m_categoryChecks[0].Checked();
-    m_filter.showGuest  = m_categoryChecks[1].Checked();
-    m_filter.showSystem = m_categoryChecks[2].Checked();
+    m_filter.showEmuKeyboard  = m_emuKeyboardCheck.Checked();
+    m_filter.showJoystick     = m_joystickCheck.Checked();
+    m_filter.showPaddle       = m_paddleCheck.Checked();
+    m_filter.showHostKeyboard = m_hostKeyboardCheck.Checked();
 
+    SyncAllCheck();
     RebuildFilteredIndices();
     PushListViewRows();
+}
+
+void InputDebugPanel::OnPairViewChanged (int pair, int index)
+{
+    if (pair < 0 || pair > 1)
+    {
+        return;
+    }
+
+    m_filter.pairIsJoystick[pair] = (index == 0);
+
+    UpdatePairVisibility();
+    SyncAllCheck();
+    RebuildFocusOrder();
+    RecomputeLayout();
+    RebuildFilteredIndices();
+    PushListViewRows();
+}
+
+void InputDebugPanel::UpdatePairVisibility()
+{
+    m_joystickVisible = m_filter.pairIsJoystick[0] || m_filter.pairIsJoystick[1];
+    m_paddleVisible   = !m_filter.pairIsJoystick[0] || !m_filter.pairIsJoystick[1];
+}
+
+void InputDebugPanel::SyncAllCheck()
+{
+    bool  all = m_emuKeyboardCheck.Checked();
+
+
+    if (m_joystickVisible) { all = all && m_joystickCheck.Checked(); }
+    if (m_paddleVisible)   { all = all && m_paddleCheck.Checked(); }
+
+    m_allCheck.SetChecked (all);
+}
+
+void InputDebugPanel::ApplyAllToggle()
+{
+    bool  newState = m_allCheck.Checked();
+
+
+    m_emuKeyboardCheck.SetChecked (newState);
+    if (m_joystickVisible) { m_joystickCheck.SetChecked (newState); }
+    if (m_paddleVisible)   { m_paddleCheck.SetChecked (newState); }
+
+    OnFilterChanged();
 }
 
 void InputDebugPanel::UpdatePauseLabel()
@@ -1130,31 +1293,56 @@ void InputDebugPanel::OnListSelectionMoved()
 
 void InputDebugPanel::OnLButtonDown (int x, int y)
 {
-    int  i = 0;
-
+    if (m_pairView[0].OnLButtonDown (x, y)) { SetFocusToStop (InputFocusStop::Pair0Dropdown); return; }
+    if (m_pairView[1].OnLButtonDown (x, y)) { SetFocusToStop (InputFocusStop::Pair1Dropdown); return; }
 
     if (m_pauseButton.HitTest (x, y))
     {
         m_pauseButton.SetMouse (x, y, true);
-        SetFocusIndex (kInputCategoryCheckCount);
+        SetFocusToStop (InputFocusStop::PauseButton);
         return;
     }
 
     if (m_clearButton.HitTest (x, y))
     {
         m_clearButton.SetMouse (x, y, true);
-        SetFocusIndex (kInputCategoryCheckCount + 1);
+        SetFocusToStop (InputFocusStop::ClearButton);
         return;
     }
 
-    for (i = 0; i < kInputCategoryCheckCount; i++)
+    if (m_allCheck.HitTest (x, y))
     {
-        if (m_categoryChecks[i].HitTest (x, y))
-        {
-            m_categoryChecks[i].OnLButtonDown (x, y);
-            SetFocusIndex (i);
-            return;
-        }
+        m_allCheck.OnLButtonDown (x, y);
+        SetFocusToStop (InputFocusStop::AllCheck);
+        return;
+    }
+
+    if (m_emuKeyboardCheck.HitTest (x, y))
+    {
+        m_emuKeyboardCheck.OnLButtonDown (x, y);
+        SetFocusToStop (InputFocusStop::EmuKeyboardCheck);
+        return;
+    }
+
+    if (m_joystickVisible && m_joystickCheck.HitTest (x, y))
+    {
+        m_joystickCheck.OnLButtonDown (x, y);
+        SetFocusToStop (InputFocusStop::JoystickCheck);
+        return;
+    }
+
+    if (m_paddleVisible && m_paddleCheck.HitTest (x, y))
+    {
+        m_paddleCheck.OnLButtonDown (x, y);
+        SetFocusToStop (InputFocusStop::PaddleCheck);
+        return;
+    }
+
+    if (m_hostKeyboardCheck.HitTest (x, y))
+    {
+        m_hostKeyboardCheck.OnLButtonDown (x, y);
+        SetFocusToStop (InputFocusStop::HostKeyboardCheck);
+        return;
     }
 
     if ((x >= m_layout.listView.left && x < m_layout.listView.right && y >= m_layout.listView.top && y < m_layout.listView.bottom))
@@ -1170,14 +1358,14 @@ void InputDebugPanel::OnLButtonDown (int x, int y)
             m_resizeColumn       = resizeCol;
             m_resizeStartXPx     = x;
             m_resizeStartWidthPx = m_eventList.ColumnEffectiveWidthPx ((size_t) resizeCol);
-            SetFocusIndex (kInputCategoryCheckCount + 2);
+            SetFocusToStop (InputFocusStop::EventList);
             return;
         }
 
         if (headerCol >= 0)
         {
             SortByColumn (headerCol);
-            SetFocusIndex (kInputCategoryCheckCount + 2);
+            SetFocusToStop (InputFocusStop::EventList);
             return;
         }
 
@@ -1186,16 +1374,16 @@ void InputDebugPanel::OnLButtonDown (int x, int y)
         {
             m_eventList.SetSelectedRow (row);
         }
-        SetFocusIndex (kInputCategoryCheckCount + 2);
+        SetFocusToStop (InputFocusStop::EventList);
     }
 }
 
 void InputDebugPanel::OnLButtonUp (int x, int y)
 {
-    int  i = 0;
-
-
     m_resizeColumn = -1;
+
+    (void) m_pairView[0].OnLButtonUp (x, y);
+    (void) m_pairView[1].OnLButtonUp (x, y);
 
     if (m_pauseButton.HitTest (x, y))
     {
@@ -1210,13 +1398,11 @@ void InputDebugPanel::OnLButtonUp (int x, int y)
     }
     m_clearButton.SetMouse (x, y, false);
 
-    for (i = 0; i < kInputCategoryCheckCount; i++)
-    {
-        if (m_categoryChecks[i].OnLButtonUp (x, y))
-        {
-            OnFilterChanged();
-        }
-    }
+    if (m_allCheck.OnLButtonUp (x, y))          { ApplyAllToggle(); }
+    if (m_emuKeyboardCheck.OnLButtonUp (x, y))  { OnFilterChanged(); }
+    if (m_joystickVisible && m_joystickCheck.OnLButtonUp (x, y)) { OnFilterChanged(); }
+    if (m_paddleVisible   && m_paddleCheck.OnLButtonUp (x, y))   { OnFilterChanged(); }
+    if (m_hostKeyboardCheck.OnLButtonUp (x, y)) { OnFilterChanged(); }
 
     if ((x >= m_layout.listView.left && x < m_layout.listView.right && y >= m_layout.listView.top && y < m_layout.listView.bottom))
     {
@@ -1251,6 +1437,9 @@ void InputDebugPanel::OnMouseMove (int x, int y)
         return;
     }
 
+    m_pairView[0].SetMouseHover (x, y);
+    m_pairView[1].SetMouseHover (x, y);
+
     UpdateTooltip (x, y);
 }
 
@@ -1264,8 +1453,18 @@ void InputDebugPanel::OnMouseWheel (int x, int y, int delta)
 
 bool InputDebugPanel::OnKey (WPARAM vk)
 {
-    bool  handled = true;
+    bool            handled = true;
+    InputFocusStop  focused = InputFocusStop::EventList;
+    bool            hasFocus = (m_focusIndex >= 0 && m_focusIndex < (int) m_focusStops.size());
 
+
+    if (hasFocus)
+    {
+        focused = m_focusStops[(size_t) m_focusIndex];
+
+        if (focused == InputFocusStop::Pair0Dropdown && m_pairView[0].HandleKey (vk)) { return true; }
+        if (focused == InputFocusStop::Pair1Dropdown && m_pairView[1].HandleKey (vk)) { return true; }
+    }
 
     switch (vk)
     {
@@ -1274,19 +1473,48 @@ bool InputDebugPanel::OnKey (WPARAM vk)
             break;
 
         case VK_SPACE:
-            if (m_focusIndex >= 0 && m_focusIndex < kInputCategoryCheckCount)
+            if (!hasFocus)
             {
-                m_categoryChecks[m_focusIndex].SetChecked (!m_categoryChecks[m_focusIndex].Checked());
-                OnFilterChanged();
+                break;
             }
-            else if (m_focusIndex == kInputCategoryCheckCount)
+            switch (focused)
             {
-                m_paused = !m_paused;
-                UpdatePauseLabel();
-            }
-            else if (m_focusIndex == kInputCategoryCheckCount + 1)
-            {
-                ClearEvents();
+                case InputFocusStop::AllCheck:
+                    m_allCheck.SetChecked (!m_allCheck.Checked());
+                    ApplyAllToggle();
+                    break;
+
+                case InputFocusStop::EmuKeyboardCheck:
+                    m_emuKeyboardCheck.SetChecked (!m_emuKeyboardCheck.Checked());
+                    OnFilterChanged();
+                    break;
+
+                case InputFocusStop::JoystickCheck:
+                    m_joystickCheck.SetChecked (!m_joystickCheck.Checked());
+                    OnFilterChanged();
+                    break;
+
+                case InputFocusStop::PaddleCheck:
+                    m_paddleCheck.SetChecked (!m_paddleCheck.Checked());
+                    OnFilterChanged();
+                    break;
+
+                case InputFocusStop::HostKeyboardCheck:
+                    m_hostKeyboardCheck.SetChecked (!m_hostKeyboardCheck.Checked());
+                    OnFilterChanged();
+                    break;
+
+                case InputFocusStop::PauseButton:
+                    m_paused = !m_paused;
+                    UpdatePauseLabel();
+                    break;
+
+                case InputFocusStop::ClearButton:
+                    ClearEvents();
+                    break;
+
+                default:
+                    break;
             }
             break;
 
@@ -1350,16 +1578,13 @@ HCURSOR InputDebugPanel::OnSetCursor (int x, int y)
 void InputDebugPanel::UpdateTooltip (int x, int y)
 {
     LPCWSTR  text = nullptr;
-    int      i    = 0;
 
 
-    for (i = 0; i < kInputCategoryCheckCount; i++)
-    {
-        if (m_categoryChecks[i].HitTest (x, y))
-        {
-            text = s_kpszCategoryTips[i];
-        }
-    }
+    if (m_allCheck.HitTest (x, y))                          { text = s_kpszAllTip; }
+    else if (m_emuKeyboardCheck.HitTest (x, y))             { text = s_kpszEmuKbdTip; }
+    else if (m_joystickVisible && m_joystickCheck.HitTest (x, y)) { text = s_kpszJoystickTip; }
+    else if (m_paddleVisible && m_paddleCheck.HitTest (x, y))     { text = s_kpszPaddleTip; }
+    else if (m_hostKeyboardCheck.HitTest (x, y))            { text = s_kpszHostKbdTip; }
 
     if (text == nullptr && m_pauseButton.HitTest (x, y))
     {
@@ -1404,31 +1629,85 @@ void InputDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 
 void InputDebugPanel::ClearAllWidgetFocus()
 {
-    int  i = 0;
+    m_allCheck.SetFocused          (false);
+    m_emuKeyboardCheck.SetFocused  (false);
+    m_joystickCheck.SetFocused     (false);
+    m_paddleCheck.SetFocused       (false);
+    m_hostKeyboardCheck.SetFocused (false);
+    m_pairView[0].SetFocused       (false);
+    m_pairView[1].SetFocused       (false);
+    m_pauseButton.SetFocused       (false);
+    m_clearButton.SetFocused       (false);
+    m_eventList.SetListFocused     (false);
+}
+
+void InputDebugPanel::RebuildFocusOrder()
+{
+    InputFocusStop  prev     = InputFocusStop::EventList;
+    bool            hadFocus = (m_focusIndex >= 0 && m_focusIndex < (int) m_focusStops.size());
+    size_t          i        = 0;
 
 
-    for (i = 0; i < kInputCategoryCheckCount; i++)
+    if (hadFocus)
     {
-        m_categoryChecks[i].SetFocused (false);
+        prev = m_focusStops[(size_t) m_focusIndex];
     }
-    m_pauseButton.SetFocused (false);
-    m_clearButton.SetFocused (false);
-    m_eventList.SetListFocused (false);
+
+    m_focusStops.clear();
+    m_focusStops.push_back (InputFocusStop::AllCheck);
+    m_focusStops.push_back (InputFocusStop::EmuKeyboardCheck);
+    if (m_joystickVisible) { m_focusStops.push_back (InputFocusStop::JoystickCheck); }
+    if (m_paddleVisible)   { m_focusStops.push_back (InputFocusStop::PaddleCheck); }
+    m_focusStops.push_back (InputFocusStop::HostKeyboardCheck);
+    m_focusStops.push_back (InputFocusStop::Pair0Dropdown);
+    m_focusStops.push_back (InputFocusStop::Pair1Dropdown);
+    m_focusStops.push_back (InputFocusStop::PauseButton);
+    m_focusStops.push_back (InputFocusStop::ClearButton);
+    m_focusStops.push_back (InputFocusStop::EventList);
+
+    m_focusIndex = -1;
+    if (hadFocus)
+    {
+        for (i = 0; i < m_focusStops.size(); i++)
+        {
+            if (m_focusStops[i] == prev)
+            {
+                m_focusIndex = (int) i;
+                break;
+            }
+        }
+    }
+
+    ApplyFocus();
 }
 
-int InputDebugPanel::DynamicStopCount() const
+void InputDebugPanel::ApplyFocus()
 {
-    return 1;
-}
+    ClearAllWidgetFocus();
 
-int InputDebugPanel::TotalStopCount() const
-{
-    return kInputCategoryCheckCount + 2 + DynamicStopCount();
+    if (m_focusIndex < 0 || m_focusIndex >= (int) m_focusStops.size())
+    {
+        return;
+    }
+
+    switch (m_focusStops[(size_t) m_focusIndex])
+    {
+        case InputFocusStop::AllCheck:          m_allCheck.SetFocused (true);          break;
+        case InputFocusStop::EmuKeyboardCheck:  m_emuKeyboardCheck.SetFocused (true);  break;
+        case InputFocusStop::JoystickCheck:     m_joystickCheck.SetFocused (true);     break;
+        case InputFocusStop::PaddleCheck:       m_paddleCheck.SetFocused (true);       break;
+        case InputFocusStop::HostKeyboardCheck: m_hostKeyboardCheck.SetFocused (true); break;
+        case InputFocusStop::Pair0Dropdown:     m_pairView[0].SetFocused (true);       break;
+        case InputFocusStop::Pair1Dropdown:     m_pairView[1].SetFocused (true);       break;
+        case InputFocusStop::PauseButton:       m_pauseButton.SetFocused (true);       break;
+        case InputFocusStop::ClearButton:       m_clearButton.SetFocused (true);       break;
+        case InputFocusStop::EventList:         m_eventList.SetListFocused (true);     break;
+    }
 }
 
 void InputDebugPanel::FocusCycle (int direction)
 {
-    int  total = TotalStopCount();
+    int  total = (int) m_focusStops.size();
     int  next  = 0;
 
 
@@ -1447,29 +1726,23 @@ void InputDebugPanel::FocusCycle (int direction)
         next = (next + direction + total) % total;
     }
 
-    SetFocusIndex (next);
+    m_focusIndex = next;
+    ApplyFocus();
 }
 
-void InputDebugPanel::SetFocusIndex (int index)
+void InputDebugPanel::SetFocusToStop (InputFocusStop stop)
 {
-    ClearAllWidgetFocus();
-    m_focusIndex = index;
+    size_t  i = 0;
 
-    if (index >= 0 && index < kInputCategoryCheckCount)
+
+    for (i = 0; i < m_focusStops.size(); i++)
     {
-        m_categoryChecks[index].SetFocused (true);
-    }
-    else if (index == kInputCategoryCheckCount)
-    {
-        m_pauseButton.SetFocused (true);
-    }
-    else if (index == kInputCategoryCheckCount + 1)
-    {
-        m_clearButton.SetFocused (true);
-    }
-    else if (index == kInputCategoryCheckCount + 2)
-    {
-        m_eventList.SetListFocused (true);
+        if (m_focusStops[i] == stop)
+        {
+            m_focusIndex = (int) i;
+            ApplyFocus();
+            return;
+        }
     }
 }
 
@@ -1532,6 +1805,28 @@ void InputDebugPanel::OnKbdStrobe (Word address, Byte value, bool clearedStrobe)
 void InputDebugPanel::OnButtonRead (Word address, Byte value)
 {
     InputEvent  e = MakeStampedEvent (InputEventCategory::Guest, InputEventType::ButtonRead);
+
+
+    e.payload.io.address = address;
+    e.payload.io.value   = value;
+    e.payload.io.flags   = 0;
+    PublishToRing (e);
+}
+
+void InputDebugPanel::OnPaddleTrigger (Word address)
+{
+    InputEvent  e = MakeStampedEvent (InputEventCategory::Guest, InputEventType::PaddleTrigger);
+
+
+    e.payload.io.address = address;
+    e.payload.io.value   = 0;
+    e.payload.io.flags   = 0;
+    PublishToRing (e);
+}
+
+void InputDebugPanel::OnPaddleRead (Word address, Byte value)
+{
+    InputEvent  e = MakeStampedEvent (InputEventCategory::Guest, InputEventType::PaddleRead);
 
 
     e.payload.io.address = address;

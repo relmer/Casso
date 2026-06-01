@@ -996,6 +996,14 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         m_shell.m_refs.keyboard->SetInputEventSink (nullptr);
     }
 
+    {
+        auto * iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+        if (iieSwitches != nullptr)
+        {
+            iieSwitches->SetInputEventSink (nullptr);
+        }
+    }
+
     // Tear down ALL per-machine state in one atomic move. m_refs is a
     // struct of observer pointers into the owning collections
     // (m_ownedDevices, m_videoModes); resetting it as a whole keeps

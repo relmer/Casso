@@ -331,6 +331,10 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="..\Casso\InputDebugDialogState.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="..\Casso\Ui\Disk2DebugPanelLayout.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
@@ -475,6 +479,7 @@
     </ClCompile>
     <ClCompile Include="Casso\TrackSectorPredicateTests.cpp" />
     <ClCompile Include="Casso\DebugDialogProjectionTests.cpp" />
+    <ClCompile Include="Casso\InputDebugFilterTests.cpp" />
     <ClCompile Include="Casso\Disk2DebugDialogColumnTests.cpp" />
     <ClCompile Include="Casso\MenuPredicatesTests.cpp" />
     <ClCompile Include="Casso\RichEditSquiggleTests.cpp" />

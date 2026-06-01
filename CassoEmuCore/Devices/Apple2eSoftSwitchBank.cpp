@@ -3,6 +3,7 @@
 #include "Apple2eSoftSwitchBank.h"
 #include "Apple2eMmu.h"
 #include "Apple2eKeyboard.h"
+#include "IInputEventSink.h"
 #include "LanguageCard.h"
 #include "Video/IVideoTiming.h"
 
@@ -172,6 +173,62 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmitPaddleTrigger
+//
+//  CPU thread. Fires a PaddleTrigger event on each $C070 PTRIG strobe so the
+//  input-debug panel can show the program arming the game-port one-shots.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eSoftSwitchBank::EmitPaddleTrigger ()
+{
+    if (m_inputSink == nullptr)
+    {
+        return;
+    }
+
+    m_inputSink->OnPaddleTrigger (s_kwPaddleTimerStrobe);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmitPaddleRead
+//
+//  CPU thread. Coalesced emit for a guest read of $C064-$C067: fires only
+//  when that axis's returned byte (bit 7 = timer still counting) changed
+//  since the last emit, so PREAD's tight poll loop yields one event per
+//  timer transition rather than one per read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eSoftSwitchBank::EmitPaddleRead (Word address, Byte value)
+{
+    int  idx = static_cast<int> (address - s_kwPaddle0Address);
+
+    if (m_inputSink == nullptr)
+    {
+        return;
+    }
+
+    if (m_lastEmittedPaddle[idx] == value)
+    {
+        return;
+    }
+
+    m_lastEmittedPaddle[idx] = value;
+    m_inputSink->OnPaddleRead (address, value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Read
 //
 //  $C00C-$C00F (80COL/ALTCHARSET) toggle on read OR write per real //e.
@@ -200,12 +257,16 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
         // current CPU cycle so subsequent $C064-$C067 reads measure the
         // resistor-capacitor countdown.
         m_paddleTriggerCycle = (m_cpuCycleSource != nullptr) ? *m_cpuCycleSource : 0;
+
+        EmitPaddleTrigger ();
     }
     else if (address >= s_kwPaddle0Address && address <= s_kwPaddle0Address + (s_knPaddleAxisCount - 1))
     {
         // $C064-$C067 (PADDL0-3): bit 7 = 1 while the axis's timer is still
         // counting down, proportional to position. PREAD polls this in a loop.
         result = ReadPaddle (address);
+
+        EmitPaddleRead (address, result);
     }
     else
     {
@@ -332,6 +393,11 @@ void Apple2eSoftSwitchBank::Reset ()
     m_altCharSet  = false;
 
     m_paddleTriggerCycle = 0;
+
+    for (int & last : m_lastEmittedPaddle)
+    {
+        last = -1;
+    }
 
     for (atomic<Byte> & axis : m_paddlePosition)
     {

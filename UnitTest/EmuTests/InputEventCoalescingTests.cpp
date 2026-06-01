@@ -2,6 +2,7 @@
 #include "Core/MemoryBus.h"
 #include "Devices/AppleKeyboard.h"
 #include "Devices/Apple2eKeyboard.h"
+#include "Devices/Apple2eSoftSwitchBank.h"
 #include "Devices/IInputEventSink.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -27,6 +28,8 @@ namespace
         int   kbdDataReadCount   = 0;
         int   kbdStrobeCount     = 0;
         int   buttonReadCount    = 0;
+        int   paddleTriggerCount = 0;
+        int   paddleReadCount    = 0;
         int   autoRepeatCount    = 0;
         int   hostKeyDownCount   = 0;
         int   hostKeyUpCount     = 0;
@@ -56,6 +59,19 @@ namespace
         void OnButtonRead (Word address, Byte value) override
         {
             buttonReadCount++;
+            lastAddress = address;
+            lastValue   = value;
+        }
+
+        void OnPaddleTrigger (Word address) override
+        {
+            paddleTriggerCount++;
+            lastAddress = address;
+        }
+
+        void OnPaddleRead (Word address, Byte value) override
+        {
+            paddleReadCount++;
             lastAddress = address;
             lastValue   = value;
         }
@@ -245,5 +261,76 @@ public:
 
         Assert::AreEqual (3, sink.buttonReadCount,
             L"A different button address coalesces independently and must emit");
+    }
+
+    TEST_METHOD (PaddleTrigger_FiresOnEveryStrobe)
+    {
+        Apple2eSoftSwitchBank  bank;
+        RecordingInputSink     sink;
+        uint64_t               cycles = 0;
+
+        bank.SetCpuCycleSource (&cycles);
+        bank.SetInputEventSink (&sink);
+
+        bank.Read (0xC070);
+        bank.Read (0xC070);
+
+        Assert::AreEqual (2, sink.paddleTriggerCount,
+            L"Each $C070 PTRIG strobe must emit its own trigger event (no coalescing)");
+        Assert::AreEqual (static_cast<uint16_t> (0xC070), sink.lastAddress,
+            L"The trigger event must carry the PTRIG strobe address");
+    }
+
+    TEST_METHOD (PaddleRead_CoalescesUntilTimerExpires)
+    {
+        Apple2eSoftSwitchBank  bank;
+        RecordingInputSink     sink;
+        uint64_t               cycles = 1000;
+
+        bank.SetCpuCycleSource (&cycles);
+        bank.SetInputEventSink (&sink);
+        bank.SetPaddle (0, 100);
+
+        // Arm the game-port timers at cycle 1000; axis 0 holds bit 7 for
+        // position * 11 = 1100 cycles.
+        bank.Read (0xC070);
+
+        bank.Read (0xC064);
+        bank.Read (0xC064);
+
+        Assert::AreEqual (1, sink.paddleReadCount,
+            L"Identical $C064 polls while the timer is counting must coalesce to one event");
+        Assert::AreEqual (static_cast<uint8_t> (0x80), sink.lastValue,
+            L"A still-counting axis must report bit 7 set");
+
+        cycles = 1000 + 100 * 11;
+        bank.Read (0xC064);
+
+        Assert::AreEqual (2, sink.paddleReadCount,
+            L"The timer expiring (bit 7 -> 0) is a new edge and must emit a second event");
+        Assert::AreEqual (static_cast<uint8_t> (0x00), sink.lastValue,
+            L"An expired axis must report bit 7 clear");
+    }
+
+    TEST_METHOD (PaddleRead_DetachedSink_Silenced)
+    {
+        Apple2eSoftSwitchBank  bank;
+        RecordingInputSink     sink;
+        uint64_t               cycles = 0;
+
+        bank.SetCpuCycleSource (&cycles);
+        bank.SetInputEventSink (&sink);
+        bank.Read (0xC070);
+
+        int  baseline = sink.paddleTriggerCount;
+
+        bank.SetInputEventSink (nullptr);
+        bank.Read (0xC070);
+        bank.Read (0xC064);
+
+        Assert::AreEqual (baseline, sink.paddleTriggerCount,
+            L"No paddle callbacks may fire once the sink is detached");
+        Assert::AreEqual (0, sink.paddleReadCount,
+            L"No paddle-read callbacks may fire once the sink is detached");
     }
 };

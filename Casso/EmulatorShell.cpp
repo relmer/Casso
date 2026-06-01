@@ -420,6 +420,12 @@ EmulatorShell::~EmulatorShell()
             m_refs.keyboard->SetInputEventSink (nullptr);
         }
 
+        auto * iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+        if (iieSwitches != nullptr)
+        {
+            iieSwitches->SetInputEventSink (nullptr);
+        }
+
         m_inputDebugPanel.reset();
     }
 
@@ -3369,6 +3375,12 @@ void EmulatorShell::OpenInputDebugDialog()
         }
 
         m_refs.keyboard->SetInputEventSink (m_inputDebugPanel.get());
+
+        auto * iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+        if (iieSwitches != nullptr)
+        {
+            iieSwitches->SetInputEventSink (m_inputDebugPanel.get());
+        }
     }
 
     m_inputDebugPanel->Show();
@@ -3423,6 +3435,12 @@ void EmulatorShell::AttachDebugSinksIfOpen()
     if (m_inputDebugPanel != nullptr && m_refs.keyboard != nullptr)
     {
         m_refs.keyboard->SetInputEventSink (m_inputDebugPanel.get());
+
+        auto * iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+        if (iieSwitches != nullptr)
+        {
+            iieSwitches->SetInputEventSink (m_inputDebugPanel.get());
+        }
     }
 
 Error:

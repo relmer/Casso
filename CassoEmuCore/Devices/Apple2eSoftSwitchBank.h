@@ -7,6 +7,7 @@ class Apple2eMmu;
 class Apple2eKeyboard;
 class LanguageCard;
 class IVideoTiming;
+class IInputEventSink;
 
 
 
@@ -58,6 +59,9 @@ public:
     // Wire the CPU bus-cycle accumulator that drives the PREAD paddle timer.
     void SetCpuCycleSource (const uint64_t * src) { m_cpuCycleSource = src; }
 
+    // Attach the input-debug notification sink (CPU thread, lock-free ring).
+    void SetInputEventSink (IInputEventSink * sink) noexcept { m_inputSink = sink; }
+
     // Stage an analog axis position (0-255, s_knPaddleCenter = neutral).
     void SetPaddle (int axis, Byte position);
 
@@ -78,16 +82,20 @@ private:
 
     Byte ReadStatusRegister (Word address);
     Byte ReadPaddle         (Word address) const;
+    void EmitPaddleTrigger  ();
+    void EmitPaddleRead     (Word address, Byte value);
 
     MemoryBus *          m_bus                = nullptr;
     Apple2eMmu *         m_mmu                = nullptr;
     Apple2eKeyboard *    m_keyboard           = nullptr;
     LanguageCard *       m_lc                 = nullptr;
     IVideoTiming *       m_videoTiming        = nullptr;
+    IInputEventSink *    m_inputSink          = nullptr;
     const uint64_t *     m_cpuCycleSource     = nullptr;
     uint64_t             m_paddleTriggerCycle = 0;
     bool                 m_80colMode          = false;
     bool                 m_doubleHiRes        = false;
     bool                 m_altCharSet         = false;
     atomic<Byte>         m_paddlePosition[s_knPaddleAxisCount];
+    int                  m_lastEmittedPaddle[s_knPaddleAxisCount] = { -1, -1, -1, -1 };
 };

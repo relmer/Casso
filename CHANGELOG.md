@@ -21,9 +21,12 @@ copy-protected WOZ image ([#68](https://github.com/relmer/Casso/issues/68)).
   timing-sensitive games behave correctly — *Karateka* movement on the
   left/right arrow keys plays as it did on real hardware.
 - **feat(ui): Input Debug panel.** New themed, non-modal debug window
-  logging host→//e key events, the `$C000`/`$C010` keyboard strobe, and
-  Open/Closed-Apple button state, with column filtering, sorting, and
-  pause. Fed by a lock-free event ring drained on the render thread.
+  logging host→//e key events, the `$C000`/`$C010` keyboard strobe,
+  Open/Closed-Apple button state, and synthesized joystick/paddle reads
+  (`$C064`–`$C067` PREAD, `$C070` PTRIG), with per-lane filter checkboxes
+  (emulator keyboard/joystick/paddle, host keyboard) and per-pair
+  Joystick-vs-Paddle view dropdowns, column sorting, and pause. Fed by a
+  lock-free event ring drained on the render thread.
 - **feat(ui): native Disk II debug window.** DX/themed replacement for
   the legacy Win32 Disk II debug dialog, sharing the same event-ring
   projection and multi-column ListView.
