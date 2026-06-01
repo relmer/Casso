@@ -9,9 +9,9 @@
 #include "../Devices/AppleSpeaker.h"
 #include "../Devices/LanguageCard.h"
 #include "../Devices/Disk2Controller.h"
-#include "../Devices/AppleIIeKeyboard.h"
-#include "../Devices/AppleIIeMmu.h"
-#include "../Devices/AppleIIeSoftSwitchBank.h"
+#include "../Devices/Apple2eKeyboard.h"
+#include "../Devices/Apple2eMmu.h"
+#include "../Devices/Apple2eSoftSwitchBank.h"
 
 
 
@@ -117,10 +117,10 @@ vector<string> ComponentRegistry::GetRegisteredTypes () const
 void ComponentRegistry::RegisterBuiltinDevices (ComponentRegistry & registry)
 {
     registry.Register ("apple2-keyboard",      AppleKeyboard::Create);
-    registry.Register ("apple2e-keyboard",     AppleIIeKeyboard::Create);
+    registry.Register ("apple2e-keyboard",     Apple2eKeyboard::Create);
     registry.Register ("apple2-speaker",       AppleSpeaker::Create);
     registry.Register ("apple2-softswitches",  AppleSoftSwitchBank::Create);
-    registry.Register ("apple2e-softswitches", AppleIIeSoftSwitchBank::Create);
+    registry.Register ("apple2e-softswitches", Apple2eSoftSwitchBank::Create);
     registry.Register ("language-card",        LanguageCard::Create);
     registry.Register ("disk-ii",              Disk2Controller::Create);
 }

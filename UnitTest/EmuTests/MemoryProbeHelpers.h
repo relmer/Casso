@@ -34,7 +34,7 @@ public:
     // Force an MMU page-table rebind so $0000-$BFFF reads/writes go
     // through the MMU's main/aux buffers (not the CPU's memory[] which
     // HeadlessHost binds for the cold-boot path). Call once after
-    // HeadlessHost::BuildAppleIIe + PowerCycle + BootToPrompt.
+    // HeadlessHost::BuildApple2e + PowerCycle + BootToPrompt.
     static void  RebindMainBaseline (EmulatorCore & core);
 
     // Main / aux RAM probes for $0200-$BFFF. Toggle RAMRD/RAMWRT then

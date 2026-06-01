@@ -229,7 +229,7 @@ namespace
 //    2. Composition pin — HeadlessHost::BuildAppleII /
 //       BuildAppleIIPlus continue to compose only the deterministic
 //       harness primitives (Prng, MockHostShell, FixtureProvider) and
-//       MUST NOT pull in the //e wiring (no AppleIIeMmu, no EmuCpu,
+//       MUST NOT pull in the //e wiring (no Apple2eMmu, no EmuCpu,
 //       no aux RAM, no LanguageCardBank). This is the architectural
 //       proof that the //e build path is a *separate* composition, not
 //       a branch of the ][/][+ build path.
@@ -552,7 +552,7 @@ public:
     //  AppleII_HeadlessHost_Composes — BuildAppleII succeeds and produces
     //  a deterministic harness with NO //e wiring attached. The whole
     //  point of the FR-040 composition pin: the //e build path lives in
-    //  a separate function (BuildAppleIIe) that adds CPU + MMU + bus on
+    //  a separate function (BuildApple2e) that adds CPU + MMU + bus on
     //  top; the ][ build path is intentionally minimal.
     //
     ////////////////////////////////////////////////////////////////////////
@@ -575,7 +575,7 @@ public:
         Assert::IsNotNull (core.fixtures.get (), L"][ harness must wire FixtureProvider");
 
         Assert::IsNull (core.mmu.get (),
-            L"][ harness must NOT pull in AppleIIeMmu (composition pin)");
+            L"][ harness must NOT pull in Apple2eMmu (composition pin)");
         Assert::IsNull (core.cpu.get (),
             L"][ harness must NOT pull in EmuCpu (][ build path stays minimal)");
         Assert::IsNull (core.bus.get (),
@@ -587,8 +587,8 @@ public:
         Assert::IsNull (core.diskController.get (),
             L"][ harness must NOT pull in Disk2Controller by default");
 
-        Assert::IsFalse (core.HasAppleIIe (),
-            L"][ harness must NOT report HasAppleIIe");
+        Assert::IsFalse (core.HasApple2e (),
+            L"][ harness must NOT report HasApple2e");
     }
 
 
@@ -616,7 +616,7 @@ public:
         Assert::IsNotNull (core.fixtures.get ());
 
         Assert::IsNull (core.mmu.get (),
-            L"][+ harness must NOT pull in AppleIIeMmu");
+            L"][+ harness must NOT pull in Apple2eMmu");
         Assert::IsNull (core.cpu.get (),
             L"][+ harness must NOT pull in EmuCpu");
         Assert::IsNull (core.bus.get ());
@@ -624,7 +624,7 @@ public:
         Assert::IsNull (core.languageCard.get ());
         Assert::IsNull (core.diskController.get ());
 
-        Assert::IsFalse (core.HasAppleIIe ());
+        Assert::IsFalse (core.HasApple2e ());
     }
 
 
@@ -713,22 +713,22 @@ public:
         hr = host.BuildAppleIIPlus (coreIIPlus);
         Assert::IsTrue (SUCCEEDED (hr));
 
-        hr = host.BuildAppleIIe (coreIIe);
+        hr = host.BuildApple2e (coreIIe);
         Assert::IsTrue (SUCCEEDED (hr));
 
         Assert::IsTrue (coreII.machineKind     == HeadlessMachineKind::AppleII);
         Assert::IsTrue (coreIIPlus.machineKind == HeadlessMachineKind::AppleIIPlus);
-        Assert::IsTrue (coreIIe.machineKind    == HeadlessMachineKind::AppleIIe);
+        Assert::IsTrue (coreIIe.machineKind    == HeadlessMachineKind::Apple2e);
 
         Assert::IsTrue (coreII.machineKind     != coreIIPlus.machineKind);
         Assert::IsTrue (coreIIPlus.machineKind != coreIIe.machineKind);
         Assert::IsTrue (coreII.machineKind     != coreIIe.machineKind);
 
-        Assert::IsTrue  (coreIIe.HasAppleIIe (),
+        Assert::IsTrue  (coreIIe.HasApple2e (),
             L"//e build path must produce a fully wired //e core");
-        Assert::IsFalse (coreII.HasAppleIIe (),
+        Assert::IsFalse (coreII.HasApple2e (),
             L"][ build path must NOT produce a //e core");
-        Assert::IsFalse (coreIIPlus.HasAppleIIe (),
+        Assert::IsFalse (coreIIPlus.HasApple2e (),
             L"][+ build path must NOT produce a //e core");
     }
 };

@@ -1,9 +1,9 @@
 #include "Pch.h"
 #include "Core/MemoryBus.h"
 #include "Devices/AppleKeyboard.h"
-#include "Devices/AppleIIeKeyboard.h"
-#include "Devices/AppleIIeSoftSwitchBank.h"
-#include "Devices/AppleIIeMmu.h"
+#include "Devices/Apple2eKeyboard.h"
+#include "Devices/Apple2eSoftSwitchBank.h"
+#include "Devices/Apple2eMmu.h"
 #include "Devices/RamDevice.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -196,7 +196,7 @@ public:
 
     TEST_METHOD (IIeKeyboard_UpcastToBase_Works)
     {
-        AppleIIeKeyboard iieKbd;
+        Apple2eKeyboard iieKbd;
         AppleKeyboard * basePtr = &iieKbd;
 
         basePtr->KeyPress ('A');
@@ -210,9 +210,9 @@ public:
     {
         MemoryBus              bus;
         RamDevice              mainRam (0x0000, 0xBFFF);
-        AppleIIeMmu            mmu;
-        AppleIIeSoftSwitchBank sw  (&bus);
-        AppleIIeKeyboard       iieKbd (&bus);
+        Apple2eMmu             mmu;
+        Apple2eSoftSwitchBank  sw  (&bus);
+        Apple2eKeyboard        iieKbd (&bus);
 
         sw.SetMmu (&mmu);
         HRESULT hrInit = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, &sw);
@@ -229,8 +229,8 @@ public:
     TEST_METHOD (IIeKeyboard_ForwardsC00DWriteToSoftSwitch)
     {
         MemoryBus              bus;
-        AppleIIeSoftSwitchBank sw  (&bus);
-        AppleIIeKeyboard       iieKbd (&bus);
+        Apple2eSoftSwitchBank  sw  (&bus);
+        Apple2eKeyboard        iieKbd (&bus);
         iieKbd.SetSoftSwitchSibling (&sw);
 
         iieKbd.Write (0xC00D, 0);
@@ -266,7 +266,7 @@ public:
 
     TEST_METHOD (OpenAppleReadable_C061)
     {
-        AppleIIeKeyboard kbd;
+        Apple2eKeyboard kbd;
 
         Byte released = kbd.Read (0xC061);
         Assert::AreEqual (static_cast<Byte> (0x00), released,
@@ -281,7 +281,7 @@ public:
 
     TEST_METHOD (ClosedAppleReadable_C062)
     {
-        AppleIIeKeyboard kbd;
+        Apple2eKeyboard kbd;
 
         Byte released = kbd.Read (0xC062);
         Assert::AreEqual (static_cast<Byte> (0x00), released,
@@ -296,7 +296,7 @@ public:
 
     TEST_METHOD (ShiftReadable_C063)
     {
-        AppleIIeKeyboard kbd;
+        Apple2eKeyboard kbd;
 
         Byte released = kbd.Read (0xC063);
         Assert::AreEqual (static_cast<Byte> (0x00), released,
@@ -311,8 +311,8 @@ public:
 
     TEST_METHOD (OnlyC010ClearsStrobe)
     {
-        AppleIIeKeyboard       kbd;
-        AppleIIeSoftSwitchBank bank;
+        Apple2eKeyboard        kbd;
+        Apple2eSoftSwitchBank  bank;
 
         kbd .SetSoftSwitchSibling (&bank);
         bank.SetKeyboard          (&kbd);
@@ -336,8 +336,8 @@ public:
 
     TEST_METHOD (C011ReadDoesNotClearStrobe)
     {
-        AppleIIeKeyboard       kbd;
-        AppleIIeSoftSwitchBank bank;
+        Apple2eKeyboard        kbd;
+        Apple2eSoftSwitchBank  bank;
 
         kbd .SetSoftSwitchSibling (&bank);
         bank.SetKeyboard          (&kbd);
@@ -351,8 +351,8 @@ public:
 
     TEST_METHOD (C012ReadDoesNotClearStrobe)
     {
-        AppleIIeKeyboard       kbd;
-        AppleIIeSoftSwitchBank bank;
+        Apple2eKeyboard        kbd;
+        Apple2eSoftSwitchBank  bank;
 
         kbd .SetSoftSwitchSibling (&bank);
         bank.SetKeyboard          (&kbd);
@@ -366,8 +366,8 @@ public:
 
     TEST_METHOD (C019ReadDoesNotClearStrobe)
     {
-        AppleIIeKeyboard       kbd;
-        AppleIIeSoftSwitchBank bank;
+        Apple2eKeyboard        kbd;
+        Apple2eSoftSwitchBank  bank;
 
         kbd .SetSoftSwitchSibling (&bank);
         bank.SetKeyboard          (&kbd);
@@ -381,8 +381,8 @@ public:
 
     TEST_METHOD (C01EReadDoesNotClearStrobe)
     {
-        AppleIIeKeyboard       kbd;
-        AppleIIeSoftSwitchBank bank;
+        Apple2eKeyboard        kbd;
+        Apple2eSoftSwitchBank  bank;
 
         kbd .SetSoftSwitchSibling (&bank);
         bank.SetKeyboard          (&kbd);
@@ -396,11 +396,11 @@ public:
 
     TEST_METHOD (Audit_OpenClosedAppleNoLongerDeadCode)
     {
-        // Pre-Phase-6: AppleIIeKeyboard::GetEnd() was $C01F so reads of
+        // Pre-Phase-6: Apple2eKeyboard::GetEnd() was $C01F so reads of
         // $C061/$C062 never reached the device — the modifier code was
         // dead. T060 extends GetEnd() to $C063; this test asserts the
         // bus range now covers the modifier reads.
-        AppleIIeKeyboard kbd;
+        Apple2eKeyboard kbd;
 
         Assert::AreEqual (static_cast<Word> (0xC063), kbd.GetEnd (),
             L"Phase 6 / audit §4 C3: keyboard GetEnd() must reach $C063");
@@ -418,7 +418,7 @@ public:
     {
         // Phase 6 / FR-013: $C063 (Shift) must be a real read site,
         // not stub-zero. SetShift(true) must produce bit 7 = 1.
-        AppleIIeKeyboard kbd;
+        Apple2eKeyboard kbd;
 
         Assert::AreEqual (static_cast<Byte> (0x00), kbd.Read (0xC063),
             L"$C063 with Shift released returns 0");

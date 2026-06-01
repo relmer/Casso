@@ -3,7 +3,7 @@
 #include "Pch.h"
 #include "Core/MemoryDevice.h"
 
-class AppleIIeMmu;
+class Apple2eMmu;
 
 
 
@@ -14,7 +14,7 @@ class AppleIIeMmu;
 //  CxxxRomRouter
 //
 //  Memory-bus device claiming $C100-$CFFF on the //e. Routes reads to one
-//  of three sources based on the AppleIIeMmu's flag state:
+//  of three sources based on the Apple2eMmu's flag state:
 //
 //    - INTCXROM=1: all $C100-$CFFF reads come from the internal //e ROM
 //      (audit §8 / Sather UTAIIe §5-25). Slot ROMs are shadowed.
@@ -37,7 +37,7 @@ class AppleIIeMmu;
 class CxxxRomRouter : public MemoryDevice
 {
 public:
-    explicit CxxxRomRouter (AppleIIeMmu & mmu);
+    explicit CxxxRomRouter (Apple2eMmu & mmu);
 
     Byte Read     (Word address) override;
     void Write    (Word address, Byte value) override;
@@ -52,7 +52,7 @@ public:
 private:
     Byte ResolveByte    (Word address);
 
-    AppleIIeMmu &  m_mmu;
+    Apple2eMmu &   m_mmu;
     vector<Byte>   m_internal;
     vector<Byte>   m_slotRom[8];
 };

@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "CxxxRomRouter.h"
-#include "AppleIIeMmu.h"
+#include "Apple2eMmu.h"
 
 
 
@@ -36,7 +36,7 @@ static constexpr Byte  kFloatingBusByte    = 0xFF;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CxxxRomRouter::CxxxRomRouter (AppleIIeMmu & mmu)
+CxxxRomRouter::CxxxRomRouter (Apple2eMmu & mmu)
     : m_mmu (mmu)
 {
 }

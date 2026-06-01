@@ -162,8 +162,8 @@ namespace
 
         Assert::IsFalse (bytes.empty (), L"WOZ file must not be empty");
 
-        hr = host.BuildAppleIIeWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDisk2 must succeed");
+        hr = host.BuildApple2eWithDisk2 (core);
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
 
         core.PowerCycle ();
 

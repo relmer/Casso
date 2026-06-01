@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "AppleIIeMmu.h"
+#include "Apple2eMmu.h"
 #include "Core/MemoryBus.h"
 #include "Core/Prng.h"
 #include "Devices/RamDevice.h"
@@ -39,11 +39,11 @@ static constexpr int  kMain02_BFLast      = 0xBF;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleIIeMmu
+//  Apple2eMmu
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-AppleIIeMmu::AppleIIeMmu ()
+Apple2eMmu::Apple2eMmu ()
     : m_auxRam     (kAuxRamSize, 0),
       m_cxxxRouter (*this)
 {
@@ -65,7 +65,7 @@ AppleIIeMmu::AppleIIeMmu ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AppleIIeMmu::Initialize (
+HRESULT Apple2eMmu::Initialize (
     MemoryBus            *   bus,
     RamDevice            *   mainRam,
     RamDevice            *   auxRam,
@@ -109,14 +109,14 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeMmu::AttachInternalCxxxRom (vector<Byte> data)
+void Apple2eMmu::AttachInternalCxxxRom (vector<Byte> data)
 {
     m_cxxxRouter.SetInternalRom (move (data));
 }
 
 
 
-void AppleIIeMmu::AttachSlotRom (int slot, vector<Byte> data)
+void Apple2eMmu::AttachSlotRom (int slot, vector<Byte> data)
 {
     m_cxxxRouter.SetSlotRom (slot, move (data));
 }
@@ -134,7 +134,7 @@ void AppleIIeMmu::AttachSlotRom (int slot, vector<Byte> data)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeMmu::SetRamRd (bool v)
+void Apple2eMmu::SetRamRd (bool v)
 {
     if (m_ramRd == v)
     {
@@ -147,7 +147,7 @@ void AppleIIeMmu::SetRamRd (bool v)
 
 
 
-void AppleIIeMmu::SetRamWrt (bool v)
+void Apple2eMmu::SetRamWrt (bool v)
 {
     if (m_ramWrt == v)
     {
@@ -160,7 +160,7 @@ void AppleIIeMmu::SetRamWrt (bool v)
 
 
 
-void AppleIIeMmu::SetAltZp (bool v)
+void Apple2eMmu::SetAltZp (bool v)
 {
     if (m_altZp == v)
     {
@@ -173,7 +173,7 @@ void AppleIIeMmu::SetAltZp (bool v)
 
 
 
-void AppleIIeMmu::Set80Store (bool v)
+void Apple2eMmu::Set80Store (bool v)
 {
     if (m_store80 == v)
     {
@@ -189,21 +189,21 @@ void AppleIIeMmu::Set80Store (bool v)
 
 
 
-void AppleIIeMmu::SetIntCxRom (bool v)
+void Apple2eMmu::SetIntCxRom (bool v)
 {
     m_intCxRom = v;
 }
 
 
 
-void AppleIIeMmu::SetSlotC3Rom (bool v)
+void Apple2eMmu::SetSlotC3Rom (bool v)
 {
     m_slotC3Rom = v;
 }
 
 
 
-void AppleIIeMmu::ResetIntC8Rom ()
+void Apple2eMmu::ResetIntC8Rom ()
 {
     m_intC8Rom = false;
 }
@@ -223,7 +223,7 @@ void AppleIIeMmu::ResetIntC8Rom ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeMmu::OnSoftSwitchChanged ()
+void Apple2eMmu::OnSoftSwitchChanged ()
 {
     ResolveText04_07  ();
     ResolveHires20_3F ();
@@ -242,7 +242,7 @@ void AppleIIeMmu::OnSoftSwitchChanged ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeMmu::OnSoftReset ()
+void Apple2eMmu::OnSoftReset ()
 {
     m_ramRd     = false;
     m_ramWrt    = false;
@@ -269,7 +269,7 @@ void AppleIIeMmu::OnSoftReset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeMmu::OnPowerCycle (Prng & prng)
+void Apple2eMmu::OnPowerCycle (Prng & prng)
 {
     OnSoftReset ();
 
@@ -289,7 +289,7 @@ void AppleIIeMmu::OnPowerCycle (Prng & prng)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeMmu::RebindPageTable ()
+void Apple2eMmu::RebindPageTable ()
 {
     ResolveZeroPage   ();
     ResolveMain02_BF  ();
@@ -310,7 +310,7 @@ void AppleIIeMmu::RebindPageTable ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeMmu::ResolveZeroPage ()
+void Apple2eMmu::ResolveZeroPage ()
 {
     Byte *  base = m_altZp ? m_auxRam.data () : m_mainRamPtr;
 
@@ -343,7 +343,7 @@ void AppleIIeMmu::ResolveZeroPage ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeMmu::ResolveMain02_BF ()
+void Apple2eMmu::ResolveMain02_BF ()
 {
     if (m_bus == nullptr || m_mainRamPtr == nullptr)
     {
@@ -381,7 +381,7 @@ void AppleIIeMmu::ResolveMain02_BF ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte * AppleIIeMmu::SelectMainRead (int page)
+Byte * Apple2eMmu::SelectMainRead (int page)
 {
     Byte *  base = m_ramRd ? m_auxRam.data () : m_mainRamPtr;
     return base + (page * kPageSize);
@@ -389,7 +389,7 @@ Byte * AppleIIeMmu::SelectMainRead (int page)
 
 
 
-Byte * AppleIIeMmu::SelectMainWrite (int page)
+Byte * Apple2eMmu::SelectMainWrite (int page)
 {
     Byte *  base = m_ramWrt ? m_auxRam.data () : m_mainRamPtr;
     return base + (page * kPageSize);
@@ -410,7 +410,7 @@ Byte * AppleIIeMmu::SelectMainWrite (int page)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeMmu::ResolveText04_07 ()
+void Apple2eMmu::ResolveText04_07 ()
 {
     if (m_bus == nullptr || m_mainRamPtr == nullptr)
     {
@@ -459,7 +459,7 @@ void AppleIIeMmu::ResolveText04_07 ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeMmu::ResolveHires20_3F ()
+void Apple2eMmu::ResolveHires20_3F ()
 {
     if (m_bus == nullptr || m_mainRamPtr == nullptr)
     {

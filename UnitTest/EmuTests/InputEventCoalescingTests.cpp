@@ -1,7 +1,7 @@
 #include "Pch.h"
 #include "Core/MemoryBus.h"
 #include "Devices/AppleKeyboard.h"
-#include "Devices/AppleIIeKeyboard.h"
+#include "Devices/Apple2eKeyboard.h"
 #include "Devices/IInputEventSink.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -219,7 +219,7 @@ public:
     TEST_METHOD (ButtonRead_CoalescesPerAddress)
     {
         MemoryBus           bus;
-        AppleIIeKeyboard    kbd (&bus);
+        Apple2eKeyboard     kbd (&bus);
         RecordingInputSink  sink;
 
         kbd.SetInputEventSink (&sink);

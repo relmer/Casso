@@ -13,7 +13,7 @@
 //  KeystrokeInjector
 //
 //  Phase 7 (T068). Injects ASCII keystrokes into an //e EmulatorCore via
-//  AppleIIeKeyboard::KeyPressRaw, pumping CPU cycles between strokes
+//  Apple2eKeyboard::KeyPressRaw, pumping CPU cycles between strokes
 //  until the ROM consumes the strobe. Apple //e accepts lowercase from
 //  the full keyboard so KeyPressRaw is used directly (the base
 //  KeyPress translates to uppercase, which would silently break tests

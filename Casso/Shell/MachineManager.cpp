@@ -13,13 +13,13 @@
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
 #include "Devices/AppleKeyboard.h"
-#include "Devices/AppleIIeKeyboard.h"
+#include "Devices/Apple2eKeyboard.h"
 #include "Devices/AppleSoftSwitchBank.h"
-#include "Devices/AppleIIeSoftSwitchBank.h"
+#include "Devices/Apple2eSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
 #include "Devices/Disk2Controller.h"
 #include "Devices/LanguageCard.h"
-#include "Devices/AppleIIeMmu.h"
+#include "Devices/Apple2eMmu.h"
 #include "Video/AppleTextMode.h"
 #include "Video/Apple80ColTextMode.h"
 #include "Video/AppleLoResMode.h"
@@ -129,7 +129,7 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         m_shell.m_charRom.LoadEmbeddedFallback();
     }
 
-    // RAM regions. Skip aux-bank entries: the AppleIIeMmu owns the
+    // RAM regions. Skip aux-bank entries: the Apple2eMmu owns the
     // auxiliary 64 KiB internally. Track the main RAM RamDevice for
     // MMU page-table wiring.
     for (const auto & region : config.ram)
@@ -187,7 +187,7 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         // wiring (siblings, Initialize) happens after the device pass.
         if (devCfg.type == "apple2e-mmu")
         {
-            m_shell.m_mmu = std::make_unique<AppleIIeMmu>();
+            m_shell.m_mmu = std::make_unique<Apple2eMmu>();
             continue;
         }
 
@@ -223,8 +223,8 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // the softswitch (the keyboard's range $C000-$C063 would otherwise
     // eat it).
     {
-        auto * iieKbd = dynamic_cast<AppleIIeKeyboard *>       (m_shell.m_refs.keyboard);
-        auto * iieSw  = dynamic_cast<AppleIIeSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+        auto * iieKbd = dynamic_cast<Apple2eKeyboard *>       (m_shell.m_refs.keyboard);
+        auto * iieSw  = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
 
         if (iieKbd != nullptr && iieSw != nullptr)
         {
@@ -262,7 +262,7 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // page table for $0000-$BFFF based on RAMRD/RAMWRT/ALTZP/80STORE.
     if (m_shell.m_mmu != nullptr && m_shell.m_refs.mainRamDev != nullptr)
     {
-        auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+        auto * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
 
         HRESULT hrMmu = m_shell.m_mmu->Initialize (
             &m_shell.m_memoryBus,
@@ -274,7 +274,7 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
 
         if (FAILED (hrMmu))
         {
-            DEBUGMSG (L"AppleIIeMmu::Initialize failed (hr=0x%08x)\n", hrMmu);
+            DEBUGMSG (L"Apple2eMmu::Initialize failed (hr=0x%08x)\n", hrMmu);
         }
     }
 
@@ -319,7 +319,7 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
                 CBRN (false, wideError.c_str());
             }
 
-            // On //e the AppleIIeMmu owns the $C100-$CFFF router and
+            // On //e the Apple2eMmu owns the $C100-$CFFF router and
             // dispatches between internal ROM and slot ROMs based on
             // INTCXROM/SLOTC3ROM/INTC8ROM. On ][/][+, the slot ROM is
             // bus-resident as before (no INTCXROM concept).
@@ -530,14 +530,14 @@ void MachineManager::WireLanguageCard ()
         lc->SetMmu (m_shell.m_mmu.get());
     }
 
-    auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_shell.m_refs.keyboard);
+    auto * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_shell.m_refs.keyboard);
 
     if (iieKbd != nullptr)
     {
         iieKbd->SetLanguageCard (lc);
     }
 
-    auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+    auto * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
 
     if (iieSw != nullptr)
     {
@@ -596,7 +596,7 @@ void MachineManager::WirePageTable ()
 //
 //  GetAuxRamBuffer
 //
-//  Returns the //e auxiliary 64 KiB buffer (owned by AppleIIeMmu) or
+//  Returns the //e auxiliary 64 KiB buffer (owned by Apple2eMmu) or
 //  nullptr when no MMU is wired (Apple ][ / ][+).
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -677,7 +677,7 @@ void MachineManager::CreateVideoModes ()
     m_shell.m_videoModes.push_back (std::move (doubleHiResMode));
 
     // Index 4: 80-column text (used on //e). Wired with aux memory
-    // from the AppleIIeMmu when present.
+    // from the Apple2eMmu when present.
     auto text80 = std::make_unique<Apple80ColTextMode> (m_shell.m_memoryBus, m_shell.m_charRom);
 
     Byte * auxBuf = GetAuxRamBuffer();
@@ -816,7 +816,7 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
     // $C064-$C067 countdown) off the same CPU bus-cycle accumulator so a
     // paddle read measures elapsed cycles since the strobe.
     {
-        auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+        auto * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
 
         if (iieSw != nullptr)
         {
@@ -1236,7 +1236,7 @@ void MachineManager::SelectVideoMode ()
     // When 80STORE is active on the //e, $C054/$C055 control aux/main
     // memory selection -- not page 1/page 2. Suppress page2 for video
     // rendering.
-    auto * iieSoftSwitches = dynamic_cast<AppleIIeSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+    auto * iieSoftSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
 
     if (iieSoftSwitches != nullptr && iieSoftSwitches->Is80Store())
     {

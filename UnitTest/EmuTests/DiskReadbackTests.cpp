@@ -137,8 +137,8 @@ namespace
         HRESULT      hr        = S_OK;
         DiskImage *  external  = nullptr;
 
-        hr = host.BuildAppleIIeWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDisk2");
+        hr = host.BuildApple2eWithDisk2 (core);
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2");
 
         core.PowerCycle ();
 
@@ -666,8 +666,8 @@ public:
         DiskImage *    external = nullptr;
         HRESULT        hr       = S_OK;
 
-        hr = host.BuildAppleIIeWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDisk2");
+        hr = host.BuildApple2eWithDisk2 (core);
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2");
 
         core.PowerCycle ();
 

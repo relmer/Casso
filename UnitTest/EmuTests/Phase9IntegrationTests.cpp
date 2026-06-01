@@ -26,7 +26,7 @@ namespace
 //  INTCXROM=1, the same address falls through to internal ROM.
 //
 //  Each test attaches Disk2.rom explicitly via mmu->AttachSlotRom (6, ...)
-//  rather than relying on HeadlessHost::BuildAppleIIe -- the //e monitor's
+//  rather than relying on HeadlessHost::BuildApple2e -- the //e monitor's
 //  auto-boot scan would otherwise pick up the Disk II signature and divert
 //  cold-boot tests in other phases.
 //
@@ -41,7 +41,7 @@ public:
         HRESULT                hr;
         std::vector<uint8_t>   slot6Rom;
 
-        hr = host.BuildAppleIIe (core);
+        hr = host.BuildApple2e (core);
         if (FAILED (hr))
         {
             return hr;
@@ -66,7 +66,7 @@ public:
         Byte              firstByte;
 
         hr = BuildAndAttachSlot6 (host, core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIe + slot 6 ROM attach must succeed");
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e + slot 6 ROM attach must succeed");
 
         core.bus->WriteByte (kIntCxRomOff, 0);
 
@@ -87,7 +87,7 @@ public:
         Byte              internalByte;
 
         hr = BuildAndAttachSlot6 (host, core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIe + slot 6 ROM attach must succeed");
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e + slot 6 ROM attach must succeed");
 
         core.bus->WriteByte (kIntCxRomOff, 0);
         slotByte = core.bus->ReadByte (kSlot6RomBase);

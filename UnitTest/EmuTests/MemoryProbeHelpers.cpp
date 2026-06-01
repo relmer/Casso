@@ -19,7 +19,7 @@ namespace
 //
 //  RebindMainBaseline
 //
-//  HeadlessHost::BuildAppleIIe binds bus pages $00-$BF to the CPU's
+//  HeadlessHost::BuildApple2e binds bus pages $00-$BF to the CPU's
 //  internal memory[] buffer. The MMU's RebindPageTable is initially a
 //  no-op since flags default to false. The first MMU rebind switches
 //  pages to mainRam/auxRam buffers — the //e firmware never toggles a

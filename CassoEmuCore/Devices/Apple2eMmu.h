@@ -13,7 +13,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleIIeMmu
+//  Apple2eMmu
 //
 //  Apple //e Memory Management Unit. Owns RAMRD/RAMWRT/ALTZP/80STORE/
 //  INTCXROM/SLOTC3ROM/INTC8ROM flag state and the 64 KiB auxiliary RAM
@@ -27,10 +27,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class AppleIIeMmu : public IMmu
+class Apple2eMmu : public IMmu
 {
 public:
-    AppleIIeMmu ();
+    Apple2eMmu ();
 
     HRESULT  Initialize (
         MemoryBus            *   bus,

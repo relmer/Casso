@@ -1,7 +1,7 @@
 #include "Pch.h"
 #include "Video/VideoTiming.h"
-#include "Devices/AppleIIeKeyboard.h"
-#include "Devices/AppleIIeSoftSwitchBank.h"
+#include "Devices/Apple2eKeyboard.h"
+#include "Devices/Apple2eSoftSwitchBank.h"
 #include "Devices/AppleKeyboard.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -125,8 +125,8 @@ public:
         // Phase 6 / T061: the soft-switch bank owns the $C019 read; the
         // keyboard forwards from $C000-$C063 down into the bank.
         VideoTiming               vt;
-        AppleIIeKeyboard          kbd;
-        AppleIIeSoftSwitchBank    bank;
+        Apple2eKeyboard           kbd;
+        Apple2eSoftSwitchBank     bank;
 
         kbd .SetSoftSwitchSibling (&bank);
         bank.SetKeyboard          (&kbd);
@@ -157,8 +157,8 @@ public:
         // worth of cycles (5 — LDA $C019; BPL); the loop must observe
         // bit 7 going from 1 -> 0 within at most one frame's worth.
         VideoTiming               vt;
-        AppleIIeKeyboard          kbd;
-        AppleIIeSoftSwitchBank    bank;
+        Apple2eKeyboard           kbd;
+        Apple2eSoftSwitchBank     bank;
         Byte                      val             = 0;
         uint32_t                  spunCycles      = 0;
         uint32_t                  previousBit7    = 0xFF;

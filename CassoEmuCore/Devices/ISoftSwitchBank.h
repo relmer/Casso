@@ -18,10 +18,10 @@
 //    1. AppleSoftSwitchBank — ][ base ($C030 speaker, $C000/$C010 keyboard,
 //       $C050-$C057 display switches).
 //    2. (][+ additions composed on top.)
-//    3. AppleIIeSoftSwitchBank — //e additions:
+//    3. Apple2eSoftSwitchBank — //e additions:
 //         - Write switches $C000-$C00F (80STORE / RAMRD / RAMWRT / INTCXROM /
 //           ALTZP / SLOTC3ROM / 80COL / ALTCHARSET) — forwarded to
-//           AppleIIeMmu (and own state for 80COL/ALTCHARSET).
+//           Apple2eMmu (and own state for 80COL/ALTCHARSET).
 //         - Status reads $C011-$C01F: bit 7 from the owning subsystem
 //           (LC for $C011/$C012; MMU for $C013-$C018; video timing for
 //           $C019; bank for $C01A-$C01F). Bits 0-6 from keyboard latch

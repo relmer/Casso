@@ -406,7 +406,7 @@ private:
 
     MachineRefs                   m_refs;
 
-    unique_ptr<class AppleIIeMmu> m_mmu;
+    unique_ptr<class Apple2eMmu> m_mmu;
     unique_ptr<VideoTiming>       m_videoTiming;
 
     // / T097 / FR-025. The store coordinates auto-flush of dirty

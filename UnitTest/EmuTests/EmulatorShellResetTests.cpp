@@ -2,7 +2,7 @@
 #include "Core/MemoryBus.h"
 #include "Core/Prng.h"
 #include "Devices/RamDevice.h"
-#include "Devices/AppleIIeSoftSwitchBank.h"
+#include "Devices/Apple2eSoftSwitchBank.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -39,7 +39,7 @@ public:
         // bank suffices because that is the path the originally-reported
         // bug surfaced through (audit §10 [CRITICAL]).
         MemoryBus               bus;
-        AppleIIeSoftSwitchBank  sw (&bus);
+        Apple2eSoftSwitchBank   sw (&bus);
 
         sw.Write (0xC050, 0);   // graphics on
         sw.Write (0xC055, 0);   // page2 on
@@ -88,9 +88,9 @@ public:
         // only, which left every soft switch alone — so 80COL survived a
         // soft reset and the //e came back up in the wrong text mode.
         // Phase 4 routes the menu item through SoftReset(), which fans
-        // out to AppleIIeSoftSwitchBank::SoftReset(), which clears 80COL.
+        // out to Apple2eSoftSwitchBank::SoftReset(), which clears 80COL.
         MemoryBus               bus;
-        AppleIIeSoftSwitchBank  sw (&bus);
+        Apple2eSoftSwitchBank   sw (&bus);
 
         sw.Write (0xC00D, 0);   // 80COL on (the regression vector)
         sw.Write (0xC00F, 0);   // ALTCHARSET on

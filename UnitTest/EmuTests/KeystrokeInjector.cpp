@@ -62,7 +62,7 @@ bool KeystrokeInjector::InjectKey (
     Byte             ch,
     uint64_t         cycleBudget)
 {
-    if (!core.HasAppleIIe ())
+    if (!core.HasApple2e ())
     {
         return false;
     }

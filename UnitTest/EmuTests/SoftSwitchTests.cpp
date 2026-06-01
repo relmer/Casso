@@ -1,9 +1,9 @@
 #include "Pch.h"
 #include "Core/MemoryBus.h"
 #include "Devices/AppleSoftSwitchBank.h"
-#include "Devices/AppleIIeSoftSwitchBank.h"
-#include "Devices/AppleIIeKeyboard.h"
-#include "Devices/AppleIIeMmu.h"
+#include "Devices/Apple2eSoftSwitchBank.h"
+#include "Devices/Apple2eKeyboard.h"
+#include "Devices/Apple2eMmu.h"
 #include "Devices/RamDevice.h"
 #include "Video/AppleTextMode.h"
 #include "Video/AppleHiResMode.h"
@@ -255,7 +255,7 @@ public:
     TEST_METHOD (IIeSwitches_Page2Switch_NotifiesBus)
     {
         MemoryBus              bus;
-        AppleIIeSoftSwitchBank sw (&bus);
+        Apple2eSoftSwitchBank  sw (&bus);
         int                    callCount = 0;
 
         bus.SetBankingChangedCallback ([&] () { callCount++; });
@@ -271,7 +271,7 @@ public:
 
     TEST_METHOD (IIeSwitches_NoBus_NoCrash)
     {
-        AppleIIeSoftSwitchBank sw;  // null bus
+        Apple2eSoftSwitchBank sw;  // null bus
 
         // Should not crash even without a bus to notify
         sw.Read (0xC055);
@@ -280,7 +280,7 @@ public:
     TEST_METHOD (IIeSwitches_DoubleHiRes_StillTracked)
     {
         MemoryBus              bus;
-        AppleIIeSoftSwitchBank sw (&bus);
+        Apple2eSoftSwitchBank  sw (&bus);
 
         sw.Read (0xC05E);
         Assert::IsTrue (sw.IsDoubleHiRes (),
@@ -305,8 +305,8 @@ public:
     TEST_METHOD (BusDispatch_C00D_Read_Enables80ColMode)
     {
         MemoryBus              bus;
-        AppleIIeSoftSwitchBank sw  (&bus);
-        AppleIIeKeyboard       kbd (&bus);
+        Apple2eSoftSwitchBank  sw  (&bus);
+        Apple2eKeyboard        kbd (&bus);
 
         kbd.SetSoftSwitchSibling (&sw);
         bus.AddDevice (&kbd);
@@ -321,8 +321,8 @@ public:
     TEST_METHOD (BusDispatch_C00C_Read_Disables80ColMode)
     {
         MemoryBus              bus;
-        AppleIIeSoftSwitchBank sw  (&bus);
-        AppleIIeKeyboard       kbd (&bus);
+        Apple2eSoftSwitchBank  sw  (&bus);
+        Apple2eKeyboard        kbd (&bus);
 
         kbd.SetSoftSwitchSibling (&sw);
         bus.AddDevice (&kbd);
@@ -338,8 +338,8 @@ public:
     TEST_METHOD (BusDispatch_C00F_Read_EnablesAltCharSet)
     {
         MemoryBus              bus;
-        AppleIIeSoftSwitchBank sw  (&bus);
-        AppleIIeKeyboard       kbd (&bus);
+        Apple2eSoftSwitchBank  sw  (&bus);
+        Apple2eKeyboard        kbd (&bus);
 
         kbd.SetSoftSwitchSibling (&sw);
         bus.AddDevice (&kbd);
@@ -354,7 +354,7 @@ public:
     TEST_METHOD (BusDispatch_C055_Read_NotifiesBankingThroughBus)
     {
         MemoryBus              bus;
-        AppleIIeSoftSwitchBank sw (&bus);
+        Apple2eSoftSwitchBank  sw (&bus);
         bus.AddDevice (&sw);
 
         int callCount = 0;
@@ -374,8 +374,8 @@ public:
 
     TEST_METHOD (IIeSwitches_80Store_DefaultsOff)
     {
-        AppleIIeSoftSwitchBank sw;
-        AppleIIeMmu            mmu;
+        Apple2eSoftSwitchBank  sw;
+        Apple2eMmu             mmu;
         sw.SetMmu (&mmu);
 
         Assert::IsFalse (sw.Is80Store (),
@@ -384,8 +384,8 @@ public:
 
     TEST_METHOD (IIeSwitches_WriteC001_Sets80Store)
     {
-        AppleIIeSoftSwitchBank sw;
-        AppleIIeMmu            mmu;
+        Apple2eSoftSwitchBank  sw;
+        Apple2eMmu             mmu;
         sw.SetMmu (&mmu);
 
         sw.Write (0xC001, 0);
@@ -396,8 +396,8 @@ public:
 
     TEST_METHOD (IIeSwitches_WriteC000_Clears80Store)
     {
-        AppleIIeSoftSwitchBank sw;
-        AppleIIeMmu            mmu;
+        Apple2eSoftSwitchBank  sw;
+        Apple2eMmu             mmu;
         sw.SetMmu (&mmu);
 
         sw.Write (0xC001, 0);
@@ -410,8 +410,8 @@ public:
     TEST_METHOD (IIeSwitches_80StoreToggle_NotifiesBus)
     {
         MemoryBus              bus;
-        AppleIIeSoftSwitchBank sw (&bus);
-        AppleIIeMmu            mmu;
+        Apple2eSoftSwitchBank  sw (&bus);
+        Apple2eMmu             mmu;
         RamDevice              mainRam (0x0000, 0xBFFF);
         int                    callCount = 0;
 
@@ -437,9 +437,9 @@ public:
     TEST_METHOD (BusDispatch_C001_Write_Enables80Store)
     {
         MemoryBus              bus;
-        AppleIIeSoftSwitchBank sw  (&bus);
-        AppleIIeKeyboard       kbd (&bus);
-        AppleIIeMmu            mmu;
+        Apple2eSoftSwitchBank  sw  (&bus);
+        Apple2eKeyboard        kbd (&bus);
+        Apple2eMmu             mmu;
         sw.SetMmu (&mmu);
         kbd.SetSoftSwitchSibling (&sw);
         kbd.SetMmu (&mmu);
@@ -455,8 +455,8 @@ public:
     TEST_METHOD (BusDispatch_C00D_Write_Enables80ColMode)
     {
         MemoryBus              bus;
-        AppleIIeSoftSwitchBank sw  (&bus);
-        AppleIIeKeyboard       kbd (&bus);
+        Apple2eSoftSwitchBank  sw  (&bus);
+        Apple2eKeyboard        kbd (&bus);
         kbd.SetSoftSwitchSibling (&sw);
         bus.AddDevice (&kbd);
         bus.AddDevice (&sw);

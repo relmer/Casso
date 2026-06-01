@@ -28,7 +28,7 @@ public:
         EmulatorCore     core;
         HRESULT          hr;
 
-        hr = host.BuildAppleIIe (core);
+        hr = host.BuildApple2e (core);
 
         Assert::IsTrue (SUCCEEDED (hr));
         Assert::IsNotNull (core.host.get ());
@@ -47,7 +47,7 @@ public:
         std::vector<uint8_t>    bytes;
         HRESULT                 hr;
 
-        hr = host.BuildAppleIIe (core);
+        hr = host.BuildApple2e (core);
         Assert::IsTrue (SUCCEEDED (hr));
 
         hr = core.fixtures->OpenFixture ("../escape.bin", bytes);
@@ -78,10 +78,10 @@ public:
         HRESULT          hr;
         size_t           i;
 
-        hr = hostA.BuildAppleIIe (coreA);
+        hr = hostA.BuildApple2e (coreA);
         Assert::IsTrue (SUCCEEDED (hr));
 
-        hr = hostB.BuildAppleIIe (coreB);
+        hr = hostB.BuildApple2e (coreB);
         Assert::IsTrue (SUCCEEDED (hr));
 
         for (i = 0; i < 256; i++)
@@ -100,7 +100,7 @@ public:
         float            samples2[2] = { -0.5f, -0.5f };
         HRESULT          hr;
 
-        hr   = host.BuildAppleIIe (core);
+        hr   = host.BuildApple2e (core);
         Assert::IsTrue (SUCCEEDED (hr));
 
         sink = &core.host->GetAudioSink ();

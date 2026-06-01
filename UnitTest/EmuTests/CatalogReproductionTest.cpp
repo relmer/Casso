@@ -114,8 +114,8 @@ public:
         HeadlessHost   host;
         EmulatorCore   core;
 
-        HRESULT  hr = host.BuildAppleIIeWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDisk2 must succeed");
+        HRESULT  hr = host.BuildApple2eWithDisk2 (core);
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
 
         core.PowerCycle ();
 

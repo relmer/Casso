@@ -9,13 +9,13 @@
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
 #include "Devices/AppleKeyboard.h"
-#include "Devices/AppleIIeKeyboard.h"
+#include "Devices/Apple2eKeyboard.h"
 #include "Devices/AppleSoftSwitchBank.h"
-#include "Devices/AppleIIeSoftSwitchBank.h"
+#include "Devices/Apple2eSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
 #include "Devices/Disk2Controller.h"
 #include "Devices/LanguageCard.h"
-#include "Devices/AppleIIeMmu.h"
+#include "Devices/Apple2eMmu.h"
 #include "Core/Prng.h"
 
 #include "DiskSettings.h"
@@ -2445,7 +2445,7 @@ void EmulatorShell::RenderFramebuffer()
         static constexpr int kMixedFirstRow = 20;
         static constexpr int kMixedLastRow  = 24;
 
-        auto * iieSwitches = dynamic_cast<AppleIIeSoftSwitchBank *> (m_refs.softSwitches);
+        auto * iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
         bool   use80Col    = iieSwitches != nullptr && iieSwitches->Is80ColMode();
 
         if (use80Col && m_videoModes.size() > 4)
@@ -2793,7 +2793,7 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     // can deliver for some Alt+key combos) drive the same path —
     // GetKeyState gives the canonical left/right state.
     {
-        auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_refs.keyboard);
+        auto * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
 
         if (iieKbd != nullptr)
         {
@@ -2897,7 +2897,7 @@ bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
     // of the canonical left/right state via GetKeyState — the modifier
     // remains asserted on the //e side as long as either physical Alt
     // is still down.
-    auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_refs.keyboard);
+    auto * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
 
     if (iieKbd != nullptr)
     {
@@ -2933,19 +2933,19 @@ bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 //  Host UI thread. Resolves the four arrow keys into the two emulated
 //  joystick axes and stages them on the //e soft-switch bank, where the
 //  PREAD timer ($C070 / $C064-$C067) turns them into analog readings.
-//  No-op on ][/][+ (the bank isn't an AppleIIeSoftSwitchBank).
+//  No-op on ][/][+ (the bank isn't an Apple2eSoftSwitchBank).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::UpdateJoystickAxesFromKeys ()
 {
-    auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_refs.softSwitches);
+    auto * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
     bool   left  = false;
     bool   right = false;
     bool   up    = false;
     bool   down  = false;
-    Byte   x     = AppleIIeSoftSwitchBank::s_knPaddleCenter;
-    Byte   y     = AppleIIeSoftSwitchBank::s_knPaddleCenter;
+    Byte   x     = Apple2eSoftSwitchBank::s_knPaddleCenter;
+    Byte   y     = Apple2eSoftSwitchBank::s_knPaddleCenter;
 
 
 

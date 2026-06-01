@@ -1,8 +1,8 @@
 #include "Pch.h"
 
-#include "AppleIIeSoftSwitchBank.h"
-#include "AppleIIeMmu.h"
-#include "AppleIIeKeyboard.h"
+#include "Apple2eSoftSwitchBank.h"
+#include "Apple2eMmu.h"
+#include "Apple2eKeyboard.h"
 #include "LanguageCard.h"
 #include "Video/IVideoTiming.h"
 
@@ -12,11 +12,11 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleIIeSoftSwitchBank
+//  Apple2eSoftSwitchBank
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-AppleIIeSoftSwitchBank::AppleIIeSoftSwitchBank (MemoryBus * bus)
+Apple2eSoftSwitchBank::Apple2eSoftSwitchBank (MemoryBus * bus)
     : AppleSoftSwitchBank (),
       m_bus               (bus)
 {
@@ -38,7 +38,7 @@ AppleIIeSoftSwitchBank::AppleIIeSoftSwitchBank (MemoryBus * bus)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleIIeSoftSwitchBank::Is80Store () const
+bool Apple2eSoftSwitchBank::Is80Store () const
 {
     return m_mmu != nullptr && m_mmu->Get80Store ();
 }
@@ -55,12 +55,12 @@ bool AppleIIeSoftSwitchBank::Is80Store () const
 //  Bit 7 is sourced from the canonical state-owning device:
 //    $C011 BSRBANK2     -> LanguageCard
 //    $C012 BSRREADRAM   -> LanguageCard
-//    $C013 RDRAMRD      -> AppleIIeMmu
-//    $C014 RDRAMWRT     -> AppleIIeMmu
-//    $C015 RDINTCXROM   -> AppleIIeMmu
-//    $C016 RDALTZP      -> AppleIIeMmu
-//    $C017 RDSLOTC3ROM  -> AppleIIeMmu
-//    $C018 RD80STORE    -> AppleIIeMmu
+//    $C013 RDRAMRD      -> Apple2eMmu
+//    $C014 RDRAMWRT     -> Apple2eMmu
+//    $C015 RDINTCXROM   -> Apple2eMmu
+//    $C016 RDALTZP      -> Apple2eMmu
+//    $C017 RDSLOTC3ROM  -> Apple2eMmu
+//    $C018 RD80STORE    -> Apple2eMmu
 //    $C019 RDVBLBAR     -> VideoTiming (bit 7 = 1 during display, 0 during vblank)
 //    $C01A RDTEXT       -> AppleSoftSwitchBank (text mode)
 //    $C01B RDMIXED      -> AppleSoftSwitchBank
@@ -74,7 +74,7 @@ bool AppleIIeSoftSwitchBank::Is80Store () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte AppleIIeSoftSwitchBank::ReadStatusRegister (Word address)
+Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
 {
     Byte  kbdBits = 0;
     bool  flag    = false;
@@ -122,7 +122,7 @@ Byte AppleIIeSoftSwitchBank::ReadStatusRegister (Word address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte AppleIIeSoftSwitchBank::ReadPaddle (Word address) const
+Byte Apple2eSoftSwitchBank::ReadPaddle (Word address) const
 {
     int       axis    = static_cast<int> (address - s_kwPaddle0Address);
     Byte      pos     = m_paddlePosition[axis].load (memory_order_acquire);
@@ -152,7 +152,7 @@ Byte AppleIIeSoftSwitchBank::ReadPaddle (Word address) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeSoftSwitchBank::SetPaddle (int axis, Byte position)
+void Apple2eSoftSwitchBank::SetPaddle (int axis, Byte position)
 {
     HRESULT  hr = S_OK;
 
@@ -180,7 +180,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte AppleIIeSoftSwitchBank::Read (Word address)
+Byte Apple2eSoftSwitchBank::Read (Word address)
 {
     Byte  result        = 0;
     bool  bankingChange = false;
@@ -287,7 +287,7 @@ Byte AppleIIeSoftSwitchBank::Read (Word address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeSoftSwitchBank::Write (Word address, Byte value)
+void Apple2eSoftSwitchBank::Write (Word address, Byte value)
 {
     UNREFERENCED_PARAMETER (value);
 
@@ -324,7 +324,7 @@ void AppleIIeSoftSwitchBank::Write (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeSoftSwitchBank::Reset ()
+void Apple2eSoftSwitchBank::Reset ()
 {
     AppleSoftSwitchBank::Reset ();
     m_80colMode   = false;
@@ -353,7 +353,7 @@ void AppleIIeSoftSwitchBank::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeSoftSwitchBank::SoftReset ()
+void Apple2eSoftSwitchBank::SoftReset ()
 {
     Reset ();
 }
@@ -368,9 +368,9 @@ void AppleIIeSoftSwitchBank::SoftReset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-unique_ptr<MemoryDevice> AppleIIeSoftSwitchBank::Create (const DeviceConfig & config, MemoryBus & bus)
+unique_ptr<MemoryDevice> Apple2eSoftSwitchBank::Create (const DeviceConfig & config, MemoryBus & bus)
 {
     UNREFERENCED_PARAMETER (config);
 
-    return make_unique<AppleIIeSoftSwitchBank> (&bus);
+    return make_unique<Apple2eSoftSwitchBank> (&bus);
 }
