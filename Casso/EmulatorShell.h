@@ -1,46 +1,47 @@
 #pragma once
 
 #include "Pch.h"
-#include "Window.h"
-#include "Core/MemoryBus.h"
-#include "Core/EmuCpu.h"
-#include "Core/MachineConfig.h"
-#include "Core/InterruptController.h"
-#include "Core/ComponentRegistry.h"
-#include "D3DRenderer.h"
-#include "UiCommandTypes.h"
-#include "Ui/Chrome/TitleBar.h"
-#include "Ui/Chrome/NavLayer.h"
-#include "Ui/Chrome/LayoutManager.h"
-#include "Ui/Chrome/ChromeTheme.h"
-#include "Ui/Chrome/DriveWidget.h"
-#include "Ui/DriveWidgetState.h"
-#include "Ui/DriveWidgetController.h"
-#include "Ui/DragDropTarget.h"
-#include "Ui/IDriveCommandSink.h"
-#include "Ui/Dialog/DialogDefinition.h"
-#include "Ui/Dialog/DialogPrimitive.h"
-#include "Ui/Settings/SettingsPanel.h"
-#include "Ui/ThemeManager.h"
-#include "Ui/UiShell.h"
-#include "Config/Win32FileSystem.h"
-#include "Config/UserConfigStore.h"
-#include "Config/GlobalUserPrefs.h"
-#include "Video/VideoOutput.h"
-#include "Video/CharacterRomData.h"
-#include "Video/VideoTiming.h"
-#include "Devices/Disk/DiskImageStore.h"
-#include "Audio/DriveAudioMixer.h"
+
 #include "Audio/Disk2AudioSource.h"
-#include "WasapiAudio.h"
-#include "Ui/Disk2DebugPanel.h"
-#include "Ui/InputDebugPanel.h"
+#include "Audio/DriveAudioMixer.h"
+#include "Config/GlobalUserPrefs.h"
+#include "Config/UserConfigStore.h"
+#include "Config/Win32FileSystem.h"
+#include "Core/ComponentRegistry.h"
+#include "Core/EmuCpu.h"
+#include "Core/InterruptController.h"
+#include "Core/MachineConfig.h"
+#include "Core/MemoryBus.h"
+#include "D3DRenderer.h"
+#include "Devices/Disk/DiskImageStore.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "Shell/MachineManager.h"
 #include "Shell/WindowCommandManager.h"
 #include "Shell/WindowManager.h"
+#include "Ui/Chrome/ChromeTheme.h"
+#include "Ui/Chrome/DriveWidget.h"
+#include "Ui/Chrome/LayoutManager.h"
+#include "Ui/Chrome/NavLayer.h"
+#include "Ui/Chrome/TitleBar.h"
+#include "Ui/Dialog/DialogDefinition.h"
+#include "Ui/Dialog/DialogPrimitive.h"
+#include "Ui/Disk2DebugPanel.h"
+#include "Ui/DragDropTarget.h"
+#include "Ui/DriveWidgetController.h"
+#include "Ui/DriveWidgetState.h"
+#include "Ui/IDriveCommandSink.h"
+#include "Ui/InputDebugPanel.h"
+#include "Ui/Settings/SettingsPanel.h"
+#include "Ui/ThemeManager.h"
+#include "Ui/UiShell.h"
+#include "UiCommandTypes.h"
+#include "Video/CharacterRomData.h"
+#include "Video/VideoOutput.h"
+#include "Video/VideoTiming.h"
+#include "WasapiAudio.h"
+#include "Window.h"
 
 
 
@@ -192,8 +193,22 @@ private:
 
     HRESULT CreateRenderSurface ();
 
+    // WM_KEYDOWN/WM_KEYUP helpers. HandleHostMetaShortcut consumes host-meta
+    // keys (menu navigation, paste, reset); ApplyAppleModifierKeys mirrors
+    // the host Alt/Shift state onto the //e Open/Closed-Apple and Shift soft
+    // switches; MapVkToAppleControlCode and IsArrowVk are pure VK classifiers.
+    bool        HandleHostMetaShortcut  (WPARAM vk, bool ctrlHeld, bool altHeld);
+    void        ApplyAppleModifierKeys  (WPARAM vk, bool keyDown);
+    static Byte MapVkToAppleControlCode (WPARAM vk);
+    static bool IsArrowVk               (WPARAM vk);
+
     // Stage the emulated joystick axes from the host arrow keys.
     void    UpdateJoystickAxesFromKeys ();
+
+    // Toggle the "Map Arrows to Joystick" mode: updates the flag, persists
+    // it, and re-syncs the joystick axes (resolving from current keys when
+    // turned on, or centering both axes when turned off).
+    void    SetMapArrowsToJoystick (bool on);
 
     // Queue a command for the CPU thread. Public so non-friend
     // adapters (e.g. SettingsPanel's internal apply sink) can post
@@ -445,6 +460,17 @@ private:
 
     uint32_t        m_cyclesPerFrame  = 17050;
     double          m_sampleRemainder = 0.0;
+
+    // Last arrow key pressed for each emulated joystick axis pair (0 if
+    // none). Lets opposing directions resolve last-pressed-wins so a
+    // rolling reversal flips the axis instead of cancelling to center.
+    WPARAM          m_lastHorizontalArrowVk = 0;
+    WPARAM          m_lastVerticalArrowVk   = 0;
+
+    // When true, arrow keys drive only the emulated game-port joystick
+    // (no //e keyboard latch). Mirrors GlobalUserPrefs::mapArrowsToJoystick
+    // and is toggled via the Machine menu's "Map Arrows to Joystick" item.
+    bool            m_mapArrowsToJoystick   = false;
 
     // Spec-011 / US7. DX-themed panel for the Disk II debug window.
     // Lazy-created on first Ctrl+Shift+D and reused across opens.

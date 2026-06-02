@@ -597,6 +597,8 @@ HRESULT EmulatorShell::Initialize (
         hrPrefs = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
         IGNORE_RETURN_VALUE (hrPrefs, S_OK);
 
+        m_mapArrowsToJoystick = m_globalPrefs.mapArrowsToJoystick;
+
         // Record the currently-active machine so the next launch boots
         // it by default (Main resolves the value via this same field).
         {
@@ -1135,6 +1137,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_titleBar.UpdateGeometry (clientW, dpi);
     m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), clientW, dpi, &m_uiShell.Text());
     m_navLayer.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
+    m_navLayer.SetCheckQuery ([this] (WORD commandId) -> bool
+    {
+        return (commandId == IDM_MACHINE_ARROWS_JOYSTICK) ? m_mapArrowsToJoystick : false;
+    });
 
     // Load the app icon (IDI_CASSO) into a premultiplied BGRA8 pixel
     // buffer so the title bar can blit it left of the caption text.
@@ -2650,18 +2656,22 @@ bool EmulatorShell::OnMouseLeave ()
 
 bool EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 {
-    int  x = ((int) (short) LOWORD (lParam));
-    int  y = ((int) (short) HIWORD (lParam));
+    int   x        = ((int) (short) LOWORD (lParam));
+    int   y        = ((int) (short) HIWORD (lParam));
+    bool  consumed = false;
 
 
 
     UNREFERENCED_PARAMETER (wParam);
 
     SetCapture (m_hwnd);
-    if (m_uiShell.OnLButtonDown (x, y))
-    {
-        return false;
-    }
+
+    // The UI shell (debug panels, on-screen buttons) gets first crack at
+    // the press. Its return is moot here: nothing else in this handler
+    // depends on whether the click was consumed, and we always report the
+    // message as not fully handled.
+    consumed = m_uiShell.OnLButtonDown (x, y);
+    IGNORE_RETURN_VALUE (consumed, false);
 
     return false;
 }
@@ -2718,40 +2728,30 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     }
 
     return false;
-}////////////////////////////////////////////////////////////////////////////////
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 //
-//  OnKeyDown
+//  HandleHostMetaShortcut
+//
+//  Consume host-meta keys that never reach the emulated //e keyboard: menu
+//  mnemonic navigation, F10 menu focus, Ctrl+V paste, and Ctrl+R reset.
+//  Returns true when the key was claimed. An unmatched Alt+key deliberately
+//  falls through so combos like Ctrl+Alt+R still reach the reset path.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
+bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHeld)
 {
-    bool  ctrlHeld  = false;
-    bool  altHeld   = false;
-    bool  isRepeat  = (lParam & s_kPreviousKeyDownLParamBit) != 0;
-    Byte  appleCode = 0;
-
-    if (m_uiShell.HandleKey (vk))
-    {
-        return false;
-    }
-
-    if (m_refs.keyboard == nullptr)
-    {
-        return false;
-    }
-
-    ctrlHeld = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
-    altHeld  = (GetKeyState (VK_MENU)    & 0x8000) != 0;
-
     if (altHeld && vk >= 0x20 && vk <= 0x7E && m_navLayer.HandleAltKey ((wchar_t) vk))
     {
-        return false;
+        return true;
     }
 
-    // F10 — focus the menu bar (Windows convention). Opens the File
-    // menu so subsequent Left/Right (or Tab) keys cycle between
-    // top-level menus while Up/Down/Enter navigate within.
     if (vk == VK_F10 && !ctrlHeld && !altHeld)
     {
         if (!m_navLayer.IsOpen())
@@ -2762,95 +2762,185 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
         {
             m_navLayer.Close();
         }
-        return false;
+        return true;
     }
 
-    // Ctrl+V — paste from clipboard (host-meta convenience, not a //e
-    // hardware key). Consumed before reaching the emulated keyboard.
     if (vk == 'V' && ctrlHeld && !altHeld)
     {
         m_clipboardManager->PasteFromClipboard (m_hwnd);
-        return false;
+        return true;
     }
 
-    // Ctrl+R — //e Reset key + Ctrl modifier. Drives the CPU /RESET
-    // line via the existing soft-reset path. The emulated keyboard's
-    // Open Apple state (set by the Alt-key handlers below) is what the
-    // firmware reads at $C061 to decide warm vs autoboot, so:
-    //   Ctrl+R         -> warm reset (no Open Apple)         -> ] prompt
-    //   Ctrl+Alt+R     -> Open Apple held during reset       -> autoboot
-    //   Ctrl+Shift+R   -> stays a host-meta IDM_MACHINE_POWERCYCLE
-    //                     accelerator (full DRAM re-seed, no //e equiv).
-    // Consumed; not pumped to the //e keyboard as a Ctrl-R character.
     if (vk == 'R' && ctrlHeld && !(GetKeyState (VK_SHIFT) & 0x8000))
     {
         PostCommand (IDM_MACHINE_RESET);
-        return false;
+        return true;
     }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyAppleModifierKeys
+//
+//  Mirror the host modifier state onto the //e soft switches: left Alt ->
+//  Open Apple ($C061), right Alt -> Closed Apple ($C062), Shift -> Shift
+//  ($C063). GetKeyState gives the canonical left/right state, so a modifier
+//  stays asserted while either physical key is still down. A no-op on the
+//  ][/][+ where the keyboard is not an Apple //e keyboard.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyAppleModifierKeys (WPARAM vk, bool keyDown)
+{
+    HRESULT   hr     = S_OK;
+    auto    * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    bool      lAlt   = false;
+    bool      rAlt   = false;
+
+
+
+    CBR (iieKbd != nullptr);
+
+    if (vk == VK_LMENU || vk == VK_RMENU || vk == VK_MENU)
+    {
+        lAlt = (GetKeyState (VK_LMENU) & 0x8000) != 0;
+        rAlt = (GetKeyState (VK_RMENU) & 0x8000) != 0;
+        iieKbd->SetOpenApple   (lAlt);
+        iieKbd->SetClosedApple (rAlt);
+    }
+    else if (vk == VK_SHIFT)
+    {
+        iieKbd->SetShift (keyDown);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MapVkToAppleControlCode
+//
+//  Translate a host arrow/Escape/Delete virtual key into its //e control
+//  code. Returns 0 for keys that have no direct //e control-code mapping.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte EmulatorShell::MapVkToAppleControlCode (WPARAM vk)
+{
+    Byte  appleCode = 0;
+
+
+
+    switch (vk)
+    {
+        case VK_LEFT:
+            appleCode = kAppleKeyLeft;
+            break;
+
+        case VK_RIGHT:
+            appleCode = kAppleKeyRight;
+            break;
+
+        case VK_UP:
+            appleCode = kAppleKeyUp;
+            break;
+
+        case VK_DOWN:
+            appleCode = kAppleKeyDown;
+            break;
+
+        case VK_ESCAPE:
+            appleCode = kAppleKeyEscape;
+            break;
+
+        case VK_DELETE:
+            appleCode = kAppleKeyDelete;
+            break;
+
+        default:
+            break;
+    }
+
+    return appleCode;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsArrowVk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsArrowVk (WPARAM vk)
+{
+    return vk == VK_LEFT || vk == VK_RIGHT || vk == VK_UP || vk == VK_DOWN;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnKeyDown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
+{
+    HRESULT  hr            = S_OK;
+    bool     consumed      = false;
+    bool     ctrlHeld      = false;
+    bool     altHeld       = false;
+    bool     isRepeat      = (lParam & s_kPreviousKeyDownLParamBit) != 0;
+    bool     driveJoystick = m_mapArrowsToJoystick &&
+                             (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr);
+    Byte     appleCode     = 0;
+
+
+
+    consumed = m_uiShell.HandleKey (vk);
+    CBR (!consumed);
+
+    CBR (m_refs.keyboard != nullptr);
+
+    ctrlHeld = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
+    altHeld  = (GetKeyState (VK_MENU)    & 0x8000) != 0;
+
+    consumed = HandleHostMetaShortcut (vk, ctrlHeld, altHeld);
+    CBR (!consumed);
 
     m_refs.keyboard->SetKeyDown (true);
-
-    // / T063 / FR-013. //e modifier-key wiring (host -> emulator):
-    //   left  Alt   -> Open Apple   ($C061)
-    //   right Alt   -> Closed Apple ($C062)
-    //   Shift       -> Shift        ($C063)
-    // Ignored on ][/][+ (the dynamic_cast yields nullptr). Both VK_MENU
-    // (which Windows delivers for plain Alt) and VK_L/RMENU (which it
-    // can deliver for some Alt+key combos) drive the same path —
-    // GetKeyState gives the canonical left/right state.
-    {
-        auto * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
-
-        if (iieKbd != nullptr)
-        {
-            if (vk == VK_LMENU || vk == VK_RMENU || vk == VK_MENU)
-            {
-                bool lAlt = (GetKeyState (VK_LMENU) & 0x8000) != 0;
-                bool rAlt = (GetKeyState (VK_RMENU) & 0x8000) != 0;
-                iieKbd->SetOpenApple   (lAlt);
-                iieKbd->SetClosedApple (rAlt);
-            }
-            else if (vk == VK_SHIFT)
-            {
-                iieKbd->SetShift (true);
-            }
-        }
-    }
+    ApplyAppleModifierKeys (vk, true);
 
     // Arrow / Escape / Delete map to //e control codes. Gated on the
     // auto-repeat bit so the host OS repeat never reaches the latch; a
-    // fresh press arms the $C000 strobe once and registers the key for
-    // the emulator's own authentic //e auto-repeat cadence (Tick).
+    // fresh press arms the $C000 strobe once and registers the key for the
+    // emulator's own authentic //e auto-repeat cadence (Tick). With "Map
+    // Arrows to Joystick" on (and a game-port paddle bank present), arrow
+    // keys are withheld from the keyboard latch so a held direction cannot
+    // flood $C000 and starve a joystick-mode game's paddle reads.
     if (!isRepeat)
     {
-        switch (vk)
+        appleCode = MapVkToAppleControlCode (vk);
+
+        if (driveJoystick && IsArrowVk (vk))
         {
-            case VK_LEFT:
-                appleCode = kAppleKeyLeft;
-                break;
-
-            case VK_RIGHT:
-                appleCode = kAppleKeyRight;
-                break;
-
-            case VK_UP:
-                appleCode = kAppleKeyUp;
-                break;
-
-            case VK_DOWN:
-                appleCode = kAppleKeyDown;
-                break;
-
-            case VK_ESCAPE:
-                appleCode = kAppleKeyEscape;
-                break;
-
-            case VK_DELETE:
-                appleCode = kAppleKeyDelete;
-                break;
-
-            default:
-                break;
+            appleCode = 0;
         }
 
         if (appleCode != 0)
@@ -2861,13 +2951,25 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     }
 
     // Arrow keys double as the emulated joystick axes for joystick-mode
-    // games (e.g. Choplifter). Level-based: re-resolve both axes from the
-    // current key state on every arrow press.
-    if (vk == VK_LEFT || vk == VK_RIGHT || vk == VK_UP || vk == VK_DOWN)
+    // games (e.g. Choplifter, Lode Runner) when the feature is enabled.
+    // Record the last-pressed direction per axis so opposing keys resolve
+    // last-pressed-wins, then re-resolve both axes from the current key
+    // state.
+    if (driveJoystick && IsArrowVk (vk))
     {
+        if (vk == VK_LEFT || vk == VK_RIGHT)
+        {
+            m_lastHorizontalArrowVk = vk;
+        }
+        else
+        {
+            m_lastVerticalArrowVk = vk;
+        }
+
         UpdateJoystickAxesFromKeys ();
     }
 
+Error:
     return false;
 }
 
@@ -2883,48 +2985,32 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
 bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 {
+    HRESULT  hr = S_OK;
+
+
+
     UNREFERENCED_PARAMETER (lParam);
 
-    if (m_refs.keyboard == nullptr)
-    {
-        return false;
-    }
+    CBR (m_refs.keyboard != nullptr);
 
     m_refs.keyboard->SetKeyDown (false);
 
-    // Disarm auto-repeat on release. The //e latch holds a single key, so
-    // a key-up always ends the current repeat; this also clears any stale
+    // Disarm auto-repeat on release. The //e latch holds a single key, so a
+    // key-up always ends the current repeat; this also clears any stale
     // armed key so a later non-character press (e.g. a bare modifier) can
     // never resurrect the previous character's repeat.
     m_refs.keyboard->BeginKeyRepeat (0);
 
-    // / T063: release //e modifiers when the host releases the
-    // physical key. Both VK_MENU and VK_L/RMENU events drive a re-query
-    // of the canonical left/right state via GetKeyState — the modifier
-    // remains asserted on the //e side as long as either physical Alt
-    // is still down.
-    auto * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    // Release the //e Open/Closed-Apple and Shift modifiers as the host
+    // releases the physical keys.
+    ApplyAppleModifierKeys (vk, false);
 
-    if (iieKbd != nullptr)
-    {
-        if (vk == VK_LMENU || vk == VK_RMENU || vk == VK_MENU)
-        {
-            bool lAlt = (GetKeyState (VK_LMENU) & 0x8000) != 0;
-            bool rAlt = (GetKeyState (VK_RMENU) & 0x8000) != 0;
-            iieKbd->SetOpenApple   (lAlt);
-            iieKbd->SetClosedApple (rAlt);
-        }
-        else if (vk == VK_SHIFT)
-        {
-            iieKbd->SetShift (false);
-        }
-    }
-
-    if (vk == VK_LEFT || vk == VK_RIGHT || vk == VK_UP || vk == VK_DOWN)
+    if (m_mapArrowsToJoystick && IsArrowVk (vk))
     {
         UpdateJoystickAxesFromKeys ();
     }
 
+Error:
     return false;
 }
 
@@ -2940,6 +3026,12 @@ bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 //  joystick axes and stages them on the //e soft-switch bank, where the
 //  PREAD timer ($C070 / $C064-$C067) turns them into analog readings.
 //  No-op on ][/][+ (the bank isn't an Apple2eSoftSwitchBank).
+//
+//  Reads real-time physical key state via GetAsyncKeyState rather than the
+//  per-thread GetKeyState table, which can desync (and leave an axis stuck)
+//  if a key-up is lost to a focus change. Opposing keys resolve
+//  last-pressed-wins so a rolling reversal flips the axis instead of
+//  cancelling to center.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2960,18 +3052,74 @@ void EmulatorShell::UpdateJoystickAxesFromKeys ()
         return;
     }
 
-    left  = (GetKeyState (VK_LEFT)  & 0x8000) != 0;
-    right = (GetKeyState (VK_RIGHT) & 0x8000) != 0;
-    up    = (GetKeyState (VK_UP)    & 0x8000) != 0;
-    down  = (GetKeyState (VK_DOWN)  & 0x8000) != 0;
+    left  = (GetAsyncKeyState (VK_LEFT)  & 0x8000) != 0;
+    right = (GetAsyncKeyState (VK_RIGHT) & 0x8000) != 0;
+    up    = (GetAsyncKeyState (VK_UP)    & 0x8000) != 0;
+    down  = (GetAsyncKeyState (VK_DOWN)  & 0x8000) != 0;
 
-    if (left  && !right) { x = s_kPaddleAxisMin; }
-    if (right && !left)  { x = s_kPaddleAxisMax; }
-    if (up    && !down)  { y = s_kPaddleAxisMin; }
-    if (down  && !up)    { y = s_kPaddleAxisMax; }
+    if (left && right)
+    {
+        x = (m_lastHorizontalArrowVk == VK_RIGHT) ? s_kPaddleAxisMax : s_kPaddleAxisMin;
+    }
+    else if (left)
+    {
+        x = s_kPaddleAxisMin;
+    }
+    else if (right)
+    {
+        x = s_kPaddleAxisMax;
+    }
+
+    if (up && down)
+    {
+        y = (m_lastVerticalArrowVk == VK_DOWN) ? s_kPaddleAxisMax : s_kPaddleAxisMin;
+    }
+    else if (up)
+    {
+        y = s_kPaddleAxisMin;
+    }
+    else if (down)
+    {
+        y = s_kPaddleAxisMax;
+    }
 
     iieSw->SetPaddle (0, x);
     iieSw->SetPaddle (1, y);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetMapArrowsToJoystick
+//
+//  Toggles the arrows-drive-joystick mode and persists it. On enable we
+//  resolve the axes from the current key state so a held arrow takes
+//  effect immediately; on disable we recenter both axes so a game reading
+//  the paddles sees a neutral stick rather than a stale deflection.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetMapArrowsToJoystick (bool on)
+{
+    auto * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+
+    m_mapArrowsToJoystick             = on;
+    m_globalPrefs.mapArrowsToJoystick = on;
+
+    SaveGlobalPrefs();
+
+    if (on)
+    {
+        UpdateJoystickAxesFromKeys ();
+    }
+    else if (iieSw != nullptr)
+    {
+        iieSw->SetPaddle (0, Apple2eSoftSwitchBank::s_knPaddleCenter);
+        iieSw->SetPaddle (1, Apple2eSoftSwitchBank::s_knPaddleCenter);
+    }
 }
 
 

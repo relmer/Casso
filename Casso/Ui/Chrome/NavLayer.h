@@ -28,6 +28,7 @@ struct NavCommandEntry
     NavMenu         menu;
     const wchar_t * label;
     const wchar_t * accelerator;
+    bool            checkable = false;
 };
 
 
@@ -35,6 +36,7 @@ class NavLayer
 {
 public:
     using DispatchFn = std::function<void (WORD commandId)>;
+    using CheckFn    = std::function<bool (WORD commandId)>;
 
     NavLayer  ();
     ~NavLayer ();
@@ -42,6 +44,7 @@ public:
     void                              Show                 ();
     void                              Hide                 ();
     void                              SetDispatch          (DispatchFn dispatch) { m_dispatch = std::move (dispatch); }
+    void                              SetCheckQuery        (CheckFn query)       { m_isChecked = std::move (query); }
 
     static std::span<const NavCommandEntry> GetCommandEntries ();
     static const wchar_t                  * GetMenuName       (NavMenu menu);
@@ -85,6 +88,7 @@ private:
     int                               HitEntryIndex        (int x, int y) const;
 
     DispatchFn                        m_dispatch;
+    CheckFn                           m_isChecked;
     RECT                              m_stripRect        = {};
     std::array<RECT, kMenuCount>      m_menuRects        = {};
     NavMenu                           m_openMenu         = NavMenu::File;

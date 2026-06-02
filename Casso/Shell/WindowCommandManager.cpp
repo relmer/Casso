@@ -78,12 +78,12 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
 {
     UNREFERENCED_PARAMETER (hwnd);
 
-    if      (id >= IDM_EDIT_COPY_TEXT && id <= IDM_EDIT_PASTE)       { OnEditCommand (id); }
-    else if (id >= IDM_FILE_OPEN     && id <= IDM_FILE_EXIT)          { OnFileCommand (id); }
-    else if (id >= IDM_MACHINE_RESET && id <= IDM_MACHINE_INFO)       { OnMachineCommand (id); }
-    else if (id >= IDM_DISK_INSERT1  && id <= IDM_DISK_WRITEPROTECT2) { OnDiskCommand (id); }
-    else if (id >= IDM_VIEW_COLOR    && id <= IDM_VIEW_SETTINGS)      { OnViewCommand (id); }
-    else if (id >= IDM_HELP_KEYMAP   && id <= IDM_HELP_ABOUT)         { OnHelpCommand (id); }
+    if      (id >= IDM_EDIT_COPY_TEXT && id <= IDM_EDIT_PASTE)              { OnEditCommand (id); }
+    else if (id >= IDM_FILE_OPEN      && id <= IDM_FILE_EXIT)               { OnFileCommand (id); }
+    else if (id >= IDM_MACHINE_RESET  && id <= IDM_MACHINE_ARROWS_JOYSTICK) { OnMachineCommand (id); }
+    else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WRITEPROTECT2)      { OnDiskCommand (id); }
+    else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { OnViewCommand (id); }
+    else if (id >= IDM_HELP_KEYMAP    && id <= IDM_HELP_ABOUT)              { OnHelpCommand (id); }
 
     return false;
 }
@@ -237,6 +237,12 @@ void WindowCommandManager::OnMachineCommand (int id)
             def.body.push_back ({ info, false, L"" });
             def.buttons.push_back ({ L"OK", 0, true, true });
             (void) m_shell.ShowModalDialog (def);
+            break;
+        }
+
+        case IDM_MACHINE_ARROWS_JOYSTICK:
+        {
+            m_shell.SetMapArrowsToJoystick (!m_shell.m_mapArrowsToJoystick);
             break;
         }
     }

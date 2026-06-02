@@ -19,6 +19,13 @@
 
 namespace
 {
+    // A JSON object body is an ordered list of key/value members. Insertion
+    // order is preserved so serialized output is deterministic across
+    // roundtrips.
+    using KeyValuePair = std::pair<std::string, JsonValue>;
+    using JsonObject   = std::vector<KeyValuePair>;
+
+
     constexpr const char *  s_kpszVersionKey    = "$cassoGlobalPrefsVersion";
     constexpr int           s_kCurrentVersion   = 1;
 
@@ -37,8 +44,8 @@ namespace
 
 
     int  FindKey (
-        const std::vector<std::pair<std::string, JsonValue>> & entries,
-        const std::string                                    & key)
+        const JsonObject  & entries,
+        const std::string & key)
     {
         int  i = 0;
         for (i = 0; i < (int) entries.size(); ++i)
@@ -227,8 +234,8 @@ HRESULT GlobalUserPrefs::Save (
     JsonParseError       err;
     JsonWriter::Options  opts;
     JsonValue            global           = ToJson();
-    std::vector<std::pair<std::string, JsonValue>>  rootEntries;
-    std::vector<std::pair<std::string, JsonValue>>  machines;
+    JsonObject           rootEntries;
+    JsonObject           machines;
 
 
 
@@ -283,10 +290,10 @@ Error:
 
 JsonValue GlobalUserPrefs::ToJson() const
 {
-    std::vector<std::pair<std::string, JsonValue>>  root;
-    std::vector<std::pair<std::string, JsonValue>>  crtObj;
-    std::vector<std::pair<std::string, JsonValue>>  windowObj;
-    size_t                                          i = 0;
+    JsonObject  root;
+    JsonObject  crtObj;
+    JsonObject  windowObj;
+    size_t      i = 0;
     static const char *  s_kModeKeys[GlobalUserPrefs::kCrtModeCount] = {
         "color", "green", "amber", "white"
     };
@@ -296,9 +303,10 @@ JsonValue GlobalUserPrefs::ToJson() const
     // $cassoGlobalPrefsVersion (always first for human readability).
     root.emplace_back (s_kpszVersionKey, JsonValue ((double) version));
 
-    root.emplace_back ("activeTheme",         JsonValue (activeTheme));
-    root.emplace_back ("lastSelectedMachine", JsonValue (lastSelectedMachine));
+    root.emplace_back ("activeTheme",          JsonValue (activeTheme));
+    root.emplace_back ("lastSelectedMachine",  JsonValue (lastSelectedMachine));
     root.emplace_back ("audioDownloadConsent", JsonValue (audioDownloadConsent));
+    root.emplace_back ("mapArrowsToJoystick",  JsonValue (mapArrowsToJoystick));
 
     // crt: one sub-object per monitor type. Persist every block even
     // when userOverride is false so a roundtrip is deterministic; the
@@ -306,11 +314,11 @@ JsonValue GlobalUserPrefs::ToJson() const
     // whether they're written.
     for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
     {
-        const Crt &                                     c = crtByMode[i];
-        std::vector<std::pair<std::string, JsonValue>>  modeObj;
-        std::vector<std::pair<std::string, JsonValue>>  scanlines;
-        std::vector<std::pair<std::string, JsonValue>>  bloom;
-        std::vector<std::pair<std::string, JsonValue>>  colorBleed;
+        const Crt   & c          = crtByMode[i];
+        JsonObject    modeObj;
+        JsonObject    scanlines;
+        JsonObject    bloom;
+        JsonObject    colorBleed;
 
         scanlines.emplace_back ("enabled",   JsonValue (c.scanlinesEnabled));
         scanlines.emplace_back ("intensity", JsonValue ((double) c.scanlinesIntensity));
@@ -338,11 +346,11 @@ JsonValue GlobalUserPrefs::ToJson() const
 
     // window
     {
-        std::vector<std::pair<std::string, JsonValue>>  placementsObj;
+        JsonObject  placementsObj;
 
         for (const auto & kv : window.placements)
         {
-            std::vector<std::pair<std::string, JsonValue>>  bounds;
+            JsonObject  bounds;
             bounds.emplace_back ("x", JsonValue ((double) kv.second.x));
             bounds.emplace_back ("y", JsonValue ((double) kv.second.y));
             bounds.emplace_back ("w", JsonValue ((double) kv.second.w));
@@ -394,7 +402,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     const JsonValue *   crtSub        = nullptr;
     const JsonValue *   windowSub     = nullptr;
     const JsonValue *   placementsObj = nullptr;
-    const auto *        rootEntries   = (const std::vector<std::pair<std::string, JsonValue>> *) nullptr;
+    const auto *        rootEntries   = (const JsonObject *) nullptr;
     size_t              i             = 0;
     static const char *  s_kModeKeys[GlobalUserPrefs::kCrtModeCount] = {
         "color", "green", "amber", "white"
@@ -415,6 +423,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     activeTheme          = GetStringOpt (v, "activeTheme",            activeTheme);
     lastSelectedMachine  = GetStringOpt (v, "lastSelectedMachine",    lastSelectedMachine);
     audioDownloadConsent = GetStringOpt (v, "audioDownloadConsent",   audioDownloadConsent);
+    mapArrowsToJoystick  = GetBoolOpt   (v, "mapArrowsToJoystick",    mapArrowsToJoystick);
 
     if (SUCCEEDED (v.GetObject ("crt", crtSub)) && crtSub != nullptr)
     {

@@ -39,6 +39,13 @@ struct GlobalUserPrefs
     // AssetBootstrap::CheckAndFetchDiskAudio reads + writes this.
     std::string  audioDownloadConsent  = "ask";
 
+    // When true, the host arrow keys drive ONLY the emulated game-port
+    // joystick (no //e keyboard latch), so a held direction can't flood
+    // $C000 and starve a joystick-mode game's paddle reads. When false,
+    // arrows drive the keyboard as usual. Toggled via the Machine menu's
+    // "Map Arrows to Joystick" item; only meaningful on //e machines.
+    bool         mapArrowsToJoystick   = false;
+
     // CRT state per monitor type. Each monitor (Color / Green / Amber /
     // White) has its own block so the user can dial in different
     // brightness, gamma, scanlines, etc. for each and the values stick
