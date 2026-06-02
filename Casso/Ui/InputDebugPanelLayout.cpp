@@ -8,6 +8,7 @@ namespace
     constexpr int  kMargin96         = 8;
     constexpr int  kRowHeight96      = 22;
     constexpr int  kRowGap96         = 4;
+    constexpr int  kRowVGap96        = 14;
     constexpr int  kAllCheckWidth96  = 52;
     constexpr int  kCheckWidth96     = 92;
     constexpr int  kRowLabelWidth96  = 100;
@@ -58,6 +59,7 @@ InputPanelLayoutSlots ComputeInputDebugPanelLayout (
     int                    margin       = Scale (kMargin96,         dpi);
     int                    rowHeight    = Scale (kRowHeight96,      dpi);
     int                    rowGap       = Scale (kRowGap96,         dpi);
+    int                    rowVGap      = Scale (kRowVGap96,        dpi);
     int                    allWidth     = Scale (kAllCheckWidth96,  dpi);
     int                    checkWidth   = Scale (kCheckWidth96,     dpi);
     int                    rowLblWidth  = Scale (kRowLabelWidth96,  dpi);
@@ -89,13 +91,13 @@ InputPanelLayoutSlots ComputeInputDebugPanelLayout (
         slots.paddleCheck = MakeRect (x, y, checkWidth, rowHeight);
         x += checkWidth + rowGap;
     }
-    y += rowHeight + rowGap;
+    y += rowHeight + rowVGap;
 
     x = margin;
     slots.hostLabel = MakeRect (x, y, rowLblWidth, rowHeight);
     x += rowLblWidth + rowGap;
     slots.hostKeyboardCheck = MakeRect (x, y, checkWidth, rowHeight);
-    y += rowHeight + rowGap;
+    y += rowHeight + rowVGap;
 
     for (int p = 0; p < 2; p++)
     {
@@ -103,12 +105,12 @@ InputPanelLayoutSlots ComputeInputDebugPanelLayout (
         slots.pairLabel[p] = MakeRect (x, y, pairLblWidth, dropHeight);
         x += pairLblWidth + rowGap;
         slots.pairDropdown[p] = MakeRect (x, y, dropWidth, dropHeight);
-        y += dropHeight + rowGap;
+        y += dropHeight + rowVGap;
     }
 
     slots.pauseButton = MakeRect (margin,                        y, buttonWidth, buttonHeight);
     slots.clearButton = MakeRect (margin + buttonWidth + rowGap, y, buttonWidth, buttonHeight);
-    y += buttonHeight + rowGap;
+    y += buttonHeight + rowVGap;
 
     lvWidth  = clientWidthPx  - 2 * margin;
     lvHeight = clientHeightPx - y - margin;

@@ -64,6 +64,7 @@ public:
 
     void                Show              ();
     void                Hide              ();
+    void                SetTitle          (const std::wstring & title) { m_title = title; }
     void                UpdateGeometry    (int clientWidth, UINT dpi);
     void                SetMousePosition  (int x, int y, bool leftDown);
     void                ClearHover        ();
@@ -91,4 +92,5 @@ private:
     std::vector<uint32_t>  m_appIconPixels;     // premultiplied BGRA8
     int                    m_appIconW    = 0;
     int                    m_appIconH    = 0;
+    std::wstring           m_title       = L"Casso";
 };

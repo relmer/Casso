@@ -4,6 +4,7 @@
 #include "DriveLabelTruncation.h"
 
 #include "../IDriveCommandSink.h"
+#include "../../UnicodeSymbols.h"
 
 
 
@@ -787,7 +788,8 @@ void DriveWidget::Paint (
                                               s_kFontFamily));
 
     // "IN USE >" label bottom-left of faceplate, LED to its right.
-    IGNORE_RETURN_VALUE (hr, text.DrawString (L"IN USE \u25B6",
+    swprintf_s (label, L"IN USE %s", s_kpszTriangleRight);
+    IGNORE_RETURN_VALUE (hr, text.DrawString (label,
                                               (float) (m_faceRect.left + labelPad),
                                               (float) (m_led.GetLayout().coreRect.top - 3),
                                               (float) inUseW,

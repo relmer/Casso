@@ -290,6 +290,8 @@ HRESULT ChromedPanelWindow::Create (
     ok = SetWindowTextW (hwndCreated, title);
     CWRA (ok);
 
+    m_titleBar.SetTitle (title);
+
     ShowWindow (hwndCreated, SW_SHOWNORMAL);
     SetForegroundWindow (hwndCreated);
     SetFocus (hwndCreated);

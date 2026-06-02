@@ -2,6 +2,8 @@
 
 #include "Checkbox.h"
 
+#include "../../UnicodeSymbols.h"
+
 
 
 
@@ -183,7 +185,7 @@ void Checkbox::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 
     if (m_checked)
     {
-        IGNORE_RETURN_VALUE (hr, text.DrawString (L"\u2713",
+        IGNORE_RETURN_VALUE (hr, text.DrawString (s_kpszCheckMark,
                                                   boxLeft,
                                                   boxTop,
                                                   boxSize,

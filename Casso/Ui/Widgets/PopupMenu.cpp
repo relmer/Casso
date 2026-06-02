@@ -2,6 +2,8 @@
 
 #include "PopupMenu.h"
 
+#include "../../UnicodeSymbols.h"
+
 
 namespace
 {
@@ -12,7 +14,6 @@ namespace
     constexpr int    s_kBorderDp        =  1;
     constexpr int    s_kMinWidthDp      = 140;
     constexpr float  s_kFontDp          = 13.0f;
-    constexpr LPCWSTR  s_kpszCheckGlyph = L"\u2713";   // ✓
 }
 
 
@@ -332,7 +333,7 @@ void PopupMenu::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 
         if (m_items[i].checked)
         {
-            IGNORE_RETURN_VALUE (hr, text.DrawString (s_kpszCheckGlyph,
+            IGNORE_RETURN_VALUE (hr, text.DrawString (s_kpszCheckMark,
                                                       left + (float) glyphX,
                                                       iy,
                                                       (float) (padL - glyphX),

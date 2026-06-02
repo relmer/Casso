@@ -2,6 +2,8 @@
 
 #include "MachinePage.h"
 
+#include "../../UnicodeSymbols.h"
+
 
 
 
@@ -110,7 +112,9 @@ void MachinePage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_speedLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_speedLabel.SetText (L"CPU speed:");
     m_speed.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
-    m_speed.SetItems ({ L"Authentic (1.023 MHz)", L"2x (2.046 MHz)", L"Maximum (full afterburner \U0001F680)" });
+    m_speed.SetItems ({ L"Authentic (1.023 MHz)",
+                        L"2x (2.046 MHz)",
+                        std::wstring (L"Maximum (full afterburner ") + s_kpszRocket + L")" });
     y += rowHeight + sectionGap;
 
     m_wpLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));

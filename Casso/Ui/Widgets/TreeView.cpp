@@ -2,6 +2,8 @@
 
 #include "TreeView.h"
 
+#include "../../UnicodeSymbols.h"
+
 
 
 
@@ -585,7 +587,7 @@ void TreeView::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
             // widget. Earlier impl drew a filled inner square which
             // read more like a focus ring than a tick.
             float  boxYPx = rowY + (rowHeight - (float) m_checkboxPx) * 0.5f;
-            IGNORE_RETURN_VALUE (hr, text.DrawString (L"\u2713",
+            IGNORE_RETURN_VALUE (hr, text.DrawString (s_kpszCheckMark,
                                                       checkboxX,
                                                       boxYPx,
                                                       (float) m_checkboxPx,

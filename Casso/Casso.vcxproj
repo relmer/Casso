@@ -248,6 +248,7 @@
     <ClCompile Include="Ui\Widgets\Checkbox.cpp" />
     <ClCompile Include="Ui\Widgets\Toggle.cpp" />
     <ClCompile Include="Ui\Widgets\Dropdown.cpp" />
+    <ClCompile Include="Ui\Widgets\ListView.cpp" />
     <ClCompile Include="Ui\Widgets\ModalScrim.cpp" />
     <ClCompile Include="Ui\Widgets\Radio.cpp" />
     <ClCompile Include="Ui\Widgets\Slider.cpp" />
@@ -343,6 +344,7 @@
     <ClInclude Include="Ui\Widgets\Toggle.h" />
     <ClInclude Include="Ui\Widgets\Dropdown.h" />
     <ClInclude Include="Ui\Widgets\Label.h" />
+    <ClInclude Include="Ui\Widgets\ListView.h" />
     <ClInclude Include="Ui\Widgets\ModalScrim.h" />
     <ClInclude Include="Ui\Widgets\Radio.h" />
     <ClInclude Include="Ui\Widgets\Slider.h" />

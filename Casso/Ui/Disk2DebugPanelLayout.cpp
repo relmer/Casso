@@ -8,6 +8,7 @@ namespace
     constexpr int  kMargin96             = 8;
     constexpr int  kRowHeight96          = 22;
     constexpr int  kRowGap96             = 4;
+    constexpr int  kRowVGap96            = 14;
     constexpr int  kCheckWidth96         = 110;
     constexpr int  kRadioWidth96         = 78;
     constexpr int  kEditWidth96          = 140;
@@ -64,6 +65,7 @@ PanelLayoutSlots ComputeDisk2DebugPanelLayout (
     int              margin        = Scale (kMargin96,             dpi);
     int              rowHeight     = Scale (kRowHeight96,          dpi);
     int              rowGap        = Scale (kRowGap96,             dpi);
+    int              rowVGap       = Scale (kRowVGap96,            dpi);
     int              checkWidth    = Scale (kCheckWidth96,         dpi);
     int              radioWidth    = Scale (kRadioWidth96,         dpi);
     int              editWidth     = Scale (kEditWidth96,          dpi);
@@ -90,7 +92,7 @@ PanelLayoutSlots ComputeDisk2DebugPanelLayout (
         slots.eventTypeChecks[i] = MakeRect (x, y, checkWidth, rowHeight);
         x += checkWidth;
     }
-    y += rowHeight + rowGap;
+    y += rowHeight + rowVGap;
 
     // Row 2: "Audio events:" label + audio master + 4 sub checks.
     // Label width matches row 1 so the checkbox columns align, and
@@ -106,7 +108,7 @@ PanelLayoutSlots ComputeDisk2DebugPanelLayout (
         slots.audioSubChecks[i] = MakeRect (x, y, checkWidth, rowHeight);
         x += checkWidth;
     }
-    y += rowHeight + rowGap;
+    y += rowHeight + rowVGap;
 
     // Row 3: drive radios + filter label/edit pairs.
     x = margin;
@@ -127,23 +129,23 @@ PanelLayoutSlots ComputeDisk2DebugPanelLayout (
     x += labelWidth + rowGap;
     sectorEditX = x;
     slots.sectorEdit = MakeRect (x, y, editWidth, rowHeight);
-    y += rowHeight + rowGap;
+    y += rowHeight + rowVGap;
 
     // Row 4: raw-quarter-track checkbox aligned beneath track edit.
     slots.rawQtCheck = MakeRect (trackEditX, y, rawQtWidth, rowHeight);
-    y += rowHeight + rowGap;
+    y += rowHeight + rowVGap;
 
     // Row 5: invalid feedback labels beneath the two edits.
     int trackInvalidWidth = (sectorEditX - trackEditX) - rowGap;
     if (trackInvalidWidth < 1) { trackInvalidWidth = 1; }
     slots.trackInvalidLabel  = MakeRect (trackEditX,  y, trackInvalidWidth, ignoredHeight);
     slots.sectorInvalidLabel = MakeRect (sectorEditX, y, editWidth,         ignoredHeight);
-    y += ignoredHeight + rowGap;
+    y += ignoredHeight + rowVGap;
 
     // Row 6: Pause / Clear buttons.
     slots.pauseButton = MakeRect (margin,                              y, buttonWidth, buttonHeight);
     slots.clearButton = MakeRect (margin + buttonWidth + rowGap,       y, buttonWidth, buttonHeight);
-    y += buttonHeight + rowGap;
+    y += buttonHeight + rowVGap;
 
     // Row 7: ListView fills remainder.
     int lvWidth  = clientWidthPx  - 2 * margin;

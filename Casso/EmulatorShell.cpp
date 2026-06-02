@@ -3193,16 +3193,12 @@ void EmulatorShell::UpdateWindowTitle()
         return;
     }
 
-    title = L"Casso " _CRT_WIDE (VERSION_STRING);
+    title = L"Casso";
 
     if (!m_config.name.empty())
     {
-        title += L' ';
-        title += s_kchEmDash;
-        title += L' ';
-
-        // Convert machine name to wide string
         wideName = fs::path (m_config.name).wstring();
+        title += L" - ";
         title += wideName;
     }
 
@@ -3219,6 +3215,7 @@ void EmulatorShell::UpdateWindowTitle()
         title += L" [Stopped]";
     }
 
+    m_titleBar.SetTitle (title);
     SetWindowText (m_hwnd, title.c_str());
 }
 

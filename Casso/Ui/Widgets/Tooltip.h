@@ -30,6 +30,7 @@ public:
     void  SetDwellCloseMs (int ms) { m_dwellCloseMs = ms; }
     void  SetFontSizeDip  (float dip) { m_fontDip = dip; }
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
+    void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
 
     void  RequestShow     (const RECT & anchor, const std::wstring & text, int64_t nowMs);
     void  RequestHide     (int64_t nowMs);
@@ -52,6 +53,8 @@ private:
     int           m_dwellOpenMs  = 500;
     int           m_dwellCloseMs = 100;
     float         m_fontDip      = 12.0f;
+    int           m_viewportWPx  = 0;
+    int           m_viewportHPx  = 0;
     bool          m_visible      = false;
     bool          m_pending      = false;
 };

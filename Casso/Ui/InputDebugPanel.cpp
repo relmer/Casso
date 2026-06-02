@@ -9,7 +9,7 @@
 namespace
 {
     constexpr LPCWSTR  s_kpszClassName   = L"Casso.InputDebug.Panel";
-    constexpr LPCWSTR  s_kpszWindowTitle = L"Input Debug";
+    constexpr LPCWSTR  s_kpszWindowTitle = L"Casso - Input events";
 
     constexpr int      s_kPreferredWidthDip  = 960;
     constexpr int      s_kPreferredHeightDip = 600;
@@ -815,6 +815,7 @@ void InputDebugPanel::RecomputeLayout()
     m_columnMenu.SetDpi (m_dpi);
     m_columnMenu.SetTheme (m_theme);
     m_tooltip.SetDpi (m_dpi);
+    m_tooltip.SetViewportSize (m_widthPx, m_heightPx);
 
     m_layout = ComputeInputDebugPanelLayout (m_widthPx,
                                              m_heightPx,
@@ -1103,7 +1104,7 @@ void InputDebugPanel::RebuildFilteredIndices()
 void InputDebugPanel::PushListViewRows()
 {
     std::vector<std::vector<ListView::Cell>>  rows;
-    int                                       oldSelected = m_eventList.SelectedRow();
+    int                                       oldSelected = m_eventList.GetSelectedRow();
 
 
     rows.reserve (m_filteredIndices.size());
@@ -1120,16 +1121,9 @@ void InputDebugPanel::PushListViewRows()
     }
 
     m_eventList.SetRows (std::move (rows));
-    if (m_eventList.RowCount() > 0)
+    if (oldSelected >= 0 && m_eventList.GetRowCount() > 0)
     {
-        if (oldSelected < 0)
-        {
-            m_eventList.SetSelectedRow (m_eventList.RowCount() - 1);
-        }
-        else
-        {
-            m_eventList.SetSelectedRow (oldSelected);
-        }
+        m_eventList.SetSelectedRow (oldSelected);
     }
 }
 
@@ -1267,7 +1261,7 @@ void InputDebugPanel::SortByColumn (int absCol)
 
 void InputDebugPanel::ApplyListSelection()
 {
-    int  selected = m_eventList.SelectedRow();
+    int  selected = m_eventList.GetSelectedRow();
 
 
     if (selected >= 0 && selected < (int) m_filteredIndices.size())
@@ -1293,8 +1287,16 @@ void InputDebugPanel::OnListSelectionMoved()
 
 void InputDebugPanel::OnLButtonDown (int x, int y)
 {
-    if (m_pairView[0].OnLButtonDown (x, y)) { SetFocusToStop (InputFocusStop::Pair0Dropdown); return; }
-    if (m_pairView[1].OnLButtonDown (x, y)) { SetFocusToStop (InputFocusStop::Pair1Dropdown); return; }
+    if (m_pairView[0].OnLButtonDown (x, y))
+    {
+        if (!m_pairView[0].IsOpen()) { SetFocusToStop (InputFocusStop::Pair0Dropdown); }
+        return;
+    }
+    if (m_pairView[1].OnLButtonDown (x, y))
+    {
+        if (!m_pairView[1].IsOpen()) { SetFocusToStop (InputFocusStop::Pair1Dropdown); }
+        return;
+    }
 
     if (m_pauseButton.HitTest (x, y))
     {
@@ -1353,11 +1355,40 @@ void InputDebugPanel::OnLButtonDown (int x, int y)
         int  headerCol = m_eventList.HitTestHeaderColumn (lx, ly);
         int  row       = -1;
 
+        if (m_eventList.HitTestScrollbarArrowUp (lx, ly))
+        {
+            m_eventList.ScrollByRows (-1);
+            SetFocusToStop (InputFocusStop::EventList);
+            return;
+        }
+
+        if (m_eventList.HitTestScrollbarArrowDown (lx, ly))
+        {
+            m_eventList.ScrollByRows (1);
+            SetFocusToStop (InputFocusStop::EventList);
+            return;
+        }
+
+        if (m_eventList.HitTestScrollbarThumb (lx, ly))
+        {
+            m_eventList.BeginThumbDrag (ly);
+            SetCapture (m_hwnd);
+            SetFocusToStop (InputFocusStop::EventList);
+            return;
+        }
+
+        if (m_eventList.HitTestScrollbarTrack (lx, ly))
+        {
+            m_eventList.PageFromTrackClick (ly);
+            SetFocusToStop (InputFocusStop::EventList);
+            return;
+        }
+
         if (resizeCol >= 0)
         {
             m_resizeColumn       = resizeCol;
             m_resizeStartXPx     = x;
-            m_resizeStartWidthPx = m_eventList.ColumnEffectiveWidthPx ((size_t) resizeCol);
+            m_resizeStartWidthPx = m_eventList.GetColumnEffectiveWidthPx ((size_t) resizeCol);
             SetFocusToStop (InputFocusStop::EventList);
             return;
         }
@@ -1382,8 +1413,15 @@ void InputDebugPanel::OnLButtonUp (int x, int y)
 {
     m_resizeColumn = -1;
 
-    (void) m_pairView[0].OnLButtonUp (x, y);
-    (void) m_pairView[1].OnLButtonUp (x, y);
+    if (m_eventList.IsThumbDragging())
+    {
+        m_eventList.EndThumbDrag();
+        ReleaseCapture();
+        return;
+    }
+
+    if (m_pairView[0].OnLButtonUp (x, y)) { return; }
+    if (m_pairView[1].OnLButtonUp (x, y)) { return; }
 
     if (m_pauseButton.HitTest (x, y))
     {
@@ -1427,6 +1465,12 @@ void InputDebugPanel::OnMouseMove (int x, int y)
 {
     int  newWidth = 0;
 
+
+    if (m_eventList.IsThumbDragging())
+    {
+        m_eventList.UpdateThumbDrag (y - m_layout.listView.top);
+        return;
+    }
 
     if (m_resizeColumn >= 0)
     {
@@ -1524,12 +1568,12 @@ bool InputDebugPanel::OnKey (WPARAM vk)
         case VK_NEXT:
         case VK_HOME:
         case VK_END:
-            if (vk == VK_UP) { m_eventList.SetSelectedRow (m_eventList.SelectedRow() - 1); }
-            else if (vk == VK_DOWN) { m_eventList.SetSelectedRow (m_eventList.SelectedRow() + 1); }
-            else if (vk == VK_PRIOR) { m_eventList.ScrollByRows (-m_eventList.VisibleRowCapacity()); }
-            else if (vk == VK_NEXT) { m_eventList.ScrollByRows (m_eventList.VisibleRowCapacity()); }
+            if (vk == VK_UP) { m_eventList.SetSelectedRow (m_eventList.GetSelectedRow() - 1); }
+            else if (vk == VK_DOWN) { m_eventList.SetSelectedRow (m_eventList.GetSelectedRow() + 1); }
+            else if (vk == VK_PRIOR) { m_eventList.ScrollByRows (-m_eventList.GetVisibleRowCapacity()); }
+            else if (vk == VK_NEXT) { m_eventList.ScrollByRows (m_eventList.GetVisibleRowCapacity()); }
             else if (vk == VK_HOME) { m_eventList.SetSelectedRow (0); }
-            else if (vk == VK_END) { m_eventList.SetSelectedRow (m_eventList.RowCount() - 1); }
+            else if (vk == VK_END) { m_eventList.SetSelectedRow (m_eventList.GetRowCount() - 1); }
             OnListSelectionMoved();
             break;
 
