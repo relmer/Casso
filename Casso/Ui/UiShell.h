@@ -12,8 +12,10 @@
 #include "UiInput.h"
 #include "Chrome/ChromeTheme.h"
 #include "Chrome/DriveWidget.h"
+#include "Chrome/JoystickToggleButton.h"
 #include "Chrome/NavLayer.h"
 #include "Chrome/TitleBar.h"
+#include "Widgets/Tooltip.h"
 
 
 class D3DRenderer;
@@ -53,6 +55,12 @@ public:
                                   std::array<DriveWidget, 2>      * driveWidgets,
                                   const ChromeTheme               * theme);
     void     SetSettingsPanel   (SettingsPanel                   * settingsPanel);
+    void     SetJoystickButton  (JoystickToggleButton            * button,
+                                  Tooltip                         * tooltip)
+    {
+        m_joystickButton  = button;
+        m_joystickTooltip = tooltip;
+    }
     void     SetDragSource      (const DragDropTarget            * dragSource) { m_dragSource = dragSource; }
     bool     OnMouseMove        (int x, int y, bool leftDown);
     void     OnMouseLeave       ();
@@ -60,6 +68,7 @@ public:
     bool     OnLButtonUp        (int x, int y);
     bool     HandleKey          (WPARAM vk);
     bool     IsCapturingInput   () const;
+    bool     IsSettingsCapturing () const;
 
     DxUiPainter         & Painter   ()       { return m_painter; }
     DwriteTextRenderer  & Text      ()       { return m_text; }
@@ -98,6 +107,8 @@ private:
     TitleBar                    * m_titleBar      = nullptr;
     NavLayer                    * m_navLayer      = nullptr;
     std::array<DriveWidget, 2>  * m_driveWidgets  = nullptr;
+    JoystickToggleButton        * m_joystickButton  = nullptr;
+    Tooltip                     * m_joystickTooltip = nullptr;
     const ChromeTheme           * m_theme         = nullptr;
     SettingsPanel               * m_settingsPanel = nullptr;
     const DragDropTarget        * m_dragSource    = nullptr;

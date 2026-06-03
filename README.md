@@ -30,6 +30,35 @@ The project includes:
 
 See [CHANGELOG.md](CHANGELOG.md) for the granular history.
 
+### Game-input revamp (v1.5.1523)
+
+Real-time action games like *Karateka*, *Choplifter*, and *Lode Runner*
+are now playable from the host keyboard with no physical joystick.
+A new **Map Arrows to Joystick** mode steers paddle 0/1 from the arrow
+keys (last-pressed-wins on opposing keys) and binds **X** / **Z** to
+fire buttons 0 / 1 (the same Open-Apple / Closed-Apple soft-switches the
+host Alt keys drive, so both input sources coexist); while the mode is
+on, those keys are withheld from the //e keyboard latch so they don't
+also type. The //e keyboard itself now generates hardware-faithful
+auto-repeat (initial delay, then steady cadence) instead of leaning on
+host-OS key repeat, so timing-sensitive arrow input in games behaves
+the way it did on real hardware.
+
+Three ways to toggle joystick mode — the Machine menu, a new **Ctrl+J**
+accelerator, and a dedicated **Joystick Mode** toggle button in the
+bottom drive bar (frameless press-to-pin button with a blue glowing
+LED, hover tooltip, and focus ring). A new Input Debug panel
+(**Ctrl+Shift+I**) logs the host → //e key events, the `$C000`/`$C010`
+strobe, Open/Closed-Apple state, and synthesized joystick/paddle reads
+(`$C064`–`$C067` PREAD, `$C070` PTRIG) with per-lane filter checkboxes,
+column sorting, pause, and a Copy-to-clipboard button.
+
+Press **F10** to drive the painted chrome with the keyboard: a Tab
+focus ring walks across menu titles, the Joystick Mode button, and the
+drive widgets, with Enter/Space to activate and Esc to return to the
+//e. The ring never leaks keystrokes through to the emulated keyboard,
+so navigating chrome can't drop stray letters into a //e prompt.
+
 ### Themed startup experience (v1.5.1395)
 
 The first-run asset bootstrap — ROMs, sample disks, and Disk II audio samples — now downloads through a single themed progress dialog that fetches every asset concurrently rather than serial-prompting through three separate Win32 dialogs. The boot-disk MRU picker that appears when no disk is configured also paints through the same DirectWrite pipeline as the rest of the chrome, so the entire first-launch path honours the active theme (Skeuomorphic / Dark Modern / Retro Terminal) instead of dropping back to native gray.

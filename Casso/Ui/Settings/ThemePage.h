@@ -4,6 +4,7 @@
 
 #include "../Chrome/ChromeTheme.h"
 #include "../Chrome/DriveWidget.h"
+#include "../Chrome/JoystickToggleButton.h"
 #include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
@@ -72,4 +73,9 @@ private:
     // but the widgets' Layout / SetCompact / SyncFromState are not.
     mutable std::array<DriveWidget, 2>  m_previewDrives;
     mutable bool                        m_previewDrivesInitialized = false;
+
+    // Preview-only joystick-mode toggle button. Rendered "on" so the
+    // theme preview also shows the lit blue LED in the band above the
+    // drive widgets, mirroring the live chrome.
+    mutable JoystickToggleButton        m_previewJoystickButton;
 };

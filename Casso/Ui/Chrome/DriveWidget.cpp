@@ -381,6 +381,19 @@ void DriveWidget::Paint (
 
 
 
+    if (m_focused)
+    {
+        int   ring = Scale (2, dpi);
+        RECT  o    = OuterRect();
+
+        painter.OutlineRect ((float) (o.left  - ring),
+                             (float) (o.top   - ring),
+                             (float) (o.right  - o.left + ring * 2),
+                             (float) (o.bottom - o.top  + ring * 2),
+                             (float) std::max (1, Scale (1, dpi)),
+                             theme.linkArgb);
+    }
+
     if (m_compact)
     {
         int      bodyWcompact  = m_bodyRect.right  - m_bodyRect.left;

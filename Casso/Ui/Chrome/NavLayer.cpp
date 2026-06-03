@@ -40,7 +40,7 @@ namespace
         { IDM_EDIT_PASTE,               NavMenu::Edit,    L"&Paste",                 L"Ctrl+V"        },
         { IDM_MACHINE_RESET,            NavMenu::Machine, L"&Reset",                 L"Ctrl+R"        },
         { IDM_MACHINE_POWERCYCLE,       NavMenu::Machine, L"Po&wer cycle",           L"Ctrl+Shift+R"  },
-        { IDM_MACHINE_ARROWS_JOYSTICK,  NavMenu::Machine, L"Map Arrows to &Joystick", nullptr, true   },
+        { IDM_MACHINE_ARROWS_JOYSTICK,  NavMenu::Machine, L"Map Arrows to &Joystick", L"Ctrl+J",        true   },
         { IDM_DISK_INSERT1,             NavMenu::Disk,    L"&Insert drive 1...",     L"Ctrl+1"        },
         { IDM_DISK_EJECT1,              NavMenu::Disk,    L"&Eject drive 1",         L"Ctrl+Shift+1"  },
         { 0,                            NavMenu::Disk,    nullptr,                   nullptr          },
@@ -700,7 +700,9 @@ void NavLayer::PaintStrip (
 
         ParseMnemonic (name, stripped, mnIdx, mnCh);
 
-        if ((m_hasHoverMenu && m_hoverMenu == (NavMenu) i) || (m_isOpen && m_openMenu == (NavMenu) i))
+        if ((m_hasHoverMenu && m_hoverMenu == (NavMenu) i) ||
+            (m_isOpen && m_openMenu == (NavMenu) i) ||
+            (m_hasFocus && !m_isOpen && m_focusedMenu == (NavMenu) i))
         {
             painter.FillRect ((float) m_menuRects[i].left,
                               (float) m_menuRects[i].top,

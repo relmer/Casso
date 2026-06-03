@@ -67,6 +67,13 @@ static constexpr int     s_kBaseDpi             = ChromeMetrics::kBaseDpi;
 static constexpr int     s_kDriveWidgetGapDp    = 16;
 static constexpr int     s_kLabelBottomGapDp    = 2;
 
+// Vertical extent (dp) of the joystick-mode button's band -- the strip
+// at the top of the bottom drive-bar inset that hosts only the button.
+// Sized as ~8 dp top gap + a ~27 dp button (s_kPadYDp*2 + ~15 dp content)
+// + ~8 dp bottom gap. Bumping the button's font / padding requires
+// updating this and s_kFullDriveBarDp / s_kCompactDriveBarDp to match.
+static constexpr int     s_kJoystickButtonBandDp = 43;
+
 // WM_KEYDOWN / WM_CHAR lParam bit 30: "previous key state" — set when the
 // key was already down, i.e. this event is a Windows OS auto-repeat. We
 // gate the emulated keyboard strobe on this so holding a key delivers a
@@ -77,6 +84,24 @@ static constexpr LPARAM  s_kPreviousKeyDownLParamBit = 0x40000000;
 // deflected to a key maps to a rail, neutral sits at s_knPaddleCenter.
 static constexpr Byte    s_kPaddleAxisMin            = 0;
 static constexpr Byte    s_kPaddleAxisMax            = 255;
+
+// Host letter keys that double as the emulated joystick fire buttons in
+// "Map Arrows to Joystick" mode: X -> button 0 ($C061 / Open-Apple),
+// Z -> button 1 ($C062 / Closed-Apple).
+static constexpr WPARAM  s_kJoystickButton0Vk        = 'X';
+static constexpr WPARAM  s_kJoystickButton1Vk        = 'Z';
+
+// Chrome keyboard-focus ring indices (see EmulatorShell::m_chromeFocusIndex).
+// -1 = guest (//e has focus); 0..6 = the seven menu titles File..Help; 7 =
+// the joystick-mode toggle button; 8/9 = drive widgets 1/2. The ring wraps
+// modulo s_kChromeFocusCount when traversed with Tab.
+static constexpr int     s_kChromeFocusNone          = -1;
+static constexpr int     s_kChromeFocusMenuFirst     = 0;
+static constexpr int     s_kChromeFocusMenuLast      = 6;
+static constexpr int     s_kChromeFocusButton        = 7;
+static constexpr int     s_kChromeFocusDrive0        = 8;
+static constexpr int     s_kChromeFocusDrive1        = 9;
+static constexpr int     s_kChromeFocusCount         = 10;
 
 
 
@@ -590,6 +615,7 @@ HRESULT EmulatorShell::Initialize (
 
         IGNORE_RETURN_VALUE (hrUi, S_OK);
         m_uiShell.SetChrome (&m_titleBar, &m_navLayer, &m_driveChrome, &m_chromeTheme);
+        m_uiShell.SetJoystickButton (&m_joystickButton, &m_joystickTooltip);
 
         m_themeManager    = std::make_unique<ThemeManager> (m_uiFs, themesDir.wstring());
         hrTheme           = m_themeManager->Discover();
@@ -760,6 +786,8 @@ HRESULT EmulatorShell::Initialize (
                     // No Slot 6 controller (stripped Apple II config) --
                     // collapse the drive widgets so they paint nothing
                     // and the bottom command bar is clear of drive UI.
+                    // The joystick-mode button still paints, since
+                    // joystick input is independent of disk presence.
                     m_driveChrome[0].Hide();
                     m_driveChrome[1].Hide();
                 }
@@ -1163,6 +1191,12 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         LayoutManagerResult  layout = m_layout.Resolve (clientW, clientH);
 
         LayoutDriveWidgetsInCommandBar (m_driveChrome, layout, clientW, clientH, dpi);
+        {
+            int  bandTop    = clientH - layout.bottomInsetPx;
+            int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
+
+            LayoutJoystickButton (clientW, bandTop, bandHeight, dpi);
+        }
         m_d3dRenderer.SetTopInsetPx    (layout.topInsetPx);
         m_d3dRenderer.SetBottomInsetPx (layout.bottomInsetPx);
     }
@@ -1790,10 +1824,13 @@ void EmulatorShell::ApplyThemeToChrome (const ChromeTheme & theme)
 {
     // Drive-bar slot thickness. Skeuomorphic shows the full 3D drive
     // body (160 px) plus ~30 px of vertical slack and the basename
-    // label strip (~20 px). Compact themes show only the flat card
-    // (40 px) plus padding and the label strip.
-    constexpr int  s_kFullDriveBarDp    = 212;
-    constexpr int  s_kCompactDriveBarDp = 84;
+    // Bottom drive-bar thickness, full and compact. Layout: drive widget
+    // (body + label strip + 2 dp bottom margin) bottom-anchored, with a
+    // ~43 dp band above for the joystick-mode toggle button (8 dp gap +
+    // ~27 dp button + 8 dp gap). Drive widget total height is body 160 +
+    // label-strip gap 2 + label strip 18 = 180 dp (full) / 60 dp (compact).
+    constexpr int  s_kFullDriveBarDp    = 225;
+    constexpr int  s_kCompactDriveBarDp = 105;
 
     int   desiredThicknessDp = theme.compactDrives ? s_kCompactDriveBarDp : s_kFullDriveBarDp;
     int   priorThicknessDp   = m_driveBarSlot.DesiredThicknessDp();
@@ -1855,6 +1892,205 @@ void EmulatorShell::ApplyThemeToChrome (const ChromeTheme & theme)
         SetWindowPos (m_hwnd, nullptr, 0, 0, newWindowW, newWindowH,
                       SWP_NOZORDER | SWP_NOMOVE | SWP_NOACTIVATE);
     }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::LayoutJoystickButton
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::LayoutJoystickButton (int clientW,
+                                          int bandTopPx,
+                                          int bandHeightPx,
+                                          UINT dpi)
+{
+    int  centerX = clientW / 2;
+    int  centerY = bandTopPx + bandHeightPx / 2;
+
+
+
+    m_joystickButton.SetOn (m_mapArrowsToJoystick);
+    m_joystickButton.Layout (centerX, centerY, dpi, &m_uiShell.Text());
+    m_joystickTooltip.SetDpi (dpi);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SetChromeFocusIndex
+//
+//  Move the keyboard chrome-focus ring to a new slot (-1 = guest) and refresh
+//  which widget paints its focus visual.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetChromeFocusIndex (int index)
+{
+    m_chromeFocusIndex = index;
+    UpdateChromeFocusVisuals ();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::UpdateChromeFocusVisuals
+//
+//  Push the current ring index into the NavLayer (focused-closed menu title),
+//  the joystick-mode button, and the two drive widgets so exactly one of them
+//  paints a focus ring.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::UpdateChromeFocusVisuals ()
+{
+    int  index = m_chromeFocusIndex;
+
+
+    if (index >= s_kChromeFocusMenuFirst && index <= s_kChromeFocusMenuLast)
+    {
+        m_navLayer.SetFocusedMenu ((NavMenu) index);
+    }
+    else
+    {
+        m_navLayer.ClearFocus ();
+    }
+
+    m_joystickButton.SetFocused (index == s_kChromeFocusButton);
+    m_driveChrome[0].SetFocused (index == s_kChromeFocusDrive0);
+    m_driveChrome[1].SetFocused (index == s_kChromeFocusDrive1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::HandleChromeFocusKey
+//
+//  Own every keydown while the chrome keyboard-focus ring is active. Tab /
+//  Shift+Tab traverse the whole ring (menu titles -> button -> drives,
+//  wrapping); Left/Right move among the menu titles; Enter/Space/Down open a
+//  dropdown or activate the focused button/drive; Esc/F10 leave the ring. When
+//  a dropdown is open, keys delegate to NavLayer and the index is reconciled
+//  with whatever the menu did. Always consumes the key.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
+{
+    bool  shift  = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
+    int   dir    = shift ? -1 : 1;
+    int   index  = m_chromeFocusIndex;
+    bool  exitVk = (vk == VK_ESCAPE || vk == VK_F10);
+
+
+    // An open dropdown owns navigation; delegate and reconcile the ring.
+    if (m_navLayer.IsOpen())
+    {
+        bool  ringOwned = (m_chromeFocusIndex != s_kChromeFocusNone);
+        int   openIdx   = (int) m_navLayer.OpenMenu();
+
+        m_navLayer.HandleKey (vk);
+
+        if (m_navLayer.IsOpen())
+        {
+            // Still open: a ring-owned menu tracks the (possibly switched)
+            // title. A menu opened outside the ring (Alt mnemonic / mouse)
+            // stays un-owned so closing it returns to the guest rather than
+            // stranding focus on a title the user never Tab'd to.
+            if (ringOwned)
+            {
+                SetChromeFocusIndex ((int) m_navLayer.OpenMenu());
+            }
+        }
+        else if (exitVk && ringOwned)
+        {
+            // Esc/F10 closed a ring-opened dropdown: keep the title focused.
+            SetChromeFocusIndex (openIdx);
+        }
+        else
+        {
+            // Dispatched a command (or closed a menu the ring never owned):
+            // hand focus back to the guest.
+            SetChromeFocusIndex (s_kChromeFocusNone);
+        }
+
+        return true;
+    }
+
+    if (exitVk)
+    {
+        SetChromeFocusIndex (s_kChromeFocusNone);
+        return true;
+    }
+
+    if (vk == VK_TAB)
+    {
+        SetChromeFocusIndex ((index + dir + s_kChromeFocusCount) % s_kChromeFocusCount);
+        return true;
+    }
+
+    // A menu title is focused with its dropdown closed.
+    if (index >= s_kChromeFocusMenuFirst && index <= s_kChromeFocusMenuLast)
+    {
+        if (vk == VK_LEFT)
+        {
+            SetChromeFocusIndex ((index == s_kChromeFocusMenuFirst) ? s_kChromeFocusMenuLast : index - 1);
+        }
+        else if (vk == VK_RIGHT)
+        {
+            SetChromeFocusIndex ((index == s_kChromeFocusMenuLast) ? s_kChromeFocusMenuFirst : index + 1);
+        }
+        else if (vk == VK_DOWN || vk == VK_RETURN || vk == VK_SPACE)
+        {
+            m_navLayer.Open ((NavMenu) index, true);
+        }
+
+        return true;
+    }
+
+    // The joystick-mode button or a drive widget is focused. Left/Right also
+    // walk the ring so horizontal arrows feel natural along the bottom bar.
+    if (vk == VK_LEFT)
+    {
+        SetChromeFocusIndex ((index - 1 + s_kChromeFocusCount) % s_kChromeFocusCount);
+        return true;
+    }
+
+    if (vk == VK_RIGHT)
+    {
+        SetChromeFocusIndex ((index + 1) % s_kChromeFocusCount);
+        return true;
+    }
+
+    if (vk == VK_RETURN || vk == VK_SPACE)
+    {
+        if (index == s_kChromeFocusButton)
+        {
+            SetMapArrowsToJoystick (!m_mapArrowsToJoystick);
+        }
+        else if (index == s_kChromeFocusDrive0)
+        {
+            BrowseForDisk (m_driveChrome[0].Drive());
+        }
+        else if (index == s_kChromeFocusDrive1)
+        {
+            BrowseForDisk (m_driveChrome[1].Drive());
+        }
+    }
+
+    return true;
 }
 
 
@@ -2612,15 +2848,30 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
 
 bool EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 {
-    int   x        = ((int) (short) LOWORD (lParam));
-    int   y        = ((int) (short) HIWORD (lParam));
-    bool  leftDown = (wParam & MK_LBUTTON) != 0;
+    int      x        = ((int) (short) LOWORD (lParam));
+    int      y        = ((int) (short) HIWORD (lParam));
+    bool     leftDown = (wParam & MK_LBUTTON) != 0;
+    bool     overBtn  = false;
+    int64_t  nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                            std::chrono::steady_clock::now().time_since_epoch()).count();
 
 
 
     if (m_uiShell.OnMouseMove (x, y, leftDown))
     {
         return false;
+    }
+
+    overBtn = m_joystickButton.HitTest (x, y);
+    m_joystickButton.SetHovered (overBtn);
+
+    if (overBtn)
+    {
+        m_joystickTooltip.RequestShow (m_joystickButton.Bounds(), JoystickToggleButton::TooltipText(), nowMs);
+    }
+    else
+    {
+        m_joystickTooltip.RequestHide (nowMs);
     }
 
     return false;
@@ -2641,7 +2892,13 @@ bool EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
 bool EmulatorShell::OnMouseLeave ()
 {
+    int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                         std::chrono::steady_clock::now().time_since_epoch()).count();
+
     m_uiShell.OnMouseLeave();
+    m_joystickButton.SetHovered (false);
+    m_joystickButton.SetPressed (false);
+    m_joystickTooltip.RequestHide (nowMs);
     return false;
 }
 
@@ -2665,6 +2922,16 @@ bool EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     UNREFERENCED_PARAMETER (wParam);
 
     SetCapture (m_hwnd);
+
+    // A mouse press drops the keyboard chrome-focus ring: clicking anywhere
+    // hands focus back to the pointer, so the painted focus visual should
+    // not linger. A click that opens a menu is then tracked via IsOpen().
+    if (m_chromeFocusIndex != s_kChromeFocusNone)
+    {
+        SetChromeFocusIndex (s_kChromeFocusNone);
+    }
+
+    m_joystickButton.SetPressed (m_joystickButton.HitTest (x, y));
 
     // The UI shell (debug panels, on-screen buttons) gets first crack at
     // the press. Its return is moot here: nothing else in this handler
@@ -2696,8 +2963,18 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     UNREFERENCED_PARAMETER (wParam);
 
     ReleaseCapture();
+    m_joystickButton.SetPressed (false);
     if (m_uiShell.OnLButtonUp (x, y))
     {
+        return false;
+    }
+
+    // Toggling the joystick-mode button routes through the same path as
+    // the Machine menu command so the disable-time neutralization of held
+    // arrow / X / Z inputs runs.
+    if (m_joystickButton.HitTest (x, y))
+    {
+        SetMapArrowsToJoystick (!m_mapArrowsToJoystick);
         return false;
     }
 
@@ -2754,14 +3031,10 @@ bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHe
 
     if (vk == VK_F10 && !ctrlHeld && !altHeld)
     {
-        if (!m_navLayer.IsOpen())
-        {
-            m_navLayer.Open (NavMenu::File, true);
-        }
-        else
-        {
-            m_navLayer.Close();
-        }
+        // F10 enters the chrome keyboard-focus ring at the first menu title
+        // (dropdown closed). Exiting the ring is handled inside
+        // HandleChromeFocusKey, which intercepts F10 once the ring is active.
+        SetChromeFocusIndex (s_kChromeFocusMenuFirst);
         return true;
     }
 
@@ -2913,8 +3186,21 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
 
 
-    consumed = m_uiShell.HandleKey (vk);
-    CBR (!consumed);
+    // 1. Modal settings panel wins keystrokes outright.
+    if (m_uiShell.IsSettingsCapturing())
+    {
+        consumed = m_uiShell.HandleKey (vk);
+        BAIL_OUT_IF (consumed, S_OK);
+    }
+
+    // 2. Chrome keyboard-focus ring. While a menu title / button / drive
+    //    has keyboard focus (or a dropdown is open from any source), the
+    //    ring owns every keydown so letters never leak through to the //e.
+    if (m_chromeFocusIndex != s_kChromeFocusNone || m_navLayer.IsOpen())
+    {
+        HandleChromeFocusKey (vk);
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     CBR (m_refs.keyboard != nullptr);
 
@@ -2922,7 +3208,7 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     altHeld  = (GetKeyState (VK_MENU)    & 0x8000) != 0;
 
     consumed = HandleHostMetaShortcut (vk, ctrlHeld, altHeld);
-    CBR (!consumed);
+    BAIL_OUT_IF (consumed, S_OK);
 
     m_refs.keyboard->SetKeyDown (true);
     ApplyAppleModifierKeys (vk, true);
@@ -2969,6 +3255,17 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
         UpdateJoystickAxesFromKeys ();
     }
 
+    // Re-resolve the joystick fire buttons on every key event in joystick
+    // mode (not just on X / Z) so that an Alt press/release re-applies its
+    // Open/Closed-Apple mapping without clobbering a still-held X / Z, and a
+    // released X / Z can't leave a button stuck while Alt is down. The
+    // matching X / Z WM_CHAR is suppressed in OnChar so the letters don't
+    // also type into the //e keyboard latch.
+    if (driveJoystick)
+    {
+        UpdateJoystickButtonsFromKeys ();
+    }
+
 Error:
     return false;
 }
@@ -3008,6 +3305,11 @@ bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
     if (m_mapArrowsToJoystick && IsArrowVk (vk))
     {
         UpdateJoystickAxesFromKeys ();
+    }
+
+    if (m_mapArrowsToJoystick)
+    {
+        UpdateJoystickButtonsFromKeys ();
     }
 
 Error:
@@ -3093,32 +3395,91 @@ void EmulatorShell::UpdateJoystickAxesFromKeys ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UpdateJoystickButtonsFromKeys
+//
+//  Host UI thread. Resolves the X / Z letter keys into the two emulated
+//  joystick fire buttons and stages them on the //e keyboard, where button
+//  0 reads at $C061 (Open-Apple) and button 1 reads at $C062 (Closed-Apple).
+//  No-op on ][/][+ (the keyboard isn't an Apple2eKeyboard).
+//
+//  Reads real-time physical key state via GetAsyncKeyState, matching the
+//  axis helper so a key-up lost to a focus change can't wedge a button on.
+//  The Open/Closed-Apple state is OR'd with the host left/right Alt keys so
+//  the X / Z mapping coexists with the existing Alt->Apple-button mapping
+//  instead of clobbering a held Alt.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::UpdateJoystickButtonsFromKeys ()
+{
+    auto * iieKbd  = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    bool   button0 = false;
+    bool   button1 = false;
+
+
+
+    if (iieKbd == nullptr)
+    {
+        return;
+    }
+
+    button0 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton0Vk)) & 0x8000) != 0 ||
+              (GetKeyState      (VK_LMENU)                                & 0x8000) != 0;
+    button1 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton1Vk)) & 0x8000) != 0 ||
+              (GetKeyState      (VK_RMENU)                                & 0x8000) != 0;
+
+    iieKbd->SetOpenApple   (button0);
+    iieKbd->SetClosedApple (button1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetMapArrowsToJoystick
 //
 //  Toggles the arrows-drive-joystick mode and persists it. On enable we
-//  resolve the axes from the current key state so a held arrow takes
-//  effect immediately; on disable we recenter both axes so a game reading
-//  the paddles sees a neutral stick rather than a stale deflection.
+//  resolve the axes and fire buttons from the current key state so a held
+//  arrow / X / Z takes effect immediately; on disable we recenter both axes
+//  and drop the X / Z button mapping so a game reading the game port sees a
+//  neutral stick and buttons rather than a stale deflection.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SetMapArrowsToJoystick (bool on)
 {
-    auto * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    auto * iieSw  = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    auto * iieKbd = dynamic_cast<Apple2eKeyboard *>       (m_refs.keyboard);
 
     m_mapArrowsToJoystick             = on;
     m_globalPrefs.mapArrowsToJoystick = on;
+    m_joystickButton.SetOn (on);
 
     SaveGlobalPrefs();
 
     if (on)
     {
         UpdateJoystickAxesFromKeys ();
+        UpdateJoystickButtonsFromKeys ();
     }
-    else if (iieSw != nullptr)
+    else
     {
-        iieSw->SetPaddle (0, Apple2eSoftSwitchBank::s_knPaddleCenter);
-        iieSw->SetPaddle (1, Apple2eSoftSwitchBank::s_knPaddleCenter);
+        if (iieSw != nullptr)
+        {
+            iieSw->SetPaddle (0, Apple2eSoftSwitchBank::s_knPaddleCenter);
+            iieSw->SetPaddle (1, Apple2eSoftSwitchBank::s_knPaddleCenter);
+        }
+
+        // Drop the X / Z contribution to the fire buttons, leaving only the
+        // host Alt keys mapped, so a held X / Z can't stay stuck after the
+        // mode is turned off.
+        if (iieKbd != nullptr)
+        {
+            iieKbd->SetOpenApple   ((GetKeyState (VK_LMENU) & 0x8000) != 0);
+            iieKbd->SetClosedApple ((GetKeyState (VK_RMENU) & 0x8000) != 0);
+        }
     }
 }
 
@@ -3142,10 +3503,10 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     }
 
     // Suppress the WM_CHAR that Windows synthesizes from a WM_KEYDOWN
-    // already consumed by overlay UI (settings panel / open menu).
-    // Without this, hitting Enter on the settings OK button closes the
-    // panel and then drops a CR into the //e keyboard.
-    if (m_uiShell.IsCapturingInput())
+    // already consumed by overlay UI (settings panel / open menu) or by the
+    // chrome keyboard-focus ring. Without this, a letter typed while a menu
+    // title / button / drive is focused would also drop into the //e latch.
+    if (m_uiShell.IsCapturingInput() || m_chromeFocusIndex != s_kChromeFocusNone)
     {
         return false;
     }
@@ -3155,6 +3516,17 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // latched once and registered for the emulator's own authentic //e
     // auto-repeat cadence (driven in CPU time by AppleKeyboard::Tick).
     if (isRepeat)
+    {
+        return false;
+    }
+
+    // In joystick mode the X / Z keys are fire buttons (handled in OnKeyDown
+    // / OnKeyUp), so swallow their WM_CHAR to keep the letters from also
+    // typing into the //e keyboard latch -- mirroring how arrow keys are
+    // withheld from the latch.
+    if (m_mapArrowsToJoystick &&
+        (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr) &&
+        (ch == L'x' || ch == L'X' || ch == L'z' || ch == L'Z'))
     {
         return false;
     }
@@ -3224,9 +3596,18 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
                 // Machine has no Disk II controller (e.g. stripped Apple II
                 // config). Collapse the drive widget rects so DriveWidget
                 // paints nothing and the drag-drop overlay's empty-rect
-                // path treats the whole window as the drop target.
+                // path treats the whole window as the drop target. The
+                // joystick-mode button still paints -- joystick input is
+                // independent of disk presence.
                 m_driveChrome[0].Hide();
                 m_driveChrome[1].Hide();
+            }
+
+            {
+                int  bandTop    = renderH - layout.bottomInsetPx;
+                int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
+
+                LayoutJoystickButton (static_cast<int> (width), bandTop, bandHeight, dpi);
             }
 
             m_uiShell.HitTest().Clear();

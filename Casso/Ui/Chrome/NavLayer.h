@@ -67,6 +67,15 @@ public:
     bool                              IsOpen               () const { return m_isOpen; }
     bool                              IsOpenByKeyboard     () const { return m_isOpen && m_openedByKeyboard; }
     NavMenu                           OpenMenu             () const { return m_openMenu; }
+
+    // Keyboard "focused but closed" menu-title state, used by the chrome
+    // Tab-focus ring so a highlighted top-level title can be shown before
+    // its dropdown is opened. Independent of the open/hover state.
+    void                              SetFocusedMenu       (NavMenu menu) { m_focusedMenu = menu; m_hasFocus = true; }
+    void                              ClearFocus           ()             { m_hasFocus = false; }
+    bool                              HasFocus             () const       { return m_hasFocus; }
+    NavMenu                           FocusedMenu          () const       { return m_focusedMenu; }
+    static int                        MenuCount            ()             { return kMenuCount; }
     bool                              HandleAltKey         (wchar_t ch);
     bool                              HandleKey            (WPARAM vk);
     bool                              HandleMouseMove      (int x, int y);
@@ -93,9 +102,11 @@ private:
     std::array<RECT, kMenuCount>      m_menuRects        = {};
     NavMenu                           m_openMenu         = NavMenu::File;
     NavMenu                           m_hoverMenu        = NavMenu::File;
+    NavMenu                           m_focusedMenu      = NavMenu::File;
     bool                              m_isOpen           = false;
     bool                              m_openedByKeyboard = false;
     bool                              m_hasHoverMenu     = false;
+    bool                              m_hasFocus         = false;
     int                               m_highlightIndex   = -1;
     int                               m_rowHeightPx      = 26;
     UINT                              m_dpi              = 96;

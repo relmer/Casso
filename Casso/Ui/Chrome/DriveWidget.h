@@ -42,6 +42,8 @@ public:
     void               SetPerspectiveSkewPx (int skewPx) { m_perspectiveSkewPx = skewPx; }
     void               SetCompact      (bool compact)    { m_compact = compact; }
     bool               IsCompact       () const          { return m_compact; }
+    void               SetFocused      (bool focused)    { m_focused = focused; }
+    bool               IsFocused       () const          { return m_focused; }
     void               SyncFromState   (const DriveWidgetState & state);
     void               Paint           (DxUiPainter & painter,
                                          DwriteTextRenderer & text,
@@ -77,4 +79,5 @@ private:
     DriveWidgetState    m_state;
     int                 m_perspectiveSkewPx = 0;
     bool                m_compact           = false;
+    bool                m_focused           = false;
 };

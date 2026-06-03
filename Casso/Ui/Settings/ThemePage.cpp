@@ -30,8 +30,11 @@ namespace
     constexpr int  s_kPrevFbHeightDp      = ChromeMetrics::kFramebufferHeightPx;  // 384
     constexpr int  s_kPrevTitleBarDp      = 32;
     constexpr int  s_kPrevNavStripDp      = 32;
-    constexpr int  s_kPrevDriveBarFullDp  = 212;
-    constexpr int  s_kPrevDriveBarCmptDp  = 84;
+    constexpr int  s_kPrevDriveBarFullDp  = 225;
+    constexpr int  s_kPrevDriveBarCmptDp  = 105;
+    // Joystick-mode button band height (dp) at the top of the preview
+    // drive bar -- mirrors s_kJoystickButtonBandDp in EmulatorShell.cpp.
+    constexpr int  s_kPrevJoystickBandDp  = 43;
     constexpr int  s_kPrevSysButtonWDp    = 46;
     constexpr int  s_kPrevSysButtonGapDp  = 1;
     constexpr int  s_kPrevCaptionFontDp   = 14;
@@ -133,7 +136,8 @@ namespace
                              const ChromeTheme                    & theme,
                              const std::function<const uint32_t * (int &, int &)> & framebufferSource,
                              const std::function<std::wstring (int)>              & mountedPathSource,
-                             std::array<DriveWidget, 2>           & previewDrives)
+                             std::array<DriveWidget, 2>           & previewDrives,
+                             JoystickToggleButton                 & previewButton)
     {
         RECT      prevRect = {};
         float     scale    = 0.0f;
@@ -354,6 +358,20 @@ namespace
             visual.frameIndex = 0;
             previewDrives[0].Paint (painter, text, visual, theme);
             previewDrives[1].Paint (painter, text, visual, theme);
+
+            // Joystick-mode toggle button -- preview as "on" so the lit
+            // blue LED reads in the band above the drives, matching the
+            // live chrome's resting state when the user toggled it on.
+            {
+                int  bandHeight = std::max (1, ScalePx (s_kPrevJoystickBandDp));
+                int  bandTop    = driveTop;
+                int  centerX    = prevRect.left + prevW / 2;
+                int  centerY    = bandTop + bandHeight / 2;
+
+                previewButton.SetOn (true);
+                previewButton.Layout (centerX, centerY, effectiveDpi, &text);
+                previewButton.Paint  (painter, text, theme);
+            }
         }
     }
 }
@@ -563,7 +581,7 @@ void ThemePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
             m_previewDrivesInitialized = true;
         }
 
-        PaintPreviewWindow (painter, text, m_previewRect, preview, m_framebufferSource, m_mountedPathSource, m_previewDrives);
+        PaintPreviewWindow (painter, text, m_previewRect, preview, m_framebufferSource, m_mountedPathSource, m_previewDrives, m_previewJoystickButton);
     }
 
     m_themeDropdown.PaintMenu   (painter, text);

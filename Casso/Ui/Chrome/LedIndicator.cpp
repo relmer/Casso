@@ -119,3 +119,61 @@ void LedIndicator::Paint (DxUiPainter & painter, const ChromeTheme & theme) cons
 
     painter.FillCircleApprox (cx, cy, coreR, CoreArgb (theme));
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Paint
+//
+//  Color-overriding variant used by widgets that need a fixed LED hue
+//  independent of the active theme's amber/red/green drive LED -- the
+//  joystick-mode toggle, for instance, always glows a realistic LED
+//  blue. A zero `haloArgb` suppresses the halo (dark/off state).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LedIndicator::Paint (DxUiPainter & painter, uint32_t coreArgb, uint32_t haloArgb) const
+{
+    float  cx    = (float) (m_layout.coreRect.left + m_layout.coreRect.right) * 0.5f;
+    float  cy    = (float) (m_layout.coreRect.top  + m_layout.coreRect.bottom) * 0.5f;
+    float  coreR = (float) (m_layout.coreRect.right - m_layout.coreRect.left) * 0.5f;
+
+
+
+    if (haloArgb != 0)
+    {
+        // Soft, fuzzy feathered glow: stack concentric circles from a
+        // wide / dim outer ring inward to a brighter ring just outside
+        // the core. Cumulative SRC_OVER blending of equal-alpha rings
+        // gives a smooth quadratic-looking falloff with no visible bands
+        // once the ring count is high enough. Glow radius scales with
+        // the core so DPI changes look right without retuning.
+        constexpr int    s_kGlowRings        = 12;
+        constexpr float  s_kGlowRadiusFactor = 1.5f;
+
+        uint8_t  haloA      = (uint8_t) ((haloArgb >> 24) & 0xFF);
+        uint32_t haloRgb    = haloArgb & 0x00FFFFFF;
+        float    glowOuterR = coreR * s_kGlowRadiusFactor;
+        float    glowInnerR = coreR + 1.0f;
+        // Per-ring alpha picked so the cumulative SRC_OVER sum at the
+        // core edge sits near the source halo alpha. 1 - (1-a)^N = haloA
+        // -> a = 1 - (1 - haloA)^(1/N).
+        float    perRing    = 1.0f - powf (1.0f - ((float) haloA / 255.0f), 1.0f / (float) s_kGlowRings);
+        uint8_t  ringA      = (uint8_t) (perRing * 255.0f + 0.5f);
+        uint32_t ringArgb   = ((uint32_t) ringA << 24) | haloRgb;
+
+        for (int i = 0; i < s_kGlowRings; i++)
+        {
+            // i==0 is the largest (faintest visual contribution at the
+            // outer edge); i==N-1 is the smallest (just outside core).
+            float  t = (float) i / (float) (s_kGlowRings - 1);
+            float  r = glowOuterR + (glowInnerR - glowOuterR) * t;
+
+            painter.FillCircleApprox (cx, cy, r, ringArgb);
+        }
+    }
+
+    painter.FillCircleApprox (cx, cy, coreR, coreArgb);
+}
