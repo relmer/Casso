@@ -23,6 +23,7 @@ struct InputPanelLayoutSlots
     RECT pairDropdown[2];
     RECT pauseButton;
     RECT clearButton;
+    RECT copyButton;
     RECT listView;
 };
 

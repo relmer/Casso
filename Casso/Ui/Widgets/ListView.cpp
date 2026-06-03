@@ -99,6 +99,54 @@ void ListView::SetRows (std::vector<std::vector<Cell>> rows)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppendRows
+//
+//  Streaming-friendly counterpart to SetRows: appends new rows without
+//  rebuilding the existing ones, so callers spamming the list pay a cost
+//  proportional to the number of new rows rather than the total. The
+//  sticky-tail decision is made from the PRE-append state so a viewer
+//  parked at the bottom keeps following the tail while one scrolled up
+//  stays put.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ListView::AppendRows (std::vector<std::vector<Cell>> rows)
+{
+    bool  wasSticky = m_stickyTail;
+    int   maxTop    = 0;
+
+
+
+    if (rows.empty())
+    {
+        return;
+    }
+
+    m_rows.insert (m_rows.end(),
+                   std::make_move_iterator (rows.begin()),
+                   std::make_move_iterator (rows.end()));
+    m_measuredWPx.clear();
+    maxTop = GetMaxTopRow();
+
+    if (wasSticky || m_topRow > maxTop)
+    {
+        m_topRow = maxTop;
+    }
+
+    if (m_topRow < 0)
+    {
+        m_topRow = 0;
+    }
+
+    m_stickyTail = (m_topRow >= maxTop);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetColumnVisible
 //
 ////////////////////////////////////////////////////////////////////////////////

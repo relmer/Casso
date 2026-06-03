@@ -25,8 +25,9 @@ copy-protected WOZ image ([#68](https://github.com/relmer/Casso/issues/68)).
   Open/Closed-Apple button state, and synthesized joystick/paddle reads
   (`$C064`–`$C067` PREAD, `$C070` PTRIG), with per-lane filter checkboxes
   (emulator keyboard/joystick/paddle, host keyboard) and per-pair
-  Joystick-vs-Paddle view dropdowns, column sorting, and pause. Fed by a
-  lock-free event ring drained on the render thread.
+  Joystick-vs-Paddle view dropdowns, column sorting, pause, and a Copy
+  button that puts the visible log on the clipboard as tab-separated text.
+  Fed by a lock-free event ring drained on the render thread.
 - **feat(ui): native Disk II debug window.** DX/themed replacement for
   the legacy Win32 Disk II debug dialog, sharing the same event-ring
   projection and multi-column ListView.

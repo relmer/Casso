@@ -66,14 +66,16 @@ enum class CrtGroup
 };
 
 
-static constexpr size_t  kCrtGroupCount = 4;
 
 
 // JSON sub-object key per group, indexed by CrtGroup. Top has no key
 // because its fields serialize directly onto the mode object.
-static constexpr const char *  s_kpszCrtGroupKeys[kCrtGroupCount] = {
+static constexpr const char *  s_kpszCrtGroupKeys[] = {
     nullptr, "scanlines", "bloom", "colorBleed"
 };
+
+static constexpr size_t  s_kcCrtGroup = _countof (s_kpszCrtGroupKeys);
+
 
 
 // One scalar CRT field: which group it serializes into, its JSON key, type,
@@ -243,7 +245,7 @@ Error:
 
 JsonValue GlobalUserPrefs::CrtToJson (const Crt & c)
 {
-    JsonObject  groups[kCrtGroupCount];
+    JsonObject  groups[s_kcCrtGroup];
     JsonObject  modeObj;
 
 
@@ -265,7 +267,7 @@ JsonValue GlobalUserPrefs::CrtToJson (const Crt & c)
     // Top-group fields serialize directly onto the mode object; each named
     // group becomes a nested sub-object, in CrtGroup order.
     modeObj = std::move (groups[(size_t) CrtGroup::Top]);
-    for (size_t i = 1; i < kCrtGroupCount; i++)
+    for (size_t i = 1; i < s_kcCrtGroup; i++)
     {
         modeObj.emplace_back (s_kpszCrtGroupKeys[i], JsonValue (std::move (groups[i])));
     }
@@ -347,27 +349,31 @@ JsonValue GlobalUserPrefs::RecentDisksToJson (const std::vector<std::string> & r
 
 void GlobalUserPrefs::CrtModeFromJson (const JsonValue & modeObj, Crt & c)
 {
-    const JsonValue *  sources[kCrtGroupCount] = {};
-    size_t             i = 0;
+    HRESULT           hr                      = S_OK;
+    const JsonValue * sources[s_kcCrtGroup] = {};
 
 
 
     // Resolve each group's source object once: the mode object itself for
     // the top group, and the matching sub-object (when present) otherwise.
     sources[(size_t) CrtGroup::Top] = &modeObj;
-    for (i = 1; i < kCrtGroupCount; i++)
+    for (size_t i = 1; i < s_kcCrtGroup; i++)
     {
-        const JsonValue *  sub = nullptr;
+        const JsonValue * sub = nullptr;
 
-        if (SUCCEEDED (modeObj.GetObject (s_kpszCrtGroupKeys[i], sub)))
+        hr = modeObj.GetObject (s_kpszCrtGroupKeys[i], sub);
+        if (FAILED (hr))
         {
-            sources[i] = sub;
+            continue;
         }
+         
+        sources[i] = sub;
+
     }
 
     for (const CrtFieldDesc & field : s_kCrtFields)
     {
-        const JsonValue *  source = sources[(size_t) field.group];
+        const JsonValue * source = sources[(size_t) field.group];
 
         if (source == nullptr)
         {

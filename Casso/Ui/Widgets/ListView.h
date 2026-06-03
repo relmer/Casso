@@ -74,6 +74,7 @@ public:
     void  SetRect         (const RECT & rect);
     void  SetColumns      (std::vector<Column> cols);
     void  SetRows         (std::vector<std::vector<Cell>> rows);
+    void  AppendRows      (std::vector<std::vector<Cell>> rows);
 
     // Column visibility & widths.
     void  SetColumnVisible          (size_t idx, bool visible);

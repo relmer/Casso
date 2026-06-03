@@ -49,13 +49,10 @@ class JsonValue
 {
 public:
     JsonValue () = default;
-    explicit JsonValue (nullptr_t) {}
-
-    explicit JsonValue (bool   value) : m_type (JsonType::Bool),   m_bool   (value) {}
-    explicit JsonValue (double value) : m_type (JsonType::Number), m_number (value) {}
-
-    explicit JsonValue (const string & value) : m_type (JsonType::String), m_string (value) {}
-
+    explicit JsonValue (nullptr_t)                                                                                 {}
+    explicit JsonValue (bool   value)                           : m_type (JsonType::Bool),   m_bool   (value)      {}
+    explicit JsonValue (double value)                           : m_type (JsonType::Number), m_number (value)      {}
+    explicit JsonValue (const string & value)                   : m_type (JsonType::String), m_string (value)      {}
     explicit JsonValue (vector<JsonValue>               && arr) : m_type (JsonType::Array),  m_array  (move (arr)) {}
     explicit JsonValue (vector<pair<string, JsonValue>> && obj) : m_type (JsonType::Object), m_object (move (obj)) {}
 

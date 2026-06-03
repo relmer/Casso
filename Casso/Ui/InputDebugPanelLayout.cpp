@@ -108,8 +108,9 @@ InputPanelLayoutSlots ComputeInputDebugPanelLayout (
         y += dropHeight + rowVGap;
     }
 
-    slots.pauseButton = MakeRect (margin,                        y, buttonWidth, buttonHeight);
-    slots.clearButton = MakeRect (margin + buttonWidth + rowGap, y, buttonWidth, buttonHeight);
+    slots.pauseButton = MakeRect (margin,                             y, buttonWidth, buttonHeight);
+    slots.clearButton = MakeRect (margin + (buttonWidth + rowGap),     y, buttonWidth, buttonHeight);
+    slots.copyButton  = MakeRect (margin + 2 * (buttonWidth + rowGap), y, buttonWidth, buttonHeight);
     y += buttonHeight + rowVGap;
 
     lvWidth  = clientWidthPx  - 2 * margin;
