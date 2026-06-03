@@ -2,9 +2,8 @@
 
 #include "Pch.h"
 
-#include "IFileSystem.h"
-
 #include "Core/JsonValue.h"
+#include "IFileSystem.h"
 
 
 
@@ -103,17 +102,39 @@ struct GlobalUserPrefs
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;
 
-    // ---- Persistence ---------------------------------------------------
 
     HRESULT     Load     (const std::wstring & baseDir,
                           IFileSystem        & fs);
     HRESULT     Save     (const std::wstring & baseDir,
                           IFileSystem        & fs) const;
 
-    // ---- Serialization (exposed for tests) -----------------------------
-
     JsonValue   ToJson   () const;
     HRESULT     FromJson (const JsonValue & v);
 
     static std::wstring  FilePath (const std::wstring & baseDir);
+
+
+private:
+    static bool         GetBoolOpt   (const JsonValue   & obj,
+                                      const std::string & key,
+                                      bool                fallback);
+    static double       GetNumberOpt (const JsonValue   & obj,
+                                      const std::string & key,
+                                      double              fallback);
+    static int          GetIntOpt    (const JsonValue   & obj,
+                                      const std::string & key,
+                                      int                 fallback);
+    static std::string  GetStringOpt (const JsonValue   & obj,
+                                      const std::string & key,
+                                      const std::string & fallback);
+
+    static JsonValue    CrtToJson         (const Crt & c);
+    static JsonValue    PlacementsToJson  (const std::map<std::string, WindowBounds> & placements);
+    static JsonValue    RecentDisksToJson (const std::vector<std::string> & recentDisks);
+
+    static void         CrtModeFromJson     (const JsonValue & modeObj, Crt & c);
+    static void         PlacementsFromJson  (const JsonValue                     & placementsObj,
+                                             std::map<std::string, WindowBounds> & placements);
+    static void         RecentDisksFromJson (const JsonValue          & recentArr,
+                                             std::vector<std::string> & recentDisks);
 };

@@ -10,112 +10,458 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Anonymous helpers
+//  File-local aliases, constants, and CRT field tables
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+// A JSON object body is an ordered list of key/value members. Insertion
+// order is preserved so serialized output is deterministic across
+// roundtrips.
+using KeyValuePair = std::pair<std::string, JsonValue>;
+using JsonObject   = std::vector<KeyValuePair>;
+
+
+static constexpr const char *  s_kpszVersionKey  = "$cassoGlobalPrefsVersion";
+static constexpr int           s_kCurrentVersion = 1;
+
+
+// crt sub-object key per monitor type, indexed by SettingsColorMode.
+static constexpr const char *  s_kpszCrtModeKeys[GlobalUserPrefs::kCrtModeCount] = {
+    "color", "green", "amber", "white"
+};
+
+
+// Known top-level keys recognized by this version of GlobalUserPrefs.
+// Anything not in this list is preserved in `unknownPassthrough`.
+static const std::set<std::string>  s_kKnownTopLevel = {
+    "$cassoGlobalPrefsVersion",
+    "activeTheme",
+    "lastSelectedMachine",
+    "audioDownloadConsent",
+    "mapArrowsToJoystick",
+    "recentDisks",
+    "crt",
+    "window"
+};
+
+
+enum class CrtScalar
 {
-    // A JSON object body is an ordered list of key/value members. Insertion
-    // order is preserved so serialized output is deterministic across
-    // roundtrips.
-    using KeyValuePair = std::pair<std::string, JsonValue>;
-    using JsonObject   = std::vector<KeyValuePair>;
+    Bool,
+    Float
+};
 
 
-    constexpr const char *  s_kpszVersionKey    = "$cassoGlobalPrefsVersion";
-    constexpr int           s_kCurrentVersion   = 1;
+// Which slice of the serialized mode object a field belongs to. Top fields
+// sit directly on the mode object; the rest live in a nested sub-object
+// named by s_kpszCrtGroupKeys.
+enum class CrtGroup
+{
+    Top,
+    Scanlines,
+    Bloom,
+    ColorBleed
+};
 
 
-    // Known top-level keys recognized by this version of GlobalUserPrefs.
-    // Anything not in this list is preserved in `unknownPassthrough`.
-    const std::set<std::string>  s_knownTopLevel = {
-        "$cassoGlobalPrefsVersion",
-        "activeTheme",
-        "lastSelectedMachine",
-        "audioDownloadConsent",
-        "recentDisks",
-        "crt",
-        "window"
-    };
+static constexpr size_t  kCrtGroupCount = 4;
 
 
-    int  FindKey (
-        const JsonObject  & entries,
-        const std::string & key)
+// JSON sub-object key per group, indexed by CrtGroup. Top has no key
+// because its fields serialize directly onto the mode object.
+static constexpr const char *  s_kpszCrtGroupKeys[kCrtGroupCount] = {
+    nullptr, "scanlines", "bloom", "colorBleed"
+};
+
+
+// One scalar CRT field: which group it serializes into, its JSON key, type,
+// a pointer-to-member into GlobalUserPrefs::Crt, and (floats only) the
+// inclusive clamp range applied on load so a hand-edited prefs file can't
+// drive the shaders out of range. The unused member pointer is null. Row
+// order within a group is the serialized key order.
+struct CrtFieldDesc
+{
+    CrtGroup                       group;
+    const char *                   key;
+    CrtScalar                      type;
+    bool  GlobalUserPrefs::Crt::*  boolMember;
+    float GlobalUserPrefs::Crt::*  floatMember;
+    float                          lo;
+    float                          hi;
+};
+
+
+static constexpr CrtFieldDesc  s_kCrtFields[] = {
+    { CrtGroup::Top,        "userOverride", CrtScalar::Bool,  &GlobalUserPrefs::Crt::userOverride,      nullptr,                                   0.0f, 0.0f  },
+    { CrtGroup::Top,        "brightness",   CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::brightness,         0.0f, 2.0f  },
+    { CrtGroup::Top,        "contrast",     CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::contrast,           0.0f, 2.0f  },
+    { CrtGroup::Top,        "gamma",        CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::gamma,              0.5f, 2.5f  },
+    { CrtGroup::Top,        "persistence",  CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::persistence,        0.0f, 0.99f },
+    { CrtGroup::Scanlines,  "enabled",      CrtScalar::Bool,  &GlobalUserPrefs::Crt::scanlinesEnabled,  nullptr,                                   0.0f, 0.0f  },
+    { CrtGroup::Scanlines,  "intensity",    CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::scanlinesIntensity, 0.0f, 1.0f  },
+    { CrtGroup::Bloom,      "enabled",      CrtScalar::Bool,  &GlobalUserPrefs::Crt::bloomEnabled,      nullptr,                                   0.0f, 0.0f  },
+    { CrtGroup::Bloom,      "radius",       CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::bloomRadius,        0.0f, 10.0f },
+    { CrtGroup::Bloom,      "strength",     CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::bloomStrength,      0.0f, 1.0f  },
+    { CrtGroup::ColorBleed, "enabled",      CrtScalar::Bool,  &GlobalUserPrefs::Crt::colorBleedEnabled, nullptr,                                   0.0f, 0.0f  },
+    { CrtGroup::ColorBleed, "width",        CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::colorBleedWidth,    0.0f, 8.0f  },
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::GetBoolOpt
+//
+//  Read an optional boolean leaf, falling back to `fallback` when absent or
+//  not a boolean.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool GlobalUserPrefs::GetBoolOpt (
+    const JsonValue   & obj,
+    const std::string & key,
+    bool                fallback)
+{
+    HRESULT  hr     = S_OK;
+    bool     result = fallback;
+
+
+
+    hr = obj.GetBool (key, result);
+    CHR (hr);
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::GetNumberOpt
+//
+//  Read an optional numeric leaf, falling back to `fallback` when absent or
+//  not a number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double GlobalUserPrefs::GetNumberOpt (
+    const JsonValue   & obj,
+    const std::string & key,
+    double              fallback)
+{
+    HRESULT  hr     = S_OK;
+    double   result = fallback;
+
+
+
+    hr = obj.GetNumber (key, result);
+    CHR (hr);
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::GetIntOpt
+//
+//  Read an optional integer leaf, falling back to `fallback` when absent or
+//  not an integer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int GlobalUserPrefs::GetIntOpt (
+    const JsonValue   & obj,
+    const std::string & key,
+    int                 fallback)
+{
+    HRESULT  hr     = S_OK;
+    int      result = fallback;
+
+
+
+    hr = obj.GetInt (key, result);
+    CHR (hr);
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::GetStringOpt
+//
+//  Read an optional string leaf, falling back to `fallback` when absent or
+//  not a string.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string GlobalUserPrefs::GetStringOpt (
+    const JsonValue   & obj,
+    const std::string & key,
+    const std::string & fallback)
+{
+    HRESULT      hr     = S_OK;
+    std::string  result = fallback;
+
+
+
+    hr = obj.GetString (key, result);
+    CHR (hr);
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::CrtToJson
+//
+//  Serialize one monitor's CRT block, table-driven so the emitted key order
+//  matches s_kCrtGroups exactly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue GlobalUserPrefs::CrtToJson (const Crt & c)
+{
+    JsonObject  groups[kCrtGroupCount];
+    JsonObject  modeObj;
+
+
+
+    for (const CrtFieldDesc & field : s_kCrtFields)
     {
-        int  i = 0;
-        for (i = 0; i < (int) entries.size(); ++i)
+        JsonObject &  target = groups[(size_t) field.group];
+
+        if (field.type == CrtScalar::Bool)
         {
-            if (entries[(size_t) i].first == key)
-            {
-                return i;
-            }
+            target.emplace_back (field.key, JsonValue (c.*field.boolMember));
         }
-        return -1;
+        else
+        {
+            target.emplace_back (field.key, JsonValue ((double) (c.*field.floatMember)));
+        }
     }
 
-
-    bool  GetBoolOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        bool                fallback)
+    // Top-group fields serialize directly onto the mode object; each named
+    // group becomes a nested sub-object, in CrtGroup order.
+    modeObj = std::move (groups[(size_t) CrtGroup::Top]);
+    for (size_t i = 1; i < kCrtGroupCount; i++)
     {
-        bool      result = fallback;
-        HRESULT   hr     = obj.GetBool (key, result);
-        if (FAILED (hr))
-        {
-            return fallback;
-        }
-        return result;
+        modeObj.emplace_back (s_kpszCrtGroupKeys[i], JsonValue (std::move (groups[i])));
     }
 
+    return JsonValue (std::move (modeObj));
+}
 
-    double  GetNumberOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        double              fallback)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::PlacementsToJson
+//
+//  Serialize the per-topology window placement map.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue GlobalUserPrefs::PlacementsToJson (const std::map<std::string, WindowBounds> & placements)
+{
+    JsonObject  placementsObj;
+
+
+
+    for (const auto & kv : placements)
     {
-        double    result = fallback;
-        HRESULT   hr     = obj.GetNumber (key, result);
-        if (FAILED (hr))
-        {
-            return fallback;
-        }
-        return result;
+        JsonObject  bounds;
+
+        bounds.emplace_back ("x", JsonValue ((double) kv.second.x));
+        bounds.emplace_back ("y", JsonValue ((double) kv.second.y));
+        bounds.emplace_back ("w", JsonValue ((double) kv.second.w));
+        bounds.emplace_back ("h", JsonValue ((double) kv.second.h));
+        placementsObj.emplace_back (kv.first, JsonValue (std::move (bounds)));
     }
 
+    return JsonValue (std::move (placementsObj));
+}
 
-    int  GetIntOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        int                 fallback)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::RecentDisksToJson
+//
+//  Serialize the recent-disks list as a JSON array of paths.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue GlobalUserPrefs::RecentDisksToJson (const std::vector<std::string> & recentDisks)
+{
+    std::vector<JsonValue>  recentArr;
+
+
+
+    recentArr.reserve (recentDisks.size());
+    for (const std::string & path : recentDisks)
     {
-        int      result = fallback;
-        HRESULT  hr     = obj.GetInt (key, result);
-        if (FAILED (hr))
-        {
-            return fallback;
-        }
-        return result;
+        recentArr.emplace_back (JsonValue (path));
     }
 
+    return JsonValue (std::move (recentArr));
+}
 
-    std::string  GetStringOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        const std::string & fallback)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::CrtModeFromJson
+//
+//  Parse one monitor's CRT block, table-driven and clamping each numeric
+//  field to its documented range. Absent fields keep their struct defaults.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GlobalUserPrefs::CrtModeFromJson (const JsonValue & modeObj, Crt & c)
+{
+    const JsonValue *  sources[kCrtGroupCount] = {};
+    size_t             i = 0;
+
+
+
+    // Resolve each group's source object once: the mode object itself for
+    // the top group, and the matching sub-object (when present) otherwise.
+    sources[(size_t) CrtGroup::Top] = &modeObj;
+    for (i = 1; i < kCrtGroupCount; i++)
     {
-        std::string  result = fallback;
-        HRESULT      hr     = obj.GetString (key, result);
-        if (FAILED (hr))
+        const JsonValue *  sub = nullptr;
+
+        if (SUCCEEDED (modeObj.GetObject (s_kpszCrtGroupKeys[i], sub)))
         {
-            return fallback;
+            sources[i] = sub;
         }
-        return result;
+    }
+
+    for (const CrtFieldDesc & field : s_kCrtFields)
+    {
+        const JsonValue *  source = sources[(size_t) field.group];
+
+        if (source == nullptr)
+        {
+            continue;
+        }
+
+        if (field.type == CrtScalar::Bool)
+        {
+            c.*field.boolMember = GetBoolOpt (*source, field.key, c.*field.boolMember);
+        }
+        else
+        {
+            float  value = (float) GetNumberOpt (*source, field.key, c.*field.floatMember);
+
+            c.*field.floatMember = std::clamp (value, field.lo, field.hi);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::PlacementsFromJson
+//
+//  Parse the per-topology window placement map, skipping non-object entries.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GlobalUserPrefs::PlacementsFromJson (
+    const JsonValue                     & placementsObj,
+    std::map<std::string, WindowBounds> & placements)
+{
+    const auto &  entries = placementsObj.GetObjectEntries();
+
+
+
+    for (const auto & kv : entries)
+    {
+        if (kv.second.GetType() != JsonType::Object)
+        {
+            continue;
+        }
+
+        WindowBounds  b;
+
+        b.x = GetIntOpt (kv.second, "x", 0);
+        b.y = GetIntOpt (kv.second, "y", 0);
+        b.w = GetIntOpt (kv.second, "w", 0);
+        b.h = GetIntOpt (kv.second, "h", 0);
+        placements[kv.first] = b;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::RecentDisksFromJson
+//
+//  Parse the recent-disks array, dropping non-string and empty entries.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GlobalUserPrefs::RecentDisksFromJson (
+    const JsonValue          & recentArr,
+    std::vector<std::string> & recentDisks)
+{
+    size_t  ri = 0;
+
+
+
+    recentDisks.reserve (recentArr.ArraySize());
+    for (ri = 0; ri < recentArr.ArraySize(); ri++)
+    {
+        const JsonValue &  entry = recentArr.ArrayAt (ri);
+
+        if (entry.GetType() != JsonType::String)
+        {
+            continue;
+        }
+
+        const std::string &  s = entry.GetString();
+
+        if (s.empty())
+        {
+            continue;
+        }
+
+        recentDisks.push_back (s);
     }
 }
 
@@ -294,9 +640,6 @@ JsonValue GlobalUserPrefs::ToJson() const
     JsonObject  crtObj;
     JsonObject  windowObj;
     size_t      i = 0;
-    static const char *  s_kModeKeys[GlobalUserPrefs::kCrtModeCount] = {
-        "color", "green", "amber", "white"
-    };
 
 
 
@@ -314,68 +657,20 @@ JsonValue GlobalUserPrefs::ToJson() const
     // whether they're written.
     for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
     {
-        const Crt   & c          = crtByMode[i];
-        JsonObject    modeObj;
-        JsonObject    scanlines;
-        JsonObject    bloom;
-        JsonObject    colorBleed;
-
-        scanlines.emplace_back ("enabled",   JsonValue (c.scanlinesEnabled));
-        scanlines.emplace_back ("intensity", JsonValue ((double) c.scanlinesIntensity));
-
-        bloom.emplace_back ("enabled",  JsonValue (c.bloomEnabled));
-        bloom.emplace_back ("radius",   JsonValue ((double) c.bloomRadius));
-        bloom.emplace_back ("strength", JsonValue ((double) c.bloomStrength));
-
-        colorBleed.emplace_back ("enabled", JsonValue (c.colorBleedEnabled));
-        colorBleed.emplace_back ("width",   JsonValue ((double) c.colorBleedWidth));
-
-        modeObj.emplace_back ("userOverride", JsonValue (c.userOverride));
-        modeObj.emplace_back ("brightness",   JsonValue ((double) c.brightness));
-        modeObj.emplace_back ("contrast",     JsonValue ((double) c.contrast));
-        modeObj.emplace_back ("gamma",        JsonValue ((double) c.gamma));
-        modeObj.emplace_back ("persistence",  JsonValue ((double) c.persistence));
-        modeObj.emplace_back ("scanlines",    JsonValue (std::move (scanlines)));
-        modeObj.emplace_back ("bloom",        JsonValue (std::move (bloom)));
-        modeObj.emplace_back ("colorBleed",   JsonValue (std::move (colorBleed)));
-
-        crtObj.emplace_back (s_kModeKeys[i], JsonValue (std::move (modeObj)));
+        crtObj.emplace_back (s_kpszCrtModeKeys[i], CrtToJson (crtByMode[i]));
     }
 
     root.emplace_back ("crt", JsonValue (std::move (crtObj)));
 
     // window
-    {
-        JsonObject  placementsObj;
-
-        for (const auto & kv : window.placements)
-        {
-            JsonObject  bounds;
-            bounds.emplace_back ("x", JsonValue ((double) kv.second.x));
-            bounds.emplace_back ("y", JsonValue ((double) kv.second.y));
-            bounds.emplace_back ("w", JsonValue ((double) kv.second.w));
-            bounds.emplace_back ("h", JsonValue ((double) kv.second.h));
-            placementsObj.emplace_back (kv.first, JsonValue (std::move (bounds)));
-        }
-        windowObj.emplace_back ("placements", JsonValue (std::move (placementsObj)));
-    }
+    windowObj.emplace_back ("placements", PlacementsToJson (window.placements));
     windowObj.emplace_back ("fullscreen", JsonValue (window.fullscreen));
 
     root.emplace_back ("window", JsonValue (std::move (windowObj)));
 
     // recentDisks: most-recent-first absolute paths, cap enforced by
     // DiskMru itself before we get here.
-    {
-        std::vector<JsonValue>  recentArr;
-        size_t                  ri = 0;
-
-        recentArr.reserve (recentDisks.size());
-        for (ri = 0; ri < recentDisks.size(); ri++)
-        {
-            recentArr.emplace_back (JsonValue (recentDisks[ri]));
-        }
-        root.emplace_back ("recentDisks", JsonValue (std::move (recentArr)));
-    }
+    root.emplace_back ("recentDisks", RecentDisksToJson (recentDisks));
 
     // Round-trip unknown keys verbatim.
     for (const auto & kv : unknownPassthrough)
@@ -402,11 +697,8 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     const JsonValue *   crtSub        = nullptr;
     const JsonValue *   windowSub     = nullptr;
     const JsonValue *   placementsObj = nullptr;
-    const auto *        rootEntries   = (const JsonObject *) nullptr;
+    const JsonValue *   recentArr     = nullptr;
     size_t              i             = 0;
-    static const char *  s_kModeKeys[GlobalUserPrefs::kCrtModeCount] = {
-        "color", "green", "amber", "white"
-    };
 
 
 
@@ -429,59 +721,12 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     {
         for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
         {
-            const JsonValue *  modeObj    = nullptr;
-            const JsonValue *  scanlines  = nullptr;
-            const JsonValue *  bloom      = nullptr;
-            const JsonValue *  colorBleed = nullptr;
-            Crt &              c          = crtByMode[i];
+            const JsonValue *  modeObj = nullptr;
 
-            if (FAILED (crtSub->GetObject (s_kModeKeys[i], modeObj)) || modeObj == nullptr)
+            if (SUCCEEDED (crtSub->GetObject (s_kpszCrtModeKeys[i], modeObj)) && modeObj != nullptr)
             {
-                continue;
+                CrtModeFromJson (*modeObj, crtByMode[i]);
             }
-
-            c.userOverride = GetBoolOpt (*modeObj, "userOverride", c.userOverride);
-            c.brightness   = (float) GetNumberOpt (*modeObj, "brightness",   c.brightness);
-            c.contrast     = (float) GetNumberOpt (*modeObj, "contrast",     c.contrast);
-            c.gamma        = (float) GetNumberOpt (*modeObj, "gamma",        c.gamma);
-            c.persistence  = (float) GetNumberOpt (*modeObj, "persistence",  c.persistence);
-
-            if (SUCCEEDED (modeObj->GetObject ("scanlines", scanlines)) && scanlines != nullptr)
-            {
-                c.scanlinesEnabled   = GetBoolOpt   (*scanlines, "enabled",   c.scanlinesEnabled);
-                c.scanlinesIntensity = (float) GetNumberOpt (*scanlines, "intensity", c.scanlinesIntensity);
-            }
-            if (SUCCEEDED (modeObj->GetObject ("bloom", bloom)) && bloom != nullptr)
-            {
-                c.bloomEnabled  = GetBoolOpt (*bloom, "enabled", c.bloomEnabled);
-                c.bloomRadius   = (float) GetNumberOpt (*bloom, "radius",   c.bloomRadius);
-                c.bloomStrength = (float) GetNumberOpt (*bloom, "strength", c.bloomStrength);
-            }
-            if (SUCCEEDED (modeObj->GetObject ("colorBleed", colorBleed)) && colorBleed != nullptr)
-            {
-                c.colorBleedEnabled = GetBoolOpt (*colorBleed, "enabled", c.colorBleedEnabled);
-                c.colorBleedWidth   = (float) GetNumberOpt (*colorBleed, "width",   c.colorBleedWidth);
-            }
-
-            // Clamp every numeric CRT field to its documented range so a
-            // hand-edited prefs file with out-of-range values can't drive
-            // the shaders into nonsense territory.
-            if (c.brightness         < 0.0f)  c.brightness         = 0.0f;
-            if (c.brightness         > 2.0f)  c.brightness         = 2.0f;
-            if (c.contrast           < 0.0f)  c.contrast           = 0.0f;
-            if (c.contrast           > 2.0f)  c.contrast           = 2.0f;
-            if (c.gamma              < 0.5f)  c.gamma              = 0.5f;
-            if (c.gamma              > 2.5f)  c.gamma              = 2.5f;
-            if (c.scanlinesIntensity < 0.0f)  c.scanlinesIntensity = 0.0f;
-            if (c.scanlinesIntensity > 1.0f)  c.scanlinesIntensity = 1.0f;
-            if (c.bloomRadius        < 0.0f)  c.bloomRadius        = 0.0f;
-            if (c.bloomRadius        > 10.0f) c.bloomRadius        = 10.0f;
-            if (c.bloomStrength      < 0.0f)  c.bloomStrength      = 0.0f;
-            if (c.bloomStrength      > 1.0f)  c.bloomStrength      = 1.0f;
-            if (c.colorBleedWidth    < 0.0f)  c.colorBleedWidth    = 0.0f;
-            if (c.colorBleedWidth    > 8.0f)  c.colorBleedWidth    = 8.0f;
-            if (c.persistence        < 0.0f)  c.persistence        = 0.0f;
-            if (c.persistence        > 0.99f) c.persistence        = 0.99f;
         }
     }
 
@@ -489,59 +734,25 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     {
         if (SUCCEEDED (windowSub->GetObject ("placements", placementsObj)) && placementsObj != nullptr)
         {
-            const auto &  entries = placementsObj->GetObjectEntries();
-            for (const auto & kv : entries)
-            {
-                if (kv.second.GetType() == JsonType::Object)
-                {
-                    WindowBounds  b;
-                    b.x = GetIntOpt (kv.second, "x", 0);
-                    b.y = GetIntOpt (kv.second, "y", 0);
-                    b.w = GetIntOpt (kv.second, "w", 0);
-                    b.h = GetIntOpt (kv.second, "h", 0);
-                    window.placements[kv.first] = b;
-                }
-            }
+            PlacementsFromJson (*placementsObj, window.placements);
         }
         window.fullscreen = GetBoolOpt (*windowSub, "fullscreen", window.fullscreen);
     }
 
     // recentDisks: drop non-string and empty entries silently per
     // data-model.md §1; cap is enforced by DiskMru on use.
+    recentDisks.clear();
+    if (SUCCEEDED (v.GetArray ("recentDisks", recentArr)) && recentArr != nullptr)
     {
-        const JsonValue *  recentArr = nullptr;
-        size_t             ri        = 0;
-
-        recentDisks.clear();
-
-        if (SUCCEEDED (v.GetArray ("recentDisks", recentArr)) && recentArr != nullptr)
-        {
-            recentDisks.reserve (recentArr->ArraySize());
-            for (ri = 0; ri < recentArr->ArraySize(); ri++)
-            {
-                const JsonValue &  entry = recentArr->ArrayAt (ri);
-                if (entry.GetType() != JsonType::String)
-                {
-                    continue;
-                }
-                const std::string &  s = entry.GetString();
-                if (s.empty())
-                {
-                    continue;
-                }
-                recentDisks.push_back (s);
-            }
-        }
+        RecentDisksFromJson (*recentArr, recentDisks);
     }
 
     // Capture unknown top-level keys for round-tripping.
-    rootEntries = &v.GetObjectEntries();
-    for (i = 0; i < rootEntries->size(); ++i)
+    for (const auto & entry : v.GetObjectEntries())
     {
-        const std::string & key = (*rootEntries)[i].first;
-        if (s_knownTopLevel.find (key) == s_knownTopLevel.end())
+        if (s_kKnownTopLevel.find (entry.first) == s_kKnownTopLevel.end())
         {
-            unknownPassthrough.emplace_back (key, (*rootEntries)[i].second);
+            unknownPassthrough.emplace_back (entry.first, entry.second);
         }
     }
 
