@@ -10,7 +10,7 @@ class AppleSpeaker;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleIIeKeyboard
+//  Apple2eKeyboard
 //
 //  Apple //e keyboard: full lowercase, modifier keys (Open Apple, Closed
 //  Apple, Shift). Phase 6 / T060 / T061 — bus range extended from
@@ -36,10 +36,10 @@ class AppleSpeaker;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class AppleIIeKeyboard : public AppleKeyboard
+class Apple2eKeyboard : public AppleKeyboard
 {
 public:
-    AppleIIeKeyboard (MemoryBus * bus = nullptr);
+    Apple2eKeyboard (MemoryBus * bus = nullptr);
 
     Byte Read    (Word address) override;
     void Write   (Word address, Byte value) override;
@@ -56,7 +56,7 @@ public:
 
     // Soft-switch sibling — owns $C00C-$C00F, $C011-$C01F status reads,
     // and $C050-$C05F display switches (T061 ownership split).
-    void SetSoftSwitchSibling (class AppleIIeSoftSwitchBank * sibling) { m_softSwitchSibling = sibling; }
+    void SetSoftSwitchSibling (class Apple2eSoftSwitchBank * sibling) { m_softSwitchSibling = sibling; }
 
     // Speaker sibling — owns $C030-$C03F. The keyboard's bus range now
     // covers this so we forward through.
@@ -64,7 +64,7 @@ public:
 
     // MMU sibling — used by the soft-switch bank for $C013-$C018 status
     // reads; cached here for legacy callers (Phase 2 wiring).
-    void SetMmu (class AppleIIeMmu * mmu) { m_mmu = mmu; }
+    void SetMmu (class Apple2eMmu * mmu) { m_mmu = mmu; }
 
     // LanguageCard sibling — used by the soft-switch bank for
     // $C011/$C012 status reads (Phase 3 wiring).
@@ -94,9 +94,9 @@ private:
     void EmitButtonRead (Word address, Byte value);
 
     MemoryBus *                    m_bus               = nullptr;
-    class AppleIIeSoftSwitchBank * m_softSwitchSibling = nullptr;
+    class Apple2eSoftSwitchBank *  m_softSwitchSibling = nullptr;
     AppleSpeaker *                 m_speakerSibling    = nullptr;
-    class AppleIIeMmu *            m_mmu               = nullptr;
+    class Apple2eMmu *             m_mmu               = nullptr;
     class LanguageCard *           m_lc                = nullptr;
     class IVideoTiming *           m_videoTiming       = nullptr;
     atomic<bool>                   m_openApple   {false};

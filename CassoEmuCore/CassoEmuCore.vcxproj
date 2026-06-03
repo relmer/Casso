@@ -216,10 +216,10 @@
     <ClCompile Include="Devices\Disk\NibblizationLayer.cpp" />
     <ClCompile Include="Devices\Disk\WozLoader.cpp" />
     <ClCompile Include="Devices\Disk\DiskImageStore.cpp" />
-    <ClCompile Include="Devices\AppleIIeKeyboard.cpp" />
-    <ClCompile Include="Devices\AppleIIeMmu.cpp" />
+    <ClCompile Include="Devices\Apple2eKeyboard.cpp" />
+    <ClCompile Include="Devices\Apple2eMmu.cpp" />
     <ClCompile Include="Devices\CxxxRomRouter.cpp" />
-    <ClCompile Include="Devices\AppleIIeSoftSwitchBank.cpp" />
+    <ClCompile Include="Devices\Apple2eSoftSwitchBank.cpp" />
     <ClCompile Include="Video\AppleTextMode.cpp" />
     <ClCompile Include="Video\CharacterRomData.cpp" />
     <ClCompile Include="Video\AppleLoResMode.cpp" />
@@ -280,10 +280,10 @@
     <ClInclude Include="Devices\InputEvent.h" />
     <ClInclude Include="Devices\InputEventRing.h" />
     <ClInclude Include="Devices\Disk2AddressMarkWatcher.h" />
-    <ClInclude Include="Devices\AppleIIeKeyboard.h" />
-    <ClInclude Include="Devices\AppleIIeMmu.h" />
+    <ClInclude Include="Devices\Apple2eKeyboard.h" />
+    <ClInclude Include="Devices\Apple2eMmu.h" />
     <ClInclude Include="Devices\CxxxRomRouter.h" />
-    <ClInclude Include="Devices\AppleIIeSoftSwitchBank.h" />
+    <ClInclude Include="Devices\Apple2eSoftSwitchBank.h" />
     <ClInclude Include="Video\VideoOutput.h" />
     <ClInclude Include="Video\AppleTextMode.h" />
     <ClInclude Include="Video\CharacterRomData.h" />

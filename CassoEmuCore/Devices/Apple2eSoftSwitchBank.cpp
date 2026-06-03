@@ -1,8 +1,9 @@
 #include "Pch.h"
 
-#include "AppleIIeSoftSwitchBank.h"
-#include "AppleIIeMmu.h"
-#include "AppleIIeKeyboard.h"
+#include "Apple2eSoftSwitchBank.h"
+#include "Apple2eMmu.h"
+#include "Apple2eKeyboard.h"
+#include "IInputEventSink.h"
 #include "LanguageCard.h"
 #include "Video/IVideoTiming.h"
 
@@ -12,14 +13,18 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleIIeSoftSwitchBank
+//  Apple2eSoftSwitchBank
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-AppleIIeSoftSwitchBank::AppleIIeSoftSwitchBank (MemoryBus * bus)
+Apple2eSoftSwitchBank::Apple2eSoftSwitchBank (MemoryBus * bus)
     : AppleSoftSwitchBank (),
       m_bus               (bus)
 {
+    for (atomic<Byte> & axis : m_paddlePosition)
+    {
+        axis.store (s_knPaddleCenter, memory_order_relaxed);
+    }
 }
 
 
@@ -34,7 +39,7 @@ AppleIIeSoftSwitchBank::AppleIIeSoftSwitchBank (MemoryBus * bus)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleIIeSoftSwitchBank::Is80Store () const
+bool Apple2eSoftSwitchBank::Is80Store () const
 {
     return m_mmu != nullptr && m_mmu->Get80Store ();
 }
@@ -51,12 +56,12 @@ bool AppleIIeSoftSwitchBank::Is80Store () const
 //  Bit 7 is sourced from the canonical state-owning device:
 //    $C011 BSRBANK2     -> LanguageCard
 //    $C012 BSRREADRAM   -> LanguageCard
-//    $C013 RDRAMRD      -> AppleIIeMmu
-//    $C014 RDRAMWRT     -> AppleIIeMmu
-//    $C015 RDINTCXROM   -> AppleIIeMmu
-//    $C016 RDALTZP      -> AppleIIeMmu
-//    $C017 RDSLOTC3ROM  -> AppleIIeMmu
-//    $C018 RD80STORE    -> AppleIIeMmu
+//    $C013 RDRAMRD      -> Apple2eMmu
+//    $C014 RDRAMWRT     -> Apple2eMmu
+//    $C015 RDINTCXROM   -> Apple2eMmu
+//    $C016 RDALTZP      -> Apple2eMmu
+//    $C017 RDSLOTC3ROM  -> Apple2eMmu
+//    $C018 RD80STORE    -> Apple2eMmu
 //    $C019 RDVBLBAR     -> VideoTiming (bit 7 = 1 during display, 0 during vblank)
 //    $C01A RDTEXT       -> AppleSoftSwitchBank (text mode)
 //    $C01B RDMIXED      -> AppleSoftSwitchBank
@@ -70,7 +75,7 @@ bool AppleIIeSoftSwitchBank::Is80Store () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte AppleIIeSoftSwitchBank::ReadStatusRegister (Word address)
+Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
 {
     Byte  kbdBits = 0;
     bool  flag    = false;
@@ -109,6 +114,121 @@ Byte AppleIIeSoftSwitchBank::ReadStatusRegister (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReadPaddle
+//
+//  Models the //e 558 one-shot: after a $C070 strobe each axis holds bit 7
+//  high for a span proportional to its position, so PREAD's poll loop
+//  counts up to the position value. With no cycle source wired (tests) the
+//  timer reads as already expired so a poll loop can never hang.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple2eSoftSwitchBank::ReadPaddle (Word address) const
+{
+    int       axis    = static_cast<int> (address - s_kwPaddle0Address);
+    Byte      pos     = m_paddlePosition[axis].load (memory_order_acquire);
+    uint64_t  elapsed = UINT64_MAX;
+
+
+
+    if (m_cpuCycleSource != nullptr)
+    {
+        elapsed = *m_cpuCycleSource - m_paddleTriggerCycle;
+    }
+
+    return (elapsed < static_cast<uint64_t> (pos) * s_knPaddleCyclesPerUnit) ? 0x80 : 0x00;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetPaddle
+//
+//  Host UI thread. Stages an axis position; the CPU thread observes it on
+//  the next $C064-$C067 read. axis 0/1 = joystick X/Y, 2/3 = paddles 2/3;
+//  callers always pass an in-range axis, so an out-of-range value asserts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eSoftSwitchBank::SetPaddle (int axis, Byte position)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    CBRA (axis >= 0 && axis < s_knPaddleAxisCount);
+
+    m_paddlePosition[axis].store (position, memory_order_release);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmitPaddleTrigger
+//
+//  CPU thread. Fires a PaddleTrigger event on each $C070 PTRIG strobe so the
+//  input-debug panel can show the program arming the game-port one-shots.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eSoftSwitchBank::EmitPaddleTrigger ()
+{
+    if (m_inputSink == nullptr)
+    {
+        return;
+    }
+
+    m_inputSink->OnPaddleTrigger (s_kwPaddleTimerStrobe);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmitPaddleRead
+//
+//  CPU thread. Coalesced emit for a guest read of $C064-$C067: fires only
+//  when that axis's returned byte (bit 7 = timer still counting) changed
+//  since the last emit, so PREAD's tight poll loop yields one event per
+//  timer transition rather than one per read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eSoftSwitchBank::EmitPaddleRead (Word address, Byte value)
+{
+    int  idx = static_cast<int> (address - s_kwPaddle0Address);
+
+    if (m_inputSink == nullptr)
+    {
+        return;
+    }
+
+    if (m_lastEmittedPaddle[idx] == value)
+    {
+        return;
+    }
+
+    m_lastEmittedPaddle[idx] = value;
+    m_inputSink->OnPaddleRead (address, value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Read
 //
 //  $C00C-$C00F (80COL/ALTCHARSET) toggle on read OR write per real //e.
@@ -117,66 +237,86 @@ Byte AppleIIeSoftSwitchBank::ReadStatusRegister (Word address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte AppleIIeSoftSwitchBank::Read (Word address)
+Byte Apple2eSoftSwitchBank::Read (Word address)
 {
+    Byte  result        = 0;
     bool  bankingChange = false;
+
+
 
     // Phase 6 / T061: $C011-$C01F status reads owned by this bank.
     // Bit 7 from the canonical state device, bits 0-6 from the
     // keyboard latch via a read-only accessor (no strobe-clear).
     if (address >= 0xC011 && address <= 0xC01F)
     {
-        return ReadStatusRegister (address);
+        result = ReadStatusRegister (address);
     }
-
-    switch (address)
+    else if (address == s_kwPaddleTimerStrobe)
     {
-        case 0xC00C:
-            m_80colMode = false;
-            return 0;
-        case 0xC00D:
-            m_80colMode = true;
-            return 0;
-        case 0xC00E:
-            m_altCharSet = false;
-            return 0;
-        case 0xC00F:
-            m_altCharSet = true;
-            return 0;
-        case 0xC05E:
-            m_doubleHiRes = true;
-            bankingChange = true;
-            break;
-        case 0xC05F:
-            m_doubleHiRes = false;
-            bankingChange = true;
-            break;
-        default:
-            break;
+        // $C070 (any access) strobes the analog game-port timers: latch the
+        // current CPU cycle so subsequent $C064-$C067 reads measure the
+        // resistor-capacitor countdown.
+        m_paddleTriggerCycle = (m_cpuCycleSource != nullptr) ? *m_cpuCycleSource : 0;
+
+        EmitPaddleTrigger ();
     }
-
-    if (address >= 0xC054 && address <= 0xC057)
+    else if (address >= s_kwPaddle0Address && address <= s_kwPaddle0Address + (s_knPaddleAxisCount - 1))
     {
-        bankingChange = true;
+        // $C064-$C067 (PADDL0-3): bit 7 = 1 while the axis's timer is still
+        // counting down, proportional to position. PREAD polls this in a loop.
+        result = ReadPaddle (address);
+
+        EmitPaddleRead (address, result);
     }
-
-    Byte  result = 0;
-
-    if (address >= 0xC050 && address <= 0xC057)
+    else
     {
-        result = AppleSoftSwitchBank::Read (address);
-    }
-
-    if (bankingChange)
-    {
-        if (m_mmu != nullptr)
+        switch (address)
         {
-            m_mmu->OnSoftSwitchChanged ();
+            case 0xC00C:
+                m_80colMode = false;
+                break;
+            case 0xC00D:
+                m_80colMode = true;
+                break;
+            case 0xC00E:
+                m_altCharSet = false;
+                break;
+            case 0xC00F:
+                m_altCharSet = true;
+                break;
+            case 0xC05E:
+                m_doubleHiRes = true;
+                bankingChange = true;
+                break;
+            case 0xC05F:
+                m_doubleHiRes = false;
+                bankingChange = true;
+                break;
+            default:
+                break;
         }
 
-        if (m_bus != nullptr)
+        if (address >= 0xC054 && address <= 0xC057)
         {
-            m_bus->NotifyBankingChanged ();
+            bankingChange = true;
+        }
+
+        if (address >= 0xC050 && address <= 0xC057)
+        {
+            result = AppleSoftSwitchBank::Read (address);
+        }
+
+        if (bankingChange)
+        {
+            if (m_mmu != nullptr)
+            {
+                m_mmu->OnSoftSwitchChanged ();
+            }
+
+            if (m_bus != nullptr)
+            {
+                m_bus->NotifyBankingChanged ();
+            }
         }
     }
 
@@ -208,7 +348,7 @@ Byte AppleIIeSoftSwitchBank::Read (Word address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeSoftSwitchBank::Write (Word address, Byte value)
+void Apple2eSoftSwitchBank::Write (Word address, Byte value)
 {
     UNREFERENCED_PARAMETER (value);
 
@@ -245,12 +385,24 @@ void AppleIIeSoftSwitchBank::Write (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeSoftSwitchBank::Reset ()
+void Apple2eSoftSwitchBank::Reset ()
 {
     AppleSoftSwitchBank::Reset ();
     m_80colMode   = false;
     m_doubleHiRes = false;
     m_altCharSet  = false;
+
+    m_paddleTriggerCycle = 0;
+
+    for (int & last : m_lastEmittedPaddle)
+    {
+        last = -1;
+    }
+
+    for (atomic<Byte> & axis : m_paddlePosition)
+    {
+        axis.store (s_knPaddleCenter, memory_order_release);
+    }
 }
 
 
@@ -267,7 +419,7 @@ void AppleIIeSoftSwitchBank::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeSoftSwitchBank::SoftReset ()
+void Apple2eSoftSwitchBank::SoftReset ()
 {
     Reset ();
 }
@@ -282,9 +434,9 @@ void AppleIIeSoftSwitchBank::SoftReset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-unique_ptr<MemoryDevice> AppleIIeSoftSwitchBank::Create (const DeviceConfig & config, MemoryBus & bus)
+unique_ptr<MemoryDevice> Apple2eSoftSwitchBank::Create (const DeviceConfig & config, MemoryBus & bus)
 {
     UNREFERENCED_PARAMETER (config);
 
-    return make_unique<AppleIIeSoftSwitchBank> (&bus);
+    return make_unique<Apple2eSoftSwitchBank> (&bus);
 }

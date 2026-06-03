@@ -6,9 +6,9 @@
 #include "Core/MemoryBus.h"
 #include "Core/EmuCpu.h"
 #include "Devices/RamDevice.h"
-#include "Devices/AppleIIeMmu.h"
-#include "Devices/AppleIIeKeyboard.h"
-#include "Devices/AppleIIeSoftSwitchBank.h"
+#include "Devices/Apple2eMmu.h"
+#include "Devices/Apple2eKeyboard.h"
+#include "Devices/Apple2eSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
 #include "Devices/LanguageCard.h"
 #include "Devices/Disk2Controller.h"
@@ -32,7 +32,7 @@ enum class HeadlessMachineKind
 {
     AppleII,
     AppleIIPlus,
-    AppleIIe,
+    Apple2e,
 };
 
 
@@ -54,28 +54,28 @@ enum class HeadlessMachineKind
 
 struct EmulatorCore
 {
-    HeadlessMachineKind      machineKind = HeadlessMachineKind::AppleIIe;
+    HeadlessMachineKind      machineKind = HeadlessMachineKind::Apple2e;
     std::unique_ptr<Prng>    prng;
     std::unique_ptr<MockHostShell>     host;
     std::unique_ptr<FixtureProvider>   fixtures;
     IAudioSink *             audioSink = nullptr;
 
     // Phase 7 (T067/T069): full //e machine wiring is populated by
-    // HeadlessHost::BuildAppleIIe so integration tests can drive a real
+    // HeadlessHost::BuildApple2e so integration tests can drive a real
     // cold boot through `Apple2e.rom`. ][/][+ kinds leave these unset.
     std::unique_ptr<MemoryBus>                 bus;
     std::unique_ptr<RamDevice>                 mainRam;
     std::unique_ptr<VideoTiming>               videoTiming;
-    std::unique_ptr<AppleIIeMmu>               mmu;
-    std::unique_ptr<AppleIIeKeyboard>          keyboard;
-    std::unique_ptr<AppleIIeSoftSwitchBank>    softSwitches;
+    std::unique_ptr<Apple2eMmu>               mmu;
+    std::unique_ptr<Apple2eKeyboard>          keyboard;
+    std::unique_ptr<Apple2eSoftSwitchBank>    softSwitches;
     std::unique_ptr<AppleSpeaker>              speaker;
     std::unique_ptr<LanguageCard>              languageCard;
     std::unique_ptr<LanguageCardBank>          lcBank;
     std::unique_ptr<EmuCpu>                    cpu;
 
     // Phase 11 (T097/T099-T104). Optional Disk II wiring. Set by
-    // HeadlessHost::BuildAppleIIeWithDisk2 so US2 integration tests can
+    // HeadlessHost::BuildApple2eWithDisk2 so US2 integration tests can
     // mount synthetic disks through the store and pump the controller's
     // nibble engine in lock-step with the CPU.
     std::unique_ptr<Disk2Controller>           diskController;
@@ -85,7 +85,7 @@ struct EmulatorCore
     void   PowerCycle    ();
     void   SoftReset     ();
     void   RunCycles     (uint64_t cycleBudget);
-    bool   HasAppleIIe   () const { return cpu != nullptr && mmu != nullptr; }
+    bool   HasApple2e   () const { return cpu != nullptr && mmu != nullptr; }
 };
 
 
@@ -111,8 +111,8 @@ public:
 
     HRESULT             BuildAppleII             (EmulatorCore & outCore);
     HRESULT             BuildAppleIIPlus         (EmulatorCore & outCore);
-    HRESULT             BuildAppleIIe            (EmulatorCore & outCore);
-    HRESULT             BuildAppleIIeWithDisk2  (EmulatorCore & outCore);
+    HRESULT             BuildApple2e             (EmulatorCore & outCore);
+    HRESULT             BuildApple2eWithDisk2    (EmulatorCore & outCore);
 
 private:
     HRESULT             BuildCommon (HeadlessMachineKind kind, EmulatorCore & outCore);

@@ -36,6 +36,10 @@
 //      * OnKbdStrobe     -- guest access of $C010-$C01F (strobe clear)
 //      * OnButtonRead    -- guest read of $C061-$C063 (Open/Closed-Apple,
 //                            Shift)
+//      * OnPaddleTrigger -- guest access of $C070 (PTRIG: arms the 558
+//                            one-shot for all game-port axes)
+//      * OnPaddleRead    -- guest read of $C064-$C067 (PADDL0-3 axis timer
+//                            bit 7)
 //      * OnHostAutoRepeat-- the //e repeat timer re-latching a held key
 //                            (originates in AppleKeyboard::Tick)
 //
@@ -61,6 +65,8 @@ public:
     virtual void OnKbdDataRead (Word address, Byte value, bool strobeSet) = 0;
     virtual void OnKbdStrobe (Word address, Byte value, bool clearedStrobe) = 0;
     virtual void OnButtonRead (Word address, Byte value) = 0;
+    virtual void OnPaddleTrigger (Word address) = 0;
+    virtual void OnPaddleRead (Word address, Byte value) = 0;
     virtual void OnHostAutoRepeat (Byte asciiChar) = 0;
 
     // UI thread (staging buffer).

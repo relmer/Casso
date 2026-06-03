@@ -53,8 +53,10 @@ enum class InputEventCategory : uint8_t
 //  all on the CPU thread, all coalesced producer-side (emitted only when
 //  the observed value actually changes) and all routed through the ring.
 //
-//  PaddleTrigger / PaddleRead are reserved for a future game-port tap
-//  ($C070 / $C064-$C067); no producer fires them yet.
+//  PaddleTrigger / PaddleRead are guest game-port accesses on the CPU
+//  thread, routed through the ring. PaddleTrigger ($C070) fires on each
+//  PTRIG strobe; PaddleRead ($C064-$C067) is coalesced producer-side,
+//  emitted only when an axis timer's returned bit 7 changes.
 //
 //  EventsLost is a UI-thread synthetic entry inserted by the projection
 //  helper when the producer's overflow counter is non-zero on drain. It
@@ -74,7 +76,7 @@ enum class InputEventType : uint8_t
     KbdStrobe       = 4,    // $C010 access: clears strobe, returns AKD
     ButtonRead      = 5,    // $C061-$C063 read: Open/Closed-Apple/Shift
 
-    // Reserved for the deferred game-port tap (no producer yet)
+    // Game-port axis timers ($C064-$C067) and the PTRIG strobe ($C070)
     PaddleTrigger   = 6,    // $C070 strobe
     PaddleRead      = 7,    // $C064-$C067 read
 

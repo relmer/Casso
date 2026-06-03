@@ -338,11 +338,23 @@ void UiShell::Render ()
                 }
             }
 
+            if (m_joystickButton != nullptr)
+            {
+                m_joystickButton->Paint (m_painter, m_text, localTheme);
+            }
+
             PaintDragDropOverlay (visual, localTheme, bottomInset, barTop);
 
             if (m_navLayer != nullptr)
             {
                 m_navLayer->PaintDropdown (m_painter, m_text, visual, localTheme);
+            }
+
+            if (m_joystickTooltip != nullptr)
+            {
+                m_joystickTooltip->SetViewportSize (m_viewportWidthPx, m_viewportHeightPx);
+                m_joystickTooltip->Tick (visual.nowMs);
+                m_joystickTooltip->Paint (m_painter, m_text);
             }
         }
 
@@ -735,4 +747,24 @@ bool UiShell::IsCapturingInput () const
     }
 
     return false;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsSettingsCapturing
+//
+//  True only when the modal settings panel is visible. The chrome
+//  keyboard-focus ring (menu titles / buttons / drives) lets the settings
+//  panel win keystrokes outright while still owning every other key, so it
+//  needs to test the settings panel in isolation from the open-menu state
+//  that IsCapturingInput also folds in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool UiShell::IsSettingsCapturing () const
+{
+    return m_settingsPanel != nullptr && m_settingsPanel->IsVisible();
 }

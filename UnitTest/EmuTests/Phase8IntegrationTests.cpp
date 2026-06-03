@@ -51,7 +51,7 @@ namespace
 //  Phase8IntegrationTests
 //
 //  User Story 3 (P1). Drives deterministic //e-specific scenarios across
-//  the headless //e built by HeadlessHost::BuildAppleIIe — proves the
+//  the headless //e built by HeadlessHost::BuildApple2e — proves the
 //  MMU + Language Card rewrites from Phases 2-3 land the right bytes in
 //  the right buffers end-to-end.
 //
@@ -76,9 +76,9 @@ public:
     {
         HRESULT   hr;
 
-        hr = host.BuildAppleIIe (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIe must succeed");
-        Assert::IsTrue (core.HasAppleIIe (), L"//e wiring must be complete");
+        hr = host.BuildApple2e (core);
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e must succeed");
+        Assert::IsTrue (core.HasApple2e (), L"//e wiring must be complete");
 
         core.PowerCycle ();
         core.RunCycles  (kColdBootCycles);
@@ -200,7 +200,7 @@ public:
         EmulatorCore   core;
         HRESULT        hr;
 
-        hr = host.BuildAppleIIe (core);
+        hr = host.BuildApple2e (core);
         Assert::IsTrue (SUCCEEDED (hr));
 
         core.PowerCycle ();
@@ -285,7 +285,7 @@ public:
     //  Acceptance scenario 4 (FR-007, audit §1.1). With 80STORE on,
     //  $2000-$3FFF is carved out of the RAMRD/RAMWRT routing and PAGE2
     //  picks main/aux; the carve-out must apply only when both 80STORE
-    //  AND HIRES are on (per AppleIIeMmu::ResolveHires20_3F).
+    //  AND HIRES are on (per Apple2eMmu::ResolveHires20_3F).
     //
     ////////////////////////////////////////////////////////////////////////
 

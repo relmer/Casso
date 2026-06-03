@@ -4,6 +4,7 @@
 #include "DriveLabelTruncation.h"
 
 #include "../IDriveCommandSink.h"
+#include "../../UnicodeSymbols.h"
 
 
 
@@ -379,6 +380,19 @@ void DriveWidget::Paint (
     wchar_t  label[32]    = {};
 
 
+
+    if (m_focused)
+    {
+        int   ring = Scale (2, dpi);
+        RECT  o    = OuterRect();
+
+        painter.OutlineRect ((float) (o.left  - ring),
+                             (float) (o.top   - ring),
+                             (float) (o.right  - o.left + ring * 2),
+                             (float) (o.bottom - o.top  + ring * 2),
+                             (float) std::max (1, Scale (1, dpi)),
+                             theme.linkArgb);
+    }
 
     if (m_compact)
     {
@@ -787,7 +801,8 @@ void DriveWidget::Paint (
                                               s_kFontFamily));
 
     // "IN USE >" label bottom-left of faceplate, LED to its right.
-    IGNORE_RETURN_VALUE (hr, text.DrawString (L"IN USE \u25B6",
+    swprintf_s (label, L"IN USE %s", s_kpszTriangleRight);
+    IGNORE_RETURN_VALUE (hr, text.DrawString (label,
                                               (float) (m_faceRect.left + labelPad),
                                               (float) (m_led.GetLayout().coreRect.top - 3),
                                               (float) inUseW,

@@ -1,9 +1,9 @@
 #include "Pch.h"
 #include "Core/MemoryBus.h"
 #include "Devices/RamDevice.h"
-#include "Devices/AppleIIeMmu.h"
-#include "Devices/AppleIIeSoftSwitchBank.h"
-#include "Devices/AppleIIeKeyboard.h"
+#include "Devices/Apple2eMmu.h"
+#include "Devices/Apple2eSoftSwitchBank.h"
+#include "Devices/Apple2eKeyboard.h"
 #include "Devices/LanguageCard.h"
 #include "Video/VideoTiming.h"
 
@@ -36,9 +36,9 @@ namespace
     {
         MemoryBus              bus;
         RamDevice              mainRam;
-        AppleIIeMmu            mmu;
-        AppleIIeSoftSwitchBank bank;
-        AppleIIeKeyboard       keyboard;
+        Apple2eMmu             mmu;
+        Apple2eSoftSwitchBank  bank;
+        Apple2eKeyboard        keyboard;
         LanguageCard           lc;
         VideoTiming            vt;
 

@@ -7,6 +7,7 @@
 #include "DwriteTextRenderer.h"
 #include "Widgets/Button.h"
 #include "Widgets/Checkbox.h"
+#include "Widgets/Dropdown.h"
 #include "Widgets/Label.h"
 #include "Widgets/ListView.h"
 #include "Widgets/PopupMenu.h"
@@ -20,6 +21,24 @@
 
 struct ChromeTheme;
 class TitleBar;
+
+
+
+
+enum class InputFocusStop
+{
+    AllCheck,
+    EmuKeyboardCheck,
+    JoystickCheck,
+    PaddleCheck,
+    HostKeyboardCheck,
+    Pair0Dropdown,
+    Pair1Dropdown,
+    PauseButton,
+    ClearButton,
+    CopyButton,
+    EventList,
+};
 
 
 
@@ -93,6 +112,8 @@ public:
     void OnKbdDataRead    (Word address, Byte value, bool strobeSet)    override;
     void OnKbdStrobe      (Word address, Byte value, bool clearedStrobe) override;
     void OnButtonRead     (Word address, Byte value)                    override;
+    void OnPaddleTrigger  (Word address)                                override;
+    void OnPaddleRead     (Word address, Byte value)                    override;
     void OnHostAutoRepeat (Byte asciiChar)                              override;
     void OnHostKeyDown    (Byte asciiChar)                              override;
     void OnHostKeyUp      (Byte asciiChar)                              override;
@@ -107,23 +128,48 @@ private:
     void    DrainAndProject      ();
     void    RebuildFilteredIndices ();
     void    PushListViewRows     ();
+    void    AppendNewEventRows   (size_t startIndex);
     void    PublishToRing        (const InputEvent & e);
     InputEvent  MakeStampedEvent (InputEventCategory cat, InputEventType type) const noexcept;
     void    OnFilterChanged      ();
+    void    OnPairViewChanged    (int pair, int index);
+    void    UpdatePairVisibility ();
+    void    SyncAllCheck         ();
+    void    ApplyAllToggle       ();
     void    UpdatePauseLabel     ();
+    void    CopyEventsToClipboard ();
     void    UpdateTooltip        (int x, int y);
     void    ShowColumnMenu       (int anchorX, int anchorY);
     void    FocusCycle           (int direction);
-    void    SetFocusIndex        (int index);
+    void    RebuildFocusOrder    ();
+    void    SetFocusToStop       (InputFocusStop stop);
+    void    ApplyFocus           ();
     void    ClearAllWidgetFocus  ();
-    int     DynamicStopCount     () const;
-    int     TotalStopCount       () const;
     void    ApplyListSelection   ();
     void    OnListSelectionMoved ();
     void    OnHeaderSortKey      ();
     void    OnDividerResizeKey   (int direction);
     void    SortByColumn         (int absCol);
+    void    ApplySort            ();
     int64_t NowMs                () const;
+
+    static void               ArgbToFloat4              (uint32_t argb, float (& outRgba)[4]) noexcept;
+    static void               FormatCycleWithSeparators (uint64_t value, wchar_t * out, size_t cap);
+    static void               FormatWallNow             (wchar_t * out, size_t cap);
+    static void               FormatUptime              (std::chrono::steady_clock::time_point anchor,
+                                                         wchar_t * out,
+                                                         size_t cap);
+    static wchar_t            PrintableChar             (Byte value) noexcept;
+    static std::wstring       FormatByteChar            (Byte value);
+    static std::wstring       SourceLabel               (InputEventCategory category);
+    static LPCWSTR            ButtonAnnotation          (Word address) noexcept;
+    static InputGamePortClass ClassifyGamePort          (InputEventType type, Word address) noexcept;
+    static void               FormatInputEvent          (const InputEvent & src,
+                                                         std::chrono::steady_clock::time_point uptimeAnchor,
+                                                         InputEventDisplay & out);
+    static void               ProjectOne                (const InputEvent & src,
+                                                         std::deque<InputEventDisplay> & deque,
+                                                         std::chrono::steady_clock::time_point uptimeAnchor);
 
     ChromedPanelWindow                    m_window;
     InputPanelLayoutSlots                 m_layout = {};
@@ -143,10 +189,18 @@ private:
     DxUiPainter                           m_painter;
     DwriteTextRenderer                    m_text;
 
-    Label                                 m_showLabel;
-    std::array<Checkbox, kInputCategoryCheckCount>  m_categoryChecks;
+    Label                                 m_emuLabel;
+    Label                                 m_hostLabel;
+    std::array<Label, 2>                  m_pairLabel;
+    Checkbox                              m_allCheck;
+    Checkbox                              m_emuKeyboardCheck;
+    Checkbox                              m_joystickCheck;
+    Checkbox                              m_paddleCheck;
+    Checkbox                              m_hostKeyboardCheck;
+    std::array<Dropdown, 2>               m_pairView;
     Button                                m_pauseButton;
     Button                                m_clearButton;
+    Button                                m_copyButton;
     ListView                              m_eventList;
     Tooltip                               m_tooltip;
     PopupMenu                             m_columnMenu;
@@ -169,6 +223,9 @@ private:
     int                                   m_resizeColumn       = -1;
     int                                   m_resizeStartXPx     = 0;
     int                                   m_resizeStartWidthPx = 0;
+    std::vector<InputFocusStop>           m_focusStops;
     int                                   m_focusIndex         = -1;
+    bool                                  m_joystickVisible    = true;
+    bool                                  m_paddleVisible      = false;
     int                                   m_listSelectedEventIndex = -1;
 };

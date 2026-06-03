@@ -88,10 +88,10 @@ namespace
 
         outElapsedMs = 0.0;
 
-        hr = host.BuildAppleIIe (core);
+        hr = host.BuildApple2e (core);
         CHRA (hr);
 
-        if (!core.HasAppleIIe ())
+        if (!core.HasApple2e ())
         {
             hr = E_UNEXPECTED;
             CHRA (hr);

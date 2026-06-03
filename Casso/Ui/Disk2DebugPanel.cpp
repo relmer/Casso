@@ -11,7 +11,7 @@
 namespace
 {
     constexpr LPCWSTR  s_kpszClassName  = L"Casso.Disk2Debug.Panel";
-    constexpr LPCWSTR  s_kpszWindowTitle = L"Disk II Debug";
+    constexpr LPCWSTR  s_kpszWindowTitle = L"Casso - Disk ][ debug";
 
     constexpr int      s_kPreferredWidthDip  = 960;
     constexpr int      s_kPreferredHeightDip = 600;
@@ -721,10 +721,21 @@ void Disk2DebugPanel::OnLButtonDown (int x, int y)
         // Scrollbar thumb drag has priority over column-resize and
         // row-hit, so the user can grab the thumb without accidentally
         // clicking the row beneath it. Clicks on the track (not the
-        // thumb) page-scroll by the visible row capacity.
+        // thumb) page-scroll toward the click; the end arrows nudge by
+        // one row.
         int  relX = x - m_layout.listView.left;
         int  relY = y - m_layout.listView.top;
-        if (m_eventList.HitTestScrollbarThumb (relX, relY))
+        if (m_eventList.HitTestScrollbarArrowUp (relX, relY))
+        {
+            m_eventList.ScrollByRows (-1);
+            handled = true;
+        }
+        else if (m_eventList.HitTestScrollbarArrowDown (relX, relY))
+        {
+            m_eventList.ScrollByRows (1);
+            handled = true;
+        }
+        else if (m_eventList.HitTestScrollbarThumb (relX, relY))
         {
             m_eventList.BeginThumbDrag (relY);
             SetCapture (m_hwnd);
@@ -732,12 +743,7 @@ void Disk2DebugPanel::OnLButtonDown (int x, int y)
         }
         else if (m_eventList.HitTestScrollbarTrack (relX, relY))
         {
-            int  cap     = m_eventList.VisibleRowCapacity();
-            int  topRow  = m_eventList.TopRow();
-            int  headerH = m_eventList.HeaderHeightPx();
-            int  bodyH   = (m_layout.listView.bottom - m_layout.listView.top) - headerH;
-            int  newTop  = (relY < headerH + bodyH / 2) ? topRow - cap : topRow + cap;
-            m_eventList.SetTopRow (newTop);
+            m_eventList.PageFromTrackClick (relY);
             handled = true;
         }
     }
@@ -755,11 +761,11 @@ void Disk2DebugPanel::OnLButtonDown (int x, int y)
         {
             m_resizeColumn       = resizeCol;
             m_resizeStartXPx     = x;
-            m_resizeStartWidthPx = m_eventList.ColumnEffectiveWidthPx ((size_t) resizeCol);
+            m_resizeStartWidthPx = m_eventList.GetColumnEffectiveWidthPx ((size_t) resizeCol);
             SetCapture (m_hwnd);
             handled              = true;
 
-            int  visIdx = m_eventList.VisibleIndexOfColumn (resizeCol);
+            int  visIdx = m_eventList.GetVisibleIndexOfColumn ((size_t) resizeCol);
             if (visIdx >= 0)
             {
                 SetFocusIndex (19 + 2 * visIdx + 1);
@@ -777,7 +783,7 @@ void Disk2DebugPanel::OnLButtonDown (int x, int y)
         int  hit  = m_eventList.HitTestRow (relX, relY);
         if (hit >= 0)
         {
-            int  N = m_eventList.VisibleColumnCount();
+            int  N = m_eventList.GetVisibleColumnCount();
             if (hit < (int) m_filteredIndices.size())
             {
                 m_listSelectedEventIndex = (int) m_filteredIndices[(size_t) hit];
@@ -794,7 +800,7 @@ void Disk2DebugPanel::OnLButtonDown (int x, int y)
             if (col >= 0)
             {
                 SortByColumn (col);
-                int  visIdx = m_eventList.VisibleIndexOfColumn (col);
+                int  visIdx = m_eventList.GetVisibleIndexOfColumn ((size_t) col);
                 if (visIdx >= 0)
                 {
                     SetFocusIndex (19 + 2 * visIdx);
@@ -954,11 +960,11 @@ void Disk2DebugPanel::OnRButtonDown (int x, int y)
 {
     int  relX        = x - m_layout.listView.left;
     int  relY        = y - m_layout.listView.top;
-    int  headerH     = m_eventList.HeaderHeightPx();
+    int  headerH     = m_eventList.GetHeaderHeightPx();
     int  listWidthPx = m_layout.listView.right - m_layout.listView.left;
 
 
-    if (!m_eventList.ShowHeader())                                { return; }
+    if (!m_eventList.IsHeaderShown())                                { return; }
     if (relX < 0 || relX >= listWidthPx)                          { return; }
     if (relY < 0 || relY >= headerH)                              { return; }
 
@@ -1018,13 +1024,13 @@ void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
     RECT                          host = { 0, 0, m_widthPx, m_heightPx };
 
 
-    items.reserve (m_eventList.ColumnCount());
+    items.reserve (m_eventList.GetColumnCount());
 
-    for (size_t i = 0; i < m_eventList.ColumnCount(); ++i)
+    for (size_t i = 0; i < m_eventList.GetColumnCount(); ++i)
     {
         PopupMenu::Item  item;
-        item.label   = m_eventList.ColumnAt (i).title;
-        item.checked = m_eventList.ColumnVisible (i);
+        item.label   = m_eventList.GetColumnAt (i).title;
+        item.checked = m_eventList.IsColumnVisible (i);
         items.push_back (std::move (item));
     }
 
@@ -1085,7 +1091,7 @@ void Disk2DebugPanel::ClearAllWidgetFocus()
 
 int Disk2DebugPanel::DynamicStopCount () const
 {
-    return 2 * m_eventList.VisibleColumnCount();
+    return 2 * m_eventList.GetVisibleColumnCount();
 }
 
 int Disk2DebugPanel::TotalStopCount () const
@@ -1150,7 +1156,7 @@ void Disk2DebugPanel::SetFocusIndex (int index)
 
     // Dynamic per-column stop.
     int  d = index - 19;
-    int  N = m_eventList.VisibleColumnCount();
+    int  N = m_eventList.GetVisibleColumnCount();
     if (N <= 0 || d < 0 || d >= 2 * N)
     {
         m_focusIndex = -1;
@@ -1166,12 +1172,12 @@ void Disk2DebugPanel::SetFocusIndex (int index)
 
     if ((d & 1) == 0)
     {
-        int  absCol = m_eventList.NthVisibleColumnIndex (d / 2);
+        int  absCol = m_eventList.GetNthVisibleColumnIndex (d / 2);
         if (absCol >= 0) { m_eventList.SetFocusedHeaderColumn (absCol); }
     }
     else
     {
-        int  absCol = m_eventList.NthVisibleColumnIndex ((d - 1) / 2);
+        int  absCol = m_eventList.GetNthVisibleColumnIndex ((d - 1) / 2);
         if (absCol >= 0) { m_eventList.SetFocusedDividerColumn (absCol); }
     }
 }
@@ -1244,14 +1250,14 @@ bool Disk2DebugPanel::OnKey (WPARAM vk)
     if (m_focusIndex >= 19)
     {
         int  d = m_focusIndex - 19;
-        int  N = m_eventList.VisibleColumnCount();
+        int  N = m_eventList.GetVisibleColumnCount();
         if (N <= 0 || d < 0 || d >= 2 * N) { return false; }
 
         if (d == 2 * N - 1)
         {
-            int  rowCount = m_eventList.RowCount();
-            int  cur      = m_eventList.SelectedRow();
-            int  cap      = m_eventList.VisibleRowCapacity();
+            int  rowCount = m_eventList.GetRowCount();
+            int  cur      = m_eventList.GetSelectedRow();
+            int  cap      = m_eventList.GetVisibleRowCapacity();
             int  next     = cur;
 
             if (rowCount <= 0) { return false; }
@@ -1377,7 +1383,7 @@ void Disk2DebugPanel::ApplyListSelection()
 
 void Disk2DebugPanel::OnListSelectionMoved()
 {
-    int  row = m_eventList.SelectedRow();
+    int  row = m_eventList.GetSelectedRow();
 
 
     if (row < 0 || (size_t) row >= m_filteredIndices.size())
@@ -1433,7 +1439,7 @@ void Disk2DebugPanel::OnHeaderSortKey()
 {
     if (m_focusIndex < 19) { return; }
     int  d      = m_focusIndex - 19;
-    int  absCol = m_eventList.NthVisibleColumnIndex (d / 2);
+    int  absCol = m_eventList.GetNthVisibleColumnIndex (d / 2);
     if (absCol < 0) { return; }
     SortByColumn (absCol);
 }
@@ -1452,12 +1458,12 @@ void Disk2DebugPanel::OnDividerResizeKey (int direction)
 {
     if (m_focusIndex < 19) { return; }
     int  d      = m_focusIndex - 19;
-    int  absCol = m_eventList.NthVisibleColumnIndex ((d - 1) / 2);
+    int  absCol = m_eventList.GetNthVisibleColumnIndex ((d - 1) / 2);
     int  stepPx = MulDiv (8,  (int) m_dpi, 96);
     int  minPx  = MulDiv (24, (int) m_dpi, 96);
     if (absCol < 0) { return; }
 
-    int  curPx  = m_eventList.ColumnEffectiveWidthPx ((size_t) absCol);
+    int  curPx  = m_eventList.GetColumnEffectiveWidthPx ((size_t) absCol);
     int  newPx  = curPx + direction * stepPx;
     if (newPx < minPx) { newPx = minPx; }
     m_eventList.SetColumnOverrideWidthPx ((size_t) absCol, newPx);
@@ -1821,6 +1827,7 @@ void Disk2DebugPanel::LayoutWidgets()
     m_columnMenu.SetTheme (m_theme);
 
     m_tooltip.SetDpi      (m_dpi);
+    m_tooltip.SetViewportSize (m_widthPx, m_heightPx);
 }
 
 
@@ -1931,8 +1938,8 @@ void Disk2DebugPanel::ConfigureWidgets()
 
     m_columnMenu.SetOnSelect ([this] (int index)
     {
-        if (index < 0 || index >= (int) m_eventList.ColumnCount()) { return; }
-        m_eventList.SetColumnVisible ((size_t) index, !m_eventList.ColumnVisible ((size_t) index));
+        if (index < 0 || index >= (int) m_eventList.GetColumnCount()) { return; }
+        m_eventList.SetColumnVisible ((size_t) index, !m_eventList.IsColumnVisible ((size_t) index));
         LayoutWidgets();
     });
 }

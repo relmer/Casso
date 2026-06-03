@@ -164,7 +164,7 @@ std::vector<std::string> TextScreenScraper::Scrape80 (
 //  Scrape
 //
 //  Scrapes the active text page, choosing 40 vs. 80 columns based on the
-//  live AppleIIeSoftSwitchBank state and the active text page based on
+//  live Apple2eSoftSwitchBank state and the active text page based on
 //  PAGE2 (with 80STORE blocking PAGE2 from shifting the read window in
 //  the 80-col case).
 //

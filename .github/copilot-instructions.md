@@ -70,9 +70,22 @@ The solution has five projects:
   inside macro arguments. Trivial: `.size()`, `.count()`, `.bad()`, `.empty()`, `.load()`,
   and member access.
   Non-trivial: anything with side effects, allocations, or out params.
-- When intentionally ignoring an HRESULT return value, use the `IGNORE_RETURN_VALUE` macro:
+- When intentionally ignoring an HRESULT return value, use the `IGNORE_RETURN_VALUE`
+  macro. Its second argument is ALWAYS a plain reset value (`S_OK`, `false`, `0`, …),
+  NEVER a call — not even a trivial one. Capture the result into a variable FIRST,
+  then pass that variable plus the reset value. (Other EHM macros tolerate trivial
+  calls in their arguments, if not ideal; `IGNORE_RETURN_VALUE` does not.)
   ```cpp
+  // WRONG — a call inside the macro (even a trivial one is wrong here):
   IGNORE_RETURN_VALUE (hr, m_wasapiAudio.Initialize ());
+
+  // RIGHT — store first, then reset:
+  hr = m_wasapiAudio.Initialize ();
+  IGNORE_RETURN_VALUE (hr, S_OK);
+
+  // RIGHT — non-HRESULT result, reset to a neutral value:
+  consumed = m_uiShell.OnLButtonDown (x, y);
+  IGNORE_RETURN_VALUE (consumed, false);
   ```
 - Use `CHRA`/`CWRA` (assert variant) for API failures that indicate bugs
 - Use `CHR`/`CWR` for expected failures

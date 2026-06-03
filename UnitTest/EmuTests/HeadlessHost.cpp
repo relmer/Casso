@@ -93,14 +93,14 @@ HRESULT HeadlessHost::BuildAppleIIPlus (EmulatorCore & outCore)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeadlessHost::BuildAppleIIe
+//  HeadlessHost::BuildApple2e
 //
 //  Wires a full //e from `Apple2e.rom` (loaded via the IFixtureProvider
 //  -- no host filesystem access). Mirrors the production wiring order
 //  from EmulatorShell::Initialize so the deterministic harness sees the
 //  same memory map / banking semantics the real shell exposes:
 //
-//    1. MemoryBus + RamDevice + AppleIIeMmu (skips bus for MMU)
+//    1. MemoryBus + RamDevice + Apple2eMmu (skips bus for MMU)
 //    2. Internal devices (keyboard, speaker, soft switches, language card)
 //    3. Sibling pointers (kbd/ss/speaker/mmu/lc/videoTiming cross-wiring)
 //    4. mmu->Initialize -- adds CxxxRomRouter to the bus, rebinds page table
@@ -117,14 +117,14 @@ HRESULT HeadlessHost::BuildAppleIIPlus (EmulatorCore & outCore)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HeadlessHost::BuildAppleIIe (EmulatorCore & outCore)
+HRESULT HeadlessHost::BuildApple2e (EmulatorCore & outCore)
 {
     HRESULT                hr          = S_OK;
     std::vector<uint8_t>   romBytes;
     Byte                 * mainRamBase = nullptr;
     int                    page;
 
-    hr = BuildCommon (HeadlessMachineKind::AppleIIe, outCore);
+    hr = BuildCommon (HeadlessMachineKind::Apple2e, outCore);
     if (FAILED (hr))
     {
         goto Error;
@@ -145,9 +145,9 @@ HRESULT HeadlessHost::BuildAppleIIe (EmulatorCore & outCore)
     outCore.bus          = std::make_unique<MemoryBus> ();
     outCore.mainRam      = std::make_unique<RamDevice> (0x0000, kRamEnd);
     outCore.videoTiming  = std::make_unique<VideoTiming> ();
-    outCore.mmu          = std::make_unique<AppleIIeMmu> ();
-    outCore.keyboard     = std::make_unique<AppleIIeKeyboard> (outCore.bus.get ());
-    outCore.softSwitches = std::make_unique<AppleIIeSoftSwitchBank> (outCore.bus.get ());
+    outCore.mmu          = std::make_unique<Apple2eMmu> ();
+    outCore.keyboard     = std::make_unique<Apple2eKeyboard> (outCore.bus.get ());
+    outCore.softSwitches = std::make_unique<Apple2eSoftSwitchBank> (outCore.bus.get ());
     outCore.speaker      = std::make_unique<AppleSpeaker> ();
     outCore.languageCard = std::make_unique<LanguageCard> (*outCore.bus);
     outCore.lcBank       = std::make_unique<LanguageCardBank> (*outCore.languageCard);
@@ -231,9 +231,9 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeadlessHost::BuildAppleIIeWithDisk2
+//  HeadlessHost::BuildApple2eWithDisk2
 //
-//  Phase 11 (T097-T104). Extends BuildAppleIIe by attaching the Disk II
+//  Phase 11 (T097-T104). Extends BuildApple2e by attaching the Disk II
 //  boot ROM (Disk2.rom) to slot 6 via mmu->AttachSlotRom and adding a
 //  Disk2Controller + DiskImageStore to outCore. Tests then mount
 //  synthetic disks via the store and call core.RunCycles to drive the
@@ -242,12 +242,12 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HeadlessHost::BuildAppleIIeWithDisk2 (EmulatorCore & outCore)
+HRESULT HeadlessHost::BuildApple2eWithDisk2 (EmulatorCore & outCore)
 {
     HRESULT                hr = S_OK;
     std::vector<uint8_t>   slot6Rom;
 
-    hr = BuildAppleIIe (outCore);
+    hr = BuildApple2e (outCore);
     if (FAILED (hr))
     {
         goto Error;
@@ -294,7 +294,7 @@ Error:
 
 void EmulatorCore::PowerCycle ()
 {
-    if (!HasAppleIIe ())
+    if (!HasApple2e ())
     {
         return;
     }
@@ -327,7 +327,7 @@ void EmulatorCore::PowerCycle ()
 
 void EmulatorCore::SoftReset ()
 {
-    if (!HasAppleIIe ())
+    if (!HasApple2e ())
     {
         return;
     }
@@ -363,7 +363,7 @@ void EmulatorCore::RunCycles (uint64_t cycleBudget)
     int        i;
     uint32_t   stepCycles;
 
-    if (!HasAppleIIe ())
+    if (!HasApple2e ())
     {
         return;
     }

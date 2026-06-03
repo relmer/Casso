@@ -27,7 +27,7 @@ class IDisk2EventSink;
 //  Disk2NibbleEngine that streams the active DiskImage bit-stream at
 //  the standard 4-cycles-per-bit data rate.
 //
-//  Slot 6 ROM ($C600-$C6FF) is owned by the AppleIIeMmu's CxxxRomRouter
+//  Slot 6 ROM ($C600-$C6FF) is owned by the Apple2eMmu's CxxxRomRouter
 //  (audit C1: unshadowed when INTCXROM=0). The controller itself only
 //  responds to its 16-byte $C0Ex page.
 //

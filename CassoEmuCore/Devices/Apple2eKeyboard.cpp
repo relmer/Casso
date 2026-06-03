@@ -1,7 +1,7 @@
 #include "Pch.h"
 
-#include "AppleIIeKeyboard.h"
-#include "AppleIIeSoftSwitchBank.h"
+#include "Apple2eKeyboard.h"
+#include "Apple2eSoftSwitchBank.h"
 #include "AppleSpeaker.h"
 #include "IInputEventSink.h"
 
@@ -11,11 +11,11 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleIIeKeyboard
+//  Apple2eKeyboard
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-AppleIIeKeyboard::AppleIIeKeyboard (MemoryBus * bus)
+Apple2eKeyboard::Apple2eKeyboard (MemoryBus * bus)
     : AppleKeyboard (),
       m_bus         (bus)
 {
@@ -37,7 +37,7 @@ AppleIIeKeyboard::AppleIIeKeyboard (MemoryBus * bus)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte AppleIIeKeyboard::Read (Word address)
+Byte Apple2eKeyboard::Read (Word address)
 {
     // $C00C-$C00F: 80COL/ALTCHARSET soft switches — soft-switch bank.
     if (address >= 0xC00C && address <= 0xC00F && m_softSwitchSibling != nullptr)
@@ -119,7 +119,7 @@ Byte AppleIIeKeyboard::Read (Word address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeKeyboard::EmitButtonRead (Word address, Byte value)
+void Apple2eKeyboard::EmitButtonRead (Word address, Byte value)
 {
     IInputEventSink * sink = InputSink ();
     int               idx  = static_cast<int> (address - kFirstButtonAddress);
@@ -150,7 +150,7 @@ void AppleIIeKeyboard::EmitButtonRead (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeKeyboard::KeyPressRaw (Byte asciiChar)
+void Apple2eKeyboard::KeyPressRaw (Byte asciiChar)
 {
     KeyPress (asciiChar);
 }
@@ -170,7 +170,7 @@ void AppleIIeKeyboard::KeyPressRaw (Byte asciiChar)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeKeyboard::Write (Word address, Byte value)
+void Apple2eKeyboard::Write (Word address, Byte value)
 {
     if (address >= 0xC000 && address <= 0xC00F && m_softSwitchSibling != nullptr)
     {
@@ -213,7 +213,7 @@ void AppleIIeKeyboard::Write (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeKeyboard::Reset ()
+void Apple2eKeyboard::Reset ()
 {
     AppleKeyboard::Reset ();
 
@@ -243,10 +243,10 @@ void AppleIIeKeyboard::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeKeyboard::SoftReset ()
+void Apple2eKeyboard::SoftReset ()
 {
     // Bypass the virtual chain: AppleKeyboard::SoftReset -> Reset() would
-    // dispatch to AppleIIeKeyboard::Reset and clobber the modifiers we
+    // dispatch to Apple2eKeyboard::Reset and clobber the modifiers we
     // need to preserve. Just clear the latched-character byte directly.
     AppleKeyboard::Reset ();
 }
@@ -261,9 +261,9 @@ void AppleIIeKeyboard::SoftReset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-unique_ptr<MemoryDevice> AppleIIeKeyboard::Create (const DeviceConfig & config, MemoryBus & bus)
+unique_ptr<MemoryDevice> Apple2eKeyboard::Create (const DeviceConfig & config, MemoryBus & bus)
 {
     UNREFERENCED_PARAMETER (config);
 
-    return make_unique<AppleIIeKeyboard> (&bus);
+    return make_unique<Apple2eKeyboard> (&bus);
 }

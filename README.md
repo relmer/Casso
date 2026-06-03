@@ -18,7 +18,7 @@ Two of the three built-in themes booting the [casso-rocks demo disk](Apple2/Demo
 
 The project includes:
 
-- **Apple II platform emulator** — GUI-based Apple II, II+, and //e emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
+- **Apple II platform emulator** — GUI-based Apple II, II+, and //e emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, analog game I/O (joystick/paddle via the PREAD timer), data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
 - **6502 CPU emulator** — passes [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) and all 151 legal-opcode sets from [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) (10,000 vectors each).
 - **AS65-compatible assembler** — a from-scratch reimplementation of Frank A. Kingswood's AS65, intended as a drop-in replacement. Supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, ...) including flag concatenation (`-tlfile`).
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
@@ -29,6 +29,35 @@ The project includes:
 ## What's New
 
 See [CHANGELOG.md](CHANGELOG.md) for the granular history.
+
+### Game-input revamp (v1.5.1523)
+
+Real-time action games like *Karateka*, *Choplifter*, and *Lode Runner*
+are now playable from the host keyboard with no physical joystick.
+A new **Map Arrows to Joystick** mode steers paddle 0/1 from the arrow
+keys (last-pressed-wins on opposing keys) and binds **X** / **Z** to
+fire buttons 0 / 1 (the same Open-Apple / Closed-Apple soft-switches the
+host Alt keys drive, so both input sources coexist); while the mode is
+on, those keys are withheld from the //e keyboard latch so they don't
+also type. The //e keyboard itself now generates hardware-faithful
+auto-repeat (initial delay, then steady cadence) instead of leaning on
+host-OS key repeat, so timing-sensitive arrow input in games behaves
+the way it did on real hardware.
+
+Three ways to toggle joystick mode — the Machine menu, a new **Ctrl+J**
+accelerator, and a dedicated **Joystick Mode** toggle button in the
+bottom drive bar (frameless press-to-pin button with a blue glowing
+LED, hover tooltip, and focus ring). A new Input Debug panel
+(**Ctrl+Shift+I**) logs the host → //e key events, the `$C000`/`$C010`
+strobe, Open/Closed-Apple state, and synthesized joystick/paddle reads
+(`$C064`–`$C067` PREAD, `$C070` PTRIG) with per-lane filter checkboxes,
+column sorting, pause, and a Copy-to-clipboard button.
+
+Press **F10** to drive the painted chrome with the keyboard: a Tab
+focus ring walks across menu titles, the Joystick Mode button, and the
+drive widgets, with Enter/Space to activate and Esc to return to the
+//e. The ring never leaks keystrokes through to the emulated keyboard,
+so navigating chrome can't drop stray letters into a //e prompt.
 
 ### Themed startup experience (v1.5.1395)
 

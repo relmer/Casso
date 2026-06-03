@@ -64,7 +64,7 @@ public:
             L"Apple2Plus slot 6 ROM must be Disk2.rom");
     }
 
-    TEST_METHOD (Embedded_AppleIIe_RequiresSystemCharacterAndDisk2Rom)
+    TEST_METHOD (Embedded_Apple2e_RequiresSystemCharacterAndDisk2Rom)
     {
         std::vector<std::string> files;
 
@@ -106,7 +106,7 @@ public:
             L"Apple ][+ ships with a slot 6 Disk ][ controller by default");
     }
 
-    TEST_METHOD (Embedded_AppleIIe_HasDiskController)
+    TEST_METHOD (Embedded_Apple2e_HasDiskController)
     {
         Assert::IsTrue (EmbeddedHasDiskController (IDR_MACHINE_APPLE2E),
             L"Apple //e must declare a slot 6 disk-ii device so the "

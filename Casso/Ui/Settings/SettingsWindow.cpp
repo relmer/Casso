@@ -16,7 +16,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr LPCWSTR  s_kpszSettingsWindowClass = L"Casso.Settings.Window";
-static constexpr LPCWSTR  s_kpszSettingsWindowTitle = L"Casso settings";
+static constexpr LPCWSTR  s_kpszSettingsWindowTitle = L"Casso - Settings";
 static constexpr DWORD    s_kSettingsWindowStyle    = WS_POPUP | WS_THICKFRAME | WS_SYSMENU | WS_VISIBLE;
 static constexpr DWORD    s_kSettingsWindowExStyle  = WS_EX_DLGMODALFRAME | WS_EX_TOOLWINDOW | WS_EX_NOREDIRECTIONBITMAP;
 static constexpr int      s_kBaseDpi                = 96;
@@ -249,6 +249,8 @@ HRESULT SettingsWindow::Create (
 
     ok = SetWindowTextW (hwndCreated, s_kpszSettingsWindowTitle);
     CWRA (ok);
+
+    m_titleBar.SetTitle (s_kpszSettingsWindowTitle);
 
     ShowWindow (hwndCreated, SW_SHOWNORMAL);
     SetForegroundWindow (hwndCreated);

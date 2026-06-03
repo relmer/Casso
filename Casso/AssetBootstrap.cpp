@@ -1878,15 +1878,15 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     def.iconSizeOverrideDp = 64.0f;
     def.body.push_back ({ intro, false, L"" });
     def.customBodyMinSizePx.cx = MulDiv (s_kBootMruBodyWidthDp, (int) sysDpi, 96);
-    def.customBodyMinSizePx.cy = list.RequiredHeightPx();
+    def.customBodyMinSizePx.cy = list.GetRequiredHeightPx();
 
     def.onMeasureCustomBody = [&list, sysDpi] (DwriteTextRenderer & text, float /*dpiScale*/) -> SIZE
     {
         list.SetDpi (sysDpi);
         list.MeasureColumnsPx (text);
         SIZE  sz {};
-        sz.cx = list.TotalMeasuredWidthPx();
-        sz.cy = list.RequiredHeightPx();
+        sz.cx = list.GetTotalMeasuredWidthPx();
+        sz.cy = list.GetRequiredHeightPx();
         return sz;
     };
 
@@ -2093,15 +2093,15 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     def.iconSizeOverrideDp = 64.0f;
     def.body.push_back ({ intro, false, L"" });
     def.customBodyMinSizePx.cx = MulDiv (s_kBootMruBodyWidthDp, (int) sysDpi, 96);
-    def.customBodyMinSizePx.cy = list.RequiredHeightPx();
+    def.customBodyMinSizePx.cy = list.GetRequiredHeightPx();
 
     def.onMeasureCustomBody = [&list, sysDpi] (DwriteTextRenderer & text, float /*dpiScale*/) -> SIZE
     {
         list.SetDpi (sysDpi);
         list.MeasureColumnsPx (text);
         SIZE  sz {};
-        sz.cx = list.TotalMeasuredWidthPx();
-        sz.cy = list.RequiredHeightPx();
+        sz.cx = list.GetTotalMeasuredWidthPx();
+        sz.cy = list.GetRequiredHeightPx();
         return sz;
     };
 

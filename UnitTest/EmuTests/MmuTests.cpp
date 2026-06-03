@@ -1,9 +1,9 @@
 #include "Pch.h"
 #include "Core/MemoryBus.h"
 #include "Devices/RamDevice.h"
-#include "Devices/AppleIIeMmu.h"
-#include "Devices/AppleIIeSoftSwitchBank.h"
-#include "Devices/AppleIIeKeyboard.h"
+#include "Devices/Apple2eMmu.h"
+#include "Devices/Apple2eSoftSwitchBank.h"
+#include "Devices/Apple2eKeyboard.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -15,12 +15,12 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  MmuTests
 //
-//  Per-region routing tests for AppleIIeMmu. Each test wires:
+//  Per-region routing tests for Apple2eMmu. Each test wires:
 //    - a MemoryBus
 //    - a 64 KiB main RamDevice (the page table for $0000-$BFFF will
 //      point at this buffer until the MMU rebinds it)
-//    - an AppleIIeMmu coordinator (owns the 64 KiB aux buffer)
-//    - an AppleIIeSoftSwitchBank for $C000-$C00B write-switches and
+//    - an Apple2eMmu coordinator (owns the 64 KiB aux buffer)
+//    - an Apple2eSoftSwitchBank for $C000-$C00B write-switches and
 //      $C054-$C057 banking notifications
 //
 //  Constitution §II: tests construct their own scaffolding directly;
@@ -40,8 +40,8 @@ namespace
     {
         MemoryBus              bus;
         RamDevice              mainRam;
-        AppleIIeMmu            mmu;
-        AppleIIeSoftSwitchBank sw;
+        Apple2eMmu             mmu;
+        Apple2eSoftSwitchBank  sw;
 
         MmuFixture ()
             : bus     (),

@@ -3,6 +3,7 @@
 #include "NavLayer.h"
 
 #include "resource.h"
+#include "../../UnicodeSymbols.h"
 
 
 
@@ -22,6 +23,7 @@ namespace
     constexpr int       s_kAccelOffsetDp     = 190;
     constexpr int       s_kRowPadLeftDp      = 10;
     constexpr int       s_kRowPadTopDp       = 5;
+    constexpr int       s_kCheckGutterDp     = 18;
     constexpr float     s_kFontDip           = 14.0f;
     constexpr float     s_kUnderlineThicknessDip = 1.0f;
     constexpr wchar_t   s_kFontFamily[]   = L"Segoe UI";
@@ -38,6 +40,7 @@ namespace
         { IDM_EDIT_PASTE,               NavMenu::Edit,    L"&Paste",                 L"Ctrl+V"        },
         { IDM_MACHINE_RESET,            NavMenu::Machine, L"&Reset",                 L"Ctrl+R"        },
         { IDM_MACHINE_POWERCYCLE,       NavMenu::Machine, L"Po&wer cycle",           L"Ctrl+Shift+R"  },
+        { IDM_MACHINE_ARROWS_JOYSTICK,  NavMenu::Machine, L"Map Arrows to &Joystick", L"Ctrl+J",        true   },
         { IDM_DISK_INSERT1,             NavMenu::Disk,    L"&Insert drive 1...",     L"Ctrl+1"        },
         { IDM_DISK_EJECT1,              NavMenu::Disk,    L"&Eject drive 1",         L"Ctrl+Shift+1"  },
         { 0,                            NavMenu::Disk,    nullptr,                   nullptr          },
@@ -697,7 +700,9 @@ void NavLayer::PaintStrip (
 
         ParseMnemonic (name, stripped, mnIdx, mnCh);
 
-        if ((m_hasHoverMenu && m_hoverMenu == (NavMenu) i) || (m_isOpen && m_openMenu == (NavMenu) i))
+        if ((m_hasHoverMenu && m_hoverMenu == (NavMenu) i) ||
+            (m_isOpen && m_openMenu == (NavMenu) i) ||
+            (m_hasFocus && !m_isOpen && m_focusedMenu == (NavMenu) i))
         {
             painter.FillRect ((float) m_menuRects[i].left,
                               (float) m_menuRects[i].top,
@@ -778,12 +783,34 @@ void NavLayer::PaintDropdown (
     int      accelOffsetPx      = Scale (s_kAccelOffsetDp,   dpi);
     int      separatorInsetPx   = Scale (s_kSeparatorInsetDp, dpi);
     bool     showCues           = ShouldShowMnemonicCues (IsOpenByKeyboard());
+    bool     menuHasCheckable   = false;
+    int      checkGutterPx      = 0;
+    int      labelLeftPx        = rowPadLeftPx;
 
 
 
     if (!m_isOpen)
     {
         return;
+    }
+
+    // Reserve a left check gutter for the whole dropdown when any of its
+    // entries is checkable, so checked and unchecked rows keep a stable
+    // left edge (Windows popup-menu convention) instead of the checkmark
+    // shoving a single row's label sideways.
+    for (const NavCommandEntry & entry : s_kEntries)
+    {
+        if (entry.menu == m_openMenu && entry.checkable)
+        {
+            menuHasCheckable = true;
+            break;
+        }
+    }
+
+    if (menuHasCheckable)
+    {
+        checkGutterPx = Scale (s_kCheckGutterDp, dpi);
+        labelLeftPx   = rowPadLeftPx + checkGutterPx;
     }
 
     painter.FillRect ((float) rect.left,
@@ -833,13 +860,25 @@ void NavLayer::PaintDropdown (
         }
 
         IGNORE_RETURN_VALUE (hr, text.DrawString (stripped.c_str(),
-                                                  (float) (rect.left + rowPadLeftPx),
+                                                  (float) (rect.left + labelLeftPx),
                                                   (float) (rect.top + y + rowPadTopPx),
                                                   (float) accelOffsetPx,
                                                   (float) entryHeight,
                                                   theme.dropdownItemTextArgb,
                                                   fontDip,
                                                   s_kFontFamily));
+
+        if (entry.checkable && m_isChecked && m_isChecked (entry.commandId))
+        {
+            IGNORE_RETURN_VALUE (hr, text.DrawString (s_kpszCheckMark,
+                                                      (float) (rect.left + rowPadLeftPx),
+                                                      (float) (rect.top + y + rowPadTopPx),
+                                                      (float) checkGutterPx,
+                                                      (float) entryHeight,
+                                                      theme.dropdownItemTextArgb,
+                                                      fontDip,
+                                                      s_kFontFamily));
+        }
 
         if (showCues && mnIdx >= 0 && !stripped.empty())
         {
@@ -867,7 +906,7 @@ void NavLayer::PaintDropdown (
                 charW = pcW - prefixW;
             }
 
-            float baseX = (float) (rect.left + rowPadLeftPx) + prefixW;
+            float baseX = (float) (rect.left + labelLeftPx) + prefixW;
             float baseY = (float) (rect.top + y + rowPadTopPx) + fullH;
 
             painter.FillRect (baseX, baseY, charW, s_kUnderlineThicknessDip, theme.dropdownItemTextArgb);

@@ -98,9 +98,9 @@ namespace
     {
         HRESULT   hr;
 
-        hr = host.BuildAppleIIe (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIe must succeed");
-        Assert::IsTrue (core.HasAppleIIe (), L"//e wiring must be complete");
+        hr = host.BuildApple2e (core);
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e must succeed");
+        Assert::IsTrue (core.HasApple2e (), L"//e wiring must be complete");
 
         core.PowerCycle ();
         core.RunCycles  (kColdBootCycles);
@@ -173,8 +173,8 @@ namespace
         HRESULT      hr        = S_OK;
         DiskImage *  external  = nullptr;
 
-        hr = host.BuildAppleIIeWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDisk2 must succeed");
+        hr = host.BuildApple2eWithDisk2 (core);
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
 
         core.PowerCycle ();
 
@@ -401,8 +401,8 @@ public:
         Byte           h;
         uint64_t       hash;
 
-        HRESULT   hr = host.BuildAppleIIe (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIe must succeed");
+        HRESULT   hr = host.BuildApple2e (core);
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e must succeed");
 
         core.PowerCycle ();
         core.RunCycles  (kColdBootCycles);

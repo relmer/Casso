@@ -16,7 +16,6 @@ namespace
     constexpr float     s_kTitleFontDip      = 14.0f;
     constexpr float     s_kTitlePadDip       = 14.0f;
     constexpr wchar_t   s_kMdl2Family[]      = L"Segoe MDL2 Assets";
-    constexpr wchar_t   s_kTitle[]           = L"Casso";
     constexpr wchar_t   s_kMinGlyph[]        = L"\xE921";
     constexpr wchar_t   s_kMaxGlyph[]        = L"\xE922";
     constexpr wchar_t   s_kCloseGlyph[]      = L"\xE8BB";
@@ -399,10 +398,18 @@ void TitleBar::Paint (
         textOffsetDip = s_kTitlePadDip + iconSizeDip + iconPadDip;
     }
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (s_kTitle,
-                                              (float) m_layout.titleBar.left + textOffsetDip,
+    float  titleTextLeft   = (float) m_layout.titleBar.left + textOffsetDip;
+    float  titleTextWidth  = (float) m_layout.dragRegion.right - titleTextLeft - s_kTitlePadDip;
+
+    if (titleTextWidth < 0.0f)
+    {
+        titleTextWidth = 0.0f;
+    }
+
+    IGNORE_RETURN_VALUE (hr, text.DrawString (m_title.c_str(),
+                                              titleTextLeft,
                                               (float) m_layout.titleBar.top,
-                                              160.0f,
+                                              titleTextWidth,
                                               (float) (m_layout.titleBar.bottom - m_layout.titleBar.top),
                                               glyphArgb,
                                               titleFontDip,

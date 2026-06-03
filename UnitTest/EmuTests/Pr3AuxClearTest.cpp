@@ -3,7 +3,7 @@
 
 #include "HeadlessHost.h"
 #include "KeystrokeInjector.h"
-#include "Devices/AppleIIeMmu.h"
+#include "Devices/Apple2eMmu.h"
 #include "Video/CharacterRomData.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -127,7 +127,7 @@ public:
         HeadlessHost   host;
         EmulatorCore   core;
 
-        HRESULT  hr = host.BuildAppleIIe (core);
+        HRESULT  hr = host.BuildApple2e (core);
         Assert::IsTrue (SUCCEEDED (hr));
 
         core.PowerCycle ();
@@ -189,7 +189,7 @@ public:
         HeadlessHost   host;
         EmulatorCore   core;
 
-        HRESULT  hr = host.BuildAppleIIe (core);
+        HRESULT  hr = host.BuildApple2e (core);
         Assert::IsTrue (SUCCEEDED (hr));
 
         core.PowerCycle();

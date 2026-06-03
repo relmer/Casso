@@ -13,8 +13,8 @@
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
 #include "Devices/LanguageCard.h"
-#include "Devices/AppleIIeMmu.h"
-#include "Devices/AppleIIeSoftSwitchBank.h"
+#include "Devices/Apple2eMmu.h"
+#include "Devices/Apple2eSoftSwitchBank.h"
 #include "Devices/Disk2Controller.h"
 #include "Video/VideoTiming.h"
 
@@ -70,7 +70,7 @@ public:
 
     TEST_METHOD (SoftResetPreservesAuxRam)
     {
-        AppleIIeMmu     mmu;
+        Apple2eMmu      mmu;
 
         mmu.GetAuxBuffer ()[0x1111] = 0xEE;
         mmu.GetAuxBuffer ()[0x2222] = 0xDD;
@@ -159,7 +159,7 @@ public:
     TEST_METHOD (SoftResetResetsSoftSwitchesPerMmuRules)
     {
         MemoryBus               bus;
-        AppleIIeSoftSwitchBank  sw (&bus);
+        Apple2eSoftSwitchBank   sw (&bus);
 
         sw.Write (0xC050, 0);   // graphics
         sw.Write (0xC053, 0);   // mixed
@@ -180,7 +180,7 @@ public:
         // switch including 80COL and ALTCHARSET. The originally-reported
         // bug was that 80COL persisted; SoftReset MUST clear it.
         MemoryBus               bus;
-        AppleIIeSoftSwitchBank  sw (&bus);
+        Apple2eSoftSwitchBank   sw (&bus);
 
         sw.Write (0xC00D, 0);   // 80COL on
         sw.Write (0xC00F, 0);   // ALTCHARSET on

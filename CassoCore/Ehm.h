@@ -243,6 +243,9 @@ void EhmBreakpoint         (void);
 //
 // CBR variants — check bool condition
 //
+// Pass a SUCCESS condition: bail when __brTest is false. Use these for
+// error conditions — CBREx/CBRAEx supply a specific failure HRESULT.
+//
 
 #define CBR(__brTest)                   __CBR (__brTest, __EHM_NO_ASSERT, false, 0, __EHM_NO_ACTION)
 #define CBRA(__brTest)                  __CBR (__brTest, __EHM_ASSERT,    false, 0, __EHM_NO_ACTION)
@@ -252,6 +255,9 @@ void EhmBreakpoint         (void);
 #define CBRAF(__brTest, __onFailure)    __CBR (__brTest, __EHM_ASSERT,    false, 0, __onFailure)
 #define CBRN(__brTest, __msg)           __CBR (__brTest, __EHM_NO_ASSERT, false, 0, EhmNotifyUser (__msg))
 
+// BAIL_OUT_IF — early-out guard, NOT an error check. Pass a TRUE-to-exit
+// condition (opposite polarity to CBR). Reserve this for legitimate
+// non-error early returns; for genuine error conditions use CBREx instead.
 #define BAIL_OUT_IF(__boolTest, __hrReplace) \
     __CBR (!(__boolTest), __EHM_NO_ASSERT, true, __hrReplace, __EHM_NO_ACTION)
 

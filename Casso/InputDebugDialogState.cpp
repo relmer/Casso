@@ -65,11 +65,31 @@ void SeedDefaultColumns (std::array<InputLogicalColumn, kInputColumnCount> & col
 
 bool MatchesFilter (const InputEventDisplay & e, const InputFilterState & f) noexcept
 {
+    bool  pairIsJoystick = true;
+
     switch (e.category)
     {
-        case InputEventCategory::Host:   return f.showHost;
-        case InputEventCategory::Guest:  return f.showGuest;
-        case InputEventCategory::System: return f.showSystem;
+        case InputEventCategory::Host:
+            return f.showHostKeyboard;
+
+        case InputEventCategory::System:
+            return true;
+
+        case InputEventCategory::Guest:
+            switch (e.gamePort)
+            {
+                case InputGamePortClass::None:
+                    return f.showEmuKeyboard;
+
+                case InputGamePortClass::Global:
+                    return f.showJoystick || f.showPaddle;
+
+                case InputGamePortClass::Pair0:
+                case InputGamePortClass::Pair1:
+                    pairIsJoystick = f.pairIsJoystick[(e.gamePort == InputGamePortClass::Pair0) ? 0 : 1];
+                    return pairIsJoystick ? f.showJoystick : f.showPaddle;
+            }
+            return true;
     }
 
     return true;

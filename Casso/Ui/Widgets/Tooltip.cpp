@@ -134,6 +134,30 @@ void Tooltip::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     boxLeft = (float) m_anchor.left;
     boxTop  = (float) m_anchor.bottom + anchorGap;
 
+    if (m_viewportWPx > 0)
+    {
+        float  edgePad = m_scaler.Pxf (s_kAnchorGapDip);
+
+        if (boxLeft + width > (float) m_viewportWPx - edgePad)
+        {
+            boxLeft = (float) m_viewportWPx - edgePad - width;
+        }
+        if (boxLeft < edgePad)
+        {
+            boxLeft = edgePad;
+        }
+    }
+
+    if (m_viewportHPx > 0)
+    {
+        float  flippedTop = (float) m_anchor.top - anchorGap - height;
+
+        if (boxTop + height > (float) m_viewportHPx && flippedTop >= 0.0f)
+        {
+            boxTop = flippedTop;
+        }
+    }
+
     painter.FillRect    (boxLeft, boxTop, width, height, s_kBgArgb);
     painter.OutlineRect (boxLeft, boxTop, width, height, borderPx, s_kBorderArgb);
 

@@ -1,7 +1,7 @@
 #include "Pch.h"
 #include "Core/MemoryBus.h"
 #include "Devices/LanguageCard.h"
-#include "Devices/AppleIIeMmu.h"
+#include "Devices/Apple2eMmu.h"
 #include "Devices/RamDevice.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -15,7 +15,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  LanguageCardTests
 //
 //  Adversarial coverage of the audit-correct LC state machine
-//  (audit C7/M6/M7/M8) plus aux-LC routing via AppleIIeMmu.
+//  (audit C7/M6/M7/M8) plus aux-LC routing via Apple2eMmu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -331,7 +331,7 @@ public:
         // main-bank contents.
         MemoryBus    bus;
         RamDevice    mainRam (0x0000, 0xBFFF);
-        AppleIIeMmu  mmu;
+        Apple2eMmu   mmu;
         LanguageCard lc (bus);
 
         HRESULT hr = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, nullptr);
@@ -363,7 +363,7 @@ public:
     {
         MemoryBus    bus;
         RamDevice    mainRam (0x0000, 0xBFFF);
-        AppleIIeMmu  mmu;
+        Apple2eMmu   mmu;
         LanguageCard lc (bus);
 
         HRESULT hr = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, nullptr);

@@ -14,6 +14,7 @@ entries in the chrome table.
 | 40007 | 0x9C47 | Edit | Paste | Ctrl+V |
 | 40010 | 0x9C4A | Machine | Reset | Ctrl+R |
 | 40011 | 0x9C4B | Machine | Power cycle | Ctrl+Shift+R |
+| 40018 | 0x9C52 | Machine | Map Arrows to Joystick | — |
 | 40020 | 0x9C54 | Disk | Insert drive 1... | Ctrl+1 |
 | 40022 | 0x9C56 | Disk | Eject drive 1 | Ctrl+Shift+1 |
 | 40021 | 0x9C55 | Disk | Insert drive 2... | Ctrl+2 |
@@ -26,4 +27,4 @@ entries in the chrome table.
 | 40012 | 0x9C4C | Debug | Pause | Pause |
 | 40013 | 0x9C4D | Debug | Step | F11 |
 | 40038 | 0x9C66 | Debug | Disk ][ Debug... | Ctrl+Shift+D |
-| 40041 | 0x9C69 | Debug | Debug console | Ctrl+D |
+| 40037 | 0x9C65 | Debug | Input Debug... | Ctrl+Shift+I |

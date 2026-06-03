@@ -10,7 +10,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/NibblizationLayer.h"
 #include "Devices/Disk2Controller.h"
-#include "Devices/AppleIIeSoftSwitchBank.h"
+#include "Devices/Apple2eSoftSwitchBank.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace fs = std::filesystem;
@@ -43,7 +43,7 @@ namespace fs = std::filesystem;
 //  Exercises: HgrPreprocess.py output -> Assembler -> NibblizationLayer
 //  -> DiskImageStore -> Disk2Controller -> Disk2NibbleEngine ->
 //  Disk2.rom slot 6 boot -> 6502 CPU executing our RWTS -> MMU HGR
-//  page-1 writes -> AppleIIeSoftSwitchBank graphics-mode latching.
+//  page-1 writes -> Apple2eSoftSwitchBank graphics-mode latching.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -286,8 +286,8 @@ public:
         HeadlessHost  host;
         EmulatorCore  core;
 
-        HRESULT  hr = host.BuildAppleIIeWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildAppleIIeWithDisk2 must succeed");
+        HRESULT  hr = host.BuildApple2eWithDisk2 (core);
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
 
         core.PowerCycle ();
 
@@ -306,9 +306,9 @@ public:
         core.RunCycles (kDemoCycleBudget);
 
         // ----- Verify boot landing soft-switch state (mode 0 = DHGR) -----
-        AppleIIeSoftSwitchBank *  ss = core.softSwitches.get ();
+        Apple2eSoftSwitchBank *   ss = core.softSwitches.get ();
 
-        Assert::IsNotNull (ss, L"AppleIIeSoftSwitchBank must be present");
+        Assert::IsNotNull (ss, L"Apple2eSoftSwitchBank must be present");
         Assert::IsTrue (ss->IsGraphicsMode (),
             L"Demo must leave the //e in graphics mode (TEXT off)");
         Assert::IsFalse (ss->IsMixedMode (),

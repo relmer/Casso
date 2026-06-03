@@ -1,46 +1,49 @@
 #pragma once
 
 #include "Pch.h"
-#include "Window.h"
-#include "Core/MemoryBus.h"
-#include "Core/EmuCpu.h"
-#include "Core/MachineConfig.h"
-#include "Core/InterruptController.h"
-#include "Core/ComponentRegistry.h"
-#include "D3DRenderer.h"
-#include "UiCommandTypes.h"
-#include "Ui/Chrome/TitleBar.h"
-#include "Ui/Chrome/NavLayer.h"
-#include "Ui/Chrome/LayoutManager.h"
-#include "Ui/Chrome/ChromeTheme.h"
-#include "Ui/Chrome/DriveWidget.h"
-#include "Ui/DriveWidgetState.h"
-#include "Ui/DriveWidgetController.h"
-#include "Ui/DragDropTarget.h"
-#include "Ui/IDriveCommandSink.h"
-#include "Ui/Dialog/DialogDefinition.h"
-#include "Ui/Dialog/DialogPrimitive.h"
-#include "Ui/Settings/SettingsPanel.h"
-#include "Ui/ThemeManager.h"
-#include "Ui/UiShell.h"
-#include "Config/Win32FileSystem.h"
-#include "Config/UserConfigStore.h"
-#include "Config/GlobalUserPrefs.h"
-#include "Video/VideoOutput.h"
-#include "Video/CharacterRomData.h"
-#include "Video/VideoTiming.h"
-#include "Devices/Disk/DiskImageStore.h"
-#include "Audio/DriveAudioMixer.h"
+
 #include "Audio/Disk2AudioSource.h"
-#include "WasapiAudio.h"
-#include "Ui/Disk2DebugPanel.h"
-#include "Ui/InputDebugPanel.h"
+#include "Audio/DriveAudioMixer.h"
+#include "Config/GlobalUserPrefs.h"
+#include "Config/UserConfigStore.h"
+#include "Config/Win32FileSystem.h"
+#include "Core/ComponentRegistry.h"
+#include "Core/EmuCpu.h"
+#include "Core/InterruptController.h"
+#include "Core/MachineConfig.h"
+#include "Core/MemoryBus.h"
+#include "D3DRenderer.h"
+#include "Devices/Disk/DiskImageStore.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "Shell/MachineManager.h"
 #include "Shell/WindowCommandManager.h"
 #include "Shell/WindowManager.h"
+#include "Ui/Chrome/ChromeTheme.h"
+#include "Ui/Chrome/DriveWidget.h"
+#include "Ui/Chrome/JoystickToggleButton.h"
+#include "Ui/Chrome/LayoutManager.h"
+#include "Ui/Chrome/NavLayer.h"
+#include "Ui/Chrome/TitleBar.h"
+#include "Ui/Dialog/DialogDefinition.h"
+#include "Ui/Dialog/DialogPrimitive.h"
+#include "Ui/Disk2DebugPanel.h"
+#include "Ui/DragDropTarget.h"
+#include "Ui/DriveWidgetController.h"
+#include "Ui/DriveWidgetState.h"
+#include "Ui/IDriveCommandSink.h"
+#include "Ui/InputDebugPanel.h"
+#include "Ui/Settings/SettingsPanel.h"
+#include "Ui/ThemeManager.h"
+#include "Ui/UiShell.h"
+#include "Ui/Widgets/Tooltip.h"
+#include "UiCommandTypes.h"
+#include "Video/CharacterRomData.h"
+#include "Video/VideoOutput.h"
+#include "Video/VideoTiming.h"
+#include "WasapiAudio.h"
+#include "Window.h"
 
 
 
@@ -192,6 +195,26 @@ private:
 
     HRESULT CreateRenderSurface ();
 
+    // WM_KEYDOWN/WM_KEYUP helpers. HandleHostMetaShortcut consumes host-meta
+    // keys (menu navigation, paste, reset); ApplyAppleModifierKeys mirrors
+    // the host Alt/Shift state onto the //e Open/Closed-Apple and Shift soft
+    // switches; MapVkToAppleControlCode and IsArrowVk are pure VK classifiers.
+    bool        HandleHostMetaShortcut  (WPARAM vk, bool ctrlHeld, bool altHeld);
+    void        ApplyAppleModifierKeys  (WPARAM vk, bool keyDown);
+    static Byte MapVkToAppleControlCode (WPARAM vk);
+    static bool IsArrowVk               (WPARAM vk);
+
+    // Stage the emulated joystick axes from the host arrow keys.
+    void    UpdateJoystickAxesFromKeys ();
+
+    // Stage the emulated joystick fire buttons from the host X / Y keys.
+    void    UpdateJoystickButtonsFromKeys ();
+
+    // Toggle the "Map Arrows to Joystick" mode: updates the flag, persists
+    // it, and re-syncs the joystick axes (resolving from current keys when
+    // turned on, or centering both axes when turned off).
+    void    SetMapArrowsToJoystick (bool on);
+
     // Queue a command for the CPU thread. Public so non-friend
     // adapters (e.g. SettingsPanel's internal apply sink) can post
     // without needing friend status -- this is already a thin
@@ -263,6 +286,26 @@ private:
     // emulator pixel grid. Called from the ThemeManager listener.
     void    ApplyThemeToChrome   (const ChromeTheme & theme);
 
+    // Positions the joystick-mode toggle button vertically centered in the
+    // empty band above the drive widgets (the top portion of the bottom
+    // drive-bar inset) and centered horizontally in the window. bandTopPx
+    // and bandHeightPx bracket that band; the caller derives them from
+    // the layout result so the button sits the same whether or not a
+    // Slot 6 controller is mounted.
+    void    LayoutJoystickButton (int clientW,
+                                  int bandTopPx,
+                                  int bandHeightPx,
+                                  UINT dpi);
+
+    // Keyboard chrome-focus ring (see m_chromeFocusIndex). SetChromeFocusIndex
+    // updates the index and refreshes which widget paints its focus visual;
+    // HandleChromeFocusKey owns all keydown handling while the ring is active
+    // (returns true when the key was consumed); UpdateChromeFocusVisuals
+    // pushes the current index into the NavLayer / button / drive widgets.
+    void    SetChromeFocusIndex   (int index);
+    void    UpdateChromeFocusVisuals ();
+    bool    HandleChromeFocusKey  (WPARAM vk);
+
     // Flushes the in-memory GlobalUserPrefs to UserPrefs.json. Used as
     // the WindowManager save callback so per-monitor window placement
     // edits land on disk immediately after the user moves/resizes the
@@ -318,6 +361,12 @@ private:
     ChromeTheme         m_chromeTheme    = ChromeTheme::Skeuomorphic();
     std::array<DriveWidget, 2> m_driveChrome;
 
+    // Joystick-mode toggle button (mirrors IDM_MACHINE_ARROWS_JOYSTICK),
+    // centered in the drive bar above the drive widgets, with its own
+    // hover tooltip.
+    JoystickToggleButton  m_joystickButton;
+    Tooltip               m_joystickTooltip;
+
     // Chrome layout planner. Owns the canonical inset math for the
     // title bar, nav strip, and drive bar; replaces the historical
     // ChromeMetrics constants that drifted between EmulatorShell and
@@ -326,7 +375,7 @@ private:
     LayoutManager            m_layout { Scaler() };
     SimpleEdgeContributor   m_titleBarSlot { ChromeEdge::Top,    32 };
     SimpleEdgeContributor   m_navStripSlot { ChromeEdge::Top,    32 };
-    SimpleEdgeContributor   m_driveBarSlot { ChromeEdge::Bottom, 212 };
+    SimpleEdgeContributor   m_driveBarSlot { ChromeEdge::Bottom, 256 };
 
     // Drive widget state pump. The controller channel publishes
     // per-drive door/spin sync events the chrome painter will consume
@@ -403,7 +452,7 @@ private:
 
     MachineRefs                   m_refs;
 
-    unique_ptr<class AppleIIeMmu> m_mmu;
+    unique_ptr<class Apple2eMmu> m_mmu;
     unique_ptr<VideoTiming>       m_videoTiming;
 
     // / T097 / FR-025. The store coordinates auto-flush of dirty
@@ -442,6 +491,25 @@ private:
 
     uint32_t        m_cyclesPerFrame  = 17050;
     double          m_sampleRemainder = 0.0;
+
+    // Last arrow key pressed for each emulated joystick axis pair (0 if
+    // none). Lets opposing directions resolve last-pressed-wins so a
+    // rolling reversal flips the axis instead of cancelling to center.
+    WPARAM          m_lastHorizontalArrowVk = 0;
+    WPARAM          m_lastVerticalArrowVk   = 0;
+
+    // When true, arrow keys drive only the emulated game-port joystick
+    // (no //e keyboard latch). Mirrors GlobalUserPrefs::mapArrowsToJoystick
+    // and is toggled via the Machine menu's "Map Arrows to Joystick" item.
+    bool            m_mapArrowsToJoystick   = false;
+
+    // Keyboard focus ring across the painted chrome ("Z" Tab order, left
+    // to right, top to bottom): -1 = guest (//e has focus), 0..6 = the
+    // seven menu titles File..Help, 7 = joystick-mode button, 8/9 = drive
+    // widgets 1/2. Entered via F10 or a mouse click on a chrome element;
+    // exited via Esc/F10 or a click in the emulator viewport. While active
+    // (>= 0) every keydown is consumed so letters never leak to the //e.
+    int             m_chromeFocusIndex      = -1;
 
     // Spec-011 / US7. DX-themed panel for the Disk II debug window.
     // Lazy-created on first Ctrl+Shift+D and reused across opens.

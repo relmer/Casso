@@ -19,7 +19,7 @@
 //  Spec rules:
 //    - Literal `path.filename()` — no extension stripping, even for
 //      basenames with multiple dots or no extension.
-//    - Single-character ellipsis L'\u2026', not three dots.
+//    - Single-character ellipsis (s_kchEllipsis), not three dots.
 //    - Degenerate case (basename narrower than the ellipsis itself):
 //      return just the ellipsis.
 //

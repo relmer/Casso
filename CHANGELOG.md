@@ -6,10 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.5.1452] — Game input + debug-panel revamp
+## [1.5.1523] — Game input + debug-panel revamp
 
 Authentic //e keyboard handling that makes real-time action games
-playable, a new Input Debug panel, a themed native Disk II debug
+playable, a keyboard-mapped game-port joystick with an on-screen
+toggle, a new Input Debug panel, a themed native Disk II debug
 window, and a batch of disk/render correctness fixes. Validated by
 booting and playing *Karateka* end-to-end from its unmodified,
 copy-protected WOZ image ([#68](https://github.com/relmer/Casso/issues/68)).
@@ -20,10 +21,38 @@ copy-protected WOZ image ([#68](https://github.com/relmer/Casso/issues/68)).
   then steady cadence) instead of relying on host OS key repeat, so
   timing-sensitive games behave correctly — *Karateka* movement on the
   left/right arrow keys plays as it did on real hardware.
+- **feat(input): Map Arrows to Joystick mode.** An optional input mode
+  that drives the emulated game port from the host keyboard so joystick
+  games are playable without a physical controller: the arrow keys steer
+  paddle 0/1 (last-pressed-wins on opposing keys), and the **X** and
+  **Z** keys act as fire buttons 0 and 1 (Open-Apple `$C061` /
+  Closed-Apple `$C062`), coexisting with the host Alt keys. While the
+  mode is on, the arrow and X/Z keys are withheld from the //e keyboard
+  latch so they can't also type. Toggling the mode resolves axes and
+  buttons from the live key state and recenters/releases them on exit.
+  Three ways to flip it: **Machine → Map Arrows to Joystick**, the
+  **Ctrl+J** accelerator, or a dedicated **Joystick Mode** toggle button
+  in the bottom drive bar — a frameless press-to-pin button with a blue
+  glowing LED, a hover tooltip, and a focus ring; all three paths share
+  one choke point so the button LED, menu checkmark, and held-key
+  neutralization stay in sync.
+- **feat(ui): keyboard chrome focus ring.** Press **F10** to enter the
+  painted chrome with the keyboard. **Tab / Shift+Tab** cycle across the
+  seven menu titles, the Joystick Mode button, and the two drive
+  widgets; **Enter / Space / Down** open a dropdown or activate the
+  focused button/drive; **Esc / F10** return focus to the //e. While the
+  ring (or a dropdown) owns focus, no `WM_KEYDOWN` or `WM_CHAR` leaks to
+  the emulated keyboard, so navigating chrome can't drop stray letters
+  into a //e prompt. Mouse clicks on chrome elements update the ring;
+  clicking the emulator viewport drops it.
 - **feat(ui): Input Debug panel.** New themed, non-modal debug window
-  logging host→//e key events, the `$C000`/`$C010` keyboard strobe, and
-  Open/Closed-Apple button state, with column filtering, sorting, and
-  pause. Fed by a lock-free event ring drained on the render thread.
+  logging host→//e key events, the `$C000`/`$C010` keyboard strobe,
+  Open/Closed-Apple button state, and synthesized joystick/paddle reads
+  (`$C064`–`$C067` PREAD, `$C070` PTRIG), with per-lane filter checkboxes
+  (emulator keyboard/joystick/paddle, host keyboard) and per-pair
+  Joystick-vs-Paddle view dropdowns, column sorting, pause, and a Copy
+  button that puts the visible log on the clipboard as tab-separated text.
+  Fed by a lock-free event ring drained on the render thread.
 - **feat(ui): native Disk II debug window.** DX/themed replacement for
   the legacy Win32 Disk II debug dialog, sharing the same event-ring
   projection and multi-column ListView.
