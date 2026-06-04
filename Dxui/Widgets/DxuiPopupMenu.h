@@ -3,6 +3,10 @@
 #include "Pch.h"
 
 
+class DxuiHostWindow;
+class DxuiPopupHost;
+
+
 
 
 
@@ -37,6 +41,18 @@ public:
     void  SetTheme    (const IDxuiTheme * th)   { m_theme = th; }
     void  SetOnSelect (SelectFn fn)             { m_onSelect = std::move (fn); }
 
+    //
+    //  Opt-in popup hosting (FR-054 / FR-061). When a host window is
+    //  supplied the popup acquires a pooled DxuiPopupHost on Show()
+    //  and releases it on Hide(), so the menu renders into a top-
+    //  level WS_POPUP HWND not clipped by the owner's client area.
+    //  Cascading submenus link through DxuiPopupHost::SetParentPopup
+    //  so click-outside dismiss walks the chain.
+    //
+    void  SetPopupHost  (DxuiHostWindow * host) { m_popupHost = host; }
+    DxuiHostWindow *  PopupHost   () const { return m_popupHost;   }
+    DxuiPopupHost  *  ActivePopup () const { return m_activePopup; }
+
     bool                       IsVisible () const { return m_visible; }
     const std::vector<Item>  & Items     () const { return m_items;   }
     const RECT               & Rect      () const { return m_rect;    }
@@ -67,4 +83,6 @@ private:
     int                   m_pressed  = -1;
     bool                  m_visible  = false;
     DxuiDpiScaler             m_scaler;
+    DxuiHostWindow      * m_popupHost     = nullptr;
+    DxuiPopupHost       * m_activePopup   = nullptr;
 };

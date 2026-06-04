@@ -126,3 +126,4 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Win32/DxuiCaptionBar.h"
 #include "Win32/DxuiSystemButton.h"
 #include "Win32/DxuiHostWindow.h"
+#include "Win32/DxuiPopupHost.h"

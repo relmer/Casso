@@ -8,6 +8,9 @@
 #include "Render/DxuiTextRenderer.h"
 
 
+class DxuiPopupHost;
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -126,6 +129,22 @@ public:
 
     LRESULT  WndProc           (UINT msg, WPARAM wp, LPARAM lp);
 
+    //
+    //  Popup pool. Acquire returns an initialized DxuiPopupHost
+    //  ready for Show(); Release returns it to the LIFO pool for
+    //  reuse. The pool grows on demand (initial size 3). Debug
+    //  builds expose hit / miss counters for reuse verification.
+    //
+    DxuiPopupHost  *  AcquirePopup ();
+    void              ReleasePopup (DxuiPopupHost * popup);
+
+#ifdef _DEBUG
+    size_t  PopupHits   () const { return m_popupHits;   }
+    size_t  PopupMisses () const { return m_popupMisses; }
+    size_t  PopupPoolSize () const { return m_popupPool.size(); }
+    size_t  PopupActiveCount () const { return m_popupActive.size(); }
+#endif
+
 #ifdef _DEBUG
     //
     //  Debug-build instrumentation seam — records which DwM knobs were
@@ -220,6 +239,17 @@ private:
     bool                              m_classRegistered    = false;
 
     std::function<LRESULT (POINT)>    m_hitTestDelegate;
+
+    // Popup pool (FR-055). Initial size 3; grows on demand. m_popupPool
+    // holds LIFO-available instances; m_popupActive holds currently
+    // checked-out instances so the host can forward broadcast events
+    // (WM_DPICHANGED_BEFOREPARENT) to live popups.
+    std::vector<std::unique_ptr<DxuiPopupHost>>  m_popupPool;
+    std::vector<DxuiPopupHost *>                 m_popupActive;
+#ifdef _DEBUG
+    size_t                                       m_popupHits   = 0;
+    size_t                                       m_popupMisses = 0;
+#endif
 
 #ifdef _DEBUG
     DwmAppliedSeam                    m_dwmSeam;

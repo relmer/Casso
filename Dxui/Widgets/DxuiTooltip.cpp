@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiTooltip.h"
+#include "Win32/DxuiHostWindow.h"
+#include "Win32/DxuiPopupHost.h"
 
 
 
@@ -74,6 +76,36 @@ void DxuiTooltip::Tick (int64_t nowMs)
         m_visible  = true;
         m_pending  = false;
         m_hideAtMs = 0;
+
+        // Opt-in popup hosting: acquire a pooled WS_POPUP host with
+        // pass-through input + OnPointerLeave dismiss.
+        if (m_popupHost != nullptr && m_activePopup == nullptr)
+        {
+            HRESULT                    hrShow      = S_OK;
+            DxuiPopupHost::ShowParams  showParams;
+
+            m_activePopup = m_popupHost->AcquirePopup();
+            if (m_activePopup != nullptr)
+            {
+                showParams.ownerHwnd        = m_popupHost->Hwnd();
+                showParams.anchorRectScreen = m_anchor;
+                showParams.placement        = DxuiPopupPlacement::Above;
+                showParams.flipIfOffscreen  = true;
+                showParams.dismiss          = DxuiPopupDismiss::OnPointerLeave;
+                showParams.input            = DxuiPopupInput::PassThrough;
+                showParams.shadow           = false;
+                showParams.sizeDip.cx       = (int) (m_text.size() * 8 + 16);
+                showParams.sizeDip.cy       = (int) m_fontDip + 8;
+                showParams.content          = std::make_unique<DxuiPanel>();
+
+                hrShow = m_activePopup->Show (std::move (showParams));
+                if (FAILED (hrShow))
+                {
+                    m_popupHost->ReleasePopup (m_activePopup);
+                    m_activePopup = nullptr;
+                }
+            }
+        }
     }
 
     if (m_visible && m_hideAtMs != 0 && nowMs >= m_hideAtMs)
@@ -81,6 +113,12 @@ void DxuiTooltip::Tick (int64_t nowMs)
         m_visible  = false;
         m_text.clear();
         m_hideAtMs = 0;
+
+        if (m_activePopup != nullptr && m_popupHost != nullptr)
+        {
+            m_popupHost->ReleasePopup (m_activePopup);
+            m_activePopup = nullptr;
+        }
     }
 }
 

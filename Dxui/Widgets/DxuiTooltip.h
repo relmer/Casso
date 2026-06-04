@@ -3,6 +3,10 @@
 #include "Pch.h"
 
 
+class DxuiHostWindow;
+class DxuiPopupHost;
+
+
 
 
 
@@ -29,6 +33,16 @@ public:
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
 
+    //
+    //  Opt-in popup hosting (FR-054 / FR-061). When a host is wired
+    //  up the tooltip renders into a WS_POPUP HWND with
+    //  WS_EX_TRANSPARENT | WS_EX_LAYERED so pointer events pass
+    //  through to whatever is underneath; dismiss is OnPointerLeave.
+    //
+    void  SetPopupHost    (DxuiHostWindow * host) { m_popupHost = host; }
+    DxuiHostWindow *  PopupHost   () const { return m_popupHost;   }
+    DxuiPopupHost  *  ActivePopup () const { return m_activePopup; }
+
     void  RequestShow     (const RECT & anchor, const std::wstring & text, int64_t nowMs);
     void  RequestHide     (int64_t nowMs);
     void  Tick            (int64_t nowMs);
@@ -54,4 +68,6 @@ private:
     int           m_viewportHPx  = 0;
     bool          m_visible      = false;
     bool          m_pending      = false;
+    DxuiHostWindow  *  m_popupHost     = nullptr;
+    DxuiPopupHost   *  m_activePopup   = nullptr;
 };

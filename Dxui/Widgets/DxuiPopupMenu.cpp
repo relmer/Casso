@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiPopupMenu.h"
+#include "Win32/DxuiHostWindow.h"
+#include "Win32/DxuiPopupHost.h"
 
 #include "UnicodeSymbols.h"
 
@@ -82,6 +84,37 @@ void DxuiPopupMenu::Show (
     m_rect.top    = top;
     m_rect.right  = left + width;
     m_rect.bottom = top  + height;
+
+    // Opt-in popup hosting (see header). When a host is wired up we
+    // acquire a pooled DxuiPopupHost and show the menu via WS_POPUP
+    // so it isn't clipped by the owner client area.
+    if (m_popupHost != nullptr && m_activePopup == nullptr)
+    {
+        HRESULT                    hrShow      = S_OK;
+        DxuiPopupHost::ShowParams  showParams;
+
+        m_activePopup = m_popupHost->AcquirePopup();
+        if (m_activePopup != nullptr)
+        {
+            showParams.ownerHwnd        = m_popupHost->Hwnd();
+            showParams.anchorRectScreen = m_rect;
+            showParams.placement        = DxuiPopupPlacement::AtCursor;
+            showParams.flipIfOffscreen  = true;
+            showParams.dismiss          = DxuiPopupDismiss::OnClickOutside;
+            showParams.input            = DxuiPopupInput::Interactive;
+            showParams.shadow           = true;
+            showParams.sizeDip.cx       = width;
+            showParams.sizeDip.cy       = height;
+            showParams.content          = std::make_unique<DxuiPanel>();
+
+            hrShow = m_activePopup->Show (std::move (showParams));
+            if (FAILED (hrShow))
+            {
+                m_popupHost->ReleasePopup (m_activePopup);
+                m_activePopup = nullptr;
+            }
+        }
+    }
 }
 
 
@@ -99,6 +132,12 @@ void DxuiPopupMenu::Hide()
     m_visible = false;
     m_hover   = -1;
     m_pressed = -1;
+
+    if (m_activePopup != nullptr && m_popupHost != nullptr)
+    {
+        m_popupHost->ReleasePopup (m_activePopup);
+        m_activePopup = nullptr;
+    }
 }
 
 

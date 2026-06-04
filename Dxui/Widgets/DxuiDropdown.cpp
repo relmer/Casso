@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiDropdown.h"
+#include "Win32/DxuiHostWindow.h"
+#include "Win32/DxuiPopupHost.h"
 
 
 
@@ -87,8 +89,63 @@ void DxuiDropdown::SetSelected (int index)
 
 void DxuiDropdown::Open()
 {
+    DxuiPopupHost::ShowParams  showParams;
+
+
     m_open      = true;
     m_highlight = (m_selected >= 0) ? m_selected : (m_items.empty() ? -1 : 0);
+
+    // Opt-in popup hosting: if a host window is wired up, acquire a
+    // pooled popup and place it below the dropdown's anchor rect.
+    // The popup's flipIfOffscreen flag delivers SC-008 (no clipping
+    // when anchored near the bottom of the parent window).
+    if (m_popupHost != nullptr && m_activePopup == nullptr)
+    {
+        HRESULT  hr  = S_OK;
+        int      rowHeight = m_scaler.Px (s_kRowHeightDip);
+
+        m_activePopup = m_popupHost->AcquirePopup();
+        if (m_activePopup != nullptr)
+        {
+            showParams.ownerHwnd        = m_popupHost->Hwnd();
+            showParams.anchorRectScreen = m_rect;
+            showParams.placement        = DxuiPopupPlacement::Below;
+            showParams.flipIfOffscreen  = true;
+            showParams.dismiss          = DxuiPopupDismiss::OnClickOutside;
+            showParams.input            = DxuiPopupInput::Interactive;
+            showParams.shadow           = true;
+            showParams.sizeDip.cx       = m_rect.right - m_rect.left;
+            showParams.sizeDip.cy       = (int) m_items.size() * rowHeight;
+            showParams.content          = std::make_unique<DxuiPanel>();
+
+            hr = m_activePopup->Show (std::move (showParams));
+            if (FAILED (hr))
+            {
+                m_popupHost->ReleasePopup (m_activePopup);
+                m_activePopup = nullptr;
+            }
+        }
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Close
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDropdown::Close()
+{
+    m_open = false;
+
+    if (m_activePopup != nullptr && m_popupHost != nullptr)
+    {
+        m_popupHost->ReleasePopup (m_activePopup);
+        m_activePopup = nullptr;
+    }
 }
 
 
