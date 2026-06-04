@@ -31,7 +31,7 @@ class DxuiPanel : public IDxuiControl
 {
 public:
     DxuiPanel  ();
-    ~DxuiPanel () override;
+    ~DxuiPanel() override;
 
     template <class T, class... Args>
     T &  Add  (Args &&... args)
@@ -59,14 +59,16 @@ public:
                                     const IDxuiTheme    & theme) override;
     bool              OnMouse      (const DxuiMouseEvent & ev) override;
     bool              OnKey        (const DxuiKeyEvent   & ev) override;
-    void              OnThemeChanged ()                       override;
+    void              OnThemeChanged()                       override;
     void              Tick         (int64_t nowMs)            override;
+
+    void              OnChildVisibilityChanged (IDxuiControl * child);
 
     size_t            ChildCount   () const                   override { return m_children.size(); }
     IDxuiControl *    Child        (size_t index) const       override { return (index < m_children.size()) ? m_children[index].get() : nullptr; }
 
 protected:
-    void              OnVisibilityChanged () override;
+    void              OnVisibilityChanged() override;
 
 private:
     void              AppendChild  (std::unique_ptr<IDxuiControl> child);

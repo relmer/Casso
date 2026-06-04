@@ -23,7 +23,7 @@
 class IDxuiPainter
 {
 public:
-    virtual ~IDxuiPainter () = default;
+    virtual ~IDxuiPainter() = default;
 
     virtual void  FillRect          (float    xPx,
                                      float    yPx,

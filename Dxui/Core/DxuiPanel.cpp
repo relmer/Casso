@@ -13,7 +13,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiPanel::DxuiPanel ()
+DxuiPanel::DxuiPanel()
 {
 }
 
@@ -27,7 +27,7 @@ DxuiPanel::DxuiPanel ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiPanel::~DxuiPanel ()
+DxuiPanel::~DxuiPanel()
 {
 }
 
@@ -102,7 +102,7 @@ bool DxuiPanel::Remove (IDxuiControl * child)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPanel::Clear ()
+void DxuiPanel::Clear()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -178,7 +178,7 @@ void DxuiPanel::PropagateDpi (const DxuiDpiScaler & scaler)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPanel::PropagateTheme ()
+void DxuiPanel::PropagateTheme()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -338,7 +338,7 @@ bool DxuiPanel::OnKey (const DxuiKeyEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPanel::OnThemeChanged ()
+void DxuiPanel::OnThemeChanged()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -381,7 +381,7 @@ void DxuiPanel::Tick (int64_t nowMs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPanel::OnVisibilityChanged ()
+void DxuiPanel::OnVisibilityChanged()
 {
     DxuiPanel *  parentPanel = dynamic_cast<DxuiPanel *> (Parent());
 
@@ -399,11 +399,29 @@ void DxuiPanel::OnVisibilityChanged ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnChildVisibilityChanged
+//
+//  Called by IDxuiControl::SetVisible when a child toggles visibility.
+//  Marks the panel dirty so the next pump relayouts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPanel::OnChildVisibilityChanged (IDxuiControl * /*child*/)
+{
+    MarkDirty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MarkDirty
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPanel::MarkDirty ()
+void DxuiPanel::MarkDirty()
 {
     m_dirty = true;
 }

@@ -80,7 +80,7 @@ enum class DxuiAccessibleRole
 class IDxuiControl
 {
 public:
-    virtual ~IDxuiControl () = default;
+    virtual ~IDxuiControl() = default;
 
     static constexpr int  kTabIndexGeometry = -1;
     static constexpr int  kTabIndexExcluded = -2;
@@ -125,7 +125,7 @@ public:
     virtual IDxuiControl *  Child       (size_t index) const                    { (void) index; return nullptr; }
 
 protected:
-    virtual void  OnVisibilityChanged ()                                        {}
+    virtual void  OnVisibilityChanged()                                        {}
 
     IDxuiControl *  m_parent     = nullptr;
     RECT            m_boundsDip  = {};

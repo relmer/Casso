@@ -28,7 +28,7 @@ class IDxuiControl;
 class IDxuiLayout
 {
 public:
-    virtual ~IDxuiLayout () = default;
+    virtual ~IDxuiLayout() = default;
 
     virtual void  Arrange  (const RECT                          & boundsDip,
                             const DxuiDpiScaler                 & scaler,

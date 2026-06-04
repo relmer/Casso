@@ -15,7 +15,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiFocusManager::DxuiFocusManager ()
+DxuiFocusManager::DxuiFocusManager()
 {
 }
 
@@ -29,7 +29,7 @@ DxuiFocusManager::DxuiFocusManager ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiFocusManager::~DxuiFocusManager ()
+DxuiFocusManager::~DxuiFocusManager()
 {
 }
 
@@ -83,7 +83,7 @@ void DxuiFocusManager::SetTheme (const IDxuiTheme * theme)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiFocusManager::RowEpsilonDip () const
+float DxuiFocusManager::RowEpsilonDip() const
 {
     constexpr float  s_kDefaultRowEpsilonDip = 16.0f;
 
@@ -152,7 +152,7 @@ void DxuiFocusManager::CollectFocusables (IDxuiControl * root, std::vector<IDxui
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiFocusManager::Rebuild ()
+void DxuiFocusManager::Rebuild()
 {
     std::vector<IDxuiControl *>  raw;
     IDxuiControl *               scopeRoot = nullptr;
@@ -476,7 +476,7 @@ void DxuiFocusManager::PushScope (IDxuiControl * scopeRoot)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiFocusManager::PopScope ()
+void DxuiFocusManager::PopScope()
 {
     Scope  scope;
 

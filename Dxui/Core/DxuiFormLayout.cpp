@@ -66,7 +66,7 @@ void DxuiFormLayout::AddSubRow (IDxuiControl * label, IDxuiControl * field)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiFormLayout::AddSectionGap ()
+void DxuiFormLayout::AddSectionGap()
 {
     m_entries.push_back (Entry{ RowKind::SectionGap, nullptr, nullptr });
 }
@@ -81,7 +81,7 @@ void DxuiFormLayout::AddSectionGap ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiFormLayout::Reset ()
+void DxuiFormLayout::Reset()
 {
     m_entries.clear();
 }

@@ -59,7 +59,7 @@ class DxuiFocusManager
 {
 public:
     DxuiFocusManager  ();
-    ~DxuiFocusManager ();
+    ~DxuiFocusManager();
 
     void   Attach           (DxuiPanel * root);
     void   SetTheme         (const IDxuiTheme * theme);
@@ -69,7 +69,7 @@ public:
     void   PushScope        (IDxuiControl * scopeRoot);
     void   PopScope         ();
 
-    IDxuiControl *  Focused () const                  { return m_focused; }
+    IDxuiControl *  Focused() const                  { return m_focused; }
     void            SetFocused (IDxuiControl * ctl);
 
     float  RowEpsilonDip    () const;
