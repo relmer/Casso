@@ -1200,11 +1200,11 @@ DxuiListView::Palette DxuiListView::MakePalette () const
 
 
 
-    pal.fg       = m_theme->dropdownItemTextArgb;
+    pal.fg       = m_theme->Foreground();
     pal.fgDim    = (pal.fg & 0x00FFFFFFu) | 0xA0000000u;
-    pal.hdrFg    = m_theme->titleTextArgb;
-    pal.bgRow    = m_theme->dropdownBgArgb;
-    pal.bgHover  = m_theme->navHoverArgb;
+    pal.hdrFg    = m_theme->HeadingForeground();
+    pal.bgRow    = m_theme->BackgroundElevated();
+    pal.bgHover  = m_theme->HoverBackground();
     pal.bgHeader = (pal.bgRow & 0x00FFFFFFu) | 0xFF000000u;
     pal.border   = (pal.fg    & 0x00FFFFFFu) | 0x30000000u;
 

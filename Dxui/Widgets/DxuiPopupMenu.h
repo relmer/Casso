@@ -2,8 +2,6 @@
 
 #include "Pch.h"
 
-#include "ChromeTheme.h"
-
 
 
 
@@ -19,8 +17,8 @@
 //  true; once a click selects an item or lands outside the panel
 //  the popup hides and the panel resumes normal input.
 //
-//  All metrics are DPI-scaled. Theming pulls dropdownBg / navHover /
-//  dropdownItemText from the active `ChromeTheme`.
+//  All metrics are DPI-scaled. Theming reads BackgroundElevated /
+//  HoverBackground / Foreground from the active `IDxuiTheme`.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +34,7 @@ public:
     using SelectFn = std::function<void (int index)>;
 
     void  SetDpi      (UINT dpi)                { m_scaler.SetDpi (dpi); }
-    void  SetTheme    (const ChromeTheme * th)  { m_theme = th; }
+    void  SetTheme    (const IDxuiTheme * th)   { m_theme = th; }
     void  SetOnSelect (SelectFn fn)             { m_onSelect = std::move (fn); }
 
     bool                       IsVisible () const { return m_visible; }
@@ -63,7 +61,7 @@ private:
 
     std::vector<Item>     m_items;
     SelectFn              m_onSelect;
-    const ChromeTheme   * m_theme    = nullptr;
+    const IDxuiTheme    * m_theme    = nullptr;
     RECT                  m_rect     = {};
     int                   m_hover    = -1;
     int                   m_pressed  = -1;

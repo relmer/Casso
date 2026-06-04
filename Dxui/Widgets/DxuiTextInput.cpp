@@ -327,11 +327,11 @@ void DxuiTextInput::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
 
     if (m_theme != nullptr)
     {
-        bgArgb    = m_theme->dropdownBgArgb;
-        fgArgb    = m_theme->dropdownItemTextArgb;
-        selArgb   = m_theme->navHoverArgb;
+        bgArgb    = m_theme->BackgroundElevated();
+        fgArgb    = m_theme->Foreground();
+        selArgb   = m_theme->SelectionBackground();
         edgeArgb  = (fgArgb & 0x00FFFFFFu) | 0x30000000u;
-        focusArgb = m_theme->linkArgb;
+        focusArgb = m_theme->FocusRing();
     }
 
     painter.FillRect    (x, y, w, h, bgArgb);

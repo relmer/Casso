@@ -307,9 +307,9 @@ void DxuiPopupMenu::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
         return;
     }
 
-    bgArgb   = m_theme->dropdownBgArgb;
-    bgHover  = m_theme->navHoverArgb;
-    fgArgb   = m_theme->dropdownItemTextArgb;
+    bgArgb   = m_theme->BackgroundElevated();
+    bgHover  = m_theme->HoverBackground();
+    fgArgb   = m_theme->Foreground();
     brdrArgb = (fgArgb & 0x00FFFFFFu) | 0x60000000u;
 
     painter.FillRect (left, top, width, height, bgArgb);

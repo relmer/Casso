@@ -454,6 +454,8 @@
     <ClCompile Include="UiTests\FocusManagerTests.cpp" />
     <ClCompile Include="UiTests\AnimationSyncTests.cpp" />
     <ClCompile Include="UiTests\DxuiPainterTests.cpp" />
+    <ClCompile Include="Dxui\MockDxuiTheme.cpp" />
+    <ClCompile Include="Dxui\MockDxuiThemeTests.cpp" />
     <ClCompile Include="Devices\Disk2DebugDialogTests.cpp" />
     <ClCompile Include="DiskMruTests.cpp" />
     <ClCompile Include="DialogLayoutTests.cpp" />
@@ -487,6 +489,7 @@
     <ClInclude Include="EmuTests\TextScreenScraper.h" />
     <ClInclude Include="EmuTests\KeystrokeInjector.h" />
     <ClInclude Include="EmuTests\MemoryProbeHelpers.h" />
+    <ClInclude Include="Dxui\MockDxuiTheme.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CassoCore\CassoCore.vcxproj">
