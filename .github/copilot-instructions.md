@@ -15,7 +15,7 @@ The solution has five projects:
 
 ### Precompiled Headers
 - Every `.cpp` file MUST include `"Pch.h"` as its **first** `#include`
-- **NEVER** use angle-bracket includes (`<header>`) anywhere except `Pch.h`
+- **NEVER** use angle-bracket includes (`<header>`) anywhere except `Pch.h` or a library project's umbrella header (currently only `Dxui.h`)
 - All system headers and STL headers belong in `Pch.h`
 - Individual `.cpp` and `.h` files use only quoted includes (`"header.h"`) for project headers
 
