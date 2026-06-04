@@ -112,6 +112,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiDropdown.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiListView.h"
+#include "Widgets/DxuiMenuBar.h"
 #include "Widgets/DxuiModalScrim.h"
 #include "Widgets/DxuiPopupMenu.h"
 #include "Widgets/DxuiRadio.h"
