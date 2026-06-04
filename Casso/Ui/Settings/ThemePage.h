@@ -5,8 +5,8 @@
 #include "../Chrome/ChromeTheme.h"
 #include "../Chrome/DriveWidget.h"
 #include "../Chrome/JoystickToggleButton.h"
-#include "../Widgets/Dropdown.h"
-#include "../Widgets/Label.h"
+#include "Widgets/DxuiDropdown.h"
+#include "Widgets/DxuiLabel.h"
 
 
 
@@ -49,7 +49,7 @@ public:
     void  CollectFocusables (std::vector<std::function<void (bool)>> & out);
     bool  AnyDropdownOpen   () const { return m_themeDropdown.IsOpen(); }
 
-    const Dropdown                 & ThemeDropdown    () const { return m_themeDropdown; }
+    const DxuiDropdown                 & ThemeDropdown    () const { return m_themeDropdown; }
     const std::vector<std::string> & Themes           () const { return m_themeIds; }
     int                              ActiveThemeIndex () const { return m_activeIndex; }
 
@@ -60,8 +60,8 @@ private:
     FramebufferSourceFn           m_framebufferSource;
     MountedPathFn                 m_mountedPathSource;
 
-    Label                         m_themeLabel;
-    Dropdown                      m_themeDropdown;
+    DxuiLabel                         m_themeLabel;
+    DxuiDropdown                      m_themeDropdown;
     RECT                          m_previewRect = {};
     DxuiDpiScaler                     m_scaler;
 

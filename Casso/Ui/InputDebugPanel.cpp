@@ -53,7 +53,7 @@ constexpr LPCWSTR  s_kpszPair1Label  = L"View PADDL2-PADDL3 as";
 constexpr LPCWSTR  s_kpszPair0Items[2] = { L"Joystick 0", L"Paddles 0, 1" };
 constexpr LPCWSTR  s_kpszPair1Items[2] = { L"Joystick 1", L"Paddles 2, 3" };
 
-constexpr LPCWSTR  s_kpszAllTip      = L"Toggle every emulator-input lane at once";
+constexpr LPCWSTR  s_kpszAllTip      = L"DxuiToggle every emulator-input lane at once";
 constexpr LPCWSTR  s_kpszEmuKbdTip   = L"Show guest keyboard soft-switch reads ($C000/$C010)";
 constexpr LPCWSTR  s_kpszJoystickTip = L"Show game-port reads for pairs viewed as a joystick";
 constexpr LPCWSTR  s_kpszPaddleTip   = L"Show game-port reads for pairs viewed as paddles";
@@ -441,7 +441,7 @@ void InputDebugPanel::FormatInputEvent (
             button  = ButtonAnnotation (address);
             out.address = std::format (L"${:04X}", address);
             out.value   = std::format (L"${:02X}", value);
-            out.meaning = std::format (L"Button read {} -> {}  pressed={}",
+            out.meaning = std::format (L"DxuiButton read {} -> {}  pressed={}",
                                        out.address,
                                        out.value,
                                        pressed ? 1 : 0);
@@ -1295,7 +1295,7 @@ void InputDebugPanel::DrainAndProject()
         // A reset (Ctrl+R / power-cycle) was requested from the CPU
         // thread. Apply the staged Uptime anchor and clear the event
         // list HERE, on the render thread, so m_events, m_filteredIndices
-        // and the ListView rows are only ever touched by one thread.
+        // and the DxuiListView rows are only ever touched by one thread.
         ticks = m_pendingAnchorTicks.load (std::memory_order_acquire);
 
         m_uptimeAnchor = std::chrono::steady_clock::time_point (std::chrono::steady_clock::duration (ticks));
@@ -1340,7 +1340,7 @@ void InputDebugPanel::DrainAndProject()
 
     // Evict in batches at a high-water mark rather than trimming a single
     // row every frame. A per-frame pop_front would shift every deque index
-    // and force an O(n) rebuild of the filtered view and ListView rows on
+    // and force an O(n) rebuild of the filtered view and DxuiListView rows on
     // each frame; batching keeps the steady-state streaming path append-only.
     if (m_events.size() > s_kDisplayDequeHighWater)
     {
@@ -1415,17 +1415,17 @@ void InputDebugPanel::RebuildFilteredIndices()
 
 void InputDebugPanel::AppendNewEventRows (size_t startIndex)
 {
-    std::vector<std::vector<ListView::Cell>>  rows;
+    std::vector<std::vector<DxuiListView::Cell>>  rows;
     size_t                                    i = 0;
 
 
     // Caller guarantees no eviction happened this frame, so deque indices in
     // [startIndex, size) are stable and can be appended to m_filteredIndices
-    // and the ListView without disturbing the existing rows.
+    // and the DxuiListView without disturbing the existing rows.
     rows.reserve (m_events.size() - startIndex);
     for (i = startIndex; i < m_events.size(); i++)
     {
-        std::vector<ListView::Cell>  row;
+        std::vector<DxuiListView::Cell>  row;
 
         if (!MatchesFilter (m_events[i], m_filter))
         {
@@ -1459,14 +1459,14 @@ void InputDebugPanel::AppendNewEventRows (size_t startIndex)
 
 void InputDebugPanel::PushListViewRows()
 {
-    std::vector<std::vector<ListView::Cell>>  rows;
+    std::vector<std::vector<DxuiListView::Cell>>  rows;
     int                                       oldSelected = m_eventList.GetSelectedRow();
 
 
     rows.reserve (m_filteredIndices.size());
     for (size_t eventIndex : m_filteredIndices)
     {
-        std::vector<ListView::Cell>  row;
+        std::vector<DxuiListView::Cell>  row;
 
         row.resize (kInputColumnCount);
         for (int col = 0; col < kInputColumnCount; col++)
@@ -2336,7 +2336,7 @@ void InputDebugPanel::UpdateTooltip (int x, int y)
 void InputDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 {
     auto &                       columns  = m_columnsModel;
-    std::vector<PopupMenu::Item> items;
+    std::vector<DxuiPopupMenu::Item> items;
     RECT                         hostRect = { 0, 0, m_widthPx, m_heightPx };
     int                          i        = 0;
 
@@ -2344,7 +2344,7 @@ void InputDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
     items.reserve (kInputColumnCount);
     for (i = 0; i < kInputColumnCount; i++)
     {
-        PopupMenu::Item  item;
+        DxuiPopupMenu::Item  item;
 
         item.label   = columns[i].headerText;
         item.checked = columns[i].visible;

@@ -13,8 +13,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  HardwarePageTests
 //
 //  Tests the per-row rendering rules HardwarePage applies when it
-//  turns the SettingsPanelState hardware list into the TreeView's
-//  TreeNode tree. The actual paint pass is not exercised (no GPU);
+//  turns the SettingsPanelState hardware list into the DxuiTreeView's
+//  DxuiTreeNode tree. The actual paint pass is not exercised (no GPU);
 //  we verify the mapping produces the right nodes so the renderer
 //  can blindly walk them.
 //
@@ -46,7 +46,7 @@ public:
     TEST_METHOD (BuildNodes_GroupsInternalAndSlotsSeparately)
     {
         std::vector<HardwareEntry>  entries;
-        std::vector<TreeNode>       nodes;
+        std::vector<DxuiTreeNode>       nodes;
 
         entries.push_back (MakeEntry (HardwareEntryKind::InternalDevice, "keyboard", CapabilityFlag::Required, true));
         entries.push_back (MakeEntry (HardwareEntryKind::Slot,           "Slot 6: disk-ii", CapabilityFlag::Optional, true));
@@ -65,7 +65,7 @@ public:
     TEST_METHOD (BuildNodes_HidesEmptyGroup)
     {
         std::vector<HardwareEntry>  entries;
-        std::vector<TreeNode>       nodes;
+        std::vector<DxuiTreeNode>       nodes;
 
         entries.push_back (MakeEntry (HardwareEntryKind::InternalDevice, "kbd", CapabilityFlag::Required, true));
         nodes = HardwarePage::BuildNodes (entries);
@@ -79,32 +79,32 @@ public:
     TEST_METHOD (BuildNodes_MapsRequiredFlag)
     {
         std::vector<HardwareEntry>  entries;
-        std::vector<TreeNode>       nodes;
+        std::vector<DxuiTreeNode>       nodes;
 
         entries.push_back (MakeEntry (HardwareEntryKind::InternalDevice, "kbd", CapabilityFlag::Required, true));
         nodes = HardwarePage::BuildNodes (entries);
 
-        Assert::IsTrue (nodes[0].children[0].capabilityFlag == TreeCapabilityFlag::Required,
-            L"Required CapabilityFlag must map to TreeCapabilityFlag::Required.");
+        Assert::IsTrue (nodes[0].children[0].capabilityFlag == DxuiTreeCapabilityFlag::Required,
+            L"Required CapabilityFlag must map to DxuiTreeCapabilityFlag::Required.");
     }
 
 
     TEST_METHOD (BuildNodes_MapsOptionalFlag)
     {
         std::vector<HardwareEntry>  entries;
-        std::vector<TreeNode>       nodes;
+        std::vector<DxuiTreeNode>       nodes;
 
         entries.push_back (MakeEntry (HardwareEntryKind::Slot, "Slot 6: disk-ii", CapabilityFlag::Optional, true));
         nodes = HardwarePage::BuildNodes (entries);
 
-        Assert::IsTrue (nodes[0].children[0].capabilityFlag == TreeCapabilityFlag::Optional);
+        Assert::IsTrue (nodes[0].children[0].capabilityFlag == DxuiTreeCapabilityFlag::Optional);
     }
 
 
     TEST_METHOD (BuildNodes_MapsPlatformLockedFlag_PreservesLockReason)
     {
         std::vector<HardwareEntry>  entries;
-        std::vector<TreeNode>       nodes;
+        std::vector<DxuiTreeNode>       nodes;
 
         entries.push_back (MakeEntry (HardwareEntryKind::InternalDevice,
                                       "80col-card",
@@ -113,7 +113,7 @@ public:
                                       "integrated on Apple //c"));
         nodes = HardwarePage::BuildNodes (entries);
 
-        Assert::IsTrue (nodes[0].children[0].capabilityFlag == TreeCapabilityFlag::PlatformLocked);
+        Assert::IsTrue (nodes[0].children[0].capabilityFlag == DxuiTreeCapabilityFlag::PlatformLocked);
         Assert::AreEqual (std::wstring (L"integrated on Apple //c"),
                           nodes[0].children[0].lockReason);
     }
@@ -122,19 +122,19 @@ public:
     TEST_METHOD (BuildNodes_PreservesCheckedStateFromEnabled)
     {
         std::vector<HardwareEntry>  entries;
-        std::vector<TreeNode>       nodes;
+        std::vector<DxuiTreeNode>       nodes;
 
         entries.push_back (MakeEntry (HardwareEntryKind::Slot, "Slot 4: mockingboard", CapabilityFlag::Optional, false));
         nodes = HardwarePage::BuildNodes (entries);
 
         Assert::IsFalse (nodes[0].children[0].checked,
-            L"Entry with enabled=false must produce an unchecked TreeNode.");
+            L"Entry with enabled=false must produce an unchecked DxuiTreeNode.");
     }
 
 
     TEST_METHOD (BuildNodes_EmptyEntryList_NoGroups)
     {
-        std::vector<TreeNode>  nodes = HardwarePage::BuildNodes ({});
+        std::vector<DxuiTreeNode>  nodes = HardwarePage::BuildNodes ({});
 
         Assert::IsTrue (nodes.empty(),
             L"Empty entry list must produce no group rows.");

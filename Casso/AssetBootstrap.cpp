@@ -13,7 +13,7 @@
 #include "Ui/Chrome/ChromeTheme.h"
 #include "Ui/Dialog/StandaloneDialog.h"
 #include "Ui/Dialog/StartupDownloadDialog.h"
-#include "Ui/Widgets/ListView.h"
+#include "Widgets/DxuiListView.h"
 #include "UnicodeSymbols.h"
 
 #pragma comment(lib, "winhttp.lib")
@@ -1773,7 +1773,7 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     int                 rowCount      = 0;
     UINT                sysDpi        = (hwndParent != nullptr) ? GetDpiForWindow (hwndParent)
                                                                 : GetDpiForSystem();
-    ListView            list;
+    DxuiListView            list;
     error_code          ec;
 
 
@@ -1839,8 +1839,8 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     // Populate the list. Mru rows show "<basename> | <parent dir>";
     // download rows show "<name> | Asimov archive (Download)".
     {
-        std::vector<ListView::Column>            cols;
-        std::vector<std::vector<ListView::Cell>> rows;
+        std::vector<DxuiListView::Column>            cols;
+        std::vector<std::vector<DxuiListView::Cell>> rows;
 
         cols.push_back ({ L"Disk image", 0, false, DxuiTextRenderer::HAlign::Left });
         cols.push_back ({ L"Location",   0, false, DxuiTextRenderer::HAlign::Left });
@@ -1853,15 +1853,15 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
             std::wstring  displayLbl  = (mruLabels[(size_t) i] != nullptr)
                                             ? std::wstring (mruLabels[(size_t) i]->label)
                                             : p.filename().wstring();
-            ListView::Cell name { std::move (displayLbl), false };
-            ListView::Cell loc  { p.parent_path().wstring(), true };
+            DxuiListView::Cell name { std::move (displayLbl), false };
+            DxuiListView::Cell loc  { p.parent_path().wstring(), true };
             rows.push_back ({ std::move (name), std::move (loc) });
         }
 
         for (const DownloadRow * dr : shownDownloads)
         {
-            ListView::Cell  name { dr->label, false };
-            ListView::Cell  loc  { L"Asimov archive (Download)", true };
+            DxuiListView::Cell  name { dr->label, false };
+            DxuiListView::Cell  loc  { L"Asimov archive (Download)", true };
             rows.push_back ({ std::move (name), std::move (loc) });
         }
 
@@ -1996,7 +1996,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     int                 rowCount      = 0;
     UINT                sysDpi        = (hwndParent != nullptr) ? GetDpiForWindow (hwndParent)
                                                                 : GetDpiForSystem();
-    ListView            list;
+    DxuiListView            list;
     error_code          ec;
 
 
@@ -2054,8 +2054,8 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     }
 
     {
-        std::vector<ListView::Column>            cols;
-        std::vector<std::vector<ListView::Cell>> rows;
+        std::vector<DxuiListView::Column>            cols;
+        std::vector<std::vector<DxuiListView::Cell>> rows;
 
         cols.push_back ({ L"Disk image", 0, false, DxuiTextRenderer::HAlign::Left });
         cols.push_back ({ L"Location",   0, false, DxuiTextRenderer::HAlign::Left });
@@ -2068,15 +2068,15 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
             std::wstring  displayName = (mruLabels[(size_t) i] != nullptr)
                                             ? std::wstring (mruLabels[(size_t) i]->label)
                                             : p.filename().wstring();
-            ListView::Cell name { std::move (displayName), false };
-            ListView::Cell loc  { p.parent_path().wstring(), true };
+            DxuiListView::Cell name { std::move (displayName), false };
+            DxuiListView::Cell loc  { p.parent_path().wstring(), true };
             rows.push_back ({ std::move (name), std::move (loc) });
         }
 
         for (const DownloadRow * dr : shownDownloads)
         {
-            ListView::Cell  name { dr->label, false };
-            ListView::Cell  loc  { L"Asimov archive (Download)", true };
+            DxuiListView::Cell  name { dr->label, false };
+            DxuiListView::Cell  loc  { L"Asimov archive (Download)", true };
             rows.push_back ({ std::move (name), std::move (loc) });
         }
 

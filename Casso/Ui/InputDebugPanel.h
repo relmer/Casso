@@ -3,13 +3,13 @@
 #include "Chrome/ChromedPanelWindow.h"
 #include "Chrome/IChromedPanelContent.h"
 #include "InputDebugPanelLayout.h"
-#include "Widgets/Button.h"
-#include "Widgets/Checkbox.h"
-#include "Widgets/Dropdown.h"
-#include "Widgets/Label.h"
-#include "Widgets/ListView.h"
-#include "Widgets/PopupMenu.h"
-#include "Widgets/Tooltip.h"
+#include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiCheckbox.h"
+#include "Widgets/DxuiDropdown.h"
+#include "Widgets/DxuiLabel.h"
+#include "Widgets/DxuiListView.h"
+#include "Widgets/DxuiPopupMenu.h"
+#include "Widgets/DxuiTooltip.h"
 
 #include "../InputDebugDialogState.h"
 #include "../InputEventDisplay.h"
@@ -76,7 +76,7 @@ public:
     // Thread-safe reset hook. The CPU/reset thread calls this to stage a
     // new Uptime anchor and request an event-list clear; the render
     // thread applies both inside DrainAndProject so the event deque and
-    // ListView rows are only ever mutated on one thread.
+    // DxuiListView rows are only ever mutated on one thread.
     void    RequestResetAnchor (std::chrono::steady_clock::time_point anchor) noexcept;
 
     LPCWSTR  GetWindowClassName () const override;
@@ -187,21 +187,21 @@ private:
     DxuiPainter                           m_painter;
     DxuiTextRenderer                    m_text;
 
-    Label                                 m_emuLabel;
-    Label                                 m_hostLabel;
-    std::array<Label, 2>                  m_pairLabel;
-    Checkbox                              m_allCheck;
-    Checkbox                              m_emuKeyboardCheck;
-    Checkbox                              m_joystickCheck;
-    Checkbox                              m_paddleCheck;
-    Checkbox                              m_hostKeyboardCheck;
-    std::array<Dropdown, 2>               m_pairView;
-    Button                                m_pauseButton;
-    Button                                m_clearButton;
-    Button                                m_copyButton;
-    ListView                              m_eventList;
-    Tooltip                               m_tooltip;
-    PopupMenu                             m_columnMenu;
+    DxuiLabel                                 m_emuLabel;
+    DxuiLabel                                 m_hostLabel;
+    std::array<DxuiLabel, 2>                  m_pairLabel;
+    DxuiCheckbox                              m_allCheck;
+    DxuiCheckbox                              m_emuKeyboardCheck;
+    DxuiCheckbox                              m_joystickCheck;
+    DxuiCheckbox                              m_paddleCheck;
+    DxuiCheckbox                              m_hostKeyboardCheck;
+    std::array<DxuiDropdown, 2>               m_pairView;
+    DxuiButton                                m_pauseButton;
+    DxuiButton                                m_clearButton;
+    DxuiButton                                m_copyButton;
+    DxuiListView                              m_eventList;
+    DxuiTooltip                               m_tooltip;
+    DxuiPopupMenu                             m_columnMenu;
 
     InputFilterState                      m_filter;
     std::array<InputLogicalColumn, kInputColumnCount>  m_columnsModel = {};

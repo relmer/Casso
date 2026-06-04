@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "../Widgets/Button.h"
+#include "Widgets/DxuiButton.h"
 #include "DialogDefinition.h"
 #include "DialogLayout.h"
 
@@ -43,7 +43,7 @@ public:
                            const DialogLayoutResult & layout,
                            const ChromeTheme        & theme,
                            int                        titleHeightPx,
-                           std::vector<Button>      & buttons,
+                           std::vector<DxuiButton>      & buttons,
                            size_t                     focusedHyperlinkRunIdx,
                            size_t                     hoveredHyperlinkRunIdx,
                            bool                       closeHovered,
@@ -77,7 +77,7 @@ private:
                                     const DialogLayoutResult & layout,
                                     const ChromeTheme        & theme,
                                     int                        titleHeightPx);
-    void    PaintButtons           (std::vector<Button>      & buttons,
+    void    PaintButtons           (std::vector<DxuiButton>      & buttons,
                                     const ChromeTheme        & theme);
     void    EnsureAppIconLoaded    (int                        iconResourceId,
                                     int                        sizePx);

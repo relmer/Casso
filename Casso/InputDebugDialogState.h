@@ -4,7 +4,7 @@
 
 #include "../CassoEmuCore/Devices/InputEvent.h"
 #include "InputEventDisplay.h"
-#include "Ui/Widgets/ListView.h"
+#include "Widgets/DxuiListView.h"
 
 
 
@@ -69,7 +69,7 @@ bool  MatchesFilter      (const InputEventDisplay & e, const InputFilterState & 
 
 
 
-std::vector<ListView::Column> PlanVisibleColumns (
+std::vector<DxuiListView::Column> PlanVisibleColumns (
     const std::array<InputLogicalColumn, kInputColumnCount> & model) noexcept;
 
 void          AppendColumnText (

@@ -108,7 +108,7 @@
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\Casso;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\Casso;..\Casso\Ui\Chrome;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
@@ -125,7 +125,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\Casso;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\Casso;..\Casso\Ui\Chrome;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
@@ -142,7 +142,7 @@
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\Casso;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\Casso;..\Casso\Ui\Chrome;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
@@ -159,7 +159,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\Casso;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\Casso;..\Casso\Ui\Chrome;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
@@ -176,7 +176,7 @@
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\Casso;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\Casso;..\Casso\Ui\Chrome;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
@@ -193,7 +193,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\Casso;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;..\CassoEmuCore;..\CassoCore;..\Casso;..\Casso\Ui\Chrome;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
@@ -407,42 +407,6 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
-    <ClCompile Include="..\Casso\Ui\Widgets\Checkbox.cpp">
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
-    </ClCompile>
-    <ClCompile Include="..\Casso\Ui\Widgets\Toggle.cpp">
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
-    </ClCompile>
-    <ClCompile Include="..\Casso\Ui\Widgets\Radio.cpp">
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
-    </ClCompile>
-    <ClCompile Include="..\Casso\Ui\Widgets\Dropdown.cpp">
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
-    </ClCompile>
-    <ClCompile Include="..\Casso\Ui\Widgets\Slider.cpp">
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
-    </ClCompile>
-    <ClCompile Include="..\Casso\Ui\Widgets\TreeView.cpp">
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
-    </ClCompile>
-    <ClCompile Include="..\Casso\Ui\Widgets\ModalScrim.cpp">
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
-    </ClCompile>
-    <ClCompile Include="..\Casso\Ui\Widgets\Tooltip.cpp">
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
-    </ClCompile>
-    <ClCompile Include="..\Casso\Ui\Widgets\TabStrip.cpp">
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
-    </ClCompile>
     <ClCompile Include="..\Casso\CrtPostProcess.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
@@ -456,13 +420,13 @@
     <ClCompile Include="UiTests\UserConfigStoreTests.cpp" />
     <ClCompile Include="UiTests\GlobalUserPrefsTests.cpp" />
     <ClCompile Include="UiTests\WindowPlacementProfileTests.cpp" />
-    <ClCompile Include="UiTests\CheckboxTests.cpp" />
-    <ClCompile Include="UiTests\RadioGroupTests.cpp" />
-    <ClCompile Include="UiTests\SliderTests.cpp" />
-    <ClCompile Include="UiTests\TreeViewTests.cpp" />
-    <ClCompile Include="UiTests\ModalScrimTests.cpp" />
-    <ClCompile Include="UiTests\TooltipTests.cpp" />
-    <ClCompile Include="UiTests\TabStripTests.cpp" />
+    <ClCompile Include="UiTests\DxuiCheckboxTests.cpp" />
+    <ClCompile Include="UiTests\DxuiRadioGroupTests.cpp" />
+    <ClCompile Include="UiTests\DxuiSliderTests.cpp" />
+    <ClCompile Include="UiTests\DxuiTreeViewTests.cpp" />
+    <ClCompile Include="UiTests\DxuiModalScrimTests.cpp" />
+    <ClCompile Include="UiTests\DxuiTooltipTests.cpp" />
+    <ClCompile Include="UiTests\DxuiTabStripTests.cpp" />
     <ClCompile Include="UiTests\TitleBarHitTestTests.cpp" />
     <ClCompile Include="UiTests\TitleBarLayoutTests.cpp" />
     <ClCompile Include="UiTests\ChromeCommandRoutingTests.cpp" />

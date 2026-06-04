@@ -132,7 +132,7 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int   togglePillW  = scaler.Px (70);            // wide enough for "Off" / "On" text
     int   sectionGap   = scaler.Px (s_kSectionGapDp);
     int   bigGap       = scaler.Px (s_kBigSectionGapDp);
-    int   childIndent  = scaler.Px (18);            // matches TreeView indent
+    int   childIndent  = scaler.Px (18);            // matches DxuiTreeView indent
     int   x            = rect.left + pad;
     int   y            = rect.top  + pad;
     int   controlsX    = x + labelWidth;        // every control starts here
@@ -810,15 +810,15 @@ void DisplayPage::Paint (DxuiPainter & painter, DxuiTextRenderer & text,
     SetAlphaForRow (-1, m_restoreRowRect);
     {
         static const ChromeTheme  s_kFallbackTheme = ChromeTheme::Skeuomorphic();
-        // Button consults theme tokens for color when the caller hasn't
+        // DxuiButton consults theme tokens for color when the caller hasn't
         // set explicit override colors. DisplayPage doesn't carry a
         // theme handle so we hand it the canonical fallback -- chrome
         // theming for the button face will land when the page picks
         // up the active theme pointer in a follow-up.
-        const_cast<Button &> (m_restore).Paint (painter, text, s_kFallbackTheme);
+        const_cast<DxuiButton &> (m_restore).Paint (painter, text, s_kFallbackTheme);
     }
 
-    // Dropdown menu floats above the page; paint last so it overlays.
+    // DxuiDropdown menu floats above the page; paint last so it overlays.
     SetAlphaForRow (kControlMonitor, m_monitorRowRect);
     m_monitor.PaintMenu     (painter, text);
 

@@ -97,7 +97,7 @@ void MachinePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int  checkWidth   = scaler.Px (s_kCheckWidthDp);
     int  dropWidth    = scaler.Px (s_kDropdownWidthDp);
     int  sectionGap   = scaler.Px (s_kSectionGapDp);
-    int  childIndent  = scaler.Px (18);          // matches TreeView indent
+    int  childIndent  = scaler.Px (18);          // matches DxuiTreeView indent
     int  x            = rect.left + pad;
     int  y            = rect.top  + pad;
     int  controlsX    = x + labelWidth;
@@ -137,7 +137,7 @@ void MachinePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     y += rowHeight + sectionGap;
 
     // Mechanism is a child of Drive audio: indent the label by the
-    // same childIndent used elsewhere (matches TreeView's 18 dp).
+    // same childIndent used elsewhere (matches DxuiTreeView's 18 dp).
     m_mechLabel.SetRect  (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
     m_mechLabel.SetText  (L"Mechanism:");
     m_mechanism.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
@@ -398,7 +398,7 @@ void MachinePage::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
     m_audioLabel.Paint     (painter, text);
     m_mechLabel.Paint      (painter, text);
 
-    // Dropdown base boxes first; their open menus paint last so they
+    // DxuiDropdown base boxes first; their open menus paint last so they
     // sit on top of any sibling controls below them.
     m_machineDropdown.PaintBase (painter, text);
     m_speed.PaintBase           (painter, text);

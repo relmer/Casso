@@ -4,11 +4,11 @@
 
 #include "SettingsPanelState.h"
 
-#include "../Widgets/Button.h"
-#include "../Widgets/Dropdown.h"
-#include "../Widgets/Label.h"
-#include "../Widgets/Slider.h"
-#include "../Widgets/Toggle.h"
+#include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiDropdown.h"
+#include "Widgets/DxuiLabel.h"
+#include "Widgets/DxuiSlider.h"
+#include "Widgets/DxuiToggle.h"
 
 
 
@@ -137,19 +137,19 @@ public:
     RECT  FocusedControlRect (int controlId) const;
 
     // Test accessors.
-    const Dropdown & MonitorDropdown    () const { return m_monitor;          }
-    const Slider   & BrightnessSlider   () const { return m_brightness;       }
-    const Slider   & ContrastSlider     () const { return m_contrast;         }
-    const Slider   & GammaSlider        () const { return m_gamma;            }
-    const Slider   & PersistenceSlider  () const { return m_persistence;      }
-    const Toggle   & ScanlinesToggle    () const { return m_scanlinesEn;      }
-    const Slider   & ScanlinesSlider    () const { return m_scanlinesInt;     }
-    const Toggle   & BloomToggle        () const { return m_bloomEn;          }
-    const Slider   & BloomRadiusSlider  () const { return m_bloomRadius;      }
-    const Slider   & BloomStrengthSlider() const { return m_bloomStrength;    }
-    const Toggle   & ColorBleedToggle   () const { return m_colorBleedEn;     }
-    const Slider   & ColorBleedSlider   () const { return m_colorBleedW;      }
-    const Button   & RestoreButton      () const { return m_restore;          }
+    const DxuiDropdown & MonitorDropdown    () const { return m_monitor;          }
+    const DxuiSlider   & BrightnessSlider   () const { return m_brightness;       }
+    const DxuiSlider   & ContrastSlider     () const { return m_contrast;         }
+    const DxuiSlider   & GammaSlider        () const { return m_gamma;            }
+    const DxuiSlider   & PersistenceSlider  () const { return m_persistence;      }
+    const DxuiToggle   & ScanlinesToggle    () const { return m_scanlinesEn;      }
+    const DxuiSlider   & ScanlinesSlider    () const { return m_scanlinesInt;     }
+    const DxuiToggle   & BloomToggle        () const { return m_bloomEn;          }
+    const DxuiSlider   & BloomRadiusSlider  () const { return m_bloomRadius;      }
+    const DxuiSlider   & BloomStrengthSlider() const { return m_bloomStrength;    }
+    const DxuiToggle   & ColorBleedToggle   () const { return m_colorBleedEn;     }
+    const DxuiSlider   & ColorBleedSlider   () const { return m_colorBleedW;      }
+    const DxuiButton   & RestoreButton      () const { return m_restore;          }
 
 private:
     SettingsPanelState  * m_state = nullptr;
@@ -170,34 +170,34 @@ private:
     PreviewFn             m_onPreview;
     RestoreFn             m_onRestore;
 
-    Label                 m_monitorLabel;
-    Label                 m_brightnessLabel;
-    Label                 m_contrastLabel;
-    Label                 m_gammaLabel;
-    Label                 m_persistenceLabel;
+    DxuiLabel                 m_monitorLabel;
+    DxuiLabel                 m_brightnessLabel;
+    DxuiLabel                 m_contrastLabel;
+    DxuiLabel                 m_gammaLabel;
+    DxuiLabel                 m_persistenceLabel;
     // Left-column labels for the toggle rows -- the toggle widget itself
     // paints just the On/Off state indicator in the value column.
-    Label                 m_scanlinesLabel;
-    Label                 m_bloomLabel;
-    Label                 m_colorBleedLabel;
-    Label                 m_scanlinesIntLabel;
-    Label                 m_bloomRadiusLabel;
-    Label                 m_bloomStrengthLabel;
-    Label                 m_colorBleedWLabel;
+    DxuiLabel                 m_scanlinesLabel;
+    DxuiLabel                 m_bloomLabel;
+    DxuiLabel                 m_colorBleedLabel;
+    DxuiLabel                 m_scanlinesIntLabel;
+    DxuiLabel                 m_bloomRadiusLabel;
+    DxuiLabel                 m_bloomStrengthLabel;
+    DxuiLabel                 m_colorBleedWLabel;
 
-    Dropdown              m_monitor;
-    Slider                m_brightness;
-    Slider                m_contrast;
-    Slider                m_gamma;
-    Slider                m_persistence;
-    Toggle                m_scanlinesEn;
-    Slider                m_scanlinesInt;
-    Toggle                m_bloomEn;
-    Slider                m_bloomRadius;
-    Slider                m_bloomStrength;
-    Toggle                m_colorBleedEn;
-    Slider                m_colorBleedW;
-    Button                m_restore;
+    DxuiDropdown              m_monitor;
+    DxuiSlider                m_brightness;
+    DxuiSlider                m_contrast;
+    DxuiSlider                m_gamma;
+    DxuiSlider                m_persistence;
+    DxuiToggle                m_scanlinesEn;
+    DxuiSlider                m_scanlinesInt;
+    DxuiToggle                m_bloomEn;
+    DxuiSlider                m_bloomRadius;
+    DxuiSlider                m_bloomStrength;
+    DxuiToggle                m_colorBleedEn;
+    DxuiSlider                m_colorBleedW;
+    DxuiButton                m_restore;
 
     RECT                  m_monitorRowRect       = {};
     RECT                  m_brightnessRowRect    = {};

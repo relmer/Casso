@@ -3,14 +3,14 @@
 #include "Chrome/ChromedPanelWindow.h"
 #include "Chrome/IChromedPanelContent.h"
 #include "Disk2DebugPanelLayout.h"
-#include "Widgets/Button.h"
-#include "Widgets/Checkbox.h"
-#include "Widgets/Label.h"
-#include "Widgets/ListView.h"
-#include "Widgets/PopupMenu.h"
-#include "Widgets/Radio.h"
-#include "Widgets/TextInput.h"
-#include "Widgets/Tooltip.h"
+#include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiCheckbox.h"
+#include "Widgets/DxuiLabel.h"
+#include "Widgets/DxuiListView.h"
+#include "Widgets/DxuiPopupMenu.h"
+#include "Widgets/DxuiRadio.h"
+#include "Widgets/DxuiTextInput.h"
+#include "Widgets/DxuiTooltip.h"
 
 #include "../Disk2DebugDialogState.h"
 #include "../Disk2EventDisplay.h"
@@ -73,7 +73,7 @@ public:
     // Thread-safe reset hook. The CPU/reset thread calls this to stage a
     // new Uptime anchor and request an event-list clear; the render
     // thread applies both inside DrainAndProject so the event deque and
-    // ListView rows are only ever mutated on one thread.
+    // DxuiListView rows are only ever mutated on one thread.
     void    RequestResetAnchor (std::chrono::steady_clock::time_point anchor) noexcept;
 
     // IChromedPanelContent.
@@ -176,26 +176,26 @@ private:
     DxuiPainter                          m_painter;
     DxuiTextRenderer                   m_text;
 
-    Label                                m_trackFilterLabel;
-    Label                                m_sectorFilterLabel;
-    Label                                m_driveFilterLabel;
-    Label                                m_diskEventsLabel;
-    Label                                m_audioEventsLabel;
-    Label                                m_trackInvalidLabel;
-    Label                                m_sectorInvalidLabel;
+    DxuiLabel                                m_trackFilterLabel;
+    DxuiLabel                                m_sectorFilterLabel;
+    DxuiLabel                                m_driveFilterLabel;
+    DxuiLabel                                m_diskEventsLabel;
+    DxuiLabel                                m_audioEventsLabel;
+    DxuiLabel                                m_trackInvalidLabel;
+    DxuiLabel                                m_sectorInvalidLabel;
 
-    std::array<Checkbox, kEventTypeCheckCount>  m_eventChecks;
-    Checkbox                                    m_audioMasterCheck;
-    std::array<Checkbox, kAudioSubCheckCount>   m_audioSubChecks;
-    Checkbox                                    m_rawQtCheck;
-    RadioGroup                                  m_driveRadio;
-    TextInput                                   m_trackEdit;
-    TextInput                                   m_sectorEdit;
-    Button                                      m_pauseButton;
-    Button                                      m_clearButton;
-    ListView                                    m_eventList;
-    Tooltip                                     m_tooltip;
-    PopupMenu                                   m_columnMenu;
+    std::array<DxuiCheckbox, kEventTypeCheckCount>  m_eventChecks;
+    DxuiCheckbox                                    m_audioMasterCheck;
+    std::array<DxuiCheckbox, kAudioSubCheckCount>   m_audioSubChecks;
+    DxuiCheckbox                                    m_rawQtCheck;
+    DxuiRadioGroup                                  m_driveRadio;
+    DxuiTextInput                                   m_trackEdit;
+    DxuiTextInput                                   m_sectorEdit;
+    DxuiButton                                      m_pauseButton;
+    DxuiButton                                      m_clearButton;
+    DxuiListView                                    m_eventList;
+    DxuiTooltip                                     m_tooltip;
+    DxuiPopupMenu                                   m_columnMenu;
 
     FilterState                           m_filter;
     Disk2EventRing                       m_ring;

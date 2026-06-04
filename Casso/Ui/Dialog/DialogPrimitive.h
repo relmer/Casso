@@ -5,7 +5,7 @@
 #include "DialogDefinition.h"
 #include "DialogLayout.h"
 #include "DialogPrimitiveRenderer.h"
-#include "../Widgets/Button.h"
+#include "Widgets/DxuiButton.h"
 
 
 struct ChromeTheme;
@@ -94,7 +94,7 @@ private:
 
     DialogPrimitiveRenderer      m_renderer;
     DialogLayoutResult           m_layout;
-    std::vector<Button>          m_buttons;
+    std::vector<DxuiButton>          m_buttons;
     size_t                       m_focusedButton    = SIZE_MAX;
     size_t                       m_focusedHyperlink = SIZE_MAX;
     size_t                       m_hoveredHyperlink = SIZE_MAX;

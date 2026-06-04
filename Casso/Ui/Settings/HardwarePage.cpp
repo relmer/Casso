@@ -31,15 +31,15 @@ namespace
     }
 
 
-    TreeCapabilityFlag MapFlag (CapabilityFlag flag)
+    DxuiTreeCapabilityFlag MapFlag (CapabilityFlag flag)
     {
         switch (flag)
         {
-            case CapabilityFlag::Optional:        return TreeCapabilityFlag::Optional;
-            case CapabilityFlag::Required:        return TreeCapabilityFlag::Required;
-            case CapabilityFlag::PlatformLocked:  return TreeCapabilityFlag::PlatformLocked;
+            case CapabilityFlag::Optional:        return DxuiTreeCapabilityFlag::Optional;
+            case CapabilityFlag::Required:        return DxuiTreeCapabilityFlag::Required;
+            case CapabilityFlag::PlatformLocked:  return DxuiTreeCapabilityFlag::PlatformLocked;
         }
-        return TreeCapabilityFlag::Required;
+        return DxuiTreeCapabilityFlag::Required;
     }
 
 
@@ -167,7 +167,7 @@ void HardwarePage::SetState (SettingsPanelState * state)
 void HardwarePage::Rebuild ()
 {
     std::vector<HardwareEntry>   entries;
-    std::vector<TreeNode>        nodes;
+    std::vector<DxuiTreeNode>        nodes;
     SettingsPanelState         * state = m_state;
     const SettingsMachineInfo  * info  = nullptr;
 
@@ -295,11 +295,11 @@ void HardwarePage::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEntry> & entries)
+std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEntry> & entries)
 {
-    std::vector<TreeNode>  out;
-    TreeNode               internalGroup;
-    TreeNode               slotsGroup;
+    std::vector<DxuiTreeNode>  out;
+    DxuiTreeNode               internalGroup;
+    DxuiTreeNode               slotsGroup;
     size_t                 i        = 0;
     bool                   anyInternal = false;
     bool                   anySlot     = false;
@@ -307,19 +307,19 @@ std::vector<TreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEntry>
 
 
     internalGroup.label          = L"Internal devices";
-    internalGroup.capabilityFlag = TreeCapabilityFlag::Required;
+    internalGroup.capabilityFlag = DxuiTreeCapabilityFlag::Required;
     internalGroup.checked        = true;
     internalGroup.expanded       = true;
 
     slotsGroup.label             = L"Slots";
-    slotsGroup.capabilityFlag    = TreeCapabilityFlag::Required;
+    slotsGroup.capabilityFlag    = DxuiTreeCapabilityFlag::Required;
     slotsGroup.checked           = true;
     slotsGroup.expanded          = true;
 
     for (i = 0; i < entries.size(); ++i)
     {
         const HardwareEntry & e = entries[i];
-        TreeNode              row;
+        DxuiTreeNode              row;
 
         row.label          = Widen (e.displayName);
         row.lockReason     = Widen (e.lockReason);

@@ -4,10 +4,10 @@
 
 #include "SettingsPanelState.h"
 
-#include "../Widgets/Dropdown.h"
-#include "../Widgets/Checkbox.h"
-#include "../Widgets/Label.h"
-#include "../Widgets/Toggle.h"
+#include "Widgets/DxuiDropdown.h"
+#include "Widgets/DxuiCheckbox.h"
+#include "Widgets/DxuiLabel.h"
+#include "Widgets/DxuiToggle.h"
 
 
 
@@ -20,14 +20,14 @@
 //  Top page of the settings panel. Hosts every per-machine
 //  user-mutable knob that isn't a hardware row:
 //
-//      * Machine selector (Dropdown) -- the outermost control;
+//      * Machine selector (DxuiDropdown) -- the outermost control;
 //        switching machines reloads the rest of the panel.
-//      * Speed mode    (Dropdown: authentic / 2x / max)
-//      * Color mode    (Dropdown: color / green / amber / white)
-//      * Write protect (one Checkbox per drive: D1 / D2)
-//      * Write mode    (Dropdown: buffer+flush / copy-on-write)
-//      * Drive audio   (Toggle: floppy sound on/off)
-//      * Mechanism     (Dropdown: shugart / alps)
+//      * Speed mode    (DxuiDropdown: authentic / 2x / max)
+//      * Color mode    (DxuiDropdown: color / green / amber / white)
+//      * Write protect (one DxuiCheckbox per drive: D1 / D2)
+//      * Write mode    (DxuiDropdown: buffer+flush / copy-on-write)
+//      * Drive audio   (DxuiToggle: floppy sound on/off)
+//      * Mechanism     (DxuiDropdown: shugart / alps)
 //
 //  All change events route into the supplied `SettingsPanelState`
 //  through the small setter API; widgets read their initial state
@@ -59,14 +59,14 @@ public:
     bool  AnyDropdownOpen   () const;
 
     // Test accessors.
-    const Toggle      & DriveAudioToggle     () const { return m_driveAudio; }
-    const Checkbox    & WriteProtect         (int drive) const { return m_writeProtect[(size_t) drive]; }
-    const Dropdown    & SpeedDropdown        () const { return m_speed; }
-    const Dropdown    & WriteModeDropdown() const { return m_writeMode; }
-    const Dropdown    & MechanismDropdown    () const { return m_mechanism; }
+    const DxuiToggle      & DriveAudioToggle     () const { return m_driveAudio; }
+    const DxuiCheckbox    & WriteProtect         (int drive) const { return m_writeProtect[(size_t) drive]; }
+    const DxuiDropdown    & SpeedDropdown        () const { return m_speed; }
+    const DxuiDropdown    & WriteModeDropdown() const { return m_writeMode; }
+    const DxuiDropdown    & MechanismDropdown    () const { return m_mechanism; }
     const std::vector<std::string> & Machines () const { return m_machines; }
     int               ActiveMachineIndex     () const { return m_activeMachineIndex; }
-    const Dropdown  & MachineDropdown() const { return m_machineDropdown; }
+    const DxuiDropdown  & MachineDropdown() const { return m_machineDropdown; }
 
 private:
     void  ApplyMechanismEnabled (bool enabled);
@@ -76,17 +76,17 @@ private:
     int                          m_activeMachineIndex = -1;
     MachineSelectFn              m_onMachineSelected;
 
-    Label                        m_machineLabel;
-    Label                        m_speedLabel;
-    Label                        m_wpLabel;
-    Label                        m_writeModeLabel;
-    Label                        m_audioLabel;
-    Label                        m_mechLabel;
+    DxuiLabel                        m_machineLabel;
+    DxuiLabel                        m_speedLabel;
+    DxuiLabel                        m_wpLabel;
+    DxuiLabel                        m_writeModeLabel;
+    DxuiLabel                        m_audioLabel;
+    DxuiLabel                        m_mechLabel;
 
-    Dropdown                     m_machineDropdown;
-    Dropdown                     m_speed;
-    Dropdown                     m_writeMode;
-    Dropdown                     m_mechanism;
-    Toggle                       m_driveAudio;
-    std::array<Checkbox, 2>      m_writeProtect;
+    DxuiDropdown                     m_machineDropdown;
+    DxuiDropdown                     m_speed;
+    DxuiDropdown                     m_writeMode;
+    DxuiDropdown                     m_mechanism;
+    DxuiToggle                       m_driveAudio;
+    std::array<DxuiCheckbox, 2>      m_writeProtect;
 };

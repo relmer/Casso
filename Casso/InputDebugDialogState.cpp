@@ -183,10 +183,10 @@ std::wstring BuildClipboardText (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<ListView::Column> PlanVisibleColumns (
+std::vector<DxuiListView::Column> PlanVisibleColumns (
     const std::array<InputLogicalColumn, kInputColumnCount> & model) noexcept
 {
-    std::vector<ListView::Column>  out;
+    std::vector<DxuiListView::Column>  out;
     int                            i = 0;
 
 
@@ -194,10 +194,10 @@ std::vector<ListView::Column> PlanVisibleColumns (
 
     for (i = 0; i < kInputColumnCount; i++)
     {
-        ListView::Column  spec = {};
+        DxuiListView::Column  spec = {};
 
         spec.title   = model[i].headerText;
-        spec.widthDp = model[i].savedWidth;
+        spec.widthDip = model[i].savedWidth;
         spec.visible = model[i].visible;
         spec.stretch = (model[i].id == kInputMeaningColumnId);
 

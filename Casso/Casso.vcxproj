@@ -110,7 +110,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\CassoEmuCore;..\CassoCore;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Ui\Chrome;..\CassoEmuCore;..\CassoCore;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -128,7 +128,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\CassoEmuCore;..\CassoCore;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Ui\Chrome;..\CassoEmuCore;..\CassoCore;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -146,7 +146,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\CassoEmuCore;..\CassoCore;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Ui\Chrome;..\CassoEmuCore;..\CassoCore;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -164,7 +164,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\CassoEmuCore;..\CassoCore;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Ui\Chrome;..\CassoEmuCore;..\CassoCore;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -182,7 +182,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\CassoEmuCore;..\CassoCore;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Ui\Chrome;..\CassoEmuCore;..\CassoCore;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -200,7 +200,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\CassoEmuCore;..\CassoCore;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Ui\Chrome;..\CassoEmuCore;..\CassoCore;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -241,19 +241,6 @@
     <ClCompile Include="Ui\Chrome\JoystickToggleButton.cpp" />
     <ClCompile Include="Ui\Chrome\LedIndicator.cpp" />
     <ClCompile Include="Ui\DriveWidgetController.cpp" />
-    <ClCompile Include="Ui\Widgets\Button.cpp" />
-    <ClCompile Include="Ui\Widgets\Checkbox.cpp" />
-    <ClCompile Include="Ui\Widgets\Toggle.cpp" />
-    <ClCompile Include="Ui\Widgets\Dropdown.cpp" />
-    <ClCompile Include="Ui\Widgets\ListView.cpp" />
-    <ClCompile Include="Ui\Widgets\ModalScrim.cpp" />
-    <ClCompile Include="Ui\Widgets\Radio.cpp" />
-    <ClCompile Include="Ui\Widgets\Slider.cpp" />
-    <ClCompile Include="Ui\Widgets\TabStrip.cpp" />
-    <ClCompile Include="Ui\Widgets\TextInput.cpp" />
-    <ClCompile Include="Ui\Widgets\Tooltip.cpp" />
-    <ClCompile Include="Ui\Widgets\PopupMenu.cpp" />
-    <ClCompile Include="Ui\Widgets\TreeView.cpp" />
     <ClCompile Include="Ui\AutoMountResolver.cpp" />
     <ClCompile Include="Ui\Settings\DisplayPage.cpp" />
     <ClCompile Include="Ui\Settings\HardwarePage.cpp" />
@@ -328,20 +315,6 @@
     <ClInclude Include="Ui\Chrome\LedIndicator.h" />
     <ClInclude Include="Ui\DriveWidgetState.h" />
     <ClInclude Include="Ui\DriveWidgetController.h" />
-    <ClInclude Include="Ui\Widgets\Button.h" />
-    <ClInclude Include="Ui\Widgets\Checkbox.h" />
-    <ClInclude Include="Ui\Widgets\Toggle.h" />
-    <ClInclude Include="Ui\Widgets\Dropdown.h" />
-    <ClInclude Include="Ui\Widgets\Label.h" />
-    <ClInclude Include="Ui\Widgets\ListView.h" />
-    <ClInclude Include="Ui\Widgets\ModalScrim.h" />
-    <ClInclude Include="Ui\Widgets\Radio.h" />
-    <ClInclude Include="Ui\Widgets\Slider.h" />
-    <ClInclude Include="Ui\Widgets\TabStrip.h" />
-    <ClInclude Include="Ui\Widgets\TextInput.h" />
-    <ClInclude Include="Ui\Widgets\Tooltip.h" />
-    <ClInclude Include="Ui\Widgets\PopupMenu.h" />
-    <ClInclude Include="Ui\Widgets\TreeView.h" />
     <ClInclude Include="Ui\IDriveCommandSink.h" />
     <ClInclude Include="Ui\AutoMountResolver.h" />
     <ClInclude Include="Ui\Settings\DisplayPage.h" />

@@ -771,7 +771,7 @@ void DialogPrimitive::OnClose()
 //
 //  BuildButtons
 //
-//  (Re)builds the Button widget vector from the current definition and
+//  (Re)builds the DxuiButton widget vector from the current definition and
 //  layout, setting colors, labels, DPI, click callbacks, and focus.
 //  Must be called after RecomputeLayout() and whenever DPI changes.
 //
