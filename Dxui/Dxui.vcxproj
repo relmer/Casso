@@ -175,6 +175,10 @@
     <ClCompile Include="Widgets\DxuiTooltip.cpp" />
     <ClCompile Include="Widgets\DxuiTreeView.cpp" />
     <ClCompile Include="Win32\DxuiDragDropTarget.cpp" />
+    <ClCompile Include="Win32\DxuiDragRegion.cpp" />
+    <ClCompile Include="Win32\DxuiCaptionBar.cpp" />
+    <ClCompile Include="Win32\DxuiSystemButton.cpp" />
+    <ClCompile Include="Win32\DxuiHostWindow.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Dxui.h" />
@@ -216,6 +220,10 @@
     <ClInclude Include="Widgets\DxuiTooltip.h" />
     <ClInclude Include="Widgets\DxuiTreeView.h" />
     <ClInclude Include="Win32\DxuiDragDropTarget.h" />
+    <ClInclude Include="Win32\DxuiDragRegion.h" />
+    <ClInclude Include="Win32\DxuiCaptionBar.h" />
+    <ClInclude Include="Win32\DxuiSystemButton.h" />
+    <ClInclude Include="Win32\DxuiHostWindow.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
