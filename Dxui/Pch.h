@@ -44,4 +44,5 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Render/DxuiTextRenderer.h"
 #include "Theme/DxuiDwm.h"
 #include "Theme/DxuiWindowsThemeColors.h"
+#include "Theme/IDxuiTheme.h"
 #include "Win32/DxuiDragDropTarget.h"

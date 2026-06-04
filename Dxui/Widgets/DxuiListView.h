@@ -2,8 +2,6 @@
 
 #include "Pch.h"
 
-#include "ChromeTheme.h"
-
 
 
 
@@ -64,7 +62,7 @@ public:
 
     // Configuration.
     void  SetDpi          (UINT dpi)                       { m_scaler.SetDpi (dpi); }
-    void  SetTheme        (const ChromeTheme * theme)      { m_theme = theme; }
+    void  SetTheme        (const IDxuiTheme * theme)       { m_theme = theme; }
     void  SetShowHeader   (bool b)                         { m_showHeader = b; }
     void  SetHoveredRow   (int row)                        { m_hovered = row; }
     void  SetSortIndicator (int column, bool descending)   { m_sortColumn = column; m_sortDescending = descending; }
@@ -210,7 +208,7 @@ private:
                                      uint32_t       argb) const;
 
     RECT                              m_rect       = {};
-    const ChromeTheme               * m_theme      = nullptr;
+    const IDxuiTheme                * m_theme      = nullptr;
     std::vector<Column>               m_columns;
     std::vector<std::vector<Cell>>    m_rows;
     std::vector<int>                  m_measuredWPx;

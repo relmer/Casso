@@ -2,8 +2,6 @@
 
 #include "Pch.h"
 
-#include "ChromeTheme.h"
-
 
 
 
@@ -44,7 +42,7 @@ public:
     void  SetFocused    (bool focused)                { m_focused = focused; if (!focused) { m_dragging = false; } }
     void  SetEnabled    (bool enabled)                { m_enabled = enabled; if (!enabled) { m_focused = false; m_hover = false; m_dragging = false; } }
     void  SetDpi        (UINT dpi)                    { m_scaler.SetDpi (dpi); }
-    void  SetTheme      (const ChromeTheme * theme)   { m_theme = theme; }
+    void  SetTheme      (const IDxuiTheme * theme)    { m_theme = theme; }
     void  SetOnChange   (ChangeFn fn)                 { m_change = std::move (fn); }
     void  SetHwnd       (HWND hwnd)                   { m_hwnd = hwnd; }
 
@@ -85,7 +83,7 @@ private:
     bool                  m_enabled    = true;
     bool                  m_hover      = false;
     bool                  m_dragging   = false;
-    const ChromeTheme   * m_theme      = nullptr;
+    const IDxuiTheme    * m_theme      = nullptr;
     HWND                  m_hwnd       = nullptr;
     ChangeFn              m_change;
     DxuiDpiScaler             m_scaler;

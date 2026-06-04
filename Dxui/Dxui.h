@@ -84,6 +84,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Render/DxuiTextRenderer.h"
 #include "Theme/DxuiDwm.h"
 #include "Theme/DxuiWindowsThemeColors.h"
+#include "Theme/IDxuiTheme.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiDropdown.h"

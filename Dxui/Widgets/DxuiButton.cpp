@@ -109,7 +109,7 @@ bool DxuiButton::OnKey (WPARAM vk)
 }
 
 
-void DxuiButton::Paint (DxuiPainter & painter, DxuiTextRenderer & text, const ChromeTheme & theme)
+void DxuiButton::Paint (DxuiPainter & painter, DxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     constexpr uint32_t  s_kFocusRingArgb = 0xFFAACCFF;
     constexpr float     s_kFocusRingPx   = 1.5f;
@@ -117,12 +117,12 @@ void DxuiButton::Paint (DxuiPainter & painter, DxuiTextRenderer & text, const Ch
     constexpr uint32_t  s_kDisabledMask  = 0x80FFFFFF;
 
     HRESULT  hr        = S_OK;
-    uint32_t themeIdle    = m_useOverrides ? m_idleOverride    : theme.buttonIdleArgb;
-    uint32_t themeHover   = m_useOverrides ? m_hoverOverride   : theme.buttonHoverArgb;
-    uint32_t themePressed = m_useOverrides ? m_pressedOverride : theme.buttonPressedArgb;
+    uint32_t themeIdle    = m_useOverrides ? m_idleOverride    : theme.ButtonIdle();
+    uint32_t themeHover   = m_useOverrides ? m_hoverOverride   : theme.ButtonHover();
+    uint32_t themePressed = m_useOverrides ? m_pressedOverride : theme.ButtonPressed();
     uint32_t color        = m_pressed ? themePressed : (m_hover ? themeHover : themeIdle);
-    uint32_t textColor    = m_useTextOverride ? m_textOverride : theme.navItemTextArgb;
-    uint32_t borderColor  = theme.buttonBorderArgb;
+    uint32_t textColor    = m_useTextOverride ? m_textOverride : theme.ButtonText();
+    uint32_t borderColor  = theme.ButtonBorder();
     float    fontDip      = m_scaler.Pxf (13.0f);
     float    autoBorderPx = m_scaler.Pxf (1.0f);
 
