@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DxuiHostWindow.h"
+#include "DxuiPopupHost.h"
 #include "Theme/DxuiDwm.h"
 #include "Theme/IDxuiTheme.h"
 
@@ -226,6 +227,12 @@ void DxuiHostWindow::Destroy ()
     m_swapChain.Reset();
     m_context.Reset();
     m_device.Reset();
+
+    // Tear down the popup pool BEFORE destroying the HWND (popup
+    // hosts hold non-owning device pointers and may have HWNDs
+    // parented to ours).
+    m_popupActive.clear();
+    m_popupPool.clear();
 
     if (m_hwnd != nullptr && m_ownsHwnd)
     {
@@ -674,10 +681,16 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             return 0;
 
         case WM_DPICHANGED_BEFOREPARENT:
-            // TODO(Phase 9): forward to every active pooled DxuiPopupHost
-            // so popups straddling a monitor boundary re-DPI correctly.
-            // Popup hosting is not implemented in Phase 7; this message
-            // currently has nothing to forward.
+            // Forward to every active pooled DxuiPopupHost so popups
+            // straddling a monitor boundary re-DPI before the owner
+            // repaints.
+            for (DxuiPopupHost * popup : m_popupActive)
+            {
+                if (popup != nullptr)
+                {
+                    popup->HandleDpiChanged ((UINT) HIWORD (wp));
+                }
+            }
             return 0;
 
         case WM_SETTINGCHANGE:
@@ -1129,4 +1142,153 @@ LRESULT DxuiHostWindow::KindToHt (DxuiHitTestKind kind)
         case DxuiHitTestKind::ResizeCornerBR:   return HTBOTTOMRIGHT;
     }
     return HTCLIENT;
+}
+
+
+
+
+
+
+namespace
+{
+    constexpr size_t  s_kPopupPoolInitialSize = 3;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AcquirePopup
+//
+//  LIFO pool reuse. The first AcquirePopup() call seeds the pool to
+//  its initial size (3). When every popup is currently checked out
+//  a new DxuiPopupHost is created on demand; otherwise the last
+//  idle instance is returned. Production-mode pool entries share
+//  the host's D3D device; if the host has no device (synthetic /
+//  test mode) the popup is wired up via InitializeForTest() so the
+//  dismiss / chain / placement state machinery still works
+//  headlessly.
+//
+//  Ownership model: m_popupPool owns every DxuiPopupHost the host
+//  has ever created (idle + active). m_popupActive is a parallel
+//  vector of raw pointers naming the currently checked-out ones.
+//  Pool seeding sweeps debug counters (hits / misses) per FR-055.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPopupHost * DxuiHostWindow::AcquirePopup ()
+{
+    DxuiPopupHost  *  popup  = nullptr;
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    // Seed the pool on the very first acquire.
+    if (m_popupPool.empty())
+    {
+        for (size_t i = 0; i < s_kPopupPoolInitialSize; ++i)
+        {
+            std::unique_ptr<DxuiPopupHost>  fresh = std::make_unique<DxuiPopupHost>();
+
+            if (m_device != nullptr && m_hInstance != nullptr)
+            {
+                HRESULT  hrInit = fresh->Initialize (m_hInstance, m_device.Get());
+                if (FAILED (hrInit))
+                {
+                    fresh->InitializeForTest();
+                }
+            }
+            else
+            {
+                fresh->InitializeForTest();
+            }
+            m_popupPool.push_back (std::move (fresh));
+        }
+    }
+
+    // Walk the pool in LIFO order looking for an idle instance.
+    for (size_t i = m_popupPool.size(); i-- > 0; )
+    {
+        bool  active = false;
+
+        for (DxuiPopupHost * a : m_popupActive)
+        {
+            if (a == m_popupPool[i].get()) { active = true; break; }
+        }
+
+        if (!active)
+        {
+            popup = m_popupPool[i].get();
+            m_popupActive.push_back (popup);
+#ifdef _DEBUG
+            m_popupHits++;
+#endif
+            return popup;
+        }
+    }
+
+    // Every pool entry is in use — grow on demand.
+    {
+        std::unique_ptr<DxuiPopupHost>  fresh = std::make_unique<DxuiPopupHost>();
+
+        if (m_device != nullptr && m_hInstance != nullptr)
+        {
+            HRESULT  hrInit = fresh->Initialize (m_hInstance, m_device.Get());
+            if (FAILED (hrInit))
+            {
+                fresh->InitializeForTest();
+            }
+        }
+        else
+        {
+            fresh->InitializeForTest();
+        }
+        popup = fresh.get();
+        m_popupPool.push_back (std::move (fresh));
+        m_popupActive.push_back (popup);
+#ifdef _DEBUG
+        m_popupMisses++;
+#endif
+    }
+
+    return popup;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleasePopup
+//
+//  Returns a previously-acquired popup to the idle set. The popup
+//  remains owned by m_popupPool and is reused on the next Acquire.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::ReleasePopup (DxuiPopupHost * popup)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (popup == nullptr)
+    {
+        return;
+    }
+
+    if (popup->IsOpen())
+    {
+        popup->Close (0);
+    }
+
+    for (size_t i = 0; i < m_popupActive.size(); ++i)
+    {
+        if (m_popupActive[i] == popup)
+        {
+            m_popupActive.erase (m_popupActive.begin() + (ptrdiff_t) i);
+            return;
+        }
+    }
 }

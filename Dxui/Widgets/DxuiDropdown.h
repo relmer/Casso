@@ -3,6 +3,10 @@
 #include "Pch.h"
 
 
+class DxuiHostWindow;
+class DxuiPopupHost;
+
+
 
 
 
@@ -15,13 +19,13 @@ public:
     void  SetRect        (const RECT & rect) { m_rect = rect; }
     void  SetItems       (const std::vector<std::wstring> & items);
     void  SetSelected    (int index);
-    void  SetEnabled     (bool enabled) { m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; m_open = false; } }
-    void  SetFocused     (bool focused) { m_focused = focused; if (!focused) { m_open = false; } }
+    void  SetEnabled     (bool enabled) { m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; if (m_open) { Close(); } } }
+    void  SetFocused     (bool focused) { m_focused = focused; if (!focused && m_open) { Close(); } }
     bool  Focused        () const { return m_focused; }
     void  SetSelect      (SelectFn select) { m_select = std::move (select); }
     void  SetOnHighlightChange (SelectFn fn) { m_highlightChange = std::move (fn); }
     void  Open           ();
-    void  Close()        { m_open = false; }
+    void  Close          ();
     bool  IsOpen()       const { return m_open; }
     int   HighlightIndex () const { return m_highlight; }
     int   SelectedIndex  () const { return m_selected; }
@@ -39,6 +43,19 @@ public:
     void  PaintMenu      (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
     void  SetDpi         (UINT dpi) { m_scaler.SetDpi (dpi); }
 
+    //
+    //  Opt-in popup hosting. When a host is supplied the dropdown
+    //  acquires a DxuiPopupHost from the host's pool on Open() and
+    //  releases it on Close(), so the menu portion renders into a
+    //  top-level WS_POPUP HWND that is not clipped by the owner
+    //  client area (FR-054 / FR-061; satisfies SC-008). Existing
+    //  callers that leave the host unset retain the legacy in-
+    //  panel rendering path (PaintMenu).
+    //
+    void  SetPopupHost   (DxuiHostWindow * host) { m_popupHost = host; }
+    DxuiHostWindow *  PopupHost () const { return m_popupHost; }
+    DxuiPopupHost  *  ActivePopup () const { return m_activePopup; }
+
 private:
     void  Commit         (int index);
 
@@ -54,4 +71,6 @@ private:
     DxuiDpiScaler                 m_scaler;
     bool                      m_enabled   = true;
     bool                      m_focused   = false;
+    DxuiHostWindow          * m_popupHost   = nullptr;
+    DxuiPopupHost           * m_activePopup = nullptr;
 };
