@@ -63,6 +63,8 @@
 
 #include "../CassoCore/Ehm.h"
 
+#include "Dxui.h"
+
 using namespace std;
 namespace fs = std::filesystem;
 
