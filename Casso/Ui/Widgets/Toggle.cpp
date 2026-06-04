@@ -147,7 +147,7 @@ void Toggle::Flip ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Toggle::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
+void Toggle::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
 {
     constexpr uint32_t  s_kPillOff      = 0xFF4A5260;
     constexpr uint32_t  s_kPillOffHover = 0xFF5A6271;
@@ -227,8 +227,8 @@ void Toggle::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                                   textColor,
                                                   fontDip,
                                                   L"Segoe UI",
-                                                  DwriteTextRenderer::HAlign::Left,
-                                                  DwriteTextRenderer::VAlign::Center));
+                                                  DxuiTextRenderer::HAlign::Left,
+                                                  DxuiTextRenderer::VAlign::Center));
     }
     else
     {
@@ -242,7 +242,7 @@ void Toggle::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                                   textColor,
                                                   fontDip,
                                                   L"Segoe UI",
-                                                  DwriteTextRenderer::HAlign::Left,
-                                                  DwriteTextRenderer::VAlign::Center));
+                                                  DxuiTextRenderer::HAlign::Left,
+                                                  DxuiTextRenderer::VAlign::Center));
     }
 }

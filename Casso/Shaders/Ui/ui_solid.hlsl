@@ -8,7 +8,7 @@
 // or left/right vertex colors differ).
 //
 // Source of truth for the build; the production renderer compiles the
-// equivalent inline string in DxUiPainter.cpp to avoid an HLSL build
+// equivalent inline string in DxuiPainter.cpp to avoid an HLSL build
 // dependency.
 
 struct VSInput

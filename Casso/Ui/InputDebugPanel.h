@@ -3,8 +3,6 @@
 #include "Chrome/ChromedPanelWindow.h"
 #include "Chrome/IChromedPanelContent.h"
 #include "InputDebugPanelLayout.h"
-#include "DxUiPainter.h"
-#include "DwriteTextRenderer.h"
 #include "Widgets/Button.h"
 #include "Widgets/Checkbox.h"
 #include "Widgets/Dropdown.h"
@@ -186,8 +184,8 @@ private:
     Microsoft::WRL::ComPtr<IDXGISwapChain1>         m_swapChain;
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView>  m_rtv;
 
-    DxUiPainter                           m_painter;
-    DwriteTextRenderer                    m_text;
+    DxuiPainter                           m_painter;
+    DxuiTextRenderer                    m_text;
 
     Label                                 m_emuLabel;
     Label                                 m_hostLabel;

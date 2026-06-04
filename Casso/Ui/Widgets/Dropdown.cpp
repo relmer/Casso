@@ -366,7 +366,7 @@ void Dropdown::Commit (int index)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Dropdown::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
+void Dropdown::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
 {
     PaintBase (painter, text);
     PaintMenu (painter, text);
@@ -386,7 +386,7 @@ void Dropdown::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Dropdown::PaintBase (DxUiPainter & painter, DwriteTextRenderer & text) const
+void Dropdown::PaintBase (DxuiPainter & painter, DxuiTextRenderer & text) const
 {
     HRESULT      hr            = S_OK;
     uint32_t     boxColor      = m_enabled
@@ -436,8 +436,8 @@ void Dropdown::PaintBase (DxUiPainter & painter, DwriteTextRenderer & text) cons
                                               textColor,
                                               fontDip,
                                               s_kFontFamily,
-                                              DwriteTextRenderer::HAlign::Left,
-                                              DwriteTextRenderer::VAlign::Center));
+                                              DxuiTextRenderer::HAlign::Left,
+                                              DxuiTextRenderer::VAlign::Center));
 
     // Chevron: stack of horizontal rects forming a downward triangle.
     for (int row = 0; row < chevronH; row++)
@@ -482,7 +482,7 @@ void Dropdown::PaintBase (DxUiPainter & painter, DwriteTextRenderer & text) cons
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Dropdown::PaintMenu (DxUiPainter & painter, DwriteTextRenderer & text) const
+void Dropdown::PaintMenu (DxuiPainter & painter, DxuiTextRenderer & text) const
 {
     HRESULT  hr        = S_OK;
     int      i         = 0;
@@ -519,7 +519,7 @@ void Dropdown::PaintMenu (DxUiPainter & painter, DwriteTextRenderer & text) cons
                                                   s_kTextArgb,
                                                   fontDip,
                                                   s_kFontFamily,
-                                                  DwriteTextRenderer::HAlign::Left,
-                                                  DwriteTextRenderer::VAlign::Center));
+                                                  DxuiTextRenderer::HAlign::Left,
+                                                  DxuiTextRenderer::VAlign::Center));
     }
 }

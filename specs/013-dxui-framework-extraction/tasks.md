@@ -80,13 +80,13 @@ Each move task in this phase is mechanical: (a) move file to new path; (b) renam
 
 **Goal (plan.md §Phase 3)**: Land the concrete render facades under their new single-prefix names. Interfaces stay deferred to Phase 6. **Satisfies**: FR-005, FR-091.
 
-- [ ] T019 [PH3] Move `Casso/Ui/DxUiPainter.{h,cpp}` → `Dxui/Render/DxuiPainter.{h,cpp}`; rename class `DxUiPainter` → `DxuiPainter` (single-word prefix). Update every Casso consumer (`#include` + type references). **Exit**: `rg -n '\bDxUiPainter\b' Casso/ Dxui/` returns zero hits. **FR**: FR-005, FR-091.
+- [x] T019 [PH3] Move `Casso/Ui/DxUiPainter.{h,cpp}` → `Dxui/Render/DxuiPainter.{h,cpp}`; rename class `DxUiPainter` → `DxuiPainter` (single-word prefix). Update every Casso consumer (`#include` + type references). **Exit**: `rg -n '\bDxUiPainter\b' Casso/ Dxui/` returns zero hits. **FR**: FR-005, FR-091.
 
-- [ ] T020 [PH3] Move the painter's HLSL source from `Casso/Ui/` (whatever `.hlsl` file ships with `DxUiPainter`) → `Dxui/Render/DxuiPainter.hlsl`. Add the file as an `<FxCompile>` item in `Dxui.vcxproj` with the same entrypoint / target / output settings as the original `Casso.vcxproj` entry; remove the original `Casso.vcxproj` entry. **Depends on**: T019. **Exit**: `Dxui.vcxproj` builds the shader; `Casso.vcxproj` no longer references it; `rg -n '\.hlsl' Casso/Casso.vcxproj` returns zero hits for the painter shader. **FR**: FR-091.
+- [x] T020 [PH3] Move the painter's HLSL source from `Casso/Ui/` (whatever `.hlsl` file ships with `DxUiPainter`) → `Dxui/Render/DxuiPainter.hlsl`. Add the file as an `<FxCompile>` item in `Dxui.vcxproj` with the same entrypoint / target / output settings as the original `Casso.vcxproj` entry; remove the original `Casso.vcxproj` entry. **Depends on**: T019. **Exit**: `Dxui.vcxproj` builds the shader; `Casso.vcxproj` no longer references it; `rg -n '\.hlsl' Casso/Casso.vcxproj` returns zero hits for the painter shader. **FR**: FR-091.
 
-- [ ] T021 [PH3] Move `Casso/Ui/DwriteTextRenderer.{h,cpp}` → `Dxui/Render/DxuiTextRenderer.{h,cpp}`; rename class `DwriteTextRenderer` → `DxuiTextRenderer`. Update every Casso consumer. **Exit**: `rg -n 'DwriteTextRenderer' Casso/ Dxui/` returns zero hits. **FR**: FR-005, FR-091.
+- [x] T021 [PH3] Move `Casso/Ui/DwriteTextRenderer.{h,cpp}` → `Dxui/Render/DxuiTextRenderer.{h,cpp}`; rename class `DwriteTextRenderer` → `DxuiTextRenderer`. Update every Casso consumer. **Exit**: `rg -n 'DwriteTextRenderer' Casso/ Dxui/` returns zero hits. **FR**: FR-005, FR-091.
 
-- [ ] T022 [PH3] Phase-3 exit verification. Build all four configs; run tests; run code analysis. Greps: `rg -n 'DxUiPainter|DwriteTextRenderer' Casso UnitTest` → zero hits. **Depends on**: T019–T021. **Commit**: `refactor(dxui): rename render facades to DxuiPainter and DxuiTextRenderer`. **FR**: FR-005, FR-091.
+- [x] T022 [PH3] Phase-3 exit verification. Build all four configs; run tests; run code analysis. Greps: `rg -n 'DxUiPainter|DwriteTextRenderer' Casso UnitTest` → zero hits. **Depends on**: T019–T021. **Commit**: `refactor(dxui): rename render facades to DxuiPainter and DxuiTextRenderer`. **FR**: FR-005, FR-091.
 
 ---
 

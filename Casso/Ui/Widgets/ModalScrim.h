@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "../DxUiPainter.h"
 
 
 
@@ -43,7 +42,7 @@ public:
     bool  IsVisible       () const { return m_visible; }
 
     bool  OnKey           (WPARAM vk);
-    void  Paint           (DxUiPainter & painter) const;
+    void  Paint           (DxuiPainter & painter) const;
 
 private:
     RECT      m_viewport = {};

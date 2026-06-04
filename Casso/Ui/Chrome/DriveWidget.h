@@ -5,8 +5,6 @@
 #include "ChromeTheme.h"
 #include "LedIndicator.h"
 #include "../DriveWidgetState.h"
-#include "../DwriteTextRenderer.h"
-#include "../DxUiPainter.h"
 
 
 
@@ -45,8 +43,8 @@ public:
     void               SetFocused      (bool focused)    { m_focused = focused; }
     bool               IsFocused       () const          { return m_focused; }
     void               SyncFromState   (const DriveWidgetState & state);
-    void               Paint           (DxUiPainter & painter,
-                                         DwriteTextRenderer & text,
+    void               Paint           (DxuiPainter & painter,
+                                         DxuiTextRenderer & text,
                                          const ChromeVisualState & visual,
                                          const ChromeTheme & theme);
     DriveWidgetRegion  HitTest         (int x, int y) const;
@@ -63,7 +61,7 @@ public:
     int                Drive           () const { return m_drive; }
 
 private:
-    void                PaintBasenameLabel (DwriteTextRenderer  & text,
+    void                PaintBasenameLabel (DxuiTextRenderer  & text,
                                             const ChromeTheme   & theme,
                                             UINT                  dpi);
 

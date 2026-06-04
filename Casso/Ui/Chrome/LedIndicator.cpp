@@ -102,7 +102,7 @@ uint32_t LedIndicator::HaloArgb (const ChromeTheme & theme) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LedIndicator::Paint (DxUiPainter & painter, const ChromeTheme & theme) const
+void LedIndicator::Paint (DxuiPainter & painter, const ChromeTheme & theme) const
 {
     uint32_t  halo = HaloArgb (theme);
     float     cx   = (float) (m_layout.coreRect.left + m_layout.coreRect.right) * 0.5f;
@@ -134,7 +134,7 @@ void LedIndicator::Paint (DxUiPainter & painter, const ChromeTheme & theme) cons
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LedIndicator::Paint (DxUiPainter & painter, uint32_t coreArgb, uint32_t haloArgb) const
+void LedIndicator::Paint (DxuiPainter & painter, uint32_t coreArgb, uint32_t haloArgb) const
 {
     float  cx    = (float) (m_layout.coreRect.left + m_layout.coreRect.right) * 0.5f;
     float  cy    = (float) (m_layout.coreRect.top  + m_layout.coreRect.bottom) * 0.5f;

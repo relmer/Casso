@@ -298,7 +298,7 @@ bool TextInput::OnChar (wchar_t ch)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void TextInput::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
+void TextInput::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
 {
     HRESULT      hr        = S_OK;
     float        x         = (float) m_rect.left;
@@ -376,8 +376,8 @@ void TextInput::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                               fgArgb,
                                               fontPx,
                                               L"Segoe UI",
-                                              DwriteTextRenderer::HAlign::Left,
-                                              DwriteTextRenderer::VAlign::Center,
+                                              DxuiTextRenderer::HAlign::Left,
+                                              DxuiTextRenderer::VAlign::Center,
                                               DWRITE_FONT_WEIGHT_NORMAL,
                                               false));
 
@@ -421,7 +421,7 @@ void TextInput::ClampCaret ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t TextInput::CaretFromX (DwriteTextRenderer & text, int xPx) const
+size_t TextInput::CaretFromX (DxuiTextRenderer & text, int xPx) const
 {
     HRESULT       hr       = S_OK;
     float         padL     = m_scaler.Pxf (s_kPadLeftDp);

@@ -21,8 +21,8 @@
 
 
 
-class DxUiPainter;
-class DwriteTextRenderer;
+class DxuiPainter;
+class DxuiTextRenderer;
 struct ChromeTheme;
 struct DialogPaintContext;
 struct DialogInputEvent;
@@ -62,8 +62,8 @@ struct DialogButton
 
 struct DialogPaintContext
 {
-    DxUiPainter         * painter        = nullptr;
-    DwriteTextRenderer  * text           = nullptr;
+    DxuiPainter         * painter        = nullptr;
+    DxuiTextRenderer  * text           = nullptr;
     const ChromeTheme   * theme          = nullptr;
     RECT                  customBodyRect = {};
     float                 dpiScale       = 1.0f;
@@ -101,10 +101,10 @@ struct DialogDefinition
     std::function<void (DialogPaintContext &)>                          onPaintCustomBody;
     std::function<std::optional<int> (const DialogInputEvent &)>        onInputCustomBody;
     // Optional measurement hook fired during layout, giving consumers
-    // access to a DwriteTextRenderer so they can size the custom body
+    // access to a DxuiTextRenderer so they can size the custom body
     // based on string metrics. Returning a non-zero SIZE overrides
     // `customBodyMinSizePx` for that layout pass.
-    std::function<SIZE (DwriteTextRenderer &, float dpiScale)>          onMeasureCustomBody;
+    std::function<SIZE (DxuiTextRenderer &, float dpiScale)>          onMeasureCustomBody;
     SIZE                                               customBodyMinSizePx = {};
 
     // Optional hook fired when a button is activated (mouse, default,

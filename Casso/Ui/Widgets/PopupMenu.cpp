@@ -34,7 +34,7 @@ void PopupMenu::Show (
     int                   anchorX,
     int                   anchorY,
     std::vector<Item>     items,
-    DwriteTextRenderer  & text,
+    DxuiTextRenderer  & text,
     const RECT          & hostClient)
 {
     HRESULT  hr        = S_OK;
@@ -283,7 +283,7 @@ bool PopupMenu::OnKey (WPARAM vk)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PopupMenu::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
+void PopupMenu::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
 {
     HRESULT   hr       = S_OK;
     int       border   = m_scaler.Px (s_kBorderDp);
@@ -339,8 +339,8 @@ void PopupMenu::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                                       (float) (padL - glyphX),
                                                       (float) itemH,
                                                       fgArgb, fontDip, L"Segoe UI",
-                                                      DwriteTextRenderer::HAlign::Left,
-                                                      DwriteTextRenderer::VAlign::Center));
+                                                      DxuiTextRenderer::HAlign::Left,
+                                                      DxuiTextRenderer::VAlign::Center));
         }
 
         IGNORE_RETURN_VALUE (hr, text.DrawString (m_items[i].label.c_str(),
@@ -349,7 +349,7 @@ void PopupMenu::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                                   width - (float) padL - (float) padR,
                                                   (float) itemH,
                                                   fgArgb, fontDip, L"Segoe UI",
-                                                  DwriteTextRenderer::HAlign::Left,
-                                                  DwriteTextRenderer::VAlign::Center));
+                                                  DxuiTextRenderer::HAlign::Left,
+                                                  DxuiTextRenderer::VAlign::Center));
     }
 }

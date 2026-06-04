@@ -203,7 +203,7 @@ void RadioGroup::Commit (int newIndex)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void RadioGroup::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
+void RadioGroup::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
 {
     constexpr uint32_t  s_kBoxIdle      = 0xFF606060;
     constexpr uint32_t  s_kBoxHover     = 0xFF808080;
@@ -273,7 +273,7 @@ void RadioGroup::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                                   textColor,
                                                   fontDip,
                                                   L"Segoe UI",
-                                                  DwriteTextRenderer::HAlign::Left,
-                                                  DwriteTextRenderer::VAlign::Center));
+                                                  DxuiTextRenderer::HAlign::Left,
+                                                  DxuiTextRenderer::VAlign::Center));
     }
 }

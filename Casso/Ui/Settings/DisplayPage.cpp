@@ -650,7 +650,7 @@ RECT DisplayPage::FocusedControlRect (int controlId) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
+void DisplayPage::Paint (DxuiPainter & painter, DxuiTextRenderer & text,
                          int          focusedControlId,
                          float        nonFocusedAlpha,
                          float        focusedAlpha) const
@@ -707,8 +707,8 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
                                               s_kIndicatorArgb,
                                               indicatorFontPx,
                                               s_kFont,
-                                              DwriteTextRenderer::HAlign::Left,
-                                              DwriteTextRenderer::VAlign::Center));
+                                              DxuiTextRenderer::HAlign::Left,
+                                              DxuiTextRenderer::VAlign::Center));
     };
 
     auto  FloatMatches = [&] (float a, float b)

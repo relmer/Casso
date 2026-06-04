@@ -41,7 +41,7 @@ static constexpr wchar_t   s_kpszMdl2Family[]         = L"Segoe MDL2 Assets";
 //
 //  Local copy of the SettingsWindow/EmulatorShell helper. Loads an
 //  HICON resource into a CPU-side premultiplied BGRA8 pixel buffer
-//  suitable for DwriteTextRenderer::DrawIconBitmap.
+//  suitable for DxuiTextRenderer::DrawIconBitmap.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -540,8 +540,8 @@ void DialogPrimitiveRenderer::PaintTitle (
                                                     textX, 0.0f, textW, titleH,
                                                     theme.titleTextArgb,
                                                     fontPx, L"Segoe UI",
-                                                    DwriteTextRenderer::HAlign::Left,
-                                                    DwriteTextRenderer::VAlign::Center));
+                                                    DxuiTextRenderer::HAlign::Left,
+                                                    DxuiTextRenderer::VAlign::Center));
     }
 
     if (closePressed)
@@ -564,8 +564,8 @@ void DialogPrimitiveRenderer::PaintTitle (
                                                 closeLeftPx, 0.0f, closeWPx, titleH,
                                                 glyphArgb,
                                                 closeGlyphPx, s_kpszMdl2Family,
-                                                DwriteTextRenderer::HAlign::Center,
-                                                DwriteTextRenderer::VAlign::Center));
+                                                DxuiTextRenderer::HAlign::Center,
+                                                DxuiTextRenderer::VAlign::Center));
 }
 
 
@@ -732,8 +732,8 @@ void DialogPrimitiveRenderer::PaintBody (
                                                     x, y, w, lineH,
                                                     textColor,
                                                     fontPx, L"Segoe UI",
-                                                    DwriteTextRenderer::HAlign::Left,
-                                                    DwriteTextRenderer::VAlign::Top));
+                                                    DxuiTextRenderer::HAlign::Left,
+                                                    DxuiTextRenderer::VAlign::Top));
 
         if (run.isHyperlink)
         {

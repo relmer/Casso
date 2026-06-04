@@ -1,14 +1,12 @@
 #pragma once
 
-#include "Pch.h"
-
 
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxUiPainter
+//  DxuiPainter
 //
 //  Direct3D 11 geometry painter for the native UI runtime. Owns a
 //  vertex / pixel shader pair plus a dynamic vertex buffer; consumers
@@ -26,11 +24,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxUiPainter
+class DxuiPainter
 {
 public:
-    DxUiPainter  () = default;
-    ~DxUiPainter ();
+    DxuiPainter  () = default;
+    ~DxuiPainter ();
 
     HRESULT Initialize       (ID3D11Device         * pDevice,
                               ID3D11DeviceContext  * pContext);

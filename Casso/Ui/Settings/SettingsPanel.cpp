@@ -1665,7 +1665,7 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const Dxu
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
+void SettingsPanel::Paint (DxuiPainter & painter, DxuiTextRenderer & text)
 {
     ChromeTheme  theme            = (m_uiShell != nullptr) ? m_uiShell->Theme() : ChromeTheme::Skeuomorphic();
     float        edgeThick        = (m_uiShell != nullptr) ? m_uiShell->Scaler().Pxf (s_kEdgeThickDp)

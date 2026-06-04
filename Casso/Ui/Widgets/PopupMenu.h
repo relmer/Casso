@@ -2,8 +2,6 @@
 
 #include "Pch.h"
 
-#include "../DwriteTextRenderer.h"
-#include "../DxUiPainter.h"
 #include "../Chrome/ChromeTheme.h"
 
 
@@ -48,7 +46,7 @@ public:
     void  Show           (int anchorX,
                           int anchorY,
                           std::vector<Item> items,
-                          DwriteTextRenderer & text,
+                          DxuiTextRenderer & text,
                           const RECT & hostClient);
     void  Hide           ();
 
@@ -57,7 +55,7 @@ public:
     bool  OnLButtonDown  (int x, int y);
     bool  OnLButtonUp    (int x, int y);
     bool  OnKey          (WPARAM vk);
-    void  Paint          (DxUiPainter & painter, DwriteTextRenderer & text) const;
+    void  Paint          (DxuiPainter & painter, DxuiTextRenderer & text) const;
 
 private:
     int   HitTestIndex (int x, int y) const;

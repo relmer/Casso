@@ -2,7 +2,7 @@
 //
 // Reference glyph shader for the native UI painter. Production text
 // rendering goes through Direct2D / DirectWrite on top of the same
-// swap-chain back buffer (see DwriteTextRenderer.cpp), which owns its
+// swap-chain back buffer (see DxuiTextRenderer.cpp), which owns its
 // own ClearType-aware glyph pipeline. This file documents the fallback
 // path used by smoke tests / LED labels that want a single textured
 // glyph sheet without spinning up DirectWrite.

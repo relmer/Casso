@@ -42,7 +42,7 @@ static constexpr wchar_t  s_kTooltip[] =
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void JoystickToggleButton::Layout (int centerXPx, int centerYPx, UINT dpi, DwriteTextRenderer * pText)
+void JoystickToggleButton::Layout (int centerXPx, int centerYPx, UINT dpi, DxuiTextRenderer * pText)
 {
     UINT   eDpi     = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
     int    padX     = MulDiv (s_kPadXDp,   (int) eDpi, s_kBaseDpi);
@@ -138,7 +138,7 @@ bool JoystickToggleButton::HitTest (int x, int y) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void JoystickToggleButton::Paint (DxUiPainter & painter, DwriteTextRenderer & text, const ChromeTheme & theme) const
+void JoystickToggleButton::Paint (DxuiPainter & painter, DxuiTextRenderer & text, const ChromeTheme & theme) const
 {
     HRESULT             hr       = S_OK;
     bool                active   = m_hovered || m_focused || m_pressed;
@@ -191,8 +191,8 @@ void JoystickToggleButton::Paint (DxUiPainter & painter, DwriteTextRenderer & te
                                               theme.navItemTextArgb,
                                               fontDip,
                                               s_kFontFamily,
-                                              DwriteTextRenderer::HAlign::Left,
-                                              DwriteTextRenderer::VAlign::CenterOnCapHeight));
+                                              DxuiTextRenderer::HAlign::Left,
+                                              DxuiTextRenderer::VAlign::CenterOnCapHeight));
 }
 
 

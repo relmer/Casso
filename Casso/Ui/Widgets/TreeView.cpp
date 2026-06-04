@@ -477,7 +477,7 @@ bool TreeView::OnKey (WPARAM vk)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void TreeView::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
+void TreeView::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
 {
     constexpr uint32_t  s_kRowIdle        = 0x00000000;
     constexpr uint32_t  s_kRowHover       = 0x33808080;
@@ -595,8 +595,8 @@ void TreeView::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                                       glyphCol,
                                                       (float) m_checkboxPx * 0.95f,
                                                       L"Segoe UI Symbol",
-                                                      DwriteTextRenderer::HAlign::Center,
-                                                      DwriteTextRenderer::VAlign::Center));
+                                                      DxuiTextRenderer::HAlign::Center,
+                                                      DxuiTextRenderer::VAlign::Center));
         }
 
         if (node != nullptr)
@@ -609,8 +609,8 @@ void TreeView::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                                       textCol,
                                                       fontDip,
                                                       L"Segoe UI",
-                                                      DwriteTextRenderer::HAlign::Left,
-                                                      DwriteTextRenderer::VAlign::CenterOnCapHeight));
+                                                      DxuiTextRenderer::HAlign::Left,
+                                                      DxuiTextRenderer::VAlign::CenterOnCapHeight));
         }
     }
 }

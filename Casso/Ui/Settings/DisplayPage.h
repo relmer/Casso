@@ -4,8 +4,6 @@
 
 #include "SettingsPanelState.h"
 
-#include "../DwriteTextRenderer.h"
-#include "../DxUiPainter.h"
 #include "../Widgets/Button.h"
 #include "../Widgets/Dropdown.h"
 #include "../Widgets/Label.h"
@@ -129,7 +127,7 @@ public:
     // user can see the slider / dropdown they're interacting with
     // while the rest of the UI fades out).
     //
-    void  Paint (DxUiPainter & painter, DwriteTextRenderer & text,
+    void  Paint (DxuiPainter & painter, DxuiTextRenderer & text,
                  int          focusedControlId = -1,
                  float        nonFocusedAlpha  = 1.0f,
                  float        focusedAlpha     = 1.0f) const;

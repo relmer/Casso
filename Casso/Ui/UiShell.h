@@ -2,8 +2,6 @@
 
 #include "Pch.h"
 
-#include "DwriteTextRenderer.h"
-#include "DxUiPainter.h"
 #include "FocusManager.h"
 #include "Chrome/ChromeTheme.h"
 #include "Chrome/DriveWidget.h"
@@ -65,8 +63,8 @@ public:
     bool     IsCapturingInput   () const;
     bool     IsSettingsCapturing () const;
 
-    DxUiPainter         & Painter   ()       { return m_painter; }
-    DwriteTextRenderer  & Text      ()       { return m_text; }
+    DxuiPainter         & Painter   ()       { return m_painter; }
+    DxuiTextRenderer  & Text      ()       { return m_text; }
     DxuiInput             & Input     ()       { return m_input; }
     DxuiHitTester           & HitTest   ()       { return m_hitTest; }
     FocusManager        & Focus     ()       { return m_focus; }
@@ -92,8 +90,8 @@ private:
 
     D3DRenderer                 * m_renderer     = nullptr;
 
-    DxUiPainter                   m_painter;
-    DwriteTextRenderer            m_text;
+    DxuiPainter                   m_painter;
+    DxuiTextRenderer            m_text;
     DxuiInput                       m_input;
     DxuiHitTester                     m_hitTest;
     FocusManager                  m_focus;

@@ -55,7 +55,7 @@ public:
         out.push_back ([this] (bool f) { m_tree.SetFocused (f); });
     }
 
-    void  Paint         (DxUiPainter & painter, DwriteTextRenderer & text) const;
+    void  Paint         (DxuiPainter & painter, DxuiTextRenderer & text) const;
 
     // Pure helper: convert one hardware-entry list into the TreeNode
     // tree the underlying TreeView consumes. Exposed for unit tests.

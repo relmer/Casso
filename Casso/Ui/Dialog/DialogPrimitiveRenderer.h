@@ -2,8 +2,6 @@
 
 #include "Pch.h"
 
-#include "../DwriteTextRenderer.h"
-#include "../DxUiPainter.h"
 #include "../Widgets/Button.h"
 #include "DialogDefinition.h"
 #include "DialogLayout.h"
@@ -20,7 +18,7 @@ struct ChromeTheme;
 //
 //  Direct3D 11 renderer for the themed dialog primitive. Owns a
 //  swap chain (non-DComp, CreateSwapChainForHwnd), render target
-//  view, DxUiPainter for geometry, and DwriteTextRenderer for
+//  view, DxuiPainter for geometry, and DxuiTextRenderer for
 //  text. Renders the dialog chrome (title bar, background, icon,
 //  body text, hyperlinks, buttons) on each Render() call. No blur,
 //  no transparency compositing.
@@ -89,8 +87,8 @@ private:
     ID3D11DeviceContext             * m_context     = nullptr;   // non-owning
     ComPtr<IDXGISwapChain1>           m_swapChain;
     ComPtr<ID3D11RenderTargetView>    m_rtv;
-    DxUiPainter                       m_painter;
-    DwriteTextRenderer                m_text;
+    DxuiPainter                       m_painter;
+    DxuiTextRenderer                m_text;
     DxuiDpiScaler                         m_scaler;
     std::vector<uint32_t>             m_appIconPixels;
     int                               m_appIconW       = 0;

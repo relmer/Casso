@@ -399,14 +399,6 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
-    <ClCompile Include="..\Casso\Ui\DxUiPainter.cpp">
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
-    </ClCompile>
-    <ClCompile Include="..\Casso\Ui\DwriteTextRenderer.cpp">
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
-    </ClCompile>
     <ClCompile Include="..\Casso\Ui\FocusManager.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
@@ -497,7 +489,7 @@
     <ClCompile Include="UiTests\NcHitTestTests.cpp" />
     <ClCompile Include="UiTests\FocusManagerTests.cpp" />
     <ClCompile Include="UiTests\AnimationSyncTests.cpp" />
-    <ClCompile Include="UiTests\DxUiPainterTests.cpp" />
+    <ClCompile Include="UiTests\DxuiPainterTests.cpp" />
     <ClCompile Include="Devices\Disk2DebugDialogTests.cpp" />
     <ClCompile Include="DiskMruTests.cpp" />
     <ClCompile Include="DialogLayoutTests.cpp" />
