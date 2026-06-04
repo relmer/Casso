@@ -34,7 +34,9 @@
 
 #include <wrl/client.h>
 
+#include <algorithm>
 #include <atomic>
+#include <cassert>
 #include <cmath>
 #include <cstdint>
 #include <deque>
@@ -42,13 +44,20 @@
 #include <future>
 #include <map>
 #include <memory>
+#include <span>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #if defined(_DEBUG)
-    #define DXUI_ASSERT_UI_THREAD() ((void) 0)
+    #ifndef DXUI_ASSERT_UI_THREAD
+        #define DXUI_ASSERT_UI_THREAD() DxuiAssertUiThread()
+    #endif
 #else
-    #define DXUI_ASSERT_UI_THREAD() ((void) 0)
+    #ifndef DXUI_ASSERT_UI_THREAD
+        #define DXUI_ASSERT_UI_THREAD() ((void) 0)
+    #endif
 #endif
 
 
@@ -66,9 +75,19 @@
 
 #include "Core/DxuiAnimation.h"
 #include "Core/DxuiDpiScaler.h"
+#include "Core/DxuiEvents.h"
 #include "Core/DxuiHitTester.h"
 #include "Core/DxuiInput.h"
+#include "Core/DxuiThread.h"
 #include "Core/DxuiTitleBarHitTest.h"
+#include "Core/IDxuiControl.h"
+#include "Core/IDxuiLayout.h"
+#include "Core/DxuiAbsoluteLayout.h"
+#include "Core/DxuiFormLayout.h"
+#include "Core/DxuiGridLayout.h"
+#include "Core/DxuiStackLayout.h"
+#include "Core/DxuiPanel.h"
+#include "Core/DxuiFocusManager.h"
 
 // ComPtr alias needed by Render/* headers below. Defined in the
 // umbrella so any consumer including Dxui.h (typically via their
@@ -80,6 +99,8 @@ template <typename T>
 using ComPtr = Microsoft::WRL::ComPtr<T>;
 #endif
 
+#include "Render/IDxuiPainter.h"
+#include "Render/IDxuiTextRenderer.h"
 #include "Render/DxuiPainter.h"
 #include "Render/DxuiTextRenderer.h"
 #include "Theme/DxuiDwm.h"

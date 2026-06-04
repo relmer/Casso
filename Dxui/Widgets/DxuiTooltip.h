@@ -37,7 +37,7 @@ public:
     const std::wstring & Text      () const { return m_text;    }
     const RECT         & Anchor    () const { return m_anchor;  }
 
-    void  Paint           (DxuiPainter & painter, DxuiTextRenderer & text) const;
+    void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
 
 private:
     DxuiDpiScaler     m_scaler;

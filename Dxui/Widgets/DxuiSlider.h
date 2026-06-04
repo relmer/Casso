@@ -69,7 +69,7 @@ public:
     bool   OnLButtonUp    (int x, int y);
     bool   OnMouseMove    (int x, int y);
     bool   OnKey          (WPARAM vk);
-    void   Paint          (DxuiPainter & painter, DxuiTextRenderer & text) const;
+    void   Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
 
 private:
     void   ApplyValue     (float v);

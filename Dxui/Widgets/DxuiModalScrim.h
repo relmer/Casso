@@ -42,7 +42,7 @@ public:
     bool  IsVisible       () const { return m_visible; }
 
     bool  OnKey           (WPARAM vk);
-    void  Paint           (DxuiPainter & painter) const;
+    void  Paint           (IDxuiPainter & painter) const;
 
 private:
     RECT      m_viewport = {};

@@ -142,7 +142,7 @@ bool DxuiModalScrim::OnKey (WPARAM vk)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiModalScrim::Paint (DxuiPainter & painter) const
+void DxuiModalScrim::Paint (IDxuiPainter & painter) const
 {
     if (!m_visible)
     {

@@ -94,7 +94,7 @@ void DxuiTooltip::Tick (int64_t nowMs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTooltip::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
+void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
     constexpr uint32_t  s_kBgArgb     = 0xFF2D2D2D;
     constexpr uint32_t  s_kBorderArgb = 0xFF606060;
@@ -124,7 +124,7 @@ void DxuiTooltip::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
         return;
     }
 
-    hr = const_cast<DxuiTextRenderer &> (text).MeasureString (m_text.c_str(),
+    hr = const_cast<IDxuiTextRenderer &> (text).MeasureString (m_text.c_str(),
                                                                 fontPx, L"Segoe UI",
                                                                 textW, textH);
     IGNORE_RETURN_VALUE (hr, S_OK);

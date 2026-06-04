@@ -39,7 +39,7 @@ public:
     bool  HitTest         (int x, int y) const;
     void  Click           ();
     bool  OnKey           (WPARAM vk);
-    void  Paint           (DxuiPainter & painter, DxuiTextRenderer & text, const IDxuiTheme & theme);
+    void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
 private:
     RECT          m_rect            = {};

@@ -44,7 +44,7 @@ public:
     void  Show           (int anchorX,
                           int anchorY,
                           std::vector<Item> items,
-                          DxuiTextRenderer & text,
+                          IDxuiTextRenderer & text,
                           const RECT & hostClient);
     void  Hide           ();
 
@@ -53,7 +53,7 @@ public:
     bool  OnLButtonDown  (int x, int y);
     bool  OnLButtonUp    (int x, int y);
     bool  OnKey          (WPARAM vk);
-    void  Paint          (DxuiPainter & painter, DxuiTextRenderer & text) const;
+    void  Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
 
 private:
     int   HitTestIndex (int x, int y) const;

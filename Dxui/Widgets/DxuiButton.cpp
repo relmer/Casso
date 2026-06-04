@@ -109,7 +109,7 @@ bool DxuiButton::OnKey (WPARAM vk)
 }
 
 
-void DxuiButton::Paint (DxuiPainter & painter, DxuiTextRenderer & text, const IDxuiTheme & theme)
+void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     constexpr uint32_t  s_kFocusRingArgb = 0xFFAACCFF;
     constexpr float     s_kFocusRingPx   = 1.5f;
@@ -175,8 +175,8 @@ void DxuiButton::Paint (DxuiPainter & painter, DxuiTextRenderer & text, const ID
                                               textColor,
                                               fontDip,
                                               L"Segoe UI",
-                                              DxuiTextRenderer::HAlign::Center,
-                                              DxuiTextRenderer::VAlign::Center));
+                                              DxuiTextHAlign::Center,
+                                              DxuiTextVAlign::Center));
 
     if (m_focused)
     {

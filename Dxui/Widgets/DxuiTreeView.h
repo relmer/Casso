@@ -100,7 +100,7 @@ public:
     bool  OnLButtonUp     (int x, int y);
     bool  OnKey           (WPARAM vk);
 
-    void  Paint           (DxuiPainter & painter, DxuiTextRenderer & text) const;
+    void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
 
     // Force the flat-rows cache to repopulate. Public so tests can
     // mutate node state via NodeAtMutable then re-flatten.

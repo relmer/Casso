@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Render/IDxuiTextRenderer.h"
+
 
 
 
@@ -24,7 +26,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiTextRenderer
+class DxuiTextRenderer : public IDxuiTextRenderer
 {
 public:
     DxuiTextRenderer  () = default;
@@ -44,31 +46,11 @@ public:
     HRESULT  BeginDrawOffscreen ();
     HRESULT  EndDrawComposite   ();
 
-    enum class HAlign
-    {
-        Left   = 0,
-        Center = 1,
-        Right  = 2,
-    };
-
-    enum class VAlign
-    {
-        Top                = 0,
-        // Centers the LINE BOX vertically. For typical Latin fonts
-        // the line box extends further above cap-height than below
-        // baseline, so the visible glyph cluster sits ABOVE the
-        // rect's geometric midline. Cheap, but mis-aligns text
-        // against icons sized to row geometry.
-        Center             = 1,
-        Bottom             = 2,
-        // Centers cap-height midline at the rect's vertical center.
-        // Uses the font face's metrics (ascent / descent / cap
-        // height) to compute the offset, so the visible center of
-        // the rendered ASCII text matches the geometric center of
-        // the rect. Use this when aligning text against icons or
-        // other geometry-centered widgets in the same row.
-        CenterOnCapHeight  = 3,
-    };
+    // Source-compatibility aliases for existing call sites that
+    // reference `DxuiTextRenderer::HAlign` / `::VAlign`. The canonical
+    // names are the namespace-scope enums declared in IDxuiTextRenderer.h.
+    using HAlign = DxuiTextHAlign;
+    using VAlign = DxuiTextVAlign;
 
     HRESULT  DrawString       (const wchar_t * text,
                                float           xDip,
@@ -78,24 +60,24 @@ public:
                                uint32_t        argbColor,
                                float           fontSizeDip,
                                const wchar_t * fontFamily,
-                               HAlign          hAlign = HAlign::Left,
-                               VAlign          vAlign = VAlign::Top,
+                               DxuiTextHAlign  hAlign = DxuiTextHAlign::Left,
+                               DxuiTextVAlign  vAlign = DxuiTextVAlign::Top,
                                DWRITE_FONT_WEIGHT weight = DWRITE_FONT_WEIGHT_NORMAL,
-                               bool            wrap   = true);
+                               bool            wrap   = true) override;
 
     // Push an axis-aligned clip rect onto the d2d context. All
     // subsequent DrawString / FillRect calls are clipped to the
     // intersection of currently-active clips until the matching
     // PopClipRect. Used by single-line text inputs to clip their
     // scrolling text content to the visible inner rect.
-    HRESULT  PushClipRect     (float xDip, float yDip, float widthDip, float heightDip);
-    HRESULT  PopClipRect      ();
+    HRESULT  PushClipRect     (float xDip, float yDip, float widthDip, float heightDip) override;
+    HRESULT  PopClipRect      () override;
 
     HRESULT  FillRect         (float    xDip,
                                float    yDip,
                                float    widthDip,
                                float    heightDip,
-                               uint32_t argbColor);
+                               uint32_t argbColor) override;
 
     // Uploads a CPU-side BGRA8 framebuffer into a cached ID2D1Bitmap
     // and draws it into the destination rect with linear filtering.
@@ -128,7 +110,7 @@ public:
                                float           fontSizeDip,
                                const wchar_t * fontFamily,
                                float         & outWidthDip,
-                               float         & outHeightDip);
+                               float         & outHeightDip) override;
 
     HRESULT  OnDeviceLost     ();
     HRESULT  OnDeviceRestored (ID3D11Device * pDevice);

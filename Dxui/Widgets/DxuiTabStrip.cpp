@@ -206,7 +206,7 @@ void DxuiTabStrip::Commit (int newIndex)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTabStrip::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
+void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
     constexpr uint32_t  s_kTabIdle      = 0xFF2A3445;
     constexpr uint32_t  s_kTabHover     = 0xFF38465E;
@@ -259,7 +259,7 @@ void DxuiTabStrip::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
                                                   s_kTextArgb,
                                                   fontDip,
                                                   L"Segoe UI",
-                                                  DxuiTextRenderer::HAlign::Center,
-                                                  DxuiTextRenderer::VAlign::Center));
+                                                  DxuiTextHAlign::Center,
+                                                  DxuiTextVAlign::Center));
     }
 }
