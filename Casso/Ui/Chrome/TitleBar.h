@@ -3,8 +3,6 @@
 #include "Pch.h"
 
 #include "ChromeTheme.h"
-#include "../DwriteTextRenderer.h"
-#include "../DxUiPainter.h"
 
 
 
@@ -70,8 +68,8 @@ public:
     void                SetAppIcon        (std::vector<uint32_t> bgraPremulPixels,
                                             int                    widthPx,
                                             int                    heightPx);
-    void                Paint             (DxUiPainter             & painter,
-                                            DwriteTextRenderer      & text,
+    void                Paint             (DxuiPainter             & painter,
+                                            DxuiTextRenderer      & text,
                                             const ChromeVisualState & visual,
                                             const ChromeTheme       & theme);
 

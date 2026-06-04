@@ -21,8 +21,9 @@
 
 #include <d3d11.h>
 #include <d3dcompiler.h>
-#include <d2d1.h>
-#include <dwrite.h>
+#include <d2d1_3.h>
+#include <d2d1helper.h>
+#include <dwrite_3.h>
 #include <dxgi1_3.h>
 #include <dcomp.h>
 #include <wincodec.h>
@@ -39,6 +40,7 @@
 #include <deque>
 #include <functional>
 #include <future>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -67,6 +69,19 @@
 #include "Core/DxuiHitTester.h"
 #include "Core/DxuiInput.h"
 #include "Core/DxuiTitleBarHitTest.h"
+
+// ComPtr alias needed by Render/* headers below. Defined in the
+// umbrella so any consumer including Dxui.h (typically via their
+// own Pch.h) gets the alias before the Render headers are parsed,
+// regardless of whether the consumer's Pch also defines one later.
+#ifndef DXUI_COMPTR_ALIAS_DEFINED
+#define DXUI_COMPTR_ALIAS_DEFINED
+template <typename T>
+using ComPtr = Microsoft::WRL::ComPtr<T>;
+#endif
+
+#include "Render/DxuiPainter.h"
+#include "Render/DxuiTextRenderer.h"
 #include "Theme/DxuiDwm.h"
 #include "Theme/DxuiWindowsThemeColors.h"
 #include "Win32/DxuiDragDropTarget.h"

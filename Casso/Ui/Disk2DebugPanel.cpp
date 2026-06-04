@@ -380,8 +380,8 @@ HRESULT Disk2DebugPanel::Render()
     m_tooltip.Tick  (NowMs());
 
     // Overlays (tooltip + column menu) must composite ABOVE every
-    // underlying widget. Both the geometry painter (DxUiPainter) and
-    // the text renderer (DwriteTextRenderer) batch their draws, so
+    // underlying widget. Both the geometry painter (DxuiPainter) and
+    // the text renderer (DxuiTextRenderer) batch their draws, so
     // without an explicit flush all text would composite on top of
     // all geometry — including the tooltip's opaque background. Flush
     // both pipelines now so the next Begin/Paint cycle lands cleanly
@@ -1719,32 +1719,32 @@ void Disk2DebugPanel::LayoutWidgets()
     m_trackFilterLabel.SetDpi         (m_dpi);
     m_trackFilterLabel.SetFontSizeDip (s_kLabelFontDip);
     m_trackFilterLabel.SetColorArgb   (textArgb);
-    m_trackFilterLabel.SetHAlign      (DwriteTextRenderer::HAlign::Right);
-    m_trackFilterLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
+    m_trackFilterLabel.SetHAlign      (DxuiTextRenderer::HAlign::Right);
+    m_trackFilterLabel.SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
     m_sectorFilterLabel.SetText        (s_kpszSectorFilterLabel);
     m_sectorFilterLabel.SetRect        (m_layout.sectorFilterLabel);
     m_sectorFilterLabel.SetDpi         (m_dpi);
     m_sectorFilterLabel.SetFontSizeDip (s_kLabelFontDip);
     m_sectorFilterLabel.SetColorArgb   (textArgb);
-    m_sectorFilterLabel.SetHAlign      (DwriteTextRenderer::HAlign::Right);
-    m_sectorFilterLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
+    m_sectorFilterLabel.SetHAlign      (DxuiTextRenderer::HAlign::Right);
+    m_sectorFilterLabel.SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
     m_trackInvalidLabel.SetText        (BuildInvalidLabel (s_kpszTrackInvalidPrefix, m_trackEdit.Text(), m_filter.trackFilter.RejectedSpans()).c_str());
     m_trackInvalidLabel.SetRect        (m_layout.trackInvalidLabel);
     m_trackInvalidLabel.SetDpi         (m_dpi);
     m_trackInvalidLabel.SetFontSizeDip (s_kLabelFontDip);
     m_trackInvalidLabel.SetColorArgb   (invalidArgb);
-    m_trackInvalidLabel.SetHAlign      (DwriteTextRenderer::HAlign::Left);
-    m_trackInvalidLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
+    m_trackInvalidLabel.SetHAlign      (DxuiTextRenderer::HAlign::Left);
+    m_trackInvalidLabel.SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
     m_sectorInvalidLabel.SetText        (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit.Text(), m_filter.sectorFilter.RejectedSpans()).c_str());
     m_sectorInvalidLabel.SetRect        (m_layout.sectorInvalidLabel);
     m_sectorInvalidLabel.SetDpi         (m_dpi);
     m_sectorInvalidLabel.SetFontSizeDip (s_kLabelFontDip);
     m_sectorInvalidLabel.SetColorArgb   (invalidArgb);
-    m_sectorInvalidLabel.SetHAlign      (DwriteTextRenderer::HAlign::Left);
-    m_sectorInvalidLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
+    m_sectorInvalidLabel.SetHAlign      (DxuiTextRenderer::HAlign::Left);
+    m_sectorInvalidLabel.SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
     for (int i = 0; i < kEventTypeCheckCount; i++)
     {
@@ -1769,24 +1769,24 @@ void Disk2DebugPanel::LayoutWidgets()
     m_driveFilterLabel.SetDpi         (m_dpi);
     m_driveFilterLabel.SetFontSizeDip (s_kLabelFontDip);
     m_driveFilterLabel.SetColorArgb   (textArgb);
-    m_driveFilterLabel.SetHAlign      (DwriteTextRenderer::HAlign::Left);
-    m_driveFilterLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
+    m_driveFilterLabel.SetHAlign      (DxuiTextRenderer::HAlign::Left);
+    m_driveFilterLabel.SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
     m_diskEventsLabel.SetText        (s_kpszDiskEventsLabel);
     m_diskEventsLabel.SetRect        (m_layout.diskEventsLabel);
     m_diskEventsLabel.SetDpi         (m_dpi);
     m_diskEventsLabel.SetFontSizeDip (s_kLabelFontDip);
     m_diskEventsLabel.SetColorArgb   (textArgb);
-    m_diskEventsLabel.SetHAlign      (DwriteTextRenderer::HAlign::Left);
-    m_diskEventsLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
+    m_diskEventsLabel.SetHAlign      (DxuiTextRenderer::HAlign::Left);
+    m_diskEventsLabel.SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
     m_audioEventsLabel.SetText        (s_kpszAudioEventsLabel);
     m_audioEventsLabel.SetRect        (m_layout.audioEventsLabel);
     m_audioEventsLabel.SetDpi         (m_dpi);
     m_audioEventsLabel.SetFontSizeDip (s_kLabelFontDip);
     m_audioEventsLabel.SetColorArgb   (textArgb);
-    m_audioEventsLabel.SetHAlign      (DwriteTextRenderer::HAlign::Left);
-    m_audioEventsLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
+    m_audioEventsLabel.SetHAlign      (DxuiTextRenderer::HAlign::Left);
+    m_audioEventsLabel.SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
     // RadioGroup expects rects in its option records.
     std::vector<RadioOption>  driveOpts;
@@ -1927,12 +1927,12 @@ void Disk2DebugPanel::ConfigureWidgets()
     m_clearButton.SetClick ([this] () { ClearEvents(); });
 
     std::vector<ListView::Column>  cols;
-    cols.push_back ({ L"Time",   kColWallWidth,   false, DwriteTextRenderer::HAlign::Left  });
-    cols.push_back ({ L"Uptime", kColUptimeWidth, false, DwriteTextRenderer::HAlign::Left  });
-    cols.push_back ({ L"Cycle",  kColCycleWidth,  false, DwriteTextRenderer::HAlign::Right });
-    cols.push_back ({ L"Drive",  kColDriveWidth,  false, DwriteTextRenderer::HAlign::Right });
-    cols.push_back ({ L"Event",  kColEventWidth,  false, DwriteTextRenderer::HAlign::Left  });
-    cols.push_back ({ L"Detail", 0,               true,  DwriteTextRenderer::HAlign::Left  });
+    cols.push_back ({ L"Time",   kColWallWidth,   false, DxuiTextRenderer::HAlign::Left  });
+    cols.push_back ({ L"Uptime", kColUptimeWidth, false, DxuiTextRenderer::HAlign::Left  });
+    cols.push_back ({ L"Cycle",  kColCycleWidth,  false, DxuiTextRenderer::HAlign::Right });
+    cols.push_back ({ L"Drive",  kColDriveWidth,  false, DxuiTextRenderer::HAlign::Right });
+    cols.push_back ({ L"Event",  kColEventWidth,  false, DxuiTextRenderer::HAlign::Left  });
+    cols.push_back ({ L"Detail", 0,               true,  DxuiTextRenderer::HAlign::Left  });
     m_eventList.SetColumns    (std::move (cols));
     m_eventList.SetShowHeader (true);
 

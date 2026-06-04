@@ -3,8 +3,6 @@
 #include "Pch.h"
 
 #include "../Chrome/ChromeTheme.h"
-#include "../DwriteTextRenderer.h"
-#include "../DxUiPainter.h"
 
 
 
@@ -43,7 +41,7 @@ public:
     bool  HitTest         (int x, int y) const;
     void  Click           ();
     bool  OnKey           (WPARAM vk);
-    void  Paint           (DxUiPainter & painter, DwriteTextRenderer & text, const ChromeTheme & theme);
+    void  Paint           (DxuiPainter & painter, DxuiTextRenderer & text, const ChromeTheme & theme);
 
 private:
     RECT          m_rect            = {};

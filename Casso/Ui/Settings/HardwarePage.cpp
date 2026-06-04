@@ -269,7 +269,7 @@ void HardwarePage::Rebuild ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HardwarePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
+void HardwarePage::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
 {
     int  i = 0;
 

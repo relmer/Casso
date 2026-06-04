@@ -5,8 +5,6 @@
 #include "../Chrome/ChromeTheme.h"
 #include "../Chrome/DriveWidget.h"
 #include "../Chrome/JoystickToggleButton.h"
-#include "../DwriteTextRenderer.h"
-#include "../DxUiPainter.h"
 #include "../Widgets/Dropdown.h"
 #include "../Widgets/Label.h"
 
@@ -46,7 +44,7 @@ public:
     void  OnMouseHover          (int x, int y);
     bool  OnKey                 (WPARAM vk);
 
-    void  Paint                 (DxUiPainter & painter, DwriteTextRenderer & text) const;
+    void  Paint                 (DxuiPainter & painter, DxuiTextRenderer & text) const;
 
     void  CollectFocusables (std::vector<std::function<void (bool)>> & out);
     bool  AnyDropdownOpen   () const { return m_themeDropdown.IsOpen(); }

@@ -2,8 +2,6 @@
 
 #include "Pch.h"
 
-#include "../DwriteTextRenderer.h"
-#include "../DxUiPainter.h"
 
 
 
@@ -102,7 +100,7 @@ public:
     bool  OnLButtonUp     (int x, int y);
     bool  OnKey           (WPARAM vk);
 
-    void  Paint           (DxUiPainter & painter, DwriteTextRenderer & text) const;
+    void  Paint           (DxuiPainter & painter, DxuiTextRenderer & text) const;
 
     // Force the flat-rows cache to repopulate. Public so tests can
     // mutate node state via NodeAtMutable then re-flatten.

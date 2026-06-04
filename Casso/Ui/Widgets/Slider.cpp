@@ -351,7 +351,7 @@ bool Slider::OnKey (WPARAM vk)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Slider::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
+void Slider::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
 {
     constexpr uint32_t  s_kTrack         = 0xFF404040;
     constexpr uint32_t  s_kTrackFill     = 0xFF6E9BFF;
@@ -465,7 +465,7 @@ void Slider::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                                   s_kValueText,
                                                   valueFontDip,
                                                   s_kFont,
-                                                  DwriteTextRenderer::HAlign::Right,
-                                                  DwriteTextRenderer::VAlign::Center));
+                                                  DxuiTextRenderer::HAlign::Right,
+                                                  DxuiTextRenderer::VAlign::Center));
     }
 }

@@ -313,7 +313,7 @@ int ListView::GetTotalMeasuredWidthPx () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ListView::MeasureColumnsPx (DwriteTextRenderer & text)
+void ListView::MeasureColumnsPx (DxuiTextRenderer & text)
 {
     HRESULT  hr      = S_OK;
     float    fontDip = (float) m_scaler.Pxf (s_kFontDp);
@@ -1140,7 +1140,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ListView::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
+void ListView::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
 {
     HRESULT          hr         = S_OK;
     float            x          = (float) m_rect.left;
@@ -1225,8 +1225,8 @@ ListView::Palette ListView::MakePalette () const
 ////////////////////////////////////////////////////////////////////////////////
 
 void ListView::PaintHeader (
-    DxUiPainter            & painter,
-    DwriteTextRenderer     & text,
+    DxuiPainter            & painter,
+    DxuiTextRenderer     & text,
     const Palette          & pal,
     float                    x,
     float                    y,
@@ -1263,7 +1263,7 @@ void ListView::PaintHeader (
                               headerH,
                               pal.hdrFg, hdrFontPx, L"Segoe UI",
                               m_columns[c].align,
-                              DwriteTextRenderer::VAlign::Center,
+                              DxuiTextRenderer::VAlign::Center,
                               DWRITE_FONT_WEIGHT_BOLD);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -1278,8 +1278,8 @@ void ListView::PaintHeader (
                                   gw,
                                   headerH,
                                   pal.hdrFg, hdrFontPx, L"Segoe UI",
-                                  DwriteTextRenderer::HAlign::Right,
-                                  DwriteTextRenderer::VAlign::Center,
+                                  DxuiTextRenderer::HAlign::Right,
+                                  DxuiTextRenderer::VAlign::Center,
                                   DWRITE_FONT_WEIGHT_BOLD);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
@@ -1319,7 +1319,7 @@ void ListView::PaintHeader (
 ////////////////////////////////////////////////////////////////////////////////
 
 void ListView::PaintHeaderFocusMarkers (
-    DxUiPainter            & painter,
+    DxuiPainter            & painter,
     const Palette          & pal,
     float                    x,
     float                    y,
@@ -1370,8 +1370,8 @@ void ListView::PaintHeaderFocusMarkers (
 ////////////////////////////////////////////////////////////////////////////////
 
 void ListView::PaintDataRows (
-    DxUiPainter            & painter,
-    DwriteTextRenderer     & text,
+    DxuiPainter            & painter,
+    DxuiTextRenderer     & text,
     const Palette          & pal,
     float                    x,
     float                    y,
@@ -1433,7 +1433,7 @@ void ListView::PaintDataRows (
                                   fontPx, 
                                   L"Segoe UI",
                                   m_columns[c].align,
-                                  DwriteTextRenderer::VAlign::CenterOnCapHeight);
+                                  DxuiTextRenderer::VAlign::CenterOnCapHeight);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
     }
@@ -1453,7 +1453,7 @@ void ListView::PaintDataRows (
 ////////////////////////////////////////////////////////////////////////////////
 
 void ListView::PaintScrollbar (
-    DxUiPainter   & painter,
+    DxuiPainter   & painter,
     const Palette & pal,
     float           x,
     float           y) const
@@ -1574,7 +1574,7 @@ void ListView::ComputeColumnLayout (float fullW, std::vector<int> & xs, std::vec
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ListView::PaintScrollArrow (DxUiPainter & painter,
+void ListView::PaintScrollArrow (DxuiPainter & painter,
                                  float          ax,
                                  float          ay,
                                  float          aw,

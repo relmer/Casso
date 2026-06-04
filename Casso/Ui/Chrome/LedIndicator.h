@@ -3,7 +3,6 @@
 #include "Pch.h"
 
 #include "ChromeTheme.h"
-#include "../DxUiPainter.h"
 
 
 
@@ -33,8 +32,8 @@ public:
     LedIndicatorLayout GetLayout    () const { return m_layout; }
     uint32_t           CoreArgb     (const ChromeTheme & theme) const;
     uint32_t           HaloArgb     (const ChromeTheme & theme) const;
-    void               Paint        (DxUiPainter & painter, const ChromeTheme & theme) const;
-    void               Paint        (DxUiPainter & painter, uint32_t coreArgb, uint32_t haloArgb) const;
+    void               Paint        (DxuiPainter & painter, const ChromeTheme & theme) const;
+    void               Paint        (DxuiPainter & painter, uint32_t coreArgb, uint32_t haloArgb) const;
 
 private:
     LedState            m_state  = LedState::Idle;

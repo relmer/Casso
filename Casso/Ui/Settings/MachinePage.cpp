@@ -387,7 +387,7 @@ bool MachinePage::AnyDropdownOpen () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachinePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
+void MachinePage::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
 {
     int  i = 0;
 

@@ -9,8 +9,6 @@
 #include "ThemePage.h"
 #include "SettingsWindow.h"
 
-#include "../DwriteTextRenderer.h"
-#include "../DxUiPainter.h"
 #include "../Widgets/Button.h"
 #include "../Widgets/ModalScrim.h"
 #include "../Widgets/TabStrip.h"
@@ -82,7 +80,7 @@ public:
     // into its own swap chain; the routing helpers consume popup-local
     // mouse / key events only while the panel is visible.
     void    Layout    (int viewportWidthPx, int viewportHeightPx, const DxuiDpiScaler & scaler, int topInsetPx = 0);
-    void    Paint     (DxUiPainter & painter, DwriteTextRenderer & text);
+    void    Paint     (DxuiPainter & painter, DxuiTextRenderer & text);
     void    OnMouseMove   (int x, int y);
     void    OnLButtonDown (int x, int y);
     void    OnLButtonUp   (int x, int y);

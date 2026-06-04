@@ -6,8 +6,9 @@
 
 #include <d3d11.h>
 #include <d3dcompiler.h>
-#include <d2d1.h>
-#include <dwrite.h>
+#include <d2d1_3.h>
+#include <d2d1helper.h>
+#include <dwrite_3.h>
 #include <dxgi1_3.h>
 #include <dcomp.h>
 #include <wincodec.h>
@@ -24,8 +25,12 @@
 #include <deque>
 #include <functional>
 #include <future>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "../CassoCore/Ehm.h"
+
+template <typename T>
+using ComPtr = Microsoft::WRL::ComPtr<T>;

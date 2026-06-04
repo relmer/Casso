@@ -82,7 +82,7 @@ namespace
     // Fills a trapezoid with parallel horizontal front and back edges
     // by stacking 1-px horizontal scanlines whose widths interpolate
     // linearly from front to back. Used for the receding case top.
-    void FillTrapezoidApprox (DxUiPainter & painter,
+    void FillTrapezoidApprox (DxuiPainter & painter,
                               float frontLeft,  float frontRight,
                               float backLeft,   float backRight,
                               float frontY,     float backY,
@@ -111,7 +111,7 @@ namespace
 
     // Draws a horizontal ridge line on the case top at fractional depth
     // (0=front, 1=back), respecting the trapezoid's perspective taper.
-    void DrawCaseRidge (DxUiPainter & painter,
+    void DrawCaseRidge (DxuiPainter & painter,
                         float frontLeft, float frontRight,
                         float backLeft,  float backRight,
                         float frontY,    float backY,
@@ -132,7 +132,7 @@ namespace
     // format preserves per-row concavities -- in particular the gap
     // between the underside of the beak and the top of the neck --
     // that a single (start, end) span per row would erroneously fill.
-    void DrawCassowaryRainbow (DxUiPainter & painter,
+    void DrawCassowaryRainbow (DxuiPainter & painter,
                                float left, float top,
                                float width, float height)
     {
@@ -356,8 +356,8 @@ void DriveWidget::SyncFromState (const DriveWidgetState & state)
 ////////////////////////////////////////////////////////////////////////////////
 
 void DriveWidget::Paint (
-    DxUiPainter               & painter,
-    DwriteTextRenderer        & text,
+    DxuiPainter               & painter,
+    DxuiTextRenderer        & text,
     const ChromeVisualState   & visual,
     const ChromeTheme         & theme)
 {
@@ -419,8 +419,8 @@ void DriveWidget::Paint (
                                                   labelArgb,
                                                   fontDip,
                                                   s_kFontFamily,
-                                                  DwriteTextRenderer::HAlign::Left,
-                                                  DwriteTextRenderer::VAlign::Center));
+                                                  DxuiTextRenderer::HAlign::Left,
+                                                  DxuiTextRenderer::VAlign::Center));
 
         UNREFERENCED_PARAMETER (bodyW);
         UNREFERENCED_PARAMETER (faceW);
@@ -847,7 +847,7 @@ void DriveWidget::Paint (
 ////////////////////////////////////////////////////////////////////////////////
 
 void DriveWidget::PaintBasenameLabel (
-    DwriteTextRenderer  & text,
+    DxuiTextRenderer  & text,
     const ChromeTheme   & theme,
     UINT                  dpi)
 {
@@ -886,8 +886,8 @@ void DriveWidget::PaintBasenameLabel (
                                               theme.driveLabelArgb,
                                               basenameDip,
                                               s_kFontFamily,
-                                              DwriteTextRenderer::HAlign::Center,
-                                              DwriteTextRenderer::VAlign::Center));
+                                              DxuiTextRenderer::HAlign::Center,
+                                              DxuiTextRenderer::VAlign::Center));
 }
 
 

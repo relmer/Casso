@@ -3,8 +3,6 @@
 #include "Pch.h"
 
 #include "ChromeTheme.h"
-#include "../DwriteTextRenderer.h"
-#include "../DxUiPainter.h"
 
 
 
@@ -53,13 +51,13 @@ public:
 
     void                              Dispatch             (WORD commandId) const;
     void                              Layout               (int x, int y, int width, UINT dpi,
-                                                            DwriteTextRenderer * pTextForMeasure = nullptr);
-    void                              PaintStrip           (DxUiPainter             & painter,
-                                                            DwriteTextRenderer      & text,
+                                                            DxuiTextRenderer * pTextForMeasure = nullptr);
+    void                              PaintStrip           (DxuiPainter             & painter,
+                                                            DxuiTextRenderer      & text,
                                                             const ChromeVisualState & visual,
                                                             const ChromeTheme       & theme);
-    void                              PaintDropdown        (DxUiPainter             & painter,
-                                                            DwriteTextRenderer      & text,
+    void                              PaintDropdown        (DxuiPainter             & painter,
+                                                            DxuiTextRenderer      & text,
                                                             const ChromeVisualState & visual,
                                                             const ChromeTheme       & theme);
     void                              Open                 (NavMenu menu, bool openedByKeyboard);

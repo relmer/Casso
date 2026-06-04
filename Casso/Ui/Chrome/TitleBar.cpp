@@ -20,8 +20,8 @@ namespace
     }
 
 
-    void PaintButton (DxUiPainter             & painter,
-                      DwriteTextRenderer      & text,
+    void PaintButton (DxuiPainter             & painter,
+                      DxuiTextRenderer      & text,
                       const RECT              & rect,
                       const wchar_t           * glyph,
                       uint32_t                  fillArgb,
@@ -46,8 +46,8 @@ namespace
                                                   textArgb,
                                                   glyphFontDip,
                                                   s_kMdl2Family,
-                                                  DwriteTextRenderer::HAlign::Center,
-                                                  DwriteTextRenderer::VAlign::Center));
+                                                  DxuiTextRenderer::HAlign::Center,
+                                                  DxuiTextRenderer::VAlign::Center));
     }
 }
 
@@ -327,8 +327,8 @@ ChromeButtonVisual TitleBar::ButtonVisual (SystemButton which) const
 ////////////////////////////////////////////////////////////////////////////////
 
 void TitleBar::Paint (
-    DxUiPainter             & painter,
-    DwriteTextRenderer      & text,
+    DxuiPainter             & painter,
+    DxuiTextRenderer      & text,
     const ChromeVisualState & visual,
     const ChromeTheme       & theme)
 {
@@ -407,8 +407,8 @@ void TitleBar::Paint (
                                               glyphArgb,
                                               titleFontDip,
                                               TitleBarLayout::WindowsUiFontFamily(),
-                                              DwriteTextRenderer::HAlign::Left,
-                                              DwriteTextRenderer::VAlign::Center));
+                                              DxuiTextRenderer::HAlign::Left,
+                                              DxuiTextRenderer::VAlign::Center));
     PaintButton (painter, text, m_layout.minButton,   s_kMinGlyph,   minColor,   glyphArgb,  dpi);
     PaintButton (painter, text, m_layout.maxButton,   s_kMaxGlyph,   maxColor,   glyphArgb,  dpi);
     PaintButton (painter, text, m_layout.closeButton, s_kCloseGlyph, closeColor, closeGlyph, dpi);

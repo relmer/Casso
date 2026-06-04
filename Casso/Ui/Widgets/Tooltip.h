@@ -2,8 +2,6 @@
 
 #include "Pch.h"
 
-#include "../DwriteTextRenderer.h"
-#include "../DxUiPainter.h"
 
 
 
@@ -39,7 +37,7 @@ public:
     const std::wstring & Text      () const { return m_text;    }
     const RECT         & Anchor    () const { return m_anchor;  }
 
-    void  Paint           (DxUiPainter & painter, DwriteTextRenderer & text) const;
+    void  Paint           (DxuiPainter & painter, DxuiTextRenderer & text) const;
 
 private:
     DxuiDpiScaler     m_scaler;

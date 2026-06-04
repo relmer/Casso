@@ -2,8 +2,6 @@
 
 #include "Pch.h"
 
-#include "../DwriteTextRenderer.h"
-#include "../DxUiPainter.h"
 
 
 
@@ -36,9 +34,9 @@ public:
     bool  OnLButtonDown  (int x, int y);
     bool  OnLButtonUp    (int x, int y);
     bool  HandleKey      (WPARAM vk);
-    void  Paint          (DxUiPainter & painter, DwriteTextRenderer & text) const;
-    void  PaintBase      (DxUiPainter & painter, DwriteTextRenderer & text) const;
-    void  PaintMenu      (DxUiPainter & painter, DwriteTextRenderer & text) const;
+    void  Paint          (DxuiPainter & painter, DxuiTextRenderer & text) const;
+    void  PaintBase      (DxuiPainter & painter, DxuiTextRenderer & text) const;
+    void  PaintMenu      (DxuiPainter & painter, DxuiTextRenderer & text) const;
     void  SetDpi         (UINT dpi) { m_scaler.SetDpi (dpi); }
 
 private:

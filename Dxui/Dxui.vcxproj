@@ -145,6 +145,8 @@
     <ClCompile Include="Core\DxuiHitTester.cpp" />
     <ClCompile Include="Core\DxuiInput.cpp" />
     <ClCompile Include="Core\DxuiTitleBarHitTest.cpp" />
+    <ClCompile Include="Render\DxuiPainter.cpp" />
+    <ClCompile Include="Render\DxuiTextRenderer.cpp" />
     <ClCompile Include="Theme\DxuiDwm.cpp" />
     <ClCompile Include="Theme\DxuiWindowsThemeColors.cpp" />
     <ClCompile Include="Win32\DxuiDragDropTarget.cpp" />
@@ -157,6 +159,8 @@
     <ClInclude Include="Core\DxuiHitTester.h" />
     <ClInclude Include="Core\DxuiInput.h" />
     <ClInclude Include="Core\DxuiTitleBarHitTest.h" />
+    <ClInclude Include="Render\DxuiPainter.h" />
+    <ClInclude Include="Render\DxuiTextRenderer.h" />
     <ClInclude Include="Theme\DxuiDwm.h" />
     <ClInclude Include="Theme\DxuiWindowsThemeColors.h" />
     <ClInclude Include="Win32\DxuiDragDropTarget.h" />

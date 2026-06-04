@@ -836,7 +836,7 @@ Error:
 //
 //  RecomputeLayout
 //
-//  Creates a temporary DwriteTextRenderer for measurement-only calls
+//  Creates a temporary DxuiTextRenderer for measurement-only calls
 //  (no swap chain needed), builds the DialogLayoutMetrics, and stores
 //  the result in m_layout.
 //
@@ -845,7 +845,7 @@ Error:
 void DialogPrimitive::RecomputeLayout (UINT dpi)
 {
     HRESULT             hr       = S_OK;
-    DwriteTextRenderer  measurer;
+    DxuiTextRenderer  measurer;
     DialogLayoutMetrics metrics;
     float               dpiScale = 0.0f;
 

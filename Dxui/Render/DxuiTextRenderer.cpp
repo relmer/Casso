@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "DwriteTextRenderer.h"
+#include "DxuiTextRenderer.h"
 
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "dwrite.lib")
@@ -34,11 +34,11 @@ namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ~DwriteTextRenderer
+//  ~DxuiTextRenderer
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DwriteTextRenderer::~DwriteTextRenderer ()
+DxuiTextRenderer::~DxuiTextRenderer ()
 {
     Shutdown();
 }
@@ -59,7 +59,7 @@ DwriteTextRenderer::~DwriteTextRenderer ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DwriteTextRenderer::Initialize (ID3D11Device * pDevice)
+HRESULT DxuiTextRenderer::Initialize (ID3D11Device * pDevice)
 {
     HRESULT                hr      = S_OK;
     ComPtr<IDXGIDevice>    dxgi;
@@ -111,7 +111,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DwriteTextRenderer::Shutdown ()
+void DxuiTextRenderer::Shutdown ()
 {
     UnbindBackBuffer();
 
@@ -142,7 +142,7 @@ void DwriteTextRenderer::Shutdown ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DwriteTextRenderer::BindBackBuffer (
+HRESULT DxuiTextRenderer::BindBackBuffer (
     IDXGISurface  * pBackBufferSurface,
     UINT            dpiX,
     UINT            dpiY)
@@ -183,7 +183,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DwriteTextRenderer::UnbindBackBuffer ()
+void DxuiTextRenderer::UnbindBackBuffer ()
 {
     if (m_d2dContext)
     {
@@ -204,7 +204,7 @@ void DwriteTextRenderer::UnbindBackBuffer ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DwriteTextRenderer::BeginDraw ()
+HRESULT DxuiTextRenderer::BeginDraw ()
 {
     HRESULT  hr = S_OK;
 
@@ -230,7 +230,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DwriteTextRenderer::EndDraw ()
+HRESULT DxuiTextRenderer::EndDraw ()
 {
     HRESULT  hr   = S_OK;
     HRESULT  hrEnd = S_OK;
@@ -252,7 +252,7 @@ HRESULT DwriteTextRenderer::EndDraw ()
         // Device-lost path: drop the target so the next BindBackBuffer
         // rebuilds. The target is now unbound; callers detect this via
         // IsTargetBound() and skip presenting the half-painted frame.
-        DEBUGMSG (L"[Casso] DwriteTextRenderer::EndDraw target lost (D2DERR_RECREATE_TARGET); frame dropped\n");
+        DEBUGMSG (L"[Casso] DxuiTextRenderer::EndDraw target lost (D2DERR_RECREATE_TARGET); frame dropped\n");
         UnbindBackBuffer();
         return S_OK;
     }
@@ -291,7 +291,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DwriteTextRenderer::BeginDrawOffscreen ()
+HRESULT DxuiTextRenderer::BeginDrawOffscreen ()
 {
     HRESULT                  hr    = S_OK;
     D2D1_SIZE_U              size  = {};
@@ -345,7 +345,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DwriteTextRenderer::EndDrawComposite ()
+HRESULT DxuiTextRenderer::EndDrawComposite ()
 {
     HRESULT      hr     = S_OK;
     HRESULT      hrEnd  = S_OK;
@@ -411,7 +411,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DwriteTextRenderer::EnsureTextFormat (
+HRESULT DxuiTextRenderer::EnsureTextFormat (
     const wchar_t      *  family,
     float                 fontSizeDip,
     DWRITE_FONT_WEIGHT    weight,
@@ -475,7 +475,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DwriteTextRenderer::EnsureCapMidY (
+HRESULT DxuiTextRenderer::EnsureCapMidY (
     const wchar_t      *  family,
     float                 fontSizeDip,
     DWRITE_FONT_WEIGHT    weight,
@@ -574,7 +574,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DwriteTextRenderer::DrawString (
+HRESULT DxuiTextRenderer::DrawString (
     const wchar_t      * text,
     float                xDip,
     float                yDip,
@@ -689,13 +689,13 @@ Error:
 //  Paints a filled axis-aligned rectangle through the D2D context.
 //  Useful when a fill needs to composite in submission order against
 //  prior DrawString calls (e.g. opaque dropdown menu background that
-//  must hide earlier text rendered underneath). DxUiPainter's FillRect
+//  must hide earlier text rendered underneath). DxuiPainter's FillRect
 //  goes through D3D and always flushes before any D2D text, so it
 //  cannot cover text drawn earlier in the same frame.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DwriteTextRenderer::FillRect (
+HRESULT DxuiTextRenderer::FillRect (
     float    xDip,
     float    yDip,
     float    widthDip,
@@ -745,7 +745,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DwriteTextRenderer::PushClipRect (float xDip, float yDip, float widthDip, float heightDip)
+HRESULT DxuiTextRenderer::PushClipRect (float xDip, float yDip, float widthDip, float heightDip)
 {
     HRESULT      hr   = S_OK;
     D2D1_RECT_F  rect = {};
@@ -766,7 +766,7 @@ Error:
 }
 
 
-HRESULT DwriteTextRenderer::PopClipRect ()
+HRESULT DxuiTextRenderer::PopClipRect ()
 {
     HRESULT  hr = S_OK;
 
@@ -797,7 +797,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DwriteTextRenderer::DrawFramebuffer (
+HRESULT DxuiTextRenderer::DrawFramebuffer (
     const uint32_t * srcBgraPixels,
     int              srcWidthPx,
     int              srcHeightPx,
@@ -873,7 +873,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DwriteTextRenderer::DrawIconBitmap (
+HRESULT DxuiTextRenderer::DrawIconBitmap (
     const uint32_t * srcBgraPremul,
     int              srcWidthPx,
     int              srcHeightPx,
@@ -947,7 +947,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DwriteTextRenderer::MeasureString (
+HRESULT DxuiTextRenderer::MeasureString (
     const wchar_t  * text,
     float            fontSizeDip,
     const wchar_t  * fontFamily,
@@ -1010,7 +1010,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DwriteTextRenderer::OnDeviceLost ()
+HRESULT DxuiTextRenderer::OnDeviceLost ()
 {
     Shutdown();
     return S_OK;
@@ -1026,7 +1026,7 @@ HRESULT DwriteTextRenderer::OnDeviceLost ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DwriteTextRenderer::OnDeviceRestored (ID3D11Device * pDevice)
+HRESULT DxuiTextRenderer::OnDeviceRestored (ID3D11Device * pDevice)
 {
     return Initialize (pDevice);
 }

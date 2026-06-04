@@ -270,8 +270,6 @@
     <ClCompile Include="Shell\WindowCommandManager.cpp" />
     <ClCompile Include="Shell\WindowManager.cpp" />
     <ClCompile Include="Ui\UiShell.cpp" />
-    <ClCompile Include="Ui\DxUiPainter.cpp" />
-    <ClCompile Include="Ui\DwriteTextRenderer.cpp" />
     <ClCompile Include="Ui\FocusManager.cpp" />
     <ClCompile Include="Ui\Layout.cpp" />
     <ClCompile Include="Ui\Chrome\DriveLabelTruncation.cpp" />
@@ -361,8 +359,6 @@
     <ClInclude Include="Shell\WindowCommandManager.h" />
     <ClInclude Include="Shell\WindowManager.h" />
     <ClInclude Include="Ui\UiShell.h" />
-    <ClInclude Include="Ui\DxUiPainter.h" />
-    <ClInclude Include="Ui\DwriteTextRenderer.h" />
     <ClInclude Include="Ui\FocusManager.h" />
     <ClInclude Include="Ui\Layout.h" />
     <ClInclude Include="TrackSectorPredicate.h" />

@@ -235,7 +235,7 @@ namespace
 
 
     // Loads an HICON resource into a CPU-side premultiplied BGRA8
-    // pixel buffer suitable for the DwriteTextRenderer::DrawIconBitmap
+    // pixel buffer suitable for the DxuiTextRenderer::DrawIconBitmap
     // path. Uses a GDI memory DC + 32-bit DIB section to capture the
     // icon's alpha-channelled pixels (LoadImageW preserves alpha when
     // LR_DEFAULTCOLOR is set on a Vista+ icon). Premultiplies the

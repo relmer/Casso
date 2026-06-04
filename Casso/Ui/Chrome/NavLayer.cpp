@@ -305,7 +305,7 @@ void NavLayer::Dispatch (WORD commandId) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void NavLayer::Layout (int x, int y, int width, UINT dpi, DwriteTextRenderer * pTextForMeasure)
+void NavLayer::Layout (int x, int y, int width, UINT dpi, DxuiTextRenderer * pTextForMeasure)
 {
     int    currentX = x;
     int    pad      = Scale (s_kMenuPadXPx, dpi);
@@ -671,8 +671,8 @@ bool NavLayer::HandleMouseUp (int x, int y)
 ////////////////////////////////////////////////////////////////////////////////
 
 void NavLayer::PaintStrip (
-    DxUiPainter             & painter,
-    DwriteTextRenderer      & text,
+    DxuiPainter             & painter,
+    DxuiTextRenderer      & text,
     const ChromeVisualState & visual,
     const ChromeTheme       & theme)
 {
@@ -719,8 +719,8 @@ void NavLayer::PaintStrip (
                                                   theme.navItemTextArgb,
                                                   fontDip,
                                                   s_kFontFamily,
-                                                  DwriteTextRenderer::HAlign::Center,
-                                                  DwriteTextRenderer::VAlign::Center));
+                                                  DxuiTextRenderer::HAlign::Center,
+                                                  DxuiTextRenderer::VAlign::Center));
 
         if (showCues && mnIdx >= 0 && !stripped.empty())
         {
@@ -767,8 +767,8 @@ void NavLayer::PaintStrip (
 ////////////////////////////////////////////////////////////////////////////////
 
 void NavLayer::PaintDropdown (
-    DxUiPainter             & painter,
-    DwriteTextRenderer      & text,
+    DxuiPainter             & painter,
+    DxuiTextRenderer      & text,
     const ChromeVisualState & visual,
     const ChromeTheme       & theme)
 {

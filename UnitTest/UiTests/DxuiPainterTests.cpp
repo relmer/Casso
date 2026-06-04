@@ -2,8 +2,6 @@
 
 #include "CppUnitTest.h"
 
-#include "../Casso/Ui/DxUiPainter.h"
-
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -14,13 +12,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace UiTests
 {
 
-TEST_CLASS (DxUiPainterTests)
+TEST_CLASS (DxuiPainterTests)
 {
 public:
 
     TEST_METHOD (End_WithNullRtvNoOpsCleanly)
     {
-        DxUiPainter  painter;
+        DxuiPainter  painter;
 
         HRESULT  hr = painter.End (nullptr);
 
@@ -30,7 +28,7 @@ public:
 
     TEST_METHOD (Shutdown_IsIdempotent)
     {
-        DxUiPainter  painter;
+        DxuiPainter  painter;
 
         painter.Shutdown();
         painter.Shutdown();

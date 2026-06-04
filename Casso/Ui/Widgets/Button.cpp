@@ -109,7 +109,7 @@ bool Button::OnKey (WPARAM vk)
 }
 
 
-void Button::Paint (DxUiPainter & painter, DwriteTextRenderer & text, const ChromeTheme & theme)
+void Button::Paint (DxuiPainter & painter, DxuiTextRenderer & text, const ChromeTheme & theme)
 {
     constexpr uint32_t  s_kFocusRingArgb = 0xFFAACCFF;
     constexpr float     s_kFocusRingPx   = 1.5f;
@@ -175,8 +175,8 @@ void Button::Paint (DxUiPainter & painter, DwriteTextRenderer & text, const Chro
                                               textColor,
                                               fontDip,
                                               L"Segoe UI",
-                                              DwriteTextRenderer::HAlign::Center,
-                                              DwriteTextRenderer::VAlign::Center));
+                                              DxuiTextRenderer::HAlign::Center,
+                                              DxuiTextRenderer::VAlign::Center));
 
     if (m_focused)
     {

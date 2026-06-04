@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "DxUiPainter.h"
+#include "DxuiPainter.h"
 
 #pragma comment(lib, "d3dcompiler.lib")
 
@@ -40,11 +40,11 @@ namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ~DxUiPainter
+//  ~DxuiPainter
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxUiPainter::~DxUiPainter ()
+DxuiPainter::~DxuiPainter ()
 {
     Shutdown();
 }
@@ -59,7 +59,7 @@ DxUiPainter::~DxUiPainter ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxUiPainter::Initialize (
+HRESULT DxuiPainter::Initialize (
     ID3D11Device         * pDevice,
     ID3D11DeviceContext  * pContext)
 {
@@ -96,7 +96,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxUiPainter::Shutdown ()
+void DxuiPainter::Shutdown ()
 {
     m_vertices.clear();
     m_vertexBuffer.Reset();
@@ -122,7 +122,7 @@ void DxUiPainter::Shutdown ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxUiPainter::OnDeviceLost ()
+HRESULT DxuiPainter::OnDeviceLost ()
 {
     Shutdown();
     return S_OK;
@@ -138,7 +138,7 @@ HRESULT DxUiPainter::OnDeviceLost ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxUiPainter::OnDeviceRestored (
+HRESULT DxuiPainter::OnDeviceRestored (
     ID3D11Device         * pDevice,
     ID3D11DeviceContext  * pContext)
 {
@@ -155,7 +155,7 @@ HRESULT DxUiPainter::OnDeviceRestored (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxUiPainter::CreateShaders ()
+HRESULT DxuiPainter::CreateShaders ()
 {
     HRESULT             hr     = S_OK;
     ComPtr<ID3DBlob>    vsBlob;
@@ -172,7 +172,7 @@ HRESULT DxUiPainter::CreateShaders ()
 
     hr = D3DCompile (s_kVertexShaderSrc,
                      sizeof (s_kVertexShaderSrc) - 1,
-                     "DxUiPainter.vs",
+                     "DxuiPainter.vs",
                      nullptr,
                      nullptr,
                      "main",
@@ -185,7 +185,7 @@ HRESULT DxUiPainter::CreateShaders ()
 
     hr = D3DCompile (s_kPixelShaderSrc,
                      sizeof (s_kPixelShaderSrc) - 1,
-                     "DxUiPainter.ps",
+                     "DxuiPainter.ps",
                      nullptr,
                      nullptr,
                      "main",
@@ -229,7 +229,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxUiPainter::CreatePipelineState ()
+HRESULT DxuiPainter::CreatePipelineState ()
 {
     HRESULT                   hr      = S_OK;
     D3D11_BLEND_DESC          blend   = {};
@@ -284,7 +284,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxUiPainter::EnsureVertexBuffer (size_t requiredVerts)
+HRESULT DxuiPainter::EnsureVertexBuffer (size_t requiredVerts)
 {
     HRESULT            hr       = S_OK;
     D3D11_BUFFER_DESC  desc     = {};
@@ -330,7 +330,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxUiPainter::Begin (int viewportWidthPx, int viewportHeightPx)
+HRESULT DxuiPainter::Begin (int viewportWidthPx, int viewportHeightPx)
 {
     HRESULT  hr = S_OK;
 
@@ -358,7 +358,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxUiPainter::Vertex DxUiPainter::MakeVertex (uint32_t argbColor, float alphaMultiplier)
+DxuiPainter::Vertex DxuiPainter::MakeVertex (uint32_t argbColor, float alphaMultiplier)
 {
     Vertex  v;
     float   a = ((argbColor >> 24) & 0xFF) * s_kByteToUnit;
@@ -391,7 +391,7 @@ DxUiPainter::Vertex DxUiPainter::MakeVertex (uint32_t argbColor, float alphaMult
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxUiPainter::NdcFromPixel (float xPx, float yPx, float & outX, float & outY) const
+void DxuiPainter::NdcFromPixel (float xPx, float yPx, float & outX, float & outY) const
 {
     if ((m_viewportWidthPx <= 0) || (m_viewportHeightPx <= 0))
     {
@@ -414,7 +414,7 @@ void DxUiPainter::NdcFromPixel (float xPx, float yPx, float & outX, float & outY
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxUiPainter::PushQuad (
+void DxuiPainter::PushQuad (
     float          xPx,
     float          yPx,
     float          widthPx,
@@ -455,7 +455,7 @@ void DxUiPainter::PushQuad (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxUiPainter::FillRect (
+void DxuiPainter::FillRect (
     float     xPx,
     float     yPx,
     float     widthPx,
@@ -479,7 +479,7 @@ void DxUiPainter::FillRect (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxUiPainter::FillGradientRect (
+void DxuiPainter::FillGradientRect (
     float     xPx,
     float     yPx,
     float     widthPx,
@@ -507,7 +507,7 @@ void DxUiPainter::FillGradientRect (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxUiPainter::OutlineRect (
+void DxuiPainter::OutlineRect (
     float     xPx,
     float     yPx,
     float     widthPx,
@@ -539,7 +539,7 @@ void DxUiPainter::OutlineRect (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxUiPainter::FillCircleApprox (
+void DxuiPainter::FillCircleApprox (
     float     cxPx,
     float     cyPx,
     float     radiusPx,
@@ -576,7 +576,7 @@ void DxUiPainter::FillCircleApprox (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxUiPainter::End (ID3D11RenderTargetView * pRtv)
+HRESULT DxuiPainter::End (ID3D11RenderTargetView * pRtv)
 {
     HRESULT                    hr           = S_OK;
     D3D11_MAPPED_SUBRESOURCE   mapped       = {};

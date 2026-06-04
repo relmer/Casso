@@ -2,8 +2,6 @@
 
 #include "Pch.h"
 
-#include "../DwriteTextRenderer.h"
-#include "../DxUiPainter.h"
 
 
 class TitleBar;
@@ -92,8 +90,8 @@ private:
     ComPtr<IDCompositionTarget>        m_dcompTarget;
     ComPtr<IDCompositionVisual>        m_dcompVisual;
     ComPtr<ID3D11RenderTargetView>    m_rtv;
-    DxUiPainter                       m_painter;
-    DwriteTextRenderer                m_text;
+    DxuiPainter                       m_painter;
+    DxuiTextRenderer                m_text;
     DxuiDpiScaler                         m_scaler;
     TitleBar                        * m_titleBar = nullptr;
     const ChromeTheme                * m_theme    = nullptr;

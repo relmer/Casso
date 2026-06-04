@@ -53,7 +53,7 @@ public:
     void  OnLButtonUp           (int x, int y);
     void  OnMouseHover          (int x, int y);
     bool  OnKey                 (WPARAM vk);
-    void  Paint                 (DxUiPainter & painter, DwriteTextRenderer & text) const;
+    void  Paint                 (DxuiPainter & painter, DxuiTextRenderer & text) const;
 
     void  CollectFocusables (std::vector<std::function<void (bool)>> & out);
     bool  AnyDropdownOpen   () const;

@@ -4,8 +4,6 @@
 
 #include "ChromeTheme.h"
 #include "LedIndicator.h"
-#include "../DwriteTextRenderer.h"
-#include "../DxUiPainter.h"
 
 
 
@@ -29,7 +27,7 @@ public:
     void                  Layout       (int centerXPx,
                                          int centerYPx,
                                          UINT dpi,
-                                         DwriteTextRenderer * pText);
+                                         DxuiTextRenderer * pText);
     void                  Hide         ()              { m_bounds = {}; }
     void                  SetOn        (bool on)       { m_on      = on; }
     bool                  IsOn         () const        { return m_on; }
@@ -40,8 +38,8 @@ public:
     void                  SetPressed   (bool pressed)  { m_pressed = pressed; }
     bool                  HitTest      (int x, int y) const;
     RECT                  Bounds       () const        { return m_bounds; }
-    void                  Paint        (DxUiPainter        & painter,
-                                         DwriteTextRenderer & text,
+    void                  Paint        (DxuiPainter        & painter,
+                                         DxuiTextRenderer & text,
                                          const ChromeTheme  & theme) const;
 
     static const wchar_t * TooltipText ();

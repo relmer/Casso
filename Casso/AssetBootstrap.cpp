@@ -11,8 +11,6 @@
 #include "resource.h"
 #include "Ui/ThemeManager.h"
 #include "Ui/Chrome/ChromeTheme.h"
-#include "Ui/DxUiPainter.h"
-#include "Ui/DwriteTextRenderer.h"
 #include "Ui/Dialog/StandaloneDialog.h"
 #include "Ui/Dialog/StartupDownloadDialog.h"
 #include "Ui/Widgets/ListView.h"
@@ -1201,16 +1199,16 @@ static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, std::string_view t
                                                            x + pad, y,
                                                            nameW, rowH,
                                                            headerFg, fontPx, L"Segoe UI",
-                                                           DwriteTextRenderer::HAlign::Left,
-                                                           DwriteTextRenderer::VAlign::Center,
+                                                           DxuiTextRenderer::HAlign::Left,
+                                                           DxuiTextRenderer::VAlign::Center,
                                                            DWRITE_FONT_WEIGHT_BOLD));
 
             IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (L"Description",
                                                            descX, y,
                                                            descW, rowH,
                                                            headerFg, fontPx, L"Segoe UI",
-                                                           DwriteTextRenderer::HAlign::Left,
-                                                           DwriteTextRenderer::VAlign::Center,
+                                                           DxuiTextRenderer::HAlign::Left,
+                                                           DxuiTextRenderer::VAlign::Center,
                                                            DWRITE_FONT_WEIGHT_BOLD));
 
             y += rowH + gap;
@@ -1228,15 +1226,15 @@ static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, std::string_view t
                                                            x + pad, ry,
                                                            nameW, rowH,
                                                            fg, fontPx, L"Segoe UI",
-                                                           DwriteTextRenderer::HAlign::Left,
-                                                           DwriteTextRenderer::VAlign::Center));
+                                                           DxuiTextRenderer::HAlign::Left,
+                                                           DxuiTextRenderer::VAlign::Center));
 
             IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (rows[i].description.c_str(),
                                                            descX, ry,
                                                            descW, rowH,
                                                            fg, fontPx, L"Segoe UI",
-                                                           DwriteTextRenderer::HAlign::Left,
-                                                           DwriteTextRenderer::VAlign::Center));
+                                                           DxuiTextRenderer::HAlign::Left,
+                                                           DxuiTextRenderer::VAlign::Center));
         }
     };
 
@@ -1844,8 +1842,8 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
         std::vector<ListView::Column>            cols;
         std::vector<std::vector<ListView::Cell>> rows;
 
-        cols.push_back ({ L"Disk image", 0, false, DwriteTextRenderer::HAlign::Left });
-        cols.push_back ({ L"Location",   0, false, DwriteTextRenderer::HAlign::Left });
+        cols.push_back ({ L"Disk image", 0, false, DxuiTextRenderer::HAlign::Left });
+        cols.push_back ({ L"Location",   0, false, DxuiTextRenderer::HAlign::Left });
 
         rows.reserve ((size_t) rowCount);
 
@@ -1880,7 +1878,7 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     def.customBodyMinSizePx.cx = MulDiv (s_kBootMruBodyWidthDp, (int) sysDpi, 96);
     def.customBodyMinSizePx.cy = list.GetRequiredHeightPx();
 
-    def.onMeasureCustomBody = [&list, sysDpi] (DwriteTextRenderer & text, float /*dpiScale*/) -> SIZE
+    def.onMeasureCustomBody = [&list, sysDpi] (DxuiTextRenderer & text, float /*dpiScale*/) -> SIZE
     {
         list.SetDpi (sysDpi);
         list.MeasureColumnsPx (text);
@@ -2059,8 +2057,8 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
         std::vector<ListView::Column>            cols;
         std::vector<std::vector<ListView::Cell>> rows;
 
-        cols.push_back ({ L"Disk image", 0, false, DwriteTextRenderer::HAlign::Left });
-        cols.push_back ({ L"Location",   0, false, DwriteTextRenderer::HAlign::Left });
+        cols.push_back ({ L"Disk image", 0, false, DxuiTextRenderer::HAlign::Left });
+        cols.push_back ({ L"Location",   0, false, DxuiTextRenderer::HAlign::Left });
 
         rows.reserve ((size_t) rowCount);
 
@@ -2095,7 +2093,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     def.customBodyMinSizePx.cx = MulDiv (s_kBootMruBodyWidthDp, (int) sysDpi, 96);
     def.customBodyMinSizePx.cy = list.GetRequiredHeightPx();
 
-    def.onMeasureCustomBody = [&list, sysDpi] (DwriteTextRenderer & text, float /*dpiScale*/) -> SIZE
+    def.onMeasureCustomBody = [&list, sysDpi] (DxuiTextRenderer & text, float /*dpiScale*/) -> SIZE
     {
         list.SetDpi (sysDpi);
         list.MeasureColumnsPx (text);

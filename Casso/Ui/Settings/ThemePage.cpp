@@ -130,8 +130,8 @@ namespace
     }
 
 
-    void PaintPreviewWindow (DxUiPainter                          & painter,
-                             DwriteTextRenderer                   & text,
+    void PaintPreviewWindow (DxuiPainter                          & painter,
+                             DxuiTextRenderer                   & text,
                              const RECT                           & availRect,
                              const ChromeTheme                    & theme,
                              const std::function<const uint32_t * (int &, int &)> & framebufferSource,
@@ -197,8 +197,8 @@ namespace
                                                       theme.titleTextArgb,
                                                       captionDip,
                                                       L"Segoe UI",
-                                                      DwriteTextRenderer::HAlign::Left,
-                                                      DwriteTextRenderer::VAlign::Center));
+                                                      DxuiTextRenderer::HAlign::Left,
+                                                      DxuiTextRenderer::VAlign::Center));
 
             // Close (rightmost) -- always red.
             painter.FillRect ((float) (btnRight - sysBtnW), (float) btnTop,
@@ -247,8 +247,8 @@ namespace
                                                       theme.navItemTextArgb,
                                                       navDip,
                                                       L"Segoe UI",
-                                                      DwriteTextRenderer::HAlign::Left,
-                                                      DwriteTextRenderer::VAlign::Center));
+                                                      DxuiTextRenderer::HAlign::Left,
+                                                      DxuiTextRenderer::VAlign::Center));
         }
 
         // ----- Screen area: live emulator framebuffer, aspect-fit. -----
@@ -545,7 +545,7 @@ void ThemePage::CollectFocusables (std::vector<std::function<void (bool)>> & out
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThemePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
+void ThemePage::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
 {
     static NullDriveSink  s_kNullSink;
 

@@ -3,8 +3,6 @@
 #include "Pch.h"
 
 #include "../Chrome/ChromeTheme.h"
-#include "../DwriteTextRenderer.h"
-#include "../DxUiPainter.h"
 
 
 
@@ -63,11 +61,11 @@ public:
     bool  OnKey         (WPARAM vk);
     bool  OnChar        (wchar_t ch);
 
-    void  Paint         (DxUiPainter & painter, DwriteTextRenderer & text) const;
+    void  Paint         (DxuiPainter & painter, DxuiTextRenderer & text) const;
 
 private:
     void   ClampCaret ();
-    size_t CaretFromX (DwriteTextRenderer & text, int xPx) const;
+    size_t CaretFromX (DxuiTextRenderer & text, int xPx) const;
     void   DeleteSelection ();
     void   InsertText      (const std::wstring & ins);
     void   CopyToClipboard () const;

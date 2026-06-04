@@ -2,8 +2,6 @@
 
 #include "Pch.h"
 
-#include "../DwriteTextRenderer.h"
-#include "../DxUiPainter.h"
 
 
 
@@ -46,7 +44,7 @@ public:
     bool  OnLButtonDown (int x, int y);
     bool  OnLButtonUp   (int x, int y);
     bool  OnKey         (WPARAM vk);
-    void  Paint         (DxUiPainter & painter, DwriteTextRenderer & text) const;
+    void  Paint         (DxuiPainter & painter, DxuiTextRenderer & text) const;
 
 private:
     void  Flip ();

@@ -1,14 +1,12 @@
 #pragma once
 
-#include "Pch.h"
-
 
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DwriteTextRenderer
+//  DxuiTextRenderer
 //
 //  Direct2D-on-Direct3D11 text renderer. Owns a Direct2D device +
 //  context bound to a back-buffer surface acquired from the swap chain
@@ -26,11 +24,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DwriteTextRenderer
+class DxuiTextRenderer
 {
 public:
-    DwriteTextRenderer  () = default;
-    ~DwriteTextRenderer ();
+    DxuiTextRenderer  () = default;
+    ~DxuiTextRenderer ();
 
     HRESULT  Initialize       (ID3D11Device * pDevice);
     void     Shutdown         ();
@@ -137,7 +135,7 @@ public:
 
     bool     IsTargetBound    () const { return m_targetBound; }
 
-    // Global alpha multiplier (matches DxUiPainter::SetGlobalAlpha).
+    // Global alpha multiplier (matches DxuiPainter::SetGlobalAlpha).
     // Pre-multiplied into every brush's alpha channel and into the
     // opacity arg of DrawBitmap so a single switch fades all text,
     // filled rects, and the framebuffer preview uniformly.

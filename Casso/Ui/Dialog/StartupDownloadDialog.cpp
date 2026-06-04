@@ -5,8 +5,6 @@
 #include "DialogPrimitive.h"
 #include "StandaloneDialog.h"
 #include "../Chrome/ChromeTheme.h"
-#include "../DwriteTextRenderer.h"
-#include "../DxUiPainter.h"
 #include "../Widgets/Checkbox.h"
 #include "../Widgets/Label.h"
 #include "../../UnicodeSymbols.h"
@@ -418,7 +416,7 @@ void StartupDownloadDialog::PaintBody (
     statusLabel.SetDpi         (state.dpi);
     statusLabel.SetFontSizeDip (s_kFontDp);
     statusLabel.SetColorArgb   (fg);
-    statusLabel.SetHAlign      (DwriteTextRenderer::HAlign::Right);
+    statusLabel.SetHAlign      (DxuiTextRenderer::HAlign::Right);
 
     for (size_t i = 0; i < set.entries.size(); i++)
     {
