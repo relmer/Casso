@@ -231,14 +231,145 @@ void DxuiHostWindow::Destroy ()
     {
         DestroyWindow (m_hwnd);
     }
-    m_hwnd     = nullptr;
-    m_ownsHwnd = false;
+    m_hwnd       = nullptr;
+    m_ownsHwnd   = false;
+    m_adoptMode  = false;
 
     if (m_classRegistered && m_hInstance != nullptr)
     {
         UnregisterClassW (m_className.c_str(), m_hInstance);
         m_classRegistered = false;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateInAdoptMode
+//
+//  Wraps an existing HWND whose lifecycle, swap chain, and D3D
+//  device the caller continues to own. No CreateWindow, no
+//  DestroyWindow, no class registration, no render resources. The
+//  caller's WndProc forwards messages via HandleMessage(); the host
+//  classifies NC hits and tracks DPI / theme for its internal
+//  panel tree. Tests may pass nullptr for existingHwnd.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiHostWindow::CreateInAdoptMode (
+    HWND                              existingHwnd,
+    const CreateParams              & params,
+    std::unique_ptr<DxuiHostWindow> & outHost)
+{
+    HRESULT                          hr   = S_OK;
+    std::unique_ptr<DxuiHostWindow>  host;
+    UINT                             dpi  = 0;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    host = std::unique_ptr<DxuiHostWindow> (new DxuiHostWindow());
+    CPRA (host.get());
+
+    host->m_params      = params;
+    host->m_hwnd        = existingHwnd;
+    host->m_hInstance   = params.hInstance;
+    host->m_ownsHwnd    = false;
+    host->m_synthetic   = false;
+    host->m_adoptMode   = true;
+
+    // Seed the DPI scaler from the adopted HWND so the NC hit-test
+    // pixel-to-DIP math is coherent before the first WM_DPICHANGED.
+    if (existingHwnd != nullptr)
+    {
+        dpi = GetDpiForWindow (existingHwnd);
+    }
+    if (dpi == 0)
+    {
+        dpi = s_kDefaultDpi;
+    }
+    host->m_scaler.SetDpi (dpi);
+
+    outHost = std::move (host);
+
+Error:
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetHitTestDelegate
+//
+//  Plugs in an adopt-mode classifier that wins over the framework
+//  resize-edge / panel-tree walk when it returns anything other
+//  than HTNOWHERE. Lets a consumer keep its bespoke caption and
+//  system-button hit-testing without first reshaping its chrome
+//  onto DxuiCaptionBar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::SetHitTestDelegate (std::function<LRESULT (POINT)> delegate)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    m_hitTestDelegate = std::move (delegate);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HandleMessage
+//
+//  Public WndProc forwarder. Returns true when Dxui owns the
+//  message end-to-end (caller returns outResult immediately);
+//  returns false to let the caller's WndProc keep handling it.
+//  WM_NCCALCSIZE / WM_NCHITTEST are routed through Dxui; DPI and
+//  theme messages do their tree-side propagation without claiming
+//  the message so the caller can keep doing its own work (e.g.
+//  SetWindowPos in Window::HandleDpiChanged).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHostWindow::HandleMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & outResult)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    outResult = 0;
+
+    switch (msg)
+    {
+        case WM_NCCALCSIZE:
+            outResult = HandleNcCalcSize (wp, lp);
+            return true;
+
+        case WM_NCHITTEST:
+            outResult = HandleNcHitTest (lp);
+            return true;
+
+        case WM_DPICHANGED:
+            HandleDpiChanged (wp, lp);
+            return false;
+
+        case WM_SETTINGCHANGE:
+        case WM_THEMECHANGED:
+        case WM_DWMCOLORIZATIONCOLORCHANGED:
+            HandleThemeChange();
+            return false;
+    }
+
+    return false;
 }
 
 
@@ -639,12 +770,32 @@ LRESULT DxuiHostWindow::HandleNcHitTest (LPARAM lp)
     POINT            ptClient     = {};
     RECT             rcClient     = {};
     DxuiHitTestKind  kind         = DxuiHitTestKind::Client;
+    LRESULT          delegateHt   = HTNOWHERE;
 
 
 
     ptScreen.x = GET_X_LPARAM (lp);
     ptScreen.y = GET_Y_LPARAM (lp);
-    ptClient   = ptScreen;
+
+    // Adopt-mode plug-in: the consumer's existing caption / system-
+    // button classifier wins when it produces anything other than
+    // HTNOWHERE. Falls through to the framework classifier when the
+    // delegate abstains or is not set.
+    if (m_hitTestDelegate)
+    {
+        delegateHt = m_hitTestDelegate (ptScreen);
+        if (delegateHt != HTNOWHERE)
+        {
+            return delegateHt;
+        }
+    }
+
+    if (m_hwnd == nullptr)
+    {
+        return HTNOWHERE;
+    }
+
+    ptClient = ptScreen;
     if (!ScreenToClient (m_hwnd, &ptClient))
     {
         return HTNOWHERE;

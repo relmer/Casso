@@ -26,10 +26,14 @@
 //          a hand-built root panel. See the synthetic-root ctor
 //          overload below.
 //
-//      Adopt mode (existing HWND, host does not call CreateWindow /
-//          DestroyWindow / does not own the swap chain) lands in
-//          Phase 8 alongside the main-window NC delegation. Not
-//          implemented in this phase.
+//      Adopt mode (CreateInAdoptMode) — wraps an existing HWND
+//          whose lifecycle, swap chain, and D3D device the caller
+//          continues to own. The host classifies NC hits (with an
+//          optional caller-supplied hit-test delegate) and tracks
+//          DPI / theme for its internal panel tree. The caller's
+//          WndProc forwards each message through HandleMessage and
+//          uses the bool return value to decide whether to return
+//          immediately or fall through to the legacy logic.
 //
 //  WM_NCHITTEST classification order:
 //      1. The eight resize edges, sized off CreateParams::
@@ -78,8 +82,46 @@ public:
     HRESULT  Create            (const CreateParams & params);
     void     Destroy           ();
 
+    //
+    //  Adopt mode — wrap an existing HWND that the caller continues
+    //  to own. The host does NOT call CreateWindow / DestroyWindow
+    //  and does NOT create a swap chain or D3D device; the caller's
+    //  existing rendering pipeline runs unmodified. The caller's
+    //  WndProc forwards messages through HandleMessage(); the host
+    //  classifies NC hits (via the optional SetHitTestDelegate
+    //  plug-in) and propagates DPI / theme to its internal panel
+    //  tree. Tests may pass nullptr for existingHwnd to drive the
+    //  classifier without standing up a real top-level window.
+    //
+    static HRESULT  CreateInAdoptMode  (HWND                              existingHwnd,
+                                        const CreateParams              & params,
+                                        std::unique_ptr<DxuiHostWindow> & outHost);
+
+    //
+    //  Adopt-mode hit-test plug-in. The delegate is invoked from
+    //  WM_NCHITTEST with the original screen-space mouse position
+    //  before the framework's resize-edge / panel-tree classifier
+    //  runs. Returning anything other than HTNOWHERE wins. Lets a
+    //  consumer plug in its bespoke caption / system-button hit-
+    //  testing without first reshaping its chrome onto DxuiCaptionBar.
+    //
+    void  SetHitTestDelegate  (std::function<LRESULT (POINT ptScreen)> delegate);
+
+    //
+    //  Public WndProc forwarder for adopt-mode consumers. Returns
+    //  true when Dxui owns the message end-to-end (caller returns
+    //  outResult immediately); returns false to let the caller's
+    //  WndProc keep handling it (and ultimately fall through to
+    //  DefWindowProc). Routes WM_NCCALCSIZE / WM_NCHITTEST through
+    //  Dxui; observes WM_DPICHANGED / WM_SETTINGCHANGE /
+    //  WM_THEMECHANGED / WM_DWMCOLORIZATIONCOLORCHANGED for tree-
+    //  side DPI + theme propagation without claiming the message.
+    //
+    bool  HandleMessage  (UINT msg, WPARAM wp, LPARAM lp, LRESULT & outResult);
+
     HWND          Hwnd          () const { return m_hwnd; }
     DxuiPanel  &  Root          ()       { return *m_root; }
+    const DxuiDpiScaler &  Scaler  () const { return m_scaler; }
     void          SetTheme      (const IDxuiTheme * theme);
 
     LRESULT  WndProc           (UINT msg, WPARAM wp, LPARAM lp);
@@ -174,7 +216,10 @@ private:
 
     bool                              m_ownsHwnd           = false;
     bool                              m_synthetic          = false;
+    bool                              m_adoptMode          = false;
     bool                              m_classRegistered    = false;
+
+    std::function<LRESULT (POINT)>    m_hitTestDelegate;
 
 #ifdef _DEBUG
     DwmAppliedSeam                    m_dwmSeam;
