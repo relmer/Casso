@@ -5,8 +5,8 @@
 #include "DialogPrimitive.h"
 #include "StandaloneDialog.h"
 #include "../Chrome/ChromeTheme.h"
-#include "../Widgets/Checkbox.h"
-#include "../Widgets/Label.h"
+#include "Widgets/DxuiCheckbox.h"
+#include "Widgets/DxuiLabel.h"
 #include "../../UnicodeSymbols.h"
 
 
@@ -65,7 +65,7 @@ struct StartupDownloadDialog::DialogState
 {
     StartupDownloadSet  *        set         = nullptr;
     std::vector<EntryRuntime>    runtime;
-    std::vector<Checkbox>        checkboxes;     // parallel to entries
+    std::vector<DxuiCheckbox>        checkboxes;     // parallel to entries
     std::vector<std::thread>     workers;
     std::atomic<bool>            cancelFlag{false};
     std::atomic<int>             workersInFlight{0};
@@ -285,7 +285,7 @@ std::wstring StartupDownloadDialog::StatusText (const EntryRuntime & rt, std::ui
 
 void StartupDownloadDialog::PaintGroupHeader (
     DialogPaintContext   & ctx,
-    Label                & hdrLabel,
+    DxuiLabel                & hdrLabel,
     const std::wstring   & groupLabel,
     const RowMetrics     & m,
     float                  y)
@@ -304,7 +304,7 @@ void StartupDownloadDialog::PaintGroupHeader (
 //
 //  PaintEntryRow
 //
-//  Paints one tree-leaf row: Checkbox + (label inside checkbox) on the
+//  Paints one tree-leaf row: DxuiCheckbox + (label inside checkbox) on the
 //  left, dim source column, optional right-aligned status.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -312,9 +312,9 @@ void StartupDownloadDialog::PaintGroupHeader (
 void StartupDownloadDialog::PaintEntryRow (
     DialogPaintContext        & ctx,
     const StartupAssetEntry   & entry,
-    Checkbox                  & cb,
-    Label                     & sourceLabel,
-    Label                     & statusLabel,
+    DxuiCheckbox                  & cb,
+    DxuiLabel                     & sourceLabel,
+    DxuiLabel                     & statusLabel,
     const std::wstring        & status,
     bool                        downloading,
     bool                        showStatus,
@@ -358,7 +358,7 @@ void StartupDownloadDialog::PaintEntryRow (
 //  PaintBody
 //
 //  Single-line tree rows. Group headers are bold no-row; each entry row
-//  paints a Checkbox widget on the left, then a dim source label, then
+//  paints a DxuiCheckbox widget on the left, then a dim source label, then
 //  (when status is showing) a right-aligned percent / Done / Failed
 //  indicator.
 //
@@ -375,9 +375,9 @@ void StartupDownloadDialog::PaintBody (
     uint32_t    fgDim     = 0;
     uint32_t    hdrFg     = 0;
     wstring     curGroup;
-    Label       hdrLabel;
-    Label       sourceLabel;
-    Label       statusLabel;
+    DxuiLabel       hdrLabel;
+    DxuiLabel       sourceLabel;
+    DxuiLabel       statusLabel;
 
 
 
@@ -452,8 +452,8 @@ void StartupDownloadDialog::PaintBody (
 //
 //  HandleBodyInput
 //
-//  Forwards mouse events to per-row Checkbox widgets. Coordinates arrive
-//  body-relative; the Checkbox widget hit-tests against absolute window
+//  Forwards mouse events to per-row DxuiCheckbox widgets. Coordinates arrive
+//  body-relative; the DxuiCheckbox widget hit-tests against absolute window
 //  coordinates (the same space its rect is set to during paint), so the
 //  cached body origin is added back.
 //
@@ -474,7 +474,7 @@ std::optional<int> StartupDownloadDialog::HandleBodyInput (const DialogInputEven
     absX = ev.xPx + state.bodyOriginXPx;
     absY = ev.yPx + state.bodyOriginYPx;
 
-    for (Checkbox & cb : state.checkboxes)
+    for (DxuiCheckbox & cb : state.checkboxes)
     {
         switch (ev.kind)
         {
@@ -642,14 +642,14 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
 
     state.set        = &set;
     state.runtime    = std::vector<EntryRuntime> (set.entries.size());
-    state.checkboxes = std::vector<Checkbox> (set.entries.size());
+    state.checkboxes = std::vector<DxuiCheckbox> (set.entries.size());
     state.dpi        = sysDpi;
     requiresRoms     = set.RequiresRoms();
     rowCount         = (int) set.entries.size();
 
     for (size_t i = 0; i < set.entries.size(); i++)
     {
-        Checkbox          & cb    = state.checkboxes[i];
+        DxuiCheckbox          & cb    = state.checkboxes[i];
         StartupAssetEntry & entry = set.entries[i];
 
         cb.SetDpi     (sysDpi);

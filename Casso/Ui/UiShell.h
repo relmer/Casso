@@ -8,7 +8,7 @@
 #include "Chrome/JoystickToggleButton.h"
 #include "Chrome/NavLayer.h"
 #include "Chrome/TitleBar.h"
-#include "Widgets/Tooltip.h"
+#include "Widgets/DxuiTooltip.h"
 
 
 class D3DRenderer;
@@ -49,7 +49,7 @@ public:
                                   const ChromeTheme               * theme);
     void     SetSettingsPanel   (SettingsPanel                   * settingsPanel);
     void     SetJoystickButton  (JoystickToggleButton            * button,
-                                  Tooltip                         * tooltip)
+                                  DxuiTooltip                         * tooltip)
     {
         m_joystickButton  = button;
         m_joystickTooltip = tooltip;
@@ -101,7 +101,7 @@ private:
     NavLayer                    * m_navLayer      = nullptr;
     std::array<DriveWidget, 2>  * m_driveWidgets  = nullptr;
     JoystickToggleButton        * m_joystickButton  = nullptr;
-    Tooltip                     * m_joystickTooltip = nullptr;
+    DxuiTooltip                     * m_joystickTooltip = nullptr;
     const ChromeTheme           * m_theme         = nullptr;
     SettingsPanel               * m_settingsPanel = nullptr;
     const DxuiDragDropTarget        * m_dragSource    = nullptr;

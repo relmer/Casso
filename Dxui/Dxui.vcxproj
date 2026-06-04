@@ -83,6 +83,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
+      <AdditionalIncludeDirectories>.;$(SolutionDir)Casso;$(SolutionDir)Casso\Ui\Chrome;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -99,6 +100,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
+      <AdditionalIncludeDirectories>.;$(SolutionDir)Casso;$(SolutionDir)Casso\Ui\Chrome;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -113,6 +115,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
+      <AdditionalIncludeDirectories>.;$(SolutionDir)Casso;$(SolutionDir)Casso\Ui\Chrome;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -129,6 +132,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
+      <AdditionalIncludeDirectories>.;$(SolutionDir)Casso;$(SolutionDir)Casso\Ui\Chrome;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -149,6 +153,19 @@
     <ClCompile Include="Render\DxuiTextRenderer.cpp" />
     <ClCompile Include="Theme\DxuiDwm.cpp" />
     <ClCompile Include="Theme\DxuiWindowsThemeColors.cpp" />
+    <ClCompile Include="Widgets\DxuiButton.cpp" />
+    <ClCompile Include="Widgets\DxuiCheckbox.cpp" />
+    <ClCompile Include="Widgets\DxuiDropdown.cpp" />
+    <ClCompile Include="Widgets\DxuiListView.cpp" />
+    <ClCompile Include="Widgets\DxuiModalScrim.cpp" />
+    <ClCompile Include="Widgets\DxuiPopupMenu.cpp" />
+    <ClCompile Include="Widgets\DxuiRadio.cpp" />
+    <ClCompile Include="Widgets\DxuiSlider.cpp" />
+    <ClCompile Include="Widgets\DxuiTabStrip.cpp" />
+    <ClCompile Include="Widgets\DxuiTextInput.cpp" />
+    <ClCompile Include="Widgets\DxuiToggle.cpp" />
+    <ClCompile Include="Widgets\DxuiTooltip.cpp" />
+    <ClCompile Include="Widgets\DxuiTreeView.cpp" />
     <ClCompile Include="Win32\DxuiDragDropTarget.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -163,6 +180,20 @@
     <ClInclude Include="Render\DxuiTextRenderer.h" />
     <ClInclude Include="Theme\DxuiDwm.h" />
     <ClInclude Include="Theme\DxuiWindowsThemeColors.h" />
+    <ClInclude Include="Widgets\DxuiButton.h" />
+    <ClInclude Include="Widgets\DxuiCheckbox.h" />
+    <ClInclude Include="Widgets\DxuiDropdown.h" />
+    <ClInclude Include="Widgets\DxuiLabel.h" />
+    <ClInclude Include="Widgets\DxuiListView.h" />
+    <ClInclude Include="Widgets\DxuiModalScrim.h" />
+    <ClInclude Include="Widgets\DxuiPopupMenu.h" />
+    <ClInclude Include="Widgets\DxuiRadio.h" />
+    <ClInclude Include="Widgets\DxuiSlider.h" />
+    <ClInclude Include="Widgets\DxuiTabStrip.h" />
+    <ClInclude Include="Widgets\DxuiTextInput.h" />
+    <ClInclude Include="Widgets\DxuiToggle.h" />
+    <ClInclude Include="Widgets\DxuiTooltip.h" />
+    <ClInclude Include="Widgets\DxuiTreeView.h" />
     <ClInclude Include="Win32\DxuiDragDropTarget.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

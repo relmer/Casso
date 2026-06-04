@@ -9,9 +9,9 @@
 #include "ThemePage.h"
 #include "SettingsWindow.h"
 
-#include "../Widgets/Button.h"
-#include "../Widgets/ModalScrim.h"
-#include "../Widgets/TabStrip.h"
+#include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiModalScrim.h"
+#include "Widgets/DxuiTabStrip.h"
 
 #include "../../Config/GlobalUserPrefs.h"
 
@@ -35,7 +35,7 @@ class IFileSystem;
 //
 //  Owner of the consolidated settings surface. Composes the four
 //  setting pages (Machine / Hardware / Theme stub / Display stub)
-//  behind a TabStrip plus Apply / Cancel buttons and a `ModalScrim`
+//  behind a DxuiTabStrip plus Apply / Cancel buttons and a `DxuiModalScrim`
 //  the apply path lights for reset-required confirmation.
 //
 //  The panel is render- and input-active only while `IsVisible()`
@@ -193,14 +193,14 @@ private:
     // uses it to clip the transparency compose pass per pixel.
     RECT                m_emulatorOverlapClientRect = {};
 
-    TabStrip            m_tabs;
+    DxuiTabStrip            m_tabs;
     MachinePage         m_machinePage;
     HardwarePage        m_hardwarePage;
     ThemePage           m_themePage;
     DisplayPage         m_displayPage;
-    ModalScrim          m_scrim;
-    Button              m_applyButton;
-    Button              m_cancelButton;
+    DxuiModalScrim          m_scrim;
+    DxuiButton              m_applyButton;
+    DxuiButton              m_cancelButton;
 
     RECT                m_viewport     = {};
     RECT                m_panelRect    = {};

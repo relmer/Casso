@@ -96,35 +96,35 @@ Each move task in this phase is mechanical: (a) move file to new path; (b) renam
 
 The 13 widget files are independent moves and parallel-safe within this phase. Each task: move files, rename primary type (`<Foo>` → `Dxui<Foo>`), update consumer includes and references throughout `Casso/Ui/`, settings pages, debug panels, dialogs.
 
-- [ ] T023 [P] [PH4] Move `Casso/Ui/Widgets/Button.{h,cpp}` → `Dxui/Widgets/DxuiButton.{h,cpp}`; rename `Button` → `DxuiButton`. **FR**: FR-005, FR-060.
+- [x] T023 [P] [PH4] Move `Casso/Ui/Widgets/Button.{h,cpp}` → `Dxui/Widgets/DxuiButton.{h,cpp}`; rename `Button` → `DxuiButton`. **FR**: FR-005, FR-060.
 
-- [ ] T024 [P] [PH4] Move `Casso/Ui/Widgets/Checkbox.{h,cpp}` → `Dxui/Widgets/DxuiCheckbox.{h,cpp}`; rename `Checkbox` → `DxuiCheckbox`. **FR**: FR-005, FR-060.
+- [x] T024 [P] [PH4] Move `Casso/Ui/Widgets/Checkbox.{h,cpp}` → `Dxui/Widgets/DxuiCheckbox.{h,cpp}`; rename `Checkbox` → `DxuiCheckbox`. **FR**: FR-005, FR-060.
 
-- [ ] T025 [P] [PH4] Move `Casso/Ui/Widgets/Radio.{h,cpp}` → `Dxui/Widgets/DxuiRadio.{h,cpp}`; rename `Radio` → `DxuiRadio`. **FR**: FR-005, FR-060.
+- [x] T025 [P] [PH4] Move `Casso/Ui/Widgets/Radio.{h,cpp}` → `Dxui/Widgets/DxuiRadio.{h,cpp}`; rename `Radio` → `DxuiRadio`. **FR**: FR-005, FR-060.
 
-- [ ] T026 [P] [PH4] Move `Casso/Ui/Widgets/Toggle.{h,cpp}` → `Dxui/Widgets/DxuiToggle.{h,cpp}`; rename `Toggle` → `DxuiToggle`. **FR**: FR-005, FR-060.
+- [x] T026 [P] [PH4] Move `Casso/Ui/Widgets/Toggle.{h,cpp}` → `Dxui/Widgets/DxuiToggle.{h,cpp}`; rename `Toggle` → `DxuiToggle`. **FR**: FR-005, FR-060.
 
-- [ ] T027 [P] [PH4] Move `Casso/Ui/Widgets/Slider.{h,cpp}` → `Dxui/Widgets/DxuiSlider.{h,cpp}`; rename `Slider` → `DxuiSlider`. **FR**: FR-005, FR-060.
+- [x] T027 [P] [PH4] Move `Casso/Ui/Widgets/Slider.{h,cpp}` → `Dxui/Widgets/DxuiSlider.{h,cpp}`; rename `Slider` → `DxuiSlider`. **FR**: FR-005, FR-060.
 
-- [ ] T028 [P] [PH4] Move `Casso/Ui/Widgets/Dropdown.{h,cpp}` → `Dxui/Widgets/DxuiDropdown.{h,cpp}`; rename `Dropdown` → `DxuiDropdown`. Existing in-window clipping path is preserved as-is here; popup hosting lands in Phase 8. **FR**: FR-005, FR-060.
+- [x] T028 [P] [PH4] Move `Casso/Ui/Widgets/Dropdown.{h,cpp}` → `Dxui/Widgets/DxuiDropdown.{h,cpp}`; rename `Dropdown` → `DxuiDropdown`. Existing in-window clipping path is preserved as-is here; popup hosting lands in Phase 8. **FR**: FR-005, FR-060.
 
-- [ ] T029 [P] [PH4] Move `Casso/Ui/Widgets/TabStrip.{h,cpp}` → `Dxui/Widgets/DxuiTabStrip.{h,cpp}`; rename `TabStrip` → `DxuiTabStrip`. **FR**: FR-005, FR-060.
+- [x] T029 [P] [PH4] Move `Casso/Ui/Widgets/TabStrip.{h,cpp}` → `Dxui/Widgets/DxuiTabStrip.{h,cpp}`; rename `TabStrip` → `DxuiTabStrip`. **FR**: FR-005, FR-060.
 
-- [ ] T030 [P] [PH4] Move `Casso/Ui/Widgets/TextInput.{h,cpp}` → `Dxui/Widgets/DxuiTextInput.{h,cpp}`; rename `TextInput` → `DxuiTextInput`. **FR**: FR-005, FR-060.
+- [x] T030 [P] [PH4] Move `Casso/Ui/Widgets/TextInput.{h,cpp}` → `Dxui/Widgets/DxuiTextInput.{h,cpp}`; rename `TextInput` → `DxuiTextInput`. **FR**: FR-005, FR-060.
 
-- [ ] T031 [P] [PH4] Move `Casso/Ui/Widgets/Label.h` (header-only) → `Dxui/Widgets/DxuiLabel.h`; rename `Label` → `DxuiLabel`. **FR**: FR-005, FR-060.
+- [x] T031 [P] [PH4] Move `Casso/Ui/Widgets/Label.h` (header-only) → `Dxui/Widgets/DxuiLabel.h`; rename `Label` → `DxuiLabel`. **FR**: FR-005, FR-060.
 
-- [ ] T032 [P] [PH4] Move `Casso/Ui/Widgets/ListView.{h,cpp}` → `Dxui/Widgets/DxuiListView.{h,cpp}`; rename `ListView` → `DxuiListView`. **FR**: FR-005, FR-060.
+- [x] T032 [P] [PH4] Move `Casso/Ui/Widgets/ListView.{h,cpp}` → `Dxui/Widgets/DxuiListView.{h,cpp}`; rename `ListView` → `DxuiListView`. **FR**: FR-005, FR-060.
 
-- [ ] T033 [P] [PH4] Move `Casso/Ui/Widgets/TreeView.{h,cpp}` → `Dxui/Widgets/DxuiTreeView.{h,cpp}`; rename `TreeView` → `DxuiTreeView`. **FR**: FR-005, FR-060.
+- [x] T033 [P] [PH4] Move `Casso/Ui/Widgets/TreeView.{h,cpp}` → `Dxui/Widgets/DxuiTreeView.{h,cpp}`; rename `TreeView` → `DxuiTreeView`. **FR**: FR-005, FR-060.
 
-- [ ] T034 [P] [PH4] Move `Casso/Ui/Widgets/PopupMenu.{h,cpp}` → `Dxui/Widgets/DxuiPopupMenu.{h,cpp}`; rename `PopupMenu` → `DxuiPopupMenu`. **FR**: FR-005, FR-060.
+- [x] T034 [P] [PH4] Move `Casso/Ui/Widgets/PopupMenu.{h,cpp}` → `Dxui/Widgets/DxuiPopupMenu.{h,cpp}`; rename `PopupMenu` → `DxuiPopupMenu`. **FR**: FR-005, FR-060.
 
-- [ ] T035 [P] [PH4] Move `Casso/Ui/Widgets/Tooltip.{h,cpp}` → `Dxui/Widgets/DxuiTooltip.{h,cpp}`; rename `Tooltip` → `DxuiTooltip`. **FR**: FR-005, FR-060.
+- [x] T035 [P] [PH4] Move `Casso/Ui/Widgets/Tooltip.{h,cpp}` → `Dxui/Widgets/DxuiTooltip.{h,cpp}`; rename `Tooltip` → `DxuiTooltip`. **FR**: FR-005, FR-060.
 
-- [ ] T036 [P] [PH4] Move `Casso/Ui/Widgets/ModalScrim.{h,cpp}` → `Dxui/Widgets/DxuiModalScrim.{h,cpp}`; rename `ModalScrim` → `DxuiModalScrim`. **FR**: FR-005, FR-060.
+- [x] T036 [P] [PH4] Move `Casso/Ui/Widgets/ModalScrim.{h,cpp}` → `Dxui/Widgets/DxuiModalScrim.{h,cpp}`; rename `ModalScrim` → `DxuiModalScrim`. **FR**: FR-005, FR-060.
 
-- [ ] T037 [PH4] Phase-4 exit verification. Confirm `Casso/Ui/Widgets/` is empty; remove the now-empty `Casso/Ui/Widgets/` directory and drop its `<Filter>` entries from `Casso.vcxproj.filters`. Build all four configs; run tests; run code analysis. Greps: `rg -n 'class\s+(Button|Checkbox|Radio|Toggle|Slider|Dropdown|TabStrip|TextInput|Label|ListView|TreeView|PopupMenu|Tooltip|ModalScrim)\b' Casso/ Dxui/` returns hits only at the `Dxui`-prefixed names. **Depends on**: T023–T036. **Commit**: `refactor(dxui): move widgets into Dxui/Widgets with Dxui prefix`. **FR**: FR-005, FR-060.
+- [x] T037 [PH4] Phase-4 exit verification. Confirm `Casso/Ui/Widgets/` is empty; remove the now-empty `Casso/Ui/Widgets/` directory and drop its `<Filter>` entries from `Casso.vcxproj.filters`. Build all four configs; run tests; run code analysis. Greps: `rg -n 'class\s+(Button|Checkbox|Radio|Toggle|Slider|Dropdown|TabStrip|TextInput|Label|ListView|TreeView|PopupMenu|Tooltip|ModalScrim)\b' Casso/ Dxui/` returns hits only at the `Dxui`-prefixed names. **Depends on**: T023–T036. **Commit**: `refactor(dxui): move widgets into Dxui/Widgets with Dxui prefix`. **FR**: FR-005, FR-060.
 
 ---
 

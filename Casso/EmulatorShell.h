@@ -36,7 +36,7 @@
 #include "Ui/Settings/SettingsPanel.h"
 #include "Ui/ThemeManager.h"
 #include "Ui/UiShell.h"
-#include "Ui/Widgets/Tooltip.h"
+#include "Widgets/DxuiTooltip.h"
 #include "UiCommandTypes.h"
 #include "Video/CharacterRomData.h"
 #include "Video/VideoOutput.h"
@@ -114,7 +114,7 @@ public:
         if (m_disk2DebugPanel != nullptr)
         {
             // ResetUptimeAnchor runs on the CPU thread. Touching the
-            // panel's event deque / ListView rows here would race the
+            // panel's event deque / DxuiListView rows here would race the
             // render thread's per-frame drain and corrupt the row Cells,
             // so marshal the re-anchor + clear onto the render thread.
             m_disk2DebugPanel->RequestResetAnchor (m_uptimeAnchor);
@@ -209,7 +209,7 @@ private:
     // Stage the emulated joystick fire buttons from the host X / Y keys.
     void    UpdateJoystickButtonsFromKeys ();
 
-    // Toggle the "Map Arrows to Joystick" mode: updates the flag, persists
+    // DxuiToggle the "Map Arrows to Joystick" mode: updates the flag, persists
     // it, and re-syncs the joystick axes (resolving from current keys when
     // turned on, or centering both axes when turned off).
     void    SetMapArrowsToJoystick (bool on);
@@ -364,7 +364,7 @@ private:
     // centered in the drive bar above the drive widgets, with its own
     // hover tooltip.
     JoystickToggleButton  m_joystickButton;
-    Tooltip               m_joystickTooltip;
+    DxuiTooltip               m_joystickTooltip;
 
     // Chrome layout planner. Owns the canonical inset math for the
     // title bar, nav strip, and drive bar; replaces the historical

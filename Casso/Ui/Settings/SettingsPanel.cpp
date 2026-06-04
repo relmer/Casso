@@ -450,7 +450,7 @@ HRESULT SettingsPanel::Show ()
     }
 
     // Rebuild AFTER Layout so widgets that need to be populated by Layout
-    // (e.g. Dropdown items) exist before Rebuild calls SetSelected.
+    // (e.g. DxuiDropdown items) exist before Rebuild calls SetSelected.
     m_machinePage.Rebuild();
     m_hardwarePage.Rebuild();
     m_displayPage.Rebuild();
@@ -486,7 +486,7 @@ Error:
 //
 //  RebuildFocusOrder
 //
-//  Re-collect the focus list from the TabStrip, the currently active
+//  Re-collect the focus list from the DxuiTabStrip, the currently active
 //  page, and the Apply / Cancel buttons; reset FocusManager to the
 //  first entry so Tab traversal starts at the tab strip.
 //
@@ -847,7 +847,7 @@ void SettingsPanel::PreparePreviewFrame()
         }
         else if (! monitorOpen && m_monitorWasOpen)
         {
-            // Dropdown just closed. SelectedIndex() reflects whatever
+            // DxuiDropdown just closed. SelectedIndex() reflects whatever
             // was committed by a click (or stays at the dropdown-open
             // value if the user cancelled by clicking outside). Apply
             // unconditionally to revert any hover-preview that ran
@@ -1611,7 +1611,7 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const Dxu
     int     applyX       = 0;
     int     cancelX      = 0;
     int     buttonY      = 0;
-    std::vector<TabStrip::Tab>  tabs;
+    std::vector<DxuiTabStrip::Tab>  tabs;
 
 
 

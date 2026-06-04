@@ -327,7 +327,7 @@ HRESULT DialogPrimitiveRenderer::Render (
     const DialogLayoutResult & layout,
     const ChromeTheme        & theme,
     int                        titleHeightPx,
-    std::vector<Button>      & buttons,
+    std::vector<DxuiButton>      & buttons,
     size_t                     focusedHyperlinkRunIdx,
     size_t                     hoveredHyperlinkRunIdx,
     bool                       closeHovered,
@@ -804,9 +804,9 @@ void DialogPrimitiveRenderer::PaintCustomBody (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DialogPrimitiveRenderer::PaintButtons (std::vector<Button> & buttons, const ChromeTheme & theme)
+void DialogPrimitiveRenderer::PaintButtons (std::vector<DxuiButton> & buttons, const ChromeTheme & theme)
 {
-    for (Button & btn : buttons)
+    for (DxuiButton & btn : buttons)
     {
         btn.Paint (m_painter, m_text, theme);
     }

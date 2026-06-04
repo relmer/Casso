@@ -1020,7 +1020,7 @@ HCURSOR Disk2DebugPanel::OnSetCursor (int x, int y)
 
 void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 {
-    std::vector<PopupMenu::Item>  items;
+    std::vector<DxuiPopupMenu::Item>  items;
     RECT                          host = { 0, 0, m_widthPx, m_heightPx };
 
 
@@ -1028,7 +1028,7 @@ void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 
     for (size_t i = 0; i < m_eventList.GetColumnCount(); ++i)
     {
-        PopupMenu::Item  item;
+        DxuiPopupMenu::Item  item;
         item.label   = m_eventList.GetColumnAt (i).title;
         item.checked = m_eventList.IsColumnVisible (i);
         items.push_back (std::move (item));
@@ -1321,7 +1321,7 @@ bool Disk2DebugPanel::OnKey (WPARAM vk)
 //
 //  Resolves m_listSelectedEventIndex (an absolute index into m_events)
 //  against the current m_filteredIndices and pushes the corresponding
-//  visible-row index into the ListView. If the previously-selected
+//  visible-row index into the DxuiListView. If the previously-selected
 //  event is no longer visible under the current filter, snap to the
 //  previous still-visible row (or the next one if there is no
 //  previous). If neither exists, clear the selection.
@@ -1375,7 +1375,7 @@ void Disk2DebugPanel::ApplyListSelection()
 //
 //  OnListSelectionMoved
 //
-//  Mirrors the ListView's new selected-row index back into our
+//  Mirrors the DxuiListView's new selected-row index back into our
 //  persistent event-index identity so it survives filter/sort
 //  rebuilds.
 //
@@ -1788,11 +1788,11 @@ void Disk2DebugPanel::LayoutWidgets()
     m_audioEventsLabel.SetHAlign      (DxuiTextRenderer::HAlign::Left);
     m_audioEventsLabel.SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
-    // RadioGroup expects rects in its option records.
-    std::vector<RadioOption>  driveOpts;
+    // DxuiRadioGroup expects rects in its option records.
+    std::vector<DxuiRadioOption>  driveOpts;
     for (int i = 0; i < kDriveRadioCount; i++)
     {
-        RadioOption  opt;
+        DxuiRadioOption  opt;
         opt.rect  = m_layout.driveRadios[i];
         opt.label = s_kpszDriveOptionLabels[i];
         driveOpts.push_back (std::move (opt));
@@ -1926,7 +1926,7 @@ void Disk2DebugPanel::ConfigureWidgets()
     m_clearButton.SetLabel (s_kpszClearLabel);
     m_clearButton.SetClick ([this] () { ClearEvents(); });
 
-    std::vector<ListView::Column>  cols;
+    std::vector<DxuiListView::Column>  cols;
     cols.push_back ({ L"Time",   kColWallWidth,   false, DxuiTextRenderer::HAlign::Left  });
     cols.push_back ({ L"Uptime", kColUptimeWidth, false, DxuiTextRenderer::HAlign::Left  });
     cols.push_back ({ L"Cycle",  kColCycleWidth,  false, DxuiTextRenderer::HAlign::Right });
@@ -1970,7 +1970,7 @@ void Disk2DebugPanel::DrainAndProject()
         // A reset (Ctrl+R / power-cycle) was requested from the CPU
         // thread. Apply the staged Uptime anchor and clear the event
         // list HERE, on the render thread, so m_events, m_filteredIndices
-        // and the ListView rows are only ever touched by one thread.
+        // and the DxuiListView rows are only ever touched by one thread.
         ticks = m_pendingAnchorTicks.load (std::memory_order_acquire);
 
         m_uptimeAnchor = std::chrono::steady_clock::time_point (std::chrono::steady_clock::duration (ticks));
@@ -2083,7 +2083,7 @@ void Disk2DebugPanel::RebuildFilteredIndices()
 //  PushListViewRows
 //
 //  Manual virtualization: only push the rows that fit visibly within
-//  the ListView slot. Walking from the tail keeps the most recent
+//  the DxuiListView slot. Walking from the tail keeps the most recent
 //  events visible, matching the legacy auto-tail behavior.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2092,7 +2092,7 @@ void Disk2DebugPanel::PushListViewRows()
 {
     size_t  total = m_filteredIndices.size();
     size_t  cap   = m_events.size();
-    std::vector<std::vector<ListView::Cell>>  rows;
+    std::vector<std::vector<DxuiListView::Cell>>  rows;
 
 
     rows.reserve (total);
@@ -2103,7 +2103,7 @@ void Disk2DebugPanel::PushListViewRows()
         if (idx >= cap) { continue; }
         const Disk2EventDisplay & e = m_events[idx];
 
-        std::vector<ListView::Cell>  row;
+        std::vector<DxuiListView::Cell>  row;
         row.push_back ({ std::wstring (e.wallStr.data()),   false });
         row.push_back ({ std::wstring (e.uptimeStr.data()), false });
         row.push_back ({ std::wstring (e.cycleStr.data()),  false });
@@ -2287,7 +2287,7 @@ void Disk2DebugPanel::ClearEvents()
 //  Thread-safe reset entry point for the CPU/reset thread. Stages the
 //  new Uptime anchor and raises a pending-reset flag; DrainAndProject
 //  applies the anchor and clears the event list on the render thread,
-//  keeping the event deque and ListView rows single-threaded.
+//  keeping the event deque and DxuiListView rows single-threaded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2496,7 +2496,7 @@ int64_t Disk2DebugPanel::NowMs() const
 //
 //  Walks the filter / drive / edit widgets and shows the appropriate
 //  tooltip for whichever the cursor is over. Tooltips dwell-open after
-//  ~500ms of stable hover (Tooltip widget enforces it) and hide as soon
+//  ~500ms of stable hover (DxuiTooltip widget enforces it) and hide as soon
 //  as the cursor leaves all known targets.
 //
 ////////////////////////////////////////////////////////////////////////////////

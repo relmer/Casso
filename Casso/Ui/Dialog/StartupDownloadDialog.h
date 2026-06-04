@@ -3,9 +3,9 @@
 #include "Pch.h"
 
 
-class    Checkbox;
+class    DxuiCheckbox;
 class    DialogPrimitive;
-class    Label;
+class    DxuiLabel;
 struct   DialogInputEvent;
 struct   DialogPaintContext;
 
@@ -24,7 +24,7 @@ struct   DialogPaintContext;
 //  per-asset progress, and lets the user Exit cleanly (cancelling any
 //  in-flight work and removing partial files) at any point.
 //
-//  Button policy:
+//  DxuiButton policy:
 //    * If any ROM is missing  -> [Download] [Exit]      (no Skip; can't boot
 //                                                        without ROMs)
 //    * Otherwise              -> [Download] [Skip] [Exit]
@@ -124,15 +124,15 @@ private:
     static void                RemovePartialFiles    (DialogState & state);
     static std::wstring        StatusText            (const EntryRuntime & rt, std::uint64_t expected);
     static void                PaintGroupHeader      (DialogPaintContext  & ctx,
-                                                      Label               & hdrLabel,
+                                                      DxuiLabel               & hdrLabel,
                                                       const std::wstring  & groupLabel,
                                                       const RowMetrics    & m,
                                                       float                 y);
     static void                PaintEntryRow         (DialogPaintContext       & ctx,
                                                       const StartupAssetEntry  & entry,
-                                                      Checkbox                 & cb,
-                                                      Label                    & sourceLabel,
-                                                      Label                    & statusLabel,
+                                                      DxuiCheckbox                 & cb,
+                                                      DxuiLabel                    & sourceLabel,
+                                                      DxuiLabel                    & statusLabel,
                                                       const std::wstring       & status,
                                                       bool                       downloading,
                                                       bool                       showStatus,

@@ -34,3 +34,14 @@
 
 template <typename T>
 using ComPtr = Microsoft::WRL::ComPtr<T>;
+
+#include "Core/DxuiAnimation.h"
+#include "Core/DxuiDpiScaler.h"
+#include "Core/DxuiHitTester.h"
+#include "Core/DxuiInput.h"
+#include "Core/DxuiTitleBarHitTest.h"
+#include "Render/DxuiPainter.h"
+#include "Render/DxuiTextRenderer.h"
+#include "Theme/DxuiDwm.h"
+#include "Theme/DxuiWindowsThemeColors.h"
+#include "Win32/DxuiDragDropTarget.h"
