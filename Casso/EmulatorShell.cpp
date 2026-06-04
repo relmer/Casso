@@ -464,7 +464,7 @@ EmulatorShell::~EmulatorShell()
     m_uiShell.Shutdown();
     m_dragDropTarget.Shutdown();
     m_driveWidgets.UnloadDocument();
-    m_navLayer.Hide();
+    m_mainMenu.Hide();
     m_titleBar.Hide();
 
     m_d3dRenderer.Shutdown();
@@ -613,7 +613,7 @@ HRESULT EmulatorShell::Initialize (
 
 
         IGNORE_RETURN_VALUE (hrUi, S_OK);
-        m_uiShell.SetChrome (&m_titleBar, &m_navLayer, &m_driveChrome, &m_chromeTheme);
+        m_uiShell.SetChrome (&m_titleBar, &m_mainMenu, &m_driveChrome, &m_chromeTheme);
         m_uiShell.SetJoystickButton (&m_joystickButton, &m_joystickTooltip);
 
         m_themeManager    = std::make_unique<ThemeManager> (m_uiFs, themesDir.wstring());
@@ -1125,7 +1125,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_initialSizeReconciled = hadSavedPlacement;
 
     // Legacy Win32 menu bar is retired (FR-026). All menu
-    // commands now route through `NavLayer` + the native nav strip;
+    // commands now route through `MainMenu` + the native nav strip;
     // keyboard accelerators (loaded below) keep working independently
     // of the menu bar. `m_menuSystem` is intentionally left in place
     // to cache `SpeedMode` / `ColorMode` for any downstream reader,
@@ -1162,9 +1162,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     }
     m_titleBar.UpdateGeometry (clientW, dpi);
-    m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), clientW, dpi, &m_uiShell.Text());
-    m_navLayer.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
-    m_navLayer.SetCheckQuery ([this] (WORD commandId) -> bool
+    m_mainMenu.Layout (0, m_titleBar.GetTitleHeight(), clientW, dpi, &m_uiShell.Text());
+    m_mainMenu.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
+    m_mainMenu.SetCheckQuery ([this] (WORD commandId) -> bool
     {
         return (commandId == IDM_MACHINE_ARROWS_JOYSTICK) ? m_mapArrowsToJoystick : false;
     });
@@ -1944,7 +1944,7 @@ void EmulatorShell::SetChromeFocusIndex (int index)
 //
 //  EmulatorShell::UpdateChromeFocusVisuals
 //
-//  Push the current ring index into the NavLayer (focused-closed menu title),
+//  Push the current ring index into the MainMenu (focused-closed menu title),
 //  the joystick-mode button, and the two drive widgets so exactly one of them
 //  paints a focus ring.
 //
@@ -1957,11 +1957,11 @@ void EmulatorShell::UpdateChromeFocusVisuals ()
 
     if (index >= s_kChromeFocusMenuFirst && index <= s_kChromeFocusMenuLast)
     {
-        m_navLayer.SetFocusedMenu ((NavMenu) index);
+        m_mainMenu.SetFocusedMenu ((MainMenuId) index);
     }
     else
     {
-        m_navLayer.ClearFocus ();
+        m_mainMenu.ClearFocus ();
     }
 
     m_joystickButton.SetFocused (index == s_kChromeFocusButton);
@@ -1981,7 +1981,7 @@ void EmulatorShell::UpdateChromeFocusVisuals ()
 //  Shift+Tab traverse the whole ring (menu titles -> button -> drives,
 //  wrapping); Left/Right move among the menu titles; Enter/Space/Down open a
 //  dropdown or activate the focused button/drive; Esc/F10 leave the ring. When
-//  a dropdown is open, keys delegate to NavLayer and the index is reconciled
+//  a dropdown is open, keys delegate to MainMenu and the index is reconciled
 //  with whatever the menu did. Always consumes the key.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1995,14 +1995,14 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
 
 
     // An open dropdown owns navigation; delegate and reconcile the ring.
-    if (m_navLayer.IsOpen())
+    if (m_mainMenu.IsOpen())
     {
         bool  ringOwned = (m_chromeFocusIndex != s_kChromeFocusNone);
-        int   openIdx   = (int) m_navLayer.OpenMenu();
+        int   openIdx   = (int) m_mainMenu.OpenMenu();
 
-        m_navLayer.HandleKey (vk);
+        m_mainMenu.HandleKey (vk);
 
-        if (m_navLayer.IsOpen())
+        if (m_mainMenu.IsOpen())
         {
             // Still open: a ring-owned menu tracks the (possibly switched)
             // title. A menu opened outside the ring (Alt mnemonic / mouse)
@@ -2010,7 +2010,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
             // stranding focus on a title the user never Tab'd to.
             if (ringOwned)
             {
-                SetChromeFocusIndex ((int) m_navLayer.OpenMenu());
+                SetChromeFocusIndex ((int) m_mainMenu.OpenMenu());
             }
         }
         else if (exitVk && ringOwned)
@@ -2053,7 +2053,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
         }
         else if (vk == VK_DOWN || vk == VK_RETURN || vk == VK_SPACE)
         {
-            m_navLayer.Open ((NavMenu) index, true);
+            m_mainMenu.Open ((MainMenuId) index, true);
         }
 
         return true;
@@ -2239,7 +2239,7 @@ int EmulatorShell::RunMessageLoop()
         {
             IGNORE_RETURN_VALUE (hr, m_inputDebugPanel->RenderFrame());
         }
-        if (m_navLayer.IsOpen())
+        if (m_mainMenu.IsOpen())
         {
             m_d3dRenderer.MarkRedrawNeeded();
         }
@@ -3053,7 +3053,7 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
 bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHeld)
 {
-    if (altHeld && vk >= 0x20 && vk <= 0x7E && m_navLayer.HandleAltKey ((wchar_t) vk))
+    if (altHeld && vk >= 0x20 && vk <= 0x7E && m_mainMenu.HandleAltKey ((wchar_t) vk))
     {
         return true;
     }
@@ -3225,7 +3225,7 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     // 2. Chrome keyboard-focus ring. While a menu title / button / drive
     //    has keyboard focus (or a dropdown is open from any source), the
     //    ring owns every keydown so letters never leak through to the //e.
-    if (m_chromeFocusIndex != s_kChromeFocusNone || m_navLayer.IsOpen())
+    if (m_chromeFocusIndex != s_kChromeFocusNone || m_mainMenu.IsOpen())
     {
         HandleChromeFocusKey (vk);
         BAIL_OUT_IF (true, S_OK);
@@ -3610,7 +3610,7 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
                                              dpi);
         IGNORE_RETURN_VALUE (hrUiR, S_OK);
         m_titleBar.UpdateGeometry (static_cast<int> (width), dpi);
-        m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), static_cast<int> (width), dpi, &m_uiShell.Text());
+        m_mainMenu.Layout (0, m_titleBar.GetTitleHeight(), static_cast<int> (width), dpi, &m_uiShell.Text());
 
         {
             LayoutManagerResult  layout = m_layout.Resolve (static_cast<int> (width), renderH);
