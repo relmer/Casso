@@ -810,7 +810,7 @@ LRESULT ChromedPanelWindow::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
     RECT                  rcMin    = {};
     RECT                  rcMax    = {};
     RECT                  rcClose  = {};
-    TitleBarHitTestInput  in       = {};
+    DxuiTitleBarHitTestInput  in       = {};
     UINT                  dpi      = s_kBaseDpi;
     int                   framePx  = 0;
     int                   padPx    = 0;
@@ -858,7 +858,7 @@ LRESULT ChromedPanelWindow::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
     in.closeRight     = rcClose.right;  in.closeBottom  = rcClose.bottom;
     in.resizeBorderPx = borderPx;
 
-    return TitleBarHitTest::Test (in);
+    return DxuiTitleBarHitTest::Test (in);
 }
 
 

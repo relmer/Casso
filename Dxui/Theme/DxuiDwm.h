@@ -1,14 +1,8 @@
 #pragma once
 
-#include "Pch.h"
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win11DwmHelpers
+//  DxuiDwm
 //
 //  Runtime-gated wrappers around DWM attribute APIs that only exist
 //  (or only have meaningful behavior) on Windows 11 / Windows 10 1809+.
@@ -23,11 +17,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Win11DwmHelpers
+class DxuiDwm
 {
 public:
     static bool IsWindows11OrGreater      ();
-    static bool IsWindows10_1809OrGreater ();
+    static bool IsWindows10_1809OrGreater();
     static void ApplyRoundedCorners       (HWND hwnd, bool round);
     static void ApplyMicaBackdrop         (HWND hwnd, bool mica);
     static void ApplyImmersiveDarkMode    (HWND hwnd, bool dark);

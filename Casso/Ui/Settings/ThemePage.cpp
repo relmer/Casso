@@ -430,7 +430,7 @@ void ThemePage::SetThemes (std::vector<std::string>  themeIds,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThemePage::Layout (const RECT & rect, const DpiScaler & scaler)
+void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
     UINT  dpi        = scaler.Dpi();
     int   pad        = scaler.Px (s_kPagePadDp);

@@ -787,8 +787,8 @@ SIZE SettingsPanel::PreferredClientSize (UINT dpi) const
 
 
 
-    size.cx = MulDiv (s_kPanelWidthDp,  (int) dpi, (int) DpiScaler::kBaseDpi);
-    size.cy = MulDiv (s_kPanelHeightDp, (int) dpi, (int) DpiScaler::kBaseDpi);
+    size.cx = MulDiv (s_kPanelWidthDp,  (int) dpi, (int) DxuiDpiScaler::kBaseDpi);
+    size.cy = MulDiv (s_kPanelHeightDp, (int) dpi, (int) DxuiDpiScaler::kBaseDpi);
     return size;
 }
 
@@ -1589,7 +1589,7 @@ void SettingsPanel::DoMachineSelect (const std::string & machineName)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const DpiScaler & scaler, int topInsetPx)
+void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const DxuiDpiScaler & scaler, int topInsetPx)
 {
     UINT    dpi          = scaler.Dpi();
     int     captionH     = 0;

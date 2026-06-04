@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 
@@ -85,7 +84,7 @@ private:
     InteractionFn  m_onDragEnd;
     InteractionFn  m_onKeyboard;
     std::wstring   m_suffix;
-    DpiScaler      m_scaler;
+    DxuiDpiScaler      m_scaler;
     float          m_min      = 0.0f;
     float          m_max      = 1.0f;
     float          m_step     = 0.01f;

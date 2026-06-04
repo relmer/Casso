@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 #include "../Chrome/ChromeTheme.h"
@@ -71,5 +70,5 @@ private:
     int                   m_hover    = -1;
     int                   m_pressed  = -1;
     bool                  m_visible  = false;
-    DpiScaler             m_scaler;
+    DxuiDpiScaler             m_scaler;
 };

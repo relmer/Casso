@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "WindowsThemeColors.h"
+#include "DxuiWindowsThemeColors.h"
 
 
 
@@ -61,7 +61,7 @@ namespace
 
 namespace
 {
-    bool ReadAppsUseLightTheme ()
+    bool ReadAppsUseLightTheme()
     {
         HKEY    hKey  = nullptr;
         DWORD   value = 1;
@@ -84,7 +84,7 @@ namespace
                                s_kpszAppsUseLightTheme,
                                nullptr,
                                nullptr,
-                               reinterpret_cast<Byte *> (&value),
+                               reinterpret_cast<BYTE *> (&value),
                                &size);
         RegCloseKey (hKey);
 
@@ -103,13 +103,13 @@ namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WindowsThemeColors::Instance
+//  DxuiWindowsThemeColors::Instance
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-WindowsThemeColors & WindowsThemeColors::Instance ()
+DxuiWindowsThemeColors & DxuiWindowsThemeColors::Instance()
 {
-    static WindowsThemeColors  s_instance;
+    static DxuiWindowsThemeColors  s_instance;
 
     return s_instance;
 }
@@ -120,11 +120,11 @@ WindowsThemeColors & WindowsThemeColors::Instance ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WindowsThemeColors::WindowsThemeColors
+//  DxuiWindowsThemeColors::DxuiWindowsThemeColors
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-WindowsThemeColors::WindowsThemeColors ()
+DxuiWindowsThemeColors::DxuiWindowsThemeColors()
 {
     Refresh();
 }
@@ -135,11 +135,11 @@ WindowsThemeColors::WindowsThemeColors ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WindowsThemeColors::Refresh
+//  DxuiWindowsThemeColors::Refresh
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void WindowsThemeColors::Refresh ()
+void DxuiWindowsThemeColors::Refresh()
 {
     m_darkMode = !ReadAppsUseLightTheme();
 }
@@ -150,11 +150,11 @@ void WindowsThemeColors::Refresh ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WindowsThemeColors::CaptionButtonHoverArgb
+//  DxuiWindowsThemeColors::CaptionButtonHoverArgb
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t WindowsThemeColors::CaptionButtonHoverArgb () const
+uint32_t DxuiWindowsThemeColors::CaptionButtonHoverArgb() const
 {
     return m_darkMode ? s_kSubtleFillColorSecondaryDark : s_kSubtleFillColorSecondaryLight;
 }
@@ -165,11 +165,11 @@ uint32_t WindowsThemeColors::CaptionButtonHoverArgb () const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WindowsThemeColors::CaptionButtonPressedArgb
+//  DxuiWindowsThemeColors::CaptionButtonPressedArgb
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t WindowsThemeColors::CaptionButtonPressedArgb () const
+uint32_t DxuiWindowsThemeColors::CaptionButtonPressedArgb() const
 {
     return m_darkMode ? s_kSubtleFillColorTertiaryDark : s_kSubtleFillColorTertiaryLight;
 }
@@ -180,11 +180,11 @@ uint32_t WindowsThemeColors::CaptionButtonPressedArgb () const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WindowsThemeColors::CaptionButtonForegroundArgb
+//  DxuiWindowsThemeColors::CaptionButtonForegroundArgb
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t WindowsThemeColors::CaptionButtonForegroundArgb () const
+uint32_t DxuiWindowsThemeColors::CaptionButtonForegroundArgb() const
 {
     return m_darkMode ? s_kCaptionForegroundDark : s_kCaptionForegroundLight;
 }
@@ -195,11 +195,11 @@ uint32_t WindowsThemeColors::CaptionButtonForegroundArgb () const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WindowsThemeColors::CloseButtonHoverArgb
+//  DxuiWindowsThemeColors::CloseButtonHoverArgb
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t WindowsThemeColors::CloseButtonHoverArgb () const
+uint32_t DxuiWindowsThemeColors::CloseButtonHoverArgb() const
 {
     return s_kCloseButtonColor;
 }
@@ -210,11 +210,11 @@ uint32_t WindowsThemeColors::CloseButtonHoverArgb () const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WindowsThemeColors::CloseButtonPressedArgb
+//  DxuiWindowsThemeColors::CloseButtonPressedArgb
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t WindowsThemeColors::CloseButtonPressedArgb () const
+uint32_t DxuiWindowsThemeColors::CloseButtonPressedArgb() const
 {
     return s_kCloseButtonColor;
 }
@@ -225,11 +225,11 @@ uint32_t WindowsThemeColors::CloseButtonPressedArgb () const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WindowsThemeColors::CloseButtonGlyphHoverArgb
+//  DxuiWindowsThemeColors::CloseButtonGlyphHoverArgb
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t WindowsThemeColors::CloseButtonGlyphHoverArgb () const
+uint32_t DxuiWindowsThemeColors::CloseButtonGlyphHoverArgb() const
 {
     return s_kCloseButtonGlyphHoverColor;
 }
@@ -240,11 +240,11 @@ uint32_t WindowsThemeColors::CloseButtonGlyphHoverArgb () const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WindowsThemeColors::CloseButtonGlyphPressedArgb
+//  DxuiWindowsThemeColors::CloseButtonGlyphPressedArgb
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t WindowsThemeColors::CloseButtonGlyphPressedArgb () const
+uint32_t DxuiWindowsThemeColors::CloseButtonGlyphPressedArgb() const
 {
     return s_kCloseButtonGlyphPressedColor;
 }

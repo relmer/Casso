@@ -2,7 +2,6 @@
 
 #include "DialogPrimitiveRenderer.h"
 #include "../Chrome/ChromeTheme.h"
-#include "../WindowsThemeColors.h"
 #include "../../resource.h"
 
 
@@ -526,7 +525,7 @@ void DialogPrimitiveRenderer::PaintTitle (
     float                      closeLeftPx    = static_cast<float> (m_widthPx) - closeWPx;
     float                      textX          = titlePaddingPx;
     float                      textW          = closeLeftPx - titlePaddingPx * s_kCenterDivisor;
-    const WindowsThemeColors & sys            = WindowsThemeColors::Instance();
+    const DxuiWindowsThemeColors & sys            = DxuiWindowsThemeColors::Instance();
     uint32_t                   fillArgb       = 0;
     uint32_t                   glyphArgb      = sys.CaptionButtonForegroundArgb();
 
@@ -791,7 +790,7 @@ void DialogPrimitiveRenderer::PaintCustomBody (
     ctx.text           = &m_text;
     ctx.theme          = &theme;
     ctx.customBodyRect = adjustedRect;
-    ctx.dpiScale       = static_cast<float> (m_scaler.Dpi()) / static_cast<float> (DpiScaler::kBaseDpi);
+    ctx.dpiScale       = static_cast<float> (m_scaler.Dpi()) / static_cast<float> (DxuiDpiScaler::kBaseDpi);
 
     def.onPaintCustomBody (ctx);
 }

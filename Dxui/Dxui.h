@@ -26,19 +26,47 @@
 #include <dxgi1_3.h>
 #include <dcomp.h>
 #include <wincodec.h>
+#include <dwmapi.h>
+#include <ole2.h>
+#include <oleidl.h>
+#include <shellapi.h>
 
 #include <wrl/client.h>
 
-#include <future>
+#include <atomic>
+#include <cmath>
+#include <cstdint>
+#include <deque>
 #include <functional>
+#include <future>
 #include <memory>
 #include <string>
 #include <vector>
-#include <cstdint>
-#include <cmath>
 
 #if defined(_DEBUG)
     #define DXUI_ASSERT_UI_THREAD() ((void) 0)
 #else
     #define DXUI_ASSERT_UI_THREAD() ((void) 0)
 #endif
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Public Dxui headers (umbrella re-exports).
+//
+//  Listed alphabetically by subfolder. Consumers get the entire public
+//  Dxui surface just by including this umbrella (typically via their
+//  own Pch.h).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+#include "Core/DxuiAnimation.h"
+#include "Core/DxuiDpiScaler.h"
+#include "Core/DxuiHitTester.h"
+#include "Core/DxuiInput.h"
+#include "Core/DxuiTitleBarHitTest.h"
+#include "Theme/DxuiDwm.h"
+#include "Theme/DxuiWindowsThemeColors.h"
+#include "Win32/DxuiDragDropTarget.h"

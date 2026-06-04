@@ -4,7 +4,6 @@
 
 #include "SettingsPanelState.h"
 
-#include "../DpiScaler.h"
 #include "../Widgets/Dropdown.h"
 #include "../Widgets/Checkbox.h"
 #include "../Widgets/Label.h"
@@ -47,7 +46,7 @@ public:
                                  int                       activeIndex);
     void  SetOnMachineSelected  (MachineSelectFn fn) { m_onMachineSelected = std::move (fn); }
 
-    void  Layout                (const RECT & rect, const DpiScaler & scaler);
+    void  Layout                (const RECT & rect, const DxuiDpiScaler & scaler);
     void  Rebuild               ();
 
     void  OnLButtonDown         (int x, int y);

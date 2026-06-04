@@ -11,13 +11,21 @@
 #include <dxgi1_3.h>
 #include <dcomp.h>
 #include <wincodec.h>
+#include <dwmapi.h>
+#include <ole2.h>
+#include <oleidl.h>
+#include <shellapi.h>
 
 #include <wrl/client.h>
 
-#include <future>
+#include <atomic>
+#include <cmath>
+#include <cstdint>
+#include <deque>
 #include <functional>
+#include <future>
 #include <memory>
 #include <string>
 #include <vector>
-#include <cstdint>
-#include <cmath>
+
+#include "../CassoCore/Ehm.h"

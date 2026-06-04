@@ -4,7 +4,6 @@
 
 #include "SettingsPanelState.h"
 
-#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 #include "../Widgets/Button.h"
@@ -115,7 +114,7 @@ public:
     void  SetOnPreview              (PreviewFn       fn) { m_onPreview       = std::move (fn); }
     void  SetOnRestoreDefaults      (RestoreFn       fn) { m_onRestore       = std::move (fn); }
 
-    void  Layout    (const RECT & rect, const DpiScaler & scaler);
+    void  Layout    (const RECT & rect, const DxuiDpiScaler & scaler);
     void  Rebuild   ();
 
     void  OnLButtonDown (int x, int y);
@@ -157,7 +156,7 @@ public:
 private:
     SettingsPanelState  * m_state = nullptr;
     DisplayDefaultsHint   m_hint  = {};
-    DpiScaler             m_scaler;
+    DxuiDpiScaler             m_scaler;
     BrightnessFn          m_onBrightness;
     ContrastFn            m_onContrast;
     GammaFn               m_onGamma;

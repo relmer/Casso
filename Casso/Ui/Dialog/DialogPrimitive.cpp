@@ -137,7 +137,7 @@ int DialogPrimitive::Show (
     m_dpi = GetDpiForWindow (hwndOwner);
     if (m_dpi == 0)
     {
-        m_dpi = DpiScaler::kBaseDpi;
+        m_dpi = DxuiDpiScaler::kBaseDpi;
     }
 
     RecomputeLayout (m_dpi);
@@ -391,7 +391,7 @@ HRESULT DialogPrimitive::OnCreate (HWND hwnd)
 {
     HRESULT  hr  = S_OK;
     RECT     rc  = {};
-    UINT     dpi = DpiScaler::kBaseDpi;
+    UINT     dpi = DxuiDpiScaler::kBaseDpi;
     BOOL     ok  = FALSE;
 
 
@@ -404,7 +404,7 @@ HRESULT DialogPrimitive::OnCreate (HWND hwnd)
     dpi = GetDpiForWindow (m_hwnd);
     if (dpi == 0)
     {
-        dpi = DpiScaler::kBaseDpi;
+        dpi = DxuiDpiScaler::kBaseDpi;
     }
 
     hr = m_renderer.Initialize (m_hwnd,
@@ -456,7 +456,7 @@ void DialogPrimitive::OnDestroy()
 void DialogPrimitive::OnSize (int widthPx, int heightPx)
 {
     HRESULT  hr  = S_OK;
-    UINT     dpi = DpiScaler::kBaseDpi;
+    UINT     dpi = DxuiDpiScaler::kBaseDpi;
 
 
 
@@ -465,7 +465,7 @@ void DialogPrimitive::OnSize (int widthPx, int heightPx)
     dpi = GetDpiForWindow (m_hwnd);
     if (dpi == 0)
     {
-        dpi = DpiScaler::kBaseDpi;
+        dpi = DxuiDpiScaler::kBaseDpi;
     }
 
     hr = m_renderer.Resize (widthPx, heightPx, dpi);
@@ -788,7 +788,7 @@ void DialogPrimitive::BuildButtons()
     CBR (m_def != nullptr);
 
     count     = std::min (m_def->buttons.size(), m_layout.buttonRectsPx.size());
-    outlinePx = static_cast<float> (m_dpi) / static_cast<float> (DpiScaler::kBaseDpi) * s_kOutlineThicknessDp;
+    outlinePx = static_cast<float> (m_dpi) / static_cast<float> (DxuiDpiScaler::kBaseDpi) * s_kOutlineThicknessDp;
 
     m_buttons.clear();
     m_buttons.resize (count);
@@ -854,7 +854,7 @@ void DialogPrimitive::RecomputeLayout (UINT dpi)
     CBR (m_def    != nullptr);
     CBR (m_device != nullptr);
 
-    dpiScale = static_cast<float> (dpi) / static_cast<float> (DpiScaler::kBaseDpi);
+    dpiScale = static_cast<float> (dpi) / static_cast<float> (DxuiDpiScaler::kBaseDpi);
 
     hr = measurer.Initialize (m_device);
     CHRA (hr);
@@ -1428,7 +1428,7 @@ Error:
 
 int DialogPrimitive::TitleHeightPx() const
 {
-    return static_cast<int> (s_kTitleHeightDp * static_cast<float> (m_dpi) / static_cast<float> (DpiScaler::kBaseDpi));
+    return static_cast<int> (s_kTitleHeightDp * static_cast<float> (m_dpi) / static_cast<float> (DxuiDpiScaler::kBaseDpi));
 }
 
 
@@ -1447,7 +1447,7 @@ int DialogPrimitive::TitleHeightPx() const
 RECT DialogPrimitive::CloseButtonRectPx() const
 {
     RECT  rect    = {};
-    int   widthPx = static_cast<int> (s_kCloseButtonWidthDp * static_cast<float> (m_dpi) / static_cast<float> (DpiScaler::kBaseDpi));
+    int   widthPx = static_cast<int> (s_kCloseButtonWidthDp * static_cast<float> (m_dpi) / static_cast<float> (DxuiDpiScaler::kBaseDpi));
     int   clientW = 0;
     RECT  clientRect = {};
 

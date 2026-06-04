@@ -2,12 +2,6 @@
 
 #include "Pch.h"
 
-#include "../DpiScaler.h"
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  LayoutManager
@@ -97,7 +91,7 @@ public:
     static constexpr int  kBaseDpi = 96;
 
 
-    explicit LayoutManager (const DpiScaler & scaler);
+    explicit LayoutManager (const DxuiDpiScaler & scaler);
 
     void  RegisterEdge          (IEdgeContributor * contributor);
     void  UnregisterEdge        (IEdgeContributor * contributor);
@@ -118,7 +112,7 @@ public:
     const std::vector<ICenterLayer     *> & CenterLayers () const { return m_centerLayers; }
 
 private:
-    const DpiScaler                * m_scaler = nullptr;
+    const DxuiDpiScaler                * m_scaler = nullptr;
     std::vector<IEdgeContributor *>  m_edges;
     std::vector<ICenterLayer     *>  m_centerLayers;
 };

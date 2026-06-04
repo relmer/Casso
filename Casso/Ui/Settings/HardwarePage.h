@@ -4,7 +4,6 @@
 
 #include "SettingsPanelState.h"
 
-#include "../DpiScaler.h"
 #include "../Widgets/Label.h"
 #include "../Widgets/TreeView.h"
 
@@ -39,7 +38,7 @@
 class HardwarePage
 {
 public:
-    void  SetRect    (const RECT & rect, const DpiScaler & scaler);
+    void  SetRect    (const RECT & rect, const DxuiDpiScaler & scaler);
     void  SetState   (SettingsPanelState * state);
     void  Rebuild    ();
 
@@ -79,6 +78,6 @@ private:
     int                                  m_rowHeight       = 0;
     int                                  m_sectionGap      = 0;
     RECT                                 m_baseRect        = {};
-    DpiScaler                            m_scaler;
+    DxuiDpiScaler                            m_scaler;
     TreeView                             m_tree;
 };

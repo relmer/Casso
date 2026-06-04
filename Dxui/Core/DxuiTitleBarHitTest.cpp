@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "TitleBarHitTest.h"
+#include "DxuiTitleBarHitTest.h"
 
 
 
@@ -31,7 +31,7 @@ namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TitleBarHitTest::Test
+//  DxuiTitleBarHitTest::Test
 //
 //  Returns an HT* constant (defined in <winuser.h>):
 //      HTCAPTION, HTCLIENT, HTMINBUTTON, HTMAXBUTTON, HTCLOSE,
@@ -40,7 +40,7 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT TitleBarHitTest::Test (const TitleBarHitTestInput & in)
+LRESULT DxuiTitleBarHitTest::Test (const DxuiTitleBarHitTestInput & in)
 {
     bool    fLeftEdge   = false;
     bool    fRightEdge  = false;

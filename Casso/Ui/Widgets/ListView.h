@@ -3,7 +3,6 @@
 #include "Pch.h"
 
 #include "../Chrome/ChromeTheme.h"
-#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 
@@ -218,7 +217,7 @@ private:
     std::vector<std::vector<Cell>>    m_rows;
     std::vector<int>                  m_measuredWPx;
     std::vector<int>                  m_overrideWPx;
-    DpiScaler                         m_scaler;
+    DxuiDpiScaler                         m_scaler;
     int                               m_hovered           = -1;
     int                               m_selectedRow       = -1;
     int                               m_sortColumn        = -1;

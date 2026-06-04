@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Animation.h"
+#include "DxuiAnimation.h"
 
 
 
@@ -12,14 +12,14 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TweenHandle Animation::StartTween (
+DxuiTweenHandle DxuiAnimation::StartTween (
     float      startValue,
     float      endValue,
     float      durationSec,
-    TweenEase  ease)
+    DxuiTweenEase  ease)
 {
-    TweenState   state;
-    TweenHandle  handle;
+    DxuiTweenState   state;
+    DxuiTweenHandle  handle;
 
 
 
@@ -47,12 +47,12 @@ TweenHandle Animation::StartTween (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Animation::SampleTween (
-    TweenHandle  handle,
+bool DxuiAnimation::SampleTween (
+    DxuiTweenHandle  handle,
     float        currentTimeSec,
     float      & outValue) const
 {
-    for (const TweenState & s : m_tweens)
+    for (const DxuiTweenState & s : m_tweens)
     {
         float  elapsed = 0.0f;
         float  t       = 0.0f;
@@ -103,7 +103,7 @@ bool Animation::SampleTween (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Animation::AdvanceTime (float currentTimeSec)
+void DxuiAnimation::AdvanceTime (float currentTimeSec)
 {
     m_currentTimeSec = currentTimeSec;
 }
@@ -118,7 +118,7 @@ void Animation::AdvanceTime (float currentTimeSec)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Animation::ClearTweens ()
+void DxuiAnimation::ClearTweens()
 {
     m_tweens.clear();
 }
@@ -133,7 +133,7 @@ void Animation::ClearTweens ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Animation::PublishSyncEvent (const DriveSyncBrokerEvent & ev)
+void DxuiAnimation::PublishSyncEvent (const DxuiDriveSyncBrokerEvent & ev)
 {
     m_pendingSync.push_back (ev);
 }
@@ -148,9 +148,9 @@ void Animation::PublishSyncEvent (const DriveSyncBrokerEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DriveSyncBrokerEvent> Animation::ConsumePendingEvents ()
+std::vector<DxuiDriveSyncBrokerEvent> DxuiAnimation::ConsumePendingEvents()
 {
-    std::vector<DriveSyncBrokerEvent>  out = std::move (m_pendingSync);
+    std::vector<DxuiDriveSyncBrokerEvent>  out = std::move (m_pendingSync);
 
     m_pendingSync.clear();
     return out;
@@ -166,17 +166,17 @@ std::vector<DriveSyncBrokerEvent> Animation::ConsumePendingEvents ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float Animation::ApplyEase (TweenEase ease, float t)
+float DxuiAnimation::ApplyEase (DxuiTweenEase ease, float t)
 {
     switch (ease)
     {
-    case TweenEase::Linear:
+    case DxuiTweenEase::Linear:
         return t;
 
-    case TweenEase::EaseOut:
+    case DxuiTweenEase::EaseOut:
         return 1.0f - (1.0f - t) * (1.0f - t);
 
-    case TweenEase::EaseInOut:
+    case DxuiTweenEase::EaseInOut:
         if (t < 0.5f)
         {
             return 2.0f * t * t;

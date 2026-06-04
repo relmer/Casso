@@ -29,8 +29,6 @@
 #include "Video/AppleDoubleHiResMode.h"
 #include "Video/PixelFormat.h"
 #include "Video/MonochromeTint.h"
-#include "Ui/Win11DwmHelpers.h"
-#include "Ui/TitleBarHitTest.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/DriveWidgetController.h"
 #include "Shell/DiskMru.h"
@@ -795,14 +793,14 @@ HRESULT EmulatorShell::Initialize (
                 m_uiShell.HitTest().Clear();
                 if (fHasDisk)
                 {
-                    m_uiShell.HitTest().Register (HitRect { m_driveChrome[0].BodyRect(), HitSlot::Custom, 0 });
-                    m_uiShell.HitTest().Register (HitRect { m_driveChrome[1].BodyRect(), HitSlot::Custom, 1 });
+                    m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].BodyRect(), DxuiHitSlot::Custom, 0 });
+                    m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
                 }
             }
 
             if (m_fOleInitialized)
             {
-                HRESULT hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.HitTest(), [this] (int tag, const std::wstring & path) { Mount (6, tag, path); });
+                HRESULT hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.HitTest(), [this] (int tag, const std::wstring & path) { Mount (6, tag, path); }, IsSupportedDiskImageExtension);
                 IGNORE_RETURN_VALUE (hrDrop, S_OK);
 
                 // CassoRenderSurface is a child HWND that occludes the
@@ -1112,9 +1110,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // are best-effort and runtime-gated to the right Win10/11 build.
     // Mica stays opt-in: it'll be toggled per-theme in P5 via
     // theme.json `useMicaBackdrop`.
-    Win11DwmHelpers::ExtendFrameIntoClientArea (m_hwnd, 1);
-    Win11DwmHelpers::ApplyRoundedCorners       (m_hwnd, true);
-    Win11DwmHelpers::ApplyImmersiveDarkMode    (m_hwnd, true);
+    DxuiDwm::ExtendFrameIntoClientArea (m_hwnd, 1);
+    DxuiDwm::ApplyRoundedCorners       (m_hwnd, true);
+    DxuiDwm::ApplyImmersiveDarkMode    (m_hwnd, true);
 
     // Defer the size reconcile until after ShowWindow. The NC frame
     // (border carve-out from DefWindowProc + DWM rounded corners +
@@ -3613,8 +3611,8 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
             m_uiShell.HitTest().Clear();
             if (fHasDisk)
             {
-                m_uiShell.HitTest().Register (HitRect { m_driveChrome[0].BodyRect(), HitSlot::Custom, 0 });
-                m_uiShell.HitTest().Register (HitRect { m_driveChrome[1].BodyRect(), HitSlot::Custom, 1 });
+                m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].BodyRect(), DxuiHitSlot::Custom, 0 });
+                m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
             }
             m_d3dRenderer.SetTopInsetPx    (layout.topInsetPx);
             m_d3dRenderer.SetBottomInsetPx (layout.bottomInsetPx);
@@ -4068,7 +4066,7 @@ LRESULT EmulatorShell::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
     RECT                  rcMin    = {};
     RECT                  rcMax    = {};
     RECT                  rcClose  = {};
-    TitleBarHitTestInput  in       = {};
+    DxuiTitleBarHitTestInput  in       = {};
     LRESULT               result   = HTNOWHERE;
     UINT                  dpi      = 0;
     int                   framePx  = 0;
@@ -4117,7 +4115,7 @@ LRESULT EmulatorShell::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
     in.closeRight    = rcClose.right;  in.closeBottom = rcClose.bottom;
     in.resizeBorderPx = borderPx;
 
-    result = TitleBarHitTest::Test (in);
+    result = DxuiTitleBarHitTest::Test (in);
 
     return result;
 }

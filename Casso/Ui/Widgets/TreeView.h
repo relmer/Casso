@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 
@@ -134,5 +133,5 @@ private:
     std::vector<TreeNode> m_nodes;
     std::vector<FlatRow>  m_flatRows;
     ToggleFn              m_toggle;
-    DpiScaler             m_scaler;
+    DxuiDpiScaler             m_scaler;
 };

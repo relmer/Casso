@@ -1,14 +1,8 @@
 #pragma once
 
-#include "Pch.h"
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DpiScaler
+//  DxuiDpiScaler
 //
 //  Per-window holder of the effective DPI (96 * scale%). Owned by
 //  UiShell and updated on WM_DPICHANGED. Layout / Paint code receives
@@ -22,7 +16,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DpiScaler
+class DxuiDpiScaler
 {
 public:
     static constexpr UINT  kBaseDpi = 96;
@@ -30,8 +24,8 @@ public:
     void   SetDpi (UINT dpi) { m_dpi = (dpi == 0) ? kBaseDpi : dpi; }
     UINT   Dpi    () const   { return m_dpi; }
 
-    int    Px     (int   dp) const { return MulDiv (dp, (int) m_dpi, (int) kBaseDpi); }
-    float  Pxf    (float dp) const { return dp * (float) m_dpi / (float) kBaseDpi; }
+    int    Px     (int   dip) const { return MulDiv (dip, (int) m_dpi, (int) kBaseDpi); }
+    float  Pxf    (float dip) const { return dip * (float) m_dpi / (float) kBaseDpi; }
 
 private:
     UINT  m_dpi = kBaseDpi;

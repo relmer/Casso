@@ -3,7 +3,6 @@
 #include "Pch.h"
 
 #include "../Chrome/ChromeTheme.h"
-#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 
@@ -91,7 +90,7 @@ private:
     const ChromeTheme   * m_theme      = nullptr;
     HWND                  m_hwnd       = nullptr;
     ChangeFn              m_change;
-    DpiScaler             m_scaler;
+    DxuiDpiScaler             m_scaler;
 
     // Horizontal scroll offset (pixels) for the rendered text. Paint
     // adjusts this so the caret remains inside the visible inner

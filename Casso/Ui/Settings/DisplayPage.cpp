@@ -121,7 +121,7 @@ void DisplayPage::SetDefaultsHint (const DisplayDefaultsHint & hint)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
+void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
     UINT  dpi          = scaler.Dpi();
     int   pad          = scaler.Px (s_kPagePadDp);

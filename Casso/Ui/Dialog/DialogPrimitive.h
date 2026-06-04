@@ -99,7 +99,7 @@ private:
     size_t                       m_focusedHyperlink = SIZE_MAX;
     size_t                       m_hoveredHyperlink = SIZE_MAX;
     int                          m_chosenId         = -1;
-    UINT                         m_dpi              = DpiScaler::kBaseDpi;
+    UINT                         m_dpi              = DxuiDpiScaler::kBaseDpi;
     bool                         m_closed           = false;
     bool                         m_closeHovered     = false;
     bool                         m_closePressed     = false;

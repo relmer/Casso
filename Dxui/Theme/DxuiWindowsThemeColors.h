@@ -1,14 +1,8 @@
 #pragma once
 
-#include "Pch.h"
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WindowsThemeColors
+//  DxuiWindowsThemeColors
 //
 //  Runtime accessor for Windows-system theme colors used by the custom
 //  chrome (caption buttons, title-bar accents). Reads the current
@@ -29,13 +23,13 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class WindowsThemeColors
+class DxuiWindowsThemeColors
 {
 public:
-    static WindowsThemeColors & Instance ();
+    static DxuiWindowsThemeColors & Instance();
 
-    void  Refresh ();
-    bool  IsDarkMode () const { return m_darkMode; }
+    void  Refresh();
+    bool  IsDarkMode() const { return m_darkMode; }
 
     uint32_t  CaptionButtonHoverArgb        () const;
     uint32_t  CaptionButtonPressedArgb      () const;
@@ -46,7 +40,7 @@ public:
     uint32_t  CloseButtonGlyphPressedArgb    () const;
 
 private:
-    WindowsThemeColors ();
+    DxuiWindowsThemeColors();
 
     bool  m_darkMode = true;
 };

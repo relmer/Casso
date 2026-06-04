@@ -1,14 +1,8 @@
 #pragma once
 
-#include "Pch.h"
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HitTester
+//  DxuiHitTester
 //
 //  Pure-logic rect tree the native UI runtime consults for both client
 //  input (mouse / drag-drop) and `WM_NCHITTEST` classification. Widgets
@@ -24,7 +18,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class HitSlot
+enum class DxuiHitSlot
 {
     None        = 0,
     Client      = 1,
@@ -36,15 +30,15 @@ enum class HitSlot
 };
 
 
-struct HitRect
+struct DxuiHitRect
 {
-    RECT     rect      = {};
-    HitSlot  slot      = HitSlot::None;
-    int      tag       = 0;       // caller-defined identifier (widget id)
+    RECT         rect      = {};
+    DxuiHitSlot  slot      = DxuiHitSlot::None;
+    int          tag       = 0;       // caller-defined identifier (widget id)
 };
 
 
-struct NcHitTestInput
+struct DxuiNcHitTestInput
 {
     RECT  windowRectScreen = {};
     int   mouseXScreen     = 0;
@@ -57,19 +51,19 @@ struct NcHitTestInput
 };
 
 
-class HitTester
+class DxuiHitTester
 {
 public:
-    HitTester  () = default;
-    ~HitTester () = default;
+    DxuiHitTester  () = default;
+    ~DxuiHitTester() = default;
 
-    void                          Clear            ();
-    void                          Register         (const HitRect & rect);
-    const HitRect               * Pick             (int xClient, int yClient) const;
-    const std::vector<HitRect>  & Registrations    () const { return m_rects; }
+    void                              Clear         ();
+    void                              Register      (const DxuiHitRect & rect);
+    const DxuiHitRect               * Pick          (int xClient, int yClient) const;
+    const std::vector<DxuiHitRect>  & Registrations() const { return m_rects; }
 
-    static LRESULT                ClassifyNcHit    (const NcHitTestInput & in);
+    static LRESULT                    ClassifyNcHit (const DxuiNcHitTestInput & in);
 
 private:
-    std::vector<HitRect>  m_rects;
+    std::vector<DxuiHitRect>  m_rects;
 };

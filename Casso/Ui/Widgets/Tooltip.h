@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 
@@ -43,7 +42,7 @@ public:
     void  Paint           (DxUiPainter & painter, DwriteTextRenderer & text) const;
 
 private:
-    DpiScaler     m_scaler;
+    DxuiDpiScaler     m_scaler;
     RECT          m_anchor       = {};
     std::wstring  m_text;
     std::wstring  m_pendingText;
