@@ -6,12 +6,12 @@ description: "Task list for Dxui framework extraction (spec 013)"
 
 **Input**: Design documents from `/specs/013-dxui-framework-extraction/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/
-**Organization**: Tasks are grouped by **migration phase** (1 through 11) as defined in plan.md. Phases land sequentially; each phase ends green (build + tests + code analysis) and is independently mergeable. User stories US1–US5 from spec.md are satisfied incrementally across these phases; story coverage is tracked in the Dependencies section at the bottom of this file.
+**Organization**: Tasks are grouped by **migration phase** (1 through 14) as defined in plan.md. Phases land sequentially; each phase ends green (build + tests + code analysis) and is independently mergeable. User stories US1–US5 from spec.md are satisfied incrementally across these phases; story coverage is tracked in the Dependencies section at the bottom of this file.
 
 ## Format: `[ID] [P?] [Phase] Description`
 
 - **[P]**: Can run in parallel within its phase (different files, no intra-phase dependencies).
-- **[Phase]**: `[PH1]`, `[PH2]`, `[PH3]`, `[PH4]`, `[PH5]`, `[PH6]`, `[PH7]`, `[PH8]`, `[PH9]`, `[PH10]`, `[PH11]`.
+- **[Phase]**: `[PH1]`, `[PH2]`, `[PH3]`, `[PH4]`, `[PH5]`, `[PH6]`, `[PH7]`, `[PH8]`, `[PH9]`, `[PH10]`, `[PH11]`, `[PH12]`, `[PH13]`, `[PH14]`.
 - Every task lists files affected, FR references, and a per-task exit criterion.
 - **Phase exit gate (every phase)**: `scripts\Build.ps1 -Configuration Debug -Platform x64`, `scripts\Build.ps1 -Configuration Release -Platform ARM64`, `scripts\RunTests.ps1`, and `scripts\Build.ps1 -RunCodeAnalysis` all green. Commit message follows Conventional Commits with scope `dxui` (or `casso/ui` for consumer-side migration phases). Merge with `--no-ff` (never squash).
 
@@ -192,11 +192,11 @@ The 13 widget files are independent moves and parallel-safe within this phase. E
 
 ---
 
-## Phase 7 — Host window unification
+## Phase 7 — Host window framework primitives
 
-**Goal (plan.md §Phase 7)**: Land `DxuiHostWindow` and migrate three of the four NC plumbing copies (main `Window`, `ChromedPanelWindow`, `SettingsWindow`) onto it. `DialogPrimitive` is the fourth and waits for Phase 11. **Satisfies**: FR-050, FR-051, FR-052, FR-053, FR-095 (partial), and User Story 4 (snap-layouts).
+**Goal (plan.md §Phase 7 — reduced scope)**: Land the `DxuiHostWindow` framework primitives (host window class, caption bar, system buttons, drag region, DWM helpers, test seams) **without** migrating any existing top-level window onto them. The four NC duplicates remain in place; consumption by main window / chrome panels / settings / dialogs happens in Phases 8 / 11 / 14. **Satisfies**: FR-050, FR-051, FR-052, FR-053, and the framework half of FR-095. Snap-layouts behaviour (US4) becomes visible only once main-window adoption lands in Phase 8.
 
-- [ ] T064 [PH7] Create `Dxui/Win32/DxuiHostWindow.{h,cpp}` per `contracts/DxuiHostWindow.h.md`. Owns HWND, DXGI swap chain, root `DxuiPanel`. `CreateParams` covers `borderless`, `resizable`, `rounded`, `dark`, `backdrop`, `resizeBorderDip`. Create the D3D11 device with `D3D11_CREATE_DEVICE_BGRA_SUPPORT`. WndProc handles `WM_NCCALCSIZE` (claim NC as client when borderless), `WM_NCHITTEST` (8 resize edges + tree walk via `ClassifyHit`), `WM_NCLBUTTONDOWN/UP`, `WM_NCMOUSEMOVE`, `WM_NCMOUSELEAVE`, `WM_DPICHANGED` (re-DPI tree + relayout + repaint), `WM_DPICHANGED_BEFOREPARENT` (forward to every active pooled `DxuiPopupHost`), `WM_SETTINGCHANGE`, `WM_THEMECHANGED`, `WM_DWMCOLORIZATIONCOLORCHANGED`. Snap-layouts: return `HTMAXBUTTON` when hit lands on a `DxuiSystemButton` classified `DxuiHitTestKind::MaxButton`. Invoke `DXUI_ASSERT_UI_THREAD()` at every public method entry. **Depends on**: T047. **Exit**: covered by T070. **FR**: FR-050, FR-051, FR-052, FR-083.
+- [ ] T064 [PH7] Create `Dxui/Win32/DxuiHostWindow.{h,cpp}` per `contracts/DxuiHostWindow.h.md`. Owns HWND, DXGI swap chain, root `DxuiPanel`. `CreateParams` covers `borderless`, `resizable`, `rounded`, `dark`, `backdrop`, `resizeBorderDip`. Create the D3D11 device with `D3D11_CREATE_DEVICE_BGRA_SUPPORT`. WndProc handles `WM_NCCALCSIZE` (claim NC as client when borderless), `WM_NCHITTEST` (8 resize edges + tree walk via `ClassifyHit`), `WM_NCLBUTTONDOWN/UP`, `WM_NCMOUSEMOVE`, `WM_NCMOUSELEAVE`, `WM_DPICHANGED` (re-DPI tree + relayout + repaint), `WM_DPICHANGED_BEFOREPARENT` (forward to every active pooled `DxuiPopupHost`), `WM_SETTINGCHANGE`, `WM_THEMECHANGED`, `WM_DWMCOLORIZATIONCOLORCHANGED`. Snap-layouts: return `HTMAXBUTTON` when hit lands on a `DxuiSystemButton` classified `DxuiHitTestKind::MaxButton`. Invoke `DXUI_ASSERT_UI_THREAD()` at every public method entry. **Depends on**: T047. **Exit**: framework primitive ready; consumption verified later by T070 (Phase 8 main-window adoption). **FR**: FR-050, FR-051, FR-052, FR-083.
 
 - [ ] T065 [PH7] Expose `DxuiHostWindow::ClassifyHitForTest(POINT clientPx) -> DxuiHitTestKind` test seam (public, no real HWND required, accepts a synthetic root panel via a constructor overload). **Depends on**: T064. **FR**: FR-050; **SC**: SC-006.
 
@@ -208,125 +208,183 @@ The 13 widget files are independent moves and parallel-safe within this phase. E
 
 - [ ] T069 [PH7] Create `UnitTest/Dxui/DxuiHostWindowTests.cpp` — NC classification only via `ClassifyHitForTest`. Cover: 8 resize edges (NW/N/NE/E/SE/S/SW/W) computed against a synthetic bounds + `resizeBorderDip`; blank caption area returns `HTCAPTION`; system button area returns `HTMAXBUTTON` (snap-layouts), `HTMINBUTTON`, `HTCLOSE`; client area returns `HTCLIENT`. **No real HWND**, **no `CreateWindowEx`**. **Depends on**: T065, T066, T067, T068. **FR**: FR-050, FR-052; **SC**: SC-006.
 
-- [ ] T070 [PH7] Migrate Casso's main top-level `Window` to host on `DxuiHostWindow`: replace the legacy WndProc plumbing; the main window's content panel becomes the host's root `DxuiPanel`. Delete/unify the WM_NCCALCSIZE / WM_NCHITTEST handling code at `Casso\Window.cpp:277` and `Casso\EmulatorShell.cpp:4035`. Existing chrome bands re-host as children of the new root panel. **Depends on**: T064, T066, T067, T068. **Exit**: `rg -n 'WM_NCCALCSIZE|WM_NCHITTEST' Casso/Window.cpp Casso/Window.h` returns zero hits. **FR**: FR-095.
+- [ ] T071 [P] [PH7] Wire `DxuiHostWindow` to the existing `DxuiDwm` helpers (from T015) for backdrop, immersive-dark-mode, rounded-corner, and titlebar-colour configuration. Apply on `WM_CREATE`, re-apply on `WM_DWMCOLORIZATIONCOLORCHANGED` / `WM_SETTINGCHANGE` / `WM_THEMECHANGED`. **Depends on**: T064. **FR**: FR-050, FR-051.
 
-- [ ] T071 [PH7] Migrate `Casso\Ui\Chrome\ChromedPanelWindow.cpp:451` consumers to host on `DxuiHostWindow`. **Delete** `Casso/Ui/Chrome/ChromedPanelWindow.{h,cpp}` and `Casso/Ui/Chrome/IChromedPanelContent.h`. Drop the vcxproj item entries. **Depends on**: T064. **Exit**: `rg -n 'ChromedPanelWindow|IChromedPanelContent' Casso/` returns zero hits. **FR**: FR-095.
+- [ ] T072 [P] [PH7] Apply `DxuiDwm` configuration during `DxuiHostWindow::CreateParams`-driven initialization: `backdrop` (Mica/Acrylic/None), `rounded` (round/small-round/square), `dark` (immersive dark-mode bool). Verify all four config knobs round-trip via a debug-build instrumentation seam. **Depends on**: T064, T071. **FR**: FR-050, FR-051.
 
-- [ ] T072 [PH7] Migrate `Casso\Ui\Settings\SettingsWindow.cpp:408` + `SettingsWindowRenderer.{h,cpp}` to host on `DxuiHostWindow`. **Delete** all four files. Drop the vcxproj item entries. **Depends on**: T064. **Exit**: `rg -n 'SettingsWindow|SettingsWindowRenderer' Casso/` returns zero hits. **FR**: FR-095.
+- [ ] T073 [PH7] Add a snap-layouts integration test in `UnitTest/Dxui/DxuiHostWindowTests.cpp` (or a sibling file) that drives `ClassifyHitForTest` with synthetic system-button rects and asserts `HTMAXBUTTON` falls out for the maximise button — the prerequisite Win11 sends to trigger the snap-layouts hover popover. **Depends on**: T065, T067. **FR**: FR-052; **SC**: SC-006, SC-009 (framework half).
 
-- [ ] T073 [PH7] Modify `Casso/Ui/Chrome/ChromeTheme.h` — if not already done in T039, ensure it derives from `IDxuiTheme` cleanly so the migrated host windows can hand it down. **Depends on**: T070, T071, T072. **FR**: FR-032.
-
-- [ ] T074 [PH7] Phase-7 exit verification. Build all four configs; run tests; run code analysis. Greps: `rg -n 'WM_NCCALCSIZE' Casso/` → matches only in `Casso/Ui/Dialog/DialogPrimitive.cpp` (waits for Phase 11); `rg -n 'WM_NCCALCSIZE' Dxui/` → matches only in `Dxui/Win32/`. **Manual visual parity check (per SC-011 partial)** on main window, chromed panels, and Settings window at 100 % / 150 % / 200 % DPI on Win10 + Win11; Win11 snap-layouts works on all three. **Depends on**: T064–T073. **Commit**: `feat(dxui): unify custom-NC top-level windows on DxuiHostWindow`. **FR**: FR-050/051/052/053/095; **SC**: SC-009 (partial), SC-010 (3/4), SC-011 (mid-migration gate).
+- [ ] T074 [PH7] Phase-7 exit verification (framework-only scope). Build all four configs; run tests; run code analysis. Greps: `rg -n 'WM_NCCALCSIZE' Casso/` → **unchanged at 4 hits** (`Casso/Window.cpp`, `Casso/EmulatorShell.cpp`, `Casso/Ui/Chrome/ChromedPanelWindow.cpp`, `Casso/Ui/Dialog/DialogPrimitive.cpp` — Phase 7 deliberately does not migrate any consumer); `rg -n 'WM_NCCALCSIZE' Dxui/Win32/` → matches expected in `DxuiHostWindow.cpp`. NC-handler duplicate count: **4 (unchanged)** — framework primitives ready for Phase 8 consumption. **No manual main-window visual parity check required this phase** — that lands with the Phase 8 main-window adoption. **Depends on**: T064–T069, T071–T073. **Commit**: `feat(dxui): add DxuiHostWindow framework primitives (host class, caption, system buttons, DWM)`. **FR**: FR-050/051/052/053; **SC**: SC-006 (framework tests).
 
 ---
 
-## Phase 8 — Popup hosting
+## Phase 8 — Main-window NC delegation via adopt-HWND shim
 
-**Goal (plan.md §Phase 8)**: Land `DxuiPopupHost` + the pool; migrate `DxuiDropdown` / `DxuiTooltip` / `DxuiPopupMenu` onto it. **Satisfies**: FR-054, FR-055, FR-056, FR-061, User Story 3, SC-008.
+**Goal (plan.md §Phase 8 — new)**: Without doing a full main-window restructure, delete the inline NC handling in `Casso\Window.cpp` / `Casso\EmulatorShell.cpp` and delegate it to a `DxuiHostWindow` running in **adopt-HWND mode** (no `CreateWindow`, no `DestroyWindow`, no swap-chain ownership). EmulatorShell's existing TitleBar / system-button classification plugs in via a hit-test delegate. NC duplicate count drops 4 → 3. **Satisfies**: FR-098, FR-099, FR-100, User Story 4 (main-window snap-layouts becomes live).
 
-- [ ] T075 [PH8] Create `Dxui/Win32/DxuiPopupHost.{h,cpp}` per FR-054 / FR-056. `WS_POPUP | WS_EX_NOACTIVATE` (add `WS_EX_TRANSPARENT | WS_EX_LAYERED` for tooltips); own DXGI composition swap chain sharing parent `ID3D11Device`; use `CreateSwapChainForComposition` + DirectComposition visual, not `CreateSwapChainForHwnd`. `ShowParams`: `ownerHwnd`, `anchorRectScreen`, placement (`Below`/`Above`/`Right`/`Left`/`AtCursor`), `flipIfOffscreen`, dismiss policy (`OnClickOutside`/`OnClickAnywhere`/`OnPointerLeave`/`Manual`), input policy (`Interactive`/`PassThrough`), `shadow`, `std::unique_ptr<DxuiPanel> content`. `Show() -> std::future<int>`; shared state set on the UI thread inside the host's message handling (FR-083). Owner-chain tracking for cascading submenus. `MonitorFromRect` + monitor work area for offscreen flipping. `WM_DPICHANGED_BEFOREPARENT` handling plus host forwarding to every active popup. Focus scope push/pop via `DxuiFocusManager`. Invoke `DXUI_ASSERT_UI_THREAD()` at every public method entry. Click-outside dismiss via `SetCapture` + `WM_CAPTURECHANGED`. Auto-dismiss on owner `WM_ACTIVATE` / `WM_ACTIVATEAPP` / `WM_MOVE`. **Depends on**: T056, T064. **Exit**: covered by T078. **FR**: FR-054, FR-056, FR-083.
+- [ ] T112 [PH8] Extend `Dxui/Win32/DxuiHostWindow.{h,cpp}` with `CreateInAdoptMode(HWND existing, const CreateParams &)` constructor overload. Does **not** call `CreateWindow` or `DestroyWindow`; does **not** own the swap chain. Adopt mode shares the host's NC message-handling logic but defers ownership of HWND / device / swap chain to the legacy owner. **Depends on**: T064. **FR**: FR-098.
 
-- [ ] T076 [PH8] Expose `DxuiPopupHost::ComputePlacementForTest(RECT anchorScreen, RECT monitorWorkArea, Placement preferred, SIZE popupSize) -> RECT` test seam (static, pure-function, no HWND). **Depends on**: T075. **FR**: FR-054; **SC**: SC-006.
+- [ ] T113 [PH8] Add `DxuiHostWindow::SetHitTestDelegate(std::function<LRESULT(POINT)> delegate)` — adopt-mode plug-in for consumers that already have their own caption / system-button classification logic and don't want to reshape it onto `DxuiCaptionBar` yet. When set, `WM_NCHITTEST` calls the delegate first; resize-edge classification still runs around it. **Depends on**: T112. **FR**: FR-099.
 
-- [ ] T077 [PH8] Add popup pool to `DxuiHostWindow` per FR-055: initial 3 instances, grow on demand, LIFO reuse. Debug-build instrumentation counter (`PopupHits()` / `PopupMisses()`) for test assertion. **Depends on**: T064, T075. **FR**: FR-055.
+- [ ] T114 [PH8] Add `DxuiHostWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT & outResult) -> bool` public WndProc forwarder. Returns `true` if Dxui handled the message (caller returns `outResult`); returns `false` if the legacy WndProc should keep handling it. Routes the NC family (`WM_NCCALCSIZE`, `WM_NCHITTEST`, `WM_NCLBUTTONDOWN/UP`, `WM_NCMOUSEMOVE`, `WM_NCMOUSELEAVE`) and DPI / theme messages through Dxui. **Depends on**: T112. **FR**: FR-099.
 
+- [ ] T115 [P] [PH8] Create `UnitTest/Dxui/DxuiHostWindowAdoptModeTests.cpp` covering: adopt-mode `ClassifyHit` routes via the hit-test delegate when set; `HandleMessage` returns `true` for NC family and writes the expected `outResult`; `HandleMessage` returns `false` for messages Dxui does not own; lifetime — destructor of an adopt-mode `DxuiHostWindow` does **not** call `DestroyWindow` on the supplied HWND. **No real HWND** — drive via test seams. **Depends on**: T112, T113, T114. **FR**: FR-098, FR-099; **SC**: SC-006.
 
-- [ ] T077A [PH8] Wire `DxuiHostWindow` to forward `WM_DPICHANGED_BEFOREPARENT` to every active `DxuiPopupHost` in the popup pool. Add a debug/test seam to enumerate active popups without exposing release-only state. **Depends on**: T075, T077. **FR**: FR-050, FR-056.
+- [ ] T070 [PH8] Migrate `Casso\Window.cpp` (the WndProc dispatch at ~line 277) and `Casso\EmulatorShell.cpp` (`OnNcCalcSize` at ~line 4035, plus `HandleNcHitTest` / `HandleNcLButtonDown` / `HandleNcLButtonUp` / `HandleNcMouseMove` / `HandleNcMouseLeave` helpers) — **delete** the inline NC handling, **replace** with delegation to a `DxuiHostWindow` held by `EmulatorShell` in adopt mode (constructed with the existing HWND via T112). Wire up the hit-test delegate (T113) to EmulatorShell's existing TitleBar / system-button classification logic; **no TitleBar reshape required in this phase** (that lands in Phase 11). Forward incoming messages via `m_hostWindow.HandleMessage(msg, wParam, lParam, outResult)`. **Depends on**: T112, T113, T114. **Exit**: `rg -n 'WM_NCCALCSIZE|WM_NCHITTEST' Casso/Window.cpp Casso/EmulatorShell.cpp` returns 0 hits (or only delegation lines forwarding to `HandleMessage`). **FR**: FR-098, FR-099, FR-100.
 
-- [ ] T078 [PH8] Create `UnitTest/Dxui/DxuiPopupHostTests.cpp` — placement below/above/left/right/at-cursor; flip-if-offscreen against synthetic monitor rects (all four edges + corners); dismiss policy state machine (no real HWND — drive via test seams); cascading owner-chain registration/unregistration; host forwarding of `WM_DPICHANGED_BEFOREPARENT` to active popups; focus-scope push/pop with restore. Asserts via `ComputePlacementForTest` and a dispatching shim for the dismiss state. **Depends on**: T076, T077A. **FR**: FR-050, FR-054, FR-056; **SC**: SC-006.
-
-- [ ] T079 [P] [PH8] Modify `Dxui/Widgets/DxuiDropdown.{h,cpp}` to host its option list inside a `DxuiPopupHost` instance acquired from the parent host window's pool. Remove any in-window clipping path. **Depends on**: T075, T077. **FR**: FR-061; **SC**: SC-008.
-
-- [ ] T080 [P] [PH8] Modify `Dxui/Widgets/DxuiPopupMenu.{h,cpp}` to host its menu content via `DxuiPopupHost`; cascading submenus opened via owner-chain. **Depends on**: T075, T077. **FR**: FR-061.
-
-- [ ] T081 [P] [PH8] Modify `Dxui/Widgets/DxuiTooltip.{h,cpp}` to host its content via `DxuiPopupHost` (with `WS_EX_TRANSPARENT | WS_EX_LAYERED`, dismiss `OnPointerLeave`, input `PassThrough`). **Depends on**: T075, T077. **FR**: FR-061.
-
-- [ ] T082 [PH8] Phase-8 exit verification. Build all four configs; run tests; run code analysis. **Manual acceptance test** for User Story 3 / SC-008: anchor a dropdown ~20 px from the bottom of the Settings window; the menu opens upward (or extends across the parent edge) with no clipping. **Manual** debug-build assert: open and close the dropdown 5 times; `PopupHits()` ≥ 4 (pool reuse). **Depends on**: T075–T081 and T077A. **Commit**: `feat(dxui): add DxuiPopupHost with pool; fix dropdown clipping`. **FR**: FR-054/055/056/061; **SC**: SC-008 (User Story 3 ✅).
+- [ ] T116 [PH8] Phase-8 exit verification. Build all four configs; run tests; run code analysis. Greps: `rg -n 'WM_NCCALCSIZE|WM_NCHITTEST' Casso/Window.cpp Casso/EmulatorShell.cpp` → 0 (or delegation-only). NC duplicate count: **3** (`ChromedPanelWindow.cpp`, `SettingsWindow.cpp` if still present, `DialogPrimitive.cpp` — main window is gone). **Manual** main-window verification at 100 % / 150 % / 200 % DPI on Win10 + Win11: drag / resize / minimise / maximise / close / DPI change / Win11 snap-layouts hover popover all work identically to pre-migration. **Depends on**: T070, T112–T115. **Commit**: `refactor(casso/ui): delegate main-window NC handling to DxuiHostWindow (adopt mode)`. **FR**: FR-098, FR-099, FR-100; **SC**: SC-009 (main window ✅), SC-010 (NC count 4 → 3), SC-011 (mid-migration gate).
 
 ---
 
-## Phase 9 — `DxuiViewport` + `DxuiDockLayout`; retire legacy edge layout
+## Phase 9 — Popup hosting
 
-**Goal (plan.md §Phase 9)**: Casso's main shell becomes a root `DxuiPanel` with `DxuiDockLayout`; the emulator viewport sizes the Apple ][ pixel grid from the inside out. **Satisfies**: FR-030, FR-034, FR-021 (dock portion), FR-093, FR-094, SC-013.
+**Goal (plan.md §Phase 9)**: Land `DxuiPopupHost` + the pool; migrate `DxuiDropdown` / `DxuiTooltip` / `DxuiPopupMenu` onto it. **Satisfies**: FR-054, FR-055, FR-056, FR-061, User Story 3, SC-008.
 
-- [ ] T083 [PH9] Create `Dxui/Core/IDxuiViewportInputSink.h` per `contracts/IDxuiViewportInputSink.h.md`. Pure-virtual `OnKey(const DxuiKeyEvent &)` and `OnMouse(const DxuiMouseEvent &)`. **Exit**: header compiles standalone. **FR**: FR-034.
+- [ ] T075 [PH9] Create `Dxui/Win32/DxuiPopupHost.{h,cpp}` per FR-054 / FR-056. `WS_POPUP | WS_EX_NOACTIVATE` (add `WS_EX_TRANSPARENT | WS_EX_LAYERED` for tooltips); own DXGI composition swap chain sharing parent `ID3D11Device`; use `CreateSwapChainForComposition` + DirectComposition visual, not `CreateSwapChainForHwnd`. `ShowParams`: `ownerHwnd`, `anchorRectScreen`, placement (`Below`/`Above`/`Right`/`Left`/`AtCursor`), `flipIfOffscreen`, dismiss policy (`OnClickOutside`/`OnClickAnywhere`/`OnPointerLeave`/`Manual`), input policy (`Interactive`/`PassThrough`), `shadow`, `std::unique_ptr<DxuiPanel> content`. `Show() -> std::future<int>`; shared state set on the UI thread inside the host's message handling (FR-083). Owner-chain tracking for cascading submenus. `MonitorFromRect` + monitor work area for offscreen flipping. `WM_DPICHANGED_BEFOREPARENT` handling plus host forwarding to every active popup. Focus scope push/pop via `DxuiFocusManager`. Invoke `DXUI_ASSERT_UI_THREAD()` at every public method entry. Click-outside dismiss via `SetCapture` + `WM_CAPTURECHANGED`. Auto-dismiss on owner `WM_ACTIVATE` / `WM_ACTIVATEAPP` / `WM_MOVE`. **Depends on**: T056, T064. **Exit**: covered by T078. **FR**: FR-054, FR-056, FR-083.
 
-- [ ] T084 [PH9] Create `Dxui/Core/DxuiViewport.{h,cpp}` per FR-030 / FR-034. Leaf `IDxuiControl`; size policy (`Fixed`/`Preferred`/`Fill`); `preferredSizeDip`; `consumesInput` flag (default `false`); `SetInputSink(IDxuiViewportInputSink *)`; `OnBoundsChanged(RECT)` callback registration (`SetBoundsChangedCallback(std::function<void(RECT)>)`); fires the callback **only** when new bounds differ from previous. When `consumesInput == true`: `Focusable() == true`; `OnKey` forwards to sink and returns `true` for **non-reserved** unmodified keys (Tab, Shift+Tab, Esc, Alt-alone, F10 stay with Dxui; Ctrl+Tab, Ctrl+Esc, Alt+F10, and Apple ][ CTRL-C/CTRL-G forward to the sink); `OnMouse` inside viewport rect forwards to sink. **Depends on**: T045, T083. **FR**: FR-030, FR-034.
+- [ ] T076 [PH9] Expose `DxuiPopupHost::ComputePlacementForTest(RECT anchorScreen, RECT monitorWorkArea, Placement preferred, SIZE popupSize) -> RECT` test seam (static, pure-function, no HWND). **Depends on**: T075. **FR**: FR-054; **SC**: SC-006.
 
-- [ ] T085 [PH9] Create `Dxui/Layout/DxuiDockLayout.{h,cpp}` per FR-021. Per-child `DockSide` enum: `Top`/`Bottom`/`Left`/`Right`/`Fill` (exactly one `Fill` child). `Arrange` consumes children in registration order, peeling slabs off the parent rect. Provide **inverse**: `static SIZE ContainerSizeForFill(SIZE desiredFillDip, std::vector<IDxuiControl *> const & nonFillChildren)` — given a desired `Fill` size and fixed-measure non-fill children, compute the container size required so that the `Fill` slot ends up at exactly that size. **Depends on**: T046. **FR**: FR-021, FR-093.
+- [ ] T077 [PH9] Add popup pool to `DxuiHostWindow` per FR-055: initial 3 instances, grow on demand, LIFO reuse. Debug-build instrumentation counter (`PopupHits()` / `PopupMisses()`) for test assertion. **Depends on**: T064, T075. **FR**: FR-055.
 
-- [ ] T086 [P] [PH9] Create `UnitTest/Dxui/DxuiDockLayoutTests.cpp` — anchors Top/Bottom/Left/Right/Fill produce expected rects; `ContainerSizeForFill` round-trips with fixed-measure non-fill children (compute container size → arrange → fill rect equals desired). At least one test fires a synthetic viewport-bounds change through a `std::function` subscriber and asserts the subscriber is invoked **exactly once** when bounds change, **zero times** when set to identical bounds. **Depends on**: T084, T085. **FR**: FR-021, FR-030, FR-093; **SC**: SC-006, SC-013.
 
-- [ ] T087 [PH9] Refactor `Casso/Ui/UiShell.{h,cpp}` so the main shell becomes a root `DxuiPanel` with a `DxuiDockLayout`. Existing chrome bands dock Top/Bottom (and Left/Right where applicable); a single `DxuiViewport` fills the middle and is wired to the emulator. **Depends on**: T085. **FR**: FR-093.
+- [ ] T077A [PH9] Wire `DxuiHostWindow` to forward `WM_DPICHANGED_BEFOREPARENT` to every active `DxuiPopupHost` in the popup pool. Add a debug/test seam to enumerate active popups without exposing release-only state. **Depends on**: T075, T077. **FR**: FR-050, FR-056.
 
-- [ ] T088 [PH9] Locate the current `ClientSizeForFramebuffer` call sites (Casso side) and replace with `DxuiDockLayout::ContainerSizeForFill(...)` driven by the Apple ][ pixel-grid dimensions. The emulator's `D3DRenderer` subscribes to `DxuiViewport::OnBoundsChanged` via `SetBoundsChangedCallback` and resizes its render target only when bounds change. **Depends on**: T084, T087. **FR**: FR-030, FR-093, SC-013.
+- [ ] T078 [PH9] Create `UnitTest/Dxui/DxuiPopupHostTests.cpp` — placement below/above/left/right/at-cursor; flip-if-offscreen against synthetic monitor rects (all four edges + corners); dismiss policy state machine (no real HWND — drive via test seams); cascading owner-chain registration/unregistration; host forwarding of `WM_DPICHANGED_BEFOREPARENT` to active popups; focus-scope push/pop with restore. Asserts via `ComputePlacementForTest` and a dispatching shim for the dismiss state. **Depends on**: T076, T077A. **FR**: FR-050, FR-054, FR-056; **SC**: SC-006.
 
-- [ ] T089 [PH9] Implement `IDxuiViewportInputSink` in Casso (e.g., `Casso/EmulatorInputSink.{h,cpp}` or attach to `EmulatorShell`) routing key/mouse events to the existing `EmulatorShell` / Apple ][ keyboard controller. Install via `DxuiViewport::SetInputSink`. Confirm `consumesInput = true` for the emulator viewport. **Depends on**: T084, T087. **FR**: FR-034.
+- [ ] T079 [P] [PH9] Modify `Dxui/Widgets/DxuiDropdown.{h,cpp}` to host its option list inside a `DxuiPopupHost` instance acquired from the parent host window's pool. Remove any in-window clipping path. **Depends on**: T075, T077. **FR**: FR-061; **SC**: SC-008.
 
-- [ ] T090 [PH9] Delete `Casso/Ui/Chrome/LayoutManager.{h,cpp}`. If `Casso/Ui/Chrome/IEdgeContributor.h`, `Casso/Ui/Chrome/ICenterLayer.h`, or `Casso/Ui/Chrome/SimpleEdgeContributor.{h,cpp}` exist in the current tree, delete them as well (plan.md lists them under Phase 9 cleanup even though the current `Casso/Ui/Chrome/` listing does not show them — verify and remove any that are present). Drop the vcxproj item entries. **Depends on**: T087. **Exit**: `rg -n 'LayoutManager|IEdgeContributor|ICenterLayer|SimpleEdgeContributor' Casso/Ui/Chrome` returns zero hits. **FR**: FR-094.
+- [ ] T080 [P] [PH9] Modify `Dxui/Widgets/DxuiPopupMenu.{h,cpp}` to host its menu content via `DxuiPopupHost`; cascading submenus opened via owner-chain. **Depends on**: T075, T077. **FR**: FR-061.
 
-- [ ] T091 [PH9] Delete `Casso/Ui/Layout.{h,cpp}` and `Casso/Ui/FocusManager.{h,cpp}` if (and only if) all consumers have migrated; otherwise document remaining holdouts and defer their deletion to Phase 10/11 as appropriate. **Depends on**: T087, T088. **Exit**: either the files are gone (preferred) or a follow-up note appears in the Phase 10 / Phase 11 entry below.
+- [ ] T081 [P] [PH9] Modify `Dxui/Widgets/DxuiTooltip.{h,cpp}` to host its content via `DxuiPopupHost` (with `WS_EX_TRANSPARENT | WS_EX_LAYERED`, dismiss `OnPointerLeave`, input `PassThrough`). **Depends on**: T075, T077. **FR**: FR-061.
 
-- [ ] T092 [PH9] Phase-9 exit verification. Build all four configs; run tests; run code analysis. **Manual** smoke test: launch Casso, confirm viewport sizes the Apple ][ grid correctly at startup, after a window resize, after a DPI change (drag to a different-DPI monitor). Confirm renderer no longer thrashes on identical bounds (instrument `D3DRenderer::Resize` with a debug counter; only fires when bounds change). **Depends on**: T083–T091. **Commit**: `refactor(dxui): replace edge-layout with DxuiDockLayout and DxuiViewport`. **FR**: FR-021/030/034/093/094; **SC**: SC-013.
-
----
-
-## Phase 10 — Convert `ThemePage` (proof of concept)
-
-**Goal (plan.md §Phase 10)**: Validate the declarative-layout + auto-fan-out + focus-manager story on the smallest settings page. **Satisfies**: FR-097 (partial — first page), SC-003 (begins), SC-004 (begins).
-
-- [ ] T093 [PH10] Refactor `Casso/Ui/Settings/ThemePage.{h,cpp}` to derive from `DxuiPanel`. Use `DxuiFormLayout`. **Delete** the per-page `OnLButtonDown`, `OnLButtonUp`, `OnMouseHover`, `OnKey`, `Paint`, and `CollectFocusables` overrides (auto fan-out replaces them). Construct children via `Add<DxuiCheckbox>`, `Add<DxuiDropdown>`, etc. Focus order should fall out of geometry; add per-control `tabIndex` overrides only if visual reading order disagrees with geometric order. **Depends on**: T047, T054, T056. **FR**: FR-011, FR-031, FR-097.
-
-- [ ] T094 [PH10] Bridge `Casso/Ui/Settings/SettingsPanel.{h,cpp}` to accept a `DxuiPanel`-based page alongside the legacy-style pages until Phase 11 converts the rest. Add a brief comment at the bridge code. No spec/phase numbers in the comment per the project's "no phase/task/spec references in comments" rule — phrase it as "temporary bridge for incremental page migration" with a TODO. **Depends on**: T093.
-
-- [ ] T095 [PH10] Measure `ThemePage` LOC delta (before vs after) and `SettingsPanel.cpp` LOC delta (post-bridge). Record numbers in the commit body. If extrapolated reduction across the four pages falls materially short of 40 %, flag explicitly in the commit body before proceeding to Phase 11 (per spec R5 / plan.md §Risk Register). **Depends on**: T093, T094.
-
-- [ ] T096 [PH10] Phase-10 exit verification. Build all four configs; run tests; run code analysis. **Manual** test: launch Casso, open Settings → Theme page; every control renders, focus order tabs in reading order, arrow nav moves spatially, theme change broadcasts down the tree. **Depends on**: T093–T095. **Commit**: `refactor(casso/ui): convert ThemePage to DxuiPanel + DxuiFormLayout`. **FR**: FR-011/031/097; **SC**: SC-003 (partial), SC-004 (partial).
+- [ ] T082 [PH9] Phase-8 exit verification. Build all four configs; run tests; run code analysis. **Manual acceptance test** for User Story 3 / SC-008: anchor a dropdown ~20 px from the bottom of the Settings window; the menu opens upward (or extends across the parent edge) with no clipping. **Manual** debug-build assert: open and close the dropdown 5 times; `PopupHits()` ≥ 4 (pool reuse). **Depends on**: T075–T081 and T077A. **Commit**: `feat(dxui): add DxuiPopupHost with pool; fix dropdown clipping`. **FR**: FR-054/055/056/061; **SC**: SC-008 (User Story 3 ✅).
 
 ---
 
-## Phase 11 — Convert remaining pages, debug panels, dialogs; delete DialogPrimitive
+## Phase 10 — `DxuiMenuBar` widget + `MainMenu` conversion
+
+**Goal (plan.md §Phase 10 — new)**: Promote Casso's `NavLayer` to a reusable `Dxui/Widgets/DxuiMenuBar.{h,cpp}` widget; rename `NavLayer` → `MainMenu` and reshape it to use the new widget. **Satisfies**: FR-101, FR-102, FR-103.
+
+- [ ] T117 [PH10] Create `Dxui/Widgets/DxuiMenuBar.{h,cpp}` + umbrella entry. Class supports: items array (label, accelerator-char, dispatch callback, check-query callback, enabled flag, checkable flag, separator), hover state per item, click-to-open submenu (delegates to `DxuiPopupHost` from Phase 9), alt-letter accelerator routing, arrow-key traversal between open submenus, Escape dismissal, mouse-leave behaviour. Paint via `IDxuiPainter` + `IDxuiTextRenderer`; theme via `IDxuiTheme`. Public API surface roughly: `Layout(...)`, `Hide()`, `Open(...)`, `OpenMenu(...)`, `SetDispatch(...)`, `SetCheckQuery(...)`, `SetFocusedMenu(...)`, `ClearFocus()`, `IsOpen()`, `HandleKey(...)`, `HandleAltKey(...)` — matching the existing NavLayer surface so MainMenu can be a thin wrapper. **Depends on**: T075 (DxuiPopupHost). **FR**: FR-101.
+
+- [ ] T118 [P] [PH10] Create `UnitTest/Dxui/DxuiMenuBarTests.cpp` — alt-letter dispatch, hover-to-open, arrow traversal between open submenus, Escape dismissal, check-query, disabled item behaviour, separator rendering. Drive via the existing painter mock (T057/T058) and the `DxuiPopupHost` test seams. **No real HWND**. **Depends on**: T117. **FR**: FR-101; **SC**: SC-006.
+
+- [ ] T119 [PH10] Rename `Casso/Ui/Chrome/NavLayer.{h,cpp}` → `Casso/Ui/Chrome/MainMenu.{h,cpp}` via `git mv` to preserve history. Rename class `NavLayer` → `MainMenu`, enum `NavMenu` → `MainMenuId`. Update vcxproj item entries. **Depends on**: T117. **FR**: FR-102, FR-103.
+
+- [ ] T120 [PH10] Reshape `MainMenu` to **use** `DxuiMenuBar` internally — either subclass it with the Casso command set baked in, or compose one as a member. `MainMenu` becomes a configured `DxuiMenuBar` instance owned by `EmulatorShell`. **Depends on**: T117, T119. **FR**: FR-102.
+
+- [ ] T121 [PH10] Rewire `EmulatorShell`'s ~15 `m_navLayer.X()` call sites to `m_mainMenu.X()`. Specifically: `Hide()`, `Layout(...)`, `SetDispatch(...)`, `SetCheckQuery(...)`, `SetFocusedMenu(...)`, `ClearFocus()`, `IsOpen()`, `OpenMenu()`, `HandleKey(...)`, `Open(...)`, `HandleAltKey(...)`. Plus member rename `m_navLayer` → `m_mainMenu`. **Depends on**: T120. **FR**: FR-102, FR-103.
+
+- [ ] T122 [PH10] Phase-10 exit verification. Build all four configs; run tests; run code analysis. Greps: `rg -n 'NavLayer|NavMenu' Casso/` → 0 hits (FR-103). **Manual** menu UX verification: every menu opens (File / Edit / View / Disk / Help — or current Casso menu set); alt-letter accelerators work; arrow-traversal between adjacent menus works; check-states display correctly for checkable items; disabled items render greyed and ignore input. **Depends on**: T117–T121. **Commit**: `refactor(casso/ui): promote NavLayer to Dxui DxuiMenuBar; rename to MainMenu`. **FR**: FR-101, FR-102, FR-103; **SC**: SC-006, SC-016, SC-017.
+
+---
+
+## Phase 11 — Chrome reshape + `EmulatorShell` restructure
+
+**Goal (plan.md §Phase 11 — new)**: Reshape every Casso chrome widget onto `IDxuiControl`; reshape `ChromedPanelWindow` onto `DxuiHostWindow`; restructure `EmulatorShell` so it no longer inherits from `Window` and instead composes a fully-owning `DxuiHostWindow`. NC duplicate count 3 → 2. **Satisfies**: FR-104, FR-105, FR-106, FR-107, FR-108, SC-014, SC-015, SC-018, SC-019.
+
+- [ ] T123 [P] [PH11] Reshape `Casso/Ui/Chrome/TitleBar.{h,cpp}` to derive from `DxuiCaptionBar` (or compose one). Implement the standard `IDxuiControl::Paint(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)` signature. Preserve current visual style and skeuomorphic palette. Move app-icon rendering, hover state, min/max/close button positioning into the standard interface. **Depends on**: T066, T067. **FR**: FR-104; **SC**: SC-014, SC-015.
+
+- [ ] T124 [P] [PH11] Reshape `Casso/Ui/Chrome/DriveWidget.{h,cpp}` to derive from `IDxuiControl` with the standard Paint signature. Preserve current visual. **Depends on**: T045. **FR**: FR-104; **SC**: SC-014, SC-015.
+
+- [ ] T125 [P] [PH11] Reshape `Casso/Ui/Chrome/LedIndicator.{h,cpp}` to derive from `IDxuiControl`. Preserve current visual. **Depends on**: T045. **FR**: FR-104; **SC**: SC-014, SC-015.
+
+- [ ] T126 [P] [PH11] Reshape `Casso/Ui/Chrome/JoystickToggleButton.{h,cpp}` to derive from `IDxuiControl`. Preserve current visual. **Depends on**: T045. **FR**: FR-104; **SC**: SC-014, SC-015.
+
+- [ ] T127 [PH11] Reshape `Casso/Ui/Chrome/ChromedPanelWindow.{h,cpp}` to **use** `DxuiHostWindow` for its NC handling — subclass, compose, or rewrite, whichever gives the cleanest integration. NC duplicate count: **3 → 2**. **Depends on**: T064. **Exit**: `rg -n 'WM_NCCALCSIZE|WM_NCHITTEST' Casso/Ui/Chrome/ChromedPanelWindow.cpp` returns 0 hits (or only delegation lines). **FR**: FR-106.
+
+- [ ] T128 [PH11] Add minimal `Dxui/Core/DxuiViewport.{h,cpp}` **placeholder**: leaf `IDxuiControl` exposing `Bounds()` for renderer subscription and `OnBoundsChanged` callback registration. (Full `DxuiViewport` with size policies + `IDxuiViewportInputSink` + dock-layout integration + reserved-chord routing lands in Phase 12 / T084.) **Depends on**: T045. **FR**: FR-107.
+
+- [ ] T129 [PH11] **EmulatorShell restructure (the big one)**: change `EmulatorShell` to no longer inherit from `Window`. Either (a) `EmulatorShell` composes a `DxuiHostWindow` and forwards its main loop to it, or (b) split `EmulatorShell` into `EmulatorShell` (content controller) + a separate `Window`-style adapter — choose whichever is cleaner. Move HWND ownership from `EmulatorShell` (or `Casso/Window.cpp` wherever it lives) into `DxuiHostWindow` (now in **full-ownership mode**, not adopt mode). Move swap-chain ownership into `DxuiHostWindow`. Move the D3D11 device wherever makes sense — likely `DxuiHostWindow` owns the device that paints chrome, or the device is shared between EmulatorShell's viewport renderer and `DxuiHostWindow`'s chrome renderer. Reroute Apple ][ viewport rendering through `DxuiHostWindow`'s swap chain via the minimal `DxuiViewport` placeholder from T128. **Depends on**: T070, T112, T123–T128. **FR**: FR-105, FR-107, FR-108.
+
+- [ ] T130 [PH11] Phase-11 exit verification. Build all four configs; run tests; run code analysis (regression checks on Apple ][ rendering — Klaus Dormann + Tom Harte should still pass since this is render-only, not CPU). Greps: `(Get-Content Casso/EmulatorShell.cpp).Length -le 2502` (SC-018); `rg -n 'class EmulatorShell.*Window' Casso/` returns 0 hits (SC-019); NC duplicate count = **2**. **Manual**: emulator visible, chrome renders correctly with skeuomorphic palette preserved (SC-015), all controls interactive, drag/resize/min/max/close all work, Win11 snap-layouts work on the main window. **Depends on**: T123–T129. **Commit**: `refactor(casso/ui): reshape chrome onto IDxuiControl; restructure EmulatorShell off Window`. **FR**: FR-104/105/106/107/108; **SC**: SC-014, SC-015, SC-018, SC-019.
+
+---
+
+## Phase 12 — `DxuiViewport` + `DxuiDockLayout`; retire legacy edge layout
+
+**Goal (plan.md §Phase 12)**: Casso's main shell becomes a root `DxuiPanel` with `DxuiDockLayout`; the emulator viewport sizes the Apple ][ pixel grid from the inside out. **Satisfies**: FR-030, FR-034, FR-021 (dock portion), FR-093, FR-094, SC-013.
+
+- [ ] T083 [PH12] Create `Dxui/Core/IDxuiViewportInputSink.h` per `contracts/IDxuiViewportInputSink.h.md`. Pure-virtual `OnKey(const DxuiKeyEvent &)` and `OnMouse(const DxuiMouseEvent &)`. **Exit**: header compiles standalone. **FR**: FR-034.
+
+- [ ] T084 [PH12] **Extend** the minimal `Dxui/Core/DxuiViewport.{h,cpp}` placeholder added in Phase 11 (T128) per FR-030 / FR-034. Add: size policy (`Fixed`/`Preferred`/`Fill`); `preferredSizeDip`; `consumesInput` flag (default `false`); `SetInputSink(IDxuiViewportInputSink *)`; `OnBoundsChanged(RECT)` callback registration via `SetBoundsChangedCallback(std::function<void(RECT)>)` (fires **only** when new bounds differ from previous). When `consumesInput == true`: `Focusable() == true`; `OnKey` forwards to sink and returns `true` for **non-reserved** unmodified keys (Tab, Shift+Tab, Esc, Alt-alone, F10 stay with Dxui; Ctrl+Tab, Ctrl+Esc, Alt+F10, and Apple ][ CTRL-C/CTRL-G forward to the sink); `OnMouse` inside viewport rect forwards to sink. Integrate with `DxuiDockLayout`. **Depends on**: T045, T083, T128. **FR**: FR-030, FR-034.
+
+- [ ] T085 [PH12] Create `Dxui/Layout/DxuiDockLayout.{h,cpp}` per FR-021. Per-child `DockSide` enum: `Top`/`Bottom`/`Left`/`Right`/`Fill` (exactly one `Fill` child). `Arrange` consumes children in registration order, peeling slabs off the parent rect. Provide **inverse**: `static SIZE ContainerSizeForFill(SIZE desiredFillDip, std::vector<IDxuiControl *> const & nonFillChildren)` — given a desired `Fill` size and fixed-measure non-fill children, compute the container size required so that the `Fill` slot ends up at exactly that size. **Depends on**: T046. **FR**: FR-021, FR-093.
+
+- [ ] T086 [P] [PH12] Create `UnitTest/Dxui/DxuiDockLayoutTests.cpp` — anchors Top/Bottom/Left/Right/Fill produce expected rects; `ContainerSizeForFill` round-trips with fixed-measure non-fill children (compute container size → arrange → fill rect equals desired). At least one test fires a synthetic viewport-bounds change through a `std::function` subscriber and asserts the subscriber is invoked **exactly once** when bounds change, **zero times** when set to identical bounds. **Depends on**: T084, T085. **FR**: FR-021, FR-030, FR-093; **SC**: SC-006, SC-013.
+
+- [ ] T087 [PH12] Refactor `Casso/Ui/UiShell.{h,cpp}` so the main shell becomes a root `DxuiPanel` with a `DxuiDockLayout`. Existing chrome bands dock Top/Bottom (and Left/Right where applicable); a single `DxuiViewport` fills the middle and is wired to the emulator. **Depends on**: T085. **FR**: FR-093.
+
+- [ ] T088 [PH12] Locate the current `ClientSizeForFramebuffer` call sites (Casso side) and replace with `DxuiDockLayout::ContainerSizeForFill(...)` driven by the Apple ][ pixel-grid dimensions. The emulator's `D3DRenderer` subscribes to `DxuiViewport::OnBoundsChanged` via `SetBoundsChangedCallback` and resizes its render target only when bounds change. **Depends on**: T084, T087. **FR**: FR-030, FR-093, SC-013.
+
+- [ ] T089 [PH12] Implement `IDxuiViewportInputSink` in Casso (e.g., `Casso/EmulatorInputSink.{h,cpp}` or attach to `EmulatorShell`) routing key/mouse events to the existing `EmulatorShell` / Apple ][ keyboard controller. Install via `DxuiViewport::SetInputSink`. Confirm `consumesInput = true` for the emulator viewport. **Depends on**: T084, T087. **FR**: FR-034.
+
+- [ ] T090 [PH12] Delete `Casso/Ui/Chrome/LayoutManager.{h,cpp}`. If `Casso/Ui/Chrome/IEdgeContributor.h`, `Casso/Ui/Chrome/ICenterLayer.h`, or `Casso/Ui/Chrome/SimpleEdgeContributor.{h,cpp}` exist in the current tree, delete them as well (plan.md lists them under Phase 9 cleanup even though the current `Casso/Ui/Chrome/` listing does not show them — verify and remove any that are present). Drop the vcxproj item entries. **Depends on**: T087. **Exit**: `rg -n 'LayoutManager|IEdgeContributor|ICenterLayer|SimpleEdgeContributor' Casso/Ui/Chrome` returns zero hits. **FR**: FR-094.
+
+- [ ] T091 [PH12] Delete `Casso/Ui/Layout.{h,cpp}` and `Casso/Ui/FocusManager.{h,cpp}` if (and only if) all consumers have migrated; otherwise document remaining holdouts and defer their deletion to Phase 10/11 as appropriate. **Depends on**: T087, T088. **Exit**: either the files are gone (preferred) or a follow-up note appears in the Phase 10 / Phase 11 entry below.
+
+- [ ] T092 [PH12] Phase-9 exit verification. Build all four configs; run tests; run code analysis. **Manual** smoke test: launch Casso, confirm viewport sizes the Apple ][ grid correctly at startup, after a window resize, after a DPI change (drag to a different-DPI monitor). Confirm renderer no longer thrashes on identical bounds (instrument `D3DRenderer::Resize` with a debug counter; only fires when bounds change). **Depends on**: T083–T091. **Commit**: `refactor(dxui): replace edge-layout with DxuiDockLayout and DxuiViewport`. **FR**: FR-021/030/034/093/094; **SC**: SC-013.
+
+---
+
+## Phase 13 — Convert `ThemePage` (proof of concept)
+
+**Goal (plan.md §Phase 13)**: Validate the declarative-layout + auto-fan-out + focus-manager story on the smallest settings page. **Satisfies**: FR-097 (partial — first page), SC-003 (begins), SC-004 (begins).
+
+- [ ] T093 [PH13] Refactor `Casso/Ui/Settings/ThemePage.{h,cpp}` to derive from `DxuiPanel`. Use `DxuiFormLayout`. **Delete** the per-page `OnLButtonDown`, `OnLButtonUp`, `OnMouseHover`, `OnKey`, `Paint`, and `CollectFocusables` overrides (auto fan-out replaces them). Construct children via `Add<DxuiCheckbox>`, `Add<DxuiDropdown>`, etc. Focus order should fall out of geometry; add per-control `tabIndex` overrides only if visual reading order disagrees with geometric order. **Depends on**: T047, T054, T056. **FR**: FR-011, FR-031, FR-097.
+
+- [ ] T094 [PH13] Bridge `Casso/Ui/Settings/SettingsPanel.{h,cpp}` to accept a `DxuiPanel`-based page alongside the legacy-style pages until Phase 11 converts the rest. Add a brief comment at the bridge code. No spec/phase numbers in the comment per the project's "no phase/task/spec references in comments" rule — phrase it as "temporary bridge for incremental page migration" with a TODO. **Depends on**: T093.
+
+- [ ] T095 [PH13] Measure `ThemePage` LOC delta (before vs after) and `SettingsPanel.cpp` LOC delta (post-bridge). Record numbers in the commit body. If extrapolated reduction across the four pages falls materially short of 40 %, flag explicitly in the commit body before proceeding to Phase 11 (per spec R5 / plan.md §Risk Register). **Depends on**: T093, T094.
+
+- [ ] T096 [PH13] Phase-10 exit verification. Build all four configs; run tests; run code analysis. **Manual** test: launch Casso, open Settings → Theme page; every control renders, focus order tabs in reading order, arrow nav moves spatially, theme change broadcasts down the tree. **Depends on**: T093–T095. **Commit**: `refactor(casso/ui): convert ThemePage to DxuiPanel + DxuiFormLayout`. **FR**: FR-011/031/097; **SC**: SC-003 (partial), SC-004 (partial).
+
+---
+
+## Phase 14 — Convert remaining pages, debug panels, dialogs; delete DialogPrimitive
 
 Phase 11 is split into two independently mergeable parts: **Phase 11 — Part A** introduces `DxuiDialog` / `DxuiDialogManager` and rewrites Casso dialogs while legacy `DialogPrimitive` files remain in place; **Phase 11 — Part B** deletes legacy dialog files only after manual verification confirms both new dialogs run in the app.
 
-**Goal (plan.md §Phase 11 — final migration; this is the release gate for the feature)**. Converts the remaining three settings pages, both debug panels, and both dialogs onto Dxui; introduces `DxuiDialog` + `DxuiDialogManager`; deletes the entire legacy `DialogPrimitive` family and the fourth NC plumbing copy. **Satisfies**: FR-070, FR-071, FR-072, FR-096, FR-097 (fully), FR-095 (fully), all remaining SCs (SC-003, SC-004, SC-005, SC-006, SC-010, SC-011, SC-012).
+**Goal (plan.md §Phase 14 — final migration; this is the release gate for the feature)**. Converts the remaining three settings pages, both debug panels, and both dialogs onto Dxui; introduces `DxuiDialog` + `DxuiDialogManager`; deletes the entire legacy `DialogPrimitive` family and the fourth NC plumbing copy. **Satisfies**: FR-070, FR-071, FR-072, FR-096, FR-097 (fully), FR-095 (fully), all remaining SCs (SC-003, SC-004, SC-005, SC-006, SC-010, SC-011, SC-012).
 
-- [ ] T097 [P] [PH11] Refactor `Casso/Ui/Settings/MachinePage.{h,cpp}` to derive from `DxuiPanel`; use `DxuiFormLayout` or `DxuiGridLayout` as content shape demands; delete `OnLButtonDown`/`OnLButtonUp`/`OnMouseHover`/`OnKey`/`Paint`/`CollectFocusables` overrides. **Depends on**: T096. **FR**: FR-011, FR-097; **SC**: SC-004.
+- [ ] T097 [P] [PH14] Refactor `Casso/Ui/Settings/MachinePage.{h,cpp}` to derive from `DxuiPanel`; use `DxuiFormLayout` or `DxuiGridLayout` as content shape demands; delete `OnLButtonDown`/`OnLButtonUp`/`OnMouseHover`/`OnKey`/`Paint`/`CollectFocusables` overrides. **Depends on**: T096. **FR**: FR-011, FR-097; **SC**: SC-004.
 
-- [ ] T098 [P] [PH11] Refactor `Casso/Ui/Settings/HardwarePage.{h,cpp}` same treatment. **Depends on**: T096. **FR**: FR-011, FR-097; **SC**: SC-004.
+- [ ] T098 [P] [PH14] Refactor `Casso/Ui/Settings/HardwarePage.{h,cpp}` same treatment. **Depends on**: T096. **FR**: FR-011, FR-097; **SC**: SC-004.
 
-- [ ] T099 [P] [PH11] Refactor `Casso/Ui/Settings/DisplayPage.{h,cpp}` same treatment. **Depends on**: T096. **FR**: FR-011, FR-097; **SC**: SC-004.
+- [ ] T099 [P] [PH14] Refactor `Casso/Ui/Settings/DisplayPage.{h,cpp}` same treatment. **Depends on**: T096. **FR**: FR-011, FR-097; **SC**: SC-004.
 
-- [ ] T100 [PH11] Strip `Casso/Ui/Settings/SettingsPanel.{h,cpp}` of the temporary bridge introduced in T094 (all pages are now `DxuiPanel`s); collapse the dual code paths into the single `DxuiPanel` path. Measure `SettingsPanel.cpp` final line count; assert **≤ 1,307 lines** (40 % reduction from 2,179 baseline). **Depends on**: T097, T098, T099. **Exit**: `(Get-Content Casso/Ui/Settings/SettingsPanel.cpp).Length -le 1307`. **FR**: FR-097; **SC**: SC-003.
+- [ ] T100 [PH14] Strip `Casso/Ui/Settings/SettingsPanel.{h,cpp}` of the temporary bridge introduced in T094 (all pages are now `DxuiPanel`s); collapse the dual code paths into the single `DxuiPanel` path. Measure `SettingsPanel.cpp` final line count; assert **≤ 1,307 lines** (40 % reduction from 2,179 baseline). **Depends on**: T097, T098, T099. **Exit**: `(Get-Content Casso/Ui/Settings/SettingsPanel.cpp).Length -le 1307`. **FR**: FR-097; **SC**: SC-003.
 
-- [ ] T101 [P] [PH11] Refactor `Casso/Ui/Disk2DebugPanel.{h,cpp}` + `Disk2DebugPanelLayout.{h,cpp}` to derive from `DxuiPanel`; delete fan-out overrides; merge or delete the separate `Layout` companion if its responsibilities collapse into a `DxuiGridLayout` / `DxuiAbsoluteLayout` selection on the panel. **Depends on**: T096. **FR**: FR-011, FR-097; **SC**: SC-004.
+- [ ] T101 [P] [PH14] Refactor `Casso/Ui/Disk2DebugPanel.{h,cpp}` + `Disk2DebugPanelLayout.{h,cpp}` to derive from `DxuiPanel`; delete fan-out overrides; merge or delete the separate `Layout` companion if its responsibilities collapse into a `DxuiGridLayout` / `DxuiAbsoluteLayout` selection on the panel. **Depends on**: T096. **FR**: FR-011, FR-097; **SC**: SC-004.
 
-- [ ] T102 [P] [PH11] Refactor `Casso/Ui/InputDebugPanel.{h,cpp}` + `InputDebugPanelLayout.{h,cpp}` same treatment. **Depends on**: T096. **FR**: FR-011, FR-097; **SC**: SC-004.
+- [ ] T102 [P] [PH14] Refactor `Casso/Ui/InputDebugPanel.{h,cpp}` + `InputDebugPanelLayout.{h,cpp}` same treatment. **Depends on**: T096. **FR**: FR-011, FR-097; **SC**: SC-004.
 
-### Phase 11 — Part A: introduce Dxui dialogs and coexist with legacy dialogs
+### Phase 14 — Part A: introduce Dxui dialogs and coexist with legacy dialogs
 
-- [ ] T103 [PH11] Create `Dxui/Dialog/DxuiDialog.{h,cpp}` per FR-070. Derives from `DxuiPanel`. Composed of `DxuiCaptionBar` (title + close button), consumer-populated content panel, optional `DxuiDockLayout`-bottom button row. `Show()` returns nothing directly — the `DxuiDialogManager` wraps it. **Depends on**: T066, T085. **FR**: FR-070.
+- [ ] T103 [PH14] Create `Dxui/Dialog/DxuiDialog.{h,cpp}` per FR-070. Derives from `DxuiPanel`. Composed of `DxuiCaptionBar` (title + close button), consumer-populated content panel, optional `DxuiDockLayout`-bottom button row. `Show()` returns nothing directly — the `DxuiDialogManager` wraps it. **Depends on**: T066, T085. **FR**: FR-070.
 
-- [ ] T104 [PH11] Create `Dxui/Dialog/DxuiDialogManager.{h,cpp}` per FR-071, FR-072. API: `std::future<int> Show(std::unique_ptr<DxuiDialog> dialog, ShowParams)` where `ShowParams` includes `bool modalScrim` (default `false`). Maintains an internal `std::vector<DialogStackFrame>` (stack). On `Show`: capture current top-of-stack HWND (or owner HWND if stack empty) → `EnableWindow(prevTop, FALSE)`, create the new dialog's `DxuiHostWindow` with `ownerHwnd = prevTop`, push the frame. On dialog close: `EnableWindow(prevTop, TRUE)`, pop the frame, set the `std::future` shared state on the UI thread. Invoke `DXUI_ASSERT_UI_THREAD()` at every public method entry. Owner-window assignment lets Win32 handle z-order and activation restore automatically. **Depends on**: T064, T103. **FR**: FR-071, FR-072, FR-083.
+- [ ] T104 [PH14] Create `Dxui/Dialog/DxuiDialogManager.{h,cpp}` per FR-071, FR-072. API: `std::future<int> Show(std::unique_ptr<DxuiDialog> dialog, ShowParams)` where `ShowParams` includes `bool modalScrim` (default `false`). Maintains an internal `std::vector<DialogStackFrame>` (stack). On `Show`: capture current top-of-stack HWND (or owner HWND if stack empty) → `EnableWindow(prevTop, FALSE)`, create the new dialog's `DxuiHostWindow` with `ownerHwnd = prevTop`, push the frame. On dialog close: `EnableWindow(prevTop, TRUE)`, pop the frame, set the `std::future` shared state on the UI thread. Invoke `DXUI_ASSERT_UI_THREAD()` at every public method entry. Owner-window assignment lets Win32 handle z-order and activation restore automatically. **Depends on**: T064, T103. **FR**: FR-071, FR-072, FR-083.
 
-- [ ] T105 [PH11] Expose `DxuiDialogManager::PushForTest(IDxuiControl * fakeHwndStandIn) -> int` and `PopForTest(int frameId, int result)` test seams driving the stack without real HWNDs. **Depends on**: T104. **FR**: FR-072; **SC**: SC-006.
+- [ ] T105 [PH14] Expose `DxuiDialogManager::PushForTest(IDxuiControl * fakeHwndStandIn) -> int` and `PopForTest(int frameId, int result)` test seams driving the stack without real HWNDs. **Depends on**: T104. **FR**: FR-072; **SC**: SC-006.
 
-- [ ] T106 [PH11] Create `UnitTest/Dxui/DxuiDialogManagerTests.cpp` — push two frames simulating "download fails → error dialog opens on top of download dialog"; pop the inner; assert the outer regains the "active top" position; pop the outer; assert the owner HWND ID stand-in regains active. Cover `modalScrim` flag default `false`. **Depends on**: T105. **FR**: FR-072; **SC**: SC-006.
+- [ ] T106 [PH14] Create `UnitTest/Dxui/DxuiDialogManagerTests.cpp` — push two frames simulating "download fails → error dialog opens on top of download dialog"; pop the inner; assert the outer regains the "active top" position; pop the outer; assert the owner HWND ID stand-in regains active. Cover `modalScrim` flag default `false`. **Depends on**: T105. **FR**: FR-072; **SC**: SC-006.
 
-- [ ] T107 [PH11] Create `Casso/Ui/Dialogs/` directory. Use `git mv Casso/Ui/Dialog/X.cpp Casso/Ui/Dialogs/X.cpp` (or delete-then-create with an intermediate commit) to avoid NTFS case-aliasing ghost directories. Add `Casso/Ui/Dialogs/StartupDownloadDialog.{h,cpp}` and `Casso/Ui/Dialogs/StandaloneDialog.{h,cpp}` rewritten as `DxuiDialog`-based panels using `DxuiDialogManager::Show`. Functionality matches the legacy versions behaviourally (download flow + URL handling + standalone-mode toggle); pixel parity verified per SC-011 (manual sign-off). **Depends on**: T103, T104. **FR**: FR-092.
+- [ ] T107 [PH14] Create `Casso/Ui/Dialogs/` directory. Use `git mv Casso/Ui/Dialog/X.cpp Casso/Ui/Dialogs/X.cpp` (or delete-then-create with an intermediate commit) to avoid NTFS case-aliasing ghost directories. Add `Casso/Ui/Dialogs/StartupDownloadDialog.{h,cpp}` and `Casso/Ui/Dialogs/StandaloneDialog.{h,cpp}` rewritten as `DxuiDialog`-based panels using `DxuiDialogManager::Show`. Functionality matches the legacy versions behaviourally (download flow + URL handling + standalone-mode toggle); pixel parity verified per SC-011 (manual sign-off). **Depends on**: T103, T104. **FR**: FR-092.
 
 
-- [ ] T107A [PH11] Manually verify both new Dxui-based dialogs run in the app while the legacy `DialogPrimitive` files still exist. Confirm download flow, URL handling, standalone-mode toggle, and SC-011 visual sign-off before deleting legacy files. **Depends on**: T107. **FR**: FR-092, FR-096; **SC**: SC-011.
+- [ ] T107A [PH14] Manually verify both new Dxui-based dialogs run in the app while the legacy `DialogPrimitive` files still exist. Confirm download flow, URL handling, standalone-mode toggle, and SC-011 visual sign-off before deleting legacy files. **Depends on**: T107. **FR**: FR-092, FR-096; **SC**: SC-011.
 
-### Phase 11 — Part B: delete legacy dialog system after verification
+### Phase 14 — Part B: delete legacy dialog system after verification
 
-- [ ] T108 [PH11] **Delete** legacy dialog scaffolding: `Casso/Ui/Dialog/DialogDefinition.h`, `Casso/Ui/Dialog/DialogLayout.{h,cpp}`, `Casso/Ui/Dialog/DialogPrimitive.{h,cpp}`, `Casso/Ui/Dialog/DialogPrimitiveRenderer.{h,cpp}`, `Casso/Ui/Dialog/StartupDownloadDialog.{h,cpp}`, `Casso/Ui/Dialog/StandaloneDialog.{h,cpp}`. Remove the now-empty `Casso/Ui/Dialog/` directory using `git mv`/explicit delete paths so NTFS does not leave case-aliasing ghost directories. Drop all vcxproj + filters entries. **Depends on**: T107A. **Exit**: `rg -n 'DialogPrimitive|DialogDefinition|DialogLayout|DialogPrimitiveRenderer' Casso/` → zero hits; `Test-Path Casso/Ui/Dialog/` → `False`. **FR**: FR-096.
+- [ ] T108 [PH14] **Delete** legacy dialog scaffolding: `Casso/Ui/Dialog/DialogDefinition.h`, `Casso/Ui/Dialog/DialogLayout.{h,cpp}`, `Casso/Ui/Dialog/DialogPrimitive.{h,cpp}`, `Casso/Ui/Dialog/DialogPrimitiveRenderer.{h,cpp}`, `Casso/Ui/Dialog/StartupDownloadDialog.{h,cpp}`, `Casso/Ui/Dialog/StandaloneDialog.{h,cpp}`. Remove the now-empty `Casso/Ui/Dialog/` directory using `git mv`/explicit delete paths so NTFS does not leave case-aliasing ghost directories. Drop all vcxproj + filters entries. **Depends on**: T107A. **Exit**: `rg -n 'DialogPrimitive|DialogDefinition|DialogLayout|DialogPrimitiveRenderer' Casso/` → zero hits; `Test-Path Casso/Ui/Dialog/` → `False`. **FR**: FR-096.
 
-- [ ] T109 [PH11] If T091 deferred the deletion of `Casso/Ui/FocusManager.{h,cpp}` and/or `Casso/Ui/Layout.{h,cpp}`, delete them now (all settings pages, debug panels, and dialogs are on `DxuiFocusManager` / Dxui layouts). Drop vcxproj entries. **Depends on**: T097–T108. **Exit**: `rg -n 'class\s+(FocusManager|Layout)\b' Casso/Ui` returns zero hits.
+- [ ] T109 [PH14] If T091 deferred the deletion of `Casso/Ui/FocusManager.{h,cpp}` and/or `Casso/Ui/Layout.{h,cpp}`, delete them now (all settings pages, debug panels, and dialogs are on `DxuiFocusManager` / Dxui layouts). Drop vcxproj entries. **Depends on**: T097–T108. **Exit**: `rg -n 'class\s+(FocusManager|Layout)\b' Casso/Ui` returns zero hits.
 
-- [ ] T110 [PH11] Update `CHANGELOG.md` with user-visible changes: new in-house Dxui framework, dropdown clipping fix, snap-layouts on all top-level windows, manual-signoff-equivalent custom chrome. Update `README.md` if test counts, features list, or roadmap items change. Per project rules these MUST update for `feat`/`fix` commits.
+- [ ] T110 [PH14] Update `CHANGELOG.md` with user-visible changes: new in-house Dxui framework, dropdown clipping fix, snap-layouts on all top-level windows, manual-signoff-equivalent custom chrome, MainMenu/MenuBar parity, EmulatorShell decoupled from `Window`. Update `README.md` if test counts, features list, or roadmap items change. Per project rules these MUST update for `feat`/`fix` commits.
 
-- [ ] T111 [PH11] **Phase-11 / feature release-gate verification**. Run in order, all must pass:
+- [ ] T110A [PH14] **Unify SettingsWindow's NC handling onto `DxuiHostWindow`** as part of the final migration. Reshape (or replace) `Casso/Ui/Settings/SettingsWindow.cpp` (current NC handling at ~line 408) plus `SettingsWindowRenderer.{h,cpp}` so the window hosts on `DxuiHostWindow` (full-ownership mode). Drop redundant files; update vcxproj. NC duplicate count: **2 → 1** (only `DialogPrimitive` remains — that goes away with T108). **Depends on**: T100, T127. **Exit**: `rg -n 'WM_NCCALCSIZE|WM_NCHITTEST' Casso/Ui/Settings/` returns 0 hits. **FR**: FR-095; **SC**: SC-010, SC-020.
+
+- [ ] T111 [PH14] **Phase-14 / feature release-gate verification**. Run in order, all must pass:
   1. `scripts\Build.ps1 -Configuration Debug -Platform x64`
   2. `scripts\Build.ps1 -Configuration Release -Platform x64`
   3. `scripts\Build.ps1 -Configuration Debug -Platform ARM64`
@@ -335,17 +393,23 @@ Phase 11 is split into two independently mergeable parts: **Phase 11 — Part A*
   6. `scripts\Build.ps1 -RunCodeAnalysis` — clean
   7. `scripts\RunDormannTest.ps1` — no regression vs `baseline-validation.txt`; Klaus Dormann passes if it passed at baseline (SC-012)
   8. `scripts\RunHarteTests.ps1 -SkipGenerate` — no regression vs `baseline-validation.txt`; Tom Harte passes if it passed at baseline (SC-012)
-  9. Greps (all expected to return **zero** hits):
+  9. Greps (all expected to return **zero** hits unless noted):
      - `rg -n 'OnLButtonDown|OnLButtonUp|OnMouseHover|OnKey|^\s*void\s+\w+::Paint\b|CollectFocusables' Casso/Ui/Settings Casso/Ui/Disk2DebugPanel.cpp Casso/Ui/Disk2DebugPanel.h Casso/Ui/InputDebugPanel.cpp Casso/Ui/InputDebugPanel.h Casso/Ui/Dialogs` → 0 (SC-004)
-     - `rg -n 'WM_NCCALCSIZE' Casso/` → 0; `rg -n 'WM_NCCALCSIZE' Dxui/Win32/` → matches expected (SC-010)
+     - `rg -n 'WM_NCCALCSIZE' Casso/` → 0; `rg -n 'WM_NCCALCSIZE' Dxui/Win32/` → matches expected (SC-010, SC-020 — NC count = 1 in Dxui, 0 in Casso)
      - `rg -n 'DialogPrimitive|DialogDefinition|DialogLayout' Casso/` → 0
+     - `rg -n 'NavLayer|NavMenu' Casso/` → 0 (SC-017)
+     - `rg -n 'class EmulatorShell.*Window' Casso/` → 0 (SC-019)
+     - For each chrome widget (TitleBar / DriveWidget / LedIndicator / JoystickToggleButton), verify it derives from `IDxuiControl` / `DxuiCaptionBar`: spot-check class declaration (SC-014)
      - `rg -n '\w \(\)' Dxui/ Casso/Ui/ Casso/Pch.h UnitTest/Dxui/` → zero hits in migration-touched paths. Pre-existing violations elsewhere are explicitly out of scope
-  10. **Manual visual parity sign-off** at 100 % / 150 % / 200 % DPI on Win10 + Win11 across: main window, chromed panels, Settings, both debug panels, both dialogs (SC-011).
-  11. **Manual** SettingsPanel.cpp line count check: `(Get-Content Casso/Ui/Settings/SettingsPanel.cpp).Length -le 1307` (SC-003).
-  12. **Manual** dropdown bottom-of-Settings test (SC-008 / User Story 3 re-verify).
-  13. **Manual** Win11 snap-layouts hover on main + chromed + Settings (SC-009 / User Story 4 re-verify).
+  10. **Manual visual parity sign-off** at 100 % / 150 % / 200 % DPI on Win10 + Win11 across: main window, chromed panels, Settings, both debug panels, both dialogs (SC-011). Skeuomorphic palette preserved across all chrome widgets (SC-015).
+  11. **Manual** MainMenu UX parity: every menu opens; alt-letter accelerators work; arrow-traversal works; check-states display correctly (SC-016).
+  12. **Manual** `(Get-Content Casso/Ui/Settings/SettingsPanel.cpp).Length -le 1307` (SC-003).
+  13. **Manual** `(Get-Content Casso/EmulatorShell.cpp).Length -le 2502` (SC-018).
+  14. **Manual** dropdown bottom-of-Settings test (SC-008 / User Story 3 re-verify).
+  15. **Manual** Win11 snap-layouts hover on main + chromed + Settings (SC-009 / User Story 4 re-verify).
+  16. **Manual** NC-handler final count: 1 (only `Dxui/Win32/DxuiHostWindow.cpp`) (SC-020).
 
-  **Depends on**: T097–T110. **Commit**: `refactor(casso/ui): migrate remaining pages, debug panels, dialogs to Dxui; delete DialogPrimitive`. **Merge**: `git merge --no-ff` into `master`. **FR**: FR-070/071/072/092/095/096/097; **SC**: SC-003, SC-004, SC-005, SC-006, SC-008, SC-009, SC-010, SC-011, SC-012, SC-013 (all satisfied).
+  **Depends on**: T097–T110A. **Commit**: `refactor(casso/ui): migrate remaining pages, debug panels, dialogs to Dxui; delete DialogPrimitive`. **Merge**: `git merge --no-ff` into `master`. **FR**: FR-070/071/072/092/095/096/097/098/099/100/101/102/103/104/105/106/107/108; **SC**: SC-003, SC-004, SC-005, SC-006, SC-008, SC-009, SC-010, SC-011, SC-012, SC-013, SC-014, SC-015, SC-016, SC-017, SC-018, SC-019, SC-020 (all satisfied).
 
 ---
 
@@ -354,7 +418,7 @@ Phase 11 is split into two independently mergeable parts: **Phase 11 — Part A*
 ### Phase Dependencies
 
 ```
-PH1 → PH2 → PH3 → PH4 → PH5 → PH6 → PH7 → PH8 → PH9 → PH10 → PH11
+PH1 → PH2 → PH3 → PH4 → PH5 → PH6 → PH7 → PH8 → PH9 → PH10 → PH11 → PH12 → PH13 → PH14
 ```
 
 Phases are **strictly sequential** — every phase ends green and is independently mergeable. The user-story timeline is:
@@ -362,10 +426,10 @@ Phases are **strictly sequential** — every phase ends green and is independent
 | User Story | Priority | Satisfied at end of |
 |------------|----------|---------------------|
 | US1 — Dxui as standalone consumable library | P1 | **Phase 1** (then continuously) |
-| US5 — Headless widget tests with no D3D device | P2 | **Phase 6** (mocks + first tests land); fully exercised by Phase 11 |
-| US4 — Snap-layouts on every top-level window | P2 | **Phase 7** (3 of 3 migrated host windows) |
-| US3 — Popups extend beyond parent | P1 | **Phase 8** |
-| US2 — Casso UI runs on Dxui with zero regressions | P1 | **Phase 11** (release gate) |
+| US5 — Headless widget tests with no D3D device | P2 | **Phase 6** (mocks + first tests land); fully exercised by Phase 14 |
+| US4 — Snap-layouts on every top-level window | P2 | **Phase 8** (main window via adopt mode); extended Phase 11 (chromed panels) and Phase 14 (Settings, dialogs) |
+| US3 — Popups extend beyond parent | P1 | **Phase 9** |
+| US2 — Casso UI runs on Dxui with zero regressions | P1 | **Phase 14** (release gate) |
 
 ### Intra-Phase Dependencies
 
@@ -375,18 +439,23 @@ Phases are **strictly sequential** — every phase ends green and is independent
 - **Phase 4**: T023–T036 all parallel-safe (different files); T037 is the gate.
 - **Phase 5**: T038 → T039 → T040; T041/T042 follow T038–T040.
 - **Phase 6**: T044 → T045 → T047. T046 → T052–T055 (parallel). T048/T049 → T050 → T051. T056 depends on T045+T047. T057/T058 parallel after T048/T049. Tests T059–T062 parallel after their respective targets.
-- **Phase 7**: T064 → T065. T066/T067/T068 parallel after T064 (well, T064 itself just needs panel from T047). T069 needs T065–T068. T070/T071/T072 parallel after T064 + the chrome primitives.
-- **Phase 8**: T075 → T076/T077. T078 after T076. T079/T080/T081 parallel after T077.
-- **Phase 9**: T083 → T084. T085 independent. T086 after T084+T085. T087/T088/T089 sequential consumer wiring. T090/T091 after T087+T088.
-- **Phase 10**: T093 → T094 → T095 → T096.
-- **Phase 11**: T097/T098/T099/T101/T102 parallel after T096. T100 after T097–T099. T103 → T104 → T105 → T106. T107 after T103+T104. T107A after T107. T108 after T107A. T109 after T097–T108. T111 after everything else.
+- **Phase 7** (framework-only): T064 → T065. T066/T067/T068 parallel after T064. T069 needs T065–T068. T071/T072 parallel after T064. T073 after T065+T067. T074 is the gate.
+- **Phase 8** (main-window adopt-mode): T112 → T113/T114. T115 after T112–T114. T070 after T112–T114. T116 is the gate.
+- **Phase 9** (popups): T075 → T076/T077. T078 after T076. T079/T080/T081 parallel after T077.
+- **Phase 10** (MenuBar + MainMenu): T117 → T118 (parallel). T117 → T119 → T120 → T121 → T122 (gate).
+- **Phase 11** (chrome reshape + EmulatorShell): T123/T124/T125/T126 parallel after T066/T067/T045. T127 after T064. T128 after T045. T129 after T070+T112+T123–T128. T130 is the gate.
+- **Phase 12**: T083 → T084 (also depends on T128). T085 independent. T086 after T084+T085. T087/T088/T089 sequential consumer wiring. T090/T091 after T087+T088.
+- **Phase 13**: T093 → T094 → T095 → T096.
+- **Phase 14**: T097/T098/T099/T101/T102 parallel after T096. T100 after T097–T099. T103 → T104 → T105 → T106. T107 after T103+T104. T107A after T107. T108 after T107A. T109 after T097–T108. T110A after T100+T127. T111 after everything else.
 
 ### Parallel Opportunities
 
 - **Phase 2** offers the widest fan-out: 8 file moves with no cross-dependencies (T010–T017) can all run in parallel.
 - **Phase 4** offers the second widest: 14 widget moves (T023–T036) all parallel.
 - **Phase 6** has multiple parallel sub-groups: layout files (T052–T055), test files (T059–T062), mock infrastructure (T057/T058).
-- **Phase 11** parallel block: 5 page/panel conversions (T097/T098/T099/T101/T102) can run together.
+- **Phase 7** parallel block: T066/T067/T068 (chrome primitives) and T071/T072 (DWM wiring).
+- **Phase 11** parallel block: T123/T124/T125/T126 (4 chrome widget reshapes).
+- **Phase 14** parallel block: 5 page/panel conversions (T097/T098/T099/T101/T102) can run together.
 
 ---
 
@@ -394,15 +463,18 @@ Phases are **strictly sequential** — every phase ends green and is independent
 
 ### Strict-Sequence (Recommended)
 
-Phases land in order Phase 1 → Phase 11. Each phase produces a single PR; each PR ends green and is merged `--no-ff`. This matches the "each phase is independently mergeable" gate and the spec's R6 risk-mitigation (no mega-PR).
+Phases land in order Phase 1 → Phase 14. Each phase produces a single PR; each PR ends green and is merged `--no-ff`. This matches the "each phase is independently mergeable" gate and the spec's R6 risk-mitigation (no mega-PR).
 
 ### MVP Increments Available Mid-Migration
 
 - **After Phase 1** (US1): Dxui is consumable; downstream consumers could in principle target it (none exist outside this repo yet).
 - **After Phase 6** (US5): headless widget tests run with no D3D device — Casso CI gains test coverage for widget logic.
-- **After Phase 7** (US4): Win11 snap-layouts hover popover appears on the main window + chromed panels + Settings — visible win.
-- **After Phase 8** (US3): the long-standing dropdown clipping bug is fixed — user-visible bug fix.
-- **After Phase 11** (US2 + everything): full extraction complete, pixel-parity preserved.
+- **After Phase 7**: `DxuiHostWindow` + chrome primitives + DWM wiring exist as framework code; no behaviour change yet.
+- **After Phase 8** (US4 partial): Win11 snap-layouts hover popover appears on the **main window** via adopt-mode delegation; NC duplicates 4 → 3.
+- **After Phase 9** (US3): the long-standing dropdown clipping bug is fixed — user-visible bug fix.
+- **After Phase 10**: `DxuiMenuBar` widget and `MainMenu` rename land — internal cleanup, no behaviour change.
+- **After Phase 11**: Chrome widgets all on `IDxuiControl`; `ChromedPanelWindow` on `DxuiHostWindow` (NC duplicates 3 → 2); `EmulatorShell` decoupled from `Window`.
+- **After Phase 14** (US2 + everything): full extraction complete, pixel-parity preserved, NC duplicate count = 1.
 
 ---
 
@@ -449,7 +521,7 @@ Phases land in order Phase 1 → Phase 11. Each phase produces a single PR; each
 | FR-041 | T051,T057,T058 |
 | FR-050 | T064,T065,T069,T077A |
 | FR-051 | T064 |
-| FR-052 | T064,T067,T069,T074 |
+| FR-052 | T064,T067,T069,T073,T074 |
 | FR-053 | T066-T068 |
 | FR-054 | T075,T076,T078 |
 | FR-055 | T077,T082 |
@@ -468,24 +540,42 @@ Phases land in order Phase 1 → Phase 11. Each phase produces a single PR; each
 | FR-092 | T107,T107A |
 | FR-093 | T085-T088 |
 | FR-094 | T090 |
-| FR-095 | T070-T072,T108,T111 |
+| FR-095 | T070,T108,T110A,T111,T127 |
 | FR-096 | T108 |
 | FR-097 | T093-T102,T109 |
+| FR-098 | T070,T112,T115,T116 |
+| FR-099 | T070,T113,T114,T115,T116 |
+| FR-100 | T070,T116 |
+| FR-101 | T117,T118,T122 |
+| FR-102 | T119,T120,T121,T122 |
+| FR-103 | T119,T121,T122 |
+| FR-104 | T123,T124,T125,T126,T130 |
+| FR-105 | T129,T130 |
+| FR-106 | T127,T130 |
+| FR-107 | T128,T129,T130 |
+| FR-108 | T129,T130 |
 | SC-001 | T001,T004,T009 |
 | SC-002 | T005-T009 |
 | SC-003 | T095,T100,T111 |
 | SC-004 | T093,T097-T102,T111 |
 | SC-005 | T000,T009,T111 |
-| SC-006 | T041,T057-T062,T069,T078,T086,T106 |
+| SC-006 | T041,T057-T062,T069,T078,T086,T106,T115,T118 |
 | SC-007 | T041,T042,T057,T058 |
 | SC-008 | T079,T082,T111 |
-| SC-009 | T064-T069,T074,T111 |
-| SC-010 | T070-T074,T108,T111 |
-| SC-011 | T074,T107A,T111 |
+| SC-009 | T064-T069,T073,T074,T116,T111 |
+| SC-010 | T070,T108,T110A,T111,T116,T127 |
+| SC-011 | T074,T107A,T111,T116,T130 |
 | SC-012 | T009,T111 |
 | SC-013 | T085-T088,T092,T111 |
+| SC-014 | T123-T126,T130,T111 |
+| SC-015 | T123-T126,T130,T111 |
+| SC-016 | T122,T111 |
+| SC-017 | T119,T122,T111 |
+| SC-018 | T130,T111 |
+| SC-019 | T129,T130,T111 |
+| SC-020 | T108,T110A,T111 |
 | US1 | T001-T009 |
-| US2 | T093-T111 |
+| US2 | T093-T130 |
 | US3 | T075-T082 |
-| US4 | T064-T074 |
-| US5 | T041,T042,T057-T062 |
+| US4 | T064-T074,T070,T112-T116,T127,T129,T130,T110A |
+| US5 | T041,T042,T057-T062,T115,T118 |
