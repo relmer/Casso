@@ -78,9 +78,15 @@ protected:
     // DefWindowProc with the original message; return false to short-
     // circuit. Sub-classes that want to short-circuit must also call
     // SetCustomLResult to publish the LRESULT.
-    virtual bool    OnNcCalcSize  (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult);
-    virtual LRESULT OnNcHitTest   (HWND hwnd, int xScreen, int yScreen);
     virtual bool    OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen);
+
+    // Adopt-mode delegation hook. Called at the top of s_WndProc
+    // before the legacy dispatch table runs. Returning true means
+    // the subclass (typically by forwarding to DxuiHostWindow::
+    // HandleMessage) has fully handled the message and the WndProc
+    // should return outRetval immediately. Default returns false so
+    // unmodified subclasses get the legacy dispatch path.
+    virtual bool    TryDelegateMessage (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, LRESULT & outRetval);
 
     // Custom-chrome opt-in for WM_NCLBUTTONDOWN. Returning true tells
     // s_WndProc to consume the message when the hit-test is HTMINBUTTON
@@ -107,7 +113,6 @@ private:
     // publish a specific LRESULT do so via outRetval.
     bool  HandleCtlColorStatic (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outRetval);
     bool  HandleCreate         (HWND hwnd, LPARAM lParam, LRESULT & outRetval);
-    bool  HandleNcHitTest      (HWND hwnd, LPARAM lParam, LRESULT & outRetval);
     bool  HandleNcLButtonDown  (HWND hwnd, WPARAM wParam, LPARAM lParam);
     bool  HandleNcLButtonUp    (HWND hwnd, WPARAM wParam, LPARAM lParam);
     bool  HandleNcMouseMove    (HWND hwnd, LPARAM lParam);

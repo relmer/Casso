@@ -46,6 +46,10 @@
 
 
 
+class DxuiHostWindow;
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -170,13 +174,24 @@ private:
     bool    OnTimer (HWND hwnd, UINT_PTR timerId) override;
     bool    OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu) override;
 
-    // P4 custom-chrome overrides — borderless window + WM_NCHITTEST
-    // delegated to DxuiTitleBarHitTest, system-button click routing on
-    // WM_NCLBUTTONUP.
-    bool    OnNcCalcSize  (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult) override;
-    LRESULT OnNcHitTest   (HWND hwnd, int xScreen, int yScreen) override;
+    // P4 custom-chrome overrides — system-button click routing on
+    // WM_NCLBUTTONUP. WM_NCCALCSIZE / WM_NCHITTEST are delegated to
+    // m_hostWindow via TryDelegateMessage; the hit-test classifier
+    // for the legacy TitleBar + system-button layout lives in
+    // ClassifyHitForLegacyChrome below and is plugged into the
+    // DxuiHostWindow via SetHitTestDelegate.
     bool    OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen) override;
     bool    WantsCustomCaptionButtons () const override { return true; }
+
+    bool    TryDelegateMessage (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, LRESULT & outRetval) override;
+
+    // Bespoke NC hit-test classifier for the legacy chrome surfaces
+    // (TitleBar + system-button rect cache). Plugged into the
+    // DxuiHostWindow via SetHitTestDelegate in OnCreate so the
+    // adopt-mode shim consults it before falling back to the
+    // framework resize-edge / panel-tree classifier. Operates in
+    // screen coordinates to match the WM_NCHITTEST LPARAM packing.
+    LRESULT ClassifyHitForLegacyChrome (POINT ptScreen);
 
     // CPU thread entry point and helpers
     void RunOneFrame();
@@ -352,13 +367,23 @@ private:
     Win32FileSystem        m_uiFs;
 
     // Chrome surfaces. TitleBar owns the per-button rect cache that
-    // the WM_NCHITTEST helper queries. NavLayer owns the parity
-    // table for legacy IDM_* commands. Both run alongside the
-    // existing Win32 menu bar until the painter retires the latter.
+    // the legacy-chrome NC hit-test classifier queries. NavLayer owns
+    // the parity table for legacy IDM_* commands. Both run alongside
+    // the existing Win32 menu bar until the painter retires the latter.
     TitleBar            m_titleBar;
     NavLayer            m_navLayer;
     ChromeTheme         m_chromeTheme    = ChromeTheme::Skeuomorphic();
     std::array<DriveWidget, 2> m_driveChrome;
+
+    // DxuiHostWindow running in adopt mode — wraps the existing HWND
+    // owned by Window, classifies WM_NCCALCSIZE / WM_NCHITTEST
+    // through Dxui, and tracks DPI / theme for its internal panel
+    // tree. The legacy TitleBar + system-button hit-test classifier
+    // is plugged in via SetHitTestDelegate (see
+    // ClassifyHitForLegacyChrome below) so the existing chrome
+    // surfaces continue to win NC hits until Phase 11 reshapes
+    // them onto DxuiCaptionBar.
+    std::unique_ptr<DxuiHostWindow>  m_hostWindow;
 
     // Joystick-mode toggle button (mirrors IDM_MACHINE_ARROWS_JOYSTICK),
     // centered in the drive bar above the drive widgets, with its own

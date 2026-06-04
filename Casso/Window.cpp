@@ -216,6 +216,15 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
     pThis = s_GetSetThisPointer (hwnd, message, wParam, lParam);
     CBR (pThis);
 
+    // Adopt-mode delegation hook. Subclasses can install a
+    // DxuiHostWindow (or any other forwarder) that classifies the
+    // message and either claims it end-to-end or lets the legacy
+    // dispatch table below run.
+    if (pThis->TryDelegateMessage (hwnd, message, wParam, lParam, retval))
+    {
+        return retval;
+    }
+
     switch (message)
     {
         case WM_CHAR:
@@ -266,14 +275,6 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
         case WM_KEYUP:
         case WM_SYSKEYUP:
             callDefWndProc = pThis->OnKeyUp (wParam, lParam);
-            break;
-
-        case WM_NCCALCSIZE:
-            callDefWndProc = pThis->OnNcCalcSize (hwnd, wParam, lParam, retval);
-            break;
-
-        case WM_NCHITTEST:
-            callDefWndProc = pThis->HandleNcHitTest (hwnd, lParam, retval);
             break;
 
         case WM_NCLBUTTONDOWN:
@@ -391,35 +392,6 @@ bool Window::HandleCreate (HWND hwnd, LPARAM lParam, LRESULT & outRetval)
 {
     outRetval = OnCreate (hwnd, reinterpret_cast<CREATESTRUCT *> (lParam));
     return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HandleNcHitTest
-//
-//  Forwards to the subclass NC hit-test and publishes the returned
-//  HT* code as the message LRESULT. Falls through to DefWindowProc
-//  only when the subclass returns HTNOWHERE, signaling "I don't have
-//  an opinion -- let the OS classify this point".
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool Window::HandleNcHitTest (HWND hwnd, LPARAM lParam, LRESULT & outRetval)
-{
-    LRESULT  hit = OnNcHitTest (hwnd,
-                                (int) (short) LOWORD (lParam),
-                                (int) (short) HIWORD (lParam));
-
-    if (hit != HTNOWHERE)
-    {
-        outRetval = hit;
-        return false;
-    }
-    return true;
 }
 
 
@@ -994,41 +966,23 @@ bool Window::OnTimer (HWND hwnd, UINT_PTR timerId)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnNcCalcSize / OnNcHitTest / OnNcLButtonUp
+//  TryDelegateMessage
 //
-//  Default behavior: pass through to DefWindowProc (legacy chromed
-//  window). Derived classes that opt into a borderless / custom-chrome
-//  layout override to return their own NC math.
+//  Default implementation — no delegation. Subclasses that adopt a
+//  DxuiHostWindow override this to forward the message through the
+//  host's HandleMessage shim.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Window::OnNcCalcSize (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult)
+bool Window::TryDelegateMessage (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, LRESULT & outRetval)
 {
     UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (message);
     UNREFERENCED_PARAMETER (wParam);
     UNREFERENCED_PARAMETER (lParam);
+    UNREFERENCED_PARAMETER (outRetval);
 
-    outResult = 0;
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnNcHitTest
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LRESULT Window::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
-{
-    UNREFERENCED_PARAMETER (hwnd);
-    UNREFERENCED_PARAMETER (xScreen);
-    UNREFERENCED_PARAMETER (yScreen);
-
-    return HTNOWHERE;
+    return false;
 }
 
 
@@ -1038,6 +992,10 @@ LRESULT Window::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnNcLButtonUp
+//
+//  Default behavior: pass through to DefWindowProc. Derived classes
+//  that opt into custom system-button click routing (Min / Max /
+//  Close) override to consume HTMINBUTTON / HTMAXBUTTON / HTCLOSE.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

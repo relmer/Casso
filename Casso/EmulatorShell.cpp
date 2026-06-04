@@ -32,6 +32,7 @@
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/DriveWidgetController.h"
 #include "Shell/DiskMru.h"
+#include "Win32/DxuiHostWindow.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -2800,8 +2801,38 @@ bool EmulatorShell::OnCommand (HWND hwnd, int id)
 
 LRESULT EmulatorShell::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
 {
-    UNREFERENCED_PARAMETER (hwnd);
+    HRESULT                       hr     = S_OK;
+    DxuiHostWindow::CreateParams  params;
+
+
+
     UNREFERENCED_PARAMETER (pcs);
+
+    // Stand up the DxuiHostWindow in adopt mode. The HWND, D3D
+    // device, and swap chain stay owned by EmulatorShell / its
+    // existing renderer; the host takes over WM_NCCALCSIZE /
+    // WM_NCHITTEST classification (with the legacy TitleBar +
+    // system-button classifier plugged in via SetHitTestDelegate)
+    // and observes DPI / theme messages.
+    params.title           = L"";
+    params.hInstance       = m_hInstance;
+    params.ownerHwnd       = nullptr;
+    params.borderless      = true;
+    params.resizable       = true;
+    params.roundedCorners  = true;
+    params.darkMode        = true;
+    params.backdrop        = DxuiHostWindowBackdrop::None;
+    params.resizeBorderDip = 6.0f;
+
+    hr = DxuiHostWindow::CreateInAdoptMode (hwnd, params, m_hostWindow);
+    CHRA (hr);
+
+    m_hostWindow->SetHitTestDelegate ([this] (POINT ptScreen) -> LRESULT
+    {
+        return this->ClassifyHitForLegacyChrome (ptScreen);
+    });
+
+Error:
 
     return 0;
 }
@@ -3992,54 +4023,28 @@ bool EmulatorShell::OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, boo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnNcCalcSize
+//  TryDelegateMessage
 //
-//  Collapse the entire non-client area into the client rect so
-//  the chrome we draw owns every pixel. When wParam is TRUE we return
-//  0 with NCCALCSIZE_PARAMS.rgrc[0] untouched, telling Windows that
-//  the proposed window rect IS the new client rect.
+//  Adopt-mode forwarder. Lets the DxuiHostWindow take first crack
+//  at every Win32 message; when the host claims one (currently
+//  WM_NCCALCSIZE / WM_NCHITTEST), the legacy dispatch table in
+//  Window::s_WndProc is bypassed entirely. DPI / theme messages
+//  are observed by the host (for tree-side propagation) but never
+//  claimed, so the existing Window infrastructure keeps doing
+//  SetWindowPos + subclass DPI hooks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnNcCalcSize (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult)
+bool EmulatorShell::TryDelegateMessage (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, LRESULT & outRetval)
 {
-    NCCALCSIZE_PARAMS *  pParams      = nullptr;
-    LRESULT              defResult    = 0;
-    LONG                 originalTop  = 0;
+    UNREFERENCED_PARAMETER (hwnd);
 
-
-
-    if (wParam == FALSE)
+    if (m_hostWindow == nullptr)
     {
-        outResult = 0;
         return false;
     }
 
-    pParams = reinterpret_cast<NCCALCSIZE_PARAMS *> (lParam);
-    if (pParams == nullptr)
-    {
-        outResult = 0;
-        return false;
-    }
-
-    // Mirror microsoft/terminal NonClientIslandWindow::_OnNcCalcSize:
-    // let DefWindowProc compute the default frame (gives Windows the
-    // correct resize-border math at the left/right/bottom edges, plus
-    // Aero Snap awareness) then re-apply the original top edge so the
-    // visual title-bar area collapses into our client rect for the
-    // custom-painted chrome. Drag and edge resize keep working because
-    // the OS still sees a captioned window with thick frames.
-    originalTop = pParams->rgrc[0].top;
-    defResult   = DefWindowProc (hwnd, WM_NCCALCSIZE, wParam, lParam);
-    if (defResult != 0)
-    {
-        outResult = defResult;
-        return false;
-    }
-
-    pParams->rgrc[0].top = originalTop;
-    outResult            = 0;
-    return false;
+    return m_hostWindow->HandleMessage (message, wParam, lParam, outRetval);
 }
 
 
@@ -4048,25 +4053,28 @@ bool EmulatorShell::OnNcCalcSize (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESU
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnNcHitTest
+//  ClassifyHitForLegacyChrome
 //
-//  Routes through the unit-tested pure-logic helper. Pull the current
-//  title-bar geometry from the cached layout (kept in sync by
-//  TitleBar::UpdateGeometry in OnSize).
+//  Bespoke NC hit-test classifier for the legacy chrome surfaces
+//  (TitleBar + system-button rect cache). Plugged into the
+//  DxuiHostWindow via SetHitTestDelegate so the adopt-mode shim
+//  consults it before falling back to the framework resize-edge
+//  classifier. Operates in screen coordinates; converts to client
+//  on the way to DxuiTitleBarHitTest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT EmulatorShell::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
+LRESULT EmulatorShell::ClassifyHitForLegacyChrome (POINT ptScreen)
 {
     static constexpr int  s_kMinResizeBorderPx = 8;
 
-    POINT                 pt   = { xScreen, yScreen };
+    POINT                 pt       = ptScreen;
     RECT                  rcClient = {};
     RECT                  rcTitle  = {};
     RECT                  rcMin    = {};
     RECT                  rcMax    = {};
     RECT                  rcClose  = {};
-    DxuiTitleBarHitTestInput  in       = {};
+    DxuiTitleBarHitTestInput  in   = {};
     LRESULT               result   = HTNOWHERE;
     UINT                  dpi      = 0;
     int                   framePx  = 0;
@@ -4075,12 +4083,17 @@ LRESULT EmulatorShell::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
 
 
 
-    if (!ScreenToClient (hwnd, &pt))
+    if (m_hwnd == nullptr)
     {
         return HTNOWHERE;
     }
 
-    if (!GetClientRect (hwnd, &rcClient))
+    if (!ScreenToClient (m_hwnd, &pt))
+    {
+        return HTNOWHERE;
+    }
+
+    if (!GetClientRect (m_hwnd, &rcClient))
     {
         return HTNOWHERE;
     }
@@ -4090,7 +4103,7 @@ LRESULT EmulatorShell::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
     rcMax   = m_titleBar.GetButtonRect (SystemButton::Maximize);
     rcClose = m_titleBar.GetButtonRect (SystemButton::Close);
 
-    dpi      = GetDpiForWindow (hwnd);
+    dpi      = GetDpiForWindow (m_hwnd);
     framePx  = GetSystemMetricsForDpi (SM_CXSIZEFRAME, dpi);
     padPx    = GetSystemMetricsForDpi (SM_CXPADDEDBORDER, dpi);
     borderPx = framePx + padPx;
