@@ -141,10 +141,25 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Core\DxuiAnimation.cpp" />
+    <ClCompile Include="Core\DxuiHitTester.cpp" />
+    <ClCompile Include="Core\DxuiInput.cpp" />
+    <ClCompile Include="Core\DxuiTitleBarHitTest.cpp" />
+    <ClCompile Include="Theme\DxuiDwm.cpp" />
+    <ClCompile Include="Theme\DxuiWindowsThemeColors.cpp" />
+    <ClCompile Include="Win32\DxuiDragDropTarget.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Dxui.h" />
     <ClInclude Include="Pch.h" />
+    <ClInclude Include="Core\DxuiAnimation.h" />
+    <ClInclude Include="Core\DxuiDpiScaler.h" />
+    <ClInclude Include="Core\DxuiHitTester.h" />
+    <ClInclude Include="Core\DxuiInput.h" />
+    <ClInclude Include="Core\DxuiTitleBarHitTest.h" />
+    <ClInclude Include="Theme\DxuiDwm.h" />
+    <ClInclude Include="Theme\DxuiWindowsThemeColors.h" />
+    <ClInclude Include="Win32\DxuiDragDropTarget.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

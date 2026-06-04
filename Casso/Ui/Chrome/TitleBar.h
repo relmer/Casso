@@ -3,7 +3,6 @@
 #include "Pch.h"
 
 #include "ChromeTheme.h"
-#include "../TitleBarHitTest.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 

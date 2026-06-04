@@ -3,7 +3,6 @@
 #include "Pch.h"
 
 #include "../Chrome/ChromeTheme.h"
-#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 
@@ -56,7 +55,7 @@ private:
     bool          m_focused         = false;
     bool          m_enabled         = true;
     bool          m_visible         = true;
-    DpiScaler     m_scaler;
+    DxuiDpiScaler     m_scaler;
     bool          m_useOverrides    = false;
     uint32_t      m_idleOverride    = 0;
     uint32_t      m_hoverOverride   = 0;

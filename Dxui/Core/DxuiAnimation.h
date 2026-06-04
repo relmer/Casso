@@ -1,14 +1,8 @@
 #pragma once
 
-#include "Pch.h"
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Animation
+//  DxuiAnimation
 //
 //  Tween engine + `DriveSyncEvent` broker. Tweens advance per-frame
 //  from a start value to an end value over a fixed duration. The
@@ -19,7 +13,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class TweenEase
+enum class DxuiTweenEase
 {
     Linear     = 0,
     EaseInOut  = 1,
@@ -27,13 +21,13 @@ enum class TweenEase
 };
 
 
-struct TweenHandle
+struct DxuiTweenHandle
 {
     uint32_t  id = 0;
 };
 
 
-struct DriveSyncBrokerEvent
+struct DxuiDriveSyncBrokerEvent
 {
     int       driveIndex = 0;
     int       tag        = 0;     // caller-defined (e.g. door-open / door-close)
@@ -41,37 +35,37 @@ struct DriveSyncBrokerEvent
 };
 
 
-class Animation
+class DxuiAnimation
 {
 public:
-    Animation  () = default;
-    ~Animation () = default;
+    DxuiAnimation  () = default;
+    ~DxuiAnimation() = default;
 
-    TweenHandle  StartTween     (float startValue, float endValue, float durationSec, TweenEase ease);
-    bool         SampleTween    (TweenHandle handle, float currentTimeSec, float & outValue) const;
+    DxuiTweenHandle  StartTween     (float startValue, float endValue, float durationSec, DxuiTweenEase ease);
+    bool         SampleTween    (DxuiTweenHandle handle, float currentTimeSec, float & outValue) const;
     void         AdvanceTime    (float currentTimeSec);
     void         ClearTweens    ();
 
-    void         PublishSyncEvent (const DriveSyncBrokerEvent & ev);
-    std::vector<DriveSyncBrokerEvent>  ConsumePendingEvents ();
+    void         PublishSyncEvent (const DxuiDriveSyncBrokerEvent & ev);
+    std::vector<DxuiDriveSyncBrokerEvent>  ConsumePendingEvents();
 
-    static float ApplyEase      (TweenEase ease, float t);
+    static float ApplyEase      (DxuiTweenEase ease, float t);
 
 private:
-    struct TweenState
+    struct DxuiTweenState
     {
         uint32_t   id           = 0;
         float      startValue   = 0.0f;
         float      endValue     = 0.0f;
         float      startTime    = 0.0f;
         float      duration     = 0.0f;
-        TweenEase  ease         = TweenEase::Linear;
+        DxuiTweenEase  ease         = DxuiTweenEase::Linear;
         bool       started      = false;
     };
 
 
-    std::vector<TweenState>            m_tweens;
-    std::vector<DriveSyncBrokerEvent>  m_pendingSync;
+    std::vector<DxuiTweenState>            m_tweens;
+    std::vector<DxuiDriveSyncBrokerEvent>  m_pendingSync;
     float                              m_currentTimeSec = 0.0f;
     uint32_t                           m_nextId         = 1;
 };

@@ -363,7 +363,7 @@ void Slider::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     constexpr uint32_t  s_kValueText     = 0xFFE8EEF4;
 
     // All dimensions stored in dp; scaled to physical pixels via the
-    // per-widget DpiScaler (set by SetDpi). Slider was previously
+    // per-widget DxuiDpiScaler (set by SetDpi). Slider was previously
     // ignoring DPI which made the value readout illegible at >96dpi.
     constexpr int       s_kTrackHeightDp    = 4;
     constexpr int       s_kPuckRadiusDp     = 8;

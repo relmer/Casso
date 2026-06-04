@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "HitTester.h"
+#include "DxuiHitTester.h"
 
 
 
@@ -27,7 +27,7 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HitTester::Clear ()
+void DxuiHitTester::Clear()
 {
     m_rects.clear();
 }
@@ -42,7 +42,7 @@ void HitTester::Clear ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HitTester::Register (const HitRect & rect)
+void DxuiHitTester::Register (const DxuiHitRect & rect)
 {
     m_rects.push_back (rect);
 }
@@ -60,7 +60,7 @@ void HitTester::Register (const HitRect & rect)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const HitRect * HitTester::Pick (int xClient, int yClient) const
+const DxuiHitRect * DxuiHitTester::Pick (int xClient, int yClient) const
 {
     for (auto it = m_rects.rbegin(); it != m_rects.rend(); ++it)
     {
@@ -88,7 +88,7 @@ const HitRect * HitTester::Pick (int xClient, int yClient) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT HitTester::ClassifyNcHit (const NcHitTestInput & in)
+LRESULT DxuiHitTester::ClassifyNcHit (const DxuiNcHitTestInput & in)
 {
     int    border = (in.resizeBorderPx > 0) ? in.resizeBorderPx : s_kDefaultResizeBorderPx;
     int    xWin   = in.mouseXScreen - in.windowRectScreen.left;

@@ -56,23 +56,23 @@ description: "Task list for Dxui framework extraction (spec 013)"
 
 Each move task in this phase is mechanical: (a) move file to new path; (b) rename the primary type per the table; (c) ensure first include is `#include "Pch.h"`; (d) drop any angle-bracket includes (now satisfied by `Dxui.h` via `Pch.h`); (e) rewrite quoted project-header includes to point at renamed siblings; (f) in moved files only, rename `Dp`-suffixed identifiers to `Dip` (FR-082); (g) update Dxui.vcxproj item list; (h) remove the old vcxproj item from `Casso.vcxproj`; (i) fix every consumer `#include` and type reference in `Casso/`. The eight moves are independent and parallel-safe within this phase.
 
-- [ ] T010 [P] [PH2] Move `Casso/Ui/HitTester.{h,cpp}` → `Dxui/Core/DxuiHitTester.{h,cpp}`; rename type `HitTester` → `DxuiHitTester`. Update all Casso call sites. **Exit**: `rg -n '\bHitTester\b' Casso/ Dxui/` returns hits only at the new name. **FR**: FR-005, FR-090.
+- [x] T010 [P] [PH2] Move `Casso/Ui/HitTester.{h,cpp}` → `Dxui/Core/DxuiHitTester.{h,cpp}`; rename type `HitTester` → `DxuiHitTester`. Update all Casso call sites. **Exit**: `rg -n '\bHitTester\b' Casso/ Dxui/` returns hits only at the new name. **FR**: FR-005, FR-090.
 
-- [ ] T011 [P] [PH2] Move `Casso/Ui/UiInput.{h,cpp}` → `Dxui/Core/DxuiInput.{h,cpp}`; rename `UiInput*` types → `Dxui*` (matching the existing names with the prefix swap). **Exit**: `rg -n '\bUiInput' Casso/ Dxui/` returns zero hits. **FR**: FR-005, FR-090.
+- [x] T011 [P] [PH2] Move `Casso/Ui/UiInput.{h,cpp}` → `Dxui/Core/DxuiInput.{h,cpp}`; rename `UiInput*` types → `Dxui*` (matching the existing names with the prefix swap). **Exit**: `rg -n '\bUiInput' Casso/ Dxui/` returns zero hits. **FR**: FR-005, FR-090.
 
-- [ ] T012 [P] [PH2] Move `Casso/Ui/Animation.{h,cpp}` → `Dxui/Core/DxuiAnimation.{h,cpp}`; rename `Animation*` types → `DxuiAnimation*`. **Exit**: `rg -n 'class\s+Animation\b' Casso/` returns zero hits. **FR**: FR-005, FR-090.
+- [x] T012 [P] [PH2] Move `Casso/Ui/Animation.{h,cpp}` → `Dxui/Core/DxuiAnimation.{h,cpp}`; rename `Animation*` types → `DxuiAnimation*`. **Exit**: `rg -n 'class\s+Animation\b' Casso/` returns zero hits. **FR**: FR-005, FR-090.
 
-- [ ] T013 [P] [PH2] Move `Casso/Ui/DpiScaler.h` (header-only) → `Dxui/Core/DxuiDpiScaler.h`; rename `DpiScaler` → `DxuiDpiScaler`; rename any `Dp`-suffixed identifiers within this file to `Dip`. **Exit**: `rg -n '\bDpiScaler\b' Casso/ Dxui/` returns hits only at the new name. **FR**: FR-005, FR-082, FR-090.
+- [x] T013 [P] [PH2] Move `Casso/Ui/DpiScaler.h` (header-only) → `Dxui/Core/DxuiDpiScaler.h`; rename `DpiScaler` → `DxuiDpiScaler`; rename any `Dp`-suffixed identifiers within this file to `Dip`. **Exit**: `rg -n '\bDpiScaler\b' Casso/ Dxui/` returns hits only at the new name. **FR**: FR-005, FR-082, FR-090.
 
-- [ ] T014 [P] [PH2] Move `Casso/Ui/WindowsThemeColors.{h,cpp}` → `Dxui/Theme/DxuiWindowsThemeColors.{h,cpp}`; rename `WindowsThemeColors` → `DxuiWindowsThemeColors`. **Exit**: `rg -n 'WindowsThemeColors' Casso/Ui` returns zero hits. **FR**: FR-005, FR-090.
+- [x] T014 [P] [PH2] Move `Casso/Ui/WindowsThemeColors.{h,cpp}` → `Dxui/Theme/DxuiWindowsThemeColors.{h,cpp}`; rename `WindowsThemeColors` → `DxuiWindowsThemeColors`. **Exit**: `rg -n 'WindowsThemeColors' Casso/Ui` returns zero hits. **FR**: FR-005, FR-090.
 
-- [ ] T015 [P] [PH2] Move `Casso/Ui/Win11DwmHelpers.{h,cpp}` → `Dxui/Theme/DxuiDwm.{h,cpp}`; rename `Win11Dwm*` types/functions → `DxuiDwm*` (collapse the `Win11` prefix). **Exit**: `rg -n 'Win11Dwm' Casso/ Dxui/` returns zero hits. **FR**: FR-005, FR-090.
+- [x] T015 [P] [PH2] Move `Casso/Ui/Win11DwmHelpers.{h,cpp}` → `Dxui/Theme/DxuiDwm.{h,cpp}`; rename `Win11Dwm*` types/functions → `DxuiDwm*` (collapse the `Win11` prefix). **Exit**: `rg -n 'Win11Dwm' Casso/ Dxui/` returns zero hits. **FR**: FR-005, FR-090.
 
-- [ ] T016 [P] [PH2] Move `Casso/Ui/TitleBarHitTest.{h,cpp}` → `Dxui/Core/DxuiTitleBarHitTest.{h,cpp}`; rename `TitleBarHitTest` → `DxuiTitleBarHitTest`. **Exit**: `rg -n 'TitleBarHitTest' Casso/Ui` returns zero hits. **FR**: FR-005, FR-090.
+- [x] T016 [P] [PH2] Move `Casso/Ui/TitleBarHitTest.{h,cpp}` → `Dxui/Core/DxuiTitleBarHitTest.{h,cpp}`; rename `TitleBarHitTest` → `DxuiTitleBarHitTest`. **Exit**: `rg -n 'TitleBarHitTest' Casso/Ui` returns zero hits. **FR**: FR-005, FR-090.
 
-- [ ] T017 [P] [PH2] Move `Casso/Ui/DragDropTarget.{h,cpp}` → `Dxui/Win32/DxuiDragDropTarget.{h,cpp}`; rename `DragDropTarget` → `DxuiDragDropTarget`. **Exit**: `rg -n 'DragDropTarget' Casso/Ui` returns zero hits. **FR**: FR-005, FR-090.
+- [x] T017 [P] [PH2] Move `Casso/Ui/DragDropTarget.{h,cpp}` → `Dxui/Win32/DxuiDragDropTarget.{h,cpp}`; rename `DragDropTarget` → `DxuiDragDropTarget`. **Exit**: `rg -n 'DragDropTarget' Casso/Ui` returns zero hits. **FR**: FR-005, FR-090.
 
-- [ ] T018 [PH2] Phase-2 exit verification. Build all four configs; run tests; run code analysis. Greps: `rg -n 'HitTester|UiInput|Win11DwmHelpers|WindowsThemeColors|TitleBarHitTest|DragDropTarget' Casso/Ui` → zero hits (legacy directory is now smaller). Spacing audit on moved files: `rg -n '\w \(\)' Dxui/Core Dxui/Theme Dxui/Win32` → zero hits. **Depends on**: T010–T017. **Commit**: `refactor(dxui): move generic utilities (HitTester/UiInput/...) into Dxui/Core`. **FR**: FR-005, FR-082, FR-090.
+- [x] T018 [PH2] Phase-2 exit verification. Build all four configs; run tests; run code analysis. Greps: `rg -n 'HitTester|UiInput|Win11DwmHelpers|WindowsThemeColors|TitleBarHitTest|DragDropTarget' Casso/Ui` → zero hits (legacy directory is now smaller). Spacing audit on moved files: `rg -n '\w \(\)' Dxui/Core Dxui/Theme Dxui/Win32` → zero hits. **Depends on**: T010–T017. **Commit**: `refactor(dxui): move generic utilities (HitTester/UiInput/...) into Dxui/Core`. **FR**: FR-005, FR-082, FR-090.
 
 ---
 

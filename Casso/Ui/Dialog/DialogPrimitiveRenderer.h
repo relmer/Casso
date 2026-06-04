@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 #include "../Widgets/Button.h"
@@ -92,7 +91,7 @@ private:
     ComPtr<ID3D11RenderTargetView>    m_rtv;
     DxUiPainter                       m_painter;
     DwriteTextRenderer                m_text;
-    DpiScaler                         m_scaler;
+    DxuiDpiScaler                         m_scaler;
     std::vector<uint32_t>             m_appIconPixels;
     int                               m_appIconW       = 0;
     int                               m_appIconH       = 0;

@@ -66,7 +66,7 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HardwarePage::SetRect (const RECT & rect, const DpiScaler & scaler)
+void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
 {
     UINT dpi         = scaler.Dpi();
     int  labelWidth  = scaler.Px (s_kInfoLabelWidthDp);

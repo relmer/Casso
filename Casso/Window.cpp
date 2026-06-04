@@ -1,12 +1,6 @@
 #include "Pch.h"
 
 #include "Window.h"
-#include "Ui/WindowsThemeColors.h"
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Window
@@ -567,7 +561,7 @@ bool Window::HandleSettingChange (LPARAM lParam)
     if (sectionName != nullptr &&
         _wcsicmp (sectionName, L"ImmersiveColorSet") == 0)
     {
-        WindowsThemeColors::Instance().Refresh();
+        DxuiWindowsThemeColors::Instance().Refresh();
     }
     return true;
 }
@@ -581,7 +575,7 @@ bool Window::HandleSettingChange (LPARAM lParam)
 //  HandleDpiChanged
 //
 //  WM_DPICHANGED owns the per-window DPI lifecycle here. Updates the
-//  authoritative DpiScaler, fires the pre-resize subclass hook,
+//  authoritative DxuiDpiScaler, fires the pre-resize subclass hook,
 //  applies the OS-suggested rect, then fires the post-resize hook.
 //  The base class owns the SetWindowPos so subclasses cannot
 //  accidentally skip it by forgetting to call base.

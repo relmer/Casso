@@ -1,14 +1,8 @@
 #pragma once
 
-#include "Pch.h"
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TitleBarHitTest
+//  DxuiTitleBarHitTest
 //
 //  Pure-logic Win32 WM_NCHITTEST helper for a custom-chromed window.
 //  The caller passes the client rect, the mouse point (in client
@@ -31,7 +25,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TitleBarHitTestInput
+struct DxuiTitleBarHitTestInput
 {
     // Client-area dimensions (i.e. GetClientRect output).
     int  clientWidth   = 0;
@@ -67,8 +61,8 @@ struct TitleBarHitTestInput
 };
 
 
-class TitleBarHitTest
+class DxuiTitleBarHitTest
 {
 public:
-    static LRESULT Test (const TitleBarHitTestInput & in);
+    static LRESULT Test (const DxuiTitleBarHitTestInput & in);
 };

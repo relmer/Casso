@@ -1,13 +1,6 @@
 #include "Pch.h"
 
 #include "TitleBar.h"
-
-#include "../WindowsThemeColors.h"
-
-
-
-
-
 namespace
 {
     constexpr int       s_kBaseTitleHeightPx = 32;
@@ -343,7 +336,7 @@ void TitleBar::Paint (
     ChromeButtonVisual         minVis        = ButtonVisual (SystemButton::Minimize);
     ChromeButtonVisual         maxVis        = ButtonVisual (SystemButton::Maximize);
     ChromeButtonVisual         closeVis      = ButtonVisual (SystemButton::Close);
-    const WindowsThemeColors & sys           = WindowsThemeColors::Instance();
+    const DxuiWindowsThemeColors & sys           = DxuiWindowsThemeColors::Instance();
     uint32_t                   minColor      = 0;
     uint32_t                   maxColor      = 0;
     uint32_t                   closeColor    = 0;

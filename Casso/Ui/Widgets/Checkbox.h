@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 
@@ -73,5 +72,5 @@ private:
     bool          m_focused = false;
     bool          m_hover   = false;
     bool          m_pressed = false;
-    DpiScaler     m_scaler;
+    DxuiDpiScaler     m_scaler;
 };

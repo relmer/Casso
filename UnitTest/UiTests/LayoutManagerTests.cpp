@@ -47,12 +47,12 @@ namespace
     };
 
 
-    // Convenience: stack-allocated DpiScaler at the desired DPI.
+    // Convenience: stack-allocated DxuiDpiScaler at the desired DPI.
     // LayoutManager binds to it by const-reference; mutations to the
     // scaler are picked up by subsequent layout queries.
     struct ScopedScaler
     {
-        DpiScaler  scaler;
+        DxuiDpiScaler  scaler;
         explicit ScopedScaler (UINT dpi) { scaler.SetDpi (dpi); }
     };
 }
@@ -175,7 +175,7 @@ public:
 
     TEST_METHOD (DpiZero_TreatsAsBaseDpi)
     {
-        ScopedScaler   s (0);   // DpiScaler::SetDpi(0) coerces to 96
+        ScopedScaler   s (0);   // DxuiDpiScaler::SetDpi(0) coerces to 96
         LayoutManager  layout (s.scaler);
         StubEdge       top (ChromeEdge::Top, 32);
 

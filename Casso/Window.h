@@ -2,12 +2,6 @@
 
 #include "Pch.h"
 
-#include "Ui/DpiScaler.h"
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Window
@@ -42,7 +36,7 @@ public:
     // and consumers should read DPI through this scaler -- never call
     // GetDpiForWindow directly, never cache a copy, never plumb a
     // `dpi` parameter through a call chain.
-    const DpiScaler &  Scaler () const { return m_scaler; }
+    const DxuiDpiScaler &  Scaler () const { return m_scaler; }
     UINT               Dpi    () const { return m_scaler.Dpi(); }
 
     // Pre-Create bootstrap. Lets the caller seed the DPI from the
@@ -102,8 +96,8 @@ protected:
     // SetWindowPos), applies the OS-suggested rect, then calls
     // OnDpiChanged (subclass post-resize work). Subclasses override
     // either hook -- they never need to remember to call base.
-    virtual void  OnDpiChanging (const DpiScaler & newScaler) { UNREFERENCED_PARAMETER (newScaler); }
-    virtual void  OnDpiChanged  (const DpiScaler & newScaler) { UNREFERENCED_PARAMETER (newScaler); }
+    virtual void  OnDpiChanging (const DxuiDpiScaler & newScaler) { UNREFERENCED_PARAMETER (newScaler); }
+    virtual void  OnDpiChanged  (const DxuiDpiScaler & newScaler) { UNREFERENCED_PARAMETER (newScaler); }
 
 private:
     // Per-message dispatch helpers. s_WndProc forwards each handled
@@ -122,7 +116,7 @@ private:
     bool  HandleDpiChanged     (HWND hwnd, WPARAM wParam, LPARAM lParam);
 
 protected:
-    DpiScaler m_scaler;
+    DxuiDpiScaler m_scaler;
     WORD      m_idIcon        = 0;
     WORD      m_idIconSmall   = 0;
     WORD      m_idMenuName    = 0;

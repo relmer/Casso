@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Win11DwmHelpers.h"
+#include "DxuiDwm.h"
 
 #pragma comment(lib, "dwmapi.lib")
 
@@ -19,7 +19,7 @@
 
 namespace
 {
-    struct WinDwmOsVersion
+    struct DxuiDwmOsVersion
     {
         DWORD    dwOSVersionInfoSize;
         DWORD    dwMajorVersion;
@@ -30,14 +30,14 @@ namespace
     };
 
 
-    typedef LONG (WINAPI * PFN_RtlGetVersion) (WinDwmOsVersion *);
+    typedef LONG (WINAPI * PFN_RtlGetVersion) (DxuiDwmOsVersion *);
 
 
     bool GetOsBuild (DWORD & outMajor, DWORD & outBuild)
     {
         HMODULE              hNtDll  = nullptr;
         PFN_RtlGetVersion    pfn     = nullptr;
-        WinDwmOsVersion      ovi     = {};
+        DxuiDwmOsVersion      ovi     = {};
         LONG                 status  = 0;
 
 
@@ -98,7 +98,7 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Win11DwmHelpers::IsWindows11OrGreater()
+bool DxuiDwm::IsWindows11OrGreater()
 {
     DWORD  major = 0;
     DWORD  build = 0;
@@ -127,7 +127,7 @@ bool Win11DwmHelpers::IsWindows11OrGreater()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Win11DwmHelpers::IsWindows10_1809OrGreater()
+bool DxuiDwm::IsWindows10_1809OrGreater()
 {
     DWORD  major = 0;
     DWORD  build = 0;
@@ -154,7 +154,7 @@ bool Win11DwmHelpers::IsWindows10_1809OrGreater()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win11DwmHelpers::ApplyRoundedCorners (HWND hwnd, bool round)
+void DxuiDwm::ApplyRoundedCorners (HWND hwnd, bool round)
 {
     DWORD  pref = round ? kDwmwcpRound : kDwmwcpDoNotRound;
 
@@ -189,7 +189,7 @@ void Win11DwmHelpers::ApplyRoundedCorners (HWND hwnd, bool round)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win11DwmHelpers::ApplyMicaBackdrop (HWND hwnd, bool mica)
+void DxuiDwm::ApplyMicaBackdrop (HWND hwnd, bool mica)
 {
     DWORD  type = mica ? kDwmsbtMainWindow : kDwmsbtNone;
 
@@ -219,7 +219,7 @@ void Win11DwmHelpers::ApplyMicaBackdrop (HWND hwnd, bool mica)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win11DwmHelpers::ApplyImmersiveDarkMode (HWND hwnd, bool dark)
+void DxuiDwm::ApplyImmersiveDarkMode (HWND hwnd, bool dark)
 {
     BOOL  flag = dark ? TRUE : FALSE;
 
@@ -250,7 +250,7 @@ void Win11DwmHelpers::ApplyImmersiveDarkMode (HWND hwnd, bool dark)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win11DwmHelpers::ExtendFrameIntoClientArea (HWND hwnd, int inset)
+void DxuiDwm::ExtendFrameIntoClientArea (HWND hwnd, int inset)
 {
     MARGINS  m = { inset, inset, inset, inset };
 

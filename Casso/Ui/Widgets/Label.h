@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 
@@ -67,5 +66,5 @@ private:
     DwriteTextRenderer::HAlign    m_hAlign   = DwriteTextRenderer::HAlign::Left;
     DwriteTextRenderer::VAlign    m_vAlign   = DwriteTextRenderer::VAlign::Center;
     DWRITE_FONT_WEIGHT            m_weight   = DWRITE_FONT_WEIGHT_NORMAL;
-    DpiScaler                     m_scaler;
+    DxuiDpiScaler                     m_scaler;
 };

@@ -10,14 +10,14 @@
 //
 //  LayoutManager::LayoutManager
 //
-//  Binds to an external DpiScaler -- typically the one owned by the
+//  Binds to an external DxuiDpiScaler -- typically the one owned by the
 //  Window the layout applies to. Stores a pointer so live DPI changes
 //  (WM_DPICHANGED updating the scaler) are picked up automatically on
 //  the next layout query without a per-frame re-bind.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LayoutManager::LayoutManager (const DpiScaler & scaler)
+LayoutManager::LayoutManager (const DxuiDpiScaler & scaler)
     : m_scaler (&scaler)
 {
 }
@@ -31,7 +31,7 @@ LayoutManager::LayoutManager (const DpiScaler & scaler)
 //  LayoutManager::ScaleForDpi
 //
 //  DPI-scaling primitive. Returns dp scaled to physical pixels via the
-//  bound DpiScaler. Falls back to base DPI (1:1) if no scaler was ever
+//  bound DxuiDpiScaler. Falls back to base DPI (1:1) if no scaler was ever
 //  bound, which only happens in malformed test setups.
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,19 +1,17 @@
 #include "Pch.h"
 
-#include "DragDropTarget.h"
-
-#include "DriveWidgetState.h"
+#include "DxuiDragDropTarget.h"
 
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DragDropTarget
+//  DxuiDragDropTarget
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DragDropTarget::DragDropTarget()
+DxuiDragDropTarget::DxuiDragDropTarget()
 {
 }
 
@@ -22,11 +20,11 @@ DragDropTarget::DragDropTarget()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ~DragDropTarget
+//  ~DxuiDragDropTarget
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DragDropTarget::~DragDropTarget()
+DxuiDragDropTarget::~DxuiDragDropTarget()
 {
     Shutdown();
 }
@@ -40,7 +38,7 @@ DragDropTarget::~DragDropTarget()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DragDropTarget::Initialize (HWND hwnd, HitTestFn hitTest)
+HRESULT DxuiDragDropTarget::Initialize (HWND hwnd, HitTestFn hitTest)
 {
     HRESULT  hr = S_OK;
 
@@ -72,7 +70,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DragDropTarget::Initialize (HWND hwnd, HitTester * pHitTester, DropFn drop)
+HRESULT DxuiDragDropTarget::Initialize (HWND hwnd, DxuiHitTester * pHitTester, DropFn drop, FilterFn filter)
 {
     HRESULT  hr = S_OK;
 
@@ -84,6 +82,7 @@ HRESULT DragDropTarget::Initialize (HWND hwnd, HitTester * pHitTester, DropFn dr
     m_hwnd      = hwnd;
     m_hitTester = pHitTester;
     m_drop      = std::move (drop);
+    m_filter    = std::move (filter);
     m_hitTest   = {};
 
     hr = RegisterDragDrop (hwnd, this);
@@ -112,7 +111,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DragDropTarget::AttachAdditionalWindow (HWND hwnd)
+HRESULT DxuiDragDropTarget::AttachAdditionalWindow (HWND hwnd)
 {
     HRESULT  hr = S_OK;
 
@@ -139,7 +138,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DragDropTarget::RevokeAllRegistrations ()
+void DxuiDragDropTarget::RevokeAllRegistrations()
 {
     size_t   i  = 0;
     HRESULT  hr = S_OK;
@@ -167,7 +166,7 @@ void DragDropTarget::RevokeAllRegistrations ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DragDropTarget::Shutdown()
+void DxuiDragDropTarget::Shutdown()
 {
     RevokeAllRegistrations();
 
@@ -175,6 +174,7 @@ void DragDropTarget::Shutdown()
     m_hitTest               = {};
     m_hitTester             = nullptr;
     m_drop                  = {};
+    m_filter                = {};
     m_lastHitTag            = -1;
     m_fDragActive           = false;
     m_fDragHasSupportedFile = false;
@@ -190,7 +190,7 @@ void DragDropTarget::Shutdown()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-STDMETHODIMP DragDropTarget::QueryInterface (REFIID riid, void ** ppv)
+STDMETHODIMP DxuiDragDropTarget::QueryInterface (REFIID riid, void ** ppv)
 {
     if (ppv == nullptr)
     {
@@ -209,13 +209,13 @@ STDMETHODIMP DragDropTarget::QueryInterface (REFIID riid, void ** ppv)
 }
 
 
-STDMETHODIMP_(ULONG) DragDropTarget::AddRef()
+STDMETHODIMP_(ULONG) DxuiDragDropTarget::AddRef()
 {
     return m_refCount.fetch_add (1, std::memory_order_acq_rel) + 1;
 }
 
 
-STDMETHODIMP_(ULONG) DragDropTarget::Release()
+STDMETHODIMP_(ULONG) DxuiDragDropTarget::Release()
 {
     ULONG  result = m_refCount.fetch_sub (1, std::memory_order_acq_rel) - 1;
 
@@ -233,7 +233,7 @@ STDMETHODIMP_(ULONG) DragDropTarget::Release()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DragDropTarget::ExtractFirstHDropPath (IDataObject * pData, std::wstring & outPath)
+HRESULT DxuiDragDropTarget::ExtractFirstHDropPath (IDataObject * pData, std::wstring & outPath)
 {
     HRESULT   hr         = S_OK;
     FORMATETC fmt        = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
@@ -309,7 +309,7 @@ Cleanup:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-STDMETHODIMP DragDropTarget::DragEnter (
+STDMETHODIMP DxuiDragDropTarget::DragEnter (
     IDataObject * pData,
     DWORD         /*grfKeyState*/,
     POINTL        pt,
@@ -325,7 +325,7 @@ STDMETHODIMP DragDropTarget::DragEnter (
     m_dragPath.clear();
 
     hr = ExtractFirstHDropPath (pData, path);
-    if (hr == S_OK && IsSupportedDiskImageExtension (path))
+    if (hr == S_OK && (!m_filter || m_filter (path)))
     {
         m_fDragHasSupportedFile = true;
         m_dragPath              = path;
@@ -343,7 +343,7 @@ STDMETHODIMP DragDropTarget::DragEnter (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-STDMETHODIMP DragDropTarget::DragOver (
+STDMETHODIMP DxuiDragDropTarget::DragOver (
     DWORD     /*grfKeyState*/,
     POINTL    pt,
     DWORD   * pdwEffect)
@@ -372,7 +372,7 @@ STDMETHODIMP DragDropTarget::DragOver (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-STDMETHODIMP DragDropTarget::DragLeave()
+STDMETHODIMP DxuiDragDropTarget::DragLeave()
 {
     m_fDragActive           = false;
     m_fDragHasSupportedFile = false;
@@ -390,7 +390,7 @@ STDMETHODIMP DragDropTarget::DragLeave()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-STDMETHODIMP DragDropTarget::Drop (
+STDMETHODIMP DxuiDragDropTarget::Drop (
     IDataObject * /*pData*/,
     DWORD         /*grfKeyState*/,
     POINTL        pt,
@@ -428,13 +428,13 @@ STDMETHODIMP DragDropTarget::Drop (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DragDropTarget::PickAtClient (const HitTester & hitTester, int xClient, int yClient)
+int DxuiDragDropTarget::PickAtClient (const DxuiHitTester & hitTester, int xClient, int yClient)
 {
-    const HitRect * hit = hitTester.Pick (xClient, yClient);
+    const DxuiHitRect * hit = hitTester.Pick (xClient, yClient);
 
 
 
-    if (hit == nullptr || hit->slot != HitSlot::Custom)
+    if (hit == nullptr || hit->slot != DxuiHitSlot::Custom)
     {
         return -1;
     }
@@ -451,7 +451,7 @@ int DragDropTarget::PickAtClient (const HitTester & hitTester, int xClient, int 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DragDropTarget::PickAtScreen (POINTL pt) const
+int DxuiDragDropTarget::PickAtScreen (POINTL pt) const
 {
     POINT  client = { pt.x, pt.y };
     int    tag    = -1;

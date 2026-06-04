@@ -1,9 +1,6 @@
 #include "Pch.h"
 
 #include "CppUnitTest.h"
-
-#include "../Casso/Ui/Win11DwmHelpers.h"
-
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -35,15 +32,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace
 {
-    // Locate Win11DwmHelpers.cpp relative to the test DLL's source tree.
+    // Locate DxuiDwm.cpp relative to the test DLL's source tree.
     // The test runs from x64/Debug/ so the project root is three levels
-    // up; the source file lives at Casso/Ui/Win11DwmHelpers.cpp.
+    // up; the source file lives at Dxui/Theme/DxuiDwm.cpp.
     std::string LoadHelpersSource()
     {
         const char *  s_kCandidates[] = {
-            "../Casso/Ui/Win11DwmHelpers.cpp",
-            "../../Casso/Ui/Win11DwmHelpers.cpp",
-            "../../../Casso/Ui/Win11DwmHelpers.cpp",
+            "../Dxui/Theme/DxuiDwm.cpp",
+            "../../Dxui/Theme/DxuiDwm.cpp",
+            "../../../Dxui/Theme/DxuiDwm.cpp",
         };
         std::ifstream  in;
         size_t         i = 0;
@@ -68,7 +65,7 @@ namespace
     }
 
 
-    // Extracts the body of a `void Win11DwmHelpers::<name> (...)` function
+    // Extracts the body of a `void DxuiDwm::<name> (...)` function
     // -- everything between its opening `{` and matching closing `}`.
     std::string ExtractFunctionBody (const std::string & src, const std::string & qualifiedName)
     {
@@ -115,26 +112,26 @@ public:
 
     TEST_METHOD (ApplyRoundedCorners_NullHwnd_NoCrash)
     {
-        Win11DwmHelpers::ApplyRoundedCorners (nullptr, true);
-        Win11DwmHelpers::ApplyRoundedCorners (nullptr, false);
+        DxuiDwm::ApplyRoundedCorners (nullptr, true);
+        DxuiDwm::ApplyRoundedCorners (nullptr, false);
     }
 
     TEST_METHOD (ApplyMicaBackdrop_NullHwnd_NoCrash)
     {
-        Win11DwmHelpers::ApplyMicaBackdrop (nullptr, true);
-        Win11DwmHelpers::ApplyMicaBackdrop (nullptr, false);
+        DxuiDwm::ApplyMicaBackdrop (nullptr, true);
+        DxuiDwm::ApplyMicaBackdrop (nullptr, false);
     }
 
     TEST_METHOD (ApplyImmersiveDarkMode_NullHwnd_NoCrash)
     {
-        Win11DwmHelpers::ApplyImmersiveDarkMode (nullptr, true);
-        Win11DwmHelpers::ApplyImmersiveDarkMode (nullptr, false);
+        DxuiDwm::ApplyImmersiveDarkMode (nullptr, true);
+        DxuiDwm::ApplyImmersiveDarkMode (nullptr, false);
     }
 
     TEST_METHOD (ExtendFrameIntoClientArea_NullHwnd_NoCrash)
     {
-        Win11DwmHelpers::ExtendFrameIntoClientArea (nullptr, 1);
-        Win11DwmHelpers::ExtendFrameIntoClientArea (nullptr, 0);
+        DxuiDwm::ExtendFrameIntoClientArea (nullptr, 1);
+        DxuiDwm::ExtendFrameIntoClientArea (nullptr, 0);
     }
 
     TEST_METHOD (VersionProbes_AreCallable)
@@ -142,8 +139,8 @@ public:
         // These read NTDLL!RtlGetVersion and should never crash; we
         // don't assert true/false because the result depends on the
         // host OS, only that the call completes.
-        bool  w11   = Win11DwmHelpers::IsWindows11OrGreater();
-        bool  w1809 = Win11DwmHelpers::IsWindows10_1809OrGreater();
+        bool  w11   = DxuiDwm::IsWindows11OrGreater();
+        bool  w1809 = DxuiDwm::IsWindows10_1809OrGreater();
 
         // Logical implication: Win11 implies 1809+.
         if (w11)
@@ -158,10 +155,10 @@ public:
     TEST_METHOD (ApplyRoundedCorners_GatedOnWin11)
     {
         std::string  src  = LoadHelpersSource();
-        std::string  body = ExtractFunctionBody (src, "Win11DwmHelpers::ApplyRoundedCorners");
+        std::string  body = ExtractFunctionBody (src, "DxuiDwm::ApplyRoundedCorners");
 
         Assert::IsFalse (body.empty(),
-            L"Could not load Win11DwmHelpers.cpp body for ApplyRoundedCorners");
+            L"Could not load DxuiDwm.cpp body for ApplyRoundedCorners");
         Assert::IsTrue (body.find ("IsWindows11OrGreater") != std::string::npos,
             L"ApplyRoundedCorners must gate on IsWindows11OrGreater (FR-042)");
         Assert::IsTrue (body.find ("DwmSetWindowAttribute") != std::string::npos,
@@ -173,7 +170,7 @@ public:
     TEST_METHOD (ApplyMicaBackdrop_GatedOnWin11)
     {
         std::string  src  = LoadHelpersSource();
-        std::string  body = ExtractFunctionBody (src, "Win11DwmHelpers::ApplyMicaBackdrop");
+        std::string  body = ExtractFunctionBody (src, "DxuiDwm::ApplyMicaBackdrop");
 
         Assert::IsFalse (body.empty());
         Assert::IsTrue (body.find ("IsWindows11OrGreater") != std::string::npos,
@@ -185,7 +182,7 @@ public:
     TEST_METHOD (ApplyImmersiveDarkMode_GatedOnWin10_1809)
     {
         std::string  src  = LoadHelpersSource();
-        std::string  body = ExtractFunctionBody (src, "Win11DwmHelpers::ApplyImmersiveDarkMode");
+        std::string  body = ExtractFunctionBody (src, "DxuiDwm::ApplyImmersiveDarkMode");
 
         Assert::IsFalse (body.empty());
         Assert::IsTrue (body.find ("IsWindows10_1809OrGreater") != std::string::npos,
@@ -200,7 +197,7 @@ public:
         // every Win10+ build, so no version gate is required -- only
         // a nullptr-hwnd check. Verify that contract holds.
         std::string  src  = LoadHelpersSource();
-        std::string  body = ExtractFunctionBody (src, "Win11DwmHelpers::ExtendFrameIntoClientArea");
+        std::string  body = ExtractFunctionBody (src, "DxuiDwm::ExtendFrameIntoClientArea");
 
         Assert::IsFalse (body.empty());
         Assert::IsTrue (body.find ("hwnd == nullptr") != std::string::npos,

@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 
@@ -95,7 +94,7 @@ private:
     ComPtr<ID3D11RenderTargetView>    m_rtv;
     DxUiPainter                       m_painter;
     DwriteTextRenderer                m_text;
-    DpiScaler                         m_scaler;
+    DxuiDpiScaler                         m_scaler;
     TitleBar                        * m_titleBar = nullptr;
     const ChromeTheme                * m_theme    = nullptr;
     int                               m_widthPx  = 0;

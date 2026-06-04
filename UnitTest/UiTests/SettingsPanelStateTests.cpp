@@ -426,7 +426,7 @@ public:
 
 
 
-        DpiScaler                scaler;
+        DxuiDpiScaler                scaler;
 
         st.LoadFromMachine ("machineA", machineA, machineA);
         page.SetState (&st);

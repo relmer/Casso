@@ -88,7 +88,7 @@ void MachinePage::SetMachineList (std::vector<std::string>  machineIds,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachinePage::Layout (const RECT & rect, const DpiScaler & scaler)
+void MachinePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
     UINT dpi          = scaler.Dpi();
     int  pad          = scaler.Px (s_kPagePadDp);

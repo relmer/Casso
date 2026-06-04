@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "UiInput.h"
+#include "DxuiInput.h"
 
 
 
@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void UiInput::RefreshModifiers ()
+void DxuiInput::RefreshModifiers()
 {
     m_mods.shift = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
     m_mods.ctrl  = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
@@ -27,16 +27,16 @@ void UiInput::RefreshModifiers ()
 //
 //  Translate
 //
-//  Converts a single Win32 message into a typed `UiEvent` and queues it
+//  Converts a single Win32 message into a typed `DxuiEvent` and queues it
 //  for later pop by the shell's per-frame tick. Returns true when the
 //  message produced an event; false otherwise (so callers can fall
 //  through to their default Win32 handling).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool UiInput::Translate (UINT msg, WPARAM wParam, LPARAM lParam, UiEvent & outEvent)
+bool DxuiInput::Translate (UINT msg, WPARAM wParam, LPARAM lParam, DxuiEvent & outEvent)
 {
-    UiEvent  ev = {};
+    DxuiEvent  ev = {};
 
 
 
@@ -48,14 +48,14 @@ bool UiInput::Translate (UINT msg, WPARAM wParam, LPARAM lParam, UiEvent & outEv
     case WM_MOUSEMOVE:
         m_mouseX  = (int) (short) LOWORD (lParam);
         m_mouseY  = (int) (short) HIWORD (lParam);
-        ev.type   = UiEventType::MouseMove;
+        ev.type   = DxuiEventType::MouseMove;
         ev.x      = m_mouseX;
         ev.y      = m_mouseY;
         break;
 
     case WM_LBUTTONDOWN:
-        ev.type   = UiEventType::MouseDown;
-        ev.button = UiMouseButton::Left;
+        ev.type   = DxuiEventType::MouseDown;
+        ev.button = DxuiMouseButton::Left;
         ev.x      = (int) (short) LOWORD (lParam);
         ev.y      = (int) (short) HIWORD (lParam);
         m_mouseX  = ev.x;
@@ -63,8 +63,8 @@ bool UiInput::Translate (UINT msg, WPARAM wParam, LPARAM lParam, UiEvent & outEv
         break;
 
     case WM_LBUTTONUP:
-        ev.type   = UiEventType::MouseUp;
-        ev.button = UiMouseButton::Left;
+        ev.type   = DxuiEventType::MouseUp;
+        ev.button = DxuiMouseButton::Left;
         ev.x      = (int) (short) LOWORD (lParam);
         ev.y      = (int) (short) HIWORD (lParam);
         m_mouseX  = ev.x;
@@ -72,35 +72,35 @@ bool UiInput::Translate (UINT msg, WPARAM wParam, LPARAM lParam, UiEvent & outEv
         break;
 
     case WM_RBUTTONDOWN:
-        ev.type   = UiEventType::MouseDown;
-        ev.button = UiMouseButton::Right;
+        ev.type   = DxuiEventType::MouseDown;
+        ev.button = DxuiMouseButton::Right;
         ev.x      = (int) (short) LOWORD (lParam);
         ev.y      = (int) (short) HIWORD (lParam);
         break;
 
     case WM_RBUTTONUP:
-        ev.type   = UiEventType::MouseUp;
-        ev.button = UiMouseButton::Right;
+        ev.type   = DxuiEventType::MouseUp;
+        ev.button = DxuiMouseButton::Right;
         ev.x      = (int) (short) LOWORD (lParam);
         ev.y      = (int) (short) HIWORD (lParam);
         break;
 
     case WM_MBUTTONDOWN:
-        ev.type   = UiEventType::MouseDown;
-        ev.button = UiMouseButton::Middle;
+        ev.type   = DxuiEventType::MouseDown;
+        ev.button = DxuiMouseButton::Middle;
         ev.x      = (int) (short) LOWORD (lParam);
         ev.y      = (int) (short) HIWORD (lParam);
         break;
 
     case WM_MBUTTONUP:
-        ev.type   = UiEventType::MouseUp;
-        ev.button = UiMouseButton::Middle;
+        ev.type   = DxuiEventType::MouseUp;
+        ev.button = DxuiMouseButton::Middle;
         ev.x      = (int) (short) LOWORD (lParam);
         ev.y      = (int) (short) HIWORD (lParam);
         break;
 
     case WM_MOUSEWHEEL:
-        ev.type   = UiEventType::MouseWheel;
+        ev.type   = DxuiEventType::MouseWheel;
         ev.wheel  = GET_WHEEL_DELTA_WPARAM (wParam);
         ev.x      = m_mouseX;
         ev.y      = m_mouseY;
@@ -108,27 +108,27 @@ bool UiInput::Translate (UINT msg, WPARAM wParam, LPARAM lParam, UiEvent & outEv
 
     case WM_KEYDOWN:
     case WM_SYSKEYDOWN:
-        ev.type    = UiEventType::KeyDown;
+        ev.type    = DxuiEventType::KeyDown;
         ev.keyCode = (UINT) wParam;
         break;
 
     case WM_KEYUP:
     case WM_SYSKEYUP:
-        ev.type    = UiEventType::KeyUp;
+        ev.type    = DxuiEventType::KeyUp;
         ev.keyCode = (UINT) wParam;
         break;
 
     case WM_CHAR:
-        ev.type    = UiEventType::Char;
+        ev.type    = DxuiEventType::Char;
         ev.ch      = (wchar_t) wParam;
         break;
 
     case WM_SETFOCUS:
-        ev.type    = UiEventType::FocusGained;
+        ev.type    = DxuiEventType::FocusGained;
         break;
 
     case WM_KILLFOCUS:
-        ev.type    = UiEventType::FocusLost;
+        ev.type    = DxuiEventType::FocusLost;
         break;
 
     default:
@@ -150,7 +150,7 @@ bool UiInput::Translate (UINT msg, WPARAM wParam, LPARAM lParam, UiEvent & outEv
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void UiInput::PushEvent (const UiEvent & ev)
+void DxuiInput::PushEvent (const DxuiEvent & ev)
 {
     m_queue.push_back (ev);
 }
@@ -165,7 +165,7 @@ void UiInput::PushEvent (const UiEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool UiInput::PopEvent (UiEvent & outEvent)
+bool DxuiInput::PopEvent (DxuiEvent & outEvent)
 {
     if (m_queue.empty())
     {
@@ -187,7 +187,7 @@ bool UiInput::PopEvent (UiEvent & outEvent)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void UiInput::Clear ()
+void DxuiInput::Clear()
 {
     m_queue.clear();
 }

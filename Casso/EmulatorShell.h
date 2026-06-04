@@ -29,7 +29,6 @@
 #include "Ui/Dialog/DialogDefinition.h"
 #include "Ui/Dialog/DialogPrimitive.h"
 #include "Ui/Disk2DebugPanel.h"
-#include "Ui/DragDropTarget.h"
 #include "Ui/DriveWidgetController.h"
 #include "Ui/DriveWidgetState.h"
 #include "Ui/IDriveCommandSink.h"
@@ -172,7 +171,7 @@ private:
     bool    OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu) override;
 
     // P4 custom-chrome overrides — borderless window + WM_NCHITTEST
-    // delegated to TitleBarHitTest, system-button click routing on
+    // delegated to DxuiTitleBarHitTest, system-button click routing on
     // WM_NCLBUTTONUP.
     bool    OnNcCalcSize  (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult) override;
     LRESULT OnNcHitTest   (HWND hwnd, int xScreen, int yScreen) override;
@@ -385,7 +384,7 @@ private:
     // counters are sampled once per UI frame and pushed through the
     // controller.
     DriveWidgetController                m_driveWidgets;
-    DragDropTarget                       m_dragDropTarget;
+    DxuiDragDropTarget                       m_dragDropTarget;
 
     // Native UI shell. Owns the painter, text renderer, hit-tester,
     // focus manager, animation broker, and input translator. Wired

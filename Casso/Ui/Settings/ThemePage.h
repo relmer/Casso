@@ -5,7 +5,6 @@
 #include "../Chrome/ChromeTheme.h"
 #include "../Chrome/DriveWidget.h"
 #include "../Chrome/JoystickToggleButton.h"
-#include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
 #include "../Widgets/Dropdown.h"
@@ -40,7 +39,7 @@ public:
     void  SetFramebufferSource  (FramebufferSourceFn fn) { m_framebufferSource = std::move (fn); }
     void  SetMountedPathSource  (MountedPathFn       fn) { m_mountedPathSource = std::move (fn); }
 
-    void  Layout                (const RECT & rect, const DpiScaler & scaler);
+    void  Layout                (const RECT & rect, const DxuiDpiScaler & scaler);
 
     void  OnLButtonDown         (int x, int y);
     void  OnLButtonUp           (int x, int y);
@@ -66,7 +65,7 @@ private:
     Label                         m_themeLabel;
     Dropdown                      m_themeDropdown;
     RECT                          m_previewRect = {};
-    DpiScaler                     m_scaler;
+    DxuiDpiScaler                     m_scaler;
 
     // Preview-only DriveWidget instances rendered with the staged
     // theme inside the mock window. Mutable because Paint is const

@@ -2,14 +2,9 @@
 
 #include "Pch.h"
 
-#include "Animation.h"
-#include "DpiScaler.h"
-#include "DragDropTarget.h"
 #include "DwriteTextRenderer.h"
 #include "DxUiPainter.h"
 #include "FocusManager.h"
-#include "HitTester.h"
-#include "UiInput.h"
 #include "Chrome/ChromeTheme.h"
 #include "Chrome/DriveWidget.h"
 #include "Chrome/JoystickToggleButton.h"
@@ -61,7 +56,7 @@ public:
         m_joystickButton  = button;
         m_joystickTooltip = tooltip;
     }
-    void     SetDragSource      (const DragDropTarget            * dragSource) { m_dragSource = dragSource; }
+    void     SetDragSource      (const DxuiDragDropTarget            * dragSource) { m_dragSource = dragSource; }
     bool     OnMouseMove        (int x, int y, bool leftDown);
     void     OnMouseLeave       ();
     bool     OnLButtonDown      (int x, int y);
@@ -72,10 +67,10 @@ public:
 
     DxUiPainter         & Painter   ()       { return m_painter; }
     DwriteTextRenderer  & Text      ()       { return m_text; }
-    UiInput             & Input     ()       { return m_input; }
-    HitTester           & HitTest   ()       { return m_hitTest; }
+    DxuiInput             & Input     ()       { return m_input; }
+    DxuiHitTester           & HitTest   ()       { return m_hitTest; }
     FocusManager        & Focus     ()       { return m_focus; }
-    Animation           & Tweens    ()       { return m_anim; }
+    DxuiAnimation           & Tweens    ()       { return m_anim; }
 
     int    ViewportWidth  () const { return m_viewportWidthPx; }
     int    ViewportHeight () const { return m_viewportHeightPx; }
@@ -86,7 +81,7 @@ public:
         return (m_theme != nullptr) ? *m_theme : s_kFallback;
     }
 
-    const DpiScaler  & Scaler () const { return m_scaler; }
+    const DxuiDpiScaler  & Scaler () const { return m_scaler; }
 
 private:
     HRESULT  RefreshTextTarget ();
@@ -99,10 +94,10 @@ private:
 
     DxUiPainter                   m_painter;
     DwriteTextRenderer            m_text;
-    UiInput                       m_input;
-    HitTester                     m_hitTest;
+    DxuiInput                       m_input;
+    DxuiHitTester                     m_hitTest;
     FocusManager                  m_focus;
-    Animation                     m_anim;
+    DxuiAnimation                     m_anim;
 
     TitleBar                    * m_titleBar      = nullptr;
     NavLayer                    * m_navLayer      = nullptr;
@@ -111,12 +106,12 @@ private:
     Tooltip                     * m_joystickTooltip = nullptr;
     const ChromeTheme           * m_theme         = nullptr;
     SettingsPanel               * m_settingsPanel = nullptr;
-    const DragDropTarget        * m_dragSource    = nullptr;
+    const DxuiDragDropTarget        * m_dragSource    = nullptr;
 
     int                           m_viewportWidthPx  = 0;
     int                           m_viewportHeightPx = 0;
     UINT                          m_dpi              = 96;
-    DpiScaler                     m_scaler;
+    DxuiDpiScaler                     m_scaler;
     bool                          m_initialized      = false;
     bool                          m_targetDirty      = true;
     bool                          m_leftDown         = false;
