@@ -145,10 +145,18 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Core\DxuiAbsoluteLayout.cpp" />
     <ClCompile Include="Core\DxuiAnimation.cpp" />
+    <ClCompile Include="Core\DxuiFocusManager.cpp" />
+    <ClCompile Include="Core\DxuiFormLayout.cpp" />
+    <ClCompile Include="Core\DxuiGridLayout.cpp" />
     <ClCompile Include="Core\DxuiHitTester.cpp" />
     <ClCompile Include="Core\DxuiInput.cpp" />
+    <ClCompile Include="Core\DxuiPanel.cpp" />
+    <ClCompile Include="Core\DxuiStackLayout.cpp" />
+    <ClCompile Include="Core\DxuiThread.cpp" />
     <ClCompile Include="Core\DxuiTitleBarHitTest.cpp" />
+    <ClCompile Include="Core\IDxuiControl.cpp" />
     <ClCompile Include="Render\DxuiPainter.cpp" />
     <ClCompile Include="Render\DxuiTextRenderer.cpp" />
     <ClCompile Include="Theme\DxuiDwm.cpp" />
@@ -171,13 +179,25 @@
   <ItemGroup>
     <ClInclude Include="Dxui.h" />
     <ClInclude Include="Pch.h" />
+    <ClInclude Include="Core\DxuiAbsoluteLayout.h" />
     <ClInclude Include="Core\DxuiAnimation.h" />
     <ClInclude Include="Core\DxuiDpiScaler.h" />
+    <ClInclude Include="Core\DxuiEvents.h" />
+    <ClInclude Include="Core\DxuiFocusManager.h" />
+    <ClInclude Include="Core\DxuiFormLayout.h" />
+    <ClInclude Include="Core\DxuiGridLayout.h" />
     <ClInclude Include="Core\DxuiHitTester.h" />
     <ClInclude Include="Core\DxuiInput.h" />
+    <ClInclude Include="Core\DxuiPanel.h" />
+    <ClInclude Include="Core\DxuiStackLayout.h" />
+    <ClInclude Include="Core\DxuiThread.h" />
     <ClInclude Include="Core\DxuiTitleBarHitTest.h" />
+    <ClInclude Include="Core\IDxuiControl.h" />
+    <ClInclude Include="Core\IDxuiLayout.h" />
     <ClInclude Include="Render\DxuiPainter.h" />
     <ClInclude Include="Render\DxuiTextRenderer.h" />
+    <ClInclude Include="Render\IDxuiPainter.h" />
+    <ClInclude Include="Render\IDxuiTextRenderer.h" />
     <ClInclude Include="Theme\DxuiDwm.h" />
     <ClInclude Include="Theme\DxuiWindowsThemeColors.h" />
     <ClInclude Include="Theme\IDxuiTheme.h" />

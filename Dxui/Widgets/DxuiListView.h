@@ -32,7 +32,7 @@ public:
         std::wstring                  title;
         int                           widthDip = 0;     // 0 = auto-fit content (or stretch if stretch=true)
         bool                          stretch = false; // when true, column absorbs any remaining width after fixed/auto
-        DxuiTextRenderer::HAlign    align   = DxuiTextRenderer::HAlign::Left;
+        DxuiTextHAlign    align   = DxuiTextHAlign::Left;
         bool                          visible = true;
     };
 
@@ -78,7 +78,7 @@ public:
     int   GetColumnOverrideWidthPx  (size_t idx) const;
     int   GetColumnEffectiveWidthPx (size_t idx) const;
     int   GetTotalMeasuredWidthPx   () const;
-    void  MeasureColumnsPx          (DxuiTextRenderer & text);
+    void  MeasureColumnsPx          (IDxuiTextRenderer & text);
 
     // Column / row queries.
     size_t         GetColumnCount () const                 { return m_columns.size(); }
@@ -143,7 +143,7 @@ public:
     int   HitTestRow          (int xPx, int yPx) const;
 
     // Rendering.
-    void  Paint (DxuiPainter & painter, DxuiTextRenderer & text) const;
+    void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
 
 private:
     static constexpr int    s_kRowHeightDip      = 30;
@@ -171,22 +171,22 @@ private:
 
     Palette MakePalette () const;
     void    ComputeColumnLayout (float fullW, std::vector<int> & xs, std::vector<int> & ws) const;
-    void    PaintHeader             (DxuiPainter            & painter,
-                                     DxuiTextRenderer     & text,
+    void    PaintHeader             (IDxuiPainter           & painter,
+                                     IDxuiTextRenderer    & text,
                                      const Palette          & pal,
                                      float                    x,
                                      float                    y,
                                      float                    layoutW,
                                      const std::vector<int> & colXPx,
                                      const std::vector<int> & colWPx) const;
-    void    PaintHeaderFocusMarkers (DxuiPainter            & painter,
+    void    PaintHeaderFocusMarkers (IDxuiPainter           & painter,
                                      const Palette          & pal,
                                      float                    x,
                                      float                    y,
                                      const std::vector<int> & colXPx,
                                      const std::vector<int> & colWPx) const;
-    void    PaintDataRows           (DxuiPainter            & painter,
-                                     DxuiTextRenderer     & text,
+    void    PaintDataRows           (IDxuiPainter           & painter,
+                                     IDxuiTextRenderer    & text,
                                      const Palette          & pal,
                                      float                    x,
                                      float                    y,
@@ -195,11 +195,11 @@ private:
                                      int                      lastRow,
                                      const std::vector<int> & colXPx,
                                      const std::vector<int> & colWPx) const;
-    void    PaintScrollbar          (DxuiPainter   & painter,
+    void    PaintScrollbar          (IDxuiPainter  & painter,
                                      const Palette & pal,
                                      float           x,
                                      float           y) const;
-    void    PaintScrollArrow        (DxuiPainter & painter,
+    void    PaintScrollArrow        (IDxuiPainter & painter,
                                      float          ax,
                                      float          ay,
                                      float          aw,

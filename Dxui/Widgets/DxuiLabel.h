@@ -26,8 +26,8 @@ public:
     void  SetColorArgb   (uint32_t argb) { m_argb = argb; }
     void  SetFontSizeDip (float dip) { m_fontDip = dip; }
     void  SetFontFace    (const std::wstring & face) { m_fontFace = face; }
-    void  SetHAlign      (DxuiTextRenderer::HAlign a) { m_hAlign = a; }
-    void  SetVAlign      (DxuiTextRenderer::VAlign a) { m_vAlign = a; }
+    void  SetHAlign      (DxuiTextHAlign a) { m_hAlign = a; }
+    void  SetVAlign      (DxuiTextVAlign a) { m_vAlign = a; }
     void  SetFontWeight  (DWRITE_FONT_WEIGHT w) { m_weight = w; }
     void  SetDpi         (UINT dpi) { m_scaler.SetDpi (dpi); }
 
@@ -36,7 +36,7 @@ public:
     uint32_t             ColorArgb () const { return m_argb; }
     float                FontSizeDip () const { return m_fontDip; }
 
-    void  Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
+    void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
     {
         HRESULT  hr = S_OK;
 
@@ -61,8 +61,8 @@ private:
     std::wstring                  m_fontFace = L"Segoe UI";
     uint32_t                      m_argb     = 0xFFFFFFFF;
     float                         m_fontDip  = 13.0f;
-    DxuiTextRenderer::HAlign    m_hAlign   = DxuiTextRenderer::HAlign::Left;
-    DxuiTextRenderer::VAlign    m_vAlign   = DxuiTextRenderer::VAlign::Center;
+    DxuiTextHAlign    m_hAlign   = DxuiTextHAlign::Left;
+    DxuiTextVAlign    m_vAlign   = DxuiTextVAlign::Center;
     DWRITE_FONT_WEIGHT            m_weight   = DWRITE_FONT_WEIGHT_NORMAL;
     DxuiDpiScaler                     m_scaler;
 };

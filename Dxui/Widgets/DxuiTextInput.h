@@ -59,11 +59,11 @@ public:
     bool  OnKey         (WPARAM vk);
     bool  OnChar        (wchar_t ch);
 
-    void  Paint         (DxuiPainter & painter, DxuiTextRenderer & text) const;
+    void  Paint         (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
 
 private:
     void   ClampCaret ();
-    size_t CaretFromX (DxuiTextRenderer & text, int xPx) const;
+    size_t CaretFromX (IDxuiTextRenderer & text, int xPx) const;
     void   DeleteSelection ();
     void   InsertText      (const std::wstring & ins);
     void   CopyToClipboard () const;

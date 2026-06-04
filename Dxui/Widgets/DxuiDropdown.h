@@ -34,9 +34,9 @@ public:
     bool  OnLButtonDown  (int x, int y);
     bool  OnLButtonUp    (int x, int y);
     bool  HandleKey      (WPARAM vk);
-    void  Paint          (DxuiPainter & painter, DxuiTextRenderer & text) const;
-    void  PaintBase      (DxuiPainter & painter, DxuiTextRenderer & text) const;
-    void  PaintMenu      (DxuiPainter & painter, DxuiTextRenderer & text) const;
+    void  Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    void  PaintBase      (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    void  PaintMenu      (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
     void  SetDpi         (UINT dpi) { m_scaler.SetDpi (dpi); }
 
 private:

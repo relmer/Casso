@@ -68,6 +68,8 @@ HRESULT DxuiTextRenderer::Initialize (ID3D11Device * pDevice)
 
 
 
+    DXUI_ASSERT_UI_THREAD();
+
     CBRAEx (pDevice, E_INVALIDARG);
 
 #ifdef _DEBUG
@@ -113,6 +115,8 @@ Error:
 
 void DxuiTextRenderer::Shutdown ()
 {
+    DXUI_ASSERT_UI_THREAD();
+
     UnbindBackBuffer();
 
     m_offscreen.Reset();
@@ -152,6 +156,8 @@ HRESULT DxuiTextRenderer::BindBackBuffer (
 
 
 
+    DXUI_ASSERT_UI_THREAD();
+
     CBRA (m_d2dContext);
     CBRAEx (pBackBufferSurface, E_INVALIDARG);
 
@@ -185,6 +191,8 @@ Error:
 
 void DxuiTextRenderer::UnbindBackBuffer ()
 {
+    DXUI_ASSERT_UI_THREAD();
+
     if (m_d2dContext)
     {
         m_d2dContext->SetTarget (nullptr);
@@ -209,6 +217,8 @@ HRESULT DxuiTextRenderer::BeginDraw ()
     HRESULT  hr = S_OK;
 
 
+
+    DXUI_ASSERT_UI_THREAD();
 
     CBRA (m_d2dContext);
     CBRA (m_targetBound);
@@ -236,6 +246,8 @@ HRESULT DxuiTextRenderer::EndDraw ()
     HRESULT  hrEnd = S_OK;
 
 
+
+    DXUI_ASSERT_UI_THREAD();
 
     CBRA (m_d2dContext);
 
@@ -299,6 +311,8 @@ HRESULT DxuiTextRenderer::BeginDrawOffscreen ()
 
 
 
+    DXUI_ASSERT_UI_THREAD();
+
     CBRA (m_d2dContext);
     CBRA (m_targetBound);
 
@@ -353,6 +367,8 @@ HRESULT DxuiTextRenderer::EndDrawComposite ()
     D2D1_RECT_F  dest   = {};
 
 
+
+    DXUI_ASSERT_UI_THREAD();
 
     CBRA (m_d2dContext);
 
@@ -599,6 +615,8 @@ HRESULT DxuiTextRenderer::DrawString (
 
 
 
+    DXUI_ASSERT_UI_THREAD();
+
     CBRA (m_d2dContext);
     CBRA (m_drawing);
     CBRAEx (text, E_INVALIDARG);
@@ -702,6 +720,8 @@ HRESULT DxuiTextRenderer::FillRect (
     float    heightDip,
     uint32_t argbColor)
 {
+    DXUI_ASSERT_UI_THREAD();
+
     HRESULT                            hr     = S_OK;
     ComPtr<ID2D1SolidColorBrush>       brush;
     D2D1_RECT_F                        rect   = {};
@@ -747,6 +767,8 @@ Error:
 
 HRESULT DxuiTextRenderer::PushClipRect (float xDip, float yDip, float widthDip, float heightDip)
 {
+    DXUI_ASSERT_UI_THREAD();
+
     HRESULT      hr   = S_OK;
     D2D1_RECT_F  rect = {};
 
@@ -768,6 +790,8 @@ Error:
 
 HRESULT DxuiTextRenderer::PopClipRect ()
 {
+    DXUI_ASSERT_UI_THREAD();
+
     HRESULT  hr = S_OK;
 
 
@@ -810,6 +834,8 @@ HRESULT DxuiTextRenderer::DrawFramebuffer (
     D2D1_RECT_F   dest   = {};
 
 
+
+    DXUI_ASSERT_UI_THREAD();
 
     CBRA (m_d2dContext);
     CBRA (m_drawing);
@@ -887,6 +913,8 @@ HRESULT DxuiTextRenderer::DrawIconBitmap (
 
 
 
+    DXUI_ASSERT_UI_THREAD();
+
     CBRA (m_d2dContext);
     CBRA (m_drawing);
     CBRA (srcBgraPremul);
@@ -963,6 +991,8 @@ HRESULT DxuiTextRenderer::MeasureString (
 
 
 
+    DXUI_ASSERT_UI_THREAD();
+
     outWidthDip  = 0.0f;
     outHeightDip = 0.0f;
 
@@ -1012,6 +1042,8 @@ Error:
 
 HRESULT DxuiTextRenderer::OnDeviceLost ()
 {
+    DXUI_ASSERT_UI_THREAD();
+
     Shutdown();
     return S_OK;
 }
@@ -1028,5 +1060,7 @@ HRESULT DxuiTextRenderer::OnDeviceLost ()
 
 HRESULT DxuiTextRenderer::OnDeviceRestored (ID3D11Device * pDevice)
 {
+    DXUI_ASSERT_UI_THREAD();
+
     return Initialize (pDevice);
 }

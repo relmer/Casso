@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Render/IDxuiPainter.h"
+
 
 
 
@@ -24,7 +26,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiPainter
+class DxuiPainter : public IDxuiPainter
 {
 public:
     DxuiPainter  () = default;
@@ -45,21 +47,21 @@ public:
                               float yPx,
                               float widthPx,
                               float heightPx,
-                              uint32_t argbColor);
+                              uint32_t argbColor) override;
 
     void    FillGradientRect (float xPx,
                               float yPx,
                               float widthPx,
                               float heightPx,
                               uint32_t argbTop,
-                              uint32_t argbBottom);
+                              uint32_t argbBottom) override;
 
     void    OutlineRect      (float xPx,
                               float yPx,
                               float widthPx,
                               float heightPx,
                               float thicknessPx,
-                              uint32_t argbColor);
+                              uint32_t argbColor) override;
 
     // Approximate filled circle using horizontal slices. Cheap and
     // looks good enough at typical UI sizes (radii 4-12px). Used for
@@ -67,7 +69,7 @@ public:
     void    FillCircleApprox (float cxPx,
                               float cyPx,
                               float radiusPx,
-                              uint32_t argbColor);
+                              uint32_t argbColor) override;
 
     HRESULT End              (ID3D11RenderTargetView * pRtv);
 

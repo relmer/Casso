@@ -148,7 +148,7 @@ void DxuiCheckbox::Toggle ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiCheckbox::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
+void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
     constexpr uint32_t  s_kBoxIdle      = 0xFF606060;
     constexpr uint32_t  s_kBoxHover     = 0xFF808080;
@@ -193,8 +193,8 @@ void DxuiCheckbox::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
                                                   glyphColor,
                                                   boxSize * 0.95f,
                                                   L"Segoe UI Symbol",
-                                                  DxuiTextRenderer::HAlign::Center,
-                                                  DxuiTextRenderer::VAlign::Center));
+                                                  DxuiTextHAlign::Center,
+                                                  DxuiTextVAlign::Center));
     }
 
     if (m_focused)
@@ -215,6 +215,6 @@ void DxuiCheckbox::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
                                               textColor,
                                               fontDip,
                                               L"Segoe UI",
-                                              DxuiTextRenderer::HAlign::Left,
-                                              DxuiTextRenderer::VAlign::Center));
+                                              DxuiTextHAlign::Left,
+                                              DxuiTextVAlign::Center));
 }

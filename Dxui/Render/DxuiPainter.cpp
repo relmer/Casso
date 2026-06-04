@@ -66,6 +66,7 @@ HRESULT DxuiPainter::Initialize (
     HRESULT  hr = S_OK;
 
 
+    DXUI_ASSERT_UI_THREAD();
 
     CBRAEx (pDevice,  E_INVALIDARG);
     CBRAEx (pContext, E_INVALIDARG);
@@ -98,6 +99,8 @@ Error:
 
 void DxuiPainter::Shutdown ()
 {
+    DXUI_ASSERT_UI_THREAD();
+
     m_vertices.clear();
     m_vertexBuffer.Reset();
     m_depthState.Reset();
@@ -124,6 +127,8 @@ void DxuiPainter::Shutdown ()
 
 HRESULT DxuiPainter::OnDeviceLost ()
 {
+    DXUI_ASSERT_UI_THREAD();
+
     Shutdown();
     return S_OK;
 }
@@ -142,6 +147,8 @@ HRESULT DxuiPainter::OnDeviceRestored (
     ID3D11Device         * pDevice,
     ID3D11DeviceContext  * pContext)
 {
+    DXUI_ASSERT_UI_THREAD();
+
     return Initialize (pDevice, pContext);
 }
 
@@ -335,6 +342,7 @@ HRESULT DxuiPainter::Begin (int viewportWidthPx, int viewportHeightPx)
     HRESULT  hr = S_OK;
 
 
+    DXUI_ASSERT_UI_THREAD();
 
     CBRA (m_device);
     CBRA (m_context);
@@ -465,6 +473,7 @@ void DxuiPainter::FillRect (
     Vertex  v = MakeVertex (argbColor, m_globalAlpha);
 
 
+    DXUI_ASSERT_UI_THREAD();
 
     PushQuad (xPx, yPx, widthPx, heightPx, v, v, v, v);
 }
@@ -491,6 +500,7 @@ void DxuiPainter::FillGradientRect (
     Vertex  bottom = MakeVertex (argbBottom, m_globalAlpha);
 
 
+    DXUI_ASSERT_UI_THREAD();
 
     PushQuad (xPx, yPx, widthPx, heightPx, top, top, bottom, bottom);
 }
@@ -518,6 +528,7 @@ void DxuiPainter::OutlineRect (
     float  t = (thicknessPx > 0.0f) ? thicknessPx : 1.0f;
 
 
+    DXUI_ASSERT_UI_THREAD();
 
     FillRect (xPx,                    yPx,                    widthPx,  t,                  argbColor);
     FillRect (xPx,                    yPx + heightPx - t,     widthPx,  t,                  argbColor);
@@ -548,6 +559,7 @@ void DxuiPainter::FillCircleApprox (
     int  slices = (int) (radiusPx * 2.0f);
 
 
+    DXUI_ASSERT_UI_THREAD();
 
     if (radiusPx <= 0.0f) return;
     if (slices  <  8)     slices = 8;
@@ -587,6 +599,7 @@ HRESULT DxuiPainter::End (ID3D11RenderTargetView * pRtv)
     ID3D11RenderTargetView   * rtvs[1]      = { pRtv };
 
 
+    DXUI_ASSERT_UI_THREAD();
 
     m_betweenBeginEnd = false;
 
