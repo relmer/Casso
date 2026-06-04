@@ -24,7 +24,7 @@
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/Chrome/JoystickToggleButton.h"
 #include "Ui/Chrome/LayoutManager.h"
-#include "Ui/Chrome/NavLayer.h"
+#include "Ui/Chrome/MainMenu.h"
 #include "Ui/Chrome/TitleBar.h"
 #include "Ui/Dialog/DialogDefinition.h"
 #include "Ui/Dialog/DialogPrimitive.h"
@@ -315,7 +315,7 @@ private:
     // updates the index and refreshes which widget paints its focus visual;
     // HandleChromeFocusKey owns all keydown handling while the ring is active
     // (returns true when the key was consumed); UpdateChromeFocusVisuals
-    // pushes the current index into the NavLayer / button / drive widgets.
+    // pushes the current index into the MainMenu / button / drive widgets.
     void    SetChromeFocusIndex   (int index);
     void    UpdateChromeFocusVisuals ();
     bool    HandleChromeFocusKey  (WPARAM vk);
@@ -367,11 +367,11 @@ private:
     Win32FileSystem        m_uiFs;
 
     // Chrome surfaces. TitleBar owns the per-button rect cache that
-    // the legacy-chrome NC hit-test classifier queries. NavLayer owns
+    // the legacy-chrome NC hit-test classifier queries. MainMenu owns
     // the parity table for legacy IDM_* commands. Both run alongside
     // the existing Win32 menu bar until the painter retires the latter.
     TitleBar            m_titleBar;
-    NavLayer            m_navLayer;
+    MainMenu            m_mainMenu;
     ChromeTheme         m_chromeTheme    = ChromeTheme::Skeuomorphic();
     std::array<DriveWidget, 2> m_driveChrome;
 

@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Ui/Chrome/NavLayer.h"
+#include "Ui/Chrome/MainMenu.h"
 #include "resource.h"
 
 
@@ -16,12 +16,12 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  Enforces the FR-026 / SC-006 menu-command parity guarantee: every
 //  IDM_* command exposed in Casso/resource.h must have a corresponding
-//  entry in NavLayer::GetCommandEntries(). The test iterates the
+//  entry in MainMenu::GetCommandEntries(). The test iterates the
 //  published id set so a future PR that adds a new menu item without
-//  registering it in NavLayer fails CI loudly.
+//  registering it in MainMenu fails CI loudly.
 //
 //  See specs/007-ui-overhaul/menu-command-parity.md for the rendered
-//  table (generated from `NavLayer::EmitParityMarkdown`).
+//  table (generated from `MainMenu::EmitParityMarkdown`).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +29,7 @@ namespace
 {
     // The authoritative menu-command id set. Mirrors the IDM_*
     // identifiers in Casso/resource.h that the nav layer wires up.
-    // When you add a new menu item, add it here AND to NavLayer's
+    // When you add a new menu item, add it here AND to MainMenu's
     // kEntries table — this test will fail until both are in sync,
     // which is exactly the point.
     constexpr WORD kKnownMenuCommandIds[] =
@@ -68,11 +68,11 @@ TEST_CLASS (ChromeCommandRoutingTests)
 {
 public:
 
-    TEST_METHOD (Every_Known_IDM_Has_NavLayer_Entry)
+    TEST_METHOD (Every_Known_IDM_Has_MainMenu_Entry)
     {
         std::unordered_set<WORD>  registered;
 
-        for (const NavCommandEntry & e : NavLayer::GetCommandEntries())
+        for (const MainMenuCommandEntry & e : MainMenu::GetCommandEntries())
         {
             registered.insert (e.commandId);
         }
@@ -80,72 +80,72 @@ public:
         for (WORD id : kKnownMenuCommandIds)
         {
             wchar_t  msg[128] = {};
-            swprintf_s (msg, L"IDM_ command 0x%04X missing from NavLayer parity table", id);
+            swprintf_s (msg, L"IDM_ command 0x%04X missing from MainMenu parity table", id);
             Assert::IsTrue (registered.count (id) == 1, msg);
         }
     }
 
 
-    TEST_METHOD (NavLayer_Entries_Have_Unique_Command_Ids)
+    TEST_METHOD (MainMenu_Entries_Have_Unique_Command_Ids)
     {
         std::unordered_set<WORD>  seen;
 
-        for (const NavCommandEntry & e : NavLayer::GetCommandEntries())
+        for (const MainMenuCommandEntry & e : MainMenu::GetCommandEntries())
         {
             wchar_t  msg[128] = {};
 
-            if (NavLayer::IsSeparator (e))
+            if (MainMenu::IsSeparator (e))
             {
                 continue;
             }
 
-            swprintf_s (msg, L"Duplicate command id 0x%04X in NavLayer table", e.commandId);
+            swprintf_s (msg, L"Duplicate command id 0x%04X in MainMenu table", e.commandId);
             Assert::IsTrue (seen.insert (e.commandId).second, msg);
         }
     }
 
 
-    TEST_METHOD (NavLayer_Entries_Have_NonEmpty_Labels_And_Known_Menu)
+    TEST_METHOD (MainMenu_Entries_Have_NonEmpty_Labels_And_Known_Menu)
     {
-        for (const NavCommandEntry & e : NavLayer::GetCommandEntries())
+        for (const MainMenuCommandEntry & e : MainMenu::GetCommandEntries())
         {
-            if (NavLayer::IsSeparator (e))
+            if (MainMenu::IsSeparator (e))
             {
                 continue;
             }
 
             Assert::IsNotNull (e.label,
-                               L"NavLayer entry must have a non-null label");
+                               L"MainMenu entry must have a non-null label");
             Assert::IsTrue   (e.label[0] != L'\0',
-                               L"NavLayer entry label must be non-empty");
+                               L"MainMenu entry label must be non-empty");
 
             // GetMenuName returns "?" for unknown enumerators — bare
             // pointer compare against the known menus is enough.
-            const wchar_t * name = NavLayer::GetMenuName (e.menu);
+            const wchar_t * name = MainMenu::GetMenuName (e.menu);
             Assert::IsTrue (name[0] != L'?',
-                            L"NavLayer entry uses an unknown NavMenu enumerator");
+                            L"MainMenu entry uses an unknown MainMenuId enumerator");
         }
     }
 
 
     TEST_METHOD (Dispatch_Is_NoOp_When_No_Callback_Installed)
     {
-        // Default-constructed NavLayer has no dispatch — calling
+        // Default-constructed MainMenu has no dispatch — calling
         // Dispatch must not crash.
-        NavLayer  nl;
+        MainMenu  nl;
         nl.Dispatch (IDM_FILE_EXIT);
     }
 
 
     TEST_METHOD (EmitParityMarkdown_Includes_Every_Command)
     {
-        std::string  md = NavLayer::EmitParityMarkdown();
+        std::string  md = MainMenu::EmitParityMarkdown();
 
-        for (const NavCommandEntry & e : NavLayer::GetCommandEntries())
+        for (const MainMenuCommandEntry & e : MainMenu::GetCommandEntries())
         {
             char  needle[32] = {};
 
-            if (NavLayer::IsSeparator (e))
+            if (MainMenu::IsSeparator (e))
             {
                 continue;
             }

@@ -52,7 +52,7 @@ WindowCommandManager::WindowCommandManager (EmulatorShell & shell)
 //
 //  HandleCommand
 //
-//  Public command-pump entry point. Used by the NavLayer so click
+//  Public command-pump entry point. Used by the MainMenu so click
 //  routing from the chrome funnels through the same dispatch path as
 //  a Win32 menu pick. Intentionally a thin wrapper -- OnCommand owns
 //  the real id-range demux.

@@ -137,6 +137,15 @@ public:
     RECT  MenuRect          (int menuIndex) const;
     RECT  DropdownRect      () const;
 
+    // Public reusable helper. Parses a Win32-style label ("E&xit") into
+    // a stripped string ("Exit"), the index of the mnemonic in the
+    // stripped string, and its lower-cased character. "&&" collapses
+    // to a literal "&" and never marks a mnemonic.
+    static void  ParseMnemonic  (const std::wstring & label,
+                                 std::wstring       & outStripped,
+                                 int                & outIndex,
+                                 wchar_t            & outLower);
+
 private:
     int   HitTitleIndex     (int x, int y) const;
     int   HitEntryIndex     (int x, int y) const;
@@ -147,10 +156,6 @@ private:
     int   VisibleRowCount   (int menuIndex) const;
     const DxuiMenuBarSubitem *  EntryAt  (int menuIndex, int rowIndex) const;
 
-    static void  ParseMnemonic  (const std::wstring & label,
-                                 std::wstring       & outStripped,
-                                 int                & outIndex,
-                                 wchar_t            & outLower);
     static bool  ShouldShowMnemonicCues (bool openedByKeyboard);
 
 

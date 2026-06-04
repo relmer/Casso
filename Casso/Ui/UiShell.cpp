@@ -97,12 +97,12 @@ void UiShell::Shutdown ()
 
 void UiShell::SetChrome (
     TitleBar                    * titleBar,
-    NavLayer                    * navLayer,
+    MainMenu                    * MainMenu,
     std::array<DriveWidget, 2>  * driveWidgets,
     const ChromeTheme           * theme)
 {
     m_titleBar     = titleBar;
-    m_navLayer     = navLayer;
+    m_mainMenu     = MainMenu;
     m_driveWidgets = driveWidgets;
     m_theme        = theme;
 }
@@ -316,9 +316,9 @@ void UiShell::Render ()
                 m_titleBar->Paint (m_painter, m_text, visual, localTheme);
             }
 
-            if (m_navLayer != nullptr)
+            if (m_mainMenu != nullptr)
             {
-                m_navLayer->PaintStrip (m_painter, m_text, visual, localTheme);
+                m_mainMenu->PaintStrip (m_painter, m_text, visual, localTheme);
             }
 
             if (bottomInset > 0)
@@ -345,9 +345,9 @@ void UiShell::Render ()
 
             PaintDragDropOverlay (visual, localTheme, bottomInset, barTop);
 
-            if (m_navLayer != nullptr)
+            if (m_mainMenu != nullptr)
             {
-                m_navLayer->PaintDropdown (m_painter, m_text, visual, localTheme);
+                m_mainMenu->PaintDropdown (m_painter, m_text, visual, localTheme);
             }
 
             if (m_joystickTooltip != nullptr)
@@ -594,9 +594,9 @@ bool UiShell::OnMouseMove (int x, int y, bool leftDown)
         m_titleBar->SetMousePosition (x, y, leftDown);
     }
 
-    if (m_navLayer != nullptr)
+    if (m_mainMenu != nullptr)
     {
-        m_navLayer->HandleMouseMove (x, y);
+        m_mainMenu->HandleMouseMove (x, y);
     }
 
     return false;
@@ -625,9 +625,9 @@ void UiShell::OnMouseLeave ()
         m_titleBar->ClearHover();
     }
 
-    if (m_navLayer != nullptr)
+    if (m_mainMenu != nullptr)
     {
-        m_navLayer->ClearHover();
+        m_mainMenu->ClearHover();
     }
 }
 
@@ -654,9 +654,9 @@ bool UiShell::OnLButtonDown (int x, int y)
 
     OnMouseMove (x, y, true);
 
-    if (m_navLayer != nullptr)
+    if (m_mainMenu != nullptr)
     {
-        m_navLayer->HandleMouseDown (x, y);
+        m_mainMenu->HandleMouseDown (x, y);
     }
 
     return false;
@@ -685,9 +685,9 @@ bool UiShell::OnLButtonUp (int x, int y)
 
     OnMouseMove (x, y, false);
 
-    if (m_navLayer != nullptr)
+    if (m_mainMenu != nullptr)
     {
-        m_navLayer->HandleMouseUp (x, y);
+        m_mainMenu->HandleMouseUp (x, y);
     }
 
     return false;
@@ -710,9 +710,9 @@ bool UiShell::HandleKey (WPARAM vk)
         return true;
     }
 
-    if (m_navLayer != nullptr && m_navLayer->IsOpen())
+    if (m_mainMenu != nullptr && m_mainMenu->IsOpen())
     {
-        (void) m_navLayer->HandleKey (vk);
+        (void) m_mainMenu->HandleKey (vk);
         return true;
     }
 
@@ -741,7 +741,7 @@ bool UiShell::IsCapturingInput () const
         return true;
     }
 
-    if (m_navLayer != nullptr && m_navLayer->IsOpen())
+    if (m_mainMenu != nullptr && m_mainMenu->IsOpen())
     {
         return true;
     }
