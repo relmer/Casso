@@ -1,0 +1,285 @@
+# Feature Specification: Dxui — Reusable DirectX UI Framework Extracted from Casso
+
+**Feature Branch**: `013-dxui-framework-extraction`
+**Created**: 2026-03-19
+**Status**: Draft
+**Input**: User description: "Extract a reusable, generic Windows DirectX-based UI framework called Dxui from Casso's existing in-house UI layer under `Casso/Ui/`, then migrate Casso's UI to consume it."
+
+## Overview
+
+Casso today has a bespoke UI layer under `Casso/Ui/` built on Direct3D 11 (`DxUiPainter`) and Direct2D/DirectWrite (`DwriteTextRenderer`). Every widget, page, panel, dialog, and chrome element already touches DX only through those two facade classes — but the layer above them has no shared base class, no common event vocabulary, no automatic paint/input/focus fan-out, no declarative layout, no spatial focus navigation, no popup hosting that can extend beyond the parent window, and four separate copies of `WM_NCCALCSIZE` / `WM_NCHITTEST` plumbing across top-level windows. `Casso/Ui/Settings/SettingsPanel.cpp` alone is 2,179 lines, most of it plumbing repetition.
+
+This feature extracts a reusable UI framework named **Dxui** as a new top-level static library project in the Casso solution. Dxui contains the generic widgets, layout system, focus management, popup hosting, custom-chrome host window, and DX rendering facades. Casso (and any future solution project) consumes Dxui to compose application-specific UI. `Casso/Ui/` retains only Casso-specific composition.
+
+## Clarifications
+
+### Session 2026-03-19
+
+- Q: What is Dxui's threading model — which thread(s) may call its public APIs, and on which thread is the `std::future<int>` returned by `DxuiPopupHost::Show` / `DxuiDialogManager::Show` satisfied? → A: UI-thread-only. All public Dxui APIs must be called on the thread that owns the host window's message pump. The `std::future<int>` is satisfied on that same thread from within Dxui's message handling. No internal locking. `IDxuiControl::Tick` fires from the UI render loop on the UI thread. Background-thread consumers (e.g., `CpuManager`) marshal work back via `PostMessage` / `PostThreadMessage` / custom `WM_APP+n` messages — matching the existing Casso model where `CpuManager` runs the CPU on its own thread and never calls UI code directly. Encoded as FR-083.
+- Q: What is Dxui's dialog modality model — singleton modal, stack of nested modals, or modeless? → A: Modal with nesting allowed. `DxuiDialogManager` tracks a stack of active modal dialogs (not a singleton). On open, the current top-of-stack HWND (or owner if stack empty) is disabled via `EnableWindow(FALSE)` and becomes the new dialog's owner so Win32 handles activation / z-order. On close, Win32 re-enables the previous HWND and activation walks down the stack automatically. Use case: download dialog → download fails → error dialog opens on top → user dismisses error → download dialog regains activation, no need to close parent first. `DxuiModalScrim` integration: dialogs MAY optionally render a translucent scrim over the parent (Win11-style darken-behind), OFF by default in v1, opt-in per dialog via `ShowParams::modalScrim`. Encoded as FR-072.
+- Q: How does `DxuiPanel` support child mutation after initial `Add<T>` — and what is the visibility model? → A: Mutation API is `Add<T>(args…) → T&`, `void Clear()`, and `bool Remove(IDxuiControl *)`. Removed children are destroyed (owning `unique_ptr` dropped). No `InsertAt`, no `Reorder`, no detach-and-reuse in v1. Visibility is orthogonal to mutation: `IDxuiControl::SetVisible(bool)` (already specified) triggers a layout recalc on the parent panel on its next pump; hidden controls are skipped during paint, input dispatch, and focus walks. v1 supports **Collapsed mode only** — hidden control takes 0 space, siblings fill in (CSS `display:none` / WPF `Collapsed`). A future `Hidden` mode (retain space, skip paint, CSS `visibility:hidden`) is deferred. Encoded in updated FR-011.
+- Q: How does `DxuiViewport` route keyboard (and mouse) input when the viewport is focused — does it consume everything, forward everything, or split based on key class? → A: Focusable viewport + `IDxuiViewportInputSink`. `DxuiViewport` is focusable when its `SetConsumesInput(true)` flag is set (default `false` per FR-030; the typical emulator-host case flips it on). When focused and consuming input, `OnKey` returns true for everything **except** Dxui-reserved chords: Tab, Shift+Tab, Esc, Alt (menu activation), F10 — those stay in Dxui for focus nav and Dxui-level shortcuts. All other keystrokes forward to a consumer-supplied `IDxuiViewportInputSink` via `SetInputSink(IDxuiViewportInputSink *)`. Casso implements the sink to route to `EmulatorShell` / the Apple ][ keyboard controller. Same model for mouse: when consuming input, mouse events inside the viewport rect forward to the sink, except Dxui-reserved gestures (none defined for v1). Encoded as FR-034.
+- Q: What is the public-header include policy for Dxui — should every Dxui public header self-include its system dependencies, or should an umbrella header be the chokepoint? → A: Umbrella `Dxui.h` is the chokepoint. Dxui public headers (`DxuiPanel.h`, `DxuiButton.h`, all widgets, etc.) MUST use only quoted includes — never angle-brackets. Dxui ships `Dxui.h` that includes all system / STL headers needed for Dxui's public surface (`<d3d11.h>`, `<wrl/client.h>`, `<future>`, `<functional>`, `<string>`, `<vector>`, etc.) using angle-brackets — the single chokepoint for Dxui's system-header surface. Consumers (Casso, UnitTest, any future Dxui consumer) MUST `#include "Dxui.h"` from their own `Pch.h`, which pulls Dxui's system-header surface into the consumer's PCH so consumer `.cpp` files just `#include "Pch.h"` and get everything. The repo-wide rule in `.github/copilot-instructions.md` ("NEVER use angle-bracket includes anywhere except `Pch.h`") needs a small carve-out: the chokepoint may be **either** the project's `Pch.h` **or** a library project's umbrella header (currently only `Dxui.h`) — update copilot-instructions.md as part of the Dxui scaffolding phase. Encoded as updated FR-004 and new FR-007.
+
+## Motivation
+
+- **Eliminate repetition.** Per-page `OnLButtonDown` / `OnLButtonUp` / `OnMouseHover` / `OnKey` / `Paint` / `CollectFocusables` fan-out boilerplate is copy-pasted across every settings page, debug panel, and dialog. A `DxuiPanel` base with default fan-out and a tree-attached focus manager makes the boilerplate vanish.
+- **Cut size of `SettingsPanel.cpp`.** 2,179 lines is a code-smell. Declarative layouts + auto fan-out + a real dialog primitive should reduce it by ≥40%.
+- **Unify top-level windows.** Four copies of NC plumbing (main `Window`, `ChromedPanelWindow`, `SettingsWindow`, `DialogPrimitive`) collapse onto a single `DxuiHostWindow` that handles `WM_NCCALCSIZE`, `WM_NCHITTEST`, system buttons, snap-layouts, DPI, and theme changes generically.
+- **Fix popup clipping.** Dropdowns / menus / tooltips today are clipped to the parent window. A `DxuiPopupHost` (`WS_POPUP` HWND with its own small swap chain sharing the parent device) lets popups extend across monitors.
+- **Enable headless widget tests.** Extracting `IDxuiPainter` / `IDxuiTextRenderer` pure-virtual interfaces lets unit tests construct controls, drive them with synthetic input, and assert on recorded paint calls without spinning up D3D.
+- **Make the toolkit reusable.** Once factored, future solution projects (or external consumers, if/when extracted) can build DX UI without reinventing this layer.
+
+## User Scenarios & Testing *(mandatory)*
+
+The "users" of this feature are Casso developers (and future Dxui consumers). Each user story is an independently buildable / testable slice of the migration.
+
+### User Story 1 — Dxui exists as a standalone, consumable static library (Priority: P1)
+
+A developer can build the `Dxui` static library on its own (no dependency on CassoCore / CassoEmuCore / Casso), reference it from another project in the solution, and call its facades / widgets / framework types through `Dxui*` and `IDxui*` names.
+
+**Why this priority**: Nothing else in this spec ships without the project, the umbrella header, and the prefix discipline being in place. This is the foundation.
+
+**Independent Test**: Build `Dxui.vcxproj` in isolation (x64 and ARM64, Debug and Release). Confirm `Casso.exe` and `UnitTest.dll` link Dxui and still build green; `CassoCli.exe` does **not** reference Dxui and still builds. No `DxUi*` (capital-U) or pre-rename names survive in the public Dxui headers.
+
+**Acceptance Scenarios**:
+
+1. **Given** the empty `Dxui.vcxproj` scaffold, **When** a developer adds it as a reference from Casso and UnitTest, **Then** both projects build with no errors on x64 and ARM64, and the DX libraries (`d3d11.lib`, `d3dcompiler.lib`, `d2d1.lib`, `dwrite.lib`, `dxgi.lib`, `dcomp.lib`, `windowscodecs.lib`) are inherited via the Dxui reference rather than re-declared in Casso.
+2. **Given** the rename pass is complete, **When** a developer searches Dxui's public headers, **Then** every type is prefixed `Dxui` (interfaces `IDxui`), and no `DxUi`, `Dwrite`, or `Win11Dwm` legacy names leak through.
+3. **Given** Dxui exposes the umbrella include `Dxui.h`, **When** a Casso translation unit includes only `Dxui.h`, **Then** it can name and use every public Dxui type without further includes.
+
+---
+
+### User Story 2 — Casso's existing UI runs on Dxui with zero user-visible regressions (Priority: P1)
+
+The migration completes: every Casso widget, settings page, debug panel, dialog, and chrome element is composed from Dxui types. The end user sees no behavioural or visual change.
+
+**Why this priority**: The framework only earns its keep if Casso actually ships on it. Without the migration, Dxui is dead code.
+
+**Independent Test**: Launch `Casso.exe`. Walk every settings page, open every dialog, toggle every theme, run on Win10 + Win11, exercise DPI changes (move between 100% / 150% / 200% monitors), drag-drop a disk, and run the emulator with the viewport rendering Apple ][ pixels. Compare side-by-side with the pre-migration build. The skeuomorphic chrome (dark, rounded corners, Mica backdrop on Win11) must be visually equivalent by manual sign-off.
+
+**Acceptance Scenarios**:
+
+1. **Given** Casso is built on Dxui, **When** the user opens Settings, navigates Theme / Machine / Hardware / Display pages, and changes options, **Then** every control responds identically to before, settings persist, and theme changes propagate everywhere they used to.
+2. **Given** the chrome (titlebar, nav layer, drive widgets, LED indicator, joystick toggle) is rebuilt on Dxui chrome primitives, **When** the window is restored / minimised / maximised / closed via the custom system buttons, **Then** behaviour and rendering match the pre-migration build, including Win11 rounded corners and Mica backdrop.
+3. **Given** the emulator is running, **When** the user resizes the host window, **Then** the Apple ][ pixel grid sizes correctly via `DxuiDockLayout::ContainerSizeForFill` reading viewport bounds (replacing the old `ClientSizeForFramebuffer` path), and `D3DRenderer` resizes its render target only when bounds actually change.
+4. **Given** the user drags a disk file onto the window, **When** the drop completes, **Then** mounting succeeds via the `DxuiDragDropTarget` path identically to the pre-migration `DragDropTarget`.
+
+---
+
+### User Story 3 — Popups extend beyond their parent window (Priority: P1)
+
+Dropdowns, menus, and tooltips can render outside the bounds of the window that hosts them, automatically flipping placement if they would go offscreen.
+
+**Why this priority**: This is a long-standing, user-visible bug that the spec explicitly calls out as an acceptance gate. It's also the load-bearing test of the `DxuiPopupHost` abstraction.
+
+**Independent Test**: Open a `DxuiDropdown` whose anchor sits near the bottom edge of the Settings window such that the menu would extend below the window's client area. Pre-migration, the menu is clipped; post-migration, it must render in full — either extending beyond the window or flipping upward when there is no room below.
+
+**Acceptance Scenarios**:
+
+1. **Given** a `DxuiDropdown` anchored within ~20 px of the bottom of the Settings window, **When** the user opens it, **Then** the menu renders in full, either extending across the window edge or flipping above the anchor when below would clip the monitor.
+2. **Given** a tooltip is requested near the right edge of a monitor, **When** placement would extend offscreen, **Then** `DxuiPopupHost` flips to the opposite side via `MonitorFromRect`.
+3. **Given** a popup is open, **When** the user clicks outside the popup chain, moves the owner window, deactivates the app, or — for menu popups — releases pointer capture, **Then** the popup dismisses per its configured policy.
+4. **Given** the host opens and closes popups repeatedly, **When** the open-popup count fluctuates, **Then** `DxuiHostWindow` reuses pooled popup instances (initial pool of 3, grow on demand) rather than creating a fresh HWND + swap chain each time.
+
+---
+
+### User Story 4 — Win11 snap-layouts hover popup works on every top-level window (Priority: P2)
+
+When the user hovers the maximize button on the main window or on any chrome window, Windows 11 shows the snap-layouts popover.
+
+**Why this priority**: Visible polish gap, but not a blocker — the framework lands first; snap-layouts is the proof that `HTMAXBUTTON` is wired correctly across every Dxui-hosted window.
+
+**Independent Test**: On Win11, hover the maximize button on the main window, then on a `ChromedPanelWindow`, then on Settings. The snap-layouts overlay must appear in all three cases.
+
+**Acceptance Scenarios**:
+
+1. **Given** the app runs on Win11, **When** the pointer hovers a `DxuiSystemButton` returning `DxuiHitTestKind::MaxButton`, **Then** `DxuiHostWindow::WM_NCHITTEST` returns `HTMAXBUTTON` and the OS shows the snap-layouts popover.
+2. **Given** the user dismisses the snap-layouts popover by moving the pointer away, **When** the pointer leaves the button, **Then** the button's hover visual clears without latency.
+
+---
+
+### User Story 5 — Headless widget unit tests run with no D3D device (Priority: P2)
+
+UnitTest can instantiate any Dxui widget, drive it with synthetic mouse / key events, and assert on recorded paint calls — all without creating a D3D11 device.
+
+**Why this priority**: Enables a regression net for the framework itself; non-blocking for shipping but essential for long-term maintainability.
+
+**Independent Test**: A test creates a `DxuiButton` inside a `DxuiPanel`, attaches a `DxuiFocusManager`, supplies mock `IDxuiPainter` / `IDxuiTextRenderer` implementations, dispatches a synthetic click event, and asserts the button's click handler fired and the recorded paint calls match expectations. The test runs in `UnitTest.dll` with no D3D device.
+
+**Acceptance Scenarios**:
+
+1. **Given** a mock `IDxuiPainter` that records calls, **When** a widget's `Paint` runs, **Then** the mock captures the call sequence and tests can assert on it without any DX device.
+2. **Given** new unit tests cover `DxuiPanel` fan-out, `DxuiFocusManager` (reading-order tab + spatial arrow nav), each layout policy, `DxuiPopupHost` placement / flip / dismiss, and `DxuiHostWindow` NC classification, **When** UnitTest runs, **Then** all tests pass alongside the existing CassoCore / CassoEmuCore suites.
+
+---
+
+### Edge Cases
+
+- **DPI change mid-popup**: a popup spans two monitors at different DPIs (`WM_DPICHANGED_BEFOREPARENT` must reach the popup and trigger re-DPI + relayout).
+- **Theme change while a dialog is open**: `OnThemeChanged` must propagate through the live tree without tearing.
+- **Cascading submenus**: a click inside a child popup must not be treated as "click outside" by the parent popup — the owner chain has to be tracked.
+- **Empty / single-child / very large containers**: every layout policy must behave sanely at the extremes (zero children, one child, hundreds of children).
+- **Reading-order tab with controls on the same visual row**: rows must be detected with an epsilon tolerance so near-aligned `top` coords don't shuffle order chaotically.
+- **Spatial arrow navigation with no candidate in the requested direction**: focus stays put rather than jumping unpredictably.
+- **Borderless window snapping**: snap-edge hit-testing must still work after `WM_NCCALCSIZE` claims the NC area.
+- **Custom NC + Win10 (no rounded corners, no Mica)**: graceful fallback when DWM APIs are absent or fail.
+- **Drag-drop onto a window with an open popup**: drop target precedence must be well-defined.
+- **Emulator viewport zero-size**: `DxuiViewport` with degenerate bounds must not crash `D3DRenderer` or thrash render-target recreation.
+- **Multiple `IDxuiControl` implementations sharing the same focus scope when a popup opens**: the focus scope stack push/pop must restore the previously focused control on dismiss.
+
+## Requirements *(mandatory)*
+
+### Functional Requirements — Project & Naming
+
+- **FR-001**: The solution MUST contain a new top-level project `Dxui` (StaticLibrary, toolset v145, platforms x64 and ARM64, Debug and Release configurations).
+- **FR-002**: `Dxui` MUST have no project-reference dependency on `CassoCore`, `CassoEmuCore`, or `Casso`.
+- **FR-003**: `Casso.exe` and `UnitTest.dll` MUST reference `Dxui`. `CassoCli.exe` MUST NOT reference `Dxui`.
+- **FR-004**: Dxui MUST ship `Dxui.h` as the **single chokepoint** for Dxui's system-header surface. `Dxui.h` includes (via angle-bracket) all system, Windows, DirectX, WRL, and STL headers Dxui's public types need — `<d3d11.h>`, `<d2d1.h>`, `<dwrite.h>`, `<dxgi1_3.h>`, `<dcomp.h>`, `<wincodec.h>`, `<wrl/client.h>`, `<future>`, `<functional>`, `<string>`, `<vector>`, etc. Dxui's own `Pch.h` MAY include the same set for internal compilation. All other Dxui public headers (`DxuiPanel.h`, `DxuiButton.h`, every widget, layout, render-facade, host, and dialog header) MUST use only quoted includes — angle-bracket includes are forbidden outside `Dxui.h` and `Pch.h`.
+- **FR-005**: Every public Dxui type MUST be prefixed `Dxui` (treated as a single prefix-word, not `DxUi`). Pure-virtual or near-pure-virtual base interfaces (with only state-free accessors as non-pure) MUST be prefixed `IDxui`. Concrete classes use `Dxui` (no `I`).
+- **FR-006**: Dxui MUST own the DX-link directives (`d3d11.lib`, `d3dcompiler.lib`, `d2d1.lib`, `dwrite.lib`, `dxgi.lib`, `dcomp.lib`, `windowscodecs.lib`); consumers inherit them via project reference rather than restating them.
+- **FR-007**: Every Dxui consumer (`Casso`, `UnitTest`, any future Dxui-referencing project) MUST `#include "Dxui.h"` from its own `Pch.h`, pulling Dxui's system-header surface into the consumer's precompiled header. Consumer `.cpp` files then just `#include "Pch.h"` and have access to Dxui's full public surface plus the system headers it depends on. The repo-wide rule in `.github/copilot-instructions.md` ("NEVER use angle-bracket includes anywhere except `Pch.h`") MUST be amended during the scaffolding phase to permit a library project's umbrella header (currently only `Dxui.h`) as an additional chokepoint alongside the project's `Pch.h`.
+
+### Functional Requirements — Core control model
+
+- **FR-010**: Dxui MUST expose `IDxuiControl` as the unified control interface with virtual `Layout`, `Paint`, `OnMouse`, `OnKey`, `OnFocusChanged`, `OnThemeChanged`, `Tick`, `ClassifyHit`, accessibility accessors (`AccessibleName`, `AccessibleRole`), and concrete-on-base bounds / visibility / enabled / focusable / parent / child traversal accessors. Containers override `ChildCount` and `Child`; leaves use the defaults.
+- **FR-011**: Dxui MUST provide `DxuiPanel` as the container base, with an `Add<T>(args…) → T&` ownership API (add-only; no `Adopt` variant in v1), `void Clear()` to drop all children, `bool Remove(IDxuiControl *)` to drop a single child (returns true if found and destroyed), and a `SetLayout` accessor for a `std::unique_ptr<IDxuiLayout>`. No `InsertAt`, no `Reorder`, no detach-and-reuse in v1; `Remove` destroys the child (owning `unique_ptr` is dropped). Default `Layout` / `Paint` / `OnMouse` / `OnKey` / `Tick` / `OnThemeChanged` implementations fan out to visible children. Recursive `PropagateDpi` and `PropagateTheme` helpers MUST also be provided. Visibility is orthogonal to mutation: `IDxuiControl::SetVisible(bool)` MUST trigger a layout recalc on the parent panel (parent calls `Layout()` on its next pump). Hidden controls MUST be skipped during paint, input dispatch, and focus walks. v1 supports **Collapsed mode only** — a hidden control takes 0 space and siblings fill in (CSS `display:none` / WPF `Collapsed` equivalent). A future `Hidden` mode (retains space, skips paint, CSS `visibility:hidden`) is deferred until a use case appears.
+- **FR-012**: `ClassifyHit` MUST return one of `DxuiHitTestKind::{None, Client, Caption, MinButton, MaxButton, CloseButton, ResizeEdgeLeft, ResizeEdgeRight, ResizeEdgeTop, ResizeEdgeBottom, ResizeCornerTL, ResizeCornerTR, ResizeCornerBL, ResizeCornerBR}`. Pass-through hit behaviour is handled by controls returning `Client` and the host continuing parent/tree walking as needed; no separate pass-through enum member ships in v1.
+
+### Functional Requirements — Layout system
+
+- **FR-020**: Dxui MUST provide `IDxuiLayout` with `Arrange` (required) and `Measure` (optional, default `{0,0}`).
+- **FR-021**: Dxui MUST ship concrete layouts: `DxuiStackLayout` (H/V, spacing, weights, alignment), `DxuiGridLayout` (rows × cols), `DxuiFormLayout` (label : field rows, indented sub-rows, section gaps), `DxuiDockLayout` (Top / Bottom / Left / Right / Fill anchors plus inverse `ContainerSizeForFill` for size-from-the-inside-out), and `DxuiAbsoluteLayout` (uses pre-set child bounds as an escape hatch). Non-fill children participating in `DxuiDockLayout::ContainerSizeForFill` MUST report a fixed `Measure()`; flexible/wrap-content non-fill children are unsupported in v1.
+- **FR-022**: Layouts MUST take DIPs (device-independent pixels) on their public API, using `Dip` as the identifier suffix (e.g., `s_kRowHeightDip`, `paddingDip`, `resizeBorderDip`). The shorter `Dp` Android-style suffix MUST NOT be used in new Dxui code. Per-widget scaling to device pixels MUST happen at paint time via `DxuiDpiScaler`, eliminating per-method `scaler.Px(...)` boilerplate.
+
+### Functional Requirements — Viewport, focus, theming
+
+- **FR-030**: Dxui MUST provide `DxuiViewport` — a leaf `IDxuiControl` that participates in layout but does not paint, with a configurable size policy (Fixed / Preferred / Fill), a preferred size, an input-consumption flag (default: passthrough so the host receives input), and an `OnBoundsChanged(RECT)` callback the host renderer subscribes to so render targets resize only when bounds actually change.
+- **FR-031**: Dxui MUST provide `DxuiFocusManager` that attaches to a `DxuiPanel` root, walks the tree to build tab order in reading order (sort focusables by `(top / rowEpsilon, left)`), skips `!Focusable` / `!Visible` / `!Enabled` controls, handles Tab / Shift+Tab / Esc / Enter / Space, supports optional per-control `tabIndex` hints, supports focus scopes (pushed when a popup opens, popped on dismiss with focus restored), and provides spatial arrow-key navigation that picks the nearest focusable in the requested direction using `Bounds()`. `DxuiFocusManager::RowEpsilonDip()` defaults to `IDxuiTheme::BodyLineHeightDip()`; a test seam `SetRowEpsilonDip(float)` exists for deterministic tests. `IDxuiControl` defines two negative `tabIndex` sentinels: `kTabIndexGeometry = -1` (default: use geometry-based ordering) and `kTabIndexExcluded = -2` (skip in Tab traversal but still focusable by mouse).
+- **FR-032**: Dxui MUST define `IDxuiTheme` as a pure-virtual interface exposing the colour / typography accessors widgets need (background, foreground, accent, focus ring, disabled foreground, etc.). Widget `Paint` signatures MUST take `const IDxuiTheme &`.
+- **FR-033**: Theme-change notification MUST flow via `IDxuiControl::OnThemeChanged()`, opt-in with a no-op default.
+- **FR-034**: `DxuiViewport` MUST become focusable when its `SetConsumesInput(true)` flag is set (default per FR-030 is `false`; the typical emulator-host case flips it on). When focused and consuming input, the reserved chord set is exactly: Tab, Shift+Tab, Esc, Alt (alone, for menu activation), and F10. These unmodified reserved chords stay with Dxui for focus navigation and Dxui-level shortcuts. All modifier combinations involving those keys (Ctrl+Tab, Ctrl+Esc, Alt+F10, etc.) and any chord with Ctrl/Alt/Win/AltGr plus a non-reserved key MUST forward to the consumer-supplied `IDxuiViewportInputSink` installed via `DxuiViewport::SetInputSink(IDxuiViewportInputSink *)`; Apple ][ CTRL-C, CTRL-G, etc. MUST reach the emulator. Mouse events follow the same model: when consuming input, mouse events inside the viewport rect MUST forward to the sink, excepting any Dxui-reserved gestures (none defined for v1). Casso implements `IDxuiViewportInputSink` to route to `EmulatorShell` / the Apple ][ keyboard controller.
+
+### Functional Requirements — Render facades
+
+- **FR-040**: Dxui MUST expose `IDxuiPainter` and `IDxuiTextRenderer` as pure-virtual interfaces, with concrete `DxuiPainter` (D3D11) and `DxuiTextRenderer` (D2D / DirectWrite) implementations renamed from `DxUiPainter` and `DwriteTextRenderer`.
+- **FR-041**: Widgets MUST type the interfaces, not the concretes, so headless tests can supply recording mocks.
+
+### Functional Requirements — Win32 host & popups
+
+- **FR-050**: Dxui MUST provide `DxuiHostWindow` — a top-level HWND owner that owns the HWND, the DXGI swap chain, and a root `DxuiPanel`, and handles generically: `WM_NCCALCSIZE` (claim NC as client when borderless), `WM_NCHITTEST` (eight resize edges plus front-to-back tree walk calling `ClassifyHit`), `WM_NCLBUTTONDOWN/UP`, `WM_NCMOUSEMOVE` / `WM_NCMOUSELEAVE` (translate to Dxui input on system buttons and suppress `DefWindowProc` to prevent Win32 button overlays), `WM_DPICHANGED` (re-DPI tree + relayout + repaint), `WM_DPICHANGED_BEFOREPARENT` (forward to every active `DxuiPopupHost` in the pool so popups straddling monitor boundaries re-DPI correctly), and `WM_SETTINGCHANGE` / `WM_THEMECHANGED` / `WM_DWMCOLORIZATIONCOLORCHANGED` (theme update).
+- **FR-051**: `DxuiHostWindow::CreateParams` MUST cover borderless / resizable / rounded / dark / backdrop / `resizeBorderDip` settings; `Create` applies them via `DxuiDwm`.
+- **FR-052**: `DxuiHostWindow` MUST wire Win11 snap-layouts via correct `HTMAXBUTTON` hit-testing for `DxuiSystemButton` instances classified `MaxButton`.
+- **FR-053**: Dxui MUST provide stock chrome primitives: `DxuiCaptionBar` (returns `DxuiHitTestKind::Caption` in blank areas; children may override `ClassifyHit`), `DxuiSystemButton` (returns `DxuiHitTestKind::MinButton` / `DxuiHitTestKind::MaxButton` / `DxuiHitTestKind::CloseButton`, renders Win11-style glyphs, wires `ShowWindow(SW_MINIMIZE)` / `SC_MAXIMIZE` / `SC_RESTORE` / `WM_CLOSE`), and `DxuiDragRegion` (invisible caption-filler control).
+- **FR-054**: Dxui MUST provide `DxuiPopupHost` — a `WS_POPUP | WS_EX_NOACTIVATE` (plus `WS_EX_TRANSPARENT | WS_EX_LAYERED` for tooltips) borderless HWND with its own small DXGI swap chain sharing the parent `ID3D11Device`. Its `ShowParams` MUST describe ownerHwnd, anchorRectScreen, placement (`Below` / `Above` / `Right` / `Left` / `AtCursor`), flip-if-offscreen, dismiss policy (`OnClickOutside` / `OnClickAnywhere` / `OnPointerLeave` / `Manual`), input policy (`Interactive` / `PassThrough`), shadow flag, and a `std::unique_ptr<DxuiPanel> content`. Returns `std::future<int>` for the close result.
+- **FR-055**: `DxuiHostWindow` MUST pool popup instances (initial pool of 3, grow on demand). `DxuiHostWindow` MUST expose a debug-build-only hit/miss counter for the popup pool (`PopupHits()` / `PopupMisses()`) to enable reuse verification in tests and integration suites.
+- **FR-056**: `DxuiPopupHost` MUST handle owner `WM_ACTIVATE` / `WM_ACTIVATEAPP` / `WM_MOVE` for auto-dismiss, click-outside via `SetCapture` + `WM_CAPTURECHANGED`, `MonitorFromRect`-based offscreen flipping, `WM_DPICHANGED_BEFOREPARENT` for cross-monitor popups, cascading submenu owner-chain tracking, and focus-scope push / pop on open / close.
+
+### Functional Requirements — Widget set
+
+- **FR-060**: Dxui MUST ship the existing Casso widget set with Dxui prefixes: `DxuiButton`, `DxuiCheckbox`, `DxuiRadio`, `DxuiToggle`, `DxuiSlider`, `DxuiDropdown`, `DxuiTabStrip`, `DxuiTextInput`, `DxuiLabel`, `DxuiListView`, `DxuiTreeView`, `DxuiPopupMenu`, `DxuiTooltip`, `DxuiModalScrim`. No new widget types beyond the existing Casso set.
+- **FR-061**: Widgets needing popups (`DxuiDropdown`, `DxuiPopupMenu`, `DxuiTooltip`, future cascading submenus) MUST host their popup content via `DxuiPopupHost`.
+
+### Functional Requirements — Dialog
+
+- **FR-070**: Dxui MUST provide `DxuiDialog` — a `DxuiPanel`-based dialog composed of a `DxuiCaptionBar` (title + close), a content `DxuiPanel` (consumer-populated), and an optional `DxuiDockLayout`-bottom button row.
+- **FR-071**: Dxui MUST provide `DxuiDialogManager` exposing `std::future<int> Show(std::unique_ptr<DxuiDialog> dialog, ShowParams params)` to replace the existing `DialogDefinition` struct + `DialogPrimitive` API, where `struct ShowParams { bool modalScrim = false; };`.
+- **FR-072**: `DxuiDialogManager` MUST support **modal dialogs with nesting**. It MUST track a stack of active modal dialogs (not a singleton). When a dialog opens, the current top-of-stack HWND (or the owner window if the stack is empty) MUST be disabled via `EnableWindow(FALSE)`, and the new dialog's owner HWND MUST be set to that previous top so Win32 handles activation and z-order correctly. When a dialog closes, Win32 re-enables the previous HWND and activation / focus restore walks back down the stack automatically. Example flow: a download dialog opens; the download fails; an error dialog opens on top of the download dialog; the user dismisses the error; the download dialog regains activation — no need to close the parent dialog first. `DxuiModalScrim` integration: dialogs MAY optionally render a translucent scrim over the parent (Win11-style darken-behind effect). For v1 the scrim is **OFF by default**; consumers opt in per dialog via `ShowParams::modalScrim`.
+
+### Functional Requirements — Cross-cutting
+
+- **FR-080**: All public Dxui APIs MUST use `std::wstring` for string parameters (typically `const std::wstring &` for inputs, by-value for ownership transfers).
+- **FR-081**: `IDxuiControl::AccessibleName()` and `AccessibleRole()` accessors MUST land in v1; the `IRawElementProviderSimple` UIA provider is deferred to a later spec.
+- **FR-082**: All new Dxui identifiers using device-independent-pixel values MUST use the `Dip` suffix (e.g., `widthDip`, `s_kPadDip`). The legacy `Dp` suffix used in existing Casso code MUST be migrated to `Dip` as each affected file is moved into Dxui or refactored during the migration phases below; no big-bang rename pass is required.
+- **FR-083**: Dxui is **UI-thread-only**. A `DXUI_ASSERT_UI_THREAD()` macro MUST be defined during Migration Phase 1 and invoked at the entry of every public method on `DxuiPanel`, `DxuiFocusManager`, concrete `DxuiPainter`, concrete `DxuiTextRenderer`, `DxuiPopupHost`, `DxuiDialogManager`, and `DxuiHostWindow`. All public Dxui APIs (`DxuiHostWindow`, `DxuiPopupHost`, `DxuiDialogManager`, `DxuiPanel`, `IDxuiControl`, `DxuiFocusManager`, the render facades, etc.) MUST be called on the thread that owns the host window's message pump. Dxui MUST NOT introduce internal locking, atomics, or thread-safety guarantees on its public surface. The `std::future<int>` returned by `DxuiPopupHost::Show` and `DxuiDialogManager::Show` MUST be satisfied (its shared state set) on the same UI thread that drives the message pump, from within Dxui's own message handling — not from a worker thread. `IDxuiControl::Tick(int64_t nowMs)` animation callbacks MUST fire from the UI render loop on the UI thread. Background-thread consumers (e.g., `CpuManager`) MUST marshal work back to the UI thread via standard Win32 patterns (`PostMessage`, `PostThreadMessage`, custom `WM_APP+n` messages) before touching any Dxui API — matching the existing Casso model where `CpuManager` runs the CPU on its own thread and never calls UI code directly.
+
+### Functional Requirements — Casso migration
+
+- **FR-090**: Generic files MUST be moved into Dxui with the Dxui prefix: `HitTester` → `DxuiHitTester`, `UiInput` → `DxuiInput`, `Animation` → `DxuiAnimation`, `DpiScaler` → `DxuiDpiScaler`, `WindowsThemeColors` → `DxuiWindowsThemeColors`, `Win11DwmHelpers` → `DxuiDwm`, `TitleBarHitTest` → `DxuiTitleBarHitTest`, `DragDropTarget` → `DxuiDragDropTarget`.
+- **FR-091**: Render facades MUST be renamed and moved: `DxUiPainter` → `Dxui/Render/DxuiPainter` (with its `.hlsl`); `DwriteTextRenderer` → `Dxui/Render/DxuiTextRenderer`.
+- **FR-092**: `Casso/Ui/` MUST retain Casso-specific composition: `UiShell`, `ThemeManager`, `ThemeLoader`, `AutoMountResolver`, all of `Chrome/` (`TitleBar`, `NavLayer`, `DriveWidget`, `LedIndicator`, `JoystickToggleButton`, `ChromedPanelWindow`, `ChromeTheme` — which implements `IDxuiTheme` and adds skeuomorphic palette + scanline tint), all of `Settings/`, `Disk2DebugPanel`, `InputDebugPanel`, `IDriveCommandSink`, and a new `Casso/Ui/Dialogs/` subdirectory holding `StartupDownloadDialog` and `StandaloneDialog` rewritten as `DxuiDialog`-based panels.
+- **FR-093**: Casso's main shell MUST become a root `DxuiPanel` with a `DxuiDockLayout` containing chrome bands docked Top / Bottom and a `DxuiViewport` filling the middle. The emulator's `D3DRenderer` MUST read viewport bounds via `DxuiViewport::OnBoundsChanged`.
+- **FR-094**: The existing `Chrome/LayoutManager`, `IEdgeContributor`, `ICenterLayer`, and `SimpleEdgeContributor` MUST be retired in favour of `DxuiDockLayout`.
+- **FR-095**: The four existing copies of `WM_NCCALCSIZE` / `WM_NCHITTEST` plumbing (main `Window`, `ChromedPanelWindow`, `SettingsWindow`, `DialogPrimitive`) MUST be retired in favour of a single `DxuiHostWindow`.
+- **FR-096**: `DialogPrimitive`, `DialogPrimitiveRenderer`, `DialogDefinition`, and `DialogLayout` MUST be deleted after Casso's dialogs migrate to `DxuiDialog`.
+- **FR-097**: Per-page `OnLButtonDown` / `OnLButtonUp` / `OnMouseHover` / `OnKey` / `Paint` / `CollectFocusables` fan-out overrides MUST be removed from settings pages, debug panels, and dialogs once `DxuiPanel` auto fan-out and `DxuiFocusManager` geometry-based ordering replace them.
+
+### Key Entities
+
+- **`Dxui` project** — new StaticLibrary, sibling of CassoCore / CassoEmuCore / Casso / CassoCli / UnitTest. Owns DX-link inheritance. Layout under `Pch.h` + `Dxui.h` + `Core/` + `Render/` + `Widgets/` + `Dialog/` + `Win32/` as specified in the input.
+- **`IDxuiControl`** — unified control interface every widget / panel / page / dialog implements.
+- **`DxuiPanel`** — container base with `Add<T>` ownership and auto fan-out.
+- **`IDxuiLayout`** plus `DxuiStackLayout` / `DxuiGridLayout` / `DxuiFormLayout` / `DxuiDockLayout` / `DxuiAbsoluteLayout` — layout policy interface and concrete strategies.
+- **`DxuiViewport`** — non-Dxui content placeholder (where the emulator renders); focusable when configured to consume input, forwards non-reserved keys / mouse to `IDxuiViewportInputSink`.
+- **`IDxuiViewportInputSink`** — consumer-implemented interface receiving forwarded keyboard / mouse events from a focused, input-consuming `DxuiViewport`. Casso implements it to route to the Apple ][ keyboard controller.
+- **`DxuiFocusManager`** — tree-attached, geometry-based, with spatial arrow nav and focus scopes.
+- **`IDxuiTheme`** — colour / typography accessor interface; implemented by Casso's `ChromeTheme`.
+- **`IDxuiPainter` / `IDxuiTextRenderer`** — pure-virtual render facades for mocking; concrete `DxuiPainter` + `DxuiTextRenderer` implement them.
+- **`DxuiHostWindow`** — top-level HWND owner; handles all custom-NC, DPI, theme, and snap-layouts plumbing.
+- **`DxuiPopupHost`** — `WS_POPUP` host with its own swap chain, sharing the parent device; pooled by `DxuiHostWindow`.
+- **`DxuiCaptionBar` / `DxuiSystemButton` / `DxuiDragRegion`** — stock chrome primitives.
+- **`DxuiDialog` / `DxuiDialogManager`** — panel-based dialog and `std::future<int>` show API.
+
+## Success Criteria *(mandatory)*
+
+### Measurable Outcomes
+
+- **SC-001**: `Dxui.vcxproj` builds as an independent static library on x64 and ARM64, Debug and Release, with zero project references to `CassoCore`, `CassoEmuCore`, or `Casso`.
+- **SC-002**: `Casso.exe` and `UnitTest.dll` reference and link `Dxui`; `CassoCli.exe` does not. The solution builds with no errors on all configurations.
+- **SC-003**: `Casso/Ui/Settings/SettingsPanel.cpp` shrinks by **≥ 40 %** from its current 2,179 lines (target: ≤ 1,307 lines).
+- **SC-004**: Per-page `OnLButtonDown` / `OnLButtonUp` / `OnMouseHover` / `OnKey` / `Paint` / `CollectFocusables` fan-out overrides reach **zero occurrences** in `Casso/Ui/Settings/`, `Casso/Ui/Disk2DebugPanel*`, `Casso/Ui/InputDebugPanel*`, and `Casso/Ui/Dialogs/` (verified by grep against the migrated tree).
+- **SC-005**: All existing CassoCore + CassoEmuCore + UnitTest tests pass after migration with no regression vs the Phase 1 baseline snapshot (`baseline-tests.txt`).
+- **SC-006**: New unit tests land covering `DxuiPanel` paint / input / focus fan-out, `DxuiFocusManager` geometry-based tab order plus spatial arrow nav, each layout policy (Stack / Grid / Form / Dock / Absolute), `DxuiPopupHost` placement / flip / dismiss, and `DxuiHostWindow` NC classification — all passing.
+- **SC-007**: Headless widget unit tests instantiate widgets and assert on recorded paint calls **without** creating a D3D11 device (mock `IDxuiPainter` / `IDxuiTextRenderer`).
+- **SC-008**: Verified by opening the Settings panel's Color dropdown when the panel is positioned near the bottom of the viewport; dropdown menu MUST open upward and MUST NOT clip.
+- **SC-009**: On Win11, hovering the maximize button on the main window **and** on any chrome window summons the snap-layouts popover within 100ms p99 from key/mouse event to first paint frame containing the response (measured via existing UnitTest timing harness or accepted by manual sign-off if no harness exists).
+- **SC-010**: All four legacy `WM_NCCALCSIZE` / `WM_NCHITTEST` plumbing copies are deleted; only `DxuiHostWindow` handles those messages (verified by grep for `WM_NCCALCSIZE` returning matches **only** in `Dxui/Win32/`).
+- **SC-011**: Chrome visual parity verified by side-by-side screenshot review at 100% / 150% / 200% DPI on Win10 + Win11; reviewer must sign off that no developer-perceptible regression exists. Pixel-exact matching is not required.
+- **SC-012**: Klaus Dormann and Tom Harte CPU validation suites both pass post-migration, confirming no CPU / emulator regressions.
+- **SC-013**: The emulator viewport sizes the Apple ][ pixel grid from the inside out via `DxuiDockLayout::ContainerSizeForFill` reading `DxuiViewport` bounds, replacing the legacy `ClientSizeForFramebuffer` path with no observable behavioural change.
+
+## Migration Plan (Phased — Each Phase Keeps Build + Tests Green)
+
+1. **Scaffold `Dxui.vcxproj`** — StaticLibrary, toolset v145, x64 + ARM64, empty `Pch.h` and `Dxui.h` umbrella (the latter is the system-header chokepoint per FR-004). Wire into `Casso.sln`. `Casso` and `UnitTest` add it as a reference, add `$(SolutionDir)Dxui` to AdditionalIncludeDirectories, and add `#include "Dxui.h"` to their own `Pch.h` per FR-007. Move `d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib` from Casso into Dxui so consumers inherit them. Amend `.github/copilot-instructions.md` to permit a library project's umbrella header (currently only `Dxui.h`) as an additional angle-bracket-include chokepoint alongside `Pch.h`. Build green, tests green.
+2. **Move pure-generic files** with the Dxui prefix: `HitTester`, `UiInput`, `Animation`, `DpiScaler`, `WindowsThemeColors`, `Win11DwmHelpers`, `TitleBarHitTest`, `DragDropTarget`. Update Casso includes mechanically.
+3. **Rename + move render facades**: `DxUiPainter` → `Dxui/Render/DxuiPainter`; `DwriteTextRenderer` → `Dxui/Render/DxuiTextRenderer`. Mechanical rename through Casso.
+4. **Move widgets** with the Dxui prefix (Button, Checkbox, Dropdown, Slider, Toggle, TabStrip, TextInput, Label, Radio, ListView, TreeView, PopupMenu, Tooltip, ModalScrim).
+5. **Introduce `IDxuiTheme`**; make `ChromeTheme` implement it; switch widget `Paint` signatures to `const IDxuiTheme &`.
+6. **Add framework**: `IDxuiControl`, `DxuiPanel`, `IDxuiLayout` + concrete layouts (Stack / Grid / Form / Dock / Absolute), event types (`DxuiMouseEvent` / `DxuiKeyEvent`), upgraded `DxuiFocusManager` (tree-attach + geometry-based + spatial arrows). Extract `IDxuiPainter` / `IDxuiTextRenderer` interfaces.
+7. **Host window unification** (Phase 7): land `DxuiHostWindow`, `DxuiCaptionBar`, `DxuiSystemButton`, `DxuiDragRegion`, renamed `DxuiDwm`. Convert main `Window` first. Then `ChromedPanelWindow`, `SettingsWindow`, and (later) `DialogPrimitive` collapse onto the same host. Retire the four copies of NC plumbing.
+8. **Popup hosting** (Phase 8): land `DxuiPopupHost` + pool. Convert `DxuiDropdown` / `DxuiTooltip` / `DxuiPopupMenu` to use it. Validate by opening a dropdown near the bottom of the Settings window (currently clipped) and confirming the menu opens upward without cropping.
+9. **DxuiViewport + DxuiDockLayout**: land both. Retire `Chrome/LayoutManager`, `IEdgeContributor`, `ICenterLayer`, `SimpleEdgeContributor`. Casso main shell becomes a root `DxuiPanel` with `DxuiDockLayout` (chrome bands Top / Bottom + viewport Fill). `D3DRenderer` reads viewport bounds.
+10. **Convert one settings page** (`ThemePage` — smallest) as proof of concept for declarative layout + auto fan-out. Validate end-to-end.
+11. **Convert remaining settings pages** (Machine / Hardware / Display), debug panels (`Disk2DebugPanel`, `InputDebugPanel`), and dialogs (`StartupDownloadDialog` → `DxuiDialog`, `StandaloneDialog` → `DxuiDialog`). Delete `DialogPrimitive` / `DialogPrimitiveRenderer` / `DialogDefinition` / `DialogLayout`.
+
+## Risks
+
+- **DX device sharing across HWNDs**: `DxuiPopupHost` shares the parent `ID3D11Device` but owns its own swap chain. Mistakes in device lifetime / threading could cause crashes or invisible popups. Mitigation: explicit owner-chain tracking, popup pool owned by `DxuiHostWindow`, dedicated tests for popup lifecycle.
+- **Custom NC subtleties on Win10 vs Win11**: rounded corners, Mica backdrop, snap-layouts behave differently. Mitigation: `DxuiDwm` encapsulates version detection; visual parity must be eyeball-validated on both OSes during Phase 7 and at migration close.
+- **Reading-order tab differing subtly from current hand-numbered `focusId`**: a few pages may shift focus order in ways users notice. Mitigation: per-control `tabIndex` hints exist as an explicit override; settings pages get a focus-order review during conversion.
+- **Pixel parity for skeuomorphic chrome**: porting paint to the new theme interface could drift colours. Mitigation: side-by-side screenshots at 100 % / 150 % / 200 % DPI during chrome migration; `ChromeTheme` implements `IDxuiTheme` rather than being replaced, so colour values stay in one place.
+- **`SettingsPanel.cpp` 40 % reduction is a target, not guaranteed**: declarative layout may not strip as much as hoped if pages have lots of bespoke logic. Mitigation: track LOC after Phase 10 (single page) to extrapolate; adjust target if the proof-of-concept page reveals overruns.
+- **Migration phase ordering**: a regression in Phase 9 (host window) blocks all later phases. Mitigation: each phase ends green; phases are merged independently rather than as one mega-PR.
+- **Emulator viewport timing**: `DxuiViewport::OnBoundsChanged` must fire **before** the next emulator frame to avoid one-frame mis-sized presentation. Mitigation: layout pass completes before paint pass; renderer subscribes and resizes lazily on first paint after change.
+
+## Assumptions
+
+- Developers consuming Dxui are this project's contributors; no third-party API stability commitment is made at v1.
+- `std::wstring` everywhere matches DirectWrite UTF-16 native and the existing Casso UI convention; no string-type abstraction layer is needed.
+- The existing `ChromeTheme` palette stays definitive; `IDxuiTheme` exposes the subset widgets need without forcing a wholesale redesign.
+- Casso's existing widget set is sufficient; this feature does **not** introduce new widget kinds.
+- `CassoCli` has no UI and never will; it stays out of Dxui's reverse-dependency graph.
+- The existing test infrastructure in `UnitTest` (Microsoft Native CppUnitTest) can host the new Dxui widget tests without further harness work.
+- Headless widget tests can construct widgets in process without a window; only painting / DX device touches need mocking.
+- The Apple ][ pixel grid renderer (`D3DRenderer`) can accept bounds updates via a simple `OnBoundsChanged(RECT)` callback without restructuring its present loop.
+
+## Out of Scope
+
+- UIA `IRawElementProviderSimple` provider implementation — only the `AccessibleName` / `AccessibleRole` accessors land in v1.
+- Cross-platform support — Windows + DirectX only.
+- New widget types beyond the existing Casso set.
+- Visual redesign of any control or dialog (skeuomorphic chrome must remain manual-signoff equivalent).
+- Changes to CPU, assembler, emulator devices, or `CassoCli`.
+- Changes to the disk subsystem, audio, or video pipeline beyond reading the viewport bounds from `DxuiViewport`.
+- Promoting Dxui to its own repository or NuGet package — it remains a solution-local static library.
+- An `Adopt` ownership variant on `DxuiPanel` (add-only in v1; revisit when a real need surfaces).
