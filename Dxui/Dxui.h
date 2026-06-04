@@ -88,6 +88,7 @@
 #include "Core/DxuiGridLayout.h"
 #include "Core/DxuiStackLayout.h"
 #include "Core/DxuiPanel.h"
+#include "Core/DxuiViewport.h"
 #include "Core/DxuiFocusManager.h"
 
 // ComPtr alias needed by Render/* headers below. Defined in the
