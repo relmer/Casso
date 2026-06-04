@@ -1,0 +1,376 @@
+#include "Pch.h"
+
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+
+
+namespace
+{
+    constexpr LONG   s_kClientWidthDip       = 1024;
+    constexpr LONG   s_kClientHeightDip      = 768;
+    constexpr float  s_kResizeBorderDip      = 6.0f;
+
+    constexpr LONG   s_kCaptionHeightDip     = 32;
+    constexpr LONG   s_kSystemButtonWidthDip = 46;
+
+
+    RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
+    {
+        RECT  out = {};
+        out.left = l; out.top = t; out.right = r; out.bottom = b;
+        return out;
+    }
+
+
+    POINT  MakePoint (LONG x, LONG y)
+    {
+        POINT  out = {};
+        out.x = x; out.y = y;
+        return out;
+    }
+
+
+    //
+    //  Builds a synthetic DxuiHostWindow with a caption bar wired up
+    //  with three system buttons (min/max/close) anchored to the
+    //  right edge. Returns the host plus the per-button bounds so the
+    //  test can hit-test their centers.
+    //
+    struct SyntheticHost
+    {
+        std::unique_ptr<DxuiHostWindow>  host;
+        RECT                             minRectDip   = {};
+        RECT                             maxRectDip   = {};
+        RECT                             closeRectDip = {};
+        RECT                             captionRectDip = {};
+    };
+
+
+    SyntheticHost  BuildSyntheticHost ()
+    {
+        SyntheticHost            result;
+        std::unique_ptr<DxuiPanel>     root        = std::make_unique<DxuiPanel>();
+        DxuiCaptionBar &               caption     = root->Add<DxuiCaptionBar>();
+        DxuiSystemButton &             minBtn      = caption.Add<DxuiSystemButton> (DxuiSystemButtonKind::Min);
+        DxuiSystemButton &             maxBtn      = caption.Add<DxuiSystemButton> (DxuiSystemButtonKind::Max);
+        DxuiSystemButton &             closeBtn    = caption.Add<DxuiSystemButton> (DxuiSystemButtonKind::Close);
+
+
+
+        result.captionRectDip = MakeRect (0, 0, s_kClientWidthDip, s_kCaptionHeightDip);
+        result.closeRectDip   = MakeRect (s_kClientWidthDip - s_kSystemButtonWidthDip,
+                                          0,
+                                          s_kClientWidthDip,
+                                          s_kCaptionHeightDip);
+        result.maxRectDip     = MakeRect (s_kClientWidthDip - 2 * s_kSystemButtonWidthDip,
+                                          0,
+                                          s_kClientWidthDip - s_kSystemButtonWidthDip,
+                                          s_kCaptionHeightDip);
+        result.minRectDip     = MakeRect (s_kClientWidthDip - 3 * s_kSystemButtonWidthDip,
+                                          0,
+                                          s_kClientWidthDip - 2 * s_kSystemButtonWidthDip,
+                                          s_kCaptionHeightDip);
+
+        caption.SetBounds  (result.captionRectDip);
+        minBtn.SetBounds   (result.minRectDip);
+        maxBtn.SetBounds   (result.maxRectDip);
+        closeBtn.SetBounds (result.closeRectDip);
+
+        result.host = std::make_unique<DxuiHostWindow> (
+            MakeRect (0, 0, s_kClientWidthDip, s_kClientHeightDip),
+            s_kResizeBorderDip,
+            std::move (root));
+
+        return result;
+    }
+}
+
+
+
+
+
+TEST_CLASS (DxuiHostWindowTests)
+{
+public:
+
+    TEST_METHOD_INITIALIZE (Setup)
+    {
+        // Unit tests run on the MSTest worker thread, not a real UI
+        // thread. Reset the captured UI-thread id so DXUI_ASSERT_UI_THREAD
+        // accepts whichever thread happens to dispatch us.
+        DxuiResetUiThreadIdForTest();
+    }
+
+
+
+    //
+    //  Resize edge classification — eight points, one per edge / corner.
+    //
+
+    TEST_METHOD (ResizeEdges_TopLeftCorner_ReturnsHtTopLeft)
+    {
+        SyntheticHost  sh   = BuildSyntheticHost();
+        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (1, 1));
+
+        Assert::AreEqual ((int) HTTOPLEFT, (int) DxuiHostWindow::KindToHt (kind));
+    }
+
+
+    TEST_METHOD (ResizeEdges_TopRightCorner_ReturnsHtTopRight)
+    {
+        SyntheticHost  sh   = BuildSyntheticHost();
+        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip - 1, 1));
+
+        Assert::AreEqual ((int) HTTOPRIGHT, (int) DxuiHostWindow::KindToHt (kind));
+    }
+
+
+    TEST_METHOD (ResizeEdges_BottomLeftCorner_ReturnsHtBottomLeft)
+    {
+        SyntheticHost  sh   = BuildSyntheticHost();
+        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (1, s_kClientHeightDip - 1));
+
+        Assert::AreEqual ((int) HTBOTTOMLEFT, (int) DxuiHostWindow::KindToHt (kind));
+    }
+
+
+    TEST_METHOD (ResizeEdges_BottomRightCorner_ReturnsHtBottomRight)
+    {
+        SyntheticHost  sh   = BuildSyntheticHost();
+        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip - 1,
+                                                                      s_kClientHeightDip - 1));
+
+        Assert::AreEqual ((int) HTBOTTOMRIGHT, (int) DxuiHostWindow::KindToHt (kind));
+    }
+
+
+    TEST_METHOD (ResizeEdges_LeftEdgeMidHeight_ReturnsHtLeft)
+    {
+        SyntheticHost  sh   = BuildSyntheticHost();
+        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (1, s_kClientHeightDip / 2));
+
+        Assert::AreEqual ((int) HTLEFT, (int) DxuiHostWindow::KindToHt (kind));
+    }
+
+
+    TEST_METHOD (ResizeEdges_RightEdgeMidHeight_ReturnsHtRight)
+    {
+        SyntheticHost  sh   = BuildSyntheticHost();
+        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip - 1,
+                                                                      s_kClientHeightDip / 2));
+
+        Assert::AreEqual ((int) HTRIGHT, (int) DxuiHostWindow::KindToHt (kind));
+    }
+
+
+    TEST_METHOD (ResizeEdges_TopEdgeMidWidth_ReturnsHtTop)
+    {
+        SyntheticHost  sh   = BuildSyntheticHost();
+        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip / 2, 1));
+
+        Assert::AreEqual ((int) HTTOP, (int) DxuiHostWindow::KindToHt (kind));
+    }
+
+
+    TEST_METHOD (ResizeEdges_BottomEdgeMidWidth_ReturnsHtBottom)
+    {
+        SyntheticHost  sh   = BuildSyntheticHost();
+        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip / 2,
+                                                                      s_kClientHeightDip - 1));
+
+        Assert::AreEqual ((int) HTBOTTOM, (int) DxuiHostWindow::KindToHt (kind));
+    }
+
+
+
+    //
+    //  Caption / system-button / client classification.
+    //
+
+    TEST_METHOD (Caption_BlankAreaInTitleStrip_ReturnsHtCaption)
+    {
+        SyntheticHost  sh   = BuildSyntheticHost();
+        // Mid-caption, well inside resize-border inset, away from any button.
+        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (200, s_kCaptionHeightDip / 2));
+
+        Assert::AreEqual ((int) HTCAPTION, (int) DxuiHostWindow::KindToHt (kind));
+    }
+
+
+    TEST_METHOD (SystemButton_MinCenter_ReturnsHtMinButton)
+    {
+        SyntheticHost  sh = BuildSyntheticHost();
+        POINT          pt = MakePoint ((sh.minRectDip.left + sh.minRectDip.right) / 2,
+                                       (sh.minRectDip.top  + sh.minRectDip.bottom) / 2);
+        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (pt);
+
+        Assert::AreEqual ((int) HTMINBUTTON, (int) DxuiHostWindow::KindToHt (kind));
+    }
+
+
+    TEST_METHOD (SystemButton_CloseCenter_ReturnsHtClose)
+    {
+        SyntheticHost  sh = BuildSyntheticHost();
+        POINT          pt = MakePoint ((sh.closeRectDip.left + sh.closeRectDip.right) / 2,
+                                       (sh.closeRectDip.top  + sh.closeRectDip.bottom) / 2);
+        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (pt);
+
+        Assert::AreEqual ((int) HTCLOSE, (int) DxuiHostWindow::KindToHt (kind));
+    }
+
+
+    TEST_METHOD (Client_PointBelowCaption_ReturnsHtClient)
+    {
+        SyntheticHost  sh = BuildSyntheticHost();
+        // Mid-client, comfortably below the caption strip and inset from
+        // the resize border.
+        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip / 2,
+                                                                      s_kClientHeightDip / 2));
+
+        Assert::AreEqual ((int) HTCLIENT, (int) DxuiHostWindow::KindToHt (kind));
+    }
+
+
+
+    //
+    //  T073 — Win11 snap-layouts trigger. The maximise button MUST
+    //  classify as HTMAXBUTTON so Windows fires the hover popover.
+    //
+
+    TEST_METHOD (SnapLayouts_MaxButtonCenter_ReturnsHtMaxButton)
+    {
+        SyntheticHost  sh = BuildSyntheticHost();
+        POINT          pt = MakePoint ((sh.maxRectDip.left + sh.maxRectDip.right) / 2,
+                                       (sh.maxRectDip.top  + sh.maxRectDip.bottom) / 2);
+        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (pt);
+
+        Assert::AreEqual ((int) DxuiHitTestKind::MaxButton, (int) kind);
+        Assert::AreEqual ((int) HTMAXBUTTON, (int) DxuiHostWindow::KindToHt (kind));
+    }
+
+
+    TEST_METHOD (SnapLayouts_MaxButtonCorner_StillReturnsHtMaxButton)
+    {
+        // Hit near the bottom-left corner of the max button — still
+        // inside its bounds, so Win11 must still get HTMAXBUTTON to
+        // surface the snap-layouts popover. Resize-edge check is
+        // upstream of the tree walk, so verify the upper-right
+        // corner doesn't accidentally trip the top-right resize
+        // corner.
+        SyntheticHost  sh = BuildSyntheticHost();
+        POINT          pt = MakePoint (sh.maxRectDip.left + 2,
+                                       sh.maxRectDip.bottom - 2);
+        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (pt);
+
+        Assert::AreEqual ((int) HTMAXBUTTON, (int) DxuiHostWindow::KindToHt (kind));
+    }
+
+
+
+    //
+    //  KindToHt mapping — direct table verification.
+    //
+
+    TEST_METHOD (KindToHt_MapsEveryEnumValueToExpectedHtCode)
+    {
+        Assert::AreEqual ((int) HTNOWHERE,    (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::None));
+        Assert::AreEqual ((int) HTCLIENT,     (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::Client));
+        Assert::AreEqual ((int) HTCAPTION,    (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::Caption));
+        Assert::AreEqual ((int) HTMINBUTTON,  (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::MinButton));
+        Assert::AreEqual ((int) HTMAXBUTTON,  (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::MaxButton));
+        Assert::AreEqual ((int) HTCLOSE,      (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::CloseButton));
+        Assert::AreEqual ((int) HTLEFT,       (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::ResizeEdgeLeft));
+        Assert::AreEqual ((int) HTRIGHT,      (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::ResizeEdgeRight));
+        Assert::AreEqual ((int) HTTOP,        (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::ResizeEdgeTop));
+        Assert::AreEqual ((int) HTBOTTOM,     (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::ResizeEdgeBottom));
+        Assert::AreEqual ((int) HTTOPLEFT,    (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::ResizeCornerTL));
+        Assert::AreEqual ((int) HTTOPRIGHT,   (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::ResizeCornerTR));
+        Assert::AreEqual ((int) HTBOTTOMLEFT, (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::ResizeCornerBL));
+        Assert::AreEqual ((int) HTBOTTOMRIGHT,(int) DxuiHostWindow::KindToHt (DxuiHitTestKind::ResizeCornerBR));
+    }
+
+
+
+    //
+    //  DxuiCaptionBar default classification — blank area falls
+    //  through to Caption even when there are children.
+    //
+
+    TEST_METHOD (CaptionBar_BlankAreaWithNoChildren_ReturnsCaption)
+    {
+        DxuiCaptionBar  bar;
+
+        bar.SetBounds (MakeRect (0, 0, 800, 32));
+
+        Assert::AreEqual ((int) DxuiHitTestKind::Caption,
+                          (int) bar.ClassifyHit (MakePoint (400, 16)));
+    }
+
+
+    TEST_METHOD (CaptionBar_ChildAtPoint_DefersToChild)
+    {
+        DxuiCaptionBar    bar;
+        DxuiSystemButton &  closeBtn = bar.Add<DxuiSystemButton> (DxuiSystemButtonKind::Close);
+
+        bar.SetBounds      (MakeRect (0, 0, 800, 32));
+        closeBtn.SetBounds (MakeRect (754, 0, 800, 32));
+
+        Assert::AreEqual ((int) DxuiHitTestKind::CloseButton,
+                          (int) bar.ClassifyHit (MakePoint (777, 16)));
+        Assert::AreEqual ((int) DxuiHitTestKind::Caption,
+                          (int) bar.ClassifyHit (MakePoint (100, 16)));
+    }
+
+
+
+    //
+    //  DxuiDragRegion — invisible filler always classifies as
+    //  Caption, regardless of point.
+    //
+
+    TEST_METHOD (DragRegion_AnyPoint_ReturnsCaption)
+    {
+        DxuiDragRegion  drag;
+
+        drag.SetBounds (MakeRect (0, 0, 400, 32));
+
+        Assert::AreEqual ((int) DxuiHitTestKind::Caption,
+                          (int) drag.ClassifyHit (MakePoint (200, 16)));
+        Assert::AreEqual ((int) DxuiHitTestKind::Caption,
+                          (int) drag.ClassifyHit (MakePoint (0, 0)));
+    }
+
+
+
+    //
+    //  DxuiSystemButton — Kind round-trips through ClassifyHit.
+    //
+
+    TEST_METHOD (SystemButton_KindRoundtripsThroughClassifyHit)
+    {
+        DxuiSystemButton  minBtn   (DxuiSystemButtonKind::Min);
+        DxuiSystemButton  maxBtn   (DxuiSystemButtonKind::Max);
+        DxuiSystemButton  closeBtn (DxuiSystemButtonKind::Close);
+
+
+        Assert::AreEqual ((int) DxuiHitTestKind::MinButton,
+                          (int) minBtn.ClassifyHit (MakePoint (0, 0)));
+        Assert::AreEqual ((int) DxuiHitTestKind::MaxButton,
+                          (int) maxBtn.ClassifyHit (MakePoint (0, 0)));
+        Assert::AreEqual ((int) DxuiHitTestKind::CloseButton,
+                          (int) closeBtn.ClassifyHit (MakePoint (0, 0)));
+    }
+
+
+    TEST_METHOD (SystemButton_AccessibleName_MatchesKind)
+    {
+        DxuiSystemButton  minBtn   (DxuiSystemButtonKind::Min);
+        DxuiSystemButton  maxBtn   (DxuiSystemButtonKind::Max);
+        DxuiSystemButton  closeBtn (DxuiSystemButtonKind::Close);
+
+
+        Assert::AreEqual (std::wstring (L"Minimize"), minBtn.AccessibleName());
+        Assert::AreEqual (std::wstring (L"Maximize"), maxBtn.AccessibleName());
+        Assert::AreEqual (std::wstring (L"Close"),    closeBtn.AccessibleName());
+    }
+};

@@ -18,6 +18,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <windowsx.h>
 
 #include <d3d11.h>
 #include <d3dcompiler.h>
@@ -121,3 +122,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiTooltip.h"
 #include "Widgets/DxuiTreeView.h"
 #include "Win32/DxuiDragDropTarget.h"
+#include "Win32/DxuiDragRegion.h"
+#include "Win32/DxuiCaptionBar.h"
+#include "Win32/DxuiSystemButton.h"
+#include "Win32/DxuiHostWindow.h"
