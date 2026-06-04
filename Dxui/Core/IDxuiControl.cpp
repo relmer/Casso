@@ -41,7 +41,8 @@ void IDxuiControl::SetBounds (RECT boundsDip)
 
 void IDxuiControl::SetVisible (bool visible)
 {
-    bool  prior = false;
+    bool         prior      = false;
+    DxuiPanel *  parentPnl  = nullptr;
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -52,6 +53,11 @@ void IDxuiControl::SetVisible (bool visible)
     if (prior != visible)
     {
         OnVisibilityChanged();
+        parentPnl = dynamic_cast<DxuiPanel *> (m_parent);
+        if (parentPnl != nullptr)
+        {
+            parentPnl->OnChildVisibilityChanged (this);
+        }
     }
 }
 

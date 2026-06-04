@@ -454,6 +454,12 @@
     <ClCompile Include="UiTests\FocusManagerTests.cpp" />
     <ClCompile Include="UiTests\AnimationSyncTests.cpp" />
     <ClCompile Include="UiTests\DxuiPainterTests.cpp" />
+    <ClCompile Include="Dxui\DxuiFocusManagerTests.cpp" />
+    <ClCompile Include="Dxui\DxuiLayoutTests.cpp" />
+    <ClCompile Include="Dxui\DxuiPanelTests.cpp" />
+    <ClCompile Include="Dxui\DxuiStackLayoutTests.cpp" />
+    <ClCompile Include="Dxui\MockDxuiPainter.cpp" />
+    <ClCompile Include="Dxui\MockDxuiTextRenderer.cpp" />
     <ClCompile Include="Dxui\MockDxuiTheme.cpp" />
     <ClCompile Include="Dxui\MockDxuiThemeTests.cpp" />
     <ClCompile Include="Devices\Disk2DebugDialogTests.cpp" />
@@ -489,6 +495,9 @@
     <ClInclude Include="EmuTests\TextScreenScraper.h" />
     <ClInclude Include="EmuTests\KeystrokeInjector.h" />
     <ClInclude Include="EmuTests\MemoryProbeHelpers.h" />
+    <ClInclude Include="Dxui\MockDxuiControl.h" />
+    <ClInclude Include="Dxui\MockDxuiPainter.h" />
+    <ClInclude Include="Dxui\MockDxuiTextRenderer.h" />
     <ClInclude Include="Dxui\MockDxuiTheme.h" />
   </ItemGroup>
   <ItemGroup>

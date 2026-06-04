@@ -44,7 +44,7 @@ enum class DxuiTextVAlign
 class IDxuiTextRenderer
 {
 public:
-    virtual ~IDxuiTextRenderer () = default;
+    virtual ~IDxuiTextRenderer() = default;
 
     virtual HRESULT  DrawString    (const wchar_t      * text,
                                     float                xDip,

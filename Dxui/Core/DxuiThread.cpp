@@ -26,7 +26,7 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiAssertUiThread ()
+void DxuiAssertUiThread()
 {
     DWORD  captured = 0;
     DWORD  current  = 0;
@@ -61,7 +61,7 @@ void DxuiAssertUiThread ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiResetUiThreadIdForTest ()
+void DxuiResetUiThreadIdForTest()
 {
     s_uiThreadId.store (0, std::memory_order_release);
 }
