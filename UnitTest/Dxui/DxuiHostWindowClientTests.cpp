@@ -11,8 +11,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  Verifies the IDxuiHostClient dispatch wiring on DxuiHostWindow.
 //  Uses adopt-mode hosts (which carry a null HWND) plus direct
 //  WndProc invocation; the tests only exercise paths where the
-//  client claims the message (returns true) so the host returns
-//  0 without ever reaching DefWindowProc against the null HWND.
+//  client claims the message (returns DxuiMessageResult::Handled,
+//  or a non-default LRESULT for rich-return hooks) so the host
+//  returns without ever reaching DefWindowProc against the null
+//  HWND.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,58 +40,75 @@ namespace
     class RecordingClient : public IDxuiHostClient
     {
     public:
-        bool   claim                = true;
+        DxuiMessageResult  claim                = DxuiMessageResult::Handled;
+        LRESULT            onCreateReturn       = 0;
+        LRESULT            onNcHitTestReturn    = HTCAPTION;
+        LRESULT            onCtlColorReturn     = 0;
+        LRESULT            onDrawItemReturn     = TRUE;
 
-        int    onCharCount          = 0;
-        WPARAM lastCharCh           = 0;
+        int      onCreateCount         = 0;
+        int      onNcHitTestCount      = 0;
+        int      onCtlColorCount       = 0;
+        HDC      lastCtlColorHdc       = nullptr;
+        HWND     lastCtlColorHwnd      = nullptr;
 
-        int    onCommandCount       = 0;
-        WORD   lastCommandId        = 0;
-        WORD   lastNotifyCode       = 0;
+        int      onDrawItemCount       = 0;
+        WPARAM   lastDrawItemWParam    = 0;
+        LPARAM   lastDrawItemLParam    = 0;
 
-        int    onKeyDownCount       = 0;
-        WPARAM lastKeyDownVk        = 0;
+        int      onCharCount           = 0;
+        WPARAM   lastCharCh            = 0;
 
-        int    onKeyUpCount         = 0;
-        int    onMouseMoveCount     = 0;
-        int    onMouseLeaveCount    = 0;
-        int    onLButtonDownCount   = 0;
-        int    onLButtonUpCount     = 0;
-        int    onMoveCount          = 0;
-        int    onSizeCount          = 0;
-        UINT   lastSizeWidth        = 0;
-        UINT   lastSizeHeight       = 0;
+        int      onCommandCount        = 0;
+        WORD     lastCommandId         = 0;
+        WORD     lastNotifyCode        = 0;
 
-        int    onTimerCount         = 0;
-        UINT_PTR lastTimerId        = 0;
+        int      onKeyDownCount        = 0;
+        WPARAM   lastKeyDownVk         = 0;
 
-        int    onNotifyCount        = 0;
-        int    onDrawItemCount      = 0;
-        int    onInitMenuPopupCount = 0;
-        int    onPaintCount         = 0;
-        int    onCloseCount         = 0;
-        int    onDestroyCount       = 0;
-        int    onNcLButtonUpCount   = 0;
-        LRESULT lastNcHitTest       = HTNOWHERE;
+        int      onKeyUpCount          = 0;
+        int      onMouseMoveCount      = 0;
+        int      onMouseLeaveCount     = 0;
+        int      onLButtonDownCount    = 0;
+        int      onLButtonUpCount      = 0;
+        int      onMoveCount           = 0;
+        int      onSizeCount           = 0;
+        UINT     lastSizeWidth         = 0;
+        UINT     lastSizeHeight        = 0;
 
-        bool  OnChar           (WPARAM ch, LPARAM)                  override { ++onCharCount;          lastCharCh = ch;                    return claim; }
-        bool  OnCommandEx      (WORD id, WORD notify, HWND)         override { ++onCommandCount;       lastCommandId = id; lastNotifyCode = notify; return claim; }
-        bool  OnKeyDown        (WPARAM vk, LPARAM)                  override { ++onKeyDownCount;       lastKeyDownVk = vk;                  return claim; }
-        bool  OnKeyUp          (WPARAM, LPARAM)                     override { ++onKeyUpCount;         return claim; }
-        bool  OnMouseMove      (WPARAM, LPARAM)                     override { ++onMouseMoveCount;     return claim; }
-        bool  OnMouseLeave     ()                                   override { ++onMouseLeaveCount;    return claim; }
-        bool  OnLButtonDown    (WPARAM, LPARAM)                     override { ++onLButtonDownCount;   return claim; }
-        bool  OnLButtonUp      (WPARAM, LPARAM)                     override { ++onLButtonUpCount;     return claim; }
-        bool  OnMove           (int, int)                           override { ++onMoveCount;          return claim; }
-        bool  OnSize           (UINT w, UINT h)                     override { ++onSizeCount; lastSizeWidth = w; lastSizeHeight = h;        return claim; }
-        bool  OnTimer          (UINT_PTR id)                        override { ++onTimerCount; lastTimerId = id;                            return claim; }
-        bool  OnNotify         (WPARAM, LPARAM)                     override { ++onNotifyCount;        return claim; }
-        bool  OnDrawItem       (int, DRAWITEMSTRUCT *)              override { ++onDrawItemCount;      return claim; }
-        bool  OnInitMenuPopup  (HMENU, UINT, bool)                  override { ++onInitMenuPopupCount; return claim; }
-        bool  OnPaint          ()                                   override { ++onPaintCount;         return claim; }
-        bool  OnClose          ()                                   override { ++onCloseCount;         return claim; }
-        void  OnDestroy        ()                                   override { ++onDestroyCount; }
-        bool  OnNcLButtonUp    (LRESULT ht, int, int)               override { ++onNcLButtonUpCount; lastNcHitTest = ht;                    return claim; }
+        int      onTimerCount          = 0;
+        UINT_PTR lastTimerId           = 0;
+
+        int      onNotifyCount         = 0;
+        int      onInitMenuPopupCount  = 0;
+        int      onPaintCount          = 0;
+        int      onCloseCount          = 0;
+        int      onDestroyCount        = 0;
+        int      onNcLButtonUpCount    = 0;
+        LRESULT  lastNcHitTest         = HTNOWHERE;
+
+        LRESULT            OnCreate         (HWND, UINT, WPARAM, LPARAM)        override { ++onCreateCount;                                                            return onCreateReturn;    }
+        LRESULT            OnNcHitTest      (HWND, UINT, WPARAM, LPARAM)        override { ++onNcHitTestCount;                                                         return onNcHitTestReturn; }
+        LRESULT            OnCtlColorStatic (HDC hdc, HWND hCtl)                override { ++onCtlColorCount; lastCtlColorHdc = hdc; lastCtlColorHwnd = hCtl;          return onCtlColorReturn;  }
+        LRESULT            OnDrawItem       (HWND, UINT, WPARAM wp, LPARAM lp)  override { ++onDrawItemCount; lastDrawItemWParam = wp; lastDrawItemLParam = lp;        return onDrawItemReturn;  }
+
+        DxuiMessageResult  OnChar           (WPARAM ch, LPARAM)                 override { ++onCharCount;          lastCharCh = ch;                                    return claim; }
+        DxuiMessageResult  OnCommandEx      (WORD id, WORD notify, HWND)        override { ++onCommandCount;       lastCommandId = id; lastNotifyCode = notify;        return claim; }
+        DxuiMessageResult  OnKeyDown        (WPARAM vk, LPARAM)                 override { ++onKeyDownCount;       lastKeyDownVk = vk;                                 return claim; }
+        DxuiMessageResult  OnKeyUp          (WPARAM, LPARAM)                    override { ++onKeyUpCount;         return claim; }
+        DxuiMessageResult  OnMouseMove      (WPARAM, LPARAM)                    override { ++onMouseMoveCount;     return claim; }
+        DxuiMessageResult  OnMouseLeave     ()                                  override { ++onMouseLeaveCount;    return claim; }
+        DxuiMessageResult  OnLButtonDown    (WPARAM, LPARAM)                    override { ++onLButtonDownCount;   return claim; }
+        DxuiMessageResult  OnLButtonUp      (WPARAM, LPARAM)                    override { ++onLButtonUpCount;     return claim; }
+        DxuiMessageResult  OnMove           (int, int)                          override { ++onMoveCount;          return claim; }
+        DxuiMessageResult  OnSize           (UINT w, UINT h)                    override { ++onSizeCount; lastSizeWidth = w; lastSizeHeight = h;                       return claim; }
+        DxuiMessageResult  OnTimer          (UINT_PTR id)                       override { ++onTimerCount; lastTimerId = id;                                           return claim; }
+        DxuiMessageResult  OnNotify         (WPARAM, LPARAM)                    override { ++onNotifyCount;        return claim; }
+        DxuiMessageResult  OnInitMenuPopup  (HMENU, UINT, bool)                 override { ++onInitMenuPopupCount; return claim; }
+        DxuiMessageResult  OnPaint          ()                                  override { ++onPaintCount;         return claim; }
+        DxuiMessageResult  OnClose          ()                                  override { ++onCloseCount;         return claim; }
+        void               OnDestroy        ()                                  override { ++onDestroyCount; }
+        DxuiMessageResult  OnNcLButtonUp    (LRESULT ht, int, int)              override { ++onNcLButtonUpCount; lastNcHitTest = ht;                                   return claim; }
     };
 
 
@@ -141,8 +160,8 @@ public:
 
     //
     //  Installed client receives WM_COMMAND with the right id and
-    //  notification code. A claiming client (returns true) makes
-    //  the host short-circuit DefWindowProc.
+    //  notification code. A claiming client (returns Handled)
+    //  makes the host short-circuit DefWindowProc and return 0.
     //
     TEST_METHOD (Client_WmCommand_DispatchesAndClaims)
     {
@@ -224,7 +243,7 @@ public:
 
     //
     //  WM_CLOSE dispatches through OnClose; when the client
-    //  claims (returns true), the host short-circuits so the
+    //  claims (returns Handled), the host short-circuits so the
     //  default "DestroyWindow on close" behavior does not run.
     //
     TEST_METHOD (Client_WmClose_ClientCanSuppressDefault)
@@ -234,7 +253,7 @@ public:
         LRESULT                          result  = 0;
 
         host->SetClient (&client);
-        client.claim = true;
+        client.claim = DxuiMessageResult::Handled;
 
         result = host->WndProc (WM_CLOSE, 0, 0);
 
@@ -283,5 +302,104 @@ public:
         (void) host->WndProc (WM_COMMAND, MAKEWPARAM (2, 0), 0);
 
         Assert::AreEqual (1, client.onCommandCount);
+    }
+
+
+
+    //
+    //  WM_CREATE dispatches through OnCreate and the LRESULT the
+    //  client returns is propagated verbatim from WndProc. A -1
+    //  return aborts window creation; CreateWindowEx would return
+    //  NULL in real use. The synthetic host just verifies the
+    //  return-value passthrough.
+    //
+    TEST_METHOD (Client_WmCreate_PropagatesNegativeOneToAbort)
+    {
+        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        RecordingClient                  client;
+        LRESULT                          result  = 0;
+
+        host->SetClient (&client);
+        client.onCreateReturn = (LRESULT) -1;
+
+        result = host->WndProc (WM_CREATE, 0, 0);
+
+        Assert::AreEqual (1,            client.onCreateCount);
+        Assert::AreEqual ((LRESULT) -1, result);
+    }
+
+
+
+    //
+    //  WM_NCHITTEST falls through to OnNcHitTest when the
+    //  framework's classification yields HTCLIENT / HTNOWHERE.
+    //  The synthetic host has no HWND so HandleNcHitTest returns
+    //  HTNOWHERE, which trips the client fallback. The LRESULT
+    //  the client returns is propagated verbatim.
+    //
+    TEST_METHOD (Client_WmNcHitTest_FallsThroughOnHostClientArea)
+    {
+        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        RecordingClient                  client;
+        LRESULT                          result  = 0;
+
+        host->SetClient (&client);
+        client.onNcHitTestReturn = HTCAPTION;
+
+        result = host->WndProc (WM_NCHITTEST, 0, MAKELPARAM (100, 10));
+
+        Assert::AreEqual (1,                    client.onNcHitTestCount);
+        Assert::AreEqual ((LRESULT) HTCAPTION,  result);
+    }
+
+
+
+    //
+    //  WM_CTLCOLORSTATIC forwards the HDC/HWND payload and
+    //  propagates the LRESULT (an HBRUSH cast to LRESULT) when
+    //  the client returns non-zero. A zero return means "use
+    //  DefWindowProc's default brush" and the host falls through.
+    //
+    TEST_METHOD (Client_WmCtlColorStatic_ForwardsHdcAndHwnd)
+    {
+        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        RecordingClient                  client;
+        LRESULT                          result  = 0;
+        HDC                              fakeHdc = (HDC) 0x1234;
+        HWND                             fakeHwnd = (HWND) 0x5678;
+
+        host->SetClient (&client);
+        client.onCtlColorReturn = (LRESULT) 0xABCD;
+
+        result = host->WndProc (WM_CTLCOLORSTATIC, (WPARAM) fakeHdc, (LPARAM) fakeHwnd);
+
+        Assert::AreEqual (1,                    client.onCtlColorCount);
+        Assert::IsTrue   (client.lastCtlColorHdc  == fakeHdc);
+        Assert::IsTrue   (client.lastCtlColorHwnd == fakeHwnd);
+        Assert::AreEqual ((LRESULT) 0xABCD,     result);
+    }
+
+
+
+    //
+    //  WM_DRAWITEM forwards the full WndProc payload so the
+    //  client can reinterpret_cast lParam back to DRAWITEMSTRUCT
+    //  on its end. The client's LRESULT (typically TRUE) is
+    //  propagated verbatim.
+    //
+    TEST_METHOD (Client_WmDrawItem_ForwardsFullWndProcPayload)
+    {
+        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        RecordingClient                  client;
+        LRESULT                          result  = 0;
+
+        host->SetClient (&client);
+
+        result = host->WndProc (WM_DRAWITEM, 42, (LPARAM) 0xDEADBEEF);
+
+        Assert::AreEqual (1,                    client.onDrawItemCount);
+        Assert::AreEqual ((WPARAM) 42,          client.lastDrawItemWParam);
+        Assert::AreEqual ((LPARAM) 0xDEADBEEF,  client.lastDrawItemLParam);
+        Assert::AreEqual ((LRESULT) TRUE,       result);
     }
 };

@@ -731,7 +731,24 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             return HandleNcCalcSize (wp, lp);
 
         case WM_NCHITTEST:
-            return HandleNcHitTest (lp);
+        {
+            // Framework classification (resize edges + delegate +
+            // panel-tree walk) wins for chrome hits; HTCLIENT /
+            // HTNOWHERE outcomes fall through to the client hook so
+            // a consumer can reclassify what the framework treats
+            // as plain client area.
+            LRESULT  hostHt = HandleNcHitTest (lp);
+
+            if (hostHt != HTCLIENT && hostHt != HTNOWHERE)
+            {
+                return hostHt;
+            }
+            if (m_client != nullptr)
+            {
+                return m_client->OnNcHitTest (m_hwnd, msg, wp, lp);
+            }
+            return hostHt;
+        }
 
         case WM_NCLBUTTONDOWN:
         case WM_NCMOUSEMOVE:
@@ -747,7 +764,7 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             {
                 POINT  ptScreen = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
 
-                if (m_client->OnNcLButtonUp ((LRESULT) wp, ptScreen.x, ptScreen.y))
+                if (m_client->OnNcLButtonUp ((LRESULT) wp, ptScreen.x, ptScreen.y) == DxuiMessageResult::Handled)
                 {
                     return 0;
                 }
@@ -789,6 +806,13 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             }
             break;
 
+        case WM_CREATE:
+            if (m_client != nullptr)
+            {
+                return m_client->OnCreate (m_hwnd, msg, wp, lp);
+            }
+            break;
+
         case WM_DESTROY:
             // Bookkeeping only; the actual teardown happens in
             // Destroy()/~DxuiHostWindow(). Notify the client so it
@@ -801,14 +825,14 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             break;
 
         case WM_CLOSE:
-            if (m_client != nullptr && m_client->OnClose())
+            if (m_client != nullptr && m_client->OnClose() == DxuiMessageResult::Handled)
             {
                 return 0;
             }
             break;
 
         case WM_CHAR:
-            if (m_client != nullptr && m_client->OnChar (wp, lp))
+            if (m_client != nullptr && m_client->OnChar (wp, lp) == DxuiMessageResult::Handled)
             {
                 return 0;
             }
@@ -818,7 +842,7 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             if (m_client != nullptr &&
                 m_client->OnCommandEx (LOWORD (wp),
                                        HIWORD (wp),
-                                       reinterpret_cast<HWND> (lp)))
+                                       reinterpret_cast<HWND> (lp)) == DxuiMessageResult::Handled)
             {
                 return 0;
             }
@@ -826,7 +850,7 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 
         case WM_KEYDOWN:
         case WM_SYSKEYDOWN:
-            if (m_client != nullptr && m_client->OnKeyDown (wp, lp))
+            if (m_client != nullptr && m_client->OnKeyDown (wp, lp) == DxuiMessageResult::Handled)
             {
                 return 0;
             }
@@ -834,35 +858,35 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 
         case WM_KEYUP:
         case WM_SYSKEYUP:
-            if (m_client != nullptr && m_client->OnKeyUp (wp, lp))
+            if (m_client != nullptr && m_client->OnKeyUp (wp, lp) == DxuiMessageResult::Handled)
             {
                 return 0;
             }
             break;
 
         case WM_MOUSEMOVE:
-            if (m_client != nullptr && m_client->OnMouseMove (wp, lp))
+            if (m_client != nullptr && m_client->OnMouseMove (wp, lp) == DxuiMessageResult::Handled)
             {
                 return 0;
             }
             break;
 
         case WM_MOUSELEAVE:
-            if (m_client != nullptr && m_client->OnMouseLeave())
+            if (m_client != nullptr && m_client->OnMouseLeave() == DxuiMessageResult::Handled)
             {
                 return 0;
             }
             break;
 
         case WM_LBUTTONDOWN:
-            if (m_client != nullptr && m_client->OnLButtonDown (wp, lp))
+            if (m_client != nullptr && m_client->OnLButtonDown (wp, lp) == DxuiMessageResult::Handled)
             {
                 return 0;
             }
             break;
 
         case WM_LBUTTONUP:
-            if (m_client != nullptr && m_client->OnLButtonUp (wp, lp))
+            if (m_client != nullptr && m_client->OnLButtonUp (wp, lp) == DxuiMessageResult::Handled)
             {
                 return 0;
             }
@@ -871,32 +895,43 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
         case WM_MOVE:
             if (m_client != nullptr &&
                 m_client->OnMove ((int) (short) LOWORD (lp),
-                                  (int) (short) HIWORD (lp)))
+                                  (int) (short) HIWORD (lp)) == DxuiMessageResult::Handled)
             {
                 return 0;
             }
             break;
 
         case WM_TIMER:
-            if (m_client != nullptr && m_client->OnTimer (static_cast<UINT_PTR> (wp)))
+            if (m_client != nullptr && m_client->OnTimer (static_cast<UINT_PTR> (wp)) == DxuiMessageResult::Handled)
             {
                 return 0;
             }
             break;
 
         case WM_NOTIFY:
-            if (m_client != nullptr && m_client->OnNotify (wp, lp))
+            if (m_client != nullptr && m_client->OnNotify (wp, lp) == DxuiMessageResult::Handled)
             {
                 return 0;
             }
             break;
 
         case WM_DRAWITEM:
-            if (m_client != nullptr &&
-                m_client->OnDrawItem (static_cast<int> (wp),
-                                      reinterpret_cast<DRAWITEMSTRUCT *> (lp)))
+            if (m_client != nullptr)
             {
-                return 0;
+                return m_client->OnDrawItem (m_hwnd, msg, wp, lp);
+            }
+            break;
+
+        case WM_CTLCOLORSTATIC:
+            if (m_client != nullptr)
+            {
+                LRESULT  brush = m_client->OnCtlColorStatic (reinterpret_cast<HDC> (wp),
+                                                             reinterpret_cast<HWND> (lp));
+
+                if (brush != 0)
+                {
+                    return brush;
+                }
             }
             break;
 
@@ -904,14 +939,14 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             if (m_client != nullptr &&
                 m_client->OnInitMenuPopup (reinterpret_cast<HMENU> (wp),
                                            LOWORD (lp),
-                                           HIWORD (lp) != 0))
+                                           HIWORD (lp) != 0) == DxuiMessageResult::Handled)
             {
                 return 0;
             }
             break;
 
         case WM_PAINT:
-            if (m_client != nullptr && m_client->OnPaint())
+            if (m_client != nullptr && m_client->OnPaint() == DxuiMessageResult::Handled)
             {
                 return 0;
             }
