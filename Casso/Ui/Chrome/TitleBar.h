@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "ChromeTheme.h"
+#include "Win32/DxuiCaptionBar.h"
 
 
 
@@ -53,11 +54,21 @@ public:
 };
 
 
-class TitleBar
+//
+//  TitleBar derives from DxuiCaptionBar to participate in the Dxui
+//  caption-bar contract (hit-testing falls through to Caption on blank
+//  space). The Casso-specific bits -- the title text, app icon, and
+//  inline-rendered min/max/close glyphs -- ride on top of the generic
+//  base. The min/max/close buttons are still rendered inline (not as
+//  DxuiSystemButton children) so the existing NC-based input flow keeps
+//  working; the IDxuiControl Paint signature is honoured so a host that
+//  wants a generic theme can paint without ChromeTheme.
+//
+class TitleBar : public DxuiCaptionBar
 {
 public:
     TitleBar  ();
-    ~TitleBar ();
+    ~TitleBar () override;
 
     void                Show              ();
     void                Hide              ();
@@ -68,10 +79,12 @@ public:
     void                SetAppIcon        (std::vector<uint32_t> bgraPremulPixels,
                                             int                    widthPx,
                                             int                    heightPx);
-    void                Paint             (DxuiPainter             & painter,
-                                            DxuiTextRenderer      & text,
-                                            const ChromeVisualState & visual,
-                                            const ChromeTheme       & theme);
+
+    void                Paint             (IDxuiPainter      & painter,
+                                           IDxuiTextRenderer & text,
+                                           const IDxuiTheme  & theme) override;
+
+    DxuiHitTestKind     ClassifyHit       (POINT clientDip) const override;
 
     int                 GetTitleHeight    () const { return m_layout.titleBar.bottom - m_layout.titleBar.top; }
     RECT                GetTitleBarRect   () const { return m_layout.titleBar; }
@@ -85,6 +98,7 @@ private:
     SystemButton           m_hotButton    = SystemButton::Minimize;
     bool                   m_hasHotButton = false;
     bool                   m_leftDown     = false;
+    UINT                   m_dpi          = 96;
 
     std::vector<uint32_t>  m_appIconPixels;     // premultiplied BGRA8
     int                    m_appIconW    = 0;

@@ -313,7 +313,7 @@ void UiShell::Render ()
         {
             if (m_titleBar != nullptr)
             {
-                m_titleBar->Paint (m_painter, m_text, visual, localTheme);
+                m_titleBar->Paint (m_painter, m_text, localTheme);
             }
 
             if (m_mainMenu != nullptr)

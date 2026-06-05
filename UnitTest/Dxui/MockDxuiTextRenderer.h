@@ -82,6 +82,14 @@ public:
                             float         & outWidthDip,
                             float         & outHeightDip) override;
 
+    HRESULT  DrawIconBitmap (const uint32_t * srcBgraPremul,
+                             int              srcWidthPx,
+                             int              srcHeightPx,
+                             float            destXDip,
+                             float            destYDip,
+                             float            destWidthDip,
+                             float            destHeightDip) override;
+
 private:
     std::vector<RecordedTextCall>          m_calls;
     std::map<std::wstring, SIZE>           m_cannedMetrics;

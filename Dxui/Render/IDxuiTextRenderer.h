@@ -73,4 +73,16 @@ public:
                                     const wchar_t  * fontFamily,
                                     float          & outWidthDip,
                                     float          & outHeightDip)              = 0;
+
+    // Blit a premultiplied BGRA8 bitmap (e.g. the app icon harvested
+    // from an HICON) into the target. Implementations cache the source
+    // pixels in a GPU bitmap; callers should keep the buffer stable
+    // across frames for the cache to remain hot.
+    virtual HRESULT  DrawIconBitmap (const uint32_t * srcBgraPremul,
+                                     int              srcWidthPx,
+                                     int              srcHeightPx,
+                                     float            destXDip,
+                                     float            destYDip,
+                                     float            destWidthDip,
+                                     float            destHeightDip)            = 0;
 };
