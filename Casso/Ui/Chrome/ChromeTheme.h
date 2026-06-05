@@ -88,8 +88,12 @@ struct ChromeTheme : public IDxuiTheme
 
     uint32_t  CaptionBackground   () const override { return titleBarTopArgb;        }
     uint32_t  CaptionForeground   () const override { return titleTextArgb;          }
+    uint32_t  TitleBarTop         () const override { return titleBarTopArgb;        }
+    uint32_t  TitleBarBottom      () const override { return titleBarBottomArgb;     }
     uint32_t  SystemButtonHover   () const override { return sysButtonHoverArgb;     }
+    uint32_t  SystemButtonPressed () const override { return sysButtonPressedArgb;   }
     uint32_t  SystemCloseHover    () const override { return sysButtonCloseHoverArgb; }
+    uint32_t  SystemClosePressed  () const override { return sysButtonClosePressedArgb; }
 
     // Font handles. ChromeTheme does not own font resources today --
     // the text renderer owns IDWriteTextFormat objects keyed off
