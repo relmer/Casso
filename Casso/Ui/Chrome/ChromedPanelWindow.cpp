@@ -6,6 +6,9 @@
 #include "ChromeTheme.h"
 #include "TitleBar.h"
 
+#include "Core/DxuiTitleBarHitTest.h"
+#include "Win32/DxuiHostWindow.h"
+
 #include "../../resource.h"
 
 
@@ -428,9 +431,15 @@ LRESULT CALLBACK ChromedPanelWindow::s_WndProc (HWND hwnd, UINT message, WPARAM 
 
 LRESULT ChromedPanelWindow::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    LRESULT  result = 0;
+    LRESULT  result    = 0;
+    LRESULT  delegated = 0;
 
 
+
+    if (m_hostWindow != nullptr && m_hostWindow->HandleMessage (message, wParam, lParam, delegated))
+    {
+        return delegated;
+    }
 
     switch (message)
     {
@@ -446,18 +455,6 @@ LRESULT ChromedPanelWindow::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPA
         case WM_CLOSE:
             CloseWithCancel();
             result = 0;
-            break;
-
-        case WM_NCCALCSIZE:
-            if (!OnNcCalcSize (hwnd, wParam, lParam, result))
-            {
-                break;
-            }
-            result = DefWindowProcW (hwnd, message, wParam, lParam);
-            break;
-
-        case WM_NCHITTEST:
-            result = OnNcHitTest (hwnd, (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam));
             break;
 
         case WM_NCLBUTTONDOWN:
@@ -575,13 +572,14 @@ LRESULT ChromedPanelWindow::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPA
 
 HRESULT ChromedPanelWindow::OnCreate (HWND hwnd)
 {
-    HRESULT               hr         = S_OK;
-    RECT                  rc         = {};
-    BOOL                  ok         = FALSE;
-    UINT                  dpi        = s_kBaseDpi;
-    std::vector<uint32_t> iconPixels;
-    int                   iconW      = 0;
-    int                   iconH      = 0;
+    HRESULT                       hr         = S_OK;
+    RECT                          rc         = {};
+    BOOL                          ok         = FALSE;
+    UINT                          dpi        = s_kBaseDpi;
+    std::vector<uint32_t>         iconPixels;
+    int                           iconW      = 0;
+    int                           iconH      = 0;
+    DxuiHostWindow::CreateParams  hostParams;
 
 
 
@@ -591,6 +589,30 @@ HRESULT ChromedPanelWindow::OnCreate (HWND hwnd)
 
     dpi = GetDpiForWindow (m_hwnd);
     m_titleBar.UpdateGeometry (rc.right - rc.left, dpi);
+
+    // Stand up the DxuiHostWindow in adopt mode. The HWND, swap
+    // chain, and rendering pipeline stay owned by ChromedPanelWindow
+    // and its IChromedPanelContent; the host takes over WM_NCCALCSIZE
+    // and WM_NCHITTEST classification (with the legacy TitleBar
+    // classifier plugged in via SetHitTestDelegate) and observes DPI
+    // / theme messages for tree-side propagation.
+    hostParams.title           = L"";
+    hostParams.hInstance       = m_hInstance;
+    hostParams.ownerHwnd       = m_hwndOwner;
+    hostParams.borderless      = true;
+    hostParams.resizable       = true;
+    hostParams.roundedCorners  = true;
+    hostParams.darkMode        = true;
+    hostParams.backdrop        = DxuiHostWindowBackdrop::None;
+    hostParams.resizeBorderDip = 6.0f;
+
+    hr = DxuiHostWindow::CreateInAdoptMode (m_hwnd, hostParams, m_hostWindow);
+    CHRA (hr);
+
+    m_hostWindow->SetHitTestDelegate ([this] (POINT ptScreen) -> LRESULT
+    {
+        return this->ClassifyHitForLegacyChrome (ptScreen);
+    });
 
     if (LoadIconAsPremulBgra (m_hInstance, IDI_CASSO, s_kIconSizePx, iconPixels, iconW, iconH))
     {
@@ -628,6 +650,7 @@ void ChromedPanelWindow::OnDestroy ()
     {
         m_content->OnHostDestroyed();
     }
+    m_hostWindow.reset();
     m_hwnd      = nullptr;
     m_hwndOwner = nullptr;
     m_content   = nullptr;
@@ -754,63 +777,25 @@ void ChromedPanelWindow::OnGetMinMax (MINMAXINFO * minMaxInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnNcCalcSize
+//  ClassifyHitForLegacyChrome
+//
+//  Bespoke NC hit-test classifier for the legacy TitleBar surfaces.
+//  Plugged into the DxuiHostWindow via SetHitTestDelegate so the
+//  adopt-mode shim consults it before falling back to the framework
+//  resize-edge classifier. Operates in screen coordinates; converts
+//  to client on the way to DxuiTitleBarHitTest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ChromedPanelWindow::OnNcCalcSize (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult)
+LRESULT ChromedPanelWindow::ClassifyHitForLegacyChrome (POINT ptScreen)
 {
-    NCCALCSIZE_PARAMS * pParams     = nullptr;
-    LRESULT            defResult    = 0;
-    LONG               originalTop  = 0;
-
-
-
-    if (wParam == FALSE)
-    {
-        outResult = 0;
-        return false;
-    }
-
-    pParams = reinterpret_cast<NCCALCSIZE_PARAMS *> (lParam);
-    if (pParams == nullptr)
-    {
-        outResult = 0;
-        return false;
-    }
-
-    originalTop = pParams->rgrc[0].top;
-    defResult   = DefWindowProcW (hwnd, WM_NCCALCSIZE, wParam, lParam);
-    if (defResult != 0)
-    {
-        outResult = defResult;
-        return false;
-    }
-
-    pParams->rgrc[0].top = originalTop;
-    outResult            = 0;
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnNcHitTest
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LRESULT ChromedPanelWindow::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
-{
-    POINT                 pt       = { xScreen, yScreen };
+    POINT                 pt       = ptScreen;
     RECT                  rcClient = {};
     RECT                  rcTitle  = {};
     RECT                  rcMin    = {};
     RECT                  rcMax    = {};
     RECT                  rcClose  = {};
-    DxuiTitleBarHitTestInput  in       = {};
+    DxuiTitleBarHitTestInput  in   = {};
     UINT                  dpi      = s_kBaseDpi;
     int                   framePx  = 0;
     int                   padPx    = 0;
@@ -818,12 +803,17 @@ LRESULT ChromedPanelWindow::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
 
 
 
-    if (!ScreenToClient (hwnd, &pt))
+    if (m_hwnd == nullptr)
     {
         return HTNOWHERE;
     }
 
-    if (!GetClientRect (hwnd, &rcClient))
+    if (!ScreenToClient (m_hwnd, &pt))
+    {
+        return HTNOWHERE;
+    }
+
+    if (!GetClientRect (m_hwnd, &rcClient))
     {
         return HTNOWHERE;
     }
@@ -833,7 +823,7 @@ LRESULT ChromedPanelWindow::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
     rcMax   = m_titleBar.GetButtonRect (SystemButton::Maximize);
     rcClose = m_titleBar.GetButtonRect (SystemButton::Close);
 
-    dpi      = GetDpiForWindow (hwnd);
+    dpi      = GetDpiForWindow (m_hwnd);
     framePx  = GetSystemMetricsForDpi (SM_CXSIZEFRAME, dpi);
     padPx    = GetSystemMetricsForDpi (SM_CXPADDEDBORDER, dpi);
     borderPx = framePx + padPx;
