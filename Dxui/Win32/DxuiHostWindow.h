@@ -76,6 +76,33 @@ public:
         DxuiHostWindowBackdrop   backdrop         = DxuiHostWindowBackdrop::Mica;
         float                    resizeBorderDip  = 6.0f;
         SIZE                     initialSizeDip   = { 1024, 768 };
+
+        // Optional class-name override. When non-null, the host
+        // registers its WNDCLASS under this name instead of the
+        // auto-generated per-instance "DxuiHostWindow_<serial>_<ptr>"
+        // string. Lets a consumer keep a stable, identifiable class
+        // name (e.g. "CassoWindow") for tooling / Spy++ / window
+        // enumeration / regression-tracking purposes.
+        LPCWSTR                  classNameOverride        = nullptr;
+
+        // Optional pre-computed window-pixel placement. When
+        // useInitialWindowRectPx is true, Create() passes the rect's
+        // (left, top, right-left, bottom-top) directly to
+        // CreateWindowExW and SKIPS the initialSizeDip → pixel
+        // conversion. Lets the caller restore a saved placement
+        // verbatim, or pre-compute frame-inclusive dimensions via
+        // AdjustWindowRectExForDpi against a bespoke style mask.
+        bool                     useInitialWindowRectPx   = false;
+        RECT                     initialWindowRectPx      = {};
+
+        // Optional app icons. When non-null, applied to the HWND
+        // after CreateWindowEx via WM_SETICON. ICON_BIG drives the
+        // Alt-Tab and taskbar icon plus Win32 MessageBox dialog
+        // titles; ICON_SMALL drives the caption icon. Caller retains
+        // ownership and lifetime — typically these are LR_SHARED
+        // HICONs from LoadImageW so no cleanup is needed.
+        HICON                    appIconBig               = nullptr;
+        HICON                    appIconSmall             = nullptr;
     };
 
 
