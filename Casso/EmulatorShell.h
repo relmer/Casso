@@ -42,7 +42,8 @@
 #include "Video/VideoOutput.h"
 #include "Video/VideoTiming.h"
 #include "WasapiAudio.h"
-#include "Window.h"
+#include "Win32/DxuiHostWindow.h"
+#include "Win32/IDxuiHostClient.h"
 
 
 
@@ -58,7 +59,7 @@ class DxuiHostWindow;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class EmulatorShell : public Window, public IDriveCommandSink
+class EmulatorShell : public IDxuiHostClient, public IDriveCommandSink
 {
 public:
     EmulatorShell();
@@ -81,6 +82,12 @@ public:
 
     // Access bus for test wiring
     MemoryBus & GetBus() { return m_memoryBus; }
+
+    // Main window HWND. Owned by m_host (DxuiHostWindow in full-
+    // ownership mode); EmulatorShell caches it after Create for
+    // hot-path callers like the dialog primitive owner-window
+    // handoff and the settings panel.
+    HWND  GetHwnd () const { return m_hwnd; }
 
     // / FR-034 / FR-035: split-reset entry points exposed for the
     // menu commands (IDM_MACHINE_RESET / IDM_MACHINE_POWERCYCLE) and any
@@ -156,34 +163,30 @@ public:
         HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 private:
-    // Window message handler overrides
-    bool    OnChar (WPARAM ch, LPARAM lParam) override;
-    bool    OnCommand (HWND hwnd, int id) override;
-    LRESULT OnCreate (HWND hwnd, CREATESTRUCT * pcs) override;
-    bool    OnDestroy (HWND hwnd) override;
-    bool    OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis) override;
-    bool    OnKeyDown (WPARAM vk, LPARAM lParam) override;
-    bool    OnKeyUp (WPARAM vk, LPARAM lParam) override;
-    bool    OnMouseMove (WPARAM wParam, LPARAM lParam) override;
-    bool    OnMouseLeave () override;
-    bool    OnLButtonDown (WPARAM wParam, LPARAM lParam) override;
-    bool    OnLButtonUp (WPARAM wParam, LPARAM lParam) override;
-    bool    OnMove (HWND hwnd, int x, int y) override;
-    bool    OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
-    bool    OnSize (HWND hwnd, UINT width, UINT height) override;
-    bool    OnTimer (HWND hwnd, UINT_PTR timerId) override;
-    bool    OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu) override;
-
-    // P4 custom-chrome overrides — system-button click routing on
-    // WM_NCLBUTTONUP. WM_NCCALCSIZE / WM_NCHITTEST are delegated to
-    // m_hostWindow via TryDelegateMessage; the hit-test classifier
-    // for the legacy TitleBar + system-button layout lives in
-    // ClassifyHitForLegacyChrome below and is plugged into the
-    // DxuiHostWindow via SetHitTestDelegate.
-    bool    OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen) override;
-    bool    WantsCustomCaptionButtons () const override { return true; }
-
-    bool    TryDelegateMessage (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, LRESULT & outRetval) override;
+    // IDxuiHostClient message handler overrides. DxuiHostWindow's
+    // WndProc dispatches Win32 messages through these; the
+    // DxuiMessageResult-returning overrides claim the message
+    // (Handled) or fall through to DefWindowProc (NotHandled). The
+    // legacy Window-base `bool` polarity — `true` = call DefWindowProc,
+    // `false` = consumed — is mapped to the typed enum at every
+    // return site.
+    DxuiMessageResult  OnChar          (WPARAM ch, LPARAM lParam) override;
+    DxuiMessageResult  OnCommand       (WORD commandId) override;
+    DxuiMessageResult  OnKeyDown       (WPARAM vk, LPARAM lParam) override;
+    DxuiMessageResult  OnKeyUp         (WPARAM vk, LPARAM lParam) override;
+    DxuiMessageResult  OnMouseMove     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnMouseLeave    () override;
+    DxuiMessageResult  OnLButtonDown   (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnMove          (int x, int y) override;
+    DxuiMessageResult  OnNotify        (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnSize          (UINT widthPx, UINT heightPx) override;
+    DxuiMessageResult  OnTimer         (UINT_PTR timerId) override;
+    DxuiMessageResult  OnInitMenuPopup (HMENU hMenu, UINT itemIndex, bool isWindowMenu) override;
+    DxuiMessageResult  OnNcLButtonUp   (LRESULT hitTest, int xScreen, int yScreen) override;
+    LRESULT            OnDrawItem      (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) override;
+    void               OnDestroy       () override;
+    void               OnDpiChanged    (UINT newDpi) override;
 
     // Bespoke NC hit-test classifier for the legacy chrome surfaces
     // (TitleBar + system-button rect cache). Plugged into the
@@ -347,8 +350,16 @@ private:
     friend class SettingsPanel;
 
     HACCEL              m_accelTable      = nullptr;
+    HINSTANCE           m_hInstance       = nullptr;
+    HWND                m_hwnd            = nullptr;
     HWND                m_renderHwnd      = nullptr;
     bool                m_initialSizeReconciled = false;
+
+    // Authoritative per-window DPI scaler. Mirrors the one inside
+    // DxuiHostWindow; updated from OnDpiChanged and seeded after
+    // m_host->Create() returns. LayoutManager holds a const ref to
+    // this member.
+    DxuiDpiScaler       m_scaler;
 
     MemoryBus           m_memoryBus;
     ComponentRegistry   m_registry;
@@ -375,15 +386,18 @@ private:
     ChromeTheme         m_chromeTheme    = ChromeTheme::Skeuomorphic();
     std::array<DriveWidget, 2> m_driveChrome;
 
-    // DxuiHostWindow running in adopt mode — wraps the existing HWND
-    // owned by Window, classifies WM_NCCALCSIZE / WM_NCHITTEST
-    // through Dxui, and tracks DPI / theme for its internal panel
-    // tree. The legacy TitleBar + system-button hit-test classifier
-    // is plugged in via SetHitTestDelegate (see
-    // ClassifyHitForLegacyChrome below) so the existing chrome
-    // surfaces continue to win NC hits until Phase 11 reshapes
-    // them onto DxuiCaptionBar.
-    std::unique_ptr<DxuiHostWindow>  m_hostWindow;
+    // DxuiHostWindow running in full-ownership mode. Owns the main
+    // HWND (registers WNDCLASS "CassoWindow", calls CreateWindowExW,
+    // and applies DwM rounded-corners / immersive-dark / extended
+    // frame). Created with `createSwapChain = false` so the existing
+    // CassoRenderSurface child HWND keeps owning the D3DRenderer
+    // swap chain unchanged. The bespoke TitleBar + system-button
+    // NC hit-test classifier is plugged in via SetHitTestDelegate
+    // (see ClassifyHitForLegacyChrome below). EmulatorShell is the
+    // IDxuiHostClient so all consumer-side Win32 messages
+    // (WM_KEYDOWN, WM_COMMAND, WM_SIZE, ...) dispatch through the
+    // OnXxx overrides above.
+    std::unique_ptr<DxuiHostWindow>  m_host;
 
     // Joystick-mode toggle button (mirrors IDM_MACHINE_ARROWS_JOYSTICK),
     // centered in the drive bar above the drive widgets, with its own
@@ -396,7 +410,7 @@ private:
     // ChromeMetrics constants that drifted between EmulatorShell and
     // WindowCommandManager. Edge contributors below are pointer-tied
     // to this layout and report their desired thickness on demand.
-    LayoutManager            m_layout { Scaler() };
+    LayoutManager            m_layout { m_scaler };
     SimpleEdgeContributor   m_titleBarSlot { ChromeEdge::Top,    32 };
     SimpleEdgeContributor   m_navStripSlot { ChromeEdge::Top,    32 };
     SimpleEdgeContributor   m_driveBarSlot { ChromeEdge::Bottom, 256 };

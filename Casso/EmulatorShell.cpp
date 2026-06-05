@@ -971,32 +971,30 @@ Error:
 
 HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 {
-    HRESULT   hr                = S_OK;
-    UINT      dpi               = 0;
-    int       clientW           = 0;
-    int       clientH           = 0;
-    RECT      rc                = {};
-    DWORD     style             = 0;
-    DWORD     adjustStyle       = 0;
-    BOOL      fSuccess          = FALSE;
-    RECT      work              = {};
-    HMONITOR  activeMon         = nullptr;
-    LONG      windowX           = CW_USEDEFAULT;
-    LONG      windowY           = CW_USEDEFAULT;
-    int       windowW           = 0;
-    int       windowH           = 0;
-    bool      hadSavedPlacement = false;
+    HRESULT                       hr                = S_OK;
+    UINT                          dpi               = 0;
+    int                           clientW           = 0;
+    int                           clientH           = 0;
+    RECT                          rc                = {};
+    DWORD                         style             = 0;
+    DWORD                         adjustStyle       = 0;
+    BOOL                          fSuccess          = FALSE;
+    RECT                          work              = {};
+    HMONITOR                      activeMon         = nullptr;
+    LONG                          windowX           = CW_USEDEFAULT;
+    LONG                          windowY           = CW_USEDEFAULT;
+    int                           windowW           = 0;
+    int                           windowH           = 0;
+    bool                          hadSavedPlacement = false;
+    int                           iconBigSize       = 0;
+    int                           iconSmallSize     = 0;
+    HICON                         hIconBig          = nullptr;
+    HICON                         hIconSm           = nullptr;
+    DxuiHostWindow::CreateParams  params;
 
 
 
-    // Register and create the window via the base class
-    m_kpszWndClass  = kWindowClass;
-    m_hbrBackground = reinterpret_cast<HBRUSH> (GetStockObject (BLACK_BRUSH));
-    m_idIcon        = IDI_CASSO;
-    m_idIconSmall   = IDI_CASSO;
-
-    hr = Window::Initialize (hInstance);
-    CHR (hr);
+    m_hInstance = hInstance;
 
     // Calculate window size for desired client area, scaled for the
     // monitor we will actually open on. With per-monitor DPI v2,
@@ -1023,11 +1021,11 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         dpi = GetDpiForSystem();
     }
 
-    // Seed the Window's authoritative DPI so the LayoutManager (which
-    // queries it) returns coherent sizes during the pre-Create math.
+    // Seed our authoritative DPI so the LayoutManager (which queries
+    // it) returns coherent sizes during the pre-Create math.
     // WM_NCCREATE will overwrite this with GetDpiForWindow once the
     // HWND exists; that value wins if it disagrees.
-    SetInitialDpi (dpi);
+    m_scaler.SetDpi (dpi);
 
     {
         SIZE  client = m_layout.ClientSizeForFramebuffer (kFramebufferWidth, kFramebufferHeight);
@@ -1047,9 +1045,13 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // WM_NCHITTEST returns HTMINBUTTON/HTMAXBUTTON/HTCLOSE for the
     // button rects and HTCAPTION for the drag region, so the OS
     // dispatches the right system action and our OnNcLButtonUp
-    // dispatches the action for the captioned buttons.
+    // dispatches the action for the captioned buttons. The style
+    // mirrors what DxuiHostWindow::Create uses internally for
+    // borderless + resizable windows so the AdjustWindowRectExForDpi
+    // math below produces the right window-pixel rect for the same
+    // NC layout the host will create.
     style    = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
-    // Strip WS_CAPTION for the rect-adjust math because our
+    // Strip WS_CAPTION for the rect-adjust math because the
     // WM_NCCALCSIZE handler restores the original top edge -- it does
     // *not* carve a caption out of the client area. If we passed the
     // full WS_OVERLAPPEDWINDOW style here, AdjustWindowRectExForDpi
@@ -1074,46 +1076,59 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     }
 
     hadSavedPlacement = m_windowManager.TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH);
-    hr = Window::Create (0,
-                         L"Casso",
-                         style,
-                         windowX, windowY,
-                         windowW, windowH,
-                         nullptr);
+
+    // Preload the app icons so DxuiHostWindow::Create can attach them
+    // via WM_SETICON before the window is shown. The taskbar and
+    // Win32 MessageBox dialogs pick the icon up from WM_GETICON, not
+    // WNDCLASS::hIcon, so the explicit handoff is required.
+    iconBigSize   = GetSystemMetrics (SM_CXICON);
+    iconSmallSize = GetSystemMetrics (SM_CXSMICON);
+    hIconBig      = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO),
+                                        IMAGE_ICON, iconBigSize, iconBigSize,
+                                        LR_DEFAULTCOLOR | LR_SHARED);
+    hIconSm       = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO),
+                                        IMAGE_ICON, iconSmallSize, iconSmallSize,
+                                        LR_DEFAULTCOLOR | LR_SHARED);
+
+    // Hand the pre-computed window-pixel placement and chrome flags
+    // to DxuiHostWindow. createSwapChain = false so the host skips
+    // its own D3D11 device + DXGI flip-discard swap chain -- the
+    // existing CassoRenderSurface child HWND keeps owning the
+    // D3DRenderer swap chain unchanged (Session C territory).
+    params.title                  = L"Casso";
+    params.hInstance              = hInstance;
+    params.ownerHwnd              = nullptr;
+    params.borderless             = true;
+    params.resizable              = true;
+    params.roundedCorners         = true;
+    params.darkMode               = true;
+    params.backdrop               = DxuiHostWindowBackdrop::None;
+    params.resizeBorderDip        = 6.0f;
+    params.classNameOverride      = kWindowClass;
+    params.useInitialWindowRectPx = true;
+    params.initialWindowRectPx    = { windowX, windowY, windowX + windowW, windowY + windowH };
+    params.appIconBig             = hIconBig;
+    params.appIconSmall           = hIconSm;
+    params.createSwapChain        = false;
+
+    m_host = std::make_unique<DxuiHostWindow>();
+
+    // Install ourselves as the IDxuiHostClient BEFORE Create so the
+    // WM_NCCREATE / WM_CREATE / WM_SIZE / WM_MOVE sequence that fires
+    // synchronously inside CreateWindowExW dispatches through our
+    // OnXxx handlers (matches the legacy Window::Create behavior).
+    m_host->SetClient (this);
+
+    hr = m_host->Create (params);
     CHR (hr);
 
-    // Force the app icon onto the window itself (not just the class).
-    // Win32 MessageBox-style dialogs and the task bar pick the icon up
-    // via WM_GETICON on the parent HWND, NOT WNDCLASS::hIcon; without
-    // explicit WM_SETICON the dialog title bar shows no icon and the
-    // taskbar falls back to the generic Windows logo.
+    m_hwnd = m_host->Hwnd();
+    m_scaler.SetDpi (GetDpiForWindow (m_hwnd));
+
+    m_host->SetHitTestDelegate ([this] (POINT ptScreen) -> LRESULT
     {
-        int    iconBigSize   = GetSystemMetrics (SM_CXICON);
-        int    iconSmallSize = GetSystemMetrics (SM_CXSMICON);
-        HICON  hIconBig      = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO),
-                                                   IMAGE_ICON, iconBigSize, iconBigSize,
-                                                   LR_DEFAULTCOLOR | LR_SHARED);
-        HICON  hIconSm       = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO),
-                                                   IMAGE_ICON, iconSmallSize, iconSmallSize,
-                                                   LR_DEFAULTCOLOR | LR_SHARED);
-
-        if (hIconBig != nullptr)
-        {
-            SendMessageW (m_hwnd, WM_SETICON, ICON_BIG,   (LPARAM) hIconBig);
-        }
-        if (hIconSm != nullptr)
-        {
-            SendMessageW (m_hwnd, WM_SETICON, ICON_SMALL, (LPARAM) hIconSm);
-        }
-    }
-
-    // DWM gating. Rounded corners + dark immersive caption
-    // are best-effort and runtime-gated to the right Win10/11 build.
-    // Mica stays opt-in: it'll be toggled per-theme in P5 via
-    // theme.json `useMicaBackdrop`.
-    DxuiDwm::ExtendFrameIntoClientArea (m_hwnd, 1);
-    DxuiDwm::ApplyRoundedCorners       (m_hwnd, true);
-    DxuiDwm::ApplyImmersiveDarkMode    (m_hwnd, true);
+        return this->ClassifyHitForLegacyChrome (ptScreen);
+    });
 
     // Defer the size reconcile until after ShowWindow. The NC frame
     // (border carve-out from DefWindowProc + DWM rounded corners +
@@ -1159,6 +1174,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         if (windowDpi != 0)
         {
             dpi = windowDpi;
+            m_scaler.SetDpi (dpi);
         }
     }
     m_titleBar.UpdateGeometry (clientW, dpi);
@@ -1475,14 +1491,13 @@ LRESULT CALLBACK EmulatorShell::s_RenderSurfaceWndProc (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnMove (HWND hwnd, int x, int y)
+DxuiMessageResult EmulatorShell::OnMove (int x, int y)
 {
-    UNREFERENCED_PARAMETER (hwnd);
     UNREFERENCED_PARAMETER (x);
     UNREFERENCED_PARAMETER (y);
 
     m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
-    return false;
+    return DxuiMessageResult::NotHandled;
 }
 
 
@@ -1495,13 +1510,12 @@ bool EmulatorShell::OnMove (HWND hwnd, int x, int y)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
+DxuiMessageResult EmulatorShell::OnNotify (WPARAM wParam, LPARAM lParam)
 {
-    UNREFERENCED_PARAMETER (hwnd);
     UNREFERENCED_PARAMETER (wParam);
     UNREFERENCED_PARAMETER (lParam);
 
-    return true;
+    return DxuiMessageResult::NotHandled;
 }
 
 
@@ -2778,63 +2792,22 @@ void EmulatorShell::HandleCommand (WORD commandId)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnCommand (HWND hwnd, int id)
-{
-    return m_windowCommandManager->OnCommand (hwnd, id);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnCreate
+//  OnCommand  (IDxuiHostClient)
+//
+//  Forwards the command id to the existing WindowCommandManager.
+//  WindowCommandManager::OnCommand returns the legacy Window-base
+//  polarity (`true` = call DefWindowProc, `false` = consumed); we
+//  translate to the typed DxuiMessageResult at the return site.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT EmulatorShell::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
+DxuiMessageResult EmulatorShell::OnCommand (WORD commandId)
 {
-    HRESULT                       hr     = S_OK;
-    DxuiHostWindow::CreateParams  params;
+    bool  callDefWndProc = m_windowCommandManager->OnCommand (m_hwnd, (int) commandId);
 
-
-
-    UNREFERENCED_PARAMETER (pcs);
-
-    // Stand up the DxuiHostWindow in adopt mode. The HWND, D3D
-    // device, and swap chain stay owned by EmulatorShell / its
-    // existing renderer; the host takes over WM_NCCALCSIZE /
-    // WM_NCHITTEST classification (with the legacy TitleBar +
-    // system-button classifier plugged in via SetHitTestDelegate)
-    // and observes DPI / theme messages.
-    params.title           = L"";
-    params.hInstance       = m_hInstance;
-    params.ownerHwnd       = nullptr;
-    params.borderless      = true;
-    params.resizable       = true;
-    params.roundedCorners  = true;
-    params.darkMode        = true;
-    params.backdrop        = DxuiHostWindowBackdrop::None;
-    params.resizeBorderDip = 6.0f;
-
-    hr = DxuiHostWindow::CreateInAdoptMode (hwnd, params, m_hostWindow);
-    CHRA (hr);
-
-    m_hostWindow->SetHitTestDelegate ([this] (POINT ptScreen) -> LRESULT
-    {
-        return this->ClassifyHitForLegacyChrome (ptScreen);
-    });
-
-Error:
-
-    return 0;
+    return callDefWndProc ? DxuiMessageResult::NotHandled : DxuiMessageResult::Handled;
 }
 
 
@@ -2847,12 +2820,8 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnDestroy (HWND hwnd)
+void EmulatorShell::OnDestroy ()
 {
-    UNREFERENCED_PARAMETER (hwnd);
-
-
-
     m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
 
     // P6 -- revoke the IDropTarget before the HWND is destroyed.
@@ -2860,9 +2829,11 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
     m_dragDropTarget.Shutdown();
 
     m_cpuManager.Stop();
+
+    // IDxuiHostClient::OnDestroy is notification-only — the host
+    // does NOT call PostQuitMessage. EmulatorShell is the
+    // application's main window, so it owns that call.
     PostQuitMessage (0);
-    
-    return false;
 }
 
 
@@ -2875,7 +2846,7 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
+DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 {
     int      x        = ((int) (short) LOWORD (lParam));
     int      y        = ((int) (short) HIWORD (lParam));
@@ -2888,7 +2859,7 @@ bool EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
     if (m_uiShell.OnMouseMove (x, y, leftDown))
     {
-        return false;
+        return DxuiMessageResult::Handled;
     }
 
     overBtn = m_joystickButton.HitTest (x, y);
@@ -2903,8 +2874,9 @@ bool EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         m_joystickTooltip.RequestHide (nowMs);
     }
 
-    return false;
+    return DxuiMessageResult::NotHandled;
 }
+
 
 
 
@@ -2919,7 +2891,7 @@ bool EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnMouseLeave ()
+DxuiMessageResult EmulatorShell::OnMouseLeave ()
 {
     int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                          std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -2928,7 +2900,7 @@ bool EmulatorShell::OnMouseLeave ()
     m_joystickButton.SetHovered (false);
     m_joystickButton.SetPressed (false);
     m_joystickTooltip.RequestHide (nowMs);
-    return false;
+    return DxuiMessageResult::NotHandled;
 }
 
 
@@ -2940,7 +2912,7 @@ bool EmulatorShell::OnMouseLeave ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
+DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 {
     int   x        = ((int) (short) LOWORD (lParam));
     int   y        = ((int) (short) HIWORD (lParam));
@@ -2969,7 +2941,7 @@ bool EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     consumed = m_uiShell.OnLButtonDown (x, y);
     IGNORE_RETURN_VALUE (consumed, false);
 
-    return false;
+    return DxuiMessageResult::NotHandled;
 }
 
 
@@ -2981,7 +2953,7 @@ bool EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
+DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 {
     int                x      = ((int) (short) LOWORD (lParam));
     int                y      = ((int) (short) HIWORD (lParam));
@@ -2995,7 +2967,7 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     m_joystickButton.SetPressed (false);
     if (m_uiShell.OnLButtonUp (x, y))
     {
-        return false;
+        return DxuiMessageResult::NotHandled;
     }
 
     // Toggling the joystick-mode button routes through the same path as
@@ -3004,7 +2976,7 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     if (m_joystickButton.HitTest (x, y))
     {
         SetMapArrowsToJoystick (!m_mapArrowsToJoystick);
-        return false;
+        return DxuiMessageResult::NotHandled;
     }
 
     // If we just finished an OLE drop on a drive widget, the OS posts
@@ -3013,7 +2985,7 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // after the dropped image mounts.
     if (m_dragDropTarget.ConsumeSuppressedClick())
     {
-        return false;
+        return DxuiMessageResult::NotHandled;
     }
 
     for (DriveWidget & drive : m_driveChrome)
@@ -3022,18 +2994,18 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         if (region == DriveWidgetRegion::Body)
         {
             BrowseForDisk (drive.Drive());
-            return false;
+            return DxuiMessageResult::NotHandled;
         }
 
         if (region == DriveWidgetRegion::Eject)
         {
             Eject (6, drive.Drive());
             BrowseForDisk (drive.Drive());
-            return false;
+            return DxuiMessageResult::NotHandled;
         }
     }
 
-    return false;
+    return DxuiMessageResult::NotHandled;
 }
 
 
@@ -3202,7 +3174,7 @@ bool EmulatorShell::IsArrowVk (WPARAM vk)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
+DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 {
     HRESULT  hr            = S_OK;
     bool     consumed      = false;
@@ -3296,7 +3268,7 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     }
 
 Error:
-    return false;
+    return DxuiMessageResult::Handled;
 }
 
 
@@ -3309,7 +3281,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
+DxuiMessageResult EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 {
     HRESULT  hr = S_OK;
 
@@ -3342,7 +3314,7 @@ bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
     }
 
 Error:
-    return false;
+    return DxuiMessageResult::Handled;
 }
 
 
@@ -3522,13 +3494,13 @@ void EmulatorShell::SetMapArrowsToJoystick (bool on)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
+DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 {
     bool isRepeat = (lParam & s_kPreviousKeyDownLParamBit) != 0;
 
     if (m_refs.keyboard == nullptr)
     {
-        return false;
+        return DxuiMessageResult::Handled;
     }
 
     // Suppress the WM_CHAR that Windows synthesizes from a WM_KEYDOWN
@@ -3537,7 +3509,7 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // title / button / drive is focused would also drop into the //e latch.
     if (m_uiShell.IsCapturingInput() || m_chromeFocusIndex != s_kChromeFocusNone)
     {
-        return false;
+        return DxuiMessageResult::Handled;
     }
 
     // Drop Windows OS auto-repeat: the host repeat rate would flood
@@ -3546,7 +3518,7 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // auto-repeat cadence (driven in CPU time by AppleKeyboard::Tick).
     if (isRepeat)
     {
-        return false;
+        return DxuiMessageResult::Handled;
     }
 
     // In joystick mode the X / Z keys are fire buttons (handled in OnKeyDown
@@ -3557,7 +3529,7 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
         (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr) &&
         (ch == L'x' || ch == L'X' || ch == L'z' || ch == L'Z'))
     {
-        return false;
+        return DxuiMessageResult::Handled;
     }
 
     if (ch >= 1 && ch <= 127)
@@ -3566,7 +3538,7 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
         m_refs.keyboard->BeginKeyRepeat (static_cast<Byte> (ch));
     }
 
-    return false;
+    return DxuiMessageResult::Handled;
 }
 
 
@@ -3579,14 +3551,15 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
+DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 {
-    int       renderH   = static_cast<int> (height);
+    int       width     = static_cast<int> (widthPx);
+    int       renderH   = static_cast<int> (heightPx);
     HRESULT   hrPresent = S_OK;
 
 
 
-    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (widthPx);
 
     if (m_renderHwnd != nullptr)
     {
@@ -3680,7 +3653,7 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
     }
 
     m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
-    return false;
+    return DxuiMessageResult::NotHandled;
 }
 
 
@@ -3696,13 +3669,13 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis)
+LRESULT EmulatorShell::OnDrawItem (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-    UNREFERENCED_PARAMETER (hwnd);
-    UNREFERENCED_PARAMETER (idCtl);
-    UNREFERENCED_PARAMETER (pdis);
-
-    return true;
+    // Legacy stub: no owner-drawn items active in the current chrome.
+    // Defer to DefWindowProc for any unexpected WM_DRAWITEM so behavior
+    // matches the legacy Window-base path (which returned `true` =
+    // call DefWndProc).
+    return DefWindowProc (hwnd, msg, wParam, lParam);
 }
 
 
@@ -3719,15 +3692,12 @@ bool EmulatorShell::OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnTimer (HWND hwnd, UINT_PTR timerId)
+DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 {
-    UNREFERENCED_PARAMETER (hwnd);
     UNREFERENCED_PARAMETER (timerId);
 
-    return true;
-}//  OnFileCommand
-//
-////////////////////////////////////////////////////////////////////////////////
+    return DxuiMessageResult::NotHandled;
+}
 
 
 
@@ -4012,9 +3982,11 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu)
+DxuiMessageResult EmulatorShell::OnInitMenuPopup (HMENU hMenu, UINT itemIndex, bool isWindowMenu)
 {
-    return m_windowCommandManager->OnInitMenuPopup (hwnd, hMenu, itemIndex, isWindowMenu);
+    bool  callDefWndProc = m_windowCommandManager->OnInitMenuPopup (m_hwnd, hMenu, itemIndex, isWindowMenu);
+
+    return callDefWndProc ? DxuiMessageResult::NotHandled : DxuiMessageResult::Handled;
 }
 
 
@@ -4023,28 +3995,19 @@ bool EmulatorShell::OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, boo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryDelegateMessage
+//  OnDpiChanged
 //
-//  Adopt-mode forwarder. Lets the DxuiHostWindow take first crack
-//  at every Win32 message; when the host claims one (currently
-//  WM_NCCALCSIZE / WM_NCHITTEST), the legacy dispatch table in
-//  Window::s_WndProc is bypassed entirely. DPI / theme messages
-//  are observed by the host (for tree-side propagation) but never
-//  claimed, so the existing Window infrastructure keeps doing
-//  SetWindowPos + subclass DPI hooks.
+//  Mirror the host's new DPI into our local DxuiDpiScaler so
+//  LayoutManager (which holds a const ref to m_scaler) returns
+//  coherent sizes for any post-DPI-change relayout. The host has
+//  already applied the OS-suggested rect via SetWindowPos before
+//  this fires; subsequent WM_SIZE will drive the visible relayout.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::TryDelegateMessage (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, LRESULT & outRetval)
+void EmulatorShell::OnDpiChanged (UINT newDpi)
 {
-    UNREFERENCED_PARAMETER (hwnd);
-
-    if (m_hostWindow == nullptr)
-    {
-        return false;
-    }
-
-    return m_hostWindow->HandleMessage (message, wParam, lParam, outRetval);
+    m_scaler.SetDpi (newDpi);
 }
 
 
@@ -4148,7 +4111,7 @@ LRESULT EmulatorShell::ClassifyHitForLegacyChrome (POINT ptScreen)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen)
+DxuiMessageResult EmulatorShell::OnNcLButtonUp (LRESULT hitTest, int xScreen, int yScreen)
 {
     UNREFERENCED_PARAMETER (xScreen);
     UNREFERENCED_PARAMETER (yScreen);
@@ -4159,23 +4122,23 @@ bool EmulatorShell::OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int 
     switch (hitTest)
     {
         case HTCLOSE:
-            PostMessage (hwnd, WM_CLOSE, 0, 0);
-            return true;
+            PostMessage (m_hwnd, WM_CLOSE, 0, 0);
+            return DxuiMessageResult::Handled;
 
         case HTMINBUTTON:
-            ShowWindow (hwnd, SW_MINIMIZE);
-            return true;
+            ShowWindow (m_hwnd, SW_MINIMIZE);
+            return DxuiMessageResult::Handled;
 
         case HTMAXBUTTON:
-            if (GetWindowPlacement (hwnd, &wp))
+            if (GetWindowPlacement (m_hwnd, &wp))
             {
-                ShowWindow (hwnd,
+                ShowWindow (m_hwnd,
                             (wp.showCmd == SW_MAXIMIZE) ? SW_RESTORE : SW_MAXIMIZE);
             }
-            return true;
+            return DxuiMessageResult::Handled;
     }
 
-    return false;
+    return DxuiMessageResult::NotHandled;
 }
 
 
