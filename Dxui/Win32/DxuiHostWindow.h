@@ -104,6 +104,18 @@ public:
         // HICONs from LoadImageW so no cleanup is needed.
         HICON                    appIconBig               = nullptr;
         HICON                    appIconSmall             = nullptr;
+
+        // When true (the default), Create() stands up a D3D11 device
+        // + DXGI flip-discard swap chain on the host HWND so the
+        // internal panel tree paints through GetSwapChain() /
+        // GetBackBufferRtv(). Set false when the consumer renders
+        // through its own swap chain (e.g. a child render-surface
+        // HWND) and does not want Dxui creating an unused swap chain
+        // on the parent. With this flag false, GetDevice() /
+        // GetContext() / GetSwapChain() / GetBackBufferRtv() all
+        // return nullptr and the consumer is responsible for its own
+        // rendering pipeline.
+        bool                     createSwapChain          = true;
     };
 
 
