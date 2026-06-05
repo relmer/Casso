@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "ChromeTheme.h"
+#include "Core/IDxuiControl.h"
 #include "LedIndicator.h"
 
 
@@ -19,15 +20,25 @@
 //  owner drives state (on / hovered / focused / pressed) and the
 //  actual toggle through the existing SetMapArrowsToJoystick path.
 //
+//  JoystickToggleButton is Casso-specific; its Paint assumes the
+//  IDxuiTheme reference is actually a ChromeTheme and `static_cast`s
+//  to read the button/link palette fields (a debug `dynamic_cast`
+//  guard pins the contract).
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-class JoystickToggleButton
+class JoystickToggleButton : public IDxuiControl
 {
 public:
+    JoystickToggleButton  ();
+    ~JoystickToggleButton () override = default;
+
+    using IDxuiControl::Layout;
+
     void                  Layout       (int centerXPx,
                                          int centerYPx,
                                          UINT dpi,
-                                         DxuiTextRenderer * pText);
+                                         IDxuiTextRenderer * pText);
     void                  Hide         ()              { m_bounds = {}; }
     void                  SetOn        (bool on)       { m_on      = on; }
     bool                  IsOn         () const        { return m_on; }
@@ -38,9 +49,12 @@ public:
     void                  SetPressed   (bool pressed)  { m_pressed = pressed; }
     bool                  HitTest      (int x, int y) const;
     RECT                  Bounds       () const        { return m_bounds; }
-    void                  Paint        (DxuiPainter        & painter,
-                                         DxuiTextRenderer & text,
-                                         const ChromeTheme  & theme) const;
+
+    void                  Paint        (IDxuiPainter      & painter,
+                                        IDxuiTextRenderer & text,
+                                        const IDxuiTheme  & theme) override;
+    void                  Layout       (const RECT          & boundsDip,
+                                        const DxuiDpiScaler & scaler) override;
 
     static const wchar_t * TooltipText ();
 

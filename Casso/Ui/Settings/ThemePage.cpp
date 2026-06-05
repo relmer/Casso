@@ -356,8 +356,8 @@ namespace
             visual.dpi        = effectiveDpi;
             visual.nowMs      = 0;
             visual.frameIndex = 0;
-            previewDrives[0].Paint (painter, text, visual, theme);
-            previewDrives[1].Paint (painter, text, visual, theme);
+            previewDrives[0].Paint (painter, text, theme);
+            previewDrives[1].Paint (painter, text, theme);
 
             // Joystick-mode toggle button -- preview as "on" so the lit
             // blue LED reads in the band above the drives, matching the
