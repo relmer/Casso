@@ -343,7 +343,7 @@ HRESULT Disk2DebugPanel::Render()
     visual.dpi = m_dpi;
     if (m_titleBar != nullptr && m_theme != nullptr)
     {
-        m_titleBar->Paint (m_painter, m_text, visual, *m_theme);
+        m_titleBar->Paint (m_painter, m_text, *m_theme);
     }
 
     for (auto & cb : m_eventChecks)

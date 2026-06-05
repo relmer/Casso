@@ -170,3 +170,29 @@ HRESULT MockDxuiTextRenderer::MeasureString (
 
     return S_OK;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawIconBitmap
+//
+//  No-op for tests: paint paths in this phase don't exercise icon
+//  blitting. Returns S_OK so callers' IGNORE_RETURN_VALUE flows match
+//  the runtime path.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MockDxuiTextRenderer::DrawIconBitmap (
+    const uint32_t * /*srcBgraPremul*/,
+    int              /*srcWidthPx*/,
+    int              /*srcHeightPx*/,
+    float            /*destXDip*/,
+    float            /*destYDip*/,
+    float            /*destWidthDip*/,
+    float            /*destHeightDip*/)
+{
+    return S_OK;
+}

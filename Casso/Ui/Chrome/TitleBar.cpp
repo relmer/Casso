@@ -20,8 +20,8 @@ namespace
     }
 
 
-    void PaintButton (DxuiPainter             & painter,
-                      DxuiTextRenderer      & text,
+    void PaintButton (IDxuiPainter            & painter,
+                      IDxuiTextRenderer       & text,
                       const RECT              & rect,
                       const wchar_t           * glyph,
                       uint32_t                  fillArgb,
@@ -238,6 +238,8 @@ void TitleBar::UpdateGeometry (int clientWidth, UINT dpi)
     in.titleHeight = TitleBarLayout::DefaultTitleHeight (dpi);
     in.buttonWidth = TitleBarLayout::DefaultButtonWidth (dpi);
     m_layout = TitleBarLayout::Compute (in);
+    m_dpi    = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
+    SetBounds (m_layout.titleBar);
 }
 
 
@@ -327,49 +329,47 @@ ChromeButtonVisual TitleBar::ButtonVisual (SystemButton which) const
 ////////////////////////////////////////////////////////////////////////////////
 
 void TitleBar::Paint (
-    DxuiPainter             & painter,
-    DxuiTextRenderer      & text,
-    const ChromeVisualState & visual,
-    const ChromeTheme       & theme)
+    IDxuiPainter      & painter,
+    IDxuiTextRenderer & text,
+    const IDxuiTheme  & theme)
 {
     HRESULT                    hr            = S_OK;
     ChromeButtonVisual         minVis        = ButtonVisual (SystemButton::Minimize);
     ChromeButtonVisual         maxVis        = ButtonVisual (SystemButton::Maximize);
     ChromeButtonVisual         closeVis      = ButtonVisual (SystemButton::Close);
-    const DxuiWindowsThemeColors & sys           = DxuiWindowsThemeColors::Instance();
     uint32_t                   minColor      = 0;
     uint32_t                   maxColor      = 0;
     uint32_t                   closeColor    = 0;
-    uint32_t                   glyphArgb     = sys.CaptionButtonForegroundArgb();
+    uint32_t                   glyphArgb     = theme.CaptionForeground();
     uint32_t                   closeGlyph    = glyphArgb;
-    UINT                       dpi           = (visual.dpi == 0) ? s_kBaseDpi : visual.dpi;
+    UINT                       dpi           = (m_dpi == 0) ? s_kBaseDpi : m_dpi;
     float                      titleFontDip  = s_kTitleFontDip * (float) dpi / (float) s_kBaseDpi;
 
 
 
-    if      (minVis == ChromeButtonVisual::Pressed) { minColor = sys.CaptionButtonPressedArgb(); }
-    else if (minVis == ChromeButtonVisual::Hover)   { minColor = sys.CaptionButtonHoverArgb();   }
+    if      (minVis == ChromeButtonVisual::Pressed) { minColor = theme.SystemButtonPressed(); }
+    else if (minVis == ChromeButtonVisual::Hover)   { minColor = theme.SystemButtonHover();   }
 
-    if      (maxVis == ChromeButtonVisual::Pressed) { maxColor = sys.CaptionButtonPressedArgb(); }
-    else if (maxVis == ChromeButtonVisual::Hover)   { maxColor = sys.CaptionButtonHoverArgb();   }
+    if      (maxVis == ChromeButtonVisual::Pressed) { maxColor = theme.SystemButtonPressed(); }
+    else if (maxVis == ChromeButtonVisual::Hover)   { maxColor = theme.SystemButtonHover();   }
 
     if (closeVis == ChromeButtonVisual::Pressed)
     {
-        closeColor = sys.CloseButtonPressedArgb();
-        closeGlyph = sys.CloseButtonGlyphPressedArgb();
+        closeColor = theme.SystemClosePressed();
+        closeGlyph = 0xFFFFFFFF;
     }
     else if (closeVis == ChromeButtonVisual::Hover)
     {
-        closeColor = sys.CloseButtonHoverArgb();
-        closeGlyph = sys.CloseButtonGlyphHoverArgb();
+        closeColor = theme.SystemCloseHover();
+        closeGlyph = 0xFFFFFFFF;
     }
 
     painter.FillGradientRect ((float) m_layout.titleBar.left,
                               (float) m_layout.titleBar.top,
                               (float) (m_layout.titleBar.right - m_layout.titleBar.left),
                               (float) (m_layout.titleBar.bottom - m_layout.titleBar.top),
-                              theme.titleBarTopArgb,
-                              theme.titleBarBottomArgb);
+                              theme.TitleBarTop(),
+                              theme.TitleBarBottom());
 
     // App icon (drawn left of the title text). Title-bar height drives
     // the icon size with a small padding inset so it sits visually
@@ -412,6 +412,38 @@ void TitleBar::Paint (
     PaintButton (painter, text, m_layout.minButton,   s_kMinGlyph,   minColor,   glyphArgb,  dpi);
     PaintButton (painter, text, m_layout.maxButton,   s_kMaxGlyph,   maxColor,   glyphArgb,  dpi);
     PaintButton (painter, text, m_layout.closeButton, s_kCloseGlyph, closeColor, closeGlyph, dpi);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClassifyHit
+//
+//  Map a point inside the title bar to the matching system-button hit
+//  kind, or fall through to Caption for the drag strip / blank area.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiHitTestKind TitleBar::ClassifyHit (POINT clientDip) const
+{
+    if (RectContains (m_layout.minButton, clientDip.x, clientDip.y))
+    {
+        return DxuiHitTestKind::MinButton;
+    }
+
+    if (RectContains (m_layout.maxButton, clientDip.x, clientDip.y))
+    {
+        return DxuiHitTestKind::MaxButton;
+    }
+
+    if (RectContains (m_layout.closeButton, clientDip.x, clientDip.y))
+    {
+        return DxuiHitTestKind::CloseButton;
+    }
+
+    return DxuiHitTestKind::Caption;
 }
 
 

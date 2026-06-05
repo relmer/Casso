@@ -810,7 +810,7 @@ HRESULT SettingsWindowRenderer::RenderDirect (
     visual.dpi = m_scaler.Dpi();
     if (m_titleBar != nullptr)
     {
-        m_titleBar->Paint (m_painter, m_text, visual, theme);
+        m_titleBar->Paint (m_painter, m_text, theme);
     }
 
     panel.Paint (m_painter, m_text);
@@ -861,7 +861,7 @@ HRESULT SettingsWindowRenderer::RenderPanelToTexture (SettingsPanel & panel, con
     visual.dpi = m_scaler.Dpi();
     if (m_titleBar != nullptr)
     {
-        m_titleBar->Paint (m_painter, m_text, visual, theme);
+        m_titleBar->Paint (m_painter, m_text, theme);
     }
 
     panel.Paint (m_painter, m_text);

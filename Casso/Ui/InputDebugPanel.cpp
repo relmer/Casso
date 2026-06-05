@@ -1161,7 +1161,7 @@ HRESULT InputDebugPanel::Render()
     visual.dpi = m_dpi;
     if (m_titleBar != nullptr && m_theme != nullptr)
     {
-        m_titleBar->Paint (m_painter, m_text, visual, *m_theme);
+        m_titleBar->Paint (m_painter, m_text, *m_theme);
     }
 
     m_emuLabel.Paint  (m_painter, m_text);

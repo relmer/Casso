@@ -104,7 +104,7 @@ public:
                                float            destXDip,
                                float            destYDip,
                                float            destWidthDip,
-                               float            destHeightDip);
+                               float            destHeightDip) override;
 
     HRESULT  MeasureString    (const wchar_t * text,
                                float           fontSizeDip,
