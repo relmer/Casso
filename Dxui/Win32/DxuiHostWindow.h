@@ -9,6 +9,7 @@
 
 
 class DxuiPopupHost;
+class IDxuiHostClient;
 
 
 
@@ -155,6 +156,16 @@ public:
     void          SetTheme      (const IDxuiTheme * theme);
 
     //
+    //  Install an optional client object that receives the Win32
+    //  messages the host does not own end-to-end (commands,
+    //  keyboard input, painting, timers, ...). The host stores a
+    //  non-owning pointer; the client must outlive the host or
+    //  call SetClient(nullptr) before destruction. Passing
+    //  nullptr clears any previously-installed client.
+    //
+    void          SetClient     (IDxuiHostClient * client);
+
+    //
     //  Shared-device accessors. Full-ownership mode creates the D3D11
     //  device, immediate context, and DXGI flip-discard swap chain on
     //  Create(); these accessors return non-owning pointers so a
@@ -286,6 +297,8 @@ private:
     bool                              m_synthetic          = false;
     bool                              m_adoptMode          = false;
     bool                              m_classRegistered    = false;
+
+    IDxuiHostClient *                 m_client             = nullptr;
 
     std::function<LRESULT (POINT)>    m_hitTestDelegate;
 

@@ -2,6 +2,7 @@
 
 #include "DxuiHostWindow.h"
 #include "DxuiPopupHost.h"
+#include "IDxuiHostClient.h"
 #include "Theme/DxuiDwm.h"
 #include "Theme/IDxuiTheme.h"
 
@@ -446,6 +447,29 @@ void DxuiHostWindow::SetTheme (const IDxuiTheme * theme)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetClient
+//
+//  Install (or clear) the optional IDxuiHostClient hook so a
+//  consumer can receive the Win32 messages the host does not own
+//  end-to-end (WM_COMMAND, WM_KEYDOWN, WM_TIMER, ...). The host
+//  stores a non-owning pointer; the client must outlive the host
+//  or call SetClient(nullptr) before destruction.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::SetClient (IDxuiHostClient * client)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    m_client = client;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CreateDeviceAndSwapChain
 //
 //  D3D11 device with BGRA support (R2 — Direct2D interop requirement);
@@ -710,13 +734,32 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             return HandleNcHitTest (lp);
 
         case WM_NCLBUTTONDOWN:
-        case WM_NCLBUTTONUP:
         case WM_NCMOUSEMOVE:
         case WM_NCMOUSELEAVE:
             return HandleNcMouse (msg, wp, lp);
 
+        case WM_NCLBUTTONUP:
+            // Let the client classify the button release first (it
+            // knows which HT* maps to which system-button action);
+            // fall through to the host's own NC bookkeeping when the
+            // client abstains.
+            if (m_client != nullptr)
+            {
+                POINT  ptScreen = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
+
+                if (m_client->OnNcLButtonUp ((LRESULT) wp, ptScreen.x, ptScreen.y))
+                {
+                    return 0;
+                }
+            }
+            return HandleNcMouse (msg, wp, lp);
+
         case WM_DPICHANGED:
             HandleDpiChanged (wp, lp);
+            if (m_client != nullptr)
+            {
+                m_client->OnDpiChanged (m_scaler.Dpi());
+            }
             return 0;
 
         case WM_DPICHANGED_BEFOREPARENT:
@@ -740,11 +783,138 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 
         case WM_SIZE:
             HandleSize (lp);
+            if (m_client != nullptr)
+            {
+                (void) m_client->OnSize (LOWORD (lp), HIWORD (lp));
+            }
             break;
 
         case WM_DESTROY:
             // Bookkeeping only; the actual teardown happens in
-            // Destroy()/~DxuiHostWindow().
+            // Destroy()/~DxuiHostWindow(). Notify the client so it
+            // can persist state (window placement, etc.) before
+            // the HWND goes away.
+            if (m_client != nullptr)
+            {
+                m_client->OnDestroy();
+            }
+            break;
+
+        case WM_CLOSE:
+            if (m_client != nullptr && m_client->OnClose())
+            {
+                return 0;
+            }
+            break;
+
+        case WM_CHAR:
+            if (m_client != nullptr && m_client->OnChar (wp, lp))
+            {
+                return 0;
+            }
+            break;
+
+        case WM_COMMAND:
+            if (m_client != nullptr &&
+                m_client->OnCommandEx (LOWORD (wp),
+                                       HIWORD (wp),
+                                       reinterpret_cast<HWND> (lp)))
+            {
+                return 0;
+            }
+            break;
+
+        case WM_KEYDOWN:
+        case WM_SYSKEYDOWN:
+            if (m_client != nullptr && m_client->OnKeyDown (wp, lp))
+            {
+                return 0;
+            }
+            break;
+
+        case WM_KEYUP:
+        case WM_SYSKEYUP:
+            if (m_client != nullptr && m_client->OnKeyUp (wp, lp))
+            {
+                return 0;
+            }
+            break;
+
+        case WM_MOUSEMOVE:
+            if (m_client != nullptr && m_client->OnMouseMove (wp, lp))
+            {
+                return 0;
+            }
+            break;
+
+        case WM_MOUSELEAVE:
+            if (m_client != nullptr && m_client->OnMouseLeave())
+            {
+                return 0;
+            }
+            break;
+
+        case WM_LBUTTONDOWN:
+            if (m_client != nullptr && m_client->OnLButtonDown (wp, lp))
+            {
+                return 0;
+            }
+            break;
+
+        case WM_LBUTTONUP:
+            if (m_client != nullptr && m_client->OnLButtonUp (wp, lp))
+            {
+                return 0;
+            }
+            break;
+
+        case WM_MOVE:
+            if (m_client != nullptr &&
+                m_client->OnMove ((int) (short) LOWORD (lp),
+                                  (int) (short) HIWORD (lp)))
+            {
+                return 0;
+            }
+            break;
+
+        case WM_TIMER:
+            if (m_client != nullptr && m_client->OnTimer (static_cast<UINT_PTR> (wp)))
+            {
+                return 0;
+            }
+            break;
+
+        case WM_NOTIFY:
+            if (m_client != nullptr && m_client->OnNotify (wp, lp))
+            {
+                return 0;
+            }
+            break;
+
+        case WM_DRAWITEM:
+            if (m_client != nullptr &&
+                m_client->OnDrawItem (static_cast<int> (wp),
+                                      reinterpret_cast<DRAWITEMSTRUCT *> (lp)))
+            {
+                return 0;
+            }
+            break;
+
+        case WM_INITMENUPOPUP:
+            if (m_client != nullptr &&
+                m_client->OnInitMenuPopup (reinterpret_cast<HMENU> (wp),
+                                           LOWORD (lp),
+                                           HIWORD (lp) != 0))
+            {
+                return 0;
+            }
+            break;
+
+        case WM_PAINT:
+            if (m_client != nullptr && m_client->OnPaint())
+            {
+                return 0;
+            }
             break;
     }
 

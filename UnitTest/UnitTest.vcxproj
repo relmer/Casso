@@ -456,6 +456,7 @@
     <ClCompile Include="UiTests\DxuiPainterTests.cpp" />
     <ClCompile Include="Dxui\DxuiFocusManagerTests.cpp" />
     <ClCompile Include="Dxui\DxuiHostWindowAdoptModeTests.cpp" />
+    <ClCompile Include="Dxui\DxuiHostWindowClientTests.cpp" />
     <ClCompile Include="Dxui\DxuiHostWindowTests.cpp" />
     <ClCompile Include="Dxui\DxuiLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiMenuBarTests.cpp" />

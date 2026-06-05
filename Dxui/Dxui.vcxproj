@@ -229,6 +229,7 @@
     <ClInclude Include="Win32\DxuiCaptionBar.h" />
     <ClInclude Include="Win32\DxuiSystemButton.h" />
     <ClInclude Include="Win32\DxuiHostWindow.h" />
+    <ClInclude Include="Win32\IDxuiHostClient.h" />
     <ClInclude Include="Win32\DxuiPopupHost.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
