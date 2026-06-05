@@ -5,6 +5,20 @@
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  JoystickToggleButton
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JoystickToggleButton::JoystickToggleButton ()
+{
+    m_focusable = false;
+}
+
+
+
+
 static constexpr int      s_kBaseDpi      = 96;
 static constexpr int      s_kPadXDp       = 12;
 static constexpr int      s_kPadYDp       = 6;
@@ -42,7 +56,7 @@ static constexpr wchar_t  s_kTooltip[] =
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void JoystickToggleButton::Layout (int centerXPx, int centerYPx, UINT dpi, DxuiTextRenderer * pText)
+void JoystickToggleButton::Layout (int centerXPx, int centerYPx, UINT dpi, IDxuiTextRenderer * pText)
 {
     UINT   eDpi     = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
     int    padX     = MulDiv (s_kPadXDp,   (int) eDpi, s_kBaseDpi);
@@ -108,6 +122,25 @@ void JoystickToggleButton::Layout (int centerXPx, int centerYPx, UINT dpi, DxuiT
 
     ledY = top + (height - ledCore) / 2;
     m_led.Layout (left + padX, ledY, eDpi);
+    SetBounds (m_bounds);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Layout
+//
+//  IDxuiControl override -- stores bounds via SetBounds so panel-driven
+//  hit-testing works. The legacy center-anchored Layout above is the
+//  path that calculates geometry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void JoystickToggleButton::Layout (const RECT & boundsDip, const DxuiDpiScaler & /*scaler*/)
+{
+    SetBounds (boundsDip);
 }
 
 
@@ -138,8 +171,11 @@ bool JoystickToggleButton::HitTest (int x, int y) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void JoystickToggleButton::Paint (DxuiPainter & painter, DxuiTextRenderer & text, const ChromeTheme & theme) const
+void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & dxuiTheme)
 {
+    _ASSERTE (dynamic_cast<const ChromeTheme *> (&dxuiTheme) != nullptr);
+    const ChromeTheme & theme = static_cast<const ChromeTheme &> (dxuiTheme);
+
     HRESULT             hr       = S_OK;
     bool                active   = m_hovered || m_focused || m_pressed;
     float               fontDip  = s_kFontDip * (float) m_dpi / (float) s_kBaseDpi;

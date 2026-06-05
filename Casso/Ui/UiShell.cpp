@@ -334,7 +334,7 @@ void UiShell::Render ()
             {
                 for (DriveWidget & drive : *m_driveWidgets)
                 {
-                    drive.Paint (m_painter, m_text, visual, localTheme);
+                    drive.Paint (m_painter, m_text, localTheme);
                 }
             }
 

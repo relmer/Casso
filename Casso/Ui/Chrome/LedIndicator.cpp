@@ -5,6 +5,19 @@
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LedIndicator
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LedIndicator::LedIndicator ()
+{
+    m_focusable = false;
+}
+
+
+
 
 namespace
 {
@@ -48,6 +61,25 @@ void LedIndicator::Layout (int x, int y, UINT dpi)
     m_layout.haloRect.top    = y - haloPadding;
     m_layout.haloRect.right  = x + core + haloPadding;
     m_layout.haloRect.bottom = y + core + haloPadding;
+    SetBounds (m_layout.haloRect);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Layout
+//
+//  IDxuiControl override -- records the bounds via the base helper so
+//  that ChildCount-driven hit-testing in a parent panel sees a non-zero
+//  rect even before the legacy x/y/dpi Layout runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LedIndicator::Layout (const RECT & boundsDip, const DxuiDpiScaler & /*scaler*/)
+{
+    SetBounds (boundsDip);
 }
 
 
@@ -102,8 +134,11 @@ uint32_t LedIndicator::HaloArgb (const ChromeTheme & theme) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LedIndicator::Paint (DxuiPainter & painter, const ChromeTheme & theme) const
+void LedIndicator::Paint (IDxuiPainter & painter, IDxuiTextRenderer & /*text*/, const IDxuiTheme & dxuiTheme)
 {
+    _ASSERTE (dynamic_cast<const ChromeTheme *> (&dxuiTheme) != nullptr);
+    const ChromeTheme & theme = static_cast<const ChromeTheme &> (dxuiTheme);
+
     uint32_t  halo = HaloArgb (theme);
     float     cx   = (float) (m_layout.coreRect.left + m_layout.coreRect.right) * 0.5f;
     float     cy   = (float) (m_layout.coreRect.top  + m_layout.coreRect.bottom) * 0.5f;
@@ -134,7 +169,7 @@ void LedIndicator::Paint (DxuiPainter & painter, const ChromeTheme & theme) cons
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LedIndicator::Paint (DxuiPainter & painter, uint32_t coreArgb, uint32_t haloArgb) const
+void LedIndicator::Paint (IDxuiPainter & painter, uint32_t coreArgb, uint32_t haloArgb) const
 {
     float  cx    = (float) (m_layout.coreRect.left + m_layout.coreRect.right) * 0.5f;
     float  cy    = (float) (m_layout.coreRect.top  + m_layout.coreRect.bottom) * 0.5f;

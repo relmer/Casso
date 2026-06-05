@@ -82,7 +82,7 @@ namespace
     // Fills a trapezoid with parallel horizontal front and back edges
     // by stacking 1-px horizontal scanlines whose widths interpolate
     // linearly from front to back. Used for the receding case top.
-    void FillTrapezoidApprox (DxuiPainter & painter,
+    void FillTrapezoidApprox (IDxuiPainter & painter,
                               float frontLeft,  float frontRight,
                               float backLeft,   float backRight,
                               float frontY,     float backY,
@@ -132,7 +132,7 @@ namespace
     // format preserves per-row concavities -- in particular the gap
     // between the underside of the beak and the top of the neck --
     // that a single (start, end) span per row would erroneously fill.
-    void DrawCassowaryRainbow (DxuiPainter & painter,
+    void DrawCassowaryRainbow (IDxuiPainter & painter,
                                float left, float top,
                                float width, float height)
     {
@@ -241,6 +241,20 @@ void DriveWidget::Initialize (int slot, int drive, IDriveCommandSink * pSink)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DriveWidget
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DriveWidget::DriveWidget ()
+{
+    m_focusable = false;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Layout
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -257,6 +271,8 @@ void DriveWidget::Layout (int x, int y, UINT dpi)
     int  doorH       = Scale (s_kDoorHeightPx, dpi);
 
 
+
+    m_dpi = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
 
     if (m_compact)
     {
@@ -285,6 +301,7 @@ void DriveWidget::Layout (int x, int y, UINT dpi)
         m_led.Layout (m_bodyRect.right - pad - Scale (10, dpi),
                       m_bodyRect.top   + cBodyH / 2 - Scale (3, dpi),
                       dpi);
+        SetBounds (OuterRect());
         return;
     }
 
@@ -318,6 +335,26 @@ void DriveWidget::Layout (int x, int y, UINT dpi)
     m_led.Layout (m_faceRect.left + Scale (s_kLabelPadPx + s_kInUseWidthPx + s_kInUseGapPx, dpi),
                   m_faceRect.top + Scale (s_kLedCenterYPx, dpi) - Scale (3, dpi),
                   dpi);
+    SetBounds (OuterRect());
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Layout
+//
+//  IDxuiControl override -- records the bounds via SetBounds so that
+//  parent-panel hit-testing sees a non-zero rect. The legacy x/y/dpi
+//  Layout (above) is the path that builds the drive geometry; this
+//  override simply stores the bounds for future panel-driven layout.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & /*scaler*/)
+{
+    SetBounds (boundsDip);
 }
 
 
@@ -356,11 +393,13 @@ void DriveWidget::SyncFromState (const DriveWidgetState & state)
 ////////////////////////////////////////////////////////////////////////////////
 
 void DriveWidget::Paint (
-    DxuiPainter               & painter,
-    DxuiTextRenderer        & text,
-    const ChromeVisualState   & visual,
-    const ChromeTheme         & theme)
+    IDxuiPainter      & painter,
+    IDxuiTextRenderer & text,
+    const IDxuiTheme  & dxuiTheme)
 {
+    _ASSERTE (dynamic_cast<const ChromeTheme *> (&dxuiTheme) != nullptr);
+    const ChromeTheme & theme = static_cast<const ChromeTheme &> (dxuiTheme);
+
     HRESULT  hr           = S_OK;
     int      bodyW        = m_bodyRect.right - m_bodyRect.left;
     int      faceW        = m_faceRect.right - m_faceRect.left;
@@ -368,7 +407,7 @@ void DriveWidget::Paint (
     int      slotW        = m_slotRect.right - m_slotRect.left;
     int      slotH        = m_slotRect.bottom - m_slotRect.top;
     int      doorH        = m_ejectRect.bottom - m_ejectRect.top;
-    UINT     dpi          = (visual.dpi == 0) ? (UINT) s_kBaseDpi : visual.dpi;
+    UINT     dpi          = (m_dpi == 0) ? (UINT) s_kBaseDpi : m_dpi;
     int      notchW       = Scale (s_kNotchWidthPx, dpi);
     int      notchH       = Scale (s_kNotchHeightPx, dpi);
     int      labelPad     = Scale (s_kLabelPadPx, dpi);
@@ -437,7 +476,7 @@ void DriveWidget::Paint (
         UNREFERENCED_PARAMETER (inUseFontDip);
         UNREFERENCED_PARAMETER (doorOffset);
 
-        m_led.Paint (painter, theme);
+        m_led.Paint (painter, text, theme);
         PaintBasenameLabel (text, theme, dpi);
         return;
     }
@@ -641,7 +680,9 @@ void DriveWidget::Paint (
 
     // Door tab vertical position.
     {
-        int64_t  elapsed  = visual.nowMs - m_state.animationStartTimeMs;
+        int64_t  nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                std::chrono::steady_clock::now().time_since_epoch()).count();
+        int64_t  elapsed  = nowMs - m_state.animationStartTimeMs;
         float    progress = Clamp01 ((float) elapsed / (float) DriveWidgetState::kDoorAnimationMs);
 
         if (m_state.doorState == DriveWidgetState::Door::Open)
@@ -812,7 +853,7 @@ void DriveWidget::Paint (
                                               s_kFontFamily));
 
     UNREFERENCED_PARAMETER (bodyW);
-    m_led.Paint (painter, theme);
+    m_led.Paint (painter, text, theme);
 
     // Cassowary rainbow logo, bottom-right of faceplate (where the
     // Apple logo lives on the real Disk II). Silhouette is left-facing
@@ -847,9 +888,9 @@ void DriveWidget::Paint (
 ////////////////////////////////////////////////////////////////////////////////
 
 void DriveWidget::PaintBasenameLabel (
-    DxuiTextRenderer  & text,
-    const ChromeTheme   & theme,
-    UINT                  dpi)
+    IDxuiTextRenderer & text,
+    const ChromeTheme & theme,
+    UINT                dpi)
 {
     HRESULT                hr           = S_OK;
     float                  basenameDip  = s_kBasenameFontDip * (float) dpi / (float) s_kBaseDpi;

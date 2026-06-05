@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "ChromeTheme.h"
+#include "Core/IDxuiControl.h"
 #include "LedIndicator.h"
 #include "../DriveWidgetState.h"
 
@@ -21,11 +22,20 @@ enum class DriveWidgetRegion
 };
 
 
-class DriveWidget
+//
+//  DriveWidget is Casso-specific (skeuomorphic Apple Disk II). The
+//  IDxuiControl Paint signature uses an IDxuiTheme, but the widget
+//  expects that theme is actually a ChromeTheme and static_casts to
+//  read drive-body / bezel / label palette fields. A debug
+//  dynamic_cast guard in Paint pins the contract.
+//
+class DriveWidget : public IDxuiControl
 {
 public:
-    DriveWidget  () = default;
-    ~DriveWidget () = default;
+    DriveWidget  ();
+    ~DriveWidget () override = default;
+
+    using IDxuiControl::Layout;
 
     void               Initialize      (int slot, int drive, IDriveCommandSink * pSink);
     void               Layout          (int x, int y, UINT dpi);
@@ -43,10 +53,13 @@ public:
     void               SetFocused      (bool focused)    { m_focused = focused; }
     bool               IsFocused       () const          { return m_focused; }
     void               SyncFromState   (const DriveWidgetState & state);
-    void               Paint           (DxuiPainter & painter,
-                                         DxuiTextRenderer & text,
-                                         const ChromeVisualState & visual,
-                                         const ChromeTheme & theme);
+
+    void               Paint           (IDxuiPainter        & painter,
+                                        IDxuiTextRenderer   & text,
+                                        const IDxuiTheme    & theme) override;
+    void               Layout          (const RECT          & boundsDip,
+                                        const DxuiDpiScaler & scaler) override;
+
     DriveWidgetRegion  HitTest         (int x, int y) const;
     HRESULT            OnDrop          (const std::wstring & path);
     RECT               BodyRect        () const { return m_bodyRect; }
@@ -61,9 +74,9 @@ public:
     int                Drive           () const { return m_drive; }
 
 private:
-    void                PaintBasenameLabel (DxuiTextRenderer  & text,
-                                            const ChromeTheme   & theme,
-                                            UINT                  dpi);
+    void                PaintBasenameLabel (IDxuiTextRenderer & text,
+                                            const ChromeTheme & theme,
+                                            UINT                dpi);
 
     int                 m_slot      = 6;
     int                 m_drive     = 0;
@@ -75,6 +88,7 @@ private:
     RECT                m_labelRect = {};
     LedIndicator        m_led;
     DriveWidgetState    m_state;
+    UINT                m_dpi               = 96;
     int                 m_perspectiveSkewPx = 0;
     bool                m_compact           = false;
     bool                m_focused           = false;
