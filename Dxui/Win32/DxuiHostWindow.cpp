@@ -114,6 +114,8 @@ HRESULT DxuiHostWindow::Create (const CreateParams & params)
     wchar_t      classNameBuf[64] = {};
     uint32_t     serial         = 0;
     UINT         dpiAtCreate    = 0;
+    int          windowX        = 0;
+    int          windowY        = 0;
     int          widthPx        = 0;
     int          heightPx       = 0;
 
@@ -130,9 +132,19 @@ HRESULT DxuiHostWindow::Create (const CreateParams & params)
                                                 : GetModuleHandleW (nullptr);
     m_hInstance = hInstance;
 
-    serial = s_classSerial.fetch_add (1);
-    (void) swprintf_s (classNameBuf, L"DxuiHostWindow_%u_%p", serial, (void *) this);
-    m_className = classNameBuf;
+    if (params.classNameOverride != nullptr)
+    {
+        // Caller-supplied stable class name. Skip the per-instance
+        // serial so consumers like Casso can keep their well-known
+        // window-class identifier (e.g. for tooling / Spy++).
+        m_className = params.classNameOverride;
+    }
+    else
+    {
+        serial = s_classSerial.fetch_add (1);
+        (void) swprintf_s (classNameBuf, L"DxuiHostWindow_%u_%p", serial, (void *) this);
+        m_className = classNameBuf;
+    }
 
     wc.style         = CS_HREDRAW | CS_VREDRAW;
     wc.lpfnWndProc   = &DxuiHostWindow::s_WndProcThunk;
@@ -152,8 +164,7 @@ HRESULT DxuiHostWindow::Create (const CreateParams & params)
     }
     exStyle = WS_EX_APPWINDOW;
 
-    // Initial size is given in DIPs; convert at the current desktop DPI
-    // before CreateWindowEx. WM_DPICHANGED will rescale later if the
+    // Initial DPI seed. WM_DPICHANGED will rescale later if the
     // window straddles or moves between monitors.
     dpiAtCreate = GetDpiForSystem();
     if (dpiAtCreate == 0)
@@ -162,15 +173,30 @@ HRESULT DxuiHostWindow::Create (const CreateParams & params)
     }
     m_scaler.SetDpi (dpiAtCreate);
 
-    widthPx  = MulDiv (params.initialSizeDip.cx, (int) dpiAtCreate, (int) s_kDefaultDpi);
-    heightPx = MulDiv (params.initialSizeDip.cy, (int) dpiAtCreate, (int) s_kDefaultDpi);
+    if (params.useInitialWindowRectPx)
+    {
+        // Caller pre-computed a window-pixel placement (e.g. restored
+        // from a saved RECT). Pass it through verbatim and skip the
+        // DIP → pixel conversion path.
+        windowX  = params.initialWindowRectPx.left;
+        windowY  = params.initialWindowRectPx.top;
+        widthPx  = params.initialWindowRectPx.right  - params.initialWindowRectPx.left;
+        heightPx = params.initialWindowRectPx.bottom - params.initialWindowRectPx.top;
+    }
+    else
+    {
+        windowX  = CW_USEDEFAULT;
+        windowY  = CW_USEDEFAULT;
+        widthPx  = MulDiv (params.initialSizeDip.cx, (int) dpiAtCreate, (int) s_kDefaultDpi);
+        heightPx = MulDiv (params.initialSizeDip.cy, (int) dpiAtCreate, (int) s_kDefaultDpi);
+    }
 
     m_hwnd = CreateWindowExW (exStyle,
                               m_className.c_str(),
                               params.title.c_str(),
                               style,
-                              CW_USEDEFAULT,
-                              CW_USEDEFAULT,
+                              windowX,
+                              windowY,
                               widthPx,
                               heightPx,
                               params.ownerHwnd,
@@ -183,6 +209,19 @@ HRESULT DxuiHostWindow::Create (const CreateParams & params)
     // Re-seed scaler from the per-window DPI now that the HWND knows
     // which monitor it landed on.
     m_scaler.SetDpi (GetDpiForWindow (m_hwnd));
+
+    // Apply optional app icons. Win32 MessageBox dialogs + the
+    // taskbar pick the icon up via WM_GETICON, NOT WNDCLASS::hIcon,
+    // so the explicit WM_SETICON pair is required even when the
+    // class was registered with icons.
+    if (params.appIconBig != nullptr)
+    {
+        SendMessageW (m_hwnd, WM_SETICON, ICON_BIG, (LPARAM) params.appIconBig);
+    }
+    if (params.appIconSmall != nullptr)
+    {
+        SendMessageW (m_hwnd, WM_SETICON, ICON_SMALL, (LPARAM) params.appIconSmall);
+    }
 
     hr = CreateDeviceAndSwapChain();
     CHRA (hr);
