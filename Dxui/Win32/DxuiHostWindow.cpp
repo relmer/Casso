@@ -224,11 +224,14 @@ HRESULT DxuiHostWindow::Create (const CreateParams & params)
         SendMessageW (m_hwnd, WM_SETICON, ICON_SMALL, (LPARAM) params.appIconSmall);
     }
 
-    hr = CreateDeviceAndSwapChain();
-    CHRA (hr);
+    if (params.createSwapChain)
+    {
+        hr = CreateDeviceAndSwapChain();
+        CHRA (hr);
 
-    hr = CreateRenderResources();
-    CHRA (hr);
+        hr = CreateRenderResources();
+        CHRA (hr);
+    }
 
     ApplyDwmConfiguration();
 
