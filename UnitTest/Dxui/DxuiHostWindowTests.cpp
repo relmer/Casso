@@ -373,4 +373,48 @@ public:
         Assert::AreEqual (std::wstring (L"Maximize"), maxBtn.AccessibleName());
         Assert::AreEqual (std::wstring (L"Close"),    closeBtn.AccessibleName());
     }
+
+
+    //
+    //  SetBeforePresentHook — stores the callback so the host's
+    //  WM_PAINT pump can invoke it after the panel-tree Paint walk
+    //  and before swap-chain Present. The pump itself lands later in
+    //  Phase 11d; this verifies that the storage surface round-trips
+    //  the function pointer today so external renderers can register
+    //  early.
+    //
+
+    TEST_METHOD (BeforePresentHook_StartsNull)
+    {
+        DxuiHostWindow  host;
+
+        Assert::IsFalse ((bool) host.BeforePresentHook());
+    }
+
+
+    TEST_METHOD (BeforePresentHook_StoresCallback)
+    {
+        DxuiHostWindow  host;
+        int             callCount = 0;
+
+
+        host.SetBeforePresentHook ([&] () { ++callCount; });
+
+        Assert::IsTrue (((bool) host.BeforePresentHook()));
+        host.BeforePresentHook() ();
+        Assert::AreEqual (1, callCount);
+    }
+
+
+    TEST_METHOD (BeforePresentHook_NullClearsCallback)
+    {
+        DxuiHostWindow  host;
+
+
+        host.SetBeforePresentHook ([] () {});
+        Assert::IsTrue ((bool) host.BeforePresentHook());
+
+        host.SetBeforePresentHook (nullptr);
+        Assert::IsFalse ((bool) host.BeforePresentHook());
+    }
 };

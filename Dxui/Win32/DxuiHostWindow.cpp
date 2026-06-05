@@ -380,6 +380,35 @@ void DxuiHostWindow::SetHitTestDelegate (std::function<LRESULT (POINT)> delegate
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetBeforePresentHook
+//
+//  Stores a callback that the host's WM_PAINT pump invokes once per
+//  frame after the panel-tree Paint walk and before swap-chain
+//  Present. Lets an external renderer (e.g. the Apple ][ framebuffer
+//  D3D pass) composite into the host's back buffer without owning
+//  the swap chain itself. Passing a null function clears any
+//  previously-installed hook.
+//
+//  The panel-tree paint pump lands later in Phase 11d; until then
+//  this setter only stores the callback and the host never invokes
+//  it. Consumers may register today so the wiring is in place when
+//  the pump comes online.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::SetBeforePresentHook (std::function<void()> hook)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    m_beforePresentHook = std::move (hook);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HandleMessage
 //
 //  Public WndProc forwarder. Returns true when Dxui owns the

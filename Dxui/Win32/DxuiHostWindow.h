@@ -199,6 +199,23 @@ public:
     IDXGISwapChain1      *  GetSwapChain       () const { return m_swapChain.Get(); }
     ID3D11RenderTargetView * GetBackBufferRtv  () const { return m_rtv.Get();       }
 
+    //
+    //  Optional before-present hook. Installed by a consumer (e.g.
+    //  the Apple ][ framebuffer renderer) that wants to composite
+    //  into the host's swap-chain back buffer after the standard
+    //  panel-tree Paint pump but BEFORE the host calls Present. The
+    //  host stores the callback; it is invoked once per frame from
+    //  the host's WM_PAINT pump. Passing a null function clears any
+    //  previously-installed hook.
+    //
+    //  The host's panel-tree paint pump lands later in Phase 11d;
+    //  until then the hook is stored but never invoked. Consumers
+    //  may register today so that the wiring is in place when the
+    //  pump comes online.
+    //
+    void  SetBeforePresentHook  (std::function<void()> hook);
+    const std::function<void()> &  BeforePresentHook  () const { return m_beforePresentHook; }
+
     LRESULT  WndProc           (UINT msg, WPARAM wp, LPARAM lp);
 
     //
@@ -313,6 +330,7 @@ private:
     IDxuiHostClient *                 m_client             = nullptr;
 
     std::function<LRESULT (POINT)>    m_hitTestDelegate;
+    std::function<void()>             m_beforePresentHook;
 
     // Popup pool (FR-055). Initial size 3; grows on demand. m_popupPool
     // holds LIFO-available instances; m_popupActive holds currently
