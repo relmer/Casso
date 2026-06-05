@@ -117,8 +117,16 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     // Hover / pressed background fill.
     if (m_hovered || m_pressed)
     {
-        uint32_t bg = (m_kind == DxuiSystemButtonKind::Close) ? theme.SystemCloseHover()
-                                                               : theme.SystemButtonHover();
+        uint32_t bg = 0;
+
+        if (m_kind == DxuiSystemButtonKind::Close)
+        {
+            bg = m_pressed ? theme.SystemClosePressed() : theme.SystemCloseHover();
+        }
+        else
+        {
+            bg = m_pressed ? theme.SystemButtonPressed() : theme.SystemButtonHover();
+        }
         painter.FillRect (xPx, yPx, widthPx, heightPx, bg);
     }
 

@@ -47,8 +47,12 @@ public:
 
     uint32_t  CaptionBackground   () const override { return s_kCaptionBackground;   }
     uint32_t  CaptionForeground   () const override { return s_kCaptionForeground;   }
+    uint32_t  TitleBarTop         () const override { return s_kTitleBarTop;         }
+    uint32_t  TitleBarBottom      () const override { return s_kTitleBarBottom;      }
     uint32_t  SystemButtonHover   () const override { return s_kSystemButtonHover;   }
+    uint32_t  SystemButtonPressed () const override { return s_kSystemButtonPressed; }
     uint32_t  SystemCloseHover    () const override { return s_kSystemCloseHover;    }
+    uint32_t  SystemClosePressed  () const override { return s_kSystemClosePressed;  }
 
     DxuiFontHandle  BodyFont      () const override { return {}; }
     DxuiFontHandle  BodyBoldFont  () const override { return {}; }
@@ -82,8 +86,12 @@ public:
     static constexpr uint32_t  s_kButtonText          = 0xFFF0F0F0;
     static constexpr uint32_t  s_kCaptionBackground   = 0xFF181818;
     static constexpr uint32_t  s_kCaptionForeground   = 0xFFF0F0F0;
+    static constexpr uint32_t  s_kTitleBarTop         = 0xFF202225;
+    static constexpr uint32_t  s_kTitleBarBottom      = 0xFF17181B;
     static constexpr uint32_t  s_kSystemButtonHover   = 0xFF606060;
+    static constexpr uint32_t  s_kSystemButtonPressed = 0xFF505050;
     static constexpr uint32_t  s_kSystemCloseHover    = 0xFFC42B1C;
+    static constexpr uint32_t  s_kSystemClosePressed  = 0xFFB02014;
 
     static constexpr float  s_kBodyLineHeightDip = 18.0f;
     static constexpr float  s_kCornerRadiusDip   = 4.0f;

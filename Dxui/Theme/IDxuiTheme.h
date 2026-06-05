@@ -72,11 +72,18 @@ public:
     virtual uint32_t  ButtonBorder        () const = 0;
     virtual uint32_t  ButtonText          () const = 0;
 
-    // Caption / system buttons (host-window chrome).
+    // Caption / system buttons (host-window chrome). `TitleBarTop` /
+    // `TitleBarBottom` feed the caption gradient; the system-button
+    // hover / pressed pairs feed the Win11-style overlay (min and max
+    // share the neutral pair; close uses the red pair).
     virtual uint32_t  CaptionBackground   () const = 0;
     virtual uint32_t  CaptionForeground   () const = 0;
+    virtual uint32_t  TitleBarTop         () const = 0;
+    virtual uint32_t  TitleBarBottom      () const = 0;
     virtual uint32_t  SystemButtonHover   () const = 0;
+    virtual uint32_t  SystemButtonPressed () const = 0;
     virtual uint32_t  SystemCloseHover    () const = 0;
+    virtual uint32_t  SystemClosePressed  () const = 0;
 
     // Typography. Returned handles are opaque to widgets.
     virtual DxuiFontHandle  BodyFont      () const = 0;
