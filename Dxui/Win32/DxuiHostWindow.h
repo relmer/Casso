@@ -127,6 +127,28 @@ public:
     const DxuiDpiScaler &  Scaler  () const { return m_scaler; }
     void          SetTheme      (const IDxuiTheme * theme);
 
+    //
+    //  Shared-device accessors. Full-ownership mode creates the D3D11
+    //  device, immediate context, and DXGI flip-discard swap chain on
+    //  Create(); these accessors return non-owning pointers so a
+    //  consumer (e.g., the Apple ][ framebuffer renderer) can draw
+    //  into the same swap chain rather than standing up its own.
+    //  Lifetime is bounded by the matching Destroy() call.
+    //
+    //  In adopt mode and synthetic mode these all return nullptr —
+    //  the caller continues to own its own device + swap chain.
+    //  Tests must not call these in test mode.
+    //
+    //  RTV creation lands later in the Phase 11d migration; until
+    //  then GetBackBufferRtv() returns nullptr even in full-ownership
+    //  mode. Consumers that need an RTV today must create one off
+    //  GetSwapChain() themselves.
+    //
+    ID3D11Device         *  GetDevice          () const { return m_device.Get();    }
+    ID3D11DeviceContext  *  GetContext         () const { return m_context.Get();   }
+    IDXGISwapChain1      *  GetSwapChain       () const { return m_swapChain.Get(); }
+    ID3D11RenderTargetView * GetBackBufferRtv  () const { return m_rtv.Get();       }
+
     LRESULT  WndProc           (UINT msg, WPARAM wp, LPARAM lp);
 
     //
