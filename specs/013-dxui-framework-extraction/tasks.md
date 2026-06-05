@@ -287,6 +287,18 @@ The 13 widget files are independent moves and parallel-safe within this phase. E
 
 **Status (this session — partial)**: Chrome reshape landed (T123–T128). EmulatorShell restructure (T129) and the phase exit gate (T130) are deferred to a follow-up Phase 11d / 11e. NC duplicate count is now **2** after T127 (down from 3); the full Phase 11 target (also 2) is therefore met for the chrome surface — only the EmulatorShell ownership flip remains.
 
+**Phase 11d sub-step 1 (`5017bee`)**: `DxuiHostWindow` exposes shared `GetDevice()` / `GetContext()` / `GetSwapChain()` accessors so a consumer's renderer can target the host's swap chain without standing up its own.
+
+**Phase 11d sub-step 2 (Session A, `6da31eb` + `ccfd47b`)**: API additions only — no consumer flip yet.
+
+  * `6da31eb` feat(dxui): extend `DxuiHostWindow::CreateParams` with four optional fields (`classNameOverride`, `useInitialWindowRectPx` + `initialWindowRectPx`, `appIconBig` / `appIconSmall`) so a consumer can land its existing HWND-creation bespoke logic on `DxuiHostWindow::Create` without losing behavior. All four default to nullptr / false; existing callers see no change.
+
+  * `ccfd47b` feat(dxui): add `IDxuiHostClient` interface + `DxuiHostWindow::SetClient` installer. Lets a full-ownership consumer receive the Win32 messages the host does not own end-to-end (commands, keyboard, mouse, paint, timer, drawitem, init-menu-popup, close, destroy, NC-LButtonUp with original hit-test). Eight new unit tests (1796 → 1804 passing). Build green on all four configs; code analysis clean.
+
+**Still required for Session B (HWND ownership flip)**: change `class EmulatorShell : public Window` → `class EmulatorShell : public IDxuiHostClient`; convert ~17 Window virtual overrides to IDxuiHostClient overrides; rewrite `EmulatorShell::CreateEmulatorWindow` to call `m_host = std::make_unique<DxuiHostWindow>(); m_host->Create (params); m_host->SetClient (this);`; route all ~40 `m_hwnd` references through `m_host->Hwnd()`; route all `Scaler()` references through `m_host->Scaler()`; wire the `WindowManager::SaveWindowPlacement` call from `OnDestroy`; replace the `TryDelegateMessage` shim (no longer needed — `DxuiHostWindow::WndProc` owns dispatch end-to-end). The NC hit-test delegate stays as-is (`SetHitTestDelegate`).
+
+**Still required for Session C (swap-chain transfer + Window cleanup)**: route Apple ][ viewport rendering through `DxuiHostWindow`'s swap chain via the minimal `DxuiViewport` placeholder from T128; drop `D3DRenderer`'s own swap-chain ownership; delete `Casso/Window.{h,cpp}` (no remaining consumers after Session B — `ChromedPanelWindow` already uses adopt mode and never inherited from `Window`).
+
 **Goal (plan.md §Phase 11 — new)**: Reshape every Casso chrome widget onto `IDxuiControl`; reshape `ChromedPanelWindow` onto `DxuiHostWindow`; restructure `EmulatorShell` so it no longer inherits from `Window` and instead composes a fully-owning `DxuiHostWindow`. NC duplicate count 3 → 2. **Satisfies**: FR-104, FR-105, FR-106, FR-107, FR-108, SC-014, SC-015, SC-018, SC-019.
 
 - [x] T123 [P] [PH11] Reshape `Casso/Ui/Chrome/TitleBar.{h,cpp}` to derive from `DxuiCaptionBar` (or compose one). Implement the standard `IDxuiControl::Paint(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)` signature. Preserve current visual style and skeuomorphic palette. Move app-icon rendering, hover state, min/max/close button positioning into the standard interface. **Depends on**: T066, T067. **FR**: FR-104; **SC**: SC-014, SC-015.
