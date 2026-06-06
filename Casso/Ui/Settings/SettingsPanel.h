@@ -6,6 +6,7 @@
 #include "HardwarePage.h"
 #include "MachinePage.h"
 #include "SettingsDisplayCrtBridge.h"
+#include "SettingsMachineCatalog.h"
 #include "SettingsPanelState.h"
 #include "SettingsPreviewController.h"
 #include "ThemePage.h"
@@ -133,12 +134,8 @@ private:
     };
 
 
-    void  LoadCurrentMachineIntoState ();
-    void  PopulateMachineList         ();
-    void  PopulateThemeList           ();
     void  OnMachineSelected           (const std::string & machineName);
     void  OnThemeSelected             (const std::string & themeName);
-    void  DoMachineSelect             (const std::string & machineName);
     void  OnApplyClicked              ();
     void  OnCancelClicked             ();
     void  CommitApply                 ();
@@ -158,6 +155,7 @@ private:
 
     SettingsPanelState  m_state;
     SettingsDisplayCrtBridge  m_crt;
+    SettingsMachineCatalog    m_catalog;
     SettingsWindow      m_window;
     // Bespoke visibility flag distinct from IDxuiControl::m_visible
     // (which is inherited from DxuiPanel and stays at its default of
