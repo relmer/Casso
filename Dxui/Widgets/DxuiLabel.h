@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IDxuiControl.h"
 
 
 
@@ -18,10 +19,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiLabel
+class DxuiLabel : public IDxuiControl
 {
 public:
-    void  SetRect        (const RECT & rect) { m_rect = rect; }
+    ~DxuiLabel() override = default;
+
+    void  SetRect        (const RECT & rect) { m_rect = rect; SetBounds (rect); }
     void  SetText        (const std::wstring & text) { m_text = text; }
     void  SetColorArgb   (uint32_t argb) { m_argb = argb; }
     void  SetFontSizeDip (float dip) { m_fontDip = dip; }
@@ -54,6 +57,27 @@ public:
                                                   m_vAlign,
                                                   m_weight));
     }
+
+    //
+    //  IDxuiControl overrides — additive shims so DxuiLabel slots
+    //  into DxuiPanel trees alongside other IDxuiControl-derived
+    //  widgets.
+    //
+    void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override
+    {
+        SetBounds (boundsDip);
+        m_rect = boundsDip;
+        m_scaler.SetDpi (scaler.Dpi());
+    }
+
+    void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override
+    {
+        UNREFERENCED_PARAMETER (theme);
+        static_cast<const DxuiLabel *> (this)->Paint (painter, text);
+    }
+
+    std::wstring        AccessibleName () const override { return m_text; }
+    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Label; }
 
 private:
     RECT                          m_rect     = {};

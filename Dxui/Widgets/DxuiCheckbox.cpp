@@ -218,3 +218,90 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
                                               DxuiTextHAlign::Left,
                                               DxuiTextVAlign::Center));
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiCheckbox::Layout  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiCheckbox::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    SetBounds (boundsDip);
+    m_rect = boundsDip;
+    m_scaler.SetDpi (scaler.Dpi());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiCheckbox::Paint  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    UNREFERENCED_PARAMETER (theme);
+    static_cast<const DxuiCheckbox *> (this)->Paint (painter, text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiCheckbox::OnMouse  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiCheckbox::OnMouse (const DxuiMouseEvent & ev)
+{
+    switch (ev.kind)
+    {
+    case DxuiMouseEventKind::Move:
+        SetMouseHover (ev.positionDip.x, ev.positionDip.y);
+        return false;
+    case DxuiMouseEventKind::Down:
+        if (ev.button == DxuiMouseButton::Left)
+        {
+            return OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+        }
+        return false;
+    case DxuiMouseEventKind::Up:
+        if (ev.button == DxuiMouseButton::Left)
+        {
+            return OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+        }
+        return false;
+    default:
+        return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiCheckbox::OnKey  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiCheckbox::OnKey (const DxuiKeyEvent & ev)
+{
+    if (ev.kind != DxuiKeyEventKind::Down)
+    {
+        return false;
+    }
+
+    return OnKey (ev.vk);
+}

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IDxuiControl.h"
 
 
 
@@ -31,14 +32,16 @@ struct DxuiRadioOption
 };
 
 
-class DxuiRadioGroup
+class DxuiRadioGroup : public IDxuiControl
 {
 public:
     using ChangeFn = std::function<void (int newIndex)>;
 
+    ~DxuiRadioGroup() override = default;
+
     void  SetOptions (std::vector<DxuiRadioOption> options) { m_options = std::move (options); }
     void  SetSelected (int index);
-    void  SetEnabled  (bool enabled) { m_enabled = enabled; }
+    void  SetEnabled  (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; }
     void  SetFocused  (bool focused) { m_focused = focused; }
     void  SetOnChange (ChangeFn fn)  { m_change = std::move (fn); }
     void  SetDpi      (UINT dpi)     { m_scaler.SetDpi (dpi); }
@@ -55,6 +58,17 @@ public:
     bool  OnLButtonUp    (int x, int y);
     bool  OnKey          (WPARAM vk);
     void  Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+
+    //
+    //  IDxuiControl overrides — additive shims for DxuiPanel trees.
+    //
+    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse        (const DxuiMouseEvent & ev) override;
+    bool                OnKey          (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged (bool focused) override { SetFocused (focused); }
+    std::wstring        AccessibleName () const override;
+    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Radio; }
 
 private:
     void  Commit (int newIndex);
