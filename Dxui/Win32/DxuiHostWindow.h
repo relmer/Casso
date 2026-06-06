@@ -326,11 +326,12 @@ private:
     LRESULT  HandleNcHitTest           (LPARAM lp);
     LRESULT  HandleNcMouse             (UINT msg, WPARAM wp, LPARAM lp);
     void     HandleDpiChanged          (WPARAM wp, LPARAM lp);
-    void     HandleSize                (LPARAM lp);
+    void     HandleSize                (WPARAM wp, LPARAM lp);
     void     HandleThemeChange         ();
 
-    DxuiHitTestKind  ClassifyHitInternal  (POINT clientDip, RECT clientBoundsDip) const;
-    IDxuiControl   *  FindNcSystemControlAt (POINT clientDip) const;
+    DxuiHitTestKind  ClassifyHitInternal       (POINT clientDip, RECT clientBoundsDip) const;
+    IDxuiControl   *  FindNcSystemControlAt    (POINT clientDip) const;
+    void              NotifySystemButtonsMaximized (bool maximized);
 
     static DxuiHitTestKind  ClassifyResizeEdge (POINT clientDip,
                                                 RECT  clientBoundsDip,

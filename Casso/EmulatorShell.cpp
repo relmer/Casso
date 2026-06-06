@@ -1238,6 +1238,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         RECT  titleBarBounds  = { 0, 0, clientW, 0 };
         RECT  menuBarBounds   = {};
 
+        m_titleBar.SetMaximized (IsZoomed (m_hwnd) != FALSE);
         m_titleBar.Layout (titleBarBounds, m_scaler);
         menuBarBounds = { 0, m_titleBar.GetTitleHeight(), clientW, m_titleBar.GetTitleHeight() };
         m_mainMenu.Layout (menuBarBounds, m_scaler);
@@ -3717,6 +3718,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         RECT     menuBarBounds   = {};
 
         IGNORE_RETURN_VALUE (hrUiR, S_OK);
+        m_titleBar.SetMaximized (IsZoomed (m_hwnd) != FALSE);
         m_titleBar.Layout (titleBarBounds, m_scaler);
         menuBarBounds = { 0, m_titleBar.GetTitleHeight(), static_cast<int> (width), m_titleBar.GetTitleHeight() };
         m_mainMenu.Layout (menuBarBounds, m_scaler);

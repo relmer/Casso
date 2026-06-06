@@ -76,6 +76,8 @@ public:
     void                UpdateGeometry    (int clientWidth, UINT dpi);
     void                SetMousePosition  (int x, int y, bool leftDown);
     void                ClearHover        ();
+    void                SetMaximized      (bool maximized) { m_maximized = maximized; }
+    bool                Maximized         () const { return m_maximized; }
     void                SetAppIcon        (std::vector<uint32_t> bgraPremulPixels,
                                             int                    widthPx,
                                             int                    heightPx);
@@ -109,6 +111,7 @@ private:
     SystemButton           m_hotButton    = SystemButton::Minimize;
     bool                   m_hasHotButton = false;
     bool                   m_leftDown     = false;
+    bool                   m_maximized    = false;
     UINT                   m_dpi          = 96;
 
     std::vector<uint32_t>  m_appIconPixels;     // premultiplied BGRA8

@@ -48,6 +48,9 @@ public:
     void  SetHwnd        (HWND hwnd);
     HWND  Hwnd           () const { return m_hwnd; }
 
+    void  SetMaximized   (bool maximized) { m_maximized = maximized; }
+    bool  Maximized      () const { return m_maximized; }
+
     DxuiSystemButtonKind  Kind () const { return m_kind; }
 
     bool  Hovered        () const { return m_hovered; }
@@ -72,6 +75,7 @@ private:
     DxuiSystemButtonKind  m_kind     = DxuiSystemButtonKind::Min;
     HWND                  m_hwnd     = nullptr;
     DxuiDpiScaler         m_scaler;
-    bool                  m_hovered  = false;
-    bool                  m_pressed  = false;
+    bool                  m_hovered   = false;
+    bool                  m_pressed   = false;
+    bool                  m_maximized = false;
 };
