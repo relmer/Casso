@@ -42,6 +42,28 @@ public:
         return *raw;
     }
 
+    //
+    //  Adopt — non-owning child registration. The panel includes the
+    //  adopted control in the unified child list so it participates in
+    //  paint, input, focus, theme, tick, and DPI walks alongside Add'd
+    //  children. Adopted entries are interleaved in insertion order
+    //  with owned entries so the paint front-to-back and input
+    //  back-to-front guarantees are preserved.
+    //
+    //  Lifetime contract: the caller retains ownership and MUST keep
+    //  the adopted child alive at least as long as the panel keeps a
+    //  reference to it. Failure causes use-after-free during paint or
+    //  input dispatch. Use RemoveAdopted / ClearAdopted before the
+    //  child is destroyed, or destroy the panel first.
+    //
+    //  Re-adopting the same pointer is a no-op (returns without
+    //  reparenting). Adopting a control already owned by this panel
+    //  via Add<T>() is a programming error and asserts.
+    //
+    void  Adopt         (IDxuiControl & nonOwnedChild);
+    bool  RemoveAdopted (IDxuiControl & child);
+    void  ClearAdopted  ();
+
     bool  Remove        (IDxuiControl * child);
     void  Clear         ();
     void  SetLayout     (std::unique_ptr<IDxuiLayout> layout);
@@ -65,7 +87,7 @@ public:
     void              OnChildVisibilityChanged (IDxuiControl * child);
 
     size_t            ChildCount   () const                   override { return m_children.size(); }
-    IDxuiControl *    Child        (size_t index) const       override { return (index < m_children.size()) ? m_children[index].get() : nullptr; }
+    IDxuiControl *    Child        (size_t index) const       override { return (index < m_children.size()) ? m_children[index].raw : nullptr; }
 
 protected:
     void              OnVisibilityChanged() override;
@@ -74,7 +96,21 @@ private:
     void              AppendChild  (std::unique_ptr<IDxuiControl> child);
     void              MarkDirty    ();
 
-    std::vector<std::unique_ptr<IDxuiControl>>  m_children;
+    //
+    //  Unified child entry. Owned entries hold `owned` (a unique_ptr
+    //  to the child) with `raw == owned.get()`. Adopted entries hold
+    //  `owned == nullptr` and `raw == <external pointer>`. Insertion
+    //  order is preserved across Add / Adopt calls so the paint
+    //  back-to-front and input front-to-back walks see one unified
+    //  list.
+    //
+    struct ChildSlot
+    {
+        IDxuiControl *                  raw   = nullptr;
+        std::unique_ptr<IDxuiControl>   owned;
+    };
+
+    std::vector<ChildSlot>                      m_children;
     std::unique_ptr<IDxuiLayout>                m_layout;
     bool                                        m_dirty       = false;
     RECT                                        m_lastBoundsDip = {};

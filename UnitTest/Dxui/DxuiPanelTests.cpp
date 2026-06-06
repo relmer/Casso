@@ -204,4 +204,145 @@ public:
         Assert::AreEqual (1, a.tickCount);
         Assert::AreEqual (1, b.tickCount);
     }
+
+
+    TEST_METHOD (Adopt_AddsNonOwnedChildToWalks)
+    {
+        DxuiPanel             panel;
+        MockDxuiControl       caller;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+
+
+        panel.Adopt (caller);
+
+        Assert::AreEqual ((size_t) 1, panel.ChildCount());
+        Assert::AreEqual (static_cast<void *> (&caller), static_cast<void *> (panel.Child (0)));
+        Assert::AreEqual (static_cast<void *> (&panel),  static_cast<void *> (caller.Parent()));
+
+        panel.Paint (painter, text, theme);
+        Assert::AreEqual (1, caller.paintCount);
+    }
+
+
+    TEST_METHOD (Adopt_DestructionLeavesAdoptedChildAlive)
+    {
+        MockDxuiControl  caller;
+
+
+        {
+            DxuiPanel  panel;
+            panel.Adopt (caller);
+        }
+        // If the panel had taken ownership the dtor would have freed
+        // caller; we still have a live local, so its destructor must
+        // run after this scope on its own terms. (Test simply asserts
+        // the panel destructor compiled and ran without UAF.)
+        caller.SetEnabled (true);
+        Assert::IsTrue (caller.Enabled());
+    }
+
+
+    TEST_METHOD (Adopt_DuplicateIsNoOp)
+    {
+        DxuiPanel        panel;
+        MockDxuiControl  caller;
+
+
+        panel.Adopt (caller);
+        panel.Adopt (caller);
+
+        Assert::AreEqual ((size_t) 1, panel.ChildCount());
+    }
+
+
+    TEST_METHOD (RemoveAdopted_DropsRegistrationLeavesPointerLive)
+    {
+        DxuiPanel        panel;
+        MockDxuiControl  caller;
+
+
+        panel.Adopt (caller);
+        Assert::IsTrue   (panel.RemoveAdopted (caller));
+        Assert::AreEqual ((size_t) 0, panel.ChildCount());
+        Assert::IsNull   (caller.Parent());
+    }
+
+
+    TEST_METHOD (RemoveAdopted_UnknownReturnsFalse)
+    {
+        DxuiPanel        panel;
+        MockDxuiControl  stranger;
+
+
+        Assert::IsFalse (panel.RemoveAdopted (stranger));
+    }
+
+
+    TEST_METHOD (RemoveAdopted_RefusesToDropOwnedChild)
+    {
+        DxuiPanel          panel;
+        MockDxuiControl &  owned = panel.Add<MockDxuiControl>();
+
+
+        Assert::IsFalse (panel.RemoveAdopted (owned));
+        Assert::AreEqual ((size_t) 1, panel.ChildCount());
+    }
+
+
+    TEST_METHOD (ClearAdopted_LeavesOwnedChildrenAlone)
+    {
+        DxuiPanel          panel;
+        MockDxuiControl    adoptedA;
+        MockDxuiControl    adoptedB;
+        MockDxuiControl &  owned = panel.Add<MockDxuiControl>();
+
+
+        panel.Adopt (adoptedA);
+        panel.Adopt (adoptedB);
+        Assert::AreEqual ((size_t) 3, panel.ChildCount());
+
+        panel.ClearAdopted();
+
+        Assert::AreEqual ((size_t) 1, panel.ChildCount());
+        Assert::AreEqual (static_cast<void *> (&owned), static_cast<void *> (panel.Child (0)));
+        Assert::IsNull   (adoptedA.Parent());
+        Assert::IsNull   (adoptedB.Parent());
+    }
+
+
+    TEST_METHOD (AdoptAndAdd_CoexistInInsertionOrder)
+    {
+        DxuiPanel          panel;
+        MockDxuiControl    adoptedFirst;
+        MockDxuiControl    adoptedLast;
+
+
+        panel.Adopt (adoptedFirst);
+        MockDxuiControl &  ownedMiddle = panel.Add<MockDxuiControl>();
+        panel.Adopt (adoptedLast);
+
+        Assert::AreEqual ((size_t) 3, panel.ChildCount());
+        Assert::AreEqual (static_cast<void *> (&adoptedFirst), static_cast<void *> (panel.Child (0)));
+        Assert::AreEqual (static_cast<void *> (&ownedMiddle),  static_cast<void *> (panel.Child (1)));
+        Assert::AreEqual (static_cast<void *> (&adoptedLast),  static_cast<void *> (panel.Child (2)));
+    }
+
+
+    TEST_METHOD (Adopt_MouseDispatchesFrontToBackAcrossOwnedAndAdopted)
+    {
+        DxuiPanel          panel;
+        MockDxuiControl    adoptedFront;
+        DxuiMouseEvent     ev;
+
+
+        panel.Add<MockDxuiControl>();              // owned, rear
+        panel.Adopt (adoptedFront);                // adopted, front (last-inserted)
+        adoptedFront.consumeMouse = true;
+
+        Assert::IsTrue   (panel.OnMouse (ev));
+        Assert::AreEqual (1, adoptedFront.mouseCount);
+        Assert::AreEqual (static_cast<void *> (&adoptedFront), static_cast<void *> (panel.Child (1)));
+    }
 };
