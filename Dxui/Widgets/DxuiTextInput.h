@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IDxuiControl.h"
 
 
 
@@ -31,16 +32,18 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiTextInput
+class DxuiTextInput : public IDxuiControl
 {
 public:
     using ChangeFn = std::function<void (const std::wstring &)>;
 
-    void  SetRect       (const RECT & rect)           { m_rect = rect; }
+    ~DxuiTextInput() override = default;
+
+    void  SetRect       (const RECT & rect)           { m_rect = rect; SetBounds (rect); }
     void  SetText       (const std::wstring & text)   { m_text = text; ClampCaret(); }
     void  SetMaxLength  (size_t maxLen)               { m_maxLen = maxLen; }
     void  SetFocused    (bool focused)                { m_focused = focused; if (!focused) { m_dragging = false; } }
-    void  SetEnabled    (bool enabled)                { m_enabled = enabled; if (!enabled) { m_focused = false; m_hover = false; m_dragging = false; } }
+    void  SetEnabled    (bool enabled)                { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_focused = false; m_hover = false; m_dragging = false; } }
     void  SetDpi        (UINT dpi)                    { m_scaler.SetDpi (dpi); }
     void  SetTheme      (const IDxuiTheme * theme)    { m_theme = theme; }
     void  SetOnChange   (ChangeFn fn)                 { m_change = std::move (fn); }
@@ -60,6 +63,17 @@ public:
     bool  OnChar        (wchar_t ch);
 
     void  Paint         (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+
+    //
+    //  IDxuiControl overrides — additive shims for DxuiPanel trees.
+    //
+    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse        (const DxuiMouseEvent & ev) override;
+    bool                OnKey          (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged (bool focused) override { SetFocused (focused); }
+    std::wstring        AccessibleName () const override { return m_text; }
+    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::TextInput; }
 
 private:
     void   ClampCaret ();

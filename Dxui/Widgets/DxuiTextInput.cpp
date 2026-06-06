@@ -650,3 +650,107 @@ void DxuiTextInput::FireChange ()
         m_change (m_text);
     }
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextInput::Layout  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextInput::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    SetBounds (boundsDip);
+    m_rect = boundsDip;
+    m_scaler.SetDpi (scaler.Dpi());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextInput::Paint  (IDxuiControl override)
+//
+//  The legacy Paint takes (painter, text); the theme parameter mirrors
+//  whatever was installed earlier via SetTheme.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    if (m_theme == nullptr)
+    {
+        m_theme = &theme;
+    }
+    static_cast<const DxuiTextInput *> (this)->Paint (painter, text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextInput::OnMouse  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextInput::OnMouse (const DxuiMouseEvent & ev)
+{
+    switch (ev.kind)
+    {
+    case DxuiMouseEventKind::Move:
+        if (m_dragging)
+        {
+            OnMouseMove (ev.positionDip.x, ev.positionDip.y);
+            return true;
+        }
+        SetMouseHover (ev.positionDip.x, ev.positionDip.y);
+        return false;
+    case DxuiMouseEventKind::Down:
+        if (ev.button == DxuiMouseButton::Left)
+        {
+            return OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+        }
+        return false;
+    case DxuiMouseEventKind::Up:
+        if (ev.button == DxuiMouseButton::Left)
+        {
+            return OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+        }
+        return false;
+    default:
+        return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextInput::OnKey  (IDxuiControl override)
+//
+//  Down events dispatch to OnKey(vk); Char events dispatch to OnChar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextInput::OnKey (const DxuiKeyEvent & ev)
+{
+    if (ev.kind == DxuiKeyEventKind::Char)
+    {
+        return OnChar ((wchar_t) ev.vk);
+    }
+
+    if (ev.kind == DxuiKeyEventKind::Down)
+    {
+        return OnKey (ev.vk);
+    }
+
+    return false;
+}

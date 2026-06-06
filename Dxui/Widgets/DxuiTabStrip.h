@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IDxuiControl.h"
 
 
 
@@ -17,7 +18,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiTabStrip
+class DxuiTabStrip : public IDxuiControl
 {
 public:
     using ChangeFn = std::function<void (int newIndex)>;
@@ -28,9 +29,11 @@ public:
         std::wstring  label;
     };
 
+    ~DxuiTabStrip() override = default;
+
     void  SetTabs    (std::vector<Tab> tabs) { m_tabs = std::move (tabs); }
     void  SetSelected (int index);
-    void  SetEnabled (bool enabled) { m_enabled = enabled; }
+    void  SetEnabled (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; }
     void  SetFocused (bool focused) { m_focused = focused; }
     void  SetOnChange (ChangeFn fn) { m_change = std::move (fn); }
 
@@ -48,6 +51,17 @@ public:
 
     void  Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
     void  SetDpi         (UINT dpi) { m_scaler.SetDpi (dpi); }
+
+    //
+    //  IDxuiControl overrides — additive shims for DxuiPanel trees.
+    //
+    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse        (const DxuiMouseEvent & ev) override;
+    bool                OnKey          (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged (bool focused) override { SetFocused (focused); }
+    std::wstring        AccessibleName () const override;
+    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::TabStrip; }
 
 private:
     void  Commit (int newIndex);
