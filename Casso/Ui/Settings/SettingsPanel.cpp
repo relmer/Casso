@@ -4,15 +4,11 @@
 
 #include "../UiShell.h"
 #include "../../EmulatorShell.h"
-#include "../../AssetBootstrap.h"
 #include "../../Config/CrtPresets.h"
 #include "../../Config/UserConfigStore.h"
 #include "../../Config/IFileSystem.h"
 #include "../ThemeManager.h"
 #include "../Chrome/ChromeMetrics.h"
-
-#include "Core/MachineScanner.h"
-#include "Core/PathResolver.h"
 
 #include "resource.h"
 
@@ -114,21 +110,6 @@ namespace
     {
         RECT  rc = { l, t, l + w, t + h };
         return rc;
-    }
-
-
-    std::string NarrowMachineName (const std::wstring & wideName)
-    {
-        std::string  narrowName;
-
-
-
-        narrowName.reserve (wideName.size());
-        for (wchar_t c : wideName)
-        {
-            narrowName.push_back ((char) (unsigned char) c);
-        }
-        return narrowName;
     }
 
 
@@ -247,6 +228,8 @@ HRESULT SettingsPanel::Initialize (
     m_fs       = &fs;
 
     m_crt.Bind (&prefs, &themes, &m_state, &m_displayPage);
+    m_catalog.Bind (&emuShell, &ucs, &prefs, &fs, &themes, &m_state,
+                    &m_machinePage, &m_themePage);
 
     m_machinePage.SetState  (&m_state);
     m_machinePage.SetOnMachineSelected ([this] (const std::string & machineName) { OnMachineSelected (machineName); });
@@ -475,9 +458,9 @@ HRESULT SettingsPanel::Show ()
 
 
 
-    LoadCurrentMachineIntoState();
-    PopulateMachineList();
-    PopulateThemeList();
+    m_catalog.LoadCurrentMachineIntoState();
+    m_catalog.PopulateMachineList();
+    m_catalog.PopulateThemeList();
     m_pendingMachineSelect.clear();
     m_pendingTheme.clear();
 
@@ -1045,216 +1028,6 @@ void SettingsPanel::PreparePreviewFrame()
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LoadCurrentMachineIntoState
-//
-//  Re-snapshot the active machine's default JSON + user JSON into
-//  `m_state` so the panel always reflects whatever the shell is
-//  presently emulating. Failures fall back silently to the prior
-//  state (the panel still opens).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsPanel::LoadCurrentMachineIntoState ()
-{
-    std::wstring                   machineNameW;
-    std::string                    machineName;
-    std::vector<std::filesystem::path>  searchPaths;
-    std::filesystem::path           rel;
-    std::filesystem::path           configPath;
-    std::ifstream                   configFile;
-    std::stringstream               ss;
-    std::string                     jsonText;
-    JsonValue                       defaultJson;
-    JsonValue                       mergedJson;
-    JsonParseError                  parseErr;
-    HRESULT                         hr = S_OK;
-
-
-
-    if (m_emuShell == nullptr || m_ucs == nullptr || m_fs == nullptr)
-    {
-        return;
-    }
-
-    machineNameW = m_emuShell->CurrentMachineName();
-    machineName.reserve (machineNameW.size());
-    for (wchar_t c : machineNameW)
-    {
-        machineName.push_back ((char) (unsigned char) c);
-    }
-    if (machineName.empty())
-    {
-        return;
-    }
-
-    searchPaths = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
-                                                  PathResolver::GetWorkingDirectory());
-    rel         = std::filesystem::path ("Machines") / machineName / (machineName + ".json");
-    configPath  = PathResolver::FindFile (searchPaths, rel);
-    if (configPath.empty())
-    {
-        return;
-    }
-
-    configFile.open (configPath);
-    if (!configFile.good())
-    {
-        return;
-    }
-    ss << configFile.rdbuf();
-    jsonText = ss.str();
-
-    hr = JsonParser::Parse (jsonText, defaultJson, parseErr);
-    if (FAILED (hr))
-    {
-        return;
-    }
-
-    hr = m_ucs->Load (machineName, defaultJson, *m_fs, mergedJson);
-    if (FAILED (hr))
-    {
-        mergedJson = defaultJson;
-    }
-
-    hr = m_state.LoadFromMachine (machineName, defaultJson, mergedJson);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PopulateMachineList
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsPanel::PopulateMachineList ()
-{
-    std::vector<std::filesystem::path>  searchPaths;
-    std::vector<MachineInfo>            machinesInfo;
-    std::vector<std::string>            machineIds;
-    std::vector<std::wstring>           displayNames;
-    std::string                         activeMachine;
-    int                                 activeIndex = -1;
-    int                                 i           = 0;
-
-
-
-    if (m_emuShell == nullptr)
-    {
-        return;
-    }
-
-    activeMachine = NarrowMachineName (m_emuShell->CurrentMachineName());
-    searchPaths  = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
-                                                   PathResolver::GetWorkingDirectory());
-    machinesInfo = MachineScanner::Scan (searchPaths,
-                                         MachineScanner::ListDirectory,
-                                         MachineScanner::ReadFile);
-
-    for (const MachineInfo & info : machinesInfo)
-    {
-        std::string  machineId   = NarrowMachineName (info.fileName);
-        std::wstring displayName = info.displayName.empty() ? std::wstring (info.fileName) : info.displayName;
-
-        if (machineId == activeMachine)
-        {
-            activeIndex = i;
-        }
-
-        machineIds.push_back   (machineId);
-        displayNames.push_back (std::move (displayName));
-        i++;
-    }
-
-    if (machineIds.empty() && !activeMachine.empty())
-    {
-        machineIds.push_back (activeMachine);
-        displayNames.emplace_back (activeMachine.begin(), activeMachine.end());
-        activeIndex = 0;
-    }
-
-    m_machinePage.SetMachineList (std::move (machineIds), std::move (displayNames), activeIndex);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PopulateThemeList
-//
-//  Walks the ThemeManager's discovered themes, builds parallel id +
-//  display-name vectors, and hands them to the theme page so the user
-//  can pick from the live catalogue rather than a hardcoded list.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsPanel::PopulateThemeList ()
-{
-    std::vector<std::string>   themeIds;
-    std::vector<std::wstring>  displayNames;
-    std::string                activeName;
-    int                        activeIndex = -1;
-    int                        i           = 0;
-
-
-
-    if (m_themes == nullptr)
-    {
-        return;
-    }
-
-    activeName = m_themes->GetActiveThemeName();
-
-    for (const LoadedTheme & t : m_themes->GetAvailableThemes())
-    {
-        if (t.name == activeName)
-        {
-            activeIndex = i;
-        }
-        themeIds.push_back (t.name);
-        displayNames.emplace_back (t.name.begin(), t.name.end());
-        i++;
-    }
-
-    if (themeIds.empty() && !activeName.empty())
-    {
-        themeIds.push_back (activeName);
-        displayNames.emplace_back (activeName.begin(), activeName.end());
-        activeIndex = 0;
-    }
-
-    m_themePage.SetThemes (std::move (themeIds), std::move (displayNames), activeIndex);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnThemeSelected
-//
-//  Stage the user's theme pick. Like the machine selector, the actual
-//  Activate + persist is deferred until OK so Cancel leaves the chrome
-//  exactly as the user found it (no resize, no colour change, no drive
-//  bar update). CommitApply consumes m_pendingTheme.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsPanel::OnThemeSelected (const std::string & themeName)
-{
-    if (themeName.empty())
-    {
-        return;
-    }
-    m_pendingTheme = themeName;
-}
 
 
 
@@ -1263,15 +1036,16 @@ void SettingsPanel::OnThemeSelected (const std::string & themeName)
 //
 //  OnMachineSelected
 //
+//  Stage the user's pick. The actual SwitchMachine (including the
+//  possibly-modal ROM bootstrap) is deferred until OK is hit, so
+//  the user can still Cancel out without disturbing the running
+//  machine. CommitApply calls m_catalog.DoMachineSelect when this
+//  differs from the currently-loaded machine.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void SettingsPanel::OnMachineSelected (const std::string & machineName)
 {
-    // Stage the user's pick. The actual SwitchMachine (including the
-    // possibly-modal ROM bootstrap) is deferred until OK is hit, so
-    // the user can still Cancel out without disturbing the running
-    // machine. CommitApply calls DoMachineSelect when this differs
-    // from the currently-loaded machine.
     if (machineName.empty())
     {
         return;
@@ -1285,87 +1059,21 @@ void SettingsPanel::OnMachineSelected (const std::string & machineName)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DoMachineSelect
+//  OnThemeSelected
+//
+//  Stage the user's theme pick. Like the machine selector, the actual
+//  Activate + persist is deferred until OK so Cancel leaves the chrome
+//  exactly as the user found it. CommitApply consumes m_pendingTheme.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsPanel::DoMachineSelect (const std::string & machineName)
+void SettingsPanel::OnThemeSelected (const std::string & themeName)
 {
-    HRESULT           hr          = S_OK;
-    std::wstring      wideName (machineName.begin(), machineName.end());
-    HINSTANCE         hInstance   = (HINSTANCE) GetModuleHandleW (nullptr);
-    HWND              hwndRender  = (m_emuShell != nullptr) ? m_emuShell->m_renderHwnd : nullptr;
-    HWND              hwndParent  = (hwndRender != nullptr) ? GetAncestor (hwndRender, GA_ROOT)
-                                                            : GetActiveWindow();
-    std::vector<fs::path>  searchPaths;
-    fs::path          assetBaseDir;
-    std::string       bootstrapError;
-
-
-
-    if (m_emuShell == nullptr || machineName.empty())
+    if (themeName.empty())
     {
         return;
     }
-
-    // Pre-flight: ensure ROMs and (if applicable) Disk II audio for
-    // the target machine exist on disk before asking
-    // MachineManager::SwitchMachine to load the config. Without this,
-    // picking an uninstalled machine throws a "ROM file not found"
-    // error dialog. Mirrors the unified startup flow in Main.cpp.
-    searchPaths  = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
-                                                   PathResolver::GetWorkingDirectory());
-    assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
-
-    {
-        bool          hasDisk            = false;
-        std::string   hasDiskErr;
-        std::wstring  downloadedDisk;
-        HRESULT       hrHasDisk          = AssetBootstrap::HasDiskController (hInstance, wideName,
-                                                                              hasDisk, hasDiskErr);
-        IGNORE_RETURN_VALUE (hrHasDisk, S_OK);
-
-        // Switch-machine flow: never auto-download a boot disk -- the
-        // user explicitly picks the disk via File menu / settings.
-        hr = AssetBootstrap::RunStartupDownloader (hInstance, wideName, hwndParent,
-                                                   searchPaths, assetBaseDir, hasDisk,
-                                                   false, fs::path(),
-                                                   *m_prefs, downloadedDisk, bootstrapError);
-
-        // Audio consent may have been updated; flush prefs regardless.
-        if (m_ucs != nullptr && m_fs != nullptr)
-        {
-            HRESULT  hrSave = m_ucs->SaveAll (*m_prefs, *m_fs);
-            IGNORE_RETURN_VALUE (hrSave, S_OK);
-        }
-    }
-
-    if (hr == S_FALSE)
-    {
-        // User chose Exit; leave the active machine alone.
-        return;
-    }
-    if (FAILED (hr))
-    {
-        std::wstring     wErr (bootstrapError.begin(), bootstrapError.end());
-        DialogDefinition def  = {};
-
-        def.title = L"Casso";
-        def.icon  = DialogIcon::Error;
-        def.body.push_back ({ std::format (L"Asset download failed:\n{}", wErr), false, L"" });
-        def.buttons.push_back ({ L"OK", 0, true, true });
-        (void) m_emuShell->ShowModalDialog (def);
-        return;
-    }
-
-    // SwitchMachine mutates CPU/bus/device state and MUST run on the
-    // CPU thread (same as the File > Open Machine menu path). Posting
-    // IDM_FILE_OPEN routes through CpuManager's command queue so the
-    // teardown/recreate happens between CPU frames with no UI/CPU
-    // race. Hide the panel before posting -- we don't try to refresh
-    // it in place; reopen if the user wants to tweak more settings.
-    m_panelVisible = false;
-    m_emuShell->PostCommand (IDM_FILE_OPEN, std::string (machineName));
+    m_pendingTheme = themeName;
 }
 
 
@@ -1879,18 +1587,18 @@ void SettingsPanel::CommitApply ()
         }
     }
 
-    // DoMachineSelect handles the ROM bootstrap modal + posts the
-    // SwitchMachine command to the CPU thread. Either an explicit
-    // machine change OR a hardware-reset-requiring edit drives a
-    // full switch; pendingMachine wins because it's the user's
-    // explicit choice.
+    // m_catalog.DoMachineSelect handles the ROM bootstrap modal + posts
+    // the SwitchMachine command to the CPU thread. Either an explicit
+    // machine change OR a hardware-reset-requiring edit drives a full
+    // switch; pendingMachine wins because it's the user's explicit
+    // choice.
     if (!pendingMachine.empty() && pendingMachine != currentMachineNarrow)
     {
-        DoMachineSelect (pendingMachine);
+        (void) m_catalog.DoMachineSelect (pendingMachine);
     }
     else if (adapter.ResetQueued() && m_emuShell != nullptr && !currentMachineNarrow.empty())
     {
-        DoMachineSelect (currentMachineNarrow);
+        (void) m_catalog.DoMachineSelect (currentMachineNarrow);
     }
 
     m_panelVisible = false;
