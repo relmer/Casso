@@ -84,6 +84,16 @@ public:
                                            IDxuiTextRenderer & text,
                                            const IDxuiTheme  & theme) override;
 
+    //
+    //  IDxuiControl::Layout override — derives the title-bar geometry
+    //  from boundsDip's width (right - left) and scaler.Dpi(),
+    //  delegating to UpdateGeometry. boundsDip.left / top are ignored
+    //  because the title bar always sits flush against the host's
+    //  top-left client corner.
+    //
+    void                Layout            (const RECT          & boundsDip,
+                                           const DxuiDpiScaler & scaler) override;
+
     DxuiHitTestKind     ClassifyHit       (POINT clientDip) const override;
 
     int                 GetTitleHeight    () const { return m_layout.titleBar.bottom - m_layout.titleBar.top; }

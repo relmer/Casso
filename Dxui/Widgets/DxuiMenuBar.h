@@ -93,6 +93,16 @@ public:
                              uint32_t borderArgb,
                              uint32_t dividerArgb);
 
+    //
+    //  Install the text renderer used by the IDxuiControl::Layout
+    //  override to measure menu-title strings. The renderer must
+    //  outlive any subsequent Layout call. Passing nullptr (the
+    //  default) makes Layout fall back to a fixed-pitch estimate so
+    //  unit tests can drive layout without standing up a real
+    //  IDxuiTextRenderer.
+    //
+    void  SetTextRendererForMeasure (IDxuiTextRenderer * pText) { m_textRendererForMeasure = pText; }
+
     void  Layout            (int x, int y, int width, UINT dpi, IDxuiTextRenderer * pTextForMeasure = nullptr);
     void  Hide              ();
     void  Open              (int menuIndex, bool keyboardActivated);
@@ -186,4 +196,6 @@ private:
     uint32_t                      m_dropAccelOverride   = 0;
     uint32_t                      m_dropBorderOverride  = 0;
     uint32_t                      m_dropDividerOverride = 0;
+
+    IDxuiTextRenderer           * m_textRendererForMeasure = nullptr;
 };

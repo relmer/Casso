@@ -121,21 +121,25 @@ namespace
         int                           clientH,
         UINT                          dpi)
     {
-        int     bottomInset   = layout.bottomInsetPx;
-        int     commandBarTop = std::max (0, clientH - bottomInset);
-        int     gap           = MulDiv (s_kDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
-        int     bottomGap     = 0;
-        RECT    probe         = {};
-        int     widgetW       = 0;
-        int     widgetH       = 0;
-        int     totalW        = 0;
-        int     x             = 0;
-        int     y             = 0;
-        size_t  i             = 0;
+        int            bottomInset   = layout.bottomInsetPx;
+        int            commandBarTop = std::max (0, clientH - bottomInset);
+        int            gap           = MulDiv (s_kDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
+        int            bottomGap     = 0;
+        RECT           probe         = {};
+        int            widgetW       = 0;
+        int            widgetH       = 0;
+        int            totalW        = 0;
+        int            x             = 0;
+        int            y             = 0;
+        size_t         i             = 0;
+        DxuiDpiScaler  scaler;
+        RECT           anchor        = {};
 
 
 
-        driveChrome[0].Layout (0, 0, dpi);
+        scaler.SetDpi (dpi);
+        anchor = { 0, 0, 0, 0 };
+        driveChrome[0].Layout (anchor, scaler);
         probe   = driveChrome[0].OuterRect();
         widgetW = probe.right  - probe.left;
         widgetH = probe.bottom - probe.top;
@@ -149,18 +153,19 @@ namespace
 
         for (i = 0; i < driveChrome.size(); i++)
         {
-            int  widgetX       = x + static_cast<int> (i) * (widgetW + gap);
-            int  widgetCenterX = widgetX + widgetW / 2;
-            int  vanishingX    = clientW / 2;
+            int   widgetX       = x + static_cast<int> (i) * (widgetW + gap);
+            int   widgetCenterX = widgetX + widgetW / 2;
+            int   vanishingX    = clientW / 2;
             // Shrink factor matches the case-top depth ratio (back
             // edge is ~20% narrower than the front, so back center
             // shifts ~20% of the way toward the shared vanishing
             // point). Numerator chosen to match s_kCaseBackInsetPx
             // ratio in DriveWidget.cpp.
-            int  skewPx        = MulDiv (vanishingX - widgetCenterX, 27, 100);
+            int   skewPx        = MulDiv (vanishingX - widgetCenterX, 27, 100);
+            RECT  widgetAnchor  = { widgetX, y, widgetX, y };
 
             driveChrome[i].SetPerspectiveSkewPx (skewPx);
-            driveChrome[i].Layout (widgetX, y, dpi);
+            driveChrome[i].Layout (widgetAnchor, scaler);
         }
     }
 
@@ -615,6 +620,15 @@ HRESULT EmulatorShell::Initialize (
         IGNORE_RETURN_VALUE (hrUi, S_OK);
         m_uiShell.SetChrome (&m_titleBar, &m_mainMenu, &m_driveChrome, &m_chromeTheme);
         m_uiShell.SetJoystickButton (&m_joystickButton, &m_joystickTooltip);
+
+        // Inject the shared text renderer into chrome controls that
+        // need to measure label strings during Layout. Mirrors the
+        // UiShell-owned painter / text renderer pair so the chrome
+        // controls participate in the standard IDxuiControl::Layout
+        // contract without needing the renderer passed as a Layout
+        // parameter on every call.
+        m_mainMenu.SetTextRendererForMeasure (&m_uiShell.Text());
+        m_joystickButton.SetTextRenderer     (&m_uiShell.Text());
 
         m_themeManager    = std::make_unique<ThemeManager> (m_uiFs, themesDir.wstring());
         hrTheme           = m_themeManager->Discover();
@@ -1191,8 +1205,14 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             m_scaler.SetDpi (dpi);
         }
     }
-    m_titleBar.UpdateGeometry (clientW, dpi);
-    m_mainMenu.Layout (0, m_titleBar.GetTitleHeight(), clientW, dpi, &m_uiShell.Text());
+    {
+        RECT  titleBarBounds  = { 0, 0, clientW, 0 };
+        RECT  menuBarBounds   = {};
+
+        m_titleBar.Layout (titleBarBounds, m_scaler);
+        menuBarBounds = { 0, m_titleBar.GetTitleHeight(), clientW, m_titleBar.GetTitleHeight() };
+        m_mainMenu.Layout (menuBarBounds, m_scaler);
+    }
     m_mainMenu.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
     m_mainMenu.SetCheckQuery ([this] (WORD commandId) -> bool
     {
@@ -2001,13 +2021,16 @@ void EmulatorShell::LayoutJoystickButton (int clientW,
                                           int bandHeightPx,
                                           UINT dpi)
 {
-    int  centerX = clientW / 2;
-    int  centerY = bandTopPx + bandHeightPx / 2;
+    int            centerX = clientW / 2;
+    int            centerY = bandTopPx + bandHeightPx / 2;
+    DxuiDpiScaler  scaler;
+    RECT           anchor  = { centerX, centerY, centerX, centerY };
 
 
 
+    scaler.SetDpi (dpi);
     m_joystickButton.SetOn (m_mapArrowsToJoystick);
-    m_joystickButton.Layout (centerX, centerY, dpi, &m_uiShell.Text());
+    m_joystickButton.Layout (anchor, scaler);
     m_joystickTooltip.SetDpi (dpi);
 }
 
@@ -3657,13 +3680,17 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
     m_d3dRenderer.Resize (static_cast<int> (width), renderH);
 
     {
-        UINT     dpi   = GetDpiForWindow (m_hwnd);
-        HRESULT  hrUiR = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
-                                             m_d3dRenderer.GetBackBufferHeight(),
-                                             dpi);
+        UINT     dpi             = GetDpiForWindow (m_hwnd);
+        HRESULT  hrUiR           = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
+                                                       m_d3dRenderer.GetBackBufferHeight(),
+                                                       dpi);
+        RECT     titleBarBounds  = { 0, 0, static_cast<int> (width), 0 };
+        RECT     menuBarBounds   = {};
+
         IGNORE_RETURN_VALUE (hrUiR, S_OK);
-        m_titleBar.UpdateGeometry (static_cast<int> (width), dpi);
-        m_mainMenu.Layout (0, m_titleBar.GetTitleHeight(), static_cast<int> (width), dpi, &m_uiShell.Text());
+        m_titleBar.Layout (titleBarBounds, m_scaler);
+        menuBarBounds = { 0, m_titleBar.GetTitleHeight(), static_cast<int> (width), m_titleBar.GetTitleHeight() };
+        m_mainMenu.Layout (menuBarBounds, m_scaler);
 
         {
             LayoutManagerResult  layout = m_layout.Resolve (static_cast<int> (width), renderH);

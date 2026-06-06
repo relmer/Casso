@@ -331,7 +331,11 @@ namespace
             previewDrives[0].SyncFromState (mount0);
             previewDrives[1].SyncFromState (mount1);
 
-            previewDrives[0].Layout (0, 0, effectiveDpi);
+            DxuiDpiScaler  previewScaler;
+            RECT           previewAnchor = { 0, 0, 0, 0 };
+
+            previewScaler.SetDpi (effectiveDpi);
+            previewDrives[0].Layout (previewAnchor, previewScaler);
 
             RECT  probe   = previewDrives[0].OuterRect();
             int   widgetW = probe.right  - probe.left;
@@ -344,13 +348,14 @@ namespace
 
             for (d = 0; d < 2; d++)
             {
-                int  widgetX       = startX + d * (widgetW + gap);
-                int  widgetCenterX = widgetX + widgetW / 2;
-                int  vanishingX    = prevRect.left + prevW / 2;
-                int  skewPx        = MulDiv (vanishingX - widgetCenterX, 27, 100);
+                int   widgetX       = startX + d * (widgetW + gap);
+                int   widgetCenterX = widgetX + widgetW / 2;
+                int   vanishingX    = prevRect.left + prevW / 2;
+                int   skewPx        = MulDiv (vanishingX - widgetCenterX, 27, 100);
+                RECT  widgetAnchor  = { widgetX, widgetY, widgetX, widgetY };
 
                 previewDrives[(size_t) d].SetPerspectiveSkewPx (skewPx);
-                previewDrives[(size_t) d].Layout (widgetX, widgetY, effectiveDpi);
+                previewDrives[(size_t) d].Layout (widgetAnchor, previewScaler);
             }
 
             visual.dpi        = effectiveDpi;
@@ -363,14 +368,16 @@ namespace
             // blue LED reads in the band above the drives, matching the
             // live chrome's resting state when the user toggled it on.
             {
-                int  bandHeight = std::max (1, ScalePx (s_kPrevJoystickBandDp));
-                int  bandTop    = driveTop;
-                int  centerX    = prevRect.left + prevW / 2;
-                int  centerY    = bandTop + bandHeight / 2;
+                int   bandHeight = std::max (1, ScalePx (s_kPrevJoystickBandDp));
+                int   bandTop    = driveTop;
+                int   centerX    = prevRect.left + prevW / 2;
+                int   centerY    = bandTop + bandHeight / 2;
+                RECT  anchor     = { centerX, centerY, centerX, centerY };
 
-                previewButton.SetOn (true);
-                previewButton.Layout (centerX, centerY, effectiveDpi, &text);
-                previewButton.Paint  (painter, text, theme);
+                previewButton.SetTextRenderer (&text);
+                previewButton.SetOn           (true);
+                previewButton.Layout          (anchor, previewScaler);
+                previewButton.Paint           (painter, text, theme);
             }
         }
     }

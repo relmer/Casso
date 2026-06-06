@@ -35,10 +35,7 @@ public:
     DriveWidget  ();
     ~DriveWidget () override = default;
 
-    using IDxuiControl::Layout;
-
     void               Initialize      (int slot, int drive, IDriveCommandSink * pSink);
-    void               Layout          (int x, int y, UINT dpi);
     void               Hide            ()
     {
         m_bodyRect  = {};
@@ -57,6 +54,15 @@ public:
     void               Paint           (IDxuiPainter        & painter,
                                         IDxuiTextRenderer   & text,
                                         const IDxuiTheme    & theme) override;
+
+    //
+    //  IDxuiControl::Layout — treats boundsDip.left / boundsDip.top as
+    //  the widget's anchor and computes its own body / face / slot /
+    //  eject / label rects from per-DPI metrics scaled off
+    //  scaler.Dpi(). boundsDip.right / bottom are ignored (the widget
+    //  has an intrinsic size; SetBounds is overwritten with the
+    //  computed OuterRect at the end).
+    //
     void               Layout          (const RECT          & boundsDip,
                                         const DxuiDpiScaler & scaler) override;
 

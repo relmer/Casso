@@ -257,18 +257,27 @@ DriveWidget::DriveWidget ()
 //
 //  Layout
 //
+//  IDxuiControl override. Uses boundsDip.left / boundsDip.top as the
+//  anchor; ignores boundsDip.right / bottom because the widget has an
+//  intrinsic size derived from the scale constants. Calls SetBounds
+//  with the computed OuterRect so panel hit-testing sees the actual
+//  occupied region.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void DriveWidget::Layout (int x, int y, UINT dpi)
+void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int  bodyW       = Scale (s_kBodyWidthPx, dpi);
-    int  bodyH       = Scale (s_kBodyHeightPx, dpi);
-    int  faceH       = Scale (s_kFaceplateHeightPx, dpi);
-    int  slotInset   = Scale (s_kSlotInsetPx, dpi);
-    int  slotH       = Scale (s_kSlotHeightPx, dpi);
-    int  slotCY      = Scale (s_kSlotCenterYPx, dpi);
-    int  doorW       = Scale (s_kDoorWidthPx, dpi);
-    int  doorH       = Scale (s_kDoorHeightPx, dpi);
+    int   x           = boundsDip.left;
+    int   y           = boundsDip.top;
+    UINT  dpi         = scaler.Dpi();
+    int   bodyW       = Scale (s_kBodyWidthPx, dpi);
+    int   bodyH       = Scale (s_kBodyHeightPx, dpi);
+    int   faceH       = Scale (s_kFaceplateHeightPx, dpi);
+    int   slotInset   = Scale (s_kSlotInsetPx, dpi);
+    int   slotH       = Scale (s_kSlotHeightPx, dpi);
+    int   slotCY      = Scale (s_kSlotCenterYPx, dpi);
+    int   doorW       = Scale (s_kDoorWidthPx, dpi);
+    int   doorH       = Scale (s_kDoorHeightPx, dpi);
 
 
 
@@ -298,9 +307,9 @@ void DriveWidget::Layout (int x, int y, UINT dpi)
         m_labelRect.right  = m_bodyRect.right;
         m_labelRect.bottom = m_labelRect.top + Scale (s_kLabelStripHeightPx, dpi);
 
-        m_led.Layout (m_bodyRect.right - pad - Scale (10, dpi),
-                      m_bodyRect.top   + cBodyH / 2 - Scale (3, dpi),
-                      dpi);
+        m_led.PositionAt (m_bodyRect.right - pad - Scale (10, dpi),
+                          m_bodyRect.top   + cBodyH / 2 - Scale (3, dpi),
+                          dpi);
         SetBounds (OuterRect());
         return;
     }
@@ -332,29 +341,10 @@ void DriveWidget::Layout (int x, int y, UINT dpi)
     m_labelRect.right  = m_bodyRect.right;
     m_labelRect.bottom = m_labelRect.top + Scale (s_kLabelStripHeightPx, dpi);
 
-    m_led.Layout (m_faceRect.left + Scale (s_kLabelPadPx + s_kInUseWidthPx + s_kInUseGapPx, dpi),
-                  m_faceRect.top + Scale (s_kLedCenterYPx, dpi) - Scale (3, dpi),
-                  dpi);
+    m_led.PositionAt (m_faceRect.left + Scale (s_kLabelPadPx + s_kInUseWidthPx + s_kInUseGapPx, dpi),
+                      m_faceRect.top + Scale (s_kLedCenterYPx, dpi) - Scale (3, dpi),
+                      dpi);
     SetBounds (OuterRect());
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Layout
-//
-//  IDxuiControl override -- records the bounds via SetBounds so that
-//  parent-panel hit-testing sees a non-zero rect. The legacy x/y/dpi
-//  Layout (above) is the path that builds the drive geometry; this
-//  override simply stores the bounds for future panel-driven layout.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & /*scaler*/)
-{
-    SetBounds (boundsDip);
 }
 
 

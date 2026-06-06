@@ -14,14 +14,17 @@ public:
 
     TEST_METHOD (HitTest_Returns_Expected_Regions)
     {
-        DriveWidget  drive;
-        RECT         body  = {};
-        RECT         eject = {};
+        DriveWidget    drive;
+        RECT           body   = {};
+        RECT           eject  = {};
+        DxuiDpiScaler  scaler;
+        RECT           anchor = { 100, 200, 100, 200 };
 
 
 
+        scaler.SetDpi (96);
         drive.Initialize (6, 0, nullptr);
-        drive.Layout (100, 200, 96);
+        drive.Layout (anchor, scaler);
         body  = drive.BodyRect();
         eject = drive.EjectRect();
 
@@ -39,11 +42,14 @@ public:
     {
         DriveWidget       drive;
         DriveWidgetState  state;
+        DxuiDpiScaler     scaler;
+        RECT              anchor = { 100, 200, 100, 200 };
 
 
 
+        scaler.SetDpi (96);
         drive.Initialize (6, 0, nullptr);
-        drive.Layout (100, 200, 96);
+        drive.Layout (anchor, scaler);
         state.mountedImagePath = L"boot.dsk";
         state.motorOn.store (true, std::memory_order_relaxed);
         state.diskActive.store (false, std::memory_order_relaxed);
@@ -58,11 +64,14 @@ public:
     {
         DriveWidget       drive;
         DriveWidgetState  state;
+        DxuiDpiScaler     scaler;
+        RECT              anchor = { 100, 200, 100, 200 };
 
 
 
+        scaler.SetDpi (96);
         drive.Initialize (6, 0, nullptr);
-        drive.Layout (100, 200, 96);
+        drive.Layout (anchor, scaler);
         state.mountedImagePath = L"boot.dsk";
         state.motorOn.store (false, std::memory_order_relaxed);
         state.diskActive.store (true, std::memory_order_relaxed);

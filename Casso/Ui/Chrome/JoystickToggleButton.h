@@ -33,12 +33,15 @@ public:
     JoystickToggleButton  ();
     ~JoystickToggleButton () override = default;
 
-    using IDxuiControl::Layout;
+    //
+    //  Inject the text renderer used by Layout to measure the
+    //  "Joystick Mode" label so the button frame sizes correctly. The
+    //  renderer must outlive any subsequent Layout call. Pre-Initialize
+    //  callers may pass nullptr; the layout falls back to a fixed-pitch
+    //  estimate until a real renderer is wired.
+    //
+    void                  SetTextRenderer  (IDxuiTextRenderer * pText) { m_textRenderer = pText; }
 
-    void                  Layout       (int centerXPx,
-                                         int centerYPx,
-                                         UINT dpi,
-                                         IDxuiTextRenderer * pText);
     void                  Hide         ()              { m_bounds = {}; }
     void                  SetOn        (bool on)       { m_on      = on; }
     bool                  IsOn         () const        { return m_on; }
@@ -53,17 +56,29 @@ public:
     void                  Paint        (IDxuiPainter      & painter,
                                         IDxuiTextRenderer & text,
                                         const IDxuiTheme  & theme) override;
+
+    //
+    //  IDxuiControl::Layout — centers the button on the center of
+    //  boundsDip and sizes the frame to the measured "Joystick Mode"
+    //  label plus the LED and internal padding. The text renderer
+    //  installed via SetTextRenderer is consulted for measurement;
+    //  the button falls back to a fixed-pitch estimate when no
+    //  renderer is wired. boundsDip.right / boundsDip.bottom only
+    //  contribute the center coordinate; the final SetBounds is
+    //  written to the computed frame rect.
+    //
     void                  Layout       (const RECT          & boundsDip,
                                         const DxuiDpiScaler & scaler) override;
 
     static const wchar_t * TooltipText ();
 
 private:
-    RECT          m_bounds  = {};
-    LedIndicator  m_led;
-    UINT          m_dpi     = 96;
-    bool          m_on      = false;
-    bool          m_hovered = false;
-    bool          m_focused = false;
-    bool          m_pressed = false;
+    RECT                  m_bounds        = {};
+    LedIndicator          m_led;
+    UINT                  m_dpi           = 96;
+    bool                  m_on            = false;
+    bool                  m_hovered       = false;
+    bool                  m_focused       = false;
+    bool                  m_pressed       = false;
+    IDxuiTextRenderer *   m_textRenderer  = nullptr;
 };

@@ -247,6 +247,25 @@ void TitleBar::UpdateGeometry (int clientWidth, UINT dpi)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Layout
+//
+//  IDxuiControl override — delegates to UpdateGeometry using the
+//  bounds rect's width and the scaler's DPI. The title bar always
+//  anchors to the host's top-left client corner so boundsDip.left /
+//  top are ignored; SetBounds writes the computed title-bar rect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TitleBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    UpdateGeometry (boundsDip.right - boundsDip.left, scaler.Dpi());
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetMousePosition
 //
 ////////////////////////////////////////////////////////////////////////////////
