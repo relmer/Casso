@@ -249,6 +249,7 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
     // shouldn't audibly slam the drive door at app launch. Post-
     // startup mounts (user-initiated mid-session) always fire.
     if (!m_coldBootMountWindow &&
+        !m_programmaticRemount &&
         drive >= 0 &&
         static_cast<size_t> (drive) < m_diskAudioSources.size() &&
         m_diskAudioSources[drive] != nullptr)
@@ -348,6 +349,7 @@ void DiskManager::RemountSlot6Disks ()
         savedDisk[drive] = m_diskStore.GetSourcePath (6, drive);
     }
 
+    m_programmaticRemount = true;
     for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
     {
         if (!savedDisk[drive].empty())
@@ -356,6 +358,7 @@ void DiskManager::RemountSlot6Disks ()
             IGNORE_RETURN_VALUE (hrMount, S_OK);
         }
     }
+    m_programmaticRemount = false;
 }
 
 
