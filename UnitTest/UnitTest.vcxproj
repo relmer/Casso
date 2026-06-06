@@ -465,6 +465,7 @@
     <ClCompile Include="Dxui\DxuiPopupHostTests.cpp" />
     <ClCompile Include="Dxui\DxuiStackLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiViewportTests.cpp" />
+    <ClCompile Include="Dxui\DxuiWidgetIDxuiControlTests.cpp" />
     <ClCompile Include="Dxui\MockDxuiPainter.cpp" />
     <ClCompile Include="Dxui\MockDxuiTextRenderer.cpp" />
     <ClCompile Include="Dxui\MockDxuiTheme.cpp" />
