@@ -36,6 +36,16 @@ public:
     void SetTopInsetPx    (int insetPx)             { m_topInsetPx    = std::max (0, insetPx); }
     void SetBottomInsetPx (int insetPx)             { m_bottomInsetPx = std::max (0, insetPx); }
 
+    // Pixel-space rectangle inside the host swap-chain back buffer
+    // where the Apple ][ framebuffer should composite. EmulatorShell
+    // pushes a fresh rect from OnViewportBoundsChanged whenever the
+    // DxuiViewport child of the host's root panel reports new bounds.
+    // The renderer stores the rect for consumption by the upcoming
+    // host-swap-chain composite path; today it has no effect on the
+    // existing CassoRenderSurface render pipeline.
+    void SetTargetBounds  (const RECT & boundsPx)   { m_targetBoundsPx = boundsPx; }
+    RECT GetTargetBounds  () const                  { return m_targetBoundsPx; }
+
     // Returns true if the next frame would produce a visually
     // different result than the last one we presented. The shell uses
     // this to short-circuit the entire 9-pass post-process when nothing
@@ -137,6 +147,14 @@ private:
     int                              m_physicalBackBufferH = 0;
     int                              m_topInsetPx          = 0;
     int                              m_bottomInsetPx       = 0;
+
+    // Pixel-space rectangle inside the host swap-chain back buffer
+    // where the Apple ][ framebuffer should composite. Pushed in by
+    // EmulatorShell whenever the DxuiViewport child of the host's
+    // root panel reports new bounds. Consumed by the upcoming
+    // host-swap-chain composite path; today the existing
+    // CassoRenderSurface render pipeline ignores this field.
+    RECT                             m_targetBoundsPx      = {};
 
     int     m_texWidth         = 0;
     int     m_texHeight        = 0;

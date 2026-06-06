@@ -44,6 +44,8 @@
 #include "WasapiAudio.h"
 #include "Win32/DxuiHostWindow.h"
 #include "Win32/IDxuiHostClient.h"
+#include "Core/DxuiAbsoluteLayout.h"
+#include "Core/DxuiViewport.h"
 
 
 
@@ -211,6 +213,19 @@ private:
     void    ReconcileInitialClientSize ();
 
     HRESULT CreateRenderSurface ();
+
+    // Drives the host's root panel layout for the Apple ][ viewport
+    // child. Computes the framebuffer rectangle (client minus chrome
+    // bands) from the current LayoutManager result and invokes
+    // m_viewport->Layout, which fires OnViewportBoundsChanged when
+    // the rectangle differs from the last value reported.
+    void    UpdateViewportLayout         (int widthPx, int heightPx);
+
+    // Bounds-changed callback wired onto m_viewport. Stores the new
+    // pixel rectangle and forwards it to m_d3dRenderer.SetTargetBounds
+    // so the framebuffer compositor can track where to draw once the
+    // swap-chain restructure completes later in Phase 11d.
+    void    OnViewportBoundsChanged      (const RECT & boundsPx);
 
     // WM_KEYDOWN/WM_KEYUP helpers. HandleHostMetaShortcut consumes host-meta
     // keys (menu navigation, paste, reset); ApplyAppleModifierKeys mirrors
@@ -398,6 +413,16 @@ private:
     // (WM_KEYDOWN, WM_COMMAND, WM_SIZE, ...) dispatch through the
     // OnXxx overrides above.
     std::unique_ptr<DxuiHostWindow>  m_host;
+
+    // Apple ][ framebuffer viewport inside the host's root panel.
+    // Sized by EmulatorShell whenever chrome layout changes; the
+    // bounds-changed callback forwards the new rectangle to
+    // m_d3dRenderer.SetTargetBounds so the renderer knows where to
+    // composite the framebuffer once the swap-chain restructure
+    // completes later in Phase 11d. Non-owning pointer; the panel
+    // tree owns the DxuiViewport instance.
+    DxuiViewport *                   m_viewport          = nullptr;
+    RECT                             m_viewportBoundsPx  = {};
 
     // Joystick-mode toggle button (mirrors IDM_MACHINE_ARROWS_JOYSTICK),
     // centered in the drive bar above the drive widgets, with its own
