@@ -9,6 +9,7 @@
 #include "ThemePage.h"
 #include "SettingsWindow.h"
 
+#include "Core/DxuiPanel.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiModalScrim.h"
 #include "Widgets/DxuiTabStrip.h"
@@ -50,11 +51,11 @@ class IFileSystem;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class SettingsPanel
+class SettingsPanel : public DxuiPanel
 {
 public:
     SettingsPanel  ();
-    ~SettingsPanel ();
+    ~SettingsPanel () override;
 
     HRESULT Initialize (UiShell         & uiShell,
                         UserConfigStore & ucs,
@@ -72,19 +73,40 @@ public:
     void    UpdatePreviewOverlap (const RECT & emulatorContentScreenRect);
     void    PreparePreviewFrame();
     SIZE    PreferredClientSize (UINT dpi) const;
-    bool    IsVisible () const { return m_visible; }
+    bool    IsVisible () const { return m_panelVisible; }
     bool    IsPreviewTransparencyActive() const;
     RECT    GetFocusedControlClientRect() const;
 
     // Render + input routing. The owned settings popup composites Paint
     // into its own swap chain; the routing helpers consume popup-local
     // mouse / key events only while the panel is visible.
+    //
+    //  Bespoke input + paint shims preserved for UiShell coupling.
+    //  UiShell still routes WM_* messages through these signatures
+    //  rather than dispatching uniform DxuiMouseEvent / DxuiKeyEvent
+    //  values through the IDxuiControl base. Once UiShell + the
+    //  Settings popup share the unified Dxui dispatch path, these
+    //  collapse into the base DxuiPanel auto-fan-out and vanish.
+    //
     void    Layout    (int viewportWidthPx, int viewportHeightPx, const DxuiDpiScaler & scaler, int topInsetPx = 0);
     void    Paint     (DxuiPainter & painter, DxuiTextRenderer & text);
     void    OnMouseMove   (int x, int y);
     void    OnLButtonDown (int x, int y);
     void    OnLButtonUp   (int x, int y);
     bool    OnKey         (WPARAM vk);
+
+    // IDxuiControl pure-virtual overrides supplied by inheriting
+    // DxuiPanel. Implemented as adapters that defer to the bespoke
+    // entry points above so existing callers keep working.
+    void    Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void    Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+
+    // Surface the base overloads so virtual dispatch through
+    // IDxuiControl* still resolves correctly and direct callers can
+    // reach the base overload without name-hiding ambiguity.
+    using DxuiPanel::Layout;
+    using DxuiPanel::Paint;
+    using DxuiPanel::OnKey;
 
     const SettingsPanelState & State () const { return m_state; }
     SettingsPanelState       & MutableState () { return m_state; }
@@ -134,7 +156,13 @@ private:
 
     SettingsPanelState  m_state;
     SettingsWindow      m_window;
-    bool                m_visible = false;
+    // Bespoke visibility flag distinct from IDxuiControl::m_visible
+    // (which is inherited from DxuiPanel and stays at its default of
+    // true). The bespoke flag tracks whether the popup HWND is active
+    // and gates every input/paint shim; the IDxuiControl bit reflects
+    // panel-tree visibility and is reserved for the future unified
+    // dispatch path.
+    bool                m_panelVisible = false;
     std::string         m_pendingMachineSelect;
     std::string         m_pendingTheme;
 
