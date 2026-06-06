@@ -497,6 +497,144 @@ void DxuiHostWindow::SetClient (IDxuiHostClient * client)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetContentPanel
+//
+//  Replace the root panel with a caller-supplied tree. Lets a
+//  consumer install a fully-assembled content panel (DxuiDialog,
+//  SettingsWindow content, ...) as the host's paint / hit-test /
+//  focus / accessibility root in one shot. The previous root is
+//  destroyed. When the host already owns a real HWND, the new
+//  panel's bounds are set from the current client rect so it lays
+//  out immediately; in synthetic mode the panel inherits the
+//  previous root's bounds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::SetContentPanel (std::unique_ptr<DxuiPanel> panel)
+{
+    RECT  bounds        = {};
+    bool  liveLayout    = false;
+
+
+    DXUI_ASSERT_UI_THREAD();
+    assert (panel != nullptr && "DxuiHostWindow::SetContentPanel requires a non-null panel");
+
+    if (panel == nullptr)
+    {
+        return;
+    }
+
+    //
+    //  Capture the prior root's bounds (synthetic mode) or compute
+    //  them from the live client rect (full-ownership mode) before
+    //  swapping. Adopt mode without an HWND leaves bounds at zero;
+    //  WM_SIZE on the caller's HWND will drive layout later.
+    //
+    if (m_hwnd != nullptr)
+    {
+        RECT  clientRectPx = {};
+
+        if (GetClientRect (m_hwnd, &clientRectPx))
+        {
+            bounds.left   = 0;
+            bounds.top    = 0;
+            bounds.right  = MulDiv (clientRectPx.right,  (int) s_kDefaultDpi, (int) m_scaler.Dpi());
+            bounds.bottom = MulDiv (clientRectPx.bottom, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
+            liveLayout    = true;
+        }
+    }
+    else if (m_root != nullptr)
+    {
+        bounds = m_root->Bounds();
+    }
+
+    m_root = std::move (panel);
+
+    if (m_root != nullptr)
+    {
+        if (liveLayout)
+        {
+            m_root->Layout (bounds, m_scaler);
+        }
+        else
+        {
+            m_root->SetBounds (bounds);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTimer
+//
+//  Thin convenience wrapper around `::SetTimer` so consumers don't
+//  have to reach for the global symbol. WM_TIMER dispatches to
+//  `IDxuiHostClient::OnTimer` (DxuiHostWindow's WndProc already
+//  forwards the message). Returns true iff the timer was scheduled;
+//  no-ops in release when the host has no HWND.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHostWindow::SetTimer (UINT_PTR timerId, UINT intervalMs)
+{
+    UINT_PTR  result = 0;
+
+
+    DXUI_ASSERT_UI_THREAD();
+    assert (m_hwnd != nullptr && "DxuiHostWindow::SetTimer requires an HWND");
+
+    if (m_hwnd == nullptr)
+    {
+        return false;
+    }
+
+    result = ::SetTimer (m_hwnd, timerId, intervalMs, nullptr);
+
+    return (result != 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KillTimer
+//
+//  Thin convenience wrapper around `::KillTimer`. Returns true iff
+//  the timer was found and cancelled; no-ops in release when the
+//  host has no HWND.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHostWindow::KillTimer (UINT_PTR timerId)
+{
+    BOOL  result = FALSE;
+
+
+    DXUI_ASSERT_UI_THREAD();
+    assert (m_hwnd != nullptr && "DxuiHostWindow::KillTimer requires an HWND");
+
+    if (m_hwnd == nullptr)
+    {
+        return false;
+    }
+
+    result = ::KillTimer (m_hwnd, timerId);
+
+    return (result != FALSE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CreateDeviceAndSwapChain
 //
 //  D3D11 device with BGRA support (R2 — Direct2D interop requirement);

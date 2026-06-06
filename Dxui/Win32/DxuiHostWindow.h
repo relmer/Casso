@@ -168,6 +168,37 @@ public:
     void          SetTheme      (const IDxuiTheme * theme);
 
     //
+    //  Replace the host's root panel with a caller-supplied panel.
+    //  Lets a consumer install a fully-assembled content tree (e.g.
+    //  a DxuiDialog or a SettingsWindow content panel) as the host's
+    //  paint / hit-test / focus / accessibility root without going
+    //  through `Root().Add<...>()` piece-by-piece. The previous root
+    //  (and everything under it) is destroyed.
+    //
+    //  When `m_hwnd` already exists the new panel's bounds are
+    //  recomputed from the current client rect so it lays out
+    //  immediately; otherwise the next WM_SIZE / Create() drives
+    //  layout. In synthetic mode the panel inherits the previous
+    //  root's bounds.
+    //
+    //  Passing nullptr asserts in debug; release builds silently
+    //  drop the call. (The host always has a root panel.)
+    //
+    void          SetContentPanel (std::unique_ptr<DxuiPanel> panel);
+
+    //
+    //  Convenience wrappers around `::SetTimer` / `::KillTimer` for
+    //  consumers that want WM_TIMER ticks dispatched through
+    //  `IDxuiHostClient::OnTimer`. Both methods assert the host
+    //  owns a real HWND (full-ownership mode after Create()); in
+    //  synthetic / adopt-without-HWND modes they no-op in release.
+    //  Tests should drive `OnTimer` directly rather than relying
+    //  on the OS timer queue.
+    //
+    bool          SetTimer       (UINT_PTR timerId, UINT intervalMs);
+    bool          KillTimer      (UINT_PTR timerId);
+
+    //
     //  Install an optional client object that receives the Win32
     //  messages the host does not own end-to-end (commands,
     //  keyboard input, painting, timers, ...). The host stores a
