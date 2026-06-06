@@ -363,6 +363,7 @@ private:
     friend class MachineManager;
     friend class WindowCommandManager;
     friend class SettingsPanel;
+    friend class SettingsApplyController;
     friend class SettingsMachineCatalog;
 
     HACCEL              m_accelTable      = nullptr;

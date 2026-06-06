@@ -244,6 +244,7 @@
     <ClCompile Include="Ui\Settings\DisplayPage.cpp" />
     <ClCompile Include="Ui\Settings\HardwarePage.cpp" />
     <ClCompile Include="Ui\Settings\MachinePage.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsApplyController.cpp" />
     <ClCompile Include="Ui\Settings\SettingsDisplayCrtBridge.cpp" />
     <ClCompile Include="Ui\Settings\SettingsMachineCatalog.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPanel.cpp" />
@@ -321,6 +322,7 @@
     <ClInclude Include="Ui\Settings\DisplayPage.h" />
     <ClInclude Include="Ui\Settings\HardwarePage.h" />
     <ClInclude Include="Ui\Settings\MachinePage.h" />
+    <ClInclude Include="Ui\Settings\SettingsApplyController.h" />
     <ClInclude Include="Ui\Settings\SettingsDisplayCrtBridge.h" />
     <ClInclude Include="Ui\Settings\SettingsMachineCatalog.h" />
     <ClInclude Include="Ui\Settings\SettingsPanel.h" />
