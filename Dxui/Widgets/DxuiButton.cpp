@@ -191,3 +191,85 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                              s_kFocusRingArgb);
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiButton::Layout  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiButton::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    SetBounds (boundsDip);
+    m_rect = boundsDip;
+    m_scaler.SetDpi (scaler.Dpi());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiButton::OnMouse  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiButton::OnMouse (const DxuiMouseEvent & ev)
+{
+    bool  prevHover   = m_hover;
+    bool  prevPressed = m_pressed;
+
+
+    switch (ev.kind)
+    {
+    case DxuiMouseEventKind::Move:
+        SetMouse (ev.positionDip.x, ev.positionDip.y, m_pressed);
+        return m_hover != prevHover || m_pressed != prevPressed;
+    case DxuiMouseEventKind::Down:
+        if (ev.button == DxuiMouseButton::Left)
+        {
+            SetMouse (ev.positionDip.x, ev.positionDip.y, true);
+            return m_pressed;
+        }
+        return false;
+    case DxuiMouseEventKind::Up:
+        if (ev.button == DxuiMouseButton::Left)
+        {
+            bool  fire = m_pressed && HitTest (ev.positionDip.x, ev.positionDip.y);
+            SetMouse (ev.positionDip.x, ev.positionDip.y, false);
+            if (fire)
+            {
+                Click();
+            }
+            return fire;
+        }
+        return false;
+    default:
+        return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiButton::OnKey  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiButton::OnKey (const DxuiKeyEvent & ev)
+{
+    if (ev.kind != DxuiKeyEventKind::Down)
+    {
+        return false;
+    }
+
+    return OnKey (ev.vk);
+}

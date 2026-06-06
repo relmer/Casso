@@ -277,3 +277,113 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) co
                                                   DxuiTextVAlign::Center));
     }
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiRadioGroup::Layout  (IDxuiControl override)
+//
+//  Snaps the group's bounding box; per-option rects were already
+//  populated by the caller via SetOptions and remain unchanged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiRadioGroup::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    SetBounds (boundsDip);
+    m_scaler.SetDpi (scaler.Dpi());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiRadioGroup::Paint  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    UNREFERENCED_PARAMETER (theme);
+    static_cast<const DxuiRadioGroup *> (this)->Paint (painter, text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiRadioGroup::OnMouse  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiRadioGroup::OnMouse (const DxuiMouseEvent & ev)
+{
+    switch (ev.kind)
+    {
+    case DxuiMouseEventKind::Move:
+        SetMouseHover (ev.positionDip.x, ev.positionDip.y);
+        return false;
+    case DxuiMouseEventKind::Down:
+        if (ev.button == DxuiMouseButton::Left)
+        {
+            return OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+        }
+        return false;
+    case DxuiMouseEventKind::Up:
+        if (ev.button == DxuiMouseButton::Left)
+        {
+            return OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+        }
+        return false;
+    default:
+        return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiRadioGroup::OnKey  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiRadioGroup::OnKey (const DxuiKeyEvent & ev)
+{
+    if (ev.kind != DxuiKeyEventKind::Down)
+    {
+        return false;
+    }
+
+    return OnKey (ev.vk);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiRadioGroup::AccessibleName  (IDxuiControl override)
+//
+//  Returns the label of the selected option (or empty if no selection).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiRadioGroup::AccessibleName () const
+{
+    if (m_selected < 0 || m_selected >= (int) m_options.size())
+    {
+        return L"";
+    }
+
+    return m_options[(size_t) m_selected].label;
+}

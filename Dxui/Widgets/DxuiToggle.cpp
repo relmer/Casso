@@ -246,3 +246,89 @@ void DxuiToggle::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
                                                   DxuiTextVAlign::Center));
     }
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToggle::Layout  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToggle::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    SetBounds (boundsDip);
+    m_rect = boundsDip;
+    m_scaler.SetDpi (scaler.Dpi());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToggle::Paint  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToggle::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    UNREFERENCED_PARAMETER (theme);
+    static_cast<const DxuiToggle *> (this)->Paint (painter, text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToggle::OnMouse  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToggle::OnMouse (const DxuiMouseEvent & ev)
+{
+    switch (ev.kind)
+    {
+    case DxuiMouseEventKind::Move:
+        SetMouseHover (ev.positionDip.x, ev.positionDip.y);
+        return false;
+    case DxuiMouseEventKind::Down:
+        if (ev.button == DxuiMouseButton::Left)
+        {
+            return OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+        }
+        return false;
+    case DxuiMouseEventKind::Up:
+        if (ev.button == DxuiMouseButton::Left)
+        {
+            return OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+        }
+        return false;
+    default:
+        return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToggle::OnKey  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToggle::OnKey (const DxuiKeyEvent & ev)
+{
+    if (ev.kind != DxuiKeyEventKind::Down)
+    {
+        return false;
+    }
+
+    return OnKey (ev.vk);
+}
