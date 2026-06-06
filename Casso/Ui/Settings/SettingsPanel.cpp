@@ -130,6 +130,47 @@ namespace
         }
         return narrowName;
     }
+
+
+    //
+    //  Mouse / key event construction helpers. SettingsPanel still
+    //  receives raw (x, y) / WPARAM values from UiShell; pages and
+    //  widgets implement IDxuiControl::OnMouse / OnKey. These helpers
+    //  bridge the legacy signatures into the uniform DxuiMouseEvent /
+    //  DxuiKeyEvent values the Dxui dispatch path expects.
+    //
+    DxuiMouseEvent MakeMouseMove (int x, int y)
+    {
+        DxuiMouseEvent  ev;
+
+        ev.kind        = DxuiMouseEventKind::Move;
+        ev.positionDip = { x, y };
+        return ev;
+    }
+
+
+    DxuiMouseEvent MakeMouseButton (DxuiMouseEventKind kind, int x, int y)
+    {
+        DxuiMouseEvent  ev;
+
+        ev.kind        = kind;
+        ev.button      = DxuiMouseButton::Left;
+        ev.positionDip = { x, y };
+        return ev;
+    }
+
+
+    DxuiKeyEvent MakeKeyDown (WPARAM vk)
+    {
+        DxuiKeyEvent  ev;
+
+        ev.kind  = DxuiKeyEventKind::Down;
+        ev.vk    = vk;
+        ev.shift = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
+        ev.ctrl  = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
+        ev.alt   = (GetKeyState (VK_MENU)    & 0x8000) != 0;
+        return ev;
+    }
 }
 
 
@@ -536,7 +577,19 @@ void SettingsPanel::RebuildFocusOrder ()
 
     switch ((TabIndex) m_activeTab)
     {
-        case TabIndex::Machine:  m_machinePage.CollectFocusables  (m_focusSetters); break;
+        case TabIndex::Machine:
+            // Machine page focus order: machine, speed, WP[0], WP[1],
+            // writeMode, driveAudio, mechanism. The mechanism dropdown
+            // stays in the list whether or not drive audio is enabled;
+            // the widget ignores keyboard activation while disabled.
+            m_focusSetters.push_back ([this] (bool f) { m_machinePage.MachineDropdown().SetFocused  (f); });
+            m_focusSetters.push_back ([this] (bool f) { m_machinePage.SpeedDropdown().SetFocused    (f); });
+            m_focusSetters.push_back ([this] (bool f) { m_machinePage.WriteProtect(0).SetFocused    (f); });
+            m_focusSetters.push_back ([this] (bool f) { m_machinePage.WriteProtect(1).SetFocused    (f); });
+            m_focusSetters.push_back ([this] (bool f) { m_machinePage.WriteModeDropdown().SetFocused (f); });
+            m_focusSetters.push_back ([this] (bool f) { m_machinePage.DriveAudioToggle().SetFocused (f); });
+            m_focusSetters.push_back ([this] (bool f) { m_machinePage.MechanismDropdown().SetFocused (f); });
+            break;
         case TabIndex::Hardware: m_hardwarePage.CollectFocusables (m_focusSetters); break;
         case TabIndex::Theme:    m_themePage.CollectFocusables    (m_focusSetters); break;
         case TabIndex::Display:  m_displayPage.CollectFocusables  (m_focusSetters); break;
@@ -602,7 +655,10 @@ bool SettingsPanel::AnyDropdownOpenOnActivePage () const
 {
     if ((TabIndex) m_activeTab == TabIndex::Machine)
     {
-        return m_machinePage.AnyDropdownOpen();
+        return m_machinePage.MachineDropdown().IsOpen()  ||
+               m_machinePage.SpeedDropdown().IsOpen()    ||
+               m_machinePage.WriteModeDropdown().IsOpen() ||
+               m_machinePage.MechanismDropdown().IsOpen();
     }
     if ((TabIndex) m_activeTab == TabIndex::Theme)
     {
@@ -1803,7 +1859,7 @@ void SettingsPanel::OnMouseMove (int x, int y)
 
     switch ((TabIndex) m_activeTab)
     {
-        case TabIndex::Machine:  m_machinePage.OnMouseHover  (x, y); break;
+        case TabIndex::Machine:  (void) m_machinePage.OnMouse (MakeMouseMove (x, y)); break;
         case TabIndex::Hardware: m_hardwarePage.OnMouseHover (x, y); break;
         case TabIndex::Theme:    m_themePage.OnMouseHover    (x, y); break;
         case TabIndex::Display:
@@ -1845,7 +1901,7 @@ void SettingsPanel::OnLButtonDown (int x, int y)
 
     switch ((TabIndex) m_activeTab)
     {
-        case TabIndex::Machine:  m_machinePage.OnLButtonDown  (x, y); break;
+        case TabIndex::Machine:  (void) m_machinePage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Down, x, y)); break;
         case TabIndex::Hardware: m_hardwarePage.OnLButtonDown (x, y); break;
         case TabIndex::Theme:    m_themePage.OnLButtonDown    (x, y); break;
         case TabIndex::Display:  m_displayPage.OnLButtonDown  (x, y); break;
@@ -1888,7 +1944,7 @@ void SettingsPanel::OnLButtonUp (int x, int y)
     {
         switch ((TabIndex) m_activeTab)
         {
-            case TabIndex::Machine:  m_machinePage.OnLButtonUp  (x, y); break;
+            case TabIndex::Machine:  (void) m_machinePage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Up, x, y)); break;
             case TabIndex::Hardware: m_hardwarePage.OnLButtonUp (x, y); break;
             case TabIndex::Theme:    m_themePage.OnLButtonUp    (x, y); break;
             case TabIndex::Display:  m_displayPage.OnLButtonUp  (x, y); break;
@@ -1931,7 +1987,7 @@ bool SettingsPanel::OnKey (WPARAM vk)
     {
         switch ((TabIndex) m_activeTab)
         {
-            case TabIndex::Machine:  if (m_machinePage.OnKey (vk)) { return true; } break;
+            case TabIndex::Machine:  if (m_machinePage.OnKey (MakeKeyDown (vk))) { return true; } break;
             default: break;
         }
     }
@@ -1978,7 +2034,7 @@ bool SettingsPanel::OnKey (WPARAM vk)
 
     switch ((TabIndex) m_activeTab)
     {
-        case TabIndex::Machine:  if (m_machinePage.OnKey  (vk)) { return true; } break;
+        case TabIndex::Machine:  if (m_machinePage.OnKey  (MakeKeyDown (vk))) { return true; } break;
         case TabIndex::Hardware: if (m_hardwarePage.OnKey (vk)) { return true; } break;
         case TabIndex::Theme:    if (m_themePage.OnKey    (vk)) { return true; } break;
         case TabIndex::Display:  if (m_displayPage.OnKey  (vk)) { return true; } break;

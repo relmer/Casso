@@ -62,38 +62,24 @@ public:
     void  Layout                (const RECT & rect, const DxuiDpiScaler & scaler) override;
     void  Rebuild               ();
 
-    //
-    //  Bespoke input + paint shims preserved for SettingsPanel coupling.
-    //  SettingsPanel still routes WM_* messages page-by-page rather
-    //  than dispatching uniform DxuiMouseEvent / DxuiKeyEvent values
-    //  through the IDxuiControl base. Once SettingsPanel itself is
-    //  converted to a DxuiPanel tree, these shims collapse into the
-    //  base DxuiPanel::OnMouse / OnKey / Paint auto-fan-out and
-    //  vanish. TODO: temporary bridge for incremental page migration.
-    //
-    void  OnLButtonDown         (int x, int y);
-    void  OnLButtonUp           (int x, int y);
-    void  OnMouseHover          (int x, int y);
-    bool  OnKey                 (WPARAM vk);
-    void  Paint                 (DxuiPainter & painter, DxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    // Test accessors. Also surface mutable widget refs so the panel
+    // can inline focus-setter lambdas and dropdown-open queries that
+    // previously lived in CollectFocusables / AnyDropdownOpen shims.
+    DxuiDropdown          & MachineDropdown      () { return m_machineDropdown; }
+    DxuiDropdown          & SpeedDropdown        () { return m_speed; }
+    DxuiDropdown          & WriteModeDropdown    () { return m_writeMode; }
+    DxuiDropdown          & MechanismDropdown    () { return m_mechanism; }
+    DxuiToggle            & DriveAudioToggle     () { return m_driveAudio; }
+    DxuiCheckbox          & WriteProtect         (int drive) { return m_writeProtect[(size_t) drive]; }
 
-    // Surface the base DxuiPanel::OnKey override so virtual dispatch
-    // through IDxuiControl still resolves correctly and direct
-    // callers can reach the base overload without ambiguity.
-    using DxuiPanel::OnKey;
-
-    void  CollectFocusables (std::vector<std::function<void (bool)>> & out);
-    bool  AnyDropdownOpen   () const;
-
-    // Test accessors.
     const DxuiToggle      & DriveAudioToggle     () const { return m_driveAudio; }
     const DxuiCheckbox    & WriteProtect         (int drive) const { return m_writeProtect[(size_t) drive]; }
     const DxuiDropdown    & SpeedDropdown        () const { return m_speed; }
-    const DxuiDropdown    & WriteModeDropdown() const { return m_writeMode; }
+    const DxuiDropdown    & WriteModeDropdown    () const { return m_writeMode; }
     const DxuiDropdown    & MechanismDropdown    () const { return m_mechanism; }
     const std::vector<std::string> & Machines () const { return m_machines; }
     int               ActiveMachineIndex     () const { return m_activeMachineIndex; }
-    const DxuiDropdown  & MachineDropdown() const { return m_machineDropdown; }
+    const DxuiDropdown  & MachineDropdown    () const { return m_machineDropdown; }
 
 private:
     void  ApplyMechanismEnabled (bool enabled);
