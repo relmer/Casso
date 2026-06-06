@@ -458,6 +458,8 @@
     <ClCompile Include="Dxui\DxuiHostWindowAdoptModeTests.cpp" />
     <ClCompile Include="Dxui\DxuiHostWindowClientTests.cpp" />
     <ClCompile Include="Dxui\DxuiHostWindowTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDialogTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDialogManagerTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiMenuBarTests.cpp" />
