@@ -37,9 +37,15 @@ public:
     LedIndicator  ();
     ~LedIndicator () override = default;
 
-    using IDxuiControl::Layout;
-
-    void               Layout       (int x, int y, UINT dpi);
+    //
+    //  Position the indicator at (x, y) in pixels, with halo + core
+    //  rects sized off the supplied DPI. Used by parent widgets
+    //  (DriveWidget, JoystickToggleButton) that compute LED placement
+    //  inline with their own geometry. The IDxuiControl::Layout
+    //  override below derives the same placement from the bounds rect
+    //  origin.
+    //
+    void               PositionAt   (int x, int y, UINT dpi);
     void               SetState     (LedState state) { m_state = state; }
     LedState           GetState     () const { return m_state; }
     LedIndicatorLayout GetLayout    () const { return m_layout; }

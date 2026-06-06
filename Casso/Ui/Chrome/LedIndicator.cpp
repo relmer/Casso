@@ -31,11 +31,11 @@ namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Layout
+//  PositionAt
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LedIndicator::Layout (int x, int y, UINT dpi)
+void LedIndicator::PositionAt (int x, int y, UINT dpi)
 {
     int  effectiveDpi = (dpi == 0) ? s_kBaseDpi : (int) dpi;
     int  core         = MulDiv (s_kCorePx, effectiveDpi, s_kBaseDpi);
@@ -71,15 +71,15 @@ void LedIndicator::Layout (int x, int y, UINT dpi)
 //
 //  Layout
 //
-//  IDxuiControl override -- records the bounds via the base helper so
-//  that ChildCount-driven hit-testing in a parent panel sees a non-zero
-//  rect even before the legacy x/y/dpi Layout runs.
+//  IDxuiControl override -- treats bounds.left/top as the LED core
+//  origin and derives DPI from the scaler. Halo padding is added
+//  outside; the resulting SetBounds reflects the halo rect.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LedIndicator::Layout (const RECT & boundsDip, const DxuiDpiScaler & /*scaler*/)
+void LedIndicator::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    SetBounds (boundsDip);
+    PositionAt (boundsDip.left, boundsDip.top, scaler.Dpi());
 }
 
 

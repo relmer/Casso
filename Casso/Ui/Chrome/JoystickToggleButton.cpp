@@ -48,31 +48,35 @@ static constexpr wchar_t  s_kTooltip[] =
 //
 //  Layout
 //
-//  Centers the button horizontally on `centerXPx` with its bottom edge
-//  at `bottomYPx`, sizing the frame to the label (measured live when a
-//  text renderer is available, estimated otherwise) plus the LED and
-//  internal padding. The LED is positioned vertically centered against
-//  the left padding.
+//  IDxuiControl override. Centers the button on the center of
+//  boundsDip; sizes the frame to the measured "Joystick Mode" label
+//  (when a text renderer is wired via SetTextRenderer) plus the LED
+//  and internal padding. boundsDip.right / bottom only contribute to
+//  the center coordinate; the final SetBounds reflects the computed
+//  frame rect.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void JoystickToggleButton::Layout (int centerXPx, int centerYPx, UINT dpi, IDxuiTextRenderer * pText)
+void JoystickToggleButton::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    UINT   eDpi     = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
-    int    padX     = MulDiv (s_kPadXDp,   (int) eDpi, s_kBaseDpi);
-    int    padY     = MulDiv (s_kPadYDp,   (int) eDpi, s_kBaseDpi);
-    int    ledGap   = MulDiv (s_kLedGapDp, (int) eDpi, s_kBaseDpi);
-    int    ledCore  = MulDiv (s_kLedCorePx, (int) eDpi, s_kBaseDpi);
-    float  fontDip  = s_kFontDip * (float) eDpi / (float) s_kBaseDpi;
-    float  textW    = 0.0f;
-    float  textH    = 0.0f;
-    int    contentW = 0;
-    int    contentH = 0;
-    int    width    = 0;
-    int    height   = 0;
-    int    left     = 0;
-    int    top      = 0;
-    int    ledY     = 0;
+    int    centerXPx = (boundsDip.left + boundsDip.right)  / 2;
+    int    centerYPx = (boundsDip.top  + boundsDip.bottom) / 2;
+    UINT   dpi       = scaler.Dpi();
+    UINT   eDpi      = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
+    int    padX      = MulDiv (s_kPadXDp,   (int) eDpi, s_kBaseDpi);
+    int    padY      = MulDiv (s_kPadYDp,   (int) eDpi, s_kBaseDpi);
+    int    ledGap    = MulDiv (s_kLedGapDp, (int) eDpi, s_kBaseDpi);
+    int    ledCore   = MulDiv (s_kLedCorePx, (int) eDpi, s_kBaseDpi);
+    float  fontDip   = s_kFontDip * (float) eDpi / (float) s_kBaseDpi;
+    float  textW     = 0.0f;
+    float  textH     = 0.0f;
+    int    contentW  = 0;
+    int    contentH  = 0;
+    int    width     = 0;
+    int    height    = 0;
+    int    left      = 0;
+    int    top       = 0;
+    int    ledY      = 0;
 
 
 
@@ -83,9 +87,9 @@ void JoystickToggleButton::Layout (int centerXPx, int centerYPx, UINT dpi, IDxui
         ledCore = s_kLedCorePx;
     }
 
-    if (pText != nullptr)
+    if (m_textRenderer != nullptr)
     {
-        HRESULT  hrM = pText->MeasureString (s_kLabel, fontDip, s_kFontFamily, textW, textH);
+        HRESULT  hrM = m_textRenderer->MeasureString (s_kLabel, fontDip, s_kFontFamily, textW, textH);
 
         if (FAILED (hrM))
         {
@@ -121,26 +125,8 @@ void JoystickToggleButton::Layout (int centerXPx, int centerYPx, UINT dpi, IDxui
     m_bounds.bottom = top + height;
 
     ledY = top + (height - ledCore) / 2;
-    m_led.Layout (left + padX, ledY, eDpi);
+    m_led.PositionAt (left + padX, ledY, eDpi);
     SetBounds (m_bounds);
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Layout
-//
-//  IDxuiControl override -- stores bounds via SetBounds so panel-driven
-//  hit-testing works. The legacy center-anchored Layout above is the
-//  path that calculates geometry.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void JoystickToggleButton::Layout (const RECT & boundsDip, const DxuiDpiScaler & /*scaler*/)
-{
-    SetBounds (boundsDip);
 }
 
 

@@ -929,7 +929,7 @@ void DxuiMenuBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
             boundsDip.top,
             boundsDip.right - boundsDip.left,
             scaler.Dpi(),
-            nullptr);
+            m_textRendererForMeasure);
 }
 
 

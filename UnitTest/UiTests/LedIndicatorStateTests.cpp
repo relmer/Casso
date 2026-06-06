@@ -20,7 +20,7 @@ public:
 
 
 
-        led.Layout (20, 30, 96);
+        led.PositionAt (20, 30, 96);
         layout = led.GetLayout();
 
         Assert::IsTrue (layout.coreRect.right - layout.coreRect.left >= 6);
