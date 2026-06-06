@@ -11,7 +11,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RecordingSink
@@ -22,7 +21,6 @@ namespace
 {
     constexpr uint32_t  s_kFixtureClockSpeedHz    = 1023000;
     constexpr size_t    s_kFixtureDevices         = 4;
-
 
     class RecordingSink : public ISettingsApplySink
     {
@@ -442,10 +440,15 @@ public:
         Assert::AreEqual (0, page.ActiveMachineIndex());
         Assert::AreEqual (0, page.MachineDropdown().SelectedIndex());
 
-        page.OnLButtonDown (180, 20);
-        page.OnLButtonUp   (180, 20);
-        page.OnLButtonDown (180, 80);
-        page.OnLButtonUp   (180, 80);
+        // Drive the dropdown directly: production routes the popup
+        // through DxuiPopupHost (out-of-panel HWND), so the panel's
+        // auto fan-out never sees clicks on an open menu. This test
+        // exercises the dropdown's selection wiring, not the dispatch
+        // path, so we hit the dropdown's legacy entry points directly.
+        page.MachineDropdown().OnLButtonDown (180, 20);
+        page.MachineDropdown().OnLButtonUp   (180, 20);
+        page.MachineDropdown().OnLButtonDown (180, 80);
+        page.MachineDropdown().OnLButtonUp   (180, 80);
 
         Assert::AreEqual (std::string ("machineB"), st.MachineName());
         Assert::AreEqual (1, page.ActiveMachineIndex());
