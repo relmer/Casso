@@ -595,7 +595,26 @@ void SettingsPanel::RebuildFocusOrder ()
             m_focusSetters.push_back ([this] (bool f) { m_hardwarePage.Tree().SetFocused (f); });
             break;
         case TabIndex::Theme:    m_themePage.CollectFocusables    (m_focusSetters); break;
-        case TabIndex::Display:  m_displayPage.CollectFocusables  (m_focusSetters); break;
+        case TabIndex::Display:
+            // Display page focus order matches visual layout:
+            // monitor, brightness, contrast, gamma, scanline toggle +
+            // intensity, bloom toggle + radius + strength, color-bleed
+            // toggle + width, persistence, restore. Toggles stay in
+            // the list whether or not the matching slider is enabled.
+            m_focusSetters.push_back ([this] (bool f) { m_displayPage.MonitorDropdown().SetFocused     (f); });
+            m_focusSetters.push_back ([this] (bool f) { m_displayPage.BrightnessSlider().SetFocused    (f); });
+            m_focusSetters.push_back ([this] (bool f) { m_displayPage.ContrastSlider().SetFocused      (f); });
+            m_focusSetters.push_back ([this] (bool f) { m_displayPage.GammaSlider().SetFocused         (f); });
+            m_focusSetters.push_back ([this] (bool f) { m_displayPage.ScanlinesToggle().SetFocused     (f); });
+            m_focusSetters.push_back ([this] (bool f) { m_displayPage.ScanlinesSlider().SetFocused     (f); });
+            m_focusSetters.push_back ([this] (bool f) { m_displayPage.BloomToggle().SetFocused         (f); });
+            m_focusSetters.push_back ([this] (bool f) { m_displayPage.BloomRadiusSlider().SetFocused   (f); });
+            m_focusSetters.push_back ([this] (bool f) { m_displayPage.BloomStrengthSlider().SetFocused (f); });
+            m_focusSetters.push_back ([this] (bool f) { m_displayPage.ColorBleedToggle().SetFocused    (f); });
+            m_focusSetters.push_back ([this] (bool f) { m_displayPage.ColorBleedSlider().SetFocused    (f); });
+            m_focusSetters.push_back ([this] (bool f) { m_displayPage.PersistenceSlider().SetFocused   (f); });
+            m_focusSetters.push_back ([this] (bool f) { m_displayPage.RestoreButton().SetFocused       (f); });
+            break;
     }
 
     m_focusSetters.push_back ([this] (bool f) { m_cancelButton.SetFocused (f); });
@@ -669,7 +688,7 @@ bool SettingsPanel::AnyDropdownOpenOnActivePage () const
     }
     if ((TabIndex) m_activeTab == TabIndex::Display)
     {
-        return m_displayPage.AnyDropdownOpen();
+        return m_displayPage.MonitorDropdown().IsOpen();
     }
     return false;
 }
@@ -1866,8 +1885,11 @@ void SettingsPanel::OnMouseMove (int x, int y)
         case TabIndex::Hardware: (void) m_hardwarePage.OnMouse (MakeMouseMove (x, y)); break;
         case TabIndex::Theme:    m_themePage.OnMouseHover    (x, y); break;
         case TabIndex::Display:
-            m_displayPage.OnMouseHover (x, y);
-            m_displayPage.OnMouseMove  (x, y);   // slider drag tracking
+            // IDxuiControl::OnMouse with kind=Move handles both
+            // hover updates and active slider drag tracking — the
+            // slider only follows the cursor while its m_dragging
+            // latch is set, so siblings just refresh their hover.
+            (void) m_displayPage.OnMouse (MakeMouseMove (x, y));
             break;
     }
 }
@@ -1907,7 +1929,7 @@ void SettingsPanel::OnLButtonDown (int x, int y)
         case TabIndex::Machine:  (void) m_machinePage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Down, x, y)); break;
         case TabIndex::Hardware: (void) m_hardwarePage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Down, x, y)); break;
         case TabIndex::Theme:    m_themePage.OnLButtonDown    (x, y); break;
-        case TabIndex::Display:  m_displayPage.OnLButtonDown  (x, y); break;
+        case TabIndex::Display:  (void) m_displayPage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Down, x, y)); break;
     }
 }
 
@@ -1950,7 +1972,7 @@ void SettingsPanel::OnLButtonUp (int x, int y)
             case TabIndex::Machine:  (void) m_machinePage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Up, x, y)); break;
             case TabIndex::Hardware: (void) m_hardwarePage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Up, x, y)); break;
             case TabIndex::Theme:    m_themePage.OnLButtonUp    (x, y); break;
-            case TabIndex::Display:  m_displayPage.OnLButtonUp  (x, y); break;
+            case TabIndex::Display:  (void) m_displayPage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Up, x, y)); break;
         }
     }
 
@@ -2040,7 +2062,7 @@ bool SettingsPanel::OnKey (WPARAM vk)
         case TabIndex::Machine:  if (m_machinePage.OnKey  (MakeKeyDown (vk))) { return true; } break;
         case TabIndex::Hardware: if (m_hardwarePage.OnKey (MakeKeyDown (vk))) { return true; } break;
         case TabIndex::Theme:    if (m_themePage.OnKey    (vk)) { return true; } break;
-        case TabIndex::Display:  if (m_displayPage.OnKey  (vk)) { return true; } break;
+        case TabIndex::Display:  if (m_displayPage.OnKey  (MakeKeyDown (vk))) { return true; } break;
     }
 
     if (m_applyButton.OnKey  (vk)) { return true; }

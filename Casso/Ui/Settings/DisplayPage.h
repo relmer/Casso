@@ -127,34 +127,14 @@ public:
     void  Layout    (const RECT & rect, const DxuiDpiScaler & scaler) override;
     void  Rebuild   ();
 
-    //
-    //  Bespoke input + paint shims preserved for SettingsPanel coupling.
-    //  SettingsPanel still routes WM_* messages page-by-page rather
-    //  than dispatching uniform DxuiMouseEvent / DxuiKeyEvent values
-    //  through the IDxuiControl base. Once SettingsPanel itself is
-    //  converted to a DxuiPanel tree, these shims collapse into the
-    //  base DxuiPanel::OnMouse / OnKey / Paint auto-fan-out and
-    //  vanish. The extended Paint() overload below carries the
-    //  per-control fade alpha used by the live-preview focus highlight
-    //  and will be collapsed in the same pass. TODO: temporary bridge
-    //  for incremental page migration.
-    //
-    void  OnLButtonDown (int x, int y);
-    void  OnLButtonUp   (int x, int y);
-    void  OnMouseMove   (int x, int y);
-    void  OnMouseHover  (int x, int y);
-    bool  OnKey         (WPARAM vk);
-
-    // Surface the base DxuiPanel::OnKey override so virtual dispatch
-    // through IDxuiControl still resolves correctly and direct
-    // callers can reach the base overload without ambiguity.
-    using DxuiPanel::OnKey;
-
     // Render. When focusedControlId is -1 every control paints at
     // `nonFocusedAlpha`; otherwise the matching control paints at
     // `focusedAlpha` (used by the panel's live-preview fade so the
     // user can see the slider / dropdown they're interacting with
-    // while the rest of the UI fades out).
+    // while the rest of the UI fades out). The extended overload is
+    // still bespoke pending the DisplayPage paint collapse; the
+    // simple Paint(painter, text, theme) IDxuiControl override is
+    // inherited from DxuiPanel and unused on this page.
     //
     void  Paint (DxuiPainter & painter, DxuiTextRenderer & text,
                  const IDxuiTheme & theme,
@@ -162,8 +142,6 @@ public:
                  float        nonFocusedAlpha  = 1.0f,
                  float        focusedAlpha     = 1.0f) const;
 
-    void  CollectFocusables (std::vector<std::function<void (bool)>> & out);
-    bool  AnyDropdownOpen   () const { return m_monitor.IsOpen(); }
     RECT  FocusedControlRect (int controlId) const;
 
     // Test accessors.
@@ -180,6 +158,24 @@ public:
     const DxuiToggle   & ColorBleedToggle   () const { return m_colorBleedEn;     }
     const DxuiSlider   & ColorBleedSlider   () const { return m_colorBleedW;      }
     const DxuiButton   & RestoreButton      () const { return m_restore;          }
+
+    // Mutable accessors so SettingsPanel can inline focus-setter
+    // lambdas that previously lived in the bespoke CollectFocusables
+    // shim, and so it can query open-popup state without going through
+    // a page-level AnyDropdownOpen() helper.
+    DxuiDropdown & MonitorDropdown    () { return m_monitor;          }
+    DxuiSlider   & BrightnessSlider   () { return m_brightness;       }
+    DxuiSlider   & ContrastSlider     () { return m_contrast;         }
+    DxuiSlider   & GammaSlider        () { return m_gamma;            }
+    DxuiSlider   & PersistenceSlider  () { return m_persistence;      }
+    DxuiToggle   & ScanlinesToggle    () { return m_scanlinesEn;      }
+    DxuiSlider   & ScanlinesSlider    () { return m_scanlinesInt;     }
+    DxuiToggle   & BloomToggle        () { return m_bloomEn;          }
+    DxuiSlider   & BloomRadiusSlider  () { return m_bloomRadius;      }
+    DxuiSlider   & BloomStrengthSlider() { return m_bloomStrength;    }
+    DxuiToggle   & ColorBleedToggle   () { return m_colorBleedEn;     }
+    DxuiSlider   & ColorBleedSlider   () { return m_colorBleedW;      }
+    DxuiButton   & RestoreButton      () { return m_restore;          }
 
 private:
     SettingsPanelState  * m_state = nullptr;
