@@ -319,6 +319,51 @@ void TitleBar::ClearHover ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TitleBar::OnMouse (const DxuiMouseEvent & ev)
+{
+    switch (ev.kind)
+    {
+        case DxuiMouseEventKind::Move:
+        case DxuiMouseEventKind::Enter:
+            SetMousePosition (ev.positionDip.x, ev.positionDip.y, m_leftDown);
+            return m_hasHotButton;
+
+        case DxuiMouseEventKind::Down:
+            if (ev.button == DxuiMouseButton::Left)
+            {
+                SetMousePosition (ev.positionDip.x, ev.positionDip.y, true);
+                return m_hasHotButton;
+            }
+            return false;
+
+        case DxuiMouseEventKind::Up:
+            if (ev.button == DxuiMouseButton::Left)
+            {
+                SetMousePosition (ev.positionDip.x, ev.positionDip.y, false);
+                return m_hasHotButton;
+            }
+            return false;
+
+        case DxuiMouseEventKind::Leave:
+            ClearHover();
+            return true;
+
+        case DxuiMouseEventKind::Wheel:
+            return false;
+    }
+
+    return false;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ButtonVisual
 //
 ////////////////////////////////////////////////////////////////////////////////

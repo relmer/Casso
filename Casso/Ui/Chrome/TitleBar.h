@@ -83,6 +83,7 @@ public:
     void                Paint             (IDxuiPainter      & painter,
                                            IDxuiTextRenderer & text,
                                            const IDxuiTheme  & theme) override;
+    bool                OnMouse           (const DxuiMouseEvent & ev) override;
 
     //
     //  IDxuiControl::Layout override — derives the title-bar geometry
