@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "MockDxuiPainter.h"
+#include "MockDxuiTextRenderer.h"
 #include "MockDxuiTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -374,6 +376,33 @@ public:
         Assert::AreEqual (std::wstring (L"Minimize"), minBtn.AccessibleName());
         Assert::AreEqual (std::wstring (L"Maximize"), maxBtn.AccessibleName());
         Assert::AreEqual (std::wstring (L"Close"),    closeBtn.AccessibleName());
+    }
+
+
+    TEST_METHOD (SystemButton_MaximizedMaxButton_PaintsRestoreGlyph)
+    {
+        DxuiSystemButton    maxBtn (DxuiSystemButtonKind::Max);
+        DxuiDpiScaler       scaler;
+        MockDxuiPainter     painter;
+        MockDxuiTextRenderer text;
+        MockDxuiTheme       theme;
+        size_t              normalCallCount = 0;
+
+
+        scaler.SetDpi (96);
+        maxBtn.Layout (MakeRect (0, 0, s_kSystemButtonWidthDip, s_kCaptionHeightDip), scaler);
+        maxBtn.Paint (painter, text, theme);
+        normalCallCount = painter.Calls().size();
+
+        painter.Reset();
+        maxBtn.SetMaximized (true);
+        maxBtn.Paint (painter, text, theme);
+
+        Assert::IsTrue (painter.Calls().size() > normalCallCount);
+        Assert::AreEqual ((int) RecordedPaintKind::OutlineRect,
+                          (int) painter.Calls()[0].kind);
+        Assert::AreEqual ((int) RecordedPaintKind::OutlineRect,
+                          (int) painter.Calls()[1].kind);
     }
 
 

@@ -2,6 +2,7 @@
 
 #include "DxuiHostWindow.h"
 #include "DxuiPopupHost.h"
+#include "DxuiSystemButton.h"
 #include "IDxuiHostClient.h"
 #include "Theme/DxuiDwm.h"
 #include "Theme/IDxuiTheme.h"
@@ -21,6 +22,35 @@ namespace
     // generates a fresh class so multiple host windows in one
     // process don't share registration state.
     std::atomic<uint32_t>  s_classSerial { 0 };
+
+
+    void NotifySystemButtonsMaximizedInTree (IDxuiControl * control, bool maximized)
+    {
+        size_t              n      = 0;
+        size_t              i      = 0;
+        IDxuiControl      * child  = nullptr;
+        DxuiSystemButton  * button = nullptr;
+
+
+
+        if (control == nullptr)
+        {
+            return;
+        }
+
+        button = dynamic_cast<DxuiSystemButton *> (control);
+        if (button != nullptr && button->Kind() == DxuiSystemButtonKind::Max)
+        {
+            button->SetMaximized (maximized);
+        }
+
+        n = control->ChildCount();
+        for (i = 0; i < n; ++i)
+        {
+            child = control->Child (i);
+            NotifySystemButtonsMaximizedInTree (child, maximized);
+        }
+    }
 
 
     IDxuiControl *  FindNcSystemControlInTree (IDxuiControl * control, POINT clientDip)
@@ -287,6 +317,7 @@ HRESULT DxuiHostWindow::Create (const CreateParams & params)
     ApplyDwmConfiguration();
 
     m_focusManager.Attach (m_root.get());
+    NotifySystemButtonsMaximized (IsZoomed (m_hwnd) != FALSE);
 
 Error:
 
@@ -494,6 +525,10 @@ bool DxuiHostWindow::HandleMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & ou
             HandleDpiChanged (wp, lp);
             return false;
 
+        case WM_SIZE:
+            HandleSize (wp, lp);
+            return false;
+
         case WM_SETTINGCHANGE:
         case WM_THEMECHANGED:
         case WM_DWMCOLORIZATIONCOLORCHANGED:
@@ -617,6 +652,11 @@ void DxuiHostWindow::SetContentPanel (std::unique_ptr<DxuiPanel> panel)
         else
         {
             m_root->SetBounds (bounds);
+        }
+
+        if (m_hwnd != nullptr)
+        {
+            NotifySystemButtonsMaximized (IsZoomed (m_hwnd) != FALSE);
         }
     }
 }
@@ -1225,7 +1265,7 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             break;
 
         case WM_SIZE:
-            HandleSize (lp);
+            HandleSize (wp, lp);
             if (m_client != nullptr)
             {
                 (void) m_client->OnSize (LOWORD (lp), HIWORD (lp));
@@ -1680,7 +1720,7 @@ void DxuiHostWindow::HandleDpiChanged (WPARAM wp, LPARAM lp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::HandleSize (LPARAM lp)
+void DxuiHostWindow::HandleSize (WPARAM wp, LPARAM lp)
 {
     HRESULT  hr        = S_OK;
     RECT     rcClient  = {};
@@ -1691,6 +1731,15 @@ void DxuiHostWindow::HandleSize (LPARAM lp)
 
     (void) widthPx;
     (void) heightPx;
+
+    if (wp == SIZE_MAXIMIZED)
+    {
+        NotifySystemButtonsMaximized (true);
+    }
+    else if (wp == SIZE_RESTORED)
+    {
+        NotifySystemButtonsMaximized (false);
+    }
 
     if (m_swapChain)
     {
@@ -1832,6 +1881,19 @@ IDxuiControl * DxuiHostWindow::FindNcSystemControlAt (POINT clientDip) const
     return nullptr;
 }
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NotifySystemButtonsMaximized
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::NotifySystemButtonsMaximized (bool maximized)
+{
+    NotifySystemButtonsMaximizedInTree (m_root.get(), maximized);
+}
 
 
 

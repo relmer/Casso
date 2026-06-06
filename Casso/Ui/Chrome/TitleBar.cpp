@@ -11,6 +11,7 @@ namespace
     constexpr wchar_t   s_kMdl2Family[]      = L"Segoe MDL2 Assets";
     constexpr wchar_t   s_kMinGlyph[]        = L"\xE921";
     constexpr wchar_t   s_kMaxGlyph[]        = L"\xE922";
+    constexpr wchar_t   s_kRestoreGlyph[]    = L"\xE923";
     constexpr wchar_t   s_kCloseGlyph[]      = L"\xE8BB";
 
 
@@ -473,9 +474,9 @@ void TitleBar::Paint (
                                               TitleBarLayout::WindowsUiFontFamily(),
                                               DxuiTextRenderer::HAlign::Left,
                                               DxuiTextRenderer::VAlign::Center));
-    PaintButton (painter, text, m_layout.minButton,   s_kMinGlyph,   minColor,   glyphArgb,  dpi);
-    PaintButton (painter, text, m_layout.maxButton,   s_kMaxGlyph,   maxColor,   glyphArgb,  dpi);
-    PaintButton (painter, text, m_layout.closeButton, s_kCloseGlyph, closeColor, closeGlyph, dpi);
+    PaintButton (painter, text, m_layout.minButton,   s_kMinGlyph,                        minColor,   glyphArgb,  dpi);
+    PaintButton (painter, text, m_layout.maxButton,   m_maximized ? s_kRestoreGlyph : s_kMaxGlyph, maxColor,   glyphArgb,  dpi);
+    PaintButton (painter, text, m_layout.closeButton, s_kCloseGlyph,                      closeColor, closeGlyph, dpi);
 }
 
 

@@ -12,6 +12,7 @@ namespace
     // Glyph stroke thickness and inset within the button rect, in DIPs.
     constexpr float  s_kGlyphInsetDip      = 6.0f;
     constexpr float  s_kGlyphThicknessDip  = 1.0f;
+    constexpr float  s_kRestoreOffsetDip   = 3.0f;
 }
 
 
@@ -97,10 +98,11 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     float    glyphTop    = 0.0f;
     float    glyphRight  = 0.0f;
     float    glyphBottom = 0.0f;
-    float    midX        = 0.0f;
-    float    midY        = 0.0f;
-    float    strokePx    = 0.0f;
-    uint32_t fg          = 0;
+    float    midX            = 0.0f;
+    float    midY            = 0.0f;
+    float    strokePx        = 0.0f;
+    float    restoreOffsetPx = 0.0f;
+    uint32_t fg              = 0;
 
 
 
@@ -146,10 +148,11 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 
     glyphLeft   = xPx + insetPx;
     glyphTop    = yPx + insetPx;
-    glyphRight  = xPx + widthPx  - insetPx;
-    glyphBottom = yPx + heightPx - insetPx;
-    midX        = (glyphLeft + glyphRight) * 0.5f;
-    midY        = (glyphTop  + glyphBottom) * 0.5f;
+    glyphRight      = xPx + widthPx  - insetPx;
+    glyphBottom     = yPx + heightPx - insetPx;
+    midX            = (glyphLeft + glyphRight) * 0.5f;
+    midY            = (glyphTop  + glyphBottom) * 0.5f;
+    restoreOffsetPx = m_scaler.Pxf (s_kRestoreOffsetDip);
 
     switch (m_kind)
     {
@@ -163,13 +166,30 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
             break;
 
         case DxuiSystemButtonKind::Max:
-            // Hollow rectangle (uses OutlineRect for the four sides).
-            painter.OutlineRect (glyphLeft,
-                                 glyphTop,
-                                 glyphRight  - glyphLeft,
-                                 glyphBottom - glyphTop,
-                                 strokePx,
-                                 fg);
+            if (m_maximized)
+            {
+                painter.OutlineRect (glyphLeft + restoreOffsetPx,
+                                     glyphTop,
+                                     glyphRight - glyphLeft - restoreOffsetPx,
+                                     glyphBottom - glyphTop - restoreOffsetPx,
+                                     strokePx,
+                                     fg);
+                painter.OutlineRect (glyphLeft,
+                                     glyphTop + restoreOffsetPx,
+                                     glyphRight - glyphLeft - restoreOffsetPx,
+                                     glyphBottom - glyphTop - restoreOffsetPx,
+                                     strokePx,
+                                     fg);
+            }
+            else
+            {
+                painter.OutlineRect (glyphLeft,
+                                     glyphTop,
+                                     glyphRight  - glyphLeft,
+                                     glyphBottom - glyphTop,
+                                     strokePx,
+                                     fg);
+            }
             break;
 
         case DxuiSystemButtonKind::Close:
