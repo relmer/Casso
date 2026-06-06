@@ -3,6 +3,7 @@
 #include "Chrome/ChromedPanelWindow.h"
 #include "Chrome/IChromedPanelContent.h"
 #include "Disk2DebugPanelLayout.h"
+#include "Core/DxuiPanel.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiLabel.h"
@@ -43,7 +44,8 @@ class TitleBar;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Disk2DebugPanel : public IChromedPanelContent,
+class Disk2DebugPanel : public DxuiPanel,
+                         public IChromedPanelContent,
                          public IDisk2EventSink,
                          public IDriveAudioEventSink
 {
@@ -104,6 +106,23 @@ public:
     bool     IsContentActive    () const                            override;
     bool     IsNonModal         () const                            override { return true; }
     HCURSOR  OnSetCursor        (int x, int y)                      override;
+
+    // IDxuiControl pure-virtual overrides supplied by inheriting
+    // DxuiPanel. The chrome shell drives this panel directly through
+    // OnHostResize / Render and the bespoke IChromedPanelContent input
+    // shims above; these adapters exist so an IDxuiControl-tree walk
+    // can reach the panel without an explicit downcast. They are
+    // intentionally no-ops -- the bespoke pipeline owns layout and
+    // paint until the unified Dxui dispatch path absorbs the chrome.
+    void    Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void    Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+
+    // Surface the base overloads so virtual dispatch through
+    // IDxuiControl* still resolves and direct callers can reach the
+    // base overload without name-hiding ambiguity.
+    using DxuiPanel::Layout;
+    using DxuiPanel::Paint;
+    using DxuiPanel::OnKey;
 
     // IDisk2EventSink. Producer thread -- push into the lock-free ring;
     // the render thread drains and projects to display rows per frame.
