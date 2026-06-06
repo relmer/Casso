@@ -520,6 +520,174 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Initialize2
+//
+//  Adopt-mode: skip device + swap-chain creation and reuse the
+//  externally-owned device, context, and swap chain (typically
+//  DxuiHostWindow's). Still creates this renderer's own back-buffer
+//  RTV, dynamic upload texture, sampler, shaders, vertex / index
+//  buffers, and CRT post-process chain. Callers in this mode invoke
+//  UploadAndComposite once per frame; the host owns Present.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT D3DRenderer::Initialize2 (
+    ID3D11Device          * pDevice,
+    ID3D11DeviceContext   * pContext,
+    IDXGISwapChain1       * pSwapChain,
+    int                     texWidth,
+    int                     texHeight,
+    const RECT            & initialTargetRect)
+{
+    HRESULT                hr             = S_OK;
+    DXGI_SWAP_CHAIN_DESC1  scd            = {};
+    int                    initialW       = 0;
+    int                    initialH       = 0;
+
+
+    CBRA (pDevice);
+    CBRA (pContext);
+    CBRA (pSwapChain);
+
+    m_device            = pDevice;
+    m_context           = pContext;
+    m_hwnd              = nullptr;
+    m_externalSwapChain = true;
+    m_texWidth          = texWidth;
+    m_texHeight         = texHeight;
+    m_targetBoundsPx    = initialTargetRect;
+
+    // SetSourceSize lives on IDXGISwapChain2; QI up so we can share
+    // the same hot-path resize trick the standalone Initialize uses.
+    // Every Windows 8.1+ system Casso targets exposes IDXGISwapChain2.
+    hr = pSwapChain->QueryInterface (IID_PPV_ARGS (m_swapChain.GetAddressOf()));
+    CHRA (hr);
+
+    // Pull initial dimensions from the swap chain itself; the host
+    // sized it to match its client area at Create() time, so this
+    // matches what the host will eventually composite into.
+    hr = m_swapChain->GetDesc1 (&scd);
+    CHRA (hr);
+
+    initialW = static_cast<int> (scd.Width);
+    initialH = static_cast<int> (scd.Height);
+
+    m_physicalBackBufferW = initialW;
+    m_physicalBackBufferH = initialH;
+    m_backBufferW         = initialW;
+    m_backBufferH         = initialH;
+
+    hr = CreateRenderResources (texWidth, texHeight);
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateRenderResources
+//
+//  Shared post-device-creation pipeline setup invoked by Initialize
+//  (after the device + swap chain are stood up) and by Initialize2
+//  (after the externally-owned device + swap chain are adopted).
+//  Builds the back-buffer RTV, dynamic upload texture, sampler,
+//  shader programs, vertex / index buffers, and CRT post-process
+//  chain. Does NOT call SetSourceSize -- callers handle DWM
+//  sub-rect negotiation themselves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT D3DRenderer::CreateRenderResources (int texWidth, int texHeight)
+{
+    HRESULT                  hr        = S_OK;
+    ComPtr<ID3D11Texture2D>  backBuffer;
+    D3D11_TEXTURE2D_DESC     td        = {};
+    D3D11_SAMPLER_DESC       sd        = {};
+    D3D11_BUFFER_DESC        bd        = {};
+    D3D11_SUBRESOURCE_DATA   initData  = {};
+
+    Vertex vertices[] =
+    {
+        { -1.0f,  1.0f, 0.0f, 0.0f },  // Top-left
+        {  1.0f,  1.0f, 1.0f, 0.0f },  // Top-right
+        { -1.0f, -1.0f, 0.0f, 1.0f },  // Bottom-left
+        {  1.0f, -1.0f, 1.0f, 1.0f },  // Bottom-right
+    };
+
+    UINT16 indices[] = { 0, 1, 2, 2, 1, 3 };
+
+
+    hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (backBuffer.GetAddressOf()));
+    CHRA (hr);
+    hr = m_device->CreateRenderTargetView (backBuffer.Get(), nullptr, m_rtv.GetAddressOf());
+    CHRA (hr);
+
+    m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf(), nullptr);
+
+    td.Width            = static_cast<UINT> (texWidth);
+    td.Height           = static_cast<UINT> (texHeight);
+    td.MipLevels        = 1;
+    td.ArraySize        = 1;
+    td.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
+    td.SampleDesc.Count = 1;
+    td.Usage            = D3D11_USAGE_DYNAMIC;
+    td.BindFlags        = D3D11_BIND_SHADER_RESOURCE;
+    td.CPUAccessFlags   = D3D11_CPU_ACCESS_WRITE;
+
+    hr = m_device->CreateTexture2D (&td, nullptr, m_texture.GetAddressOf());
+    CHRA (hr);
+    hr = m_device->CreateShaderResourceView (m_texture.Get(), nullptr, m_srv.GetAddressOf());
+    CHRA (hr);
+
+    sd.Filter   = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    sd.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sd.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+
+    hr = m_device->CreateSamplerState (&sd, m_sampler.GetAddressOf());
+    CHRA (hr);
+
+    hr = InitializeShaders();
+    CHRA (hr);
+
+    bd.ByteWidth = sizeof (vertices);
+    bd.Usage     = D3D11_USAGE_DEFAULT;
+    bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+
+    initData.pSysMem = vertices;
+
+    hr = m_device->CreateBuffer (&bd, &initData, m_vertexBuffer.GetAddressOf());
+    CHRA (hr);
+
+    bd               = {};
+    bd.ByteWidth     = sizeof (indices);
+    bd.Usage         = D3D11_USAGE_DEFAULT;
+    bd.BindFlags     = D3D11_BIND_INDEX_BUFFER;
+
+    initData         = {};
+    initData.pSysMem = indices;
+
+    hr = m_device->CreateBuffer (&bd, &initData, m_indexBuffer.GetAddressOf());
+    CHRA (hr);
+
+    hr = m_crtPost.Initialize (m_device.Get(), m_context.Get());
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InitializeShaders
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -776,6 +944,108 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
     hr = m_swapChain->Present (1, 0);
     CHRA (hr);
 
+    m_lastPresentedParams = m_crtParams;
+    if (framebuffer != nullptr)
+    {
+        m_idleFramesSinceFbChange = 0;
+    }
+    else
+    {
+        m_idleFramesSinceFbChange++;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UploadAndComposite
+//
+//  Adopt-mode entry point (Initialize2). Performs the same framebuffer
+//  upload + CRT post-process pass as UploadAndPresent but skips the
+//  swap-chain Present -- the host owns the Present call -- and the
+//  after-blit chrome hook, since chrome paints via the host's panel-
+//  tree Paint pump rather than this renderer's hook.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT D3DRenderer::UploadAndComposite (const uint32_t * framebuffer)
+{
+    HRESULT                    hr            = S_OK;
+    D3D11_MAPPED_SUBRESOURCE   mapped        = {};
+    const uint32_t           * src           = nullptr;
+    Byte                     * dst           = nullptr;
+    float                      clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    RECT                       contentRect   = {};
+    RECT                       fittedRect    = {};
+
+
+    BAIL_OUT_IF (m_context == nullptr || m_swapChain == nullptr, S_OK);
+    BAIL_OUT_IF (m_deviceRemoved   || m_rtv == nullptr,          S_OK);
+
+    if (m_texture != nullptr && framebuffer != nullptr)
+    {
+        hr = m_context->Map (m_texture.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+        CHRA (hr);
+
+        src = framebuffer;
+        dst = static_cast<Byte *> (mapped.pData);
+
+        for (int y = 0; y < m_texHeight; y++)
+        {
+            memcpy (dst, src, static_cast<size_t> (m_texWidth) * 4);
+            src += m_texWidth;
+            dst += mapped.RowPitch;
+        }
+
+        m_context->Unmap (m_texture.Get(), 0);
+    }
+
+    m_context->ClearRenderTargetView (m_rtv.Get(), clearColor);
+
+    // In Initialize2 mode the target rectangle comes from the
+    // DxuiViewport bounds (pushed in by EmulatorShell), not from
+    // the chrome inset side-channel. Fall back to the full back
+    // buffer if no viewport bounds have been reported yet.
+    if (m_targetBoundsPx.right > m_targetBoundsPx.left &&
+        m_targetBoundsPx.bottom > m_targetBoundsPx.top)
+    {
+        contentRect = m_targetBoundsPx;
+    }
+    else
+    {
+        contentRect.left   = 0;
+        contentRect.top    = 0;
+        contentRect.right  = m_backBufferW;
+        contentRect.bottom = m_backBufferH;
+    }
+
+    {
+        ScopedPerfTimer  timer ("D3DRenderer.CrtPostProcess");
+
+
+        if (m_texWidth > 0 && m_texHeight > 0 && m_backBufferW > 0 && m_backBufferH > 0)
+        {
+            fittedRect = ComputeAspectFitRectInRect (contentRect, m_texWidth, m_texHeight);
+        }
+
+        CacheEmulatorContentScreenRect (fittedRect);
+
+        hr = m_crtPost.Process (m_srv.Get(),
+                                m_rtv.Get(),
+                                m_crtParams,
+                                fittedRect,
+                                m_backBufferW,
+                                m_backBufferH);
+        CHRA (hr);
+    }
+
+    m_redrawForced        = false;
     m_lastPresentedParams = m_crtParams;
     if (framebuffer != nullptr)
     {

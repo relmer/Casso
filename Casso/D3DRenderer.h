@@ -21,7 +21,36 @@ public:
     ~D3DRenderer();
 
     HRESULT Initialize (HWND hwnd, int texWidth, int texHeight);
+
+    // Adopt-mode constructor for the host-owned swap chain. Skips
+    // device + swap-chain creation; uses the externally-provided
+    // ID3D11Device / ID3D11DeviceContext / IDXGISwapChain1 directly.
+    // The renderer still creates its own back-buffer RTV (a second
+    // view onto the same buffer is fine in D3D11), texture, sampler,
+    // shaders, vertex / index buffers, and CRT post-process chain.
+    // Call UploadAndComposite (not UploadAndPresent) from this mode --
+    // the host owns Present.
+    //
+    // `initialTargetRect` is the pixel-space rectangle inside the
+    // back buffer where the Apple ][ framebuffer should composite;
+    // EmulatorShell drives this from the DxuiViewport bounds.
+    HRESULT Initialize2 (ID3D11Device          * pDevice,
+                         ID3D11DeviceContext   * pContext,
+                         IDXGISwapChain1       * pSwapChain,
+                         int                     texWidth,
+                         int                     texHeight,
+                         const RECT            & initialTargetRect);
+
     HRESULT UploadAndPresent (const uint32_t * framebuffer);
+
+    // Composite variant used by Initialize2 mode. Performs the same
+    // framebuffer upload + CRT post-process pass as UploadAndPresent
+    // but skips the swap-chain Present -- the host's paint pump owns
+    // the Present call. Skips the after-blit chrome hook too: chrome
+    // paints via the host's panel-tree Paint walk, not via the
+    // renderer hook.
+    HRESULT UploadAndComposite (const uint32_t * framebuffer);
+
     HRESULT ToggleFullscreen (HWND hwnd);
     HRESULT Resize (int width, int height);
 
@@ -96,6 +125,12 @@ private:
     HRESULT InitializeShaders();
     void    CacheEmulatorContentScreenRect (const RECT & fittedRect);
 
+    // Post-device-creation pipeline setup shared by Initialize and
+    // Initialize2: back-buffer RTV, dynamic upload texture, sampler,
+    // shader programs, vertex / index buffers, CRT post-process
+    // chain. Assumes m_device, m_context, m_swapChain are populated.
+    HRESULT CreateRenderResources (int texWidth, int texHeight);
+
     HWND                             m_hwnd = nullptr;
     ComPtr<ID3D11Device>             m_device;
     ComPtr<ID3D11DeviceContext>      m_context;
@@ -160,6 +195,13 @@ private:
     int     m_texHeight        = 0;
     bool    m_fullscreen       = false;
     bool    m_deviceRemoved    = false;
+
+    // True after a successful Initialize2 call. Signals that the
+    // device + context + swap chain are externally owned (host root
+    // window), so Resize / Shutdown leave swap-chain lifecycle to
+    // the caller and UploadAndComposite is the present-less entry
+    // point.
+    bool    m_externalSwapChain = false;
 
     RECT    m_windowedRect                = {};
     RECT    m_emulatorContentScreenRect   = {};
