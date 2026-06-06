@@ -472,6 +472,17 @@ EmulatorShell::~EmulatorShell()
     m_mainMenu.Hide();
     m_titleBar.Hide();
 
+    // Drop the host's adopted-chrome references before the chrome
+    // members or m_host itself go out of scope. The chrome controls
+    // (m_titleBar, m_mainMenu, m_driveChrome, m_joystickButton) are
+    // raw-pointer-registered into m_host->Root() via DxuiPanel::Adopt;
+    // releasing the adoption here keeps the panel from ever holding
+    // a dangling pointer during the field-by-field destruction below.
+    if (m_host)
+    {
+        m_host->Root().ClearAdopted();
+    }
+
     m_d3dRenderer.Shutdown();
 
     if (m_fOleInitialized)
@@ -1157,6 +1168,24 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     {
         this->OnViewportBoundsChanged (boundsPx);
     });
+
+    // Adopt the chrome controls (title bar / menu bar / drive widgets /
+    // joystick toggle) into the host's root panel so they participate
+    // in the host-owned paint, input, focus, theme, tick, and DPI
+    // walks. Lifetime stays with EmulatorShell (chrome controls are
+    // members); the panel just registers raw pointers. The host's
+    // WM_PAINT pump remains dead (createSwapChain=false) until the
+    // swap-chain flip lands later in Phase 11d, so this change is
+    // tree-membership-only — the chrome continues to paint via
+    // UiShell::Render against the existing CassoRenderSurface swap
+    // chain. The bespoke chrome layout in LayoutChrome /
+    // LayoutDriveWidgetsInCommandBar / LayoutJoystickButton stays in
+    // place; full DxuiDockLayout-driven layout lands in Phase 12.
+    m_host->Root().Adopt (m_titleBar);
+    m_host->Root().Adopt (m_mainMenu);
+    m_host->Root().Adopt (m_driveChrome[0]);
+    m_host->Root().Adopt (m_driveChrome[1]);
+    m_host->Root().Adopt (m_joystickButton);
 
     // Defer the size reconcile until after ShowWindow. The NC frame
     // (border carve-out from DefWindowProc + DWM rounded corners +
