@@ -5,6 +5,7 @@
 #include "DisplayPage.h"
 #include "HardwarePage.h"
 #include "MachinePage.h"
+#include "SettingsApplyController.h"
 #include "SettingsDisplayCrtBridge.h"
 #include "SettingsMachineCatalog.h"
 #include "SettingsPanelState.h"
@@ -138,7 +139,6 @@ private:
     void  OnThemeSelected             (const std::string & themeName);
     void  OnApplyClicked              ();
     void  OnCancelClicked             ();
-    void  CommitApply                 ();
     void  RebuildFocusOrder           ();
     void  SyncFocusToWidgets          ();
     bool  AnyDropdownOpenOnActivePage () const;
@@ -156,6 +156,7 @@ private:
     SettingsPanelState  m_state;
     SettingsDisplayCrtBridge  m_crt;
     SettingsMachineCatalog    m_catalog;
+    SettingsApplyController   m_apply;
     SettingsWindow      m_window;
     // Bespoke visibility flag distinct from IDxuiControl::m_visible
     // (which is inherited from DxuiPanel and stays at its default of
@@ -164,27 +165,10 @@ private:
     // panel-tree visibility and is reserved for the future unified
     // dispatch path.
     bool                m_panelVisible = false;
-    std::string         m_pendingMachineSelect;
-    std::string         m_pendingTheme;
 
-    // Staged CRT params. brightness/contrast live in GlobalUserPrefs
-    // (global, not per-machine) so they bypass SettingsPanelState's
-    // per-machine apply pipeline. Baseline captures the value at Show
-    // time so Cancel can revert; live values are written directly to
-    // GlobalUserPrefs.crt for instant shader preview while the panel
-    // is faded out. CommitApply just flips userOverride + Saves; Cancel
-    // restores the baseline values back to GlobalUserPrefs.crt.
-    // CRT baseline state. Captured at Show() time so Cancel can revert
-    // any live-edited values. The per-monitor schema means we keep a
-    // snapshot of ALL 4 mode blocks because the user can switch
-    // monitors inside the panel and edit multiple blocks before they
-    // decide whether to commit. baselineColorMode tracks which monitor
-    // was active at panel open.
-    GlobalUserPrefs::Crt  m_baselineCrt[GlobalUserPrefs::kCrtModeCount] = {};
-    int                   m_baselineColorMode = -1;
     // Tracks whether the monitor dropdown was open last frame so the
     // dropdown-closed revert fires even if a click on another control
-    // changes m_previewFocus in the same frame.
+    // changes the preview focus in the same frame.
     bool                  m_monitorWasOpen    = false;
     // The monitor index that was active when the dropdown was opened.
     // Used to revert the live preview when the dropdown closes without
