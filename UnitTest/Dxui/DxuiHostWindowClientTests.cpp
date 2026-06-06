@@ -84,6 +84,9 @@ namespace
         int      onPaintCount          = 0;
         int      onCloseCount          = 0;
         int      onDestroyCount        = 0;
+        int      onNcMouseMoveCount    = 0;
+        int      onNcMouseLeaveCount   = 0;
+        int      onNcLButtonDownCount  = 0;
         int      onNcLButtonUpCount    = 0;
         LRESULT  lastNcHitTest         = HTNOWHERE;
 
@@ -108,6 +111,9 @@ namespace
         DxuiMessageResult  OnPaint          ()                                  override { ++onPaintCount;         return claim; }
         DxuiMessageResult  OnClose          ()                                  override { ++onCloseCount;         return claim; }
         void               OnDestroy        ()                                  override { ++onDestroyCount; }
+        DxuiMessageResult  OnNcMouseMove    (LRESULT ht, int, int)              override { ++onNcMouseMoveCount; lastNcHitTest = ht;                                   return claim; }
+        DxuiMessageResult  OnNcMouseLeave()                                     override { ++onNcMouseLeaveCount; return claim; }
+        DxuiMessageResult  OnNcLButtonDown  (LRESULT ht, int, int)              override { ++onNcLButtonDownCount; lastNcHitTest = ht;                                 return claim; }
         DxuiMessageResult  OnNcLButtonUp    (LRESULT ht, int, int)              override { ++onNcLButtonUpCount; lastNcHitTest = ht;                                   return claim; }
     };
 
@@ -281,6 +287,109 @@ public:
         Assert::AreEqual (1,                    client.onNcLButtonUpCount);
         Assert::AreEqual ((LRESULT) HTCLOSE,    client.lastNcHitTest);
         Assert::AreEqual ((LRESULT) 0,          result);
+    }
+
+
+
+    TEST_METHOD (Client_WmNcLButtonUp_SystemButtonsDispatchClientOnceWithoutDefaultProc)
+    {
+        std::unique_ptr<DxuiHostWindow>  host             = BuildSyntheticHost();
+        RecordingClient                  client;
+        int                              defaultProcCount = 0;
+        LRESULT                          result           = 0;
+        WPARAM                           hitTests[]       = { HTMINBUTTON, HTMAXBUTTON, HTCLOSE };
+
+
+
+        host->SetClient (&client);
+        host->SetDefaultProcForTest ([&defaultProcCount] (HWND, UINT, WPARAM, LPARAM) -> LRESULT
+        {
+            ++defaultProcCount;
+            return 0;
+        });
+
+        for (WPARAM hitTest : hitTests)
+        {
+            result = host->WndProc (WM_NCLBUTTONUP, hitTest, MAKELPARAM (100, 50));
+
+            Assert::AreEqual ((LRESULT) 0, result);
+        }
+
+        Assert::AreEqual (3, client.onNcLButtonUpCount);
+        Assert::AreEqual (0, defaultProcCount);
+    }
+
+
+
+    TEST_METHOD (Client_WmNcLButtonUp_UnhandledCaptionFallsThroughToDefaultProc)
+    {
+        std::unique_ptr<DxuiHostWindow>  host             = BuildSyntheticHost();
+        RecordingClient                  client;
+        int                              defaultProcCount = 0;
+        LRESULT                          result           = 0;
+
+
+
+        host->SetClient (&client);
+        host->SetDefaultProcForTest ([&defaultProcCount] (HWND, UINT, WPARAM, LPARAM) -> LRESULT
+        {
+            ++defaultProcCount;
+            return 0;
+        });
+        client.claim = DxuiMessageResult::NotHandled;
+
+        result = host->WndProc (WM_NCLBUTTONUP, (WPARAM) HTCAPTION, MAKELPARAM (100, 50));
+
+        Assert::AreEqual (1,           client.onNcLButtonUpCount);
+        Assert::AreEqual (1,           defaultProcCount);
+        Assert::AreEqual ((LRESULT) 0, result);
+    }
+
+
+
+    TEST_METHOD (Client_WmNcMouseMessages_DispatchToClientHooks)
+    {
+        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        RecordingClient                  client;
+
+
+
+        host->SetClient (&client);
+
+        (void) host->WndProc (WM_NCMOUSEMOVE,   (WPARAM) HTMAXBUTTON, MAKELPARAM (100, 50));
+        (void) host->WndProc (WM_NCLBUTTONDOWN, (WPARAM) HTCLOSE,     MAKELPARAM (100, 50));
+        (void) host->WndProc (WM_NCMOUSELEAVE,  0,                    0);
+
+        Assert::AreEqual (1,                    client.onNcMouseMoveCount);
+        Assert::AreEqual (1,                    client.onNcLButtonDownCount);
+        Assert::AreEqual (1,                    client.onNcMouseLeaveCount);
+        Assert::AreEqual ((LRESULT) HTCLOSE,    client.lastNcHitTest);
+    }
+
+
+
+    TEST_METHOD (Client_WmMouseMove_ArmsClientMouseLeaveTracking)
+    {
+        std::unique_ptr<DxuiHostWindow>  host       = BuildSyntheticHost();
+        RecordingClient                  client;
+        int                              trackCount = 0;
+        DWORD                            lastFlags  = 0;
+
+
+
+        host->SetClient (&client);
+        host->SetTrackMouseEventForTest ([&trackCount, &lastFlags] (TRACKMOUSEEVENT * pEvent) -> BOOL
+        {
+            ++trackCount;
+            lastFlags = pEvent->dwFlags;
+            return TRUE;
+        });
+
+        (void) host->WndProc (WM_MOUSEMOVE, 0, MAKELPARAM (100, 50));
+
+        Assert::AreEqual (1,             client.onMouseMoveCount);
+        Assert::AreEqual (1,             trackCount);
+        Assert::AreEqual ((DWORD) TME_LEAVE, lastFlags);
     }
 
 

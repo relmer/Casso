@@ -590,6 +590,40 @@ void DxuiHostWindow::SetClient (IDxuiHostClient * client)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDefaultProcForTest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::SetDefaultProcForTest (std::function<LRESULT (HWND, UINT, WPARAM, LPARAM)> defaultProc)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    m_defaultProcForTest = std::move (defaultProc);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTrackMouseEventForTest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::SetTrackMouseEventForTest (std::function<BOOL (TRACKMOUSEEVENT *)> trackMouseEvent)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    m_trackMouseEventForTest = std::move (trackMouseEvent);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetContentPanel
 //
 //  Replace the root panel with a caller-supplied tree. Lets a
@@ -1216,25 +1250,48 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             return hostHt;
         }
 
-        case WM_NCLBUTTONDOWN:
         case WM_NCMOUSEMOVE:
-        case WM_NCMOUSELEAVE:
+        {
+            POINT  ptScreen = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
+
+            if (m_client != nullptr &&
+                m_client->OnNcMouseMove ((LRESULT) wp, ptScreen.x, ptScreen.y) == DxuiMessageResult::Handled)
+            {
+                return 0;
+            }
             return HandleNcMouse (msg, wp, lp);
+        }
+
+        case WM_NCMOUSELEAVE:
+            if (m_client != nullptr && m_client->OnNcMouseLeave() == DxuiMessageResult::Handled)
+            {
+                return 0;
+            }
+            return HandleNcMouse (msg, wp, lp);
+
+        case WM_NCLBUTTONDOWN:
+        {
+            POINT  ptScreen = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
+
+            if (m_client != nullptr &&
+                m_client->OnNcLButtonDown ((LRESULT) wp, ptScreen.x, ptScreen.y) == DxuiMessageResult::Handled)
+            {
+                return 0;
+            }
+            return HandleNcMouse (msg, wp, lp);
+        }
 
         case WM_NCLBUTTONUP:
         {
-            LRESULT  mouseResult = HandleNcMouse (msg, wp, lp);
+            POINT  ptScreen = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
 
-            if (m_client != nullptr)
+            if (m_client != nullptr &&
+                m_client->OnNcLButtonUp ((LRESULT) wp, ptScreen.x, ptScreen.y) == DxuiMessageResult::Handled)
             {
-                POINT  ptScreen = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
-
-                if (m_client->OnNcLButtonUp ((LRESULT) wp, ptScreen.x, ptScreen.y) == DxuiMessageResult::Handled)
-                {
-                    return 0;
-                }
+                DispatchNcUpToTrackedButton (lp);
+                return 0;
             }
-            return mouseResult;
+            return HandleNcMouse (msg, wp, lp);
         }
 
         case WM_DPICHANGED:
@@ -1331,6 +1388,7 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             break;
 
         case WM_MOUSEMOVE:
+            TrackClientMouseLeave();
             if (m_client != nullptr && m_client->OnMouseMove (wp, lp) == DxuiMessageResult::Handled)
             {
                 return 0;
@@ -1338,6 +1396,7 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             break;
 
         case WM_MOUSELEAVE:
+            m_clientMouseLeaveTracking = false;
             if (m_client != nullptr && m_client->OnMouseLeave() == DxuiMessageResult::Handled)
             {
                 return 0;
@@ -1436,7 +1495,76 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
         }
     }
 
+    return DefaultProc (msg, wp, lp);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DefaultProc
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LRESULT DxuiHostWindow::DefaultProc (UINT msg, WPARAM wp, LPARAM lp)
+{
+    if (m_defaultProcForTest)
+    {
+        return m_defaultProcForTest (m_hwnd, msg, wp, lp);
+    }
+
     return DefWindowProc (m_hwnd, msg, wp, lp);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackMouseEventHost
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BOOL DxuiHostWindow::TrackMouseEventHost (TRACKMOUSEEVENT * pEvent)
+{
+    if (m_trackMouseEventForTest)
+    {
+        return m_trackMouseEventForTest (pEvent);
+    }
+
+    return TrackMouseEvent (pEvent);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackClientMouseLeave
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::TrackClientMouseLeave()
+{
+    TRACKMOUSEEVENT  tme = { sizeof (tme) };
+
+
+
+    if (m_clientMouseLeaveTracking)
+    {
+        return;
+    }
+
+    tme.dwFlags   = TME_LEAVE;
+    tme.hwndTrack = m_hwnd;
+    if (TrackMouseEventHost (&tme))
+    {
+        m_clientMouseLeaveTracking = true;
+    }
 }
 
 
@@ -1465,7 +1593,7 @@ LRESULT DxuiHostWindow::HandleNcCalcSize (WPARAM wp, LPARAM lp)
 
     if (!m_params.borderless)
     {
-        return DefWindowProc (m_hwnd, WM_NCCALCSIZE, wp, lp);
+        return DefaultProc (WM_NCCALCSIZE, wp, lp);
     }
 
     if (wp == FALSE)
@@ -1480,7 +1608,7 @@ LRESULT DxuiHostWindow::HandleNcCalcSize (WPARAM wp, LPARAM lp)
     }
 
     originalTop = pParams->rgrc[0].top;
-    defResult   = DefWindowProc (m_hwnd, WM_NCCALCSIZE, wp, lp);
+    defResult   = DefaultProc (WM_NCCALCSIZE, wp, lp);
     if (defResult != 0)
     {
         return defResult;
@@ -1598,7 +1726,7 @@ LRESULT DxuiHostWindow::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 
     if (m_hwnd == nullptr)
     {
-        return 0;
+        return DefaultProc (msg, wp, lp);
     }
 
     ptScreen.x = GET_X_LPARAM (lp);
@@ -1606,7 +1734,7 @@ LRESULT DxuiHostWindow::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
     ptClient   = ptScreen;
     if (!ScreenToClient (m_hwnd, &ptClient))
     {
-        return DefWindowProc (m_hwnd, msg, wp, lp);
+        return DefaultProc (msg, wp, lp);
     }
 
     ptClient.x = MulDiv (ptClient.x, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
@@ -1623,7 +1751,7 @@ LRESULT DxuiHostWindow::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
             m_lastHoveredNcControl = nullptr;
             InvalidateRect (m_hwnd, nullptr, FALSE);
         }
-        return DefWindowProc (m_hwnd, msg, wp, lp);
+        return DefaultProc (msg, wp, lp);
     }
 
     if (msg == WM_NCMOUSEMOVE)
@@ -1636,7 +1764,7 @@ LRESULT DxuiHostWindow::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 
         tme.dwFlags = TME_NONCLIENT | TME_LEAVE;
         tme.hwndTrack = m_hwnd;
-        TrackMouseEvent (&tme);
+        TrackMouseEventHost (&tme);
 
         ev.kind = DxuiMouseEventKind::Move;
         m_lastHoveredNcControl = control;
@@ -1653,7 +1781,7 @@ LRESULT DxuiHostWindow::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
     }
     else
     {
-        return DefWindowProc (m_hwnd, msg, wp, lp);
+        return DefaultProc (msg, wp, lp);
     }
 
     ev.positionDip = ptClient;
@@ -1662,6 +1790,50 @@ LRESULT DxuiHostWindow::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 
     (void) wp;
     return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchNcUpToTrackedButton
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::DispatchNcUpToTrackedButton (LPARAM lp)
+{
+    POINT           ptScreen = {};
+    POINT           ptClient = {};
+    DxuiMouseEvent  ev       = {};
+
+
+
+    if (m_lastHoveredNcControl == nullptr)
+    {
+        return;
+    }
+
+    ptScreen.x = GET_X_LPARAM (lp);
+    ptScreen.y = GET_Y_LPARAM (lp);
+    ptClient   = ptScreen;
+    if (m_hwnd != nullptr && ScreenToClient (m_hwnd, &ptClient))
+    {
+        ptClient.x = MulDiv (ptClient.x, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
+        ptClient.y = MulDiv (ptClient.y, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
+    }
+
+    ev.kind        = DxuiMouseEventKind::Up;
+    ev.button      = DxuiMouseButton::Left;
+    ev.positionDip = ptClient;
+    m_lastHoveredNcControl->OnMouse (ev);
+    m_lastHoveredNcControl = nullptr;
+
+    if (m_hwnd != nullptr)
+    {
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+    }
 }
 
 

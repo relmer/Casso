@@ -315,14 +315,47 @@ public:
         return DxuiMessageResult::NotHandled;
     }
 
-    // WM_NCLBUTTONUP. Fires AFTER the host has run its own NC
-    // bookkeeping. hitTest carries the original WM_NCHITTEST
+    // WM_NCMOUSEMOVE. hitTest carries the HT* code under the
+    // cursor; (xScreen, yScreen) are screen coordinates. Return
+    // ``Handled`` to consume the move; ``NotHandled`` to let the
+    // host's NC bookkeeping and DefWindowProc run. Default returns
+    // NotHandled.
+    virtual DxuiMessageResult  OnNcMouseMove    (LRESULT hitTest, int xScreen, int yScreen)
+    {
+        UNREFERENCED_PARAMETER (hitTest);
+        UNREFERENCED_PARAMETER (xScreen);
+        UNREFERENCED_PARAMETER (yScreen);
+        return DxuiMessageResult::NotHandled;
+    }
+
+    // WM_NCMOUSELEAVE. Return ``Handled`` to consume the leave;
+    // ``NotHandled`` to let the host's NC bookkeeping run. Default
+    // returns NotHandled.
+    virtual DxuiMessageResult  OnNcMouseLeave()
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    // WM_NCLBUTTONDOWN. hitTest carries the HT* code under the
+    // cursor; (xScreen, yScreen) are screen coordinates. Return
+    // ``Handled`` to consume the press; ``NotHandled`` to let the
+    // host's NC bookkeeping and DefWindowProc run. Default returns
+    // NotHandled.
+    virtual DxuiMessageResult  OnNcLButtonDown  (LRESULT hitTest, int xScreen, int yScreen)
+    {
+        UNREFERENCED_PARAMETER (hitTest);
+        UNREFERENCED_PARAMETER (xScreen);
+        UNREFERENCED_PARAMETER (yScreen);
+        return DxuiMessageResult::NotHandled;
+    }
+
+    // WM_NCLBUTTONUP. hitTest carries the original WM_NCHITTEST
     // result (HTMINBUTTON / HTMAXBUTTON / HTCLOSE / HTCAPTION /
-    // ...); (xScreen, yScreen) are the click in screen
-    // coordinates. Return ``Handled`` to consume the click
-    // (suppresses the OS default action for system buttons);
-    // ``NotHandled`` to let the host's own NC bookkeeping run
-    // through to DefWindowProc. Default returns NotHandled.
+    // ...); (xScreen, yScreen) are the click in screen coordinates.
+    // Return ``Handled`` to consume the click (suppresses the OS
+    // default action for system buttons); ``NotHandled`` to let the
+    // host's own NC bookkeeping run through to DefWindowProc.
+    // Default returns NotHandled.
     virtual DxuiMessageResult  OnNcLButtonUp    (LRESULT hitTest, int xScreen, int yScreen)
     {
         UNREFERENCED_PARAMETER (hitTest);

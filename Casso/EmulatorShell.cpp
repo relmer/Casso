@@ -114,6 +114,27 @@ static constexpr int     s_kChromeFocusCount         = 10;
 
 namespace
 {
+    bool SystemButtonFromHitTest (LRESULT hitTest, SystemButton & outButton)
+    {
+        switch (hitTest)
+        {
+            case HTMINBUTTON:
+                outButton = SystemButton::Minimize;
+                return true;
+
+            case HTMAXBUTTON:
+                outButton = SystemButton::Maximize;
+                return true;
+
+            case HTCLOSE:
+                outButton = SystemButton::Close;
+                return true;
+        }
+
+        return false;
+    }
+
+
     void LayoutDriveWidgetsInCommandBar (
         std::array<DriveWidget, 2>  & driveChrome,
         const LayoutManagerResult    & layout,
@@ -4242,6 +4263,84 @@ LRESULT EmulatorShell::ClassifyHitForLegacyChrome (POINT ptScreen)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnNcMouseMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnNcMouseMove (LRESULT hitTest, int xScreen, int yScreen)
+{
+    POINT         pt     = { xScreen, yScreen };
+    SystemButton  button = SystemButton::Minimize;
+
+
+
+    if (!SystemButtonFromHitTest (hitTest, button))
+    {
+        m_titleBar.ClearHover();
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+        return DxuiMessageResult::NotHandled;
+    }
+
+    if (ScreenToClient (m_hwnd, &pt))
+    {
+        m_titleBar.SetMousePosition (pt.x, pt.y, false);
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+    }
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnNcMouseLeave
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnNcMouseLeave()
+{
+    m_titleBar.ClearHover();
+    InvalidateRect (m_hwnd, nullptr, FALSE);
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnNcLButtonDown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnNcLButtonDown (LRESULT hitTest, int xScreen, int yScreen)
+{
+    POINT         pt     = { xScreen, yScreen };
+    SystemButton  button = SystemButton::Minimize;
+
+
+
+    if (!SystemButtonFromHitTest (hitTest, button))
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    if (ScreenToClient (m_hwnd, &pt))
+    {
+        m_titleBar.SetMousePosition (pt.x, pt.y, true);
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+    }
+
+    return DxuiMessageResult::Handled;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnNcLButtonUp
 //
 //  Dispatch system-button clicks. HTCLOSE → WM_CLOSE,
@@ -4253,11 +4352,16 @@ LRESULT EmulatorShell::ClassifyHitForLegacyChrome (POINT ptScreen)
 
 DxuiMessageResult EmulatorShell::OnNcLButtonUp (LRESULT hitTest, int xScreen, int yScreen)
 {
-    UNREFERENCED_PARAMETER (xScreen);
-    UNREFERENCED_PARAMETER (yScreen);
-
+    POINT            pt = { xScreen, yScreen };
     WINDOWPLACEMENT  wp = { sizeof (wp) };
 
+
+
+    if (ScreenToClient (m_hwnd, &pt))
+    {
+        m_titleBar.SetMousePosition (pt.x, pt.y, false);
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+    }
 
     switch (hitTest)
     {

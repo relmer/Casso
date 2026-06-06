@@ -58,6 +58,10 @@ copy-protected WOZ image ([#68](https://github.com/relmer/Casso/issues/68)).
   projection and multi-column ListView.
 
 ### Fixed
+- **fix(ui): restore custom chrome interaction feedback.** Non-client
+  min/max/close clicks now dispatch once, title-bar hover/press visuals
+  repaint again, menu hover clears when the pointer leaves client chrome,
+  and menu-title spacing remains stable across resize/fullscreen relayouts.
 - **fix(disk): keep the nibble engine advancing after a power cycle.**
   A power cycle zeroes the CPU cycle counter, but the Disk II
   controller's `CatchUpToCpu` retained a stale sync anchor and froze the

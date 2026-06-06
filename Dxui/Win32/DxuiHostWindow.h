@@ -207,6 +207,8 @@ public:
     //  nullptr clears any previously-installed client.
     //
     void          SetClient     (IDxuiHostClient * client);
+    void          SetDefaultProcForTest      (std::function<LRESULT (HWND, UINT, WPARAM, LPARAM)> defaultProc);
+    void          SetTrackMouseEventForTest  (std::function<BOOL (TRACKMOUSEEVENT *)> trackMouseEvent);
 
     //
     //  Shared-device accessors. Full-ownership mode creates the D3D11
@@ -325,6 +327,10 @@ private:
     LRESULT  HandleNcCalcSize          (WPARAM wp, LPARAM lp);
     LRESULT  HandleNcHitTest           (LPARAM lp);
     LRESULT  HandleNcMouse             (UINT msg, WPARAM wp, LPARAM lp);
+    LRESULT  DefaultProc               (UINT msg, WPARAM wp, LPARAM lp);
+    BOOL     TrackMouseEventHost       (TRACKMOUSEEVENT * pEvent);
+    void     TrackClientMouseLeave     ();
+    void     DispatchNcUpToTrackedButton (LPARAM lp);
     void     HandleDpiChanged          (WPARAM wp, LPARAM lp);
     void     HandleSize                (WPARAM wp, LPARAM lp);
     void     HandleThemeChange         ();
@@ -362,9 +368,12 @@ private:
 
     IDxuiHostClient *                 m_client             = nullptr;
 
-    std::function<LRESULT (POINT)>    m_hitTestDelegate;
-    std::function<void()>             m_beforePresentHook;
-    IDxuiControl *                    m_lastHoveredNcControl = nullptr;
+    std::function<LRESULT (POINT)>                         m_hitTestDelegate;
+    std::function<void()>                                  m_beforePresentHook;
+    std::function<LRESULT (HWND, UINT, WPARAM, LPARAM)>    m_defaultProcForTest;
+    std::function<BOOL (TRACKMOUSEEVENT *)>                m_trackMouseEventForTest;
+    IDxuiControl *                                         m_lastHoveredNcControl = nullptr;
+    bool                                                   m_clientMouseLeaveTracking = false;
 
     // Popup pool (FR-055). Initial size 3; grows on demand. m_popupPool
     // holds LIFO-available instances; m_popupActive holds currently

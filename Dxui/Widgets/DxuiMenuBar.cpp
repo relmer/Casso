@@ -214,6 +214,11 @@ void DxuiMenuBar::Layout (int x, int y, int width, UINT dpi, IDxuiTextRenderer *
 
     DXUI_ASSERT_UI_THREAD();
 
+    if (pTextForMeasure != nullptr)
+    {
+        m_textRendererForMeasure = pTextForMeasure;
+    }
+
     m_stripRect.left   = x;
     m_stripRect.top    = y;
     m_stripRect.right  = x + width;

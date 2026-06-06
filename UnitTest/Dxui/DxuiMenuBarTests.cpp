@@ -145,6 +145,64 @@ public:
     }
 
 
+    TEST_METHOD (MouseLeave_ClearsHoveredMenuTitle)
+    {
+        DxuiMenuBar           bar;
+        MockDxuiTextRenderer  text;
+
+
+        bar.SetItems (MakeTestItems());
+        bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
+
+        RECT  fileTitle = bar.MenuRect (0);
+
+        bar.HandleMouseMove ((fileTitle.left + fileTitle.right) / 2,
+                             (fileTitle.top  + fileTitle.bottom) / 2);
+        Assert::AreEqual (0, bar.HoverIndex());
+
+        bar.ClearHover();
+
+        Assert::AreEqual (-1, bar.HoverIndex());
+    }
+
+
+    TEST_METHOD (Layout_WithDifferentWidths_PreservesInterItemSpacing)
+    {
+        DxuiMenuBar           bar;
+        MockDxuiTextRenderer  text;
+        RECT                  firstFile = {};
+        RECT                  firstEdit = {};
+        RECT                  secondFile = {};
+        RECT                  secondEdit = {};
+        RECT                  resizedBounds = { s_kStripX, s_kStripY, s_kStripWidth * 2, s_kStripY };
+        DxuiDpiScaler         scaler;
+        int                   firstGap = 0;
+        int                   secondGap = 0;
+        int                   firstAdvance = 0;
+        int                   secondAdvance = 0;
+
+
+        bar.SetItems (MakeTestItems());
+        text.SetCannedMetrics (L"File", { 64, 16 });
+        text.SetCannedMetrics (L"Edit", { 52, 16 });
+        bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
+        firstFile = bar.MenuRect (0);
+        firstEdit = bar.MenuRect (1);
+        firstGap = firstEdit.left - firstFile.right;
+        firstAdvance = firstEdit.left - firstFile.left;
+
+        scaler.SetDpi (96);
+        bar.Layout (resizedBounds, scaler);
+        secondFile = bar.MenuRect (0);
+        secondEdit = bar.MenuRect (1);
+        secondGap = secondEdit.left - secondFile.right;
+        secondAdvance = secondEdit.left - secondFile.left;
+
+        Assert::AreEqual (firstGap, secondGap);
+        Assert::AreEqual (firstAdvance, secondAdvance);
+    }
+
+
     TEST_METHOD (ArrowRight_AdvancesActiveMenu)
     {
         DxuiMenuBar  bar;
