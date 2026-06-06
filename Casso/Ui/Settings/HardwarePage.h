@@ -8,6 +8,9 @@
 #include "Widgets/DxuiTreeView.h"
 
 
+class IDxuiTheme;
+
+
 
 
 
@@ -55,7 +58,7 @@ public:
         out.push_back ([this] (bool f) { m_tree.SetFocused (f); });
     }
 
-    void  Paint         (DxuiPainter & painter, DxuiTextRenderer & text) const;
+    void  Paint         (DxuiPainter & painter, DxuiTextRenderer & text, const IDxuiTheme & theme) const;
 
     // Pure helper: convert one hardware-entry list into the DxuiTreeNode
     // tree the underlying DxuiTreeView consumes. Exposed for unit tests.

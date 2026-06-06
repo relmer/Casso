@@ -387,9 +387,12 @@ bool MachinePage::AnyDropdownOpen () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachinePage::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
+void MachinePage::Paint (DxuiPainter & painter, DxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
     int  i = 0;
+
+
+    UNREFERENCED_PARAMETER (theme);
 
     m_machineLabel.Paint   (painter, text);
     m_speedLabel.Paint     (painter, text);

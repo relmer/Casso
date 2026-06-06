@@ -10,6 +10,9 @@
 #include "Widgets/DxuiToggle.h"
 
 
+class IDxuiTheme;
+
+
 
 
 
@@ -53,7 +56,7 @@ public:
     void  OnLButtonUp           (int x, int y);
     void  OnMouseHover          (int x, int y);
     bool  OnKey                 (WPARAM vk);
-    void  Paint                 (DxuiPainter & painter, DxuiTextRenderer & text) const;
+    void  Paint                 (DxuiPainter & painter, DxuiTextRenderer & text, const IDxuiTheme & theme) const;
 
     void  CollectFocusables (std::vector<std::function<void (bool)>> & out);
     bool  AnyDropdownOpen   () const;

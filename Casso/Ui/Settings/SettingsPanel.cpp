@@ -1699,14 +1699,14 @@ void SettingsPanel::Paint (DxuiPainter & painter, DxuiTextRenderer & text)
 
     switch ((TabIndex) m_activeTab)
     {
-        case TabIndex::Machine:  m_machinePage.Paint  (painter, text); break;
-        case TabIndex::Hardware: m_hardwarePage.Paint (painter, text); break;
-        case TabIndex::Theme:    m_themePage.Paint    (painter, text); break;
+        case TabIndex::Machine:  m_machinePage.Paint  (painter, text, theme); break;
+        case TabIndex::Hardware: m_hardwarePage.Paint (painter, text, theme); break;
+        case TabIndex::Theme:    m_themePage.Paint    (painter, text, theme); break;
         case TabIndex::Display:
             // DisplayPage paints its own controls at per-control alpha.
             // It restores global alpha to 1.0 on exit; re-clamp so the
             // buttons inherit the panel alpha consistently.
-            m_displayPage.Paint  (painter, text, focusedControlId, panelA, focusedA);
+            m_displayPage.Paint  (painter, text, theme, focusedControlId, panelA, focusedA);
             painter.SetGlobalAlpha (panelA);
             text.SetGlobalAlpha    (panelA);
             break;

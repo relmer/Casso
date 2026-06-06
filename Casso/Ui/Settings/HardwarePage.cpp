@@ -269,9 +269,12 @@ void HardwarePage::Rebuild ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HardwarePage::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
+void HardwarePage::Paint (DxuiPainter & painter, DxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
     int  i = 0;
+
+
+    UNREFERENCED_PARAMETER (theme);
 
 
 
