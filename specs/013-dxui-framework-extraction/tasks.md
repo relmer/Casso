@@ -400,6 +400,24 @@ T083–T086 landed: full `DxuiViewport` API (size policies + input sink + reserv
 
 ---
 
+## Phase 12.5 — Retrofit `Dxui/Widgets/*` primitives onto `IDxuiControl`
+
+**Goal**: Every widget primitive in `Dxui/Widgets/*` derives from `IDxuiControl` so it can be added to a `DxuiPanel` tree via `Add<T>` / `Adopt`. Discovered as a blocker by the Phase 13 POC: chrome controls retrofitted in Phase 11 derive from `IDxuiControl`, but the widget primitives (Button, Checkbox, Dropdown, …) had bespoke APIs (`SetRect`, `Paint(painter,text)`, `OnLButtonDown(x,y)`, `HandleKey(vk)`) that did not satisfy the base. **Satisfies**: FR-081 (accessibility), unblocks FR-097 (page conversions). **Session status (Phase 12.5 — complete; all 14 widgets retrofitted)**: Five commits landed, +49 tests (1854 → 1903 baseline). All four configs green. Existing call sites (~30 files across Casso/Ui, Casso/Ui/Settings, Casso/Ui/Dialog) keep compiling unchanged — the retrofit is purely additive.
+
+- [x] T092A [PH12.5] Retrofit `DxuiLabel`, `DxuiButton`, `DxuiCheckbox`, `DxuiToggle`, `DxuiRadioGroup` (`Dxui/Widgets/`). Each adds `: public IDxuiControl`, override shims for `Layout(RECT, scaler)` / `Paint(painter, text, theme)` / `OnMouse(DxuiMouseEvent)` / `OnKey(DxuiKeyEvent)` / `OnFocusChanged(bool)` / `AccessibleName()` / `AccessibleRole()`. Setters with widget-local `m_enabled`/`m_visible` storage also call `IDxuiControl::SetEnabled`/`SetVisible` so the base storage stays in sync with what `DxuiPanel` reads when iterating children. **Commit**: `refactor(dxui): retrofit simple widgets onto IDxuiControl`.
+
+- [x] T092B [PH12.5] Retrofit `DxuiSlider`, `DxuiDropdown`, `DxuiTabStrip`, `DxuiTextInput`. Same pattern. `DxuiDropdown::Paint` (IDxuiControl override) delegates to the existing `Paint(painter, text)` which invokes `PaintBase` + `PaintMenu` in the dropdown's z-slot; the split helpers stay public so legacy consumers that need the menu painted last across siblings (settings pages, debug panels) keep working unchanged. `DxuiTextInput::OnKey` maps `DxuiKeyEvent::Char` to `OnChar(wchar_t)` and `Down` to `OnKey(WPARAM)`. **Commit**: `refactor(dxui): retrofit DxuiSlider/Dropdown/TabStrip/TextInput onto IDxuiControl`.
+
+- [x] T092C [PH12.5] Retrofit `DxuiListView`, `DxuiTreeView`. Internal scroll state, column widths, expand/collapse, and sticky-tail logic are untouched. `DxuiListView`'s input model is host-driven through the public hit-test / scroll / focus accessors, so its `IDxuiControl::OnMouse` / `OnKey` overrides return `false` and the panel walks past to siblings. **Commit**: `refactor(dxui): retrofit DxuiListView and DxuiTreeView onto IDxuiControl`.
+
+- [x] T092D [PH12.5] Retrofit `DxuiPopupMenu`, `DxuiTooltip`, `DxuiModalScrim`. Typical hosting is via `DxuiPopupHost` (WS_POPUP overlay), so the panel-tree path is rare but supported for consistency. `DxuiTooltip::Tick(int64_t)` was already signature-compatible with `IDxuiControl::Tick` — it now just carries the `override` specifier. `DxuiModalScrim::Layout` treats the supplied bounds as the viewport rect (full-bleed). **Commit**: `refactor(dxui): retrofit DxuiPopupMenu/Tooltip/ModalScrim onto IDxuiControl`.
+
+- [x] T092E [PH12.5] Add `UnitTest/Dxui/DxuiWidgetIDxuiControlTests.cpp` — 49 cases that verify every primitive derives from `IDxuiControl`, can be added via `DxuiPanel::Add<T>()`, has a `Layout` that updates `Bounds()`, has a `Paint` callable through the base virtual, and reports the correct `AccessibleRole`. Also verifies `DxuiPanel::Adopt(externally-owned widget)` and `OnMouse` dispatch through the panel into a child button click. **Commit**: `test(dxui): cover the Phase 12.5 IDxuiControl widget retrofit`.
+
+- [x] T092F [PH12.5] Phase-12.5 exit verification. Build all four configs (Debug/Release × x64/ARM64) — all green. Run full suite — 1903/1903 passing (delta +49 from 1854 baseline). Confirm existing call sites still compile (no API removal: `SetRect`, `Paint(painter, text)`, `OnLButtonDown(x, y)`, `HandleKey(vk)`, `PaintBase`/`PaintMenu` are all still callable). Phase 13's `ThemePage` POC can now retry: `Add<DxuiCheckbox>` / `Add<DxuiDropdown>` / `Adopt(m_themeDropdown)` compile against the panel API.
+
+---
+
 ## Phase 13 — Convert `ThemePage` (proof of concept)
 
 **Goal (plan.md §Phase 13)**: Validate the declarative-layout + auto-fan-out + focus-manager story on the smallest settings page. **Satisfies**: FR-097 (partial — first page), SC-003 (begins), SC-004 (begins).
