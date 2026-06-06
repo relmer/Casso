@@ -208,3 +208,37 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
                                               fontPx,
                                               L"Segoe UI"));
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTooltip::Layout  (IDxuiControl override)
+//
+//  The popup geometry is driven by RequestShow / Paint anchor-based
+//  placement; the override just records bounds and DPI for the panel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    SetBounds (boundsDip);
+    m_scaler.SetDpi (scaler.Dpi());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTooltip::Paint  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    UNREFERENCED_PARAMETER (theme);
+    static_cast<const DxuiTooltip *> (this)->Paint (painter, text);
+}

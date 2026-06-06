@@ -155,3 +155,59 @@ void DxuiModalScrim::Paint (IDxuiPainter & painter) const
                       (float) (m_viewport.bottom - m_viewport.top),
                       m_dimArgb);
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiModalScrim::Layout  (IDxuiControl override)
+//
+//  The scrim covers whatever bounds the panel hands down (typically
+//  the entire client area).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiModalScrim::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    UNREFERENCED_PARAMETER (scaler);
+    SetBounds (boundsDip);
+    m_viewport = boundsDip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiModalScrim::Paint  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiModalScrim::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    UNREFERENCED_PARAMETER (text);
+    UNREFERENCED_PARAMETER (theme);
+    static_cast<const DxuiModalScrim *> (this)->Paint (painter);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiModalScrim::OnKey  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiModalScrim::OnKey (const DxuiKeyEvent & ev)
+{
+    if (ev.kind != DxuiKeyEventKind::Down)
+    {
+        return false;
+    }
+
+    return OnKey (ev.vk);
+}

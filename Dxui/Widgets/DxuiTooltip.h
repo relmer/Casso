@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IDxuiControl.h"
 
 
 class DxuiHostWindow;
@@ -24,9 +25,11 @@ class DxuiPopupHost;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiTooltip
+class DxuiTooltip : public IDxuiControl
 {
 public:
+    ~DxuiTooltip() override = default;
+
     void  SetDwellOpenMs  (int ms) { m_dwellOpenMs = ms; }
     void  SetDwellCloseMs (int ms) { m_dwellCloseMs = ms; }
     void  SetFontSizeDip  (float dip) { m_fontDip = dip; }
@@ -45,13 +48,23 @@ public:
 
     void  RequestShow     (const RECT & anchor, const std::wstring & text, int64_t nowMs);
     void  RequestHide     (int64_t nowMs);
-    void  Tick            (int64_t nowMs);
+    void  Tick            (int64_t nowMs) override;
 
     bool                 IsVisible () const { return m_visible; }
     const std::wstring & Text      () const { return m_text;    }
     const RECT         & Anchor    () const { return m_anchor;  }
 
     void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+
+    //
+    //  IDxuiControl overrides — additive shims so DxuiTooltip can
+    //  appear in a DxuiPanel tree. Typical hosting is via
+    //  DxuiPopupHost (WS_POPUP transparent overlay).
+    //
+    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    std::wstring        AccessibleName () const override { return m_text; }
+    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Label; }
 
 private:
     DxuiDpiScaler     m_scaler;

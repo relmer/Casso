@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IDxuiControl.h"
 
 
 
@@ -27,12 +28,14 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiModalScrim
+class DxuiModalScrim : public IDxuiControl
 {
 public:
     using ActionFn = std::function<void ()>;
 
-    void  SetViewportRect (const RECT & rect) { m_viewport = rect; }
+    ~DxuiModalScrim() override = default;
+
+    void  SetViewportRect (const RECT & rect) { m_viewport = rect; SetBounds (rect); }
     void  SetDimArgb      (uint32_t argb) { m_dimArgb = argb; }
 
     void  Show            (ActionFn onConfirm, ActionFn onCancel);
@@ -43,6 +46,15 @@ public:
 
     bool  OnKey           (WPARAM vk);
     void  Paint           (IDxuiPainter & painter) const;
+
+    //
+    //  IDxuiControl overrides — additive shims so DxuiModalScrim can
+    //  appear in a DxuiPanel tree as a full-bleed overlay child.
+    //
+    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnKey          (const DxuiKeyEvent   & ev) override;
+    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Dialog; }
 
 private:
     RECT      m_viewport = {};
