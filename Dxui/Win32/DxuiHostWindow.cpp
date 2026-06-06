@@ -1598,7 +1598,7 @@ LRESULT DxuiHostWindow::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 
     if (m_hwnd == nullptr)
     {
-        return DefWindowProc (m_hwnd, msg, wp, lp);
+        return 0;
     }
 
     ptScreen.x = GET_X_LPARAM (lp);
