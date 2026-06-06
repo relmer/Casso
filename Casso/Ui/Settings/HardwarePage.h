@@ -4,6 +4,7 @@
 
 #include "SettingsPanelState.h"
 
+#include "Core/DxuiPanel.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiTreeView.h"
 
@@ -38,9 +39,11 @@ class IDxuiTheme;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class HardwarePage
+class HardwarePage : public DxuiPanel
 {
 public:
+    HardwarePage ();
+
     void  SetRect    (const RECT & rect, const DxuiDpiScaler & scaler);
     void  SetState   (SettingsPanelState * state);
     void  Rebuild    ();
@@ -48,10 +51,24 @@ public:
     DxuiTreeView       & Tree ()       { return m_tree; }
     const DxuiTreeView & Tree () const { return m_tree; }
 
+    //
+    //  Bespoke input + paint shims preserved for SettingsPanel coupling.
+    //  SettingsPanel still routes WM_* messages page-by-page rather
+    //  than dispatching uniform DxuiMouseEvent / DxuiKeyEvent values
+    //  through the IDxuiControl base. Once SettingsPanel itself is
+    //  converted to a DxuiPanel tree, these shims collapse into the
+    //  base DxuiPanel::OnMouse / OnKey / Paint auto-fan-out and
+    //  vanish. TODO: temporary bridge for incremental page migration.
+    //
     void  OnLButtonDown (int x, int y) { (void) m_tree.OnLButtonDown (x, y); }
     void  OnLButtonUp   (int x, int y) { (void) m_tree.OnLButtonUp   (x, y); }
     void  OnMouseHover  (int x, int y) { m_tree.SetMouseHover (x, y); }
     bool  OnKey         (WPARAM vk)    { return m_tree.OnKey (vk); }
+
+    // Surface the base DxuiPanel::OnKey override so virtual dispatch
+    // through IDxuiControl still resolves correctly and direct
+    // callers can reach the base overload without ambiguity.
+    using DxuiPanel::OnKey;
 
     void  CollectFocusables (std::vector<std::function<void (bool)>> & out)
     {
