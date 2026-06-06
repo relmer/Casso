@@ -96,4 +96,5 @@ private:
     std::array<uint64_t, 2>  m_lastReadNibbles      {};
     std::array<uint64_t, 2>  m_lastWriteNibbles     {};
     bool                     m_coldBootMountWindow  = true;
+    bool                     m_programmaticRemount  = false;
 };

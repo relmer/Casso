@@ -62,6 +62,9 @@ copy-protected WOZ image ([#68](https://github.com/relmer/Casso/issues/68)).
   min/max/close clicks now dispatch once, title-bar hover/press visuals
   repaint again, menu hover clears when the pointer leaves client chrome,
   and menu-title spacing remains stable across resize/fullscreen relayouts.
+- **fix(disk): suppress reset-time drive-door audio.** Warm reset and
+  programmatic remounts no longer play the Disk II door-close sound for
+  already-mounted disks.
 - **fix(disk): keep the nibble engine advancing after a power cycle.**
   A power cycle zeroes the CPU cycle counter, but the Disk II
   controller's `CatchUpToCpu` retained a stale sync anchor and froze the
