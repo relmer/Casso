@@ -5,6 +5,7 @@
 #include "../Chrome/ChromeTheme.h"
 #include "../Chrome/DriveWidget.h"
 #include "../Chrome/JoystickToggleButton.h"
+#include "Core/DxuiPanel.h"
 #include "Widgets/DxuiDropdown.h"
 #include "Widgets/DxuiLabel.h"
 
@@ -23,9 +24,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ThemePage
+class ThemePage : public DxuiPanel
 {
 public:
+    ThemePage();
+
     using ThemeSelectFn      = std::function<void (const std::string & themeName)>;
     using FramebufferSourceFn = std::function<const uint32_t * (int & outWidthPx, int & outHeightPx)>;
     using MountedPathFn      = std::function<std::wstring (int driveIndex)>;
@@ -37,14 +40,30 @@ public:
     void  SetFramebufferSource  (FramebufferSourceFn fn) { m_framebufferSource = std::move (fn); }
     void  SetMountedPathSource  (MountedPathFn       fn) { m_mountedPathSource = std::move (fn); }
 
-    void  Layout                (const RECT & rect, const DxuiDpiScaler & scaler);
+    void  Layout                (const RECT & rect, const DxuiDpiScaler & scaler) override;
 
+    //
+    //  Bespoke input + paint shims preserved for SettingsPanel coupling.
+    //  SettingsPanel still routes WM_* messages page-by-page rather
+    //  than dispatching uniform DxuiMouseEvent / DxuiKeyEvent values
+    //  through the IDxuiControl base. Once SettingsPanel itself is
+    //  converted to a DxuiPanel tree, these shims collapse into the
+    //  base DxuiPanel::OnMouse / OnKey / Paint auto-fan-out and
+    //  vanish. TODO: temporary bridge for incremental page migration.
+    //
     void  OnLButtonDown         (int x, int y);
     void  OnLButtonUp           (int x, int y);
     void  OnMouseHover          (int x, int y);
     bool  OnKey                 (WPARAM vk);
 
     void  Paint                 (DxuiPainter & painter, DxuiTextRenderer & text) const;
+
+    // Surface the base DxuiPanel virtuals that share names with the
+    // bespoke shims above so virtual dispatch through IDxuiControl
+    // still resolves correctly and direct callers can reach the base
+    // overloads without ambiguity.
+    using DxuiPanel::Paint;
+    using DxuiPanel::OnKey;
 
     void  CollectFocusables (std::vector<std::function<void (bool)>> & out);
     bool  AnyDropdownOpen   () const { return m_themeDropdown.IsOpen(); }
