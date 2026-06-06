@@ -62,6 +62,41 @@ namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HardwarePage::HardwarePage
+//
+//  Registers each member widget into the panel's child list via
+//  Adopt so they participate in the IDxuiControl tree (Bounds,
+//  Visible, focus, parent pointers). The widgets remain HardwarePage-
+//  owned members; Adopt is non-owning. Layout positioning stays in
+//  SetRect() via legacy SetRect calls because the existing layout
+//  code does things DxuiFormLayout cannot model (memory rows packed
+//  three-wide across one row, sub-row layout under the Memory:
+//  header). SettingsPanel still drives input/paint through the
+//  bespoke shims; collapsing the duality is deferred to the
+//  SettingsPanel atomic conversion.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HardwarePage::HardwarePage()
+{
+    size_t  i = 0;
+
+
+    for (i = 0; i < kInfoRowCount; ++i)
+    {
+        Adopt (m_infoLabels[i]);
+        Adopt (m_infoValues[i]);
+        Adopt (m_infoExtras[i]);
+    }
+    Adopt (m_tree);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HardwarePage::SetRect
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,6 +166,12 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
     treeRect.top = y + sectionGap;
     m_tree.SetRect (treeRect);
     m_tree.SetDpi  (dpi);
+
+    // Mirror the page's footprint into the IDxuiControl tree so future
+    // centralized walks see this page as a panel covering `rect`.
+    // Adopted children already have their bounds written via the
+    // SetRect calls above.
+    DxuiPanel::SetBounds (rect);
 }
 
 
