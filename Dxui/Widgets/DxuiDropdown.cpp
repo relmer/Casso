@@ -108,13 +108,13 @@ void DxuiDropdown::Open()
         if (m_activePopup != nullptr)
         {
             showParams.ownerHwnd        = m_popupHost->Hwnd();
-            showParams.anchorRectScreen = m_rect;
+            showParams.anchorRectScreen = m_boundsDip;
             showParams.placement        = DxuiPopupPlacement::Below;
             showParams.flipIfOffscreen  = true;
             showParams.dismiss          = DxuiPopupDismiss::OnClickOutside;
             showParams.input            = DxuiPopupInput::Interactive;
             showParams.shadow           = true;
-            showParams.sizeDip.cx       = m_rect.right - m_rect.left;
+            showParams.sizeDip.cx       = m_boundsDip.right - m_boundsDip.left;
             showParams.sizeDip.cy       = (int) m_items.size() * rowHeight;
             showParams.content          = std::make_unique<DxuiPanel>();
 
@@ -159,7 +159,7 @@ void DxuiDropdown::Close()
 
 bool DxuiDropdown::HitTest (int x, int y) const
 {
-    return RectContains (m_rect, x, y);
+    return RectContains (m_boundsDip, x, y);
 }
 
 
@@ -173,14 +173,14 @@ bool DxuiDropdown::HitTest (int x, int y) const
 
 int DxuiDropdown::ItemHitTest (int x, int y) const
 {
-    RECT  menuRect   = m_rect;
+    RECT  menuRect   = m_boundsDip;
     int   index      = -1;
     int   rowHeight  = m_scaler.Px (s_kRowHeightDip);
 
 
 
-    menuRect.top    = m_rect.bottom;
-    menuRect.bottom = m_rect.bottom + (int) m_items.size() * rowHeight;
+    menuRect.top    = m_boundsDip.bottom;
+    menuRect.bottom = m_boundsDip.bottom + (int) m_items.size() * rowHeight;
 
     if (!m_open || !RectContains (menuRect, x, y))
     {
@@ -458,9 +458,9 @@ void DxuiDropdown::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
     int          chevronW      = m_scaler.Px (s_kChevronWidthDip);
     int          chevronH      = m_scaler.Px (s_kChevronHeightDip);
     int          chevronRight  = m_scaler.Px (s_kChevronRightDip);
-    int          chevronX      = m_rect.right - chevronRight - chevronW;
-    int          chevronY      = (m_rect.top + m_rect.bottom) / 2 - chevronH / 2;
-    int          textWidth     = (m_rect.right - m_rect.left) - textInset - (chevronRight + chevronW);
+    int          chevronX      = m_boundsDip.right - chevronRight - chevronW;
+    int          chevronY      = (m_boundsDip.top + m_boundsDip.bottom) / 2 - chevronH / 2;
+    int          textWidth     = (m_boundsDip.right - m_boundsDip.left) - textInset - (chevronRight + chevronW);
 
 
 
@@ -474,22 +474,22 @@ void DxuiDropdown::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
         textWidth = 0;
     }
 
-    painter.FillRect    ((float) m_rect.left,
-                         (float) m_rect.top,
-                         (float) (m_rect.right - m_rect.left),
-                         (float) (m_rect.bottom - m_rect.top),
+    painter.FillRect    ((float) m_boundsDip.left,
+                         (float) m_boundsDip.top,
+                         (float) (m_boundsDip.right - m_boundsDip.left),
+                         (float) (m_boundsDip.bottom - m_boundsDip.top),
                          boxColor);
-    painter.OutlineRect ((float) m_rect.left,
-                         (float) m_rect.top,
-                         (float) (m_rect.right - m_rect.left),
-                         (float) (m_rect.bottom - m_rect.top),
+    painter.OutlineRect ((float) m_boundsDip.left,
+                         (float) m_boundsDip.top,
+                         (float) (m_boundsDip.right - m_boundsDip.left),
+                         (float) (m_boundsDip.bottom - m_boundsDip.top),
                          edgePx,
                          edgeColor);
     IGNORE_RETURN_VALUE (hr, text.DrawString (label.c_str(),
-                                              (float) (m_rect.left + textInset),
-                                              (float) m_rect.top,
+                                              (float) (m_boundsDip.left + textInset),
+                                              (float) m_boundsDip.top,
                                               (float) textWidth,
-                                              (float) (m_rect.bottom - m_rect.top),
+                                              (float) (m_boundsDip.bottom - m_boundsDip.top),
                                               textColor,
                                               fontDip,
                                               s_kFontFamily,
@@ -516,10 +516,10 @@ void DxuiDropdown::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
         float  focusInset = m_scaler.Pxf (s_kFocusInsetPx);
         float  focusThick = m_scaler.Pxf (s_kFocusRingPx);
 
-        painter.OutlineRect ((float) m_rect.left + focusInset,
-                             (float) m_rect.top  + focusInset,
-                             (float) (m_rect.right  - m_rect.left) - focusInset * 2.0f,
-                             (float) (m_rect.bottom - m_rect.top)  - focusInset * 2.0f,
+        painter.OutlineRect ((float) m_boundsDip.left + focusInset,
+                             (float) m_boundsDip.top  + focusInset,
+                             (float) (m_boundsDip.right  - m_boundsDip.left) - focusInset * 2.0f,
+                             (float) (m_boundsDip.bottom - m_boundsDip.top)  - focusInset * 2.0f,
                              focusThick,
                              s_kFocusRingArgb);
     }
@@ -557,7 +557,7 @@ void DxuiDropdown::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
 
     for (i = 0; i < (int) m_items.size(); i++)
     {
-        RECT      row   = { m_rect.left, m_rect.bottom + i * rowHeight, m_rect.right, m_rect.bottom + (i + 1) * rowHeight };
+        RECT      row   = { m_boundsDip.left, m_boundsDip.bottom + i * rowHeight, m_boundsDip.right, m_boundsDip.bottom + (i + 1) * rowHeight };
         uint32_t  color = (i == m_highlight) ? s_kMenuHoverArgb : s_kMenuArgb;
 
         // D2D fill (not D3D painter) so the menu background composites
@@ -593,7 +593,6 @@ void DxuiDropdown::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
 void DxuiDropdown::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_rect = boundsDip;
     m_scaler.SetDpi (scaler.Dpi());
 }
 

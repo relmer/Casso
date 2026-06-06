@@ -32,7 +32,7 @@ bool DxuiTextInput::HitTest (int x, int y) const
     {
         return false;
     }
-    return x >= m_rect.left && x < m_rect.right && y >= m_rect.top && y < m_rect.bottom;
+    return x >= m_boundsDip.left && x < m_boundsDip.right && y >= m_boundsDip.top && y < m_boundsDip.bottom;
 }
 
 
@@ -301,10 +301,10 @@ bool DxuiTextInput::OnChar (wchar_t ch)
 void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
     HRESULT      hr        = S_OK;
-    float        x         = (float) m_rect.left;
-    float        y         = (float) m_rect.top;
-    float        w         = (float) (m_rect.right  - m_rect.left);
-    float        h         = (float) (m_rect.bottom - m_rect.top);
+    float        x         = (float) m_boundsDip.left;
+    float        y         = (float) m_boundsDip.top;
+    float        w         = (float) (m_boundsDip.right  - m_boundsDip.left);
+    float        h         = (float) (m_boundsDip.bottom - m_boundsDip.top);
     float        padL      = m_scaler.Pxf (s_kPadLeftDip);
     float        padR      = m_scaler.Pxf (s_kPadRightDip);
     float        fontPx    = m_scaler.Pxf (s_kFontDip);
@@ -426,7 +426,7 @@ size_t DxuiTextInput::CaretFromX (IDxuiTextRenderer & text, int xPx) const
     HRESULT       hr       = S_OK;
     float         padL     = m_scaler.Pxf (s_kPadLeftDip);
     float         fontPx   = m_scaler.Pxf (s_kFontDip);
-    float         target   = (float) xPx - (float) m_rect.left - padL + m_scrollPx;
+    float         target   = (float) xPx - (float) m_boundsDip.left - padL + m_scrollPx;
     float         w        = 0.0f;
     float         h        = 0.0f;
     std::wstring  prefix;
@@ -663,7 +663,6 @@ void DxuiTextInput::FireChange ()
 void DxuiTextInput::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_rect = boundsDip;
     m_scaler.SetDpi (scaler.Dpi());
 }
 

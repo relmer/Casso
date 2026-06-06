@@ -58,7 +58,7 @@ public:
 
     bool                       IsVisible () const { return m_visible; }
     const std::vector<Item>  & Items     () const { return m_items;   }
-    const RECT               & Rect      () const { return m_rect;    }
+    const RECT               & Rect      () const { return m_boundsDip;    }
 
     void  Show           (int anchorX,
                           int anchorY,
@@ -93,7 +93,6 @@ private:
     std::vector<Item>     m_items;
     SelectFn              m_onSelect;
     const IDxuiTheme    * m_theme    = nullptr;
-    RECT                  m_rect     = {};
     int                   m_hover    = -1;
     int                   m_pressed  = -1;
     bool                  m_visible  = false;

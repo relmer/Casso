@@ -62,7 +62,7 @@ public:
 
     ~DxuiTreeView() override = default;
 
-    void  SetRect      (const RECT & rect) { m_rect = rect; SetBounds (rect); }
+    void  SetRect      (const RECT & rect) { SetBounds (rect); }
     void  SetRowHeight (int px) { m_rowHeightPx = px; }
     void  SetNodes     (std::vector<DxuiTreeNode> nodes) { m_nodes = std::move (nodes); RebuildFlatRows(); }
     void  SetEnabled   (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; }
@@ -129,9 +129,6 @@ private:
 
     void  FlattenRecursive (const DxuiTreeNode & node, std::vector<int> & path, int depth);
     void  ToggleRow        (int flatRow);
-
-
-    RECT                  m_rect        = {};
     int                   m_rowHeightPx = 22;
     int                   m_indentPx    = 18;
     int                   m_checkboxPx  = 16;

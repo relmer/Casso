@@ -26,7 +26,7 @@ void DxuiListView::SetRect (const RECT & rect)
 
 
 
-    m_rect = rect;
+    SetBounds (rect);
     maxTop = GetMaxTopRow();
 
     if (wasSticky || m_topRow > maxTop)
@@ -258,7 +258,7 @@ int DxuiListView::GetColumnEffectiveWidthPx (size_t idx) const
 
     cap     = GetVisibleRowCapacity();
     needBar = ((int) m_rows.size() > cap) && (cap > 0);
-    fullW   = (m_rect.right - m_rect.left) - (needBar ? GetScrollbarWidthPx() : 0);
+    fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
 
     ComputeColumnLayout ((float) fullW, xs, ws);
     width = ws[idx];
@@ -521,7 +521,7 @@ int DxuiListView::GetVisibleRowCapacity () const
     int      rowH    = m_scaler.Px (s_kRowHeightDip);
     int      headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0;
     int      hdrGap  = m_showHeader ? m_scaler.Px (s_kHeaderGapDip)    : 0;
-    int      body    = (m_rect.bottom - m_rect.top) - headerH - hdrGap;
+    int      body    = (m_boundsDip.bottom - m_boundsDip.top) - headerH - hdrGap;
 
 
 
@@ -653,12 +653,12 @@ DxuiListView::ScrollbarMetrics DxuiListView::GetScrollbarGeometry () const
 {
     HRESULT           hr      = S_OK;
     ScrollbarMetrics  m;
-    int               fullW   = m_rect.right - m_rect.left;
+    int               fullW   = m_boundsDip.right - m_boundsDip.left;
     int               barW    = GetScrollbarWidthPx();
     int               headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0;
     int               hdrGap  = m_showHeader ? m_scaler.Px (s_kHeaderGapDip)    : 0;
     int               by      = headerH + hdrGap;
-    int               bh      = (m_rect.bottom - m_rect.top) - by;
+    int               bh      = (m_boundsDip.bottom - m_boundsDip.top) - by;
     int               total   = (int) m_rows.size();
     int               cap     = GetVisibleRowCapacity();
     int               maxTop  = GetMaxTopRow();
@@ -990,7 +990,7 @@ int DxuiListView::HitTestColumnResize (int xPx, int yPx, int tolerancePx) const
     int      headerH     = m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0;
     int      cap         = GetVisibleRowCapacity();
     bool     needBar     = ((int) m_rows.size() > cap) && (cap > 0);
-    int      fullW       = (m_rect.right - m_rect.left) - (needBar ? GetScrollbarWidthPx() : 0);
+    int      fullW       = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
     int      lastVisible = -1;
     std::vector<int>  colXPx;
     std::vector<int>  colWPx;
@@ -1057,7 +1057,7 @@ int DxuiListView::HitTestHeaderColumn (int xPx, int yPx) const
     int              headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0;
     int              cap     = GetVisibleRowCapacity();
     bool             needBar = ((int) m_rows.size() > cap) && (cap > 0);
-    int              fullW   = (m_rect.right - m_rect.left) - (needBar ? GetScrollbarWidthPx() : 0);
+    int              fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
     std::vector<int> colXPx;
     std::vector<int> colWPx;
 
@@ -1112,7 +1112,7 @@ int DxuiListView::HitTestRow (int xPx, int yPx) const
     int      visIdx  = (body < 0 || rowH <= 0) ? -1 : (body / rowH);
     int      cap     = GetVisibleRowCapacity();
     int      abs     = (visIdx < 0) ? -1 : (m_topRow + visIdx);
-    int      rowW    = (m_rect.right - m_rect.left) - ((int) m_rows.size() > cap ? GetScrollbarWidthPx() : 0);
+    int      rowW    = (m_boundsDip.right - m_boundsDip.left) - ((int) m_rows.size() > cap ? GetScrollbarWidthPx() : 0);
 
 
 
@@ -1143,9 +1143,9 @@ Error:
 void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
     HRESULT          hr         = S_OK;
-    float            x          = (float) m_rect.left;
-    float            y          = (float) m_rect.top;
-    float            fullW      = (float) (m_rect.right - m_rect.left);
+    float            x          = (float) m_boundsDip.left;
+    float            y          = (float) m_boundsDip.top;
+    float            fullW      = (float) (m_boundsDip.right - m_boundsDip.left);
     int              visibleCap = GetVisibleRowCapacity();
     int              totalRows  = (int) m_rows.size();
     int              firstRow   = m_topRow;
@@ -1165,7 +1165,7 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 
     ComputeColumnLayout (layoutW, colXPx, colWPx);
 
-    painter.FillRect (x, y, fullW, (float) (m_rect.bottom - m_rect.top), pal.bgRow);
+    painter.FillRect (x, y, fullW, (float) (m_boundsDip.bottom - m_boundsDip.top), pal.bgRow);
 
     if (m_showHeader)
     {
@@ -1475,7 +1475,7 @@ void DxuiListView::PaintScrollbar (
 
     bx     = x + (float) m.barX;
     barTop = y + headerH + hdrGap;
-    barH   = (float) (m_rect.bottom - m_rect.top) - headerH - hdrGap;
+    barH   = (float) (m_boundsDip.bottom - m_boundsDip.top) - headerH - hdrGap;
 
     painter.FillRect (bx, barTop, (float) m.barW, barH, trackArgb);
     painter.FillRect (bx + 1.0f, y + m.thumbTop, (float) m.barW - 2.0f, m.thumbH, thumbArgb);

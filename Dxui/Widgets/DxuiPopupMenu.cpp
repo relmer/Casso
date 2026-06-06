@@ -80,10 +80,10 @@ void DxuiPopupMenu::Show (
     if (left < hostClient.left) { left = hostClient.left; }
     if (top  < hostClient.top)  { top  = hostClient.top;  }
 
-    m_rect.left   = left;
-    m_rect.top    = top;
-    m_rect.right  = left + width;
-    m_rect.bottom = top  + height;
+    m_boundsDip.left   = left;
+    m_boundsDip.top    = top;
+    m_boundsDip.right  = left + width;
+    m_boundsDip.bottom = top  + height;
 
     // Opt-in popup hosting (see header). When a host is wired up we
     // acquire a pooled DxuiPopupHost and show the menu via WS_POPUP
@@ -97,7 +97,7 @@ void DxuiPopupMenu::Show (
         if (m_activePopup != nullptr)
         {
             showParams.ownerHwnd        = m_popupHost->Hwnd();
-            showParams.anchorRectScreen = m_rect;
+            showParams.anchorRectScreen = m_boundsDip;
             showParams.placement        = DxuiPopupPlacement::AtCursor;
             showParams.flipIfOffscreen  = true;
             showParams.dismiss          = DxuiPopupDismiss::OnClickOutside;
@@ -153,8 +153,8 @@ void DxuiPopupMenu::Hide()
 bool DxuiPopupMenu::HitTest (int x, int y) const
 {
     return m_visible
-        && x >= m_rect.left && x < m_rect.right
-        && y >= m_rect.top  && y < m_rect.bottom;
+        && x >= m_boundsDip.left && x < m_boundsDip.right
+        && y >= m_boundsDip.top  && y < m_boundsDip.bottom;
 }
 
 
@@ -171,7 +171,7 @@ int DxuiPopupMenu::HitTestIndex (int x, int y) const
 {
     int  border = m_scaler.Px (s_kBorderDip);
     int  itemH  = m_scaler.Px (s_kItemHeightDip);
-    int  relY   = y - (m_rect.top + border);
+    int  relY   = y - (m_boundsDip.top + border);
 
     if (!HitTest (x, y))   { return -1; }
     if (itemH <= 0)        { return -1; }
@@ -335,10 +335,10 @@ void DxuiPopupMenu::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     uint32_t  bgHover  = 0;
     uint32_t  fgArgb   = 0;
     uint32_t  brdrArgb = 0;
-    float     left     = (float) m_rect.left;
-    float     top      = (float) m_rect.top;
-    float     width    = (float) (m_rect.right  - m_rect.left);
-    float     height   = (float) (m_rect.bottom - m_rect.top);
+    float     left     = (float) m_boundsDip.left;
+    float     top      = (float) m_boundsDip.top;
+    float     width    = (float) (m_boundsDip.right  - m_boundsDip.left);
+    float     height   = (float) (m_boundsDip.bottom - m_boundsDip.top);
 
 
     if (!m_visible || m_theme == nullptr)

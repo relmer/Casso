@@ -14,7 +14,7 @@ public:
 
     ~DxuiButton() override = default;
 
-    void  Layout          (const RECT & rect) { m_rect = rect; SetBounds (rect); }
+    void  Layout          (const RECT & rect) { SetBounds (rect); }
     void  SetLabel        (const std::wstring & label);
     wchar_t  Accelerator  () const { return m_accelerator; }
     void  SetClick        (ClickFn click) { m_click = std::move (click); }
@@ -57,7 +57,6 @@ public:
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Button; }
 
 private:
-    RECT          m_rect            = {};
     std::wstring  m_label;
     wchar_t       m_accelerator     = 0;
     ClickFn       m_click;
