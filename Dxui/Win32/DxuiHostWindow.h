@@ -189,10 +189,12 @@ public:
     //  the caller continues to own its own device + swap chain.
     //  Tests must not call these in test mode.
     //
-    //  RTV creation lands later in the Phase 11d migration; until
-    //  then GetBackBufferRtv() returns nullptr even in full-ownership
-    //  mode. Consumers that need an RTV today must create one off
-    //  GetSwapChain() themselves.
+    //  GetBackBufferRtv() returns the host's back-buffer render-target
+    //  view, recreated automatically on every WM_SIZE. Consumers that
+    //  composite via the BeforePresentHook should bind this RTV (or
+    //  one derived from it) themselves; the host's paint pump rebinds
+    //  it before walking the panel tree but does NOT guarantee any
+    //  particular OM state on hook entry.
     //
     ID3D11Device         *  GetDevice          () const { return m_device.Get();    }
     ID3D11DeviceContext  *  GetContext         () const { return m_context.Get();   }
@@ -207,11 +209,6 @@ public:
     //  host stores the callback; it is invoked once per frame from
     //  the host's WM_PAINT pump. Passing a null function clears any
     //  previously-installed hook.
-    //
-    //  The host's panel-tree paint pump lands later in Phase 11d;
-    //  until then the hook is stored but never invoked. Consumers
-    //  may register today so that the wiring is in place when the
-    //  pump comes online.
     //
     void  SetBeforePresentHook  (std::function<void()> hook);
     const std::function<void()> &  BeforePresentHook  () const { return m_beforePresentHook; }
@@ -289,6 +286,9 @@ private:
     HRESULT  CreateDeviceAndSwapChain  ();
     HRESULT  CreateRenderResources     ();
     void     ReleaseRenderResources    ();
+    HRESULT  CreateBackBufferRtv       ();
+    void     ReleaseBackBufferRtv      ();
+    void     PaintPump                 ();
     void     ApplyDwmConfiguration     ();
 
     LRESULT  HandleNcCalcSize          (WPARAM wp, LPARAM lp);

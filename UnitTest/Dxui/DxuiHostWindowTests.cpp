@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "MockDxuiTheme.h"
+
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
@@ -416,5 +418,53 @@ public:
 
         host.SetBeforePresentHook (nullptr);
         Assert::IsFalse ((bool) host.BeforePresentHook());
+    }
+
+
+
+    //
+    //  SetTheme / paint-pump prerequisites. The real WM_PAINT pump
+    //  needs a live HWND + swap chain so its behavior is only
+    //  exercisable from the running app; here we verify the bits the
+    //  pump reads (theme pointer, broadcast on theme change) without
+    //  poking at the GPU.
+    //
+
+    TEST_METHOD (SetTheme_BroadcastsOnThemeChangedToRoot)
+    {
+        struct ThemeListener : public IDxuiControl
+        {
+            int  themeChangedCount = 0;
+
+            void  Layout         (const RECT &, const DxuiDpiScaler &) override {}
+            void  Paint          (IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &) override {}
+            void  OnThemeChanged() override { ++themeChangedCount; }
+        };
+
+        std::unique_ptr<DxuiPanel>  root     = std::make_unique<DxuiPanel>();
+        ThemeListener &             listener = root->Add<ThemeListener>();
+        DxuiHostWindow              host (MakeRect (0, 0, s_kClientWidthDip, s_kClientHeightDip),
+                                          s_kResizeBorderDip,
+                                          std::move (root));
+        MockDxuiTheme               theme;
+
+
+        host.SetTheme (&theme);
+
+        Assert::AreEqual (1, listener.themeChangedCount);
+    }
+
+
+    TEST_METHOD (SetTheme_NullClearsThemeWithoutCrash)
+    {
+        DxuiHostWindow  host;
+        MockDxuiTheme   theme;
+
+
+        host.SetTheme (&theme);
+        host.SetTheme (nullptr);
+
+        // Reaching here without an assertion / crash is the contract.
+        Assert::IsTrue (true);
     }
 };
