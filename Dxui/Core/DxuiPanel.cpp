@@ -50,10 +50,118 @@ void DxuiPanel::AppendChild (std::unique_ptr<IDxuiControl> child)
 
     if (child)
     {
+        ChildSlot  slot;
+
         child->SetParent (this);
-        m_children.push_back (std::move (child));
+        slot.raw   = child.get();
+        slot.owned = std::move (child);
+        m_children.push_back (std::move (slot));
         MarkDirty();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Adopt
+//
+//  Registers a non-owned child. The panel includes it in paint /
+//  input / focus / tick / theme / DPI walks but does NOT destroy it
+//  when the panel is destroyed. Caller retains lifetime ownership.
+//  Re-adopting the same pointer is a no-op; adopting a pointer
+//  already owned by this panel asserts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPanel::Adopt (IDxuiControl & nonOwnedChild)
+{
+    ChildSlot  slot;
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    for (const auto & existing : m_children)
+    {
+        if (existing.raw == &nonOwnedChild)
+        {
+            _ASSERTE (existing.owned == nullptr && "Adopt called on a control already owned via Add<T>().");
+            return;
+        }
+    }
+
+    nonOwnedChild.SetParent (this);
+    slot.raw = &nonOwnedChild;
+    m_children.push_back (std::move (slot));
+    MarkDirty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RemoveAdopted
+//
+//  Drops a previously adopted child by pointer match. Returns false
+//  for children not present or for owned children (use Remove for
+//  those). The pointer's lifetime is unaffected; only the panel's
+//  participation reference is removed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPanel::RemoveAdopted (IDxuiControl & child)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    for (auto it = m_children.begin(); it != m_children.end(); ++it)
+    {
+        if (it->raw == &child && it->owned == nullptr)
+        {
+            it->raw->SetParent (nullptr);
+            m_children.erase (it);
+            MarkDirty();
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClearAdopted
+//
+//  Drops every adopted entry. Owned children added via Add<T> are
+//  left untouched.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPanel::ClearAdopted ()
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    for (auto it = m_children.begin(); it != m_children.end(); )
+    {
+        if (it->owned == nullptr)
+        {
+            it->raw->SetParent (nullptr);
+            it = m_children.erase (it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    MarkDirty();
 }
 
 
@@ -80,9 +188,9 @@ bool DxuiPanel::Remove (IDxuiControl * child)
 
     for (auto it = m_children.begin(); it != m_children.end(); ++it)
     {
-        if (it->get() == child)
+        if (it->raw == child && it->owned != nullptr)
         {
-            (*it)->SetParent (nullptr);
+            it->owned->SetParent (nullptr);
             m_children.erase (it);
             MarkDirty();
             return true;
@@ -106,9 +214,9 @@ void DxuiPanel::Clear()
 {
     DXUI_ASSERT_UI_THREAD();
 
-    for (auto & child : m_children)
+    for (auto & slot : m_children)
     {
-        child->SetParent (nullptr);
+        slot.raw->SetParent (nullptr);
     }
     m_children.clear();
     MarkDirty();
@@ -153,9 +261,9 @@ void DxuiPanel::PropagateDpi (const DxuiDpiScaler & scaler)
     m_lastScaler = scaler;
     m_haveLast   = (m_lastBoundsDip.right > m_lastBoundsDip.left);
 
-    for (auto & child : m_children)
+    for (auto & slot : m_children)
     {
-        DxuiPanel *  childPanel = dynamic_cast<DxuiPanel *> (child.get());
+        DxuiPanel *  childPanel = dynamic_cast<DxuiPanel *> (slot.raw);
 
         if (childPanel != nullptr)
         {
@@ -215,11 +323,11 @@ void DxuiPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     if (m_layout)
     {
         visibleRaw.reserve (m_children.size());
-        for (auto & child : m_children)
+        for (auto & slot : m_children)
         {
-            if (child->Visible())
+            if (slot.raw->Visible())
             {
-                visibleRaw.push_back (child.get());
+                visibleRaw.push_back (slot.raw);
             }
         }
 
@@ -228,13 +336,13 @@ void DxuiPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
                            std::span<IDxuiControl * const> (visibleRaw.data(), visibleRaw.size()));
     }
 
-    for (auto & child : m_children)
+    for (auto & slot : m_children)
     {
-        DxuiPanel *  childPanel = dynamic_cast<DxuiPanel *> (child.get());
+        DxuiPanel *  childPanel = dynamic_cast<DxuiPanel *> (slot.raw);
 
-        if (childPanel != nullptr && child->Visible())
+        if (childPanel != nullptr && slot.raw->Visible())
         {
-            childPanel->Layout (child->Bounds(), scaler);
+            childPanel->Layout (slot.raw->Bounds(), scaler);
         }
     }
 }
@@ -256,11 +364,11 @@ void DxuiPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
 {
     DXUI_ASSERT_UI_THREAD();
 
-    for (auto & child : m_children)
+    for (auto & slot : m_children)
     {
-        if (child->Visible())
+        if (slot.raw->Visible())
         {
-            child->Paint (painter, text, theme);
+            slot.raw->Paint (painter, text, theme);
         }
     }
 }
@@ -284,7 +392,7 @@ bool DxuiPanel::OnMouse (const DxuiMouseEvent & ev)
 
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
     {
-        IDxuiControl *  child = it->get();
+        IDxuiControl *  child = it->raw;
 
         if (child->Visible() && child->Enabled())
         {
@@ -314,7 +422,7 @@ bool DxuiPanel::OnKey (const DxuiKeyEvent & ev)
 
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
     {
-        IDxuiControl *  child = it->get();
+        IDxuiControl *  child = it->raw;
 
         if (child->Visible() && child->Enabled())
         {
@@ -342,9 +450,9 @@ void DxuiPanel::OnThemeChanged()
 {
     DXUI_ASSERT_UI_THREAD();
 
-    for (auto & child : m_children)
+    for (auto & slot : m_children)
     {
-        child->OnThemeChanged();
+        slot.raw->OnThemeChanged();
     }
 }
 
@@ -362,9 +470,9 @@ void DxuiPanel::Tick (int64_t nowMs)
 {
     DXUI_ASSERT_UI_THREAD();
 
-    for (auto & child : m_children)
+    for (auto & slot : m_children)
     {
-        child->Tick (nowMs);
+        slot.raw->Tick (nowMs);
     }
 }
 
