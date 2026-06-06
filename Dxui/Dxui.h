@@ -83,6 +83,7 @@
 #include "Core/DxuiTitleBarHitTest.h"
 #include "Core/IDxuiControl.h"
 #include "Core/IDxuiLayout.h"
+#include "Core/IDxuiViewportInputSink.h"
 #include "Core/DxuiAbsoluteLayout.h"
 #include "Core/DxuiFormLayout.h"
 #include "Core/DxuiGridLayout.h"

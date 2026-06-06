@@ -202,6 +202,7 @@
     <ClInclude Include="Core\DxuiTitleBarHitTest.h" />
     <ClInclude Include="Core\IDxuiControl.h" />
     <ClInclude Include="Core\IDxuiLayout.h" />
+    <ClInclude Include="Core\IDxuiViewportInputSink.h" />
     <ClInclude Include="Render\DxuiPainter.h" />
     <ClInclude Include="Render\DxuiTextRenderer.h" />
     <ClInclude Include="Render\IDxuiPainter.h" />
