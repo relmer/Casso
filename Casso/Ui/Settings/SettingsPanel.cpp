@@ -158,7 +158,7 @@ HRESULT SettingsPanel::Initialize (
     m_emuShell = &emuShell;
     m_fs       = &fs;
 
-    m_crt.Bind (&prefs, &themes, &m_state, &m_displayPage);
+    m_crt.Bind (&prefs, &themes, &m_state, &m_displayPage, &emuShell);
     m_catalog.Bind (&emuShell, &ucs, &prefs, &fs, &themes, &m_state,
                     &m_machinePage, &m_themePage);
     m_apply.Bind (&m_state, &ucs, &prefs, &fs, &emuShell, &m_window, &m_catalog);
@@ -170,153 +170,11 @@ HRESULT SettingsPanel::Initialize (
     m_hardwarePage.SetState (&m_state);
     m_displayPage.SetState  (&m_state);
 
-    // Brightness / contrast slide callbacks write LIVE to GlobalUserPrefs.crt
-    // so the emulator's per-frame MakeCrtParams picks the new value up on
-    // the next CPU frame. Cancel undoes this by restoring the baseline
-    // values; OK simply flips userOverride + Saves to disk.
-    // CRT slider callbacks write LIVE to the CURRENTLY-ACTIVE monitor's
-    // crt block. m_crt.ActiveModeIdx() reads m_state.Prefs().colorMode so
-    // every edit lands on whichever monitor type the user has selected
-    // in the dropdown. MakeCrtParams picks up the new values on the
-    // next frame; Cancel restores the per-block baselines.
-    m_displayPage.SetOnBrightnessChange ([this] (float pct)
-    {
-        if (m_prefs != nullptr)
-        {
-            m_crt.PromoteActiveToOverride();
-            auto & blk = m_prefs->crtByMode[m_crt.ActiveModeIdx()];
-            blk.brightness   = pct / 100.0f;     // slider 0..200% -> shader 0..2.0
-        }
-    });
-    m_displayPage.SetOnContrastChange ([this] (float pct)
-    {
-        if (m_prefs != nullptr)
-        {
-            m_crt.PromoteActiveToOverride();
-            auto & blk = m_prefs->crtByMode[m_crt.ActiveModeIdx()];
-            blk.contrast     = pct / 100.0f;
-        }
-    });
-    m_displayPage.SetOnGammaChange ([this] (float g)
-    {
-        if (m_prefs != nullptr)
-        {
-            m_crt.PromoteActiveToOverride();
-            auto & blk = m_prefs->crtByMode[m_crt.ActiveModeIdx()];
-            blk.gamma        = g;
-        }
-    });
-    m_displayPage.SetOnPersistenceChange ([this] (float pct)
-    {
-        if (m_prefs != nullptr)
-        {
-            m_crt.PromoteActiveToOverride();
-            auto & blk = m_prefs->crtByMode[m_crt.ActiveModeIdx()];
-            blk.persistence  = pct / 100.0f;
-        }
-    });
-    m_displayPage.SetOnMonitorChange ([this] (int idx)
-    {
-        // Apply both palette AND the active mode index so the live
-        // render AND the slider widgets reflect the hovered/selected
-        // monitor's full CRT settings, not just its palette. State
-        // gets reverted from PreparePreviewFrame's dropdown-close
-        // detector if the user cancels the dropdown without
-        // selecting a new monitor.
-        m_state.SetColorMode ((SettingsColorMode) idx);
-        if (m_emuShell != nullptr)
-        {
-            m_emuShell->SetColorModeLive (idx);
-        }
-        // After the monitor switch, push the new monitor's CRT block
-        // into the slider widgets so the user sees its current values
-        // (either their previous user override or, for an untouched
-        // monitor, the preset's defaults projected through MakeCrtParams).
-        m_crt.ReseedFromActiveMode();
-    });
+    // Live-edit slider / toggle / monitor + Restore Defaults callbacks
+    // funnel through SettingsDisplayCrtBridge so the CRT shader picks
+    // edits up on the next frame via the per-monitor crtByMode block.
+    m_crt.WireDisplayPageCallbacks();
 
-    // Per-effect toggles and parameter sliders write LIVE to the active
-    // monitor's CRT block.
-    m_displayPage.SetOnScanlinesEnChange ([this] (bool on)
-    {
-        if (m_prefs != nullptr) { m_crt.PromoteActiveToOverride(); m_prefs->crtByMode[m_crt.ActiveModeIdx()].scanlinesEnabled  = on; }
-    });
-    m_displayPage.SetOnScanlinesIntChange ([this] (float pct)
-    {
-        if (m_prefs != nullptr) { m_crt.PromoteActiveToOverride(); m_prefs->crtByMode[m_crt.ActiveModeIdx()].scanlinesIntensity = pct / 100.0f; }
-    });
-    m_displayPage.SetOnBloomEnChange ([this] (bool on)
-    {
-        if (m_prefs != nullptr) { m_crt.PromoteActiveToOverride(); m_prefs->crtByMode[m_crt.ActiveModeIdx()].bloomEnabled       = on; }
-    });
-    m_displayPage.SetOnBloomRadiusChange ([this] (float px)
-    {
-        if (m_prefs != nullptr) { m_crt.PromoteActiveToOverride(); m_prefs->crtByMode[m_crt.ActiveModeIdx()].bloomRadius        = px; }
-    });
-    m_displayPage.SetOnBloomStrengthChange ([this] (float pct)
-    {
-        if (m_prefs != nullptr) { m_crt.PromoteActiveToOverride(); m_prefs->crtByMode[m_crt.ActiveModeIdx()].bloomStrength      = pct / 100.0f; }
-    });
-    m_displayPage.SetOnColorBleedEnChange ([this] (bool on)
-    {
-        if (m_prefs != nullptr) { m_crt.PromoteActiveToOverride(); m_prefs->crtByMode[m_crt.ActiveModeIdx()].colorBleedEnabled  = on; }
-    });
-    m_displayPage.SetOnColorBleedWChange ([this] (float px)
-    {
-        if (m_prefs != nullptr) { m_crt.PromoteActiveToOverride(); m_prefs->crtByMode[m_crt.ActiveModeIdx()].colorBleedWidth    = px; }
-    });
-    m_displayPage.SetOnRestoreDefaults ([this] ()
-    {
-        // Restore Defaults gives the user the RESOLVED defaults
-        // (theme override layered on monitor preset) -- the same
-        // values the "(theme default)" / "(monitor default)" badges
-        // refer to. Anything else creates the confusing experience
-        // where Restore moves a slider AWAY from a position the
-        // badge had just marked as "default".
-        if (m_prefs == nullptr)
-        {
-            return;
-        }
-
-        auto &                     blk           = m_prefs->crtByMode[m_crt.ActiveModeIdx()];
-        const auto &               preset        = CrtPresets::ForMode ((size_t) m_crt.ActiveModeIdx());
-        const ThemeCrtDefaults *   themeDefaults = nullptr;
-
-        if (m_themes != nullptr)
-        {
-            const LoadedTheme *  active = m_themes->GetActiveTheme();
-            if (active != nullptr)
-            {
-                themeDefaults = &active->crtDefaults;
-            }
-        }
-
-        blk = preset;
-        if (themeDefaults != nullptr)
-        {
-            if (themeDefaults->hasBrightness) { blk.brightness = themeDefaults->brightness; }
-            if (themeDefaults->hasContrast)   { blk.contrast   = themeDefaults->contrast;   }
-            if (themeDefaults->hasScanlines)
-            {
-                blk.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
-                blk.scanlinesIntensity = themeDefaults->scanlinesIntensity;
-            }
-            if (themeDefaults->hasBloom)
-            {
-                blk.bloomEnabled = themeDefaults->bloomEnabled;
-                blk.bloomRadius  = themeDefaults->bloomRadius;
-                blk.bloomStrength = themeDefaults->bloomStrength;
-            }
-            if (themeDefaults->hasColorBleed)
-            {
-                blk.colorBleedEnabled = themeDefaults->colorBleedEnabled;
-                blk.colorBleedWidth   = themeDefaults->colorBleedWidth;
-            }
-        }
-        blk.userOverride = true;
-
-        m_crt.ReseedFromActiveMode();
-    });
     m_displayPage.SetOnPreview ([this] (int controlId, bool start, bool keyboardMode)
     {
         if (start)

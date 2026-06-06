@@ -364,6 +364,7 @@ private:
     friend class WindowCommandManager;
     friend class SettingsPanel;
     friend class SettingsApplyController;
+    friend class SettingsDisplayCrtBridge;
     friend class SettingsMachineCatalog;
 
     HACCEL              m_accelTable      = nullptr;
