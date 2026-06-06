@@ -114,6 +114,7 @@ public:
     bool  IsOpen            () const { return m_isOpen;                             }
     bool  IsOpenByKeyboard  () const { return m_isOpen && m_openedByKeyboard;       }
     int   HighlightIndex    () const { return m_highlightIndex;                     }
+    int   HoverIndex        () const { return m_hoverIndex;                         }
     int   MenuCount         () const { return (int) m_items.size();                 }
     void  SetFocusedMenu    (int menuIndex);
     void  ClearFocus        ();
