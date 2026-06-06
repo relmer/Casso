@@ -549,15 +549,31 @@ RECT DisplayPage::FocusedControlRect (int controlId) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisplayPage::SetFadeState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisplayPage::SetFadeState (int   focusedControlId,
+                                float focusedAlpha,
+                                float nonFocusedAlpha)
+{
+    m_fadeFocusedId       = focusedControlId;
+    m_fadeFocusedAlpha    = focusedAlpha;
+    m_fadeNonFocusedAlpha = nonFocusedAlpha;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisplayPage::Paint
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DisplayPage::Paint (DxuiPainter & painter, DxuiTextRenderer & text,
-                         const IDxuiTheme & theme,
-                         int          focusedControlId,
-                         float        nonFocusedAlpha,
-                         float        focusedAlpha) const
+void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
+                         const IDxuiTheme & theme)
 {
     constexpr uint32_t  s_kFocusedBackingArgb = 0xFF202830;   // dark grey, near-opaque
     constexpr uint32_t  s_kIndicatorArgb      = 0xFF7A8FA5;   // muted blue-grey
@@ -566,6 +582,9 @@ void DisplayPage::Paint (DxuiPainter & painter, DxuiTextRenderer & text,
     constexpr wchar_t   s_kFont[]             = L"Segoe UI";
     constexpr float     s_kFloatEpsilon       = 0.001f;
 
+    int    focusedControlId = m_fadeFocusedId;
+    float  focusedAlpha     = m_fadeFocusedAlpha;
+    float  nonFocusedAlpha  = m_fadeNonFocusedAlpha;
     float  indicatorFontPx  = m_scaler.Pxf (s_kIndicatorFontDp);
     float  indicatorWidthPx = m_scaler.Pxf (s_kIndicatorWidthDp);
 
@@ -722,7 +741,7 @@ void DisplayPage::Paint (DxuiPainter & painter, DxuiTextRenderer & text,
         // theme handle so we hand it the canonical fallback -- chrome
         // theming for the button face will land when the page picks
         // up the active theme pointer in a follow-up.
-        const_cast<DxuiButton &> (m_restore).Paint (painter, text, s_kFallbackTheme);
+        m_restore.Paint (painter, text, s_kFallbackTheme);
     }
 
     // DxuiDropdown menu floats above the page; paint last so it overlays.
