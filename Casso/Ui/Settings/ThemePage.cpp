@@ -389,6 +389,32 @@ namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ThemePage::ThemePage
+//
+//  Registers the label and dropdown into the panel's child list via
+//  Adopt so they participate in the IDxuiControl tree (Bounds,
+//  Visible, focus, parent pointers). The widgets remain ThemePage-
+//  owned members; Adopt is non-owning. Layout positioning still
+//  happens in Layout() below via the legacy SetRect calls because
+//  the leaf widgets store their rect twice today (m_rect alongside
+//  m_boundsDip) and DxuiPanel's layout-policy walk only writes the
+//  latter -- closing that duality so DxuiFormLayout can drive
+//  positioning end-to-end is Phase 14 work.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ThemePage::ThemePage()
+{
+    Adopt (m_themeLabel);
+    Adopt (m_themeDropdown);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ThemePage::SetThemes
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -464,6 +490,13 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_previewRect.right  = std::max ((LONG) x, (LONG) (rect.right  - pad));
     m_previewRect.bottom = std::max ((LONG) previewTop, (LONG) (rect.bottom - pad));
     m_scaler             = scaler;
+
+    // Update the panel base's bounds so the IDxuiControl tree sees
+    // this page's footprint. The Adopt'd children already have their
+    // bounds written via the SetRect calls above (SetRect mirrors
+    // through SetBounds), so no layout policy is needed for this
+    // single-row page.
+    DxuiPanel::SetBounds (rect);
 }
 
 
