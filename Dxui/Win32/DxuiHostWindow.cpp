@@ -389,11 +389,6 @@ void DxuiHostWindow::SetHitTestDelegate (std::function<LRESULT (POINT)> delegate
 //  the swap chain itself. Passing a null function clears any
 //  previously-installed hook.
 //
-//  The panel-tree paint pump lands later in Phase 11d; until then
-//  this setter only stores the callback and the host never invokes
-//  it. Consumers may register today so the wiring is in place when
-//  the pump comes online.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiHostWindow::SetBeforePresentHook (std::function<void()> hook)
@@ -620,6 +615,9 @@ HRESULT DxuiHostWindow::CreateRenderResources ()
     hr = m_textRenderer->Initialize (m_device.Get());
     CHRA (hr);
 
+    hr = CreateBackBufferRtv();
+    CHRA (hr);
+
 Error:
 
     return hr;
@@ -637,6 +635,8 @@ Error:
 
 void DxuiHostWindow::ReleaseRenderResources ()
 {
+    ReleaseBackBufferRtv();
+
     if (m_textRenderer != nullptr)
     {
         m_textRenderer->Shutdown();
@@ -647,6 +647,204 @@ void DxuiHostWindow::ReleaseRenderResources ()
         m_painter->Shutdown();
         m_painter.reset();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateBackBufferRtv
+//
+//  Acquires buffer 0 from the swap chain, creates a render-target
+//  view on it, and sets a viewport covering the full back buffer.
+//  Called from CreateRenderResources after the swap chain is built
+//  and from HandleSize after every ResizeBuffers.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiHostWindow::CreateBackBufferRtv ()
+{
+    HRESULT                   hr           = S_OK;
+    DXGI_SWAP_CHAIN_DESC1     scd          = {};
+    D3D11_VIEWPORT            vp           = {};
+    ComPtr<ID3D11Texture2D>   backBuffer;
+    ComPtr<IDXGISurface>      backSurface;
+
+
+
+    CBRA (m_swapChain);
+    CBRA (m_device);
+    CBRA (m_context);
+    CBRA (m_rtv == nullptr);
+
+    hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (backBuffer.GetAddressOf()));
+    CHRA (hr);
+
+    hr = m_device->CreateRenderTargetView (backBuffer.Get(), nullptr, m_rtv.GetAddressOf());
+    CHRA (hr);
+
+    hr = m_swapChain->GetDesc1 (&scd);
+    CHRA (hr);
+
+    vp.TopLeftX = 0.0f;
+    vp.TopLeftY = 0.0f;
+    vp.Width    = (float) scd.Width;
+    vp.Height   = (float) scd.Height;
+    vp.MinDepth = 0.0f;
+    vp.MaxDepth = 1.0f;
+    m_context->RSSetViewports (1, &vp);
+
+    // Rebind the Direct2D target bitmap (used by DxuiTextRenderer)
+    // to the new back-buffer surface. Skipped when the text
+    // renderer hasn't been Initialized yet (e.g. mid-tear-down).
+    if (m_textRenderer != nullptr)
+    {
+        hr = backBuffer.As (&backSurface);
+        CHRA (hr);
+
+        hr = m_textRenderer->BindBackBuffer (backSurface.Get(), m_scaler.Dpi(), m_scaler.Dpi());
+        CHRA (hr);
+    }
+
+Error:
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseBackBufferRtv
+//
+//  Drops the back-buffer RTV. Must be called before ResizeBuffers so
+//  the back-buffer reference count drops to zero and the resize can
+//  succeed. Idempotent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::ReleaseBackBufferRtv ()
+{
+    if (m_textRenderer != nullptr)
+    {
+        m_textRenderer->UnbindBackBuffer();
+    }
+    if (m_context && m_rtv)
+    {
+        ID3D11RenderTargetView *  nullRtv[1] = { nullptr };
+
+        m_context->OMSetRenderTargets (1, nullRtv, nullptr);
+    }
+    m_rtv.Reset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintPump
+//
+//  WM_PAINT body for full-ownership mode. Binds the back-buffer RTV,
+//  clears to the theme background, walks the root panel tree
+//  invoking IDxuiControl::Paint on every visible child, lets the
+//  registered before-present hook composite on top (e.g. the
+//  Apple ][ framebuffer blit), then presents the swap chain.
+//
+//  Bails cleanly if the painter / text renderer / RTV / swap chain
+//  are missing — partially-initialized states still get a Present
+//  attempt so DWM doesn't latch a stale frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::PaintPump ()
+{
+    HRESULT                hr             = S_OK;
+    DXGI_SWAP_CHAIN_DESC1  scd            = {};
+    float                  clearColor[4]  = { 0.0f, 0.0f, 0.0f, 1.0f };
+    uint32_t               bgArgb         = 0xFF000000u;
+    bool                   painterBegun   = false;
+    bool                   textBegun      = false;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    if (!m_swapChain || !m_rtv || m_painter == nullptr || m_textRenderer == nullptr)
+    {
+        return;
+    }
+
+    hr = m_swapChain->GetDesc1 (&scd);
+    CHRA (hr);
+
+    // Theme background clear. Without a theme, the host still clears
+    // to opaque black so a partially-themed startup frame doesn't
+    // present garbage from the back buffer.
+    if (m_theme != nullptr)
+    {
+        bgArgb = m_theme->Background();
+    }
+    clearColor[0] = (float) ((bgArgb >> 16) & 0xFFu) / 255.0f;
+    clearColor[1] = (float) ((bgArgb >>  8) & 0xFFu) / 255.0f;
+    clearColor[2] = (float) ((bgArgb      ) & 0xFFu) / 255.0f;
+    clearColor[3] = (float) ((bgArgb >> 24) & 0xFFu) / 255.0f;
+
+    m_context->OMSetRenderTargets    (1, m_rtv.GetAddressOf(), nullptr);
+    m_context->ClearRenderTargetView (m_rtv.Get(), clearColor);
+
+    // Walk the panel tree. Painter buffers geometry between Begin /
+    // End; the text renderer composites Direct2D over the same back
+    // buffer between BeginDraw / EndDraw. The D2D bitmap is bound
+    // once per back-buffer lifetime by CreateBackBufferRtv.
+    if (m_root != nullptr && m_theme != nullptr)
+    {
+        hr = m_painter->Begin ((int) scd.Width, (int) scd.Height);
+        CHRA (hr);
+        painterBegun = true;
+
+        hr = m_textRenderer->BeginDraw();
+        CHRA (hr);
+        textBegun = true;
+
+        m_root->Paint (*m_painter, *m_textRenderer, *m_theme);
+
+        hr = m_textRenderer->EndDraw();
+        textBegun = false;
+        CHRA (hr);
+
+        hr = m_painter->End (m_rtv.Get());
+        painterBegun = false;
+        CHRA (hr);
+    }
+
+    if (m_beforePresentHook)
+    {
+        m_beforePresentHook();
+    }
+
+    hr = m_swapChain->Present (1, 0);
+    CHRA (hr);
+
+Error:
+
+    // Make sure the painter / text renderer don't stay mid-frame
+    // after an early CHRA bail-out; the next paint pass would
+    // otherwise see them in an inconsistent state.
+    if (textBegun)
+    {
+        (void) m_textRenderer->EndDraw();
+    }
+    if (painterBegun)
+    {
+        (void) m_painter->End (m_rtv.Get());
+    }
+    return;
 }
 
 
@@ -978,11 +1176,28 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             break;
 
         case WM_PAINT:
+        {
+            // Full-ownership mode runs the host's panel-tree paint
+            // pump (clear + walk children + before-present hook +
+            // Present). Adopt / synthetic / opt-out-swap-chain modes
+            // have no host swap chain to drive, so fall through to
+            // the client's OnPaint() for legacy chrome painters.
+            if (m_swapChain && m_rtv)
+            {
+                PAINTSTRUCT  ps = {};
+
+                BeginPaint (m_hwnd, &ps);
+                PaintPump();
+                EndPaint   (m_hwnd, &ps);
+                return 0;
+            }
+
             if (m_client != nullptr && m_client->OnPaint() == DxuiMessageResult::Handled)
             {
                 return 0;
             }
             break;
+        }
     }
 
     return DefWindowProc (m_hwnd, msg, wp, lp);
@@ -1189,9 +1404,10 @@ void DxuiHostWindow::HandleDpiChanged (WPARAM wp, LPARAM lp)
 
 void DxuiHostWindow::HandleSize (LPARAM lp)
 {
-    RECT  rcClient  = {};
-    UINT  widthPx   = LOWORD (lp);
-    UINT  heightPx  = HIWORD (lp);
+    HRESULT  hr        = S_OK;
+    RECT     rcClient  = {};
+    UINT     widthPx   = LOWORD (lp);
+    UINT     heightPx  = HIWORD (lp);
 
 
 
@@ -1200,8 +1416,11 @@ void DxuiHostWindow::HandleSize (LPARAM lp)
 
     if (m_swapChain)
     {
-        m_rtv.Reset();
+        ReleaseBackBufferRtv();
         (void) m_swapChain->ResizeBuffers (0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
+
+        hr = CreateBackBufferRtv();
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
     if (m_root != nullptr && m_hwnd != nullptr && GetClientRect (m_hwnd, &rcClient))
