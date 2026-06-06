@@ -511,6 +511,36 @@ void InputDebugPanel::ProjectOne (
 
 InputDebugPanel::InputDebugPanel()
 {
+    // Register each owned widget into the panel's child list via Adopt
+    // so they participate in the IDxuiControl tree (Bounds, Visible,
+    // focus, parent pointers). The widgets remain InputDebugPanel-owned
+    // members; Adopt is non-owning. The chrome shell still drives
+    // input/paint through the bespoke IChromedPanelContent shims;
+    // collapsing the duality is deferred to a follow-up session that
+    // also threads a popup host through to the pair-view dropdowns
+    // and column menu.
+    Adopt (m_emuLabel);
+    Adopt (m_hostLabel);
+    for (DxuiLabel & label : m_pairLabel)
+    {
+        Adopt (label);
+    }
+    Adopt (m_allCheck);
+    Adopt (m_emuKeyboardCheck);
+    Adopt (m_joystickCheck);
+    Adopt (m_paddleCheck);
+    Adopt (m_hostKeyboardCheck);
+    for (DxuiDropdown & dropdown : m_pairView)
+    {
+        Adopt (dropdown);
+    }
+    Adopt (m_pauseButton);
+    Adopt (m_clearButton);
+    Adopt (m_copyButton);
+    Adopt (m_eventList);
+    Adopt (m_tooltip);
+    Adopt (m_columnMenu);
+
     m_uptimeAnchor = std::chrono::steady_clock::now();
 }
 
@@ -2742,6 +2772,53 @@ void InputDebugPanel::OnHostKeyUp (Byte asciiChar)
     e.cycle = 0;
     e.payload.key.ascii = asciiChar;
     m_pendingHostEvents.push_back (e);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Layout (IDxuiControl adapter)
+//
+//  Bridges DxuiPanel's pure-virtual Layout(RECT, scaler) for the
+//  IDxuiControl tree. The chrome shell drives this panel's bespoke
+//  RecomputeLayout / LayoutWidgets pipeline directly via
+//  OnHostResize, so the adapter is intentionally a no-op. It exists
+//  so an IDxuiControl-tree walk targeting the panel does not abort
+//  on the pure virtual.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InputDebugPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    UNREFERENCED_PARAMETER (boundsDip);
+    UNREFERENCED_PARAMETER (scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Paint (IDxuiControl adapter)
+//
+//  Bridges DxuiPanel's pure-virtual Paint(IDxuiPainter, ...). The
+//  chrome shell drives this panel's bespoke Render via the
+//  IChromedPanelContent path, which composes against its own owned
+//  m_painter / m_text. The adapter is a no-op for the same reason
+//  Layout above is: the unified Dxui dispatch path does not yet
+//  reach the chrome-hosted panel, so this hook stays inert.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InputDebugPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    UNREFERENCED_PARAMETER (painter);
+    UNREFERENCED_PARAMETER (text);
+    UNREFERENCED_PARAMETER (theme);
 }
 
 
