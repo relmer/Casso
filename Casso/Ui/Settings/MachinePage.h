@@ -4,6 +4,7 @@
 
 #include "SettingsPanelState.h"
 
+#include "Core/DxuiPanel.h"
 #include "Widgets/DxuiDropdown.h"
 #include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiLabel.h"
@@ -38,9 +39,11 @@ class IDxuiTheme;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class MachinePage
+class MachinePage : public DxuiPanel
 {
 public:
+    MachinePage ();
+
     using MachineSelectFn = std::function<void (const std::string & machineName)>;
 
     void  SetState              (SettingsPanelState * state);
@@ -49,14 +52,28 @@ public:
                                  int                       activeIndex);
     void  SetOnMachineSelected  (MachineSelectFn fn) { m_onMachineSelected = std::move (fn); }
 
-    void  Layout                (const RECT & rect, const DxuiDpiScaler & scaler);
+    void  Layout                (const RECT & rect, const DxuiDpiScaler & scaler) override;
     void  Rebuild               ();
 
+    //
+    //  Bespoke input + paint shims preserved for SettingsPanel coupling.
+    //  SettingsPanel still routes WM_* messages page-by-page rather
+    //  than dispatching uniform DxuiMouseEvent / DxuiKeyEvent values
+    //  through the IDxuiControl base. Once SettingsPanel itself is
+    //  converted to a DxuiPanel tree, these shims collapse into the
+    //  base DxuiPanel::OnMouse / OnKey / Paint auto-fan-out and
+    //  vanish. TODO: temporary bridge for incremental page migration.
+    //
     void  OnLButtonDown         (int x, int y);
     void  OnLButtonUp           (int x, int y);
     void  OnMouseHover          (int x, int y);
     bool  OnKey                 (WPARAM vk);
     void  Paint                 (DxuiPainter & painter, DxuiTextRenderer & text, const IDxuiTheme & theme) const;
+
+    // Surface the base DxuiPanel::OnKey override so virtual dispatch
+    // through IDxuiControl still resolves correctly and direct
+    // callers can reach the base overload without ambiguity.
+    using DxuiPanel::OnKey;
 
     void  CollectFocusables (std::vector<std::function<void (bool)>> & out);
     bool  AnyDropdownOpen   () const;
