@@ -144,6 +144,21 @@ namespace
 
 SettingsPanel::SettingsPanel ()
 {
+    // Register each owned widget into the panel's child list via Adopt
+    // so they participate in the IDxuiControl tree (Bounds, Visible,
+    // focus, parent pointers). The widgets remain SettingsPanel-owned
+    // members; Adopt is non-owning. UiShell still drives input/paint
+    // through the bespoke shims below; collapsing the duality is
+    // deferred to a follow-up session that also threads a popup host
+    // through to the page-level dropdowns.
+    Adopt (m_tabs);
+    Adopt (m_machinePage);
+    Adopt (m_hardwarePage);
+    Adopt (m_themePage);
+    Adopt (m_displayPage);
+    Adopt (m_scrim);
+    Adopt (m_applyButton);
+    Adopt (m_cancelButton);
 }
 
 
@@ -456,7 +471,7 @@ HRESULT SettingsPanel::Show ()
     m_displayPage.Rebuild();
     ReseedDisplayCrtFromActiveMode();
 
-    m_visible = true;
+    m_panelVisible = true;
     RebuildFocusOrder();
 
     if (m_emuShell != nullptr)
@@ -473,7 +488,7 @@ HRESULT SettingsPanel::Show ()
 Error:
     if (FAILED (hr))
     {
-        m_visible = false;
+        m_panelVisible = false;
     }
     return hr;
 }
@@ -599,7 +614,7 @@ bool SettingsPanel::AnyDropdownOpenOnActivePage () const
 
 void SettingsPanel::Hide ()
 {
-    m_visible = false;
+    m_panelVisible = false;
     m_scrim.Hide();
     m_window.Destroy();
 }
@@ -650,7 +665,7 @@ HRESULT SettingsPanel::RenderPopup()
 
 
 
-    BAIL_OUT_IF (!m_visible, S_OK);
+    BAIL_OUT_IF (!m_panelVisible, S_OK);
 
     hr = m_window.Render();
     CHRA (hr);
@@ -682,7 +697,7 @@ void SettingsPanel::UpdatePreviewOverlap (const RECT & emulatorContentScreenRect
 
     m_previewOverlapsEmulatorOutput = false;
     m_emulatorOverlapClientRect     = {};
-    BAIL_OUT_IF (!m_visible || !m_window.IsOpen() || IsRectEmpty (&emulatorContentScreenRect), S_OK);
+    BAIL_OUT_IF (!m_panelVisible || !m_window.IsOpen() || IsRectEmpty (&emulatorContentScreenRect), S_OK);
 
     ok = GetWindowRect (m_window.Hwnd(), &windowRect);
     CWRA (ok);
@@ -727,7 +742,7 @@ bool SettingsPanel::IsPreviewTransparencyActive() const
     // emu-clip rect is empty so the compose shader's per-pixel
     // transparent zone is empty too -- the blur+dim still happens to
     // focus attention on the control being adjusted.
-    return m_visible &&
+    return m_panelVisible &&
            (m_previewFocus != PreviewFocus::None) &&
            ((TabIndex) m_activeTab == TabIndex::Display);
 }
@@ -826,7 +841,7 @@ void SettingsPanel::StartPreview (int focus, bool keyboardMode)
 
 void SettingsPanel::PreparePreviewFrame()
 {
-    if (m_visible && (TabIndex) m_activeTab == TabIndex::Display)
+    if (m_panelVisible && (TabIndex) m_activeTab == TabIndex::Display)
     {
         bool  monitorOpen = m_displayPage.MonitorDropdown().IsOpen();
 
@@ -1572,7 +1587,7 @@ void SettingsPanel::DoMachineSelect (const std::string & machineName)
     // teardown/recreate happens between CPU frames with no UI/CPU
     // race. Hide the panel before posting -- we don't try to refresh
     // it in place; reopen if the user wants to tweak more settings.
-    m_visible = false;
+    m_panelVisible = false;
     m_emuShell->PostCommand (IDM_FILE_OPEN, std::string (machineName));
 }
 
@@ -1653,6 +1668,12 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const Dxu
     m_cancelButton.SetDpi (dpi);
 
     m_scrim.SetViewportRect (m_viewport);
+
+    // Mirror the panel footprint into the IDxuiControl tree so future
+    // centralized walks see SettingsPanel as a panel covering its
+    // popup-client rect. Adopted children already have their bounds
+    // written via the per-widget Layout / SetRect calls above.
+    DxuiPanel::SetBounds (m_panelRect);
 }
 
 
@@ -1676,7 +1697,7 @@ void SettingsPanel::Paint (DxuiPainter & painter, DxuiTextRenderer & text)
 
 
 
-    if (!m_visible)
+    if (!m_panelVisible)
     {
         return;
     }
@@ -1734,7 +1755,7 @@ void SettingsPanel::Paint (DxuiPainter & painter, DxuiTextRenderer & text)
 
 void SettingsPanel::OnMouseMove (int x, int y)
 {
-    if (!m_visible)
+    if (!m_panelVisible)
     {
         return;
     }
@@ -1767,7 +1788,7 @@ void SettingsPanel::OnMouseMove (int x, int y)
 
 void SettingsPanel::OnLButtonDown (int x, int y)
 {
-    if (!m_visible)
+    if (!m_panelVisible)
     {
         return;
     }
@@ -1806,7 +1827,7 @@ void SettingsPanel::OnLButtonDown (int x, int y)
 
 void SettingsPanel::OnLButtonUp (int x, int y)
 {
-    if (!m_visible)
+    if (!m_panelVisible)
     {
         return;
     }
@@ -1857,7 +1878,7 @@ bool SettingsPanel::OnKey (WPARAM vk)
     bool  ctrlHeld  = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
 
 
-    if (!m_visible)
+    if (!m_panelVisible)
     {
         return false;
     }
@@ -2091,7 +2112,7 @@ void SettingsPanel::CommitApply ()
         DoMachineSelect (currentMachineNarrow);
     }
 
-    m_visible = false;
+    m_panelVisible = false;
 }
 
 
@@ -2130,7 +2151,7 @@ void SettingsPanel::OnCancelClicked ()
     m_focusedAlpha      = 1.0f;
 
     m_state.Cancel();
-    m_visible = false;
+    m_panelVisible = false;
 }
 
 
@@ -2176,4 +2197,55 @@ const char * SettingsPanel::ColorRadioValue (SettingsColorMode m)
     }
 
     return "color";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Layout (IDxuiControl adapter)
+//
+//  Bridges DxuiPanel's pure-virtual Layout(RECT, scaler) onto the
+//  bespoke 4-arg viewport variant. The bespoke entry point is what
+//  UiShell calls today; the override exists so IDxuiControl-tree
+//  walks can reach SettingsPanel without an explicit downcast. The
+//  RECT origin is treated as a top-inset to preserve the existing
+//  behavior of `Layout (viewportW, viewportH, scaler, topInset)`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    Layout (boundsDip.right  - boundsDip.left,
+            boundsDip.bottom - boundsDip.top,
+            scaler,
+            boundsDip.top);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Paint (IDxuiControl adapter)
+//
+//  Bridges DxuiPanel's pure-virtual Paint(IDxuiPainter, ...) onto
+//  the bespoke 2-arg variant. UiShell still drives painting through
+//  the bespoke entry point; the override is in place so an
+//  IDxuiControl-tree walk targeting SettingsPanel routes back to the
+//  bespoke pipeline (which dispatches to the active page, scrim,
+//  and buttons in the order the bespoke code requires) rather than
+//  through DxuiPanel's blind front-to-back fan-out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    UNREFERENCED_PARAMETER (theme);
+
+    Paint (static_cast<DxuiPainter &> (painter),
+           static_cast<DxuiTextRenderer &> (text));
 }
