@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IDxuiControl.h"
 
 
 
@@ -54,15 +55,17 @@ struct DxuiTreeNode
 };
 
 
-class DxuiTreeView
+class DxuiTreeView : public IDxuiControl
 {
 public:
     using ToggleFn = std::function<void (const std::wstring & label, bool checked)>;
 
-    void  SetRect      (const RECT & rect) { m_rect = rect; }
+    ~DxuiTreeView() override = default;
+
+    void  SetRect      (const RECT & rect) { m_rect = rect; SetBounds (rect); }
     void  SetRowHeight (int px) { m_rowHeightPx = px; }
     void  SetNodes     (std::vector<DxuiTreeNode> nodes) { m_nodes = std::move (nodes); RebuildFlatRows(); }
-    void  SetEnabled   (bool enabled) { m_enabled = enabled; }
+    void  SetEnabled   (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; }
     void  SetFocused   (bool focused) { m_focused = focused; }
     void  SetOnToggle  (ToggleFn fn) { m_toggle = std::move (fn); }
     void  SetDpi       (UINT dpi)
@@ -101,6 +104,16 @@ public:
     bool  OnKey           (WPARAM vk);
 
     void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+
+    //
+    //  IDxuiControl overrides — additive shims for DxuiPanel trees.
+    //
+    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse        (const DxuiMouseEvent & ev) override;
+    bool                OnKey          (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged (bool focused) override { SetFocused (focused); }
+    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::TreeView; }
 
     // Force the flat-rows cache to repopulate. Public so tests can
     // mutate node state via NodeAtMutable then re-flatten.

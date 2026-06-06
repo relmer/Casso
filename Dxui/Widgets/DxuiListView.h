@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IDxuiControl.h"
 
 
 
@@ -24,7 +25,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiListView
+class DxuiListView : public IDxuiControl
 {
 public:
     struct Column
@@ -144,6 +145,22 @@ public:
 
     // Rendering.
     void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+
+    //
+    //  IDxuiControl overrides — additive shims for DxuiPanel trees.
+    //  Mouse/keyboard input on DxuiListView is host-driven through
+    //  the public hit-test / scroll / focus accessors above; the
+    //  unified OnMouse / OnKey overrides forward nothing and return
+    //  false so the panel walks past to siblings.
+    //
+    ~DxuiListView () override = default;
+
+    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse        (const DxuiMouseEvent & ev) override { (void) ev; return false; }
+    bool                OnKey          (const DxuiKeyEvent   & ev) override { (void) ev; return false; }
+    void                OnFocusChanged (bool focused) override { SetListFocused (focused); }
+    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::ListView; }
 
 private:
     static constexpr int    s_kRowHeightDip      = 30;

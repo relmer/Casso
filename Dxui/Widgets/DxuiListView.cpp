@@ -1599,3 +1599,41 @@ void DxuiListView::PaintScrollArrow (IDxuiPainter & painter,
         painter.FillRect (rx, gy + (float) r, w, 1.0f, argb);
     }
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::Layout  (IDxuiControl override)
+//
+//  Delegates to the existing SetRect / SetDpi pair so column widths,
+//  scroll positions, and sticky-tail state are preserved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    SetBounds (boundsDip);
+    SetRect   (boundsDip);
+    m_scaler.SetDpi (scaler.Dpi());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::Paint  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    if (m_theme == nullptr)
+    {
+        m_theme = &theme;
+    }
+    static_cast<const DxuiListView *> (this)->Paint (painter, text);
+}
