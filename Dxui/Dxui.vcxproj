@@ -147,6 +147,7 @@
     </ClCompile>
     <ClCompile Include="Core\DxuiAbsoluteLayout.cpp" />
     <ClCompile Include="Core\DxuiAnimation.cpp" />
+    <ClCompile Include="Core\DxuiDockLayout.cpp" />
     <ClCompile Include="Core\DxuiFocusManager.cpp" />
     <ClCompile Include="Core\DxuiFormLayout.cpp" />
     <ClCompile Include="Core\DxuiGridLayout.cpp" />
@@ -188,6 +189,7 @@
     <ClInclude Include="Pch.h" />
     <ClInclude Include="Core\DxuiAbsoluteLayout.h" />
     <ClInclude Include="Core\DxuiAnimation.h" />
+    <ClInclude Include="Core\DxuiDockLayout.h" />
     <ClInclude Include="Core\DxuiDpiScaler.h" />
     <ClInclude Include="Core\DxuiEvents.h" />
     <ClInclude Include="Core\DxuiFocusManager.h" />
