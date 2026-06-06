@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IDxuiControl.h"
 
 
 class DxuiHostWindow;
@@ -26,7 +27,7 @@ class DxuiPopupHost;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiPopupMenu
+class DxuiPopupMenu : public IDxuiControl
 {
 public:
     struct Item
@@ -36,6 +37,8 @@ public:
     };
 
     using SelectFn = std::function<void (int index)>;
+
+    ~DxuiPopupMenu() override = default;
 
     void  SetDpi      (UINT dpi)                { m_scaler.SetDpi (dpi); }
     void  SetTheme    (const IDxuiTheme * th)   { m_theme = th; }
@@ -70,6 +73,18 @@ public:
     bool  OnLButtonUp    (int x, int y);
     bool  OnKey          (WPARAM vk);
     void  Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+
+    //
+    //  IDxuiControl overrides — additive shims so DxuiPopupMenu can
+    //  appear in a DxuiPanel tree (typical hosting is via
+    //  DxuiPopupHost, so the panel-tree path is rare but supported
+    //  for consistency).
+    //
+    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse        (const DxuiMouseEvent & ev) override;
+    bool                OnKey          (const DxuiKeyEvent   & ev) override;
+    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Dropdown; }
 
 private:
     int   HitTestIndex (int x, int y) const;
