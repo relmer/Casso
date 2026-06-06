@@ -5,6 +5,7 @@
 #include "DisplayPage.h"
 #include "HardwarePage.h"
 #include "MachinePage.h"
+#include "SettingsDisplayCrtBridge.h"
 #include "SettingsPanelState.h"
 #include "SettingsPreviewController.h"
 #include "ThemePage.h"
@@ -147,12 +148,6 @@ private:
     void  StartPreview                (int focus, bool keyboardMode);
     void  EndPreview                  ();
 
-    // Helpers for the per-monitor CRT plumbing.
-    int   ActiveModeIdx                  () const;
-    void  ReseedDisplayCrtFromActiveMode ();
-    void  PublishDisplayDefaultsHint     ();
-    void  PromoteActiveCrtToOverride     ();
-
 
     UiShell         * m_uiShell   = nullptr;
     UserConfigStore * m_ucs       = nullptr;
@@ -162,6 +157,7 @@ private:
     IFileSystem     * m_fs        = nullptr;
 
     SettingsPanelState  m_state;
+    SettingsDisplayCrtBridge  m_crt;
     SettingsWindow      m_window;
     // Bespoke visibility flag distinct from IDxuiControl::m_visible
     // (which is inherited from DxuiPanel and stays at its default of
