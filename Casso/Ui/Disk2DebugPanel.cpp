@@ -134,6 +134,39 @@ namespace
 
 Disk2DebugPanel::Disk2DebugPanel()
 {
+    // Register each owned widget into the panel's child list via Adopt
+    // so they participate in the IDxuiControl tree (Bounds, Visible,
+    // focus, parent pointers). The widgets remain Disk2DebugPanel-owned
+    // members; Adopt is non-owning. The chrome shell still drives
+    // input/paint through the bespoke IChromedPanelContent shims;
+    // collapsing the duality is deferred to a follow-up session that
+    // also threads a popup host through to the column-menu / tooltip.
+    Adopt (m_trackFilterLabel);
+    Adopt (m_sectorFilterLabel);
+    Adopt (m_driveFilterLabel);
+    Adopt (m_diskEventsLabel);
+    Adopt (m_audioEventsLabel);
+    Adopt (m_trackInvalidLabel);
+    Adopt (m_sectorInvalidLabel);
+    for (DxuiCheckbox & check : m_eventChecks)
+    {
+        Adopt (check);
+    }
+    Adopt (m_audioMasterCheck);
+    for (DxuiCheckbox & check : m_audioSubChecks)
+    {
+        Adopt (check);
+    }
+    Adopt (m_rawQtCheck);
+    Adopt (m_driveRadio);
+    Adopt (m_trackEdit);
+    Adopt (m_sectorEdit);
+    Adopt (m_pauseButton);
+    Adopt (m_clearButton);
+    Adopt (m_eventList);
+    Adopt (m_tooltip);
+    Adopt (m_columnMenu);
+
     m_uptimeAnchor = std::chrono::steady_clock::now();
 }
 
@@ -2557,4 +2590,51 @@ void Disk2DebugPanel::UpdateTooltip (int x, int y)
     }
 
     m_tooltip.RequestHide (now);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Layout (IDxuiControl adapter)
+//
+//  Bridges DxuiPanel's pure-virtual Layout(RECT, scaler) for the
+//  IDxuiControl tree. The chrome shell drives this panel's bespoke
+//  RecomputeLayout / LayoutWidgets pipeline directly via
+//  OnHostResize, so the adapter is intentionally a no-op. It exists
+//  so an IDxuiControl-tree walk targeting the panel does not abort
+//  on the pure virtual.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2DebugPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    UNREFERENCED_PARAMETER (boundsDip);
+    UNREFERENCED_PARAMETER (scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Paint (IDxuiControl adapter)
+//
+//  Bridges DxuiPanel's pure-virtual Paint(IDxuiPainter, ...). The
+//  chrome shell drives this panel's bespoke Render via the
+//  IChromedPanelContent path, which composes against its own owned
+//  m_painter / m_text. The adapter is a no-op for the same reason
+//  Layout above is: the unified Dxui dispatch path does not yet
+//  reach the chrome-hosted panel, so this hook stays inert.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2DebugPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    UNREFERENCED_PARAMETER (painter);
+    UNREFERENCED_PARAMETER (text);
+    UNREFERENCED_PARAMETER (theme);
 }
