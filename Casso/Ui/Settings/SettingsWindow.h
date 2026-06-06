@@ -40,6 +40,14 @@ public:
 
     SettingsWindowRenderer & GetRenderer() { return m_renderer; }
 
+    // Returns the adopted DxuiHostWindow (non-owning). Valid only
+    // while the popup HWND is open (between Create() and Destroy());
+    // returns nullptr otherwise. Page-owned dropdowns plug this into
+    // SetPopupHost so their menus render through the popup-host pool
+    // and escape the SettingsWindow client clip (FR-054 / FR-061;
+    // SC-008).
+    DxuiHostWindow *  Host() const { return m_hostWindow.get(); }
+
 private:
     static LRESULT CALLBACK s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 

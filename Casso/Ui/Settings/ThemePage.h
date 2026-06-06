@@ -10,6 +10,9 @@
 #include "Widgets/DxuiLabel.h"
 
 
+class DxuiHostWindow;
+
+
 
 
 
@@ -39,6 +42,11 @@ public:
     void  SetOnThemeSelected    (ThemeSelectFn       fn) { m_onThemeSelected   = std::move (fn); }
     void  SetFramebufferSource  (FramebufferSourceFn fn) { m_framebufferSource = std::move (fn); }
     void  SetMountedPathSource  (MountedPathFn       fn) { m_mountedPathSource = std::move (fn); }
+
+    // Routes the owned theme dropdown's popup menu through the host's
+    // popup-host pool so the menu HWND escapes the page's clipping
+    // bounds. Pass nullptr to revert to the in-panel PaintMenu path.
+    void  SetPopupHost          (DxuiHostWindow * host) { m_themeDropdown.SetPopupHost (host); }
 
     void  Layout                (const RECT & rect, const DxuiDpiScaler & scaler) override;
 

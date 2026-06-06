@@ -483,6 +483,19 @@ HRESULT SettingsPanel::Show ()
                               m_emuShell->m_d3dRenderer.GetContext(),
                               &m_emuShell->m_chromeTheme);
         CHRA (hr);
+
+        // Now that the settings popup HWND (and its adopted
+        // DxuiHostWindow) exist, thread the host into every page's
+        // owned dropdowns so their menus render through the popup-
+        // host pool. This escapes the SettingsWindow client clip so
+        // a dropdown near the bottom of the panel can flip its menu
+        // upward (or extend past the lower edge) without being cut
+        // off (FR-054 / FR-061; SC-008).
+        DxuiHostWindow *  host = m_window.Host();
+
+        m_machinePage.SetPopupHost (host);
+        m_themePage.SetPopupHost   (host);
+        m_displayPage.SetPopupHost (host);
     }
 
 Error:
@@ -616,7 +629,31 @@ void SettingsPanel::Hide ()
 {
     m_panelVisible = false;
     m_scrim.Hide();
+    DetachPopupHosts();
     m_window.Destroy();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DetachPopupHosts
+//
+//  Close any open dropdown menu (which releases its pooled
+//  DxuiPopupHost back to the host) and clear each page dropdown's
+//  popup-host pointer. Must run before the owning SettingsWindow
+//  tears its DxuiHostWindow down so we don't leave the dropdowns
+//  with a dangling host.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::DetachPopupHosts ()
+{
+    m_machinePage.SetPopupHost (nullptr);
+    m_themePage.SetPopupHost   (nullptr);
+    m_displayPage.SetPopupHost (nullptr);
 }
 
 
