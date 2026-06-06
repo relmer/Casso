@@ -390,6 +390,29 @@ public:
     }
 
 
+    TEST_METHOD (Layout_UsesMeasuredTextWidthAndConsistentGap)
+    {
+        DxuiMenuBar                   bar;
+        MockDxuiTextRenderer          text;
+        std::vector<DxuiMenuBarItem>  items;
+
+
+        items.push_back ({ L"&A", 0, {} });
+        items.push_back ({ L"&LongLabel", 0, {} });
+        text.SetCannedMetrics (L"A",         SIZE { 10, 16 });
+        text.SetCannedMetrics (L"LongLabel", SIZE { 80, 16 });
+
+        bar.SetItems (std::move (items));
+        bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
+
+        RECT  shortTitle = bar.MenuRect (0);
+        RECT  longTitle  = bar.MenuRect (1);
+
+        Assert::IsTrue ((longTitle.right - longTitle.left) > (shortTitle.right - shortTitle.left));
+        Assert::AreEqual ((LONG) 4, longTitle.left - shortTitle.right);
+    }
+
+
     TEST_METHOD (ClickOutsideOpenMenu_DismissesMenu)
     {
         DxuiMenuBar           bar;
