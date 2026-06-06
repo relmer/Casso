@@ -127,20 +127,18 @@ public:
     void  Layout    (const RECT & rect, const DxuiDpiScaler & scaler) override;
     void  Rebuild   ();
 
-    // Render. When focusedControlId is -1 every control paints at
-    // `nonFocusedAlpha`; otherwise the matching control paints at
-    // `focusedAlpha` (used by the panel's live-preview fade so the
-    // user can see the slider / dropdown they're interacting with
-    // while the rest of the UI fades out). The extended overload is
-    // still bespoke pending the DisplayPage paint collapse; the
-    // simple Paint(painter, text, theme) IDxuiControl override is
-    // inherited from DxuiPanel and unused on this page.
-    //
-    void  Paint (DxuiPainter & painter, DxuiTextRenderer & text,
-                 const IDxuiTheme & theme,
-                 int          focusedControlId = -1,
-                 float        nonFocusedAlpha  = 1.0f,
-                 float        focusedAlpha     = 1.0f) const;
+    // Configures the live-preview fade applied by the next Paint. When
+    // focusedControlId is < 0 (the default), every control paints at
+    // 1.0 alpha. Otherwise the control whose id matches paints at
+    // focusedAlpha and every other control paints at nonFocusedAlpha;
+    // SettingsPanel uses this to dim the rest of the page while the
+    // user drags a slider or operates a dropdown.
+    void  SetFadeState (int   focusedControlId,
+                        float focusedAlpha,
+                        float nonFocusedAlpha);
+
+    void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
+                 const IDxuiTheme & theme) override;
 
     RECT  FocusedControlRect (int controlId) const;
 
@@ -239,4 +237,11 @@ private:
     RECT                  m_colorBleedWRowRect   = {};
     RECT                  m_restoreRowRect       = {};
     int                   m_indicatorX           = 0;
+
+    // Live-preview fade state plumbed in by SettingsPanel::SetFadeState
+    // ahead of each Paint. m_fadeFocusedId == -1 disables the fade and
+    // every row paints at 1.0 alpha.
+    int                   m_fadeFocusedId        = -1;
+    float                 m_fadeFocusedAlpha     = 1.0f;
+    float                 m_fadeNonFocusedAlpha  = 1.0f;
 };

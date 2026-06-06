@@ -1845,7 +1845,8 @@ void SettingsPanel::Paint (DxuiPainter & painter, DxuiTextRenderer & text)
             // DisplayPage paints its own controls at per-control alpha.
             // It restores global alpha to 1.0 on exit; re-clamp so the
             // buttons inherit the panel alpha consistently.
-            m_displayPage.Paint  (painter, text, theme, focusedControlId, panelA, focusedA);
+            m_displayPage.SetFadeState (focusedControlId, focusedA, panelA);
+            m_displayPage.Paint  (painter, text, theme);
             painter.SetGlobalAlpha (panelA);
             text.SetGlobalAlpha    (panelA);
             break;

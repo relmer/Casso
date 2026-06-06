@@ -77,8 +77,8 @@ public:
     // Used by the Settings panel's live-preview state machine to fade
     // the whole UI without touching individual paint call sites. 1.0
     // is opaque (default), 0.0 is fully transparent.
-    void    SetGlobalAlpha   (float alpha)            { m_globalAlpha = (alpha < 0.0f) ? 0.0f : (alpha > 1.0f) ? 1.0f : alpha; }
-    float   GlobalAlpha      () const                 { return m_globalAlpha; }
+    void    SetGlobalAlpha   (float alpha)            override { m_globalAlpha = (alpha < 0.0f) ? 0.0f : (alpha > 1.0f) ? 1.0f : alpha; }
+    float   GlobalAlpha      () const                 override { return m_globalAlpha; }
 
     int     PendingVertexCount () const { return (int) m_vertices.size(); }
 

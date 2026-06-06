@@ -49,4 +49,11 @@ public:
                                      float    cyPx,
                                      float    radiusPx,
                                      uint32_t argbColor)                        = 0;
+
+    // Global alpha multiplier applied to every vertex's alpha channel.
+    // Defaulted to a no-op on the interface so test mocks don't have to
+    // implement alpha tracking; the concrete DxuiPainter overrides
+    // these to drive the live-preview fade pipeline.
+    virtual void   SetGlobalAlpha   (float alpha)                               { (void) alpha; }
+    virtual float  GlobalAlpha      () const                                    { return 1.0f; }
 };
