@@ -89,7 +89,7 @@ public:
     using RestoreFn       = std::function<void ()>;
 
     // Control ids used by SetOnPreview to identify which control is
-    // being interacted with. Match the SettingsPanel::PreviewFocus
+    // being interacted with. Match the SettingsPreviewController::Focus
     // enum offsets so the panel can cast directly.
     static constexpr int  kControlBrightness     = 1;
     static constexpr int  kControlContrast       = 2;

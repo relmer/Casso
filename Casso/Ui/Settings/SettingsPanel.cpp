@@ -493,12 +493,7 @@ HRESULT SettingsPanel::Show ()
 
     // Reset preview state so a previous session's interaction doesn't
     // leak in (e.g. user closed the panel mid-drag via Esc).
-    m_previewFocus      = PreviewFocus::None;
-    m_previewKeyboard   = false;
-    m_lastInteractionMs = 0;
-    m_panelAlpha        = 1.0f;
-    m_focusedAlpha      = 1.0f;
-    m_lastFrameMs       = 0;
+    m_previewCtrl.Reset();
 
     if (m_uiShell != nullptr)
     {
@@ -861,7 +856,7 @@ bool SettingsPanel::IsPreviewTransparencyActive() const
     // transparent zone is empty too -- the blur+dim still happens to
     // focus attention on the control being adjusted.
     return m_panelVisible &&
-           (m_previewFocus != PreviewFocus::None) &&
+           m_previewCtrl.IsActive() &&
            ((TabIndex) m_activeTab == TabIndex::Display);
 }
 
@@ -881,9 +876,9 @@ RECT SettingsPanel::GetFocusedControlClientRect() const
 
 
 
-    if ((m_previewFocus != PreviewFocus::None) && ((TabIndex) m_activeTab == TabIndex::Display))
+    if (m_previewCtrl.IsActive() && ((TabIndex) m_activeTab == TabIndex::Display))
     {
-        rect = m_displayPage.FocusedControlRect ((int) m_previewFocus);
+        rect = m_displayPage.FocusedControlRect (m_previewCtrl.FocusedId());
     }
 
     return rect;
@@ -940,11 +935,34 @@ SIZE SettingsPanel::PreferredClientSize (UINT dpi) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartPreview / EndPreview
+//
+//  Thin shims over SettingsPreviewController so DisplayPage's preview
+//  callback (which deals in `int` control IDs) doesn't need to know
+//  about the controller's strongly-typed enum.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void SettingsPanel::StartPreview (int focus, bool keyboardMode)
 {
-    m_previewFocus      = (PreviewFocus) focus;
-    m_previewKeyboard   = keyboardMode;
-    m_lastInteractionMs = (int64_t) GetTickCount64();
+    m_previewCtrl.StartPreview ((SettingsPreviewController::Focus) focus, keyboardMode);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EndPreview
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::EndPreview ()
+{
+    m_previewCtrl.EndPreview();
 }
 
 
@@ -973,9 +991,9 @@ void SettingsPanel::PreparePreviewFrame()
             // (which moves m_previewFocus away from MonitorDropdown
             // in the same frame).
             m_monitorOpenedAt = m_displayPage.MonitorDropdown().SelectedIndex();
-            if (m_previewFocus != PreviewFocus::MonitorDropdown)
+            if (m_previewCtrl.FocusedControl() != SettingsPreviewController::Focus::MonitorDropdown)
             {
-                StartPreview ((int) PreviewFocus::MonitorDropdown, false);
+                StartPreview ((int) SettingsPreviewController::Focus::MonitorDropdown, false);
             }
         }
         else if (! monitorOpen && m_monitorWasOpen)
@@ -1003,7 +1021,7 @@ void SettingsPanel::PreparePreviewFrame()
                 ReseedDisplayCrtFromActiveMode();
             }
             m_monitorOpenedAt = -1;
-            if (m_previewFocus == PreviewFocus::MonitorDropdown)
+            if (m_previewCtrl.FocusedControl() == SettingsPreviewController::Focus::MonitorDropdown)
             {
                 EndPreview();
             }
@@ -1012,7 +1030,7 @@ void SettingsPanel::PreparePreviewFrame()
         m_monitorWasOpen = monitorOpen;
     }
 
-    UpdatePreviewFade ((int64_t) GetTickCount64());
+    m_previewCtrl.Tick ((int64_t) GetTickCount64());
     m_window.GetRenderer().SetTransparencyState (IsPreviewTransparencyActive(),
                                                  m_emulatorOverlapClientRect,
                                                  GetFocusedControlClientRect());
@@ -1308,78 +1326,6 @@ void SettingsPanel::PromoteActiveCrtToOverride ()
         }
     }
     blk.userOverride = true;
-}
-
-
-void SettingsPanel::EndPreview ()
-{
-    m_previewFocus      = PreviewFocus::None;
-    m_previewKeyboard   = false;
-}
-
-
-void SettingsPanel::UpdatePreviewFade (int64_t nowMs)
-{
-    constexpr int64_t  s_kKeyboardIdleMs = 500;     // FR-2: 0.5s after last keystroke
-    constexpr float    s_kFadeDurationMs = 180.0f;  // panel/scrim fade-in/out time
-
-    float    targetPanel   = 1.0f;
-    float    targetFocused = 1.0f;
-    int64_t  dtMs          = 0;
-    float    maxStep       = 0.0f;
-
-
-
-    if (m_lastFrameMs == 0)
-    {
-        m_lastFrameMs = nowMs;
-    }
-    dtMs = nowMs - m_lastFrameMs;
-    m_lastFrameMs = nowMs;
-
-    // Keyboard idle timeout: auto-end the preview once the user stops
-    // tapping arrow keys. Mouse-drag preview ends explicitly on
-    // mouse-up via EndPreview so this check is keyboard-only.
-    if (m_previewFocus != PreviewFocus::None && m_previewKeyboard &&
-        (nowMs - m_lastInteractionMs) >= s_kKeyboardIdleMs)
-    {
-        EndPreview();
-    }
-
-    if (m_previewFocus != PreviewFocus::None)
-    {
-        targetPanel   = 0.0f;
-        targetFocused = 0.9f;
-    }
-
-    if (dtMs <= 0 || s_kFadeDurationMs <= 0.0f)
-    {
-        m_panelAlpha   = targetPanel;
-        m_focusedAlpha = targetFocused;
-        return;
-    }
-
-    // Linear ramp toward target at a rate of 1.0/duration per ms.
-    // Lands exactly on the target after the configured fade duration.
-    maxStep = (float) dtMs / s_kFadeDurationMs;
-
-    if (targetPanel > m_panelAlpha)
-    {
-        m_panelAlpha = std::min (targetPanel, m_panelAlpha + maxStep);
-    }
-    else
-    {
-        m_panelAlpha = std::max (targetPanel, m_panelAlpha - maxStep);
-    }
-
-    if (targetFocused > m_focusedAlpha)
-    {
-        m_focusedAlpha = std::min (targetFocused, m_focusedAlpha + maxStep);
-    }
-    else
-    {
-        m_focusedAlpha = std::max (targetFocused, m_focusedAlpha - maxStep);
-    }
 }
 
 
@@ -1811,7 +1757,7 @@ void SettingsPanel::Paint (DxuiPainter & painter, DxuiTextRenderer & text)
                                                            : s_kEdgeThickDp;
     float        panelA           = 1.0f;
     float        focusedA         = 1.0f;
-    int          focusedControlId = (m_previewFocus == PreviewFocus::None) ? -1 : (int) m_previewFocus;
+    int          focusedControlId = m_previewCtrl.IsActive() ? m_previewCtrl.FocusedId() : -1;
 
 
 
@@ -2267,10 +2213,7 @@ void SettingsPanel::OnCancelClicked ()
         m_emuShell->SetColorModeLive (m_baselineColorMode);
     }
 
-    m_previewFocus      = PreviewFocus::None;
-    m_previewKeyboard   = false;
-    m_panelAlpha        = 1.0f;
-    m_focusedAlpha      = 1.0f;
+    m_previewCtrl.Reset();
 
     m_state.Cancel();
     m_panelVisible = false;
