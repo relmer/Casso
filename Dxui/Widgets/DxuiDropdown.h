@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IDxuiControl.h"
 
 
 class DxuiHostWindow;
@@ -11,15 +12,17 @@ class DxuiPopupHost;
 
 
 
-class DxuiDropdown
+class DxuiDropdown : public IDxuiControl
 {
 public:
     using SelectFn = std::function<void (int index)>;
 
-    void  SetRect        (const RECT & rect) { m_rect = rect; }
+    ~DxuiDropdown() override = default;
+
+    void  SetRect        (const RECT & rect) { m_rect = rect; SetBounds (rect); }
     void  SetItems       (const std::vector<std::wstring> & items);
     void  SetSelected    (int index);
-    void  SetEnabled     (bool enabled) { m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; if (m_open) { Close(); } } }
+    void  SetEnabled     (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; if (m_open) { Close(); } } }
     void  SetFocused     (bool focused) { m_focused = focused; if (!focused && m_open) { Close(); } }
     bool  Focused        () const { return m_focused; }
     void  SetSelect      (SelectFn select) { m_select = std::move (select); }
@@ -42,6 +45,21 @@ public:
     void  PaintBase      (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
     void  PaintMenu      (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
     void  SetDpi         (UINT dpi) { m_scaler.SetDpi (dpi); }
+
+    //
+    //  IDxuiControl overrides — additive shims for DxuiPanel trees.
+    //  IDxuiControl::Paint invokes the existing Paint(painter, text)
+    //  which renders PaintBase plus PaintMenu in z-slot. Legacy
+    //  consumers that need the menu painted last across siblings
+    //  keep calling PaintBase / PaintMenu directly.
+    //
+    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse        (const DxuiMouseEvent & ev) override;
+    bool                OnKey          (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged (bool focused) override { SetFocused (focused); }
+    std::wstring        AccessibleName () const override;
+    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Dropdown; }
 
     //
     //  Opt-in popup hosting. When a host is supplied the dropdown

@@ -580,3 +580,111 @@ void DxuiDropdown::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
                                                   DxuiTextVAlign::Center));
     }
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDropdown::Layout  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDropdown::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    SetBounds (boundsDip);
+    m_rect = boundsDip;
+    m_scaler.SetDpi (scaler.Dpi());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDropdown::Paint  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDropdown::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    UNREFERENCED_PARAMETER (theme);
+    static_cast<const DxuiDropdown *> (this)->Paint (painter, text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDropdown::OnMouse  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDropdown::OnMouse (const DxuiMouseEvent & ev)
+{
+    switch (ev.kind)
+    {
+    case DxuiMouseEventKind::Move:
+        SetMouseHover (ev.positionDip.x, ev.positionDip.y);
+        return false;
+    case DxuiMouseEventKind::Down:
+        if (ev.button == DxuiMouseButton::Left)
+        {
+            return OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+        }
+        return false;
+    case DxuiMouseEventKind::Up:
+        if (ev.button == DxuiMouseButton::Left)
+        {
+            return OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+        }
+        return false;
+    default:
+        return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDropdown::OnKey  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDropdown::OnKey (const DxuiKeyEvent & ev)
+{
+    if (ev.kind != DxuiKeyEventKind::Down)
+    {
+        return false;
+    }
+
+    return HandleKey (ev.vk);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDropdown::AccessibleName  (IDxuiControl override)
+//
+//  Returns the label of the selected item (or empty if no selection).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiDropdown::AccessibleName () const
+{
+    if (m_selected < 0 || m_selected >= (int) m_items.size())
+    {
+        return L"";
+    }
+
+    return m_items[(size_t) m_selected];
+}

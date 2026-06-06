@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IDxuiControl.h"
 
 
 
@@ -31,13 +32,15 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiSlider
+class DxuiSlider : public IDxuiControl
 {
 public:
     using ChangeFn      = std::function<void (float value)>;
     using InteractionFn = std::function<void ()>;
 
-    void   SetRect    (const RECT & rect) { m_rect = rect; }
+    ~DxuiSlider() override = default;
+
+    void   SetRect    (const RECT & rect) { m_rect = rect; SetBounds (rect); }
     void   SetRange   (float minValue, float maxValue);
     void   SetStep    (float step) { m_step = step; }
     void   SetValue   (float value);
@@ -46,7 +49,7 @@ public:
     void   SetDecimalPlaces (int places) { m_decimalPlaces = places; }
     void   SetShowTicks (bool show) { m_showTicks = show; }
     void   SetDpi     (UINT dpi) { m_scaler.SetDpi (dpi); }
-    void   SetEnabled (bool enabled) { m_enabled = enabled; if (!enabled) { m_dragging = false; m_hover = false; } }
+    void   SetEnabled (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_dragging = false; m_hover = false; } }
     void   SetFocused (bool focused) { m_focused = focused; }
     void   SetOnChange (ChangeFn fn) { m_change = std::move (fn); }
     void   SetOnDragStart (InteractionFn fn) { m_onDragStart = std::move (fn); }
@@ -70,6 +73,16 @@ public:
     bool   OnMouseMove    (int x, int y);
     bool   OnKey          (WPARAM vk);
     void   Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+
+    //
+    //  IDxuiControl overrides — additive shims for DxuiPanel trees.
+    //
+    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse        (const DxuiMouseEvent & ev) override;
+    bool                OnKey          (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged (bool focused) override { SetFocused (focused); }
+    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Slider; }
 
 private:
     void   ApplyValue     (float v);
