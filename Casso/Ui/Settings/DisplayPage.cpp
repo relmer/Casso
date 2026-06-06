@@ -651,6 +651,7 @@ RECT DisplayPage::FocusedControlRect (int controlId) const
 ////////////////////////////////////////////////////////////////////////////////
 
 void DisplayPage::Paint (DxuiPainter & painter, DxuiTextRenderer & text,
+                         const IDxuiTheme & theme,
                          int          focusedControlId,
                          float        nonFocusedAlpha,
                          float        focusedAlpha) const
@@ -664,6 +665,9 @@ void DisplayPage::Paint (DxuiPainter & painter, DxuiTextRenderer & text,
 
     float  indicatorFontPx  = m_scaler.Pxf (s_kIndicatorFontDp);
     float  indicatorWidthPx = m_scaler.Pxf (s_kIndicatorWidthDp);
+
+
+    UNREFERENCED_PARAMETER (theme);
 
     auto  SetAlphaForRow = [&] (int control, const RECT & rowRect)
     {

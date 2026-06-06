@@ -56,13 +56,11 @@ public:
     void  OnMouseHover          (int x, int y);
     bool  OnKey                 (WPARAM vk);
 
-    void  Paint                 (DxuiPainter & painter, DxuiTextRenderer & text) const;
+    void  Paint                 (DxuiPainter & painter, DxuiTextRenderer & text, const IDxuiTheme & theme) const;
 
-    // Surface the base DxuiPanel virtuals that share names with the
-    // bespoke shims above so virtual dispatch through IDxuiControl
-    // still resolves correctly and direct callers can reach the base
-    // overloads without ambiguity.
-    using DxuiPanel::Paint;
+    // Surface the base DxuiPanel::OnKey override so virtual dispatch
+    // through IDxuiControl still resolves correctly and direct
+    // callers can reach the base overload without ambiguity.
     using DxuiPanel::OnKey;
 
     void  CollectFocusables (std::vector<std::function<void (bool)>> & out);

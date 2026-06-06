@@ -11,6 +11,9 @@
 #include "Widgets/DxuiToggle.h"
 
 
+class IDxuiTheme;
+
+
 
 
 
@@ -128,6 +131,7 @@ public:
     // while the rest of the UI fades out).
     //
     void  Paint (DxuiPainter & painter, DxuiTextRenderer & text,
+                 const IDxuiTheme & theme,
                  int          focusedControlId = -1,
                  float        nonFocusedAlpha  = 1.0f,
                  float        focusedAlpha     = 1.0f) const;

@@ -585,9 +585,12 @@ void ThemePage::CollectFocusables (std::vector<std::function<void (bool)>> & out
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThemePage::Paint (DxuiPainter & painter, DxuiTextRenderer & text) const
+void ThemePage::Paint (DxuiPainter & painter, DxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
     static NullDriveSink  s_kNullSink;
+
+
+    UNREFERENCED_PARAMETER (theme);
 
     m_themeLabel.Paint          (painter, text);
     m_themeDropdown.PaintBase   (painter, text);
