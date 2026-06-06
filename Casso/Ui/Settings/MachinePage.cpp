@@ -37,6 +37,50 @@ namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachinePage::MachinePage
+//
+//  Registers each member widget into the panel's child list via
+//  Adopt so they participate in the IDxuiControl tree (Bounds,
+//  Visible, focus, parent pointers). The widgets remain MachinePage-
+//  owned members; Adopt is non-owning. Layout positioning still
+//  happens in Layout() below via the legacy SetRect calls because
+//  the existing layout code does things DxuiFormLayout cannot model
+//  (per-row indentation for the mechanism sub-row, two checkboxes
+//  on a single row for the write-protect pair). SettingsPanel still
+//  drives input/paint through the bespoke shims below; collapsing
+//  the duality is deferred to the SettingsPanel atomic conversion.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MachinePage::MachinePage()
+{
+    size_t  i = 0;
+
+
+    Adopt (m_machineLabel);
+    Adopt (m_speedLabel);
+    Adopt (m_wpLabel);
+    Adopt (m_writeModeLabel);
+    Adopt (m_audioLabel);
+    Adopt (m_mechLabel);
+
+    Adopt (m_machineDropdown);
+    Adopt (m_speed);
+    Adopt (m_writeMode);
+    Adopt (m_mechanism);
+    Adopt (m_driveAudio);
+    for (i = 0; i < m_writeProtect.size(); ++i)
+    {
+        Adopt (m_writeProtect[i]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachinePage::SetState
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,6 +200,12 @@ void MachinePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_driveAudio.SetDpi      (dpi);
     m_writeProtect[0].SetDpi (dpi);
     m_writeProtect[1].SetDpi (dpi);
+
+    // Mirror the page's footprint into the IDxuiControl tree so future
+    // centralized walks see this page as a panel covering `rect`.
+    // Adopted children already have their bounds written via the
+    // SetRect calls above (SetRect mirrors through SetBounds).
+    DxuiPanel::SetBounds (rect);
 }
 
 
