@@ -1130,6 +1130,20 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         return this->ClassifyHitForLegacyChrome (ptScreen);
     });
 
+    // Stand up the host root panel as a DxuiAbsoluteLayout container
+    // and add a single DxuiViewport child representing the Apple ][
+    // framebuffer region. EmulatorShell hand-computes the viewport
+    // rectangle (client minus chrome bands) every time chrome layout
+    // changes; the viewport's OnBoundsChanged callback forwards the
+    // new rect to D3DRenderer::SetTargetBounds. Full DxuiDockLayout
+    // wiring lands in Phase 12.
+    m_host->Root().SetLayout (std::make_unique<DxuiAbsoluteLayout>());
+    m_viewport = &m_host->Root().Add<DxuiViewport>();
+    m_viewport->SetOnBoundsChanged ([this] (const RECT & boundsPx)
+    {
+        this->OnViewportBoundsChanged (boundsPx);
+    });
+
     // Defer the size reconcile until after ShowWindow. The NC frame
     // (border carve-out from DefWindowProc + DWM rounded corners +
     // thick frame) doesn't materialize until the window is shown,
@@ -1216,6 +1230,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         m_d3dRenderer.SetBottomInsetPx (layout.bottomInsetPx);
     }
 
+    UpdateViewportLayout (clientW, clientH);
+
     // Load accelerator table
     m_accelTable = LoadAccelerators (hInstance, MAKEINTRESOURCE (IDR_ACCELERATOR));
     CWRA (m_accelTable);
@@ -1262,6 +1278,70 @@ HRESULT EmulatorShell::CreateRenderSurface ()
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateViewportLayout
+//
+//  Computes the Apple ][ viewport rectangle from the current client
+//  width / height and the LayoutManager's top + bottom chrome insets,
+//  then invokes DxuiViewport::Layout on the host root panel's
+//  viewport child. The viewport's bounds-changed callback fires when
+//  the rectangle differs from the last value reported, forwarding
+//  the new rect to D3DRenderer::SetTargetBounds via
+//  OnViewportBoundsChanged.
+//
+//  Skipped silently when the viewport has not yet been wired (early
+//  init paths, or when the host root panel was torn down).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
+{
+    LayoutManagerResult  layout       = {};
+    RECT                 viewportRect = {};
+
+
+    if (m_viewport == nullptr)
+    {
+        return;
+    }
+
+    layout              = m_layout.Resolve (widthPx, heightPx);
+    viewportRect.left   = 0;
+    viewportRect.top    = layout.topInsetPx;
+    viewportRect.right  = widthPx;
+    viewportRect.bottom = heightPx - layout.bottomInsetPx;
+
+    m_viewport->Layout (viewportRect, m_scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnViewportBoundsChanged
+//
+//  Bounds-changed callback for the DxuiViewport child of the host's
+//  root panel. Stores the new pixel rectangle and forwards it to
+//  D3DRenderer::SetTargetBounds. Today the rect is parked on the
+//  renderer (no behavior change); the renderer consumes it once the
+//  swap-chain restructure completes later in Phase 11d.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnViewportBoundsChanged (const RECT & boundsPx)
+{
+    m_viewportBoundsPx = boundsPx;
+    m_d3dRenderer.SetTargetBounds (boundsPx);
+    m_d3dRenderer.MarkRedrawNeeded();
 }
 
 
@@ -3622,6 +3702,8 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             m_d3dRenderer.SetBottomInsetPx (layout.bottomInsetPx);
         }
     }
+
+    UpdateViewportLayout (static_cast<int> (width), renderH);
 
     {
         lock_guard<mutex> lock (m_fbMutex);
