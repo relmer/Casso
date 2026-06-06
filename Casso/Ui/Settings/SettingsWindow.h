@@ -7,6 +7,7 @@
 
 
 class SettingsPanel;
+class DxuiHostWindow;
 
 
 
@@ -48,8 +49,7 @@ private:
     void    OnSize        (int widthPx, int heightPx);
     void    OnDpiChanged  (UINT dpi, const RECT & suggestedRect);
     void    OnGetMinMax   (MINMAXINFO * minMaxInfo);
-    bool    OnNcCalcSize  (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult);
-    LRESULT OnNcHitTest   (HWND hwnd, int xScreen, int yScreen);
+    LRESULT ClassifyHitForLegacyChrome (POINT ptScreen);
     bool    OnNcLButtonDown (HWND hwnd, LRESULT hitTest);
     void    OnNcMouse     (UINT message, WPARAM wParam, LPARAM lParam);
     void    OnMouse       (UINT message, WPARAM wParam, LPARAM lParam);
@@ -70,6 +70,13 @@ private:
     TitleBar              m_titleBar;
     ChromeTheme const   * m_theme     = nullptr;
     bool                  m_hasFocus  = false;
+
+    // DxuiHostWindow running in adopt mode -- wraps this HWND and
+    // takes over WM_NCCALCSIZE / WM_NCHITTEST classification. The
+    // bespoke legacy-chrome hit-test is plugged in via
+    // SetHitTestDelegate inside OnCreate; everything else still runs
+    // through SettingsWindow's WndProc.
+    std::unique_ptr<DxuiHostWindow>  m_hostWindow;
 };
 
 
