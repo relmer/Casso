@@ -40,6 +40,58 @@ namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisplayPage::DisplayPage
+//
+//  Registers each member widget into the panel's child list via
+//  Adopt so they participate in the IDxuiControl tree (Bounds,
+//  Visible, focus, parent pointers). The widgets remain DisplayPage-
+//  owned members; Adopt is non-owning. Layout positioning stays in
+//  Layout() via legacy SetRect calls because the existing layout
+//  code does things DxuiFormLayout cannot model (sub-row indents for
+//  scanline / bloom / color-bleed children, a button sharing the
+//  monitor row, indicator-column alignment past every slider).
+//  SettingsPanel still drives input/paint through the bespoke shims
+//  and the extended Paint() signature; collapsing the duality is
+//  deferred to the SettingsPanel atomic conversion.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DisplayPage::DisplayPage()
+{
+    Adopt (m_monitorLabel);
+    Adopt (m_brightnessLabel);
+    Adopt (m_contrastLabel);
+    Adopt (m_gammaLabel);
+    Adopt (m_persistenceLabel);
+    Adopt (m_scanlinesLabel);
+    Adopt (m_bloomLabel);
+    Adopt (m_colorBleedLabel);
+    Adopt (m_scanlinesIntLabel);
+    Adopt (m_bloomRadiusLabel);
+    Adopt (m_bloomStrengthLabel);
+    Adopt (m_colorBleedWLabel);
+
+    Adopt (m_monitor);
+    Adopt (m_brightness);
+    Adopt (m_contrast);
+    Adopt (m_gamma);
+    Adopt (m_persistence);
+    Adopt (m_scanlinesEn);
+    Adopt (m_scanlinesInt);
+    Adopt (m_bloomEn);
+    Adopt (m_bloomRadius);
+    Adopt (m_bloomStrength);
+    Adopt (m_colorBleedEn);
+    Adopt (m_colorBleedW);
+    Adopt (m_restore);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisplayPage::SetState
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -305,6 +357,12 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_colorBleedEn.SetDpi        (dpi);
     m_colorBleedW.SetDpi         (dpi);
     m_restore.SetDpi             (dpi);
+
+    // Mirror the page's footprint into the IDxuiControl tree so future
+    // centralized walks see this page as a panel covering `rect`.
+    // Adopted children already have their bounds written via the
+    // SetRect calls above.
+    DxuiPanel::SetBounds (rect);
 }
 
 

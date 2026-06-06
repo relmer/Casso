@@ -4,6 +4,7 @@
 
 #include "SettingsPanelState.h"
 
+#include "Core/DxuiPanel.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiDropdown.h"
 #include "Widgets/DxuiLabel.h"
@@ -66,9 +67,11 @@ struct DisplayDefaultsHint
 };
 
 
-class DisplayPage
+class DisplayPage : public DxuiPanel
 {
 public:
+    DisplayPage ();
+
     using BrightnessFn    = std::function<void (float value)>;
     using ContrastFn      = std::function<void (float value)>;
     using GammaFn         = std::function<void (float value)>;
@@ -115,14 +118,31 @@ public:
     void  SetOnPreview              (PreviewFn       fn) { m_onPreview       = std::move (fn); }
     void  SetOnRestoreDefaults      (RestoreFn       fn) { m_onRestore       = std::move (fn); }
 
-    void  Layout    (const RECT & rect, const DxuiDpiScaler & scaler);
+    void  Layout    (const RECT & rect, const DxuiDpiScaler & scaler) override;
     void  Rebuild   ();
 
+    //
+    //  Bespoke input + paint shims preserved for SettingsPanel coupling.
+    //  SettingsPanel still routes WM_* messages page-by-page rather
+    //  than dispatching uniform DxuiMouseEvent / DxuiKeyEvent values
+    //  through the IDxuiControl base. Once SettingsPanel itself is
+    //  converted to a DxuiPanel tree, these shims collapse into the
+    //  base DxuiPanel::OnMouse / OnKey / Paint auto-fan-out and
+    //  vanish. The extended Paint() overload below carries the
+    //  per-control fade alpha used by the live-preview focus highlight
+    //  and will be collapsed in the same pass. TODO: temporary bridge
+    //  for incremental page migration.
+    //
     void  OnLButtonDown (int x, int y);
     void  OnLButtonUp   (int x, int y);
     void  OnMouseMove   (int x, int y);
     void  OnMouseHover  (int x, int y);
     bool  OnKey         (WPARAM vk);
+
+    // Surface the base DxuiPanel::OnKey override so virtual dispatch
+    // through IDxuiControl still resolves correctly and direct
+    // callers can reach the base overload without ambiguity.
+    using DxuiPanel::OnKey;
 
     // Render. When focusedControlId is -1 every control paints at
     // `nonFocusedAlpha`; otherwise the matching control paints at
