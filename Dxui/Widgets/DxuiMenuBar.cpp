@@ -929,14 +929,22 @@ void DxuiMenuBar::PaintDropdown (
 
 void DxuiMenuBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
+    RECT  controlBounds = boundsDip;
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    SetBounds (boundsDip);
     Layout (boundsDip.left,
             boundsDip.top,
             boundsDip.right - boundsDip.left,
             scaler.Dpi(),
             m_textRendererForMeasure);
+
+    if (controlBounds.bottom <= controlBounds.top)
+    {
+        controlBounds.bottom = m_stripRect.bottom;
+    }
+    SetBounds (controlBounds);
 }
 
 

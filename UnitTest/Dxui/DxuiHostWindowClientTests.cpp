@@ -462,6 +462,38 @@ public:
     }
 
 
+    TEST_METHOD (Client_WmNcHitTest_DefaultClientKeepsClientArea)
+    {
+        class DefaultNcHitClient : public IDxuiHostClient
+        {
+        public:
+            int  onMouseMoveCount = 0;
+
+            DxuiMessageResult  OnMouseMove (WPARAM, LPARAM) override
+            {
+                ++onMouseMoveCount;
+                return DxuiMessageResult::Handled;
+            }
+        };
+
+        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        DefaultNcHitClient               client;
+        LRESULT                          result  = 0;
+
+
+        host->SetClient (&client);
+
+        result = host->WndProc (WM_NCHITTEST, 0, MAKELPARAM (100, 50));
+        if (result == HTCLIENT)
+        {
+            (void) host->WndProc (WM_MOUSEMOVE, 0, MAKELPARAM (100, 50));
+        }
+
+        Assert::AreEqual ((LRESULT) HTCLIENT, result);
+        Assert::AreEqual (1,                  client.onMouseMoveCount);
+    }
+
+
 
     //
     //  WM_CTLCOLORSTATIC forwards the HDC/HWND payload and
