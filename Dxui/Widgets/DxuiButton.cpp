@@ -60,7 +60,7 @@ bool DxuiButton::HitTest (int x, int y) const
         return false;
     }
 
-    return x >= m_rect.left && x < m_rect.right && y >= m_rect.top && y < m_rect.bottom;
+    return x >= m_boundsDip.left && x < m_boundsDip.right && y >= m_boundsDip.top && y < m_boundsDip.bottom;
 }
 
 
@@ -139,18 +139,18 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
         textColor = (textColor & s_kDisabledMask);
     }
 
-    painter.FillRect ((float) m_rect.left,
-                      (float) m_rect.top,
-                      (float) (m_rect.right  - m_rect.left),
-                      (float) (m_rect.bottom - m_rect.top),
+    painter.FillRect ((float) m_boundsDip.left,
+                      (float) m_boundsDip.top,
+                      (float) (m_boundsDip.right  - m_boundsDip.left),
+                      (float) (m_boundsDip.bottom - m_boundsDip.top),
                       color);
 
     if (m_outlineThick > 0.0f)
     {
-        painter.OutlineRect ((float) m_rect.left,
-                             (float) m_rect.top,
-                             (float) (m_rect.right  - m_rect.left),
-                             (float) (m_rect.bottom - m_rect.top),
+        painter.OutlineRect ((float) m_boundsDip.left,
+                             (float) m_boundsDip.top,
+                             (float) (m_boundsDip.right  - m_boundsDip.left),
+                             (float) (m_boundsDip.bottom - m_boundsDip.top),
                              m_outlineThick,
                              m_outlineArgb);
     }
@@ -159,19 +159,19 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
         // Themed buttons always paint a 1dip border so the
         // shape is legible against the panel background even when the
         // button fill is similar to the surface.
-        painter.OutlineRect ((float) m_rect.left,
-                             (float) m_rect.top,
-                             (float) (m_rect.right  - m_rect.left),
-                             (float) (m_rect.bottom - m_rect.top),
+        painter.OutlineRect ((float) m_boundsDip.left,
+                             (float) m_boundsDip.top,
+                             (float) (m_boundsDip.right  - m_boundsDip.left),
+                             (float) (m_boundsDip.bottom - m_boundsDip.top),
                              autoBorderPx,
                              borderColor);
     }
 
     IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.c_str(),
-                                              (float) m_rect.left,
-                                              (float) m_rect.top,
-                                              (float) (m_rect.right  - m_rect.left),
-                                              (float) (m_rect.bottom - m_rect.top),
+                                              (float) m_boundsDip.left,
+                                              (float) m_boundsDip.top,
+                                              (float) (m_boundsDip.right  - m_boundsDip.left),
+                                              (float) (m_boundsDip.bottom - m_boundsDip.top),
                                               textColor,
                                               fontDip,
                                               L"Segoe UI",
@@ -183,10 +183,10 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
         float  focusInset = m_scaler.Pxf (s_kFocusInsetPx);
         float  focusThick = m_scaler.Pxf (s_kFocusRingPx);
 
-        painter.OutlineRect ((float) m_rect.left + focusInset,
-                             (float) m_rect.top  + focusInset,
-                             (float) (m_rect.right  - m_rect.left) - focusInset * 2.0f,
-                             (float) (m_rect.bottom - m_rect.top)  - focusInset * 2.0f,
+        painter.OutlineRect ((float) m_boundsDip.left + focusInset,
+                             (float) m_boundsDip.top  + focusInset,
+                             (float) (m_boundsDip.right  - m_boundsDip.left) - focusInset * 2.0f,
+                             (float) (m_boundsDip.bottom - m_boundsDip.top)  - focusInset * 2.0f,
                              focusThick,
                              s_kFocusRingArgb);
     }
@@ -205,7 +205,6 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
 void DxuiButton::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_rect = boundsDip;
     m_scaler.SetDpi (scaler.Dpi());
 }
 

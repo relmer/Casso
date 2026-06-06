@@ -18,7 +18,7 @@ bool DxuiToggle::HitTest (int x, int y) const
     {
         return false;
     }
-    return x >= m_rect.left && x < m_rect.right && y >= m_rect.top && y < m_rect.bottom;
+    return x >= m_boundsDip.left && x < m_boundsDip.right && y >= m_boundsDip.top && y < m_boundsDip.bottom;
 }
 
 
@@ -175,8 +175,8 @@ void DxuiToggle::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
     float    focusThick = m_scaler.Pxf (s_kFocusThickDip);
     float    labelGap   = m_scaler.Pxf (s_kLabelGapDip);
     float    fontDip    = m_scaler.Pxf (s_kFontDip);
-    float    pillLeft   = (float) m_rect.left;
-    float    pillTop    = (float) m_rect.top + ((float) (m_rect.bottom - m_rect.top) - pillH) * 0.5f;
+    float    pillLeft   = (float) m_boundsDip.left;
+    float    pillTop    = (float) m_boundsDip.top + ((float) (m_boundsDip.bottom - m_boundsDip.top) - pillH) * 0.5f;
     float    capR       = pillH * 0.5f;
     float    leftCx     = pillLeft + capR;
     float    rightCx    = pillLeft + pillW - capR;
@@ -221,9 +221,9 @@ void DxuiToggle::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
     {
         IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.c_str(),
                                                   pillLeft + pillW + labelGap,
-                                                  (float) m_rect.top,
-                                                  (float) (m_rect.right - m_rect.left) - pillW - labelGap,
-                                                  (float) (m_rect.bottom - m_rect.top),
+                                                  (float) m_boundsDip.top,
+                                                  (float) (m_boundsDip.right - m_boundsDip.left) - pillW - labelGap,
+                                                  (float) (m_boundsDip.bottom - m_boundsDip.top),
                                                   textColor,
                                                   fontDip,
                                                   L"Segoe UI",
@@ -236,9 +236,9 @@ void DxuiToggle::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 
         IGNORE_RETURN_VALUE (hr, text.DrawString (stateText,
                                                   pillLeft + pillW + labelGap,
-                                                  (float) m_rect.top,
-                                                  (float) (m_rect.right - m_rect.left) - pillW - labelGap,
-                                                  (float) (m_rect.bottom - m_rect.top),
+                                                  (float) m_boundsDip.top,
+                                                  (float) (m_boundsDip.right - m_boundsDip.left) - pillW - labelGap,
+                                                  (float) (m_boundsDip.bottom - m_boundsDip.top),
                                                   textColor,
                                                   fontDip,
                                                   L"Segoe UI",
@@ -259,7 +259,6 @@ void DxuiToggle::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 void DxuiToggle::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_rect = boundsDip;
     m_scaler.SetDpi (scaler.Dpi());
 }
 

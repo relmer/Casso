@@ -193,7 +193,7 @@ int DxuiTreeView::HitTestRow (int x, int y) const
         return -1;
     }
 
-    if (x < m_rect.left || x >= m_rect.right || y < m_rect.top || y >= m_rect.bottom)
+    if (x < m_boundsDip.left || x >= m_boundsDip.right || y < m_boundsDip.top || y >= m_boundsDip.bottom)
     {
         return -1;
     }
@@ -203,7 +203,7 @@ int DxuiTreeView::HitTestRow (int x, int y) const
         return -1;
     }
 
-    relY = y - m_rect.top;
+    relY = y - m_boundsDip.top;
     row  = relY / m_rowHeightPx;
 
     if (row < 0 || row >= (int) m_flatRows.size())
@@ -240,8 +240,8 @@ bool DxuiTreeView::HitTestTwisty (int x, int y, int flatRow) const
     }
 
     rowDepth = m_flatRows[(size_t) flatRow].depth;
-    rowTop   = m_rect.top + flatRow * m_rowHeightPx;
-    twistyX  = m_rect.left + rowDepth * m_indentPx;
+    rowTop   = m_boundsDip.top + flatRow * m_rowHeightPx;
+    twistyX  = m_boundsDip.left + rowDepth * m_indentPx;
 
     UNREFERENCED_PARAMETER (rowTop);
 
@@ -273,7 +273,7 @@ bool DxuiTreeView::HitTestCheckbox (int x, int y, int flatRow) const
     }
 
     rowDepth  = m_flatRows[(size_t) flatRow].depth;
-    checkboxX = m_rect.left + rowDepth * m_indentPx + m_twistyPx;
+    checkboxX = m_boundsDip.left + rowDepth * m_indentPx + m_twistyPx;
 
     return x >= checkboxX && x < checkboxX + m_checkboxPx;
 }
@@ -508,9 +508,9 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     {
         const FlatRow   & fr        = m_flatRows[(size_t) i];
         const DxuiTreeNode  * node      = NodeAt (i);
-        float             rowY      = (float) (m_rect.top + i * m_rowHeightPx);
+        float             rowY      = (float) (m_boundsDip.top + i * m_rowHeightPx);
         float             rowHeight = (float) m_rowHeightPx;
-        float             twistyX   = (float) (m_rect.left + fr.depth * m_indentPx);
+        float             twistyX   = (float) (m_boundsDip.left + fr.depth * m_indentPx);
         float             checkboxX = twistyX + (float) m_twistyPx;
         float             textX     = checkboxX + (float) m_checkboxPx + textGap;
         uint32_t          rowFill   = (i == m_highlight) ? s_kRowHighlight
@@ -525,8 +525,8 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 
         if (rowFill != 0)
         {
-            painter.FillRect ((float) m_rect.left, rowY,
-                              (float) (m_rect.right - m_rect.left), rowHeight, rowFill);
+            painter.FillRect ((float) m_boundsDip.left, rowY,
+                              (float) (m_boundsDip.right - m_boundsDip.left), rowHeight, rowFill);
         }
 
         if (hasChildren)
@@ -604,7 +604,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
             IGNORE_RETURN_VALUE (hr, text.DrawString (node->label.c_str(),
                                                       textX,
                                                       rowY,
-                                                      (float) m_rect.right - textX,
+                                                      (float) m_boundsDip.right - textX,
                                                       rowHeight,
                                                       textCol,
                                                       fontDip,
@@ -627,7 +627,6 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 void DxuiTreeView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_rect = boundsDip;
     SetDpi (scaler.Dpi());
 }
 

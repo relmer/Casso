@@ -99,11 +99,11 @@ void DxuiSlider::SetValue (float value)
 
 bool DxuiSlider::HitTest (int x, int y) const
 {
-    // Puck radius (max focused size) extends BEYOND m_rect on the
+    // Puck radius (max focused size) extends BEYOND m_boundsDip on the
     // left when value is at min, and on the right when value is at
     // max AND there's no value-readout area to absorb it. Without
     // this extension, the puck visibly reacts to hover/click in its
-    // outer half but the outer half is outside m_rect, so the input
+    // outer half but the outer half is outside m_boundsDip, so the input
     // gets silently dropped.
     constexpr int  s_kPuckRadiusMaxDip = 11;
 
@@ -115,10 +115,10 @@ bool DxuiSlider::HitTest (int x, int y) const
         return false;
     }
     puckExtPx = m_scaler.Px (s_kPuckRadiusMaxDip);
-    return x >= (m_rect.left  - puckExtPx) &&
-           x <  (m_rect.right + puckExtPx) &&
-           y >= m_rect.top &&
-           y <  m_rect.bottom;
+    return x >= (m_boundsDip.left  - puckExtPx) &&
+           x <  (m_boundsDip.right + puckExtPx) &&
+           y >= m_boundsDip.top &&
+           y <  m_boundsDip.bottom;
 }
 
 
@@ -156,12 +156,12 @@ float DxuiSlider::ValueFromX (int x) const
     // a click on the puck snaps to a different value.
     bool   showValue    = m_explicitShowValue ? m_showValue : !m_suffix.empty();
     int    valueAreaPx  = showValue ? (m_scaler.Px (s_kValueWidthDip) + m_scaler.Px (s_kValueGapDip)) : 0;
-    int    trackAvailPx = std::max ((LONG) 1, (LONG) ((m_rect.right - m_rect.left) - valueAreaPx));
+    int    trackAvailPx = std::max ((LONG) 1, (LONG) ((m_boundsDip.right - m_boundsDip.left) - valueAreaPx));
     float  t            = 0.0f;
 
 
 
-    t = (float) (x - m_rect.left) / (float) trackAvailPx;
+    t = (float) (x - m_boundsDip.left) / (float) trackAvailPx;
     t = Clamp (t, 0.0f, 1.0f);
 
     return m_min + t * (m_max - m_min);
@@ -386,11 +386,11 @@ void DxuiSlider::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
     float    valueFontDip  = m_scaler.Pxf (s_kValueFontDip);
     float    valueWidth    = m_scaler.Pxf (s_kValueWidthDip);
     float    valueAreaW    = showValue ? (valueWidth + valueGap) : 0.0f;
-    float    rectW         = (float) (m_rect.right  - m_rect.left);
-    float    rectH         = (float) (m_rect.bottom - m_rect.top);
-    float    trackLeft     = (float) m_rect.left;
+    float    rectW         = (float) (m_boundsDip.right  - m_boundsDip.left);
+    float    rectH         = (float) (m_boundsDip.bottom - m_boundsDip.top);
+    float    trackLeft     = (float) m_boundsDip.left;
     float    trackAvailW   = std::max (0.0f, rectW - valueAreaW);
-    float    centerY       = (float) m_rect.top + rectH * 0.5f;
+    float    centerY       = (float) m_boundsDip.top + rectH * 0.5f;
     float    t             = 0.0f;
     float    fillWidth     = 0.0f;
     float    puckCx        = 0.0f;
@@ -459,7 +459,7 @@ void DxuiSlider::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 
         IGNORE_RETURN_VALUE (hr, text.DrawString (buf,
                                                   trackLeft + trackAvailW + valueGap,
-                                                  (float) m_rect.top,
+                                                  (float) m_boundsDip.top,
                                                   valueWidth,
                                                   rectH,
                                                   s_kValueText,
@@ -482,7 +482,6 @@ void DxuiSlider::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 void DxuiSlider::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_rect = boundsDip;
     m_scaler.SetDpi (scaler.Dpi());
 }
 

@@ -39,7 +39,7 @@ public:
 
     ~DxuiTextInput() override = default;
 
-    void  SetRect       (const RECT & rect)           { m_rect = rect; SetBounds (rect); }
+    void  SetRect       (const RECT & rect)           { SetBounds (rect); }
     void  SetText       (const std::wstring & text)   { m_text = text; ClampCaret(); }
     void  SetMaxLength  (size_t maxLen)               { m_maxLen = maxLen; }
     void  SetFocused    (bool focused)                { m_focused = focused; if (!focused) { m_dragging = false; } }
@@ -50,7 +50,7 @@ public:
     void  SetHwnd       (HWND hwnd)                   { m_hwnd = hwnd; }
 
     const std::wstring & Text     () const { return m_text;    }
-    const RECT         & Rect     () const { return m_rect;    }
+    const RECT         & Rect     () const { return m_boundsDip;    }
     bool                 Focused  () const { return m_focused; }
     bool                 Enabled  () const { return m_enabled; }
 
@@ -86,9 +86,6 @@ private:
 
     static bool Shift   () { return (GetKeyState (VK_SHIFT)   & 0x8000) != 0; }
     static bool Control () { return (GetKeyState (VK_CONTROL) & 0x8000) != 0; }
-
-
-    RECT                  m_rect       = {};
     std::wstring          m_text;
     size_t                m_maxLen     = 64;
     size_t                m_caret      = 0;

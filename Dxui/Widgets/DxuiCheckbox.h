@@ -38,7 +38,7 @@ public:
 
     ~DxuiCheckbox() override = default;
 
-    void  SetRect    (const RECT & rect)  { m_rect = rect; SetBounds (rect); }
+    void  SetRect    (const RECT & rect)  { SetBounds (rect); }
     void  SetLabel   (const std::wstring & label) { m_label = label; }
     void  SetChecked (bool checked) { m_checked = checked; }
     void  SetEnabled (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; } }
@@ -46,7 +46,7 @@ public:
     void  SetOnChange (ChangeFn fn) { m_change = std::move (fn); }
     void  SetDpi      (UINT dpi) { m_scaler.SetDpi (dpi); }
 
-    const RECT         & Rect     () const { return m_rect;     }
+    const RECT         & Rect     () const { return m_boundsDip;     }
     const std::wstring & Label    () const { return m_label;    }
     bool                 Checked  () const { return m_checked;  }
     bool                 Enabled  () const { return m_enabled;  }
@@ -77,7 +77,6 @@ private:
     void  Toggle ();
 
 
-    RECT          m_rect    = {};
     std::wstring  m_label;
     ChangeFn      m_change;
     bool          m_checked = false;

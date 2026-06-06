@@ -20,7 +20,7 @@ bool DxuiCheckbox::HitTest (int x, int y) const
     {
         return false;
     }
-    return x >= m_rect.left && x < m_rect.right && y >= m_rect.top && y < m_rect.bottom;
+    return x >= m_boundsDip.left && x < m_boundsDip.right && y >= m_boundsDip.top && y < m_boundsDip.bottom;
 }
 
 
@@ -171,8 +171,8 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     float    focusThick  = m_scaler.Pxf (s_kFocusThickDip);
     float    labelGap    = m_scaler.Pxf (s_kLabelGapDip);
     float    fontDip     = m_scaler.Pxf (s_kFontDip);
-    float    boxLeft     = (float) m_rect.left;
-    float    boxTop      = (float) m_rect.top + ((float) (m_rect.bottom - m_rect.top) - boxSize) * 0.5f;
+    float    boxLeft     = (float) m_boundsDip.left;
+    float    boxTop      = (float) m_boundsDip.top + ((float) (m_boundsDip.bottom - m_boundsDip.top) - boxSize) * 0.5f;
     uint32_t boxColor    = m_enabled
                             ? (m_pressed ? s_kBoxPressed : (m_hover ? s_kBoxHover : s_kBoxIdle))
                             : s_kBoxDisabled;
@@ -209,9 +209,9 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 
     IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.c_str(),
                                               boxLeft + boxSize + labelGap,
-                                              (float) m_rect.top,
-                                              (float) (m_rect.right - m_rect.left) - boxSize - labelGap,
-                                              (float) (m_rect.bottom - m_rect.top),
+                                              (float) m_boundsDip.top,
+                                              (float) (m_boundsDip.right - m_boundsDip.left) - boxSize - labelGap,
+                                              (float) (m_boundsDip.bottom - m_boundsDip.top),
                                               textColor,
                                               fontDip,
                                               L"Segoe UI",
@@ -232,7 +232,6 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 void DxuiCheckbox::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_rect = boundsDip;
     m_scaler.SetDpi (scaler.Dpi());
 }
 

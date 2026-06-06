@@ -345,4 +345,35 @@ public:
         Assert::AreEqual (1, adoptedFront.mouseCount);
         Assert::AreEqual (static_cast<void *> (&adoptedFront), static_cast<void *> (panel.Child (1)));
     }
+
+
+    TEST_METHOD (StackLayout_AssignsBoundsToLeafWidgetChild)
+    {
+        DxuiPanel       panel;
+        DxuiDpiScaler   scaler;
+        MockDxuiControl a;
+        MockDxuiControl b;
+        RECT            bounds = MakeRect (0, 0, 200, 50);
+
+
+        scaler.SetDpi (96);
+        a.SetBounds (MakeRect (0, 0, 60, 50));
+        b.SetBounds (MakeRect (0, 0, 80, 50));
+        panel.Adopt (a);
+        panel.Adopt (b);
+        panel.SetLayout (std::make_unique<DxuiStackLayout> (DxuiStackLayout::Orientation::Horizontal,
+                                                            0.0f,
+                                                            DxuiStackLayout::Align::Stretch));
+
+        panel.Layout (bounds, scaler);
+
+        // Layout-policy positioning must be visible via the leaf
+        // widget's IDxuiControl::Bounds() — i.e., the policy's
+        // SetBounds calls actually take effect on the widget. This
+        // is the regression check for the rect-duality fix.
+        Assert::AreEqual ((LONG) 0,   a.Bounds().left);
+        Assert::AreEqual ((LONG) 60,  a.Bounds().right);
+        Assert::AreEqual ((LONG) 60,  b.Bounds().left);
+        Assert::AreEqual ((LONG) 140, b.Bounds().right);
+    }
 };

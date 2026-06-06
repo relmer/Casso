@@ -223,8 +223,6 @@ private:
                                      float          ah,
                                      bool           up,
                                      uint32_t       argb) const;
-
-    RECT                              m_rect       = {};
     const IDxuiTheme                * m_theme      = nullptr;
     std::vector<Column>               m_columns;
     std::vector<std::vector<Cell>>    m_rows;

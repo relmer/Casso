@@ -19,7 +19,7 @@ public:
 
     ~DxuiDropdown() override = default;
 
-    void  SetRect        (const RECT & rect) { m_rect = rect; SetBounds (rect); }
+    void  SetRect        (const RECT & rect) { SetBounds (rect); }
     void  SetItems       (const std::vector<std::wstring> & items);
     void  SetSelected    (int index);
     void  SetEnabled     (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; if (m_open) { Close(); } } }
@@ -32,7 +32,7 @@ public:
     bool  IsOpen()       const { return m_open; }
     int   HighlightIndex () const { return m_highlight; }
     int   SelectedIndex  () const { return m_selected; }
-    const RECT & Rect()    const { return m_rect; }
+    const RECT & Rect()    const { return m_boundsDip; }
     const std::vector<std::wstring> & Items () const { return m_items; }
     bool  HitTest        (int x, int y) const;
     int   ItemHitTest    (int x, int y) const;
@@ -80,7 +80,6 @@ private:
     std::vector<std::wstring>  m_items;
     SelectFn                  m_select;
     SelectFn                  m_highlightChange;
-    RECT                      m_rect      = {};
     bool                      m_open      = false;
     bool                      m_pressed   = false;
     bool                      m_hover     = false;

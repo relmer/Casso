@@ -40,7 +40,7 @@ public:
 
     ~DxuiSlider() override = default;
 
-    void   SetRect    (const RECT & rect) { m_rect = rect; SetBounds (rect); }
+    void   SetRect    (const RECT & rect) { SetBounds (rect); }
     void   SetRange   (float minValue, float maxValue);
     void   SetStep    (float step) { m_step = step; }
     void   SetValue   (float value);
@@ -56,7 +56,7 @@ public:
     void   SetOnDragEnd   (InteractionFn fn) { m_onDragEnd   = std::move (fn); }
     void   SetOnKeyboardChange (InteractionFn fn) { m_onKeyboard = std::move (fn); }
 
-    const RECT & Rect      () const { return m_rect;     }
+    const RECT & Rect      () const { return m_boundsDip;     }
     float        Min       () const { return m_min;      }
     float        Max       () const { return m_max;      }
     float        Step      () const { return m_step;     }
@@ -87,9 +87,6 @@ public:
 private:
     void   ApplyValue     (float v);
     float  ValueFromX     (int x) const;
-
-
-    RECT           m_rect     = {};
     ChangeFn       m_change;
     InteractionFn  m_onDragStart;
     InteractionFn  m_onDragEnd;
