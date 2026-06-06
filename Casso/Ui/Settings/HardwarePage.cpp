@@ -306,28 +306,12 @@ void HardwarePage::Rebuild ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HardwarePage::Paint
+//  Bespoke Paint(painter, text, theme) shim used to live here.
+//  Replaced by the inherited DxuiPanel::Paint walk over Adopt'd
+//  children (info labels + tree). SettingsPanel calls into the
+//  IDxuiControl::Paint override instead.
 //
 ////////////////////////////////////////////////////////////////////////////////
-
-void HardwarePage::Paint (DxuiPainter & painter, DxuiTextRenderer & text, const IDxuiTheme & theme) const
-{
-    int  i = 0;
-
-
-    UNREFERENCED_PARAMETER (theme);
-
-
-
-    for (i = 0; i < (int) kInfoRowCount; ++i)
-    {
-        m_infoLabels[(size_t) i].Paint (painter, text);
-        m_infoValues[(size_t) i].Paint (painter, text);
-        m_infoExtras[(size_t) i].Paint (painter, text);
-    }
-
-    m_tree.Paint (painter, text);
-}
 
 
 

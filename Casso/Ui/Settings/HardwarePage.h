@@ -51,32 +51,6 @@ public:
     DxuiTreeView       & Tree ()       { return m_tree; }
     const DxuiTreeView & Tree () const { return m_tree; }
 
-    //
-    //  Bespoke input + paint shims preserved for SettingsPanel coupling.
-    //  SettingsPanel still routes WM_* messages page-by-page rather
-    //  than dispatching uniform DxuiMouseEvent / DxuiKeyEvent values
-    //  through the IDxuiControl base. Once SettingsPanel itself is
-    //  converted to a DxuiPanel tree, these shims collapse into the
-    //  base DxuiPanel::OnMouse / OnKey / Paint auto-fan-out and
-    //  vanish. TODO: temporary bridge for incremental page migration.
-    //
-    void  OnLButtonDown (int x, int y) { (void) m_tree.OnLButtonDown (x, y); }
-    void  OnLButtonUp   (int x, int y) { (void) m_tree.OnLButtonUp   (x, y); }
-    void  OnMouseHover  (int x, int y) { m_tree.SetMouseHover (x, y); }
-    bool  OnKey         (WPARAM vk)    { return m_tree.OnKey (vk); }
-
-    // Surface the base DxuiPanel::OnKey override so virtual dispatch
-    // through IDxuiControl still resolves correctly and direct
-    // callers can reach the base overload without ambiguity.
-    using DxuiPanel::OnKey;
-
-    void  CollectFocusables (std::vector<std::function<void (bool)>> & out)
-    {
-        out.push_back ([this] (bool f) { m_tree.SetFocused (f); });
-    }
-
-    void  Paint         (DxuiPainter & painter, DxuiTextRenderer & text, const IDxuiTheme & theme) const;
-
     // Pure helper: convert one hardware-entry list into the DxuiTreeNode
     // tree the underlying DxuiTreeView consumes. Exposed for unit tests.
     static std::vector<DxuiTreeNode>  BuildNodes (const std::vector<HardwareEntry> & entries);
