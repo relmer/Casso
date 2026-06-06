@@ -4,6 +4,7 @@
 
 #include "../Chrome/ChromeMetrics.h"
 #include "../IDriveCommandSink.h"
+#include "Core/DxuiFormLayout.h"
 
 
 
@@ -465,22 +466,41 @@ void ThemePage::SetThemes (std::vector<std::string>  themeIds,
 
 void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    UINT  dpi        = scaler.Dpi();
-    int   pad        = scaler.Px (s_kPagePadDp);
-    int   rowHeight  = scaler.Px (s_kRowHeightDp);
-    int   labelWidth = scaler.Px (s_kLabelWidthDp);
-    int   dropWidth  = scaler.Px (s_kDropdownWidthDp);
-    int   x          = rect.left + pad;
-    int   y          = rect.top  + pad;
-    int   controlsX  = x + labelWidth;
-    int   previewGap = scaler.Px (24);
-    int   previewTop = y + rowHeight + previewGap;
+    UINT   dpi        = scaler.Dpi();
+    int    pad        = scaler.Px (s_kPagePadDp);
+    int    rowHeight  = scaler.Px (s_kRowHeightDp);
+    int    labelWidth = scaler.Px (s_kLabelWidthDp);
+    int    dropWidth  = scaler.Px (s_kDropdownWidthDp);
+    int    x          = rect.left + pad;
+    int    y          = rect.top  + pad;
+    int    previewGap = scaler.Px (24);
+    int    previewTop = y + rowHeight + previewGap;
+    RECT   rowBounds  = { x, y, x + labelWidth + dropWidth, y + rowHeight };
+    auto   form       = std::make_unique<DxuiFormLayout> ((float) labelWidth,
+                                                          (float) rowHeight,
+                                                          0.0f,
+                                                          0.0f,
+                                                          0.0f);
 
 
 
-    m_themeLabel.SetRect    (MakeRect (x, y, labelWidth, rowHeight));
-    m_themeLabel.SetText    (L"Theme:");
-    m_themeDropdown.SetRect (MakeRect (controlsX, y, dropWidth, rowHeight));
+    m_themeLabel.SetText (L"Theme:");
+    form->AddRow         (&m_themeLabel, &m_themeDropdown);
+    SetLayout            (std::move (form));
+
+    // Drive arrangement through the IDxuiControl tree. DxuiPanel::Layout
+    // writes our own bounds via SetBounds(rect) and then asks the
+    // policy to assign label / field rects -- replaces the bespoke
+    // m_themeLabel.SetRect / m_themeDropdown.SetRect calls that used
+    // to live here. Pass the single-row anchor rect so the form fills
+    // exactly one row regardless of how tall the page itself is.
+    DxuiPanel::Layout (rowBounds, scaler);
+
+    // Mirror the full page footprint after the policy run so the
+    // panel's stored bounds match the page area rather than just the
+    // single-row form. The Adopt'd children's bounds (written by the
+    // form's Arrange call above) are unaffected.
+    DxuiPanel::SetBounds (rect);
 
     m_themeLabel.SetDpi    (dpi);
     m_themeDropdown.SetDpi (dpi);
@@ -490,13 +510,6 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_previewRect.right  = std::max ((LONG) x, (LONG) (rect.right  - pad));
     m_previewRect.bottom = std::max ((LONG) previewTop, (LONG) (rect.bottom - pad));
     m_scaler             = scaler;
-
-    // Update the panel base's bounds so the IDxuiControl tree sees
-    // this page's footprint. The Adopt'd children already have their
-    // bounds written via the SetRect calls above (SetRect mirrors
-    // through SetBounds), so no layout policy is needed for this
-    // single-row page.
-    DxuiPanel::SetBounds (rect);
 }
 
 
