@@ -21,6 +21,57 @@ namespace
     // generates a fresh class so multiple host windows in one
     // process don't share registration state.
     std::atomic<uint32_t>  s_classSerial { 0 };
+
+
+    IDxuiControl *  FindNcSystemControlInTree (IDxuiControl * control, POINT clientDip)
+    {
+        size_t           n     = 0;
+        size_t           i     = 0;
+        IDxuiControl   * child = nullptr;
+        IDxuiControl   * found = nullptr;
+        RECT             rc    = {};
+        DxuiHitTestKind  kind  = DxuiHitTestKind::None;
+
+
+
+        if (control == nullptr)
+        {
+            return nullptr;
+        }
+
+        n = control->ChildCount();
+        for (i = n; i > 0; --i)
+        {
+            child = control->Child (i - 1);
+            if (child == nullptr || !child->Visible())
+            {
+                continue;
+            }
+
+            rc = child->Bounds();
+            if (clientDip.x < rc.left || clientDip.x >= rc.right ||
+                clientDip.y < rc.top  || clientDip.y >= rc.bottom)
+            {
+                continue;
+            }
+
+            found = FindNcSystemControlInTree (child, clientDip);
+            if (found != nullptr)
+            {
+                return found;
+            }
+
+            kind = child->ClassifyHit (clientDip);
+            if (kind == DxuiHitTestKind::MinButton ||
+                kind == DxuiHitTestKind::MaxButton ||
+                kind == DxuiHitTestKind::CloseButton)
+            {
+                return child;
+            }
+        }
+
+        return nullptr;
+    }
 }
 
 
@@ -430,6 +481,13 @@ bool DxuiHostWindow::HandleMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & ou
 
         case WM_NCHITTEST:
             outResult = HandleNcHitTest (lp);
+            return true;
+
+        case WM_NCLBUTTONDOWN:
+        case WM_NCLBUTTONUP:
+        case WM_NCMOUSEMOVE:
+        case WM_NCMOUSELEAVE:
+            outResult = HandleNcMouse (msg, wp, lp);
             return true;
 
         case WM_DPICHANGED:
@@ -1124,10 +1182,9 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             return HandleNcMouse (msg, wp, lp);
 
         case WM_NCLBUTTONUP:
-            // Let the client classify the button release first (it
-            // knows which HT* maps to which system-button action);
-            // fall through to the host's own NC bookkeeping when the
-            // client abstains.
+        {
+            LRESULT  mouseResult = HandleNcMouse (msg, wp, lp);
+
             if (m_client != nullptr)
             {
                 POINT  ptScreen = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
@@ -1137,7 +1194,8 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
                     return 0;
                 }
             }
-            return HandleNcMouse (msg, wp, lp);
+            return mouseResult;
+        }
 
         case WM_DPICHANGED:
             HandleDpiChanged (wp, lp);
@@ -1467,20 +1525,102 @@ LRESULT DxuiHostWindow::HandleNcHitTest (LPARAM lp)
 //
 //  HandleNcMouse
 //
-//  Stub for Phase 7 — the framework owns these messages so the OS
-//  doesn't draw the default chrome button overlays, but actual mouse
-//  routing into the panel tree wires up in Phase 8 once a consumer
-//  is driving the host. Returning 0 suppresses DefWindowProc's
-//  built-in chrome behavior.
+//  Routes NC mouse state to custom system-button controls and lets
+//  DefWindowProc keep the standard caption / resize behaviours for
+//  everything else.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 LRESULT DxuiHostWindow::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 {
-    (void) msg;
-    (void) wp;
-    (void) lp;
+    POINT                ptScreen = {};
+    POINT                ptClient = {};
+    IDxuiControl       * control  = nullptr;
+    DxuiMouseEvent       ev       = {};
+    TRACKMOUSEEVENT      tme      = { sizeof (tme) };
 
+
+
+    if (msg == WM_NCMOUSELEAVE)
+    {
+        if (m_lastHoveredNcControl != nullptr)
+        {
+            ev.kind = DxuiMouseEventKind::Leave;
+            m_lastHoveredNcControl->OnMouse (ev);
+            m_lastHoveredNcControl = nullptr;
+            if (m_hwnd != nullptr)
+            {
+                InvalidateRect (m_hwnd, nullptr, FALSE);
+            }
+        }
+        return 0;
+    }
+
+    if (m_hwnd == nullptr)
+    {
+        return DefWindowProc (m_hwnd, msg, wp, lp);
+    }
+
+    ptScreen.x = GET_X_LPARAM (lp);
+    ptScreen.y = GET_Y_LPARAM (lp);
+    ptClient   = ptScreen;
+    if (!ScreenToClient (m_hwnd, &ptClient))
+    {
+        return DefWindowProc (m_hwnd, msg, wp, lp);
+    }
+
+    ptClient.x = MulDiv (ptClient.x, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
+    ptClient.y = MulDiv (ptClient.y, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
+    control    = FindNcSystemControlAt (ptClient);
+    if (control == nullptr)
+    {
+        if (m_lastHoveredNcControl != nullptr)
+        {
+            ev.kind       = (msg == WM_NCLBUTTONUP) ? DxuiMouseEventKind::Up : DxuiMouseEventKind::Leave;
+            ev.button     = (msg == WM_NCLBUTTONUP) ? DxuiMouseButton::Left  : DxuiMouseButton::None;
+            ev.positionDip = ptClient;
+            m_lastHoveredNcControl->OnMouse (ev);
+            m_lastHoveredNcControl = nullptr;
+            InvalidateRect (m_hwnd, nullptr, FALSE);
+        }
+        return DefWindowProc (m_hwnd, msg, wp, lp);
+    }
+
+    if (msg == WM_NCMOUSEMOVE)
+    {
+        if (m_lastHoveredNcControl != nullptr && m_lastHoveredNcControl != control)
+        {
+            ev.kind = DxuiMouseEventKind::Leave;
+            m_lastHoveredNcControl->OnMouse (ev);
+        }
+
+        tme.dwFlags = TME_NONCLIENT | TME_LEAVE;
+        tme.hwndTrack = m_hwnd;
+        TrackMouseEvent (&tme);
+
+        ev.kind = DxuiMouseEventKind::Move;
+        m_lastHoveredNcControl = control;
+    }
+    else if (msg == WM_NCLBUTTONDOWN)
+    {
+        ev.kind   = DxuiMouseEventKind::Down;
+        ev.button = DxuiMouseButton::Left;
+    }
+    else if (msg == WM_NCLBUTTONUP)
+    {
+        ev.kind   = DxuiMouseEventKind::Up;
+        ev.button = DxuiMouseButton::Left;
+    }
+    else
+    {
+        return DefWindowProc (m_hwnd, msg, wp, lp);
+    }
+
+    ev.positionDip = ptClient;
+    control->OnMouse (ev);
+    InvalidateRect (m_hwnd, nullptr, FALSE);
+
+    (void) wp;
     return 0;
 }
 
@@ -1630,6 +1770,66 @@ DxuiHitTestKind DxuiHostWindow::ClassifyHitForTest (POINT clientDip) const
     rcClient.right  = MulDiv (rcClient.right,  (int) s_kDefaultDpi, (int) m_scaler.Dpi());
     rcClient.bottom = MulDiv (rcClient.bottom, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
     return ClassifyHitInternal (clientDip, rcClient);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindNcSystemControlAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiControl * DxuiHostWindow::FindNcSystemControlAt (POINT clientDip) const
+{
+    size_t           n       = 0;
+    size_t           i       = 0;
+    IDxuiControl   * child   = nullptr;
+    IDxuiControl   * found   = nullptr;
+    RECT             rc      = {};
+    DxuiHitTestKind  kind    = DxuiHitTestKind::None;
+
+
+
+    if (m_root == nullptr)
+    {
+        return nullptr;
+    }
+
+    n = m_root->ChildCount();
+    for (i = n; i > 0; --i)
+    {
+        child = m_root->Child (i - 1);
+        if (child == nullptr || !child->Visible())
+        {
+            continue;
+        }
+
+        rc = child->Bounds();
+        if (clientDip.x < rc.left || clientDip.x >= rc.right ||
+            clientDip.y < rc.top  || clientDip.y >= rc.bottom)
+        {
+            continue;
+        }
+
+        found = FindNcSystemControlInTree (child, clientDip);
+        if (found != nullptr)
+        {
+            return found;
+        }
+
+        kind = child->ClassifyHit (clientDip);
+        if (kind == DxuiHitTestKind::MinButton ||
+            kind == DxuiHitTestKind::MaxButton ||
+            kind == DxuiHitTestKind::CloseButton)
+        {
+            return child;
+        }
+    }
+
+    return nullptr;
 }
 
 

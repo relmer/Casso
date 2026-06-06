@@ -329,7 +329,8 @@ private:
     void     HandleSize                (LPARAM lp);
     void     HandleThemeChange         ();
 
-    DxuiHitTestKind  ClassifyHitInternal (POINT clientDip, RECT clientBoundsDip) const;
+    DxuiHitTestKind  ClassifyHitInternal  (POINT clientDip, RECT clientBoundsDip) const;
+    IDxuiControl   *  FindNcSystemControlAt (POINT clientDip) const;
 
     static DxuiHitTestKind  ClassifyResizeEdge (POINT clientDip,
                                                 RECT  clientBoundsDip,
@@ -362,6 +363,7 @@ private:
 
     std::function<LRESULT (POINT)>    m_hitTestDelegate;
     std::function<void()>             m_beforePresentHook;
+    IDxuiControl *                    m_lastHoveredNcControl = nullptr;
 
     // Popup pool (FR-055). Initial size 3; grows on demand. m_popupPool
     // holds LIFO-available instances; m_popupActive holds currently
