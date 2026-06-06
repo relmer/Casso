@@ -70,7 +70,21 @@ public:
     //  callers that leave the host unset retain the legacy in-
     //  panel rendering path (PaintMenu).
     //
-    void  SetPopupHost   (DxuiHostWindow * host) { m_popupHost = host; }
+    //  Switching the host (or clearing it via nullptr) while the
+    //  dropdown is open closes the menu first so the active pooled
+    //  popup is released back to the OLD host. Without this, an
+    //  open dropdown whose host is about to be destroyed would leak
+    //  the popup AND keep a dangling m_activePopup pointer that
+    //  blocks the next Open() from acquiring a fresh popup.
+    //
+    void  SetPopupHost   (DxuiHostWindow * host)
+    {
+        if (host != m_popupHost && m_open)
+        {
+            Close();
+        }
+        m_popupHost = host;
+    }
     DxuiHostWindow *  PopupHost () const { return m_popupHost; }
     DxuiPopupHost  *  ActivePopup () const { return m_activePopup; }
 

@@ -77,6 +77,13 @@ public:
     bool    IsPreviewTransparencyActive() const;
     RECT    GetFocusedControlClientRect() const;
 
+    // Closes any open page dropdown and unwires the DxuiHostWindow
+    // pointer from every page dropdown. Called before the owning
+    // SettingsWindow tears its DxuiHostWindow down so the dropdowns
+    // can't hold a dangling host (or popup-host) pointer past the
+    // host's lifetime.
+    void    DetachPopupHosts();
+
     // Render + input routing. The owned settings popup composites Paint
     // into its own swap chain; the routing helpers consume popup-local
     // mouse / key events only while the panel is visible.

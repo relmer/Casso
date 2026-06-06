@@ -12,6 +12,7 @@
 
 
 class IDxuiTheme;
+class DxuiHostWindow;
 
 
 
@@ -51,6 +52,12 @@ public:
                                  std::vector<std::wstring> displayNames,
                                  int                       activeIndex);
     void  SetOnMachineSelected  (MachineSelectFn fn) { m_onMachineSelected = std::move (fn); }
+
+    // Routes every owned dropdown's popup menu through the supplied
+    // DxuiHostWindow's popup-host pool so the menu HWND escapes the
+    // page's clipping bounds. Pass nullptr to revert to the legacy
+    // in-panel PaintMenu path.
+    void  SetPopupHost          (DxuiHostWindow * host);
 
     void  Layout                (const RECT & rect, const DxuiDpiScaler & scaler) override;
     void  Rebuild               ();

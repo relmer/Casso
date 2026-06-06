@@ -269,6 +269,28 @@ void MachinePage::Rebuild ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachinePage::SetPopupHost
+//
+//  Routes each owned dropdown's menu through the supplied host's
+//  popup pool so the menu HWND escapes the page's clipping bounds.
+//  Pass nullptr to revert to the in-panel PaintMenu path.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachinePage::SetPopupHost (DxuiHostWindow * host)
+{
+    m_machineDropdown.SetPopupHost (host);
+    m_speed.SetPopupHost           (host);
+    m_writeMode.SetPopupHost       (host);
+    m_mechanism.SetPopupHost       (host);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachinePage::ApplyMechanismEnabled
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,6 +13,7 @@
 
 
 class IDxuiTheme;
+class DxuiHostWindow;
 
 
 
@@ -103,6 +104,11 @@ public:
     void  SetState              (SettingsPanelState * state);
     void  SetInitialCrt         (const struct GlobalUserPrefsCrtSnapshot & snap);
     void  SetDefaultsHint       (const struct DisplayDefaultsHint        & hint);
+
+    // Routes the owned dropdown's popup menu through the host's
+    // popup-host pool so the menu HWND escapes the page's clipping
+    // bounds. Pass nullptr to revert to the in-panel PaintMenu path.
+    void  SetPopupHost          (DxuiHostWindow * host) { m_monitor.SetPopupHost (host); }
     void  SetOnBrightnessChange     (BrightnessFn    fn) { m_onBrightness    = std::move (fn); }
     void  SetOnContrastChange       (ContrastFn      fn) { m_onContrast      = std::move (fn); }
     void  SetOnGammaChange          (GammaFn         fn) { m_onGamma         = std::move (fn); }

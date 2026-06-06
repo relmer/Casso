@@ -572,6 +572,17 @@ Error:
 
 void SettingsWindow::OnDestroy()
 {
+    // Notify the panel so its page-owned dropdowns release any
+    // pooled popup hosts AND clear their host pointer before we
+    // tear the DxuiHostWindow down. Skipping this would leave the
+    // dropdowns with a dangling host pointer (and a leaked popup
+    // entry, if one was open at close time) that the next Show()
+    // can't recover from.
+    if (m_panel != nullptr)
+    {
+        m_panel->DetachPopupHosts();
+    }
+
     m_renderer.Shutdown();
     m_hostWindow.reset();
     m_hwnd      = nullptr;
