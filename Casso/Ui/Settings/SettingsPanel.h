@@ -6,6 +6,7 @@
 #include "HardwarePage.h"
 #include "MachinePage.h"
 #include "SettingsPanelState.h"
+#include "SettingsPreviewController.h"
 #include "ThemePage.h"
 #include "SettingsWindow.h"
 
@@ -143,15 +144,14 @@ private:
     void  RebuildFocusOrder           ();
     void  SyncFocusToWidgets          ();
     bool  AnyDropdownOpenOnActivePage () const;
-    void  UpdatePreviewFade           (int64_t nowMs);
     void  StartPreview                (int focus, bool keyboardMode);
+    void  EndPreview                  ();
 
     // Helpers for the per-monitor CRT plumbing.
-    int   ActiveModeIdx               () const;
+    int   ActiveModeIdx                  () const;
     void  ReseedDisplayCrtFromActiveMode ();
-    void  PublishDisplayDefaultsHint  ();
-    void  PromoteActiveCrtToOverride  ();
-    void  EndPreview                  ();
+    void  PublishDisplayDefaultsHint     ();
+    void  PromoteActiveCrtToOverride     ();
 
 
     UiShell         * m_uiShell   = nullptr;
@@ -198,30 +198,12 @@ private:
     // until a click commits a new one).
     int                   m_monitorOpenedAt   = -1;
 
-    // Live-preview state machine. While a slider is dragged or a
-    // dropdown is open, the renderer can reveal the emulator under the
-    // settings window. Keyboard-driven changes auto-dismiss the preview
-    // 500ms after the last keystroke.
-    enum class PreviewFocus
-    {
-        None              = 0,
-        BrightnessSlider  = 1,
-        ContrastSlider    = 2,
-        MonitorDropdown   = 3,
-        ScanlinesSlider   = 4,
-        BloomRadiusSlider = 5,
-        BloomStrengthSlider = 6,
-        ColorBleedSlider  = 7,
-        GammaSlider       = 8,
-        PersistenceSlider = 9,
-    };
-
-    PreviewFocus        m_previewFocus       = PreviewFocus::None;
-    bool                m_previewKeyboard    = false;     // true => auto-end via idle timer
-    int64_t             m_lastInteractionMs  = 0;
-    float               m_panelAlpha         = 1.0f;
-    float               m_focusedAlpha       = 1.0f;
-    int64_t             m_lastFrameMs        = 0;
+    // Live-preview state machine lives in SettingsPreviewController.
+    // While a slider is dragged or a dropdown is open, the renderer
+    // can reveal the emulator under the settings window. Keyboard-
+    // driven changes auto-dismiss the preview 500ms after the last
+    // keystroke.
+    SettingsPreviewController  m_previewCtrl;
     bool                m_previewOverlapsEmulatorOutput = false;
     // Emulator content rect translated into Settings-window client
     // coords (or {0,0,0,0} when there's no overlap). The renderer
