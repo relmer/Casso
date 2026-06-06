@@ -162,6 +162,8 @@ HRESULT SettingsPanel::Initialize (
     m_catalog.Bind (&emuShell, &ucs, &prefs, &fs, &themes, &m_state,
                     &m_machinePage, &m_themePage);
     m_apply.Bind (&m_state, &ucs, &prefs, &fs, &emuShell, &m_window, &m_catalog);
+    m_focusOrder.Bind (&uiShell, &m_tabs, &m_machinePage, &m_hardwarePage,
+                       &m_themePage, &m_displayPage, &m_applyButton, &m_cancelButton);
 
     m_machinePage.SetState  (&m_state);
     m_machinePage.SetOnMachineSelected ([this] (const std::string & machineName) { OnMachineSelected (machineName); });
@@ -417,7 +419,7 @@ HRESULT SettingsPanel::Show ()
     m_crt.ReseedFromActiveMode();
 
     m_panelVisible = true;
-    RebuildFocusOrder();
+    m_focusOrder.Rebuild (m_activeTab);
 
     if (m_emuShell != nullptr)
     {
@@ -449,155 +451,6 @@ Error:
         m_panelVisible = false;
     }
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RebuildFocusOrder
-//
-//  Re-collect the focus list from the DxuiTabStrip, the currently active
-//  page, and the Apply / Cancel buttons; reset FocusManager to the
-//  first entry so Tab traversal starts at the tab strip.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsPanel::RebuildFocusOrder ()
-{
-    int  nextId = 0;
-
-
-    m_focusSetters.clear();
-
-    if (m_uiShell == nullptr)
-    {
-        return;
-    }
-
-    m_focusSetters.push_back ([this] (bool f) { m_tabs.SetFocused (f); });
-
-    switch ((TabIndex) m_activeTab)
-    {
-        case TabIndex::Machine:
-            // Machine page focus order: machine, speed, WP[0], WP[1],
-            // writeMode, driveAudio, mechanism. The mechanism dropdown
-            // stays in the list whether or not drive audio is enabled;
-            // the widget ignores keyboard activation while disabled.
-            m_focusSetters.push_back ([this] (bool f) { m_machinePage.MachineDropdown().SetFocused  (f); });
-            m_focusSetters.push_back ([this] (bool f) { m_machinePage.SpeedDropdown().SetFocused    (f); });
-            m_focusSetters.push_back ([this] (bool f) { m_machinePage.WriteProtect(0).SetFocused    (f); });
-            m_focusSetters.push_back ([this] (bool f) { m_machinePage.WriteProtect(1).SetFocused    (f); });
-            m_focusSetters.push_back ([this] (bool f) { m_machinePage.WriteModeDropdown().SetFocused (f); });
-            m_focusSetters.push_back ([this] (bool f) { m_machinePage.DriveAudioToggle().SetFocused (f); });
-            m_focusSetters.push_back ([this] (bool f) { m_machinePage.MechanismDropdown().SetFocused (f); });
-            break;
-        case TabIndex::Hardware:
-            // Hardware page has just the DxuiTreeView as its focusable.
-            m_focusSetters.push_back ([this] (bool f) { m_hardwarePage.Tree().SetFocused (f); });
-            break;
-        case TabIndex::Theme:
-            // Theme page has just the dropdown as its focusable.
-            m_focusSetters.push_back ([this] (bool f) { m_themePage.ThemeDropdown().SetFocused (f); });
-            break;
-        case TabIndex::Display:
-            // Display page focus order matches visual layout:
-            // monitor, brightness, contrast, gamma, scanline toggle +
-            // intensity, bloom toggle + radius + strength, color-bleed
-            // toggle + width, persistence, restore. Toggles stay in
-            // the list whether or not the matching slider is enabled.
-            m_focusSetters.push_back ([this] (bool f) { m_displayPage.MonitorDropdown().SetFocused     (f); });
-            m_focusSetters.push_back ([this] (bool f) { m_displayPage.BrightnessSlider().SetFocused    (f); });
-            m_focusSetters.push_back ([this] (bool f) { m_displayPage.ContrastSlider().SetFocused      (f); });
-            m_focusSetters.push_back ([this] (bool f) { m_displayPage.GammaSlider().SetFocused         (f); });
-            m_focusSetters.push_back ([this] (bool f) { m_displayPage.ScanlinesToggle().SetFocused     (f); });
-            m_focusSetters.push_back ([this] (bool f) { m_displayPage.ScanlinesSlider().SetFocused     (f); });
-            m_focusSetters.push_back ([this] (bool f) { m_displayPage.BloomToggle().SetFocused         (f); });
-            m_focusSetters.push_back ([this] (bool f) { m_displayPage.BloomRadiusSlider().SetFocused   (f); });
-            m_focusSetters.push_back ([this] (bool f) { m_displayPage.BloomStrengthSlider().SetFocused (f); });
-            m_focusSetters.push_back ([this] (bool f) { m_displayPage.ColorBleedToggle().SetFocused    (f); });
-            m_focusSetters.push_back ([this] (bool f) { m_displayPage.ColorBleedSlider().SetFocused    (f); });
-            m_focusSetters.push_back ([this] (bool f) { m_displayPage.PersistenceSlider().SetFocused   (f); });
-            m_focusSetters.push_back ([this] (bool f) { m_displayPage.RestoreButton().SetFocused       (f); });
-            break;
-    }
-
-    m_focusSetters.push_back ([this] (bool f) { m_cancelButton.SetFocused (f); });
-    m_focusSetters.push_back ([this] (bool f) { m_applyButton.SetFocused  (f); });
-
-    FocusManager & focus = m_uiShell->Focus();
-
-    focus.Clear();
-    for (nextId = 0; nextId < (int) m_focusSetters.size(); ++nextId)
-    {
-        focus.RegisterFocusable (nextId);
-    }
-
-    SyncFocusToWidgets();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SyncFocusToWidgets
-//
-//  Push the FocusManager's current-id state out to all registered
-//  widgets via the cached setter callbacks.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsPanel::SyncFocusToWidgets ()
-{
-    int  current = 0;
-    int  i       = 0;
-
-
-    if (m_uiShell == nullptr)
-    {
-        return;
-    }
-
-    current = m_uiShell->Focus().Current();
-
-    for (i = 0; i < (int) m_focusSetters.size(); ++i)
-    {
-        m_focusSetters[(size_t) i] (i == current);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AnyDropdownOpenOnActivePage
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SettingsPanel::AnyDropdownOpenOnActivePage () const
-{
-    if ((TabIndex) m_activeTab == TabIndex::Machine)
-    {
-        return m_machinePage.MachineDropdown().IsOpen()  ||
-               m_machinePage.SpeedDropdown().IsOpen()    ||
-               m_machinePage.WriteModeDropdown().IsOpen() ||
-               m_machinePage.MechanismDropdown().IsOpen();
-    }
-    if ((TabIndex) m_activeTab == TabIndex::Theme)
-    {
-        return m_themePage.ThemeDropdown().IsOpen();
-    }
-    if ((TabIndex) m_activeTab == TabIndex::Display)
-    {
-        return m_displayPage.MonitorDropdown().IsOpen();
-    }
-    return false;
 }
 
 
@@ -1050,7 +903,7 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const Dxu
     tabs.push_back ({ MakeRect (left + tabWidth * 3,   tabsTop, tabWidth, tabHeight), L"Display"  });
     m_tabs.SetTabs (std::move (tabs));
     m_tabs.SetSelected (m_activeTab);
-    m_tabs.SetOnChange ([this] (int idx) { m_activeTab = idx; RebuildFocusOrder(); });
+    m_tabs.SetOnChange ([this] (int idx) { m_activeTab = idx; m_focusOrder.Rebuild (m_activeTab); });
     m_tabs.SetDpi (dpi);
 
     pageRect.left   = m_panelRect.left   + pad;
@@ -1304,7 +1157,7 @@ bool SettingsPanel::OnKey (WPARAM vk)
 
     // Open dropdowns take priority — Up/Down/Enter/Esc steer the menu
     // rather than the panel-level focus list.
-    if (AnyDropdownOpenOnActivePage())
+    if (m_focusOrder.AnyDropdownOpenOnActivePage (m_activeTab))
     {
         switch ((TabIndex) m_activeTab)
         {
@@ -1332,7 +1185,7 @@ bool SettingsPanel::OnKey (WPARAM vk)
 
         m_activeTab = next;
         m_tabs.SetSelected (m_activeTab);
-        RebuildFocusOrder();
+        m_focusOrder.Rebuild (m_activeTab);
         return true;
     }
 
@@ -1342,7 +1195,7 @@ bool SettingsPanel::OnKey (WPARAM vk)
 
         if (m_uiShell->Focus().HandleKey (fk))
         {
-            SyncFocusToWidgets();
+            m_focusOrder.SyncToWidgets();
         }
         return true;
     }

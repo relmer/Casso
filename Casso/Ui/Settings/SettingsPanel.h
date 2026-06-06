@@ -7,6 +7,7 @@
 #include "MachinePage.h"
 #include "SettingsApplyController.h"
 #include "SettingsDisplayCrtBridge.h"
+#include "SettingsFocusOrderManager.h"
 #include "SettingsMachineCatalog.h"
 #include "SettingsPanelState.h"
 #include "SettingsPreviewController.h"
@@ -139,9 +140,6 @@ private:
     void  OnThemeSelected             (const std::string & themeName);
     void  OnApplyClicked              ();
     void  OnCancelClicked             ();
-    void  RebuildFocusOrder           ();
-    void  SyncFocusToWidgets          ();
-    bool  AnyDropdownOpenOnActivePage () const;
     void  StartPreview                (int focus, bool keyboardMode);
     void  EndPreview                  ();
 
@@ -157,6 +155,7 @@ private:
     SettingsDisplayCrtBridge  m_crt;
     SettingsMachineCatalog    m_catalog;
     SettingsApplyController   m_apply;
+    SettingsFocusOrderManager m_focusOrder;
     SettingsWindow      m_window;
     // Bespoke visibility flag distinct from IDxuiControl::m_visible
     // (which is inherited from DxuiPanel and stays at its default of
@@ -201,6 +200,4 @@ private:
     RECT                m_panelRect    = {};
     RECT                m_captionRect  = {};
     int                 m_activeTab    = (int) TabIndex::Machine;
-
-    std::vector<std::function<void (bool)>>  m_focusSetters;
 };
