@@ -12,23 +12,23 @@
 
 namespace
 {
-    constexpr int      s_kBaseDpi               = 96;
-    constexpr int      s_kNavHeightDip          = 32;
-    constexpr int      s_kMenuPadXDip           = 12;
-    constexpr int      s_kMenuGapDip            = 4;
-    constexpr int      s_kRowHeightDip          = 26;
-    constexpr int      s_kSeparatorHeightDip    = 10;
-    constexpr int      s_kSeparatorInsetDip     = 10;
-    constexpr int      s_kMidpointDivisor       = 2;
-    constexpr int      s_kDropdownWidthDip      = 300;
-    constexpr int      s_kAccelOffsetDip        = 190;
-    constexpr int      s_kRowPadLeftDip         = 10;
-    constexpr int      s_kRowPadTopDip          = 5;
-    constexpr int      s_kCheckGutterDip        = 18;
-    constexpr float    s_kFontDip               = 14.0f;
-    constexpr float    s_kUnderlineThicknessDip = 1.0f;
-    constexpr wchar_t  s_kFontFamily[]          = L"Segoe UI";
-    constexpr wchar_t  s_kpszCheckMark[]        = L"\u2713";
+    constexpr int      s_kBaseDpi                = 96;
+    constexpr int      s_kNavHeightDip           = 32;
+    constexpr int      s_kItemInternalPaddingDip = 8;
+    constexpr int      s_kInterItemPaddingDip    = 4;
+    constexpr int      s_kRowHeightDip           = 26;
+    constexpr int      s_kSeparatorHeightDip     = 10;
+    constexpr int      s_kSeparatorInsetDip      = 10;
+    constexpr int      s_kMidpointDivisor        = 2;
+    constexpr int      s_kDropdownWidthDip       = 300;
+    constexpr int      s_kAccelOffsetDip         = 190;
+    constexpr int      s_kRowPadLeftDip          = 10;
+    constexpr int      s_kRowPadTopDip           = 5;
+    constexpr int      s_kCheckGutterDip         = 18;
+    constexpr float    s_kFontDip                = 14.0f;
+    constexpr float    s_kUnderlineThicknessDip  = 1.0f;
+    constexpr wchar_t  s_kFontFamily[]           = L"Segoe UI";
+    constexpr wchar_t  s_kpszCheckMark[]         = L"\u2713";
 
     constexpr int  s_kFallbackGlyphWidthPx = 8;
 
@@ -205,8 +205,8 @@ void DxuiMenuBar::SetDropdownColors (
 void DxuiMenuBar::Layout (int x, int y, int width, UINT dpi, IDxuiTextRenderer * pTextForMeasure)
 {
     int    currentX = x;
-    int    pad      = ScaleDpi (s_kMenuPadXDip, dpi);
-    int    gap      = ScaleDpi (s_kMenuGapDip,  dpi);
+    int    pad      = ScaleDpi (s_kItemInternalPaddingDip, dpi);
+    int    gap      = ScaleDpi (s_kInterItemPaddingDip,    dpi);
     int    height   = ScaleDpi (s_kNavHeightDip, dpi);
     UINT   eDpi     = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
     float  fontDip  = s_kFontDip * (float) eDpi / (float) s_kBaseDpi;
@@ -702,7 +702,9 @@ void DxuiMenuBar::PaintStrip (
                                                   fontDip,
                                                   s_kFontFamily,
                                                   DxuiTextHAlign::Center,
-                                                  DxuiTextVAlign::Center));
+                                                  DxuiTextVAlign::Center,
+                                                  DWRITE_FONT_WEIGHT_NORMAL,
+                                                  false));
 
         if (showCues && mnIdx >= 0 && !stripped.empty())
         {
