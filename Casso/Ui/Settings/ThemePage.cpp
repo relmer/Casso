@@ -518,75 +518,15 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ThemePage::OnLButtonDown
+//  Bespoke input + focus shims (OnLButtonDown / OnLButtonUp /
+//  OnMouseHover / OnKey / CollectFocusables / AnyDropdownOpen) used
+//  to live here. SettingsPanel now dispatches via IDxuiControl::OnMouse /
+//  OnKey through DxuiPanel auto fan-out and queries the dropdown
+//  directly. The Paint(painter, text, theme) overload stays bespoke
+//  because the theme preview window paints between the dropdown box
+//  and its menu, which the inherited DxuiPanel walk cannot supply.
 //
 ////////////////////////////////////////////////////////////////////////////////
-
-void ThemePage::OnLButtonDown (int x, int y)
-{
-    if (m_themeDropdown.OnLButtonDown (x, y)) { return; }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ThemePage::OnLButtonUp
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ThemePage::OnLButtonUp (int x, int y)
-{
-    (void) m_themeDropdown.OnLButtonUp (x, y);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ThemePage::OnMouseHover
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ThemePage::OnMouseHover (int x, int y)
-{
-    m_themeDropdown.SetMouseHover (x, y);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ThemePage::OnKey
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ThemePage::OnKey (WPARAM vk)
-{
-    if (m_themeDropdown.HandleKey (vk)) { return true; }
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ThemePage::CollectFocusables
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ThemePage::CollectFocusables (std::vector<std::function<void (bool)>> & out)
-{
-    out.push_back ([this] (bool f) { m_themeDropdown.SetFocused (f); });
-}
 
 
 

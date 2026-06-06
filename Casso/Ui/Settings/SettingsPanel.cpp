@@ -594,7 +594,10 @@ void SettingsPanel::RebuildFocusOrder ()
             // Hardware page has just the DxuiTreeView as its focusable.
             m_focusSetters.push_back ([this] (bool f) { m_hardwarePage.Tree().SetFocused (f); });
             break;
-        case TabIndex::Theme:    m_themePage.CollectFocusables    (m_focusSetters); break;
+        case TabIndex::Theme:
+            // Theme page has just the dropdown as its focusable.
+            m_focusSetters.push_back ([this] (bool f) { m_themePage.ThemeDropdown().SetFocused (f); });
+            break;
         case TabIndex::Display:
             // Display page focus order matches visual layout:
             // monitor, brightness, contrast, gamma, scanline toggle +
@@ -684,7 +687,7 @@ bool SettingsPanel::AnyDropdownOpenOnActivePage () const
     }
     if ((TabIndex) m_activeTab == TabIndex::Theme)
     {
-        return m_themePage.AnyDropdownOpen();
+        return m_themePage.ThemeDropdown().IsOpen();
     }
     if ((TabIndex) m_activeTab == TabIndex::Display)
     {
@@ -1883,7 +1886,7 @@ void SettingsPanel::OnMouseMove (int x, int y)
     {
         case TabIndex::Machine:  (void) m_machinePage.OnMouse (MakeMouseMove (x, y)); break;
         case TabIndex::Hardware: (void) m_hardwarePage.OnMouse (MakeMouseMove (x, y)); break;
-        case TabIndex::Theme:    m_themePage.OnMouseHover    (x, y); break;
+        case TabIndex::Theme:    (void) m_themePage.OnMouse (MakeMouseMove (x, y)); break;
         case TabIndex::Display:
             // IDxuiControl::OnMouse with kind=Move handles both
             // hover updates and active slider drag tracking — the
@@ -1928,7 +1931,7 @@ void SettingsPanel::OnLButtonDown (int x, int y)
     {
         case TabIndex::Machine:  (void) m_machinePage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Down, x, y)); break;
         case TabIndex::Hardware: (void) m_hardwarePage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Down, x, y)); break;
-        case TabIndex::Theme:    m_themePage.OnLButtonDown    (x, y); break;
+        case TabIndex::Theme:    (void) m_themePage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Down, x, y)); break;
         case TabIndex::Display:  (void) m_displayPage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Down, x, y)); break;
     }
 }
@@ -1971,7 +1974,7 @@ void SettingsPanel::OnLButtonUp (int x, int y)
         {
             case TabIndex::Machine:  (void) m_machinePage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Up, x, y)); break;
             case TabIndex::Hardware: (void) m_hardwarePage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Up, x, y)); break;
-            case TabIndex::Theme:    m_themePage.OnLButtonUp    (x, y); break;
+            case TabIndex::Theme:    (void) m_themePage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Up, x, y)); break;
             case TabIndex::Display:  (void) m_displayPage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Up, x, y)); break;
         }
     }
@@ -2061,7 +2064,7 @@ bool SettingsPanel::OnKey (WPARAM vk)
     {
         case TabIndex::Machine:  if (m_machinePage.OnKey  (MakeKeyDown (vk))) { return true; } break;
         case TabIndex::Hardware: if (m_hardwarePage.OnKey (MakeKeyDown (vk))) { return true; } break;
-        case TabIndex::Theme:    if (m_themePage.OnKey    (vk)) { return true; } break;
+        case TabIndex::Theme:    if (m_themePage.OnKey    (MakeKeyDown (vk))) { return true; } break;
         case TabIndex::Display:  if (m_displayPage.OnKey  (MakeKeyDown (vk))) { return true; } break;
     }
 
