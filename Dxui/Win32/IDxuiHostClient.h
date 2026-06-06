@@ -87,11 +87,15 @@ public:
     // this hook only fires as a fallback when the host's own
     // classification yields HTCLIENT or HTNOWHERE, so consumers
     // should only override when they need to reclassify what the
-    // framework treats as plain client area. Default calls
-    // DefWindowProc.
+    // framework treats as plain client area. Default preserves
+    // HTCLIENT so ordinary client mouse messages still fire.
     virtual LRESULT  OnNcHitTest      (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
-        return DefWindowProc (hwnd, msg, wParam, lParam);
+        UNREFERENCED_PARAMETER (hwnd);
+        UNREFERENCED_PARAMETER (msg);
+        UNREFERENCED_PARAMETER (wParam);
+        UNREFERENCED_PARAMETER (lParam);
+        return HTCLIENT;
     }
 
     // WM_CTLCOLORSTATIC. wParam = HDC of the static control;

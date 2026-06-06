@@ -3,6 +3,7 @@
 #include "MockDxuiPainter.h"
 #include "MockDxuiTextRenderer.h"
 #include "MockDxuiTheme.h"
+#include "Ui/Chrome/MainMenu.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -12,9 +13,11 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace
 {
-    constexpr int  s_kStripX     = 0;
-    constexpr int  s_kStripY     = 32;
-    constexpr int  s_kStripWidth = 800;
+    constexpr int   s_kStripX            = 0;
+    constexpr int   s_kStripY            = 32;
+    constexpr int   s_kStripWidth        = 800;
+    constexpr int   s_kResizedStripWidth = 1600;
+    constexpr UINT  s_kTestDpi           = 96;
 
 
     std::vector<DxuiMenuBarItem>  MakeTestItems ()
@@ -131,16 +134,18 @@ public:
     {
         DxuiMenuBar           bar;
         MockDxuiTextRenderer  text;
+        RECT                  fileTitle = {};
 
 
         bar.SetItems (MakeTestItems());
-        bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
+        bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, s_kTestDpi, &text);
 
-        RECT  fileTitle = bar.MenuRect (0);
+        fileTitle = bar.MenuRect (0);
 
         bar.HandleMouseMove ((fileTitle.left + fileTitle.right) / 2,
                              (fileTitle.top  + fileTitle.bottom) / 2);
 
+        Assert::AreEqual (0, bar.HoverIndex());
         Assert::IsFalse (bar.IsOpen());
     }
 
@@ -170,28 +175,28 @@ public:
     {
         DxuiMenuBar           bar;
         MockDxuiTextRenderer  text;
-        RECT                  firstFile = {};
-        RECT                  firstEdit = {};
-        RECT                  secondFile = {};
-        RECT                  secondEdit = {};
-        RECT                  resizedBounds = { s_kStripX, s_kStripY, s_kStripWidth * 2, s_kStripY };
+        RECT                  firstFile     = {};
+        RECT                  firstEdit     = {};
+        RECT                  secondFile    = {};
+        RECT                  secondEdit    = {};
+        RECT                  resizedBounds = { s_kStripX, s_kStripY, s_kResizedStripWidth, s_kStripY };
         DxuiDpiScaler         scaler;
-        int                   firstGap = 0;
-        int                   secondGap = 0;
-        int                   firstAdvance = 0;
+        int                   firstGap      = 0;
+        int                   secondGap     = 0;
+        int                   firstAdvance  = 0;
         int                   secondAdvance = 0;
 
 
         bar.SetItems (MakeTestItems());
         text.SetCannedMetrics (L"File", { 64, 16 });
         text.SetCannedMetrics (L"Edit", { 52, 16 });
-        bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
+        bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, s_kTestDpi, &text);
         firstFile = bar.MenuRect (0);
         firstEdit = bar.MenuRect (1);
         firstGap = firstEdit.left - firstFile.right;
         firstAdvance = firstEdit.left - firstFile.left;
 
-        scaler.SetDpi (96);
+        scaler.SetDpi (s_kTestDpi);
         bar.Layout (resizedBounds, scaler);
         secondFile = bar.MenuRect (0);
         secondEdit = bar.MenuRect (1);
@@ -200,6 +205,34 @@ public:
 
         Assert::AreEqual (firstGap, secondGap);
         Assert::AreEqual (firstAdvance, secondAdvance);
+    }
+
+
+    TEST_METHOD (MainMenu_ProductionResizeLayout_WithZeroHeightBounds_PreservesMeasuredBounds)
+    {
+        MainMenu              menu;
+        MockDxuiTextRenderer  text;
+        DxuiDpiScaler         scaler;
+        RECT                  resizeBounds = { s_kStripX, s_kStripY, s_kResizedStripWidth, s_kStripY };
+        RECT                  fileRect     = {};
+        RECT                  editRect     = {};
+        RECT                  bounds       = {};
+
+
+        scaler.SetDpi (s_kTestDpi);
+        text.SetCannedMetrics (L"File", { 64, 16 });
+        text.SetCannedMetrics (L"Edit", { 52, 16 });
+        menu.SetTextRendererForMeasure (&text);
+
+        menu.Layout (resizeBounds, scaler);
+        fileRect = menu.MenuRect ((int) MainMenuId::File);
+        editRect = menu.MenuRect ((int) MainMenuId::Edit);
+        bounds   = menu.Bounds();
+
+        Assert::AreEqual (fileRect.bottom, bounds.bottom);
+        Assert::AreEqual (fileRect.top,    bounds.top);
+        Assert::AreEqual ((LONG) s_kResizedStripWidth, bounds.right - bounds.left);
+        Assert::IsTrue   (editRect.left > fileRect.right);
     }
 
 
