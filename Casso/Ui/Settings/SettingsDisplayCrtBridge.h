@@ -9,6 +9,7 @@
 
 class ThemeManager;
 class DisplayPage;
+class EmulatorShell;
 
 
 
@@ -36,12 +37,20 @@ public:
     void  Bind (GlobalUserPrefs    * prefs,
                 ThemeManager       * themes,
                 SettingsPanelState * state,
-                DisplayPage        * displayPage);
+                DisplayPage        * displayPage,
+                EmulatorShell      * emuShell);
 
     int   ActiveModeIdx           () const;
     void  ReseedFromActiveMode    ();
     void  PublishDefaultsHint     ();
     void  PromoteActiveToOverride ();
+    void  ResetActiveToDefaults   ();
+
+    // Installs the slider / toggle / monitor / restore-defaults
+    // callbacks on the bound DisplayPage. The lambdas funnel through
+    // PromoteActiveToOverride + the per-monitor crtByMode block so the
+    // CRT shader picks live edits up on the next frame.
+    void  WireDisplayPageCallbacks ();
 
 
 private:
@@ -49,4 +58,5 @@ private:
     ThemeManager        * m_themes      = nullptr;
     SettingsPanelState  * m_state       = nullptr;
     DisplayPage         * m_displayPage = nullptr;
+    EmulatorShell       * m_emuShell    = nullptr;
 };

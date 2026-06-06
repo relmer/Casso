@@ -4,6 +4,7 @@
 
 #include "DisplayPage.h"
 #include "../ThemeManager.h"
+#include "../../EmulatorShell.h"
 #include "../../Config/CrtPresets.h"
 
 
@@ -20,12 +21,14 @@ void SettingsDisplayCrtBridge::Bind (
     GlobalUserPrefs    * prefs,
     ThemeManager       * themes,
     SettingsPanelState * state,
-    DisplayPage        * displayPage)
+    DisplayPage        * displayPage,
+    EmulatorShell      * emuShell)
 {
     m_prefs       = prefs;
     m_themes      = themes;
     m_state       = state;
     m_displayPage = displayPage;
+    m_emuShell    = emuShell;
 }
 
 
@@ -294,20 +297,37 @@ void SettingsDisplayCrtBridge::PromoteActiveToOverride ()
     {
         return;
     }
+    if (m_prefs->crtByMode[ActiveModeIdx()].userOverride)
+    {
+        return;
+    }
+    ResetActiveToDefaults();
+}
 
-    auto &  blk = m_prefs->crtByMode[ActiveModeIdx()];
 
-    if (blk.userOverride)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResetActiveToDefaults
+//
+//  Unconditionally replace the active monitor's CRT block with the
+//  resolved defaults (monitor preset, with active theme overrides
+//  layered on top), then flip userOverride=true. Restore Defaults on
+//  the Display page calls this; PromoteActiveToOverride defers to it
+//  only when userOverride is still false.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsDisplayCrtBridge::ResetActiveToDefaults ()
+{
+    if (m_prefs == nullptr)
     {
         return;
     }
 
-    // Seed the block with the SAME values MakeCrtParams would produce
-    // right now: preset for this monitor, with the active theme's
-    // crtDefaults layered on top. Without the theme layer, a clean
-    // theme (e.g. contrast=1.0, scanlines off) would silently flip
-    // to the raw preset values (contrast=0.9, scanlines on, bloom on)
-    // the instant the user nudged any slider, which looks like a bug.
+    auto &                    blk           = m_prefs->crtByMode[ActiveModeIdx()];
     const auto &              preset        = CrtPresets::ForMode ((size_t) ActiveModeIdx());
     const ThemeCrtDefaults *  themeDefaults = nullptr;
     if (m_themes != nullptr)
@@ -319,6 +339,12 @@ void SettingsDisplayCrtBridge::PromoteActiveToOverride ()
         }
     }
 
+    // Seed the block with the SAME values MakeCrtParams would produce
+    // right now: preset for this monitor, with the active theme's
+    // crtDefaults layered on top. Without the theme layer, a clean
+    // theme (e.g. contrast=1.0, scanlines off) would silently flip
+    // to the raw preset values (contrast=0.9, scanlines on, bloom on)
+    // the instant the user nudged any slider, which looks like a bug.
     blk = preset;
     if (themeDefaults != nullptr)
     {
@@ -342,4 +368,124 @@ void SettingsDisplayCrtBridge::PromoteActiveToOverride ()
         }
     }
     blk.userOverride = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireDisplayPageCallbacks
+//
+//  Installs the live-edit + restore-defaults callbacks on the bound
+//  DisplayPage. Every slider / toggle change funnels through
+//  PromoteActiveToOverride so the user's first edit on an untouched
+//  monitor inherits the resolved preset values; Restore Defaults
+//  short-circuits to ResetActiveToDefaults and re-seeds the slider
+//  widgets via ReseedFromActiveMode.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsDisplayCrtBridge::WireDisplayPageCallbacks ()
+{
+    if (m_displayPage == nullptr)
+    {
+        return;
+    }
+
+    // Brightness / contrast / gamma / persistence sliders write LIVE
+    // to the currently-active monitor's CRT block. ActiveModeIdx()
+    // reads from SettingsPanelState so every edit lands on whichever
+    // monitor type the user has selected in the dropdown.
+    m_displayPage->SetOnBrightnessChange ([this] (float pct)
+    {
+        if (m_prefs != nullptr)
+        {
+            PromoteActiveToOverride();
+            m_prefs->crtByMode[ActiveModeIdx()].brightness = pct / 100.0f;     // slider 0..200% -> shader 0..2.0
+        }
+    });
+    m_displayPage->SetOnContrastChange ([this] (float pct)
+    {
+        if (m_prefs != nullptr)
+        {
+            PromoteActiveToOverride();
+            m_prefs->crtByMode[ActiveModeIdx()].contrast = pct / 100.0f;
+        }
+    });
+    m_displayPage->SetOnGammaChange ([this] (float g)
+    {
+        if (m_prefs != nullptr)
+        {
+            PromoteActiveToOverride();
+            m_prefs->crtByMode[ActiveModeIdx()].gamma = g;
+        }
+    });
+    m_displayPage->SetOnPersistenceChange ([this] (float pct)
+    {
+        if (m_prefs != nullptr)
+        {
+            PromoteActiveToOverride();
+            m_prefs->crtByMode[ActiveModeIdx()].persistence = pct / 100.0f;
+        }
+    });
+
+    // Monitor dropdown updates both palette AND active mode index so
+    // the live render AND the slider widgets reflect the hovered /
+    // selected monitor's full CRT settings. State gets reverted from
+    // PreparePreviewFrame's dropdown-close detector if the user
+    // cancels the dropdown without committing.
+    m_displayPage->SetOnMonitorChange ([this] (int idx)
+    {
+        if (m_state != nullptr)
+        {
+            m_state->SetColorMode ((SettingsColorMode) idx);
+        }
+        if (m_emuShell != nullptr)
+        {
+            m_emuShell->SetColorModeLive (idx);
+        }
+        ReseedFromActiveMode();
+    });
+
+    // Per-effect toggles + parameter sliders write LIVE to the active
+    // monitor's CRT block.
+    m_displayPage->SetOnScanlinesEnChange ([this] (bool on)
+    {
+        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[ActiveModeIdx()].scanlinesEnabled  = on; }
+    });
+    m_displayPage->SetOnScanlinesIntChange ([this] (float pct)
+    {
+        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[ActiveModeIdx()].scanlinesIntensity = pct / 100.0f; }
+    });
+    m_displayPage->SetOnBloomEnChange ([this] (bool on)
+    {
+        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[ActiveModeIdx()].bloomEnabled       = on; }
+    });
+    m_displayPage->SetOnBloomRadiusChange ([this] (float px)
+    {
+        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[ActiveModeIdx()].bloomRadius        = px; }
+    });
+    m_displayPage->SetOnBloomStrengthChange ([this] (float pct)
+    {
+        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[ActiveModeIdx()].bloomStrength      = pct / 100.0f; }
+    });
+    m_displayPage->SetOnColorBleedEnChange ([this] (bool on)
+    {
+        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[ActiveModeIdx()].colorBleedEnabled  = on; }
+    });
+    m_displayPage->SetOnColorBleedWChange ([this] (float px)
+    {
+        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[ActiveModeIdx()].colorBleedWidth    = px; }
+    });
+
+    // Restore Defaults gives the user the RESOLVED defaults (theme
+    // override layered on monitor preset) -- the same values the
+    // "(theme default)" / "(monitor default)" badges refer to.
+    m_displayPage->SetOnRestoreDefaults ([this] ()
+    {
+        ResetActiveToDefaults();
+        ReseedFromActiveMode();
+    });
 }
