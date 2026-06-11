@@ -504,6 +504,48 @@ public:
     }
 
 
+
+    //
+    //  Regression: menu item widths are cached after a successful
+    //  measurement and reused when a later Layout (e.g. a window
+    //  resize) measures zero width. Without the cache the second
+    //  Layout would collapse every item onto the cramped fallback
+    //  width, jamming the strip.
+    //
+    TEST_METHOD (Layout_ReusesCachedWidth_WhenRemeasureReturnsZero)
+    {
+        DxuiMenuBar                   bar;
+        MockDxuiTextRenderer          text;
+        std::vector<DxuiMenuBarItem>  items;
+
+
+        items.push_back ({ L"&A", 0, {} });
+        items.push_back ({ L"&LongLabel", 0, {} });
+        text.SetCannedMetrics (L"A",         SIZE { 10, 16 });
+        text.SetCannedMetrics (L"LongLabel", SIZE { 80, 16 });
+
+        bar.SetItems (std::move (items));
+
+        // First pass measures successfully and caches the widths.
+        bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
+
+        RECT  shortFirst = bar.MenuRect (0);
+        RECT  longFirst  = bar.MenuRect (1);
+
+        // Second pass (simulating resize) measures zero width. The
+        // cached widths must be reused, so the rects are unchanged.
+        text.SetMeasureReturnsZero (true);
+        bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
+
+        RECT  shortSecond = bar.MenuRect (0);
+        RECT  longSecond  = bar.MenuRect (1);
+
+        Assert::AreEqual (shortFirst.right - shortFirst.left, shortSecond.right - shortSecond.left);
+        Assert::AreEqual (longFirst.right  - longFirst.left,  longSecond.right  - longSecond.left);
+        Assert::IsTrue ((longSecond.right - longSecond.left) > (shortSecond.right - shortSecond.left));
+    }
+
+
     TEST_METHOD (ClickOutsideOpenMenu_DismissesMenu)
     {
         DxuiMenuBar           bar;
