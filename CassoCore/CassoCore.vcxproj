@@ -111,9 +111,6 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
     </ClCompile>
-    <PreBuildEvent>
-      <Command>powershell -ExecutionPolicy Bypass -File "$(SolutionDir)scripts\IncrementVersion.ps1"</Command>
-    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -127,9 +124,6 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
     </ClCompile>
-    <PreBuildEvent>
-      <Command>powershell -ExecutionPolicy Bypass -File "$(SolutionDir)scripts\IncrementVersion.ps1"</Command>
-    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -141,9 +135,6 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
     </ClCompile>
-    <PreBuildEvent>
-      <Command>powershell -ExecutionPolicy Bypass -File "$(SolutionDir)scripts\IncrementVersion.ps1"</Command>
-    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -157,9 +148,6 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
     </ClCompile>
-    <PreBuildEvent>
-      <Command>powershell -ExecutionPolicy Bypass -File "$(SolutionDir)scripts\IncrementVersion.ps1"</Command>
-    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <ClCompile>
@@ -171,9 +159,6 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
     </ClCompile>
-    <PreBuildEvent>
-      <Command>powershell -ExecutionPolicy Bypass -File "$(SolutionDir)scripts\IncrementVersion.ps1"</Command>
-    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <ClCompile>
@@ -187,9 +172,6 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
     </ClCompile>
-    <PreBuildEvent>
-      <Command>powershell -ExecutionPolicy Bypass -File "$(SolutionDir)scripts\IncrementVersion.ps1"</Command>
-    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Assembler.cpp" />
