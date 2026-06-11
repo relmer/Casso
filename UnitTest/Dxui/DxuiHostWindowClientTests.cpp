@@ -132,6 +132,26 @@ namespace
 
         return std::make_unique<DxuiHostWindow> (bounds, 6.0f, std::move (root));
     }
+
+
+
+    //
+    //  Spy panel that counts how many times the host drives its
+    //  Layout. Used to prove the paint-pump-ownership gate: the host
+    //  must NOT lay out the root while the consumer owns chrome
+    //  layout (adopt / createSwapChain=false).
+    //
+    class LayoutSpyPanel : public DxuiPanel
+    {
+    public:
+        int  layoutCount = 0;
+
+        void Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override
+        {
+            layoutCount++;
+            DxuiPanel::Layout (boundsDip, scaler);
+        }
+    };
 }
 
 
@@ -224,6 +244,36 @@ public:
         Assert::AreEqual (1,        client.onSizeCount);
         Assert::AreEqual ((UINT) 640, client.lastSizeWidth);
         Assert::AreEqual ((UINT) 480, client.lastSizeHeight);
+    }
+
+
+
+    //
+    //  Paint-pump-ownership gate: the host drives the root panel's
+    //  layout on resize ONLY when it owns its paint pump. In adopt
+    //  mode / createSwapChain=false the consumer owns chrome layout,
+    //  so the host must not run a second competing pass (which used
+    //  to collapse menu-bar item spacing on resize by laying the
+    //  adopted chrome out against the host's scaler).
+    //
+    TEST_METHOD (HostRelayout_OnlyWhenOwningPaintPump)
+    {
+        RECT                            bounds  = { 0, 0, 800, 600 };
+        std::unique_ptr<LayoutSpyPanel> spyOwned = std::make_unique<LayoutSpyPanel>();
+        LayoutSpyPanel                * spy      = spyOwned.get();
+        DxuiHostWindow                  host (bounds, 6.0f, std::move (spyOwned));
+        RECT                            clientPx = { 0, 0, 800, 600 };
+
+        // Dormant pump (the production Casso case): host must NOT lay
+        // out the root -- the consumer owns it.
+        host.SetOwnsPaintPumpForTest (false);
+        host.RelayoutRootForTest (clientPx);
+        Assert::AreEqual (0, spy->layoutCount);
+
+        // Live pump (full-ownership host): host drives root layout.
+        host.SetOwnsPaintPumpForTest (true);
+        host.RelayoutRootForTest (clientPx);
+        Assert::AreEqual (1, spy->layoutCount);
     }
 
 

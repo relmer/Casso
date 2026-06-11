@@ -312,6 +312,8 @@ HRESULT DxuiHostWindow::Create (const CreateParams & params)
 
         hr = CreateRenderResources();
         CHRA (hr);
+
+        m_ownsPaintPump = true;
     }
 
     ApplyDwmConfiguration();
@@ -1876,9 +1878,7 @@ void DxuiHostWindow::HandleDpiChanged (WPARAM wp, LPARAM lp)
 
     if (m_hwnd != nullptr && m_root != nullptr && GetClientRect (m_hwnd, &rcClient))
     {
-        rcClient.right  = MulDiv (rcClient.right,  (int) s_kDefaultDpi, (int) newDpi);
-        rcClient.bottom = MulDiv (rcClient.bottom, (int) s_kDefaultDpi, (int) newDpi);
-        m_root->Layout (rcClient, m_scaler);
+        MaybeRelayoutRoot (rcClient);
     }
 }
 
@@ -1924,9 +1924,7 @@ void DxuiHostWindow::HandleSize (WPARAM wp, LPARAM lp)
 
     if (m_root != nullptr && m_hwnd != nullptr && GetClientRect (m_hwnd, &rcClient))
     {
-        rcClient.right  = MulDiv (rcClient.right,  (int) s_kDefaultDpi, (int) m_scaler.Dpi());
-        rcClient.bottom = MulDiv (rcClient.bottom, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
-        m_root->Layout (rcClient, m_scaler);
+        MaybeRelayoutRoot (rcClient);
     }
 }
 
@@ -1952,6 +1950,41 @@ void DxuiHostWindow::HandleThemeChange ()
     {
         m_root->OnThemeChanged();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MaybeRelayoutRoot
+//
+//  Drives a root-panel layout pass for a new client-pixel rect, but
+//  ONLY when the host owns its paint pump (full-ownership mode with a
+//  live swap chain). In adopt mode -- or full-ownership mode created
+//  with createSwapChain = false, where the consumer paints + lays out
+//  the chrome itself -- the host must not run a second, competing
+//  layout pass. Doing so previously double-laid-out adopted chrome
+//  (e.g. the menu bar) against a different DxuiDpiScaler than the
+//  consumer's, collapsing measured item spacing on resize.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::MaybeRelayoutRoot (const RECT & clientPx)
+{
+    RECT  boundsDip = clientPx;
+
+
+
+    if (!m_ownsPaintPump || m_root == nullptr)
+    {
+        return;
+    }
+
+    boundsDip.right  = MulDiv (clientPx.right,  (int) s_kDefaultDpi, (int) m_scaler.Dpi());
+    boundsDip.bottom = MulDiv (clientPx.bottom, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
+    m_root->Layout (boundsDip, m_scaler);
 }
 
 
