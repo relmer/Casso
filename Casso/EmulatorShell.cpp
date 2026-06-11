@@ -4276,14 +4276,22 @@ DxuiMessageResult EmulatorShell::OnNcMouseMove (LRESULT hitTest, int xScreen, in
 
     if (!SystemButtonFromHitTest (hitTest, button))
     {
+        // Cursor is over the title bar / caption (non-client) and not
+        // on a system button. Clear hover on both the caption buttons
+        // AND the menu strip: when the pointer leaves the menu upward
+        // into the caption the client mouse-move stream stops, so this
+        // is the only signal that drops a latched menu hover.
         m_titleBar.ClearHover();
+        m_mainMenu.ClearHover();
         InvalidateRect (m_hwnd, nullptr, FALSE);
         return DxuiMessageResult::NotHandled;
     }
 
     if (ScreenToClient (m_hwnd, &pt))
     {
-        m_titleBar.SetMousePosition (pt.x, pt.y, false);
+        bool  leftDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+
+        m_titleBar.SetMousePosition (pt.x, pt.y, leftDown);
         InvalidateRect (m_hwnd, nullptr, FALSE);
     }
 
