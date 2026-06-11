@@ -211,6 +211,17 @@ public:
     void          SetTrackMouseEventForTest  (std::function<BOOL (TRACKMOUSEEVENT *)> trackMouseEvent);
 
     //
+    //  Test seams for the paint-pump-ownership gate. The host drives
+    //  the root panel's layout on resize / DPI change ONLY when it
+    //  owns its paint pump (full-ownership mode with a live swap
+    //  chain). In adopt mode -- or full-ownership mode created with
+    //  createSwapChain = false -- the consumer owns chrome layout and
+    //  the host must not run a second, competing layout pass.
+    //
+    void          SetOwnsPaintPumpForTest    (bool ownsPaintPump) { m_ownsPaintPump = ownsPaintPump; }
+    void          RelayoutRootForTest        (const RECT & clientPx) { MaybeRelayoutRoot (clientPx); }
+
+    //
     //  Shared-device accessors. Full-ownership mode creates the D3D11
     //  device, immediate context, and DXGI flip-discard swap chain on
     //  Create(); these accessors return non-owning pointers so a
@@ -334,6 +345,7 @@ private:
     void     HandleDpiChanged          (WPARAM wp, LPARAM lp);
     void     HandleSize                (WPARAM wp, LPARAM lp);
     void     HandleThemeChange         ();
+    void     MaybeRelayoutRoot         (const RECT & clientPx);
 
     DxuiHitTestKind  ClassifyHitInternal       (POINT clientDip, RECT clientBoundsDip) const;
     IDxuiControl   *  FindNcSystemControlAt    (POINT clientDip) const;
@@ -362,6 +374,7 @@ private:
     const IDxuiTheme *                m_theme              = nullptr;
 
     bool                              m_ownsHwnd           = false;
+    bool                              m_ownsPaintPump      = false;
     bool                              m_synthetic          = false;
     bool                              m_adoptMode          = false;
     bool                              m_classRegistered    = false;
