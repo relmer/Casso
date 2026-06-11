@@ -175,6 +175,13 @@ private:
 
     RECT                          m_stripRect        = {};
     std::vector<RECT>             m_titleRects;
+    // Cached per-item text widths (device pixels) and the DPI they
+    // were measured at. Menu-item text never changes on resize, only
+    // the strip position, so a successful measurement is cached and
+    // reused -- avoiding a per-resize re-measure that can transiently
+    // return zero width and collapse item spacing.
+    std::vector<int>              m_measuredItemWidthPx;
+    UINT                          m_measuredAtDpi    = 0;
     int                           m_openIndex        = 0;
     int                           m_hoverIndex       = -1;
     int                           m_focusedIndex     = 0;

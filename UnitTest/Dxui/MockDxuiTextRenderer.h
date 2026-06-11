@@ -58,6 +58,12 @@ public:
 
     void  SetCannedMetrics  (const std::wstring & text, SIZE sizeDip);
 
+    // Test knob: when true, MeasureString still returns S_OK but
+    // reports zero width -- mimicking the transient DirectWrite
+    // behaviour observed during a live resize, used to verify the
+    // menu bar reuses its cached item widths instead of collapsing.
+    void  SetMeasureReturnsZero (bool returnsZero) { m_measureReturnsZero = returnsZero; }
+
     HRESULT  DrawString    (const wchar_t      * text,
                             float                xDip,
                             float                yDip,
@@ -93,4 +99,5 @@ public:
 private:
     std::vector<RecordedTextCall>          m_calls;
     std::map<std::wstring, SIZE>           m_cannedMetrics;
+    bool                                   m_measureReturnsZero = false;
 };

@@ -1398,12 +1398,37 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             break;
 
         case WM_MOUSELEAVE:
+        {
+            // Guard against spurious WM_MOUSELEAVE. A child render
+            // surface that covers the client area (and forwards moves
+            // to this parent) makes TME_LEAVE fire continuously --
+            // the cursor sits over the child, never this window's own
+            // client, so Windows reports a "leave" after every move.
+            // Treat it as a real leave only when the cursor is not over
+            // this window or any of its descendants; otherwise re-arm
+            // tracking and ignore.
+            POINT  cursor = {};
+            HWND   under  = nullptr;
+
             m_clientMouseLeaveTracking = false;
+
+            if (m_hwnd != nullptr && GetCursorPos (&cursor))
+            {
+                under = WindowFromPoint (cursor);
+            }
+
+            if (under != nullptr && (under == m_hwnd || IsChild (m_hwnd, under)))
+            {
+                TrackClientMouseLeave();
+                break;
+            }
+
             if (m_client != nullptr && m_client->OnMouseLeave() == DxuiMessageResult::Handled)
             {
                 return 0;
             }
             break;
+        }
 
         case WM_LBUTTONDOWN:
             if (m_client != nullptr && m_client->OnLButtonDown (wp, lp) == DxuiMessageResult::Handled)

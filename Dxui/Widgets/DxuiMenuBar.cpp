@@ -30,7 +30,7 @@ namespace
     constexpr wchar_t  s_kFontFamily[]           = L"Segoe UI";
     constexpr wchar_t  s_kpszCheckMark[]         = L"\u2713";
 
-    constexpr int  s_kFallbackGlyphWidthPx = 8;
+    constexpr int  s_kFallbackGlyphWidthDip = 8;
 
 
     bool RectContains (const RECT & rect, int x, int y)
@@ -94,6 +94,8 @@ void DxuiMenuBar::SetItems (std::vector<DxuiMenuBarItem> items)
 
     m_items = std::move (items);
     m_titleRects.assign (m_items.size(), RECT {});
+    m_measuredItemWidthPx.clear();
+    m_measuredAtDpi = 0;
 
     for (DxuiMenuBarItem & item : m_items)
     {
@@ -227,31 +229,57 @@ void DxuiMenuBar::Layout (int x, int y, int width, UINT dpi, IDxuiTextRenderer *
     m_dpi              = eDpi;
     m_titleRects.assign (m_items.size(), RECT {});
 
+    // Menu-item text widths depend only on the item set and DPI, never
+    // on window size. Cache successful measurements and reuse them so a
+    // resize (which re-runs Layout) never re-measures -- DirectWrite can
+    // transiently return a zero-width layout mid-resize, which would
+    // otherwise collapse item spacing into the crude fallback path.
+    if (m_measuredAtDpi != eDpi || m_measuredItemWidthPx.size() != m_items.size())
+    {
+        m_measuredItemWidthPx.assign (m_items.size(), 0);
+        m_measuredAtDpi = eDpi;
+    }
+
     for (size_t i = 0; i < m_items.size(); i++)
     {
         std::wstring  stripped;
         int           mnIdx     = -1;
         wchar_t       mnCh      = 0;
         int           menuW     = 0;
+        int           textW     = 0;
         float         textWidth = 0.0f;
         float         textHt    = 0.0f;
         HRESULT       hrMeasure = E_FAIL;
 
         ParseMnemonic (m_items[i].label, stripped, mnIdx, mnCh);
 
-        if (pTextForMeasure != nullptr)
+        if (m_measuredItemWidthPx[i] > 0)
         {
-            hrMeasure = pTextForMeasure->MeasureString (stripped.c_str(), fontDip, s_kFontFamily, textWidth, textHt);
-        }
-
-        if (SUCCEEDED (hrMeasure) && textWidth > 0.0f)
-        {
-            menuW = (int) (textWidth + 0.5f) + pad * 2;
+            // Reuse a previously-cached good measurement.
+            textW = m_measuredItemWidthPx[i];
         }
         else
         {
-            menuW = ((int) stripped.size() * s_kFallbackGlyphWidthPx) + pad * 2;
+            if (pTextForMeasure != nullptr)
+            {
+                hrMeasure = pTextForMeasure->MeasureString (stripped.c_str(), fontDip, s_kFontFamily, textWidth, textHt);
+            }
+
+            if (SUCCEEDED (hrMeasure) && textWidth > 0.0f)
+            {
+                textW                    = (int) (textWidth + 0.5f);
+                m_measuredItemWidthPx[i] = textW;
+            }
+            else
+            {
+                // Renderer not ready / transient measurement failure.
+                // Use a DPI-scaled glyph estimate and leave the cache
+                // slot empty so the next Layout re-measures.
+                textW = (int) stripped.size() * ScaleDpi (s_kFallbackGlyphWidthDip, dpi);
+            }
         }
+
+        menuW = textW + pad * 2;
 
         m_titleRects[i].left   = currentX;
         m_titleRects[i].top    = y;
