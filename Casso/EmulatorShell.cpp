@@ -191,33 +191,6 @@ namespace
     }
 
 
-    BOOL RegisterRenderSurfaceClass (HINSTANCE hInstance)
-    {
-        WNDCLASSEXW wcex = { sizeof (wcex) };
-
-
-
-        if (GetClassInfoExW (hInstance, L"CassoRenderSurface", &wcex))
-        {
-            return TRUE;
-        }
-
-        wcex.style         = 0;
-        wcex.lpfnWndProc   = EmulatorShell::s_RenderSurfaceWndProc;
-        wcex.cbClsExtra    = 0;
-        wcex.cbWndExtra    = 0;
-        wcex.hInstance     = hInstance;
-        wcex.hIcon         = nullptr;
-        wcex.hCursor       = nullptr;
-        wcex.hbrBackground = nullptr;
-        wcex.lpszMenuName  = nullptr;
-        wcex.lpszClassName = L"CassoRenderSurface";
-        wcex.hIconSm       = nullptr;
-
-        return RegisterClassExW (&wcex) != 0;
-    }
-
-
     bool GetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outMonitor)
     {
         POINT          pt       = {};
@@ -630,12 +603,31 @@ HRESULT EmulatorShell::Initialize (
 
     m_machineManager->WirePageTable();
 
-    hr = CreateRenderSurface();
+    // Initialize the Apple ][ framebuffer renderer against the host's
+    // D3D11 device + DXGI swap chain (full host ownership). The host
+    // owns Present; the renderer composites the framebuffer into the
+    // host back buffer from the before-present hook wired below. The
+    // initial target rect is the DxuiViewport bounds computed during
+    // CreateEmulatorWindow.
+    hr = m_d3dRenderer.Initialize2 (m_host->GetDevice(),
+                                    m_host->GetContext(),
+                                    m_host->GetSwapChain(),
+                                    kFramebufferWidth,
+                                    kFramebufferHeight,
+                                    m_viewportBoundsPx);
     CHR (hr);
 
-    // Initialize D3D11
-    hr = m_d3dRenderer.Initialize (m_renderHwnd, kFramebufferWidth, kFramebufferHeight);
-    CHR (hr);
+    // Composite the Apple ][ framebuffer into the host's back buffer
+    // before the host paints chrome on top (DxuiHostWindow::PaintPump).
+    // m_pendingFramebuffer is staged each UI frame by RunMessageLoop;
+    // nullptr means "no new emulator frame" (re-composite last upload).
+    m_host->SetBeforePresentHook ([this] ()
+    {
+        HRESULT  hrComposite = m_d3dRenderer.UploadAndComposite (m_host->GetBackBufferRtv(),
+                                                                 m_pendingFramebuffer);
+
+        IGNORE_RETURN_VALUE (hrComposite, S_OK);
+    });
 
     // Native UI runtime bootstrap. UiShell owns the painter, text
     // renderer, hit-tester, focus manager, and input translator;
@@ -802,26 +794,11 @@ HRESULT EmulatorShell::Initialize (
                                                      initialDpi);
             IGNORE_RETURN_VALUE (hrUiResize, S_OK);
 
-            m_d3dRenderer.SetAfterBlitHook ([this] ()
-            {
-                m_diskManager->UpdateDriveWidgets();
-                m_uiShell.Render();
-
-                // Keep the present pump alive while any drive door is
-                // mid-animation. Without this, the door state advances
-                // (TickDoorAnimation in UpdateDriveWidgets ran above)
-                // but the chrome won't repaint next frame unless the
-                // emulator framebuffer happens to also be dirty.
-                for (const DriveWidgetState & st : m_driveWidgetState)
-                {
-                    if (st.doorState == DriveWidgetState::Door::Opening ||
-                        st.doorState == DriveWidgetState::Door::Closing)
-                    {
-                        m_d3dRenderer.MarkRedrawNeeded();
-                        break;
-                    }
-                }
-            });
+            // Chrome no longer composites via an after-blit hook: it
+            // paints through the host's panel-tree pump (the adopted
+            // chrome controls) on top of the Apple ][ framebuffer. The
+            // per-frame drive-widget tick + door-animation redraw that
+            // used to live in that hook now run in RunMessageLoop.
 
             {
                 bool  fHasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
@@ -850,18 +827,6 @@ HRESULT EmulatorShell::Initialize (
                 HRESULT hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.HitTest(), [this] (int tag, const std::wstring & path) { Mount (6, tag, path); }, IsSupportedDiskImageExtension);
                 IGNORE_RETURN_VALUE (hrDrop, S_OK);
 
-                // CassoRenderSurface is a child HWND that occludes the
-                // parent's client area for the emulator framebuffer. OLE
-                // hit-tests the topmost window under the cursor, so the
-                // child needs its own RegisterDragDrop pointing at the
-                // same IDropTarget -- otherwise the user sees the
-                // not-allowed cursor anywhere over the emulator content.
-                if (m_renderHwnd != nullptr)
-                {
-                    HRESULT hrDropChild = m_dragDropTarget.AttachAdditionalWindow (m_renderHwnd);
-                    IGNORE_RETURN_VALUE (hrDropChild, S_OK);
-                }
-
                 // UIPI whitelist. When Casso runs at a higher integrity
                 // level than the source (e.g. user launched Casso
                 // elevated and is dragging from a non-elevated Explorer),
@@ -872,25 +837,16 @@ HRESULT EmulatorShell::Initialize (
                 //   WM_DROPFILES       (0x0233)
                 //   WM_COPYDATA        (0x004A)
                 //   WM_COPYGLOBALDATA  (0x0049, undocumented but real)
-                // Allowing these on both registered HWNDs lets Explorer
-                // -> elevated-Casso drag work without lowering Casso's
-                // IL.
+                // Allowing these lets Explorer -> elevated-Casso drag
+                // work without lowering Casso's IL. The window is now a
+                // single top-level HWND (the legacy CassoRenderSurface
+                // child is gone), so only m_hwnd needs the filter.
                 {
                     const UINT  s_kWmCopyGlobalData = 0x0049;
-                    HWND        hwnds[2] = { m_hwnd, m_renderHwnd };
-                    size_t      i        = 0;
 
-                    for (i = 0; i < sizeof (hwnds) / sizeof (hwnds[0]); i++)
-                    {
-                        if (hwnds[i] == nullptr)
-                        {
-                            continue;
-                        }
-
-                        (void) ChangeWindowMessageFilterEx (hwnds[i], WM_DROPFILES,       MSGFLT_ALLOW, nullptr);
-                        (void) ChangeWindowMessageFilterEx (hwnds[i], WM_COPYDATA,        MSGFLT_ALLOW, nullptr);
-                        (void) ChangeWindowMessageFilterEx (hwnds[i], s_kWmCopyGlobalData, MSGFLT_ALLOW, nullptr);
-                    }
+                    (void) ChangeWindowMessageFilterEx (m_hwnd, WM_DROPFILES,        MSGFLT_ALLOW, nullptr);
+                    (void) ChangeWindowMessageFilterEx (m_hwnd, WM_COPYDATA,         MSGFLT_ALLOW, nullptr);
+                    (void) ChangeWindowMessageFilterEx (m_hwnd, s_kWmCopyGlobalData, MSGFLT_ALLOW, nullptr);
                 }
             }
         }
@@ -1137,10 +1093,13 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
                                         LR_DEFAULTCOLOR | LR_SHARED);
 
     // Hand the pre-computed window-pixel placement and chrome flags
-    // to DxuiHostWindow. createSwapChain = false so the host skips
-    // its own D3D11 device + DXGI flip-discard swap chain -- the
-    // existing CassoRenderSurface child HWND keeps owning the
-    // D3DRenderer swap chain unchanged (Session C territory).
+    // to DxuiHostWindow. createSwapChain = true so the host owns the
+    // D3D11 device + DXGI flip-discard swap chain and runs the panel-
+    // tree paint pump; the Apple ][ framebuffer renderer composites
+    // into that same back buffer via the before-present hook (wired in
+    // Initialize), and chrome paints on top via the adopted controls.
+    // The legacy CassoRenderSurface child HWND is gone -- a single
+    // window proc now owns all mouse / NC / cursor handling.
     params.title                  = L"Casso";
     params.hInstance              = hInstance;
     params.ownerHwnd              = nullptr;
@@ -1155,7 +1114,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     params.initialWindowRectPx    = { windowX, windowY, windowX + windowW, windowY + windowH };
     params.appIconBig             = hIconBig;
     params.appIconSmall           = hIconSm;
-    params.createSwapChain        = false;
+    params.createSwapChain        = true;
 
     m_host = std::make_unique<DxuiHostWindow>();
 
@@ -1195,11 +1154,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // in the host-owned paint, input, focus, theme, tick, and DPI
     // walks. Lifetime stays with EmulatorShell (chrome controls are
     // members); the panel just registers raw pointers. The host's
-    // WM_PAINT pump remains dead (createSwapChain=false) until the
-    // swap-chain flip lands later in Phase 11d, so this change is
-    // tree-membership-only — the chrome continues to paint via
-    // UiShell::Render against the existing CassoRenderSurface swap
-    // chain. The bespoke chrome layout in LayoutChrome /
+    // WM_PAINT pump (createSwapChain = true) now paints these adopted
+    // controls on top of the Apple ][ framebuffer each frame. The
+    // bespoke chrome layout in LayoutChrome /
     // LayoutDriveWidgetsInCommandBar / LayoutJoystickButton stays in
     // place; full DxuiDockLayout-driven layout lands in Phase 12.
     m_host->Root().Adopt (m_titleBar);
@@ -1207,6 +1164,13 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->Root().Adopt (m_driveChrome[0]);
     m_host->Root().Adopt (m_driveChrome[1]);
     m_host->Root().Adopt (m_joystickButton);
+
+    // Give the host the chrome theme so its paint pump renders the
+    // adopted chrome -- PaintPump no-ops when no theme is set.
+    // m_chromeTheme is reassigned in place on theme switches, so this
+    // pointer stays valid and the host reads the updated palette on the
+    // next paint.
+    m_host->SetTheme (&m_chromeTheme);
 
     // Defer the size reconcile until after ShowWindow. The NC frame
     // (border carve-out from DefWindowProc + DWM rounded corners +
@@ -1306,46 +1270,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // Load accelerator table
     m_accelTable = LoadAccelerators (hInstance, MAKEINTRESOURCE (IDR_ACCELERATOR));
     CWRA (m_accelTable);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CreateRenderSurface
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT EmulatorShell::CreateRenderSurface ()
-{
-    HRESULT  hr       = S_OK;
-    BOOL     fSuccess = FALSE;
-    RECT     rcClient = {};
-
-
-
-    fSuccess = GetClientRect (m_hwnd, &rcClient);
-    CWRA (fSuccess);
-
-    fSuccess = RegisterRenderSurfaceClass (m_hInstance);
-    CWRA (fSuccess);
-
-    m_renderHwnd = CreateWindowExW (0,
-                                    L"CassoRenderSurface",
-                                    nullptr,
-                                    WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
-                                    0, 0,
-                                    rcClient.right, rcClient.bottom,
-                                    m_hwnd,
-                                    nullptr,
-                                    m_hInstance,
-                                    nullptr);
-    CWRA (m_renderHwnd);
 
 Error:
     return hr;
@@ -1514,130 +1438,6 @@ void EmulatorShell::ReconcileInitialClientSize ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  s_RenderSurfaceWndProc
-//
-//  Window proc for the custom render surface child window class. Suppresses
-//  background erase and paint paths at the class level to prevent white
-//  flash during resize. Chains all other messages to DefWindowProc to
-//  preserve normal child window behavior and parent message routing.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LRESULT CALLBACK EmulatorShell::s_RenderSurfaceWndProc (
-    HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-    HWND        parent = nullptr;
-    PAINTSTRUCT ps     = {};
-
-
-
-    switch (uMsg)
-    {
-        case WM_ERASEBKGND:
-            return 1;
-
-        case WM_PAINT:
-            BeginPaint (hwnd, &ps);
-            EndPaint (hwnd, &ps);
-            return 0;
-
-        case WM_PRINTCLIENT:
-            return 0;
-
-        case WM_MOUSEMOVE:
-        case WM_LBUTTONDOWN:
-        case WM_LBUTTONUP:
-            parent = GetParent (hwnd);
-            if (parent != nullptr)
-            {
-                return SendMessage (parent, uMsg, wParam, lParam);
-            }
-            return DefWindowProc (hwnd, uMsg, wParam, lParam);
-
-        // Keep resize cursors in sync with the parent NC hit-test math.
-        case WM_SETCURSOR:
-            parent = GetParent (hwnd);
-            if (parent != nullptr)
-            {
-                POINT    pt     = {};
-                LRESULT  hit    = HTCLIENT;
-                LPCWSTR  cursor = IDC_ARROW;
-
-
-
-                if (GetCursorPos (&pt))
-                {
-                    hit = SendMessage (parent, WM_NCHITTEST, 0, MAKELPARAM (pt.x, pt.y));
-
-                    switch (hit)
-                    {
-                        case HTTOPLEFT:
-                        case HTBOTTOMRIGHT:
-                            cursor = IDC_SIZENWSE;
-                            break;
-
-                        case HTTOPRIGHT:
-                        case HTBOTTOMLEFT:
-                            cursor = IDC_SIZENESW;
-                            break;
-
-                        case HTTOP:
-                        case HTBOTTOM:
-                            cursor = IDC_SIZENS;
-                            break;
-
-                        case HTLEFT:
-                        case HTRIGHT:
-                            cursor = IDC_SIZEWE;
-                            break;
-                    }
-                }
-
-                SetCursor (LoadCursorW (nullptr, cursor));
-                return TRUE;
-            }
-
-            SetCursor (LoadCursorW (nullptr, IDC_ARROW));
-            return TRUE;
-
-        // For NC regions returned by the parent hit-test, return HTTRANSPARENT
-        // so the parent receives the follow-up NC mouse messages.
-        case WM_NCHITTEST:
-            parent = GetParent (hwnd);
-            if (parent != nullptr)
-            {
-                LRESULT  hit = SendMessage (parent, uMsg, wParam, lParam);
-
-                if (hit != HTCLIENT && hit != HTNOWHERE)
-                {
-                    return HTTRANSPARENT;
-                }
-
-                return hit;
-            }
-            return DefWindowProc (hwnd, uMsg, wParam, lParam);
-
-        case WM_NCLBUTTONDOWN:
-        case WM_NCLBUTTONUP:
-        case WM_NCDESTROY:
-        case WM_NCMOUSEMOVE:
-            parent = GetParent (hwnd);
-            if (parent != nullptr)
-            {
-                return SendMessage (parent, uMsg, wParam, lParam);
-            }
-            return DefWindowProc (hwnd, uMsg, wParam, lParam);
-
-        default:
-            return DefWindowProc (hwnd, uMsg, wParam, lParam);
-    }
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OnMove
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1798,14 +1598,13 @@ void EmulatorShell::BrowseForDisk (int drive)
 
     // Let the door animation finish and linger briefly so the user
     // actually sees it open before the modal file-open dialog covers
-    // the drive. UploadAndPresent runs on the UI thread (see
-    // RunMessageLoop), so we have to drive presents AND pump Windows
-    // messages here -- the CPU emulation thread is separate but the
-    // chrome composite hook only fires from UploadAndPresent which
-    // is on the UI thread we're currently blocking. The time base
-    // MUST match DiskManager::NowMs (steady_clock ms) because
-    // TickDoorAnimation diffs the current frame time against
-    // animationStartTimeMs.
+    // the drive. The host paint pump runs on the UI thread (driven by
+    // WM_PAINT), so we both pump Windows messages AND request a frame
+    // here -- the CPU emulation thread is separate, and the chrome /
+    // framebuffer composite only happens from the host pump on the UI
+    // thread we're currently blocking. The time base MUST match
+    // DiskManager::NowMs (steady_clock ms) because TickDoorAnimation
+    // diffs the current frame time against animationStartTimeMs.
     {
         constexpr int64_t  s_kPostOpenLingerMs = 0;
 
@@ -1818,8 +1617,15 @@ void EmulatorShell::BrowseForDisk (int drive)
             TranslateMessage (&msg);
             DispatchMessageW (&msg);
         }
-        m_d3dRenderer.MarkRedrawNeeded();
-        m_d3dRenderer.UploadAndPresent (nullptr);
+
+        // Tick the door animation and repaint through the host pump
+        // (the after-blit hook that used to do this is gone). A nullptr
+        // framebuffer re-composites the last emulator upload with the
+        // chrome (animating door) painted on top.
+        m_diskManager->UpdateDriveWidgets();
+        m_pendingFramebuffer = nullptr;
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+        UpdateWindow   (m_hwnd);
         Sleep (8);
     }
 
@@ -2397,6 +2203,24 @@ int EmulatorShell::RunMessageLoop()
         // hover / open / close transitions paint. Without this, a
         // paused machine produces no fb changes -> no Present -> menus
         // open in state-only and never repaint, looking dead.
+        // Per-UI-frame chrome upkeep that used to live in the after-blit
+        // hook: advance drive-door animations and force a present while a
+        // door is mid-transition so the chrome keeps repainting even when
+        // the emulator framebuffer is static.
+        if (m_diskManager != nullptr)
+        {
+            m_diskManager->UpdateDriveWidgets();
+        }
+        for (const DriveWidgetState & st : m_driveWidgetState)
+        {
+            if (st.doorState == DriveWidgetState::Door::Opening ||
+                st.doorState == DriveWidgetState::Door::Closing)
+            {
+                m_d3dRenderer.MarkRedrawNeeded();
+                break;
+            }
+        }
+
         m_settingsPanel.UpdatePreviewOverlap (m_d3dRenderer.GetEmulatorContentScreenRect());
         IGNORE_RETURN_VALUE (hr, m_settingsPanel.RenderPopup());
         if (m_disk2DebugPanel != nullptr)
@@ -2417,7 +2241,13 @@ int EmulatorShell::RunMessageLoop()
             continue;
         }
 
-        m_d3dRenderer.UploadAndPresent (fbDirtyThisFrame ? m_uiFramebuffer.data() : nullptr);
+        // Drive the host paint pump for this frame. Stage the emulator
+        // framebuffer for the before-present hook, then request a
+        // synchronous WM_PAINT: the host clears, the hook composites the
+        // framebuffer, the chrome paints on top, and the host presents.
+        m_pendingFramebuffer = fbDirtyThisFrame ? m_uiFramebuffer.data() : nullptr;
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+        UpdateWindow   (m_hwnd);
     }
 
     m_cpuManager.Stop();
@@ -3709,26 +3539,16 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 {
     int       width     = static_cast<int> (widthPx);
     int       renderH   = static_cast<int> (heightPx);
-    HRESULT   hrPresent = S_OK;
 
 
 
     UNREFERENCED_PARAMETER (widthPx);
 
-    if (m_renderHwnd != nullptr)
-    {
-        MoveWindow (m_renderHwnd, 0, 0,
-                    static_cast<int> (width), renderH, FALSE);
-    }
-
-    // Release the D2D target bitmap before resizing the swap chain.
-    // ResizeBuffers fails with DXGI_ERROR_INVALID_CALL (0x887a0001) while
-    // any outside reference (D2D bitmap, IDXGISurface, RTV) still holds
-    // the back buffer. UiShell rebinds on the next Render() because
-    // OnResize below marks the text target dirty.
-    m_uiShell.Text().UnbindBackBuffer();
-
-    m_d3dRenderer.Resize (static_cast<int> (width), renderH);
+    // The host (DxuiHostWindow::HandleSize) already resized its swap
+    // chain and recreated the back-buffer RTV + D2D target before this
+    // OnSize fired. The renderer no longer owns the swap chain; it just
+    // needs the new back-buffer dimensions for the CRT post-process.
+    m_d3dRenderer.SetBackBufferSize (static_cast<int> (width), renderH);
 
     {
         UINT     dpi             = GetDpiForWindow (m_hwnd);
@@ -3809,9 +3629,17 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                                     (float) m_d3dRenderer.GetBackBufferHeight());
             m_d3dRenderer.SetCrtParams (params);
 
-            IGNORE_RETURN_VALUE (hrPresent, m_d3dRenderer.UploadAndPresent (m_uiFramebuffer.data()));
+            m_pendingFramebuffer = m_uiFramebuffer.data();
         }
     }
+
+    // Repaint immediately at the new size through the host pump. The
+    // host already resized its swap chain in HandleSize; driving a
+    // synchronous WM_PAINT here avoids a stale / black frame during an
+    // interactive drag-resize (when RunMessageLoop is blocked in the OS
+    // modal resize loop).
+    InvalidateRect (m_hwnd, nullptr, FALSE);
+    UpdateWindow   (m_hwnd);
 
     m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
     return DxuiMessageResult::NotHandled;

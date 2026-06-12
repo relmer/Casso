@@ -1023,10 +1023,11 @@ void DxuiHostWindow::ReleaseBackBufferRtv ()
 //  PaintPump
 //
 //  WM_PAINT body for full-ownership mode. Binds the back-buffer RTV,
-//  clears to the theme background, walks the root panel tree
-//  invoking IDxuiControl::Paint on every visible child, lets the
-//  registered before-present hook composite on top (e.g. the
-//  Apple ][ framebuffer blit), then presents the swap chain.
+//  clears to the theme background, lets the registered before-present
+//  hook composite its full-buffer content first (e.g. the Apple ][
+//  framebuffer via D3DRenderer::UploadAndComposite), then walks the
+//  root panel tree invoking IDxuiControl::Paint on every visible child
+//  so the chrome composites on top, then presents the swap chain.
 //
 //  Bails cleanly if the painter / text renderer / RTV / swap chain
 //  are missing — partially-initialized states still get a Present
@@ -1070,6 +1071,18 @@ void DxuiHostWindow::PaintPump ()
     m_context->OMSetRenderTargets    (1, m_rtv.GetAddressOf(), nullptr);
     m_context->ClearRenderTargetView (m_rtv.Get(), clearColor);
 
+    // Composite the consumer's content (e.g. the Apple ][ framebuffer
+    // via D3DRenderer::UploadAndComposite) into the back buffer FIRST.
+    // The hook owns a full-buffer write (emulator frame plus black
+    // letterbox bars); the panel-tree painter / text passes below are
+    // purely additive (neither clears the RTV), so the chrome composites
+    // on top of the hook's result -- matching the legacy emulator-frame
+    // plus chrome-overlay order.
+    if (m_beforePresentHook)
+    {
+        m_beforePresentHook();
+    }
+
     // Walk the panel tree. Painter buffers geometry between Begin /
     // End; the text renderer composites Direct2D over the same back
     // buffer between BeginDraw / EndDraw. The D2D bitmap is bound
@@ -1086,18 +1099,18 @@ void DxuiHostWindow::PaintPump ()
 
         m_root->Paint (*m_painter, *m_textRenderer, *m_theme);
 
-        hr = m_textRenderer->EndDraw();
-        textBegun = false;
-        CHRA (hr);
-
+        // Flush the painter (D3D control fills) FIRST, then the text
+        // (D2D glyphs / labels) so the foreground composites on top of
+        // the fills -- matching the proven UiShell::Render order.
+        // Flushing text first lets the opaque fills paint over it, which
+        // makes menu labels and min/max/close glyphs vanish.
         hr = m_painter->End (m_rtv.Get());
         painterBegun = false;
         CHRA (hr);
-    }
 
-    if (m_beforePresentHook)
-    {
-        m_beforePresentHook();
+        hr = m_textRenderer->EndDraw();
+        textBegun = false;
+        CHRA (hr);
     }
 
     hr = m_swapChain->Present (1, 0);
@@ -1398,37 +1411,26 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             break;
 
         case WM_MOUSELEAVE:
-        {
-            // Guard against spurious WM_MOUSELEAVE. A child render
-            // surface that covers the client area (and forwards moves
-            // to this parent) makes TME_LEAVE fire continuously --
-            // the cursor sits over the child, never this window's own
-            // client, so Windows reports a "leave" after every move.
-            // Treat it as a real leave only when the cursor is not over
-            // this window or any of its descendants; otherwise re-arm
-            // tracking and ignore.
-            POINT  cursor = {};
-            HWND   under  = nullptr;
-
+            // The cursor left the client area -- into an NC region of
+            // this window (caption / system button / resize edge) or
+            // off-window entirely. Clear client hover and stop tracking;
+            // the next WM_MOUSEMOVE re-arms. NC hover is handled
+            // independently via WM_NCMOUSEMOVE / WM_NCMOUSELEAVE.
+            //
+            // (Historically this re-armed tracking and ignored the leave
+            // whenever WindowFromPoint still resolved to this window, to
+            // absorb the continuous TME_LEAVE storm caused by a child
+            // render surface that covered the client area. That child is
+            // gone -- a single top-level window owns everything now -- so
+            // WindowFromPoint resolves to this HWND even for its own NC
+            // edges, which made that guard re-arm in a tight loop and
+            // wedge the cursor / hover. A leave is now always real.)
             m_clientMouseLeaveTracking = false;
-
-            if (m_hwnd != nullptr && GetCursorPos (&cursor))
-            {
-                under = WindowFromPoint (cursor);
-            }
-
-            if (under != nullptr && (under == m_hwnd || IsChild (m_hwnd, under)))
-            {
-                TrackClientMouseLeave();
-                break;
-            }
-
             if (m_client != nullptr && m_client->OnMouseLeave() == DxuiMessageResult::Handled)
             {
                 return 0;
             }
             break;
-        }
 
         case WM_LBUTTONDOWN:
             if (m_client != nullptr && m_client->OnLButtonDown (wp, lp) == DxuiMessageResult::Handled)

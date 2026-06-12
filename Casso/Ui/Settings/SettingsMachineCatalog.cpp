@@ -277,9 +277,9 @@ bool SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
     HRESULT           hr          = S_OK;
     std::wstring      wideName (machineName.begin(), machineName.end());
     HINSTANCE         hInstance   = (HINSTANCE) GetModuleHandleW (nullptr);
-    HWND              hwndRender  = (m_emuShell != nullptr) ? m_emuShell->m_renderHwnd : nullptr;
-    HWND              hwndParent  = (hwndRender != nullptr) ? GetAncestor (hwndRender, GA_ROOT)
-                                                            : GetActiveWindow();
+    HWND              hwndParent  = (m_emuShell != nullptr && m_emuShell->m_hwnd != nullptr)
+                                        ? m_emuShell->m_hwnd
+                                        : GetActiveWindow();
     std::vector<fs::path>  searchPaths;
     fs::path          assetBaseDir;
     std::string       bootstrapError;

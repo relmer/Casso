@@ -160,10 +160,6 @@ public:
     // method just owns the door visual.
     void    BrowseForDisk (int drive);
 
-    // Static window procs for child windows
-    static LRESULT CALLBACK s_RenderSurfaceWndProc (
-        HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-
 private:
     // IDxuiHostClient message handler overrides. DxuiHostWindow's
     // WndProc dispatches Win32 messages through these; the
@@ -214,8 +210,6 @@ private:
     // Initialization helpers
     HRESULT CreateEmulatorWindow (HINSTANCE hInstance);
     void    ReconcileInitialClientSize ();
-
-    HRESULT CreateRenderSurface ();
 
     // Drives the host's root panel layout for the Apple ][ viewport
     // child. Computes the framebuffer rectangle (client minus chrome
@@ -373,7 +367,6 @@ private:
     HACCEL              m_accelTable      = nullptr;
     HINSTANCE           m_hInstance       = nullptr;
     HWND                m_hwnd            = nullptr;
-    HWND                m_renderHwnd      = nullptr;
     bool                m_initialSizeReconciled = false;
 
     // Authoritative per-window DPI scaler. Mirrors the one inside
@@ -410,9 +403,11 @@ private:
     // DxuiHostWindow running in full-ownership mode. Owns the main
     // HWND (registers WNDCLASS "CassoWindow", calls CreateWindowExW,
     // and applies DwM rounded-corners / immersive-dark / extended
-    // frame). Created with `createSwapChain = false` so the existing
-    // CassoRenderSurface child HWND keeps owning the D3DRenderer
-    // swap chain unchanged. The bespoke TitleBar + system-button
+    // frame). Created with `createSwapChain = true` so the host owns
+    // the D3D11 device + DXGI swap chain and runs the panel-tree paint
+    // pump; the Apple ][ framebuffer renderer composites into that back
+    // buffer via the host's before-present hook, and chrome paints on
+    // top via the adopted controls. The bespoke TitleBar + system-button
     // NC hit-test classifier is plugged in via SetHitTestDelegate
     // (see ClassifyHitForLegacyChrome below). EmulatorShell is the
     // IDxuiHostClient so all consumer-side Win32 messages
@@ -429,6 +424,14 @@ private:
     // tree owns the DxuiViewport instance.
     DxuiViewport *                   m_viewport          = nullptr;
     RECT                             m_viewportBoundsPx  = {};
+
+    // Per-frame framebuffer pointer staged by RunMessageLoop and read
+    // by the host's before-present hook (DxuiHostWindow::PaintPump ->
+    // D3DRenderer::UploadAndComposite). Points into m_uiFramebuffer
+    // when the emulator produced a new frame this iteration, or nullptr
+    // to re-composite the last upload (chrome-only repaints). Touched
+    // only on the UI thread.
+    const uint32_t *                 m_pendingFramebuffer = nullptr;
 
     // Joystick-mode toggle button (mirrors IDM_MACHINE_ARROWS_JOYSTICK),
     // centered in the drive bar above the drive widgets, with its own

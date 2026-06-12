@@ -248,10 +248,13 @@ public:
     //
     //  Optional before-present hook. Installed by a consumer (e.g.
     //  the Apple ][ framebuffer renderer) that wants to composite
-    //  into the host's swap-chain back buffer after the standard
-    //  panel-tree Paint pump but BEFORE the host calls Present. The
-    //  host stores the callback; it is invoked once per frame from
-    //  the host's WM_PAINT pump. Passing a null function clears any
+    //  into the host's swap-chain back buffer BEFORE the standard
+    //  panel-tree Paint pump runs -- so the chrome paints on top of
+    //  the composited content -- and before the host calls Present.
+    //  The hook owns a full-buffer write; the panel-tree painter /
+    //  text passes are additive and do not clear the RTV. The host
+    //  stores the callback; it is invoked once per frame from the
+    //  host's WM_PAINT pump. Passing a null function clears any
     //  previously-installed hook.
     //
     void  SetBeforePresentHook  (std::function<void()> hook);
