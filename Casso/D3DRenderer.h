@@ -43,13 +43,18 @@ public:
 
     HRESULT UploadAndPresent (const uint32_t * framebuffer);
 
-    // Composite variant used by Initialize2 mode. Performs the same
-    // framebuffer upload + CRT post-process pass as UploadAndPresent
-    // but skips the swap-chain Present -- the host's paint pump owns
-    // the Present call. Skips the after-blit chrome hook too: chrome
-    // paints via the host's panel-tree Paint walk, not via the
-    // renderer hook.
-    HRESULT UploadAndComposite (const uint32_t * framebuffer);
+    // Composite variant used by Initialize2 (host-owned swap chain)
+    // mode. Performs the same framebuffer upload + CRT post-process
+    // pass as UploadAndPresent but writes into the caller-supplied
+    // `dstRtv` (the host's back-buffer RTV) and skips the swap-chain
+    // Present -- the host's paint pump owns the Present call. The
+    // renderer holds NO back-buffer RTV of its own in this mode, so
+    // the host's ResizeBuffers never contends with a stale reference.
+    // Does NOT clear the full back buffer (the host cleared it and the
+    // CRT final pass overwrites it) and skips the after-blit chrome
+    // hook (chrome paints via the host's panel-tree walk after this
+    // hook returns).
+    HRESULT UploadAndComposite (ID3D11RenderTargetView * dstRtv, const uint32_t * framebuffer);
 
     HRESULT ToggleFullscreen (HWND hwnd);
     HRESULT Resize (int width, int height);
@@ -74,6 +79,20 @@ public:
     // existing CassoRenderSurface render pipeline.
     void SetTargetBounds  (const RECT & boundsPx)   { m_targetBoundsPx = boundsPx; }
     RECT GetTargetBounds  () const                  { return m_targetBoundsPx; }
+
+    // External (Initialize2 / host-owned swap chain) mode only: push
+    // the host's current back-buffer pixel dimensions so the CRT
+    // post-process sizes its intermediate render targets and the
+    // aspect-fit math correctly. The host owns ResizeBuffers; the
+    // renderer never resizes the swap chain in external mode, so it
+    // learns the new size through this setter from EmulatorShell::OnSize.
+    void SetBackBufferSize (int widthPx, int heightPx)
+    {
+        m_backBufferW         = std::max (0, widthPx);
+        m_backBufferH         = std::max (0, heightPx);
+        m_physicalBackBufferW = std::max (m_physicalBackBufferW, m_backBufferW);
+        m_physicalBackBufferH = std::max (m_physicalBackBufferH, m_backBufferH);
+    }
 
     // Returns true if the next frame would produce a visually
     // different result than the last one we presented. The shell uses

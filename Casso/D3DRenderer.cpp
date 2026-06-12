@@ -622,12 +622,22 @@ HRESULT D3DRenderer::CreateRenderResources (int texWidth, int texHeight)
     UINT16 indices[] = { 0, 1, 2, 2, 1, 3 };
 
 
-    hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (backBuffer.GetAddressOf()));
-    CHRA (hr);
-    hr = m_device->CreateRenderTargetView (backBuffer.Get(), nullptr, m_rtv.GetAddressOf());
-    CHRA (hr);
+    // Full-ownership (hwnd / Initialize) mode owns the swap chain, so it
+    // creates and binds the back-buffer RTV here. In external
+    // (Initialize2 / host-owned) mode the host owns the only back-buffer
+    // RTV and its resize lifecycle; the renderer composites into the
+    // host's RTV (passed to UploadAndComposite) and never holds a
+    // back-buffer reference of its own, so the host's ResizeBuffers
+    // never contends with a stale renderer reference.
+    if (!m_externalSwapChain)
+    {
+        hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (backBuffer.GetAddressOf()));
+        CHRA (hr);
+        hr = m_device->CreateRenderTargetView (backBuffer.Get(), nullptr, m_rtv.GetAddressOf());
+        CHRA (hr);
 
-    m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf(), nullptr);
+        m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf(), nullptr);
+    }
 
     td.Width            = static_cast<UINT> (texWidth);
     td.Height           = static_cast<UINT> (texHeight);
@@ -974,19 +984,18 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT D3DRenderer::UploadAndComposite (const uint32_t * framebuffer)
+HRESULT D3DRenderer::UploadAndComposite (ID3D11RenderTargetView * dstRtv, const uint32_t * framebuffer)
 {
     HRESULT                    hr            = S_OK;
     D3D11_MAPPED_SUBRESOURCE   mapped        = {};
     const uint32_t           * src           = nullptr;
     Byte                     * dst           = nullptr;
-    float                      clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
     RECT                       contentRect   = {};
     RECT                       fittedRect    = {};
 
 
-    BAIL_OUT_IF (m_context == nullptr || m_swapChain == nullptr, S_OK);
-    BAIL_OUT_IF (m_deviceRemoved   || m_rtv == nullptr,          S_OK);
+    BAIL_OUT_IF (m_context == nullptr || dstRtv == nullptr, S_OK);
+    BAIL_OUT_IF (m_deviceRemoved,                           S_OK);
 
     if (m_texture != nullptr && framebuffer != nullptr)
     {
@@ -1006,7 +1015,10 @@ HRESULT D3DRenderer::UploadAndComposite (const uint32_t * framebuffer)
         m_context->Unmap (m_texture.Get(), 0);
     }
 
-    m_context->ClearRenderTargetView (m_rtv.Get(), clearColor);
+    // No full-buffer clear here: the host's PaintPump already cleared
+    // the back buffer to the theme background before invoking this
+    // hook, and the CRT final pass writes the full back buffer
+    // (emulator frame plus black letterbox bars) into dstRtv.
 
     // In Initialize2 mode the target rectangle comes from the
     // DxuiViewport bounds (pushed in by EmulatorShell), not from
@@ -1037,7 +1049,7 @@ HRESULT D3DRenderer::UploadAndComposite (const uint32_t * framebuffer)
         CacheEmulatorContentScreenRect (fittedRect);
 
         hr = m_crtPost.Process (m_srv.Get(),
-                                m_rtv.Get(),
+                                dstRtv,
                                 m_crtParams,
                                 fittedRect,
                                 m_backBufferW,
@@ -1217,6 +1229,18 @@ HRESULT D3DRenderer::Resize (int width, int height)
     BAIL_OUT_IF (m_deviceRemoved, S_OK);
 
     m_redrawForced = true;
+
+    // External (Initialize2 / host-owned swap chain) mode: the host owns
+    // ResizeBuffers and the only back-buffer RTV; the renderer just
+    // refreshes the size it feeds the CRT post-process and must never
+    // touch the swap chain. EmulatorShell::OnSize also pushes the size
+    // via SetBackBufferSize, so this guard simply makes a stray Resize
+    // harmless.
+    if (m_externalSwapChain)
+    {
+        SetBackBufferSize (width, height);
+    }
+    BAIL_OUT_IF (m_externalSwapChain, S_OK);
 
     // Hot path: the logical area still fits in the allocated back
     // buffer. Tell DWM the new source sub-rect, update the viewport,
