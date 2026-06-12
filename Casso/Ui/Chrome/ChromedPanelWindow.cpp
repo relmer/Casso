@@ -7,7 +7,7 @@
 #include "TitleBar.h"
 
 #include "Core/DxuiTitleBarHitTest.h"
-#include "Win32/DxuiHostWindow.h"
+#include "Window/DxuiHostWindow.h"
 
 #include "../../resource.h"
 

@@ -42,8 +42,8 @@
 #include "Video/VideoOutput.h"
 #include "Video/VideoTiming.h"
 #include "WasapiAudio.h"
-#include "Win32/DxuiHostWindow.h"
-#include "Win32/IDxuiHostClient.h"
+#include "Window/DxuiHostWindow.h"
+#include "Window/IDxuiHostClient.h"
 #include "Core/DxuiAbsoluteLayout.h"
 #include "Core/DxuiViewport.h"
 

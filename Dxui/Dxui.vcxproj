@@ -177,12 +177,12 @@
     <ClCompile Include="Widgets\DxuiToggle.cpp" />
     <ClCompile Include="Widgets\DxuiTooltip.cpp" />
     <ClCompile Include="Widgets\DxuiTreeView.cpp" />
-    <ClCompile Include="Win32\DxuiDragDropTarget.cpp" />
-    <ClCompile Include="Win32\DxuiDragRegion.cpp" />
-    <ClCompile Include="Win32\DxuiCaptionBar.cpp" />
-    <ClCompile Include="Win32\DxuiSystemButton.cpp" />
-    <ClCompile Include="Win32\DxuiHostWindow.cpp" />
-    <ClCompile Include="Win32\DxuiPopupHost.cpp" />
+    <ClCompile Include="Window\DxuiDragDropTarget.cpp" />
+    <ClCompile Include="Window\DxuiDragRegion.cpp" />
+    <ClCompile Include="Window\DxuiCaptionBar.cpp" />
+    <ClCompile Include="Window\DxuiSystemButton.cpp" />
+    <ClCompile Include="Window\DxuiHostWindow.cpp" />
+    <ClCompile Include="Window\DxuiPopupHost.cpp" />
     <ClCompile Include="Dialog\DxuiDialog.cpp" />
     <ClCompile Include="Dialog\DxuiDialogManager.cpp" />
   </ItemGroup>
@@ -229,13 +229,13 @@
     <ClInclude Include="Widgets\DxuiToggle.h" />
     <ClInclude Include="Widgets\DxuiTooltip.h" />
     <ClInclude Include="Widgets\DxuiTreeView.h" />
-    <ClInclude Include="Win32\DxuiDragDropTarget.h" />
-    <ClInclude Include="Win32\DxuiDragRegion.h" />
-    <ClInclude Include="Win32\DxuiCaptionBar.h" />
-    <ClInclude Include="Win32\DxuiSystemButton.h" />
-    <ClInclude Include="Win32\DxuiHostWindow.h" />
-    <ClInclude Include="Win32\IDxuiHostClient.h" />
-    <ClInclude Include="Win32\DxuiPopupHost.h" />
+    <ClInclude Include="Window\DxuiDragDropTarget.h" />
+    <ClInclude Include="Window\DxuiDragRegion.h" />
+    <ClInclude Include="Window\DxuiCaptionBar.h" />
+    <ClInclude Include="Window\DxuiSystemButton.h" />
+    <ClInclude Include="Window\DxuiHostWindow.h" />
+    <ClInclude Include="Window\IDxuiHostClient.h" />
+    <ClInclude Include="Window\DxuiPopupHost.h" />
     <ClInclude Include="Dialog\DxuiDialog.h" />
     <ClInclude Include="Dialog\DxuiDialogManager.h" />
   </ItemGroup>

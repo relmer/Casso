@@ -3,7 +3,7 @@
 #include "Pch.h"
 
 #include "ChromeTheme.h"
-#include "Win32/DxuiCaptionBar.h"
+#include "Window/DxuiCaptionBar.h"
 
 
 

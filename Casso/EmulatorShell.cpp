@@ -32,7 +32,7 @@
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/DriveWidgetController.h"
 #include "Shell/DiskMru.h"
-#include "Win32/DxuiHostWindow.h"
+#include "Window/DxuiHostWindow.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")

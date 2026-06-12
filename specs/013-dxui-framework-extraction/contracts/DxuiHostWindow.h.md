@@ -1,7 +1,7 @@
 # Contract: `DxuiHostWindow`
 
 ```cpp
-// Dxui/Win32/DxuiHostWindow.h
+// Dxui/Window/DxuiHostWindow.h
 #pragma once
 
 #include "Pch.h"
