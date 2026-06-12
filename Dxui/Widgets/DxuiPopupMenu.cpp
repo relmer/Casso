@@ -1,8 +1,8 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiPopupMenu.h"
-#include "Win32/DxuiHostWindow.h"
-#include "Win32/DxuiPopupHost.h"
+#include "Window/DxuiHostWindow.h"
+#include "Window/DxuiPopupHost.h"
 
 #include "UnicodeSymbols.h"
 

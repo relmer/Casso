@@ -6,8 +6,8 @@
 #include "Core/DxuiStackLayout.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiLabel.h"
-#include "Win32/DxuiCaptionBar.h"
-#include "Win32/DxuiSystemButton.h"
+#include "Window/DxuiCaptionBar.h"
+#include "Window/DxuiSystemButton.h"
 
 
 static constexpr LONG  s_kCaptionHeightDip    = 32;

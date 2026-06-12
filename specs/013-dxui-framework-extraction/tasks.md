@@ -530,7 +530,7 @@ Phase 11 is split into two independently mergeable parts: **Phase 11 — Part A*
   13. **Manual** `(Get-Content Casso/EmulatorShell.cpp).Length -le 2502` (SC-018).
   14. **Manual** dropdown bottom-of-Settings test (SC-008 / User Story 3 re-verify).
   15. **Manual** Win11 snap-layouts hover on main + chromed + Settings (SC-009 / User Story 4 re-verify).
-  16. **Manual** NC-handler final count: 1 (only `Dxui/Win32/DxuiHostWindow.cpp`) (SC-020).
+  16. **Manual** NC-handler final count: 1 (only `Dxui/Window/DxuiHostWindow.cpp`) (SC-020).
 
   **Depends on**: T097–T110A. **Commit**: `refactor(casso/ui): migrate remaining pages, debug panels, dialogs to Dxui; delete DialogPrimitive`. **Merge**: `git merge --no-ff` into `master`. **FR**: FR-070/071/072/092/095/096/097/098/099/100/101/102/103/104/105/106/107/108; **SC**: SC-003, SC-004, SC-005, SC-006, SC-008, SC-009, SC-010, SC-011, SC-012, SC-013, SC-014, SC-015, SC-016, SC-017, SC-018, SC-019, SC-020 (all satisfied).
 
