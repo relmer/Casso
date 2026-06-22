@@ -64,14 +64,21 @@ void Cpu::Reset()
 //  enough to leave on for the entire Debug session (~30 bytes per
 //  step, 256-entry ring, zero allocation, no I/O).
 //
+//  `opcode` is the byte StepOne actually fetched via ReadByte (the
+//  bus-routed value, which honors ROM/language-card/soft-switch
+//  banking). It must NOT be re-read from the raw Cpu::memory[] array,
+//  which only backs $00-$BF RAM and is stale for ROM/$Cxxx/$Dxxx-$FFFF
+//  -- doing so makes the disassembly lie in exactly the banked regions
+//  a fault trace most needs to be correct about.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::TracePush ()
+void Cpu::TracePush (Byte opcode)
 {
     TraceEntry &  e = m_trace[m_traceHead];
 
     e.pc     = PC;
-    e.opcode = memory[PC];
+    e.opcode = opcode;
     e.a      = A;
     e.x      = X;
     e.y      = Y;
@@ -152,7 +159,7 @@ void Cpu::StepOne()
 
 
 #ifdef _DEBUG
-    TracePush();
+    TracePush (opcode);
 #endif
 
     if (!microcode.isLegal)

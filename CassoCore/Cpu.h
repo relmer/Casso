@@ -158,7 +158,7 @@ protected:
     size_t                                    m_traceHead  = 0;       // next slot to write
     uint64_t                                  m_traceCount = 0;       // total entries pushed
 
-    void TracePush ();
+    void TracePush (Byte opcode);
     void DumpInstructionTrace (Byte faultOpcode, Word faultPC) const;
 #endif
 };
