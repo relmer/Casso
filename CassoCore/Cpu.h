@@ -96,6 +96,7 @@ protected:
     void InitializeGroup01 ();
     void InitializeGroup10 ();
     void InitializeMisc ();
+    void InitializeUndocumented ();
 
     void CreateInstruction (uint32_t                        addressingModeMax, 
                             const char              * const instructionName[], 

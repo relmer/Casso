@@ -28,6 +28,7 @@ public:
         Break,
         Compare,
         Decrement,
+        DecrementAndCompare,
         Increment,
         Jump,
         JumpSubroutine,

@@ -6,7 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.5.1526] — Dialog rendering fix; boot-disk picker consolidation
+## [1.5.1526] — NMOS undocumented opcodes; dialog rendering fix; boot-disk picker consolidation
+
+### Added
+- **feat(cpu): NMOS 6502 undocumented opcodes DOP and DCP.** Implements
+  `$04` (DOP zp — double NOP, reads and discards a zero-page byte, 3 cycles)
+  and `$CF` (DCP abs — decrement memory then CMP A with the result, 6 cycles).
+  Real Apple II/II+ software such as *Space Quarks* (Brøderbund, 1981) relies on
+  these undocumented but consistently-behaving NMOS opcodes; Casso previously
+  asserted on them in debug builds and silently mishandled them in release.
 
 ### Fixed
 - **fix(ui): correct dialog body text overlap on scaled displays.**

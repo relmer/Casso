@@ -177,12 +177,13 @@ void Cpu::StepOne()
     // Page-crossing penalty for indexed reads (+1 cycle).
     // Stores and RMW always pay the penalty (baked into baseCycles).
     bool isReadOp =
-        microcode.operation != Microcode::Store       &&
-        microcode.operation != Microcode::ShiftLeft   &&
-        microcode.operation != Microcode::ShiftRight  &&
-        microcode.operation != Microcode::RotateLeft  &&
-        microcode.operation != Microcode::RotateRight &&
-        microcode.operation != Microcode::Decrement   &&
+        microcode.operation != Microcode::Store              &&
+        microcode.operation != Microcode::ShiftLeft          &&
+        microcode.operation != Microcode::ShiftRight         &&
+        microcode.operation != Microcode::RotateLeft         &&
+        microcode.operation != Microcode::RotateRight        &&
+        microcode.operation != Microcode::Decrement          &&
+        microcode.operation != Microcode::DecrementAndCompare &&
         microcode.operation != Microcode::Increment;
 
     if (isReadOp)
@@ -677,7 +678,8 @@ void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandIn
     case Microcode::Break:                CpuOperations::Break                (*this);                                                               break;
     case Microcode::Compare:              CpuOperations::Compare              (*this, *microcode.pSourceRegister, (Byte) operandInfo.operand);       break;
     case Microcode::Decrement:            CpuOperations::Decrement            (*this, microcode.pSourceRegister, operandInfo.effectiveAddress);      break;
-    case Microcode::Increment:            CpuOperations::Increment            (*this, microcode.pSourceRegister, operandInfo.effectiveAddress);      break;
+    case Microcode::DecrementAndCompare:  CpuOperations::DecrementAndCompare  (*this, operandInfo.effectiveAddress);                                   break;
+    case Microcode::Increment:            CpuOperations::Increment            (*this, microcode.pSourceRegister, operandInfo.effectiveAddress);        break;
     case Microcode::Jump:                 CpuOperations::Jump                 (*this, microcode.instruction, operandInfo.operand);                   break;
     case Microcode::JumpSubroutine:       CpuOperations::JumpSubroutine       (*this, operandInfo.operand);                                          break;
     case Microcode::Load:                 CpuOperations::Load                 (*this, *microcode.pDestinationRegister, (Byte) operandInfo.operand);  break;
@@ -846,6 +848,7 @@ void Cpu::InitializeInstructionSet()
     InitializeGroup01();
     InitializeGroup10();
     InitializeMisc();
+    InitializeUndocumented();
 }
 
 
@@ -1044,6 +1047,40 @@ void Cpu::InitializeMisc()
 
 }
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InitializeUndocumented
+//
+//  NMOS 6502 undocumented opcodes used by real Apple II software.
+//  Only those encountered in the wild are listed here.
+//
+//  $04  DOP zp  — Double-NOP: reads a zero-page byte and discards it.
+//                 2 bytes, 3 cycles.
+//  $CF  DCP abs — Decrement memory at absolute address then CMP A with
+//                 the decremented value.  3 bytes, 6 cycles.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu::InitializeUndocumented()
+{
+    static constexpr Byte  s_kDopBaseCycles = 3;
+    static constexpr Byte  s_kDcpBaseCycles = 6;
+
+    instructionSet[0x04] = Microcode (Instruction (0x04), "NOP",
+                                      Microcode::NoOperation,
+                                      GlobalAddressingMode::ZeroPage,
+                                      nullptr, nullptr);
+    instructionSet[0x04].baseCycles = s_kDopBaseCycles;
+
+    instructionSet[0xCF] = Microcode (Instruction (0xCF), "DCP",
+                                      Microcode::DecrementAndCompare,
+                                      GlobalAddressingMode::Absolute,
+                                      nullptr, nullptr);
+    instructionSet[0xCF].baseCycles = s_kDcpBaseCycles;
+}
 
 
 

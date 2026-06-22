@@ -198,6 +198,29 @@ void CpuOperations::Decrement (Cpu & cpu, Byte * pRegisterAffected, Word effecti
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DecrementAndCompare
+//
+//  NMOS 6502 undocumented RMW opcode (DCP).  Decrements the byte at
+//  effectiveAddress then sets C, Z, N as if CMP A,<decremented value>.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::DecrementAndCompare (Cpu & cpu, Word effectiveAddress)
+{
+    Byte value = cpu.ReadByte (effectiveAddress);
+
+    value--;
+
+    cpu.WriteByte (effectiveAddress, value);
+
+    Compare (cpu, cpu.A, value);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Increment
 //
 ////////////////////////////////////////////////////////////////////////////////
