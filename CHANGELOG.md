@@ -29,6 +29,19 @@ Entries before versioning was introduced use dates only.
   buffer after the geometry pass — the same pattern the debug panels use — so
   the D3D and D2D pipelines never interleave on the swap-chain surface.
 
+### Changed
+- **feat(ui): consolidate first-launch boot-disk prompts into one picker.**
+  First launch previously showed two overlapping dialogs: the unified asset
+  downloader (which offered boot disks among ROMs/audio) and then the legacy
+  boot-disk picker — so the user was asked about boot disks twice, and the
+  picker even re-offered a download for a master that was already installed.
+  The startup downloader no longer handles boot disks; it appears only when
+  required ROMs or optional drive audio are missing. Boot-disk selection is
+  now owned solely by the picker, which appears only when no disk is mounted
+  and now lists stock masters already present on disk as mountable rows
+  ("Installed") alongside download rows for the ones that are absent. The
+  runtime Insert-Disk picker gains the same present-master rows.
+
 ## [1.5.1523] — Game input + debug-panel revamp
 
 Authentic //e keyboard handling that makes real-time action games

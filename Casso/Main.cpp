@@ -137,9 +137,6 @@ static HRESULT LoadMachineConfig (
         GlobalUserPrefs  prefs;
         Win32FileSystem  fs_io;
         std::wstring     assetBase       = AssetBootstrap::GetAssetBaseDirectory().wstring();
-        wstring          downloadedDisk;
-        fs::path         bootDiskDir     = AssetBootstrap::GetDiskDirectory();
-        bool             offerBootDisk   = false;
         HRESULT          hrLoad;
         HRESULT          hrSave;
 
@@ -148,33 +145,9 @@ static HRESULT LoadMachineConfig (
         hrLoad = prefs.Load (assetBase, fs_io);
         IGNORE_RETURN_VALUE (hrLoad, S_OK);
 
-        // Read the per-machine saved disk path up front so we can ask
-        // the unified downloader to also fetch a stock boot disk on
-        // first launch (no --disk1, no remembered disk, machine has a
-        // Disk ][ controller). Doing this here keeps the entire
-        // first-launch experience inside one themed dialog.
-        if (inoutDisk1Path.empty())
-        {
-            UserConfigStore  store (assetBase);
-
-            hrSaved = DiskSettings::ReadSavedDiskPath (store, fs_io, 0, machineName, savedDisk);
-            IGNORE_RETURN_VALUE (hrSaved, S_OK);
-
-            if (!savedDisk.empty() && !fs::exists (fs::path (savedDisk)))
-            {
-                HRESULT hrClear = DiskSettings::WriteSavedDiskPath (
-                    store, fs_io, 0, machineName, wstring());
-                IGNORE_RETURN_VALUE (hrClear, S_OK);
-                savedDisk.clear();
-            }
-
-            offerBootDisk = savedDisk.empty() && hasDisk;
-        }
-
         hr = AssetBootstrap::RunStartupDownloader (hInstance, machineName, hwndParent,
                                                    romSearchPaths, romDir, hasDisk,
-                                                   offerBootDisk, bootDiskDir,
-                                                   prefs, downloadedDisk, error);
+                                                   prefs, error);
 
         hrSave = prefs.Save (assetBase, fs_io);
         IGNORE_RETURN_VALUE (hrSave, S_OK);
@@ -182,21 +155,16 @@ static HRESULT LoadMachineConfig (
         BAIL_OUT_IF (hr == S_FALSE, S_FALSE);
         CHRN (hr, format (L"Asset download failed:\n{}",
                           wstring (error.begin(), error.end())).c_str());
-
-        // If the unified downloader pulled a boot disk, treat it as
-        // disk1 so the legacy picker downstream short-circuits.
-        if (!downloadedDisk.empty())
-        {
-            inoutDisk1Path = downloadedDisk;
-        }
     }
 
     // Boot-disk pre-flight: if the user didn't pass --disk1 and there's
     // no remembered disk for this machine in UserPrefs (or the
     // remembered path no longer points at a real file), and the
-    // machine has a Disk ][ controller, offer to download a stock
-    // Apple system master disk. Without this the user just stares at
-    // a spinning drive forever after first launch.
+    // machine has a Disk ][ controller, show the boot-disk picker. It
+    // lists recent disks plus any stock masters already present on
+    // disk to mount, and offers to download DOS 3.3 / ProDOS if they
+    // are absent. Without this the user just stares at a spinning
+    // drive forever after first launch.
     if (inoutDisk1Path.empty())
     {
         Win32FileSystem  fs_io;

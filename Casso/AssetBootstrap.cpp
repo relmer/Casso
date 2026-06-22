@@ -1752,6 +1752,7 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     string                   & outError)
 {
     struct DownloadRow { const BootDiskSpec * spec; wstring label; };
+    struct PresentRow  { const DownloadRow * row; fs::path path; };
 
     static constexpr int s_kSkipResult     = -2002;
     static constexpr int s_kCloseBoxResult = -1000;
@@ -1769,8 +1770,10 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     };
     std::vector<const DownloadRow *> shownDownloads;
     std::vector<const DownloadRow *> mruLabels;
+    std::vector<PresentRow>          presentMasters;
     int                 chosen        = s_kSkipResult;
     int                 mruCount      = (int) mruEntries.size();
+    int                 presentCount  = 0;
     int                 downloadCount = 0;
     int                 rowCount      = 0;
     UINT                sysDpi        = (hwndParent != nullptr) ? GetDpiForWindow (hwndParent)
@@ -1812,22 +1815,35 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
             }
         }
 
-        if (!foundAny)
+        if (foundAny)
+        {
+            continue;
+        }
+
+        // Not in the MRU. If the stock master is already present in the
+        // disk folder, offer it as a mountable row; otherwise offer a
+        // download row.
+        if (fs::exists (wantPath, ec))
+        {
+            presentMasters.push_back ({ &dr, wantPath });
+        }
+        else
         {
             shownDownloads.push_back (&dr);
         }
     }
 
+    presentCount  = (int) presentMasters.size();
     downloadCount = (int) shownDownloads.size();
-    rowCount      = mruCount + downloadCount;
+    rowCount      = mruCount + presentCount + downloadCount;
 
     title  = L"Casso ";
     title += s_kchEmDash;
     title += L" Boot Disk";
 
-    if (mruCount > 0)
+    if (mruCount > 0 || presentCount > 0)
     {
-        intro  = L"Choose a recent disk for ";
+        intro  = L"Choose a boot disk for ";
         intro += displayName;
         intro += L", or download a stock master from the Asimov archive.";
     }
@@ -1839,7 +1855,9 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     }
 
     // Populate the list. Mru rows show "<basename> | <parent dir>";
-    // download rows show "<name> | Asimov archive (Download)".
+    // present-master rows show "<name> | Installed"; download rows show
+    // "<name> | Asimov archive (Download)". Order: MRU, then present
+    // masters, then downloads -- matching the result-index ranges below.
     {
         std::vector<ListView::Column>            cols;
         std::vector<std::vector<ListView::Cell>> rows;
@@ -1857,6 +1875,13 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
                                             : p.filename().wstring();
             ListView::Cell name { std::move (displayLbl), false };
             ListView::Cell loc  { p.parent_path().wstring(), true };
+            rows.push_back ({ std::move (name), std::move (loc) });
+        }
+
+        for (const PresentRow & pr : presentMasters)
+        {
+            ListView::Cell  name { pr.row->label, false };
+            ListView::Cell  loc  { L"Installed", true };
             rows.push_back ({ std::move (name), std::move (loc) });
         }
 
@@ -1937,9 +1962,15 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     {
         outDiskPath = mruEntries[(size_t) chosen].wstring();
     }
-    else if (chosen >= mruCount && chosen < rowCount)
+    else if (chosen >= mruCount && chosen < mruCount + presentCount)
     {
-        const BootDiskSpec & spec = *shownDownloads[(size_t) (chosen - mruCount)]->spec;
+        // Already-installed stock master: mount it directly, no download.
+        outDiskPath = presentMasters[(size_t) (chosen - mruCount)].path.wstring();
+    }
+    else if (chosen >= mruCount + presentCount && chosen < rowCount)
+    {
+        int                  dlIdx = chosen - mruCount - presentCount;
+        const BootDiskSpec & spec  = *shownDownloads[(size_t) dlIdx]->spec;
         hr = DownloadStockBootDisk (spec, diskDir, outDiskPath, outError);
         CHR (hr);
     }
@@ -1956,11 +1987,12 @@ Error:
 //
 //  PromptInsertDiskMru
 //
-//  Runtime-insert sibling of PromptBootDiskMru. Same MRU + DOS 3.3 /
-//  ProDOS "Download" rows, but the dialog footer offers Browse... /
-//  Cancel instead of Skip. Browse pops back to the caller which then
-//  fires the existing IFileOpenDialog path. Cancel / close box leaves
-//  the drive untouched.
+//  Runtime-insert sibling of PromptBootDiskMru. Same MRU rows, plus
+//  mountable "Installed" rows for stock DOS 3.3 / ProDOS masters already
+//  present on disk and "Download" rows for the ones that are absent, but
+//  the dialog footer offers Browse... / Cancel instead of Skip. Browse
+//  pops back to the caller which then fires the existing IFileOpenDialog
+//  path. Cancel / close box leaves the drive untouched.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1976,6 +2008,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     string                   & outError)
 {
     struct DownloadRow { const BootDiskSpec * spec; wstring label; };
+    struct PresentRow  { const DownloadRow * row; fs::path path; };
 
     static constexpr int  s_kBrowseResult   = -2000;
     static constexpr int  s_kCancelResult   = -2001;
@@ -1992,8 +2025,10 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     };
     std::vector<const DownloadRow *> shownDownloads;
     std::vector<const DownloadRow *> mruLabels;
+    std::vector<PresentRow>          presentMasters;
     int                 chosen        = s_kCancelResult;
     int                 mruCount      = (int) mruEntries.size();
+    int                 presentCount  = 0;
     int                 downloadCount = 0;
     int                 rowCount      = 0;
     UINT                sysDpi        = (hwndParent != nullptr) ? GetDpiForWindow (hwndParent)
@@ -2029,20 +2064,33 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
             }
         }
 
-        if (!foundAny)
+        if (foundAny)
+        {
+            continue;
+        }
+
+        // Not in the MRU. If the stock master is already present in the
+        // disk folder, offer it as a mountable row; otherwise offer a
+        // download row.
+        if (fs::exists (wantPath, ec))
+        {
+            presentMasters.push_back ({ &dr, wantPath });
+        }
+        else
         {
             shownDownloads.push_back (&dr);
         }
     }
 
+    presentCount  = (int) presentMasters.size();
     downloadCount = (int) shownDownloads.size();
-    rowCount      = mruCount + downloadCount;
+    rowCount      = mruCount + presentCount + downloadCount;
 
     title  = L"Casso ";
     title += s_kchEmDash;
     title += format (L" Insert Disk in Drive {}", drive);
 
-    if (mruCount > 0)
+    if (mruCount > 0 || presentCount > 0)
     {
         intro  = format (L"Choose a disk image for Drive {}, browse for "
                          L"another, or download a stock master from the "
@@ -2072,6 +2120,13 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
                                             : p.filename().wstring();
             ListView::Cell name { std::move (displayName), false };
             ListView::Cell loc  { p.parent_path().wstring(), true };
+            rows.push_back ({ std::move (name), std::move (loc) });
+        }
+
+        for (const PresentRow & pr : presentMasters)
+        {
+            ListView::Cell  name { pr.row->label, false };
+            ListView::Cell  loc  { L"Installed", true };
             rows.push_back ({ std::move (name), std::move (loc) });
         }
 
@@ -2153,9 +2208,15 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     {
         outDiskPath = mruEntries[(size_t) chosen].wstring();
     }
-    else if (chosen >= mruCount && chosen < rowCount)
+    else if (chosen >= mruCount && chosen < mruCount + presentCount)
     {
-        const BootDiskSpec & spec = *shownDownloads[(size_t) (chosen - mruCount)]->spec;
+        // Already-installed stock master: mount it directly, no download.
+        outDiskPath = presentMasters[(size_t) (chosen - mruCount)].path.wstring();
+    }
+    else if (chosen >= mruCount + presentCount && chosen < rowCount)
+    {
+        int                  dlIdx = chosen - mruCount - presentCount;
+        const BootDiskSpec & spec  = *shownDownloads[(size_t) dlIdx]->spec;
         hr = DownloadStockBootDisk (spec, diskDir, outDiskPath, outError);
         CHR (hr);
     }
@@ -2680,10 +2741,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
     const vector<fs::path> & searchPaths,
     const fs::path         & assetBaseDir,
     bool                     considerDiskAudio,
-    bool                     offerBootDisk,
-    const fs::path         & diskDir,
     GlobalUserPrefs        & prefs,
-    wstring                & outBootDiskPath,
     string                 & outError)
 {
     HRESULT                hr             = S_OK;
@@ -2696,8 +2754,6 @@ HRESULT AssetBootstrap::RunStartupDownloader (
     error_code             ec;
 
     UNREFERENCED_PARAMETER (hInstance);
-
-    outBootDiskPath.clear();
 
     narrowMachine.reserve (machineName.size ());
 
@@ -2935,80 +2991,6 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         }
     }
 
-    if (offerBootDisk)
-    {
-        struct DiskChoice { const BootDiskSpec * spec; bool defaultSelected; };
-        DiskChoice  choices[] =
-        {
-            { &s_kDos33Disk,  true  },
-            { &s_kProDOSDisk, false }
-        };
-
-        for (const DiskChoice & dc : choices)
-        {
-            fs::path  wantPath = diskDir / string (dc.spec->cassoName);
-
-            if (fs::exists (wantPath, ec))
-            {
-                continue;
-            }
-
-            const BootDiskSpec * spec = dc.spec;
-            StartupAssetEntry    entry;
-
-            entry.kind          = StartupAssetKind::BootDisk;
-            entry.groupLabel    = L"Boot disks";
-            entry.displayName   = AsciiToWide (string (spec->shortLabel));
-            entry.kindLabel     = L"Boot disk";
-            entry.source        = L"Asimov";
-            entry.selectable    = true;
-            entry.selected      = dc.defaultSelected;
-            entry.destPaths.push_back (wantPath);
-            entry.expectedBytes = (std::uint64_t) spec->expectedSize;
-            entry.downloadFn    = [spec, destPath = wantPath] (
-                std::atomic<std::uint64_t> & bytesDone,
-                std::atomic<bool>          & cancel,
-                std::string                & err) -> HRESULT
-            {
-                HRESULT       hr      = S_OK;
-                HINTERNET     hSes    = nullptr;
-                vector<Byte>  payload;
-                error_code    ecLocal;
-
-                hSes = WinHttpOpen (s_kpszUserAgent,
-                                    WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-                                    WINHTTP_NO_PROXY_NAME,
-                                    WINHTTP_NO_PROXY_BYPASS,
-                                    0);
-                CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
-
-                hr = DownloadHttp (hSes,
-                                   s_kpszAsimovHost,
-                                   spec->asimovUrlPath,
-                                   spec->expectedSize,
-                                   spec->shortLabel,
-                                   payload,
-                                   err,
-                                   &bytesDone,
-                                   &cancel);
-                CHR (hr);
-
-                fs::create_directories (destPath.parent_path (), ecLocal);
-                hr = WriteFileBytes (destPath, payload);
-                CHRF (hr, err = format ("Cannot write {}", destPath.string ()));
-
-            Error:
-                if (hSes != nullptr)
-                {
-                    WinHttpCloseHandle (hSes);
-                }
-                return hr;
-            };
-
-            set.entries.push_back (std::move (entry));
-        }
-    }
-
     BAIL_OUT_IF (set.entries.empty (), S_OK);
 
     result = StartupDownloadDialog::Show (hInstance, hwndParent, prefs.activeTheme,
@@ -3022,18 +3004,6 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         if (audioIncluded)
         {
             prefs.audioDownloadConsent = "allow";
-        }
-        // Pick the first boot-disk entry whose file is actually on
-        // disk -- preserves catalog order (DOS 3.3 over ProDOS) and
-        // tolerates the user unchecking the default.
-        for (const StartupAssetEntry & entry : set.entries)
-        {
-            if (entry.kind != StartupAssetKind::BootDisk) continue;
-            if (entry.destPaths.empty ())                 continue;
-            if (!fs::exists (entry.destPaths.front (), ec)) continue;
-
-            outBootDiskPath = entry.destPaths.front ().wstring ();
-            break;
         }
         hr = S_OK;
         break;
