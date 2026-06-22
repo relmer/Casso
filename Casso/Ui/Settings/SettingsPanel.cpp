@@ -1528,17 +1528,13 @@ void SettingsPanel::DoMachineSelect (const std::string & machineName)
     {
         bool          hasDisk            = false;
         std::string   hasDiskErr;
-        std::wstring  downloadedDisk;
         HRESULT       hrHasDisk          = AssetBootstrap::HasDiskController (hInstance, wideName,
                                                                               hasDisk, hasDiskErr);
         IGNORE_RETURN_VALUE (hrHasDisk, S_OK);
 
-        // Switch-machine flow: never auto-download a boot disk -- the
-        // user explicitly picks the disk via File menu / settings.
         hr = AssetBootstrap::RunStartupDownloader (hInstance, wideName, hwndParent,
                                                    searchPaths, assetBaseDir, hasDisk,
-                                                   false, fs::path(),
-                                                   *m_prefs, downloadedDisk, bootstrapError);
+                                                   *m_prefs, bootstrapError);
 
         // Audio consent may have been updated; flush prefs regardless.
         if (m_ucs != nullptr && m_fs != nullptr)

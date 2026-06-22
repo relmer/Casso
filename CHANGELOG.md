@@ -6,6 +6,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.5.1526] — Dialog rendering fix; boot-disk picker consolidation
+
+### Fixed
+- **fix(ui): correct dialog body text overlap on scaled displays.**
+  The dialog computed its layout using the owner window's DPI. At startup
+  the owner is the desktop window, which is system-DPI aware and reports the
+  system DPI (e.g. 96) rather than the dialog's per-monitor DPI (e.g. 144 on
+  a 150% display) — so even with a single monitor the two can differ. The
+  body paragraph was therefore measured and wrapped at one scale while its
+  text rendered at another, leaving each wrapped line's cell too narrow for
+  the rendered glyphs; DWrite re-wrapped the text inside the cell, spilling
+  lines on top of one another. The dialog now re-syncs its layout (and window
+  size) to the window's actual per-monitor DPI once the window exists, the
+  same way it already handles `WM_DPICHANGED`.
+- **fix(ui): render dialog text via an offscreen D2D composite.** Dialog
+  rendering interleaved D3D and Direct2D on the same swap-chain surface:
+  `m_painter.End()` issued a D3D draw while D2D's `BeginDraw` was still active,
+  triggering an implicit mid-frame D2D flush followed by a second flush at
+  `EndDraw`, and asserting in debug builds (`CBRA(m_drawing)`). The dialog now
+  renders text to an offscreen D2D bitmap and composites it onto the back
+  buffer after the geometry pass — the same pattern the debug panels use — so
+  the D3D and D2D pipelines never interleave on the swap-chain surface.
+
+### Changed
+- **feat(ui): consolidate first-launch boot-disk prompts into one picker.**
+  First launch previously showed two overlapping dialogs: the unified asset
+  downloader (which offered boot disks among ROMs/audio) and then the legacy
+  boot-disk picker — so the user was asked about boot disks twice, and the
+  picker even re-offered a download for a master that was already installed.
+  The startup downloader no longer handles boot disks; it appears only when
+  required ROMs or optional drive audio are missing. Boot-disk selection is
+  now owned solely by the picker, which appears only when no disk is mounted
+  and now lists stock masters already present on disk as mountable rows
+  ("Installed") alongside download rows for the ones that are absent. The
+  runtime Insert-Disk picker gains the same present-master rows.
+
 ## [1.5.1523] — Game input + debug-panel revamp
 
 Authentic //e keyboard handling that makes real-time action games

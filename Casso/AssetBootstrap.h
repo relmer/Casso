@@ -138,11 +138,12 @@ public:
     // Themed runtime disk-insert picker. Mirrors PromptBootDiskMru
     // but is used when the user clicks a drive widget (or invokes
     // Disk -> Insert in drive N) on a running machine. Lists the
-    // user's recent disk images plus "Download" rows for the DOS 3.3
-    // and ProDOS stock masters so the picker is never empty even on
-    // a fresh install. The "Browse..." footer button falls through to
-    // the Win32 IFileOpenDialog for ad-hoc images. Cancel / close box
-    // leaves the slot untouched.
+    // user's recent disk images, mountable rows for any stock DOS 3.3
+    // / ProDOS master already present on disk, and "Download" rows for
+    // the stock masters that are absent, so the picker is never empty
+    // even on a fresh install. The "Browse..." footer button falls
+    // through to the Win32 IFileOpenDialog for ad-hoc images. Cancel /
+    // close box leaves the slot untouched.
     //
     // On return:
     //   outDiskPath  = path to mount, or empty if the user cancelled
@@ -175,20 +176,15 @@ public:
     //
     // `prefs.audioDownloadConsent` is read AND updated to reflect the
     // user's choice (allow / decline). The caller is responsible for
-    // flushing prefs to disk after this returns.
-    // `outBootDiskPath` (if non-empty on return) names the freshly
-    // downloaded stock master disk; the caller should treat it as
-    // disk1 for the impending machine boot. Empty if no boot-disk
-    // entry was included or download did not finish.
+    // flushing prefs to disk after this returns. Boot disks are NOT
+    // handled here -- the boot-disk picker (PromptBootDiskMru) owns that
+    // flow.
     static HRESULT  RunStartupDownloader  (HINSTANCE                hInstance,
                                            const wstring          & machineName,
                                            HWND                     hwndParent,
                                            const vector<fs::path> & romSearchPaths,
                                            const fs::path         & assetBaseDir,
                                            bool                     considerDiskAudio,
-                                           bool                     offerBootDisk,
-                                           const fs::path         & diskDir,
                                            struct GlobalUserPrefs & prefs,
-                                           wstring                & outBootDiskPath,
                                            string                 & outError);
 };
