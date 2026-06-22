@@ -6,6 +6,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.5.1526] — Dialog rendering fix; boot-disk picker consolidation
+
+### Fixed
+- **fix(ui): render dialog text via an offscreen D2D composite.** Dialog
+  rendering interleaved D3D and Direct2D on the same swap-chain surface:
+  `m_painter.End()` issued a D3D draw while D2D's `BeginDraw` was still active,
+  triggering an implicit mid-frame D2D flush followed by a second flush at
+  `EndDraw`, and asserting in debug builds (`CBRA(m_drawing)`). The dialog now
+  renders text to an offscreen D2D bitmap and composites it onto the back
+  buffer after the geometry pass — the same pattern the debug panels use — so
+  the D3D and D2D pipelines never interleave on the swap-chain surface.
+
 ## [1.5.1523] — Game input + debug-panel revamp
 
 Authentic //e keyboard handling that makes real-time action games

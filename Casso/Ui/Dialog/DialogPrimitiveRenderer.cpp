@@ -356,10 +356,16 @@ HRESULT DialogPrimitiveRenderer::Render (
     m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf(), nullptr);
     m_context->ClearRenderTargetView (m_rtv.Get(), clearColor);
 
+    // Single paint pass: geometry accumulates in the painter (D3D) while
+    // text renders to an offscreen D2D bitmap. The painter's D3D draw at
+    // End() and the D2D composite never interleave on the swap-chain
+    // surface, so there is no D3D/D2D interop hazard. Rendering D2D at the
+    // offscreen's fixed 96 DPI also keeps the dialog's physical-pixel
+    // coordinates correct at every display scale.
     hr = m_painter.Begin (m_widthPx, m_heightPx);
     CHRA (hr);
 
-    hr = m_text.BeginDraw();
+    hr = m_text.BeginDrawOffscreen();
     CHRA (hr);
 
     PaintBackground (theme, titleHeightPx);
@@ -370,10 +376,12 @@ HRESULT DialogPrimitiveRenderer::Render (
     PaintCustomBody (def, layout, theme, titleHeightPx);
     PaintButtons    (buttons, theme);
 
+    // Submit geometry to the back buffer first, then composite the text
+    // bitmap on top of it.
     hr = m_painter.End (m_rtv.Get());
     CHRA (hr);
 
-    hr = m_text.EndDraw();
+    hr = m_text.EndDrawComposite();
     CHRA (hr);
 
     hr = m_swapChain->Present (1, 0);
