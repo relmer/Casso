@@ -115,6 +115,7 @@ int DialogPrimitive::Show (
     BOOL     ok            = FALSE;
     MSG      msg           = {};
     bool     ownerEnabled  = false;
+    UINT     actualDpi     = 0;
 
 
 
@@ -158,6 +159,32 @@ int DialogPrimitive::Show (
                                    m_hInstance,
                                    this);
     CWRA (hwndCreated);
+
+    // The pre-creation layout used the owner window's DPI. At startup the
+    // owner is the desktop window, which is system-DPI aware and reports
+    // the system DPI -- not this dialog's per-monitor DPI. When the two
+    // differ (e.g. a 96-DPI system baseline with a 150%/144-DPI monitor),
+    // the body would be measured and wrapped at one scale while its text
+    // renders at another, so each wrapped line's cell is too narrow for the
+    // rendered glyphs; DWrite then re-wraps inside the cell and the lines
+    // pile on top of each other. Now that the window exists and its real
+    // per-monitor DPI is known, re-sync the layout and window size to it.
+    actualDpi = GetDpiForWindow (hwndCreated);
+    if (actualDpi != 0 && actualDpi != m_dpi)
+    {
+        m_dpi = actualDpi;
+        RecomputeLayout (m_dpi);
+        BuildButtons    ();
+
+        windowRect = GetInitialWindowRect (hwndOwner, m_dpi);
+        SetWindowPos (hwndCreated,
+                      nullptr,
+                      windowRect.left,
+                      windowRect.top,
+                      windowRect.right  - windowRect.left,
+                      windowRect.bottom - windowRect.top,
+                      SWP_NOZORDER | SWP_NOACTIVATE);
+    }
 
     EnableWindow (hwndOwner, FALSE);
     ownerEnabled = true;

@@ -9,6 +9,17 @@ Entries before versioning was introduced use dates only.
 ## [1.5.1526] — Dialog rendering fix; boot-disk picker consolidation
 
 ### Fixed
+- **fix(ui): correct dialog body text overlap on scaled displays.**
+  The dialog computed its layout using the owner window's DPI. At startup
+  the owner is the desktop window, which is system-DPI aware and reports the
+  system DPI (e.g. 96) rather than the dialog's per-monitor DPI (e.g. 144 on
+  a 150% display) — so even with a single monitor the two can differ. The
+  body paragraph was therefore measured and wrapped at one scale while its
+  text rendered at another, leaving each wrapped line's cell too narrow for
+  the rendered glyphs; DWrite re-wrapped the text inside the cell, spilling
+  lines on top of one another. The dialog now re-syncs its layout (and window
+  size) to the window's actual per-monitor DPI once the window exists, the
+  same way it already handles `WM_DPICHANGED`.
 - **fix(ui): render dialog text via an offscreen D2D composite.** Dialog
   rendering interleaved D3D and Direct2D on the same swap-chain surface:
   `m_painter.End()` issued a D3D draw while D2D's `BeginDraw` was still active,
