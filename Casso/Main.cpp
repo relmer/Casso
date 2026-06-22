@@ -19,6 +19,46 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ParseTraceSize
+//
+//  Parse a --trace size override like "20M", "500000", or "2G" into a
+//  ring-buffer entry count. Suffixes K/M/G multiply by 1e3/1e6/1e9.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static size_t ParseTraceSize (const wstring & text)
+{
+    unsigned long long  value = 0;
+    wchar_t           * end   = nullptr;
+
+
+
+    if (text.empty())
+    {
+        return 0;
+    }
+
+    value = wcstoull (text.c_str(), &end, 10);
+
+    if (end != nullptr && *end != L'\0')
+    {
+        switch (towupper (*end))
+        {
+            case L'K':  value *= 1000ull;        break;
+            case L'M':  value *= 1000000ull;     break;
+            case L'G':  value *= 1000000000ull;  break;
+            default:                             break;
+        }
+    }
+
+    return (size_t) value;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ParseCommandLine
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,13 +67,20 @@ static HRESULT ParseCommandLine (
     LPWSTR         lpCmdLine,
     wstring & outMachine,
     wstring & outDisk1,
-    wstring & outDisk2)
+    wstring & outDisk2,
+    size_t  & outTraceCapacity)
 {
+    // ~1 minute of emulated 6502 time (~340K instructions/sec). Each ring
+    // entry is ~10 bytes, so the default ring is ~200 MB.
+    static constexpr size_t  s_kTraceDefaultEntries = 20000000;
+
     HRESULT   hr   = S_OK;
     int       argc = 0;
     LPWSTR  * argv = nullptr;
 
 
+
+    outTraceCapacity = 0;
 
     argv = CommandLineToArgvW (lpCmdLine, &argc);
     CWRA (argv);
@@ -53,6 +100,20 @@ static HRESULT ParseCommandLine (
         else if (arg == L"--disk2" && i + 1 < argc)
         {
             outDisk2 = argv[++i];
+        }
+        else if (arg == L"--trace" || arg == L"/trace")
+        {
+            outTraceCapacity = s_kTraceDefaultEntries;
+
+            // Optional space-separated numeric override: "--trace 50M".
+            if (i + 1 < argc && iswdigit (argv[i + 1][0]))
+            {
+                outTraceCapacity = ParseTraceSize (argv[++i]);
+            }
+        }
+        else if (arg.rfind (L"--trace=", 0) == 0 || arg.rfind (L"/trace=", 0) == 0)
+        {
+            outTraceCapacity = ParseTraceSize (arg.substr (arg.find (L'=') + 1));
         }
     }
 
@@ -267,6 +328,36 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Trace crash handler
+//
+//  When --trace is active, an unhandled exception (including the
+//  illegal-opcode __debugbreak with no debugger attached) dumps the CPU
+//  execution-trace ring to a file before the process dies. The filter
+//  runs on the faulting thread -- for a CPU fault that is the CPU thread
+//  that owns the ring, so the dump is race-free. s_pTraceShell is set
+//  once the shell exists; DumpTrace is one-shot and self-guards.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static EmulatorShell * s_pTraceShell = nullptr;
+
+static LONG WINAPI TraceCrashFilter (EXCEPTION_POINTERS * info)
+{
+    UNREFERENCED_PARAMETER (info);
+
+    if (s_pTraceShell != nullptr)
+    {
+        s_pTraceShell->DumpTrace (L"crash");
+    }
+
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  wWinMain
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -281,6 +372,8 @@ int WINAPI wWinMain (
     wstring                          machineName;
     wstring                          disk1Path;
     wstring                          disk2Path;
+    size_t                           traceCapacity = 0;
+    int                              exitCode      = 0;
     MachineConfig                    config;
     std::unique_ptr<EmulatorShell>   shell = std::make_unique<EmulatorShell>();
 
@@ -309,8 +402,18 @@ int WINAPI wWinMain (
     });
 
     // Parse command line
-    hr = ParseCommandLine (lpCmdLine, machineName, disk1Path, disk2Path);
+    hr = ParseCommandLine (lpCmdLine, machineName, disk1Path, disk2Path, traceCapacity);
     CHR (hr);
+
+    // --trace: size the CPU ring and install the crash-time dump filter
+    // before the CPU thread starts, so an illegal-opcode/__debugbreak or
+    // any unhandled exception flushes the trace to a file on the way out.
+    if (traceCapacity > 0)
+    {
+        shell->SetTraceCapacity (traceCapacity);
+        SetUnhandledExceptionFilter (TraceCrashFilter);
+        s_pTraceShell = shell.get();
+    }
 
     // Make sure a Machines/ directory exists with at least the stock
     // JSON configs (extracts embedded resources on first run if the
@@ -410,9 +513,20 @@ int WINAPI wWinMain (
     CHRN (hr, L"Failed to initialize emulator");
 
     // Run message loop
-    return shell->RunMessageLoop();
+    exitCode = shell->RunMessageLoop();
+
+    // --trace graceful-exit dump. No-op (one-shot guard) if a crash
+    // already flushed the ring via TraceCrashFilter.
+    if (shell->IsTracing())
+    {
+        shell->DumpTrace (L"exit");
+    }
+
+    s_pTraceShell = nullptr;
+    return exitCode;
 
 Error:
+    s_pTraceShell = nullptr;
     return FAILED (hr) ? 1 : 0;
 }
 

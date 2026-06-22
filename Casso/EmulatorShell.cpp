@@ -3781,6 +3781,233 @@ void EmulatorShell::PowerCycle()
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TraceProgressWindow
+//
+//  Minimal GDI-painted progress window for the --trace file dump. Drawn
+//  entirely in WM_PAINT (no common controls) so it stays robust even when
+//  raised from inside the unhandled-exception filter on the CPU thread.
+//  Shows the reason, the full output path, and "N of M instructions (P%)"
+//  with a fill bar. SetProgress repaints synchronously and pumps pending
+//  messages so the window keeps redrawing during a multi-second write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class TraceProgressWindow
+{
+public:
+    bool Create (const std::wstring & reason, const std::wstring & path, uint64_t total)
+    {
+        HRESULT     hr        = S_OK;
+        WNDCLASSEXW wc        = { sizeof (wc) };
+        HINSTANCE   hInst     = GetModuleHandleW (nullptr);
+        int         screenW   = GetSystemMetrics (SM_CXSCREEN);
+        int         screenH   = GetSystemMetrics (SM_CYSCREEN);
+
+        m_reason = reason;
+        m_path   = path;
+        m_total  = total;
+        m_done   = 0;
+
+        wc.lpfnWndProc   = &TraceProgressWindow::WndProc;
+        wc.hInstance     = hInst;
+        wc.hCursor       = LoadCursorW (nullptr, IDC_WAIT);
+        wc.hbrBackground = (HBRUSH) (COLOR_WINDOW + 1);
+        wc.lpszClassName = s_kpszClass;
+        RegisterClassExW (&wc);            // benign if already registered
+
+        m_hwnd = CreateWindowExW (WS_EX_TOPMOST,
+                                  s_kpszClass,
+                                  L"Casso \x2014 Writing trace",
+                                  WS_POPUP | WS_BORDER | WS_CAPTION,
+                                  (screenW - s_kWidthPx)  / 2,
+                                  (screenH - s_kHeightPx) / 2,
+                                  s_kWidthPx, s_kHeightPx,
+                                  nullptr, nullptr, hInst, this);
+        CWR (m_hwnd);
+
+        ShowWindow  (m_hwnd, SW_SHOW);
+        UpdateWindow (m_hwnd);
+
+    Error:
+        return m_hwnd != nullptr;
+    }
+
+    void SetProgress (uint64_t done, uint64_t total)
+    {
+        MSG  msg = {};
+
+        m_done  = done;
+        m_total = total;
+
+        if (m_hwnd == nullptr)
+        {
+            return;
+        }
+
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+        UpdateWindow   (m_hwnd);
+
+        while (PeekMessageW (&msg, m_hwnd, 0, 0, PM_REMOVE))
+        {
+            TranslateMessage (&msg);
+            DispatchMessageW  (&msg);
+        }
+    }
+
+    void Destroy ()
+    {
+        if (m_hwnd != nullptr)
+        {
+            DestroyWindow (m_hwnd);
+            m_hwnd = nullptr;
+        }
+    }
+
+private:
+    static LRESULT CALLBACK WndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+    {
+        TraceProgressWindow *  self = reinterpret_cast<TraceProgressWindow *> (
+            GetWindowLongPtrW (hwnd, GWLP_USERDATA));
+
+        if (msg == WM_CREATE)
+        {
+            CREATESTRUCTW *  cs = reinterpret_cast<CREATESTRUCTW *> (lParam);
+            SetWindowLongPtrW (hwnd, GWLP_USERDATA,
+                               reinterpret_cast<LONG_PTR> (cs->lpCreateParams));
+            return 0;
+        }
+
+        if (msg == WM_PAINT && self != nullptr)
+        {
+            self->OnPaint (hwnd);
+            return 0;
+        }
+
+        return DefWindowProcW (hwnd, msg, wParam, lParam);
+    }
+
+    void OnPaint (HWND hwnd)
+    {
+        PAINTSTRUCT  ps      = {};
+        HDC          hdc     = BeginPaint (hwnd, &ps);
+        RECT         rc      = {};
+        RECT         bar     = {};
+        int          pct     = (m_total > 0) ? (int) ((m_done * 100) / m_total) : 0;
+        wchar_t      line1[128] = {};
+        wchar_t      line3[160] = {};
+        HBRUSH       fill    = CreateSolidBrush (RGB (0x2D, 0x7D, 0x46));
+
+        GetClientRect (hwnd, &rc);
+
+        swprintf_s (line1, L"Writing execution trace (%s)\x2026", m_reason.c_str());
+        swprintf_s (line3, L"%llu of %llu instructions  (%d%%)",
+                    (unsigned long long) m_done, (unsigned long long) m_total, pct);
+
+        SetBkMode   (hdc, TRANSPARENT);
+
+        RECT  r1 = { s_kPadPx, s_kPadPx, rc.right - s_kPadPx, s_kPadPx + s_kLinePx };
+        DrawTextW (hdc, line1, -1, &r1, DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+        RECT  r2 = { s_kPadPx, r1.bottom + 4, rc.right - s_kPadPx, r1.bottom + 4 + s_kLinePx };
+        DrawTextW (hdc, m_path.c_str(), -1, &r2, DT_LEFT | DT_SINGLELINE | DT_PATH_ELLIPSIS);
+
+        RECT  r3 = { s_kPadPx, r2.bottom + 4, rc.right - s_kPadPx, r2.bottom + 4 + s_kLinePx };
+        DrawTextW (hdc, line3, -1, &r3, DT_LEFT | DT_SINGLELINE);
+
+        bar.left   = s_kPadPx;
+        bar.right  = rc.right - s_kPadPx;
+        bar.top    = r3.bottom + 8;
+        bar.bottom = bar.top + s_kBarPx;
+        FrameRect (hdc, &bar, (HBRUSH) GetStockObject (GRAY_BRUSH));
+
+        RECT  filled = bar;
+        filled.right = bar.left + (LONG) (((bar.right - bar.left) * (LONGLONG) pct) / 100);
+        FillRect (hdc, &filled, fill);
+
+        DeleteObject (fill);
+        EndPaint (hwnd, &ps);
+    }
+
+    static constexpr const wchar_t *  s_kpszClass = L"CassoTraceProgress";
+    static constexpr int              s_kWidthPx  = 560;
+    static constexpr int              s_kHeightPx = 170;
+    static constexpr int              s_kPadPx    = 16;
+    static constexpr int              s_kLinePx   = 22;
+    static constexpr int              s_kBarPx    = 22;
+
+    HWND          m_hwnd  = nullptr;
+    std::wstring  m_reason;
+    std::wstring  m_path;
+    uint64_t      m_done  = 0;
+    uint64_t      m_total = 0;
+};
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DumpTrace
+//
+//  Write the CPU execution-trace ring to a timestamped text file in the
+//  working directory, showing a progress window. Best-effort and one-shot:
+//  guarded so the graceful-exit path and the crash handler cannot both
+//  write, and a no-op when --trace is off. Safe to call from the crash
+//  handler on the CPU thread (the thread that owns the ring) since the
+//  process is already halted at the fault.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DumpTrace (const wstring & reason)
+{
+    bool          expected = false;
+    SYSTEMTIME    st       = {};
+    wchar_t       name[64] = {};
+    wchar_t       cwd[MAX_PATH] = {};
+    std::wstring  path;
+    uint64_t      total    = 0;
+
+    if (!m_traceDumped.compare_exchange_strong (expected, true))
+    {
+        return;
+    }
+
+    if (m_traceCapacity == 0 || m_cpu == nullptr || !m_cpu->IsTraceEnabled())
+    {
+        return;
+    }
+
+    GetLocalTime (&st);
+    swprintf_s (name, L"casso-trace-%04u%02u%02u-%02u%02u%02u.txt",
+                st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+
+    if (GetCurrentDirectoryW (MAX_PATH, cwd) > 0)
+    {
+        path = std::wstring (cwd) + L"\\" + name;
+    }
+    else
+    {
+        path = name;
+    }
+
+    total = m_cpu->GetTraceCount();
+
+    TraceProgressWindow  win;
+    win.Create (reason, path, total);
+
+    m_cpu->DumpTraceToFile (path, [&win] (uint64_t done, uint64_t tot)
+    {
+        win.SetProgress (done, tot);
+    });
+
+    win.Destroy();
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //

@@ -716,6 +716,14 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
 
     m_shell.m_cpu = std::make_unique<EmuCpu> (m_shell.m_memoryBus);
 
+    // --trace: allocate the CPU execution-trace ring now that the CPU
+    // exists. Covers both initial machine build and machine switches,
+    // since both paths run through here.
+    if (m_shell.m_traceCapacity > 0)
+    {
+        m_shell.m_cpu->EnableTrace (m_shell.m_traceCapacity);
+    }
+
     // Wire the //e video timing model into the EmuCpu cycle fan-out.
     // Every AddCycles call now ticks VideoTiming so $C019 (RDVBLBAR)
     // tracks the 17,030-cycle frame. Null-safe for tests/builds that

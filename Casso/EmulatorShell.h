@@ -79,6 +79,16 @@ public:
     // Access bus for test wiring
     MemoryBus & GetBus() { return m_memoryBus; }
 
+    // Execution trace (--trace switch). SetTraceCapacity must be called
+    // before Initialize so the CPU's ring is allocated when the machine
+    // is built. DumpTrace writes the recorded ring to a timestamped text
+    // file in the working directory, showing a progress window; it is
+    // called both on graceful exit and from the crash handler, and is a
+    // no-op (and self-guards against a double dump) when tracing is off.
+    void SetTraceCapacity (size_t capacityEntries) { m_traceCapacity = capacityEntries; }
+    bool IsTracing        () const { return m_traceCapacity > 0; }
+    void DumpTrace        (const wstring & reason);
+
     // / FR-034 / FR-035: split-reset entry points exposed for the
     // menu commands (IDM_MACHINE_RESET / IDM_MACHINE_POWERCYCLE) and any
     // future programmatic callers. SoftReset preserves user RAM and
@@ -341,6 +351,8 @@ private:
     InterruptController m_interruptController;
     unique_ptr<EmuCpu> m_cpu;
     unique_ptr<class Prng> m_prng;
+    size_t              m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
+    std::atomic<bool>   m_traceDumped { false };   // one-shot guard for DumpTrace
 
     D3DRenderer         m_d3dRenderer;
     WasapiAudio         m_wasapiAudio;
