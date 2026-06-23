@@ -3799,11 +3799,15 @@ class TraceProgressWindow
 public:
     bool Create (const std::wstring & reason, const std::wstring & path, uint64_t total)
     {
-        HRESULT     hr        = S_OK;
-        WNDCLASSEXW wc        = { sizeof (wc) };
-        HINSTANCE   hInst     = GetModuleHandleW (nullptr);
-        int         screenW   = GetSystemMetrics (SM_CXSCREEN);
-        int         screenH   = GetSystemMetrics (SM_CYSCREEN);
+        HRESULT     hr      = S_OK;
+        WNDCLASSEXW wc      = { sizeof (wc) };
+        HINSTANCE   hInst   = GetModuleHandleW (nullptr);
+        DWORD       style   = WS_POPUP | WS_BORDER | WS_CAPTION;
+        RECT        wr      = {};
+        int         winW    = 0;
+        int         winH    = 0;
+        int         screenW = GetSystemMetrics (SM_CXSCREEN);
+        int         screenH = GetSystemMetrics (SM_CYSCREEN);
 
         m_reason = reason;
         m_path   = path;
@@ -3817,17 +3821,53 @@ public:
         wc.lpszClassName = s_kpszClass;
         RegisterClassExW (&wc);            // benign if already registered
 
+        // Create at a provisional position so the window's monitor DPI is
+        // known, then size the client area to fit the DPI-scaled content
+        // and recentre. Sizing the *client* rect (via AdjustWindowRect)
+        // keeps a uniform margin around the content at any DPI -- a fixed
+        // window height let the caption eat the client area and clipped
+        // the progress bar against the bottom edge on high-DPI displays.
         m_hwnd = CreateWindowExW (WS_EX_TOPMOST,
                                   s_kpszClass,
                                   L"Casso \x2014 Writing trace",
-                                  WS_POPUP | WS_BORDER | WS_CAPTION,
-                                  (screenW - s_kWidthPx)  / 2,
-                                  (screenH - s_kHeightPx) / 2,
-                                  s_kWidthPx, s_kHeightPx,
+                                  style,
+                                  0, 0, s_kClientWPx, s_kClientHPx,
                                   nullptr, nullptr, hInst, this);
         CWR (m_hwnd);
 
-        ShowWindow  (m_hwnd, SW_SHOW);
+        m_dpi = GetDpiForWindow (m_hwnd);
+        if (m_dpi == 0)
+        {
+            m_dpi = 96;
+        }
+
+        // Use the OS themed message font (Segoe UI on Win10/11) sized for
+        // this window's DPI. Without an explicit font GDI falls back to the
+        // ancient bitmap SYSTEM_FONT, which looks aliased, ignores DPI, and
+        // can't render the U+2026 ellipsis.
+        {
+            NONCLIENTMETRICSW  ncm = { sizeof (ncm) };
+
+            if (SystemParametersInfoForDpi (SPI_GETNONCLIENTMETRICS, sizeof (ncm), &ncm, 0, m_dpi))
+            {
+                m_font = CreateFontIndirectW (&ncm.lfMessageFont);
+            }
+        }
+
+        wr.left   = 0;
+        wr.top    = 0;
+        wr.right  = Scaled (s_kClientWPx);
+        wr.bottom = Scaled (s_kClientHPx);
+        AdjustWindowRectExForDpi (&wr, style, FALSE, WS_EX_TOPMOST, m_dpi);
+
+        winW = wr.right - wr.left;
+        winH = wr.bottom - wr.top;
+
+        SetWindowPos (m_hwnd, HWND_TOPMOST,
+                      (screenW - winW) / 2, (screenH - winH) / 2,
+                      winW, winH, SWP_NOACTIVATE);
+
+        ShowWindow   (m_hwnd, SW_SHOW);
         UpdateWindow (m_hwnd);
 
     Error:
@@ -3836,15 +3876,15 @@ public:
 
     void SetProgress (uint64_t done, uint64_t total)
     {
-        MSG  msg = {};
+        HRESULT  hr  = S_OK;
+        MSG      msg = {};
+
+
 
         m_done  = done;
         m_total = total;
 
-        if (m_hwnd == nullptr)
-        {
-            return;
-        }
+        BAIL_OUT_IF (m_hwnd == nullptr, S_OK);
 
         InvalidateRect (m_hwnd, nullptr, FALSE);
         UpdateWindow   (m_hwnd);
@@ -3854,38 +3894,49 @@ public:
             TranslateMessage (&msg);
             DispatchMessageW  (&msg);
         }
+
+    Error:
+        return;
     }
 
-    void Destroy ()
+    void Destroy()
     {
         if (m_hwnd != nullptr)
         {
             DestroyWindow (m_hwnd);
             m_hwnd = nullptr;
         }
+
+        if (m_font != nullptr)
+        {
+            DeleteObject (m_font);
+            m_font = nullptr;
+        }
     }
 
 private:
     static LRESULT CALLBACK WndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
-        TraceProgressWindow *  self = reinterpret_cast<TraceProgressWindow *> (
+        TraceProgressWindow *  self   = reinterpret_cast<TraceProgressWindow *> (
             GetWindowLongPtrW (hwnd, GWLP_USERDATA));
+        LRESULT                result = 0;
 
         if (msg == WM_CREATE)
         {
             CREATESTRUCTW *  cs = reinterpret_cast<CREATESTRUCTW *> (lParam);
             SetWindowLongPtrW (hwnd, GWLP_USERDATA,
                                reinterpret_cast<LONG_PTR> (cs->lpCreateParams));
-            return 0;
         }
-
-        if (msg == WM_PAINT && self != nullptr)
+        else if (msg == WM_PAINT && self != nullptr)
         {
             self->OnPaint (hwnd);
-            return 0;
+        }
+        else
+        {
+            result = DefWindowProcW (hwnd, msg, wParam, lParam);
         }
 
-        return DefWindowProcW (hwnd, msg, wParam, lParam);
+        return result;
     }
 
     void OnPaint (HWND hwnd)
@@ -3894,6 +3945,10 @@ private:
         HDC          hdc     = BeginPaint (hwnd, &ps);
         RECT         rc      = {};
         RECT         bar     = {};
+        int          pad     = Scaled (s_kPadPx);
+        int          line    = Scaled (s_kLinePx);
+        int          barH    = Scaled (s_kBarPx);
+        int          gap     = Scaled (s_kGapSmallPx);
         int          pct     = (m_total > 0) ? (int) ((m_done * 100) / m_total) : 0;
         wchar_t      line1[128] = {};
         wchar_t      line3[160] = {};
@@ -3901,25 +3956,35 @@ private:
 
         GetClientRect (hwnd, &rc);
 
+        HFONT  oldFont = (m_font != nullptr) ? (HFONT) SelectObject (hdc, m_font) : nullptr;
+
+        // SetProgress invalidates without erasing (bErase = FALSE) and the
+        // text is drawn transparently, so wipe the client area first --
+        // otherwise each new progress value piles up on the previous one.
+        FillRect (hdc, &rc, (HBRUSH) (COLOR_WINDOW + 1));
+
         swprintf_s (line1, L"Writing execution trace (%s)\x2026", m_reason.c_str());
         swprintf_s (line3, L"%llu of %llu instructions  (%d%%)",
                     (unsigned long long) m_done, (unsigned long long) m_total, pct);
 
         SetBkMode   (hdc, TRANSPARENT);
 
-        RECT  r1 = { s_kPadPx, s_kPadPx, rc.right - s_kPadPx, s_kPadPx + s_kLinePx };
+        RECT  r1 = { pad, pad, rc.right - pad, pad + line };
         DrawTextW (hdc, line1, -1, &r1, DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
 
-        RECT  r2 = { s_kPadPx, r1.bottom + 4, rc.right - s_kPadPx, r1.bottom + 4 + s_kLinePx };
+        RECT  r2 = { pad, r1.bottom + gap, rc.right - pad, r1.bottom + gap + line };
         DrawTextW (hdc, m_path.c_str(), -1, &r2, DT_LEFT | DT_SINGLELINE | DT_PATH_ELLIPSIS);
 
-        RECT  r3 = { s_kPadPx, r2.bottom + 4, rc.right - s_kPadPx, r2.bottom + 4 + s_kLinePx };
+        RECT  r3 = { pad, r2.bottom + gap, rc.right - pad, r2.bottom + gap + line };
         DrawTextW (hdc, line3, -1, &r3, DT_LEFT | DT_SINGLELINE);
 
-        bar.left   = s_kPadPx;
-        bar.right  = rc.right - s_kPadPx;
-        bar.top    = r3.bottom + 8;
-        bar.bottom = bar.top + s_kBarPx;
+        // Anchor the bar to the bottom with a margin equal to the top pad,
+        // so the bottom whitespace mirrors the caption-to-text gap and the
+        // bar can't be clipped by the window edge at any DPI.
+        bar.left   = pad;
+        bar.right  = rc.right - pad;
+        bar.bottom = rc.bottom - pad;
+        bar.top    = bar.bottom - barH;
         FrameRect (hdc, &bar, (HBRUSH) GetStockObject (GRAY_BRUSH));
 
         RECT  filled = bar;
@@ -3927,17 +3992,38 @@ private:
         FillRect (hdc, &filled, fill);
 
         DeleteObject (fill);
+
+        if (oldFont != nullptr)
+        {
+            SelectObject (hdc, oldFont);
+        }
+
         EndPaint (hwnd, &ps);
     }
 
-    static constexpr const wchar_t *  s_kpszClass = L"CassoTraceProgress";
-    static constexpr int              s_kWidthPx  = 560;
-    static constexpr int              s_kHeightPx = 170;
-    static constexpr int              s_kPadPx    = 16;
-    static constexpr int              s_kLinePx   = 22;
-    static constexpr int              s_kBarPx    = 22;
+    int Scaled (int px) const { return MulDiv (px, (int) m_dpi, 96); }
+
+    static constexpr const wchar_t *  s_kpszClass   = L"CassoTraceProgress";
+    static constexpr int              s_kClientWPx  = 556;
+    static constexpr int              s_kPadPx      = 16;
+    static constexpr int              s_kLinePx     = 22;
+    static constexpr int              s_kBarPx      = 22;
+    static constexpr int              s_kGapSmallPx = 4;
+    static constexpr int              s_kGapBarPx   = 8;
+
+    // Client height kept in lockstep with the OnPaint layout: top pad +
+    // three text lines (each followed by a small gap) + the larger gap
+    // above the bar + the bar + an equal bottom pad.
+    static constexpr int              s_kClientHPx  = s_kPadPx
+                                                    + 3 * s_kLinePx
+                                                    + 2 * s_kGapSmallPx
+                                                    + s_kGapBarPx
+                                                    + s_kBarPx
+                                                    + s_kPadPx;
 
     HWND          m_hwnd  = nullptr;
+    HFONT         m_font  = nullptr;
+    UINT          m_dpi   = 96;
     std::wstring  m_reason;
     std::wstring  m_path;
     uint64_t      m_done  = 0;
