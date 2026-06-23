@@ -6,13 +6,64 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.5.1555] — Apple ][ / ][ plus game port; inverse-text fix; execution trace
+
+### Added
+- **feat(machine): Apple ][ / ][ plus game port (paddles, buttons, trigger).**
+  The original Apple ][ / ][ plus had no game-port emulation — nothing mapped the
+  pushbuttons (`$C061`–`$C063`), analog paddles (`$C064`–`$C067`), or the
+  PTRIG strobe (`$C070`) — so paddle/joystick games (e.g. *Space Quarks*,
+  Brøderbund 1981) had dead controls on those machines. A new
+  `apple2-gameport` device models all three, using the same 558 one-shot
+  paddle timer as the //e (≈11 CPU cycles per paddle unit). The existing
+  **Map Arrows to Joystick** mode now drives the ][ / ][ plus game port too
+  (arrows → paddle 0/1, X / Z / Alt → buttons 0 / 1), and the Input Debug
+  panel logs its reads. Added to the Apple ][ and ][ plus machine configs
+  (`$cassoMachineVersion` 6 → 7; existing on-disk copies upgrade
+  automatically).
+- **feat(debug): `--trace` execution-trace switch.** `--trace [N]` records
+  the last N executed instructions (default 20,000,000; size with a plain
+  count or a `20M` / `2G` suffix) in a runtime-gated ring and dumps them —
+  PC, opcode, operand bytes, mnemonic, and full register state — to a
+  timestamped `casso-trace-*.txt` in the working directory on a clean exit
+  or a crash, with a progress dialog during the write.
+
+### Fixed
+- **fix(video): inverse text on ][ / ][ plus was invisible.** The 2 KB Apple ][ / ][ plus
+  video ROM stores the same normal glyph in the low 7 bits of all four
+  64-character ranges (bit 7 is only a range marker, not a per-glyph invert
+  flag), but `Decode2K` XOR-inverted the `$00`–`$3F` range while the renderer
+  *also* inverts it — so inverse characters rendered identically to normal
+  text, hiding inverse menu highlights (as seen on the *Space Quarks* options
+  screen). `Decode2K` now bit-reverses the low 7 bits with no conditional
+  invert. The prior inverse-space test passed only because a blank glyph is
+  symmetric; a regression test now renders an inverse *letter*.
+- **fix(disk): non-ASCII disk filenames corrupted in paths.** Disk paths were
+  shuttled between `std::wstring` and ANSI-narrowed `std::string`, mangling
+  any non-ASCII filename (e.g. the *ø* in "Brøderbund"). The boot-disk MRU
+  silently dropped such entries (its `exists` prune saw an invalid path), the
+  remembered last-disk failed to auto-load, and the drive-widget filename
+  label rendered a tofu box (a sign-extended `0xF8` → `U+FFF8`). Path ↔ string
+  conversions now use UTF-8 throughout.
+- **fix(trace): `--trace` progress dialog rendering.** The progress dialog
+  selected no font (GDI fell back to the fixed bitmap System font), never
+  erased between repaints (so progress values overlapped into mush), and used
+  unscaled pixel metrics (clipping the progress bar at high DPI). It now
+  selects the OS themed message font at the window DPI, erases each repaint,
+  sizes the window and all metrics for the monitor DPI, and gives the bar a
+  bottom margin matching the top.
+- **fix(cpu): debug trace records the actually-fetched opcode.** The
+  fault/trace ring read raw `memory[PC]` instead of the bus-routed fetch, so
+  it misreported instructions in banked regions (Language Card / ROM). It now
+  logs the byte the CPU actually executed.
+
 ## [1.5.1526] — NMOS undocumented opcodes; dialog rendering fix; boot-disk picker consolidation
 
 ### Added
 - **feat(cpu): NMOS 6502 undocumented opcodes DOP and DCP.** Implements
   `$04` (DOP zp — double NOP, reads and discards a zero-page byte, 3 cycles)
   and `$CF` (DCP abs — decrement memory then CMP A with the result, 6 cycles).
-  Real Apple II/II+ software such as *Space Quarks* (Brøderbund, 1981) relies on
+  Real Apple ][ / ][ plus software such as *Space Quarks* (Brøderbund, 1981) relies on
   these undocumented but consistently-behaving NMOS opcodes; Casso previously
   asserted on them in debug builds and silently mishandled them in release.
 
@@ -375,7 +426,7 @@ is preserved as the lone deliberate Win32 surface.
   active theme (Skeuomorphic / Dark / RetroTerminal) instead of the
   former blue-only constants.
 - **fix(011): mounted disks now follow the user across machine switches.**
-  Switching machines (e.g. //e → ][+) tore down the old Disk II
+  Switching machines (e.g. //e → ][ plus) tore down the old Disk II
   controller and brought up a fresh empty one, leaving the previously
   mounted image orphaned in `DiskImageStore`. The new machine's boot
   ROM then seeked to track 0, found no data, and spun forever. The
@@ -751,7 +802,7 @@ software, and bumps Casso to **1.5**.
     slider gates the master mix. Per-theme defaults live in each
     theme's JSON.
   - Auto-remount of the last-inserted disks on machine load so a
-    typical "boot Apple ][+" workflow is one click.
+    typical "boot Apple ][ plus" workflow is one click.
   - **Unified user preferences persistence** in `UserPrefs.json` stores
     global UI state and per-machine deltas together, replacing both the
     registry-based `RegistrySettings` path and the old split-file model.
@@ -823,7 +874,7 @@ default. PNG masters and multi-resolution ICOs live in
   in `ShowMachinePicker` now mirrors `Main.cpp`'s startup flow
   (`CheckAndFetchRoms` + best-effort `CheckAndFetchDiskAudio`) so any
   machine the user picks can actually launch.
-- **Apple ][ and ][+ shipped with no Disk II.** Embedded default
+- **Apple ][ and ][ plus shipped with no Disk II.** Embedded default
   configs (`Resources/Machines/Apple2/Apple2.json`,
   `Resources/Machines/Apple2Plus/Apple2Plus.json`) had empty `slots`,
   so the status bar showed no drives and "Insert Drive 1" was inert.
@@ -1056,7 +1107,7 @@ default. PNG masters and multi-resolution ICOs live in
   controller firmware) live under `Devices/<Family>/` (e.g.,
   `Devices/DiskII/Disk2.rom`). The in-app missing-ROM downloader
   and `scripts/FetchRoms.ps1` both target the new layout. The
-  Apple II / II+ character generator and the //e character
+  Apple ][ / ][ plus character generator and the //e character
   generator are duplicated into each owning machine's folder so
   every machine's asset set is self-contained (a handful of bytes
   of redundancy in exchange for portability).
@@ -1636,7 +1687,7 @@ Users with an existing install:
   Tables 8.2/8.3 — slot $20 holds the bitmap of "inverse SPACE"
   = solid block, not the bitmap of normal " "). The text-mode
   renderers were applying their own XOR-inversion on top of that
-  (the ][/][+ Decode2K convention), which re-inverted the
+  (the ][ / ][ plus Decode2K convention), which re-inverted the
   pre-inverted bytes back to empty cells. Symptom: the BASIC
   cursor at main $0480 (= $20, inverse-space) rendered as
   invisible; any inverse-text screen output was blank. Fix:
@@ -1705,7 +1756,7 @@ Users with an existing install:
   the user to download a stock Apple system master disk from the
   Asimov archive (https://www.apple.asimov.net) — DOS 3.3 System
   Master (680-0210-A, 1982) or ProDOS Users Disk (680-0224-C). Both
-  are size- and host-pinned. ][/][+ configs (which have no Disk ][
+  are size- and host-pinned. ][ / ][ plus configs (which have no Disk ][
   slot) are unaffected. A stale registry entry pointing at a
   deleted disk is treated as "no disk" — the entry gets cleared
   and the user is prompted again, instead of silently swallowing
@@ -1726,7 +1777,7 @@ Users with an existing install:
   {Disk1,Disk2}) is unchanged.
 - **Apple-styled display strings throughout.** All user-visible
   Apple references now use the styling Apple's marketing did
-  (`Apple ][`, `Apple ][+`, `Apple //e`, `Disk ][`). Comments still
+  (`Apple ][`, `Apple ][ plus`, `Apple //e`, `Disk ][`). Comments still
   use plain ASCII (`Apple II`) since they're developer-facing.
 - **Friendly first-run ROM bootstrap.** When a needed Apple ROM
   image is missing, Casso now lists the missing files and offers to
@@ -1971,7 +2022,7 @@ IRQ/NMI infrastructure.
 
 ### Added (backwards-compat — Phase 14)
 - `BackwardsCompatTests` regression-protect the unchanged Apple ][ and
-  ][+ behavior: keyboard latch, soft-switch surface, video modes, no
+  ][ plus behavior: keyboard latch, soft-switch surface, video modes, no
   MMU activity, no aux RAM, no IRQ controller. Audit log
   (`audit-backwards-compat.md`) documents the verification.
 
@@ -2038,7 +2089,7 @@ IRQ/NMI infrastructure.
 - **`AppleIIeKeyboard` is now a `$C000-$C063` facade** that forwards
   non-owned addresses to its sibling devices (soft-switch bank for
   `$C00C-$C00F` / `$C011-$C01F` / `$C050-$C05F`; speaker for `$C030-$C03F`).
-  This preserves the unchanged ][/][+ behavior where `AppleKeyboard` only
+  This preserves the unchanged ][ / ][ plus behavior where `AppleKeyboard` only
   owns `$C000-$C01F`.
 
 ### Tests
@@ -2059,7 +2110,7 @@ IRQ/NMI infrastructure.
 
 ### Added
 - **Character generator ROM loading** — text mode renderers now load the real
-  Apple character ROM file (`Apple2_Video.rom` for II/II+, `Apple2e_Video.rom`
+  Apple character ROM file (`Apple2_Video.rom` for ][ / ][ plus, `Apple2e_Video.rom`
   for the //e) instead of the embedded 96-character fallback. Fixes:
   - **//e cursor** is now visible (the cursor character was outside our embedded
     range)
@@ -2067,7 +2118,7 @@ IRQ/NMI infrastructure.
     outside our embedded range)
   - All 256 character codes render correctly across inverse, flash, and normal regions
 - **CharacterRomData** loader (`CassoEmuCore/Video/CharacterRomData.h/.cpp`)
-  decodes both 2KB (II/II+) and 4KB (//e enhanced) ROM formats including the
+  decodes both 2KB (][ / ][ plus) and 4KB (//e enhanced) ROM formats including the
   bit-reversed 2KB layout and the //e's primary + alt char set arrangement.
   Falls back to embedded $20-$5F glyphs if no ROM file is configured.
 
@@ -2107,7 +2158,7 @@ IRQ/NMI infrastructure.
   reload config, reinitialize, resume — works from menu, status bar, or startup
 - **Random RAM on cold boot** — RAM ($0000-$BFFF) initialized with random values to
   match real DRAM power-on behavior (Apple II shows random characters at boot)
-- **80STORE soft switch tracking** — IIe keyboard intercepts $C000/$C001 writes to
+- **80STORE soft switch tracking** — //e keyboard intercepts $C000/$C001 writes to
   track 80STORE state; video mode selection suppresses page2 when 80STORE is active
 - **ROM size validation** — RomDevice rejects ROM files that don't match the configured
   address range size, with a clear error message
@@ -2147,7 +2198,7 @@ IRQ/NMI infrastructure.
 ## [1.0.244] — 2026-05-03
 
 ### Added
-- **Apple II platform emulator (Casso.exe)** — GUI-based Apple II, II+, and IIe emulator
+- **Apple II platform emulator (Casso.exe)** — GUI-based Apple ][, ][ plus, and //e emulator
   with D3D11 rendering, WASAPI audio, data-driven JSON machine configs, and keyboard input
 - **CPU thread architecture** — dedicated CPU thread for 6502 execution and audio,
   UI thread for Win32 messages and D3D Present with vsync
