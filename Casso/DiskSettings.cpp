@@ -7,7 +7,6 @@
 #include "Core/JsonParser.h"
 #include "Core/JsonValue.h"
 #include "Core/PathResolver.h"
-#include "Ehm.h"
 
 
 
@@ -27,14 +26,14 @@ namespace
     HRESULT LoadMachineDefaultJson (const std::wstring  & machineName,
                                     JsonValue           & outDefault)
     {
-        std::vector<fs::path>  searchPaths;
-        fs::path               configRelPath;
-        fs::path               configPath;
-        std::ifstream          configFile;
-        std::stringstream      ss;
-        std::string            jsonText;
-        JsonParseError         parseErr;
-        HRESULT                hr            = S_OK;
+        std::vector<fs::path> searchPaths;
+        fs::path              configRelPath;
+        fs::path              configPath;
+        std::ifstream         configFile;
+        std::stringstream     ss;
+        std::string           jsonText;
+        JsonParseError        parseErr;
+        HRESULT               hr            = S_OK;
 
 
         searchPaths   = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
@@ -61,22 +60,45 @@ namespace
     }
 
 
-    std::string  WideToNarrowAscii (const std::wstring & w)
+    std::string  WideToUtf8 (const std::wstring & w)
     {
-        std::string  narrow;
+        HRESULT      hr   = S_OK;
+        std::string  utf8;
+        int          len  = 0;
 
-        narrow.reserve (w.size());
-        for (wchar_t c : w)
-        {
-            narrow.push_back (static_cast<char> (static_cast<unsigned char> (c)));
-        }
-        return narrow;
+        BAIL_OUT_IF (w.empty(), S_OK);
+
+        len = WideCharToMultiByte (CP_UTF8, 0, w.c_str(), static_cast<int> (w.size()), nullptr, 0, nullptr, nullptr);
+        CWRA (len);
+
+        utf8.resize (static_cast<size_t> (len));
+
+        len = WideCharToMultiByte (CP_UTF8, 0, w.c_str(), static_cast<int> (w.size()), utf8.data(), len, nullptr, nullptr);
+        CWRA (len);
+
+    Error:
+        return utf8;
     }
 
 
-    std::wstring NarrowToWideAscii (const std::string & s)
+    std::wstring Utf8ToWide (const std::string & s)
     {
-        return std::wstring (s.begin(), s.end());
+        HRESULT       hr   = S_OK;
+        std::wstring  wide;
+        int           len  = 0;
+
+        BAIL_OUT_IF (s.empty(), S_OK);
+
+        len = MultiByteToWideChar (CP_UTF8, 0, s.c_str(), static_cast<int> (s.size()), nullptr, 0);
+        CWRA (len);
+
+        wide.resize (static_cast<size_t> (len));
+
+        len = MultiByteToWideChar (CP_UTF8, 0, s.c_str(), static_cast<int> (s.size()), wide.data(), len);
+        CWRA (len);
+
+    Error:
+        return wide;
     }
 }
 
@@ -97,12 +119,13 @@ HRESULT DiskSettings::ReadSavedDiskPath (
     const std::wstring & machineName,
     std::wstring       & outPath)
 {
-    HRESULT             hr            = S_OK;
-    JsonValue           defaultJson;
-    JsonValue           mergedJson;
-    const JsonValue *   uiPrefs       = nullptr;
-    std::string         pathNarrow;
-    const char *        keyName       = (drive == 0) ? "disk1Path" : "disk2Path";
+    HRESULT           hr            = S_OK;
+    JsonValue         defaultJson;
+    JsonValue         mergedJson;
+    const JsonValue * uiPrefs       = nullptr;
+    std::string       pathNarrow;
+    const char      * keyName       = (drive == 0) ? "disk1Path" : "disk2Path";
+
 
 
     outPath.clear();
@@ -118,7 +141,7 @@ HRESULT DiskSettings::ReadSavedDiskPath (
         return S_FALSE;
     }
 
-    hr = store.Load (WideToNarrowAscii (machineName), defaultJson, fs, mergedJson);
+    hr = store.Load (WideToUtf8 (machineName), defaultJson, fs, mergedJson);
     if (FAILED (hr) || mergedJson.GetType() != JsonType::Object)
     {
         return S_FALSE;
@@ -137,7 +160,7 @@ HRESULT DiskSettings::ReadSavedDiskPath (
         return S_FALSE;
     }
 
-    outPath = PathResolver::ResolveExeRelativePath (NarrowToWideAscii (pathNarrow));
+    outPath = PathResolver::ResolveExeRelativePath (Utf8ToWide (pathNarrow));
     return S_OK;
 }
 
@@ -158,18 +181,19 @@ HRESULT DiskSettings::WriteSavedDiskPath (
     const std::wstring & machineName,
     const std::wstring & path)
 {
-    HRESULT          hr            = S_OK;
-    JsonValue        defaultJson;
-    JsonValue        mergedJson;
-    JsonValue        updatedJson;
-    std::wstring     stored;
-    std::string      storedNarrow;
-    const char *     keyName       = (drive == 0) ? "disk1Path" : "disk2Path";
-    std::vector<std::pair<std::string, JsonValue>>  rootEntries;
-    std::vector<std::pair<std::string, JsonValue>>  uiPrefsEntries;
-    int              uiPrefsIdx    = -1;
-    int              i             = 0;
+    HRESULT                                          hr             = S_OK;
+    JsonValue                                        defaultJson;
+    JsonValue                                        mergedJson;
+    JsonValue                                        updatedJson;
+    std::wstring                                     stored;
+    std::string                                      storedNarrow;
+    const char                                     * keyName        = (drive == 0) ? "disk1Path" : "disk2Path";
+    std::vector<std::pair<std::string, JsonValue>>   rootEntries;
+    std::vector<std::pair<std::string, JsonValue>>   uiPrefsEntries;
+    int                                              uiPrefsIdx     = -1;
+    int                                              i              = 0;
 
+    
 
     if (drive < 0 || drive > 1 || machineName.empty())
     {
@@ -182,7 +206,7 @@ HRESULT DiskSettings::WriteSavedDiskPath (
         return S_FALSE;
     }
 
-    hr = store.Load (WideToNarrowAscii (machineName), defaultJson, fs, mergedJson);
+    hr = store.Load (WideToUtf8 (machineName), defaultJson, fs, mergedJson);
     CHR (hr);
 
     if (mergedJson.GetType() != JsonType::Object)
@@ -191,7 +215,7 @@ HRESULT DiskSettings::WriteSavedDiskPath (
     }
 
     stored       = PathResolver::MakeExeRelativePath (path);
-    storedNarrow = WideToNarrowAscii (stored);
+    storedNarrow = WideToUtf8 (stored);
 
     // Splice the new diskNPath into the merged JSON's $cassoUiPrefs
     // block. The JsonValue API is read-mostly; we rebuild the relevant
@@ -240,7 +264,7 @@ HRESULT DiskSettings::WriteSavedDiskPath (
 
     updatedJson = JsonValue (std::move (rootEntries));
 
-    hr = store.SaveDelta (WideToNarrowAscii (machineName), updatedJson, defaultJson, fs);
+    hr = store.SaveDelta (WideToUtf8 (machineName), updatedJson, defaultJson, fs);
     CHR (hr);
 
 Error:

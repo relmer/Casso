@@ -65,7 +65,7 @@ DiskManager::DiskManager (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int64_t DiskManager::NowMs ()
+int64_t DiskManager::NowMs()
 {
     auto  duration = std::chrono::steady_clock::now().time_since_epoch();
 
@@ -86,7 +86,7 @@ int64_t DiskManager::NowMs ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Disk2Controller * DiskManager::FindSlot6Controller ()
+Disk2Controller * DiskManager::FindSlot6Controller()
 {
     Disk2Controller *  result = nullptr;
 
@@ -336,7 +336,7 @@ void DiskManager::EjectDiskInSlot6 (int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskManager::RemountSlot6Disks ()
+void DiskManager::RemountSlot6Disks()
 {
     std::string  savedDisk[DiskImageStore::kDriveCount];
     HRESULT      hrMount = S_OK;
@@ -464,7 +464,7 @@ void DiskManager::Eject (int slot, int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskManager::UpdateDriveWidgets ()
+void DiskManager::UpdateDriveWidgets()
 {
     Disk2Controller *  controller = FindSlot6Controller();
     int64_t             nowMs      = NowMs();
@@ -487,8 +487,13 @@ void DiskManager::UpdateDriveWidgets ()
         // mountedImagePath -- single writer (UI thread), source of
         // truth is the DiskImageStore. Reflect door FSM transitions
         // when mount state changes.
+        // Decode the store's native-narrow source path back to wide via
+        // fs::path (the inverse of the fs::path(...).string() narrowing the
+        // mount path used). A manual wstring(begin,end) widen would
+        // sign-extend a high byte like 0xF8 ('o' with stroke) into U+FFF8
+        // and render as a tofu box in the drive label.
         const std::string &  src   = m_diskStore.GetSourcePath (6, drive);
-        std::wstring         wPath (src.begin(), src.end());
+        std::wstring         wPath = fs::path (src).wstring();
 
         if (wPath != st.mountedImagePath)
         {

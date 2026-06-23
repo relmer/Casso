@@ -173,5 +173,34 @@ namespace DiskMruTests
             Assert::AreEqual (std::string ("C:\\Disks\\B.dsk"), out[0]);
             Assert::AreEqual (std::string ("C:\\Disks\\A.dsk"), out[1]);
         }
+
+
+        TEST_METHOD (Utf8RoundTrip_PreservesNonAsciiFilename)
+        {
+            // Regression: a non-ASCII filename (the o-slash in "Broderbund")
+            // must survive the wide -> UTF-8 -> wide round-trip intact. The
+            // old platform-narrow conversion mangled it into invalid UTF-8,
+            // so the boot picker's exists-prune silently dropped the entry.
+            const wchar_t *  kName = L"C:\\Disks\\Space Quarks (Br\u00F8derbund).woz";
+
+            DiskMru  mru;
+            mru.RecordMount (kName);
+
+            std::vector<std::string>  serialized;
+            mru.ToUtf8 (serialized);
+
+            Assert::AreEqual ((size_t) 1, serialized.size());
+
+            // The o-slash (U+00F8) must encode as the two UTF-8 bytes 0xC3 0xB8.
+            Assert::IsTrue (serialized[0].find ("\xC3\xB8") != std::string::npos,
+                L"Serialized path must contain valid UTF-8 for U+00F8");
+
+            DiskMru  reloaded = DiskMru::FromUtf8 (serialized);
+            auto     snap     = reloaded.Snapshot();
+
+            Assert::AreEqual ((size_t) 1, snap.size());
+            Assert::IsTrue (snap[0] == std::filesystem::path (kName),
+                L"Reloaded path must equal the original after round-trip");
+        }
     };
 }
