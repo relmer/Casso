@@ -684,13 +684,27 @@ HRESULT DxuiTextRenderer::DrawString (
 
     textLen = (UINT32) wcslen (text);
 
-    m_d2dContext->DrawText (text,
-                            textLen,
-                            format.Get(),
-                            &layoutRect,
-                            brush.Get(),
-                            D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT,
-                            DWRITE_MEASURING_MODE_NATURAL);
+    {
+        // No-wrap means single-line clipped to the layout box, so a
+        // value wider than its column is truncated horizontally instead
+        // of spilling into the neighbour (wrap already keeps it on one
+        // line; CLIP stops the overflow). Wrapped text keeps the legacy
+        // unclipped behaviour.
+        D2D1_DRAW_TEXT_OPTIONS  opts = D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT;
+
+        if (!wrap)
+        {
+            opts |= D2D1_DRAW_TEXT_OPTIONS_CLIP;
+        }
+
+        m_d2dContext->DrawText (text,
+                                textLen,
+                                format.Get(),
+                                &layoutRect,
+                                brush.Get(),
+                                opts,
+                                DWRITE_MEASURING_MODE_NATURAL);
+    }
 
 Error:
     return hr;

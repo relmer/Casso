@@ -197,7 +197,10 @@ std::vector<DxuiListView::Column> PlanVisibleColumns (
         DxuiListView::Column  spec = {};
 
         spec.title   = model[i].headerText;
-        spec.widthDip = model[i].savedWidth;
+        // Auto-fit a column to its content until the user drag-resizes
+        // it; once resized, the user's width wins and auto-fit stops
+        // touching it (widthDip > 0 overrides the auto path).
+        spec.widthDip = model[i].userResized ? model[i].savedWidth : 0;
         spec.visible = model[i].visible;
         spec.stretch = (model[i].id == kInputMeaningColumnId);
 

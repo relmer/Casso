@@ -81,6 +81,22 @@ public:
     int   GetTotalMeasuredWidthPx   () const;
     void  MeasureColumnsPx          (IDxuiTextRenderer & text);
 
+    //
+    //  Monotonic content auto-fit for columns flagged auto (widthDip
+    //  == 0, non-stretch). Call UpdateAutoFitFromRows after each
+    //  SetRows / AppendRows: it grows each auto column's tracked width
+    //  to fit its header + widest current cell and never shrinks, so a
+    //  live-updating list (e.g. the debug event log) keeps wide values
+    //  like cycle counts from clipping. Width is estimated from the
+    //  glyph COUNT times a per-character fraction of the font size --
+    //  no DWrite measurement, so it is cheap enough to run every frame
+    //  and is DPI-independent (the pixel width is derived at layout
+    //  time from the stored count). ResetAutoFit drops the tracked
+    //  counts (e.g. on a data clear).
+    //
+    void  UpdateAutoFitFromRows     ();
+    void  ResetAutoFit              ();
+
     // Column / row queries.
     size_t         GetColumnCount () const                 { return m_columns.size(); }
     const Column & GetColumnAt    (size_t idx) const       { return m_columns[idx]; }
@@ -174,6 +190,13 @@ private:
     static constexpr float  s_kFontDip           = 13.0f;
     static constexpr float  s_kHeaderFontDip     = 13.0f;
 
+    // Per-character width estimate for content auto-fit, as a fraction
+    // of the font em. Segoe UI averages well under this for the digit /
+    // punctuation / short-label columns the debug panels auto-fit;
+    // erring high trades a little extra column width for a guarantee
+    // that values never clip.
+    static constexpr float  s_kAutoCharWidthEm   = 0.62f;
+
     // Per-element ARGB colors derived once per paint from the theme.
     struct Palette
     {
@@ -228,6 +251,10 @@ private:
     std::vector<std::vector<Cell>>    m_rows;
     std::vector<int>                  m_measuredWPx;
     std::vector<int>                  m_overrideWPx;
+    // Monotonic max glyph count per auto column (header + widest cell).
+    // ComputeColumnLayout turns it into a pixel width at the current
+    // DPI; persists across SetRows (unlike m_measuredWPx).
+    std::vector<int>                  m_autoMaxChars;
     DxuiDpiScaler                         m_scaler;
     int                               m_hovered           = -1;
     int                               m_selectedRow       = -1;
