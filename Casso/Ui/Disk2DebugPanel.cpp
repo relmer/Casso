@@ -245,14 +245,7 @@ Error:
 
 void Disk2DebugPanel::Show()
 {
-    HWND  hwnd = m_window.Hwnd();
-
-
-    if (hwnd != nullptr)
-    {
-        ShowWindow (hwnd, SW_SHOW);
-        SetForegroundWindow (hwnd);
-    }
+    m_window.Activate();
 }
 
 
