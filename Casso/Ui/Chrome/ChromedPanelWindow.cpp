@@ -192,12 +192,12 @@ HRESULT ChromedPanelWindow::RegisterClass (HINSTANCE hInstance, LPCWSTR classNam
     wcex.cbClsExtra    = 0;
     wcex.cbWndExtra    = 0;
     wcex.hInstance     = hInstance;
-    wcex.hIcon         = nullptr;
+    wcex.hIcon         = LoadIconW (hInstance, MAKEINTRESOURCEW (IDI_CASSO));
     wcex.hCursor       = LoadCursorW (nullptr, IDC_ARROW);
     wcex.hbrBackground = nullptr;
     wcex.lpszMenuName  = nullptr;
     wcex.lpszClassName = className;
-    wcex.hIconSm       = nullptr;
+    wcex.hIconSm       = LoadIconW (hInstance, MAKEINTRESOURCEW (IDI_CASSO));
 
     atom = RegisterClassExW (&wcex);
     CWRA (atom);
@@ -380,6 +380,27 @@ HRESULT ChromedPanelWindow::Render ()
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Activate
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ChromedPanelWindow::Activate ()
+{
+    if (m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    ShowWindow (m_hwnd, IsIconic (m_hwnd) ? SW_RESTORE : SW_SHOW);
+    SetForegroundWindow (m_hwnd);
 }
 
 
@@ -688,6 +709,7 @@ void ChromedPanelWindow::OnSize (int widthPx, int heightPx)
 
     dpi = GetDpiForWindow (m_hwnd);
     m_titleBar.UpdateGeometry (widthPx, dpi);
+    m_titleBar.SetMaximized (IsZoomed (m_hwnd) != FALSE);
     hr  = m_content->OnHostResize (widthPx, heightPx, dpi);
     IGNORE_RETURN_VALUE (hr, S_OK);
 

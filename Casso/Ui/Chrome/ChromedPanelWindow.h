@@ -45,6 +45,14 @@ public:
     void     SetTheme      (const ChromeTheme * theme);
     HRESULT  Render        ();
 
+    //
+    //  Bring the panel window to the foreground, restoring it first if
+    //  it is currently minimized (SW_SHOW alone leaves a minimized
+    //  window iconic). Used by the open / toggle hotkey so re-invoking
+    //  it un-minimizes and surfaces the window.
+    //
+    void     Activate      ();
+
     bool       IsOpen     () const { return m_hwnd != nullptr; }
     HWND       Hwnd       () const { return m_hwnd; }
     TitleBar & GetTitleBar()       { return m_titleBar; }
