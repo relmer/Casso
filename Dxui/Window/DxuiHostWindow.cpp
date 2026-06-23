@@ -493,10 +493,14 @@ void DxuiHostWindow::SetBeforePresentHook (std::function<void()> hook)
 //  Public WndProc forwarder. Returns true when Dxui owns the
 //  message end-to-end (caller returns outResult immediately);
 //  returns false to let the caller's WndProc keep handling it.
-//  WM_NCCALCSIZE / WM_NCHITTEST are routed through Dxui; DPI and
-//  theme messages do their tree-side propagation without claiming
-//  the message so the caller can keep doing its own work (e.g.
-//  SetWindowPos in Window::HandleDpiChanged).
+//  In adopt mode Dxui owns only the STRUCTURAL non-client messages
+//  (WM_NCCALCSIZE / WM_NCHITTEST) so the borderless frame + button
+//  hit-testing are consistent; NC *mouse* messages (button hover /
+//  press) are left to the consumer's WndProc, which owns the legacy
+//  caption chrome and its SC_* dispatch. DPI and theme messages do
+//  their tree-side propagation without claiming the message so the
+//  caller can keep doing its own work (e.g. SetWindowPos in
+//  Window::HandleDpiChanged).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -514,13 +518,6 @@ bool DxuiHostWindow::HandleMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & ou
 
         case WM_NCHITTEST:
             outResult = HandleNcHitTest (lp);
-            return true;
-
-        case WM_NCLBUTTONDOWN:
-        case WM_NCLBUTTONUP:
-        case WM_NCMOUSEMOVE:
-        case WM_NCMOUSELEAVE:
-            outResult = HandleNcMouse (msg, wp, lp);
             return true;
 
         case WM_DPICHANGED:
