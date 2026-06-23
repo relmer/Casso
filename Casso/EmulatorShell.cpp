@@ -757,7 +757,7 @@ HRESULT EmulatorShell::Initialize (
                                                      initialDpi);
             IGNORE_RETURN_VALUE (hrUiResize, S_OK);
 
-            m_d3dRenderer.SetAfterBlitHook ([this] ()
+            m_d3dRenderer.SetAfterBlitHook ([this]()
             {
                 m_diskManager->UpdateDriveWidgets();
                 m_uiShell.Render();
@@ -1219,7 +1219,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT EmulatorShell::CreateRenderSurface ()
+HRESULT EmulatorShell::CreateRenderSurface()
 {
     HRESULT  hr       = S_OK;
     BOOL     fSuccess = FALSE;
@@ -1267,7 +1267,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ReconcileInitialClientSize ()
+void EmulatorShell::ReconcileInitialClientSize()
 {
     SIZE  desired        = {};
     RECT  rcActualClient = {};
@@ -1934,7 +1934,7 @@ void EmulatorShell::LayoutJoystickButton (int clientW,
 void EmulatorShell::SetChromeFocusIndex (int index)
 {
     m_chromeFocusIndex = index;
-    UpdateChromeFocusVisuals ();
+    UpdateChromeFocusVisuals();
 }
 
 
@@ -1951,7 +1951,7 @@ void EmulatorShell::SetChromeFocusIndex (int index)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::UpdateChromeFocusVisuals ()
+void EmulatorShell::UpdateChromeFocusVisuals()
 {
     int  index = m_chromeFocusIndex;
 
@@ -1962,7 +1962,7 @@ void EmulatorShell::UpdateChromeFocusVisuals ()
     }
     else
     {
-        m_navLayer.ClearFocus ();
+        m_navLayer.ClearFocus();
     }
 
     m_joystickButton.SetFocused (index == s_kChromeFocusButton);
@@ -2490,7 +2490,7 @@ void EmulatorShell::PostCommand (WORD id, const string & payload)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::StepInstructionWhilePaused ()
+void EmulatorShell::StepInstructionWhilePaused()
 {
     if (m_cpu == nullptr)
     {
@@ -2890,7 +2890,7 @@ bool EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnMouseLeave ()
+bool EmulatorShell::OnMouseLeave()
 {
     int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                          std::chrono::steady_clock::now().time_since_epoch()).count();

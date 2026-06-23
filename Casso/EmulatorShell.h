@@ -164,29 +164,29 @@ public:
 
 private:
     // Window message handler overrides
-    bool    OnChar (WPARAM ch, LPARAM lParam) override;
-    bool    OnCommand (HWND hwnd, int id) override;
-    LRESULT OnCreate (HWND hwnd, CREATESTRUCT * pcs) override;
-    bool    OnDestroy (HWND hwnd) override;
-    bool    OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis) override;
-    bool    OnKeyDown (WPARAM vk, LPARAM lParam) override;
-    bool    OnKeyUp (WPARAM vk, LPARAM lParam) override;
-    bool    OnMouseMove (WPARAM wParam, LPARAM lParam) override;
-    bool    OnMouseLeave () override;
-    bool    OnLButtonDown (WPARAM wParam, LPARAM lParam) override;
-    bool    OnLButtonUp (WPARAM wParam, LPARAM lParam) override;
-    bool    OnMove (HWND hwnd, int x, int y) override;
-    bool    OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
-    bool    OnSize (HWND hwnd, UINT width, UINT height) override;
-    bool    OnTimer (HWND hwnd, UINT_PTR timerId) override;
+    bool    OnChar          (WPARAM ch, LPARAM lParam) override;
+    bool    OnCommand       (HWND hwnd, int id) override;
+    LRESULT OnCreate        (HWND hwnd, CREATESTRUCT * pcs) override;
+    bool    OnDestroy       (HWND hwnd) override;
+    bool    OnDrawItem      (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis) override;
+    bool    OnKeyDown       (WPARAM vk, LPARAM lParam) override;
+    bool    OnKeyUp         (WPARAM vk, LPARAM lParam) override;
+    bool    OnMouseMove     (WPARAM wParam, LPARAM lParam) override;
+    bool    OnMouseLeave    () override;
+    bool    OnLButtonDown   (WPARAM wParam, LPARAM lParam) override;
+    bool    OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    bool    OnMove          (HWND hwnd, int x, int y) override;
+    bool    OnNotify        (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
+    bool    OnSize          (HWND hwnd, UINT width, UINT height) override;
+    bool    OnTimer         (HWND hwnd, UINT_PTR timerId) override;
     bool    OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu) override;
 
     // P4 custom-chrome overrides — borderless window + WM_NCHITTEST
     // delegated to TitleBarHitTest, system-button click routing on
     // WM_NCLBUTTONUP.
-    bool    OnNcCalcSize  (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult) override;
-    LRESULT OnNcHitTest   (HWND hwnd, int xScreen, int yScreen) override;
-    bool    OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen) override;
+    bool    OnNcCalcSize              (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult) override;
+    LRESULT OnNcHitTest               (HWND hwnd, int xScreen, int yScreen) override;
+    bool    OnNcLButtonUp             (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen) override;
     bool    WantsCustomCaptionButtons () const override { return true; }
 
     // CPU thread entry point and helpers
@@ -342,21 +342,21 @@ private:
     friend class WindowCommandManager;
     friend class SettingsPanel;
 
-    HACCEL              m_accelTable      = nullptr;
-    HWND                m_renderHwnd      = nullptr;
-    bool                m_initialSizeReconciled = false;
-
-    MemoryBus           m_memoryBus;
-    ComponentRegistry   m_registry;
-    InterruptController m_interruptController;
-    unique_ptr<EmuCpu> m_cpu;
+    HACCEL                 m_accelTable      = nullptr;
+    HWND                   m_renderHwnd      = nullptr;
+    bool                   m_initialSizeReconciled = false;
+   
+    MemoryBus              m_memoryBus;
+    ComponentRegistry      m_registry;
+    InterruptController    m_interruptController;
+    unique_ptr<EmuCpu>     m_cpu;
     unique_ptr<class Prng> m_prng;
-    size_t              m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
-    std::atomic<bool>   m_traceDumped { false };   // one-shot guard for DumpTrace
-
-    D3DRenderer         m_d3dRenderer;
-    WasapiAudio         m_wasapiAudio;
-    DialogPrimitive     m_dialogPrimitive;
+    size_t                 m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
+    std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace
+   
+    D3DRenderer            m_d3dRenderer;
+    WasapiAudio            m_wasapiAudio;
+    DialogPrimitive        m_dialogPrimitive;
 
     // UI-thread filesystem and chrome ownership. The painter pass
     // and shell composition is reintroduced in a later phase; for now
@@ -368,26 +368,26 @@ private:
     // the WM_NCHITTEST helper queries. NavLayer owns the parity
     // table for legacy IDM_* commands. Both run alongside the
     // existing Win32 menu bar until the painter retires the latter.
-    TitleBar            m_titleBar;
-    NavLayer            m_navLayer;
-    ChromeTheme         m_chromeTheme    = ChromeTheme::Skeuomorphic();
+    TitleBar                   m_titleBar;
+    NavLayer                   m_navLayer;
+    ChromeTheme                m_chromeTheme    = ChromeTheme::Skeuomorphic();
     std::array<DriveWidget, 2> m_driveChrome;
 
     // Joystick-mode toggle button (mirrors IDM_MACHINE_ARROWS_JOYSTICK),
     // centered in the drive bar above the drive widgets, with its own
     // hover tooltip.
-    JoystickToggleButton  m_joystickButton;
-    Tooltip               m_joystickTooltip;
+    JoystickToggleButton       m_joystickButton;
+    Tooltip                    m_joystickTooltip;
 
     // Chrome layout planner. Owns the canonical inset math for the
     // title bar, nav strip, and drive bar; replaces the historical
     // ChromeMetrics constants that drifted between EmulatorShell and
     // WindowCommandManager. Edge contributors below are pointer-tied
     // to this layout and report their desired thickness on demand.
-    LayoutManager            m_layout { Scaler() };
-    SimpleEdgeContributor   m_titleBarSlot { ChromeEdge::Top,    32 };
-    SimpleEdgeContributor   m_navStripSlot { ChromeEdge::Top,    32 };
-    SimpleEdgeContributor   m_driveBarSlot { ChromeEdge::Bottom, 256 };
+    LayoutManager              m_layout { Scaler() };
+    SimpleEdgeContributor      m_titleBarSlot { ChromeEdge::Top,    32 };
+    SimpleEdgeContributor      m_navStripSlot { ChromeEdge::Top,    32 };
+    SimpleEdgeContributor      m_driveBarSlot { ChromeEdge::Bottom, 256 };
 
     // Drive widget state pump. The controller channel publishes
     // per-drive door/spin sync events the chrome painter will consume
@@ -396,14 +396,14 @@ private:
     // lives in m_driveWidgetState; the CPU thread's motor + nibble
     // counters are sampled once per UI frame and pushed through the
     // controller.
-    DriveWidgetController                m_driveWidgets;
-    DragDropTarget                       m_dragDropTarget;
+    DriveWidgetController      m_driveWidgets;
+    DragDropTarget             m_dragDropTarget;
 
     // Native UI shell. Owns the painter, text renderer, hit-tester,
     // focus manager, animation broker, and input translator. Wired
     // onto D3DRenderer's after-blit hook so chrome composites every
     // frame between the emulator blit and Present.
-    UiShell             m_uiShell;
+    UiShell                    m_uiShell;
 
     // Consolidated settings panel. Lazily constructed pieces so we
     // can defer their I/O until first Show() on the panel.
@@ -424,15 +424,15 @@ private:
     // Drive audio. Mixer is always allocated; per-drive sources are
     // populated only when the active machine config carries a
     // Disk II controller (FR-015).
-    DriveAudioMixer            m_driveAudioMixer;
+    DriveAudioMixer                      m_driveAudioMixer;
     vector<unique_ptr<Disk2AudioSource>> m_diskAudioSources;
 
     // Owned devices
-    vector<unique_ptr<MemoryDevice>> m_ownedDevices;
+    vector<unique_ptr<MemoryDevice>>     m_ownedDevices;
 
     // Video
-    vector<unique_ptr<VideoOutput>> m_videoModes;
-    CharacterRomData    m_charRom;
+    vector<unique_ptr<VideoOutput>>      m_videoModes;
+    CharacterRomData                     m_charRom;
 
     // Soft switch state (read by video mode selection)
     bool    m_graphicsMode = false;
@@ -464,7 +464,7 @@ private:
 
     MachineRefs                   m_refs;
 
-    unique_ptr<class Apple2eMmu> m_mmu;
+    unique_ptr<class Apple2eMmu>  m_mmu;
     unique_ptr<VideoTiming>       m_videoTiming;
 
     // / T097 / FR-025. The store coordinates auto-flush of dirty
@@ -474,35 +474,35 @@ private:
     DiskImageStore                m_diskStore;
 
     // Emulation state
-    MachineConfig   m_config;
+    MachineConfig                 m_config;
 
     // Machine config file name (without ".json" extension, e.g.,
     // "apple2e", "apple2plus", "apple2"). Used as a registry-key
     // suffix so per-machine UI state (e.g., last-mounted disks) can
     // round-trip between sessions without one machine's setting
     // clobbering another's.
-    wstring         m_currentMachineName;
-    wstring         m_assetBaseDir;
+    wstring                       m_currentMachineName;
+    wstring                       m_assetBaseDir;
 
     // CPU-thread lifecycle, run/pause/step transitions, the UI -> CPU
     // command queue, and the paste buffer all live on CpuManager. The
     // shell wires its per-frame and per-command callbacks at startup
     // and otherwise reads the manager's transition state through the
     // IsRunning() / IsPaused() / GetSpeedMode() accessors.
-    CpuManager         m_cpuManager;
+    CpuManager                    m_cpuManager;
 
     // Atomic flags (UI writes, CPU reads)
-    atomic<ColorMode>  m_colorMode{ColorMode::Color};
+    atomic<ColorMode>             m_colorMode{ColorMode::Color};
 
     // Double framebuffer (CPU renders, UI presents, protected by m_fbMutex)
-    mutex              m_fbMutex;
-    vector<uint32_t>   m_cpuFramebuffer;
-    vector<uint32_t>   m_textOverlay;
-    vector<uint32_t>   m_uiFramebuffer;
-    bool                    m_fbReady = false;
+    mutex                         m_fbMutex;
+    vector<uint32_t>              m_cpuFramebuffer;
+    vector<uint32_t>              m_textOverlay;
+    vector<uint32_t>              m_uiFramebuffer;
+    bool                          m_fbReady = false;
 
-    uint32_t        m_cyclesPerFrame  = 17050;
-    double          m_sampleRemainder = 0.0;
+    uint32_t                      m_cyclesPerFrame  = 17050;
+    double                        m_sampleRemainder = 0.0;
 
     // Last arrow key pressed for each emulated joystick axis pair (0 if
     // none). Lets opposing directions resolve last-pressed-wins so a
@@ -527,8 +527,8 @@ private:
     // Lazy-created on first Ctrl+Shift+D and reused across opens.
     // The uptime anchor lives on the shell (not the panel) so resets
     // re-zero it even while the panel is closed.
-    std::unique_ptr<class Disk2DebugPanel>   m_disk2DebugPanel;
-    std::unique_ptr<class InputDebugPanel>   m_inputDebugPanel;
+    std::unique_ptr<class Disk2DebugPanel>    m_disk2DebugPanel;
+    std::unique_ptr<class InputDebugPanel>    m_inputDebugPanel;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 
     // Extracted shell-side managers. WindowManager owns the per-monitor
