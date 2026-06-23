@@ -543,6 +543,14 @@ HRESULT SettingsWindow::OnCreate (HWND hwnd)
         return this->ClassifyHitForLegacyChrome (ptScreen);
     });
 
+    // Hand the renderer's device/context to the host's popup pool so
+    // adopt-mode dropdowns get real composition-swap-chain popups
+    // (FR-054 / SC-008) instead of headless test-mode stubs. The
+    // device outlives every popup: OnDestroy closes them
+    // (DetachPopupHosts) and destroys the pool (m_hostWindow.reset)
+    // before clearing m_device/m_context.
+    m_hostWindow->SetPopupRenderDevice (m_device, m_context);
+
     if (LoadIconAsPremulBgra (m_hInstance, IDI_CASSO, s_kIconSizePx, iconPixels, iconW, iconH))
     {
         m_titleBar.SetAppIcon (std::move (iconPixels), iconW, iconH);

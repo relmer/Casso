@@ -22,7 +22,7 @@ public:
     void  SetRect        (const RECT & rect) { SetBounds (rect); }
     void  SetItems       (const std::vector<std::wstring> & items);
     void  SetSelected    (int index);
-    void  SetEnabled     (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; if (m_open) { Close(); } } }
+    void  SetEnabled     (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_armed = false; if (m_open) { Close(); } } }
     void  SetFocused     (bool focused) { m_focused = focused; if (!focused && m_open) { Close(); } }
     bool  Focused        () const { return m_focused; }
     void  SetSelect      (SelectFn select) { m_select = std::move (select); }
@@ -89,13 +89,16 @@ public:
     DxuiPopupHost  *  ActivePopup () const { return m_activePopup; }
 
 private:
-    void  Commit         (int index);
+    void  Commit          (int index);
+    void  RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    void  OnPopupMove     (POINT localPx);
+    void  OnPopupClick    (POINT localPx);
 
     std::vector<std::wstring>  m_items;
     SelectFn                  m_select;
     SelectFn                  m_highlightChange;
     bool                      m_open      = false;
-    bool                      m_pressed   = false;
+    bool                      m_armed     = false;
     bool                      m_hover     = false;
     int                       m_highlight = -1;
     int                       m_selected  = -1;

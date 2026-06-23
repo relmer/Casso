@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 #include "Core/DxuiPanel.h"
+#include "Render/DxuiPainter.h"
+#include "Render/DxuiTextRenderer.h"
 
 
 
@@ -100,6 +102,13 @@ enum class DxuiPopupDismissReason
 class DxuiPopupHost
 {
 public:
+    //
+    //  Default opaque background a popup's premultiplied-alpha back
+    //  buffer is cleared to when a consumer doesn't override it (the
+    //  stock dark menu fill). MUST stay fully opaque (A=0xFF).
+    //
+    static constexpr uint32_t  kDefaultMenuBackgroundArgb = 0xFF202A35u;
+
     struct ShowParams
     {
         HWND                            ownerHwnd          = nullptr;
@@ -111,6 +120,33 @@ public:
         bool                            shadow             = true;
         SIZE                            sizeDip            = { 160, 120 };
         std::unique_ptr<DxuiPanel>      content;
+
+        // Opaque background the popup back buffer is cleared to before
+        // the render hook runs. The popup swap chain composites with
+        // premultiplied alpha, so this MUST be fully opaque (A=0xFF) or
+        // owner content shows through (translucency bug). Defaults to
+        // the stock menu background.
+        uint32_t                        backgroundArgb     = kDefaultMenuBackgroundArgb;
+
+        // Content render hook. Invoked between the popup painter's
+        // Begin/End and the text renderer's BeginDraw/EndDraw, with
+        // origin (0,0) at the popup's top-left (popup-local pixels).
+        // The consumer draws its menu rows here. Called on Show and on
+        // every MarkDirty().
+        std::function<void (IDxuiPainter &, IDxuiTextRenderer &)>  renderContent;
+
+        // Pointer-inside callbacks (popup-local pixels). onMoveInside
+        // drives hover highlight; onClickInside commits a row. The
+        // consumer calls MarkDirty() from these when the visual changes.
+        std::function<void (POINT localPx)>                        onMoveInside;
+        std::function<void (POINT localPx)>                        onClickInside;
+
+        // Fired from Close() (manual or auto-dismiss) so the owning
+        // widget can clear its own open/active state and return the
+        // popup to the host pool. Re-entrant-safe: Close() early-exits
+        // when already closed, so calling ReleasePopup() from here does
+        // not recurse.
+        std::function<void ()>                                     onClosed;
     };
 
 
@@ -118,13 +154,16 @@ public:
     ~DxuiPopupHost ();
 
     //
-    //  Production initialization. The device is shared with (and
-    //  outlived by) the owning DxuiHostWindow; this object does NOT
-    //  AddRef it for ownership purposes — the caller guarantees
-    //  the device outlives the popup host. hInstance is used for
-    //  window-class registration.
+    //  Production initialization. The device + context are shared with
+    //  (and outlived by) the owning render surface; this object does
+    //  NOT AddRef them for ownership purposes — the caller guarantees
+    //  they outlive the popup host. The context is needed because the
+    //  popup owns its own DxuiPainter (D3D) bound to its swap-chain
+    //  back buffer. hInstance is used for window-class registration.
     //
-    HRESULT  Initialize         (HINSTANCE hInstance, ID3D11Device * device);
+    HRESULT  Initialize         (HINSTANCE              hInstance,
+                                 ID3D11Device         * device,
+                                 ID3D11DeviceContext  * context);
 
     //
     //  Test-mode initialization. Skips window-class registration and
@@ -154,6 +193,15 @@ public:
 
     bool     IsOpen             () const { return m_open; }
     HWND     Hwnd               () const { return m_hwnd; }
+
+    //
+    //  Re-render the popup content NOW (clear to the opaque background,
+    //  invoke the render hook, Present). Synchronous + UI-thread-only;
+    //  call whenever the popup's visible content changes (hover
+    //  highlight, selection, item set, theme, DPI). No-op in test mode
+    //  or when the popup is closed / has no render resources.
+    //
+    void     MarkDirty          ();
 
     //
     //  std::future that resolves when Close() is invoked (or the
@@ -219,11 +267,24 @@ private:
     HRESULT  CreateHwndAndComposition        (const RECT & placedRectScreenPx);
     void     DestroyHwndAndComposition       ();
 
+    //
+    //  Back-buffer render-target management. CreateBackBufferRtv binds
+    //  the popup swap chain's back buffer as the D3D RTV and the D2D
+    //  text target. ResizeSwapChain releases those first (strict order
+    //  so ResizeBuffers has no outstanding references), resizes, and
+    //  re-binds. RenderNow does the clear / hook / present pass.
+    //
+    HRESULT  CreateBackBufferRtv             ();
+    void     ReleaseBackBufferRtv            ();
+    HRESULT  ResizeSwapChain                 (int widthPx, int heightPx);
+    void     RenderNow                       ();
+
 
     bool                                    m_initialized       = false;
     bool                                    m_testMode          = false;
     HINSTANCE                               m_hInstance         = nullptr;
     ID3D11Device                          * m_device            = nullptr;   // non-owning
+    ID3D11DeviceContext                   * m_context           = nullptr;   // non-owning
     HWND                                    m_hwnd              = nullptr;
     bool                                    m_classRegistered   = false;
     std::wstring                            m_className;
@@ -232,6 +293,15 @@ private:
     ComPtr<IDCompositionDevice>             m_compDevice;
     ComPtr<IDCompositionTarget>             m_compTarget;
     ComPtr<IDCompositionVisual>             m_compVisual;
+    ComPtr<ID3D11RenderTargetView>          m_rtv;
+
+    // Per-popup render facades bound to the popup's own back buffer.
+    // The popup composites with premultiplied alpha (DComp), so RenderNow
+    // clears the whole buffer opaque before invoking the content hook.
+    DxuiPainter                             m_painter;
+    DxuiTextRenderer                        m_textRenderer;
+    bool                                    m_renderReady       = false;
+    SIZE                                    m_backBufferSizePx  = {};
 
     ShowParams                              m_params;
     bool                                    m_open              = false;
