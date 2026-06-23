@@ -137,7 +137,9 @@ DxuiPopupHost::~DxuiPopupHost()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiPopupHost::Initialize (HINSTANCE hInstance, ID3D11Device * device)
+HRESULT DxuiPopupHost::Initialize (HINSTANCE              hInstance,
+                                  ID3D11Device         * device,
+                                  ID3D11DeviceContext  * context)
 {
     HRESULT  hr  = S_OK;
 
@@ -147,9 +149,22 @@ HRESULT DxuiPopupHost::Initialize (HINSTANCE hInstance, ID3D11Device * device)
     CBRA (!m_initialized);
     CBRAEx (hInstance != nullptr, E_INVALIDARG);
     CBRAEx (device    != nullptr, E_INVALIDARG);
+    CBRAEx (context   != nullptr, E_INVALIDARG);
 
     m_hInstance   = hInstance;
     m_device      = device;
+    m_context     = context;
+
+    // Per-popup render facades on the shared device. DxuiPainter needs
+    // the immediate context; DxuiTextRenderer derives its own D2D device
+    // from the D3D device. Bound to the back buffer in CreateBackBufferRtv.
+    hr = m_painter.Initialize (device, context);
+    CHRA (hr);
+
+    hr = m_textRenderer.Initialize (device);
+    CHRA (hr);
+
+    m_renderReady = true;
     m_initialized = true;
     m_testMode    = false;
 
@@ -174,8 +189,10 @@ void DxuiPopupHost::InitializeForTest ()
 
     m_initialized = true;
     m_testMode    = true;
+    m_renderReady = false;
     m_hInstance   = nullptr;
     m_device      = nullptr;
+    m_context     = nullptr;
 }
 
 
@@ -208,8 +225,10 @@ void DxuiPopupHost::Shutdown ()
     m_className.clear();
     m_initialized = false;
     m_testMode    = false;
+    m_renderReady = false;
     m_hInstance   = nullptr;
     m_device      = nullptr;
+    m_context     = nullptr;
     m_parent      = nullptr;
     m_activeChild = nullptr;
 }
@@ -296,6 +315,9 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     // keyboard focus / caption activation state.
     ShowWindow (m_hwnd, SW_SHOWNOACTIVATE);
 
+    // Paint the first frame now that the HWND + swap chain are live.
+    RenderNow();
+
     // Click-outside dismiss: capture so off-popup clicks route to
     // our WndProc as WM_CAPTURECHANGED / WM_LBUTTONDOWN-with-NCHITTEST.
     if (m_params.dismiss == DxuiPopupDismiss::OnClickOutside ||
@@ -332,6 +354,9 @@ Error:
 
 void DxuiPopupHost::Close (int resultCode)
 {
+    std::function<void ()>  onClosed;
+
+
     DXUI_ASSERT_UI_THREAD();
 
     if (!m_open)
@@ -359,13 +384,22 @@ void DxuiPopupHost::Close (int resultCode)
         ShowWindow (m_hwnd, SW_HIDE);
     }
 
-    // Drop the content panel reference (releases caller-owned data).
+    // Capture onClosed before dropping content so the owning widget
+    // can clear its open/active state and return us to the pool. Close
+    // early-exits on re-entry (m_open is already false), so a
+    // ReleasePopup() from within onClosed does not recurse.
+    onClosed = m_params.onClosed;
     m_params.content.reset();
 
     if (m_completionPending)
     {
         m_completionPromise.set_value (resultCode);
         m_completionPending = false;
+    }
+
+    if (onClosed)
+    {
+        onClosed();
     }
 }
 
@@ -663,26 +697,48 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             }
             return 0;
 
+        case WM_MOUSEMOVE:
+            // Hover routing (popup-local pixels). The consumer compares
+            // against its current highlight and MarkDirty()s on change,
+            // so this stays cheap despite firing on every move.
+            if (m_open && m_params.onMoveInside)
+            {
+                POINT  pt = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
+                RECT   rc = {};
+                GetClientRect (m_hwnd, &rc);
+
+                if (PtInRect (&rc, pt))
+                {
+                    m_params.onMoveInside (pt);
+                }
+            }
+            break;
+
         case WM_LBUTTONDOWN:
         case WM_RBUTTONDOWN:
         case WM_MBUTTONDOWN:
             // Click landed on us while we had capture — work out if
-            // it was inside our client rect. If not, dismiss per
-            // policy.
+            // it was inside our client rect. Inside left-clicks commit
+            // a row; outside clicks dismiss per policy.
             if (m_open && GetCapture() == m_hwnd)
             {
                 POINT  pt = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
                 RECT   rc = {};
                 GetClientRect (m_hwnd, &rc);
 
-                if (!PtInRect (&rc, pt))
+                if (PtInRect (&rc, pt))
                 {
-                    if (m_params.dismiss == DxuiPopupDismiss::OnClickOutside ||
-                        m_params.dismiss == DxuiPopupDismiss::OnClickAnywhere)
+                    if (msg == WM_LBUTTONDOWN && m_params.onClickInside)
                     {
-                        Close (0);
+                        m_params.onClickInside (pt);
                         return 0;
                     }
+                }
+                else if (m_params.dismiss == DxuiPopupDismiss::OnClickOutside ||
+                         m_params.dismiss == DxuiPopupDismiss::OnClickAnywhere)
+                {
+                    Close (0);
+                    return 0;
                 }
             }
             break;
@@ -855,6 +911,19 @@ HRESULT DxuiPopupHost::CreateHwndAndComposition (const RECT & placedRectScreenPx
         CHRA (hr);
     }
 
+    // Bind (first create) or resize (pool reuse at a new size) the
+    // back-buffer RTV + D2D text target to the current popup size.
+    if (m_rtv == nullptr)
+    {
+        hr = CreateBackBufferRtv();
+        CHRA (hr);
+    }
+    else
+    {
+        hr = ResizeSwapChain (widthPx, heightPx);
+        CHRA (hr);
+    }
+
 Error:
 
     return hr;
@@ -872,14 +941,249 @@ Error:
 
 void DxuiPopupHost::DestroyHwndAndComposition ()
 {
+    ReleaseBackBufferRtv();
     m_compVisual.Reset();
     m_compTarget.Reset();
     m_compDevice.Reset();
     m_swapChain.Reset();
+    m_backBufferSizePx = {};
 
     if (m_hwnd != nullptr)
     {
         DestroyWindow (m_hwnd);
         m_hwnd = nullptr;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateBackBufferRtv
+//
+//  Binds the popup swap chain's back buffer as both the D3D render
+//  target (for DxuiPainter) and the D2D text target (for
+//  DxuiTextRenderer). D2D is bound at the default DPI so D2D logical
+//  units equal physical pixels — the popup renders and hit-tests in
+//  physical pixels throughout (the consumer scales DIPs -> px itself).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiPopupHost::CreateBackBufferRtv ()
+{
+    HRESULT                   hr          = S_OK;
+    DXGI_SWAP_CHAIN_DESC1     scd         = {};
+    D3D11_VIEWPORT            vp          = {};
+    ComPtr<ID3D11Texture2D>   backBuffer;
+    ComPtr<IDXGISurface>      backSurface;
+
+
+    CBRA (m_swapChain);
+    CBRA (m_device);
+    CBRA (m_context);
+    CBRA (m_rtv == nullptr);
+
+    hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (backBuffer.GetAddressOf()));
+    CHRA (hr);
+
+    hr = m_device->CreateRenderTargetView (backBuffer.Get(), nullptr, m_rtv.GetAddressOf());
+    CHRA (hr);
+
+    hr = m_swapChain->GetDesc1 (&scd);
+    CHRA (hr);
+
+    m_backBufferSizePx.cx = (LONG) scd.Width;
+    m_backBufferSizePx.cy = (LONG) scd.Height;
+
+    vp.TopLeftX = 0.0f;
+    vp.TopLeftY = 0.0f;
+    vp.Width    = (float) scd.Width;
+    vp.Height   = (float) scd.Height;
+    vp.MinDepth = 0.0f;
+    vp.MaxDepth = 1.0f;
+    m_context->RSSetViewports (1, &vp);
+
+    hr = backBuffer.As (&backSurface);
+    CHRA (hr);
+
+    hr = m_textRenderer.BindBackBuffer (backSurface.Get(), s_kDefaultDpi, s_kDefaultDpi);
+    CHRA (hr);
+
+Error:
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseBackBufferRtv
+//
+//  Drops the back-buffer RTV + D2D target. Must run before
+//  ResizeBuffers so the back-buffer reference count reaches zero.
+//  Idempotent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::ReleaseBackBufferRtv ()
+{
+    if (m_renderReady)
+    {
+        m_textRenderer.UnbindBackBuffer();
+    }
+    if (m_context && m_rtv)
+    {
+        ID3D11RenderTargetView *  nullRtv[1] = { nullptr };
+
+        m_context->OMSetRenderTargets (1, nullRtv, nullptr);
+    }
+    m_rtv.Reset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResizeSwapChain
+//
+//  Resizes the popup swap chain to a new pixel size on pool reuse.
+//  Releases the RTV + D2D target first (strict order so ResizeBuffers
+//  has no outstanding back-buffer references), then re-binds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiPopupHost::ResizeSwapChain (int widthPx, int heightPx)
+{
+    HRESULT  hr  = S_OK;
+
+
+    CBRA (m_swapChain);
+
+    if (widthPx  < 1) { widthPx  = 1; }
+    if (heightPx < 1) { heightPx = 1; }
+
+    if (m_backBufferSizePx.cx == (LONG) widthPx &&
+        m_backBufferSizePx.cy == (LONG) heightPx &&
+        m_rtv != nullptr)
+    {
+        return S_OK;
+    }
+
+    ReleaseBackBufferRtv();
+
+    hr = m_swapChain->ResizeBuffers (0, (UINT) widthPx, (UINT) heightPx, DXGI_FORMAT_UNKNOWN, 0);
+    CHRA (hr);
+
+    hr = CreateBackBufferRtv();
+    CHRA (hr);
+
+Error:
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RenderNow
+//
+//  Clears the back buffer to the opaque background, invokes the
+//  content render hook (popup-local pixels), and presents. The
+//  premultiplied-alpha composition surface MUST be cleared fully
+//  opaque or owner content shows through. Painter (D3D fills) flushes
+//  before the text renderer (D2D glyphs) so foreground composites on
+//  top. No-op outside production / closed / not ready.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::RenderNow ()
+{
+    HRESULT   hr           = S_OK;
+    uint32_t  argb         = 0u;
+    float     clear[4]     = {};
+    bool      painterBegun = false;
+    bool      textBegun    = false;
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_testMode || !m_open || !m_renderReady || !m_swapChain || m_rtv == nullptr)
+    {
+        return;
+    }
+
+    argb     = m_params.backgroundArgb;
+    clear[0] = (float) ((argb >> 16) & 0xFFu) / 255.0f;
+    clear[1] = (float) ((argb >>  8) & 0xFFu) / 255.0f;
+    clear[2] = (float) ((argb      ) & 0xFFu) / 255.0f;
+    clear[3] = (float) ((argb >> 24) & 0xFFu) / 255.0f;
+
+    m_context->OMSetRenderTargets    (1, m_rtv.GetAddressOf(), nullptr);
+    m_context->ClearRenderTargetView (m_rtv.Get(), clear);
+
+    if (m_params.renderContent)
+    {
+        hr = m_painter.Begin ((int) m_backBufferSizePx.cx, (int) m_backBufferSizePx.cy);
+        CHRA (hr);
+        painterBegun = true;
+        m_painter.SetGlobalAlpha (1.0f);
+
+        hr = m_textRenderer.BeginDraw();
+        CHRA (hr);
+        textBegun = true;
+        m_textRenderer.SetGlobalAlpha (1.0f);
+
+        m_params.renderContent (m_painter, m_textRenderer);
+
+        hr = m_painter.End (m_rtv.Get());
+        painterBegun = false;
+        CHRA (hr);
+
+        hr = m_textRenderer.EndDraw();
+        textBegun = false;
+        CHRA (hr);
+    }
+
+    hr = m_swapChain->Present (0, 0);
+    CHRA (hr);
+
+Error:
+
+    if (textBegun)
+    {
+        (void) m_textRenderer.EndDraw();
+    }
+    if (painterBegun)
+    {
+        (void) m_painter.End (m_rtv.Get());
+    }
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MarkDirty
+//
+//  Public re-render trigger. Synchronous + UI-thread-only.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::MarkDirty ()
+{
+    DXUI_ASSERT_UI_THREAD();
+    RenderNow();
 }

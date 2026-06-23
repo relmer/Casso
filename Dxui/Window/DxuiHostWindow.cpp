@@ -2319,18 +2319,7 @@ DxuiPopupHost * DxuiHostWindow::AcquirePopup ()
         {
             std::unique_ptr<DxuiPopupHost>  fresh = std::make_unique<DxuiPopupHost>();
 
-            if (m_device != nullptr && m_hInstance != nullptr)
-            {
-                HRESULT  hrInit = fresh->Initialize (m_hInstance, m_device.Get());
-                if (FAILED (hrInit))
-                {
-                    fresh->InitializeForTest();
-                }
-            }
-            else
-            {
-                fresh->InitializeForTest();
-            }
+            InitializePooledPopup (fresh.get());
             m_popupPool.push_back (std::move (fresh));
         }
     }
@@ -2360,18 +2349,7 @@ DxuiPopupHost * DxuiHostWindow::AcquirePopup ()
     {
         std::unique_ptr<DxuiPopupHost>  fresh = std::make_unique<DxuiPopupHost>();
 
-        if (m_device != nullptr && m_hInstance != nullptr)
-        {
-            HRESULT  hrInit = fresh->Initialize (m_hInstance, m_device.Get());
-            if (FAILED (hrInit))
-            {
-                fresh->InitializeForTest();
-            }
-        }
-        else
-        {
-            fresh->InitializeForTest();
-        }
+        InitializePooledPopup (fresh.get());
         popup = fresh.get();
         m_popupPool.push_back (std::move (fresh));
         m_popupActive.push_back (popup);
@@ -2417,5 +2395,65 @@ void DxuiHostWindow::ReleasePopup (DxuiPopupHost * popup)
             m_popupActive.erase (m_popupActive.begin() + (ptrdiff_t) i);
             return;
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetPopupRenderDevice
+//
+//  Supplies the device/context an adopt-mode host's popup pool should
+//  use (the consumer's renderer owns them). Stored non-owning.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::SetPopupRenderDevice (ID3D11Device         * device,
+                                           ID3D11DeviceContext  * context)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    m_popupDevice  = device;
+    m_popupContext = context;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InitializePooledPopup
+//
+//  Initializes one pooled popup for production rendering when a real
+//  device/context/HINSTANCE are available, else falls back to headless
+//  test mode. Full-ownership hosts use m_device/m_context; adopt-mode
+//  hosts use the device set via SetPopupRenderDevice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::InitializePooledPopup (DxuiPopupHost * popup)
+{
+    ID3D11Device         *  device   = m_device  ? m_device.Get()  : m_popupDevice.Get();
+    ID3D11DeviceContext  *  context  = m_context ? m_context.Get() : m_popupContext.Get();
+    HRESULT                 hr       = S_OK;
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    if (device != nullptr && context != nullptr && m_hInstance != nullptr)
+    {
+        hr = popup->Initialize (m_hInstance, device, context);
+        if (FAILED (hr))
+        {
+            popup->InitializeForTest();
+        }
+    }
+    else
+    {
+        popup->InitializeForTest();
     }
 }

@@ -271,6 +271,19 @@ public:
     DxuiPopupHost  *  AcquirePopup ();
     void              ReleasePopup (DxuiPopupHost * popup);
 
+    //
+    //  Adopt-mode popup device. A full-ownership host seeds its popup
+    //  pool from its own m_device/m_context, but an adopt-mode host
+    //  (it wraps a foreign HWND and owns no device) has none — its
+    //  consumer's renderer does. The consumer calls this after
+    //  CreateInAdoptMode so pooled popups can create real swap chains
+    //  instead of falling back to headless test mode. Must be called
+    //  before the first AcquirePopup(); the device/context must outlive
+    //  every popup (close all popups before the renderer is torn down).
+    //
+    void              SetPopupRenderDevice (ID3D11Device         * device,
+                                            ID3D11DeviceContext  * context);
+
 #ifdef _DEBUG
     size_t  PopupHits   () const { return m_popupHits;   }
     size_t  PopupMisses () const { return m_popupMisses; }
@@ -353,6 +366,7 @@ private:
     DxuiHitTestKind  ClassifyHitInternal       (POINT clientDip, RECT clientBoundsDip) const;
     IDxuiControl   *  FindNcSystemControlAt    (POINT clientDip) const;
     void              NotifySystemButtonsMaximized (bool maximized);
+    void              InitializePooledPopup    (DxuiPopupHost * popup);
 
     static DxuiHitTestKind  ClassifyResizeEdge (POINT clientDip,
                                                 RECT  clientBoundsDip,
@@ -397,6 +411,11 @@ private:
     // (WM_DPICHANGED_BEFOREPARENT) to live popups.
     std::vector<std::unique_ptr<DxuiPopupHost>>  m_popupPool;
     std::vector<DxuiPopupHost *>                 m_popupActive;
+
+    // Adopt-mode popup device/context (non-owning). Null in
+    // full-ownership mode (m_device/m_context are used instead).
+    ComPtr<ID3D11Device>                         m_popupDevice;
+    ComPtr<ID3D11DeviceContext>                  m_popupContext;
 #ifdef _DEBUG
     size_t                                       m_popupHits   = 0;
     size_t                                       m_popupMisses = 0;
