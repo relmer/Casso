@@ -49,6 +49,13 @@ public:
     HWND       Hwnd       () const { return m_hwnd; }
     TitleBar & GetTitleBar()       { return m_titleBar; }
 
+    //
+    //  The adopt-mode DxuiHostWindow whose popup pool hosts this
+    //  window's out-of-client popups (e.g. a content right-click menu).
+    //  Valid only between OnCreate and OnDestroy; null otherwise.
+    //
+    DxuiHostWindow *  PopupHost () const { return m_hostWindow.get(); }
+
 private:
     static LRESULT CALLBACK s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 

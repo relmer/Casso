@@ -614,6 +614,13 @@ HRESULT ChromedPanelWindow::OnCreate (HWND hwnd)
         return this->ClassifyHitForLegacyChrome (ptScreen);
     });
 
+    // Wire the renderer's device into the host popup pool so content
+    // right-click menus get real composition-swap-chain popups
+    // (SC-008) instead of headless test stubs. The device outlives
+    // every popup: content closes its popups in OnHostDestroyed, which
+    // runs before m_hostWindow.reset() in OnDestroy.
+    m_hostWindow->SetPopupRenderDevice (m_device, m_context);
+
     if (LoadIconAsPremulBgra (m_hInstance, IDI_CASSO, s_kIconSizePx, iconPixels, iconW, iconH))
     {
         m_titleBar.SetAppIcon (std::move (iconPixels), iconW, iconH);
