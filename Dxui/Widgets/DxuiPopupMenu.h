@@ -87,7 +87,11 @@ public:
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Dropdown; }
 
 private:
-    int   HitTestIndex (int x, int y) const;
+    int   HitTestIndex    (int x, int y) const;
+    void  PaintBody       (IDxuiPainter & painter, IDxuiTextRenderer & text, int originLeft, int originTop) const;
+    void  RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    void  OnPopupMove     (POINT localPx);
+    void  OnPopupClick    (POINT localPx);
 
 
     std::vector<Item>     m_items;

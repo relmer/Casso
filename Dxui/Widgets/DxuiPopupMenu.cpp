@@ -86,26 +86,42 @@ void DxuiPopupMenu::Show (
     m_boundsDip.bottom = top  + height;
 
     // Opt-in popup hosting (see header). When a host is wired up we
-    // acquire a pooled DxuiPopupHost and show the menu via WS_POPUP
-    // so it isn't clipped by the owner client area.
+    // acquire a pooled DxuiPopupHost and render the menu into a
+    // top-level WS_POPUP so it isn't clipped by the owner client area
+    // (SC-008). The cursor-anchored popup slides to stay on-monitor.
     if (m_popupHost != nullptr && m_activePopup == nullptr)
     {
         HRESULT                    hrShow      = S_OK;
         DxuiPopupHost::ShowParams  showParams;
+        HWND                       owner       = m_popupHost->Hwnd();
+        POINT                      cursor      = { anchorX, anchorY };
+        UINT                       dpi         = m_scaler.Dpi();
+        uint32_t                   bgArgb      = (m_theme != nullptr)
+                                                    ? m_theme->BackgroundElevated()
+                                                    : DxuiPopupHost::kDefaultMenuBackgroundArgb;
+
+        // Anchor at the cursor in screen physical pixels (anchorX/Y are
+        // client px). Size in DIPs (Show scales x dpi once); the menu
+        // metrics above are physical px, so convert back to DIPs.
+        ClientToScreen (owner, &cursor);
 
         m_activePopup = m_popupHost->AcquirePopup();
         if (m_activePopup != nullptr)
         {
-            showParams.ownerHwnd        = m_popupHost->Hwnd();
-            showParams.anchorRectScreen = m_boundsDip;
+            showParams.ownerHwnd        = owner;
+            showParams.anchorRectScreen = { cursor.x, cursor.y, cursor.x, cursor.y };
             showParams.placement        = DxuiPopupPlacement::AtCursor;
             showParams.flipIfOffscreen  = true;
             showParams.dismiss          = DxuiPopupDismiss::OnClickOutside;
             showParams.input            = DxuiPopupInput::Interactive;
             showParams.shadow           = true;
-            showParams.sizeDip.cx       = width;
-            showParams.sizeDip.cy       = height;
-            showParams.content          = std::make_unique<DxuiPanel>();
+            showParams.sizeDip.cx       = MulDiv (width,  DxuiDpiScaler::kBaseDpi, (int) dpi);
+            showParams.sizeDip.cy       = MulDiv (height, DxuiDpiScaler::kBaseDpi, (int) dpi);
+            showParams.backgroundArgb   = bgArgb;
+            showParams.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopupMenu (p, t); };
+            showParams.onMoveInside     = [this] (POINT localPx) { OnPopupMove  (localPx); };
+            showParams.onClickInside    = [this] (POINT localPx) { OnPopupClick (localPx); };
+            showParams.onClosed         = [this] () { Hide(); };
 
             hrShow = m_activePopup->Show (std::move (showParams));
             if (FAILED (hrShow))
@@ -129,14 +145,19 @@ void DxuiPopupMenu::Show (
 
 void DxuiPopupMenu::Hide()
 {
-    m_visible = false;
-    m_hover   = -1;
-    m_pressed = -1;
+    DxuiPopupHost *  popup  = m_activePopup;
 
-    if (m_activePopup != nullptr && m_popupHost != nullptr)
+
+    // Clear m_activePopup BEFORE releasing so the popup's onClosed
+    // callback (which routes back here) is a no-op — no double release.
+    m_visible     = false;
+    m_hover       = -1;
+    m_pressed     = -1;
+    m_activePopup = nullptr;
+
+    if (popup != nullptr && m_popupHost != nullptr)
     {
-        m_popupHost->ReleasePopup (m_activePopup);
-        m_activePopup = nullptr;
+        m_popupHost->ReleasePopup (popup);
     }
 }
 
@@ -194,6 +215,11 @@ int DxuiPopupMenu::HitTestIndex (int x, int y) const
 
 void DxuiPopupMenu::OnMouseMove (int x, int y)
 {
+    if (m_activePopup != nullptr)
+    {
+        return;
+    }
+
     if (m_visible)
     {
         m_hover = HitTestIndex (x, y);
@@ -213,6 +239,9 @@ void DxuiPopupMenu::OnMouseMove (int x, int y)
 bool DxuiPopupMenu::OnLButtonDown (int x, int y)
 {
     if (!m_visible) { return false; }
+
+    // A live popup owns its own input via the host WndProc.
+    if (m_activePopup != nullptr) { return true; }
 
     if (!HitTest (x, y))
     {
@@ -242,6 +271,9 @@ bool DxuiPopupMenu::OnLButtonUp (int x, int y)
 
 
     if (!m_visible) { return false; }
+
+    // A live popup owns its own input via the host WndProc.
+    if (m_activePopup != nullptr) { return true; }
 
     if (idx >= 0 && idx == m_pressed)
     {
@@ -287,6 +319,7 @@ bool DxuiPopupMenu::OnKey (WPARAM vk)
     {
         if (m_items.empty()) { return true; }
         m_hover = (m_hover + 1) % (int) m_items.size();
+        if (m_activePopup != nullptr) { m_activePopup->MarkDirty(); }
         return true;
     }
 
@@ -294,6 +327,7 @@ bool DxuiPopupMenu::OnKey (WPARAM vk)
     {
         if (m_items.empty()) { return true; }
         m_hover = (m_hover <= 0) ? (int) m_items.size() - 1 : m_hover - 1;
+        if (m_activePopup != nullptr) { m_activePopup->MarkDirty(); }
         return true;
     }
 
@@ -320,9 +354,37 @@ bool DxuiPopupMenu::OnKey (WPARAM vk)
 //
 //  Paint
 //
+//  In-window fallback path (no popup host wired up). Draws at the
+//  panel-absolute bounds. Suppressed when a real popup is active —
+//  the popup renders itself through RenderPopupMenu.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiPopupMenu::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
+{
+    if (!m_visible || m_activePopup != nullptr || m_theme == nullptr)
+    {
+        return;
+    }
+
+    PaintBody (painter, text, m_boundsDip.left, m_boundsDip.top);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintBody
+//
+//  Shared menu renderer. Draws the background, border, hover row, check
+//  glyphs, and labels at the supplied origin. The in-window Paint uses
+//  the panel-absolute bounds; the popup render hook passes (0,0).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer & text, int originLeft, int originTop) const
 {
     HRESULT   hr       = S_OK;
     int       border   = m_scaler.Px (s_kBorderDip);
@@ -335,13 +397,13 @@ void DxuiPopupMenu::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     uint32_t  bgHover  = 0;
     uint32_t  fgArgb   = 0;
     uint32_t  brdrArgb = 0;
-    float     left     = (float) m_boundsDip.left;
-    float     top      = (float) m_boundsDip.top;
+    float     left     = (float) originLeft;
+    float     top      = (float) originTop;
     float     width    = (float) (m_boundsDip.right  - m_boundsDip.left);
     float     height   = (float) (m_boundsDip.bottom - m_boundsDip.top);
 
 
-    if (!m_visible || m_theme == nullptr)
+    if (m_theme == nullptr)
     {
         return;
     }
@@ -390,6 +452,107 @@ void DxuiPopupMenu::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
                                                   fgArgb, fontDip, L"Segoe UI",
                                                   DxuiTextHAlign::Left,
                                                   DxuiTextVAlign::Center));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RenderPopupMenu
+//
+//  Popup-local render hook (origin 0,0 = popup top-left). The host
+//  already cleared the back buffer to the theme background; this draws
+//  the border, hover row, and item text on top.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const
+{
+    PaintBody (painter, text, 0, 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnPopupMove
+//
+//  Pointer-move inside the popup (popup-local physical pixels). Maps
+//  the y to a row and re-renders on change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::OnPopupMove (POINT localPx)
+{
+    int  border = m_scaler.Px (s_kBorderDip);
+    int  itemH  = m_scaler.Px (s_kItemHeightDip);
+    int  relY   = localPx.y - border;
+    int  row    = -1;
+
+
+    if (itemH <= 0 || m_items.empty() || relY < 0)
+    {
+        return;
+    }
+
+    row = relY / itemH;
+    if (row < 0 || row >= (int) m_items.size())
+    {
+        return;
+    }
+
+    if (row != m_hover)
+    {
+        m_hover = row;
+        if (m_activePopup != nullptr)
+        {
+            m_activePopup->MarkDirty();
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnPopupClick
+//
+//  Left-click inside the popup (popup-local physical pixels). Commits
+//  the row under the cursor and dismisses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::OnPopupClick (POINT localPx)
+{
+    int       border = m_scaler.Px (s_kBorderDip);
+    int       itemH  = m_scaler.Px (s_kItemHeightDip);
+    int       relY   = localPx.y - border;
+    int       row    = -1;
+    SelectFn  cb     = m_onSelect;
+
+
+    if (itemH <= 0 || m_items.empty() || relY < 0)
+    {
+        return;
+    }
+
+    row = relY / itemH;
+    if (row < 0 || row >= (int) m_items.size())
+    {
+        return;
+    }
+
+    Hide();
+    if (cb)
+    {
+        cb (row);
     }
 }
 

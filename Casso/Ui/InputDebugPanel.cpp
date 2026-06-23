@@ -765,6 +765,10 @@ HRESULT InputDebugPanel::OnHostCreated (
     ConfigureWidgets();
     RecomputeLayout();
 
+    // Route the column right-click menu through the host popup pool so
+    // it renders as a real top-level popup (not clipped to the panel).
+    m_columnMenu.SetPopupHost (m_window.PopupHost());
+
 Error:
     return hr;
 }
@@ -781,6 +785,11 @@ Error:
 
 void InputDebugPanel::OnHostDestroyed()
 {
+    // Release any live popup back to the pool and drop the host pointer
+    // before the host (and its pool) are destroyed in OnDestroy.
+    m_columnMenu.Hide();
+    m_columnMenu.SetPopupHost (nullptr);
+
     m_text.UnbindBackBuffer();
     m_text.Shutdown();
     m_painter.Shutdown();

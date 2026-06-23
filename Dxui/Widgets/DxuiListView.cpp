@@ -1251,6 +1251,11 @@ void DxuiListView::PaintHeader (
         float  sortReserve = hasSort ? (sortGlyphW + cellPadR) : 0.0f;
         float  titleW      = (float) colWPx[c] - cellPadL - cellPadR - sortReserve;
 
+        if (!m_columns[c].visible || colWPx[c] <= 0)
+        {
+            continue;
+        }
+
         if (titleW < 0.0f)
         {
             titleW = 0.0f;
@@ -1423,6 +1428,11 @@ void DxuiListView::PaintDataRows (
         for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
         {
             uint32_t  argb = cells[c].dim ? pal.fgDim : pal.fg;
+
+            if (!m_columns[c].visible || colWPx[c] <= 0)
+            {
+                continue;
+            }
 
             hr = text.DrawString (cells[c].text.c_str(),
                                   x + (float) colXPx[c] + cellPadL,
