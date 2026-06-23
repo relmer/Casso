@@ -11,6 +11,7 @@
 #include "Devices/AppleKeyboard.h"
 #include "Devices/Apple2eKeyboard.h"
 #include "Devices/AppleSoftSwitchBank.h"
+#include "Devices/AppleGamePort.h"
 #include "Devices/Apple2eSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
 #include "Devices/Disk2Controller.h"
@@ -449,6 +450,11 @@ EmulatorShell::~EmulatorShell()
         if (iieSwitches != nullptr)
         {
             iieSwitches->SetInputEventSink (nullptr);
+        }
+
+        if (m_refs.gamePort != nullptr)
+        {
+            m_refs.gamePort->SetInputEventSink (nullptr);
         }
 
         m_inputDebugPanel.reset();
@@ -3181,7 +3187,8 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     bool     altHeld       = false;
     bool     isRepeat      = (lParam & s_kPreviousKeyDownLParamBit) != 0;
     bool     driveJoystick = m_mapArrowsToJoystick &&
-                             (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr);
+                             (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr ||
+                              m_refs.gamePort != nullptr);
     Byte     appleCode     = 0;
 
 
@@ -3252,7 +3259,7 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
             m_lastVerticalArrowVk = vk;
         }
 
-        UpdateJoystickAxesFromKeys ();
+        UpdateJoystickAxesFromKeys();
     }
 
     // Re-resolve the joystick fire buttons on every key event in joystick
@@ -3263,7 +3270,7 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     // also type into the //e keyboard latch.
     if (driveJoystick)
     {
-        UpdateJoystickButtonsFromKeys ();
+        UpdateJoystickButtonsFromKeys();
     }
 
 Error:
@@ -3304,12 +3311,12 @@ bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 
     if (m_mapArrowsToJoystick && IsArrowVk (vk))
     {
-        UpdateJoystickAxesFromKeys ();
+        UpdateJoystickAxesFromKeys();
     }
 
     if (m_mapArrowsToJoystick)
     {
-        UpdateJoystickButtonsFromKeys ();
+        UpdateJoystickButtonsFromKeys();
     }
 
 Error:
@@ -3325,9 +3332,10 @@ Error:
 //  UpdateJoystickAxesFromKeys
 //
 //  Host UI thread. Resolves the four arrow keys into the two emulated
-//  joystick axes and stages them on the //e soft-switch bank, where the
-//  PREAD timer ($C070 / $C064-$C067) turns them into analog readings.
-//  No-op on ][/][+ (the bank isn't an Apple2eSoftSwitchBank).
+//  joystick axes and stages them on the game port: the //e soft-switch
+//  bank (Apple2eSoftSwitchBank) or the ][/][+ AppleGamePort, whichever is
+//  present. The PREAD timer ($C070 / $C064-$C067) turns them into analog
+//  readings. No-op only when neither device is present.
 //
 //  Reads real-time physical key state via GetAsyncKeyState rather than the
 //  per-thread GetKeyState table, which can desync (and leave an axis stuck)
@@ -3337,22 +3345,21 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::UpdateJoystickAxesFromKeys ()
+void EmulatorShell::UpdateJoystickAxesFromKeys()
 {
-    auto * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
-    bool   left  = false;
-    bool   right = false;
-    bool   up    = false;
-    bool   down  = false;
-    Byte   x     = Apple2eSoftSwitchBank::s_knPaddleCenter;
-    Byte   y     = Apple2eSoftSwitchBank::s_knPaddleCenter;
+    HRESULT  hr       = S_OK;
+    auto   * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    auto   * gamePort = m_refs.gamePort;
+    bool     left     = false;
+    bool     right    = false;
+    bool     up       = false;
+    bool     down     = false;
+    Byte     x        = Apple2eSoftSwitchBank::s_knPaddleCenter;
+    Byte     y        = Apple2eSoftSwitchBank::s_knPaddleCenter;
 
 
 
-    if (iieSw == nullptr)
-    {
-        return;
-    }
+    BAIL_OUT_IF (iieSw == nullptr && gamePort == nullptr, S_OK);
 
     left  = (GetAsyncKeyState (VK_LEFT)  & 0x8000) != 0;
     right = (GetAsyncKeyState (VK_RIGHT) & 0x8000) != 0;
@@ -3385,8 +3392,20 @@ void EmulatorShell::UpdateJoystickAxesFromKeys ()
         y = s_kPaddleAxisMax;
     }
 
-    iieSw->SetPaddle (0, x);
-    iieSw->SetPaddle (1, y);
+    if (iieSw != nullptr)
+    {
+        iieSw->SetPaddle (0, x);
+        iieSw->SetPaddle (1, y);
+    }
+
+    if (gamePort != nullptr)
+    {
+        gamePort->SetPaddle (0, x);
+        gamePort->SetPaddle (1, y);
+    }
+
+Error:
+    return;
 }
 
 
@@ -3398,38 +3417,50 @@ void EmulatorShell::UpdateJoystickAxesFromKeys ()
 //  UpdateJoystickButtonsFromKeys
 //
 //  Host UI thread. Resolves the X / Z letter keys into the two emulated
-//  joystick fire buttons and stages them on the //e keyboard, where button
-//  0 reads at $C061 (Open-Apple) and button 1 reads at $C062 (Closed-Apple).
-//  No-op on ][/][+ (the keyboard isn't an Apple2eKeyboard).
+//  joystick fire buttons. On the //e they stage on the keyboard's
+//  Open/Closed-Apple state (button 0 reads at $C061, button 1 at $C062);
+//  on the ][/][+ they stage on the AppleGamePort pushbuttons (PB0/$C061,
+//  PB1/$C062). No-op only when neither device is present.
 //
 //  Reads real-time physical key state via GetAsyncKeyState, matching the
 //  axis helper so a key-up lost to a focus change can't wedge a button on.
-//  The Open/Closed-Apple state is OR'd with the host left/right Alt keys so
-//  the X / Z mapping coexists with the existing Alt->Apple-button mapping
-//  instead of clobbering a held Alt.
+//  The fire state is OR'd with the host left/right Alt keys so the X / Z
+//  mapping coexists with the existing Alt->button mapping instead of
+//  clobbering a held Alt.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::UpdateJoystickButtonsFromKeys ()
+void EmulatorShell::UpdateJoystickButtonsFromKeys()
 {
-    auto * iieKbd  = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
-    bool   button0 = false;
-    bool   button1 = false;
+    HRESULT  hr       = S_OK;
+    auto   * iieKbd   = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    auto   * gamePort = m_refs.gamePort;
+    bool     button0  = false;
+    bool     button1  = false;
 
 
 
-    if (iieKbd == nullptr)
-    {
-        return;
-    }
+    BAIL_OUT_IF (iieKbd == nullptr && gamePort == nullptr, S_OK);
 
     button0 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton0Vk)) & 0x8000) != 0 ||
               (GetKeyState      (VK_LMENU)                                & 0x8000) != 0;
     button1 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton1Vk)) & 0x8000) != 0 ||
               (GetKeyState      (VK_RMENU)                                & 0x8000) != 0;
 
-    iieKbd->SetOpenApple   (button0);
-    iieKbd->SetClosedApple (button1);
+    if (iieKbd != nullptr)
+    {
+        iieKbd->SetOpenApple   (button0);
+        iieKbd->SetClosedApple (button1);
+    }
+
+    if (gamePort != nullptr)
+    {
+        gamePort->SetButton (0, button0);
+        gamePort->SetButton (1, button1);
+    }
+
+Error:
+    return;
 }
 
 
@@ -3450,8 +3481,9 @@ void EmulatorShell::UpdateJoystickButtonsFromKeys ()
 
 void EmulatorShell::SetMapArrowsToJoystick (bool on)
 {
-    auto * iieSw  = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
-    auto * iieKbd = dynamic_cast<Apple2eKeyboard *>       (m_refs.keyboard);
+    auto * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    auto * iieKbd   = dynamic_cast<Apple2eKeyboard *>       (m_refs.keyboard);
+    auto * gamePort = m_refs.gamePort;
 
     m_mapArrowsToJoystick             = on;
     m_globalPrefs.mapArrowsToJoystick = on;
@@ -3461,8 +3493,8 @@ void EmulatorShell::SetMapArrowsToJoystick (bool on)
 
     if (on)
     {
-        UpdateJoystickAxesFromKeys ();
-        UpdateJoystickButtonsFromKeys ();
+        UpdateJoystickAxesFromKeys();
+        UpdateJoystickButtonsFromKeys();
     }
     else
     {
@@ -3470,6 +3502,14 @@ void EmulatorShell::SetMapArrowsToJoystick (bool on)
         {
             iieSw->SetPaddle (0, Apple2eSoftSwitchBank::s_knPaddleCenter);
             iieSw->SetPaddle (1, Apple2eSoftSwitchBank::s_knPaddleCenter);
+        }
+
+        if (gamePort != nullptr)
+        {
+            gamePort->SetPaddle (0, AppleGamePort::s_knPaddleCenter);
+            gamePort->SetPaddle (1, AppleGamePort::s_knPaddleCenter);
+            gamePort->SetButton (0, false);
+            gamePort->SetButton (1, false);
         }
 
         // Drop the X / Z contribution to the fire buttons, leaving only the
@@ -3525,7 +3565,8 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // typing into the //e keyboard latch -- mirroring how arrow keys are
     // withheld from the latch.
     if (m_mapArrowsToJoystick &&
-        (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr) &&
+        (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr ||
+         m_refs.gamePort != nullptr) &&
         (ch == L'x' || ch == L'X' || ch == L'z' || ch == L'Z'))
     {
         return false;
@@ -4220,6 +4261,11 @@ void EmulatorShell::OpenInputDebugDialog()
         {
             iieSwitches->SetInputEventSink (m_inputDebugPanel.get());
         }
+
+        if (m_refs.gamePort != nullptr)
+        {
+            m_refs.gamePort->SetInputEventSink (m_inputDebugPanel.get());
+        }
     }
 
     m_inputDebugPanel->Show();
@@ -4279,6 +4325,11 @@ void EmulatorShell::AttachDebugSinksIfOpen()
         if (iieSwitches != nullptr)
         {
             iieSwitches->SetInputEventSink (m_inputDebugPanel.get());
+        }
+
+        if (m_refs.gamePort != nullptr)
+        {
+            m_refs.gamePort->SetInputEventSink (m_inputDebugPanel.get());
         }
     }
 

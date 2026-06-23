@@ -15,6 +15,7 @@
 #include "Devices/AppleKeyboard.h"
 #include "Devices/Apple2eKeyboard.h"
 #include "Devices/AppleSoftSwitchBank.h"
+#include "Devices/AppleGamePort.h"
 #include "Devices/Apple2eSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
 #include "Devices/Disk2Controller.h"
@@ -209,6 +210,10 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
                  devCfg.type == "apple2e-softswitches")
         {
             m_shell.m_refs.softSwitches = static_cast<AppleSoftSwitchBank *> (device.get());
+        }
+        else if (devCfg.type == "apple2-gameport")
+        {
+            m_shell.m_refs.gamePort = static_cast<AppleGamePort *> (device.get());
         }
         else if (devCfg.type == "apple2-speaker")
         {
@@ -430,7 +435,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineManager::WireLanguageCard ()
+void MachineManager::WireLanguageCard()
 {
     LanguageCard *  lc        = nullptr;
     RomDevice    *  romDevice = nullptr;
@@ -560,7 +565,7 @@ void MachineManager::WireLanguageCard ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineManager::WirePageTable ()
+void MachineManager::WirePageTable()
 {
     if (!m_shell.m_cpu)
     {
@@ -601,7 +606,7 @@ void MachineManager::WirePageTable ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte * MachineManager::GetAuxRamBuffer ()
+Byte * MachineManager::GetAuxRamBuffer()
 {
     return m_shell.m_mmu != nullptr ? m_shell.m_mmu->GetAuxBuffer() : nullptr;
 }
@@ -623,7 +628,7 @@ Byte * MachineManager::GetAuxRamBuffer ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineManager::RebuildBankingPages ()
+void MachineManager::RebuildBankingPages()
 {
     if (!m_shell.m_cpu)
     {
@@ -661,7 +666,7 @@ void MachineManager::RebuildBankingPages ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineManager::CreateVideoModes ()
+void MachineManager::CreateVideoModes()
 {
     auto textMode = std::make_unique<AppleTextMode> (m_shell.m_memoryBus, m_shell.m_charRom);
     m_shell.m_refs.activeVideoMode = textMode.get();
@@ -830,6 +835,11 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
         {
             iieSw->SetCpuCycleSource (m_shell.m_cpu->GetBusCyclePtr());
         }
+
+        if (m_shell.m_refs.gamePort != nullptr)
+        {
+            m_shell.m_refs.gamePort->SetCpuCycleSource (m_shell.m_cpu->GetBusCyclePtr());
+        }
     }
 
     return hr;
@@ -852,7 +862,7 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineManager::ShowMachinePicker ()
+void MachineManager::ShowMachinePicker()
 {
     OutputDebugStringA ("[MachineManager] ShowMachinePicker unavailable in native-only baseline.\n");
 }
@@ -1012,6 +1022,11 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         }
     }
 
+    if (m_shell.m_refs.gamePort != nullptr)
+    {
+        m_shell.m_refs.gamePort->SetInputEventSink (nullptr);
+    }
+
     // Tear down ALL per-machine state in one atomic move. m_refs is a
     // struct of observer pointers into the owning collections
     // (m_ownedDevices, m_videoModes); resetting it as a whole keeps
@@ -1139,7 +1154,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineManager::SoftReset ()
+void MachineManager::SoftReset()
 {
     m_shell.m_memoryBus.SoftResetAll();
 
@@ -1180,7 +1195,7 @@ void MachineManager::SoftReset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineManager::PowerCycle ()
+void MachineManager::PowerCycle()
 {
     HRESULT  hrFlush = S_OK;
 
@@ -1233,7 +1248,7 @@ void MachineManager::PowerCycle ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineManager::SelectVideoMode ()
+void MachineManager::SelectVideoMode()
 {
     if (m_shell.m_videoModes.size() < 3)
     {

@@ -456,6 +456,7 @@ private:
     {
         class AppleKeyboard *         keyboard         = nullptr;
         class AppleSoftSwitchBank *   softSwitches     = nullptr;
+        class AppleGamePort *         gamePort         = nullptr;
         class AppleSpeaker *          speaker          = nullptr;
         class RamDevice *             mainRamDev       = nullptr;
         class Disk2Controller *       diskController   = nullptr;
