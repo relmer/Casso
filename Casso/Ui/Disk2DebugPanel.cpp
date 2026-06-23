@@ -1962,12 +1962,12 @@ void Disk2DebugPanel::ConfigureWidgets()
     m_clearButton.SetClick ([this] () { ClearEvents(); });
 
     std::vector<DxuiListView::Column>  cols;
-    cols.push_back ({ L"Time",   kColWallWidth,   false, DxuiTextRenderer::HAlign::Left  });
-    cols.push_back ({ L"Uptime", kColUptimeWidth, false, DxuiTextRenderer::HAlign::Left  });
-    cols.push_back ({ L"Cycle",  kColCycleWidth,  false, DxuiTextRenderer::HAlign::Right });
-    cols.push_back ({ L"Drive",  kColDriveWidth,  false, DxuiTextRenderer::HAlign::Right });
-    cols.push_back ({ L"Event",  kColEventWidth,  false, DxuiTextRenderer::HAlign::Left  });
-    cols.push_back ({ L"Detail", 0,               true,  DxuiTextRenderer::HAlign::Left  });
+    cols.push_back ({ L"Time",   0, false, DxuiTextRenderer::HAlign::Left  });
+    cols.push_back ({ L"Uptime", 0, false, DxuiTextRenderer::HAlign::Left  });
+    cols.push_back ({ L"Cycle",  0, false, DxuiTextRenderer::HAlign::Right });
+    cols.push_back ({ L"Drive",  0, false, DxuiTextRenderer::HAlign::Right });
+    cols.push_back ({ L"Event",  0, false, DxuiTextRenderer::HAlign::Left  });
+    cols.push_back ({ L"Detail", 0, true,  DxuiTextRenderer::HAlign::Left  });
     m_eventList.SetColumns    (std::move (cols));
     m_eventList.SetShowHeader (true);
 
@@ -2162,6 +2162,7 @@ void Disk2DebugPanel::PushListViewRows()
     }
 
     m_eventList.SetRows (std::move (rows));
+    m_eventList.UpdateAutoFitFromRows();
 }
 
 
@@ -2307,6 +2308,7 @@ void Disk2DebugPanel::ClearEvents()
     m_filteredIndices.clear();
     m_currentDrive = 0;
     m_listSelectedEventIndex = -1;
+    m_eventList.ResetAutoFit();
     PushListViewRows();
     ApplyListSelection();
 }

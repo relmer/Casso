@@ -57,6 +57,13 @@ void DxuiListView::SetColumns (std::vector<Column> cols)
     m_columns = std::move (cols);
     m_measuredWPx.clear();
     m_overrideWPx.assign (m_columns.size(), -1);
+
+    // NOTE: deliberately does NOT ResetAutoFit. Consumers re-issue
+    // SetColumns on width / visibility changes (and per mouse-move
+    // during a column-resize drag); resetting here would collapse the
+    // auto columns mid-drag. The column COUNT is stable for these
+    // callers, and UpdateAutoFitFromRows re-sizes m_autoMaxChars if it
+    // ever changes. Call ResetAutoFit explicitly on a data clear.
 }
 
 
@@ -352,6 +359,69 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text)
         }
 
         m_measuredWPx[c] = wpx + padPx;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResetAutoFit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ResetAutoFit ()
+{
+    m_autoMaxChars.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateAutoFitFromRows
+//
+//  Grows each auto column's tracked glyph count to fit its header and
+//  widest current cell. Pure length scan (O(rows) with O(1) per cell),
+//  no DWrite; ComputeColumnLayout converts the count to pixels at the
+//  current DPI.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::UpdateAutoFitFromRows ()
+{
+    if (m_autoMaxChars.size() != m_columns.size())
+    {
+        m_autoMaxChars.assign (m_columns.size(), 0);
+    }
+
+    for (size_t c = 0; c < m_columns.size(); ++c)
+    {
+        int  maxChars = m_autoMaxChars[c];
+
+        if (m_columns[c].widthDip != 0 || m_columns[c].stretch)
+        {
+            continue;
+        }
+
+        if (m_showHeader)
+        {
+            maxChars = std::max (maxChars, (int) m_columns[c].title.size());
+        }
+
+        for (const auto & row : m_rows)
+        {
+            if (c < row.size())
+            {
+                maxChars = std::max (maxChars, (int) row[c].text.size());
+            }
+        }
+
+        m_autoMaxChars[c] = maxChars;
     }
 }
 
@@ -1269,7 +1339,8 @@ void DxuiListView::PaintHeader (
                               pal.hdrFg, hdrFontPx, L"Segoe UI",
                               m_columns[c].align,
                               DxuiTextVAlign::Center,
-                              DWRITE_FONT_WEIGHT_BOLD);
+                              DWRITE_FONT_WEIGHT_BOLD,
+                              false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         if (hasSort)
@@ -1443,7 +1514,9 @@ void DxuiListView::PaintDataRows (
                                   fontPx, 
                                   L"Segoe UI",
                                   m_columns[c].align,
-                                  DxuiTextVAlign::CenterOnCapHeight);
+                                  DxuiTextVAlign::CenterOnCapHeight,
+                                  DWRITE_FONT_WEIGHT_NORMAL,
+                                  false);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
     }
@@ -1549,9 +1622,21 @@ void DxuiListView::ComputeColumnLayout (float fullW, std::vector<int> & xs, std:
         {
             wpx = m_scaler.Px (m_columns[c].widthDip);
         }
-        else if (c < m_measuredWPx.size())
+        else
         {
-            wpx = m_measuredWPx[c];
+            // Auto column: widest of the batch-measured width
+            // (MeasureColumnsPx) and the incremental char-count auto-fit.
+            int  padPx     = m_scaler.Px (s_kCellPadLeftDip) + m_scaler.Px (s_kCellPadRightDip);
+            int  perCharPx = (int) std::ceil (m_scaler.Pxf (s_kFontDip) * s_kAutoCharWidthEm);
+
+            if (c < m_measuredWPx.size())
+            {
+                wpx = std::max (wpx, m_measuredWPx[c]);
+            }
+            if (c < m_autoMaxChars.size() && m_autoMaxChars[c] > 0)
+            {
+                wpx = std::max (wpx, m_autoMaxChars[c] * perCharPx + padPx);
+            }
         }
 
         ws[c]       = wpx;

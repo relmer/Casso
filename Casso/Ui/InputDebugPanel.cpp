@@ -17,6 +17,11 @@ constexpr int      s_kPreferredHeightDip = 600;
 constexpr UINT     s_kSwapBufferCount    = 2;
 constexpr float    s_kLabelFontDip       = 13.0f;
 
+// Minimum width (DIP) a column can be drag-resized to, and the DPI
+// the DIP column widths are authored at.
+constexpr int      s_kMinColWidthDip     = 24;
+constexpr int      s_kColWidthBaseDpi    = 96;
+
 constexpr uint32_t s_kDisplayDequeHighWater = 100000;
 constexpr uint32_t s_kDisplayDequeLowWater  =  90000;
 constexpr uint32_t s_kDrainBatchSize     = 256;
@@ -1476,6 +1481,7 @@ void InputDebugPanel::AppendNewEventRows (size_t startIndex)
     if (!rows.empty())
     {
         m_eventList.AppendRows (std::move (rows));
+        m_eventList.UpdateAutoFitFromRows();
     }
 }
 
@@ -1509,6 +1515,7 @@ void InputDebugPanel::PushListViewRows()
     }
 
     m_eventList.SetRows (std::move (rows));
+    m_eventList.UpdateAutoFitFromRows();
     if (oldSelected >= 0 && m_eventList.GetRowCount() > 0)
     {
         m_eventList.SetSelectedRow (oldSelected);
@@ -1537,6 +1544,7 @@ void InputDebugPanel::ClearEvents()
     {
     }
     m_droppedSinceLastDrain.store (0, std::memory_order_relaxed);
+    m_eventList.ResetAutoFit();
     PushListViewRows();
 }
 
@@ -2080,7 +2088,8 @@ void InputDebugPanel::OnRButtonDown (int x, int y)
 
 void InputDebugPanel::OnMouseMove (int x, int y)
 {
-    int  newWidth = 0;
+    int  newWidthPx  = 0;
+    int  newWidthDip = 0;
 
 
     if (m_eventList.IsThumbDragging())
@@ -2091,8 +2100,14 @@ void InputDebugPanel::OnMouseMove (int x, int y)
 
     if (m_resizeColumn >= 0)
     {
-        newWidth = std::max (24, m_resizeStartWidthPx + (x - m_resizeStartXPx));
-        m_columnsModel[(size_t) m_resizeColumn].savedWidth  = newWidth;
+        // The drag is measured in physical pixels (start width + mouse
+        // delta), but savedWidth feeds widthDip, which ComputeColumnLayout
+        // re-scales by the DPI. Convert back to DIP so a 1px drag is a
+        // 1px resize (not 2px at 200%).
+        newWidthPx  = m_resizeStartWidthPx + (x - m_resizeStartXPx);
+        newWidthDip = std::max (s_kMinColWidthDip,
+                                MulDiv (newWidthPx, s_kColWidthBaseDpi, (int) m_dpi));
+        m_columnsModel[(size_t) m_resizeColumn].savedWidth  = newWidthDip;
         m_columnsModel[(size_t) m_resizeColumn].userResized = true;
         m_eventList.SetColumns (PlanVisibleColumns (m_columnsModel));
         return;
