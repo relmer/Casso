@@ -118,6 +118,15 @@ public:
         DxuiPopupDismiss                dismiss            = DxuiPopupDismiss::OnClickOutside;
         DxuiPopupInput                  input              = DxuiPopupInput::Interactive;
         bool                            shadow             = true;
+
+        // When true (the default) a popup whose dismiss policy is
+        // OnClick* grabs the mouse via SetCapture so off-popup clicks
+        // route to its WndProc. Consumers that need the OWNER window to
+        // keep receiving mouse moves while the popup is up (e.g. a menu
+        // bar that hover-switches between top-level titles) set this
+        // false: the popup then only sees events when the cursor is
+        // directly over it, and the owner drives dismiss/switch.
+        bool                            grabsCapture       = true;
         SIZE                            sizeDip            = { 160, 120 };
         std::unique_ptr<DxuiPanel>      content;
 

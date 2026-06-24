@@ -6,6 +6,8 @@
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
+#include "Window/DxuiHostWindow.h"
+#include "Window/DxuiPopupHost.h"
 
 
 
@@ -129,15 +131,25 @@ void DxuiMenuBar::SetItems (std::vector<DxuiMenuBarItem> items)
 //
 //  DxuiMenuBar::SetPopupHost
 //
-//  Wires the menu bar to a popup-hosting `DxuiHostWindow`. Stored for
-//  Phase 11 popup-host-backed submenu rendering; the current paint
-//  path renders the submenu inline (legacy chrome behaviour).
+//  Wires the menu bar to a popup-hosting `DxuiHostWindow`. When set,
+//  an open submenu renders into a top-level popup (so it can escape the
+//  window and occlude); with no host it falls back to the in-window
+//  inline dropdown.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiMenuBar::SetPopupHost (DxuiHostWindow * host)
 {
     DXUI_ASSERT_UI_THREAD();
+
+    if (host != m_popupHost)
+    {
+        // Tear down any live popup against the CURRENT host before
+        // repointing -- ReleaseActivePopup returns it to the old pool.
+        ReleaseActivePopup();
+        m_isOpen         = false;
+        m_highlightIndex = -1;
+    }
 
     m_popupHost = host;
 }
@@ -323,10 +335,32 @@ void DxuiMenuBar::Open (int menuIndex, bool keyboardActivated)
         return;
     }
 
+    // Already showing this menu's popup: resting/moving over the same
+    // open title must NOT churn the popup (HandleMouseMove re-Opens on
+    // every move). Just refresh the keyboard flag and return.
+    if (m_isOpen && m_openIndex == menuIndex && m_activePopup != nullptr)
+    {
+        m_openedByKeyboard = keyboardActivated;
+        return;
+    }
+
+    // Switch popups: drop the prior menu's popup FIRST -- its onClosed
+    // callback clears m_isOpen / m_highlightIndex -- THEN set this menu's
+    // state and raise its popup, so the clear can't clobber the new state.
+    if (m_popupHost != nullptr)
+    {
+        ReleaseActivePopup();
+    }
+
     m_openIndex        = menuIndex;
     m_isOpen           = true;
     m_openedByKeyboard = keyboardActivated;
     m_highlightIndex   = FirstEnabledRow (menuIndex);
+
+    if (m_popupHost != nullptr)
+    {
+        ShowDropdownPopup();
+    }
 }
 
 
@@ -344,6 +378,8 @@ void DxuiMenuBar::Close ()
 
     m_isOpen         = false;
     m_highlightIndex = -1;
+
+    ReleaseActivePopup();
 }
 
 
@@ -493,12 +529,20 @@ bool DxuiMenuBar::HandleKey (WPARAM vk)
     if (vk == VK_DOWN)
     {
         m_highlightIndex = NextEnabledRow (m_openIndex, m_highlightIndex, +1);
+        if (m_activePopup != nullptr)
+        {
+            m_activePopup->MarkDirty();
+        }
         return true;
     }
 
     if (vk == VK_UP)
     {
         m_highlightIndex = NextEnabledRow (m_openIndex, m_highlightIndex, -1);
+        if (m_activePopup != nullptr)
+        {
+            m_activePopup->MarkDirty();
+        }
         return true;
     }
 
@@ -557,11 +601,26 @@ bool DxuiMenuBar::HandleKey (WPARAM vk)
 
 bool DxuiMenuBar::HandleMouseMove (int x, int y)
 {
-    int  hitTitle = HitTitleIndex (x, y);
-    int  hitEntry = HitEntryIndex (x, y);
+    int  hitTitle = 0;
+    int  hitEntry = 0;
 
 
     DXUI_ASSERT_UI_THREAD();
+
+    // Ignore synthetic same-position moves. Windows posts a WM_MOUSEMOVE
+    // at the unchanged cursor position whenever the dropdown popup shows
+    // or hides under the pointer; without this guard a keyboard menu
+    // switch is instantly overridden by the resting mouse's title.
+    if (m_haveLastMousePos && x == m_lastMouseX && y == m_lastMouseY)
+    {
+        return false;
+    }
+    m_haveLastMousePos = true;
+    m_lastMouseX       = x;
+    m_lastMouseY       = y;
+
+    hitTitle = HitTitleIndex (x, y);
+    hitEntry = HitEntryIndex (x, y);
 
     m_hoverIndex = hitTitle;
 
@@ -601,8 +660,9 @@ void DxuiMenuBar::ClearHover ()
 {
     DXUI_ASSERT_UI_THREAD();
 
-    m_hoverIndex     = -1;
-    m_highlightIndex = -1;
+    m_hoverIndex       = -1;
+    m_highlightIndex   = -1;
+    m_haveLastMousePos = false;
 }
 
 
@@ -789,8 +849,37 @@ void DxuiMenuBar::PaintDropdown (
     const IDxuiTheme  & theme,
     UINT                dpi)
 {
+    DXUI_ASSERT_UI_THREAD();
+
+    if (!m_isOpen)
+    {
+        return;
+    }
+
+    PaintDropdownRows (painter, text, DropdownRect(), ResolveDropdownPalette (theme), dpi);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMenuBar::PaintDropdownRows
+//
+//  Draws the submenu background, border, and rows into `rect` with the
+//  resolved palette. Shared by the in-window PaintDropdown (rect =
+//  DropdownRect) and the popup render hook (rect = popup-local, origin 0).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiMenuBar::PaintDropdownRows (
+    IDxuiPainter           & painter,
+    IDxuiTextRenderer      & text,
+    const RECT             & rect,
+    const DropdownPalette  & pal,
+    UINT                     dpi) const
+{
     HRESULT   hr                 = S_OK;
-    RECT      rect               = DropdownRect();
     int       row                = 0;
     int       y                  = 0;
     UINT      eDpi               = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
@@ -803,21 +892,9 @@ void DxuiMenuBar::PaintDropdown (
     bool      menuHasCheckable   = false;
     int       checkGutterPx      = 0;
     int       labelLeftPx        = rowPadLeftPx;
-    uint32_t  bgArgb             = m_dropdownColorsSet ? m_dropBgOverride      : theme.BackgroundElevated();
-    uint32_t  hoverArgb          = m_dropdownColorsSet ? m_dropHoverOverride   : theme.HoverBackground();
-    uint32_t  textArgb           = m_dropdownColorsSet ? m_dropTextOverride    : theme.Foreground();
-    uint32_t  accelArgb          = m_dropdownColorsSet ? m_dropAccelOverride   : theme.ForegroundMuted();
-    uint32_t  borderArgb         = m_dropdownColorsSet ? m_dropBorderOverride  : theme.Border();
-    uint32_t  dividerArgb        = m_dropdownColorsSet ? m_dropDividerOverride : theme.Divider();
-    uint32_t  disabledArgb       = theme.ForegroundDisabled();
 
 
     DXUI_ASSERT_UI_THREAD();
-
-    if (!m_isOpen)
-    {
-        return;
-    }
 
     for (const DxuiMenuBarSubitem & sub : m_items[m_openIndex].submenu)
     {
@@ -838,13 +915,13 @@ void DxuiMenuBar::PaintDropdown (
                       (float) rect.top,
                       (float) (rect.right - rect.left),
                       (float) (rect.bottom - rect.top),
-                      bgArgb);
+                      pal.bg);
     painter.OutlineRect ((float) rect.left,
                          (float) rect.top,
                          (float) (rect.right - rect.left),
                          (float) (rect.bottom - rect.top),
                          1.0f,
-                         borderArgb);
+                         pal.border);
 
     for (const DxuiMenuBarSubitem & sub : m_items[m_openIndex].submenu)
     {
@@ -852,8 +929,8 @@ void DxuiMenuBar::PaintDropdown (
         int           mnIdx       = -1;
         wchar_t       mnCh        = 0;
         int           entryHeight = EntryHeightPx (sub);
-        uint32_t      labelArgb   = sub.enabled ? textArgb  : disabledArgb;
-        uint32_t      hotkeyArgb  = sub.enabled ? accelArgb : disabledArgb;
+        uint32_t      labelArgb   = sub.enabled ? pal.text  : pal.disabled;
+        uint32_t      hotkeyArgb  = sub.enabled ? pal.accel : pal.disabled;
 
         if (sub.isSeparator)
         {
@@ -861,7 +938,7 @@ void DxuiMenuBar::PaintDropdown (
                               (float) (rect.top + y + entryHeight / s_kMidpointDivisor),
                               (float) (rect.right - rect.left - separatorInsetPx - separatorInsetPx),
                               s_kUnderlineThicknessDip,
-                              dividerArgb);
+                              pal.divider);
             y += entryHeight;
             continue;
         }
@@ -874,7 +951,7 @@ void DxuiMenuBar::PaintDropdown (
                               (float) (rect.top + y),
                               (float) (rect.right - rect.left),
                               (float) entryHeight,
-                              hoverArgb);
+                              pal.hover);
         }
 
         IGNORE_RETURN_VALUE (hr, text.DrawString (stripped.c_str(),
@@ -988,8 +1065,19 @@ void DxuiMenuBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 {
     DXUI_ASSERT_UI_THREAD();
 
+    // Keep the popup's colours fresh: its render hook gets no theme, so
+    // the resolved palette is cached here every frame (the strip always
+    // paints, even while the dropdown is popup-backed).
+    m_cachedPalette = ResolveDropdownPalette (theme);
+
     PaintStrip (painter, text, theme, m_dpi);
-    PaintDropdown (painter, text, theme, m_dpi);
+
+    // The open submenu renders in its own popup when a host is wired;
+    // skip the in-window dropdown so it is not drawn twice.
+    if (m_activePopup == nullptr)
+    {
+        PaintDropdown (painter, text, theme, m_dpi);
+    }
 }
 
 
@@ -1423,4 +1511,272 @@ bool DxuiMenuBar::ShouldShowMnemonicCues (bool openedByKeyboard)
     }
 
     return (GetAsyncKeyState (VK_MENU) & 0x8000) != 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMenuBar::ResolveDropdownPalette
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMenuBar::DropdownPalette DxuiMenuBar::ResolveDropdownPalette (const IDxuiTheme & theme) const
+{
+    DropdownPalette  pal;
+
+
+    pal.bg       = m_dropdownColorsSet ? m_dropBgOverride      : theme.BackgroundElevated();
+    pal.hover    = m_dropdownColorsSet ? m_dropHoverOverride   : theme.HoverBackground();
+    pal.text     = m_dropdownColorsSet ? m_dropTextOverride    : theme.Foreground();
+    pal.accel    = m_dropdownColorsSet ? m_dropAccelOverride   : theme.ForegroundMuted();
+    pal.border   = m_dropdownColorsSet ? m_dropBorderOverride  : theme.Border();
+    pal.divider  = m_dropdownColorsSet ? m_dropDividerOverride : theme.Divider();
+    pal.disabled = theme.ForegroundDisabled();
+
+    return pal;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMenuBar::ShowDropdownPopup
+//
+//  Raises the open submenu in a top-level popup (no capture, so the
+//  owner keeps hover-switch). Anchored under the open title.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiMenuBar::ShowDropdownPopup ()
+{
+    DxuiPopupHost::ShowParams  showParams;
+    POINT                      topLeft      = {};
+    POINT                      botRight     = {};
+    HWND                       owner        = nullptr;
+    HRESULT                    hr           = S_OK;
+    RECT                       title        = {};
+    UINT                       eDpi         = (m_dpi == 0) ? (UINT) s_kBaseDpi : m_dpi;
+    int                        dropWidthPx  = 0;
+    int                        dropHeightPx = 0;
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_popupHost == nullptr || m_activePopup != nullptr)
+    {
+        return;
+    }
+    if (m_openIndex < 0 || m_openIndex >= (int) m_titleRects.size())
+    {
+        return;
+    }
+
+    owner         = m_popupHost->Hwnd();
+    m_activePopup = m_popupHost->AcquirePopup();
+    if (m_activePopup == nullptr)
+    {
+        return;
+    }
+
+    title        = m_titleRects[m_openIndex];
+    dropWidthPx  = ScaleDpi (s_kDropdownWidthDip, eDpi);
+    dropHeightPx = DropdownHeightPx (m_openIndex);
+
+    // Anchor on the title (window-client px) -> screen px.
+    topLeft.x  = title.left;
+    topLeft.y  = title.top;
+    botRight.x = title.left + dropWidthPx;
+    botRight.y = title.bottom;
+    ClientToScreen (owner, &topLeft);
+    ClientToScreen (owner, &botRight);
+
+    showParams.ownerHwnd        = owner;
+    showParams.anchorRectScreen = { topLeft.x, topLeft.y, botRight.x, botRight.y };
+    showParams.placement        = DxuiPopupPlacement::Below;
+    showParams.flipIfOffscreen  = true;
+    showParams.dismiss          = DxuiPopupDismiss::OnClickOutside;
+    showParams.grabsCapture     = false;
+    showParams.input            = DxuiPopupInput::Interactive;
+    showParams.shadow           = true;
+    // Show scales sizeDip by the owner DPI: width is the DIP constant
+    // directly; height converts the measured pixel height back to DIPs.
+    showParams.sizeDip.cx       = s_kDropdownWidthDip;
+    showParams.sizeDip.cy       = MulDiv (dropHeightPx, s_kBaseDpi, (int) eDpi);
+    showParams.backgroundArgb   = m_cachedPalette.bg;
+    showParams.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderDropdownPopup (p, t); };
+    showParams.onMoveInside     = [this] (POINT localPx) { OnPopupMove  (localPx); };
+    showParams.onClickInside    = [this] (POINT localPx) { OnPopupClick (localPx); };
+    showParams.onClosed         = [this] () { m_activePopup = nullptr; m_isOpen = false; m_highlightIndex = -1; };
+
+    hr = m_activePopup->Show (std::move (showParams));
+    if (FAILED (hr))
+    {
+        m_popupHost->ReleasePopup (m_activePopup);
+        m_activePopup = nullptr;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMenuBar::ReleaseActivePopup
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiMenuBar::ReleaseActivePopup ()
+{
+    DxuiPopupHost *  popup = m_activePopup;
+
+
+    // Null first so the popup's onClosed callback is a no-op and cannot
+    // double-release.
+    m_activePopup = nullptr;
+
+    if (popup != nullptr && m_popupHost != nullptr)
+    {
+        m_popupHost->ReleasePopup (popup);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMenuBar::RenderDropdownPopup
+//
+//  Popup render hook (popup-local pixels, origin top-left). Reuses the
+//  shared row painter with the cached palette.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiMenuBar::RenderDropdownPopup (IDxuiPainter & painter, IDxuiTextRenderer & text) const
+{
+    RECT  placed = {};
+    RECT  local  = {};
+
+
+    if (m_activePopup == nullptr)
+    {
+        return;
+    }
+
+    placed       = m_activePopup->PlacedRectScreenPx();
+    local.left   = 0;
+    local.top    = 0;
+    local.right  = placed.right  - placed.left;
+    local.bottom = placed.bottom - placed.top;
+
+    PaintDropdownRows (painter, text, local, m_cachedPalette, m_dpi);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMenuBar::PopupRowAtLocalY
+//
+//  Popup-local y -> non-separator row index (mirrors HitEntryIndex's
+//  index space). Returns -1 over a separator or past the last row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiMenuBar::PopupRowAtLocalY (int localYPx) const
+{
+    int  row      = 0;
+    int  currentY = 0;
+
+
+    if (m_openIndex < 0 || m_openIndex >= (int) m_items.size())
+    {
+        return -1;
+    }
+
+    for (const DxuiMenuBarSubitem & sub : m_items[m_openIndex].submenu)
+    {
+        int  entryHeight = EntryHeightPx (sub);
+
+        if (localYPx >= currentY && localYPx < currentY + entryHeight)
+        {
+            return sub.isSeparator ? -1 : row;
+        }
+
+        currentY += entryHeight;
+        if (!sub.isSeparator)
+        {
+            row++;
+        }
+    }
+
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMenuBar::OnPopupMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiMenuBar::OnPopupMove (POINT localPx)
+{
+    int  row = PopupRowAtLocalY (localPx.y);
+
+
+    if (row >= 0 && row != m_highlightIndex)
+    {
+        m_highlightIndex = row;
+        if (m_activePopup != nullptr)
+        {
+            m_activePopup->MarkDirty();
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMenuBar::OnPopupClick
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiMenuBar::OnPopupClick (POINT localPx)
+{
+    int                          row      = PopupRowAtLocalY (localPx.y);
+    const DxuiMenuBarSubitem  *  entry    = (row >= 0) ? EntryAt (m_openIndex, row) : nullptr;
+    std::function<void()>        dispatch;
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    if (entry != nullptr && entry->enabled && entry->dispatch)
+    {
+        dispatch = entry->dispatch;
+    }
+
+    // Tear the popup down BEFORE running the command so a command that
+    // spins a modal loop does not do so under the live popup window.
+    Close();
+
+    if (dispatch)
+    {
+        dispatch();
+    }
 }

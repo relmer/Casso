@@ -320,8 +320,11 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
 
     // Click-outside dismiss: capture so off-popup clicks route to
     // our WndProc as WM_CAPTURECHANGED / WM_LBUTTONDOWN-with-NCHITTEST.
-    if (m_params.dismiss == DxuiPopupDismiss::OnClickOutside ||
-        m_params.dismiss == DxuiPopupDismiss::OnClickAnywhere)
+    // Skipped when grabsCapture is false (owner-driven dismiss): the
+    // popup then only receives events while the cursor is over it.
+    if (m_params.grabsCapture &&
+        (m_params.dismiss == DxuiPopupDismiss::OnClickOutside ||
+         m_params.dismiss == DxuiPopupDismiss::OnClickAnywhere))
     {
         SetCapture (m_hwnd);
     }
@@ -717,16 +720,21 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
         case WM_LBUTTONDOWN:
         case WM_RBUTTONDOWN:
         case WM_MBUTTONDOWN:
-            // Click landed on us while we had capture — work out if
-            // it was inside our client rect. Inside left-clicks commit
-            // a row; outside clicks dismiss per policy.
-            if (m_open && GetCapture() == m_hwnd)
+            // A click reached us. With capture we must classify inside vs
+            // outside (outside dismisses per policy). Without capture the
+            // OS only delivers clicks that land ON the popup, so they are
+            // inherently inside -- fire onClickInside directly.
+            if (m_open)
             {
-                POINT  pt = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
-                RECT   rc = {};
-                GetClientRect (m_hwnd, &rc);
+                bool   haveCapture = (GetCapture() == m_hwnd);
+                POINT  pt          = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
+                RECT   rc          = {};
+                bool   inside      = false;
 
-                if (PtInRect (&rc, pt))
+                GetClientRect (m_hwnd, &rc);
+                inside = (PtInRect (&rc, pt) != FALSE);
+
+                if (inside)
                 {
                     if (msg == WM_LBUTTONDOWN && m_params.onClickInside)
                     {
@@ -734,14 +742,21 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
                         return 0;
                     }
                 }
-                else if (m_params.dismiss == DxuiPopupDismiss::OnClickOutside ||
-                         m_params.dismiss == DxuiPopupDismiss::OnClickAnywhere)
+                else if (haveCapture &&
+                         (m_params.dismiss == DxuiPopupDismiss::OnClickOutside ||
+                          m_params.dismiss == DxuiPopupDismiss::OnClickAnywhere))
                 {
                     Close (0);
                     return 0;
                 }
             }
             break;
+
+        case WM_MOUSEACTIVATE:
+            // Never steal activation from the owner when clicked (we are
+            // also WS_EX_NOACTIVATE); the owner keeps focus / caption
+            // activation while the popup is interacted with.
+            return MA_NOACTIVATE;
 
         case WM_MOUSELEAVE:
             if (m_open && m_params.dismiss == DxuiPopupDismiss::OnPointerLeave)
