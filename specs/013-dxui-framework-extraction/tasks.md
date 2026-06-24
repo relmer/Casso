@@ -263,6 +263,14 @@ The 13 widget files are independent moves and parallel-safe within this phase. E
 
 **Phase 9 deviation note (T076 scope):** The user's prompt described T076 as "DwM shadow for popup HWND". `tasks.md` defines T076 as the `ComputePlacementForTest` static seam; the implementation honors `tasks.md`. DwM shadow support is included in `DxuiPopupHost` as part of `ShowParams::shadow` (applied via `DxuiDwm::ExtendFrameIntoClientArea` inside `Show()`), so both interpretations are covered.
 
+**Phase 9/10 popup-rendering completion note (2026-06-23):** When T075–T082 were first marked done, `DxuiPopupHost` created the `WS_POPUP` HWND + composition swap chain but never actually painted or presented content into it — `Show()` handed each consumer an empty `DxuiPanel`, so the visible menu was still the in-window fallback. SC-008 was satisfied only by the `ComputePlacementForTest` unit test, not end-to-end on screen. That rendering gap is now closed: `DxuiPopupHost` owns its own `DxuiPainter` + `DxuiTextRenderer` bound to the popup back buffer and renders via a `renderContent` hook (`RenderNow` → clear to opaque background → hook → `Present`), with `MarkDirty` for event-driven re-render and `onMoveInside` / `onClickInside` / `onClosed` callbacks. All four consumers now render through it as real occluding top-level windows, each user-validated at 200 % DPI:
+- **T079 `DxuiDropdown`** — Settings page dropdowns (`a1b411c`).
+- **T080 `DxuiPopupMenu`** — Disk II / Input debug-panel column menus (`fe35854`).
+- **T081 `DxuiTooltip`** — Disk II / Input debug-panel hover tooltips (`9e22b92`); a `DxuiPopupHost::MeasureText` seam sizes the balloon. (The `EmulatorShell` joystick tooltip stays in-window: its only drive path, `UiShell::Render`, went dead with the T129 swap-chain flip and needs its tick/render relocated to the host pump first.)
+- **T117–T122 `DxuiMenuBar`** — the application main-menu submenus (`68675d2`), the real SC-008 beneficiary (its click-to-open submenus escape the window). Uses a no-capture popup so the owner keeps hover-switch between titles and arrow-key navigation; the owner drives dismiss (outside-click / caption / resize / move). `DxuiPopupHost` gained a `grabsCapture` flag and `WM_MOUSEACTIVATE` → `MA_NOACTIVATE` for this model.
+
+So SC-008 ("anchor near the bottom — must flip up — must not clip") is now genuinely satisfied on screen for every popup consumer, and the **T079 / T080 / T081 / T082 / T122** check-marks are truthful end-to-end (not just via the placement seam). The legacy in-window path remains as a no-host fallback (e.g. the joystick tooltip).
+
 ---
 
 ## Phase 10 — `DxuiMenuBar` widget + `MainMenu` conversion
