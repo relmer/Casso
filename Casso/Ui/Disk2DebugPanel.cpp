@@ -552,6 +552,10 @@ HRESULT Disk2DebugPanel::OnHostCreated (
     // it renders as a real top-level popup (not clipped to the panel).
     m_columnMenu.SetPopupHost (m_window.PopupHost());
 
+    // Same for hover tooltips so the balloon can escape the panel edge
+    // and occlude whatever is behind it.
+    m_tooltip.SetPopupHost (m_window.PopupHost());
+
 Error:
     return hr;
 }
@@ -572,6 +576,9 @@ void Disk2DebugPanel::OnHostDestroyed()
     // before the host (and its pool) are destroyed in OnDestroy.
     m_columnMenu.Hide();
     m_columnMenu.SetPopupHost (nullptr);
+
+    m_tooltip.HideImmediate();
+    m_tooltip.SetPopupHost (nullptr);
 
     m_text.UnbindBackBuffer();
     m_text.Shutdown();

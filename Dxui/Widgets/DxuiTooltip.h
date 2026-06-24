@@ -50,6 +50,14 @@ public:
     void  RequestHide     (int64_t nowMs);
     void  Tick            (int64_t nowMs) override;
 
+    //
+    //  Synchronously tear down any live popup and reset the dwell
+    //  state. Called by the owner before its popup host (and pool) is
+    //  destroyed, since the timed RequestHide path would release the
+    //  popup too late.
+    //
+    void  HideImmediate   ();
+
     bool                 IsVisible () const { return m_visible; }
     const std::wstring & Text      () const { return m_text;    }
     const RECT         & Anchor    () const { return m_anchor;  }
@@ -67,6 +75,26 @@ public:
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Label; }
 
 private:
+    //
+    //  Acquire + size + show the popup balloon for the current
+    //  anchor/text. No-op without a wired host or when a popup is
+    //  already up. Releases the popup on Show failure.
+    //
+    void  ShowPopup          ();
+
+    //
+    //  Return the live popup to the host pool (hiding its HWND) and
+    //  drop the pointer. Safe to call when none is active.
+    //
+    void  ReleaseActivePopup ();
+
+    //
+    //  Render hook invoked by the popup host (popup-local pixels,
+    //  origin top-left). Draws the balloon border + text over the
+    //  host's opaque background clear.
+    //
+    void  RenderPopup        (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+
     DxuiDpiScaler     m_scaler;
     RECT          m_anchor       = {};
     std::wstring  m_text;

@@ -767,6 +767,10 @@ HRESULT InputDebugPanel::OnHostCreated (
     // it renders as a real top-level popup (not clipped to the panel).
     m_columnMenu.SetPopupHost (m_window.PopupHost());
 
+    // Same for hover tooltips so the balloon can escape the panel edge
+    // and occlude whatever is behind it.
+    m_tooltip.SetPopupHost (m_window.PopupHost());
+
 Error:
     return hr;
 }
@@ -787,6 +791,9 @@ void InputDebugPanel::OnHostDestroyed()
     // before the host (and its pool) are destroyed in OnDestroy.
     m_columnMenu.Hide();
     m_columnMenu.SetPopupHost (nullptr);
+
+    m_tooltip.HideImmediate();
+    m_tooltip.SetPopupHost (nullptr);
 
     m_text.UnbindBackBuffer();
     m_text.Shutdown();
@@ -2337,31 +2344,34 @@ HCURSOR InputDebugPanel::OnSetCursor (int x, int y)
 
 void InputDebugPanel::UpdateTooltip (int x, int y)
 {
-    LPCWSTR  text = nullptr;
+    LPCWSTR  text   = nullptr;
+    RECT     anchor = {};
 
 
-    if (m_allCheck.HitTest (x, y))                          { text = s_kpszAllTip; }
-    else if (m_emuKeyboardCheck.HitTest (x, y))             { text = s_kpszEmuKbdTip; }
-    else if (m_joystickVisible && m_joystickCheck.HitTest (x, y)) { text = s_kpszJoystickTip; }
-    else if (m_paddleVisible && m_paddleCheck.HitTest (x, y))     { text = s_kpszPaddleTip; }
-    else if (m_hostKeyboardCheck.HitTest (x, y))            { text = s_kpszHostKbdTip; }
+    if (m_allCheck.HitTest (x, y))                               { text = s_kpszAllTip;      anchor = m_allCheck.Bounds();         }
+    else if (m_emuKeyboardCheck.HitTest (x, y))                  { text = s_kpszEmuKbdTip;   anchor = m_emuKeyboardCheck.Bounds(); }
+    else if (m_joystickVisible && m_joystickCheck.HitTest (x, y)) { text = s_kpszJoystickTip; anchor = m_joystickCheck.Bounds();    }
+    else if (m_paddleVisible && m_paddleCheck.HitTest (x, y))     { text = s_kpszPaddleTip;   anchor = m_paddleCheck.Bounds();      }
+    else if (m_hostKeyboardCheck.HitTest (x, y))                 { text = s_kpszHostKbdTip;  anchor = m_hostKeyboardCheck.Bounds(); }
 
     if (text == nullptr && m_pauseButton.HitTest (x, y))
     {
-        text = L"Pause or resume live input logging";
+        text   = L"Pause or resume live input logging";
+        anchor = m_pauseButton.Bounds();
     }
     if (text == nullptr && m_clearButton.HitTest (x, y))
     {
-        text = L"Clear the input debug log";
+        text   = L"Clear the input debug log";
+        anchor = m_clearButton.Bounds();
     }
     if (text == nullptr && m_copyButton.HitTest (x, y))
     {
-        text = L"Copy the visible input debug log to the clipboard";
+        text   = L"Copy the visible input debug log to the clipboard";
+        anchor = m_copyButton.Bounds();
     }
 
     if (text != nullptr)
     {
-        RECT  anchor = { x, y, x + 1, y + 1 };
         m_tooltip.RequestShow (anchor, text, NowMs());
     }
     else
