@@ -952,14 +952,16 @@ HRESULT DwriteTextRenderer::MeasureString (
     float            fontSizeDip,
     const wchar_t  * fontFamily,
     float          & outWidthDip,
-    float          & outHeightDip)
+    float          & outHeightDip,
+    float            maxWidthDip)
 {
-    HRESULT                            hr      = S_OK;
+    HRESULT                            hr        = S_OK;
     ComPtr<IDWriteTextFormat>          format;
-    IDWriteTextFormat                * rawFmt  = nullptr;
+    IDWriteTextFormat                * rawFmt    = nullptr;
     ComPtr<IDWriteTextLayout>          layout;
-    DWRITE_TEXT_METRICS                metrics = {};
-    UINT32                             textLen = 0;
+    DWRITE_TEXT_METRICS                metrics   = {};
+    UINT32                             textLen   = 0;
+    float                              layoutW   = (maxWidthDip > 0.0f) ? maxWidthDip : FLT_MAX;
 
 
 
@@ -982,10 +984,13 @@ HRESULT DwriteTextRenderer::MeasureString (
 
     textLen = (UINT32) wcslen (text);
 
+    // A finite maxWidthDip constrains the layout box so GetMetrics returns
+    // the wrapped extent (widest line width, total multi-line height);
+    // FLT_MAX yields the natural single-line size for unwrapped callers.
     hr = m_dwriteFactory->CreateTextLayout (text,
                                             textLen,
                                             format.Get(),
-                                            FLT_MAX,
+                                            layoutW,
                                             FLT_MAX,
                                             &layout);
     CHRA (hr);
