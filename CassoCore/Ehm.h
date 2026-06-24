@@ -218,15 +218,15 @@ void EhmBreakpoint         (void);
 // Suffixes compose, e.g. FEx = run failure action AND replace hr.
 //
 
-#define CHR(__hrTest)                   __CHR (__hrTest, __EHM_NO_ASSERT, false, 0, __EHM_NO_ACTION)
-#define CHRA(__hrTest)                  __CHR (__hrTest, __EHM_ASSERT,    false, 0, __EHM_NO_ACTION)
-#define CHREx(__hrTest, __hrReplace)    __CHR (__hrTest, __EHM_NO_ASSERT, true,  __hrReplace, __EHM_NO_ACTION)
-#define CHRAEx(__hrTest, __hrReplace)   __CHR (__hrTest, __EHM_ASSERT,    true,  __hrReplace, __EHM_NO_ACTION)
-#define CHRF(__hrTest, __onFailure)     __CHR (__hrTest, __EHM_NO_ASSERT, false, 0, __onFailure)
-#define CHRAF(__hrTest, __onFailure)    __CHR (__hrTest, __EHM_ASSERT,    false, 0, __onFailure)
-#define CHRFEx(__hrTest, __hrReplace, __onFailure)   __CHR (__hrTest, __EHM_NO_ASSERT, true, __hrReplace, __onFailure)
-#define CHRAFEx(__hrTest, __hrReplace, __onFailure)  __CHR (__hrTest, __EHM_ASSERT,    true, __hrReplace, __onFailure)
-#define CHRN(__hrTest, __msg)           __CHR (__hrTest, __EHM_NO_ASSERT, false, 0, EhmNotifyUser (__msg))
+#define CHR(__hrTest)                               __CHR (__hrTest, __EHM_NO_ASSERT, false, 0, __EHM_NO_ACTION)
+#define CHRA(__hrTest)                              __CHR (__hrTest, __EHM_ASSERT,    false, 0, __EHM_NO_ACTION)
+#define CHREx(__hrTest, __hrReplace)                __CHR (__hrTest, __EHM_NO_ASSERT, true,  __hrReplace, __EHM_NO_ACTION)
+#define CHRAEx(__hrTest, __hrReplace)               __CHR (__hrTest, __EHM_ASSERT,    true,  __hrReplace, __EHM_NO_ACTION)
+#define CHRF(__hrTest, __onFailure)                 __CHR (__hrTest, __EHM_NO_ASSERT, false, 0, __onFailure)
+#define CHRAF(__hrTest, __onFailure)                __CHR (__hrTest, __EHM_ASSERT,    false, 0, __onFailure)
+#define CHRFEx(__hrTest, __hrReplace, __onFailure)  __CHR (__hrTest, __EHM_NO_ASSERT, true, __hrReplace, __onFailure)
+#define CHRAFEx(__hrTest, __hrReplace, __onFailure) __CHR (__hrTest, __EHM_ASSERT,    true, __hrReplace, __onFailure)
+#define CHRN(__hrTest, __msg)                       __CHR (__hrTest, __EHM_NO_ASSERT, false, 0, EhmNotifyUser (__msg))
 
 
 
