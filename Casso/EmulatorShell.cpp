@@ -2969,6 +2969,17 @@ bool EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         m_joystickTooltip.RequestHide (nowMs);
     }
 
+    // A fresh hover over a drive widget replays its basename marquee, so
+    // the full filename can be re-read on demand.
+    for (DriveWidget & drive : m_driveChrome)
+    {
+        RECT  outer  = drive.OuterRect();
+        bool  inside = x >= outer.left && x < outer.right &&
+                       y >= outer.top  && y < outer.bottom;
+
+        drive.UpdateMarqueeHover (inside, nowMs);
+    }
+
     return false;
 }
 
@@ -2994,6 +3005,14 @@ bool EmulatorShell::OnMouseLeave()
     m_joystickButton.SetHovered (false);
     m_joystickButton.SetPressed (false);
     m_joystickTooltip.RequestHide (nowMs);
+
+    // Drop drive marquee-hover state so re-entering the window re-triggers
+    // the basename scroll.
+    for (DriveWidget & drive : m_driveChrome)
+    {
+        drive.UpdateMarqueeHover (false, nowMs);
+    }
+
     return false;
 }
 

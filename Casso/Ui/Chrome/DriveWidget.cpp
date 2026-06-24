@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "DriveWidget.h"
-#include "DriveLabelTruncation.h"
 
 #include "../IDriveCommandSink.h"
 #include "../../UnicodeSymbols.h"
@@ -42,6 +41,15 @@ namespace
     constexpr int     s_kLabelStripGapPx    = 2;
     constexpr float   s_kBasenameFontDip    = 11.0f;
     constexpr wchar_t s_kFontFamily[]      = L"Segoe UI";
+
+    // Marquee timing for an overflowing basename label. s_kMarqueeHoldMs is
+    // the lead-in delay before a mount's first scroll and the delay between
+    // repeats while the pointer lingers; a hover enter scrolls immediately.
+    // A fixed gap follows the name with a second copy so the wrap reads
+    // cleanly.
+    constexpr int64_t s_kMarqueeHoldMs         = 2000;
+    constexpr float   s_kMarqueeSpeedDipPerSec = 45.0f;
+    constexpr float   s_kMarqueeGapDip         = 25.0f;
 
     // Compact paint-path dimensions. The compact widget is a flat
     // rounded card with "DRIVE N" on the left and the status LED on
@@ -438,7 +446,7 @@ void DriveWidget::Paint (
         UNREFERENCED_PARAMETER (doorOffset);
 
         m_led.Paint (painter, theme);
-        PaintBasenameLabel (text, theme, dpi);
+        PaintBasenameLabel (text, theme, dpi, visual.nowMs);
         return;
     }
 
@@ -828,7 +836,7 @@ void DriveWidget::Paint (
         DrawCassowaryRainbow (painter, iconX, iconY, (float) iconW, (float) iconH);
     }
 
-    PaintBasenameLabel (text, theme, dpi);
+    PaintBasenameLabel (text, theme, dpi, visual.nowMs);
 }
 
 
@@ -840,54 +848,148 @@ void DriveWidget::Paint (
 //  PaintBasenameLabel
 //
 //  Paints the mounted disk's basename inside m_labelRect (below the
-//  drive icon body) in both compact and skeuomorphic paint paths.
-//  Hidden when no disk is mounted; ellipsis-truncated to the label
-//  strip width via the pure TruncateToWidth algorithm.
+//  the drive body) on a SINGLE line, clipped to the drive's left / right
+//  bounds. When the name fits it is centered and static. When it
+//  overflows it scrolls left one name-plus-gap period (a second copy
+//  follows so the wrap is seamless) and rests at the head. A fresh mount
+//  scrolls after a readable lead-in delay; a pointer entering the widget
+//  scrolls immediately, and while the pointer lingers the scroll repeats
+//  with the delay applied between passes. Hidden when no disk is mounted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DriveWidget::PaintBasenameLabel (
     DwriteTextRenderer  & text,
     const ChromeTheme   & theme,
-    UINT                  dpi)
+    UINT                  dpi,
+    int64_t               nowMs)
 {
     HRESULT                hr           = S_OK;
     float                  basenameDip  = s_kBasenameFontDip * (float) dpi / (float) s_kBaseDpi;
-    float                  maxWidthPx   = (float) (m_labelRect.right - m_labelRect.left);
+    float                  labelLeft    = (float) m_labelRect.left;
+    float                  labelTop     = (float) m_labelRect.top;
+    float                  labelW       = (float) (m_labelRect.right  - m_labelRect.left);
+    float                  labelH       = (float) (m_labelRect.bottom - m_labelRect.top);
+    float                  speedPxPerSec = s_kMarqueeSpeedDipPerSec * (float) dpi / (float) s_kBaseDpi;
+    float                  gap          = s_kMarqueeGapDip * (float) dpi / (float) s_kBaseDpi;
     std::filesystem::path  imagePath;
     std::wstring           basename;
-    std::wstring           truncated;
-    auto                   measure      = [&] (std::wstring_view v)
-    {
-        std::wstring  s (v);
-        float         w   = 0.0f;
-        float         h   = 0.0f;
-        HRESULT       mhr = text.MeasureString (s.c_str(), basenameDip, s_kFontFamily, w, h);
-        IGNORE_RETURN_VALUE (mhr, S_OK);
-        return w;
-    };
+    float                  textW        = 0.0f;
+    float                  textH        = 0.0f;
+    float                  offset       = 0.0f;
+    float                  drawX        = 0.0f;
+    bool                   clipped      = false;
 
 
 
     if (m_state.mountedImagePath.empty())
     {
+        m_marqueePath.clear();
         return;
     }
 
     imagePath = std::filesystem::path (m_state.mountedImagePath);
     basename  = imagePath.filename().wstring();
-    truncated = TruncateToWidth (basename, maxWidthPx, measure);
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (truncated.c_str(),
-                                              (float) m_labelRect.left,
-                                              (float) m_labelRect.top,
-                                              maxWidthPx,
-                                              (float) (m_labelRect.bottom - m_labelRect.top),
-                                              theme.driveLabelArgb,
-                                              basenameDip,
-                                              s_kFontFamily,
-                                              DwriteTextRenderer::HAlign::Center,
-                                              DwriteTextRenderer::VAlign::Center));
+    // On a fresh mount, schedule the first scroll after a readable lead-in
+    // delay (m_marqueeStartMs is the moment scroll motion begins). A hover
+    // enter instead sets it to "now" for an immediate scroll.
+    if (m_state.mountedImagePath != m_marqueePath)
+    {
+        m_marqueePath    = m_state.mountedImagePath;
+        m_marqueeStartMs = nowMs + s_kMarqueeHoldMs;
+    }
+
+    hr = text.MeasureString (basename.c_str(), basenameDip, s_kFontFamily, textW, textH);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    // Confine all drawing to the drive's label strip so a long name never
+    // spills past the drive's left / right bounds or wraps below the strip.
+    hr = text.PushClipRect (labelLeft, labelTop, labelW, labelH);
+    clipped = SUCCEEDED (hr);
+
+    if (textW <= labelW)
+    {
+        // Fits: static and centered.
+        IGNORE_RETURN_VALUE (hr, text.DrawString (basename.c_str(),
+                                                  labelLeft,
+                                                  labelTop,
+                                                  labelW,
+                                                  labelH,
+                                                  theme.driveLabelArgb,
+                                                  basenameDip,
+                                                  s_kFontFamily,
+                                                  DwriteTextRenderer::HAlign::Center,
+                                                  DwriteTextRenderer::VAlign::Center,
+                                                  DWRITE_FONT_WEIGHT_NORMAL,
+                                                  false));
+    }
+    else
+    {
+        int64_t  scrollMs  = 0;
+        int64_t  scrollEnd = 0;
+        float    period    = textW + gap;
+        auto     drawCopy  = [&] (float x)
+        {
+            HRESULT  dhr = text.DrawString (basename.c_str(),
+                                            x,
+                                            labelTop,
+                                            textW + 1.0f,
+                                            labelH,
+                                            theme.driveLabelArgb,
+                                            basenameDip,
+                                            s_kFontFamily,
+                                            DwriteTextRenderer::HAlign::Left,
+                                            DwriteTextRenderer::VAlign::Center,
+                                            DWRITE_FONT_WEIGHT_NORMAL,
+                                            false);
+            IGNORE_RETURN_VALUE (dhr, S_OK);
+        };
+
+        // m_marqueeStartMs is when scroll motion begins (it sits in the
+        // future during a mount's lead-in delay; a hover enter sets it to
+        // "now" for an immediate scroll). One scroll travels a full
+        // name-plus-gap period; at period's end the second copy's head sits
+        // where the first began, so resting at offset 0 is seamless.
+        scrollMs  = (speedPxPerSec > 0.0f)
+                        ? (int64_t) (period / speedPxPerSec * 1000.0f)
+                        : 0;
+        scrollEnd = m_marqueeStartMs + scrollMs;
+
+        if (scrollMs <= 0 || nowMs < m_marqueeStartMs)
+        {
+            offset = 0.0f;                                        // pre-scroll, at head
+        }
+        else if (nowMs < scrollEnd)
+        {
+            offset = period * (float) (nowMs - m_marqueeStartMs) / (float) scrollMs;
+        }
+        else
+        {
+            offset = 0.0f;                                        // finished, rest at head
+
+            // While the pointer lingers over the widget, replay the scroll
+            // after the inter-scroll delay (the lead-in delay only applies
+            // here, between repeats -- the initial hover scroll is instant).
+            if (m_marqueeHovered && (nowMs - scrollEnd) >= s_kMarqueeHoldMs)
+            {
+                m_marqueeStartMs = nowMs;
+            }
+        }
+
+        drawX = labelLeft - offset;
+
+        // Two copies a period apart: as the first scrolls off the left, the
+        // gap then the second copy's head follow it in from the right. The
+        // clip rect trims whatever falls outside the drive bounds.
+        drawCopy (drawX);
+        drawCopy (drawX + period);
+    }
+
+    if (clipped)
+    {
+        IGNORE_RETURN_VALUE (hr, text.PopClipRect());
+    }
 }
 
 
