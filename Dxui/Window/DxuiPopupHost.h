@@ -204,6 +204,20 @@ public:
     void     MarkDirty          ();
 
     //
+    //  Measure the natural extent of `text` (in DIPs) through the
+    //  popup's own text renderer. Available any time after Initialize()
+    //  -- it only needs the DWrite factory, not a bound back buffer --
+    //  so a consumer can self-size its content between AcquirePopup()
+    //  and Show(). Returns a failure HRESULT (and 0 extents) in test
+    //  mode, where there is no factory; callers fall back to an estimate.
+    //
+    HRESULT  MeasureText        (const wchar_t  * text,
+                                 float            fontSizeDip,
+                                 const wchar_t  * fontFamily,
+                                 float          & outWidthDip,
+                                 float          & outHeightDip);
+
+    //
     //  std::future that resolves when Close() is invoked (or the
     //  popup auto-dismisses). Each Show() resets the promise; only
     //  one outstanding future per Show() cycle is supported.
