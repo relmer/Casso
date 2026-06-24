@@ -3,8 +3,66 @@
 All notable changes to Casso are documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
-Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
+Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
+
+## [1.6.0] — Occluding popups + Dxui chrome framework (spec 013)
+
+The window chrome was extracted into a standalone, reusable **Dxui**
+library, and the window host now owns the Direct3D swap chain directly.
+The headline user-visible payoff: menus, dropdowns, and tooltips finally
+render as real top-level windows, so they paint over everything and can
+spill past the window's edges instead of being clipped to it.
+
+### Added
+- **feat(ui): occluding top-level popups for menus, dropdowns, and
+  tooltips.** The application menu bar's submenus, the Settings-page
+  dropdowns, the Disk II / Input debug-panel column menus, and the
+  debug-panel hover tooltips now render into their own pooled top-level
+  windows (one DirectComposition swap chain per popup) instead of being
+  clipped to the parent's client area. A popup occludes the emulator and
+  other chrome and can extend past the window edges — flipping upward
+  when anchored near the bottom. The menu bar keeps its Windows-style
+  behaviour: click a title to open, hover an adjacent title to switch,
+  and full keyboard navigation (Alt-letter, arrows, Enter, Esc). It is
+  deliberately non-modal — moving the window closes the open menu.
+- **feat(ui): auto-fit debug-panel list columns.** The Disk II and Input
+  debug panels size each event-list column to the widest value seen, so
+  large cycle counts no longer wrap; dragging a column divider still
+  pins that column to the user's width.
+
+### Changed
+- **refactor(dxui): extract the window chrome into a reusable Dxui
+  library.** Casso's panels, layouts, widgets, menu bar, popup host, and
+  dialog primitives moved into a standalone `Dxui` static library built
+  on Direct2D / DirectWrite, decoupled from the emulator shell.
+- **refactor(render): host-owned swap chain.** The window host now owns
+  the D3D swap chain and presents directly; the separate child
+  render-surface window is gone. Collapsing the two contending window
+  procedures into one fixes the resize cursor not switching at window
+  edges, non-client hover not updating, caption-button presses freezing,
+  and menu hover not tracking.
+
+### Fixed
+- **fix(ui): debug-panel caption buttons respond.** Minimize / maximize /
+  close and their hover visuals work again on the Disk II, Input, and
+  Settings windows; their adopt-mode chrome no longer swallows the
+  non-client mouse messages.
+- **fix(ui): debug-panel window-management polish.** The maximize glyph
+  toggles to the restore glyph when a panel is maximized, re-pressing a
+  panel's hotkey restores and foregrounds it when minimized, and the
+  panels show the Casso icon in Alt-Tab.
+- **fix(ui): restore custom chrome interaction feedback.** Non-client
+  min/max/close clicks dispatch once, title-bar hover/press visuals
+  repaint, menu hover clears when the pointer leaves client chrome,
+  default client hit-tests still route client mouse moves to menu hover,
+  and menu-title bounds/spacing remain stable across resize/fullscreen
+  relayouts.
+- **fix(ui): enlarge the About dialog app picture.** The photoreal app
+  image now renders at a prominent size instead of a small thumbnail.
+- **fix(disk): suppress reset-time drive-door audio.** Warm reset and
+  programmatic remounts no longer play the Disk II door-close sound for
+  already-mounted disks.
 
 ## [1.5.1523] — Game input + debug-panel revamp
 
@@ -58,14 +116,6 @@ copy-protected WOZ image ([#68](https://github.com/relmer/Casso/issues/68)).
   projection and multi-column ListView.
 
 ### Fixed
-- **fix(ui): restore custom chrome interaction feedback.** Non-client
-  min/max/close clicks now dispatch once, title-bar hover/press visuals
-  repaint again, menu hover clears when the pointer leaves client chrome,
-  default client hit-tests still route client mouse moves to menu hover,
-  and menu-title bounds/spacing remain stable across resize/fullscreen relayouts.
-- **fix(disk): suppress reset-time drive-door audio.** Warm reset and
-  programmatic remounts no longer play the Disk II door-close sound for
-  already-mounted disks.
 - **fix(disk): keep the nibble engine advancing after a power cycle.**
   A power cycle zeroes the CPU cycle counter, but the Disk II
   controller's `CatchUpToCpu` retained a stale sync anchor and froze the

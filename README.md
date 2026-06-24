@@ -24,11 +24,28 @@ The project includes:
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
 - **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
-- **1650+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, reset semantics, perf budget, and backwards-compat for ][/][+ machines.
+- **1900+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, reset semantics, perf budget, and backwards-compat for ][/][+ machines.
 
 ## What's New
 
 See [CHANGELOG.md](CHANGELOG.md) for the granular history.
+
+### Occluding popups + Dxui chrome framework (v1.6.0)
+
+Casso's window chrome was lifted out of the emulator shell into a
+standalone, reusable **Dxui** library (Direct2D / DirectWrite), and the
+window host now owns the Direct3D swap chain directly. The visible payoff:
+the main menu's submenus, the Settings dropdowns, the debug-panel column
+menus, and the hover tooltips now open as real top-level windows, so they
+paint over the emulator and spill past the window's edges instead of being
+clipped to it — flipping upward when there isn't room below. The menu bar
+keeps click-to-open, hover-to-switch, and full keyboard navigation
+(Alt-letter, arrows, Esc). Collapsing the old two-window render path into a
+single host also fixed a batch of chrome glitches — the resize cursor
+switches at the window edges again, non-client hover updates, caption-button
+presses no longer freeze, and the Disk II / Input debug panels' caption
+buttons respond — and those debug panels now auto-fit their list columns to
+content.
 
 ### Game-input revamp (v1.5.1523)
 
@@ -112,9 +129,10 @@ Realistic mechanical sounds during disk activity, mixed into the WASAPI pipeline
 Casso.sln
 ├── CassoCore/     Static library — CPU emulator, assembler, parser, opcode table
 ├── CassoEmuCore/  Static library — Apple II devices, video modes, audio generator + drive-audio mixer
+├── Dxui/          Static library — reusable Direct2D/DirectWrite UI framework (host window, panels, layouts, widgets, menu bar, popup host, dialogs)
 ├── Casso/         Win32 application — Apple II platform emulator (D3D11, WASAPI, Disk II audio)
 ├── CassoCli/      Console application — AS65-compatible assembler CLI with `run` subcommand
-└── UnitTest/      Test DLL — Microsoft Native CppUnitTest (1650+ tests)
+└── UnitTest/      Test DLL — Microsoft Native CppUnitTest (1900+ tests)
 ```
 
 ## Requirements
