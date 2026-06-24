@@ -37,27 +37,15 @@ spill past the window's edges instead of being clipped to it.
   dialog primitives moved into a standalone `Dxui` static library built
   on Direct2D / DirectWrite, decoupled from the emulator shell.
 - **refactor(render): host-owned swap chain.** The window host now owns
-  the D3D swap chain and presents directly; the separate child
-  render-surface window is gone. Collapsing the two contending window
-  procedures into one fixes the resize cursor not switching at window
-  edges, non-client hover not updating, caption-button presses freezing,
-  and menu hover not tracking.
+  the Direct3D swap chain and presents directly; the separate child
+  render-surface window is gone. This single-window-procedure
+  architecture is what lets the chrome host the new top-level popups.
 
 ### Fixed
-- **fix(ui): debug-panel caption buttons respond.** Minimize / maximize /
-  close and their hover visuals work again on the Disk II, Input, and
-  Settings windows; their adopt-mode chrome no longer swallows the
-  non-client mouse messages.
 - **fix(ui): debug-panel window-management polish.** The maximize glyph
   toggles to the restore glyph when a panel is maximized, re-pressing a
   panel's hotkey restores and foregrounds it when minimized, and the
   panels show the Casso icon in Alt-Tab.
-- **fix(ui): restore custom chrome interaction feedback.** Non-client
-  min/max/close clicks dispatch once, title-bar hover/press visuals
-  repaint, menu hover clears when the pointer leaves client chrome,
-  default client hit-tests still route client mouse moves to menu hover,
-  and menu-title bounds/spacing remain stable across resize/fullscreen
-  relayouts.
 - **fix(ui): enlarge the About dialog app picture.** The photoreal app
   image now renders at a prominent size instead of a small thumbnail.
 - **fix(disk): suppress reset-time drive-door audio.** Warm reset and

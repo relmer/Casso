@@ -40,12 +40,9 @@ menus, and the hover tooltips now open as real top-level windows, so they
 paint over the emulator and spill past the window's edges instead of being
 clipped to it — flipping upward when there isn't room below. The menu bar
 keeps click-to-open, hover-to-switch, and full keyboard navigation
-(Alt-letter, arrows, Esc). Collapsing the old two-window render path into a
-single host also fixed a batch of chrome glitches — the resize cursor
-switches at the window edges again, non-client hover updates, caption-button
-presses no longer freeze, and the Disk II / Input debug panels' caption
-buttons respond — and those debug panels now auto-fit their list columns to
-content.
+(Alt-letter, arrows, Esc). The Disk II / Input debug panels now also
+auto-fit their list columns to content, so large cycle counts no longer
+wrap.
 
 ### Game-input revamp (v1.5.1523)
 
