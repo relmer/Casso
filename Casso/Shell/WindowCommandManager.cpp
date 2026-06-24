@@ -579,6 +579,7 @@ void WindowCommandManager::OnHelpCommand (int id)
             DialogDefinition def = {};
             def.title = L"About Casso";
             def.icon  = DialogIcon::AppPhotoreal;
+            def.iconSizeOverrideDp = 128.0f;
             def.body.push_back ({ L"Casso Emulator\n\nVersion " _CRT_WIDE (VERSION_STRING)
                                   L"\nBuilt " _CRT_WIDE (VERSION_BUILD_TIMESTAMP)
                                   L"\n\nAn Apple ][, Apple ][ plus, and Apple //e platform emulator "
