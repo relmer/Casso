@@ -464,6 +464,7 @@ EmulatorShell::~EmulatorShell()
     m_dragDropTarget.Shutdown();
     m_driveWidgets.UnloadDocument();
     m_mainMenu.Hide();
+    m_mainMenu.SetPopupHost (nullptr);
     m_titleBar.Hide();
 
     // Drop the host's adopted-chrome references before the chrome
@@ -1172,6 +1173,12 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // next paint.
     m_host->SetTheme (&m_chromeTheme);
 
+    // Route the menu bar's open submenu through the host popup pool so
+    // the dropdown renders as a real top-level window (escapes the
+    // client area + occludes). The strip stays in-window. The
+    // full-ownership host owns the device, so its pool makes real popups.
+    m_mainMenu.SetPopupHost (m_host.get());
+
     // Defer the size reconcile until after ShowWindow. The NC frame
     // (border carve-out from DefWindowProc + DWM rounded corners +
     // thick frame) doesn't materialize until the window is shown,
@@ -1446,6 +1453,11 @@ DxuiMessageResult EmulatorShell::OnMove (int x, int y)
 {
     UNREFERENCED_PARAMETER (x);
     UNREFERENCED_PARAMETER (y);
+
+    if (m_mainMenu.IsOpen())
+    {
+        m_mainMenu.Hide();
+    }
 
     m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
     return DxuiMessageResult::NotHandled;
@@ -1813,6 +1825,11 @@ void EmulatorShell::ApplyThemeToChrome (const ChromeTheme & theme)
 
     m_driveChrome[0].SetCompact (theme.compactDrives);
     m_driveChrome[1].SetCompact (theme.compactDrives);
+
+    // Push the nav/dropdown palette onto the menu bar so both the
+    // in-window strip and the popup-backed dropdown render with chrome
+    // colours (the old per-frame apply path is dead post-T129).
+    m_mainMenu.ApplyChromeColors (theme);
 
     if (m_hwnd == nullptr || desiredThicknessDp == priorThicknessDp)
     {
@@ -2916,6 +2933,20 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         SetChromeFocusIndex (s_kChromeFocusNone);
     }
 
+    // A press outside the menu strip dismisses any open menu. The strip
+    // itself toggles / hover-switches via the menu bar's own mouse
+    // handling, and the popup-backed dropdown receives row clicks
+    // directly; the popup takes no capture, so the owner drives this.
+    if (m_mainMenu.IsOpen())
+    {
+        RECT  strip = m_mainMenu.Bounds();
+
+        if (x < strip.left || x >= strip.right || y < strip.top || y >= strip.bottom)
+        {
+            m_mainMenu.Hide();
+        }
+    }
+
     m_joystickButton.SetPressed (m_joystickButton.HitTest (x, y));
 
     // The UI shell (debug panels, on-screen buttons) gets first crack at
@@ -3544,6 +3575,13 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
     UNREFERENCED_PARAMETER (widthPx);
 
+    // A resize restretches the window; drop any open menu so its
+    // window-anchored popup is not left stranded.
+    if (m_mainMenu.IsOpen())
+    {
+        m_mainMenu.Hide();
+    }
+
     // The host (DxuiHostWindow::HandleSize) already resized its swap
     // chain and recreated the back-buffer RTV + D2D target before this
     // OnSize fired. The renderer no longer owns the swap chain; it just
@@ -4160,7 +4198,19 @@ DxuiMessageResult EmulatorShell::OnNcLButtonDown (LRESULT hitTest, int xScreen, 
 
     if (!SystemButtonFromHitTest (hitTest, button))
     {
+        // Any non-client press (caption drag, system menu, snap) still
+        // dismisses an open menu -- its popup is anchored to the window
+        // and a move / system action would strand it.
+        if (m_mainMenu.IsOpen())
+        {
+            m_mainMenu.Hide();
+        }
         return DxuiMessageResult::NotHandled;
+    }
+
+    if (m_mainMenu.IsOpen())
+    {
+        m_mainMenu.Hide();
     }
 
     if (ScreenToClient (m_hwnd, &pt))

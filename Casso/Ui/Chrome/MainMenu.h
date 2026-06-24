@@ -78,6 +78,14 @@ public:
     void  Open           (MainMenuId menu, bool openedByKeyboard);
     using DxuiMenuBar::Open;     // expose int-indexed Open from base
 
+    //
+    //  Push the Casso nav/dropdown palette onto the menu bar. Must be
+    //  driven on a live path (theme apply / switch) so both the in-window
+    //  strip and the popup-backed dropdown use the chrome colours -- the
+    //  generic IDxuiTheme mapping is close but not identical.
+    //
+    void  ApplyChromeColors (const ChromeTheme & theme);
+
     MainMenuId  OpenMenu       () const { return (MainMenuId) OpenMenuIndex(); }
     MainMenuId  FocusedMenuId  () const { return (MainMenuId) DxuiMenuBar::FocusedMenu(); }
     using DxuiMenuBar::FocusedMenu;
@@ -89,7 +97,6 @@ public:
 
 private:
     void  Rebuild           ();
-    void  ApplyChromeColors (const ChromeTheme & theme);
 
 
     DispatchFn  m_dispatch;

@@ -6,6 +6,7 @@
 
 
 class DxuiHostWindow;
+class DxuiPopupHost;
 
 
 
@@ -158,6 +159,23 @@ public:
                                  wchar_t            & outLower);
 
 private:
+    //
+    //  Resolved dropdown colours. The in-window paint resolves these
+    //  from the theme (or the SetDropdownColors overrides) every frame;
+    //  the popup render path reuses the cached copy because its render
+    //  hook gets no theme.
+    //
+    struct DropdownPalette
+    {
+        uint32_t  bg       = 0xFF202A35;
+        uint32_t  hover    = 0xFF34475F;
+        uint32_t  text     = 0xFFE8EEF4;
+        uint32_t  accel    = 0xFFAAB4C0;
+        uint32_t  border   = 0xFF5C7088;
+        uint32_t  divider  = 0xFF3A4453;
+        uint32_t  disabled = 0xFF6A7585;
+    };
+
     int   HitTitleIndex     (int x, int y) const;
     int   HitEntryIndex     (int x, int y) const;
     int   EntryHeightPx     (const DxuiMenuBarSubitem & sub) const;
@@ -169,9 +187,33 @@ private:
 
     static bool  ShouldShowMnemonicCues (bool openedByKeyboard);
 
+    //
+    //  Popup-backed dropdown (opt-in via SetPopupHost). The strip stays
+    //  in-window; the open submenu renders into a top-level popup so it
+    //  can escape the window and occlude. No mouse capture (grabsCapture
+    //  = false) so the owner keeps hover-switch between titles.
+    //
+    DropdownPalette  ResolveDropdownPalette  (const IDxuiTheme & theme) const;
+    void             PaintDropdownRows       (IDxuiPainter           & painter,
+                                              IDxuiTextRenderer      & text,
+                                              const RECT             & rect,
+                                              const DropdownPalette  & pal,
+                                              UINT                     dpi) const;
+    void             ShowDropdownPopup       ();
+    void             ReleaseActivePopup      ();
+    void             RenderDropdownPopup     (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    int              PopupRowAtLocalY        (int localYPx) const;
+    void             OnPopupMove             (POINT localPx);
+    void             OnPopupClick            (POINT localPx);
+
 
     std::vector<DxuiMenuBarItem>  m_items;
     DxuiHostWindow              * m_popupHost        = nullptr;
+    DxuiPopupHost               * m_activePopup      = nullptr;
+    DropdownPalette               m_cachedPalette;
+    bool                          m_haveLastMousePos = false;
+    int                           m_lastMouseX       = 0;
+    int                           m_lastMouseY       = 0;
 
     RECT                          m_stripRect        = {};
     std::vector<RECT>             m_titleRects;
