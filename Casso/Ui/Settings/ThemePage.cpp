@@ -368,7 +368,7 @@ namespace
                 int  centerX    = prevRect.left + prevW / 2;
                 int  centerY    = bandTop + bandHeight / 2;
 
-                previewButton.SetOn (true);
+                previewButton.SetMode (InputMappingMode::Joystick);
                 previewButton.Layout (centerX, centerY, effectiveDpi, &text);
                 previewButton.Paint  (painter, text, theme);
             }

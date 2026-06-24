@@ -4,6 +4,7 @@
 
 #include "Core/JsonValue.h"
 #include "IFileSystem.h"
+#include "../UiCommandTypes.h"
 
 
 
@@ -38,12 +39,14 @@ struct GlobalUserPrefs
     // AssetBootstrap::CheckAndFetchDiskAudio reads + writes this.
     std::string  audioDownloadConsent  = "ask";
 
-    // When true, the host arrow keys drive ONLY the emulated game-port
-    // joystick (no //e keyboard latch), so a held direction can't flood
-    // $C000 and starve a joystick-mode game's paddle reads. When false,
-    // arrows drive the keyboard as usual. Toggled via the Machine menu's
-    // "Map Arrows to Joystick" item; only meaningful on //e machines.
-    bool         mapArrowsToJoystick   = false;
+    // How host arrow / pointer input maps onto the emulated game port:
+    // Off leaves the keys as ordinary //e keystrokes; Joystick maps the
+    // arrow keys (plus Z / X) onto the paddle axes / fire buttons with a
+    // spring return to center; Paddle captures the mouse for an absolute,
+    // held dial. Cycled via the Machine menu's "Cycle Input Mode" item,
+    // Ctrl+J, and the drive-bar widget; only meaningful on machines with a
+    // game port. Migrated from the legacy bool "mapArrowsToJoystick".
+    InputMappingMode  inputMappingMode = InputMappingMode::Off;
 
     // CRT state per monitor type. Each monitor (Color / Green / Amber /
     // White) has its own block so the user can dial in different
@@ -131,6 +134,9 @@ private:
     static JsonValue    CrtToJson         (const Crt & c);
     static JsonValue    PlacementsToJson  (const std::map<std::string, WindowBounds> & placements);
     static JsonValue    RecentDisksToJson (const std::vector<std::string> & recentDisks);
+
+    static const char *      InputMappingModeToString   (InputMappingMode mode);
+    static InputMappingMode  InputMappingModeFromString (const std::string & s, InputMappingMode fallback);
 
     static void         CrtModeFromJson     (const JsonValue & modeObj, Crt & c);
     static void         PlacementsFromJson  (const JsonValue                     & placementsObj,

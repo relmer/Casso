@@ -74,6 +74,12 @@ protected:
     virtual bool    OnMouseLeave ();
     virtual bool    OnLButtonDown (WPARAM wParam, LPARAM lParam);
     virtual bool    OnLButtonUp (WPARAM wParam, LPARAM lParam);
+    virtual bool    OnRButtonDown (WPARAM wParam, LPARAM lParam) { UNREFERENCED_PARAMETER (wParam); UNREFERENCED_PARAMETER (lParam); return true; }
+    virtual bool    OnRButtonUp   (WPARAM wParam, LPARAM lParam) { UNREFERENCED_PARAMETER (wParam); UNREFERENCED_PARAMETER (lParam); return true; }
+    virtual bool    OnActivateApp (bool active)                  { UNREFERENCED_PARAMETER (active); return true; }
+    virtual bool    OnKillFocus   ()                             { return true; }
+    virtual bool    OnCancelMode  ()                             { return true; }
+    virtual bool    OnGetMinMaxInfo (MINMAXINFO * info)          { UNREFERENCED_PARAMETER (info); return false; }
     virtual bool    OnNotify   (HWND hwnd, WPARAM wParam, LPARAM lParam);
     virtual bool    OnPaint    (HWND hwnd);
     virtual bool    OnMove     (HWND hwnd, int x, int y);

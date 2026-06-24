@@ -75,6 +75,25 @@ static constexpr int     s_kLabelBottomGapDp    = 2;
 // updating this and s_kFullDriveBarDp / s_kCompactDriveBarDp to match.
 static constexpr int     s_kJoystickButtonBandDp = 43;
 
+// Max width (dp) of the input-mode button's hover tooltip; the long
+// mode-explanation text wraps to this width instead of running off the
+// window edge (further capped to the viewport by Tooltip).
+static constexpr float   s_kJoystickTooltipMaxWidthDip = 300.0f;
+
+// Minimum emulator-viewport (center) the window must always host, plus a
+// small pad past the last menu title, so the bottom drive bar can never be
+// driven up into the menu strip / title (NC) area and menu titles never
+// clip. The drive-bar and title / nav insets are added live by the
+// LayoutManager around this center.
+static constexpr int     s_kMinCenterWidthDp  = 420;
+static constexpr int     s_kMinCenterHeightDp = 160;
+static constexpr int     s_kMenuRightPadDp    = 12;
+
+// When paddle-mode capture begins, a tooltip left visible over the button
+// won't get another mouse event to dismiss it (the pointer is captured /
+// hidden), so schedule it to self-dismiss after this delay.
+static constexpr int     s_kPaddleTooltipDismissMs = 3000;
+
 // WM_KEYDOWN / WM_CHAR lParam bit 30: "previous key state" — set when the
 // key was already down, i.e. this event is a Windows OS auto-repeat. We
 // gate the emulated keyboard strobe on this so holding a key delivers a
@@ -91,6 +110,16 @@ static constexpr Byte    s_kPaddleAxisMax            = 255;
 // Z -> button 1 ($C062 / Closed-Apple).
 static constexpr WPARAM  s_kJoystickButton0Vk        = 'X';
 static constexpr WPARAM  s_kJoystickButton1Vk        = 'Z';
+
+// Paddle-mode mouse capture tuning. Relative motion over s_kPaddleSweepInches
+// of physical mouse travel (DPI-scaled) sweeps the paddle across its full
+// s_kPaddleRange; the value is held (no spring return) the way a real
+// paddle's dial is. s_knPaddleCenter mirrors the device default.
+static constexpr float   s_kPaddleSweepInches        = 4.0f;
+static constexpr float   s_kPaddleRange              = 255.0f;
+static constexpr float   s_kPaddleMinF               = 0.0f;
+static constexpr float   s_kPaddleMaxF               = 255.0f;
+static constexpr Byte    s_kPaddleCenterByte         = 127;
 
 // Lit-pixel color the text renderers use. A color monitor draws text white;
 // the monochrome monitors keep a green source here and the post-render tint
@@ -635,7 +664,8 @@ HRESULT EmulatorShell::Initialize (
         hrPrefs = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
         IGNORE_RETURN_VALUE (hrPrefs, S_OK);
 
-        m_mapArrowsToJoystick = m_globalPrefs.mapArrowsToJoystick;
+        m_inputMode = m_globalPrefs.inputMappingMode;
+        m_joystickButton.SetMode (m_inputMode);
 
         // Record the currently-active machine so the next launch boots
         // it by default (Main resolves the value via this same field).
@@ -1179,7 +1209,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_navLayer.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
     m_navLayer.SetCheckQuery ([this] (WORD commandId) -> bool
     {
-        return (commandId == IDM_MACHINE_ARROWS_JOYSTICK) ? m_mapArrowsToJoystick : false;
+        return (commandId == IDM_MACHINE_ARROWS_JOYSTICK) ? (m_inputMode != InputMappingMode::Off) : false;
     });
 
     // Load the app icon (IDI_CASSO) into a premultiplied BGRA8 pixel
@@ -1925,9 +1955,34 @@ void EmulatorShell::LayoutJoystickButton (int clientW,
 
 
 
-    m_joystickButton.SetOn (m_mapArrowsToJoystick);
+    m_joyBtnClientW    = clientW;
+    m_joyBtnBandTop    = bandTopPx;
+    m_joyBtnBandHeight = bandHeightPx;
+    m_joyBtnDpi        = dpi;
+
+    m_joystickButton.SetMode (m_inputMode);
     m_joystickButton.Layout (centerX, centerY, dpi, &m_uiShell.Text());
     m_joystickTooltip.SetDpi (dpi);
+    m_joystickTooltip.SetMaxWidthDip (s_kJoystickTooltipMaxWidthDip);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::RelayoutJoystickButton
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RelayoutJoystickButton ()
+{
+    if (m_joyBtnClientW <= 0)
+    {
+        return;
+    }
+
+    LayoutJoystickButton (m_joyBtnClientW, m_joyBtnBandTop, m_joyBtnBandHeight, m_joyBtnDpi);
 }
 
 
@@ -2090,7 +2145,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
     {
         if (index == s_kChromeFocusButton)
         {
-            SetMapArrowsToJoystick (!m_mapArrowsToJoystick);
+            CycleInputMappingMode();
         }
         else if (index == s_kChromeFocusDrive0)
         {
@@ -2888,6 +2943,15 @@ bool EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
 
 
+    // Paddle mode owns the pointer while captured: relative motion drives
+    // the held paddle axes and the cursor is snapped back to center, so the
+    // chrome never sees the move.
+    if (m_paddleCaptured)
+    {
+        UpdatePaddleFromMouse (x, y);
+        return false;
+    }
+
     if (m_uiShell.OnMouseMove (x, y, leftDown))
     {
         return false;
@@ -2952,6 +3016,14 @@ bool EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     UNREFERENCED_PARAMETER (wParam);
 
+    // While paddle-captured, the left button is fire button 0 and the
+    // pointer is hidden/confined, so nothing else acts on the press.
+    if (m_paddleCaptured)
+    {
+        PushPaddleButton (0, true);
+        return false;
+    }
+
     SetCapture (m_hwnd);
 
     // A mouse press drops the keyboard chrome-focus ring: clicking anywhere
@@ -2993,6 +3065,14 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     UNREFERENCED_PARAMETER (wParam);
 
+    // While paddle-captured, the left button is fire button 0; release it
+    // and keep the capture (the transient click-capture path is bypassed).
+    if (m_paddleCaptured)
+    {
+        PushPaddleButton (0, false);
+        return false;
+    }
+
     ReleaseCapture();
     m_joystickButton.SetPressed (false);
     if (m_uiShell.OnLButtonUp (x, y))
@@ -3000,12 +3080,12 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         return false;
     }
 
-    // Toggling the joystick-mode button routes through the same path as
-    // the Machine menu command so the disable-time neutralization of held
+    // Cycling the input-mode button routes through the same path as the
+    // Machine menu command so the leave-time neutralization of held
     // arrow / X / Z inputs runs.
     if (m_joystickButton.HitTest (x, y))
     {
-        SetMapArrowsToJoystick (!m_mapArrowsToJoystick);
+        CycleInputMappingMode();
         return false;
     }
 
@@ -3034,6 +3114,169 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
             return false;
         }
     }
+
+    // A bare left-click on the emulator screen (no chrome / widget / drive
+    // hit) in Paddle mode re-grabs the pointer after an Esc release.
+    if (m_inputMode == InputMappingMode::Paddle && !m_paddleCaptured)
+    {
+        StartPaddleCapture();
+        return false;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnRButtonDown / OnRButtonUp
+//
+//  In Paddle mode the right mouse button is fire button 1; otherwise the
+//  message falls through to the default handler.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnRButtonDown (WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER (wParam);
+    UNREFERENCED_PARAMETER (lParam);
+
+    if (m_paddleCaptured)
+    {
+        PushPaddleButton (1, true);
+        return false;
+    }
+
+    return true;
+}
+
+
+
+
+
+bool EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER (wParam);
+    UNREFERENCED_PARAMETER (lParam);
+
+    if (m_paddleCaptured)
+    {
+        PushPaddleButton (1, false);
+        return false;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnActivateApp / OnKillFocus / OnCancelMode
+//
+//  Safety net that releases a live paddle-mode mouse capture whenever the
+//  app loses the foreground (Alt-Tab, taskbar, minimize), focus, or the OS
+//  cancels capture (Ctrl-Alt-Del / UAC secure desktop, workstation lock,
+//  modal takeover). The OS force-releases capture and the cursor clip in
+//  the secure-desktop cases too; this keeps our hidden-cursor / captured
+//  state in sync so the pointer reappears. Re-grab is an explicit click on
+//  the emulator screen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnActivateApp (bool active)
+{
+    if (!active)
+    {
+        StopPaddleCapture();
+    }
+
+    return true;
+}
+
+
+
+
+
+bool EmulatorShell::OnKillFocus ()
+{
+    StopPaddleCapture();
+    return true;
+}
+
+
+
+
+
+bool EmulatorShell::OnCancelMode ()
+{
+    StopPaddleCapture();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnGetMinMaxInfo
+//
+//  Enforces a minimum window size so the bottom drive bar can never be
+//  shrunk up into the menu strip / title (NC) area. The floor is the
+//  client size needed to host a minimum emulator viewport plus the live
+//  chrome insets (title + nav on top, drive bar on bottom), widened if
+//  needed so no menu title clips, then converted to a window extent via
+//  the current non-client overhead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnGetMinMaxInfo (MINMAXINFO * info)
+{
+    RECT  rcClient    = {};
+    RECT  rcWindow    = {};
+    SIZE  minClient   = {};
+    int   menuWidthPx = 0;
+    int   ncOverheadW = 0;
+    int   ncOverheadH = 0;
+
+
+
+    if (info == nullptr || m_hwnd == nullptr)
+    {
+        return false;
+    }
+
+    // Client size for the minimum center: the LayoutManager adds the live
+    // title / nav / drive-bar insets around the requested viewport.
+    minClient = m_layout.ClientSizeForCenter (m_layout.ScaleForDpi (s_kMinCenterWidthDp),
+                                              m_layout.ScaleForDpi (s_kMinCenterHeightDp));
+
+    // Never narrower than the menu strip's content, so every title stays
+    // on-strip.
+    menuWidthPx = m_navLayer.MenuStripContentWidthPx() + m_layout.ScaleForDpi (s_kMenuRightPadDp);
+
+    if (minClient.cx < menuWidthPx)
+    {
+        minClient.cx = menuWidthPx;
+    }
+
+    // Translate the client floor to a window floor using the live NC
+    // overhead (the custom chrome keeps this small -- just the resize
+    // borders -- but it is non-zero).
+    if (GetClientRect (m_hwnd, &rcClient) && GetWindowRect (m_hwnd, &rcWindow))
+    {
+        ncOverheadW = (rcWindow.right  - rcWindow.left) - (rcClient.right  - rcClient.left);
+        ncOverheadH = (rcWindow.bottom - rcWindow.top)  - (rcClient.bottom - rcClient.top);
+    }
+
+    info->ptMinTrackSize.x = minClient.cx + ncOverheadW;
+    info->ptMinTrackSize.y = minClient.cy + ncOverheadH;
 
     return false;
 }
@@ -3211,12 +3454,21 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     bool     ctrlHeld      = false;
     bool     altHeld       = false;
     bool     isRepeat      = (lParam & s_kPreviousKeyDownLParamBit) != 0;
-    bool     driveJoystick = m_mapArrowsToJoystick &&
+    bool     driveJoystick = m_inputMode == InputMappingMode::Joystick &&
                              (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr ||
                               m_refs.gamePort != nullptr);
     Byte     appleCode     = 0;
 
 
+
+    // 0. Esc releases a live paddle-mode mouse capture (the cursor
+    //    reappears) without changing the input mode, so the chrome is
+    //    reachable again; click the emulator screen to re-grab.
+    if (m_paddleCaptured && vk == VK_ESCAPE)
+    {
+        StopPaddleCapture();
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     // 1. Modal settings panel wins keystrokes outright.
     if (m_uiShell.IsSettingsCapturing())
@@ -3334,12 +3586,12 @@ bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
     // releases the physical keys.
     ApplyAppleModifierKeys (vk, false);
 
-    if (m_mapArrowsToJoystick && IsArrowVk (vk))
+    if (m_inputMode == InputMappingMode::Joystick && IsArrowVk (vk))
     {
         UpdateJoystickAxesFromKeys();
     }
 
-    if (m_mapArrowsToJoystick)
+    if (m_inputMode == InputMappingMode::Joystick)
     {
         UpdateJoystickButtonsFromKeys();
     }
@@ -3494,56 +3746,364 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetMapArrowsToJoystick
+//  SetInputMappingMode
 //
-//  Toggles the arrows-drive-joystick mode and persists it. On enable we
-//  resolve the axes and fire buttons from the current key state so a held
-//  arrow / X / Z takes effect immediately; on disable we recenter both axes
-//  and drop the X / Z button mapping so a game reading the game port sees a
-//  neutral stick and buttons rather than a stale deflection.
+//  Sets the host input mapping mode (Off / Joystick / Paddle) and persists
+//  it. Leaving Paddle drops the mouse capture. Joystick resolves the axes
+//  and fire buttons from the current key state so a held arrow / X / Z
+//  takes effect immediately. Off and Paddle both neutralize the
+//  key-derived stick and buttons so the game port reads neutral; Paddle
+//  then centers the paddle and grabs the mouse.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetMapArrowsToJoystick (bool on)
+void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
 {
-    auto * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
-    auto * iieKbd   = dynamic_cast<Apple2eKeyboard *>       (m_refs.keyboard);
-    auto * gamePort = m_refs.gamePort;
+    auto             * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    auto             * iieKbd   = dynamic_cast<Apple2eKeyboard *>       (m_refs.keyboard);
+    auto             * gamePort = m_refs.gamePort;
+    InputMappingMode   prev     = m_inputMode;
 
-    m_mapArrowsToJoystick             = on;
-    m_globalPrefs.mapArrowsToJoystick = on;
-    m_joystickButton.SetOn (on);
+
+
+    if (prev == InputMappingMode::Paddle && mode != InputMappingMode::Paddle)
+    {
+        StopPaddleCapture();
+    }
+
+    m_inputMode                    = mode;
+    m_globalPrefs.inputMappingMode = mode;
+    m_joystickButton.SetMode (mode);
+
+    // The frame width tracks the current label (Paddle is wider), so
+    // resize the button now rather than waiting for the next layout pass.
+    RelayoutJoystickButton();
 
     SaveGlobalPrefs();
 
-    if (on)
+    if (mode == InputMappingMode::Joystick)
     {
         UpdateJoystickAxesFromKeys();
         UpdateJoystickButtonsFromKeys();
+        return;
     }
-    else
+
+    // Off / Paddle: center the axes and drop the X / Z fire mapping (leaving
+    // only the host Alt keys) so a held key can't stay stuck.
+    if (iieSw != nullptr)
     {
-        if (iieSw != nullptr)
-        {
-            iieSw->SetPaddle (0, Apple2eSoftSwitchBank::s_knPaddleCenter);
-            iieSw->SetPaddle (1, Apple2eSoftSwitchBank::s_knPaddleCenter);
-        }
+        iieSw->SetPaddle (0, Apple2eSoftSwitchBank::s_knPaddleCenter);
+        iieSw->SetPaddle (1, Apple2eSoftSwitchBank::s_knPaddleCenter);
+    }
 
-        if (gamePort != nullptr)
-        {
-            gamePort->SetPaddle (0, AppleGamePort::s_knPaddleCenter);
-            gamePort->SetPaddle (1, AppleGamePort::s_knPaddleCenter);
-            gamePort->SetButton (0, false);
-            gamePort->SetButton (1, false);
-        }
+    if (gamePort != nullptr)
+    {
+        gamePort->SetPaddle (0, AppleGamePort::s_knPaddleCenter);
+        gamePort->SetPaddle (1, AppleGamePort::s_knPaddleCenter);
+        gamePort->SetButton (0, false);
+        gamePort->SetButton (1, false);
+    }
 
-        // Drop the X / Z contribution to the fire buttons, leaving only the
-        // host Alt keys mapped, so a held X / Z can't stay stuck after the
-        // mode is turned off.
-        if (iieKbd != nullptr)
+    if (iieKbd != nullptr)
+    {
+        iieKbd->SetOpenApple   ((GetKeyState (VK_LMENU) & 0x8000) != 0);
+        iieKbd->SetClosedApple ((GetKeyState (VK_RMENU) & 0x8000) != 0);
+    }
+
+    if (mode == InputMappingMode::Paddle)
+    {
+        m_paddleAxisX = (float) s_kPaddleCenterByte;
+        m_paddleAxisY = (float) s_kPaddleCenterByte;
+        StartPaddleCapture();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CycleInputMappingMode
+//
+//  Advances the input mapping mode Off -> Joystick -> Paddle -> Off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::CycleInputMappingMode ()
+{
+    InputMappingMode  next = InputMappingMode::Off;
+
+
+
+    switch (m_inputMode)
+    {
+        case InputMappingMode::Off:
+            next = InputMappingMode::Joystick;
+            break;
+
+        case InputMappingMode::Joystick:
+            next = InputMappingMode::Paddle;
+            break;
+
+        case InputMappingMode::Paddle:
+        default:
+            next = InputMappingMode::Off;
+            break;
+    }
+
+    SetInputMappingMode (next);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartPaddleCapture
+//
+//  Hides and confines the cursor to the client area, parks it at center,
+//  and begins relative tracking. No-op unless the mode is Paddle, the
+//  window owns the foreground, and capture isn't already active. The
+//  current (held) paddle position is pushed so a re-grab after an Esc
+//  release resumes from where the dial was left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::StartPaddleCapture ()
+{
+    HRESULT  hr      = S_OK;
+    RECT     client  = {};
+    POINT    topLeft = {};
+    POINT    botRt   = {};
+    RECT     clip    = {};
+    POINT    center  = {};
+
+
+
+    BAIL_OUT_IF (m_inputMode != InputMappingMode::Paddle, S_OK);
+    BAIL_OUT_IF (m_paddleCaptured,                        S_OK);
+    BAIL_OUT_IF (m_hwnd == nullptr,                       S_OK);
+    BAIL_OUT_IF (GetForegroundWindow() != m_hwnd,         S_OK);
+
+    m_paddleCaptured = true;
+
+    SetCapture (m_hwnd);
+
+    // Drive the per-thread ShowCursor counter negative so the arrow hides.
+    while (ShowCursor (FALSE) >= 0)
+    {
+    }
+
+    GetClientRect (m_hwnd, &client);
+
+    topLeft.x = client.left;
+    topLeft.y = client.top;
+    botRt.x   = client.right;
+    botRt.y   = client.bottom;
+    ClientToScreen (m_hwnd, &topLeft);
+    ClientToScreen (m_hwnd, &botRt);
+
+    clip.left   = topLeft.x;
+    clip.top    = topLeft.y;
+    clip.right  = botRt.x;
+    clip.bottom = botRt.y;
+    ClipCursor (&clip);
+
+    center.x = (client.right  - client.left) / 2;
+    center.y = (client.bottom - client.top)  / 2;
+    ClientToScreen (m_hwnd, &center);
+    SetCursorPos (center.x, center.y);
+
+    PushPaddlePosition();
+
+    // A tooltip left up over the button can't be dismissed by mouse motion
+    // once the pointer is captured and hidden, so give it a self-dismiss.
+    m_joystickTooltip.DismissAfter (
+        (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+            std::chrono::steady_clock::now().time_since_epoch()).count(),
+        s_kPaddleTooltipDismissMs);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StopPaddleCapture
+//
+//  Releases the mouse capture and cursor clip, restores the cursor, and
+//  clears the fire buttons so a held mouse button doesn't stick. No-op
+//  when not captured. Leaves the input mode unchanged, so the dial holds
+//  its position for a later re-grab.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::StopPaddleCapture ()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (!m_paddleCaptured, S_OK);
+
+    m_paddleCaptured = false;
+
+    ClipCursor (nullptr);
+
+    if (GetCapture() == m_hwnd)
+    {
+        ReleaseCapture();
+    }
+
+    while (ShowCursor (TRUE) < 0)
+    {
+    }
+
+    PushPaddleButton (0, false);
+    PushPaddleButton (1, false);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdatePaddleFromMouse
+//
+//  Maps one WM_MOUSEMOVE while paddle-captured: the motion relative to the
+//  client center is scaled (s_kPaddleSweepInches of DPI-scaled travel =
+//  full range) into the held paddle axes, then the cursor is snapped back
+//  to center for unbounded relative motion. The zero-delta move our own
+//  recenter generates is ignored.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::UpdatePaddleFromMouse (int xClient, int yClient)
+{
+    HRESULT  hr         = S_OK;
+    RECT     client     = {};
+    int      centerX    = 0;
+    int      centerY    = 0;
+    int      dx         = 0;
+    int      dy         = 0;
+    UINT     dpi        = 96;
+    float    unitsPerPx = 0.0f;
+    POINT    center     = {};
+
+
+
+    BAIL_OUT_IF (!m_paddleCaptured, S_OK);
+
+    GetClientRect (m_hwnd, &client);
+    centerX = (client.right  - client.left) / 2;
+    centerY = (client.bottom - client.top)  / 2;
+    dx      = xClient - centerX;
+    dy      = yClient - centerY;
+
+    // The SetCursorPos recenter below re-enters here with a zero delta.
+    BAIL_OUT_IF (dx == 0 && dy == 0, S_OK);
+
+    dpi = GetDpiForWindow (m_hwnd);
+    if (dpi == 0)
+    {
+        dpi = 96;
+    }
+
+    unitsPerPx    = s_kPaddleRange / (s_kPaddleSweepInches * (float) dpi);
+    m_paddleAxisX = std::clamp (m_paddleAxisX + (float) dx * unitsPerPx, s_kPaddleMinF, s_kPaddleMaxF);
+    m_paddleAxisY = std::clamp (m_paddleAxisY + (float) dy * unitsPerPx, s_kPaddleMinF, s_kPaddleMaxF);
+
+    PushPaddlePosition();
+
+    center.x = centerX;
+    center.y = centerY;
+    ClientToScreen (m_hwnd, &center);
+    SetCursorPos (center.x, center.y);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PushPaddlePosition
+//
+//  Stages the held paddle axes onto whichever game port is present (the
+//  //e soft-switch bank and / or the ][/][+ AppleGamePort).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PushPaddlePosition ()
+{
+    auto * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    auto * gamePort = m_refs.gamePort;
+    Byte   x        = (Byte) (m_paddleAxisX + 0.5f);
+    Byte   y        = (Byte) (m_paddleAxisY + 0.5f);
+
+
+
+    if (iieSw != nullptr)
+    {
+        iieSw->SetPaddle (0, x);
+        iieSw->SetPaddle (1, y);
+    }
+
+    if (gamePort != nullptr)
+    {
+        gamePort->SetPaddle (0, x);
+        gamePort->SetPaddle (1, y);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PushPaddleButton
+//
+//  Stages a paddle / joystick fire button (0 or 1) onto the game port:
+//  the AppleGamePort pushbuttons on the ][/][+ and the //e keyboard's
+//  Open/Closed-Apple state. No-op for indices without a mapping.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PushPaddleButton (int index, bool pressed)
+{
+    auto * iieKbd   = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    auto * gamePort = m_refs.gamePort;
+
+
+
+    if (gamePort != nullptr)
+    {
+        gamePort->SetButton (index, pressed);
+    }
+
+    if (iieKbd != nullptr)
+    {
+        if (index == 0)
         {
-            iieKbd->SetOpenApple   ((GetKeyState (VK_LMENU) & 0x8000) != 0);
-            iieKbd->SetClosedApple ((GetKeyState (VK_RMENU) & 0x8000) != 0);
+            iieKbd->SetOpenApple (pressed);
+        }
+        else if (index == 1)
+        {
+            iieKbd->SetClosedApple (pressed);
         }
     }
 }
@@ -3589,7 +4149,7 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // / OnKeyUp), so swallow their WM_CHAR to keep the letters from also
     // typing into the //e keyboard latch -- mirroring how arrow keys are
     // withheld from the latch.
-    if (m_mapArrowsToJoystick &&
+    if (m_inputMode == InputMappingMode::Joystick &&
         (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr ||
          m_refs.gamePort != nullptr) &&
         (ch == L'x' || ch == L'X' || ch == L'z' || ch == L'Z'))

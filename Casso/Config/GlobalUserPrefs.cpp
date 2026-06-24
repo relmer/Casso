@@ -40,11 +40,18 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "activeTheme",
     "lastSelectedMachine",
     "audioDownloadConsent",
+    "inputMappingMode",
     "mapArrowsToJoystick",
     "recentDisks",
     "crt",
     "window"
 };
+
+
+// Serialized string tokens for InputMappingMode.
+static constexpr const char *  s_kpszInputModeOff      = "off";
+static constexpr const char *  s_kpszInputModeJoystick = "joystick";
+static constexpr const char *  s_kpszInputModePaddle   = "paddle";
 
 
 enum class CrtScalar
@@ -273,6 +280,65 @@ JsonValue GlobalUserPrefs::CrtToJson (const Crt & c)
     }
 
     return JsonValue (std::move (modeObj));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::InputMappingModeToString
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * GlobalUserPrefs::InputMappingModeToString (InputMappingMode mode)
+{
+    switch (mode)
+    {
+        case InputMappingMode::Joystick:
+            return s_kpszInputModeJoystick;
+
+        case InputMappingMode::Paddle:
+            return s_kpszInputModePaddle;
+
+        case InputMappingMode::Off:
+        default:
+            return s_kpszInputModeOff;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::InputMappingModeFromString
+//
+//  Parses a serialized mode token, returning `fallback` for an empty or
+//  unrecognized string so an unknown future value degrades gracefully.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+InputMappingMode GlobalUserPrefs::InputMappingModeFromString (const std::string & s, InputMappingMode fallback)
+{
+    if (s == s_kpszInputModeJoystick)
+    {
+        return InputMappingMode::Joystick;
+    }
+
+    if (s == s_kpszInputModePaddle)
+    {
+        return InputMappingMode::Paddle;
+    }
+
+    if (s == s_kpszInputModeOff)
+    {
+        return InputMappingMode::Off;
+    }
+
+    return fallback;
 }
 
 
@@ -655,7 +721,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("activeTheme",          JsonValue (activeTheme));
     root.emplace_back ("lastSelectedMachine",  JsonValue (lastSelectedMachine));
     root.emplace_back ("audioDownloadConsent", JsonValue (audioDownloadConsent));
-    root.emplace_back ("mapArrowsToJoystick",  JsonValue (mapArrowsToJoystick));
+    root.emplace_back ("inputMappingMode",     JsonValue (std::string (InputMappingModeToString (inputMappingMode))));
 
     // crt: one sub-object per monitor type. Persist every block even
     // when userOverride is false so a roundtrip is deterministic; the
@@ -704,6 +770,8 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     const JsonValue *   windowSub     = nullptr;
     const JsonValue *   placementsObj = nullptr;
     const JsonValue *   recentArr     = nullptr;
+    std::string         inputModeStr;
+    bool                legacyArrows  = false;
     size_t              i             = 0;
 
 
@@ -721,7 +789,20 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     activeTheme          = GetStringOpt (v, "activeTheme",            activeTheme);
     lastSelectedMachine  = GetStringOpt (v, "lastSelectedMachine",    lastSelectedMachine);
     audioDownloadConsent = GetStringOpt (v, "audioDownloadConsent",   audioDownloadConsent);
-    mapArrowsToJoystick  = GetBoolOpt   (v, "mapArrowsToJoystick",    mapArrowsToJoystick);
+
+    // inputMappingMode supersedes the legacy bool "mapArrowsToJoystick";
+    // when the new key is absent, a true legacy bool migrates to Joystick.
+    inputModeStr = GetStringOpt (v, "inputMappingMode",   "");
+    legacyArrows = GetBoolOpt   (v, "mapArrowsToJoystick", false);
+
+    if (!inputModeStr.empty())
+    {
+        inputMappingMode = InputMappingModeFromString (inputModeStr, inputMappingMode);
+    }
+    else if (legacyArrows)
+    {
+        inputMappingMode = InputMappingMode::Joystick;
+    }
 
     if (SUCCEEDED (v.GetObject ("crt", crtSub)) && crtSub != nullptr)
     {

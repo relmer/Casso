@@ -175,6 +175,12 @@ private:
     bool    OnMouseLeave    () override;
     bool    OnLButtonDown   (WPARAM wParam, LPARAM lParam) override;
     bool    OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    bool    OnRButtonDown   (WPARAM wParam, LPARAM lParam) override;
+    bool    OnRButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    bool    OnActivateApp   (bool active) override;
+    bool    OnKillFocus     () override;
+    bool    OnCancelMode    () override;
+    bool    OnGetMinMaxInfo (MINMAXINFO * info) override;
     bool    OnMove          (HWND hwnd, int x, int y) override;
     bool    OnNotify        (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
     bool    OnSize          (HWND hwnd, UINT width, UINT height) override;
@@ -220,10 +226,27 @@ private:
     // Stage the emulated joystick fire buttons from the host X / Y keys.
     void    UpdateJoystickButtonsFromKeys ();
 
-    // Toggle the "Map Arrows to Joystick" mode: updates the flag, persists
-    // it, and re-syncs the joystick axes (resolving from current keys when
-    // turned on, or centering both axes when turned off).
-    void    SetMapArrowsToJoystick (bool on);
+    // Set the host input mapping mode (Off / Joystick / Paddle): persists
+    // it, re-syncs the game port (resolving joystick axes / buttons from
+    // current keys, centering on leave), and starts or stops mouse capture
+    // for Paddle mode.
+    void    SetInputMappingMode (InputMappingMode mode);
+
+    // Advance the input mapping mode Off -> Joystick -> Paddle -> Off,
+    // routed from the drive-bar widget, the Machine menu, and Ctrl+J.
+    void    CycleInputMappingMode ();
+
+    // Paddle-mode mouse capture. Start hides + confines the cursor and
+    // begins relative tracking (no-op unless the mode is Paddle and the
+    // window is focused); Stop restores the cursor and releases the clip.
+    // UpdatePaddleFromMouse maps one WM_MOUSEMOVE into the held paddle
+    // axes via the recenter-on-move trick. PushPaddleButtons stages the
+    // mouse buttons onto the emulated fire buttons.
+    void    StartPaddleCapture     ();
+    void    StopPaddleCapture      ();
+    void    UpdatePaddleFromMouse  (int xClient, int yClient);
+    void    PushPaddlePosition     ();
+    void    PushPaddleButton       (int index, bool pressed);
 
     // Queue a command for the CPU thread. Public so non-friend
     // adapters (e.g. SettingsPanel's internal apply sink) can post
@@ -307,6 +330,12 @@ private:
                                   int bandHeightPx,
                                   UINT dpi);
 
+    // Re-run the input-mode button layout from the last cached geometry,
+    // so the frame resizes immediately when the mode (and thus the label
+    // width) changes between resize / DPI events. No-op until the first
+    // LayoutJoystickButton has cached valid geometry.
+    void    RelayoutJoystickButton ();
+
     // Keyboard chrome-focus ring (see m_chromeFocusIndex). SetChromeFocusIndex
     // updates the index and refreshes which widget paints its focus visual;
     // HandleChromeFocusKey owns all keydown handling while the ring is active
@@ -378,6 +407,14 @@ private:
     // hover tooltip.
     JoystickToggleButton       m_joystickButton;
     Tooltip                    m_joystickTooltip;
+
+    // Last geometry passed to LayoutJoystickButton, cached so a mode
+    // change can relayout the button (its width tracks the current label)
+    // without waiting for the next resize. Width 0 = not yet laid out.
+    int                        m_joyBtnClientW    = 0;
+    int                        m_joyBtnBandTop    = 0;
+    int                        m_joyBtnBandHeight = 0;
+    UINT                       m_joyBtnDpi        = 96;
 
     // Chrome layout planner. Owns the canonical inset math for the
     // title bar, nav strip, and drive bar; replaces the historical
@@ -511,10 +548,19 @@ private:
     WPARAM          m_lastHorizontalArrowVk = 0;
     WPARAM          m_lastVerticalArrowVk   = 0;
 
-    // When true, arrow keys drive only the emulated game-port joystick
-    // (no //e keyboard latch). Mirrors GlobalUserPrefs::mapArrowsToJoystick
-    // and is toggled via the Machine menu's "Map Arrows to Joystick" item.
-    bool            m_mapArrowsToJoystick   = false;
+    // How host arrow / pointer input is mapped onto the emulated game
+    // port (Off / Joystick / Paddle). Mirrors
+    // GlobalUserPrefs::inputMappingMode and is cycled via the Machine
+    // menu's "Cycle Input Mode" item, Ctrl+J, and the drive-bar widget.
+    InputMappingMode  m_inputMode = InputMappingMode::Off;
+
+    // Paddle-mode mouse capture. While captured, the cursor is hidden and
+    // confined, relative motion drives the paddle axes (held, no recenter),
+    // and the mouse buttons drive the fire buttons. m_paddleAxis* are float
+    // accumulators (0..255) so sub-unit motion isn't lost between events.
+    bool              m_paddleCaptured = false;
+    float             m_paddleAxisX    = 127.0f;
+    float             m_paddleAxisY    = 127.0f;
 
     // Keyboard focus ring across the painted chrome ("Z" Tab order, left
     // to right, top to bottom): -1 = guest (//e has focus), 0..6 = the
