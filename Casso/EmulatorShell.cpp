@@ -92,6 +92,12 @@ static constexpr Byte    s_kPaddleAxisMax            = 255;
 static constexpr WPARAM  s_kJoystickButton0Vk        = 'X';
 static constexpr WPARAM  s_kJoystickButton1Vk        = 'Z';
 
+// Lit-pixel color the text renderers use. A color monitor draws text white;
+// the monochrome monitors keep a green source here and the post-render tint
+// recolors the whole frame to the selected phosphor (green/amber/white).
+static constexpr uint32_t s_kColorMonitorTextBgra     = 0xFFFFFFFF;   // white
+static constexpr uint32_t s_kMonoSourceTextBgra       = 0xFF00FF00;   // green
+
 // Chrome keyboard-focus ring indices (see EmulatorShell::m_chromeFocusIndex).
 // -1 = guest (//e has focus); 0..6 = the seven menu titles File..Help; 7 =
 // the joystick-mode toggle button; 8/9 = drive widgets 1/2. The ring wraps
@@ -2673,6 +2679,25 @@ void EmulatorShell::RenderFramebuffer()
     ColorMode color = m_colorMode.load (memory_order_acquire);
 
 
+
+    // A color monitor renders text white; the monochrome monitors keep the
+    // text renderer's green here and the post-render tint below recolors the
+    // whole frame to the selected phosphor. m_videoModes[0] is the 40-col
+    // text mode and [4] (when present) the 80-col mode.
+    {
+        uint32_t textOnColor = (color == ColorMode::Color) ? s_kColorMonitorTextBgra
+                                                           : s_kMonoSourceTextBgra;
+
+        if (!m_videoModes.empty())
+        {
+            static_cast<AppleTextMode *> (m_videoModes[0].get())->SetOnColor (textOnColor);
+        }
+
+        if (m_videoModes.size() > 4)
+        {
+            static_cast<Apple80ColTextMode *> (m_videoModes[4].get())->SetOnColor (textOnColor);
+        }
+    }
 
     m_machineManager->SelectVideoMode();
 

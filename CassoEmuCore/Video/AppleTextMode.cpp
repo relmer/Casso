@@ -190,7 +190,7 @@ void AppleTextMode::RenderRowRange (
 
                 for (int px = 0; px < kCharWidth; px++)
                 {
-                    uint32_t color = (glyphRow & (1 << px)) ? kColorGreen
+                    uint32_t color = (glyphRow & (1 << px)) ? m_onColor
                                                             : kColorBlack;
 
                     // Write 2x2 scaled pixel directly
