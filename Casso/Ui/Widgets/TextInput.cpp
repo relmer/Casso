@@ -8,7 +8,7 @@ namespace
     constexpr float     s_kFontDip       = 13.0f;
     constexpr float     s_kPadLeftDp     = 6.0f;
     constexpr float     s_kPadRightDp    = 6.0f;
-    constexpr float     s_kCaretWidthPx  = 1.0f;
+    constexpr float     s_kCaretWidthDp  = 1.0f;
     constexpr uint32_t  s_kFallbackBg    = 0xFF1A1F26;
     constexpr uint32_t  s_kFallbackFg    = 0xFFE8EEF4;
     constexpr uint32_t  s_kFallbackSel   = 0xFF335577;
@@ -62,6 +62,12 @@ void TextInput::SetMouseHover (int x, int y)
 
 bool TextInput::OnLButtonDown (int x, int y)
 {
+    int64_t  nowMs    = (int64_t) GetTickCount64();
+    size_t   hitCaret = 0;
+    bool     isDouble = false;
+
+
+
     if (!HitTest (x, y))
     {
         m_focused = false;
@@ -70,18 +76,39 @@ bool TextInput::OnLButtonDown (int x, int y)
 
     m_focused  = true;
     m_dragging = true;
+    hitCaret   = CaretFromClientX (x);
 
-    // Caret placement requires the text renderer for hit-testing. We
-    // don't have one in mouse-down context; place at end as a safe
-    // fallback. A future enhancement could measure on first paint and
-    // store glyph offsets, but for filter inputs the user almost
-    // always Tabs in / Ctrl+A's anyway.
-    m_caret  = m_text.size();
-    m_anchor = m_caret;
+    // Second click on (or very near) the same index within the system
+    // double-click time selects the word under the caret.
+    isDouble = (nowMs - m_lastClickMs) <= (int64_t) GetDoubleClickTime() &&
+               (hitCaret == m_lastClickCaret ||
+                (hitCaret > 0 && hitCaret - 1 == m_lastClickCaret) ||
+                hitCaret + 1 == m_lastClickCaret);
 
+    if (isDouble)
+    {
+        SelectWordAt (hitCaret);
+        m_dragging   = false;            // word already selected; no drag
+        m_lastClickMs = 0;               // reset so a triple-click isn't a double
+    }
+    else
+    {
+        m_caret = hitCaret;
+
+        // Shift-click extends the existing selection; a plain click drops
+        // the anchor at the caret (no selection).
+        if (!Shift())
+        {
+            m_anchor = m_caret;
+        }
+
+        m_lastClickMs    = nowMs;
+        m_lastClickCaret = hitCaret;
+    }
+
+    ResetBlink();
     return true;
 }
-
 
 
 
@@ -107,17 +134,24 @@ bool TextInput::OnLButtonUp (int x, int y)
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnMouseMove
+//
+//  Extends the selection while dragging: the anchor stays put and the
+//  caret follows the cursor.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void TextInput::OnMouseMove (int x, int y)
 {
-    (void) x;
-    (void) y;
+    if (!m_dragging || !m_enabled)
+    {
+        return;
+    }
+
+    m_caret = CaretFromClientX (x);
+    ResetBlink();
 }
 
 
@@ -137,6 +171,7 @@ bool TextInput::OnKey (WPARAM vk)
     bool  ctrl     = Control ();
 
 
+
     if (!m_focused || !m_enabled)
     {
         return false;
@@ -145,7 +180,16 @@ bool TextInput::OnKey (WPARAM vk)
     switch (vk)
     {
         case VK_LEFT:
-            if (m_caret > 0)
+            if (!shift && m_caret != m_anchor)
+            {
+                // Collapse an existing selection to its left edge.
+                m_caret = std::min (m_caret, m_anchor);
+            }
+            else if (ctrl)
+            {
+                m_caret = WordLeft (m_caret);
+            }
+            else if (m_caret > 0)
             {
                 m_caret--;
             }
@@ -157,7 +201,15 @@ bool TextInput::OnKey (WPARAM vk)
             break;
 
         case VK_RIGHT:
-            if (m_caret < m_text.size())
+            if (!shift && m_caret != m_anchor)
+            {
+                m_caret = std::max (m_caret, m_anchor);
+            }
+            else if (ctrl)
+            {
+                m_caret = WordRight (m_caret);
+            }
+            else if (m_caret < m_text.size())
             {
                 m_caret++;
             }
@@ -191,6 +243,15 @@ bool TextInput::OnKey (WPARAM vk)
             {
                 DeleteSelection();
             }
+            else if (ctrl && m_caret > 0)
+            {
+                size_t  wl = WordLeft (m_caret);
+
+                m_text.erase (wl, m_caret - wl);
+                m_caret  = wl;
+                m_anchor = wl;
+                FireChange();
+            }
             else if (m_caret > 0)
             {
                 m_text.erase (m_caret - 1, 1);
@@ -205,6 +266,13 @@ bool TextInput::OnKey (WPARAM vk)
             if (m_caret != m_anchor)
             {
                 DeleteSelection();
+            }
+            else if (ctrl && m_caret < m_text.size())
+            {
+                size_t  wr = WordRight (m_caret);
+
+                m_text.erase (m_caret, wr - m_caret);
+                FireChange();
             }
             else if (m_caret < m_text.size())
             {
@@ -255,6 +323,11 @@ bool TextInput::OnKey (WPARAM vk)
             break;
     }
 
+    if (consumed)
+    {
+        ResetBlink();
+    }
+
     return consumed;
 }
 
@@ -285,6 +358,7 @@ bool TextInput::OnChar (wchar_t ch)
 
     ins.assign (1, ch);
     InsertText (ins);
+    ResetBlink();
     return true;
 }
 
@@ -300,6 +374,8 @@ bool TextInput::OnChar (wchar_t ch)
 
 void TextInput::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 {
+    constexpr int64_t  s_kBlinkHalfMs = 530;          // Windows default caret blink
+
     HRESULT      hr        = S_OK;
     float        x         = (float) m_rect.left;
     float        y         = (float) m_rect.top;
@@ -314,15 +390,17 @@ void TextInput::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     uint32_t     selArgb   = s_kFallbackSel;
     uint32_t     edgeArgb  = s_kFallbackEdge;
     uint32_t     focusArgb = s_kFallbackFocus;
-    float        textMeasW = 0.0f;
-    float        textMeasH = 0.0f;
+    float        measW     = 0.0f;
+    float        measH     = 0.0f;
     float        caretX    = 0.0f;
     float        fullTextW = 0.0f;
+    float        lineH     = 0.0f;
     size_t       selStart  = std::min (m_caret, m_anchor);
     size_t       selEnd    = std::max (m_caret, m_anchor);
-    std::wstring before;
-    std::wstring sel;
-    std::wstring caretPrefix;
+    std::wstring prefix;
+    int64_t      blinkPhase = 0;
+    bool         caretOn    = false;
+
 
 
     if (m_theme != nullptr)
@@ -337,9 +415,28 @@ void TextInput::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     painter.FillRect    (x, y, w, h, bgArgb);
     painter.OutlineRect (x, y, w, h, 1.0f, m_focused ? focusArgb : edgeArgb);
 
-    caretPrefix.assign (m_text, 0, m_caret);
-    IGNORE_RETURN_VALUE (hr, text.MeasureString (caretPrefix.c_str(), fontPx, L"Segoe UI", caretX,    textMeasH));
-    IGNORE_RETURN_VALUE (hr, text.MeasureString (m_text.c_str(),      fontPx, L"Segoe UI", fullTextW, textMeasH));
+    // Rebuild the per-boundary x cache so mouse hit-testing matches what is
+    // drawn (same font / DPI). Index i = width of m_text[0..i).
+    m_glyphX.assign (m_text.size() + 1, 0.0f);
+    for (size_t i = 1; i <= m_text.size(); i++)
+    {
+        prefix.assign (m_text, 0, i);
+        IGNORE_RETURN_VALUE (hr, text.MeasureString (prefix.c_str(), fontPx, L"Segoe UI", measW, measH));
+        m_glyphX[i] = measW;
+    }
+
+    fullTextW = m_glyphX.empty() ? 0.0f : m_glyphX.back();
+    caretX    = (m_caret < m_glyphX.size()) ? m_glyphX[m_caret] : fullTextW;
+
+    // A reliable line height for caret sizing -- measH is only set when the
+    // text is non-empty, so fall back to a reference measurement so an empty
+    // field still shows a correctly sized caret.
+    lineH = measH;
+    if (lineH <= 0.0f)
+    {
+        float  refW = 0.0f;
+        IGNORE_RETURN_VALUE (hr, text.MeasureString (L"Mg", fontPx, L"Segoe UI", refW, lineH));
+    }
 
     if (innerW <= 0.0f)
     {
@@ -357,15 +454,12 @@ void TextInput::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 
     if (selStart != selEnd)
     {
-        before.assign (m_text, 0, selStart);
-        sel.assign    (m_text, selStart, selEnd - selStart);
+        float  selL    = m_glyphX[selStart];
+        float  selR    = m_glyphX[selEnd];
+        float  selH    = std::min (lineH, h - 2.0f);
+        float  selTop  = y + (h - selH) * 0.5f;
 
-        float bx = 0.0f;
-        float sx = 0.0f;
-        IGNORE_RETURN_VALUE (hr, text.MeasureString (before.c_str(), fontPx, L"Segoe UI", bx, textMeasH));
-        IGNORE_RETURN_VALUE (hr, text.MeasureString (sel.c_str(),    fontPx, L"Segoe UI", sx, textMeasH));
-
-        text.FillRect (x + padL + bx - m_scrollPx, y + 2.0f, sx, h - 4.0f, selArgb);
+        text.FillRect (x + padL + selL - m_scrollPx, selTop, selR - selL, selH, selArgb);
     }
 
     IGNORE_RETURN_VALUE (hr, text.DrawString (m_text.c_str(),
@@ -381,9 +475,32 @@ void TextInput::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                               DWRITE_FONT_WEIGHT_NORMAL,
                                               false));
 
+    // Blinking caret. Seed the phase anchor on first paint after focus so
+    // the caret starts solid; toggle every half-period thereafter.
     if (m_focused)
     {
-        text.FillRect (x + padL + caretX - m_scrollPx, y + 2.0f, (float) s_kCaretWidthPx, h - 4.0f, fgArgb);
+        int64_t  nowMs = (int64_t) GetTickCount64();
+
+        if (m_blinkAnchorMs == 0)
+        {
+            m_blinkAnchorMs = nowMs;
+        }
+
+        blinkPhase = (nowMs - m_blinkAnchorMs) / s_kBlinkHalfMs;
+        caretOn    = (blinkPhase % 2) == 0;
+
+        if (caretOn)
+        {
+            // Win32-style caret: ~1 logical px wide (DPI-scaled, snapped to a
+            // whole pixel so it stays crisp) and as tall as the text line,
+            // vertically centred in the field rather than spanning its full
+            // height.
+            float  caretW   = std::max (1.0f, std::floor (m_scaler.Pxf (s_kCaretWidthDp) + 0.5f));
+            float  caretH   = std::min (lineH, h - 2.0f);
+            float  caretTop = y + (h - caretH) * 0.5f;
+
+            text.FillRect (x + padL + caretX - m_scrollPx, caretTop, caretW, caretH, fgArgb);
+        }
     }
 
     IGNORE_RETURN_VALUE (hr, text.PopClipRect());
@@ -417,42 +534,181 @@ void TextInput::ClampCaret ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CaretFromX
+//  CaretFromClientX
+//
+//  Maps a client x to the nearest caret boundary using the glyph offsets
+//  cached by the most recent Paint. Picks the boundary whose drawn x is
+//  closest to the cursor (midpoint rule), so clicking the left half of a
+//  glyph lands before it and the right half after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t TextInput::CaretFromX (DwriteTextRenderer & text, int xPx) const
+size_t TextInput::CaretFromClientX (int xPx) const
 {
-    HRESULT       hr       = S_OK;
-    float         padL     = m_scaler.Pxf (s_kPadLeftDp);
-    float         fontPx   = m_scaler.Pxf (s_kFontDip);
-    float         target   = (float) xPx - (float) m_rect.left - padL + m_scrollPx;
-    float         w        = 0.0f;
-    float         h        = 0.0f;
-    std::wstring  prefix;
-    size_t        best     = 0;
-    float         bestDist = 1e9f;
+    float   padL   = m_scaler.Pxf (s_kPadLeftDp);
+    float   target = (float) xPx - (float) m_rect.left - padL + m_scrollPx;
+    size_t  best   = 0;
 
+
+
+    if (m_glyphX.empty())
+    {
+        return 0;
+    }
 
     if (target <= 0.0f)
     {
         return 0;
     }
 
-    for (size_t i = 0; i <= m_text.size(); i++)
+    if (target >= m_glyphX.back())
     {
-        prefix.assign (m_text, 0, i);
-        IGNORE_RETURN_VALUE (hr, text.MeasureString (prefix.c_str(), fontPx, L"Segoe UI", w, h));
+        return m_glyphX.size() - 1;
+    }
 
-        float dist = std::abs (w - target);
-        if (dist < bestDist)
+    for (size_t i = 0; i + 1 < m_glyphX.size(); i++)
+    {
+        float  mid = (m_glyphX[i] + m_glyphX[i + 1]) * 0.5f;
+
+        if (target < mid)
         {
-            bestDist = dist;
-            best     = i;
+            return i;
         }
+
+        best = i + 1;
     }
 
     return best;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WordLeft / WordRight
+//
+//  Word-boundary navigation matching the common Windows edit behavior:
+//  WordLeft skips any whitespace immediately left of `pos`, then the word
+//  characters, landing on the word start. WordRight skips the current word
+//  characters, then the whitespace, landing on the next word start.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t TextInput::WordLeft (size_t pos) const
+{
+    while (pos > 0 && !IsWordChar (m_text[pos - 1]))
+    {
+        pos--;
+    }
+
+    while (pos > 0 && IsWordChar (m_text[pos - 1]))
+    {
+        pos--;
+    }
+
+    return pos;
+}
+
+
+
+
+size_t TextInput::WordRight (size_t pos) const
+{
+    size_t  n = m_text.size();
+
+    while (pos < n && IsWordChar (m_text[pos]))
+    {
+        pos++;
+    }
+
+    while (pos < n && !IsWordChar (m_text[pos]))
+    {
+        pos++;
+    }
+
+    return pos;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SelectWordAt
+//
+//  Selects the run of word characters containing `pos` (anchor at its
+//  start, caret at its end). When `pos` sits on a non-word character the
+//  single character under it is selected instead, so a double-click always
+//  selects something.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TextInput::SelectWordAt (size_t pos)
+{
+    size_t  n     = m_text.size();
+    size_t  start = pos;
+    size_t  end   = pos;
+
+
+
+    if (n == 0)
+    {
+        m_anchor = 0;
+        m_caret  = 0;
+        return;
+    }
+
+    if (pos >= n)
+    {
+        pos = n - 1;
+    }
+
+    if (IsWordChar (m_text[pos]))
+    {
+        start = pos;
+        end   = pos;
+
+        while (start > 0 && IsWordChar (m_text[start - 1]))
+        {
+            start--;
+        }
+
+        while (end < n && IsWordChar (m_text[end]))
+        {
+            end++;
+        }
+    }
+    else
+    {
+        start = pos;
+        end   = pos + 1;
+    }
+
+    m_anchor = start;
+    m_caret  = end;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResetBlink
+//
+//  Restarts the caret blink phase so the caret is solid immediately after
+//  any caret move or edit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TextInput::ResetBlink ()
+{
+    m_blinkAnchorMs = (int64_t) GetTickCount64();
+
+    if (m_blinkAnchorMs == 0)
+    {
+        m_blinkAnchorMs = 1;             // 0 means "unseeded" in Paint
+    }
 }
 
 
@@ -529,9 +785,6 @@ void TextInput::CopyToClipboard () const
     size_t        selStart = std::min (m_caret, m_anchor);
     size_t        selEnd   = std::max (m_caret, m_anchor);
     std::wstring  sel;
-    HGLOBAL       hGlobal  = nullptr;
-    void        * pBuf     = nullptr;
-    BOOL          opened   = FALSE;
 
 
     if (selStart == selEnd)
@@ -540,6 +793,46 @@ void TextInput::CopyToClipboard () const
     }
 
     sel.assign (m_text, selStart, selEnd - selStart);
+    WriteTextToClipboard (sel);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CopyAllToClipboard
+//
+//  Copies the entire field contents to the clipboard regardless of the
+//  current selection. Used by host copy affordances (e.g. a copy button).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TextInput::CopyAllToClipboard () const
+{
+    if (m_text.empty())
+    {
+        return;
+    }
+
+    WriteTextToClipboard (m_text);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteTextToClipboard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TextInput::WriteTextToClipboard (const std::wstring & s) const
+{
+    HGLOBAL  hGlobal = nullptr;
+    void   * pBuf    = nullptr;
+    BOOL     opened  = FALSE;
+
 
     opened = OpenClipboard (m_hwnd);
     if (!opened)
@@ -553,7 +846,7 @@ void TextInput::CopyToClipboard () const
         return;
     }
 
-    hGlobal = GlobalAlloc (GMEM_MOVEABLE, (sel.size() + 1) * sizeof (wchar_t));
+    hGlobal = GlobalAlloc (GMEM_MOVEABLE, (s.size() + 1) * sizeof (wchar_t));
     if (hGlobal == nullptr)
     {
         CloseClipboard();
@@ -568,7 +861,7 @@ void TextInput::CopyToClipboard () const
         return;
     }
 
-    memcpy (pBuf, sel.c_str(), (sel.size() + 1) * sizeof (wchar_t));
+    memcpy (pBuf, s.c_str(), (s.size() + 1) * sizeof (wchar_t));
     GlobalUnlock (hGlobal);
 
     if (SetClipboardData (CF_UNICODETEXT, hGlobal) == nullptr)
