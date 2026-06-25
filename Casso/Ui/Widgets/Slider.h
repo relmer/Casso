@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "../Chrome/ChromeTheme.h"
 #include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
@@ -39,6 +40,7 @@ class Slider
 public:
     using ChangeFn      = std::function<void (float value)>;
     using InteractionFn = std::function<void ()>;
+    using FormatFn      = std::function<std::wstring (float value)>;
 
     void   SetRect    (const RECT & rect) { m_rect = rect; }
     void   SetRange   (float minValue, float maxValue);
@@ -48,6 +50,14 @@ public:
     void   SetShowValue (bool show) { m_explicitShowValue = true; m_showValue = show; }
     void   SetDecimalPlaces (int places) { m_decimalPlaces = places; }
     void   SetShowTicks (bool show) { m_showTicks = show; }
+    // Custom value-readout formatter. When set, it replaces the default
+    // numeric "<value><suffix>" text (used e.g. by a bipolar pan slider to
+    // render "Left" / "Center" / "Right"). Forces the value readout on.
+    void   SetValueFormatter (FormatFn fn) { m_formatter = std::move (fn); m_explicitShowValue = true; m_showValue = true; }
+    // Fill the track from its center toward the puck instead of from the
+    // left edge. Correct visual for a bipolar control whose midpoint is the
+    // neutral value (e.g. a Left..Center..Right pan slider).
+    void   SetCenterOriginFill (bool on) { m_centerOrigin = on; }
     void   SetDpi     (UINT dpi) { m_scaler.SetDpi (dpi); }
     void   SetEnabled (bool enabled) { m_enabled = enabled; if (!enabled) { m_dragging = false; m_hover = false; } }
     void   SetFocused (bool focused) { m_focused = focused; }
@@ -72,7 +82,7 @@ public:
     bool   OnLButtonUp    (int x, int y);
     bool   OnMouseMove    (int x, int y);
     bool   OnKey          (WPARAM vk);
-    void   Paint          (DxUiPainter & painter, DwriteTextRenderer & text) const;
+    void   Paint          (DxUiPainter & painter, DwriteTextRenderer & text, const ChromeTheme & theme) const;
 
 private:
     void   ApplyValue     (float v);
@@ -97,5 +107,7 @@ private:
     bool           m_showTicks = true;
     bool           m_showValue = false;
     bool           m_explicitShowValue = false;
+    bool           m_centerOrigin = false;
     int            m_decimalPlaces = 0;
+    FormatFn       m_formatter;
 };

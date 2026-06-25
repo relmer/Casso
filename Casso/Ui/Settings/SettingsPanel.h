@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "ColorPickerOverlay.h"
 #include "DisplayPage.h"
 #include "HardwarePage.h"
 #include "MachinePage.h"
@@ -84,10 +85,17 @@ public:
     // mouse / key events only while the panel is visible.
     void    Layout    (int viewportWidthPx, int viewportHeightPx, const DpiScaler & scaler, int topInsetPx = 0);
     void    Paint     (DxUiPainter & painter, DwriteTextRenderer & text);
+
+    // Paints the modal color picker (if open) into a fresh pass on top of
+    // the already-composed (blurred) panel, so it stays crisp with no page
+    // text bleeding through. Called by the renderer after blur+compose.
+    void    PaintModalOverlay (DxUiPainter & painter, DwriteTextRenderer & text);
+    bool    HasModalOverlay   () const { return m_colorPicker.IsOpen(); }
     void    OnMouseMove   (int x, int y);
     void    OnLButtonDown (int x, int y);
     void    OnLButtonUp   (int x, int y);
     bool    OnKey         (WPARAM vk);
+    bool    OnChar        (wchar_t ch);
 
     const SettingsPanelState & State () const { return m_state; }
     SettingsPanelState       & MutableState () { return m_state; }
@@ -109,6 +117,20 @@ private:
     void  PopulateMachineList         ();
     void  PopulateThemeList           ();
     void  OnMachineSelected           (const std::string & machineName);
+
+    // Auditions a drive sound from the Machine page play buttons: syncs the
+    // engine to the current dialed volumes/pan/mechanism, then triggers a
+    // one-shot. When `centered` the sound is balanced at the midpoint
+    // (volume previews); otherwise it plays at the drive's dialed pan.
+    void  AuditionDriveSound          (int drive, int kind, bool centered);
+
+    // Posts the given drive-audio state (volumes + pan + mechanism) to the
+    // engine. `mechanism` is reloaded only when it differs from what the
+    // engine last loaded (m_lastAuditionMechanism), avoiding redundant WAV
+    // decodes on repeated auditions.
+    void  PushDriveAudioToEngine      (float motor, float head, float door,
+                                       float pan0, float pan1,
+                                       const std::string & mechanism);
     void  OnThemeSelected             (const std::string & themeName);
     void  DoMachineSelect             (const std::string & machineName);
     void  OnApplyClicked              ();
@@ -156,6 +178,25 @@ private:
     // was active at panel open.
     GlobalUserPrefs::Crt  m_baselineCrt[GlobalUserPrefs::kCrtModeCount] = {};
     int                   m_baselineColorMode = -1;
+
+    // Color-monitor text color baseline for revert-on-Cancel (the live
+    // value is staged directly on m_prefs as the user edits it).
+    ColorMonitorTextMode  m_baselineColorTextMode       = ColorMonitorTextMode::White;
+    uint32_t              m_baselineColorTextCustomArgb = ColorUtil::kWhiteArgb;
+
+    // Drive-audio engine baseline for revert-on-Cancel. The play buttons
+    // push the dialed volumes/pan/mechanism to the engine to audition;
+    // if the user Cancels, these are restored. m_driveAuditionDirty gates
+    // the restore; m_lastAuditionMechanism tracks what the engine last
+    // loaded so redundant sample reloads are skipped.
+    float                 m_baselineDriveMotorVol = SettingsUiPrefs::kDefaultDriveMotorVolume;
+    float                 m_baselineDriveHeadVol  = SettingsUiPrefs::kDefaultDriveHeadVolume;
+    float                 m_baselineDriveDoorVol  = SettingsUiPrefs::kDefaultDriveDoorVolume;
+    float                 m_baselineDriveOnePan   = SettingsUiPrefs::kDefaultDriveOnePan;
+    float                 m_baselineDriveTwoPan   = SettingsUiPrefs::kDefaultDriveTwoPan;
+    std::string           m_baselineMechanism;
+    std::string           m_lastAuditionMechanism;
+    bool                  m_driveAuditionDirty    = false;
     // Tracks whether the monitor dropdown was open last frame so the
     // dropdown-closed revert fires even if a click on another control
     // changes m_previewFocus in the same frame.
@@ -201,6 +242,7 @@ private:
     HardwarePage        m_hardwarePage;
     ThemePage           m_themePage;
     DisplayPage         m_displayPage;
+    ColorPickerOverlay  m_colorPicker;
     ModalScrim          m_scrim;
     Button              m_applyButton;
     Button              m_cancelButton;

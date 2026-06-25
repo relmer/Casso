@@ -147,18 +147,25 @@ void Toggle::Flip ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Toggle::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
+void Toggle::Paint (DxUiPainter & painter, DwriteTextRenderer & text, const ChromeTheme & theme) const
 {
     constexpr uint32_t  s_kPillOff      = 0xFF4A5260;
     constexpr uint32_t  s_kPillOffHover = 0xFF5A6271;
-    constexpr uint32_t  s_kPillOn       = 0xFF2D7CDB;
-    constexpr uint32_t  s_kPillOnHover  = 0xFF3D8CEB;
     constexpr uint32_t  s_kPillDisabled = 0xFF2A2F38;
     constexpr uint32_t  s_kThumb        = 0xFFFFFFFF;
     constexpr uint32_t  s_kThumbDisabled= 0xFF707070;
-    constexpr uint32_t  s_kFocusRing    = 0xFFAACCFF;
     constexpr uint32_t  s_kTextIdle     = 0xFFE8EEF4;
     constexpr uint32_t  s_kTextDisabled = 0xFF707070;
+
+    // The "on" pill follows the active theme accent so it tints with the
+    // rest of the chrome (e.g. green for the retro terminal theme). It holds
+    // a white thumb, so it is darkened to keep >=3:1 contrast against white
+    // (WCAG 1.4.11 non-text contrast; the raw bright accents are only
+    // ~1.3:1). The focus ring is themed too.
+    constexpr float     s_kPillContrast = 3.0f;
+    const uint32_t  s_kPillOn      = ChromeTheme::AccentForWhiteContrast (theme.linkArgb,      s_kPillContrast);
+    const uint32_t  s_kPillOnHover = ChromeTheme::AccentForWhiteContrast (theme.linkHoverArgb, s_kPillContrast);
+    const uint32_t  s_kFocusRing   = theme.linkArgb;
     constexpr float     s_kPillWidthDp  = 36.0f;
     constexpr float     s_kPillHeightDp = 18.0f;
     constexpr float     s_kThumbInsetDp = 3.0f;

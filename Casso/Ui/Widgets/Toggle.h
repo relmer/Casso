@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "../Chrome/ChromeTheme.h"
 #include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
@@ -47,7 +48,7 @@ public:
     bool  OnLButtonDown (int x, int y);
     bool  OnLButtonUp   (int x, int y);
     bool  OnKey         (WPARAM vk);
-    void  Paint         (DxUiPainter & painter, DwriteTextRenderer & text) const;
+    void  Paint         (DxUiPainter & painter, DwriteTextRenderer & text, const ChromeTheme & theme) const;
 
 private:
     void  Flip ();

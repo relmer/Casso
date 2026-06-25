@@ -111,18 +111,23 @@ bool Button::OnKey (WPARAM vk)
 
 void Button::Paint (DxUiPainter & painter, DwriteTextRenderer & text, const ChromeTheme & theme)
 {
-    constexpr uint32_t  s_kFocusRingArgb = 0xFFAACCFF;
-    constexpr float     s_kFocusRingPx   = 1.5f;
-    constexpr float     s_kFocusInsetPx  = -2.0f;
-    constexpr uint32_t  s_kDisabledMask  = 0x80FFFFFF;
+    constexpr float     s_kFocusRingPx    = 1.5f;
+    constexpr float     s_kFocusInsetPx   = -2.0f;
+    constexpr float     s_kEmphasisPx     = 1.5f;
+    constexpr uint32_t  s_kDisabledMask   = 0x80FFFFFF;
+    constexpr uint32_t  s_kPrimaryTextArgb = 0xFFFFFFFFu;
+    constexpr float     s_kPrimaryTextRatio = 4.5f;
+    constexpr float     s_kPrimaryHover    = 0.12f;
+    constexpr float     s_kPrimaryPressed  = 0.82f;
 
-    HRESULT  hr        = S_OK;
-    uint32_t themeIdle    = m_useOverrides ? m_idleOverride    : theme.buttonIdleArgb;
-    uint32_t themeHover   = m_useOverrides ? m_hoverOverride   : theme.buttonHoverArgb;
-    uint32_t themePressed = m_useOverrides ? m_pressedOverride : theme.buttonPressedArgb;
-    uint32_t color        = m_pressed ? themePressed : (m_hover ? themeHover : themeIdle);
-    uint32_t textColor    = m_useTextOverride ? m_textOverride : theme.navItemTextArgb;
+    HRESULT  hr           = S_OK;
+    uint32_t idle         = theme.buttonIdleArgb;
+    uint32_t hover        = theme.buttonHoverArgb;
+    uint32_t pressed      = theme.buttonPressedArgb;
+    uint32_t textColor    = theme.navItemTextArgb;
     uint32_t borderColor  = theme.buttonBorderArgb;
+    uint32_t focusRing    = theme.linkArgb;
+    uint32_t color        = 0;
     float    fontDip      = m_scaler.Pxf (13.0f);
     float    autoBorderPx = m_scaler.Pxf (1.0f);
 
@@ -132,6 +137,18 @@ void Button::Paint (DxUiPainter & painter, DwriteTextRenderer & text, const Chro
     {
         return;
     }
+
+    if (m_variant == Variant::Primary)
+    {
+        // The label is white text on this fill, so the fill must clear the
+        // WCAG 1.4.3 text-contrast threshold (4.5:1), not just 1.4.11.
+        idle      = ChromeTheme::AccentForWhiteContrast (theme.linkArgb, s_kPrimaryTextRatio);
+        hover     = ChromeTheme::Lighten (idle, s_kPrimaryHover);
+        pressed   = ChromeTheme::Darken  (idle, s_kPrimaryPressed);
+        textColor = s_kPrimaryTextArgb;
+    }
+
+    color = m_pressed ? pressed : (m_hover ? hover : idle);
 
     if (!m_enabled)
     {
@@ -145,14 +162,14 @@ void Button::Paint (DxUiPainter & painter, DwriteTextRenderer & text, const Chro
                       (float) (m_rect.bottom - m_rect.top),
                       color);
 
-    if (m_outlineThick > 0.0f)
+    if (m_emphasis)
     {
         painter.OutlineRect ((float) m_rect.left,
                              (float) m_rect.top,
                              (float) (m_rect.right  - m_rect.left),
                              (float) (m_rect.bottom - m_rect.top),
-                             m_outlineThick,
-                             m_outlineArgb);
+                             m_scaler.Pxf (s_kEmphasisPx),
+                             theme.navHoverArgb);
     }
     else if (borderColor != 0)
     {
@@ -188,6 +205,6 @@ void Button::Paint (DxUiPainter & painter, DwriteTextRenderer & text, const Chro
                              (float) (m_rect.right  - m_rect.left) - focusInset * 2.0f,
                              (float) (m_rect.bottom - m_rect.top)  - focusInset * 2.0f,
                              focusThick,
-                             s_kFocusRingArgb);
+                             focusRing);
     }
 }

@@ -210,4 +210,82 @@ struct ChromeTheme
         }
         return Skeuomorphic();
     }
+
+
+    // ---- Color math (WCAG 2.x relative luminance / contrast) -----------
+    //
+    // Shared so widgets can derive accessible tints from theme tokens
+    // instead of hardcoding colors. opaque ARGB in, alpha ignored.
+
+    static float ChannelLinear (uint32_t c8)
+    {
+        float  s = (float) (c8 & 0xFFu) / 255.0f;
+
+        return (s <= 0.03928f) ? (s / 12.92f)
+                               : std::pow ((s + 0.055f) / 1.055f, 2.4f);
+    }
+
+    static float RelativeLuminance (uint32_t argb)
+    {
+        float  r = ChannelLinear (argb >> 16);
+        float  g = ChannelLinear (argb >> 8);
+        float  b = ChannelLinear (argb);
+
+        return 0.2126f * r + 0.7152f * g + 0.0722f * b;
+    }
+
+    static float ContrastRatio (uint32_t a, uint32_t b)
+    {
+        float  la = RelativeLuminance (a);
+        float  lb = RelativeLuminance (b);
+        float  hi = (la > lb) ? la : lb;
+        float  lo = (la > lb) ? lb : la;
+
+        return (hi + 0.05f) / (lo + 0.05f);
+    }
+
+    // Darkens `accent` (scaling its RGB toward black, preserving hue) until
+    // it reaches at least `minRatio` contrast against white, so white text
+    // or white sub-elements drawn on top of it stay legible. Bright theme
+    // accents (e.g. the retro terminal's #8AFF8A green) only have ~1.3:1
+    // against white; this brings them to an accessible shade.
+    static uint32_t AccentForWhiteContrast (uint32_t accent, float minRatio)
+    {
+        constexpr uint32_t  s_kWhite = 0xFFFFFFFFu;
+        constexpr int       s_kMaxSteps = 32;
+
+        uint32_t  cur = accent;
+        int       i   = 0;
+
+        for (i = 0; i < s_kMaxSteps && ContrastRatio (cur, s_kWhite) < minRatio; ++i)
+        {
+            uint32_t  r = (uint32_t) (((cur >> 16) & 0xFFu) * 0.9f);
+            uint32_t  g = (uint32_t) (((cur >>  8) & 0xFFu) * 0.9f);
+            uint32_t  b = (uint32_t) (( cur        & 0xFFu) * 0.9f);
+
+            cur = (cur & 0xFF000000u) | (r << 16) | (g << 8) | b;
+        }
+        return cur;
+    }
+
+    // Lightens `argb` toward white by `f` (0 = unchanged, 1 = white). Used
+    // for hover tints derived from a base fill.
+    static uint32_t Lighten (uint32_t argb, float f)
+    {
+        uint32_t  r = (uint32_t) (((argb >> 16) & 0xFFu) + (255 - ((argb >> 16) & 0xFFu)) * f);
+        uint32_t  g = (uint32_t) (((argb >>  8) & 0xFFu) + (255 - ((argb >>  8) & 0xFFu)) * f);
+        uint32_t  b = (uint32_t) (( argb        & 0xFFu) + (255 - ( argb        & 0xFFu)) * f);
+
+        return (argb & 0xFF000000u) | (r << 16) | (g << 8) | b;
+    }
+
+    // Darkens `argb` toward black by scaling its RGB by `f` (0..1).
+    static uint32_t Darken (uint32_t argb, float f)
+    {
+        uint32_t  r = (uint32_t) (((argb >> 16) & 0xFFu) * f);
+        uint32_t  g = (uint32_t) (((argb >>  8) & 0xFFu) * f);
+        uint32_t  b = (uint32_t) (( argb        & 0xFFu) * f);
+
+        return (argb & 0xFF000000u) | (r << 16) | (g << 8) | b;
+    }
 };

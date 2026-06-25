@@ -99,6 +99,31 @@ namespace
             m_shell.PostCommand (IDM_AUDIO_DRIVE_MECHANISM, mechanism);
         }
 
+        void ApplyDriveVolumes (float motor, float head, float door) override
+        {
+            char  payload[32] = {};
+
+            // Transport as integer percents (0..100); the CPU-thread
+            // dispatcher converts back to 0..1 gains.
+            sprintf_s (payload, "%d,%d,%d",
+                       (int) std::lround (motor * 100.0f),
+                       (int) std::lround (head  * 100.0f),
+                       (int) std::lround (door  * 100.0f));
+            m_shell.PostCommand (IDM_AUDIO_DRIVE_VOLUMES, payload);
+        }
+
+        void ApplyDrivePan (float driveOnePan, float driveTwoPan) override
+        {
+            char  payload[32] = {};
+
+            // Transport as integer percents (-100..100); the CPU-thread
+            // dispatcher converts back to -1..+1 pan.
+            sprintf_s (payload, "%d,%d",
+                       (int) std::lround (driveOnePan * 100.0f),
+                       (int) std::lround (driveTwoPan * 100.0f));
+            m_shell.PostCommand (IDM_AUDIO_DRIVE_PAN, payload);
+        }
+
         void ApplyWriteProtect (int drive, bool wp)            override { UNREFERENCED_PARAMETER (drive); UNREFERENCED_PARAMETER (wp); }
         void QueueMachineReset ()                              override { m_resetQueued = true; }
 
@@ -192,6 +217,7 @@ HRESULT SettingsPanel::Initialize (
 
     m_machinePage.SetState  (&m_state);
     m_machinePage.SetOnMachineSelected ([this] (const std::string & machineName) { OnMachineSelected (machineName); });
+    m_machinePage.SetOnTestSound ([this] (int drive, int kind, bool centered) { AuditionDriveSound (drive, kind, centered); });
     m_hardwarePage.SetState (&m_state);
     m_displayPage.SetState  (&m_state);
 
@@ -258,6 +284,79 @@ HRESULT SettingsPanel::Initialize (
         // (either their previous user override or, for an untouched
         // monitor, the preset's defaults projected through MakeCrtParams).
         ReseedDisplayCrtFromActiveMode();
+
+        // The Text color control is only meaningful on the Color monitor;
+        // reseed it so its enabled state tracks the new monitor.
+        if (m_prefs != nullptr)
+        {
+            m_displayPage.SetTextColor (m_prefs->colorMonitorTextMode,
+                                        m_prefs->colorMonitorTextCustomArgb);
+        }
+    });
+
+    m_displayPage.SetOnTextColorChange ([this] (int idx)
+    {
+        if (m_prefs == nullptr)
+        {
+            return;
+        }
+
+        m_prefs->colorMonitorTextMode = (ColorMonitorTextMode) idx;
+
+        if (m_emuShell != nullptr)
+        {
+            m_emuShell->SetColorMonitorTextArgbLive (
+                ColorUtil::ResolveColorMonitorTextArgb (m_prefs->colorMonitorTextMode,
+                                                        m_prefs->colorMonitorTextCustomArgb));
+        }
+    });
+
+    // Committing the dropdown to Custom (or clicking the swatch while
+    // Custom) opens the HSV picker seeded with the stored custom color.
+    m_displayPage.SetOnTextColorCommit ([this] (int idx)
+    {
+        if (m_prefs != nullptr && (ColorMonitorTextMode) idx == ColorMonitorTextMode::Custom)
+        {
+            m_colorPicker.Open (m_prefs->colorMonitorTextCustomArgb);
+        }
+    });
+
+    // Picker edits stage the custom color live: update the pref, refresh the
+    // Display swatch, and preview on the emulator each change.
+    m_colorPicker.SetOnChange ([this] (uint32_t argb)
+    {
+        if (m_prefs == nullptr)
+        {
+            return;
+        }
+
+        m_prefs->colorMonitorTextCustomArgb = argb;
+        m_prefs->colorMonitorTextMode       = ColorMonitorTextMode::Custom;
+        m_displayPage.SetTextColor (ColorMonitorTextMode::Custom, argb);
+
+        if (m_emuShell != nullptr)
+        {
+            m_emuShell->SetColorMonitorTextArgbLive (argb);
+        }
+    });
+
+    // Close carries the final color (OK) or the pre-open color (Cancel);
+    // either way the staged pref + live render land on it. The panel's own
+    // Cancel still reverts the whole text-color choice to the baseline.
+    m_colorPicker.SetOnClose ([this] (bool /*accepted*/, uint32_t argb)
+    {
+        if (m_prefs == nullptr)
+        {
+            return;
+        }
+
+        m_prefs->colorMonitorTextCustomArgb = argb;
+        m_displayPage.SetTextColor (ColorMonitorTextMode::Custom, argb);
+
+        if (m_emuShell != nullptr)
+        {
+            m_emuShell->SetColorMonitorTextArgbLive (argb);
+        }
     });
 
     // Per-effect toggles and parameter sliders write LIVE to the active
@@ -379,14 +478,10 @@ HRESULT SettingsPanel::Initialize (
 
     m_applyButton.SetLabel  (L"OK");
     m_applyButton.SetClick  ([this] { OnApplyClicked();  });
-    m_applyButton.SetColors (0xFF2A6FB7u, 0xFF3380C8u, 0xFF1E548Cu);
-    m_applyButton.SetTextColor (0xFFFFFFFFu);
+    m_applyButton.SetVariant (Button::Variant::Primary);
 
     m_cancelButton.SetLabel    (L"Cancel");
     m_cancelButton.SetClick    ([this] { OnCancelClicked(); });
-    m_cancelButton.SetColors   (0xFF3A3F46u, 0xFF4A5058u, 0xFF2A2F36u);
-    m_cancelButton.SetTextColor (0xFFE8EEF4u);
-    m_cancelButton.SetOutline   (1.0f, 0xFF5A6068u);
 
     hInstance = (HINSTANCE) GetWindowLongPtrW (m_emuShell->GetHwnd(), GWLP_HINSTANCE);
     hr = m_window.RegisterClass (hInstance);
@@ -432,8 +527,30 @@ HRESULT SettingsPanel::Show ()
         {
             m_baselineCrt[i] = m_prefs->crtByMode[i];
         }
+
+        m_baselineColorTextMode       = m_prefs->colorMonitorTextMode;
+        m_baselineColorTextCustomArgb = m_prefs->colorMonitorTextCustomArgb;
+        m_displayPage.SetTextColor (m_prefs->colorMonitorTextMode,
+                                    m_prefs->colorMonitorTextCustomArgb);
     }
     m_baselineColorMode = (int) m_state.Prefs().colorMode;
+
+    // Drive-audio baseline = the loaded (last-applied) settings, which is
+    // what the engine currently has. Auditions push edits to the engine;
+    // Cancel restores this. m_lastAuditionMechanism starts at the engine's
+    // current mechanism so the first audition only reloads if changed.
+    {
+        const SettingsUiPrefs &  p = m_state.Prefs();
+
+        m_baselineDriveMotorVol = p.driveMotorVolume;
+        m_baselineDriveHeadVol  = p.driveHeadVolume;
+        m_baselineDriveDoorVol  = p.driveDoorVolume;
+        m_baselineDriveOnePan   = p.driveOnePan;
+        m_baselineDriveTwoPan   = p.driveTwoPan;
+        m_baselineMechanism     = p.floppyMechanism;
+        m_lastAuditionMechanism = p.floppyMechanism;
+        m_driveAuditionDirty    = false;
+    }
 
     // Reset preview state so a previous session's interaction doesn't
     // leak in (e.g. user closed the panel mid-drag via Esc).
@@ -457,6 +574,7 @@ HRESULT SettingsPanel::Show ()
     ReseedDisplayCrtFromActiveMode();
 
     m_visible = true;
+    m_colorPicker.Close();
     RebuildFocusOrder();
 
     if (m_emuShell != nullptr)
@@ -600,6 +718,7 @@ bool SettingsPanel::AnyDropdownOpenOnActivePage () const
 void SettingsPanel::Hide ()
 {
     m_visible = false;
+    m_colorPicker.Close();
     m_scrim.Hide();
     m_window.Destroy();
 }
@@ -726,7 +845,13 @@ bool SettingsPanel::IsPreviewTransparencyActive() const
     // the popup overlaps the emulator. When there's no overlap the
     // emu-clip rect is empty so the compose shader's per-pixel
     // transparent zone is empty too -- the blur+dim still happens to
-    // focus attention on the control being adjusted.
+    // focus attention on the control being adjusted. The modal color
+    // picker engages it too so the panel blurs behind the dialog.
+    if (m_colorPicker.IsOpen())
+    {
+        return true;
+    }
+
     return m_visible &&
            (m_previewFocus != PreviewFocus::None) &&
            ((TabIndex) m_activeTab == TabIndex::Display);
@@ -747,6 +872,13 @@ RECT SettingsPanel::GetFocusedControlClientRect() const
     RECT  rect = {};
 
 
+
+    // The modal picker blurs the whole panel (no sharp control region); an
+    // empty focus rect tells the compose shader to dim everything.
+    if (m_colorPicker.IsOpen())
+    {
+        return rect;
+    }
 
     if ((m_previewFocus != PreviewFocus::None) && ((TabIndex) m_activeTab == TabIndex::Display))
     {
@@ -1490,6 +1622,108 @@ void SettingsPanel::OnMachineSelected (const std::string & machineName)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AuditionDriveSound
+//
+//  Drive-sound preview for the Machine page play buttons. Pushes the
+//  currently dialed volumes and pans to the engine (so the preview reflects
+//  the in-progress edit, not the last-applied state), then triggers the
+//  one-shot. All three commands are queued in order on the CPU thread.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::AuditionDriveSound (int drive, int kind, bool centered)
+{
+    const SettingsUiPrefs *  prefs    = nullptr;
+    char                     test[16] = {};
+    float                    pan0     = 0.0f;
+    float                    pan1     = 0.0f;
+
+
+    if (m_emuShell == nullptr)
+    {
+        return;
+    }
+
+    prefs = &m_state.Prefs();
+
+    // Volume previews play balanced at the midpoint: center the test drive
+    // while leaving the other drive at its dialed pan. Pan previews keep
+    // both drives at their dialed positions.
+    pan0 = prefs->driveOnePan;
+    pan1 = prefs->driveTwoPan;
+    if (centered)
+    {
+        if (drive == 0) { pan0 = 0.0f; }
+        else            { pan1 = 0.0f; }
+    }
+
+    PushDriveAudioToEngine (prefs->driveMotorVolume,
+                            prefs->driveHeadVolume,
+                            prefs->driveDoorVolume,
+                            pan0,
+                            pan1,
+                            prefs->floppyMechanism);
+
+    sprintf_s (test, "%d,%d", drive, kind);
+    m_emuShell->PostCommand (IDM_AUDIO_DRIVE_TEST, test);
+
+    m_driveAuditionDirty = true;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PushDriveAudioToEngine
+//
+//  Posts volumes + pan + mechanism to the engine (CPU-thread command
+//  queue). The mechanism is reloaded only when it differs from what the
+//  engine last loaded for this dialog session, so repeated auditions of
+//  the same mechanism don't re-decode the sample set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::PushDriveAudioToEngine (
+    float                motor,
+    float                head,
+    float                door,
+    float                pan0,
+    float                pan1,
+    const std::string  & mechanism)
+{
+    char  vol[32] = {};
+    char  pan[32] = {};
+
+
+    if (m_emuShell == nullptr)
+    {
+        return;
+    }
+
+    sprintf_s (vol, "%d,%d,%d",
+               (int) std::lround (motor * 100.0f),
+               (int) std::lround (head  * 100.0f),
+               (int) std::lround (door  * 100.0f));
+    m_emuShell->PostCommand (IDM_AUDIO_DRIVE_VOLUMES, vol);
+
+    if (mechanism != m_lastAuditionMechanism)
+    {
+        m_emuShell->PostCommand (IDM_AUDIO_DRIVE_MECHANISM, mechanism);
+        m_lastAuditionMechanism = mechanism;
+    }
+
+    sprintf_s (pan, "%d,%d",
+               (int) std::lround (pan0 * 100.0f),
+               (int) std::lround (pan1 * 100.0f));
+    m_emuShell->PostCommand (IDM_AUDIO_DRIVE_PAN, pan);
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -1649,6 +1883,8 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const Dpi
     m_cancelButton.SetDpi (dpi);
 
     m_scrim.SetViewportRect (m_viewport);
+
+    m_colorPicker.Layout (m_panelRect, scaler);
 }
 
 
@@ -1691,23 +1927,26 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
                           (float) (m_panelRect.bottom - m_panelRect.top),
                           edgeThick, theme.panelEdgeArgb);
 
+    m_tabs.SetTheme (&theme);
     m_tabs.Paint  (painter, text);
 
     switch ((TabIndex) m_activeTab)
     {
-        case TabIndex::Machine:  m_machinePage.Paint  (painter, text); break;
+        case TabIndex::Machine:  m_machinePage.Paint  (painter, text, theme); break;
         case TabIndex::Hardware: m_hardwarePage.Paint (painter, text); break;
-        case TabIndex::Theme:    m_themePage.Paint    (painter, text); break;
+        case TabIndex::Theme:    m_themePage.Paint    (painter, text, theme); break;
         case TabIndex::Display:
             // DisplayPage paints its own controls at per-control alpha.
             // It restores global alpha to 1.0 on exit; re-clamp so the
             // buttons inherit the panel alpha consistently.
-            m_displayPage.Paint  (painter, text, focusedControlId, panelA, focusedA);
+            m_displayPage.Paint  (painter, text, theme, focusedControlId, panelA, focusedA);
             painter.SetGlobalAlpha (panelA);
             text.SetGlobalAlpha    (panelA);
             break;
     }
 
+    // The OK button is the primary action; its Primary variant derives a
+    // legible accent fill from the theme on its own.
     m_applyButton.Paint  (painter, text, theme);
     m_cancelButton.Paint (painter, text, theme);
 
@@ -1716,6 +1955,28 @@ void SettingsPanel::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
     painter.SetGlobalAlpha (1.0f);
     text.SetGlobalAlpha    (1.0f);
     m_scrim.Paint (painter);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintModalOverlay
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::PaintModalOverlay (DxUiPainter & painter, DwriteTextRenderer & text)
+{
+    if (!m_visible || !m_colorPicker.IsOpen())
+    {
+        return;
+    }
+
+    painter.SetGlobalAlpha (1.0f);
+    text.SetGlobalAlpha    (1.0f);
+    m_colorPicker.Paint (painter, text);
 }
 
 
@@ -1735,13 +1996,23 @@ void SettingsPanel::OnMouseMove (int x, int y)
         return;
     }
 
+    if (m_colorPicker.IsOpen())
+    {
+        m_colorPicker.OnMouseHover (x, y);
+        m_colorPicker.OnMouseMove  (x, y);
+        return;
+    }
+
     m_tabs.SetMouseHover (x, y);
     m_applyButton.SetMouse  (x, y, false);
     m_cancelButton.SetMouse (x, y, false);
 
     switch ((TabIndex) m_activeTab)
     {
-        case TabIndex::Machine:  m_machinePage.OnMouseHover  (x, y); break;
+        case TabIndex::Machine:
+            m_machinePage.OnMouseHover (x, y);
+            m_machinePage.OnMouseMove  (x, y);   // slider drag tracking
+            break;
         case TabIndex::Hardware: m_hardwarePage.OnMouseHover (x, y); break;
         case TabIndex::Theme:    m_themePage.OnMouseHover    (x, y); break;
         case TabIndex::Display:
@@ -1765,6 +2036,12 @@ void SettingsPanel::OnLButtonDown (int x, int y)
 {
     if (!m_visible)
     {
+        return;
+    }
+
+    if (m_colorPicker.IsOpen())
+    {
+        m_colorPicker.OnLButtonDown (x, y);
         return;
     }
 
@@ -1804,6 +2081,12 @@ void SettingsPanel::OnLButtonUp (int x, int y)
 {
     if (!m_visible)
     {
+        return;
+    }
+
+    if (m_colorPicker.IsOpen())
+    {
+        m_colorPicker.OnLButtonUp (x, y);
         return;
     }
 
@@ -1856,6 +2139,11 @@ bool SettingsPanel::OnKey (WPARAM vk)
     if (!m_visible)
     {
         return false;
+    }
+
+    if (m_colorPicker.IsOpen())
+    {
+        return m_colorPicker.OnKey (vk);
     }
 
     if (m_scrim.IsVisible())
@@ -1926,6 +2214,34 @@ bool SettingsPanel::OnKey (WPARAM vk)
     if (m_cancelButton.OnKey (vk)) { return true; }
 
     return m_tabs.OnKey (vk);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnChar
+//
+//  Routes a typed character to the modal color picker's hex field (the
+//  only text entry in the panel). Ignored otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsPanel::OnChar (wchar_t ch)
+{
+    if (!m_visible)
+    {
+        return false;
+    }
+
+    if (m_colorPicker.IsOpen())
+    {
+        return m_colorPicker.OnChar (ch);
+    }
+
+    return false;
 }
 
 
@@ -2114,10 +2430,33 @@ void SettingsPanel::OnCancelClicked ()
         {
             m_prefs->crtByMode[i] = m_baselineCrt[i];
         }
+
+        m_prefs->colorMonitorTextMode       = m_baselineColorTextMode;
+        m_prefs->colorMonitorTextCustomArgb = m_baselineColorTextCustomArgb;
+
+        if (m_emuShell != nullptr)
+        {
+            m_emuShell->SetColorMonitorTextArgbLive (
+                ColorUtil::ResolveColorMonitorTextArgb (m_baselineColorTextMode,
+                                                        m_baselineColorTextCustomArgb));
+        }
     }
     if (m_emuShell != nullptr && m_baselineColorMode >= 0)
     {
         m_emuShell->SetColorModeLive (m_baselineColorMode);
+    }
+
+    // Restore the drive-audio engine state if a play-button audition
+    // pushed dialed volumes/pan/mechanism for preview.
+    if (m_driveAuditionDirty && m_emuShell != nullptr)
+    {
+        PushDriveAudioToEngine (m_baselineDriveMotorVol,
+                                m_baselineDriveHeadVol,
+                                m_baselineDriveDoorVol,
+                                m_baselineDriveOnePan,
+                                m_baselineDriveTwoPan,
+                                m_baselineMechanism);
+        m_driveAuditionDirty = false;
     }
 
     m_previewFocus      = PreviewFocus::None;

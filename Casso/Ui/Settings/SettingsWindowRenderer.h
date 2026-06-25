@@ -84,6 +84,8 @@ private:
     HRESULT RenderTransparency           (class SettingsPanel & panel,
                                            const D3D11_VIEWPORT     & viewport,
                                            const ChromeTheme        & theme);
+    HRESULT RenderModalOverlay           (class SettingsPanel & panel,
+                                           const D3D11_VIEWPORT     & viewport);
 
     HWND                              m_hwnd     = nullptr;
     ID3D11Device                    * m_device   = nullptr;

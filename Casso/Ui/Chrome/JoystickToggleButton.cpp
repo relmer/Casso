@@ -17,11 +17,10 @@ static constexpr wchar_t  s_kFontFamily[] = L"Segoe UI";
 static constexpr wchar_t  s_kLabelJoystick[] = L"Joystick Mode";
 static constexpr wchar_t  s_kLabelPaddle[]   = L"Paddle Mode (ESC to exit)";
 
-// The LED glows a fixed realistic blue regardless of the active theme's
-// drive LED color; a dark near-black core stands in for the unlit (Off)
+// The lit LED follows the active theme's drive-LED color (green under the
+// retro terminal theme, blue under the default, etc.), matching the disk
+// activity LEDs. A dark near-black core stands in for the unlit (Off)
 // state. The LED is lit for both Joystick and Paddle and dark for Off.
-static constexpr uint32_t s_kLedOnCoreArgb   = 0xFF3DA1FF;
-static constexpr uint32_t s_kLedOnHaloArgb   = 0xA03DA1FF;
 static constexpr uint32_t s_kLedOffCoreArgb  = 0xFF06121A;
 
 static constexpr wchar_t  s_kTooltip[] =
@@ -178,8 +177,8 @@ void JoystickToggleButton::Paint (DxUiPainter & painter, DwriteTextRenderer & te
     float               bt       = (float) m_bounds.top;
     float               bw       = (float) (m_bounds.right  - m_bounds.left);
     float               bh       = (float) (m_bounds.bottom - m_bounds.top);
-    uint32_t            coreArgb = (m_mode == InputMappingMode::Off) ? s_kLedOffCoreArgb : s_kLedOnCoreArgb;
-    uint32_t            haloArgb = (m_mode == InputMappingMode::Off) ? 0                : s_kLedOnHaloArgb;
+    uint32_t            coreArgb = (m_mode == InputMappingMode::Off) ? s_kLedOffCoreArgb : theme.ledActiveArgb;
+    uint32_t            haloArgb = (m_mode == InputMappingMode::Off) ? 0                : theme.ledHaloArgb;
     LedIndicatorLayout  ledRect  = m_led.GetLayout();
     int                 ledGap   = MulDiv (s_kLedGapDp, (int) m_dpi, s_kBaseDpi);
     float               textX    = (float) (ledRect.coreRect.right + ledGap);

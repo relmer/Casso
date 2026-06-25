@@ -84,6 +84,21 @@ namespace
     }
 
 
+    double  GetNumberOpt (
+        const JsonValue   & obj,
+        const std::string & key,
+        double              fallback)
+    {
+        double   out = fallback;
+        HRESULT  hr  = obj.GetNumber (key, out);
+        if (FAILED (hr))
+        {
+            return fallback;
+        }
+        return out;
+    }
+
+
     CapabilityFlag  ParseCapability (
         const std::string & str,
         CapabilityFlag      fallback)
@@ -416,6 +431,58 @@ void SettingsPanelState::SetMechanism (const std::string & mechanism)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDriveMotorVolume / SetDriveHeadVolume / SetDriveDoorVolume
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetDriveMotorVolume (float gain)
+{
+    m_current.prefs.driveMotorVolume = gain;
+}
+
+
+
+
+void SettingsPanelState::SetDriveHeadVolume (float gain)
+{
+    m_current.prefs.driveHeadVolume = gain;
+}
+
+
+
+
+void SettingsPanelState::SetDriveDoorVolume (float gain)
+{
+    m_current.prefs.driveDoorVolume = gain;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDriveOnePan / SetDriveTwoPan
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetDriveOnePan (float pan)
+{
+    m_current.prefs.driveOnePan = pan;
+}
+
+
+
+
+void SettingsPanelState::SetDriveTwoPan (float pan)
+{
+    m_current.prefs.driveTwoPan = pan;
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -491,6 +558,11 @@ HRESULT SettingsPanelState::Apply (
     sink.ApplyColorMode   (m_current.prefs.colorMode);
     sink.ApplyFloppySound (m_current.prefs.floppySoundEnabled);
     sink.ApplyMechanism   (m_current.prefs.floppyMechanism);
+    sink.ApplyDriveVolumes (m_current.prefs.driveMotorVolume,
+                            m_current.prefs.driveHeadVolume,
+                            m_current.prefs.driveDoorVolume);
+    sink.ApplyDrivePan     (m_current.prefs.driveOnePan,
+                            m_current.prefs.driveTwoPan);
     for (i = 0; i < 2; ++i)
     {
         sink.ApplyWriteProtect (i, m_current.prefs.writeProtect[i]);
@@ -555,6 +627,12 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
 
     outPrefs.floppySoundEnabled = GetBoolOpt   (*uiObj, "floppySoundEnabled", true);
     outPrefs.floppyMechanism    = GetStringOpt (*uiObj, "floppyMechanism",    "shugart");
+
+    outPrefs.driveMotorVolume = (float) GetNumberOpt (*uiObj, "driveMotorVolume", SettingsUiPrefs::kDefaultDriveMotorVolume);
+    outPrefs.driveHeadVolume  = (float) GetNumberOpt (*uiObj, "driveHeadVolume",  SettingsUiPrefs::kDefaultDriveHeadVolume);
+    outPrefs.driveDoorVolume  = (float) GetNumberOpt (*uiObj, "driveDoorVolume",  SettingsUiPrefs::kDefaultDriveDoorVolume);
+    outPrefs.driveOnePan      = (float) GetNumberOpt (*uiObj, "driveOnePan",       SettingsUiPrefs::kDefaultDriveOnePan);
+    outPrefs.driveTwoPan      = (float) GetNumberOpt (*uiObj, "driveTwoPan",       SettingsUiPrefs::kDefaultDriveTwoPan);
 
     outPrefs.diskPath[0] = GetStringOpt (*uiObj, "disk1Path", "");
     outPrefs.diskPath[1] = GetStringOpt (*uiObj, "disk2Path", "");
@@ -1051,6 +1129,11 @@ JsonValue SettingsPanelState::BuildJson (
     uiObj.emplace_back ("writeMode",          JsonValue (std::string (WriteModeToString (prefs.writeMode))));
     uiObj.emplace_back ("floppySoundEnabled", JsonValue (prefs.floppySoundEnabled));
     uiObj.emplace_back ("floppyMechanism",    JsonValue (prefs.floppyMechanism));
+    uiObj.emplace_back ("driveMotorVolume",   JsonValue ((double) prefs.driveMotorVolume));
+    uiObj.emplace_back ("driveHeadVolume",    JsonValue ((double) prefs.driveHeadVolume));
+    uiObj.emplace_back ("driveDoorVolume",    JsonValue ((double) prefs.driveDoorVolume));
+    uiObj.emplace_back ("driveOnePan",        JsonValue ((double) prefs.driveOnePan));
+    uiObj.emplace_back ("driveTwoPan",        JsonValue ((double) prefs.driveTwoPan));
     uiObj.emplace_back ("disk1Path",          JsonValue (prefs.diskPath[0]));
     uiObj.emplace_back ("disk2Path",          JsonValue (prefs.diskPath[1]));
 
@@ -1082,6 +1165,11 @@ bool SettingsPanelState::PrefsEqual (
     if (a.writeMode             != b.writeMode)             return false;
     if (a.floppySoundEnabled    != b.floppySoundEnabled)    return false;
     if (a.floppyMechanism       != b.floppyMechanism)       return false;
+    if (a.driveMotorVolume      != b.driveMotorVolume)      return false;
+    if (a.driveHeadVolume       != b.driveHeadVolume)       return false;
+    if (a.driveDoorVolume       != b.driveDoorVolume)       return false;
+    if (a.driveOnePan           != b.driveOnePan)          return false;
+    if (a.driveTwoPan           != b.driveTwoPan)          return false;
     if (a.diskPath[0]           != b.diskPath[0])           return false;
     if (a.diskPath[1]           != b.diskPath[1])           return false;
     if (a.writeProtect[0]       != b.writeProtect[0])       return false;

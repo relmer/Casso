@@ -47,7 +47,7 @@ public:
     void  OnMouseHover          (int x, int y);
     bool  OnKey                 (WPARAM vk);
 
-    void  Paint                 (DxUiPainter & painter, DwriteTextRenderer & text) const;
+    void  Paint                 (DxUiPainter & painter, DwriteTextRenderer & text, const ChromeTheme & theme) const;
 
     void  CollectFocusables (std::vector<std::function<void (bool)>> & out);
     bool  AnyDropdownOpen   () const { return m_themeDropdown.IsOpen(); }
