@@ -458,6 +458,14 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Widgets\Button.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Widgets\IconButton.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="..\Casso\Ui\Widgets\TreeView.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
@@ -493,6 +501,7 @@
     <ClCompile Include="UiTests\TreeViewTests.cpp" />
     <ClCompile Include="UiTests\ModalScrimTests.cpp" />
     <ClCompile Include="UiTests\TooltipTests.cpp" />
+    <ClCompile Include="UiTests\ColorUtilTests.cpp" />
     <ClCompile Include="UiTests\TabStripTests.cpp" />
     <ClCompile Include="UiTests\TitleBarHitTestTests.cpp" />
     <ClCompile Include="UiTests\TitleBarLayoutTests.cpp" />
@@ -536,6 +545,10 @@
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
     <ClCompile Include="..\Casso\Ui\Chrome\DriveLabelTruncation.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\ColorUtil.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>

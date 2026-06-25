@@ -213,4 +213,82 @@ public:
         Assert::AreEqual ( 1.0f, speaker[0], 1e-6f);
         Assert::AreEqual (-1.0f, speaker[1], 1e-6f);
     }
+
+    TEST_METHOD (PanToStereo_center_equalPowerBothChannels)
+    {
+        float  l = 0.0f;
+        float  r = 0.0f;
+
+        DriveAudioMixer::PanToStereo (0.0f, l, r);
+
+        Assert::AreEqual (DriveAudioMixer::kSpeakerCenter, l, 1e-5f);
+        Assert::AreEqual (DriveAudioMixer::kSpeakerCenter, r, 1e-5f);
+    }
+
+    TEST_METHOD (PanToStereo_hardLeft_allLeft)
+    {
+        float  l = 0.0f;
+        float  r = 0.0f;
+
+        DriveAudioMixer::PanToStereo (-1.0f, l, r);
+
+        Assert::AreEqual (1.0f, l, 1e-5f);
+        Assert::AreEqual (0.0f, r, 1e-5f);
+    }
+
+    TEST_METHOD (PanToStereo_hardRight_allRight)
+    {
+        float  l = 0.0f;
+        float  r = 0.0f;
+
+        DriveAudioMixer::PanToStereo (1.0f, l, r);
+
+        Assert::AreEqual (0.0f, l, 1e-5f);
+        Assert::AreEqual (1.0f, r, 1e-5f);
+    }
+
+    TEST_METHOD (PanToStereo_isEqualPowerAtEveryPosition)
+    {
+        for (float p = -1.0f; p <= 1.0f; p += 0.1f)
+        {
+            float  l = 0.0f;
+            float  r = 0.0f;
+
+            DriveAudioMixer::PanToStereo (p, l, r);
+            Assert::AreEqual (1.0f, l * l + r * r, 1e-4f);
+        }
+    }
+
+    TEST_METHOD (PanToStereo_defaultDrivePans_matchHistoricalOffset)
+    {
+        float  l1 = 0.0f, r1 = 0.0f;
+        float  l2 = 0.0f, r2 = 0.0f;
+
+        // kDefaultDriveOnePan / ...TwoPan must reproduce the historical
+        // +-kDrivePanOffset (pi/8) placement.
+        float  thetaOne = DriveAudioMixer::kCenterAngle + DriveAudioMixer::kDrivePanOffset;
+        float  thetaTwo = DriveAudioMixer::kCenterAngle - DriveAudioMixer::kDrivePanOffset;
+
+        DriveAudioMixer::PanToStereo (DriveAudioMixer::kDefaultDriveOnePan, l1, r1);
+        DriveAudioMixer::PanToStereo (DriveAudioMixer::kDefaultDriveTwoPan, l2, r2);
+
+        Assert::AreEqual (sinf (thetaOne), l1, 1e-5f);
+        Assert::AreEqual (cosf (thetaOne), r1, 1e-5f);
+        Assert::AreEqual (sinf (thetaTwo), l2, 1e-5f);
+        Assert::AreEqual (cosf (thetaTwo), r2, 1e-5f);
+    }
+
+    TEST_METHOD (PanToStereo_clampsOutOfRange)
+    {
+        float  lLo = 0.0f, rLo = 0.0f;
+        float  lHi = 0.0f, rHi = 0.0f;
+
+        DriveAudioMixer::PanToStereo (-5.0f, lLo, rLo);
+        DriveAudioMixer::PanToStereo ( 5.0f, lHi, rHi);
+
+        Assert::AreEqual (1.0f, lLo, 1e-5f);
+        Assert::AreEqual (0.0f, rLo, 1e-5f);
+        Assert::AreEqual (0.0f, lHi, 1e-5f);
+        Assert::AreEqual (1.0f, rHi, 1e-5f);
+    }
 };

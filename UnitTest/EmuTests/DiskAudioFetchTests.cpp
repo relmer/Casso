@@ -211,8 +211,8 @@ public:
             if (a > peak) { peak = a; }
         }
 
-        // After the kMotorVolume (0.25) attenuation a half-amplitude
-        // sine should produce a peak of ~0.125. Allow generous slack
+        // After the kMotorVolume (0.90) gain a half-amplitude sine
+        // should produce a peak of ~0.45. Allow generous slack
         // because the looped frame may catch a zero crossing.
         Assert::IsTrue (peak > 0.02f,
             std::format (L"Round-tripped WAV produced silent motor loop (peak={})", peak).c_str());
@@ -264,6 +264,43 @@ public:
 
         Assert::IsTrue (peak > 0.05f,
             L"Per-mechanism copy must load when no top-level override exists");
+
+        fs::remove_all (devicesDir.parent_path(), ec);
+    }
+
+    TEST_METHOD (LoadSamples_missingPerMechanismFile_fallsBackToShugart)
+    {
+        std::vector<float>  pcm (220, 0.5f);
+        fs::path            devicesDir = MakeTempDeviceDir (L"ShugartFallback");
+        std::error_code     ec;
+
+        // Alps omits the door sounds; Shugart (the canonical set) has them.
+        fs::create_directories (devicesDir / L"Shugart", ec);
+        fs::create_directories (devicesDir / L"Alps",    ec);
+        WriteMonoPcm16Wav (devicesDir / L"Shugart" / L"DoorOpen.wav", pcm, s_kTestSampleRate);
+
+        Disk2AudioSource  src;
+
+        HRESULT  hr = src.LoadSamples (devicesDir.wstring().c_str(),
+                                       L"Alps",
+                                       s_kTestSampleRate);
+        Assert::IsTrue (SUCCEEDED (hr), L"LoadSamples must succeed");
+
+        // The door one-shot must play the Shugart copy rather than be muted.
+        src.PlayTestSound (Disk2AudioSource::TestSoundKind::Door);
+
+        std::vector<float>  frame (64);
+        src.GeneratePCM (frame.data(), static_cast<uint32_t> (frame.size()));
+
+        float  peak = 0.0f;
+        for (float s : frame)
+        {
+            float  a = (s < 0) ? -s : s;
+            if (a > peak) { peak = a; }
+        }
+
+        Assert::IsTrue (peak > 0.05f,
+            L"Alps door must fall back to the Shugart copy, not go silent");
 
         fs::remove_all (devicesDir.parent_path(), ec);
     }

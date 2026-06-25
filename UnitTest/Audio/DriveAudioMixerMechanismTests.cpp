@@ -165,7 +165,7 @@ public:
         float  peakA = SamplePeak (srcA);
         float  peakB = SamplePeak (srcB);
 
-        // 0.80 amplitude * kMotorVolume (0.25) = 0.20 nominal; allow
+        // 0.80 amplitude * kMotorVolume (0.90) = 0.72 nominal; allow
         // generous slack for the float<->int16 round trip.
         Assert::IsTrue (peakA > 0.10f,
             std::format (L"srcA must be at Alps amplitude post-reload (peak={})", peakA).c_str());

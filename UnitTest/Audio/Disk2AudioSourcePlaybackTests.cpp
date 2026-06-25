@@ -166,4 +166,74 @@ public:
             Assert::AreEqual (0.0f, out[i]);
         }
     }
+
+    TEST_METHOD (PlayTestSound_head_playsStepBufferOnceAtHeadVolume)
+    {
+        Disk2AudioSource   src;
+        float              out[8] = {};
+
+        src.SetSampleBufferForTest (L"HeadStep", vector<float> (4, 0.5f));
+        src.PlayTestSound (Disk2AudioSource::TestSoundKind::Head);
+        src.GeneratePCM (out, 8);
+
+        for (int i = 0; i < 4; i++)
+        {
+            Assert::AreEqual (0.5f * Disk2AudioSource::kHeadVolume, out[i], 1e-6f);
+        }
+        for (int i = 4; i < 8; i++)
+        {
+            Assert::AreEqual (0.0f, out[i], 1e-6f);
+        }
+    }
+
+    TEST_METHOD (PlayTestSound_usesCurrentSetVolumes)
+    {
+        Disk2AudioSource   src;
+        float              out[4] = {};
+
+        src.SetSampleBufferForTest (L"HeadStep", vector<float> (4, 1.0f));
+        src.SetVolumes (0.5f, 0.25f, 0.5f);
+        src.PlayTestSound (Disk2AudioSource::TestSoundKind::Head);
+        src.GeneratePCM (out, 4);
+
+        for (int i = 0; i < 4; i++)
+        {
+            Assert::AreEqual (0.25f, out[i], 1e-6f);
+        }
+    }
+
+    TEST_METHOD (PlayTestSound_isIndependentOfLiveMotorState)
+    {
+        Disk2AudioSource   src;
+        float              out[4] = {};
+
+        // A motor audition while the real motor loop runs sums both
+        // contributions -- the test channel does not disturb emulation
+        // audio (and vice versa).
+        src.SetSampleBufferForTest (L"MotorLoop", vector<float> (4, 1.0f));
+        src.OnDiskInserted();
+        src.OnMotorEngaged();
+        src.PlayTestSound (Disk2AudioSource::TestSoundKind::Motor);
+        src.GeneratePCM (out, 4);
+
+        for (int i = 0; i < 4; i++)
+        {
+            Assert::AreEqual (2.0f * Disk2AudioSource::kMotorVolume, out[i], 1e-6f);
+        }
+    }
+
+    TEST_METHOD (PlayTestSound_missingBuffer_outputsSilence)
+    {
+        Disk2AudioSource   src;
+        float              out[8] = {};
+
+        // No HeadStep buffer loaded -> audition is silent (FR-009 style).
+        src.PlayTestSound (Disk2AudioSource::TestSoundKind::Head);
+        src.GeneratePCM (out, 8);
+
+        for (int i = 0; i < 8; i++)
+        {
+            Assert::AreEqual (0.0f, out[i], 1e-6f);
+        }
+    }
 };
