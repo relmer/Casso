@@ -42,6 +42,8 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "audioDownloadConsent",
     "inputMappingMode",
     "mapArrowsToJoystick",
+    "colorMonitorTextMode",
+    "colorMonitorTextCustom",
     "recentDisks",
     "crt",
     "window"
@@ -52,6 +54,12 @@ static const std::set<std::string>  s_kKnownTopLevel = {
 static constexpr const char *  s_kpszInputModeOff      = "off";
 static constexpr const char *  s_kpszInputModeJoystick = "joystick";
 static constexpr const char *  s_kpszInputModePaddle   = "paddle";
+
+// Serialized string tokens for ColorMonitorTextMode.
+static constexpr const char *  s_kpszTextModeWhite  = "white";
+static constexpr const char *  s_kpszTextModeGreen  = "green";
+static constexpr const char *  s_kpszTextModeAmber  = "amber";
+static constexpr const char *  s_kpszTextModeCustom = "custom";
 
 
 enum class CrtScalar
@@ -336,6 +344,73 @@ InputMappingMode GlobalUserPrefs::InputMappingModeFromString (const std::string 
     if (s == s_kpszInputModeOff)
     {
         return InputMappingMode::Off;
+    }
+
+    return fallback;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::ColorTextModeToString
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * GlobalUserPrefs::ColorTextModeToString (ColorMonitorTextMode mode)
+{
+    switch (mode)
+    {
+        case ColorMonitorTextMode::Green:
+            return s_kpszTextModeGreen;
+
+        case ColorMonitorTextMode::Amber:
+            return s_kpszTextModeAmber;
+
+        case ColorMonitorTextMode::Custom:
+            return s_kpszTextModeCustom;
+
+        case ColorMonitorTextMode::White:
+        default:
+            return s_kpszTextModeWhite;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::ColorTextModeFromString
+//
+//  Parses a serialized text-mode token, returning `fallback` for an empty
+//  or unrecognized string so an unknown future value degrades gracefully.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ColorMonitorTextMode GlobalUserPrefs::ColorTextModeFromString (const std::string & s, ColorMonitorTextMode fallback)
+{
+    if (s == s_kpszTextModeGreen)
+    {
+        return ColorMonitorTextMode::Green;
+    }
+
+    if (s == s_kpszTextModeAmber)
+    {
+        return ColorMonitorTextMode::Amber;
+    }
+
+    if (s == s_kpszTextModeCustom)
+    {
+        return ColorMonitorTextMode::Custom;
+    }
+
+    if (s == s_kpszTextModeWhite)
+    {
+        return ColorMonitorTextMode::White;
     }
 
     return fallback;
@@ -722,6 +797,8 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("lastSelectedMachine",  JsonValue (lastSelectedMachine));
     root.emplace_back ("audioDownloadConsent", JsonValue (audioDownloadConsent));
     root.emplace_back ("inputMappingMode",     JsonValue (std::string (InputMappingModeToString (inputMappingMode))));
+    root.emplace_back ("colorMonitorTextMode", JsonValue (std::string (ColorTextModeToString (colorMonitorTextMode))));
+    root.emplace_back ("colorMonitorTextCustom", JsonValue ((double) (colorMonitorTextCustomArgb & 0x00FFFFFFu)));
 
     // crt: one sub-object per monitor type. Persist every block even
     // when userOverride is false so a roundtrip is deterministic; the
@@ -771,6 +848,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     const JsonValue *   placementsObj = nullptr;
     const JsonValue *   recentArr     = nullptr;
     std::string         inputModeStr;
+    std::string         textModeStr;
     bool                legacyArrows  = false;
     size_t              i             = 0;
 
@@ -803,6 +881,12 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     {
         inputMappingMode = InputMappingMode::Joystick;
     }
+
+    textModeStr          = GetStringOpt (v, "colorMonitorTextMode", "");
+    colorMonitorTextMode = ColorTextModeFromString (textModeStr, colorMonitorTextMode);
+    colorMonitorTextCustomArgb =
+        0xFF000000u | ((uint32_t) GetIntOpt (v, "colorMonitorTextCustom",
+                                             (int) (colorMonitorTextCustomArgb & 0x00FFFFFFu)) & 0x00FFFFFFu);
 
     if (SUCCEEDED (v.GetObject ("crt", crtSub)) && crtSub != nullptr)
     {

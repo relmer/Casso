@@ -5,6 +5,7 @@
 #include "Core/JsonValue.h"
 #include "IFileSystem.h"
 #include "../UiCommandTypes.h"
+#include "../Ui/ColorUtil.h"
 
 
 
@@ -47,6 +48,13 @@ struct GlobalUserPrefs
     // Ctrl+J, and the drive-bar widget; only meaningful on machines with a
     // game port. Migrated from the legacy bool "mapArrowsToJoystick".
     InputMappingMode  inputMappingMode = InputMappingMode::Off;
+
+    // Text color used when the Color monitor is active (the monochrome
+    // monitors derive their text from the phosphor tint instead). White is
+    // the default; Green / Amber tint only the text; Custom uses the RGB in
+    // colorMonitorTextCustomArgb. Set from the Settings > Display panel.
+    ColorMonitorTextMode  colorMonitorTextMode       = ColorMonitorTextMode::White;
+    uint32_t              colorMonitorTextCustomArgb = ColorUtil::kWhiteArgb;
 
     // CRT state per monitor type. Each monitor (Color / Green / Amber /
     // White) has its own block so the user can dial in different
@@ -137,6 +145,9 @@ private:
 
     static const char *      InputMappingModeToString   (InputMappingMode mode);
     static InputMappingMode  InputMappingModeFromString (const std::string & s, InputMappingMode fallback);
+
+    static const char *           ColorTextModeToString   (ColorMonitorTextMode mode);
+    static ColorMonitorTextMode   ColorTextModeFromString (const std::string & s, ColorMonitorTextMode fallback);
 
     static void         CrtModeFromJson     (const JsonValue & modeObj, Crt & c);
     static void         PlacementsFromJson  (const JsonValue                     & placementsObj,

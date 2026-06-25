@@ -26,6 +26,7 @@
 #include "Ui/Chrome/LayoutManager.h"
 #include "Ui/Chrome/NavLayer.h"
 #include "Ui/Chrome/TitleBar.h"
+#include "Ui/ColorUtil.h"
 #include "Ui/Dialog/DialogDefinition.h"
 #include "Ui/Dialog/DialogPrimitive.h"
 #include "Ui/Disk2DebugPanel.h"
@@ -200,6 +201,23 @@ private:
     void ExecuteCpuSlices();
     void RenderFramebuffer();
     void DispatchCpuCommand (const EmulatorCommand & cmd);
+
+    // Stores the live drive-audio gains and applies them to every
+    // registered Disk2AudioSource. Must run on the CPU thread (the same
+    // thread that mixes audio), so callers marshal through the command
+    // queue (IDM_AUDIO_DRIVE_VOLUMES) rather than calling it directly.
+    void SetDriveAudioVolumes (float motor, float head, float door);
+
+    // Stores a live per-drive stereo pan (drive 0/1, value -1..+1) and
+    // applies it to the matching Disk2AudioSource. Like the volumes, this
+    // must run on the CPU thread, so callers marshal through the command
+    // queue (IDM_AUDIO_DRIVE_PAN).
+    void SetDriveAudioPan (int drive, float pan);
+
+    // Auditions a drive sound on demand (settings play buttons). drive =
+    // 0/1, kind matches Disk2AudioSource::TestSoundKind. CPU-thread only,
+    // marshaled via IDM_AUDIO_DRIVE_TEST.
+    void PlayDriveTestSound (int drive, int kind);
     void OnCpuThreadStart();
     void OnCpuThreadStop();
     void PublishFramebuffer();
@@ -307,6 +325,12 @@ private:
     // Bypasses the IDM command queue so the change is visible on the
     // next CPU frame rather than waiting for queue drain.
     void  SetColorModeLive (int settingsColorModeIndex);
+
+    // Live-set the text color used on the Color monitor (0xAARRGGBB),
+    // resolved from a ColorMonitorTextMode + custom color. Like
+    // SetColorModeLive, the Settings panel calls this on hover / select so
+    // the change shows on the next CPU frame, and on Cancel to restore.
+    void  SetColorMonitorTextArgbLive (uint32_t argb);
 
     // Activates the named theme in ThemeManager (which notifies the
     // chrome cache listener) and persists the choice into GlobalUserPrefs.
@@ -464,6 +488,21 @@ private:
     DriveAudioMixer                      m_driveAudioMixer;
     vector<unique_ptr<Disk2AudioSource>> m_diskAudioSources;
 
+    // Live per-sound drive-audio gains (0..1), seeded from $cassoUiPrefs
+    // at startup and updated via SetDriveAudioVolumes. Stored on the shell
+    // so they survive machine resets (MachineManager re-seeds fresh
+    // sources from these).
+    float                                m_driveMotorVolume = Disk2AudioSource::kMotorVolume;
+    float                                m_driveHeadVolume  = Disk2AudioSource::kHeadVolume;
+    float                                m_driveDoorVolume  = Disk2AudioSource::kDoorVolume;
+
+    // Live per-drive stereo pan in [-1, +1] (-1 = hard left, +1 = hard
+    // right), index 0 = Drive 1, 1 = Drive 2. Seeded from $cassoUiPrefs at
+    // startup and updated via SetDriveAudioPan; survives machine resets
+    // (MachineManager re-seeds fresh sources from these).
+    float                                m_drivePan[2] = { DriveAudioMixer::kDefaultDriveOnePan,
+                                                           DriveAudioMixer::kDefaultDriveTwoPan };
+
     // Owned devices
     vector<unique_ptr<MemoryDevice>>     m_ownedDevices;
 
@@ -531,6 +570,11 @@ private:
 
     // Atomic flags (UI writes, CPU reads)
     atomic<ColorMode>             m_colorMode{ColorMode::Color};
+
+    // Resolved text color (0xAARRGGBB) for the Color monitor. UI writes via
+    // SetColorMonitorTextArgbLive; RenderFramebuffer reads it when the Color
+    // monitor is active. Defaults to white.
+    atomic<uint32_t>              m_colorMonitorTextArgb{ColorUtil::kWhiteArgb};
 
     // Double framebuffer (CPU renders, UI presents, protected by m_fbMutex)
     mutex                         m_fbMutex;

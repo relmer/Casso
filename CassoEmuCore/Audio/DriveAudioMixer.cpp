@@ -317,3 +317,25 @@ void DriveAudioMixer::MixDriveIntoSpeakerStereo (
         speakerStereo[2 * i + 1] = r;
     }
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PanToStereo
+//
+//  Maps a bipolar pan position in [-1, +1] to equal-power stereo gains.
+//  pan = -1 -> theta = pi/2 -> (L=1, R=0); pan = 0 -> theta = pi/4 ->
+//  (L=R=1/sqrt2); pan = +1 -> theta = 0 -> (L=0, R=1).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DriveAudioMixer::PanToStereo (float pan, float & outLeft, float & outRight)
+{
+    float  clamped = std::clamp (pan, -1.0f, 1.0f);
+    float  theta   = kCenterAngle * (1.0f - clamped);
+
+    outLeft  = sinf (theta);
+    outRight = cosf (theta);
+}

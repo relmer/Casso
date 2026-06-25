@@ -46,6 +46,14 @@ public:
     // corresponding speaker and the //e's centerline (FR-012).
     static constexpr float kDrivePanOffset = (float) std::numbers::pi / 8.0f;
 
+    // Default per-drive pan positions in the bipolar [-1, +1] space used
+    // by PanToStereo (-1 = hard left, +1 = hard right). +-0.5 reproduces
+    // the historical +-kDrivePanOffset (pi/8) placement: a pan of p maps
+    // to theta = kCenterAngle * (1 - p), so p = -0.5 -> 3*pi/8 (left) and
+    // p = +0.5 -> pi/8 (right).
+    static constexpr float kDefaultDriveOnePan = -0.5f;
+    static constexpr float kDefaultDriveTwoPan = +0.5f;
+
     // Center pan angle (pi/4 radians). At this angle, equal-power
     // panning yields panL = panR = kSpeakerCenter. Used as the base
     // around which per-drive offsets are applied (FR-012).
@@ -99,6 +107,14 @@ public:
         float *         speakerStereo,
         const float *   driveStereo,
         uint32_t        numSamples);
+
+    // Converts a bipolar pan position in [-1, +1] (-1 = hard left, 0 =
+    // center, +1 = hard right) to equal-power stereo gains. theta sweeps
+    // from pi/2 (left) through pi/4 (center) to 0 (right); outL = sin,
+    // outR = cos, so outL^2 + outR^2 == 1 at every position. Exposed
+    // static so the host can seed per-drive pans from the same math the
+    // mixer documents.
+    static void PanToStereo (float pan, float & outLeft, float & outRight);
 
     // Test introspection.
     size_t GetRegisteredSourceCount() const { return m_sources.size(); }

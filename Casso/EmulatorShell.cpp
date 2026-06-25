@@ -121,10 +121,10 @@ static constexpr float   s_kPaddleMinF               = 0.0f;
 static constexpr float   s_kPaddleMaxF               = 255.0f;
 static constexpr Byte    s_kPaddleCenterByte         = 127;
 
-// Lit-pixel color the text renderers use. A color monitor draws text white;
-// the monochrome monitors keep a green source here and the post-render tint
-// recolors the whole frame to the selected phosphor (green/amber/white).
-static constexpr uint32_t s_kColorMonitorTextBgra     = 0xFFFFFFFF;   // white
+// Lit-pixel source color for the monochrome monitors: the text renderer
+// keeps green here and the post-render tint recolors the whole frame to the
+// selected phosphor. The Color monitor's text color is user-selectable and
+// lives in m_colorMonitorTextArgb instead.
 static constexpr uint32_t s_kMonoSourceTextBgra       = 0xFF00FF00;   // green
 
 // Chrome keyboard-focus ring indices (see EmulatorShell::m_chromeFocusIndex).
@@ -667,6 +667,10 @@ HRESULT EmulatorShell::Initialize (
         m_inputMode = m_globalPrefs.inputMappingMode;
         m_joystickButton.SetMode (m_inputMode);
 
+        SetColorMonitorTextArgbLive (
+            ColorUtil::ResolveColorMonitorTextArgb (m_globalPrefs.colorMonitorTextMode,
+                                                    m_globalPrefs.colorMonitorTextCustomArgb));
+
         // Record the currently-active machine so the next launch boots
         // it by default (Main resolves the value via this same field).
         {
@@ -991,6 +995,41 @@ HRESULT EmulatorShell::Initialize (
                                 HRESULT  hrMech = m_driveAudioMixer.SetMechanism (mechWide);
                                 IGNORE_RETURN_VALUE (hrMech, S_OK);
                             }
+                        }
+
+                        // Seed the per-sound drive-audio gains. Missing keys
+                        // leave the defaults untouched (JsonValue getters do
+                        // not write the out-param on failure).
+                        {
+                            double   motorV = Disk2AudioSource::kMotorVolume;
+                            double   headV  = Disk2AudioSource::kHeadVolume;
+                            double   doorV  = Disk2AudioSource::kDoorVolume;
+                            HRESULT  hrVol  = S_OK;
+
+                            hrVol = uiPrefs->GetNumber ("driveMotorVolume", motorV);
+                            IGNORE_RETURN_VALUE (hrVol, S_OK);
+                            hrVol = uiPrefs->GetNumber ("driveHeadVolume",  headV);
+                            IGNORE_RETURN_VALUE (hrVol, S_OK);
+                            hrVol = uiPrefs->GetNumber ("driveDoorVolume",  doorV);
+                            IGNORE_RETURN_VALUE (hrVol, S_OK);
+
+                            SetDriveAudioVolumes ((float) motorV, (float) headV, (float) doorV);
+                        }
+
+                        // Seed the per-drive stereo pans. Missing keys
+                        // leave the defaults untouched.
+                        {
+                            double   pan0  = DriveAudioMixer::kDefaultDriveOnePan;
+                            double   pan1  = DriveAudioMixer::kDefaultDriveTwoPan;
+                            HRESULT  hrPan = S_OK;
+
+                            hrPan = uiPrefs->GetNumber ("driveOnePan", pan0);
+                            IGNORE_RETURN_VALUE (hrPan, S_OK);
+                            hrPan = uiPrefs->GetNumber ("driveTwoPan", pan1);
+                            IGNORE_RETURN_VALUE (hrPan, S_OK);
+
+                            SetDriveAudioPan (0, (float) pan0);
+                            SetDriveAudioPan (1, (float) pan1);
                         }
                     }
                 }
@@ -2208,6 +2247,25 @@ void EmulatorShell::SetColorModeLive (int settingsColorModeIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::SetColorMonitorTextArgbLive
+//
+//  Updates the Color-monitor text color read by RenderFramebuffer on the
+//  next frame. Forces opaque alpha so a stray transparent value can't blank
+//  the text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetColorMonitorTextArgbLive (uint32_t argb)
+{
+    m_colorMonitorTextArgb.store (0xFF000000u | (argb & 0x00FFFFFFu), std::memory_order_release);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RunMessageLoop
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2515,9 +2573,146 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
             break;
         }
 
+        case IDM_AUDIO_DRIVE_VOLUMES:
+        {
+            // Payload is "motor,head,door" as integer percents (0..100).
+            int  motorPct = 0;
+            int  headPct  = 0;
+            int  doorPct  = 0;
+
+            if (sscanf_s (cmd.payload.c_str(), "%d,%d,%d", &motorPct, &headPct, &doorPct) == 3)
+            {
+                SetDriveAudioVolumes ((float) motorPct / 100.0f,
+                                      (float) headPct  / 100.0f,
+                                      (float) doorPct  / 100.0f);
+            }
+            break;
+        }
+
+        case IDM_AUDIO_DRIVE_PAN:
+        {
+            // Payload is "pan0,pan1" as integer percents (-100..100),
+            // -100 = hard left, +100 = hard right.
+            int  pan0 = 0;
+            int  pan1 = 0;
+
+            if (sscanf_s (cmd.payload.c_str(), "%d,%d", &pan0, &pan1) == 2)
+            {
+                SetDriveAudioPan (0, (float) pan0 / 100.0f);
+                SetDriveAudioPan (1, (float) pan1 / 100.0f);
+            }
+            break;
+        }
+
+        case IDM_AUDIO_DRIVE_TEST:
+        {
+            // Payload is "drive,kind" (drive 0/1; kind 0=motor 1=head
+            // 2=door), auditioning a single sound at current settings.
+            int  drive = 0;
+            int  kind  = 0;
+
+            if (sscanf_s (cmd.payload.c_str(), "%d,%d", &drive, &kind) == 2)
+            {
+                PlayDriveTestSound (drive, kind);
+            }
+            break;
+        }
+
         default:
             break;
     }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDriveAudioVolumes
+//
+//  Stores the live drive-audio gains and pushes them to every registered
+//  Disk2AudioSource. Runs on the CPU thread (the mixing thread), so it is
+//  safe to mutate the sources' gains here without synchronization.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDriveAudioVolumes (float motor, float head, float door)
+{
+    m_driveMotorVolume = motor;
+    m_driveHeadVolume  = head;
+    m_driveDoorVolume  = door;
+
+    for (auto & src : m_diskAudioSources)
+    {
+        src->SetVolumes (motor, head, door);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDriveAudioPan
+//
+//  Stores a live per-drive stereo pan and applies it to the matching
+//  Disk2AudioSource via equal-power panning. Runs on the CPU thread (the
+//  mixing thread), so mutating the source's pan here needs no locking.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDriveAudioPan (int drive, float pan)
+{
+    float  panL = DriveAudioMixer::kSpeakerCenter;
+    float  panR = DriveAudioMixer::kSpeakerCenter;
+
+
+    if (drive < 0 || drive >= (int) std::size (m_drivePan))
+    {
+        return;
+    }
+
+    m_drivePan[drive] = std::clamp (pan, -1.0f, 1.0f);
+
+    DriveAudioMixer::PanToStereo (m_drivePan[drive], panL, panR);
+
+    if (drive < (int) m_diskAudioSources.size())
+    {
+        m_diskAudioSources[(size_t) drive]->SetPan (panL, panR);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlayDriveTestSound
+//
+//  Auditions a single drive sound on demand. Runs on the CPU thread (the
+//  mixing thread), so triggering the source's test channel is lock-free.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PlayDriveTestSound (int drive, int kind)
+{
+    Disk2AudioSource::TestSoundKind  testKind = Disk2AudioSource::TestSoundKind::Motor;
+
+
+    if (drive < 0 || drive >= (int) m_diskAudioSources.size())
+    {
+        return;
+    }
+
+    switch (kind)
+    {
+        case 0:  testKind = Disk2AudioSource::TestSoundKind::Motor; break;
+        case 1:  testKind = Disk2AudioSource::TestSoundKind::Head;  break;
+        case 2:  testKind = Disk2AudioSource::TestSoundKind::Door;  break;
+        default: return;
+    }
+
+    m_diskAudioSources[(size_t) drive]->PlayTestSound (testKind);
 }
 
 
@@ -2740,8 +2935,9 @@ void EmulatorShell::RenderFramebuffer()
     // whole frame to the selected phosphor. m_videoModes[0] is the 40-col
     // text mode and [4] (when present) the 80-col mode.
     {
-        uint32_t textOnColor = (color == ColorMode::Color) ? s_kColorMonitorTextBgra
-                                                           : s_kMonoSourceTextBgra;
+        uint32_t textOnColor = (color == ColorMode::Color)
+                                   ? m_colorMonitorTextArgb.load (memory_order_acquire)
+                                   : s_kMonoSourceTextBgra;
 
         if (!m_videoModes.empty())
         {

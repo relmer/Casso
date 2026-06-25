@@ -370,9 +370,10 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // motor events themselves are not currently drive-tagged in
     // Disk2Controller -- a follow-up could split per-drive sinks).
     //
-    // Pan policy: single-drive profiles play centered (equal-power
-    // center). Two-drive profiles place Drive 1 left-of-center and
-    // Drive 2 right-of-center using kDrivePanOffset radians.
+    // Pan policy: each drive's stereo position comes from the shell's
+    // stored per-drive pan (user-adjustable). Defaults place Drive 1
+    // left-of-center and Drive 2 right-of-center (kDefaultDriveOnePan /
+    // kDefaultDriveTwoPan).
     m_shell.m_diskAudioSources.clear();
     m_shell.m_driveAudioMixer.UnregisterAllSources();
 
@@ -384,34 +385,21 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         for (drive = 0; drive < driveCount; drive++)
         {
             auto  src = std::make_unique<Disk2AudioSource>();
+            float panL = DriveAudioMixer::kSpeakerCenter;
+            float panR = DriveAudioMixer::kSpeakerCenter;
 
-            if (driveCount <= 1)
-            {
-                src->SetPan (DriveAudioMixer::kSpeakerCenter,
-                             DriveAudioMixer::kSpeakerCenter);
-            }
-            else if (drive == 0)
-            {
-                // Drive 1 (UI numbering; index 0): left bias. theta
-                // measured from the right speaker per FR-012, so
-                // panL = sin(theta), panR = cos(theta). At theta =
-                // pi/4 + pi/8 = 3*pi/8 this is roughly 0.924 L /
-                // 0.383 R -- halfway between the left speaker and
-                // center.
-                float  theta = DriveAudioMixer::kCenterAngle + DriveAudioMixer::kDrivePanOffset;
-
-                src->SetPan (sinf (theta), cosf (theta));
-            }
-            else
-            {
-                // Drive 2 (UI numbering; index 1): mirror, right bias.
-                float  theta = DriveAudioMixer::kCenterAngle - DriveAudioMixer::kDrivePanOffset;
-
-                src->SetPan (sinf (theta), cosf (theta));
-            }
+            // Per-drive stereo position from the shell's stored pan
+            // (user-adjustable; defaults place Drive 1 left-of-center and
+            // Drive 2 right-of-center). drive index is clamped to the
+            // stored-pan array bound.
+            DriveAudioMixer::PanToStereo (m_shell.m_drivePan[drive], panL, panR);
+            src->SetPan (panL, panR);
 
             m_shell.m_driveAudioMixer.RegisterSource (src.get());
             src->SetDriveIndex (drive);
+            src->SetVolumes (m_shell.m_driveMotorVolume,
+                             m_shell.m_driveHeadVolume,
+                             m_shell.m_driveDoorVolume);
             m_shell.m_diskAudioSources.push_back (std::move (src));
         }
 
