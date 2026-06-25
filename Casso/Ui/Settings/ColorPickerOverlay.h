@@ -75,6 +75,8 @@ private:
     void  PaintCopyIcon   (DxUiPainter & painter, DwriteTextRenderer & text, const ChromeTheme & theme);
     bool  CopyHit         (int x, int y) const;
 
+    static RECT MakeRect  (int l, int t, int w, int h);
+
     const ChromeTheme  * m_theme    = nullptr;
     HWND                 m_hwnd     = nullptr;
     ChangeFn             m_onChange;

@@ -83,6 +83,8 @@ public:
     const Dropdown  & MachineDropdown() const { return m_machineDropdown; }
 
 private:
+    static RECT MakeRect  (int l, int t, int w, int h);
+
     void  ApplyDriveAudioChildEnabled (bool enabled);
     void  ConfigureVolumeSlider       (Slider & slider, const RECT & rect);
     void  ConfigurePanSlider          (Slider & slider, const RECT & rect);

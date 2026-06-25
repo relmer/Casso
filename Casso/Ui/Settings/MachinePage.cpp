@@ -10,28 +10,33 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Anonymous helpers
+//  File-local layout constants
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+static constexpr int    s_kRowHeightDp     = 28;
+static constexpr int    s_kLabelWidthDp    = 140;
+static constexpr int    s_kCheckWidthDp    = 140;
+static constexpr int    s_kDropdownWidthDp = 200;
+static constexpr int    s_kSectionGapDp    = 14;
+static constexpr int    s_kPagePadDp       = 16;
+static constexpr int    s_kPlayGapDp       = 8;
+static constexpr int    s_kResetWidthDp    = 130;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachinePage::MakeRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT MachinePage::MakeRect (int l, int t, int w, int h)
 {
-    constexpr int    s_kRowHeightDp     = 28;
-    constexpr int    s_kLabelWidthDp    = 140;
-    constexpr int    s_kCheckWidthDp    = 140;
-    constexpr int    s_kDropdownWidthDp = 200;
-    constexpr int    s_kSectionGapDp    = 14;
-    constexpr int    s_kPagePadDp       = 16;
-    constexpr int    s_kPlayGapDp       = 8;
-    constexpr int    s_kResetWidthDp    = 130;
-    constexpr wchar_t s_kpszPlayGlyph[] = L"\uE768";    // MDL2 Play
+    RECT  rc = { l, t, l + w, t + h };
 
-
-    RECT MakeRect (int l, int t, int w, int h)
-    {
-        RECT  rc = { l, t, l + w, t + h };
-        return rc;
-    }
+    return rc;
 }
 
 
@@ -156,35 +161,35 @@ void MachinePage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_motorLabel.SetText (L"Motor volume:");
     ConfigureVolumeSlider (m_motorVol, MakeRect (controlsX, y, dropWidth, rowHeight));
     m_motorPlay.SetRect  (MakeRect (playX, y, playSize, rowHeight));
-    m_motorPlay.SetGlyph (s_kpszPlayGlyph);
+    m_motorPlay.SetGlyph (s_kpszMdl2Play);
     y += rowHeight + sectionGap;
 
     m_headLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
     m_headLabel.SetText (L"Head volume:");
     ConfigureVolumeSlider (m_headVol, MakeRect (controlsX, y, dropWidth, rowHeight));
     m_headPlay.SetRect  (MakeRect (playX, y, playSize, rowHeight));
-    m_headPlay.SetGlyph (s_kpszPlayGlyph);
+    m_headPlay.SetGlyph (s_kpszMdl2Play);
     y += rowHeight + sectionGap;
 
     m_doorLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
     m_doorLabel.SetText (L"Door volume:");
     ConfigureVolumeSlider (m_doorVol, MakeRect (controlsX, y, dropWidth, rowHeight));
     m_doorPlay.SetRect  (MakeRect (playX, y, playSize, rowHeight));
-    m_doorPlay.SetGlyph (s_kpszPlayGlyph);
+    m_doorPlay.SetGlyph (s_kpszMdl2Play);
     y += rowHeight + sectionGap;
 
     m_panOneLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
     m_panOneLabel.SetText (L"Drive 1 pan:");
     ConfigurePanSlider (m_panOne, MakeRect (controlsX, y, dropWidth, rowHeight));
     m_panOnePlay.SetRect  (MakeRect (playX, y, playSize, rowHeight));
-    m_panOnePlay.SetGlyph (s_kpszPlayGlyph);
+    m_panOnePlay.SetGlyph (s_kpszMdl2Play);
     y += rowHeight + sectionGap;
 
     m_panTwoLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
     m_panTwoLabel.SetText (L"Drive 2 pan:");
     ConfigurePanSlider (m_panTwo, MakeRect (controlsX, y, dropWidth, rowHeight));
     m_panTwoPlay.SetRect  (MakeRect (playX, y, playSize, rowHeight));
-    m_panTwoPlay.SetGlyph (s_kpszPlayGlyph);
+    m_panTwoPlay.SetGlyph (s_kpszMdl2Play);
     y += rowHeight + sectionGap;
 
     // "Restore defaults" for the drive-audio tuning, on its own row,
@@ -345,17 +350,23 @@ void MachinePage::ConfigurePanSlider (Slider & slider, const RECT & rect)
     slider.SetCenterOriginFill (true);
     slider.SetValueFormatter ([] (float v) -> std::wstring
     {
-        int  pct = (int) std::lround (v);
+        std::wstring  result;
+        int           pct = (int) std::lround (v);
 
         if (pct == 0)
         {
-            return L"Center";
+            result = L"Center";
         }
-        if (pct < 0)
+        else if (pct < 0)
         {
-            return std::to_wstring (-pct) + L"% L";
+            result = std::to_wstring (-pct) + L"% L";
         }
-        return std::to_wstring (pct) + L"% R";
+        else
+        {
+            result = std::to_wstring (pct) + L"% R";
+        }
+
+        return result;
     });
 }
 
@@ -414,10 +425,9 @@ void MachinePage::ApplyDriveAudioChildEnabled (bool enabled)
 
 void MachinePage::ResetDriveAudioToDefaults ()
 {
-    if (m_state == nullptr)
-    {
-        return;
-    }
+    HRESULT  hr = S_OK;
+
+    CBRA (m_state != nullptr);
 
     m_state->SetDriveMotorVolume (SettingsUiPrefs::kDefaultDriveMotorVolume);
     m_state->SetDriveHeadVolume  (SettingsUiPrefs::kDefaultDriveHeadVolume);
@@ -430,6 +440,9 @@ void MachinePage::ResetDriveAudioToDefaults ()
     m_doorVol.SetValue  (SettingsUiPrefs::kDefaultDriveDoorVolume  * 100.0f);
     m_panOne.SetValue   (SettingsUiPrefs::kDefaultDriveOnePan * 100.0f);
     m_panTwo.SetValue   (SettingsUiPrefs::kDefaultDriveTwoPan * 100.0f);
+
+Error:
+    return;
 }
 
 
@@ -444,27 +457,34 @@ void MachinePage::ResetDriveAudioToDefaults ()
 
 void MachinePage::OnLButtonDown (int x, int y)
 {
-    int   i = 0;
+    bool  handled = false;
+    int   i       = 0;
 
-    if (m_machineDropdown.OnLButtonDown (x, y)) { return; }
-    if (m_speed.OnLButtonDown      (x, y)) { return; }
-    if (m_writeMode.OnLButtonDown  (x, y)) { return; }
-    if (m_mechanism.OnLButtonDown  (x, y)) { return; }
-    if (m_driveAudio.OnLButtonDown (x, y)) { return; }
-    if (m_motorVol.OnLButtonDown   (x, y)) { return; }
-    if (m_headVol.OnLButtonDown    (x, y)) { return; }
-    if (m_doorVol.OnLButtonDown    (x, y)) { return; }
-    if (m_panOne.OnLButtonDown     (x, y)) { return; }
-    if (m_panTwo.OnLButtonDown     (x, y)) { return; }
-    if (m_motorPlay.OnLButtonDown  (x, y)) { return; }
-    if (m_headPlay.OnLButtonDown   (x, y)) { return; }
-    if (m_doorPlay.OnLButtonDown   (x, y)) { return; }
-    if (m_panOnePlay.OnLButtonDown (x, y)) { return; }
-    if (m_panTwoPlay.OnLButtonDown (x, y)) { return; }
-    if (m_reset.HitTest (x, y))    { m_reset.SetMouse (x, y, true); return; }
-    for (i = 0; i < 2; ++i)
+    handled = m_machineDropdown.OnLButtonDown (x, y)
+           || m_speed.OnLButtonDown      (x, y)
+           || m_writeMode.OnLButtonDown  (x, y)
+           || m_mechanism.OnLButtonDown  (x, y)
+           || m_driveAudio.OnLButtonDown (x, y)
+           || m_motorVol.OnLButtonDown   (x, y)
+           || m_headVol.OnLButtonDown    (x, y)
+           || m_doorVol.OnLButtonDown    (x, y)
+           || m_panOne.OnLButtonDown     (x, y)
+           || m_panTwo.OnLButtonDown     (x, y)
+           || m_motorPlay.OnLButtonDown  (x, y)
+           || m_headPlay.OnLButtonDown   (x, y)
+           || m_doorPlay.OnLButtonDown   (x, y)
+           || m_panOnePlay.OnLButtonDown (x, y)
+           || m_panTwoPlay.OnLButtonDown (x, y);
+
+    if (!handled && m_reset.HitTest (x, y))
     {
-        if (m_writeProtect[(size_t) i].OnLButtonDown (x, y)) { return; }
+        m_reset.SetMouse (x, y, true);
+        handled = true;
+    }
+
+    for (i = 0; i < 2 && !handled; ++i)
+    {
+        handled = m_writeProtect[(size_t) i].OnLButtonDown (x, y);
     }
 }
 
@@ -574,23 +594,26 @@ void MachinePage::OnMouseMove (int x, int y)
 
 bool MachinePage::OnKey (WPARAM vk)
 {
-    int  i = 0;
+    bool  handled = false;
+    int   i       = 0;
 
-    if (m_machineDropdown.HandleKey (vk)) { return true; }
-    if (m_speed.HandleKey      (vk)) { return true; }
-    if (m_writeMode.HandleKey  (vk)) { return true; }
-    if (m_mechanism.HandleKey  (vk)) { return true; }
-    if (m_driveAudio.OnKey     (vk)) { return true; }
-    if (m_motorVol.OnKey       (vk)) { return true; }
-    if (m_headVol.OnKey        (vk)) { return true; }
-    if (m_doorVol.OnKey        (vk)) { return true; }
-    if (m_panOne.OnKey         (vk)) { return true; }
-    if (m_panTwo.OnKey         (vk)) { return true; }
-    for (i = 0; i < 2; ++i)
+    handled = m_machineDropdown.HandleKey (vk)
+           || m_speed.HandleKey      (vk)
+           || m_writeMode.HandleKey  (vk)
+           || m_mechanism.HandleKey  (vk)
+           || m_driveAudio.OnKey     (vk)
+           || m_motorVol.OnKey       (vk)
+           || m_headVol.OnKey        (vk)
+           || m_doorVol.OnKey        (vk)
+           || m_panOne.OnKey         (vk)
+           || m_panTwo.OnKey         (vk);
+
+    for (i = 0; i < 2 && !handled; ++i)
     {
-        if (m_writeProtect[(size_t) i].OnKey (vk)) { return true; }
+        handled = m_writeProtect[(size_t) i].OnKey (vk);
     }
-    return false;
+
+    return handled;
 }
 
 

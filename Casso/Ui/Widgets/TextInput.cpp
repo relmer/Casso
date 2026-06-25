@@ -28,11 +28,9 @@ namespace
 
 bool TextInput::HitTest (int x, int y) const
 {
-    if (!m_enabled)
-    {
-        return false;
-    }
-    return x >= m_rect.left && x < m_rect.right && y >= m_rect.top && y < m_rect.bottom;
+    return m_enabled &&
+           x >= m_rect.left && x < m_rect.right &&
+           y >= m_rect.top  && y < m_rect.bottom;
 }
 
 
@@ -62,17 +60,21 @@ void TextInput::SetMouseHover (int x, int y)
 
 bool TextInput::OnLButtonDown (int x, int y)
 {
+    HRESULT  hr       = S_OK;
     int64_t  nowMs    = (int64_t) GetTickCount64();
     size_t   hitCaret = 0;
     bool     isDouble = false;
+    bool     hit      = false;
+    bool     result   = false;
 
 
 
-    if (!HitTest (x, y))
+    hit = HitTest (x, y);
+    if (!hit)
     {
         m_focused = false;
-        return false;
     }
+    BAIL_OUT_IF (!hit, S_OK);
 
     m_focused  = true;
     m_dragging = true;
@@ -107,7 +109,10 @@ bool TextInput::OnLButtonDown (int x, int y)
     }
 
     ResetBlink();
-    return true;
+    result = true;
+
+Error:
+    return result;
 }
 
 
@@ -121,14 +126,19 @@ bool TextInput::OnLButtonDown (int x, int y)
 
 bool TextInput::OnLButtonUp (int x, int y)
 {
+    HRESULT  hr     = S_OK;
+    bool     result = false;
+
     (void) x;
     (void) y;
-    if (!m_dragging)
-    {
-        return false;
-    }
+
+    BAIL_OUT_IF (!m_dragging, S_OK);
+
     m_dragging = false;
-    return true;
+    result     = true;
+
+Error:
+    return result;
 }
 
 
@@ -145,13 +155,15 @@ bool TextInput::OnLButtonUp (int x, int y)
 
 void TextInput::OnMouseMove (int x, int y)
 {
-    if (!m_dragging || !m_enabled)
-    {
-        return;
-    }
+    HRESULT  hr = S_OK;
+
+    BAIL_OUT_IF (!m_dragging || !m_enabled, S_OK);
 
     m_caret = CaretFromClientX (x);
     ResetBlink();
+
+Error:
+    return;
 }
 
 
@@ -166,16 +178,14 @@ void TextInput::OnMouseMove (int x, int y)
 
 bool TextInput::OnKey (WPARAM vk)
 {
-    bool  consumed = false;
-    bool  shift    = Shift   ();
-    bool  ctrl     = Control ();
+    HRESULT  hr       = S_OK;
+    bool     consumed = false;
+    bool     shift    = Shift   ();
+    bool     ctrl     = Control ();
 
 
 
-    if (!m_focused || !m_enabled)
-    {
-        return false;
-    }
+    BAIL_OUT_IF (!m_focused || !m_enabled, S_OK);
 
     switch (vk)
     {
@@ -328,6 +338,7 @@ bool TextInput::OnKey (WPARAM vk)
         ResetBlink();
     }
 
+Error:
     return consumed;
 }
 
@@ -343,23 +354,22 @@ bool TextInput::OnKey (WPARAM vk)
 
 bool TextInput::OnChar (wchar_t ch)
 {
+    HRESULT       hr     = S_OK;
     std::wstring  ins;
+    bool          result = false;
 
 
-    if (!m_focused || !m_enabled)
-    {
-        return false;
-    }
 
-    if (ch < 0x20 || ch == 0x7F)
-    {
-        return false;
-    }
+    BAIL_OUT_IF (!m_focused || !m_enabled, S_OK);
+    BAIL_OUT_IF (ch < 0x20 || ch == 0x7F, S_OK);
 
     ins.assign (1, ch);
     InsertText (ins);
     ResetBlink();
-    return true;
+    result = true;
+
+Error:
+    return result;
 }
 
 
@@ -548,34 +558,34 @@ size_t TextInput::CaretFromClientX (int xPx) const
     float   padL   = m_scaler.Pxf (s_kPadLeftDp);
     float   target = (float) xPx - (float) m_rect.left - padL + m_scrollPx;
     size_t  best   = 0;
+    bool    found  = false;
 
 
 
-    if (m_glyphX.empty())
+    if (m_glyphX.empty() || target <= 0.0f)
     {
-        return 0;
+        best = 0;
     }
-
-    if (target <= 0.0f)
+    else if (target >= m_glyphX.back())
     {
-        return 0;
+        best = m_glyphX.size() - 1;
     }
-
-    if (target >= m_glyphX.back())
+    else
     {
-        return m_glyphX.size() - 1;
-    }
-
-    for (size_t i = 0; i + 1 < m_glyphX.size(); i++)
-    {
-        float  mid = (m_glyphX[i] + m_glyphX[i + 1]) * 0.5f;
-
-        if (target < mid)
+        for (size_t i = 0; i + 1 < m_glyphX.size() && !found; i++)
         {
-            return i;
-        }
+            float  mid = (m_glyphX[i] + m_glyphX[i + 1]) * 0.5f;
 
-        best = i + 1;
+            if (target < mid)
+            {
+                best  = i;
+                found = true;
+            }
+            else
+            {
+                best = i + 1;
+            }
+        }
     }
 
     return best;
@@ -646,9 +656,10 @@ size_t TextInput::WordRight (size_t pos) const
 
 void TextInput::SelectWordAt (size_t pos)
 {
-    size_t  n     = m_text.size();
-    size_t  start = pos;
-    size_t  end   = pos;
+    HRESULT  hr    = S_OK;
+    size_t   n     = m_text.size();
+    size_t   start = pos;
+    size_t   end   = pos;
 
 
 
@@ -656,8 +667,8 @@ void TextInput::SelectWordAt (size_t pos)
     {
         m_anchor = 0;
         m_caret  = 0;
-        return;
     }
+    BAIL_OUT_IF (n == 0, S_OK);
 
     if (pos >= n)
     {
@@ -687,6 +698,9 @@ void TextInput::SelectWordAt (size_t pos)
 
     m_anchor = start;
     m_caret  = end;
+
+Error:
+    return;
 }
 
 
@@ -723,19 +737,21 @@ void TextInput::ResetBlink ()
 
 void TextInput::DeleteSelection ()
 {
-    size_t  selStart = std::min (m_caret, m_anchor);
-    size_t  selEnd   = std::max (m_caret, m_anchor);
+    HRESULT  hr       = S_OK;
+    size_t   selStart = std::min (m_caret, m_anchor);
+    size_t   selEnd   = std::max (m_caret, m_anchor);
 
 
-    if (selStart == selEnd)
-    {
-        return;
-    }
+
+    BAIL_OUT_IF (selStart == selEnd, S_OK);
 
     m_text.erase (selStart, selEnd - selStart);
     m_caret  = selStart;
     m_anchor = selStart;
     FireChange();
+
+Error:
+    return;
 }
 
 
@@ -750,24 +766,29 @@ void TextInput::DeleteSelection ()
 
 void TextInput::InsertText (const std::wstring & ins)
 {
+    HRESULT  hr   = S_OK;
+    size_t   room = 0;
+    size_t   take = 0;
+
+
+
     if (m_caret != m_anchor)
     {
         DeleteSelection();
     }
 
-    size_t  room = (m_maxLen > m_text.size()) ? (m_maxLen - m_text.size()) : 0;
-    size_t  take = std::min (ins.size(), room);
+    room = (m_maxLen > m_text.size()) ? (m_maxLen - m_text.size()) : 0;
+    take = std::min (ins.size(), room);
 
-
-    if (take == 0)
-    {
-        return;
-    }
+    BAIL_OUT_IF (take == 0, S_OK);
 
     m_text.insert (m_caret, ins, 0, take);
     m_caret += take;
     m_anchor = m_caret;
     FireChange();
+
+Error:
+    return;
 }
 
 
@@ -782,18 +803,20 @@ void TextInput::InsertText (const std::wstring & ins)
 
 void TextInput::CopyToClipboard () const
 {
+    HRESULT       hr       = S_OK;
     size_t        selStart = std::min (m_caret, m_anchor);
     size_t        selEnd   = std::max (m_caret, m_anchor);
     std::wstring  sel;
 
 
-    if (selStart == selEnd)
-    {
-        return;
-    }
+
+    BAIL_OUT_IF (selStart == selEnd, S_OK);
 
     sel.assign (m_text, selStart, selEnd - selStart);
     WriteTextToClipboard (sel);
+
+Error:
+    return;
 }
 
 
@@ -810,12 +833,14 @@ void TextInput::CopyToClipboard () const
 
 void TextInput::CopyAllToClipboard () const
 {
-    if (m_text.empty())
-    {
-        return;
-    }
+    HRESULT  hr = S_OK;
+
+    BAIL_OUT_IF (m_text.empty(), S_OK);
 
     WriteTextToClipboard (m_text);
+
+Error:
+    return;
 }
 
 
@@ -829,47 +854,45 @@ void TextInput::CopyAllToClipboard () const
 
 void TextInput::WriteTextToClipboard (const std::wstring & s) const
 {
+    HRESULT  hr      = S_OK;
     HGLOBAL  hGlobal = nullptr;
     void   * pBuf    = nullptr;
+    HANDLE   setData = nullptr;
+    size_t   bytes   = (s.size() + 1) * sizeof (wchar_t);
     BOOL     opened  = FALSE;
+    BOOL     emptied = FALSE;
+
 
 
     opened = OpenClipboard (m_hwnd);
-    if (!opened)
-    {
-        return;
-    }
+    CWR (opened);
 
-    if (!EmptyClipboard())
-    {
-        CloseClipboard();
-        return;
-    }
+    emptied = EmptyClipboard();
+    CWR (emptied);
 
-    hGlobal = GlobalAlloc (GMEM_MOVEABLE, (s.size() + 1) * sizeof (wchar_t));
-    if (hGlobal == nullptr)
-    {
-        CloseClipboard();
-        return;
-    }
+    hGlobal = GlobalAlloc (GMEM_MOVEABLE, bytes);
+    CWR (hGlobal);
 
     pBuf = GlobalLock (hGlobal);
-    if (pBuf == nullptr)
-    {
-        GlobalFree (hGlobal);
-        CloseClipboard();
-        return;
-    }
+    CWR (pBuf);
 
-    memcpy (pBuf, s.c_str(), (s.size() + 1) * sizeof (wchar_t));
+    memcpy (pBuf, s.c_str(), bytes);
     GlobalUnlock (hGlobal);
 
-    if (SetClipboardData (CF_UNICODETEXT, hGlobal) == nullptr)
+    setData = SetClipboardData (CF_UNICODETEXT, hGlobal);
+    CWR (setData);
+    hGlobal = nullptr;               // clipboard owns the block on success
+
+Error:
+    if (hGlobal != nullptr)
     {
         GlobalFree (hGlobal);
     }
-
-    CloseClipboard();
+    if (opened)
+    {
+        CloseClipboard();
+    }
+    return;
 }
 
 
@@ -884,35 +907,27 @@ void TextInput::WriteTextToClipboard (const std::wstring & s) const
 
 void TextInput::PasteFromClipboard ()
 {
-    HANDLE        hData = nullptr;
-    wchar_t     * pBuf  = nullptr;
+    HRESULT       hr     = S_OK;
+    HANDLE        hData  = nullptr;
+    wchar_t     * pBuf   = nullptr;
     BOOL          opened = FALSE;
     std::wstring  ins;
 
 
+
     opened = OpenClipboard (m_hwnd);
-    if (!opened)
-    {
-        return;
-    }
+    CWR (opened);
 
     hData = GetClipboardData (CF_UNICODETEXT);
-    if (hData == nullptr)
-    {
-        CloseClipboard();
-        return;
-    }
+    CWR (hData);
 
     pBuf = (wchar_t *) GlobalLock (hData);
-    if (pBuf == nullptr)
-    {
-        CloseClipboard();
-        return;
-    }
+    CWR (pBuf);
 
     ins.assign (pBuf);
     GlobalUnlock (hData);
     CloseClipboard();
+    opened = FALSE;                  // closed in the normal path; don't double-close
 
     // Strip newlines for single-line input.
     for (auto & c : ins)
@@ -924,6 +939,13 @@ void TextInput::PasteFromClipboard ()
     }
 
     InsertText (ins);
+
+Error:
+    if (opened)
+    {
+        CloseClipboard();
+    }
+    return;
 }
 
 

@@ -889,21 +889,18 @@ void Disk2AudioSource::MixDoor (float * out, uint32_t n)
 
 void Disk2AudioSource::MixTest (float * out, uint32_t n)
 {
+    HRESULT   hr  = S_OK;
     uint32_t  len = 0;
     uint32_t  i   = 0;
 
-    if (m_testBuf == nullptr)
-    {
-        return;
-    }
+    BAIL_OUT_IF (m_testBuf == nullptr, S_OK);
 
     len = static_cast<uint32_t> (m_testBuf->size());
-
     if (len == 0)
     {
         m_testBuf = nullptr;
-        return;
     }
+    BAIL_OUT_IF (len == 0, S_OK);
 
     for (i = 0; i < n; i++)
     {
@@ -916,6 +913,9 @@ void Disk2AudioSource::MixTest (float * out, uint32_t n)
         out[i] += (*m_testBuf)[m_testPos] * m_testVolume;
         m_testPos++;
     }
+
+Error:
+    return;
 }
 
 

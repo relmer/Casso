@@ -44,6 +44,10 @@ public:
     void  Paint          (DxUiPainter & painter, DwriteTextRenderer & text, const ChromeTheme & theme) const;
 
 private:
+    static constexpr wchar_t   s_kpszMdl2Family[] = L"Segoe MDL2 Assets";
+    static constexpr float     s_kGlyphFontDp     = 12.0f;
+    static constexpr uint32_t  s_kDisabledFg      = 0xFF6A7585;
+
     RECT                 m_rect    = {};
     const wchar_t      * m_glyph   = L"";
     ClickFn              m_click;

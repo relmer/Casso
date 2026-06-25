@@ -527,13 +527,16 @@ void DisplayPage::RefreshTextColorEnabled ()
 
 void DisplayPage::OnLButtonDown (int x, int y)
 {
+    bool  handled = false;
+
     RefreshTextColorEnabled();
 
-    if (m_monitor.OnLButtonDown        (x, y)) { return; }
-    if (m_textColor.OnLButtonDown      (x, y)) { return; }
+    handled = m_monitor.OnLButtonDown   (x, y)
+           || m_textColor.OnLButtonDown (x, y);
 
     // Clicking the swatch while Custom is active re-opens the picker.
-    if (TextColorActive() && m_textColorMode == ColorMonitorTextMode::Custom &&
+    if (!handled &&
+        TextColorActive() && m_textColorMode == ColorMonitorTextMode::Custom &&
         x >= m_textColorSwatchRect.left && x < m_textColorSwatchRect.right &&
         y >= m_textColorSwatchRect.top  && y < m_textColorSwatchRect.bottom)
     {
@@ -541,23 +544,25 @@ void DisplayPage::OnLButtonDown (int x, int y)
         {
             m_onTextColorCommit ((int) ColorMonitorTextMode::Custom);
         }
-        return;
+        handled = true;
     }
-    if (m_brightness.OnLButtonDown     (x, y)) { return; }
-    if (m_contrast.OnLButtonDown       (x, y)) { return; }
-    if (m_scanlinesEn.OnLButtonDown    (x, y)) { return; }
-    if (m_scanlinesInt.OnLButtonDown   (x, y)) { return; }
-    if (m_bloomEn.OnLButtonDown        (x, y)) { return; }
-    if (m_bloomRadius.OnLButtonDown    (x, y)) { return; }
-    if (m_bloomStrength.OnLButtonDown  (x, y)) { return; }
-    if (m_colorBleedEn.OnLButtonDown   (x, y)) { return; }
-    if (m_colorBleedW.OnLButtonDown    (x, y)) { return; }
-    if (m_gamma.OnLButtonDown          (x, y)) { return; }
-    if (m_persistence.OnLButtonDown    (x, y)) { return; }
-    if (m_restore.HitTest              (x, y))
+
+    handled = handled
+           || m_brightness.OnLButtonDown     (x, y)
+           || m_contrast.OnLButtonDown       (x, y)
+           || m_scanlinesEn.OnLButtonDown    (x, y)
+           || m_scanlinesInt.OnLButtonDown   (x, y)
+           || m_bloomEn.OnLButtonDown        (x, y)
+           || m_bloomRadius.OnLButtonDown    (x, y)
+           || m_bloomStrength.OnLButtonDown  (x, y)
+           || m_colorBleedEn.OnLButtonDown   (x, y)
+           || m_colorBleedW.OnLButtonDown    (x, y)
+           || m_gamma.OnLButtonDown          (x, y)
+           || m_persistence.OnLButtonDown    (x, y);
+
+    if (!handled && m_restore.HitTest (x, y))
     {
         m_restore.SetMouse (x, y, true);
-        return;
     }
 }
 
@@ -661,23 +666,26 @@ void DisplayPage::OnMouseHover (int x, int y)
 
 bool DisplayPage::OnKey (WPARAM vk)
 {
+    bool  handled = false;
+
     RefreshTextColorEnabled();
 
-    if (m_monitor.HandleKey        (vk)) { return true; }
-    if (m_textColor.HandleKey      (vk)) { return true; }
-    if (m_brightness.OnKey         (vk)) { return true; }
-    if (m_contrast.OnKey           (vk)) { return true; }
-    if (m_gamma.OnKey              (vk)) { return true; }
-    if (m_persistence.OnKey        (vk)) { return true; }
-    if (m_scanlinesEn.OnKey        (vk)) { return true; }
-    if (m_scanlinesInt.OnKey       (vk)) { return true; }
-    if (m_bloomEn.OnKey            (vk)) { return true; }
-    if (m_bloomRadius.OnKey        (vk)) { return true; }
-    if (m_bloomStrength.OnKey      (vk)) { return true; }
-    if (m_colorBleedEn.OnKey       (vk)) { return true; }
-    if (m_colorBleedW.OnKey        (vk)) { return true; }
-    if (m_restore.OnKey            (vk)) { return true; }
-    return false;
+    handled = m_monitor.HandleKey        (vk)
+           || m_textColor.HandleKey      (vk)
+           || m_brightness.OnKey         (vk)
+           || m_contrast.OnKey           (vk)
+           || m_gamma.OnKey              (vk)
+           || m_persistence.OnKey        (vk)
+           || m_scanlinesEn.OnKey        (vk)
+           || m_scanlinesInt.OnKey       (vk)
+           || m_bloomEn.OnKey            (vk)
+           || m_bloomRadius.OnKey        (vk)
+           || m_bloomStrength.OnKey      (vk)
+           || m_colorBleedEn.OnKey       (vk)
+           || m_colorBleedW.OnKey        (vk)
+           || m_restore.OnKey            (vk);
+
+    return handled;
 }
 
 

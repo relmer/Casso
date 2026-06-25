@@ -1991,35 +1991,38 @@ void SettingsPanel::PaintModalOverlay (DxUiPainter & painter, DwriteTextRenderer
 
 void SettingsPanel::OnMouseMove (int x, int y)
 {
-    if (!m_visible)
-    {
-        return;
-    }
+    HRESULT  hr = S_OK;
+
+    BAIL_OUT_IF (!m_visible, S_OK);
 
     if (m_colorPicker.IsOpen())
     {
         m_colorPicker.OnMouseHover (x, y);
         m_colorPicker.OnMouseMove  (x, y);
-        return;
     }
-
-    m_tabs.SetMouseHover (x, y);
-    m_applyButton.SetMouse  (x, y, false);
-    m_cancelButton.SetMouse (x, y, false);
-
-    switch ((TabIndex) m_activeTab)
+    else
     {
-        case TabIndex::Machine:
-            m_machinePage.OnMouseHover (x, y);
-            m_machinePage.OnMouseMove  (x, y);   // slider drag tracking
-            break;
-        case TabIndex::Hardware: m_hardwarePage.OnMouseHover (x, y); break;
-        case TabIndex::Theme:    m_themePage.OnMouseHover    (x, y); break;
-        case TabIndex::Display:
-            m_displayPage.OnMouseHover (x, y);
-            m_displayPage.OnMouseMove  (x, y);   // slider drag tracking
-            break;
+        m_tabs.SetMouseHover (x, y);
+        m_applyButton.SetMouse  (x, y, false);
+        m_cancelButton.SetMouse (x, y, false);
+
+        switch ((TabIndex) m_activeTab)
+        {
+            case TabIndex::Machine:
+                m_machinePage.OnMouseHover (x, y);
+                m_machinePage.OnMouseMove  (x, y);   // slider drag tracking
+                break;
+            case TabIndex::Hardware: m_hardwarePage.OnMouseHover (x, y); break;
+            case TabIndex::Theme:    m_themePage.OnMouseHover    (x, y); break;
+            case TabIndex::Display:
+                m_displayPage.OnMouseHover (x, y);
+                m_displayPage.OnMouseMove  (x, y);   // slider drag tracking
+                break;
+        }
     }
+
+Error:
+    return;
 }
 
 
@@ -2034,37 +2037,30 @@ void SettingsPanel::OnMouseMove (int x, int y)
 
 void SettingsPanel::OnLButtonDown (int x, int y)
 {
-    if (!m_visible)
-    {
-        return;
-    }
+    HRESULT  hr = S_OK;
+
+    BAIL_OUT_IF (!m_visible, S_OK);
 
     if (m_colorPicker.IsOpen())
     {
         m_colorPicker.OnLButtonDown (x, y);
-        return;
     }
-
-    if (m_scrim.IsVisible())
+    else if (!m_scrim.IsVisible() && !m_tabs.OnLButtonDown (x, y))
     {
-        return;
+        m_applyButton.SetMouse  (x, y, true);
+        m_cancelButton.SetMouse (x, y, true);
+
+        switch ((TabIndex) m_activeTab)
+        {
+            case TabIndex::Machine:  m_machinePage.OnLButtonDown  (x, y); break;
+            case TabIndex::Hardware: m_hardwarePage.OnLButtonDown (x, y); break;
+            case TabIndex::Theme:    m_themePage.OnLButtonDown    (x, y); break;
+            case TabIndex::Display:  m_displayPage.OnLButtonDown  (x, y); break;
+        }
     }
 
-    if (m_tabs.OnLButtonDown (x, y))
-    {
-        return;
-    }
-
-    m_applyButton.SetMouse  (x, y, true);
-    m_cancelButton.SetMouse (x, y, true);
-
-    switch ((TabIndex) m_activeTab)
-    {
-        case TabIndex::Machine:  m_machinePage.OnLButtonDown  (x, y); break;
-        case TabIndex::Hardware: m_hardwarePage.OnLButtonDown (x, y); break;
-        case TabIndex::Theme:    m_themePage.OnLButtonDown    (x, y); break;
-        case TabIndex::Display:  m_displayPage.OnLButtonDown  (x, y); break;
-    }
+Error:
+    return;
 }
 
 
@@ -2079,45 +2075,43 @@ void SettingsPanel::OnLButtonDown (int x, int y)
 
 void SettingsPanel::OnLButtonUp (int x, int y)
 {
-    if (!m_visible)
-    {
-        return;
-    }
+    HRESULT  hr = S_OK;
+
+    BAIL_OUT_IF (!m_visible, S_OK);
 
     if (m_colorPicker.IsOpen())
     {
         m_colorPicker.OnLButtonUp (x, y);
-        return;
     }
+    else if (!m_scrim.IsVisible())
+    {
+        (void) m_tabs.OnLButtonUp (x, y);
 
-    if (m_scrim.IsVisible())
-    {
-        return;
-    }
-
-    (void) m_tabs.OnLButtonUp (x, y);
-
-    if (m_applyButton.HitTest (x, y))
-    {
-        m_applyButton.Click();
-    }
-    else if (m_cancelButton.HitTest (x, y))
-    {
-        m_cancelButton.Click();
-    }
-    else
-    {
-        switch ((TabIndex) m_activeTab)
+        if (m_applyButton.HitTest (x, y))
         {
-            case TabIndex::Machine:  m_machinePage.OnLButtonUp  (x, y); break;
-            case TabIndex::Hardware: m_hardwarePage.OnLButtonUp (x, y); break;
-            case TabIndex::Theme:    m_themePage.OnLButtonUp    (x, y); break;
-            case TabIndex::Display:  m_displayPage.OnLButtonUp  (x, y); break;
+            m_applyButton.Click();
         }
+        else if (m_cancelButton.HitTest (x, y))
+        {
+            m_cancelButton.Click();
+        }
+        else
+        {
+            switch ((TabIndex) m_activeTab)
+            {
+                case TabIndex::Machine:  m_machinePage.OnLButtonUp  (x, y); break;
+                case TabIndex::Hardware: m_hardwarePage.OnLButtonUp (x, y); break;
+                case TabIndex::Theme:    m_themePage.OnLButtonUp    (x, y); break;
+                case TabIndex::Display:  m_displayPage.OnLButtonUp  (x, y); break;
+            }
+        }
+
+        m_applyButton.SetMouse  (x, y, false);
+        m_cancelButton.SetMouse (x, y, false);
     }
 
-    m_applyButton.SetMouse  (x, y, false);
-    m_cancelButton.SetMouse (x, y, false);
+Error:
+    return;
 }
 
 
@@ -2132,32 +2126,34 @@ void SettingsPanel::OnLButtonUp (int x, int y)
 
 bool SettingsPanel::OnKey (WPARAM vk)
 {
-    bool  shiftHeld = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
-    bool  ctrlHeld  = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
+    HRESULT  hr        = S_OK;
+    bool     shiftHeld = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
+    bool     ctrlHeld  = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
+    bool     handled   = false;
+    bool     result    = false;
 
 
-    if (!m_visible)
-    {
-        return false;
-    }
+
+    BAIL_OUT_IF (!m_visible, S_OK);
 
     if (m_colorPicker.IsOpen())
     {
-        return m_colorPicker.OnKey (vk);
+        result  = m_colorPicker.OnKey (vk);
+        handled = true;
     }
-
-    if (m_scrim.IsVisible())
+    else if (m_scrim.IsVisible())
     {
-        return m_scrim.OnKey (vk);
+        result  = m_scrim.OnKey (vk);
+        handled = true;
     }
 
-    // Open dropdowns take priority — Up/Down/Enter/Esc steer the menu
+    // Open dropdowns take priority -- Up/Down/Enter/Esc steer the menu
     // rather than the panel-level focus list.
-    if (AnyDropdownOpenOnActivePage())
+    if (!handled && AnyDropdownOpenOnActivePage())
     {
         switch ((TabIndex) m_activeTab)
         {
-            case TabIndex::Machine:  if (m_machinePage.OnKey (vk)) { return true; } break;
+            case TabIndex::Machine:  if (m_machinePage.OnKey (vk)) { result = true; handled = true; } break;
             default: break;
         }
     }
@@ -2165,10 +2161,10 @@ bool SettingsPanel::OnKey (WPARAM vk)
     // Ctrl+Tab / Ctrl+Shift+Tab cycle through the tab pages regardless
     // of which widget currently owns focus inside the page. Matches the
     // Windows convention used by browser tabs, VS document tabs, etc.
-    if (vk == VK_TAB && ctrlHeld)
+    if (!handled && vk == VK_TAB && ctrlHeld)
     {
         constexpr int  s_kTabCount = 4;
-        int            next       = m_activeTab + (shiftHeld ? -1 : 1);
+        int            next        = m_activeTab + (shiftHeld ? -1 : 1);
 
         if (next < 0)
         {
@@ -2182,10 +2178,11 @@ bool SettingsPanel::OnKey (WPARAM vk)
         m_activeTab = next;
         m_tabs.SetSelected (m_activeTab);
         RebuildFocusOrder();
-        return true;
+        result  = true;
+        handled = true;
     }
 
-    if (vk == VK_TAB && m_uiShell != nullptr)
+    if (!handled && vk == VK_TAB && m_uiShell != nullptr)
     {
         FocusKey  fk = shiftHeld ? FocusKey::ShiftTab : FocusKey::Tab;
 
@@ -2193,27 +2190,47 @@ bool SettingsPanel::OnKey (WPARAM vk)
         {
             SyncFocusToWidgets();
         }
-        return true;
+        result  = true;
+        handled = true;
     }
 
-    if (vk == VK_ESCAPE)
+    if (!handled && vk == VK_ESCAPE)
     {
         OnCancelClicked();
-        return true;
+        result  = true;
+        handled = true;
     }
 
-    switch ((TabIndex) m_activeTab)
+    if (!handled)
     {
-        case TabIndex::Machine:  if (m_machinePage.OnKey  (vk)) { return true; } break;
-        case TabIndex::Hardware: if (m_hardwarePage.OnKey (vk)) { return true; } break;
-        case TabIndex::Theme:    if (m_themePage.OnKey    (vk)) { return true; } break;
-        case TabIndex::Display:  if (m_displayPage.OnKey  (vk)) { return true; } break;
+        switch ((TabIndex) m_activeTab)
+        {
+            case TabIndex::Machine:  if (m_machinePage.OnKey  (vk)) { result = true; handled = true; } break;
+            case TabIndex::Hardware: if (m_hardwarePage.OnKey (vk)) { result = true; handled = true; } break;
+            case TabIndex::Theme:    if (m_themePage.OnKey    (vk)) { result = true; handled = true; } break;
+            case TabIndex::Display:  if (m_displayPage.OnKey  (vk)) { result = true; handled = true; } break;
+        }
     }
 
-    if (m_applyButton.OnKey  (vk)) { return true; }
-    if (m_cancelButton.OnKey (vk)) { return true; }
+    if (!handled && m_applyButton.OnKey (vk))
+    {
+        result  = true;
+        handled = true;
+    }
 
-    return m_tabs.OnKey (vk);
+    if (!handled && m_cancelButton.OnKey (vk))
+    {
+        result  = true;
+        handled = true;
+    }
+
+    if (!handled)
+    {
+        result = m_tabs.OnKey (vk);
+    }
+
+Error:
+    return result;
 }
 
 
@@ -2231,17 +2248,18 @@ bool SettingsPanel::OnKey (WPARAM vk)
 
 bool SettingsPanel::OnChar (wchar_t ch)
 {
-    if (!m_visible)
-    {
-        return false;
-    }
+    HRESULT  hr     = S_OK;
+    bool     result = false;
+
+    BAIL_OUT_IF (!m_visible, S_OK);
 
     if (m_colorPicker.IsOpen())
     {
-        return m_colorPicker.OnChar (ch);
+        result = m_colorPicker.OnChar (ch);
     }
 
-    return false;
+Error:
+    return result;
 }
 
 

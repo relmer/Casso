@@ -2696,23 +2696,28 @@ void EmulatorShell::SetDriveAudioPan (int drive, float pan)
 
 void EmulatorShell::PlayDriveTestSound (int drive, int kind)
 {
+    HRESULT                          hr       = S_OK;
     Disk2AudioSource::TestSoundKind  testKind = Disk2AudioSource::TestSoundKind::Motor;
+    bool                             valid    = true;
 
 
-    if (drive < 0 || drive >= (int) m_diskAudioSources.size())
-    {
-        return;
-    }
+
+    BAIL_OUT_IF (drive < 0 || drive >= (int) m_diskAudioSources.size(), S_OK);
 
     switch (kind)
     {
         case 0:  testKind = Disk2AudioSource::TestSoundKind::Motor; break;
         case 1:  testKind = Disk2AudioSource::TestSoundKind::Head;  break;
         case 2:  testKind = Disk2AudioSource::TestSoundKind::Door;  break;
-        default: return;
+        default: valid    = false;                                  break;
     }
 
+    BAIL_OUT_IF (!valid, S_OK);
+
     m_diskAudioSources[(size_t) drive]->PlayTestSound (testKind);
+
+Error:
+    return;
 }
 
 

@@ -5,16 +5,6 @@
 
 
 
-namespace
-{
-    constexpr wchar_t   s_kpszMdl2Family[] = L"Segoe MDL2 Assets";
-    constexpr float     s_kGlyphFontDp     = 12.0f;
-    constexpr uint32_t  s_kDisabledFg      = 0xFF6A7585;
-}
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HitTest
@@ -23,11 +13,9 @@ namespace
 
 bool IconButton::HitTest (int x, int y) const
 {
-    if (!m_enabled)
-    {
-        return false;
-    }
-    return x >= m_rect.left && x < m_rect.right && y >= m_rect.top && y < m_rect.bottom;
+    return m_enabled &&
+           x >= m_rect.left && x < m_rect.right &&
+           y >= m_rect.top  && y < m_rect.bottom;
 }
 
 
@@ -59,13 +47,14 @@ void IconButton::SetMouseHover (int x, int y)
 
 bool IconButton::OnLButtonDown (int x, int y)
 {
-    if (!HitTest (x, y))
+    bool  hit = HitTest (x, y);
+
+    if (hit)
     {
-        return false;
+        m_pressed = true;
     }
 
-    m_pressed = true;
-    return true;
+    return hit;
 }
 
 

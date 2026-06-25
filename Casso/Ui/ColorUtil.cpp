@@ -23,22 +23,22 @@ static constexpr int    s_kHexDigitCount = 6;
 
 int ColorUtil::HexValue (wchar_t ch)
 {
+    int  result = -1;
+
     if (ch >= L'0' && ch <= L'9')
     {
-        return ch - L'0';
+        result = ch - L'0';
     }
-
-    if (ch >= L'a' && ch <= L'f')
+    else if (ch >= L'a' && ch <= L'f')
     {
-        return 10 + (ch - L'a');
+        result = 10 + (ch - L'a');
     }
-
-    if (ch >= L'A' && ch <= L'F')
+    else if (ch >= L'A' && ch <= L'F')
     {
-        return 10 + (ch - L'A');
+        result = 10 + (ch - L'A');
     }
 
-    return -1;
+    return result;
 }
 
 
@@ -234,19 +234,27 @@ std::wstring ColorUtil::FormatHexColor (uint32_t argb)
 
 uint32_t ColorUtil::ResolveColorMonitorTextArgb (ColorMonitorTextMode mode, uint32_t customArgb)
 {
+    uint32_t  result = kWhiteArgb;
+
     switch (mode)
     {
         case ColorMonitorTextMode::Green:
-            return kGreenArgb;
+            result = kGreenArgb;
+            break;
 
         case ColorMonitorTextMode::Amber:
-            return kAmberArgb;
+            result = kAmberArgb;
+            break;
 
         case ColorMonitorTextMode::Custom:
-            return 0xFF000000u | (customArgb & 0x00FFFFFFu);
+            result = 0xFF000000u | (customArgb & 0x00FFFFFFu);
+            break;
 
         case ColorMonitorTextMode::White:
         default:
-            return kWhiteArgb;
+            result = kWhiteArgb;
+            break;
     }
+
+    return result;
 }

@@ -361,21 +361,29 @@ InputMappingMode GlobalUserPrefs::InputMappingModeFromString (const std::string 
 
 const char * GlobalUserPrefs::ColorTextModeToString (ColorMonitorTextMode mode)
 {
+    const char *  result = s_kpszTextModeWhite;
+
     switch (mode)
     {
         case ColorMonitorTextMode::Green:
-            return s_kpszTextModeGreen;
+            result = s_kpszTextModeGreen;
+            break;
 
         case ColorMonitorTextMode::Amber:
-            return s_kpszTextModeAmber;
+            result = s_kpszTextModeAmber;
+            break;
 
         case ColorMonitorTextMode::Custom:
-            return s_kpszTextModeCustom;
+            result = s_kpszTextModeCustom;
+            break;
 
         case ColorMonitorTextMode::White:
         default:
-            return s_kpszTextModeWhite;
+            result = s_kpszTextModeWhite;
+            break;
     }
+
+    return result;
 }
 
 
@@ -393,27 +401,26 @@ const char * GlobalUserPrefs::ColorTextModeToString (ColorMonitorTextMode mode)
 
 ColorMonitorTextMode GlobalUserPrefs::ColorTextModeFromString (const std::string & s, ColorMonitorTextMode fallback)
 {
+    ColorMonitorTextMode  result = fallback;
+
     if (s == s_kpszTextModeGreen)
     {
-        return ColorMonitorTextMode::Green;
+        result = ColorMonitorTextMode::Green;
     }
-
-    if (s == s_kpszTextModeAmber)
+    else if (s == s_kpszTextModeAmber)
     {
-        return ColorMonitorTextMode::Amber;
+        result = ColorMonitorTextMode::Amber;
     }
-
-    if (s == s_kpszTextModeCustom)
+    else if (s == s_kpszTextModeCustom)
     {
-        return ColorMonitorTextMode::Custom;
+        result = ColorMonitorTextMode::Custom;
     }
-
-    if (s == s_kpszTextModeWhite)
+    else if (s == s_kpszTextModeWhite)
     {
-        return ColorMonitorTextMode::White;
+        result = ColorMonitorTextMode::White;
     }
 
-    return fallback;
+    return result;
 }
 
 
