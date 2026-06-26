@@ -37,6 +37,7 @@ class DxuiSlider : public IDxuiControl
 public:
     using ChangeFn      = std::function<void (float value)>;
     using InteractionFn = std::function<void ()>;
+    using FormatFn      = std::function<std::wstring (float value)>;
 
     ~DxuiSlider() override = default;
 
@@ -47,6 +48,8 @@ public:
     void   SetSuffix  (const std::wstring & suffix) { m_suffix = suffix; m_explicitShowValue = true; m_showValue = true; }
     void   SetShowValue (bool show) { m_explicitShowValue = true; m_showValue = show; }
     void   SetDecimalPlaces (int places) { m_decimalPlaces = places; }
+    void   SetValueFormatter (FormatFn fn) { m_formatter = std::move (fn); m_explicitShowValue = true; m_showValue = true; }
+    void   SetCenterOriginFill (bool centered) { m_centerOriginFill = centered; }
     void   SetShowTicks (bool show) { m_showTicks = show; }
     void   SetDpi     (UINT dpi) { m_scaler.SetDpi (dpi); }
     void   SetEnabled (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_dragging = false; m_hover = false; } }
@@ -92,6 +95,7 @@ private:
     InteractionFn  m_onDragStart;
     InteractionFn  m_onDragEnd;
     InteractionFn  m_onKeyboard;
+    FormatFn       m_formatter;
     std::wstring   m_suffix;
     DxuiDpiScaler      m_scaler;
     float          m_min      = 0.0f;
@@ -105,5 +109,6 @@ private:
     bool           m_showTicks = true;
     bool           m_showValue = false;
     bool           m_explicitShowValue = false;
+    bool           m_centerOriginFill = false;
     int            m_decimalPlaces = 0;
 };

@@ -396,6 +396,8 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     float    centerY       = (float) m_boundsDip.top + rectH * 0.5f;
     float    t             = 0.0f;
     float    fillWidth     = 0.0f;
+    float    fillLeft      = 0.0f;
+    float    trackMid      = 0.0f;
     float    puckCx        = 0.0f;
     float    puckR         = m_scaler.Pxf (s_kPuckRadiusDip);
     uint32_t coreColor     = m_enabled ? accentArgb : s_kPuckCoreDis;
@@ -409,6 +411,16 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
 
     fillWidth = trackAvailW * t;
     puckCx    = trackLeft + trackAvailW * t;
+    fillLeft  = trackLeft;
+    trackMid  = trackLeft + trackAvailW * 0.5f;
+
+    // Bipolar sliders (e.g. pan) grow the accent fill from the track
+    // centre toward the puck rather than from the left edge.
+    if (m_centerOriginFill)
+    {
+        fillLeft  = std::min  (trackMid, puckCx);
+        fillWidth = std::fabs (puckCx - trackMid);
+    }
 
     if (m_focused)       { puckR = m_scaler.Pxf (s_kPuckRadiusFocDip); }
     else if (m_hover ||
@@ -417,7 +429,7 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     // ----- Track (background + filled portion). -----
     painter.FillRect (trackLeft, centerY - trackHeight * 0.5f,
                       trackAvailW, trackHeight, s_kTrack);
-    painter.FillRect (trackLeft, centerY - trackHeight * 0.5f,
+    painter.FillRect (fillLeft, centerY - trackHeight * 0.5f,
                       fillWidth, trackHeight, accentArgb);
 
     // ----- Tick marks below the track. -----
@@ -448,7 +460,13 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     {
         wchar_t  buf[32] = {};
 
-        if (m_decimalPlaces > 0)
+        if (m_formatter)
+        {
+            std::wstring  formatted = m_formatter (m_value);
+
+            wcsncpy_s (buf, formatted.c_str(), _TRUNCATE);
+        }
+        else if (m_decimalPlaces > 0)
         {
             wchar_t  fmt[16] = {};
             swprintf_s (fmt, L"%%.%dlf%%ls", m_decimalPlaces);
