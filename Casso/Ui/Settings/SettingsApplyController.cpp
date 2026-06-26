@@ -73,6 +73,27 @@ namespace
             m_shell.PostCommand (IDM_AUDIO_DRIVE_MECHANISM, mechanism);
         }
 
+        void ApplyDriveVolumes (float motor, float head, float door) override
+        {
+            char  payload[32] = {};
+
+            sprintf_s (payload, "%d,%d,%d",
+                       (int) std::lround (motor * 100.0f),
+                       (int) std::lround (head  * 100.0f),
+                       (int) std::lround (door  * 100.0f));
+            m_shell.PostCommand (IDM_AUDIO_DRIVE_VOLUMES, payload);
+        }
+
+        void ApplyDrivePan     (float driveOnePan, float driveTwoPan) override
+        {
+            char  payload[32] = {};
+
+            sprintf_s (payload, "%d,%d",
+                       (int) std::lround (driveOnePan * 100.0f),
+                       (int) std::lround (driveTwoPan * 100.0f));
+            m_shell.PostCommand (IDM_AUDIO_DRIVE_PAN, payload);
+        }
+
         void ApplyWriteProtect (int drive, bool wp)            override { UNREFERENCED_PARAMETER (drive); UNREFERENCED_PARAMETER (wp); }
         void QueueMachineReset ()                              override { m_resetQueued = true; }
 
