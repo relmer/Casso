@@ -167,6 +167,7 @@ HRESULT SettingsPanel::Initialize (
 
     m_machinePage.SetState  (&m_state);
     m_machinePage.SetOnMachineSelected ([this] (const std::string & machineName) { OnMachineSelected (machineName); });
+    m_machinePage.SetOnTestSound ([this] (int drive, int kind, bool centered) { AuditionDriveSound (drive, kind, centered); });
     m_hardwarePage.SetState (&m_state);
     m_displayPage.SetState  (&m_state);
 
@@ -259,6 +260,19 @@ HRESULT SettingsPanel::Show ()
     // the user made -- including edits to monitors other than the one
     // active at panel open (they may have switched mid-edit).
     m_apply.SnapshotBaselines();
+
+    // Capture the applied drive-audio levels so a play-button audition
+    // (which pushes the in-progress edit to the engine) can be reverted
+    // if the user Cancels. m_lastAuditionMechanism starts at the applied
+    // mechanism so the first preview only reloads WAVs if it changed.
+    m_baselineDriveMotorVol = m_state.Prefs().driveMotorVolume;
+    m_baselineDriveHeadVol  = m_state.Prefs().driveHeadVolume;
+    m_baselineDriveDoorVol  = m_state.Prefs().driveDoorVolume;
+    m_baselineDriveOnePan   = m_state.Prefs().driveOnePan;
+    m_baselineDriveTwoPan   = m_state.Prefs().driveTwoPan;
+    m_baselineMechanism     = m_state.Prefs().floppyMechanism;
+    m_lastAuditionMechanism = m_state.Prefs().floppyMechanism;
+    m_driveAuditionDirty    = false;
 
     // Reset preview state so a previous session's interaction doesn't
     // leak in (e.g. user closed the panel mid-drag via Esc).
@@ -1118,7 +1132,125 @@ void SettingsPanel::OnApplyClicked ()
 void SettingsPanel::OnCancelClicked ()
 {
     m_apply.Cancel (m_previewCtrl);
+
+    // Undo any play-button audition that pushed dialed drive-audio
+    // values to the engine for preview.
+    if (m_driveAuditionDirty)
+    {
+        PushDriveAudioToEngine (m_baselineDriveMotorVol,
+                                m_baselineDriveHeadVol,
+                                m_baselineDriveDoorVol,
+                                m_baselineDriveOnePan,
+                                m_baselineDriveTwoPan,
+                                m_baselineMechanism);
+        m_driveAuditionDirty = false;
+    }
     m_panelVisible = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AuditionDriveSound
+//
+//  Previews a single drive sound at the in-progress dialed settings.
+//  Volume previews (centered) pan the test drive to centre so the gain
+//  is judged without bias; pan previews keep both drives at their dialed
+//  positions. Volumes/pan/mechanism are pushed first so the one-shot
+//  reflects the current edits, not the last-applied state.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::AuditionDriveSound (int drive, int kind, bool centered)
+{
+    HRESULT                  hr       = S_OK;
+    const SettingsUiPrefs *  prefs    = nullptr;
+    char                     test[16] = {};
+    float                    pan0     = 0.0f;
+    float                    pan1     = 0.0f;
+
+
+
+    BAIL_OUT_IF (m_emuShell == nullptr, S_OK);
+
+    prefs = &m_state.Prefs();
+
+    pan0 = prefs->driveOnePan;
+    pan1 = prefs->driveTwoPan;
+    if (centered)
+    {
+        if (drive == 0) { pan0 = 0.0f; }
+        else            { pan1 = 0.0f; }
+    }
+
+    PushDriveAudioToEngine (prefs->driveMotorVolume,
+                            prefs->driveHeadVolume,
+                            prefs->driveDoorVolume,
+                            pan0,
+                            pan1,
+                            prefs->floppyMechanism);
+
+    sprintf_s (test, "%d,%d", drive, kind);
+    m_emuShell->PostCommand (IDM_AUDIO_DRIVE_TEST, test);
+
+    m_driveAuditionDirty = true;
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PushDriveAudioToEngine
+//
+//  Posts volumes + pan + mechanism to the engine command queue. The
+//  mechanism is reloaded only when it differs from what the engine last
+//  loaded (m_lastAuditionMechanism), avoiding a redundant WAV reload.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::PushDriveAudioToEngine (
+    float                motor,
+    float                head,
+    float                door,
+    float                pan0,
+    float                pan1,
+    const std::string  & mechanism)
+{
+    HRESULT  hr      = S_OK;
+    char     vol[32] = {};
+    char     pan[32] = {};
+
+
+
+    BAIL_OUT_IF (m_emuShell == nullptr, S_OK);
+
+    sprintf_s (vol, "%d,%d,%d",
+               (int) std::lround (motor * 100.0f),
+               (int) std::lround (head  * 100.0f),
+               (int) std::lround (door  * 100.0f));
+    m_emuShell->PostCommand (IDM_AUDIO_DRIVE_VOLUMES, vol);
+
+    if (mechanism != m_lastAuditionMechanism)
+    {
+        m_emuShell->PostCommand (IDM_AUDIO_DRIVE_MECHANISM, mechanism);
+        m_lastAuditionMechanism = mechanism;
+    }
+
+    sprintf_s (pan, "%d,%d",
+               (int) std::lround (pan0 * 100.0f),
+               (int) std::lround (pan1 * 100.0f));
+    m_emuShell->PostCommand (IDM_AUDIO_DRIVE_PAN, pan);
+
+Error:
+    return;
 }
 
 
