@@ -3135,6 +3135,17 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         return DxuiMessageResult::Handled;
     }
 
+    // A fresh hover over a drive widget replays its basename marquee, so
+    // the full filename can be re-read on demand.
+    for (DriveWidget & drive : m_driveChrome)
+    {
+        RECT  outer  = drive.OuterRect();
+        bool  inside = x >= outer.left && x < outer.right &&
+                       y >= outer.top  && y < outer.bottom;
+
+        drive.UpdateMarqueeHover (inside, nowMs);
+    }
+
     if (m_uiShell.OnMouseMove (x, y, leftDown))
     {
         return DxuiMessageResult::Handled;
@@ -3175,6 +3186,14 @@ DxuiMessageResult EmulatorShell::OnMouseLeave ()
                          std::chrono::steady_clock::now().time_since_epoch()).count();
 
     m_uiShell.OnMouseLeave();
+
+    // Drop drive marquee-hover state so re-entering the window re-triggers
+    // the basename scroll.
+    for (DriveWidget & drive : m_driveChrome)
+    {
+        drive.UpdateMarqueeHover (false, nowMs);
+    }
+
     m_joystickButton.SetHovered (false);
     m_joystickButton.SetPressed (false);
     m_joystickTooltip.RequestHide (nowMs);
