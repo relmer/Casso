@@ -175,20 +175,14 @@ public:
     //
     // `prefs.audioDownloadConsent` is read AND updated to reflect the
     // user's choice (allow / decline). The caller is responsible for
-    // flushing prefs to disk after this returns.
-    // `outBootDiskPath` (if non-empty on return) names the freshly
-    // downloaded stock master disk; the caller should treat it as
-    // disk1 for the impending machine boot. Empty if no boot-disk
-    // entry was included or download did not finish.
+    // flushing prefs to disk after this returns. Boot-disk selection is
+    // not handled here -- it is owned solely by PromptBootDiskMru.
     static HRESULT  RunStartupDownloader  (HINSTANCE                hInstance,
                                            const wstring          & machineName,
                                            HWND                     hwndParent,
                                            const vector<fs::path> & romSearchPaths,
                                            const fs::path         & assetBaseDir,
                                            bool                     considerDiskAudio,
-                                           bool                     offerBootDisk,
-                                           const fs::path         & diskDir,
                                            struct GlobalUserPrefs & prefs,
-                                           wstring                & outBootDiskPath,
                                            string                 & outError);
 };

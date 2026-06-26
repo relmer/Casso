@@ -2684,10 +2684,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
     const vector<fs::path> & searchPaths,
     const fs::path         & assetBaseDir,
     bool                     considerDiskAudio,
-    bool                     offerBootDisk,
-    const fs::path         & diskDir,
     GlobalUserPrefs        & prefs,
-    wstring                & outBootDiskPath,
     string                 & outError)
 {
     HRESULT                hr             = S_OK;
@@ -2700,8 +2697,6 @@ HRESULT AssetBootstrap::RunStartupDownloader (
     error_code             ec;
 
     UNREFERENCED_PARAMETER (hInstance);
-
-    outBootDiskPath.clear();
 
     narrowMachine.reserve (machineName.size ());
 
@@ -2939,80 +2934,6 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         }
     }
 
-    if (offerBootDisk)
-    {
-        struct DiskChoice { const BootDiskSpec * spec; bool defaultSelected; };
-        DiskChoice  choices[] =
-        {
-            { &s_kDos33Disk,  true  },
-            { &s_kProDOSDisk, false }
-        };
-
-        for (const DiskChoice & dc : choices)
-        {
-            fs::path  wantPath = diskDir / string (dc.spec->cassoName);
-
-            if (fs::exists (wantPath, ec))
-            {
-                continue;
-            }
-
-            const BootDiskSpec * spec = dc.spec;
-            StartupAssetEntry    entry;
-
-            entry.kind          = StartupAssetKind::BootDisk;
-            entry.groupLabel    = L"Boot disks";
-            entry.displayName   = AsciiToWide (string (spec->shortLabel));
-            entry.kindLabel     = L"Boot disk";
-            entry.source        = L"Asimov";
-            entry.selectable    = true;
-            entry.selected      = dc.defaultSelected;
-            entry.destPaths.push_back (wantPath);
-            entry.expectedBytes = (std::uint64_t) spec->expectedSize;
-            entry.downloadFn    = [spec, destPath = wantPath] (
-                std::atomic<std::uint64_t> & bytesDone,
-                std::atomic<bool>          & cancel,
-                std::string                & err) -> HRESULT
-            {
-                HRESULT       hr      = S_OK;
-                HINTERNET     hSes    = nullptr;
-                vector<Byte>  payload;
-                error_code    ecLocal;
-
-                hSes = WinHttpOpen (s_kpszUserAgent,
-                                    WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-                                    WINHTTP_NO_PROXY_NAME,
-                                    WINHTTP_NO_PROXY_BYPASS,
-                                    0);
-                CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
-
-                hr = DownloadHttp (hSes,
-                                   s_kpszAsimovHost,
-                                   spec->asimovUrlPath,
-                                   spec->expectedSize,
-                                   spec->shortLabel,
-                                   payload,
-                                   err,
-                                   &bytesDone,
-                                   &cancel);
-                CHR (hr);
-
-                fs::create_directories (destPath.parent_path (), ecLocal);
-                hr = WriteFileBytes (destPath, payload);
-                CHRF (hr, err = format ("Cannot write {}", destPath.string ()));
-
-            Error:
-                if (hSes != nullptr)
-                {
-                    WinHttpCloseHandle (hSes);
-                }
-                return hr;
-            };
-
-            set.entries.push_back (std::move (entry));
-        }
-    }
-
     BAIL_OUT_IF (set.entries.empty (), S_OK);
 
     result = StartupDownloadDialog::Show (hInstance, hwndParent, prefs.activeTheme,
@@ -3026,18 +2947,6 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         if (audioIncluded)
         {
             prefs.audioDownloadConsent = "allow";
-        }
-        // Pick the first boot-disk entry whose file is actually on
-        // disk -- preserves catalog order (DOS 3.3 over ProDOS) and
-        // tolerates the user unchecking the default.
-        for (const StartupAssetEntry & entry : set.entries)
-        {
-            if (entry.kind != StartupAssetKind::BootDisk) continue;
-            if (entry.destPaths.empty ())                 continue;
-            if (!fs::exists (entry.destPaths.front (), ec)) continue;
-
-            outBootDiskPath = entry.destPaths.front ().wstring ();
-            break;
         }
         hr = S_OK;
         break;
