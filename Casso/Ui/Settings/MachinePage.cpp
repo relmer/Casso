@@ -22,6 +22,8 @@ namespace
     constexpr int    s_kDropdownWidthDp = 200;
     constexpr int    s_kSectionGapDp    = 14;
     constexpr int    s_kPagePadDp       = 16;
+    constexpr int    s_kPlayGapDp       = 8;
+    constexpr int    s_kResetWidthDp    = 130;
 
 
     RECT MakeRect (int l, int t, int w, int h)
@@ -63,6 +65,11 @@ MachinePage::MachinePage()
     Adopt (m_writeModeLabel);
     Adopt (m_audioLabel);
     Adopt (m_mechLabel);
+    Adopt (m_motorLabel);
+    Adopt (m_headLabel);
+    Adopt (m_doorLabel);
+    Adopt (m_panOneLabel);
+    Adopt (m_panTwoLabel);
 
     Adopt (m_machineDropdown);
     Adopt (m_speed);
@@ -73,6 +80,24 @@ MachinePage::MachinePage()
     {
         Adopt (m_writeProtect[i]);
     }
+
+    Adopt (m_motorVol);
+    Adopt (m_headVol);
+    Adopt (m_doorVol);
+    Adopt (m_panOne);
+    Adopt (m_panTwo);
+    Adopt (m_motorPlay);
+    Adopt (m_headPlay);
+    Adopt (m_doorPlay);
+    Adopt (m_panOnePlay);
+    Adopt (m_panTwoPlay);
+    Adopt (m_reset);
+
+    m_motorPlay.SetAccessibleName  (L"Audition motor sound");
+    m_headPlay.SetAccessibleName   (L"Audition head sound");
+    m_doorPlay.SetAccessibleName   (L"Audition door sound");
+    m_panOnePlay.SetAccessibleName (L"Audition Drive 1 pan");
+    m_panTwoPlay.SetAccessibleName (L"Audition Drive 2 pan");
 }
 
 
@@ -145,6 +170,9 @@ void MachinePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int  x            = rect.left + pad;
     int  y            = rect.top  + pad;
     int  controlsX    = x + labelWidth;
+    int  playSize     = rowHeight;
+    int  playX        = controlsX + dropWidth + scaler.Px (s_kPlayGapDp);
+    int  resetW       = scaler.Px (s_kResetWidthDp);
 
 
 
@@ -186,6 +214,48 @@ void MachinePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_mechLabel.SetText  (L"Mechanism:");
     m_mechanism.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
     m_mechanism.SetItems ({ L"Shugart", L"Alps" });
+    y += rowHeight + sectionGap;
+
+    // Per-sound volume sliders, also children of Drive audio. Each gets
+    // a play button to its right that auditions the sound at the dialed
+    // level.
+    m_motorLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
+    m_motorLabel.SetText (L"Motor volume:");
+    ConfigureVolumeSlider (m_motorVol, MakeRect (controlsX, y, dropWidth, rowHeight));
+    m_motorPlay.SetGlyph (s_kpszMdl2Play);
+    m_motorPlay.Layout   (MakeRect (playX, y, playSize, rowHeight), scaler);
+    y += rowHeight + sectionGap;
+
+    m_headLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
+    m_headLabel.SetText (L"Head volume:");
+    ConfigureVolumeSlider (m_headVol, MakeRect (controlsX, y, dropWidth, rowHeight));
+    m_headPlay.SetGlyph (s_kpszMdl2Play);
+    m_headPlay.Layout   (MakeRect (playX, y, playSize, rowHeight), scaler);
+    y += rowHeight + sectionGap;
+
+    m_doorLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
+    m_doorLabel.SetText (L"Door volume:");
+    ConfigureVolumeSlider (m_doorVol, MakeRect (controlsX, y, dropWidth, rowHeight));
+    m_doorPlay.SetGlyph (s_kpszMdl2Play);
+    m_doorPlay.Layout   (MakeRect (playX, y, playSize, rowHeight), scaler);
+    y += rowHeight + sectionGap;
+
+    m_panOneLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
+    m_panOneLabel.SetText (L"Drive 1 pan:");
+    ConfigurePanSlider (m_panOne, MakeRect (controlsX, y, dropWidth, rowHeight));
+    m_panOnePlay.SetGlyph (s_kpszMdl2Play);
+    m_panOnePlay.Layout   (MakeRect (playX, y, playSize, rowHeight), scaler);
+    y += rowHeight + sectionGap;
+
+    m_panTwoLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
+    m_panTwoLabel.SetText (L"Drive 2 pan:");
+    ConfigurePanSlider (m_panTwo, MakeRect (controlsX, y, dropWidth, rowHeight));
+    m_panTwoPlay.SetGlyph (s_kpszMdl2Play);
+    m_panTwoPlay.Layout   (MakeRect (playX, y, playSize, rowHeight), scaler);
+    y += rowHeight + sectionGap;
+
+    m_reset.SetLabel (L"Restore defaults");
+    m_reset.Layout   (MakeRect (controlsX, y, resetW, rowHeight));
 
     m_machineLabel.SetDpi    (dpi);
     m_speedLabel.SetDpi      (dpi);
@@ -200,6 +270,17 @@ void MachinePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_driveAudio.SetDpi      (dpi);
     m_writeProtect[0].SetDpi (dpi);
     m_writeProtect[1].SetDpi (dpi);
+    m_motorLabel.SetDpi      (dpi);
+    m_headLabel.SetDpi       (dpi);
+    m_doorLabel.SetDpi       (dpi);
+    m_panOneLabel.SetDpi     (dpi);
+    m_panTwoLabel.SetDpi     (dpi);
+    m_motorVol.SetDpi        (dpi);
+    m_headVol.SetDpi         (dpi);
+    m_doorVol.SetDpi         (dpi);
+    m_panOne.SetDpi          (dpi);
+    m_panTwo.SetDpi          (dpi);
+    m_reset.SetDpi           (dpi);
 
     // Mirror the page's footprint into the IDxuiControl tree so future
     // centralized walks see this page as a panel covering `rect`.
@@ -239,7 +320,12 @@ void MachinePage::Rebuild ()
     m_writeProtect[0].SetChecked (state->Prefs().writeProtect[0]);
     m_writeProtect[1].SetChecked (state->Prefs().writeProtect[1]);
     m_machineDropdown.SetSelected (m_activeMachineIndex);
-    ApplyMechanismEnabled (state->Prefs().floppySoundEnabled);
+    m_motorVol.SetValue     (state->Prefs().driveMotorVolume * 100.0f);
+    m_headVol.SetValue      (state->Prefs().driveHeadVolume  * 100.0f);
+    m_doorVol.SetValue      (state->Prefs().driveDoorVolume  * 100.0f);
+    m_panOne.SetValue       (state->Prefs().driveOnePan * 100.0f);
+    m_panTwo.SetValue       (state->Prefs().driveTwoPan * 100.0f);
+    ApplyDriveAudioChildEnabled (state->Prefs().floppySoundEnabled);
 
     m_machineDropdown.SetSelect ([this] (int idx)
     {
@@ -258,10 +344,25 @@ void MachinePage::Rebuild ()
     m_driveAudio.SetOnChange ([this, state] (bool checked)
     {
         state->SetFloppySound (checked);
-        ApplyMechanismEnabled (checked);
+        ApplyDriveAudioChildEnabled (checked);
     });
     m_writeProtect[0].SetOnChange ([state] (bool checked) { state->SetWriteProtect (0, checked); });
     m_writeProtect[1].SetOnChange ([state] (bool checked) { state->SetWriteProtect (1, checked); });
+
+    m_motorVol.SetOnChange ([state] (float v) { state->SetDriveMotorVolume (v / 100.0f); });
+    m_headVol.SetOnChange  ([state] (float v) { state->SetDriveHeadVolume  (v / 100.0f); });
+    m_doorVol.SetOnChange  ([state] (float v) { state->SetDriveDoorVolume  (v / 100.0f); });
+    m_panOne.SetOnChange   ([state] (float v) { state->SetDriveOnePan (v / 100.0f); });
+    m_panTwo.SetOnChange   ([state] (float v) { state->SetDriveTwoPan (v / 100.0f); });
+
+    // Volume previews play balanced at the midpoint (centered); the pan
+    // buttons play at each drive's dialed position.
+    m_motorPlay.SetClick  ([this] { if (m_onTestSound) { m_onTestSound (0, 0, true);  } });
+    m_headPlay.SetClick   ([this] { if (m_onTestSound) { m_onTestSound (0, 1, true);  } });
+    m_doorPlay.SetClick   ([this] { if (m_onTestSound) { m_onTestSound (0, 2, true);  } });
+    m_panOnePlay.SetClick ([this] { if (m_onTestSound) { m_onTestSound (0, 1, false); } });
+    m_panTwoPlay.SetClick ([this] { if (m_onTestSound) { m_onTestSound (1, 1, false); } });
+    m_reset.SetClick      ([this] { ResetDriveAudioToDefaults(); });
 }
 
 
@@ -291,17 +392,151 @@ void MachinePage::SetPopupHost (DxuiHostWindow * host)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MachinePage::ApplyMechanismEnabled
+//  MachinePage::ApplyDriveAudioChildEnabled
+//
+//  Enables / disables every control nested under the Drive-audio
+//  toggle (mechanism, the volume + pan sliders, their play buttons,
+//  and the reset button) and dims their labels to match.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachinePage::ApplyMechanismEnabled (bool enabled)
+void MachinePage::ApplyDriveAudioChildEnabled (bool enabled)
 {
     constexpr uint32_t  s_kLabelEnabledArgb  = 0xFFE8EEF4;
     constexpr uint32_t  s_kLabelDisabledArgb = 0xFF6A7585;
 
+    uint32_t  labelArgb = enabled ? s_kLabelEnabledArgb : s_kLabelDisabledArgb;
+
+
+
     m_mechanism.SetEnabled (enabled);
-    m_mechLabel.SetColorArgb (enabled ? s_kLabelEnabledArgb : s_kLabelDisabledArgb);
+    m_motorVol.SetEnabled  (enabled);
+    m_headVol.SetEnabled   (enabled);
+    m_doorVol.SetEnabled   (enabled);
+    m_panOne.SetEnabled    (enabled);
+    m_panTwo.SetEnabled    (enabled);
+    m_motorPlay.SetEnabled (enabled);
+    m_headPlay.SetEnabled  (enabled);
+    m_doorPlay.SetEnabled  (enabled);
+    m_panOnePlay.SetEnabled (enabled);
+    m_panTwoPlay.SetEnabled (enabled);
+    m_reset.SetEnabled     (enabled);
+    m_mechLabel.SetColorArgb  (labelArgb);
+    m_motorLabel.SetColorArgb (labelArgb);
+    m_headLabel.SetColorArgb  (labelArgb);
+    m_doorLabel.SetColorArgb  (labelArgb);
+    m_panOneLabel.SetColorArgb (labelArgb);
+    m_panTwoLabel.SetColorArgb (labelArgb);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachinePage::ConfigureVolumeSlider
+//
+//  0-100% linear volume slider with a "%" readout.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachinePage::ConfigureVolumeSlider (DxuiSlider & slider, const RECT & rect)
+{
+    constexpr float  s_kVolumeMax = 100.0f;
+
+
+
+    slider.SetRect      (rect);
+    slider.SetRange     (0.0f, s_kVolumeMax);
+    slider.SetStep      (1.0f);
+    slider.SetSuffix    (L"%");
+    slider.SetDecimalPlaces (0);
+    slider.SetShowTicks (false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachinePage::ConfigurePanSlider
+//
+//  Bipolar Left..Center..Right pan slider. Range -100 (hard left) ..
+//  +100 (hard right), centered detent at 0. The readout names the
+//  position ("Left" / "Center" / "Right") and the fill grows from the
+//  track center.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachinePage::ConfigurePanSlider (DxuiSlider & slider, const RECT & rect)
+{
+    constexpr float  s_kPanMax = 100.0f;
+
+
+
+    slider.SetRect      (rect);
+    slider.SetRange     (-s_kPanMax, s_kPanMax);
+    slider.SetStep      (5.0f);
+    slider.SetShowTicks (false);
+    slider.SetCenterOriginFill (true);
+    slider.SetValueFormatter ([] (float v) -> std::wstring
+    {
+        std::wstring  result;
+        int           pct = (int) std::lround (v);
+
+        if (pct == 0)
+        {
+            result = L"Center";
+        }
+        else if (pct < 0)
+        {
+            result = std::to_wstring (-pct) + L"% L";
+        }
+        else
+        {
+            result = std::to_wstring (pct) + L"% R";
+        }
+        return result;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachinePage::ResetDriveAudioToDefaults
+//
+//  Restores every drive-audio knob to its SettingsUiPrefs default and
+//  syncs the slider widgets to match.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachinePage::ResetDriveAudioToDefaults ()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    CBRA (m_state != nullptr);
+
+    m_state->SetDriveMotorVolume (SettingsUiPrefs::kDefaultDriveMotorVolume);
+    m_state->SetDriveHeadVolume  (SettingsUiPrefs::kDefaultDriveHeadVolume);
+    m_state->SetDriveDoorVolume  (SettingsUiPrefs::kDefaultDriveDoorVolume);
+    m_state->SetDriveOnePan      (SettingsUiPrefs::kDefaultDriveOnePan);
+    m_state->SetDriveTwoPan      (SettingsUiPrefs::kDefaultDriveTwoPan);
+
+    m_motorVol.SetValue (SettingsUiPrefs::kDefaultDriveMotorVolume * 100.0f);
+    m_headVol.SetValue  (SettingsUiPrefs::kDefaultDriveHeadVolume  * 100.0f);
+    m_doorVol.SetValue  (SettingsUiPrefs::kDefaultDriveDoorVolume  * 100.0f);
+    m_panOne.SetValue   (SettingsUiPrefs::kDefaultDriveOnePan * 100.0f);
+    m_panTwo.SetValue   (SettingsUiPrefs::kDefaultDriveTwoPan * 100.0f);
+
+Error:
+    return;
 }
 
 
