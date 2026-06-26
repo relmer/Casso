@@ -275,6 +275,18 @@ public:
         return DxuiMessageResult::NotHandled;
     }
 
+    // WM_GETMINMAXINFO. info is the MINMAXINFO * the OS pre-populated
+    // with default min/max track sizes. Override to clamp the minimum
+    // window size -- e.g. so a borderless window's custom chrome and
+    // bottom strip can never be shrunk up into the title / menu area.
+    // Set info->ptMinTrackSize and return ``Handled``. Default returns
+    // NotHandled (DxuiHostWindow calls DefWindowProc).
+    virtual DxuiMessageResult  OnGetMinMax      (MINMAXINFO * info)
+    {
+        UNREFERENCED_PARAMETER (info);
+        return DxuiMessageResult::NotHandled;
+    }
+
     // WM_MOVE. (x, y) are the new client-area top-left in screen
     // coordinates per the WM_MOVE LPARAM packing. Return
     // ``Handled`` if your override fully processed the move;

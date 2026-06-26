@@ -3456,6 +3456,73 @@ DxuiMessageResult EmulatorShell::OnCancelMode ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::OnGetMinMax
+//
+//  Clamps the window's minimum track size so the bottom drive bar can
+//  never be dragged up into the menu strip / NC area. The floor is the
+//  client size for a minimum emulator viewport (the LayoutManager adds
+//  the live title / nav / drive-bar insets), widened so no menu title
+//  clips, then translated to a window size by the live NC overhead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnGetMinMax (MINMAXINFO * info)
+{
+    HRESULT            hr          = S_OK;
+    DxuiMessageResult  result      = DxuiMessageResult::NotHandled;
+    RECT               rcClient    = {};
+    RECT               rcWindow    = {};
+    SIZE               minClient   = {};
+    int                menuCount   = 0;
+    int                menuRightPx = 0;
+    int                menuWidthPx = 0;
+    int                ncOverheadW = 0;
+    int                ncOverheadH = 0;
+
+
+
+    BAIL_OUT_IF (info == nullptr || m_hwnd == nullptr, S_OK);
+
+    // Client size for the minimum center: the LayoutManager adds the live
+    // title / nav / drive-bar insets around the requested viewport.
+    minClient = m_layout.ClientSizeForCenter (m_layout.ScaleForDpi (s_kMinCenterWidthDp),
+                                              m_layout.ScaleForDpi (s_kMinCenterHeightDp));
+
+    // Never narrower than the menu strip's content so every title stays
+    // on-strip. MenuRect is physical client px, the same space as minClient.
+    menuCount   = m_mainMenu.MenuCount();
+    menuRightPx = (menuCount > 0) ? m_mainMenu.MenuRect (menuCount - 1).right : 0;
+    menuWidthPx = menuRightPx + m_layout.ScaleForDpi (s_kMenuRightPadDp);
+
+    if (minClient.cx < menuWidthPx)
+    {
+        minClient.cx = menuWidthPx;
+    }
+
+    // Translate the client floor to a window floor via the live NC overhead
+    // (the custom chrome keeps this small -- just the resize borders -- but
+    // it is non-zero).
+    if (GetClientRect (m_hwnd, &rcClient) && GetWindowRect (m_hwnd, &rcWindow))
+    {
+        ncOverheadW = (rcWindow.right  - rcWindow.left) - (rcClient.right  - rcClient.left);
+        ncOverheadH = (rcWindow.bottom - rcWindow.top)  - (rcClient.bottom - rcClient.top);
+    }
+
+    info->ptMinTrackSize.x = minClient.cx + ncOverheadW;
+    info->ptMinTrackSize.y = minClient.cy + ncOverheadH;
+
+    result = DxuiMessageResult::Handled;
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HandleHostMetaShortcut
 //
 //  Consume host-meta keys that never reach the emulated //e keyboard: menu
