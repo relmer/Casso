@@ -1866,8 +1866,11 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
 
         for (const DownloadRow * dr : shownDownloads)
         {
+            fs::path  wantPath = diskDir / string (dr->spec->cassoName);
+            bool      present  = fs::exists (wantPath, ec);
             DxuiListView::Cell  name { dr->label, false };
-            DxuiListView::Cell  loc  { L"Asimov archive (Download)", true };
+            DxuiListView::Cell  loc  { present ? L"Installed"
+                                               : L"Asimov archive (Download)", true };
             rows.push_back ({ std::move (name), std::move (loc) });
         }
 
@@ -2081,8 +2084,11 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
         for (const DownloadRow * dr : shownDownloads)
         {
+            fs::path  wantPath = diskDir / string (dr->spec->cassoName);
+            bool      present  = fs::exists (wantPath, ec);
             DxuiListView::Cell  name { dr->label, false };
-            DxuiListView::Cell  loc  { L"Asimov archive (Download)", true };
+            DxuiListView::Cell  loc  { present ? L"Installed"
+                                               : L"Asimov archive (Download)", true };
             rows.push_back ({ std::move (name), std::move (loc) });
         }
 
