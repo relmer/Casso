@@ -462,6 +462,10 @@ LRESULT SettingsWindow::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM 
             break;
 
         case WM_CHAR:
+            if (m_panel != nullptr)
+            {
+                (void) m_panel->OnChar ((wchar_t) wParam);
+            }
             result = 0;
             break;
 

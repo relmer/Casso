@@ -205,6 +205,49 @@ HRESULT SettingsPanel::Initialize (
         }
     });
 
+    // Committing the dropdown to Custom (or re-selecting it) opens the
+    // HSV picker seeded with the stored custom color.
+    m_displayPage.SetOnTextColorCommit ([this] (int idx)
+    {
+        if (m_prefs != nullptr && (ColorMonitorTextMode) idx == ColorMonitorTextMode::Custom)
+        {
+            m_colorPicker.SetHwnd (m_window.Hwnd());
+            m_colorPicker.Open (m_prefs->colorMonitorTextCustomArgb);
+        }
+    });
+
+    // Picker edits stage the custom color live: update the pref, refresh
+    // the Display swatch, and preview on the emulator each change.
+    m_colorPicker.SetOnChange ([this] (uint32_t argb)
+    {
+        if (m_prefs != nullptr)
+        {
+            m_prefs->colorMonitorTextCustomArgb = argb;
+            m_prefs->colorMonitorTextMode       = ColorMonitorTextMode::Custom;
+            m_displayPage.SetTextColor (ColorMonitorTextMode::Custom, argb);
+            if (m_emuShell != nullptr)
+            {
+                m_emuShell->SetColorMonitorTextArgbLive (argb);
+            }
+        }
+    });
+
+    // Close carries the final color (OK) or the pre-open color (Cancel);
+    // either way the staged pref + live render land on it. The panel's
+    // own Cancel still reverts the whole text-color choice to baseline.
+    m_colorPicker.SetOnClose ([this] (bool /*accepted*/, uint32_t argb)
+    {
+        if (m_prefs != nullptr)
+        {
+            m_prefs->colorMonitorTextCustomArgb = argb;
+            m_displayPage.SetTextColor (ColorMonitorTextMode::Custom, argb);
+            if (m_emuShell != nullptr)
+            {
+                m_emuShell->SetColorMonitorTextArgbLive (argb);
+            }
+        }
+    });
+
     m_themePage.SetOnThemeSelected ([this] (const std::string & themeName) { OnThemeSelected (themeName); });
 
     // Live framebuffer source for the Settings → Theme preview. The
@@ -300,6 +343,7 @@ HRESULT SettingsPanel::Show ()
         m_displayPage.SetTextColor (m_prefs->colorMonitorTextMode,
                                     m_prefs->colorMonitorTextCustomArgb);
     }
+    m_colorPicker.Close();
 
     // Reset preview state so a previous session's interaction doesn't
     // leak in (e.g. user closed the panel mid-drag via Esc).
@@ -814,6 +858,7 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const Dxu
     m_hardwarePage.SetRect (pageRect, scaler);
     m_themePage.Layout     (pageRect, scaler);
     m_displayPage.Layout   (pageRect, scaler);
+    m_colorPicker.Layout   (m_panelRect, scaler);
 
     bottomRow.left   = m_panelRect.left;
     bottomRow.top    = m_panelRect.bottom - bottomBar;
@@ -904,6 +949,13 @@ void SettingsPanel::Paint (DxuiPainter & painter, DxuiTextRenderer & text)
     painter.SetGlobalAlpha (1.0f);
     text.SetGlobalAlpha    (1.0f);
     m_scrim.Paint (painter);
+
+    // The HSV color picker is modal over the whole panel; paint it last
+    // (global alpha is already 1.0 here) so it overlays every control.
+    if (m_colorPicker.IsOpen())
+    {
+        m_colorPicker.Paint (painter, text, theme);
+    }
 }
 
 
@@ -920,6 +972,13 @@ void SettingsPanel::OnMouseMove (int x, int y)
 {
     if (!m_panelVisible)
     {
+        return;
+    }
+
+    if (m_colorPicker.IsOpen())
+    {
+        m_colorPicker.OnMouseHover (x, y);
+        m_colorPicker.OnMouseMove  (x, y);
         return;
     }
 
@@ -964,6 +1023,12 @@ void SettingsPanel::OnLButtonDown (int x, int y)
         return;
     }
 
+    if (m_colorPicker.IsOpen())
+    {
+        m_colorPicker.OnLButtonDown (x, y);
+        return;
+    }
+
     if (m_tabs.OnLButtonDown (x, y))
     {
         return;
@@ -1000,6 +1065,12 @@ void SettingsPanel::OnLButtonUp (int x, int y)
 
     if (m_scrim.IsVisible())
     {
+        return;
+    }
+
+    if (m_colorPicker.IsOpen())
+    {
+        m_colorPicker.OnLButtonUp (x, y);
         return;
     }
 
@@ -1052,6 +1123,12 @@ bool SettingsPanel::OnKey (WPARAM vk)
     if (m_scrim.IsVisible())
     {
         return m_scrim.OnKey (vk);
+    }
+
+    // The modal color picker swallows all keys while open.
+    if (m_colorPicker.IsOpen())
+    {
+        return m_colorPicker.OnKey (vk);
     }
 
     // Open dropdowns take priority — Up/Down/Enter/Esc steer the menu
@@ -1117,6 +1194,33 @@ bool SettingsPanel::OnKey (WPARAM vk)
     if (m_cancelButton.OnKey (vk)) { return true; }
 
     return m_tabs.OnKey (vk);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnChar
+//
+//  WM_CHAR routed from SettingsWindow. Only the modal color picker's hex
+//  field consumes typed characters today; everything else ignores them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsPanel::OnChar (wchar_t ch)
+{
+    bool  handled = false;
+
+
+
+    if (m_panelVisible && m_colorPicker.IsOpen())
+    {
+        handled = m_colorPicker.OnChar (ch);
+    }
+
+    return handled;
 }
 
 
