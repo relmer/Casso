@@ -215,6 +215,11 @@ private:
     std::string         m_lastAuditionMechanism;
     bool                m_driveAuditionDirty    = false;
 
+    // Applied //e text-color choice (Color monitor) captured at panel
+    // open so Cancel can revert any live edit to the text treatment.
+    ColorMonitorTextMode  m_baselineColorTextMode       = ColorMonitorTextMode::White;
+    uint32_t              m_baselineColorTextCustomArgb = ColorUtil::kWhiteArgb;
+
     RECT                m_viewport     = {};
     RECT                m_panelRect    = {};
     RECT                m_captionRect  = {};

@@ -59,6 +59,7 @@ namespace
 DisplayPage::DisplayPage()
 {
     Adopt (m_monitorLabel);
+    Adopt (m_textColorLabel);
     Adopt (m_brightnessLabel);
     Adopt (m_contrastLabel);
     Adopt (m_gammaLabel);
@@ -72,6 +73,7 @@ DisplayPage::DisplayPage()
     Adopt (m_colorBleedWLabel);
 
     Adopt (m_monitor);
+    Adopt (m_textColor);
     Adopt (m_brightness);
     Adopt (m_contrast);
     Adopt (m_gamma);
@@ -217,6 +219,24 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     }
     y += rowHeight + sectionGap;
 
+    // Text color (Color monitor only): a dropdown plus a swatch showing
+    // the resolved color. Disabled for the monochrome monitors, whose
+    // text color is fixed by the phosphor.
+    m_textColorLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_textColorLabel.SetText (L"Text color:");
+    m_textColor.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
+    m_textColor.SetItems ({ L"White", L"Green", L"Amber", L"Custom" });
+    m_textColorRowRect = MakeRect (x, y, (controlsX + dropWidth) - x, rowHeight);
+
+    {
+        int  swatchSize = rowHeight - scaler.Px (8);
+        int  swatchX    = controlsX + dropWidth + scaler.Px (12);
+        int  swatchY    = y + (rowHeight - swatchSize) / 2;
+
+        m_textColorSwatchRect = MakeRect (swatchX, swatchY, swatchSize, swatchSize);
+    }
+    y += rowHeight + sectionGap;
+
     // Brightness / Contrast / Gamma -- consistent column alignment.
     m_brightnessLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_brightnessLabel.SetText (L"Brightness:");
@@ -333,6 +353,7 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_indicatorX = controlsX + sliderWidth + scaler.Px (28);
 
     m_monitorLabel.SetDpi        (dpi);
+    m_textColorLabel.SetDpi      (dpi);
     m_brightnessLabel.SetDpi     (dpi);
     m_contrastLabel.SetDpi       (dpi);
     m_gammaLabel.SetDpi          (dpi);
@@ -345,6 +366,7 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_bloomStrengthLabel.SetDpi  (dpi);
     m_colorBleedWLabel.SetDpi    (dpi);
     m_monitor.SetDpi             (dpi);
+    m_textColor.SetDpi           (dpi);
     m_brightness.SetDpi          (dpi);
     m_contrast.SetDpi            (dpi);
     m_gamma.SetDpi               (dpi);
@@ -397,6 +419,7 @@ void DisplayPage::Rebuild ()
         {
             m_onMonitor (idx);
         }
+        RefreshTextColorEnabled();
     });
     // Highlight changes (mouse hover + keyboard arrows while open) feed
     // the same live channel so the user sees the colour treatment as
@@ -408,6 +431,28 @@ void DisplayPage::Rebuild ()
             m_onMonitor (idx);
         }
     });
+
+    m_textColor.SetSelected ((int) m_textColorMode);
+    m_textColor.SetSelect ([this] (int idx)
+    {
+        m_textColorMode = (ColorMonitorTextMode) idx;
+        if (m_onTextColor)
+        {
+            m_onTextColor (idx);
+        }
+        if (m_onTextColorCommit)
+        {
+            m_onTextColorCommit (idx);
+        }
+    });
+    m_textColor.SetOnHighlightChange ([this] (int idx)
+    {
+        if (m_onTextColor)
+        {
+            m_onTextColor (idx);
+        }
+    });
+    RefreshTextColorEnabled();
 
     m_brightness.SetOnChange ([this] (float v)
     {
@@ -549,6 +594,59 @@ RECT DisplayPage::FocusedControlRect (int controlId) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisplayPage::SetTextColor
+//
+//  Seeds the Text-color dropdown + swatch state from the global prefs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisplayPage::SetTextColor (ColorMonitorTextMode mode, uint32_t customArgb)
+{
+    m_textColorMode       = mode;
+    m_textColorCustomArgb = customArgb;
+    m_textColor.SetSelected ((int) mode);
+    RefreshTextColorEnabled();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisplayPage::TextColorActive
+//
+//  True iff the active monitor is Color -- the only mode where a custom
+//  //e text color has any visible effect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisplayPage::TextColorActive () const
+{
+    return m_state != nullptr && m_state->Prefs().colorMode == SettingsColorMode::Color;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisplayPage::RefreshTextColorEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisplayPage::RefreshTextColorEnabled ()
+{
+    m_textColor.SetEnabled (TextColorActive());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisplayPage::SetFadeState
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -648,6 +746,21 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     PaintBackingIfFocused (kControlMonitor, m_monitorRowRect);
     m_monitorLabel.Paint    (painter, text);
     m_monitor.PaintBase     (painter, text);
+
+    // Text-color row: label, dropdown base, and a swatch of the resolved
+    // color. The dropdown menu paints last (with the monitor menu).
+    SetAlphaForRow (-1, m_textColorRowRect);
+    m_textColorLabel.Paint  (painter, text);
+    m_textColor.PaintBase   (painter, text);
+    {
+        uint32_t  swatchArgb = ColorUtil::ResolveColorMonitorTextArgb (m_textColorMode, m_textColorCustomArgb);
+        float     sl         = (float) m_textColorSwatchRect.left;
+        float     st         = (float) m_textColorSwatchRect.top;
+        float     sw         = (float) (m_textColorSwatchRect.right  - m_textColorSwatchRect.left);
+        float     sh         = (float) (m_textColorSwatchRect.bottom - m_textColorSwatchRect.top);
+
+        painter.FillRect (sl, st, sw, sh, swatchArgb);
+    }
 
     SetAlphaForRow (kControlBrightness, m_brightnessRowRect);
     PaintBackingIfFocused (kControlBrightness, m_brightnessRowRect);
@@ -751,4 +864,5 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     // Restore default so the rest of the panel paints opaque.
     painter.SetGlobalAlpha (1.0f);
     text.SetGlobalAlpha    (1.0f);
+    m_textColor.PaintMenu   (painter, text);
 }
