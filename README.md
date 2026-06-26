@@ -97,7 +97,7 @@ Casso's entire chrome moved from the legacy Win32 menu bar / Win32 dialogs to a 
 
 <p align="center"><img src="Assets/feat-drive-widgets.png" alt="Skeuomorphic drive widgets: Drive 1 active with red IN USE LED, Drive 2 idle" width="540" /></p>
 
-**Consolidated Settings panel** replaces the old `OptionsDialog` and `MachinePickerDialog`. Machine selection, machine info, emulation speed, video color mode, disk write mode, floppy sound + mechanism, write-protect, theme picker, and the new CRT controls live in one non-modal in-window panel with full keyboard navigation.
+**Consolidated Settings panel** replaces the old `OptionsDialog` and `MachinePickerDialog`. Machine selection, machine info, emulation speed, video color mode, disk write mode, floppy sound + mechanism (with per-sound Motor / Head / Door volume, per-drive stereo pan, and play-button audition), write-protect, theme picker, and the new CRT controls live in one non-modal in-window panel with full keyboard navigation.
 
 <p align="center"><img src="Assets/feat-settings.png" alt="Settings panel — Machine tab with machine, CPU speed, write protect, write mode, and drive audio controls" width="540" /></p>
 
