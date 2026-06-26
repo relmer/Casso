@@ -218,6 +218,7 @@ private:
     // 0/1, kind matches Disk2AudioSource::TestSoundKind. CPU-thread only,
     // marshaled via IDM_AUDIO_DRIVE_TEST.
     void PlayDriveTestSound (int drive, int kind);
+
     void OnCpuThreadStart();
     void OnCpuThreadStop();
     void PublishFramebuffer();

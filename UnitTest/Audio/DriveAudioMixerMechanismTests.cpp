@@ -228,4 +228,30 @@ public:
         Assert::AreEqual (std::wstring (L"Alps"), std::wstring (mixer.GetMechanism()),
             L"Mechanism state must persist for the eventual first load");
     }
+
+
+    TEST_METHOD (SetMechanism_caseInsensitive_canonicalizesToMixedCase)
+    {
+        // Persisted prefs use the lower-case token ("alps"/"shugart");
+        // the boot path hands that straight to SetMechanism. Matching
+        // must be case-insensitive and the stored mechanism must be the
+        // canonical mixed-case name so LoadSamples finds the right subdir
+        // (regression: a lower-case token used to fail IsValidMechanism,
+        // leaving the mixer stuck on the Shugart default).
+        DriveAudioMixer  mixer;
+
+        Assert::IsTrue (mixer.IsValidMechanism (L"alps"),  L"'alps' must validate");
+        Assert::IsTrue (mixer.IsValidMechanism (L"SHUGART"), L"'SHUGART' must validate");
+        Assert::IsFalse (mixer.IsValidMechanism (L"sony"), L"unknown names stay invalid");
+
+        Assert::AreEqual (HRESULT (S_OK), mixer.SetMechanism (L"alps"),
+            L"Lower-case 'alps' must be accepted");
+        Assert::AreEqual (std::wstring (L"Alps"), std::wstring (mixer.GetMechanism()),
+            L"Mechanism must be stored canonical mixed-case");
+
+        Assert::AreEqual (HRESULT (S_OK), mixer.SetMechanism (L"shugart"),
+            L"Lower-case 'shugart' must be accepted");
+        Assert::AreEqual (std::wstring (L"Shugart"), std::wstring (mixer.GetMechanism()),
+            L"Mechanism must be stored canonical mixed-case");
+    }
 };

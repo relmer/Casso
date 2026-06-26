@@ -132,4 +132,10 @@ private:
     wstring                     m_devicesDir;
     uint32_t                    m_loadSampleRate = 0;
     wstring                     m_mechanism      = L"Shugart";
+
+    // Case-insensitive validator/canonicalizer for mechanism names.
+    // Returns the canonical mixed-case directory name (L"Shugart" /
+    // L"Alps") for any-case input, or nullptr if unrecognized -- so
+    // callers may pass the persisted lower-case token directly.
+    static const wchar_t * CanonicalMechanism (const wstring & mechanism);
 };

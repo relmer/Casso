@@ -988,13 +988,13 @@ HRESULT EmulatorShell::Initialize (
                         }
                         if (SUCCEEDED (uiPrefs->GetString ("floppyMechanism", mechNarrow)) && !mechNarrow.empty())
                         {
+                            // DriveAudioMixer matches mechanism names case-
+                            // insensitively, so the persisted lower-case token
+                            // ("alps"/"shugart") can be handed over as-is.
                             std::wstring  mechWide (mechNarrow.begin(), mechNarrow.end());
+                            HRESULT       hrMech = m_driveAudioMixer.SetMechanism (mechWide);
 
-                            if (m_driveAudioMixer.IsValidMechanism (mechWide))
-                            {
-                                HRESULT  hrMech = m_driveAudioMixer.SetMechanism (mechWide);
-                                IGNORE_RETURN_VALUE (hrMech, S_OK);
-                            }
+                            IGNORE_RETURN_VALUE (hrMech, S_OK);
                         }
 
                         // Seed the per-sound drive-audio gains. Missing keys
@@ -2552,23 +2552,12 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
 
         case IDM_AUDIO_DRIVE_MECHANISM:
         {
-            // Payload is "shugart" or "alps" (canonical lower-case
-            // from SettingsPanelState). DriveAudioMixer wants the
-            // mixed-case directory name; map here so the mixer's
-            // validator accepts it and LoadSamples finds the right
-            // <devicesDir>/Audio/<Mechanism>/ subdir.
-            std::wstring  mech;
+            // Payload is "shugart" or "alps" (canonical lower-case from
+            // SettingsPanelState). DriveAudioMixer matches case-insensitively
+            // and canonicalizes internally, so hand the token over as-is.
+            std::wstring  mechWide (cmd.payload.begin(), cmd.payload.end());
+            HRESULT       hrMech = m_driveAudioMixer.SetMechanism (mechWide);
 
-            if (cmd.payload == "alps")
-            {
-                mech = L"Alps";
-            }
-            else
-            {
-                mech = L"Shugart";
-            }
-
-            HRESULT  hrMech = m_driveAudioMixer.SetMechanism (mech);
             IGNORE_RETURN_VALUE (hrMech, S_OK);
             break;
         }
