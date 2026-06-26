@@ -9,6 +9,9 @@
 #include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiToggle.h"
+#include "Widgets/DxuiSlider.h"
+#include "Widgets/DxuiIconButton.h"
+#include "Widgets/DxuiButton.h"
 
 
 class IDxuiTheme;
@@ -53,6 +56,12 @@ public:
                                  int                       activeIndex);
     void  SetOnMachineSelected  (MachineSelectFn fn) { m_onMachineSelected = std::move (fn); }
 
+    // Drive-audio preview hook. Invoked when a play button is clicked;
+    // (drive 0/1, kind 0=motor 1=head 2=door, centered = play the test
+    // drive panned to centre so the volume is judged without bias).
+    using TestSoundFn = std::function<void (int drive, int kind, bool centered)>;
+    void  SetOnTestSound        (TestSoundFn fn) { m_onTestSound = std::move (fn); }
+
     // Routes every owned dropdown's popup menu through the supplied
     // DxuiHostWindow's popup-host pool so the menu HWND escapes the
     // page's clipping bounds. Pass nullptr to revert to the legacy
@@ -82,7 +91,10 @@ public:
     const DxuiDropdown  & MachineDropdown    () const { return m_machineDropdown; }
 
 private:
-    void  ApplyMechanismEnabled (bool enabled);
+    void  ApplyDriveAudioChildEnabled (bool enabled);
+    void  ConfigureVolumeSlider       (DxuiSlider & slider, const RECT & rect);
+    void  ConfigurePanSlider          (DxuiSlider & slider, const RECT & rect);
+    void  ResetDriveAudioToDefaults   ();
 
     SettingsPanelState         * m_state              = nullptr;
     std::vector<std::string>     m_machines;
@@ -95,6 +107,11 @@ private:
     DxuiLabel                        m_writeModeLabel;
     DxuiLabel                        m_audioLabel;
     DxuiLabel                        m_mechLabel;
+    DxuiLabel                        m_motorLabel;
+    DxuiLabel                        m_headLabel;
+    DxuiLabel                        m_doorLabel;
+    DxuiLabel                        m_panOneLabel;
+    DxuiLabel                        m_panTwoLabel;
 
     DxuiDropdown                     m_machineDropdown;
     DxuiDropdown                     m_speed;
@@ -102,4 +119,16 @@ private:
     DxuiDropdown                     m_mechanism;
     DxuiToggle                       m_driveAudio;
     std::array<DxuiCheckbox, 2>      m_writeProtect;
+    DxuiSlider                       m_motorVol;
+    DxuiSlider                       m_headVol;
+    DxuiSlider                       m_doorVol;
+    DxuiSlider                       m_panOne;
+    DxuiSlider                       m_panTwo;
+    DxuiIconButton                   m_motorPlay;
+    DxuiIconButton                   m_headPlay;
+    DxuiIconButton                   m_doorPlay;
+    DxuiIconButton                   m_panOnePlay;
+    DxuiIconButton                   m_panTwoPlay;
+    DxuiButton                       m_reset;
+    TestSoundFn                      m_onTestSound;
 };
