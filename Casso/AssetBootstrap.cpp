@@ -168,8 +168,8 @@ struct EmbeddedConfig
 
 static constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
 {
-    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     6 },
-    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 6 },
+    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     7 },
+    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 7 },
     { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    6 },
 };
 
@@ -233,6 +233,12 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
 
     // v5 Apple2e.json (added cpuManufacturer = "Synertek" -- wrong, fixed in v6).
     { "Apple2e",    "51de42de280e38a1f0c9dfbe5f01e5cccb1498cdc20f14616e7821e99756891f" },
+
+    // v6 Apple2.json (before adding apple2-gameport device).
+    { "Apple2",     "4318ca7fe09b4f476216a26fbbeab96cdbc86a8ed74e70567e2f05ddfddb3ab2" },
+
+    // v6 Apple2Plus.json (before adding apple2-gameport device).
+    { "Apple2Plus", "a8796968d56185daf6a03bdebebdecc776dfc004003447a78f0bcc5dafaac3e1" },
 };
 
 

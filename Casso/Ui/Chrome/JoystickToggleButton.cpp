@@ -13,19 +13,47 @@ static constexpr int      s_kLedCorePx    = 7;
 static constexpr float    s_kFontDip      = 13.0f;
 static constexpr float    s_kFallbackCharPx = 7.5f;
 static constexpr wchar_t  s_kFontFamily[] = L"Segoe UI";
-static constexpr wchar_t  s_kLabel[]      = L"Joystick Mode";
 
-// The LED glows a fixed realistic blue regardless of the active theme's
-// drive LED hue (which is red on skeuomorphic, green on phosphor); a dark
-// near-black core stands in for the unlit state.
-static constexpr uint32_t s_kLedOnCoreArgb  = 0xFF3DA1FF;
-static constexpr uint32_t s_kLedOnHaloArgb  = 0xA03DA1FF;
-static constexpr uint32_t s_kLedOffCoreArgb = 0xFF06121A;
+static constexpr wchar_t  s_kLabelJoystick[] = L"Joystick Mode";
+static constexpr wchar_t  s_kLabelPaddle[]   = L"Paddle Mode (ESC to exit)";
+
+// The lit LED follows the active theme's drive-LED color (green under the
+// retro terminal theme, blue under the default, etc.), matching the disk
+// activity LEDs. A dark near-black core stands in for the unlit (Off)
+// state. The LED is lit for both Joystick and Paddle and dark for Off.
+static constexpr uint32_t s_kLedOffCoreArgb  = 0xFF06121A;
 
 static constexpr wchar_t  s_kTooltip[] =
-    L"Arrows, Z, and X keys are mapped to the joystick and its "
-    L"buttons when enabled.  To use these buttons as regular keyboard "
-    L"inputs, disable joystick mode.";
+    L"Click to cycle input mode: Off, Joystick (arrows + Z / X), then "
+    L"Paddle (mouse).  In Paddle mode the mouse is captured and ~4 inches "
+    L"of motion sweeps the paddle full range, holding position; the left "
+    L"and right mouse buttons are the joystick buttons.  Press Esc to "
+    L"release the mouse, or Ctrl+J to cycle out of Paddle mode.";
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LabelFor
+//
+//  Returns the static label string for an input mapping mode.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * JoystickToggleButton::LabelFor (InputMappingMode mode)
+{
+    switch (mode)
+    {
+        case InputMappingMode::Paddle:
+            return s_kLabelPaddle;
+
+        case InputMappingMode::Off:
+        case InputMappingMode::Joystick:
+        default:
+            return s_kLabelJoystick;
+    }
+}
 
 
 
@@ -34,16 +62,18 @@ static constexpr wchar_t  s_kTooltip[] =
 //
 //  Layout
 //
-//  Centers the button horizontally on `centerXPx` with its bottom edge
-//  at `bottomYPx`, sizing the frame to the label (measured live when a
-//  text renderer is available, estimated otherwise) plus the LED and
-//  internal padding. The LED is positioned vertically centered against
-//  the left padding.
+//  Centers the button on (centerXPx, centerYPx), sizing the frame to the
+//  CURRENT mode's label (measured live when a text renderer is available,
+//  estimated otherwise) plus the LED and internal padding. The frame grows
+//  for Paddle mode's longer "(ESC to exit)" label and shrinks back for Off
+//  / Joystick, so the owner must relayout on a mode change. The LED is
+//  positioned vertically centered against the left padding.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void JoystickToggleButton::Layout (int centerXPx, int centerYPx, UINT dpi, DwriteTextRenderer * pText)
 {
+    const wchar_t * label    = LabelFor (m_mode);
     UINT   eDpi     = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
     int    padX     = MulDiv (s_kPadXDp,   (int) eDpi, s_kBaseDpi);
     int    padY     = MulDiv (s_kPadYDp,   (int) eDpi, s_kBaseDpi);
@@ -71,7 +101,7 @@ void JoystickToggleButton::Layout (int centerXPx, int centerYPx, UINT dpi, Dwrit
 
     if (pText != nullptr)
     {
-        HRESULT  hrM = pText->MeasureString (s_kLabel, fontDip, s_kFontFamily, textW, textH);
+        HRESULT  hrM = pText->MeasureString (label, fontDip, s_kFontFamily, textW, textH);
 
         if (FAILED (hrM))
         {
@@ -80,13 +110,12 @@ void JoystickToggleButton::Layout (int centerXPx, int centerYPx, UINT dpi, Dwrit
         }
     }
 
-    // Before the text renderer's draw target exists, MeasureString
-    // can't run; fall back to a rough Segoe UI advance estimate so the
-    // button still reserves a sane width on the very first layout.
+    // Before the text renderer's draw target exists, MeasureString can't
+    // run; fall back to a rough Segoe UI advance estimate so the button
+    // still reserves a sane width on the very first layout.
     if (textW <= 0.0f)
     {
-        textW = (float) (sizeof (s_kLabel) / sizeof (s_kLabel[0]) - 1) *
-                s_kFallbackCharPx * (float) eDpi / (float) s_kBaseDpi;
+        textW = (float) lstrlenW (label) * s_kFallbackCharPx * (float) eDpi / (float) s_kBaseDpi;
     }
 
     if (textH <= 0.0f)
@@ -133,8 +162,9 @@ bool JoystickToggleButton::HitTest (int x, int y) const
 //  Paint
 //
 //  Draws the frame only when hovered, focused, or pressed; a focus ring
-//  is inset one step inside the border. The blue LED glows when the mode
-//  is on, then the label is drawn cap-height centered to the right of it.
+//  is inset one step inside the border. The LED glows per mode (dark in
+//  Off, blue in Joystick, amber in Paddle), then the active mode's label
+//  is drawn cap-height centered to the right of it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,8 +177,8 @@ void JoystickToggleButton::Paint (DxUiPainter & painter, DwriteTextRenderer & te
     float               bt       = (float) m_bounds.top;
     float               bw       = (float) (m_bounds.right  - m_bounds.left);
     float               bh       = (float) (m_bounds.bottom - m_bounds.top);
-    uint32_t            coreArgb = m_on ? s_kLedOnCoreArgb : s_kLedOffCoreArgb;
-    uint32_t            haloArgb = m_on ? s_kLedOnHaloArgb : 0;
+    uint32_t            coreArgb = (m_mode == InputMappingMode::Off) ? s_kLedOffCoreArgb : theme.ledActiveArgb;
+    uint32_t            haloArgb = (m_mode == InputMappingMode::Off) ? 0                : theme.ledHaloArgb;
     LedIndicatorLayout  ledRect  = m_led.GetLayout();
     int                 ledGap   = MulDiv (s_kLedGapDp, (int) m_dpi, s_kBaseDpi);
     float               textX    = (float) (ledRect.coreRect.right + ledGap);
@@ -183,16 +213,17 @@ void JoystickToggleButton::Paint (DxUiPainter & painter, DwriteTextRenderer & te
 
     m_led.Paint (painter, coreArgb, haloArgb);
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (s_kLabel,
-                                              textX,
-                                              bt,
-                                              (float) m_bounds.right - textX,
-                                              bh,
-                                              theme.navItemTextArgb,
-                                              fontDip,
-                                              s_kFontFamily,
-                                              DwriteTextRenderer::HAlign::Left,
-                                              DwriteTextRenderer::VAlign::CenterOnCapHeight));
+    hr = text.DrawString (LabelFor (m_mode),
+                          textX,
+                          bt,
+                          (float) m_bounds.right - textX,
+                          bh,
+                          theme.navItemTextArgb,
+                          fontDip,
+                          s_kFontFamily,
+                          DwriteTextRenderer::HAlign::Left,
+                          DwriteTextRenderer::VAlign::CenterOnCapHeight);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 

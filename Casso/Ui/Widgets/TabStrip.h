@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "../Chrome/ChromeTheme.h"
 #include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
@@ -51,6 +52,9 @@ public:
 
     void  Paint          (DxUiPainter & painter, DwriteTextRenderer & text) const;
     void  SetDpi         (UINT dpi) { m_scaler.SetDpi (dpi); }
+    // Optional active theme. When set, the tab fills / text follow theme
+    // tokens; when null the widget uses its built-in dark palette.
+    void  SetTheme       (const ChromeTheme * theme) const { m_theme = theme; }
 
 private:
     void  Commit (int newIndex);
@@ -64,4 +68,5 @@ private:
     bool              m_enabled  = true;
     bool              m_focused  = false;
     DpiScaler         m_scaler;
+    mutable const ChromeTheme * m_theme  = nullptr;
 };

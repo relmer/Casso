@@ -203,6 +203,7 @@
     <ClCompile Include="Core\Prng.cpp" />
     <ClCompile Include="Devices\RamDevice.cpp" />
     <ClCompile Include="Devices\RomDevice.cpp" />
+    <ClCompile Include="Devices\AppleGamePort.cpp" />
     <ClCompile Include="Devices\AppleKeyboard.cpp" />
     <ClCompile Include="Devices\AppleSoftSwitchBank.cpp" />
     <ClCompile Include="Devices\AppleSpeaker.cpp" />
@@ -268,6 +269,7 @@
     <ClInclude Include="Video\VideoTiming.h" />
     <ClInclude Include="Devices\RamDevice.h" />
     <ClInclude Include="Devices\RomDevice.h" />
+    <ClInclude Include="Devices\AppleGamePort.h" />
     <ClInclude Include="Devices\AppleKeyboard.h" />
     <ClInclude Include="Devices\AppleSoftSwitchBank.h" />
     <ClInclude Include="Devices\AppleSpeaker.h" />

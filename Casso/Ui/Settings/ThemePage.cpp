@@ -368,7 +368,7 @@ namespace
                 int  centerX    = prevRect.left + prevW / 2;
                 int  centerY    = bandTop + bandHeight / 2;
 
-                previewButton.SetOn (true);
+                previewButton.SetMode (InputMappingMode::Joystick);
                 previewButton.Layout (centerX, centerY, effectiveDpi, &text);
                 previewButton.Paint  (painter, text, theme);
             }
@@ -545,11 +545,12 @@ void ThemePage::CollectFocusables (std::vector<std::function<void (bool)>> & out
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThemePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
+void ThemePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text, const ChromeTheme & theme) const
 {
     static NullDriveSink  s_kNullSink;
 
     m_themeLabel.Paint          (painter, text);
+    m_themeDropdown.SetTheme    (&theme);
     m_themeDropdown.PaintBase   (painter, text);
 
     // Live preview tracks the dropdown's effective hovered/highlighted

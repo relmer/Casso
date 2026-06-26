@@ -40,11 +40,26 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "activeTheme",
     "lastSelectedMachine",
     "audioDownloadConsent",
+    "inputMappingMode",
     "mapArrowsToJoystick",
+    "colorMonitorTextMode",
+    "colorMonitorTextCustom",
     "recentDisks",
     "crt",
     "window"
 };
+
+
+// Serialized string tokens for InputMappingMode.
+static constexpr const char *  s_kpszInputModeOff      = "off";
+static constexpr const char *  s_kpszInputModeJoystick = "joystick";
+static constexpr const char *  s_kpszInputModePaddle   = "paddle";
+
+// Serialized string tokens for ColorMonitorTextMode.
+static constexpr const char *  s_kpszTextModeWhite  = "white";
+static constexpr const char *  s_kpszTextModeGreen  = "green";
+static constexpr const char *  s_kpszTextModeAmber  = "amber";
+static constexpr const char *  s_kpszTextModeCustom = "custom";
 
 
 enum class CrtScalar
@@ -273,6 +288,143 @@ JsonValue GlobalUserPrefs::CrtToJson (const Crt & c)
     }
 
     return JsonValue (std::move (modeObj));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::InputMappingModeToString
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * GlobalUserPrefs::InputMappingModeToString (InputMappingMode mode)
+{
+    switch (mode)
+    {
+        case InputMappingMode::Joystick:
+            return s_kpszInputModeJoystick;
+
+        case InputMappingMode::Paddle:
+            return s_kpszInputModePaddle;
+
+        case InputMappingMode::Off:
+        default:
+            return s_kpszInputModeOff;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::InputMappingModeFromString
+//
+//  Parses a serialized mode token, returning `fallback` for an empty or
+//  unrecognized string so an unknown future value degrades gracefully.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+InputMappingMode GlobalUserPrefs::InputMappingModeFromString (const std::string & s, InputMappingMode fallback)
+{
+    if (s == s_kpszInputModeJoystick)
+    {
+        return InputMappingMode::Joystick;
+    }
+
+    if (s == s_kpszInputModePaddle)
+    {
+        return InputMappingMode::Paddle;
+    }
+
+    if (s == s_kpszInputModeOff)
+    {
+        return InputMappingMode::Off;
+    }
+
+    return fallback;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::ColorTextModeToString
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * GlobalUserPrefs::ColorTextModeToString (ColorMonitorTextMode mode)
+{
+    const char *  result = s_kpszTextModeWhite;
+
+
+
+    switch (mode)
+    {
+        case ColorMonitorTextMode::Green:
+            result = s_kpszTextModeGreen;
+            break;
+
+        case ColorMonitorTextMode::Amber:
+            result = s_kpszTextModeAmber;
+            break;
+
+        case ColorMonitorTextMode::Custom:
+            result = s_kpszTextModeCustom;
+            break;
+
+        case ColorMonitorTextMode::White:
+        default:
+            result = s_kpszTextModeWhite;
+            break;
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::ColorTextModeFromString
+//
+//  Parses a serialized text-mode token, returning `fallback` for an empty
+//  or unrecognized string so an unknown future value degrades gracefully.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ColorMonitorTextMode GlobalUserPrefs::ColorTextModeFromString (const std::string & s, ColorMonitorTextMode fallback)
+{
+    ColorMonitorTextMode  result = fallback;
+
+
+
+    if (s == s_kpszTextModeGreen)
+    {
+        result = ColorMonitorTextMode::Green;
+    }
+    else if (s == s_kpszTextModeAmber)
+    {
+        result = ColorMonitorTextMode::Amber;
+    }
+    else if (s == s_kpszTextModeCustom)
+    {
+        result = ColorMonitorTextMode::Custom;
+    }
+    else if (s == s_kpszTextModeWhite)
+    {
+        result = ColorMonitorTextMode::White;
+    }
+
+    return result;
 }
 
 
@@ -655,7 +807,9 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("activeTheme",          JsonValue (activeTheme));
     root.emplace_back ("lastSelectedMachine",  JsonValue (lastSelectedMachine));
     root.emplace_back ("audioDownloadConsent", JsonValue (audioDownloadConsent));
-    root.emplace_back ("mapArrowsToJoystick",  JsonValue (mapArrowsToJoystick));
+    root.emplace_back ("inputMappingMode",     JsonValue (std::string (InputMappingModeToString (inputMappingMode))));
+    root.emplace_back ("colorMonitorTextMode", JsonValue (std::string (ColorTextModeToString (colorMonitorTextMode))));
+    root.emplace_back ("colorMonitorTextCustom", JsonValue ((double) (colorMonitorTextCustomArgb & 0x00FFFFFFu)));
 
     // crt: one sub-object per monitor type. Persist every block even
     // when userOverride is false so a roundtrip is deterministic; the
@@ -704,6 +858,9 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     const JsonValue *   windowSub     = nullptr;
     const JsonValue *   placementsObj = nullptr;
     const JsonValue *   recentArr     = nullptr;
+    std::string         inputModeStr;
+    std::string         textModeStr;
+    bool                legacyArrows  = false;
     size_t              i             = 0;
 
 
@@ -721,7 +878,26 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     activeTheme          = GetStringOpt (v, "activeTheme",            activeTheme);
     lastSelectedMachine  = GetStringOpt (v, "lastSelectedMachine",    lastSelectedMachine);
     audioDownloadConsent = GetStringOpt (v, "audioDownloadConsent",   audioDownloadConsent);
-    mapArrowsToJoystick  = GetBoolOpt   (v, "mapArrowsToJoystick",    mapArrowsToJoystick);
+
+    // inputMappingMode supersedes the legacy bool "mapArrowsToJoystick";
+    // when the new key is absent, a true legacy bool migrates to Joystick.
+    inputModeStr = GetStringOpt (v, "inputMappingMode",   "");
+    legacyArrows = GetBoolOpt   (v, "mapArrowsToJoystick", false);
+
+    if (!inputModeStr.empty())
+    {
+        inputMappingMode = InputMappingModeFromString (inputModeStr, inputMappingMode);
+    }
+    else if (legacyArrows)
+    {
+        inputMappingMode = InputMappingMode::Joystick;
+    }
+
+    textModeStr          = GetStringOpt (v, "colorMonitorTextMode", "");
+    colorMonitorTextMode = ColorTextModeFromString (textModeStr, colorMonitorTextMode);
+    colorMonitorTextCustomArgb =
+        0xFF000000u | ((uint32_t) GetIntOpt (v, "colorMonitorTextCustom",
+                                             (int) (colorMonitorTextCustomArgb & 0x00FFFFFFu)) & 0x00FFFFFFu);
 
     if (SUCCEEDED (v.GetObject ("crt", crtSub)) && crtSub != nullptr)
     {

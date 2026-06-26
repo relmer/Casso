@@ -43,6 +43,7 @@ public:
 
     void  SetRect       (const RECT & rect)           { m_rect = rect; }
     void  SetText       (const std::wstring & text)   { m_text = text; ClampCaret(); }
+    void  SelectAll     ()                            { m_anchor = 0; m_caret = m_text.size(); }
     void  SetMaxLength  (size_t maxLen)               { m_maxLen = maxLen; }
     void  SetFocused    (bool focused)                { m_focused = focused; if (!focused) { m_dragging = false; } }
     void  SetEnabled    (bool enabled)                { m_enabled = enabled; if (!enabled) { m_focused = false; m_hover = false; m_dragging = false; } }
@@ -66,15 +67,32 @@ public:
 
     void  Paint         (DxUiPainter & painter, DwriteTextRenderer & text) const;
 
+    // Copies the entire field contents to the clipboard regardless of the
+    // current selection (for host copy affordances such as a copy button).
+    void  CopyAllToClipboard () const;
+
 private:
     void   ClampCaret ();
-    size_t CaretFromX (DwriteTextRenderer & text, int xPx) const;
     void   DeleteSelection ();
     void   InsertText      (const std::wstring & ins);
     void   CopyToClipboard () const;
+    void   WriteTextToClipboard (const std::wstring & s) const;
     void   PasteFromClipboard ();
     void   FireChange ();
+    void   ResetBlink ();
 
+    // Caret index nearest a client x using the glyph offsets cached by the
+    // most recent Paint (mouse handlers have no text renderer of their own).
+    size_t CaretFromClientX (int xPx) const;
+
+    // Word-boundary navigation from `pos` (caret index): WordLeft lands on
+    // the start of the word at/just before pos; WordRight on the start of
+    // the next word. Used by Ctrl+Left / Ctrl+Right.
+    size_t WordLeft  (size_t pos) const;
+    size_t WordRight (size_t pos) const;
+    void   SelectWordAt (size_t pos);
+
+    static bool IsWordChar (wchar_t ch) { return iswalnum (ch) != 0 || ch == L'_'; }
     static bool Shift   () { return (GetKeyState (VK_SHIFT)   & 0x8000) != 0; }
     static bool Control () { return (GetKeyState (VK_CONTROL) & 0x8000) != 0; }
 
@@ -92,6 +110,23 @@ private:
     HWND                  m_hwnd       = nullptr;
     ChangeFn              m_change;
     DpiScaler             m_scaler;
+
+    // Double-click word-select detection: time + caret index of the last
+    // mouse-down, so a second click within the system double-click time
+    // (on the same caret index) selects the word.
+    int64_t               m_lastClickMs    = 0;
+    size_t                m_lastClickCaret = 0;
+
+    // Caret blink phase anchor (ms, GetTickCount64). Reset on every caret
+    // move / edit so the caret is solid immediately after an action, then
+    // blinks. Mutable so Paint() can seed it on first focus.
+    mutable int64_t       m_blinkAnchorMs  = 0;
+
+    // Cumulative text-local x (px) of each character boundary, indices
+    // 0..size, recomputed each Paint at the current font / DPI. Mouse
+    // hit-testing reads this (one frame old at worst -- the popup repaints
+    // continuously). Mutable because Paint() is const.
+    mutable std::vector<float>  m_glyphX;
 
     // Horizontal scroll offset (pixels) for the rendered text. Paint
     // adjusts this so the caret remains inside the visible inner

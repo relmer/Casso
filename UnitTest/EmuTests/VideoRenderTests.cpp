@@ -215,6 +215,61 @@ public:
         }
     }
 
+    TEST_METHOD (TextMode2KRom_InverseLetter_IsComplementOfNormal)
+    {
+        // Regression: with the real ][/][+ 2KB video ROM, the inverse
+        // range ($00-$3F) decoded to already-inverted glyphs while the
+        // renderer ALSO XOR-inverts them, so an inverse letter rendered
+        // identically to its normal twin (an invisible menu highlight).
+        // Build a synthetic 2KB ROM whose low 7 bits hold an asymmetric
+        // pattern in every range (bit 7 = range marker only) and assert an
+        // inverse letter is the pixel-complement of the normal letter.
+        std::vector<Byte> rom (2048, 0);
+
+        for (int c = 0; c < 256; c++)
+        {
+            Byte marker = ((c & 0x40) != 0) ? 0x80 : 0x00;
+
+            for (int y = 0; y < 8; y++)
+            {
+                rom[c * 8 + y] = static_cast<Byte> (0x01 | marker);
+            }
+        }
+
+        CharacterRomData romData;
+        Assert::AreEqual (S_OK, romData.LoadFromMemory (rom.data (), rom.size ()),
+            L"Synthetic 2KB ROM must load");
+        Assert::IsFalse (romData.HasAltCharSet (),
+            L"2K ROM must report no alt char set");
+
+        std::vector<Byte> mem (0x10000, 0xA0);
+        MemoryBus bus;
+        RamDevice ram (0x0000, 0x0BFF);
+        bus.AddDevice (&ram);
+
+        AppleTextMode textMode (bus, romData);
+        textMode.SetPage2 (false);
+
+        mem[0x0400] = 0xC1;    // normal-range glyph
+        std::vector<uint32_t> fbNormal (kFbW * kFbH, 0);
+        textMode.Render (mem.data (), fbNormal.data (), kFbW, kFbH);
+
+        mem[0x0400] = 0x01;    // inverse-range glyph (same shape)
+        std::vector<uint32_t> fbInverse (kFbW * kFbH, 0);
+        textMode.Render (mem.data (), fbInverse.data (), kFbW, kFbH);
+
+        for (int px = 0; px < 7; px++)
+        {
+            uint32_t normalPixel  = fbNormal[px * 2];
+            uint32_t inversePixel = fbInverse[px * 2];
+
+            Assert::AreNotEqual (normalPixel, inversePixel,
+                std::format (L"Inverse pixel {} must differ from normal (not double-inverted)",
+                    px).c_str ());
+        }
+    }
+
+
     TEST_METHOD (TextMode_All24RowAddresses_Correct)
     {
         // Verify interleaved row addresses for ALL 24 rows

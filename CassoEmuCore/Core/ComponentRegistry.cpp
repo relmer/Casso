@@ -5,6 +5,7 @@
 #include "../Devices/RamDevice.h"
 #include "../Devices/RomDevice.h"
 #include "../Devices/AppleKeyboard.h"
+#include "../Devices/AppleGamePort.h"
 #include "../Devices/AppleSoftSwitchBank.h"
 #include "../Devices/AppleSpeaker.h"
 #include "../Devices/LanguageCard.h"
@@ -57,7 +58,7 @@ unique_ptr<MemoryDevice> ComponentRegistry::Create (
 {
     auto it = s_factories.find (typeName);
 
-    if (it == s_factories.end ())
+    if (it == s_factories.end())
     {
         return nullptr;
     }
@@ -77,7 +78,7 @@ unique_ptr<MemoryDevice> ComponentRegistry::Create (
 
 bool ComponentRegistry::IsRegistered (const string & typeName) const
 {
-    return s_factories.find (typeName) != s_factories.end ();
+    return s_factories.find (typeName) != s_factories.end();
 }
 
 
@@ -90,7 +91,7 @@ bool ComponentRegistry::IsRegistered (const string & typeName) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-vector<string> ComponentRegistry::GetRegisteredTypes () const
+vector<string> ComponentRegistry::GetRegisteredTypes() const
 {
     vector<string> types;
 
@@ -120,6 +121,7 @@ void ComponentRegistry::RegisterBuiltinDevices (ComponentRegistry & registry)
     registry.Register ("apple2e-keyboard",     Apple2eKeyboard::Create);
     registry.Register ("apple2-speaker",       AppleSpeaker::Create);
     registry.Register ("apple2-softswitches",  AppleSoftSwitchBank::Create);
+    registry.Register ("apple2-gameport",      AppleGamePort::Create);
     registry.Register ("apple2e-softswitches", Apple2eSoftSwitchBank::Create);
     registry.Register ("language-card",        LanguageCard::Create);
     registry.Register ("disk-ii",              Disk2Controller::Create);

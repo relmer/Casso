@@ -8,27 +8,47 @@
 
 ## About
 
-Casso is a retro / classic-machine platform emulator and from-scratch AS65-compatible 6502 assembler, written in C++. Today the platform emulator targets the Apple II family (][, ][+, //e); the abstractions are generic enough to host other 6502-based machines later.
+Casso is a retro / classic-machine platform emulator and from-scratch AS65-compatible 6502 assembler, written in C++. Today the platform emulator targets the Apple II family (][, ][ plus, //e); the abstractions are generic enough to host other 6502-based machines later.
 
-Two of the three built-in themes booting the [casso-rocks demo disk](Apple2/Demos) — same Apple //e core, different chrome:
+Two of the three built-in themes — Skeuomorphic and Dark Modern — booting the [casso-rocks demo disk](Apple2/Demos); same Apple //e core, different chrome:
 
-| Skeuomorphic | Dark Modern |
-| :---: | :---: |
-| ![Casso Skeuomorphic theme booting the casso-rocks DHGR demo](Assets/theme-skeuomorphic-dhgr.png) | ![Casso Dark Modern theme booting the casso-rocks DHGR demo](Assets/theme-darkmodern-dhgr.png) |
+<p align="center">
+  <img src="Assets/theme-skeuomorphic-dhgr.png" alt="Casso Skeuomorphic theme booting the casso-rocks DHGR demo" width="480" />
+  <img src="Assets/theme-darkmodern-dhgr.png" alt="Casso Dark Modern theme booting the casso-rocks DHGR demo" width="480" />
+</p>
 
 The project includes:
 
-- **Apple II platform emulator** — GUI-based Apple II, II+, and //e emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, analog game I/O (joystick/paddle via the PREAD timer), data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
+- **Apple II platform emulator** — GUI-based Apple ][, ][ plus, and //e emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, analog game I/O (joystick/paddle via the PREAD timer), data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
 - **6502 CPU emulator** — passes [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) and all 151 legal-opcode sets from [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) (10,000 vectors each).
 - **AS65-compatible assembler** — a from-scratch reimplementation of Frank A. Kingswood's AS65, intended as a drop-in replacement. Supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, ...) including flag concatenation (`-tlfile`).
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
 - **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
-- **1650+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, reset semantics, perf budget, and backwards-compat for ][/][+ machines.
+- **Comprehensive unit tests** — coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, reset semantics, perf budget, and backwards-compat for ][ / ][ plus machines.
 
 ## What's New
 
 See [CHANGELOG.md](CHANGELOG.md) for the granular history.
+
+### Apple ][ / ][ plus game port (v1.5.1555)
+
+The original Apple ][ / ][ plus now emulate the game-I/O strip — analog paddles
+(`$C064`–`$C067`), pushbuttons (`$C061`–`$C063`), and the PTRIG strobe
+(`$C070`) — so paddle and joystick games like *Space Quarks* (Brøderbund,
+1981) are playable on those machines, not just the //e. The same **Map
+Arrows to Joystick** mode drives it from the keyboard (arrows → paddle,
+**X** / **Z** → fire buttons), using the hardware-faithful 558 one-shot
+paddle timer.
+
+Alongside it, two correctness fixes surfaced while getting *Space Quarks*
+running: inverse text on the ][ / ][ plus (e.g. highlighted menu items) was
+rendering identically to normal text — a 2 KB character-ROM decode bug — and
+non-ASCII disk filenames (the *ø* in "Brøderbund") were corrupted through the
+path pipeline, dropping the disk from the boot picker and showing a tofu box
+in the drive label. Both are fixed. A new `--trace` switch records the last N
+executed instructions (default 20M) and dumps a full PC/opcode/register trace
+to a file on exit or crash for debugging stubborn boots.
 
 ### Game-input revamp (v1.5.1523)
 
@@ -83,7 +103,7 @@ Casso's entire chrome moved from the legacy Win32 menu bar / Win32 dialogs to a 
 
 <p align="center"><img src="Assets/feat-drive-widgets.png" alt="Skeuomorphic drive widgets: Drive 1 active with red IN USE LED, Drive 2 idle" width="540" /></p>
 
-**Consolidated Settings panel** replaces the old `OptionsDialog` and `MachinePickerDialog`. Machine selection, machine info, emulation speed, video color mode, disk write mode, floppy sound + mechanism, write-protect, theme picker, and the new CRT controls live in one non-modal in-window panel with full keyboard navigation.
+**Consolidated Settings panel** replaces the old `OptionsDialog` and `MachinePickerDialog`. Machine selection, machine info, emulation speed, video color mode, disk write mode, floppy sound + mechanism, write-protect, theme picker, the new CRT controls, and a custom Color-monitor text-color picker (a themed HSV picker with a copy-to-clipboard hex field) live in one non-modal in-window panel with full keyboard navigation.
 
 <p align="center"><img src="Assets/feat-settings.png" alt="Settings panel — Machine tab with machine, CPU speed, write protect, write mode, and drive audio controls" width="540" /></p>
 
@@ -100,9 +120,10 @@ Casso's entire chrome moved from the legacy Win32 menu bar / Win32 dialogs to a 
 Realistic mechanical sounds during disk activity, mixed into the WASAPI pipeline alongside the //e speaker:
 
 - Stereo motor hum, head-step clicks, track-0 / max-track bumps, and disk insert / eject sounds.
-- Per-drive equal-power stereo panning: single-drive profiles play centered; in two-drive profiles Drive 1 leans left, Drive 2 leans right.
+- Per-drive equal-power stereo panning, adjustable per drive from a Left…Center…Right slider (defaults: Drive 1 leans left, Drive 2 leans right), so the two drives sit on opposite sides of the stereo image.
+- Per-sound volume sliders (Motor / Head / Door, defaulting to 90 / 100 / 100 %), with a play button beside each volume and pan control to audition that sound live at the dialed level, plus a Reset button that restores the audio defaults.
 - Step-vs-seek discrimination: contiguous step bursts during DOS RWTS recalibration fuse into a continuous seek buzz instead of N overlapping clicks.
-- *View → Options...* dialog with a Drive Audio toggle (default on) and a Disk II mechanism dropdown (Shugart SA400 by default, or Alps 2124A). Both persist per-machine via the registry.
+- The **Settings → Machine** tab carries the Drive Audio toggle (default on), the Disk II mechanism choice (Shugart SA400 by default, or Alps 2124A), and the volume / pan / audition controls; all persist per-machine in `UserPrefs.json`. The Alps mechanism ships no door sample, so its door sound falls back to the Shugart recording.
 - First-run consent dialog downloads the actual recordings from the [OpenEmulator](https://github.com/openemulator/libemulation) project; OGGs are decoded in memory via vendored `stb_vorbis` and written as WAV (no `.ogg` retained on disk). Asked once per machine, persisted thereafter.
 - Generic `IDriveAudioSink` / `IDriveAudioSource` / `DriveAudioMixer` abstraction so future drive types (//c internal 5.25, DuoDisk, Apple 5.25 Drive, ProFile, ...) plug in without touching the mixer.
 
@@ -114,7 +135,7 @@ Casso.sln
 ├── CassoEmuCore/  Static library — Apple II devices, video modes, audio generator + drive-audio mixer
 ├── Casso/         Win32 application — Apple II platform emulator (D3D11, WASAPI, Disk II audio)
 ├── CassoCli/      Console application — AS65-compatible assembler CLI with `run` subcommand
-└── UnitTest/      Test DLL — Microsoft Native CppUnitTest (1650+ tests)
+└── UnitTest/      Test DLL — Microsoft Native CppUnitTest
 ```
 
 ## Requirements
@@ -190,11 +211,18 @@ distributed with this project. A script is included to download them from the
 # Download ROM images into the per-machine Machines/<Name>/ folders
 .\scripts\FetchRoms.ps1
 
-# Run the emulator (defaults to Apple II+)
+# Run the emulator (defaults to Apple ][ plus)
 Casso
 
 # Run with a specific machine config
 Casso --machine Apple2e
+
+# Boot straight into a disk image (.woz / .dsk / .do / .po)
+Casso --machine Apple2Plus --disk1 "Apple2\Demos\Karateka.woz"
+
+# Capture an execution trace (default 20M instructions; accepts 20M / 2G)
+# Dumped to casso-trace-<timestamp>.txt in the working dir on exit or crash
+Casso --trace --disk1 game.woz
 ```
 
 ROM images live under `Machines/<MachineName>/` (e.g.,
@@ -251,6 +279,7 @@ All 56 standard 6502 mnemonics are implemented. Validated against [Klaus Dormann
 - [x] Disk II copy-protection fidelity — motor spin-up delay, MC3470 weak-bit emulation, real 16-state LSS, quarter-track read pipeline, and bit-level write path ([#67](https://github.com/relmer/Casso/issues/67))
 - [x] Boot *Karateka* from its WOZ image (RWTS18 copy protection) ([#68](https://github.com/relmer/Casso/issues/68))
 - [x] Boot *Lode Runner* from its WOZ image (copy protection) ([#70](https://github.com/relmer/Casso/issues/70))
+- [x] Play *Space Quarks* on the Apple ][ / ][ plus — required Apple ][ / ][ plus game-port emulation (paddles, buttons, PTRIG) plus an inverse-text character-ROM fix
 
 ### Medium Priority
 

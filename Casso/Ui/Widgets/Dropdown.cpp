@@ -388,12 +388,34 @@ void Dropdown::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 
 void Dropdown::PaintBase (DxUiPainter & painter, DwriteTextRenderer & text) const
 {
+    // Resolve the palette from the active theme when one is set, else the
+    // built-in dark constants. A small RGB scale derives the pressed /
+    // disabled / edge tints the theme doesn't expose directly.
+    auto  ScaleRgb = [] (uint32_t argb, float f) -> uint32_t
+    {
+        uint32_t  r = (uint32_t) std::min (255.0f, ((argb >> 16) & 0xFFu) * f);
+        uint32_t  g = (uint32_t) std::min (255.0f, ((argb >>  8) & 0xFFu) * f);
+        uint32_t  b = (uint32_t) std::min (255.0f, ( argb        & 0xFFu) * f);
+
+        return (argb & 0xFF000000u) | (r << 16) | (g << 8) | b;
+    };
+
+    uint32_t  boxIdle      = m_theme ? m_theme->dropdownBgArgb            : s_kBoxIdleArgb;
+    uint32_t  boxHover     = m_theme ? m_theme->dropdownHoverArgb         : s_kBoxHoverArgb;
+    uint32_t  boxPressed   = m_theme ? ScaleRgb (m_theme->dropdownBgArgb, 0.8f) : s_kBoxPressedArgb;
+    uint32_t  boxDisabled  = m_theme ? ScaleRgb (m_theme->dropdownBgArgb, 0.6f) : s_kBoxDisabledArgb;
+    uint32_t  textOn       = m_theme ? m_theme->dropdownItemTextArgb      : s_kTextArgb;
+    uint32_t  textOff      = m_theme ? m_theme->dropdownAccelArgb         : s_kTextDisabledArgb;
+    uint32_t  edgeOn       = m_theme ? m_theme->buttonBorderArgb          : s_kEdgeArgb;
+    uint32_t  edgeOff      = m_theme ? m_theme->panelEdgeArgb             : s_kEdgeDisabledArgb;
+    uint32_t  focusRing    = m_theme ? m_theme->linkArgb                  : s_kFocusRingArgb;
+
     HRESULT      hr            = S_OK;
     uint32_t     boxColor      = m_enabled
-                                     ? (m_pressed ? s_kBoxPressedArgb : (m_hover ? s_kBoxHoverArgb : s_kBoxIdleArgb))
-                                     : s_kBoxDisabledArgb;
-    uint32_t     textColor     = m_enabled ? s_kTextArgb : s_kTextDisabledArgb;
-    uint32_t     edgeColor     = m_enabled ? s_kEdgeArgb : s_kEdgeDisabledArgb;
+                                     ? (m_pressed ? boxPressed : (m_hover ? boxHover : boxIdle))
+                                     : boxDisabled;
+    uint32_t     textColor     = m_enabled ? textOn : textOff;
+    uint32_t     edgeColor     = m_enabled ? edgeOn : edgeOff;
     std::wstring label;
     float        edgePx        = m_scaler.Pxf (s_kEdgePx);
     float        fontDip       = m_scaler.Pxf (s_kFontDip);
@@ -464,7 +486,7 @@ void Dropdown::PaintBase (DxUiPainter & painter, DwriteTextRenderer & text) cons
                              (float) (m_rect.right  - m_rect.left) - focusInset * 2.0f,
                              (float) (m_rect.bottom - m_rect.top)  - focusInset * 2.0f,
                              focusThick,
-                             s_kFocusRingArgb);
+                             focusRing);
     }
 }
 
@@ -484,6 +506,10 @@ void Dropdown::PaintBase (DxUiPainter & painter, DwriteTextRenderer & text) cons
 
 void Dropdown::PaintMenu (DxUiPainter & painter, DwriteTextRenderer & text) const
 {
+    uint32_t menuArgb      = m_theme ? m_theme->dropdownBgArgb       : s_kMenuArgb;
+    uint32_t menuHoverArgb = m_theme ? m_theme->dropdownHoverArgb    : s_kMenuHoverArgb;
+    uint32_t menuTextArgb  = m_theme ? m_theme->dropdownItemTextArgb : s_kTextArgb;
+
     HRESULT  hr        = S_OK;
     int      i         = 0;
     int      rowHeight = m_scaler.Px (s_kRowHeightDp);
@@ -501,7 +527,7 @@ void Dropdown::PaintMenu (DxUiPainter & painter, DwriteTextRenderer & text) cons
     for (i = 0; i < (int) m_items.size(); i++)
     {
         RECT      row   = { m_rect.left, m_rect.bottom + i * rowHeight, m_rect.right, m_rect.bottom + (i + 1) * rowHeight };
-        uint32_t  color = (i == m_highlight) ? s_kMenuHoverArgb : s_kMenuArgb;
+        uint32_t  color = (i == m_highlight) ? menuHoverArgb : menuArgb;
 
         // D2D fill (not D3D painter) so the menu background composites
         // in submission order with prior text and hides sibling text
@@ -516,7 +542,7 @@ void Dropdown::PaintMenu (DxUiPainter & painter, DwriteTextRenderer & text) cons
                                                   (float) row.top,
                                                   (float) (row.right - row.left - textInset),
                                                   (float) (row.bottom - row.top),
-                                                  s_kTextArgb,
+                                                  menuTextArgb,
                                                   fontDip,
                                                   s_kFontFamily,
                                                   DwriteTextRenderer::HAlign::Left,

@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "../Chrome/ChromeTheme.h"
 #include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
@@ -41,6 +42,10 @@ public:
     void  PaintBase      (DxUiPainter & painter, DwriteTextRenderer & text) const;
     void  PaintMenu      (DxUiPainter & painter, DwriteTextRenderer & text) const;
     void  SetDpi         (UINT dpi) { m_scaler.SetDpi (dpi); }
+    // Optional active theme. When set, the box / menu / text / border
+    // colors follow the theme tokens; when null the widget falls back to
+    // its built-in dark palette.
+    void  SetTheme       (const ChromeTheme * theme) const { m_theme = theme; }
 
 private:
     void  Commit         (int index);
@@ -57,4 +62,5 @@ private:
     DpiScaler                 m_scaler;
     bool                      m_enabled   = true;
     bool                      m_focused   = false;
+    mutable const ChromeTheme * m_theme   = nullptr;
 };

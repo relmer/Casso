@@ -28,11 +28,15 @@
 class Disk2AudioSource : public IDriveAudioSource
 {
 public:
-    // Per-sound attenuation (sums fall safely under 1.0 even with
-    // speaker at full deflection -- see plan.md "Mixing Math").
-    static constexpr float    kMotorVolume        = 0.25f;
-    static constexpr float    kHeadVolume         = 0.30f;
-    static constexpr float    kDoorVolume         = 0.30f;
+    // Per-sound default playback gains. The motor loop sits a touch below
+    // unity; head and door one-shots play at full amplitude. The summed
+    // drive bus can exceed 1.0 at peak, but the WASAPI integrator clamps
+    // per channel after the speaker is mixed in, so no clipping math is
+    // needed here. The live per-source gains (m_motorVolume / m_headVolume
+    // / m_doorVolume) are user-adjustable via SetVolumes.
+    static constexpr float    kMotorVolume        = 0.90f;
+    static constexpr float    kHeadVolume         = 1.00f;
+    static constexpr float    kDoorVolume         = 1.00f;
 
     // OpenEmulator-derived seek-vs-step threshold. 16,368 cycles
     // ~= 16 ms at the //e's 1.023 MHz CPU clock. If a step arrives
@@ -82,6 +86,28 @@ public:
     // CPU cycle (FR-005 idle timeout).
     void   Tick (uint64_t currentCycle);
 
+    // Sets the per-sound playback gains (0..1). The motor loop, head
+    // one-shots, and door one-shots are scaled by these on mix. Called
+    // on the CPU thread (same thread that mixes), so no synchronization
+    // is required. Values are clamped to [0, 1].
+    void   SetVolumes (float motor, float head, float door);
+
+    // On-demand audition. Identifies which sound a test/play button
+    // should preview.
+    enum class TestSoundKind
+    {
+        Motor,
+        Head,
+        Door,
+    };
+
+    // Plays a one-shot of the requested sound through a dedicated test
+    // channel, independent of the live emulation audio state, at the
+    // current per-sound volume and the source's current pan. Used by the
+    // settings panel's play buttons to audition a sound / stereo position.
+    // CPU-thread only (same thread that mixes).
+    void   PlayTestSound (TestSoundKind kind);
+
     // Spec-006 (FR-022, FR-025): attach an audio-decision sink so
     // the debug window can show what the audio path actually did at
     // each controller-event delivery. A nullptr sink (the default)
@@ -119,6 +145,7 @@ private:
     void   MixMotor (float * out, uint32_t n);
     void   MixHead (float * out, uint32_t n);
     void   MixDoor (float * out, uint32_t n);
+    void   MixTest (float * out, uint32_t n);
 
     // Starts a head one-shot on `buf` and fires the matching audio-event
     // (Started / Restarted / Silent). Shared by the bump and ratchet paths.
@@ -130,6 +157,12 @@ private:
     // Pan (equal-power, precomputed by SetPan).
     float                 m_panLeft   = IDriveAudioSource::kCenterPan;
     float                 m_panRight  = IDriveAudioSource::kCenterPan;
+
+    // Live per-sound playback gains (0..1), defaulting to the documented
+    // attenuation constants. Adjustable at runtime via SetVolumes.
+    float                 m_motorVolume = kMotorVolume;
+    float                 m_headVolume  = kHeadVolume;
+    float                 m_doorVolume  = kDoorVolume;
 
     // Motor loop.
     vector<float>         m_motorBuf;
@@ -158,6 +191,14 @@ private:
     vector<float>         m_doorCloseBuf;
     const vector<float> * m_doorBuf = nullptr;
     uint32_t              m_doorPos = 0;
+
+    // Dedicated audition channel for the settings-panel play buttons. A
+    // one-shot that plays a chosen buffer once through at m_testVolume,
+    // independent of the live motor/head/door emulation state so a
+    // preview never disturbs (or is disturbed by) real disk activity.
+    const vector<float> * m_testBuf    = nullptr;
+    uint32_t              m_testPos    = 0;
+    float                 m_testVolume = 0.0f;
 
     // Step-vs-seek discriminator (FR-005).
     uint64_t              m_lastStepCycle = 0;

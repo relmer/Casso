@@ -209,6 +209,11 @@
       <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup>
+    <PreBuildEvent>
+      <Command>powershell -ExecutionPolicy Bypass -File "$(SolutionDir)scripts\IncrementVersion.ps1"</Command>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -253,12 +258,14 @@
     <ClCompile Include="Ui\Widgets\ModalScrim.cpp" />
     <ClCompile Include="Ui\Widgets\Radio.cpp" />
     <ClCompile Include="Ui\Widgets\Slider.cpp" />
+    <ClCompile Include="Ui\Widgets\IconButton.cpp" />
     <ClCompile Include="Ui\Widgets\TabStrip.cpp" />
     <ClCompile Include="Ui\Widgets\TextInput.cpp" />
     <ClCompile Include="Ui\Widgets\Tooltip.cpp" />
     <ClCompile Include="Ui\Widgets\PopupMenu.cpp" />
     <ClCompile Include="Ui\Widgets\TreeView.cpp" />
     <ClCompile Include="Ui\AutoMountResolver.cpp" />
+    <ClCompile Include="Ui\Settings\ColorPickerOverlay.cpp" />
     <ClCompile Include="Ui\Settings\DisplayPage.cpp" />
     <ClCompile Include="Ui\Settings\HardwarePage.cpp" />
     <ClCompile Include="Ui\Settings\MachinePage.cpp" />
@@ -275,6 +282,7 @@
     <ClCompile Include="Shell\WindowManager.cpp" />
     <ClCompile Include="Ui\UiShell.cpp" />
     <ClCompile Include="Ui\DxUiPainter.cpp" />
+    <ClCompile Include="Ui\ColorUtil.cpp" />
     <ClCompile Include="Ui\DwriteTextRenderer.cpp" />
     <ClCompile Include="Ui\UiInput.cpp" />
     <ClCompile Include="Ui\HitTester.cpp" />
@@ -350,6 +358,7 @@
     <ClInclude Include="Ui\Widgets\ModalScrim.h" />
     <ClInclude Include="Ui\Widgets\Radio.h" />
     <ClInclude Include="Ui\Widgets\Slider.h" />
+    <ClInclude Include="Ui\Widgets\IconButton.h" />
     <ClInclude Include="Ui\Widgets\TabStrip.h" />
     <ClInclude Include="Ui\Widgets\TextInput.h" />
     <ClInclude Include="Ui\Widgets\Tooltip.h" />
@@ -357,6 +366,7 @@
     <ClInclude Include="Ui\Widgets\TreeView.h" />
     <ClInclude Include="Ui\IDriveCommandSink.h" />
     <ClInclude Include="Ui\AutoMountResolver.h" />
+    <ClInclude Include="Ui\Settings\ColorPickerOverlay.h" />
     <ClInclude Include="Ui\Settings\DisplayPage.h" />
     <ClInclude Include="Ui\Settings\HardwarePage.h" />
     <ClInclude Include="Ui\Settings\MachinePage.h" />
@@ -373,6 +383,7 @@
     <ClInclude Include="Shell\WindowManager.h" />
     <ClInclude Include="Ui\UiShell.h" />
     <ClInclude Include="Ui\DxUiPainter.h" />
+    <ClInclude Include="Ui\ColorUtil.h" />
     <ClInclude Include="Ui\DwriteTextRenderer.h" />
     <ClInclude Include="Ui\UiInput.h" />
     <ClInclude Include="Ui\HitTester.h" />

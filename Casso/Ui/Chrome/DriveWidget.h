@@ -62,10 +62,25 @@ public:
     LedState           Led             () const { return m_led.GetState(); }
     int                Drive           () const { return m_drive; }
 
+    // Marquee hover trigger. The shell calls this each mouse move with
+    // whether the pointer is over the widget; a fresh enter restarts the
+    // one-shot basename scroll. UpdateMarqueeHover owns the enter-edge
+    // detection so a stationary hover doesn't continuously re-trigger.
+    void               UpdateMarqueeHover (bool inside, int64_t nowMs)
+    {
+        if (inside && !m_marqueeHovered)
+        {
+            m_marqueeStartMs = nowMs;
+        }
+
+        m_marqueeHovered = inside;
+    }
+
 private:
     void                PaintBasenameLabel (DwriteTextRenderer  & text,
                                             const ChromeTheme   & theme,
-                                            UINT                  dpi);
+                                            UINT                  dpi,
+                                            int64_t               nowMs);
 
     int                 m_slot      = 6;
     int                 m_drive     = 0;
@@ -80,4 +95,14 @@ private:
     int                 m_perspectiveSkewPx = 0;
     bool                m_compact           = false;
     bool                m_focused           = false;
+
+    // Marquee state for the mounted-disk basename label. m_marqueeStartMs
+    // is when scroll motion begins (in the future during a mount's lead-in
+    // delay; "now" on a hover enter for an immediate scroll). The scroll
+    // rests at the head when done, and replays after the delay while the
+    // pointer lingers. m_marqueePath detects remounts; m_marqueeHovered
+    // debounces the hover trigger and gates the lingering replay.
+    std::wstring        m_marqueePath;
+    int64_t             m_marqueeStartMs    = 0;
+    bool                m_marqueeHovered    = false;
 };

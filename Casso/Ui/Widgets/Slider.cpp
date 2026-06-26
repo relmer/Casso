@@ -351,16 +351,25 @@ bool Slider::OnKey (WPARAM vk)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Slider::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
+void Slider::Paint (DxUiPainter & painter, DwriteTextRenderer & text, const ChromeTheme & theme) const
 {
     constexpr uint32_t  s_kTrack         = 0xFF404040;
-    constexpr uint32_t  s_kTrackFill     = 0xFF6E9BFF;
     constexpr uint32_t  s_kTick          = 0xFF6A7585;
     constexpr uint32_t  s_kPuckBody      = 0xFFFFFFFF;
-    constexpr uint32_t  s_kPuckCore      = 0xFF6E9BFF;
     constexpr uint32_t  s_kPuckRing      = 0xFF606060;
     constexpr uint32_t  s_kPuckCoreDis   = 0xFF888888;
     constexpr uint32_t  s_kValueText     = 0xFFE8EEF4;
+
+    // Filled track follows the active theme's accent so the slider tints
+    // with the rest of the chrome (e.g. green for the retro terminal theme)
+    // rather than a fixed blue. The puck core sits inside a white puck body,
+    // so it uses a darkened accent that keeps >=3:1 contrast against white
+    // (WCAG 1.4.11 non-text contrast; the bright accents are only ~1.3:1,
+    // which reads as a low-contrast smudge).
+    constexpr float  s_kPuckCoreContrast = 3.0f;
+    uint32_t  accent      = theme.linkArgb;
+    uint32_t  trackFill   = accent;
+    uint32_t  puckCore    = ChromeTheme::AccentForWhiteContrast (accent, s_kPuckCoreContrast);
 
     // All dimensions stored in dp; scaled to physical pixels via the
     // per-widget DpiScaler (set by SetDpi). Slider was previously
@@ -395,7 +404,7 @@ void Slider::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     float    fillWidth     = 0.0f;
     float    puckCx        = 0.0f;
     float    puckR         = m_scaler.Pxf (s_kPuckRadiusDp);
-    uint32_t coreColor     = m_enabled ? s_kPuckCore : s_kPuckCoreDis;
+    uint32_t coreColor     = m_enabled ? puckCore : s_kPuckCoreDis;
 
 
 
@@ -414,8 +423,24 @@ void Slider::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     // ----- Track (background + filled portion). -----
     painter.FillRect (trackLeft, centerY - trackHeight * 0.5f,
                       trackAvailW, trackHeight, s_kTrack);
-    painter.FillRect (trackLeft, centerY - trackHeight * 0.5f,
-                      fillWidth, trackHeight, s_kTrackFill);
+
+    if (m_centerOrigin)
+    {
+        // Bipolar fill: from the track midpoint toward the puck, so the
+        // neutral (center) value shows no fill and either direction fills
+        // outward.
+        float  midX  = trackLeft + trackAvailW * 0.5f;
+        float  fillL = std::min (midX, puckCx);
+        float  fillW = std::fabs (puckCx - midX);
+
+        painter.FillRect (fillL, centerY - trackHeight * 0.5f,
+                          fillW, trackHeight, trackFill);
+    }
+    else
+    {
+        painter.FillRect (trackLeft, centerY - trackHeight * 0.5f,
+                          fillWidth, trackHeight, trackFill);
+    }
 
     // ----- Tick marks below the track. -----
     if (m_showTicks && m_step > s_kEpsilon && trackAvailW > 0.0f)
@@ -444,6 +469,23 @@ void Slider::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     if (showValue)
     {
         wchar_t  buf[32] = {};
+
+        if (m_formatter)
+        {
+            std::wstring  formatted = m_formatter (m_value);
+
+            IGNORE_RETURN_VALUE (hr, text.DrawString (formatted.c_str(),
+                                                      trackLeft + trackAvailW + valueGap,
+                                                      (float) m_rect.top,
+                                                      valueWidth,
+                                                      rectH,
+                                                      s_kValueText,
+                                                      valueFontDip,
+                                                      s_kFont,
+                                                      DwriteTextRenderer::HAlign::Right,
+                                                      DwriteTextRenderer::VAlign::Center));
+            return;
+        }
 
         if (m_decimalPlaces > 0)
         {

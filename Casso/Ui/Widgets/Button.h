@@ -16,24 +16,27 @@ class Button
 public:
     using ClickFn = std::function<void()>;
 
+    // Visual role. Both variants derive every color from the active theme;
+    // there is intentionally no way to inject an arbitrary color, so a
+    // button can never fall out of sync with the theme.
+    //   Default  -- neutral themed face (button* tokens).
+    //   Primary  -- accent call-to-action (derived from the theme accent,
+    //               darkened for legible white text).
+    enum class Variant
+    {
+        Default,
+        Primary,
+    };
+
     void  Layout          (const RECT & rect) { m_rect = rect; }
     void  SetLabel        (const std::wstring & label);
     wchar_t  Accelerator  () const { return m_accelerator; }
     void  SetClick        (ClickFn click) { m_click = std::move (click); }
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
-    void  SetColors       (uint32_t idleArgb, uint32_t hoverArgb, uint32_t pressedArgb)
-    {
-        m_idleOverride    = idleArgb;
-        m_hoverOverride   = hoverArgb;
-        m_pressedOverride = pressedArgb;
-        m_useOverrides    = true;
-    }
-    void  SetTextColor    (uint32_t argb) { m_textOverride = argb; m_useTextOverride = true; }
-    void  SetOutline      (float thicknessPx, uint32_t argb)
-    {
-        m_outlineThick = thicknessPx;
-        m_outlineArgb  = argb;
-    }
+    void  SetVariant      (Variant variant) { m_variant = variant; }
+    // Draw an extra accent ring (e.g. to mark the default button in a
+    // dialog). The ring color is taken from the theme, not the caller.
+    void  SetEmphasis     (bool on) { m_emphasis = on; }
     void  SetMouse        (int x, int y, bool down);
     void  SetFocused      (bool focused) { m_focused = focused; }
     bool  Focused         () const { return m_focused; }
@@ -47,22 +50,16 @@ public:
     void  Paint           (DxUiPainter & painter, DwriteTextRenderer & text, const ChromeTheme & theme);
 
 private:
-    RECT          m_rect            = {};
+    RECT          m_rect        = {};
     std::wstring  m_label;
-    wchar_t       m_accelerator     = 0;
+    wchar_t       m_accelerator = 0;
     ClickFn       m_click;
-    bool          m_hover           = false;
-    bool          m_pressed         = false;
-    bool          m_focused         = false;
-    bool          m_enabled         = true;
-    bool          m_visible         = true;
+    bool          m_hover       = false;
+    bool          m_pressed     = false;
+    bool          m_focused     = false;
+    bool          m_enabled     = true;
+    bool          m_visible     = true;
+    bool          m_emphasis    = false;
+    Variant       m_variant     = Variant::Default;
     DpiScaler     m_scaler;
-    bool          m_useOverrides    = false;
-    uint32_t      m_idleOverride    = 0;
-    uint32_t      m_hoverOverride   = 0;
-    uint32_t      m_pressedOverride = 0;
-    bool          m_useTextOverride = false;
-    uint32_t      m_textOverride    = 0;
-    float         m_outlineThick    = 0.0f;
-    uint32_t      m_outlineArgb     = 0;
 };

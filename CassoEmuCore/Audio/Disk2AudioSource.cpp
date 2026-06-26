@@ -29,6 +29,13 @@ static const wchar_t * const s_kpszSampleFiles[] =
 
 static constexpr size_t  s_kcSampleFiles = _countof (s_kpszSampleFiles);
 
+// Canonical mechanism whose asset set is guaranteed complete. When a
+// selected mechanism omits a per-sound file (e.g. Alps ships no door
+// sounds because the door is part of the shared drive enclosure, not the
+// head mechanism), the loader falls back to this mechanism's copy before
+// giving up and muting the sound.
+static const wchar_t * const s_kpszFallbackMechanism = L"Shugart";
+
 // Slot indices into the loader's local array -- kept in lockstep with
 // s_kpszSampleFiles so a single loop populates everything.
 static constexpr size_t  s_kSlotMotorLoop = 0;
@@ -219,10 +226,14 @@ HRESULT Disk2AudioSource::LoadSamples (
     {
         // Per-file precedence (FR-019): explicit override at
         // Devices/DiskII/<file>.wav wins over the per-mechanism copy
-        // at Devices/DiskII/<Mechanism>/<file>.wav. Both missing ==
-        // silent, FR-009.
+        // at Devices/DiskII/<Mechanism>/<file>.wav. When the selected
+        // mechanism omits a file, fall back to the canonical mechanism's
+        // copy (Shugart) so a mechanism that only customises some sounds
+        // (e.g. Alps, which has no door sounds) still plays the shared
+        // ones rather than going silent. All missing == silent, FR-009.
         fs::path        overridePath = baseDir / s_kpszSampleFiles[i];
         fs::path        mechPath     = mechDir / s_kpszSampleFiles[i];
+        fs::path        fallbackPath = baseDir / s_kpszFallbackMechanism / s_kpszSampleFiles[i];
         HRESULT         hrSlot       = E_FAIL;
         error_code      ec;
 
@@ -233,6 +244,10 @@ HRESULT Disk2AudioSource::LoadSamples (
         else if (fs::exists (mechPath, ec))
         {
             fullPath = mechPath;
+        }
+        else if (fs::exists (fallbackPath, ec))
+        {
+            fullPath = fallbackPath;
         }
         else
         {
@@ -325,6 +340,60 @@ void Disk2AudioSource::SetPan (float panLeft, float panRight)
 {
     m_panLeft  = panLeft;
     m_panRight = panRight;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetVolumes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2AudioSource::SetVolumes (float motor, float head, float door)
+{
+    m_motorVolume = std::clamp (motor, 0.0f, 1.0f);
+    m_headVolume  = std::clamp (head,  0.0f, 1.0f);
+    m_doorVolume  = std::clamp (door,  0.0f, 1.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlayTestSound
+//
+//  Starts a one-shot audition of the requested sound on the dedicated test
+//  channel, at the matching per-sound volume. The motor loop is played once
+//  through (a short burst); head/door play their natural one-shot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2AudioSource::PlayTestSound (TestSoundKind kind)
+{
+    switch (kind)
+    {
+        case TestSoundKind::Motor:
+            m_testBuf    = &m_motorBuf;
+            m_testVolume = m_motorVolume;
+            break;
+
+        case TestSoundKind::Head:
+            m_testBuf    = &m_stepBuf;
+            m_testVolume = m_headVolume;
+            break;
+
+        case TestSoundKind::Door:
+            m_testBuf    = &m_doorOpenBuf;
+            m_testVolume = m_doorVolume;
+            break;
+    }
+
+    m_testPos = 0;
 }
 
 
@@ -719,7 +788,7 @@ void Disk2AudioSource::MixMotor (float * out, uint32_t n)
             m_motorPos = 0;
         }
 
-        out[i] += m_motorBuf[m_motorPos] * kMotorVolume;
+        out[i] += m_motorBuf[m_motorPos] * m_motorVolume;
         m_motorPos++;
     }
 }
@@ -761,7 +830,7 @@ void Disk2AudioSource::MixHead (float * out, uint32_t n)
             break;
         }
 
-        out[i] += (*m_headBuf)[m_headPos] * kHeadVolume;
+        out[i] += (*m_headBuf)[m_headPos] * m_headVolume;
         m_headPos++;
     }
 }
@@ -802,9 +871,55 @@ void Disk2AudioSource::MixDoor (float * out, uint32_t n)
             break;
         }
 
-        out[i] += (*m_doorBuf)[m_doorPos] * kDoorVolume;
+        out[i] += (*m_doorBuf)[m_doorPos] * m_doorVolume;
         m_doorPos++;
     }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MixTest
+//
+//  One-shot audition channel for the settings play buttons. Plays the
+//  selected buffer once through at the captured test volume, then clears
+//  itself. Empty / null buffer == silent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2AudioSource::MixTest (float * out, uint32_t n)
+{
+    HRESULT   hr  = S_OK;
+    uint32_t  len = 0;
+    uint32_t  i   = 0;
+
+
+
+    BAIL_OUT_IF (m_testBuf == nullptr, S_OK);
+
+    len = static_cast<uint32_t> (m_testBuf->size());
+    if (len == 0)
+    {
+        m_testBuf = nullptr;
+    }
+    BAIL_OUT_IF (len == 0, S_OK);
+
+    for (i = 0; i < n; i++)
+    {
+        if (m_testPos >= len)
+        {
+            m_testBuf = nullptr;
+            break;
+        }
+
+        out[i] += (*m_testBuf)[m_testPos] * m_testVolume;
+        m_testPos++;
+    }
+
+Error:
+    return;
 }
 
 
@@ -829,4 +944,5 @@ void Disk2AudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
     MixMotor (outMono, numSamples);
     MixHead  (outMono, numSamples);
     MixDoor  (outMono, numSamples);
+    MixTest  (outMono, numSamples);
 }

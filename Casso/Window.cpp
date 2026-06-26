@@ -326,6 +326,34 @@ LRESULT CALLBACK Window::s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPAR
             callDefWndProc = pThis->OnLButtonUp (wParam, lParam);
             break;
 
+        case WM_RBUTTONDOWN:
+            callDefWndProc = pThis->OnRButtonDown (wParam, lParam);
+            break;
+
+        case WM_RBUTTONUP:
+            callDefWndProc = pThis->OnRButtonUp (wParam, lParam);
+            break;
+
+        case WM_ACTIVATEAPP:
+            callDefWndProc = pThis->OnActivateApp (wParam != 0);
+            break;
+
+        case WM_KILLFOCUS:
+            callDefWndProc = pThis->OnKillFocus();
+            break;
+
+        case WM_CANCELMODE:
+            callDefWndProc = pThis->OnCancelMode();
+            break;
+
+        case WM_GETMINMAXINFO:
+            // DefWindowProc populates the default min / max extents first;
+            // the handler then tightens ptMinTrackSize. Returning false
+            // suppresses a second DefWindowProc that would undo the tweak.
+            (void) DefWindowProc (hwnd, message, wParam, lParam);
+            callDefWndProc = pThis->OnGetMinMaxInfo (reinterpret_cast<MINMAXINFO *> (lParam));
+            break;
+
         case WM_MOVE:
             callDefWndProc = pThis->OnMove (hwnd,
                                             (int) (short) LOWORD (lParam),

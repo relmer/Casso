@@ -4,6 +4,7 @@
 
 #include "SettingsPanelState.h"
 
+#include "../ColorUtil.h"
 #include "../DpiScaler.h"
 #include "../DwriteTextRenderer.h"
 #include "../DxUiPainter.h"
@@ -74,6 +75,8 @@ public:
     using GammaFn         = std::function<void (float value)>;
     using PersistenceFn   = std::function<void (float value)>;
     using MonitorFn       = std::function<void (int colorModeIndex)>;
+    using TextColorFn     = std::function<void (int textColorModeIndex)>;
+    using TextColorCommitFn = std::function<void (int textColorModeIndex)>;
     using ScanlinesEnFn   = std::function<void (bool enabled)>;
     using ScanlinesIntFn  = std::function<void (float intensity)>;
     using BloomEnFn       = std::function<void (bool enabled)>;
@@ -96,6 +99,7 @@ public:
     static constexpr int  kControlColorBleedW    = 7;
     static constexpr int  kControlGamma          = 8;
     static constexpr int  kControlPersistence    = 9;
+    static constexpr int  kControlTextColor      = 10;
 
     void  SetState              (SettingsPanelState * state);
     void  SetInitialCrt         (const struct GlobalUserPrefsCrtSnapshot & snap);
@@ -105,6 +109,13 @@ public:
     void  SetOnGammaChange          (GammaFn         fn) { m_onGamma         = std::move (fn); }
     void  SetOnPersistenceChange    (PersistenceFn   fn) { m_onPersistence   = std::move (fn); }
     void  SetOnMonitorChange        (MonitorFn       fn) { m_onMonitor       = std::move (fn); }
+    void  SetOnTextColorChange      (TextColorFn     fn) { m_onTextColor     = std::move (fn); }
+    void  SetOnTextColorCommit      (TextColorCommitFn fn) { m_onTextColorCommit = std::move (fn); }
+
+    // Seeds the Text color control from the global prefs (mode + custom
+    // RGB). The Color-monitor-only control is enabled iff the active
+    // monitor is Color; the swatch shows the resolved color.
+    void  SetTextColor              (ColorMonitorTextMode mode, uint32_t customArgb);
     void  SetOnScanlinesEnChange    (ScanlinesEnFn   fn) { m_onScanlinesEn   = std::move (fn); }
     void  SetOnScanlinesIntChange   (ScanlinesIntFn  fn) { m_onScanlinesInt  = std::move (fn); }
     void  SetOnBloomEnChange        (BloomEnFn       fn) { m_onBloomEn       = std::move (fn); }
@@ -131,16 +142,18 @@ public:
     // while the rest of the UI fades out).
     //
     void  Paint (DxUiPainter & painter, DwriteTextRenderer & text,
+                 const ChromeTheme & theme,
                  int          focusedControlId = -1,
                  float        nonFocusedAlpha  = 1.0f,
                  float        focusedAlpha     = 1.0f) const;
 
     void  CollectFocusables (std::vector<std::function<void (bool)>> & out);
-    bool  AnyDropdownOpen   () const { return m_monitor.IsOpen(); }
+    bool  AnyDropdownOpen   () const { return m_monitor.IsOpen() || m_textColor.IsOpen(); }
     RECT  FocusedControlRect (int controlId) const;
 
     // Test accessors.
     const Dropdown & MonitorDropdown    () const { return m_monitor;          }
+    const Dropdown & TextColorDropdown  () const { return m_textColor;        }
     const Slider   & BrightnessSlider   () const { return m_brightness;       }
     const Slider   & ContrastSlider     () const { return m_contrast;         }
     const Slider   & GammaSlider        () const { return m_gamma;            }
@@ -163,6 +176,8 @@ private:
     GammaFn               m_onGamma;
     PersistenceFn         m_onPersistence;
     MonitorFn             m_onMonitor;
+    TextColorFn           m_onTextColor;
+    TextColorCommitFn     m_onTextColorCommit;
     ScanlinesEnFn         m_onScanlinesEn;
     ScanlinesIntFn        m_onScanlinesInt;
     BloomEnFn             m_onBloomEn;
@@ -174,6 +189,7 @@ private:
     RestoreFn             m_onRestore;
 
     Label                 m_monitorLabel;
+    Label                 m_textColorLabel;
     Label                 m_brightnessLabel;
     Label                 m_contrastLabel;
     Label                 m_gammaLabel;
@@ -189,6 +205,7 @@ private:
     Label                 m_colorBleedWLabel;
 
     Dropdown              m_monitor;
+    Dropdown              m_textColor;
     Slider                m_brightness;
     Slider                m_contrast;
     Slider                m_gamma;
@@ -203,6 +220,8 @@ private:
     Button                m_restore;
 
     RECT                  m_monitorRowRect       = {};
+    RECT                  m_textColorRowRect     = {};
+    RECT                  m_textColorSwatchRect  = {};
     RECT                  m_brightnessRowRect    = {};
     RECT                  m_contrastRowRect      = {};
     RECT                  m_gammaRowRect         = {};
@@ -216,4 +235,13 @@ private:
     RECT                  m_colorBleedWRowRect   = {};
     RECT                  m_restoreRowRect       = {};
     int                   m_indicatorX           = 0;
+
+    // Seeded Text color state (global pref) the swatch + dropdown reflect.
+    ColorMonitorTextMode  m_textColorMode        = ColorMonitorTextMode::White;
+    uint32_t              m_textColorCustomArgb  = ColorUtil::kWhiteArgb;
+
+    // True iff the active monitor is Color (the only mode where a text
+    // color override applies); gates the Text color control's enabled state.
+    bool  TextColorActive () const;
+    void  RefreshTextColorEnabled ();
 };

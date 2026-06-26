@@ -21,7 +21,6 @@ static constexpr float    s_kOuterPaddingDp        = 16.0f;
 static constexpr float    s_kIconBodyGapDp         = 12.0f;
 static constexpr float    s_kBodyButtonsGapDp      = 16.0f;
 static constexpr float    s_kMinButtonWidthDp      = 72.0f;
-static constexpr float    s_kOutlineThicknessDp    = 1.0f;
 static constexpr int      s_kCenterDivisor         = 2;
 static constexpr INT_PTR  s_kShellExecThreshold    = 32;
 static constexpr LPCWSTR  s_kpszHyperlinkError     = L"Could not open the requested link.";
@@ -808,14 +807,12 @@ void DialogPrimitive::BuildButtons()
 {
     HRESULT  hr      = S_OK;
     size_t   count   = 0;
-    float    outlinePx = 0.0f;
 
 
 
     CBR (m_def != nullptr);
 
-    count     = std::min (m_def->buttons.size(), m_layout.buttonRectsPx.size());
-    outlinePx = static_cast<float> (m_dpi) / static_cast<float> (DpiScaler::kBaseDpi) * s_kOutlineThicknessDp;
+    count = std::min (m_def->buttons.size(), m_layout.buttonRectsPx.size());
 
     m_buttons.clear();
     m_buttons.resize (count);
@@ -835,7 +832,7 @@ void DialogPrimitive::BuildButtons()
 
         if (btn.isDefault)
         {
-            m_buttons[i].SetOutline (outlinePx, m_theme != nullptr ? m_theme->navHoverArgb : 0xFF3D6FB5);
+            m_buttons[i].SetEmphasis (true);
         }
 
         m_buttons[i].SetClick ([this, i]() { ActivateButton (i); });

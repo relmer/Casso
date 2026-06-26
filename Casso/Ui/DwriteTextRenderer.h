@@ -130,7 +130,8 @@ public:
                                float           fontSizeDip,
                                const wchar_t * fontFamily,
                                float         & outWidthDip,
-                               float         & outHeightDip);
+                               float         & outHeightDip,
+                               float           maxWidthDip = FLT_MAX);
 
     HRESULT  OnDeviceLost     ();
     HRESULT  OnDeviceRestored (ID3D11Device * pDevice);

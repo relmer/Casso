@@ -15,6 +15,7 @@
 #include "Devices/AppleKeyboard.h"
 #include "Devices/Apple2eKeyboard.h"
 #include "Devices/AppleSoftSwitchBank.h"
+#include "Devices/AppleGamePort.h"
 #include "Devices/Apple2eSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
 #include "Devices/Disk2Controller.h"
@@ -210,6 +211,10 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         {
             m_shell.m_refs.softSwitches = static_cast<AppleSoftSwitchBank *> (device.get());
         }
+        else if (devCfg.type == "apple2-gameport")
+        {
+            m_shell.m_refs.gamePort = static_cast<AppleGamePort *> (device.get());
+        }
         else if (devCfg.type == "apple2-speaker")
         {
             m_shell.m_refs.speaker = static_cast<AppleSpeaker *> (device.get());
@@ -365,9 +370,10 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // motor events themselves are not currently drive-tagged in
     // Disk2Controller -- a follow-up could split per-drive sinks).
     //
-    // Pan policy: single-drive profiles play centered (equal-power
-    // center). Two-drive profiles place Drive 1 left-of-center and
-    // Drive 2 right-of-center using kDrivePanOffset radians.
+    // Pan policy: each drive's stereo position comes from the shell's
+    // stored per-drive pan (user-adjustable). Defaults place Drive 1
+    // left-of-center and Drive 2 right-of-center (kDefaultDriveOnePan /
+    // kDefaultDriveTwoPan).
     m_shell.m_diskAudioSources.clear();
     m_shell.m_driveAudioMixer.UnregisterAllSources();
 
@@ -379,34 +385,21 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         for (drive = 0; drive < driveCount; drive++)
         {
             auto  src = std::make_unique<Disk2AudioSource>();
+            float panL = DriveAudioMixer::kSpeakerCenter;
+            float panR = DriveAudioMixer::kSpeakerCenter;
 
-            if (driveCount <= 1)
-            {
-                src->SetPan (DriveAudioMixer::kSpeakerCenter,
-                             DriveAudioMixer::kSpeakerCenter);
-            }
-            else if (drive == 0)
-            {
-                // Drive 1 (UI numbering; index 0): left bias. theta
-                // measured from the right speaker per FR-012, so
-                // panL = sin(theta), panR = cos(theta). At theta =
-                // pi/4 + pi/8 = 3*pi/8 this is roughly 0.924 L /
-                // 0.383 R -- halfway between the left speaker and
-                // center.
-                float  theta = DriveAudioMixer::kCenterAngle + DriveAudioMixer::kDrivePanOffset;
-
-                src->SetPan (sinf (theta), cosf (theta));
-            }
-            else
-            {
-                // Drive 2 (UI numbering; index 1): mirror, right bias.
-                float  theta = DriveAudioMixer::kCenterAngle - DriveAudioMixer::kDrivePanOffset;
-
-                src->SetPan (sinf (theta), cosf (theta));
-            }
+            // Per-drive stereo position from the shell's stored pan
+            // (user-adjustable; defaults place Drive 1 left-of-center and
+            // Drive 2 right-of-center). drive index is clamped to the
+            // stored-pan array bound.
+            DriveAudioMixer::PanToStereo (m_shell.m_drivePan[drive], panL, panR);
+            src->SetPan (panL, panR);
 
             m_shell.m_driveAudioMixer.RegisterSource (src.get());
             src->SetDriveIndex (drive);
+            src->SetVolumes (m_shell.m_driveMotorVolume,
+                             m_shell.m_driveHeadVolume,
+                             m_shell.m_driveDoorVolume);
             m_shell.m_diskAudioSources.push_back (std::move (src));
         }
 
@@ -430,7 +423,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineManager::WireLanguageCard ()
+void MachineManager::WireLanguageCard()
 {
     LanguageCard *  lc        = nullptr;
     RomDevice    *  romDevice = nullptr;
@@ -560,7 +553,7 @@ void MachineManager::WireLanguageCard ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineManager::WirePageTable ()
+void MachineManager::WirePageTable()
 {
     if (!m_shell.m_cpu)
     {
@@ -601,7 +594,7 @@ void MachineManager::WirePageTable ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte * MachineManager::GetAuxRamBuffer ()
+Byte * MachineManager::GetAuxRamBuffer()
 {
     return m_shell.m_mmu != nullptr ? m_shell.m_mmu->GetAuxBuffer() : nullptr;
 }
@@ -623,7 +616,7 @@ Byte * MachineManager::GetAuxRamBuffer ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineManager::RebuildBankingPages ()
+void MachineManager::RebuildBankingPages()
 {
     if (!m_shell.m_cpu)
     {
@@ -661,7 +654,7 @@ void MachineManager::RebuildBankingPages ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineManager::CreateVideoModes ()
+void MachineManager::CreateVideoModes()
 {
     auto textMode = std::make_unique<AppleTextMode> (m_shell.m_memoryBus, m_shell.m_charRom);
     m_shell.m_refs.activeVideoMode = textMode.get();
@@ -715,6 +708,14 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
 
 
     m_shell.m_cpu = std::make_unique<EmuCpu> (m_shell.m_memoryBus);
+
+    // --trace: allocate the CPU execution-trace ring now that the CPU
+    // exists. Covers both initial machine build and machine switches,
+    // since both paths run through here.
+    if (m_shell.m_traceCapacity > 0)
+    {
+        m_shell.m_cpu->EnableTrace (m_shell.m_traceCapacity);
+    }
 
     // Wire the //e video timing model into the EmuCpu cycle fan-out.
     // Every AddCycles call now ticks VideoTiming so $C019 (RDVBLBAR)
@@ -822,6 +823,11 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
         {
             iieSw->SetCpuCycleSource (m_shell.m_cpu->GetBusCyclePtr());
         }
+
+        if (m_shell.m_refs.gamePort != nullptr)
+        {
+            m_shell.m_refs.gamePort->SetCpuCycleSource (m_shell.m_cpu->GetBusCyclePtr());
+        }
     }
 
     return hr;
@@ -844,7 +850,7 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineManager::ShowMachinePicker ()
+void MachineManager::ShowMachinePicker()
 {
     OutputDebugStringA ("[MachineManager] ShowMachinePicker unavailable in native-only baseline.\n");
 }
@@ -1004,6 +1010,11 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         }
     }
 
+    if (m_shell.m_refs.gamePort != nullptr)
+    {
+        m_shell.m_refs.gamePort->SetInputEventSink (nullptr);
+    }
+
     // Tear down ALL per-machine state in one atomic move. m_refs is a
     // struct of observer pointers into the owning collections
     // (m_ownedDevices, m_videoModes); resetting it as a whole keeps
@@ -1131,7 +1142,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineManager::SoftReset ()
+void MachineManager::SoftReset()
 {
     m_shell.m_memoryBus.SoftResetAll();
 
@@ -1172,7 +1183,7 @@ void MachineManager::SoftReset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineManager::PowerCycle ()
+void MachineManager::PowerCycle()
 {
     HRESULT  hrFlush = S_OK;
 
@@ -1225,7 +1236,7 @@ void MachineManager::PowerCycle ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineManager::SelectVideoMode ()
+void MachineManager::SelectVideoMode()
 {
     if (m_shell.m_videoModes.size() < 3)
     {

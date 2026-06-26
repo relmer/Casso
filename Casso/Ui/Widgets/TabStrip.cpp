@@ -219,6 +219,23 @@ void TabStrip::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     constexpr float     s_kPadXDp       = 8.0f;
     constexpr float     s_kPadYDp       = 4.0f;
 
+    // When themed, the selected tab is a brightened tint of the hover
+    // color so it stays the lightest of the three states across themes.
+    auto  ScaleRgb = [] (uint32_t argb, float f) -> uint32_t
+    {
+        uint32_t  r = (uint32_t) std::min (255.0f, ((argb >> 16) & 0xFFu) * f);
+        uint32_t  g = (uint32_t) std::min (255.0f, ((argb >>  8) & 0xFFu) * f);
+        uint32_t  b = (uint32_t) std::min (255.0f, ( argb        & 0xFFu) * f);
+
+        return (argb & 0xFF000000u) | (r << 16) | (g << 8) | b;
+    };
+
+    uint32_t  tabIdle     = m_theme ? m_theme->navStripArgb            : s_kTabIdle;
+    uint32_t  tabHover    = m_theme ? m_theme->navHoverArgb            : s_kTabHover;
+    uint32_t  tabSelected = m_theme ? ScaleRgb (m_theme->navHoverArgb, 1.45f) : s_kTabSelected;
+    uint32_t  textArgb    = m_theme ? m_theme->navItemTextArgb         : s_kTextArgb;
+    uint32_t  focusRing   = m_theme ? m_theme->linkArgb                : s_kFocusRing;
+
     HRESULT  hr         = S_OK;
     int      i          = 0;
     size_t   n          = m_tabs.size();
@@ -233,8 +250,8 @@ void TabStrip::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     for (i = 0; i < (int) n; ++i)
     {
         const Tab & t        = m_tabs[(size_t) i];
-        uint32_t    fillArgb = (i == m_selected) ? s_kTabSelected
-                                : (i == m_hover ? s_kTabHover : s_kTabIdle);
+        uint32_t    fillArgb = (i == m_selected) ? tabSelected
+                                : (i == m_hover ? tabHover : tabIdle);
 
         painter.FillRect ((float) t.rect.left,
                           (float) t.rect.top,
@@ -248,7 +265,7 @@ void TabStrip::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                  (float) t.rect.top  + focusInset,
                                  (float) (t.rect.right  - t.rect.left) - focusInset * 2.0f,
                                  (float) (t.rect.bottom - t.rect.top)  - focusInset * 2.0f,
-                                 focusThick, s_kFocusRing);
+                                 focusThick, focusRing);
         }
 
         IGNORE_RETURN_VALUE (hr, text.DrawString (t.label.c_str(),
@@ -256,7 +273,7 @@ void TabStrip::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                                   (float) t.rect.top  + padY,
                                                   (float) (t.rect.right  - t.rect.left) - padX * 2.0f,
                                                   (float) (t.rect.bottom - t.rect.top)  - padY * 2.0f,
-                                                  s_kTextArgb,
+                                                  textArgb,
                                                   fontDip,
                                                   L"Segoe UI",
                                                   DwriteTextRenderer::HAlign::Center,

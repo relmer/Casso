@@ -87,6 +87,7 @@ public:
         Assert::IsTrue (registry.IsRegistered ("apple2-keyboard"));
         Assert::IsTrue (registry.IsRegistered ("apple2-speaker"));
         Assert::IsTrue (registry.IsRegistered ("apple2-softswitches"));
+        Assert::IsTrue (registry.IsRegistered ("apple2-gameport"));
         Assert::IsTrue (registry.IsRegistered ("language-card"));
         Assert::IsTrue (registry.IsRegistered ("disk-ii"));
     }

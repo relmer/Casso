@@ -465,6 +465,7 @@ LRESULT SettingsWindow::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM 
             break;
 
         case WM_CHAR:
+            OnChar (wParam);
             result = 0;
             break;
 
@@ -943,6 +944,32 @@ void SettingsWindow::OnKeyDown (WPARAM vk)
         m_panel->Cancel();
     }
 
+    DestroyIfPanelClosed();
+
+Error:
+    return;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnChar
+//
+//  Routes a typed character to the panel (the color picker's hex field).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsWindow::OnChar (WPARAM ch)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (m_panel == nullptr, S_OK);
+
+    (void) m_panel->OnChar ((wchar_t) ch);
     DestroyIfPanelClosed();
 
 Error:

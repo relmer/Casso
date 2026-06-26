@@ -84,6 +84,14 @@ public:
     bool                              HandleMouseUp        (int x, int y);
     int                               HighlightIndex       () const { return m_highlightIndex; }
 
+    // Width in pixels from the strip's left edge to the right edge of the
+    // last menu title (after Layout). Lets the window enforce a minimum
+    // width that keeps every menu title on-strip instead of clipping.
+    int                               MenuStripContentWidthPx () const
+    {
+        return m_menuRects[kMenuCount - 1].right - m_stripRect.left;
+    }
+
 private:
     static constexpr int              kMenuCount = 7;
 

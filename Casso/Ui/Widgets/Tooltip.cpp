@@ -58,6 +58,30 @@ void Tooltip::RequestHide (int64_t nowMs)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DismissAfter
+//
+//  Schedules a self-dismiss `delayMs` from now and cancels any pending
+//  (not-yet-shown) request. Used when the pointer is about to stop
+//  generating events over this tooltip -- e.g. paddle-mode mouse capture --
+//  so a visible balloon still fades on its own instead of sticking forever.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Tooltip::DismissAfter (int64_t nowMs, int delayMs)
+{
+    m_pending = false;
+
+    if (m_visible)
+    {
+        m_hideAtMs = nowMs + (int64_t) delayMs;
+    }
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -110,23 +134,56 @@ void Tooltip::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
     float    padY      = m_scaler.Pxf (s_kPadYDip);
     float    borderPx  = m_scaler.Pxf (s_kBorderDip);
     float    anchorGap = m_scaler.Pxf (s_kAnchorGapDip);
+    float    maxContentPx = FLT_MAX;
     float    textW     = 0.0f;
     float    textH     = 0.0f;
     float    width     = 0.0f;
     float    height    = 0.0f;
     float    boxLeft   = 0.0f;
     float    boxTop    = 0.0f;
+    bool     wrap      = false;
 
 
+
+    UNREFERENCED_PARAMETER (painter);
 
     if (!m_visible || m_text.empty())
     {
         return;
     }
 
+    // When a max width is set, constrain the content box so the text wraps
+    // to multiple lines instead of running off the window edge. The cap is
+    // further limited to the viewport so a wide tooltip near a screen edge
+    // still fits.
+    if (m_maxWidthDip > 0.0f)
+    {
+        float  maxBoxPx = m_scaler.Pxf (m_maxWidthDip);
+
+        if (m_viewportWPx > 0)
+        {
+            float  viewportCapPx = (float) m_viewportWPx - anchorGap * 2.0f;
+
+            if (maxBoxPx > viewportCapPx)
+            {
+                maxBoxPx = viewportCapPx;
+            }
+        }
+
+        maxContentPx = maxBoxPx - padX * 2.0f;
+
+        if (maxContentPx < 1.0f)
+        {
+            maxContentPx = 1.0f;
+        }
+
+        wrap = true;
+    }
+
     hr = const_cast<DwriteTextRenderer &> (text).MeasureString (m_text.c_str(),
                                                                 fontPx, L"Segoe UI",
-                                                                textW, textH);
+                                                                textW, textH,
+                                                                maxContentPx);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     width   = std::ceil (textW)  + padX * 2.0f;
@@ -158,8 +215,18 @@ void Tooltip::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
         }
     }
 
-    painter.FillRect    (boxLeft, boxTop, width, height, s_kBgArgb);
-    painter.OutlineRect (boxLeft, boxTop, width, height, borderPx, s_kBorderArgb);
+    // Draw the background + border through the text (D2D) layer, not the
+    // geometry painter: the painter composites in a separate pass UNDER all
+    // text, so a painter-drawn balloon would let underlying labels (e.g. a
+    // drive widget's "DRIVE 2") bleed through. Drawing here, after the
+    // chrome's text and before our own, occludes them. The border is an
+    // outer fill with the background inset by one border width.
+    text.FillRect (boxLeft, boxTop, width, height, s_kBorderArgb);
+    text.FillRect (boxLeft + borderPx,
+                   boxTop  + borderPx,
+                   width  - borderPx * 2.0f,
+                   height - borderPx * 2.0f,
+                   s_kBgArgb);
 
     IGNORE_RETURN_VALUE (hr, text.DrawString (m_text.c_str(),
                                               boxLeft + padX,
@@ -168,5 +235,9 @@ void Tooltip::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
                                               height - padY * 2.0f,
                                               s_kTextArgb,
                                               fontPx,
-                                              L"Segoe UI"));
+                                              L"Segoe UI",
+                                              DwriteTextRenderer::HAlign::Left,
+                                              DwriteTextRenderer::VAlign::Top,
+                                              DWRITE_FONT_WEIGHT_NORMAL,
+                                              wrap));
 }

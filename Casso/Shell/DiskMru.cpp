@@ -14,7 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskMru::EnforceCap ()
+void DiskMru::EnforceCap()
 {
     while (m_entries.size() > k_capacity)
     {
@@ -63,7 +63,7 @@ void DiskMru::RecordMount (const std::filesystem::path & path)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::filesystem::path> DiskMru::Snapshot () const
+std::vector<std::filesystem::path> DiskMru::Snapshot() const
 {
     return m_entries;
 }
@@ -145,7 +145,13 @@ DiskMru DiskMru::FromUtf8 (const std::vector<std::string> & utf8Entries)
     {
         if (!utf8Entries[i].empty())
         {
-            paths.emplace_back (std::filesystem::path (utf8Entries[i]));
+            // Interpret the stored bytes as UTF-8 so non-ASCII filenames
+            // (e.g. the o-slash in "Broderbund") round-trip intact rather
+            // than being mangled by the platform-narrow path constructor.
+            std::u8string  u8 (reinterpret_cast<const char8_t *> (utf8Entries[i].data()),
+                               utf8Entries[i].size());
+
+            paths.emplace_back (std::filesystem::path (u8));
         }
     }
     mru.ReplaceAll (std::move (paths));
@@ -175,6 +181,10 @@ void DiskMru::ToUtf8 (std::vector<std::string> & outUtf8Entries) const
     outUtf8Entries.reserve (m_entries.size());
     for (i = 0; i < m_entries.size(); i++)
     {
-        outUtf8Entries.push_back (m_entries[i].string());
+        // Serialise as UTF-8 (not the platform-narrow encoding) so the
+        // recentDisks JSON stays valid UTF-8 for non-ASCII filenames.
+        std::u8string  u8 = m_entries[i].u8string();
+
+        outUtf8Entries.emplace_back (reinterpret_cast<const char *> (u8.data()), u8.size());
     }
 }

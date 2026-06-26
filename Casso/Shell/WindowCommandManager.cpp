@@ -242,7 +242,7 @@ void WindowCommandManager::OnMachineCommand (int id)
 
         case IDM_MACHINE_ARROWS_JOYSTICK:
         {
-            m_shell.SetMapArrowsToJoystick (!m_shell.m_mapArrowsToJoystick);
+            m_shell.CycleInputMappingMode();
             break;
         }
     }

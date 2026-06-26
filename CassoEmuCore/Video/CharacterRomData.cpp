@@ -15,7 +15,7 @@ static constexpr size_t k4KBytes = 4096;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CharacterRomData::CharacterRomData ()
+CharacterRomData::CharacterRomData()
 {
     LoadEmbeddedFallback();
 }
@@ -116,7 +116,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CharacterRomData::LoadEmbeddedFallback ()
+void CharacterRomData::LoadEmbeddedFallback()
 {
     memset (m_glyphs, 0, sizeof (m_glyphs));
     m_hasAltCharSet = false;
@@ -178,11 +178,14 @@ Byte CharacterRomData::GetGlyphRow (Byte glyphIndex, int row, bool altCharSet) c
 //
 //  Decode2K
 //
-//  Apple II/II+ 2KB video ROM. The ROM has bits in reversed order
-//  (bit 6 = leftmost dot) and dots are inverted (1 = unlit). The low
-//  1KB contains chars 0x00-0x7F; setting bit 7 of the source byte means
-//  "do not invert", otherwise the glyph is inverted (UTAII:8-30/8-31).
-//  We store the "lit dots = 1" form normalized so render code is uniform.
+//  Apple II/II+ 2KB video ROM. The ROM stores 256 cells of 8 rows; the
+//  bits are in reversed order (bit 6 = leftmost dot). The low seven bits
+//  carry the glyph's "lit dots = 1" pattern and are identical across all
+//  four 64-char ranges ($00-$3F inverse, $40-$7F flash, $80-$BF and
+//  $C0-$FF normal) -- bit 7 is only a range marker, NOT a per-glyph
+//  invert flag. So every cell decodes to the same normal-form glyph and
+//  the renderer applies the inverse ($00-$3F) / flash ($40-$7F) video at
+//  draw time (UTAII:8-30/8-31).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -199,17 +202,8 @@ void CharacterRomData::Decode2K (const vector<Byte> & raw)
         {
             Byte n = raw[RA + y];
 
-            // For chars in low 1KB ($00-$7F): if bit 7 is clear, invert (xor with 0x7F)
-            // This produces the "lit dot" pattern.
-            if (RA < 1024)
-            {
-                if (!(n & 0x80))
-                {
-                    n = n ^ 0x7F;
-                }
-            }
-
-            // Reverse bits 0..6 (bit 6 of source becomes bit 0 of output)
+            // Reverse bits 0..6 (bit 6 of source becomes bit 0 of output);
+            // bit 7 is the range marker and is intentionally dropped.
             Byte d = 0;
             for (int j = 0; j < 7; j++)
             {

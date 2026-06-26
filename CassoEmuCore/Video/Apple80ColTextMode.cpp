@@ -186,7 +186,7 @@ void Apple80ColTextMode::RenderRowRange (
                 for (int px = 0; px < kCharWidth; px++)
                 {
                     bool     pixelOn = (glyphRow & (1 << px)) != 0;
-                    uint32_t color   = pixelOn ? kColorGreen : kColorBlack;
+                    uint32_t color   = pixelOn ? m_onColor : kColorBlack;
 
                     int fbX = col * kCharWidth + px;
                     int fbY = row * kCharHeight * 2 + py * 2;

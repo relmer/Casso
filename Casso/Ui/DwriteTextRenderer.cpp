@@ -952,14 +952,23 @@ HRESULT DwriteTextRenderer::MeasureString (
     float            fontSizeDip,
     const wchar_t  * fontFamily,
     float          & outWidthDip,
-    float          & outHeightDip)
+    float          & outHeightDip,
+    float            maxWidthDip)
 {
-    HRESULT                            hr      = S_OK;
+    HRESULT                            hr        = S_OK;
     ComPtr<IDWriteTextFormat>          format;
-    IDWriteTextFormat                * rawFmt  = nullptr;
+    IDWriteTextFormat                * rawFmt    = nullptr;
     ComPtr<IDWriteTextLayout>          layout;
-    DWRITE_TEXT_METRICS                metrics = {};
-    UINT32                             textLen = 0;
+    DWRITE_TEXT_METRICS                metrics   = {};
+    UINT32                             textLen   = 0;
+
+    // A literal FLT_MAX layout box overflows DWrite's internal alignment
+    // math on some targets and yields a bogus zero-width measurement, so
+    // an unbounded request is clamped to a large but finite sentinel that
+    // still comfortably exceeds any real single-line string.
+    constexpr float                    kUnboundedW = 1.0e6f;
+    float                              layoutW     = (maxWidthDip > 0.0f && maxWidthDip < FLT_MAX)
+                                                         ? maxWidthDip : kUnboundedW;
 
 
 
@@ -982,11 +991,15 @@ HRESULT DwriteTextRenderer::MeasureString (
 
     textLen = (UINT32) wcslen (text);
 
+    // A finite maxWidthDip constrains the layout box so GetMetrics returns
+    // the wrapped extent (widest line width, total multi-line height); an
+    // unbounded request uses a large finite box (FLT_MAX overflows DWrite's
+    // layout math and returns a zero-width measurement on some targets).
     hr = m_dwriteFactory->CreateTextLayout (text,
                                             textLen,
                                             format.Get(),
-                                            FLT_MAX,
-                                            FLT_MAX,
+                                            layoutW,
+                                            kUnboundedW,
                                             &layout);
     CHRA (hr);
 
