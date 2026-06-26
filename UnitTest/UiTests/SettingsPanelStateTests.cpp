@@ -30,6 +30,11 @@ namespace
         bool               lastFloppySound       = true;
         std::string        lastMechanism;
         bool               lastWriteProtect[2]   = { false, false };
+        float              lastDriveMotor        = -1.0f;
+        float              lastDriveHead         = -1.0f;
+        float              lastDriveDoor         = -1.0f;
+        float              lastDriveOnePan       = 0.0f;
+        float              lastDriveTwoPan       = 0.0f;
         int                queuedResetCount      = 0;
         int                applyCount            = 0;
 
@@ -37,6 +42,19 @@ namespace
         void ApplyColorMode    (SettingsColorMode mode) override   { lastColor = mode; ++applyCount; }
         void ApplyFloppySound  (bool enabled) override             { lastFloppySound = enabled; ++applyCount; }
         void ApplyMechanism    (const std::string & m) override    { lastMechanism = m; ++applyCount; }
+        void ApplyDriveVolumes (float motor, float head, float door) override
+        {
+            lastDriveMotor = motor;
+            lastDriveHead  = head;
+            lastDriveDoor  = door;
+            ++applyCount;
+        }
+        void ApplyDrivePan     (float driveOnePan, float driveTwoPan) override
+        {
+            lastDriveOnePan = driveOnePan;
+            lastDriveTwoPan = driveTwoPan;
+            ++applyCount;
+        }
         void ApplyWriteProtect (int drive, bool wp) override
         {
             if (drive >= 0 && drive < 2) lastWriteProtect[drive] = wp;
