@@ -241,6 +241,7 @@
     <ClCompile Include="Ui\Chrome\LedIndicator.cpp" />
     <ClCompile Include="Ui\DriveWidgetController.cpp" />
     <ClCompile Include="Ui\AutoMountResolver.cpp" />
+    <ClCompile Include="Ui\Settings\ColorPickerOverlay.cpp" />
     <ClCompile Include="Ui\Settings\DisplayPage.cpp" />
     <ClCompile Include="Ui\Settings\HardwarePage.cpp" />
     <ClCompile Include="Ui\Settings\MachinePage.cpp" />
@@ -321,6 +322,7 @@
     <ClInclude Include="Ui\DriveWidgetController.h" />
     <ClInclude Include="Ui\IDriveCommandSink.h" />
     <ClInclude Include="Ui\AutoMountResolver.h" />
+    <ClInclude Include="Ui\Settings\ColorPickerOverlay.h" />
     <ClInclude Include="Ui\Settings\DisplayPage.h" />
     <ClInclude Include="Ui\Settings\HardwarePage.h" />
     <ClInclude Include="Ui\Settings\MachinePage.h" />
