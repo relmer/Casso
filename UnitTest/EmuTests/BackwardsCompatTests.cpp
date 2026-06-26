@@ -501,9 +501,11 @@ public:
             L"Apple2.json must keep apple2-speaker");
         Assert::IsTrue  (HasInternalDeviceType (config, "apple2-softswitches"),
             L"Apple2.json must keep apple2-softswitches");
+        Assert::IsTrue  (HasInternalDeviceType (config, "apple2-gameport"),
+            L"Apple2.json must include apple2-gameport");
 
-        Assert::AreEqual (size_t (3), config.internalDevices.size (),
-            L"Apple2.json internalDevices count must remain exactly 3");
+        Assert::AreEqual (size_t (4), config.internalDevices.size (),
+            L"Apple2.json internalDevices count must remain exactly 4");
         Assert::AreEqual (size_t (1), config.slots.size (),
             L"Apple2.json must declare exactly one slot (Disk II in slot 6)");
     }
@@ -539,9 +541,11 @@ public:
             L"Apple2Plus.json must keep apple2-speaker");
         Assert::IsTrue (HasInternalDeviceType (config, "apple2-softswitches"),
             L"Apple2Plus.json must keep apple2-softswitches");
+        Assert::IsTrue (HasInternalDeviceType (config, "apple2-gameport"),
+            L"Apple2Plus.json must include apple2-gameport");
 
-        Assert::AreEqual (size_t (3), config.internalDevices.size (),
-            L"Apple2Plus.json internalDevices count must remain exactly 3");
+        Assert::AreEqual (size_t (4), config.internalDevices.size (),
+            L"Apple2Plus.json internalDevices count must remain exactly 4");
         Assert::AreEqual (size_t (1), config.slots.size (),
             L"Apple2Plus.json must declare exactly one slot (Disk II in slot 6)");
     }

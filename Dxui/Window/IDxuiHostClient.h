@@ -235,6 +235,46 @@ public:
         return DxuiMessageResult::NotHandled;
     }
 
+    // WM_RBUTTONDOWN / WM_RBUTTONUP. wParam = mouse-button / modifier
+    // flags; lParam packs the (x, y) client-coordinate point. Used by
+    // paddle-input mode for the secondary fire button. Default returns
+    // NotHandled (DxuiHostWindow calls DefWindowProc).
+    virtual DxuiMessageResult  OnRButtonDown    (WPARAM wParam, LPARAM lParam)
+    {
+        UNREFERENCED_PARAMETER (wParam);
+        UNREFERENCED_PARAMETER (lParam);
+        return DxuiMessageResult::NotHandled;
+    }
+
+    virtual DxuiMessageResult  OnRButtonUp      (WPARAM wParam, LPARAM lParam)
+    {
+        UNREFERENCED_PARAMETER (wParam);
+        UNREFERENCED_PARAMETER (lParam);
+        return DxuiMessageResult::NotHandled;
+    }
+
+    // WM_ACTIVATEAPP (active = wParam != 0), WM_KILLFOCUS, and
+    // WM_CANCELMODE. Surfaced so a consumer can release a live mouse
+    // capture (e.g. paddle-input mode) when the app loses the
+    // foreground / focus, or the OS cancels capture (secure desktop,
+    // lock). Default returns NotHandled (DxuiHostWindow calls
+    // DefWindowProc).
+    virtual DxuiMessageResult  OnActivateApp    (bool active)
+    {
+        UNREFERENCED_PARAMETER (active);
+        return DxuiMessageResult::NotHandled;
+    }
+
+    virtual DxuiMessageResult  OnKillFocus      ()
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    virtual DxuiMessageResult  OnCancelMode     ()
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
     // WM_MOVE. (x, y) are the new client-area top-left in screen
     // coordinates per the WM_MOVE LPARAM packing. Return
     // ``Handled`` if your override fully processed the move;

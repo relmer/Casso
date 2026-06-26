@@ -26,6 +26,7 @@
 #include "Ui/Chrome/LayoutManager.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/Chrome/TitleBar.h"
+#include "Ui/ColorUtil.h"
 #include "Ui/Dialog/DialogDefinition.h"
 #include "Ui/Dialog/DialogPrimitive.h"
 #include "Ui/Disk2DebugPanel.h"
@@ -90,6 +91,16 @@ public:
     // hot-path callers like the dialog primitive owner-window
     // handoff and the settings panel.
     HWND  GetHwnd () const { return m_hwnd; }
+
+    // Execution trace (--trace switch). SetTraceCapacity must be called
+    // before Initialize so the CPU's ring is allocated when the machine
+    // is built. DumpTrace writes the recorded ring to a timestamped text
+    // file in the working directory, showing a progress window; it is
+    // called both on graceful exit and from the crash handler, and is a
+    // no-op (and self-guards against a double dump) when tracing is off.
+    void SetTraceCapacity (size_t capacityEntries) { m_traceCapacity = capacityEntries; }
+    bool IsTracing        () const { return m_traceCapacity > 0; }
+    void DumpTrace        (const wstring & reason);
 
     // / FR-034 / FR-035: split-reset entry points exposed for the
     // menu commands (IDM_MACHINE_RESET / IDM_MACHINE_POWERCYCLE) and any
@@ -161,13 +172,6 @@ public:
     void    BrowseForDisk (int drive);
 
 private:
-    // IDxuiHostClient message handler overrides. DxuiHostWindow's
-    // WndProc dispatches Win32 messages through these; the
-    // DxuiMessageResult-returning overrides claim the message
-    // (Handled) or fall through to DefWindowProc (NotHandled). The
-    // legacy Window-base `bool` polarity — `true` = call DefWindowProc,
-    // `false` = consumed — is mapped to the typed enum at every
-    // return site.
     DxuiMessageResult  OnChar          (WPARAM ch, LPARAM lParam) override;
     DxuiMessageResult  OnCommand       (WORD commandId) override;
     DxuiMessageResult  OnKeyDown       (WPARAM vk, LPARAM lParam) override;
@@ -176,6 +180,11 @@ private:
     DxuiMessageResult  OnMouseLeave    () override;
     DxuiMessageResult  OnLButtonDown   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnRButtonDown   (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnRButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnActivateApp   (bool active) override;
+    DxuiMessageResult  OnKillFocus     () override;
+    DxuiMessageResult  OnCancelMode    () override;
     DxuiMessageResult  OnMove          (int x, int y) override;
     DxuiMessageResult  OnNotify        (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnSize          (UINT widthPx, UINT heightPx) override;
@@ -202,6 +211,24 @@ private:
     void ExecuteCpuSlices();
     void RenderFramebuffer();
     void DispatchCpuCommand (const EmulatorCommand & cmd);
+
+    // Stores the live drive-audio gains and applies them to every
+    // registered Disk2AudioSource. Must run on the CPU thread (the same
+    // thread that mixes audio), so callers marshal through the command
+    // queue (IDM_AUDIO_DRIVE_VOLUMES) rather than calling it directly.
+    void SetDriveAudioVolumes (float motor, float head, float door);
+
+    // Stores a live per-drive stereo pan (drive 0/1, value -1..+1) and
+    // applies it to the matching Disk2AudioSource. Like the volumes, this
+    // must run on the CPU thread, so callers marshal through the command
+    // queue (IDM_AUDIO_DRIVE_PAN).
+    void SetDriveAudioPan (int drive, float pan);
+
+    // Auditions a drive sound on demand (settings play buttons). drive =
+    // 0/1, kind matches Disk2AudioSource::TestSoundKind. CPU-thread only,
+    // marshaled via IDM_AUDIO_DRIVE_TEST.
+    void PlayDriveTestSound (int drive, int kind);
+
     void OnCpuThreadStart();
     void OnCpuThreadStop();
     void PublishFramebuffer();
@@ -239,10 +266,27 @@ private:
     // Stage the emulated joystick fire buttons from the host X / Y keys.
     void    UpdateJoystickButtonsFromKeys ();
 
-    // DxuiToggle the "Map Arrows to Joystick" mode: updates the flag, persists
-    // it, and re-syncs the joystick axes (resolving from current keys when
-    // turned on, or centering both axes when turned off).
-    void    SetMapArrowsToJoystick (bool on);
+    // Set the host input mapping mode (Off / Joystick / Paddle): persists
+    // it, re-syncs the game port (resolving joystick axes / buttons from
+    // current keys, centering on leave), and starts or stops mouse capture
+    // for Paddle mode.
+    void    SetInputMappingMode (InputMappingMode mode);
+
+    // Advance the input mapping mode Off -> Joystick -> Paddle -> Off,
+    // routed from the drive-bar widget, the Machine menu, and Ctrl+J.
+    void    CycleInputMappingMode ();
+
+    // Paddle-mode mouse capture. Start hides + confines the cursor and
+    // begins relative tracking (no-op unless the mode is Paddle and the
+    // window is focused); Stop restores the cursor and releases the clip.
+    // UpdatePaddleFromMouse maps one WM_MOUSEMOVE into the held paddle
+    // axes via the recenter-on-move trick. PushPaddleButtons stages the
+    // mouse buttons onto the emulated fire buttons.
+    void    StartPaddleCapture     ();
+    void    StopPaddleCapture      ();
+    void    UpdatePaddleFromMouse  (int xClient, int yClient);
+    void    PushPaddlePosition     ();
+    void    PushPaddleButton       (int index, bool pressed);
 
     // Queue a command for the CPU thread. Public so non-friend
     // adapters (e.g. SettingsPanel's internal apply sink) can post
@@ -304,6 +348,12 @@ private:
     // next CPU frame rather than waiting for queue drain.
     void  SetColorModeLive (int settingsColorModeIndex);
 
+    // Live-set the text color used on the Color monitor (0xAARRGGBB),
+    // resolved from a ColorMonitorTextMode + custom color. Like
+    // SetColorModeLive, the Settings panel calls this on hover / select so
+    // the change shows on the next CPU frame, and on Cancel to restore.
+    void  SetColorMonitorTextArgbLive (uint32_t argb);
+
     // Activates the named theme in ThemeManager (which notifies the
     // chrome cache listener) and persists the choice into GlobalUserPrefs.
     // No-op if the name is empty; falls back to Skeuomorphic if unknown.
@@ -325,6 +375,12 @@ private:
                                   int bandTopPx,
                                   int bandHeightPx,
                                   UINT dpi);
+
+    // Re-run the input-mode button layout from the last cached geometry,
+    // so the frame resizes immediately when the mode (and thus the label
+    // width) changes between resize / DPI events. No-op until the first
+    // LayoutJoystickButton has cached valid geometry.
+    void    RelayoutJoystickButton ();
 
     // Keyboard chrome-focus ring (see m_chromeFocusIndex). SetChromeFocusIndex
     // updates the index and refreshes which widget paints its focus visual;
@@ -380,10 +436,12 @@ private:
     InterruptController m_interruptController;
     unique_ptr<EmuCpu> m_cpu;
     unique_ptr<class Prng> m_prng;
-
-    D3DRenderer         m_d3dRenderer;
-    WasapiAudio         m_wasapiAudio;
-    DialogPrimitive     m_dialogPrimitive;
+    size_t                 m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
+    std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace
+   
+    D3DRenderer            m_d3dRenderer;
+    WasapiAudio            m_wasapiAudio;
+    DialogPrimitive        m_dialogPrimitive;
 
     // UI-thread filesystem and chrome ownership. The painter pass
     // and shell composition is reintroduced in a later phase; for now
@@ -439,6 +497,14 @@ private:
     JoystickToggleButton  m_joystickButton;
     DxuiTooltip               m_joystickTooltip;
 
+    // Last geometry passed to LayoutJoystickButton, cached so
+    // RelayoutJoystickButton can resize the button in place when the
+    // input mode (and thus the label width) changes between layout passes.
+    int   m_joyBtnClientW    = 0;
+    int   m_joyBtnBandTop    = 0;
+    int   m_joyBtnBandHeight = 0;
+    UINT  m_joyBtnDpi        = 96;
+
     // Chrome layout planner. Owns the canonical inset math for the
     // title bar, nav strip, and drive bar; replaces the historical
     // ChromeMetrics constants that drifted between EmulatorShell and
@@ -463,7 +529,7 @@ private:
     // focus manager, animation broker, and input translator. Wired
     // onto D3DRenderer's after-blit hook so chrome composites every
     // frame between the emulator blit and Present.
-    UiShell             m_uiShell;
+    UiShell                    m_uiShell;
 
     // Consolidated settings panel. Lazily constructed pieces so we
     // can defer their I/O until first Show() on the panel.
@@ -484,15 +550,30 @@ private:
     // Drive audio. Mixer is always allocated; per-drive sources are
     // populated only when the active machine config carries a
     // Disk II controller (FR-015).
-    DriveAudioMixer            m_driveAudioMixer;
+    DriveAudioMixer                      m_driveAudioMixer;
     vector<unique_ptr<Disk2AudioSource>> m_diskAudioSources;
 
+    // Live per-sound drive-audio gains (0..1), seeded from $cassoUiPrefs
+    // at startup and updated via SetDriveAudioVolumes. Stored on the shell
+    // so they survive machine resets (MachineManager re-seeds fresh
+    // sources from these).
+    float                                m_driveMotorVolume = Disk2AudioSource::kMotorVolume;
+    float                                m_driveHeadVolume  = Disk2AudioSource::kHeadVolume;
+    float                                m_driveDoorVolume  = Disk2AudioSource::kDoorVolume;
+
+    // Live per-drive stereo pan in [-1, +1] (-1 = hard left, +1 = hard
+    // right), index 0 = Drive 1, 1 = Drive 2. Seeded from $cassoUiPrefs at
+    // startup and updated via SetDriveAudioPan; survives machine resets
+    // (MachineManager re-seeds fresh sources from these).
+    float                                m_drivePan[2] = { DriveAudioMixer::kDefaultDriveOnePan,
+                                                           DriveAudioMixer::kDefaultDriveTwoPan };
+
     // Owned devices
-    vector<unique_ptr<MemoryDevice>> m_ownedDevices;
+    vector<unique_ptr<MemoryDevice>>     m_ownedDevices;
 
     // Video
-    vector<unique_ptr<VideoOutput>> m_videoModes;
-    CharacterRomData    m_charRom;
+    vector<unique_ptr<VideoOutput>>      m_videoModes;
+    CharacterRomData                     m_charRom;
 
     // Soft switch state (read by video mode selection)
     bool    m_graphicsMode = false;
@@ -516,6 +597,7 @@ private:
     {
         class AppleKeyboard *         keyboard         = nullptr;
         class AppleSoftSwitchBank *   softSwitches     = nullptr;
+        class AppleGamePort *         gamePort         = nullptr;
         class AppleSpeaker *          speaker          = nullptr;
         class RamDevice *             mainRamDev       = nullptr;
         class Disk2Controller *       diskController   = nullptr;
@@ -524,7 +606,7 @@ private:
 
     MachineRefs                   m_refs;
 
-    unique_ptr<class Apple2eMmu> m_mmu;
+    unique_ptr<class Apple2eMmu>  m_mmu;
     unique_ptr<VideoTiming>       m_videoTiming;
 
     // / T097 / FR-025. The store coordinates auto-flush of dirty
@@ -534,35 +616,40 @@ private:
     DiskImageStore                m_diskStore;
 
     // Emulation state
-    MachineConfig   m_config;
+    MachineConfig                 m_config;
 
     // Machine config file name (without ".json" extension, e.g.,
     // "apple2e", "apple2plus", "apple2"). Used as a registry-key
     // suffix so per-machine UI state (e.g., last-mounted disks) can
     // round-trip between sessions without one machine's setting
     // clobbering another's.
-    wstring         m_currentMachineName;
-    wstring         m_assetBaseDir;
+    wstring                       m_currentMachineName;
+    wstring                       m_assetBaseDir;
 
     // CPU-thread lifecycle, run/pause/step transitions, the UI -> CPU
     // command queue, and the paste buffer all live on CpuManager. The
     // shell wires its per-frame and per-command callbacks at startup
     // and otherwise reads the manager's transition state through the
     // IsRunning() / IsPaused() / GetSpeedMode() accessors.
-    CpuManager         m_cpuManager;
+    CpuManager                    m_cpuManager;
 
     // Atomic flags (UI writes, CPU reads)
-    atomic<ColorMode>  m_colorMode{ColorMode::Color};
+    atomic<ColorMode>             m_colorMode{ColorMode::Color};
+
+    // Resolved text color (0xAARRGGBB) for the Color monitor. UI writes via
+    // SetColorMonitorTextArgbLive; RenderFramebuffer reads it when the Color
+    // monitor is active. Defaults to white.
+    atomic<uint32_t>              m_colorMonitorTextArgb{ColorUtil::kWhiteArgb};
 
     // Double framebuffer (CPU renders, UI presents, protected by m_fbMutex)
-    mutex              m_fbMutex;
-    vector<uint32_t>   m_cpuFramebuffer;
-    vector<uint32_t>   m_textOverlay;
-    vector<uint32_t>   m_uiFramebuffer;
-    bool                    m_fbReady = false;
+    mutex                         m_fbMutex;
+    vector<uint32_t>              m_cpuFramebuffer;
+    vector<uint32_t>              m_textOverlay;
+    vector<uint32_t>              m_uiFramebuffer;
+    bool                          m_fbReady = false;
 
-    uint32_t        m_cyclesPerFrame  = 17050;
-    double          m_sampleRemainder = 0.0;
+    uint32_t                      m_cyclesPerFrame  = 17050;
+    double                        m_sampleRemainder = 0.0;
 
     // Last arrow key pressed for each emulated joystick axis pair (0 if
     // none). Lets opposing directions resolve last-pressed-wins so a
@@ -570,10 +657,19 @@ private:
     WPARAM          m_lastHorizontalArrowVk = 0;
     WPARAM          m_lastVerticalArrowVk   = 0;
 
-    // When true, arrow keys drive only the emulated game-port joystick
-    // (no //e keyboard latch). Mirrors GlobalUserPrefs::mapArrowsToJoystick
-    // and is toggled via the Machine menu's "Map Arrows to Joystick" item.
-    bool            m_mapArrowsToJoystick   = false;
+    // How host arrow / pointer input is mapped onto the emulated game
+    // port (Off / Joystick / Paddle). Mirrors
+    // GlobalUserPrefs::inputMappingMode and is cycled via the Machine
+    // menu's "Cycle Input Mode" item, Ctrl+J, and the drive-bar widget.
+    InputMappingMode  m_inputMode = InputMappingMode::Off;
+
+    // Paddle-mode mouse capture. While captured, the cursor is hidden and
+    // confined, relative motion drives the paddle axes (held, no recenter),
+    // and the mouse buttons drive the fire buttons. m_paddleAxis* are float
+    // accumulators (0..255) so sub-unit motion isn't lost between events.
+    bool              m_paddleCaptured = false;
+    float             m_paddleAxisX    = 127.0f;
+    float             m_paddleAxisY    = 127.0f;
 
     // Keyboard focus ring across the painted chrome ("Z" Tab order, left
     // to right, top to bottom): -1 = guest (//e has focus), 0..6 = the
@@ -587,8 +683,8 @@ private:
     // Lazy-created on first Ctrl+Shift+D and reused across opens.
     // The uptime anchor lives on the shell (not the panel) so resets
     // re-zero it even while the panel is closed.
-    std::unique_ptr<class Disk2DebugPanel>   m_disk2DebugPanel;
-    std::unique_ptr<class InputDebugPanel>   m_inputDebugPanel;
+    std::unique_ptr<class Disk2DebugPanel>    m_disk2DebugPanel;
+    std::unique_ptr<class InputDebugPanel>    m_inputDebugPanel;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 
     // Extracted shell-side managers. WindowManager owns the per-monitor

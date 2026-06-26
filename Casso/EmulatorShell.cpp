@@ -11,6 +11,7 @@
 #include "Devices/AppleKeyboard.h"
 #include "Devices/Apple2eKeyboard.h"
 #include "Devices/AppleSoftSwitchBank.h"
+#include "Devices/AppleGamePort.h"
 #include "Devices/Apple2eSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
 #include "Devices/Disk2Controller.h"
@@ -73,6 +74,15 @@ static constexpr int     s_kLabelBottomGapDp    = 2;
 // updating this and s_kFullDriveBarDp / s_kCompactDriveBarDp to match.
 static constexpr int     s_kJoystickButtonBandDp = 43;
 
+// Minimum emulator-viewport (center) the window must always host, plus a
+// small pad past the last menu title, so the bottom drive bar can never be
+// driven up into the menu strip / title (NC) area and menu titles never
+// clip. The drive-bar and title / nav insets are added live by the
+// LayoutManager around this center.
+static constexpr int     s_kMinCenterWidthDp  = 420;
+static constexpr int     s_kMinCenterHeightDp = 160;
+static constexpr int     s_kMenuRightPadDp    = 12;
+
 // WM_KEYDOWN / WM_CHAR lParam bit 30: "previous key state" — set when the
 // key was already down, i.e. this event is a Windows OS auto-repeat. We
 // gate the emulated keyboard strobe on this so holding a key delivers a
@@ -89,6 +99,22 @@ static constexpr Byte    s_kPaddleAxisMax            = 255;
 // Z -> button 1 ($C062 / Closed-Apple).
 static constexpr WPARAM  s_kJoystickButton0Vk        = 'X';
 static constexpr WPARAM  s_kJoystickButton1Vk        = 'Z';
+
+// Paddle-mode mouse capture tuning. Relative motion over s_kPaddleSweepInches
+// of physical mouse travel (DPI-scaled) sweeps the paddle across its full
+// s_kPaddleRange; the value is held (no spring return) the way a real
+// paddle's dial is. s_knPaddleCenter mirrors the device default.
+static constexpr float   s_kPaddleSweepInches        = 4.0f;
+static constexpr float   s_kPaddleRange              = 255.0f;
+static constexpr float   s_kPaddleMinF               = 0.0f;
+static constexpr float   s_kPaddleMaxF               = 255.0f;
+static constexpr Byte    s_kPaddleCenterByte         = 127;
+
+// Lit-pixel source color for the monochrome monitors: the text renderer
+// keeps green here and the post-render tint recolors the whole frame to the
+// selected phosphor. The Color monitor's text color is user-selectable and
+// lives in m_colorMonitorTextArgb instead.
+static constexpr uint32_t s_kMonoSourceTextBgra       = 0xFF00FF00;   // green
 
 // Chrome keyboard-focus ring indices (see EmulatorShell::m_chromeFocusIndex).
 // -1 = guest (//e has focus); 0..6 = the seven menu titles File..Help; 7 =
@@ -449,6 +475,11 @@ EmulatorShell::~EmulatorShell()
             iieSwitches->SetInputEventSink (nullptr);
         }
 
+        if (m_refs.gamePort != nullptr)
+        {
+            m_refs.gamePort->SetInputEventSink (nullptr);
+        }
+
         m_inputDebugPanel.reset();
     }
 
@@ -661,7 +692,12 @@ HRESULT EmulatorShell::Initialize (
         hrPrefs = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
         IGNORE_RETURN_VALUE (hrPrefs, S_OK);
 
-        m_mapArrowsToJoystick = m_globalPrefs.mapArrowsToJoystick;
+        m_inputMode = m_globalPrefs.inputMappingMode;
+        m_joystickButton.SetMode (m_inputMode);
+
+        SetColorMonitorTextArgbLive (
+            ColorUtil::ResolveColorMonitorTextArgb (m_globalPrefs.colorMonitorTextMode,
+                                                    m_globalPrefs.colorMonitorTextCustomArgb));
 
         // Record the currently-active machine so the next launch boots
         // it by default (Main resolves the value via this same field).
@@ -944,13 +980,48 @@ HRESULT EmulatorShell::Initialize (
                         }
                         if (SUCCEEDED (uiPrefs->GetString ("floppyMechanism", mechNarrow)) && !mechNarrow.empty())
                         {
+                            // DriveAudioMixer matches mechanism names case-
+                            // insensitively, so the persisted lower-case token
+                            // ("alps"/"shugart") can be handed over as-is.
                             std::wstring  mechWide (mechNarrow.begin(), mechNarrow.end());
+                            HRESULT       hrMech = m_driveAudioMixer.SetMechanism (mechWide);
 
-                            if (m_driveAudioMixer.IsValidMechanism (mechWide))
-                            {
-                                HRESULT  hrMech = m_driveAudioMixer.SetMechanism (mechWide);
-                                IGNORE_RETURN_VALUE (hrMech, S_OK);
-                            }
+                            IGNORE_RETURN_VALUE (hrMech, S_OK);
+                        }
+
+                        // Seed the per-sound drive-audio gains. Missing keys
+                        // leave the defaults untouched (JsonValue getters do
+                        // not write the out-param on failure).
+                        {
+                            double   motorV = Disk2AudioSource::kMotorVolume;
+                            double   headV  = Disk2AudioSource::kHeadVolume;
+                            double   doorV  = Disk2AudioSource::kDoorVolume;
+                            HRESULT  hrVol  = S_OK;
+
+                            hrVol = uiPrefs->GetNumber ("driveMotorVolume", motorV);
+                            IGNORE_RETURN_VALUE (hrVol, S_OK);
+                            hrVol = uiPrefs->GetNumber ("driveHeadVolume",  headV);
+                            IGNORE_RETURN_VALUE (hrVol, S_OK);
+                            hrVol = uiPrefs->GetNumber ("driveDoorVolume",  doorV);
+                            IGNORE_RETURN_VALUE (hrVol, S_OK);
+
+                            SetDriveAudioVolumes ((float) motorV, (float) headV, (float) doorV);
+                        }
+
+                        // Seed the per-drive stereo pans. Missing keys
+                        // leave the defaults untouched.
+                        {
+                            double   pan0  = DriveAudioMixer::kDefaultDriveOnePan;
+                            double   pan1  = DriveAudioMixer::kDefaultDriveTwoPan;
+                            HRESULT  hrPan = S_OK;
+
+                            hrPan = uiPrefs->GetNumber ("driveOnePan", pan0);
+                            IGNORE_RETURN_VALUE (hrPan, S_OK);
+                            hrPan = uiPrefs->GetNumber ("driveTwoPan", pan1);
+                            IGNORE_RETURN_VALUE (hrPan, S_OK);
+
+                            SetDriveAudioPan (0, (float) pan0);
+                            SetDriveAudioPan (1, (float) pan1);
                         }
                     }
                 }
@@ -1238,7 +1309,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_mainMenu.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
     m_mainMenu.SetCheckQuery ([this] (WORD commandId) -> bool
     {
-        return (commandId == IDM_MACHINE_ARROWS_JOYSTICK) ? m_mapArrowsToJoystick : false;
+        return (commandId == IDM_MACHINE_ARROWS_JOYSTICK) ? (m_inputMode != InputMappingMode::Off) : false;
     });
 
     // Load the app icon (IDI_CASSO) into a premultiplied BGRA8 pixel
@@ -1364,7 +1435,7 @@ void EmulatorShell::OnViewportBoundsChanged (const RECT & boundsPx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ReconcileInitialClientSize ()
+void EmulatorShell::ReconcileInitialClientSize()
 {
     SIZE  desired        = {};
     RECT  rcActualClient = {};
@@ -1902,10 +1973,34 @@ void EmulatorShell::LayoutJoystickButton (int clientW,
 
 
 
+    m_joyBtnClientW    = clientW;
+    m_joyBtnBandTop    = bandTopPx;
+    m_joyBtnBandHeight = bandHeightPx;
+    m_joyBtnDpi        = dpi;
+
     scaler.SetDpi (dpi);
-    m_joystickButton.SetOn (m_mapArrowsToJoystick);
+    m_joystickButton.SetMode (m_inputMode);
     m_joystickButton.Layout (anchor, scaler);
     m_joystickTooltip.SetDpi (dpi);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::RelayoutJoystickButton
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RelayoutJoystickButton ()
+{
+    if (m_joyBtnClientW <= 0)
+    {
+        return;
+    }
+
+    LayoutJoystickButton (m_joyBtnClientW, m_joyBtnBandTop, m_joyBtnBandHeight, m_joyBtnDpi);
 }
 
 
@@ -1924,7 +2019,7 @@ void EmulatorShell::LayoutJoystickButton (int clientW,
 void EmulatorShell::SetChromeFocusIndex (int index)
 {
     m_chromeFocusIndex = index;
-    UpdateChromeFocusVisuals ();
+    UpdateChromeFocusVisuals();
 }
 
 
@@ -1941,7 +2036,7 @@ void EmulatorShell::SetChromeFocusIndex (int index)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::UpdateChromeFocusVisuals ()
+void EmulatorShell::UpdateChromeFocusVisuals()
 {
     int  index = m_chromeFocusIndex;
 
@@ -2068,7 +2163,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
     {
         if (index == s_kChromeFocusButton)
         {
-            SetMapArrowsToJoystick (!m_mapArrowsToJoystick);
+            CycleInputMappingMode();
         }
         else if (index == s_kChromeFocusDrive0)
         {
@@ -2123,6 +2218,25 @@ void EmulatorShell::SetColorModeLive (int settingsColorModeIndex)
     }
 
     m_colorMode.store (mode, std::memory_order_release);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SetColorMonitorTextArgbLive
+//
+//  Updates the Color-monitor text color read by RenderFramebuffer on the
+//  next frame. Forces opaque alpha so a stray transparent value can't blank
+//  the text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetColorMonitorTextArgbLive (uint32_t argb)
+{
+    m_colorMonitorTextArgb.store (0xFF000000u | (argb & 0x00FFFFFFu), std::memory_order_release);
 }
 
 
@@ -2441,30 +2555,164 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
 
         case IDM_AUDIO_DRIVE_MECHANISM:
         {
-            // Payload is "shugart" or "alps" (canonical lower-case
-            // from SettingsPanelState). DriveAudioMixer wants the
-            // mixed-case directory name; map here so the mixer's
-            // validator accepts it and LoadSamples finds the right
-            // <devicesDir>/Audio/<Mechanism>/ subdir.
-            std::wstring  mech;
+            // Payload is "shugart" or "alps" (canonical lower-case from
+            // SettingsPanelState). DriveAudioMixer matches case-insensitively
+            // and canonicalizes internally, so hand the token over as-is.
+            std::wstring  mechWide (cmd.payload.begin(), cmd.payload.end());
+            HRESULT       hrMech = m_driveAudioMixer.SetMechanism (mechWide);
 
-            if (cmd.payload == "alps")
-            {
-                mech = L"Alps";
-            }
-            else
-            {
-                mech = L"Shugart";
-            }
-
-            HRESULT  hrMech = m_driveAudioMixer.SetMechanism (mech);
             IGNORE_RETURN_VALUE (hrMech, S_OK);
+            break;
+        }
+
+        case IDM_AUDIO_DRIVE_VOLUMES:
+        {
+            // Payload is "motor,head,door" as integer percents (0..100).
+            int  motorPct = 0;
+            int  headPct  = 0;
+            int  doorPct  = 0;
+
+            if (sscanf_s (cmd.payload.c_str(), "%d,%d,%d", &motorPct, &headPct, &doorPct) == 3)
+            {
+                SetDriveAudioVolumes ((float) motorPct / 100.0f,
+                                      (float) headPct  / 100.0f,
+                                      (float) doorPct  / 100.0f);
+            }
+            break;
+        }
+
+        case IDM_AUDIO_DRIVE_PAN:
+        {
+            // Payload is "pan0,pan1" as integer percents (-100..100),
+            // -100 = hard left, +100 = hard right.
+            int  pan0 = 0;
+            int  pan1 = 0;
+
+            if (sscanf_s (cmd.payload.c_str(), "%d,%d", &pan0, &pan1) == 2)
+            {
+                SetDriveAudioPan (0, (float) pan0 / 100.0f);
+                SetDriveAudioPan (1, (float) pan1 / 100.0f);
+            }
+            break;
+        }
+
+        case IDM_AUDIO_DRIVE_TEST:
+        {
+            // Payload is "drive,kind" (drive 0/1; kind 0=motor 1=head
+            // 2=door), auditioning a single sound at current settings.
+            int  drive = 0;
+            int  kind  = 0;
+
+            if (sscanf_s (cmd.payload.c_str(), "%d,%d", &drive, &kind) == 2)
+            {
+                PlayDriveTestSound (drive, kind);
+            }
             break;
         }
 
         default:
             break;
     }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDriveAudioVolumes
+//
+//  Stores the live drive-audio gains and pushes them to every registered
+//  Disk2AudioSource. Runs on the CPU thread (the mixing thread), so it is
+//  safe to mutate the sources' gains here without synchronization.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDriveAudioVolumes (float motor, float head, float door)
+{
+    m_driveMotorVolume = motor;
+    m_driveHeadVolume  = head;
+    m_driveDoorVolume  = door;
+
+    for (auto & src : m_diskAudioSources)
+    {
+        src->SetVolumes (motor, head, door);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDriveAudioPan
+//
+//  Stores a live per-drive stereo pan and applies it to the matching
+//  Disk2AudioSource via equal-power panning. Runs on the CPU thread (the
+//  mixing thread), so mutating the source's pan here needs no locking.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDriveAudioPan (int drive, float pan)
+{
+    HRESULT  hr   = S_OK;
+    float    panL = DriveAudioMixer::kSpeakerCenter;
+    float    panR = DriveAudioMixer::kSpeakerCenter;
+
+
+
+    BAIL_OUT_IF (drive < 0 || drive >= (int) std::size (m_drivePan), S_OK);
+
+    m_drivePan[drive] = std::clamp (pan, -1.0f, 1.0f);
+
+    DriveAudioMixer::PanToStereo (m_drivePan[drive], panL, panR);
+
+    if (drive < (int) m_diskAudioSources.size())
+    {
+        m_diskAudioSources[(size_t) drive]->SetPan (panL, panR);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlayDriveTestSound
+//
+//  Auditions a single drive sound on demand. Runs on the CPU thread (the
+//  mixing thread), so triggering the source's test channel is lock-free.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PlayDriveTestSound (int drive, int kind)
+{
+    HRESULT                          hr       = S_OK;
+    Disk2AudioSource::TestSoundKind  testKind = Disk2AudioSource::TestSoundKind::Motor;
+    bool                             valid    = true;
+
+
+
+    BAIL_OUT_IF (drive < 0 || drive >= (int) m_diskAudioSources.size(), S_OK);
+
+    switch (kind)
+    {
+        case 0:  testKind = Disk2AudioSource::TestSoundKind::Motor; break;
+        case 1:  testKind = Disk2AudioSource::TestSoundKind::Head;  break;
+        case 2:  testKind = Disk2AudioSource::TestSoundKind::Door;  break;
+        default: valid    = false;                                  break;
+    }
+
+    BAIL_OUT_IF (!valid, S_OK);
+
+    m_diskAudioSources[(size_t) drive]->PlayTestSound (testKind);
+
+Error:
+    return;
 }
 
 
@@ -2504,7 +2752,7 @@ void EmulatorShell::PostCommand (WORD id, const string & payload)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::StepInstructionWhilePaused ()
+void EmulatorShell::StepInstructionWhilePaused()
 {
     if (m_cpu == nullptr)
     {
@@ -2682,6 +2930,26 @@ void EmulatorShell::RenderFramebuffer()
 
 
 
+    // A color monitor renders text white; the monochrome monitors keep the
+    // text renderer's green here and the post-render tint below recolors the
+    // whole frame to the selected phosphor. m_videoModes[0] is the 40-col
+    // text mode and [4] (when present) the 80-col mode.
+    {
+        uint32_t textOnColor = (color == ColorMode::Color)
+                                   ? m_colorMonitorTextArgb.load (memory_order_acquire)
+                                   : s_kMonoSourceTextBgra;
+
+        if (!m_videoModes.empty())
+        {
+            static_cast<AppleTextMode *> (m_videoModes[0].get())->SetOnColor (textOnColor);
+        }
+
+        if (m_videoModes.size() > 4)
+        {
+            static_cast<Apple80ColTextMode *> (m_videoModes[4].get())->SetOnColor (textOnColor);
+        }
+    }
+
     m_machineManager->SelectVideoMode();
 
     if (m_refs.activeVideoMode != nullptr)
@@ -2858,6 +3126,15 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
 
 
+    // Paddle mode owns the pointer while captured: relative motion drives
+    // the held paddle axes and the cursor is snapped back to center, so the
+    // chrome never sees the move.
+    if (m_paddleCaptured)
+    {
+        UpdatePaddleFromMouse (x, y);
+        return DxuiMessageResult::Handled;
+    }
+
     if (m_uiShell.OnMouseMove (x, y, leftDown))
     {
         return DxuiMessageResult::Handled;
@@ -2923,6 +3200,14 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     UNREFERENCED_PARAMETER (wParam);
 
+    // While paddle-captured, the left button is fire button 0 and the
+    // pointer is hidden/confined, so nothing else acts on the press.
+    if (m_paddleCaptured)
+    {
+        PushPaddleButton (0, true);
+        return DxuiMessageResult::Handled;
+    }
+
     SetCapture (m_hwnd);
 
     // A mouse press drops the keyboard chrome-focus ring: clicking anywhere
@@ -2978,6 +3263,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     UNREFERENCED_PARAMETER (wParam);
 
+    // While paddle-captured, the left button is fire button 0; release it
+    // and keep the capture (the transient click-capture path is bypassed).
+    if (m_paddleCaptured)
+    {
+        PushPaddleButton (0, false);
+        return DxuiMessageResult::Handled;
+    }
+
     ReleaseCapture();
     m_joystickButton.SetPressed (false);
     if (m_uiShell.OnLButtonUp (x, y))
@@ -2985,12 +3278,12 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         return DxuiMessageResult::NotHandled;
     }
 
-    // Toggling the joystick-mode button routes through the same path as
-    // the Machine menu command so the disable-time neutralization of held
+    // Cycling the input-mode button routes through the same path as the
+    // Machine menu command so the leave-time neutralization of held
     // arrow / X / Z inputs runs.
     if (m_joystickButton.HitTest (x, y))
     {
-        SetMapArrowsToJoystick (!m_mapArrowsToJoystick);
+        CycleInputMappingMode();
         return DxuiMessageResult::NotHandled;
     }
 
@@ -3020,6 +3313,113 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         }
     }
 
+    // A bare left-click on the emulator screen (no chrome / widget / drive
+    // hit) in Paddle mode re-grabs the pointer after an Esc release.
+    if (m_inputMode == InputMappingMode::Paddle && !m_paddleCaptured)
+    {
+        StartPaddleCapture();
+        return DxuiMessageResult::Handled;
+    }
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnRButtonDown / OnRButtonUp
+//
+//  In Paddle mode the right mouse button is fire button 1; otherwise the
+//  message falls through to the default handler.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnRButtonDown (WPARAM wParam, LPARAM lParam)
+{
+    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
+
+
+    UNREFERENCED_PARAMETER (wParam);
+    UNREFERENCED_PARAMETER (lParam);
+
+    if (m_paddleCaptured)
+    {
+        PushPaddleButton (1, true);
+        result = DxuiMessageResult::Handled;
+    }
+
+    return result;
+}
+
+
+
+
+
+DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
+{
+    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
+
+
+    UNREFERENCED_PARAMETER (wParam);
+    UNREFERENCED_PARAMETER (lParam);
+
+    if (m_paddleCaptured)
+    {
+        PushPaddleButton (1, false);
+        result = DxuiMessageResult::Handled;
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnActivateApp / OnKillFocus / OnCancelMode
+//
+//  Safety net that releases a live paddle-mode mouse capture whenever the
+//  app loses the foreground (Alt-Tab, taskbar, minimize), focus, or the OS
+//  cancels capture (Ctrl-Alt-Del / UAC secure desktop, workstation lock,
+//  modal takeover). The OS force-releases capture and the cursor clip in
+//  the secure-desktop cases too; this keeps our hidden-cursor / captured
+//  state in sync so the pointer reappears. Re-grab is an explicit click on
+//  the emulator screen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnActivateApp (bool active)
+{
+    if (!active)
+    {
+        StopPaddleCapture();
+    }
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+DxuiMessageResult EmulatorShell::OnKillFocus ()
+{
+    StopPaddleCapture();
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+DxuiMessageResult EmulatorShell::OnCancelMode ()
+{
+    StopPaddleCapture();
     return DxuiMessageResult::NotHandled;
 }
 
@@ -3196,11 +3596,21 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     bool     ctrlHeld      = false;
     bool     altHeld       = false;
     bool     isRepeat      = (lParam & s_kPreviousKeyDownLParamBit) != 0;
-    bool     driveJoystick = m_mapArrowsToJoystick &&
-                             (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr);
+    bool     driveJoystick = m_inputMode == InputMappingMode::Joystick &&
+                             (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr ||
+                              m_refs.gamePort != nullptr);
     Byte     appleCode     = 0;
 
 
+
+    // 0. Esc releases a live paddle-mode mouse capture (the cursor
+    //    reappears) without changing the input mode, so the chrome is
+    //    reachable again; click the emulator screen to re-grab.
+    if (m_paddleCaptured && vk == VK_ESCAPE)
+    {
+        StopPaddleCapture();
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     // 1. Modal settings panel wins keystrokes outright.
     if (m_uiShell.IsSettingsCapturing())
@@ -3268,7 +3678,7 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
             m_lastVerticalArrowVk = vk;
         }
 
-        UpdateJoystickAxesFromKeys ();
+        UpdateJoystickAxesFromKeys();
     }
 
     // Re-resolve the joystick fire buttons on every key event in joystick
@@ -3279,7 +3689,7 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     // also type into the //e keyboard latch.
     if (driveJoystick)
     {
-        UpdateJoystickButtonsFromKeys ();
+        UpdateJoystickButtonsFromKeys();
     }
 
 Error:
@@ -3318,14 +3728,14 @@ DxuiMessageResult EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
     // releases the physical keys.
     ApplyAppleModifierKeys (vk, false);
 
-    if (m_mapArrowsToJoystick && IsArrowVk (vk))
+    if (m_inputMode == InputMappingMode::Joystick && IsArrowVk (vk))
     {
-        UpdateJoystickAxesFromKeys ();
+        UpdateJoystickAxesFromKeys();
     }
 
-    if (m_mapArrowsToJoystick)
+    if (m_inputMode == InputMappingMode::Joystick)
     {
-        UpdateJoystickButtonsFromKeys ();
+        UpdateJoystickButtonsFromKeys();
     }
 
 Error:
@@ -3341,9 +3751,10 @@ Error:
 //  UpdateJoystickAxesFromKeys
 //
 //  Host UI thread. Resolves the four arrow keys into the two emulated
-//  joystick axes and stages them on the //e soft-switch bank, where the
-//  PREAD timer ($C070 / $C064-$C067) turns them into analog readings.
-//  No-op on ][/][+ (the bank isn't an Apple2eSoftSwitchBank).
+//  joystick axes and stages them on the game port: the //e soft-switch
+//  bank (Apple2eSoftSwitchBank) or the ][/][+ AppleGamePort, whichever is
+//  present. The PREAD timer ($C070 / $C064-$C067) turns them into analog
+//  readings. No-op only when neither device is present.
 //
 //  Reads real-time physical key state via GetAsyncKeyState rather than the
 //  per-thread GetKeyState table, which can desync (and leave an axis stuck)
@@ -3353,22 +3764,21 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::UpdateJoystickAxesFromKeys ()
+void EmulatorShell::UpdateJoystickAxesFromKeys()
 {
-    auto * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
-    bool   left  = false;
-    bool   right = false;
-    bool   up    = false;
-    bool   down  = false;
-    Byte   x     = Apple2eSoftSwitchBank::s_knPaddleCenter;
-    Byte   y     = Apple2eSoftSwitchBank::s_knPaddleCenter;
+    HRESULT  hr       = S_OK;
+    auto   * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    auto   * gamePort = m_refs.gamePort;
+    bool     left     = false;
+    bool     right    = false;
+    bool     up       = false;
+    bool     down     = false;
+    Byte     x        = Apple2eSoftSwitchBank::s_knPaddleCenter;
+    Byte     y        = Apple2eSoftSwitchBank::s_knPaddleCenter;
 
 
 
-    if (iieSw == nullptr)
-    {
-        return;
-    }
+    BAIL_OUT_IF (iieSw == nullptr && gamePort == nullptr, S_OK);
 
     left  = (GetAsyncKeyState (VK_LEFT)  & 0x8000) != 0;
     right = (GetAsyncKeyState (VK_RIGHT) & 0x8000) != 0;
@@ -3401,8 +3811,20 @@ void EmulatorShell::UpdateJoystickAxesFromKeys ()
         y = s_kPaddleAxisMax;
     }
 
-    iieSw->SetPaddle (0, x);
-    iieSw->SetPaddle (1, y);
+    if (iieSw != nullptr)
+    {
+        iieSw->SetPaddle (0, x);
+        iieSw->SetPaddle (1, y);
+    }
+
+    if (gamePort != nullptr)
+    {
+        gamePort->SetPaddle (0, x);
+        gamePort->SetPaddle (1, y);
+    }
+
+Error:
+    return;
 }
 
 
@@ -3414,38 +3836,50 @@ void EmulatorShell::UpdateJoystickAxesFromKeys ()
 //  UpdateJoystickButtonsFromKeys
 //
 //  Host UI thread. Resolves the X / Z letter keys into the two emulated
-//  joystick fire buttons and stages them on the //e keyboard, where button
-//  0 reads at $C061 (Open-Apple) and button 1 reads at $C062 (Closed-Apple).
-//  No-op on ][/][+ (the keyboard isn't an Apple2eKeyboard).
+//  joystick fire buttons. On the //e they stage on the keyboard's
+//  Open/Closed-Apple state (button 0 reads at $C061, button 1 at $C062);
+//  on the ][/][+ they stage on the AppleGamePort pushbuttons (PB0/$C061,
+//  PB1/$C062). No-op only when neither device is present.
 //
 //  Reads real-time physical key state via GetAsyncKeyState, matching the
 //  axis helper so a key-up lost to a focus change can't wedge a button on.
-//  The Open/Closed-Apple state is OR'd with the host left/right Alt keys so
-//  the X / Z mapping coexists with the existing Alt->Apple-button mapping
-//  instead of clobbering a held Alt.
+//  The fire state is OR'd with the host left/right Alt keys so the X / Z
+//  mapping coexists with the existing Alt->button mapping instead of
+//  clobbering a held Alt.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::UpdateJoystickButtonsFromKeys ()
+void EmulatorShell::UpdateJoystickButtonsFromKeys()
 {
-    auto * iieKbd  = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
-    bool   button0 = false;
-    bool   button1 = false;
+    HRESULT  hr       = S_OK;
+    auto   * iieKbd   = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    auto   * gamePort = m_refs.gamePort;
+    bool     button0  = false;
+    bool     button1  = false;
 
 
 
-    if (iieKbd == nullptr)
-    {
-        return;
-    }
+    BAIL_OUT_IF (iieKbd == nullptr && gamePort == nullptr, S_OK);
 
     button0 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton0Vk)) & 0x8000) != 0 ||
               (GetKeyState      (VK_LMENU)                                & 0x8000) != 0;
     button1 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton1Vk)) & 0x8000) != 0 ||
               (GetKeyState      (VK_RMENU)                                & 0x8000) != 0;
 
-    iieKbd->SetOpenApple   (button0);
-    iieKbd->SetClosedApple (button1);
+    if (iieKbd != nullptr)
+    {
+        iieKbd->SetOpenApple   (button0);
+        iieKbd->SetClosedApple (button1);
+    }
+
+    if (gamePort != nullptr)
+    {
+        gamePort->SetButton (0, button0);
+        gamePort->SetButton (1, button1);
+    }
+
+Error:
+    return;
 }
 
 
@@ -3454,47 +3888,357 @@ void EmulatorShell::UpdateJoystickButtonsFromKeys ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetMapArrowsToJoystick
+//  SetInputMappingMode
 //
-//  Toggles the arrows-drive-joystick mode and persists it. On enable we
-//  resolve the axes and fire buttons from the current key state so a held
-//  arrow / X / Z takes effect immediately; on disable we recenter both axes
-//  and drop the X / Z button mapping so a game reading the game port sees a
-//  neutral stick and buttons rather than a stale deflection.
+//  Sets the host input mapping mode (Off / Joystick / Paddle) and persists
+//  it. Leaving Paddle drops the mouse capture. Joystick resolves the axes
+//  and fire buttons from the current key state so a held arrow / X / Z
+//  takes effect immediately. Off and Paddle both neutralize the
+//  key-derived stick and buttons so the game port reads neutral; Paddle
+//  then centers the paddle and grabs the mouse.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetMapArrowsToJoystick (bool on)
+void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
 {
-    auto * iieSw  = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
-    auto * iieKbd = dynamic_cast<Apple2eKeyboard *>       (m_refs.keyboard);
+    auto             * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    auto             * iieKbd   = dynamic_cast<Apple2eKeyboard *>       (m_refs.keyboard);
+    auto             * gamePort = m_refs.gamePort;
+    InputMappingMode   prev     = m_inputMode;
 
-    m_mapArrowsToJoystick             = on;
-    m_globalPrefs.mapArrowsToJoystick = on;
-    m_joystickButton.SetOn (on);
+
+
+    if (prev == InputMappingMode::Paddle && mode != InputMappingMode::Paddle)
+    {
+        StopPaddleCapture();
+    }
+
+    m_inputMode                    = mode;
+    m_globalPrefs.inputMappingMode = mode;
+    m_joystickButton.SetMode (mode);
+
+    // The frame width tracks the current label (Paddle is wider), so
+    // resize the button now rather than waiting for the next layout pass.
+    RelayoutJoystickButton();
 
     SaveGlobalPrefs();
 
-    if (on)
+    if (mode == InputMappingMode::Joystick)
     {
-        UpdateJoystickAxesFromKeys ();
-        UpdateJoystickButtonsFromKeys ();
+        UpdateJoystickAxesFromKeys();
+        UpdateJoystickButtonsFromKeys();
+        return;
     }
-    else
-    {
-        if (iieSw != nullptr)
-        {
-            iieSw->SetPaddle (0, Apple2eSoftSwitchBank::s_knPaddleCenter);
-            iieSw->SetPaddle (1, Apple2eSoftSwitchBank::s_knPaddleCenter);
-        }
 
-        // Drop the X / Z contribution to the fire buttons, leaving only the
-        // host Alt keys mapped, so a held X / Z can't stay stuck after the
-        // mode is turned off.
-        if (iieKbd != nullptr)
+    // Off / Paddle: center the axes and drop the X / Z fire mapping (leaving
+    // only the host Alt keys) so a held key can't stay stuck.
+    if (iieSw != nullptr)
+    {
+        iieSw->SetPaddle (0, Apple2eSoftSwitchBank::s_knPaddleCenter);
+        iieSw->SetPaddle (1, Apple2eSoftSwitchBank::s_knPaddleCenter);
+    }
+
+    if (gamePort != nullptr)
+    {
+        gamePort->SetPaddle (0, AppleGamePort::s_knPaddleCenter);
+        gamePort->SetPaddle (1, AppleGamePort::s_knPaddleCenter);
+        gamePort->SetButton (0, false);
+        gamePort->SetButton (1, false);
+    }
+
+    if (iieKbd != nullptr)
+    {
+        iieKbd->SetOpenApple   ((GetKeyState (VK_LMENU) & 0x8000) != 0);
+        iieKbd->SetClosedApple ((GetKeyState (VK_RMENU) & 0x8000) != 0);
+    }
+
+    if (mode == InputMappingMode::Paddle)
+    {
+        m_paddleAxisX = (float) s_kPaddleCenterByte;
+        m_paddleAxisY = (float) s_kPaddleCenterByte;
+        StartPaddleCapture();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CycleInputMappingMode
+//
+//  Advances the input mapping mode Off -> Joystick -> Paddle -> Off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::CycleInputMappingMode ()
+{
+    InputMappingMode  next = InputMappingMode::Off;
+
+
+
+    switch (m_inputMode)
+    {
+        case InputMappingMode::Off:
+            next = InputMappingMode::Joystick;
+            break;
+
+        case InputMappingMode::Joystick:
+            next = InputMappingMode::Paddle;
+            break;
+
+        case InputMappingMode::Paddle:
+        default:
+            next = InputMappingMode::Off;
+            break;
+    }
+
+    SetInputMappingMode (next);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartPaddleCapture
+//
+//  Hides and confines the cursor to the client area, parks it at center,
+//  and begins relative tracking. No-op unless the mode is Paddle, the
+//  window owns the foreground, and capture isn't already active. The
+//  current (held) paddle position is pushed so a re-grab after an Esc
+//  release resumes from where the dial was left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::StartPaddleCapture ()
+{
+    HRESULT  hr      = S_OK;
+    RECT     client  = {};
+    POINT    topLeft = {};
+    POINT    botRt   = {};
+    RECT     clip    = {};
+    POINT    center  = {};
+
+
+
+    BAIL_OUT_IF (m_inputMode != InputMappingMode::Paddle, S_OK);
+    BAIL_OUT_IF (m_paddleCaptured,                        S_OK);
+    BAIL_OUT_IF (m_hwnd == nullptr,                       S_OK);
+    BAIL_OUT_IF (GetForegroundWindow() != m_hwnd,         S_OK);
+
+    m_paddleCaptured = true;
+
+    SetCapture (m_hwnd);
+
+    // Drive the per-thread ShowCursor counter negative so the arrow hides.
+    while (ShowCursor (FALSE) >= 0)
+    {
+    }
+
+    GetClientRect (m_hwnd, &client);
+
+    topLeft.x = client.left;
+    topLeft.y = client.top;
+    botRt.x   = client.right;
+    botRt.y   = client.bottom;
+    ClientToScreen (m_hwnd, &topLeft);
+    ClientToScreen (m_hwnd, &botRt);
+
+    clip.left   = topLeft.x;
+    clip.top    = topLeft.y;
+    clip.right  = botRt.x;
+    clip.bottom = botRt.y;
+    ClipCursor (&clip);
+
+    center.x = (client.right  - client.left) / 2;
+    center.y = (client.bottom - client.top)  / 2;
+    ClientToScreen (m_hwnd, &center);
+    SetCursorPos (center.x, center.y);
+
+    PushPaddlePosition();
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StopPaddleCapture
+//
+//  Releases the mouse capture and cursor clip, restores the cursor, and
+//  clears the fire buttons so a held mouse button doesn't stick. No-op
+//  when not captured. Leaves the input mode unchanged, so the dial holds
+//  its position for a later re-grab.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::StopPaddleCapture ()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (!m_paddleCaptured, S_OK);
+
+    m_paddleCaptured = false;
+
+    ClipCursor (nullptr);
+
+    if (GetCapture() == m_hwnd)
+    {
+        ReleaseCapture();
+    }
+
+    while (ShowCursor (TRUE) < 0)
+    {
+    }
+
+    PushPaddleButton (0, false);
+    PushPaddleButton (1, false);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdatePaddleFromMouse
+//
+//  Maps one WM_MOUSEMOVE while paddle-captured: the motion relative to the
+//  client center is scaled (s_kPaddleSweepInches of DPI-scaled travel =
+//  full range) into the held paddle axes, then the cursor is snapped back
+//  to center for unbounded relative motion. The zero-delta move our own
+//  recenter generates is ignored.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::UpdatePaddleFromMouse (int xClient, int yClient)
+{
+    HRESULT  hr         = S_OK;
+    RECT     client     = {};
+    int      centerX    = 0;
+    int      centerY    = 0;
+    int      dx         = 0;
+    int      dy         = 0;
+    UINT     dpi        = 96;
+    float    unitsPerPx = 0.0f;
+    POINT    center     = {};
+
+
+
+    BAIL_OUT_IF (!m_paddleCaptured, S_OK);
+
+    GetClientRect (m_hwnd, &client);
+    centerX = (client.right  - client.left) / 2;
+    centerY = (client.bottom - client.top)  / 2;
+    dx      = xClient - centerX;
+    dy      = yClient - centerY;
+
+    // The SetCursorPos recenter below re-enters here with a zero delta.
+    BAIL_OUT_IF (dx == 0 && dy == 0, S_OK);
+
+    dpi = GetDpiForWindow (m_hwnd);
+    if (dpi == 0)
+    {
+        dpi = 96;
+    }
+
+    unitsPerPx    = s_kPaddleRange / (s_kPaddleSweepInches * (float) dpi);
+    m_paddleAxisX = std::clamp (m_paddleAxisX + (float) dx * unitsPerPx, s_kPaddleMinF, s_kPaddleMaxF);
+    m_paddleAxisY = std::clamp (m_paddleAxisY + (float) dy * unitsPerPx, s_kPaddleMinF, s_kPaddleMaxF);
+
+    PushPaddlePosition();
+
+    center.x = centerX;
+    center.y = centerY;
+    ClientToScreen (m_hwnd, &center);
+    SetCursorPos (center.x, center.y);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PushPaddlePosition
+//
+//  Stages the held paddle axes onto whichever game port is present (the
+//  //e soft-switch bank and / or the ][/][+ AppleGamePort).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PushPaddlePosition ()
+{
+    auto * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    auto * gamePort = m_refs.gamePort;
+    Byte   x        = (Byte) (m_paddleAxisX + 0.5f);
+    Byte   y        = (Byte) (m_paddleAxisY + 0.5f);
+
+
+
+    if (iieSw != nullptr)
+    {
+        iieSw->SetPaddle (0, x);
+        iieSw->SetPaddle (1, y);
+    }
+
+    if (gamePort != nullptr)
+    {
+        gamePort->SetPaddle (0, x);
+        gamePort->SetPaddle (1, y);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PushPaddleButton
+//
+//  Stages a paddle / joystick fire button (0 or 1) onto the game port:
+//  the AppleGamePort pushbuttons on the ][/][+ and the //e keyboard's
+//  Open/Closed-Apple state. No-op for indices without a mapping.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PushPaddleButton (int index, bool pressed)
+{
+    auto * iieKbd   = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    auto * gamePort = m_refs.gamePort;
+
+
+
+    if (gamePort != nullptr)
+    {
+        gamePort->SetButton (index, pressed);
+    }
+
+    if (iieKbd != nullptr)
+    {
+        if (index == 0)
         {
-            iieKbd->SetOpenApple   ((GetKeyState (VK_LMENU) & 0x8000) != 0);
-            iieKbd->SetClosedApple ((GetKeyState (VK_RMENU) & 0x8000) != 0);
+            iieKbd->SetOpenApple (pressed);
+        }
+        else if (index == 1)
+        {
+            iieKbd->SetClosedApple (pressed);
         }
     }
 }
@@ -3540,8 +4284,9 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // / OnKeyUp), so swallow their WM_CHAR to keep the letters from also
     // typing into the //e keyboard latch -- mirroring how arrow keys are
     // withheld from the latch.
-    if (m_mapArrowsToJoystick &&
-        (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr) &&
+    if (m_inputMode == InputMappingMode::Joystick &&
+        (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr ||
+         m_refs.gamePort != nullptr) &&
         (ch == L'x' || ch == L'X' || ch == L'z' || ch == L'Z'))
     {
         return DxuiMessageResult::Handled;
@@ -3807,6 +4552,319 @@ void EmulatorShell::PowerCycle()
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TraceProgressWindow
+//
+//  Minimal GDI-painted progress window for the --trace file dump. Drawn
+//  entirely in WM_PAINT (no common controls) so it stays robust even when
+//  raised from inside the unhandled-exception filter on the CPU thread.
+//  Shows the reason, the full output path, and "N of M instructions (P%)"
+//  with a fill bar. SetProgress repaints synchronously and pumps pending
+//  messages so the window keeps redrawing during a multi-second write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class TraceProgressWindow
+{
+public:
+    bool Create (const std::wstring & reason, const std::wstring & path, uint64_t total)
+    {
+        HRESULT     hr      = S_OK;
+        WNDCLASSEXW wc      = { sizeof (wc) };
+        HINSTANCE   hInst   = GetModuleHandleW (nullptr);
+        DWORD       style   = WS_POPUP | WS_BORDER | WS_CAPTION;
+        RECT        wr      = {};
+        int         winW    = 0;
+        int         winH    = 0;
+        int         screenW = GetSystemMetrics (SM_CXSCREEN);
+        int         screenH = GetSystemMetrics (SM_CYSCREEN);
+
+        m_reason = reason;
+        m_path   = path;
+        m_total  = total;
+        m_done   = 0;
+
+        wc.lpfnWndProc   = &TraceProgressWindow::WndProc;
+        wc.hInstance     = hInst;
+        wc.hCursor       = LoadCursorW (nullptr, IDC_WAIT);
+        wc.hbrBackground = (HBRUSH) (COLOR_WINDOW + 1);
+        wc.lpszClassName = s_kpszClass;
+        RegisterClassExW (&wc);            // benign if already registered
+
+        // Create at a provisional position so the window's monitor DPI is
+        // known, then size the client area to fit the DPI-scaled content
+        // and recentre. Sizing the *client* rect (via AdjustWindowRect)
+        // keeps a uniform margin around the content at any DPI -- a fixed
+        // window height let the caption eat the client area and clipped
+        // the progress bar against the bottom edge on high-DPI displays.
+        m_hwnd = CreateWindowExW (WS_EX_TOPMOST,
+                                  s_kpszClass,
+                                  L"Casso \x2014 Writing trace",
+                                  style,
+                                  0, 0, s_kClientWPx, s_kClientHPx,
+                                  nullptr, nullptr, hInst, this);
+        CWR (m_hwnd);
+
+        m_dpi = GetDpiForWindow (m_hwnd);
+        if (m_dpi == 0)
+        {
+            m_dpi = 96;
+        }
+
+        // Use the OS themed message font (Segoe UI on Win10/11) sized for
+        // this window's DPI. Without an explicit font GDI falls back to the
+        // ancient bitmap SYSTEM_FONT, which looks aliased, ignores DPI, and
+        // can't render the U+2026 ellipsis.
+        {
+            NONCLIENTMETRICSW  ncm = { sizeof (ncm) };
+
+            if (SystemParametersInfoForDpi (SPI_GETNONCLIENTMETRICS, sizeof (ncm), &ncm, 0, m_dpi))
+            {
+                m_font = CreateFontIndirectW (&ncm.lfMessageFont);
+            }
+        }
+
+        wr.left   = 0;
+        wr.top    = 0;
+        wr.right  = Scaled (s_kClientWPx);
+        wr.bottom = Scaled (s_kClientHPx);
+        AdjustWindowRectExForDpi (&wr, style, FALSE, WS_EX_TOPMOST, m_dpi);
+
+        winW = wr.right - wr.left;
+        winH = wr.bottom - wr.top;
+
+        SetWindowPos (m_hwnd, HWND_TOPMOST,
+                      (screenW - winW) / 2, (screenH - winH) / 2,
+                      winW, winH, SWP_NOACTIVATE);
+
+        ShowWindow   (m_hwnd, SW_SHOW);
+        UpdateWindow (m_hwnd);
+
+    Error:
+        return m_hwnd != nullptr;
+    }
+
+    void SetProgress (uint64_t done, uint64_t total)
+    {
+        HRESULT  hr  = S_OK;
+        MSG      msg = {};
+
+
+
+        m_done  = done;
+        m_total = total;
+
+        BAIL_OUT_IF (m_hwnd == nullptr, S_OK);
+
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+        UpdateWindow   (m_hwnd);
+
+        while (PeekMessageW (&msg, m_hwnd, 0, 0, PM_REMOVE))
+        {
+            TranslateMessage (&msg);
+            DispatchMessageW  (&msg);
+        }
+
+    Error:
+        return;
+    }
+
+    void Destroy()
+    {
+        if (m_hwnd != nullptr)
+        {
+            DestroyWindow (m_hwnd);
+            m_hwnd = nullptr;
+        }
+
+        if (m_font != nullptr)
+        {
+            DeleteObject (m_font);
+            m_font = nullptr;
+        }
+    }
+
+private:
+    static LRESULT CALLBACK WndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+    {
+        TraceProgressWindow *  self   = reinterpret_cast<TraceProgressWindow *> (
+            GetWindowLongPtrW (hwnd, GWLP_USERDATA));
+        LRESULT                result = 0;
+
+        if (msg == WM_CREATE)
+        {
+            CREATESTRUCTW *  cs = reinterpret_cast<CREATESTRUCTW *> (lParam);
+            SetWindowLongPtrW (hwnd, GWLP_USERDATA,
+                               reinterpret_cast<LONG_PTR> (cs->lpCreateParams));
+        }
+        else if (msg == WM_PAINT && self != nullptr)
+        {
+            self->OnPaint (hwnd);
+        }
+        else
+        {
+            result = DefWindowProcW (hwnd, msg, wParam, lParam);
+        }
+
+        return result;
+    }
+
+    void OnPaint (HWND hwnd)
+    {
+        PAINTSTRUCT  ps      = {};
+        HDC          hdc     = BeginPaint (hwnd, &ps);
+        RECT         rc      = {};
+        RECT         bar     = {};
+        int          pad     = Scaled (s_kPadPx);
+        int          line    = Scaled (s_kLinePx);
+        int          barH    = Scaled (s_kBarPx);
+        int          gap     = Scaled (s_kGapSmallPx);
+        int          pct     = (m_total > 0) ? (int) ((m_done * 100) / m_total) : 0;
+        wchar_t      line1[128] = {};
+        wchar_t      line3[160] = {};
+        HBRUSH       fill    = CreateSolidBrush (RGB (0x2D, 0x7D, 0x46));
+
+        GetClientRect (hwnd, &rc);
+
+        HFONT  oldFont = (m_font != nullptr) ? (HFONT) SelectObject (hdc, m_font) : nullptr;
+
+        // SetProgress invalidates without erasing (bErase = FALSE) and the
+        // text is drawn transparently, so wipe the client area first --
+        // otherwise each new progress value piles up on the previous one.
+        FillRect (hdc, &rc, (HBRUSH) (COLOR_WINDOW + 1));
+
+        swprintf_s (line1, L"Writing execution trace (%s)\x2026", m_reason.c_str());
+        swprintf_s (line3, L"%llu of %llu instructions  (%d%%)",
+                    (unsigned long long) m_done, (unsigned long long) m_total, pct);
+
+        SetBkMode   (hdc, TRANSPARENT);
+
+        RECT  r1 = { pad, pad, rc.right - pad, pad + line };
+        DrawTextW (hdc, line1, -1, &r1, DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+        RECT  r2 = { pad, r1.bottom + gap, rc.right - pad, r1.bottom + gap + line };
+        DrawTextW (hdc, m_path.c_str(), -1, &r2, DT_LEFT | DT_SINGLELINE | DT_PATH_ELLIPSIS);
+
+        RECT  r3 = { pad, r2.bottom + gap, rc.right - pad, r2.bottom + gap + line };
+        DrawTextW (hdc, line3, -1, &r3, DT_LEFT | DT_SINGLELINE);
+
+        // Anchor the bar to the bottom with a margin equal to the top pad,
+        // so the bottom whitespace mirrors the caption-to-text gap and the
+        // bar can't be clipped by the window edge at any DPI.
+        bar.left   = pad;
+        bar.right  = rc.right - pad;
+        bar.bottom = rc.bottom - pad;
+        bar.top    = bar.bottom - barH;
+        FrameRect (hdc, &bar, (HBRUSH) GetStockObject (GRAY_BRUSH));
+
+        RECT  filled = bar;
+        filled.right = bar.left + (LONG) (((bar.right - bar.left) * (LONGLONG) pct) / 100);
+        FillRect (hdc, &filled, fill);
+
+        DeleteObject (fill);
+
+        if (oldFont != nullptr)
+        {
+            SelectObject (hdc, oldFont);
+        }
+
+        EndPaint (hwnd, &ps);
+    }
+
+    int Scaled (int px) const { return MulDiv (px, (int) m_dpi, 96); }
+
+    static constexpr const wchar_t *  s_kpszClass   = L"CassoTraceProgress";
+    static constexpr int              s_kClientWPx  = 556;
+    static constexpr int              s_kPadPx      = 16;
+    static constexpr int              s_kLinePx     = 22;
+    static constexpr int              s_kBarPx      = 22;
+    static constexpr int              s_kGapSmallPx = 4;
+    static constexpr int              s_kGapBarPx   = 8;
+
+    // Client height kept in lockstep with the OnPaint layout: top pad +
+    // three text lines (each followed by a small gap) + the larger gap
+    // above the bar + the bar + an equal bottom pad.
+    static constexpr int              s_kClientHPx  = s_kPadPx
+                                                    + 3 * s_kLinePx
+                                                    + 2 * s_kGapSmallPx
+                                                    + s_kGapBarPx
+                                                    + s_kBarPx
+                                                    + s_kPadPx;
+
+    HWND          m_hwnd  = nullptr;
+    HFONT         m_font  = nullptr;
+    UINT          m_dpi   = 96;
+    std::wstring  m_reason;
+    std::wstring  m_path;
+    uint64_t      m_done  = 0;
+    uint64_t      m_total = 0;
+};
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DumpTrace
+//
+//  Write the CPU execution-trace ring to a timestamped text file in the
+//  working directory, showing a progress window. Best-effort and one-shot:
+//  guarded so the graceful-exit path and the crash handler cannot both
+//  write, and a no-op when --trace is off. Safe to call from the crash
+//  handler on the CPU thread (the thread that owns the ring) since the
+//  process is already halted at the fault.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DumpTrace (const wstring & reason)
+{
+    bool          expected = false;
+    SYSTEMTIME    st       = {};
+    wchar_t       name[64] = {};
+    wchar_t       cwd[MAX_PATH] = {};
+    std::wstring  path;
+    uint64_t      total    = 0;
+
+    if (!m_traceDumped.compare_exchange_strong (expected, true))
+    {
+        return;
+    }
+
+    if (m_traceCapacity == 0 || m_cpu == nullptr || !m_cpu->IsTraceEnabled())
+    {
+        return;
+    }
+
+    GetLocalTime (&st);
+    swprintf_s (name, L"casso-trace-%04u%02u%02u-%02u%02u%02u.txt",
+                st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+
+    if (GetCurrentDirectoryW (MAX_PATH, cwd) > 0)
+    {
+        path = std::wstring (cwd) + L"\\" + name;
+    }
+    else
+    {
+        path = name;
+    }
+
+    total = m_cpu->GetTraceCount();
+
+    TraceProgressWindow  win;
+    win.Create (reason, path, total);
+
+    m_cpu->DumpTraceToFile (path, [&win] (uint64_t done, uint64_t tot)
+    {
+        win.SetProgress (done, tot);
+    });
+
+    win.Destroy();
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -3933,6 +4991,11 @@ void EmulatorShell::OpenInputDebugDialog()
         {
             iieSwitches->SetInputEventSink (m_inputDebugPanel.get());
         }
+
+        if (m_refs.gamePort != nullptr)
+        {
+            m_refs.gamePort->SetInputEventSink (m_inputDebugPanel.get());
+        }
     }
 
     m_inputDebugPanel->Show();
@@ -3992,6 +5055,11 @@ void EmulatorShell::AttachDebugSinksIfOpen()
         if (iieSwitches != nullptr)
         {
             iieSwitches->SetInputEventSink (m_inputDebugPanel.get());
+        }
+
+        if (m_refs.gamePort != nullptr)
+        {
+            m_refs.gamePort->SetInputEventSink (m_inputDebugPanel.get());
         }
     }
 

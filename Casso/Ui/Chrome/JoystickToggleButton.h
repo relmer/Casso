@@ -5,6 +5,7 @@
 #include "ChromeTheme.h"
 #include "Core/IDxuiControl.h"
 #include "LedIndicator.h"
+#include "../../UiCommandTypes.h"
 
 
 
@@ -45,6 +46,11 @@ public:
     void                  Hide         ()              { m_bounds = {}; }
     void                  SetOn        (bool on)       { m_on      = on; }
     bool                  IsOn         () const        { return m_on; }
+
+    // Tri-state input-mode adapter (ported minimally from master's paddle
+    // work): Off shows dark/off, Joystick and Paddle both light the LED.
+    // Full "Paddle Mode (ESC to exit)" labelling is a follow-up.
+    void                  SetMode      (InputMappingMode mode) { m_on = (mode != InputMappingMode::Off); }
     void                  SetHovered   (bool hovered)  { m_hovered = hovered; }
     bool                  IsHovered    () const        { return m_hovered; }
     void                  SetFocused   (bool focused)  { m_focused = focused; }

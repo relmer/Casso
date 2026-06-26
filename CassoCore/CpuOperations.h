@@ -24,6 +24,7 @@ public:
     static void Break                (Cpu & cpu);
     static void Compare              (Cpu & cpu, Byte & registerAffected, Byte operand);
     static void Decrement            (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress);
+    static void DecrementAndCompare  (Cpu & cpu, Word effectiveAddress);
     static void Increment            (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress);
     static void Load                 (Cpu & cpu, Byte & registerAffected, Byte operand);
     static void Jump                 (Cpu & cpu, Instruction instruction, Word operand);

@@ -50,6 +50,12 @@ public:
     void SetFlashState (bool on) { m_flashOn = on; }
     void SetAltCharSet (bool on) { m_altCharSet = on; }
 
+    // The lit-pixel color for text glyphs. Defaults to green for legacy
+    // monochrome look (and existing tests); the shell overrides it to white
+    // for a color monitor. In mono color modes the framebuffer is re-tinted
+    // afterward, so the shell leaves this green there.
+    void SetOnColor (uint32_t bgra) { m_onColor = bgra; }
+
 private:
     static Word RowBaseAddress (int row, Word pageBase);
 
@@ -57,5 +63,6 @@ private:
     const CharacterRomData & m_charRom;
     bool                     m_flashOn    = true;
     bool                     m_altCharSet = false;
+    uint32_t                 m_onColor    = 0xFF00FF00;   // BGRA green (default)
     uint32_t                 m_frameCount = 0;
 };

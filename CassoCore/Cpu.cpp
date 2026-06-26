@@ -22,6 +22,13 @@
 Cpu::Cpu()
 {
     InitializeInstructionSet();
+
+#ifdef _DEBUG
+    // Preserve the always-on illegal-opcode look-back in Debug builds even
+    // when --trace is not passed. The --trace switch re-enables with a far
+    // larger ring at runtime.
+    EnableTrace (kTraceDefaultLookback);
+#endif
 }
 
 
@@ -51,7 +58,36 @@ void Cpu::Reset()
 
 
 
-#ifdef _DEBUG
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnableTrace
+//
+//  Allocate (or free) the execution-trace ring. Capacity is in entries;
+//  0 disables tracing and releases the buffer. Resets head/count.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu::EnableTrace (size_t capacity)
+{
+    m_traceHead  = 0;
+    m_traceCount = 0;
+
+    if (capacity == 0)
+    {
+        m_traceEnabled  = false;
+        m_traceCapacity = 0;
+        m_trace.clear();
+        m_trace.shrink_to_fit();
+        return;
+    }
+
+    m_traceCapacity = capacity;
+    m_trace.assign (capacity, TraceEntry {});
+    m_traceEnabled  = true;
+}
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -60,25 +96,34 @@ void Cpu::Reset()
 //  Snap the current pre-execution CPU state into the ring buffer.
 //  Called at the top of StepOne so the entry captures the instruction
 //  that is about to run -- the head-1 entry on dump is the faulting
-//  instruction itself; head-2 is its predecessor; and so on. Cheap
-//  enough to leave on for the entire Debug session (~30 bytes per
-//  step, 256-entry ring, zero allocation, no I/O).
+//  instruction itself; head-2 is its predecessor; and so on.
+//
+//  `opcode` is the byte StepOne actually fetched via ReadByte (the
+//  bus-routed value, which honors ROM/language-card/soft-switch
+//  banking). It must NOT be re-read from the raw Cpu::memory[] array,
+//  which only backs $00-$BF RAM and is stale for ROM/$Cxxx/$Dxxx-$FFFF
+//  -- doing so makes the disassembly lie in exactly the banked regions
+//  a fault trace most needs to be correct about. The operand bytes are
+//  read from the raw RAM backing, which is exact for $0000-$BFFF code
+//  (where bootloaders/decryptors live) and approximate elsewhere.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::TracePush ()
+void Cpu::TracePush (Byte opcode)
 {
     TraceEntry &  e = m_trace[m_traceHead];
 
     e.pc     = PC;
-    e.opcode = memory[PC];
+    e.opcode = opcode;
+    e.op1    = memory[(Word) (PC + 1)];
+    e.op2    = memory[(Word) (PC + 2)];
     e.a      = A;
     e.x      = X;
     e.y      = Y;
     e.sp     = SP;
     e.p      = status.status;
 
-    m_traceHead = (m_traceHead + 1) % kTraceBufferSize;
+    m_traceHead = (m_traceHead + 1) % m_traceCapacity;
     m_traceCount++;
 }
 
@@ -100,10 +145,21 @@ void Cpu::TracePush ()
 
 void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
 {
-    size_t  total   = (m_traceCount < kTraceBufferSize) ? (size_t) m_traceCount
-                                                        : kTraceBufferSize;
+    // Short newest-first look-back to stderr -- enough to see the
+    // JMP/JSR/RTS chain that landed PC on the bad byte. The full ring
+    // (which may be millions of entries under --trace) is written
+    // separately by DumpTraceToFile, so cap this quick dump.
+    static constexpr size_t  kMaxLookback = 256;
+
+    size_t  total   = (m_traceCount < (uint64_t) m_traceCapacity) ? (size_t) m_traceCount
+                                                                  : m_traceCapacity;
     size_t  i       = 0;
     size_t  index   = 0;
+
+    if (total > kMaxLookback)
+    {
+        total = kMaxLookback;
+    }
 
     DEBUGMSG (L"\n");
     DEBUGMSG (L"[Casso] === CPU illegal-opcode fault ===\n");
@@ -115,7 +171,7 @@ void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
     {
         // head currently points one PAST the most recent push, so the
         // newest entry is (head - 1) mod size. Step backward from there.
-        index = (m_traceHead + kTraceBufferSize - 1 - i) % kTraceBufferSize;
+        index = (m_traceHead + m_traceCapacity - 1 - i) % m_traceCapacity;
 
         const TraceEntry &  e        = m_trace[index];
         const char *        opName   = instructionSet[e.opcode].instructionName != nullptr
@@ -132,7 +188,82 @@ void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
     DEBUGMSG (L"[Casso] === end trace ===\n");
 }
 
-#endif
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DumpTraceToFile
+//
+//  Write the recorded ring to `path` as text, oldest-first (chronological).
+//  One instruction per line:
+//
+//    00000001  PC=$XXXX  op=$XX OPS=$XX $XX (NAME)  A=$XX X=$XX Y=$XX SP=$XX P=$XX
+//
+//  `onProgress` (if set) is called every kProgressStride entries and once
+//  at completion with (entriesWritten, totalEntries). Returns true on
+//  success. CassoCore owns no UI; the caller drives any progress dialog.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Cpu::DumpTraceToFile (const std::wstring & path,
+                           const std::function<void (uint64_t, uint64_t)> & onProgress) const
+{
+    static constexpr uint64_t  kProgressStride = 100000;
+
+    std::ofstream  out (path, std::ios::binary | std::ios::trunc);
+    uint64_t       total = (m_traceCount < (uint64_t) m_traceCapacity) ? m_traceCount
+                                                                       : (uint64_t) m_traceCapacity;
+    size_t         start = 0;
+    char           line[160];
+
+    if (!out.is_open() || m_traceCapacity == 0)
+    {
+        return false;
+    }
+
+    // When the ring has wrapped, the oldest surviving entry sits at the
+    // current head; otherwise it starts at index 0.
+    start = (m_traceCount > (uint64_t) m_traceCapacity) ? m_traceHead : 0;
+
+    out << "Casso CPU execution trace -- " << total << " instructions (oldest first)\n";
+
+    for (uint64_t i = 0; i < total; i++)
+    {
+        size_t              index = (start + (size_t) i) % m_traceCapacity;
+        const TraceEntry &  e     = m_trace[index];
+        const char *        name  = instructionSet[e.opcode].instructionName != nullptr
+                                    ? instructionSet[e.opcode].instructionName
+                                    : "???";
+
+        int  n = std::snprintf (line, sizeof (line),
+                                "%08llu  PC=$%04X  op=$%02X OPS=$%02X $%02X (%s)  "
+                                "A=$%02X X=$%02X Y=$%02X SP=$%02X P=$%02X\n",
+                                (unsigned long long) i,
+                                (unsigned) e.pc, (unsigned) e.opcode,
+                                (unsigned) e.op1, (unsigned) e.op2, name,
+                                (unsigned) e.a, (unsigned) e.x, (unsigned) e.y,
+                                (unsigned) e.sp, (unsigned) e.p);
+        if (n > 0)
+        {
+            out.write (line, n);
+        }
+
+        if (onProgress && (i % kProgressStride) == 0)
+        {
+            onProgress (i, total);
+        }
+    }
+
+    out.flush();
+
+    if (onProgress)
+    {
+        onProgress (total, total);
+    }
+
+    return out.good();
+}
 
 
 
@@ -151,16 +282,20 @@ void Cpu::StepOne()
 
 
 
-#ifdef _DEBUG
-    TracePush();
-#endif
+    if (m_traceEnabled)
+    {
+        TracePush (opcode);
+    }
 
     if (!microcode.isLegal)
     {
         DEBUGMSG (L"Illegal opcode $%02X at PC=$%04X\n", opcode, PC);
-#ifdef _DEBUG
-        DumpInstructionTrace (opcode, PC);
-#endif
+
+        if (m_traceEnabled)
+        {
+            DumpInstructionTrace (opcode, PC);
+        }
+
         ASSERT (false);
 
         m_lastCycles = 2;
@@ -177,12 +312,13 @@ void Cpu::StepOne()
     // Page-crossing penalty for indexed reads (+1 cycle).
     // Stores and RMW always pay the penalty (baked into baseCycles).
     bool isReadOp =
-        microcode.operation != Microcode::Store       &&
-        microcode.operation != Microcode::ShiftLeft   &&
-        microcode.operation != Microcode::ShiftRight  &&
-        microcode.operation != Microcode::RotateLeft  &&
-        microcode.operation != Microcode::RotateRight &&
-        microcode.operation != Microcode::Decrement   &&
+        microcode.operation != Microcode::Store              &&
+        microcode.operation != Microcode::ShiftLeft          &&
+        microcode.operation != Microcode::ShiftRight         &&
+        microcode.operation != Microcode::RotateLeft         &&
+        microcode.operation != Microcode::RotateRight        &&
+        microcode.operation != Microcode::Decrement          &&
+        microcode.operation != Microcode::DecrementAndCompare &&
         microcode.operation != Microcode::Increment;
 
     if (isReadOp)
@@ -677,7 +813,8 @@ void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandIn
     case Microcode::Break:                CpuOperations::Break                (*this);                                                               break;
     case Microcode::Compare:              CpuOperations::Compare              (*this, *microcode.pSourceRegister, (Byte) operandInfo.operand);       break;
     case Microcode::Decrement:            CpuOperations::Decrement            (*this, microcode.pSourceRegister, operandInfo.effectiveAddress);      break;
-    case Microcode::Increment:            CpuOperations::Increment            (*this, microcode.pSourceRegister, operandInfo.effectiveAddress);      break;
+    case Microcode::DecrementAndCompare:  CpuOperations::DecrementAndCompare  (*this, operandInfo.effectiveAddress);                                   break;
+    case Microcode::Increment:            CpuOperations::Increment            (*this, microcode.pSourceRegister, operandInfo.effectiveAddress);        break;
     case Microcode::Jump:                 CpuOperations::Jump                 (*this, microcode.instruction, operandInfo.operand);                   break;
     case Microcode::JumpSubroutine:       CpuOperations::JumpSubroutine       (*this, operandInfo.operand);                                          break;
     case Microcode::Load:                 CpuOperations::Load                 (*this, *microcode.pDestinationRegister, (Byte) operandInfo.operand);  break;
@@ -846,6 +983,7 @@ void Cpu::InitializeInstructionSet()
     InitializeGroup01();
     InitializeGroup10();
     InitializeMisc();
+    InitializeUndocumented();
 }
 
 
@@ -1044,6 +1182,40 @@ void Cpu::InitializeMisc()
 
 }
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InitializeUndocumented
+//
+//  NMOS 6502 undocumented opcodes used by real Apple II software.
+//  Only those encountered in the wild are listed here.
+//
+//  $04  DOP zp  — Double-NOP: reads a zero-page byte and discards it.
+//                 2 bytes, 3 cycles.
+//  $CF  DCP abs — Decrement memory at absolute address then CMP A with
+//                 the decremented value.  3 bytes, 6 cycles.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu::InitializeUndocumented()
+{
+    static constexpr Byte  s_kDopBaseCycles = 3;
+    static constexpr Byte  s_kDcpBaseCycles = 6;
+
+    instructionSet[0x04] = Microcode (Instruction (0x04), "NOP",
+                                      Microcode::NoOperation,
+                                      GlobalAddressingMode::ZeroPage,
+                                      nullptr, nullptr);
+    instructionSet[0x04].baseCycles = s_kDopBaseCycles;
+
+    instructionSet[0xCF] = Microcode (Instruction (0xCF), "DCP",
+                                      Microcode::DecrementAndCompare,
+                                      GlobalAddressingMode::Absolute,
+                                      nullptr, nullptr);
+    instructionSet[0xCF].baseCycles = s_kDcpBaseCycles;
+}
 
 
 
