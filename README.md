@@ -12,10 +12,10 @@ Casso is a retro / classic-machine platform emulator and from-scratch AS65-compa
 
 Two of the three built-in themes — Skeuomorphic and Dark Modern — booting the [casso-rocks demo disk](Apple2/Demos); same Apple //e core, different chrome:
 
-<p align="center">
-  <img src="Assets/theme-skeuomorphic-dhgr.png" alt="Casso Skeuomorphic theme booting the casso-rocks DHGR demo" width="48%" />
-  <img src="Assets/theme-darkmodern-dhgr.png" alt="Casso Dark Modern theme booting the casso-rocks DHGR demo" width="48%" />
-</p>
+<table align="center" width="100%"><tr>
+  <td valign="top" width="50%"><img src="Assets/theme-skeuomorphic-dhgr.png" alt="Casso Skeuomorphic theme booting the casso-rocks DHGR demo" width="100%" /></td>
+  <td valign="top" width="50%"><img src="Assets/theme-darkmodern-dhgr.png" alt="Casso Dark Modern theme booting the casso-rocks DHGR demo" width="100%" /></td>
+</tr></table>
 
 The project includes:
 
