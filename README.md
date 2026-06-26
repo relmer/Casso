@@ -31,6 +31,27 @@ The project includes:
 
 See [CHANGELOG.md](CHANGELOG.md) for the granular history.
 
+### Drive-audio mixer controls (v1.5.1566)
+
+The disk-drive sounds are now a small mixer in **Settings → Machine**:
+per-sound volume sliders (Motor / Head / Door) plus an independent
+Left…Center…Right pan slider for each drive, so Drive 1 and Drive 2 can sit
+anywhere across the stereo field. A play button beside every control
+auditions that sound live at the dialed level, and **Reset** restores the
+defaults. The Alps mechanism — which ships no door recording — now falls
+back to the Shugart door sound instead of going silent, and a machine set
+to Alps finally boots playing Alps (a case-mismatch had it silently
+reverting to the Shugart default until you re-applied the setting).
+
+Rounding out the release: a **custom Color-monitor text color** picked from
+an in-panel HSV picker (live swatch + copy-to-clipboard hex field); the
+settings text fields rebuilt as proper Windows-style edit controls
+(blinking caret, arrow / Ctrl+arrow / Home / End movement, shift-selection,
+mouse drag and double-click word select, clipboard cut / copy / paste); and
+every settings widget — sliders, toggles, dropdowns, tabs, buttons — now
+drawn in the active theme's palette (green under Retro Terminal rather than
+a fixed blue), with slider and toggle contrast tuned for legibility.
+
 ### Apple ][ / ][ plus game port (v1.5.1555)
 
 The original Apple ][ / ][ plus now emulate the game-I/O strip — analog paddles
