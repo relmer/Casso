@@ -85,6 +85,7 @@ public:
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Slider; }
 
 private:
+    void   PaintInternal  (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t accentArgb) const;
     void   ApplyValue     (float v);
     float  ValueFromX     (int x) const;
     ChangeFn       m_change;

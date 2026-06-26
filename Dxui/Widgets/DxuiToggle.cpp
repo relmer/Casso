@@ -8,6 +8,35 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Anonymous helpers
+//
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    constexpr uint32_t  s_kDefaultAccentArgb = 0xFF2D7CDB;   // "on" pill
+    constexpr uint32_t  s_kDefaultFocusArgb  = 0xFFAACCFF;   // focus ring
+    constexpr float     s_kHoverLighten      = 1.15f;        // "on" pill hover brighten
+
+
+    //  Lighten each RGB channel toward white by factor f (>1 brightens),
+    //  preserving alpha. Used for the hovered "on" pill shade.
+    uint32_t LightenRgb (uint32_t argb, float f)
+    {
+        uint32_t  r = (uint32_t) std::min (255.0f, (float) ((argb >> 16) & 0xFFu) * f);
+        uint32_t  g = (uint32_t) std::min (255.0f, (float) ((argb >>  8) & 0xFFu) * f);
+        uint32_t  b = (uint32_t) std::min (255.0f, (float) ( argb        & 0xFFu) * f);
+
+        return (argb & 0xFF000000u) | (r << 16) | (g << 8) | b;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HitTest
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,16 +176,13 @@ void DxuiToggle::Flip ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiToggle::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
+void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t accentArgb, uint32_t focusArgb) const
 {
     constexpr uint32_t  s_kPillOff      = 0xFF4A5260;
     constexpr uint32_t  s_kPillOffHover = 0xFF5A6271;
-    constexpr uint32_t  s_kPillOn       = 0xFF2D7CDB;
-    constexpr uint32_t  s_kPillOnHover  = 0xFF3D8CEB;
     constexpr uint32_t  s_kPillDisabled = 0xFF2A2F38;
     constexpr uint32_t  s_kThumb        = 0xFFFFFFFF;
     constexpr uint32_t  s_kThumbDisabled= 0xFF707070;
-    constexpr uint32_t  s_kFocusRing    = 0xFFAACCFF;
     constexpr uint32_t  s_kTextIdle     = 0xFFE8EEF4;
     constexpr uint32_t  s_kTextDisabled = 0xFF707070;
     constexpr float     s_kPillWidthDip  = 36.0f;
@@ -195,7 +221,7 @@ void DxuiToggle::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
     }
     else if (m_checked)
     {
-        pillColor = m_hover ? s_kPillOnHover : s_kPillOn;
+        pillColor = m_hover ? LightenRgb (accentArgb, s_kHoverLighten) : accentArgb;
     }
     else
     {
@@ -214,7 +240,7 @@ void DxuiToggle::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
                              pillW    - focusInset * 2.0f,
                              pillH    - focusInset * 2.0f,
                              focusThick,
-                             s_kFocusRing);
+                             focusArgb);
     }
 
     if (!m_label.empty())
@@ -268,14 +294,25 @@ void DxuiToggle::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiToggle::Paint  (IDxuiControl override)
+//  DxuiToggle::Paint
+//
+//  Non-themed overload keeps the default blue accent; the IDxuiControl
+//  themed override tints the "on" pill from theme.Accent() and the focus
+//  ring from theme.FocusRing().
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+void DxuiToggle::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
+{
+    PaintInternal (painter, text, s_kDefaultAccentArgb, s_kDefaultFocusArgb);
+}
+
+
+
+
 void DxuiToggle::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    UNREFERENCED_PARAMETER (theme);
-    static_cast<const DxuiToggle *> (this)->Paint (painter, text);
+    PaintInternal (painter, text, theme.Accent(), theme.FocusRing());
 }
 
 
