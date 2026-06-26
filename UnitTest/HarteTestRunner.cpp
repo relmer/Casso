@@ -655,6 +655,24 @@ namespace HarteTests
         TEST_METHOD (Opcode_F9_SBC_AbsY)  { RunOpcodeTest (0xF9); }
         TEST_METHOD (Opcode_FD_SBC_AbsX)  { RunOpcodeTest (0xFD); }
         TEST_METHOD (Opcode_FE_INC_AbsX)  { RunOpcodeTest (0xFE); }
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Undocumented opcodes
+        //
+        //  One TEST_METHOD per illegal NMOS opcode Casso implements in
+        //  CassoCore Cpu::InitializeUndocumented(). RunOpcodeTest skips
+        //  silently when the matching .bin is absent, so these stay green
+        //  under a --legal-only generation. When InitializeUndocumented()
+        //  gains an opcode, add it here AND to the
+        //  IMPLEMENTED_ILLEGAL_6502_OPCODES list in
+        //  scripts/GenerateHarteTests.py.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Opcode_04_DOP_ZP)    { RunOpcodeTest (0x04); }
+        TEST_METHOD (Opcode_CF_DCP_Abs)   { RunOpcodeTest (0xCF); }
     };
 
 
