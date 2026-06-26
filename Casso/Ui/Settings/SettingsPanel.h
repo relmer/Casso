@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "DisplayPage.h"
+#include "ColorPickerOverlay.h"
 #include "HardwarePage.h"
 #include "MachinePage.h"
 #include "SettingsApplyController.h"
@@ -106,6 +107,7 @@ public:
     void    OnLButtonDown (int x, int y);
     void    OnLButtonUp   (int x, int y);
     bool    OnKey         (WPARAM vk);
+    bool    OnChar        (wchar_t ch);
 
     // IDxuiControl pure-virtual overrides supplied by inheriting
     // DxuiPanel. Implemented as adapters that defer to the bespoke
@@ -196,6 +198,7 @@ private:
     HardwarePage        m_hardwarePage;
     ThemePage           m_themePage;
     DisplayPage         m_displayPage;
+    ColorPickerOverlay  m_colorPicker;
     DxuiModalScrim          m_scrim;
     DxuiButton              m_applyButton;
     DxuiButton              m_cancelButton;
