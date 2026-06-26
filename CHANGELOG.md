@@ -40,6 +40,11 @@ spill past the window's edges instead of being clipped to it.
   the Direct3D swap chain and presents directly; the separate child
   render-surface window is gone. This single-window-procedure
   architecture is what lets the chrome host the new top-level popups.
+- **feat(ui): scroll long disk-image names on hover.** A mounted disk's
+  basename that overflows the drive label used to truncate with an
+  ellipsis; the label now scrolls the full name once when the drive is
+  hovered (clipped to the drive bounds), then rests at the head, so long
+  filenames can be read on demand.
 
 ### Fixed
 - **fix(ui): debug-panel window-management polish.** The maximize glyph

@@ -51,6 +51,21 @@ public:
     bool               IsFocused       () const          { return m_focused; }
     void               SyncFromState   (const DriveWidgetState & state);
 
+    // Marquee hover trigger. The shell calls this each mouse move with
+    // whether the pointer is over the widget; a fresh enter restarts the
+    // one-shot basename scroll so the full filename can be re-read on
+    // demand. Owns the enter-edge detection so a stationary hover doesn't
+    // continuously re-trigger.
+    void               UpdateMarqueeHover (bool inside, int64_t nowMs)
+    {
+        if (inside && !m_marqueeHovered)
+        {
+            m_marqueeStartMs = nowMs;
+        }
+
+        m_marqueeHovered = inside;
+    }
+
     void               Paint           (IDxuiPainter        & painter,
                                         IDxuiTextRenderer   & text,
                                         const IDxuiTheme    & theme) override;
@@ -98,4 +113,12 @@ private:
     int                 m_perspectiveSkewPx = 0;
     bool                m_compact           = false;
     bool                m_focused           = false;
+
+    // Marquee state for the mounted-disk basename label. m_marqueeStartMs
+    // is when scroll motion begins (in the future during a mount's lead-in
+    // delay; "now" on a hover enter). m_marqueePath detects remounts;
+    // m_marqueeHovered debounces the hover trigger and gates the replay.
+    std::wstring        m_marqueePath;
+    int64_t             m_marqueeStartMs    = 0;
+    bool                m_marqueeHovered    = false;
 };
