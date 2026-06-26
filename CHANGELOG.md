@@ -6,6 +6,51 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.5.1566] — Drive-audio mixer controls; text-color picker; themed settings widgets
+
+### Added
+- **feat(audio): per-drive volume, stereo pan, and sound audition.** The
+  Settings → Machine tab gains Motor / Head / Door volume sliders
+  (defaulting to 90 / 100 / 100 %) and an independent Left…Center…Right pan
+  slider per drive (defaults −0.5 / +0.5, equal-power placement), so the two
+  floppy drives sit on opposite sides of the stereo image. A play button
+  beside each control auditions that sound at the dialed level — volume
+  previews play balanced at center, pan previews at the dialed position,
+  both using the currently-selected mechanism — and a **Reset** button
+  restores the audio defaults. Live changes marshal to the CPU/mixing
+  thread (`IDM_AUDIO_DRIVE_VOLUMES` / `_PAN` / `_TEST`). The Alps mechanism,
+  which ships no door sample, now falls back to the Shugart door sound
+  instead of going silent.
+- **feat(settings): custom text-color picker.** The Color-monitor text color
+  can now be an arbitrary RGB value chosen in a themed HSV picker (hue /
+  saturation / value sliders, a live preview swatch, and a hex entry)
+  launched from the Display tab; the hex field has a copy-to-clipboard icon.
+- **feat(ui): Windows-style text input.** `TextInput` was rewritten to behave
+  like a native edit control — a correctly sized blinking caret, arrow /
+  Ctrl+arrow / Home / End movement, Shift / Ctrl+Shift selection, mouse
+  click-drag and double-click word selection, and clipboard cut / copy /
+  paste.
+
+### Changed
+- **feat(theme): settings widgets follow the active theme.** Sliders,
+  toggles, dropdowns, the tab strip, buttons, and the joystick LED in the
+  Settings panel now derive every color from the active ChromeTheme (e.g.
+  green under Retro Terminal) instead of a fixed blue. The `Button` widget no
+  longer exposes free-form color overrides — a themed Default / Primary
+  variant makes it impossible to draw a button that ignores the theme.
+  Slider pucks and toggle pills are darkened to keep ≥3:1 contrast (WCAG
+  1.4.11) against their white sub-elements, and the primary (OK) button
+  clears 4.5:1 (WCAG 1.4.3) against its white label.
+
+### Fixed
+- **fix(audio): a machine set to Alps booted playing Shugart.** The boot path
+  read the persisted lower-case mechanism token (`alps` / `shugart`) and
+  compared it against the mixed-case sample-directory names with `==`, so
+  the token failed validation and the mixer stayed on its Shugart default
+  until the setting was re-applied. `DriveAudioMixer` now matches mechanism
+  names case-insensitively and stores the canonical mixed-case form, so the
+  selected mechanism is applied at startup.
+
 ## [1.5.1555] — Apple ][ / ][ plus game port; inverse-text fix; execution trace
 
 ### Added
