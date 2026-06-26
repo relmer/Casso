@@ -43,6 +43,7 @@ RECT ColorPickerOverlay::MakeRect (int l, int t, int w, int h)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ColorPickerOverlay::Open
@@ -75,6 +76,7 @@ void ColorPickerOverlay::Open (uint32_t initialArgb)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ColorPickerOverlay::Layout
@@ -86,21 +88,21 @@ void ColorPickerOverlay::Open (uint32_t initialArgb)
 
 void ColorPickerOverlay::Layout (const RECT & panelRect, const DpiScaler & scaler)
 {
-    int  dialogW = scaler.Px (s_kDialogWidthDp);
-    int  dialogH = scaler.Px (s_kDialogHeightDp);
-    int  pad     = scaler.Px (s_kPadDp);
-    int  rowH    = scaler.Px (s_kRowHeightDp);
-    int  rowGap  = scaler.Px (s_kRowGapDp);
-    int  labelW  = scaler.Px (s_kLabelWidthDp);
-    int  sliderW = scaler.Px (s_kSliderWidthDp);
-    int  hexW    = scaler.Px (s_kHexWidthDp);
-    int  previewW = scaler.Px (s_kPreviewWidthDp);
-    int  btnW    = scaler.Px (s_kButtonWidthDp);
-    int  btnGap  = scaler.Px (s_kButtonGapDp);
-    int  left    = panelRect.left + (panelRect.right  - panelRect.left - dialogW) / 2;
-    int  top     = panelRect.top  + (panelRect.bottom - panelRect.top  - dialogH) / 2;
-    int  x       = left + pad;
-    int  y       = top  + pad;
+    int  dialogW   = scaler.Px (s_kDialogWidthDp);
+    int  dialogH   = scaler.Px (s_kDialogHeightDp);
+    int  pad       = scaler.Px (s_kPadDp);
+    int  rowH      = scaler.Px (s_kRowHeightDp);
+    int  rowGap    = scaler.Px (s_kRowGapDp);
+    int  labelW    = scaler.Px (s_kLabelWidthDp);
+    int  sliderW   = scaler.Px (s_kSliderWidthDp);
+    int  hexW      = scaler.Px (s_kHexWidthDp);
+    int  previewW  = scaler.Px (s_kPreviewWidthDp);
+    int  btnW      = scaler.Px (s_kButtonWidthDp);
+    int  btnGap    = scaler.Px (s_kButtonGapDp);
+    int  left      = panelRect.left + (panelRect.right  - panelRect.left - dialogW) / 2;
+    int  top       = panelRect.top  + (panelRect.bottom - panelRect.top  - dialogH) / 2;
+    int  x         = left + pad;
+    int  y         = top  + pad;
     int  controlsX = x + labelW;
 
 
@@ -196,6 +198,7 @@ void ColorPickerOverlay::Layout (const RECT & panelRect, const DpiScaler & scale
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ColorPickerOverlay::SyncFromHsv
@@ -205,6 +208,8 @@ void ColorPickerOverlay::Layout (const RECT & panelRect, const DpiScaler & scale
 void ColorPickerOverlay::SyncFromHsv ()
 {
     HRESULT  hr = S_OK;
+
+
 
     BAIL_OUT_IF (m_syncing, S_OK);
 
@@ -225,6 +230,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ColorPickerOverlay::SyncFromHex
@@ -236,6 +242,8 @@ void ColorPickerOverlay::SyncFromHex ()
     HRESULT   hr     = S_OK;
     uint32_t  parsed = 0;
     bool      ok     = false;
+
+
 
     BAIL_OUT_IF (m_syncing, S_OK);
 
@@ -262,6 +270,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ColorPickerOverlay::Accept / Cancel
@@ -281,6 +290,7 @@ void ColorPickerOverlay::Accept ()
 
 
 
+
 void ColorPickerOverlay::Cancel ()
 {
     m_open = false;
@@ -290,6 +300,7 @@ void ColorPickerOverlay::Cancel ()
         m_onClose (false, m_originalArgb);
     }
 }
+
 
 
 
@@ -309,9 +320,12 @@ void ColorPickerOverlay::MoveFocus (int delta)
 
 
 
+
 void ColorPickerOverlay::ApplyFocus ()
 {
     bool  hexGainingFocus = (m_focusIndex == 3) && (m_prevFocusIndex != 3);
+
+
 
     m_hue.SetFocused    (m_focusIndex == 0);
     m_sat.SetFocused    (m_focusIndex == 1);
@@ -330,6 +344,7 @@ void ColorPickerOverlay::ApplyFocus ()
 
     m_prevFocusIndex = m_focusIndex;
 }
+
 
 
 
@@ -388,6 +403,7 @@ void ColorPickerOverlay::OnLButtonDown (int x, int y)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ColorPickerOverlay::OnLButtonUp
@@ -414,6 +430,7 @@ void ColorPickerOverlay::OnLButtonUp (int x, int y)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ColorPickerOverlay::OnMouseMove / OnMouseHover
@@ -432,6 +449,7 @@ void ColorPickerOverlay::OnMouseMove (int x, int y)
 
 
 
+
 void ColorPickerOverlay::OnMouseHover (int x, int y)
 {
     m_hue.SetMouseHover (x, y);
@@ -442,6 +460,7 @@ void ColorPickerOverlay::OnMouseHover (int x, int y)
     m_cancel.SetMouse   (x, y, false);
     m_copyHover = CopyHit (x, y);
 }
+
 
 
 
@@ -490,6 +509,7 @@ bool ColorPickerOverlay::OnKey (WPARAM vk)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ColorPickerOverlay::OnChar
@@ -509,6 +529,7 @@ bool ColorPickerOverlay::OnChar (wchar_t ch)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ColorPickerOverlay::Paint
@@ -519,17 +540,17 @@ bool ColorPickerOverlay::OnChar (wchar_t ch)
 
 void ColorPickerOverlay::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
 {
-    HRESULT      hr      = S_OK;
-    ChromeTheme  theme   = (m_theme != nullptr) ? *m_theme : ChromeTheme::Skeuomorphic();
+    HRESULT      hr       = S_OK;
+    ChromeTheme  theme    = (m_theme != nullptr) ? *m_theme : ChromeTheme::Skeuomorphic();
     float        borderPx = m_scaler.Pxf (1.0f);
-    float        dl      = (float) m_dialogRect.left;
-    float        dt      = (float) m_dialogRect.top;
-    float        dw      = (float) (m_dialogRect.right  - m_dialogRect.left);
-    float        dh      = (float) (m_dialogRect.bottom - m_dialogRect.top);
-    float        pl      = (float) m_previewRect.left;
-    float        pt      = (float) m_previewRect.top;
-    float        pw      = (float) (m_previewRect.right  - m_previewRect.left);
-    float        ph      = (float) (m_previewRect.bottom - m_previewRect.top);
+    float        dl       = (float) m_dialogRect.left;
+    float        dt       = (float) m_dialogRect.top;
+    float        dw       = (float) (m_dialogRect.right  - m_dialogRect.left);
+    float        dh       = (float) (m_dialogRect.bottom - m_dialogRect.top);
+    float        pl       = (float) m_previewRect.left;
+    float        pt       = (float) m_previewRect.top;
+    float        pw       = (float) (m_previewRect.right  - m_previewRect.left);
+    float        ph       = (float) (m_previewRect.bottom - m_previewRect.top);
 
 
 
@@ -569,6 +590,7 @@ void ColorPickerOverlay::Paint (DxUiPainter & painter, DwriteTextRenderer & text
 Error:
     return;
 }
+
 
 
 
@@ -628,6 +650,7 @@ void ColorPickerOverlay::PaintCopyIcon (
                                               DWRITE_FONT_WEIGHT_NORMAL,
                                               false));
 }
+
 
 
 

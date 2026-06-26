@@ -363,6 +363,8 @@ const char * GlobalUserPrefs::ColorTextModeToString (ColorMonitorTextMode mode)
 {
     const char *  result = s_kpszTextModeWhite;
 
+
+
     switch (mode)
     {
         case ColorMonitorTextMode::Green:
@@ -402,6 +404,8 @@ const char * GlobalUserPrefs::ColorTextModeToString (ColorMonitorTextMode mode)
 ColorMonitorTextMode GlobalUserPrefs::ColorTextModeFromString (const std::string & s, ColorMonitorTextMode fallback)
 {
     ColorMonitorTextMode  result = fallback;
+
+
 
     if (s == s_kpszTextModeGreen)
     {

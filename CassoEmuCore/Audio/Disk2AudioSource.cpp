@@ -345,6 +345,7 @@ void Disk2AudioSource::SetPan (float panLeft, float panRight)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetVolumes
@@ -357,6 +358,7 @@ void Disk2AudioSource::SetVolumes (float motor, float head, float door)
     m_headVolume  = std::clamp (head,  0.0f, 1.0f);
     m_doorVolume  = std::clamp (door,  0.0f, 1.0f);
 }
+
 
 
 
@@ -892,6 +894,8 @@ void Disk2AudioSource::MixTest (float * out, uint32_t n)
     HRESULT   hr  = S_OK;
     uint32_t  len = 0;
     uint32_t  i   = 0;
+
+
 
     BAIL_OUT_IF (m_testBuf == nullptr, S_OK);
 

@@ -25,6 +25,8 @@ int ColorUtil::HexValue (wchar_t ch)
 {
     int  result = -1;
 
+
+
     if (ch >= L'0' && ch <= L'9')
     {
         result = ch - L'0';
@@ -44,6 +46,7 @@ int ColorUtil::HexValue (wchar_t ch)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ColorUtil::HsvToArgb
@@ -55,17 +58,17 @@ int ColorUtil::HexValue (wchar_t ch)
 
 uint32_t ColorUtil::HsvToArgb (float h, float s, float v)
 {
-    float     hh = h;
-    float     c  = 0.0f;
-    float     x  = 0.0f;
-    float     m  = 0.0f;
-    float     r1 = 0.0f;
-    float     g1 = 0.0f;
-    float     b1 = 0.0f;
+    float     hh  = h;
+    float     c   = 0.0f;
+    float     x   = 0.0f;
+    float     m   = 0.0f;
+    float     r1  = 0.0f;
+    float     g1  = 0.0f;
+    float     b1  = 0.0f;
     int       seg = 0;
-    uint32_t  r  = 0;
-    uint32_t  g  = 0;
-    uint32_t  b  = 0;
+    uint32_t  r   = 0;
+    uint32_t  g   = 0;
+    uint32_t  b   = 0;
 
 
 
@@ -99,6 +102,7 @@ uint32_t ColorUtil::HsvToArgb (float h, float s, float v)
 
     return 0xFF000000u | (r << 16) | (g << 8) | b;
 }
+
 
 
 
@@ -148,6 +152,7 @@ void ColorUtil::ArgbToHsv (uint32_t argb, float & outH, float & outS, float & ou
     outS = (maxC <= 0.0f) ? 0.0f : (delta / maxC);
     outV = maxC;
 }
+
 
 
 
@@ -203,6 +208,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ColorUtil::FormatHexColor
@@ -216,9 +222,12 @@ std::wstring ColorUtil::FormatHexColor (uint32_t argb)
 {
     wchar_t  buf[8] = {};
 
+
+
     swprintf_s (buf, _countof (buf), L"#%06X", argb & 0x00FFFFFFu);
     return std::wstring (buf);
 }
+
 
 
 
@@ -235,6 +244,8 @@ std::wstring ColorUtil::FormatHexColor (uint32_t argb)
 uint32_t ColorUtil::ResolveColorMonitorTextArgb (ColorMonitorTextMode mode, uint32_t customArgb)
 {
     uint32_t  result = kWhiteArgb;
+
+
 
     switch (mode)
     {

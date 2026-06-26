@@ -21,6 +21,7 @@ bool IconButton::HitTest (int x, int y) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetMouseHover
@@ -39,6 +40,7 @@ void IconButton::SetMouseHover (int x, int y)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnLButtonDown
@@ -49,6 +51,8 @@ bool IconButton::OnLButtonDown (int x, int y)
 {
     bool  hit = HitTest (x, y);
 
+
+
     if (hit)
     {
         m_pressed = true;
@@ -56,6 +60,7 @@ bool IconButton::OnLButtonDown (int x, int y)
 
     return hit;
 }
+
 
 
 
@@ -73,6 +78,7 @@ bool IconButton::OnLButtonUp (int x, int y)
     bool  fire = m_pressed && HitTest (x, y);
 
 
+
     m_pressed = false;
 
     if (fire && m_click)
@@ -81,6 +87,7 @@ bool IconButton::OnLButtonUp (int x, int y)
     }
     return fire;
 }
+
 
 
 

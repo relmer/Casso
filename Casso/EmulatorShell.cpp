@@ -2663,14 +2663,13 @@ void EmulatorShell::SetDriveAudioVolumes (float motor, float head, float door)
 
 void EmulatorShell::SetDriveAudioPan (int drive, float pan)
 {
-    float  panL = DriveAudioMixer::kSpeakerCenter;
-    float  panR = DriveAudioMixer::kSpeakerCenter;
+    HRESULT  hr   = S_OK;
+    float    panL = DriveAudioMixer::kSpeakerCenter;
+    float    panR = DriveAudioMixer::kSpeakerCenter;
 
 
-    if (drive < 0 || drive >= (int) std::size (m_drivePan))
-    {
-        return;
-    }
+
+    BAIL_OUT_IF (drive < 0 || drive >= (int) std::size (m_drivePan), S_OK);
 
     m_drivePan[drive] = std::clamp (pan, -1.0f, 1.0f);
 
@@ -2680,7 +2679,11 @@ void EmulatorShell::SetDriveAudioPan (int drive, float pan)
     {
         m_diskAudioSources[(size_t) drive]->SetPan (panL, panR);
     }
+
+Error:
+    return;
 }
+
 
 
 

@@ -308,6 +308,7 @@ void MachinePage::Rebuild ()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MachinePage::ConfigureVolumeSlider
@@ -318,6 +319,8 @@ void MachinePage::ConfigureVolumeSlider (Slider & slider, const RECT & rect)
 {
     constexpr float  s_kVolumeMax = 100.0f;
 
+
+
     slider.SetRect      (rect);
     slider.SetRange     (0.0f, s_kVolumeMax);
     slider.SetStep      (1.0f);
@@ -325,6 +328,7 @@ void MachinePage::ConfigureVolumeSlider (Slider & slider, const RECT & rect)
     slider.SetDecimalPlaces (0);
     slider.SetShowTicks (false);
 }
+
 
 
 
@@ -342,6 +346,8 @@ void MachinePage::ConfigureVolumeSlider (Slider & slider, const RECT & rect)
 void MachinePage::ConfigurePanSlider (Slider & slider, const RECT & rect)
 {
     constexpr float  s_kPanMax = 100.0f;
+
+
 
     slider.SetRect      (rect);
     slider.SetRange     (-s_kPanMax, s_kPanMax);
@@ -373,6 +379,7 @@ void MachinePage::ConfigurePanSlider (Slider & slider, const RECT & rect)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MachinePage::ApplyDriveAudioChildEnabled
@@ -389,6 +396,8 @@ void MachinePage::ApplyDriveAudioChildEnabled (bool enabled)
     constexpr uint32_t  s_kLabelDisabledArgb = 0xFF6A7585;
 
     uint32_t  labelArgb = enabled ? s_kLabelEnabledArgb : s_kLabelDisabledArgb;
+
+
 
     m_mechanism.SetEnabled (enabled);
     m_motorVol.SetEnabled  (enabled);
@@ -413,6 +422,7 @@ void MachinePage::ApplyDriveAudioChildEnabled (bool enabled)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MachinePage::ResetDriveAudioToDefaults
@@ -426,6 +436,8 @@ void MachinePage::ApplyDriveAudioChildEnabled (bool enabled)
 void MachinePage::ResetDriveAudioToDefaults ()
 {
     HRESULT  hr = S_OK;
+
+
 
     CBRA (m_state != nullptr);
 
@@ -459,6 +471,8 @@ void MachinePage::OnLButtonDown (int x, int y)
 {
     bool  handled = false;
     int   i       = 0;
+
+
 
     handled = m_machineDropdown.OnLButtonDown (x, y)
            || m_speed.OnLButtonDown      (x, y)
@@ -502,6 +516,8 @@ void MachinePage::OnLButtonUp (int x, int y)
 {
     int  i = 0;
 
+
+
     (void) m_machineDropdown.OnLButtonUp (x, y);
     (void) m_speed.OnLButtonUp     (x, y);
     (void) m_writeMode.OnLButtonUp (x, y);
@@ -539,6 +555,8 @@ void MachinePage::OnMouseHover (int x, int y)
 {
     int  i = 0;
 
+
+
     m_machineDropdown.SetMouseHover (x, y);
     m_speed.SetMouseHover     (x, y);
     m_writeMode.SetMouseHover (x, y);
@@ -560,6 +578,7 @@ void MachinePage::OnMouseHover (int x, int y)
         m_writeProtect[(size_t) i].SetMouseHover (x, y);
     }
 }
+
 
 
 
@@ -596,6 +615,8 @@ bool MachinePage::OnKey (WPARAM vk)
 {
     bool  handled = false;
     int   i       = 0;
+
+
 
     handled = m_machineDropdown.HandleKey (vk)
            || m_speed.HandleKey      (vk)
@@ -678,6 +699,8 @@ bool MachinePage::AnyDropdownOpen () const
 void MachinePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text, const ChromeTheme & theme)
 {
     int  i = 0;
+
+
 
     m_machineLabel.Paint   (painter, text);
     m_speedLabel.Paint     (painter, text);

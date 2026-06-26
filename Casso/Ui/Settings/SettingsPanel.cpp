@@ -1641,6 +1641,7 @@ void SettingsPanel::AuditionDriveSound (int drive, int kind, bool centered)
     float                    pan1     = 0.0f;
 
 
+
     if (m_emuShell == nullptr)
     {
         return;
@@ -1696,6 +1697,7 @@ void SettingsPanel::PushDriveAudioToEngine (
 {
     char  vol[32] = {};
     char  pan[32] = {};
+
 
 
     if (m_emuShell == nullptr)
@@ -1993,6 +1995,8 @@ void SettingsPanel::OnMouseMove (int x, int y)
 {
     HRESULT  hr = S_OK;
 
+
+
     BAIL_OUT_IF (!m_visible, S_OK);
 
     if (m_colorPicker.IsOpen())
@@ -2039,6 +2043,8 @@ void SettingsPanel::OnLButtonDown (int x, int y)
 {
     HRESULT  hr = S_OK;
 
+
+
     BAIL_OUT_IF (!m_visible, S_OK);
 
     if (m_colorPicker.IsOpen())
@@ -2076,6 +2082,8 @@ Error:
 void SettingsPanel::OnLButtonUp (int x, int y)
 {
     HRESULT  hr = S_OK;
+
+
 
     BAIL_OUT_IF (!m_visible, S_OK);
 
@@ -2250,6 +2258,8 @@ bool SettingsPanel::OnChar (wchar_t ch)
 {
     HRESULT  hr     = S_OK;
     bool     result = false;
+
+
 
     BAIL_OUT_IF (!m_visible, S_OK);
 

@@ -118,6 +118,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnLButtonUp
@@ -128,6 +129,8 @@ bool TextInput::OnLButtonUp (int x, int y)
 {
     HRESULT  hr     = S_OK;
     bool     result = false;
+
+
 
     (void) x;
     (void) y;
@@ -144,6 +147,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnMouseMove
@@ -156,6 +160,8 @@ Error:
 void TextInput::OnMouseMove (int x, int y)
 {
     HRESULT  hr = S_OK;
+
+
 
     BAIL_OUT_IF (!m_dragging || !m_enabled, S_OK);
 
@@ -386,27 +392,27 @@ void TextInput::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
 {
     constexpr int64_t  s_kBlinkHalfMs = 530;          // Windows default caret blink
 
-    HRESULT      hr        = S_OK;
-    float        x         = (float) m_rect.left;
-    float        y         = (float) m_rect.top;
-    float        w         = (float) (m_rect.right  - m_rect.left);
-    float        h         = (float) (m_rect.bottom - m_rect.top);
-    float        padL      = m_scaler.Pxf (s_kPadLeftDp);
-    float        padR      = m_scaler.Pxf (s_kPadRightDp);
-    float        fontPx    = m_scaler.Pxf (s_kFontDip);
-    float        innerW    = w - padL - padR;
-    uint32_t     bgArgb    = s_kFallbackBg;
-    uint32_t     fgArgb    = s_kFallbackFg;
-    uint32_t     selArgb   = s_kFallbackSel;
-    uint32_t     edgeArgb  = s_kFallbackEdge;
-    uint32_t     focusArgb = s_kFallbackFocus;
-    float        measW     = 0.0f;
-    float        measH     = 0.0f;
-    float        caretX    = 0.0f;
-    float        fullTextW = 0.0f;
-    float        lineH     = 0.0f;
-    size_t       selStart  = std::min (m_caret, m_anchor);
-    size_t       selEnd    = std::max (m_caret, m_anchor);
+    HRESULT      hr         = S_OK;
+    float        x          = (float) m_rect.left;
+    float        y          = (float) m_rect.top;
+    float        w          = (float) (m_rect.right  - m_rect.left);
+    float        h          = (float) (m_rect.bottom - m_rect.top);
+    float        padL       = m_scaler.Pxf (s_kPadLeftDp);
+    float        padR       = m_scaler.Pxf (s_kPadRightDp);
+    float        fontPx     = m_scaler.Pxf (s_kFontDip);
+    float        innerW     = w - padL - padR;
+    uint32_t     bgArgb     = s_kFallbackBg;
+    uint32_t     fgArgb     = s_kFallbackFg;
+    uint32_t     selArgb    = s_kFallbackSel;
+    uint32_t     edgeArgb   = s_kFallbackEdge;
+    uint32_t     focusArgb  = s_kFallbackFocus;
+    float        measW      = 0.0f;
+    float        measH      = 0.0f;
+    float        caretX     = 0.0f;
+    float        fullTextW  = 0.0f;
+    float        lineH      = 0.0f;
+    size_t       selStart   = std::min (m_caret, m_anchor);
+    size_t       selEnd     = std::max (m_caret, m_anchor);
     std::wstring prefix;
     int64_t      blinkPhase = 0;
     bool         caretOn    = false;
@@ -594,6 +600,7 @@ size_t TextInput::CaretFromClientX (int xPx) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WordLeft / WordRight
@@ -623,9 +630,12 @@ size_t TextInput::WordLeft (size_t pos) const
 
 
 
+
 size_t TextInput::WordRight (size_t pos) const
 {
     size_t  n = m_text.size();
+
+
 
     while (pos < n && IsWordChar (m_text[pos]))
     {
@@ -639,6 +649,7 @@ size_t TextInput::WordRight (size_t pos) const
 
     return pos;
 }
+
 
 
 
@@ -702,6 +713,7 @@ void TextInput::SelectWordAt (size_t pos)
 Error:
     return;
 }
+
 
 
 
@@ -822,6 +834,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CopyAllToClipboard
@@ -835,6 +848,8 @@ void TextInput::CopyAllToClipboard () const
 {
     HRESULT  hr = S_OK;
 
+
+
     BAIL_OUT_IF (m_text.empty(), S_OK);
 
     WriteTextToClipboard (m_text);
@@ -842,6 +857,7 @@ void TextInput::CopyAllToClipboard () const
 Error:
     return;
 }
+
 
 
 

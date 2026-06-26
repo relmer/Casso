@@ -529,6 +529,8 @@ void DisplayPage::OnLButtonDown (int x, int y)
 {
     bool  handled = false;
 
+
+
     RefreshTextColorEnabled();
 
     handled = m_monitor.OnLButtonDown   (x, y)
@@ -667,6 +669,8 @@ void DisplayPage::OnMouseHover (int x, int y)
 bool DisplayPage::OnKey (WPARAM vk)
 {
     bool  handled = false;
+
+
 
     RefreshTextColorEnabled();
 
