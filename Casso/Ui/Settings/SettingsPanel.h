@@ -142,6 +142,10 @@ private:
     void  OnCancelClicked             ();
     void  StartPreview                (int focus, bool keyboardMode);
     void  EndPreview                  ();
+    void  AuditionDriveSound          (int drive, int kind, bool centered);
+    void  PushDriveAudioToEngine      (float motor, float head, float door,
+                                       float pan0,  float pan1,
+                                       const std::string & mechanism);
 
 
     UiShell         * m_uiShell   = nullptr;
@@ -195,6 +199,21 @@ private:
     DxuiModalScrim          m_scrim;
     DxuiButton              m_applyButton;
     DxuiButton              m_cancelButton;
+
+    // Drive-audio audition state. A play button posts the dialed
+    // volumes / pan / mechanism to the engine for preview; if the user
+    // Cancels, these baselines (captured at panel open) are restored.
+    // m_driveAuditionDirty gates the restore; m_lastAuditionMechanism
+    // tracks what the engine last loaded so a redundant WAV reload is
+    // skipped.
+    float               m_baselineDriveMotorVol = 0.0f;
+    float               m_baselineDriveHeadVol  = 0.0f;
+    float               m_baselineDriveDoorVol  = 0.0f;
+    float               m_baselineDriveOnePan   = 0.0f;
+    float               m_baselineDriveTwoPan   = 0.0f;
+    std::string         m_baselineMechanism;
+    std::string         m_lastAuditionMechanism;
+    bool                m_driveAuditionDirty    = false;
 
     RECT                m_viewport     = {};
     RECT                m_panelRect    = {};
