@@ -35,6 +35,13 @@ spill past the window's edges instead of being clipped to it.
   the disk images under `Apple2/Demos/` (Choplifter, Karateka, Lode
   Runner, …) as directly-mountable rows alongside recent disks and stock
   downloads. No-op in an installed build.
+- **feat(settings): per-sound drive-audio volume, stereo pan, and
+  audition.** The Machine settings page gains Motor / Head / Door volume
+  sliders, Drive 1 / Drive 2 stereo-pan sliders (Left / Center / Right),
+  and a play button beside each that auditions the sound at the
+  dialed-in level, plus a Restore-defaults button. Levels and pan persist
+  per machine and apply on OK; an un-applied audition is reverted on
+  Cancel.
 
 ### Changed
 - **refactor(dxui): extract the window chrome into a reusable Dxui
