@@ -1,6 +1,9 @@
 #pragma once
 
 #include <array>
+#include <functional>
+#include <string>
+#include <vector>
 
 #include "CpuStatus.h"
 #include "Microcode.h"
@@ -96,6 +99,7 @@ protected:
     void InitializeGroup01 ();
     void InitializeGroup10 ();
     void InitializeMisc ();
+    void InitializeUndocumented ();
 
     void CreateInstruction (uint32_t                        addressingModeMax, 
                             const char              * const instructionName[], 
@@ -134,16 +138,18 @@ protected:
     std::vector<Microcode> instructionSet {std::vector<Microcode> (256)};
     Byte                  m_lastCycles = 0;
 
-#ifdef _DEBUG
-    // Circular trace of recent instructions. Updated each StepOne, dumped
-    // newest-first on illegal-opcode hit. ~1 MHz emulation means the
-    // buffer covers roughly 256 microseconds of real time -- enough to
-    // see what JMP/JSR/RTS chain landed PC on garbage. Disabled in
-    // Release so the per-step overhead is zero in shipping builds.
+    // Circular trace of recent instructions for post-mortem debugging.
+    // Runtime-gated by m_traceEnabled and allocated only when tracing is
+    // on, so it costs one predicted branch per step when disabled and is
+    // available in every build config (driven by the --trace switch). In
+    // Debug a small look-back ring is auto-enabled at construction so the
+    // illegal-opcode stderr dump keeps working without --trace.
     struct TraceEntry
     {
         Word    pc;
         Byte    opcode;
+        Byte    op1;    // operand byte at PC+1 (raw RAM backing; exact for
+        Byte    op2;    // $0000-$BFFF, approximate for ROM/banked regions)
         Byte    a;
         Byte    x;
         Byte    y;
@@ -151,13 +157,30 @@ protected:
         Byte    p;
     };
 
-    static constexpr size_t  kTraceBufferSize = 256;
+    static constexpr size_t  kTraceDefaultLookback = 256;
 
-    std::array<TraceEntry, kTraceBufferSize>  m_trace      = {};
-    size_t                                    m_traceHead  = 0;       // next slot to write
-    uint64_t                                  m_traceCount = 0;       // total entries pushed
+    std::vector<TraceEntry>  m_trace;                  // sized by EnableTrace
+    size_t                   m_traceCapacity = 0;
+    size_t                   m_traceHead     = 0;      // next slot to write
+    uint64_t                 m_traceCount    = 0;      // total entries pushed
+    bool                     m_traceEnabled  = false;
 
-    void TracePush ();
+public:
+    // Enable execution tracing with the given ring capacity (in entries).
+    // Allocates the buffer and resets head/count. A capacity of 0 disables
+    // tracing and frees the buffer.
+    void     EnableTrace    (size_t capacity);
+    bool     IsTraceEnabled () const { return m_traceEnabled; }
+    uint64_t GetTraceCount  () const { return m_traceCount; }
+
+    // Write the recorded ring to a text file, oldest-first. `onProgress`
+    // (may be empty) is invoked periodically with (entriesWritten,
+    // totalEntries) so a UI can show progress. Returns true on success.
+    // CassoCore stays UI-free; the caller owns any progress dialog.
+    bool     DumpTraceToFile (const std::wstring & path,
+                              const std::function<void (uint64_t, uint64_t)> & onProgress) const;
+
+protected:
+    void TracePush (Byte opcode);
     void DumpInstructionTrace (Byte faultOpcode, Word faultPC) const;
-#endif
 };

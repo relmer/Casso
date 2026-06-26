@@ -52,6 +52,31 @@ enum class SpeedMode
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InputMappingMode
+//
+//  How host pointer / arrow input is mapped onto the emulated game port.
+//  Off leaves the keys as ordinary //e keystrokes; Joystick maps the
+//  arrow keys (plus Z / X) onto the paddle axes and fire buttons with a
+//  spring return to center on release; Paddle captures the mouse and maps
+//  relative motion onto the paddle axes, holding the last position (no
+//  recenter) the way a real paddle's dial does. Cycled Off -> Joystick ->
+//  Paddle -> Off from the drive-bar widget and the Machine menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class InputMappingMode
+{
+    Off,
+    Joystick,
+    Paddle
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShouldEnableDisk2DebugMenuItem
 //
 //  Pure helper that returns true iff the active MachineConfig wires

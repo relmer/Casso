@@ -116,9 +116,26 @@ bool DriveAudioMixer::IsEnabled() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+const wchar_t * DriveAudioMixer::CanonicalMechanism (const wstring & mechanism)
+{
+    const wchar_t *  result = nullptr;
+
+    if (_wcsicmp (mechanism.c_str(), L"Shugart") == 0)
+    {
+        result = L"Shugart";
+    }
+    else if (_wcsicmp (mechanism.c_str(), L"Alps") == 0)
+    {
+        result = L"Alps";
+    }
+
+    return result;
+}
+
+
 bool DriveAudioMixer::IsValidMechanism (const wstring & mechanism) const
 {
-    return mechanism == L"Shugart" || mechanism == L"Alps";
+    return CanonicalMechanism (mechanism) != nullptr;
 }
 
 
@@ -133,28 +150,24 @@ void DriveAudioMixer::SetSampleLoadContext (
 
 HRESULT DriveAudioMixer::SetMechanism (const wstring & mechanism)
 {
-    HRESULT  hr = S_OK;
+    HRESULT          hr    = S_OK;
+    const wchar_t *  canon = CanonicalMechanism (mechanism);
 
 
 
-    if (!IsValidMechanism (mechanism))
-    {
-        // SC-010 invariant: bad input does NOT mutate state. The
-        // mixer keeps whatever mechanism was active before the bad
-        // call so the running audio frame is undisturbed.
-        return E_INVALIDARG;
-    }
+    // SC-010 invariant: bad input does NOT mutate state. The mixer keeps
+    // whatever mechanism was active before the bad call so the running
+    // audio frame is undisturbed. Matching is case-insensitive and the
+    // active mechanism is stored in canonical mixed-case so LoadSamples
+    // resolves the right <devicesDir>/<Mechanism>/ subdir.
+    CBREx (canon != nullptr, E_INVALIDARG);
 
-    m_mechanism = mechanism;
+    m_mechanism = canon;
 
-    if (m_devicesDir.empty () || m_loadSampleRate == 0)
-    {
-        // No asset context yet (the host hasn't called
-        // SetSampleLoadContext, typically because WASAPI hasn't
-        // started). Remember the mechanism so the eventual first
-        // load uses the right subdir.
-        return S_OK;
-    }
+    // No asset context yet (the host hasn't called SetSampleLoadContext,
+    // typically because WASAPI hasn't started). Remember the mechanism so
+    // the eventual first load uses the right subdir.
+    BAIL_OUT_IF (m_devicesDir.empty () || m_loadSampleRate == 0, S_OK);
 
     for (IDriveAudioSource * src : m_sources)
     {
@@ -175,6 +188,7 @@ HRESULT DriveAudioMixer::SetMechanism (const wstring & mechanism)
         (void) hrLoad;
     }
 
+Error:
     return hr;
 }
 
@@ -316,4 +330,26 @@ void DriveAudioMixer::MixDriveIntoSpeakerStereo (
         speakerStereo[2 * i]     = l;
         speakerStereo[2 * i + 1] = r;
     }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PanToStereo
+//
+//  Maps a bipolar pan position in [-1, +1] to equal-power stereo gains.
+//  pan = -1 -> theta = pi/2 -> (L=1, R=0); pan = 0 -> theta = pi/4 ->
+//  (L=R=1/sqrt2); pan = +1 -> theta = 0 -> (L=0, R=1).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DriveAudioMixer::PanToStereo (float pan, float & outLeft, float & outRight)
+{
+    float  clamped = std::clamp (pan, -1.0f, 1.0f);
+    float  theta   = kCenterAngle * (1.0f - clamped);
+
+    outLeft  = sinf (theta);
+    outRight = cosf (theta);
 }

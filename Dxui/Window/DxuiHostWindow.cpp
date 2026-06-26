@@ -1443,6 +1443,41 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             }
             break;
 
+        case WM_RBUTTONDOWN:
+            if (m_client != nullptr && m_client->OnRButtonDown (wp, lp) == DxuiMessageResult::Handled)
+            {
+                return 0;
+            }
+            break;
+
+        case WM_RBUTTONUP:
+            if (m_client != nullptr && m_client->OnRButtonUp (wp, lp) == DxuiMessageResult::Handled)
+            {
+                return 0;
+            }
+            break;
+
+        case WM_ACTIVATEAPP:
+            if (m_client != nullptr && m_client->OnActivateApp (wp != 0) == DxuiMessageResult::Handled)
+            {
+                return 0;
+            }
+            break;
+
+        case WM_KILLFOCUS:
+            if (m_client != nullptr && m_client->OnKillFocus() == DxuiMessageResult::Handled)
+            {
+                return 0;
+            }
+            break;
+
+        case WM_CANCELMODE:
+            if (m_client != nullptr && m_client->OnCancelMode() == DxuiMessageResult::Handled)
+            {
+                return 0;
+            }
+            break;
+
         case WM_MOVE:
             if (m_client != nullptr &&
                 m_client->OnMove ((int) (short) LOWORD (lp),

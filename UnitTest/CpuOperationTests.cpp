@@ -2178,4 +2178,247 @@ namespace CpuOperationTests
             Assert::AreEqual ((Word) 0x8000, cpu.RegPC ());
         }
     };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  UndocumentedOpcodeTests
+    //
+    //  NMOS 6502 undocumented opcodes used by real Apple II software
+    //  (e.g. Space Quarks): $04 DOP zp and $CF DCP abs.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (UndocumentedOpcodeTests)
+    {
+    public:
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  DOP_zp_IsTwoByteThreeCycleNop
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (DOP_zp_IsTwoByteThreeCycleNop)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0x42;
+            cpu.RegX () = 0x11;
+            cpu.RegY () = 0x22;
+            cpu.Poke (0x30, 0x99);                 // zero-page byte that is read and discarded
+            cpu.WriteBytes (0x8000, { 0x04, 0x30 });  // DOP $30
+
+            cpu.Step ();
+
+            // Two-byte instruction: PC advances past opcode + operand.
+            Assert::AreEqual ((Word) 0x8002, cpu.RegPC ());
+
+            // No register or memory effects.
+            Assert::AreEqual ((Byte) 0x42, cpu.RegA ());
+            Assert::AreEqual ((Byte) 0x11, cpu.RegX ());
+            Assert::AreEqual ((Byte) 0x22, cpu.RegY ());
+            Assert::AreEqual ((Byte) 0x99, cpu.Peek (0x30));
+        }
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  DOP_zp_LeavesFlagsUnchanged
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (DOP_zp_LeavesFlagsUnchanged)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.Status ().status = 0;
+            cpu.Status ().flags.carry    = 1;
+            cpu.Status ().flags.zero     = 1;
+            cpu.Status ().flags.negative = 1;
+            cpu.WriteBytes (0x8000, { 0x04, 0x00 });  // DOP $00
+
+            cpu.Step ();
+
+            Assert::IsTrue ((bool) cpu.Status ().flags.carry);
+            Assert::IsTrue ((bool) cpu.Status ().flags.zero);
+            Assert::IsTrue ((bool) cpu.Status ().flags.negative);
+        }
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  DCP_abs_DecrementsMemoryAndComparesEqual
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (DCP_abs_DecrementsMemoryAndComparesEqual)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0x41;
+            cpu.Poke (0x1234, 0x42);               // decremented to 0x41, equals A
+            cpu.WriteBytes (0x8000, { 0xCF, 0x34, 0x12 });  // DCP $1234
+
+            cpu.Step ();
+
+            // Three-byte instruction.
+            Assert::AreEqual ((Word) 0x8003, cpu.RegPC ());
+
+            // Memory decremented in place.
+            Assert::AreEqual ((Byte) 0x41, cpu.Peek (0x1234));
+
+            // CMP A(0x41) vs decremented(0x41): equal -> Z and C set, N clear.
+            Assert::IsTrue  ((bool) cpu.Status ().flags.zero);
+            Assert::IsTrue  ((bool) cpu.Status ().flags.carry);
+            Assert::IsFalse ((bool) cpu.Status ().flags.negative);
+
+            // Accumulator is never modified by DCP.
+            Assert::AreEqual ((Byte) 0x41, cpu.RegA ());
+        }
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  DCP_abs_ComparesGreaterThan_SetsCarryClearsZero
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (DCP_abs_ComparesGreaterThan_SetsCarryClearsZero)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0x50;
+            cpu.Poke (0x1234, 0x31);               // decremented to 0x30, A > value
+            cpu.WriteBytes (0x8000, { 0xCF, 0x34, 0x12 });  // DCP $1234
+
+            cpu.Step ();
+
+            Assert::AreEqual ((Byte) 0x30, cpu.Peek (0x1234));
+            Assert::IsFalse ((bool) cpu.Status ().flags.zero);
+            Assert::IsTrue  ((bool) cpu.Status ().flags.carry);
+            Assert::IsFalse ((bool) cpu.Status ().flags.negative);
+        }
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  DCP_abs_ComparesLessThan_ClearsCarry
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (DCP_abs_ComparesLessThan_ClearsCarry)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0x10;
+            cpu.Poke (0x1234, 0x41);               // decremented to 0x40, A < value
+            cpu.WriteBytes (0x8000, { 0xCF, 0x34, 0x12 });  // DCP $1234
+
+            cpu.Step ();
+
+            Assert::AreEqual ((Byte) 0x40, cpu.Peek (0x1234));
+            Assert::IsFalse ((bool) cpu.Status ().flags.zero);
+            Assert::IsFalse ((bool) cpu.Status ().flags.carry);
+        }
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  DCP_abs_DecrementWrapsAndComparesAgainstWrappedValue
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (DCP_abs_DecrementWrapsAndComparesAgainstWrappedValue)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0xFF;
+            cpu.Poke (0x1234, 0x00);               // decrements to 0xFF, equals A
+            cpu.WriteBytes (0x8000, { 0xCF, 0x34, 0x12 });  // DCP $1234
+
+            cpu.Step ();
+
+            Assert::AreEqual ((Byte) 0xFF, cpu.Peek (0x1234));
+            Assert::IsTrue ((bool) cpu.Status ().flags.zero);
+            Assert::IsTrue ((bool) cpu.Status ().flags.carry);
+        }
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  UndocumentedOpcodes_AreMarkedLegal
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (UndocumentedOpcodes_AreMarkedLegal)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+
+            Assert::IsTrue (cpu.GetMicrocode (0x04).isLegal);
+            Assert::IsTrue (cpu.GetMicrocode (0xCF).isLegal);
+        }
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  DOP_zp_TakesThreeCycles
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (DOP_zp_TakesThreeCycles)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.WriteBytes (0x8000, { 0x04, 0x30 });  // DOP $30
+
+            cpu.StepOne ();
+
+            // NMOS NOP zp is a fixed 3-cycle instruction with no
+            // page-crossing penalty (zero-page addressing).
+            Assert::AreEqual ((Byte) 3, cpu.GetLastInstructionCycles ());
+        }
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  DCP_abs_TakesSixCycles
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (DCP_abs_TakesSixCycles)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0x10;
+            cpu.Poke (0x1234, 0x42);
+            cpu.WriteBytes (0x8000, { 0xCF, 0x34, 0x12 });  // DCP $1234
+
+            cpu.StepOne ();
+
+            // NMOS DCP abs is a fixed 6-cycle read-modify-write; the
+            // RMW exclusion keeps it from accruing a page-cross penalty.
+            Assert::AreEqual ((Byte) 6, cpu.GetLastInstructionCycles ());
+        }
+    };
 }

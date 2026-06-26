@@ -75,6 +75,14 @@ public:
     void             StepOne                  ()                              { m_cpu6502->StepOne (); }
     Byte             GetLastInstructionCycles () const                        { return m_cpu6502->GetLastInstructionCycles (); }
 
+    // Execution trace (--trace switch). Forwarded to the underlying 6502.
+    void             EnableTrace     (size_t capacity)  { m_cpu6502->EnableTrace (capacity); }
+    bool             IsTraceEnabled  () const           { return m_cpu6502->IsTraceEnabled (); }
+    uint64_t         GetTraceCount   () const           { return m_cpu6502->GetTraceCount (); }
+    bool             DumpTraceToFile (const std::wstring & path,
+                                      const std::function<void (uint64_t, uint64_t)> & onProgress) const
+                                                        { return m_cpu6502->DumpTraceToFile (path, onProgress); }
+
     // 6502 register accessors
     Word             GetPC      () const  { return m_cpu6502->GetPC (); }
     void             SetPC      (Word pc) { m_cpu6502->SetPC (pc); }
