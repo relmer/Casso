@@ -61,6 +61,7 @@ public:
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Checkbox; }
 
 private:
+    void  PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t accentArgb, uint32_t focusArgb) const;
     void  Flip ();
     std::wstring  m_label;
     ChangeFn      m_change;

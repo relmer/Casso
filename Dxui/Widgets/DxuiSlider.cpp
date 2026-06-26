@@ -14,7 +14,8 @@
 
 namespace
 {
-    constexpr float  s_kEpsilon = 1e-6f;
+    constexpr float     s_kEpsilon           = 1e-6f;
+    constexpr uint32_t  s_kDefaultAccentArgb = 0xFF6E9BFF;   // slider accent: track fill + puck core
 
 
     float  Clamp (float v, float lo, float hi)
@@ -347,17 +348,19 @@ bool DxuiSlider::OnKey (WPARAM vk)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Paint
+//  PaintInternal
+//
+//  Shared body for both Paint overloads. accentArgb colours the filled
+//  track and the puck core -- the theme accent, or the default blue for
+//  the non-themed overload.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiSlider::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
+void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t accentArgb) const
 {
     constexpr uint32_t  s_kTrack         = 0xFF404040;
-    constexpr uint32_t  s_kTrackFill     = 0xFF6E9BFF;
     constexpr uint32_t  s_kTick          = 0xFF6A7585;
     constexpr uint32_t  s_kPuckBody      = 0xFFFFFFFF;
-    constexpr uint32_t  s_kPuckCore      = 0xFF6E9BFF;
     constexpr uint32_t  s_kPuckRing      = 0xFF606060;
     constexpr uint32_t  s_kPuckCoreDis   = 0xFF888888;
     constexpr uint32_t  s_kValueText     = 0xFFE8EEF4;
@@ -395,7 +398,7 @@ void DxuiSlider::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
     float    fillWidth     = 0.0f;
     float    puckCx        = 0.0f;
     float    puckR         = m_scaler.Pxf (s_kPuckRadiusDip);
-    uint32_t coreColor     = m_enabled ? s_kPuckCore : s_kPuckCoreDis;
+    uint32_t coreColor     = m_enabled ? accentArgb : s_kPuckCoreDis;
 
 
 
@@ -415,7 +418,7 @@ void DxuiSlider::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
     painter.FillRect (trackLeft, centerY - trackHeight * 0.5f,
                       trackAvailW, trackHeight, s_kTrack);
     painter.FillRect (trackLeft, centerY - trackHeight * 0.5f,
-                      fillWidth, trackHeight, s_kTrackFill);
+                      fillWidth, trackHeight, accentArgb);
 
     // ----- Tick marks below the track. -----
     if (m_showTicks && m_step > s_kEpsilon && trackAvailW > 0.0f)
@@ -491,14 +494,24 @@ void DxuiSlider::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiSlider::Paint  (IDxuiControl override)
+//  DxuiSlider::Paint
+//
+//  Non-themed overload keeps the default blue accent; the IDxuiControl
+//  themed override tints the track / puck core from theme.Accent().
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+void DxuiSlider::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
+{
+    PaintInternal (painter, text, s_kDefaultAccentArgb);
+}
+
+
+
+
 void DxuiSlider::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    UNREFERENCED_PARAMETER (theme);
-    static_cast<const DxuiSlider *> (this)->Paint (painter, text);
+    PaintInternal (painter, text, theme.Accent());
 }
 
 
