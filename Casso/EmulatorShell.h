@@ -188,6 +188,7 @@ private:
     DxuiMessageResult  OnMove          (int x, int y) override;
     DxuiMessageResult  OnNotify        (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnSize          (UINT widthPx, UINT heightPx) override;
+    DxuiMessageResult  OnGetMinMax     (MINMAXINFO * info) override;
     DxuiMessageResult  OnTimer         (UINT_PTR timerId) override;
     DxuiMessageResult  OnInitMenuPopup (HMENU hMenu, UINT itemIndex, bool isWindowMenu) override;
     DxuiMessageResult  OnNcMouseMove   (LRESULT hitTest, int xScreen, int yScreen) override;

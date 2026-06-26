@@ -1429,6 +1429,13 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             }
             break;
 
+        case WM_GETMINMAXINFO:
+            if (m_client != nullptr && m_client->OnGetMinMax (reinterpret_cast<MINMAXINFO *> (lp)) == DxuiMessageResult::Handled)
+            {
+                return 0;
+            }
+            break;
+
         case WM_LBUTTONDOWN:
             if (m_client != nullptr && m_client->OnLButtonDown (wp, lp) == DxuiMessageResult::Handled)
             {
