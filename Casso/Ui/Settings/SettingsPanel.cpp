@@ -188,6 +188,23 @@ HRESULT SettingsPanel::Initialize (
         }
     });
 
+    // Text color: the //e text treatment on the Color monitor. A mode
+    // change (White / Green / Amber / Custom) applies live and stages
+    // the global pref; the panel's Cancel reverts it to the baseline.
+    m_displayPage.SetOnTextColorChange ([this] (int idx)
+    {
+        if (m_prefs != nullptr)
+        {
+            m_prefs->colorMonitorTextMode = (ColorMonitorTextMode) idx;
+            if (m_emuShell != nullptr)
+            {
+                m_emuShell->SetColorMonitorTextArgbLive (
+                    ColorUtil::ResolveColorMonitorTextArgb (m_prefs->colorMonitorTextMode,
+                                                            m_prefs->colorMonitorTextCustomArgb));
+            }
+        }
+    });
+
     m_themePage.SetOnThemeSelected ([this] (const std::string & themeName) { OnThemeSelected (themeName); });
 
     // Live framebuffer source for the Settings → Theme preview. The
@@ -273,6 +290,16 @@ HRESULT SettingsPanel::Show ()
     m_baselineMechanism     = m_state.Prefs().floppyMechanism;
     m_lastAuditionMechanism = m_state.Prefs().floppyMechanism;
     m_driveAuditionDirty    = false;
+
+    // Capture the applied //e text-color choice and seed the Display
+    // page's dropdown + swatch from it.
+    if (m_prefs != nullptr)
+    {
+        m_baselineColorTextMode       = m_prefs->colorMonitorTextMode;
+        m_baselineColorTextCustomArgb = m_prefs->colorMonitorTextCustomArgb;
+        m_displayPage.SetTextColor (m_prefs->colorMonitorTextMode,
+                                    m_prefs->colorMonitorTextCustomArgb);
+    }
 
     // Reset preview state so a previous session's interaction doesn't
     // leak in (e.g. user closed the panel mid-drag via Esc).
@@ -1144,6 +1171,20 @@ void SettingsPanel::OnCancelClicked ()
                                 m_baselineDriveTwoPan,
                                 m_baselineMechanism);
         m_driveAuditionDirty = false;
+    }
+
+    // Revert any live edit to the Color-monitor text treatment back to
+    // the choice that was applied when the panel opened.
+    if (m_prefs != nullptr)
+    {
+        m_prefs->colorMonitorTextMode       = m_baselineColorTextMode;
+        m_prefs->colorMonitorTextCustomArgb = m_baselineColorTextCustomArgb;
+        if (m_emuShell != nullptr)
+        {
+            m_emuShell->SetColorMonitorTextArgbLive (
+                ColorUtil::ResolveColorMonitorTextArgb (m_baselineColorTextMode,
+                                                        m_baselineColorTextCustomArgb));
+        }
     }
     m_panelVisible = false;
 }

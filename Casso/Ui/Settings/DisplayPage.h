@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "SettingsPanelState.h"
+#include "../ColorUtil.h"
 
 #include "Core/DxuiPanel.h"
 #include "Widgets/DxuiButton.h"
@@ -87,6 +88,8 @@ public:
     using ColorBleedWFn   = std::function<void (float width)>;
     using PreviewFn       = std::function<void (int controlId, bool start, bool keyboardMode)>;
     using RestoreFn       = std::function<void ()>;
+    using TextColorFn       = std::function<void (int textColorModeIndex)>;
+    using TextColorCommitFn = std::function<void (int textColorModeIndex)>;
 
     // Control ids used by SetOnPreview to identify which control is
     // being interacted with. Match the SettingsPreviewController::Focus
@@ -105,10 +108,15 @@ public:
     void  SetInitialCrt         (const struct GlobalUserPrefsCrtSnapshot & snap);
     void  SetDefaultsHint       (const struct DisplayDefaultsHint        & hint);
 
+    // Seeds the Text-color dropdown + swatch from the global prefs
+    // (mode + custom ARGB). Only meaningful when the active monitor is
+    // Color; the swatch shows the resolved color.
+    void  SetTextColor          (ColorMonitorTextMode mode, uint32_t customArgb);
+
     // Routes the owned dropdown's popup menu through the host's
     // popup-host pool so the menu HWND escapes the page's clipping
     // bounds. Pass nullptr to revert to the in-panel PaintMenu path.
-    void  SetPopupHost          (DxuiHostWindow * host) { m_monitor.SetPopupHost (host); }
+    void  SetPopupHost          (DxuiHostWindow * host) { m_monitor.SetPopupHost (host); m_textColor.SetPopupHost (host); }
     void  SetOnBrightnessChange     (BrightnessFn    fn) { m_onBrightness    = std::move (fn); }
     void  SetOnContrastChange       (ContrastFn      fn) { m_onContrast      = std::move (fn); }
     void  SetOnGammaChange          (GammaFn         fn) { m_onGamma         = std::move (fn); }
@@ -123,6 +131,8 @@ public:
     void  SetOnColorBleedWChange    (ColorBleedWFn   fn) { m_onColorBleedW   = std::move (fn); }
     void  SetOnPreview              (PreviewFn       fn) { m_onPreview       = std::move (fn); }
     void  SetOnRestoreDefaults      (RestoreFn       fn) { m_onRestore       = std::move (fn); }
+    void  SetOnTextColorChange      (TextColorFn       fn) { m_onTextColor       = std::move (fn); }
+    void  SetOnTextColorCommit      (TextColorCommitFn fn) { m_onTextColorCommit = std::move (fn); }
 
     void  Layout    (const RECT & rect, const DxuiDpiScaler & scaler) override;
     void  Rebuild   ();
@@ -144,6 +154,7 @@ public:
 
     // Test accessors.
     const DxuiDropdown & MonitorDropdown    () const { return m_monitor;          }
+    const DxuiDropdown & TextColorDropdown  () const { return m_textColor;        }
     const DxuiSlider   & BrightnessSlider   () const { return m_brightness;       }
     const DxuiSlider   & ContrastSlider     () const { return m_contrast;         }
     const DxuiSlider   & GammaSlider        () const { return m_gamma;            }
@@ -162,6 +173,7 @@ public:
     // shim, and so it can query open-popup state without going through
     // a page-level AnyDropdownOpen() helper.
     DxuiDropdown & MonitorDropdown    () { return m_monitor;          }
+    DxuiDropdown & TextColorDropdown  () { return m_textColor;        }
     DxuiSlider   & BrightnessSlider   () { return m_brightness;       }
     DxuiSlider   & ContrastSlider     () { return m_contrast;         }
     DxuiSlider   & GammaSlider        () { return m_gamma;            }
@@ -176,6 +188,9 @@ public:
     DxuiButton   & RestoreButton      () { return m_restore;          }
 
 private:
+    void  RefreshTextColorEnabled ();
+    bool  TextColorActive () const;
+
     SettingsPanelState  * m_state = nullptr;
     DisplayDefaultsHint   m_hint  = {};
     DxuiDpiScaler             m_scaler;
@@ -193,8 +208,11 @@ private:
     ColorBleedWFn         m_onColorBleedW;
     PreviewFn             m_onPreview;
     RestoreFn             m_onRestore;
+    TextColorFn           m_onTextColor;
+    TextColorCommitFn     m_onTextColorCommit;
 
     DxuiLabel                 m_monitorLabel;
+    DxuiLabel                 m_textColorLabel;
     DxuiLabel                 m_brightnessLabel;
     DxuiLabel                 m_contrastLabel;
     DxuiLabel                 m_gammaLabel;
@@ -210,6 +228,7 @@ private:
     DxuiLabel                 m_colorBleedWLabel;
 
     DxuiDropdown              m_monitor;
+    DxuiDropdown              m_textColor;
     DxuiSlider                m_brightness;
     DxuiSlider                m_contrast;
     DxuiSlider                m_gamma;
@@ -224,6 +243,8 @@ private:
     DxuiButton                m_restore;
 
     RECT                  m_monitorRowRect       = {};
+    RECT                  m_textColorRowRect     = {};
+    RECT                  m_textColorSwatchRect  = {};
     RECT                  m_brightnessRowRect    = {};
     RECT                  m_contrastRowRect      = {};
     RECT                  m_gammaRowRect         = {};
@@ -237,6 +258,10 @@ private:
     RECT                  m_colorBleedWRowRect   = {};
     RECT                  m_restoreRowRect       = {};
     int                   m_indicatorX           = 0;
+
+    // Seeded Text-color state (global pref) the dropdown + swatch reflect.
+    ColorMonitorTextMode  m_textColorMode        = ColorMonitorTextMode::White;
+    uint32_t              m_textColorCustomArgb  = ColorUtil::kWhiteArgb;
 
     // Live-preview fade state plumbed in by SettingsPanel::SetFadeState
     // ahead of each Paint. m_fadeFocusedId == -1 disables the fade and
