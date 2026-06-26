@@ -30,6 +30,11 @@ spill past the window's edges instead of being clipped to it.
   debug panels size each event-list column to the widest value seen, so
   large cycle counts no longer wrap; dragging a column divider still
   pins that column to the user's width.
+- **feat(ui): list in-repo demo disks in the disk picker.** When Casso
+  runs from a source checkout, the boot and Insert-Disk pickers now list
+  the disk images under `Apple2/Demos/` (Choplifter, Karateka, Lode
+  Runner, …) as directly-mountable rows alongside recent disks and stock
+  downloads. No-op in an installed build.
 
 ### Changed
 - **refactor(dxui): extract the window chrome into a reusable Dxui
@@ -56,6 +61,14 @@ spill past the window's edges instead of being clipped to it.
 - **fix(disk): suppress reset-time drive-door audio.** Warm reset and
   programmatic remounts no longer play the Disk II door-close sound for
   already-mounted disks.
+- **fix(ui): remember startup-mounted disks.** A disk mounted at startup
+  (the boot-disk picker result or `--disk1` / `--disk2`) is now recorded
+  in the recent-disks MRU, so it appears under recent disks on the next
+  launch instead of the picker reporting "no recent disks".
+- **fix(ui): label already-downloaded stock disks "Installed".** A stock
+  master already present on disk now shows "Installed" in the picker
+  rather than "Asimov archive (Download)"; selecting it mounts the local
+  copy without re-downloading.
 
 ## [1.5.1566] — Drive-audio mixer controls; text-color picker; themed settings widgets
 

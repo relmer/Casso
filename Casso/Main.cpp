@@ -263,6 +263,7 @@ static HRESULT LoadMachineConfig (
 
             mru         = DiskMru::FromUtf8 (prefs.recentDisks);
             mruExisting = mru.Prune ([] (const fs::path & p) { return fs::exists (p); });
+            AssetBootstrap::AppendBundledDemoDisks (mruExisting);
 
             hr = AssetBootstrap::PromptBootDiskMru (
                 hInstance, hwndParent, machineName, mruExisting, diskDir, prefs.activeTheme, downloaded, userClosed, error);

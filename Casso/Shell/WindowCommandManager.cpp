@@ -467,6 +467,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive)
                              {
                                  return std::filesystem::exists (p);
                              });
+    AssetBootstrap::AppendBundledDemoDisks (mruExisting);
 
     hr = AssetBootstrap::PromptInsertDiskMru (GetModuleHandle (nullptr),
                                               m_shell.m_hwnd,
