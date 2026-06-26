@@ -46,6 +46,11 @@ public:
 
     static fs::path GetDiskDirectory();
 
+    // Append disk images bundled in the source tree's Apple2/Demos
+    // directory (present only in a repo build) to `mountable`, sorted and
+    // de-duplicated against existing entries. No-op in an installed layout.
+    static void     AppendBundledDemoDisks (std::vector<fs::path> & mountable);
+
     static HRESULT  GetRequiredRoms       (HINSTANCE                hInstance,
                                            const wstring          & machineName,
                                            vector<string>         & outRomFiles,

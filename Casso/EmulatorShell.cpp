@@ -921,6 +921,14 @@ HRESULT EmulatorShell::Initialize (
 
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
 
+    // A disk mounted at startup (boot-disk picker result or --disk1 /
+    // --disk2) belongs in the recent-disks MRU just like one mounted via
+    // the chrome, so it surfaces in the disk picker on the next launch.
+    // Record disk 2 first so the primary boot disk (drive 1) ends up the
+    // most-recent entry.
+    RecordRecentDisk (std::filesystem::path (disk2Path).wstring());
+    RecordRecentDisk (std::filesystem::path (disk1Path).wstring());
+
     // Seed the mixer state from the per-machine $cassoUiPrefs JSON
     // before the audio thread first calls SetEnabled / SetMechanism.
     // Default is enabled + Shugart when nothing has been persisted yet.

@@ -11,6 +11,7 @@
 #include "resource.h"
 #include "Ui/ThemeManager.h"
 #include "Ui/Chrome/ChromeTheme.h"
+#include "Ui/DriveWidgetState.h"
 #include "Ui/Dialog/StandaloneDialog.h"
 #include "Ui/Dialog/StartupDownloadDialog.h"
 #include "Widgets/DxuiListView.h"
@@ -855,6 +856,82 @@ fs::path AssetBootstrap::GetDiskDirectory()
 
     fs::create_directories (disks, ec);
     return disks;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppendBundledDemoDisks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssetBootstrap::AppendBundledDemoDisks (std::vector<fs::path> & mountable)
+{
+    std::vector<fs::path>  roots;
+    std::vector<fs::path>  demos;
+    fs::path               exeDir = PathResolver::GetExecutableDirectory();
+    fs::path               cwd    = PathResolver::GetWorkingDirectory();
+    fs::path               cursor = exeDir;
+    error_code             ec;
+
+
+
+    // Apple2/Demos ships in the source tree, not in an installed layout.
+    // The exe runs from <repo>/<platform>/<config>/Casso.exe, so walk a few
+    // levels up from the exe (and also try the working directory) for the
+    // directory. No match means this is not a repo build -- no demos are
+    // offered.
+    for (int i = 0; i < 4 && !cursor.empty(); ++i)
+    {
+        roots.push_back (cursor / L"Apple2" / L"Demos");
+        cursor = cursor.parent_path();
+    }
+    roots.push_back (cwd / L"Apple2" / L"Demos");
+
+    for (const fs::path & dir : roots)
+    {
+        if (!fs::is_directory (dir, ec))
+        {
+            continue;
+        }
+
+        for (const fs::directory_entry & entry : fs::directory_iterator (dir, ec))
+        {
+            error_code  ecFile;
+
+            if (entry.is_regular_file (ecFile) &&
+                IsSupportedDiskImageExtension (entry.path().wstring()))
+            {
+                demos.push_back (entry.path().lexically_normal());
+            }
+        }
+
+        break;          // first matching demos directory wins
+    }
+
+    std::sort (demos.begin(), demos.end());
+
+    for (const fs::path & demo : demos)
+    {
+        bool        already = false;
+        error_code  ecDup;
+
+        for (const fs::path & existing : mountable)
+        {
+            if (fs::equivalent (existing, demo, ecDup))
+            {
+                already = true;
+                break;
+            }
+        }
+
+        if (!already)
+        {
+            mountable.push_back (demo);
+        }
+    }
 }
 
 
