@@ -6,6 +6,7 @@
                 "${workspaceFolder}/CassoCore",
                 "${workspaceFolder}/CassoCli",
                 "${workspaceFolder}/Casso",
+                "${workspaceFolder}/Dxui",
                 "${workspaceFolder}/CassoEmuCore",
                 "${workspaceFolder}/UnitTest",
                 "${workspaceFolder}/External/RmlUi/Include",
