@@ -57,6 +57,10 @@ spill past the window's edges instead of being clipped to it.
   ellipsis; the label now scrolls the full name once when the drive is
   hovered (clipped to the drive bounds), then rests at the head, so long
   filenames can be read on demand.
+- **feat(settings): pressed-state feedback on the settings tabs.** A
+  settings tab now darkens while the mouse button is held on it, matching
+  the press feedback the page's buttons, dropdowns, sliders, and toggles
+  already give.
 
 ### Fixed
 - **fix(ui): debug-panel window-management polish.** The maximize glyph
