@@ -867,7 +867,7 @@ fs::path AssetBootstrap::GetDiskDirectory()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AssetBootstrap::AppendBundledDemoDisks (std::vector<fs::path> & mountable)
+void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mountable)
 {
     std::vector<fs::path>  roots;
     std::vector<fs::path>  demos;
@@ -918,9 +918,9 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<fs::path> & mountable)
         bool        already = false;
         error_code  ecDup;
 
-        for (const fs::path & existing : mountable)
+        for (const DiskMru::Entry & existing : mountable)
         {
-            if (fs::equivalent (existing, demo, ecDup))
+            if (fs::equivalent (existing.path, demo, ecDup))
             {
                 already = true;
                 break;
@@ -929,7 +929,7 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<fs::path> & mountable)
 
         if (!already)
         {
-            mountable.push_back (demo);
+            mountable.push_back (DiskMru::Entry { demo, 0 });
         }
     }
 }
@@ -1822,15 +1822,15 @@ static bool FilesHaveSameContent (const fs::path & a, const fs::path & b)
 
 
 HRESULT AssetBootstrap::PromptBootDiskMru (
-    HINSTANCE                  hInstance,
-    HWND                       hwndParent,
-    const wstring            & machineName,
-    const vector<fs::path>   & mruEntries,
-    const fs::path           & diskDir,
-    std::string_view           themeName,
-    wstring                  & outDiskPath,
-    bool                     & outUserClosed,
-    string                   & outError)
+    HINSTANCE                      hInstance,
+    HWND                           hwndParent,
+    const wstring                & machineName,
+    const vector<DiskMru::Entry> & mruEntries,
+    const fs::path               & diskDir,
+    std::string_view               themeName,
+    wstring                      & outDiskPath,
+    bool                         & outUserClosed,
+    string                       & outError)
 {
     struct DownloadRow { const BootDiskSpec * spec; wstring label; };
 
@@ -1879,11 +1879,11 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
 
         for (int i = 0; i < mruCount; ++i)
         {
-            bool match = fs::equivalent (mruEntries[(size_t) i], wantPath, ecCmp);
+            bool match = fs::equivalent (mruEntries[(size_t) i].path, wantPath, ecCmp);
 
             if (!match)
             {
-                match = FilesHaveSameContent (mruEntries[(size_t) i], wantPath);
+                match = FilesHaveSameContent (mruEntries[(size_t) i].path, wantPath);
             }
 
             if (match)
@@ -1932,7 +1932,7 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
 
         for (int i = 0; i < mruCount; ++i)
         {
-            const auto &  p           = mruEntries[(size_t) i];
+            const auto &  p           = mruEntries[(size_t) i].path;
             std::wstring  displayLbl  = (mruLabels[(size_t) i] != nullptr)
                                             ? std::wstring (mruLabels[(size_t) i]->label)
                                             : p.filename().wstring();
@@ -2019,7 +2019,7 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     }
     else if (chosen >= 0 && chosen < mruCount)
     {
-        outDiskPath = mruEntries[(size_t) chosen].wstring();
+        outDiskPath = mruEntries[(size_t) chosen].path.wstring();
     }
     else if (chosen >= mruCount && chosen < rowCount)
     {
@@ -2049,15 +2049,15 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssetBootstrap::PromptInsertDiskMru (
-    HINSTANCE                  hInstance,
-    HWND                       hwndParent,
-    int                        drive,
-    const vector<fs::path>   & mruEntries,
-    const fs::path           & diskDir,
-    std::string_view           themeName,
-    wstring                  & outDiskPath,
-    bool                     & outBrowse,
-    string                   & outError)
+    HINSTANCE                      hInstance,
+    HWND                           hwndParent,
+    int                            drive,
+    const vector<DiskMru::Entry> & mruEntries,
+    const fs::path               & diskDir,
+    std::string_view               themeName,
+    wstring                      & outDiskPath,
+    bool                         & outBrowse,
+    string                       & outError)
 {
     struct DownloadRow { const BootDiskSpec * spec; wstring label; };
 
@@ -2099,11 +2099,11 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
         for (int i = 0; i < mruCount; ++i)
         {
-            bool match = fs::equivalent (mruEntries[(size_t) i], wantPath, ecCmp);
+            bool match = fs::equivalent (mruEntries[(size_t) i].path, wantPath, ecCmp);
 
             if (!match)
             {
-                match = FilesHaveSameContent (mruEntries[(size_t) i], wantPath);
+                match = FilesHaveSameContent (mruEntries[(size_t) i].path, wantPath);
             }
 
             if (match)
@@ -2150,7 +2150,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
         for (int i = 0; i < mruCount; ++i)
         {
-            const auto &  p           = mruEntries[(size_t) i];
+            const auto &  p           = mruEntries[(size_t) i].path;
             std::wstring  displayName = (mruLabels[(size_t) i] != nullptr)
                                             ? std::wstring (mruLabels[(size_t) i]->label)
                                             : p.filename().wstring();
@@ -2238,7 +2238,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     }
     else if (chosen >= 0 && chosen < mruCount)
     {
-        outDiskPath = mruEntries[(size_t) chosen].wstring();
+        outDiskPath = mruEntries[(size_t) chosen].path.wstring();
     }
     else if (chosen >= mruCount && chosen < rowCount)
     {

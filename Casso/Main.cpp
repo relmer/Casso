@@ -253,10 +253,8 @@ static HRESULT LoadMachineConfig (
             Win32FileSystem        fs_prefs;
             DiskMru                mru;
             vector<DiskMru::Entry> mruPruned;
-            vector<fs::path>       mruExisting;
             HRESULT                hrPrefs    = S_OK;
             bool                   userClosed = false;
-            size_t                 i          = 0;
 
             diskDir = AssetBootstrap::GetDiskDirectory();
 
@@ -266,17 +264,10 @@ static HRESULT LoadMachineConfig (
             mru       = DiskMru::FromUtf8 (prefs.recentDisks, prefs.recentDiskLoadedAt);
             mruPruned = mru.Prune ([] (const fs::path & p) { return fs::exists (p); });
 
-            // The picker still consumes plain paths this pass; the per-entry
-            // load time threads through to the date column in a later change.
-            mruExisting.reserve (mruPruned.size());
-            for (i = 0; i < mruPruned.size(); i++)
-            {
-                mruExisting.push_back (mruPruned[i].path);
-            }
-            AssetBootstrap::AppendBundledDemoDisks (mruExisting);
+            AssetBootstrap::AppendBundledDemoDisks (mruPruned);
 
             hr = AssetBootstrap::PromptBootDiskMru (
-                hInstance, hwndParent, machineName, mruExisting, diskDir, prefs.activeTheme, downloaded, userClosed, error);
+                hInstance, hwndParent, machineName, mruPruned, diskDir, prefs.activeTheme, downloaded, userClosed, error);
 
             CHRN (hr, format (L"Boot disk download failed:\n{}",
                               wstring (error.begin(), error.end())).c_str());

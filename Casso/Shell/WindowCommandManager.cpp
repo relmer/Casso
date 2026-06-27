@@ -452,15 +452,13 @@ Error:
 
 HRESULT WindowCommandManager::PromptInsertDiskMru (int drive)
 {
-    HRESULT                          hr          = S_OK;
-    DiskMru                          mru;
-    std::vector<DiskMru::Entry>      mruPruned;
-    std::vector<std::filesystem::path>  mruExisting;
-    std::filesystem::path            diskDir;
-    std::wstring                     chosenPath;
-    std::string                      error;
-    bool                             userBrowsed = false;
-    size_t                           i           = 0;
+    HRESULT                      hr          = S_OK;
+    DiskMru                      mru;
+    std::vector<DiskMru::Entry>  mruPruned;
+    std::filesystem::path        diskDir;
+    std::wstring                 chosenPath;
+    std::string                  error;
+    bool                         userBrowsed = false;
 
 
     diskDir   = AssetBootstrap::GetDiskDirectory();
@@ -471,19 +469,12 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive)
                                return std::filesystem::exists (p);
                            });
 
-    // The picker still consumes plain paths this pass; the per-entry load
-    // time threads through to the date column in a later change.
-    mruExisting.reserve (mruPruned.size());
-    for (i = 0; i < mruPruned.size(); i++)
-    {
-        mruExisting.push_back (mruPruned[i].path);
-    }
-    AssetBootstrap::AppendBundledDemoDisks (mruExisting);
+    AssetBootstrap::AppendBundledDemoDisks (mruPruned);
 
     hr = AssetBootstrap::PromptInsertDiskMru (GetModuleHandle (nullptr),
                                               m_shell.m_hwnd,
                                               drive,
-                                              mruExisting,
+                                              mruPruned,
                                               diskDir,
                                               m_shell.m_globalPrefs.activeTheme,
                                               chosenPath,

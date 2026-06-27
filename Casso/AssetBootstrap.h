@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Shell/DiskMru.h"
+
 
 
 
@@ -49,7 +51,7 @@ public:
     // Append disk images bundled in the source tree's Apple2/Demos
     // directory (present only in a repo build) to `mountable`, sorted and
     // de-duplicated against existing entries. No-op in an installed layout.
-    static void     AppendBundledDemoDisks (std::vector<fs::path> & mountable);
+    static void     AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mountable);
 
     static HRESULT  GetRequiredRoms       (HINSTANCE                hInstance,
                                            const wstring          & machineName,
@@ -133,7 +135,7 @@ public:
     static HRESULT  PromptBootDiskMru     (HINSTANCE                hInstance,
                                            HWND                     hwndParent,
                                            const wstring          & machineName,
-                                           const vector<fs::path> & mruEntries,
+                                           const vector<DiskMru::Entry> & mruEntries,
                                            const fs::path         & diskDir,
                                            std::string_view         themeName,
                                            wstring                & outDiskPath,
@@ -157,7 +159,7 @@ public:
     static HRESULT  PromptInsertDiskMru   (HINSTANCE                hInstance,
                                            HWND                     hwndParent,
                                            int                      drive,
-                                           const vector<fs::path> & mruEntries,
+                                           const vector<DiskMru::Entry> & mruEntries,
                                            const fs::path         & diskDir,
                                            std::string_view         themeName,
                                            wstring                & outDiskPath,
