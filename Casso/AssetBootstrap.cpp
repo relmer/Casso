@@ -1861,9 +1861,9 @@ private:
     SIZE                HandleMeasure      (DxuiTextRenderer & text);
     static std::wstring FormatLastLoaded   (std::int64_t loadedUnix);
 
-    static constexpr int    s_kColDiskImage         = 0;
-    static constexpr int    s_kColLocation          = 1;
-    static constexpr int    s_kColLastLoaded        = 2;
+    static constexpr int    s_kColLastLoaded        = 0;
+    static constexpr int    s_kColDiskImage         = 1;
+    static constexpr int    s_kColLocation          = 2;
     static constexpr int    s_kColumnCount          = 3;
     static constexpr int    s_kListStop             = 0;
     static constexpr int    s_kSearchStop           = 1;
@@ -1872,6 +1872,8 @@ private:
     static constexpr int    s_kSearchListGapDip     = 8;
     static constexpr int    s_kChromeReserveDip     = 240;
     static constexpr int    s_kMinBodyHeightDip     = 160;
+    static constexpr int    s_kMinColWidthDip       = 48;
+    static constexpr int    s_kResizeGrabDip        = 4;
     static constexpr int    s_kUnclampedBodyHeightPx = 100000;
     static constexpr int    s_kDateTimeBufChars     = 64;
     static constexpr int    s_kBaseDpi              = 96;
@@ -1893,8 +1895,8 @@ private:
     DxuiSearchBox              m_search;
     std::vector<int>           m_view;
     std::wstring               m_filter;
-    int                        m_sortColumn      = s_kColDiskImage;
-    bool                       m_sortDescending  = false;
+    int                        m_sortColumn      = s_kColLastLoaded;
+    bool                       m_sortDescending  = true;
     int                        m_focusStop       = -1;
     UINT                       m_dpi             = s_kBaseDpi;
     RECT                       m_searchRectPx    = {};
@@ -1903,6 +1905,9 @@ private:
     int                        m_gapPx           = 0;
     int                        m_maxBodyHeightPx = 0;
     bool                       m_scrollDragging  = false;
+    int                        m_resizeColumn    = -1;
+    int                        m_resizeStartXPx  = 0;
+    int                        m_resizeStartWPx  = 0;
 };
 
 
@@ -2017,14 +2022,15 @@ void DiskMruPickerSession::ConfigureWidgets()
     m_search.SetPlaceholder (L"Search");
     m_search.SetOnChange    ([this] (const std::wstring & value) { m_filter = value; RebuildView(); });
 
-    cols.push_back ({ L"Disk image",  0, false, DxuiTextRenderer::HAlign::Left  });
-    cols.push_back ({ L"Location",    0, true,  DxuiTextRenderer::HAlign::Left  });
-    cols.push_back ({ L"Last loaded", 0, false, DxuiTextRenderer::HAlign::Right });
+    cols.push_back ({ L"Last loaded", 0, false, DxuiTextRenderer::HAlign::Left });
+    cols.push_back ({ L"Disk image",  0, false, DxuiTextRenderer::HAlign::Left });
+    cols.push_back ({ L"Location",    0, true,  DxuiTextRenderer::HAlign::Left });
 
     m_list.SetDpi           (m_dpi);
     m_list.SetShowHeader    (true);
     m_list.SetColumns       (std::move (cols));
     m_list.SetSortIndicator (m_sortColumn, m_sortDescending);
+    m_list.EnableStickyTail (false);
 }
 
 
@@ -2117,12 +2123,13 @@ void DiskMruPickerSession::RebuildView()
     {
         const ModelRow &  row = m_model[(size_t) idx];
 
-        rows.push_back ({ { row.name,                          false },
-                          { row.location,                      row.dimLocation },
-                          { FormatLastLoaded (row.loadedUnix), true } });
+        rows.push_back ({ { FormatLastLoaded (row.loadedUnix), true },
+                          { row.name,                          false },
+                          { row.location,                      row.dimLocation } });
     }
 
     m_list.SetRows (std::move (rows));
+    m_list.UpdateAutoFitFromRows();
 
     selected = m_list.GetSelectedRow();
     if (selected >= (int) m_view.size())
@@ -2325,6 +2332,7 @@ Error:
 void DiskMruPickerSession::HandleListButtonDown (int lx, int ly, DialogPrimitive & prim)
 {
     HRESULT  hr        = S_OK;
+    int      resizeCol = -1;
     int      headerCol = -1;
     int      row       = -1;
 
@@ -2354,6 +2362,15 @@ void DiskMruPickerSession::HandleListButtonDown (int lx, int ly, DialogPrimitive
     if (m_list.HitTestScrollbarTrack (lx, ly))
     {
         m_list.PageFromTrackClick (ly);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    resizeCol = m_list.HitTestColumnResize (lx, ly, MulDiv (s_kResizeGrabDip, (int) m_dpi, s_kBaseDpi));
+    if (resizeCol >= 0)
+    {
+        m_resizeColumn   = resizeCol;
+        m_resizeStartXPx = lx;
+        m_resizeStartWPx = m_list.GetColumnEffectiveWidthPx ((size_t) resizeCol);
         BAIL_OUT_IF (true, S_OK);
     }
 
@@ -2461,13 +2478,20 @@ std::optional<int> DiskMruPickerSession::HandleInput (const DialogInputEvent & e
                                     ev.yPx >= m_searchRectPx.top  && ev.yPx < m_searchRectPx.bottom);
     bool                inList   = (ev.xPx >= m_listRectPx.left && ev.xPx < m_listRectPx.right &&
                                     ev.yPx >= m_listRectPx.top  && ev.yPx < m_listRectPx.bottom);
+    int                 minColW  = MulDiv (s_kMinColWidthDip, (int) m_dpi, s_kBaseDpi);
+    int                 newColW  = 0;
 
 
 
     switch (ev.kind)
     {
         case DialogInputEvent::Kind::MouseMove:
-            if (m_scrollDragging)
+            if (m_resizeColumn >= 0)
+            {
+                newColW = std::max (minColW, m_resizeStartWPx + (lx - m_resizeStartXPx));
+                m_list.SetColumnOverrideWidthPx ((size_t) m_resizeColumn, newColW);
+            }
+            else if (m_scrollDragging)
             {
                 m_list.UpdateThumbDrag (ly);
             }
@@ -2498,7 +2522,11 @@ std::optional<int> DiskMruPickerSession::HandleInput (const DialogInputEvent & e
             break;
 
         case DialogInputEvent::Kind::LeftButtonUp:
-            if (m_scrollDragging)
+            if (m_resizeColumn >= 0)
+            {
+                m_resizeColumn = -1;
+            }
+            else if (m_scrollDragging)
             {
                 m_list.EndThumbDrag();
                 m_scrollDragging = false;

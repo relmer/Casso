@@ -19,10 +19,11 @@ spill past the window's edges instead of being clipped to it.
   column.** The boot and Insert-Disk pickers gain a search box — type to
   filter recent disks (case-insensitive substring across name, location,
   and date); the magnifier glyph slides away on focus and an X button
-  clears the field. Column headers are clickable to sort (re-click to
-  reverse; strings A–Z, dates newest-first) with an up/down indicator on
-  the active column, and a new "Last loaded" column shows each disk's load
-  time in the user's regional date/time format. Long lists now scroll
+  clears the field. The leading "Last loaded" column shows each disk's
+  load time in the user's regional date/time format and is the default
+  sort (newest on top). Columns are resizable (drag a header divider) and
+  clickable to sort (re-click to reverse; strings A–Z, dates newest-first)
+  with an up/down indicator on the active column. Long lists now scroll
   (wheel, scrollbar, keyboard) and the dialog clamps to the monitor work
   area.
 - **feat(ui): occluding top-level popups for menus, dropdowns, and
