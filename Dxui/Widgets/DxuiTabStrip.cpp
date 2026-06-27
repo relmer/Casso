@@ -1,32 +1,7 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiTabStrip.h"
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Anonymous helpers
-//
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    //
-    //  Scales each RGB channel of `argb` by `f` (clamped to 255), preserving
-    //  hue. f < 1 darkens, f > 1 brightens.
-    //
-    uint32_t ScaleRgb (uint32_t argb, float f)
-    {
-        uint32_t  r = (uint32_t) std::min (255.0f, ((argb >> 16) & 0xFFu) * f);
-        uint32_t  g = (uint32_t) std::min (255.0f, ((argb >>  8) & 0xFFu) * f);
-        uint32_t  b = (uint32_t) std::min (255.0f, ( argb        & 0xFFu) * f);
-
-        return (argb & 0xFF000000u) | (r << 16) | (g << 8) | b;
-    }
-}
+#include "Theme/DxuiColor.h"
 
 
 
@@ -265,23 +240,27 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
     constexpr float     s_kFocusInsetDip = 1.0f;
     constexpr float     s_kPadXDp        = 8.0f;
     constexpr float     s_kPadYDp        = 4.0f;
+    constexpr float     s_kPressedScale  = 0.82f;   // armed-tab tint, a touch darker than hover
 
-    HRESULT  hr         = S_OK;
-    int      i          = 0;
-    size_t   n          = m_tabs.size();
-    float    focusThick = m_scaler.Pxf (s_kFocusThickDip);
-    float    focusInset = m_scaler.Pxf (s_kFocusInsetDip);
-    float    padX       = m_scaler.Pxf (s_kPadXDp);
-    float    padY       = m_scaler.Pxf (s_kPadYDp);
-    float    fontDip    = m_scaler.Pxf (s_kFontDip);
+    HRESULT  hr          = S_OK;
+    int      i           = 0;
+    size_t   n           = m_tabs.size();
+    float    focusThick  = m_scaler.Pxf (s_kFocusThickDip);
+    float    focusInset  = m_scaler.Pxf (s_kFocusInsetDip);
+    float    padX        = m_scaler.Pxf (s_kPadXDp);
+    float    padY        = m_scaler.Pxf (s_kPadYDp);
+    float    fontDip     = m_scaler.Pxf (s_kFontDip);
+    uint32_t pressedArgb = DxuiColor::Darken (hoverArgb, s_kPressedScale);
 
 
 
     for (i = 0; i < (int) n; ++i)
     {
         const Tab & t        = m_tabs[(size_t) i];
-        uint32_t    fillArgb = (i == m_selected) ? selectedArgb
-                                : (i == m_hover ? hoverArgb : idleArgb);
+        uint32_t    fillArgb = (i == m_selected)               ? selectedArgb
+                                : (i == m_pressed && i == m_hover) ? pressedArgb
+                                : (i == m_hover)                ? hoverArgb
+                                :                                  idleArgb;
 
         painter.FillRect ((float) t.rect.left,
                           (float) t.rect.top,
@@ -351,9 +330,9 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     // Selected tab is the lightest (brightened hover); idle is a darker
     // tint of the same hue, so the strip tracks the theme accent.
     PaintInternal (painter, text,
-                   ScaleRgb (hover, s_kIdleScale),
+                   DxuiColor::Scale (hover, s_kIdleScale),
                    hover,
-                   ScaleRgb (hover, s_kSelectedScale),
+                   DxuiColor::Scale (hover, s_kSelectedScale),
                    theme.Foreground(),
                    theme.FocusRing());
 }
