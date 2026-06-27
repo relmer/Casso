@@ -43,6 +43,11 @@ The solution has five projects:
   `ch` = char (narrow OR wide), no special wide marker. E.g.
   `s_kpszHost` (LPCWSTR), `s_kchBullet` (wchar_t),
   `s_kRomCatalog` (constant array).
+- **No anonymous namespaces.** NEVER use `namespace {}`. Declare file-local
+  constants as file-scope `static constexpr` (with the `s_k` Hungarian naming
+  above); put file-local helpers as class `static` members, not free functions.
+  More broadly, strongly prefer class members over free/global functions — a
+  free function needs a very convincing justification.
 - **No magic numbers** — all numeric literals must be named constants with clear intent.
   Exceptions: 0, 1, -1, nullptr, and sizeof expressions.
 
@@ -208,6 +213,7 @@ HRESULT EmulatorShell::Initialize (
 #### Function/Block Internal Spacing
 - **EXACTLY 3 blank lines** between variable definitions at the top of a function/block and the first real statement
 - **1 blank line** for standard code separation within functions
+- **Blank line after a closing brace.** A closing `}` MUST be followed by a blank line, EXCEPT when it ends a do-while (`} while (...)`), is followed by `else`, or is immediately followed by another closing `}`. Guard clauses and `switch`/`case` blocks are **not** exceptions.
 
 #### Correct Spacing Example:
 ```cpp
