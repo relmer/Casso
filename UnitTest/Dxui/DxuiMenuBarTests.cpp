@@ -208,6 +208,29 @@ public:
     }
 
 
+    TEST_METHOD (MenuStripContentWidthPx_IsLastTitleRightEdge)
+    {
+        DxuiMenuBar           bar;
+        MockDxuiTextRenderer  text;
+        int                   lastRight = 0;
+
+
+        bar.SetItems (MakeTestItems());
+
+        // Nothing is laid out yet, so there is no strip content to keep on
+        // the strip.
+        Assert::AreEqual (0, bar.MenuStripContentWidthPx());
+
+        bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, s_kTestDpi, &text);
+
+        // The reported width is the right edge of the last title -- the
+        // minimum client width that keeps every title on the strip.
+        lastRight = bar.MenuRect (bar.MenuCount() - 1).right;
+        Assert::IsTrue   (lastRight > 0);
+        Assert::AreEqual (lastRight, bar.MenuStripContentWidthPx());
+    }
+
+
     TEST_METHOD (MainMenu_ProductionResizeLayout_WithZeroHeightBounds_PreservesMeasuredBounds)
     {
         MainMenu              menu;

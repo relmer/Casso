@@ -3473,8 +3473,6 @@ DxuiMessageResult EmulatorShell::OnGetMinMax (MINMAXINFO * info)
     RECT               rcClient    = {};
     RECT               rcWindow    = {};
     SIZE               minClient   = {};
-    int                menuCount   = 0;
-    int                menuRightPx = 0;
     int                menuWidthPx = 0;
     int                ncOverheadW = 0;
     int                ncOverheadH = 0;
@@ -3489,10 +3487,8 @@ DxuiMessageResult EmulatorShell::OnGetMinMax (MINMAXINFO * info)
                                               m_layout.ScaleForDpi (s_kMinCenterHeightDp));
 
     // Never narrower than the menu strip's content so every title stays
-    // on-strip. MenuRect is physical client px, the same space as minClient.
-    menuCount   = m_mainMenu.MenuCount();
-    menuRightPx = (menuCount > 0) ? m_mainMenu.MenuRect (menuCount - 1).right : 0;
-    menuWidthPx = menuRightPx + m_layout.ScaleForDpi (s_kMenuRightPadDp);
+    // on-strip. The width is physical client px, the same space as minClient.
+    menuWidthPx = m_mainMenu.MenuStripContentWidthPx() + m_layout.ScaleForDpi (s_kMenuRightPadDp);
 
     if (minClient.cx < menuWidthPx)
     {
