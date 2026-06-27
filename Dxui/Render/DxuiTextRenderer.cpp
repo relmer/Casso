@@ -1002,6 +1002,9 @@ HRESULT DxuiTextRenderer::MeasureString (
     ComPtr<IDWriteTextLayout>          layout;
     DWRITE_TEXT_METRICS                metrics = {};
     UINT32                             textLen = 0;
+    // A literal FLT_MAX layout box makes DirectWrite report width 0 on
+    // some D2D targets; use a large FINITE sentinel instead.
+    constexpr float                    s_kUnboundedDip = 1.0e6f;
 
 
 
@@ -1029,8 +1032,8 @@ HRESULT DxuiTextRenderer::MeasureString (
     hr = m_dwriteFactory->CreateTextLayout (text,
                                             textLen,
                                             format.Get(),
-                                            FLT_MAX,
-                                            FLT_MAX,
+                                            s_kUnboundedDip,
+                                            s_kUnboundedDip,
                                             &layout);
     CHRA (hr);
 
