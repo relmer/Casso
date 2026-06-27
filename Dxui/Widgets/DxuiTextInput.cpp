@@ -30,6 +30,7 @@ bool DxuiTextInput::HitTest (int x, int y) const
     {
         return false;
     }
+
     return x >= m_boundsDip.left && x < m_boundsDip.right && y >= m_boundsDip.top && y < m_boundsDip.bottom;
 }
 
@@ -99,6 +100,7 @@ bool DxuiTextInput::OnLButtonUp (int x, int y)
     {
         return false;
     }
+
     m_dragging = false;
     return true;
 }
@@ -148,10 +150,12 @@ bool DxuiTextInput::OnKey (WPARAM vk)
             {
                 m_caret--;
             }
+
             if (!shift)
             {
                 m_anchor = m_caret;
             }
+
             consumed = true;
             break;
 
@@ -160,10 +164,12 @@ bool DxuiTextInput::OnKey (WPARAM vk)
             {
                 m_caret++;
             }
+
             if (!shift)
             {
                 m_anchor = m_caret;
             }
+
             consumed = true;
             break;
 
@@ -173,6 +179,7 @@ bool DxuiTextInput::OnKey (WPARAM vk)
             {
                 m_anchor = m_caret;
             }
+
             consumed = true;
             break;
 
@@ -182,6 +189,7 @@ bool DxuiTextInput::OnKey (WPARAM vk)
             {
                 m_anchor = m_caret;
             }
+
             consumed = true;
             break;
 
@@ -197,6 +205,7 @@ bool DxuiTextInput::OnKey (WPARAM vk)
                 m_anchor = m_caret;
                 FireChange();
             }
+
             consumed = true;
             break;
 
@@ -210,6 +219,7 @@ bool DxuiTextInput::OnKey (WPARAM vk)
                 m_text.erase (m_caret, 1);
                 FireChange();
             }
+
             consumed = true;
             break;
 
@@ -220,6 +230,7 @@ bool DxuiTextInput::OnKey (WPARAM vk)
                 m_caret  = m_text.size();
                 consumed = true;
             }
+
             break;
 
         case 'C':
@@ -228,6 +239,7 @@ bool DxuiTextInput::OnKey (WPARAM vk)
                 CopyToClipboard();
                 consumed = true;
             }
+
             break;
 
         case 'X':
@@ -238,8 +250,10 @@ bool DxuiTextInput::OnKey (WPARAM vk)
                 {
                     DeleteSelection();
                 }
+
                 consumed = true;
             }
+
             break;
 
         case 'V':
@@ -248,6 +262,7 @@ bool DxuiTextInput::OnKey (WPARAM vk)
                 PasteFromClipboard();
                 consumed = true;
             }
+
             break;
 
         default:
@@ -258,6 +273,7 @@ bool DxuiTextInput::OnKey (WPARAM vk)
     {
         ResetBlink();
     }
+
     return consumed;
 }
 
@@ -457,6 +473,7 @@ void DxuiTextInput::ClampCaret ()
     {
         m_caret = m_text.size();
     }
+
     if (m_anchor > m_text.size())
     {
         m_anchor = m_text.size();
@@ -737,6 +754,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     {
         m_theme = &theme;
     }
+
     static_cast<const DxuiTextInput *> (this)->Paint (painter, text);
 }
 
@@ -760,6 +778,7 @@ bool DxuiTextInput::OnMouse (const DxuiMouseEvent & ev)
             OnMouseMove (ev.positionDip.x, ev.positionDip.y);
             return true;
         }
+
         SetMouseHover (ev.positionDip.x, ev.positionDip.y);
         return false;
     case DxuiMouseEventKind::Down:
@@ -767,12 +786,14 @@ bool DxuiTextInput::OnMouse (const DxuiMouseEvent & ev)
         {
             return OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
         }
+
         return false;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
         {
             return OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
         }
+
         return false;
     default:
         return false;
