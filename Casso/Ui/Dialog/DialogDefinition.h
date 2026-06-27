@@ -106,6 +106,11 @@ struct DialogDefinition
     std::function<void (DialogPaintContext &)>                                            onPaintCustomBody;
     std::function<std::optional<int> (const DialogInputEvent &, class DialogPrimitive &)> onInputCustomBody;
 
+    // Optional per-point cursor query. Fired from WM_SETCURSOR with the
+    // cursor position in custom-body-relative pixels; return true to show
+    // the horizontal resize cursor (e.g. over a resizable column divider).
+    std::function<bool (int xPx, int yPx)> onCustomBodyWantsResizeCursor;
+
     // Custom-body focus integration. When `customBodyFocusableCount > 0`
     // the dialog's Tab ring places that many custom-body stops AHEAD of
     // the action buttons, and focuses custom-body stop 0 on open instead

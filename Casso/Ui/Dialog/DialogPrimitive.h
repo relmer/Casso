@@ -67,6 +67,7 @@ private:
     bool     OnSysChar      (WPARAM ch);
     void     OnMouse        (UINT message, WPARAM wParam, LPARAM lParam);
     void     OnMouseWheel   (WPARAM wParam, LPARAM lParam);
+    bool     OnSetCursor    (LPARAM lParam);
     void     OnClose        ();
 
     void     BuildButtons    ();

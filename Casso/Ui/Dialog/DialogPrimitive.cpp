@@ -384,20 +384,8 @@ LRESULT DialogPrimitive::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM
             break;
 
         case WM_SETCURSOR:
-            if (LOWORD (lParam) == HTCLIENT)
-            {
-                POINT  pt = {};
-                size_t hl = SIZE_MAX;
-
-                if (GetCursorPos (&pt) && ScreenToClient (m_hwnd, &pt)
-                    && HitTestHyperlink (pt.x, pt.y, hl))
-                {
-                    SetCursor (LoadCursorW (nullptr, IDC_HAND));
-                    result = TRUE;
-                    break;
-                }
-            }
-            result = DefWindowProcW (hwnd, message, wParam, lParam);
+            result = OnSetCursor (lParam) ? TRUE
+                                          : DefWindowProcW (hwnd, message, wParam, lParam);
             break;
 
         case WM_TIMER:
@@ -806,6 +794,62 @@ void DialogPrimitive::OnMouseWheel (WPARAM wParam, LPARAM lParam)
 
     ScreenToClient (m_hwnd, &pt);
     DispatchCustomBodyInput (DialogInputEvent::Kind::Wheel, pt.x, pt.y, delta);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnSetCursor
+//
+//  WM_SETCURSOR handler. Shows the hand cursor over a body hyperlink and
+//  the horizontal resize cursor when the custom body reports a resizable
+//  edge (e.g. a column divider) under the pointer. Returns true when it
+//  set the cursor; the caller falls back to DefWindowProc otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DialogPrimitive::OnSetCursor (LPARAM lParam)
+{
+    HRESULT  hr      = S_OK;
+    bool     handled = false;
+    POINT    pt      = {};
+    size_t   hl      = SIZE_MAX;
+    int      titleH  = 0;
+    RECT     rc      = {};
+    bool     gotPt   = false;
+
+
+    BAIL_OUT_IF (LOWORD (lParam) != HTCLIENT, S_OK);
+
+    gotPt = (GetCursorPos (&pt) != FALSE) && (ScreenToClient (m_hwnd, &pt) != FALSE);
+    BAIL_OUT_IF (!gotPt, S_OK);
+
+    if (HitTestHyperlink (pt.x, pt.y, hl))
+    {
+        SetCursor (LoadCursorW (nullptr, IDC_HAND));
+        handled = true;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    BAIL_OUT_IF (m_def == nullptr || !m_def->onCustomBodyWantsResizeCursor, S_OK);
+
+    titleH     = GetTitleHeightPx();
+    rc         = m_layout.customBodyRectPx;
+    rc.top    += titleH;
+    rc.bottom += titleH;
+
+    if (pt.x >= rc.left && pt.x < rc.right && pt.y >= rc.top && pt.y < rc.bottom
+        && m_def->onCustomBodyWantsResizeCursor (pt.x - rc.left, pt.y - rc.top))
+    {
+        SetCursor (LoadCursorW (nullptr, IDC_SIZEWE));
+        handled = true;
+    }
+
+Error:
+    return handled;
 }
 
 
