@@ -38,6 +38,7 @@ struct DialogLayoutMetrics
     std::function<float (std::wstring_view)>    measureBodyTextRun;
     std::function<float (std::wstring_view)>    measureButtonLabel;
     SIZE                                        customBodyOverridePx = {};   // when non-zero, overrides def.customBodyMinSizePx
+    SIZE                                        fillToSizePx         = {};   // when both dims > 0, the custom body fills this client size
 };
 
 

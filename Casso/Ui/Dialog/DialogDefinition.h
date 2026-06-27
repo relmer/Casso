@@ -150,4 +150,14 @@ struct DialogDefinition
     // code instead of clicking the cancel button. Use to distinguish
     // "user closed the window" from "user clicked Cancel/Skip".
     std::optional<int> closeBoxResult;
+
+    // Opt-in resizable mode. When `resizable` is true the dialog opens
+    // with custom-chrome resize borders, the custom body fills the
+    // client width/height, and the button row pins to the bottom.
+    // `resizableMinSizeDip` / `resizableDefaultSizeDip` are the minimum
+    // and initial client sizes in DIPs (scaled by DPI at show time).
+    // Defaults keep every dialog fixed-size, matching legacy behavior.
+    bool resizable               = false;
+    SIZE resizableMinSizeDip     = {};
+    SIZE resizableDefaultSizeDip = {};
 };

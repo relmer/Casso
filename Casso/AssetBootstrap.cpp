@@ -1875,6 +1875,10 @@ private:
     static constexpr int    s_kMinBodyHeightDip     = 160;
     static constexpr int    s_kMinColWidthDip       = 48;
     static constexpr int    s_kResizeGrabDip        = 4;
+    static constexpr int    s_kResizableMinWidthDip  = 480;
+    static constexpr int    s_kResizableMinHeightDip = 320;
+    static constexpr int    s_kResizableDefWidthDip  = 720;
+    static constexpr int    s_kResizableDefHeightDip = 520;
     static constexpr int    s_kUnclampedBodyHeightPx = 100000;
     static constexpr int    s_kDateTimeBufChars     = 64;
     static constexpr int    s_kBaseDpi              = 96;
@@ -2687,6 +2691,7 @@ bool DiskMruPickerSession::WantsResizeCursor (int xPx, int yPx) const
     int  ly = yPx - m_listRectPx.top;
 
 
+
     return (m_resizeColumn >= 0) ||
            (m_list.HitTestColumnResize (lx, ly, MulDiv (s_kResizeGrabDip, (int) m_dpi, s_kBaseDpi)) >= 0);
 }
@@ -2752,6 +2757,12 @@ int DiskMruPickerSession::Run()
     }
 
     def.closeBoxResult = m_closeBoxResult;
+
+    def.resizable                  = true;
+    def.resizableMinSizeDip.cx     = s_kResizableMinWidthDip;
+    def.resizableMinSizeDip.cy     = s_kResizableMinHeightDip;
+    def.resizableDefaultSizeDip.cx = s_kResizableDefWidthDip;
+    def.resizableDefaultSizeDip.cy = s_kResizableDefHeightDip;
 
     def.onMeasureCustomBody = [this] (DxuiTextRenderer & text, float) -> SIZE
     {

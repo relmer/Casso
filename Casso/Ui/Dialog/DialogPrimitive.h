@@ -63,6 +63,8 @@ private:
     void     OnDestroy      ();
     void     OnSize         (int widthPx, int heightPx);
     void     OnDpiChanged   (UINT dpi, const RECT & suggestedRect);
+    LRESULT  OnNcHitTest    (LPARAM lParam) const;
+    void     OnGetMinMaxInfo (MINMAXINFO * mmi) const;
     void     OnKeyDown      (WPARAM vk);
     bool     OnSysChar      (WPARAM ch);
     void     OnMouse        (UINT message, WPARAM wParam, LPARAM lParam);
@@ -91,6 +93,7 @@ private:
     RECT     GetCloseButtonRectPx () const;
     bool     IsPointInCloseButton (int xPx, int yPx) const;
     RECT     GetInitialWindowRect (HWND hwndOwner, UINT dpi) const;
+    SIZE     GetResizableClientSizePx (UINT dpi) const;
     size_t   GetDefaultButtonIdx  () const;
     size_t   GetCancelButtonIdx   () const;
 
@@ -104,6 +107,7 @@ private:
 
     DialogPrimitiveRenderer      m_renderer;
     DialogLayoutResult           m_layout;
+    SIZE                         m_fillSizePx        = {};   // resizable: current content fill size (client minus title bar)
     std::vector<DxuiButton>      m_buttons;
     size_t                       m_focusedButton     = SIZE_MAX;
     size_t                       m_focusedHyperlink  = SIZE_MAX;
