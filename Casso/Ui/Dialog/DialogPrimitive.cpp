@@ -22,6 +22,7 @@ static constexpr float    s_kIconBodyGapDp         = 12.0f;
 static constexpr float    s_kBodyButtonsGapDp      = 16.0f;
 static constexpr float    s_kMinButtonWidthDp      = 72.0f;
 static constexpr int      s_kCenterDivisor         = 2;
+static constexpr float    s_kResizeBorderDp        = 6.0f;
 static constexpr INT_PTR  s_kShellExecThreshold    = 32;
 static constexpr LPCWSTR  s_kpszHyperlinkError     = L"Could not open the requested link.";
 static constexpr LPCWSTR  s_kpszFont               = L"Segoe UI";
@@ -143,6 +144,14 @@ int DialogPrimitive::Show (
         m_dpi = DxuiDpiScaler::kBaseDpi;
     }
 
+    if (def.resizable)
+    {
+        SIZE  client = GetResizableClientSizePx (m_dpi);
+
+        m_fillSizePx.cx = client.cx;
+        m_fillSizePx.cy = std::max<LONG> (0, client.cy - GetTitleHeightPx());
+    }
+
     RecomputeLayout (m_dpi);
     BuildButtons    ();
 
@@ -175,6 +184,15 @@ int DialogPrimitive::Show (
     if (actualDpi != 0 && actualDpi != m_dpi)
     {
         m_dpi = actualDpi;
+
+        if (def.resizable)
+        {
+            SIZE  client = GetResizableClientSizePx (m_dpi);
+
+            m_fillSizePx.cx = client.cx;
+            m_fillSizePx.cy = std::max<LONG> (0, client.cy - GetTitleHeightPx());
+        }
+
         RecomputeLayout (m_dpi);
         BuildButtons    ();
 
@@ -334,6 +352,27 @@ LRESULT DialogPrimitive::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM
         case WM_CLOSE:
             OnClose();
             result = 0;
+            break;
+
+        case WM_NCHITTEST:
+            if (m_def != nullptr && m_def->resizable)
+            {
+                result = OnNcHitTest (lParam);
+                break;
+            }
+
+            result = DefWindowProcW (hwnd, message, wParam, lParam);
+            break;
+
+        case WM_GETMINMAXINFO:
+            if (m_def != nullptr && m_def->resizable)
+            {
+                OnGetMinMaxInfo (reinterpret_cast<MINMAXINFO *> (lParam));
+                result = 0;
+                break;
+            }
+
+            result = DefWindowProcW (hwnd, message, wParam, lParam);
             break;
 
         case WM_SIZE:
@@ -500,6 +539,14 @@ void DialogPrimitive::OnSize (int widthPx, int heightPx)
     hr = m_renderer.Resize (widthPx, heightPx, dpi);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
+    if (m_def != nullptr && m_def->resizable)
+    {
+        m_fillSizePx.cx = widthPx;
+        m_fillSizePx.cy = std::max (0, heightPx - GetTitleHeightPx());
+        RecomputeLayout (m_dpi);
+        BuildButtons    ();
+    }
+
     RenderFrame();
 
 Error:
@@ -547,6 +594,94 @@ void DialogPrimitive::OnDpiChanged (UINT dpi, const RECT & suggestedRect)
                             suggestedRect.bottom - suggestedRect.top,
                             dpi);
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnNcHitTest
+//
+//  Resizable-mode non-client hit-test. Maps the cursor to one of the
+//  eight resize-edge codes within a DPI-scaled border; everything else
+//  (including the title bar, whose drag is handled in the client mouse
+//  path) reports HTCLIENT. Single-exit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LRESULT DialogPrimitive::OnNcHitTest (LPARAM lParam) const
+{
+    HRESULT             hr     = S_OK;
+    DxuiNcHitTestInput  in     = {};
+    RECT                rc     = {};
+    BOOL                ok     = FALSE;
+    int                 border = 0;
+    LRESULT             result = HTCLIENT;
+
+
+
+    CBRA (m_hwnd);
+
+    ok = GetWindowRect (m_hwnd, &rc);
+    CWRA (ok);
+
+    border = (int) (s_kResizeBorderDp * (float) m_dpi / (float) DxuiDpiScaler::kBaseDpi);
+
+    in.windowRectScreen = rc;
+    in.mouseXScreen     = (int) (short) LOWORD (lParam);
+    in.mouseYScreen     = (int) (short) HIWORD (lParam);
+    in.resizeBorderPx   = border;
+
+    result = DxuiHitTester::ClassifyNcHit (in);
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnGetMinMaxInfo
+//
+//  Resizable-mode minimum-track-size clamp, derived from the
+//  definition's `resizableMinSizePx` (DIPs) scaled to the current DPI.
+//  Single-exit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogPrimitive::OnGetMinMaxInfo (MINMAXINFO * mmi) const
+{
+    HRESULT  hr     = S_OK;
+    float    scale  = 0.0f;
+    int      minWPx = 0;
+    int      minHPx = 0;
+
+
+
+    CBRAEx (mmi, E_INVALIDARG);
+    CBRA   (m_def);
+
+    scale  = (float) m_dpi / (float) DxuiDpiScaler::kBaseDpi;
+    minWPx = (int) ((float) m_def->resizableMinSizeDip.cx * scale);
+    minHPx = (int) ((float) m_def->resizableMinSizeDip.cy * scale);
+
+    if (minWPx > 0)
+    {
+        mmi->ptMinTrackSize.x = minWPx;
+    }
+
+    if (minHPx > 0)
+    {
+        mmi->ptMinTrackSize.y = minHPx;
+    }
 
 Error:
     return;
@@ -822,6 +957,7 @@ bool DialogPrimitive::OnSetCursor (LPARAM lParam)
     bool     gotPt   = false;
 
 
+
     BAIL_OUT_IF (LOWORD (lParam) != HTCLIENT, S_OK);
 
     gotPt = (GetCursorPos (&pt) != FALSE) && (ScreenToClient (m_hwnd, &pt) != FALSE);
@@ -1018,6 +1154,7 @@ void DialogPrimitive::RecomputeLayout (UINT dpi)
     metrics.iconBodyGapPx    = s_kIconBodyGapDp    * dpiScale;
     metrics.bodyButtonsGapPx = s_kBodyButtonsGapDp * dpiScale;
     metrics.minButtonWidthPx = s_kMinButtonWidthDp * dpiScale;
+    metrics.fillToSizePx     = (m_def->resizable) ? m_fillSizePx : SIZE {};
 
     metrics.measureBodyTextRun = [&measurer, dpiScale] (std::wstring_view sv) -> float
     {
@@ -1762,6 +1899,14 @@ RECT DialogPrimitive::GetInitialWindowRect (HWND hwndOwner, UINT dpi) const
 
 
 
+    if (m_def != nullptr && m_def->resizable)
+    {
+        SIZE  client = GetResizableClientSizePx (dpi);
+
+        clientW = client.cx;
+        clientH = client.cy;
+    }
+
     if (!GetWindowRect (hwndOwner, &ownerRect))
     {
         ownerRect = { 0, 0, clientW, clientH };
@@ -1784,6 +1929,65 @@ RECT DialogPrimitive::GetInitialWindowRect (HWND hwndOwner, UINT dpi) const
     y = std::max ((int) workRect.top,  std::min (y, (int) workRect.bottom - clientH));
 
     return { x, y, x + clientW, y + clientH };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetResizableClientSizePx
+//
+//  Returns the initial client size for a resizable dialog: the
+//  definition's `resizableDefaultSizePx` (DIPs) scaled to the given
+//  DPI, floored at `resizableMinSizePx`, and clamped to the owner
+//  monitor's work area. Single-exit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE DialogPrimitive::GetResizableClientSizePx (UINT dpi) const
+{
+    HRESULT      hr       = S_OK;
+    SIZE         size     = {};
+    float        scale    = 0.0f;
+    int          defW     = 0;
+    int          defH     = 0;
+    int          minW     = 0;
+    int          minH     = 0;
+    RECT         workRect = {};
+    MONITORINFO  mi       = { sizeof (mi) };
+    HMONITOR     monitor  = nullptr;
+    HWND         owner    = nullptr;
+
+
+
+    CBRA (m_def);
+
+    scale = (float) dpi / (float) DxuiDpiScaler::kBaseDpi;
+    defW  = (int) ((float) m_def->resizableDefaultSizeDip.cx * scale);
+    defH  = (int) ((float) m_def->resizableDefaultSizeDip.cy * scale);
+    minW  = (int) ((float) m_def->resizableMinSizeDip.cx     * scale);
+    minH  = (int) ((float) m_def->resizableMinSizeDip.cy     * scale);
+
+    defW = std::max (defW, minW);
+    defH = std::max (defH, minH);
+
+    owner   = (m_hwndOwner != nullptr) ? m_hwndOwner : m_hwnd;
+    monitor = (owner != nullptr) ? MonitorFromWindow (owner, MONITOR_DEFAULTTONEAREST)
+                                 : MonitorFromPoint ({ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
+    if (monitor != nullptr && GetMonitorInfoW (monitor, &mi))
+    {
+        workRect = mi.rcWork;
+        defW     = std::min (defW, (int) (workRect.right  - workRect.left));
+        defH     = std::min (defH, (int) (workRect.bottom - workRect.top));
+    }
+
+    size.cx = defW;
+    size.cy = defH;
+
+Error:
+    return size;
 }
 
 

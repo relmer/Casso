@@ -23,9 +23,9 @@ spill past the window's edges instead of being clipped to it.
   load time in the user's regional date/time format and is the default
   sort (newest on top). Columns are resizable (drag a header divider) and
   clickable to sort (re-click to reverse; strings A–Z, dates newest-first)
-  with an up/down indicator on the active column. Long lists now scroll
-  (wheel, scrollbar, keyboard) and the dialog clamps to the monitor work
-  area.
+  with an up/down indicator on the active column. The dialog is resizable
+  (drag any edge; it opens at a sensible size clamped to your monitor) and
+  the list fills the width and scrolls vertically as the list grows.
 - **feat(ui): occluding top-level popups for menus, dropdowns, and
   tooltips.** The application menu bar's submenus, the Settings-page
   dropdowns, the Disk II / Input debug-panel column menus, and the

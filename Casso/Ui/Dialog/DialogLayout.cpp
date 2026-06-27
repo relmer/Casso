@@ -3,6 +3,9 @@
 #include "DialogLayout.h"
 
 
+static constexpr float  s_kMinFillCustomBodyDimPx = 1.0f;
+
+
 
 
 
@@ -356,18 +359,36 @@ void DialogLayout::BuildCustomBodyRect (LayoutState & s)
 
     if (s.hasCustomBody)
     {
-        long  minWPx = (s.metrics->customBodyOverridePx.cx > 0)
-                       ? s.metrics->customBodyOverridePx.cx
-                       : s.def->customBodyMinSizePx.cx;
-        long  minHPx = (s.metrics->customBodyOverridePx.cy > 0)
-                       ? s.metrics->customBodyOverridePx.cy
-                       : s.def->customBodyMinSizePx.cy;
+        bool  filling = (s.metrics->fillToSizePx.cx > 0 && s.metrics->fillToSizePx.cy > 0);
+        long  minWPx  = (s.metrics->customBodyOverridePx.cx > 0)
+                        ? s.metrics->customBodyOverridePx.cx
+                        : s.def->customBodyMinSizePx.cx;
+        long  minHPx  = (s.metrics->customBodyOverridePx.cy > 0)
+                        ? s.metrics->customBodyOverridePx.cy
+                        : s.def->customBodyMinSizePx.cy;
 
-        cbTopPx    = s.contentBottomPx + s.metrics->bodyButtonsGapPx;
-        cbLeftPx   = s.metrics->outerPaddingPx;
-        cbWidthPx  = std::max ((float) minWPx,
-                               s.contentRightPx - cbLeftPx);
-        cbHeightPx = (float) minHPx;
+        cbTopPx  = s.contentBottomPx + s.metrics->bodyButtonsGapPx;
+        cbLeftPx = s.metrics->outerPaddingPx;
+
+        if (filling)
+        {
+            float  buttonReservePx = s.def->buttons.empty()
+                                         ? 0.0f
+                                         : s.metrics->buttonHeightPx + s.metrics->bodyButtonsGapPx;
+
+            cbWidthPx  = (float) s.metrics->fillToSizePx.cx - 2.0f * s.metrics->outerPaddingPx;
+            cbHeightPx = (float) s.metrics->fillToSizePx.cy - cbTopPx
+                         - s.metrics->outerPaddingPx - buttonReservePx;
+
+            cbWidthPx  = std::max (cbWidthPx,  s_kMinFillCustomBodyDimPx);
+            cbHeightPx = std::max (cbHeightPx, s_kMinFillCustomBodyDimPx);
+        }
+        else
+        {
+            cbWidthPx  = std::max ((float) minWPx,
+                                   s.contentRightPx - cbLeftPx);
+            cbHeightPx = (float) minHPx;
+        }
 
         s.result->customBodyRectPx.left   = (LONG) cbLeftPx;
         s.result->customBodyRectPx.top    = (LONG) cbTopPx;
@@ -400,8 +421,13 @@ void DialogLayout::BuildButtonRects (LayoutState & s)
     size_t              idx            = 0;
     float               labelW         = 0.0f;
     float               w              = 0.0f;
-    float               cursorRightPx  = s.contentRightPx;
-    float               rowTopPx       = s.contentBottomPx + s.metrics->bodyButtonsGapPx;
+    bool                filling        = (s.metrics->fillToSizePx.cx > 0 && s.metrics->fillToSizePx.cy > 0);
+    float               cursorRightPx  = filling
+                                             ? (float) s.metrics->fillToSizePx.cx - s.metrics->outerPaddingPx
+                                             : s.contentRightPx;
+    float               rowTopPx       = filling
+                                             ? (float) s.metrics->fillToSizePx.cy - s.metrics->outerPaddingPx - s.metrics->buttonHeightPx
+                                             : s.contentBottomPx + s.metrics->bodyButtonsGapPx;
 
 
 
@@ -447,13 +473,21 @@ void DialogLayout::BuildButtonRects (LayoutState & s)
 
 void DialogLayout::ComputeTotalSize (LayoutState & s)
 {
+    bool   filling  = (s.metrics->fillToSizePx.cx > 0 && s.metrics->fillToSizePx.cy > 0);
     float  rowTopPx = s.contentBottomPx + s.metrics->bodyButtonsGapPx;
     float  bottomPx = s.def->buttons.empty()
                           ? s.contentBottomPx
                           : rowTopPx + s.metrics->buttonHeightPx;
 
-    s.result->totalSizePx.cx = (LONG) (s.contentRightPx + s.metrics->outerPaddingPx);
-    s.result->totalSizePx.cy = (LONG) (bottomPx + s.metrics->outerPaddingPx);
+    if (filling)
+    {
+        s.result->totalSizePx = s.metrics->fillToSizePx;
+    }
+    else
+    {
+        s.result->totalSizePx.cx = (LONG) (s.contentRightPx + s.metrics->outerPaddingPx);
+        s.result->totalSizePx.cy = (LONG) (bottomPx + s.metrics->outerPaddingPx);
+    }
 }
 
 
