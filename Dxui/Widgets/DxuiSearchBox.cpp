@@ -412,6 +412,7 @@ void DxuiSearchBox::RelayoutInput ()
     {
         r.right = r.left;
     }
+
     m_input.SetRect (r);
 }
 
