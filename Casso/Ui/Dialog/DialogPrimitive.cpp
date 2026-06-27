@@ -29,6 +29,7 @@ static constexpr LPCWSTR  s_kpszFont               = L"Segoe UI";
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ~DialogPrimitive
@@ -42,6 +43,7 @@ DialogPrimitive::~DialogPrimitive()
         DestroyWindow (m_hwnd);
     }
 }
+
 
 
 
@@ -86,6 +88,7 @@ HRESULT DialogPrimitive::RegisterClass (HINSTANCE hInstance)
 Error:
     return hr;
 }
+
 
 
 
@@ -242,6 +245,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Close
@@ -262,6 +266,7 @@ void DialogPrimitive::Close (int chosenId)
         PostMessageW (m_hwnd, WM_NULL, 0, 0);
     }
 }
+
 
 
 
@@ -298,6 +303,7 @@ LRESULT CALLBACK DialogPrimitive::s_WndProc (HWND hwnd, UINT message, WPARAM wPa
 
     return DefWindowProcW (hwnd, message, wParam, lParam);
 }
+
 
 
 
@@ -361,6 +367,12 @@ LRESULT DialogPrimitive::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM
             break;
 
         case WM_CHAR:
+            DispatchCustomBodyInput (DialogInputEvent::Kind::Char, 0, 0, (int) wParam);
+            result = 0;
+            break;
+
+        case WM_MOUSEWHEEL:
+            OnMouseWheel (wParam, lParam);
             result = 0;
             break;
 
@@ -403,6 +415,7 @@ LRESULT DialogPrimitive::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM
 
     return result;
 }
+
 
 
 
@@ -453,6 +466,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnDestroy
@@ -469,6 +483,7 @@ void DialogPrimitive::OnDestroy()
     m_renderer.Shutdown();
     m_hwnd = nullptr;
 }
+
 
 
 
@@ -502,6 +517,7 @@ void DialogPrimitive::OnSize (int widthPx, int heightPx)
 Error:
     return;
 }
+
 
 
 
@@ -547,6 +563,7 @@ void DialogPrimitive::OnDpiChanged (UINT dpi, const RECT & suggestedRect)
 Error:
     return;
 }
+
 
 
 
@@ -619,8 +636,6 @@ void DialogPrimitive::OnKeyDown (WPARAM vk)
 
 
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnSysChar
@@ -633,15 +648,11 @@ void DialogPrimitive::OnKeyDown (WPARAM vk)
 
 bool DialogPrimitive::OnSysChar (WPARAM ch)
 {
-    wchar_t  key = (wchar_t) towlower ((wint_t) ch);
+    wchar_t  key      = (wchar_t) towlower ((wint_t) ch);
+    bool     consumed = false;
 
 
-    if (key == 0)
-    {
-        return false;
-    }
-
-    for (size_t i = 0; i < m_buttons.size(); ++i)
+    for (size_t i = 0; key != 0 && i < m_buttons.size(); ++i)
     {
         if (!m_buttons[i].Visible() || !m_buttons[i].Enabled())
         {
@@ -650,12 +661,14 @@ bool DialogPrimitive::OnSysChar (WPARAM ch)
         if (m_buttons[i].Accelerator() == key)
         {
             ActivateButton (i);
-            return true;
+            consumed = true;
+            break;
         }
     }
 
-    return false;
+    return consumed;
 }
+
 
 
 
@@ -668,64 +681,64 @@ bool DialogPrimitive::OnSysChar (WPARAM ch)
 
 void DialogPrimitive::OnMouse (UINT message, WPARAM wParam, LPARAM lParam)
 {
-    int      xPx       = (int) (short) LOWORD (lParam);
-    int      yPx       = (int) (short) HIWORD (lParam);
-    bool     down      = (message == WM_LBUTTONDOWN);
-    bool     up        = (message == WM_LBUTTONUP);
-    bool     dirty     = false;
-    size_t   hitIdx    = SIZE_MAX;
-    size_t   hlRunIdx  = SIZE_MAX;
-    size_t   newHover  = SIZE_MAX;
-    DialogInputEvent::Kind  kind = DialogInputEvent::Kind::MouseMove;
+    HRESULT                 hr          = S_OK;
+    int                     xPx         = (int) (short) LOWORD (lParam);
+    int                     yPx         = (int) (short) HIWORD (lParam);
+    bool                    down        = (message == WM_LBUTTONDOWN);
+    bool                    up          = (message == WM_LBUTTONUP);
+    bool                    dirty       = false;
+    bool                    handled     = false;
+    bool                    inClose     = false;
+    bool                    newHovered  = false;
+    bool                    newPressed  = false;
+    bool                    captionDrag = false;
+    bool                    closeClick  = false;
+    size_t                  hlRunIdx    = SIZE_MAX;
+    size_t                  newHover    = SIZE_MAX;
+    DialogInputEvent::Kind  kind        = DialogInputEvent::Kind::MouseMove;
+
+
 
     UNREFERENCED_PARAMETER (wParam);
 
     if      (message == WM_LBUTTONDOWN) { kind = DialogInputEvent::Kind::LeftButtonDown; }
     else if (message == WM_LBUTTONUP)   { kind = DialogInputEvent::Kind::LeftButtonUp;   }
 
-    if (DispatchCustomBodyInput (kind, xPx, yPx, 0))
+    handled = DispatchCustomBodyInput (kind, xPx, yPx, 0);
+    BAIL_OUT_IF (handled, S_OK);
+
+    inClose    = IsPointInCloseButton (xPx, yPx);
+    newHovered = inClose;
+    newPressed = down ? inClose : (up ? false : m_closePressed);
+
+    // A press in the title bar outside the close button starts a system
+    // move; nothing else to do for this message.
+    captionDrag = down && !inClose && (yPx < GetTitleHeightPx());
+    if (captionDrag)
     {
-        return;
+        ReleaseCapture();
+        SendMessageW (m_hwnd, WM_NCLBUTTONDOWN, HTCAPTION, lParam);
     }
+    BAIL_OUT_IF (captionDrag, S_OK);
 
+    // Releasing inside the close button after pressing it closes the dialog.
+    closeClick = up && m_closePressed && inClose;
+    if (closeClick)
     {
-        bool inClose      = PointInCloseButton (xPx, yPx);
-        bool newHovered   = inClose;
-        bool newPressed   = m_closePressed;
+        OnClose();
+    }
+    BAIL_OUT_IF (closeClick, S_OK);
 
-        if (down)
-        {
-            newPressed = inClose;
-
-            if (!inClose && yPx < TitleHeightPx())
-            {
-                ReleaseCapture();
-                SendMessageW (m_hwnd, WM_NCLBUTTONDOWN, HTCAPTION, lParam);
-                return;
-            }
-        }
-        else if (up)
-        {
-            bool wasPressed = m_closePressed;
-            newPressed = false;
-            if (wasPressed && inClose)
-            {
-                OnClose();
-                return;
-            }
-        }
-
-        if (newHovered != m_closeHovered || newPressed != m_closePressed)
-        {
-            m_closeHovered = newHovered;
-            m_closePressed = newPressed;
-            dirty = true;
-        }
+    if (newHovered != m_closeHovered || newPressed != m_closePressed)
+    {
+        m_closeHovered = newHovered;
+        m_closePressed = newPressed;
+        dirty          = true;
     }
 
     for (size_t i = 0; i < m_buttons.size(); ++i)
     {
-        bool wasHover   = m_buttons[i].Focused();
+        bool wasHover = m_buttons[i].Focused();
         m_buttons[i].SetMouse (xPx, yPx, down);
         dirty = dirty || (m_buttons[i].Focused() != wasHover);
     }
@@ -738,7 +751,7 @@ void DialogPrimitive::OnMouse (UINT message, WPARAM wParam, LPARAM lParam)
     if (newHover != m_hoveredHyperlink)
     {
         m_hoveredHyperlink = newHover;
-        dirty = true;
+        dirty              = true;
     }
 
     if (up)
@@ -747,28 +760,54 @@ void DialogPrimitive::OnMouse (UINT message, WPARAM wParam, LPARAM lParam)
         {
             if (m_buttons[i].HitTest (xPx, yPx))
             {
-                hitIdx = i;
+                ActivateButton (i);
+                handled = true;
                 break;
             }
         }
 
-        if (hitIdx != SIZE_MAX)
-        {
-            ActivateButton (hitIdx);
-            return;
-        }
-
-        if (HitTestHyperlink (xPx, yPx, hlRunIdx))
+        if (!handled && HitTestHyperlink (xPx, yPx, hlRunIdx))
         {
             LaunchHyperlink (hlRunIdx);
         }
     }
+    BAIL_OUT_IF (handled, S_OK);
 
     if (dirty || message == WM_MOUSEMOVE)
     {
         InvalidateRect (m_hwnd, nullptr, FALSE);
     }
+
+Error:
+    return;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMouseWheel
+//
+//  Forwards a mouse-wheel notch to the custom body (the only consumer
+//  that scrolls). WM_MOUSEWHEEL reports the pointer in screen space, so
+//  translate it to client coordinates the way the rest of the input path
+//  expects before dispatching.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogPrimitive::OnMouseWheel (WPARAM wParam, LPARAM lParam)
+{
+    POINT  pt    = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+    int    delta = GET_WHEEL_DELTA_WPARAM (wParam);
+
+
+
+    ScreenToClient (m_hwnd, &pt);
+    DispatchCustomBodyInput (DialogInputEvent::Kind::Wheel, pt.x, pt.y, delta);
+}
+
 
 
 
@@ -789,6 +828,7 @@ void DialogPrimitive::OnClose()
 
     ActivateCancelButton();
 }
+
 
 
 
@@ -821,14 +861,14 @@ void DialogPrimitive::BuildButtons()
     {
         const DialogButton & btn    = m_def->buttons[i];
         RECT                 rect   = m_layout.buttonRectsPx[i];
-        int                  titleH = TitleHeightPx();
+        int                  titleH = GetTitleHeightPx();
 
         rect.top    += titleH;
         rect.bottom += titleH;
 
-        m_buttons[i].Layout       (rect);
-        m_buttons[i].SetLabel     (btn.label);
-        m_buttons[i].SetDpi       (m_dpi);
+        m_buttons[i].Layout   (rect);
+        m_buttons[i].SetLabel (btn.label);
+        m_buttons[i].SetDpi   (m_dpi);
 
         if (btn.isDefault)
         {
@@ -838,20 +878,58 @@ void DialogPrimitive::BuildButtons()
         m_buttons[i].SetClick ([this, i]() { ActivateButton (i); });
     }
 
-    m_focusedButton = DefaultButtonIdx();
-    if (m_focusedButton == SIZE_MAX && !m_buttons.empty())
+    if (GetCustomBodyFocusCount() > 0)
     {
-        m_focusedButton = 0;
+        // A custom body with focusable stops (e.g. the disk picker's
+        // search box + list) takes initial focus instead of a button so
+        // the user can type to filter immediately; this also keeps every
+        // button unfocused so a typed Space reaches the search box.
+        SetCustomBodyFocus (0);
     }
-
-    if (m_focusedButton < m_buttons.size())
+    else
     {
-        m_buttons[m_focusedButton].SetFocused (true);
+        m_focusedButton = GetDefaultButtonIdx();
+        if (m_focusedButton == SIZE_MAX && !m_buttons.empty())
+        {
+            m_focusedButton = 0;
+        }
+
+        if (m_focusedButton < m_buttons.size())
+        {
+            m_buttons[m_focusedButton].SetFocused (true);
+        }
     }
 
 Error:
     return;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasureLabelWidthPx
+//
+//  Measures the pixel width of `sv` at `fontPx` using the supplied
+//  measurement renderer. Shared by the body-text-run and button-label
+//  measurement hooks, which differ only in font size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DialogPrimitive::MeasureLabelWidthPx (DxuiTextRenderer & measurer, std::wstring_view sv, float fontPx)
+{
+    std::wstring  text (sv);
+    float         w = 0.0f;
+    float         h = 0.0f;
+
+
+
+    measurer.MeasureString (text.c_str(), fontPx, s_kpszFont, w, h);
+    return w;
+}
+
 
 
 
@@ -869,7 +947,7 @@ Error:
 void DialogPrimitive::RecomputeLayout (UINT dpi)
 {
     HRESULT             hr       = S_OK;
-    DxuiTextRenderer  measurer;
+    DxuiTextRenderer    measurer;
     DialogLayoutMetrics metrics;
     float               dpiScale = 0.0f;
 
@@ -899,22 +977,12 @@ void DialogPrimitive::RecomputeLayout (UINT dpi)
 
     metrics.measureBodyTextRun = [&measurer, dpiScale] (std::wstring_view sv) -> float
     {
-        std::wstring  text (sv);
-        float         w = 0.0f;
-        float         h = 0.0f;
-
-        measurer.MeasureString (text.c_str(), s_kBodyFontDp * dpiScale, s_kpszFont, w, h);
-        return w;
+        return MeasureLabelWidthPx (measurer, sv, s_kBodyFontDp * dpiScale);
     };
 
     metrics.measureButtonLabel = [&measurer, dpiScale] (std::wstring_view sv) -> float
     {
-        std::wstring  text (sv);
-        float         w = 0.0f;
-        float         h = 0.0f;
-
-        measurer.MeasureString (text.c_str(), s_kButtonFontDp * dpiScale, s_kpszFont, w, h);
-        return w;
+        return MeasureLabelWidthPx (measurer, sv, s_kButtonFontDp * dpiScale);
     };
 
     if (m_def->onMeasureCustomBody)
@@ -929,6 +997,7 @@ Error:
     measurer.Shutdown();
     return;
 }
+
 
 
 
@@ -950,7 +1019,7 @@ void DialogPrimitive::RenderFrame()
     CBR (m_renderer.IsInitialized());
 
     IGNORE_RETURN_VALUE (hr, m_renderer.Render (*m_def, m_layout, *m_theme,
-                                                TitleHeightPx(), m_buttons,
+                                                GetTitleHeightPx(), m_buttons,
                                                 m_focusedHyperlink,
                                                 m_hoveredHyperlink,
                                                 m_closeHovered,
@@ -959,6 +1028,7 @@ void DialogPrimitive::RenderFrame()
 Error:
     return;
 }
+
 
 
 
@@ -978,11 +1048,7 @@ void DialogPrimitive::ActivateButton (size_t idx)
 
 
     CBR (idx < m_def->buttons.size());
-
-    if (idx < m_buttons.size() && (!m_buttons[idx].Enabled() || !m_buttons[idx].Visible()))
-    {
-        return;
-    }
+    BAIL_OUT_IF (idx < m_buttons.size() && (!m_buttons[idx].Enabled() || !m_buttons[idx].Visible()), S_OK);
 
     resultCode = m_def->buttons[idx].resultCode;
 
@@ -1003,6 +1069,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetButtonLabel
@@ -1018,6 +1085,7 @@ void DialogPrimitive::SetButtonLabel (size_t idx, const std::wstring & label)
         Repaint();
     }
 }
+
 
 
 
@@ -1046,6 +1114,7 @@ void DialogPrimitive::SetButtonEnabled (size_t idx, bool enabled)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetButtonVisible
@@ -1070,6 +1139,7 @@ void DialogPrimitive::SetButtonVisible (size_t idx, bool visible)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Repaint
@@ -1087,6 +1157,7 @@ void DialogPrimitive::Repaint ()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ActivateDefaultButton
@@ -1095,13 +1166,14 @@ void DialogPrimitive::Repaint ()
 
 void DialogPrimitive::ActivateDefaultButton()
 {
-    size_t  idx = DefaultButtonIdx();
+    size_t  idx = GetDefaultButtonIdx();
 
     if (idx != SIZE_MAX)
     {
         ActivateButton (idx);
     }
 }
+
 
 
 
@@ -1114,7 +1186,7 @@ void DialogPrimitive::ActivateDefaultButton()
 
 void DialogPrimitive::ActivateCancelButton()
 {
-    size_t  idx = CancelButtonIdx();
+    size_t  idx = GetCancelButtonIdx();
 
     if (idx != SIZE_MAX)
     {
@@ -1129,6 +1201,7 @@ void DialogPrimitive::ActivateCancelButton()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CycleFocus
@@ -1137,18 +1210,32 @@ void DialogPrimitive::ActivateCancelButton()
 
 void DialogPrimitive::CycleFocus (int delta)
 {
-    HRESULT  hr        = S_OK;
-    size_t   buttonN   = m_buttons.size();
-    size_t   linkN     = HyperlinkCount();
-    size_t   total     = buttonN + linkN;
-    size_t   cur       = 0;
-    size_t   next      = 0;
+    HRESULT  hr                 = S_OK;
+    int      cbN                = GetCustomBodyFocusCount();
+    size_t   buttonN            = m_buttons.size();
+    size_t   linkN              = GetHyperlinkCount();
+    size_t   total              = (size_t) cbN + buttonN + linkN;
+    size_t   cur                = 0;
+    size_t   next               = 0;
+    bool     hadCustomBodyFocus = (m_focusedCustomBody >= 0);
 
 
 
     CBR (total != 0);
 
-    if (m_focusedHyperlink != SIZE_MAX)
+    // Unified Tab ring:
+    //   [0 .. cbN)               custom-body stops (e.g. search box, list)
+    //   [cbN .. cbN+buttonN)     action buttons
+    //   [cbN+buttonN .. total)   body hyperlinks
+    if (m_focusedCustomBody >= 0)
+    {
+        cur = (size_t) m_focusedCustomBody;
+    }
+    else if (m_focusedButton < buttonN)
+    {
+        cur = (size_t) cbN + m_focusedButton;
+    }
+    else if (m_focusedHyperlink != SIZE_MAX)
     {
         size_t  hlOrdinal = 0;
 
@@ -1159,11 +1246,7 @@ void DialogPrimitive::CycleFocus (int delta)
                 hlOrdinal++;
             }
         }
-        cur = buttonN + hlOrdinal;
-    }
-    else if (m_focusedButton < buttonN)
-    {
-        cur = m_focusedButton;
+        cur = (size_t) cbN + buttonN + hlOrdinal;
     }
     else
     {
@@ -1179,16 +1262,18 @@ void DialogPrimitive::CycleFocus (int delta)
         next = (cur == 0) ? (total - 1) : (cur - 1);
     }
 
-    // Skip past hidden/disabled buttons. Bail after `total` attempts
-    // so we don't spin if nothing in the cycle is focusable.
+    // Skip past hidden/disabled buttons (custom-body + hyperlink stops are
+    // always focusable). Bail after `total` attempts so we never spin.
     for (size_t guard = 0; guard < total; guard++)
     {
-        if (next >= buttonN)
+        bool  isButton = (next >= (size_t) cbN) && (next < (size_t) cbN + buttonN);
+
+        if (!isButton)
         {
             break;
         }
 
-        if (m_buttons[next].Visible() && m_buttons[next].Enabled())
+        if (m_buttons[next - (size_t) cbN].Visible() && m_buttons[next - (size_t) cbN].Enabled())
         {
             break;
         }
@@ -1202,17 +1287,34 @@ void DialogPrimitive::CycleFocus (int delta)
         m_buttons[m_focusedButton].SetFocused (false);
     }
 
-    m_focusedButton    = SIZE_MAX;
-    m_focusedHyperlink = SIZE_MAX;
+    m_focusedButton     = SIZE_MAX;
+    m_focusedHyperlink  = SIZE_MAX;
+    m_focusedCustomBody = -1;
 
-    if (next < buttonN)
+    if (next < (size_t) cbN)
     {
-        m_focusedButton = next;
-        m_buttons[next].SetFocused (true);
+        m_focusedCustomBody = (int) next;
+    }
+    else if (next < (size_t) cbN + buttonN)
+    {
+        m_focusedButton = next - (size_t) cbN;
+        m_buttons[m_focusedButton].SetFocused (true);
     }
     else
     {
-        m_focusedHyperlink = NthHyperlinkBodyIdx (next - buttonN);
+        m_focusedHyperlink = GetNthHyperlinkBodyIdx (next - (size_t) cbN - buttonN);
+    }
+
+    if (m_def != nullptr && m_def->onCustomBodyFocusChanged)
+    {
+        if (m_focusedCustomBody >= 0)
+        {
+            m_def->onCustomBodyFocusChanged (m_focusedCustomBody);
+        }
+        else if (hadCustomBodyFocus)
+        {
+            m_def->onCustomBodyFocusChanged (-1);
+        }
     }
 
     InvalidateRect (m_hwnd, nullptr, FALSE);
@@ -1224,26 +1326,84 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HyperlinkCount
+//  GetCustomBodyFocusCount
+//
+//  Returns the number of keyboard-focus stops the custom body exposes
+//  (DialogDefinition::customBodyFocusableCount), or 0 when the dialog has
+//  no focusable custom body. The Tab ring places these stops ahead of the
+//  action buttons.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t DialogPrimitive::HyperlinkCount() const
+int DialogPrimitive::GetCustomBodyFocusCount () const
+{
+    return (m_def != nullptr && m_def->customBodyFocusableCount > 0) ? m_def->customBodyFocusableCount : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCustomBodyFocus
+//
+//  Moves keyboard focus onto custom-body stop `idx` (0-based), or clears
+//  it with -1, defocusing any button / hyperlink. The custom body calls
+//  this from its input hook when a click lands on one of its focusable
+//  sub-widgets so the dialog's Tab ring and the body stay in sync, and
+//  the dialog calls it to give a focusable custom body initial focus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogPrimitive::SetCustomBodyFocus (int idx)
+{
+    if (m_focusedButton < m_buttons.size())
+    {
+        m_buttons[m_focusedButton].SetFocused (false);
+    }
+
+    m_focusedButton     = SIZE_MAX;
+    m_focusedHyperlink  = SIZE_MAX;
+    m_focusedCustomBody = idx;
+
+    if (m_def != nullptr && m_def->onCustomBodyFocusChanged)
+    {
+        m_def->onCustomBodyFocusChanged (idx);
+    }
+
+    InvalidateRect (m_hwnd, nullptr, FALSE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetHyperlinkCount
+//
+//  Returns the number of hyperlink runs in the dialog body (the runs the
+//  Tab ring and mouse hit-testing treat as focusable links).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t DialogPrimitive::GetHyperlinkCount() const
 {
     size_t  count = 0;
 
-    if (m_def == nullptr)
-    {
-        return 0;
-    }
 
-    for (const DialogTextRun & run : m_def->body)
+    if (m_def != nullptr)
     {
-        if (run.isHyperlink)
+        for (const DialogTextRun & run : m_def->body)
         {
-            count++;
+            if (run.isHyperlink)
+            {
+                count++;
+            }
         }
     }
 
@@ -1253,22 +1413,24 @@ size_t DialogPrimitive::HyperlinkCount() const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NthHyperlinkBodyIdx
+//  GetNthHyperlinkBodyIdx
+//
+//  Maps a zero-based hyperlink ordinal to its index within the body-run
+//  list (body runs interleave plain text and hyperlinks). Returns
+//  SIZE_MAX when `hyperlinkIdx` is out of range.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t DialogPrimitive::NthHyperlinkBodyIdx (size_t hyperlinkIdx) const
+size_t DialogPrimitive::GetNthHyperlinkBodyIdx (size_t hyperlinkIdx) const
 {
-    size_t  seen = 0;
+    size_t  seen   = 0;
+    size_t  result = SIZE_MAX;
 
-    if (m_def == nullptr)
-    {
-        return SIZE_MAX;
-    }
 
-    for (size_t bi = 0; bi < m_def->body.size(); bi++)
+    for (size_t bi = 0; m_def != nullptr && bi < m_def->body.size(); bi++)
     {
         if (!m_def->body[bi].isHyperlink)
         {
@@ -1277,14 +1439,16 @@ size_t DialogPrimitive::NthHyperlinkBodyIdx (size_t hyperlinkIdx) const
 
         if (seen == hyperlinkIdx)
         {
-            return bi;
+            result = bi;
+            break;
         }
 
         seen++;
     }
 
-    return SIZE_MAX;
+    return result;
 }
+
 
 
 
@@ -1301,52 +1465,70 @@ size_t DialogPrimitive::NthHyperlinkBodyIdx (size_t hyperlinkIdx) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DialogPrimitive::DispatchCustomBodyInput (DialogInputEvent::Kind kind, int xPx, int yPx, int vkCode)
+bool DialogPrimitive::DispatchCustomBodyInput (DialogInputEvent::Kind kind, int xPx, int yPx, int intArg)
 {
-    DialogInputEvent           ev   = {};
-    std::optional<int>         req;
-    int                        titleH = TitleHeightPx();
-    RECT                       rc = m_layout.customBodyRectPx;
-    bool                       consumed = false;
+    HRESULT             hr       = S_OK;
+    bool                result   = false;
+    DialogInputEvent    ev       = {};
+    std::optional<int>  req;
+    int                 titleH   = GetTitleHeightPx();
+    RECT                rc       = m_layout.customBodyRectPx;
+    bool                consumed = false;
+    bool                isKey    = (kind == DialogInputEvent::Kind::KeyDown || kind == DialogInputEvent::Kind::Char);
 
-    if (m_def == nullptr || !m_def->onInputCustomBody)
-    {
-        return false;
-    }
+
+
+    // Precondition: input only arrives while the dialog is showing.
+    CBRAEx (m_def != nullptr, E_UNEXPECTED);
+
+    // A dialog with no custom-body input hook simply has nothing to
+    // forward -- a normal case, not an error.
+    BAIL_OUT_IF (!m_def->onInputCustomBody, S_OK);
 
     rc.top    += titleH;
     rc.bottom += titleH;
 
-    if (kind == DialogInputEvent::Kind::KeyDown)
+    if (isKey)
     {
-        ev.kind   = kind;
-        ev.vkCode = vkCode;
-        req       = m_def->onInputCustomBody (ev);
+        ev.kind = kind;
+        if (kind == DialogInputEvent::Kind::KeyDown)
+        {
+            ev.vkCode = intArg;
+        }
+        else
+        {
+            ev.ch = (wchar_t) intArg;
+        }
+        req = m_def->onInputCustomBody (ev);
     }
     else
     {
-        bool insideX = (xPx >= rc.left && xPx < rc.right);
-        bool insideY = (yPx >= rc.top  && yPx < rc.bottom);
-        if (!(insideX && insideY))
-        {
-            return false;
-        }
+        BAIL_OUT_IF (xPx < rc.left || xPx >= rc.right || yPx < rc.top || yPx >= rc.bottom, S_OK);
 
         ev.kind = kind;
         ev.xPx  = xPx - rc.left;
         ev.yPx  = yPx - rc.top;
-        req     = m_def->onInputCustomBody (ev);
+        if (kind == DialogInputEvent::Kind::Wheel)
+        {
+            ev.wheelDelta = intArg;
+        }
+        req      = m_def->onInputCustomBody (ev);
         consumed = true;
     }
 
     if (req.has_value())
     {
         Close (req.value());
-        return true;
+        result = true;
+    }
+    else
+    {
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+        result = consumed;
     }
 
-    InvalidateRect (m_hwnd, nullptr, FALSE);
-    return consumed;
+Error:
+    return result;
 }
 
 
@@ -1367,17 +1549,14 @@ bool DialogPrimitive::DispatchCustomBodyInput (DialogInputEvent::Kind kind, int 
 
 bool DialogPrimitive::HitTestHyperlink (int xPx, int yPx, size_t & outBodyRunIdx) const
 {
-    int     titleH     = TitleHeightPx();
-    size_t  hlIdx      = 0;
+    int     titleH = GetTitleHeightPx();
+    size_t  hlIdx  = 0;
+    bool    hit    = false;
+
 
     outBodyRunIdx = SIZE_MAX;
 
-    if (m_def == nullptr)
-    {
-        return false;
-    }
-
-    for (size_t i = 0; i < m_def->body.size(); ++i)
+    for (size_t i = 0; !hit && m_def != nullptr && i < m_def->body.size(); ++i)
     {
         if (!m_def->body[i].isHyperlink)
         {
@@ -1399,14 +1578,15 @@ bool DialogPrimitive::HitTestHyperlink (int xPx, int yPx, size_t & outBodyRunIdx
         if (xPx >= adjLeft && xPx < adjRight && yPx >= adjTop && yPx < adjBottom)
         {
             outBodyRunIdx = i;
-            return true;
+            hit           = true;
         }
 
         ++hlIdx;
     }
 
-    return false;
+    return hit;
 }
+
 
 
 
@@ -1444,13 +1624,14 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TitleHeightPx
+//  GetTitleHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DialogPrimitive::TitleHeightPx() const
+int DialogPrimitive::GetTitleHeightPx() const
 {
     return static_cast<int> (s_kTitleHeightDp * static_cast<float> (m_dpi) / static_cast<float> (DxuiDpiScaler::kBaseDpi));
 }
@@ -1461,14 +1642,14 @@ int DialogPrimitive::TitleHeightPx() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CloseButtonRectPx
+//  GetCloseButtonRectPx
 //
 //  Returns the close caption widget rect in client coordinates. Sized
 //  46dp wide x titleH tall, right-aligned in the title bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT DialogPrimitive::CloseButtonRectPx() const
+RECT DialogPrimitive::GetCloseButtonRectPx() const
 {
     RECT  rect    = {};
     int   widthPx = static_cast<int> (s_kCloseButtonWidthDp * static_cast<float> (m_dpi) / static_cast<float> (DxuiDpiScaler::kBaseDpi));
@@ -1485,7 +1666,7 @@ RECT DialogPrimitive::CloseButtonRectPx() const
     rect.right  = clientW;
     rect.left   = clientW - widthPx;
     rect.top    = 0;
-    rect.bottom = TitleHeightPx();
+    rect.bottom = GetTitleHeightPx();
 
     return rect;
 }
@@ -1496,19 +1677,20 @@ RECT DialogPrimitive::CloseButtonRectPx() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PointInCloseButton
+//  IsPointInCloseButton
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DialogPrimitive::PointInCloseButton (int xPx, int yPx) const
+bool DialogPrimitive::IsPointInCloseButton (int xPx, int yPx) const
 {
-    RECT  rect = CloseButtonRectPx();
+    RECT  rect = GetCloseButtonRectPx();
 
 
 
     return (xPx >= rect.left) && (xPx < rect.right)
         && (yPx >= rect.top)  && (yPx < rect.bottom);
 }
+
 
 
 
@@ -1524,7 +1706,7 @@ bool DialogPrimitive::PointInCloseButton (int xPx, int yPx) const
 
 RECT DialogPrimitive::GetInitialWindowRect (HWND hwndOwner, UINT dpi) const
 {
-    int          titleH   = TitleHeightPx();
+    int          titleH   = GetTitleHeightPx();
     int          clientW  = m_layout.totalSizePx.cx;
     int          clientH  = m_layout.totalSizePx.cy + titleH;
     RECT         ownerRect = {};
@@ -1563,53 +1745,53 @@ RECT DialogPrimitive::GetInitialWindowRect (HWND hwndOwner, UINT dpi) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DefaultButtonIdx
+//  GetDefaultButtonIdx
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t DialogPrimitive::DefaultButtonIdx() const
+size_t DialogPrimitive::GetDefaultButtonIdx() const
 {
-    if (m_def == nullptr)
-    {
-        return SIZE_MAX;
-    }
+    size_t  result = SIZE_MAX;
 
-    for (size_t i = 0; i < m_def->buttons.size(); ++i)
+
+    for (size_t i = 0; m_def != nullptr && i < m_def->buttons.size(); ++i)
     {
         if (m_def->buttons[i].isDefault)
         {
-            return i;
+            result = i;
+            break;
         }
     }
 
-    return SIZE_MAX;
+    return result;
 }
 
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CancelButtonIdx
+//  GetCancelButtonIdx
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t DialogPrimitive::CancelButtonIdx() const
+size_t DialogPrimitive::GetCancelButtonIdx() const
 {
-    if (m_def == nullptr)
-    {
-        return SIZE_MAX;
-    }
+    size_t  result = SIZE_MAX;
 
-    for (size_t i = 0; i < m_def->buttons.size(); ++i)
+
+    for (size_t i = 0; m_def != nullptr && i < m_def->buttons.size(); ++i)
     {
         if (m_def->buttons[i].isCancel)
         {
-            return i;
+            result = i;
+            break;
         }
     }
 
-    return SIZE_MAX;
+    return result;
 }
