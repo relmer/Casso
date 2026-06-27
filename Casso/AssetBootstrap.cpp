@@ -1859,6 +1859,7 @@ private:
     void                HandleFocus        (int focusIndex);
     void                HandleTick         (DialogPrimitive & prim);
     SIZE                HandleMeasure      (DxuiTextRenderer & text);
+    bool                WantsResizeCursor  (int xPx, int yPx) const;
     static std::wstring FormatLastLoaded   (std::int64_t loadedUnix);
 
     static constexpr int    s_kColLastLoaded        = 0;
@@ -2673,6 +2674,29 @@ SIZE DiskMruPickerSession::HandleMeasure (DxuiTextRenderer & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskMruPickerSession::WantsResizeCursor
+//
+//  True when the pointer is over a resizable column divider (or a resize
+//  drag is in progress), so the host shows the horizontal resize cursor.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskMruPickerSession::WantsResizeCursor (int xPx, int yPx) const
+{
+    int  lx = xPx - m_listRectPx.left;
+    int  ly = yPx - m_listRectPx.top;
+
+
+    return (m_resizeColumn >= 0) ||
+           (m_list.HitTestColumnResize (lx, ly, MulDiv (s_kResizeGrabDip, (int) m_dpi, s_kBaseDpi)) >= 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskMruPickerSession::Run
 //
 //  Builds the DialogDefinition, wires the custom-body hooks, and shows
@@ -2752,6 +2776,11 @@ int DiskMruPickerSession::Run()
     def.onTick = [this] (DialogPrimitive & prim)
     {
         HandleTick (prim);
+    };
+
+    def.onCustomBodyWantsResizeCursor = [this] (int x, int y)
+    {
+        return WantsResizeCursor (x, y);
     };
 
     chosen = ShowStandaloneDialog (m_hInstance, m_hwndParent, m_themeName, def);
