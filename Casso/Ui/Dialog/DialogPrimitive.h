@@ -50,6 +50,10 @@ public:
     void     Repaint          ();
     HWND     Hwnd             () const { return m_hwnd; }
 
+    // Focuses custom-body stop `idx` (-1 clears); the body calls this on
+    // click to sync its focus with the dialog's Tab ring.
+    void     SetCustomBodyFocus (int idx);
+
 private:
     static LRESULT CALLBACK s_WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 
@@ -62,10 +66,14 @@ private:
     void     OnKeyDown      (WPARAM vk);
     bool     OnSysChar      (WPARAM ch);
     void     OnMouse        (UINT message, WPARAM wParam, LPARAM lParam);
+    void     OnMouseWheel   (WPARAM wParam, LPARAM lParam);
     void     OnClose        ();
 
-    void     BuildButtons         ();
-    void     RecomputeLayout      (UINT dpi);
+    void     BuildButtons    ();
+    void     RecomputeLayout (UINT dpi);
+
+    static float MeasureLabelWidthPx (DxuiTextRenderer & measurer, std::wstring_view sv, float fontPx);
+
     void     RenderFrame          ();
     void     ActivateButton       (size_t idx);
     void     ActivateDefaultButton();
@@ -73,16 +81,17 @@ private:
     void     CycleFocus           (int delta);
     bool     HitTestHyperlink     (int xPx, int yPx, size_t & outBodyRunIdx) const;
     void     LaunchHyperlink      (size_t bodyRunIdx);
-    bool     DispatchCustomBodyInput (DialogInputEvent::Kind kind, int xPx, int yPx, int vkCode);
-    size_t   HyperlinkCount       () const;
-    size_t   NthHyperlinkBodyIdx  (size_t hyperlinkIdx) const;
+    size_t   GetHyperlinkCount    () const;
+    bool     DispatchCustomBodyInput (DialogInputEvent::Kind kind, int xPx, int yPx, int intArg);
+    int      GetCustomBodyFocusCount () const;
+    size_t   GetNthHyperlinkBodyIdx  (size_t hyperlinkIdx) const;
 
-    int      TitleHeightPx        () const;
-    RECT     CloseButtonRectPx    () const;
-    bool     PointInCloseButton   (int xPx, int yPx) const;
+    int      GetTitleHeightPx     () const;
+    RECT     GetCloseButtonRectPx () const;
+    bool     IsPointInCloseButton (int xPx, int yPx) const;
     RECT     GetInitialWindowRect (HWND hwndOwner, UINT dpi) const;
-    size_t   DefaultButtonIdx     () const;
-    size_t   CancelButtonIdx      () const;
+    size_t   GetDefaultButtonIdx  () const;
+    size_t   GetCancelButtonIdx   () const;
 
     HINSTANCE                    m_hInstance     = nullptr;
     HWND                         m_hwnd          = nullptr;
@@ -94,13 +103,14 @@ private:
 
     DialogPrimitiveRenderer      m_renderer;
     DialogLayoutResult           m_layout;
-    std::vector<DxuiButton>          m_buttons;
-    size_t                       m_focusedButton    = SIZE_MAX;
-    size_t                       m_focusedHyperlink = SIZE_MAX;
-    size_t                       m_hoveredHyperlink = SIZE_MAX;
-    int                          m_chosenId         = -1;
-    UINT                         m_dpi              = DxuiDpiScaler::kBaseDpi;
-    bool                         m_closed           = false;
-    bool                         m_closeHovered     = false;
-    bool                         m_closePressed     = false;
+    std::vector<DxuiButton>      m_buttons;
+    size_t                       m_focusedButton     = SIZE_MAX;
+    size_t                       m_focusedHyperlink  = SIZE_MAX;
+    int                          m_focusedCustomBody = -1;
+    size_t                       m_hoveredHyperlink  = SIZE_MAX;
+    int                          m_chosenId          = -1;
+    UINT                         m_dpi               = DxuiDpiScaler::kBaseDpi;
+    bool                         m_closed            = false;
+    bool                         m_closeHovered      = false;
+    bool                         m_closePressed      = false;
 };
