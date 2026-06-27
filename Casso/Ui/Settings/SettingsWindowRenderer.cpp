@@ -828,6 +828,45 @@ Error:
 
 
 
+HRESULT SettingsWindowRenderer::RenderModalOverlay (
+    SettingsPanel        & panel,
+    const D3D11_VIEWPORT & viewport)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (!m_text.IsTargetBound())
+    {
+        hr = BindTextTarget();
+        CHRA (hr);
+    }
+
+    m_context->RSSetViewports (1, &viewport);
+    m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf(), nullptr);
+
+    hr = m_painter.Begin (m_widthPx, m_heightPx);
+    CHRA (hr);
+
+    hr = m_text.BeginDraw();
+    CHRA (hr);
+
+    panel.PaintModalOverlay (m_painter, m_text);
+
+    hr = m_painter.End (m_rtv.Get());
+    CHRA (hr);
+
+    hr = m_text.EndDraw();
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RenderPanelToTexture
@@ -984,6 +1023,15 @@ HRESULT SettingsWindowRenderer::Render (SettingsPanel & panel)
     else
     {
         hr = RenderDirect (panel, viewport, theme);
+        CHRA (hr);
+    }
+
+    // Modal overlays (the color picker) paint in a fresh pass on top of
+    // the finished (possibly blurred) panel so they stay crisp with no
+    // page content bleeding through.
+    if (panel.HasModalOverlay())
+    {
+        hr = RenderModalOverlay (panel, viewport);
         CHRA (hr);
     }
 

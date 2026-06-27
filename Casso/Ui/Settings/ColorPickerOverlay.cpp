@@ -191,6 +191,7 @@ void ColorPickerOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler & s
     m_cancel.SetLabel (L"Cancel");
     m_ok.Layout       (MakeRect (bx - btnGap - btnW, by, btnW, rowH));
     m_ok.SetLabel     (L"OK");
+    m_ok.SetVariant   (DxuiButton::Variant::Primary);
 
     m_title.SetDpi    (dpi);
     m_hueLabel.SetDpi (dpi);

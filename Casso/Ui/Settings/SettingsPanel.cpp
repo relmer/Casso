@@ -271,16 +271,12 @@ HRESULT SettingsPanel::Initialize (
         });
     }
 
-    m_applyButton.SetLabel  (L"OK");
-    m_applyButton.SetClick  ([this] { OnApplyClicked();  });
-    m_applyButton.SetColors (0xFF2A6FB7u, 0xFF3380C8u, 0xFF1E548Cu);
-    m_applyButton.SetTextColor (0xFFFFFFFFu);
+    m_applyButton.SetLabel   (L"OK");
+    m_applyButton.SetClick   ([this] { OnApplyClicked();  });
+    m_applyButton.SetVariant (DxuiButton::Variant::Primary);
 
-    m_cancelButton.SetLabel    (L"Cancel");
-    m_cancelButton.SetClick    ([this] { OnCancelClicked(); });
-    m_cancelButton.SetColors   (0xFF3A3F46u, 0xFF4A5058u, 0xFF2A2F36u);
-    m_cancelButton.SetTextColor (0xFFE8EEF4u);
-    m_cancelButton.SetOutline   (1.0f, 0xFF5A6068u);
+    m_cancelButton.SetLabel  (L"Cancel");
+    m_cancelButton.SetClick  ([this] { OnCancelClicked(); });
 
     hInstance = (HINSTANCE) GetWindowLongPtrW (m_emuShell->GetHwnd(), GWLP_HINSTANCE);
     hr = m_window.RegisterClass (hInstance);
@@ -554,6 +550,13 @@ Error:
 
 bool SettingsPanel::IsPreviewTransparencyActive() const
 {
+    // The modal color picker engages blur+dim too, so the panel blurs
+    // behind the dialog while it is open.
+    if (m_colorPicker.IsOpen())
+    {
+        return true;
+    }
+
     // Engage blur+dim+compose any time the user is actively
     // interacting with a Display-page control, regardless of whether
     // the popup overlaps the emulator. When there's no overlap the
@@ -581,7 +584,10 @@ RECT SettingsPanel::GetFocusedControlClientRect() const
 
 
 
-    if (m_previewCtrl.IsActive() && ((TabIndex) m_activeTab == TabIndex::Display))
+    // The modal picker paints sharp in its own pass, so the panel behind
+    // it should blur in full -- report no sharp focused region while open.
+    if (!m_colorPicker.IsOpen() &&
+        m_previewCtrl.IsActive() && ((TabIndex) m_activeTab == TabIndex::Display))
     {
         rect = m_displayPage.FocusedControlRect (m_previewCtrl.FocusedId());
     }
@@ -949,11 +955,32 @@ void SettingsPanel::Paint (DxuiPainter & painter, DxuiTextRenderer & text)
     painter.SetGlobalAlpha (1.0f);
     text.SetGlobalAlpha    (1.0f);
     m_scrim.Paint (painter);
+}
 
-    // The HSV color picker is modal over the whole panel; paint it last
-    // (global alpha is already 1.0 here) so it overlays every control.
-    if (m_colorPicker.IsOpen())
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintModalOverlay
+//
+//  Paints only the modal color picker, called by the window renderer in a
+//  fresh pass on top of the already-rendered (and, while open, blurred)
+//  panel so the dialog stays crisp and opaque.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::PaintModalOverlay (DxuiPainter & painter, DxuiTextRenderer & text)
+{
+    ChromeTheme  theme = (m_uiShell != nullptr) ? m_uiShell->Theme() : ChromeTheme::Skeuomorphic();
+
+
+
+    if (m_panelVisible && m_colorPicker.IsOpen())
     {
+        painter.SetGlobalAlpha (1.0f);
+        text.SetGlobalAlpha    (1.0f);
         m_colorPicker.Paint (painter, text, theme);
     }
 }

@@ -103,6 +103,11 @@ public:
     //
     void    Layout    (int viewportWidthPx, int viewportHeightPx, const DxuiDpiScaler & scaler, int topInsetPx = 0);
     void    Paint     (DxuiPainter & painter, DxuiTextRenderer & text);
+    // True while a modal overlay (the color picker) is open. The window
+    // renderer queries this to paint the overlay in a separate sharp pass
+    // on top of the (blurred) panel via PaintModalOverlay.
+    bool    HasModalOverlay   () const { return m_colorPicker.IsOpen(); }
+    void    PaintModalOverlay (DxuiPainter & painter, DxuiTextRenderer & text);
     void    OnMouseMove   (int x, int y);
     void    OnLButtonDown (int x, int y);
     void    OnLButtonUp   (int x, int y);
