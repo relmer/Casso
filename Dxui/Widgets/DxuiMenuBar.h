@@ -149,6 +149,13 @@ public:
     RECT  MenuRect          (int menuIndex) const;
     RECT  DropdownRect      () const;
 
+    // Minimum client width (physical px) that keeps every menu title on
+    // the strip: the right edge of the last title after the most recent
+    // Layout (the strip is anchored at the client left). Zero before the
+    // first Layout. Lets the host clamp the window's minimum width so the
+    // titles never clip.
+    int   MenuStripContentWidthPx () const;
+
     // Public reusable helper. Parses a Win32-style label ("E&xit") into
     // a stripped string ("Exit"), the index of the mnemonic in the
     // stripped string, and its lower-cased character. "&&" collapses
