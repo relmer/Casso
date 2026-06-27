@@ -929,7 +929,7 @@ void SettingsPanel::Paint (DxuiPainter & painter, DxuiTextRenderer & text)
                           (float) (m_panelRect.bottom - m_panelRect.top),
                           edgeThick, theme.panelEdgeArgb);
 
-    m_tabs.Paint  (painter, text);
+    m_tabs.Paint  (painter, text, theme);
 
     switch ((TabIndex) m_activeTab)
     {

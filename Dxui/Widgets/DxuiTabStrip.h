@@ -65,6 +65,9 @@ public:
 
 private:
     void  Commit (int newIndex);
+    void  PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text,
+                         uint32_t idleArgb, uint32_t hoverArgb, uint32_t selectedArgb,
+                         uint32_t textArgb, uint32_t focusArgb) const;
 
 
     std::vector<Tab>  m_tabs;

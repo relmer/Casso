@@ -8,6 +8,32 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Anonymous helpers
+//
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    //
+    //  Scales each RGB channel of `argb` by `f` (clamped to 255), preserving
+    //  hue. f < 1 darkens, f > 1 brightens.
+    //
+    uint32_t ScaleRgb (uint32_t argb, float f)
+    {
+        uint32_t  r = (uint32_t) std::min (255.0f, ((argb >> 16) & 0xFFu) * f);
+        uint32_t  g = (uint32_t) std::min (255.0f, ((argb >>  8) & 0xFFu) * f);
+        uint32_t  b = (uint32_t) std::min (255.0f, ( argb        & 0xFFu) * f);
+
+        return (argb & 0xFF000000u) | (r << 16) | (g << 8) | b;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetSelected
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -208,16 +234,37 @@ void DxuiTabStrip::Commit (int newIndex)
 
 void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
-    constexpr uint32_t  s_kTabIdle      = 0xFF2A3445;
-    constexpr uint32_t  s_kTabHover     = 0xFF38465E;
-    constexpr uint32_t  s_kTabSelected  = 0xFF4C6480;
-    constexpr uint32_t  s_kTextArgb     = 0xFFE8EEF4;
-    constexpr uint32_t  s_kFocusRing    = 0xFFAACCFF;
-    constexpr float     s_kFontDip      = 13.0f;
+    constexpr uint32_t  s_kTabIdle     = 0xFF2A3445;
+    constexpr uint32_t  s_kTabHover    = 0xFF38465E;
+    constexpr uint32_t  s_kTabSelected = 0xFF4C6480;
+    constexpr uint32_t  s_kTextArgb    = 0xFFE8EEF4;
+    constexpr uint32_t  s_kFocusRing   = 0xFFAACCFF;
+
+    PaintInternal (painter, text, s_kTabIdle, s_kTabHover, s_kTabSelected, s_kTextArgb, s_kFocusRing);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTabStrip::PaintInternal
+//
+//  Renders the tab row with caller-supplied colors so the themed and
+//  fallback Paint entry points share one body.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text,
+                                  uint32_t idleArgb, uint32_t hoverArgb, uint32_t selectedArgb,
+                                  uint32_t textArgb, uint32_t focusArgb) const
+{
+    constexpr float     s_kFontDip       = 13.0f;
     constexpr float     s_kFocusThickDip = 1.0f;
     constexpr float     s_kFocusInsetDip = 1.0f;
-    constexpr float     s_kPadXDp       = 8.0f;
-    constexpr float     s_kPadYDp       = 4.0f;
+    constexpr float     s_kPadXDp        = 8.0f;
+    constexpr float     s_kPadYDp        = 4.0f;
 
     HRESULT  hr         = S_OK;
     int      i          = 0;
@@ -233,8 +280,8 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     for (i = 0; i < (int) n; ++i)
     {
         const Tab & t        = m_tabs[(size_t) i];
-        uint32_t    fillArgb = (i == m_selected) ? s_kTabSelected
-                                : (i == m_hover ? s_kTabHover : s_kTabIdle);
+        uint32_t    fillArgb = (i == m_selected) ? selectedArgb
+                                : (i == m_hover ? hoverArgb : idleArgb);
 
         painter.FillRect ((float) t.rect.left,
                           (float) t.rect.top,
@@ -248,7 +295,7 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
                                  (float) t.rect.top  + focusInset,
                                  (float) (t.rect.right  - t.rect.left) - focusInset * 2.0f,
                                  (float) (t.rect.bottom - t.rect.top)  - focusInset * 2.0f,
-                                 focusThick, s_kFocusRing);
+                                 focusThick, focusArgb);
         }
 
         IGNORE_RETURN_VALUE (hr, text.DrawString (t.label.c_str(),
@@ -256,7 +303,7 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
                                                   (float) t.rect.top  + padY,
                                                   (float) (t.rect.right  - t.rect.left) - padX * 2.0f,
                                                   (float) (t.rect.bottom - t.rect.top)  - padY * 2.0f,
-                                                  s_kTextArgb,
+                                                  textArgb,
                                                   fontDip,
                                                   L"Segoe UI",
                                                   DxuiTextHAlign::Center,
@@ -294,8 +341,21 @@ void DxuiTabStrip::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    UNREFERENCED_PARAMETER (theme);
-    static_cast<const DxuiTabStrip *> (this)->Paint (painter, text);
+    constexpr float  s_kIdleScale     = 0.6f;
+    constexpr float  s_kSelectedScale = 1.45f;
+
+    uint32_t  hover = theme.HoverBackground();
+
+
+
+    // Selected tab is the lightest (brightened hover); idle is a darker
+    // tint of the same hue, so the strip tracks the theme accent.
+    PaintInternal (painter, text,
+                   ScaleRgb (hover, s_kIdleScale),
+                   hover,
+                   ScaleRgb (hover, s_kSelectedScale),
+                   theme.Foreground(),
+                   theme.FocusRing());
 }
 
 
