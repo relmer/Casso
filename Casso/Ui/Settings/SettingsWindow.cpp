@@ -26,6 +26,8 @@ static constexpr int      s_kBaseDpi                = 96;
 static constexpr int      s_kCenterDivisor          = 2;
 static constexpr int      s_kMinResizeBorderPx      = 8;
 static constexpr int      s_kIconSizePx             = 32;
+static constexpr UINT_PTR s_kCaretBlinkTimerId      = 1;
+static constexpr UINT     s_kFallbackBlinkMs        = 530;   // OS default when GetCaretBlinkTime is invalid
 static constexpr WORD     s_kBgraBitCount           = 32;
 
 
@@ -469,6 +471,11 @@ LRESULT SettingsWindow::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM 
             result = 0;
             break;
 
+        case WM_TIMER:
+            OnTimer (wParam);
+            result = 0;
+            break;
+
         case WM_MOUSEMOVE:
         case WM_LBUTTONDOWN:
         case WM_LBUTTONUP:
@@ -507,6 +514,7 @@ HRESULT SettingsWindow::OnCreate (HWND hwnd)
     RECT                          rc         = {};
     BOOL                          ok         = FALSE;
     UINT                          dpi        = s_kBaseDpi;
+    UINT                          blinkMs    = GetCaretBlinkTime();
     std::vector<uint32_t>         iconPixels;
     int                           iconW      = 0;
     int                           iconH      = 0;
@@ -568,6 +576,15 @@ HRESULT SettingsWindow::OnCreate (HWND hwnd)
                                  dpi);
     CHRA (hr);
 
+    // Drive caret-blink repaints while a modal overlay (the colour picker,
+    // which owns a text input) is open. The settings window is otherwise
+    // event-driven, so without a periodic pump the caret never blinks.
+    // INFINITE means the user disabled caret blinking -- skip the timer.
+    if (blinkMs != INFINITE)
+    {
+        SetTimer (m_hwnd, s_kCaretBlinkTimerId, (blinkMs == 0) ? s_kFallbackBlinkMs : blinkMs, nullptr);
+    }
+
 Error:
     return hr;
 }
@@ -584,6 +601,12 @@ Error:
 
 void SettingsWindow::OnDestroy()
 {
+    // Stop the caret-blink pump before tearing anything down.
+    if (m_hwnd != nullptr)
+    {
+        KillTimer (m_hwnd, s_kCaretBlinkTimerId);
+    }
+
     // Notify the panel so its page-owned dropdowns release any
     // pooled popup hosts AND clear their host pointer before we
     // tear the DxuiHostWindow down. Skipping this would leave the
@@ -959,6 +982,39 @@ void SettingsWindow::OnKeyDown (WPARAM vk)
     }
 
     DestroyIfPanelClosed();
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnTimer
+//
+//  Repaints the window on the caret-blink cadence while a modal overlay
+//  (the colour picker text input) is open, so the caret blinks. The rest
+//  of the settings window is event-driven and needs no periodic repaint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsWindow::OnTimer (WPARAM timerId)
+{
+    HRESULT  hr      = S_OK;
+    bool     overlay = false;
+
+
+    BAIL_OUT_IF (timerId != s_kCaretBlinkTimerId, S_OK);
+    BAIL_OUT_IF (m_panel == nullptr, S_OK);
+
+    overlay = m_panel->HasModalOverlay();
+    BAIL_OUT_IF (!overlay, S_OK);
+
+    hr = Render();
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
 Error:
     return;

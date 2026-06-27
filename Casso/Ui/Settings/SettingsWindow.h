@@ -63,6 +63,7 @@ private:
     void    OnMouse       (UINT message, WPARAM wParam, LPARAM lParam);
     void    OnKeyDown     (WPARAM vk);
     void    OnChar        (WPARAM ch);
+    void    OnTimer       (WPARAM timerId);
     void    CloseWithCancel();
     void    DestroyIfPanelClosed();
 

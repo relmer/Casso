@@ -79,6 +79,7 @@ bool DxuiTextInput::OnLButtonDown (int x, int y)
     m_caret  = m_text.size();
     m_anchor = m_caret;
 
+    ResetBlink();
     return true;
 }
 
@@ -255,6 +256,10 @@ bool DxuiTextInput::OnKey (WPARAM vk)
             break;
     }
 
+    if (consumed)
+    {
+        ResetBlink();
+    }
     return consumed;
 }
 
@@ -285,6 +290,7 @@ bool DxuiTextInput::OnChar (wchar_t ch)
 
     ins.assign (1, ch);
     InsertText (ins);
+    ResetBlink();
     return true;
 }
 
@@ -383,12 +389,33 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 
     if (m_focused)
     {
-        constexpr float  s_kEmptyCaretFactor = 1.3f;
+        constexpr float    s_kEmptyCaretFactor = 1.3f;
+        constexpr int64_t  s_kFallbackBlinkMs  = 530;   // only if the OS reports an invalid (zero) blink time
 
-        float  caretH   = (textMeasH > 1.0f) ? textMeasH : fontPx * s_kEmptyCaretFactor;
-        float  caretTop = y + (h - caretH) * 0.5f;
+        int64_t  now     = (int64_t) GetTickCount64();
+        UINT     blinkMs = GetCaretBlinkTime();
+        bool     caretOn = true;
 
-        text.FillRect (x + padL + caretX - m_scrollPx, caretTop, (float) s_kCaretWidthPx, caretH, fgArgb);
+        if (m_blinkAnchorMs == 0)
+        {
+            m_blinkAnchorMs = now;
+        }
+
+        // INFINITE means the user disabled caret blinking -- keep it solid.
+        if (blinkMs != INFINITE)
+        {
+            int64_t  halfMs = (blinkMs == 0) ? s_kFallbackBlinkMs : (int64_t) blinkMs;
+
+            caretOn = (((now - m_blinkAnchorMs) / halfMs) % 2) == 0;
+        }
+
+        if (caretOn)
+        {
+            float  caretH   = (textMeasH > 1.0f) ? textMeasH : fontPx * s_kEmptyCaretFactor;
+            float  caretTop = y + (h - caretH) * 0.5f;
+
+            text.FillRect (x + padL + caretX - m_scrollPx, caretTop, (float) s_kCaretWidthPx, caretH, fgArgb);
+        }
     }
 
     IGNORE_RETURN_VALUE (hr, text.PopClipRect());

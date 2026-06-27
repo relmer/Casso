@@ -42,7 +42,7 @@ public:
     void  SetRect       (const RECT & rect)           { SetBounds (rect); }
     void  SetText       (const std::wstring & text)   { m_text = text; ClampCaret(); }
     void  SetMaxLength  (size_t maxLen)               { m_maxLen = maxLen; }
-    void  SetFocused    (bool focused)                { m_focused = focused; if (!focused) { m_dragging = false; } }
+    void  SetFocused    (bool focused)                { m_focused = focused; if (!focused) { m_dragging = false; } ResetBlink(); }
     void  SetEnabled    (bool enabled)                { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_focused = false; m_hover = false; m_dragging = false; } }
     void  SetDpi        (UINT dpi)                    { m_scaler.SetDpi (dpi); }
     void  SetTheme      (const IDxuiTheme * theme)    { m_theme = theme; }
@@ -83,6 +83,7 @@ private:
     void   CopyToClipboard () const;
     void   PasteFromClipboard ();
     void   FireChange ();
+    void   ResetBlink () const { m_blinkAnchorMs = 0; }
 
     static bool Shift   () { return (GetKeyState (VK_SHIFT)   & 0x8000) != 0; }
     static bool Control () { return (GetKeyState (VK_CONTROL) & 0x8000) != 0; }
@@ -105,4 +106,10 @@ private:
     // land on the character under the cursor regardless of scroll.
     // Mutable because Paint() is const but owns the auto-scroll math.
     mutable float         m_scrollPx   = 0.0f;
+
+    // Caret-blink phase anchor (ms, GetTickCount64 base). Seeded on the
+    // first paint after focus and reset to 0 on every edit / caret move
+    // so the caret shows solid immediately after interaction. Mutable
+    // because the seed-on-paint happens inside the const Paint().
+    mutable int64_t       m_blinkAnchorMs = 0;
 };
