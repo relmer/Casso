@@ -6,6 +6,7 @@
 
 class DxuiHostWindow;
 class DxuiPopupHost;
+class IDxuiTheme;
 
 
 
@@ -88,11 +89,36 @@ public:
     DxuiHostWindow *  PopupHost () const { return m_popupHost; }
     DxuiPopupHost  *  ActivePopup () const { return m_activePopup; }
 
+    //
+    //  Supplies the active theme so every paint path derives its colours
+    //  from IDxuiTheme tokens: the themed IDxuiControl override sets it
+    //  automatically, but pages that paint the box and menu separately via
+    //  PaintBase / PaintMenu (for cross-widget z-order) must call this
+    //  first. The pointer is also read by the popup's RenderPopupMenu hook.
+    //
+    void  SetTheme       (const IDxuiTheme * theme) const { m_paintTheme = theme; }
+
 private:
-    void  Commit          (int index);
-    void  RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
-    void  OnPopupMove     (POINT localPx);
-    void  OnPopupClick    (POINT localPx);
+    struct ResolvedColors
+    {
+        uint32_t  boxIdle;
+        uint32_t  boxHover;
+        uint32_t  boxPressed;
+        uint32_t  boxDisabled;
+        uint32_t  menu;
+        uint32_t  menuHover;
+        uint32_t  text;
+        uint32_t  textDisabled;
+        uint32_t  edge;
+        uint32_t  edgeDisabled;
+        uint32_t  focus;
+    };
+
+    void            Commit          (int index);
+    void            RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    void            OnPopupMove     (POINT localPx);
+    void            OnPopupClick    (POINT localPx);
+    ResolvedColors  ResolveColors   () const;
 
     std::vector<std::wstring>  m_items;
     SelectFn                  m_select;
@@ -107,4 +133,5 @@ private:
     bool                      m_focused   = false;
     DxuiHostWindow          * m_popupHost   = nullptr;
     DxuiPopupHost           * m_activePopup = nullptr;
+    mutable const IDxuiTheme * m_paintTheme = nullptr;
 };

@@ -710,7 +710,6 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
                          const IDxuiTheme & theme)
 {
     constexpr uint32_t  s_kFocusedBackingArgb = 0xFF202830;   // dark grey, near-opaque
-    constexpr uint32_t  s_kIndicatorArgb      = 0xFF7A8FA5;   // muted blue-grey
     constexpr int       s_kIndicatorFontDp    = 12;
     constexpr int       s_kIndicatorWidthDp   = 140;
     constexpr wchar_t   s_kFont[]             = L"Segoe UI";
@@ -722,8 +721,6 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     float  indicatorFontPx  = m_scaler.Pxf (s_kIndicatorFontDp);
     float  indicatorWidthPx = m_scaler.Pxf (s_kIndicatorWidthDp);
 
-
-    UNREFERENCED_PARAMETER (theme);
 
     auto  SetAlphaForRow = [&] (int control, const RECT & rowRect)
     {
@@ -764,7 +761,7 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
                                               (float) rowRect.top,
                                               indicatorWidthPx,
                                               (float) (rowRect.bottom - rowRect.top),
-                                              s_kIndicatorArgb,
+                                              theme.ForegroundMuted(),
                                               indicatorFontPx,
                                               s_kFont,
                                               DxuiTextRenderer::HAlign::Left,
@@ -781,12 +778,14 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     SetAlphaForRow (kControlMonitor, m_monitorRowRect);
     PaintBackingIfFocused (kControlMonitor, m_monitorRowRect);
     m_monitorLabel.Paint    (painter, text);
+    m_monitor.SetTheme      (&theme);
     m_monitor.PaintBase     (painter, text);
 
     // Text-color row: label, dropdown base, and a swatch of the resolved
     // color. The dropdown menu paints last (with the monitor menu).
     SetAlphaForRow (-1, m_textColorRowRect);
     m_textColorLabel.Paint  (painter, text);
+    m_textColor.SetTheme    (&theme);
     m_textColor.PaintBase   (painter, text);
     {
         uint32_t  swatchArgb = ColorUtil::ResolveColorMonitorTextArgb (m_textColorMode, m_textColorCustomArgb);
@@ -883,15 +882,7 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
                    false);  // persistence is never theme-owned
 
     SetAlphaForRow (-1, m_restoreRowRect);
-    {
-        static const ChromeTheme  s_kFallbackTheme = ChromeTheme::Skeuomorphic();
-        // DxuiButton consults theme tokens for color when the caller hasn't
-        // set explicit override colors. DisplayPage doesn't carry a
-        // theme handle so we hand it the canonical fallback -- chrome
-        // theming for the button face will land when the page picks
-        // up the active theme pointer in a follow-up.
-        m_restore.Paint (painter, text, s_kFallbackTheme);
-    }
+    m_restore.Paint (painter, text, theme);
 
     // DxuiDropdown menu floats above the page; paint last so it overlays.
     SetAlphaForRow (kControlMonitor, m_monitorRowRect);
