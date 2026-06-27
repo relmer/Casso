@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiSlider.h"
+#include "Theme/DxuiColor.h"
 
 
 
@@ -373,6 +374,7 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     constexpr int       s_kPuckRadiusHovDip  = 10;
     constexpr int       s_kPuckRadiusFocDip  = 11;
     constexpr float     s_kPuckCoreShare    = 0.45f;   // inner-dot diameter as fraction of outer
+    constexpr float     s_kPuckCoreRatio    = 3.0f;    // WCAG 1.4.11 min contrast of core vs white body
     constexpr int       s_kTickHeightDip     = 4;
     constexpr int       s_kTickGapDip        = 4;
     constexpr int       s_kValueGapDip       = 8;
@@ -400,7 +402,7 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     float    trackMid      = 0.0f;
     float    puckCx        = 0.0f;
     float    puckR         = m_scaler.Pxf (s_kPuckRadiusDip);
-    uint32_t coreColor     = m_enabled ? accentArgb : s_kPuckCoreDis;
+    uint32_t coreColor     = m_enabled ? DxuiColor::AccentForWhiteContrast (accentArgb, s_kPuckCoreRatio) : s_kPuckCoreDis;
 
 
 
