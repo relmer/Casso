@@ -454,19 +454,30 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive)
 {
     HRESULT                          hr          = S_OK;
     DiskMru                          mru;
+    std::vector<DiskMru::Entry>      mruPruned;
     std::vector<std::filesystem::path>  mruExisting;
     std::filesystem::path            diskDir;
     std::wstring                     chosenPath;
     std::string                      error;
     bool                             userBrowsed = false;
+    size_t                           i           = 0;
 
 
-    diskDir     = AssetBootstrap::GetDiskDirectory();
-    mru         = DiskMru::FromUtf8 (m_shell.m_globalPrefs.recentDisks);
-    mruExisting = mru.Prune ([] (const std::filesystem::path & p)
-                             {
-                                 return std::filesystem::exists (p);
-                             });
+    diskDir   = AssetBootstrap::GetDiskDirectory();
+    mru       = DiskMru::FromUtf8 (m_shell.m_globalPrefs.recentDisks,
+                                   m_shell.m_globalPrefs.recentDiskLoadedAt);
+    mruPruned = mru.Prune ([] (const std::filesystem::path & p)
+                           {
+                               return std::filesystem::exists (p);
+                           });
+
+    // The picker still consumes plain paths this pass; the per-entry load
+    // time threads through to the date column in a later change.
+    mruExisting.reserve (mruPruned.size());
+    for (i = 0; i < mruPruned.size(); i++)
+    {
+        mruExisting.push_back (mruPruned[i].path);
+    }
     AssetBootstrap::AppendBundledDemoDisks (mruExisting);
 
     hr = AssetBootstrap::PromptInsertDiskMru (GetModuleHandle (nullptr),
