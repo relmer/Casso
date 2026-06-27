@@ -15,6 +15,16 @@ render as real top-level windows, so they paint over everything and can
 spill past the window's edges instead of being clipped to it.
 
 ### Added
+- **feat(ui): searchable, sortable disk picker with a last-loaded date
+  column.** The boot and Insert-Disk pickers gain a search box — type to
+  filter recent disks (case-insensitive substring across name, location,
+  and date); the magnifier glyph slides away on focus and an X button
+  clears the field. Column headers are clickable to sort (re-click to
+  reverse; strings A–Z, dates newest-first) with an up/down indicator on
+  the active column, and a new "Last loaded" column shows each disk's load
+  time in the user's regional date/time format. Long lists now scroll
+  (wheel, scrollbar, keyboard) and the dialog clamps to the monitor work
+  area.
 - **feat(ui): occluding top-level popups for menus, dropdowns, and
   tooltips.** The application menu bar's submenus, the Settings-page
   dropdowns, the Disk II / Input debug-panel column menus, and the

@@ -1499,7 +1499,7 @@ bool DialogPrimitive::DispatchCustomBodyInput (DialogInputEvent::Kind kind, int 
         {
             ev.ch = (wchar_t) intArg;
         }
-        req = m_def->onInputCustomBody (ev);
+        req = m_def->onInputCustomBody (ev, *this);
     }
     else
     {
@@ -1512,7 +1512,7 @@ bool DialogPrimitive::DispatchCustomBodyInput (DialogInputEvent::Kind kind, int 
         {
             ev.wheelDelta = intArg;
         }
-        req      = m_def->onInputCustomBody (ev);
+        req      = m_def->onInputCustomBody (ev, *this);
         consumed = true;
     }
 
