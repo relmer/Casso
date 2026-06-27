@@ -233,4 +233,48 @@ public:
         Assert::AreEqual (std::string ("C:\\good.dsk"),  prefs.recentDisks[0]);
         Assert::AreEqual (std::string ("C:\\good2.dsk"), prefs.recentDisks[1]);
     }
+
+
+    TEST_METHOD (RecentDiskLoadedAt_RoundTrip)
+    {
+        GlobalUserPrefs  orig;
+        GlobalUserPrefs  loaded;
+        JsonValue        v;
+        HRESULT          hr;
+
+        orig.recentDisks.push_back ("C:\\Disks\\A.dsk");
+        orig.recentDisks.push_back ("C:\\Disks\\B.dsk");
+        orig.recentDiskLoadedAt.push_back (1700000001);
+        orig.recentDiskLoadedAt.push_back (1700000002);
+
+        v  = orig.ToJson();
+        hr = loaded.FromJson (v);
+
+        Assert::IsTrue (SUCCEEDED (hr));
+        Assert::AreEqual ((size_t) 2, loaded.recentDiskLoadedAt.size());
+        Assert::AreEqual ((std::int64_t) 1700000001, loaded.recentDiskLoadedAt[0]);
+        Assert::AreEqual ((std::int64_t) 1700000002, loaded.recentDiskLoadedAt[1]);
+    }
+
+
+    TEST_METHOD (RecentDiskLoadedAt_LegacyMissingKey_LoadsEmpty)
+    {
+        // A prefs file written before load-time tracking has recentDisks
+        // but no recentDiskLoadedAt; the times array must load empty so
+        // DiskMru treats every entry's load time as unknown (0).
+        GlobalUserPrefs                                 prefs;
+        std::vector<std::pair<std::string, JsonValue>>  root;
+        std::vector<JsonValue>                          arr;
+        JsonValue                                       v;
+        HRESULT                                         hr;
+
+        arr.emplace_back (JsonValue (std::string ("C:\\good.dsk")));
+        root.emplace_back ("recentDisks", JsonValue (std::move (arr)));
+        v = JsonValue (std::move (root));
+
+        hr = prefs.FromJson (v);
+        Assert::IsTrue (SUCCEEDED (hr));
+        Assert::AreEqual ((size_t) 1, prefs.recentDisks.size());
+        Assert::AreEqual ((size_t) 0, prefs.recentDiskLoadedAt.size());
+    }
 };

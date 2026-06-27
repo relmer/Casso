@@ -1604,24 +1604,31 @@ Error:
 
 void EmulatorShell::RecordRecentDisk (const std::wstring & path)
 {
-    DiskMru                   mru;
-    std::filesystem::path     fsPath;
-    std::vector<std::string>  serialized;
+    HRESULT                    hr     = S_OK;
+    DiskMru                    mru;
+    std::filesystem::path      fsPath;
+    std::vector<std::string>   serialized;
+    std::vector<std::int64_t>  loadedAt;
+    std::int64_t               nowUnix = 0;
 
 
 
-    if (path.empty())
-    {
-        return;
-    }
+    BAIL_OUT_IF (path.empty(), S_OK);
+
+    nowUnix = (std::int64_t) std::chrono::duration_cast<std::chrono::seconds> (
+                  std::chrono::system_clock::now().time_since_epoch()).count();
 
     fsPath = std::filesystem::path (path);
-    mru    = DiskMru::FromUtf8 (m_globalPrefs.recentDisks);
-    mru.RecordMount (fsPath);
-    mru.ToUtf8 (serialized);
-    m_globalPrefs.recentDisks = std::move (serialized);
+    mru    = DiskMru::FromUtf8 (m_globalPrefs.recentDisks, m_globalPrefs.recentDiskLoadedAt);
+    mru.RecordMount (fsPath, nowUnix);
+    mru.ToUtf8 (serialized, loadedAt);
+    m_globalPrefs.recentDisks        = std::move (serialized);
+    m_globalPrefs.recentDiskLoadedAt = std::move (loadedAt);
 
     SaveGlobalPrefs();
+
+Error:
+    return;
 }
 
 
