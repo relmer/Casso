@@ -106,6 +106,18 @@ public:
     }
 
 
+    //
+    //  Multiplies the alpha channel by `f` (clamped to 255) preserving RGB,
+    //  e.g. to fade a colour in or out without disturbing its hue.
+    //
+    static uint32_t ScaleAlpha (uint32_t argb, float f)
+    {
+        uint32_t  a = ScaleChannel ((argb >> 24) & 0xFFu, f);
+
+        return (a << 24) | (argb & 0x00FFFFFFu);
+    }
+
+
 private:
     static float ChannelLinear (uint32_t c8)
     {

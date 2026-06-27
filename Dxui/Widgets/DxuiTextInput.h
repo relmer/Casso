@@ -49,6 +49,16 @@ public:
     void  SetOnChange   (ChangeFn fn)                 { m_change = std::move (fn); }
     void  SetHwnd       (HWND hwnd)                   { m_hwnd = hwnd; }
 
+    // Chromeless mode: skip the self-drawn background fill and border so a
+    // host widget (e.g. DxuiSearchBox) can own the frame and draw the
+    // input inside it. The text, selection, caret, and placeholder still
+    // paint normally.
+    void  SetChromeless (bool chromeless)             { m_chromeless = chromeless; }
+
+    // Muted prompt text drawn in place of the value while the field is
+    // empty (e.g. "Search"). Empty by default.
+    void  SetPlaceholder (const std::wstring & text)  { m_placeholder = text; }
+
     const std::wstring & Text     () const { return m_text;    }
     const RECT         & Rect     () const { return m_boundsDip;    }
     bool                 Focused  () const { return m_focused; }
@@ -88,6 +98,7 @@ private:
     static bool Shift   () { return (GetKeyState (VK_SHIFT)   & 0x8000) != 0; }
     static bool Control () { return (GetKeyState (VK_CONTROL) & 0x8000) != 0; }
     std::wstring          m_text;
+    std::wstring          m_placeholder;
     size_t                m_maxLen     = 64;
     size_t                m_caret      = 0;
     size_t                m_anchor     = 0;
@@ -95,6 +106,7 @@ private:
     bool                  m_enabled    = true;
     bool                  m_hover      = false;
     bool                  m_dragging   = false;
+    bool                  m_chromeless = false;
     const IDxuiTheme    * m_theme      = nullptr;
     HWND                  m_hwnd       = nullptr;
     ChangeFn              m_change;
