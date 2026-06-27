@@ -543,7 +543,7 @@ void ThemePage::Paint (DxuiPainter & painter, DxuiTextRenderer & text, const IDx
     static NullDriveSink  s_kNullSink;
 
 
-    UNREFERENCED_PARAMETER (theme);
+    m_themeDropdown.SetTheme    (&theme);
 
     m_themeLabel.Paint          (painter, text);
     m_themeDropdown.PaintBase   (painter, text);

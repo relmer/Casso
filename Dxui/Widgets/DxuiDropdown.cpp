@@ -3,6 +3,8 @@
 #include "Widgets/DxuiDropdown.h"
 #include "Window/DxuiHostWindow.h"
 #include "Window/DxuiPopupHost.h"
+#include "Theme/IDxuiTheme.h"
+#include "Theme/DxuiColor.h"
 
 
 
@@ -30,6 +32,7 @@ namespace
     constexpr uint32_t  s_kEdgeDisabledArgb = 0xFF364252;
     constexpr float     s_kEdgePx          = 1.0f;
     constexpr float     s_kFontDip         = 13.0f;
+    constexpr float     s_kDisabledScale   = 0.7f;   // darken themed box fill for the disabled state
     constexpr wchar_t   s_kFontFamily[]    = L"Segoe UI";
 
 
@@ -549,6 +552,47 @@ void DxuiDropdown::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ResolveColors
+//
+//  Resolves the box / menu / text / edge / focus colours from the active
+//  theme (set via SetTheme or the themed Paint override). With no theme
+//  set the hardcoded dark defaults stand in, so a dropdown painted before
+//  a theme is supplied still renders sensibly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiDropdown::ResolvedColors DxuiDropdown::ResolveColors () const
+{
+    ResolvedColors  c = { s_kBoxIdleArgb,  s_kBoxHoverArgb,     s_kBoxPressedArgb,
+                          s_kBoxDisabledArgb, s_kMenuArgb,      s_kMenuHoverArgb,
+                          s_kTextArgb,     s_kTextDisabledArgb, s_kEdgeArgb,
+                          s_kEdgeDisabledArgb, s_kFocusRingArgb };
+
+
+    if (m_paintTheme != nullptr)
+    {
+        c.boxIdle      = m_paintTheme->BackgroundElevated();
+        c.boxHover     = m_paintTheme->HoverBackground();
+        c.boxPressed   = m_paintTheme->PressedBackground();
+        c.boxDisabled  = DxuiColor::Darken (m_paintTheme->BackgroundElevated(), s_kDisabledScale);
+        c.menu         = m_paintTheme->BackgroundElevated();
+        c.menuHover    = m_paintTheme->HoverBackground();
+        c.text         = m_paintTheme->Foreground();
+        c.textDisabled = m_paintTheme->ForegroundDisabled();
+        c.edge         = m_paintTheme->Border();
+        c.edgeDisabled = m_paintTheme->Divider();
+        c.focus        = m_paintTheme->FocusRing();
+    }
+
+    return c;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PaintBase
 //
 //  Paints the closed-box portion of the dropdown: background fill,
@@ -560,12 +604,13 @@ void DxuiDropdown::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 void DxuiDropdown::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
     HRESULT      hr            = S_OK;
-    uint32_t     boxColor      = !m_enabled            ? s_kBoxDisabledArgb
-                                 : (m_armed && m_hover) ? s_kBoxPressedArgb
-                                 : (m_open || m_hover)  ? s_kBoxHoverArgb
-                                 :                        s_kBoxIdleArgb;
-    uint32_t     textColor     = m_enabled ? s_kTextArgb : s_kTextDisabledArgb;
-    uint32_t     edgeColor     = m_enabled ? s_kEdgeArgb : s_kEdgeDisabledArgb;
+    ResolvedColors c           = ResolveColors();
+    uint32_t     boxColor      = !m_enabled            ? c.boxDisabled
+                                 : (m_armed && m_hover) ? c.boxPressed
+                                 : (m_open || m_hover)  ? c.boxHover
+                                 :                        c.boxIdle;
+    uint32_t     textColor     = m_enabled ? c.text : c.textDisabled;
+    uint32_t     edgeColor     = m_enabled ? c.edge : c.edgeDisabled;
     std::wstring label;
     float        edgePx        = m_scaler.Pxf (s_kEdgePx);
     float        fontDip       = m_scaler.Pxf (s_kFontDip);
@@ -636,7 +681,7 @@ void DxuiDropdown::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
                              (float) (m_boundsDip.right  - m_boundsDip.left) - focusInset * 2.0f,
                              (float) (m_boundsDip.bottom - m_boundsDip.top)  - focusInset * 2.0f,
                              focusThick,
-                             s_kFocusRingArgb);
+                             c.focus);
     }
 }
 
@@ -656,11 +701,12 @@ void DxuiDropdown::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
 
 void DxuiDropdown::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
-    HRESULT  hr        = S_OK;
-    int      i         = 0;
-    int      rowHeight = m_scaler.Px (s_kRowHeightDip);
-    int      textInset = m_scaler.Px (s_kTextInsetDip);
-    float    fontDip   = m_scaler.Pxf (s_kFontDip);
+    HRESULT         hr        = S_OK;
+    int             i         = 0;
+    int             rowHeight = m_scaler.Px (s_kRowHeightDip);
+    int             textInset = m_scaler.Px (s_kTextInsetDip);
+    float           fontDip   = m_scaler.Pxf (s_kFontDip);
+    ResolvedColors  c         = ResolveColors();
 
 
     (void) painter;
@@ -673,7 +719,7 @@ void DxuiDropdown::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
     for (i = 0; i < (int) m_items.size(); i++)
     {
         RECT      row   = { m_boundsDip.left, m_boundsDip.bottom + i * rowHeight, m_boundsDip.right, m_boundsDip.bottom + (i + 1) * rowHeight };
-        uint32_t  color = (i == m_highlight) ? s_kMenuHoverArgb : s_kMenuArgb;
+        uint32_t  color = (i == m_highlight) ? c.menuHover : c.menu;
 
         // D2D fill (not D3D painter) so the menu background composites
         // in submission order with prior text and hides sibling text
@@ -688,7 +734,7 @@ void DxuiDropdown::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
                                                   (float) row.top,
                                                   (float) (row.right - row.left - textInset),
                                                   (float) (row.bottom - row.top),
-                                                  s_kTextArgb,
+                                                  c.text,
                                                   fontDip,
                                                   s_kFontFamily,
                                                   DxuiTextHAlign::Left,
@@ -714,12 +760,13 @@ void DxuiDropdown::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
 
 void DxuiDropdown::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
-    HRESULT  hr        = S_OK;
-    int      i         = 0;
-    int      rowHeight = m_scaler.Px (s_kRowHeightDip);
-    int      textInset = m_scaler.Px (s_kTextInsetDip);
-    int      width     = m_boundsDip.right - m_boundsDip.left;
-    float    fontPx    = m_scaler.Pxf (s_kFontDip);
+    HRESULT         hr        = S_OK;
+    int             i         = 0;
+    int             rowHeight = m_scaler.Px (s_kRowHeightDip);
+    int             textInset = m_scaler.Px (s_kTextInsetDip);
+    int             width     = m_boundsDip.right - m_boundsDip.left;
+    float           fontPx    = m_scaler.Pxf (s_kFontDip);
+    ResolvedColors  c         = ResolveColors();
 
 
     (void) painter;
@@ -727,7 +774,7 @@ void DxuiDropdown::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
     for (i = 0; i < (int) m_items.size(); i++)
     {
         RECT      row   = { 0, i * rowHeight, width, (i + 1) * rowHeight };
-        uint32_t  color = (i == m_highlight) ? s_kMenuHoverArgb : s_kMenuArgb;
+        uint32_t  color = (i == m_highlight) ? c.menuHover : c.menu;
 
         IGNORE_RETURN_VALUE (hr, text.FillRect ((float) row.left,
                                                 (float) row.top,
@@ -739,7 +786,7 @@ void DxuiDropdown::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
                                                   (float) row.top,
                                                   (float) (row.right - row.left - textInset),
                                                   (float) (row.bottom - row.top),
-                                                  s_kTextArgb,
+                                                  c.text,
                                                   fontPx,
                                                   s_kFontFamily,
                                                   DxuiTextHAlign::Left,
@@ -774,7 +821,7 @@ void DxuiDropdown::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 void DxuiDropdown::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    UNREFERENCED_PARAMETER (theme);
+    SetTheme (&theme);
     static_cast<const DxuiDropdown *> (this)->Paint (painter, text);
 }
 
