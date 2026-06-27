@@ -383,7 +383,12 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 
     if (m_focused)
     {
-        text.FillRect (x + padL + caretX - m_scrollPx, y + 2.0f, (float) s_kCaretWidthPx, h - 4.0f, fgArgb);
+        constexpr float  s_kEmptyCaretFactor = 1.3f;
+
+        float  caretH   = (textMeasH > 1.0f) ? textMeasH : fontPx * s_kEmptyCaretFactor;
+        float  caretTop = y + (h - caretH) * 0.5f;
+
+        text.FillRect (x + padL + caretX - m_scrollPx, caretTop, (float) s_kCaretWidthPx, caretH, fgArgb);
     }
 
     IGNORE_RETURN_VALUE (hr, text.PopClipRect());
