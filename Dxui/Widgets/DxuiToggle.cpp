@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiToggle.h"
+#include "Theme/DxuiColor.h"
 
 
 
@@ -17,18 +18,6 @@ namespace
     constexpr uint32_t  s_kDefaultAccentArgb = 0xFF2D7CDB;   // "on" pill
     constexpr uint32_t  s_kDefaultFocusArgb  = 0xFFAACCFF;   // focus ring
     constexpr float     s_kHoverLighten      = 1.15f;        // "on" pill hover brighten
-
-
-    //  Lighten each RGB channel toward white by factor f (>1 brightens),
-    //  preserving alpha. Used for the hovered "on" pill shade.
-    uint32_t LightenRgb (uint32_t argb, float f)
-    {
-        uint32_t  r = (uint32_t) std::min (255.0f, (float) ((argb >> 16) & 0xFFu) * f);
-        uint32_t  g = (uint32_t) std::min (255.0f, (float) ((argb >>  8) & 0xFFu) * f);
-        uint32_t  b = (uint32_t) std::min (255.0f, (float) ( argb        & 0xFFu) * f);
-
-        return (argb & 0xFF000000u) | (r << 16) | (g << 8) | b;
-    }
 }
 
 
@@ -192,6 +181,7 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     constexpr float     s_kFocusThickDip = 1.0f;
     constexpr float     s_kLabelGapDip   = 8.0f;
     constexpr float     s_kFontDip      = 13.0f;
+    constexpr float     s_kPillRatio    = 3.0f;    // WCAG 1.4.11 min contrast of pill vs white thumb
 
     HRESULT  hr         = S_OK;
     float    pillW      = m_scaler.Pxf (s_kPillWidthDip);
@@ -210,6 +200,7 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     float    thumbR     = capR - thumbInset;
     float    thumbCx    = m_checked ? rightCx : leftCx;
     uint32_t pillColor;
+    uint32_t accentBase = DxuiColor::AccentForWhiteContrast (accentArgb, s_kPillRatio);
     uint32_t thumbColor = m_enabled ? s_kThumb : s_kThumbDisabled;
     uint32_t textColor  = m_enabled ? s_kTextIdle : s_kTextDisabled;
 
@@ -221,7 +212,7 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     }
     else if (m_checked)
     {
-        pillColor = m_hover ? LightenRgb (accentArgb, s_kHoverLighten) : accentArgb;
+        pillColor = m_hover ? DxuiColor::Scale (accentBase, s_kHoverLighten) : accentBase;
     }
     else
     {
