@@ -427,6 +427,7 @@
     <ClCompile Include="UiTests\WindowPlacementProfileTests.cpp" />
     <ClCompile Include="UiTests\DxuiCheckboxTests.cpp" />
     <ClCompile Include="UiTests\DxuiRadioGroupTests.cpp" />
+    <ClCompile Include="UiTests\DxuiSearchBoxTests.cpp" />
     <ClCompile Include="UiTests\DxuiSliderTests.cpp" />
     <ClCompile Include="UiTests\DxuiTreeViewTests.cpp" />
     <ClCompile Include="UiTests\DxuiModalScrimTests.cpp" />

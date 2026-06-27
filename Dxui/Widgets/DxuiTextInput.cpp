@@ -3,18 +3,16 @@
 #include "Widgets/DxuiTextInput.h"
 
 
-namespace
-{
-    constexpr float     s_kFontDip       = 13.0f;
-    constexpr float     s_kPadLeftDip     = 6.0f;
-    constexpr float     s_kPadRightDip    = 6.0f;
-    constexpr float     s_kCaretWidthPx  = 1.0f;
-    constexpr uint32_t  s_kFallbackBg    = 0xFF1A1F26;
-    constexpr uint32_t  s_kFallbackFg    = 0xFFE8EEF4;
-    constexpr uint32_t  s_kFallbackSel   = 0xFF335577;
-    constexpr uint32_t  s_kFallbackEdge  = 0xFF445566;
-    constexpr uint32_t  s_kFallbackFocus = 0xFFAACCFF;
-}
+static constexpr float     s_kFontDip             = 13.0f;
+static constexpr float     s_kPadLeftDip          = 6.0f;
+static constexpr float     s_kPadRightDip         = 6.0f;
+static constexpr float     s_kCaretWidthPx        = 1.0f;
+static constexpr uint32_t  s_kFallbackBg          = 0xFF1A1F26;
+static constexpr uint32_t  s_kFallbackFg          = 0xFFE8EEF4;
+static constexpr uint32_t  s_kFallbackSel         = 0xFF335577;
+static constexpr uint32_t  s_kFallbackEdge        = 0xFF445566;
+static constexpr uint32_t  s_kFallbackFocus       = 0xFFAACCFF;
+static constexpr uint32_t  s_kFallbackPlaceholder = 0xFF6A7585;
 
 
 
@@ -340,8 +338,11 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         focusArgb = m_theme->FocusRing();
     }
 
-    painter.FillRect    (x, y, w, h, bgArgb);
-    painter.OutlineRect (x, y, w, h, 1.0f, m_focused ? focusArgb : edgeArgb);
+    if (!m_chromeless)
+    {
+        painter.FillRect    (x, y, w, h, bgArgb);
+        painter.OutlineRect (x, y, w, h, 1.0f, m_focused ? focusArgb : edgeArgb);
+    }
 
     caretPrefix.assign (m_text, 0, m_caret);
     IGNORE_RETURN_VALUE (hr, text.MeasureString (caretPrefix.c_str(), fontPx, L"Segoe UI", caretX,    textMeasH));
@@ -386,6 +387,25 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
                                               DxuiTextVAlign::Center,
                                               DWRITE_FONT_WEIGHT_NORMAL,
                                               false));
+
+    if (m_text.empty() && !m_placeholder.empty())
+    {
+        uint32_t  phArgb = (m_theme != nullptr) ? m_theme->ForegroundMuted() : s_kFallbackPlaceholder;
+
+        hr = text.DrawString (m_placeholder.c_str(),
+                              x + padL,
+                              y,
+                              innerW,
+                              h,
+                              phArgb,
+                              fontPx,
+                              L"Segoe UI",
+                              DxuiTextHAlign::Left,
+                              DxuiTextVAlign::Center,
+                              DWRITE_FONT_WEIGHT_NORMAL,
+                              false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 
     if (m_focused)
     {
