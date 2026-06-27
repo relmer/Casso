@@ -707,7 +707,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
         PaintBody (ctx, set, state);
     };
 
-    def.onInputCustomBody = [&state] (const DialogInputEvent & ev) -> std::optional<int>
+    def.onInputCustomBody = [&state] (const DialogInputEvent & ev, DialogPrimitive &) -> std::optional<int>
     {
         return HandleBodyInput (ev, state);
     };

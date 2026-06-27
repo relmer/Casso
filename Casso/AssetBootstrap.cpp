@@ -14,7 +14,9 @@
 #include "Ui/DriveWidgetState.h"
 #include "Ui/Dialog/StandaloneDialog.h"
 #include "Ui/Dialog/StartupDownloadDialog.h"
+#include "Ui/Dialog/DialogPrimitive.h"
 #include "Widgets/DxuiListView.h"
+#include "Widgets/DxuiSearchBox.h"
 #include "UnicodeSymbols.h"
 
 #pragma comment(lib, "winhttp.lib")
@@ -27,6 +29,8 @@ static constexpr LPCWSTR       s_kpszUserAgent    = L"Casso/1.0";
 static constexpr LPCWSTR       s_kpszUrlPrefix    = L"/AppleWin/AppleWin/master/resource/";
 
 static constexpr LPCWSTR       s_kpszAsimovHost   = L"www.apple.asimov.net";
+
+static constexpr int           s_kBootMruBodyWidthDp = 520;
 
 
 
@@ -1749,27 +1753,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PromptBootDiskMru
-//
-//  Themed dialog that lists the user's recent disk images plus stock
-//  "Download" rows for DOS 3.3 / ProDOS. Always shown when the machine
-//  has a Disk ][ controller and no boot disk has been resolved yet,
-//  even when the MRU is empty (the download rows give a fresh install
-//  somewhere to go). Picking a row mounts that image (downloading on
-//  demand for the stock rows); the Skip button leaves the slot empty.
-//
-//  On return:
-//    outDiskPath = path to mount, or empty if the user skipped / the
-//                  machine has no Disk ][ controller.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr int  s_kBootMruBodyWidthDp  = 520;
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  FilesHaveSameContent
 //
 //  Cheap byte-equality check for disk-image dedup heuristics in the
@@ -1821,6 +1804,954 @@ static bool FilesHaveSameContent (const fs::path & a, const fs::path & b)
 
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession
+//
+//  Owns the live UI state for the boot / insert disk pickers: the model
+//  rows, the themed search box, the multi-column list (with clickable
+//  header sort and a scrollbar), the filtered + sorted view mapping, and
+//  the dialog hooks that drive paint / input / focus / tick. A single
+//  instance is captured by the dialog lambdas so all state lives in one
+//  place. The list is focus stop 0 (auto-focused on open) and the search
+//  box is stop 1, so the magnifier affordance shows until the user tabs
+//  or clicks into the field. Result codes flow straight from the chosen
+//  row back to the caller, which maps them to a path or download.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class DiskMruPickerSession
+{
+public:
+    struct ModelRow
+    {
+        std::wstring  name;                 // col 0 "Disk image"
+        std::wstring  location;             // col 1 "Location"
+        std::int64_t  loadedUnix  = 0;      // col 2 "Last loaded" source; 0 = none/unknown
+        int           resultCode  = 0;      // value returned to the caller when this row is chosen
+        bool          dimLocation = false;
+    };
+
+    DiskMruPickerSession (HINSTANCE hInstance, HWND hwndParent, std::string_view themeName)
+        : m_hInstance (hInstance), m_hwndParent (hwndParent), m_themeName (themeName) {}
+
+    void  SetText           (const std::wstring & title, const std::wstring & intro) { m_title = title; m_intro = intro; }
+    void  SetModelRows      (std::vector<ModelRow> rows)                             { m_model = std::move (rows); }
+    void  AddButton         (const DialogButton & button)                           { m_buttons.push_back (button); }
+    void  SetCloseBoxResult (int code)                                              { m_closeBoxResult = code; }
+    int   Run               ();
+
+    static std::int64_t  FileMtimeUnix (const fs::path & path);
+
+private:
+    void                ConfigureWidgets   ();
+    void                RebuildView        ();
+    void                ApplySort          (int column);
+    void                LayoutBody         (const RECT & bodyPx);
+    int                 ChosenResultAt     (int visibleRow) const;
+    std::optional<int>  ChooseFromSearch   () const;
+    void                HandlePaint        (DialogPaintContext & ctx);
+    std::optional<int>  HandleInput        (const DialogInputEvent & ev, DialogPrimitive & prim);
+    void                HandleListButtonDown (int lx, int ly, DialogPrimitive & prim);
+    std::optional<int>  HandleKeyDown      (int vk);
+    void                HandleFocus        (int focusIndex);
+    void                HandleTick         (DialogPrimitive & prim);
+    SIZE                HandleMeasure      (DxuiTextRenderer & text);
+    static std::wstring FormatLastLoaded   (std::int64_t loadedUnix);
+
+    static constexpr int    s_kColDiskImage         = 0;
+    static constexpr int    s_kColLocation          = 1;
+    static constexpr int    s_kColLastLoaded        = 2;
+    static constexpr int    s_kColumnCount          = 3;
+    static constexpr int    s_kListStop             = 0;
+    static constexpr int    s_kSearchStop           = 1;
+    static constexpr int    s_kFocusStopCount       = 2;
+    static constexpr int    s_kSearchHeightDip      = 30;
+    static constexpr int    s_kSearchListGapDip     = 8;
+    static constexpr int    s_kChromeReserveDip     = 240;
+    static constexpr int    s_kMinBodyHeightDip     = 160;
+    static constexpr int    s_kUnclampedBodyHeightPx = 100000;
+    static constexpr int    s_kDateTimeBufChars     = 64;
+    static constexpr int    s_kBaseDpi              = 96;
+    static constexpr UINT   s_kTickIntervalMs       = 30;
+    static constexpr float  s_kIconSizeDip          = 64.0f;
+
+    static constexpr std::uint64_t  s_kFiletimeTicksPerSec = 10000000ULL;
+    static constexpr std::uint64_t  s_kUnixEpochFiletime   = 116444736000000000ULL;
+
+    HINSTANCE                  m_hInstance       = nullptr;
+    HWND                       m_hwndParent      = nullptr;
+    std::string                m_themeName;
+    std::wstring               m_title;
+    std::wstring               m_intro;
+    std::vector<ModelRow>      m_model;
+    std::vector<DialogButton>  m_buttons;
+    std::optional<int>         m_closeBoxResult;
+    DxuiListView               m_list;
+    DxuiSearchBox              m_search;
+    std::vector<int>           m_view;
+    std::wstring               m_filter;
+    int                        m_sortColumn      = s_kColDiskImage;
+    bool                       m_sortDescending  = false;
+    int                        m_focusStop       = -1;
+    UINT                       m_dpi             = s_kBaseDpi;
+    RECT                       m_searchRectPx    = {};
+    RECT                       m_listRectPx      = {};
+    int                        m_searchHeightPx  = 0;
+    int                        m_gapPx           = 0;
+    int                        m_maxBodyHeightPx = 0;
+    bool                       m_scrollDragging  = false;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::FileMtimeUnix
+//
+//  Returns the file's last-write time as Unix seconds, or 0 when the
+//  file is missing / unreadable. Used to backfill a "Last loaded" date
+//  for MRU entries recorded before the list tracked load times.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::int64_t DiskMruPickerSession::FileMtimeUnix (const fs::path & path)
+{
+    HRESULT                                hr      = S_OK;
+    std::int64_t                           result  = 0;
+    std::error_code                        ec;
+    fs::file_time_type                     ftime;
+    std::chrono::system_clock::time_point  sysTime;
+
+
+
+    ftime = fs::last_write_time (path, ec);
+    BAIL_OUT_IF (static_cast<bool> (ec), S_OK);
+
+    sysTime = std::chrono::clock_cast<std::chrono::system_clock> (ftime);
+    result  = (std::int64_t) std::chrono::system_clock::to_time_t (sysTime);
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::FormatLastLoaded
+//
+//  Formats a Unix-second timestamp as a localized "short-date hh:mm"
+//  string. Returns empty for unknown (<= 0) times.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DiskMruPickerSession::FormatLastLoaded (std::int64_t loadedUnix)
+{
+    HRESULT         hr      = S_OK;
+    std::wstring    result;
+    ULARGE_INTEGER  uli     = {};
+    FILETIME        ftUtc   = {};
+    FILETIME        ftLocal = {};
+    SYSTEMTIME      st      = {};
+    BOOL            ok      = FALSE;
+    int             dateLen = 0;
+    int             timeLen = 0;
+    wchar_t         dateBuf[s_kDateTimeBufChars] = {};
+    wchar_t         timeBuf[s_kDateTimeBufChars] = {};
+
+
+
+    BAIL_OUT_IF (loadedUnix <= 0, S_OK);
+
+    uli.QuadPart         = (ULONGLONG) loadedUnix * s_kFiletimeTicksPerSec + s_kUnixEpochFiletime;
+    ftUtc.dwLowDateTime  = uli.LowPart;
+    ftUtc.dwHighDateTime = uli.HighPart;
+
+    ok = FileTimeToLocalFileTime (&ftUtc, &ftLocal);
+    CWRA (ok);
+    ok = FileTimeToSystemTime (&ftLocal, &st);
+    CWRA (ok);
+
+    dateLen = GetDateFormatEx (LOCALE_NAME_USER_DEFAULT, DATE_SHORTDATE, &st, nullptr, dateBuf, s_kDateTimeBufChars, nullptr);
+    CWRA (dateLen > 0);
+
+    timeLen = GetTimeFormatEx (LOCALE_NAME_USER_DEFAULT, TIME_NOSECONDS, &st, nullptr, timeBuf, s_kDateTimeBufChars);
+    CWRA (timeLen > 0);
+
+    result  = dateBuf;
+    result += L' ';
+    result += timeBuf;
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::ConfigureWidgets
+//
+//  One-time configuration of the search box and list view (DPI, columns,
+//  header, live-filter callback). Run calls this before the first
+//  RebuildView.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskMruPickerSession::ConfigureWidgets()
+{
+    std::vector<DxuiListView::Column>  cols;
+
+
+
+    m_search.SetDpi         (m_dpi);
+    m_search.SetPlaceholder (L"Search");
+    m_search.SetOnChange    ([this] (const std::wstring & value) { m_filter = value; RebuildView(); });
+
+    cols.push_back ({ L"Disk image",  0, false, DxuiTextRenderer::HAlign::Left  });
+    cols.push_back ({ L"Location",    0, true,  DxuiTextRenderer::HAlign::Left  });
+    cols.push_back ({ L"Last loaded", 0, false, DxuiTextRenderer::HAlign::Right });
+
+    m_list.SetDpi           (m_dpi);
+    m_list.SetShowHeader    (true);
+    m_list.SetColumns       (std::move (cols));
+    m_list.SetSortIndicator (m_sortColumn, m_sortDescending);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::RebuildView
+//
+//  Rebuilds the filtered + sorted view of the model and pushes the
+//  resulting cells into the list. Clamps the selection if the visible
+//  row count shrank.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskMruPickerSession::RebuildView()
+{
+    std::vector<std::vector<DxuiListView::Cell>>  rows;
+    std::wstring                                  needle   = m_filter;
+    int                                           selected = -1;
+
+    auto  passesFilter = [this] (const ModelRow & row, const std::wstring & lowered) -> bool
+    {
+        std::wstring  hay;
+
+        if (lowered.empty())
+        {
+            return true;
+        }
+
+        hay  = row.name;
+        hay += L'\n';
+        hay += row.location;
+        hay += L'\n';
+        hay += FormatLastLoaded (row.loadedUnix);
+        for (wchar_t & c : hay)
+        {
+            c = (wchar_t) towlower (c);
+        }
+
+        return hay.find (lowered) != std::wstring::npos;
+    };
+
+    auto  sortLess = [this] (int lhs, int rhs) -> bool
+    {
+        const ModelRow &  a   = m_model[(size_t) lhs];
+        const ModelRow &  b   = m_model[(size_t) rhs];
+        int               cmp = 0;
+
+        if (m_sortColumn == s_kColLastLoaded)
+        {
+            cmp = (a.loadedUnix < b.loadedUnix) ? -1 : (a.loadedUnix > b.loadedUnix) ? 1 : 0;
+        }
+        else if (m_sortColumn == s_kColLocation)
+        {
+            cmp = _wcsicmp (a.location.c_str(), b.location.c_str());
+        }
+        else
+        {
+            cmp = _wcsicmp (a.name.c_str(), b.name.c_str());
+        }
+
+        return m_sortDescending ? (cmp > 0) : (cmp < 0);
+    };
+
+
+
+    for (wchar_t & c : needle)
+    {
+        c = (wchar_t) towlower (c);
+    }
+
+    m_view.clear();
+    m_view.reserve (m_model.size());
+
+    for (int i = 0; i < (int) m_model.size(); ++i)
+    {
+        if (passesFilter (m_model[(size_t) i], needle))
+        {
+            m_view.push_back (i);
+        }
+    }
+
+    std::stable_sort (m_view.begin(), m_view.end(), sortLess);
+    m_list.SetSortIndicator (m_sortColumn, m_sortDescending);
+
+    rows.reserve (m_view.size());
+    for (int idx : m_view)
+    {
+        const ModelRow &  row = m_model[(size_t) idx];
+
+        rows.push_back ({ { row.name,                          false },
+                          { row.location,                      row.dimLocation },
+                          { FormatLastLoaded (row.loadedUnix), true } });
+    }
+
+    m_list.SetRows (std::move (rows));
+
+    selected = m_list.GetSelectedRow();
+    if (selected >= (int) m_view.size())
+    {
+        m_list.SetSelectedRow ((int) m_view.size() - 1);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::ApplySort
+//
+//  Header-click handler. Toggles direction when the active column is
+//  re-clicked, otherwise switches to the new column with its default
+//  direction (newest-first for the date column, A-Z for the text
+//  columns), then rebuilds the view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskMruPickerSession::ApplySort (int column)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (column < 0 || column >= s_kColumnCount, S_OK);
+
+    if (m_sortColumn == column)
+    {
+        m_sortDescending = !m_sortDescending;
+    }
+    else
+    {
+        m_sortColumn     = column;
+        m_sortDescending = (column == s_kColLastLoaded);
+    }
+
+    RebuildView();
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::LayoutBody
+//
+//  Splits the custom-body rect into a top search strip and the list
+//  below it, storing both as body-relative rects (origin 0,0) for input
+//  hit-testing. Window-coordinate placement is derived by the caller.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskMruPickerSession::LayoutBody (const RECT & bodyPx)
+{
+    int  bodyW   = bodyPx.right  - bodyPx.left;
+    int  bodyH   = bodyPx.bottom - bodyPx.top;
+    int  listTop = m_searchHeightPx + m_gapPx;
+
+
+
+    m_searchRectPx = { 0, 0,       bodyW, m_searchHeightPx };
+    m_listRectPx   = { 0, listTop, bodyW, bodyH };
+
+    if (m_listRectPx.bottom < m_listRectPx.top)
+    {
+        m_listRectPx.bottom = m_listRectPx.top;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::ChosenResultAt
+//
+//  Maps a visible-row index to its model row's result code, or -1 when
+//  the index is out of range.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskMruPickerSession::ChosenResultAt (int visibleRow) const
+{
+    int  result = -1;
+
+
+
+    if (visibleRow >= 0 && visibleRow < (int) m_view.size())
+    {
+        result = m_model[(size_t) m_view[(size_t) visibleRow]].resultCode;
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::ChooseFromSearch
+//
+//  Enter-from-search resolution: chooses the selected row, or the only
+//  visible row when the filter narrowed the list to one. Returns no
+//  value otherwise so the dialog's default button handles Enter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<int> DiskMruPickerSession::ChooseFromSearch() const
+{
+    std::optional<int>  result;
+    int                 selected = m_list.GetSelectedRow();
+
+
+
+    if (selected >= 0)
+    {
+        result = ChosenResultAt (selected);
+    }
+    else if (m_view.size() == 1)
+    {
+        result = ChosenResultAt (0);
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::HandlePaint
+//
+//  Lays out and paints the search box and list inside the custom-body
+//  rect (window coordinates), and refreshes the body-relative input
+//  rects.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskMruPickerSession::HandlePaint (DialogPaintContext & ctx)
+{
+    HRESULT  hr        = S_OK;
+    RECT     searchWin = {};
+    RECT     listWin   = {};
+
+
+
+    BAIL_OUT_IF (ctx.painter == nullptr || ctx.text == nullptr, S_OK);
+
+    LayoutBody (ctx.customBodyRect);
+
+    searchWin = { ctx.customBodyRect.left + m_searchRectPx.left,
+                  ctx.customBodyRect.top  + m_searchRectPx.top,
+                  ctx.customBodyRect.left + m_searchRectPx.right,
+                  ctx.customBodyRect.top  + m_searchRectPx.bottom };
+    listWin   = { ctx.customBodyRect.left + m_listRectPx.left,
+                  ctx.customBodyRect.top  + m_listRectPx.top,
+                  ctx.customBodyRect.left + m_listRectPx.right,
+                  ctx.customBodyRect.top  + m_listRectPx.bottom };
+
+    m_search.SetTheme (ctx.theme);
+    m_search.SetRect  (searchWin);
+    m_list.SetTheme   (ctx.theme);
+    m_list.SetRect    (listWin);
+
+    m_search.Paint (*ctx.painter, *ctx.text);
+    m_list.Paint   (*ctx.painter, *ctx.text);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::HandleListButtonDown
+//
+//  Routes a left-button press inside the list to the scrollbar arrows /
+//  thumb / track, a header column (sort), or a data row (select). lx/ly
+//  are list-relative coordinates.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskMruPickerSession::HandleListButtonDown (int lx, int ly, DialogPrimitive & prim)
+{
+    HRESULT  hr        = S_OK;
+    int      headerCol = -1;
+    int      row       = -1;
+
+
+
+    prim.SetCustomBodyFocus (s_kListStop);
+
+    if (m_list.HitTestScrollbarArrowUp (lx, ly))
+    {
+        m_list.ScrollByRows (-1);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (m_list.HitTestScrollbarArrowDown (lx, ly))
+    {
+        m_list.ScrollByRows (1);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (m_list.HitTestScrollbarThumb (lx, ly))
+    {
+        m_list.BeginThumbDrag (ly);
+        m_scrollDragging = true;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (m_list.HitTestScrollbarTrack (lx, ly))
+    {
+        m_list.PageFromTrackClick (ly);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    headerCol = m_list.HitTestHeaderColumn (lx, ly);
+    if (headerCol >= 0)
+    {
+        ApplySort (headerCol);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    row = m_list.HitTestRow (lx, ly);
+    if (row >= 0)
+    {
+        m_list.SetSelectedRow (row);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::HandleKeyDown
+//
+//  Keyboard handling for the focused sub-widget. Search-focused keys go
+//  to the field (Enter resolves a choice); list-focused arrows / paging
+//  move the selection and Enter chooses it. Tab / Escape pass through so
+//  the dialog cycles focus or cancels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<int> DiskMruPickerSession::HandleKeyDown (int vk)
+{
+    std::optional<int>  result;
+    bool                passthrough = (vk == VK_TAB || vk == VK_ESCAPE);
+    int                 selected    = -1;
+
+
+
+    if (!passthrough && m_focusStop == s_kSearchStop)
+    {
+        if (vk == VK_RETURN)
+        {
+            result = ChooseFromSearch();
+        }
+        else
+        {
+            m_search.OnKey ((WPARAM) vk);
+        }
+    }
+    else if (!passthrough && m_focusStop == s_kListStop)
+    {
+        switch (vk)
+        {
+            case VK_UP:    m_list.SetSelectedRow (m_list.GetSelectedRow() - 1);          break;
+            case VK_DOWN:  m_list.SetSelectedRow (m_list.GetSelectedRow() + 1);          break;
+            case VK_PRIOR: m_list.ScrollByRows  (-m_list.GetVisibleRowCapacity());       break;
+            case VK_NEXT:  m_list.ScrollByRows  ( m_list.GetVisibleRowCapacity());       break;
+            case VK_HOME:  m_list.SetSelectedRow (0);                                    break;
+            case VK_END:   m_list.SetSelectedRow (m_list.GetRowCount() - 1);             break;
+
+            case VK_RETURN:
+                selected = m_list.GetSelectedRow();
+                if (selected >= 0)
+                {
+                    result = ChosenResultAt (selected);
+                }
+
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::HandleInput
+//
+//  Custom-body input dispatch. Mouse coordinates arrive body-relative;
+//  list interactions use list-relative coordinates and the search box is
+//  fed its body-relative rect before each mouse event. A left-button-up
+//  on a data row returns that row's result code to close the dialog.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<int> DiskMruPickerSession::HandleInput (const DialogInputEvent & ev, DialogPrimitive & prim)
+{
+    std::optional<int>  result;
+    int                 lx       = ev.xPx - m_listRectPx.left;
+    int                 ly       = ev.yPx - m_listRectPx.top;
+    int                 row      = -1;
+    bool                inSearch = (ev.xPx >= m_searchRectPx.left && ev.xPx < m_searchRectPx.right &&
+                                    ev.yPx >= m_searchRectPx.top  && ev.yPx < m_searchRectPx.bottom);
+    bool                inList   = (ev.xPx >= m_listRectPx.left && ev.xPx < m_listRectPx.right &&
+                                    ev.yPx >= m_listRectPx.top  && ev.yPx < m_listRectPx.bottom);
+
+
+
+    switch (ev.kind)
+    {
+        case DialogInputEvent::Kind::MouseMove:
+            if (m_scrollDragging)
+            {
+                m_list.UpdateThumbDrag (ly);
+            }
+            else if (inSearch)
+            {
+                m_search.SetRect     (m_searchRectPx);
+                m_search.OnMouseMove (ev.xPx, ev.yPx);
+            }
+            else if (inList)
+            {
+                m_list.SetHoveredRow (m_list.HitTestRow (lx, ly));
+            }
+
+            break;
+
+        case DialogInputEvent::Kind::LeftButtonDown:
+            if (inSearch)
+            {
+                prim.SetCustomBodyFocus (s_kSearchStop);
+                m_search.SetRect        (m_searchRectPx);
+                m_search.OnLButtonDown  (ev.xPx, ev.yPx);
+            }
+            else if (inList)
+            {
+                HandleListButtonDown (lx, ly, prim);
+            }
+
+            break;
+
+        case DialogInputEvent::Kind::LeftButtonUp:
+            if (m_scrollDragging)
+            {
+                m_list.EndThumbDrag();
+                m_scrollDragging = false;
+            }
+            else if (inList)
+            {
+                row = m_list.HitTestRow (lx, ly);
+                if (row >= 0)
+                {
+                    result = ChosenResultAt (row);
+                }
+            }
+
+            break;
+
+        case DialogInputEvent::Kind::Wheel:
+            if (inList)
+            {
+                m_list.ScrollByWheelDelta (ev.wheelDelta);
+            }
+
+            break;
+
+        case DialogInputEvent::Kind::Char:
+            if (m_focusStop == s_kSearchStop)
+            {
+                m_search.OnChar (ev.ch);
+            }
+
+            break;
+
+        case DialogInputEvent::Kind::KeyDown:
+            result = HandleKeyDown (ev.vkCode);
+            break;
+
+        default:
+            break;
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::HandleFocus
+//
+//  Mirrors the dialog's custom-body focus stop onto the sub-widgets so
+//  the focused one renders and consumes keys.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskMruPickerSession::HandleFocus (int focusIndex)
+{
+    m_focusStop = focusIndex;
+
+    if (focusIndex == s_kListStop)
+    {
+        m_list.SetListFocused (true);
+        m_search.SetFocused   (false);
+    }
+    else if (focusIndex == s_kSearchStop)
+    {
+        m_list.SetListFocused (false);
+        m_search.SetFocused   (true);
+    }
+    else
+    {
+        m_list.SetListFocused (false);
+        m_search.SetFocused   (false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::HandleTick
+//
+//  Drives the search-box magnifier slide / caret blink and repaints. Also
+//  binds the dialog HWND to the hosted text input for clipboard support.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskMruPickerSession::HandleTick (DialogPrimitive & prim)
+{
+    m_search.SetHwnd (prim.Hwnd());
+    m_search.Tick    ((std::int64_t) GetTickCount64());
+    prim.Repaint();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::HandleMeasure
+//
+//  Sizes the custom body: width is the wider of the preferred dialog
+//  width and the measured list content; height is the search strip plus
+//  gap plus the list height clamped to the available screen space (the
+//  list scrolls within that clamp).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE DiskMruPickerSession::HandleMeasure (DxuiTextRenderer & text)
+{
+    SIZE  size      = {};
+    int   scaledW   = MulDiv (s_kBootMruBodyWidthDp, (int) m_dpi, s_kBaseDpi);
+    int   listFullH = 0;
+    int   listMaxH  = 0;
+    int   listH     = 0;
+    int   listWidth = 0;
+
+
+
+    m_search.SetDpi (m_dpi);
+    m_list.SetDpi   (m_dpi);
+    m_list.MeasureColumnsPx (text);
+
+    m_searchHeightPx = MulDiv (s_kSearchHeightDip,  (int) m_dpi, s_kBaseDpi);
+    m_gapPx          = MulDiv (s_kSearchListGapDip, (int) m_dpi, s_kBaseDpi);
+
+    listFullH = m_list.GetRequiredHeightPx();
+    listMaxH  = std::max (0, m_maxBodyHeightPx - m_searchHeightPx - m_gapPx);
+    listH     = std::min (listFullH, listMaxH);
+    listWidth = m_list.GetTotalMeasuredWidthPx();
+
+    size.cx = std::max (scaledW, listWidth);
+    size.cy = m_searchHeightPx + m_gapPx + listH;
+
+    return size;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::Run
+//
+//  Builds the DialogDefinition, wires the custom-body hooks, and shows
+//  the dialog. Returns the chosen result code (a model row's resultCode,
+//  a button's resultCode, or the close-box code).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskMruPickerSession::Run()
+{
+    int               chosen   = -1;
+    int               workH    = 0;
+    int               reserve  = 0;
+    int               minBodyH = 0;
+    DialogDefinition  def      = {};
+    HMONITOR          monitor  = nullptr;
+    MONITORINFO       monInfo  = {};
+
+
+
+    m_dpi            = (m_hwndParent != nullptr) ? GetDpiForWindow (m_hwndParent) : GetDpiForSystem();
+    m_searchHeightPx = MulDiv (s_kSearchHeightDip,  (int) m_dpi, s_kBaseDpi);
+    m_gapPx          = MulDiv (s_kSearchListGapDip, (int) m_dpi, s_kBaseDpi);
+
+    monInfo.cbSize = sizeof (monInfo);
+    monitor        = (m_hwndParent != nullptr) ? MonitorFromWindow (m_hwndParent, MONITOR_DEFAULTTONEAREST)
+                                               : MonitorFromPoint ({ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
+    if (GetMonitorInfo (monitor, &monInfo))
+    {
+        workH = monInfo.rcWork.bottom - monInfo.rcWork.top;
+    }
+
+    reserve           = MulDiv (s_kChromeReserveDip, (int) m_dpi, s_kBaseDpi);
+    minBodyH          = MulDiv (s_kMinBodyHeightDip, (int) m_dpi, s_kBaseDpi);
+    m_maxBodyHeightPx = (workH > 0) ? std::max (minBodyH, workH - reserve)
+                                    : s_kUnclampedBodyHeightPx;
+
+    ConfigureWidgets();
+    RebuildView();
+
+    def.title                    = m_title;
+    def.icon                     = DialogIcon::AppFlat;
+    def.iconSizeOverrideDp       = s_kIconSizeDip;
+    def.customBodyFocusableCount = s_kFocusStopCount;
+    def.tickIntervalMs           = s_kTickIntervalMs;
+    def.customBodyMinSizePx.cx   = MulDiv (s_kBootMruBodyWidthDp, (int) m_dpi, s_kBaseDpi);
+    def.customBodyMinSizePx.cy   = m_searchHeightPx + m_gapPx + m_list.GetRequiredHeightPx();
+    def.body.push_back ({ m_intro, false, L"" });
+
+    for (const DialogButton & button : m_buttons)
+    {
+        def.buttons.push_back (button);
+    }
+
+    def.closeBoxResult = m_closeBoxResult;
+
+    def.onMeasureCustomBody = [this] (DxuiTextRenderer & text, float) -> SIZE
+    {
+        return HandleMeasure (text);
+    };
+
+    def.onPaintCustomBody = [this] (DialogPaintContext & ctx)
+    {
+        HandlePaint (ctx);
+    };
+
+    def.onInputCustomBody = [this] (const DialogInputEvent & ev, DialogPrimitive & prim) -> std::optional<int>
+    {
+        return HandleInput (ev, prim);
+    };
+
+    def.onCustomBodyFocusChanged = [this] (int focusIndex)
+    {
+        HandleFocus (focusIndex);
+    };
+
+    def.onTick = [this] (DialogPrimitive & prim)
+    {
+        HandleTick (prim);
+    };
+
+    chosen = ShowStandaloneDialog (m_hInstance, m_hwndParent, m_themeName, def);
+
+    return chosen;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PromptBootDiskMru
+//
+//  Themed dialog that lists the user's recent disk images plus stock
+//  "Download" rows for DOS 3.3 / ProDOS. Always shown when the machine
+//  has a Disk ][ controller and no boot disk has been resolved yet,
+//  even when the MRU is empty (the download rows give a fresh install
+//  somewhere to go). Picking a row mounts that image (downloading on
+//  demand for the stock rows); the Skip button leaves the slot empty.
+//
+//  On return:
+//    outDiskPath = path to mount, or empty if the user skipped / the
+//                  machine has no Disk ][ controller.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 HRESULT AssetBootstrap::PromptBootDiskMru (
     HINSTANCE                      hInstance,
     HWND                           hwndParent,
@@ -1839,7 +2770,6 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
 
     HRESULT             hr            = S_OK;
     bool                hasDisk       = false;
-    DialogDefinition    def           = {};
     wstring             title;
     wstring             intro;
     wstring             displayName;
@@ -1848,16 +2778,16 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
         { &s_kDos33Disk,  L"DOS 3.3"  },
         { &s_kProDOSDisk, L"ProDOS"   }
     };
-    std::vector<const DownloadRow *> shownDownloads;
-    std::vector<const DownloadRow *> mruLabels;
-    int                 chosen        = s_kSkipResult;
-    int                 mruCount      = (int) mruEntries.size();
-    int                 downloadCount = 0;
-    int                 rowCount      = 0;
-    UINT                sysDpi        = (hwndParent != nullptr) ? GetDpiForWindow (hwndParent)
-                                                                : GetDpiForSystem();
-    DxuiListView            list;
-    error_code          ec;
+    std::vector<const DownloadRow *>            shownDownloads;
+    std::vector<const DownloadRow *>            mruLabels;
+    std::vector<DiskMruPickerSession::ModelRow> models;
+    DiskMruPickerSession  session       (hInstance, hwndParent, themeName);
+    int                   chosen        = s_kSkipResult;
+    int                   mruCount      = (int) mruEntries.size();
+    int                   downloadCount = 0;
+    int                   rowCount      = 0;
+    error_code            ec;
+
 
 
     outDiskPath.clear();
@@ -1919,95 +2849,44 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
                  L"stock master from the Asimov archive to get started.";
     }
 
-    // Populate the list. Mru rows show "<basename> | <parent dir>";
-    // download rows show "<name> | Asimov archive (Download)".
+    models.reserve ((size_t) rowCount);
+
+    for (int i = 0; i < mruCount; ++i)
     {
-        std::vector<DxuiListView::Column>            cols;
-        std::vector<std::vector<DxuiListView::Cell>> rows;
+        const DiskMru::Entry &       entry = mruEntries[(size_t) i];
+        DiskMruPickerSession::ModelRow  row;
 
-        cols.push_back ({ L"Disk image", 0, false, DxuiTextRenderer::HAlign::Left });
-        cols.push_back ({ L"Location",   0, false, DxuiTextRenderer::HAlign::Left });
-
-        rows.reserve ((size_t) rowCount);
-
-        for (int i = 0; i < mruCount; ++i)
-        {
-            const auto &  p           = mruEntries[(size_t) i].path;
-            std::wstring  displayLbl  = (mruLabels[(size_t) i] != nullptr)
-                                            ? std::wstring (mruLabels[(size_t) i]->label)
-                                            : p.filename().wstring();
-            DxuiListView::Cell name { std::move (displayLbl), false };
-            DxuiListView::Cell loc  { p.parent_path().wstring(), true };
-            rows.push_back ({ std::move (name), std::move (loc) });
-        }
-
-        for (const DownloadRow * dr : shownDownloads)
-        {
-            fs::path  wantPath = diskDir / string (dr->spec->cassoName);
-            bool      present  = fs::exists (wantPath, ec);
-            DxuiListView::Cell  name { dr->label, false };
-            DxuiListView::Cell  loc  { present ? L"Installed"
-                                               : L"Asimov archive (Download)", true };
-            rows.push_back ({ std::move (name), std::move (loc) });
-        }
-
-        list.SetDpi        (sysDpi);
-        list.SetShowHeader (true);
-        list.SetColumns    (std::move (cols));
-        list.SetRows       (std::move (rows));
+        row.name        = (mruLabels[(size_t) i] != nullptr) ? std::wstring (mruLabels[(size_t) i]->label)
+                                                             : entry.path.filename().wstring();
+        row.location    = entry.path.parent_path().wstring();
+        row.loadedUnix  = (entry.lastLoadedUnix != 0) ? entry.lastLoadedUnix
+                                                      : DiskMruPickerSession::FileMtimeUnix (entry.path);
+        row.resultCode  = i;
+        row.dimLocation = true;
+        models.push_back (std::move (row));
     }
 
-    def.title              = title;
-    def.icon               = DialogIcon::AppFlat;
-    def.iconSizeOverrideDp = 64.0f;
-    def.body.push_back ({ intro, false, L"" });
-    def.customBodyMinSizePx.cx = MulDiv (s_kBootMruBodyWidthDp, (int) sysDpi, 96);
-    def.customBodyMinSizePx.cy = list.GetRequiredHeightPx();
-
-    def.onMeasureCustomBody = [&list, sysDpi] (DxuiTextRenderer & text, float /*dpiScale*/) -> SIZE
+    for (int j = 0; j < downloadCount; ++j)
     {
-        list.SetDpi (sysDpi);
-        list.MeasureColumnsPx (text);
-        SIZE  sz {};
-        sz.cx = list.GetTotalMeasuredWidthPx();
-        sz.cy = list.GetRequiredHeightPx();
-        return sz;
-    };
+        const DownloadRow *          dr       = shownDownloads[(size_t) j];
+        fs::path                     wantPath = diskDir / string (dr->spec->cassoName);
+        bool                         present  = fs::exists (wantPath, ec);
+        DiskMruPickerSession::ModelRow  row;
 
-    def.onPaintCustomBody = [&list] (DialogPaintContext & ctx)
-    {
-        if (ctx.painter == nullptr || ctx.text == nullptr)
-        {
-            return;
-        }
+        row.name        = dr->label;
+        row.location    = present ? L"Installed" : L"Asimov archive (Download)";
+        row.loadedUnix  = 0;
+        row.resultCode  = mruCount + j;
+        row.dimLocation = true;
+        models.push_back (std::move (row));
+    }
 
-        list.SetTheme (ctx.theme);
-        list.SetRect  (ctx.customBodyRect);
-        list.Paint    (*ctx.painter, *ctx.text);
-    };
+    session.SetText          (title, intro);
+    session.SetModelRows     (std::move (models));
+    session.AddButton        ({ L"Skip", s_kSkipResult, true, true });
+    session.SetCloseBoxResult (s_kCloseBoxResult);
 
-    def.onInputCustomBody = [&list] (const DialogInputEvent & ev) -> std::optional<int>
-    {
-        int  idx = list.HitTestRow (ev.xPx, ev.yPx);
-
-        if (ev.kind == DialogInputEvent::Kind::MouseMove)
-        {
-            list.SetHoveredRow (idx);
-            return std::nullopt;
-        }
-
-        if (ev.kind == DialogInputEvent::Kind::LeftButtonUp && idx >= 0)
-        {
-            return idx;
-        }
-
-        return std::nullopt;
-    };
-
-    def.buttons.push_back ({ L"Skip", s_kSkipResult, true, true });
-    def.closeBoxResult = s_kCloseBoxResult;
-
-    chosen = ShowStandaloneDialog (hInstance, hwndParent, themeName, def);
+    chosen = session.Run();
 
     if (chosen == s_kCloseBoxResult)
     {
@@ -2066,7 +2945,6 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     static constexpr int  s_kCloseBoxResult = -1000;
 
     HRESULT             hr            = S_OK;
-    DialogDefinition    def           = {};
     wstring             title;
     wstring             intro;
     DownloadRow         downloads[]   =
@@ -2074,16 +2952,16 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
         { &s_kDos33Disk,  L"DOS 3.3"  },
         { &s_kProDOSDisk, L"ProDOS"   }
     };
-    std::vector<const DownloadRow *> shownDownloads;
-    std::vector<const DownloadRow *> mruLabels;
-    int                 chosen        = s_kCancelResult;
-    int                 mruCount      = (int) mruEntries.size();
-    int                 downloadCount = 0;
-    int                 rowCount      = 0;
-    UINT                sysDpi        = (hwndParent != nullptr) ? GetDpiForWindow (hwndParent)
-                                                                : GetDpiForSystem();
-    DxuiListView            list;
-    error_code          ec;
+    std::vector<const DownloadRow *>            shownDownloads;
+    std::vector<const DownloadRow *>            mruLabels;
+    std::vector<DiskMruPickerSession::ModelRow> models;
+    DiskMruPickerSession  session       (hInstance, hwndParent, themeName);
+    int                   chosen        = s_kCancelResult;
+    int                   mruCount      = (int) mruEntries.size();
+    int                   downloadCount = 0;
+    int                   rowCount      = 0;
+    error_code            ec;
+
 
 
     outDiskPath.clear();
@@ -2139,94 +3017,45 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
                          L"Asimov archive.", drive);
     }
 
+    models.reserve ((size_t) rowCount);
+
+    for (int i = 0; i < mruCount; ++i)
     {
-        std::vector<DxuiListView::Column>            cols;
-        std::vector<std::vector<DxuiListView::Cell>> rows;
+        const DiskMru::Entry &       entry = mruEntries[(size_t) i];
+        DiskMruPickerSession::ModelRow  row;
 
-        cols.push_back ({ L"Disk image", 0, false, DxuiTextRenderer::HAlign::Left });
-        cols.push_back ({ L"Location",   0, false, DxuiTextRenderer::HAlign::Left });
-
-        rows.reserve ((size_t) rowCount);
-
-        for (int i = 0; i < mruCount; ++i)
-        {
-            const auto &  p           = mruEntries[(size_t) i].path;
-            std::wstring  displayName = (mruLabels[(size_t) i] != nullptr)
-                                            ? std::wstring (mruLabels[(size_t) i]->label)
-                                            : p.filename().wstring();
-            DxuiListView::Cell name { std::move (displayName), false };
-            DxuiListView::Cell loc  { p.parent_path().wstring(), true };
-            rows.push_back ({ std::move (name), std::move (loc) });
-        }
-
-        for (const DownloadRow * dr : shownDownloads)
-        {
-            fs::path  wantPath = diskDir / string (dr->spec->cassoName);
-            bool      present  = fs::exists (wantPath, ec);
-            DxuiListView::Cell  name { dr->label, false };
-            DxuiListView::Cell  loc  { present ? L"Installed"
-                                               : L"Asimov archive (Download)", true };
-            rows.push_back ({ std::move (name), std::move (loc) });
-        }
-
-        list.SetDpi        (sysDpi);
-        list.SetShowHeader (true);
-        list.SetColumns    (std::move (cols));
-        list.SetRows       (std::move (rows));
+        row.name        = (mruLabels[(size_t) i] != nullptr) ? std::wstring (mruLabels[(size_t) i]->label)
+                                                             : entry.path.filename().wstring();
+        row.location    = entry.path.parent_path().wstring();
+        row.loadedUnix  = (entry.lastLoadedUnix != 0) ? entry.lastLoadedUnix
+                                                      : DiskMruPickerSession::FileMtimeUnix (entry.path);
+        row.resultCode  = i;
+        row.dimLocation = true;
+        models.push_back (std::move (row));
     }
 
-    def.title              = title;
-    def.icon               = DialogIcon::AppFlat;
-    def.iconSizeOverrideDp = 64.0f;
-    def.body.push_back ({ intro, false, L"" });
-    def.customBodyMinSizePx.cx = MulDiv (s_kBootMruBodyWidthDp, (int) sysDpi, 96);
-    def.customBodyMinSizePx.cy = list.GetRequiredHeightPx();
-
-    def.onMeasureCustomBody = [&list, sysDpi] (DxuiTextRenderer & text, float /*dpiScale*/) -> SIZE
+    for (int j = 0; j < downloadCount; ++j)
     {
-        list.SetDpi (sysDpi);
-        list.MeasureColumnsPx (text);
-        SIZE  sz {};
-        sz.cx = list.GetTotalMeasuredWidthPx();
-        sz.cy = list.GetRequiredHeightPx();
-        return sz;
-    };
+        const DownloadRow *          dr       = shownDownloads[(size_t) j];
+        fs::path                     wantPath = diskDir / string (dr->spec->cassoName);
+        bool                         present  = fs::exists (wantPath, ec);
+        DiskMruPickerSession::ModelRow  row;
 
-    def.onPaintCustomBody = [&list] (DialogPaintContext & ctx)
-    {
-        if (ctx.painter == nullptr || ctx.text == nullptr)
-        {
-            return;
-        }
+        row.name        = dr->label;
+        row.location    = present ? L"Installed" : L"Asimov archive (Download)";
+        row.loadedUnix  = 0;
+        row.resultCode  = mruCount + j;
+        row.dimLocation = true;
+        models.push_back (std::move (row));
+    }
 
-        list.SetTheme (ctx.theme);
-        list.SetRect  (ctx.customBodyRect);
-        list.Paint    (*ctx.painter, *ctx.text);
-    };
+    session.SetText          (title, intro);
+    session.SetModelRows     (std::move (models));
+    session.AddButton        ({ L"&Browse...", s_kBrowseResult, false, false });
+    session.AddButton        ({ L"Cancel",     s_kCancelResult, true,  true  });
+    session.SetCloseBoxResult (s_kCloseBoxResult);
 
-    def.onInputCustomBody = [&list] (const DialogInputEvent & ev) -> std::optional<int>
-    {
-        int  idx = list.HitTestRow (ev.xPx, ev.yPx);
-
-        if (ev.kind == DialogInputEvent::Kind::MouseMove)
-        {
-            list.SetHoveredRow (idx);
-            return std::nullopt;
-        }
-
-        if (ev.kind == DialogInputEvent::Kind::LeftButtonUp && idx >= 0)
-        {
-            return idx;
-        }
-
-        return std::nullopt;
-    };
-
-    def.buttons.push_back ({ L"&Browse...", s_kBrowseResult, false, false });
-    def.buttons.push_back ({ L"Cancel",     s_kCancelResult, true,  true  });
-    def.closeBoxResult = s_kCloseBoxResult;
-
-    chosen = ShowStandaloneDialog (hInstance, hwndParent, themeName, def);
+    chosen = session.Run();
 
     if (chosen == s_kBrowseResult)
     {
