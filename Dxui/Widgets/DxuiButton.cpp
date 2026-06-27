@@ -8,6 +8,94 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Anonymous color helpers
+//
+//  WCAG relative-luminance / contrast math + accent darkening, kept local
+//  so the Primary variant can derive a fill that clears 4.5:1 against its
+//  white label from any theme accent (bright accents only score ~1.3:1).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    float ChannelLinear (uint32_t c8)
+    {
+        float  s = (float) (c8 & 0xFFu) / 255.0f;
+
+        return (s <= 0.03928f) ? (s / 12.92f)
+                               : std::pow ((s + 0.055f) / 1.055f, 2.4f);
+    }
+
+
+    float RelativeLuminance (uint32_t argb)
+    {
+        float  r = ChannelLinear (argb >> 16);
+        float  g = ChannelLinear (argb >> 8);
+        float  b = ChannelLinear (argb);
+
+        return 0.2126f * r + 0.7152f * g + 0.0722f * b;
+    }
+
+
+    float ContrastRatio (uint32_t a, uint32_t b)
+    {
+        float  la = RelativeLuminance (a);
+        float  lb = RelativeLuminance (b);
+        float  hi = (la > lb) ? la : lb;
+        float  lo = (la > lb) ? lb : la;
+
+        return (hi + 0.05f) / (lo + 0.05f);
+    }
+
+
+    uint32_t AccentForWhiteContrast (uint32_t accent, float minRatio)
+    {
+        constexpr uint32_t  s_kWhite    = 0xFFFFFFFFu;
+        constexpr int       s_kMaxSteps = 32;
+        constexpr float     s_kStepMul  = 0.9f;
+
+        uint32_t  cur = accent;
+        int       i   = 0;
+
+        for (i = 0; i < s_kMaxSteps && ContrastRatio (cur, s_kWhite) < minRatio; ++i)
+        {
+            uint32_t  r = (uint32_t) (((cur >> 16) & 0xFFu) * s_kStepMul);
+            uint32_t  g = (uint32_t) (((cur >>  8) & 0xFFu) * s_kStepMul);
+            uint32_t  b = (uint32_t) (( cur        & 0xFFu) * s_kStepMul);
+
+            cur = (cur & 0xFF000000u) | (r << 16) | (g << 8) | b;
+        }
+
+        return cur;
+    }
+
+
+    uint32_t Lighten (uint32_t argb, float f)
+    {
+        uint32_t  r = (uint32_t) (((argb >> 16) & 0xFFu) + (255 - ((argb >> 16) & 0xFFu)) * f);
+        uint32_t  g = (uint32_t) (((argb >>  8) & 0xFFu) + (255 - ((argb >>  8) & 0xFFu)) * f);
+        uint32_t  b = (uint32_t) (( argb        & 0xFFu) + (255 - ( argb        & 0xFFu)) * f);
+
+        return (argb & 0xFF000000u) | (r << 16) | (g << 8) | b;
+    }
+
+
+    uint32_t Darken (uint32_t argb, float f)
+    {
+        uint32_t  r = (uint32_t) (((argb >> 16) & 0xFFu) * f);
+        uint32_t  g = (uint32_t) (((argb >>  8) & 0xFFu) * f);
+        uint32_t  b = (uint32_t) (( argb        & 0xFFu) * f);
+
+        return (argb & 0xFF000000u) | (r << 16) | (g << 8) | b;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiButton::SetLabel
 //
 //  Stores the label with a single ampersand stripped (Win32 accelerator
@@ -111,18 +199,22 @@ bool DxuiButton::OnKey (WPARAM vk)
 
 void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    constexpr uint32_t  s_kFocusRingArgb = 0xFFAACCFF;
-    constexpr float     s_kFocusRingPx   = 1.5f;
-    constexpr float     s_kFocusInsetPx  = -2.0f;
-    constexpr uint32_t  s_kDisabledMask  = 0x80FFFFFF;
+    constexpr float     s_kFocusRingPx      = 1.5f;
+    constexpr float     s_kFocusInsetPx     = -2.0f;
+    constexpr float     s_kEmphasisPx       = 1.5f;
+    constexpr uint32_t  s_kDisabledMask     = 0x80FFFFFF;
+    constexpr uint32_t  s_kPrimaryTextArgb  = 0xFFFFFFFFu;
+    constexpr float     s_kPrimaryTextRatio = 4.5f;
+    constexpr float     s_kPrimaryHover     = 0.12f;
+    constexpr float     s_kPrimaryPressed   = 0.82f;
 
-    HRESULT  hr        = S_OK;
-    uint32_t themeIdle    = m_useOverrides ? m_idleOverride    : theme.ButtonIdle();
-    uint32_t themeHover   = m_useOverrides ? m_hoverOverride   : theme.ButtonHover();
-    uint32_t themePressed = m_useOverrides ? m_pressedOverride : theme.ButtonPressed();
-    uint32_t color        = m_pressed ? themePressed : (m_hover ? themeHover : themeIdle);
-    uint32_t textColor    = m_useTextOverride ? m_textOverride : theme.ButtonText();
+    HRESULT  hr           = S_OK;
+    uint32_t idle         = theme.ButtonIdle();
+    uint32_t hover        = theme.ButtonHover();
+    uint32_t pressed      = theme.ButtonPressed();
+    uint32_t textColor    = theme.ButtonText();
     uint32_t borderColor  = theme.ButtonBorder();
+    uint32_t color        = 0;
     float    fontDip      = m_scaler.Pxf (13.0f);
     float    autoBorderPx = m_scaler.Pxf (1.0f);
 
@@ -132,6 +224,18 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
     {
         return;
     }
+
+    if (m_variant == Variant::Primary)
+    {
+        // White label on this fill, so the fill must clear the WCAG
+        // 1.4.3 text-contrast threshold (4.5:1) against white.
+        idle      = AccentForWhiteContrast (theme.Accent(), s_kPrimaryTextRatio);
+        hover     = Lighten (idle, s_kPrimaryHover);
+        pressed   = Darken  (idle, s_kPrimaryPressed);
+        textColor = s_kPrimaryTextArgb;
+    }
+
+    color = m_pressed ? pressed : (m_hover ? hover : idle);
 
     if (!m_enabled)
     {
@@ -145,14 +249,14 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                       (float) (m_boundsDip.bottom - m_boundsDip.top),
                       color);
 
-    if (m_outlineThick > 0.0f)
+    if (m_emphasis)
     {
         painter.OutlineRect ((float) m_boundsDip.left,
                              (float) m_boundsDip.top,
                              (float) (m_boundsDip.right  - m_boundsDip.left),
                              (float) (m_boundsDip.bottom - m_boundsDip.top),
-                             m_outlineThick,
-                             m_outlineArgb);
+                             m_scaler.Pxf (s_kEmphasisPx),
+                             theme.HoverBackground());
     }
     else if (borderColor != 0)
     {
@@ -188,7 +292,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                              (float) (m_boundsDip.right  - m_boundsDip.left) - focusInset * 2.0f,
                              (float) (m_boundsDip.bottom - m_boundsDip.top)  - focusInset * 2.0f,
                              focusThick,
-                             s_kFocusRingArgb);
+                             theme.FocusRing());
     }
 }
 

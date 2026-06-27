@@ -149,6 +149,7 @@ public:
 
     void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
                  const IDxuiTheme & theme) override;
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
 
     RECT  FocusedControlRect (int controlId) const;
 

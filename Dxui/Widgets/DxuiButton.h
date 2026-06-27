@@ -19,19 +19,16 @@ public:
     wchar_t  Accelerator  () const { return m_accelerator; }
     void  SetClick        (ClickFn click) { m_click = std::move (click); }
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
-    void  SetColors       (uint32_t idleArgb, uint32_t hoverArgb, uint32_t pressedArgb)
-    {
-        m_idleOverride    = idleArgb;
-        m_hoverOverride   = hoverArgb;
-        m_pressedOverride = pressedArgb;
-        m_useOverrides    = true;
-    }
-    void  SetTextColor    (uint32_t argb) { m_textOverride = argb; m_useTextOverride = true; }
-    void  SetOutline      (float thicknessPx, uint32_t argb)
-    {
-        m_outlineThick = thicknessPx;
-        m_outlineArgb  = argb;
-    }
+
+    // Visual variant. Default uses the theme's neutral button tokens;
+    // Primary fills with the theme accent (darkened to a WCAG 4.5:1
+    // contrast against its white label). A button cannot be given an
+    // arbitrary, non-theme color -- every fill derives from IDxuiTheme.
+    enum class Variant { Default, Primary };
+    void  SetVariant      (Variant variant) { m_variant = variant; }
+    // Emphasizes a Default button (e.g. a dialog's default action) with a
+    // themed accent outline, without promoting it to Primary.
+    void  SetEmphasis     (bool on) { m_emphasis = on; }
     void  SetMouse        (int x, int y, bool down);
     void  SetFocused      (bool focused) { m_focused = focused; }
     bool  Focused         () const { return m_focused; }
@@ -66,12 +63,6 @@ private:
     bool          m_enabled         = true;
     bool          m_visible         = true;
     DxuiDpiScaler     m_scaler;
-    bool          m_useOverrides    = false;
-    uint32_t      m_idleOverride    = 0;
-    uint32_t      m_hoverOverride   = 0;
-    uint32_t      m_pressedOverride = 0;
-    bool          m_useTextOverride = false;
-    uint32_t      m_textOverride    = 0;
-    float         m_outlineThick    = 0.0f;
-    uint32_t      m_outlineArgb     = 0;
+    Variant       m_variant         = Variant::Default;
+    bool          m_emphasis        = false;
 };

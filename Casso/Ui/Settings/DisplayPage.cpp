@@ -208,13 +208,6 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         int  btnX      = controlsX + dropWidth + scaler.Px (16);
         m_restore.Layout   (MakeRect (btnX, y, btnWidth, rowHeight));
         m_restore.SetLabel (L"Restore defaults");
-        // Title-bar caption buttons (sysButton*) are invisible at idle
-        // by design; this is a content-area button and needs an at-
-        // rest fill so it reads as clickable before hover. Subtle
-        // grey with a brighter hover.
-        m_restore.SetColors (0xFF3A4252,    // idle
-                              0xFF4A5364,    // hover
-                              0xFF2A3140);   // pressed
         m_restoreRowRect = MakeRect (btnX, y, btnWidth, rowHeight);
     }
     y += rowHeight + sectionGap;
@@ -639,6 +632,49 @@ bool DisplayPage::TextColorActive () const
 void DisplayPage::RefreshTextColorEnabled ()
 {
     m_textColor.SetEnabled (TextColorActive());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisplayPage::OnMouse
+//
+//  Adds a swatch hit-test on top of the panel's child fan-out: clicking
+//  the Text-color swatch while Custom is active re-opens the picker via
+//  the commit callback.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisplayPage::OnMouse (const DxuiMouseEvent & ev)
+{
+    bool  handled = false;
+    int   x       = ev.positionDip.x;
+    int   y       = ev.positionDip.y;
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Down &&
+        TextColorActive() &&
+        m_textColorMode == ColorMonitorTextMode::Custom &&
+        x >= m_textColorSwatchRect.left && x < m_textColorSwatchRect.right &&
+        y >= m_textColorSwatchRect.top  && y < m_textColorSwatchRect.bottom)
+    {
+        if (m_onTextColorCommit)
+        {
+            m_onTextColorCommit ((int) ColorMonitorTextMode::Custom);
+        }
+        handled = true;
+    }
+
+    if (!handled)
+    {
+        handled = DxuiPanel::OnMouse (ev);
+    }
+
+    return handled;
 }
 
 
