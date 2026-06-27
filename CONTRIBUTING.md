@@ -58,6 +58,8 @@ Or use the VS Code tasks (Ctrl+Shift+B).
 - See [.github/copilot-instructions.md](.github/copilot-instructions.md) for detailed formatting rules
 - Every `.cpp` file must include `"Pch.h"` as its first `#include`
 - Use quoted includes (`"header.h"`) for project headers; system headers go in `Pch.h`
+- No anonymous namespaces: file-local constants are file-scope `static constexpr` (`s_k` naming); helpers are class `static` members, not free functions
+- A closing `}` is followed by a blank line — except a do-while tail, a following `else`, or another closing `}`
 
 ## Third-Party Dependencies
 
