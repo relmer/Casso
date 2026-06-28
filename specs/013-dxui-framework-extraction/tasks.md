@@ -544,6 +544,23 @@ Phase 11 is split into two independently mergeable parts: **Phase 11 — Part A*
 
 ---
 
+### Phase 15 — Design-review refinements (2026-06-28)
+
+*Ordered by dependency. The theme-contract tasks (T131–T134) come first; they unblock the fonts, self-theming, the legacy-dialog deletion, and the title-bar absorption. The cross-cutting Win32-alignment and naming rules (FR-116 / FR-117) are enforced per-file as each task touches code, not as a separate pass.*
+
+- [ ] T131 [PH15] Add concrete `DxuiTheme : IDxuiTheme` (generic tokens + Dark / Light defaults). Reconcile the `ChromeTheme`-only tokens: collapse those with a generic equivalent (`panelBg → Background`, `navHover → HoverBackground`, `dropdownBg → BackgroundElevated`, `linkArgb → Accent`, `panelEdge → Border`) and promote the rest as new accessors (`NavStrip`, `DropdownAccel`, `LinkHover`, `SystemButtonIdle`, `SystemCloseGlyph`). **FR**: FR-109, FR-110.
+- [ ] T132 [PH15] Rename `ChromeTheme` → `CassoTheme : DxuiTheme`; keep only drive / LED / `compactDrives` tokens + the Casso presets; rewire all references. **Depends on**: T131. **Exit**: `rg -n 'ChromeTheme' Casso/ Dxui/` → only the renamed declaration. **FR**: FR-109.
+- [ ] T133 [PH15] Move the WCAG colour math off the theme into `Dxui/Theme/DxuiColor.{h,cpp}`; update call sites. **FR**: FR-112.
+- [ ] T134 [PH15] Make Dxui widgets self-theme from `IDxuiTheme` (`DxuiMenuBar` / `DxuiDropdown` read `NavStrip` / `DropdownAccel`); delete the `MainMenu::SetStripColors` / `SetDropdownColors` push-plumbing. **Depends on**: T131. **FR**: FR-111.
+- [ ] T135 [PH15] Wire `IDxuiTheme` typography: `DxuiFontHandle` → `{ face, sizeDip, weight }` descriptor; `DxuiTextRenderer` caches per `(descriptor, dpi)`; populate the five handles in `DxuiTheme` / `CassoTheme`; add the `DrawString` / `MeasureString` handle overload. **Depends on**: T131. **FR**: FR-113.
+- [ ] T136 [PH15] Migrate ~30 widgets off literal `L"Segoe UI"` / per-file `s_kFontDip` / inline weights to `theme.*Font()`; fix the `DxuiTextRenderer` hardcoded fallback; consolidate icon / symbol fonts into one fixed Dxui constant catalog off the theme. **Depends on**: T135. **Exit**: `rg -n 'L"Segoe UI"' Dxui/ Casso/Ui/` → only the central catalog. **FR**: FR-113.
+- [ ] T137 [PH15] Extract `DxuiScrollbar` (Win32 `DxuiScrollInfo : SCROLLINFO`, `SB_*` notifications, `RECT`-per-region geometry, float thumb). Rewire `DxuiListView` to own `m_vertScroll` / `m_horzScroll`; delete the v/h mirror duplication; migrate `DxuiTreeView` if practical. *(Independent — may run parallel to T131–T136.)* **FR**: FR-114.
+- [ ] T138 [PH15] Absorb `TitleBar` into `DxuiCaptionBar` / `DxuiHostWindow`: title + icon as host params; min / max / close as `DxuiSystemButton` children; delete `Casso/Ui/Chrome/TitleBar.{h,cpp}`. **Depends on**: T131 (caption theme tokens), FR-105 (drives become tree controls, to retire `SetHitTestDelegate`). **Exit**: `rg -n 'class TitleBar' Casso/` → 0. **FR**: FR-115.
+- [ ] T139 [PH15] Gate confirmation: with FR-110 tokens on the contract, the Phase-14 `DxuiDialog` paints from `IDxuiTheme` and the `DialogPrimitive` deletion (FR-096) is no longer blocked by concrete-`ChromeTheme` coupling. **Depends on**: T131. **FR**: FR-096, FR-110.
+- [ ] T140 [PH15] Phase-15 verification: 4-config build + tests (no regression vs baseline) + code-analysis clean; naming grep `rg -n '\bm_h[A-Z]|HScrollbar|\bbar[XWH]\b' Dxui/` reflects the new conventions; manual visual parity (themes, scrollbars, title bar). **Depends on**: T131–T139.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
