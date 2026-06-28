@@ -21,11 +21,13 @@ spill past the window's edges instead of being clipped to it.
   and date); the magnifier glyph slides away on focus and an X button
   clears the field. The leading "Last loaded" column shows each disk's
   load time in the user's regional date/time format and is the default
-  sort (newest on top). Columns are resizable (drag a header divider) and
-  clickable to sort (re-click to reverse; strings A–Z, dates newest-first)
-  with an up/down indicator on the active column. The dialog is resizable
-  (drag any edge; it opens at a sensible size clamped to your monitor) and
-  the list fills the width and scrolls vertically as the list grows.
+  sort (newest on top). Columns size to fit their widest value (header
+  included), are resizable (drag a header divider), and clickable to sort
+  (re-click to reverse; strings A–Z, dates newest-first) with an up/down
+  indicator on the active column. The dialog is resizable (drag any edge;
+  it opens at a sensible size clamped to your monitor) and the list shows
+  horizontal and vertical scrollbars as needed — Shift+wheel or the bottom
+  scrollbar reaches a long location path.
 - **feat(ui): occluding top-level popups for menus, dropdowns, and
   tooltips.** The application menu bar's submenus, the Settings-page
   dropdowns, the Disk II / Input debug-panel column menus, and the

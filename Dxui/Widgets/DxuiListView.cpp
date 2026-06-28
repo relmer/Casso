@@ -578,29 +578,228 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ColumnNaturalWidthPx
+//
+//  Natural pixel width of a single column ignoring any stretch fill:
+//  the user override if set, else the fixed widthDip, else the wider of
+//  the batch-measured width and the incremental char-count auto-fit.
+//  Returns 0 for a hidden column. Shared by ComputeColumnLayout and
+//  GetContentWidthPx so both agree on a column's intrinsic size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::ColumnNaturalWidthPx (size_t c) const
+{
+    int  wpx       = 0;
+    int  padPx     = m_scaler.Px (s_kCellPadLeftDip) + m_scaler.Px (s_kCellPadRightDip);
+    int  perCharPx = (int) std::ceil (m_scaler.Pxf (s_kFontDip) * s_kAutoCharWidthEm);
+
+
+
+    if (m_columns[c].visible)
+    {
+        if (c < m_overrideWPx.size() && m_overrideWPx[c] >= 0)
+        {
+            wpx = m_overrideWPx[c];
+        }
+        else if (m_columns[c].widthDip > 0)
+        {
+            wpx = m_scaler.Px (m_columns[c].widthDip);
+        }
+        else
+        {
+            if (c < m_measuredWPx.size())
+            {
+                wpx = std::max (wpx, m_measuredWPx[c]);
+            }
+
+            if (c < m_autoMaxChars.size() && m_autoMaxChars[c] > 0)
+            {
+                wpx = std::max (wpx, m_autoMaxChars[c] * perCharPx + padPx);
+            }
+        }
+    }
+
+    return wpx;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetContentWidthPx
+//
+//  Sum of every visible column's natural width (no stretch fill). This
+//  is the width the columns want, against which the horizontal scroll
+//  range is measured.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetContentWidthPx () const
+{
+    int  total = 0;
+
+
+
+    for (size_t c = 0; c < m_columns.size(); ++c)
+    {
+        total += ColumnNaturalWidthPx (c);
+    }
+
+    return total;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeScrollLayout
+//
+//  Resolves the mutually-dependent vertical / horizontal scrollbar
+//  state for the current rect. The horizontal bar (when enabled) steals
+//  one bar-thickness of row capacity from the bottom; the vertical bar
+//  steals one bar-thickness of viewport width from the right. Two
+//  passes settle the dependency. With horizontal scroll disabled the
+//  result is identical to the legacy vertical-only math.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView::ScrollLayout DxuiListView::ComputeScrollLayout () const
+{
+    ScrollLayout  layout;
+    int           fullW = m_boundsDip.right  - m_boundsDip.left;
+    int           fullH = m_boundsDip.bottom - m_boundsDip.top;
+    int           barW  = GetScrollbarWidthPx();
+    int           rowH  = m_scaler.Px (s_kRowHeightDip);
+    int           hgTop = m_showHeader ? (m_scaler.Px (s_kHeaderHeightDip) + m_scaler.Px (s_kHeaderGapDip)) : 0;
+    int           rows  = (int) m_rows.size();
+    int           pass  = 0;
+
+
+
+    layout.contentW  = GetContentWidthPx();
+    layout.viewportW = fullW;
+
+    for (pass = 0; pass < 2; ++pass)
+    {
+        int  viewportW = fullW - (layout.vBar ? barW : 0);
+        int  bodyH     = 0;
+        int  cap       = 0;
+
+        layout.hBar     = m_hScrollEnabled && (viewportW > 0) && (layout.contentW > viewportW);
+        bodyH           = (fullH - hgTop) - (layout.hBar ? barW : 0);
+        cap             = (rowH > 0 && bodyH > 0) ? (bodyH / rowH) : 0;
+        layout.rowCap   = cap;
+        layout.vBar     = (cap > 0) && (rows > cap);
+        layout.viewportW = fullW - (layout.vBar ? barW : 0);
+    }
+
+    return layout;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetVisibleRowCapacity
 //
-//  Number of data rows that fit in the current body height.
+//  Number of data rows that fit in the current body height (minus the
+//  horizontal scrollbar's reserved strip when it is showing).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiListView::GetVisibleRowCapacity () const
 {
+    return ComputeScrollLayout().rowCap;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetMaxLeftPx
+//
+//  Largest valid horizontal offset: the excess of the natural content
+//  width over the viewport content width (which excludes the vertical
+//  scrollbar). Zero when the content fits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetMaxLeftPx () const
+{
+    ScrollLayout  layout = ComputeScrollLayout();
+    int           excess = layout.contentW - layout.viewportW;
+
+
+
+    return (excess > 0) ? excess : 0;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetLeftPx
+//
+//  Sets the horizontal scroll offset, clamped to [0, GetMaxLeftPx()].
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SetLeftPx (int leftPx)
+{
+    int  maxLeft = GetMaxLeftPx();
+
+
+
+    if (leftPx < 0)
+    {
+        leftPx = 0;
+    }
+
+    if (leftPx > maxLeft)
+    {
+        leftPx = maxLeft;
+    }
+
+    m_leftPx = leftPx;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ScrollByWheelDeltaHorizontal
+//
+//  Shift-wheel horizontal scroll: a positive wheelDelta scrolls left
+//  (toward the start), mirroring the vertical wheel's up-scrolls-up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ScrollByWheelDeltaHorizontal (int wheelDelta, int pxPerNotch)
+{
     HRESULT  hr      = S_OK;
-    int      result  = 0;
-    int      rowH    = m_scaler.Px (s_kRowHeightDip);
-    int      headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0;
-    int      hdrGap  = m_showHeader ? m_scaler.Px (s_kHeaderGapDip)    : 0;
-    int      body    = (m_boundsDip.bottom - m_boundsDip.top) - headerH - hdrGap;
+    int      notches = 0;
 
 
 
-    BAIL_OUT_IF (rowH <= 0 || body <= 0, S_OK);
+    BAIL_OUT_IF (wheelDelta == 0, S_OK);
 
-    result = body / rowH;
+    notches = wheelDelta / WHEEL_DELTA;
+    if (notches == 0)
+    {
+        notches = (wheelDelta > 0) ? 1 : -1;
+    }
+
+    SetLeftPx (m_leftPx - notches * pxPerNotch);
 
 Error:
-    return result;
+    return;
 }
 
 
@@ -723,14 +922,16 @@ DxuiListView::ScrollbarMetrics DxuiListView::GetScrollbarGeometry () const
 {
     HRESULT           hr      = S_OK;
     ScrollbarMetrics  m;
+    ScrollLayout      layout  = ComputeScrollLayout();
     int               fullW   = m_boundsDip.right - m_boundsDip.left;
     int               barW    = GetScrollbarWidthPx();
+    int               hBarH   = layout.hBar ? barW : 0;
     int               headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0;
     int               hdrGap  = m_showHeader ? m_scaler.Px (s_kHeaderGapDip)    : 0;
     int               by      = headerH + hdrGap;
-    int               bh      = (m_boundsDip.bottom - m_boundsDip.top) - by;
+    int               bh      = (m_boundsDip.bottom - m_boundsDip.top) - by - hBarH;
     int               total   = (int) m_rows.size();
-    int               cap     = GetVisibleRowCapacity();
+    int               cap     = layout.rowCap;
     int               maxTop  = GetMaxTopRow();
     int               arrowH  = barW;
     float             thumbH  = 0.0f;
@@ -984,6 +1185,292 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsHScrollbarVisible
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::IsHScrollbarVisible () const
+{
+    return ComputeScrollLayout().hBar;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetHScrollbarGeometry
+//
+//  Horizontal counterpart to GetScrollbarGeometry: the bar runs along
+//  the bottom of the list, spanning the viewport content width (full
+//  width minus the vertical scrollbar). Left/right arrow buttons bracket
+//  the track; the thumb travels within the track only. arrowW == 0 means
+//  the bar is too short for arrow buttons.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView::HScrollbarMetrics DxuiListView::GetHScrollbarGeometry () const
+{
+    HRESULT            hr       = S_OK;
+    HScrollbarMetrics  m;
+    ScrollLayout       layout   = ComputeScrollLayout();
+    int                fullH    = m_boundsDip.bottom - m_boundsDip.top;
+    int                barH     = GetScrollbarWidthPx();
+    int                viewW    = layout.viewportW;
+    int                contentW = layout.contentW;
+    int                arrowW   = barH;
+    int                maxLeft  = 0;
+    float              thumbW   = 0.0f;
+    float              travel   = 0.0f;
+
+
+
+    BAIL_OUT_IF (!layout.hBar || viewW <= 0 || barH <= 0 || contentW <= 0, S_OK);
+
+    if (viewW < arrowW * 2 + s_kMinThumbPx + 2)
+    {
+        arrowW = 0;
+    }
+
+    m.trackLeft = arrowW;
+    m.trackW    = viewW - arrowW * 2;
+
+    if (m.trackW < 0)
+    {
+        m.trackW = 0;
+    }
+
+    thumbW = std::max ((float) s_kMinThumbPx, (float) m.trackW * (float) viewW / (float) contentW);
+
+    if (thumbW > (float) m.trackW)
+    {
+        thumbW = (float) m.trackW;
+    }
+
+    travel  = (float) m.trackW - thumbW;
+    maxLeft = (contentW > viewW) ? (contentW - viewW) : 0;
+
+    m.visible     = true;
+    m.barY        = fullH - barH;
+    m.barH        = barH;
+    m.arrowW      = arrowW;
+    m.leftArrowX  = 0;
+    m.rightArrowX = viewW - arrowW;
+    m.thumbW      = thumbW;
+    m.thumbLeft   = (float) m.trackLeft + ((maxLeft > 0) ? travel * (float) m_leftPx / (float) maxLeft : 0.0f);
+
+Error:
+    return m;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HitTestHScrollbarThumb
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::HitTestHScrollbarThumb (int xPx, int yPx) const
+{
+    HRESULT            hr     = S_OK;
+    bool               result = false;
+    HScrollbarMetrics  m      = GetHScrollbarGeometry();
+
+
+
+    BAIL_OUT_IF (!m.visible, S_OK);
+    BAIL_OUT_IF (yPx < m.barY || yPx >= m.barY + m.barH, S_OK);
+
+    result = (float) xPx >= m.thumbLeft && (float) xPx < m.thumbLeft + m.thumbW;
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HitTestHScrollbarTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::HitTestHScrollbarTrack (int xPx, int yPx) const
+{
+    HRESULT            hr     = S_OK;
+    bool               result = false;
+    HScrollbarMetrics  m      = GetHScrollbarGeometry();
+
+
+
+    BAIL_OUT_IF (!m.visible, S_OK);
+    BAIL_OUT_IF (yPx < m.barY || yPx >= m.barY + m.barH, S_OK);
+
+    result = (xPx >= m.trackLeft && xPx < m.trackLeft + m.trackW);
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HitTestHScrollbarArrowLeft
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::HitTestHScrollbarArrowLeft (int xPx, int yPx) const
+{
+    HRESULT            hr     = S_OK;
+    bool               result = false;
+    HScrollbarMetrics  m      = GetHScrollbarGeometry();
+
+
+
+    BAIL_OUT_IF (!m.visible || m.arrowW <= 0, S_OK);
+    BAIL_OUT_IF (yPx < m.barY || yPx >= m.barY + m.barH, S_OK);
+
+    result = (xPx >= m.leftArrowX && xPx < m.leftArrowX + m.arrowW);
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HitTestHScrollbarArrowRight
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::HitTestHScrollbarArrowRight (int xPx, int yPx) const
+{
+    HRESULT            hr     = S_OK;
+    bool               result = false;
+    HScrollbarMetrics  m      = GetHScrollbarGeometry();
+
+
+
+    BAIL_OUT_IF (!m.visible || m.arrowW <= 0, S_OK);
+    BAIL_OUT_IF (yPx < m.barY || yPx >= m.barY + m.barH, S_OK);
+
+    result = (xPx >= m.rightArrowX && xPx < m.rightArrowX + m.arrowW);
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PageFromHTrackClick
+//
+//  Pages the view by one viewport width toward a horizontal track click
+//  left (page left) or right (page right) of the thumb.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::PageFromHTrackClick (int xPx)
+{
+    HRESULT            hr     = S_OK;
+    HScrollbarMetrics  m      = GetHScrollbarGeometry();
+    int                viewW  = ComputeScrollLayout().viewportW;
+
+
+
+    BAIL_OUT_IF (!m.visible || viewW <= 0, S_OK);
+
+    if ((float) xPx < m.thumbLeft)
+    {
+        SetLeftPx (m_leftPx - viewW);
+    }
+    else
+    {
+        SetLeftPx (m_leftPx + viewW);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BeginHThumbDrag
+//
+//  grabXPx is the x inside the widget where the user grabbed the thumb;
+//  we remember the offset between the click and the thumb's current left
+//  so the thumb doesn't jump on the first move.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::BeginHThumbDrag (int grabXPx)
+{
+    HScrollbarMetrics  m = GetHScrollbarGeometry();
+
+
+
+    m_hDragging   = true;
+    m_hDragGrabDx = (float) grabXPx - m.thumbLeft;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateHThumbDrag
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::UpdateHThumbDrag (int xPx)
+{
+    HRESULT            hr        = S_OK;
+    HScrollbarMetrics  m         = GetHScrollbarGeometry();
+    int                maxLeft   = GetMaxLeftPx();
+    float              travel    = 0.0f;
+    float              thumbLeft = 0.0f;
+    float              ratio     = 0.0f;
+
+
+
+    BAIL_OUT_IF (!m_hDragging || !m.visible, S_OK);
+
+    travel    = (float) m.trackW - m.thumbW;
+    thumbLeft = (float) xPx - m_hDragGrabDx;
+    ratio     = (travel > 0.0f) ? ((thumbLeft - (float) m.trackLeft) / travel) : 0.0f;
+
+    SetLeftPx ((int) std::lround (ratio * (float) maxLeft));
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetRequiredRowsForHeightPx
 //
 //  Number of data rows that fit within the given pixel height
@@ -1061,6 +1548,7 @@ int DxuiListView::HitTestColumnResize (int xPx, int yPx, int tolerancePx) const
     int      cap         = GetVisibleRowCapacity();
     bool     needBar     = ((int) m_rows.size() > cap) && (cap > 0);
     int      fullW       = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
+    int      xAdj        = m_hScrollEnabled ? (xPx + m_leftPx) : xPx;
     int      lastVisible = -1;
     std::vector<int>  colXPx;
     std::vector<int>  colWPx;
@@ -1094,7 +1582,7 @@ int DxuiListView::HitTestColumnResize (int xPx, int yPx, int tolerancePx) const
         }
 
         int  rightEdge = colXPx[c] + colWPx[c];
-        if (xPx >= rightEdge - tolerancePx && xPx <= rightEdge + tolerancePx)
+        if (xAdj >= rightEdge - tolerancePx && xAdj <= rightEdge + tolerancePx)
         {
             result = (int) c;
             break;
@@ -1128,6 +1616,7 @@ int DxuiListView::HitTestHeaderColumn (int xPx, int yPx) const
     int              cap     = GetVisibleRowCapacity();
     bool             needBar = ((int) m_rows.size() > cap) && (cap > 0);
     int              fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
+    int              xAdj    = m_hScrollEnabled ? (xPx + m_leftPx) : xPx;
     std::vector<int> colXPx;
     std::vector<int> colWPx;
 
@@ -1146,7 +1635,7 @@ int DxuiListView::HitTestHeaderColumn (int xPx, int yPx) const
             continue;
         }
 
-        if (xPx >= colXPx[c] && xPx < colXPx[c] + colWPx[c])
+        if (xAdj >= colXPx[c] && xAdj < colXPx[c] + colWPx[c])
         {
             result = (int) c;
             break;
@@ -1213,16 +1702,20 @@ Error:
 void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
     HRESULT          hr         = S_OK;
+    ScrollLayout     layout     = ComputeScrollLayout();
     float            x          = (float) m_boundsDip.left;
     float            y          = (float) m_boundsDip.top;
     float            fullW      = (float) (m_boundsDip.right - m_boundsDip.left);
-    int              visibleCap = GetVisibleRowCapacity();
+    float            fullH      = (float) (m_boundsDip.bottom - m_boundsDip.top);
+    int              visibleCap = layout.rowCap;
     int              totalRows  = (int) m_rows.size();
     int              firstRow   = m_topRow;
     int              lastRow    = std::min (totalRows, m_topRow + (visibleCap > 0 ? visibleCap : totalRows));
-    bool             needBar    = (totalRows > visibleCap) && (visibleCap > 0);
-    float            barW       = needBar ? (float) GetScrollbarWidthPx() : 0.0f;
+    float            barW       = layout.vBar ? (float) GetScrollbarWidthPx() : 0.0f;
+    float            hBarH      = layout.hBar ? (float) GetScrollbarWidthPx() : 0.0f;
     float            layoutW    = fullW - barW;
+    float            contentH   = fullH - hBarH;
+    bool             clip       = m_hScrollEnabled;
     Palette          pal        = {};
     std::vector<int> colXPx;
     std::vector<int> colWPx;
@@ -1235,7 +1728,13 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 
     ComputeColumnLayout (layoutW, colXPx, colWPx);
 
-    painter.FillRect (x, y, fullW, (float) (m_boundsDip.bottom - m_boundsDip.top), pal.bgRow);
+    painter.FillRect (x, y, fullW, fullH, pal.bgRow);
+
+    if (clip)
+    {
+        hr = text.PushClipRect (x, y, layoutW, contentH);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 
     if (m_showHeader)
     {
@@ -1245,7 +1744,21 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 
     PaintDataRows (painter, text, pal, x, y, layoutW, firstRow, lastRow, colXPx, colWPx);
 
-    PaintScrollbar (painter, pal, x, y);
+    if (clip)
+    {
+        hr = text.PopClipRect();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    PaintScrollbar  (painter, pal, x, y);
+    PaintHScrollbar (painter, pal, x, y);
+
+    if (layout.vBar && layout.hBar)
+    {
+        uint32_t  cornerArgb = (pal.fg & 0x00FFFFFFu) | 0x18000000u;
+
+        painter.FillRect (x + layoutW, y + contentH, barW, hBarH, cornerArgb);
+    }
 
 Error:
     return;
@@ -1309,6 +1822,7 @@ void DxuiListView::PaintHeader (
     float    cellPadL  = (float) m_scaler.Px (s_kCellPadLeftDip);
     float    cellPadR  = (float) m_scaler.Px (s_kCellPadRightDip);
     float    hdrFontPx = (float) m_scaler.Pxf (s_kHeaderFontDip);
+    float    colOff    = m_hScrollEnabled ? -(float) m_leftPx : 0.0f;
 
 
 
@@ -1332,7 +1846,7 @@ void DxuiListView::PaintHeader (
         }
 
         hr = text.DrawString (m_columns[c].title.c_str(),
-                              x + (float) colXPx[c] + cellPadL,
+                              x + colOff + (float) colXPx[c] + cellPadL,
                               y,
                               titleW,
                               headerH,
@@ -1349,7 +1863,7 @@ void DxuiListView::PaintHeader (
             float           gw    = sortGlyphW;
 
             hr = text.DrawString (glyph,
-                                  x + (float) colXPx[c] + (float) colWPx[c] - cellPadR - gw,
+                                  x + colOff + (float) colXPx[c] + (float) colWPx[c] - cellPadR - gw,
                                   y,
                                   gw,
                                   headerH,
@@ -1365,7 +1879,8 @@ void DxuiListView::PaintHeader (
 
     // Faint vertical separators between header columns so the user
     // can see where each column ends (and where the resize handle
-    // lives).
+    // lives). The separators scroll with the columns, so CPU-clip any
+    // that fall outside the content viewport (IDxuiPainter has no clip).
     for (size_t c = 0; c < m_columns.size(); ++c)
     {
         float  sepX = 0.0f;
@@ -1375,7 +1890,13 @@ void DxuiListView::PaintHeader (
             continue;
         }
 
-        sepX = x + (float) colXPx[c] + (float) colWPx[c] - 1.0f;
+        sepX = x + colOff + (float) colXPx[c] + (float) colWPx[c] - 1.0f;
+
+        if (sepX < x || sepX >= x + layoutW)
+        {
+            continue;
+        }
+
         painter.FillRect (sepX, y + 2.0f, 1.0f, headerH - 4.0f, pal.border);
     }
 }
@@ -1404,6 +1925,8 @@ void DxuiListView::PaintHeaderFocusMarkers (
 {
     float     headerH   = (float) m_scaler.Px (s_kHeaderHeightDip);
     uint32_t  focusArgb = (pal.fg & 0x00FFFFFFu) | 0xC0000000u;
+    float     colOff    = m_hScrollEnabled ? -(float) m_leftPx : 0.0f;
+    float     clipR     = x + (float) ComputeScrollLayout().viewportW;
 
 
 
@@ -1412,23 +1935,39 @@ void DxuiListView::PaintHeaderFocusMarkers (
         && m_columns[(size_t) m_focusedHeaderCol].visible
         && colWPx[(size_t) m_focusedHeaderCol] > 0)
     {
-        float  fx = x + (float) colXPx[(size_t) m_focusedHeaderCol];
-        float  fw = (float) colWPx[(size_t) m_focusedHeaderCol];
+        float  fx    = x + colOff + (float) colXPx[(size_t) m_focusedHeaderCol];
+        float  fw    = (float) colWPx[(size_t) m_focusedHeaderCol];
+        float  left  = std::max (fx, x);
+        float  right = std::min (fx + fw, clipR);
 
-        painter.FillRect (fx,             y,               fw,   1.0f,    focusArgb);
-        painter.FillRect (fx,             y + headerH - 1, fw,   1.0f,    focusArgb);
-        painter.FillRect (fx,             y,               1.0f, headerH, focusArgb);
-        painter.FillRect (fx + fw - 1.0f, y,               1.0f, headerH, focusArgb);
+        if (right > left)
+        {
+            painter.FillRect (left, y,               right - left, 1.0f,    focusArgb);
+            painter.FillRect (left, y + headerH - 1, right - left, 1.0f,    focusArgb);
+
+            if (fx >= x && fx < clipR)
+            {
+                painter.FillRect (fx, y, 1.0f, headerH, focusArgb);
+            }
+
+            if (fx + fw - 1.0f >= x && fx + fw - 1.0f < clipR)
+            {
+                painter.FillRect (fx + fw - 1.0f, y, 1.0f, headerH, focusArgb);
+            }
+        }
     }
 
     if (m_focusedDividerCol >= 0 && (size_t) m_focusedDividerCol < m_columns.size()
         && m_columns[(size_t) m_focusedDividerCol].visible
         && colWPx[(size_t) m_focusedDividerCol] > 0)
     {
-        float  dx = x + (float) colXPx[(size_t) m_focusedDividerCol]
+        float  dx = x + colOff + (float) colXPx[(size_t) m_focusedDividerCol]
                       + (float) colWPx[(size_t) m_focusedDividerCol] - 2.0f;
 
-        painter.FillRect (dx, y + 1.0f, 2.0f, headerH - 2.0f, focusArgb);
+        if (dx >= x && dx < clipR)
+        {
+            painter.FillRect (dx, y + 1.0f, 2.0f, headerH - 2.0f, focusArgb);
+        }
     }
 }
 
@@ -1464,6 +2003,7 @@ void DxuiListView::PaintDataRows (
     float    cellPadL = (float) m_scaler.Px (s_kCellPadLeftDip);
     float    cellPadR = (float) m_scaler.Px (s_kCellPadRightDip);
     float    fontPx   = (float) m_scaler.Pxf (s_kFontDip);
+    float    colOff   = m_hScrollEnabled ? -(float) m_leftPx : 0.0f;
 
 
 
@@ -1506,7 +2046,7 @@ void DxuiListView::PaintDataRows (
             }
 
             hr = text.DrawString (cells[c].text.c_str(),
-                                  x + (float) colXPx[c] + cellPadL,
+                                  x + colOff + (float) colXPx[c] + cellPadL,
                                   ry,
                                   (float) colWPx[c] - cellPadL - cellPadR,
                                   rowH,
@@ -1542,9 +2082,11 @@ void DxuiListView::PaintScrollbar (
     float           y) const
 {
     HRESULT           hr        = S_OK;
+    ScrollLayout      layout    = ComputeScrollLayout();
     ScrollbarMetrics  m         = GetScrollbarGeometry();
     float             headerH   = (float) (m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0);
     float             hdrGap    = (float) (m_showHeader ? m_scaler.Px (s_kHeaderGapDip)    : 0);
+    float             hBarH     = layout.hBar ? (float) GetScrollbarWidthPx() : 0.0f;
     uint32_t          trackArgb = (pal.fg & 0x00FFFFFFu) | 0x18000000u;
     uint32_t          thumbArgb = (pal.fg & 0x00FFFFFFu) | 0x80000000u;
     uint32_t          arrowArgb = (pal.fg & 0x00FFFFFFu) | 0xC0000000u;
@@ -1558,7 +2100,7 @@ void DxuiListView::PaintScrollbar (
 
     bx     = x + (float) m.barX;
     barTop = y + headerH + hdrGap;
-    barH   = (float) (m_boundsDip.bottom - m_boundsDip.top) - headerH - hdrGap;
+    barH   = (float) (m_boundsDip.bottom - m_boundsDip.top) - headerH - hdrGap - hBarH;
 
     painter.FillRect (bx, barTop, (float) m.barW, barH, trackArgb);
     painter.FillRect (bx + 1.0f, y + m.thumbTop, (float) m.barW - 2.0f, m.thumbH, thumbArgb);
@@ -1567,6 +2109,54 @@ void DxuiListView::PaintScrollbar (
     {
         PaintScrollArrow (painter, bx, y + (float) m.upArrowTop,   (float) m.barW, (float) m.arrowH, true,  arrowArgb);
         PaintScrollArrow (painter, bx, y + (float) m.downArrowTop, (float) m.barW, (float) m.arrowH, false, arrowArgb);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintHScrollbar
+//
+//  Paints the horizontal scrollbar track, thumb, and (when the bar is
+//  wide enough) the left/right arrow buttons along the bottom of the
+//  list. No-op when the bar is hidden.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::PaintHScrollbar (
+    IDxuiPainter  & painter,
+    const Palette & pal,
+    float           x,
+    float           y) const
+{
+    HRESULT            hr        = S_OK;
+    HScrollbarMetrics  m         = GetHScrollbarGeometry();
+    uint32_t           trackArgb = (pal.fg & 0x00FFFFFFu) | 0x18000000u;
+    uint32_t           thumbArgb = (pal.fg & 0x00FFFFFFu) | 0x80000000u;
+    uint32_t           arrowArgb = (pal.fg & 0x00FFFFFFu) | 0xC0000000u;
+    float              by        = 0.0f;
+    float              trackX    = 0.0f;
+
+
+
+    BAIL_OUT_IF (!m.visible, S_OK);
+
+    by     = y + (float) m.barY;
+    trackX = x + (float) m.trackLeft;
+
+    painter.FillRect (trackX, by, (float) m.trackW, (float) m.barH, trackArgb);
+    painter.FillRect (x + m.thumbLeft, by + 1.0f, m.thumbW, (float) m.barH - 2.0f, thumbArgb);
+
+    if (m.arrowW > 0)
+    {
+        PaintScrollArrowH (painter, x + (float) m.leftArrowX,  by, (float) m.arrowW, (float) m.barH, true,  arrowArgb);
+        PaintScrollArrowH (painter, x + (float) m.rightArrowX, by, (float) m.arrowW, (float) m.barH, false, arrowArgb);
     }
 
 Error:
@@ -1614,30 +2204,7 @@ void DxuiListView::ComputeColumnLayout (float fullW, std::vector<int> & xs, std:
             continue;
         }
 
-        if (c < m_overrideWPx.size() && m_overrideWPx[c] >= 0)
-        {
-            wpx = m_overrideWPx[c];
-        }
-        else if (m_columns[c].widthDip > 0)
-        {
-            wpx = m_scaler.Px (m_columns[c].widthDip);
-        }
-        else
-        {
-            // Auto column: widest of the batch-measured width
-            // (MeasureColumnsPx) and the incremental char-count auto-fit.
-            int  padPx     = m_scaler.Px (s_kCellPadLeftDip) + m_scaler.Px (s_kCellPadRightDip);
-            int  perCharPx = (int) std::ceil (m_scaler.Pxf (s_kFontDip) * s_kAutoCharWidthEm);
-
-            if (c < m_measuredWPx.size())
-            {
-                wpx = std::max (wpx, m_measuredWPx[c]);
-            }
-            if (c < m_autoMaxChars.size() && m_autoMaxChars[c] > 0)
-            {
-                wpx = std::max (wpx, m_autoMaxChars[c] * perCharPx + padPx);
-            }
-        }
+        wpx = ColumnNaturalWidthPx (c);
 
         ws[c]       = wpx;
         fixedTotal += wpx;
@@ -1692,6 +2259,45 @@ void DxuiListView::PaintScrollArrow (IDxuiPainter & painter,
         float  rx   = ax + (aw - w) / 2.0f;
 
         painter.FillRect (rx, gy + (float) r, w, 1.0f, argb);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintScrollArrowH
+//
+//  Paints a left (left == true) or right triangle centered in the given
+//  arrow-button rect, drawn as a row of 1px-wide columns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::PaintScrollArrowH (IDxuiPainter & painter,
+                                  float          ax,
+                                  float          ay,
+                                  float          aw,
+                                  float          ah,
+                                  bool           left,
+                                  uint32_t       argb) const
+{
+    int    glyphW = std::max (3, (int) std::lround (aw * 0.30f));
+    int    glyphH = glyphW * 2;
+    float  gx     = ax + (aw - (float) glyphW) / 2.0f;
+    int    c      = 0;
+
+
+
+    for (c = 0; c < glyphW; c++)
+    {
+        float  frac = left ? (float) (c + 1) / (float) glyphW
+                           : (float) (glyphW - c) / (float) glyphW;
+        float  h    = (float) glyphH * frac;
+        float  cy   = ay + (ah - h) / 2.0f;
+
+        painter.FillRect (gx + (float) c, cy, 1.0f, h, argb);
     }
 }
 

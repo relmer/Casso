@@ -1875,6 +1875,7 @@ private:
     static constexpr int    s_kMinBodyHeightDip     = 160;
     static constexpr int    s_kMinColWidthDip       = 48;
     static constexpr int    s_kResizeGrabDip        = 4;
+    static constexpr int    s_kHScrollStepDip       = 32;
     static constexpr int    s_kResizableMinWidthDip  = 480;
     static constexpr int    s_kResizableMinHeightDip = 320;
     static constexpr int    s_kResizableDefWidthDip  = 720;
@@ -1910,6 +1911,7 @@ private:
     int                        m_gapPx           = 0;
     int                        m_maxBodyHeightPx = 0;
     bool                       m_scrollDragging  = false;
+    bool                       m_hScrollDragging = false;
     int                        m_resizeColumn    = -1;
     int                        m_resizeStartXPx  = 0;
     int                        m_resizeStartWPx  = 0;
@@ -2029,13 +2031,14 @@ void DiskMruPickerSession::ConfigureWidgets()
 
     cols.push_back ({ L"Last loaded", 0, false, DxuiTextRenderer::HAlign::Left });
     cols.push_back ({ L"Disk image",  0, false, DxuiTextRenderer::HAlign::Left });
-    cols.push_back ({ L"Location",    0, true,  DxuiTextRenderer::HAlign::Left });
+    cols.push_back ({ L"Location",    0, false, DxuiTextRenderer::HAlign::Left });
 
-    m_list.SetDpi           (m_dpi);
-    m_list.SetShowHeader    (true);
-    m_list.SetColumns       (std::move (cols));
-    m_list.SetSortIndicator (m_sortColumn, m_sortDescending);
-    m_list.EnableStickyTail (false);
+    m_list.SetDpi                    (m_dpi);
+    m_list.SetShowHeader             (true);
+    m_list.SetColumns                (std::move (cols));
+    m_list.SetSortIndicator          (m_sortColumn, m_sortDescending);
+    m_list.EnableStickyTail          (false);
+    m_list.SetHorizontalScrollEnabled (true);
 }
 
 
@@ -2337,6 +2340,7 @@ Error:
 void DiskMruPickerSession::HandleListButtonDown (int lx, int ly, DialogPrimitive & prim)
 {
     HRESULT  hr        = S_OK;
+    int      hStep     = MulDiv (s_kHScrollStepDip, (int) m_dpi, s_kBaseDpi);
     int      resizeCol = -1;
     int      headerCol = -1;
     int      row       = -1;
@@ -2344,6 +2348,31 @@ void DiskMruPickerSession::HandleListButtonDown (int lx, int ly, DialogPrimitive
 
 
     prim.SetCustomBodyFocus (s_kListStop);
+
+    if (m_list.HitTestHScrollbarArrowLeft (lx, ly))
+    {
+        m_list.SetLeftPx (m_list.GetLeftPx() - hStep);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (m_list.HitTestHScrollbarArrowRight (lx, ly))
+    {
+        m_list.SetLeftPx (m_list.GetLeftPx() + hStep);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (m_list.HitTestHScrollbarThumb (lx, ly))
+    {
+        m_list.BeginHThumbDrag (lx);
+        m_hScrollDragging = true;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (m_list.HitTestHScrollbarTrack (lx, ly))
+    {
+        m_list.PageFromHTrackClick (lx);
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     if (m_list.HitTestScrollbarArrowUp (lx, ly))
     {
@@ -2484,6 +2513,7 @@ std::optional<int> DiskMruPickerSession::HandleInput (const DialogInputEvent & e
     bool                inList   = (ev.xPx >= m_listRectPx.left && ev.xPx < m_listRectPx.right &&
                                     ev.yPx >= m_listRectPx.top  && ev.yPx < m_listRectPx.bottom);
     int                 minColW  = MulDiv (s_kMinColWidthDip, (int) m_dpi, s_kBaseDpi);
+    int                 hStep    = MulDiv (s_kHScrollStepDip, (int) m_dpi, s_kBaseDpi);
     int                 newColW  = 0;
 
 
@@ -2499,6 +2529,10 @@ std::optional<int> DiskMruPickerSession::HandleInput (const DialogInputEvent & e
             else if (m_scrollDragging)
             {
                 m_list.UpdateThumbDrag (ly);
+            }
+            else if (m_hScrollDragging)
+            {
+                m_list.UpdateHThumbDrag (lx);
             }
             else if (inSearch)
             {
@@ -2536,6 +2570,11 @@ std::optional<int> DiskMruPickerSession::HandleInput (const DialogInputEvent & e
                 m_list.EndThumbDrag();
                 m_scrollDragging = false;
             }
+            else if (m_hScrollDragging)
+            {
+                m_list.EndHThumbDrag();
+                m_hScrollDragging = false;
+            }
             else if (inList)
             {
                 row = m_list.HitTestRow (lx, ly);
@@ -2550,7 +2589,16 @@ std::optional<int> DiskMruPickerSession::HandleInput (const DialogInputEvent & e
         case DialogInputEvent::Kind::Wheel:
             if (inList)
             {
-                m_list.ScrollByWheelDelta (ev.wheelDelta);
+                bool  shiftHeld = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
+
+                if (shiftHeld)
+                {
+                    m_list.ScrollByWheelDeltaHorizontal (ev.wheelDelta, hStep);
+                }
+                else
+                {
+                    m_list.ScrollByWheelDelta (ev.wheelDelta);
+                }
             }
 
             break;
