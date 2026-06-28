@@ -60,6 +60,23 @@ public:
         float  thumbH       = 0.0f;
     };
 
+    // Horizontal-scroll counterpart to ScrollbarMetrics, in coordinates
+    // relative to the widget rect's top-left. arrowW == 0 means the bar
+    // is too short for arrow buttons.
+    struct HScrollbarMetrics
+    {
+        bool   visible     = false;
+        int    barY        = 0;
+        int    barH        = 0;
+        int    arrowW      = 0;
+        int    leftArrowX  = 0;
+        int    rightArrowX = 0;
+        int    trackLeft   = 0;
+        int    trackW      = 0;
+        float  thumbLeft   = 0.0f;
+        float  thumbW      = 0.0f;
+    };
+
 
     // Configuration.
     void  SetDpi          (UINT dpi)                       { m_scaler.SetDpi (dpi); }
@@ -150,6 +167,34 @@ public:
     void             EndThumbDrag              ()                            { m_dragging = false; m_dragGrabDy = 0.0f; }
     bool             IsThumbDragging           () const                      { return m_dragging; }
 
+    // Horizontal scroll (opt-in via SetHorizontalScrollEnabled; default
+    // off so existing consumers are unaffected). When enabled and the
+    // natural total column width exceeds the viewport, Paint offsets the
+    // columns by -m_leftPx, clips them to the content viewport, and
+    // shows a horizontal scrollbar along the bottom. GetContentWidthPx
+    // is the natural total (no stretch fill); GetMaxLeftPx is the excess
+    // of that over the viewport content width (which excludes the
+    // vertical scrollbar). xPx/yPx for the hit-tests are widget-relative.
+    void  SetHorizontalScrollEnabled   (bool b)                { m_hScrollEnabled = b; }
+    bool  IsHorizontalScrollEnabled    () const                { return m_hScrollEnabled; }
+    int   GetContentWidthPx            () const;
+    int   GetMaxLeftPx                 () const;
+    int   GetLeftPx                    () const                { return m_leftPx; }
+    void  SetLeftPx                    (int leftPx);
+    void  ScrollByWheelDeltaHorizontal (int wheelDelta, int pxPerNotch);
+
+    bool              IsHScrollbarVisible         () const;
+    HScrollbarMetrics GetHScrollbarGeometry       () const;
+    bool              HitTestHScrollbarThumb      (int xPx, int yPx) const;
+    bool              HitTestHScrollbarTrack      (int xPx, int yPx) const;
+    bool              HitTestHScrollbarArrowLeft  (int xPx, int yPx) const;
+    bool              HitTestHScrollbarArrowRight (int xPx, int yPx) const;
+    void              PageFromHTrackClick         (int xPx);
+    void              BeginHThumbDrag             (int grabXPx);
+    void              UpdateHThumbDrag            (int xPx);
+    void              EndHThumbDrag               ()                          { m_hDragging = false; m_hDragGrabDx = 0.0f; }
+    bool              IsHThumbDragging            () const                    { return m_hDragging; }
+
     // Sizing helpers (the host dialog uses these to size itself).
     int   GetRequiredRowsForHeightPx (int heightPx) const;
     int   GetRequiredHeightPx        () const;
@@ -209,7 +254,24 @@ private:
         uint32_t  border   = 0;
     };
 
-    Palette MakePalette () const;
+    // Resolved scrollbar state for the current rect, columns, and rows.
+    // vBar / hBar account for one another (the horizontal bar steals row
+    // capacity; the vertical bar steals viewport width), so they are
+    // resolved together. viewportW is the width available to columns
+    // (full width minus the vertical bar); contentW is the natural total
+    // column width (no stretch fill).
+    struct ScrollLayout
+    {
+        bool  vBar      = false;
+        bool  hBar      = false;
+        int   rowCap    = 0;
+        int   viewportW = 0;
+        int   contentW  = 0;
+    };
+
+    Palette      MakePalette         () const;
+    ScrollLayout ComputeScrollLayout () const;
+    int          ColumnNaturalWidthPx (size_t c) const;
     void    ComputeColumnLayout (float fullW, std::vector<int> & xs, std::vector<int> & ws) const;
     void    PaintHeader             (IDxuiPainter           & painter,
                                      IDxuiTextRenderer    & text,
@@ -239,12 +301,23 @@ private:
                                      const Palette & pal,
                                      float           x,
                                      float           y) const;
+    void    PaintHScrollbar         (IDxuiPainter  & painter,
+                                     const Palette & pal,
+                                     float           x,
+                                     float           y) const;
     void    PaintScrollArrow        (IDxuiPainter & painter,
                                      float          ax,
                                      float          ay,
                                      float          aw,
                                      float          ah,
                                      bool           up,
+                                     uint32_t       argb) const;
+    void    PaintScrollArrowH       (IDxuiPainter & painter,
+                                     float          ax,
+                                     float          ay,
+                                     float          aw,
+                                     float          ah,
+                                     bool           left,
                                      uint32_t       argb) const;
     const IDxuiTheme                * m_theme      = nullptr;
     std::vector<Column>               m_columns;
@@ -268,4 +341,8 @@ private:
     int                               m_focusedDividerCol = -1;
     bool                              m_dragging          = false;
     float                             m_dragGrabDy        = 0.0f;
+    bool                              m_hScrollEnabled    = false;
+    int                               m_leftPx            = 0;
+    bool                              m_hDragging         = false;
+    float                             m_hDragGrabDx       = 0.0f;
 };
