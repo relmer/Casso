@@ -2336,3 +2336,346 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     }
     static_cast<const DxuiListView *> (this)->Paint (painter, text);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::OnMouse  (IDxuiControl override)
+//
+//  Self-contained mouse handling. ev.positionDip is widget-relative (the
+//  host subtracts the list's own origin first, matching the 0-based
+//  hit-test accessors), so the coordinates pass straight through.
+//  Dispatches by event kind and returns true when the list consumed it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::OnMouse (const DxuiMouseEvent & ev)
+{
+    bool  handled  = false;
+    int   lx       = ev.positionDip.x;
+    int   ly       = ev.positionDip.y;
+    int   widthPx  = m_boundsDip.right  - m_boundsDip.left;
+    int   heightPx = m_boundsDip.bottom - m_boundsDip.top;
+    bool  inside   = (lx >= 0 && lx < widthPx && ly >= 0 && ly < heightPx);
+
+
+
+    switch (ev.kind)
+    {
+        case DxuiMouseEventKind::Down:  handled = DispatchMouseDown  (ev, lx, ly, inside);  break;
+        case DxuiMouseEventKind::Move:  handled = DispatchMouseMove  (lx, ly, inside);      break;
+        case DxuiMouseEventKind::Up:    handled = DispatchMouseUp    (lx, ly, inside);      break;
+        case DxuiMouseEventKind::Wheel: handled = DispatchMouseWheel (ev, inside);          break;
+        case DxuiMouseEventKind::Leave: SetHoveredRow (-1);                                 break;
+        default:                                                                            break;
+    }
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::DispatchMouseDown
+//
+//  Left-press priority chain: the scrollbars, then a column-resize
+//  divider, then a header (sort), then a data row (select). A left-press
+//  anywhere inside the list is consumed so the host can claim focus.
+//  (Right-click stays with the host: its menu content is host-specific.)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly, bool inside)
+{
+    HRESULT  hr        = S_OK;
+    bool     handled   = false;
+    int      grabTol   = m_scaler.Px (s_kResizeGrabDip);
+    int      resizeCol = -1;
+    int      headerCol = -1;
+    int      row       = -1;
+
+
+
+    BAIL_OUT_IF (ev.button != DxuiMouseButton::Left || !inside, S_OK);
+
+    handled = DispatchScrollbarPress (lx, ly);
+    BAIL_OUT_IF (handled, S_OK);
+
+    resizeCol = HitTestColumnResize (lx, ly, grabTol);
+
+    if (resizeCol >= 0)
+    {
+        m_resizeColumn   = resizeCol;
+        m_resizeStartXPx = lx;
+        m_resizeStartWPx = GetColumnEffectiveWidthPx ((size_t) resizeCol);
+        handled          = true;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    headerCol = HitTestHeaderColumn (lx, ly);
+
+    if (headerCol >= 0)
+    {
+        if (m_onSortColumn)
+        {
+            m_onSortColumn (headerCol);
+        }
+
+        handled = true;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    row = HitTestRow (lx, ly);
+
+    if (row >= 0)
+    {
+        SetSelectedRow (row);
+
+        if (m_onSelectionChanged)
+        {
+            m_onSelectionChanged (row);
+        }
+    }
+
+    handled = true;
+
+Error:
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::DispatchScrollbarPress
+//
+//  Tries the horizontal then vertical scrollbar regions (arrows, thumb,
+//  track) at the press point, acting on the first hit: arrows step, the
+//  thumb starts a drag, the track pages. Returns true when one was hit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::DispatchScrollbarPress (int lx, int ly)
+{
+    HRESULT  hr      = S_OK;
+    bool     handled = true;
+    int      hStep   = m_scaler.Px (s_kHScrollStepDip);
+
+
+
+    if (HitTestHScrollbarArrowLeft (lx, ly))
+    {
+        SetLeftPx (m_leftPx - hStep);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (HitTestHScrollbarArrowRight (lx, ly))
+    {
+        SetLeftPx (m_leftPx + hStep);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (HitTestHScrollbarThumb (lx, ly))
+    {
+        BeginHThumbDrag (lx);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (HitTestHScrollbarTrack (lx, ly))
+    {
+        PageFromHTrackClick (lx);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (HitTestScrollbarArrowUp (lx, ly))
+    {
+        ScrollByRows (-1);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (HitTestScrollbarArrowDown (lx, ly))
+    {
+        ScrollByRows (1);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (HitTestScrollbarThumb (lx, ly))
+    {
+        BeginThumbDrag (ly);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (HitTestScrollbarTrack (lx, ly))
+    {
+        PageFromTrackClick (ly);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    handled = false;
+
+Error:
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::DispatchMouseMove
+//
+//  Drives an in-progress column-resize or thumb drag; otherwise tracks
+//  the hovered row while the pointer is inside. Returns true while
+//  dragging or hovering inside the list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::DispatchMouseMove (int lx, int ly, bool inside)
+{
+    HRESULT  hr      = S_OK;
+    bool     handled = true;
+    int      minColW = m_scaler.Px (s_kMinColWidthDip);
+    int      newColW = 0;
+
+
+
+    if (m_resizeColumn >= 0)
+    {
+        newColW = std::max (minColW, m_resizeStartWPx + (lx - m_resizeStartXPx));
+        SetColumnOverrideWidthPx ((size_t) m_resizeColumn, newColW);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (m_dragging)
+    {
+        UpdateThumbDrag (ly);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (m_hDragging)
+    {
+        UpdateHThumbDrag (lx);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (inside)
+    {
+        SetHoveredRow (HitTestRow (lx, ly));
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    SetHoveredRow (-1);
+    handled = false;
+
+Error:
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::DispatchMouseUp
+//
+//  Ends an in-progress column-resize or thumb drag; otherwise a release
+//  over a data row selects it and raises onActivateRow. Returns true
+//  when a drag ended or a row was activated.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
+{
+    HRESULT  hr      = S_OK;
+    bool     handled = true;
+    int      row     = -1;
+
+
+
+    if (m_resizeColumn >= 0)
+    {
+        m_resizeColumn = -1;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (m_dragging)
+    {
+        EndThumbDrag();
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (m_hDragging)
+    {
+        EndHThumbDrag();
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    row = inside ? HitTestRow (lx, ly) : -1;
+
+    if (row >= 0)
+    {
+        SetSelectedRow (row);
+
+        if (m_onActivateRow)
+        {
+            m_onActivateRow (row);
+        }
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    handled = false;
+
+Error:
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::DispatchMouseWheel
+//
+//  Scrolls the list when the pointer is inside: Shift+wheel scrolls
+//  horizontally, otherwise vertically. ev.wheelDelta is in notches and
+//  is converted to the raw WHEEL_DELTA units the scroll helpers expect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::DispatchMouseWheel (const DxuiMouseEvent & ev, bool inside)
+{
+    HRESULT  hr       = S_OK;
+    bool     handled  = false;
+    int      hStep    = m_scaler.Px (s_kHScrollStepDip);
+    int      rawDelta = (int) (ev.wheelDelta * (float) WHEEL_DELTA);
+
+
+
+    BAIL_OUT_IF (!inside, S_OK);
+
+    if (ev.shift)
+    {
+        ScrollByWheelDeltaHorizontal (rawDelta, hStep);
+    }
+    else
+    {
+        ScrollByWheelDelta (rawDelta);
+    }
+
+    handled = true;
+
+Error:
+    return handled;
+}

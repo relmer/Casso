@@ -203,21 +203,34 @@ public:
     int   HitTestHeaderColumn (int xPx, int yPx) const;
     int   HitTestRow          (int xPx, int yPx) const;
 
+    // Self-contained mouse input. Forward widget-relative mouse events
+    // (positionDip = the point minus the list's own origin) via OnMouse;
+    // the list owns scrolling, thumb / column-resize drags, hover, and
+    // selection, and reports semantic outcomes through these callbacks.
+    // OnMouse returns true when it consumed the event so the host can
+    // repaint and claim focus; IsInteracting is true mid-drag so a Win32
+    // host knows to hold mouse capture.
+    void  SetOnSelectionChanged (std::function<void (int)>  cb)  { m_onSelectionChanged = std::move (cb); }
+    void  SetOnActivateRow      (std::function<void (int)>  cb)  { m_onActivateRow      = std::move (cb); }
+    void  SetOnSortColumn       (std::function<void (int)>  cb)  { m_onSortColumn       = std::move (cb); }
+    bool  IsInteracting         () const  { return m_dragging || m_hDragging || m_resizeColumn >= 0; }
+    bool  IsResizingColumn      () const  { return m_resizeColumn >= 0; }
+
     // Rendering.
     void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
 
     //
-    //  IDxuiControl overrides — additive shims for DxuiPanel trees.
-    //  Mouse/keyboard input on DxuiListView is host-driven through
-    //  the public hit-test / scroll / focus accessors above; the
-    //  unified OnMouse / OnKey overrides forward nothing and return
-    //  false so the panel walks past to siblings.
+    //  IDxuiControl overrides. OnMouse makes the list self-contained:
+    //  the host forwards widget-relative mouse events and the list runs
+    //  its own hit-test / scroll / drag / selection routing, raising the
+    //  callbacks above for the semantic outcomes. OnKey stays a shim
+    //  (key handling remains host-driven via the focus accessors above).
     //
     ~DxuiListView () override = default;
 
     void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool                OnMouse        (const DxuiMouseEvent & ev) override { (void) ev; return false; }
+    bool                OnMouse        (const DxuiMouseEvent & ev) override;
     bool                OnKey          (const DxuiKeyEvent   & ev) override { (void) ev; return false; }
     void                OnFocusChanged (bool focused) override { SetListFocused (focused); }
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::ListView; }
@@ -230,6 +243,9 @@ private:
     static constexpr int    s_kCellPadRightDip   = 16;
     static constexpr int    s_kSortGlyphWidthDip = 10;
     static constexpr int    s_kScrollbarWidthDip = 10;
+    static constexpr int    s_kMinColWidthDip    = 48;
+    static constexpr int    s_kResizeGrabDip     = 4;
+    static constexpr int    s_kHScrollStepDip    = 32;
     static constexpr int    s_kMinThumbPx       = 16;
     static constexpr float  s_kFontDip           = 13.0f;
     static constexpr float  s_kHeaderFontDip     = 13.0f;
@@ -272,6 +288,14 @@ private:
     ScrollLayout ComputeScrollLayout () const;
     int          ColumnNaturalWidthPx (size_t c) const;
     void    ComputeColumnLayout (float fullW, std::vector<int> & xs, std::vector<int> & ws) const;
+
+    // Mouse-event dispatch helpers (lx / ly are widget-relative px).
+    bool    DispatchMouseDown      (const DxuiMouseEvent & ev, int lx, int ly, bool inside);
+    bool    DispatchScrollbarPress (int lx, int ly);
+    bool    DispatchMouseMove      (int lx, int ly, bool inside);
+    bool    DispatchMouseUp        (int lx, int ly, bool inside);
+    bool    DispatchMouseWheel     (const DxuiMouseEvent & ev, bool inside);
+
     void    PaintHeader             (IDxuiPainter           & painter,
                                      IDxuiTextRenderer    & text,
                                      const Palette          & pal,
@@ -349,4 +373,10 @@ private:
     int                               m_leftPx            = 0;
     bool                              m_hDragging         = false;
     float                             m_hDragGrabDx       = 0.0f;
+    int                               m_resizeColumn      = -1;
+    int                               m_resizeStartXPx    = 0;
+    int                               m_resizeStartWPx    = 0;
+    std::function<void (int)>         m_onSelectionChanged;
+    std::function<void (int)>         m_onActivateRow;
+    std::function<void (int)>         m_onSortColumn;
 };
