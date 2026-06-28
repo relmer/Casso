@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Widgets/DxuiTooltip.h"
+#include "DxuiTooltip.h"
 #include "Window/DxuiHostWindow.h"
 #include "Window/DxuiPopupHost.h"
 

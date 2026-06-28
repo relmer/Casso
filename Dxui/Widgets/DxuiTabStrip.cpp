@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Widgets/DxuiTabStrip.h"
+#include "DxuiTabStrip.h"
 #include "Theme/DxuiColor.h"
 
 
