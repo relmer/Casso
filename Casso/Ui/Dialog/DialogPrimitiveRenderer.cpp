@@ -208,7 +208,7 @@ HRESULT DialogPrimitiveRenderer::Initialize (
     desc.SampleDesc.Count = 1;
     desc.BufferUsage      = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     desc.BufferCount      = s_kSwapBufferCount;
-    desc.Scaling          = DXGI_SCALING_STRETCH;
+    desc.Scaling          = DXGI_SCALING_NONE;
     desc.SwapEffect       = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     desc.AlphaMode        = DXGI_ALPHA_MODE_IGNORE;
     desc.Flags            = 0;
