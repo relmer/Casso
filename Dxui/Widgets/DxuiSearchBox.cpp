@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Widgets/DxuiSearchBox.h"
+#include "DxuiSearchBox.h"
 #include "Theme/IDxuiTheme.h"
 #include "Theme/DxuiColor.h"
 #include "Render/IDxuiPainter.h"

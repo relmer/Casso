@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Widgets/DxuiMenuBar.h"
+#include "DxuiMenuBar.h"
 
 #include "Core/DxuiThread.h"
 #include "Render/IDxuiPainter.h"

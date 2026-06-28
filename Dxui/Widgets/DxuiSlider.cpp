@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Widgets/DxuiSlider.h"
+#include "DxuiSlider.h"
 #include "Theme/DxuiColor.h"
 
 
