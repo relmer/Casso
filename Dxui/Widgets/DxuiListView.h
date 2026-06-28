@@ -77,7 +77,6 @@ public:
         float  thumbW      = 0.0f;
     };
 
-
     // Configuration.
     void  SetDpi          (UINT dpi)                       { m_scaler.SetDpi (dpi); }
     void  SetTheme        (const IDxuiTheme * theme)       { m_theme = theme; }
@@ -322,11 +321,16 @@ private:
     const IDxuiTheme                * m_theme      = nullptr;
     std::vector<Column>               m_columns;
     std::vector<std::vector<Cell>>    m_rows;
+    // Per-column pixel width fitted to the header + widest cell via
+    // MeasureColumnsPx (DWrite). Monotonic and persists across SetRows so
+    // filter/sort don't collapse content-fit columns; reset by SetColumns.
+    // Preferred over m_autoMaxChars wherever a non-zero entry exists.
     std::vector<int>                  m_measuredWPx;
     std::vector<int>                  m_overrideWPx;
-    // Monotonic max glyph count per auto column (header + widest cell).
-    // ComputeColumnLayout turns it into a pixel width at the current
-    // DPI; persists across SetRows (unlike m_measuredWPx).
+    // Monotonic max glyph count per auto column (header + widest cell);
+    // the cheap fallback used when no DWrite measurement exists (e.g. the
+    // debug panels). ComputeColumnLayout turns it into a pixel width at the
+    // current DPI; persists across SetRows.
     std::vector<int>                  m_autoMaxChars;
     DxuiDpiScaler                         m_scaler;
     int                               m_hovered           = -1;

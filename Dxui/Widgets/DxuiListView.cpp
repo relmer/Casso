@@ -84,7 +84,6 @@ void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
 
 
     m_rows = std::move (rows);
-    m_measuredWPx.clear();
     maxTop = GetMaxTopRow();
 
     if (wasSticky || m_topRow > maxTop)
@@ -331,7 +330,10 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text)
 
 
 
-    m_measuredWPx.assign (m_columns.size(), 0);
+    if (m_measuredWPx.size() != m_columns.size())
+    {
+        m_measuredWPx.assign (m_columns.size(), 0);
+    }
 
     for (size_t c = 0; c < m_columns.size(); ++c)
     {
@@ -358,7 +360,7 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text)
             }
         }
 
-        m_measuredWPx[c] = wpx + padPx;
+        m_measuredWPx[c] = std::max (m_measuredWPx[c], wpx + padPx);
     }
 }
 
@@ -606,17 +608,13 @@ int DxuiListView::ColumnNaturalWidthPx (size_t c) const
         {
             wpx = m_scaler.Px (m_columns[c].widthDip);
         }
-        else
+        else if (c < m_measuredWPx.size() && m_measuredWPx[c] > 0)
         {
-            if (c < m_measuredWPx.size())
-            {
-                wpx = std::max (wpx, m_measuredWPx[c]);
-            }
-
-            if (c < m_autoMaxChars.size() && m_autoMaxChars[c] > 0)
-            {
-                wpx = std::max (wpx, m_autoMaxChars[c] * perCharPx + padPx);
-            }
+            wpx = m_measuredWPx[c];
+        }
+        else if (c < m_autoMaxChars.size() && m_autoMaxChars[c] > 0)
+        {
+            wpx = m_autoMaxChars[c] * perCharPx + padPx;
         }
     }
 
