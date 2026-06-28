@@ -2465,63 +2465,21 @@ Error:
 
 bool DxuiListView::DispatchScrollbarPress (int lx, int ly)
 {
-    HRESULT  hr      = S_OK;
-    bool     handled = true;
-    int      hStep   = m_scaler.Px (s_kHScrollStepDip);
+    bool  handled = true;
+    int   hStep   = m_scaler.Px (s_kHScrollStepDip);
 
 
 
-    if (HitTestHScrollbarArrowLeft (lx, ly))
-    {
-        SetLeftPx (m_leftPx - hStep);
-        BAIL_OUT_IF (true, S_OK);
-    }
+    if      (HitTestHScrollbarArrowLeft  (lx, ly)) { SetLeftPx (m_leftPx - hStep); }
+    else if (HitTestHScrollbarArrowRight (lx, ly)) { SetLeftPx (m_leftPx + hStep); }
+    else if (HitTestHScrollbarThumb      (lx, ly)) { BeginHThumbDrag (lx); }
+    else if (HitTestHScrollbarTrack      (lx, ly)) { PageFromHTrackClick (lx); }
+    else if (HitTestScrollbarArrowUp     (lx, ly)) { ScrollByRows (-1); }
+    else if (HitTestScrollbarArrowDown   (lx, ly)) { ScrollByRows (1); }
+    else if (HitTestScrollbarThumb       (lx, ly)) { BeginThumbDrag (ly); }
+    else if (HitTestScrollbarTrack       (lx, ly)) { PageFromTrackClick (ly); }
+    else                                           { handled = false; }
 
-    if (HitTestHScrollbarArrowRight (lx, ly))
-    {
-        SetLeftPx (m_leftPx + hStep);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    if (HitTestHScrollbarThumb (lx, ly))
-    {
-        BeginHThumbDrag (lx);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    if (HitTestHScrollbarTrack (lx, ly))
-    {
-        PageFromHTrackClick (lx);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    if (HitTestScrollbarArrowUp (lx, ly))
-    {
-        ScrollByRows (-1);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    if (HitTestScrollbarArrowDown (lx, ly))
-    {
-        ScrollByRows (1);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    if (HitTestScrollbarThumb (lx, ly))
-    {
-        BeginThumbDrag (ly);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    if (HitTestScrollbarTrack (lx, ly))
-    {
-        PageFromTrackClick (ly);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    handled = false;
-
-Error:
     return handled;
 }
 
@@ -2541,10 +2499,9 @@ Error:
 
 bool DxuiListView::DispatchMouseMove (int lx, int ly, bool inside)
 {
-    HRESULT  hr      = S_OK;
-    bool     handled = true;
-    int      minColW = m_scaler.Px (s_kMinColWidthDip);
-    int      newColW = 0;
+    bool  handled = true;
+    int   minColW = m_scaler.Px (s_kMinColWidthDip);
+    int   newColW = 0;
 
 
 
@@ -2552,31 +2509,25 @@ bool DxuiListView::DispatchMouseMove (int lx, int ly, bool inside)
     {
         newColW = std::max (minColW, m_resizeStartWPx + (lx - m_resizeStartXPx));
         SetColumnOverrideWidthPx ((size_t) m_resizeColumn, newColW);
-        BAIL_OUT_IF (true, S_OK);
     }
-
-    if (m_dragging)
+    else if (m_dragging)
     {
         UpdateThumbDrag (ly);
-        BAIL_OUT_IF (true, S_OK);
     }
-
-    if (m_hDragging)
+    else if (m_hDragging)
     {
         UpdateHThumbDrag (lx);
-        BAIL_OUT_IF (true, S_OK);
     }
-
-    if (inside)
+    else if (inside)
     {
         SetHoveredRow (HitTestRow (lx, ly));
-        BAIL_OUT_IF (true, S_OK);
+    }
+    else
+    {
+        SetHoveredRow (-1);
+        handled = false;
     }
 
-    SetHoveredRow (-1);
-    handled = false;
-
-Error:
     return handled;
 }
 
@@ -2596,33 +2547,24 @@ Error:
 
 bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
 {
-    HRESULT  hr      = S_OK;
-    bool     handled = true;
-    int      row     = -1;
+    bool  handled = true;
+    int   row     = inside ? HitTestRow (lx, ly) : -1;
 
 
 
     if (m_resizeColumn >= 0)
     {
         m_resizeColumn = -1;
-        BAIL_OUT_IF (true, S_OK);
     }
-
-    if (m_dragging)
+    else if (m_dragging)
     {
         EndThumbDrag();
-        BAIL_OUT_IF (true, S_OK);
     }
-
-    if (m_hDragging)
+    else if (m_hDragging)
     {
         EndHThumbDrag();
-        BAIL_OUT_IF (true, S_OK);
     }
-
-    row = inside ? HitTestRow (lx, ly) : -1;
-
-    if (row >= 0)
+    else if (row >= 0)
     {
         SetSelectedRow (row);
 
@@ -2630,13 +2572,12 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
         {
             m_onActivateRow (row);
         }
-
-        BAIL_OUT_IF (true, S_OK);
+    }
+    else
+    {
+        handled = false;
     }
 
-    handled = false;
-
-Error:
     return handled;
 }
 
