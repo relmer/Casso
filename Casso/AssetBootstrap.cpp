@@ -15,6 +15,7 @@
 #include "Ui/Dialog/StandaloneDialog.h"
 #include "Ui/Dialog/StartupDownloadDialog.h"
 #include "Ui/Dialog/DialogPrimitive.h"
+#include "Core/DxuiEvents.h"
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiSearchBox.h"
 #include "UnicodeSymbols.h"
@@ -1854,7 +1855,6 @@ private:
     std::optional<int>  ChooseFromSearch   () const;
     void                HandlePaint        (DialogPaintContext & ctx);
     std::optional<int>  HandleInput        (const DialogInputEvent & ev, DialogPrimitive & prim);
-    void                HandleListButtonDown (int lx, int ly, DialogPrimitive & prim);
     std::optional<int>  HandleKeyDown      (int vk);
     void                HandleFocus        (int focusIndex);
     void                HandleTick         (DialogPrimitive & prim);
@@ -1873,9 +1873,7 @@ private:
     static constexpr int    s_kSearchListGapDip     = 8;
     static constexpr int    s_kChromeReserveDip     = 240;
     static constexpr int    s_kMinBodyHeightDip     = 160;
-    static constexpr int    s_kMinColWidthDip       = 48;
     static constexpr int    s_kResizeGrabDip        = 4;
-    static constexpr int    s_kHScrollStepDip       = 32;
     static constexpr int    s_kResizableMinWidthDip  = 480;
     static constexpr int    s_kResizableMinHeightDip = 320;
     static constexpr int    s_kResizableDefWidthDip  = 720;
@@ -1910,11 +1908,7 @@ private:
     int                        m_searchHeightPx  = 0;
     int                        m_gapPx           = 0;
     int                        m_maxBodyHeightPx = 0;
-    bool                       m_scrollDragging  = false;
-    bool                       m_hScrollDragging = false;
-    int                        m_resizeColumn    = -1;
-    int                        m_resizeStartXPx  = 0;
-    int                        m_resizeStartWPx  = 0;
+    std::optional<int>         m_pendingChoice;
 };
 
 
@@ -2039,6 +2033,8 @@ void DiskMruPickerSession::ConfigureWidgets()
     m_list.SetSortIndicator          (m_sortColumn, m_sortDescending);
     m_list.EnableStickyTail          (false);
     m_list.SetHorizontalScrollEnabled (true);
+    m_list.SetOnSortColumn           ([this] (int col) { ApplySort (col); });
+    m_list.SetOnActivateRow          ([this] (int row) { m_pendingChoice = ChosenResultAt (row); });
 }
 
 
@@ -2329,108 +2325,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskMruPickerSession::HandleListButtonDown
-//
-//  Routes a left-button press inside the list to the scrollbar arrows /
-//  thumb / track, a header column (sort), or a data row (select). lx/ly
-//  are list-relative coordinates.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskMruPickerSession::HandleListButtonDown (int lx, int ly, DialogPrimitive & prim)
-{
-    HRESULT  hr        = S_OK;
-    int      hStep     = MulDiv (s_kHScrollStepDip, (int) m_dpi, s_kBaseDpi);
-    int      resizeCol = -1;
-    int      headerCol = -1;
-    int      row       = -1;
-
-
-
-    prim.SetCustomBodyFocus (s_kListStop);
-
-    if (m_list.HitTestHScrollbarArrowLeft (lx, ly))
-    {
-        m_list.SetLeftPx (m_list.GetLeftPx() - hStep);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    if (m_list.HitTestHScrollbarArrowRight (lx, ly))
-    {
-        m_list.SetLeftPx (m_list.GetLeftPx() + hStep);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    if (m_list.HitTestHScrollbarThumb (lx, ly))
-    {
-        m_list.BeginHThumbDrag (lx);
-        m_hScrollDragging = true;
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    if (m_list.HitTestHScrollbarTrack (lx, ly))
-    {
-        m_list.PageFromHTrackClick (lx);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    if (m_list.HitTestScrollbarArrowUp (lx, ly))
-    {
-        m_list.ScrollByRows (-1);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    if (m_list.HitTestScrollbarArrowDown (lx, ly))
-    {
-        m_list.ScrollByRows (1);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    if (m_list.HitTestScrollbarThumb (lx, ly))
-    {
-        m_list.BeginThumbDrag (ly);
-        m_scrollDragging = true;
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    if (m_list.HitTestScrollbarTrack (lx, ly))
-    {
-        m_list.PageFromTrackClick (ly);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    resizeCol = m_list.HitTestColumnResize (lx, ly, MulDiv (s_kResizeGrabDip, (int) m_dpi, s_kBaseDpi));
-    if (resizeCol >= 0)
-    {
-        m_resizeColumn   = resizeCol;
-        m_resizeStartXPx = lx;
-        m_resizeStartWPx = m_list.GetColumnEffectiveWidthPx ((size_t) resizeCol);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    headerCol = m_list.HitTestHeaderColumn (lx, ly);
-    if (headerCol >= 0)
-    {
-        ApplySort (headerCol);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    row = m_list.HitTestRow (lx, ly);
-    if (row >= 0)
-    {
-        m_list.SetSelectedRow (row);
-    }
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DiskMruPickerSession::HandleKeyDown
 //
 //  Keyboard handling for the focused sub-widget. Search-focused keys go
@@ -2496,111 +2390,68 @@ std::optional<int> DiskMruPickerSession::HandleKeyDown (int vk)
 //  DiskMruPickerSession::HandleInput
 //
 //  Custom-body input dispatch. Mouse coordinates arrive body-relative;
-//  list interactions use list-relative coordinates and the search box is
-//  fed its body-relative rect before each mouse event. A left-button-up
-//  on a data row returns that row's result code to close the dialog.
+//  the list receives them widget-relative through its OnMouse (which owns
+//  all scroll / drag / resize / select routing and reports a chosen row
+//  via the onActivateRow callback), and the search box is fed its
+//  body-relative rect. A left-button-up that activates a row returns that
+//  row's result code to close the dialog.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::optional<int> DiskMruPickerSession::HandleInput (const DialogInputEvent & ev, DialogPrimitive & prim)
 {
     std::optional<int>  result;
-    int                 lx       = ev.xPx - m_listRectPx.left;
-    int                 ly       = ev.yPx - m_listRectPx.top;
-    int                 row      = -1;
+    DxuiMouseEvent      mev      = {};
     bool                inSearch = (ev.xPx >= m_searchRectPx.left && ev.xPx < m_searchRectPx.right &&
                                     ev.yPx >= m_searchRectPx.top  && ev.yPx < m_searchRectPx.bottom);
-    bool                inList   = (ev.xPx >= m_listRectPx.left && ev.xPx < m_listRectPx.right &&
-                                    ev.yPx >= m_listRectPx.top  && ev.yPx < m_listRectPx.bottom);
-    int                 minColW  = MulDiv (s_kMinColWidthDip, (int) m_dpi, s_kBaseDpi);
-    int                 hStep    = MulDiv (s_kHScrollStepDip, (int) m_dpi, s_kBaseDpi);
-    int                 newColW  = 0;
 
 
+
+    mev.positionDip = { ev.xPx - m_listRectPx.left, ev.yPx - m_listRectPx.top };
+    mev.shift       = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
+    mev.wheelDelta  = (float) ev.wheelDelta / (float) WHEEL_DELTA;
 
     switch (ev.kind)
     {
         case DialogInputEvent::Kind::MouseMove:
-            if (m_resizeColumn >= 0)
-            {
-                newColW = std::max (minColW, m_resizeStartWPx + (lx - m_resizeStartXPx));
-                m_list.SetColumnOverrideWidthPx ((size_t) m_resizeColumn, newColW);
-            }
-            else if (m_scrollDragging)
-            {
-                m_list.UpdateThumbDrag (ly);
-            }
-            else if (m_hScrollDragging)
-            {
-                m_list.UpdateHThumbDrag (lx);
-            }
-            else if (inSearch)
+            mev.kind = DxuiMouseEventKind::Move;
+
+            if (!m_list.OnMouse (mev) && inSearch)
             {
                 m_search.SetRect     (m_searchRectPx);
                 m_search.OnMouseMove (ev.xPx, ev.yPx);
-            }
-            else if (inList)
-            {
-                m_list.SetHoveredRow (m_list.HitTestRow (lx, ly));
             }
 
             break;
 
         case DialogInputEvent::Kind::LeftButtonDown:
-            if (inSearch)
+            mev.kind   = DxuiMouseEventKind::Down;
+            mev.button = DxuiMouseButton::Left;
+
+            if (m_list.OnMouse (mev))
+            {
+                prim.SetCustomBodyFocus (s_kListStop);
+            }
+            else if (inSearch)
             {
                 prim.SetCustomBodyFocus (s_kSearchStop);
                 m_search.SetRect        (m_searchRectPx);
                 m_search.OnLButtonDown  (ev.xPx, ev.yPx);
             }
-            else if (inList)
-            {
-                HandleListButtonDown (lx, ly, prim);
-            }
 
             break;
 
         case DialogInputEvent::Kind::LeftButtonUp:
-            if (m_resizeColumn >= 0)
-            {
-                m_resizeColumn = -1;
-            }
-            else if (m_scrollDragging)
-            {
-                m_list.EndThumbDrag();
-                m_scrollDragging = false;
-            }
-            else if (m_hScrollDragging)
-            {
-                m_list.EndHThumbDrag();
-                m_hScrollDragging = false;
-            }
-            else if (inList)
-            {
-                row = m_list.HitTestRow (lx, ly);
-                if (row >= 0)
-                {
-                    result = ChosenResultAt (row);
-                }
-            }
-
+            mev.kind   = DxuiMouseEventKind::Up;
+            mev.button = DxuiMouseButton::Left;
+            m_list.OnMouse (mev);
+            result = m_pendingChoice;
+            m_pendingChoice.reset();
             break;
 
         case DialogInputEvent::Kind::Wheel:
-            if (inList)
-            {
-                bool  shiftHeld = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
-
-                if (shiftHeld)
-                {
-                    m_list.ScrollByWheelDeltaHorizontal (ev.wheelDelta, hStep);
-                }
-                else
-                {
-                    m_list.ScrollByWheelDelta (ev.wheelDelta);
-                }
-            }
-
+            mev.kind = DxuiMouseEventKind::Wheel;
+            m_list.OnMouse (mev);
             break;
 
         case DialogInputEvent::Kind::Char:
@@ -2740,7 +2591,7 @@ bool DiskMruPickerSession::WantsResizeCursor (int xPx, int yPx) const
 
 
 
-    return (m_resizeColumn >= 0) ||
+    return m_list.IsResizingColumn() ||
            (m_list.HitTestColumnResize (lx, ly, MulDiv (s_kResizeGrabDip, (int) m_dpi, s_kBaseDpi)) >= 0);
 }
 
