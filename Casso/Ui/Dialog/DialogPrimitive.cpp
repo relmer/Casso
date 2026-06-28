@@ -160,7 +160,7 @@ int DialogPrimitive::Show (
     hwndCreated = CreateWindowExW (s_kDialogExStyle,
                                    s_kpszDialogClass,
                                    def.title.c_str(),
-                                   s_kDialogStyle,
+                                   def.resizable ? (s_kDialogStyle | WS_THICKFRAME) : s_kDialogStyle,
                                    windowRect.left,
                                    windowRect.top,
                                    windowRect.right  - windowRect.left,
@@ -352,6 +352,16 @@ LRESULT DialogPrimitive::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM
         case WM_CLOSE:
             OnClose();
             result = 0;
+            break;
+
+        case WM_NCCALCSIZE:
+            if (m_def != nullptr && m_def->resizable)
+            {
+                result = 0;
+                break;
+            }
+
+            result = DefWindowProcW (hwnd, message, wParam, lParam);
             break;
 
         case WM_NCHITTEST:
