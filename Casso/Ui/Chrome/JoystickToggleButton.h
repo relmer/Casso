@@ -81,7 +81,7 @@ public:
     void                  Layout       (const RECT          & boundsDip,
                                         const DxuiDpiScaler & scaler) override;
 
-    static const wchar_t * TooltipText ();
+    const wchar_t * TooltipText () const;
 
 private:
     RECT                  m_bounds        = {};

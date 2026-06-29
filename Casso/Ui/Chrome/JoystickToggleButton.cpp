@@ -39,9 +39,12 @@ static constexpr uint32_t s_kLedOnHaloArgb  = 0xA03DA1FF;
 static constexpr uint32_t s_kLedOffCoreArgb = 0xFF06121A;
 
 static constexpr wchar_t  s_kTooltip[] =
-    L"Arrows, Z, and X keys are mapped to the joystick and its "
-    L"buttons when enabled.  To use these buttons as regular keyboard "
-    L"inputs, disable joystick mode.";
+    L"Arrows, Z, and X keys are mapped to the joystick and its buttons.\n"
+    L"Click again for paddle mode, or disable to restore normal keys.";
+
+static constexpr wchar_t  s_kPaddleTooltip[] =
+    L"The mouse drives paddles 0 and 1; left / right buttons fire.\n"
+    L"Press Esc to release the mouse and exit paddle mode.";
 
 
 
@@ -236,7 +239,7 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * JoystickToggleButton::TooltipText ()
+const wchar_t * JoystickToggleButton::TooltipText () const
 {
-    return s_kTooltip;
+    return (m_mode == InputMappingMode::Paddle) ? s_kPaddleTooltip : s_kTooltip;
 }

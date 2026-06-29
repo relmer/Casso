@@ -38,6 +38,7 @@
 #include "Ui/ThemeManager.h"
 #include "Ui/UiShell.h"
 #include "Widgets/DxuiTooltip.h"
+#include "Widgets/DxuiSurface.h"
 #include "UiCommandTypes.h"
 #include "Video/CharacterRomData.h"
 #include "Video/VideoOutput.h"
@@ -501,6 +502,12 @@ private:
     // hover tooltip.
     JoystickToggleButton  m_joystickButton;
     DxuiTooltip               m_joystickTooltip;
+
+    // Solid background for the bottom drive-bar band. The CRT composite
+    // writes the whole back buffer (emulator frame + black), so the chrome
+    // bands need an opaque surface painted on top; the title and menu bars
+    // cover their own bands, this covers the drive bar.
+    DxuiSurface           m_driveBandSurface;
 
     // Last geometry passed to LayoutJoystickButton, cached so
     // RelayoutJoystickButton can resize the button in place when the

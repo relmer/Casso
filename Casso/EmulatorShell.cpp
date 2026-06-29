@@ -73,6 +73,7 @@ static constexpr int     s_kLabelBottomGapDp    = 2;
 // + ~8 dp bottom gap. Bumping the button's font / padding requires
 // updating this and s_kFullDriveBarDp / s_kCompactDriveBarDp to match.
 static constexpr int     s_kJoystickButtonBandDp = 43;
+static constexpr int     s_kPaddleNoticeMs       = 8000;   // auto-dismiss for the paddle-mode tooltip
 
 // Minimum emulator-viewport (center) the window must always host, plus a
 // small pad past the last menu title, so the bottom drive bar can never be
@@ -1248,6 +1249,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // place; full DxuiDockLayout-driven layout lands in Phase 12.
     m_host->Root().Adopt (m_titleBar);
     m_host->Root().Adopt (m_mainMenu);
+    m_host->Root().Adopt (m_driveBandSurface);
     m_host->Root().Adopt (m_driveChrome[0]);
     m_host->Root().Adopt (m_driveChrome[1]);
     m_host->Root().Adopt (m_joystickButton);
@@ -1264,6 +1266,12 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // client area + occludes). The strip stays in-window. The
     // full-ownership host owns the device, so its pool makes real popups.
     m_mainMenu.SetPopupHost (m_host.get());
+
+    // The joystick-button hover tooltip renders through the host popup
+    // pool too; its dwell timer is driven from the main frame loop's
+    // Tick. SetTheme seeds the tooltip surface colours.
+    m_joystickTooltip.SetPopupHost (m_host.get());
+    m_joystickTooltip.SetTheme     (m_chromeTheme);
 
     // Defer the size reconcile until after ShowWindow. The NC frame
     // (border carve-out from DefWindowProc + DWM rounded corners +
@@ -1357,6 +1365,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             int  bandTop    = clientH - layout.bottomInsetPx;
             int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
 
+            m_driveBandSurface.SetBounds (RECT{ 0, bandTop, clientW, clientH });
             LayoutJoystickButton (clientW, bandTop, bandHeight, dpi);
         }
         m_d3dRenderer.SetTopInsetPx    (layout.topInsetPx);
@@ -2393,6 +2402,15 @@ int EmulatorShell::RunMessageLoop()
         {
             m_d3dRenderer.MarkRedrawNeeded();
         }
+
+        // Drive the joystick-button tooltip dwell timer; it shows / hides
+        // its popup once the open / close delay elapses after a hover.
+        {
+            int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                 std::chrono::steady_clock::now().time_since_epoch()).count();
+
+            m_joystickTooltip.Tick (nowMs);
+        }
         if (!m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
         {
             Sleep (1);
@@ -3183,7 +3201,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
     if (overBtn)
     {
-        m_joystickTooltip.RequestShow (m_joystickButton.Bounds(), JoystickToggleButton::TooltipText(), nowMs);
+        m_joystickTooltip.RequestShow (m_joystickButton.Bounds(), m_joystickButton.TooltipText(), nowMs);
     }
     else
     {
@@ -4063,8 +4081,20 @@ void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
 
     if (mode == InputMappingMode::Paddle)
     {
+        int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                             std::chrono::steady_clock::now().time_since_epoch()).count();
+
         m_paddleAxisX = (float) s_kPaddleCenterByte;
         m_paddleAxisY = (float) s_kPaddleCenterByte;
+
+        // Entering paddle mode captures the mouse, so the hover that would
+        // normally dismiss the tooltip never fires. Show the paddle notice
+        // and let it auto-dismiss after a few seconds.
+        m_joystickTooltip.ShowTimed (m_joystickButton.Bounds(),
+                                     m_joystickButton.TooltipText(),
+                                     nowMs,
+                                     s_kPaddleNoticeMs);
+
         StartPaddleCapture();
     }
 }
@@ -4499,6 +4529,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                 int  bandTop    = renderH - layout.bottomInsetPx;
                 int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
 
+                m_driveBandSurface.SetBounds (RECT{ 0, bandTop, static_cast<int> (width), renderH });
                 LayoutJoystickButton (static_cast<int> (width), bandTop, bandHeight, dpi);
             }
 

@@ -49,6 +49,12 @@ public:
 
     void  RequestShow     (const RECT & anchor, const std::wstring & text, int64_t nowMs);
     void  RequestHide     (int64_t nowMs);
+
+    // Shows immediately (no open dwell) and auto-hides after durationMs.
+    // For transient notices where no pointer-leave will arrive to dismiss
+    // it -- e.g. entering paddle mode captures the mouse, so the hover that
+    // would normally hide the tooltip never fires.
+    void  ShowTimed       (const RECT & anchor, const std::wstring & text, int64_t nowMs, int durationMs);
     void  Tick            (int64_t nowMs) override;
 
     //

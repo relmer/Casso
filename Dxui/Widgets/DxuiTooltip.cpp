@@ -71,6 +71,36 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShowTimed
+//
+//  Shows the tooltip immediately and schedules an auto-hide durationMs
+//  later, for notices that no pointer-leave will dismiss.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::ShowTimed (const RECT & anchor, const std::wstring & text, int64_t nowMs, int durationMs)
+{
+    bool  changed = !m_visible || text != m_text;
+
+    m_anchor   = anchor;
+    m_text     = text;
+    m_pending  = false;
+    m_visible  = true;
+    m_hideAtMs = nowMs + (int64_t) durationMs;
+
+    if (m_popupHost != nullptr && (changed || m_activePopup == nullptr))
+    {
+        ReleaseActivePopup();
+        ShowPopup();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RequestHide
 //
 ////////////////////////////////////////////////////////////////////////////////
