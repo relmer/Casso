@@ -2414,7 +2414,8 @@ std::optional<int> DiskMruPickerSession::HandleInput (const DialogInputEvent & e
     switch (ev.kind)
     {
         case DialogInputEvent::Kind::MouseMove:
-            mev.kind = DxuiMouseEventKind::Move;
+            mev.kind   = DxuiMouseEventKind::Move;
+            mev.button = ((GetKeyState (VK_LBUTTON) & 0x8000) != 0) ? DxuiMouseButton::Left : DxuiMouseButton::None;
 
             if (!m_list.OnMouse (mev) && inSearch)
             {
