@@ -273,6 +273,10 @@ private:
     // for Paddle mode.
     void    SetInputMappingMode (InputMappingMode mode);
 
+    // Radio-group toggle for the Machine-menu items: selects `target`, or
+    // turns mapping Off if `target` is already the active mode.
+    void    ToggleInputMappingMode (InputMappingMode target);
+
     // Advance the input mapping mode Off -> Joystick -> Paddle -> Off,
     // routed from the drive-bar widget, the Machine menu, and Ctrl+J.
     void    CycleInputMappingMode ();

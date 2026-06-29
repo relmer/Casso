@@ -22,6 +22,7 @@ namespace
         { IDM_MACHINE_RESET,            MainMenuId::Machine, L"&Reset",                 L"Ctrl+R"        },
         { IDM_MACHINE_POWERCYCLE,       MainMenuId::Machine, L"Po&wer cycle",           L"Ctrl+Shift+R"  },
         { IDM_MACHINE_ARROWS_JOYSTICK,  MainMenuId::Machine, L"Map Arrows to &Joystick", L"Ctrl+J",        true   },
+        { IDM_MACHINE_ARROWS_PADDLE,    MainMenuId::Machine, L"Map Mouse to &Paddle",   nullptr,          true   },
         { IDM_DISK_INSERT1,             MainMenuId::Disk,    L"&Insert drive 1...",     L"Ctrl+1"        },
         { IDM_DISK_EJECT1,              MainMenuId::Disk,    L"&Eject drive 1",         L"Ctrl+Shift+1"  },
         { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },

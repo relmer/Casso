@@ -692,7 +692,14 @@ HRESULT EmulatorShell::Initialize (
         hrPrefs = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
         IGNORE_RETURN_VALUE (hrPrefs, S_OK);
 
-        m_inputMode = m_globalPrefs.inputMappingMode;
+        // Paddle is an active mouse-capture mode, not a passive remap; never
+        // restore it on launch (it would light the LED / widen the widget
+        // while the mouse is NOT actually captured). Fall back to Off; the
+        // passive Joystick remap is safe to restore.
+        m_inputMode = (m_globalPrefs.inputMappingMode == InputMappingMode::Paddle)
+                          ? InputMappingMode::Off
+                          : m_globalPrefs.inputMappingMode;
+        m_globalPrefs.inputMappingMode = m_inputMode;
         m_joystickButton.SetMode (m_inputMode);
 
         SetColorMonitorTextArgbLive (
@@ -1317,7 +1324,12 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_mainMenu.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
     m_mainMenu.SetCheckQuery ([this] (WORD commandId) -> bool
     {
-        return (commandId == IDM_MACHINE_ARROWS_JOYSTICK) ? (m_inputMode != InputMappingMode::Off) : false;
+        switch (commandId)
+        {
+            case IDM_MACHINE_ARROWS_JOYSTICK: return m_inputMode == InputMappingMode::Joystick;
+            case IDM_MACHINE_ARROWS_PADDLE:   return m_inputMode == InputMappingMode::Paddle;
+            default:                          return false;
+        }
     });
 
     // Load the app icon (IDI_CASSO) into a premultiplied BGRA8 pixel
@@ -3700,12 +3712,12 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
 
 
-    // 0. Esc releases a live paddle-mode mouse capture (the cursor
-    //    reappears) without changing the input mode, so the chrome is
-    //    reachable again; click the emulator screen to re-grab.
-    if (m_paddleCaptured && vk == VK_ESCAPE)
+    // 0. Esc exits paddle mode: releases the mouse capture (cursor
+    //    reappears) and returns the input mapping to Off, matching the
+    //    "Esc to exit" hint on the widget.
+    if (m_inputMode == InputMappingMode::Paddle && vk == VK_ESCAPE)
     {
-        StopPaddleCapture();
+        SetInputMappingMode (InputMappingMode::Off);
         BAIL_OUT_IF (true, S_OK);
     }
 
@@ -4092,6 +4104,25 @@ void EmulatorShell::CycleInputMappingMode ()
     }
 
     SetInputMappingMode (next);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ToggleInputMappingMode
+//
+//  Radio-group selection for the Machine-menu Joystick / Paddle items:
+//  picks `target`, or turns mapping Off when `target` is already active so
+//  re-selecting the current mode clears it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ToggleInputMappingMode (InputMappingMode target)
+{
+    SetInputMappingMode (m_inputMode == target ? InputMappingMode::Off : target);
 }
 
 
