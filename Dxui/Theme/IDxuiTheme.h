@@ -58,6 +58,7 @@ public:
     virtual uint32_t  Foreground          () const = 0;  // primary body text
     virtual uint32_t  ForegroundMuted     () const = 0;  // secondary / accelerator text
     virtual uint32_t  ForegroundDisabled  () const = 0;  // disabled-state text
+    virtual uint32_t  ErrorForeground     () const = 0;  // invalid-input / error text
     virtual uint32_t  HeadingForeground   () const = 0;  // column header / title text
 
     // Accent / focus / borders.

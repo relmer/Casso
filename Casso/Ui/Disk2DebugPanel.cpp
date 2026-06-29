@@ -1758,9 +1758,11 @@ void Disk2DebugPanel::LayoutWidgets()
     uint32_t  invalidArgb  = 0xFFFF6666;
 
 
+
     if (m_theme != nullptr)
     {
-        textArgb = m_theme->navItemText;
+        textArgb    = m_theme->Foreground();
+        invalidArgb = m_theme->ErrorForeground();
     }
 
     m_trackFilterLabel.SetText        (m_filter.trackFilterRawQt ? s_kpszTrackQtFilterLabel : s_kpszTrackFilterLabel);

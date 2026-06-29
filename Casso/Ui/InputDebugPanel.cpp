@@ -1210,7 +1210,7 @@ HRESULT InputDebugPanel::Render()
 
     if (m_theme != nullptr)
     {
-        uint32_t  labelArgb = m_theme->dropdownAccel;
+        uint32_t  labelArgb = m_theme->ForegroundMuted();
 
         m_emuLabel.SetColorArgb     (labelArgb);
         m_hostLabel.SetColorArgb    (labelArgb);

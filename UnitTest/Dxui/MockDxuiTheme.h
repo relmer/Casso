@@ -57,6 +57,7 @@ public:
     uint32_t  TooltipBackground   () const override { return s_kTooltipBackground;   }
     uint32_t  TooltipBorder       () const override { return s_kTooltipBorder;       }
     uint32_t  TooltipForeground   () const override { return s_kTooltipForeground;   }
+    uint32_t  ErrorForeground     () const override { return s_kErrorForeground;     }
 
     DxuiFontHandle  BodyFont      () const override { return {}; }
     DxuiFontHandle  BodyBoldFont  () const override { return {}; }
@@ -99,6 +100,7 @@ public:
     static constexpr uint32_t  s_kTooltipBackground   = 0xFF2E3035;
     static constexpr uint32_t  s_kTooltipBorder       = 0xFF55595F;
     static constexpr uint32_t  s_kTooltipForeground   = 0xFFF0F0F0;
+    static constexpr uint32_t  s_kErrorForeground     = 0xFFFF6B6B;
 
     static constexpr float  s_kBodyLineHeightDip = 18.0f;
     static constexpr float  s_kCornerRadiusDip   = 4.0f;
