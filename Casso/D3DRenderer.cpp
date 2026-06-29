@@ -854,6 +854,11 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
     // keeps calling UploadAndPresent every iteration.
     BAIL_OUT_IF (m_deviceRemoved || m_rtv == nullptr, S_OK);
 
+    // Minimized (or mid-resize to zero): the back buffer is 0x0, so there
+    // is nothing to draw and the CRT post-process would reject the empty
+    // target. Skip the frame entirely; rendering resumes on restore.
+    BAIL_OUT_IF (m_backBufferW <= 0 || m_backBufferH <= 0, S_OK);
+
     // Upload framebuffer to texture
     if (m_texture != nullptr && framebuffer != nullptr)
     {
@@ -996,6 +1001,10 @@ HRESULT D3DRenderer::UploadAndComposite (ID3D11RenderTargetView * dstRtv, const 
 
     BAIL_OUT_IF (m_context == nullptr || dstRtv == nullptr, S_OK);
     BAIL_OUT_IF (m_deviceRemoved,                           S_OK);
+
+    // Minimized (or mid-resize to zero): nothing to composite, and the CRT
+    // post-process rejects the empty target. Skip; resumes on restore.
+    BAIL_OUT_IF (m_backBufferW <= 0 || m_backBufferH <= 0,   S_OK);
 
     if (m_texture != nullptr && framebuffer != nullptr)
     {
