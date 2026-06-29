@@ -75,7 +75,6 @@ public:
     bool   OnLButtonUp    (int x, int y);
     bool   OnMouseMove    (int x, int y);
     bool   OnKey          (WPARAM vk);
-    void   Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
 
     //
     //  IDxuiControl overrides — additive shims for DxuiPanel trees.
@@ -88,7 +87,7 @@ public:
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Slider; }
 
 private:
-    void   PaintInternal  (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t accentArgb) const;
+    void   PaintInternal  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void   ApplyValue     (float v);
     float  ValueFromX     (int x) const;
     ChangeFn       m_change;
