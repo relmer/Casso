@@ -216,6 +216,7 @@
     <ClInclude Include="Render\IDxuiTextRenderer.h" />
     <ClInclude Include="Theme\DxuiDwm.h" />
     <ClInclude Include="Theme\DxuiWindowsThemeColors.h" />
+    <ClInclude Include="Theme\DxuiColor.h" />
     <ClInclude Include="Theme\IDxuiTheme.h" />
     <ClInclude Include="Widgets\DxuiButton.h" />
     <ClInclude Include="Widgets\DxuiCheckbox.h" />
