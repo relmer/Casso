@@ -69,6 +69,7 @@ private:
     bool     OnSysChar      (WPARAM ch);
     void     OnMouse        (UINT message, WPARAM wParam, LPARAM lParam);
     void     OnMouseWheel   (WPARAM wParam, LPARAM lParam);
+    void     OnMouseHWheel  (WPARAM wParam, LPARAM lParam);
     bool     OnSetCursor    (LPARAM lParam);
     void     OnClose        ();
 
@@ -85,7 +86,7 @@ private:
     bool     HitTestHyperlink     (int xPx, int yPx, size_t & outBodyRunIdx) const;
     void     LaunchHyperlink      (size_t bodyRunIdx);
     size_t   GetHyperlinkCount    () const;
-    bool     DispatchCustomBodyInput (DialogInputEvent::Kind kind, int xPx, int yPx, int intArg);
+    bool     DispatchCustomBodyInput (DialogInputEvent::Kind kind, int xPx, int yPx, int intArg, bool wheelHorz = false);
     int      GetCustomBodyFocusCount () const;
     size_t   GetNthHyperlinkBodyIdx  (size_t hyperlinkIdx) const;
 
