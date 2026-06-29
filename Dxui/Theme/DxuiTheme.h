@@ -54,6 +54,7 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  tooltipBg                = 0;
     uint32_t  tooltipBorder            = 0;
     uint32_t  tooltipText              = 0;
+    uint32_t  errorText                    = 0;
 
     // IDxuiTheme overrides map the named tokens onto the generic contract
     // so any Dxui widget paints against this theme through the interface.
@@ -72,6 +73,7 @@ struct DxuiTheme : public IDxuiTheme
         return (dropdownItemText & 0x00FFFFFFu) | 0x80000000u;
     }
     uint32_t  HeadingForeground   () const override { return titleText;          }
+    uint32_t  ErrorForeground     () const override { return errorText;          }
 
     uint32_t  Accent              () const override { return link;               }
     uint32_t  FocusRing           () const override { return link;               }
@@ -149,6 +151,7 @@ struct DxuiTheme : public IDxuiTheme
         theme.tooltipBg                 = 0xFF2E3035;
         theme.tooltipBorder             = 0xFF55595F;
         theme.tooltipText               = 0xFFF0F0F0;
+        theme.errorText                     = 0xFFFF6666;
         return theme;
     }
 
@@ -186,6 +189,7 @@ struct DxuiTheme : public IDxuiTheme
         theme.tooltipBg                 = 0xFFFFFFFF;
         theme.tooltipBorder             = 0xFFB0B0B0;
         theme.tooltipText               = 0xFF1A1A1A;
+        theme.errorText                     = 0xFFC02020;
         return theme;
     }
 };
