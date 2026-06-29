@@ -1789,7 +1789,10 @@ LRESULT DxuiHostWindow::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
                 InvalidateRect (m_hwnd, nullptr, FALSE);
             }
         }
-        return 0;
+
+        // Mirror the move path: forward the leave to DefWindowProc so the
+        // DWM's caption-button hover bookkeeping tears down cleanly.
+        return DefaultProc (msg, wp, lp);
     }
 
     if (m_hwnd == nullptr)
@@ -1857,6 +1860,23 @@ LRESULT DxuiHostWindow::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
     InvalidateRect (m_hwnd, nullptr, FALSE);
 
     (void) wp;
+
+    // Forward NC mouse-move to DefWindowProc after painting our own button
+    // hover. Eating it (returning 0) is non-conformant for a custom frame;
+    // DefWindowProc draws nothing of its own here (WM_NCCALCSIZE removed the
+    // standard non-client area) but keeps the DWM's caption-button hover
+    // bookkeeping alive. Button presses (WM_NCLBUTTONDOWN / UP) stay fully
+    // owned so we drive min / max / close ourselves.
+    //
+    // NOTE: this is a prerequisite for the Win11 snap-layouts flyout but is
+    // not sufficient on its own here -- the host's flip swap chain covers
+    // the entire window (caption included), so the DWM has no non-client
+    // redirection surface in the maximize-button region to host the flyout.
+    if (msg == WM_NCMOUSEMOVE)
+    {
+        return DefaultProc (msg, wp, lp);
+    }
+
     return 0;
 }
 
