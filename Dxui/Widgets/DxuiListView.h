@@ -64,7 +64,7 @@ public:
     // Horizontal-scroll counterpart to ScrollbarMetrics, in coordinates
     // relative to the widget rect's top-left. arrowW == 0 means the bar
     // is too short for arrow buttons.
-    struct HScrollbarMetrics
+    struct HorzScrollbarMetrics
     {
         bool   visible     = false;
         int    barY        = 0;
@@ -164,8 +164,8 @@ public:
     void             PageFromTrackClick        (int yPx);
     void             BeginThumbDrag            (int grabYPx);
     void             UpdateThumbDrag           (int yPx);
-    void             EndThumbDrag              ()                            { m_dragging = false; m_dragGrabDy = 0.0f; }
-    bool             IsThumbDragging           () const                      { return m_dragging; }
+    void             EndThumbDrag              ()                            { m_vertDragging = false; m_vertDragGrab = 0.0f; }
+    bool             IsThumbDragging           () const                      { return m_vertDragging; }
 
     // Horizontal scroll (opt-in via SetHorizontalScrollEnabled; default
     // off so existing consumers are unaffected). When enabled and the
@@ -183,17 +183,17 @@ public:
     void  SetLeftPx                    (int leftPx);
     void  ScrollByWheelDeltaHorizontal (int wheelDelta, int pxPerNotch);
 
-    bool              IsHScrollbarVisible         () const;
-    HScrollbarMetrics GetHScrollbarGeometry       () const;
-    bool              HitTestHScrollbarThumb      (int xPx, int yPx) const;
-    bool              HitTestHScrollbarTrack      (int xPx, int yPx) const;
-    bool              HitTestHScrollbarArrowLeft  (int xPx, int yPx) const;
-    bool              HitTestHScrollbarArrowRight (int xPx, int yPx) const;
-    void              PageFromHTrackClick         (int xPx);
-    void              BeginHThumbDrag             (int grabXPx);
-    void              UpdateHThumbDrag            (int xPx);
-    void              EndHThumbDrag               ()                          { m_hDragging = false; m_hDragGrabDx = 0.0f; }
-    bool              IsHThumbDragging            () const                    { return m_hDragging; }
+    bool              IsHorzScrollbarVisible         () const;
+    HorzScrollbarMetrics GetHorzScrollbarGeometry       () const;
+    bool              HitTestHorzScrollbarThumb      (int xPx, int yPx) const;
+    bool              HitTestHorzScrollbarTrack      (int xPx, int yPx) const;
+    bool              HitTestHorzScrollbarArrowLeft  (int xPx, int yPx) const;
+    bool              HitTestHorzScrollbarArrowRight (int xPx, int yPx) const;
+    void              PageFromHorzTrackClick         (int xPx);
+    void              BeginHorzThumbDrag             (int grabXPx);
+    void              UpdateHorzThumbDrag            (int xPx);
+    void              EndHorzThumbDrag               ()                          { m_horzDragging = false; m_horzDragGrab = 0.0f; }
+    bool              IsHorzThumbDragging            () const                    { return m_horzDragging; }
 
     // Sizing helpers (the host dialog uses these to size itself).
     int   GetRequiredRowsForHeightPx (int heightPx) const;
@@ -214,7 +214,7 @@ public:
     void  SetOnSelectionChanged (std::function<void (int)>  cb)  { m_onSelectionChanged = std::move (cb); }
     void  SetOnActivateRow      (std::function<void (int)>  cb)  { m_onActivateRow      = std::move (cb); }
     void  SetOnSortColumn       (std::function<void (int)>  cb)  { m_onSortColumn       = std::move (cb); }
-    bool  IsInteracting         () const  { return m_dragging || m_hDragging || m_resizeColumn >= 0; }
+    bool  IsInteracting         () const  { return m_vertDragging || m_horzDragging || m_resizeColumn >= 0; }
     bool  IsResizingColumn      () const  { return m_resizeColumn >= 0; }
 
     // Rendering.
@@ -356,12 +356,12 @@ private:
     bool                              m_listFocused       = false;
     int                               m_focusedHeaderCol  = -1;
     int                               m_focusedDividerCol = -1;
-    bool                              m_dragging          = false;
-    float                             m_dragGrabDy        = 0.0f;
+    bool                              m_vertDragging          = false;
+    float                             m_vertDragGrab        = 0.0f;
     bool                              m_hScrollEnabled    = false;
     int                               m_leftPx            = 0;
-    bool                              m_hDragging         = false;
-    float                             m_hDragGrabDx       = 0.0f;
+    bool                              m_horzDragging         = false;
+    float                             m_horzDragGrab       = 0.0f;
     int                               m_resizeColumn      = -1;
     int                               m_resizeStartXPx    = 0;
     int                               m_resizeStartWPx    = 0;
