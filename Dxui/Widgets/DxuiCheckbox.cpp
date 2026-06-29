@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 #include "DxuiCheckbox.h"
 
@@ -214,7 +215,7 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
                                               (float) (m_boundsDip.bottom - m_boundsDip.top),
                                               textColor,
                                               fontDip,
-                                              L"Segoe UI",
+                                              DxuiTheme::kBodyFace,
                                               DxuiTextHAlign::Left,
                                               DxuiTextVAlign::Center));
 }

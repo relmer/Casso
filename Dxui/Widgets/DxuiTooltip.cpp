@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 #include "DxuiTooltip.h"
 #include "Window/DxuiHostWindow.h"
@@ -13,7 +14,7 @@ static constexpr uint32_t  s_kTextArgb        = 0xFFE8EEF4;
 static constexpr float     s_kPadXDip         = 8.0f;
 static constexpr float     s_kPadYDip         = 4.0f;
 static constexpr float     s_kBorderDip       = 1.0f;
-static constexpr wchar_t   s_kFontFamily[]    = L"Segoe UI";
+static constexpr const wchar_t * s_kFontFamily    = DxuiTheme::kBodyFace;
 
 //
 //  Fallback glyph metrics used to size the balloon when precise text

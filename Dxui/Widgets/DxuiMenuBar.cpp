@@ -6,6 +6,7 @@
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
+#include "Theme/DxuiTheme.h"
 #include "Window/DxuiHostWindow.h"
 #include "Window/DxuiPopupHost.h"
 
@@ -29,7 +30,7 @@ namespace
     constexpr int      s_kCheckGutterDip         = 18;
     constexpr float    s_kFontDip                = 14.0f;
     constexpr float    s_kUnderlineThicknessDip  = 1.0f;
-    constexpr wchar_t  s_kFontFamily[]           = L"Segoe UI";
+    constexpr const wchar_t * s_kFontFamily           = DxuiTheme::kBodyFace;
     constexpr wchar_t  s_kpszCheckMark[]         = L"\u2713";
 
     constexpr int  s_kFallbackGlyphWidthDip = 8;

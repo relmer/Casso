@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 #include "DriveWidget.h"
 #include "../IDriveCommandSink.h"
 #include "../../UnicodeSymbols.h"
@@ -38,7 +39,7 @@ namespace
     constexpr int     s_kLabelStripHeightPx = 18;
     constexpr int     s_kLabelStripGapPx    = 2;
     constexpr float   s_kBasenameFontDip    = 11.0f;
-    constexpr wchar_t s_kFontFamily[]      = L"Segoe UI";
+    constexpr const wchar_t * s_kFontFamily      = DxuiTheme::kBodyFace;
 
     // Marquee timing for an overflowing basename label. The hold delay is
     // both the lead-in before a freshly mounted disk first scrolls and the

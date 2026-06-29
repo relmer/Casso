@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 #include "DxuiSlider.h"
 #include "Theme/DxuiColor.h"
@@ -380,7 +381,7 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     constexpr int       s_kValueGapDip       = 8;
     constexpr int       s_kValueFontDip      = 13;
     constexpr int       s_kValueWidthDip     = 56;
-    constexpr wchar_t   s_kFont[]           = L"Segoe UI";
+    constexpr const wchar_t * s_kFont           = DxuiTheme::kBodyFace;
 
     HRESULT  hr            = S_OK;
     bool     showValue     = m_explicitShowValue ? m_showValue : !m_suffix.empty();

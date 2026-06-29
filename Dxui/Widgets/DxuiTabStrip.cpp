@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 #include "DxuiTabStrip.h"
 #include "Theme/DxuiColor.h"
@@ -284,7 +285,7 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
                                                   (float) (t.rect.bottom - t.rect.top)  - padY * 2.0f,
                                                   textArgb,
                                                   fontDip,
-                                                  L"Segoe UI",
+                                                  DxuiTheme::kBodyFace,
                                                   DxuiTextHAlign::Center,
                                                   DxuiTextVAlign::Center));
     }

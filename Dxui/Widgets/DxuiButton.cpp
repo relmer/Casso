@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 #include "DxuiButton.h"
 #include "Theme/DxuiColor.h"
@@ -191,7 +192,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                                               (float) (m_boundsDip.bottom - m_boundsDip.top),
                                               textColor,
                                               fontDip,
-                                              L"Segoe UI",
+                                              DxuiTheme::kBodyFace,
                                               DxuiTextHAlign::Center,
                                               DxuiTextVAlign::Center));
 

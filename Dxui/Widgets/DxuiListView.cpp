@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 #include "DxuiListView.h"
 
@@ -341,7 +342,7 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text)
 
         if (m_showHeader && !m_columns[c].title.empty())
         {
-            hr = text.MeasureString (m_columns[c].title.c_str(), hdrDip, L"Segoe UI", w, h);
+            hr = text.MeasureString (m_columns[c].title.c_str(), hdrDip, DxuiTheme::kBodyFace, w, h);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
             // MeasureString uses regular weight; the header paints bold,
@@ -353,7 +354,7 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text)
         {
             if (c < row.size() && !row[c].text.empty())
             {
-                hr = text.MeasureString (row[c].text.c_str(), fontDip, L"Segoe UI", w, h);
+                hr = text.MeasureString (row[c].text.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
                 IGNORE_RETURN_VALUE (hr, S_OK);
 
                 wpx = std::max (wpx, (int) std::ceil (w));
@@ -1876,7 +1877,7 @@ void DxuiListView::PaintHeader (
                               y,
                               titleW,
                               headerH,
-                              pal.hdrFg, hdrFontPx, L"Segoe UI",
+                              pal.hdrFg, hdrFontPx, DxuiTheme::kBodyFace,
                               m_columns[c].align,
                               DxuiTextVAlign::Center,
                               DWRITE_FONT_WEIGHT_BOLD,
@@ -1893,7 +1894,7 @@ void DxuiListView::PaintHeader (
                                   y,
                                   gw,
                                   headerH,
-                                  pal.hdrFg, hdrFontPx, L"Segoe UI",
+                                  pal.hdrFg, hdrFontPx, DxuiTheme::kBodyFace,
                                   DxuiTextHAlign::Right,
                                   DxuiTextVAlign::Center,
                                   DWRITE_FONT_WEIGHT_BOLD);
@@ -2078,7 +2079,7 @@ void DxuiListView::PaintDataRows (
                                   rowH,
                                   argb, 
                                   fontPx, 
-                                  L"Segoe UI",
+                                  DxuiTheme::kBodyFace,
                                   m_columns[c].align,
                                   DxuiTextVAlign::CenterOnCapHeight,
                                   DWRITE_FONT_WEIGHT_NORMAL,

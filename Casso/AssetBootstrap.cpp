@@ -1286,7 +1286,7 @@ static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, std::string_view t
             IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (L"ROM file",
                                                            x + pad, y,
                                                            nameW, rowH,
-                                                           headerFg, fontPx, L"Segoe UI",
+                                                           headerFg, fontPx, DxuiTheme::kBodyFace,
                                                            DxuiTextRenderer::HAlign::Left,
                                                            DxuiTextRenderer::VAlign::Center,
                                                            DWRITE_FONT_WEIGHT_BOLD));
@@ -1294,7 +1294,7 @@ static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, std::string_view t
             IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (L"Description",
                                                            descX, y,
                                                            descW, rowH,
-                                                           headerFg, fontPx, L"Segoe UI",
+                                                           headerFg, fontPx, DxuiTheme::kBodyFace,
                                                            DxuiTextRenderer::HAlign::Left,
                                                            DxuiTextRenderer::VAlign::Center,
                                                            DWRITE_FONT_WEIGHT_BOLD));
@@ -1313,14 +1313,14 @@ static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, std::string_view t
             IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (rows[i].name.c_str(),
                                                            x + pad, ry,
                                                            nameW, rowH,
-                                                           fg, fontPx, L"Segoe UI",
+                                                           fg, fontPx, DxuiTheme::kBodyFace,
                                                            DxuiTextRenderer::HAlign::Left,
                                                            DxuiTextRenderer::VAlign::Center));
 
             IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (rows[i].description.c_str(),
                                                            descX, ry,
                                                            descW, rowH,
-                                                           fg, fontPx, L"Segoe UI",
+                                                           fg, fontPx, DxuiTheme::kBodyFace,
                                                            DxuiTextRenderer::HAlign::Left,
                                                            DxuiTextRenderer::VAlign::Center));
         }

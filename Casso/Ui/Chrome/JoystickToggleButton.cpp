@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 #include "JoystickToggleButton.h"
 
@@ -26,7 +27,7 @@ static constexpr int      s_kLedGapDp     = 8;
 static constexpr int      s_kLedCorePx    = 7;
 static constexpr float    s_kFontDip      = 13.0f;
 static constexpr float    s_kFallbackCharPx = 7.5f;
-static constexpr wchar_t  s_kFontFamily[] = L"Segoe UI";
+static constexpr const wchar_t * s_kFontFamily = DxuiTheme::kBodyFace;
 static constexpr wchar_t  s_kLabel[]      = L"Joystick Mode";
 
 // The LED glows a fixed realistic blue regardless of the active theme's

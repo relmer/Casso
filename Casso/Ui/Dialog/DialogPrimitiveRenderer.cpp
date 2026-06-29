@@ -412,7 +412,7 @@ HRESULT DialogPrimitiveRenderer::MeasureText (
 
     outWidthPx = 0.0f;
 
-    hr = m_text.MeasureString (text, fontSizePx, L"Segoe UI", w, h);
+    hr = m_text.MeasureString (text, fontSizePx, DxuiTheme::kBodyFace, w, h);
     CHRA (hr);
 
     outWidthPx = w;
@@ -547,7 +547,7 @@ void DialogPrimitiveRenderer::PaintTitle (
         IGNORE_RETURN_VALUE (hr, m_text.DrawString (def.title.c_str(),
                                                     textX, 0.0f, textW, titleH,
                                                     theme.titleTextArgb,
-                                                    fontPx, L"Segoe UI",
+                                                    fontPx, DxuiTheme::kBodyFace,
                                                     DxuiTextRenderer::HAlign::Left,
                                                     DxuiTextRenderer::VAlign::Center));
     }
@@ -739,7 +739,7 @@ void DialogPrimitiveRenderer::PaintBody (
         IGNORE_RETURN_VALUE (hr, m_text.DrawString (piece.c_str(),
                                                     x, y, w, lineH,
                                                     textColor,
-                                                    fontPx, L"Segoe UI",
+                                                    fontPx, DxuiTheme::kBodyFace,
                                                     DxuiTextRenderer::HAlign::Left,
                                                     DxuiTextRenderer::VAlign::Top));
 

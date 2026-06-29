@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 #include "DxuiPopupMenu.h"
 #include "Window/DxuiHostWindow.h"
@@ -62,7 +63,7 @@ void DxuiPopupMenu::Show (
     {
         float  w = 0.0f;
         float  h = 0.0f;
-        hr = text.MeasureString (it.label.c_str(), fontDip, L"Segoe UI", w, h);
+        hr = text.MeasureString (it.label.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
         if (FAILED (hr))
         {
             w = (float) (it.label.size() * 8);
@@ -439,7 +440,7 @@ void DxuiPopupMenu::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer & text,
                                                       iy,
                                                       (float) (padL - glyphX),
                                                       (float) itemH,
-                                                      fgArgb, fontDip, L"Segoe UI",
+                                                      fgArgb, fontDip, DxuiTheme::kBodyFace,
                                                       DxuiTextHAlign::Left,
                                                       DxuiTextVAlign::Center));
         }
@@ -449,7 +450,7 @@ void DxuiPopupMenu::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer & text,
                                                   iy,
                                                   width - (float) padL - (float) padR,
                                                   (float) itemH,
-                                                  fgArgb, fontDip, L"Segoe UI",
+                                                  fgArgb, fontDip, DxuiTheme::kBodyFace,
                                                   DxuiTextHAlign::Left,
                                                   DxuiTextVAlign::Center));
     }

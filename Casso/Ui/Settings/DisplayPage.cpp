@@ -712,7 +712,7 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     constexpr uint32_t  s_kFocusedBackingArgb = 0xFF202830;   // dark grey, near-opaque
     constexpr int       s_kIndicatorFontDp    = 12;
     constexpr int       s_kIndicatorWidthDp   = 140;
-    constexpr wchar_t   s_kFont[]             = L"Segoe UI";
+    constexpr const wchar_t * s_kFont             = DxuiTheme::kBodyFace;
     constexpr float     s_kFloatEpsilon       = 0.001f;
 
     int    focusedControlId = m_fadeFocusedId;

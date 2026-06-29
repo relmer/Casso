@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 #include "TitleBar.h"
 namespace
@@ -151,7 +152,7 @@ int TitleBarLayout::DefaultButtonWidth (UINT dpi)
 
 const wchar_t * TitleBarLayout::WindowsUiFontFamily ()
 {
-    return L"Segoe UI";
+    return DxuiTheme::kBodyFace;
 }
 
 

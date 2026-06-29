@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 #include "DxuiRadio.h"
 
@@ -272,7 +273,7 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) co
                                                   (float) (opt.rect.bottom - opt.rect.top),
                                                   textColor,
                                                   fontDip,
-                                                  L"Segoe UI",
+                                                  DxuiTheme::kBodyFace,
                                                   DxuiTextHAlign::Left,
                                                   DxuiTextVAlign::Center));
     }
