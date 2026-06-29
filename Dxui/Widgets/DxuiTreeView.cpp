@@ -3,6 +3,7 @@
 
 #include "DxuiTreeView.h"
 
+#include "Theme/DxuiColor.h"
 #include "UnicodeSymbols.h"
 
 
@@ -478,18 +479,18 @@ bool DxuiTreeView::OnKey (WPARAM vk)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
+void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    constexpr uint32_t  s_kRowIdle        = 0x00000000;
-    constexpr uint32_t  s_kRowHover       = 0x33808080;
-    constexpr uint32_t  s_kRowHighlight   = 0x44AACCFF;
-    constexpr uint32_t  s_kBoxIdle        = 0xFF606060;
-    constexpr uint32_t  s_kBoxLocked      = 0xFF505050;
-    constexpr uint32_t  s_kCheckGlyph     = 0xFFFFFFFF;
-    constexpr uint32_t  s_kCheckLocked    = 0xFFB0B0B0;
-    constexpr uint32_t  s_kTwistyArgb     = 0xFFC0C0C0;
-    constexpr uint32_t  s_kTextIdle       = 0xFFE8EEF4;
-    constexpr uint32_t  s_kTextDisabled   = 0xFF707070;
+    uint32_t  s_kRowIdle        = 0x00000000;
+    uint32_t  s_kRowHover       = (theme.HoverBackground()    & 0x00FFFFFFu) | 0x33000000u;
+    uint32_t  s_kRowHighlight   = (theme.SelectionBackground() & 0x00FFFFFFu) | 0x44000000u;
+    uint32_t  s_kBoxIdle        = theme.ButtonIdle();
+    uint32_t  s_kBoxLocked      = DxuiColor::TintForContrast (theme.Background(), 1.6f);
+    uint32_t  s_kCheckGlyph     = theme.ButtonText();
+    uint32_t  s_kCheckLocked    = theme.ForegroundDisabled();
+    uint32_t  s_kTwistyArgb     = theme.ForegroundMuted();
+    uint32_t  s_kTextIdle       = theme.Foreground();
+    uint32_t  s_kTextDisabled   = theme.ForegroundDisabled();
     constexpr float     s_kCheckInset     = 3.0f;
     constexpr float     s_kFontDip        = 13.0f;
     constexpr float     s_kTwistyHeight   = 8.0f;
@@ -629,22 +630,6 @@ void DxuiTreeView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
     SetDpi (scaler.Dpi());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTreeView::Paint  (IDxuiControl override)
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
-{
-    UNREFERENCED_PARAMETER (theme);
-    static_cast<const DxuiTreeView *> (this)->Paint (painter, text);
 }
 
 

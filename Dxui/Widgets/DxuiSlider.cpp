@@ -17,7 +17,6 @@
 namespace
 {
     constexpr float     s_kEpsilon           = 1e-6f;
-    constexpr uint32_t  s_kDefaultAccentArgb = 0xFF6E9BFF;   // slider accent: track fill + puck core
 
 
     float  Clamp (float v, float lo, float hi)
@@ -358,14 +357,17 @@ bool DxuiSlider::OnKey (WPARAM vk)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t accentArgb) const
+void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
-    constexpr uint32_t  s_kTrack         = 0xFF404040;
-    constexpr uint32_t  s_kTick          = 0xFF6A7585;
-    constexpr uint32_t  s_kPuckBody      = 0xFFFFFFFF;
-    constexpr uint32_t  s_kPuckRing      = 0xFF606060;
-    constexpr uint32_t  s_kPuckCoreDis   = 0xFF888888;
-    constexpr uint32_t  s_kValueText     = 0xFFE8EEF4;
+    constexpr float  s_kInactiveTrackContrast = 1.6f;  // inactive track must stand off the panel bg
+
+    uint32_t  accentArgb     = theme.Accent();
+    uint32_t  s_kTrack       = DxuiColor::TintForContrast (theme.Background(), s_kInactiveTrackContrast);
+    uint32_t  s_kTick        = theme.ForegroundMuted();
+    uint32_t  s_kPuckBody    = 0xFFFFFFFF;
+    uint32_t  s_kPuckRing    = theme.Border();
+    uint32_t  s_kPuckCoreDis = theme.ForegroundDisabled();
+    uint32_t  s_kValueText   = theme.Foreground();
 
     // All dimensions stored in dp; scaled to physical pixels via the
     // per-widget DxuiDpiScaler (set by SetDpi). DxuiSlider was previously
@@ -517,22 +519,14 @@ void DxuiSlider::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 //
 //  DxuiSlider::Paint
 //
-//  Non-themed overload keeps the default blue accent; the IDxuiControl
-//  themed override tints the track / puck core from theme.Accent().
+//  Tints the track fill and puck core from theme.Accent(); the inactive
+//  track, ticks, puck ring, and value text derive from theme tokens.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiSlider::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
-{
-    PaintInternal (painter, text, s_kDefaultAccentArgb);
-}
-
-
-
-
 void DxuiSlider::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    PaintInternal (painter, text, theme.Accent());
+    PaintInternal (painter, text, theme);
 }
 
 

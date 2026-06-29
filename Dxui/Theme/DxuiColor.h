@@ -70,6 +70,32 @@ public:
 
 
     //
+    //  Returns a subtle tint of `background` guaranteed to reach at least
+    //  `minRatio` WCAG contrast against it — lightening a dark background or
+    //  darkening a light one in fixed steps. Used for subtle-but-visible
+    //  surfaces (inactive slider track, disabled checkbox fill) that must
+    //  stand off the panel regardless of theme.
+    //
+    static uint32_t TintForContrast (uint32_t background, float minRatio)
+    {
+        constexpr int    s_kMaxSteps  = 24;
+        constexpr float  s_kLightStep = 0.08f;
+        constexpr float  s_kDarkMul   = 0.92f;
+
+        bool      lighten = RelativeLuminance (background) < 0.5f;
+        uint32_t  cur     = background;
+        int       i       = 0;
+
+        for (i = 0; i < s_kMaxSteps && ContrastRatio (cur, background) < minRatio; ++i)
+        {
+            cur = lighten ? Lighten (cur, s_kLightStep) : Scale (cur, s_kDarkMul);
+        }
+
+        return (background & 0xFF000000u) | (cur & 0x00FFFFFFu);
+    }
+
+
+    //
     //  Lightens a colour toward white by fraction `f` (0 = unchanged, 1 = white).
     //
     static uint32_t Lighten (uint32_t argb, float f)
