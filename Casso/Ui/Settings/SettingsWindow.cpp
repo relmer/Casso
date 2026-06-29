@@ -20,7 +20,7 @@
 
 static constexpr LPCWSTR  s_kpszSettingsWindowClass = L"Casso.Settings.Window";
 static constexpr LPCWSTR  s_kpszSettingsWindowTitle = L"Casso - Settings";
-static constexpr DWORD    s_kSettingsWindowStyle    = WS_POPUP | WS_THICKFRAME | WS_SYSMENU | WS_VISIBLE;
+static constexpr DWORD    s_kSettingsWindowStyle    = WS_POPUP | WS_SYSMENU | WS_VISIBLE;
 static constexpr DWORD    s_kSettingsWindowExStyle  = WS_EX_DLGMODALFRAME | WS_EX_TOOLWINDOW | WS_EX_NOREDIRECTIONBITMAP;
 static constexpr int      s_kBaseDpi                = 96;
 static constexpr int      s_kCenterDivisor          = 2;
@@ -256,6 +256,7 @@ HRESULT SettingsWindow::Create (
     CWRA (ok);
 
     m_titleBar.SetTitle (s_kpszSettingsWindowTitle);
+    m_titleBar.SetCloseOnly (true);
 
     ShowWindow (hwndCreated, SW_SHOWNORMAL);
     SetForegroundWindow (hwndCreated);
@@ -765,10 +766,6 @@ LRESULT SettingsWindow::ClassifyHitForLegacyChrome (POINT ptScreen)
     RECT                  rcMax    = {};
     RECT                  rcClose  = {};
     DxuiTitleBarHitTestInput  in       = {};
-    UINT                  dpi      = s_kBaseDpi;
-    int                   framePx  = 0;
-    int                   padPx    = 0;
-    int                   borderPx = 0;
 
 
 
@@ -792,15 +789,6 @@ LRESULT SettingsWindow::ClassifyHitForLegacyChrome (POINT ptScreen)
     rcMax   = m_titleBar.GetButtonRect (SystemButton::Maximize);
     rcClose = m_titleBar.GetButtonRect (SystemButton::Close);
 
-    dpi      = GetDpiForWindow (m_hwnd);
-    framePx  = GetSystemMetricsForDpi (SM_CXSIZEFRAME, dpi);
-    padPx    = GetSystemMetricsForDpi (SM_CXPADDEDBORDER, dpi);
-    borderPx = framePx + padPx;
-    if (borderPx < s_kMinResizeBorderPx)
-    {
-        borderPx = s_kMinResizeBorderPx;
-    }
-
     in.clientWidth    = rcClient.right - rcClient.left;
     in.clientHeight   = rcClient.bottom - rcClient.top;
     in.mouseX         = pt.x;
@@ -815,7 +803,9 @@ LRESULT SettingsWindow::ClassifyHitForLegacyChrome (POINT ptScreen)
     in.maxRight       = rcMax.right;    in.maxBottom    = rcMax.bottom;
     in.closeLeft      = rcClose.left;   in.closeTop     = rcClose.top;
     in.closeRight     = rcClose.right;  in.closeBottom  = rcClose.bottom;
-    in.resizeBorderPx = borderPx;
+    // Fixed-size dialog: no resize border, so the classifier never returns
+    // resize-edge hits. min / max rects are already empty (close-only).
+    in.resizeBorderPx = 0;
 
     return DxuiTitleBarHitTest::Test (in);
 }

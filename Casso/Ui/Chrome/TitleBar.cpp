@@ -475,8 +475,11 @@ void TitleBar::Paint (
                                               TitleBarLayout::WindowsUiFontFamily(),
                                               DxuiTextRenderer::HAlign::Left,
                                               DxuiTextRenderer::VAlign::Center));
-    PaintButton (painter, text, m_layout.minButton,   s_kMinGlyph,                        minColor,   glyphArgb,  dpi);
-    PaintButton (painter, text, m_layout.maxButton,   m_maximized ? s_kRestoreGlyph : s_kMaxGlyph, maxColor,   glyphArgb,  dpi);
+    if (!m_closeOnly)
+    {
+        PaintButton (painter, text, m_layout.minButton,   s_kMinGlyph,                        minColor,   glyphArgb,  dpi);
+        PaintButton (painter, text, m_layout.maxButton,   m_maximized ? s_kRestoreGlyph : s_kMaxGlyph, maxColor,   glyphArgb,  dpi);
+    }
     PaintButton (painter, text, m_layout.closeButton, s_kCloseGlyph,                      closeColor, closeGlyph, dpi);
 }
 
@@ -494,14 +497,17 @@ void TitleBar::Paint (
 
 DxuiHitTestKind TitleBar::ClassifyHit (POINT clientDip) const
 {
-    if (RectContains (m_layout.minButton, clientDip.x, clientDip.y))
+    if (!m_closeOnly)
     {
-        return DxuiHitTestKind::MinButton;
-    }
+        if (RectContains (m_layout.minButton, clientDip.x, clientDip.y))
+        {
+            return DxuiHitTestKind::MinButton;
+        }
 
-    if (RectContains (m_layout.maxButton, clientDip.x, clientDip.y))
-    {
-        return DxuiHitTestKind::MaxButton;
+        if (RectContains (m_layout.maxButton, clientDip.x, clientDip.y))
+        {
+            return DxuiHitTestKind::MaxButton;
+        }
     }
 
     if (RectContains (m_layout.closeButton, clientDip.x, clientDip.y))
@@ -525,8 +531,8 @@ RECT TitleBar::GetButtonRect (SystemButton which) const
 {
     switch (which)
     {
-    case SystemButton::Minimize: return m_layout.minButton;
-    case SystemButton::Maximize: return m_layout.maxButton;
+    case SystemButton::Minimize: return m_closeOnly ? RECT{ 0, 0, 0, 0 } : m_layout.minButton;
+    case SystemButton::Maximize: return m_closeOnly ? RECT{ 0, 0, 0, 0 } : m_layout.maxButton;
     case SystemButton::Close:    return m_layout.closeButton;
     }
 
