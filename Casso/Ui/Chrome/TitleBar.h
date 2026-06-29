@@ -78,6 +78,11 @@ public:
     void                ClearHover        ();
     void                SetMaximized      (bool maximized) { m_maximized = maximized; }
     bool                Maximized         () const { return m_maximized; }
+
+    // Close-only mode for fixed-size dialogs: hides the minimize / maximize
+    // caption buttons and removes them from hit-testing, leaving only close.
+    void                SetCloseOnly      (bool closeOnly) { m_closeOnly = closeOnly; }
+    bool                CloseOnly         () const { return m_closeOnly; }
     void                SetAppIcon        (std::vector<uint32_t> bgraPremulPixels,
                                             int                    widthPx,
                                             int                    heightPx);
@@ -112,6 +117,7 @@ private:
     bool                   m_hasHotButton = false;
     bool                   m_leftDown     = false;
     bool                   m_maximized    = false;
+    bool                   m_closeOnly    = false;
     UINT                   m_dpi          = 96;
 
     std::vector<uint32_t>  m_appIconPixels;     // premultiplied BGRA8
