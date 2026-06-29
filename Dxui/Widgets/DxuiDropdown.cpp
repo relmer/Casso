@@ -4,6 +4,7 @@
 #include "Window/DxuiHostWindow.h"
 #include "Window/DxuiPopupHost.h"
 #include "Theme/IDxuiTheme.h"
+#include "Theme/DxuiTheme.h"
 #include "Theme/DxuiColor.h"
 
 
@@ -33,7 +34,7 @@ namespace
     constexpr float     s_kEdgePx          = 1.0f;
     constexpr float     s_kFontDip         = 13.0f;
     constexpr float     s_kDisabledScale   = 0.7f;   // darken themed box fill for the disabled state
-    constexpr wchar_t   s_kFontFamily[]    = L"Segoe UI";
+    constexpr const wchar_t * s_kFontFamily    = DxuiTheme::kBodyFace;
 
 
     bool RectContains (const RECT & rect, int x, int y)

@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 #include "DxuiTextInput.h"
 
@@ -361,8 +362,8 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     }
 
     caretPrefix.assign (m_text, 0, m_caret);
-    IGNORE_RETURN_VALUE (hr, text.MeasureString (caretPrefix.c_str(), fontPx, L"Segoe UI", caretX,    textMeasH));
-    IGNORE_RETURN_VALUE (hr, text.MeasureString (m_text.c_str(),      fontPx, L"Segoe UI", fullTextW, textMeasH));
+    IGNORE_RETURN_VALUE (hr, text.MeasureString (caretPrefix.c_str(), fontPx, DxuiTheme::kBodyFace, caretX,    textMeasH));
+    IGNORE_RETURN_VALUE (hr, text.MeasureString (m_text.c_str(),      fontPx, DxuiTheme::kBodyFace, fullTextW, textMeasH));
 
     if (innerW <= 0.0f)
     {
@@ -385,8 +386,8 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 
         float bx = 0.0f;
         float sx = 0.0f;
-        IGNORE_RETURN_VALUE (hr, text.MeasureString (before.c_str(), fontPx, L"Segoe UI", bx, textMeasH));
-        IGNORE_RETURN_VALUE (hr, text.MeasureString (sel.c_str(),    fontPx, L"Segoe UI", sx, textMeasH));
+        IGNORE_RETURN_VALUE (hr, text.MeasureString (before.c_str(), fontPx, DxuiTheme::kBodyFace, bx, textMeasH));
+        IGNORE_RETURN_VALUE (hr, text.MeasureString (sel.c_str(),    fontPx, DxuiTheme::kBodyFace, sx, textMeasH));
 
         text.FillRect (x + padL + bx - m_scrollPx, y + 2.0f, sx, h - 4.0f, selArgb);
     }
@@ -398,7 +399,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
                                               h,
                                               fgArgb,
                                               fontPx,
-                                              L"Segoe UI",
+                                              DxuiTheme::kBodyFace,
                                               DxuiTextHAlign::Left,
                                               DxuiTextVAlign::Center,
                                               DWRITE_FONT_WEIGHT_NORMAL,
@@ -415,7 +416,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
                               h,
                               phArgb,
                               fontPx,
-                              L"Segoe UI",
+                              DxuiTheme::kBodyFace,
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center,
                               DWRITE_FONT_WEIGHT_NORMAL,
@@ -511,7 +512,7 @@ size_t DxuiTextInput::CaretFromX (IDxuiTextRenderer & text, int xPx) const
     for (size_t i = 0; i <= m_text.size(); i++)
     {
         prefix.assign (m_text, 0, i);
-        IGNORE_RETURN_VALUE (hr, text.MeasureString (prefix.c_str(), fontPx, L"Segoe UI", w, h));
+        IGNORE_RETURN_VALUE (hr, text.MeasureString (prefix.c_str(), fontPx, DxuiTheme::kBodyFace, w, h));
 
         float dist = std::abs (w - target);
         if (dist < bestDist)

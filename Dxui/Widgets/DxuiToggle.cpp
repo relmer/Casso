@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 #include "DxuiToggle.h"
 #include "Theme/DxuiColor.h"
@@ -243,7 +244,7 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
                                                   (float) (m_boundsDip.bottom - m_boundsDip.top),
                                                   textColor,
                                                   fontDip,
-                                                  L"Segoe UI",
+                                                  DxuiTheme::kBodyFace,
                                                   DxuiTextHAlign::Left,
                                                   DxuiTextVAlign::Center));
     }
@@ -258,7 +259,7 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
                                                   (float) (m_boundsDip.bottom - m_boundsDip.top),
                                                   textColor,
                                                   fontDip,
-                                                  L"Segoe UI",
+                                                  DxuiTheme::kBodyFace,
                                                   DxuiTextHAlign::Left,
                                                   DxuiTextVAlign::Center));
     }

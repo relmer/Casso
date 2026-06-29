@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 #include "DxuiTreeView.h"
 
@@ -608,7 +609,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
                                                       rowHeight,
                                                       textCol,
                                                       fontDip,
-                                                      L"Segoe UI",
+                                                      DxuiTheme::kBodyFace,
                                                       DxuiTextHAlign::Left,
                                                       DxuiTextVAlign::CenterOnCapHeight));
         }

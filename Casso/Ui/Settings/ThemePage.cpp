@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 #include "ThemePage.h"
 
@@ -197,7 +198,7 @@ namespace
                                                       (float) btnH,
                                                       theme.titleTextArgb,
                                                       captionDip,
-                                                      L"Segoe UI",
+                                                      DxuiTheme::kBodyFace,
                                                       DxuiTextRenderer::HAlign::Left,
                                                       DxuiTextRenderer::VAlign::Center));
 
@@ -247,7 +248,7 @@ namespace
                                                       (float) navH,
                                                       theme.navItemTextArgb,
                                                       navDip,
-                                                      L"Segoe UI",
+                                                      DxuiTheme::kBodyFace,
                                                       DxuiTextRenderer::HAlign::Left,
                                                       DxuiTextRenderer::VAlign::Center));
         }

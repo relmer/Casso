@@ -25,7 +25,7 @@ static constexpr int      s_kCenterDivisor         = 2;
 static constexpr float    s_kResizeBorderDp        = 6.0f;
 static constexpr INT_PTR  s_kShellExecThreshold    = 32;
 static constexpr LPCWSTR  s_kpszHyperlinkError     = L"Could not open the requested link.";
-static constexpr LPCWSTR  s_kpszFont               = L"Segoe UI";
+static constexpr LPCWSTR  s_kpszFont               = DxuiTheme::kBodyFace;
 
 
 
