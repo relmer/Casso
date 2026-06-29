@@ -425,7 +425,7 @@ void DriveWidget::Paint (
                              (float) (o.right  - o.left + ring * 2),
                              (float) (o.bottom - o.top  + ring * 2),
                              (float) std::max (1, Scale (1, dpi)),
-                             theme.linkArgb);
+                             theme.link);
     }
 
     if (m_compact)
@@ -434,9 +434,9 @@ void DriveWidget::Paint (
         int      bodyHcompact  = m_bodyRect.bottom - m_bodyRect.top;
         int      pad           = Scale (s_kCompactPadPx, dpi);
         float    fontDip       = s_kCompactFontDip * (float) dpi / (float) s_kBaseDpi;
-        uint32_t bodyFill      = theme.driveBodyArgb;
-        uint32_t bezelEdge     = theme.driveBezelArgb;
-        uint32_t labelArgb     = theme.driveLabelArgb;
+        uint32_t bodyFill      = theme.driveBody;
+        uint32_t bezelEdge     = theme.driveBezel;
+        uint32_t labelArgb     = theme.driveLabel;
 
         // Flat card body with a single bezel-coloured outline.
         painter.FillRect    ((float) m_bodyRect.left, (float) m_bodyRect.top,
@@ -638,7 +638,7 @@ void DriveWidget::Paint (
         // explicit fill).
         painter.FillRect ((float) m_faceRect.left, (float) m_faceRect.top,
                           (float) faceW, (float) faceH, 0xFFCCB68B);
-        painter.FillRect (ffx, ffy, ffw, ffh, theme.driveBodyArgb);
+        painter.FillRect (ffx, ffy, ffw, ffh, theme.driveBody);
         // Corner chamfer on the inset faceplate.
         painter.FillRect (ffx,             ffy,             1.0f, 1.0f, 0xFFCCB68B);
         painter.FillRect (ffx + ffw - 1,   ffy,             1.0f, 1.0f, 0xFFCCB68B);
@@ -647,7 +647,7 @@ void DriveWidget::Paint (
     }
 
     // Slot.
-    painter.FillRect ((float) m_slotRect.left, (float) m_slotRect.top, (float) slotW, (float) slotH, theme.driveBezelArgb);
+    painter.FillRect ((float) m_slotRect.left, (float) m_slotRect.top, (float) slotW, (float) slotH, theme.driveBezel);
 
     // Finger-pull recess behind the door: a darker rectangle that the
     // user grabs the disk through. Drawn before the door so it's
@@ -832,7 +832,7 @@ void DriveWidget::Paint (
                                               (float) (m_faceRect.top + labelPad - 2),
                                               (float) (faceW - 2 * labelPad),
                                               labelFontDip + 4.0f,
-                                              theme.driveLabelArgb,
+                                              theme.driveLabel,
                                               labelFontDip,
                                               s_kFontFamily));
 
@@ -843,7 +843,7 @@ void DriveWidget::Paint (
                                               (float) (m_led.GetLayout().coreRect.top - 3),
                                               (float) inUseW,
                                               inUseFontDip + 4.0f,
-                                              theme.driveLabelArgb,
+                                              theme.driveLabel,
                                               inUseFontDip,
                                               s_kFontFamily));
 
@@ -942,7 +942,7 @@ void DriveWidget::PaintBasenameLabel (
                                                   labelTop,
                                                   labelW,
                                                   labelH,
-                                                  theme.driveLabelArgb,
+                                                  theme.driveLabel,
                                                   basenameDip,
                                                   s_kFontFamily,
                                                   DxuiTextRenderer::HAlign::Center,
@@ -960,7 +960,7 @@ void DriveWidget::PaintBasenameLabel (
                                             labelTop,
                                             textW + 1.0f,
                                             labelH,
-                                            theme.driveLabelArgb,
+                                            theme.driveLabel,
                                             basenameDip,
                                             s_kFontFamily,
                                             DxuiTextRenderer::HAlign::Left,

@@ -25,13 +25,13 @@ public:
 
         Assert::IsTrue (layout.coreRect.right - layout.coreRect.left >= 6);
         Assert::IsTrue (layout.coreRect.left - layout.haloRect.left >= 2);
-        Assert::AreEqual ((unsigned int) theme.ledIdleArgb, (unsigned int) led.CoreArgb (theme));
+        Assert::AreEqual ((unsigned int) theme.ledIdle, (unsigned int) led.CoreArgb (theme));
 
         led.SetState (LedState::Present);
-        Assert::AreEqual ((unsigned int) theme.ledPresentArgb, (unsigned int) led.CoreArgb (theme));
+        Assert::AreEqual ((unsigned int) theme.ledPresent, (unsigned int) led.CoreArgb (theme));
 
         led.SetState (LedState::Active);
-        Assert::AreEqual ((unsigned int) theme.ledActiveArgb, (unsigned int) led.CoreArgb (theme));
-        Assert::AreEqual ((unsigned int) theme.ledHaloArgb, (unsigned int) led.HaloArgb (theme));
+        Assert::AreEqual ((unsigned int) theme.ledActive, (unsigned int) led.CoreArgb (theme));
+        Assert::AreEqual ((unsigned int) theme.ledHalo, (unsigned int) led.HaloArgb (theme));
     }
 };

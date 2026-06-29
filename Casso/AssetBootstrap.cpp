@@ -1270,16 +1270,16 @@ static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, std::string_view t
 
         x     = (float) ctx.customBodyRect.left;
         y     = (float) ctx.customBodyRect.top;
-        bg    = ctx.theme->dropdownBgArgb;
-        fg    = ctx.theme->dropdownItemTextArgb;
-        band  = ctx.theme->navStripArgb;
+        bg    = ctx.theme->dropdownBg;
+        fg    = ctx.theme->dropdownItemText;
+        band  = ctx.theme->navStrip;
         descX = x + nameW + colGap;
         descW = (float) (ctx.customBodyRect.right - (LONG) descX);
 
         {
             float     fullW    = (float) (ctx.customBodyRect.right - ctx.customBodyRect.left);
-            uint32_t  headerBg = ctx.theme->navHoverArgb;
-            uint32_t  headerFg = ctx.theme->titleTextArgb;
+            uint32_t  headerBg = ctx.theme->navHover;
+            uint32_t  headerFg = ctx.theme->titleText;
 
             ctx.painter->FillRect (x, y, fullW, rowH, headerBg);
 

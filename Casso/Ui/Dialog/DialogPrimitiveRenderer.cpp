@@ -503,9 +503,9 @@ void DialogPrimitiveRenderer::PaintBackground (const CassoTheme & theme, int tit
 
 
 
-    m_painter.FillRect     (0.0f, contentY, totalW, contentH,                 theme.panelBgArgb);
-    m_painter.FillRect     (0.0f, contentY, totalW, s_kTitleSeparatorHeightPx, theme.navStripArgb);
-    m_painter.OutlineRect  (0.0f, 0.0f,     totalW, totalH,                   s_kBorderThicknessPx, theme.panelEdgeArgb);
+    m_painter.FillRect     (0.0f, contentY, totalW, contentH,                 theme.panelBg);
+    m_painter.FillRect     (0.0f, contentY, totalW, s_kTitleSeparatorHeightPx, theme.navStrip);
+    m_painter.OutlineRect  (0.0f, 0.0f,     totalW, totalH,                   s_kBorderThicknessPx, theme.panelEdge);
 }
 
 
@@ -540,13 +540,13 @@ void DialogPrimitiveRenderer::PaintTitle (
 
 
     m_painter.FillGradientRect (0.0f, 0.0f, static_cast<float> (m_widthPx), titleH,
-                                theme.titleBarTopArgb, theme.titleBarBottomArgb);
+                                theme.titleBarTop, theme.titleBarBottom);
 
     if (!def.title.empty())
     {
         IGNORE_RETURN_VALUE (hr, m_text.DrawString (def.title.c_str(),
                                                     textX, 0.0f, textW, titleH,
-                                                    theme.titleTextArgb,
+                                                    theme.titleText,
                                                     fontPx, DxuiTheme::kBodyFace,
                                                     DxuiTextRenderer::HAlign::Left,
                                                     DxuiTextRenderer::VAlign::Center));
@@ -728,10 +728,10 @@ void DialogPrimitiveRenderer::PaintBody (
         std::wstring           piece      (run.text.data() + p.start, p.count);
         bool                   isFocused  = run.isHyperlink && (p.runIndex == focusedHyperlinkRunIdx);
         bool                   isHovered  = run.isHyperlink && (p.runIndex == hoveredHyperlinkRunIdx);
-        uint32_t               linkColor  = (isFocused || isHovered) ? theme.linkHoverArgb
-                                                                     : theme.linkArgb;
+        uint32_t               linkColor  = (isFocused || isHovered) ? theme.linkHover
+                                                                     : theme.link;
         uint32_t               textColor  = run.isHyperlink ? linkColor
-                                                            : theme.dropdownItemTextArgb;
+                                                            : theme.dropdownItemText;
         float                  x          = p.xPx;
         float                  y          = p.yPx + titleH;
         float                  w          = p.widthPx;
@@ -758,10 +758,10 @@ void DialogPrimitiveRenderer::PaintBody (
             float  rw = w   + 4.0f;
             float  rh = lineH + 2.0f;
 
-            m_painter.FillRect (rx,            ry,            rw,   1.0f, theme.linkHoverArgb);
-            m_painter.FillRect (rx,            ry + rh - 1.0f, rw,  1.0f, theme.linkHoverArgb);
-            m_painter.FillRect (rx,            ry,            1.0f, rh,   theme.linkHoverArgb);
-            m_painter.FillRect (rx + rw - 1.0f, ry,           1.0f, rh,   theme.linkHoverArgb);
+            m_painter.FillRect (rx,            ry,            rw,   1.0f, theme.linkHover);
+            m_painter.FillRect (rx,            ry + rh - 1.0f, rw,  1.0f, theme.linkHover);
+            m_painter.FillRect (rx,            ry,            1.0f, rh,   theme.linkHover);
+            m_painter.FillRect (rx + rw - 1.0f, ry,           1.0f, rh,   theme.linkHover);
         }
     }
 }

@@ -95,15 +95,15 @@ uint32_t LedIndicator::CoreArgb (const CassoTheme & theme) const
 {
     if (m_state == LedState::Active)
     {
-        return theme.ledActiveArgb;
+        return theme.ledActive;
     }
 
     if (m_state == LedState::Present)
     {
-        return theme.ledPresentArgb;
+        return theme.ledPresent;
     }
 
-    return theme.ledIdleArgb;
+    return theme.ledIdle;
 }
 
 
@@ -119,7 +119,7 @@ uint32_t LedIndicator::HaloArgb (const CassoTheme & theme) const
 {
     if (m_state == LedState::Active)
     {
-        return theme.ledHaloArgb;
+        return theme.ledHalo;
     }
 
     return 0;

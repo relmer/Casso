@@ -327,7 +327,7 @@ void UiShell::Render ()
                                     (float) barTop,
                                     (float) m_viewportWidthPx,
                                     (float) (m_viewportHeightPx - barTop),
-                                    localTheme.navStripArgb);
+                                    localTheme.navStrip);
             }
 
             if (m_driveWidgets != nullptr)
