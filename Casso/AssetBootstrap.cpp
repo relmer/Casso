@@ -2452,6 +2452,15 @@ std::optional<int> DiskMruPickerSession::HandleInput (const DialogInputEvent & e
 
         case DialogInputEvent::Kind::Wheel:
             mev.kind = DxuiMouseEventKind::Wheel;
+            // The list scrolls horizontally on Shift+wheel; a horizontal
+            // touchpad swipe (WM_MOUSEHWHEEL) maps to the same path. Win32's
+            // horizontal wheel is +right, but the list's ScrollByWheelDelta
+            // treats +delta as scroll-left, so negate to match swipe sense.
+            if (ev.wheelHorz)
+            {
+                mev.shift      = true;
+                mev.wheelDelta = -mev.wheelDelta;
+            }
             m_list.OnMouse (mev);
             break;
 

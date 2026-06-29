@@ -425,6 +425,11 @@ LRESULT DialogPrimitive::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM
             result = 0;
             break;
 
+        case WM_MOUSEHWHEEL:
+            OnMouseHWheel (wParam, lParam);
+            result = 0;
+            break;
+
         case WM_MOUSEMOVE:
         case WM_LBUTTONDOWN:
         case WM_LBUTTONUP:
@@ -939,6 +944,32 @@ void DialogPrimitive::OnMouseWheel (WPARAM wParam, LPARAM lParam)
 
     ScreenToClient (m_hwnd, &pt);
     DispatchCustomBodyInput (DialogInputEvent::Kind::Wheel, pt.x, pt.y, delta);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMouseHWheel
+//
+//  Horizontal wheel (two-finger touchpad swipe). Win32 reports +right /
+//  -left, the opposite sense from the vertical wheel's +up; the custom
+//  body interprets the sign, so forward the raw delta with the horizontal
+//  flag set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogPrimitive::OnMouseHWheel (WPARAM wParam, LPARAM lParam)
+{
+    POINT  pt    = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+    int    delta = GET_WHEEL_DELTA_WPARAM (wParam);
+
+
+
+    ScreenToClient (m_hwnd, &pt);
+    DispatchCustomBodyInput (DialogInputEvent::Kind::Wheel, pt.x, pt.y, delta, true);
 }
 
 
@@ -1656,7 +1687,7 @@ size_t DialogPrimitive::GetNthHyperlinkBodyIdx (size_t hyperlinkIdx) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DialogPrimitive::DispatchCustomBodyInput (DialogInputEvent::Kind kind, int xPx, int yPx, int intArg)
+bool DialogPrimitive::DispatchCustomBodyInput (DialogInputEvent::Kind kind, int xPx, int yPx, int intArg, bool wheelHorz)
 {
     HRESULT             hr       = S_OK;
     bool                result   = false;
@@ -1702,6 +1733,7 @@ bool DialogPrimitive::DispatchCustomBodyInput (DialogInputEvent::Kind kind, int 
         if (kind == DialogInputEvent::Kind::Wheel)
         {
             ev.wheelDelta = intArg;
+            ev.wheelHorz  = wheelHorz;
         }
         req      = m_def->onInputCustomBody (ev, *this);
         consumed = true;
