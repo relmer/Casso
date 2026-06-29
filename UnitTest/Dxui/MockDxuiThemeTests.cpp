@@ -31,8 +31,8 @@ public:
         Assert::AreEqual (MockDxuiTheme::s_kBodyLineHeightDip, iface.BodyLineHeightDip());
         Assert::AreEqual (MockDxuiTheme::s_kFocusRingWidthDip, iface.FocusRingWidthDip());
 
-        Assert::IsNull (iface.BodyFont().opaque);
-        Assert::IsNull (iface.HeadingFont().opaque);
+        Assert::IsNull (iface.BodyFont().face);
+        Assert::IsNull (iface.HeadingFont().face);
     }
 
 

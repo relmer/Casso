@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Theme/IDxuiTheme.h"
 
 
 
@@ -61,6 +62,32 @@ public:
 
     virtual HRESULT  PushClipRect  (float xDip, float yDip, float widthDip, float heightDip) = 0;
     virtual HRESULT  PopClipRect   ()                                                        = 0;
+
+    // Font-handle convenience overloads: unpack a theme DxuiFontHandle into
+    // the face / size / weight triple. Defaulted (not pure) so existing
+    // mocks need not implement them.
+    HRESULT  DrawString (const wchar_t          * text,
+                         float                    xDip,
+                         float                    yDip,
+                         float                    widthDip,
+                         float                    heightDip,
+                         uint32_t                 argbColor,
+                         const DxuiFontHandle   & font,
+                         DxuiTextHAlign           hAlign = DxuiTextHAlign::Left,
+                         DxuiTextVAlign           vAlign = DxuiTextVAlign::Top,
+                         bool                     wrap   = true)
+    {
+        return DrawString (text, xDip, yDip, widthDip, heightDip, argbColor,
+                           font.sizeDip, font.face, hAlign, vAlign, font.weight, wrap);
+    }
+
+    HRESULT  MeasureString (const wchar_t        * text,
+                            const DxuiFontHandle & font,
+                            float                & outWidthDip,
+                            float                & outHeightDip)
+    {
+        return MeasureString (text, font.sizeDip, font.face, outWidthDip, outHeightDip);
+    }
 
     virtual HRESULT  FillRect      (float    xDip,
                                     float    yDip,

@@ -27,14 +27,17 @@
 
 
 //
-//  Opaque font handle. Concrete implementations may store an
-//  `IDWriteTextFormat *` or a font-name+size pair behind the
-//  `opaque` pointer; widgets never poke at the internals -- they
-//  pass the handle to `DxuiTextRenderer::DrawText` / `MeasureString`.
+//  Font descriptor: a face name, DIP size, and weight. Concrete themes
+//  return these from the typography accessors; widgets pass them to the
+//  text renderer's handle overloads instead of repeating literal face
+//  names and sizes. `face` points at a string literal owned by the theme
+//  (stable for the process lifetime); a null face means "renderer default".
 //
 struct DxuiFontHandle
 {
-    void * opaque = nullptr;
+    const wchar_t     * face    = nullptr;
+    float               sizeDip = 13.0f;
+    DWRITE_FONT_WEIGHT  weight  = DWRITE_FONT_WEIGHT_NORMAL;
 };
 
 
