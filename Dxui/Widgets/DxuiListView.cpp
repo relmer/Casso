@@ -906,6 +906,46 @@ bool DxuiListView::IsScrollbarVisible () const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SyncVertScroll
+//
+//  Pushes the current rect, row count, capacity, and top-row position into
+//  the owned vertical DxuiScrollbar so geometry / paint / drag all read
+//  from the one component. Track is widget-relative; the bar sits to the
+//  right of the body, between the header and any horizontal bar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SyncVertScroll () const
+{
+    ScrollLayout    layout  = ComputeScrollLayout();
+    int             fullW   = m_boundsDip.right - m_boundsDip.left;
+    int             barW    = GetScrollbarWidthPx();
+    int             hBarH   = layout.hBar ? barW : 0;
+    int             headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0;
+    int             hdrGap  = m_showHeader ? m_scaler.Px (s_kHeaderGapDip)    : 0;
+    int             by      = headerH + hdrGap;
+    int             bh      = (m_boundsDip.bottom - m_boundsDip.top) - by - hBarH;
+    DxuiScrollInfo  info;
+
+
+
+    m_vertScroll.Configure (DxuiScrollbar::Orientation::Vertical, barW, s_kMinThumbPx, 1);
+    m_vertScroll.SetTrack (RECT{ fullW - barW, by, fullW, by + bh });
+
+    info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+    info.nMin  = 0;
+    info.nMax  = (int) m_rows.size();
+    info.nPage = layout.rowCap;
+    info.nPos  = m_topRow;
+    m_vertScroll.SetScrollInfo (info);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetScrollbarGeometry
 //
 //  Computes the geometry of every interactive scrollbar region in
@@ -918,57 +958,27 @@ bool DxuiListView::IsScrollbarVisible () const
 
 DxuiListView::ScrollbarMetrics DxuiListView::GetScrollbarGeometry () const
 {
-    HRESULT           hr      = S_OK;
-    ScrollbarMetrics  m;
-    ScrollLayout      layout  = ComputeScrollLayout();
-    int               fullW   = m_boundsDip.right - m_boundsDip.left;
-    int               barW    = GetScrollbarWidthPx();
-    int               hBarH   = layout.hBar ? barW : 0;
-    int               headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0;
-    int               hdrGap  = m_showHeader ? m_scaler.Px (s_kHeaderGapDip)    : 0;
-    int               by      = headerH + hdrGap;
-    int               bh      = (m_boundsDip.bottom - m_boundsDip.top) - by - hBarH;
-    int               total   = (int) m_rows.size();
-    int               cap     = layout.rowCap;
-    int               maxTop  = GetMaxTopRow();
-    int               arrowH  = barW;
-    float             thumbH  = 0.0f;
-    float             travel  = 0.0f;
+    HRESULT                 hr = S_OK;
+    ScrollbarMetrics        m;
+    DxuiScrollbar::Metrics  g;
 
 
 
-    BAIL_OUT_IF (!IsScrollbarVisible() || bh <= 0 || barW <= 0 || total <= 0, S_OK);
+    SyncVertScroll();
+    g = m_vertScroll.GetMetrics();
 
-    if (bh < arrowH * 2 + s_kMinThumbPx + 2)
-    {
-        arrowH = 0;
-    }
-
-    m.trackTop = by + arrowH;
-    m.trackH   = bh - arrowH * 2;
-
-    if (m.trackH < 0)
-    {
-        m.trackH = 0;
-    }
-
-    thumbH = std::max ((float) s_kMinThumbPx, (float) m.trackH * (float) cap / (float) total);
-
-    if (thumbH > (float) m.trackH)
-    {
-        thumbH = (float) m.trackH;
-    }
-
-    travel = (float) m.trackH - thumbH;
+    BAIL_OUT_IF (!g.visible, S_OK);
 
     m.visible      = true;
-    m.barX         = fullW - barW;
-    m.barW         = barW;
-    m.arrowH       = arrowH;
-    m.upArrowTop   = by;
-    m.downArrowTop = by + bh - arrowH;
-    m.thumbH       = thumbH;
-    m.thumbTop     = (float) m.trackTop + ((maxTop > 0) ? travel * (float) m_topRow / (float) maxTop : 0.0f);
+    m.barX         = g.bar.left;
+    m.barW         = g.bar.right - g.bar.left;
+    m.arrowH       = g.arrowLess.bottom - g.arrowLess.top;
+    m.upArrowTop   = g.arrowLess.top;
+    m.downArrowTop = g.arrowMore.top;
+    m.trackTop     = g.track.top;
+    m.trackH       = g.track.bottom - g.track.top;
+    m.thumbTop     = g.thumbStart;
+    m.thumbH       = g.thumbLength;
 
 Error:
     return m;
@@ -1208,55 +1218,73 @@ bool DxuiListView::IsHScrollbarVisible () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncHorzScroll
+//
+//  Pushes the current viewport / content width and left-offset into the
+//  owned horizontal DxuiScrollbar. nMax is zeroed when the bar is not
+//  enabled or content fits, so the bar reports hidden in that case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SyncHorzScroll () const
+{
+    ScrollLayout    layout = ComputeScrollLayout();
+    int             fullH  = m_boundsDip.bottom - m_boundsDip.top;
+    int             barH   = GetScrollbarWidthPx();
+    int             viewW  = layout.viewportW;
+    DxuiScrollInfo  info;
+
+
+
+    m_horzScroll.Configure (DxuiScrollbar::Orientation::Horizontal, barH, s_kMinThumbPx, m_scaler.Px (s_kHScrollStepDip));
+    m_horzScroll.SetTrack (RECT{ 0, fullH - barH, viewW, fullH });
+
+    info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+    info.nMin  = 0;
+    info.nMax  = layout.hBar ? layout.contentW : 0;
+    info.nPage = viewW;
+    info.nPos  = m_leftPx;
+    m_horzScroll.SetScrollInfo (info);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetHScrollbarGeometry
+//
+//  Horizontal counterpart to GetScrollbarGeometry, derived from the owned
+//  horizontal DxuiScrollbar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 DxuiListView::HScrollbarMetrics DxuiListView::GetHScrollbarGeometry () const
 {
-    HRESULT            hr       = S_OK;
-    HScrollbarMetrics  m;
-    ScrollLayout       layout   = ComputeScrollLayout();
-    int                fullH    = m_boundsDip.bottom - m_boundsDip.top;
-    int                barH     = GetScrollbarWidthPx();
-    int                viewW    = layout.viewportW;
-    int                contentW = layout.contentW;
-    int                arrowW   = barH;
-    int                maxLeft  = 0;
-    float              thumbW   = 0.0f;
-    float              travel   = 0.0f;
+    HRESULT                 hr = S_OK;
+    HScrollbarMetrics       m;
+    DxuiScrollbar::Metrics  g;
 
 
 
-    BAIL_OUT_IF (!layout.hBar || viewW <= 0 || barH <= 0 || contentW <= 0, S_OK);
+    SyncHorzScroll();
+    g = m_horzScroll.GetMetrics();
 
-    if (viewW < arrowW * 2 + s_kMinThumbPx + 2)
-    {
-        arrowW = 0;
-    }
-
-    m.trackLeft = arrowW;
-    m.trackW    = viewW - arrowW * 2;
-
-    if (m.trackW < 0)
-    {
-        m.trackW = 0;
-    }
-
-    thumbW = std::max ((float) s_kMinThumbPx, (float) m.trackW * (float) viewW / (float) contentW);
-
-    if (thumbW > (float) m.trackW)
-    {
-        thumbW = (float) m.trackW;
-    }
-
-    travel  = (float) m.trackW - thumbW;
-    maxLeft = (contentW > viewW) ? (contentW - viewW) : 0;
+    BAIL_OUT_IF (!g.visible, S_OK);
 
     m.visible     = true;
-    m.barY        = fullH - barH;
-    m.barH        = barH;
-    m.arrowW      = arrowW;
-    m.leftArrowX  = 0;
-    m.rightArrowX = viewW - arrowW;
-    m.thumbW      = thumbW;
-    m.thumbLeft   = (float) m.trackLeft + ((maxLeft > 0) ? travel * (float) m_leftPx / (float) maxLeft : 0.0f);
+    m.barY        = g.bar.top;
+    m.barH        = g.bar.bottom - g.bar.top;
+    m.arrowW      = g.arrowLess.right - g.arrowLess.left;
+    m.leftArrowX  = g.arrowLess.left;
+    m.rightArrowX = g.arrowMore.left;
+    m.trackLeft   = g.track.left;
+    m.trackW      = g.track.right - g.track.left;
+    m.thumbLeft   = g.thumbStart;
+    m.thumbW      = g.thumbLength;
 
 Error:
     return m;
@@ -2079,35 +2107,20 @@ void DxuiListView::PaintScrollbar (
     float           x,
     float           y) const
 {
-    HRESULT           hr        = S_OK;
-    ScrollLayout      layout    = ComputeScrollLayout();
-    ScrollbarMetrics  m         = GetScrollbarGeometry();
-    float             headerH   = (float) (m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0);
-    float             hdrGap    = (float) (m_showHeader ? m_scaler.Px (s_kHeaderGapDip)    : 0);
-    float             hBarH     = layout.hBar ? (float) GetScrollbarWidthPx() : 0.0f;
-    uint32_t          trackArgb = (pal.fg & 0x00FFFFFFu) | 0x18000000u;
-    uint32_t          thumbArgb = (pal.fg & 0x00FFFFFFu) | 0x80000000u;
-    uint32_t          arrowArgb = (pal.fg & 0x00FFFFFFu) | 0xC0000000u;
-    float             bx        = 0.0f;
-    float             barTop    = 0.0f;
-    float             barH      = 0.0f;
+    HRESULT           hr      = S_OK;
+    ScrollbarMetrics  m       = GetScrollbarGeometry();
+    int               headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0;
+    int               hdrGap  = m_showHeader ? m_scaler.Px (s_kHeaderGapDip)    : 0;
+    int               hBarH   = ComputeScrollLayout().hBar ? GetScrollbarWidthPx() : 0;
+    int               by      = headerH + hdrGap;
+    int               bh      = (m_boundsDip.bottom - m_boundsDip.top) - by - hBarH;
 
 
 
     BAIL_OUT_IF (!m.visible, S_OK);
 
-    bx     = x + (float) m.barX;
-    barTop = y + headerH + hdrGap;
-    barH   = (float) (m_boundsDip.bottom - m_boundsDip.top) - headerH - hdrGap - hBarH;
-
-    painter.FillRect (bx, barTop, (float) m.barW, barH, trackArgb);
-    painter.FillRect (bx + 1.0f, y + m.thumbTop, (float) m.barW - 2.0f, m.thumbH, thumbArgb);
-
-    if (m.arrowH > 0)
-    {
-        PaintScrollArrow (painter, bx, y + (float) m.upArrowTop,   (float) m.barW, (float) m.arrowH, true,  arrowArgb);
-        PaintScrollArrow (painter, bx, y + (float) m.downArrowTop, (float) m.barW, (float) m.arrowH, false, arrowArgb);
-    }
+    m_vertScroll.SetTrack (RECT{ (int) x + m.barX, (int) y + by, (int) x + m.barX + m.barW, (int) y + by + bh });
+    m_vertScroll.Paint (painter, pal.fg);
 
 Error:
     return;
@@ -2133,29 +2146,16 @@ void DxuiListView::PaintHScrollbar (
     float           x,
     float           y) const
 {
-    HRESULT            hr        = S_OK;
-    HScrollbarMetrics  m         = GetHScrollbarGeometry();
-    uint32_t           trackArgb = (pal.fg & 0x00FFFFFFu) | 0x18000000u;
-    uint32_t           thumbArgb = (pal.fg & 0x00FFFFFFu) | 0x80000000u;
-    uint32_t           arrowArgb = (pal.fg & 0x00FFFFFFu) | 0xC0000000u;
-    float              by        = 0.0f;
-    float              trackX    = 0.0f;
+    HRESULT            hr    = S_OK;
+    HScrollbarMetrics  m     = GetHScrollbarGeometry();
+    int                viewW = ComputeScrollLayout().viewportW;
 
 
 
     BAIL_OUT_IF (!m.visible, S_OK);
 
-    by     = y + (float) m.barY;
-    trackX = x + (float) m.trackLeft;
-
-    painter.FillRect (trackX, by, (float) m.trackW, (float) m.barH, trackArgb);
-    painter.FillRect (x + m.thumbLeft, by + 1.0f, m.thumbW, (float) m.barH - 2.0f, thumbArgb);
-
-    if (m.arrowW > 0)
-    {
-        PaintScrollArrowH (painter, x + (float) m.leftArrowX,  by, (float) m.arrowW, (float) m.barH, true,  arrowArgb);
-        PaintScrollArrowH (painter, x + (float) m.rightArrowX, by, (float) m.arrowW, (float) m.barH, false, arrowArgb);
-    }
+    m_horzScroll.SetTrack (RECT{ (int) x, (int) y + m.barY, (int) x + viewW, (int) y + m.barY + m.barH });
+    m_horzScroll.Paint (painter, pal.fg);
 
 Error:
     return;
@@ -2225,82 +2225,6 @@ void DxuiListView::ComputeColumnLayout (float fullW, std::vector<int> & xs, std:
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PaintScrollArrow
-//
-//  Paints an upward (up == true) or downward triangle centered in the
-//  given arrow-button rect, drawn as a stack of 1px-tall rows.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::PaintScrollArrow (IDxuiPainter & painter,
-                                 float          ax,
-                                 float          ay,
-                                 float          aw,
-                                 float          ah,
-                                 bool           up,
-                                 uint32_t       argb) const
-{
-    int    glyphH = std::max (3, (int) std::lround (ah * 0.30f));
-    int    glyphW = glyphH * 2;
-    float  gy     = ay + (ah - (float) glyphH) / 2.0f;
-    int    r      = 0;
-
-
-
-    for (r = 0; r < glyphH; r++)
-    {
-        float  frac = up ? (float) (r + 1) / (float) glyphH
-                         : (float) (glyphH - r) / (float) glyphH;
-        float  w    = (float) glyphW * frac;
-        float  rx   = ax + (aw - w) / 2.0f;
-
-        painter.FillRect (rx, gy + (float) r, w, 1.0f, argb);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PaintScrollArrowH
-//
-//  Paints a left (left == true) or right triangle centered in the given
-//  arrow-button rect, drawn as a row of 1px-wide columns.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::PaintScrollArrowH (IDxuiPainter & painter,
-                                  float          ax,
-                                  float          ay,
-                                  float          aw,
-                                  float          ah,
-                                  bool           left,
-                                  uint32_t       argb) const
-{
-    int    glyphW = std::max (3, (int) std::lround (aw * 0.30f));
-    int    glyphH = glyphW * 2;
-    float  gx     = ax + (aw - (float) glyphW) / 2.0f;
-    int    c      = 0;
-
-
-
-    for (c = 0; c < glyphW; c++)
-    {
-        float  frac = left ? (float) (c + 1) / (float) glyphW
-                           : (float) (glyphW - c) / (float) glyphW;
-        float  h    = (float) glyphH * frac;
-        float  cy   = ay + (ah - h) / 2.0f;
-
-        painter.FillRect (gx + (float) c, cy, 1.0f, h, argb);
-    }
-}
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -2366,7 +2290,9 @@ bool DxuiListView::OnMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
         case DxuiMouseEventKind::Down:  handled = DispatchMouseDown  (ev, lx, ly, inside);  break;
-        case DxuiMouseEventKind::Move:  handled = DispatchMouseMove  (lx, ly, inside);      break;
+        case DxuiMouseEventKind::Move:  handled = (ev.button != DxuiMouseButton::Left && IsInteracting())
+                                                  ? DispatchMouseUp   (lx, ly, inside)
+                                                  : DispatchMouseMove (lx, ly, inside);     break;
         case DxuiMouseEventKind::Up:    handled = DispatchMouseUp    (lx, ly, inside);      break;
         case DxuiMouseEventKind::Wheel: handled = DispatchMouseWheel (ev, inside);          break;
         case DxuiMouseEventKind::Leave: SetHoveredRow (-1);                                 break;

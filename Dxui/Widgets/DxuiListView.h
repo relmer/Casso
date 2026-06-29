@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "DxuiScrollbar.h"
 
 
 
@@ -328,20 +329,8 @@ private:
                                      const Palette & pal,
                                      float           x,
                                      float           y) const;
-    void    PaintScrollArrow        (IDxuiPainter & painter,
-                                     float          ax,
-                                     float          ay,
-                                     float          aw,
-                                     float          ah,
-                                     bool           up,
-                                     uint32_t       argb) const;
-    void    PaintScrollArrowH       (IDxuiPainter & painter,
-                                     float          ax,
-                                     float          ay,
-                                     float          aw,
-                                     float          ah,
-                                     bool           left,
-                                     uint32_t       argb) const;
+    void    SyncVertScroll          () const;
+    void    SyncHorzScroll          () const;
     const IDxuiTheme                * m_theme      = nullptr;
     std::vector<Column>               m_columns;
     std::vector<std::vector<Cell>>    m_rows;
@@ -376,6 +365,8 @@ private:
     int                               m_resizeColumn      = -1;
     int                               m_resizeStartXPx    = 0;
     int                               m_resizeStartWPx    = 0;
+    mutable DxuiScrollbar             m_vertScroll;
+    mutable DxuiScrollbar             m_horzScroll;
     std::function<void (int)>         m_onSelectionChanged;
     std::function<void (int)>         m_onActivateRow;
     std::function<void (int)>         m_onSortColumn;

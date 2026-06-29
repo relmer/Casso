@@ -40,6 +40,22 @@ namespace
     }
 
 
+    std::vector<std::vector<DxuiListView::Cell>>  MakeRows (int count)
+    {
+        std::vector<std::vector<DxuiListView::Cell>>  rows;
+        int                                           i = 0;
+
+
+
+        for (i = 0; i < count; i++)
+        {
+            rows.push_back ({ DxuiListView::Cell{ L"row", false } });
+        }
+
+        return rows;
+    }
+
+
     template <class TWidget>
     void  VerifyLayoutSetsBounds ()
     {
@@ -246,5 +262,40 @@ public:
         panel.OnMouse (up);
 
         Assert::IsTrue (clicked);
+    }
+
+
+    TEST_METHOD (ListView_MoveWithoutButtonEndsStaleScrollbarDrag)
+    {
+        DxuiListView    list;
+        DxuiDpiScaler   scaler;
+        DxuiMouseEvent  down = {};
+        DxuiMouseEvent  move = {};
+        DxuiListView::ScrollbarMetrics  bar = {};
+
+
+
+        scaler.SetDpi (96);
+        list.SetColumns ({ DxuiListView::Column{ L"c", 100, false, DxuiTextHAlign::Left, true } });
+        list.SetRows (MakeRows (200));
+        static_cast<IDxuiControl &> (list).Layout (MakeRect (0, 0, 200, 200), scaler);
+
+        bar = list.GetScrollbarGeometry();
+        Assert::IsTrue (bar.visible);
+
+        // Press the vertical thumb to start a drag, then a move with no
+        // button held (cursor returned after a release that landed off the
+        // dialog) must end the drag rather than keep tracking forever.
+        down.kind        = DxuiMouseEventKind::Down;
+        down.button      = DxuiMouseButton::Left;
+        down.positionDip = POINT { bar.barX + 2, (int) bar.thumbTop + 2 };
+        list.OnMouse (down);
+        Assert::IsTrue (list.IsInteracting());
+
+        move.kind        = DxuiMouseEventKind::Move;
+        move.button      = DxuiMouseButton::None;
+        move.positionDip = POINT { bar.barX + 2, (int) bar.thumbTop + 40 };
+        list.OnMouse (move);
+        Assert::IsFalse (list.IsInteracting());
     }
 };
