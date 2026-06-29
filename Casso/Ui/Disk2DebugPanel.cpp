@@ -345,7 +345,7 @@ HRESULT Disk2DebugPanel::Render()
 
     if (m_theme != nullptr)
     {
-        ArgbToFloat4 (m_theme->titleBarBottomArgb, clearColor);
+        ArgbToFloat4 (m_theme->titleBarBottom, clearColor);
         clearColor[3] = 1.0f;
     }
 
@@ -376,6 +376,7 @@ HRESULT Disk2DebugPanel::Render()
     {
         m_trackEdit.SetTheme  (m_theme);
         m_sectorEdit.SetTheme (m_theme);
+        m_tooltip.SetTheme    (*m_theme);
 
         for (auto & cb : m_eventChecks)
         {
@@ -1759,7 +1760,7 @@ void Disk2DebugPanel::LayoutWidgets()
 
     if (m_theme != nullptr)
     {
-        textArgb = m_theme->navItemTextArgb;
+        textArgb = m_theme->navItemText;
     }
 
     m_trackFilterLabel.SetText        (m_filter.trackFilterRawQt ? s_kpszTrackQtFilterLabel : s_kpszTrackFilterLabel);

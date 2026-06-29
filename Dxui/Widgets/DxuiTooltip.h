@@ -35,6 +35,7 @@ public:
     void  SetFontSizeDip  (float dip) { m_fontDip = dip; }
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
+    void  SetTheme        (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
 
     //
     //  Opt-in popup hosting (FR-054 / FR-061). When a host is wired
@@ -105,6 +106,9 @@ private:
     int           m_dwellOpenMs  = 500;
     int           m_dwellCloseMs = 100;
     float         m_fontDip      = 12.0f;
+    uint32_t      m_bgArgb       = 0xFF2D2D2D;
+    uint32_t      m_borderArgb   = 0xFF606060;
+    uint32_t      m_textArgb     = 0xFFE8EEF4;
     int           m_viewportWPx  = 0;
     int           m_viewportHPx  = 0;
     bool          m_visible      = false;

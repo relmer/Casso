@@ -54,6 +54,10 @@ public:
     uint32_t  SystemCloseHover    () const override { return s_kSystemCloseHover;    }
     uint32_t  SystemClosePressed  () const override { return s_kSystemClosePressed;  }
 
+    uint32_t  TooltipBackground   () const override { return s_kTooltipBackground;   }
+    uint32_t  TooltipBorder       () const override { return s_kTooltipBorder;       }
+    uint32_t  TooltipForeground   () const override { return s_kTooltipForeground;   }
+
     DxuiFontHandle  BodyFont      () const override { return {}; }
     DxuiFontHandle  BodyBoldFont  () const override { return {}; }
     DxuiFontHandle  CaptionFont   () const override { return {}; }
@@ -92,6 +96,9 @@ public:
     static constexpr uint32_t  s_kSystemButtonPressed = 0xFF505050;
     static constexpr uint32_t  s_kSystemCloseHover    = 0xFFC42B1C;
     static constexpr uint32_t  s_kSystemClosePressed  = 0xFFB02014;
+    static constexpr uint32_t  s_kTooltipBackground   = 0xFF2E3035;
+    static constexpr uint32_t  s_kTooltipBorder       = 0xFF55595F;
+    static constexpr uint32_t  s_kTooltipForeground   = 0xFFF0F0F0;
 
     static constexpr float  s_kBodyLineHeightDip = 18.0f;
     static constexpr float  s_kCornerRadiusDip   = 4.0f;

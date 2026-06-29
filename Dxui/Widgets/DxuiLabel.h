@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Theme/DxuiTheme.h"
 
 
 
@@ -80,7 +81,7 @@ public:
 
 private:
     std::wstring                  m_text;
-    std::wstring                  m_fontFace = L"Segoe UI";
+    std::wstring                  m_fontFace = DxuiTheme::kBodyFace;
     uint32_t                      m_argb     = 0xFFFFFFFF;
     float                         m_fontDip  = 13.0f;
     DxuiTextHAlign    m_hAlign   = DxuiTextHAlign::Left;

@@ -149,17 +149,8 @@ void DxuiCheckbox::Toggle ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
+void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    constexpr uint32_t  s_kBoxIdle      = 0xFF606060;
-    constexpr uint32_t  s_kBoxHover     = 0xFF808080;
-    constexpr uint32_t  s_kBoxPressed   = 0xFF404040;
-    constexpr uint32_t  s_kBoxDisabled  = 0xFF303030;
-    constexpr uint32_t  s_kCheck        = 0xFFFFFFFF;
-    constexpr uint32_t  s_kCheckDisabled = 0xFF707070;
-    constexpr uint32_t  s_kFocusRing    = 0xFFAACCFF;
-    constexpr uint32_t  s_kTextIdle     = 0xFFE8EEF4;
-    constexpr uint32_t  s_kTextDisabled = 0xFF707070;
     constexpr float     s_kBoxSizeDip    = 16.0f;
     constexpr float     s_kFocusInsetDip = -2.0f;
     constexpr float     s_kFocusThickDip = 1.0f;
@@ -175,10 +166,10 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     float    boxLeft     = (float) m_boundsDip.left;
     float    boxTop      = (float) m_boundsDip.top + ((float) (m_boundsDip.bottom - m_boundsDip.top) - boxSize) * 0.5f;
     uint32_t boxColor    = m_enabled
-                            ? (m_pressed ? s_kBoxPressed : (m_hover ? s_kBoxHover : s_kBoxIdle))
-                            : s_kBoxDisabled;
-    uint32_t glyphColor  = m_enabled ? s_kCheck : s_kCheckDisabled;
-    uint32_t textColor   = m_enabled ? s_kTextIdle : s_kTextDisabled;
+                            ? (m_pressed ? theme.ButtonPressed() : (m_hover ? theme.ButtonHover() : theme.ButtonIdle()))
+                            : theme.PressedBackground();
+    uint32_t glyphColor  = m_enabled ? theme.ButtonText()  : theme.ForegroundDisabled();
+    uint32_t textColor   = m_enabled ? theme.Foreground()  : theme.ForegroundDisabled();
 
 
 
@@ -205,7 +196,7 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
                              boxSize - focusInset * 2.0f,
                              boxSize - focusInset * 2.0f,
                              focusThick,
-                             s_kFocusRing);
+                             theme.FocusRing());
     }
 
     IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.c_str(),
@@ -234,22 +225,6 @@ void DxuiCheckbox::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
     m_scaler.SetDpi (scaler.Dpi());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiCheckbox::Paint  (IDxuiControl override)
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
-{
-    UNREFERENCED_PARAMETER (theme);
-    static_cast<const DxuiCheckbox *> (this)->Paint (painter, text);
 }
 
 
