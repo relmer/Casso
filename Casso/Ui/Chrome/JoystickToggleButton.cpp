@@ -29,6 +29,7 @@ static constexpr float    s_kFontDip      = 13.0f;
 static constexpr float    s_kFallbackCharPx = 7.5f;
 static constexpr const wchar_t * s_kFontFamily = DxuiTheme::kBodyFace;
 static constexpr wchar_t  s_kLabel[]      = L"Joystick Mode";
+static constexpr wchar_t  s_kPaddleLabel[] = L"Paddle Mode \u2014 Esc to exit";
 
 // The LED glows a fixed realistic blue regardless of the active theme's
 // drive LED hue (which is red on skeuomorphic, green on phosphor); a dark
@@ -41,6 +42,14 @@ static constexpr wchar_t  s_kTooltip[] =
     L"Arrows, Z, and X keys are mapped to the joystick and its "
     L"buttons when enabled.  To use these buttons as regular keyboard "
     L"inputs, disable joystick mode.";
+
+
+
+
+const wchar_t * JoystickToggleButton::Label () const
+{
+    return (m_mode == InputMappingMode::Paddle) ? s_kPaddleLabel : s_kLabel;
+}
 
 
 
@@ -90,7 +99,7 @@ void JoystickToggleButton::Layout (const RECT & boundsDip, const DxuiDpiScaler &
 
     if (m_textRenderer != nullptr)
     {
-        HRESULT  hrM = m_textRenderer->MeasureString (s_kLabel, fontDip, s_kFontFamily, textW, textH);
+        HRESULT  hrM = m_textRenderer->MeasureString (Label(), fontDip, s_kFontFamily, textW, textH);
 
         if (FAILED (hrM))
         {
@@ -104,7 +113,7 @@ void JoystickToggleButton::Layout (const RECT & boundsDip, const DxuiDpiScaler &
     // button still reserves a sane width on the very first layout.
     if (textW <= 0.0f)
     {
-        textW = (float) (sizeof (s_kLabel) / sizeof (s_kLabel[0]) - 1) *
+        textW = (float) wcslen (Label()) *
                 s_kFallbackCharPx * (float) eDpi / (float) s_kBaseDpi;
     }
 
@@ -206,7 +215,7 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 
     m_led.Paint (painter, coreArgb, haloArgb);
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (s_kLabel,
+    IGNORE_RETURN_VALUE (hr, text.DrawString (Label(),
                                               textX,
                                               bt,
                                               (float) m_bounds.right - textX,
