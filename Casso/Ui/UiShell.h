@@ -3,7 +3,7 @@
 #include "Pch.h"
 
 #include "FocusManager.h"
-#include "Chrome/ChromeTheme.h"
+#include "Chrome/CassoTheme.h"
 #include "Chrome/DriveWidget.h"
 #include "Chrome/JoystickToggleButton.h"
 #include "Chrome/MainMenu.h"
@@ -46,7 +46,7 @@ public:
     void     SetChrome          (TitleBar                        * titleBar,
                                   MainMenu                        * mainMenu,
                                   std::array<DriveWidget, 2>      * driveWidgets,
-                                  const ChromeTheme               * theme);
+                                  const CassoTheme               * theme);
     void     SetSettingsPanel   (SettingsPanel                   * settingsPanel);
     void     SetJoystickButton  (JoystickToggleButton            * button,
                                   DxuiTooltip                         * tooltip)
@@ -73,9 +73,9 @@ public:
     int    ViewportWidth  () const { return m_viewportWidthPx; }
     int    ViewportHeight () const { return m_viewportHeightPx; }
 
-    const ChromeTheme & Theme () const
+    const CassoTheme & Theme () const
     {
-        static const ChromeTheme s_kFallback = ChromeTheme::Skeuomorphic();
+        static const CassoTheme s_kFallback = CassoTheme::Skeuomorphic();
         return (m_theme != nullptr) ? *m_theme : s_kFallback;
     }
 
@@ -84,7 +84,7 @@ public:
 private:
     HRESULT  RefreshTextTarget ();
     void     PaintDragDropOverlay (const ChromeVisualState & visual,
-                                    const ChromeTheme       & theme,
+                                    const CassoTheme       & theme,
                                     int                       bottomInset,
                                     int                       barTop);
 
@@ -102,7 +102,7 @@ private:
     std::array<DriveWidget, 2>  * m_driveWidgets  = nullptr;
     JoystickToggleButton        * m_joystickButton  = nullptr;
     DxuiTooltip                     * m_joystickTooltip = nullptr;
-    const ChromeTheme           * m_theme         = nullptr;
+    const CassoTheme           * m_theme         = nullptr;
     SettingsPanel               * m_settingsPanel = nullptr;
     const DxuiDragDropTarget        * m_dragSource    = nullptr;
 

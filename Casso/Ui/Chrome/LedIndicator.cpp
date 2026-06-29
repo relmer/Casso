@@ -91,7 +91,7 @@ void LedIndicator::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t LedIndicator::CoreArgb (const ChromeTheme & theme) const
+uint32_t LedIndicator::CoreArgb (const CassoTheme & theme) const
 {
     if (m_state == LedState::Active)
     {
@@ -115,7 +115,7 @@ uint32_t LedIndicator::CoreArgb (const ChromeTheme & theme) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t LedIndicator::HaloArgb (const ChromeTheme & theme) const
+uint32_t LedIndicator::HaloArgb (const CassoTheme & theme) const
 {
     if (m_state == LedState::Active)
     {
@@ -136,8 +136,8 @@ uint32_t LedIndicator::HaloArgb (const ChromeTheme & theme) const
 
 void LedIndicator::Paint (IDxuiPainter & painter, IDxuiTextRenderer & /*text*/, const IDxuiTheme & dxuiTheme)
 {
-    _ASSERTE (dynamic_cast<const ChromeTheme *> (&dxuiTheme) != nullptr);
-    const ChromeTheme & theme = static_cast<const ChromeTheme &> (dxuiTheme);
+    _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
+    const CassoTheme & theme = static_cast<const CassoTheme &> (dxuiTheme);
 
     uint32_t  halo = HaloArgb (theme);
     float     cx   = (float) (m_layout.coreRect.left + m_layout.coreRect.right) * 0.5f;

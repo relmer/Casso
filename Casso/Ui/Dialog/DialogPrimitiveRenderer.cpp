@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "DialogPrimitiveRenderer.h"
-#include "../Chrome/ChromeTheme.h"
+#include "../Chrome/CassoTheme.h"
 #include "../../resource.h"
 
 
@@ -325,7 +325,7 @@ Error:
 HRESULT DialogPrimitiveRenderer::Render (
     const DialogDefinition   & def,
     const DialogLayoutResult & layout,
-    const ChromeTheme        & theme,
+    const CassoTheme        & theme,
     int                        titleHeightPx,
     std::vector<DxuiButton>      & buttons,
     size_t                     focusedHyperlinkRunIdx,
@@ -494,7 +494,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DialogPrimitiveRenderer::PaintBackground (const ChromeTheme & theme, int titleHeightPx)
+void DialogPrimitiveRenderer::PaintBackground (const CassoTheme & theme, int titleHeightPx)
 {
     float  contentY = static_cast<float> (titleHeightPx);
     float  contentH = static_cast<float> (m_heightPx) - contentY;
@@ -519,7 +519,7 @@ void DialogPrimitiveRenderer::PaintBackground (const ChromeTheme & theme, int ti
 
 void DialogPrimitiveRenderer::PaintTitle (
     const DialogDefinition & def,
-    const ChromeTheme      & theme,
+    const CassoTheme      & theme,
     int                      titleHeightPx,
     bool                     closeHovered,
     bool                     closePressed)
@@ -701,7 +701,7 @@ void DialogPrimitiveRenderer::PaintIcon (
 void DialogPrimitiveRenderer::PaintBody (
     const DialogDefinition   & def,
     const DialogLayoutResult & layout,
-    const ChromeTheme        & theme,
+    const CassoTheme        & theme,
     int                        titleHeightPx,
     size_t                     focusedHyperlinkRunIdx,
     size_t                     hoveredHyperlinkRunIdx)
@@ -778,7 +778,7 @@ void DialogPrimitiveRenderer::PaintBody (
 void DialogPrimitiveRenderer::PaintCustomBody (
     const DialogDefinition   & def,
     const DialogLayoutResult & layout,
-    const ChromeTheme        & theme,
+    const CassoTheme        & theme,
     int                        titleHeightPx)
 {
     DialogPaintContext  ctx          = {};
@@ -812,7 +812,7 @@ void DialogPrimitiveRenderer::PaintCustomBody (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DialogPrimitiveRenderer::PaintButtons (std::vector<DxuiButton> & buttons, const ChromeTheme & theme)
+void DialogPrimitiveRenderer::PaintButtons (std::vector<DxuiButton> & buttons, const CassoTheme & theme)
 {
     for (DxuiButton & btn : buttons)
     {

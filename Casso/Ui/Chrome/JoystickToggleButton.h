@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "ChromeTheme.h"
+#include "CassoTheme.h"
 #include "Core/IDxuiControl.h"
 #include "LedIndicator.h"
 #include "../../UiCommandTypes.h"
@@ -22,7 +22,7 @@
 //  actual toggle through the existing SetMapArrowsToJoystick path.
 //
 //  JoystickToggleButton is Casso-specific; its Paint assumes the
-//  IDxuiTheme reference is actually a ChromeTheme and `static_cast`s
+//  IDxuiTheme reference is actually a CassoTheme and `static_cast`s
 //  to read the button/link palette fields (a debug `dynamic_cast`
 //  guard pins the contract).
 //

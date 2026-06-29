@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "ChromeTheme.h"
+#include "CassoTheme.h"
 #include "Core/IDxuiControl.h"
 #include "LedIndicator.h"
 #include "../DriveWidgetState.h"
@@ -25,7 +25,7 @@ enum class DriveWidgetRegion
 //
 //  DriveWidget is Casso-specific (skeuomorphic Apple Disk II). The
 //  IDxuiControl Paint signature uses an IDxuiTheme, but the widget
-//  expects that theme is actually a ChromeTheme and static_casts to
+//  expects that theme is actually a CassoTheme and static_casts to
 //  read drive-body / bezel / label palette fields. A debug
 //  dynamic_cast guard in Paint pins the contract.
 //
@@ -96,7 +96,7 @@ public:
 
 private:
     void                PaintBasenameLabel (IDxuiTextRenderer & text,
-                                            const ChromeTheme & theme,
+                                            const CassoTheme & theme,
                                             UINT                dpi);
 
     int                 m_slot      = 6;

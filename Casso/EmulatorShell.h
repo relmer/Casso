@@ -20,7 +20,7 @@
 #include "Shell/MachineManager.h"
 #include "Shell/WindowCommandManager.h"
 #include "Shell/WindowManager.h"
-#include "Ui/Chrome/ChromeTheme.h"
+#include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/Chrome/JoystickToggleButton.h"
 #include "Ui/Chrome/LayoutManager.h"
@@ -360,11 +360,11 @@ private:
     // No-op if the name is empty; falls back to Skeuomorphic if unknown.
     HRESULT ApplyAndPersistTheme (const std::string & themeName);
 
-    // Pushes a freshly-activated ChromeTheme into the layout-affecting
+    // Pushes a freshly-activated CassoTheme into the layout-affecting
     // chrome state: drive bar thickness, per-drive compact flag, and
     // (if the bottom inset changed) a window resize that preserves the
     // emulator pixel grid. Called from the ThemeManager listener.
-    void    ApplyThemeToChrome   (const ChromeTheme & theme);
+    void    ApplyThemeToChrome   (const CassoTheme & theme);
 
     // Positions the joystick-mode toggle button vertically centered in the
     // empty band above the drive widgets (the top portion of the bottom
@@ -456,7 +456,7 @@ private:
     // the existing Win32 menu bar until the painter retires the latter.
     TitleBar            m_titleBar;
     MainMenu            m_mainMenu;
-    ChromeTheme         m_chromeTheme    = ChromeTheme::Skeuomorphic();
+    CassoTheme         m_chromeTheme    = CassoTheme::Skeuomorphic();
     std::array<DriveWidget, 2> m_driveChrome;
 
     // DxuiHostWindow running in full-ownership mode. Owns the main

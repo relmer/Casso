@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 
 
@@ -14,107 +15,38 @@ struct ChromeVisualState
 };
 
 
-struct ChromeTheme : public IDxuiTheme
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoTheme
+//
+//  Casso's theme: the generic Dxui-rendered tokens come from DxuiTheme;
+//  CassoTheme adds the app-specific bits Dxui has no concept of -- the
+//  skeuomorphic Disk II drive widgets and their LEDs -- plus the preset
+//  palettes (Skeuomorphic / DarkModern / RetroTerminal). WCAG colour math
+//  lives in Dxui/Theme/DxuiColor.h; widgets derive accessible tints there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct CassoTheme : public DxuiTheme
 {
     // Whether the drive widgets use the compact paint path (small flat
     // card with label + LED). False = full skeuomorphic Apple Disk II
     // widgets. The drive-bar thickness contracts with this flag via
     // EmulatorShell's theme listener so the emulator pixel grid is
     // preserved across theme swaps.
-    bool      compactDrives             = false;
+    bool      compactDrives  = false;
 
-    uint32_t  titleBarTopArgb        = 0;
-    uint32_t  titleBarBottomArgb     = 0;
-    uint32_t  titleTextArgb          = 0;
-    uint32_t  sysButtonIdleArgb      = 0;
-    uint32_t  sysButtonHoverArgb     = 0;
-    uint32_t  sysButtonPressedArgb   = 0;
-    uint32_t  sysButtonCloseHoverArgb   = 0;
-    uint32_t  sysButtonCloseHoverGlyphArgb = 0;
-    uint32_t  sysButtonClosePressedArgb = 0;
-    uint32_t  navStripArgb           = 0;
-    uint32_t  navHoverArgb           = 0;
-    uint32_t  navItemTextArgb        = 0;
-    uint32_t  dropdownBgArgb         = 0;
-    uint32_t  dropdownItemTextArgb   = 0;
-    uint32_t  dropdownAccelArgb      = 0;
-    uint32_t  dropdownHoverArgb      = 0;
-    uint32_t  driveBodyArgb          = 0;
-    uint32_t  driveBezelArgb         = 0;
-    uint32_t  driveLabelArgb         = 0;
-    uint32_t  ledIdleArgb            = 0;
-    uint32_t  ledPresentArgb         = 0;
-    uint32_t  ledActiveArgb          = 0;
-    uint32_t  ledHaloArgb            = 0;
-    uint32_t  linkArgb               = 0;
-    uint32_t  linkHoverArgb          = 0;
-    uint32_t  panelBgArgb            = 0;
-    uint32_t  panelEdgeArgb          = 0;
-    uint32_t  buttonIdleArgb         = 0;
-    uint32_t  buttonHoverArgb        = 0;
-    uint32_t  buttonPressedArgb      = 0;
-    uint32_t  buttonBorderArgb       = 0;
+    uint32_t  driveBodyArgb  = 0;
+    uint32_t  driveBezelArgb = 0;
+    uint32_t  driveLabelArgb = 0;
+    uint32_t  ledIdleArgb    = 0;
+    uint32_t  ledPresentArgb = 0;
+    uint32_t  ledActiveArgb  = 0;
+    uint32_t  ledHaloArgb    = 0;
 
-    // IDxuiTheme overrides. These map the Casso skeuomorphic palette
-    // onto the generic Dxui theme contract so any Dxui widget can
-    // paint against a `ChromeTheme` via the interface base.
-    uint32_t  Background          () const override { return panelBgArgb;            }
-    uint32_t  BackgroundElevated  () const override { return dropdownBgArgb;         }
-    uint32_t  HoverBackground     () const override { return navHoverArgb;           }
-    uint32_t  PressedBackground   () const override { return buttonPressedArgb;      }
-    uint32_t  SelectionBackground () const override { return navHoverArgb;           }
-
-    uint32_t  Foreground          () const override { return dropdownItemTextArgb;   }
-    uint32_t  ForegroundMuted     () const override { return dropdownAccelArgb;      }
-    uint32_t  ForegroundDisabled  () const override
+    static CassoTheme Skeuomorphic()
     {
-        // Half-alpha primary foreground -- ChromeTheme has no
-        // dedicated disabled-text knob today; this default keeps
-        // visual parity with the prior in-widget disable mask.
-        return (dropdownItemTextArgb & 0x00FFFFFFu) | 0x80000000u;
-    }
-    uint32_t  HeadingForeground   () const override { return titleTextArgb;          }
-
-    uint32_t  Accent              () const override { return linkArgb;               }
-    uint32_t  FocusRing           () const override { return linkArgb;               }
-    uint32_t  Border              () const override { return panelEdgeArgb;          }
-    uint32_t  Divider             () const override { return buttonBorderArgb;       }
-
-    uint32_t  ButtonIdle          () const override { return buttonIdleArgb;         }
-    uint32_t  ButtonHover         () const override { return buttonHoverArgb;        }
-    uint32_t  ButtonPressed       () const override { return buttonPressedArgb;      }
-    uint32_t  ButtonBorder        () const override { return buttonBorderArgb;       }
-    uint32_t  ButtonText          () const override { return navItemTextArgb;        }
-
-    uint32_t  CaptionBackground   () const override { return titleBarTopArgb;        }
-    uint32_t  CaptionForeground   () const override { return titleTextArgb;          }
-    uint32_t  TitleBarTop         () const override { return titleBarTopArgb;        }
-    uint32_t  TitleBarBottom      () const override { return titleBarBottomArgb;     }
-    uint32_t  SystemButtonHover   () const override { return sysButtonHoverArgb;     }
-    uint32_t  SystemButtonPressed () const override { return sysButtonPressedArgb;   }
-    uint32_t  SystemCloseHover    () const override { return sysButtonCloseHoverArgb; }
-    uint32_t  SystemClosePressed  () const override { return sysButtonClosePressedArgb; }
-
-    // Font handles. ChromeTheme does not own font resources today --
-    // the text renderer owns IDWriteTextFormat objects keyed off
-    // font name + size. Returning a null handle is safe because no
-    // Dxui widget currently invokes the font accessors; Phase 6
-    // wires real font ownership through the theme.
-    DxuiFontHandle  BodyFont      () const override { return {}; }
-    DxuiFontHandle  BodyBoldFont  () const override { return {}; }
-    DxuiFontHandle  CaptionFont   () const override { return {}; }
-    DxuiFontHandle  HeadingFont   () const override { return {}; }
-    DxuiFontHandle  MonospaceFont () const override { return {}; }
-
-    // Metrics. Sensible defaults until Casso surfaces per-theme
-    // overrides. `BodyLineHeightDip` feeds focus-manager row epsilon.
-    float  BodyLineHeightDip () const override { return 18.0f; }
-    float  CornerRadiusDip   () const override { return 4.0f;  }
-    float  FocusRingWidthDip () const override { return 2.0f;  }
-
-    static ChromeTheme Skeuomorphic()
-    {
-        ChromeTheme  theme = {};
+        CassoTheme  theme = {};
 
 
 
@@ -167,9 +99,9 @@ struct ChromeTheme : public IDxuiTheme
     }
 
 
-    static ChromeTheme DarkModern()
+    static CassoTheme DarkModern()
     {
-        ChromeTheme  theme = {};
+        CassoTheme  theme = {};
 
 
 
@@ -211,9 +143,9 @@ struct ChromeTheme : public IDxuiTheme
     }
 
 
-    static ChromeTheme RetroTerminal()
+    static CassoTheme RetroTerminal()
     {
-        ChromeTheme  theme = {};
+        CassoTheme  theme = {};
 
 
 
@@ -255,7 +187,7 @@ struct ChromeTheme : public IDxuiTheme
     }
 
 
-    static ChromeTheme ForName (const std::string & name)
+    static CassoTheme ForName (const std::string & name)
     {
         if (name == "DarkModern")
         {

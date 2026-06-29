@@ -10,7 +10,7 @@
 #include "External/StbVorbisWrapper.h"
 #include "resource.h"
 #include "Ui/ThemeManager.h"
-#include "Ui/Chrome/ChromeTheme.h"
+#include "Ui/Chrome/CassoTheme.h"
 #include "Ui/DriveWidgetState.h"
 #include "Ui/Dialog/StandaloneDialog.h"
 #include "Ui/Dialog/StartupDownloadDialog.h"

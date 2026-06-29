@@ -19,7 +19,7 @@
 //  after EmulatorShell is running, prefer EmulatorShell::ShowModalDialog.
 //
 //  `themeName` is the persisted GlobalUserPrefs::activeTheme value; it
-//  is resolved to a ChromeTheme via ChromeTheme::ForName so startup
+//  is resolved to a CassoTheme via CassoTheme::ForName so startup
 //  dialogs honour the user's theme choice. Unknown names fall back to
 //  Skeuomorphic.
 //

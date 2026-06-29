@@ -613,7 +613,7 @@ HRESULT EmulatorShell::Initialize (
         HRESULT  hrPrefsEarly = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
 
         IGNORE_RETURN_VALUE (hrPrefsEarly, S_OK);
-        m_chromeTheme = ChromeTheme::ForName (m_globalPrefs.activeTheme);
+        m_chromeTheme = CassoTheme::ForName (m_globalPrefs.activeTheme);
         ApplyThemeToChrome (m_chromeTheme);
     }
 
@@ -723,7 +723,7 @@ HRESULT EmulatorShell::Initialize (
         // user re-picked the theme in Settings.
         m_themeManager->AddChangeListener ([this] (const LoadedTheme & t)
         {
-            m_chromeTheme = ChromeTheme::ForName (t.name);
+            m_chromeTheme = CassoTheme::ForName (t.name);
             ApplyThemeToChrome (m_chromeTheme);
             m_settingsPanel.SetTheme (&m_chromeTheme);
         });
@@ -1888,7 +1888,7 @@ int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ApplyThemeToChrome (const ChromeTheme & theme)
+void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
 {
     // Drive-bar slot thickness. Skeuomorphic shows the full 3D drive
     // body (160 px) plus ~30 px of vertical slack and the basename

@@ -4,7 +4,7 @@
 
 #include "DialogPrimitive.h"
 #include "StandaloneDialog.h"
-#include "../Chrome/ChromeTheme.h"
+#include "../Chrome/CassoTheme.h"
 #include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiLabel.h"
 #include "../../UnicodeSymbols.h"
@@ -608,7 +608,7 @@ void StartupDownloadDialog::HandleTick (DialogPrimitive & dlg, DialogState & sta
 //  and returns the chosen StartupDownloadResult.
 //
 //  `themeName` is forwarded to ShowStandaloneDialog so the dialog
-//  honours the user's persisted ChromeTheme choice; the caller passes
+//  honours the user's persisted CassoTheme choice; the caller passes
 //  GlobalUserPrefs::activeTheme.
 //
 ////////////////////////////////////////////////////////////////////////////////

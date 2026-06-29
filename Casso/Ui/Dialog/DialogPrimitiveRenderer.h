@@ -7,7 +7,7 @@
 #include "DialogLayout.h"
 
 
-struct ChromeTheme;
+struct CassoTheme;
 
 
 
@@ -41,7 +41,7 @@ public:
     HRESULT Resize        (int widthPx, int heightPx, UINT dpi);
     HRESULT Render        (const DialogDefinition   & def,
                            const DialogLayoutResult & layout,
-                           const ChromeTheme        & theme,
+                           const CassoTheme        & theme,
                            int                        titleHeightPx,
                            std::vector<DxuiButton>      & buttons,
                            size_t                     focusedHyperlinkRunIdx,
@@ -57,10 +57,10 @@ public:
 private:
     HRESULT CreateBackBufferTarget ();
     HRESULT BindTextTarget         ();
-    void    PaintBackground        (const ChromeTheme        & theme,
+    void    PaintBackground        (const CassoTheme        & theme,
                                     int                        titleHeightPx);
     void    PaintTitle             (const DialogDefinition   & def,
-                                    const ChromeTheme        & theme,
+                                    const CassoTheme        & theme,
                                     int                        titleHeightPx,
                                     bool                       closeHovered,
                                     bool                       closePressed);
@@ -69,16 +69,16 @@ private:
                                     int                        titleHeightPx);
     void    PaintBody              (const DialogDefinition   & def,
                                     const DialogLayoutResult & layout,
-                                    const ChromeTheme        & theme,
+                                    const CassoTheme        & theme,
                                     int                        titleHeightPx,
                                     size_t                     focusedHyperlinkRunIdx,
                                     size_t                     hoveredHyperlinkRunIdx);
     void    PaintCustomBody        (const DialogDefinition   & def,
                                     const DialogLayoutResult & layout,
-                                    const ChromeTheme        & theme,
+                                    const CassoTheme        & theme,
                                     int                        titleHeightPx);
     void    PaintButtons           (std::vector<DxuiButton>      & buttons,
-                                    const ChromeTheme        & theme);
+                                    const CassoTheme        & theme);
     void    EnsureAppIconLoaded    (int                        iconResourceId,
                                     int                        sizePx);
 

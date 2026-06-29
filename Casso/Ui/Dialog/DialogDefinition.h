@@ -23,7 +23,7 @@
 
 class DxuiPainter;
 class DxuiTextRenderer;
-struct ChromeTheme;
+struct CassoTheme;
 struct DialogPaintContext;
 struct DialogInputEvent;
 
@@ -64,7 +64,7 @@ struct DialogPaintContext
 {
     DxuiPainter       * painter        = nullptr;
     DxuiTextRenderer  * text           = nullptr;
-    const ChromeTheme * theme          = nullptr;
+    const CassoTheme * theme          = nullptr;
     RECT                customBodyRect = {};
     float               dpiScale       = 1.0f;
 };

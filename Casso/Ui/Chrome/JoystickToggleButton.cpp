@@ -159,8 +159,8 @@ bool JoystickToggleButton::HitTest (int x, int y) const
 
 void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & dxuiTheme)
 {
-    _ASSERTE (dynamic_cast<const ChromeTheme *> (&dxuiTheme) != nullptr);
-    const ChromeTheme & theme = static_cast<const ChromeTheme &> (dxuiTheme);
+    _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
+    const CassoTheme & theme = static_cast<const CassoTheme &> (dxuiTheme);
 
     HRESULT             hr       = S_OK;
     bool                active   = m_hovered || m_focused || m_pressed;

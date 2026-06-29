@@ -2,7 +2,7 @@
 
 #include "Disk2DebugPanel.h"
 
-#include "Chrome/ChromeTheme.h"
+#include "Chrome/CassoTheme.h"
 #include "Chrome/TitleBar.h"
 
 #include "../DebugDialogProjection.h"
@@ -204,7 +204,7 @@ HRESULT Disk2DebugPanel::Create (
     HWND                   hwndOwner,
     ID3D11Device         * device,
     ID3D11DeviceContext  * context,
-    const ChromeTheme    * theme)
+    const CassoTheme    * theme)
 {
     HRESULT  hr = S_OK;
 
@@ -461,7 +461,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2DebugPanel::SetTheme (const ChromeTheme * theme)
+void Disk2DebugPanel::SetTheme (const CassoTheme * theme)
 {
     m_window.SetTheme (theme);
 }
@@ -518,7 +518,7 @@ HRESULT Disk2DebugPanel::OnHostCreated (
     int                    heightPx,
     UINT                   dpi,
     TitleBar             * titleBar,
-    const ChromeTheme    * theme)
+    const CassoTheme    * theme)
 {
     HRESULT  hr = S_OK;
 
@@ -639,7 +639,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2DebugPanel::SetChromeTheme (TitleBar * titleBar, const ChromeTheme * theme)
+void Disk2DebugPanel::SetChromeTheme (TitleBar * titleBar, const CassoTheme * theme)
 {
     m_titleBar = titleBar;
     m_theme    = theme;

@@ -99,7 +99,7 @@ void UiShell::SetChrome (
     TitleBar                    * titleBar,
     MainMenu                    * MainMenu,
     std::array<DriveWidget, 2>  * driveWidgets,
-    const ChromeTheme           * theme)
+    const CassoTheme           * theme)
 {
     m_titleBar     = titleBar;
     m_mainMenu     = MainMenu;
@@ -255,7 +255,7 @@ void UiShell::Render ()
     HRESULT                  hr     = S_OK;
     ID3D11RenderTargetView * rtv    = nullptr;
     ChromeVisualState        visual      = {};
-    ChromeTheme              localTheme;
+    CassoTheme              localTheme;
     int                      bottomInset = 0;
     int                      barTop      = 0;
 
@@ -279,7 +279,7 @@ void UiShell::Render ()
     m_viewportWidthPx  = m_renderer->GetBackBufferWidth();
     m_viewportHeightPx = m_renderer->GetBackBufferHeight();
     rtv                = m_renderer->GetBackBufferRtv();
-    localTheme         = (m_theme != nullptr) ? *m_theme : ChromeTheme::Skeuomorphic();
+    localTheme         = (m_theme != nullptr) ? *m_theme : CassoTheme::Skeuomorphic();
     bottomInset        = m_renderer->GetBottomInsetPx();
     barTop             = std::max (0, m_viewportHeightPx - bottomInset);
     visual.dpi         = m_dpi;
@@ -393,7 +393,7 @@ void UiShell::Render ()
 
 void UiShell::PaintDragDropOverlay (
     const ChromeVisualState & /*visual*/,
-    const ChromeTheme       & /*theme*/,
+    const CassoTheme       & /*theme*/,
     int                       /*bottomInset*/,
     int                       /*barTop*/)
 {

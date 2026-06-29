@@ -134,7 +134,7 @@ namespace
     void PaintPreviewWindow (DxuiPainter                          & painter,
                              DxuiTextRenderer                   & text,
                              const RECT                           & availRect,
-                             const ChromeTheme                    & theme,
+                             const CassoTheme                    & theme,
                              const std::function<const uint32_t * (int &, int &)> & framebufferSource,
                              const std::function<std::wstring (int)>              & mountedPathSource,
                              std::array<DriveWidget, 2>           & previewDrives,
@@ -568,7 +568,7 @@ void ThemePage::Paint (DxuiPainter & painter, DxuiTextRenderer & text, const IDx
         m_previewRect.bottom > m_previewRect.top &&
         previewIndex >= 0 && previewIndex < (int) m_themeIds.size())
     {
-        ChromeTheme  preview = ChromeTheme::ForName (m_themeIds[(size_t) previewIndex]);
+        CassoTheme  preview = CassoTheme::ForName (m_themeIds[(size_t) previewIndex]);
 
         if (!m_previewDrivesInitialized)
         {

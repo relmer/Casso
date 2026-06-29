@@ -6,7 +6,7 @@
 
 
 class IChromedPanelContent;
-struct ChromeTheme;
+struct CassoTheme;
 class DxuiHostWindow;
 
 
@@ -40,9 +40,9 @@ public:
                             IChromedPanelContent     * content,
                             ID3D11Device             * device,
                             ID3D11DeviceContext      * context,
-                            const ChromeTheme        * theme);
+                            const CassoTheme        * theme);
     void     Destroy       ();
-    void     SetTheme      (const ChromeTheme * theme);
+    void     SetTheme      (const CassoTheme * theme);
     HRESULT  Render        ();
 
     //
@@ -91,7 +91,7 @@ private:
     ID3D11Device           * m_device    = nullptr;
     ID3D11DeviceContext    * m_context   = nullptr;
     TitleBar                 m_titleBar;
-    const ChromeTheme      * m_theme     = nullptr;
+    const CassoTheme      * m_theme     = nullptr;
     LPCWSTR                  m_className = nullptr;
     bool                     m_hasFocus  = false;
 

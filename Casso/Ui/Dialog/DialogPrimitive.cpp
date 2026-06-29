@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "DialogPrimitive.h"
-#include "../Chrome/ChromeTheme.h"
+#include "../Chrome/CassoTheme.h"
 
 
 static constexpr LPCWSTR  s_kpszDialogClass       = L"Casso.Dialog.Primitive";
@@ -109,7 +109,7 @@ int DialogPrimitive::Show (
     HWND                     hwndOwner,
     ID3D11Device           * device,
     ID3D11DeviceContext    * context,
-    const ChromeTheme      * theme,
+    const CassoTheme      * theme,
     const DialogDefinition & def)
 {
     HRESULT  hr            = S_OK;

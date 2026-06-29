@@ -211,7 +211,7 @@ HRESULT SettingsWindow::Create (
     SettingsPanel        * panel,
     ID3D11Device         * device,
     ID3D11DeviceContext  * context,
-    const ChromeTheme    * theme)
+    const CassoTheme    * theme)
 {
     HRESULT  hr            = S_OK;
     UINT     dpi           = s_kBaseDpi;
@@ -305,7 +305,7 @@ void SettingsWindow::Destroy()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsWindow::SetTheme (const ChromeTheme * theme)
+void SettingsWindow::SetTheme (const CassoTheme * theme)
 {
     m_theme = theme;
     m_renderer.SetChrome (&m_titleBar, m_theme);

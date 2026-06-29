@@ -14,7 +14,7 @@ public:
 
     TEST_METHOD (State_Colors_And_Dimensions_Are_Stable)
     {
-        ChromeTheme         theme = ChromeTheme::Skeuomorphic();
+        CassoTheme         theme = CassoTheme::Skeuomorphic();
         LedIndicator        led;
         LedIndicatorLayout  layout = {};
 

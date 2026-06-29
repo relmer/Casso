@@ -3,7 +3,7 @@
 #include "ChromedPanelWindow.h"
 
 #include "IChromedPanelContent.h"
-#include "ChromeTheme.h"
+#include "CassoTheme.h"
 #include "TitleBar.h"
 
 #include "Core/DxuiTitleBarHitTest.h"
@@ -224,7 +224,7 @@ HRESULT ChromedPanelWindow::Create (
     IChromedPanelContent     * content,
     ID3D11Device             * device,
     ID3D11DeviceContext      * context,
-    const ChromeTheme        * theme)
+    const CassoTheme        * theme)
 {
     HRESULT  hr            = S_OK;
     UINT     dpi           = s_kBaseDpi;
@@ -343,7 +343,7 @@ void ChromedPanelWindow::Destroy ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ChromedPanelWindow::SetTheme (const ChromeTheme * theme)
+void ChromedPanelWindow::SetTheme (const CassoTheme * theme)
 {
     m_theme = theme;
     if (m_content != nullptr)
