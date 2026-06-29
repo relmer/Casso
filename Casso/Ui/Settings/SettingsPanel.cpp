@@ -605,7 +605,7 @@ RECT SettingsPanel::GetFocusedControlClientRect() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsPanel::SetTheme (const ChromeTheme * theme)
+void SettingsPanel::SetTheme (const CassoTheme * theme)
 {
     m_window.SetTheme (theme);
 }
@@ -901,7 +901,7 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const Dxu
 
 void SettingsPanel::Paint (DxuiPainter & painter, DxuiTextRenderer & text)
 {
-    ChromeTheme  theme            = (m_uiShell != nullptr) ? m_uiShell->Theme() : ChromeTheme::Skeuomorphic();
+    CassoTheme  theme            = (m_uiShell != nullptr) ? m_uiShell->Theme() : CassoTheme::Skeuomorphic();
     float        edgeThick        = (m_uiShell != nullptr) ? m_uiShell->Scaler().Pxf (s_kEdgeThickDp)
                                                            : s_kEdgeThickDp;
     float        panelA           = 1.0f;
@@ -973,7 +973,7 @@ void SettingsPanel::Paint (DxuiPainter & painter, DxuiTextRenderer & text)
 
 void SettingsPanel::PaintModalOverlay (DxuiPainter & painter, DxuiTextRenderer & text)
 {
-    ChromeTheme  theme = (m_uiShell != nullptr) ? m_uiShell->Theme() : ChromeTheme::Skeuomorphic();
+    CassoTheme  theme = (m_uiShell != nullptr) ? m_uiShell->Theme() : CassoTheme::Skeuomorphic();
 
 
 

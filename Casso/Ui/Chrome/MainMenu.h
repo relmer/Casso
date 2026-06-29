@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "ChromeTheme.h"
+#include "CassoTheme.h"
 
 
 
@@ -42,7 +42,7 @@ struct MainMenuCommandEntry
 //  logic was promoted to the Dxui framework.
 //
 //  Visual parity with the legacy chrome is preserved by mirroring the
-//  Casso-specific palette (`ChromeTheme::nav*Argb` etc.) onto the
+//  Casso-specific palette (`CassoTheme::nav*Argb` etc.) onto the
 //  menu bar via `DxuiMenuBar::SetStripColors` / `SetDropdownColors`
 //  before each strip / dropdown paint.
 //
@@ -70,11 +70,11 @@ public:
     void  PaintStrip     (DxuiPainter             & painter,
                           DxuiTextRenderer        & text,
                           const ChromeVisualState & visual,
-                          const ChromeTheme       & theme);
+                          const CassoTheme       & theme);
     void  PaintDropdown  (DxuiPainter             & painter,
                           DxuiTextRenderer        & text,
                           const ChromeVisualState & visual,
-                          const ChromeTheme       & theme);
+                          const CassoTheme       & theme);
     void  Open           (MainMenuId menu, bool openedByKeyboard);
     using DxuiMenuBar::Open;     // expose int-indexed Open from base
 
@@ -84,7 +84,7 @@ public:
     //  strip and the popup-backed dropdown use the chrome colours -- the
     //  generic IDxuiTheme mapping is close but not identical.
     //
-    void  ApplyChromeColors (const ChromeTheme & theme);
+    void  ApplyChromeColors (const CassoTheme & theme);
 
     MainMenuId  OpenMenu       () const { return (MainMenuId) OpenMenuIndex(); }
     MainMenuId  FocusedMenuId  () const { return (MainMenuId) DxuiMenuBar::FocusedMenu(); }

@@ -276,7 +276,7 @@ void SettingsWindowRenderer::Shutdown()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsWindowRenderer::SetChrome (TitleBar * titleBar, const ChromeTheme * theme)
+void SettingsWindowRenderer::SetChrome (TitleBar * titleBar, const CassoTheme * theme)
 {
     m_titleBar = titleBar;
     m_theme    = theme;
@@ -783,7 +783,7 @@ Error:
 HRESULT SettingsWindowRenderer::RenderDirect (
     SettingsPanel        & panel,
     const D3D11_VIEWPORT & viewport,
-    const ChromeTheme    & theme)
+    const CassoTheme    & theme)
 {
     HRESULT           hr            = S_OK;
     ChromeVisualState visual        = {};
@@ -873,7 +873,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT SettingsWindowRenderer::RenderPanelToTexture (SettingsPanel & panel, const ChromeTheme & theme)
+HRESULT SettingsWindowRenderer::RenderPanelToTexture (SettingsPanel & panel, const CassoTheme & theme)
 {
     HRESULT                  hr            = S_OK;
     ChromeVisualState        visual        = {};
@@ -928,7 +928,7 @@ Error:
 HRESULT SettingsWindowRenderer::RenderTransparency (
     SettingsPanel        & panel,
     const D3D11_VIEWPORT & viewport,
-    const ChromeTheme    & theme)
+    const CassoTheme    & theme)
 {
     HRESULT               hr             = S_OK;
     SettingsBlurParams    blurParams     = {};
@@ -1002,7 +1002,7 @@ HRESULT SettingsWindowRenderer::Render (SettingsPanel & panel)
 {
     HRESULT           hr       = S_OK;
     D3D11_VIEWPORT    viewport = {};
-    ChromeTheme       theme    = (m_theme != nullptr) ? *m_theme : ChromeTheme::Skeuomorphic();
+    CassoTheme       theme    = (m_theme != nullptr) ? *m_theme : CassoTheme::Skeuomorphic();
 
 
 

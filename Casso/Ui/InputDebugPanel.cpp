@@ -2,7 +2,7 @@
 
 #include "InputDebugPanel.h"
 
-#include "Chrome/ChromeTheme.h"
+#include "Chrome/CassoTheme.h"
 #include "Chrome/TitleBar.h"
 
 
@@ -579,7 +579,7 @@ HRESULT InputDebugPanel::Create (
     HWND                   hwndOwner,
     ID3D11Device         * device,
     ID3D11DeviceContext  * context,
-    const ChromeTheme    * theme)
+    const CassoTheme    * theme)
 {
     HRESULT  hr = S_OK;
 
@@ -680,7 +680,7 @@ HRESULT InputDebugPanel::RenderFrame()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InputDebugPanel::SetTheme (const ChromeTheme * theme)
+void InputDebugPanel::SetTheme (const CassoTheme * theme)
 {
     m_window.SetTheme (theme);
 }
@@ -733,7 +733,7 @@ HRESULT InputDebugPanel::OnHostCreated (
     int                    heightPx,
     UINT                   dpi,
     TitleBar             * titleBar,
-    const ChromeTheme    * theme)
+    const CassoTheme    * theme)
 {
     HRESULT  hr = S_OK;
 
@@ -854,7 +854,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InputDebugPanel::SetChromeTheme (TitleBar * titleBar, const ChromeTheme * theme)
+void InputDebugPanel::SetChromeTheme (TitleBar * titleBar, const CassoTheme * theme)
 {
     m_titleBar = titleBar;
     m_theme    = theme;

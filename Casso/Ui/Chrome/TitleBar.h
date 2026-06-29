@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "ChromeTheme.h"
+#include "CassoTheme.h"
 #include "Window/DxuiCaptionBar.h"
 
 
@@ -62,7 +62,7 @@ public:
 //  base. The min/max/close buttons are still rendered inline (not as
 //  DxuiSystemButton children) so the existing NC-based input flow keeps
 //  working; the IDxuiControl Paint signature is honoured so a host that
-//  wants a generic theme can paint without ChromeTheme.
+//  wants a generic theme can paint without CassoTheme.
 //
 class TitleBar : public DxuiCaptionBar
 {

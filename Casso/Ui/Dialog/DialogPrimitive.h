@@ -8,7 +8,7 @@
 #include "Widgets/DxuiButton.h"
 
 
-struct ChromeTheme;
+struct CassoTheme;
 
 
 
@@ -35,7 +35,7 @@ public:
     int      Show          (HWND                     hwndOwner,
                             ID3D11Device           * device,
                             ID3D11DeviceContext    * context,
-                            const ChromeTheme      * theme,
+                            const CassoTheme      * theme,
                             const DialogDefinition & def);
     void     Close         (int chosenId);
 
@@ -102,7 +102,7 @@ private:
     HWND                         m_hwndOwner     = nullptr;
     ID3D11Device               * m_device        = nullptr;   // non-owning
     ID3D11DeviceContext        * m_context       = nullptr;   // non-owning
-    const ChromeTheme          * m_theme         = nullptr;   // non-owning
+    const CassoTheme          * m_theme         = nullptr;   // non-owning
     const DialogDefinition     * m_def           = nullptr;   // non-owning
 
     DialogPrimitiveRenderer      m_renderer;

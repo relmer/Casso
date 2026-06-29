@@ -4,7 +4,7 @@
 
 
 class TitleBar;
-struct ChromeTheme;
+struct CassoTheme;
 
 
 
@@ -50,11 +50,11 @@ public:
                                       int                    heightPx,
                                       UINT                   dpi,
                                       TitleBar             * titleBar,
-                                      const ChromeTheme    * theme) = 0;
+                                      const CassoTheme    * theme) = 0;
     virtual void     OnHostDestroyed () = 0;
     virtual HRESULT  OnHostResize    (int widthPx, int heightPx, UINT dpi) = 0;
     virtual HRESULT  Render          () = 0;
-    virtual void     SetChromeTheme  (TitleBar * titleBar, const ChromeTheme * theme) = 0;
+    virtual void     SetChromeTheme  (TitleBar * titleBar, const CassoTheme * theme) = 0;
 
     // Layout. The shell uses this to size the popup on first show and
     // to honour WM_GETMINMAXINFO under each DPI.

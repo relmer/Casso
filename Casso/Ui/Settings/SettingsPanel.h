@@ -75,7 +75,7 @@ public:
     void    Accept();
     void    Cancel();
     HRESULT RenderPopup();
-    void    SetTheme    (const ChromeTheme * theme);
+    void    SetTheme    (const CassoTheme * theme);
     void    UpdatePreviewOverlap (const RECT & emulatorContentScreenRect);
     void    PreparePreviewFrame();
     SIZE    PreferredClientSize (UINT dpi) const;

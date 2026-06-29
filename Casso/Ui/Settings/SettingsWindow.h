@@ -30,9 +30,9 @@ public:
                            SettingsPanel        * panel,
                            ID3D11Device         * device,
                            ID3D11DeviceContext  * context,
-                           const ChromeTheme    * theme);
+                           const CassoTheme    * theme);
     void    Destroy       ();
-    void    SetTheme      (const ChromeTheme * theme);
+    void    SetTheme      (const CassoTheme * theme);
     HRESULT Render        ();
 
     bool    IsOpen() const { return m_hwnd != nullptr; }
@@ -78,7 +78,7 @@ private:
     ID3D11DeviceContext * m_context   = nullptr;
     SettingsWindowRenderer  m_renderer;
     TitleBar              m_titleBar;
-    ChromeTheme const   * m_theme     = nullptr;
+    CassoTheme const   * m_theme     = nullptr;
     bool                  m_hasFocus  = false;
 
     // DxuiHostWindow running in adopt mode -- wraps this HWND and

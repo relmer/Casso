@@ -5,7 +5,7 @@
 
 
 class TitleBar;
-struct ChromeTheme;
+struct CassoTheme;
 
 
 
@@ -32,7 +32,7 @@ public:
     void    Shutdown();
     HRESULT Resize               (int widthPx, int heightPx, UINT dpi);
     HRESULT Render               (class SettingsPanel & panel);
-    void    SetChrome            (TitleBar * titleBar, const ChromeTheme * theme);
+    void    SetChrome            (TitleBar * titleBar, const CassoTheme * theme);
     void    SetTransparencyState (bool active, RECT emuRectClient, RECT focusRectClient);
 
     bool    IsInitialized() const { return m_initialized; }
@@ -75,12 +75,12 @@ private:
                                            ID3D11Buffer             * constantBuffer);
     HRESULT RenderDirect                 (class SettingsPanel & panel,
                                            const D3D11_VIEWPORT     & viewport,
-                                           const ChromeTheme        & theme);
+                                           const CassoTheme        & theme);
     HRESULT RenderPanelToTexture         (class SettingsPanel & panel,
-                                           const ChromeTheme        & theme);
+                                           const CassoTheme        & theme);
     HRESULT RenderTransparency           (class SettingsPanel & panel,
                                            const D3D11_VIEWPORT     & viewport,
-                                           const ChromeTheme        & theme);
+                                           const CassoTheme        & theme);
     HRESULT RenderModalOverlay           (class SettingsPanel & panel,
                                            const D3D11_VIEWPORT     & viewport);
 
@@ -96,7 +96,7 @@ private:
     DxuiTextRenderer                m_text;
     DxuiDpiScaler                         m_scaler;
     TitleBar                        * m_titleBar = nullptr;
-    const ChromeTheme                * m_theme    = nullptr;
+    const CassoTheme                * m_theme    = nullptr;
     int                               m_widthPx  = 0;
     int                               m_heightPx = 0;
     bool                              m_initialized = false;

@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "ChromeTheme.h"
+#include "CassoTheme.h"
 #include "Core/IDxuiControl.h"
 
 
@@ -27,7 +27,7 @@ struct LedIndicatorLayout
 //
 //  LedIndicator is Casso-specific (Apple ][ disk LED + joystick-mode
 //  indicator); its theme-driven paint path assumes the IDxuiTheme
-//  reference it receives is actually a ChromeTheme and `static_cast`s
+//  reference it receives is actually a CassoTheme and `static_cast`s
 //  to read drive-LED palette fields. A debug `dynamic_cast` guard in
 //  Paint pins the contract.
 //
@@ -49,8 +49,8 @@ public:
     void               SetState     (LedState state) { m_state = state; }
     LedState           GetState     () const { return m_state; }
     LedIndicatorLayout GetLayout    () const { return m_layout; }
-    uint32_t           CoreArgb     (const ChromeTheme & theme) const;
-    uint32_t           HaloArgb     (const ChromeTheme & theme) const;
+    uint32_t           CoreArgb     (const CassoTheme & theme) const;
+    uint32_t           HaloArgb     (const CassoTheme & theme) const;
     void               Paint        (IDxuiPainter        & painter,
                                      IDxuiTextRenderer   & text,
                                      const IDxuiTheme    & theme) override;

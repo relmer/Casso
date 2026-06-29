@@ -262,7 +262,7 @@ void MainMenu::PaintStrip (
     DxuiPainter             & painter,
     DxuiTextRenderer        & text,
     const ChromeVisualState & visual,
-    const ChromeTheme       & theme)
+    const CassoTheme       & theme)
 {
     ApplyChromeColors (theme);
     DxuiMenuBar::PaintStrip (painter, text, theme, visual.dpi);
@@ -281,7 +281,7 @@ void MainMenu::PaintDropdown (
     DxuiPainter             & painter,
     DxuiTextRenderer        & text,
     const ChromeVisualState & visual,
-    const ChromeTheme       & theme)
+    const CassoTheme       & theme)
 {
     ApplyChromeColors (theme);
     DxuiMenuBar::PaintDropdown (painter, text, theme, visual.dpi);
@@ -375,7 +375,7 @@ void MainMenu::Rebuild ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MainMenu::ApplyChromeColors (const ChromeTheme & theme)
+void MainMenu::ApplyChromeColors (const CassoTheme & theme)
 {
     SetStripColors    (theme.navStripArgb,
                        theme.navHoverArgb,

@@ -391,8 +391,8 @@ void DriveWidget::Paint (
     IDxuiTextRenderer & text,
     const IDxuiTheme  & dxuiTheme)
 {
-    _ASSERTE (dynamic_cast<const ChromeTheme *> (&dxuiTheme) != nullptr);
-    const ChromeTheme & theme = static_cast<const ChromeTheme &> (dxuiTheme);
+    _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
+    const CassoTheme & theme = static_cast<const CassoTheme &> (dxuiTheme);
 
     HRESULT  hr           = S_OK;
     int      bodyW        = m_bodyRect.right - m_bodyRect.left;
@@ -883,7 +883,7 @@ void DriveWidget::Paint (
 
 void DriveWidget::PaintBasenameLabel (
     IDxuiTextRenderer & text,
-    const ChromeTheme & theme,
+    const CassoTheme & theme,
     UINT                dpi)
 {
     HRESULT                hr             = S_OK;

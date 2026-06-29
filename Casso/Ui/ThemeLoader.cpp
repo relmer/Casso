@@ -400,8 +400,8 @@ HRESULT ThemeLoader::ParseMetadata (
 //   - useMicaBackdrop
 //
 //  uiTokens overrides are stored on the LoadedTheme but not deep-merged
-//  yet because ChromeTheme is keyed by name only (see ChromeTheme::ForName).
-//  When ChromeTheme grows a JSON-driven path the merge will land here.
+//  yet because CassoTheme is keyed by name only (see CassoTheme::ForName).
+//  When CassoTheme grows a JSON-driven path the merge will land here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -20,7 +20,7 @@
 #include "../../CassoEmuCore/Audio/IDriveAudioEventSink.h"
 
 
-struct ChromeTheme;
+struct CassoTheme;
 class TitleBar;
 
 
@@ -57,7 +57,7 @@ public:
                      HWND                   hwndOwner,
                      ID3D11Device         * device,
                      ID3D11DeviceContext  * context,
-                     const ChromeTheme    * theme);
+                     const CassoTheme    * theme);
     void    Show    ();
     void    Hide    ();
     void    Destroy ();
@@ -66,7 +66,7 @@ public:
     HWND    Hwnd   () const { return m_window.Hwnd(); }
 
     HRESULT RenderFrame ();
-    void    SetTheme    (const ChromeTheme * theme);
+    void    SetTheme    (const CassoTheme * theme);
     void    SetCycleCounter (const uint64_t * cycleCounter) { m_cycleCounter = cycleCounter; }
     void    SetUptimeAnchor (std::chrono::steady_clock::time_point anchor) { m_uptimeAnchor = anchor; }
     void    SetMultiControllerHint (bool multi)            { m_multiController = multi; }
@@ -88,10 +88,10 @@ public:
                                  int                    heightPx,
                                  UINT                   dpi,
                                  TitleBar             * titleBar,
-                                 const ChromeTheme    * theme) override;
+                                 const CassoTheme    * theme) override;
     void     OnHostDestroyed    ()                                  override;
     HRESULT  OnHostResize       (int widthPx, int heightPx, UINT dpi) override;
-    void     SetChromeTheme     (TitleBar * titleBar, const ChromeTheme * theme) override;
+    void     SetChromeTheme     (TitleBar * titleBar, const CassoTheme * theme) override;
     SIZE     PreferredClientSize (UINT dpi) const                   override;
     HRESULT  Render             ()                                  override;
     void     OnLButtonDown      (int x, int y)                      override;
@@ -182,7 +182,7 @@ private:
 
     ID3D11Device                       * m_device  = nullptr;
     ID3D11DeviceContext                * m_context = nullptr;
-    const ChromeTheme                  * m_theme   = nullptr;
+    const CassoTheme                  * m_theme   = nullptr;
     TitleBar                           * m_titleBar = nullptr;
     HWND                                 m_hwnd    = nullptr;
     int                                  m_widthPx  = 0;
