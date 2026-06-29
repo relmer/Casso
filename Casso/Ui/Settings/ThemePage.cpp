@@ -175,7 +175,7 @@ namespace
             for (i = 0; i < bandSteps; i++)
             {
                 float     t    = (float) i / (float) bandSteps;
-                uint32_t  argb = LerpArgb (theme.titleBarTopArgb, theme.titleBarBottomArgb, t);
+                uint32_t  argb = LerpArgb (theme.titleBarTop, theme.titleBarBottom, t);
 
                 painter.FillRect ((float) prevRect.left, (float) (prevRect.top + i),
                                   (float) prevW, 1.0f, argb);
@@ -196,7 +196,7 @@ namespace
                                                       (float) btnTop,
                                                       (float) (prevW - 3 * (sysBtnW + sysBtnGap) - ScalePx (24)),
                                                       (float) btnH,
-                                                      theme.titleTextArgb,
+                                                      theme.titleText,
                                                       captionDip,
                                                       DxuiTheme::kBodyFace,
                                                       DxuiTextRenderer::HAlign::Left,
@@ -205,32 +205,32 @@ namespace
             // Close (rightmost) -- always red.
             painter.FillRect ((float) (btnRight - sysBtnW), (float) btnTop,
                               (float) sysBtnW, (float) btnH,
-                              theme.sysButtonCloseHoverArgb);
+                              theme.sysButtonCloseHover);
             {
                 float  cx = (float) (btnRight - sysBtnW / 2);
                 float  cy = (float) (btnTop + btnH / 2);
                 float  r  = (float) ScalePx (5);
 
-                painter.FillRect (cx - r, cy - 0.5f, r * 2.0f, 1.0f, theme.sysButtonCloseHoverGlyphArgb);
-                painter.FillRect (cx - 0.5f, cy - r, 1.0f, r * 2.0f, theme.sysButtonCloseHoverGlyphArgb);
+                painter.FillRect (cx - r, cy - 0.5f, r * 2.0f, 1.0f, theme.sysButtonCloseHoverGlyph);
+                painter.FillRect (cx - 0.5f, cy - r, 1.0f, r * 2.0f, theme.sysButtonCloseHoverGlyph);
             }
 
             int  btnMaxRight = btnRight - sysBtnW - sysBtnGap;
             painter.FillRect ((float) (btnMaxRight - sysBtnW), (float) btnTop,
-                              (float) sysBtnW, (float) btnH, theme.sysButtonIdleArgb);
+                              (float) sysBtnW, (float) btnH, theme.sysButtonIdle);
             painter.OutlineRect ((float) (btnMaxRight - sysBtnW + ScalePx (12)),
                                  (float) (btnTop + ScalePx (10)),
                                  (float) (sysBtnW - ScalePx (24)),
                                  (float) (btnH - ScalePx (20)),
-                                 1.0f, theme.titleTextArgb);
+                                 1.0f, theme.titleText);
 
             int  btnMinRight = btnMaxRight - sysBtnW - sysBtnGap;
             painter.FillRect ((float) (btnMinRight - sysBtnW), (float) btnTop,
-                              (float) sysBtnW, (float) btnH, theme.sysButtonIdleArgb);
+                              (float) sysBtnW, (float) btnH, theme.sysButtonIdle);
             painter.FillRect ((float) (btnMinRight - sysBtnW + ScalePx (12)),
                               (float) (btnTop + btnH / 2),
                               (float) (sysBtnW - ScalePx (24)), 1.0f,
-                              theme.titleTextArgb);
+                              theme.titleText);
         }
 
         // ----- Nav strip. -----
@@ -240,13 +240,13 @@ namespace
 
             painter.FillRect ((float) prevRect.left, (float) navTop,
                               (float) prevW, (float) navH,
-                              theme.navStripArgb);
+                              theme.navStrip);
             IGNORE_RETURN_VALUE (hr, text.DrawString (L"File   Machine   View   Help",
                                                       (float) (prevRect.left + ScalePx (12)),
                                                       (float) navTop,
                                                       (float) (prevW - ScalePx (24)),
                                                       (float) navH,
-                                                      theme.navItemTextArgb,
+                                                      theme.navItemText,
                                                       navDip,
                                                       DxuiTheme::kBodyFace,
                                                       DxuiTextRenderer::HAlign::Left,
@@ -301,7 +301,7 @@ namespace
 
             painter.FillRect ((float) prevRect.left, (float) driveTop,
                               (float) prevW, (float) driveBarH,
-                              theme.navStripArgb);
+                              theme.navStrip);
 
             // Layout each preview drive: probe widget[0] for its
             // intrinsic size at the effective DPI, then space the

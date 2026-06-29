@@ -185,11 +185,11 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 
     if (active)
     {
-        uint32_t  fill = m_pressed ? theme.buttonPressedArgb
-                                   : (m_hovered ? theme.buttonHoverArgb : theme.buttonIdleArgb);
+        uint32_t  fill = m_pressed ? theme.buttonPressed
+                                   : (m_hovered ? theme.buttonHover : theme.buttonIdle);
 
         painter.FillRect    (bl, bt, bw, bh, fill);
-        painter.OutlineRect (bl, bt, bw, bh, 1.0f, theme.buttonBorderArgb);
+        painter.OutlineRect (bl, bt, bw, bh, 1.0f, theme.buttonBorder);
 
         if (m_focused)
         {
@@ -200,7 +200,7 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
                                  bw - inset * 2.0f,
                                  bh - inset * 2.0f,
                                  1.0f,
-                                 theme.linkArgb);
+                                 theme.link);
         }
     }
 
@@ -211,7 +211,7 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
                                               bt,
                                               (float) m_bounds.right - textX,
                                               bh,
-                                              theme.navItemTextArgb,
+                                              theme.navItemText,
                                               fontDip,
                                               s_kFontFamily,
                                               DxuiTextRenderer::HAlign::Left,

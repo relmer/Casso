@@ -377,13 +377,13 @@ void MainMenu::Rebuild ()
 
 void MainMenu::ApplyChromeColors (const CassoTheme & theme)
 {
-    SetStripColors    (theme.navStripArgb,
-                       theme.navHoverArgb,
-                       theme.navItemTextArgb);
-    SetDropdownColors (theme.dropdownBgArgb,
-                       theme.dropdownHoverArgb,
-                       theme.dropdownItemTextArgb,
-                       theme.dropdownAccelArgb,
-                       theme.navHoverArgb,
-                       theme.navHoverArgb);
+    SetStripColors    (theme.navStrip,
+                       theme.navHover,
+                       theme.navItemText);
+    SetDropdownColors (theme.dropdownBg,
+                       theme.dropdownHover,
+                       theme.dropdownItemText,
+                       theme.dropdownAccel,
+                       theme.navHover,
+                       theme.navHover);
 }

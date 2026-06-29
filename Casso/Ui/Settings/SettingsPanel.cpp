@@ -922,12 +922,12 @@ void SettingsPanel::Paint (DxuiPainter & painter, DxuiTextRenderer & text)
                           (float) m_panelRect.top,
                           (float) (m_panelRect.right  - m_panelRect.left),
                           (float) (m_panelRect.bottom - m_panelRect.top),
-                          theme.panelBgArgb);
+                          theme.panelBg);
     painter.OutlineRect ((float) m_panelRect.left,
                           (float) m_panelRect.top,
                           (float) (m_panelRect.right  - m_panelRect.left),
                           (float) (m_panelRect.bottom - m_panelRect.top),
-                          edgeThick, theme.panelEdgeArgb);
+                          edgeThick, theme.panelEdge);
 
     m_tabs.Paint  (painter, text, theme);
 
