@@ -372,17 +372,23 @@ HRESULT Disk2DebugPanel::Render()
         m_titleBar->Paint (m_painter, m_text, *m_theme);
     }
 
-    for (auto & cb : m_eventChecks)
+    if (m_theme != nullptr)
     {
-        cb.Paint (m_painter, m_text);
+        m_trackEdit.SetTheme  (m_theme);
+        m_sectorEdit.SetTheme (m_theme);
+
+        for (auto & cb : m_eventChecks)
+        {
+            cb.Paint (m_painter, m_text, *m_theme);
+        }
+        m_audioMasterCheck.Paint (m_painter, m_text, *m_theme);
+        for (auto & cb : m_audioSubChecks)
+        {
+            cb.Paint (m_painter, m_text, *m_theme);
+        }
+        m_driveRadio.Paint   (m_painter, m_text, *m_theme);
+        m_rawQtCheck.Paint   (m_painter, m_text, *m_theme);
     }
-    m_audioMasterCheck.Paint (m_painter, m_text);
-    for (auto & cb : m_audioSubChecks)
-    {
-        cb.Paint (m_painter, m_text);
-    }
-    m_driveRadio.Paint   (m_painter, m_text);
-    m_rawQtCheck.Paint   (m_painter, m_text);
 
     m_trackFilterLabel.Paint  (m_painter, m_text);
     m_sectorFilterLabel.Paint (m_painter, m_text);

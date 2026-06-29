@@ -1208,13 +1208,28 @@ HRESULT InputDebugPanel::Render()
         m_titleBar->Paint (m_painter, m_text, *m_theme);
     }
 
+    if (m_theme != nullptr)
+    {
+        uint32_t  labelArgb = m_theme->dropdownAccelArgb;
+
+        m_emuLabel.SetColorArgb     (labelArgb);
+        m_hostLabel.SetColorArgb    (labelArgb);
+        m_pairLabel[0].SetColorArgb (labelArgb);
+        m_pairLabel[1].SetColorArgb (labelArgb);
+        m_pairView[0].SetTheme (m_theme);
+        m_pairView[1].SetTheme (m_theme);
+    }
+
     m_emuLabel.Paint  (m_painter, m_text);
     m_hostLabel.Paint (m_painter, m_text);
-    m_allCheck.Paint          (m_painter, m_text);
-    m_emuKeyboardCheck.Paint  (m_painter, m_text);
-    if (m_joystickVisible) { m_joystickCheck.Paint (m_painter, m_text); }
-    if (m_paddleVisible)   { m_paddleCheck.Paint   (m_painter, m_text); }
-    m_hostKeyboardCheck.Paint (m_painter, m_text);
+    if (m_theme != nullptr)
+    {
+        m_allCheck.Paint          (m_painter, m_text, *m_theme);
+        m_emuKeyboardCheck.Paint  (m_painter, m_text, *m_theme);
+        if (m_joystickVisible) { m_joystickCheck.Paint (m_painter, m_text, *m_theme); }
+        if (m_paddleVisible)   { m_paddleCheck.Paint   (m_painter, m_text, *m_theme); }
+        m_hostKeyboardCheck.Paint (m_painter, m_text, *m_theme);
+    }
     m_pairLabel[0].Paint (m_painter, m_text);
     m_pairLabel[1].Paint (m_painter, m_text);
     m_pairView[0].PaintBase (m_painter, m_text);
