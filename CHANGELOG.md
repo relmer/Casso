@@ -28,6 +28,11 @@ spill past the window's edges instead of being clipped to it.
   it opens at a sensible size clamped to your monitor) and the list shows
   horizontal and vertical scrollbars as needed — Shift+wheel or the bottom
   scrollbar reaches a long location path.
+- **feat(ui): Windows 11 snap-layouts on every top-level window.** Hovering
+  the maximize button now offers the Win11 snap-layout flyout on the main
+  emulator window, the chromed debug panels, and the Settings window — not
+  just the system-chromed dialogs — because the custom chrome reports the
+  caption/maximize regions to the OS.
 - **feat(ui): occluding top-level popups for menus, dropdowns, and
   tooltips.** The application menu bar's submenus, the Settings-page
   dropdowns, the Disk II / Input debug-panel column menus, and the
@@ -70,6 +75,12 @@ spill past the window's edges instead of being clipped to it.
   ellipsis; the label now scrolls the full name once when the drive is
   hovered (clipped to the drive bounds), then rests at the head, so long
   filenames can be read on demand.
+- **refactor(theme): unified theme contract across every Dxui-rendered
+  control.** Checkboxes, radio buttons, dropdowns, tooltips, sliders, and
+  toggles all paint from the active theme, so the Skeuomorphic, Dark, and
+  Retro Terminal presets apply consistently throughout the chrome, the
+  Settings window, and both debug panels (no more off-theme blue-grey
+  controls in the green Retro Terminal preset).
 - **feat(settings): pressed-state feedback on the settings tabs.** A
   settings tab now darkens while the mouse button is held on it, matching
   the press feedback the page's buttons, dropdowns, sliders, and toggles

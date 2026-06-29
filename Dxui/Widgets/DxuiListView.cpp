@@ -1151,8 +1151,8 @@ void DxuiListView::BeginThumbDrag (int grabYPx)
 
 
 
-    m_dragging   = true;
-    m_dragGrabDy = (float) grabYPx - m.thumbTop;
+    m_vertDragging   = true;
+    m_vertDragGrab = (float) grabYPx - m.thumbTop;
 }
 
 
@@ -1176,10 +1176,10 @@ void DxuiListView::UpdateThumbDrag (int yPx)
 
 
 
-    BAIL_OUT_IF (!m_dragging || !m.visible, S_OK);
+    BAIL_OUT_IF (!m_vertDragging || !m.visible, S_OK);
 
     travel   = (float) m.trackH - m.thumbH;
-    thumbTop = (float) yPx - m_dragGrabDy;
+    thumbTop = (float) yPx - m_vertDragGrab;
     ratio    = (travel > 0.0f) ? ((thumbTop - (float) m.trackTop) / travel) : 0.0f;
 
     SetTopRow ((int) std::lround (ratio * (float) maxTop));
@@ -1194,11 +1194,11 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IsHScrollbarVisible
+//  IsHorzScrollbarVisible
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiListView::IsHScrollbarVisible () const
+bool DxuiListView::IsHorzScrollbarVisible () const
 {
     return ComputeScrollLayout().hBar;
 }
@@ -1209,7 +1209,7 @@ bool DxuiListView::IsHScrollbarVisible () const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetHScrollbarGeometry
+//  GetHorzScrollbarGeometry
 //
 //  Horizontal counterpart to GetScrollbarGeometry: the bar runs along
 //  the bottom of the list, spanning the viewport content width (full
@@ -1256,17 +1256,17 @@ void DxuiListView::SyncHorzScroll () const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetHScrollbarGeometry
+//  GetHorzScrollbarGeometry
 //
 //  Horizontal counterpart to GetScrollbarGeometry, derived from the owned
 //  horizontal DxuiScrollbar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiListView::HScrollbarMetrics DxuiListView::GetHScrollbarGeometry () const
+DxuiListView::HorzScrollbarMetrics DxuiListView::GetHorzScrollbarGeometry () const
 {
     HRESULT                 hr = S_OK;
-    HScrollbarMetrics       m;
+    HorzScrollbarMetrics       m;
     DxuiScrollbar::Metrics  g;
 
 
@@ -1297,15 +1297,15 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HitTestHScrollbarThumb
+//  HitTestHorzScrollbarThumb
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiListView::HitTestHScrollbarThumb (int xPx, int yPx) const
+bool DxuiListView::HitTestHorzScrollbarThumb (int xPx, int yPx) const
 {
     HRESULT            hr     = S_OK;
     bool               result = false;
-    HScrollbarMetrics  m      = GetHScrollbarGeometry();
+    HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
 
 
 
@@ -1324,15 +1324,15 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HitTestHScrollbarTrack
+//  HitTestHorzScrollbarTrack
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiListView::HitTestHScrollbarTrack (int xPx, int yPx) const
+bool DxuiListView::HitTestHorzScrollbarTrack (int xPx, int yPx) const
 {
     HRESULT            hr     = S_OK;
     bool               result = false;
-    HScrollbarMetrics  m      = GetHScrollbarGeometry();
+    HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
 
 
 
@@ -1351,15 +1351,15 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HitTestHScrollbarArrowLeft
+//  HitTestHorzScrollbarArrowLeft
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiListView::HitTestHScrollbarArrowLeft (int xPx, int yPx) const
+bool DxuiListView::HitTestHorzScrollbarArrowLeft (int xPx, int yPx) const
 {
     HRESULT            hr     = S_OK;
     bool               result = false;
-    HScrollbarMetrics  m      = GetHScrollbarGeometry();
+    HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
 
 
 
@@ -1378,15 +1378,15 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HitTestHScrollbarArrowRight
+//  HitTestHorzScrollbarArrowRight
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiListView::HitTestHScrollbarArrowRight (int xPx, int yPx) const
+bool DxuiListView::HitTestHorzScrollbarArrowRight (int xPx, int yPx) const
 {
     HRESULT            hr     = S_OK;
     bool               result = false;
-    HScrollbarMetrics  m      = GetHScrollbarGeometry();
+    HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
 
 
 
@@ -1405,17 +1405,17 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PageFromHTrackClick
+//  PageFromHorzTrackClick
 //
 //  Pages the view by one viewport width toward a horizontal track click
 //  left (page left) or right (page right) of the thumb.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiListView::PageFromHTrackClick (int xPx)
+void DxuiListView::PageFromHorzTrackClick (int xPx)
 {
     HRESULT            hr     = S_OK;
-    HScrollbarMetrics  m      = GetHScrollbarGeometry();
+    HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
     int                viewW  = ComputeScrollLayout().viewportW;
 
 
@@ -1441,7 +1441,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BeginHThumbDrag
+//  BeginHorzThumbDrag
 //
 //  grabXPx is the x inside the widget where the user grabbed the thumb;
 //  we remember the offset between the click and the thumb's current left
@@ -1449,14 +1449,14 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiListView::BeginHThumbDrag (int grabXPx)
+void DxuiListView::BeginHorzThumbDrag (int grabXPx)
 {
-    HScrollbarMetrics  m = GetHScrollbarGeometry();
+    HorzScrollbarMetrics  m = GetHorzScrollbarGeometry();
 
 
 
-    m_hDragging   = true;
-    m_hDragGrabDx = (float) grabXPx - m.thumbLeft;
+    m_horzDragging   = true;
+    m_horzDragGrab = (float) grabXPx - m.thumbLeft;
 }
 
 
@@ -1465,14 +1465,14 @@ void DxuiListView::BeginHThumbDrag (int grabXPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UpdateHThumbDrag
+//  UpdateHorzThumbDrag
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiListView::UpdateHThumbDrag (int xPx)
+void DxuiListView::UpdateHorzThumbDrag (int xPx)
 {
     HRESULT            hr        = S_OK;
-    HScrollbarMetrics  m         = GetHScrollbarGeometry();
+    HorzScrollbarMetrics  m         = GetHorzScrollbarGeometry();
     int                maxLeft   = GetMaxLeftPx();
     float              travel    = 0.0f;
     float              thumbLeft = 0.0f;
@@ -1480,10 +1480,10 @@ void DxuiListView::UpdateHThumbDrag (int xPx)
 
 
 
-    BAIL_OUT_IF (!m_hDragging || !m.visible, S_OK);
+    BAIL_OUT_IF (!m_horzDragging || !m.visible, S_OK);
 
     travel    = (float) m.trackW - m.thumbW;
-    thumbLeft = (float) xPx - m_hDragGrabDx;
+    thumbLeft = (float) xPx - m_horzDragGrab;
     ratio     = (travel > 0.0f) ? ((thumbLeft - (float) m.trackLeft) / travel) : 0.0f;
 
     SetLeftPx ((int) std::lround (ratio * (float) maxLeft));
@@ -2148,7 +2148,7 @@ void DxuiListView::PaintHScrollbar (
     float           y) const
 {
     HRESULT            hr    = S_OK;
-    HScrollbarMetrics  m     = GetHScrollbarGeometry();
+    HorzScrollbarMetrics  m     = GetHorzScrollbarGeometry();
     int                viewW = ComputeScrollLayout().viewportW;
 
 
@@ -2397,10 +2397,10 @@ bool DxuiListView::DispatchScrollbarPress (int lx, int ly)
 
 
 
-    if      (HitTestHScrollbarArrowLeft  (lx, ly)) { SetLeftPx (m_leftPx - hStep); }
-    else if (HitTestHScrollbarArrowRight (lx, ly)) { SetLeftPx (m_leftPx + hStep); }
-    else if (HitTestHScrollbarThumb      (lx, ly)) { BeginHThumbDrag (lx); }
-    else if (HitTestHScrollbarTrack      (lx, ly)) { PageFromHTrackClick (lx); }
+    if      (HitTestHorzScrollbarArrowLeft  (lx, ly)) { SetLeftPx (m_leftPx - hStep); }
+    else if (HitTestHorzScrollbarArrowRight (lx, ly)) { SetLeftPx (m_leftPx + hStep); }
+    else if (HitTestHorzScrollbarThumb      (lx, ly)) { BeginHorzThumbDrag (lx); }
+    else if (HitTestHorzScrollbarTrack      (lx, ly)) { PageFromHorzTrackClick (lx); }
     else if (HitTestScrollbarArrowUp     (lx, ly)) { ScrollByRows (-1); }
     else if (HitTestScrollbarArrowDown   (lx, ly)) { ScrollByRows (1); }
     else if (HitTestScrollbarThumb       (lx, ly)) { BeginThumbDrag (ly); }
@@ -2437,13 +2437,13 @@ bool DxuiListView::DispatchMouseMove (int lx, int ly, bool inside)
         newColW = std::max (minColW, m_resizeStartWPx + (lx - m_resizeStartXPx));
         SetColumnOverrideWidthPx ((size_t) m_resizeColumn, newColW);
     }
-    else if (m_dragging)
+    else if (m_vertDragging)
     {
         UpdateThumbDrag (ly);
     }
-    else if (m_hDragging)
+    else if (m_horzDragging)
     {
-        UpdateHThumbDrag (lx);
+        UpdateHorzThumbDrag (lx);
     }
     else if (inside)
     {
@@ -2483,13 +2483,13 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
     {
         m_resizeColumn = -1;
     }
-    else if (m_dragging)
+    else if (m_vertDragging)
     {
         EndThumbDrag();
     }
-    else if (m_hDragging)
+    else if (m_horzDragging)
     {
-        EndHThumbDrag();
+        EndHorzThumbDrag();
     }
     else if (row >= 0)
     {
