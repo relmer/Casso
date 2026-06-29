@@ -333,7 +333,7 @@ void StartupDownloadDialog::PaintEntryRow (
     cb.SetEnabled (entry.selectable && !downloading);
     cb.SetRect    (cbRect);
     cb.SetLabel   (entry.displayName);
-    cb.Paint      (*ctx.painter, *ctx.text);
+    cb.Paint      (*ctx.painter, *ctx.text, *ctx.theme);
 
     sourceLabel.SetText (entry.source);
     sourceLabel.SetRect ({ (LONG) (m.x + cbAvailW + m.colGap), (LONG) y,
@@ -397,9 +397,9 @@ void StartupDownloadDialog::PaintBody (
     m.colGap    = s_kColumnGapDp              * ctx.dpiScale;
 
     y     = (float) ctx.customBodyRect.top;
-    fg    = ctx.theme->dropdownItemTextArgb;
+    fg    = ctx.theme->dropdownItemText;
     fgDim = (fg & 0x00FFFFFFu) | 0x70000000u;
-    hdrFg = ctx.theme->titleTextArgb;
+    hdrFg = ctx.theme->titleText;
 
     state.bodyOriginXPx = ctx.customBodyRect.left;
     state.bodyOriginYPx = ctx.customBodyRect.top;

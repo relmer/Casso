@@ -57,7 +57,6 @@ public:
     bool  OnLButtonDown  (int x, int y);
     bool  OnLButtonUp    (int x, int y);
     bool  OnKey          (WPARAM vk);
-    void  Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
 
     //
     //  IDxuiControl overrides — additive shims for DxuiPanel trees.

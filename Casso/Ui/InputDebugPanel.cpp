@@ -1181,7 +1181,7 @@ HRESULT InputDebugPanel::Render()
 
     if (m_theme != nullptr)
     {
-        ArgbToFloat4 (m_theme->titleBarBottomArgb, clearColor);
+        ArgbToFloat4 (m_theme->titleBarBottom, clearColor);
         clearColor[3] = 1.0f;
     }
 
@@ -1210,7 +1210,7 @@ HRESULT InputDebugPanel::Render()
 
     if (m_theme != nullptr)
     {
-        uint32_t  labelArgb = m_theme->dropdownAccelArgb;
+        uint32_t  labelArgb = m_theme->dropdownAccel;
 
         m_emuLabel.SetColorArgb     (labelArgb);
         m_hostLabel.SetColorArgb    (labelArgb);
@@ -1218,6 +1218,7 @@ HRESULT InputDebugPanel::Render()
         m_pairLabel[1].SetColorArgb (labelArgb);
         m_pairView[0].SetTheme (m_theme);
         m_pairView[1].SetTheme (m_theme);
+        m_tooltip.SetTheme (*m_theme);
     }
 
     m_emuLabel.Paint  (m_painter, m_text);

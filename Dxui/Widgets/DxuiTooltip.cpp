@@ -8,9 +8,6 @@
 
 
 
-static constexpr uint32_t  s_kBgArgb          = 0xFF2D2D2D;
-static constexpr uint32_t  s_kBorderArgb      = 0xFF606060;
-static constexpr uint32_t  s_kTextArgb        = 0xFFE8EEF4;
 static constexpr float     s_kPadXDip         = 8.0f;
 static constexpr float     s_kPadYDip         = 4.0f;
 static constexpr float     s_kBorderDip       = 1.0f;
@@ -213,7 +210,7 @@ void DxuiTooltip::ShowPopup ()
     showParams.shadow           = false;
     showParams.sizeDip.cx       = (int) boxWDip;
     showParams.sizeDip.cy       = (int) boxHDip;
-    showParams.backgroundArgb   = s_kBgArgb;
+    showParams.backgroundArgb   = m_bgArgb;
     showParams.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopup (p, t); };
     showParams.onClosed         = [this] () { m_activePopup = nullptr; };
 
@@ -318,15 +315,15 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
         }
     }
 
-    painter.FillRect    (boxLeft, boxTop, width, height, s_kBgArgb);
-    painter.OutlineRect (boxLeft, boxTop, width, height, borderPx, s_kBorderArgb);
+    painter.FillRect    (boxLeft, boxTop, width, height, m_bgArgb);
+    painter.OutlineRect (boxLeft, boxTop, width, height, borderPx, m_borderArgb);
 
     IGNORE_RETURN_VALUE (hr, text.DrawString (m_text.c_str(),
                                               boxLeft + padX,
                                               boxTop  + padY,
                                               width  - padX * 2.0f,
                                               height - padY * 2.0f,
-                                              s_kTextArgb,
+                                              m_textArgb,
                                               fontPx,
                                               s_kFontFamily));
 }
@@ -361,7 +358,7 @@ void DxuiTooltip::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    UNREFERENCED_PARAMETER (theme);
+    SetTheme (theme);
     static_cast<const DxuiTooltip *> (this)->Paint (painter, text);
 }
 
@@ -402,14 +399,14 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
     width  = (float) (placed.right  - placed.left);
     height = (float) (placed.bottom - placed.top);
 
-    painter.OutlineRect (0.0f, 0.0f, width, height, borderPx, s_kBorderArgb);
+    painter.OutlineRect (0.0f, 0.0f, width, height, borderPx, m_borderArgb);
 
     IGNORE_RETURN_VALUE (hr, text.DrawString (m_text.c_str(),
                                               padX,
                                               padY,
                                               width  - padX * 2.0f,
                                               height - padY * 2.0f,
-                                              s_kTextArgb,
+                                              m_textArgb,
                                               fontPx,
                                               s_kFontFamily));
 }

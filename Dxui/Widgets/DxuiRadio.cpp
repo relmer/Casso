@@ -204,16 +204,8 @@ void DxuiRadioGroup::Commit (int newIndex)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
+void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    constexpr uint32_t  s_kBoxIdle      = 0xFF606060;
-    constexpr uint32_t  s_kBoxHover     = 0xFF808080;
-    constexpr uint32_t  s_kBoxDisabled  = 0xFF303030;
-    constexpr uint32_t  s_kDot          = 0xFFFFFFFF;
-    constexpr uint32_t  s_kDotDisabled  = 0xFF707070;
-    constexpr uint32_t  s_kFocusRing    = 0xFFAACCFF;
-    constexpr uint32_t  s_kTextIdle     = 0xFFE8EEF4;
-    constexpr uint32_t  s_kTextDisabled = 0xFF707070;
     constexpr float     s_kBoxSizeDip    = 16.0f;
     constexpr float     s_kDotInsetDip   = 4.0f;
     constexpr float     s_kFocusInsetDip = -2.0f;
@@ -230,8 +222,8 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) co
     float    focusThick = m_scaler.Pxf (s_kFocusThickDip);
     float    labelGap   = m_scaler.Pxf (s_kLabelGapDip);
     float    fontDip    = m_scaler.Pxf (s_kFontDip);
-    uint32_t textColor  = m_enabled ? s_kTextIdle : s_kTextDisabled;
-    uint32_t dotColor   = m_enabled ? s_kDot      : s_kDotDisabled;
+    uint32_t textColor  = m_enabled ? theme.Foreground() : theme.ForegroundDisabled();
+    uint32_t dotColor   = m_enabled ? theme.ButtonText() : theme.ForegroundDisabled();
 
 
 
@@ -246,8 +238,8 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) co
         float               outerR   = boxSize * 0.5f;
         float               innerR   = (boxSize - dotInset * 2.0f) * 0.5f;
         uint32_t            boxColor = m_enabled
-                                            ? (m_hover == i ? s_kBoxHover : s_kBoxIdle)
-                                            : s_kBoxDisabled;
+                                            ? (m_hover == i ? theme.ButtonHover() : theme.ButtonIdle())
+                                            : theme.PressedBackground();
 
         painter.FillCircleApprox (cx, cy, outerR, boxColor);
 
@@ -263,7 +255,7 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) co
                                  boxSize - focusInset * 2.0f,
                                  boxSize - focusInset * 2.0f,
                                  focusThick,
-                                 s_kFocusRing);
+                                 theme.FocusRing());
         }
 
         IGNORE_RETURN_VALUE (hr, text.DrawString (opt.label.c_str(),
@@ -303,20 +295,6 @@ void DxuiRadioGroup::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiRadioGroup::Paint  (IDxuiControl override)
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
-{
-    UNREFERENCED_PARAMETER (theme);
-    static_cast<const DxuiRadioGroup *> (this)->Paint (painter, text);
-}
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiRadioGroup::OnMouse  (IDxuiControl override)

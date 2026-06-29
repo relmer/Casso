@@ -75,8 +75,7 @@ public:
     virtual uint32_t  ButtonBorder        () const = 0;
     virtual uint32_t  ButtonText          () const = 0;
 
-    // Caption / system buttons (host-window chrome). `TitleBarTop` /
-    // `TitleBarBottom` feed the caption gradient; the system-button
+    // Caption / system buttons (host-window chrome). `TitleBarTop` /    // `TitleBarBottom` feed the caption gradient; the system-button
     // hover / pressed pairs feed the Win11-style overlay (min and max
     // share the neutral pair; close uses the red pair).
     virtual uint32_t  CaptionBackground   () const = 0;
@@ -87,6 +86,12 @@ public:
     virtual uint32_t  SystemButtonPressed () const = 0;
     virtual uint32_t  SystemCloseHover    () const = 0;
     virtual uint32_t  SystemClosePressed  () const = 0;
+
+    // Tooltip surface (popup bubble: distinct from the elevated surface so
+    // it reads above whatever it overlays). Border + text complete it.
+    virtual uint32_t  TooltipBackground   () const = 0;
+    virtual uint32_t  TooltipBorder       () const = 0;
+    virtual uint32_t  TooltipForeground   () const = 0;
 
     // Typography. Returned handles are opaque to widgets.
     virtual DxuiFontHandle  BodyFont      () const = 0;
