@@ -96,7 +96,7 @@ public:
     //  PaintBase / PaintMenu (for cross-widget z-order) must call this
     //  first. The pointer is also read by the popup's RenderPopupMenu hook.
     //
-    void  SetTheme       (const IDxuiTheme * theme) const { m_paintTheme = theme; }
+    void  SetTheme       (const IDxuiTheme * theme) const;
 
 private:
     struct ResolvedColors
@@ -133,5 +133,6 @@ private:
     bool                      m_focused   = false;
     DxuiHostWindow          * m_popupHost   = nullptr;
     DxuiPopupHost           * m_activePopup = nullptr;
-    mutable const IDxuiTheme * m_paintTheme = nullptr;
+    mutable bool               m_hasThemeColors = false;
+    mutable ResolvedColors     m_themeColors    = {};
 };

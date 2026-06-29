@@ -570,22 +570,35 @@ DxuiDropdown::ResolvedColors DxuiDropdown::ResolveColors () const
                           s_kEdgeDisabledArgb, s_kFocusRingArgb };
 
 
-    if (m_paintTheme != nullptr)
+    if (m_hasThemeColors)
     {
-        c.boxIdle      = m_paintTheme->BackgroundElevated();
-        c.boxHover     = m_paintTheme->HoverBackground();
-        c.boxPressed   = m_paintTheme->PressedBackground();
-        c.boxDisabled  = DxuiColor::Darken (m_paintTheme->BackgroundElevated(), s_kDisabledScale);
-        c.menu         = m_paintTheme->BackgroundElevated();
-        c.menuHover    = m_paintTheme->HoverBackground();
-        c.text         = m_paintTheme->Foreground();
-        c.textDisabled = m_paintTheme->ForegroundDisabled();
-        c.edge         = m_paintTheme->Border();
-        c.edgeDisabled = m_paintTheme->Divider();
-        c.focus        = m_paintTheme->FocusRing();
+        c = m_themeColors;
     }
 
     return c;
+}
+
+
+void DxuiDropdown::SetTheme (const IDxuiTheme * theme) const
+{
+    if (theme == nullptr)
+    {
+        m_hasThemeColors = false;
+        return;
+    }
+
+    m_themeColors.boxIdle      = theme->BackgroundElevated();
+    m_themeColors.boxHover     = theme->HoverBackground();
+    m_themeColors.boxPressed   = theme->PressedBackground();
+    m_themeColors.boxDisabled  = DxuiColor::Darken (theme->BackgroundElevated(), s_kDisabledScale);
+    m_themeColors.menu         = theme->BackgroundElevated();
+    m_themeColors.menuHover    = theme->HoverBackground();
+    m_themeColors.text         = theme->Foreground();
+    m_themeColors.textDisabled = theme->ForegroundDisabled();
+    m_themeColors.edge         = theme->Border();
+    m_themeColors.edgeDisabled = theme->Divider();
+    m_themeColors.focus        = theme->FocusRing();
+    m_hasThemeColors           = true;
 }
 
 
