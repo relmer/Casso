@@ -90,13 +90,20 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  SystemCloseHover    () const override { return sysButtonCloseHoverArgb; }
     uint32_t  SystemClosePressed  () const override { return sysButtonClosePressedArgb; }
 
-    // Font handles are opaque to widgets; the text renderer owns the real
-    // IDWriteTextFormat objects keyed off name + size. Null is safe today.
-    DxuiFontHandle  BodyFont      () const override { return {}; }
-    DxuiFontHandle  BodyBoldFont  () const override { return {}; }
-    DxuiFontHandle  CaptionFont   () const override { return {}; }
-    DxuiFontHandle  HeadingFont   () const override { return {}; }
-    DxuiFontHandle  MonospaceFont () const override { return {}; }
+    // Typography. Faces and sizes are centralized here so widgets read
+    // theme fonts instead of repeating literals. Icon-glyph faces (Segoe
+    // MDL2 Assets / Symbol) stay at the use site -- they are not text.
+    static constexpr wchar_t       kBodyFace    [] = L"Segoe UI";
+    static constexpr wchar_t       kMonoFace    [] = L"Cascadia Mono";
+    static constexpr float         kBodySizeDip    = 13.0f;
+    static constexpr float         kCaptionSizeDip = 12.0f;
+    static constexpr float         kHeadingSizeDip = 14.0f;
+
+    DxuiFontHandle  BodyFont      () const override { return { kBodyFace, kBodySizeDip,    DWRITE_FONT_WEIGHT_NORMAL    }; }
+    DxuiFontHandle  BodyBoldFont  () const override { return { kBodyFace, kBodySizeDip,    DWRITE_FONT_WEIGHT_SEMI_BOLD }; }
+    DxuiFontHandle  CaptionFont   () const override { return { kBodyFace, kCaptionSizeDip, DWRITE_FONT_WEIGHT_NORMAL    }; }
+    DxuiFontHandle  HeadingFont   () const override { return { kBodyFace, kHeadingSizeDip, DWRITE_FONT_WEIGHT_NORMAL    }; }
+    DxuiFontHandle  MonospaceFont () const override { return { kMonoFace, kBodySizeDip,    DWRITE_FONT_WEIGHT_NORMAL    }; }
 
     float  BodyLineHeightDip () const override { return 18.0f; }
     float  CornerRadiusDip   () const override { return 4.0f;  }
