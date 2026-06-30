@@ -22,6 +22,7 @@ class DxuiIconButton : public IDxuiControl
 public:
     using ClickFn = std::function<void()>;
 
+    DxuiIconButton();
     ~DxuiIconButton() override = default;
 
     void  SetGlyph          (const wchar_t * glyph)     { m_glyph = glyph; }
@@ -40,6 +41,8 @@ public:
     //
     void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool                OnMouse        (const DxuiMouseEvent & ev) override;
+    bool                OnKey          (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged (bool focused) override { m_focused = focused; }
     void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     std::wstring        AccessibleName () const override { return m_a11yName; }
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Button; }
@@ -53,6 +56,7 @@ private:
     DxuiDpiScaler    m_scaler;
     bool             m_hover    = false;
     bool             m_pressed  = false;
+    bool             m_focused  = false;
     bool             m_enabled  = true;
     bool             m_visible  = true;
 };

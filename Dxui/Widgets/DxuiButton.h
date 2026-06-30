@@ -12,6 +12,7 @@ class DxuiButton : public IDxuiControl
 public:
     using ClickFn = std::function<void()>;
 
+    DxuiButton() { m_focusable = true; }
     ~DxuiButton() override = default;
 
     void  Layout          (const RECT & rect) { SetBounds (rect); }

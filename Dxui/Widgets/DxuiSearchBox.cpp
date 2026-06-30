@@ -37,6 +37,7 @@ static constexpr uint32_t  s_kFallbackBorder   = 0xFF445566;
 
 DxuiSearchBox::DxuiSearchBox ()
 {
+    m_focusable = true;
     m_input.SetChromeless (true);
 }
 

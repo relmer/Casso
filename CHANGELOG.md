@@ -60,6 +60,11 @@ spill past the window's edges instead of being clipped to it.
   dialed-in level, plus a Restore-defaults button. Levels and pan persist
   per machine and apply on OK; an un-applied audition is reverted on
   Cancel.
+- **feat(dxui): automatic tab order for interactive widgets.** Buttons,
+  checkboxes, radios, sliders, toggles, dropdowns, tabs, text inputs,
+  search boxes, tree views, list views, and icon buttons now opt into the
+  Dxui focus tree walk; icon buttons also draw a themed focus ring and
+  activate from Space / Enter.
 
 ### Changed
 - **refactor(dxui): extract the window chrome into a reusable Dxui

@@ -39,6 +39,7 @@ public:
     using InteractionFn = std::function<void ()>;
     using FormatFn      = std::function<std::wstring (float value)>;
 
+    DxuiSlider() { m_focusable = true; }
     ~DxuiSlider() override = default;
 
     void   SetRect    (const RECT & rect) { SetBounds (rect); }

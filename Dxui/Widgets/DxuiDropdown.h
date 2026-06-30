@@ -18,6 +18,7 @@ class DxuiDropdown : public IDxuiControl
 public:
     using SelectFn = std::function<void (int index)>;
 
+    DxuiDropdown() { m_focusable = true; }
     ~DxuiDropdown() override = default;
 
     void  SetRect        (const RECT & rect) { SetBounds (rect); }

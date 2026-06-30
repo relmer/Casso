@@ -24,6 +24,7 @@ class DxuiToggle : public IDxuiControl
 public:
     using ChangeFn = std::function<void (bool checked)>;
 
+    DxuiToggle() { m_focusable = true; }
     ~DxuiToggle() override = default;
 
     void  SetRect    (const RECT & rect)  { SetBounds (rect); }
