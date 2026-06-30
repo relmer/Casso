@@ -95,11 +95,14 @@ DxuiDock DxuiDockLayout::LookupDock (const IDxuiControl * child) const
 //
 //  DxuiDockLayout::Arrange
 //
-//  Walk children in registration order. For each non-Fill child, peel
-//  a slab off the matching edge of the remaining rect equal to the
-//  child's natural Bounds() extent on the docked axis. The first
-//  Fill child receives whatever rect is left. Subsequent Fill
-//  children collapse to a zero-extent rect at the remaining top-left.
+//  Walk children in two passes. Pass 1 peels each non-Fill child off the
+//  matching edge of the remaining rect (in registration order) equal to
+//  the child's natural Bounds() extent on the docked axis. Pass 2 gives
+//  the first Fill child whatever rect is left -- AFTER every edge has
+//  been peeled, regardless of registration order -- so a Fill child that
+//  was registered before an edge child no longer steals the edge's slab.
+//  Subsequent Fill children collapse to a zero-extent rect at the
+//  remaining top-left.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,8 +111,8 @@ void DxuiDockLayout::Arrange (
     const DxuiDpiScaler                 & /*scaler*/,
     std::span<IDxuiControl * const>       children)
 {
-    RECT  remaining = boundsDip;
-    bool  fillAssigned = false;
+    RECT            remaining = boundsDip;
+    IDxuiControl *  firstFill = nullptr;
 
     DXUI_ASSERT_UI_THREAD();
 
@@ -123,19 +126,10 @@ void DxuiDockLayout::Arrange (
 
         if (side == DxuiDock::Fill)
         {
-            if (fillAssigned)
+            if (firstFill == nullptr)
             {
-                assigned.left   = remaining.left;
-                assigned.top    = remaining.top;
-                assigned.right  = remaining.left;
-                assigned.bottom = remaining.top;
+                firstFill = child;
             }
-            else
-            {
-                assigned     = remaining;
-                fillAssigned = true;
-            }
-            child->SetBounds (assigned);
             continue;
         }
 
@@ -190,11 +184,34 @@ void DxuiDockLayout::Arrange (
         }
 
         case DxuiDock::Fill:
-            // Handled above.
+            // Handled in the second pass.
             break;
         }
 
         child->SetBounds (assigned);
+    }
+
+    //
+    //  Second pass: the first Fill child receives the final remaining
+    //  rect; any subsequent Fill children collapse to a zero-extent rect.
+    //
+    for (IDxuiControl * child : children)
+    {
+        if (LookupDock (child) != DxuiDock::Fill)
+        {
+            continue;
+        }
+
+        if (child == firstFill)
+        {
+            child->SetBounds (remaining);
+        }
+        else
+        {
+            RECT  zero = { remaining.left, remaining.top, remaining.left, remaining.top };
+
+            child->SetBounds (zero);
+        }
     }
 }
 
