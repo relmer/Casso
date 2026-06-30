@@ -654,9 +654,9 @@ HRESULT EmulatorShell::Initialize (
 
 
         IGNORE_RETURN_VALUE (hrUi, S_OK);
-        // The caption is host-owned now; UiShell no longer drives a
-        // TitleBar (its legacy Render path is dead). Pass nullptr.
-        m_uiShell.SetChrome (nullptr, &m_mainMenu, &m_driveChrome, &m_chromeTheme);
+        // The caption is host-owned now; UiShell no longer takes a
+        // TitleBar (its legacy Render path is dead).
+        m_uiShell.SetChrome (&m_mainMenu, &m_driveChrome, &m_chromeTheme);
         m_uiShell.SetJoystickButton (&m_joystickButton, &m_joystickTooltip);
 
         // Inject the shared text renderer into chrome controls that

@@ -2,7 +2,6 @@
 
 #include "SettingsWindowRenderer.h"
 #include "SettingsPanel.h"
-#include "../Chrome/TitleBar.h"
 #include "Window/DxuiHostWindow.h"
 #include "../../Shaders/ShaderResourceIds.h"
 

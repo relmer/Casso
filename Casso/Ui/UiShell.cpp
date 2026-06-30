@@ -96,12 +96,10 @@ void UiShell::Shutdown ()
 ////////////////////////////////////////////////////////////////////////////////
 
 void UiShell::SetChrome (
-    TitleBar                    * titleBar,
     MainMenu                    * MainMenu,
     std::array<DriveWidget, 2>  * driveWidgets,
     const CassoTheme           * theme)
 {
-    m_titleBar     = titleBar;
     m_mainMenu     = MainMenu;
     m_driveWidgets = driveWidgets;
     m_theme        = theme;
@@ -311,11 +309,6 @@ void UiShell::Render ()
 
         if (!settingsVisible)
         {
-            if (m_titleBar != nullptr)
-            {
-                m_titleBar->Paint (m_painter, m_text, localTheme);
-            }
-
             if (m_mainMenu != nullptr)
             {
                 m_mainMenu->PaintStrip (m_painter, m_text, visual, localTheme);
@@ -589,11 +582,6 @@ bool UiShell::OnMouseMove (int x, int y, bool leftDown)
         return true;
     }
 
-    if (m_titleBar != nullptr)
-    {
-        m_titleBar->SetMousePosition (x, y, leftDown);
-    }
-
     if (m_mainMenu != nullptr)
     {
         m_mainMenu->HandleMouseMove (x, y);
@@ -619,11 +607,6 @@ bool UiShell::OnMouseMove (int x, int y, bool leftDown)
 void UiShell::OnMouseLeave ()
 {
     m_leftDown = false;
-
-    if (m_titleBar != nullptr)
-    {
-        m_titleBar->ClearHover();
-    }
 
     if (m_mainMenu != nullptr)
     {
