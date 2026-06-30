@@ -98,6 +98,15 @@ public:
     bool  HasCloseHandler  () const { return (bool) m_onClose; }
 
     //
+    //  Bind the caption close button to a hosting HWND (post-Build).
+    //  The close button is a DxuiSystemButton whose click posts the
+    //  matching system command to this HWND; with a host installed,
+    //  clicking the caption "X" posts WM_SYSCOMMAND/SC_CLOSE so the
+    //  host's WM_CLOSE path can resolve the dialog as cancelled.
+    //
+    void  SetHostHwnd      (HWND hwnd);
+
+    //
     //  Keyboard activation. Returns the chosen returnCode iff a
     //  matching button exists. The close handler (when set) is also
     //  invoked.
