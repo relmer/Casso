@@ -81,6 +81,15 @@ public:
                        bool                 isCancel  = false);
 
     //
+    //  When false (pre-Build), the dialog does NOT build its own caption
+    //  bar -- the hosting window supplies the standard caption (title +
+    //  close) via DxuiHostWindow::captionStyle, and the dialog is just a
+    //  content + button-row panel. Default true keeps the dialog a self-
+    //  contained three-region control for unhosted / standalone use.
+    //
+    void  SetOwnCaption  (bool ownCaption);
+
+    //
     //  Materialize the dialog's child panels (caption bar, content,
     //  button row) and install the dock layout. Idempotent: a second
     //  call asserts in debug, no-ops in release.
@@ -96,15 +105,6 @@ public:
     //
     void  SetCloseHandler  (CloseHandler handler);
     bool  HasCloseHandler  () const { return (bool) m_onClose; }
-
-    //
-    //  Bind the caption close button to a hosting HWND (post-Build).
-    //  The close button is a DxuiSystemButton whose click posts the
-    //  matching system command to this HWND; with a host installed,
-    //  clicking the caption "X" posts WM_SYSCOMMAND/SC_CLOSE so the
-    //  host's WM_CLOSE path can resolve the dialog as cancelled.
-    //
-    void  SetHostHwnd      (HWND hwnd);
 
     //
     //  Keyboard activation. Returns the chosen returnCode iff a
@@ -151,6 +151,7 @@ private:
     std::vector<DxuiButton *>      m_buttonWidgets;
     CloseHandler                   m_onClose;
     bool                           m_built       = false;
+    bool                           m_ownCaption  = true;
 
     //
     //  Owner storage for the composite child controls (caption bar,

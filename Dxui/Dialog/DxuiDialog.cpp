@@ -143,15 +143,15 @@ void DxuiDialog::AddButton (const std::wstring & label,
 void DxuiDialog::Build()
 {
     HRESULT                            hr            = S_OK;
-    std::unique_ptr<DxuiCaptionBar>    captionOwn    = std::make_unique<DxuiCaptionBar>();
-    std::unique_ptr<DxuiLabel>         titleOwn      = std::make_unique<DxuiLabel>();
-    std::unique_ptr<DxuiSystemButton>  closeOwn      = std::make_unique<DxuiSystemButton> (DxuiSystemButtonKind::Close);
+    std::unique_ptr<DxuiCaptionBar>    captionOwn;
+    std::unique_ptr<DxuiLabel>         titleOwn;
+    std::unique_ptr<DxuiSystemButton>  closeOwn;
     std::unique_ptr<DxuiPanel>         contentOwn    = std::move (m_contentOwned);
     std::unique_ptr<DxuiPanel>         buttonRowOwn  = std::make_unique<DxuiPanel>();
     std::unique_ptr<DxuiDockLayout>    dockOwn       = std::make_unique<DxuiDockLayout>();
-    DxuiCaptionBar *                   captionRaw    = captionOwn.get();
-    DxuiLabel *                        titleRaw      = titleOwn.get();
-    DxuiSystemButton *                 closeRaw      = closeOwn.get();
+    DxuiCaptionBar *                   captionRaw    = nullptr;
+    DxuiLabel *                        titleRaw      = nullptr;
+    DxuiSystemButton *                 closeRaw      = nullptr;
     DxuiPanel *                        contentRaw    = nullptr;
     DxuiPanel *                        buttonRowRaw  = buttonRowOwn.get();
     DxuiDockLayout *                   dockRaw       = dockOwn.get();
@@ -180,17 +180,27 @@ void DxuiDialog::Build()
     contentRaw = contentOwn.get();
 
     //
-    //  Caption-bar children: title label (fills caption left side)
-    //  + close button (anchored right). The close button's HWND is
-    //  assigned by the manager once the dialog is hosted.
+    //  Caption-bar children (only when the dialog owns its caption).
+    //  When a host supplies the standard caption (SetOwnCaption(false)),
+    //  the dialog is just content + button-row and these are skipped.
     //
-    titleRaw->SetText (m_title);
-    titleRaw->SetVAlign (DxuiTextVAlign::Center);
-    titleRaw->SetHAlign (DxuiTextHAlign::Left);
+    if (m_ownCaption)
+    {
+        captionOwn = std::make_unique<DxuiCaptionBar>();
+        titleOwn   = std::make_unique<DxuiLabel>();
+        closeOwn   = std::make_unique<DxuiSystemButton> (DxuiSystemButtonKind::Close);
+        captionRaw = captionOwn.get();
+        titleRaw   = titleOwn.get();
+        closeRaw   = closeOwn.get();
 
-    captionRaw->SetBounds (captionRect);
-    captionRaw->Adopt (*titleRaw);
-    captionRaw->Adopt (*closeRaw);
+        titleRaw->SetText   (m_title);
+        titleRaw->SetVAlign (DxuiTextVAlign::Center);
+        titleRaw->SetHAlign (DxuiTextHAlign::Left);
+
+        captionRaw->SetBounds (captionRect);
+        captionRaw->Adopt     (*titleRaw);
+        captionRaw->Adopt     (*closeRaw);
+    }
 
     //
     //  Button row: one DxuiButton per configured DxuiDialogButton.
@@ -226,13 +236,19 @@ void DxuiDialog::Build()
     //  Adopt the live pointers into the panel tree. The dialog's
     //  m_ownedComposites vector outlives the IDxuiControl tree.
     //
-    m_ownedComposites.push_back (std::move (captionOwn));
-    m_ownedComposites.push_back (std::move (titleOwn));
-    m_ownedComposites.push_back (std::move (closeOwn));
+    if (m_ownCaption)
+    {
+        m_ownedComposites.push_back (std::move (captionOwn));
+        m_ownedComposites.push_back (std::move (titleOwn));
+        m_ownedComposites.push_back (std::move (closeOwn));
+    }
     m_ownedComposites.push_back (std::move (contentOwn));
     m_ownedComposites.push_back (std::move (buttonRowOwn));
 
-    Adopt (*captionRaw);
+    if (m_ownCaption)
+    {
+        Adopt (*captionRaw);
+    }
     Adopt (*contentRaw);
     Adopt (*buttonRowRaw);
 
@@ -243,9 +259,13 @@ void DxuiDialog::Build()
     m_buttonRow   = buttonRowRaw;
 
     //
-    //  Install the dock layout on the dialog itself.
+    //  Install the dock layout on the dialog itself. The caption (when
+    //  owned) docks Top; the button row docks Bottom; content fills.
     //
-    dockRaw->SetDock (*captionRaw,   DxuiDock::Top);
+    if (m_ownCaption)
+    {
+        dockRaw->SetDock (*captionRaw, DxuiDock::Top);
+    }
     dockRaw->SetDock (*buttonRowRaw, DxuiDock::Bottom);
     dockRaw->SetDock (*contentRaw,   DxuiDock::Fill);
     SetLayout (std::move (dockOwn));
@@ -277,23 +297,21 @@ void DxuiDialog::SetCloseHandler (CloseHandler handler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDialog::SetHostHwnd
-//
-//  Assigns the hosting HWND to the caption close button so a click on
-//  the "X" posts SC_CLOSE to the host window. Must be called after
-//  Build() (the close button does not exist until then).
+//  DxuiDialog::SetOwnCaption
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDialog::SetHostHwnd (HWND hwnd)
+void DxuiDialog::SetOwnCaption (bool ownCaption)
 {
     DXUI_ASSERT_UI_THREAD();
-    assert (m_built && "SetHostHwnd called before Build");
+    assert (!m_built && "SetOwnCaption called after Build");
 
-    if (m_closeBtn != nullptr)
+    if (m_built)
     {
-        m_closeBtn->SetHwnd (hwnd);
+        return;
     }
+
+    m_ownCaption = ownCaption;
 }
 
 
