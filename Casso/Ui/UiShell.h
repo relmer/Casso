@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "FocusManager.h"
 #include "Chrome/CassoTheme.h"
 #include "Chrome/DriveWidget.h"
 #include "Chrome/JoystickToggleButton.h"
@@ -65,7 +64,6 @@ public:
     DxuiTextRenderer  & Text      ()       { return m_text; }
     DxuiInput             & Input     ()       { return m_input; }
     DxuiHitTester           & HitTest   ()       { return m_hitTest; }
-    FocusManager        & Focus     ()       { return m_focus; }
     DxuiAnimation           & Tweens    ()       { return m_anim; }
 
     int    ViewportWidth  () const { return m_viewportWidthPx; }
@@ -92,7 +90,6 @@ private:
     DxuiTextRenderer            m_text;
     DxuiInput                       m_input;
     DxuiHitTester                     m_hitTest;
-    FocusManager                  m_focus;
     DxuiAnimation                     m_anim;
 
     MainMenu                    * m_mainMenu      = nullptr;
