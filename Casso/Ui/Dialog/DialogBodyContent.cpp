@@ -8,6 +8,7 @@
 
 static constexpr int     s_kLineHeightDip = 20;
 static constexpr int     s_kItemGapDip    = 6;
+static constexpr int     s_kIconGapDip    = 12;
 static constexpr size_t  s_kWrapColumns   = 52;
 static constexpr int     s_kShellExecOk   = 0;     // ignored ShellExecute result reset value
 
@@ -93,6 +94,24 @@ void DialogBodyContent::SetRuns (const std::vector<DialogTextRun> & runs, uint32
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DialogBodyContent::SetIcon
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogBodyContent::SetIcon (std::vector<uint32_t> bgraPremul, int srcW, int srcH, int displaySizeDip)
+{
+    m_iconPixels  = std::move (bgraPremul);
+    m_iconSrcW    = srcW;
+    m_iconSrcH    = srcH;
+    m_iconSizeDip = displaySizeDip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DialogBodyContent::PreferredHeightDip
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,6 +120,11 @@ int DialogBodyContent::PreferredHeightDip () const
 {
     int  total = 0;
 
+
+    if (!m_iconPixels.empty() && m_iconSizeDip > 0)
+    {
+        total += m_iconSizeDip + s_kIconGapDip;
+    }
 
     for (const Item & item : m_items)
     {
@@ -132,6 +156,20 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 
     SetBounds (boundsPx);
 
+    m_iconRectPx = {};
+
+    if (!m_iconPixels.empty() && m_iconSizeDip > 0)
+    {
+        int  iconPx = scaler.Px (m_iconSizeDip);
+        int  cx     = (boundsPx.left + boundsPx.right) / 2;
+
+        m_iconRectPx.left   = cx - iconPx / 2;
+        m_iconRectPx.top    = y;
+        m_iconRectPx.right  = cx + iconPx / 2;
+        m_iconRectPx.bottom = y + iconPx;
+        y += iconPx + scaler.Px (s_kIconGapDip);
+    }
+
     for (Item & item : m_items)
     {
         int   hPx = item.lines * linePx;
@@ -144,4 +182,35 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 
         y += hPx + gapPx;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialogBodyContent::Paint
+//
+//  Draws the optional top icon (premultiplied BGRA bitmap), then fans the
+//  paint out to the run widgets via the base panel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogBodyContent::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    if (!m_iconPixels.empty() && m_iconRectPx.right > m_iconRectPx.left)
+    {
+        HRESULT  hr = text.DrawIconBitmap (m_iconPixels.data(),
+                                           m_iconSrcW,
+                                           m_iconSrcH,
+                                           (float) m_iconRectPx.left,
+                                           (float) m_iconRectPx.top,
+                                           (float) (m_iconRectPx.right  - m_iconRectPx.left),
+                                           (float) (m_iconRectPx.bottom - m_iconRectPx.top));
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    DxuiPanel::Paint (painter, text, theme);
 }

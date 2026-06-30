@@ -1931,6 +1931,8 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
     constexpr int      s_kChromeHeightDip = 108;   // caption + content pad*2 + button row
     constexpr int      s_kMinHeightDip    = 120;
     constexpr int      s_kMaxHeightDip    = 620;
+    constexpr int      s_kIconSrcPx       = 256;
+    constexpr int      s_kDefaultIconDip  = 48;
     constexpr uint32_t s_kBodyArgb        = 0xFFFFFFFF;
 
     std::unique_ptr<DxuiDialog>         dlg       = std::make_unique<DxuiDialog>();
@@ -1940,6 +1942,21 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
 
 
     content->SetRuns (def.body, s_kBodyArgb);
+
+    if (def.icon == DialogIcon::AppPhotoreal || def.icon == DialogIcon::AppFlat)
+    {
+        std::vector<uint32_t>  iconPixels;
+        int                    iconW   = 0;
+        int                    iconH   = 0;
+        int                    iconRes = (def.icon == DialogIcon::AppPhotoreal) ? IDI_CASSO_PHOTOREAL : IDI_CASSO_FLAT_COLOR_HEAD;
+        int                    iconDip = (def.iconSizeOverrideDp > 0.0f) ? (int) def.iconSizeOverrideDp : s_kDefaultIconDip;
+
+
+        if (LoadIconAsPremulBgra (m_hInstance, iconRes, s_kIconSrcPx, iconPixels, iconW, iconH))
+        {
+            content->SetIcon (std::move (iconPixels), iconW, iconH, iconDip);
+        }
+    }
 
     heightDip = std::clamp (s_kChromeHeightDip + content->PreferredHeightDip(),
                             s_kMinHeightDip,
