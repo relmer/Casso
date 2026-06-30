@@ -112,6 +112,18 @@ SettingsPanel::SettingsPanel ()
     Adopt (m_scrim);
     Adopt (m_applyButton);
     Adopt (m_cancelButton);
+
+    // Automatic Tab order: the focus manager tree-walks this panel and
+    // collects every visible, enabled, focusable control (tab strip +
+    // the active page's widgets + Cancel / Apply) in reading order. No
+    // per-page focus list -- inactive pages are hidden (UpdatePageVisibility)
+    // so the walk only sees the active page. Row epsilon buckets controls
+    // sharing a visual row (e.g. a volume slider and its play button) so
+    // they tab left-to-right before dropping to the next row.
+    constexpr float  s_kFocusRowEpsilonDip = 28.0f;
+
+    m_focusMgr.Attach (this);
+    m_focusMgr.SetRowEpsilonDip (s_kFocusRowEpsilonDip);
 }
 
 
@@ -162,8 +174,6 @@ HRESULT SettingsPanel::Initialize (
     m_catalog.Bind (&emuShell, &ucs, &prefs, &fs, &themes, &m_state,
                     &m_machinePage, &m_themePage);
     m_apply.Bind (&m_state, &ucs, &prefs, &fs, &emuShell, &m_window, &m_catalog);
-    m_focusOrder.Bind (&uiShell, &m_tabs, &m_machinePage, &m_hardwarePage,
-                       &m_themePage, &m_displayPage, &m_applyButton, &m_cancelButton);
 
     m_machinePage.SetState  (&m_state);
     m_machinePage.SetOnMachineSelected ([this] (const std::string & machineName) { OnMachineSelected (machineName); });
@@ -358,7 +368,12 @@ HRESULT SettingsPanel::Show ()
     m_crt.ReseedFromActiveMode();
 
     m_panelVisible = true;
-    m_focusOrder.Rebuild (m_activeTab);
+    UpdatePageVisibility();
+    m_focusMgr.Rebuild();
+    if (m_focusMgr.Focused() == nullptr && m_focusMgr.TabOrderCount() > 0)
+    {
+        m_focusMgr.SetFocused (m_focusMgr.TabOrderAt (0));
+    }
 
     if (m_emuShell != nullptr)
     {
@@ -852,7 +867,7 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const Dxu
     tabs.push_back ({ MakeRect (left + tabWidth * 3,   tabsTop, tabWidth, tabHeight), L"Display"  });
     m_tabs.SetTabs (std::move (tabs));
     m_tabs.SetSelected (m_activeTab);
-    m_tabs.SetOnChange ([this] (int idx) { m_activeTab = idx; m_focusOrder.Rebuild (m_activeTab); });
+    m_tabs.SetOnChange ([this] (int idx) { SetActiveTab (idx); });
     m_tabs.SetDpi (dpi);
 
     pageRect.left   = m_panelRect.left   + pad;
@@ -1138,8 +1153,12 @@ void SettingsPanel::OnLButtonUp (int x, int y)
 
 bool SettingsPanel::OnKey (WPARAM vk)
 {
-    bool  shiftHeld = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
-    bool  ctrlHeld  = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
+    bool            shiftHeld = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
+    bool            ctrlHeld  = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
+    IDxuiControl  * focused   = nullptr;
+    DxuiFocusKey    arrowKey  = DxuiFocusKey::Tab;
+    bool            isArrow   = false;
+
 
 
     if (!m_panelVisible)
@@ -1158,24 +1177,12 @@ bool SettingsPanel::OnKey (WPARAM vk)
         return m_colorPicker.OnKey (vk);
     }
 
-    // Open dropdowns take priority — Up/Down/Enter/Esc steer the menu
-    // rather than the panel-level focus list.
-    if (m_focusOrder.AnyDropdownOpenOnActivePage (m_activeTab))
-    {
-        switch ((TabIndex) m_activeTab)
-        {
-            case TabIndex::Machine:  if (m_machinePage.OnKey (MakeKeyDown (vk))) { return true; } break;
-            default: break;
-        }
-    }
-
-    // Ctrl+Tab / Ctrl+Shift+Tab cycle through the tab pages regardless
-    // of which widget currently owns focus inside the page. Matches the
-    // Windows convention used by browser tabs, VS document tabs, etc.
+    // Ctrl+Tab / Ctrl+Shift+Tab cycle the tab pages regardless of which
+    // widget owns focus. Matches the browser / VS document-tab convention.
     if (vk == VK_TAB && ctrlHeld)
     {
         constexpr int  s_kTabCount = 4;
-        int            next       = m_activeTab + (shiftHeld ? -1 : 1);
+        int            next        = m_activeTab + (shiftHeld ? -1 : 1);
 
         if (next < 0)
         {
@@ -1185,21 +1192,39 @@ bool SettingsPanel::OnKey (WPARAM vk)
         {
             next = 0;
         }
-
-        m_activeTab = next;
-        m_tabs.SetSelected (m_activeTab);
-        m_focusOrder.Rebuild (m_activeTab);
+        SetActiveTab (next);
         return true;
     }
 
-    if (vk == VK_TAB && m_uiShell != nullptr)
+    // Tab / Shift+Tab: automatic focus traversal over the active page's
+    // visible focusables (the framework tree walk) -- no per-page list.
+    if (vk == VK_TAB)
     {
-        FocusKey  fk = shiftHeld ? FocusKey::ShiftTab : FocusKey::Tab;
+        m_focusMgr.HandleKey (shiftHeld ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
+        return true;
+    }
 
-        if (m_uiShell->Focus().HandleKey (fk))
-        {
-            m_focusOrder.SyncToWidgets();
-        }
+    // Activation / value keys go to the focused control first: a focused
+    // slider consumes arrows (value), a focused dropdown steers its open
+    // menu, a focused button / toggle activates on Enter / Space, and a
+    // focused tab strip changes tab on Left / Right (firing SetActiveTab).
+    focused = m_focusMgr.Focused();
+    if (focused != nullptr && focused->OnKey (MakeKeyDown (vk)))
+    {
+        return true;
+    }
+
+    // Unconsumed arrows fall through to spatial focus navigation.
+    switch (vk)
+    {
+        case VK_UP:    arrowKey = DxuiFocusKey::ArrowUp;    isArrow = true; break;
+        case VK_DOWN:  arrowKey = DxuiFocusKey::ArrowDown;  isArrow = true; break;
+        case VK_LEFT:  arrowKey = DxuiFocusKey::ArrowLeft;  isArrow = true; break;
+        case VK_RIGHT: arrowKey = DxuiFocusKey::ArrowRight; isArrow = true; break;
+        default:       break;
+    }
+    if (isArrow && m_focusMgr.HandleKey (arrowKey))
+    {
         return true;
     }
 
@@ -1209,18 +1234,52 @@ bool SettingsPanel::OnKey (WPARAM vk)
         return true;
     }
 
-    switch ((TabIndex) m_activeTab)
-    {
-        case TabIndex::Machine:  if (m_machinePage.OnKey  (MakeKeyDown (vk))) { return true; } break;
-        case TabIndex::Hardware: if (m_hardwarePage.OnKey (MakeKeyDown (vk))) { return true; } break;
-        case TabIndex::Theme:    if (m_themePage.OnKey    (MakeKeyDown (vk))) { return true; } break;
-        case TabIndex::Display:  if (m_displayPage.OnKey  (MakeKeyDown (vk))) { return true; } break;
-    }
+    return false;
+}
 
-    if (m_applyButton.OnKey  (vk)) { return true; }
-    if (m_cancelButton.OnKey (vk)) { return true; }
 
-    return m_tabs.OnKey (vk);
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetActiveTab
+//
+//  Switches the active tab page: updates the tab strip, hides the other
+//  pages (so the focus tree walk only sees the active page's controls),
+//  and rebuilds the automatic tab order. Keeps whatever control is still
+//  in the order focused (e.g. the tab strip).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::SetActiveTab (int tab)
+{
+    m_activeTab = tab;
+    m_tabs.SetSelected (tab);
+    UpdatePageVisibility();
+    m_focusMgr.Rebuild();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdatePageVisibility
+//
+//  Only the active page is visible in the control tree. The panel still
+//  paints / routes input via its per-tab switch, but hiding the inactive
+//  pages keeps DxuiFocusManager's tree walk scoped to the active page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::UpdatePageVisibility ()
+{
+    m_machinePage.SetVisible  ((TabIndex) m_activeTab == TabIndex::Machine);
+    m_hardwarePage.SetVisible ((TabIndex) m_activeTab == TabIndex::Hardware);
+    m_themePage.SetVisible    ((TabIndex) m_activeTab == TabIndex::Theme);
+    m_displayPage.SetVisible  ((TabIndex) m_activeTab == TabIndex::Display);
 }
 
 

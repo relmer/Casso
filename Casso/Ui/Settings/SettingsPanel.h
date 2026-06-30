@@ -8,7 +8,6 @@
 #include "MachinePage.h"
 #include "SettingsApplyController.h"
 #include "SettingsDisplayCrtBridge.h"
-#include "SettingsFocusOrderManager.h"
 #include "SettingsMachineCatalog.h"
 #include "SettingsPanelState.h"
 #include "SettingsPreviewController.h"
@@ -16,6 +15,7 @@
 #include "SettingsWindow.h"
 
 #include "Core/DxuiPanel.h"
+#include "Core/DxuiFocusManager.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiModalScrim.h"
 #include "Widgets/DxuiTabStrip.h"
@@ -147,6 +147,8 @@ private:
     void  OnThemeSelected             (const std::string & themeName);
     void  OnApplyClicked              ();
     void  OnCancelClicked             ();
+    void  SetActiveTab                (int tab);
+    void  UpdatePageVisibility        ();
     void  StartPreview                (int focus, bool keyboardMode);
     void  EndPreview                  ();
     void  AuditionDriveSound          (int drive, int kind, bool centered);
@@ -166,7 +168,7 @@ private:
     SettingsDisplayCrtBridge  m_crt;
     SettingsMachineCatalog    m_catalog;
     SettingsApplyController   m_apply;
-    SettingsFocusOrderManager m_focusOrder;
+    DxuiFocusManager          m_focusMgr;
     SettingsWindow      m_window;
     // Bespoke visibility flag distinct from IDxuiControl::m_visible
     // (which is inherited from DxuiPanel and stays at its default of
