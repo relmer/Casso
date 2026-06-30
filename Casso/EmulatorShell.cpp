@@ -141,27 +141,6 @@ static constexpr int     s_kChromeFocusCount         = 10;
 
 namespace
 {
-    bool SystemButtonFromHitTest (LRESULT hitTest, SystemButton & outButton)
-    {
-        switch (hitTest)
-        {
-            case HTMINBUTTON:
-                outButton = SystemButton::Minimize;
-                return true;
-
-            case HTMAXBUTTON:
-                outButton = SystemButton::Maximize;
-                return true;
-
-            case HTCLOSE:
-                outButton = SystemButton::Close;
-                return true;
-        }
-
-        return false;
-    }
-
-
     void LayoutDriveWidgetsInCommandBar (
         std::array<DriveWidget, 2>  & driveChrome,
         const LayoutManagerResult    & layout,
@@ -497,14 +476,14 @@ EmulatorShell::~EmulatorShell()
     m_driveWidgets.UnloadDocument();
     m_mainMenu.Hide();
     m_mainMenu.SetPopupHost (nullptr);
-    m_titleBar.Hide();
 
     // Drop the host's adopted-chrome references before the chrome
     // members or m_host itself go out of scope. The chrome controls
-    // (m_titleBar, m_mainMenu, m_driveChrome, m_joystickButton) are
-    // raw-pointer-registered into m_host->Root() via DxuiPanel::Adopt;
-    // releasing the adoption here keeps the panel from ever holding
-    // a dangling pointer during the field-by-field destruction below.
+    // (m_mainMenu, m_driveChrome, m_joystickButton) are raw-pointer-
+    // registered into m_host->Root() via DxuiPanel::Adopt; releasing
+    // the adoption here keeps the panel from ever holding a dangling
+    // pointer during the field-by-field destruction below. (The caption
+    // is host-owned, not adopted, so it is not in this set.)
     if (m_host)
     {
         m_host->Root().ClearAdopted();
@@ -675,7 +654,9 @@ HRESULT EmulatorShell::Initialize (
 
 
         IGNORE_RETURN_VALUE (hrUi, S_OK);
-        m_uiShell.SetChrome (&m_titleBar, &m_mainMenu, &m_driveChrome, &m_chromeTheme);
+        // The caption is host-owned now; UiShell no longer drives a
+        // TitleBar (its legacy Render path is dead). Pass nullptr.
+        m_uiShell.SetChrome (nullptr, &m_mainMenu, &m_driveChrome, &m_chromeTheme);
         m_uiShell.SetJoystickButton (&m_joystickButton, &m_joystickTooltip);
 
         // Inject the shared text renderer into chrome controls that
@@ -5260,124 +5241,22 @@ void EmulatorShell::OnDpiChanged (UINT newDpi)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ClassifyHitForLegacyChrome
-//
-//  Bespoke NC hit-test classifier for the legacy chrome surfaces
-//  (TitleBar + system-button rect cache). Plugged into the
-//  DxuiHostWindow via SetHitTestDelegate so the adopt-mode shim
-//  consults it before falling back to the framework resize-edge
-//  classifier. Operates in screen coordinates; converts to client
-//  on the way to DxuiTitleBarHitTest.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LRESULT EmulatorShell::ClassifyHitForLegacyChrome (POINT ptScreen)
-{
-    static constexpr int  s_kMinResizeBorderPx = 8;
-
-    POINT                 pt       = ptScreen;
-    RECT                  rcClient = {};
-    RECT                  rcTitle  = {};
-    RECT                  rcMin    = {};
-    RECT                  rcMax    = {};
-    RECT                  rcClose  = {};
-    DxuiTitleBarHitTestInput  in   = {};
-    LRESULT               result   = HTNOWHERE;
-    UINT                  dpi      = 0;
-    int                   framePx  = 0;
-    int                   padPx    = 0;
-    int                   borderPx = 0;
-
-
-
-    if (m_hwnd == nullptr)
-    {
-        return HTNOWHERE;
-    }
-
-    if (!ScreenToClient (m_hwnd, &pt))
-    {
-        return HTNOWHERE;
-    }
-
-    if (!GetClientRect (m_hwnd, &rcClient))
-    {
-        return HTNOWHERE;
-    }
-
-    rcTitle = m_titleBar.GetTitleBarRect();
-    rcMin   = m_titleBar.GetButtonRect (SystemButton::Minimize);
-    rcMax   = m_titleBar.GetButtonRect (SystemButton::Maximize);
-    rcClose = m_titleBar.GetButtonRect (SystemButton::Close);
-
-    dpi      = GetDpiForWindow (m_hwnd);
-    framePx  = GetSystemMetricsForDpi (SM_CXSIZEFRAME, dpi);
-    padPx    = GetSystemMetricsForDpi (SM_CXPADDEDBORDER, dpi);
-    borderPx = framePx + padPx;
-    if (borderPx < s_kMinResizeBorderPx)
-    {
-        borderPx = s_kMinResizeBorderPx;
-    }
-
-    in.clientWidth   = rcClient.right - rcClient.left;
-    in.clientHeight  = rcClient.bottom - rcClient.top;
-    in.mouseX        = pt.x;
-    in.mouseY        = pt.y;
-    in.titleLeft     = rcTitle.left;
-    in.titleTop      = rcTitle.top;
-    in.titleRight    = rcTitle.right;
-    in.titleBottom   = rcTitle.bottom;
-    in.minLeft       = rcMin.left;     in.minTop    = rcMin.top;
-    in.minRight      = rcMin.right;    in.minBottom = rcMin.bottom;
-    in.maxLeft       = rcMax.left;     in.maxTop    = rcMax.top;
-    in.maxRight      = rcMax.right;    in.maxBottom = rcMax.bottom;
-    in.closeLeft     = rcClose.left;   in.closeTop  = rcClose.top;
-    in.closeRight    = rcClose.right;  in.closeBottom = rcClose.bottom;
-    in.resizeBorderPx = borderPx;
-
-    result = DxuiTitleBarHitTest::Test (in);
-
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OnNcMouseMove
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult EmulatorShell::OnNcMouseMove (LRESULT hitTest, int xScreen, int yScreen)
 {
-    POINT         pt     = { xScreen, yScreen };
-    SystemButton  button = SystemButton::Minimize;
+    (void) hitTest;
+    (void) xScreen;
+    (void) yScreen;
 
-
-
-    if (!SystemButtonFromHitTest (hitTest, button))
-    {
-        // Cursor is over the title bar / caption (non-client) and not
-        // on a system button. Clear hover on both the caption buttons
-        // AND the menu strip: when the pointer leaves the menu upward
-        // into the caption the client mouse-move stream stops, so this
-        // is the only signal that drops a latched menu hover.
-        m_titleBar.ClearHover();
-        m_mainMenu.ClearHover();
-        InvalidateRect (m_hwnd, nullptr, FALSE);
-        return DxuiMessageResult::NotHandled;
-    }
-
-    if (ScreenToClient (m_hwnd, &pt))
-    {
-        bool  leftDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
-
-        m_titleBar.SetMousePosition (pt.x, pt.y, leftDown);
-        InvalidateRect (m_hwnd, nullptr, FALSE);
-    }
-
+    // The host owns caption / system-button hover now. Our only stake in
+    // a non-client move is dropping a latched menu hover: when the
+    // pointer leaves the menu upward into the caption the client
+    // mouse-move stream stops, so this is the one signal that clears it.
+    m_mainMenu.ClearHover();
+    InvalidateRect (m_hwnd, nullptr, FALSE);
     return DxuiMessageResult::NotHandled;
 }
 
@@ -5392,8 +5271,7 @@ DxuiMessageResult EmulatorShell::OnNcMouseMove (LRESULT hitTest, int xScreen, in
 
 DxuiMessageResult EmulatorShell::OnNcMouseLeave()
 {
-    m_titleBar.ClearHover();
-    InvalidateRect (m_hwnd, nullptr, FALSE);
+    // Caption-button hover teardown is the host's job; nothing to do here.
     return DxuiMessageResult::NotHandled;
 }
 
@@ -5408,35 +5286,20 @@ DxuiMessageResult EmulatorShell::OnNcMouseLeave()
 
 DxuiMessageResult EmulatorShell::OnNcLButtonDown (LRESULT hitTest, int xScreen, int yScreen)
 {
-    POINT         pt     = { xScreen, yScreen };
-    SystemButton  button = SystemButton::Minimize;
+    (void) hitTest;
+    (void) xScreen;
+    (void) yScreen;
 
-
-
-    if (!SystemButtonFromHitTest (hitTest, button))
-    {
-        // Any non-client press (caption drag, system menu, snap) still
-        // dismisses an open menu -- its popup is anchored to the window
-        // and a move / system action would strand it.
-        if (m_mainMenu.IsOpen())
-        {
-            m_mainMenu.Hide();
-        }
-        return DxuiMessageResult::NotHandled;
-    }
-
+    // Any non-client press (caption drag, system button, system menu,
+    // snap) dismisses an open menu -- its popup is anchored to the window
+    // and a move / system action would strand it. The host then routes
+    // the press to its own DxuiSystemButton (press state) or to
+    // DefWindowProc (caption drag), so we never claim the message.
     if (m_mainMenu.IsOpen())
     {
         m_mainMenu.Hide();
     }
-
-    if (ScreenToClient (m_hwnd, &pt))
-    {
-        m_titleBar.SetMousePosition (pt.x, pt.y, true);
-        InvalidateRect (m_hwnd, nullptr, FALSE);
-    }
-
-    return DxuiMessageResult::Handled;
+    return DxuiMessageResult::NotHandled;
 }
 
 
@@ -5446,45 +5309,17 @@ DxuiMessageResult EmulatorShell::OnNcLButtonDown (LRESULT hitTest, int xScreen, 
 //
 //  OnNcLButtonUp
 //
-//  Dispatch system-button clicks. HTCLOSE → WM_CLOSE,
-//  HTMINBUTTON → minimize, HTMAXBUTTON → toggle maximize. Everything
-//  else falls through to DefWindowProc so caption double-clicks,
-//  system-menu, snap layouts, etc. all keep working.
+//  System-button clicks (min / max / close) dispatch through the host's
+//  DxuiSystemButton children; caption double-clicks, the system menu,
+//  and snap layouts fall through to DefWindowProc. Nothing to claim here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult EmulatorShell::OnNcLButtonUp (LRESULT hitTest, int xScreen, int yScreen)
 {
-    POINT            pt = { xScreen, yScreen };
-    WINDOWPLACEMENT  wp = { sizeof (wp) };
-
-
-
-    if (ScreenToClient (m_hwnd, &pt))
-    {
-        m_titleBar.SetMousePosition (pt.x, pt.y, false);
-        InvalidateRect (m_hwnd, nullptr, FALSE);
-    }
-
-    switch (hitTest)
-    {
-        case HTCLOSE:
-            PostMessage (m_hwnd, WM_CLOSE, 0, 0);
-            return DxuiMessageResult::Handled;
-
-        case HTMINBUTTON:
-            ShowWindow (m_hwnd, SW_MINIMIZE);
-            return DxuiMessageResult::Handled;
-
-        case HTMAXBUTTON:
-            if (GetWindowPlacement (m_hwnd, &wp))
-            {
-                ShowWindow (m_hwnd,
-                            (wp.showCmd == SW_MAXIMIZE) ? SW_RESTORE : SW_MAXIMIZE);
-            }
-            return DxuiMessageResult::Handled;
-    }
-
+    (void) hitTest;
+    (void) xScreen;
+    (void) yScreen;
     return DxuiMessageResult::NotHandled;
 }
 
