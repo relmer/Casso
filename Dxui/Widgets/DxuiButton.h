@@ -23,9 +23,11 @@ public:
 
     // Visual variant. Default uses the theme's neutral button tokens;
     // Primary fills with the theme accent (darkened to a WCAG 4.5:1
-    // contrast against its white label). A button cannot be given an
-    // arbitrary, non-theme color -- every fill derives from IDxuiTheme.
-    enum class Variant { Default, Primary };
+    // contrast against its white label). Link renders as accent-colored
+    // text with no fill/border (a clickable hyperlink); the consumer wires
+    // SetClick to open the URL. A button cannot be given an arbitrary,
+    // non-theme color -- every fill/text derives from IDxuiTheme.
+    enum class Variant { Default, Primary, Link };
     void  SetVariant      (Variant variant) { m_variant = variant; }
     // Emphasizes a Default button (e.g. a dialog's default action) with a
     // themed accent outline, without promoting it to Primary.

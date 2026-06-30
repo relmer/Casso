@@ -121,6 +121,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
     constexpr float     s_kPrimaryTextRatio = 4.5f;
     constexpr float     s_kPrimaryHover     = 0.12f;
     constexpr float     s_kPrimaryPressed   = 0.82f;
+    constexpr float     s_kLinkHover        = 0.25f;
 
     HRESULT  hr           = S_OK;
     uint32_t idle         = theme.ButtonIdle();
@@ -136,6 +137,48 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
 
     if (!m_visible)
     {
+        return;
+    }
+
+    //
+    //  Link variant: accent-colored text, no fill / border, left-aligned
+    //  (a clickable hyperlink). The consumer wires SetClick to open the URL.
+    //
+    if (m_variant == Variant::Link)
+    {
+        uint32_t  linkColor = theme.Accent();
+
+        if (m_hover || m_pressed)
+        {
+            linkColor = DxuiColor::Lighten (linkColor, s_kLinkHover);
+        }
+
+        if (!m_enabled)
+        {
+            linkColor = (linkColor & s_kDisabledMask);
+        }
+
+        IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.c_str(),
+                                                  (float) m_boundsDip.left,
+                                                  (float) m_boundsDip.top,
+                                                  (float) (m_boundsDip.right  - m_boundsDip.left),
+                                                  (float) (m_boundsDip.bottom - m_boundsDip.top),
+                                                  linkColor,
+                                                  fontDip,
+                                                  DxuiTheme::kBodyFace,
+                                                  DxuiTextHAlign::Left,
+                                                  DxuiTextVAlign::Center));
+
+        if (m_focused)
+        {
+            painter.OutlineRect ((float) m_boundsDip.left + m_scaler.Pxf (s_kFocusInsetPx),
+                                 (float) m_boundsDip.top  + m_scaler.Pxf (s_kFocusInsetPx),
+                                 (float) (m_boundsDip.right  - m_boundsDip.left) - m_scaler.Pxf (s_kFocusInsetPx) * 2.0f,
+                                 (float) (m_boundsDip.bottom - m_boundsDip.top)  - m_scaler.Pxf (s_kFocusInsetPx) * 2.0f,
+                                 m_scaler.Pxf (s_kFocusRingPx),
+                                 theme.FocusRing());
+        }
+
         return;
     }
 

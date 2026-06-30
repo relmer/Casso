@@ -262,6 +262,7 @@
     <ClCompile Include="Ui\UiShell.cpp" />
     <ClCompile Include="Ui\ColorUtil.cpp" />
     <ClCompile Include="Ui\Chrome\DriveLabelTruncation.cpp" />
+    <ClCompile Include="Ui\Dialog\DialogBodyContent.cpp" />
     <ClCompile Include="Ui\Dialog\DialogLayout.cpp" />
     <ClCompile Include="Ui\Dialog\DialogPrimitive.cpp" />
     <ClCompile Include="Ui\Dialog\DialogPrimitiveRenderer.cpp" />
@@ -297,6 +298,7 @@
     <ClInclude Include="Ui\Chrome\ChromeMetrics.h" />
     <ClInclude Include="Ui\Chrome\DriveLabelTruncation.h" />
     <ClInclude Include="Ui\Dialog\DialogDefinition.h" />
+    <ClInclude Include="Ui\Dialog\DialogBodyContent.h" />
     <ClInclude Include="Ui\Dialog\DialogLayout.h" />
     <ClInclude Include="Ui\Dialog\DialogPrimitive.h" />
     <ClInclude Include="Ui\Dialog\DialogPrimitiveRenderer.h" />
