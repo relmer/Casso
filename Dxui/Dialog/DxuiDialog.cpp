@@ -283,25 +283,15 @@ void DxuiDialog::Build()
 //
 //  DxuiDialog::Layout
 //
-//  The host lays the dialog (root) out in DIP, but the dialog's leaf
-//  widgets paint their bounds as physical pixels. Convert the incoming
-//  DIP rect to px and scale the fixed caption / button-row slab heights
-//  so the dock arranges in pixel space and the content fills the whole
-//  physical client region.
+//  The host now lays the dialog (root) out in physical pixels. The fixed
+//  caption / button-row slab heights are authored in DIP, so scale them to
+//  px here before the dock arranges; the incoming bounds pass through.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDialog::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+void DxuiDialog::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
-    RECT  px = {};
-
-
     DXUI_ASSERT_UI_THREAD();
-
-    px.left   = scaler.Px ((int) boundsDip.left);
-    px.top    = scaler.Px ((int) boundsDip.top);
-    px.right  = scaler.Px ((int) boundsDip.right);
-    px.bottom = scaler.Px ((int) boundsDip.bottom);
 
     if (m_caption != nullptr)
     {
@@ -313,7 +303,7 @@ void DxuiDialog::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         m_buttonRow->SetBounds ({ 0, 0, 0, scaler.Px ((int) s_kButtonRowHeightDip) });
     }
 
-    DxuiPanel::Layout (px, scaler);
+    DxuiPanel::Layout (boundsPx, scaler);
 }
 
 
