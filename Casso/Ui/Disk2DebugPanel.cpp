@@ -3,7 +3,7 @@
 #include "Disk2DebugPanel.h"
 
 #include "Chrome/CassoTheme.h"
-#include "Chrome/TitleBar.h"
+#include "Window/DxuiHostWindow.h"
 
 #include "../DebugDialogProjection.h"
 
@@ -367,9 +367,9 @@ HRESULT Disk2DebugPanel::Render()
     CHRA (hr);
 
     visual.dpi = m_dpi;
-    if (m_titleBar != nullptr && m_theme != nullptr)
+    if (m_captionHost != nullptr && m_theme != nullptr)
     {
-        m_titleBar->Paint (m_painter, m_text, *m_theme);
+        m_captionHost->RenderCaption (m_painter, m_text, *m_theme);
     }
 
     if (m_theme != nullptr)
@@ -524,7 +524,7 @@ HRESULT Disk2DebugPanel::OnHostCreated (
     int                    widthPx,
     int                    heightPx,
     UINT                   dpi,
-    TitleBar             * titleBar,
+    DxuiHostWindow       * captionHost,
     const CassoTheme    * theme)
 {
     HRESULT  hr = S_OK;
@@ -540,7 +540,7 @@ HRESULT Disk2DebugPanel::OnHostCreated (
     m_widthPx  = std::max (1, widthPx);
     m_heightPx = std::max (1, heightPx);
     m_dpi      = dpi;
-    m_titleBar = titleBar;
+    m_captionHost = captionHost;
     m_theme    = theme;
 
     hr = EnsureSwapChain();
@@ -593,7 +593,7 @@ void Disk2DebugPanel::OnHostDestroyed()
     ReleaseRenderTargets();
     m_swapChain.Reset();
     m_hwnd     = nullptr;
-    m_titleBar = nullptr;
+    m_captionHost = nullptr;
 }
 
 
@@ -646,9 +646,9 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2DebugPanel::SetChromeTheme (TitleBar * titleBar, const CassoTheme * theme)
+void Disk2DebugPanel::SetChromeTheme (DxuiHostWindow * captionHost, const CassoTheme * theme)
 {
-    m_titleBar = titleBar;
+    m_captionHost = captionHost;
     m_theme    = theme;
     RecomputeLayout();
 }
@@ -1729,9 +1729,9 @@ void Disk2DebugPanel::RecomputeLayout()
     int  titleHeight = 0;
 
 
-    if (m_titleBar != nullptr)
+    if (m_captionHost != nullptr)
     {
-        titleHeight = m_titleBar->GetTitleHeight();
+        titleHeight = m_captionHost->CaptionHeightPx();
     }
 
     m_layout = ComputeDisk2DebugPanelLayout (m_widthPx, m_heightPx, titleHeight, m_dpi);

@@ -4,9 +4,7 @@
 
 #include "IChromedPanelContent.h"
 #include "CassoTheme.h"
-#include "TitleBar.h"
-
-#include "Core/DxuiTitleBarHitTest.h"
+#include "Window/DxuiCaptionBar.h"
 #include "Window/DxuiHostWindow.h"
 
 #include "../../resource.h"
@@ -293,8 +291,6 @@ HRESULT ChromedPanelWindow::Create (
     ok = SetWindowTextW (hwndCreated, title);
     CWRA (ok);
 
-    m_titleBar.SetTitle (title);
-
     ShowWindow (hwndCreated, SW_SHOWNORMAL);
     SetForegroundWindow (hwndCreated);
     SetFocus (hwndCreated);
@@ -348,7 +344,7 @@ void ChromedPanelWindow::SetTheme (const CassoTheme * theme)
     m_theme = theme;
     if (m_content != nullptr)
     {
-        m_content->SetChromeTheme (&m_titleBar, m_theme);
+        m_content->SetChromeTheme (m_hostWindow.get(), m_theme);
     }
 
     if (m_hwnd != nullptr)
@@ -479,19 +475,12 @@ LRESULT ChromedPanelWindow::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPA
             break;
 
         case WM_NCLBUTTONDOWN:
-            OnNcMouse (message, wParam, lParam);
-            if (OnNcLButtonDown (hwnd, (LRESULT) wParam))
-            {
-                result = 0;
-                break;
-            }
-            result = DefWindowProcW (hwnd, message, wParam, lParam);
-            break;
-
         case WM_NCLBUTTONUP:
         case WM_NCMOUSEMOVE:
         case WM_NCMOUSELEAVE:
-            OnNcMouse (message, wParam, lParam);
+            // Caption system-button NC mouse is consumed by the host
+            // (HandleMessage) above; anything here is caption drag /
+            // system menu and belongs to DefWindowProc.
             result = DefWindowProcW (hwnd, message, wParam, lParam);
             break;
 
@@ -609,15 +598,14 @@ HRESULT ChromedPanelWindow::OnCreate (HWND hwnd)
     CWRA (ok);
 
     dpi = GetDpiForWindow (m_hwnd);
-    m_titleBar.UpdateGeometry (rc.right - rc.left, dpi);
 
-    // Stand up the DxuiHostWindow in adopt mode. The HWND, swap
-    // chain, and rendering pipeline stay owned by ChromedPanelWindow
-    // and its IChromedPanelContent; the host takes over WM_NCCALCSIZE
-    // and WM_NCHITTEST classification (with the legacy TitleBar
-    // classifier plugged in via SetHitTestDelegate) and observes DPI
-    // / theme messages for tree-side propagation.
-    hostParams.title           = L"";
+    // Stand up the DxuiHostWindow in adopt mode. The HWND, swap chain,
+    // and rendering pipeline stay owned by ChromedPanelWindow and its
+    // IChromedPanelContent; the host takes over WM_NCCALCSIZE /
+    // WM_NCHITTEST classification and owns the caption (title + icon +
+    // min/max/close) -- the content paints it via host->RenderCaption
+    // and the host routes its NC mouse.
+    hostParams.title           = (m_content != nullptr) ? m_content->GetWindowTitle() : L"";
     hostParams.hInstance       = m_hInstance;
     hostParams.ownerHwnd       = m_hwndOwner;
     hostParams.borderless      = true;
@@ -626,14 +614,10 @@ HRESULT ChromedPanelWindow::OnCreate (HWND hwnd)
     hostParams.darkMode        = true;
     hostParams.backdrop        = DxuiHostWindowBackdrop::None;
     hostParams.resizeBorderDip = 6.0f;
+    hostParams.captionStyle    = DxuiCaptionStyle::Standard;
 
     hr = DxuiHostWindow::CreateInAdoptMode (m_hwnd, hostParams, m_hostWindow);
     CHRA (hr);
-
-    m_hostWindow->SetHitTestDelegate ([this] (POINT ptScreen) -> LRESULT
-    {
-        return this->ClassifyHitForLegacyChrome (ptScreen);
-    });
 
     // Wire the renderer's device into the host popup pool so content
     // right-click menus get real composition-swap-chain popups
@@ -644,7 +628,7 @@ HRESULT ChromedPanelWindow::OnCreate (HWND hwnd)
 
     if (LoadIconAsPremulBgra (m_hInstance, IDI_CASSO, s_kIconSizePx, iconPixels, iconW, iconH))
     {
-        m_titleBar.SetAppIcon (std::move (iconPixels), iconW, iconH);
+        m_hostWindow->SetCaptionIcon (std::move (iconPixels), iconW, iconH);
     }
 
     CBRA (m_content);
@@ -654,7 +638,7 @@ HRESULT ChromedPanelWindow::OnCreate (HWND hwnd)
                                    rc.right - rc.left,
                                    rc.bottom - rc.top,
                                    dpi,
-                                   &m_titleBar,
+                                   m_hostWindow.get(),
                                    m_theme);
     CHRA (hr);
 
@@ -708,8 +692,11 @@ void ChromedPanelWindow::OnSize (int widthPx, int heightPx)
     BAIL_OUT_IF (m_hwnd == nullptr || m_content == nullptr, S_OK);
 
     dpi = GetDpiForWindow (m_hwnd);
-    m_titleBar.UpdateGeometry (widthPx, dpi);
-    m_titleBar.SetMaximized (IsZoomed (m_hwnd) != FALSE);
+    if (m_hostWindow)
+    {
+        RECT  cr = { 0, 0, widthPx, heightPx };
+        m_hostWindow->LayoutCaptionForClient (cr);
+    }
     hr  = m_content->OnHostResize (widthPx, heightPx, dpi);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -753,7 +740,11 @@ void ChromedPanelWindow::OnDpiChanged (UINT dpi, const RECT & suggestedRect)
                        SWP_NOZORDER | SWP_NOACTIVATE);
     CWRA (ok);
 
-    m_titleBar.UpdateGeometry (suggestedRect.right - suggestedRect.left, dpi);
+    if (m_hostWindow)
+    {
+        RECT  cr = { 0, 0, suggestedRect.right - suggestedRect.left, suggestedRect.bottom - suggestedRect.top };
+        m_hostWindow->LayoutCaptionForClient (cr);
+    }
 
     hr = m_content->OnHostResize (suggestedRect.right  - suggestedRect.left,
                                   suggestedRect.bottom - suggestedRect.top,
@@ -806,165 +797,6 @@ void ChromedPanelWindow::OnGetMinMax (MINMAXINFO * minMaxInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ClassifyHitForLegacyChrome
-//
-//  Bespoke NC hit-test classifier for the legacy TitleBar surfaces.
-//  Plugged into the DxuiHostWindow via SetHitTestDelegate so the
-//  adopt-mode shim consults it before falling back to the framework
-//  resize-edge classifier. Operates in screen coordinates; converts
-//  to client on the way to DxuiTitleBarHitTest.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LRESULT ChromedPanelWindow::ClassifyHitForLegacyChrome (POINT ptScreen)
-{
-    POINT                 pt       = ptScreen;
-    RECT                  rcClient = {};
-    RECT                  rcTitle  = {};
-    RECT                  rcMin    = {};
-    RECT                  rcMax    = {};
-    RECT                  rcClose  = {};
-    DxuiTitleBarHitTestInput  in   = {};
-    UINT                  dpi      = s_kBaseDpi;
-    int                   framePx  = 0;
-    int                   padPx    = 0;
-    int                   borderPx = 0;
-
-
-
-    if (m_hwnd == nullptr)
-    {
-        return HTNOWHERE;
-    }
-
-    if (!ScreenToClient (m_hwnd, &pt))
-    {
-        return HTNOWHERE;
-    }
-
-    if (!GetClientRect (m_hwnd, &rcClient))
-    {
-        return HTNOWHERE;
-    }
-
-    rcTitle = m_titleBar.GetTitleBarRect();
-    rcMin   = m_titleBar.GetButtonRect (SystemButton::Minimize);
-    rcMax   = m_titleBar.GetButtonRect (SystemButton::Maximize);
-    rcClose = m_titleBar.GetButtonRect (SystemButton::Close);
-
-    dpi      = GetDpiForWindow (m_hwnd);
-    framePx  = GetSystemMetricsForDpi (SM_CXSIZEFRAME, dpi);
-    padPx    = GetSystemMetricsForDpi (SM_CXPADDEDBORDER, dpi);
-    borderPx = framePx + padPx;
-    if (borderPx < s_kMinResizeBorderPx)
-    {
-        borderPx = s_kMinResizeBorderPx;
-    }
-
-    in.clientWidth    = rcClient.right - rcClient.left;
-    in.clientHeight   = rcClient.bottom - rcClient.top;
-    in.mouseX         = pt.x;
-    in.mouseY         = pt.y;
-    in.titleLeft      = rcTitle.left;
-    in.titleTop       = rcTitle.top;
-    in.titleRight     = rcTitle.right;
-    in.titleBottom    = rcTitle.bottom;
-    in.minLeft        = rcMin.left;     in.minTop       = rcMin.top;
-    in.minRight       = rcMin.right;    in.minBottom    = rcMin.bottom;
-    in.maxLeft        = rcMax.left;     in.maxTop       = rcMax.top;
-    in.maxRight       = rcMax.right;    in.maxBottom    = rcMax.bottom;
-    in.closeLeft      = rcClose.left;   in.closeTop     = rcClose.top;
-    in.closeRight     = rcClose.right;  in.closeBottom  = rcClose.bottom;
-    in.resizeBorderPx = borderPx;
-
-    return DxuiTitleBarHitTest::Test (in);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnNcLButtonDown
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ChromedPanelWindow::OnNcLButtonDown (HWND hwnd, LRESULT hitTest)
-{
-    WPARAM  command = 0;
-
-
-
-    switch (hitTest)
-    {
-        case HTCLOSE:
-            command = SC_CLOSE;
-            break;
-
-        case HTMINBUTTON:
-            command = SC_MINIMIZE;
-            break;
-
-        case HTMAXBUTTON:
-            command = IsZoomed (hwnd) ? SC_RESTORE : SC_MAXIMIZE;
-            break;
-
-        default:
-            return false;
-    }
-
-    PostMessageW (hwnd, WM_SYSCOMMAND, command, 0);
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnNcMouse
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ChromedPanelWindow::OnNcMouse (UINT message, WPARAM wParam, LPARAM lParam)
-{
-    POINT  pt       = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
-    bool   leftDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
-
-
-
-    if (message == WM_NCMOUSELEAVE)
-    {
-        pt.x     = -1;
-        pt.y     = -1;
-        leftDown = false;
-    }
-    else
-    {
-        ScreenToClient (m_hwnd, &pt);
-        if (message == WM_NCLBUTTONDOWN)
-        {
-            leftDown = true;
-        }
-        else if (message == WM_NCLBUTTONUP)
-        {
-            leftDown = false;
-        }
-    }
-
-    m_titleBar.SetMousePosition (pt.x, pt.y, leftDown);
-    InvalidateRect (m_hwnd, nullptr, FALSE);
-    (void) wParam;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OnMouse
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -990,8 +822,6 @@ void ChromedPanelWindow::OnMouse (UINT message, WPARAM wParam, LPARAM lParam)
         y     = pt.y;
         delta = GET_WHEEL_DELTA_WPARAM (wParam);
     }
-
-    m_titleBar.SetMousePosition (x, y, (wParam & MK_LBUTTON) != 0);
 
     if (message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK)
     {
@@ -1116,7 +946,7 @@ SIZE ChromedPanelWindow::GetPreferredClientSize (UINT dpi) const
     if (m_content != nullptr)
     {
         size = m_content->PreferredClientSize (dpi);
-        size.cy += TitleBarLayout::DefaultTitleHeight (dpi);
+        size.cy += DxuiCaptionBar::HeightPxForDpi (dpi);
     }
     return size;
 }

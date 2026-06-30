@@ -3,7 +3,7 @@
 #include "InputDebugPanel.h"
 
 #include "Chrome/CassoTheme.h"
-#include "Chrome/TitleBar.h"
+#include "Window/DxuiHostWindow.h"
 
 
 
@@ -732,7 +732,7 @@ HRESULT InputDebugPanel::OnHostCreated (
     int                    widthPx,
     int                    heightPx,
     UINT                   dpi,
-    TitleBar             * titleBar,
+    DxuiHostWindow       * captionHost,
     const CassoTheme    * theme)
 {
     HRESULT  hr = S_OK;
@@ -748,7 +748,7 @@ HRESULT InputDebugPanel::OnHostCreated (
     m_widthPx  = std::max (1, widthPx);
     m_heightPx = std::max (1, heightPx);
     m_dpi      = dpi;
-    m_titleBar = titleBar;
+    m_captionHost = captionHost;
     m_theme    = theme;
 
     hr = EnsureSwapChain();
@@ -801,7 +801,7 @@ void InputDebugPanel::OnHostDestroyed()
     ReleaseRenderTargets();
     m_swapChain.Reset();
     m_hwnd     = nullptr;
-    m_titleBar = nullptr;
+    m_captionHost = nullptr;
 }
 
 
@@ -854,9 +854,9 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InputDebugPanel::SetChromeTheme (TitleBar * titleBar, const CassoTheme * theme)
+void InputDebugPanel::SetChromeTheme (DxuiHostWindow * captionHost, const CassoTheme * theme)
 {
-    m_titleBar = titleBar;
+    m_captionHost = captionHost;
     m_theme    = theme;
     RecomputeLayout();
 }
@@ -1068,9 +1068,9 @@ void InputDebugPanel::RecomputeLayout()
     int  p         = 0;
 
 
-    if (m_titleBar != nullptr)
+    if (m_captionHost != nullptr)
     {
-        topOffset = m_titleBar->GetTitleHeight();
+        topOffset = m_captionHost->CaptionHeightPx();
     }
 
     m_emuLabel.SetDpi          (m_dpi);
@@ -1203,9 +1203,9 @@ HRESULT InputDebugPanel::Render()
     CHRA (hr);
 
     visual.dpi = m_dpi;
-    if (m_titleBar != nullptr && m_theme != nullptr)
+    if (m_captionHost != nullptr && m_theme != nullptr)
     {
-        m_titleBar->Paint (m_painter, m_text, *m_theme);
+        m_captionHost->RenderCaption (m_painter, m_text, *m_theme);
     }
 
     if (m_theme != nullptr)

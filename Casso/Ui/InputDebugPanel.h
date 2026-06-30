@@ -19,7 +19,7 @@
 
 
 struct CassoTheme;
-class TitleBar;
+class DxuiHostWindow;
 
 
 
@@ -89,11 +89,11 @@ public:
                                  int                    widthPx,
                                  int                    heightPx,
                                  UINT                   dpi,
-                                 TitleBar             * titleBar,
+                                 DxuiHostWindow       * captionHost,
                                  const CassoTheme    * theme) override;
     void     OnHostDestroyed    ()                                  override;
     HRESULT  OnHostResize       (int widthPx, int heightPx, UINT dpi) override;
-    void     SetChromeTheme     (TitleBar * titleBar, const CassoTheme * theme) override;
+    void     SetChromeTheme     (DxuiHostWindow * captionHost, const CassoTheme * theme) override;
     SIZE     PreferredClientSize (UINT dpi) const                   override;
     HRESULT  Render             ()                                  override;
     void     OnLButtonDown      (int x, int y)                      override;
@@ -194,7 +194,7 @@ private:
     ID3D11Device                        * m_device   = nullptr;
     ID3D11DeviceContext                 * m_context  = nullptr;
     const CassoTheme                   * m_theme    = nullptr;
-    TitleBar                            * m_titleBar = nullptr;
+    DxuiHostWindow                      * m_captionHost = nullptr;
     HWND                                  m_hwnd     = nullptr;
     int                                   m_widthPx  = 0;
     int                                   m_heightPx = 0;

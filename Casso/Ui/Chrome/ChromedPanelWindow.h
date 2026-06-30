@@ -2,8 +2,6 @@
 
 #include "Pch.h"
 
-#include "TitleBar.h"
-
 
 class IChromedPanelContent;
 struct CassoTheme;
@@ -55,7 +53,6 @@ public:
 
     bool       IsOpen     () const { return m_hwnd != nullptr; }
     HWND       Hwnd       () const { return m_hwnd; }
-    TitleBar & GetTitleBar()       { return m_titleBar; }
 
     //
     //  The adopt-mode DxuiHostWindow whose popup pool hosts this
@@ -73,9 +70,6 @@ private:
     void     OnSize             (int widthPx, int heightPx);
     void     OnDpiChanged       (UINT dpi, const RECT & suggestedRect);
     void     OnGetMinMax        (MINMAXINFO * minMaxInfo);
-    LRESULT  ClassifyHitForLegacyChrome (POINT ptScreen);
-    bool     OnNcLButtonDown    (HWND hwnd, LRESULT hitTest);
-    void     OnNcMouse          (UINT message, WPARAM wParam, LPARAM lParam);
     void     OnMouse            (UINT message, WPARAM wParam, LPARAM lParam);
     void     OnKeyDown          (WPARAM vk);
     void     CloseWithCancel    ();
@@ -90,7 +84,6 @@ private:
     IChromedPanelContent   * m_content   = nullptr;
     ID3D11Device           * m_device    = nullptr;
     ID3D11DeviceContext    * m_context   = nullptr;
-    TitleBar                 m_titleBar;
     const CassoTheme      * m_theme     = nullptr;
     LPCWSTR                  m_className = nullptr;
     bool                     m_hasFocus  = false;
