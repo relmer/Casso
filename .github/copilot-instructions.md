@@ -334,13 +334,23 @@ void Function2()
 - Supported platforms: x64, ARM64
 - Toolset: v145 (VS 2026)
 
-### Pre-Commit Gates
-- **ALL** tests MUST pass before committing
-- Build MUST succeed with no errors before committing
-- Each commit must leave the codebase in a compilable, tests-passing state
-- **Code analysis MUST pass** before committing: run `scripts\Build.ps1 -RunCodeAnalysis` to verify
+### Merge-to-Master Gates
+These gates apply to **`master`** — i.e. every commit that lands on `master`
+(directly or via merge/PR) MUST satisfy them. They do **NOT** apply to every
+intermediate commit on a feature branch: feature branches routinely carry many
+work-in-progress commits, and running the full build/test/analysis suite on each
+one wastes time. Validate the full gates **once, just before merging/PRing the
+branch to `master`** (and re-run after resolving merge conflicts).
+- **ALL** tests MUST pass before merging to master
+- Build MUST succeed with no errors before merging to master
+- Every commit that lands on `master` must leave the codebase compilable and tests-passing
+- **Code analysis MUST pass** before merging to master: run `scripts\Build.ps1 -RunCodeAnalysis` to verify
 - **ALWAYS** update `CHANGELOG.md` for user-visible changes (`feat`, `fix`, `perf`)
 - **ALWAYS** update `README.md` when features, test counts, or roadmap items change
+
+On a feature branch, prefer cheap, targeted validation per commit (compile the
+touched project, run the narrowest relevant tests) and defer the full suite to
+the pre-merge gate.
 
 ### Validation Suites for Significant Changes
 - Any significant changes to the **assembler** or **CPU emulator** implementation
