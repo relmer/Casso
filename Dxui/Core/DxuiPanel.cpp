@@ -377,6 +377,24 @@ void DxuiPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
         if (slot.raw->Visible())
         {
             slot.raw->Paint (painter, text, theme);
+
+#if defined (DXUI_DEBUG_BOUNDS)
+            //
+            //  Layout-debugging aid: outline every child's bounds so a
+            //  screenshot reveals exact geometry (zero-size widgets,
+            //  overflow, overlap). Compile with /D DXUI_DEBUG_BOUNDS.
+            //
+            {
+                RECT  b = slot.raw->Bounds();
+
+                painter.OutlineRect ((float) b.left,
+                                     (float) b.top,
+                                     (float) (b.right  - b.left),
+                                     (float) (b.bottom - b.top),
+                                     2.0f,
+                                     0xFFFF00FF);
+            }
+#endif
         }
     }
 }

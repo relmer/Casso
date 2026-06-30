@@ -131,6 +131,7 @@ public:
     //  Default / ActivateCancel before forwarding to children.
     //
     bool                OnKey          (const DxuiKeyEvent & ev) override;
+    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     DxuiAccessibleRole  AccessibleRole() const                  override { return DxuiAccessibleRole::Dialog; }
     std::wstring        AccessibleName() const                  override { return m_title; }
 
