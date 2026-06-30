@@ -336,13 +336,21 @@ void DxuiPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
                            std::span<IDxuiControl * const> (visibleRaw.data(), visibleRaw.size()));
     }
 
+    //
+    //  Propagate the layout pass to every visible child (not just child
+    //  panels). A layout's Arrange positions children via SetBounds, which
+    //  does NOT update a leaf widget's DPI scaler -- so DxuiLabel /
+    //  DxuiButton fonts would render at the base 96-DPI size. Calling
+    //  Layout on every child threads the real scaler down so leaf widgets
+    //  scale their text; child panels recurse as before. Layout is cheap
+    //  and idempotent (bounds were just set; this re-applies them plus the
+    //  scaler), and IDxuiControl::Layout is implemented by every control.
+    //
     for (auto & slot : m_children)
     {
-        DxuiPanel *  childPanel = dynamic_cast<DxuiPanel *> (slot.raw);
-
-        if (childPanel != nullptr && slot.raw->Visible())
+        if (slot.raw->Visible())
         {
-            childPanel->Layout (slot.raw->Bounds(), scaler);
+            slot.raw->Layout (slot.raw->Bounds(), scaler);
         }
     }
 }
