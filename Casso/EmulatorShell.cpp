@@ -1203,6 +1203,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     params.appIconBig             = hIconBig;
     params.appIconSmall           = hIconSm;
     params.createSwapChain        = true;
+    params.captionStyle           = DxuiCaptionStyle::Standard;
 
     m_host = std::make_unique<DxuiHostWindow>();
 
@@ -1218,10 +1219,11 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_hwnd = m_host->Hwnd();
     m_scaler.SetDpi (GetDpiForWindow (m_hwnd));
 
-    m_host->SetHitTestDelegate ([this] (POINT ptScreen) -> LRESULT
-    {
-        return this->ClassifyHitForLegacyChrome (ptScreen);
-    });
+    // The caption (title + icon + min/max/close) is owned and rendered
+    // by the host (CreateParams::captionStyle == Standard), which also
+    // classifies the caption / system-button / resize-edge NC hits --
+    // so no SetHitTestDelegate is installed. The host's DxuiSystemButton
+    // children dispatch min/max/close themselves.
 
     // Stand up the host root panel as a DxuiAbsoluteLayout container
     // and add a single DxuiViewport child representing the Apple ][
@@ -1237,17 +1239,14 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         this->OnViewportBoundsChanged (boundsPx);
     });
 
-    // Adopt the chrome controls (title bar / menu bar / drive widgets /
-    // joystick toggle) into the host's root panel so they participate
-    // in the host-owned paint, input, focus, theme, tick, and DPI
-    // walks. Lifetime stays with EmulatorShell (chrome controls are
-    // members); the panel just registers raw pointers. The host's
-    // WM_PAINT pump (createSwapChain = true) now paints these adopted
-    // controls on top of the Apple ][ framebuffer each frame. The
-    // bespoke chrome layout in LayoutChrome /
-    // LayoutDriveWidgetsInCommandBar / LayoutJoystickButton stays in
-    // place; full DxuiDockLayout-driven layout lands in Phase 12.
-    m_host->Root().Adopt (m_titleBar);
+    // Adopt the chrome controls (menu bar / drive widgets / joystick
+    // toggle) into the host's root panel so they participate in the
+    // host-owned paint, input, focus, theme, tick, and DPI walks.
+    // Lifetime stays with EmulatorShell (chrome controls are members);
+    // the panel just registers raw pointers. The host's WM_PAINT pump
+    // (createSwapChain = true) now paints these adopted controls on top
+    // of the Apple ][ framebuffer each frame. The title bar is NOT here:
+    // the host owns the caption strip itself.
     m_host->Root().Adopt (m_mainMenu);
     m_host->Root().Adopt (m_driveBandSurface);
     m_host->Root().Adopt (m_driveChrome[0]);
@@ -1321,12 +1320,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     }
     {
-        RECT  titleBarBounds  = { 0, 0, clientW, 0 };
-        RECT  menuBarBounds   = {};
+        RECT  menuBarBounds = { 0, m_host->CaptionHeightPx(), clientW, m_host->CaptionHeightPx() };
 
-        m_titleBar.SetMaximized (IsZoomed (m_hwnd) != FALSE);
-        m_titleBar.Layout (titleBarBounds, m_scaler);
-        menuBarBounds = { 0, m_titleBar.GetTitleHeight(), clientW, m_titleBar.GetTitleHeight() };
         m_mainMenu.Layout (menuBarBounds, m_scaler);
     }
     m_mainMenu.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
@@ -1341,10 +1336,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     });
 
     // Load the app icon (IDI_CASSO) into a premultiplied BGRA8 pixel
-    // buffer so the title bar can blit it left of the caption text.
-    // Loaded at 32x32 (high enough to look crisp at typical title-bar
-    // sizes when D2D linearly downscales it); failure is non-fatal --
-    // the title bar simply omits the icon if the load misses.
+    // buffer and hand it to the host caption (like WM_SETICON for the
+    // window glyph). Loaded at 32x32 (high enough to look crisp at
+    // typical caption sizes when D2D linearly downscales it); failure
+    // is non-fatal -- the caption simply omits the icon if it misses.
     {
         std::vector<uint32_t>  iconPixels;
         int                    iconW = 0;
@@ -1352,7 +1347,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
         if (LoadIconAsPremulBgra (hInstance, IDI_CASSO, 32, iconPixels, iconW, iconH))
         {
-            m_titleBar.SetAppIcon (std::move (iconPixels), iconW, iconH);
+            m_host->SetCaptionIcon (std::move (iconPixels), iconW, iconH);
         }
     }
     m_driveChrome[0].Initialize (6, 0, this);
@@ -4496,13 +4491,9 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         HRESULT  hrUiR           = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
                                                        m_d3dRenderer.GetBackBufferHeight(),
                                                        dpi);
-        RECT     titleBarBounds  = { 0, 0, static_cast<int> (width), 0 };
-        RECT     menuBarBounds   = {};
+        RECT     menuBarBounds   = { 0, m_host->CaptionHeightPx(), static_cast<int> (width), m_host->CaptionHeightPx() };
 
         IGNORE_RETURN_VALUE (hrUiR, S_OK);
-        m_titleBar.SetMaximized (IsZoomed (m_hwnd) != FALSE);
-        m_titleBar.Layout (titleBarBounds, m_scaler);
-        menuBarBounds = { 0, m_titleBar.GetTitleHeight(), static_cast<int> (width), m_titleBar.GetTitleHeight() };
         m_mainMenu.Layout (menuBarBounds, m_scaler);
 
         {
@@ -4674,8 +4665,7 @@ void EmulatorShell::UpdateWindowTitle()
         title += L" [Stopped]";
     }
 
-    m_titleBar.SetTitle (title);
-    SetWindowText (m_hwnd, title.c_str());
+    m_host->SetTitle (title);
 }
 
 
