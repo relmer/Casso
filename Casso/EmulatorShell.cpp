@@ -34,6 +34,11 @@
 #include "Ui/DriveWidgetController.h"
 #include "Shell/DiskMru.h"
 #include "Window/DxuiHostWindow.h"
+#include "Dialog/DxuiDialog.h"
+#include "Dialog/DxuiDialogManager.h"
+#include "Widgets/DxuiLabel.h"
+#include "Core/DxuiPanel.h"
+#include "Core/DxuiDockLayout.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -1850,17 +1855,159 @@ void EmulatorShell::SaveGlobalPrefs()
 
 int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr     = S_OK;
+    int      result = -1;
 
 
-    hr = m_dialogPrimitive.RegisterClass (m_hInstance);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    if (IsSimpleDialog (def))
+    {
+        result = ShowSimpleDialogViaDxui (def);
+    }
+    else
+    {
+        hr = m_dialogPrimitive.RegisterClass (m_hInstance);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
-    return m_dialogPrimitive.Show (m_hwnd,
-                                   m_d3dRenderer.GetDevice(),
-                                   m_d3dRenderer.GetContext(),
-                                   &m_chromeTheme,
-                                   def);
+        result = m_dialogPrimitive.Show (m_hwnd,
+                                         m_d3dRenderer.GetDevice(),
+                                         m_d3dRenderer.GetContext(),
+                                         &m_chromeTheme,
+                                         def);
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::IsSimpleDialog
+//
+//  A dialog is "simple" -- and thus renderable through the Dxui ShowModal
+//  host path -- when it uses none of the legacy DialogPrimitive's rich
+//  features: no custom body, tick, button-activated hook, resizable mode,
+//  custom-body focus, hyperlink runs, or app-bitmap icon. (Info / Warning /
+//  Error / None icons are allowed; the glyph is not yet rendered.)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsSimpleDialog (const DialogDefinition & def)
+{
+    bool  simple = true;
+
+
+    if (def.onPaintCustomBody || def.onInputCustomBody || def.onButtonActivated ||
+        def.onTick || def.onMeasureCustomBody || def.onCustomBodyFocusChanged ||
+        def.onCustomBodyWantsResizeCursor || def.resizable ||
+        def.customBodyFocusableCount > 0)
+    {
+        simple = false;
+    }
+
+    if (def.icon == DialogIcon::AppPhotoreal || def.icon == DialogIcon::AppFlat)
+    {
+        simple = false;
+    }
+
+    for (const DialogTextRun & run : def.body)
+    {
+        if (run.isHyperlink)
+        {
+            simple = false;
+        }
+    }
+
+    return simple;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShowSimpleDialogViaDxui
+//
+//  Translates a simple DialogDefinition into a DxuiDialog (title + a
+//  wrapped body label + action buttons) and shows it modally through the
+//  Dxui host. The dialog height is estimated from the body's line count so
+//  short messages stay compact and long ones grow (clamped). The icon glyph
+//  is not yet rendered (see IsSimpleDialog).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
+{
+    constexpr int     s_kDialogWidthDip  = 440;
+    constexpr int     s_kLineHeightDip   = 20;
+    constexpr int     s_kChromeHeightDip = 108;   // caption + content pad*2 + button row
+    constexpr int     s_kMinHeightDip    = 120;
+    constexpr int     s_kMaxHeightDip    = 620;
+    constexpr size_t  s_kWrapColumns     = 52;
+    constexpr uint32_t s_kBodyArgb       = 0xFFFFFFFF;
+
+    std::unique_ptr<DxuiDialog>      dlg       = std::make_unique<DxuiDialog>();
+    std::unique_ptr<DxuiPanel>       content   = std::make_unique<DxuiPanel>();
+    std::unique_ptr<DxuiDockLayout>  dock       = std::make_unique<DxuiDockLayout>();
+    DxuiLabel                      & label     = content->Add<DxuiLabel>();
+    DxuiDialogModalParams            params;
+    std::wstring                     body;
+    int                              lines     = 1;
+    size_t                           lineLen   = 0;
+    int                              heightDip = 0;
+
+
+    for (const DialogTextRun & run : def.body)
+    {
+        body += run.text;
+    }
+
+    for (wchar_t ch : body)
+    {
+        if (ch == L'\n')
+        {
+            lines++;
+            lineLen = 0;
+        }
+        else
+        {
+            lineLen++;
+
+            if (lineLen >= s_kWrapColumns)
+            {
+                lines++;
+                lineLen = 0;
+            }
+        }
+    }
+
+    label.SetText      (body);
+    label.SetColorArgb (s_kBodyArgb);
+    label.SetVAlign    (DxuiTextVAlign::Top);
+    dock->SetDock      (label, DxuiDock::Fill);
+    content->SetLayout (std::move (dock));
+
+    dlg->SetTitle   (def.title);
+    dlg->SetContent (std::move (content));
+    for (const DialogButton & button : def.buttons)
+    {
+        dlg->AddButton (button.label, button.resultCode, button.isDefault, button.isCancel);
+    }
+
+    heightDip = std::clamp (s_kChromeHeightDip + lines * s_kLineHeightDip,
+                            s_kMinHeightDip,
+                            s_kMaxHeightDip);
+
+    params.hInstance     = m_hInstance;
+    params.ownerHwnd     = m_hwnd;
+    params.theme         = &m_chromeTheme;
+    params.clientSizeDip = { s_kDialogWidthDip, heightDip };
+    params.cancelResult  = def.closeBoxResult.value_or (-1);
+
+    return DxuiDialogManager::ShowModal (std::move (dlg), params);
 }
 
 
