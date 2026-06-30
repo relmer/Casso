@@ -43,7 +43,7 @@ public:
     // Wire the CPU bus-cycle accumulator that drives the PREAD paddle timer.
     void SetCpuCycleSource (const uint64_t * src) { m_cpuCycleSource = src; }
 
-    // Attach the input-debug notification sink (CPU thread, lock-free ring).
+    // Attach the input-debug notification sink.
     void SetInputEventSink (IInputEventSink * sink) noexcept { m_inputSink = sink; }
 
     // Stage an analog axis position (0-255, s_knPaddleCenter = neutral).
@@ -59,6 +59,7 @@ public:
 private:
     static constexpr Word     s_kwFirstButtonAddress = 0xC061;
     static constexpr int      s_knButtonCount        = 3;
+    static constexpr int      s_knHostButtonCount    = 2;
     static constexpr Word     s_kwPaddle0Address     = 0xC064;
     static constexpr int      s_knPaddleAxisCount    = 4;
     static constexpr Word     s_kwPaddleTimerStrobe  = 0xC070;
@@ -70,6 +71,8 @@ private:
 
     Byte ReadButton        (Word address) const;
     Byte ReadPaddle        (Word address) const;
+    void EmitHostPaddle    (int axis, Byte value);
+    void EmitHostButton    (int index, bool pressed);
     void EmitButtonRead    (Word address, Byte value);
     void EmitPaddleTrigger ();
     void EmitPaddleRead    (Word address, Byte value);
@@ -77,8 +80,10 @@ private:
     IInputEventSink *    m_inputSink          = nullptr;
     const uint64_t *     m_cpuCycleSource     = nullptr;
     uint64_t             m_paddleTriggerCycle = 0;
-    atomic<bool>         m_buttonState[s_knButtonCount]    = {};
+    atomic<bool>         m_buttonState[s_knButtonCount]              = {};
     atomic<Byte>         m_paddlePosition[s_knPaddleAxisCount];
-    int                  m_lastEmittedButton[s_knButtonCount]   = { -1, -1, -1 };
-    int                  m_lastEmittedPaddle[s_knPaddleAxisCount] = { -1, -1, -1, -1 };
+    int                  m_lastEmittedButton[s_knButtonCount]        = { -1, -1, -1 };
+    int                  m_lastEmittedPaddle[s_knPaddleAxisCount]    = { -1, -1, -1, -1 };
+    int                  m_lastEmittedHostButton[s_knHostButtonCount] = { -1, -1 };
+    int                  m_lastEmittedHostPaddle[s_knPaddleAxisCount] = { -1, -1, -1, -1 };
 };

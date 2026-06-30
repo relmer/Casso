@@ -87,6 +87,9 @@ spill past the window's edges instead of being clipped to it.
   already give.
 
 ### Fixed
+- **fix(input): show host joystick and paddle movement in the Input Debug
+  panel.** Arrow-key / X / Z joystick updates and trackpad paddle movement
+  now log immediately, even before the guest program reads the game port.
 - **fix(ui): debug-panel window-management polish.** The maximize glyph
   toggles to the restore glyph when a panel is maximized, re-pressing a
   panel's hotkey restores and foregrounds it when minimized, and the

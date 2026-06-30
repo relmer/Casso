@@ -23,10 +23,10 @@
 //    * When no sink is attached (m_inputSink == nullptr) the device
 //      fast-paths around the call so behavior is byte-identical to the
 //      pre-feature device.
-//    * The devices coalesce the guest reads producer-side: a callback
-//      fires only when the observed value actually changed since the last
-//      emit, so a tight poll loop reading $C000 millions of times a second
-//      produces one event per latch transition, not millions.
+//    * The devices coalesce noisy producer-side events: a callback fires
+//      only when the observed value actually changed since the last emit,
+//      so tight guest poll loops and repeated host input setters produce
+//      one event per transition, not millions.
 //
 //  THREADING -- the implementer MUST respect which thread each callback
 //  arrives on, because the two lanes use different delivery mechanisms:
@@ -49,6 +49,8 @@
 //    whose single producer is the CPU thread):
 //      * OnHostKeyDown   -- a real key press (first BeginKeyRepeat latch)
 //      * OnHostKeyUp     -- the matching release (BeginKeyRepeat disarm)
+//      * OnHostPaddle    -- host set a joystick / paddle axis (0..3)
+//      * OnHostButton    -- host set joystick button 0/1
 //
 //  Soft-switch addresses are passed through verbatim so the formatter can
 //  render the exact $C0xx the program touched. `value` is the byte the
@@ -72,4 +74,6 @@ public:
     // UI thread (staging buffer).
     virtual void OnHostKeyDown (Byte asciiChar) = 0;
     virtual void OnHostKeyUp (Byte asciiChar) = 0;
+    virtual void OnHostPaddle (int axis, Byte value) {}
+    virtual void OnHostButton (int index, bool down) {}
 };

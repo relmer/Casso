@@ -19,8 +19,8 @@
 //  Contract:
 //    * Exactly one thread calls TryPush at a time (the CPU thread). Both
 //      the guest soft-switch reads and the //e auto-repeat re-latch fire
-//      on that thread; real Windows key-down/up events run on the UI
-//      thread and are staged by the panel WITHOUT touching this ring.
+//      on that thread; real Windows key / game-port input events run on
+//      the UI thread and are staged by the panel WITHOUT touching this ring.
 //    * Exactly one thread calls TryPop / Drain at a time (the UI thread).
 //    * Head/tail are 32-bit unsigned counters; the mask isolates the
 //      slot index. Counter overflow is harmless because subtraction

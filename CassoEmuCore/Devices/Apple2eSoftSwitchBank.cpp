@@ -162,9 +162,39 @@ void Apple2eSoftSwitchBank::SetPaddle (int axis, Byte position)
     CBRA (axis >= 0 && axis < s_knPaddleAxisCount);
 
     m_paddlePosition[axis].store (position, memory_order_release);
+    EmitHostPaddle (axis, position);
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmitHostPaddle
+//
+//  Host UI thread. Coalesced emit for a host-set analog axis: fires only
+//  when the staged axis value changed since the last host-input emit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eSoftSwitchBank::EmitHostPaddle (int axis, Byte value)
+{
+    if (m_inputSink == nullptr)
+    {
+        return;
+    }
+
+    if (m_lastEmittedHostPaddle[axis] == value)
+    {
+        return;
+    }
+
+    m_lastEmittedHostPaddle[axis] = value;
+    m_inputSink->OnHostPaddle (axis, value);
 }
 
 
@@ -395,6 +425,11 @@ void Apple2eSoftSwitchBank::Reset ()
     m_paddleTriggerCycle = 0;
 
     for (int & last : m_lastEmittedPaddle)
+    {
+        last = -1;
+    }
+
+    for (int & last : m_lastEmittedHostPaddle)
     {
         last = -1;
     }

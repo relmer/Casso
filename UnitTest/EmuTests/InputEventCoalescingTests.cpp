@@ -3,6 +3,7 @@
 #include "Devices/AppleKeyboard.h"
 #include "Devices/Apple2eKeyboard.h"
 #include "Devices/Apple2eSoftSwitchBank.h"
+#include "Devices/AppleGamePort.h"
 #include "Devices/IInputEventSink.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -33,12 +34,17 @@ namespace
         int   autoRepeatCount    = 0;
         int   hostKeyDownCount   = 0;
         int   hostKeyUpCount     = 0;
+        int   hostPaddleCount    = 0;
+        int   hostButtonCount    = 0;
 
         Word  lastAddress        = 0;
         Byte  lastValue          = 0;
         bool  lastStrobeSet      = false;
         bool  lastClearedStrobe  = false;
         Byte  lastAscii          = 0;
+        int   lastAxis           = 0;
+        int   lastButtonIndex    = 0;
+        bool  lastDown           = false;
 
         void OnKbdDataRead (Word address, Byte value, bool strobeSet) override
         {
@@ -92,6 +98,20 @@ namespace
         {
             hostKeyUpCount++;
             lastAscii = asciiChar;
+        }
+
+        void OnHostPaddle (int axis, Byte value) override
+        {
+            hostPaddleCount++;
+            lastAxis  = axis;
+            lastValue = value;
+        }
+
+        void OnHostButton (int index, bool down) override
+        {
+            hostButtonCount++;
+            lastButtonIndex = index;
+            lastDown        = down;
         }
     };
 }
@@ -332,5 +352,70 @@ public:
             L"No paddle callbacks may fire once the sink is detached");
         Assert::AreEqual (0, sink.paddleReadCount,
             L"No paddle-read callbacks may fire once the sink is detached");
+    }
+
+    TEST_METHOD (HostPaddle_SoftSwitchSetPaddle_Coalesces)
+    {
+        Apple2eSoftSwitchBank  bank;
+        RecordingInputSink     sink;
+
+        bank.SetInputEventSink (&sink);
+
+        bank.SetPaddle (0, 100);
+        bank.SetPaddle (0, 100);
+        bank.SetPaddle (0, 101);
+
+        Assert::AreEqual (2, sink.hostPaddleCount,
+            L"Host paddle setters must emit one event per changed value");
+        Assert::AreEqual (0, sink.lastAxis,
+            L"The host paddle event must carry the changed axis");
+        Assert::AreEqual (static_cast<uint8_t> (101), sink.lastValue,
+            L"The host paddle event must carry the staged value");
+    }
+
+    TEST_METHOD (HostButton_Apple2eKeyboardSetters_Coalesce)
+    {
+        MemoryBus           bus;
+        Apple2eKeyboard     kbd (&bus);
+        RecordingInputSink  sink;
+
+        kbd.SetInputEventSink (&sink);
+
+        kbd.SetOpenApple (true);
+        kbd.SetOpenApple (true);
+        kbd.SetClosedApple (true);
+        kbd.SetClosedApple (false);
+
+        Assert::AreEqual (3, sink.hostButtonCount,
+            L"Host button setters must emit one event per changed button state");
+        Assert::AreEqual (1, sink.lastButtonIndex,
+            L"Closed Apple maps to host joystick button 1");
+        Assert::IsFalse (sink.lastDown,
+            L"The final host button event must report release");
+    }
+
+    TEST_METHOD (HostGamePort_Setters_Coalesce)
+    {
+        AppleGamePort       port;
+        RecordingInputSink  sink;
+
+        port.SetInputEventSink (&sink);
+        port.Reset();
+
+        port.SetPaddle (1, 200);
+        port.SetPaddle (1, 200);
+        port.SetPaddle (1, 199);
+        port.SetButton (0, true);
+        port.SetButton (0, true);
+        port.SetButton (0, false);
+
+        Assert::AreEqual (2, sink.hostPaddleCount,
+            L"AppleGamePort host paddle setters must coalesce unchanged values");
+        Assert::AreEqual (2, sink.hostButtonCount,
+            L"AppleGamePort host button setters must coalesce unchanged values");
+        Assert::AreEqual (1, sink.lastAxis,
+            L"The host paddle event must carry the changed axis");
+        Assert::AreEqual (0, sink.lastButtonIndex,
+            L"The host button event must carry the changed button index");
     }
 };

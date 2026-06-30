@@ -134,6 +134,8 @@ public:
     void OnHostAutoRepeat (Byte asciiChar)                              override;
     void OnHostKeyDown    (Byte asciiChar)                              override;
     void OnHostKeyUp      (Byte asciiChar)                              override;
+    void OnHostPaddle     (int axis, Byte value)                        override;
+    void OnHostButton     (int index, bool down)                        override;
 
 private:
     HRESULT EnsureSwapChain      ();
