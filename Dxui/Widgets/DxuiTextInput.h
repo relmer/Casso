@@ -37,6 +37,7 @@ class DxuiTextInput : public IDxuiControl
 public:
     using ChangeFn = std::function<void (const std::wstring &)>;
 
+    DxuiTextInput() { m_focusable = true; }
     ~DxuiTextInput() override = default;
 
     void  SetRect       (const RECT & rect)           { SetBounds (rect); }

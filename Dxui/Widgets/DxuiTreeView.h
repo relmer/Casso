@@ -60,6 +60,7 @@ class DxuiTreeView : public IDxuiControl
 public:
     using ToggleFn = std::function<void (const std::wstring & label, bool checked)>;
 
+    DxuiTreeView() { m_focusable = true; }
     ~DxuiTreeView() override = default;
 
     void  SetRect      (const RECT & rect) { SetBounds (rect); }

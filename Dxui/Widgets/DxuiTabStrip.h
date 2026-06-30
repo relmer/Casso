@@ -23,6 +23,8 @@ class DxuiTabStrip : public IDxuiControl
 public:
     using ChangeFn = std::function<void (int newIndex)>;
 
+    DxuiTabStrip() { m_focusable = true; }
+
     struct Tab
     {
         RECT          rect = {};

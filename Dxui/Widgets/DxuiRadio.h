@@ -37,6 +37,7 @@ class DxuiRadioGroup : public IDxuiControl
 public:
     using ChangeFn = std::function<void (int newIndex)>;
 
+    DxuiRadioGroup() { m_focusable = true; }
     ~DxuiRadioGroup() override = default;
 
     void  SetOptions (std::vector<DxuiRadioOption> options) { m_options = std::move (options); }

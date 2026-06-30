@@ -7,8 +7,25 @@
 
 namespace
 {
-    constexpr float    s_kGlyphFontDip = 12.0f;
-    constexpr wchar_t  s_kMdl2Family[] = L"Segoe MDL2 Assets";
+    constexpr float    s_kGlyphFontDip  = 12.0f;
+    constexpr float    s_kFocusRingPx   = 1.5f;
+    constexpr float    s_kFocusInsetPx  = -2.0f;
+    constexpr float    s_kDoubleInset   = 2.0f;
+    constexpr wchar_t  s_kMdl2Family[]  = L"Segoe MDL2 Assets";
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiIconButton
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiIconButton::DxuiIconButton()
+{
+    m_focusable = true;
 }
 
 
@@ -139,19 +156,51 @@ bool DxuiIconButton::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnKey  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiIconButton::OnKey (const DxuiKeyEvent & ev)
+{
+    if (!m_visible || !m_enabled || !m_focused)
+    {
+        return false;
+    }
+
+    if (ev.kind != DxuiKeyEventKind::Down)
+    {
+        return false;
+    }
+
+    if (ev.vk == VK_SPACE || ev.vk == VK_RETURN)
+    {
+        Click();
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Paint  (IDxuiControl override)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    HRESULT   hr        = S_OK;
-    float     x         = (float) m_boundsDip.left;
-    float     y         = (float) m_boundsDip.top;
-    float     w         = (float) (m_boundsDip.right  - m_boundsDip.left);
-    float     h         = (float) (m_boundsDip.bottom - m_boundsDip.top);
-    float     glyphDip  = m_scaler.Pxf (s_kGlyphFontDip);
-    uint32_t  glyphArgb = m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled();
+    HRESULT   hr         = S_OK;
+    float     x          = (float) m_boundsDip.left;
+    float     y          = (float) m_boundsDip.top;
+    float     w          = (float) (m_boundsDip.right  - m_boundsDip.left);
+    float     h          = (float) (m_boundsDip.bottom - m_boundsDip.top);
+    float     glyphDip   = m_scaler.Pxf (s_kGlyphFontDip);
+    float     focusInset = m_scaler.Pxf (s_kFocusInsetPx);
+    float     focusThick = m_scaler.Pxf (s_kFocusRingPx);
+    uint32_t  glyphArgb  = m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled();
 
 
 
@@ -163,16 +212,27 @@ void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         glyphArgb = theme.Accent();
     }
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (m_glyph,
-                                              x,
-                                              y,
-                                              w,
-                                              h,
-                                              glyphArgb,
-                                              glyphDip,
-                                              s_kMdl2Family,
-                                              DxuiTextHAlign::Center,
-                                              DxuiTextVAlign::Center));
+    hr = text.DrawString (m_glyph,
+                          x,
+                          y,
+                          w,
+                          h,
+                          glyphArgb,
+                          glyphDip,
+                          s_kMdl2Family,
+                          DxuiTextHAlign::Center,
+                          DxuiTextVAlign::Center);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (m_focused)
+    {
+        painter.OutlineRect (x + focusInset,
+                             y + focusInset,
+                             w - focusInset * s_kDoubleInset,
+                             h - focusInset * s_kDoubleInset,
+                             focusThick,
+                             theme.FocusRing());
+    }
 
 Error:
     return;

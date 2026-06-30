@@ -36,6 +36,7 @@ class DxuiCheckbox : public IDxuiControl
 public:
     using ChangeFn = std::function<void (bool checked)>;
 
+    DxuiCheckbox() { m_focusable = true; }
     ~DxuiCheckbox() override = default;
 
     void  SetRect    (const RECT & rect)  { SetBounds (rect); }

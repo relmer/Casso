@@ -227,6 +227,7 @@ public:
     //  callbacks above for the semantic outcomes. OnKey stays a shim
     //  (key handling remains host-driven via the focus accessors above).
     //
+    DxuiListView() { m_focusable = true; }
     ~DxuiListView () override = default;
 
     void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
