@@ -9,7 +9,7 @@
 
 namespace
 {
-    constexpr int      s_kCaptionHeightDip = 32;
+    constexpr int      s_kBaseDpi          = 96;
     constexpr int      s_kButtonWidthDip   = 46;
     constexpr float    s_kTitleFontDip     = 14.0f;
     constexpr float    s_kTitlePadDip      = 14.0f;
@@ -162,7 +162,7 @@ void DxuiCaptionBar::SetMaximized (bool maximized)
 
 int DxuiCaptionBar::PreferredHeightPx (const DxuiDpiScaler & scaler) const
 {
-    return scaler.Px (s_kCaptionHeightDip);
+    return scaler.Px (kCaptionHeightDip);
 }
 
 
@@ -177,7 +177,22 @@ int DxuiCaptionBar::PreferredHeightPx (const DxuiDpiScaler & scaler) const
 
 int DxuiCaptionBar::PreferredHeightDip () const
 {
-    return s_kCaptionHeightDip;
+    return kCaptionHeightDip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeightPxForDpi
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiCaptionBar::HeightPxForDpi (UINT dpi)
+{
+    return MulDiv (kCaptionHeightDip, (int) dpi, s_kBaseDpi);
 }
 
 

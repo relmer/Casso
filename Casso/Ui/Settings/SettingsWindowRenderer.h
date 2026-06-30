@@ -4,7 +4,7 @@
 
 
 
-class TitleBar;
+class DxuiHostWindow;
 struct CassoTheme;
 
 
@@ -32,7 +32,7 @@ public:
     void    Shutdown();
     HRESULT Resize               (int widthPx, int heightPx, UINT dpi);
     HRESULT Render               (class SettingsPanel & panel);
-    void    SetChrome            (TitleBar * titleBar, const CassoTheme * theme);
+    void    SetChrome            (DxuiHostWindow * captionHost, const CassoTheme * theme);
     void    SetTransparencyState (bool active, RECT emuRectClient, RECT focusRectClient);
 
     bool    IsInitialized() const { return m_initialized; }
@@ -95,7 +95,7 @@ private:
     DxuiPainter                       m_painter;
     DxuiTextRenderer                m_text;
     DxuiDpiScaler                         m_scaler;
-    TitleBar                        * m_titleBar = nullptr;
+    DxuiHostWindow                  * m_captionHost = nullptr;
     const CassoTheme                * m_theme    = nullptr;
     int                               m_widthPx  = 0;
     int                               m_heightPx = 0;

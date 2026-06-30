@@ -3,6 +3,7 @@
 #include "SettingsWindowRenderer.h"
 #include "SettingsPanel.h"
 #include "../Chrome/TitleBar.h"
+#include "Window/DxuiHostWindow.h"
 #include "../../Shaders/ShaderResourceIds.h"
 
 #pragma comment(lib, "dcomp.lib")
@@ -260,7 +261,7 @@ void SettingsWindowRenderer::Shutdown()
     m_context     = nullptr;
     m_device      = nullptr;
     m_hwnd        = nullptr;
-    m_titleBar    = nullptr;
+    m_captionHost = nullptr;
     m_theme       = nullptr;
     m_widthPx     = 0;
     m_heightPx    = 0;
@@ -276,10 +277,10 @@ void SettingsWindowRenderer::Shutdown()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsWindowRenderer::SetChrome (TitleBar * titleBar, const CassoTheme * theme)
+void SettingsWindowRenderer::SetChrome (DxuiHostWindow * captionHost, const CassoTheme * theme)
 {
-    m_titleBar = titleBar;
-    m_theme    = theme;
+    m_captionHost = captionHost;
+    m_theme       = theme;
 }
 
 
@@ -808,9 +809,9 @@ HRESULT SettingsWindowRenderer::RenderDirect (
     CHRA (hr);
 
     visual.dpi = m_scaler.Dpi();
-    if (m_titleBar != nullptr)
+    if (m_captionHost != nullptr)
     {
-        m_titleBar->Paint (m_painter, m_text, theme);
+        m_captionHost->RenderCaption (m_painter, m_text, theme);
     }
 
     panel.Paint (m_painter, m_text);
@@ -898,9 +899,9 @@ HRESULT SettingsWindowRenderer::RenderPanelToTexture (SettingsPanel & panel, con
     CHRA (hr);
 
     visual.dpi = m_scaler.Dpi();
-    if (m_titleBar != nullptr)
+    if (m_captionHost != nullptr)
     {
-        m_titleBar->Paint (m_painter, m_text, theme);
+        m_captionHost->RenderCaption (m_painter, m_text, theme);
     }
 
     panel.Paint (m_painter, m_text);
@@ -1012,7 +1013,7 @@ HRESULT SettingsWindowRenderer::Render (SettingsPanel & panel)
     viewport.Height   = static_cast<float> (m_heightPx);
     viewport.MaxDepth = 1.0f;
 
-    panel.Layout (m_widthPx, m_heightPx, m_scaler, (m_titleBar != nullptr) ? m_titleBar->GetTitleHeight() : 0);
+    panel.Layout (m_widthPx, m_heightPx, m_scaler, (m_captionHost != nullptr) ? m_captionHost->CaptionHeightPx() : 0);
     panel.PreparePreviewFrame();
 
     if (m_transparencyActive)
