@@ -10,6 +10,7 @@
 
 class DxuiPopupHost;
 class IDxuiHostClient;
+class DxuiCaptionBar;
 
 
 
@@ -58,6 +59,24 @@ enum class DxuiHostWindowBackdrop
 {
     None,
     Mica,
+};
+
+
+
+//
+//  Host-owned caption style. When not None, DxuiHostWindow builds and
+//  owns an internal DxuiCaptionBar (gradient + app icon + title text +
+//  system buttons) at the top of the client area, classifies / paints /
+//  routes it itself, and exposes it to the consumer only through a
+//  SetWindowText-like API (SetTitle / SetCaptionIcon). The consumer
+//  never adopts or positions a caption object. Standard = min/max/close;
+//  CloseOnly = a single close button (fixed-size dialogs / tool windows).
+//
+enum class DxuiCaptionStyle
+{
+    None,
+    Standard,
+    CloseOnly,
 };
 
 
@@ -116,6 +135,14 @@ public:
         // return nullptr and the consumer is responsible for its own
         // rendering pipeline.
         bool                     createSwapChain          = true;
+
+        // Host-owned caption (the SetWindowText model). When not None,
+        // Create() builds an internal DxuiCaptionBar at the top of the
+        // client area; the consumer drives it only via SetTitle /
+        // SetCaptionIcon and lays its own content out below
+        // CaptionHeightPx(). Default None preserves the legacy path
+        // where the consumer adopts its own title-bar control.
+        DxuiCaptionStyle         captionStyle             = DxuiCaptionStyle::None;
     };
 
 
@@ -166,6 +193,20 @@ public:
     DxuiPanel  &  Root          ()       { return *m_root; }
     const DxuiDpiScaler &  Scaler  () const { return m_scaler; }
     void          SetTheme      (const IDxuiTheme * theme);
+
+    //
+    //  Host-owned caption (SetWindowText model). Active only when the
+    //  window was created with CreateParams::captionStyle != None.
+    //  SetTitle drives both the Win32 window text (so Alt-Tab / taskbar
+    //  stay correct) and the internal DxuiCaptionBar; SetCaptionIcon
+    //  feeds the caption's app-icon glyph (premultiplied BGRA, as from
+    //  LoadImage + a DIB blit). CaptionHeightPx returns the reserved
+    //  top-strip height in physical pixels (0 when no host caption) so
+    //  the consumer can lay its own content out beneath it.
+    //
+    void          SetTitle        (const std::wstring & title);
+    void          SetCaptionIcon  (std::vector<uint32_t> bgraPremul, int widthPx, int heightPx);
+    int           CaptionHeightPx () const;
 
     //
     //  Replace the host's root panel with a caller-supplied panel.
@@ -362,6 +403,8 @@ private:
     void     HandleSize                (WPARAM wp, LPARAM lp);
     void     HandleThemeChange         ();
     void     MaybeRelayoutRoot         (const RECT & clientPx);
+    void     LayoutCaption             (const RECT & clientDip);
+    void     BuildCaption              ();
 
     DxuiHitTestKind  ClassifyHitInternal       (POINT clientDip, RECT clientBoundsDip) const;
     IDxuiControl   *  FindNcSystemControlAt    (POINT clientDip) const;
@@ -387,6 +430,7 @@ private:
     std::unique_ptr<DxuiPainter>      m_painter;
     std::unique_ptr<DxuiTextRenderer> m_textRenderer;
     std::unique_ptr<DxuiPanel>        m_root;
+    std::unique_ptr<DxuiCaptionBar>   m_caption;
     DxuiFocusManager                  m_focusManager;
     const IDxuiTheme *                m_theme              = nullptr;
 

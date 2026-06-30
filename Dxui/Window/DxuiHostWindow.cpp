@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DxuiHostWindow.h"
+#include "DxuiCaptionBar.h"
 #include "DxuiPopupHost.h"
 #include "DxuiSystemButton.h"
 #include "IDxuiHostClient.h"
@@ -320,6 +321,13 @@ HRESULT DxuiHostWindow::Create (const CreateParams & params)
 
     m_focusManager.Attach (m_root.get());
     NotifySystemButtonsMaximized (IsZoomed (m_hwnd) != FALSE);
+
+    // Host-owned caption (SetWindowText model). Built last so the HWND,
+    // DPI scaler, and (optional) app icon are all live.
+    if (m_params.captionStyle != DxuiCaptionStyle::None)
+    {
+        BuildCaption();
+    }
 
 Error:
 
@@ -1095,6 +1103,14 @@ void DxuiHostWindow::PaintPump ()
         textBegun = true;
 
         m_root->Paint (*m_painter, *m_textRenderer, *m_theme);
+
+        // Host-owned caption paints last so it overlays the top strip
+        // (the before-present hook fills the whole back buffer, the
+        // chrome bands paint over it, and the caption sits on top).
+        if (m_caption)
+        {
+            m_caption->Paint (*m_painter, *m_textRenderer, *m_theme);
+        }
 
         // Flush the painter (D3D control fills) FIRST, then the text
         // (D2D glyphs / labels) so the foreground composites on top of
@@ -2071,6 +2087,160 @@ void DxuiHostWindow::MaybeRelayoutRoot (const RECT & clientPx)
     boundsDip.right  = MulDiv (clientPx.right,  (int) s_kDefaultDpi, (int) m_scaler.Dpi());
     boundsDip.bottom = MulDiv (clientPx.bottom, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
     m_root->Layout (boundsDip, m_scaler);
+    LayoutCaption (boundsDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildCaption
+//
+//  Constructs the host-owned DxuiCaptionBar for the configured caption
+//  style, hands it the window HWND so its system buttons can dispatch,
+//  seeds the title from the window text, and lays it out against the
+//  current client rect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::BuildCaption ()
+{
+    RECT  clientPx  = {};
+    RECT  clientDip = {};
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    m_caption = std::make_unique<DxuiCaptionBar>();
+    m_caption->ConfigureButtons (m_params.captionStyle == DxuiCaptionStyle::Standard
+                                     ? DxuiCaptionBar::Buttons::MinMaxClose
+                                     : DxuiCaptionBar::Buttons::CloseOnly);
+    m_caption->SetSystemHwnd (m_hwnd);
+    m_caption->SetTitle      (m_params.title);
+    m_caption->SetMaximized  (IsZoomed (m_hwnd) != FALSE);
+
+    if (m_hwnd != nullptr && GetClientRect (m_hwnd, &clientPx))
+    {
+        clientDip        = clientPx;
+        clientDip.right  = MulDiv (clientPx.right,  (int) s_kDefaultDpi, (int) m_scaler.Dpi());
+        clientDip.bottom = MulDiv (clientPx.bottom, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
+        LayoutCaption (clientDip);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayoutCaption
+//
+//  Positions the host-owned caption as a full-width strip at the top of
+//  the client area, one PreferredHeightDip tall, and refreshes its
+//  maximize-button glyph from the live zoom state.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::LayoutCaption (const RECT & clientDip)
+{
+    RECT  rc = {};
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    if (!m_caption)
+    {
+        return;
+    }
+
+    rc.left   = 0;
+    rc.top    = 0;
+    rc.right  = clientDip.right;
+    rc.bottom = m_caption->PreferredHeightDip();
+
+    m_caption->SetMaximized (IsZoomed (m_hwnd) != FALSE);
+    m_caption->Layout (rc, m_scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTitle
+//
+//  SetWindowText-style title update: drives the Win32 window text (so
+//  Alt-Tab / taskbar stay correct) and the host-owned caption glyph.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::SetTitle (const std::wstring & title)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    m_params.title = title;
+
+    if (m_hwnd != nullptr)
+    {
+        SetWindowTextW (m_hwnd, title.c_str());
+    }
+    if (m_caption)
+    {
+        m_caption->SetTitle (title);
+        if (m_hwnd != nullptr)
+        {
+            InvalidateRect (m_hwnd, nullptr, FALSE);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCaptionIcon
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::SetCaptionIcon (std::vector<uint32_t> bgraPremul, int widthPx, int heightPx)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_caption)
+    {
+        m_caption->SetAppIcon (std::move (bgraPremul), widthPx, heightPx);
+        if (m_hwnd != nullptr)
+        {
+            InvalidateRect (m_hwnd, nullptr, FALSE);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CaptionHeightPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHostWindow::CaptionHeightPx () const
+{
+    if (!m_caption)
+    {
+        return 0;
+    }
+    return m_caption->PreferredHeightPx (m_scaler);
 }
 
 
@@ -2133,6 +2303,22 @@ IDxuiControl * DxuiHostWindow::FindNcSystemControlAt (POINT clientDip) const
 
 
 
+    // Host-owned caption first — its system buttons are the topmost NC
+    // controls and are not part of the consumer's root tree.
+    if (m_caption != nullptr)
+    {
+        rc = m_caption->Bounds();
+        if (clientDip.x >= rc.left && clientDip.x < rc.right &&
+            clientDip.y >= rc.top  && clientDip.y < rc.bottom)
+        {
+            found = FindNcSystemControlInTree (m_caption.get(), clientDip);
+            if (found != nullptr)
+            {
+                return found;
+            }
+        }
+    }
+
     if (m_root == nullptr)
     {
         return nullptr;
@@ -2184,6 +2370,10 @@ IDxuiControl * DxuiHostWindow::FindNcSystemControlAt (POINT clientDip) const
 void DxuiHostWindow::NotifySystemButtonsMaximized (bool maximized)
 {
     NotifySystemButtonsMaximizedInTree (m_root.get(), maximized);
+    if (m_caption)
+    {
+        m_caption->SetMaximized (maximized);
+    }
 }
 
 
@@ -2222,6 +2412,24 @@ DxuiHitTestKind DxuiHostWindow::ClassifyHitInternal (POINT clientDip, RECT clien
         if (edge != DxuiHitTestKind::None)
         {
             return edge;
+        }
+    }
+
+    // Host-owned caption wins over the consumer's root content (it is
+    // drawn on top of the top strip). Buttons / caption / nothing.
+    if (m_caption != nullptr)
+    {
+        RECT  crc = m_caption->Bounds();
+
+        if (clientDip.x >= crc.left && clientDip.x < crc.right &&
+            clientDip.y >= crc.top  && clientDip.y < crc.bottom)
+        {
+            DxuiHitTestKind  ck = m_caption->ClassifyHit (clientDip);
+
+            if (ck != DxuiHitTestKind::None && ck != DxuiHitTestKind::Client)
+            {
+                return ck;
+            }
         }
     }
 
