@@ -3,7 +3,7 @@
 #include "Pch.h"
 
 
-class TitleBar;
+class DxuiHostWindow;
 struct CassoTheme;
 
 
@@ -49,12 +49,12 @@ public:
                                       int                    widthPx,
                                       int                    heightPx,
                                       UINT                   dpi,
-                                      TitleBar             * titleBar,
+                                      DxuiHostWindow       * captionHost,
                                       const CassoTheme    * theme) = 0;
     virtual void     OnHostDestroyed () = 0;
     virtual HRESULT  OnHostResize    (int widthPx, int heightPx, UINT dpi) = 0;
     virtual HRESULT  Render          () = 0;
-    virtual void     SetChromeTheme  (TitleBar * titleBar, const CassoTheme * theme) = 0;
+    virtual void     SetChromeTheme  (DxuiHostWindow * captionHost, const CassoTheme * theme) = 0;
 
     // Layout. The shell uses this to size the popup on first show and
     // to honour WM_GETMINMAXINFO under each DPI.
