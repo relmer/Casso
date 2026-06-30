@@ -185,10 +185,12 @@ private:
     static InputGamePortClass ClassifyGamePort          (InputEventType type, Word address) noexcept;
     static void               FormatInputEvent          (const InputEvent & src,
                                                          std::chrono::steady_clock::time_point uptimeAnchor,
+                                                         const InputFilterState & filter,
                                                          InputEventDisplay & out);
     static void               ProjectOne                (const InputEvent & src,
                                                          std::deque<InputEventDisplay> & deque,
-                                                         std::chrono::steady_clock::time_point uptimeAnchor);
+                                                         std::chrono::steady_clock::time_point uptimeAnchor,
+                                                         const InputFilterState & filter);
 
     ChromedPanelWindow                    m_window;
     InputPanelLayoutSlots                 m_layout = {};
