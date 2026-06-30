@@ -3,16 +3,19 @@
 #include "Dialog/DxuiDialog.h"
 
 #include "Core/DxuiDockLayout.h"
-#include "Core/DxuiStackLayout.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiLabel.h"
 #include "Window/DxuiCaptionBar.h"
 #include "Window/DxuiSystemButton.h"
 
 
-static constexpr LONG  s_kCaptionHeightDip    = 32;
-static constexpr LONG  s_kButtonRowHeightDip  = 44;
-static constexpr float s_kButtonRowPaddingDip = 8.0f;
+static constexpr LONG  s_kCaptionHeightDip     = 32;
+static constexpr LONG  s_kButtonRowHeightDip   = 44;
+static constexpr int   s_kButtonWidthDip       = 96;
+static constexpr int   s_kButtonHeightDip      = 28;
+static constexpr int   s_kButtonGapDip         = 8;
+static constexpr int   s_kButtonRowEdgePadDip  = 12;
+static constexpr int   s_kContentPadDip        = 16;
 
 
 
@@ -203,10 +206,10 @@ void DxuiDialog::Build()
     }
 
     //
-    //  Button row: one DxuiButton per configured DxuiDialogButton.
-    //  Layout positioning (right-aligned strip with horizontal
-    //  spacing) is applied at first Layout() pass via a stack layout
-    //  installed on the row.
+    //  Button row: one DxuiButton per configured DxuiDialogButton. The
+    //  buttons are sized and right-aligned in Layout(); the row carries
+    //  no layout of its own. The default button gets a themed emphasis
+    //  outline.
     //
     buttonRowRaw->SetBounds (buttonRowRect);
     m_buttonWidgets.clear();
@@ -215,20 +218,12 @@ void DxuiDialog::Build()
     {
         DxuiButton  &  btn = buttonRowRaw->Add<DxuiButton>();
 
-        btn.SetLabel   (m_buttons[i].label);
-        btn.SetEnabled (true);
-        btn.SetClick   ([this, i] () { this->HandleButtonClicked (i); });
+        btn.SetLabel    (m_buttons[i].label);
+        btn.SetEnabled  (true);
+        btn.SetEmphasis (m_buttons[i].isDefault);
+        btn.SetClick    ([this, i] () { this->HandleButtonClicked (i); });
 
         m_buttonWidgets.push_back (&btn);
-    }
-
-    {
-        std::unique_ptr<DxuiStackLayout>  rowLayout = std::make_unique<DxuiStackLayout> (
-            DxuiStackLayout::Orientation::Horizontal,
-            s_kButtonRowPaddingDip,
-            DxuiStackLayout::Align::Stretch);
-
-        buttonRowRaw->SetLayout (std::move (rowLayout));
     }
 
     //
@@ -304,6 +299,48 @@ void DxuiDialog::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     }
 
     DxuiPanel::Layout (boundsPx, scaler);
+
+    //
+    //  Inset the content region by a standard padding so body text and
+    //  controls don't touch the window edges.
+    //
+    if (m_content != nullptr)
+    {
+        RECT  c   = m_content->Bounds();
+        int   pad = scaler.Px (s_kContentPadDip);
+
+        c.left   += pad;
+        c.top    += pad;
+        c.right  -= pad;
+        c.bottom -= pad;
+        m_content->Layout (c, scaler);
+    }
+
+    //
+    //  Size + right-align the action buttons within the button row, in
+    //  registration order (first button leftmost, last rightmost).
+    //
+    if (m_buttonRow != nullptr && !m_buttonWidgets.empty())
+    {
+        RECT  row    = m_buttonRow->Bounds();
+        int   wPx    = scaler.Px (s_kButtonWidthDip);
+        int   hPx    = scaler.Px (s_kButtonHeightDip);
+        int   gapPx  = scaler.Px (s_kButtonGapDip);
+        int   edgePx = scaler.Px (s_kButtonRowEdgePadDip);
+        int   count  = (int) m_buttonWidgets.size();
+        int   total  = count * wPx + (count - 1) * gapPx;
+        int   x      = row.right - edgePx - total;
+        int   y      = row.top + ((row.bottom - row.top) - hPx) / 2;
+
+        for (int i = 0; i < count; i++)
+        {
+            RECT  b = { x, y, x + wPx, y + hPx };
+
+            m_buttonWidgets[(size_t) i]->Layout (b);
+            m_buttonWidgets[(size_t) i]->SetDpi (scaler.Dpi());
+            x += wPx + gapPx;
+        }
+    }
 }
 
 
