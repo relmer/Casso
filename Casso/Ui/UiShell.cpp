@@ -76,7 +76,6 @@ Error:
 void UiShell::Shutdown ()
 {
     m_anim.ClearTweens();
-    m_focus.Clear();
     m_hitTest.Clear();
     m_input.Clear();
     m_text.Shutdown();
