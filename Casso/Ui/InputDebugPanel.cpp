@@ -386,6 +386,7 @@ InputGamePortClass InputDebugPanel::ClassifyGamePort (InputEventType type, Word 
 void InputDebugPanel::FormatInputEvent (
     const InputEvent &                         src,
     std::chrono::steady_clock::time_point      uptimeAnchor,
+    const InputFilterState &                   filter,
     InputEventDisplay &                        out)
 {
     Word     address = 0;
@@ -441,9 +442,27 @@ void InputDebugPanel::FormatInputEvent (
         case InputEventType::HostPaddle:
             axis  = (int) src.payload.io.address;
             value = src.payload.io.value;
-            out.address = std::format (L"PDL{}", axis);
-            out.value   = std::format (L"{}", value);
-            out.meaning = std::format (L"HOST PDL{} = {}", axis, value);
+            {
+                int  pair = axis / 2;
+
+                // Decode per the user's "View PADDL<n>-PADDL<m> as" choice:
+                // a pair viewed as a joystick reads axis 0/2 as X and 1/3
+                // as Y; viewed as paddles it stays PADDL<n>.
+                if (pair >= 0 && pair < 2 && filter.pairIsJoystick[pair])
+                {
+                    LPCWSTR  xy = (axis % 2 == 0) ? L"X" : L"Y";
+
+                    out.address = std::format (L"JOY{} {}", pair, xy);
+                    out.value   = std::format (L"{}", value);
+                    out.meaning = std::format (L"HOST JOY{} {} = {}", pair, xy, value);
+                }
+                else
+                {
+                    out.address = std::format (L"PDL{}", axis);
+                    out.value   = std::format (L"{}", value);
+                    out.meaning = std::format (L"HOST PDL{} = {}", axis, value);
+                }
+            }
             break;
 
         case InputEventType::HostButton:
@@ -539,11 +558,12 @@ void InputDebugPanel::FormatInputEvent (
 void InputDebugPanel::ProjectOne (
     const InputEvent &                         src,
     std::deque<InputEventDisplay> &            deque,
-    std::chrono::steady_clock::time_point      uptimeAnchor)
+    std::chrono::steady_clock::time_point      uptimeAnchor,
+    const InputFilterState &                   filter)
 {
     InputEventDisplay  entry;
 
-    FormatInputEvent (src, uptimeAnchor, entry);
+    FormatInputEvent (src, uptimeAnchor, filter, entry);
     deque.push_back (std::move (entry));
 }
 
@@ -1416,7 +1436,7 @@ void InputDebugPanel::DrainAndProject()
     {
         for (const InputEvent & e : m_pendingHostEvents)
         {
-            ProjectOne (e, m_events, m_uptimeAnchor);
+            ProjectOne (e, m_events, m_uptimeAnchor, m_filter);
         }
         m_pendingHostEvents.clear();
     }
@@ -1426,7 +1446,7 @@ void InputDebugPanel::DrainAndProject()
     {
         lostEvent = MakeStampedEvent (InputEventCategory::System, InputEventType::EventsLost);
         lostEvent.payload.lost.count = lost;
-        ProjectOne (lostEvent, m_events, m_uptimeAnchor);
+        ProjectOne (lostEvent, m_events, m_uptimeAnchor, m_filter);
     }
 
     do
@@ -1434,7 +1454,7 @@ void InputDebugPanel::DrainAndProject()
         n = m_ring.Drain (batch.data(), (uint32_t) batch.size());
         for (size_t i = 0; i < n; i++)
         {
-            ProjectOne (batch[i], m_events, m_uptimeAnchor);
+            ProjectOne (batch[i], m_events, m_uptimeAnchor, m_filter);
         }
     }
     while (n == batch.size());
