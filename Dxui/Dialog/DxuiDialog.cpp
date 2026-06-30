@@ -277,6 +277,31 @@ void DxuiDialog::SetCloseHandler (CloseHandler handler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDialog::SetHostHwnd
+//
+//  Assigns the hosting HWND to the caption close button so a click on
+//  the "X" posts SC_CLOSE to the host window. Must be called after
+//  Build() (the close button does not exist until then).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDialog::SetHostHwnd (HWND hwnd)
+{
+    DXUI_ASSERT_UI_THREAD();
+    assert (m_built && "SetHostHwnd called before Build");
+
+    if (m_closeBtn != nullptr)
+    {
+        m_closeBtn->SetHwnd (hwnd);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDialog::DefaultIndex
 //
 ////////////////////////////////////////////////////////////////////////////////

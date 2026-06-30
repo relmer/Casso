@@ -5,6 +5,7 @@
 
 
 class DxuiDialog;
+class IDxuiTheme;
 
 
 
@@ -59,6 +60,24 @@ struct DxuiDialogShowParams
 
 
 
+//
+//  Blocking-modal show parameters. Unlike the future-based Show, these
+//  drive ShowModal, which stands up its own DxuiHostWindow, runs a
+//  private modal message pump, and returns the chosen return code
+//  synchronously -- the production replacement for the legacy
+//  DialogPrimitive::Show contract.
+//
+struct DxuiDialogModalParams
+{
+    HINSTANCE          hInstance      = nullptr;
+    HWND               ownerHwnd      = nullptr;
+    const IDxuiTheme * theme          = nullptr;
+    SIZE               clientSizeDip  = { 420, 200 };
+    int                cancelResult   = -1;
+};
+
+
+
 class DxuiDialogManager
 {
 public:
@@ -77,6 +96,19 @@ public:
     //
     std::future<int>  Show  (std::unique_ptr<DxuiDialog>  dialog,
                              DxuiDialogShowParams         params);
+
+    //
+    //  Blocking production entry point. Stands up a full-ownership
+    //  DxuiHostWindow (borderless, host-painted, captionStyle None --
+    //  the dialog supplies its own caption), installs an internal
+    //  modal host-client, disables the owner, runs a private message
+    //  pump until the dialog closes, then tears the host down and
+    //  returns the chosen return code. The dialog MUST have been
+    //  Build()-ed by the caller. Returns params.cancelResult on a
+    //  window-close gesture when no cancel button is present.
+    //
+    static int  ShowModal  (std::unique_ptr<DxuiDialog>    dialog,
+                            const DxuiDialogModalParams  & params);
 
     //
     //  Test seams -- drive the stack without a real DxuiDialog /

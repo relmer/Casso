@@ -2,6 +2,96 @@
 
 #include "Dialog/DxuiDialogManager.h"
 #include "Dialog/DxuiDialog.h"
+#include "Window/DxuiHostWindow.h"
+#include "Window/IDxuiHostClient.h"
+
+
+
+
+
+namespace
+{
+    //
+    //  Internal IDxuiHostClient for the blocking ShowModal pump. Routes
+    //  Enter / Escape to the dialog's default / cancel buttons and a
+    //  window-close gesture to the cancel result, recording the chosen
+    //  return code so the pump can exit.
+    //
+    class DxuiModalDialogClient : public IDxuiHostClient
+    {
+    public:
+        void  Bind (DxuiDialog * dialog, int cancelResult)
+        {
+            m_dialog       = dialog;
+            m_cancelResult = cancelResult;
+            m_result       = cancelResult;
+        }
+
+        void  Resolve (int returnCode)
+        {
+            if (!m_done)
+            {
+                m_done   = true;
+                m_result = returnCode;
+            }
+        }
+
+        bool  Done   () const { return m_done;   }
+        int   Result () const { return m_result; }
+
+        DxuiMessageResult  OnKeyDown (WPARAM vk, LPARAM lParam) override
+        {
+            std::optional<int>  rc     = std::nullopt;
+            DxuiMessageResult   result = DxuiMessageResult::NotHandled;
+
+
+
+            UNREFERENCED_PARAMETER (lParam);
+
+            if (m_dialog != nullptr && vk == VK_RETURN)
+            {
+                rc = m_dialog->ActivateDefault();
+            }
+            else if (m_dialog != nullptr && vk == VK_ESCAPE)
+            {
+                rc = m_dialog->ActivateCancel();
+            }
+
+            if (rc.has_value())
+            {
+                result = DxuiMessageResult::Handled;
+            }
+
+            return result;
+        }
+
+        DxuiMessageResult  OnClose () override
+        {
+            std::optional<int>  rc = std::nullopt;
+
+
+
+            if (m_dialog != nullptr)
+            {
+                rc = m_dialog->ActivateCancel();
+            }
+
+            if (!rc.has_value())
+            {
+                Resolve (m_cancelResult);
+            }
+
+            return DxuiMessageResult::Handled;
+        }
+
+
+    private:
+        DxuiDialog *  m_dialog       = nullptr;
+        int           m_result       = -1;
+        int           m_cancelResult = -1;
+        bool          m_done         = false;
+    };
+}
 
 
 
@@ -83,6 +173,108 @@ std::future<int> DxuiDialogManager::Show (std::unique_ptr<DxuiDialog>  dialog,
                                 });
 
     return future;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDialogManager::ShowModal
+//
+//  Blocking production show. Stands up a borderless full-ownership
+//  DxuiHostWindow that paints the dialog's own caption / content /
+//  button row, disables the owner, and runs a private message pump
+//  until the dialog resolves a return code (button click, Enter on the
+//  default button, Escape or caption-close on cancel). Returns
+//  params.cancelResult when the window is closed with no cancel button
+//  present.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiDialogManager::ShowModal (std::unique_ptr<DxuiDialog>    dialog,
+                                  const DxuiDialogModalParams  & params)
+{
+    HRESULT                        hr            = S_OK;
+    DxuiHostWindow                 host;
+    DxuiModalDialogClient          client;
+    DxuiHostWindow::CreateParams   hostParams;
+    DxuiDialog                   * dialogRaw     = dialog.get();
+    MSG                            msg           = {};
+    int                            result        = params.cancelResult;
+    BOOL                           gotMessage    = FALSE;
+    bool                           ownerDisabled = false;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+    CBRA (dialogRaw);
+    assert (dialogRaw->IsBuilt() && "DxuiDialog must be Build()-ed before ShowModal");
+
+    client.Bind (dialogRaw, params.cancelResult);
+    dialogRaw->SetCloseHandler ([&client] (int returnCode) { client.Resolve (returnCode); });
+
+    hostParams.title           = dialogRaw->Title();
+    hostParams.hInstance       = params.hInstance;
+    hostParams.ownerHwnd       = params.ownerHwnd;
+    hostParams.borderless      = true;
+    hostParams.resizable       = false;
+    hostParams.roundedCorners  = true;
+    hostParams.backdrop        = DxuiHostWindowBackdrop::None;
+    hostParams.captionStyle    = DxuiCaptionStyle::None;
+    hostParams.initialSizeDip  = params.clientSizeDip;
+    hostParams.createSwapChain = true;
+
+    host.SetClient (&client);
+
+    hr = host.Create (hostParams);
+    CHRA (hr);
+
+    host.SetTheme        (params.theme);
+    host.SetContentPanel (std::move (dialog));
+    dialogRaw->SetHostHwnd (host.Hwnd());
+
+    if (params.ownerHwnd != nullptr)
+    {
+        EnableWindow (params.ownerHwnd, FALSE);
+        ownerDisabled = true;
+    }
+
+    ShowWindow          (host.Hwnd(), SW_SHOWNORMAL);
+    UpdateWindow        (host.Hwnd());
+    SetForegroundWindow (host.Hwnd());
+
+    while (!client.Done())
+    {
+        gotMessage = GetMessageW (&msg, nullptr, 0, 0);
+
+        if (gotMessage == 0)
+        {
+            PostQuitMessage ((int) msg.wParam);
+            break;
+        }
+
+        if (gotMessage == -1)
+        {
+            break;
+        }
+
+        TranslateMessage (&msg);
+        DispatchMessageW (&msg);
+    }
+
+    result = client.Result();
+
+Error:
+    if (ownerDisabled)
+    {
+        EnableWindow (params.ownerHwnd, TRUE);
+    }
+
+    host.Destroy();
+
+    return result;
 }
 
 
