@@ -401,6 +401,16 @@ private:
     // of the chosen button, or -1 on close-gesture.
     int     ShowModalDialog      (const DialogDefinition & def);
 
+    // Render a "simple" dialog (text + buttons + an optional Info /
+    // Warning / Error glyph icon -- no custom body, tick, hyperlinks,
+    // app-bitmap icon, or resizable mode) through the Dxui
+    // DxuiDialogManager::ShowModal host path. Returns the chosen button's
+    // resultCode (or def.closeBoxResult / -1 on a close gesture).
+    int          ShowSimpleDialogViaDxui (const DialogDefinition & def);
+
+    // True when `def` uses only features the Dxui ShowModal path supports.
+    static bool  IsSimpleDialog          (const DialogDefinition & def);
+
     // Push a freshly mounted disk image onto the recent-disks MRU
     // and persist user prefs. Best-effort; never propagates failures
     // back into the mount path.
