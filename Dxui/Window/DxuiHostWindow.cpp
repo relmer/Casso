@@ -693,11 +693,9 @@ void DxuiHostWindow::SetContentPanel (std::unique_ptr<DxuiPanel> panel)
 
         if (GetClientRect (m_hwnd, &clientRectPx))
         {
-            bounds.left   = 0;
-            bounds.top    = 0;
-            bounds.right  = MulDiv (clientRectPx.right,  (int) s_kDefaultDpi, (int) m_scaler.Dpi());
-            bounds.bottom = MulDiv (clientRectPx.bottom, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
-            liveLayout    = true;
+            // Lay the root out in PHYSICAL PIXELS (matches widget paint).
+            bounds     = clientRectPx;
+            liveLayout = true;
         }
     }
     else if (m_root != nullptr)
@@ -715,7 +713,7 @@ void DxuiHostWindow::SetContentPanel (std::unique_ptr<DxuiPanel> panel)
 
             if (m_params.insetRootBelowCaption && m_caption)
             {
-                rootBounds.top += m_caption->PreferredHeightDip();
+                rootBounds.top += m_caption->PreferredHeightPx (m_scaler);
             }
 
             m_root->Layout (rootBounds, m_scaler);
@@ -2114,19 +2112,25 @@ void DxuiHostWindow::MaybeRelayoutRoot (const RECT & clientPx)
         return;
     }
 
-    boundsDip.right  = MulDiv (clientPx.right,  (int) s_kDefaultDpi, (int) m_scaler.Dpi());
-    boundsDip.bottom = MulDiv (clientPx.bottom, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
-
+    //
+    //  The root lays out in PHYSICAL PIXELS -- matching how Dxui leaf
+    //  widgets paint their bounds and the adopt-mode convention. (The
+    //  caption is the exception: it self-scales from DIP bounds, so it is
+    //  laid out separately, below, from a DIP rect.)
+    //
     {
-        RECT  rootDip = boundsDip;
+        RECT  rootPx = clientPx;
 
         if (m_params.insetRootBelowCaption && m_caption)
         {
-            rootDip.top += m_caption->PreferredHeightDip();
+            rootPx.top += m_caption->PreferredHeightPx (m_scaler);
         }
 
-        m_root->Layout (rootDip, m_scaler);
+        m_root->Layout (rootPx, m_scaler);
     }
+
+    boundsDip.right  = MulDiv (clientPx.right,  (int) s_kDefaultDpi, (int) m_scaler.Dpi());
+    boundsDip.bottom = MulDiv (clientPx.bottom, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
 
     LayoutCaption (boundsDip);
 }
