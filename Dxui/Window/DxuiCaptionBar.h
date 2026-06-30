@@ -50,6 +50,12 @@ public:
     DxuiCaptionBar  ();
     ~DxuiCaptionBar () override = default;
 
+    // Caption-strip height. The DIP value is the design constant; the
+    // pixel helpers scale it. HeightPxForDpi lets a consumer reserve the
+    // band before a host (and thus a live scaler) exists.
+    static constexpr int  kCaptionHeightDip = 32;
+    static int            HeightPxForDpi    (UINT dpi);
+
     // --- Host-owned caption configuration (mode 2) ---------------------
 
     void  ConfigureButtons (Buttons buttons);

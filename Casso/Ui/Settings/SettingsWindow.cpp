@@ -3,7 +3,7 @@
 #include "SettingsWindow.h"
 #include "SettingsPanel.h"
 
-#include "Core/DxuiTitleBarHitTest.h"
+#include "Window/DxuiCaptionBar.h"
 #include "Window/DxuiHostWindow.h"
 
 #include "../../resource.h"
@@ -255,9 +255,6 @@ HRESULT SettingsWindow::Create (
     ok = SetWindowTextW (hwndCreated, s_kpszSettingsWindowTitle);
     CWRA (ok);
 
-    m_titleBar.SetTitle (s_kpszSettingsWindowTitle);
-    m_titleBar.SetCloseOnly (true);
-
     ShowWindow (hwndCreated, SW_SHOWNORMAL);
     SetForegroundWindow (hwndCreated);
     SetFocus (hwndCreated);
@@ -309,7 +306,7 @@ void SettingsWindow::Destroy()
 void SettingsWindow::SetTheme (const CassoTheme * theme)
 {
     m_theme = theme;
-    m_renderer.SetChrome (&m_titleBar, m_theme);
+    m_renderer.SetChrome (m_hostWindow.get(), m_theme);
 
     if (m_hwnd != nullptr)
     {
@@ -418,19 +415,12 @@ LRESULT SettingsWindow::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM 
             break;
 
         case WM_NCLBUTTONDOWN:
-            OnNcMouse (message, wParam, lParam);
-            if (OnNcLButtonDown (hwnd, (LRESULT) wParam))
-            {
-                result = 0;
-                break;
-            }
-            result = DefWindowProcW (hwnd, message, wParam, lParam);
-            break;
-
         case WM_NCLBUTTONUP:
         case WM_NCMOUSEMOVE:
         case WM_NCMOUSELEAVE:
-            OnNcMouse (message, wParam, lParam);
+            // Caption system-button NC mouse is consumed by the host
+            // (HandleMessage) above; anything reaching here is caption
+            // drag / system menu and belongs to DefWindowProc.
             result = DefWindowProcW (hwnd, message, wParam, lParam);
             break;
 
@@ -528,17 +518,14 @@ HRESULT SettingsWindow::OnCreate (HWND hwnd)
     CWRA (ok);
 
     dpi = GetDpiForWindow (m_hwnd);
-    m_titleBar.UpdateGeometry (rc.right - rc.left, dpi);
-    m_renderer.SetChrome (&m_titleBar, m_theme);
 
-    // Stand up the DxuiHostWindow in adopt mode. The HWND, swap
-    // chain, and rendering pipeline stay owned by SettingsWindow and
-    // its SettingsWindowRenderer (DComp visual + transparency
-    // compositor); the host takes over WM_NCCALCSIZE / WM_NCHITTEST
-    // classification (with the legacy TitleBar classifier plugged in
-    // via SetHitTestDelegate) and observes DPI / theme messages for
-    // tree-side propagation.
-    hostParams.title           = L"";
+    // Stand up the DxuiHostWindow in adopt mode. The HWND, swap chain,
+    // and rendering pipeline stay owned by SettingsWindow and its
+    // SettingsWindowRenderer (DComp visual + transparency compositor);
+    // the host takes over WM_NCCALCSIZE / WM_NCHITTEST classification
+    // and owns the caption (title + close button) itself -- the renderer
+    // paints it via RenderCaption and the host routes its NC mouse.
+    hostParams.title           = s_kpszSettingsWindowTitle;
     hostParams.hInstance       = m_hInstance;
     hostParams.ownerHwnd       = m_hwndOwner;
     hostParams.borderless      = true;
@@ -547,14 +534,12 @@ HRESULT SettingsWindow::OnCreate (HWND hwnd)
     hostParams.darkMode        = true;
     hostParams.backdrop        = DxuiHostWindowBackdrop::None;
     hostParams.resizeBorderDip = 6.0f;
+    hostParams.captionStyle    = DxuiCaptionStyle::CloseOnly;
 
     hr = DxuiHostWindow::CreateInAdoptMode (m_hwnd, hostParams, m_hostWindow);
     CHRA (hr);
 
-    m_hostWindow->SetHitTestDelegate ([this] (POINT ptScreen) -> LRESULT
-    {
-        return this->ClassifyHitForLegacyChrome (ptScreen);
-    });
+    m_renderer.SetChrome (m_hostWindow.get(), m_theme);
 
     // Hand the renderer's device/context to the host's popup pool so
     // adopt-mode dropdowns get real composition-swap-chain popups
@@ -566,7 +551,7 @@ HRESULT SettingsWindow::OnCreate (HWND hwnd)
 
     if (LoadIconAsPremulBgra (m_hInstance, IDI_CASSO, s_kIconSizePx, iconPixels, iconW, iconH))
     {
-        m_titleBar.SetAppIcon (std::move (iconPixels), iconW, iconH);
+        m_hostWindow->SetCaptionIcon (std::move (iconPixels), iconW, iconH);
     }
 
     hr  = m_renderer.Initialize (m_hwnd,
@@ -650,7 +635,11 @@ void SettingsWindow::OnSize (int widthPx, int heightPx)
     BAIL_OUT_IF (m_hwnd == nullptr || !m_renderer.IsInitialized(), S_OK);
 
     dpi = GetDpiForWindow (m_hwnd);
-    m_titleBar.UpdateGeometry (widthPx, dpi);
+    if (m_hostWindow)
+    {
+        RECT  cr = { 0, 0, widthPx, heightPx };
+        m_hostWindow->LayoutCaptionForClient (cr);
+    }
     hr  = m_renderer.Resize (widthPx, heightPx, dpi);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -694,7 +683,11 @@ void SettingsWindow::OnDpiChanged (UINT dpi, const RECT & suggestedRect)
                        SWP_NOZORDER | SWP_NOACTIVATE);
     CWRA (ok);
 
-    m_titleBar.UpdateGeometry (suggestedRect.right - suggestedRect.left, dpi);
+    if (m_hostWindow)
+    {
+        RECT  cr = { 0, 0, suggestedRect.right - suggestedRect.left, suggestedRect.bottom - suggestedRect.top };
+        m_hostWindow->LayoutCaptionForClient (cr);
+    }
 
     hr = m_renderer.Resize (suggestedRect.right  - suggestedRect.left,
                             suggestedRect.bottom - suggestedRect.top,
@@ -747,152 +740,6 @@ void SettingsWindow::OnGetMinMax (MINMAXINFO * minMaxInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ClassifyHitForLegacyChrome
-//
-//  Bespoke NC hit-test classifier for the legacy TitleBar surfaces.
-//  Plugged into the DxuiHostWindow via SetHitTestDelegate so the
-//  adopt-mode shim consults it before falling back to the framework
-//  resize-edge classifier. Operates in screen coordinates; converts
-//  to client on the way to DxuiTitleBarHitTest.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LRESULT SettingsWindow::ClassifyHitForLegacyChrome (POINT ptScreen)
-{
-    POINT                 pt       = ptScreen;
-    RECT                  rcClient = {};
-    RECT                  rcTitle  = {};
-    RECT                  rcMin    = {};
-    RECT                  rcMax    = {};
-    RECT                  rcClose  = {};
-    DxuiTitleBarHitTestInput  in       = {};
-
-
-
-    if (m_hwnd == nullptr)
-    {
-        return HTNOWHERE;
-    }
-
-    if (!ScreenToClient (m_hwnd, &pt))
-    {
-        return HTNOWHERE;
-    }
-
-    if (!GetClientRect (m_hwnd, &rcClient))
-    {
-        return HTNOWHERE;
-    }
-
-    rcTitle = m_titleBar.GetTitleBarRect();
-    rcMin   = m_titleBar.GetButtonRect (SystemButton::Minimize);
-    rcMax   = m_titleBar.GetButtonRect (SystemButton::Maximize);
-    rcClose = m_titleBar.GetButtonRect (SystemButton::Close);
-
-    in.clientWidth    = rcClient.right - rcClient.left;
-    in.clientHeight   = rcClient.bottom - rcClient.top;
-    in.mouseX         = pt.x;
-    in.mouseY         = pt.y;
-    in.titleLeft      = rcTitle.left;
-    in.titleTop       = rcTitle.top;
-    in.titleRight     = rcTitle.right;
-    in.titleBottom    = rcTitle.bottom;
-    in.minLeft        = rcMin.left;     in.minTop       = rcMin.top;
-    in.minRight       = rcMin.right;    in.minBottom    = rcMin.bottom;
-    in.maxLeft        = rcMax.left;     in.maxTop       = rcMax.top;
-    in.maxRight       = rcMax.right;    in.maxBottom    = rcMax.bottom;
-    in.closeLeft      = rcClose.left;   in.closeTop     = rcClose.top;
-    in.closeRight     = rcClose.right;  in.closeBottom  = rcClose.bottom;
-    // Fixed-size dialog: no resize border, so the classifier never returns
-    // resize-edge hits. min / max rects are already empty (close-only).
-    in.resizeBorderPx = 0;
-
-    return DxuiTitleBarHitTest::Test (in);
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnNcLButtonDown
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SettingsWindow::OnNcLButtonDown (HWND hwnd, LRESULT hitTest)
-{
-    WPARAM  command = 0;
-
-
-
-    switch (hitTest)
-    {
-        case HTCLOSE:
-            command = SC_CLOSE;
-            break;
-
-        case HTMINBUTTON:
-            command = SC_MINIMIZE;
-            break;
-
-        case HTMAXBUTTON:
-            command = IsZoomed (hwnd) ? SC_RESTORE : SC_MAXIMIZE;
-            break;
-
-        default:
-            return false;
-    }
-
-    PostMessageW (hwnd, WM_SYSCOMMAND, command, 0);
-    return true;
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnNcMouse
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsWindow::OnNcMouse (UINT message, WPARAM wParam, LPARAM lParam)
-{
-    POINT  pt       = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
-    bool   leftDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
-
-
-
-    if (message == WM_NCMOUSELEAVE)
-    {
-        pt.x     = -1;
-        pt.y     = -1;
-        leftDown = false;
-    }
-    else
-    {
-        ScreenToClient (m_hwnd, &pt);
-        if (message == WM_NCLBUTTONDOWN)
-        {
-            leftDown = true;
-        }
-        else if (message == WM_NCLBUTTONUP)
-        {
-            leftDown = false;
-        }
-    }
-
-    m_titleBar.SetMousePosition (pt.x, pt.y, leftDown);
-    InvalidateRect (m_hwnd, nullptr, FALSE);
-    (void) wParam;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OnMouse
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -916,8 +763,6 @@ void SettingsWindow::OnMouse (UINT message, WPARAM wParam, LPARAM lParam)
         x = pt.x;
         y = pt.y;
     }
-
-    m_titleBar.SetMousePosition (x, y, (wParam & MK_LBUTTON) != 0);
 
     if (message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK)
     {
@@ -1066,7 +911,7 @@ SIZE SettingsWindow::GetPreferredClientSize (UINT dpi) const
     if (m_panel != nullptr)
     {
         size = m_panel->PreferredClientSize (dpi);
-        size.cy += TitleBarLayout::DefaultTitleHeight (dpi);
+        size.cy += DxuiCaptionBar::HeightPxForDpi (dpi);
     }
     return size;
 }

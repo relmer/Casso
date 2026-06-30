@@ -3,7 +3,6 @@
 #include "Pch.h"
 
 #include "SettingsWindowRenderer.h"
-#include "../Chrome/TitleBar.h"
 
 
 class SettingsPanel;
@@ -57,9 +56,6 @@ private:
     void    OnSize        (int widthPx, int heightPx);
     void    OnDpiChanged  (UINT dpi, const RECT & suggestedRect);
     void    OnGetMinMax   (MINMAXINFO * minMaxInfo);
-    LRESULT ClassifyHitForLegacyChrome (POINT ptScreen);
-    bool    OnNcLButtonDown (HWND hwnd, LRESULT hitTest);
-    void    OnNcMouse     (UINT message, WPARAM wParam, LPARAM lParam);
     void    OnMouse       (UINT message, WPARAM wParam, LPARAM lParam);
     void    OnKeyDown     (WPARAM vk);
     void    OnChar        (WPARAM ch);
@@ -77,7 +73,6 @@ private:
     ID3D11Device        * m_device    = nullptr;
     ID3D11DeviceContext * m_context   = nullptr;
     SettingsWindowRenderer  m_renderer;
-    TitleBar              m_titleBar;
     CassoTheme const   * m_theme     = nullptr;
     bool                  m_hasFocus  = false;
 
