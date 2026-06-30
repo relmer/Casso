@@ -711,7 +711,14 @@ void DxuiHostWindow::SetContentPanel (std::unique_ptr<DxuiPanel> panel)
     {
         if (liveLayout)
         {
-            m_root->Layout (bounds, m_scaler);
+            RECT  rootBounds = bounds;
+
+            if (m_params.insetRootBelowCaption && m_caption)
+            {
+                rootBounds.top += m_caption->PreferredHeightDip();
+            }
+
+            m_root->Layout (rootBounds, m_scaler);
         }
         else
         {
@@ -2109,7 +2116,18 @@ void DxuiHostWindow::MaybeRelayoutRoot (const RECT & clientPx)
 
     boundsDip.right  = MulDiv (clientPx.right,  (int) s_kDefaultDpi, (int) m_scaler.Dpi());
     boundsDip.bottom = MulDiv (clientPx.bottom, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
-    m_root->Layout (boundsDip, m_scaler);
+
+    {
+        RECT  rootDip = boundsDip;
+
+        if (m_params.insetRootBelowCaption && m_caption)
+        {
+            rootDip.top += m_caption->PreferredHeightDip();
+        }
+
+        m_root->Layout (rootDip, m_scaler);
+    }
+
     LayoutCaption (boundsDip);
 }
 

@@ -184,12 +184,12 @@ std::future<int> DxuiDialogManager::Show (std::unique_ptr<DxuiDialog>  dialog,
 //  DxuiDialogManager::ShowModal
 //
 //  Blocking production show. Stands up a borderless full-ownership
-//  DxuiHostWindow that paints the dialog's own caption / content /
-//  button row, disables the owner, and runs a private message pump
-//  until the dialog resolves a return code (button click, Enter on the
-//  default button, Escape or caption-close on cancel). Returns
-//  params.cancelResult when the window is closed with no cancel button
-//  present.
+//  DxuiHostWindow with the standard host-owned caption (title + close),
+//  disables the owner, and runs a private message pump until the dialog
+//  resolves a return code (button click, Enter on the default button,
+//  Escape or caption-close on cancel). The dialog is built caption-less
+//  here so the host owns the caption. Returns params.cancelResult when
+//  the window is closed with no cancel button present.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -210,21 +210,29 @@ int DxuiDialogManager::ShowModal (std::unique_ptr<DxuiDialog>    dialog,
 
     DXUI_ASSERT_UI_THREAD();
     CBRA (dialogRaw);
-    assert (dialogRaw->IsBuilt() && "DxuiDialog must be Build()-ed before ShowModal");
+    assert (!dialogRaw->IsBuilt() && "ShowModal builds the dialog itself; pass it configured but not Build()-ed");
+
+    //
+    //  The host supplies the standard caption (title + close), so the
+    //  dialog itself is built caption-less (content + button row only).
+    //
+    dialogRaw->SetOwnCaption (false);
+    dialogRaw->Build();
 
     client.Bind (dialogRaw, params.cancelResult);
     dialogRaw->SetCloseHandler ([&client] (int returnCode) { client.Resolve (returnCode); });
 
-    hostParams.title           = dialogRaw->Title();
-    hostParams.hInstance       = params.hInstance;
-    hostParams.ownerHwnd       = params.ownerHwnd;
-    hostParams.borderless      = true;
-    hostParams.resizable       = false;
-    hostParams.roundedCorners  = true;
-    hostParams.backdrop        = DxuiHostWindowBackdrop::None;
-    hostParams.captionStyle    = DxuiCaptionStyle::None;
-    hostParams.initialSizeDip  = params.clientSizeDip;
-    hostParams.createSwapChain = true;
+    hostParams.title                = dialogRaw->Title();
+    hostParams.hInstance            = params.hInstance;
+    hostParams.ownerHwnd            = params.ownerHwnd;
+    hostParams.borderless           = true;
+    hostParams.resizable            = false;
+    hostParams.roundedCorners       = true;
+    hostParams.backdrop             = DxuiHostWindowBackdrop::None;
+    hostParams.captionStyle         = DxuiCaptionStyle::CloseOnly;
+    hostParams.insetRootBelowCaption = true;
+    hostParams.initialSizeDip       = params.clientSizeDip;
+    hostParams.createSwapChain      = true;
 
     host.SetClient (&client);
 
@@ -233,7 +241,6 @@ int DxuiDialogManager::ShowModal (std::unique_ptr<DxuiDialog>    dialog,
 
     host.SetTheme        (params.theme);
     host.SetContentPanel (std::move (dialog));
-    dialogRaw->SetHostHwnd (host.Hwnd());
 
     if (params.ownerHwnd != nullptr)
     {

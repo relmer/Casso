@@ -99,13 +99,14 @@ public:
 
     //
     //  Blocking production entry point. Stands up a full-ownership
-    //  DxuiHostWindow (borderless, host-painted, captionStyle None --
-    //  the dialog supplies its own caption), installs an internal
-    //  modal host-client, disables the owner, runs a private message
-    //  pump until the dialog closes, then tears the host down and
-    //  returns the chosen return code. The dialog MUST have been
-    //  Build()-ed by the caller. Returns params.cancelResult on a
-    //  window-close gesture when no cancel button is present.
+    //  DxuiHostWindow with the standard host-owned caption (title +
+    //  close), installs an internal modal host-client, disables the
+    //  owner, runs a private message pump until the dialog closes, then
+    //  tears the host down and returns the chosen return code. The
+    //  dialog is passed configured (title / content / buttons) but NOT
+    //  Build()-ed -- ShowModal builds it caption-less so the host owns
+    //  the caption. Returns params.cancelResult on a window-close
+    //  gesture when no cancel button is present.
     //
     static int  ShowModal  (std::unique_ptr<DxuiDialog>    dialog,
                             const DxuiDialogModalParams  & params);

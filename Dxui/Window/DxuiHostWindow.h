@@ -143,6 +143,15 @@ public:
         // CaptionHeightPx(). Default None preserves the legacy path
         // where the consumer adopts its own title-bar control.
         DxuiCaptionStyle         captionStyle             = DxuiCaptionStyle::None;
+
+        // When true (and a host caption exists), the host lays its
+        // content root out in the client region BELOW the caption strip
+        // instead of the full client rect. Use for content-hosting
+        // windows (dialogs, tool windows) whose root should not slide
+        // under the caption. Default false preserves the full-bleed
+        // behavior the main window relies on (it composites the emulator
+        // viewport under an overlay caption).
+        bool                     insetRootBelowCaption    = false;
     };
 
 
