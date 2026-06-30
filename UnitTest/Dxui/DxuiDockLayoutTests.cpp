@@ -171,6 +171,30 @@ public:
     }
 
 
+    TEST_METHOD (Fill_RegisteredBeforeEdges_StillExcludesEdges)
+    {
+        DxuiDockLayout   layout;
+        DxuiDpiScaler    scaler;
+        MockDxuiControl  fill, bottom;
+        IDxuiControl *   kids[2] = { &fill, &bottom };   // Fill registered FIRST
+        RECT             bounds = MakeRect (0, 0, 400, 300);
+
+        bottom.SetBounds (MakeRect (0, 0, 999, 44));
+
+        layout.SetDock (fill,   DxuiDock::Fill);
+        layout.SetDock (bottom, DxuiDock::Bottom);
+
+        layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (kids, 2));
+
+        // The Bottom slab is reserved even though Fill was registered
+        // first; Fill spans the region ABOVE it, not the whole rect.
+        Assert::AreEqual ((LONG) 256, bottom.Bounds().top);     // 300 - 44
+        Assert::AreEqual ((LONG) 300, bottom.Bounds().bottom);
+        Assert::AreEqual ((LONG) 0,   fill.Bounds().top);
+        Assert::AreEqual ((LONG) 256, fill.Bounds().bottom);
+    }
+
+
     TEST_METHOD (MultipleTops_StackInOrder)
     {
         DxuiDockLayout   layout;
