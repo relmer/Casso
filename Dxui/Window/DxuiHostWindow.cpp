@@ -436,6 +436,14 @@ HRESULT DxuiHostWindow::CreateInAdoptMode (
     }
     host->m_scaler.SetDpi (dpi);
 
+    // Host-owned caption in adopt mode: build it now (HWND + DPI are
+    // live). The consumer drives RenderCaption / LayoutCaptionForClient
+    // from its own pump; NC-mouse routing runs inside HandleMessage.
+    if (params.captionStyle != DxuiCaptionStyle::None)
+    {
+        host->BuildCaption();
+    }
+
     outHost = std::move (host);
 
 Error:
@@ -527,6 +535,21 @@ bool DxuiHostWindow::HandleMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & ou
         case WM_NCHITTEST:
             outResult = HandleNcHitTest (lp);
             return true;
+
+        case WM_NCMOUSEMOVE:
+        case WM_NCMOUSELEAVE:
+        case WM_NCLBUTTONDOWN:
+        case WM_NCLBUTTONUP:
+            // Route caption system-button hover / press / dispatch to the
+            // host-owned caption. Returns true (consumed) only when the
+            // event lands on a caption button; otherwise the consumer's
+            // WndProc keeps the message (caption drag, menu dismiss, ...).
+            if (m_caption && RouteCaptionNcMouse (msg, wp, lp))
+            {
+                outResult = 0;
+                return true;
+            }
+            return false;
 
         case WM_DPICHANGED:
             HandleDpiChanged (wp, lp);
@@ -2241,6 +2264,164 @@ int DxuiHostWindow::CaptionHeightPx () const
         return 0;
     }
     return m_caption->PreferredHeightPx (m_scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RenderCaption
+//
+//  Adopt-mode paint hook: the consumer calls this from its own paint
+//  pump (the host owns no swap chain in adopt mode) so the caption
+//  composites on top of the consumer's content.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::RenderCaption (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_caption)
+    {
+        m_caption->Paint (painter, text, theme);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayoutCaptionForClient
+//
+//  Adopt-mode layout hook: the consumer calls this on WM_SIZE with the
+//  client rect in physical pixels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::LayoutCaptionForClient (const RECT & clientPx)
+{
+    RECT  clientDip = clientPx;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    if (!m_caption)
+    {
+        return;
+    }
+
+    clientDip.right  = MulDiv (clientPx.right,  (int) s_kDefaultDpi, (int) m_scaler.Dpi());
+    clientDip.bottom = MulDiv (clientPx.bottom, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
+    LayoutCaption (clientDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RouteCaptionNcMouse
+//
+//  Drives caption system-button hover / press / release from the raw NC
+//  mouse messages (adopt mode). Returns true only when the event lands
+//  on a caption button -- the consumer keeps everything else. Mirrors
+//  the full-ownership HandleNcMouse button path without touching
+//  DefWindowProc (the consumer owns the default handling).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHostWindow::RouteCaptionNcMouse (UINT msg, WPARAM wp, LPARAM lp)
+{
+    POINT           ptScreen = {};
+    POINT           ptClient = {};
+    IDxuiControl  * control  = nullptr;
+    DxuiMouseEvent  ev       = {};
+
+
+
+    (void) wp;
+
+    if (m_caption == nullptr || m_hwnd == nullptr)
+    {
+        return false;
+    }
+
+    if (msg == WM_NCMOUSELEAVE)
+    {
+        if (m_lastHoveredNcControl != nullptr)
+        {
+            ev.kind = DxuiMouseEventKind::Leave;
+            m_lastHoveredNcControl->OnMouse (ev);
+            m_lastHoveredNcControl = nullptr;
+            InvalidateRect (m_hwnd, nullptr, FALSE);
+            return true;
+        }
+        return false;
+    }
+
+    ptScreen.x = GET_X_LPARAM (lp);
+    ptScreen.y = GET_Y_LPARAM (lp);
+    ptClient   = ptScreen;
+    if (!ScreenToClient (m_hwnd, &ptClient))
+    {
+        return false;
+    }
+
+    ptClient.x = MulDiv (ptClient.x, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
+    ptClient.y = MulDiv (ptClient.y, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
+    control    = FindNcSystemControlAt (ptClient);
+
+    if (control == nullptr)
+    {
+        // Left the buttons: drop any latched hover, but don't consume --
+        // the consumer still needs caption drag / menu dismiss.
+        if (m_lastHoveredNcControl != nullptr && msg == WM_NCMOUSEMOVE)
+        {
+            ev.kind = DxuiMouseEventKind::Leave;
+            m_lastHoveredNcControl->OnMouse (ev);
+            m_lastHoveredNcControl = nullptr;
+            InvalidateRect (m_hwnd, nullptr, FALSE);
+        }
+        return false;
+    }
+
+    switch (msg)
+    {
+        case WM_NCMOUSEMOVE:
+            if (m_lastHoveredNcControl != nullptr && m_lastHoveredNcControl != control)
+            {
+                ev.kind = DxuiMouseEventKind::Leave;
+                m_lastHoveredNcControl->OnMouse (ev);
+            }
+            ev.kind                = DxuiMouseEventKind::Move;
+            m_lastHoveredNcControl = control;
+            break;
+
+        case WM_NCLBUTTONDOWN:
+            ev.kind   = DxuiMouseEventKind::Down;
+            ev.button = DxuiMouseButton::Left;
+            break;
+
+        case WM_NCLBUTTONUP:
+            ev.kind   = DxuiMouseEventKind::Up;
+            ev.button = DxuiMouseButton::Left;
+            break;
+
+        default:
+            return false;
+    }
+
+    ev.positionDip = ptClient;
+    control->OnMouse (ev);
+    InvalidateRect (m_hwnd, nullptr, FALSE);
+    return true;
 }
 
 

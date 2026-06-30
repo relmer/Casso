@@ -209,6 +209,18 @@ public:
     int           CaptionHeightPx () const;
 
     //
+    //  Adopt-mode caption hooks. A full-ownership host paints + lays out
+    //  + routes the caption itself; an adopt-mode host owns no paint pump
+    //  and no NC-mouse stream, so the consumer drives these from its own
+    //  render loop / WndProc: RenderCaption inside its paint pass,
+    //  LayoutCaptionForClient on WM_SIZE. Both no-op when there is no
+    //  host caption. (Caption NC-mouse routing is handled inside
+    //  HandleMessage when a caption exists.)
+    //
+    void          RenderCaption          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void          LayoutCaptionForClient (const RECT & clientPx);
+
+    //
     //  Replace the host's root panel with a caller-supplied panel.
     //  Lets a consumer install a fully-assembled content tree (e.g.
     //  a DxuiDialog or a SettingsWindow content panel) as the host's
@@ -405,6 +417,7 @@ private:
     void     MaybeRelayoutRoot         (const RECT & clientPx);
     void     LayoutCaption             (const RECT & clientDip);
     void     BuildCaption              ();
+    bool     RouteCaptionNcMouse       (UINT msg, WPARAM wp, LPARAM lp);
 
     DxuiHitTestKind  ClassifyHitInternal       (POINT clientDip, RECT clientBoundsDip) const;
     IDxuiControl   *  FindNcSystemControlAt    (POINT clientDip) const;
