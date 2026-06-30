@@ -461,11 +461,11 @@ private:
     // the D3D11 device + DXGI swap chain and runs the panel-tree paint
     // pump; the Apple ][ framebuffer renderer composites into that back
     // buffer via the host's before-present hook, and chrome paints on
-    // top via the adopted controls. The bespoke TitleBar + system-button
-    // NC hit-test classifier is plugged in via SetHitTestDelegate
-    // (see ClassifyHitForLegacyChrome below). EmulatorShell is the
-    // IDxuiHostClient so all consumer-side Win32 messages
-    // (WM_KEYDOWN, WM_COMMAND, WM_SIZE, ...) dispatch through the
+    // top via the adopted controls. The host owns the caption (title +
+    // icon + min/max/close) itself and classifies caption / system-button
+    // / resize-edge NC hits, so no SetHitTestDelegate is installed.
+    // EmulatorShell is the IDxuiHostClient so all consumer-side Win32
+    // messages (WM_KEYDOWN, WM_COMMAND, WM_SIZE, ...) dispatch through the
     // OnXxx overrides above.
     std::unique_ptr<DxuiHostWindow>  m_host;
 

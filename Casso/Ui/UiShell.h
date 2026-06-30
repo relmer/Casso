@@ -7,7 +7,6 @@
 #include "Chrome/DriveWidget.h"
 #include "Chrome/JoystickToggleButton.h"
 #include "Chrome/MainMenu.h"
-#include "Chrome/TitleBar.h"
 #include "Widgets/DxuiTooltip.h"
 
 
@@ -43,8 +42,7 @@ public:
 
     void     SetDebugBannerText (const std::wstring & text) { m_debugBanner = text; }
     void     SetShowDebugBanner (bool showBanner)           { m_showBanner  = showBanner; }
-    void     SetChrome          (TitleBar                        * titleBar,
-                                  MainMenu                        * mainMenu,
+    void     SetChrome          (MainMenu                        * mainMenu,
                                   std::array<DriveWidget, 2>      * driveWidgets,
                                   const CassoTheme               * theme);
     void     SetSettingsPanel   (SettingsPanel                   * settingsPanel);
@@ -97,7 +95,6 @@ private:
     FocusManager                  m_focus;
     DxuiAnimation                     m_anim;
 
-    TitleBar                    * m_titleBar      = nullptr;
     MainMenu                    * m_mainMenu      = nullptr;
     std::array<DriveWidget, 2>  * m_driveWidgets  = nullptr;
     JoystickToggleButton        * m_joystickButton  = nullptr;
