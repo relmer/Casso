@@ -40,6 +40,11 @@ constexpr Word     s_kPaddle2Address       = 0xC066;
 constexpr Word     s_kPaddle3Address       = 0xC067;
 constexpr Word     s_kPaddleTriggerAddress = 0xC070;
 constexpr Byte     s_kPaddleCountingBit    = 0x80;
+constexpr Word     s_kHostPair0FirstAxis   = 0;
+constexpr Word     s_kHostPair1FirstAxis   = 2;
+constexpr Word     s_kHostAxisCount        = 4;
+constexpr Word     s_kHostButton0Index     = 0;
+constexpr Word     s_kHostButton1Index     = 1;
 
 constexpr LPCWSTR  s_kpszEmuLabel    = L"Emulator input:";
 constexpr LPCWSTR  s_kpszHostLabel   = L"Host input:";
@@ -322,6 +327,25 @@ InputGamePortClass InputDebugPanel::ClassifyGamePort (InputEventType type, Word 
 {
     switch (type)
     {
+        case InputEventType::HostPaddle:
+            if (address >= s_kHostPair0FirstAxis && address < s_kHostPair1FirstAxis)
+            {
+                return InputGamePortClass::Pair0;
+            }
+            if (address >= s_kHostPair1FirstAxis && address < s_kHostAxisCount)
+            {
+                return InputGamePortClass::Pair1;
+            }
+            return InputGamePortClass::None;
+
+        case InputEventType::HostButton:
+            switch (address)
+            {
+                case s_kHostButton0Index:
+                case s_kHostButton1Index: return InputGamePortClass::Pair0;
+                default:                  return InputGamePortClass::None;
+            }
+
         case InputEventType::ButtonRead:
             switch (address)
             {
@@ -386,7 +410,10 @@ void InputDebugPanel::FormatInputEvent (
     FormatWallNow (out.wallStr.data(), out.wallStr.size());
     FormatUptime  (uptimeAnchor, out.uptimeStr.data(), out.uptimeStr.size());
     out.cycleStr[0] = L'\0';
-    if (src.type != InputEventType::HostKeyDown && src.type != InputEventType::HostKeyUp)
+    if (src.type != InputEventType::HostKeyDown &&
+        src.type != InputEventType::HostKeyUp   &&
+        src.type != InputEventType::HostPaddle  &&
+        src.type != InputEventType::HostButton)
     {
         FormatCycleWithSeparators (src.cycle, out.cycleStr.data(), out.cycleStr.size());
     }
@@ -409,6 +436,22 @@ void InputDebugPanel::FormatInputEvent (
             value = src.payload.key.ascii;
             out.value   = FormatByteChar (value);
             out.meaning = std::format (L"Auto-repeat: {}", out.value);
+            break;
+
+        case InputEventType::HostPaddle:
+            axis  = (int) src.payload.io.address;
+            value = src.payload.io.value;
+            out.address = std::format (L"PDL{}", axis);
+            out.value   = std::format (L"{}", value);
+            out.meaning = std::format (L"HOST PDL{} = {}", axis, value);
+            break;
+
+        case InputEventType::HostButton:
+            axis    = (int) src.payload.io.address;
+            pressed = src.payload.io.value != 0;
+            out.address = std::format (L"BTN{}", axis);
+            out.value   = pressed ? L"DOWN" : L"UP";
+            out.meaning = std::format (L"HOST BTN{} {}", axis, pressed ? L"DOWN" : L"UP");
             break;
 
         case InputEventType::KbdDataRead:
@@ -2823,6 +2866,52 @@ void InputDebugPanel::OnHostKeyUp (Byte asciiChar)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnHostPaddle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InputDebugPanel::OnHostPaddle (int axis, Byte value)
+{
+    InputEvent  e = MakeStampedEvent (InputEventCategory::Host, InputEventType::HostPaddle);
+
+
+
+    e.cycle = 0;
+    e.payload.io.address = static_cast<Word> (axis);
+    e.payload.io.value   = value;
+    e.payload.io.flags   = 0;
+    m_pendingHostEvents.push_back (e);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnHostButton
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InputDebugPanel::OnHostButton (int index, bool down)
+{
+    InputEvent  e = MakeStampedEvent (InputEventCategory::Host, InputEventType::HostButton);
+
+
+
+    e.cycle = 0;
+    e.payload.io.address = static_cast<Word> (index);
+    e.payload.io.value   = down ? 1 : 0;
+    e.payload.io.flags   = 0;
+    m_pendingHostEvents.push_back (e);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Layout (IDxuiControl adapter)
 //
 //  Bridges DxuiPanel's pure-virtual Layout(RECT, scaler) for the
@@ -2863,7 +2952,6 @@ void InputDebugPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
     UNREFERENCED_PARAMETER (text);
     UNREFERENCED_PARAMETER (theme);
 }
-
 
 
 

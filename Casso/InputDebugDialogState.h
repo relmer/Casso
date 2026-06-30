@@ -33,10 +33,10 @@ struct InputLogicalColumn
 //
 //  InputFilterState
 //
-//  Drives which rows the panel shows. The emulator-input lanes split the
-//  Guest category into keyboard reads and the two analog game-port pairs;
+//  Drives which rows the panel shows. The analog lanes split game-port
+//  rows into the two axis pairs regardless of Host / Guest origin;
 //  pairIsJoystick[] records how the user chose to view each pair (true =
-//  Joystick, false = Paddles), which decides whether that pair's reads
+//  Joystick, false = Paddles), which decides whether that pair's rows
 //  match the Joystick or the Paddle checkbox.
 //
 ////////////////////////////////////////////////////////////////////////////////

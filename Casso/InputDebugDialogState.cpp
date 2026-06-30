@@ -70,7 +70,20 @@ bool MatchesFilter (const InputEventDisplay & e, const InputFilterState & f) noe
     switch (e.category)
     {
         case InputEventCategory::Host:
-            return f.showHostKeyboard;
+            switch (e.gamePort)
+            {
+                case InputGamePortClass::None:
+                    return f.showHostKeyboard;
+
+                case InputGamePortClass::Global:
+                    return f.showJoystick || f.showPaddle;
+
+                case InputGamePortClass::Pair0:
+                case InputGamePortClass::Pair1:
+                    pairIsJoystick = f.pairIsJoystick[(e.gamePort == InputGamePortClass::Pair0) ? 0 : 1];
+                    return pairIsJoystick ? f.showJoystick : f.showPaddle;
+            }
+            return true;
 
         case InputEventCategory::System:
             return true;

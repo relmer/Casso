@@ -50,8 +50,8 @@ public:
     // Modifier-key state (set from UI thread via HostShell key events).
     // Open Apple <-> left Alt, Closed Apple <-> right Alt, Shift <-> Shift
     // (Phase 6 / T063 / FR-013).
-    void SetOpenApple   (bool pressed) { m_openApple.store   (pressed, memory_order_release); }
-    void SetClosedApple (bool pressed) { m_closedApple.store (pressed, memory_order_release); }
+    void SetOpenApple   (bool pressed);
+    void SetClosedApple (bool pressed);
     void SetShift       (bool pressed) { m_shift.store       (pressed, memory_order_release); }
 
     // Soft-switch sibling — owns $C00C-$C00F, $C011-$C01F status reads,
@@ -88,10 +88,12 @@ public:
 private:
     static constexpr Word kFirstButtonAddress = 0xC061;
     static constexpr int  kButtonCount        = 3;     // $C061-$C063
+    static constexpr int  kHostButtonCount    = 2;     // Open / Closed Apple
 
     // CPU thread. Coalesced emit for a guest read of a $C061-$C063
     // button: fires only when that button's returned byte changed.
     void EmitButtonRead (Word address, Byte value);
+    void EmitHostButton (int index, bool pressed);
 
     MemoryBus *                    m_bus               = nullptr;
     class Apple2eSoftSwitchBank *  m_softSwitchSibling = nullptr;
@@ -105,5 +107,6 @@ private:
 
     // Last-emitted byte per button for coalescing (CPU thread only).
     // -1 means "nothing emitted yet"; a Byte never matches it.
-    int                            m_lastEmittedButton[kButtonCount] = { -1, -1, -1 };
+    int                            m_lastEmittedButton[kButtonCount]        = { -1, -1, -1 };
+    int                            m_lastEmittedHostButton[kHostButtonCount] = { -1, -1 };
 };

@@ -146,6 +146,25 @@ public:
             L"Re-viewing the same logged event as Paddles re-gates it on the Paddle lane");
     }
 
+    TEST_METHOD (HostGamePort_GatedByAnalogCheckboxes)
+    {
+        InputEventDisplay  e = MakeCategory (InputEventCategory::Host, InputEventType::HostPaddle);
+        InputFilterState   f;
+
+        e.gamePort = InputGamePortClass::Pair1;
+        f.pairIsJoystick[1] = false;
+        f.showPaddle        = true;
+        f.showJoystick      = false;
+        f.showHostKeyboard  = false;
+
+        Assert::IsTrue (MatchesFilter (e, f),
+            L"Host game-port input follows the analog Paddle lane, not Host Keyboard");
+
+        f.showPaddle = false;
+        Assert::IsFalse (MatchesFilter (e, f),
+            L"Host game-port input hides when its analog lane is off");
+    }
+
     TEST_METHOD (GlobalTrigger_VisibleIfEitherAnalogLaneOn)
     {
         InputEventDisplay  e = MakeGuest (InputEventType::PaddleTrigger, InputGamePortClass::Global);

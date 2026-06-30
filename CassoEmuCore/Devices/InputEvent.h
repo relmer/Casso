@@ -43,10 +43,10 @@ enum class InputEventCategory : uint8_t
 //  enum so the consumer switches on a single field; the category tag
 //  tells the formatter which sub-table to use for the Meaning column.
 //
-//  HostKeyDown / HostKeyUp originate on the UI thread (real Windows
-//  WM_KEY*/WM_CHAR), staged directly into the panel's UI-owned buffer.
-//  HostAutoRepeat originates on the CPU thread (the //e repeat timer
-//  re-latching a held key) and travels through the SPSC ring like the
+//  HostKeyDown / HostKeyUp / HostPaddle / HostButton originate on the UI
+//  thread (real Windows input), staged directly into the panel's UI-owned
+//  buffer. HostAutoRepeat originates on the CPU thread (the //e repeat
+//  timer re-latching a held key) and travels through the SPSC ring like the
 //  guest reads.
 //
 //  KbdDataRead / KbdStrobe / ButtonRead are guest soft-switch accesses,
@@ -70,18 +70,20 @@ enum class InputEventType : uint8_t
     HostKeyDown     = 0,
     HostKeyUp       = 1,
     HostAutoRepeat  = 2,
+    HostPaddle      = 3,    // host set paddle / joystick axis 0..3
+    HostButton      = 4,    // host set joystick button 0/1
 
     // Guest-side
-    KbdDataRead     = 3,    // $C000 read: latched key + strobe bit
-    KbdStrobe       = 4,    // $C010 access: clears strobe, returns AKD
-    ButtonRead      = 5,    // $C061-$C063 read: Open/Closed-Apple/Shift
+    KbdDataRead     = 5,    // $C000 read: latched key + strobe bit
+    KbdStrobe       = 6,    // $C010 access: clears strobe, returns AKD
+    ButtonRead      = 7,    // $C061-$C063 read: Open/Closed-Apple/Shift
 
     // Game-port axis timers ($C064-$C067) and the PTRIG strobe ($C070)
-    PaddleTrigger   = 6,    // $C070 strobe
-    PaddleRead      = 7,    // $C064-$C067 read
+    PaddleTrigger   = 8,    // $C070 strobe
+    PaddleRead      = 9,    // $C064-$C067 read
 
     // Synthetic
-    EventsLost      = 8,    // producer-side ring overflow marker
+    EventsLost      = 10,   // producer-side ring overflow marker
 };
 
 

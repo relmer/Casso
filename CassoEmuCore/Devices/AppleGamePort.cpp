@@ -144,6 +144,7 @@ void AppleGamePort::SetPaddle (int axis, Byte position)
     CBRA (axis >= 0 && axis < s_knPaddleAxisCount);
 
     m_paddlePosition[axis].store (position, memory_order_release);
+    EmitHostPaddle (axis, position);
 
 Error:
     return;
@@ -171,10 +172,74 @@ void AppleGamePort::SetButton (int index, bool pressed)
     CBRA (index >= 0 && index < s_knButtonCount);
 
     m_buttonState[index].store (pressed, memory_order_release);
+    if (index < s_knHostButtonCount)
+    {
+        EmitHostButton (index, pressed);
+    }
 
 Error:
     return;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmitHostPaddle
+//
+//  Host UI thread. Coalesced emit for a host-set analog axis: fires only
+//  when the staged axis value changed since the last host-input emit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleGamePort::EmitHostPaddle (int axis, Byte value)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (m_inputSink == nullptr,                    S_OK);
+    BAIL_OUT_IF (m_lastEmittedHostPaddle[axis] == value,    S_OK);
+
+    m_lastEmittedHostPaddle[axis] = value;
+    m_inputSink->OnHostPaddle (axis, value);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmitHostButton
+//
+//  Host UI thread. Coalesced emit for a host-set joystick button: fires
+//  only when the staged button state changed since the last host-input emit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleGamePort::EmitHostButton (int index, bool pressed)
+{
+    HRESULT  hr    = S_OK;
+    int      value = pressed ? 1 : 0;
+
+
+
+    BAIL_OUT_IF (m_inputSink == nullptr,                      S_OK);
+    BAIL_OUT_IF (m_lastEmittedHostButton[index] == value,     S_OK);
+
+    m_lastEmittedHostButton[index] = value;
+    m_inputSink->OnHostButton (index, pressed);
+
+Error:
+    return;
+}
+
 
 
 
@@ -295,6 +360,16 @@ void AppleGamePort::Reset()
     }
 
     for (int & last : m_lastEmittedPaddle)
+    {
+        last = -1;
+    }
+
+    for (int & last : m_lastEmittedHostButton)
+    {
+        last = -1;
+    }
+
+    for (int & last : m_lastEmittedHostPaddle)
     {
         last = -1;
     }
