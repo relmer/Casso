@@ -9,10 +9,12 @@
 
 namespace
 {
-    // Glyph stroke thickness and inset within the button rect, in DIPs.
-    constexpr float  s_kGlyphInsetDip      = 6.0f;
+    // Glyph metrics. The glyph is a fixed-size square centred in the
+    // button (Win11 chrome), with a thin stroke and a small offset for
+    // the restore (double-square) glyph.
+    constexpr float  s_kGlyphSizeDip       = 10.0f;
     constexpr float  s_kGlyphThicknessDip  = 1.0f;
-    constexpr float  s_kRestoreOffsetDip   = 3.0f;
+    constexpr float  s_kRestoreOffsetDip   = 2.5f;
 }
 
 
@@ -93,7 +95,7 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     float    yPx         = 0.0f;
     float    widthPx     = 0.0f;
     float    heightPx    = 0.0f;
-    float    insetPx     = 0.0f;
+    float    glyphSizePx = 0.0f;
     float    glyphLeft   = 0.0f;
     float    glyphTop    = 0.0f;
     float    glyphRight  = 0.0f;
@@ -139,19 +141,22 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
         fg = 0xFFFFFFFF;
     }
 
-    insetPx     = m_scaler.Pxf (s_kGlyphInsetDip);
     strokePx    = m_scaler.Pxf (s_kGlyphThicknessDip);
     if (strokePx < 1.0f)
     {
         strokePx = 1.0f;
     }
 
-    glyphLeft   = xPx + insetPx;
-    glyphTop    = yPx + insetPx;
-    glyphRight      = xPx + widthPx  - insetPx;
-    glyphBottom     = yPx + heightPx - insetPx;
-    midX            = (glyphLeft + glyphRight) * 0.5f;
-    midY            = (glyphTop  + glyphBottom) * 0.5f;
+    // Win11 caption glyphs are a small fixed square centred in the
+    // button -- NOT scaled to the button bounds. A ~10 DIP glyph in a
+    // 46x32 DIP button matches the system chrome.
+    glyphSizePx = m_scaler.Pxf (s_kGlyphSizeDip);
+    midX        = xPx + widthPx  * 0.5f;
+    midY        = yPx + heightPx * 0.5f;
+    glyphLeft   = midX - glyphSizePx * 0.5f;
+    glyphTop    = midY - glyphSizePx * 0.5f;
+    glyphRight      = midX + glyphSizePx * 0.5f;
+    glyphBottom     = midY + glyphSizePx * 0.5f;
     restoreOffsetPx = m_scaler.Pxf (s_kRestoreOffsetDip);
 
     switch (m_kind)
