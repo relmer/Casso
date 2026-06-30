@@ -25,7 +25,6 @@
 #include "Ui/Chrome/JoystickToggleButton.h"
 #include "Ui/Chrome/LayoutManager.h"
 #include "Ui/Chrome/MainMenu.h"
-#include "Ui/Chrome/TitleBar.h"
 #include "Ui/ColorUtil.h"
 #include "Ui/Dialog/DialogDefinition.h"
 #include "Ui/Dialog/DialogPrimitive.h"
@@ -199,14 +198,6 @@ private:
     LRESULT            OnDrawItem      (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) override;
     void               OnDestroy       () override;
     void               OnDpiChanged    (UINT newDpi) override;
-
-    // Bespoke NC hit-test classifier for the legacy chrome surfaces
-    // (TitleBar + system-button rect cache). Plugged into the
-    // DxuiHostWindow via SetHitTestDelegate in OnCreate so the
-    // adopt-mode shim consults it before falling back to the
-    // framework resize-edge / panel-tree classifier. Operates in
-    // screen coordinates to match the WM_NCHITTEST LPARAM packing.
-    LRESULT ClassifyHitForLegacyChrome (POINT ptScreen);
 
     // CPU thread entry point and helpers
     void RunOneFrame();
@@ -455,11 +446,10 @@ private:
     // and config store can resolve paths on the UI thread.
     Win32FileSystem        m_uiFs;
 
-    // Chrome surfaces. TitleBar owns the per-button rect cache that
-    // the legacy-chrome NC hit-test classifier queries. MainMenu owns
-    // the parity table for legacy IDM_* commands. Both run alongside
-    // the existing Win32 menu bar until the painter retires the latter.
-    TitleBar            m_titleBar;
+    // Chrome surfaces. MainMenu owns the parity table for legacy IDM_*
+    // commands and runs alongside the existing Win32 menu bar until the
+    // painter retires the latter. The caption (title + icon + min/max/
+    // close) is owned and rendered by the DxuiHostWindow, not here.
     MainMenu            m_mainMenu;
     CassoTheme         m_chromeTheme    = CassoTheme::Skeuomorphic();
     std::array<DriveWidget, 2> m_driveChrome;
