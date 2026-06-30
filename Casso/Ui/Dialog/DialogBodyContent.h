@@ -31,11 +31,16 @@ public:
     // for normal (non-hyperlink) runs.
     void  SetRuns  (const std::vector<DialogTextRun> & runs, uint32_t textArgb);
 
+    // Optional centered top icon (premultiplied BGRA), drawn above the
+    // run stack at `displaySizeDip` square. Pass empty pixels for none.
+    void  SetIcon  (std::vector<uint32_t> bgraPremul, int srcW, int srcH, int displaySizeDip);
+
     // Estimated stacked height in DIP, used by the caller to size the
     // hosting dialog.
     int   PreferredHeightDip () const;
 
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
+    void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
 
 private:
@@ -46,5 +51,10 @@ private:
     };
 
 
-    std::vector<Item>  m_items;
+    std::vector<Item>      m_items;
+    std::vector<uint32_t>  m_iconPixels;
+    int                    m_iconSrcW    = 0;
+    int                    m_iconSrcH    = 0;
+    int                    m_iconSizeDip = 0;
+    RECT                   m_iconRectPx  = {};
 };
