@@ -113,6 +113,7 @@ DxuiMessageResult DxuiModalDialogClient::OnKeyDown (WPARAM vk, LPARAM lParam)
             {
                 Resolve (m_cancelResult);
             }
+
             isHandled = true;
             break;
 
@@ -151,6 +152,7 @@ DxuiMessageResult DxuiModalDialogClient::OnChar (WPARAM ch, LPARAM lParam)
     DxuiMessageResult  result    = DxuiMessageResult::NotHandled;
     IDxuiControl *     focused   = m_focus.Focused();
     bool               isHandled = false;
+
 
 
     UNREFERENCED_PARAMETER (lParam);
