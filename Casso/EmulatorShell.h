@@ -27,7 +27,6 @@
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
 #include "Ui/Dialog/DialogDefinition.h"
-#include "Ui/Dialog/DialogPrimitive.h"
 #include "Ui/Disk2DebugPanel.h"
 #include "Ui/DriveWidgetController.h"
 #include "Ui/DriveWidgetState.h"
@@ -396,8 +395,8 @@ private:
     // shell's Initialize sequence.
     void    SaveGlobalPrefs      ();
 
-    // Lazily registers the DialogPrimitive window class on first call
-    // and shows the supplied dialog modally. Returns the resultCode
+    // Shows the supplied dialog modally through the Dxui
+    // DxuiDialogManager::ShowModal host path. Returns the resultCode
     // of the chosen button, or -1 on close-gesture.
     int     ShowModalDialog      (const DialogDefinition & def);
 
@@ -407,9 +406,6 @@ private:
     // DxuiDialogManager::ShowModal host path. Returns the chosen button's
     // resultCode (or def.closeBoxResult / -1 on a close gesture).
     int          ShowSimpleDialogViaDxui (const DialogDefinition & def);
-
-    // True when `def` uses only features the Dxui ShowModal path supports.
-    static bool  IsSimpleDialog          (const DialogDefinition & def);
 
     // Push a freshly mounted disk image onto the recent-disks MRU
     // and persist user prefs. Best-effort; never propagates failures
@@ -448,7 +444,6 @@ private:
    
     D3DRenderer            m_d3dRenderer;
     WasapiAudio            m_wasapiAudio;
-    DialogPrimitive        m_dialogPrimitive;
 
     // UI-thread filesystem and chrome ownership. The painter pass
     // and shell composition is reintroduced in a later phase; for now

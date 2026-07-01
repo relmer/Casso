@@ -63,37 +63,6 @@ public:
                                            bool                   & outHasDiskController,
                                            string                 & outError);
 
-    static HRESULT  CheckAndFetchRoms     (HINSTANCE                hInstance,
-                                           const wstring          & machineName,
-                                           HWND                     hwndParent,
-                                           const vector<fs::path> & searchPaths,
-                                           const fs::path         & assetBaseDir,
-                                           std::string_view         themeName,
-                                           string                 & outError);
-
-    // Audio / FR-017 / FR-018. Inspects
-    // `devicesDir`'s per-mechanism subdirectories (Alps/, Shugart/);
-    // if either is missing any WAVs the user gets a GPL-3 disclosure
-    // consent dialog. On accept, fetches the matching OGGs from
-    // OpenEmulator's GitHub mirror, decodes them in memory with
-    // stb_vorbis, and writes resampled 16-bit PCM WAVs to the
-    // per-mechanism subdirs. Returns S_OK when at least one mechanism
-    // is populated (or already was), S_FALSE if the user declined,
-    // and an error HRESULT with `outError` set on hard failure.
-    // Errors do not block startup (FR-009).
-    //
-    // `prefs.audioDownloadConsent` carries the persisted user choice
-    // across launches ("ask" / "allow" / "decline"); the function
-    // reads it to decide whether to prompt, and writes the user's new
-    // choice back. The caller is responsible for flushing prefs to
-    // disk after this returns.
-    static HRESULT  CheckAndFetchDiskAudio (HINSTANCE                hInstance,
-                                            const wstring          & machineName,
-                                            HWND                     hwndParent,
-                                            const fs::path         & devicesDir,
-                                            struct GlobalUserPrefs & prefs,
-                                            string                 & outError);
-
     // In-memory OGG Vorbis fetch + decode + resample to mono float32
     // at `targetSampleRate`. Stereo input is downmixed to mono via
     // arithmetic average so the resulting buffer feeds Casso's

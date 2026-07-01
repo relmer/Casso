@@ -1845,68 +1845,15 @@ void EmulatorShell::SaveGlobalPrefs()
 //
 //  EmulatorShell::ShowModalDialog
 //
-//  Lazy-registers the DialogPrimitive window class on first use and
-//  blocks until the user dismisses the dialog. Returns the chosen
+//  Shows the supplied dialog modally through the Dxui ShowModal host
+//  path and blocks until the user dismisses it. Returns the chosen
 //  button's resultCode, or -1 when the user closes via window gesture.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
 {
-    HRESULT  hr     = S_OK;
-    int      result = -1;
-
-
-    if (IsSimpleDialog (def))
-    {
-        result = ShowSimpleDialogViaDxui (def);
-    }
-    else
-    {
-        hr = m_dialogPrimitive.RegisterClass (m_hInstance);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        result = m_dialogPrimitive.Show (m_hwnd,
-                                         m_d3dRenderer.GetDevice(),
-                                         m_d3dRenderer.GetContext(),
-                                         &m_chromeTheme,
-                                         def);
-    }
-
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::IsSimpleDialog
-//
-//  A dialog is renderable through the Dxui ShowModal host path when it uses
-//  none of the legacy DialogPrimitive's rich behaviors: no custom body,
-//  tick, button-activated hook, resizable mode, or custom-body focus.
-//  Text, action buttons, and hyperlink runs are supported (the latter via
-//  DialogBodyContent). Icon glyphs / app-bitmap icons are allowed but not
-//  yet rendered.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EmulatorShell::IsSimpleDialog (const DialogDefinition & def)
-{
-    bool  simple = true;
-
-
-    if (def.onPaintCustomBody || def.onInputCustomBody || def.onButtonActivated ||
-        def.onTick || def.onMeasureCustomBody || def.onCustomBodyFocusChanged ||
-        def.onCustomBodyWantsResizeCursor || def.resizable ||
-        def.customBodyFocusableCount > 0)
-    {
-        simple = false;
-    }
-
-    return simple;
+    return ShowSimpleDialogViaDxui (def);
 }
 
 

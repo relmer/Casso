@@ -10,12 +10,12 @@
 //
 //  DialogDefinition
 //
-//  Pure value type consumed by `DialogPrimitive::Show`. Describes the
-//  title, optional icon, wrapped body runs, action buttons, and
-//  optional custom-body paint / input hooks for richer consumers
-//  (startup-download progress, boot-disk picker list). All types are
-//  intentionally Win32-free so the layout math in `DialogLayout` can
-//  be unit-tested headlessly.
+//  Pure value type describing a modal dialog: title, optional icon,
+//  wrapped body runs (plain + hyperlink), action buttons, and the
+//  window-close result code. Consumed by EmulatorShell::ShowModalDialog,
+//  which hosts it through the Dxui DxuiDialogManager::ShowModal path.
+//  All types are intentionally Win32-light so the value can be built
+//  headlessly.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,8 +24,6 @@
 class DxuiPainter;
 class DxuiTextRenderer;
 struct CassoTheme;
-struct DialogPaintContext;
-struct DialogInputEvent;
 
 
 
@@ -91,74 +89,13 @@ struct DialogDefinition
     DialogIcon   icon  = DialogIcon::None;
 
     // Per-dialog icon size override in DIPs. 0 = use the default
-    // primitive icon size.
+    // icon size.
     float                      iconSizeOverrideDp = 0.0f;
     std::vector<DialogTextRun> body;
     std::vector<DialogButton>  buttons;
 
-    // Custom-body hooks. When `onPaintCustomBody` is set the layout
-    // reserves space between the body text and the button row equal
-    // to `customBodyMinSizePx`; the primitive then calls the hook on
-    // every render frame. `onInputCustomBody` receives input events
-    // hit-tested into the custom body rect and may return a result
-    // code to request that the dialog close with that value. The
-    // primitive passes its own `this` so the hook can drive focus
-    // (SetCustomBodyFocus), repaint, or update buttons in place.
-    std::function<void (DialogPaintContext &)>                                            onPaintCustomBody;
-    std::function<std::optional<int> (const DialogInputEvent &, class DialogPrimitive &)> onInputCustomBody;
-
-    // Optional per-point cursor query. Fired from WM_SETCURSOR with the
-    // cursor position in custom-body-relative pixels; return true to show
-    // the horizontal resize cursor (e.g. over a resizable column divider).
-    std::function<bool (int xPx, int yPx)> onCustomBodyWantsResizeCursor;
-
-    // Custom-body focus integration. When `customBodyFocusableCount > 0`
-    // the dialog's Tab ring places that many custom-body stops AHEAD of
-    // the action buttons, and focuses custom-body stop 0 on open instead
-    // of the default button. `onCustomBodyFocusChanged` fires with the
-    // focused stop index (0-based) while a custom-body stop holds focus,
-    // or -1 when focus moves onto a button / hyperlink. The custom body
-    // uses this to route typed text / edit keys to its focused sub-widget
-    // (e.g. a search box vs. a list). Keyboard events still arrive through
-    // `onInputCustomBody`; this only tells the body which stop is active.
-    int                                  customBodyFocusableCount = 0;
-    std::function<void (int focusIndex)> onCustomBodyFocusChanged;
-
-    // Optional measurement hook fired during layout, giving consumers
-    // access to a DxuiTextRenderer so they can size the custom body
-    // based on string metrics. Returning a non-zero SIZE overrides
-    // `customBodyMinSizePx` for that layout pass.
-    std::function<SIZE (DxuiTextRenderer &, float dpiScale)> onMeasureCustomBody;
-    SIZE                                                     customBodyMinSizePx = {};
-
-    // Optional hook fired when a button is activated (mouse, default,
-    // cancel). Receives the button index. Return true to close the
-    // dialog with that button's resultCode; return false to keep the
-    // dialog open (e.g. to start an async operation in-place). The
-    // primitive passes its own `this` so the hook can call
-    // SetButtonLabel / SetButtonEnabled / SetButtonVisible / Repaint
-    // to update the dialog without closing it.
-    std::function<bool (size_t buttonIdx, class DialogPrimitive &)> onButtonActivated;
-
-    // Optional periodic tick. When `tickIntervalMs > 0` the primitive
-    // installs a WM_TIMER and invokes `onTick` on every fire. Use to
-    // poll worker-thread state and either repaint or call Close. The
-    // primitive guarantees this fires only on the UI thread.
-    std::function<void (class DialogPrimitive &)> onTick;
-    unsigned int                                  tickIntervalMs   = 0;
-
-    // When set, WM_CLOSE (title-bar X, Alt+F4) returns this result
-    // code instead of clicking the cancel button. Use to distinguish
-    // "user closed the window" from "user clicked Cancel/Skip".
+    // When set, a window-close gesture (title-bar X, Alt+F4, Escape)
+    // returns this result code instead of the cancel button's. Use to
+    // distinguish "user closed the window" from "user clicked Cancel".
     std::optional<int> closeBoxResult;
-
-    // Opt-in resizable mode. When `resizable` is true the dialog opens
-    // with custom-chrome resize borders, the custom body fills the
-    // client width/height, and the button row pins to the bottom.
-    // `resizableMinSizeDip` / `resizableDefaultSizeDip` are the minimum
-    // and initial client sizes in DIPs (scaled by DPI at show time).
-    // Defaults keep every dialog fixed-size, matching legacy behavior.
-    bool resizable               = false;
-    SIZE resizableMinSizeDip     = {};
-    SIZE resizableDefaultSizeDip = {};
 };
