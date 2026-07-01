@@ -116,6 +116,8 @@ int DxuiDialogManager::ShowModal (std::unique_ptr<DxuiDialog>    dialog,
     int                            result        = params.cancelResult;
     BOOL                           gotMessage    = FALSE;
     bool                           ownerDisabled = false;
+    UINT                           appTickMs     = 0;
+    UINT                           timerMs       = 0;
 
 
 
@@ -163,12 +165,9 @@ int DxuiDialogManager::ShowModal (std::unique_ptr<DxuiDialog>    dialog,
     //  content actually blinks (its caret is clock-driven in Paint, so it
     //  only animates while the host repaints).
     //
-    {
-        UINT  appTickMs = dialogRaw->TickIntervalMs();
-        UINT  timerMs   = (appTickMs > 0) ? appTickMs : s_kCaretRepaintMs;
-
-        host.SetTimer (1, timerMs);
-    }
+    appTickMs = dialogRaw->TickIntervalMs();
+    timerMs   = (appTickMs > 0) ? appTickMs : s_kCaretRepaintMs;
+    host.SetTimer (1, timerMs);
 
     if (params.ownerHwnd != nullptr)
     {
