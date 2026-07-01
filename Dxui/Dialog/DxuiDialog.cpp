@@ -567,13 +567,93 @@ bool DxuiDialog::OnKey (const DxuiKeyEvent & ev)
 
 void DxuiDialog::HandleButtonClicked (size_t index)
 {
-    if (index >= m_buttons.size())
+    bool  shouldClose = true;
+
+
+    if (index < m_buttons.size())
+    {
+        if (m_onButtonActivated)
+        {
+            shouldClose = m_onButtonActivated (index);
+        }
+
+        if (shouldClose)
+        {
+            InvokeClose (m_buttons[index].returnCode);
+        }
+    }
+    else
     {
         assert (false && "Button index out of range");
-        return;
     }
+}
 
-    InvokeClose (m_buttons[index].returnCode);
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDialog::SetOnTick / Tick
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDialog::SetOnTick (std::function<void()> fn, unsigned intervalMs)
+{
+    DXUI_ASSERT_UI_THREAD();
+    m_onTick         = std::move (fn);
+    m_tickIntervalMs = intervalMs;
+}
+
+
+void DxuiDialog::Tick ()
+{
+    if (m_onTick)
+    {
+        m_onTick();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDialog::SetButtonLabel / SetButtonEnabled / SetButtonVisible
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDialog::SetButtonLabel (size_t index, const std::wstring & label)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (index < m_buttonWidgets.size() && m_buttonWidgets[index] != nullptr)
+    {
+        m_buttonWidgets[index]->SetLabel (label);
+    }
+}
+
+
+void DxuiDialog::SetButtonEnabled (size_t index, bool enabled)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (index < m_buttonWidgets.size() && m_buttonWidgets[index] != nullptr)
+    {
+        m_buttonWidgets[index]->SetEnabled (enabled);
+    }
+}
+
+
+void DxuiDialog::SetButtonVisible (size_t index, bool visible)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (index < m_buttonWidgets.size() && m_buttonWidgets[index] != nullptr)
+    {
+        m_buttonWidgets[index]->SetVisible (visible);
+    }
 }
 
 
