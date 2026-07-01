@@ -441,6 +441,17 @@ private:
     static IDxuiControl *  FindNcSystemControlInTree          (IDxuiControl * control, POINT clientDip);
 
 
+    static constexpr int     s_kMinResizeBorderPx    = 4;
+    static constexpr UINT    s_kDefaultDpi           = 96;
+    static constexpr LONG    s_kExtendFrameInsetPx   = 1;
+    static constexpr size_t  s_kPopupPoolInitialSize = 3;
+
+    // Distinct per-instance window class names — every Create()
+    // generates a fresh class so multiple host windows in one
+    // process don't share registration state.
+    static inline std::atomic<uint32_t>  s_classSerial { 0 };
+
+
     HWND                              m_hwnd               = nullptr;
     HINSTANCE                         m_hInstance          = nullptr;
     std::wstring                      m_className;

@@ -13,17 +13,6 @@
 
 
 
-static constexpr int    s_kMinResizeBorderPx     = 4;
-static constexpr UINT   s_kDefaultDpi            = 96;
-static constexpr LONG   s_kExtendFrameInsetPx    = 1;
-
-// Distinct per-instance window class names — every Create()
-// generates a fresh class so multiple host windows in one
-// process don't share registration state.
-static std::atomic<uint32_t>  s_classSerial { 0 };
-
-
-
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2775,13 +2764,6 @@ LRESULT DxuiHostWindow::KindToHt (DxuiHitTestKind kind)
     }
     return HTCLIENT;
 }
-
-
-
-
-
-
-static constexpr size_t  s_kPopupPoolInitialSize = 3;
 
 
 
