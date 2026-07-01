@@ -1274,7 +1274,7 @@ static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, std::string_view t
         x     = (float) ctx.customBodyRect.left;
         y     = (float) ctx.customBodyRect.top;
         bg    = ctx.theme->dropdownBg;
-        fg    = ctx.theme->dropdownItemText;
+        fg    = ctx.theme->bodyText;
         band  = ctx.theme->navStrip;
         descX = x + nameW + colGap;
         descW = (float) (ctx.customBodyRect.right - (LONG) descX);

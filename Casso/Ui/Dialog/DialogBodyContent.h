@@ -35,6 +35,13 @@ public:
     // run stack at `displaySizeDip` square. Pass empty pixels for none.
     void  SetIcon  (std::vector<uint32_t> bgraPremul, int srcW, int srcH, int displaySizeDip);
 
+    // Optional semantic icon glyph (Segoe MDL2 Assets codepoint) drawn in
+    // a left column at `sizeDip` square, with the run stack inset to its
+    // right. `argb` is the glyph color. Pass glyph 0 for none. Mutually
+    // exclusive in practice with SetIcon (app-bitmap dialogs don't use a
+    // semantic glyph).
+    void  SetGlyphIcon (wchar_t glyph, uint32_t argb, int sizeDip);
+
     // Estimated stacked height in DIP, used by the caller to size the
     // hosting dialog.
     int   PreferredHeightDip () const;
@@ -57,4 +64,8 @@ private:
     int                    m_iconSrcH    = 0;
     int                    m_iconSizeDip = 0;
     RECT                   m_iconRectPx  = {};
+    wchar_t                m_glyph       = 0;
+    uint32_t               m_glyphArgb   = 0;
+    int                    m_glyphSizeDip = 0;
+    RECT                   m_glyphRectPx = {};
 };

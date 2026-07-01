@@ -1933,7 +1933,13 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
     constexpr int      s_kMaxHeightDip    = 620;
     constexpr int      s_kIconSrcPx       = 256;
     constexpr int      s_kDefaultIconDip  = 48;
-    constexpr uint32_t s_kBodyArgb        = 0xFFFFFFFF;
+    constexpr int      s_kGlyphSizeDip    = 32;
+    constexpr wchar_t  s_kchGlyphInfo     = L'\uE946';   // MDL2 Info
+    constexpr wchar_t  s_kchGlyphWarning  = L'\uE7BA';   // MDL2 Warning
+    constexpr wchar_t  s_kchGlyphError    = L'\uEA39';   // MDL2 ErrorBadge
+    constexpr uint32_t s_kGlyphArgbInfo   = 0xFF4A9EDB;
+    constexpr uint32_t s_kGlyphArgbWarning = 0xFFF5A623;
+    constexpr uint32_t s_kGlyphArgbError  = 0xFFE5424D;
 
     std::unique_ptr<DxuiDialog>         dlg       = std::make_unique<DxuiDialog>();
     std::unique_ptr<DialogBodyContent>  content   = std::make_unique<DialogBodyContent>();
@@ -1941,7 +1947,7 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
     int                                 heightDip = 0;
 
 
-    content->SetRuns (def.body, s_kBodyArgb);
+    content->SetRuns (def.body, m_chromeTheme.bodyText);
 
     if (def.icon == DialogIcon::AppPhotoreal || def.icon == DialogIcon::AppFlat)
     {
@@ -1956,6 +1962,18 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
         {
             content->SetIcon (std::move (iconPixels), iconW, iconH, iconDip);
         }
+    }
+    else if (def.icon == DialogIcon::Info)
+    {
+        content->SetGlyphIcon (s_kchGlyphInfo, s_kGlyphArgbInfo, s_kGlyphSizeDip);
+    }
+    else if (def.icon == DialogIcon::Warning)
+    {
+        content->SetGlyphIcon (s_kchGlyphWarning, s_kGlyphArgbWarning, s_kGlyphSizeDip);
+    }
+    else if (def.icon == DialogIcon::Error)
+    {
+        content->SetGlyphIcon (s_kchGlyphError, s_kGlyphArgbError, s_kGlyphSizeDip);
     }
 
     heightDip = std::clamp (s_kChromeHeightDip + content->PreferredHeightDip(),
