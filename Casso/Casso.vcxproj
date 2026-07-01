@@ -263,10 +263,6 @@
     <ClCompile Include="Ui\ColorUtil.cpp" />
     <ClCompile Include="Ui\Chrome\DriveLabelTruncation.cpp" />
     <ClCompile Include="Ui\Dialog\DialogBodyContent.cpp" />
-    <ClCompile Include="Ui\Dialog\DialogLayout.cpp" />
-    <ClCompile Include="Ui\Dialog\DialogPrimitive.cpp" />
-    <ClCompile Include="Ui\Dialog\DialogPrimitiveRenderer.cpp" />
-    <ClCompile Include="Ui\Dialog\StandaloneDialog.cpp" />
     <ClCompile Include="Ui\Dialog\StartupDownloadDialog.cpp" />
     <ClCompile Include="Shell\DiskMru.cpp" />
     <ClCompile Include="TrackSectorPredicate.cpp" />
@@ -299,10 +295,6 @@
     <ClInclude Include="Ui\Chrome\DriveLabelTruncation.h" />
     <ClInclude Include="Ui\Dialog\DialogDefinition.h" />
     <ClInclude Include="Ui\Dialog\DialogBodyContent.h" />
-    <ClInclude Include="Ui\Dialog\DialogLayout.h" />
-    <ClInclude Include="Ui\Dialog\DialogPrimitive.h" />
-    <ClInclude Include="Ui\Dialog\DialogPrimitiveRenderer.h" />
-    <ClInclude Include="Ui\Dialog\StandaloneDialog.h" />
     <ClInclude Include="Ui\Dialog\StartupDownloadDialog.h" />
     <ClInclude Include="Shell\DiskMru.h" />
     <ClInclude Include="Ui\Chrome\LayoutManager.h" />
